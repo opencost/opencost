@@ -9,6 +9,7 @@ import (
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/timeutil"
+	"golang.org/x/exp/slices"
 )
 
 // TODO Clean-up use of IsEmpty; nil checks should be separated for safety.
@@ -1045,6 +1046,8 @@ type AllocationAggregationOptions struct {
 	Reconcile                             bool
 	ReconcileNetwork                      bool
 	ShareFuncs                            []AllocationMatchFunc
+	SharedNamespaces                      []string
+	SharedLabels                          map[string][]string
 	ShareIdle                             string
 	ShareSplit                            string
 	SharedHourlyCosts                     map[string]float64
@@ -1537,7 +1540,12 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 					if alloc.SharedCostBreakdown == nil {
 						alloc.SharedCostBreakdown = map[string]SharedCostBreakdown{}
 					}
-					sharedCostName := sharedAlloc.generateKey(aggregateBy, options.LabelConfig)
+
+					sharedCostName, err := sharedAlloc.determineSharingName(options)
+					if err != nil {
+						return fmt.Errorf("failed to group shared costs: %s", err)
+					}
+
 					// check if current allocation is a shared flat overhead cost
 					if strings.Contains(sharedAlloc.Name, SharedSuffix) {
 						sharedCostName = "overheadCost"
@@ -1975,6 +1983,69 @@ func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions,
 	}
 
 	return nil
+}
+
+func (a *Allocation) determineSharingName(options *AllocationAggregationOptions) (string, error) {
+	if a == nil {
+		return "", fmt.Errorf("determineSharingName called on nil Allocation")
+	} else if options == nil {
+		return "unknown", nil
+	}
+
+	// grab SharedLabels keys and sort them, to keep this function deterministic
+	var labelKeys []string
+	for labelKey, _ := range options.SharedLabels {
+		labelKeys = append(labelKeys, labelKey)
+	}
+	slices.Sort(labelKeys)
+
+	var sharedAggregateBy []string
+	var sharedLabels [][]string
+	for _, labelKey := range labelKeys {
+		sharedAgg := fmt.Sprintf("label:%s", labelKey)
+		if !slices.Contains(sharedAggregateBy, sharedAgg) {
+			sharedAggregateBy = append(sharedAggregateBy, sharedAgg)
+		}
+		sharedLabels = append(sharedLabels, options.SharedLabels[labelKey])
+	}
+	if len(options.SharedNamespaces) > 0 {
+		sharedAggregateBy = append(sharedAggregateBy, "namespace")
+	}
+	sharedCostName := a.generateKey(sharedAggregateBy, options.LabelConfig)
+
+	// get each value in the generated key, then reset the name
+	sharedCostNameValues := strings.Split(sharedCostName, "/")
+	sharedCostName = ""
+
+	// if we don't have as many values as aggregateBys, something went wrong in generateKey
+	if len(sharedCostNameValues) != len(sharedAggregateBy) {
+		log.Warnf("Unable to determine share cost group for allocation \"%s\"", a.Name)
+	} else {
+		// try to match to the first label
+		for i, sharedLabelValues := range sharedLabels {
+			allocLabel := sharedCostNameValues[i]
+			if slices.Contains(sharedLabelValues, allocLabel) {
+				return allocLabel, nil
+			}
+		}
+
+		// if we didn't match to a label, try to match to a namespace
+		if len(options.SharedNamespaces) > 0 {
+			// namespace will always be the last value, if SharedNamespaces is set
+			allocNamespace := sharedCostNameValues[len(sharedCostNameValues)-1]
+			if slices.Contains(options.SharedNamespaces, allocNamespace) {
+				return allocNamespace, nil
+			}
+		}
+
+		// if neither the labels nor the namespaces matched, we log a warning and mark this allocation
+		// as unknown
+		if len(sharedCostName) == 0 {
+			log.Warnf("Failed to determine shared cost grouping for allocation \"%s\"", a.Name)
+		}
+	}
+
+	return "unknown", nil
 }
 
 // getIdleId returns the providerId or cluster of an Allocation depending on the IdleByNode
