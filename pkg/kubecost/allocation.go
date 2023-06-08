@@ -1174,10 +1174,8 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// them to their respective sets, removing them from the set of allocations
 	// to aggregate.
 	for _, alloc := range as.Allocations {
-		// if the user does not want any aggregated labels/annotations returned
-		// set the properties accordingly
-		alloc.Properties.AggregatedMetadata = options.IncludeAggregatedMetadata
 
+		alloc.Properties.AggregatedMetadata = options.IncludeAggregatedMetadata
 		// External allocations get aggregated post-hoc (see step 6) and do
 		// not necessarily contain complete sets of properties, so they are
 		// moved to a separate AllocationSet.
