@@ -1,4 +1,4 @@
-package util
+package cloudcost
 
 import (
 	"reflect"
@@ -105,7 +105,7 @@ func filterV1SingleValueFromList(rawFilterValues []string, field string) filter.
 		}
 
 		if wildcard {
-			subFilter.Op = kubecost.FilterStartsWith
+			subFilter.Op = filter.StringStartsWith
 		}
 
 		result.Filters = append(result.Filters, subFilter)

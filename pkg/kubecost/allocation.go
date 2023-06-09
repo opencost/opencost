@@ -6,6 +6,9 @@ import (
 	"strings"
 	"time"
 
+	filter21 "github.com/opencost/opencost/pkg/filter21"
+	"github.com/opencost/opencost/pkg/filter21/ast"
+	"github.com/opencost/opencost/pkg/filter21/matcher"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/timeutil"
@@ -1038,7 +1041,7 @@ func NewAllocationSet(start, end time.Time, allocs ...*Allocation) *AllocationSe
 // simple flag for sharing idle resources.
 type AllocationAggregationOptions struct {
 	AllocationTotalsStore                 AllocationTotalsStore
-	Filter                                AllocationFilter
+	Filter                                filter21.Filter
 	IdleByNode                            bool
 	IncludeProportionalAssetResourceCosts bool
 	LabelConfig                           *LabelConfig
@@ -1123,10 +1126,19 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		options.ShareIdle = ShareNone
 	}
 
-	// Pre-flatten the filter so we can just check == nil to see if there are
-	// filters.
-	if options.Filter != nil {
-		options.Filter = options.Filter.Flattened()
+	var filter AllocationMatcher
+	if options.Filter == nil {
+		filter = &matcher.AllPass[*Allocation]{}
+	} else {
+		compiler := NewAllocationMatchCompiler()
+		var err error
+		filter, err = compiler.Compile(options.Filter)
+		if err != nil {
+			return fmt.Errorf("compiling filter '%s': %w", ast.ToPreOrderShortString(options.Filter), err)
+		}
+	}
+	if filter == nil {
+		return fmt.Errorf("unexpected nil filter")
 	}
 
 	var allocatedTotalsMap map[string]map[string]float64
@@ -1135,7 +1147,11 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// an empty slice implies that we should aggregate everything. See
 	// generateKey for why that makes sense.
 	shouldAggregate := aggregateBy != nil
-	shouldFilter := options.Filter != nil
+	shouldFilter := true
+	// TODO: Make sure this works as expected
+	if _, isAllPass := filter.(*matcher.AllPass[*Allocation]); isAllPass {
+		shouldFilter = false
+	}
 	shouldShare := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
 	if !shouldAggregate && !shouldFilter && !shouldShare && options.ShareIdle == ShareNone && !options.IncludeProportionalAssetResourceCosts {
 		// There is nothing for AggregateBy to do, so simply return nil
@@ -1357,14 +1373,9 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 			log.DedupedWarningf(3, "AllocationSet.AggregateBy: missing idleId for allocation: %s", alloc.Name)
 		}
 
-		skip := false
-
 		// (3) If the allocation does not match the filter, immediately skip the
 		// allocation.
-		if options.Filter != nil {
-			skip = !options.Filter.Matches(alloc)
-		}
-		if skip {
+		if !filter.Matches(alloc) {
 			// If we are tracking idle filtration coefficients, delete the
 			// entry corresponding to the filtered allocation. (Deleting the
 			// entry will result in that proportional amount being removed
@@ -1576,11 +1587,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// exact key match, given each external allocation's proerties, and
 	// aggregate if an exact match is found.
 	for _, alloc := range externalSet.Allocations {
-		skip := false
-		if options.Filter != nil {
-			skip = !options.Filter.Matches(alloc)
-		}
-		if !skip {
+		if filter.Matches(alloc) {
 			key := alloc.generateKey(aggregateBy, options.LabelConfig)
 
 			alloc.Name = key
@@ -1610,11 +1617,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	if idleSet.Length() > 0 {
 		for _, idleAlloc := range idleSet.Allocations {
 			// if the idle does not apply to the non-filtered values, skip it
-			skip := false
-			if options.Filter != nil {
-				skip = !options.Filter.Matches(idleAlloc)
-			}
-			if skip {
+			if !filter.Matches(idleAlloc) {
 				continue
 			}
 
@@ -1725,6 +1728,21 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 	// counts each aggregation proportionally to its respective costs
 	shareType := options.ShareSplit
 
+	var filter AllocationMatcher
+	if options.Filter == nil {
+		filter = &matcher.AllPass[*Allocation]{}
+	} else {
+		compiler := NewAllocationMatchCompiler()
+		var err error
+		filter, err = compiler.Compile(options.Filter)
+		if err != nil {
+			return nil, fmt.Errorf("compiling filter '%s': %w", ast.ToPreOrderShortString(options.Filter), err)
+		}
+	}
+	if filter == nil {
+		return nil, fmt.Errorf("unexpected nil filter")
+	}
+
 	// Record allocation values first, then normalize by totals to get percentages
 	for _, alloc := range as.Allocations {
 		if alloc.IsIdle() {
@@ -1746,11 +1764,7 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 		// of a non-filtered allocation will be conserved even when the filter
 		// is removed. (Otherwise, all the shared cost will get redistributed
 		// over the unfiltered results, inflating their shared costs.)
-		filtered := false
-		if options.Filter != nil {
-			filtered = !options.Filter.Matches(alloc)
-		}
-		if filtered {
+		if !filter.Matches(alloc) {
 			name = "__filtered__"
 		}
 
