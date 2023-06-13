@@ -40,6 +40,7 @@ const aggregationOptions = [
   { name: 'Controller', value: 'controller' },
   { name: 'Service', value: 'service' },
   { name: 'Pod', value: 'pod' },
+  { name: 'Container', value: 'container' },
 ]
 
 const accumulateOptions = [
@@ -121,7 +122,7 @@ const ReportsPage = () => {
   const [fetch, setFetch] = useState(false)
   const [loading, setLoading] = useState(true)
   const [errors, setErrors] = useState([])
-  
+
   // Initialize once, then fetch report each time setFetch(true) is called
   useEffect(() => {
     if (!init) {
