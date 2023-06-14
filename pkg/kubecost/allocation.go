@@ -1059,6 +1059,13 @@ type AllocationAggregationOptions struct {
 	IncludeAggregatedMetadata             bool
 }
 
+func isFilterEmpty(filter AllocationMatcher) bool {
+	if _, isAllPass := filter.(*matcher.AllPass[*Allocation]); isAllPass {
+		return true
+	}
+	return false
+}
+
 // AggregateBy aggregates the Allocations in the given AllocationSet by the given
 // AllocationProperty. This will only be legal if the AllocationSet is divisible by the
 // given AllocationProperty; e.g. Containers can be divided by Namespace, but not vice-a-versa.
@@ -1147,11 +1154,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// an empty slice implies that we should aggregate everything. See
 	// generateKey for why that makes sense.
 	shouldAggregate := aggregateBy != nil
-	shouldFilter := true
-	// TODO: Make sure this works as expected
-	if _, isAllPass := filter.(*matcher.AllPass[*Allocation]); isAllPass {
-		shouldFilter = false
-	}
+	shouldFilter := !isFilterEmpty(filter)
 	shouldShare := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
 	if !shouldAggregate && !shouldFilter && !shouldShare && options.ShareIdle == ShareNone && !options.IncludeProportionalAssetResourceCosts {
 		// There is nothing for AggregateBy to do, so simply return nil

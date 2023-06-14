@@ -3436,3 +3436,28 @@ func Test_DetermineSharingName(t *testing.T) {
 		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
 	}
 }
+
+func TestIsFilterEmptyTrue(t *testing.T) {
+	compiler := NewAllocationMatchCompiler()
+	matcher, err := compiler.Compile(nil)
+	if err != nil {
+		t.Fatalf("compiling nil filter: %s", err)
+	}
+
+	result := isFilterEmpty(matcher)
+	if !result {
+		t.Errorf("matcher '%+v' should be reported empty but wasn't", matcher)
+	}
+}
+
+func TestIsFilterEmptyFalse(t *testing.T) {
+	compiler := NewAllocationMatchCompiler()
+	matcher, err := compiler.Compile(ops.Eq(allocfilter.AllocationFieldClusterID, "test"))
+	if err != nil {
+		t.Fatalf("compiling nil filter: %s", err)
+	}
+	result := isFilterEmpty(matcher)
+	if result {
+		t.Errorf("matcher '%+v' should be not be reported empty but was", matcher)
+	}
+}
