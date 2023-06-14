@@ -2267,7 +2267,7 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// include aggregated labels/annotations if true
 	includeAggregatedMetadata := qp.GetBool("includeAggregatedMetadata", false)
 
-	asr, err := a.Model.QueryAllocation(window, resolution, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata)
+	asr, err := a.Model.QueryAllocation(window, resolution, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, accumulateBy)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "bad request") {
 			WriteError(w, BadRequest(err.Error()))
@@ -2278,82 +2278,6 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if includeProportionalAssetResourceCosts {
-		for _, as := range asr.Allocations {
-			_, err := kubecost.UpdateAllocationTotalsStore(a.totalsStore, as)
-			if err != nil {
-				log.Errorf("ETL: error updating allocation resource totals for %s: %s", as.Window, err)
-			}
-		}
-	}
-
-	// Accumulate, if requested
-	if accumulateBy != kubecost.AccumulateOptionNone {
-		asr, err = asr.Accumulate(accumulateBy)
-		if err != nil {
-			log.Errorf("error accumulating by %v: %s", accumulateBy, err)
-			WriteError(w, InternalServerError(fmt.Errorf("error accumulating by %v: %s", accumulateBy, err).Error()))
-			return
-		}
-		for _, as := range asr.Allocations {
-			_, err := kubecost.UpdateAllocationTotalsStore(a.totalsStore, as)
-			if err != nil {
-				log.Errorf("ETL: error updating allocation resource totals during accumulation for %s: %s", as.Window, err)
-			}
-		}
-	}
-
-	if includeProportionalAssetResourceCosts {
-		for _, as := range asr.Allocations {
-			totalStoreByNode, ok := a.totalsStore.GetAllocationTotalsByNode(as.Start(), as.End())
-			if !ok {
-				log.Errorf("unable to locate allocation totals for node")
-				WriteError(w, InternalServerError(fmt.Errorf("error getting allocation totals").Error()))
-				return
-			}
-
-			totalStoreByCluster, ok := a.totalsStore.GetAllocationTotalsByCluster(as.Start(), as.End())
-			if !ok {
-				log.Errorf("unable to locate allocation totals for cluster")
-				WriteError(w, InternalServerError(fmt.Errorf("error getting clusterallocation totals").Error()))
-				return
-			}
-
-			// loop through each allocation set, using total cost from totals store
-			for _, alloc := range as.Allocations {
-				for rawKey, parc := range alloc.ProportionalAssetResourceCosts {
-					key := strings.ReplaceAll(rawKey, ",", "/")
-					// for each parc , check the totals store for each
-					// on a totals hit, set the corresponding total and calculate percentage
-					var totals *kubecost.AllocationTotals
-					if totalsLoc, found := totalStoreByCluster[key]; found {
-						totals = totalsLoc
-					}
-
-					if totalsLoc, found := totalStoreByNode[key]; found {
-						totals = totalsLoc
-					}
-
-					if totals == nil {
-						log.Errorf("unable to locate allocation totals for allocation %s", key)
-						WriteError(w, InternalServerError(fmt.Errorf("unable to locate allocation totals for allocation").Error()))
-						return
-					}
-
-					parc.CPUTotalCost = totals.CPUCost
-					parc.GPUTotalCost = totals.GPUCost
-					parc.RAMTotalCost = totals.RAMCost
-					parc.LoadBalancerTotalCost = totals.LoadBalancerCost
-					if parc.LoadBalancerProportionalCost > 0 {
-						log.Debug("break")
-					}
-					kubecost.ComputePercentages(&parc)
-					alloc.ProportionalAssetResourceCosts[key] = parc
-				}
-			}
-
-		}
-	}
 	w.Write(WrapData(asr, nil))
 }
 
