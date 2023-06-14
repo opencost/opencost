@@ -13,11 +13,12 @@ package kubecost
 
 import (
 	"fmt"
-	util "github.com/opencost/opencost/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
+
+	util "github.com/opencost/opencost/pkg/util"
 )
 
 const (
@@ -1271,6 +1272,60 @@ func (target *AllocationProperties) MarshalBinaryWithContext(ctx *EncodingContex
 	}
 	// --- [end][write][alias](AllocationAnnotations) ---
 
+	// --- [begin][write][alias](AllocationLabels) ---
+	if map[string]string(target.NamespaceLabels) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]string) ---
+		buff.WriteInt(len(map[string]string(target.NamespaceLabels))) // map length
+		for vvv, zzz := range map[string]string(target.NamespaceLabels) {
+			if ctx.IsStringTable() {
+				p := ctx.Table.AddOrGet(vvv)
+				buff.WriteInt(p) // write table index
+			} else {
+				buff.WriteString(vvv) // write string
+			}
+			if ctx.IsStringTable() {
+				q := ctx.Table.AddOrGet(zzz)
+				buff.WriteInt(q) // write table index
+			} else {
+				buff.WriteString(zzz) // write string
+			}
+		}
+		// --- [end][write][map](map[string]string) ---
+
+	}
+	// --- [end][write][alias](AllocationLabels) ---
+
+	// --- [begin][write][alias](AllocationAnnotations) ---
+	if map[string]string(target.NamespaceAnnotations) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]string) ---
+		buff.WriteInt(len(map[string]string(target.NamespaceAnnotations))) // map length
+		for vvvv, zzzz := range map[string]string(target.NamespaceAnnotations) {
+			if ctx.IsStringTable() {
+				r := ctx.Table.AddOrGet(vvvv)
+				buff.WriteInt(r) // write table index
+			} else {
+				buff.WriteString(vvvv) // write string
+			}
+			if ctx.IsStringTable() {
+				s := ctx.Table.AddOrGet(zzzz)
+				buff.WriteInt(s) // write table index
+			} else {
+				buff.WriteString(zzzz) // write string
+			}
+		}
+		// --- [end][write][map](map[string]string) ---
+
+	}
+	// --- [end][write][alias](AllocationAnnotations) ---
+
 	return nil
 }
 
@@ -1511,6 +1566,96 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 	}
 	target.Annotations = AllocationAnnotations(tt)
 	// --- [end][read][alias](AllocationAnnotations) ---
+
+	// field version check
+	if uint8(17) <= version {
+		// --- [begin][read][alias](AllocationLabels) ---
+		var eee map[string]string
+		if buff.ReadUInt8() == uint8(0) {
+			eee = nil
+		} else {
+			// --- [begin][read][map](map[string]string) ---
+			ggg := buff.ReadInt() // map len
+			fff := make(map[string]string, ggg)
+			for jj := 0; jj < ggg; jj++ {
+				var vvv string
+				var kkk string
+				if ctx.IsStringTable() {
+					lll := buff.ReadInt() // read string index
+					kkk = ctx.Table[lll]
+				} else {
+					kkk = buff.ReadString() // read string
+				}
+				hhh := kkk
+				vvv = hhh
+
+				var zzz string
+				var nnn string
+				if ctx.IsStringTable() {
+					ooo := buff.ReadInt() // read string index
+					nnn = ctx.Table[ooo]
+				} else {
+					nnn = buff.ReadString() // read string
+				}
+				mmm := nnn
+				zzz = mmm
+
+				fff[vvv] = zzz
+			}
+			eee = fff
+			// --- [end][read][map](map[string]string) ---
+
+		}
+		target.NamespaceLabels = AllocationLabels(eee)
+		// --- [end][read][alias](AllocationLabels) ---
+
+	} else {
+	}
+
+	// field version check
+	if uint8(17) <= version {
+		// --- [begin][read][alias](AllocationAnnotations) ---
+		var ppp map[string]string
+		if buff.ReadUInt8() == uint8(0) {
+			ppp = nil
+		} else {
+			// --- [begin][read][map](map[string]string) ---
+			rrr := buff.ReadInt() // map len
+			qqq := make(map[string]string, rrr)
+			for iii := 0; iii < rrr; iii++ {
+				var vvvv string
+				var ttt string
+				if ctx.IsStringTable() {
+					uuu := buff.ReadInt() // read string index
+					ttt = ctx.Table[uuu]
+				} else {
+					ttt = buff.ReadString() // read string
+				}
+				sss := ttt
+				vvvv = sss
+
+				var zzzz string
+				var xxx string
+				if ctx.IsStringTable() {
+					yyy := buff.ReadInt() // read string index
+					xxx = ctx.Table[yyy]
+				} else {
+					xxx = buff.ReadString() // read string
+				}
+				www := xxx
+				zzzz = www
+
+				qqq[vvvv] = zzzz
+			}
+			ppp = qqq
+			// --- [end][read][map](map[string]string) ---
+
+		}
+		target.NamespaceAnnotations = AllocationAnnotations(ppp)
+		// --- [end][read][alias](AllocationAnnotations) ---
+
+	} else {
+	}
 
 	return nil
 }

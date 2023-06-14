@@ -16,7 +16,7 @@ import (
 
 	"github.com/opencost/opencost/pkg/log"
 
-	aws "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 
 	"github.com/minio/minio-go/v7"
@@ -565,6 +565,7 @@ func (s3 *S3Storage) getRange(ctx context.Context, name string, off, length int6
 		}
 	}
 	r, err := s3.client.GetObject(ctx, s3.name, name, *opts)
+	defer r.Close()
 	if err != nil {
 		if s3.isObjNotFound(err) {
 			return nil, DoesNotExistError
@@ -575,7 +576,6 @@ func (s3 *S3Storage) getRange(ctx context.Context, name string, off, length int6
 	// NotFoundObject error is revealed only after first Read. This does the initial GetRequest. Prefetch this here
 	// for convenience.
 	if _, err := r.Read(nil); err != nil {
-		r.Close()
 		if s3.isObjNotFound(err) {
 			return nil, DoesNotExistError
 		}

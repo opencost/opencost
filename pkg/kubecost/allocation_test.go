@@ -3233,3 +3233,202 @@ func Test_AggregateByService_UnmountedLBs(t *testing.T) {
 	spew.Config.DisableMethods = true
 	t.Logf("%s", spew.Sdump(set.Allocations))
 }
+
+func Test_DetermineSharingName(t *testing.T) {
+	var alloc *Allocation
+	var name string
+	var err error
+
+	// test nil allocation with nil options
+	name, err = alloc.determineSharingName(nil)
+	if err == nil {
+		t.Fatalf("determineSharingName: expected error; actual nil")
+	}
+
+	// test nil with non-nil options
+	name, err = alloc.determineSharingName(&AllocationAggregationOptions{})
+	if err == nil {
+		t.Fatalf("determineSharingName: expected error; actual nil")
+	}
+
+	alloc = &Allocation{}
+	alloc.Properties = &AllocationProperties{
+		Cluster: "cluster1",
+		Labels: map[string]string{
+			"app": "app1",
+			"env": "env1",
+		},
+		Namespace: "namespace1",
+	}
+
+	// test non-nil allocation with nil options
+	name, err = alloc.determineSharingName(nil)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "unknown" {
+		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with empty options
+	options := &AllocationAggregationOptions{}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "unknown" {
+		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with matching namespace options
+	options.SharedNamespaces = []string{"namespace1"}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "namespace1" {
+		t.Fatalf("determineSharingName: expected \"namespace1\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with non-matching namespace options
+	options.SharedNamespaces = []string{"namespace2"}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "unknown" {
+		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with matching label options
+	options.SharedNamespaces = nil
+	options.SharedLabels = map[string][]string{
+		"app": {"app1"},
+	}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "app1" {
+		t.Fatalf("determineSharingName: expected \"app1\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with partial-matching label options
+	options.SharedLabels = map[string][]string{
+		"app": {"app1", "app2"},
+	}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "app1" {
+		t.Fatalf("determineSharingName: expected \"app1\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with non-matching label options
+	options.SharedLabels = map[string][]string{
+		"app": {"app2"},
+	}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "unknown" {
+		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with matching namespace and label options
+	options.SharedNamespaces = []string{"namespace1"}
+	options.SharedLabels = map[string][]string{
+		"app": {"app1"},
+	}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "app1" {
+		t.Fatalf("determineSharingName: expected \"app1\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with non-matching namespace and matching label options
+	options.SharedNamespaces = []string{"namespace2"}
+	options.SharedLabels = map[string][]string{
+		"app": {"app1"},
+	}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "app1" {
+		t.Fatalf("determineSharingName: expected \"app1\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with non-matching namespace and non-matching label options
+	options.SharedNamespaces = []string{"namespace2"}
+	options.SharedLabels = map[string][]string{
+		"app": {"app2"},
+	}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "unknown" {
+		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with multiple matching label options
+	alloc.Properties.Labels = map[string]string{
+		"app": "app1",
+		"env": "env1",
+	}
+	options.SharedNamespaces = nil
+	options.SharedLabels = map[string][]string{
+		"app": {"app1"},
+		"env": {"env1"},
+	}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "app1" {
+		t.Fatalf("determineSharingName: expected \"app1\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with one matching label option
+	alloc.Properties.Labels = map[string]string{
+		"app": "app2",
+		"env": "env1",
+	}
+	options.SharedNamespaces = nil
+	options.SharedLabels = map[string][]string{
+		"app": {"app1"},
+		"env": {"env1"},
+	}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "env1" {
+		t.Fatalf("determineSharingName: expected \"env1\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with one matching namespace option
+	alloc.Properties.Namespace = "namespace1"
+	options.SharedNamespaces = []string{"namespace1", "namespace2"}
+	options.SharedLabels = nil
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "namespace1" {
+		t.Fatalf("determineSharingName: expected \"namespace1\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with another one matching namespace option
+	alloc.Properties.Namespace = "namespace2"
+	options.SharedNamespaces = []string{"namespace1", "namespace2"}
+	options.SharedLabels = nil
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "namespace2" {
+		t.Fatalf("determineSharingName: expected \"namespace2\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with non-matching namespace options
+	alloc.Properties.Namespace = "namespace3"
+	options.SharedNamespaces = []string{"namespace1", "namespace2"}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "unknown" {
+		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
+	}
+}
