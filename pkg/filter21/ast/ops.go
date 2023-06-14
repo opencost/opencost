@@ -52,6 +52,9 @@ const (
 	// FilterOpVoid is base-depth operator that is used for an empty filter
 	FilterOpVoid = "void"
 
+	// FilterOpContradiction is a base-depth operator that filters all data.
+	FilterOpContradiction = "contradiction"
+
 	// FilterOpAnd is an operator that succeeds if all parameters succeed.
 	FilterOpAnd = "and"
 
@@ -68,6 +71,14 @@ type VoidOp struct{}
 // Op returns the FilterOp enumeration value for the operator.
 func (_ *VoidOp) Op() FilterOp {
 	return FilterOpVoid
+}
+
+// ContradictionOp is a base-depth operator that filters all data.
+type ContradictionOp struct{}
+
+// Op returns the FilterOp enumeration value for the operator.
+func (_ *ContradictionOp) Op() FilterOp {
+	return FilterOpContradiction
 }
 
 // AndOp is a filter operation that contains a flat list of nodes which should all resolve

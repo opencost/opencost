@@ -2,6 +2,8 @@ package kubecost
 
 import (
 	"time"
+
+	filter21 "github.com/opencost/opencost/pkg/filter21"
 )
 
 // Querier is an aggregate interface which has the ability to query each Kubecost store type
@@ -38,7 +40,7 @@ type AllocationQueryOptions struct {
 	AggregateBy             []string
 	Compute                 bool
 	DisableAggregatedStores bool
-	Filter                  AllocationFilter
+	Filter                  filter21.Filter
 	IdleByNode              bool
 	IncludeExternal         bool
 	IncludeIdle             bool
