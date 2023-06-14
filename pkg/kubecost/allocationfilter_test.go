@@ -4,12 +4,20 @@ import (
 	"testing"
 
 	filter21 "github.com/opencost/opencost/pkg/filter21"
-	allocfilter "github.com/opencost/opencost/pkg/filter21/allocation"
+	afilter "github.com/opencost/opencost/pkg/filter21/allocation"
 	"github.com/opencost/opencost/pkg/filter21/ast"
 	"github.com/opencost/opencost/pkg/filter21/ops"
 )
 
 func Test_AllocationFilterCondition_Matches(t *testing.T) {
+	labelConfig := &LabelConfig{
+		DepartmentLabel:  "keydepartment",
+		EnvironmentLabel: "keyenvironment",
+		OwnerLabel:       "keyowner",
+		ProductLabel:     "keyproduct",
+		TeamLabel:        "keyteam",
+	}
+
 	cases := []struct {
 		name   string
 		a      *Allocation
@@ -24,7 +32,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Cluster: "cluster-one",
 				},
 			},
-			filter:   ops.Eq(allocfilter.AllocationFieldClusterID, "cluster-one"),
+			filter:   ops.Eq(afilter.FieldClusterID, "cluster-one"),
 			expected: true,
 		},
 		{
@@ -34,7 +42,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Cluster: "cluster-one",
 				},
 			},
-			filter:   ops.ContainsPrefix(allocfilter.AllocationFieldClusterID, "cluster"),
+			filter:   ops.ContainsPrefix(afilter.FieldClusterID, "cluster"),
 			expected: true,
 		},
 		{
@@ -44,7 +52,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Cluster: "k8s-one",
 				},
 			},
-			filter: ops.ContainsPrefix(allocfilter.AllocationFieldClusterID, "cluster"),
+			filter: ops.ContainsPrefix(afilter.FieldClusterID, "cluster"),
 
 			expected: false,
 		},
@@ -55,7 +63,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Cluster: "",
 				},
 			},
-			filter:   ops.ContainsPrefix(allocfilter.AllocationFieldClusterID, ""),
+			filter:   ops.ContainsPrefix(afilter.FieldClusterID, ""),
 			expected: true,
 		},
 		{
@@ -65,7 +73,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Cluster: "abc",
 				},
 			},
-			filter:   ops.ContainsPrefix(allocfilter.AllocationFieldClusterID, ""),
+			filter:   ops.ContainsPrefix(afilter.FieldClusterID, ""),
 			expected: true,
 		},
 		{
@@ -75,7 +83,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Node: "node123",
 				},
 			},
-			filter:   ops.Eq(allocfilter.AllocationFieldNode, "node123"),
+			filter:   ops.Eq(afilter.FieldNode, "node123"),
 			expected: true,
 		},
 		{
@@ -85,7 +93,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Namespace: "kube-system",
 				},
 			},
-			filter:   ops.NotEq(allocfilter.AllocationFieldNamespace, "kube-system"),
+			filter:   ops.NotEq(afilter.FieldNamespace, "kube-system"),
 			expected: false,
 		},
 		{
@@ -95,7 +103,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Namespace: "kube-system",
 				},
 			},
-			filter:   ops.NotEq(allocfilter.AllocationFieldNamespace, UnallocatedSuffix),
+			filter:   ops.NotEq(afilter.FieldNamespace, UnallocatedSuffix),
 			expected: true,
 		},
 		{
@@ -105,7 +113,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Namespace: "",
 				},
 			},
-			filter:   ops.NotEq(allocfilter.AllocationFieldNamespace, UnallocatedSuffix),
+			filter:   ops.NotEq(afilter.FieldNamespace, UnallocatedSuffix),
 			expected: false,
 		},
 		{
@@ -115,7 +123,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Namespace: "",
 				},
 			},
-			filter:   ops.Eq(allocfilter.AllocationFieldNamespace, UnallocatedSuffix),
+			filter:   ops.Eq(afilter.FieldNamespace, UnallocatedSuffix),
 			expected: true,
 		},
 		{
@@ -125,7 +133,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					ControllerKind: "deployment", // We generally store controller kinds as all lowercase
 				},
 			},
-			filter:   ops.Eq(allocfilter.AllocationFieldControllerKind, "deployment"),
+			filter:   ops.Eq(afilter.FieldControllerKind, "deployment"),
 			expected: true,
 		},
 		{
@@ -135,7 +143,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Controller: "kc-cost-analyzer",
 				},
 			},
-			filter:   ops.Eq(allocfilter.AllocationFieldControllerName, "kc-cost-analyzer"),
+			filter:   ops.Eq(afilter.FieldControllerName, "kc-cost-analyzer"),
 			expected: true,
 		},
 		{
@@ -145,7 +153,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Pod: "pod-123 UID-ABC",
 				},
 			},
-			filter:   ops.Eq(allocfilter.AllocationFieldPod, "pod-123 UID-ABC"),
+			filter:   ops.Eq(afilter.FieldPod, "pod-123 UID-ABC"),
 			expected: true,
 		},
 		{
@@ -155,7 +163,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Container: "cost-model",
 				},
 			},
-			filter:   ops.Eq(allocfilter.AllocationFieldContainer, "cost-model"),
+			filter:   ops.Eq(afilter.FieldContainer, "cost-model"),
 			expected: true,
 		},
 		{
@@ -167,7 +175,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter:   ops.Eq(ops.WithKey(allocfilter.AllocationFieldLabel, "app"), "foo"),
+			filter:   ops.Eq(ops.WithKey(afilter.FieldLabel, "app"), "foo"),
 			expected: true,
 		},
 		{
@@ -179,7 +187,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter:   ops.Eq(ops.WithKey(allocfilter.AllocationFieldLabel, "app"), "foo"),
+			filter:   ops.Eq(ops.WithKey(afilter.FieldLabel, "app"), "foo"),
 			expected: false,
 		},
 		{
@@ -191,7 +199,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter:   ops.Eq(ops.WithKey(allocfilter.AllocationFieldLabel, "app"), "foo"),
+			filter:   ops.Eq(ops.WithKey(afilter.FieldLabel, "app"), "foo"),
 			expected: false,
 		},
 		{
@@ -203,7 +211,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter:   ops.Eq(ops.WithKey(allocfilter.AllocationFieldLabel, "app"), UnallocatedSuffix),
+			filter:   ops.Eq(ops.WithKey(afilter.FieldLabel, "app"), UnallocatedSuffix),
 			expected: true,
 		},
 		{
@@ -215,7 +223,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter:   ops.Eq(ops.WithKey(allocfilter.AllocationFieldLabel, "app"), UnallocatedSuffix),
+			filter:   ops.Eq(ops.WithKey(afilter.FieldLabel, "app"), UnallocatedSuffix),
 			expected: false,
 		},
 		{
@@ -227,7 +235,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter:   ops.NotEq(ops.WithKey(allocfilter.AllocationFieldLabel, "app"), UnallocatedSuffix),
+			filter:   ops.NotEq(ops.WithKey(afilter.FieldLabel, "app"), UnallocatedSuffix),
 			expected: false,
 		},
 		{
@@ -239,7 +247,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter:   ops.NotEq(ops.WithKey(allocfilter.AllocationFieldLabel, "app"), UnallocatedSuffix),
+			filter:   ops.NotEq(ops.WithKey(afilter.FieldLabel, "app"), UnallocatedSuffix),
 			expected: true,
 		},
 		{
@@ -251,7 +259,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter:   ops.NotEq(ops.WithKey(allocfilter.AllocationFieldLabel, "app"), "foo"),
+			filter:   ops.NotEq(ops.WithKey(afilter.FieldLabel, "app"), "foo"),
 			expected: true,
 		},
 		{
@@ -263,7 +271,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter:   ops.Eq(ops.WithKey(allocfilter.AllocationFieldAnnotation, "prom_modified_name"), "testing123"),
+			filter:   ops.Eq(ops.WithKey(afilter.FieldAnnotation, "prom_modified_name"), "testing123"),
 			expected: true,
 		},
 		{
@@ -275,7 +283,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter:   ops.Eq(ops.WithKey(allocfilter.AllocationFieldAnnotation, "app"), "foo"),
+			filter:   ops.Eq(ops.WithKey(afilter.FieldAnnotation, "app"), "foo"),
 			expected: false,
 		},
 		{
@@ -287,7 +295,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter:   ops.Eq(ops.WithKey(allocfilter.AllocationFieldAnnotation, "app"), "foo"),
+			filter:   ops.Eq(ops.WithKey(afilter.FieldAnnotation, "app"), "foo"),
 			expected: false,
 		},
 		{
@@ -299,7 +307,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter:   ops.NotEq(ops.WithKey(allocfilter.AllocationFieldAnnotation, "app"), "foo"),
+			filter:   ops.NotEq(ops.WithKey(afilter.FieldAnnotation, "app"), "foo"),
 			expected: true,
 		},
 		{
@@ -309,7 +317,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Namespace: "",
 				},
 			},
-			filter:   ops.Eq(allocfilter.AllocationFieldNamespace, UnallocatedSuffix),
+			filter:   ops.Eq(afilter.FieldNamespace, UnallocatedSuffix),
 			expected: true,
 		},
 		{
@@ -319,7 +327,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter:   ops.Contains(allocfilter.AllocationFieldServices, "serv2"),
+			filter:   ops.Contains(afilter.FieldServices, "serv2"),
 			expected: true,
 		},
 		{
@@ -329,7 +337,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter:   ops.Contains(allocfilter.AllocationFieldServices, "serv3"),
+			filter:   ops.Contains(afilter.FieldServices, "serv3"),
 			expected: false,
 		},
 		{
@@ -339,7 +347,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter:   ops.NotContains(allocfilter.AllocationFieldServices, "serv3"),
+			filter:   ops.NotContains(afilter.FieldServices, "serv3"),
 			expected: true,
 		},
 		{
@@ -349,7 +357,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter:   ops.NotContains(allocfilter.AllocationFieldServices, "serv2"),
+			filter:   ops.NotContains(afilter.FieldServices, "serv2"),
 			expected: false,
 		},
 		{
@@ -359,7 +367,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter:   ops.NotContains(allocfilter.AllocationFieldServices, UnallocatedSuffix),
+			filter:   ops.NotContains(afilter.FieldServices, UnallocatedSuffix),
 			expected: true,
 		},
 		{
@@ -369,7 +377,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{},
 				},
 			},
-			filter:   ops.NotContains(allocfilter.AllocationFieldServices, UnallocatedSuffix),
+			filter:   ops.NotContains(afilter.FieldServices, UnallocatedSuffix),
 			expected: false,
 		},
 		{
@@ -379,7 +387,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter:   ops.ContainsPrefix(allocfilter.AllocationFieldServices, "serv"),
+			filter:   ops.ContainsPrefix(afilter.FieldServices, "serv"),
 			expected: true,
 		},
 		{
@@ -389,7 +397,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{"foo", "bar"},
 				},
 			},
-			filter:   ops.ContainsPrefix(allocfilter.AllocationFieldServices, "serv"),
+			filter:   ops.ContainsPrefix(afilter.FieldServices, "serv"),
 			expected: false,
 		},
 		{
@@ -399,7 +407,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter:   ops.Contains(allocfilter.AllocationFieldServices, UnallocatedSuffix),
+			filter:   ops.Contains(afilter.FieldServices, UnallocatedSuffix),
 			expected: false,
 		},
 		{
@@ -409,13 +417,53 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{},
 				},
 			},
-			filter:   ops.Contains(allocfilter.AllocationFieldServices, UnallocatedSuffix),
+			filter:   ops.Contains(afilter.FieldServices, UnallocatedSuffix),
+			expected: true,
+		},
+		{
+			name: `department equals -> true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Labels: AllocationLabels{
+						"keydepartment": "foo",
+					},
+				},
+			},
+			// The ops package doesn't handle alias construction quite right,
+			// so we construct it more manually here
+			filter: &ast.EqualOp{
+				Left: ast.Identifier{
+					Field: ast.NewAliasField(afilter.AliasDepartment),
+				},
+				Right: "foo",
+			},
+			expected: true,
+		},
+		{
+			name: `product != unallocated -> true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Annotations: AllocationAnnotations{
+						"keyproduct": "foo",
+					},
+				},
+			},
+			// The ops package doesn't handle alias construction quite right,
+			// so we construct it more manually here
+			filter: &ast.NotOp{
+				Operand: &ast.EqualOp{
+					Left: ast.Identifier{
+						Field: ast.NewAliasField(afilter.AliasDepartment),
+					},
+					Right: UnallocatedSuffix,
+				},
+			},
 			expected: true,
 		},
 	}
 
 	for _, c := range cases {
-		compiler := NewAllocationMatchCompiler()
+		compiler := NewAllocationMatchCompiler(labelConfig)
 		compiled, err := compiler.Compile(c.filter)
 		if err != nil {
 			t.Fatalf("err compiling filter '%s': %s", ast.ToPreOrderShortString(c.filter), err)
@@ -537,7 +585,7 @@ func Test_AllocationFilterContradiction_Matches(t *testing.T) {
 
 	for _, c := range cases {
 		filter := &ast.ContradictionOp{}
-		compiler := NewAllocationMatchCompiler()
+		compiler := NewAllocationMatchCompiler(nil)
 		compiled, err := compiler.Compile(filter)
 		if err != nil {
 			t.Fatalf("err compiling filter '%s': %s", ast.ToPreOrderShortString(filter), err)
@@ -549,6 +597,7 @@ func Test_AllocationFilterContradiction_Matches(t *testing.T) {
 		}
 	}
 }
+
 func Test_AllocationFilterAnd_Matches(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -568,8 +617,8 @@ func Test_AllocationFilterAnd_Matches(t *testing.T) {
 				},
 			},
 			filter: ops.And(
-				ops.Eq(ops.WithKey(allocfilter.AllocationFieldLabel, "app"), "foo"),
-				ops.Eq(allocfilter.AllocationFieldNamespace, "kubecost"),
+				ops.Eq(ops.WithKey(afilter.FieldLabel, "app"), "foo"),
+				ops.Eq(afilter.FieldNamespace, "kubecost"),
 			),
 			expected: true,
 		},
@@ -584,8 +633,8 @@ func Test_AllocationFilterAnd_Matches(t *testing.T) {
 				},
 			},
 			filter: ops.And(
-				ops.Eq(ops.WithKey(allocfilter.AllocationFieldLabel, "app"), "foo"),
-				ops.Eq(allocfilter.AllocationFieldNamespace, "kubecost"),
+				ops.Eq(ops.WithKey(afilter.FieldLabel, "app"), "foo"),
+				ops.Eq(afilter.FieldNamespace, "kubecost"),
 			),
 			expected: false,
 		},
@@ -600,8 +649,8 @@ func Test_AllocationFilterAnd_Matches(t *testing.T) {
 				},
 			},
 			filter: ops.And(
-				ops.Eq(ops.WithKey(allocfilter.AllocationFieldLabel, "app"), "foo"),
-				ops.Eq(allocfilter.AllocationFieldNamespace, "kubecost"),
+				ops.Eq(ops.WithKey(afilter.FieldLabel, "app"), "foo"),
+				ops.Eq(afilter.FieldNamespace, "kubecost"),
 			),
 			expected: false,
 		},
@@ -616,8 +665,8 @@ func Test_AllocationFilterAnd_Matches(t *testing.T) {
 				},
 			},
 			filter: ops.And(
-				ops.Eq(ops.WithKey(allocfilter.AllocationFieldLabel, "app"), "foo"),
-				ops.Eq(allocfilter.AllocationFieldNamespace, "kubecost"),
+				ops.Eq(ops.WithKey(afilter.FieldLabel, "app"), "foo"),
+				ops.Eq(afilter.FieldNamespace, "kubecost"),
 			),
 			expected: false,
 		},
@@ -637,7 +686,7 @@ func Test_AllocationFilterAnd_Matches(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		compiler := NewAllocationMatchCompiler()
+		compiler := NewAllocationMatchCompiler(nil)
 		compiled, err := compiler.Compile(c.filter)
 		if err != nil {
 			t.Fatalf("err compiling filter '%s': %s", ast.ToPreOrderShortString(c.filter), err)
@@ -669,8 +718,8 @@ func Test_AllocationFilterOr_Matches(t *testing.T) {
 				},
 			},
 			filter: ops.Or(
-				ops.Eq(ops.WithKey(allocfilter.AllocationFieldLabel, "app"), "foo"),
-				ops.Eq(allocfilter.AllocationFieldNamespace, "kubecost"),
+				ops.Eq(ops.WithKey(afilter.FieldLabel, "app"), "foo"),
+				ops.Eq(afilter.FieldNamespace, "kubecost"),
 			),
 			expected: true,
 		},
@@ -685,8 +734,8 @@ func Test_AllocationFilterOr_Matches(t *testing.T) {
 				},
 			},
 			filter: ops.Or(
-				ops.Eq(ops.WithKey(allocfilter.AllocationFieldLabel, "app"), "foo"),
-				ops.Eq(allocfilter.AllocationFieldNamespace, "kubecost"),
+				ops.Eq(ops.WithKey(afilter.FieldLabel, "app"), "foo"),
+				ops.Eq(afilter.FieldNamespace, "kubecost"),
 			),
 			expected: true,
 		},
@@ -701,8 +750,8 @@ func Test_AllocationFilterOr_Matches(t *testing.T) {
 				},
 			},
 			filter: ops.Or(
-				ops.Eq(ops.WithKey(allocfilter.AllocationFieldLabel, "app"), "foo"),
-				ops.Eq(allocfilter.AllocationFieldNamespace, "kubecost"),
+				ops.Eq(ops.WithKey(afilter.FieldLabel, "app"), "foo"),
+				ops.Eq(afilter.FieldNamespace, "kubecost"),
 			),
 			expected: true,
 		},
@@ -717,15 +766,15 @@ func Test_AllocationFilterOr_Matches(t *testing.T) {
 				},
 			},
 			filter: ops.Or(
-				ops.Eq(ops.WithKey(allocfilter.AllocationFieldLabel, "app"), "foo"),
-				ops.Eq(allocfilter.AllocationFieldNamespace, "kubecost"),
+				ops.Eq(ops.WithKey(afilter.FieldLabel, "app"), "foo"),
+				ops.Eq(afilter.FieldNamespace, "kubecost"),
 			),
 			expected: false,
 		},
 	}
 
 	for _, c := range cases {
-		compiler := NewAllocationMatchCompiler()
+		compiler := NewAllocationMatchCompiler(nil)
 		compiled, err := compiler.Compile(c.filter)
 		if err != nil {
 			t.Fatalf("err compiling filter '%s': %s", ast.ToPreOrderShortString(c.filter), err)

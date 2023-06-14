@@ -1,6 +1,8 @@
 package matcher
 
 import (
+	"fmt"
+
 	"github.com/opencost/opencost/pkg/filter21/ast"
 	"github.com/opencost/opencost/pkg/filter21/transform"
 	"github.com/opencost/opencost/pkg/filter21/util"
@@ -50,7 +52,11 @@ func NewMatchCompiler[T any](
 // which can be used to match T instances dynamically.
 func (mc *MatchCompiler[T]) Compile(filter ast.FilterNode) (Matcher[T], error) {
 	// apply compiler passes on parsed ast
-	filter = transform.ApplyAll(filter, mc.passes)
+	var err error
+	filter, err = transform.ApplyAll(filter, mc.passes)
+	if err != nil {
+		return nil, fmt.Errorf("applying compiler passes: %w", err)
+	}
 
 	// if the root node is a void op, return an allpass
 	if _, ok := filter.(*ast.VoidOp); ok {

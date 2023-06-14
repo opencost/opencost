@@ -20,7 +20,7 @@ type promKeySanitizePass struct{}
 // Exec executes the pass on the provided AST. This method may either return
 // a new AST or modify and return the AST parameter. The parameter into this
 // method may be changed directly.
-func (pks *promKeySanitizePass) Exec(filter ast.FilterNode) ast.FilterNode {
+func (pks *promKeySanitizePass) Exec(filter ast.FilterNode) (ast.FilterNode, error) {
 	ast.PreOrderTraversal(filter, func(fn ast.FilterNode, ts ast.TraversalState) {
 		switch n := fn.(type) {
 		case *ast.EqualOp:
@@ -51,7 +51,7 @@ func (pks *promKeySanitizePass) Exec(filter ast.FilterNode) ast.FilterNode {
 			}
 		}
 	})
-	return filter
+	return filter, nil
 }
 
 // sanitizes the identifier
