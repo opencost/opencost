@@ -30,8 +30,11 @@ func (id *Identifier) Equal(ident Identifier) bool {
 
 // String returns the string representation for the Identifier
 func (id *Identifier) String() string {
-	if id.Field == nil {
+	if id == nil {
 		return "<nil>"
+	}
+	if id.Field == nil {
+		return "<nil field>"
 	}
 	s := id.Field.Name
 	if id.Key != "" {
