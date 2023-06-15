@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -584,6 +585,28 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed, "CPU")
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed, "RAM")
+
+				if costs.Name == "cost-model" {
+					// Print
+					log.Infof("REQ: %+v, Timestamp: %f, Value: %f", costs.CPUReq[0], costs.CPUReq[0].Timestamp, costs.CPUReq[0].Value)
+					log.Infof("USED: %+v, Timestamp: %f, Value: %f", costs.CPUUsed[0], costs.CPUUsed[0].Timestamp, costs.CPUUsed[0].Value)
+					log.Infof("ALLOCATION: %+v, Timestamp: %f, Value: %f", costs.CPUAllocation[0], costs.CPUAllocation[0].Timestamp, costs.CPUAllocation[0].Value)
+					if costs.CPUAllocation[0].Value < costs.CPUReq[0].Value {
+						log.Infof("THOMAS FLAG\n")
+					}
+
+					// Write
+					file, _ := os.OpenFile("/var/configs/ALLOCATION-TEST.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+					defer file.Close()
+					fmt.Fprintf(file, "REQ: %+v, Timestamp: %f, Value: %f\n", costs.CPUReq[0], costs.CPUReq[0].Timestamp, costs.CPUReq[0].Value)
+					fmt.Fprintf(file, "USED: %+v, Timestamp: %f, Value: %f\n", costs.CPUUsed[0], costs.CPUUsed[0].Timestamp, costs.CPUUsed[0].Value)
+					fmt.Fprintf(file, "ALLOCATION: %+v, Timestamp: %f, Value: %f\n", costs.CPUAllocation[0], costs.CPUAllocation[0].Timestamp, costs.CPUAllocation[0].Value)
+					if costs.CPUAllocation[0].Value < costs.CPUReq[0].Value {
+						fmt.Fprintf(file, "THOMAS FLAG\n\n")
+					}
+					file.Sync()
+				}
+
 				if filterNamespace == "" {
 					containerNameCost[newKey] = costs
 				} else if costs.Namespace == filterNamespace {
@@ -652,6 +675,30 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed, "CPU")
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed, "RAM")
+
+			if costs.Name == "cost-model" {
+				// Print
+				log.Infof("")
+				log.Infof("REQ: %+v, Timestamp: %f, Value: %f", costs.CPUReq[0], costs.CPUReq[0].Timestamp, costs.CPUReq[0].Value)
+				log.Infof("USED: %+v, Timestamp: %f, Value: %f", costs.CPUUsed[0], costs.CPUUsed[0].Timestamp, costs.CPUUsed[0].Value)
+				log.Infof("ALLOCATION: %+v, Timestamp: %f, Value: %f", costs.CPUAllocation[0], costs.CPUAllocation[0].Timestamp, costs.CPUAllocation[0].Value)
+				if costs.CPUAllocation[0].Value < costs.CPUReq[0].Value {
+					log.Infof("THOMAS FLAG\n")
+				}
+
+				// Write
+				file, _ := os.OpenFile("/var/configs/ALLOCATION-TEST.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+				defer file.Close()
+				fmt.Fprintf(file, "\n")
+				fmt.Fprintf(file, "REQ: %+v, Timestamp: %f, Value: %f\n", costs.CPUReq[0], costs.CPUReq[0].Timestamp, costs.CPUReq[0].Value)
+				fmt.Fprintf(file, "USED: %+v, Timestamp: %f, Value: %f\n", costs.CPUUsed[0], costs.CPUUsed[0].Timestamp, costs.CPUUsed[0].Value)
+				fmt.Fprintf(file, "ALLOCATION: %+v, Timestamp: %f, Value: %f\n", costs.CPUAllocation[0], costs.CPUAllocation[0].Timestamp, costs.CPUAllocation[0].Value)
+				if costs.CPUAllocation[0].Value < costs.CPUReq[0].Value {
+					fmt.Fprintf(file, "THOMAS FLAG\n\n")
+				}
+				file.Sync()
+			}
+
 			if filterNamespace == "" {
 				containerNameCost[key] = costs
 				missingContainers[key] = costs
@@ -852,6 +899,24 @@ func getContainerAllocation(req []*util.Vector, used []*util.Vector, allocationT
 
 		return true
 	}
+
+	// -------------------------------------------------------------------------
+	// THOMAS
+	// -------------------------------------------------------------------------
+	// file, _ := os.OpenFile("/var/configs/ALLOCATION-TEST.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	// defer file.Close()
+	// fmt.Fprintf(file, "Req: %+v\n", req)
+	// fmt.Fprintf(file, "Used: %+v\n", used)
+	// fmt.Fprintf(file, "Allocation: %+v\n", util.ApplyVectorOp(req, used, allocationOp))
+	// file.Sync()
+
+	// log.Infof("THOMAS")
+	// log.Infof("REQ: %+v, Timestamp: %f, Value: %f", req[0], req[0].Timestamp, req[0].Value)
+	// log.Infof("USED: %+v, Timestamp: %f, Value: %f", used[0], used[0].Timestamp, used[0].Value)
+	// alloc := util.ApplyVectorOp(req, used, allocationOp)
+	// log.Infof("ALLOCATION: %+v, Timestamp: %f, Value: %f", alloc[0], alloc[0].Timestamp, alloc[0].Value)
+
+	// -----------------------------------------------------------------------------
 
 	return util.ApplyVectorOp(req, used, allocationOp)
 }
