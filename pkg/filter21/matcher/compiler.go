@@ -100,7 +100,12 @@ func (mc *MatchCompiler[T]) Compile(filter ast.FilterNode) (Matcher[T], error) {
 					result = currentOps.Pop()
 				}
 			}
-
+		case *ast.ContradictionOp:
+			if currentOps.Length() == 0 {
+				result = &AllCut[T]{}
+			} else {
+				currentOps.Top().Add(&AllCut[T]{})
+			}
 		case *ast.EqualOp:
 			sm := mc.stringMatcher.NewStringMatcher(n.Op(), n.Left, n.Right)
 			if currentOps.Length() == 0 {

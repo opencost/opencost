@@ -1,4 +1,4 @@
-package allocationfilterutil
+package filterutil
 
 import (
 	"testing"
@@ -7,6 +7,8 @@ import (
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/util/mapper"
 )
+
+var allocCompiler = kubecost.NewAllocationMatchCompiler()
 
 type mockClusterMap struct {
 	m map[string]*clusters.ClusterInfo
@@ -385,6 +387,30 @@ func TestFiltersFromParamsV1(t *testing.T) {
 			},
 		},
 		{
+			name: "single department, no label, annotation",
+			qp: map[string]string{
+				"filterDepartments": "pa-1",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Annotations: map[string]string{
+						"internal_product_umbrella": "pa-1",
+					},
+				}),
+			},
+			// should find labels first and fail
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Labels: map[string]string{
+						"internal_product_umbrella": "ps-N",
+					},
+					Annotations: map[string]string{
+						"internal_product_umbrella": "pa-1",
+					},
+				}),
+			},
+		},
+		{
 			name: "wildcard department",
 			qp: map[string]string{
 				"filterDepartments": "pa*",
@@ -705,7 +731,11 @@ func TestFiltersFromParamsV1(t *testing.T) {
 				},
 			}
 
-			filter := AllocationFilterFromParamsV1(qpMapper, &labelConfig, clustersMap)
+			filterTree := AllocationFilterFromParamsV1(ConvertFilterQueryParams(qpMapper, &labelConfig), &labelConfig, clustersMap)
+			filter, err := allocCompiler.Compile(filterTree)
+			if err != nil {
+				t.Fatalf("compiling filter: %s", err)
+			}
 			for _, alloc := range c.shouldMatch {
 				if !filter.Matches(&alloc) {
 					t.Errorf("should have matched: %s", alloc.Name)
@@ -717,214 +747,5 @@ func TestFiltersFromParamsV1(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-type FilterV1EqualsTestcase struct {
-	name     string
-	this     FilterV1
-	that     FilterV1
-	expected bool
-}
-
-func TestFilterV1_Equals(t *testing.T) {
-	testCases := []FilterV1EqualsTestcase{
-		{
-			name: "both filters nil",
-			this: FilterV1{
-				Annotations:     nil,
-				Containers:      nil,
-				Controllers:     nil,
-				ControllerKinds: nil,
-				Clusters:        nil,
-				Departments:     nil,
-				Environments:    nil,
-				Labels:          nil,
-				Namespaces:      nil,
-				Nodes:           nil,
-				Owners:          nil,
-				Pods:            nil,
-				Products:        nil,
-				Services:        nil,
-				Teams:           nil,
-			},
-			that: FilterV1{
-				Annotations:     nil,
-				Containers:      nil,
-				Controllers:     nil,
-				ControllerKinds: nil,
-				Clusters:        nil,
-				Departments:     nil,
-				Environments:    nil,
-				Labels:          nil,
-				Namespaces:      nil,
-				Nodes:           nil,
-				Owners:          nil,
-				Pods:            nil,
-				Products:        nil,
-				Services:        nil,
-				Teams:           nil,
-			},
-			expected: true,
-		},
-		{
-			name: "both filters not nil and matching",
-			this: FilterV1{
-				Annotations:     []string{"a1", "b1"},
-				Containers:      []string{"a1", "b1"},
-				Controllers:     []string{"a1", "b1"},
-				ControllerKinds: []string{"a1", "b1"},
-				Clusters:        []string{"a1", "b1"},
-				Departments:     []string{"a1", "b1"},
-				Environments:    []string{"a1", "b1"},
-				Labels:          []string{"a1", "b1"},
-				Namespaces:      []string{"a1", "b1"},
-				Nodes:           []string{"a1", "b1"},
-				Owners:          []string{"a1", "b1"},
-				Pods:            []string{"a1", "b1"},
-				Products:        []string{"a1", "b1"},
-				Services:        []string{"a1", "b1"},
-				Teams:           []string{"a1", "b1"},
-			},
-			that: FilterV1{
-				Annotations:     []string{"a1", "b1"},
-				Containers:      []string{"a1", "b1"},
-				Controllers:     []string{"a1", "b1"},
-				ControllerKinds: []string{"a1", "b1"},
-				Clusters:        []string{"a1", "b1"},
-				Departments:     []string{"a1", "b1"},
-				Environments:    []string{"a1", "b1"},
-				Labels:          []string{"a1", "b1"},
-				Namespaces:      []string{"a1", "b1"},
-				Nodes:           []string{"a1", "b1"},
-				Owners:          []string{"a1", "b1"},
-				Pods:            []string{"a1", "b1"},
-				Products:        []string{"a1", "b1"},
-				Services:        []string{"a1", "b1"},
-				Teams:           []string{"a1", "b1"},
-			},
-			expected: true,
-		},
-		{
-			name: "both filters diff count",
-			this: FilterV1{
-				Annotations:     []string{"a1", "b1", "c1"},
-				Containers:      []string{"a1", "b1"},
-				Controllers:     []string{"a1", "b1"},
-				ControllerKinds: []string{"a1", "b1"},
-				Clusters:        []string{"a1", "b1"},
-				Departments:     []string{"a1", "b1"},
-				Environments:    []string{"a1", "b1"},
-				Labels:          []string{"a1", "b1"},
-				Namespaces:      []string{"a1", "b1"},
-				Nodes:           []string{"a1", "b1"},
-				Owners:          []string{"a1", "b1"},
-				Pods:            []string{"a1", "b1"},
-				Products:        []string{"a1", "b1"},
-				Services:        []string{"a1", "b1"},
-				Teams:           []string{"a1", "b1"},
-			},
-			that: FilterV1{
-				Annotations:     []string{"a1", "b1"},
-				Containers:      []string{"a1", "b1"},
-				Controllers:     []string{"a1", "b1"},
-				ControllerKinds: []string{"a1", "b1"},
-				Clusters:        []string{"a1", "b1"},
-				Departments:     []string{"a1", "b1"},
-				Environments:    []string{"a1", "b1"},
-				Labels:          []string{"a1", "b1"},
-				Namespaces:      []string{"a1", "b1"},
-				Nodes:           []string{"a1", "b1"},
-				Owners:          []string{"a1", "b1"},
-				Pods:            []string{"a1", "b1"},
-				Products:        []string{"a1", "b1"},
-				Services:        []string{"a1", "b1"},
-				Teams:           []string{"a1", "b1"},
-			},
-			expected: false,
-		},
-		{
-			name: "slight mismatch",
-			this: FilterV1{
-				Annotations:     []string{"x1", "b1"},
-				Containers:      []string{"a1", "b1"},
-				Controllers:     []string{"a1", "b1"},
-				ControllerKinds: []string{"a1", "b1"},
-				Clusters:        []string{"a1", "b1"},
-				Departments:     []string{"a1", "b1"},
-				Environments:    []string{"a1", "b1"},
-				Labels:          []string{"a1", "b1"},
-				Namespaces:      []string{"a1", "b1"},
-				Nodes:           []string{"a1", "b1"},
-				Owners:          []string{"a1", "b1"},
-				Pods:            []string{"a1", "b1"},
-				Products:        []string{"a1", "b1"},
-				Services:        []string{"a1", "b1"},
-				Teams:           []string{"a1", "b1"},
-			},
-			that: FilterV1{
-				Annotations:     []string{"a1", "b1"},
-				Containers:      []string{"a1", "b1"},
-				Controllers:     []string{"a1", "b1"},
-				ControllerKinds: []string{"a1", "b1"},
-				Clusters:        []string{"a1", "b1"},
-				Departments:     []string{"a1", "b1"},
-				Environments:    []string{"a1", "b1"},
-				Labels:          []string{"a1", "b1"},
-				Namespaces:      []string{"a1", "b1"},
-				Nodes:           []string{"a1", "b1"},
-				Owners:          []string{"a1", "b1"},
-				Pods:            []string{"a1", "b1"},
-				Products:        []string{"a1", "b1"},
-				Services:        []string{"a1", "b1"},
-				Teams:           []string{"a1", "b1"},
-			},
-			expected: false,
-		},
-		{
-			name: "one nil",
-			this: FilterV1{
-				Annotations:     []string{"x1", "b1"},
-				Containers:      []string{"a1", "b1"},
-				Controllers:     []string{"a1", "b1"},
-				ControllerKinds: []string{"a1", "b1"},
-				Clusters:        []string{"a1", "b1"},
-				Departments:     []string{"a1", "b1"},
-				Environments:    []string{"a1", "b1"},
-				Labels:          []string{"a1", "b1"},
-				Namespaces:      []string{"a1", "b1"},
-				Nodes:           []string{"a1", "b1"},
-				Owners:          []string{"a1", "b1"},
-				Pods:            []string{"a1", "b1"},
-				Products:        []string{"a1", "b1"},
-				Services:        []string{"a1", "b1"},
-				Teams:           []string{"a1", "b1"},
-			},
-			that: FilterV1{
-				Annotations:     nil,
-				Containers:      nil,
-				Controllers:     nil,
-				ControllerKinds: nil,
-				Clusters:        nil,
-				Departments:     nil,
-				Environments:    nil,
-				Labels:          nil,
-				Namespaces:      nil,
-				Nodes:           nil,
-				Owners:          nil,
-				Pods:            nil,
-				Products:        nil,
-				Services:        nil,
-				Teams:           nil,
-			},
-			expected: false,
-		},
-	}
-
-	for _, tc := range testCases {
-		got := tc.this.Equals(tc.that)
-		if got != tc.expected {
-			t.Fatalf("expected %t, got: %t for test case: %s", tc.expected, got, tc.name)
-		}
 	}
 }

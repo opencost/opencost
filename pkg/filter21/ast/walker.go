@@ -220,7 +220,6 @@ func Clone(filter FilterNode) FilterNode {
 					result = currentOps.Pop()
 				}
 			}
-
 		case *NotOp:
 			if state == TraversalStateEnter {
 				currentOps.Push(&NotOp{})
@@ -232,7 +231,12 @@ func Clone(filter FilterNode) FilterNode {
 					result = currentOps.Pop()
 				}
 			}
-
+		case *ContradictionOp:
+			if currentOps.Length() == 0 {
+				result = &ContradictionOp{}
+			} else {
+				currentOps.Top().Add(&ContradictionOp{})
+			}
 		case *EqualOp:
 			var field Field = *n.Left.Field
 			sm := &EqualOp{
