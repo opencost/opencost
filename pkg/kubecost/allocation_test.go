@@ -10,7 +10,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	filter21 "github.com/opencost/opencost/pkg/filter21"
-	allocfilter "github.com/opencost/opencost/pkg/filter21/allocation"
+	afilter "github.com/opencost/opencost/pkg/filter21/allocation"
 	"github.com/opencost/opencost/pkg/filter21/ops"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
@@ -18,8 +18,8 @@ import (
 	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
-var filterParser = allocfilter.NewAllocationFilterParser()
-var matcherCompiler = NewAllocationMatchCompiler()
+var filterParser = afilter.NewAllocationFilterParser()
+var matcherCompiler = NewAllocationMatchCompiler(nil)
 
 // useful for creating filters on the fly when testing. panics
 // on parse errors!
@@ -3210,7 +3210,7 @@ func Test_AggregateByService_UnmountedLBs(t *testing.T) {
 	set.Insert(idle)
 
 	set.AggregateBy([]string{AllocationServiceProp}, &AllocationAggregationOptions{
-		Filter: ops.Contains(allocfilter.AllocationFieldServices, "nginx-plus-nginx-ingress"),
+		Filter: ops.Contains(afilter.FieldServices, "nginx-plus-nginx-ingress"),
 	})
 
 	for _, alloc := range set.Allocations {
@@ -3438,7 +3438,7 @@ func Test_DetermineSharingName(t *testing.T) {
 }
 
 func TestIsFilterEmptyTrue(t *testing.T) {
-	compiler := NewAllocationMatchCompiler()
+	compiler := NewAllocationMatchCompiler(nil)
 	matcher, err := compiler.Compile(nil)
 	if err != nil {
 		t.Fatalf("compiling nil filter: %s", err)
@@ -3451,8 +3451,8 @@ func TestIsFilterEmptyTrue(t *testing.T) {
 }
 
 func TestIsFilterEmptyFalse(t *testing.T) {
-	compiler := NewAllocationMatchCompiler()
-	matcher, err := compiler.Compile(ops.Eq(allocfilter.AllocationFieldClusterID, "test"))
+	compiler := NewAllocationMatchCompiler(nil)
+	matcher, err := compiler.Compile(ops.Eq(afilter.FieldClusterID, "test"))
 	if err != nil {
 		t.Fatalf("compiling nil filter: %s", err)
 	}

@@ -8,17 +8,17 @@ type AllocationField string
 // Allocation value
 // does not enforce exhaustive pattern matching on "enum" types.
 const (
-	AllocationFieldClusterID      AllocationField = "cluster"
-	AllocationFieldNode           AllocationField = "node"
-	AllocationFieldNamespace      AllocationField = "namespace"
-	AllocationFieldControllerKind AllocationField = "controllerKind"
-	AllocationFieldControllerName AllocationField = "controllerName"
-	AllocationFieldPod            AllocationField = "pod"
-	AllocationFieldContainer      AllocationField = "container"
-	AllocationFieldProvider       AllocationField = "provider"
-	AllocationFieldServices       AllocationField = "services"
-	AllocationFieldLabel          AllocationField = "label"
-	AllocationFieldAnnotation     AllocationField = "annotation"
+	FieldClusterID      AllocationField = "cluster"
+	FieldNode           AllocationField = "node"
+	FieldNamespace      AllocationField = "namespace"
+	FieldControllerKind AllocationField = "controllerKind"
+	FieldControllerName AllocationField = "controllerName"
+	FieldPod            AllocationField = "pod"
+	FieldContainer      AllocationField = "container"
+	FieldProvider       AllocationField = "provider"
+	FieldServices       AllocationField = "services"
+	FieldLabel          AllocationField = "label"
+	FieldAnnotation     AllocationField = "annotation"
 )
 
 // AllocationAlias represents an alias field type for allocations.
@@ -29,9 +29,9 @@ const (
 type AllocationAlias string
 
 const (
-	AllocationAliasDepartment  AllocationAlias = "department"
-	AllocationAliasEnvironment AllocationAlias = "environment"
-	AllocationAliasOwner       AllocationAlias = "owner"
-	AllocationAliasProduct     AllocationAlias = "product"
-	AllocationAliasTeam        AllocationAlias = "team"
+	AliasDepartment  AllocationAlias = "department"
+	AliasEnvironment AllocationAlias = "environment"
+	AliasOwner       AllocationAlias = "owner"
+	AliasProduct     AllocationAlias = "product"
+	AliasTeam        AllocationAlias = "team"
 )

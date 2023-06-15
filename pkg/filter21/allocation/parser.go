@@ -5,22 +5,22 @@ import "github.com/opencost/opencost/pkg/filter21/ast"
 // a slice of all the allocation field instances the lexer should recognize as
 // valid left-hand comparators
 var allocationFilterFields []*ast.Field = []*ast.Field{
-	ast.NewField(AllocationFieldClusterID),
-	ast.NewField(AllocationFieldNode),
-	ast.NewField(AllocationFieldNamespace),
-	ast.NewField(AllocationFieldControllerName),
-	ast.NewField(AllocationFieldControllerKind),
-	ast.NewField(AllocationFieldContainer),
-	ast.NewField(AllocationFieldPod),
-	ast.NewField(AllocationFieldProvider),
-	ast.NewAliasField(AllocationAliasDepartment),
-	ast.NewAliasField(AllocationAliasEnvironment),
-	ast.NewAliasField(AllocationAliasOwner),
-	ast.NewAliasField(AllocationAliasProduct),
-	ast.NewAliasField(AllocationAliasTeam),
-	ast.NewSliceField(AllocationFieldServices),
-	ast.NewMapField(AllocationFieldLabel),
-	ast.NewMapField(AllocationFieldAnnotation),
+	ast.NewField(FieldClusterID),
+	ast.NewField(FieldNode),
+	ast.NewField(FieldNamespace),
+	ast.NewField(FieldControllerName),
+	ast.NewField(FieldControllerKind),
+	ast.NewField(FieldContainer),
+	ast.NewField(FieldPod),
+	ast.NewField(FieldProvider),
+	ast.NewAliasField(AliasDepartment),
+	ast.NewAliasField(AliasEnvironment),
+	ast.NewAliasField(AliasOwner),
+	ast.NewAliasField(AliasProduct),
+	ast.NewAliasField(AliasTeam),
+	ast.NewSliceField(FieldServices),
+	ast.NewMapField(FieldLabel),
+	ast.NewMapField(FieldAnnotation),
 }
 
 // fieldMap is a lazily loaded mapping from AllocationField to ast.Field

@@ -8,7 +8,7 @@ import (
 	"github.com/opencost/opencost/pkg/util/mapper"
 )
 
-var allocCompiler = kubecost.NewAllocationMatchCompiler()
+var allocCompiler = kubecost.NewAllocationMatchCompiler(nil)
 
 type mockClusterMap struct {
 	m map[string]*clusters.ClusterInfo
