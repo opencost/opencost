@@ -960,7 +960,7 @@ func applyLabels(podMap map[podKey]*pod, nodeLabels map[nodeKey]map[string]strin
 
 			alloc.Properties.Labels = allocLabels
 			alloc.Properties.NamespaceLabels = nsLabels
-			
+
 		}
 	}
 }
@@ -1416,7 +1416,7 @@ func applyLoadBalancersToPods(window kubecost.Window, podMap map[podKey]*pod, lb
 				alloc.LoadBalancers[sKey.String()].Cost += alloc.LoadBalancerCost
 			} else {
 				alloc.LoadBalancers[sKey.String()] = &kubecost.LbAllocation{
-					Service: sKey.Service,
+					Service: sKey.Namespace + "/" + sKey.Service,
 					Cost:    alloc.LoadBalancerCost,
 				}
 			}

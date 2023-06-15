@@ -404,6 +404,15 @@ func ComputeAssetTotals(as *AssetSet, byAsset bool) map[string]*AssetTotals {
 			key = fmt.Sprintf("%s/%s", lb.Properties.Cluster, lb.Properties.Name)
 		}
 
+		if _, ok := arts[key]; !ok {
+			arts[key] = &AssetTotals{
+				Start:   lb.Start,
+				End:     lb.End,
+				Cluster: lb.Properties.Cluster,
+				Node:    lb.Properties.Name,
+			}
+		}
+
 		arts[key].LoadBalancerCost += lb.Cost
 		arts[key].LoadBalancerCostAdjustment += lb.Adjustment
 	}
@@ -725,7 +734,7 @@ func (mts *MemoryTotalsStore) GetAssetTotalsByCluster(start time.Time, end time.
 func (mts *MemoryTotalsStore) GetAssetTotalsByNode(start time.Time, end time.Time) (map[string]*AssetTotals, bool) {
 	k := storeKey(start, end)
 	if raw, ok := mts.assetTotalsByNode.Get(k); !ok {
-		// it's possible that after accumulation, the time chunks stored here 
+		// it's possible that after accumulation, the time chunks stored here
 		// are being queried combined
 		return map[string]*AssetTotals{}, false
 	} else {

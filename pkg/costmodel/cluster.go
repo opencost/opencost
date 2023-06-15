@@ -142,12 +142,6 @@ type DiskIdentifier struct {
 }
 
 func ClusterDisks(client prometheus.Client, provider models.Provider, start, end time.Time) (map[DiskIdentifier]*Disk, error) {
-	// Query for the duration between start and end
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
-	}
-
 	// Start from the time "end", querying backwards
 	t := end
 
@@ -162,6 +156,15 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 		log.DedupedWarningf(3, "ClusterDisks(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
 	}
 
+	// Query for the duration between start and end
+	// note, we need to append the resolution here because data is not given for the last <resolution> minutes
+	// this gives us a bit of query overlap, but the most recent minsPerResolution mins in each query are not returned
+	endInclResolution := end.Add(time.Duration(minsPerResolution) * time.Minute)
+	duration := endInclResolution.Sub(start)
+	durStr := timeutil.DurationString(duration)
+	if durStr == "" {
+		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
+	}
 	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
 	// value, converts it to a cumulative value; i.e.
 	// [$/hr] * [min/res]*[hr/min] = [$/res]
@@ -548,12 +551,6 @@ func costTimesMinute(activeDataMap map[NodeIdentifier]activeData, costMap map[No
 }
 
 func ClusterNodes(cp models.Provider, client prometheus.Client, start, end time.Time) (map[NodeIdentifier]*Node, error) {
-	// Query for the duration between start and end
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
-	}
-
 	// Start from the time "end", querying backwards
 	t := end
 
@@ -568,14 +565,24 @@ func ClusterNodes(cp models.Provider, client prometheus.Client, start, end time.
 		log.DedupedWarningf(3, "ClusterNodes(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
 	}
 
+	// Query for the duration between start and end
+	// note, we need to append the resolution here because data is not given for the last <resolution> minutes
+	// this gives us a bit of query overlap, but the most recent minsPerResolution mins in each query are not returned
+	endInclResolution := end.Add(time.Duration(minsPerResolution) * time.Minute)
+	duration := endInclResolution.Sub(start)
+	durStr := timeutil.DurationString(duration)
+	if durStr == "" {
+		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
+	}
+
 	requiredCtx := prom.NewNamedContext(client, prom.ClusterContextName)
 	optionalCtx := prom.NewNamedContext(client, prom.ClusterOptionalContextName)
 
 	queryNodeCPUHourlyCost := fmt.Sprintf(`avg(avg_over_time(node_cpu_hourly_cost{%s}[%s])) by (%s, node, instance_type, provider_id)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
-  queryNodeCPUCoresCapacity := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity_cpu_cores{%s}[%s])) by (%s, node)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryNodeCPUCoresCapacity := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity_cpu_cores{%s}[%s])) by (%s, node)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 	queryNodeCPUCoresAllocatable := fmt.Sprintf(`avg(avg_over_time(kube_node_status_allocatable_cpu_cores{%s}[%s])) by (%s, node)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 	queryNodeRAMHourlyCost := fmt.Sprintf(`avg(avg_over_time(node_ram_hourly_cost{%s}[%s])) by (%s, node, instance_type, provider_id) / 1024 / 1024 / 1024`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
-  queryNodeRAMBytesCapacity := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity_memory_bytes{%s}[%s])) by (%s, node)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryNodeRAMBytesCapacity := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity_memory_bytes{%s}[%s])) by (%s, node)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 	queryNodeRAMBytesAllocatable := fmt.Sprintf(`avg(avg_over_time(kube_node_status_allocatable_memory_bytes{%s}[%s])) by (%s, node)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 	queryNodeGPUCount := fmt.Sprintf(`avg(avg_over_time(node_gpu_count{%s}[%s])) by (%s, node, provider_id)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 	queryNodeGPUHourlyCost := fmt.Sprintf(`avg(avg_over_time(node_gpu_hourly_cost{%s}[%s])) by (%s, node, instance_type, provider_id)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
@@ -720,11 +727,6 @@ type LoadBalancer struct {
 }
 
 func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[LoadBalancerIdentifier]*LoadBalancer, error) {
-	// Query for the duration between start and end
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
-	}
 
 	// Start from the time "end", querying backwards
 	t := end
@@ -738,6 +740,16 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 	if minsPerResolution = int(resolution.Minutes()); int(resolution.Minutes()) == 0 {
 		minsPerResolution = 1
 		log.DedupedWarningf(3, "ClusterLoadBalancers(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
+	}
+
+	// Query for the duration between start and end
+	// note, we need to append the resolution here because data is not given for the last <resolution> minutes
+	// this gives us a bit of query overlap, but the most recent minsPerResolution mins in each query are not returned
+	endInclResolution := end.Add(time.Duration(minsPerResolution) * time.Minute)
+	duration := endInclResolution.Sub(start)
+	durStr := timeutil.DurationString(duration)
+	if durStr == "" {
+		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
 	}
 
 	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
@@ -859,8 +871,6 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider models
 
 	mins := end.Sub(start).Minutes()
 
-	windowStr := timeutil.DurationString(window)
-
 	// minsPerResolution determines accuracy and resource use for the following
 	// queries. Smaller values (higher resolution) result in better accuracy,
 	// but more expensive queries, and vice-a-versa.
@@ -871,6 +881,12 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider models
 		minsPerResolution = 1
 		log.DedupedWarningf(3, "ComputeClusterCosts(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
 	}
+
+	// note, we need to append the resolution here because data is not given for the last <resolution> minutes
+	// this gives us a bit of query overlap, but the most recent minsPerResolution mins in each query are not returned
+	endInclResolution := end.Add(time.Duration(minsPerResolution) * time.Minute)
+	duration := endInclResolution.Sub(start)
+	windowStr := timeutil.DurationString(duration)
 
 	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
 	// value, converts it to a cumulative value; i.e.

@@ -2334,11 +2334,9 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 			}
 
 			if includeProportionalAssetResourceCosts {
-				for _, as := range asr.Allocations {
-					_, err := kubecost.UpdateAssetTotalsStore(totalsStore, assetSet)
-					if err != nil {
-						log.Errorf("ETL: error updating asset resource totals for %s: %s", as.Window, err)
-					}
+				_, err := kubecost.UpdateAssetTotalsStore(totalsStore, assetSet)
+				if err != nil {
+					log.Errorf("ETL: error updating asset resource totals for %s: %s", assetSet.Window, err)
 				}
 			}
 
@@ -2412,7 +2410,7 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 			// loop through each allocation set, using total cost from totals store
 			for _, alloc := range as.Allocations {
 				for rawKey, parc := range alloc.ProportionalAssetResourceCosts {
-					key := strings.ReplaceAll(rawKey, ",", "/")
+					key := strings.TrimSuffix(strings.ReplaceAll(rawKey, ",", "/"), "/")
 					// for each parc , check the totals store for each
 					// on a totals hit, set the corresponding total and calculate percentage
 					var totals *kubecost.AssetTotals
@@ -2434,11 +2432,9 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 					parc.GPUTotalCost = totals.GPUCost
 					parc.RAMTotalCost = totals.RAMCost
 					parc.LoadBalancerTotalCost = totals.LoadBalancerCost
-					if parc.LoadBalancerProportionalCost > 0 {
-						log.Debug("break")
-					}
+
 					kubecost.ComputePercentages(&parc)
-					alloc.ProportionalAssetResourceCosts[key] = parc
+					alloc.ProportionalAssetResourceCosts[rawKey] = parc
 				}
 			}
 
