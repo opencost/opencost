@@ -588,9 +588,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 
 				if costs.Name == "cost-model" {
 					// Print
-					log.Infof("REQ: %+v, Timestamp: %f, Value: %f", costs.CPUReq[0], costs.CPUReq[0].Timestamp, costs.CPUReq[0].Value)
-					log.Infof("USED: %+v, Timestamp: %f, Value: %f", costs.CPUUsed[0], costs.CPUUsed[0].Timestamp, costs.CPUUsed[0].Value)
-					log.Infof("ALLOCATION: %+v, Timestamp: %f, Value: %f", costs.CPUAllocation[0], costs.CPUAllocation[0].Timestamp, costs.CPUAllocation[0].Value)
+					log.Infof("REQ: %+v, Timestamp: %f, Value: %f, Len: %d", costs.CPUReq[0], costs.CPUReq[0].Timestamp, costs.CPUReq[0].Value, len(costs.CPUReq))
+					log.Infof("USED: %+v, Timestamp: %f, Value: %f, Len: %d", costs.CPUUsed[0], costs.CPUUsed[0].Timestamp, costs.CPUUsed[0].Value, len(costs.CPUUsed))
+					log.Infof("ALLOCATION: %+v, Timestamp: %f, Value: %f, Len: %d", costs.CPUAllocation[0], costs.CPUAllocation[0].Timestamp, costs.CPUAllocation[0].Value, len(costs.CPUAllocation))
 					if costs.CPUAllocation[0].Value < costs.CPUReq[0].Value {
 						log.Infof("THOMAS FLAG\n")
 					}
@@ -598,9 +598,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 					// Write
 					file, _ := os.OpenFile("/var/configs/ALLOCATION-TEST.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 					defer file.Close()
-					fmt.Fprintf(file, "REQ: %+v, Timestamp: %f, Value: %f\n", costs.CPUReq[0], costs.CPUReq[0].Timestamp, costs.CPUReq[0].Value)
-					fmt.Fprintf(file, "USED: %+v, Timestamp: %f, Value: %f\n", costs.CPUUsed[0], costs.CPUUsed[0].Timestamp, costs.CPUUsed[0].Value)
-					fmt.Fprintf(file, "ALLOCATION: %+v, Timestamp: %f, Value: %f\n", costs.CPUAllocation[0], costs.CPUAllocation[0].Timestamp, costs.CPUAllocation[0].Value)
+					fmt.Fprintf(file, "REQ: %+v, Timestamp: %f, Value: %f, Len: %d\n", costs.CPUReq[0], costs.CPUReq[0].Timestamp, costs.CPUReq[0].Value, len(costs.CPUReq))
+					fmt.Fprintf(file, "USED: %+v, Timestamp: %f, Value: %f, Len: %d\n", costs.CPUUsed[0], costs.CPUUsed[0].Timestamp, costs.CPUUsed[0].Value, len(costs.CPUUsed))
+					fmt.Fprintf(file, "ALLOCATION: %+v, Timestamp: %f, Value: %f, Len: %d\n\n", costs.CPUAllocation[0], costs.CPUAllocation[0].Timestamp, costs.CPUAllocation[0].Value, len(costs.CPUAllocation))
 					if costs.CPUAllocation[0].Value < costs.CPUReq[0].Value {
 						fmt.Fprintf(file, "THOMAS FLAG\n\n")
 					}
@@ -679,9 +679,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 			if costs.Name == "cost-model" {
 				// Print
 				log.Infof("")
-				log.Infof("REQ: %+v, Timestamp: %f, Value: %f", costs.CPUReq[0], costs.CPUReq[0].Timestamp, costs.CPUReq[0].Value)
-				log.Infof("USED: %+v, Timestamp: %f, Value: %f", costs.CPUUsed[0], costs.CPUUsed[0].Timestamp, costs.CPUUsed[0].Value)
-				log.Infof("ALLOCATION: %+v, Timestamp: %f, Value: %f", costs.CPUAllocation[0], costs.CPUAllocation[0].Timestamp, costs.CPUAllocation[0].Value)
+				log.Infof("REQ: %+v, Timestamp: %f, Value: %f, Len: %d", costs.CPUReq[0], costs.CPUReq[0].Timestamp, costs.CPUReq[0].Value, len(costs.CPUReq))
+				log.Infof("USED: %+v, Timestamp: %f, Value: %f, Len: %d", costs.CPUUsed[0], costs.CPUUsed[0].Timestamp, costs.CPUUsed[0].Value, len(costs.CPUUsed))
+				log.Infof("ALLOCATION: %+v, Timestamp: %f, Value: %f, Len: %d", costs.CPUAllocation[0], costs.CPUAllocation[0].Timestamp, costs.CPUAllocation[0].Value, len(costs.CPUAllocation))
 				if costs.CPUAllocation[0].Value < costs.CPUReq[0].Value {
 					log.Infof("THOMAS FLAG\n")
 				}
@@ -690,9 +690,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				file, _ := os.OpenFile("/var/configs/ALLOCATION-TEST.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 				defer file.Close()
 				fmt.Fprintf(file, "\n")
-				fmt.Fprintf(file, "REQ: %+v, Timestamp: %f, Value: %f\n", costs.CPUReq[0], costs.CPUReq[0].Timestamp, costs.CPUReq[0].Value)
-				fmt.Fprintf(file, "USED: %+v, Timestamp: %f, Value: %f\n", costs.CPUUsed[0], costs.CPUUsed[0].Timestamp, costs.CPUUsed[0].Value)
-				fmt.Fprintf(file, "ALLOCATION: %+v, Timestamp: %f, Value: %f\n", costs.CPUAllocation[0], costs.CPUAllocation[0].Timestamp, costs.CPUAllocation[0].Value)
+				fmt.Fprintf(file, "REQ: %+v, Timestamp: %f, Value: %f, Len: %d\n", costs.CPUReq[0], costs.CPUReq[0].Timestamp, costs.CPUReq[0].Value, len(costs.CPUReq))
+				fmt.Fprintf(file, "USED: %+v, Timestamp: %f, Value: %f, Len: %d\n", costs.CPUUsed[0], costs.CPUUsed[0].Timestamp, costs.CPUUsed[0].Value, len(costs.CPUUsed))
+				fmt.Fprintf(file, "ALLOCATION: %+v, Timestamp: %f, Value: %f, Len: %d\n\n", costs.CPUAllocation[0], costs.CPUAllocation[0].Timestamp, costs.CPUAllocation[0].Value, len(costs.CPUAllocation))
 				if costs.CPUAllocation[0].Value < costs.CPUReq[0].Value {
 					fmt.Fprintf(file, "THOMAS FLAG\n\n")
 				}
@@ -875,50 +875,55 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 	return nil
 }
 
+// getContainerAllocation returns a vectorslice of the max between `req` and
+// `used`. The function assumes the `req` and `used` vectorslices contain a
+// single element.
 func getContainerAllocation(req []*util.Vector, used []*util.Vector, allocationType string) []*util.Vector {
-	// The result of the normalize operation will be a new []*util.Vector to replace the requests
-	allocationOp := func(r *util.Vector, x *float64, y *float64) bool {
-		if x != nil && y != nil {
-			x1 := *x
-			if math.IsNaN(x1) {
-				log.Warnf("NaN value found during %s allocation calculation for requests.", allocationType)
-				x1 = 0.0
-			}
-			y1 := *y
-			if math.IsNaN(y1) {
-				log.Warnf("NaN value found during %s allocation calculation for used.", allocationType)
-				y1 = 0.0
-			}
+	var result []*util.Vector
+	reqIsEmpty := len(req) == 0
+	usedIsEmpty := len(used) == 0
 
-			r.Value = math.Max(x1, y1)
-		} else if x != nil {
-			r.Value = *x
-		} else if y != nil {
-			r.Value = *y
+	if !reqIsEmpty && !usedIsEmpty {
+		x1 := req[0].Value
+		if math.IsNaN(x1) {
+			log.Warnf("NaN value found during %s allocation calculation for requests.", allocationType)
+			x1 = 0.0
 		}
-
-		return true
+		y1 := used[0].Value
+		if math.IsNaN(y1) {
+			log.Warnf("NaN value found during %s allocation calculation for used.", allocationType)
+			y1 = 0.0
+		}
+		result = []*util.Vector{
+			{
+				Value:     math.Max(x1, y1),
+				Timestamp: req[0].Timestamp,
+			},
+		}
+	} else if usedIsEmpty {
+		result = []*util.Vector{
+			{
+				Value:     req[0].Value,
+				Timestamp: req[0].Timestamp,
+			},
+		}
+	} else if reqIsEmpty {
+		result = []*util.Vector{
+			{
+				Value:     used[0].Value,
+				Timestamp: used[0].Timestamp,
+			},
+		}
+	} else {
+		result = []*util.Vector{
+			{
+				Value:     0,
+				Timestamp: float64(time.Now().UTC().Unix()),
+			},
+		}
 	}
 
-	// -------------------------------------------------------------------------
-	// THOMAS
-	// -------------------------------------------------------------------------
-	// file, _ := os.OpenFile("/var/configs/ALLOCATION-TEST.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	// defer file.Close()
-	// fmt.Fprintf(file, "Req: %+v\n", req)
-	// fmt.Fprintf(file, "Used: %+v\n", used)
-	// fmt.Fprintf(file, "Allocation: %+v\n", util.ApplyVectorOp(req, used, allocationOp))
-	// file.Sync()
-
-	// log.Infof("THOMAS")
-	// log.Infof("REQ: %+v, Timestamp: %f, Value: %f", req[0], req[0].Timestamp, req[0].Value)
-	// log.Infof("USED: %+v, Timestamp: %f, Value: %f", used[0], used[0].Timestamp, used[0].Value)
-	// alloc := util.ApplyVectorOp(req, used, allocationOp)
-	// log.Infof("ALLOCATION: %+v, Timestamp: %f, Value: %f", alloc[0], alloc[0].Timestamp, alloc[0].Value)
-
-	// -----------------------------------------------------------------------------
-
-	return util.ApplyVectorOp(req, used, allocationOp)
+	return result
 }
 
 func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*PersistentVolumeClaimData, cloud costAnalyzerCloud.Provider) error {
