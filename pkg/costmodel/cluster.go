@@ -157,12 +157,7 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 		log.DedupedWarningf(3, "ClusterDisks(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
 	}
 
-	// Query for the duration between start and end
-	// note, we need to append the resolution here because data is not given for the last <resolution> minutes
-	// this gives us a bit of query overlap, but the most recent minsPerResolution mins in each query are not returned
-	endInclResolution := end.Add(time.Duration(minsPerResolution) * time.Minute)
-	duration := endInclResolution.Sub(start)
-	durStr := timeutil.DurationString(duration)
+	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
 		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
 	}
@@ -745,11 +740,7 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 	}
 
 	// Query for the duration between start and end
-	// note, we need to append the resolution here because data is not given for the last <resolution> minutes
-	// this gives us a bit of query overlap, but the most recent minsPerResolution mins in each query are not returned
-	endInclResolution := end.Add(time.Duration(minsPerResolution) * time.Minute)
-	duration := endInclResolution.Sub(start)
-	durStr := timeutil.DurationString(duration)
+	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
 		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
 	}
@@ -846,7 +837,8 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 		providerID, err := result.GetString("ingress_ip")
 		if err != nil {
 			log.DedupedWarningf(5, "ClusterLoadBalancers: LB cost data missing ingress_ip")
-			providerID = ""
+			// only update asset cost when an actual IP was returned
+			continue
 		}
 		key := LoadBalancerIdentifier{
 			Cluster:   cluster,
@@ -857,13 +849,14 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 		// Apply cost as price-per-hour * hours
 		if lb, ok := loadBalancerMap[key]; ok {
 			lbPricePerHr := result.Values[0].Value
-			hrs := lb.Minutes / 60.0
+
+			// interpolate any missing data
+			resultMins := lb.Minutes
+			scaleFactor := (resultMins + resolution.Minutes()) / resultMins
+
+			hrs := (lb.Minutes * scaleFactor) / 60.0
 			lb.Cost += lbPricePerHr * hrs
-			// if the service was deleted, ingress IP will be empty string
-			// only update private value when an actual IP was returned
-			if providerID != "" {
-				lb.Private = privateIPCheck(providerID)
-			}
+			lb.Private = privateIPCheck(providerID)
 		} else {
 			log.DedupedWarningf(20, "ClusterLoadBalancers: found minutes for key that does not exist: %v", key)
 		}
@@ -1377,8 +1370,6 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
 		mins := e.Sub(s).Minutes()
 
-		// TODO niko/assets if mins >= threshold, interpolate for missing data?
-
 		diskMap[key].End = e
 		diskMap[key].Start = s
 		diskMap[key].Minutes = mins
@@ -1452,7 +1443,14 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 				Breakdown: &ClusterCostsBreakdown{},
 			}
 		}
-		diskMap[key].Cost = cost * (diskMap[key].Bytes / 1024 / 1024 / 1024) * (diskMap[key].Minutes / 60)
+		// interpolate any missing data
+		resultMins := diskMap[key].Minutes
+		scaleFactor := 0.0
+		if resultMins > 0 {
+			scaleFactor = (resultMins + resolution.Minutes()) / resultMins
+			diskMap[key].Minutes = resultMins + resolution.Minutes()
+		}
+		diskMap[key].Cost = cost * (diskMap[key].Bytes / 1024 / 1024 / 1024) * (diskMap[key].Minutes / 60) * scaleFactor
 		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
 		if providerID != "" {
 			diskMap[key].ProviderID = provider.ParsePVID(providerID)

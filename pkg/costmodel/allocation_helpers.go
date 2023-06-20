@@ -1342,7 +1342,7 @@ func getLoadBalancerCosts(lbMap map[serviceKey]*lbCost, resLBCost, resLBActiveMi
 			continue
 		}
 
-		lbStart, lbEnd := calculateStartAndEnd(res, resolution)
+		lbStart, lbEnd := calculateStartAndEnd(res)
 		if lbStart.IsZero() || lbEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pvc %s has no running time", serviceKey)
 		}
@@ -1362,20 +1362,28 @@ func getLoadBalancerCosts(lbMap map[serviceKey]*lbCost, resLBCost, resLBActiveMi
 		// get the ingress IP to determine if this is a private LB
 		ip, err := res.GetString("ingress_ip")
 		if err != nil {
-			log.Errorf("error getting ingress ip for key %s: %v", serviceKey, err)
+			log.Warnf("error getting ingress ip for key %s: %v, skipping", serviceKey, err)
+			// do not count the time that the service was being created or deleted
+			// ingress IP will be empty string
+			// only add cost to allocation when external IP is provisioned
+			if ip == "" {
+				continue
+			}
 		}
-		isPrivate := privateIPCheck(ip)
 
 		// Apply cost as price-per-hour * hours
 		if lb, ok := lbMap[serviceKey]; ok {
 			lbPricePerHr := res.Values[0].Value
-			hours := lb.End.Sub(lb.Start).Hours()
-			lb.TotalCost += lbPricePerHr * hours
-			// if the service was deleted, ingress IP will be empty string
-			// only update private value when an actual IP was returned
-			if ip != "" {
-				lb.Private = isPrivate
-			}
+			// interpolate any missing data
+			resolutionHours := resolution.Hours()
+			resultHours := lb.End.Sub(lb.Start).Hours()
+			scaleFactor := (resolutionHours + resultHours) / resultHours
+
+			// after scaling, we can adjust the timings to reflect the interpolated data
+			lb.End = lb.End.Add(resolution)
+
+			lb.TotalCost += lbPricePerHr * resultHours * scaleFactor
+			lb.Private = privateIPCheck(ip)
 		} else {
 			log.DedupedWarningf(20, "CostModel: found minutes for key that does not exist: %s", serviceKey)
 		}
@@ -1765,7 +1773,7 @@ func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHo
 			continue
 		}
 
-		pvStart, pvEnd := calculateStartAndEnd(result, resolution)
+		pvStart, pvEnd := calculateStartAndEnd(result)
 		if pvStart.IsZero() || pvEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pv %s has no running time", key)
 		}
@@ -1834,7 +1842,7 @@ func buildPVCMap(resolution time.Duration, pvcMap map[pvcKey]*pvc, pvMap map[pvK
 		pvKey := newPVKey(cluster, volume)
 		pvcKey := newPVCKey(cluster, namespace, name)
 
-		pvcStart, pvcEnd := calculateStartAndEnd(res, resolution)
+		pvcStart, pvcEnd := calculateStartAndEnd(res)
 		if pvcStart.IsZero() || pvcEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pvc %s has no running time", pvcKey)
 		}
@@ -2168,10 +2176,8 @@ func getUnmountedPodForNamespace(window kubecost.Window, podMap map[podKey]*pod,
 	return thisPod
 }
 
-func calculateStartAndEnd(result *prom.QueryResult, resolution time.Duration) (time.Time, time.Time) {
+func calculateStartAndEnd(result *prom.QueryResult) (time.Time, time.Time) {
 	s := time.Unix(int64(result.Values[0].Timestamp), 0).UTC()
-	// subtract resolution from start time to cover full time period
-	s = s.Add(-resolution)
 	e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).UTC()
 	return s, e
 }
