@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
@@ -69,9 +69,9 @@ func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSiz
 			var queryPods string
 			// If ingesting UIDs, avg on them
 			if ingestPodUID {
-				queryPods = fmt.Sprintf(queryFmtPodsUID, env.GetPromClusterLabel(), durStr, resStr)
+				queryPods = fmt.Sprintf(queryFmtPodsUID, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr)
 			} else {
-				queryPods = fmt.Sprintf(queryFmtPods, env.GetPromClusterLabel(), durStr, resStr)
+				queryPods = fmt.Sprintf(queryFmtPods, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr)
 			}
 
 			queryProfile := time.Now()
@@ -926,6 +926,11 @@ func applyLabels(podMap map[podKey]*pod, nodeLabels map[nodeKey]map[string]strin
 				allocLabels = make(map[string]string)
 			}
 
+			nsLabels := alloc.Properties.NamespaceLabels
+			if nsLabels == nil {
+				nsLabels = make(map[string]string)
+			}
+
 			// Apply node labels first, then namespace labels, then pod labels
 			// so that pod labels overwrite namespace labels, which overwrite
 			// node labels.
@@ -943,6 +948,7 @@ func applyLabels(podMap map[podKey]*pod, nodeLabels map[nodeKey]map[string]strin
 			if labels, ok := namespaceLabels[nsKey]; ok {
 				for k, v := range labels {
 					allocLabels[k] = v
+					nsLabels[k] = v
 				}
 			}
 
@@ -953,6 +959,8 @@ func applyLabels(podMap map[podKey]*pod, nodeLabels map[nodeKey]map[string]strin
 			}
 
 			alloc.Properties.Labels = allocLabels
+			alloc.Properties.NamespaceLabels = nsLabels
+			
 		}
 	}
 }
@@ -964,11 +972,18 @@ func applyAnnotations(podMap map[podKey]*pod, namespaceAnnotations map[string]ma
 			if allocAnnotations == nil {
 				allocAnnotations = make(map[string]string)
 			}
+
+			nsAnnotations := alloc.Properties.NamespaceAnnotations
+			if nsAnnotations == nil {
+				nsAnnotations = make(map[string]string)
+			}
+
 			// Apply namespace annotations first, then pod annotations so that
 			// pod labels overwrite namespace labels.
 			if labels, ok := namespaceAnnotations[key.Namespace]; ok {
 				for k, v := range labels {
 					allocAnnotations[k] = v
+					nsAnnotations[k] = v
 				}
 			}
 			if labels, ok := podAnnotations[key]; ok {
@@ -978,6 +993,7 @@ func applyAnnotations(podMap map[podKey]*pod, namespaceAnnotations map[string]ma
 			}
 
 			alloc.Properties.Annotations = allocAnnotations
+			alloc.Properties.NamespaceAnnotations = nsAnnotations
 		}
 	}
 }
@@ -1432,7 +1448,7 @@ func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerCPUHr
 			nodeMap[key] = &nodePricing{
 				Name:       node,
 				NodeType:   instanceType,
-				ProviderID: cloud.ParseID(providerID),
+				ProviderID: provider.ParseID(providerID),
 			}
 		}
 
@@ -1470,7 +1486,7 @@ func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerRA
 			nodeMap[key] = &nodePricing{
 				Name:       node,
 				NodeType:   instanceType,
-				ProviderID: cloud.ParseID(providerID),
+				ProviderID: provider.ParseID(providerID),
 			}
 		}
 
@@ -1508,7 +1524,7 @@ func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerGPUHr
 			nodeMap[key] = &nodePricing{
 				Name:       node,
 				NodeType:   instanceType,
-				ProviderID: cloud.ParseID(providerID),
+				ProviderID: provider.ParseID(providerID),
 			}
 		}
 
@@ -1654,7 +1670,7 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*nodePricing, nodeKey no
 	if err != nil {
 		log.Warnf("CostModel: failed to load custom pricing: %s", err)
 	}
-	if cloud.CustomPricesEnabled(cm.Provider) && customPricingConfig != nil {
+	if provider.CustomPricesEnabled(cm.Provider) && customPricingConfig != nil {
 		return cm.getCustomNodePricing(node.Preemptible, node.ProviderID)
 	}
 

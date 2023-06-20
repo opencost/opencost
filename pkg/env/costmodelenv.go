@@ -1,6 +1,7 @@
 package env
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"time"
@@ -67,7 +68,8 @@ const (
 
 	KubeConfigPathEnvVar = "KUBECONFIG_PATH"
 
-	UTCOffsetEnvVar = "UTC_OFFSET"
+	UTCOffsetEnvVar                  = "UTC_OFFSET"
+	CurrentClusterIdFilterEnabledVar = "CURRENT_CLUSTER_ID_FILTER_ENABLED"
 
 	CacheWarmingEnabledEnvVar            = "CACHE_WARMING_ENABLED"
 	ETLEnabledEnvVar                     = "ETL_ENABLED"
@@ -213,7 +215,13 @@ func IsEmitKsmV1MetricsOnly() bool {
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
 // the AWS access key for authentication
 func GetAWSAccessKeyID() string {
-	return Get(AWSAccessKeyIDEnvVar, "")
+	awsAccessKeyID := Get(AWSAccessKeyIDEnvVar, "")
+	// If the sample nil service key name is set, zero it out so that it is not
+	// misinterpreted as a real service key.
+	if awsAccessKeyID == "AKIXXX" {
+		awsAccessKeyID = ""
+	}
+	return awsAccessKeyID
 }
 
 // GetAWSAccessKeySecret returns the environment variable value for AWSAccessKeySecretEnvVar which represents
@@ -282,6 +290,15 @@ func GetClusterProfile() string {
 // configurable identifier used for multi-cluster metric emission.
 func GetClusterID() string {
 	return Get(ClusterIDEnvVar, "")
+}
+
+// GetPromClusterFilter returns environment variable value CurrentClusterIdFilterEnabledVar which
+// represents additional prometheus filter for all metrics for current cluster id
+func GetPromClusterFilter() string {
+	if GetBool(CurrentClusterIdFilterEnabledVar, false) {
+		return fmt.Sprintf("%s=\"%s\"", GetPromClusterLabel(), GetClusterID())
+	}
+	return ""
 }
 
 // GetPrometheusServerEndpoint returns the environment variable value for PrometheusServerEndpointEnvVar which

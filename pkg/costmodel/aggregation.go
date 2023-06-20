@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/patrickmn/go-cache"
 	prometheusClient "github.com/prometheus/client_golang/api"
 
-	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/errors"
@@ -761,7 +761,7 @@ func getPriceVectors(cp models.Provider, costDatum *CostData, rate string, disco
 	if err != nil {
 		log.Errorf("failed to load custom pricing: %s", err)
 	}
-	if cloud.CustomPricesEnabled(cp) && err == nil {
+	if provider.CustomPricesEnabled(cp) && err == nil {
 		var cpuCostStr string
 		var ramCostStr string
 		var gpuCostStr string
@@ -839,7 +839,7 @@ func getPriceVectors(cp models.Provider, costDatum *CostData, rate string, disco
 			cost, _ := strconv.ParseFloat(pvcData.Volume.Cost, 64)
 
 			// override with custom pricing if enabled
-			if cloud.CustomPricesEnabled(cp) {
+			if provider.CustomPricesEnabled(cp) {
 				cost = pvCost
 			}
 
@@ -1768,10 +1768,10 @@ func (a *Accesses) warmAggregateCostModelCache() {
 		aggOpts.NoExpireCache = false
 		aggOpts.ShareSplit = SplitTypeWeighted
 		aggOpts.RemoteEnabled = env.IsRemoteEnabled()
-		aggOpts.AllocateIdle = cloud.AllocateIdleByDefault(a.CloudProvider)
+		aggOpts.AllocateIdle = provider.AllocateIdleByDefault(a.CloudProvider)
 
-		sharedNamespaces := cloud.SharedNamespaces(a.CloudProvider)
-		sharedLabelNames, sharedLabelValues := cloud.SharedLabels(a.CloudProvider)
+		sharedNamespaces := provider.SharedNamespaces(a.CloudProvider)
+		sharedLabelNames, sharedLabelValues := provider.SharedLabels(a.CloudProvider)
 
 		if len(sharedNamespaces) > 0 || len(sharedLabelNames) > 0 {
 			aggOpts.SharedResources = NewSharedResourceInfo(true, sharedNamespaces, sharedLabelNames, sharedLabelValues)
@@ -2242,6 +2242,19 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 
 	// IncludeIdle, if true, uses Asset data to incorporate Idle Allocation
 	includeIdle := qp.GetBool("includeIdle", false)
+	// Accumulate is an optional parameter, defaulting to false, which if true
+	// sums each Set in the Range, producing one Set.
+	accumulate := qp.GetBool("accumulate", false)
+
+	// Accumulate is an optional parameter that accumulates an AllocationSetRange
+	// by the resolution of the given time duration.
+	// Defaults to 0. If a value is not passed then the parameter is not used.
+	accumulateBy := kubecost.AccumulateOption(qp.Get("accumulateBy", ""))
+
+	// if accumulateBy is not explicitly set, and accumulate is true, ensure result is accumulated
+	if accumulateBy == kubecost.AccumulateOptionNone && accumulate {
+		accumulateBy = kubecost.AccumulateOptionAll
+	}
 
 	// IdleByNode, if true, computes idle allocations at the node level.
 	// Otherwise it is computed at the cluster level. (Not relevant if idle
@@ -2252,7 +2265,7 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	includeProportionalAssetResourceCosts := qp.GetBool("includeProportionalAssetResourceCosts", false)
 
 	// include aggregated labels/annotations if true
-	includeAggregatedMetadata := qp.GetBool("includeAggregatedMetadata", true)
+	includeAggregatedMetadata := qp.GetBool("includeAggregatedMetadata", false)
 
 	asr, err := a.Model.QueryAllocation(window, resolution, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata)
 	if err != nil {
@@ -2263,6 +2276,16 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 		}
 
 		return
+	}
+
+	// Accumulate, if requested
+	if accumulateBy != kubecost.AccumulateOptionNone {
+		asr, err = asr.Accumulate(accumulateBy)
+		if err != nil {
+			log.Errorf("error accumulating by %v: %s", accumulateBy, err)
+			WriteError(w, InternalServerError(fmt.Errorf("error accumulating by %v: %s", accumulateBy, err).Error()))
+			return
+		}
 	}
 
 	w.Write(WrapData(asr, nil))

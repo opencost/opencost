@@ -18,10 +18,11 @@ type CloudCost struct {
 	NetCost          CostMetric           `json:"netCost"`
 	AmortizedNetCost CostMetric           `json:"amortizedNetCost"`
 	InvoicedCost     CostMetric           `json:"invoicedCost"`
+	AmortizedCost    CostMetric           `json:"amortizedCost"`
 }
 
 // NewCloudCost instantiates a new CloudCost
-func NewCloudCost(start, end time.Time, ccProperties *CloudCostProperties, kubernetesPercent, listCost, netCost, amortizedNetCost, invoicedCost float64) *CloudCost {
+func NewCloudCost(start, end time.Time, ccProperties *CloudCostProperties, kubernetesPercent, listCost, netCost, amortizedNetCost, invoicedCost, amortizedCost float64) *CloudCost {
 	return &CloudCost{
 		Properties: ccProperties,
 		Window:     NewWindow(&start, &end),
@@ -38,7 +39,11 @@ func NewCloudCost(start, end time.Time, ccProperties *CloudCostProperties, kuber
 			KubernetesPercent: kubernetesPercent,
 		},
 		InvoicedCost: CostMetric{
-			Cost:              listCost,
+			Cost:              invoicedCost,
+			KubernetesPercent: kubernetesPercent,
+		},
+		AmortizedCost: CostMetric{
+			Cost:              amortizedCost,
 			KubernetesPercent: kubernetesPercent,
 		},
 	}
@@ -52,6 +57,7 @@ func (cc *CloudCost) Clone() *CloudCost {
 		NetCost:          cc.NetCost.Clone(),
 		AmortizedNetCost: cc.AmortizedNetCost.Clone(),
 		InvoicedCost:     cc.InvoicedCost.Clone(),
+		AmortizedCost:    cc.AmortizedCost.Clone(),
 	}
 }
 
@@ -65,7 +71,8 @@ func (cc *CloudCost) Equal(that *CloudCost) bool {
 		cc.ListCost.Equal(that.ListCost) &&
 		cc.NetCost.Equal(that.NetCost) &&
 		cc.AmortizedNetCost.Equal(that.AmortizedNetCost) &&
-		cc.InvoicedCost.Equal(that.InvoicedCost)
+		cc.InvoicedCost.Equal(that.InvoicedCost) &&
+		cc.AmortizedCost.Equal(that.AmortizedCost)
 }
 
 func (cc *CloudCost) add(that *CloudCost) {
@@ -81,6 +88,7 @@ func (cc *CloudCost) add(that *CloudCost) {
 	cc.NetCost = cc.NetCost.add(that.NetCost)
 	cc.AmortizedNetCost = cc.AmortizedNetCost.add(that.AmortizedNetCost)
 	cc.InvoicedCost = cc.InvoicedCost.add(that.InvoicedCost)
+	cc.AmortizedCost = cc.AmortizedCost.add(that.AmortizedCost)
 
 	cc.Window = cc.Window.Expand(that.Window)
 }
@@ -131,6 +139,8 @@ func (cc *CloudCost) GetCostMetric(costMetricName string) (CostMetric, error) {
 		return cc.AmortizedNetCost, nil
 	case InvoicedCostMetric:
 		return cc.InvoicedCost, nil
+	case AmortizedCostMetric:
+		return cc.AmortizedCost, nil
 	}
 	return CostMetric{}, fmt.Errorf("invalid Cost Metric: %s", costMetricName)
 }
@@ -486,6 +496,7 @@ func (ccsr *CloudCostSetRange) LoadCloudCost(cloudCost *CloudCost) {
 				NetCost:          cloudCost.NetCost.percent(pct),
 				AmortizedNetCost: cloudCost.AmortizedNetCost.percent(pct),
 				InvoicedCost:     cloudCost.InvoicedCost.percent(pct),
+				AmortizedCost:    cloudCost.AmortizedCost.percent(pct),
 			}
 		}
 
@@ -507,6 +518,7 @@ const (
 	NetCostMetric          string = "NetCost"
 	AmortizedNetCostMetric string = "AmortizedNetCost"
 	InvoicedCostMetric     string = "InvoicedCost"
+	AmortizedCostMetric    string = "AmortizedCost"
 )
 
 type CostMetric struct {

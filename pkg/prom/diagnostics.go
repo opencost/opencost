@@ -60,80 +60,80 @@ const DocumentationBaseURL = "https://github.com/kubecost/docs/blob/master/diagn
 var diagnosticDefinitions map[string]*diagnosticDefinition = map[string]*diagnosticDefinition{
 	CAdvisorDiagnosticMetricID: {
 		ID:          CAdvisorDiagnosticMetricID,
-		QueryFmt:    `absent_over_time(container_cpu_usage_seconds_total[5m] %s)`,
+		QueryFmt:    `absent_over_time(container_cpu_usage_seconds_total{%s}[5m] %s)`,
 		Label:       "cAdvisor metrics available",
 		Description: "Determine if cAdvisor metrics are available during last 5 minutes.",
 		DocLink:     fmt.Sprintf("%s#cadvisor-metrics-available", DocumentationBaseURL),
 	},
 	KSMDiagnosticMetricID: {
 		ID:          KSMDiagnosticMetricID,
-		QueryFmt:    `absent_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte"}[5m] %s)`,
+		QueryFmt:    `absent_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", %s}[5m] %s)`,
 		Label:       "Kube-state-metrics available",
 		Description: "Determine if metrics from kube-state-metrics are available during last 5 minutes.",
 		DocLink:     fmt.Sprintf("%s#kube-state-metrics-metrics-available", DocumentationBaseURL),
 	},
 	KubecostDiagnosticMetricID: {
 		ID:          KubecostDiagnosticMetricID,
-		QueryFmt:    `absent_over_time(node_cpu_hourly_cost[5m] %s)`,
+		QueryFmt:    `absent_over_time(node_cpu_hourly_cost{%s}[5m] %s)`,
 		Label:       "Kubecost metrics available",
 		Description: "Determine if metrics from Kubecost are available during last 5 minutes.",
 	},
 	NodeExporterDiagnosticMetricID: {
 		ID:          NodeExporterDiagnosticMetricID,
-		QueryFmt:    `absent_over_time(node_cpu_seconds_total[5m] %s)`,
+		QueryFmt:    `absent_over_time(node_cpu_seconds_total{%s}[5m] %s)`,
 		Label:       "Node-exporter metrics available",
 		Description: "Determine if metrics from node-exporter are available during last 5 minutes.",
 		DocLink:     fmt.Sprintf("%s#node-exporter-metrics-available", DocumentationBaseURL),
 	},
 	CAdvisorLabelDiagnosticMetricID: {
 		ID:          CAdvisorLabelDiagnosticMetricID,
-		QueryFmt:    `absent_over_time(container_cpu_usage_seconds_total{container!="",pod!=""}[5m] %s)`,
+		QueryFmt:    `absent_over_time(container_cpu_usage_seconds_total{container!="",pod!="", %s}[5m] %s)`,
 		Label:       "Expected cAdvisor labels available",
 		Description: "Determine if expected cAdvisor labels are present during last 5 minutes.",
 		DocLink:     fmt.Sprintf("%s#cadvisor-metrics-available", DocumentationBaseURL),
 	},
 	KSMVersionDiagnosticMetricID: {
 		ID:          KSMVersionDiagnosticMetricID,
-		QueryFmt:    `absent_over_time(kube_persistentvolume_capacity_bytes[5m] %s)`,
+		QueryFmt:    `absent_over_time(kube_persistentvolume_capacity_bytes{%s}[5m] %s)`,
 		Label:       "Expected kube-state-metrics version found",
 		Description: "Determine if metric in required kube-state-metrics version are present during last 5 minutes.",
 		DocLink:     fmt.Sprintf("%s#expected-kube-state-metrics-version-found", DocumentationBaseURL),
 	},
 	ScrapeIntervalDiagnosticMetricID: {
 		ID:          ScrapeIntervalDiagnosticMetricID,
-		QueryFmt:    `absent_over_time(prometheus_target_interval_length_seconds[5m]  %s)`,
+		QueryFmt:    `absent_over_time(prometheus_target_interval_length_seconds{%s}[5m]  %s)`,
 		Label:       "Expected Prometheus self-scrape metrics available",
 		Description: "Determine if prometheus has its own self-scraped metrics during the last 5 minutes.",
 	},
 	CPUThrottlingDiagnosticMetricID: {
 		ID: CPUThrottlingDiagnosticMetricID,
-		QueryFmt: `avg(increase(container_cpu_cfs_throttled_periods_total{container="cost-model"}[10m] %s)) by (container_name, pod_name, namespace)
-	/ avg(increase(container_cpu_cfs_periods_total{container="cost-model"}[10m] %s)) by (container_name, pod_name, namespace) > 0.2`,
+		QueryFmt: `avg(increase(container_cpu_cfs_throttled_periods_total{container="cost-model", %s}[10m] %s)) by (container_name, pod_name, namespace)
+	/ avg(increase(container_cpu_cfs_periods_total{container="cost-model",%s}[10m] %s)) by (container_name, pod_name, namespace) > 0.2`,
 		Label:       "Kubecost is not CPU throttled",
 		Description: "Kubecost loading slowly? A kubecost component might be CPU throttled",
 	},
 	KubecostRecordingRuleCPUUsageID: {
 		ID:          KubecostRecordingRuleCPUUsageID,
-		QueryFmt:    `absent_over_time(kubecost_container_cpu_usage_irate[5m] %s)`,
+		QueryFmt:    `absent_over_time(kubecost_container_cpu_usage_irate{%s}[5m] %s)`,
 		Label:       "Kubecost's CPU usage recording rule is set up",
 		Description: "If the 'kubecost_container_cpu_usage_irate' recording rule is not set up, Allocation pipeline build may put pressure on your Prometheus due to the use of a subquery.",
 		DocLink:     "https://docs.kubecost.com/install-and-configure/install/custom-prom",
 	},
 	CAdvisorWorkingSetBytesMetricID: {
 		ID:          CAdvisorWorkingSetBytesMetricID,
-		QueryFmt:    `absent_over_time(container_memory_working_set_bytes{container="cost-model", container!="POD", instance!=""}[5m] %s)`,
+		QueryFmt:    `absent_over_time(container_memory_working_set_bytes{container="cost-model", container!="POD", instance!="", %s}[5m] %s)`,
 		Label:       "cAdvisor working set bytes metrics available",
 		Description: "Determine if cAdvisor working set bytes metrics are available during last 5 minutes.",
 	},
 	KSMCPUCapacityMetricID: {
 		ID:          KSMCPUCapacityMetricID,
-		QueryFmt:    `absent_over_time(kube_node_status_capacity_cpu_cores[5m] %s)`,
+		QueryFmt:    `absent_over_time(kube_node_status_capacity_cpu_cores{%s}[5m] %s)`,
 		Label:       "KSM had CPU capacity during the last 5 minutes",
 		Description: "Determine if KSM had CPU capacity during the last 5 minutes",
 	},
 	KSMAllocatableCPUCoresMetricID: {
 		ID:          KSMAllocatableCPUCoresMetricID,
-		QueryFmt:    `absent_over_time(kube_node_status_allocatable_cpu_cores[5m] %s)`,
+		QueryFmt:    `absent_over_time(kube_node_status_allocatable_cpu_cores{%s}[5m] %s)`,
 		Label:       "KSM had allocatable CPU cores during the last 5 minutes",
 		Description: "Determine if KSM had allocatable CPU cores during the last 5 minutes",
 	},
@@ -266,10 +266,11 @@ func (pdd *diagnosticDefinition) NewDiagnostic(offset string) *PrometheusDiagnos
 	// FIXME: Any reasonable way to get the total number of replacements required in the query?
 	// FIXME: All of the other queries require a single offset replace, but CPUThrottle requires two.
 	var query string
+	filter := env.GetPromClusterFilter()
 	if pdd.ID == CPUThrottlingDiagnosticMetricID {
-		query = fmt.Sprintf(pdd.QueryFmt, offset, offset)
+		query = fmt.Sprintf(pdd.QueryFmt, filter, offset, filter, offset)
 	} else {
-		query = fmt.Sprintf(pdd.QueryFmt, offset)
+		query = fmt.Sprintf(pdd.QueryFmt, filter, offset)
 	}
 
 	return &PrometheusDiagnostic{

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/util"
@@ -150,6 +150,7 @@ func TestBuildNodeMap(t *testing.T) {
 		labelsMap            map[nodeIdentifierNoProviderID]map[string]string
 		clusterAndNameToType map[nodeIdentifierNoProviderID]string
 		expected             map[NodeIdentifier]*Node
+		overheadMap          map[nodeIdentifierNoProviderID]*NodeOverhead
 	}{
 		{
 			name:     "empty",
@@ -183,6 +184,7 @@ func TestBuildNodeMap(t *testing.T) {
 					CPUCost:      0.048,
 					CPUBreakdown: &ClusterCostsBreakdown{},
 					RAMBreakdown: &ClusterCostsBreakdown{},
+					Overhead:     &NodeOverhead{},
 				},
 			},
 		},
@@ -211,6 +213,7 @@ func TestBuildNodeMap(t *testing.T) {
 					CPUCost:      0.048,
 					CPUBreakdown: &ClusterCostsBreakdown{},
 					RAMBreakdown: &ClusterCostsBreakdown{},
+					Overhead:     &NodeOverhead{},
 				},
 			},
 		},
@@ -247,6 +250,7 @@ func TestBuildNodeMap(t *testing.T) {
 					CPUCost:      0.048,
 					CPUBreakdown: &ClusterCostsBreakdown{},
 					RAMBreakdown: &ClusterCostsBreakdown{},
+					Overhead:     &NodeOverhead{},
 				},
 				{
 					Cluster:    "cluster1",
@@ -260,6 +264,7 @@ func TestBuildNodeMap(t *testing.T) {
 					CPUCost:      0.087,
 					CPUBreakdown: &ClusterCostsBreakdown{},
 					RAMBreakdown: &ClusterCostsBreakdown{},
+					Overhead:     &NodeOverhead{},
 				},
 			},
 		},
@@ -489,6 +494,7 @@ func TestBuildNodeMap(t *testing.T) {
 					End:         time.Date(2020, 6, 16, 9, 20, 39, 0, time.UTC),
 					Minutes:     5*60 + 35 + (11.0 / 60.0),
 					Preemptible: true,
+					Overhead:    &NodeOverhead{},
 					Labels: map[string]string{
 						"labelname1_A": "labelvalue1_A",
 						"labelname1_B": "labelvalue1_B",
@@ -525,6 +531,7 @@ func TestBuildNodeMap(t *testing.T) {
 						"labelname1_A": "labelvalue1_A",
 						"labelname1_B": "labelvalue1_B",
 					},
+					Overhead: &NodeOverhead{},
 				},
 				{
 					Cluster:    "cluster1",
@@ -557,6 +564,7 @@ func TestBuildNodeMap(t *testing.T) {
 						"labelname2_A": "labelvalue2_A",
 						"labelname2_B": "labelvalue2_B",
 					},
+					Overhead: &NodeOverhead{},
 				},
 			},
 		},
@@ -595,6 +603,7 @@ func TestBuildNodeMap(t *testing.T) {
 					CPUCores:     partialCPUMap["e2-micro"],
 					CPUBreakdown: &ClusterCostsBreakdown{},
 					RAMBreakdown: &ClusterCostsBreakdown{},
+					Overhead:     &NodeOverhead{},
 				},
 			},
 		},
@@ -633,6 +642,7 @@ func TestBuildNodeMap(t *testing.T) {
 					CPUCores:     partialCPUMap["e2-small"],
 					CPUBreakdown: &ClusterCostsBreakdown{},
 					RAMBreakdown: &ClusterCostsBreakdown{},
+					Overhead:     &NodeOverhead{},
 				},
 			},
 		},
@@ -657,6 +667,15 @@ func TestBuildNodeMap(t *testing.T) {
 					Name:    "node1",
 				}: "e2-medium", // for this node type
 			},
+			overheadMap: map[nodeIdentifierNoProviderID]*NodeOverhead{
+				{
+					Cluster: "cluster1",
+					Name:    "node1",
+				}: {
+					CpuOverheadFraction: 0.5,
+					RamOverheadFraction: 0.25,
+				}, // for this node type
+			},
 			expected: map[NodeIdentifier]*Node{
 				{
 					Cluster:    "cluster1",
@@ -671,6 +690,10 @@ func TestBuildNodeMap(t *testing.T) {
 					CPUCores:     partialCPUMap["e2-medium"],
 					CPUBreakdown: &ClusterCostsBreakdown{},
 					RAMBreakdown: &ClusterCostsBreakdown{},
+					Overhead: &NodeOverhead{
+						CpuOverheadFraction: 0.5,
+						RamOverheadFraction: 0.25,
+					},
 				},
 			},
 		},
@@ -688,6 +711,7 @@ func TestBuildNodeMap(t *testing.T) {
 				testCase.labelsMap,
 				testCase.clusterAndNameToType,
 				time.Minute,
+				testCase.overheadMap,
 			)
 
 			if !reflect.DeepEqual(result, testCase.expected) {
@@ -853,8 +877,8 @@ func TestBuildGPUCostMap(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			testProvider := &cloud.CustomProvider{
-				Config: cloud.NewProviderConfig(config.NewConfigFileManager(nil), "fakeFile"),
+			testProvider := &provider.CustomProvider{
+				Config: provider.NewProviderConfig(config.NewConfigFileManager(nil), "fakeFile"),
 			}
 			testPreemptible := make(map[NodeIdentifier]bool)
 			result, _ := buildGPUCostMap(testCase.promResult, testCase.countMap, testProvider, testPreemptible)
@@ -1042,8 +1066,8 @@ func TestAssetCustompricing(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			testProvider := &cloud.CustomProvider{
-				Config: cloud.NewProviderConfig(config.NewConfigFileManager(nil), ""),
+			testProvider := &provider.CustomProvider{
+				Config: provider.NewProviderConfig(config.NewConfigFileManager(nil), ""),
 			}
 			testProvider.UpdateConfigFromConfigMap(testCase.customPricingMap)
 
