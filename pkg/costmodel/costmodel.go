@@ -500,11 +500,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				// for the units of memory and CPU.
 				ramRequestBytes := container.Resources.Requests.Memory().Value()
 
-				// Because RAM (and CPU) information isn't coming from Prometheus, it won't
-				// have a timestamp associated with it. We need to provide a timestamp,
-				// otherwise the vector op that gets applied to take the max of usage
-				// and request won't work properly and will only take into account
-				// usage.
+				// Because information on container RAM & CPU requests isn't
+				// coming from Prometheus, it won't have a timestamp associated
+				// with it. We need to provide a timestamp.
 				RAMReqV := []*util.Vector{
 					{
 						Value:     float64(ramRequestBytes),
@@ -582,8 +580,19 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 					ClusterID:       clusterID,
 					ClusterName:     cm.ClusterMap.NameFor(clusterID),
 				}
-				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed, "CPU")
-				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed, "RAM")
+
+				if len(costs.CPUReq) > 0 && len(costs.CPUUsed) > 0 {
+					costs.CPUAllocation = getContainerAllocation(costs.CPUReq[0], costs.CPUUsed[0], "CPU")
+				} else {
+					log.Warnf("CPU Requests or Usage data missing for %s", containerName)
+				}
+
+				if len(costs.RAMReq) > 0 && len(costs.RAMUsed) > 0 {
+					costs.RAMAllocation = getContainerAllocation(costs.RAMReq[0], costs.RAMUsed[0], "RAM")
+				} else {
+					log.Warnf("RAM Requests or Usage data missing for %s", containerName)
+				}
+
 				if filterNamespace == "" {
 					containerNameCost[newKey] = costs
 				} else if costs.Namespace == filterNamespace {
@@ -650,8 +659,19 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				ClusterID:       c.ClusterID,
 				ClusterName:     cm.ClusterMap.NameFor(c.ClusterID),
 			}
-			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed, "CPU")
-			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed, "RAM")
+
+			if len(costs.CPUReq) > 0 && len(costs.CPUUsed) > 0 {
+				costs.CPUAllocation = getContainerAllocation(costs.CPUReq[0], costs.CPUUsed[0], "CPU")
+			} else {
+				log.Warnf("CPU Requests or Usage data missing for %s", c.ContainerName)
+			}
+
+			if len(costs.RAMReq) > 0 && len(costs.RAMUsed) > 0 {
+				costs.RAMAllocation = getContainerAllocation(costs.RAMReq[0], costs.RAMUsed[0], "RAM")
+			} else {
+				log.Warnf("RAM Requests or Usage data missing for %s", c.ContainerName)
+			}
+
 			if filterNamespace == "" {
 				containerNameCost[key] = costs
 				missingContainers[key] = costs
@@ -830,20 +850,17 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 
 // getContainerAllocation takes the max between request and usage. This function
 // returns a slice containing a single element describing the container's
-// allocation. This function assumes that the `req` and `used` slices both
-// contain a single element.
-func getContainerAllocation(req []*util.Vector, used []*util.Vector, allocationType string) []*util.Vector {
+// allocation.
+func getContainerAllocation(req *util.Vector, used *util.Vector, allocationType string) []*util.Vector {
 	var result []*util.Vector
-	reqIsEmpty := len(req) == 0
-	usedIsEmpty := len(used) == 0
 
-	if !reqIsEmpty && !usedIsEmpty {
-		x1 := req[0].Value
+	if req != nil && used != nil {
+		x1 := req.Value
 		if math.IsNaN(x1) {
 			log.Warnf("NaN value found during %s allocation calculation for requests.", allocationType)
 			x1 = 0.0
 		}
-		y1 := used[0].Value
+		y1 := used.Value
 		if math.IsNaN(y1) {
 			log.Warnf("NaN value found during %s allocation calculation for used.", allocationType)
 			y1 = 0.0
@@ -851,24 +868,25 @@ func getContainerAllocation(req []*util.Vector, used []*util.Vector, allocationT
 		result = []*util.Vector{
 			{
 				Value:     math.Max(x1, y1),
-				Timestamp: req[0].Timestamp,
+				Timestamp: req.Timestamp,
 			},
 		}
-	} else if usedIsEmpty {
+	} else if req != nil {
 		result = []*util.Vector{
 			{
-				Value:     req[0].Value,
-				Timestamp: req[0].Timestamp,
+				Value:     req.Value,
+				Timestamp: req.Timestamp,
 			},
 		}
-	} else if reqIsEmpty {
+	} else if used != nil {
 		result = []*util.Vector{
 			{
-				Value:     used[0].Value,
-				Timestamp: used[0].Timestamp,
+				Value:     used.Value,
+				Timestamp: used.Timestamp,
 			},
 		}
 	} else {
+		log.Warnf("No request or usage data found during %s allocation calculation. Setting allocation to 0.", allocationType)
 		result = []*util.Vector{
 			{
 				Value:     0,
