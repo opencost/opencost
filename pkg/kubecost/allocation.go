@@ -117,6 +117,7 @@ func (orig LbAllocations) Clone() LbAllocations {
 type LbAllocation struct {
 	Service string  `json:"service"`
 	Cost    float64 `json:"cost"`
+	Private bool    `json:"private"`
 }
 
 // RawAllocationOnlyData is information that only belong in "raw" Allocations,

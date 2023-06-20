@@ -2,6 +2,7 @@ package costmodel
 
 import (
 	"fmt"
+	"net"
 	"strconv"
 	"time"
 
@@ -724,6 +725,7 @@ type LoadBalancer struct {
 	Start      time.Time
 	End        time.Time
 	Minutes    float64
+	Private    bool
 }
 
 func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[LoadBalancerIdentifier]*LoadBalancer, error) {
@@ -841,6 +843,11 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 			continue
 		}
 
+		providerID, err := result.GetString("ingress_ip")
+		if err != nil {
+			log.DedupedWarningf(5, "ClusterLoadBalancers: LB cost data missing ingress_ip")
+			providerID = ""
+		}
 		key := LoadBalancerIdentifier{
 			Cluster:   cluster,
 			Namespace: namespace,
@@ -852,12 +859,23 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 			lbPricePerHr := result.Values[0].Value
 			hrs := lb.Minutes / 60.0
 			lb.Cost += lbPricePerHr * hrs
+			// if the service was deleted, ingress IP will be empty string
+			// only update private value when an actual IP was returned
+			if providerID != "" {
+				lb.Private = privateIPCheck(providerID)
+			}
 		} else {
-			log.DedupedWarningf(20, "ClusterLoadBalancers: found minutes for key that does not exist: %s", key)
+			log.DedupedWarningf(20, "ClusterLoadBalancers: found minutes for key that does not exist: %v", key)
 		}
 	}
 
 	return loadBalancerMap, nil
+}
+
+// Check if an ip is private.
+func privateIPCheck(ip string) bool {
+	ipAddress := net.ParseIP(ip)
+	return ipAddress.IsPrivate()
 }
 
 // ComputeClusterCosts gives the cumulative and monthly-rate cluster costs over a window of time for all clusters.

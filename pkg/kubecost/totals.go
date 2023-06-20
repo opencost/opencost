@@ -210,6 +210,7 @@ type AssetTotals struct {
 	PersistentVolumeCostAdjustment  float64   `json:"persistentVolumeCostAdjustment"`
 	RAMCost                         float64   `json:"ramCost"`
 	RAMCostAdjustment               float64   `json:"ramCostAdjustment"`
+	PrivateLoadBalancer             bool      `json:"privateLoadBalancer"`
 }
 
 // ClearAdjustments sets all adjustment fields to 0.0
@@ -245,6 +246,7 @@ func (art *AssetTotals) Clone() *AssetTotals {
 		PersistentVolumeCostAdjustment:  art.PersistentVolumeCostAdjustment,
 		RAMCost:                         art.RAMCost,
 		RAMCostAdjustment:               art.RAMCostAdjustment,
+		PrivateLoadBalancer:             art.PrivateLoadBalancer,
 	}
 }
 
@@ -406,10 +408,11 @@ func ComputeAssetTotals(as *AssetSet, byAsset bool) map[string]*AssetTotals {
 
 		if _, ok := arts[key]; !ok {
 			arts[key] = &AssetTotals{
-				Start:   lb.Start,
-				End:     lb.End,
-				Cluster: lb.Properties.Cluster,
-				Node:    lb.Properties.Name,
+				Start:               lb.Start,
+				End:                 lb.End,
+				Cluster:             lb.Properties.Cluster,
+				Node:                lb.Properties.Name,
+				PrivateLoadBalancer: lb.Private,
 			}
 		}
 

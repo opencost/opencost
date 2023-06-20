@@ -1358,11 +1358,24 @@ func getLoadBalancerCosts(lbMap map[serviceKey]*lbCost, resLBCost, resLBActiveMi
 		if err != nil {
 			continue
 		}
+
+		// get the ingress IP to determine if this is a private LB
+		ip, err := res.GetString("ingress_ip")
+		if err != nil {
+			log.Errorf("error getting ingress ip for key %s: %v", serviceKey, err)
+		}
+		isPrivate := privateIPCheck(ip)
+
 		// Apply cost as price-per-hour * hours
 		if lb, ok := lbMap[serviceKey]; ok {
 			lbPricePerHr := res.Values[0].Value
 			hours := lb.End.Sub(lb.Start).Hours()
 			lb.TotalCost += lbPricePerHr * hours
+			// if the service was deleted, ingress IP will be empty string
+			// only update private value when an actual IP was returned
+			if ip != "" {
+				lb.Private = isPrivate
+			}
 		} else {
 			log.DedupedWarningf(20, "CostModel: found minutes for key that does not exist: %s", serviceKey)
 		}
@@ -1418,6 +1431,7 @@ func applyLoadBalancersToPods(window kubecost.Window, podMap map[podKey]*pod, lb
 				alloc.LoadBalancers[sKey.String()] = &kubecost.LbAllocation{
 					Service: sKey.Namespace + "/" + sKey.Service,
 					Cost:    alloc.LoadBalancerCost,
+					Private: lb.Private,
 				}
 			}
 		}
