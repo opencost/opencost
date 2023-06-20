@@ -584,7 +584,6 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed, "CPU")
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed, "RAM")
-
 				if filterNamespace == "" {
 					containerNameCost[newKey] = costs
 				} else if costs.Namespace == filterNamespace {
@@ -653,7 +652,6 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed, "CPU")
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed, "RAM")
-
 			if filterNamespace == "" {
 				containerNameCost[key] = costs
 				missingContainers[key] = costs
@@ -830,9 +828,10 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 	return nil
 }
 
-// getContainerAllocation returns a vectorslice of the max between `req` and
-// `used`. The function assumes the `req` and `used` vectorslices contain a
-// single element.
+// getContainerAllocation takes the max between request and usage. This function
+// returns a slice containing a single element describing the container's
+// allocation. This function assumes that the `req` and `used` slices both
+// contain a single element.
 func getContainerAllocation(req []*util.Vector, used []*util.Vector, allocationType string) []*util.Vector {
 	var result []*util.Vector
 	reqIsEmpty := len(req) == 0
