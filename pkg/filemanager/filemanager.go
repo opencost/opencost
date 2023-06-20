@@ -7,7 +7,11 @@ import (
 	"io"
 	"net/url"
 	"os"
+<<<<<<< HEAD
 	"path"
+=======
+	gp "path"
+>>>>>>> 77f58e7c (feat: add custom s3 export endpoint)
 	"path/filepath"
 	"strings"
 	"time"
@@ -35,11 +39,16 @@ type FileManager interface {
 // - s3://bucket-name/path/to/file.csv
 // - gs://bucket-name/path/to/file.csv
 // - https://azblobaccount.blob.core.windows.net/containerName/path/to/file.csv
+<<<<<<< HEAD
 // - alts3://fqdn:port/bucket-name/path/to/file.csv
+=======
+// - https://fqdn:port/bucket-name/path/to/file.csv
+>>>>>>> 77f58e7c (feat: add custom s3 export endpoint)
 // - local/file/path.csv
 
 func NewFileManager(filePath string) (FileManager, error) {
 	switch {
+<<<<<<< HEAD
 	case strings.HasPrefix(filePath, "s3://"):
 		return NewS3File(filePath)
 	case strings.HasPrefix(filePath, "gs://"):
@@ -49,10 +58,97 @@ func NewFileManager(filePath string) (FileManager, error) {
 	case strings.HasPrefix(filePath, "alts3://"):
 		return NewAltS3File(filePath)
 	case filePath == "":
+=======
+	case strings.HasPrefix(path, "s3://"):
+		return NewS3File(path)
+	case strings.HasPrefix(path, "gs://"):
+		return NewGCSStorageFile(path)
+	case strings.Contains(path, "blob.core.windows.net"):
+		return NewAzureBlobFile(path)
+	case strings.HasPrefix(path, "http://"), strings.HasPrefix(path, "https://"):
+		return NewCustomS3File(path)
+	case path == "":
+>>>>>>> 77f58e7c (feat: add custom s3 export endpoint)
 		return nil, errors.New("empty path")
 	default:
 		return NewSystemFile(filePath), nil
 	}
+}
+
+type CustomS3File struct {
+	s3Client *s3.Client
+	bucket   string
+	key      string
+}
+
+func NewCustomS3File(path string) (*CustomS3File, error) {
+	u, err := url.Parse(path)
+	if err != nil {
+		return nil, err
+	}
+
+	clPath := gp.Clean(u.Path)
+
+	if len(strings.Split(clPath, "/")) < 3 {
+		return nil, fmt.Errorf("invalid s3 path: %s", path)
+	}
+
+	// Extract bucket and path from url
+	bucket, key, _ := strings.Cut(strings.TrimLeft(clPath, "/"), "/")
+
+	if bucket == "" || key == "" {
+		return nil, fmt.Errorf("invalid s3 path: %s", path)
+	}
+
+	const defaultRegion = "us-east-1"
+
+	resolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...any) (aws.Endpoint, error) {
+		return aws.Endpoint{
+			PartitionID:       "aws",
+			SigningRegion:     defaultRegion,
+			URL:               fmt.Sprintf("%v://%v", u.Scheme, u.Host),
+			HostnameImmutable: true,
+		}, nil
+	})
+
+	cfg, err := config.LoadDefaultConfig(
+		context.Background(),
+		config.WithDefaultRegion(defaultRegion),
+		config.WithEndpointResolverWithOptions(resolver))
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &CustomS3File{
+		s3Client: s3.NewFromConfig(cfg),
+		bucket:   bucket, // bucket
+		key:      key,    // path/to/file.csv
+	}, nil
+}
+
+func (c *CustomS3File) Download(ctx context.Context, f *os.File) error {
+	_, err := manager.NewDownloader(c.s3Client).Download(ctx, f, &s3.GetObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(c.key),
+	})
+
+	// Convert AWS error into our own error type.
+	var notFound *types.NoSuchKey
+	if errors.As(err, &notFound) {
+		return ErrNotFound
+	}
+
+	return err
+}
+
+func (c *CustomS3File) Upload(ctx context.Context, f *os.File) error {
+	_, err := manager.NewUploader(c.s3Client).Upload(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(c.key),
+		Body:   f,
+	})
+	return err
 }
 
 type AzureBlobFile struct {
