@@ -17,7 +17,7 @@ type unallocReplacePass struct{}
 // Exec executes the pass on the provided AST. This method may either return
 // a new AST or modify and return the AST parameter. The parameter into this
 // method may be changed directly.
-func (pks *unallocReplacePass) Exec(filter ast.FilterNode) ast.FilterNode {
+func (pks *unallocReplacePass) Exec(filter ast.FilterNode) (ast.FilterNode, error) {
 	ast.PreOrderTraversal(filter, func(fn ast.FilterNode, ts ast.TraversalState) {
 		switch n := fn.(type) {
 		case *ast.EqualOp:
@@ -30,7 +30,7 @@ func (pks *unallocReplacePass) Exec(filter ast.FilterNode) ast.FilterNode {
 			n.Right = replaceUnallocated(n.Right)
 		}
 	})
-	return filter
+	return filter, nil
 }
 
 // replaces unallocated with empty string if valid

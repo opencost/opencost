@@ -10,7 +10,7 @@ import (
 	"github.com/opencost/opencost/pkg/util/typeutil"
 
 	filter "github.com/opencost/opencost/pkg/filter21"
-	allocationfilter "github.com/opencost/opencost/pkg/filter21/allocation"
+	afilter "github.com/opencost/opencost/pkg/filter21/allocation"
 	"github.com/opencost/opencost/pkg/filter21/ast"
 	// cloudfilter "github.com/opencost/opencost/pkg/filter/cloud"
 )
@@ -26,7 +26,7 @@ import (
 // funcs by Field type.
 var defaultFieldByType = map[string]any{
 	// typeutil.TypeOf[cloudfilter.CloudAggregationField](): cloudfilter.DefaultFieldByName,
-	typeutil.TypeOf[allocationfilter.AllocationField](): allocationfilter.DefaultFieldByName,
+	typeutil.TypeOf[afilter.AllocationField](): afilter.DefaultFieldByName,
 }
 
 // DefaultFieldByName looks up a specific T field instance by name and returns the default
@@ -169,7 +169,7 @@ func AllocationFilterFromParamsV1(
 		var ops []ast.FilterNode
 
 		// filter my cluster identifier
-		ops = push(ops, filterV1SingleValueFromList(params.Clusters, allocationfilter.AllocationFieldClusterID))
+		ops = push(ops, filterV1SingleValueFromList(params.Clusters, afilter.FieldClusterID))
 
 		for _, rawFilterValue := range params.Clusters {
 			clusterNameFilter, wildcard := parseWildcardEnd(rawFilterValue)
@@ -186,7 +186,7 @@ func AllocationFilterFromParamsV1(
 			for _, clusterID := range clusterIDsToFilter {
 				ops = append(ops, &ast.EqualOp{
 					Left: ast.Identifier{
-						Field: allocationfilter.DefaultFieldByName(allocationfilter.AllocationFieldClusterID),
+						Field: afilter.DefaultFieldByName(afilter.FieldClusterID),
 						Key:   "",
 					},
 					Right: clusterID,
@@ -200,15 +200,15 @@ func AllocationFilterFromParamsV1(
 	}
 
 	if len(params.Nodes) > 0 {
-		filterOps = push(filterOps, filterV1SingleValueFromList(params.Nodes, allocationfilter.AllocationFieldNode))
+		filterOps = push(filterOps, filterV1SingleValueFromList(params.Nodes, afilter.FieldNode))
 	}
 
 	if len(params.Namespaces) > 0 {
-		filterOps = push(filterOps, filterV1SingleValueFromList(params.Namespaces, allocationfilter.AllocationFieldNamespace))
+		filterOps = push(filterOps, filterV1SingleValueFromList(params.Namespaces, afilter.FieldNamespace))
 	}
 
 	if len(params.ControllerKinds) > 0 {
-		filterOps = push(filterOps, filterV1SingleValueFromList(params.ControllerKinds, allocationfilter.AllocationFieldControllerKind))
+		filterOps = push(filterOps, filterV1SingleValueFromList(params.ControllerKinds, afilter.FieldControllerKind))
 	}
 
 	// filterControllers= accepts controllerkind:controllername filters, e.g.
@@ -223,14 +223,14 @@ func AllocationFilterFromParamsV1(
 			if len(split) == 1 {
 				filterValue, wildcard := parseWildcardEnd(split[0])
 
-				subFilter := toEqualOp(allocationfilter.AllocationFieldControllerName, "", filterValue, wildcard)
+				subFilter := toEqualOp(afilter.FieldControllerName, "", filterValue, wildcard)
 				ops = append(ops, subFilter)
 			} else if len(split) == 2 {
 				kindFilterVal := split[0]
 				nameFilterVal, wildcard := parseWildcardEnd(split[1])
 
-				kindFilter := toEqualOp(allocationfilter.AllocationFieldControllerKind, "", kindFilterVal, false)
-				nameFilter := toEqualOp(allocationfilter.AllocationFieldControllerName, "", nameFilterVal, wildcard)
+				kindFilter := toEqualOp(afilter.FieldControllerKind, "", kindFilterVal, false)
+				nameFilter := toEqualOp(afilter.FieldControllerName, "", nameFilterVal, wildcard)
 
 				// The controller name AND the controller kind must match
 				ops = append(ops, &ast.AndOp{
@@ -248,11 +248,11 @@ func AllocationFilterFromParamsV1(
 	}
 
 	if len(params.Pods) > 0 {
-		filterOps = push(filterOps, filterV1SingleValueFromList(params.Pods, allocationfilter.AllocationFieldPod))
+		filterOps = push(filterOps, filterV1SingleValueFromList(params.Pods, afilter.FieldPod))
 	}
 
 	if len(params.Containers) > 0 {
-		filterOps = push(filterOps, filterV1SingleValueFromList(params.Containers, allocationfilter.AllocationFieldContainer))
+		filterOps = push(filterOps, filterV1SingleValueFromList(params.Containers, afilter.FieldContainer))
 	}
 
 	// Label-mapped queries require a label config to be present.
@@ -277,11 +277,11 @@ func AllocationFilterFromParamsV1(
 	}
 
 	if len(params.Annotations) > 0 {
-		filterOps = push(filterOps, filterV1DoubleValueFromList(params.Annotations, allocationfilter.AllocationFieldAnnotation))
+		filterOps = push(filterOps, filterV1DoubleValueFromList(params.Annotations, afilter.FieldAnnotation))
 	}
 
 	if len(params.Labels) > 0 {
-		filterOps = push(filterOps, filterV1DoubleValueFromList(params.Labels, allocationfilter.AllocationFieldLabel))
+		filterOps = push(filterOps, filterV1DoubleValueFromList(params.Labels, afilter.FieldLabel))
 	}
 
 	if len(params.Services) > 0 {
@@ -292,7 +292,7 @@ func AllocationFilterFromParamsV1(
 			// TODO: wildcard support
 			filterValue, wildcard := parseWildcardEnd(filterValue)
 
-			subFilter := toContainsOp(allocationfilter.AllocationFieldServices, "", filterValue, wildcard)
+			subFilter := toContainsOp(afilter.FieldServices, "", filterValue, wildcard)
 			ops = append(ops, subFilter)
 		}
 
@@ -351,7 +351,7 @@ func filterV1LabelAliasMappedFromList(rawFilterValues []string, labelName string
 //
 // The v1 query language (e.g. "filterLabels=app:foo,l2:bar") uses OR within
 // a field (e.g. label[app] = foo OR label[l2] = bar)
-func filterV1DoubleValueFromList(rawFilterValuesUnsplit []string, filterField allocationfilter.AllocationField) ast.FilterNode {
+func filterV1DoubleValueFromList(rawFilterValuesUnsplit []string, filterField afilter.AllocationField) ast.FilterNode {
 	var ops []ast.FilterNode
 
 	for _, unsplit := range rawFilterValuesUnsplit {
@@ -463,7 +463,7 @@ func toAllocationAliasOp(labelName string, filterValue string, wildcard bool) *a
 	// labels.Contains(labelName)
 	labelContainsKey := &ast.ContainsOp{
 		Left: ast.Identifier{
-			Field: allocationfilter.DefaultFieldByName(allocationfilter.AllocationFieldLabel),
+			Field: afilter.DefaultFieldByName(afilter.FieldLabel),
 			Key:   "",
 		},
 		Right: labelName,
@@ -472,7 +472,7 @@ func toAllocationAliasOp(labelName string, filterValue string, wildcard bool) *a
 	// annotations.Contains(labelName)
 	annotationContainsKey := &ast.ContainsOp{
 		Left: ast.Identifier{
-			Field: allocationfilter.DefaultFieldByName(allocationfilter.AllocationFieldAnnotation),
+			Field: afilter.DefaultFieldByName(afilter.FieldAnnotation),
 			Key:   "",
 		},
 		Right: labelName,
@@ -483,7 +483,7 @@ func toAllocationAliasOp(labelName string, filterValue string, wildcard bool) *a
 	if wildcard {
 		labelSubFilter = &ast.ContainsPrefixOp{
 			Left: ast.Identifier{
-				Field: allocationfilter.DefaultFieldByName(allocationfilter.AllocationFieldLabel),
+				Field: afilter.DefaultFieldByName(afilter.FieldLabel),
 				Key:   labelName,
 			},
 			Right: filterValue,
@@ -491,7 +491,7 @@ func toAllocationAliasOp(labelName string, filterValue string, wildcard bool) *a
 	} else {
 		labelSubFilter = &ast.EqualOp{
 			Left: ast.Identifier{
-				Field: allocationfilter.DefaultFieldByName(allocationfilter.AllocationFieldLabel),
+				Field: afilter.DefaultFieldByName(afilter.FieldLabel),
 				Key:   labelName,
 			},
 			Right: filterValue,
@@ -503,7 +503,7 @@ func toAllocationAliasOp(labelName string, filterValue string, wildcard bool) *a
 	if wildcard {
 		annotationSubFilter = &ast.ContainsPrefixOp{
 			Left: ast.Identifier{
-				Field: allocationfilter.DefaultFieldByName(allocationfilter.AllocationFieldAnnotation),
+				Field: afilter.DefaultFieldByName(afilter.FieldAnnotation),
 				Key:   labelName,
 			},
 			Right: filterValue,
@@ -511,7 +511,7 @@ func toAllocationAliasOp(labelName string, filterValue string, wildcard bool) *a
 	} else {
 		annotationSubFilter = &ast.EqualOp{
 			Left: ast.Identifier{
-				Field: allocationfilter.DefaultFieldByName(allocationfilter.AllocationFieldAnnotation),
+				Field: afilter.DefaultFieldByName(afilter.FieldAnnotation),
 				Key:   labelName,
 			},
 			Right: filterValue,

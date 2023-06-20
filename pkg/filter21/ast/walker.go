@@ -29,10 +29,49 @@ const (
 	TraversalStateExit
 )
 
-// PreOrderTraversal accepts a root `FilterNode` and calls the f callback on each leaf node it traverses.
-// When entering "group" leaf nodes (leaf nodes which contain other leaf nodes), a TraversalStateEnter/Exit
-// will be includes to denote each depth. In short, the callback will be executed twice for each "group" op,
-// once before entering, and once bofore exiting.
+// TransformLeaves produces a new tree, leaving non-leaf nodes (e.g. And, Or)
+// intact and replacing leaf nodes (e.g. Equals, Contains) with the result of
+// calling leafTransformer(node).
+func TransformLeaves(node FilterNode, transformer func(FilterNode) FilterNode) FilterNode {
+	if node == nil {
+		return nil
+	}
+
+	// For group ops, we need to execute the callback with an Enter,
+	// recursively call traverse, then execute the callback with an Exit.
+	switch n := node.(type) {
+	case *NotOp:
+		return &NotOp{
+			Operand: TransformLeaves(n.Operand, transformer),
+		}
+	case *AndOp:
+		var newOperands []FilterNode
+		for _, o := range n.Operands {
+			newOperands = append(newOperands, TransformLeaves(o, transformer))
+		}
+		return &AndOp{
+			Operands: newOperands,
+		}
+	case *OrOp:
+		var newOperands []FilterNode
+		for _, o := range n.Operands {
+			newOperands = append(newOperands, TransformLeaves(o, transformer))
+		}
+		return &OrOp{
+			Operands: newOperands,
+		}
+
+	// Remaining nodes are assumed to be leaves
+	default:
+		return transformer(node)
+	}
+}
+
+// PreOrderTraversal accepts a root `FilterNode` and calls the f callback on
+// each leaf node it traverses. When entering "group" leaf nodes (leaf nodes
+// which contain other leaf nodes), a TraversalStateEnter/Exit will be includes
+// to denote each depth. In short, the callback will be executed twice for each
+// "group" op, once before entering, and once bofore exiting.
 func PreOrderTraversal(node FilterNode, f func(FilterNode, TraversalState)) {
 	if node == nil {
 		return

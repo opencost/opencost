@@ -1200,7 +1200,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	if options.Filter == nil {
 		filter = &matcher.AllPass[*Allocation]{}
 	} else {
-		compiler := NewAllocationMatchCompiler()
+		compiler := NewAllocationMatchCompiler(options.LabelConfig)
 		var err error
 		filter, err = compiler.Compile(options.Filter)
 		if err != nil {
@@ -1798,7 +1798,7 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 	if options.Filter == nil {
 		filter = &matcher.AllPass[*Allocation]{}
 	} else {
-		compiler := NewAllocationMatchCompiler()
+		compiler := NewAllocationMatchCompiler(options.LabelConfig)
 		var err error
 		filter, err = compiler.Compile(options.Filter)
 		if err != nil {
