@@ -606,7 +606,6 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					}
 				}
 
-				// THOMAS: TODO: If there are multiple timestamps, we are only emitting the first one.
 				if len(costs.RAMAllocation) > 0 {
 					cmme.RAMAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.RAMAllocation[0].Value)
 				}
