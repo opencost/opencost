@@ -80,6 +80,24 @@ const (
 	ParamFilterTypes         = "filterTypes"
 )
 
+// ValidAssetFilterParams returns a list of all possible filter parameters
+func ValidAssetFilterParams() []string {
+	return []string{
+		ParamFilterAccounts,
+		ParamFilterCategories,
+		ParamFilterClusters,
+		ParamFilterLabels,
+		ParamFilterNames,
+		ParamFilterProjects,
+		ParamFilterProviders,
+		ParamFilterProviderIDs,
+		ParamFilterProviderIDsV2,
+		ParamFilterRegions,
+		ParamFilterServices,
+		ParamFilterTypes,
+	}
+}
+
 // AllocationPropToV1FilterParamKey maps allocation string property
 // representations to v1 filter param keys for legacy filter config support
 // (e.g. reports). Example mapping: "cluster" -> "filterClusters"
@@ -97,6 +115,22 @@ var AllocationPropToV1FilterParamKey = map[string]string{
 	kubecost.AllocationOwnerProp:          ParamFilterOwners,
 	kubecost.AllocationProductProp:        ParamFilterProducts,
 	kubecost.AllocationTeamProp:           ParamFilterTeams,
+}
+
+// Map to store Kubecost Asset property to Asset Filter types.
+// AssetPropToV1FilterParamKey maps asset string property representations to v1
+// filter param keys for legacy filter config support (e.g. reports). Example
+// mapping: "category" -> "filterCategories"
+var AssetPropToV1FilterParamKey = map[kubecost.AssetProperty]string{
+	kubecost.AssetNameProp:       ParamFilterNames,
+	kubecost.AssetTypeProp:       ParamFilterTypes,
+	kubecost.AssetAccountProp:    ParamFilterAccounts,
+	kubecost.AssetCategoryProp:   ParamFilterCategories,
+	kubecost.AssetClusterProp:    ParamFilterClusters,
+	kubecost.AssetProjectProp:    ParamFilterProjects,
+	kubecost.AssetProviderProp:   ParamFilterProviders,
+	kubecost.AssetProviderIDProp: ParamFilterProviderIDs,
+	kubecost.AssetServiceProp:    ParamFilterServices,
 }
 
 // AllHTTPParamKeys returns all HTTP GET parameters used for v1 filters. It is
@@ -391,7 +425,6 @@ func AssetFilterFromParamsV1(
 			}
 		}
 
-		//
 		clustersOp := opsToOr(ops)
 		filterOps = push(filterOps, clustersOp)
 	}

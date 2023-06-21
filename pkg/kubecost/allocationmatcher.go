@@ -29,7 +29,7 @@ func NewAllocationMatchCompiler(labelConfig *LabelConfig) *matcher.MatchCompiler
 
 	// The label config pass should be the first pass
 	if labelConfig != nil {
-		passes = append(passes, NewAliasPass(*labelConfig))
+		passes = append(passes, NewAllocationAliasPass(*labelConfig))
 	}
 
 	passes = append(passes,
@@ -96,10 +96,10 @@ func allocationMapFieldMap(a *Allocation, identifier ast.Identifier) (map[string
 	return nil, fmt.Errorf("Failed to find map[string]string identifier on Allocation: %s", identifier.Field.Name)
 }
 
-// aliasPass implements the transform.CompilerPass interface, providing a pass
-// which converts alias nodes to logically-equivalent label/annotation filter
-// nodes based on the label config.
-type aliasPass struct {
+// allocatioAliasPass implements the transform.CompilerPass interface, providing
+// a pass which converts alias nodes to logically-equivalent label/annotation
+// filter nodes based on the label config.
+type allocationAliasPass struct {
 	Config              LabelConfig
 	AliasNameToAliasKey map[afilter.AllocationAlias]string
 }
@@ -118,7 +118,7 @@ type aliasPass struct {
 //	(and (not (contains labels <parseraliaskey>))
 //	     (and (contains annotations departmentkey)
 //	          (<op> annotations[<parseraliaskey>] <filtervalue>))))
-func NewAliasPass(config LabelConfig) transform.CompilerPass {
+func NewAllocationAliasPass(config LabelConfig) transform.CompilerPass {
 	aliasNameToAliasKey := map[afilter.AllocationAlias]string{
 		afilter.AliasDepartment:  config.DepartmentLabel,
 		afilter.AliasEnvironment: config.EnvironmentLabel,
@@ -127,7 +127,7 @@ func NewAliasPass(config LabelConfig) transform.CompilerPass {
 		afilter.AliasTeam:        config.TeamLabel,
 	}
 
-	return &aliasPass{
+	return &allocationAliasPass{
 		Config:              config,
 		AliasNameToAliasKey: aliasNameToAliasKey,
 	}
@@ -135,7 +135,7 @@ func NewAliasPass(config LabelConfig) transform.CompilerPass {
 
 // Exec implements the transform.CompilerPass interface for an alias pass.
 // See aliasPass struct documentation for an explanation.
-func (p *aliasPass) Exec(filter ast.FilterNode) (ast.FilterNode, error) {
+func (p *allocationAliasPass) Exec(filter ast.FilterNode) (ast.FilterNode, error) {
 	if p.AliasNameToAliasKey == nil {
 		return nil, fmt.Errorf("cannot perform alias conversion with nil mapping of alias name -> key")
 	}

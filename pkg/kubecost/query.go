@@ -87,7 +87,7 @@ type CloudUsageQueryOptions struct {
 	Accumulate   bool
 	AggregateBy  []string
 	Compute      bool
-	FilterFuncs  []CloudUsageMatchFunc
+	Filter       filter21.Filter
 	FilterValues CloudUsageFilter
 	LabelConfig  *LabelConfig
 }
