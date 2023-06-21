@@ -357,7 +357,6 @@ func AllocationFilterFromParamsV1(
 
 func AssetFilterFromParamsV1(
 	qp mapper.PrimitiveMapReader,
-	labelConfig *kubecost.LabelConfig,
 	clusterMap clusters.ClusterMap,
 ) filter.Filter {
 

@@ -8,7 +8,7 @@ import (
 	"github.com/opencost/opencost/pkg/util/mapper"
 )
 
-var assetCompiler = kubecost.NewAssetMatchCompiler(nil)
+var assetCompiler = kubecost.NewAssetMatchCompiler()
 
 func TestAssetFiltersFromParamsV1(t *testing.T) {
 	cases := []struct {
@@ -423,10 +423,6 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 			}
 			qpMapper := mapper.NewMapper(qpMap)
 
-			labelConfig := kubecost.LabelConfig{}
-			labelConfig.DepartmentLabel = "internal-product-umbrella"
-			labelConfig.OwnerLabel = "testowner"
-
 			clustersMap := mockClusterMap{
 				m: map[string]*clusters.ClusterInfo{
 					"mapped-cluster-ID-1": {
@@ -436,7 +432,7 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 				},
 			}
 
-			filterTree := AssetFilterFromParamsV1(qpMapper, &labelConfig, clustersMap)
+			filterTree := AssetFilterFromParamsV1(qpMapper, clustersMap)
 			filter, err := assetCompiler.Compile(filterTree)
 			if err != nil {
 				t.Fatalf("compiling filter: %s", err)
