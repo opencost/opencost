@@ -7,10 +7,12 @@ import (
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/prom"
+	"github.com/opencost/opencost/pkg/util/mapper"
 	"github.com/opencost/opencost/pkg/util/typeutil"
 
 	filter "github.com/opencost/opencost/pkg/filter21"
 	afilter "github.com/opencost/opencost/pkg/filter21/allocation"
+	assetfilter "github.com/opencost/opencost/pkg/filter21/asset"
 	"github.com/opencost/opencost/pkg/filter21/ast"
 	// cloudfilter "github.com/opencost/opencost/pkg/filter/cloud"
 )
@@ -27,6 +29,7 @@ import (
 var defaultFieldByType = map[string]any{
 	// typeutil.TypeOf[cloudfilter.CloudAggregationField](): cloudfilter.DefaultFieldByName,
 	typeutil.TypeOf[afilter.AllocationField](): afilter.DefaultFieldByName,
+	typeutil.TypeOf[assetfilter.AssetField]():  assetfilter.DefaultFieldByName,
 }
 
 // DefaultFieldByName looks up a specific T field instance by name and returns the default
@@ -65,6 +68,16 @@ const (
 	ParamFilterAnnotations = "filterAnnotations"
 	ParamFilterLabels      = "filterLabels"
 	ParamFilterServices    = "filterServices"
+
+	ParamFilterAccounts      = "filterAccounts"
+	ParamFilterCategories    = "filterCategories"
+	ParamFilterNames         = "filterNames"
+	ParamFilterProjects      = "filterProjects"
+	ParamFilterProviders     = "filterProviders"
+	ParamFilterProviderIDs   = "filterProviderIDs"
+	ParamFilterProviderIDsV2 = "filterProviderIds"
+	ParamFilterRegions       = "filterRegions"
+	ParamFilterTypes         = "filterTypes"
 )
 
 // AllocationPropToV1FilterParamKey maps allocation string property
@@ -308,6 +321,129 @@ func AllocationFilterFromParamsV1(
 	return andFilter
 }
 
+func AssetFilterFromParamsV1(
+	qp mapper.PrimitiveMapReader,
+	labelConfig *kubecost.LabelConfig,
+	clusterMap clusters.ClusterMap,
+) filter.Filter {
+
+	var filterOps []ast.FilterNode
+
+	// ClusterMap does not provide a cluster name -> cluster ID mapping in the
+	// interface, probably because there could be multiple IDs with the same
+	// name. However, V1 filter logic demands that the parameters to
+	// filterClusters= be checked against both cluster ID AND cluster name.
+	//
+	// To support expected filterClusters= behavior, we construct a mapping
+	// of cluster name -> cluster IDs (could be multiple IDs for the same name)
+	// so that we can create AllocationFilters that use only ClusterIDEquals.
+	//
+	//
+	// AllocationFilter intentionally does not support cluster name filters
+	// because those should be considered presentation-layer only.
+	clusterNameToIDs := map[string][]string{}
+	if clusterMap != nil {
+		cMap := clusterMap.AsMap()
+		for _, info := range cMap {
+			if info == nil {
+				continue
+			}
+
+			if _, ok := clusterNameToIDs[info.Name]; ok {
+				clusterNameToIDs[info.Name] = append(clusterNameToIDs[info.Name], info.ID)
+			} else {
+				clusterNameToIDs[info.Name] = []string{info.ID}
+			}
+		}
+	}
+
+	// The proliferation of > 0 guards in the function is to avoid constructing
+	// empty filter structs. While it is functionally equivalent to add empty
+	// filter structs (they evaluate to true always) there could be overhead
+	// when calling Matches() repeatedly for no purpose.
+
+	if filterClusters := qp.GetList(ParamFilterClusters, ","); len(filterClusters) > 0 {
+		var ops []ast.FilterNode
+
+		// filter my cluster identifier
+		ops = push(ops, filterV1SingleValueFromList(filterClusters, assetfilter.FieldClusterID))
+
+		for _, rawFilterValue := range filterClusters {
+			clusterNameFilter, wildcard := parseWildcardEnd(rawFilterValue)
+
+			clusterIDsToFilter := []string{}
+			for clusterName := range clusterNameToIDs {
+				if wildcard && strings.HasPrefix(clusterName, clusterNameFilter) {
+					clusterIDsToFilter = append(clusterIDsToFilter, clusterNameToIDs[clusterName]...)
+				} else if !wildcard && clusterName == clusterNameFilter {
+					clusterIDsToFilter = append(clusterIDsToFilter, clusterNameToIDs[clusterName]...)
+				}
+			}
+
+			for _, clusterID := range clusterIDsToFilter {
+				ops = append(ops, &ast.EqualOp{
+					Left: ast.Identifier{
+						Field: assetfilter.DefaultFieldByName(assetfilter.FieldClusterID),
+						Key:   "",
+					},
+					Right: clusterID,
+				})
+			}
+		}
+
+		//
+		clustersOp := opsToOr(ops)
+		filterOps = push(filterOps, clustersOp)
+	}
+
+	if raw := qp.GetList(ParamFilterAccounts, ","); len(raw) > 0 {
+		filterOps = push(filterOps, filterV1SingleValueFromList(raw, assetfilter.FieldAccount))
+	}
+
+	if raw := qp.GetList(ParamFilterCategories, ","); len(raw) > 0 {
+		filterOps = push(filterOps, filterV1SingleValueFromList(raw, assetfilter.FieldCategory))
+	}
+
+	if raw := qp.GetList(ParamFilterNames, ","); len(raw) > 0 {
+		filterOps = push(filterOps, filterV1SingleValueFromList(raw, assetfilter.FieldName))
+	}
+
+	if raw := qp.GetList(ParamFilterProjects, ","); len(raw) > 0 {
+		filterOps = push(filterOps, filterV1SingleValueFromList(raw, assetfilter.FieldProject))
+	}
+
+	if raw := qp.GetList(ParamFilterProviders, ","); len(raw) > 0 {
+		filterOps = push(filterOps, filterV1SingleValueFromList(raw, assetfilter.FieldProvider))
+	}
+
+	if raw := GetList(ParamFilterProviderIDs, ParamFilterProviderIDsV2, qp); len(raw) > 0 {
+		filterOps = push(filterOps, filterV1SingleValueFromList(raw, assetfilter.FieldProviderID))
+	}
+
+	if raw := qp.GetList(ParamFilterServices, ","); len(raw) > 0 {
+		filterOps = push(filterOps, filterV1SingleValueFromList(raw, assetfilter.FieldService))
+	}
+
+	if raw := qp.GetList(ParamFilterTypes, ","); len(raw) > 0 {
+		filterOps = push(filterOps, filterV1SingleValueFromList(raw, assetfilter.FieldType))
+	}
+
+	if raw := qp.GetList(ParamFilterLabels, ","); len(raw) > 0 {
+		filterOps = push(filterOps, filterV1DoubleValueFromList(raw, assetfilter.FieldLabel))
+	}
+
+	if raw := qp.GetList(ParamFilterRegions, ","); len(raw) > 0 {
+		filterOps = push(filterOps, filterV1SingleLabelKeyFromList(raw, "label_topology_kubernetes_io_region", assetfilter.FieldLabel))
+	}
+
+	andFilter := opsToAnd(filterOps)
+	if andFilter == nil {
+		return &ast.VoidOp{} // no filter
+	}
+
+	return andFilter
+}
+
 // filterV1SingleValueFromList creates an OR of equality filters for a given
 // filter field.
 //
@@ -321,6 +457,22 @@ func filterV1SingleValueFromList[T ~string](rawFilterValues []string, filterFiel
 		filterValue, wildcard := parseWildcardEnd(filterValue)
 
 		subFilter := toEqualOp(filterField, "", filterValue, wildcard)
+		ops = append(ops, subFilter)
+	}
+
+	return opsToOr(ops)
+}
+
+func filterV1SingleLabelKeyFromList[T ~string](rawFilterValues []string, labelName string, labelField T) ast.FilterNode {
+	var ops []ast.FilterNode
+	labelName = prom.SanitizeLabelName(labelName)
+
+	for _, filterValue := range rawFilterValues {
+		filterValue = strings.TrimSpace(filterValue)
+		filterValue, wildcard := parseWildcardEnd(filterValue)
+
+		subFilter := toEqualOp(labelField, labelName, filterValue, wildcard)
+
 		ops = append(ops, subFilter)
 	}
 
@@ -351,7 +503,7 @@ func filterV1LabelAliasMappedFromList(rawFilterValues []string, labelName string
 //
 // The v1 query language (e.g. "filterLabels=app:foo,l2:bar") uses OR within
 // a field (e.g. label[app] = foo OR label[l2] = bar)
-func filterV1DoubleValueFromList(rawFilterValuesUnsplit []string, filterField afilter.AllocationField) ast.FilterNode {
+func filterV1DoubleValueFromList[T ~string](rawFilterValuesUnsplit []string, filterField T) ast.FilterNode {
 	var ops []ast.FilterNode
 
 	for _, unsplit := range rawFilterValuesUnsplit {
@@ -541,4 +693,14 @@ func toAllocationAliasOp(labelName string, filterValue string, wildcard bool) *a
 			},
 		},
 	}
+}
+
+// GetList provides a list of values from the first key if they exist, otherwise, it returns
+// the values from the second key.
+func GetList(primaryKey, secondaryKey string, qp mapper.PrimitiveMapReader) []string {
+	if raw := qp.GetList(primaryKey, ","); len(raw) > 0 {
+		return raw
+	}
+
+	return qp.GetList(secondaryKey, ",")
 }
