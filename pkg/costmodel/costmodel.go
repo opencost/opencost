@@ -851,6 +851,11 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 // getContainerAllocation takes the max between request and usage. This function
 // returns a slice containing a single element describing the container's
 // allocation.
+//
+// Additionally, the timestamp of the allocation will be the highest value
+// timestamp between the two vectors. This mitigates situations where
+// Timestamp=0. This should have no effect on the metrics emitted by the
+// CostModelMetricsEmitter
 func getContainerAllocation(req *util.Vector, used *util.Vector, allocationType string) []*util.Vector {
 	var result []*util.Vector
 
@@ -868,8 +873,11 @@ func getContainerAllocation(req *util.Vector, used *util.Vector, allocationType 
 		result = []*util.Vector{
 			{
 				Value:     math.Max(x1, y1),
-				Timestamp: req.Timestamp,
+				Timestamp: math.Max(req.Timestamp, used.Timestamp),
 			},
+		}
+		if result[0].Value == 0 && result[0].Timestamp == 0 {
+			log.Warnf("No request or usage data found during %s allocation calculation. Setting allocation to 0.", allocationType)
 		}
 	} else if req != nil {
 		result = []*util.Vector{
