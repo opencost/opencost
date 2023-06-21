@@ -75,7 +75,7 @@ type AssetQueryOptions struct {
 	Compute                 bool
 	DisableAdjustments      bool
 	DisableAggregatedStores bool
-	FilterFuncs             []AssetMatchFunc
+	Filter                  filter21.Filter
 	IncludeCloud            bool
 	SharedHourlyCosts       map[string]float64
 	Step                    time.Duration
