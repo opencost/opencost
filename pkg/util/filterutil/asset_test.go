@@ -51,6 +51,24 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 			},
 		},
 		{
+			name: "type: node capitalized",
+			qp: map[string]string{
+				ParamFilterTypes: "Node",
+			},
+			shouldMatch: []kubecost.Asset{
+				&kubecost.Node{},
+			},
+			shouldNotMatch: []kubecost.Asset{
+				&kubecost.Any{},
+				&kubecost.Cloud{},
+				&kubecost.LoadBalancer{},
+				&kubecost.ClusterManagement{},
+				&kubecost.Disk{},
+				&kubecost.Network{},
+				&kubecost.SharedAsset{},
+			},
+		},
+		{
 			name: "type: disk",
 			qp: map[string]string{
 				ParamFilterTypes: "disk",

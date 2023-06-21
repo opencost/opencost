@@ -457,6 +457,11 @@ func AssetFilterFromParamsV1(
 	}
 
 	if raw := qp.GetList(ParamFilterTypes, ","); len(raw) > 0 {
+		// Types have a special situation where we allow users to enter them
+		// capitalized or uncapitalized
+		for i := range raw {
+			raw[i] = strings.ToLower(raw[i])
+		}
 		filterOps = push(filterOps, filterV1SingleValueFromList(raw, assetfilter.FieldType))
 	}
 
