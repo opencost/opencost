@@ -55,6 +55,7 @@ type AllocationJSON struct {
 	TotalEfficiency                *float64                        `json:"totalEfficiency"`
 	RawAllocationOnly              *RawAllocationOnlyData          `json:"rawAllocationOnly,omitempty"`
 	ProportionalAssetResourceCosts *ProportionalAssetResourceCosts `json:"proportionalAssetResourceCosts,omitempty"`
+	LoadBalancers                  LbAllocations                   `json:"lbAllocations"`
 	SharedCostBreakdown            *SharedCostBreakdowns           `json:"sharedCostBreakdown,omitempty"`
 }
 
@@ -106,8 +107,8 @@ func (aj *AllocationJSON) BuildFromAllocation(a *Allocation) {
 	aj.TotalEfficiency = formatFloat64ForResponse(a.TotalEfficiency())
 	aj.RawAllocationOnly = a.RawAllocationOnly
 	aj.ProportionalAssetResourceCosts = &a.ProportionalAssetResourceCosts
+	aj.LoadBalancers = a.LoadBalancers
 	aj.SharedCostBreakdown = &a.SharedCostBreakdown
-
 }
 
 // formatFloat64ForResponse - take an existing float64, round it to 6 decimal places and return is possible, or return nil if invalid
