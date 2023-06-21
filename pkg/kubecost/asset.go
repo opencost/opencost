@@ -2748,7 +2748,7 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 	if opts.Filter == nil {
 		filter = &matcher.AllPass[Asset]{}
 	} else {
-		compiler := NewAssetMatchCompiler(opts.LabelConfig)
+		compiler := NewAssetMatchCompiler()
 		var err error
 		filter, err = compiler.Compile(opts.Filter)
 		if err != nil {
