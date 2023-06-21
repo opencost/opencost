@@ -1342,7 +1342,8 @@ func getLoadBalancerCosts(lbMap map[serviceKey]*lbCost, resLBCost, resLBActiveMi
 			continue
 		}
 
-		lbStart, lbEnd := calculateStartAndEnd(res)
+		// load balancers have interpolation for costs, we don't need to offset the resolution
+		lbStart, lbEnd := calculateStartAndEnd(res, resolution, false)
 		if lbStart.IsZero() || lbEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pvc %s has no running time", serviceKey)
 		}
@@ -1773,7 +1774,7 @@ func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHo
 			continue
 		}
 
-		pvStart, pvEnd := calculateStartAndEnd(result)
+		pvStart, pvEnd := calculateStartAndEnd(result, resolution, true)
 		if pvStart.IsZero() || pvEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pv %s has no running time", key)
 		}
@@ -1842,7 +1843,7 @@ func buildPVCMap(resolution time.Duration, pvcMap map[pvcKey]*pvc, pvMap map[pvK
 		pvKey := newPVKey(cluster, volume)
 		pvcKey := newPVCKey(cluster, namespace, name)
 
-		pvcStart, pvcEnd := calculateStartAndEnd(res)
+		pvcStart, pvcEnd := calculateStartAndEnd(res, resolution, true)
 		if pvcStart.IsZero() || pvcEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pvc %s has no running time", pvcKey)
 		}
@@ -2176,8 +2177,12 @@ func getUnmountedPodForNamespace(window kubecost.Window, podMap map[podKey]*pod,
 	return thisPod
 }
 
-func calculateStartAndEnd(result *prom.QueryResult) (time.Time, time.Time) {
+func calculateStartAndEnd(result *prom.QueryResult, resolution time.Duration, offsetResolution bool) (time.Time, time.Time) {
 	s := time.Unix(int64(result.Values[0].Timestamp), 0).UTC()
+	if offsetResolution {
+		// subtract resolution from start time to cover full time period
+		s = s.Add(-resolution)
+	}
 	e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).UTC()
 	return s, e
 }
