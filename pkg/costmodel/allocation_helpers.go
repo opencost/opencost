@@ -960,7 +960,7 @@ func applyLabels(podMap map[podKey]*pod, nodeLabels map[nodeKey]map[string]strin
 
 			alloc.Properties.Labels = allocLabels
 			alloc.Properties.NamespaceLabels = nsLabels
-			
+
 		}
 	}
 }
@@ -1342,7 +1342,8 @@ func getLoadBalancerCosts(lbMap map[serviceKey]*lbCost, resLBCost, resLBActiveMi
 			continue
 		}
 
-		lbStart, lbEnd := calculateStartAndEnd(res, resolution)
+		// load balancers have interpolation for costs, we don't need to offset the resolution
+		lbStart, lbEnd := calculateStartAndEnd(res, resolution, false)
 		if lbStart.IsZero() || lbEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pvc %s has no running time", serviceKey)
 		}
@@ -1358,11 +1359,32 @@ func getLoadBalancerCosts(lbMap map[serviceKey]*lbCost, resLBCost, resLBActiveMi
 		if err != nil {
 			continue
 		}
+
+		// get the ingress IP to determine if this is a private LB
+		ip, err := res.GetString("ingress_ip")
+		if err != nil {
+			log.Warnf("error getting ingress ip for key %s: %v, skipping", serviceKey, err)
+			// do not count the time that the service was being created or deleted
+			// ingress IP will be empty string
+			// only add cost to allocation when external IP is provisioned
+			if ip == "" {
+				continue
+			}
+		}
+
 		// Apply cost as price-per-hour * hours
 		if lb, ok := lbMap[serviceKey]; ok {
 			lbPricePerHr := res.Values[0].Value
-			hours := lb.End.Sub(lb.Start).Hours()
-			lb.TotalCost += lbPricePerHr * hours
+			// interpolate any missing data
+			resolutionHours := resolution.Hours()
+			resultHours := lb.End.Sub(lb.Start).Hours()
+			scaleFactor := (resolutionHours + resultHours) / resultHours
+
+			// after scaling, we can adjust the timings to reflect the interpolated data
+			lb.End = lb.End.Add(resolution)
+
+			lb.TotalCost += lbPricePerHr * resultHours * scaleFactor
+			lb.Private = privateIPCheck(ip)
 		} else {
 			log.DedupedWarningf(20, "CostModel: found minutes for key that does not exist: %s", serviceKey)
 		}
@@ -1405,6 +1427,22 @@ func applyLoadBalancersToPods(window kubecost.Window, podMap map[podKey]*pod, lb
 		// Distribute cost of service once total hours is calculated
 		for alloc, hours := range allocHours {
 			alloc.LoadBalancerCost += lb.TotalCost * hours / totalHours
+		}
+
+		for _, alloc := range allocs {
+			if alloc.LoadBalancers == nil {
+				alloc.LoadBalancers = kubecost.LbAllocations{}
+			}
+
+			if _, found := alloc.LoadBalancers[sKey.String()]; found {
+				alloc.LoadBalancers[sKey.String()].Cost += alloc.LoadBalancerCost
+			} else {
+				alloc.LoadBalancers[sKey.String()] = &kubecost.LbAllocation{
+					Service: sKey.Namespace + "/" + sKey.Service,
+					Cost:    alloc.LoadBalancerCost,
+					Private: lb.Private,
+				}
+			}
 		}
 
 		// If there was no overlap apply to Unmounted pod
@@ -1736,7 +1774,7 @@ func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHo
 			continue
 		}
 
-		pvStart, pvEnd := calculateStartAndEnd(result, resolution)
+		pvStart, pvEnd := calculateStartAndEnd(result, resolution, true)
 		if pvStart.IsZero() || pvEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pv %s has no running time", key)
 		}
@@ -1805,7 +1843,7 @@ func buildPVCMap(resolution time.Duration, pvcMap map[pvcKey]*pvc, pvMap map[pvK
 		pvKey := newPVKey(cluster, volume)
 		pvcKey := newPVCKey(cluster, namespace, name)
 
-		pvcStart, pvcEnd := calculateStartAndEnd(res, resolution)
+		pvcStart, pvcEnd := calculateStartAndEnd(res, resolution, true)
 		if pvcStart.IsZero() || pvcEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pvc %s has no running time", pvcKey)
 		}
@@ -2139,10 +2177,12 @@ func getUnmountedPodForNamespace(window kubecost.Window, podMap map[podKey]*pod,
 	return thisPod
 }
 
-func calculateStartAndEnd(result *prom.QueryResult, resolution time.Duration) (time.Time, time.Time) {
+func calculateStartAndEnd(result *prom.QueryResult, resolution time.Duration, offsetResolution bool) (time.Time, time.Time) {
 	s := time.Unix(int64(result.Values[0].Timestamp), 0).UTC()
-	// subtract resolution from start time to cover full time period
-	s = s.Add(-resolution)
+	if offsetResolution {
+		// subtract resolution from start time to cover full time period
+		s = s.Add(-resolution)
+	}
 	e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).UTC()
 	return s, e
 }
