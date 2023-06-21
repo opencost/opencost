@@ -561,12 +561,7 @@ func ClusterNodes(cp models.Provider, client prometheus.Client, start, end time.
 		log.DedupedWarningf(3, "ClusterNodes(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
 	}
 
-	// Query for the duration between start and end
-	// note, we need to append the resolution here because data is not given for the last <resolution> minutes
-	// this gives us a bit of query overlap, but the most recent minsPerResolution mins in each query are not returned
-	endInclResolution := end.Add(time.Duration(minsPerResolution) * time.Minute)
-	duration := endInclResolution.Sub(start)
-	durStr := timeutil.DurationString(duration)
+	durStr := timeutil.DurationString(resolution)
 	if durStr == "" {
 		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
 	}
@@ -893,11 +888,7 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider models
 		log.DedupedWarningf(3, "ComputeClusterCosts(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
 	}
 
-	// note, we need to append the resolution here because data is not given for the last <resolution> minutes
-	// this gives us a bit of query overlap, but the most recent minsPerResolution mins in each query are not returned
-	endInclResolution := end.Add(time.Duration(minsPerResolution) * time.Minute)
-	duration := endInclResolution.Sub(start)
-	windowStr := timeutil.DurationString(duration)
+	windowStr := timeutil.DurationString(window)
 
 	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
 	// value, converts it to a cumulative value; i.e.
@@ -1443,14 +1434,8 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 				Breakdown: &ClusterCostsBreakdown{},
 			}
 		}
-		// interpolate any missing data
-		resultMins := diskMap[key].Minutes
-		scaleFactor := 0.0
-		if resultMins > 0 {
-			scaleFactor = (resultMins + resolution.Minutes()) / resultMins
-			diskMap[key].Minutes = resultMins + resolution.Minutes()
-		}
-		diskMap[key].Cost = cost * (diskMap[key].Bytes / 1024 / 1024 / 1024) * (diskMap[key].Minutes / 60) * scaleFactor
+
+		diskMap[key].Cost = cost * (diskMap[key].Bytes / 1024 / 1024 / 1024) * (diskMap[key].Minutes / 60)
 		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
 		if providerID != "" {
 			diskMap[key].ProviderID = provider.ParsePVID(providerID)
