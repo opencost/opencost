@@ -581,17 +581,23 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 					ClusterName:     cm.ClusterMap.NameFor(clusterID),
 				}
 
-				if len(costs.CPUReq) > 0 && len(costs.CPUUsed) > 0 {
-					costs.CPUAllocation = getContainerAllocation(costs.CPUReq[0], costs.CPUUsed[0], "CPU")
-				} else {
-					log.Warnf("CPU Requests or Usage data missing for %s", containerName)
+				var cpuReq, cpuUse *util.Vector
+				if len(costs.CPUReq) > 0 {
+					cpuReq = costs.CPUReq[0]
 				}
+				if len(costs.CPUUsed) > 0 {
+					cpuUse = costs.CPUUsed[0]
+				}
+				costs.CPUAllocation = getContainerAllocation(cpuReq, cpuUse, "CPU")
 
-				if len(costs.RAMReq) > 0 && len(costs.RAMUsed) > 0 {
-					costs.RAMAllocation = getContainerAllocation(costs.RAMReq[0], costs.RAMUsed[0], "RAM")
-				} else {
-					log.Warnf("RAM Requests or Usage data missing for %s", containerName)
+				var ramReq, ramUse *util.Vector
+				if len(costs.RAMReq) > 0 {
+					ramReq = costs.RAMReq[0]
 				}
+				if len(costs.RAMUsed) > 0 {
+					ramUse = costs.RAMUsed[0]
+				}
+				costs.RAMAllocation = getContainerAllocation(ramReq, ramUse, "RAM")
 
 				if filterNamespace == "" {
 					containerNameCost[newKey] = costs
@@ -660,17 +666,23 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				ClusterName:     cm.ClusterMap.NameFor(c.ClusterID),
 			}
 
-			if len(costs.CPUReq) > 0 && len(costs.CPUUsed) > 0 {
-				costs.CPUAllocation = getContainerAllocation(costs.CPUReq[0], costs.CPUUsed[0], "CPU")
-			} else {
-				log.Warnf("CPU Requests or Usage data missing for %s", c.ContainerName)
+			var cpuReq, cpuUse *util.Vector
+			if len(costs.CPUReq) > 0 {
+				cpuReq = costs.CPUReq[0]
 			}
+			if len(costs.CPUUsed) > 0 {
+				cpuUse = costs.CPUUsed[0]
+			}
+			costs.CPUAllocation = getContainerAllocation(cpuReq, cpuUse, "CPU")
 
-			if len(costs.RAMReq) > 0 && len(costs.RAMUsed) > 0 {
-				costs.RAMAllocation = getContainerAllocation(costs.RAMReq[0], costs.RAMUsed[0], "RAM")
-			} else {
-				log.Warnf("RAM Requests or Usage data missing for %s", c.ContainerName)
+			var ramReq, ramUse *util.Vector
+			if len(costs.RAMReq) > 0 {
+				ramReq = costs.RAMReq[0]
 			}
+			if len(costs.RAMUsed) > 0 {
+				ramUse = costs.RAMUsed[0]
+			}
+			costs.RAMAllocation = getContainerAllocation(ramReq, ramUse, "RAM")
 
 			if filterNamespace == "" {
 				containerNameCost[key] = costs
