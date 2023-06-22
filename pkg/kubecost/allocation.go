@@ -280,12 +280,13 @@ func (pva *PVAllocation) Equal(that *PVAllocation) bool {
 type ProportionalAssetResourceCost struct {
 	Cluster                string  `json:"cluster"`
 	Name                   string  `json:"name,omitempty"`
-	Type                   string  `json:"name,omitempty"`
+	Type                   string  `json:"type,omitempty"`
 	ProviderID             string  `json:"providerID,omitempty"`
 	CPUPercentage          float64 `json:"cpuPercentage"`
 	GPUPercentage          float64 `json:"gpuPercentage"`
 	RAMPercentage          float64 `json:"ramPercentage"`
 	LoadBalancerPercentage float64 `json:"loadBalancerPercentage"`
+	PVPercentage           float64 `json:"pvPercentage"`
 
 	NodeResourceCostPercentage   float64 `json:"nodeResourceCostPercentage"`
 	GPUTotalCost                 float64 `json:"-"`
@@ -296,6 +297,8 @@ type ProportionalAssetResourceCost struct {
 	RAMProportionalCost          float64 `json:"-"`
 	LoadBalancerProportionalCost float64 `json:"-"`
 	LoadBalancerTotalCost        float64 `json:"-"`
+	PVProportionalCost           float64 `json:"-"`
+	PVTotalCost                  float64 `json:"-"`
 }
 
 func (parc ProportionalAssetResourceCost) Key(insertByName bool) string {
@@ -334,6 +337,7 @@ func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourc
 			CPUProportionalCost:          curr.CPUProportionalCost + parc.CPUProportionalCost,
 			RAMProportionalCost:          curr.RAMProportionalCost + parc.RAMProportionalCost,
 			GPUProportionalCost:          curr.GPUProportionalCost + parc.GPUProportionalCost,
+			PVProportionalCost:           curr.PVProportionalCost + parc.PVProportionalCost,
 			LoadBalancerProportionalCost: curr.LoadBalancerProportionalCost + parc.LoadBalancerProportionalCost,
 		}
 
@@ -363,6 +367,10 @@ func ComputePercentages(toInsert *ProportionalAssetResourceCost) {
 
 	if toInsert.RAMTotalCost > 0 {
 		toInsert.RAMPercentage = toInsert.RAMProportionalCost / toInsert.RAMTotalCost
+	}
+
+	if toInsert.PVTotalCost > 0 {
+		toInsert.PVPercentage = toInsert.PVProportionalCost / toInsert.PVTotalCost
 	}
 
 	ramFraction := toInsert.RAMTotalCost / totalNodeCost
@@ -2098,6 +2106,15 @@ func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions,
 					LoadBalancerProportionalCost: coeffs[key][alloc.Name]["loadbalancer"],
 				}, options.IdleByNode)
 			}
+		}
+		for name, pvAlloc := range alloc.PVs {
+			// insert a separate PARC for each PV attached
+			alloc.ProportionalAssetResourceCosts.Insert(ProportionalAssetResourceCost{
+				Cluster:            name.Cluster,
+				Name:               name.Name,
+				Type:               "PV",
+				PVProportionalCost: pvAlloc.Cost,
+			}, options.IdleByNode)
 		}
 
 	}
