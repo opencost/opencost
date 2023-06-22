@@ -500,11 +500,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				// for the units of memory and CPU.
 				ramRequestBytes := container.Resources.Requests.Memory().Value()
 
-				// Because RAM (and CPU) information isn't coming from Prometheus, it won't
-				// have a timestamp associated with it. We need to provide a timestamp,
-				// otherwise the vector op that gets applied to take the max of usage
-				// and request won't work properly and will only take into account
-				// usage.
+				// Because information on container RAM & CPU requests isn't
+				// coming from Prometheus, it won't have a timestamp associated
+				// with it. We need to provide a timestamp.
 				RAMReqV := []*util.Vector{
 					{
 						Value:     float64(ramRequestBytes),
@@ -582,8 +580,25 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 					ClusterID:       clusterID,
 					ClusterName:     cm.ClusterMap.NameFor(clusterID),
 				}
-				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed, "CPU")
-				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed, "RAM")
+
+				var cpuReq, cpuUse *util.Vector
+				if len(costs.CPUReq) > 0 {
+					cpuReq = costs.CPUReq[0]
+				}
+				if len(costs.CPUUsed) > 0 {
+					cpuUse = costs.CPUUsed[0]
+				}
+				costs.CPUAllocation = getContainerAllocation(cpuReq, cpuUse, "CPU")
+
+				var ramReq, ramUse *util.Vector
+				if len(costs.RAMReq) > 0 {
+					ramReq = costs.RAMReq[0]
+				}
+				if len(costs.RAMUsed) > 0 {
+					ramUse = costs.RAMUsed[0]
+				}
+				costs.RAMAllocation = getContainerAllocation(ramReq, ramUse, "RAM")
+
 				if filterNamespace == "" {
 					containerNameCost[newKey] = costs
 				} else if costs.Namespace == filterNamespace {
@@ -650,8 +665,25 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				ClusterID:       c.ClusterID,
 				ClusterName:     cm.ClusterMap.NameFor(c.ClusterID),
 			}
-			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed, "CPU")
-			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed, "RAM")
+
+			var cpuReq, cpuUse *util.Vector
+			if len(costs.CPUReq) > 0 {
+				cpuReq = costs.CPUReq[0]
+			}
+			if len(costs.CPUUsed) > 0 {
+				cpuUse = costs.CPUUsed[0]
+			}
+			costs.CPUAllocation = getContainerAllocation(cpuReq, cpuUse, "CPU")
+
+			var ramReq, ramUse *util.Vector
+			if len(costs.RAMReq) > 0 {
+				ramReq = costs.RAMReq[0]
+			}
+			if len(costs.RAMUsed) > 0 {
+				ramUse = costs.RAMUsed[0]
+			}
+			costs.RAMAllocation = getContainerAllocation(ramReq, ramUse, "RAM")
+
 			if filterNamespace == "" {
 				containerNameCost[key] = costs
 				missingContainers[key] = costs
@@ -828,32 +860,62 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 	return nil
 }
 
-func getContainerAllocation(req []*util.Vector, used []*util.Vector, allocationType string) []*util.Vector {
-	// The result of the normalize operation will be a new []*util.Vector to replace the requests
-	allocationOp := func(r *util.Vector, x *float64, y *float64) bool {
-		if x != nil && y != nil {
-			x1 := *x
-			if math.IsNaN(x1) {
-				log.Warnf("NaN value found during %s allocation calculation for requests.", allocationType)
-				x1 = 0.0
-			}
-			y1 := *y
-			if math.IsNaN(y1) {
-				log.Warnf("NaN value found during %s allocation calculation for used.", allocationType)
-				y1 = 0.0
-			}
+// getContainerAllocation takes the max between request and usage. This function
+// returns a slice containing a single element describing the container's
+// allocation.
+//
+// Additionally, the timestamp of the allocation will be the highest value
+// timestamp between the two vectors. This mitigates situations where
+// Timestamp=0. This should have no effect on the metrics emitted by the
+// CostModelMetricsEmitter
+func getContainerAllocation(req *util.Vector, used *util.Vector, allocationType string) []*util.Vector {
+	var result []*util.Vector
 
-			r.Value = math.Max(x1, y1)
-		} else if x != nil {
-			r.Value = *x
-		} else if y != nil {
-			r.Value = *y
+	if req != nil && used != nil {
+		x1 := req.Value
+		if math.IsNaN(x1) {
+			log.Warnf("NaN value found during %s allocation calculation for requests.", allocationType)
+			x1 = 0.0
 		}
-
-		return true
+		y1 := used.Value
+		if math.IsNaN(y1) {
+			log.Warnf("NaN value found during %s allocation calculation for used.", allocationType)
+			y1 = 0.0
+		}
+		result = []*util.Vector{
+			{
+				Value:     math.Max(x1, y1),
+				Timestamp: math.Max(req.Timestamp, used.Timestamp),
+			},
+		}
+		if result[0].Value == 0 && result[0].Timestamp == 0 {
+			log.Warnf("No request or usage data found during %s allocation calculation. Setting allocation to 0.", allocationType)
+		}
+	} else if req != nil {
+		result = []*util.Vector{
+			{
+				Value:     req.Value,
+				Timestamp: req.Timestamp,
+			},
+		}
+	} else if used != nil {
+		result = []*util.Vector{
+			{
+				Value:     used.Value,
+				Timestamp: used.Timestamp,
+			},
+		}
+	} else {
+		log.Warnf("No request or usage data found during %s allocation calculation. Setting allocation to 0.", allocationType)
+		result = []*util.Vector{
+			{
+				Value:     0,
+				Timestamp: float64(time.Now().UTC().Unix()),
+			},
+		}
 	}
 
-	return util.ApplyVectorOp(req, used, allocationOp)
+	return result
 }
 
 func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*PersistentVolumeClaimData, cloud costAnalyzerCloud.Provider) error {
