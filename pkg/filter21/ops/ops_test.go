@@ -14,12 +14,12 @@ func TestBasicOpsBuilder(t *testing.T) {
 
 	filterTree := ops.And(
 		ops.Or(
-			ops.Eq(allocation.AllocationFieldNamespace, "kubecost"),
-			ops.Eq(allocation.AllocationFieldClusterID, "cluster-one"),
+			ops.Eq(allocation.FieldNamespace, "kubecost"),
+			ops.Eq(allocation.FieldClusterID, "cluster-one"),
 		),
-		ops.NotContains(allocation.AllocationFieldServices, "service-a"),
-		ops.NotEq(ops.WithKey(allocation.AllocationFieldLabel, "app"), "cost-analyzer"),
-		ops.Contains(allocation.AllocationFieldLabel, "foo"),
+		ops.NotContains(allocation.FieldServices, "service-a"),
+		ops.NotEq(ops.WithKey(allocation.FieldLabel, "app"), "cost-analyzer"),
+		ops.Contains(allocation.FieldLabel, "foo"),
 	)
 
 	otherTree, err := parser.Parse(`
@@ -41,12 +41,12 @@ func TestBasicOpsBuilder(t *testing.T) {
 func TestLongFormComparison(t *testing.T) {
 	filterTree := ops.And(
 		ops.Or(
-			ops.Eq(allocation.AllocationFieldNamespace, "kubecost"),
-			ops.Eq(allocation.AllocationFieldClusterID, "cluster-one"),
+			ops.Eq(allocation.FieldNamespace, "kubecost"),
+			ops.Eq(allocation.FieldClusterID, "cluster-one"),
 		),
-		ops.NotContains(allocation.AllocationFieldServices, "service-a"),
-		ops.NotEq(ops.WithKey(allocation.AllocationFieldLabel, "app"), "cost-analyzer"),
-		ops.Contains(allocation.AllocationFieldLabel, "foo"),
+		ops.NotContains(allocation.FieldServices, "service-a"),
+		ops.NotEq(ops.WithKey(allocation.FieldLabel, "app"), "cost-analyzer"),
+		ops.Contains(allocation.FieldLabel, "foo"),
 	)
 
 	comparisonTree := &ast.AndOp{
@@ -55,14 +55,14 @@ func TestLongFormComparison(t *testing.T) {
 				Operands: []ast.FilterNode{
 					&ast.EqualOp{
 						Left: ast.Identifier{
-							Field: ast.NewField(allocation.AllocationFieldNamespace),
+							Field: ast.NewField(allocation.FieldNamespace),
 							Key:   "",
 						},
 						Right: "kubecost",
 					},
 					&ast.EqualOp{
 						Left: ast.Identifier{
-							Field: ast.NewField(allocation.AllocationFieldClusterID),
+							Field: ast.NewField(allocation.FieldClusterID),
 							Key:   "",
 						},
 						Right: "cluster-one",
@@ -72,7 +72,7 @@ func TestLongFormComparison(t *testing.T) {
 			&ast.NotOp{
 				Operand: &ast.ContainsOp{
 					Left: ast.Identifier{
-						Field: ast.NewSliceField(allocation.AllocationFieldServices),
+						Field: ast.NewSliceField(allocation.FieldServices),
 						Key:   "",
 					},
 					Right: "service-a",
@@ -81,7 +81,7 @@ func TestLongFormComparison(t *testing.T) {
 			&ast.NotOp{
 				Operand: &ast.EqualOp{
 					Left: ast.Identifier{
-						Field: ast.NewMapField(allocation.AllocationFieldLabel),
+						Field: ast.NewMapField(allocation.FieldLabel),
 						Key:   "app",
 					},
 					Right: "cost-analyzer",
@@ -89,7 +89,7 @@ func TestLongFormComparison(t *testing.T) {
 			},
 			&ast.ContainsOp{
 				Left: ast.Identifier{
-					Field: ast.NewMapField(allocation.AllocationFieldLabel),
+					Field: ast.NewMapField(allocation.FieldLabel),
 					Key:   "",
 				},
 				Right: "foo",

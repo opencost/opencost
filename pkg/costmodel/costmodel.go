@@ -2361,17 +2361,19 @@ func measureTimeAsync(start time.Time, threshold time.Duration, name string, ch 
 	}
 }
 
-func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata bool) (*kubecost.AllocationSetRange, error) {
+func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata bool, accumulateBy kubecost.AccumulateOption) (*kubecost.AllocationSetRange, error) {
 	// Validate window is legal
 	if window.IsOpen() || window.IsNegative() {
 		return nil, fmt.Errorf("illegal window: %s", window)
 	}
 
+	var totalsStore kubecost.TotalsStore
 	// Idle is required for proportional asset costs
 	if includeProportionalAssetResourceCosts {
 		if !includeIdle {
 			return nil, errors.New("bad request - includeIdle must be set true if includeProportionalAssetResourceCosts is true")
 		}
+		totalsStore = kubecost.NewMemoryTotalsStore()
 	}
 
 	// Begin with empty response
@@ -2381,6 +2383,7 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 	// appending each to the response.
 	stepStart := *window.Start()
 	stepEnd := stepStart.Add(step)
+	var isAzure bool
 	for window.End().After(stepStart) {
 		allocSet, err := cm.ComputeAllocation(stepStart, stepEnd, resolution)
 		if err != nil {
@@ -2391,6 +2394,25 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 			assetSet, err := cm.ComputeAssets(stepStart, stepEnd)
 			if err != nil {
 				return nil, fmt.Errorf("error computing assets for %s: %w", kubecost.NewClosedWindow(stepStart, stepEnd), err)
+			}
+
+			if includeProportionalAssetResourceCosts {
+
+				// AKS is a special case - there can be a maximum of 2
+				// load balancers (1 public and 1 private) in an AKS cluster
+				// therefore, when calculating PARCs for load balancers,
+				// we must know if this is an AKS cluster
+				for _, node := range assetSet.Nodes {
+					if _, found := node.Labels["label_kubernetes_azure_com_cluster"]; found {
+						isAzure = true
+						break
+					}
+				}
+
+				_, err := kubecost.UpdateAssetTotalsStore(totalsStore, assetSet)
+				if err != nil {
+					log.Errorf("ETL: error updating asset resource totals for %s: %s", assetSet.Window, err)
+				}
 			}
 
 			idleSet, err := computeIdleAllocations(allocSet, assetSet, true)
@@ -2422,6 +2444,109 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 		return nil, fmt.Errorf("error aggregating for %s: %w", window, err)
 	}
 
+	// Accumulate, if requested
+	if accumulateBy != kubecost.AccumulateOptionNone {
+		asr, err = asr.Accumulate(accumulateBy)
+		if err != nil {
+			log.Errorf("error accumulating by %v: %s", accumulateBy, err)
+			return nil, fmt.Errorf("error accumulating by %v: %s", accumulateBy, err)
+		}
+
+		// when accumulating and returning PARCs, we need the totals for the
+		// accumulated windows to accurately compute a fraction
+		if includeProportionalAssetResourceCosts {
+			assetSet, err := cm.ComputeAssets(*asr.Window().Start(), *asr.Window().End())
+			if err != nil {
+				return nil, fmt.Errorf("error computing assets for %s: %w", kubecost.NewClosedWindow(*asr.Window().Start(), *asr.Window().End()), err)
+			}
+
+			_, err = kubecost.UpdateAssetTotalsStore(totalsStore, assetSet)
+			if err != nil {
+				log.Errorf("ETL: error updating asset resource totals for %s: %s", kubecost.NewClosedWindow(*asr.Window().Start(), *asr.Window().End()), err)
+			}
+
+		}
+	}
+
+	if includeProportionalAssetResourceCosts {
+
+		for _, as := range asr.Allocations {
+			totalStoreByNode, ok := totalsStore.GetAssetTotalsByNode(as.Start(), as.End())
+			if !ok {
+				log.Errorf("unable to locate allocation totals for node for window %v - %v", as.Start(), as.End())
+				return nil, fmt.Errorf("unable to locate allocation totals for node for window %v - %v", as.Start(), as.End())
+			}
+
+			totalStoreByCluster, ok := totalsStore.GetAssetTotalsByCluster(as.Start(), as.End())
+			if !ok {
+				log.Errorf("unable to locate allocation totals for cluster for window %v - %v", as.Start(), as.End())
+				return nil, fmt.Errorf("unable to locate allocation totals for cluster for window %v - %v", as.Start(), as.End())
+			}
+
+			var totalPublicLbCost, totalPrivateLbCost float64
+			if isAzure {
+				// loop through all assetTotals, adding all load balancer costs by public and private
+				for _, tot := range totalStoreByNode {
+					if tot.PrivateLoadBalancer {
+						totalPrivateLbCost += tot.LoadBalancerCost
+					} else {
+						totalPublicLbCost += tot.LoadBalancerCost
+					}
+				}
+			}
+
+			// loop through each allocation set, using total cost from totals store
+			for _, alloc := range as.Allocations {
+				for rawKey, parc := range alloc.ProportionalAssetResourceCosts {
+
+					key := strings.TrimSuffix(strings.ReplaceAll(rawKey, ",", "/"), "/")
+					// for each parc , check the totals store for each
+					// on a totals hit, set the corresponding total and calculate percentage
+					var totals *kubecost.AssetTotals
+					if totalsLoc, found := totalStoreByCluster[key]; found {
+						totals = totalsLoc
+					}
+
+					if totalsLoc, found := totalStoreByNode[key]; found {
+						totals = totalsLoc
+					}
+
+					if totals == nil {
+						log.Errorf("unable to locate asset totals for allocation %s", key)
+						return nil, fmt.Errorf("unable to locate allocation totals for allocation")
+
+					}
+
+					parc.CPUTotalCost = totals.CPUCost
+					parc.GPUTotalCost = totals.GPUCost
+					parc.RAMTotalCost = totals.RAMCost
+					if !isAzure {
+						parc.LoadBalancerTotalCost = totals.LoadBalancerCost
+					} else if len(alloc.LoadBalancers) > 0 {
+						// Azure is a special case - use computed totals above
+						// use the lbAllocations in the object to determine if
+						// this PARC is a public or private load balancer
+						// then set the total accordingly
+						// AKS only has 1 public and 1 private load balancer
+
+						lbAlloc, found := alloc.LoadBalancers[key]
+						if found {
+							if lbAlloc.Private {
+								parc.LoadBalancerTotalCost = totalPrivateLbCost
+							} else {
+								parc.LoadBalancerTotalCost = totalPublicLbCost
+							}
+						}
+					}
+
+					kubecost.ComputePercentages(&parc)
+					alloc.ProportionalAssetResourceCosts[rawKey] = parc
+				}
+			}
+
+		}
+	}
+
 	return asr, nil
 }
 
@@ -2435,10 +2560,10 @@ func computeIdleAllocations(allocSet *kubecost.AllocationSet, assetSet *kubecost
 
 	if idleByNode {
 		allocTotals = kubecost.ComputeAllocationTotals(allocSet, kubecost.AllocationNodeProp)
-		assetTotals = kubecost.ComputeAssetTotals(assetSet, kubecost.AssetNodeProp)
+		assetTotals = kubecost.ComputeAssetTotals(assetSet, true)
 	} else {
 		allocTotals = kubecost.ComputeAllocationTotals(allocSet, kubecost.AllocationClusterProp)
-		assetTotals = kubecost.ComputeAssetTotals(assetSet, kubecost.AssetClusterProp)
+		assetTotals = kubecost.ComputeAssetTotals(assetSet, false)
 	}
 
 	start, end := *allocSet.Window.Start(), *allocSet.Window.End()

@@ -546,7 +546,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	if options.Filter == nil {
 		filter = &matcher.AllPass[*Allocation]{}
 	} else {
-		compiler := NewAllocationMatchCompiler()
+		compiler := NewAllocationMatchCompiler(options.LabelConfig)
 		var err error
 		filter, err = compiler.Compile(options.Filter)
 		if err != nil {

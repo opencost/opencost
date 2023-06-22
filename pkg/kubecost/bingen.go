@@ -58,6 +58,8 @@ package kubecost
 // @bingen:generate:PVAllocations
 // @bingen:generate:PVKey
 // @bingen:generate:PVAllocation
+// @bingen:generate:LbAllocations
+// @bingen:generate:LbAllocation
 // @bingen:end
 
 // @bingen:set[name=Audit,version=1]
