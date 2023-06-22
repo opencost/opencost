@@ -478,10 +478,9 @@ func ComputeAssetTotals(as *AssetSet, byAsset bool) map[string]*AssetTotals {
 			arts[key].Count++
 			arts[key].AttachedVolumeCost += disk.Cost
 			arts[key].AttachedVolumeCostAdjustment += disk.Adjustment
-		} else if !byAsset {
+		} else {
 			// Here, we're looking at a PersistentVolume because we're not
-			// looking at an AttachedVolume. Only record PersistentVolume data
-			// at the cluster level (i.e. prop == AssetClusterProp).
+			// looking at an AttachedVolume.
 			arts[key].Count++
 			arts[key].PersistentVolumeCost += disk.Cost
 			arts[key].PersistentVolumeCostAdjustment += disk.Adjustment
