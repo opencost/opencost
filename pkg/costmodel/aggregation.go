@@ -2267,7 +2267,7 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// include aggregated labels/annotations if true
 	includeAggregatedMetadata := qp.GetBool("includeAggregatedMetadata", false)
 
-	asr, err := a.Model.QueryAllocation(window, resolution, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata)
+	asr, err := a.Model.QueryAllocation(window, resolution, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, accumulateBy)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "bad request") {
 			WriteError(w, BadRequest(err.Error()))
@@ -2276,16 +2276,6 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 		}
 
 		return
-	}
-
-	// Accumulate, if requested
-	if accumulateBy != kubecost.AccumulateOptionNone {
-		asr, err = asr.Accumulate(accumulateBy)
-		if err != nil {
-			log.Errorf("error accumulating by %v: %s", accumulateBy, err)
-			WriteError(w, InternalServerError(fmt.Errorf("error accumulating by %v: %s", accumulateBy, err).Error()))
-			return
-		}
 	}
 
 	w.Write(WrapData(asr, nil))

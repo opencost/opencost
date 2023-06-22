@@ -2,11 +2,12 @@ package costmodel
 
 import (
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/util"
-	"testing"
-	"time"
 )
 
 const Ki = 1024
@@ -498,7 +499,7 @@ func TestCalculateStartAndEnd(t *testing.T) {
 
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
-			start, end := calculateStartAndEnd(testCase.result, testCase.resolution)
+			start, end := calculateStartAndEnd(testCase.result, testCase.resolution, true)
 			if !start.Equal(testCase.expectedStart) {
 				t.Errorf("start to not match expected %v : %v", start, testCase.expectedStart)
 			}
