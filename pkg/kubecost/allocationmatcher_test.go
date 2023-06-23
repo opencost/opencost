@@ -48,7 +48,7 @@ func TestAliasPass(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		pass := NewAliasPass(*labelConfig)
+		pass := NewAllocationAliasPass(*labelConfig)
 
 		t.Run(c.name, func(t *testing.T) {
 			result, err := pass.Exec(c.input)
