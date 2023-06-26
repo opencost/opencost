@@ -34,6 +34,10 @@ func (c *Coverage) IsEmpty() bool {
 }
 
 func (c *Coverage) Clone() *Coverage {
+	if c == nil {
+		log.Warnf("calling Clone() on a nil Coverage")
+		return nil
+	}
 	var errors []string
 	if len(c.Errors) > 0 {
 		errors = make([]string, len(c.Errors))
