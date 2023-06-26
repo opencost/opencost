@@ -26,6 +26,10 @@ func (c *Coverage) Key() string {
 }
 
 func (c *Coverage) IsEmpty() bool {
+	if c == nil {
+		log.Warnf("calling IsEmpty() on a nil Coverage")
+		return true
+	}
 	return c.Type == "" && c.Count == 0 && len(c.Errors) == 0 && len(c.Warnings) == 0 && c.Updated == time.Time{}
 }
 
