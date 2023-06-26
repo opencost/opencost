@@ -561,7 +561,7 @@ func ClusterNodes(cp models.Provider, client prometheus.Client, start, end time.
 		log.DedupedWarningf(3, "ClusterNodes(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
 	}
 
-	durStr := timeutil.DurationString(resolution)
+	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
 		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
 	}
