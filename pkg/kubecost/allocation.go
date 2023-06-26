@@ -1221,6 +1221,12 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	shouldShare := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
 	if !shouldAggregate && !shouldFilter && !shouldShare && options.ShareIdle == ShareNone && !options.IncludeProportionalAssetResourceCosts {
 		// There is nothing for AggregateBy to do, so simply return nil
+		// before returning, set aggregated metadata inclusion in properties
+		if options.IncludeAggregatedMetadata {
+			for index := range as.Allocations {
+				as.Allocations[index].Properties.AggregatedMetadata = true
+			}
+		}
 		return nil
 	}
 
