@@ -2361,7 +2361,10 @@ func measureTimeAsync(start time.Time, threshold time.Duration, name string, ch 
 	}
 }
 
-func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata bool, accumulateBy kubecost.AccumulateOption) (*kubecost.AllocationSetRange, error) {
+func (cm *CostModel) QueryAllocation(
+	window kubecost.Window, resolution, step time.Duration, aggregate []string, namespace string,
+	includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata bool,
+	accumulateBy kubecost.AccumulateOption) (*kubecost.AllocationSetRange, error) {
 	// Validate window is legal
 	if window.IsOpen() || window.IsNegative() {
 		return nil, fmt.Errorf("illegal window: %s", window)
@@ -2435,6 +2438,7 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 	opts := &kubecost.AllocationAggregationOptions{
 		IncludeProportionalAssetResourceCosts: includeProportionalAssetResourceCosts,
 		IdleByNode:                            idleByNode,
+		Namespace:                             namespace,
 		IncludeAggregatedMetadata:             includeAggregatedMetadata,
 	}
 

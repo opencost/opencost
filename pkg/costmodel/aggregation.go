@@ -2226,6 +2226,9 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// resolution.
 	resolution := qp.GetDuration("resolution", env.GetETLResolution())
 
+	// Namespace is an optional parameter, defaulting to all the namespaces
+	namespace := qp.Get("namespace", "")
+
 	// Step is an optional parameter that defines the duration per-set, i.e.
 	// the window for an AllocationSet, of the AllocationSetRange to be
 	// computed. Defaults to the window size, making one set.
@@ -2267,7 +2270,8 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// include aggregated labels/annotations if true
 	includeAggregatedMetadata := qp.GetBool("includeAggregatedMetadata", false)
 
-	asr, err := a.Model.QueryAllocation(window, resolution, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, accumulateBy)
+	asr, err := a.Model.QueryAllocation(window, resolution, step, aggregateBy, namespace,
+		includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, accumulateBy)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "bad request") {
 			WriteError(w, BadRequest(err.Error()))

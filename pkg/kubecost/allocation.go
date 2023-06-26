@@ -1106,6 +1106,7 @@ type AllocationAggregationOptions struct {
 	AllocationTotalsStore                 AllocationTotalsStore
 	Filter                                filter21.Filter
 	IdleByNode                            bool
+	Namespace                             string
 	IncludeProportionalAssetResourceCosts bool
 	LabelConfig                           *LabelConfig
 	MergeUnallocated                      bool
@@ -1256,7 +1257,6 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// them to their respective sets, removing them from the set of allocations
 	// to aggregate.
 	for _, alloc := range as.Allocations {
-
 		alloc.Properties.AggregatedMetadata = options.IncludeAggregatedMetadata
 		// build a parallel set of allocations to only be used
 		// for computing PARCs
@@ -1441,6 +1441,12 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 
 		// (3) If the allocation does not match the filter, immediately skip the
 		// allocation.
+		if options.Namespace != "" &&
+			alloc.Properties != nil &&
+			alloc.Properties.Namespace != options.Namespace {
+			log.Debugf("Do not match the namespace filter, expect:%s, but get %s", options.Namespace, alloc.Properties.Namespace)
+			continue
+		}
 		if !filter.Matches(alloc) {
 			// If we are tracking idle filtration coefficients, delete the
 			// entry corresponding to the filtered allocation. (Deleting the
