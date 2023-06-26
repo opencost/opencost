@@ -53,14 +53,14 @@ var NoBackingStore error = errors.New("Backing storage does not exist.")
 // ConfigFile is representation of a configuration file that can be written to, read, and watched
 // for updates
 type ConfigFile struct {
-	store      storage.Storage
-	file       string
-	dataLock   *sync.Mutex
-	data       []byte
-	watchLock  *sync.Mutex
-	watchers   []*pHandler
 	runState   atomic.AtomicRunState
 	lastChange time.Time
+	store      storage.Storage
+	dataLock   *sync.Mutex
+	watchLock  *sync.Mutex
+	file       string
+	data       []byte
+	watchers   []*pHandler
 }
 
 // NewConfigFile creates a new ConfigFile instance using a specific storage.Storage and path relative
@@ -358,7 +358,7 @@ func (cf *ConfigFile) onFileChange(changeType ChangeType, newData []byte) {
 
 // pHandler is a wrapper type used to assign a ConfigChangedHandler a unique identifier and priority.
 type pHandler struct {
-	id       HandlerID
 	handler  ConfigChangedHandler
+	id       HandlerID
 	priority int
 }

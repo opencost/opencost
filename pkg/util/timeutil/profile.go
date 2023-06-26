@@ -54,6 +54,6 @@ func (pds *ProfileDataSeries) String() string {
 }
 
 type ProfileDatum struct {
-	Name string
 	Time time.Time
+	Name string
 }

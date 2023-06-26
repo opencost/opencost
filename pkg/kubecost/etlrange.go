@@ -10,8 +10,8 @@ import (
 // SetRange is a generic implementation of the SetRanges that act as containers. It covers the basic functionality that
 // is shared by the basic types but is meant to be extended by each implementation.
 type SetRange[T ETLSet] struct {
-	lock sync.RWMutex
 	sets []T
+	lock sync.RWMutex
 }
 
 // Append attaches the given ETLSet to the end of the sets slice.

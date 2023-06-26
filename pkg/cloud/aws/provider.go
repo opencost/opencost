@@ -150,21 +150,21 @@ var awsRegions = []string{
 
 // AWS represents an Amazon Provider
 type AWS struct {
-	Pricing                     map[string]*AWSProductTerms
+	Config                      models.ProviderConfig
+	SpotPricingError            error
+	RIPricingError              error
+	Clientset                   clustercache.ClusterCache
+	ValidPricingKeys            map[string]bool
 	SpotPricingByInstanceID     map[string]*spotInfo
 	SpotPricingUpdatedAt        *time.Time
-	SpotRefreshRunning          bool
-	SpotPricingLock             sync.RWMutex
-	SpotPricingError            error
+	ServiceAccountChecks        *models.ServiceAccountChecks
 	RIPricingByInstanceID       map[string]*RIData
-	RIPricingError              error
-	RIDataRunning               bool
-	RIDataLock                  sync.RWMutex
+	Pricing                     map[string]*AWSProductTerms
 	SavingsPlanDataByInstanceID map[string]*SavingsPlanData
-	SavingsPlanDataRunning      bool
-	SavingsPlanDataLock         sync.RWMutex
-	ValidPricingKeys            map[string]bool
-	Clientset                   clustercache.ClusterCache
+	SpotDataBucket              string
+	SpotLabelValue              string
+	clusterProvisioner          string
+	ClusterAccountID            string
 	BaseCPUPrice                string
 	BaseRAMPrice                string
 	BaseGPUPrice                string
@@ -172,18 +172,18 @@ type AWS struct {
 	BaseSpotRAMPrice            string
 	BaseSpotGPUPrice            string
 	SpotLabelName               string
-	SpotLabelValue              string
-	SpotDataRegion              string
-	SpotDataBucket              string
-	SpotDataPrefix              string
-	ProjectID                   string
-	DownloadPricingDataLock     sync.RWMutex
-	Config                      models.ProviderConfig
-	ServiceAccountChecks        *models.ServiceAccountChecks
-	clusterManagementPrice      float64
 	ClusterRegion               string
-	ClusterAccountID            string
-	clusterProvisioner          string
+	SpotDataRegion              string
+	ProjectID                   string
+	SpotDataPrefix              string
+	clusterManagementPrice      float64
+	DownloadPricingDataLock     sync.RWMutex
+	SpotPricingLock             sync.RWMutex
+	SavingsPlanDataLock         sync.RWMutex
+	RIDataLock                  sync.RWMutex
+	RIDataRunning               bool
+	SpotRefreshRunning          bool
+	SavingsPlanDataRunning      bool
 }
 
 // AWSAccessKey holds AWS credentials and fulfils the awsV2.CredentialsProvider interface
@@ -258,9 +258,9 @@ type AWSPricingTerms struct {
 
 // AWSOfferTerm is a sku extension used to pay for the node.
 type AWSOfferTerm struct {
+	PriceDimensions map[string]*AWSRateCode `json:"priceDimensions"`
 	Sku             string                  `json:"sku"`
 	OfferTermCode   string                  `json:"offerTermCode"`
-	PriceDimensions map[string]*AWSRateCode `json:"priceDimensions"`
 }
 
 func (ot *AWSOfferTerm) String() string {
@@ -289,14 +289,14 @@ type AWSCurrencyCode struct {
 
 // AWSProductTerms represents the full terms of the product
 type AWSProductTerms struct {
-	Sku      string        `json:"sku"`
 	OnDemand *AWSOfferTerm `json:"OnDemand"`
 	Reserved *AWSOfferTerm `json:"Reserved"`
+	PV       *models.PV    `json:"pv"`
+	Sku      string        `json:"sku"`
 	Memory   string        `json:"memory"`
 	Storage  string        `json:"storage"`
 	VCpu     string        `json:"vcpu"`
 	GPU      string        `json:"gpu"` // GPU represents the number of GPU on the instance
-	PV       *models.PV    `json:"pv"`
 }
 
 // ClusterIdEnvVar is the environment variable in which one can manually set the ClusterId
@@ -1880,9 +1880,9 @@ func (aws *AWS) QueryAthenaPaginated(ctx context.Context, query string, fn func(
 
 type SavingsPlanData struct {
 	ResourceID     string
-	EffectiveCost  float64
 	SavingsPlanARN string
 	MostRecentDate string
+	EffectiveCost  float64
 }
 
 func (aws *AWS) GetSavingsPlanDataFromAthena() error {
@@ -1974,9 +1974,9 @@ func (aws *AWS) GetSavingsPlanDataFromAthena() error {
 
 type RIData struct {
 	ResourceID     string
-	EffectiveCost  float64
 	ReservationARN string
 	MostRecentDate string
+	EffectiveCost  float64
 }
 
 func (aws *AWS) GetReservationDataFromAthena() error {

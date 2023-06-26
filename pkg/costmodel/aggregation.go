@@ -45,45 +45,45 @@ const (
 // allocation data per resource, vectors of rate data per resource, efficiency
 // data, and metadata describing the type of aggregation operation.
 type Aggregation struct {
+	End                        time.Time                      `json:"-"`
+	Start                      time.Time                      `json:"-"`
+	Properties                 *kubecost.AllocationProperties `json:"-"`
 	Aggregator                 string                         `json:"aggregation"`
-	Subfields                  []string                       `json:"subfields,omitempty"`
 	Environment                string                         `json:"environment"`
 	Cluster                    string                         `json:"cluster,omitempty"`
-	Properties                 *kubecost.AllocationProperties `json:"-"`
-	Start                      time.Time                      `json:"-"`
-	End                        time.Time                      `json:"-"`
-	CPUAllocationHourlyAverage float64                        `json:"cpuAllocationAverage"`
-	CPUAllocationVectors       []*util.Vector                 `json:"-"`
-	CPUAllocationTotal         float64                        `json:"-"`
-	CPUCost                    float64                        `json:"cpuCost"`
-	CPUCostVector              []*util.Vector                 `json:"cpuCostVector,omitempty"`
-	CPUEfficiency              float64                        `json:"cpuEfficiency"`
+	NetworkCostVector          []*util.Vector                 `json:"networkCostVector,omitempty"`
 	CPURequestedVectors        []*util.Vector                 `json:"-"`
-	CPUUsedVectors             []*util.Vector                 `json:"-"`
-	Efficiency                 float64                        `json:"efficiency"`
-	GPUAllocationHourlyAverage float64                        `json:"gpuAllocationAverage"`
-	GPUAllocationVectors       []*util.Vector                 `json:"-"`
-	GPUCost                    float64                        `json:"gpuCost"`
-	GPUCostVector              []*util.Vector                 `json:"gpuCostVector,omitempty"`
-	GPUAllocationTotal         float64                        `json:"-"`
-	RAMAllocationHourlyAverage float64                        `json:"ramAllocationAverage"`
+	CPUAllocationVectors       []*util.Vector                 `json:"-"`
+	Subfields                  []string                       `json:"subfields,omitempty"`
 	RAMAllocationVectors       []*util.Vector                 `json:"-"`
+	CPUCostVector              []*util.Vector                 `json:"cpuCostVector,omitempty"`
+	PVCostVector               []*util.Vector                 `json:"pvCostVector,omitempty"`
+	TotalCostVector            []*util.Vector                 `json:"totalCostVector,omitempty"`
+	CPUUsedVectors             []*util.Vector                 `json:"-"`
+	PVAllocationVectors        []*util.Vector                 `json:"-"`
+	RAMUsedVectors             []*util.Vector                 `json:"-"`
+	GPUAllocationVectors       []*util.Vector                 `json:"-"`
+	RAMRequestedVectors        []*util.Vector                 `json:"-"`
+	GPUCostVector              []*util.Vector                 `json:"gpuCostVector,omitempty"`
+	RAMCostVector              []*util.Vector                 `json:"ramCostVector,omitempty"`
+	CPUAllocationTotal         float64                        `json:"-"`
+	RAMAllocationHourlyAverage float64                        `json:"ramAllocationAverage"`
 	RAMAllocationTotal         float64                        `json:"-"`
 	RAMCost                    float64                        `json:"ramCost"`
-	RAMCostVector              []*util.Vector                 `json:"ramCostVector,omitempty"`
+	GPUAllocationTotal         float64                        `json:"-"`
 	RAMEfficiency              float64                        `json:"ramEfficiency"`
-	RAMRequestedVectors        []*util.Vector                 `json:"-"`
-	RAMUsedVectors             []*util.Vector                 `json:"-"`
+	GPUCost                    float64                        `json:"gpuCost"`
+	GPUAllocationHourlyAverage float64                        `json:"gpuAllocationAverage"`
 	PVAllocationHourlyAverage  float64                        `json:"pvAllocationAverage"`
-	PVAllocationVectors        []*util.Vector                 `json:"-"`
+	Efficiency                 float64                        `json:"efficiency"`
 	PVAllocationTotal          float64                        `json:"-"`
 	PVCost                     float64                        `json:"pvCost"`
-	PVCostVector               []*util.Vector                 `json:"pvCostVector,omitempty"`
+	CPUEfficiency              float64                        `json:"cpuEfficiency"`
 	NetworkCost                float64                        `json:"networkCost"`
-	NetworkCostVector          []*util.Vector                 `json:"networkCostVector,omitempty"`
+	CPUCost                    float64                        `json:"cpuCost"`
 	SharedCost                 float64                        `json:"sharedCost"`
 	TotalCost                  float64                        `json:"totalCost"`
-	TotalCostVector            []*util.Vector                 `json:"totalCostVector,omitempty"`
+	CPUAllocationHourlyAverage float64                        `json:"cpuAllocationAverage"`
 }
 
 // TotalHours determines the amount of hours the Aggregation covers, as a
@@ -130,15 +130,15 @@ func (a *Aggregation) RateCoefficient(rateStr string, resolutionHours float64) f
 }
 
 type SharedResourceInfo struct {
-	ShareResources  bool
 	SharedNamespace map[string]bool
 	LabelSelectors  map[string]map[string]bool
+	ShareResources  bool
 }
 
 type SharedCostInfo struct {
 	Name      string
-	Cost      float64
 	ShareType string
+	Cost      float64
 }
 
 func (s *SharedResourceInfo) IsSharedResource(costDatum *CostData) bool {
@@ -252,19 +252,19 @@ func (a *Accesses) ComputeIdleCoefficient(costData map[string]*CostData, cli pro
 
 // AggregationOptions provides optional parameters to AggregateCostData, allowing callers to perform more complex operations
 type AggregationOptions struct {
-	Discount               float64            // percent by which to discount CPU, RAM, and GPU cost
-	CustomDiscount         float64            // additional custom discount applied to all prices
-	IdleCoefficients       map[string]float64 // scales costs by amount of idle resources on a per-cluster basis
-	IncludeEfficiency      bool               // set to true to receive efficiency/usage data
-	IncludeTimeSeries      bool               // set to true to receive time series data
-	Rate                   string             // set to "hourly", "daily", or "monthly" to receive cost rate, rather than cumulative cost
-	ResolutionHours        float64
 	SharedResourceInfo     *SharedResourceInfo
-	SharedCosts            map[string]*SharedCostInfo
-	FilteredContainerCount int
+	IdleCoefficients       map[string]float64 // scales costs by amount of idle resources on a per-cluster basis
 	FilteredEnvironments   map[string]int
+	SharedCosts            map[string]*SharedCostInfo
 	SharedSplit            string
+	Rate                   string // set to "hourly", "daily", or "monthly" to receive cost rate, rather than cumulative cost
+	FilteredContainerCount int
+	ResolutionHours        float64
+	Discount               float64 // percent by which to discount CPU, RAM, and GPU cost
+	CustomDiscount         float64 // additional custom discount applied to all prices
 	TotalContainerCost     float64
+	IncludeTimeSeries      bool // set to true to receive time series data
+	IncludeEfficiency      bool // set to true to receive efficiency/usage data
 }
 
 // Helper method to test request/usgae values against allocation averages for efficiency scores. Generate a warning log if
@@ -1605,14 +1605,14 @@ func (s *SharedResourceInfo) String() string {
 }
 
 type aggKeyParams struct {
+	filters    map[string]string
+	sri        *SharedResourceInfo
 	duration   string
 	offset     string
-	filters    map[string]string
 	field      string
-	subfields  []string
 	rate       string
-	sri        *SharedResourceInfo
 	shareType  string
+	subfields  []string
 	idle       bool
 	timeSeries bool
 	efficiency bool
@@ -2286,8 +2286,8 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 // TODO move to util and/or standardize everything
 
 type Error struct {
-	StatusCode int
 	Body       string
+	StatusCode int
 }
 
 func WriteError(w http.ResponseWriter, err Error) {

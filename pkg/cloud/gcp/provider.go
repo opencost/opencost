@@ -92,35 +92,35 @@ var (
 
 // GCP implements a provider interface for GCP
 type GCP struct {
-	Pricing                 map[string]*GCPPricing
+	Config                  models.ProviderConfig
 	Clientset               clustercache.ClusterCache
-	APIKey                  string
-	BaseCPUPrice            string
+	MetadataClient          *metadata.Client
+	ValidPricingKeys        map[string]bool
+	Pricing                 map[string]*GCPPricing
 	ProjectID               string
 	BillingDataDataset      string
-	DownloadPricingDataLock sync.RWMutex
-	ReservedInstances       []*GCPReservedInstance
-	Config                  models.ProviderConfig
-	ServiceKeyProvided      bool
-	ValidPricingKeys        map[string]bool
-	MetadataClient          *metadata.Client
-	clusterManagementPrice  float64
+	BaseCPUPrice            string
+	APIKey                  string
 	ClusterRegion           string
 	ClusterAccountID        string
 	ClusterProjectID        string
 	clusterProvisioner      string
+	ReservedInstances       []*GCPReservedInstance
+	clusterManagementPrice  float64
+	DownloadPricingDataLock sync.RWMutex
+	ServiceKeyProvided      bool
 }
 
 type gcpAllocation struct {
+	Service     string
 	Aggregator  bigquery.NullString
 	Environment bigquery.NullString
-	Service     string
 	Cost        float64
 }
 
 type multiKeyGCPAllocation struct {
-	Keys    bigquery.NullString
 	Service string
+	Keys    bigquery.NullString
 	Cost    float64
 }
 
@@ -178,9 +178,9 @@ func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 // BigQueryConfig contain the required config and credentials to access OOC resources for GCP
 // Deprecated: v1.104 Use BigQueryConfiguration instead
 type BigQueryConfig struct {
+	Key                map[string]string `json:"key"`
 	ProjectID          string            `json:"projectID"`
 	BillingDataDataset string            `json:"billingDataDataset"`
-	Key                map[string]string `json:"key"`
 }
 
 // IsEmpty returns true if all fields in config are empty, false if not.
@@ -568,23 +568,23 @@ func (gcp *GCP) findCostForDisk(disk *compute.Disk) (*float64, error) {
 
 // GCPPricing represents GCP pricing data for a SKU
 type GCPPricing struct {
+	Category            *GCPResourceInfo `json:"category"`
+	Node                *models.Node     `json:"node"`
+	PV                  *models.PV       `json:"pv"`
 	Name                string           `json:"name"`
 	SKUID               string           `json:"skuId"`
 	Description         string           `json:"description"`
-	Category            *GCPResourceInfo `json:"category"`
+	ServiceProviderName string           `json:"serviceProviderName"`
 	ServiceRegions      []string         `json:"serviceRegions"`
 	PricingInfo         []*PricingInfo   `json:"pricingInfo"`
-	ServiceProviderName string           `json:"serviceProviderName"`
-	Node                *models.Node     `json:"node"`
-	PV                  *models.PV       `json:"pv"`
 }
 
 // PricingInfo contains metadata about a cost.
 type PricingInfo struct {
-	Summary                string             `json:"summary"`
 	PricingExpression      *PricingExpression `json:"pricingExpression"`
-	CurrencyConversionRate float64            `json:"currencyConversionRate"`
+	Summary                string             `json:"summary"`
 	EffectiveTime          string             `json:""`
+	CurrencyConversionRate float64            `json:"currencyConversionRate"`
 }
 
 // PricingExpression contains metadata about a cost.
@@ -592,15 +592,15 @@ type PricingExpression struct {
 	UsageUnit                string         `json:"usageUnit"`
 	UsageUnitDescription     string         `json:"usageUnitDescription"`
 	BaseUnit                 string         `json:"baseUnit"`
+	TieredRates              []*TieredRates `json:"tieredRates"`
 	BaseUnitConversionFactor int64          `json:"-"`
 	DisplayQuantity          int            `json:"displayQuantity"`
-	TieredRates              []*TieredRates `json:"tieredRates"`
 }
 
 // TieredRates contain data about variable pricing.
 type TieredRates struct {
-	StartUsageAmount int            `json:"startUsageAmount"`
 	UnitPrice        *UnitPriceInfo `json:"unitPrice"`
+	StartUsageAmount int            `json:"startUsageAmount"`
 }
 
 // UnitPriceInfo contains data about the actual price being charged.
@@ -1181,12 +1181,12 @@ type GCPReservedInstancePlan struct {
 }
 
 type GCPReservedInstance struct {
-	ReservedRAM int64
-	ReservedCPU int64
-	Plan        *GCPReservedInstancePlan
 	StartDate   time.Time
 	EndDate     time.Time
+	Plan        *GCPReservedInstancePlan
 	Region      string
+	ReservedRAM int64
+	ReservedCPU int64
 }
 
 func (r *GCPReservedInstance) String() string {
@@ -1194,9 +1194,9 @@ func (r *GCPReservedInstance) String() string {
 }
 
 type GCPReservedCounter struct {
+	Instance     *GCPReservedInstance
 	RemainingCPU int64
 	RemainingRAM int64
-	Instance     *GCPReservedInstance
 }
 
 func newReservedCounter(instance *GCPReservedInstance) *GCPReservedCounter {

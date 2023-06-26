@@ -36,25 +36,25 @@ type CloudUsageQuerier interface {
 
 // AllocationQueryOptions defines optional parameters for querying an Allocation Store
 type AllocationQueryOptions struct {
-	Accumulate              AccumulateOption
-	AggregateBy             []string
-	Compute                 bool
-	DisableAggregatedStores bool
 	Filter                  filter21.Filter
-	IdleByNode              bool
-	IncludeExternal         bool
-	IncludeIdle             bool
 	LabelConfig             *LabelConfig
-	MergeUnallocated        bool
-	Reconcile               bool
-	ReconcileNetwork        bool
-	ShareFuncs              []AllocationMatchFunc
 	SharedHourlyCosts       map[string]float64
-	ShareIdle               string
 	ShareSplit              string
+	ShareIdle               string
+	Accumulate              AccumulateOption
+	ShareFuncs              []AllocationMatchFunc
+	AggregateBy             []string
+	Step                    time.Duration
+	IncludeExternal         bool
+	DisableAggregatedStores bool
+	IncludeIdle             bool
+	Compute                 bool
+	IdleByNode              bool
+	ReconcileNetwork        bool
+	Reconcile               bool
 	ShareTenancyCosts       bool
 	SplitIdle               bool
-	Step                    time.Duration
+	MergeUnallocated        bool
 }
 
 type AccumulateOption string
@@ -70,36 +70,36 @@ const (
 
 // AssetQueryOptions defines optional parameters for querying an Asset Store
 type AssetQueryOptions struct {
-	Accumulate              bool
+	Filter                  filter21.Filter
+	SharedHourlyCosts       map[string]float64
+	LabelConfig             *LabelConfig
 	AggregateBy             []string
+	Step                    time.Duration
+	Accumulate              bool
 	Compute                 bool
 	DisableAdjustments      bool
 	DisableAggregatedStores bool
-	Filter                  filter21.Filter
 	IncludeCloud            bool
-	SharedHourlyCosts       map[string]float64
-	Step                    time.Duration
-	LabelConfig             *LabelConfig
 }
 
 // CloudUsageQueryOptions define optional parameters for querying a Store
 type CloudUsageQueryOptions struct {
-	Accumulate   bool
-	AggregateBy  []string
-	Compute      bool
-	Filter       filter21.Filter
 	FilterValues CloudUsageFilter
+	Filter       filter21.Filter
 	LabelConfig  *LabelConfig
+	AggregateBy  []string
+	Accumulate   bool
+	Compute      bool
 }
 
 type CloudUsageFilter struct {
+	Labels      map[string][]string `json:"labels"`
 	Categories  []string            `json:"categories"`
 	Providers   []string            `json:"providers"`
 	ProviderIDs []string            `json:"providerIDs"`
 	Accounts    []string            `json:"accounts"`
 	Projects    []string            `json:"projects"`
 	Services    []string            `json:"services"`
-	Labels      map[string][]string `json:"labels"`
 }
 
 // QueryAllocationAsync provide a functions for retrieving results from any AllocationQuerier Asynchronously

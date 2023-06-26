@@ -3,8 +3,8 @@ package log
 import "sync"
 
 type counter struct {
-	mu   sync.RWMutex
 	seen map[string]int
+	mu   sync.RWMutex
 }
 
 func newCounter() *counter {

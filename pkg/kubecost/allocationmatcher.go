@@ -100,8 +100,8 @@ func allocationMapFieldMap(a *Allocation, identifier ast.Identifier) (map[string
 // a pass which converts alias nodes to logically-equivalent label/annotation
 // filter nodes based on the label config.
 type allocationAliasPass struct {
-	Config              LabelConfig
 	AliasNameToAliasKey map[afilter.AllocationAlias]string
+	Config              LabelConfig
 }
 
 // NewAliasPass creates a compiler pass that converts alias nodes to

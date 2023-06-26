@@ -88,13 +88,13 @@ func (ccl CloudCostLabels) Intersection(that CloudCostLabels) CloudCostLabels {
 }
 
 type CloudCostProperties struct {
+	Labels          CloudCostLabels `json:"labels,omitempty"`
 	ProviderID      string          `json:"providerID,omitempty"`
 	Provider        string          `json:"provider,omitempty"`
 	AccountID       string          `json:"accountID,omitempty"`
 	InvoiceEntityID string          `json:"invoiceEntityID,omitempty"`
 	Service         string          `json:"service,omitempty"`
 	Category        string          `json:"category,omitempty"`
-	Labels          CloudCostLabels `json:"labels,omitempty"`
 }
 
 func (ccp *CloudCostProperties) Equal(that *CloudCostProperties) bool {

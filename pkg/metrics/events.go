@@ -5,8 +5,8 @@ import "time"
 // HttpHandlerMetricEvent contains http handler response metrics.
 type HttpHandlerMetricEvent struct {
 	Handler      string
-	Code         int
 	Method       string
+	Code         int
 	ResponseTime time.Duration
 	ResponseSize uint64
 }

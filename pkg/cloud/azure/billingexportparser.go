@@ -20,13 +20,13 @@ var groupRegex = regexp.MustCompile("(/[^/]+)")
 // BillingRowValues holder for Azure Billing Values
 type BillingRowValues struct {
 	Date            time.Time
+	Tags            map[string]string
+	AdditionalInfo  map[string]any
 	MeterCategory   string
 	SubscriptionID  string
 	InvoiceEntityID string
 	InstanceID      string
 	Service         string
-	Tags            map[string]string
-	AdditionalInfo  map[string]any
 	Cost            float64
 	NetCost         float64
 }
@@ -49,6 +49,7 @@ func (brv *BillingRowValues) IsCompute(category string) bool {
 
 // BillingExportParser holds indexes of relevent fields in Azure Billing CSV in addition to the correct data format
 type BillingExportParser struct {
+	DateFormat      string
 	Date            int
 	MeterCategory   int
 	InvoiceEntityID int
@@ -59,7 +60,6 @@ type BillingExportParser struct {
 	AdditionalInfo  int
 	Cost            int
 	NetCost         int
-	DateFormat      string
 }
 
 // match "SubscriptionGuid" in "Abonnement-GUID (SubscriptionGuid)"

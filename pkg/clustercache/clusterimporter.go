@@ -17,9 +17,9 @@ import (
 // as it's source of the cluster data.
 type ClusterImporter struct {
 	source          *config.ConfigFile
-	sourceHandlerID config.HandlerID
 	dataLock        *sync.Mutex
 	data            *clusterEncoding
+	sourceHandlerID config.HandlerID
 }
 
 // Creates a new ClusterCache implementation which uses an import process to provide cluster data

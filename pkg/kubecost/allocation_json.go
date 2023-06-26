@@ -11,11 +11,11 @@ import (
 // AllocationJSON  exists because there are expected JSON response fields
 // that are calculated values from methods on an annotation
 type AllocationJSON struct {
-	Name                           string                          `json:"name"`
-	Properties                     *AllocationProperties           `json:"properties"`
 	Window                         Window                          `json:"window"`
-	Start                          string                          `json:"start"`
-	End                            string                          `json:"end"`
+	NetworkInternetCost            *float64                        `json:"networkInternetCost"`
+	LoadBalancers                  LbAllocations                   `json:"lbAllocations"`
+	SharedCostBreakdown            *SharedCostBreakdowns           `json:"sharedCostBreakdown,omitempty"`
+	NetworkCostAdjustment          *float64                        `json:"networkCostAdjustment"`
 	Minutes                        *float64                        `json:"minutes"`
 	CPUCores                       *float64                        `json:"cpuCores"`
 	CPUCoreRequestAverage          *float64                        `json:"cpuCoreRequestAverage"`
@@ -29,14 +29,14 @@ type AllocationJSON struct {
 	GPUCost                        *float64                        `json:"gpuCost"`
 	GPUCostAdjustment              *float64                        `json:"gpuCostAdjustment"`
 	NetworkTransferBytes           *float64                        `json:"networkTransferBytes"`
-	NetworkReceiveBytes            *float64                        `json:"networkReceiveBytes"`
+	LoadBalancerCostAdjustment     *float64                        `json:"loadBalancerCostAdjustment"`
 	NetworkCost                    *float64                        `json:"networkCost"`
 	NetworkCrossZoneCost           *float64                        `json:"networkCrossZoneCost"`
 	NetworkCrossRegionCost         *float64                        `json:"networkCrossRegionCost"`
-	NetworkInternetCost            *float64                        `json:"networkInternetCost"`
-	NetworkCostAdjustment          *float64                        `json:"networkCostAdjustment"`
 	LoadBalancerCost               *float64                        `json:"loadBalancerCost"`
-	LoadBalancerCostAdjustment     *float64                        `json:"loadBalancerCostAdjustment"`
+	ProportionalAssetResourceCosts *ProportionalAssetResourceCosts `json:"proportionalAssetResourceCosts,omitempty"`
+	Properties                     *AllocationProperties           `json:"properties"`
+	NetworkReceiveBytes            *float64                        `json:"networkReceiveBytes"`
 	PVBytes                        *float64                        `json:"pvBytes"`
 	PVByteHours                    *float64                        `json:"pvByteHours"`
 	PVCost                         *float64                        `json:"pvCost"`
@@ -54,9 +54,9 @@ type AllocationJSON struct {
 	TotalCost                      *float64                        `json:"totalCost"`
 	TotalEfficiency                *float64                        `json:"totalEfficiency"`
 	RawAllocationOnly              *RawAllocationOnlyData          `json:"rawAllocationOnly,omitempty"`
-	ProportionalAssetResourceCosts *ProportionalAssetResourceCosts `json:"proportionalAssetResourceCosts,omitempty"`
-	LoadBalancers                  LbAllocations                   `json:"lbAllocations"`
-	SharedCostBreakdown            *SharedCostBreakdowns           `json:"sharedCostBreakdown,omitempty"`
+	End                            string                          `json:"end"`
+	Name                           string                          `json:"name"`
+	Start                          string                          `json:"start"`
 }
 
 func (aj *AllocationJSON) BuildFromAllocation(a *Allocation) {

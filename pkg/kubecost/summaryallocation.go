@@ -22,15 +22,15 @@ import (
 // within which it is defined, as opposed to the Start and End times). That
 // context must be provided by a SummaryAllocationSet.
 type SummaryAllocation struct {
-	Name                   string                `json:"name"`
-	Properties             *AllocationProperties `json:"-"`
 	Start                  time.Time             `json:"start"`
 	End                    time.Time             `json:"end"`
-	CPUCoreRequestAverage  float64               `json:"cpuCoreRequestAverage"`
+	Properties             *AllocationProperties `json:"-"`
+	Name                   string                `json:"name"`
+	NetworkCost            float64               `json:"networkCost"`
 	CPUCoreUsageAverage    float64               `json:"cpuCoreUsageAverage"`
 	CPUCost                float64               `json:"cpuCost"`
 	GPUCost                float64               `json:"gpuCost"`
-	NetworkCost            float64               `json:"networkCost"`
+	CPUCoreRequestAverage  float64               `json:"cpuCoreRequestAverage"`
 	LoadBalancerCost       float64               `json:"loadBalancerCost"`
 	PVCost                 float64               `json:"pvCost"`
 	RAMBytesRequestAverage float64               `json:"ramByteRequestAverage"`
@@ -360,11 +360,11 @@ func (sa *SummaryAllocation) TotalEfficiency() float64 {
 // name, that share a window. An AllocationSet is mutable, so treat it like a
 // threadsafe map.
 type SummaryAllocationSet struct {
-	sync.RWMutex
+	Window             Window `json:"window"`
 	externalKeys       map[string]bool
 	idleKeys           map[string]bool
 	SummaryAllocations map[string]*SummaryAllocation `json:"allocations"`
-	Window             Window                        `json:"window"`
+	sync.RWMutex
 }
 
 // NewSummaryAllocationSet converts an AllocationSet to a SummaryAllocationSet.
@@ -1360,11 +1360,11 @@ func (sas *SummaryAllocationSet) TotalEfficiency() float64 {
 
 // SummaryAllocationSetRange is a thread-safe slice of SummaryAllocationSets.
 type SummaryAllocationSetRange struct {
-	sync.RWMutex
-	Step                  time.Duration           `json:"step"`
-	SummaryAllocationSets []*SummaryAllocationSet `json:"sets"`
 	Window                Window                  `json:"window"`
 	Message               string                  `json:"-"`
+	SummaryAllocationSets []*SummaryAllocationSet `json:"sets"`
+	Step                  time.Duration           `json:"step"`
+	sync.RWMutex
 }
 
 // NewSummaryAllocationSetRange instantiates a new range composed of the given

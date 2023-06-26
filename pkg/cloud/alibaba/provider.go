@@ -172,15 +172,15 @@ func NewSlimK8sDisk(diskType, regionID, priceUnit, diskCategory, performanceLeve
 
 // Slim version of a k8s v1.node just to pass along the object of this struct instead of constant getting the labels from within v1.Node & unit testing.
 type SlimK8sNode struct {
+	SystemDisk         *SlimK8sDisk
 	InstanceType       string
 	RegionID           string
 	PriceUnit          string
 	MemorySizeInKiB    string // TO-DO : Possible to convert to float?
-	IsIoOptimized      bool
 	OSType             string
 	ProviderID         string
-	SystemDisk         *SlimK8sDisk
 	InstanceTypeFamily string // Bug in DescribePrice, doesn't default to enhanced type correctly and you get an error in DescribePrice to get around need the family of the InstanceType.
+	IsIoOptimized      bool
 }
 
 func NewSlimK8sNode(instanceType, regionID, priceUnit, memorySizeInKiB, osType, providerID, instanceTypeFamily string, isIOOptimized bool, systemDiskInfo *SlimK8sDisk) *SlimK8sNode {
@@ -205,8 +205,6 @@ type AlibabaNodeAttributes struct {
 	InstanceType string `json:"instanceType"`
 	// MemorySizeInKiB represents the size of memory of instance.
 	MemorySizeInKiB string `json:"memorySizeInKiB"`
-	// IsIoOptimized represents the if instance is I/O optimized.
-	IsIoOptimized bool `json:"isIoOptimized"`
 	// OSType represents the OS installed in the Instance.
 	OSType string `json:"osType"`
 	// SystemDiskCategory represents the exact category of the system disk attached to the node.
@@ -215,6 +213,8 @@ type AlibabaNodeAttributes struct {
 	SystemDiskSizeInGiB string `json:"systemDiskSizeInGiB"`
 	// SystemDiskPerformanceLevel represents the performance level of the system disk attached to the node.
 	SystemDiskPerformanceLevel string `json:"systemPerformanceLevel"`
+	// IsIoOptimized represents the if instance is I/O optimized.
+	IsIoOptimized bool `json:"isIoOptimized"`
 }
 
 func NewAlibabaNodeAttributes(node *SlimK8sNode) *AlibabaNodeAttributes {
@@ -276,14 +276,14 @@ func NewAlibabaPVAttributes(disk *SlimK8sDisk) *AlibabaPVAttributes {
 // and spotprice can be gather from DescribeSpotPriceHistory API.
 // TO-DO: how would you calculate hourly price for subscription type, is it PRICE_YEARLY/HOURS_IN_THE_YEAR|MONTH?
 type AlibabaPricingDetails struct {
-	// Represents hourly price for the given Alibaba cloud Product.
-	HourlyPrice float32 `json:"hourlyPrice"`
 	// Represents the unit in which Alibaba Product is billed can be Hour, Month or Year based on the billingMethod.
 	PriceUnit string `json:"priceUnit"`
-	// Original Price paid to acquire the Alibaba Product.
-	TradePrice float32 `json:"tradePrice"`
 	// Represents the currency unit of the price for billing Alibaba Product.
 	CurrencyCode string `json:"currencyCode"`
+	// Represents hourly price for the given Alibaba cloud Product.
+	HourlyPrice float32 `json:"hourlyPrice"`
+	// Original Price paid to acquire the Alibaba Product.
+	TradePrice float32 `json:"tradePrice"`
 }
 
 func NewAlibabaPricingDetails(hourlyPrice float32, priceUnit string, tradePrice float32, currencyCode string) *AlibabaPricingDetails {
@@ -297,8 +297,8 @@ func NewAlibabaPricingDetails(hourlyPrice float32, priceUnit string, tradePrice 
 
 // AlibabaPricingTerms can have three types of supported billing method Pay-As-You-Go, Subscription and Premptible
 type AlibabaPricingTerms struct {
-	BillingMethod  string                 `json:"billingMethod"`
 	PricingDetails *AlibabaPricingDetails `json:"pricingDetails"`
+	BillingMethod  string                 `json:"billingMethod"`
 }
 
 func NewAlibabaPricingTerms(billingMethod string, pricingDetails *AlibabaPricingDetails) *AlibabaPricingTerms {
@@ -319,22 +319,23 @@ type AlibabaPricing struct {
 
 // Alibaba cloud's Provider struct
 type Alibaba struct {
+	Clientset clustercache.ClusterCache
+	Config    models.ProviderConfig
 	// Data to store Alibaba cloud's pricing struct, key in the map represents exact match to
 	// node.features() or pv.features for easy lookup
-	Pricing map[string]*AlibabaPricing
-	// Lock Needed to provide thread safe
-	DownloadPricingDataLock sync.RWMutex
-	Clientset               clustercache.ClusterCache
-	Config                  models.ProviderConfig
-	ServiceAccountChecks    *models.ServiceAccountChecks
-	ClusterAccountId        string
-	ClusterRegion           string
+	Pricing              map[string]*AlibabaPricing
+	ServiceAccountChecks *models.ServiceAccountChecks
 
 	// The following fields are unexported because of avoiding any leak of secrets of these keys.
 	// Alibaba Access key used specifically in signer interface used to sign API calls
 	accessKey *credentials.AccessKeyCredential
 	// Map of regionID to sdk.client to call API for that region
-	clients map[string]*sdk.Client
+	clients          map[string]*sdk.Client
+	ClusterAccountId string
+	ClusterRegion    string
+
+	// Lock Needed to provide thread safe
+	DownloadPricingDataLock sync.RWMutex
 }
 
 // GetAlibabaAccessKey return the Access Key used to interact with the Alibaba cloud, if not set it
@@ -1051,10 +1052,10 @@ func determineKeyForPricing(i interface{}) (string, error) {
 
 // Below structs are used to unmarshal json response of Alibaba cloud's API DescribePrice
 type Price struct {
+	Currency                  string  `json:"Currency"`
 	OriginalPrice             float32 `json:"OriginalPrice"`
 	ReservedInstanceHourPrice float32 `json:"ReservedInstanceHourPrice"`
 	DiscountPrice             float32 `json:"DiscountPrice"`
-	Currency                  string  `json:"Currency"`
 	TradePrice                float32 `json:"TradePrice"`
 }
 
@@ -1164,12 +1165,12 @@ func getInstanceIDFromProviderID(providerID string) string {
 
 type Disk struct {
 	Category         string `json:"Category"`
-	Size             int    `json:"Size"`
 	PerformanceLevel string `json:"PerformanceLevel"`
 	Type             string `json:"Type"`
 	RegionId         string `json:"RegionId"`
 	DiskId           string `json:"DiskId"`
 	DiskChargeType   string `json:"DiskChargeType"`
+	Size             int    `json:"Size"`
 }
 
 type Disks struct {
@@ -1177,8 +1178,8 @@ type Disks struct {
 }
 
 type DescribeDiskResponse struct {
-	TotalCount int    `json:"TotalCount"`
 	Disks      *Disks `json:"Disks"`
+	TotalCount int    `json:"TotalCount"`
 }
 
 // getSystemDiskInfoOfANode gets the relevant System disk information associated with the Node given by the instanceID

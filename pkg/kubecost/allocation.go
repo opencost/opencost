@@ -52,48 +52,48 @@ const ShareNone = "__none__"
 // TODO:CLEANUP consider dropping name in favor of just Allocation and an
 // Assets-style key() function for AllocationSet.
 type Allocation struct {
-	Name                       string                `json:"name"`
-	Properties                 *AllocationProperties `json:"properties,omitempty"`
-	Window                     Window                `json:"window"`
-	Start                      time.Time             `json:"start"`
-	End                        time.Time             `json:"end"`
-	CPUCoreHours               float64               `json:"cpuCoreHours"`
-	CPUCoreRequestAverage      float64               `json:"cpuCoreRequestAverage"`
-	CPUCoreUsageAverage        float64               `json:"cpuCoreUsageAverage"`
-	CPUCost                    float64               `json:"cpuCost"`
-	CPUCostAdjustment          float64               `json:"cpuCostAdjustment"`
-	GPUHours                   float64               `json:"gpuHours"`
-	GPUCost                    float64               `json:"gpuCost"`
-	GPUCostAdjustment          float64               `json:"gpuCostAdjustment"`
-	NetworkTransferBytes       float64               `json:"networkTransferBytes"`
-	NetworkReceiveBytes        float64               `json:"networkReceiveBytes"`
-	NetworkCost                float64               `json:"networkCost"`
-	NetworkCrossZoneCost       float64               `json:"networkCrossZoneCost"`   // @bingen:field[version=16]
-	NetworkCrossRegionCost     float64               `json:"networkCrossRegionCost"` // @bingen:field[version=16]
-	NetworkInternetCost        float64               `json:"networkInternetCost"`    // @bingen:field[version=16]
-	NetworkCostAdjustment      float64               `json:"networkCostAdjustment"`
-	LoadBalancerCost           float64               `json:"loadBalancerCost"`
-	LoadBalancerCostAdjustment float64               `json:"loadBalancerCostAdjustment"`
-	PVs                        PVAllocations         `json:"pvs"`
-	PVCostAdjustment           float64               `json:"pvCostAdjustment"`
-	RAMByteHours               float64               `json:"ramByteHours"`
-	RAMBytesRequestAverage     float64               `json:"ramByteRequestAverage"`
-	RAMBytesUsageAverage       float64               `json:"ramByteUsageAverage"`
-	RAMCost                    float64               `json:"ramCost"`
-	RAMCostAdjustment          float64               `json:"ramCostAdjustment"`
-	SharedCost                 float64               `json:"sharedCost"`
-	ExternalCost               float64               `json:"externalCost"`
-	// RawAllocationOnly is a pointer so if it is not present it will be
-	// marshalled as null rather than as an object with Go default values.
-	RawAllocationOnly *RawAllocationOnlyData `json:"rawAllocationOnly"`
+	Start         time.Time             `json:"start"`
+	End           time.Time             `json:"end"`
+	Window        Window                `json:"window"`
+	Properties    *AllocationProperties `json:"properties,omitempty"`
+	LoadBalancers LbAllocations         `json:"LoadBalancers"` // @bingen:field[version=17]
+
+	SharedCostBreakdown SharedCostBreakdowns `json:"sharedCostBreakdown"` //@bingen:field[ignore]
 	// ProportionalAssetResourceCost represents the per-resource costs of the
 	// allocation as a percentage of the per-resource total cost of the
 	// asset on which the allocation was run. It is optionally computed
 	// and appended to an Allocation, and so by default is is nil.
 	ProportionalAssetResourceCosts ProportionalAssetResourceCosts `json:"proportionalAssetResourceCosts"` //@bingen:field[ignore]
-	SharedCostBreakdown            SharedCostBreakdowns           `json:"sharedCostBreakdown"`            //@bingen:field[ignore]
-	LoadBalancers                  LbAllocations                  `json:"LoadBalancers"`                  // @bingen:field[version=17]
-
+	// RawAllocationOnly is a pointer so if it is not present it will be
+	// marshalled as null rather than as an object with Go default values.
+	RawAllocationOnly          *RawAllocationOnlyData `json:"rawAllocationOnly"`
+	PVs                        PVAllocations          `json:"pvs"`
+	Name                       string                 `json:"name"`
+	NetworkCrossZoneCost       float64                `json:"networkCrossZoneCost"` // @bingen:field[version=16]
+	PVCostAdjustment           float64                `json:"pvCostAdjustment"`
+	GPUCostAdjustment          float64                `json:"gpuCostAdjustment"`
+	NetworkTransferBytes       float64                `json:"networkTransferBytes"`
+	NetworkReceiveBytes        float64                `json:"networkReceiveBytes"`
+	NetworkCost                float64                `json:"networkCost"`
+	GPUHours                   float64                `json:"gpuHours"`
+	NetworkCrossRegionCost     float64                `json:"networkCrossRegionCost"` // @bingen:field[version=16]
+	NetworkInternetCost        float64                `json:"networkInternetCost"`    // @bingen:field[version=16]
+	NetworkCostAdjustment      float64                `json:"networkCostAdjustment"`
+	LoadBalancerCost           float64                `json:"loadBalancerCost"`
+	LoadBalancerCostAdjustment float64                `json:"loadBalancerCostAdjustment"`
+	CPUCostAdjustment          float64                `json:"cpuCostAdjustment"`
+	GPUCost                    float64                `json:"gpuCost"`
+	RAMByteHours               float64                `json:"ramByteHours"`
+	RAMBytesRequestAverage     float64                `json:"ramByteRequestAverage"`
+	RAMBytesUsageAverage       float64                `json:"ramByteUsageAverage"`
+	RAMCost                    float64                `json:"ramCost"`
+	RAMCostAdjustment          float64                `json:"ramCostAdjustment"`
+	SharedCost                 float64                `json:"sharedCost"`
+	ExternalCost               float64                `json:"externalCost"`
+	CPUCost                    float64                `json:"cpuCost"`
+	CPUCoreUsageAverage        float64                `json:"cpuCoreUsageAverage"`
+	CPUCoreRequestAverage      float64                `json:"cpuCoreRequestAverage"`
+	CPUCoreHours               float64                `json:"cpuCoreHours"`
 }
 
 type LbAllocations map[string]*LbAllocation
@@ -1103,20 +1103,20 @@ func NewAllocationSet(start, end time.Time, allocs ...*Allocation) *AllocationSe
 // succeeds, the allocation is marked as a shared resource. ShareIdle is a
 // simple flag for sharing idle resources.
 type AllocationAggregationOptions struct {
-	AllocationTotalsStore                 AllocationTotalsStore
 	Filter                                filter21.Filter
-	IdleByNode                            bool
-	IncludeProportionalAssetResourceCosts bool
+	AllocationTotalsStore                 AllocationTotalsStore
+	SharedLabels                          map[string][]string
+	SharedHourlyCosts                     map[string]float64
 	LabelConfig                           *LabelConfig
-	MergeUnallocated                      bool
-	Reconcile                             bool
-	ReconcileNetwork                      bool
+	ShareSplit                            string
+	ShareIdle                             string
 	ShareFuncs                            []AllocationMatchFunc
 	SharedNamespaces                      []string
-	SharedLabels                          map[string][]string
-	ShareIdle                             string
-	ShareSplit                            string
-	SharedHourlyCosts                     map[string]float64
+	Reconcile                             bool
+	ReconcileNetwork                      bool
+	MergeUnallocated                      bool
+	IncludeProportionalAssetResourceCosts bool
+	IdleByNode                            bool
 	IncludeSharedCostBreakdown            bool
 	SplitIdle                             bool
 	IncludeAggregatedMetadata             bool
@@ -2601,8 +2601,8 @@ func (as *AllocationSet) Accumulate(that *AllocationSet) (*AllocationSet, error)
 // respect to using the same aggregation properties, UTC offset, and
 // resolution. However these rules are not necessarily enforced, so use wisely.
 type AllocationSetRange struct {
-	Allocations []*AllocationSet
 	FromStore   string // stores the name of the store used to retrieve the data
+	Allocations []*AllocationSet
 }
 
 // NewAllocationSetRange instantiates a new range composed of the given

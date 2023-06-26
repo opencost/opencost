@@ -356,34 +356,34 @@ type AzureRetailPricing struct {
 	BillingCurrency    string                         `json:"BillingCurrency"`
 	CustomerEntityId   string                         `json:"CustomerEntityId"`
 	CustomerEntityType string                         `json:"CustomerEntityType"`
-	Items              []AzureRetailPricingAttributes `json:"Items"`
 	NextPageLink       string                         `json:"NextPageLink"`
+	Items              []AzureRetailPricingAttributes `json:"Items"`
 	Count              int                            `json:"Count"`
 }
 
 // AzureRetailPricingAttributes struct for unmarshalling Azure Retail pricing api JSON response
 type AzureRetailPricingAttributes struct {
-	CurrencyCode         string     `json:"currencyCode"`
-	TierMinimumUnits     float32    `json:"tierMinimumUnits"`
-	RetailPrice          float32    `json:"retailPrice"`
-	UnitPrice            float32    `json:"unitPrice"`
-	ArmRegionName        string     `json:"armRegionName"`
-	Location             string     `json:"location"`
 	EffectiveStartDate   *time.Time `json:"effectiveStartDate"`
 	EffectiveEndDate     *time.Time `json:"effectiveEndDate"`
+	ProductId            string     `json:"productId"`
+	ServiceId            string     `json:"serviceId"`
+	ArmRegionName        string     `json:"armRegionName"`
+	Location             string     `json:"location"`
+	ArmSkuName           string     `json:"armSkuName"`
+	Type                 string     `json:"type"`
 	MeterId              string     `json:"meterId"`
 	MeterName            string     `json:"meterName"`
-	ProductId            string     `json:"productId"`
+	CurrencyCode         string     `json:"currencyCode"`
 	SkuId                string     `json:"skuId"`
 	ProductName          string     `json:"productName"`
 	SkuName              string     `json:"skuName"`
 	ServiceName          string     `json:"serviceName"`
-	ServiceId            string     `json:"serviceId"`
-	ServiceFamily        string     `json:"serviceFamily"`
 	UnitOfMeasure        string     `json:"unitOfMeasure"`
-	Type                 string     `json:"type"`
+	ServiceFamily        string     `json:"serviceFamily"`
+	UnitPrice            float32    `json:"unitPrice"`
+	TierMinimumUnits     float32    `json:"tierMinimumUnits"`
+	RetailPrice          float32    `json:"retailPrice"`
 	IsPrimaryMeterRegion bool       `json:"isPrimaryMeterRegion"`
-	ArmSkuName           string     `json:"armSkuName"`
 }
 
 // AzurePricing either contains a Node or PV
@@ -393,21 +393,21 @@ type AzurePricing struct {
 }
 
 type Azure struct {
-	Pricing                 map[string]*AzurePricing
-	DownloadPricingDataLock sync.RWMutex
-	Clientset               clustercache.ClusterCache
-	Config                  models.ProviderConfig
-	ServiceAccountChecks    *models.ServiceAccountChecks
-	ClusterAccountID        string
-	ClusterRegion           string
+	priceSheetPricingError error
+	rateCardPricingError   error
+	Clientset              clustercache.ClusterCache
+	Config                 models.ProviderConfig
+	ServiceAccountChecks   *models.ServiceAccountChecks
+	Pricing                map[string]*AzurePricing
+	azureSecret            *AzureServiceKey
+	azureStorageConfig     *AzureStorageConfig
+	ClusterAccountID       string
+	ClusterRegion          string
 
 	pricingSource                  string
-	rateCardPricingError           error
-	priceSheetPricingError         error
+	DownloadPricingDataLock        sync.RWMutex
 	loadedAzureSecret              bool
-	azureSecret                    *AzureServiceKey
 	loadedAzureStorageConfigSecret bool
-	azureStorageConfig             *AzureStorageConfig
 }
 
 // PricingSourceSummary returns the pricing source summary for the provider.
@@ -521,8 +521,8 @@ type AzureAppKey struct {
 // AzureServiceKey service key for a specific subscription
 // Deprecated: v1.104 Use ServiceKey instead
 type AzureServiceKey struct {
-	SubscriptionID string       `json:"subscriptionId"`
 	ServiceKey     *AzureAppKey `json:"serviceKey"`
+	SubscriptionID string       `json:"subscriptionId"`
 }
 
 // Validity check on service key

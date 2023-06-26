@@ -16,9 +16,9 @@ var DoesNotExistError = os.ErrNotExist
 
 // StorageInfo is a data object containing basic information about the path in storage.
 type StorageInfo struct {
+	ModTime time.Time // modification time
 	Name    string    // base name of the file
 	Size    int64     // length in bytes for regular files
-	ModTime time.Time // modification time
 }
 
 // Storage provides an API for storing binary data

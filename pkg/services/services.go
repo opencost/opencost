@@ -25,8 +25,8 @@ type HTTPServices interface {
 }
 
 type defaultHTTPServices struct {
-	sync.Mutex
 	services []HTTPService
+	sync.Mutex
 }
 
 // Add a HTTPService implementation for

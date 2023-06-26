@@ -31,8 +31,8 @@ var promQueryOffset time.Duration = env.GetPrometheusQueryOffset()
 // parsing query responses and errors.
 type Context struct {
 	Client         prometheus.Client
-	name           string
 	errorCollector *QueryErrorCollector
+	name           string
 }
 
 // NewContext creates a new Prometheus querying context from the given client

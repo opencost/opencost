@@ -7,8 +7,8 @@ import (
 
 // ConfigMapWatcher represents a single configmap watcher
 type ConfigMapWatcher struct {
-	ConfigMapName string
 	WatchFunc     func(string, map[string]string) error
+	ConfigMapName string
 }
 
 type ConfigMapWatchers struct {

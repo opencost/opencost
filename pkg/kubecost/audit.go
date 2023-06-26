@@ -265,14 +265,14 @@ func (ac *AuditCoverage) Update(as *AuditSet) {
 
 // AuditSet is a ETLSet which contains all kind of Audits for a given Window
 type AuditSet struct {
-	sync.RWMutex
+	Window                   Window                         `json:"window"`
 	AllocationReconciliation *AllocationReconciliationAudit `json:"allocationReconciliation"`
 	AllocationAgg            *AggAudit                      `json:"allocationAgg"`
 	AllocationTotal          *TotalAudit                    `json:"allocationTotal"`
 	AssetTotal               *TotalAudit                    `json:"assetTotal"`
 	AssetReconciliation      *AssetReconciliationAudit      `json:"assetReconciliation"`
 	ClusterEquality          *EqualityAudit                 `json:"clusterEquality"`
-	Window                   Window                         `json:"window"`
+	sync.RWMutex
 }
 
 // NewAuditSet creates an empty AuditSet with the given window

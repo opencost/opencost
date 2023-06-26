@@ -34,11 +34,10 @@ func (smf *StringSliceMatcherFactory[T]) NewStringSliceMatcher(op ast.FilterOp, 
 // StringSliceProperty is the lowest-level type of filter. It represents
 // a filter operation (equality, inequality, etc.) on a property that contains a string slice
 type StringSliceMatcher[T any] struct {
-	Op         ast.FilterOp
-	Identifier ast.Identifier
-	Value      string
-
 	fieldMapper SliceFieldMapper[T]
+	Identifier  ast.Identifier
+	Op          ast.FilterOp
+	Value       string
 }
 
 func (ssp *StringSliceMatcher[T]) String() string {

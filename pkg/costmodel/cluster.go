@@ -47,19 +47,19 @@ const maxLocalDiskSize = 200 // AWS limits root disks to 100 Gi, and occasional 
 // Costs represents cumulative and monthly cluster costs over a given duration. Costs
 // are broken down by cores, memory, and storage.
 type ClusterCosts struct {
-	Start             *time.Time             `json:"startTime"`
+	StorageBreakdown  *ClusterCostsBreakdown `json:"storageBreakdown"`
 	End               *time.Time             `json:"endTime"`
-	CPUCumulative     float64                `json:"cpuCumulativeCost"`
-	CPUMonthly        float64                `json:"cpuMonthlyCost"`
+	Start             *time.Time             `json:"startTime"`
+	RAMBreakdown      *ClusterCostsBreakdown `json:"ramBreakdown"`
 	CPUBreakdown      *ClusterCostsBreakdown `json:"cpuBreakdown"`
-	GPUCumulative     float64                `json:"gpuCumulativeCost"`
 	GPUMonthly        float64                `json:"gpuMonthlyCost"`
+	GPUCumulative     float64                `json:"gpuCumulativeCost"`
 	RAMCumulative     float64                `json:"ramCumulativeCost"`
 	RAMMonthly        float64                `json:"ramMonthlyCost"`
-	RAMBreakdown      *ClusterCostsBreakdown `json:"ramBreakdown"`
+	CPUMonthly        float64                `json:"cpuMonthlyCost"`
 	StorageCumulative float64                `json:"storageCumulativeCost"`
 	StorageMonthly    float64                `json:"storageMonthlyCost"`
-	StorageBreakdown  *ClusterCostsBreakdown `json:"storageBreakdown"`
+	CPUCumulative     float64                `json:"cpuCumulativeCost"`
 	TotalCumulative   float64                `json:"totalCumulativeCost"`
 	TotalMonthly      float64                `json:"totalMonthlyCost"`
 	DataMinutes       float64
@@ -108,15 +108,8 @@ func NewClusterCostsFromCumulative(cpu, gpu, ram, storage float64, window, offse
 }
 
 type Disk struct {
-	Cluster        string
-	Name           string
-	ProviderID     string
-	StorageClass   string
-	VolumeName     string
-	ClaimName      string
-	ClaimNamespace string
-	Cost           float64
-	Bytes          float64
+	End   time.Time
+	Start time.Time
 
 	// These two fields may not be available at all times because they rely on
 	// a new set of metrics that may or may not be available. Thus, they must
@@ -128,13 +121,22 @@ type Disk struct {
 	// They end in "Ptr" to distinguish from an earlier version in order to
 	// ensure that all usages are checked for nil.
 	BytesUsedAvgPtr *float64
+	Breakdown       *ClusterCostsBreakdown
 	BytesUsedMaxPtr *float64
 
-	Local     bool
-	Start     time.Time
-	End       time.Time
-	Minutes   float64
-	Breakdown *ClusterCostsBreakdown
+	VolumeName     string
+	ClaimNamespace string
+	ClaimName      string
+	Cluster        string
+	StorageClass   string
+	ProviderID     string
+	Name           string
+	Cost           float64
+	Bytes          float64
+
+	Minutes float64
+
+	Local bool
 }
 
 type DiskIdentifier struct {
@@ -476,28 +478,28 @@ type NodeOverhead struct {
 	RamOverheadFraction float64
 }
 type Node struct {
-	Cluster         string
+	End             time.Time
+	Start           time.Time
+	CPUBreakdown    *ClusterCostsBreakdown
+	Overhead        *NodeOverhead
+	Labels          map[string]string
+	RAMBreakdown    *ClusterCostsBreakdown
 	Name            string
 	ProviderID      string
 	NodeType        string
-	CPUCost         float64
+	Cluster         string
 	CPUCores        float64
-	GPUCost         float64
-	GPUCount        float64
-	RAMCost         float64
-	RAMBytes        float64
 	Discount        float64
-	Preemptible     bool
-	CPUBreakdown    *ClusterCostsBreakdown
-	RAMBreakdown    *ClusterCostsBreakdown
-	Start           time.Time
-	End             time.Time
+	RAMBytes        float64
+	RAMCost         float64
+	GPUCount        float64
 	Minutes         float64
-	Labels          map[string]string
+	GPUCost         float64
 	CostPerCPUHr    float64
 	CostPerRAMGiBHr float64
 	CostPerGPUHr    float64
-	Overhead        *NodeOverhead
+	CPUCost         float64
+	Preemptible     bool
 }
 
 // GKE lies about the number of cores e2 nodes have. This table
@@ -707,13 +709,13 @@ type LoadBalancerIdentifier struct {
 }
 
 type LoadBalancer struct {
+	Start      time.Time
+	End        time.Time
 	Cluster    string
 	Namespace  string
 	Name       string
 	ProviderID string
 	Cost       float64
-	Start      time.Time
-	End        time.Time
 	Minutes    float64
 	Private    bool
 }

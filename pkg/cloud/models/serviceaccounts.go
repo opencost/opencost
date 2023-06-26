@@ -8,8 +8,8 @@ type ServiceAccountStatus struct {
 
 // ServiceAccountChecks is a thread safe map for holding ServiceAccountCheck objects
 type ServiceAccountChecks struct {
-	sync.RWMutex
 	serviceAccountChecks map[string]*ServiceAccountCheck
+	sync.RWMutex
 }
 
 // NewServiceAccountChecks initialize ServiceAccountChecks
@@ -40,6 +40,6 @@ func (sac *ServiceAccountChecks) GetStatus() *ServiceAccountStatus {
 
 type ServiceAccountCheck struct {
 	Message        string `json:"message"`
-	Status         bool   `json:"status"`
 	AdditionalInfo string `json:"additionalInfo"`
+	Status         bool   `json:"status"`
 }

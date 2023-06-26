@@ -18,13 +18,13 @@ type cacheEntry[T comparable] struct {
 // CacheGroup provides single flighting for grouping repeated calls for the same workload, as well
 // as a cache that extends the lifetime of the returned result by a specific duration.
 type CacheGroup[T comparable] struct {
-	lock             sync.Mutex
-	cache            map[string]*cacheEntry[T]
 	group            singleflight.Group
-	expirationLock   sync.Mutex
+	cache            map[string]*cacheEntry[T]
 	expirationRunner *interval.IntervalRunner
 	expiry           time.Duration
 	max              int
+	lock             sync.Mutex
+	expirationLock   sync.Mutex
 }
 
 // NewCacheGroup[T] creates a new cache group instance given the max number of keys to cache.

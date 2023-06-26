@@ -48,19 +48,19 @@ const AthenaWhereUsage = "(line_item_line_item_type = 'Usage' OR line_item_line_
 
 // AthenaQueryIndexes is a struct for holding the context of a query
 type AthenaQueryIndexes struct {
-	Query                     string
 	ColumnIndexes             map[string]int
-	TagColumns                []string
+	NetK8sCostColumn          string
 	ListCostColumn            string
 	ListK8sCostColumn         string
 	NetCostColumn             string
-	NetK8sCostColumn          string
+	Query                     string
 	AmortizedNetCostColumn    string
 	AmortizedNetK8sCostColumn string
 	AmortizedCostColumn       string
 	AmortizedK8sCostColumn    string
 	InvoicedCostColumn        string
 	InvoicedK8sCostColumn     string
+	TagColumns                []string
 }
 
 type AthenaIntegration struct {

@@ -59,10 +59,10 @@ func (sc KubecostServiceCollector) Collect(ch chan<- prometheus.Metric) {
 type ServiceSelectorLabelsMetric struct {
 	fqName      string
 	help        string
-	labelNames  []string
-	labelValues []string
 	serviceName string
 	namespace   string
+	labelNames  []string
+	labelValues []string
 }
 
 // Creates a new ServiceMetric, implementation of prometheus.Metric

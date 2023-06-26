@@ -59,10 +59,10 @@ func (kdc KubecostDeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 type DeploymentMatchLabelsMetric struct {
 	fqName         string
 	help           string
-	labelNames     []string
-	labelValues    []string
 	deploymentName string
 	namespace      string
+	labelNames     []string
+	labelValues    []string
 }
 
 // Creates a new DeploymentMatchLabelsMetric, implementation of prometheus.Metric

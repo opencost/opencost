@@ -9,13 +9,13 @@ import (
 
 // AthenaConfiguration
 type AthenaConfiguration struct {
+	Authorizer Authorizer `json:"authorizer"`
 	Bucket     string     `json:"bucket"`
 	Region     string     `json:"region"`
 	Database   string     `json:"database"`
 	Table      string     `json:"table"`
 	Workgroup  string     `json:"workgroup"`
 	Account    string     `json:"account"`
-	Authorizer Authorizer `json:"authorizer"`
 }
 
 func (ac *AthenaConfiguration) Validate() error {

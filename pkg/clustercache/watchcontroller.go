@@ -45,11 +45,11 @@ type CachingWatchController struct {
 	queue    workqueue.RateLimitingInterface
 	informer cache.Controller
 
-	resource     string
-	resourceType string
-
 	updateHandler WatchHandler
 	removeHandler WatchHandler
+
+	resource     string
+	resourceType string
 }
 
 func NewCachingWatcher(restClient rest.Interface, resource string, resourceType rt.Object, namespace string, fieldSelector fields.Selector) WatchController {

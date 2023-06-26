@@ -1098,22 +1098,22 @@ func (cm *ClusterManagement) String() string {
 
 // Disk represents an in-cluster disk Asset
 type Disk struct {
-	Labels         AssetLabels
-	Properties     *AssetProperties
-	Start          time.Time
 	End            time.Time
+	Start          time.Time
 	Window         Window
+	ByteUsageMax   *float64 // @bingen:field[version=18]
+	Properties     *AssetProperties
+	Breakdown      *Breakdown
+	ByteHoursUsed  *float64 // @bingen:field[version=18]
+	Labels         AssetLabels
+	StorageClass   string // @bingen:field[version=17]
+	VolumeName     string // @bingen:field[version=18]
+	ClaimName      string // @bingen:field[version=18]
+	ClaimNamespace string // @bingen:field[version=18]
 	Adjustment     float64
 	Cost           float64
 	ByteHours      float64
 	Local          float64
-	Breakdown      *Breakdown
-	StorageClass   string   // @bingen:field[version=17]
-	ByteHoursUsed  *float64 // @bingen:field[version=18]
-	ByteUsageMax   *float64 // @bingen:field[version=18]
-	VolumeName     string   // @bingen:field[version=18]
-	ClaimName      string   // @bingen:field[version=18]
-	ClaimNamespace string   // @bingen:field[version=18]
 }
 
 // NewDisk creates and returns a new Disk Asset
@@ -1762,25 +1762,25 @@ type NodeOverhead struct {
 
 // Node is an Asset representing a single node in a cluster
 type Node struct {
-	Properties   *AssetProperties
-	Labels       AssetLabels
 	Start        time.Time
 	End          time.Time
 	Window       Window
-	Adjustment   float64
+	CPUBreakdown *Breakdown
+	Labels       AssetLabels
+	Overhead     *NodeOverhead // @bingen:field[version=19]
+	RAMBreakdown *Breakdown
+	Properties   *AssetProperties
 	NodeType     string
-	CPUCoreHours float64
 	RAMByteHours float64
 	GPUHours     float64
-	CPUBreakdown *Breakdown
-	RAMBreakdown *Breakdown
+	CPUCoreHours float64
 	CPUCost      float64
 	GPUCost      float64
 	GPUCount     float64
 	RAMCost      float64
 	Discount     float64
 	Preemptible  float64
-	Overhead     *NodeOverhead // @bingen:field[version=19]
+	Adjustment   float64
 }
 
 // NewNode creates and returns a new Node Asset
@@ -3240,8 +3240,8 @@ func DiffAsset(before, after *AssetSet, ratioCostChange float64) (map[string]Dif
 // respect to using the same aggregation Properties, UTC offset, and
 // resolution. However these rules are not necessarily enforced, so use wisely.
 type AssetSetRange struct {
-	Assets    []*AssetSet
 	FromStore string // stores the name of the store used to retrieve the data
+	Assets    []*AssetSet
 }
 
 // NewAssetSetRange instantiates a new range composed of the given
@@ -3791,8 +3791,8 @@ func (asr *AssetSetRange) clone() *AssetSetRange {
 // DESERIALIZATION LOGIC DEFINED IN asset_json.go can unmarshal a json directly
 // from an Assets API query
 type AssetAPIResponse struct {
-	Code int                   `json:"code"`
 	Data AssetSetRangeResponse `json:"data"`
+	Code int                   `json:"code"`
 }
 
 // Returns true if string slices a and b contain all of the same strings, in any order.

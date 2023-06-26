@@ -11,10 +11,10 @@ import (
 )
 
 type BigQueryConfiguration struct {
+	Authorizer Authorizer `json:"authorizer"`
 	ProjectID  string     `json:"projectID"`
 	Dataset    string     `json:"dataset"`
 	Table      string     `json:"table"`
-	Authorizer Authorizer `json:"authorizer"`
 }
 
 func (bqc *BigQueryConfiguration) Validate() error {

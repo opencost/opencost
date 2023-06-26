@@ -28,6 +28,7 @@ type NodePrice struct {
 
 type CustomProvider struct {
 	Clientset               clustercache.ClusterCache
+	Config                  models.ProviderConfig
 	Pricing                 map[string]*NodePrice
 	SpotLabel               string
 	SpotLabelValue          string
@@ -36,7 +37,6 @@ type CustomProvider struct {
 	ClusterRegion           string
 	ClusterAccountID        string
 	DownloadPricingDataLock sync.RWMutex
-	Config                  models.ProviderConfig
 }
 
 var volTypes = map[string]string{
@@ -72,11 +72,11 @@ func (cp *CustomProvider) PricingSourceSummary() interface{} {
 }
 
 type customProviderKey struct {
+	Labels         map[string]string
 	SpotLabel      string
 	SpotLabelValue string
 	GPULabel       string
 	GPULabelValue  string
-	Labels         map[string]string
 }
 
 func (*CustomProvider) ClusterManagementPricing() (string, float64, error) {

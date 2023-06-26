@@ -92,19 +92,19 @@ func ParseProperty(text string) (string, error) {
 
 // AllocationProperties describes a set of Kubernetes objects.
 type AllocationProperties struct {
-	Cluster              string                `json:"cluster,omitempty"`
-	Node                 string                `json:"node,omitempty"`
-	Container            string                `json:"container,omitempty"`
+	Labels               AllocationLabels      `json:"labels,omitempty"`
+	NamespaceAnnotations AllocationAnnotations `json:"namespaceAnnotations,omitempty"` // @bingen:field[version=17]
+	NamespaceLabels      AllocationLabels      `json:"namespaceLabels,omitempty"`      // @bingen:field[version=17]
+	Annotations          AllocationAnnotations `json:"annotations,omitempty"`
 	Controller           string                `json:"controller,omitempty"`
-	ControllerKind       string                `json:"controllerKind,omitempty"`
 	Namespace            string                `json:"namespace,omitempty"`
 	Pod                  string                `json:"pod,omitempty"`
-	Services             []string              `json:"services,omitempty"`
 	ProviderID           string                `json:"providerID,omitempty"`
-	Labels               AllocationLabels      `json:"labels,omitempty"`
-	Annotations          AllocationAnnotations `json:"annotations,omitempty"`
-	NamespaceLabels      AllocationLabels      `json:"namespaceLabels,omitempty"`      // @bingen:field[version=17]
-	NamespaceAnnotations AllocationAnnotations `json:"namespaceAnnotations,omitempty"` // @bingen:field[version=17]
+	ControllerKind       string                `json:"controllerKind,omitempty"`
+	Cluster              string                `json:"cluster,omitempty"`
+	Container            string                `json:"container,omitempty"`
+	Node                 string                `json:"node,omitempty"`
+	Services             []string              `json:"services,omitempty"`
 	// When set to true, maintain the intersection of all labels + annotations
 	// in the aggregated AllocationProperties object
 	AggregatedMetadata bool `json:"-"` //@bingen:field[ignore]

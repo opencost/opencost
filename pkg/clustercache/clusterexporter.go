@@ -35,10 +35,10 @@ type clusterEncoding struct {
 
 // ClusterExporter manages and runs an file export process which dumps the local kubernetes cluster to a target location.
 type ClusterExporter struct {
+	runState atomic.AtomicRunState
 	cluster  ClusterCache
 	target   *config.ConfigFile
 	interval time.Duration
-	runState atomic.AtomicRunState
 }
 
 // NewClusterExporter creates a new ClusterExporter instance for exporting the kubernetes cluster.

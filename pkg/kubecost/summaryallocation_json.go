@@ -9,13 +9,12 @@ import (
 // SummaryAllocationResponse is a sanitized version of SummaryAllocation, which
 // formats fields and protects against issues like mashaling NaNs.
 type SummaryAllocationResponse struct {
-	Name                   string    `json:"name"`
-	Start                  time.Time `json:"start"`
 	End                    time.Time `json:"end"`
+	Start                  time.Time `json:"start"`
+	GPUCost                *float64  `json:"gpuCost"`
 	CPUCoreRequestAverage  *float64  `json:"cpuCoreRequestAverage"`
 	CPUCoreUsageAverage    *float64  `json:"cpuCoreUsageAverage"`
 	CPUCost                *float64  `json:"cpuCost"`
-	GPUCost                *float64  `json:"gpuCost"`
 	NetworkCost            *float64  `json:"networkCost"`
 	LoadBalancerCost       *float64  `json:"loadBalancerCost"`
 	PVCost                 *float64  `json:"pvCost"`
@@ -24,6 +23,7 @@ type SummaryAllocationResponse struct {
 	RAMCost                *float64  `json:"ramCost"`
 	SharedCost             *float64  `json:"sharedCost"`
 	ExternalCost           *float64  `json:"externalCost"`
+	Name                   string    `json:"name"`
 }
 
 // ToResponse converts a SummaryAllocation to a SummaryAllocationResponse,
@@ -80,9 +80,9 @@ func (sas *SummaryAllocationSet) ToResponse() *SummaryAllocationSetResponse {
 // SummaryAllocationSetRangeResponse is a sanitized version of SummaryAllocationSetRange,
 // which formats fields and protects against issues like marshaling NaNs.
 type SummaryAllocationSetRangeResponse struct {
-	Step                  time.Duration                   `json:"step"`
-	SummaryAllocationSets []*SummaryAllocationSetResponse `json:"sets"`
 	Window                Window                          `json:"window"`
+	SummaryAllocationSets []*SummaryAllocationSetResponse `json:"sets"`
+	Step                  time.Duration                   `json:"step"`
 }
 
 // ToResponse converts a SummaryAllocationSet to a SummaryAllocationSetResponse,

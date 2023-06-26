@@ -3,8 +3,8 @@ package httputil
 import "net/http"
 
 type userAgentTransport struct {
-	userAgent string
 	base      http.RoundTripper
+	userAgent string
 }
 
 // NewUserAgentTransport creates a RoundTripper that attaches the configured user agent.

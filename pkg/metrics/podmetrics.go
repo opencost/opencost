@@ -117,8 +117,8 @@ func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 		if _, disabled := disabledMetrics["kube_pod_status_phase"]; !disabled {
 			if phase != "" {
 				phases := []struct {
-					v bool
 					n string
+					v bool
 				}{
 					{phase == v1.PodPending, string(v1.PodPending)},
 					{phase == v1.PodSucceeded, string(v1.PodSucceeded)},
@@ -1009,9 +1009,9 @@ type KubePodOwnerMetric struct {
 	help              string
 	namespace         string
 	pod               string
-	ownerIsController bool
 	ownerName         string
 	ownerKind         string
+	ownerIsController bool
 }
 
 // Creates a new KubePodOwnerMetric, implementation of prometheus.Metric

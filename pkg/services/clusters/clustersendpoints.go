@@ -13,9 +13,9 @@ import (
 
 // DataEnvelope is a generic wrapper struct for http response data
 type DataEnvelope struct {
-	Code   int         `json:"code"`
-	Status string      `json:"status"`
 	Data   interface{} `json:"data"`
+	Status string      `json:"status"`
+	Code   int         `json:"code"`
 }
 
 // ClusterManagerHTTPService is an implementation of HTTPService which provides

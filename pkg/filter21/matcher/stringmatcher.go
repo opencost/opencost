@@ -33,11 +33,10 @@ func (smf *StringMatcherFactory[T]) NewStringMatcher(op ast.FilterOp, ident ast.
 
 // StringMatcher matches properties of a T instance which are string.
 type StringMatcher[T any] struct {
-	Op         ast.FilterOp
-	Identifier ast.Identifier
-	Value      string
-
 	fieldMapper StringFieldMapper[T]
+	Identifier  ast.Identifier
+	Op          ast.FilterOp
+	Value       string
 }
 
 func (sm *StringMatcher[T]) String() string {

@@ -24,8 +24,8 @@ var alpha = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 var alphanumeric = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 
 type stringBank struct {
-	lock sync.Mutex
 	m    map[string]string
+	lock sync.Mutex
 }
 
 func newStringBank() *stringBank {

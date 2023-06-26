@@ -9,12 +9,12 @@ import (
 
 // Coverage This is a placeholder struct which can be replaced by a more specific implementation later
 type Coverage struct {
+	Updated  time.Time `json:"updated"`
 	Window   Window    `json:"window"`
 	Type     string    `json:"type"`
-	Count    int       `json:"count"`
-	Updated  time.Time `json:"updated"`
 	Errors   []string  `json:"errors"`
 	Warnings []string  `json:"warnings"`
+	Count    int       `json:"count"`
 }
 
 func (c *Coverage) GetWindow() Window {

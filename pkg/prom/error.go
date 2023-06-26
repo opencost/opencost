@@ -27,9 +27,9 @@ func IsNoStoreAPIWarning(warning string) bool {
 //--------------------------------------------------------------------------
 
 type QueryError struct {
-	Query      string `json:"query"`
 	Error      error  `json:"error"`
 	ParseError error  `json:"parseError"`
+	Query      string `json:"query"`
 }
 
 // String returns a string representation of the QueryError
@@ -84,9 +84,9 @@ type ErrorsAndWarningStrings struct {
 // QueryErrorCollector is used to collect prometheus query errors and warnings, and also meets the
 // Error interface
 type QueryErrorCollector struct {
-	m        sync.RWMutex
 	errors   []*QueryError
 	warnings []*QueryWarning
+	m        sync.RWMutex
 }
 
 // Reports an error to the collector. Ignores if the error is nil and the warnings

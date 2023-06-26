@@ -42,11 +42,10 @@ func parseError(t token, message string) error {
 }
 
 type parser struct {
-	tokens  []token
-	current int
-
 	fields    map[string]*Field
 	mapFields map[string]*Field
+	tokens    []token
+	current   int
 }
 
 // ----------------------------------------------------------------------------

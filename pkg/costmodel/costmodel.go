@@ -53,12 +53,12 @@ var isCron = regexp.MustCompile(`^(.+)-(\d{10}|\d{8})$`)
 type CostModel struct {
 	Cache                      clustercache.ClusterCache
 	ClusterMap                 clusters.ClusterMap
-	MaxPrometheusQueryDuration time.Duration
-	RequestGroup               *singleflight.Group
-	ScrapeInterval             time.Duration
 	PrometheusClient           prometheus.Client
 	Provider                   costAnalyzerCloud.Provider
+	RequestGroup               *singleflight.Group
 	pricingMetadata            *costAnalyzerCloud.PricingMatchMetadata
+	MaxPrometheusQueryDuration time.Duration
+	ScrapeInterval             time.Duration
 }
 
 func NewCostModel(client prometheus.Client, provider costAnalyzerCloud.Provider, cache clustercache.ClusterCache, clusterMap clusters.ClusterMap, scrapeInterval time.Duration) *CostModel {
@@ -77,30 +77,30 @@ func NewCostModel(client prometheus.Client, provider costAnalyzerCloud.Provider,
 }
 
 type CostData struct {
+	NodeData        *costAnalyzerCloud.Node      `json:"node,omitempty"`
+	NamespaceLabels map[string]string            `json:"namespaceLabels,omitempty"`
+	Labels          map[string]string            `json:"labels,omitempty"`
+	Annotations     map[string]string            `json:"annotations,omitempty"`
 	Name            string                       `json:"name,omitempty"`
 	PodName         string                       `json:"podName,omitempty"`
 	NodeName        string                       `json:"nodeName,omitempty"`
-	NodeData        *costAnalyzerCloud.Node      `json:"node,omitempty"`
 	Namespace       string                       `json:"namespace,omitempty"`
-	Deployments     []string                     `json:"deployments,omitempty"`
-	Services        []string                     `json:"services,omitempty"`
-	Daemonsets      []string                     `json:"daemonsets,omitempty"`
-	Statefulsets    []string                     `json:"statefulsets,omitempty"`
-	Jobs            []string                     `json:"jobs,omitempty"`
-	RAMReq          []*util.Vector               `json:"ramreq,omitempty"`
-	RAMUsed         []*util.Vector               `json:"ramused,omitempty"`
+	ClusterName     string                       `json:"clusterName"`
+	ClusterID       string                       `json:"clusterId"`
 	RAMAllocation   []*util.Vector               `json:"ramallocated,omitempty"`
+	PVCData         []*PersistentVolumeClaimData `json:"pvcData,omitempty"`
+	RAMReq          []*util.Vector               `json:"ramreq,omitempty"`
 	CPUReq          []*util.Vector               `json:"cpureq,omitempty"`
 	CPUUsed         []*util.Vector               `json:"cpuused,omitempty"`
 	CPUAllocation   []*util.Vector               `json:"cpuallocated,omitempty"`
 	GPUReq          []*util.Vector               `json:"gpureq,omitempty"`
-	PVCData         []*PersistentVolumeClaimData `json:"pvcData,omitempty"`
+	RAMUsed         []*util.Vector               `json:"ramused,omitempty"`
 	NetworkData     []*util.Vector               `json:"network,omitempty"`
-	Annotations     map[string]string            `json:"annotations,omitempty"`
-	Labels          map[string]string            `json:"labels,omitempty"`
-	NamespaceLabels map[string]string            `json:"namespaceLabels,omitempty"`
-	ClusterID       string                       `json:"clusterId"`
-	ClusterName     string                       `json:"clusterName"`
+	Jobs            []string                     `json:"jobs,omitempty"`
+	Statefulsets    []string                     `json:"statefulsets,omitempty"`
+	Daemonsets      []string                     `json:"daemonsets,omitempty"`
+	Services        []string                     `json:"services,omitempty"`
+	Deployments     []string                     `json:"deployments,omitempty"`
 }
 
 func (cd *CostData) String() string {
@@ -2337,14 +2337,14 @@ func getAllocatableVGPUs(cache clustercache.ClusterCache) (float64, error) {
 }
 
 type PersistentVolumeClaimData struct {
+	Volume       *costAnalyzerCloud.PV `json:"persistentVolume"`
 	Class        string                `json:"class"`
 	Claim        string                `json:"claim"`
 	Namespace    string                `json:"namespace"`
 	ClusterID    string                `json:"clusterId"`
-	TimesClaimed int                   `json:"timesClaimed"`
 	VolumeName   string                `json:"volumeName"`
-	Volume       *costAnalyzerCloud.PV `json:"persistentVolume"`
 	Values       []*util.Vector        `json:"values"`
+	TimesClaimed int                   `json:"timesClaimed"`
 }
 
 func measureTime(start time.Time, threshold time.Duration, name string) {

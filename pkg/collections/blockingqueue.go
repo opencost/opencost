@@ -37,9 +37,9 @@ type BlockingQueue[T any] interface {
 
 // blockingSliceQueue is an implementation of BlockingQueue which uses a slice for storage.
 type blockingSliceQueue[T any] struct {
-	q        []T
 	l        *sync.Mutex
 	nonEmpty *sync.Cond
+	q        []T
 }
 
 // NewBlockingQueue returns a new BlockingQueue implementation

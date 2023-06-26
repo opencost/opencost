@@ -9,9 +9,9 @@ import (
 
 // BOAConfiguration is the BSS open API configuration for Alibaba's Billing information
 type BOAConfiguration struct {
+	Authorizer Authorizer `json:"authorizer"`
 	Account    string     `json:"account"`
 	Region     string     `json:"region"`
-	Authorizer Authorizer `json:"authorizer"`
 }
 
 func (bc *BOAConfiguration) Validate() error {

@@ -63,23 +63,23 @@ var defaultS3Config = S3Config{
 
 // Config stores the configuration for s3 bucket.
 type S3Config struct {
-	Bucket             string            `yaml:"bucket"`
+	PutUserMetadata    map[string]string `yaml:"put_user_metadata"`
+	SSEConfig          SSEConfig         `yaml:"sse_config"`
+	ListObjectsVersion string            `yaml:"list_objects_version"`
 	Endpoint           string            `yaml:"endpoint"`
 	Region             string            `yaml:"region"`
-	AWSSDKAuth         bool              `yaml:"aws_sdk_auth"`
+	Bucket             string            `yaml:"bucket"`
 	AccessKey          string            `yaml:"access_key"`
-	Insecure           bool              `yaml:"insecure"`
-	SignatureV2        bool              `yaml:"signature_version2"`
+	STSEndpoint        string            `yaml:"sts_endpoint"`
 	SecretKey          string            `yaml:"secret_key"`
-	PutUserMetadata    map[string]string `yaml:"put_user_metadata"`
 	HTTPConfig         S3HTTPConfig      `yaml:"http_config"`
-	TraceConfig        TraceConfig       `yaml:"trace"`
-	ListObjectsVersion string            `yaml:"list_objects_version"`
 	// PartSize used for multipart upload. Only used if uploaded object size is known and larger than configured PartSize.
 	// NOTE we need to make sure this number does not produce more parts than 10 000.
-	PartSize    uint64    `yaml:"part_size"`
-	SSEConfig   SSEConfig `yaml:"sse_config"`
-	STSEndpoint string    `yaml:"sts_endpoint"`
+	PartSize    uint64      `yaml:"part_size"`
+	AWSSDKAuth  bool        `yaml:"aws_sdk_auth"`
+	TraceConfig TraceConfig `yaml:"trace"`
+	SignatureV2 bool        `yaml:"signature_version2"`
+	Insecure    bool        `yaml:"insecure"`
 }
 
 // SSEConfig deals with the configuration of SSE for Minio. The following options are valid:
@@ -97,9 +97,13 @@ type TraceConfig struct {
 
 // HTTPConfig stores the http.Transport configuration for the s3 minio client.
 type S3HTTPConfig struct {
+
+	// Allow upstream callers to inject a round tripper
+	Transport http.RoundTripper `yaml:"-"`
+
+	TLSConfig             TLSConfig     `yaml:"tls_config"`
 	IdleConnTimeout       time.Duration `yaml:"idle_conn_timeout"`
 	ResponseHeaderTimeout time.Duration `yaml:"response_header_timeout"`
-	InsecureSkipVerify    bool          `yaml:"insecure_skip_verify"`
 
 	TLSHandshakeTimeout   time.Duration `yaml:"tls_handshake_timeout"`
 	ExpectContinueTimeout time.Duration `yaml:"expect_continue_timeout"`
@@ -107,10 +111,7 @@ type S3HTTPConfig struct {
 	MaxIdleConnsPerHost   int           `yaml:"max_idle_conns_per_host"`
 	MaxConnsPerHost       int           `yaml:"max_conns_per_host"`
 
-	// Allow upstream callers to inject a round tripper
-	Transport http.RoundTripper `yaml:"-"`
-
-	TLSConfig TLSConfig `yaml:"tls_config"`
+	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
 }
 
 // DefaultTransport - this default transport is based on the Minio
@@ -158,10 +159,10 @@ func DefaultS3Transport(config S3Config) (*http.Transport, error) {
 
 // S3Storage provides storage via S3
 type S3Storage struct {
-	name            string
-	client          *minio.Client
 	defaultSSE      encrypt.ServerSide
+	client          *minio.Client
 	putUserMetadata map[string]string
+	name            string
 	partSize        uint64
 	listObjectsV1   bool
 }
@@ -588,8 +589,8 @@ func (s3 *S3Storage) getRange(ctx context.Context, name string, off, length int6
 
 // awsAuth retrieves credentials from the aws-sdk-go.
 type awsAuth struct {
-	Region string
 	creds  aws.Credentials
+	Region string
 }
 
 // Retrieve retrieves the keys from the environment.

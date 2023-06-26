@@ -67,9 +67,9 @@ func (cic ClusterInfoCollector) Collect(ch chan<- prometheus.Metric) {
 
 // ClusterInfoMetric is a prometheus.Metric used to encode the local cluster info
 type ClusterInfoMetric struct {
+	labels map[string]string
 	fqName string
 	help   string
-	labels map[string]string
 }
 
 // Creates a new ClusterInfoMetric, implementation of prometheus.Metric

@@ -7,10 +7,10 @@ import (
 // AtomicRunState can be used to provide thread-safe start/stop functionality to internal run-loops
 // inside a goroutine.
 type AtomicRunState struct {
-	lock     sync.Mutex
-	stopping bool
 	stop     chan struct{}
 	reset    chan struct{}
+	lock     sync.Mutex
+	stopping bool
 }
 
 // Start checks for an existing run state and returns false if the run state has already started. If

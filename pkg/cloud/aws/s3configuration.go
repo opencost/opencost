@@ -9,10 +9,10 @@ import (
 )
 
 type S3Configuration struct {
+	Authorizer Authorizer `json:"authorizer"`
 	Bucket     string     `json:"bucket"`
 	Region     string     `json:"region"`
 	Account    string     `json:"account"`
-	Authorizer Authorizer `json:"authorizer"`
 }
 
 func (s3c *S3Configuration) Validate() error {

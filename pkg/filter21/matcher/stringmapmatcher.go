@@ -33,11 +33,10 @@ func (smmf *StringMapMatcherFactory[T]) NewStringMapMatcher(op ast.FilterOp, ide
 
 // // StringMapMatcher matches properties of a T instance which are map[string]string
 type StringMapMatcher[T any] struct {
-	Op         ast.FilterOp
-	Identifier ast.Identifier
-	Key        string
-
 	fieldMapper MapFieldMapper[T]
+	Identifier  ast.Identifier
+	Op          ast.FilterOp
+	Key         string
 }
 
 func (smm *StringMapMatcher[T]) String() string {

@@ -39,28 +39,28 @@ type ReservedInstanceData struct {
 // Node is the interface by which the provider and cost model communicate Node prices.
 // The provider will best-effort try to fill out this struct.
 type Node struct {
-	Cost             string                `json:"hourlyCost"`
-	VCPU             string                `json:"CPU"`
-	VCPUCost         string                `json:"CPUHourlyCost"`
-	RAM              string                `json:"RAM"`
-	RAMBytes         string                `json:"RAMBytes"`
+	Reserved         *ReservedInstanceData `json:"reserved,omitempty"`
+	BaseRAMPrice     string                `json:"baseRAMPrice"` // Used to compute an implicit RAM GB/Hr price when RAM pricing is not provided.
 	RAMCost          string                `json:"RAMGBHourlyCost"`
+	BaseGPUPrice     string                `json:"baseGPUPrice"`
+	GPU              string                `json:"gpu"` // GPU represents the number of GPU on the instance
+	UsageType        string                `json:"usageType"`
 	Storage          string                `json:"storage"`
 	StorageCost      string                `json:"storageHourlyCost"`
-	UsesBaseCPUPrice bool                  `json:"usesDefaultPrice"`
+	ArchType         string                `json:"archType,omitempty"`
 	BaseCPUPrice     string                `json:"baseCPUPrice"` // Used to compute an implicit RAM GB/Hr price when RAM pricing is not provided.
-	BaseRAMPrice     string                `json:"baseRAMPrice"` // Used to compute an implicit RAM GB/Hr price when RAM pricing is not provided.
-	BaseGPUPrice     string                `json:"baseGPUPrice"`
-	UsageType        string                `json:"usageType"`
-	GPU              string                `json:"gpu"` // GPU represents the number of GPU on the instance
+	Cost             string                `json:"hourlyCost"`
+	RAM              string                `json:"RAM"`
+	VCPUCost         string                `json:"CPUHourlyCost"`
+	RAMBytes         string                `json:"RAMBytes"`
 	GPUName          string                `json:"gpuName"`
 	GPUCost          string                `json:"gpuCost"`
 	InstanceType     string                `json:"instanceType,omitempty"`
 	Region           string                `json:"region,omitempty"`
-	Reserved         *ReservedInstanceData `json:"reserved,omitempty"`
+	VCPU             string                `json:"CPU"`
 	ProviderID       string                `json:"providerID,omitempty"`
 	PricingType      PricingType           `json:"pricingType,omitempty"`
-	ArchType         string                `json:"archType,omitempty"`
+	UsesBaseCPUPrice bool                  `json:"usesDefaultPrice"`
 }
 
 // IsSpot determines whether or not a Node uses spot by usage type
@@ -73,26 +73,26 @@ func (n *Node) IsSpot() bool {
 }
 
 type OrphanedResource struct {
-	Kind        string            `json:"resourceKind"`
-	Region      string            `json:"region"`
 	Description map[string]string `json:"description"`
 	Size        *int64            `json:"diskSizeInGB,omitempty"`
+	MonthlyCost *float64          `json:"monthlyCost"`
+	Kind        string            `json:"resourceKind"`
+	Region      string            `json:"region"`
 	DiskName    string            `json:"diskName,omitempty"`
 	Url         string            `json:"url"`
 	Address     string            `json:"ipAddress,omitempty"`
-	MonthlyCost *float64          `json:"monthlyCost"`
 }
 
 // PV is the interface by which the provider and cost model communicate PV prices.
 // The provider will best-effort try to fill out this struct.
 type PV struct {
+	Parameters map[string]string `json:"parameters"`
 	Cost       string            `json:"hourlyCost"`
 	CostPerIO  string            `json:"costPerIOOperation"`
 	Class      string            `json:"storageClass"`
 	Size       string            `json:"size"`
 	Region     string            `json:"region"`
 	ProviderID string            `json:"providerID,omitempty"`
-	Parameters map[string]string `json:"parameters"`
 }
 
 // Key represents a way for nodes to match between the k8s API and a pricing API
@@ -114,8 +114,8 @@ type OutOfClusterAllocation struct {
 	Aggregator  string  `json:"aggregator"`
 	Environment string  `json:"environment"`
 	Service     string  `json:"service"`
-	Cost        float64 `json:"cost"`
 	Cluster     string  `json:"cluster"`
+	Cost        float64 `json:"cost"`
 }
 
 type CustomPricing struct {
@@ -245,9 +245,9 @@ type PricingSources struct {
 
 type PricingSource struct {
 	Name      string `json:"name"`
+	Error     string `json:"error"`
 	Enabled   bool   `json:"enabled"`
 	Available bool   `json:"available"`
-	Error     string `json:"error"`
 }
 
 type PricingType string
@@ -263,8 +263,8 @@ const (
 )
 
 type PricingMatchMetadata struct {
-	TotalNodes        int                 `json:"TotalNodes"`
 	PricingTypeCounts map[PricingType]int `json:"PricingType"`
+	TotalNodes        int                 `json:"TotalNodes"`
 }
 
 // Provider represents a k8s provider.

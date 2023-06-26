@@ -395,8 +395,8 @@ func (ccs *CloudCostSet) Merge(that *CloudCostSet) (*CloudCostSet, error) {
 }
 
 type CloudCostSetRange struct {
-	CloudCostSets []*CloudCostSet `json:"sets"`
 	Window        Window          `json:"window"`
+	CloudCostSets []*CloudCostSet `json:"sets"`
 }
 
 // NewCloudCostSetRange create a CloudCostSetRange containing CloudCostSets with windows of equal duration

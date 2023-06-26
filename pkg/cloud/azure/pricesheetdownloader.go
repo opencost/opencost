@@ -21,12 +21,12 @@ import (
 )
 
 type PriceSheetDownloader struct {
+	ConvertMeterInfo func(info commerce.MeterInfo) (map[string]*AzurePricing, error)
 	TenantID         string
 	ClientID         string
 	ClientSecret     string
 	BillingAccount   string
 	OfferID          string
-	ConvertMeterInfo func(info commerce.MeterInfo) (map[string]*AzurePricing, error)
 }
 
 func (d *PriceSheetDownloader) GetPricing(ctx context.Context) (map[string]*AzurePricing, error) {
@@ -272,8 +272,8 @@ func ptr[T any](v T) *T {
 // prices we're interested in with factors to the corresponding units
 // in the rate card.
 var conversions = map[string]struct {
-	divisor float64
 	unit    string
+	divisor float64
 }{
 	"1 /Month":       {divisor: 1, unit: "1 /Month"},
 	"1 Hour":         {divisor: 1, unit: "1 Hour"},

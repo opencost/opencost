@@ -26,9 +26,9 @@ type GCSConfig struct {
 
 // GCSStorage is a storage.Storage implementation for Google Cloud Storage.
 type GCSStorage struct {
-	name   string
 	bucket *gcs.BucketHandle
 	client *gcs.Client
+	name   string
 }
 
 // NewGCSStorage creates a new GCSStorage instance using the provided GCS configuration.

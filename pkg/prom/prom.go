@@ -114,14 +114,14 @@ func (rlre *RateLimitedResponseError) Error() string {
 // RateLimitedPrometheusClient is a prometheus client which limits the total number of
 // concurrent outbound requests allowed at a given moment.
 type RateLimitedPrometheusClient struct {
-	id             string
 	client         prometheus.Client
-	auth           *ClientAuth
 	queue          collections.BlockingQueue[*workRequest]
+	auth           *ClientAuth
 	decorator      QueryParamsDecorator
 	rateLimitRetry *RateLimitRetryOpts
-	outbound       atomic.Int32
 	fileLogger     *golog.Logger
+	id             string
+	outbound       atomic.Int32
 }
 
 // requestCounter is used to determine if the prometheus client keeps track of
@@ -210,22 +210,22 @@ func (rlpc *RateLimitedPrometheusClient) URL(ep string, args map[string]string) 
 
 // workRequest is used to queue requests
 type workRequest struct {
+	start    time.Time
 	ctx      context.Context
 	req      *http.Request
-	start    time.Time
 	respChan chan *workResponse
-	// used as a sentinel value to close the worker goroutine
-	closer bool
 	// request metadata for diagnostics
 	contextName string
 	query       string
+	// used as a sentinel value to close the worker goroutine
+	closer bool
 }
 
 // workResponse is the response payload returned to the Do method
 type workResponse struct {
+	err  error
 	res  *http.Response
 	body []byte
-	err  error
 }
 
 // worker is used as a consumer goroutine to pull workRequest from the blocking queue and execute them
@@ -345,14 +345,14 @@ func (rlpc *RateLimitedPrometheusClient) Do(ctx context.Context, req *http.Reque
 
 // PrometheusClientConfig contains all configurable options for creating a new prometheus client
 type PrometheusClientConfig struct {
+	RateLimitRetryOpts    *RateLimitRetryOpts
+	Auth                  *ClientAuth
+	QueryLogFile          string
 	Timeout               time.Duration
 	KeepAlive             time.Duration
 	TLSHandshakeTimeout   time.Duration
-	TLSInsecureSkipVerify bool
-	RateLimitRetryOpts    *RateLimitRetryOpts
-	Auth                  *ClientAuth
 	QueryConcurrency      int
-	QueryLogFile          string
+	TLSInsecureSkipVerify bool
 }
 
 // NewPrometheusClient creates a new rate limited client which limits by outbound concurrent requests.

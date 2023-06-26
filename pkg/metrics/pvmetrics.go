@@ -43,8 +43,8 @@ func (kpvcb KubePVCollector) Collect(ch chan<- prometheus.Metric) {
 			phase := pv.Status.Phase
 			if phase != "" {
 				phases := []struct {
-					v bool
 					n string
+					v bool
 				}{
 					{phase == v1.VolumePending, string(v1.VolumePending)},
 					{phase == v1.VolumeAvailable, string(v1.VolumeAvailable)},

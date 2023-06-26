@@ -165,8 +165,8 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 	}
 
 	type columnDef struct {
-		column string
 		value  func(data rowData) string
+		column string
 	}
 
 	csvDef := []columnDef{

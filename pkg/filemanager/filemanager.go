@@ -135,9 +135,9 @@ func (c *S3File) Upload(ctx context.Context, f *os.File) error {
 }
 
 type GCSStorageFile struct {
+	client *storage.Client
 	bucket string
 	key    string
-	client *storage.Client
 }
 
 func NewGCSStorageFile(path string) (*GCSStorageFile, error) {

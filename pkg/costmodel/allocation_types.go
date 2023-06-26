@@ -10,12 +10,12 @@ import (
 // pod describes a running pod's start and end time within a Window and
 // all the Allocations (i.e. containers) contained within it.
 type pod struct {
-	Window      kubecost.Window
 	Start       time.Time
 	End         time.Time
+	Window      kubecost.Window
+	Allocations map[string]*kubecost.Allocation
 	Key         podKey
 	Node        string
-	Allocations map[string]*kubecost.Allocation
 }
 
 func (p *pod) equal(that *pod) bool {
@@ -79,14 +79,14 @@ func (p *pod) appendContainer(container string) {
 // TODO:CLEANUP move to pkg/kubecost?
 // TODO:CLEANUP add PersistentVolumeClaims field to type Allocation?
 type pvc struct {
-	Bytes     float64   `json:"bytes"`
+	Start     time.Time `json:"start"`
+	End       time.Time `json:"end"`
+	Volume    *pv       `json:"persistentVolume"`
 	Name      string    `json:"name"`
 	Cluster   string    `json:"cluster"`
 	Namespace string    `json:"namespace"`
-	Volume    *pv       `json:"persistentVolume"`
+	Bytes     float64   `json:"bytes"`
 	Mounted   bool      `json:"mounted"`
-	Start     time.Time `json:"start"`
-	End       time.Time `json:"end"`
 }
 
 // Cost computes the cumulative cost of the pvc
@@ -127,11 +127,11 @@ func (p *pvc) key() pvcKey {
 type pv struct {
 	Start          time.Time `json:"start"`
 	End            time.Time `json:"end"`
-	Bytes          float64   `json:"bytes"`
-	CostPerGiBHour float64   `json:"costPerGiBHour"`
 	Cluster        string    `json:"cluster"`
 	Name           string    `json:"name"`
 	StorageClass   string    `json:"storageClass"`
+	Bytes          float64   `json:"bytes"`
+	CostPerGiBHour float64   `json:"costPerGiBHour"`
 }
 
 func (p *pv) clone() *pv {
@@ -208,8 +208,8 @@ func (p *pv) key() pvKey {
 
 // lbCost describes the start and end time of a Load Balancer along with cost
 type lbCost struct {
-	TotalCost float64
 	Start     time.Time
 	End       time.Time
+	TotalCost float64
 	Private   bool
 }

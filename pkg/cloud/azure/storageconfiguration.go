@@ -8,12 +8,12 @@ import (
 )
 
 type StorageConfiguration struct {
+	Authorizer     Authorizer `json:"authorizer"`
 	SubscriptionID string     `json:"subscriptionID"`
 	Account        string     `json:"account"`
 	Container      string     `json:"container"`
 	Path           string     `json:"path"`
 	Cloud          string     `json:"cloud"`
-	Authorizer     Authorizer `json:"authorizer"`
 }
 
 // Check ensures that all required fields are set, and throws an error if they are not

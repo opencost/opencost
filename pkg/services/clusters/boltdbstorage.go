@@ -6,8 +6,8 @@ import (
 
 // BoltDBClusterStorage is a boltdb implementation of a database used to store cluster definitions
 type BoltDBClusterStorage struct {
-	bucket []byte
 	db     *bolt.DB
+	bucket []byte
 }
 
 // NewBoltDBClusterStorage creates a new boltdb backed ClusterStorage implementation

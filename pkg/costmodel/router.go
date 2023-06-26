@@ -82,31 +82,31 @@ var (
 // Accesses defines a singleton application instance, providing access to
 // Prometheus, Kubernetes, the cloud provider, and caches.
 type Accesses struct {
-	Router              *httprouter.Router
-	PrometheusClient    prometheus.Client
-	ThanosClient        prometheus.Client
-	KubeClientSet       kubernetes.Interface
-	ClusterCache        clustercache.ClusterCache
-	ClusterMap          clusters.ClusterMap
-	CloudProvider       models.Provider
-	ConfigFileManager   *config.ConfigFileManager
+	AggAPI           Aggregator
+	PrometheusClient prometheus.Client
+	ThanosClient     prometheus.Client
+	KubeClientSet    kubernetes.Interface
+	ClusterCache     clustercache.ClusterCache
+	ClusterMap       clusters.ClusterMap
+	CloudProvider    models.Provider
+	// registered http service instances
+	httpServices        services.HTTPServices
 	ClusterInfoProvider clusters.ClusterInfoProvider
-	Model               *CostModel
 	MetricsEmitter      *CostModelMetricsEmitter
+	Router              *httprouter.Router
 	OutOfClusterCache   *cache.Cache
 	AggregateCache      *cache.Cache
 	CostDataCache       *cache.Cache
 	ClusterCostsCache   *cache.Cache
 	CacheExpiration     map[time.Duration]time.Duration
-	AggAPI              Aggregator
+	Model               *CostModel
 	// SettingsCache stores current state of app settings
 	SettingsCache *cache.Cache
 	// settingsSubscribers tracks channels through which changes to different
 	// settings will be published in a pub/sub model
 	settingsSubscribers map[string][]chan string
+	ConfigFileManager   *config.ConfigFileManager
 	settingsMutex       sync.Mutex
-	// registered http service instances
-	httpServices services.HTTPServices
 }
 
 // GetPrometheusClient decides whether the default Prometheus client or the Thanos client
@@ -166,11 +166,11 @@ func (a *Accesses) ClusterCostsFromCacheHandler(w http.ResponseWriter, r *http.R
 }
 
 type Response struct {
-	Code    int         `json:"code"`
-	Status  string      `json:"status"`
 	Data    interface{} `json:"data"`
+	Status  string      `json:"status"`
 	Message string      `json:"message,omitempty"`
 	Warning string      `json:"warning,omitempty"`
+	Code    int         `json:"code"`
 }
 
 // FilterFunc is a filter that returns true iff the given CostData should be filtered out, and the environment that was used as the filter criteria, if it was an aggregate
@@ -1187,9 +1187,9 @@ func (a *Accesses) GetInstallNamespace(w http.ResponseWriter, r *http.Request, _
 }
 
 type InstallInfo struct {
-	Containers  []ContainerInfo   `json:"containers"`
 	ClusterInfo map[string]string `json:"clusterInfo"`
 	Version     string            `json:"version"`
+	Containers  []ContainerInfo   `json:"containers"`
 }
 
 type ContainerInfo struct {

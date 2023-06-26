@@ -37,10 +37,10 @@ type nodePricing struct {
 	Name            string
 	NodeType        string
 	ProviderID      string
-	Preemptible     bool
+	Source          string
 	CostPerCPUHr    float64
 	CostPerRAMGiBHr float64
 	CostPerGPUHr    float64
 	Discount        float64
-	Source          string
+	Preemptible     bool
 }

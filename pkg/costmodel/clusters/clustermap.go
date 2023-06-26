@@ -102,11 +102,11 @@ type ClusterInfoProvider interface {
 
 // ClusterMap keeps records of all known cost-model clusters.
 type PrometheusClusterMap struct {
-	lock        sync.RWMutex
 	client      prometheus.Client
-	clusters    map[string]*ClusterInfo
 	clusterInfo ClusterInfoProvider
+	clusters    map[string]*ClusterInfo
 	stop        chan struct{}
+	lock        sync.RWMutex
 }
 
 // NewClusterMap creates a new ClusterMap implementation using a prometheus or thanos client

@@ -53,8 +53,8 @@ type queuedWorkerPool[T any, U any] struct {
 // inputs were pushed onto the group.
 type ordered[T any, U any] struct {
 	workPool WorkerPool[T, U]
-	results  []U
 	wg       *sync.WaitGroup
+	results  []U
 	count    int
 }
 

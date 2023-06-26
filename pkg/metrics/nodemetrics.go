@@ -208,8 +208,8 @@ func (kpcrr KubeNodeStatusCapacityMetric) Write(m *dto.Metric) error {
 type KubeNodeStatusCapacityMemoryBytesMetric struct {
 	fqName string
 	help   string
-	bytes  float64
 	node   string
+	bytes  float64
 }
 
 // Creates a new KubeNodeStatusCapacityMemoryBytesMetric, implementation of prometheus.Metric
@@ -254,8 +254,8 @@ func (nam KubeNodeStatusCapacityMemoryBytesMetric) Write(m *dto.Metric) error {
 type KubeNodeStatusCapacityCPUCoresMetric struct {
 	fqName string
 	help   string
-	cores  float64
 	node   string
+	cores  float64
 }
 
 // Creates a new KubeNodeStatusCapacityCPUCoresMetric, implementation of prometheus.Metric
@@ -300,9 +300,9 @@ func (nam KubeNodeStatusCapacityCPUCoresMetric) Write(m *dto.Metric) error {
 type KubeNodeLabelsMetric struct {
 	fqName      string
 	help        string
+	node        string
 	labelNames  []string
 	labelValues []string
-	node        string
 }
 
 // Creates a new KubeNodeLabelsMetric, implementation of prometheus.Metric

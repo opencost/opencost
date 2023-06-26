@@ -58,10 +58,10 @@ func (sc KubecostStatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
 type StatefulsetMatchLabelsMetric struct {
 	fqName          string
 	help            string
-	labelNames      []string
-	labelValues     []string
 	statefulsetName string
 	namespace       string
+	labelNames      []string
+	labelValues     []string
 }
 
 // Creates a new StatefulsetMetric, implementation of prometheus.Metric

@@ -95,8 +95,8 @@ func (tk tokenKind) String() string {
 // ============================================================================
 
 type token struct {
-	kind tokenKind
 	s    string
+	kind tokenKind
 }
 
 func (t token) String() string {
@@ -104,12 +104,12 @@ func (t token) String() string {
 }
 
 type scanner struct {
+	fields    map[string]*Field
+	mapFields map[string]*Field
+
 	source string
 	tokens []token
 	errors []error
-
-	fields    map[string]*Field
-	mapFields map[string]*Field
 
 	lexemeStartByte int
 	nextByte        int

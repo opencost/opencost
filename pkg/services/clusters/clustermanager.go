@@ -36,18 +36,18 @@ type ClusterConfigEntryAuth struct {
 
 // Cluster definition from a configuration yaml
 type ClusterConfigEntry struct {
-	Name    string                  `yaml:"name"`
-	Address string                  `yaml:"address"`
 	Auth    *ClusterConfigEntryAuth `yaml:"auth,omitempty"`
 	Details map[string]interface{}  `yaml:"details,omitempty"`
+	Name    string                  `yaml:"name"`
+	Address string                  `yaml:"address"`
 }
 
 // ClusterDefinition
 type ClusterDefinition struct {
+	Details map[string]interface{} `json:"details,omitempty"`
 	ID      string                 `json:"id,omitempty"`
 	Name    string                 `json:"name"`
 	Address string                 `json:"address"`
-	Details map[string]interface{} `json:"details,omitempty"`
 }
 
 // ClusterStorage interface defines an implementation prototype for a storage responsible
