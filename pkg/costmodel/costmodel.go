@@ -13,6 +13,8 @@ import (
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"
+	afilter "github.com/opencost/opencost/pkg/filter21/allocation"
+	"github.com/opencost/opencost/pkg/filter21/ops"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/prom"
@@ -2438,8 +2440,10 @@ func (cm *CostModel) QueryAllocation(
 	opts := &kubecost.AllocationAggregationOptions{
 		IncludeProportionalAssetResourceCosts: includeProportionalAssetResourceCosts,
 		IdleByNode:                            idleByNode,
-		Namespace:                             namespace,
 		IncludeAggregatedMetadata:             includeAggregatedMetadata,
+	}
+	if namespace != "" {
+		opts.Filter = ops.Eq(afilter.FieldNamespace, namespace)
 	}
 
 	// Aggregate
