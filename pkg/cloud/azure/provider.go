@@ -255,7 +255,7 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 	}
 
 	if skuName != "" {
-		skuNameParam := fmt.Sprintf("armSkuName eq '%s'", skuName)
+		skuNameParam := fmt.Sprintf("tolower(armSkuName) eq tolower('%s')", skuName)
 		filterParams = append(filterParams, skuNameParam)
 	}
 
