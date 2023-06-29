@@ -33,20 +33,20 @@ const (
 )
 
 const (
+	// DefaultCodecVersion is used for any resources listed in the Default version set
+	DefaultCodecVersion uint8 = 17
+
+	// AssetsCodecVersion is used for any resources listed in the Assets version set
+	AssetsCodecVersion uint8 = 20
+
+	// AllocationCodecVersion is used for any resources listed in the Allocation version set
+	AllocationCodecVersion uint8 = 18
+
 	// AuditCodecVersion is used for any resources listed in the Audit version set
 	AuditCodecVersion uint8 = 1
 
 	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
 	CloudCostCodecVersion uint8 = 2
-
-	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 17
-
-	// AssetsCodecVersion is used for any resources listed in the Assets version set
-	AssetsCodecVersion uint8 = 19
-
-	// AllocationCodecVersion is used for any resources listed in the Allocation version set
-	AllocationCodecVersion uint8 = 17
 )
 
 //--------------------------------------------------------------------------
@@ -1060,7 +1060,7 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 
 	}
 	// field version check
-	if uint8(17) <= version {
+	if uint8(18) <= version {
 		// --- [begin][read][alias](LbAllocations) ---
 		var xx map[string]*LbAllocation
 		if buff.ReadUInt8() == uint8(0) {
@@ -7670,8 +7670,14 @@ func (target *LoadBalancer) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 	u := buff.ReadFloat64() // read float64
 	target.Cost = u
 
-	w := buff.ReadBool() // read bool
-	target.Private = w
+	// field version check
+	if uint8(20) <= version {
+		w := buff.ReadBool() // read bool
+		target.Private = w
+
+	} else {
+		target.Private = false // default
+	}
 
 	return nil
 }
