@@ -26,7 +26,7 @@ package kubecost
 // @bingen:generate:CoverageSet
 
 // Asset Version Set: Includes Asset pipeline specific resources
-// @bingen:set[name=Assets,version=19]
+// @bingen:set[name=Assets,version=20]
 // @bingen:generate:Any
 // @bingen:generate:Asset
 // @bingen:generate:AssetLabels
@@ -46,7 +46,7 @@ package kubecost
 // @bingen:end
 
 // Allocation Version Set: Includes Allocation pipeline specific resources
-// @bingen:set[name=Allocation,version=17]
+// @bingen:set[name=Allocation,version=18]
 // @bingen:generate:Allocation
 // @bingen:generate[stringtable]:AllocationSet
 // @bingen:generate:AllocationSetRange

@@ -13,12 +13,11 @@ package kubecost
 
 import (
 	"fmt"
+	util "github.com/opencost/opencost/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
-
-	util "github.com/opencost/opencost/pkg/util"
 )
 
 const (
@@ -38,10 +37,10 @@ const (
 	DefaultCodecVersion uint8 = 17
 
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
-	AssetsCodecVersion uint8 = 19
+	AssetsCodecVersion uint8 = 20
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
-	AllocationCodecVersion uint8 = 17
+	AllocationCodecVersion uint8 = 18
 
 	// AuditCodecVersion is used for any resources listed in the Audit version set
 	AuditCodecVersion uint8 = 1
@@ -1061,7 +1060,7 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 
 	}
 	// field version check
-	if uint8(17) <= version {
+	if uint8(18) <= version {
 		// --- [begin][read][alias](LbAllocations) ---
 		var xx map[string]*LbAllocation
 		if buff.ReadUInt8() == uint8(0) {
@@ -7335,6 +7334,7 @@ func (target *LbAllocation) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 		buff.WriteString(target.Service) // write string
 	}
 	buff.WriteFloat64(target.Cost) // write float64
+	buff.WriteBool(target.Private) // write bool
 	return nil
 }
 
@@ -7404,6 +7404,9 @@ func (target *LbAllocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 
 	d := buff.ReadFloat64() // read float64
 	target.Cost = d
+
+	e := buff.ReadBool() // read bool
+	target.Private = e
 
 	return nil
 }
@@ -7517,6 +7520,7 @@ func (target *LoadBalancer) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 
 	buff.WriteFloat64(target.Adjustment) // write float64
 	buff.WriteFloat64(target.Cost)       // write float64
+	buff.WriteBool(target.Private)       // write bool
 	return nil
 }
 
@@ -7665,6 +7669,15 @@ func (target *LoadBalancer) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 
 	u := buff.ReadFloat64() // read float64
 	target.Cost = u
+
+	// field version check
+	if uint8(20) <= version {
+		w := buff.ReadBool() // read bool
+		target.Private = w
+
+	} else {
+		target.Private = false // default
+	}
 
 	return nil
 }
