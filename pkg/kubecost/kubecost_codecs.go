@@ -13,12 +13,11 @@ package kubecost
 
 import (
 	"fmt"
+	util "github.com/opencost/opencost/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
-
-	util "github.com/opencost/opencost/pkg/util"
 )
 
 const (
@@ -34,6 +33,12 @@ const (
 )
 
 const (
+	// AuditCodecVersion is used for any resources listed in the Audit version set
+	AuditCodecVersion uint8 = 1
+
+	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
+	CloudCostCodecVersion uint8 = 2
+
 	// DefaultCodecVersion is used for any resources listed in the Default version set
 	DefaultCodecVersion uint8 = 17
 
@@ -42,12 +47,6 @@ const (
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
 	AllocationCodecVersion uint8 = 17
-
-	// AuditCodecVersion is used for any resources listed in the Audit version set
-	AuditCodecVersion uint8 = 1
-
-	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
-	CloudCostCodecVersion uint8 = 2
 )
 
 //--------------------------------------------------------------------------
@@ -7335,6 +7334,7 @@ func (target *LbAllocation) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 		buff.WriteString(target.Service) // write string
 	}
 	buff.WriteFloat64(target.Cost) // write float64
+	buff.WriteBool(target.Private) // write bool
 	return nil
 }
 
@@ -7404,6 +7404,9 @@ func (target *LbAllocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 
 	d := buff.ReadFloat64() // read float64
 	target.Cost = d
+
+	e := buff.ReadBool() // read bool
+	target.Private = e
 
 	return nil
 }
@@ -7517,6 +7520,7 @@ func (target *LoadBalancer) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 
 	buff.WriteFloat64(target.Adjustment) // write float64
 	buff.WriteFloat64(target.Cost)       // write float64
+	buff.WriteBool(target.Private)       // write bool
 	return nil
 }
 
@@ -7665,6 +7669,9 @@ func (target *LoadBalancer) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 
 	u := buff.ReadFloat64() // read float64
 	target.Cost = u
+
+	w := buff.ReadBool() // read bool
+	target.Private = w
 
 	return nil
 }
