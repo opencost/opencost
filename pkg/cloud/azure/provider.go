@@ -279,12 +279,12 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("Error getting response: %v", err)
+		return "", fmt.Errorf("getRetailPricing[%s][%s]: error getting response for retail pricing: %w", skuName, region, err)
 	}
 
 	jsonErr := json.Unmarshal(body, &pricingPayload)
 	if jsonErr != nil {
-		return "", fmt.Errorf("Error unmarshalling data: %v", jsonErr)
+		return "", fmt.Errorf("getRetailPricing[%s][%s]: error unmarshalling data: %w", skuName, region, jsonErr)
 	}
 
 	retailPrice := ""
@@ -1082,10 +1082,8 @@ func (az *Azure) AllNodePricing() (interface{}, error) {
 func (az *Azure) NodePricing(key models.Key) (*models.Node, error) {
 	az.DownloadPricingDataLock.RLock()
 	defer az.DownloadPricingDataLock.RUnlock()
-	pricingDataExists := true
 	if az.Pricing == nil {
-		pricingDataExists = false
-		log.DedupedWarningf(1, "Unable to download Azure pricing data")
+		az.Pricing = map[string]*AzurePricing{}
 	}
 
 	azKey, ok := key.(*azureKey)
@@ -1109,9 +1107,7 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, error) {
 		}
 		log.Infof("[Info] found spot instance, trying to get retail price for %s: %s, ", spotFeatures, azKey)
 		spotCost, err := getRetailPrice(region, instance, config.CurrencyCode, true)
-		if err != nil {
-			log.DedupedWarningf(5, "failed to retrieve spot retail pricing")
-		} else {
+		if err == nil {
 			gpu := ""
 			if azKey.isValidGPUNode() {
 				gpu = "1"
@@ -1126,20 +1122,39 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, error) {
 			})
 			return spotNode, nil
 		}
+		log.DedupedWarningf(5, "failed to retrieve spot retail pricing: %s", err.Error())
 	}
 
 	// Use the downloaded pricing data if possible. Otherwise, use default
 	// configured pricing data.
-	if pricingDataExists {
-		if n, ok := az.Pricing[azKey.Features()]; ok {
-			log.Debugf("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
-			if azKey.isValidGPUNode() {
-				n.Node.GPU = azKey.GetGPUCount()
-			}
-			return n.Node, nil
+	if n, ok := az.Pricing[azKey.Features()]; ok {
+		log.Debugf("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
+		if azKey.isValidGPUNode() {
+			n.Node.GPU = azKey.GetGPUCount()
 		}
-		log.DedupedWarningf(5, "No pricing data found for node %s from key %s", azKey, azKey.Features())
+		return n.Node, nil
 	}
+	log.DedupedWarningf(5, "No pricing data found for node %s from key %s", azKey, azKey.Features())
+
+	// Attempt to retrieve public API pricing data
+	features := strings.Split(azKey.Features(), ",")
+	region := features[0]
+	instance := features[1]
+	spotCost, err := getRetailPrice(region, instance, config.CurrencyCode, false)
+	if err == nil {
+		node := &models.Node{
+			Cost:      spotCost,
+			UsageType: "ondemand",
+			GPU:       azKey.GetGPUCount(),
+		}
+		az.addPricing(azKey.Features(), &AzurePricing{
+			Node: node,
+		})
+		return node, nil
+	}
+	log.DedupedWarningf(5, "failed to retrieve retail pricing: %s", err.Error())
+
+	// fall back to default pricing
 	c, err := az.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("No default pricing data available")

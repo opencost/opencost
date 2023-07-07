@@ -2,6 +2,7 @@ package azure
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-11-01/compute"
@@ -236,6 +237,61 @@ func TestAzure_findCostForDisk(t *testing.T) {
 			}
 			if !mathutil.Approximately(tc.exp, act) {
 				t.Fatalf("expected value %f; got %f", tc.exp, act)
+			}
+		})
+	}
+}
+
+// Test_getRetailPrice checks that the function successfully returns a result for parameters that we know are valid. Since
+// the results by nature vary, we are only checking that there is a result rather than what it is. Because this is a longer
+// running test, the INTEGRATION environment variable must be set to run it.
+func Test_getRetailPrice(t *testing.T) {
+	if os.Getenv("INTEGRATION") == "" {
+		t.Skip("skipping integration tests, set environment variable INTEGRATION")
+	}
+
+	tests := map[string]struct {
+		region       string
+		skuName      string
+		currencyCode string
+		spot         bool
+		wantErr      bool
+	}{
+		"invalid region": {
+			region:       "fake_region",
+			skuName:      "standard_nc4as_t4_v3",
+			currencyCode: "USD",
+			spot:         false,
+			wantErr:      true,
+		},
+		"invalid instance": {
+			region:       "eastus",
+			skuName:      "fake_instance",
+			currencyCode: "USD",
+			spot:         false,
+			wantErr:      true,
+		},
+		"nc4as_t4_v3": {
+			region:       "eastus",
+			skuName:      "standard_nc4as_t4_v3",
+			currencyCode: "USD",
+			spot:         false,
+			wantErr:      false,
+		},
+		"nc4as_t4_v3 spot": {
+			region:       "eastus",
+			skuName:      "standard_nc4as_t4_v3",
+			currencyCode: "USD",
+			spot:         true,
+			wantErr:      false,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, err := getRetailPrice(tt.region, tt.skuName, tt.currencyCode, tt.spot)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getRetailPrice() error = %v, wantErr %v", err, tt.wantErr)
+				return
 			}
 		})
 	}
