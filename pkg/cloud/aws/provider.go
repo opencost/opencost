@@ -1069,9 +1069,45 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 						aws.Pricing[spotKey].OnDemand = offerTerm
 						var cost string
 						if _, isMatch := OnDemandRateCodes[offerTerm.OfferTermCode]; isMatch {
-							cost = offerTerm.PriceDimensions[strings.Join([]string{sku.(string), offerTerm.OfferTermCode, HourlyRateCode}, ".")].PricePerUnit.USD
+							priceDimensionKey := strings.Join([]string{sku.(string), offerTerm.OfferTermCode, HourlyRateCode}, ".")
+							dimension, ok := offerTerm.PriceDimensions[priceDimensionKey]
+							if ok {
+								cost = dimension.PricePerUnit.USD
+							} else {
+								// this is an edge case seen in AWS CN pricing files, including here just in case
+								// if there is only one dimension, use it, even if the key is incorrect, otherwise assume defaults
+								if len(offerTerm.PriceDimensions) == 1 {
+									for key, backupDimension := range offerTerm.PriceDimensions {
+										cost = backupDimension.PricePerUnit.USD
+										log.DedupedWarningf(5, "using:%s for a price dimension instead of missing dimension: %s", offerTerm.PriceDimensions[key], priceDimensionKey)
+										break
+									}
+								} else if len(offerTerm.PriceDimensions) == 0 {
+									log.DedupedWarningf(5, "populatePricing: no pricing dimension available for: %s.", priceDimensionKey)
+								} else {
+									log.DedupedWarningf(5, "populatePricing: no assumable pricing dimension available for: %s.", priceDimensionKey)
+								}
+							}
 						} else if _, isMatch := OnDemandRateCodesCn[offerTerm.OfferTermCode]; isMatch {
-							cost = offerTerm.PriceDimensions[strings.Join([]string{sku.(string), offerTerm.OfferTermCode, HourlyRateCodeCn}, ".")].PricePerUnit.CNY
+							priceDimensionKey := strings.Join([]string{sku.(string), offerTerm.OfferTermCode, HourlyRateCodeCn}, ".")
+							dimension, ok := offerTerm.PriceDimensions[priceDimensionKey]
+							if ok {
+								cost = dimension.PricePerUnit.CNY
+							} else {
+								// fall through logic for handling inconsistencies in AWS CN pricing files
+								// if there is only one dimension, use it, even if the key is incorrect, otherwise assume defaults
+								if len(offerTerm.PriceDimensions) == 1 {
+									for key, backupDimension := range offerTerm.PriceDimensions {
+										cost = backupDimension.PricePerUnit.CNY
+										log.DedupedWarningf(5, "using:%s for a price dimension instead of missing dimension: %s", offerTerm.PriceDimensions[key], priceDimensionKey)
+										break
+									}
+								} else if len(offerTerm.PriceDimensions) == 0 {
+									log.DedupedWarningf(5, "populatePricing: no pricing dimension available for: %s.", priceDimensionKey)
+								} else {
+									log.DedupedWarningf(5, "populatePricing: no assumable pricing dimension available for: %s.", priceDimensionKey)
+								}
+							}
 						}
 						if strings.Contains(key, "EBS:VolumeP-IOPS.piops") {
 							// If the specific UsageType is the per IO cost used on io1 volumes

@@ -44,6 +44,9 @@ func (brv *BillingRowValues) IsCompute(category string) bool {
 	if category == kubecost.NetworkCategory && brv.MeterCategory == "Virtual Network" {
 		return true
 	}
+	if category == kubecost.NetworkCategory && brv.MeterCategory == "Bandwidth" {
+		return true
+	}
 	return false
 }
 
@@ -265,7 +268,7 @@ func AzureSetProviderID(abv *BillingRowValues) string {
 		return fmt.Sprintf("%v", value2)
 	}
 
-	if category == kubecost.StorageCategory {
+	if category == kubecost.StorageCategory || (category == kubecost.NetworkCategory && abv.MeterCategory == "Bandwidth") {
 		if value2, ok2 := abv.Tags["creationSource"]; ok2 {
 			creationSource := fmt.Sprintf("%v", value2)
 			return strings.TrimPrefix(creationSource, "aks-")

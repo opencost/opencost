@@ -2184,7 +2184,7 @@ type LoadBalancer struct {
 	Window     Window
 	Adjustment float64
 	Cost       float64
-	Private    bool
+	Private    bool // @bingen:field[version=20]
 }
 
 // NewLoadBalancer instantiates and returns a new LoadBalancer

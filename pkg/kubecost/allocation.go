@@ -92,7 +92,7 @@ type Allocation struct {
 	// and appended to an Allocation, and so by default is is nil.
 	ProportionalAssetResourceCosts ProportionalAssetResourceCosts `json:"proportionalAssetResourceCosts"` //@bingen:field[ignore]
 	SharedCostBreakdown            SharedCostBreakdowns           `json:"sharedCostBreakdown"`            //@bingen:field[ignore]
-	LoadBalancers                  LbAllocations                  `json:"LoadBalancers"`                  // @bingen:field[version=17]
+	LoadBalancers                  LbAllocations                  `json:"LoadBalancers"`                  // @bingen:field[version=18]
 
 }
 

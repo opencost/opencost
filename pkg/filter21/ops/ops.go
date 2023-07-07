@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/opencost/opencost/pkg/filter21/allocation"
+	"github.com/opencost/opencost/pkg/filter21/asset"
 	"github.com/opencost/opencost/pkg/filter21/ast"
 	"github.com/opencost/opencost/pkg/util/typeutil"
 )
@@ -26,7 +27,7 @@ type keyFieldType interface {
 var defaultFieldByType = map[string]any{
 	// typeutil.TypeOf[cloud.CloudAggregationField]():        cloud.DefaultFieldByName,
 	typeutil.TypeOf[allocation.AllocationField](): allocation.DefaultFieldByName,
-	// typeutil.TypeOf[asset.AssetField]():                   asset.DefaultFieldByName,
+	typeutil.TypeOf[asset.AssetField]():           asset.DefaultFieldByName,
 	// typeutil.TypeOf[containerstats.ContainerStatsField](): containerstats.DefaultFieldByName,
 }
 
