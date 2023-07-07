@@ -283,7 +283,11 @@ func GetPodName() string {
 // GetClusterProfile returns the environment variable value for ClusterProfileEnvVar which
 // represents the cluster profile configured for
 func GetClusterProfile() string {
-	return Get(ClusterProfileEnvVar, "development")
+	prof := Get(ClusterProfileEnvVar, "development")
+	if prof == "highAvailability" {
+		return "high-availability"
+	}
+	return prof
 }
 
 // GetClusterID returns the environment variable value for ClusterIDEnvVar which represents the
