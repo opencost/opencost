@@ -1,8 +1,39 @@
-package allocationfilterutil
+package ast
 
 import (
 	"testing"
 )
+
+var allocFields map[string]*Field = map[string]*Field{
+	"cluster":        NewField("cluster"),
+	"node":           NewField("node"),
+	"namespace":      NewField("namespace"),
+	"controllerName": NewField("controllerName"),
+	"controllerKind": NewField("controllerKind"),
+	"container":      NewField("container"),
+	"pod":            NewField("pod"),
+	"services":       NewSliceField("services"),
+}
+
+var allocMapFields map[string]*Field = map[string]*Field{
+	"label":      NewMapField("label"),
+	"annotation": NewMapField("annotation"),
+}
+
+func TestLexerGroup(t *testing.T) {
+	tokens, err := lex(
+		`cluster:"cluster-one"+namespace:"kubecost"+(controllerKind!:"daemonset","deployment")+controllerName:"kubecost-network-costs"+container:"kubecost-network-costs"`,
+		allocFields,
+		allocMapFields)
+
+	if err != nil {
+		t.Errorf("Error: %s", err)
+	}
+
+	for _, token := range tokens {
+		t.Logf("%s", token)
+	}
+}
 
 func TestLexer(t *testing.T) {
 	cases := []struct {
@@ -33,13 +64,48 @@ func TestLexer(t *testing.T) {
 			expected: []token{{kind: plus, s: "+"}, {kind: eof}},
 		},
 		{
+			name:     "or",
+			input:    "|",
+			expected: []token{{kind: or, s: "|"}, {kind: eof}},
+		},
+		{
 			name:     "bangColon",
 			input:    "!:",
 			expected: []token{{kind: bangColon, s: "!:"}, {kind: eof}},
 		},
 		{
+			name:     "tildeColon",
+			input:    "~:",
+			expected: []token{{kind: tildeColon, s: "~:"}, {kind: eof}},
+		},
+		{
+			name:     "bangTildeColon",
+			input:    "!~:",
+			expected: []token{{kind: bangTildeColon, s: "!~:"}, {kind: eof}},
+		},
+		{
+			name:     "startTildeColon",
+			input:    "<~:",
+			expected: []token{{kind: startTildeColon, s: "<~:"}, {kind: eof}},
+		},
+		{
+			name:     "bangStartTildeColon",
+			input:    "!<~:",
+			expected: []token{{kind: bangStartTildeColon, s: "!<~:"}, {kind: eof}},
+		},
+		{
+			name:     "tildeEndColon",
+			input:    "~>:",
+			expected: []token{{kind: tildeEndColon, s: "~>:"}, {kind: eof}},
+		},
+		{
+			name:     "bangTildeEndColon",
+			input:    "!~>:",
+			expected: []token{{kind: bangTildeEndColon, s: "!~>:"}, {kind: eof}},
+		},
+		{
 			name: "multiple symbols",
-			// This is a valid string to lex but not to parse.
+			// This is a valid string to parse but not to lex
 			input:    "!::,+",
 			expected: []token{{kind: bangColon, s: "!:"}, {kind: colon, s: ":"}, {kind: comma, s: ","}, {kind: plus, s: "+"}, {kind: eof}},
 		},
@@ -79,12 +145,12 @@ func TestLexer(t *testing.T) {
 			name:  "whitespace separated accesses",
 			input: `node : "abc" , "def" ` + string('\r') + string('\n') + string('\t') + `namespace : "123"`,
 			expected: []token{
-				{kind: filterField1, s: "node"},
+				{kind: filterField, s: "node"},
 				{kind: colon, s: ":"},
 				{kind: str, s: "abc"},
 				{kind: comma, s: ","},
 				{kind: str, s: "def"},
-				{kind: filterField1, s: "namespace"},
+				{kind: filterField, s: "namespace"},
 				{kind: colon, s: ":"},
 				{kind: str, s: "123"},
 				{kind: eof},
@@ -95,7 +161,7 @@ func TestLexer(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Logf("Input: '%s'", c.input)
-			result, err := lexAllocationFilterV2(c.input)
+			result, err := lex(c.input, allocFields, allocMapFields)
 			if c.expectError && err == nil {
 				t.Errorf("expected error but got nil")
 			} else if !c.expectError && err != nil {

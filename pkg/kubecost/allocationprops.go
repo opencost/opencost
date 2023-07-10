@@ -212,6 +212,7 @@ func (p *AllocationProperties) Clone() *AllocationProperties {
 	}
 	clone.NamespaceAnnotations = nsAnnotations
 
+	clone.AggregatedMetadata = p.AggregatedMetadata
 	return clone
 }
 

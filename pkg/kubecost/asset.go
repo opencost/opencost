@@ -8,6 +8,9 @@ import (
 	"strings"
 	"time"
 
+	filter21 "github.com/opencost/opencost/pkg/filter21"
+	"github.com/opencost/opencost/pkg/filter21/ast"
+	"github.com/opencost/opencost/pkg/filter21/matcher"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util/json"
 	"github.com/opencost/opencost/pkg/util/timeutil"
@@ -421,10 +424,6 @@ func (al AssetLabels) Append(newLabels map[string]string, overwrite bool) {
 		}
 	}
 }
-
-// AssetMatchFunc is a function that can be used to match Assets by
-// returning true for any given Asset if a condition is met.
-type AssetMatchFunc func(Asset) bool
 
 // AssetType identifies a type of Asset
 type AssetType int
@@ -2185,10 +2184,11 @@ type LoadBalancer struct {
 	Window     Window
 	Adjustment float64
 	Cost       float64
+	Private    bool // @bingen:field[version=20]
 }
 
 // NewLoadBalancer instantiates and returns a new LoadBalancer
-func NewLoadBalancer(name, cluster, providerID string, start, end time.Time, window Window) *LoadBalancer {
+func NewLoadBalancer(name, cluster, providerID string, start, end time.Time, window Window, private bool) *LoadBalancer {
 	properties := &AssetProperties{
 		Category:   NetworkCategory,
 		Name:       name,
@@ -2203,6 +2203,7 @@ func NewLoadBalancer(name, cluster, providerID string, start, end time.Time, win
 		Start:      start,
 		End:        end,
 		Window:     window,
+		Private:    private,
 	}
 }
 
@@ -2743,6 +2744,21 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 		return nil
 	}
 
+	var filter AssetMatcher
+	if opts.Filter == nil {
+		filter = &matcher.AllPass[Asset]{}
+	} else {
+		compiler := NewAssetMatchCompiler()
+		var err error
+		filter, err = compiler.Compile(opts.Filter)
+		if err != nil {
+			return fmt.Errorf("compiling filter '%s': %w", ast.ToPreOrderShortString(opts.Filter), err)
+		}
+	}
+	if filter == nil {
+		return fmt.Errorf("unexpected nil filter")
+	}
+
 	aggSet := NewAssetSet(as.Start(), as.End())
 	aggSet.AggregationKeys = aggregateBy
 
@@ -2759,15 +2775,8 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 		sa := NewSharedAsset(name, as.Window.Clone())
 		sa.Cost = hourlyCost * hours
 
-		// Insert shared asset if it passes all filters
-		insert := true
-		for _, ff := range opts.FilterFuncs {
-			if !ff(sa) {
-				insert = false
-				break
-			}
-		}
-		if insert {
+		// Insert shared asset if it passes filter
+		if filter.Matches(sa) {
 			err := aggSet.Insert(sa, opts.LabelConfig)
 			if err != nil {
 				return err
@@ -2776,11 +2785,9 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 	}
 
 	// Delete the Assets that don't pass each filter
-	for _, ff := range opts.FilterFuncs {
-		for key, asset := range as.Assets {
-			if !ff(asset) {
-				delete(as.Assets, key)
-			}
+	for key, asset := range as.Assets {
+		if !filter.Matches(asset) {
+			delete(as.Assets, key)
 		}
 	}
 
@@ -3460,7 +3467,7 @@ func (asr *AssetSetRange) newAccumulation() (*AssetSet, error) {
 
 type AssetAggregationOptions struct {
 	SharedHourlyCosts map[string]float64
-	FilterFuncs       []AssetMatchFunc
+	Filter            filter21.Filter
 	LabelConfig       *LabelConfig
 }
 
