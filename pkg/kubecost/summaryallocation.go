@@ -294,11 +294,20 @@ func (sa *SummaryAllocation) IsUnallocated() bool {
 
 // IsUnmounted is true if the given SummaryAllocation represents unmounted
 // volume costs.
+// Note: Due to change in https://github.com/opencost/opencost/pull/1477 made to include Unmounted
+// PVC cost inside namespace we need to check unmounted suffix across all the three major properties
+// to actually classify it as unmounted.
 func (sa *SummaryAllocation) IsUnmounted() bool {
 	if sa == nil {
 		return false
 	}
-	return strings.Contains(sa.Name, UnmountedSuffix)
+	props := sa.Properties
+	if props != nil {
+		if props.Container == UnmountedSuffix && props.Namespace == UnmountedSuffix && props.Pod == UnmountedSuffix {
+			return true
+		}
+	}
+	return false
 }
 
 // Minutes returns the number of minutes the SummaryAllocation represents, as
@@ -699,12 +708,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		// Track total unmounted cost because it must be taken out of total
 		// allocated costs for sharing coefficients.
 		if sa.IsUnmounted() {
-			props := sa.Properties
-			if props != nil {
-				if props.Container == UnmountedSuffix && props.Namespace == UnmountedSuffix && props.Pod == UnmountedSuffix {
-					totalUnmountedCost += sa.TotalCost()
-				}
-			}
+			totalUnmountedCost += sa.TotalCost()
 		}
 	}
 
@@ -1005,10 +1009,11 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		if sharingCoeffDenominator <= 0.0 {
 			log.Warnf("SummaryAllocation: sharing coefficient denominator is %f", sharingCoeffDenominator)
 		} else {
+
 			// Compute sharing coeffs by dividing the thus-far accumulated
 			// numerators by the now-finalized denominator.
 			for key := range sharingCoeffs {
-				// shared coeff shouldnt be part of the unmounted suffix key
+				// Do not share the value with unmounted suffix since it's not included in the computation.
 				if key == UnmountedSuffix {
 					continue
 				}
@@ -1023,17 +1028,8 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 			for key, sa := range resultSet.SummaryAllocations {
 				// Idle and unmounted allocations, by definition, do not
 				// receive shared cost
-				if sa.IsIdle() {
+				if sa.IsIdle() || sa.IsUnmounted() {
 					continue
-				}
-				// If unmounted and is part of the computation it is subjected to sharing coeffient correction!
-				if sa.IsUnmounted() {
-					props := sa.Properties
-					if props != nil {
-						if props.Container == UnmountedSuffix && props.Namespace == UnmountedSuffix && props.Pod == UnmountedSuffix {
-							continue
-						}
-					}
 				}
 
 				sharingCoeff := sharingCoeffs[key]

@@ -858,12 +858,21 @@ func (a *Allocation) IsUnallocated() bool {
 }
 
 // IsUnmounted is true if the given Allocation represents unmounted volume costs.
+// Note: Due to change in https://github.com/opencost/opencost/pull/1477 made to include Unmounted
+// PVC cost inside namespace we need to check unmounted suffix across all the three major properties
+// to actually classify it as unmounted.
 func (a *Allocation) IsUnmounted() bool {
 	if a == nil {
 		return false
 	}
 
-	return strings.Contains(a.Name, UnmountedSuffix)
+	props := a.Properties
+	if props != nil {
+		if props.Container == UnmountedSuffix && props.Namespace == UnmountedSuffix && props.Pod == UnmountedSuffix {
+			return true
+		}
+	}
+	return false
 }
 
 // Minutes returns the number of minutes the Allocation represents, as defined
