@@ -364,6 +364,8 @@ type SummaryAllocationSet struct {
 	externalKeys       map[string]bool
 	idleKeys           map[string]bool
 	SummaryAllocations map[string]*SummaryAllocation `json:"allocations"`
+	Limit              int                           `json:"limit,omitempty"`
+	Offset             int                           `json:"offset,omitempty"`
 	Window             Window                        `json:"window"`
 }
 
