@@ -294,12 +294,20 @@ func (sa *SummaryAllocation) IsUnallocated() bool {
 
 // IsUnmounted is true if the given SummaryAllocation represents unmounted
 // volume costs.
+// Note: Due to change in https://github.com/opencost/opencost/pull/1477 made to include Unmounted
+// PVC cost inside namespace we need to check unmounted suffix across all the three major properties
+// to actually classify it as unmounted.
 func (sa *SummaryAllocation) IsUnmounted() bool {
 	if sa == nil {
 		return false
 	}
-
-	return strings.Contains(sa.Name, UnmountedSuffix)
+	props := sa.Properties
+	if props != nil {
+		if props.Container == UnmountedSuffix && props.Namespace == UnmountedSuffix && props.Pod == UnmountedSuffix {
+			return true
+		}
+	}
+	return false
 }
 
 // Minutes returns the number of minutes the SummaryAllocation represents, as
@@ -982,6 +990,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// 11. Distribute shared resources according to sharing coefficients.
 	// NOTE: ShareEven is not supported
 	if len(shareSet.SummaryAllocations) > 0 {
+
 		sharingCoeffDenominator := 0.0
 		for _, rt := range allocTotals {
 			sharingCoeffDenominator += rt.TotalCost()
@@ -1000,9 +1009,14 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		if sharingCoeffDenominator <= 0.0 {
 			log.Warnf("SummaryAllocation: sharing coefficient denominator is %f", sharingCoeffDenominator)
 		} else {
+
 			// Compute sharing coeffs by dividing the thus-far accumulated
 			// numerators by the now-finalized denominator.
 			for key := range sharingCoeffs {
+				// Do not share the value with unmounted suffix since it's not included in the computation.
+				if key == UnmountedSuffix {
+					continue
+				}
 				if sharingCoeffs[key] > 0.0 {
 					sharingCoeffs[key] /= sharingCoeffDenominator
 				} else {
