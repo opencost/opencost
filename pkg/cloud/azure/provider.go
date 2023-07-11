@@ -1015,6 +1015,8 @@ func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, 
 				Cost:         priceStr,
 				BaseCPUPrice: baseCPUPrice,
 				UsageType:    usageType,
+				Region:       region,
+				InstanceType: instanceType,
 			},
 		}
 		results[key] = pricing
@@ -1092,11 +1094,19 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, error) {
 	}
 	config, _ := az.GetConfig()
 
+	features := strings.Split(azKey.Features(), ",")
+	region := features[0]
+	instance := features[1]
+
+	// Create node which can be returned if pricing is not found
+	node := &models.Node{
+		InstanceType: instance,
+		Region:       region,
+	}
+
 	// Spot Node
 	if slv, ok := azKey.Labels[config.SpotLabel]; ok && slv == config.SpotLabelValue && config.SpotLabel != "" && config.SpotLabelValue != "" {
-		features := strings.Split(azKey.Features(), ",")
-		region := features[0]
-		instance := features[1]
+
 		spotFeatures := fmt.Sprintf("%s,%s,%s", region, instance, "spot")
 		if n, ok := az.Pricing[spotFeatures]; ok {
 			log.DedupedInfof(5, "Returning pricing for node %s: %+v from key %s", azKey, n, spotFeatures)
@@ -1112,15 +1122,15 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, error) {
 			if azKey.isValidGPUNode() {
 				gpu = "1"
 			}
-			spotNode := &models.Node{
-				Cost:      spotCost,
-				UsageType: "spot",
-				GPU:       gpu,
-			}
+
+			node.Cost = spotCost
+			node.UsageType = "spot"
+			node.GPU = gpu
+
 			az.addPricing(spotFeatures, &AzurePricing{
-				Node: spotNode,
+				Node: node,
 			})
-			return spotNode, nil
+			return node, nil
 		}
 		log.DedupedWarningf(5, "failed to retrieve spot retail pricing: %s", err.Error())
 	}
@@ -1137,16 +1147,12 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, error) {
 	log.DedupedWarningf(5, "No pricing data found for node %s from key %s", azKey, azKey.Features())
 
 	// Attempt to retrieve public API pricing data
-	features := strings.Split(azKey.Features(), ",")
-	region := features[0]
-	instance := features[1]
-	spotCost, err := getRetailPrice(region, instance, config.CurrencyCode, false)
+
+	retailCost, err := getRetailPrice(region, instance, config.CurrencyCode, false)
 	if err == nil {
-		node := &models.Node{
-			Cost:      spotCost,
-			UsageType: "ondemand",
-			GPU:       azKey.GetGPUCount(),
-		}
+		node.Cost = retailCost
+		node.UsageType = "ondemand"
+		node.GPU = azKey.GetGPUCount()
 		az.addPricing(azKey.Features(), &AzurePricing{
 			Node: node,
 		})
@@ -1162,31 +1168,28 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, error) {
 
 	// GPU Node
 	if azKey.isValidGPUNode() {
-		return &models.Node{
-			VCPUCost:         c.CPU,
-			RAMCost:          c.RAM,
-			UsesBaseCPUPrice: true,
-			GPUCost:          c.GPU,
-			GPU:              azKey.GetGPUCount(),
-		}, nil
+		node.VCPUCost = c.CPU
+		node.RAMCost = c.RAM
+		node.UsesBaseCPUPrice = true
+		node.GPUCost = c.GPU
+		node.GPU = azKey.GetGPUCount()
+		return node, nil
 	}
 
 	// Serverless Node. This is an Azure Container Instance, and no pods can be
 	// scheduled to this node. Azure does not charge for this node. Set costs to
 	// zero.
 	if azKey.Labels["kubernetes.io/hostname"] == "virtual-node-aci-linux" {
-		return &models.Node{
-			VCPUCost: "0",
-			RAMCost:  "0",
-		}, nil
+		node.VCPUCost = "0"
+		node.RAMCost = "0"
+		return node, nil
 	}
 
 	// Regular Node
-	return &models.Node{
-		VCPUCost:         c.CPU,
-		RAMCost:          c.RAM,
-		UsesBaseCPUPrice: true,
-	}, nil
+	node.VCPUCost = c.CPU
+	node.RAMCost = c.RAM
+	node.UsesBaseCPUPrice = true
+	return node, nil
 }
 
 // Stubbed NetworkPricing for Azure. Pull directly from azure.json for now
