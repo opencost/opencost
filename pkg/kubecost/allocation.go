@@ -280,7 +280,7 @@ func (pva *PVAllocation) Equal(that *PVAllocation) bool {
 type ProportionalAssetResourceCost struct {
 	Cluster                string  `json:"cluster"`
 	Name                   string  `json:"name,omitempty"`
-	Type                   string  `json:"name,omitempty"`
+	Type                   string  `json:"type,omitempty"`
 	ProviderID             string  `json:"providerID,omitempty"`
 	CPUPercentage          float64 `json:"cpuPercentage"`
 	GPUPercentage          float64 `json:"gpuPercentage"`
