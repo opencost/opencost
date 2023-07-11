@@ -986,34 +986,25 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// 11. Distribute shared resources according to sharing coefficients.
 	// NOTE: ShareEven is not supported
 	if len(shareSet.SummaryAllocations) > 0 {
-		totalTotalCost := 0.0
-		sharedTotalCost := 0.0
 
 		sharingCoeffDenominator := 0.0
 		for _, rt := range allocTotals {
 			sharingCoeffDenominator += rt.TotalCost()
-			totalTotalCost += rt.TotalCost()
 		}
 
 		// Do not include the shared costs, themselves, when determining
 		// sharing coefficients.
 		for _, rt := range sharedResourceTotals {
 			sharingCoeffDenominator -= rt.TotalCost()
-			sharedTotalCost += rt.TotalCost()
 		}
 
 		// Do not include the unmounted costs when determining sharing
 		// coefficients because they do not receive shared costs.
 		sharingCoeffDenominator -= totalUnmountedCost
 
-		log.Infof("BD-152: sharingCoeffDenom=%f (total cost: %f; shared cost: %f; unmounted cost: %f)", sharingCoeffDenominator, totalTotalCost, sharedTotalCost, totalUnmountedCost)
-
 		if sharingCoeffDenominator <= 0.0 {
 			log.Warnf("SummaryAllocation: sharing coefficient denominator is %f", sharingCoeffDenominator)
 		} else {
-			// Needs to be 1.00000
-			sumSharingCoeffs := 0.0
-
 			// Compute sharing coeffs by dividing the thus-far accumulated
 			// numerators by the now-finalized denominator.
 			for key := range sharingCoeffs {
@@ -1022,25 +1013,12 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 					continue
 				}
 				if sharingCoeffs[key] > 0.0 {
-					before := sharingCoeffs[key]
 					sharingCoeffs[key] /= sharingCoeffDenominator
-
-					log.Infof("BD152: sharingCoeff[%s]=%f ; numerator before=%f", key, sharingCoeffs[key], before)
-
-					sumSharingCoeffs += sharingCoeffs[key]
 				} else {
 					log.Warnf("SummaryAllocation: detected illegal sharing coefficient for %s: %v (setting to zero)", key, sharingCoeffs[key])
 					sharingCoeffs[key] = 0.0
 				}
 			}
-
-			// HERE if you add all the sharingCoeffs, you should get 1.00000 exactly
-			//  "integration": 0.27
-			//  "ally": 0.13
-			//  ...
-			//  TOTAL : 1.000000
-
-			log.Infof("BD152: sum of sharingCoeffs = %f", sumSharingCoeffs)
 
 			for key, sa := range resultSet.SummaryAllocations {
 				// Idle and unmounted allocations, by definition, do not
