@@ -114,8 +114,17 @@ func ComputeAllocationTotals(as *AllocationSet, prop string) map[string]*Allocat
 
 	for _, alloc := range as.Allocations {
 		// Do not count idle or unmounted allocations
-		if alloc.IsIdle() || alloc.IsUnmounted() {
+		if alloc.IsIdle() {
 			continue
+		}
+		if alloc.IsUnmounted() {
+			props := alloc.Properties
+			if props == nil {
+				continue
+			}
+			if props.Container == UnmountedSuffix && props.Namespace == UnmountedSuffix && props.Pod == UnmountedSuffix {
+				continue
+			}
 		}
 
 		// Default to computing totals by Cluster, but allow override to use Node.

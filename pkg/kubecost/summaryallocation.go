@@ -298,7 +298,6 @@ func (sa *SummaryAllocation) IsUnmounted() bool {
 	if sa == nil {
 		return false
 	}
-
 	return strings.Contains(sa.Name, UnmountedSuffix)
 }
 
@@ -700,7 +699,12 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		// Track total unmounted cost because it must be taken out of total
 		// allocated costs for sharing coefficients.
 		if sa.IsUnmounted() {
-			totalUnmountedCost += sa.TotalCost()
+			props := sa.Properties
+			if props != nil {
+				if props.Container == UnmountedSuffix && props.Namespace == UnmountedSuffix && props.Pod == UnmountedSuffix {
+					totalUnmountedCost += sa.TotalCost()
+				}
+			}
 		}
 	}
 
@@ -1013,6 +1017,10 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 			// Compute sharing coeffs by dividing the thus-far accumulated
 			// numerators by the now-finalized denominator.
 			for key := range sharingCoeffs {
+				// shared coeff shouldnt be part of the unmounted suffix key
+				if key == UnmountedSuffix {
+					continue
+				}
 				if sharingCoeffs[key] > 0.0 {
 					before := sharingCoeffs[key]
 					sharingCoeffs[key] /= sharingCoeffDenominator
@@ -1037,8 +1045,17 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 			for key, sa := range resultSet.SummaryAllocations {
 				// Idle and unmounted allocations, by definition, do not
 				// receive shared cost
-				if sa.IsIdle() || sa.IsUnmounted() {
+				if sa.IsIdle() {
 					continue
+				}
+				// If unmounted and is part of the computation it is subjected to sharing coeffient correction!
+				if sa.IsUnmounted() {
+					props := sa.Properties
+					if props != nil {
+						if props.Container == UnmountedSuffix && props.Namespace == UnmountedSuffix && props.Pod == UnmountedSuffix {
+							continue
+						}
+					}
 				}
 
 				sharingCoeff := sharingCoeffs[key]
