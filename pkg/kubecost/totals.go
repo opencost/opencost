@@ -119,11 +119,10 @@ func ComputeAllocationTotals(as *AllocationSet, prop string) map[string]*Allocat
 		}
 		if alloc.IsUnmounted() {
 			props := alloc.Properties
-			if props == nil {
-				continue
-			}
-			if props.Container == UnmountedSuffix && props.Namespace == UnmountedSuffix && props.Pod == UnmountedSuffix {
-				continue
+			if props != nil {
+				if props.Container == UnmountedSuffix && props.Namespace == UnmountedSuffix && props.Pod == UnmountedSuffix {
+					continue
+				}
 			}
 		}
 
