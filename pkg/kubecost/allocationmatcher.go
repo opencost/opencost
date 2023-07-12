@@ -46,6 +46,12 @@ func NewAllocationMatchCompiler(labelConfig *LabelConfig) *matcher.MatchCompiler
 
 // Maps fields from an allocation to a string value based on an identifier
 func allocationFieldMap(a *Allocation, identifier ast.Identifier) (string, error) {
+	if a == nil {
+		return "", fmt.Errorf("cannot map to nil allocation")
+	}
+	if a.Properties == nil {
+		return "", fmt.Errorf("cannot map to nil properties")
+	}
 	if identifier.Field == nil {
 		return "", fmt.Errorf("cannot map field from identifier with nil field")
 	}
