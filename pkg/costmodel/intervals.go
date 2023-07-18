@@ -79,20 +79,20 @@ func getIntervalPointsFromWindows(windows map[podKey]kubecost.Window) IntervalPo
 // getPVCCostCoefficients gets a coefficient which represents the scale
 // factor that each PVC in a pvcIntervalMap and corresponding slice of
 // IntervalPoints intervals uses to calculate a cost for that PVC's PV.
-func getPVCCostCoefficients(intervals IntervalPoints, thisPVC *pvc) map[podKey][]CoefficientComponent {
+func getPVCCostCoefficients(intervals IntervalPoints, thisPVC *pvc, resolution time.Duration) map[podKey][]CoefficientComponent {
 	// pvcCostCoefficientMap has a format such that the individual coefficient
 	// components are preserved for testing purposes.
 	pvcCostCoefficientMap := make(map[podKey][]CoefficientComponent)
 
-	pvcWindow := kubecost.NewWindow(&thisPVC.Start, &thisPVC.End)
-
+	// Reset the start time by the offset as well. so that offset is not used in coefficient calculation!
+	startTime := thisPVC.Start.Add(resolution)
+	pvcWindow := kubecost.NewWindow(&startTime, &thisPVC.End)
 	unmountedKey := getUnmountedPodKey(thisPVC.Cluster)
 
 	var void struct{}
 	activeKeys := map[podKey]struct{}{}
 
-	currentTime := thisPVC.Start
-
+	currentTime := startTime
 	// For each interval i.e. for any time a pod-PVC relation ends or starts...
 	for _, point := range intervals {
 		// If the current point happens at a later time than the previous point
@@ -142,7 +142,6 @@ func getPVCCostCoefficients(intervals IntervalPoints, thisPVC *pvc) map[podKey][
 			},
 		)
 	}
-
 	return pvcCostCoefficientMap
 }
 
