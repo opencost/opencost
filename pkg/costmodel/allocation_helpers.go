@@ -1944,7 +1944,8 @@ func buildPodPVCMap(podPVCMap map[podKey][]*pvc, pvMap map[pvKey]*pv, pvcMap map
 		}
 	}
 }
-func applyPVCsToPods(window kubecost.Window, podMap map[podKey]*pod, podPVCMap map[podKey][]*pvc, pvcMap map[pvcKey]*pvc) {
+
+func applyPVCsToPods(window kubecost.Window, podMap map[podKey]*pod, podPVCMap map[podKey][]*pvc, pvcMap map[pvcKey]*pvc, resolution time.Duration) {
 	// Because PVCs can be shared among pods, the respective pv cost
 	// needs to be evenly distributed to those pods based on time
 	// running, as well as the amount of time the pvc was shared.
@@ -1994,7 +1995,7 @@ func applyPVCsToPods(window kubecost.Window, podMap map[podKey]*pod, podPVCMap m
 		}
 
 		// Determine coefficients for each pvc-pod relation.
-		sharedPVCCostCoefficients := getPVCCostCoefficients(intervals, pvc)
+		sharedPVCCostCoefficients := getPVCCostCoefficients(intervals, pvc, resolution)
 
 		// Distribute pvc costs to Allocations
 		for thisPodKey, coeffComponents := range sharedPVCCostCoefficients {

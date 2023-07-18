@@ -662,7 +662,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	// split appropriately among each pod's container allocation.
 	podPVCMap := map[podKey][]*pvc{}
 	buildPodPVCMap(podPVCMap, pvMap, pvcMap, podMap, resPodPVCAllocation, podUIDKeyMap, ingestPodUID)
-	applyPVCsToPods(window, podMap, podPVCMap, pvcMap)
+	applyPVCsToPods(window, podMap, podPVCMap, pvcMap, resolution)
 
 	// Identify PVCs without pods and add pv costs to the unmounted Allocation for the pvc's cluster
 	applyUnmountedPVCs(window, podMap, pvcMap)
