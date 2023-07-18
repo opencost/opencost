@@ -21,7 +21,7 @@ To see the full functionality of OpenCost you can view [OpenCost features](https
 
 You can deploy OpenCost on any Kubernetes 1.8+ cluster in a matter of minutes, if not seconds!
 
-Visit the full documentation for [recommended install options](https://www.opencost.io/docs/install).
+Visit the full documentation for [recommended install options](https://www.opencost.io/docs/installation/install).
 
 ## Usage
 
