@@ -58,11 +58,13 @@ func (cm *CostModel) ComputeAssets(start, end time.Time) (*kubecost.AssetSet, er
 		if d.Local {
 			disk.Local = 1.0
 		}
-		disk.Breakdown = &kubecost.Breakdown{
-			Idle:   d.Breakdown.Idle,
-			System: d.Breakdown.System,
-			User:   d.Breakdown.User,
-			Other:  d.Breakdown.Other,
+		if d.Breakdown != nil {
+			disk.Breakdown = &kubecost.Breakdown{
+				Idle:   d.Breakdown.Idle,
+				System: d.Breakdown.System,
+				User:   d.Breakdown.User,
+				Other:  d.Breakdown.Other,
+			}
 		}
 		disk.StorageClass = d.StorageClass
 		disk.VolumeName = d.VolumeName
@@ -117,17 +119,21 @@ func (cm *CostModel) ComputeAssets(start, end time.Time) (*kubecost.AssetSet, er
 		node.CPUCoreHours = n.CPUCores * hours
 		node.RAMByteHours = n.RAMBytes * hours
 		node.GPUHours = n.GPUCount * hours
-		node.CPUBreakdown = &kubecost.Breakdown{
-			Idle:   n.CPUBreakdown.Idle,
-			System: n.CPUBreakdown.System,
-			User:   n.CPUBreakdown.User,
-			Other:  n.CPUBreakdown.Other,
+		if n.CPUBreakdown != nil {
+			node.CPUBreakdown = &kubecost.Breakdown{
+				Idle:   n.CPUBreakdown.Idle,
+				System: n.CPUBreakdown.System,
+				User:   n.CPUBreakdown.User,
+				Other:  n.CPUBreakdown.Other,
+			}
 		}
-		node.RAMBreakdown = &kubecost.Breakdown{
-			Idle:   n.RAMBreakdown.Idle,
-			System: n.RAMBreakdown.System,
-			User:   n.RAMBreakdown.User,
-			Other:  n.RAMBreakdown.Other,
+		if n.RAMBreakdown != nil {
+			node.RAMBreakdown = &kubecost.Breakdown{
+				Idle:   n.RAMBreakdown.Idle,
+				System: n.RAMBreakdown.System,
+				User:   n.RAMBreakdown.User,
+				Other:  n.RAMBreakdown.Other,
+			}
 		}
 		node.CPUCost = n.CPUCost
 		node.GPUCost = n.GPUCost

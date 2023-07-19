@@ -160,7 +160,7 @@ func (a *Accesses) ClusterCostsFromCacheHandler(w http.ResponseWriter, r *http.R
 		clusterCosts := data.(map[string]*ClusterCosts)
 		w.Write(WrapDataWithMessage(clusterCosts, nil, "clusterCosts cache hit"))
 	} else {
-		data, err := a.ComputeClusterCosts(pClient, a.CloudProvider, duration, offset, true)
+		data, err := a.ComputeClusterCosts(pClient, a.CloudProvider, duration, offset, env.IsAssetModeBreakdownEnabled())
 		w.Write(WrapDataWithMessage(data, err, fmt.Sprintf("clusterCosts cache miss: %s", key)))
 	}
 }
@@ -456,7 +456,7 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 		client = a.PrometheusClient
 	}
 
-	data, err := a.ComputeClusterCosts(client, a.CloudProvider, windowDur, offsetDur, true)
+	data, err := a.ComputeClusterCosts(client, a.CloudProvider, windowDur, offsetDur, env.IsAssetModeBreakdownEnabled())
 	w.Write(WrapData(data, err))
 }
 

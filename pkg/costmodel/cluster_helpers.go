@@ -671,8 +671,12 @@ func checkForKeyAndInitIfMissing(
 			Name:         key.Name,
 			NodeType:     nodeType,
 			ProviderID:   key.ProviderID,
-			CPUBreakdown: &ClusterCostsBreakdown{},
-			RAMBreakdown: &ClusterCostsBreakdown{},
+			CPUBreakdown: nil,
+			RAMBreakdown: nil,
+		}
+		if env.IsAssetModeBreakdownEnabled() {
+			nodeMap[key].CPUBreakdown = &ClusterCostsBreakdown{}
+			nodeMap[key].RAMBreakdown = &ClusterCostsBreakdown{}
 		}
 	}
 }
@@ -807,16 +811,28 @@ func buildNodeMap(
 			nodePtr.RAMBytes = ramBytes
 		}
 
-		if ramUserPct, ok := ramUserPctMap[clusterAndNameID]; ok {
-			nodePtr.RAMBreakdown.User = ramUserPct
+		if ramUserPctMap != nil {
+			if ramUserPct, ok := ramUserPctMap[clusterAndNameID]; ok {
+				if nodePtr.RAMBreakdown == nil {
+					nodePtr.RAMBreakdown = &ClusterCostsBreakdown{}
+				}
+				nodePtr.RAMBreakdown.User = ramUserPct
+			}
 		}
 
-		if ramSystemPct, ok := ramSystemPctMap[clusterAndNameID]; ok {
-			nodePtr.RAMBreakdown.System = ramSystemPct
+		if ramSystemPctMap != nil {
+			if ramSystemPct, ok := ramSystemPctMap[clusterAndNameID]; ok {
+				if nodePtr.RAMBreakdown == nil {
+					nodePtr.RAMBreakdown = &ClusterCostsBreakdown{}
+				}
+				nodePtr.RAMBreakdown.System = ramSystemPct
+			}
 		}
 
-		if cpuBreakdown, ok := cpuBreakdownMap[clusterAndNameID]; ok {
-			nodePtr.CPUBreakdown = cpuBreakdown
+		if cpuBreakdownMap != nil {
+			if cpuBreakdown, ok := cpuBreakdownMap[clusterAndNameID]; ok {
+				nodePtr.CPUBreakdown = cpuBreakdown
+			}
 		}
 
 		if labels, ok := labelsMap[clusterAndNameID]; ok {

@@ -1739,7 +1739,7 @@ func (a *Accesses) warmAggregateCostModelCache() {
 	// for the given duration. Cache is intentionally set to expire (i.e. noExpireCache=false) so that
 	// if the default parameters change, the old cached defaults with eventually expire. Thus, the
 	// timing of the cache expiry/refresh is the only mechanism ensuring 100% cache warmth.
-	warmFunc := func(duration, offset time.Duration, cacheEfficiencyData bool) (error, error) {
+	warmFunc := func(duration, offset time.Duration, withBreakdown bool) (error, error) {
 		if a.ThanosClient != nil {
 			duration = thanos.OffsetDuration()
 			log.Infof("Setting Offset to %s", duration)
@@ -1786,7 +1786,7 @@ func (a *Accesses) warmAggregateCostModelCache() {
 			log.Infof("Error building cache %s: %s", window, aggErr)
 		}
 
-		totals, err := a.ComputeClusterCosts(promClient, a.CloudProvider, duration, offset, cacheEfficiencyData)
+		totals, err := a.ComputeClusterCosts(promClient, a.CloudProvider, duration, offset, withBreakdown)
 		if err != nil {
 			log.Infof("Error building cluster costs cache %s", key)
 		}
@@ -1814,7 +1814,7 @@ func (a *Accesses) warmAggregateCostModelCache() {
 
 		for {
 			sem.Acquire()
-			warmFunc(duration, offset, true)
+			warmFunc(duration, offset, env.IsAssetModeBreakdownEnabled())
 			sem.Return()
 
 			log.Infof("aggregation: warm cache: %s", timeutil.DurationString(duration))

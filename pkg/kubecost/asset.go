@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opencost/opencost/pkg/env"
 	filter21 "github.com/opencost/opencost/pkg/filter21"
 	"github.com/opencost/opencost/pkg/filter21/ast"
 	"github.com/opencost/opencost/pkg/filter21/matcher"
@@ -1126,14 +1127,19 @@ func NewDisk(name, cluster, providerID string, start, end time.Time, window Wind
 		Service:    KubernetesService,
 	}
 
-	return &Disk{
+	disk := &Disk{
 		Labels:     AssetLabels{},
 		Properties: properties,
 		Start:      start,
 		End:        end,
 		Window:     window,
-		Breakdown:  &Breakdown{},
+		Breakdown:  nil,
 	}
+	if env.IsAssetModeBreakdownEnabled() {
+		disk.Breakdown = &Breakdown{}
+	}
+
+	return disk
 }
 
 // Type returns the AssetType of the Asset
@@ -1291,10 +1297,14 @@ func (d *Disk) add(that *Disk) {
 
 	totalCost := d.Cost + that.Cost
 	if totalCost > 0.0 {
-		d.Breakdown.Idle = (d.Breakdown.Idle*d.Cost + that.Breakdown.Idle*that.Cost) / totalCost
-		d.Breakdown.Other = (d.Breakdown.Other*d.Cost + that.Breakdown.Other*that.Cost) / totalCost
-		d.Breakdown.System = (d.Breakdown.System*d.Cost + that.Breakdown.System*that.Cost) / totalCost
-		d.Breakdown.User = (d.Breakdown.User*d.Cost + that.Breakdown.User*that.Cost) / totalCost
+		if d.Breakdown != nil && that.Breakdown != nil {
+			d.Breakdown.Idle = (d.Breakdown.Idle*d.Cost + that.Breakdown.Idle*that.Cost) / totalCost
+			d.Breakdown.Other = (d.Breakdown.Other*d.Cost + that.Breakdown.Other*that.Cost) / totalCost
+			d.Breakdown.System = (d.Breakdown.System*d.Cost + that.Breakdown.System*that.Cost) / totalCost
+			d.Breakdown.User = (d.Breakdown.User*d.Cost + that.Breakdown.User*that.Cost) / totalCost
+		} else {
+			d.Breakdown = nil
+		}
 
 		d.Local = (d.TotalCost()*d.Local + that.TotalCost()*that.Local) / (d.TotalCost() + that.TotalCost())
 	} else {
@@ -1489,6 +1499,10 @@ func (b *Breakdown) Clone() *Breakdown {
 
 // Equal returns true if the two Breakdowns are exact matches
 func (b *Breakdown) Equal(that *Breakdown) bool {
+	if b == nil && that == nil {
+		return true
+	}
+
 	if b == nil || that == nil {
 		return false
 	}
@@ -1793,15 +1807,21 @@ func NewNode(name, cluster, providerID string, start, end time.Time, window Wind
 		Service:    KubernetesService,
 	}
 
-	return &Node{
+	node := &Node{
 		Properties:   properties,
 		Labels:       AssetLabels{},
 		Start:        start,
 		End:          end,
 		Window:       window.Clone(),
-		CPUBreakdown: &Breakdown{},
-		RAMBreakdown: &Breakdown{},
+		CPUBreakdown: nil,
+		RAMBreakdown: nil,
 	}
+	if env.IsAssetModeBreakdownEnabled() {
+		node.CPUBreakdown = &Breakdown{}
+		node.RAMBreakdown = &Breakdown{}
+	}
+
+	return node
 }
 
 // Type returns the AssetType of the Asset
@@ -1987,18 +2007,26 @@ func (n *Node) add(that *Node) {
 
 	totalCPUCost := n.CPUCost + that.CPUCost
 	if totalCPUCost > 0.0 {
-		n.CPUBreakdown.Idle = (n.CPUBreakdown.Idle*n.CPUCost + that.CPUBreakdown.Idle*that.CPUCost) / totalCPUCost
-		n.CPUBreakdown.Other = (n.CPUBreakdown.Other*n.CPUCost + that.CPUBreakdown.Other*that.CPUCost) / totalCPUCost
-		n.CPUBreakdown.System = (n.CPUBreakdown.System*n.CPUCost + that.CPUBreakdown.System*that.CPUCost) / totalCPUCost
-		n.CPUBreakdown.User = (n.CPUBreakdown.User*n.CPUCost + that.CPUBreakdown.User*that.CPUCost) / totalCPUCost
+		if n.CPUBreakdown != nil && that.CPUBreakdown != nil {
+			n.CPUBreakdown.Idle = (n.CPUBreakdown.Idle*n.CPUCost + that.CPUBreakdown.Idle*that.CPUCost) / totalCPUCost
+			n.CPUBreakdown.Other = (n.CPUBreakdown.Other*n.CPUCost + that.CPUBreakdown.Other*that.CPUCost) / totalCPUCost
+			n.CPUBreakdown.System = (n.CPUBreakdown.System*n.CPUCost + that.CPUBreakdown.System*that.CPUCost) / totalCPUCost
+			n.CPUBreakdown.User = (n.CPUBreakdown.User*n.CPUCost + that.CPUBreakdown.User*that.CPUCost) / totalCPUCost
+		} else {
+			n.CPUBreakdown = nil
+		}
 	}
 
 	totalRAMCost := n.RAMCost + that.RAMCost
 	if totalRAMCost > 0.0 {
-		n.RAMBreakdown.Idle = (n.RAMBreakdown.Idle*n.RAMCost + that.RAMBreakdown.Idle*that.RAMCost) / totalRAMCost
-		n.RAMBreakdown.Other = (n.RAMBreakdown.Other*n.RAMCost + that.RAMBreakdown.Other*that.RAMCost) / totalRAMCost
-		n.RAMBreakdown.System = (n.RAMBreakdown.System*n.RAMCost + that.RAMBreakdown.System*that.RAMCost) / totalRAMCost
-		n.RAMBreakdown.User = (n.RAMBreakdown.User*n.RAMCost + that.RAMBreakdown.User*that.RAMCost) / totalRAMCost
+		if n.RAMBreakdown != nil && that.RAMBreakdown != nil {
+			n.RAMBreakdown.Idle = (n.RAMBreakdown.Idle*n.RAMCost + that.RAMBreakdown.Idle*that.RAMCost) / totalRAMCost
+			n.RAMBreakdown.Other = (n.RAMBreakdown.Other*n.RAMCost + that.RAMBreakdown.Other*that.RAMCost) / totalRAMCost
+			n.RAMBreakdown.System = (n.RAMBreakdown.System*n.RAMCost + that.RAMBreakdown.System*that.RAMCost) / totalRAMCost
+			n.RAMBreakdown.User = (n.RAMBreakdown.User*n.RAMCost + that.RAMBreakdown.User*that.RAMCost) / totalRAMCost
+		} else {
+			n.RAMBreakdown = nil
+		}
 	}
 
 	n.CPUCoreHours += that.CPUCoreHours
@@ -2011,7 +2039,6 @@ func (n *Node) add(that *Node) {
 	n.Adjustment += that.Adjustment
 
 	if n.Overhead != nil && that.Overhead != nil {
-
 		n.Overhead.RamOverheadFraction = (n.Overhead.RamOverheadFraction*n.RAMCost + that.Overhead.RamOverheadFraction*that.RAMCost) / totalRAMCost
 		n.Overhead.CpuOverheadFraction = (n.Overhead.CpuOverheadFraction*n.CPUCost + that.Overhead.CpuOverheadFraction*that.CPUCost) / totalCPUCost
 		n.Overhead.OverheadCostFraction = ((n.Overhead.CpuOverheadFraction * n.CPUCost) + (n.Overhead.RamOverheadFraction * n.RAMCost)) / n.TotalCost()

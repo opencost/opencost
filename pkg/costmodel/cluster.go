@@ -245,7 +245,10 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
 				Name:      volumeName,
-				Breakdown: &ClusterCostsBreakdown{},
+				Breakdown: nil,
+			}
+			if env.IsAssetModeBreakdownEnabled() {
+				diskMap[key].Breakdown = &ClusterCostsBreakdown{}
 			}
 		}
 
@@ -274,8 +277,11 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
 				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
+				Breakdown: nil,
 				Local:     true,
+			}
+			if env.IsAssetModeBreakdownEnabled() {
+				diskMap[key].Breakdown = &ClusterCostsBreakdown{}
 			}
 		}
 		diskMap[key].Cost += cost
@@ -302,11 +308,17 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
 				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
+				Breakdown: nil,
 				Local:     true,
 			}
+			if env.IsAssetModeBreakdownEnabled() {
+				diskMap[key].Breakdown = &ClusterCostsBreakdown{}
+			}
 		}
-		diskMap[key].Breakdown.System = cost / diskMap[key].Cost
+
+		if diskMap[key].Breakdown != nil {
+			diskMap[key].Breakdown.System = cost / diskMap[key].Cost
+		}
 	}
 
 	for _, result := range resLocalStorageUsedAvg {
@@ -327,8 +339,11 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
 				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
+				Breakdown: nil,
 				Local:     true,
+			}
+			if env.IsAssetModeBreakdownEnabled() {
+				diskMap[key].Breakdown = &ClusterCostsBreakdown{}
 			}
 		}
 		diskMap[key].BytesUsedAvgPtr = &bytesAvg
@@ -352,8 +367,11 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
 				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
+				Breakdown: nil,
 				Local:     true,
+			}
+			if env.IsAssetModeBreakdownEnabled() {
+				diskMap[key].Breakdown = &ClusterCostsBreakdown{}
 			}
 		}
 		diskMap[key].BytesUsedMaxPtr = &bytesMax
@@ -377,8 +395,11 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
 				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
+				Breakdown: nil,
 				Local:     true,
+			}
+			if env.IsAssetModeBreakdownEnabled() {
+				diskMap[key].Breakdown = &ClusterCostsBreakdown{}
 			}
 		}
 		diskMap[key].Bytes = bytes
@@ -459,8 +480,10 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 	}
 
 	for _, disk := range diskMap {
-		// Apply all remaining RAM to Idle
-		disk.Breakdown.Idle = 1.0 - (disk.Breakdown.System + disk.Breakdown.Other + disk.Breakdown.User)
+		if disk.Breakdown != nil {
+			// Apply all remaining RAM to Idle
+			disk.Breakdown.Idle = 1.0 - (disk.Breakdown.System + disk.Breakdown.Other + disk.Breakdown.User)
+		}
 
 		// Set provider Id to the name for reconciliation
 		if disk.ProviderID == "" {
@@ -611,11 +634,17 @@ func ClusterNodes(cp models.Provider, client prometheus.Client, start, end time.
 	resNodeRAMBytesCapacity, _ := resChNodeRAMBytesCapacity.Await()
 	resNodeRAMBytesAllocatable, _ := resChNodeRAMBytesAllocatable.Await()
 	resIsSpot, _ := resChIsSpot.Await()
-	resNodeCPUModeTotal, _ := resChNodeCPUModeTotal.Await()
-	resNodeRAMSystemPct, _ := resChNodeRAMSystemPct.Await()
-	resNodeRAMUserPct, _ := resChNodeRAMUserPct.Await()
 	resActiveMins, _ := resChActiveMins.Await()
 	resLabels, _ := resChLabels.Await()
+
+	var resNodeCPUModeTotal []*prom.QueryResult
+	var resNodeRAMSystemPct []*prom.QueryResult
+	var resNodeRAMUserPct []*prom.QueryResult
+	if env.IsAssetModeBreakdownEnabled() {
+		resNodeCPUModeTotal, _ = resChNodeCPUModeTotal.Await()
+		resNodeRAMSystemPct, _ = resChNodeRAMSystemPct.Await()
+		resNodeRAMUserPct, _ = resChNodeRAMUserPct.Await()
+	}
 
 	if optionalCtx.HasErrors() {
 		for _, err := range optionalCtx.Errors() {
@@ -649,10 +678,14 @@ func ClusterNodes(cp models.Provider, client prometheus.Client, start, end time.
 	ramBytesAllocatableMap := buildRAMBytesMap(resNodeRAMBytesAllocatable)
 	overheadMap := buildOverheadMap(ramBytesCapacityMap, ramBytesAllocatableMap, cpuCoresCapacityMap, cpuCoresAllocatableMap)
 
-	ramUserPctMap := buildRAMUserPctMap(resNodeRAMUserPct)
-	ramSystemPctMap := buildRAMSystemPctMap(resNodeRAMSystemPct)
-
-	cpuBreakdownMap := buildCPUBreakdownMap(resNodeCPUModeTotal)
+	var ramUserPctMap map[nodeIdentifierNoProviderID]float64
+	var ramSystemPctMap map[nodeIdentifierNoProviderID]float64
+	var cpuBreakdownMap map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown
+	if env.IsAssetModeBreakdownEnabled() {
+		ramUserPctMap = buildRAMUserPctMap(resNodeRAMUserPct)
+		ramSystemPctMap = buildRAMSystemPctMap(resNodeRAMSystemPct)
+		cpuBreakdownMap = buildCPUBreakdownMap(resNodeCPUModeTotal)
+	}
 
 	labelsMap := buildLabelsMap(resLabels)
 
@@ -692,9 +725,14 @@ func ClusterNodes(cp models.Provider, client prometheus.Client, start, end time.
 		// TODO take GKE Reserved Instances into account
 		node.Discount = cp.CombinedDiscountForNode(node.NodeType, node.Preemptible, discount, negotiatedDiscount)
 
-		// Apply all remaining resources to Idle
-		node.CPUBreakdown.Idle = 1.0 - (node.CPUBreakdown.System + node.CPUBreakdown.Other + node.CPUBreakdown.User)
-		node.RAMBreakdown.Idle = 1.0 - (node.RAMBreakdown.System + node.RAMBreakdown.Other + node.RAMBreakdown.User)
+		if node.CPUBreakdown != nil {
+			// Apply all remaining resources to Idle
+			node.CPUBreakdown.Idle = 1.0 - (node.CPUBreakdown.System + node.CPUBreakdown.Other + node.CPUBreakdown.User)
+		}
+		if node.RAMBreakdown != nil {
+			// Apply all remaining resources to Idle
+			node.RAMBreakdown.Idle = 1.0 - (node.RAMBreakdown.System + node.RAMBreakdown.Other + node.RAMBreakdown.User)
+		}
 	}
 
 	return nodeMap, nil
@@ -1181,16 +1219,18 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider models
 			return nil, err
 		}
 
-		if cpuBD, ok := cpuBreakdownMap[id]; ok {
-			costs.CPUBreakdown = cpuBD
-		}
-		if ramBD, ok := ramBreakdownMap[id]; ok {
-			costs.RAMBreakdown = ramBD
-		}
-		costs.StorageBreakdown = &ClusterCostsBreakdown{}
-		if pvUC, ok := pvUsedCostMap[id]; ok {
-			costs.StorageBreakdown.Idle = (costs.StorageCumulative - pvUC) / costs.StorageCumulative
-			costs.StorageBreakdown.User = pvUC / costs.StorageCumulative
+		if withBreakdown {
+			if cpuBD, ok := cpuBreakdownMap[id]; ok {
+				costs.CPUBreakdown = cpuBD
+			}
+			if ramBD, ok := ramBreakdownMap[id]; ok {
+				costs.RAMBreakdown = ramBD
+			}
+			costs.StorageBreakdown = &ClusterCostsBreakdown{}
+			if pvUC, ok := pvUsedCostMap[id]; ok {
+				costs.StorageBreakdown.Idle = (costs.StorageCumulative - pvUC) / costs.StorageCumulative
+				costs.StorageBreakdown.User = pvUC / costs.StorageCumulative
+			}
 		}
 		costs.DataMinutes = dataMins
 		costsByCluster[id] = costs
@@ -1354,7 +1394,10 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
 				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
+				Breakdown: nil,
+			}
+			if env.IsAssetModeBreakdownEnabled() {
+				diskMap[key].Breakdown = &ClusterCostsBreakdown{}
 			}
 		}
 		s := time.Unix(int64(result.Values[0].Timestamp), 0)
@@ -1386,7 +1429,10 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
 				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
+				Breakdown: nil,
+			}
+			if env.IsAssetModeBreakdownEnabled() {
+				diskMap[key].Breakdown = &ClusterCostsBreakdown{}
 			}
 		}
 		diskMap[key].Bytes = bytes
@@ -1431,7 +1477,10 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
 				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
+				Breakdown: nil,
+			}
+			if env.IsAssetModeBreakdownEnabled() {
+				diskMap[key].Breakdown = &ClusterCostsBreakdown{}
 			}
 		}
 
@@ -1497,7 +1546,10 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
 				Name:      volumeName,
-				Breakdown: &ClusterCostsBreakdown{},
+				Breakdown: nil,
+			}
+			if env.IsAssetModeBreakdownEnabled() {
+				diskMap[key].Breakdown = &ClusterCostsBreakdown{}
 			}
 		}
 		diskMap[key].BytesUsedAvgPtr = &usage
@@ -1558,7 +1610,10 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
 				Name:      volumeName,
-				Breakdown: &ClusterCostsBreakdown{},
+				Breakdown: nil,
+			}
+			if env.IsAssetModeBreakdownEnabled() {
+				diskMap[key].Breakdown = &ClusterCostsBreakdown{}
 			}
 		}
 		diskMap[key].BytesUsedMaxPtr = &usage

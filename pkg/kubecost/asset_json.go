@@ -269,7 +269,9 @@ func (d *Disk) MarshalJSON() ([]byte, error) {
 	} else {
 		jsonEncodeFloat64(buffer, "byteUsageMax", *d.ByteUsageMax, ",")
 	}
-	jsonEncode(buffer, "breakdown", d.Breakdown, ",")
+	if d.Breakdown != nil {
+		jsonEncode(buffer, "breakdown", d.Breakdown, ",")
+	}
 	jsonEncodeFloat64(buffer, "adjustment", d.Adjustment, ",")
 	jsonEncodeFloat64(buffer, "totalCost", d.TotalCost(), ",")
 	jsonEncodeString(buffer, "storageClass", d.StorageClass, ",")
@@ -322,9 +324,11 @@ func (d *Disk) InterfaceToDisk(itf interface{}) error {
 		return err
 	}
 
-	fbreakdown := fmap["breakdown"].(map[string]interface{})
-
-	breakdown := toBreakdown(fbreakdown)
+	if _, ok := fmap["breakdown"]; ok {
+		fbreakdown := fmap["breakdown"].(map[string]interface{})
+		breakdown := toBreakdown(fbreakdown)
+		d.Breakdown = &breakdown
+	}
 
 	d.Properties = &properties
 	d.Labels = labels
@@ -334,7 +338,6 @@ func (d *Disk) InterfaceToDisk(itf interface{}) error {
 		start: &start,
 		end:   &end,
 	}
-	d.Breakdown = &breakdown
 
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
 		d.Adjustment = adjustment.(float64)
@@ -485,8 +488,12 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "cpuCoreHours", n.CPUCoreHours, ",")
 	jsonEncodeFloat64(buffer, "ramByteHours", n.RAMByteHours, ",")
 	jsonEncodeFloat64(buffer, "GPUHours", n.GPUHours, ",")
-	jsonEncode(buffer, "cpuBreakdown", n.CPUBreakdown, ",")
-	jsonEncode(buffer, "ramBreakdown", n.RAMBreakdown, ",")
+	if n.CPUBreakdown != nil {
+		jsonEncode(buffer, "cpuBreakdown", n.CPUBreakdown, ",")
+	}
+	if n.RAMBreakdown != nil {
+		jsonEncode(buffer, "ramBreakdown", n.RAMBreakdown, ",")
+	}
 	jsonEncodeFloat64(buffer, "preemptible", n.Preemptible, ",")
 	jsonEncodeFloat64(buffer, "discount", n.Discount, ",")
 	jsonEncodeFloat64(buffer, "cpuCost", n.CPUCost, ",")
@@ -545,11 +552,17 @@ func (n *Node) InterfaceToNode(itf interface{}) error {
 		return err
 	}
 
-	fcpuBreakdown := fmap["cpuBreakdown"].(map[string]interface{})
-	framBreakdown := fmap["ramBreakdown"].(map[string]interface{})
+	if _, ok := fmap["cpuBreakdown"]; ok {
+		fcpuBreakdown := fmap["cpuBreakdown"].(map[string]interface{})
+		cpuBreakdown := toBreakdown(fcpuBreakdown)
+		n.CPUBreakdown = &cpuBreakdown
+	}
 
-	cpuBreakdown := toBreakdown(fcpuBreakdown)
-	ramBreakdown := toBreakdown(framBreakdown)
+	if _, ok := fmap["ramBreakdown"]; ok {
+		framBreakdown := fmap["ramBreakdown"].(map[string]interface{})
+		ramBreakdown := toBreakdown(framBreakdown)
+		n.RAMBreakdown = &ramBreakdown
+	}
 
 	n.Properties = &properties
 	n.Labels = labels
@@ -559,8 +572,6 @@ func (n *Node) InterfaceToNode(itf interface{}) error {
 		start: &start,
 		end:   &end,
 	}
-	n.CPUBreakdown = &cpuBreakdown
-	n.RAMBreakdown = &ramBreakdown
 
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
 		n.Adjustment = adjustment.(float64)
