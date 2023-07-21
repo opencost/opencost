@@ -18,7 +18,10 @@ import (
 
 // This is a bit of a hack to work around garbage data from cadvisor
 // Ideally you cap each pod to the max CPU on its node, but that involves a bit more complexity, as it it would need to be done when allocations joins with asset data.
-const MAX_CPU_CAP = 512
+const CPU_SANITY_LIMIT = 512
+
+// Sanity Limit for PV usage, set to 10 PB, in bytes for now
+const PV_USAGE_SANITY_LIMIT_BYTES = 10737418240
 
 /* Pod Helpers */
 
@@ -231,7 +234,7 @@ func applyCPUCoresAllocated(podMap map[podKey]*pod, resCPUCoresAllocated []*prom
 			}
 
 			cpuCores := res.Values[0].Value
-			if cpuCores > MAX_CPU_CAP {
+			if cpuCores > CPU_SANITY_LIMIT {
 				log.Infof("[WARNING] Very large cpu allocation, clamping to %f", res.Values[0].Value*(thisPod.Allocations[container].Minutes()/60.0))
 				cpuCores = 0.0
 			}
@@ -292,7 +295,7 @@ func applyCPUCoresRequested(podMap map[podKey]*pod, resCPUCoresRequested []*prom
 			if thisPod.Allocations[container].CPUCores() < res.Values[0].Value {
 				thisPod.Allocations[container].CPUCoreHours = res.Values[0].Value * (thisPod.Allocations[container].Minutes() / 60.0)
 			}
-			if thisPod.Allocations[container].CPUCores() > MAX_CPU_CAP {
+			if thisPod.Allocations[container].CPUCores() > CPU_SANITY_LIMIT {
 				log.Infof("[WARNING] Very large cpu allocation, clamping! to %f", res.Values[0].Value*(thisPod.Allocations[container].Minutes()/60.0))
 				thisPod.Allocations[container].CPUCoreHours = res.Values[0].Value * (thisPod.Allocations[container].Minutes() / 60.0)
 			}
@@ -347,7 +350,7 @@ func applyCPUCoresUsedAvg(podMap map[podKey]*pod, resCPUCoresUsedAvg []*prom.Que
 			}
 
 			thisPod.Allocations[container].CPUCoreUsageAverage = res.Values[0].Value
-			if res.Values[0].Value > MAX_CPU_CAP {
+			if res.Values[0].Value > CPU_SANITY_LIMIT {
 				log.Infof("[WARNING] Very large cpu USAGE, dropping outlier")
 				thisPod.Allocations[container].CPUCoreUsageAverage = 0.0
 			}
@@ -1818,7 +1821,13 @@ func applyPVBytes(pvMap map[pvKey]*pv, resPVBytes []*prom.QueryResult) {
 			continue
 		}
 
-		pvMap[key].Bytes = res.Values[0].Value
+		pvBytesUsed := res.Values[0].Value
+		if pvBytesUsed < PV_USAGE_SANITY_LIMIT_BYTES {
+			pvMap[key].Bytes = pvBytesUsed
+		} else {
+			pvMap[key].Bytes = 0
+			log.Infof("[WARNING] PV usage exceeds sanity limit, clamping to zero")
+		}
 	}
 }
 
