@@ -25,9 +25,9 @@ Visit the full documentation for [recommended install options](https://www.openc
 
 ## Usage
 
-- [Cost APIs](https://www.opencost.io/docs/api)
-- [CLI / kubectl cost](https://www.opencost.io/docs/kubectl-cost)
-- [Prometheus Metrics](https://www.opencost.io/docs/prometheus)
+- [Cost APIs](https://www.opencost.io/docs/integrations/api)
+- [CLI / kubectl cost](https://www.opencost.io/docs/integrations/kubectl-cost)
+- [Prometheus Metrics](https://www.opencost.io/docs/integrations/prometheus)
 - Reference [User Interface](https://github.com/opencost/opencost/tree/develop/ui)
 
 ## Contributing
