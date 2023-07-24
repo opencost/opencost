@@ -55,7 +55,8 @@ func Execute(opts *CostModelOpts) error {
 func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) error {
 	exportPath := env.GetExportCSVFile()
 	if exportPath == "" {
-		return fmt.Errorf("%s is not set, skipping CSV exporter", exportPath)
+		log.Infof("%s is not set, CSV export is disabled", env.ExportCSVFile)
+		return nil
 	}
 	fm, err := filemanager.NewFileManager(exportPath)
 	if err != nil {
