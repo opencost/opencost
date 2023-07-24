@@ -314,7 +314,7 @@ func Test_populate_pricing(t *testing.T) {
 		},
 	}
 
-	awsTest.populatePricing(&testResponse, inputkeys)
+	awsTest.populatePricing(testResponse.Body, inputkeys)
 
 	expectedProdTermsDisk := &AWSProductTerms{
 		Sku:     "M6UGCCQ3CDJQAA37",
@@ -453,7 +453,7 @@ func Test_populate_pricing(t *testing.T) {
 		},
 	}
 
-	awsTest.populatePricing(&testResponse, inputkeys)
+	awsTest.populatePricing(testResponse.Body, inputkeys)
 
 	expectedProdTermsDisk = &AWSProductTerms{
 		Sku:     "R83VXG9NAPDASEGN",

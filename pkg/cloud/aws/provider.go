@@ -754,9 +754,27 @@ func (aws *AWS) ClusterManagementPricing() (string, float64, error) {
 	return aws.clusterProvisioner, aws.clusterManagementPrice, nil
 }
 
-// Use the pricing data from the current region. Fall back to using all region data if needed.
-func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, error) {
+func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (io.Reader, error) {
+	if env.GetAWSPricingFilePath() != "" {
+		return aws.getRegionPricingFromFile(env.GetAWSPricingFilePath(), nodeList)
+	}
 
+	return aws.getRegionPricingFromURL(nodeList)
+}
+
+func (aws *AWS) getRegionPricingFromFile(filepath string, nodeList []*v1.Node) (io.Reader, error) {
+	file, err := os.Open(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("error reading file %s: %w", filepath, err)
+	}
+
+	log.Infof("AWS pricing: using local data: %s", filepath)
+
+	return file, nil
+}
+
+// Use the pricing data from the current region. Fall back to using all region data if needed.
+func (aws *AWS) getRegionPricingFromURL(nodeList []*v1.Node) (io.Reader, error) {
 	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/"
 	region := ""
 	multiregion := false
@@ -792,13 +810,14 @@ func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, e
 		pricingURL = env.GetAWSPricingURL()
 	}
 
-	log.Infof("starting download of \"%s\", which is quite large ...", pricingURL)
+	log.Debugf("starting download of \"%s\", which is quite large ...", pricingURL)
 	resp, err := http.Get(pricingURL)
 	if err != nil {
 		log.Errorf("Bogus fetch of \"%s\": %v", pricingURL, err)
-		return nil, pricingURL, err
+		return nil, err
 	}
-	return resp, pricingURL, err
+	log.Debugf("finished downloading \"%s\"", pricingURL)
+	return resp.Body, err
 }
 
 // SpotRefreshEnabled determines whether the required configs to run the spot feed query have been set up
@@ -918,15 +937,17 @@ func (aws *AWS) DownloadPricingData() error {
 
 	aws.ValidPricingKeys = make(map[string]bool)
 
-	resp, pricingURL, err := aws.getRegionPricing(nodeList)
+	pricingReader, err := aws.getRegionPricing(nodeList)
+	if err != nil {
+		log.Errorf("failed to get region pricing data: %s", err)
+		return fmt.Errorf("failed to get region pricing data: %w", err)
+	}
+
+	err = aws.populatePricing(pricingReader, inputkeys)
 	if err != nil {
 		return err
 	}
-	err = aws.populatePricing(resp, inputkeys)
-	if err != nil {
-		return err
-	}
-	log.Infof("Finished downloading \"%s\"", pricingURL)
+	log.Debugf("Finished populating pricing")
 
 	if !aws.SpotRefreshEnabled() {
 		return nil
@@ -955,17 +976,17 @@ func (aws *AWS) DownloadPricingData() error {
 	return nil
 }
 
-func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) error {
+func (aws *AWS) populatePricing(r io.Reader, inputkeys map[string]bool) error {
 	aws.Pricing = make(map[string]*AWSProductTerms)
 	skusToKeys := make(map[string]string)
-	dec := json.NewDecoder(resp.Body)
+	dec := json.NewDecoder(r)
 	for {
 		t, err := dec.Token()
 		if err == io.EOF {
-			log.Infof("done loading \"%s\"\n", resp.Request.URL.String())
+			log.Infof("done loading pricing data")
 			break
 		} else if err != nil {
-			log.Errorf("error parsing response json %v", resp.Body)
+			log.Errorf("error parsing pricing data JSON response: %s", err)
 			break
 		}
 		if t == "products" {
@@ -982,7 +1003,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 
 				err = dec.Decode(&product)
 				if err != nil {
-					log.Errorf("Error parsing response from \"%s\": %v", resp.Request.URL.String(), err.Error())
+					log.Errorf("error parsing pricing data JSON response: %s", err)
 					break
 				}
 

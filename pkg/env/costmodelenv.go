@@ -106,6 +106,8 @@ const (
 	ExportCSVFile       = "EXPORT_CSV_FILE"
 	ExportCSVLabelsList = "EXPORT_CSV_LABELS_LIST"
 	ExportCSVLabelsAll  = "EXPORT_CSV_LABELS_ALL"
+
+	AWSPricingFilePath = "AWS_PRICING_FILE_PATH"
 )
 
 const DefaultConfigMountPath = "/var/configs"
@@ -602,4 +604,8 @@ func GetRegionOverrideList() []string {
 	}
 
 	return regionList
+}
+
+func GetAWSPricingFilePath() string {
+	return Get(AWSPricingFilePath, "")
 }

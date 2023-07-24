@@ -832,7 +832,11 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		// NOTE: SummaryAllocation does not support ShareEven, so only record
 		// by cost for cost-weighted distribution.
 		if sharingCoeffs != nil {
-			sharingCoeffs[key] += sa.TotalCost() - sa.SharedCost
+			// Idle and unmounted allocations, by definition, do not
+			// receive shared cost
+			if !sa.IsIdle() && !sa.IsUnmounted() {
+				sharingCoeffs[key] += sa.TotalCost() - sa.SharedCost
+			}
 		}
 
 		// 6. Distribute idle allocations according to the idle coefficients.
@@ -1009,7 +1013,6 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		if sharingCoeffDenominator <= 0.0 {
 			log.Warnf("SummaryAllocation: sharing coefficient denominator is %f", sharingCoeffDenominator)
 		} else {
-
 			// Compute sharing coeffs by dividing the thus-far accumulated
 			// numerators by the now-finalized denominator.
 			for key := range sharingCoeffs {

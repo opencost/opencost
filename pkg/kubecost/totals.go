@@ -113,8 +113,8 @@ func ComputeAllocationTotals(as *AllocationSet, prop string) map[string]*Allocat
 	arts := map[string]*AllocationTotals{}
 
 	for _, alloc := range as.Allocations {
-		// Do not count idle or unmounted allocations
-		if alloc.IsIdle() || alloc.IsUnmounted() {
+		// Do not count idle allocations
+		if alloc.IsIdle() {
 			continue
 		}
 
