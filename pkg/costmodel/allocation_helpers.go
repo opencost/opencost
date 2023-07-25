@@ -164,7 +164,7 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 
 		}
 
-		allocStart, allocEnd := calculateStartEndFromIsRunning(res, resolution, window)
+		allocStart, allocEnd := calculateStartAndEnd(res, resolution, window)
 		if allocStart.IsZero() || allocEnd.IsZero() {
 			continue
 		}
@@ -1343,7 +1343,7 @@ func applyServicesToPods(podMap map[podKey]*pod, podLabels map[podKey]map[string
 	}
 }
 
-func getLoadBalancerCosts(lbMap map[serviceKey]*lbCost, resLBCost, resLBActiveMins []*prom.QueryResult, resolution time.Duration) {
+func getLoadBalancerCosts(lbMap map[serviceKey]*lbCost, resLBCost, resLBActiveMins []*prom.QueryResult, resolution time.Duration, window kubecost.Window) {
 	for _, res := range resLBActiveMins {
 		serviceKey, err := resultServiceKey(res, env.GetPromClusterLabel(), "namespace", "service_name")
 		if err != nil || len(res.Values) == 0 {
@@ -1351,7 +1351,7 @@ func getLoadBalancerCosts(lbMap map[serviceKey]*lbCost, resLBCost, resLBActiveMi
 		}
 
 		// load balancers have interpolation for costs, we don't need to offset the resolution
-		lbStart, lbEnd := calculateStartAndEnd(res, resolution, false)
+		lbStart, lbEnd := calculateStartAndEnd(res, resolution, window)
 		if lbStart.IsZero() || lbEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pvc %s has no running time", serviceKey)
 		}
@@ -1774,7 +1774,7 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*nodePricing, nodeKey no
 
 /* PV/PVC Helpers */
 
-func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHour, resPVActiveMins []*prom.QueryResult) {
+func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHour, resPVActiveMins []*prom.QueryResult, window kubecost.Window) {
 	for _, result := range resPVActiveMins {
 		key, err := resultPVKey(result, env.GetPromClusterLabel(), "persistentvolume")
 		if err != nil {
@@ -1782,7 +1782,7 @@ func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHo
 			continue
 		}
 
-		pvStart, pvEnd := calculateStartAndEnd(result, resolution, true)
+		pvStart, pvEnd := calculateStartAndEnd(result, resolution, window)
 		if pvStart.IsZero() || pvEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pv %s has no running time", key)
 		}
@@ -1836,7 +1836,7 @@ func applyPVBytes(pvMap map[pvKey]*pv, resPVBytes []*prom.QueryResult) {
 	}
 }
 
-func buildPVCMap(resolution time.Duration, pvcMap map[pvcKey]*pvc, pvMap map[pvKey]*pv, resPVCInfo []*prom.QueryResult) {
+func buildPVCMap(resolution time.Duration, pvcMap map[pvcKey]*pvc, pvMap map[pvKey]*pv, resPVCInfo []*prom.QueryResult, window kubecost.Window) {
 	for _, res := range resPVCInfo {
 		cluster, err := res.GetString(env.GetPromClusterLabel())
 		if err != nil {
@@ -1857,7 +1857,7 @@ func buildPVCMap(resolution time.Duration, pvcMap map[pvcKey]*pvc, pvMap map[pvK
 		pvKey := newPVKey(cluster, volume)
 		pvcKey := newPVCKey(cluster, namespace, name)
 
-		pvcStart, pvcEnd := calculateStartAndEnd(res, resolution, true)
+		pvcStart, pvcEnd := calculateStartAndEnd(res, resolution, window)
 		if pvcStart.IsZero() || pvcEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pvc %s has no running time", pvcKey)
 		}
@@ -2192,100 +2192,35 @@ func getUnmountedPodForNamespace(window kubecost.Window, podMap map[podKey]*pod,
 	return thisPod
 }
 
-func calculateStartAndEnd(result *prom.QueryResult, resolution time.Duration, offsetResolution bool) (time.Time, time.Time) {
+func calculateStartAndEnd(result *prom.QueryResult, resolution time.Duration, window kubecost.Window) (time.Time, time.Time) {
+	// Start and end for a range vector are pulled from the timestamps of the
+	// first and final values in the range. There is no "offsetting" required
+	// of the start or the end, as we used to do. If you query for a duration
+	// of time that is divisible by the given resolution, and set the end time
+	// to be precisely the end of the window, Prometheus should give all the
+	// relevant timestamps.
+	//
+	// E.g. avg(kube_pod_container_status_running{}) by (pod, namespace)[1h:1m]
+	// with time=01:00:00 will return, for a pod running the entire time,
+	// 61 timestamps where the first is 00:00:00 and the last is 01:00:00.
 	s := time.Unix(int64(result.Values[0].Timestamp), 0).UTC()
-	if offsetResolution {
-		// subtract resolution from start time to cover full time period
-		s = s.Add(-resolution)
-	}
 	e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).UTC()
+
+	// The only corner-case here is what to do if you only get one timestamp.
+	// This dilemma still requires the use of the resolution, and can be
+	// clamped using the window. In this case, we want to honor the existence
+	// of the pod by giving "one resolution" worth of duration, half on each
+	// side of the given timestamp.
+	if s.Equal(e) {
+		s = s.Add(-1 * resolution / time.Duration(2))
+		e = e.Add(resolution / time.Duration(2))
+	}
+	if s.Before(*window.Start()) {
+		s = *window.Start()
+	}
+	if e.After(*window.End()) {
+		e = *window.End()
+	}
+
 	return s, e
-}
-
-// calculateStartEndFromIsRunning Calculates the start and end of a prom result when the values of the datum are 0 for not running and 1 for running
-// the coeffs are used to adjust the start and end when the value is not equal to 1 or 0, which means that pod came up or went down in that window.
-func calculateStartEndFromIsRunning(result *prom.QueryResult, resolution time.Duration, window kubecost.Window) (time.Time, time.Time) {
-	// start and end are the timestamps of the first and last
-	// minutes the pod was running, respectively. We subtract one resolution
-	// from start because this point will actually represent the end
-	// of the first minute. We don't subtract from end because it
-	// already represents the end of the last minute.
-	var start, end time.Time
-	startAdjustmentCoeff, endAdjustmentCoeff := 1.0, 1.0
-	for _, datum := range result.Values {
-		t := time.Unix(int64(datum.Timestamp), 0)
-
-		if start.IsZero() && datum.Value > 0 && window.Contains(t) {
-			// Set the start timestamp to the earliest non-zero timestamp
-			start = t
-
-			// Record adjustment coefficient, i.e. the portion of the start
-			// timestamp to "ignore". That is, sometimes the value will be
-			// 0.5, meaning that we should discount the time running by
-			// half of the resolution the timestamp stands for.
-			startAdjustmentCoeff = (1.0 - datum.Value)
-		}
-
-		if datum.Value > 0 && window.Contains(t) {
-			// Set the end timestamp to the latest non-zero timestamp
-			end = t
-
-			// Record adjustment coefficient, i.e. the portion of the end
-			// timestamp to "ignore". (See explanation above for start.)
-			endAdjustmentCoeff = (1.0 - datum.Value)
-		}
-	}
-
-	// Do not attempt to adjust start if it is zero
-	if !start.IsZero() {
-		// Adjust timestamps according to the resolution and the adjustment
-		// coefficients, as described above. That is, count the start timestamp
-		// from the beginning of the resolution, not the end. Then "reduce" the
-		// start and end by the correct amount, in the case that the "running"
-		// value of the first or last timestamp was not a full 1.0.
-		start = start.Add(-resolution)
-		// Note: the *100 and /100 are necessary because Duration is an int, so
-		// 0.5, for instance, will be truncated, resulting in no adjustment.
-		start = start.Add(time.Duration(startAdjustmentCoeff*100) * resolution / time.Duration(100))
-		end = end.Add(-time.Duration(endAdjustmentCoeff*100) * resolution / time.Duration(100))
-
-		// Ensure that the start is always within the window, adjusting
-		// for the occasions where start falls 1m before the query window.
-		// NOTE: window here will always be closed (so no need to nil check
-		// "start").
-		// TODO:CLEANUP revisit query methodology to figure out why this is
-		// happening on occasion
-		if start.Before(*window.Start()) {
-			start = *window.Start()
-		}
-	}
-
-	// do not attempt to adjust end if it is zero
-	if !end.IsZero() {
-		// If there is only one point with a value <= 0.5 that the start and
-		// end timestamps both share, then we will enter this case because at
-		// least half of a resolution will be subtracted from both the start
-		// and the end. If that is the case, then add back half of each side
-		// so that the pod is said to run for half a resolution total.
-		// e.g. For resolution 1m and a value of 0.5 at one timestamp, we'll
-		//      end up with end == start and each coeff == 0.5. In
-		//      that case, add 0.25m to each side, resulting in 0.5m duration.
-		if !end.After(start) {
-			start = start.Add(-time.Duration(50*startAdjustmentCoeff) * resolution / time.Duration(100))
-			end = end.Add(time.Duration(50*endAdjustmentCoeff) * resolution / time.Duration(100))
-		}
-
-		// Ensure that the allocEnf is always within the window, adjusting
-		// for the occasions where end falls 1m after the query window. This
-		// has not ever happened, but is symmetrical with the start check
-		// above.
-		// NOTE: window here will always be closed (so no need to nil check
-		// "end").
-		// TODO:CLEANUP revisit query methodology to figure out why this is
-		// happening on occasion
-		if end.After(*window.End()) {
-			end = *window.End()
-		}
-	}
-	return start, end
 }
