@@ -21,7 +21,12 @@ import (
 const CPU_SANITY_LIMIT = 512
 
 // Sanity Limit for PV usage, set to 10 PB, in bytes for now
-const PV_USAGE_SANITY_LIMIT_BYTES = 10737418240
+const KiB = 1024.0
+const MiB = 1024.0 * KiB
+const GiB = 1024.0 * MiB
+const TiB = 1024.0 * GiB
+const PiB = 1024.0 * TiB
+const PV_USAGE_SANITY_LIMIT_BYTES = 10.0 * PiB
 
 /* Pod Helpers */
 
@@ -1826,7 +1831,7 @@ func applyPVBytes(pvMap map[pvKey]*pv, resPVBytes []*prom.QueryResult) {
 			pvMap[key].Bytes = pvBytesUsed
 		} else {
 			pvMap[key].Bytes = 0
-			log.Infof("[WARNING] PV usage exceeds sanity limit, clamping to zero")
+			log.Warnf("PV usage exceeds sanity limit, clamping to zero")
 		}
 	}
 }
