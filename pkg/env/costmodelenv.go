@@ -92,6 +92,8 @@ const (
 	PrometheusRetryOnRateLimitMaxRetriesEnvVar  = "PROMETHEUS_RETRY_ON_RATE_LIMIT_MAX_RETRIES"
 	PrometheusRetryOnRateLimitDefaultWaitEnvVar = "PROMETHEUS_RETRY_ON_RATE_LIMIT_DEFAULT_WAIT"
 
+	PrometheusHeaderXScopeOrgIdEnvVar = "PROMETHEUS_HEADER_X_SCOPE_ORGID"
+
 	IngestPodUIDEnvVar = "INGEST_POD_UID"
 
 	ETLReadOnlyMode = "ETL_READ_ONLY"
@@ -160,6 +162,15 @@ func GetPrometheusRetryOnRateLimitMaxRetries() int {
 // Retry-After header.
 func GetPrometheusRetryOnRateLimitDefaultWait() time.Duration {
 	return GetDuration(PrometheusRetryOnRateLimitDefaultWaitEnvVar, 100*time.Millisecond)
+}
+
+// GetPrometheusHeaderXScopeOrgId returns the default value for X-Scope-OrgID header used for requests in Mimir/Cortex-Tenant API.
+// To use Mimir(or Cortex-Tenant) instead of Prometheus add variable from cluster settings:
+// "PROMETHEUS_HEADER_X_SCOPE_ORGID": "my-cluster-name"
+// Then set Prometheus URL to prometheus API endpoint:
+// "PROMETHEUS_SERVER_ENDPOINT": "http://mimir-url/prometheus/"
+func GetPrometheusHeaderXScopeOrgId() string {
+	return Get(PrometheusHeaderXScopeOrgIdEnvVar, "")
 }
 
 // GetPrometheusQueryOffset returns the time.Duration to offset all prometheus queries by. NOTE: This env var is applied
