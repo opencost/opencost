@@ -9,11 +9,38 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	filter21 "github.com/opencost/opencost/pkg/filter21"
+	afilter "github.com/opencost/opencost/pkg/filter21/allocation"
+	"github.com/opencost/opencost/pkg/filter21/ops"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/json"
 	"github.com/opencost/opencost/pkg/util/timeutil"
 )
+
+var filterParser = afilter.NewAllocationFilterParser()
+var matcherCompiler = NewAllocationMatchCompiler(nil)
+
+// useful for creating filters on the fly when testing. panics
+// on parse errors!
+func mustParseFilter(s string) filter21.Filter {
+	filter, err := filterParser.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return filter
+}
+
+// useful for creating filters on the fly when testing. panics
+// on parse or compile errors!
+func mustCompileFilter(s string) AllocationMatcher {
+	filter := mustParseFilter(s)
+	m, err := matcherCompiler.Compile(filter)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
 
 func TestAllocation_Add(t *testing.T) {
 	var nilAlloc *Allocation
@@ -1087,51 +1114,33 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			expectedParcResults: map[string]ProportionalAssetResourceCosts{
 				"namespace1": {
 					"cluster1": ProportionalAssetResourceCost{
-						Cluster:                    "cluster1",
-						Node:                       "",
-						ProviderID:                 "",
-						CPUPercentage:              0.16667,
-						GPUPercentage:              0.16667,
-						RAMPercentage:              0.27083,
-						NodeResourceCostPercentage: 0.22619,
-						GPUTotalCost:               18,
-						GPUProportionalCost:        3,
-						CPUTotalCost:               18,
-						CPUProportionalCost:        3,
-						RAMTotalCost:               48,
-						RAMProportionalCost:        13,
+						Cluster:             "cluster1",
+						Name:                "",
+						Type:                "",
+						ProviderID:          "",
+						GPUProportionalCost: 3,
+						CPUProportionalCost: 3,
+						RAMProportionalCost: 13,
 					},
 				},
 				"namespace2": {
 					"cluster1": ProportionalAssetResourceCost{
-						Cluster:                    "cluster1",
-						Node:                       "",
-						ProviderID:                 "",
-						CPUPercentage:              0.16667,
-						GPUPercentage:              0.16667,
-						RAMPercentage:              0.0625,
-						NodeResourceCostPercentage: 0.10714,
-						GPUTotalCost:               18,
-						GPUProportionalCost:        3,
-						CPUTotalCost:               18,
-						CPUProportionalCost:        3,
-						RAMTotalCost:               48,
-						RAMProportionalCost:        3,
+						Cluster:             "cluster1",
+						Name:                "",
+						Type:                "",
+						ProviderID:          "",
+						GPUProportionalCost: 3,
+						CPUProportionalCost: 3,
+						RAMProportionalCost: 3,
 					},
 					"cluster2": ProportionalAssetResourceCost{
-						Cluster:                    "cluster2",
-						Node:                       "",
-						ProviderID:                 "",
-						CPUPercentage:              0.16667,
-						GPUPercentage:              0.16667,
-						RAMPercentage:              0.16667,
-						NodeResourceCostPercentage: 0.16667,
-						GPUTotalCost:               18,
-						GPUProportionalCost:        3,
-						CPUTotalCost:               18,
-						CPUProportionalCost:        3,
-						RAMTotalCost:               18,
-						RAMProportionalCost:        3,
+						Cluster:             "cluster2",
+						Name:                "",
+						Type:                "",
+						ProviderID:          "",
+						GPUProportionalCost: 3,
+						CPUProportionalCost: 3,
+						RAMProportionalCost: 3,
 					},
 				},
 			},
@@ -1191,11 +1200,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationClusterProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter: AllocationFilterCondition{
-					Field: FilterClusterID,
-					Op:    FilterEquals,
-					Value: "cluster1",
-				},
+				Filter:    mustParseFilter(`cluster:"cluster1"`),
 				ShareIdle: ShareNone,
 			},
 			numResults: 1 + numIdle,
@@ -1213,7 +1218,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationClusterProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:    AllocationFilterCondition{Field: FilterClusterID, Op: FilterEquals, Value: "cluster1"},
+				Filter:    mustParseFilter(`cluster:"cluster1"`),
 				ShareIdle: ShareWeighted,
 			},
 			numResults: 1,
@@ -1230,7 +1235,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:    AllocationFilterCondition{Field: FilterClusterID, Op: FilterEquals, Value: "cluster1"},
+				Filter:    mustParseFilter(`cluster:"cluster1"`),
 				ShareIdle: ShareNone,
 			},
 			numResults: 2 + numIdle,
@@ -1249,7 +1254,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationClusterProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:    AllocationFilterCondition{Field: FilterNamespace, Op: FilterEquals, Value: "namespace2"},
+				Filter:    mustParseFilter(`namespace:"namespace2"`),
 				ShareIdle: ShareNone,
 			},
 			numResults: numClusters + numIdle,
@@ -1292,7 +1297,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:    AllocationFilterCondition{Field: FilterNamespace, Op: FilterEquals, Value: "namespace2"},
+				Filter:    mustParseFilter(`namespace:"namespace2"`),
 				ShareIdle: ShareWeighted,
 			},
 			numResults: 1,
@@ -1317,7 +1322,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:            AllocationFilterCondition{Field: FilterNamespace, Op: FilterEquals, Value: "namespace2"},
+				Filter:            mustParseFilter(`namespace:"namespace2"`),
 				SharedHourlyCosts: map[string]float64{"total": sharedOverheadHourlyCost},
 				ShareSplit:        ShareWeighted,
 			},
@@ -1336,7 +1341,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:     AllocationFilterCondition{Field: FilterNamespace, Op: FilterEquals, Value: "namespace2"},
+				Filter:     mustParseFilter(`namespace:"namespace2"`),
 				ShareFuncs: []AllocationMatchFunc{isNamespace("namespace1")},
 				ShareSplit: ShareWeighted,
 			},
@@ -1355,7 +1360,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:     AllocationFilterCondition{Field: FilterNamespace, Op: FilterEquals, Value: "namespace2"},
+				Filter:     mustParseFilter(`namespace:"namespace2"`),
 				ShareFuncs: []AllocationMatchFunc{isNamespace("namespace1")},
 				ShareSplit: ShareWeighted,
 				ShareIdle:  ShareWeighted,
@@ -1461,7 +1466,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:     AllocationFilterCondition{Field: FilterNamespace, Op: FilterEquals, Value: "namespace2"},
+				Filter:     mustParseFilter(`namespace:"namespace2"`),
 				ShareFuncs: []AllocationMatchFunc{isNamespace("namespace1")},
 				ShareSplit: ShareWeighted,
 				ShareIdle:  ShareWeighted,
@@ -1507,7 +1512,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:            AllocationFilterCondition{Field: FilterNamespace, Op: FilterEquals, Value: "namespace2"},
+				Filter:            mustParseFilter(`namespace:"namespace2"`),
 				ShareSplit:        ShareWeighted,
 				ShareIdle:         ShareWeighted,
 				SharedHourlyCosts: map[string]float64{"total": sharedOverheadHourlyCost},
@@ -1543,113 +1548,71 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			expectedParcResults: map[string]ProportionalAssetResourceCosts{
 				"namespace1": {
 					"cluster1,c1nodes": ProportionalAssetResourceCost{
-						Cluster:                    "cluster1",
-						Node:                       "c1nodes",
-						ProviderID:                 "c1nodes",
-						CPUPercentage:              0.16667,
-						GPUPercentage:              0.16667,
-						RAMPercentage:              0.27083,
-						NodeResourceCostPercentage: 0.22619,
-						GPUTotalCost:               18,
-						GPUProportionalCost:        3,
-						CPUTotalCost:               18,
-						CPUProportionalCost:        3,
-						RAMTotalCost:               48,
-						RAMProportionalCost:        13,
+						Cluster:             "cluster1",
+						Name:                "c1nodes",
+						Type:                "Node",
+						ProviderID:          "c1nodes",
+						GPUProportionalCost: 3,
+						CPUProportionalCost: 3,
+						RAMProportionalCost: 13,
 					},
 					"cluster2,node2": ProportionalAssetResourceCost{
-						Cluster:                    "cluster2",
-						Node:                       "node2",
-						ProviderID:                 "node2",
-						CPUPercentage:              0.16667,
-						GPUPercentage:              0.16667,
-						RAMPercentage:              0.0625,
-						NodeResourceCostPercentage: 0.10714,
-						GPUTotalCost:               18,
-						GPUProportionalCost:        3,
-						CPUTotalCost:               18,
-						CPUProportionalCost:        3,
-						RAMTotalCost:               48,
-						RAMProportionalCost:        3,
+						Cluster:             "cluster2",
+						Name:                "node2",
+						Type:                "Node",
+						ProviderID:          "node2",
+						GPUProportionalCost: 3,
+						CPUProportionalCost: 3,
+						RAMProportionalCost: 3,
 					},
 				},
 				"namespace2": {
 					"cluster1,c1nodes": ProportionalAssetResourceCost{
-						Cluster:                    "cluster1",
-						Node:                       "c1nodes",
-						ProviderID:                 "c1nodes",
-						CPUPercentage:              0.16667,
-						GPUPercentage:              0.16667,
-						RAMPercentage:              0.0625,
-						NodeResourceCostPercentage: 0.10714,
-						GPUTotalCost:               18,
-						GPUProportionalCost:        3,
-						CPUTotalCost:               18,
-						CPUProportionalCost:        3,
-						RAMTotalCost:               48,
-						RAMProportionalCost:        3,
+						Cluster:             "cluster1",
+						Name:                "c1nodes",
+						Type:                "Node",
+						ProviderID:          "c1nodes",
+						GPUProportionalCost: 3,
+						CPUProportionalCost: 3,
+						RAMProportionalCost: 3,
 					},
 					"cluster2,node1": ProportionalAssetResourceCost{
-						Cluster:                    "cluster2",
-						Node:                       "node1",
-						ProviderID:                 "node1",
-						CPUPercentage:              0.5,
-						GPUPercentage:              0.5,
-						RAMPercentage:              0.5,
-						NodeResourceCostPercentage: 0.5,
-						GPUTotalCost:               4,
-						GPUProportionalCost:        2,
-						CPUTotalCost:               4,
-						CPUProportionalCost:        2,
-						RAMTotalCost:               4,
-						RAMProportionalCost:        2,
+						Cluster:             "cluster2",
+						Name:                "node1",
+						Type:                "Node",
+						ProviderID:          "node1",
+						GPUProportionalCost: 2,
+						CPUProportionalCost: 2,
+						RAMProportionalCost: 2,
 					},
 					"cluster2,node2": ProportionalAssetResourceCost{
-						Cluster:                    "cluster2",
-						Node:                       "node2",
-						ProviderID:                 "node2",
-						CPUPercentage:              0.5,
-						GPUPercentage:              0.5,
-						RAMPercentage:              0.5,
-						NodeResourceCostPercentage: 0.5,
-						GPUTotalCost:               2,
-						GPUProportionalCost:        1,
-						CPUTotalCost:               2,
-						CPUProportionalCost:        1,
-						RAMTotalCost:               2,
-						RAMProportionalCost:        1,
+						Cluster:             "cluster2",
+						Name:                "node2",
+						Type:                "Node",
+						ProviderID:          "node2",
+						GPUProportionalCost: 1,
+						CPUProportionalCost: 1,
+						RAMProportionalCost: 1,
 					},
 				},
 				"namespace3": {
 					"cluster2,node3": ProportionalAssetResourceCost{
-						Cluster:                    "cluster2",
-						Node:                       "node3",
-						ProviderID:                 "node3",
-						CPUPercentage:              0.5,
-						GPUPercentage:              0.5,
-						RAMPercentage:              0.5,
-						NodeResourceCostPercentage: 0.5,
-						GPUTotalCost:               4,
-						GPUProportionalCost:        2,
-						CPUTotalCost:               4,
-						CPUProportionalCost:        2,
-						RAMTotalCost:               4,
-						RAMProportionalCost:        2,
+						Cluster:             "cluster2",
+						Name:                "node3",
+						Type:                "Node",
+						ProviderID:          "node3",
+						GPUProportionalCost: 2,
+						CPUProportionalCost: 2,
+						RAMProportionalCost: 2,
 					},
 					"cluster2,node2": ProportionalAssetResourceCost{
-						Cluster:                    "cluster2",
-						Node:                       "node2",
-						ProviderID:                 "node2",
-						CPUPercentage:              0.5,
-						GPUPercentage:              0.5,
-						RAMPercentage:              0.5,
-						NodeResourceCostPercentage: 0.5,
-						GPUTotalCost:               2,
-						GPUProportionalCost:        1,
-						CPUTotalCost:               2,
-						CPUProportionalCost:        1,
-						RAMTotalCost:               2,
-						RAMProportionalCost:        1,
+						Cluster:             "cluster2",
+						Name:                "node2",
+						Type:                "Node",
+						ProviderID:          "node2",
+						GPUProportionalCost: 1,
+						CPUProportionalCost: 1,
+						RAMProportionalCost: 1,
 					},
 				},
 			},
@@ -1687,7 +1650,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:     AllocationFilterCondition{Field: FilterNamespace, Op: FilterEquals, Value: "namespace2"},
+				Filter:     mustParseFilter(`namespace:"namespace2"`),
 				ShareIdle:  ShareWeighted,
 				IdleByNode: true,
 			},
@@ -1928,7 +1891,8 @@ func TestAllocationSet_insertMatchingWindow(t *testing.T) {
 func TestParcInsert(t *testing.T) {
 	pod1_hour1 := ProportionalAssetResourceCost{
 		Cluster:                    "cluster1",
-		Node:                       "node1",
+		Name:                       "node1",
+		Type:                       "Node",
 		ProviderID:                 "i-1234",
 		CPUPercentage:              0.125,
 		GPUPercentage:              0,
@@ -1940,7 +1904,8 @@ func TestParcInsert(t *testing.T) {
 
 	pod1_hour2 := ProportionalAssetResourceCost{
 		Cluster:                    "cluster1",
-		Node:                       "node1",
+		Name:                       "node1",
+		Type:                       "Node",
 		ProviderID:                 "i-1234",
 		CPUPercentage:              0.0,
 		GPUPercentage:              0,
@@ -1951,7 +1916,8 @@ func TestParcInsert(t *testing.T) {
 
 	pod1_hour3 := ProportionalAssetResourceCost{
 		Cluster:                    "cluster1",
-		Node:                       "node1",
+		Name:                       "node1",
+		Type:                       "Node",
 		ProviderID:                 "i-1234",
 		CPUPercentage:              0.0,
 		GPUPercentage:              0,
@@ -1962,7 +1928,8 @@ func TestParcInsert(t *testing.T) {
 
 	pod2_hour1 := ProportionalAssetResourceCost{
 		Cluster:                    "cluster1",
-		Node:                       "node2",
+		Name:                       "node2",
+		Type:                       "Node",
 		ProviderID:                 "i-1234",
 		CPUPercentage:              0.0,
 		GPUPercentage:              0,
@@ -1974,7 +1941,8 @@ func TestParcInsert(t *testing.T) {
 
 	pod2_hour2 := ProportionalAssetResourceCost{
 		Cluster:                    "cluster1",
-		Node:                       "node2",
+		Name:                       "node2",
+		Type:                       "Node",
 		ProviderID:                 "i-1234",
 		CPUPercentage:              0.0,
 		GPUPercentage:              0,
@@ -1986,7 +1954,8 @@ func TestParcInsert(t *testing.T) {
 
 	pod2_hour3 := ProportionalAssetResourceCost{
 		Cluster:                    "cluster1",
-		Node:                       "node2",
+		Name:                       "node2",
+		Type:                       "Node",
 		ProviderID:                 "i-1234",
 		CPUPercentage:              0.0,
 		GPUPercentage:              0,
@@ -1998,7 +1967,8 @@ func TestParcInsert(t *testing.T) {
 
 	pod3_hour1 := ProportionalAssetResourceCost{
 		Cluster:                    "cluster1",
-		Node:                       "node3",
+		Name:                       "node3",
+		Type:                       "Node",
 		ProviderID:                 "i-1234",
 		CPUPercentage:              0.0,
 		GPUPercentage:              0,
@@ -2010,7 +1980,8 @@ func TestParcInsert(t *testing.T) {
 
 	pod3_hour2 := ProportionalAssetResourceCost{
 		Cluster:                    "cluster1",
-		Node:                       "node3",
+		Name:                       "node3",
+		Type:                       "Node",
 		ProviderID:                 "i-1234",
 		CPUPercentage:              0.0,
 		GPUPercentage:              0,
@@ -2022,7 +1993,8 @@ func TestParcInsert(t *testing.T) {
 
 	pod3_hour3 := ProportionalAssetResourceCost{
 		Cluster:                    "cluster1",
-		Node:                       "node3",
+		Name:                       "node3",
+		Type:                       "Node",
 		ProviderID:                 "i-1234",
 		CPUPercentage:              0.0,
 		GPUPercentage:              0,
@@ -2043,6 +2015,32 @@ func TestParcInsert(t *testing.T) {
 	parcs.Insert(pod3_hour2, true)
 	parcs.Insert(pod3_hour3, true)
 	log.Debug("added all parcs")
+
+	// set totals, compute percentaves
+	parc1, ok := parcs["cluster1,node1"]
+	if !ok {
+		t.Fatalf("parc1 not found")
+	}
+	parc1.CPUTotalCost = 12
+
+	parc2, ok := parcs["cluster1,node2"]
+	if !ok {
+		t.Fatalf("parc2 not found")
+	}
+	parc2.CPUTotalCost = 12
+
+	parc3, ok := parcs["cluster1,node3"]
+	if !ok {
+		t.Fatalf("parc1 not found")
+	}
+	parc3.CPUTotalCost = 12
+
+	ComputePercentages(&parc1)
+	ComputePercentages(&parc2)
+	ComputePercentages(&parc3)
+	parcs["cluster1,node1"] = parc1
+	parcs["cluster1,node2"] = parc2
+	parcs["cluster1,node3"] = parc3
 
 	expectedParcs := ProportionalAssetResourceCosts{
 		"cluster1,node1": ProportionalAssetResourceCost{
@@ -3187,7 +3185,7 @@ func Test_AggregateByService_UnmountedLBs(t *testing.T) {
 	set.Insert(idle)
 
 	set.AggregateBy([]string{AllocationServiceProp}, &AllocationAggregationOptions{
-		Filter: AllocationFilterCondition{Field: FilterServices, Op: FilterContains, Value: "nginx-plus-nginx-ingress"},
+		Filter: ops.Contains(afilter.FieldServices, "nginx-plus-nginx-ingress"),
 	})
 
 	for _, alloc := range set.Allocations {
@@ -3213,4 +3211,228 @@ func Test_AggregateByService_UnmountedLBs(t *testing.T) {
 
 	spew.Config.DisableMethods = true
 	t.Logf("%s", spew.Sdump(set.Allocations))
+}
+
+func Test_DetermineSharingName(t *testing.T) {
+	var alloc *Allocation
+	var name string
+	var err error
+
+	// test nil allocation with nil options
+	name, err = alloc.determineSharingName(nil)
+	if err == nil {
+		t.Fatalf("determineSharingName: expected error; actual nil")
+	}
+
+	// test nil with non-nil options
+	name, err = alloc.determineSharingName(&AllocationAggregationOptions{})
+	if err == nil {
+		t.Fatalf("determineSharingName: expected error; actual nil")
+	}
+
+	alloc = &Allocation{}
+	alloc.Properties = &AllocationProperties{
+		Cluster: "cluster1",
+		Labels: map[string]string{
+			"app": "app1",
+			"env": "env1",
+		},
+		Namespace: "namespace1",
+	}
+
+	// test non-nil allocation with nil options
+	name, err = alloc.determineSharingName(nil)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "unknown" {
+		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with empty options
+	options := &AllocationAggregationOptions{}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "unknown" {
+		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with matching namespace options
+	options.SharedNamespaces = []string{"namespace1"}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "namespace1" {
+		t.Fatalf("determineSharingName: expected \"namespace1\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with non-matching namespace options
+	options.SharedNamespaces = []string{"namespace2"}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "unknown" {
+		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with matching label options
+	options.SharedNamespaces = nil
+	options.SharedLabels = map[string][]string{
+		"app": {"app1"},
+	}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "app1" {
+		t.Fatalf("determineSharingName: expected \"app1\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with partial-matching label options
+	options.SharedLabels = map[string][]string{
+		"app": {"app1", "app2"},
+	}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "app1" {
+		t.Fatalf("determineSharingName: expected \"app1\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with non-matching label options
+	options.SharedLabels = map[string][]string{
+		"app": {"app2"},
+	}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "unknown" {
+		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with matching namespace and label options
+	options.SharedNamespaces = []string{"namespace1"}
+	options.SharedLabels = map[string][]string{
+		"app": {"app1"},
+	}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "app1" {
+		t.Fatalf("determineSharingName: expected \"app1\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with non-matching namespace and matching label options
+	options.SharedNamespaces = []string{"namespace2"}
+	options.SharedLabels = map[string][]string{
+		"app": {"app1"},
+	}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "app1" {
+		t.Fatalf("determineSharingName: expected \"app1\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with non-matching namespace and non-matching label options
+	options.SharedNamespaces = []string{"namespace2"}
+	options.SharedLabels = map[string][]string{
+		"app": {"app2"},
+	}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "unknown" {
+		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with multiple matching label options
+	alloc.Properties.Labels = map[string]string{
+		"app": "app1",
+		"env": "env1",
+	}
+	options.SharedNamespaces = nil
+	options.SharedLabels = map[string][]string{
+		"app": {"app1"},
+		"env": {"env1"},
+	}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "app1" {
+		t.Fatalf("determineSharingName: expected \"app1\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with one matching label option
+	alloc.Properties.Labels = map[string]string{
+		"app": "app2",
+		"env": "env1",
+	}
+	options.SharedNamespaces = nil
+	options.SharedLabels = map[string][]string{
+		"app": {"app1"},
+		"env": {"env1"},
+	}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "env1" {
+		t.Fatalf("determineSharingName: expected \"env1\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with one matching namespace option
+	alloc.Properties.Namespace = "namespace1"
+	options.SharedNamespaces = []string{"namespace1", "namespace2"}
+	options.SharedLabels = nil
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "namespace1" {
+		t.Fatalf("determineSharingName: expected \"namespace1\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with another one matching namespace option
+	alloc.Properties.Namespace = "namespace2"
+	options.SharedNamespaces = []string{"namespace1", "namespace2"}
+	options.SharedLabels = nil
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "namespace2" {
+		t.Fatalf("determineSharingName: expected \"namespace2\"; actual \"%s\"", name)
+	}
+
+	// test non-nil allocation with non-matching namespace options
+	alloc.Properties.Namespace = "namespace3"
+	options.SharedNamespaces = []string{"namespace1", "namespace2"}
+	name, err = alloc.determineSharingName(options)
+	if err != nil {
+		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
+	} else if err != nil || name != "unknown" {
+		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
+	}
+}
+
+func TestIsFilterEmptyTrue(t *testing.T) {
+	compiler := NewAllocationMatchCompiler(nil)
+	matcher, err := compiler.Compile(nil)
+	if err != nil {
+		t.Fatalf("compiling nil filter: %s", err)
+	}
+
+	result := isFilterEmpty(matcher)
+	if !result {
+		t.Errorf("matcher '%+v' should be reported empty but wasn't", matcher)
+	}
+}
+
+func TestIsFilterEmptyFalse(t *testing.T) {
+	compiler := NewAllocationMatchCompiler(nil)
+	matcher, err := compiler.Compile(ops.Eq(afilter.FieldClusterID, "test"))
+	if err != nil {
+		t.Fatalf("compiling nil filter: %s", err)
+	}
+	result := isFilterEmpty(matcher)
+	if result {
+		t.Errorf("matcher '%+v' should be not be reported empty but was", matcher)
+	}
 }

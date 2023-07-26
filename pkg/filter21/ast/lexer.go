@@ -1,11 +1,9 @@
-package allocationfilterutil
+package ast
 
 import (
 	"fmt"
 
 	multierror "github.com/hashicorp/go-multierror"
-
-	"github.com/opencost/opencost/pkg/kubecost"
 )
 
 // ============================================================================
@@ -21,36 +19,28 @@ const (
 	colon tokenKind = iota // ':'
 	comma                  // ','
 	plus                   // '+'
+	or                     // '|'
 
-	bangColon // '!:'
+	bangColon           // '!:'
+	tildeColon          // '~:'
+	bangTildeColon      // '!~:'
+	startTildeColon     // '<~:'
+	bangStartTildeColon // '!<~:'
+	tildeEndColon       // '~>:'
+	bangTildeEndColon   // '!~>:'
+
+	parenOpen  // '('
+	parenClose // ')'
 
 	str // '"foo"'
 
-	filterField1 // 'namespace', 'cluster'
-	filterField2 // 'label', 'annotation'
-	keyedAccess  // '[app]', '[foo]', etc.
-	identifier   // K8s valid name + sanitized Prom: 'app', 'abc_label'
+	filterField // 'namespace', 'cluster'
+	mapField    // 'label', 'annotation'
+	keyedAccess // '[app]', '[foo]', etc.
+	identifier  // K8s valid name + sanitized Prom: 'app', 'abc_label'
 
 	eof
 )
-
-// These maps serve a dual purpose. (1) to help the lexer identify special
-// strings that should become filterField1/2 instead of identifiers and (2) to
-// help the parser convert tokens into AllocationFilterConditions.
-var ff1ToKCFilterField = map[string]kubecost.FilterField{
-	"cluster":        kubecost.FilterClusterID,
-	"node":           kubecost.FilterNode,
-	"namespace":      kubecost.FilterNamespace,
-	"controllerName": kubecost.FilterControllerName,
-	"controllerKind": kubecost.FilterControllerKind,
-	"container":      kubecost.FilterContainer,
-	"pod":            kubecost.FilterPod,
-	"services":       kubecost.FilterServices,
-}
-var ff2ToKCFilterField = map[string]kubecost.FilterField{
-	"label":      kubecost.FilterLabel,
-	"annotation": kubecost.FilterAnnotation,
-}
 
 func (tk tokenKind) String() string {
 	switch tk {
@@ -60,13 +50,31 @@ func (tk tokenKind) String() string {
 		return "comma"
 	case plus:
 		return "plus"
+	case or:
+		return "or"
 	case bangColon:
 		return "bangColon"
+	case tildeColon:
+		return "tildeColon"
+	case bangTildeColon:
+		return "bangTildeColon"
+	case startTildeColon:
+		return "startTildeColon"
+	case bangStartTildeColon:
+		return "bangStartTildeColon"
+	case tildeEndColon:
+		return "tildeEndColon"
+	case bangTildeEndColon:
+		return "bangTildeEndColon"
+	case parenOpen:
+		return "parenOpen"
+	case parenClose:
+		return "parenClose"
 	case str:
 		return "str"
-	case filterField1:
+	case filterField:
 		return "filterField1"
-	case filterField2:
+	case mapField:
 		return "filterField2"
 	case keyedAccess:
 		return "keyedAccess"
@@ -99,6 +107,9 @@ type scanner struct {
 	source string
 	tokens []token
 	errors []error
+
+	fields    map[string]*Field
+	mapFields map[string]*Field
 
 	lexemeStartByte int
 	nextByte        int
@@ -169,11 +180,61 @@ func (s *scanner) scanToken() {
 		s.addToken(comma)
 	case '+':
 		s.addToken(plus)
+	case '|':
+		s.addToken(or)
 	case '!':
 		if s.match(':') {
 			s.addToken(bangColon)
+		} else if s.match('~') {
+			if s.match(':') {
+				s.addToken(bangTildeColon)
+			} else if s.match('>') {
+				if s.match(':') {
+					s.addToken(bangTildeEndColon)
+				} else {
+					s.errors = append(s.errors, fmt.Errorf("Position %d: Unexpected '>'", s.nextByte-1))
+				}
+			} else {
+				s.errors = append(s.errors, fmt.Errorf("Position %d: Unexpected '~'", s.nextByte-1))
+			}
+		} else if s.match('<') {
+			if s.match('~') {
+				if s.match(':') {
+					s.addToken(bangStartTildeColon)
+				} else {
+					s.errors = append(s.errors, fmt.Errorf("Position %d: Unexpected '~'", s.nextByte-1))
+				}
+			} else {
+				s.errors = append(s.errors, fmt.Errorf("Position %d: Unexpected '<'", s.nextByte-1))
+			}
 		} else {
 			s.errors = append(s.errors, fmt.Errorf("Position %d: Unexpected '!'", s.nextByte-1))
+		}
+	case '(':
+		s.addToken(parenOpen)
+	case ')':
+		s.addToken(parenClose)
+	case '<':
+		if s.match('~') {
+			if s.match(':') {
+				s.addToken(startTildeColon)
+			} else {
+				s.errors = append(s.errors, fmt.Errorf("Position %d: Unexpected '~'", s.nextByte-1))
+			}
+		} else {
+			s.errors = append(s.errors, fmt.Errorf("Position %d: Unexpected '<'", s.nextByte-1))
+		}
+	case '~':
+		if s.match(':') {
+			s.addToken(tildeColon)
+		} else if s.match('>') {
+			if s.match(':') {
+				s.addToken(tildeEndColon)
+			} else {
+				s.errors = append(s.errors, fmt.Errorf("Position %d: Unexpected '>'", s.nextByte-1))
+			}
+		} else {
+			s.errors = append(s.errors, fmt.Errorf("Position %d: Unexpected '~'", s.nextByte-1))
 		}
 	// strings
 	case '"':
@@ -255,17 +316,22 @@ func (s *scanner) identifier() {
 	}
 
 	tokenText := s.source[s.lexemeStartByte:s.nextByte]
-	if _, ok := ff1ToKCFilterField[tokenText]; ok {
-		s.addToken(filterField1)
-	} else if _, ok := ff2ToKCFilterField[tokenText]; ok {
-		s.addToken(filterField2)
+	if _, ok := s.fields[tokenText]; ok {
+		s.addToken(filterField)
+	} else if _, ok := s.mapFields[tokenText]; ok {
+		s.addToken(mapField)
 	} else {
 		s.addToken(identifier)
 	}
 }
 
-func lexAllocationFilterV2(raw string) ([]token, error) {
-	s := scanner{source: raw}
+// lex will generate a slice of tokens provided a raw string and the filter field definitions
+func lex(raw string, fields map[string]*Field, mapFields map[string]*Field) ([]token, error) {
+	s := scanner{
+		source:    raw,
+		fields:    fields,
+		mapFields: mapFields,
+	}
 	s.scanTokens()
 
 	if len(s.errors) > 0 {

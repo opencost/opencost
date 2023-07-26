@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/pkg/filter21/ast"
+	"github.com/opencost/opencost/pkg/filter21/matcher"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util/timeutil"
 )
@@ -292,12 +294,20 @@ func (sa *SummaryAllocation) IsUnallocated() bool {
 
 // IsUnmounted is true if the given SummaryAllocation represents unmounted
 // volume costs.
+// Note: Due to change in https://github.com/opencost/opencost/pull/1477 made to include Unmounted
+// PVC cost inside namespace we need to check unmounted suffix across all the three major properties
+// to actually classify it as unmounted.
 func (sa *SummaryAllocation) IsUnmounted() bool {
 	if sa == nil {
 		return false
 	}
-
-	return strings.Contains(sa.Name, UnmountedSuffix)
+	props := sa.Properties
+	if props != nil {
+		if props.Container == UnmountedSuffix && props.Namespace == UnmountedSuffix && props.Pod == UnmountedSuffix {
+			return true
+		}
+	}
+	return false
 }
 
 // Minutes returns the number of minutes the SummaryAllocation represents, as
@@ -370,15 +380,13 @@ type SummaryAllocationSet struct {
 // required for unfortunate reasons to do with performance and legacy order-of-
 // operations details, as well as the fact that reconciliation has been
 // pushed down to the conversion step between Allocation and SummaryAllocation.
-func NewSummaryAllocationSet(as *AllocationSet, filter AllocationFilter, kfs []AllocationMatchFunc, reconcile, reconcileNetwork bool) *SummaryAllocationSet {
+//
+// This filter is an AllocationMatcher, not an AST, because at this point we
+// already have the data and want to make sure that the filter has already
+// gone through a compile step to deal with things like aliases.
+func NewSummaryAllocationSet(as *AllocationSet, filter AllocationMatcher, kfs []AllocationMatchFunc, reconcile, reconcileNetwork bool) *SummaryAllocationSet {
 	if as == nil {
 		return nil
-	}
-
-	// Pre-flatten the filter so we can just check == nil to see if there are
-	// filters.
-	if filter != nil {
-		filter = filter.Flattened()
 	}
 
 	// If we can know the exact size of the map, use it. If filters or sharing
@@ -542,10 +550,19 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		options.LabelConfig = NewLabelConfig()
 	}
 
-	// Pre-flatten the filter so we can just check == nil to see if there are
-	// filters.
-	if options.Filter != nil {
-		options.Filter = options.Filter.Flattened()
+	var filter AllocationMatcher
+	if options.Filter == nil {
+		filter = &matcher.AllPass[*Allocation]{}
+	} else {
+		compiler := NewAllocationMatchCompiler(options.LabelConfig)
+		var err error
+		filter, err = compiler.Compile(options.Filter)
+		if err != nil {
+			return fmt.Errorf("compiling filter '%s': %w", ast.ToPreOrderShortString(options.Filter), err)
+		}
+	}
+	if filter == nil {
+		return fmt.Errorf("unexpected nil filter")
 	}
 
 	// Check if we have any work to do; if not, then early return. If
@@ -973,6 +990,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// 11. Distribute shared resources according to sharing coefficients.
 	// NOTE: ShareEven is not supported
 	if len(shareSet.SummaryAllocations) > 0 {
+
 		sharingCoeffDenominator := 0.0
 		for _, rt := range allocTotals {
 			sharingCoeffDenominator += rt.TotalCost()
@@ -991,9 +1009,14 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		if sharingCoeffDenominator <= 0.0 {
 			log.Warnf("SummaryAllocation: sharing coefficient denominator is %f", sharingCoeffDenominator)
 		} else {
+
 			// Compute sharing coeffs by dividing the thus-far accumulated
 			// numerators by the now-finalized denominator.
 			for key := range sharingCoeffs {
+				// Do not share the value with unmounted suffix since it's not included in the computation.
+				if key == UnmountedSuffix {
+					continue
+				}
 				if sharingCoeffs[key] > 0.0 {
 					sharingCoeffs[key] /= sharingCoeffDenominator
 				} else {
@@ -1027,19 +1050,13 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 
 	// 12. Insert external allocations into the result set.
 	for _, sa := range externalSet.SummaryAllocations {
-		skip := false
-
 		// Make an allocation with the same properties and test that
 		// against the FilterFunc to see if the external allocation should
 		// be filtered or not.
 		// TODO:CLEANUP do something about external cost, this stinks
 		ea := &Allocation{Properties: sa.Properties}
 
-		if options.Filter != nil {
-			skip = !options.Filter.Matches(ea)
-		}
-
-		if !skip {
+		if filter.Matches(ea) {
 			key := sa.generateKey(aggregateBy, options.LabelConfig)
 
 			sa.Name = key
@@ -1051,17 +1068,13 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// per-resource idle cost for which there can be no idle coefficient
 	// computed because there is zero usage across all allocations.
 	for _, isa := range idleSet.SummaryAllocations {
-		// if the idle does not apply to the non-filtered values, skip it
-		skip := false
 		// Make an allocation with the same properties and test that
 		// against the FilterFunc to see if the external allocation should
 		// be filtered or not.
 		// TODO:CLEANUP do something about external cost, this stinks
 		ia := &Allocation{Properties: isa.Properties}
-		if options.Filter != nil {
-			skip = !options.Filter.Matches(ia)
-		}
-		if skip {
+		// if the idle does not apply to the non-filtered values, skip it
+		if !filter.Matches(ia) {
 			continue
 		}
 

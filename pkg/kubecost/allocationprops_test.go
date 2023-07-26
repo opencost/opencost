@@ -21,8 +21,10 @@ func TestAllocationPropsIntersection(t *testing.T) {
 				Annotations: map[string]string{},
 			},
 			expected: &AllocationProperties{
-				Labels:      nil,
-				Annotations: nil,
+				Labels:               nil,
+				Annotations:          nil,
+				NamespaceLabels:      map[string]string{},
+				NamespaceAnnotations: map[string]string{},
 			},
 		},
 		"nil intersection": {
@@ -30,7 +32,7 @@ func TestAllocationPropsIntersection(t *testing.T) {
 			allocationProps2: nil,
 			expected:         nil,
 		},
-		"intersection, with labels/annotations, no aggregated metdata": {
+		"intersection, with labels/annotations, no aggregated metadata": {
 			allocationProps1: &AllocationProperties{
 				AggregatedMetadata: false,
 				Node:               "node1",
@@ -44,13 +46,15 @@ func TestAllocationPropsIntersection(t *testing.T) {
 				Annotations:        map[string]string{"key4": "val4"},
 			},
 			expected: &AllocationProperties{
-				AggregatedMetadata: false,
-				Node:               "node1",
-				Labels:             nil,
-				Annotations:        nil,
+				AggregatedMetadata:   false,
+				Node:                 "node1",
+				Labels:               nil,
+				Annotations:          nil,
+				NamespaceLabels:      map[string]string{},
+				NamespaceAnnotations: map[string]string{},
 			},
 		},
-		"intersection, with labels/annotations, with aggregated metdata": {
+		"intersection, with labels/annotations, same values": {
 			allocationProps1: &AllocationProperties{
 				AggregatedMetadata: false,
 				ControllerKind:     "controller1",
@@ -66,11 +70,13 @@ func TestAllocationPropsIntersection(t *testing.T) {
 				Annotations:        map[string]string{"key2": "val2"},
 			},
 			expected: &AllocationProperties{
-				AggregatedMetadata: true,
-				Namespace:          "ns1",
-				ControllerKind:     "",
-				Labels:             map[string]string{"key1": "val1"},
-				Annotations:        map[string]string{"key2": "val2"},
+				AggregatedMetadata:   true,
+				Namespace:            "ns1",
+				ControllerKind:       "",
+				Labels:               map[string]string{"key1": "val1"},
+				Annotations:          map[string]string{"key2": "val2"},
+				NamespaceLabels:      map[string]string{},
+				NamespaceAnnotations: map[string]string{},
 			},
 		},
 		"intersection, with labels/annotations, special case container": {
@@ -89,11 +95,13 @@ func TestAllocationPropsIntersection(t *testing.T) {
 				Annotations:        map[string]string{"key2": "val2"},
 			},
 			expected: &AllocationProperties{
-				AggregatedMetadata: true,
-				Namespace:          "ns1",
-				ControllerKind:     "",
-				Labels:             map[string]string{"key1": "val1"},
-				Annotations:        map[string]string{"key2": "val2"},
+				AggregatedMetadata:   true,
+				Namespace:            "ns1",
+				ControllerKind:       "",
+				Labels:               map[string]string{"key1": "val1"},
+				Annotations:          map[string]string{"key2": "val2"},
+				NamespaceLabels:      map[string]string{},
+				NamespaceAnnotations: map[string]string{},
 			},
 		},
 		"test services are nulled when intersecting": {
@@ -115,11 +123,13 @@ func TestAllocationPropsIntersection(t *testing.T) {
 				Annotations:        map[string]string{"key2": "val2"},
 			},
 			expected: &AllocationProperties{
-				AggregatedMetadata: true,
-				Namespace:          "ns1",
-				ControllerKind:     "",
-				Labels:             map[string]string{"key1": "val1"},
-				Annotations:        map[string]string{"key2": "val2"},
+				AggregatedMetadata:   true,
+				Namespace:            "ns1",
+				ControllerKind:       "",
+				Labels:               map[string]string{"key1": "val1"},
+				Annotations:          map[string]string{"key2": "val2"},
+				NamespaceLabels:      map[string]string{},
+				NamespaceAnnotations: map[string]string{},
 			},
 		},
 	}
@@ -236,4 +246,122 @@ func TestGenerateKey(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIntersection(t *testing.T) {
+
+	propsEmpty := AllocationProperties{}
+
+	propsMedium := AllocationProperties{
+		Cluster:        "cluster1",
+		Node:           "Node1",
+		Container:      "container1",
+		Controller:     "controller1",
+		ControllerKind: "controllerkind1",
+		Namespace:      "ns1",
+		Pod:            "pod1",
+		Services:       []string{"service1"},
+		ProviderID:     "provider1",
+	}
+
+	propsFull := AllocationProperties{
+		Cluster:              "cluster2",
+		Node:                 "Node2",
+		Container:            "container2",
+		Controller:           "controller2",
+		ControllerKind:       "controllerkind2",
+		Namespace:            "ns2",
+		Pod:                  "pod2",
+		Services:             []string{"service2"},
+		ProviderID:           "provider2",
+		NamespaceLabels:      AllocationLabels{"key1": "value1"},
+		NamespaceAnnotations: AllocationAnnotations{"key2": "value2", "key5": "value5"},
+		Labels:               AllocationLabels{"key3": "value3"},
+		Annotations:          AllocationAnnotations{"key4": "value4"},
+	}
+
+	// Case 1: no intersection
+	// expect empty result object
+	testObj1 := AllocationProperties{}
+
+	result := testObj1.Intersection(&propsEmpty)
+
+	if !result.Equal(&propsEmpty) {
+		t.Fatalf("Case 1: expected empty object, no intersection")
+	}
+
+	// Case 2: Only has labels/annotations
+	// expect empty result object
+	testObj2 := AllocationProperties{
+		Labels:      map[string]string{"app": "product-label-light"},
+		Annotations: map[string]string{"app": "product-annotation-light"},
+	}
+
+	result = testObj2.Intersection(&propsMedium)
+
+	if !result.Equal(&propsEmpty) {
+		t.Fatalf("Case 2: expected empty object, no intersection")
+	}
+
+	// Case 3: Has non-label/annotations set
+	// expect all non label/annotation/service string array fields to be unset
+	// different container names should be omitted
+	testObj3 := AllocationProperties{
+		Cluster:        "cluster1",
+		Node:           "Node1",
+		Container:      "container2",
+		Controller:     "controller1",
+		ControllerKind: "controllerkind1",
+		Namespace:      "ns1",
+		Pod:            "pod1",
+		Services:       []string{"service1"},
+		ProviderID:     "provider1",
+	}
+
+	expectedResult := AllocationProperties{
+		Cluster:        "cluster1",
+		Node:           "Node1",
+		Controller:     "controller1",
+		ControllerKind: "controllerkind1",
+		Namespace:      "ns1",
+		Pod:            "pod1",
+		ProviderID:     "provider1",
+	}
+
+	result = testObj3.Intersection(&propsMedium)
+
+	if !result.Equal(&expectedResult) {
+		t.Fatalf("Case 3: expected output %v does not match actual output %v", expectedResult, result)
+	}
+
+	// Case 4: Copy over NamespaceLabels/Annots when namespace is the same
+	testObj4 := AllocationProperties{
+		Cluster:              "cluster2",
+		Node:                 "NodeX",
+		Container:            "containerX",
+		Controller:           "controllerX",
+		ControllerKind:       "controllerkindX",
+		Namespace:            "ns2",
+		Pod:                  "podX",
+		Services:             []string{"serviceX"},
+		ProviderID:           "providerX",
+		NamespaceLabels:      AllocationLabels{"key1": "value1"},
+		NamespaceAnnotations: AllocationAnnotations{"key2": "value2", "key5": "value5"},
+		Labels:               AllocationLabels{"key3": "value3"},
+		Annotations:          AllocationAnnotations{"key4": "value4"},
+	}
+
+	expectedResult = AllocationProperties{
+		Cluster:              "cluster2",
+		Namespace:            "ns2",
+		NamespaceLabels:      AllocationLabels{"key1": "value1"},
+		NamespaceAnnotations: AllocationAnnotations{"key2": "value2", "key5": "value5"},
+	}
+
+	result = testObj4.Intersection(&propsFull)
+
+	if !result.Equal(&expectedResult) {
+		t.Fatalf("Case 4: expected output %v does not match actual output %v", expectedResult, result)
+	}
+
 }

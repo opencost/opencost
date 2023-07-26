@@ -226,7 +226,13 @@ func IsEmitKsmV1MetricsOnly() bool {
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
 // the AWS access key for authentication
 func GetAWSAccessKeyID() string {
-	return Get(AWSAccessKeyIDEnvVar, "")
+	awsAccessKeyID := Get(AWSAccessKeyIDEnvVar, "")
+	// If the sample nil service key name is set, zero it out so that it is not
+	// misinterpreted as a real service key.
+	if awsAccessKeyID == "AKIXXX" {
+		awsAccessKeyID = ""
+	}
+	return awsAccessKeyID
 }
 
 // GetAWSAccessKeySecret returns the environment variable value for AWSAccessKeySecretEnvVar which represents

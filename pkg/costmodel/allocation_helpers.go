@@ -18,7 +18,15 @@ import (
 
 // This is a bit of a hack to work around garbage data from cadvisor
 // Ideally you cap each pod to the max CPU on its node, but that involves a bit more complexity, as it it would need to be done when allocations joins with asset data.
-const MAX_CPU_CAP = 512
+const CPU_SANITY_LIMIT = 512
+
+// Sanity Limit for PV usage, set to 10 PB, in bytes for now
+const KiB = 1024.0
+const MiB = 1024.0 * KiB
+const GiB = 1024.0 * MiB
+const TiB = 1024.0 * GiB
+const PiB = 1024.0 * TiB
+const PV_USAGE_SANITY_LIMIT_BYTES = 10.0 * PiB
 
 /* Pod Helpers */
 
@@ -231,7 +239,7 @@ func applyCPUCoresAllocated(podMap map[podKey]*pod, resCPUCoresAllocated []*prom
 			}
 
 			cpuCores := res.Values[0].Value
-			if cpuCores > MAX_CPU_CAP {
+			if cpuCores > CPU_SANITY_LIMIT {
 				log.Infof("[WARNING] Very large cpu allocation, clamping to %f", res.Values[0].Value*(thisPod.Allocations[container].Minutes()/60.0))
 				cpuCores = 0.0
 			}
@@ -292,7 +300,7 @@ func applyCPUCoresRequested(podMap map[podKey]*pod, resCPUCoresRequested []*prom
 			if thisPod.Allocations[container].CPUCores() < res.Values[0].Value {
 				thisPod.Allocations[container].CPUCoreHours = res.Values[0].Value * (thisPod.Allocations[container].Minutes() / 60.0)
 			}
-			if thisPod.Allocations[container].CPUCores() > MAX_CPU_CAP {
+			if thisPod.Allocations[container].CPUCores() > CPU_SANITY_LIMIT {
 				log.Infof("[WARNING] Very large cpu allocation, clamping! to %f", res.Values[0].Value*(thisPod.Allocations[container].Minutes()/60.0))
 				thisPod.Allocations[container].CPUCoreHours = res.Values[0].Value * (thisPod.Allocations[container].Minutes() / 60.0)
 			}
@@ -347,7 +355,7 @@ func applyCPUCoresUsedAvg(podMap map[podKey]*pod, resCPUCoresUsedAvg []*prom.Que
 			}
 
 			thisPod.Allocations[container].CPUCoreUsageAverage = res.Values[0].Value
-			if res.Values[0].Value > MAX_CPU_CAP {
+			if res.Values[0].Value > CPU_SANITY_LIMIT {
 				log.Infof("[WARNING] Very large cpu USAGE, dropping outlier")
 				thisPod.Allocations[container].CPUCoreUsageAverage = 0.0
 			}
@@ -926,6 +934,11 @@ func applyLabels(podMap map[podKey]*pod, nodeLabels map[nodeKey]map[string]strin
 				allocLabels = make(map[string]string)
 			}
 
+			nsLabels := alloc.Properties.NamespaceLabels
+			if nsLabels == nil {
+				nsLabels = make(map[string]string)
+			}
+
 			// Apply node labels first, then namespace labels, then pod labels
 			// so that pod labels overwrite namespace labels, which overwrite
 			// node labels.
@@ -943,6 +956,7 @@ func applyLabels(podMap map[podKey]*pod, nodeLabels map[nodeKey]map[string]strin
 			if labels, ok := namespaceLabels[nsKey]; ok {
 				for k, v := range labels {
 					allocLabels[k] = v
+					nsLabels[k] = v
 				}
 			}
 
@@ -953,6 +967,8 @@ func applyLabels(podMap map[podKey]*pod, nodeLabels map[nodeKey]map[string]strin
 			}
 
 			alloc.Properties.Labels = allocLabels
+			alloc.Properties.NamespaceLabels = nsLabels
+
 		}
 	}
 }
@@ -964,11 +980,18 @@ func applyAnnotations(podMap map[podKey]*pod, namespaceAnnotations map[string]ma
 			if allocAnnotations == nil {
 				allocAnnotations = make(map[string]string)
 			}
+
+			nsAnnotations := alloc.Properties.NamespaceAnnotations
+			if nsAnnotations == nil {
+				nsAnnotations = make(map[string]string)
+			}
+
 			// Apply namespace annotations first, then pod annotations so that
 			// pod labels overwrite namespace labels.
 			if labels, ok := namespaceAnnotations[key.Namespace]; ok {
 				for k, v := range labels {
 					allocAnnotations[k] = v
+					nsAnnotations[k] = v
 				}
 			}
 			if labels, ok := podAnnotations[key]; ok {
@@ -978,6 +1001,7 @@ func applyAnnotations(podMap map[podKey]*pod, namespaceAnnotations map[string]ma
 			}
 
 			alloc.Properties.Annotations = allocAnnotations
+			alloc.Properties.NamespaceAnnotations = nsAnnotations
 		}
 	}
 }
@@ -1326,7 +1350,8 @@ func getLoadBalancerCosts(lbMap map[serviceKey]*lbCost, resLBCost, resLBActiveMi
 			continue
 		}
 
-		lbStart, lbEnd := calculateStartAndEnd(res, resolution)
+		// load balancers have interpolation for costs, we don't need to offset the resolution
+		lbStart, lbEnd := calculateStartAndEnd(res, resolution, false)
 		if lbStart.IsZero() || lbEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pvc %s has no running time", serviceKey)
 		}
@@ -1342,11 +1367,32 @@ func getLoadBalancerCosts(lbMap map[serviceKey]*lbCost, resLBCost, resLBActiveMi
 		if err != nil {
 			continue
 		}
+
+		// get the ingress IP to determine if this is a private LB
+		ip, err := res.GetString("ingress_ip")
+		if err != nil {
+			log.Warnf("error getting ingress ip for key %s: %v, skipping", serviceKey, err)
+			// do not count the time that the service was being created or deleted
+			// ingress IP will be empty string
+			// only add cost to allocation when external IP is provisioned
+			if ip == "" {
+				continue
+			}
+		}
+
 		// Apply cost as price-per-hour * hours
 		if lb, ok := lbMap[serviceKey]; ok {
 			lbPricePerHr := res.Values[0].Value
-			hours := lb.End.Sub(lb.Start).Hours()
-			lb.TotalCost += lbPricePerHr * hours
+			// interpolate any missing data
+			resolutionHours := resolution.Hours()
+			resultHours := lb.End.Sub(lb.Start).Hours()
+			scaleFactor := (resolutionHours + resultHours) / resultHours
+
+			// after scaling, we can adjust the timings to reflect the interpolated data
+			lb.End = lb.End.Add(resolution)
+
+			lb.TotalCost += lbPricePerHr * resultHours * scaleFactor
+			lb.Private = privateIPCheck(ip)
 		} else {
 			log.DedupedWarningf(20, "CostModel: found minutes for key that does not exist: %s", serviceKey)
 		}
@@ -1389,6 +1435,22 @@ func applyLoadBalancersToPods(window kubecost.Window, podMap map[podKey]*pod, lb
 		// Distribute cost of service once total hours is calculated
 		for alloc, hours := range allocHours {
 			alloc.LoadBalancerCost += lb.TotalCost * hours / totalHours
+		}
+
+		for _, alloc := range allocs {
+			if alloc.LoadBalancers == nil {
+				alloc.LoadBalancers = kubecost.LbAllocations{}
+			}
+
+			if _, found := alloc.LoadBalancers[sKey.String()]; found {
+				alloc.LoadBalancers[sKey.String()].Cost += alloc.LoadBalancerCost
+			} else {
+				alloc.LoadBalancers[sKey.String()] = &kubecost.LbAllocation{
+					Service: sKey.Namespace + "/" + sKey.Service,
+					Cost:    alloc.LoadBalancerCost,
+					Private: lb.Private,
+				}
+			}
 		}
 
 		// If there was no overlap apply to Unmounted pod
@@ -1720,7 +1782,7 @@ func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHo
 			continue
 		}
 
-		pvStart, pvEnd := calculateStartAndEnd(result, resolution)
+		pvStart, pvEnd := calculateStartAndEnd(result, resolution, true)
 		if pvStart.IsZero() || pvEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pv %s has no running time", key)
 		}
@@ -1764,7 +1826,13 @@ func applyPVBytes(pvMap map[pvKey]*pv, resPVBytes []*prom.QueryResult) {
 			continue
 		}
 
-		pvMap[key].Bytes = res.Values[0].Value
+		pvBytesUsed := res.Values[0].Value
+		if pvBytesUsed < PV_USAGE_SANITY_LIMIT_BYTES {
+			pvMap[key].Bytes = pvBytesUsed
+		} else {
+			pvMap[key].Bytes = 0
+			log.Warnf("PV usage exceeds sanity limit, clamping to zero")
+		}
 	}
 }
 
@@ -1789,7 +1857,7 @@ func buildPVCMap(resolution time.Duration, pvcMap map[pvcKey]*pvc, pvMap map[pvK
 		pvKey := newPVKey(cluster, volume)
 		pvcKey := newPVCKey(cluster, namespace, name)
 
-		pvcStart, pvcEnd := calculateStartAndEnd(res, resolution)
+		pvcStart, pvcEnd := calculateStartAndEnd(res, resolution, true)
 		if pvcStart.IsZero() || pvcEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pvc %s has no running time", pvcKey)
 		}
@@ -1890,7 +1958,8 @@ func buildPodPVCMap(podPVCMap map[podKey][]*pvc, pvMap map[pvKey]*pv, pvcMap map
 		}
 	}
 }
-func applyPVCsToPods(window kubecost.Window, podMap map[podKey]*pod, podPVCMap map[podKey][]*pvc, pvcMap map[pvcKey]*pvc) {
+
+func applyPVCsToPods(window kubecost.Window, podMap map[podKey]*pod, podPVCMap map[podKey][]*pvc, pvcMap map[pvcKey]*pvc, resolution time.Duration) {
 	// Because PVCs can be shared among pods, the respective pv cost
 	// needs to be evenly distributed to those pods based on time
 	// running, as well as the amount of time the pvc was shared.
@@ -1940,7 +2009,7 @@ func applyPVCsToPods(window kubecost.Window, podMap map[podKey]*pod, podPVCMap m
 		}
 
 		// Determine coefficients for each pvc-pod relation.
-		sharedPVCCostCoefficients := getPVCCostCoefficients(intervals, pvc)
+		sharedPVCCostCoefficients := getPVCCostCoefficients(intervals, pvc, resolution)
 
 		// Distribute pvc costs to Allocations
 		for thisPodKey, coeffComponents := range sharedPVCCostCoefficients {
@@ -2123,10 +2192,12 @@ func getUnmountedPodForNamespace(window kubecost.Window, podMap map[podKey]*pod,
 	return thisPod
 }
 
-func calculateStartAndEnd(result *prom.QueryResult, resolution time.Duration) (time.Time, time.Time) {
+func calculateStartAndEnd(result *prom.QueryResult, resolution time.Duration, offsetResolution bool) (time.Time, time.Time) {
 	s := time.Unix(int64(result.Values[0].Timestamp), 0).UTC()
-	// subtract resolution from start time to cover full time period
-	s = s.Add(-resolution)
+	if offsetResolution {
+		// subtract resolution from start time to cover full time period
+		s = s.Add(-resolution)
+	}
 	e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).UTC()
 	return s, e
 }

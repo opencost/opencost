@@ -208,7 +208,7 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 						if loc, ok := allLocations[displName]; ok {
 							supLocations[loc] = displName
 						} else {
-							log.Warnf("unsupported cloud region %q", loc)
+							log.Warnf("unsupported cloud region %q", displName)
 						}
 					}
 					break
@@ -226,7 +226,7 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 						if loc, ok := allLocations[displName]; ok {
 							supLocations[loc] = displName
 						} else {
-							log.Warnf("unsupported cloud region %q", loc)
+							log.Warnf("unsupported cloud region %q", displName)
 						}
 					}
 					break
@@ -1415,11 +1415,27 @@ func (az *Azure) findCostForDisk(d *compute.Disk) (float64, error) {
 		storageClass = AzureDiskStandardStorageClass
 	}
 
-	key := *d.Location + "," + storageClass
+	loc := ""
+	if d.Location != nil {
+		loc = *d.Location
+	}
+	key := loc + "," + storageClass
 
+	if p, ok := az.Pricing[key]; !ok || p == nil {
+		return 0.0, fmt.Errorf("failed to find pricing for key: %s", key)
+	}
+	if az.Pricing[key].PV == nil {
+		return 0.0, fmt.Errorf("pricing for key '%s' has nil PV", key)
+	}
 	diskPricePerGBHour, err := strconv.ParseFloat(az.Pricing[key].PV.Cost, 64)
 	if err != nil {
 		return 0.0, fmt.Errorf("error converting to float: %s", err)
+	}
+	if d.DiskProperties == nil {
+		return 0.0, fmt.Errorf("disk properties are nil")
+	}
+	if d.DiskSizeGB == nil {
+		return 0.0, fmt.Errorf("disk size is nil")
 	}
 	cost := diskPricePerGBHour * timeutil.HoursPerMonth * float64(*d.DiskSizeGB)
 

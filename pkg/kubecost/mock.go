@@ -476,10 +476,10 @@ func GenerateMockAssetSets(start, end time.Time) []*AssetSet {
 	node3Network.Cost = 2.0
 
 	// Add LoadBalancers
-	cluster2LoadBalancer1 := NewLoadBalancer("namespace2/loadBalancer1", "cluster2", "lb1", start, end, NewWindow(&start, &end))
+	cluster2LoadBalancer1 := NewLoadBalancer("namespace2/loadBalancer1", "cluster2", "lb1", start, end, NewWindow(&start, &end), false)
 	cluster2LoadBalancer1.Cost = 10.0
 
-	cluster2LoadBalancer2 := NewLoadBalancer("namespace2/loadBalancer2", "cluster2", "lb2", start, end, NewWindow(&start, &end))
+	cluster2LoadBalancer2 := NewLoadBalancer("namespace2/loadBalancer2", "cluster2", "lb2", start, end, NewWindow(&start, &end), false)
 	cluster2LoadBalancer2.Cost = 15.0
 
 	assetSet1 := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1,

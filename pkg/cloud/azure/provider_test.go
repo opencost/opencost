@@ -1,12 +1,15 @@
 package azure
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-11-01/compute"
 	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
 	"github.com/stretchr/testify/require"
 
 	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/util/mathutil"
 )
 
 func TestParseAzureSubscriptionID(t *testing.T) {
@@ -94,4 +97,146 @@ func TestConvertMeterToPricings(t *testing.T) {
 		}
 		require.Equal(t, expected, results)
 	})
+}
+
+func TestAzure_findCostForDisk(t *testing.T) {
+	var loc string = "location"
+	var size int32 = 1
+
+	az := &Azure{
+		Pricing: map[string]*AzurePricing{
+			"location,nil": nil,
+			"location,nilpv": {
+				PV: nil,
+			},
+			"location,ssd": {
+				PV: &models.PV{
+					Cost: "1",
+				},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name   string
+		disk   *compute.Disk
+		exp    float64
+		expErr error
+	}{
+		{
+			"disk is nil",
+			nil,
+			0.0,
+			fmt.Errorf("disk is empty"),
+		},
+		{
+			"nil location",
+			&compute.Disk{
+				Location: nil,
+				Sku: &compute.DiskSku{
+					Name: "ssd",
+				},
+				DiskProperties: &compute.DiskProperties{
+					DiskSizeGB: &size,
+				},
+			},
+			0.0,
+			fmt.Errorf("failed to find pricing for key: ,ssd"),
+		},
+		{
+			"nil disk properties",
+			&compute.Disk{
+				Location: &loc,
+				Sku: &compute.DiskSku{
+					Name: "ssd",
+				},
+				DiskProperties: nil,
+			},
+			0.0,
+			fmt.Errorf("disk properties are nil"),
+		},
+		{
+			"nil disk size",
+			&compute.Disk{
+				Location: &loc,
+				Sku: &compute.DiskSku{
+					Name: "ssd",
+				},
+				DiskProperties: &compute.DiskProperties{
+					DiskSizeGB: nil,
+				},
+			},
+			0.0,
+			fmt.Errorf("disk size is nil"),
+		},
+		{
+			"sku does not exist",
+			&compute.Disk{
+				Location: &loc,
+				Sku: &compute.DiskSku{
+					Name: "doesnotexist",
+				},
+				DiskProperties: &compute.DiskProperties{
+					DiskSizeGB: &size,
+				},
+			},
+			0.0,
+			fmt.Errorf("failed to find pricing for key: location,doesnotexist"),
+		},
+		{
+			"pricing is nil",
+			&compute.Disk{
+				Sku: &compute.DiskSku{
+					Name: "nil",
+				},
+				DiskProperties: &compute.DiskProperties{
+					DiskSizeGB: &size,
+				},
+			},
+			0.0,
+			fmt.Errorf("failed to find pricing for key: location,nil"),
+		},
+		{
+			"pricing.PV is nil",
+			&compute.Disk{
+				Sku: &compute.DiskSku{
+					Name: "nilpv",
+				},
+				DiskProperties: &compute.DiskProperties{
+					DiskSizeGB: &size,
+				},
+			},
+			0.0,
+			fmt.Errorf("pricing for key 'location,nilpv' has nil PV"),
+		},
+		{
+			"valid (ssd)",
+			&compute.Disk{
+				Location: &loc,
+				Sku: &compute.DiskSku{
+					Name: "ssd",
+				},
+				DiskProperties: &compute.DiskProperties{
+					DiskSizeGB: &size,
+				},
+			},
+			730.0,
+			nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			act, actErr := az.findCostForDisk(tc.disk)
+			if actErr != nil && tc.expErr == nil {
+				t.Fatalf("unexpected error: %s", actErr)
+			}
+			if tc.expErr != nil && actErr == nil {
+				t.Fatalf("missing expected error: %s", tc.expErr)
+			}
+			if !mathutil.Approximately(tc.exp, act) {
+				t.Fatalf("expected value %f; got %f", tc.exp, act)
+			}
+		})
+	}
 }
