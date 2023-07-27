@@ -62,20 +62,6 @@ package kubecost
 // @bingen:generate:LbAllocation
 // @bingen:end
 
-// @bingen:set[name=Audit,version=1]
-// @bingen:generate:AllocationReconciliationAudit
-// @bingen:generate:TotalAudit
-// @bingen:generate:AggAudit
-// @bingen:generate:AuditFloatResult
-// @bingen:generate:AuditMissingValue
-// @bingen:generate:AssetReconciliationAudit
-// @bingen:generate:EqualityAudit
-// @bingen:generate:AuditType
-// @bingen:generate:AuditStatus
-// @bingen:generate[stringtable]:AuditSet
-// @bingen:generate:AuditSetRange
-// @bingen:end
-
 // @bingen:set[name=CloudCost,version=2]
 // @bingen:generate:CloudCost
 // @bingen:generate:CostMetric
