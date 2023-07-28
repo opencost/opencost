@@ -7,6 +7,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+//go:generate mockgen -destination mocks/storage.go . Storage
+
 // DirDelim is the delimiter used to model a directory structure in an object store bucket.
 const DirDelim = "/"
 
