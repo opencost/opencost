@@ -163,6 +163,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		Node:       "c1nodes",
 	})
 	a1111.RAMCost = 11.00
+	a1111.PVs = PVAllocations{
+		PVKey{Cluster: "cluster1", Name: "pv-a1111"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a11abc2 := NewMockUnitAllocation("cluster1/namespace1/pod-abc/container2", start, day, &AllocationProperties{
 		Cluster:    "cluster1",
@@ -172,6 +178,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "c1nodes",
 		Node:       "c1nodes",
 	})
+	a11abc2.PVs = PVAllocations{
+		PVKey{Cluster: "cluster1", Name: "pv-a11abc2"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a11def3 := NewMockUnitAllocation("cluster1/namespace1/pod-def/container3", start, day, &AllocationProperties{
 		Cluster:    "cluster1",
@@ -181,6 +193,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "c1nodes",
 		Node:       "c1nodes",
 	})
+	a11def3.PVs = PVAllocations{
+		PVKey{Cluster: "cluster1", Name: "pv-a11def3"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a12ghi4 := NewMockUnitAllocation("cluster1/namespace2/pod-ghi/container4", start, day, &AllocationProperties{
 		Cluster:    "cluster1",
@@ -190,6 +208,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "c1nodes",
 		Node:       "c1nodes",
 	})
+	a12ghi4.PVs = PVAllocations{
+		PVKey{Cluster: "cluster1", Name: "pv-a12ghi4"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a12ghi5 := NewMockUnitAllocation("cluster1/namespace2/pod-ghi/container5", start, day, &AllocationProperties{
 		Cluster:    "cluster1",
@@ -199,6 +223,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "c1nodes",
 		Node:       "c1nodes",
 	})
+	a12ghi5.PVs = PVAllocations{
+		PVKey{Cluster: "cluster1", Name: "pv-a12ghi5"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a12jkl6 := NewMockUnitAllocation("cluster1/namespace2/pod-jkl/container6", start, day, &AllocationProperties{
 		Cluster:    "cluster1",
@@ -208,6 +238,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "c1nodes",
 		Node:       "c1nodes",
 	})
+	a12jkl6.PVs = PVAllocations{
+		PVKey{Cluster: "cluster1", Name: "pv-a12jkl6"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a22mno4 := NewMockUnitAllocation("cluster2/namespace2/pod-mno/container4", start, day, &AllocationProperties{
 		Cluster:    "cluster2",
@@ -217,6 +253,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "node1",
 		Node:       "node1",
 	})
+	a22mno4.PVs = PVAllocations{
+		PVKey{Cluster: "cluster2", Name: "pv-a22mno4"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a22mno5 := NewMockUnitAllocation("cluster2/namespace2/pod-mno/container5", start, day, &AllocationProperties{
 		Cluster:    "cluster2",
@@ -226,6 +268,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "node1",
 		Node:       "node1",
 	})
+	a22mno5.PVs = PVAllocations{
+		PVKey{Cluster: "cluster2", Name: "pv-a22mno5"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a22pqr6 := NewMockUnitAllocation("cluster2/namespace2/pod-pqr/container6", start, day, &AllocationProperties{
 		Cluster:    "cluster2",
@@ -235,6 +283,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "node2",
 		Node:       "node2",
 	})
+	a22pqr6.PVs = PVAllocations{
+		PVKey{Cluster: "cluster2", Name: "pv-a22pqr6"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a23stu7 := NewMockUnitAllocation("cluster2/namespace3/pod-stu/container7", start, day, &AllocationProperties{
 		Cluster:    "cluster2",
@@ -244,6 +298,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "node2",
 		Node:       "node2",
 	})
+	a23stu7.PVs = PVAllocations{
+		PVKey{Cluster: "cluster2", Name: "pv-a23stu7"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a23vwx8 := NewMockUnitAllocation("cluster2/namespace3/pod-vwx/container8", start, day, &AllocationProperties{
 		Cluster:    "cluster2",
@@ -253,6 +313,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "node3",
 		Node:       "node3",
 	})
+	a23vwx8.PVs = PVAllocations{
+		PVKey{Cluster: "cluster2", Name: "pv-a23vwx8"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a23vwx9 := NewMockUnitAllocation("cluster2/namespace3/pod-vwx/container9", start, day, &AllocationProperties{
 		Cluster:    "cluster2",
@@ -262,6 +328,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "node3",
 		Node:       "node3",
 	})
+	a23vwx9.PVs = PVAllocations{
+		PVKey{Cluster: "cluster2", Name: "pv-a23vwx9"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	// Controllers
 

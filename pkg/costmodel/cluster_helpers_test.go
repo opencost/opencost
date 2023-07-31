@@ -7,6 +7,7 @@ import (
 
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/config"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/util"
 
@@ -891,6 +892,12 @@ func TestBuildGPUCostMap(t *testing.T) {
 
 func TestAssetCustompricing(t *testing.T) {
 
+	windowStart := time.Date(2020, time.April, 13, 0, 0, 0, 0, time.UTC)
+	windowEnd := windowStart.Add(time.Hour)
+	window := kubecost.NewClosedWindow(windowStart, windowEnd)
+
+	startTimestamp := float64(windowStart.Unix())
+
 	nodePromResult := []*prom.QueryResult{
 		{
 			Metric: map[string]interface{}{
@@ -901,7 +908,7 @@ func TestAssetCustompricing(t *testing.T) {
 			},
 			Values: []*util.Vector{
 				{
-					Timestamp: 0,
+					Timestamp: startTimestamp,
 					Value:     0.5,
 				},
 			},
@@ -917,7 +924,7 @@ func TestAssetCustompricing(t *testing.T) {
 			},
 			Values: []*util.Vector{
 				{
-					Timestamp: 0,
+					Timestamp: startTimestamp,
 					Value:     1.0,
 				},
 			},
@@ -933,7 +940,7 @@ func TestAssetCustompricing(t *testing.T) {
 			},
 			Values: []*util.Vector{
 				{
-					Timestamp: 0,
+					Timestamp: startTimestamp,
 					Value:     1073741824.0,
 				},
 			},
@@ -949,11 +956,11 @@ func TestAssetCustompricing(t *testing.T) {
 			},
 			Values: []*util.Vector{
 				{
-					Timestamp: 0,
+					Timestamp: startTimestamp,
 					Value:     1.0,
 				},
 				{
-					Timestamp: 3600.0,
+					Timestamp: startTimestamp + (60.0 * 60.0),
 					Value:     1.0,
 				},
 			},
@@ -969,11 +976,11 @@ func TestAssetCustompricing(t *testing.T) {
 			},
 			Values: []*util.Vector{
 				{
-					Timestamp: 0,
+					Timestamp: startTimestamp,
 					Value:     1.0,
 				},
 				{
-					Timestamp: 3600.0,
+					Timestamp: startTimestamp + (60.0 * 60.0),
 					Value:     1.0,
 				},
 			},
@@ -989,11 +996,11 @@ func TestAssetCustompricing(t *testing.T) {
 			},
 			Values: []*util.Vector{
 				{
-					Timestamp: 0,
+					Timestamp: startTimestamp,
 					Value:     1.0,
 				},
 				{
-					Timestamp: 3600.0,
+					Timestamp: startTimestamp + (60.0 * 60.0),
 					Value:     1.0,
 				},
 			},
@@ -1010,7 +1017,7 @@ func TestAssetCustompricing(t *testing.T) {
 			},
 			Values: []*util.Vector{
 				{
-					Timestamp: 0,
+					Timestamp: startTimestamp,
 					Value:     1.0,
 				},
 			},
@@ -1081,7 +1088,7 @@ func TestAssetCustompricing(t *testing.T) {
 			gpuResult := gpuMap[nodeKey]
 
 			diskMap := map[DiskIdentifier]*Disk{}
-			pvCosts(diskMap, time.Hour, pvMinsPromResult, pvSizePromResult, pvCostPromResult, pvAvgUsagePromResult, pvMaxUsagePromResult, pvInfoPromResult, testProvider)
+			pvCosts(diskMap, time.Hour, pvMinsPromResult, pvSizePromResult, pvCostPromResult, pvAvgUsagePromResult, pvMaxUsagePromResult, pvInfoPromResult, testProvider, window)
 
 			diskResult := diskMap[DiskIdentifier{"cluster1", "pvc1"}].Cost
 

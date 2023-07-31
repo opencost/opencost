@@ -273,6 +273,9 @@ func TestBuildPVMap(t *testing.T) {
 					},
 					Values: []*util.Vector{
 						{
+							Timestamp: startFloat,
+						},
+						{
 							Timestamp: startFloat + (hour * 6),
 						},
 						{
@@ -289,6 +292,9 @@ func TestBuildPVMap(t *testing.T) {
 						"persistentvolume": "pv2",
 					},
 					Values: []*util.Vector{
+						{
+							Timestamp: startFloat,
+						},
 						{
 							Timestamp: startFloat + (hour * 6),
 						},
@@ -310,6 +316,9 @@ func TestBuildPVMap(t *testing.T) {
 					},
 					Values: []*util.Vector{
 						{
+							Timestamp: startFloat + (hour * 6),
+						},
+						{
 							Timestamp: startFloat + (hour * 12),
 						},
 						{
@@ -323,6 +332,9 @@ func TestBuildPVMap(t *testing.T) {
 						"persistentvolume": "pv4",
 					},
 					Values: []*util.Vector{
+						{
+							Timestamp: startFloat,
+						},
 						{
 							Timestamp: startFloat + (hour * 6),
 						},
@@ -342,7 +354,7 @@ func TestBuildPVMap(t *testing.T) {
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
 			pvMap := make(map[pvKey]*pv)
-			buildPVMap(testCase.resolution, pvMap, testCase.resultsPVCostPerGiBHour, testCase.resultsActiveMinutes)
+			buildPVMap(testCase.resolution, pvMap, testCase.resultsPVCostPerGiBHour, testCase.resultsActiveMinutes, window)
 			if len(pvMap) != len(testCase.expected) {
 				t.Errorf("pv map does not have the expected length %d : %d", len(pvMap), len(testCase.expected))
 			}
@@ -353,7 +365,7 @@ func TestBuildPVMap(t *testing.T) {
 					t.Errorf("pv map is missing key %s", thisPVKey)
 				}
 				if !actualPV.equal(expectedPV) {
-					t.Errorf("pv does not match with key %s", thisPVKey)
+					t.Errorf("pv does not match with key %s: %s != %s", thisPVKey, kubecost.NewClosedWindow(actualPV.Start, actualPV.End), kubecost.NewClosedWindow(expectedPV.Start, expectedPV.End))
 				}
 			}
 		})
@@ -457,6 +469,9 @@ func TestCalculateStartAndEnd(t *testing.T) {
 			result: &prom.QueryResult{
 				Values: []*util.Vector{
 					{
+						Timestamp: startFloat,
+					},
+					{
 						Timestamp: startFloat + (minute * 60),
 					},
 				},
@@ -469,6 +484,9 @@ func TestCalculateStartAndEnd(t *testing.T) {
 			result: &prom.QueryResult{
 				Values: []*util.Vector{
 					{
+						Timestamp: startFloat,
+					},
+					{
 						Timestamp: startFloat + (minute * 30),
 					},
 					{
@@ -479,8 +497,8 @@ func TestCalculateStartAndEnd(t *testing.T) {
 		},
 		"15 minute resolution, 45 minute window": {
 			resolution:    time.Minute * 15,
-			expectedStart: windowStart.Add(time.Minute * -15),
-			expectedEnd:   windowStart.Add(time.Minute * 30),
+			expectedStart: windowStart,
+			expectedEnd:   windowStart.Add(time.Minute * 45),
 			result: &prom.QueryResult{
 				Values: []*util.Vector{
 					{
@@ -492,6 +510,60 @@ func TestCalculateStartAndEnd(t *testing.T) {
 					{
 						Timestamp: startFloat + (minute * 30),
 					},
+					{
+						Timestamp: startFloat + (minute * 45),
+					},
+				},
+			},
+		},
+		"1 minute resolution, 5 minute window": {
+			resolution:    time.Minute,
+			expectedStart: windowStart.Add(time.Minute * 15),
+			expectedEnd:   windowStart.Add(time.Minute * 20),
+			result: &prom.QueryResult{
+				Values: []*util.Vector{
+					{
+						Timestamp: startFloat + (minute * 15),
+					},
+					{
+						Timestamp: startFloat + (minute * 16),
+					},
+					{
+						Timestamp: startFloat + (minute * 17),
+					},
+					{
+						Timestamp: startFloat + (minute * 18),
+					},
+					{
+						Timestamp: startFloat + (minute * 19),
+					},
+					{
+						Timestamp: startFloat + (minute * 20),
+					},
+				},
+			},
+		},
+		"1 minute resolution, 1 minute window": {
+			resolution:    time.Minute,
+			expectedStart: windowStart.Add(time.Minute * 14).Add(time.Second * 30),
+			expectedEnd:   windowStart.Add(time.Minute * 15).Add(time.Second * 30),
+			result: &prom.QueryResult{
+				Values: []*util.Vector{
+					{
+						Timestamp: startFloat + (minute * 15),
+					},
+				},
+			},
+		},
+		"1 minute resolution, 1 minute window, at window start": {
+			resolution:    time.Minute,
+			expectedStart: windowStart,
+			expectedEnd:   windowStart.Add(time.Second * 30),
+			result: &prom.QueryResult{
+				Values: []*util.Vector{
+					{
+						Timestamp: startFloat,
+					},
 				},
 			},
 		},
@@ -499,12 +571,12 @@ func TestCalculateStartAndEnd(t *testing.T) {
 
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
-			start, end := calculateStartAndEnd(testCase.result, testCase.resolution, true)
+			start, end := calculateStartAndEnd(testCase.result, testCase.resolution, window)
 			if !start.Equal(testCase.expectedStart) {
-				t.Errorf("start to not match expected %v : %v", start, testCase.expectedStart)
+				t.Errorf("start does not match: expected %v; got %v", testCase.expectedStart, start)
 			}
 			if !end.Equal(testCase.expectedEnd) {
-				t.Errorf("end to not match expected %v : %v", end, testCase.expectedEnd)
+				t.Errorf("end does not match: expected %v; got %v", testCase.expectedEnd, end)
 			}
 		})
 	}

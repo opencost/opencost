@@ -551,8 +551,9 @@ func assertParcResults(t *testing.T, as *AllocationSet, msg string, exps map[str
 			actualParc.CPUPercentage = roundFloat(actualParc.CPUPercentage)
 			actualParc.RAMPercentage = roundFloat(actualParc.RAMPercentage)
 			actualParc.GPUPercentage = roundFloat(actualParc.GPUPercentage)
+			actualParc.PVPercentage = roundFloat(actualParc.PVPercentage)
 			if !reflect.DeepEqual(expectedParcs[key], actualParc) {
-				t.Fatalf("actual PARC %v did not match expected PARC %v", actualParc, expectedParcs[key])
+				t.Fatalf("actual PARC %+v did not match expected PARC %+v", actualParc, expectedParcs[key])
 			}
 		}
 
@@ -759,9 +760,11 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 		// 1a AggregationProperties=(Cluster)
 		"1a": {
-			start:      start,
-			aggBy:      []string{AllocationClusterProp},
-			aggOpts:    nil,
+			start: start,
+			aggBy: []string{AllocationClusterProp},
+			aggOpts: &AllocationAggregationOptions{
+				IncludeProportionalAssetResourceCosts: true,
+			},
 			numResults: numClusters + numIdle,
 			totalCost:  activeTotalCost + idleTotalCost,
 			results: map[string]float64{
@@ -772,6 +775,32 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			windowStart: startYesterday,
 			windowEnd:   endYesterday,
 			expMinutes:  1440.0,
+			expectedParcResults: map[string]ProportionalAssetResourceCosts{
+				"cluster1": {
+					"cluster1": ProportionalAssetResourceCost{
+						Cluster:             "cluster1",
+						Name:                "",
+						Type:                "",
+						ProviderID:          "",
+						GPUProportionalCost: 6.0,
+						CPUProportionalCost: 6.0,
+						RAMProportionalCost: 16.0,
+						PVProportionalCost:  6.0,
+					},
+				},
+				"cluster2": {
+					"cluster2": ProportionalAssetResourceCost{
+						Cluster:             "cluster2",
+						Name:                "",
+						Type:                "",
+						ProviderID:          "",
+						GPUProportionalCost: 6,
+						CPUProportionalCost: 6,
+						RAMProportionalCost: 6,
+						PVProportionalCost:  6,
+					},
+				},
+			},
 		},
 		// 1b AggregationProperties=(Namespace)
 		"1b": {
@@ -792,9 +821,11 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		},
 		// 1c AggregationProperties=(Pod)
 		"1c": {
-			start:      start,
-			aggBy:      []string{AllocationPodProp},
-			aggOpts:    nil,
+			start: start,
+			aggBy: []string{AllocationPodProp},
+			aggOpts: &AllocationAggregationOptions{
+				IncludeProportionalAssetResourceCosts: true,
+			},
 			numResults: numPods + numIdle,
 			totalCost:  activeTotalCost + idleTotalCost,
 			results: map[string]float64{
@@ -812,6 +843,116 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			windowStart: startYesterday,
 			windowEnd:   endYesterday,
 			expMinutes:  1440.0,
+			expectedParcResults: map[string]ProportionalAssetResourceCosts{
+				"pod1": {
+					"cluster1": ProportionalAssetResourceCost{
+						Cluster:             "cluster1",
+						Name:                "",
+						Type:                "",
+						ProviderID:          "",
+						GPUProportionalCost: 1.0,
+						CPUProportionalCost: 1.0,
+						RAMProportionalCost: 11.0,
+						PVProportionalCost:  1.0,
+					},
+				},
+				"pod-abc": {
+					"cluster1": ProportionalAssetResourceCost{
+						Cluster:             "cluster1",
+						Name:                "",
+						Type:                "",
+						ProviderID:          "",
+						GPUProportionalCost: 1.0,
+						CPUProportionalCost: 1.0,
+						RAMProportionalCost: 1.0,
+						PVProportionalCost:  1.0,
+					},
+				},
+				"pod-def": {
+					"cluster1": ProportionalAssetResourceCost{
+						Cluster:             "cluster1",
+						Name:                "",
+						Type:                "",
+						ProviderID:          "",
+						GPUProportionalCost: 1.0,
+						CPUProportionalCost: 1.0,
+						RAMProportionalCost: 1.0,
+						PVProportionalCost:  1.0,
+					},
+				},
+				"pod-ghi": {
+					"cluster1": ProportionalAssetResourceCost{
+						Cluster:             "cluster1",
+						Name:                "",
+						Type:                "",
+						ProviderID:          "",
+						GPUProportionalCost: 2.0,
+						CPUProportionalCost: 2.0,
+						RAMProportionalCost: 2.0,
+						PVProportionalCost:  2.0,
+					},
+				},
+				"pod-jkl": {
+					"cluster1": ProportionalAssetResourceCost{
+						Cluster:             "cluster1",
+						Name:                "",
+						Type:                "",
+						ProviderID:          "",
+						GPUProportionalCost: 1.0,
+						CPUProportionalCost: 1.0,
+						RAMProportionalCost: 1.0,
+						PVProportionalCost:  1.0,
+					},
+				},
+				"pod-mno": {
+					"cluster2": ProportionalAssetResourceCost{
+						Cluster:             "cluster2",
+						Name:                "",
+						Type:                "",
+						ProviderID:          "",
+						GPUProportionalCost: 2.0,
+						CPUProportionalCost: 2.0,
+						RAMProportionalCost: 2.0,
+						PVProportionalCost:  2.0,
+					},
+				},
+				"pod-pqr": {
+					"cluster2": ProportionalAssetResourceCost{
+						Cluster:             "cluster2",
+						Name:                "",
+						Type:                "",
+						ProviderID:          "",
+						GPUProportionalCost: 1.0,
+						CPUProportionalCost: 1.0,
+						RAMProportionalCost: 1.0,
+						PVProportionalCost:  1.0,
+					},
+				},
+				"pod-stu": {
+					"cluster2": ProportionalAssetResourceCost{
+						Cluster:             "cluster2",
+						Name:                "",
+						Type:                "",
+						ProviderID:          "",
+						GPUProportionalCost: 1.0,
+						CPUProportionalCost: 1.0,
+						RAMProportionalCost: 1.0,
+						PVProportionalCost:  1.0,
+					},
+				},
+				"pod-vwx": {
+					"cluster2": ProportionalAssetResourceCost{
+						Cluster:             "cluster2",
+						Name:                "",
+						Type:                "",
+						ProviderID:          "",
+						GPUProportionalCost: 2.0,
+						CPUProportionalCost: 2.0,
+						RAMProportionalCost: 2.0,
+						PVProportionalCost:  2.0,
+					},
+				},
+			},
 		},
 		// 1d AggregationProperties=(Container)
 		"1d": {
@@ -1121,6 +1262,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						GPUProportionalCost: 3,
 						CPUProportionalCost: 3,
 						RAMProportionalCost: 13,
+						PVProportionalCost:  3,
 					},
 				},
 				"namespace2": {
@@ -1132,6 +1274,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						GPUProportionalCost: 3,
 						CPUProportionalCost: 3,
 						RAMProportionalCost: 3,
+						PVProportionalCost:  3,
 					},
 					"cluster2": ProportionalAssetResourceCost{
 						Cluster:             "cluster2",
@@ -1141,6 +1284,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						GPUProportionalCost: 3,
 						CPUProportionalCost: 3,
 						RAMProportionalCost: 3,
+						PVProportionalCost:  3,
 					},
 				},
 			},
@@ -1565,6 +1709,24 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						CPUProportionalCost: 3,
 						RAMProportionalCost: 3,
 					},
+					"cluster1,pv-a1111": {
+						Cluster:            "cluster1",
+						Name:               "pv-a1111",
+						Type:               "PV",
+						PVProportionalCost: 1,
+					},
+					"cluster1,pv-a11abc2": {
+						Cluster:            "cluster1",
+						Name:               "pv-a11abc2",
+						Type:               "PV",
+						PVProportionalCost: 1,
+					},
+					"cluster1,pv-a11def3": {
+						Cluster:            "cluster1",
+						Name:               "pv-a11def3",
+						Type:               "PV",
+						PVProportionalCost: 1,
+					},
 				},
 				"namespace2": {
 					"cluster1,c1nodes": ProportionalAssetResourceCost{
@@ -1594,6 +1756,42 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						CPUProportionalCost: 1,
 						RAMProportionalCost: 1,
 					},
+					"cluster1,pv-a12ghi4": {
+						Cluster:            "cluster1",
+						Name:               "pv-a12ghi4",
+						Type:               "PV",
+						PVProportionalCost: 1,
+					},
+					"cluster1,pv-a12ghi5": {
+						Cluster:            "cluster1",
+						Name:               "pv-a12ghi5",
+						Type:               "PV",
+						PVProportionalCost: 1,
+					},
+					"cluster1,pv-a12jkl6": {
+						Cluster:            "cluster1",
+						Name:               "pv-a12jkl6",
+						Type:               "PV",
+						PVProportionalCost: 1,
+					},
+					"cluster2,pv-a22mno4": {
+						Cluster:            "cluster2",
+						Name:               "pv-a22mno4",
+						Type:               "PV",
+						PVProportionalCost: 1,
+					},
+					"cluster2,pv-a22mno5": {
+						Cluster:            "cluster2",
+						Name:               "pv-a22mno5",
+						Type:               "PV",
+						PVProportionalCost: 1,
+					},
+					"cluster2,pv-a22pqr6": {
+						Cluster:            "cluster2",
+						Name:               "pv-a22pqr6",
+						Type:               "PV",
+						PVProportionalCost: 1,
+					},
 				},
 				"namespace3": {
 					"cluster2,node3": ProportionalAssetResourceCost{
@@ -1613,6 +1811,24 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						GPUProportionalCost: 1,
 						CPUProportionalCost: 1,
 						RAMProportionalCost: 1,
+					},
+					"cluster2,pv-a23stu7": {
+						Cluster:            "cluster2",
+						Name:               "pv-a23stu7",
+						Type:               "PV",
+						PVProportionalCost: 1,
+					},
+					"cluster2,pv-a23vwx8": {
+						Cluster:            "cluster2",
+						Name:               "pv-a23vwx8",
+						Type:               "PV",
+						PVProportionalCost: 1,
+					},
+					"cluster2,pv-a23vwx9": {
+						Cluster:            "cluster2",
+						Name:               "pv-a23vwx9",
+						Type:               "PV",
+						PVProportionalCost: 1,
 					},
 				},
 			},
