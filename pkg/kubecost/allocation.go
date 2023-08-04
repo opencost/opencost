@@ -1970,6 +1970,19 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 	// Compute totals for all allocations
 	total := 0.0
 
+	cpuCost := 0.0
+	cpuAdj := 0.0
+	gpuCost := 0.0
+	gpuAdj := 0.0
+	ramCost := 0.0
+	ramAdj := 0.0
+	pvsCost := 0.0
+	pvsAdj := 0.0
+	lbsCost := 0.0
+	lbsAdj := 0.0
+	netCost := 0.0
+	netAdj := 0.0
+
 	// ShareEven counts each aggregation with even weight, whereas ShareWeighted
 	// counts each aggregation proportionally to its respective costs
 	shareType := options.ShareSplit
@@ -2024,6 +2037,23 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 			// cumulative coefficient will be divided by the total.
 			coeffs[name] += alloc.TotalCost() - alloc.SharedCost
 			total += alloc.TotalCost() - alloc.SharedCost
+
+			if alloc.LoadBalancerCost > 0.0 || alloc.LoadBalancerCostAdjustment > 0.0 {
+				log.Infof(" *** Allocation: Totals: %s: %s: %.6f + %.6f = %.6f", as.Window, alloc.Name, alloc.LoadBalancerCost, alloc.LoadBalancerCostAdjustment, alloc.LoadBalancerCost+alloc.LoadBalancerCostAdjustment)
+			}
+
+			cpuCost += alloc.CPUCost
+			cpuAdj += alloc.CPUCostAdjustment
+			gpuCost += alloc.GPUCost
+			gpuAdj += alloc.GPUCostAdjustment
+			ramCost += alloc.RAMCost
+			ramAdj += alloc.RAMCostAdjustment
+			pvsCost += alloc.PVCost()
+			pvsAdj += alloc.PVCostAdjustment
+			lbsCost += alloc.LoadBalancerCost
+			lbsAdj += alloc.LoadBalancerCostAdjustment
+			netCost += alloc.NetworkCost
+			netAdj += alloc.NetworkCostAdjustment
 		}
 	}
 
@@ -2036,6 +2066,8 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 			coeffs[a] = 0.0
 		}
 	}
+
+	log.Infof("Allocation: %s: total: %.6f = %.6f + %.6f + %.6f + %.6f + %.6f + %.6f + %.6f + %.6f + %.6f + %.6f + %.6f + %.6f", as.Window, total, cpuCost, cpuAdj, gpuCost, gpuAdj, ramCost, ramAdj, pvsCost, pvsAdj, lbsCost, lbsAdj, netCost, netAdj)
 
 	return coeffs, nil
 }

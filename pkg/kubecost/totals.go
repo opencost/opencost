@@ -10,6 +10,13 @@ import (
 	"github.com/patrickmn/go-cache"
 )
 
+type CostPair struct {
+	Cost       float64
+	Adjustment float64
+}
+
+type CostPairSet map[string]CostPair
+
 // AllocationTotals represents aggregate costs of all Allocations for
 // a given cluster or tuple of (cluster, node) between a given start and end
 // time, where the costs are aggregated per-resource. AllocationTotals
@@ -109,7 +116,9 @@ func (art *AllocationTotals) TotalCost() float64 {
 // ComputeAllocationTotals totals the resource costs of the given AllocationSet
 // using the given property, i.e. cluster or node, where "node" really means to
 // use the fully-qualified (cluster, node) tuple.
-func ComputeAllocationTotals(as *AllocationSet, prop string) map[string]*AllocationTotals {
+func ComputeAllocationTotals(as *AllocationSet, prop string) (map[string]*AllocationTotals, CostPairSet) {
+	costPairSet := CostPairSet{}
+
 	arts := map[string]*AllocationTotals{}
 
 	for _, alloc := range as.Allocations {
@@ -144,6 +153,13 @@ func ComputeAllocationTotals(as *AllocationSet, prop string) map[string]*Allocat
 			arts[key].Node = ""
 		}
 
+		if alloc.LoadBalancerTotalCost() > 0 && prop == AllocationClusterProp {
+			costPairSet[alloc.Name] = CostPair{
+				Cost:       alloc.LoadBalancerCost,
+				Adjustment: alloc.LoadBalancerCostAdjustment,
+			}
+		}
+
 		arts[key].Count++
 
 		arts[key].CPUCost += alloc.CPUCost
@@ -165,7 +181,7 @@ func ComputeAllocationTotals(as *AllocationSet, prop string) map[string]*Allocat
 		arts[key].RAMCostAdjustment += alloc.RAMCostAdjustment
 	}
 
-	return arts
+	return arts, costPairSet
 }
 
 // AllocationTotalsSet represents totals, summed by both "cluster" and "node"
@@ -557,6 +573,7 @@ type AllocationTotalsStore interface {
 	GetAllocationTotalsByNode(start, end time.Time) (map[string]*AllocationTotals, bool)
 	SetAllocationTotalsByCluster(start, end time.Time, rts map[string]*AllocationTotals)
 	SetAllocationTotalsByNode(start, end time.Time, rts map[string]*AllocationTotals)
+	SetAllocationCostPairSet(window Window, costPairSet CostPairSet)
 }
 
 // UpdateAllocationTotalsStore updates an AllocationTotalsStore
@@ -577,10 +594,11 @@ func UpdateAllocationTotalsStore(arts AllocationTotalsStore, as *AllocationSet) 
 	start := *as.Window.Start()
 	end := *as.Window.End()
 
-	artsByCluster := ComputeAllocationTotals(as, AllocationClusterProp)
+	artsByCluster, costPairSet := ComputeAllocationTotals(as, AllocationClusterProp)
 	arts.SetAllocationTotalsByCluster(start, end, artsByCluster)
+	arts.SetAllocationCostPairSet(as.Window, costPairSet)
 
-	artsByNode := ComputeAllocationTotals(as, AllocationNodeProp)
+	artsByNode, _ := ComputeAllocationTotals(as, AllocationNodeProp)
 	arts.SetAllocationTotalsByNode(start, end, artsByNode)
 
 	log.Debugf("ETL: Allocation: updated resource totals for %s", as.Window)
@@ -656,6 +674,13 @@ type MemoryTotalsStore struct {
 	allocTotalsByNode    *cache.Cache
 	assetTotalsByCluster *cache.Cache
 	assetTotalsByNode    *cache.Cache
+	costPairSetCache     map[Window]CostPairSet // TODO remove
+}
+
+// TODO remove
+func (mts *MemoryTotalsStore) SetAllocationCostPairSet(window Window, costPairSet CostPairSet) {
+	log.Infof("Setting CostPairSet for %s (%d allocations)", window, len(costPairSet))
+	mts.costPairSetCache[window] = costPairSet
 }
 
 // NewMemoryTotalsStore instantiates a new MemoryTotalsStore,
@@ -666,6 +691,7 @@ func NewMemoryTotalsStore() *MemoryTotalsStore {
 		allocTotalsByNode:    cache.New(cache.NoExpiration, cache.NoExpiration),
 		assetTotalsByCluster: cache.New(cache.NoExpiration, cache.NoExpiration),
 		assetTotalsByNode:    cache.New(cache.NoExpiration, cache.NoExpiration),
+		costPairSetCache:     map[Window]CostPairSet{},
 	}
 }
 
@@ -676,6 +702,15 @@ func (mts *MemoryTotalsStore) GetAllocationTotalsByCluster(start time.Time, end 
 	if raw, ok := mts.allocTotalsByCluster.Get(k); !ok {
 		return map[string]*AllocationTotals{}, false
 	} else {
+		window := NewClosedWindow(start, end)
+		if costPairSet, ok := mts.costPairSetCache[window]; ok {
+			for k, v := range costPairSet {
+				log.Infof(" *** Summary:    Totals: %s: %s: %.6f + %.6f = %.6f", window, k, v.Cost, v.Adjustment, v.Cost+v.Adjustment)
+			}
+		} else {
+			log.Infof(" *** Summary:    Totals: %s: no CostPairSet", window)
+		}
+
 		original := raw.(map[string]*AllocationTotals)
 		totals := make(map[string]*AllocationTotals, len(original))
 		for k, v := range original {

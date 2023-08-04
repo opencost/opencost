@@ -994,21 +994,63 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// 11. Distribute shared resources according to sharing coefficients.
 	// NOTE: ShareEven is not supported
 	if len(shareSet.SummaryAllocations) > 0 {
+		cpuCost := 0.0
+		cpuAdj := 0.0
+		gpuCost := 0.0
+		gpuAdj := 0.0
+		ramCost := 0.0
+		ramAdj := 0.0
+		pvsCost := 0.0
+		pvsAdj := 0.0
+		lbsCost := 0.0
+		lbsAdj := 0.0
+		netCost := 0.0
+		netAdj := 0.0
 
 		sharingCoeffDenominator := 0.0
 		for _, rt := range allocTotals {
 			sharingCoeffDenominator += rt.TotalCost()
+
+			cpuCost += rt.CPUCost
+			cpuAdj += rt.CPUCostAdjustment
+			gpuCost += rt.GPUCost
+			gpuAdj += rt.GPUCostAdjustment
+			ramCost += rt.RAMCost
+			ramAdj += rt.RAMCostAdjustment
+			pvsCost += rt.PersistentVolumeCost
+			pvsAdj += rt.PersistentVolumeCostAdjustment
+			lbsCost += rt.LoadBalancerCost
+			lbsAdj += rt.LoadBalancerCostAdjustment
+			netCost += rt.NetworkCost
+			netAdj += rt.NetworkCostAdjustment
 		}
 
 		// Do not include the shared costs, themselves, when determining
 		// sharing coefficients.
 		for _, rt := range sharedResourceTotals {
 			sharingCoeffDenominator -= rt.TotalCost()
+
+			cpuCost -= rt.CPUCost
+			cpuAdj -= rt.CPUCostAdjustment
+			gpuCost -= rt.GPUCost
+			gpuAdj -= rt.GPUCostAdjustment
+			ramCost -= rt.RAMCost
+			ramAdj -= rt.RAMCostAdjustment
+			pvsCost -= rt.PersistentVolumeCost
+			pvsAdj -= rt.PersistentVolumeCostAdjustment
+			lbsCost -= rt.LoadBalancerCost
+			lbsAdj -= rt.LoadBalancerCostAdjustment
+			netCost -= rt.NetworkCost
+			netAdj -= rt.NetworkCostAdjustment
 		}
 
 		// Do not include the unmounted costs when determining sharing
 		// coefficients because they do not receive shared costs.
 		sharingCoeffDenominator -= totalUnmountedCost
+
+		pvsCost -= totalUnmountedCost
+
+		log.Infof("Summary:   %s: total: %.6f = %.6f + %.6f + %.6f + %.6f + %.6f + %.6f + %.6f + %.6f + %.6f + %.6f + %.6f + %.6f", resultSet.Window, sharingCoeffDenominator, cpuCost, cpuAdj, gpuCost, gpuAdj, ramCost, ramAdj, pvsCost, pvsAdj, lbsCost, lbsAdj, netCost, netAdj)
 
 		if sharingCoeffDenominator <= 0.0 {
 			log.Warnf("SummaryAllocation: sharing coefficient denominator is %f", sharingCoeffDenominator)

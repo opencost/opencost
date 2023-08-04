@@ -2560,10 +2560,10 @@ func computeIdleAllocations(allocSet *kubecost.AllocationSet, assetSet *kubecost
 	var assetTotals map[string]*kubecost.AssetTotals
 
 	if idleByNode {
-		allocTotals = kubecost.ComputeAllocationTotals(allocSet, kubecost.AllocationNodeProp)
+		allocTotals, _ = kubecost.ComputeAllocationTotals(allocSet, kubecost.AllocationNodeProp)
 		assetTotals = kubecost.ComputeAssetTotals(assetSet, true)
 	} else {
-		allocTotals = kubecost.ComputeAllocationTotals(allocSet, kubecost.AllocationClusterProp)
+		allocTotals, _ = kubecost.ComputeAllocationTotals(allocSet, kubecost.AllocationClusterProp)
 		assetTotals = kubecost.ComputeAssetTotals(assetSet, false)
 	}
 
