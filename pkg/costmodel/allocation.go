@@ -279,6 +279,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	result.Errors = errors
 	result.Warnings = warnings
 
+	// Convert any NaNs to 0 to avoid JSON marshaling issues and avoid cascading NaN appearances elsewhere
+	result.SanitizeNaN()
+
 	return result, nil
 }
 
