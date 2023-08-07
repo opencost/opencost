@@ -2,6 +2,7 @@ package kubecost
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -120,6 +121,16 @@ type LbAllocation struct {
 	Private bool    `json:"private"`
 }
 
+func (lba *LbAllocation) SanitizeNaN() {
+	if lba == nil {
+		return
+	}
+	if math.IsNaN(lba.Cost) {
+		log.DedupedWarningf(5, "LBAllocation: Unexpected NaN found for Cost service:%s", lba.Service)
+		lba.Cost = 0
+	}
+}
+
 // RawAllocationOnlyData is information that only belong in "raw" Allocations,
 // those which have not undergone aggregation, accumulation, or any other form
 // of combination to produce a new Allocation from other Allocations.
@@ -171,6 +182,20 @@ func (r *RawAllocationOnlyData) Equal(that *RawAllocationOnlyData) bool {
 	}
 	return util.IsApproximately(r.CPUCoreUsageMax, that.CPUCoreUsageMax) &&
 		util.IsApproximately(r.RAMBytesUsageMax, that.RAMBytesUsageMax)
+}
+
+func (r *RawAllocationOnlyData) SanitizeNaN() {
+	if r == nil {
+		return
+	}
+	if math.IsNaN(r.CPUCoreUsageMax) {
+		log.DedupedWarningf(5, "RawAllocationOnlyData: Unexpected NaN found for CPUCoreUsageMax")
+		r.CPUCoreUsageMax = 0
+	}
+	if math.IsNaN(r.RAMBytesUsageMax) {
+		log.DedupedWarningf(5, "RawAllocationOnlyData: Unexpected NaN found for RAMBytesUsageMax")
+		r.RAMBytesUsageMax = 0
+	}
 }
 
 // PVAllocations is a map of Disk Asset Identifiers to the
@@ -236,6 +261,12 @@ func (this PVAllocations) Equal(that PVAllocations) bool {
 	return true
 }
 
+func (pvs PVAllocations) SanitizeNaN() {
+	for _, pv := range pvs {
+		pv.SanitizeNaN()
+	}
+}
+
 // PVKey for identifying Disk type assets
 type PVKey struct {
 	Cluster string `json:"cluster"`
@@ -275,6 +306,20 @@ func (pva *PVAllocation) Equal(that *PVAllocation) bool {
 	}
 	return util.IsApproximately(pva.ByteHours, that.ByteHours) &&
 		util.IsApproximately(pva.Cost, that.Cost)
+}
+
+func (pva *PVAllocation) SanitizeNaN() {
+	if pva == nil {
+		return
+	}
+	if math.IsNaN(pva.ByteHours) {
+		log.DedupedWarningf(5, "PVAllocation: Unexpected NaN found for ByteHours")
+		pva.ByteHours = 0
+	}
+	if math.IsNaN(pva.Cost) {
+		log.DedupedWarningf(5, "PVAllocation: Unexpected NaN found for Cost")
+		pva.Cost = 0
+	}
 }
 
 type ProportionalAssetResourceCost struct {
@@ -401,6 +446,77 @@ func (parcs ProportionalAssetResourceCosts) Add(that ProportionalAssetResourceCo
 	}
 }
 
+func (parcs ProportionalAssetResourceCosts) SanitizeNaN() {
+	for key, parc := range parcs {
+		if math.IsNaN(parc.CPUPercentage) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for CPUPercentage name:%s", parc.Name)
+			parc.CPUPercentage = 0
+		}
+		if math.IsNaN(parc.GPUPercentage) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for GPUPercentage name:%s", parc.Name)
+			parc.GPUPercentage = 0
+		}
+		if math.IsNaN(parc.RAMPercentage) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for RAMPercentage name:%s", parc.Name)
+			parc.RAMPercentage = 0
+		}
+		if math.IsNaN(parc.LoadBalancerPercentage) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for LoadBalancerPercentage name:%s", parc.Name)
+			parc.LoadBalancerPercentage = 0
+		}
+		if math.IsNaN(parc.PVPercentage) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for PVPercentage name:%s", parc.Name)
+			parc.PVPercentage = 0
+		}
+		if math.IsNaN(parc.NodeResourceCostPercentage) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for NodeResourceCostPercentage name:%s", parc.Name)
+			parc.NodeResourceCostPercentage = 0
+		}
+		if math.IsNaN(parc.GPUTotalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for GPUTotalCost name:%s", parc.Name)
+			parc.GPUTotalCost = 0
+		}
+		if math.IsNaN(parc.GPUProportionalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for GPUProportionalCost name:%s", parc.Name)
+			parc.GPUProportionalCost = 0
+		}
+		if math.IsNaN(parc.CPUTotalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for CPUTotalCost name:%s", parc.Name)
+			parc.CPUTotalCost = 0
+		}
+		if math.IsNaN(parc.CPUProportionalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for CPUProportionalCost name:%s", parc.Name)
+			parc.CPUProportionalCost = 0
+		}
+		if math.IsNaN(parc.RAMTotalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for RAMTotalCost name:%s", parc.Name)
+			parc.RAMTotalCost = 0
+		}
+		if math.IsNaN(parc.RAMProportionalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for RAMProportionalCost name:%s", parc.Name)
+			parc.RAMProportionalCost = 0
+		}
+		if math.IsNaN(parc.LoadBalancerProportionalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for LoadBalancerProportionalCost name:%s", parc.Name)
+			parc.LoadBalancerProportionalCost = 0
+		}
+		if math.IsNaN(parc.LoadBalancerTotalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for LoadBalancerTotalCost name:%s", parc.Name)
+			parc.LoadBalancerTotalCost = 0
+		}
+		if math.IsNaN(parc.PVProportionalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for PVProportionalCost name:%s", parc.Name)
+			parc.PVProportionalCost = 0
+		}
+		if math.IsNaN(parc.PVTotalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for PVTotalCost name:%s", parc.Name)
+			parc.PVTotalCost = 0
+		}
+
+		parcs[key] = parc
+	}
+}
+
 type SharedCostBreakdown struct {
 	Name         string  `json:"name"`
 	TotalCost    float64 `json:"totalCost"`
@@ -445,6 +561,44 @@ func (scbs SharedCostBreakdowns) Insert(scb SharedCostBreakdown) {
 func (scbs SharedCostBreakdowns) Add(that SharedCostBreakdowns) {
 	for _, scb := range that {
 		scbs.Insert(scb)
+	}
+}
+
+func (scbs SharedCostBreakdowns) SanitizeNaN() {
+	for key, scb := range scbs {
+		if math.IsNaN(scb.CPUCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for CPUCost name:%s", scb.Name)
+			scb.CPUCost = 0
+		}
+		if math.IsNaN(scb.GPUCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for GPUCost name:%s", scb.Name)
+			scb.GPUCost = 0
+		}
+		if math.IsNaN(scb.RAMCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for RAMCost name:%s", scb.Name)
+			scb.RAMCost = 0
+		}
+		if math.IsNaN(scb.PVCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for PVCost name:%s", scb.Name)
+			scb.PVCost = 0
+		}
+		if math.IsNaN(scb.NetworkCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for NetworkCost name:%s", scb.Name)
+			scb.NetworkCost = 0
+		}
+		if math.IsNaN(scb.LBCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for LBCost name:%s", scb.Name)
+			scb.LBCost = 0
+		}
+		if math.IsNaN(scb.ExternalCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for ExternalCost name:%s", scb.Name)
+			scb.ExternalCost = 0
+		}
+		if math.IsNaN(scb.TotalCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for TotalCost name:%s", scb.Name)
+			scb.TotalCost = 0
+		}
+		scbs[key] = scb
 	}
 }
 
@@ -1079,6 +1233,12 @@ func (thisLbAllocs LbAllocations) Add(thatLbAllocs LbAllocations) LbAllocations 
 		}
 	}
 	return mergedLbAllocs
+}
+
+func (thisLbAllocs LbAllocations) SanitizeNaN() {
+	for _, lba := range thisLbAllocs {
+		lba.SanitizeNaN()
+	}
 }
 
 // AllocationSet stores a set of Allocations, each with a unique name, that share
@@ -2301,6 +2461,118 @@ func (a *Allocation) StringMapProperty(property string) (map[string]string, erro
 	}
 }
 
+func (a *Allocation) SanitizeNaN() {
+	if a == nil {
+		return
+	}
+	if math.IsNaN(a.CPUCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCost: name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.CPUCost = 0
+	}
+	if math.IsNaN(a.CPUCoreRequestAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCoreRequestAverage: name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.CPUCoreRequestAverage = 0
+	}
+	if math.IsNaN(a.CPUCoreHours) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCoreHours: name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.CPUCoreHours = 0
+	}
+	if math.IsNaN(a.CPUCoreUsageAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCoreUsageAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.CPUCoreUsageAverage = 0
+	}
+	if math.IsNaN(a.CPUCostAdjustment) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.CPUCostAdjustment = 0
+	}
+	if math.IsNaN(a.GPUHours) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUHours name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.GPUHours = 0
+	}
+	if math.IsNaN(a.GPUCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.GPUCost = 0
+	}
+	if math.IsNaN(a.GPUCostAdjustment) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.GPUCostAdjustment = 0
+	}
+	if math.IsNaN(a.NetworkTransferBytes) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkTransferBytes name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkTransferBytes = 0
+	}
+	if math.IsNaN(a.NetworkReceiveBytes) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkReceiveBytes name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkReceiveBytes = 0
+	}
+	if math.IsNaN(a.NetworkCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkCost = 0
+	}
+	if math.IsNaN(a.NetworkCrossZoneCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkCrossZoneCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkCrossZoneCost = 0
+	}
+	if math.IsNaN(a.NetworkCrossRegionCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkCrossRegionCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkCrossRegionCost = 0
+	}
+	if math.IsNaN(a.NetworkInternetCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkInternetCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkInternetCost = 0
+	}
+	if math.IsNaN(a.NetworkCostAdjustment) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkCostAdjustment = 0
+	}
+	if math.IsNaN(a.LoadBalancerCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for LoadBalancerCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.LoadBalancerCost = 0
+	}
+	if math.IsNaN(a.LoadBalancerCostAdjustment) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for LoadBalancerCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.LoadBalancerCostAdjustment = 0
+	}
+	if math.IsNaN(a.PVCostAdjustment) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for PVCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.PVCostAdjustment = 0
+	}
+	if math.IsNaN(a.RAMByteHours) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMByteHours name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.RAMByteHours = 0
+	}
+	if math.IsNaN(a.RAMBytesRequestAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMBytesRequestAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.RAMBytesRequestAverage = 0
+	}
+	if math.IsNaN(a.RAMBytesUsageAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMBytesUsageAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.RAMBytesUsageAverage = 0
+	}
+	if math.IsNaN(a.RAMCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.RAMCost = 0
+	}
+	if math.IsNaN(a.RAMCostAdjustment) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.RAMCostAdjustment = 0
+	}
+	if math.IsNaN(a.SharedCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for SharedCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.SharedCost = 0
+	}
+	if math.IsNaN(a.ExternalCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for ExternalCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.ExternalCost = 0
+	}
+
+	a.PVs.SanitizeNaN()
+	a.RawAllocationOnly.SanitizeNaN()
+	a.ProportionalAssetResourceCosts.SanitizeNaN()
+	a.SharedCostBreakdown.SanitizeNaN()
+	a.LoadBalancers.SanitizeNaN()
+}
+
 // Clone returns a new AllocationSet with a deep copy of the given
 // AllocationSet's allocations.
 func (as *AllocationSet) Clone() *AllocationSet {
@@ -2623,6 +2895,15 @@ func (as *AllocationSet) Accumulate(that *AllocationSet) (*AllocationSet, error)
 	}
 
 	return acc, nil
+}
+
+func (as *AllocationSet) SanitizeNaN() {
+	if as == nil {
+		return
+	}
+	for _, a := range as.Allocations {
+		a.SanitizeNaN()
+	}
 }
 
 // AllocationSetRange is a thread-safe slice of AllocationSets. It is meant to

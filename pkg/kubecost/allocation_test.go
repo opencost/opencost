@@ -3652,3 +3652,240 @@ func TestIsFilterEmptyFalse(t *testing.T) {
 		t.Errorf("matcher '%+v' should be not be reported empty but was", matcher)
 	}
 }
+
+func TestAllocation_SanitizeNaN(t *testing.T) {
+	tcName := "TestAllocation_SanitizeNaN"
+	alloc := getMockAllocation(math.NaN())
+	alloc.SanitizeNaN()
+	checkAllocation(t, tcName, alloc)
+}
+
+func checkAllocation(t *testing.T, tcName string, alloc Allocation) {
+	v := reflect.ValueOf(alloc)
+	checkAllFloat64sForNaN(t, v, tcName)
+
+	vRaw := reflect.ValueOf(*alloc.RawAllocationOnly)
+	checkAllFloat64sForNaN(t, vRaw, tcName)
+
+	for _, pv := range alloc.PVs {
+		vPV := reflect.ValueOf(*pv)
+		checkAllFloat64sForNaN(t, vPV, tcName)
+	}
+
+	for _, parc := range alloc.ProportionalAssetResourceCosts {
+		vParc := reflect.ValueOf(parc)
+		checkAllFloat64sForNaN(t, vParc, tcName)
+	}
+
+	for _, scb := range alloc.SharedCostBreakdown {
+		vScb := reflect.ValueOf(scb)
+		checkAllFloat64sForNaN(t, vScb, tcName)
+	}
+
+	for _, lb := range alloc.LoadBalancers {
+		vLb := reflect.ValueOf(*lb)
+		checkAllFloat64sForNaN(t, vLb, tcName)
+	}
+}
+
+func TestAllocationSet_SanitizeNaN(t *testing.T) {
+	allocNaN := getMockAllocation(math.NaN())
+	allocNotNaN := getMockAllocation(1.2)
+	allocSet := AllocationSet{
+		Allocations: map[string]*Allocation{"NaN": &allocNaN, "notNaN": &allocNotNaN},
+	}
+
+	allocSet.SanitizeNaN()
+
+	for _, a := range allocSet.Allocations {
+		checkAllocation(t, "TestAllocationSet_SanitizeNaN", *a)
+	}
+
+}
+
+func getMockAllocation(f float64) Allocation {
+	alloc := Allocation{
+		Name:                           "mockAllocation",
+		Properties:                     nil,
+		Window:                         Window{},
+		Start:                          time.Time{},
+		End:                            time.Time{},
+		CPUCoreHours:                   f,
+		CPUCoreRequestAverage:          f,
+		CPUCoreUsageAverage:            f,
+		CPUCost:                        f,
+		CPUCostAdjustment:              f,
+		GPUHours:                       f,
+		GPUCost:                        f,
+		GPUCostAdjustment:              f,
+		NetworkTransferBytes:           f,
+		NetworkReceiveBytes:            f,
+		NetworkCost:                    f,
+		NetworkCrossZoneCost:           f,
+		NetworkCrossRegionCost:         f,
+		NetworkInternetCost:            f,
+		NetworkCostAdjustment:          f,
+		LoadBalancerCost:               f,
+		LoadBalancerCostAdjustment:     f,
+		PVs:                            PVAllocations{{Cluster: "testPV", Name: "PVName"}: getMockPVAllocation(math.NaN())},
+		PVCostAdjustment:               f,
+		RAMByteHours:                   f,
+		RAMBytesRequestAverage:         f,
+		RAMBytesUsageAverage:           f,
+		RAMCost:                        f,
+		RAMCostAdjustment:              f,
+		SharedCost:                     f,
+		ExternalCost:                   f,
+		RawAllocationOnly:              getMockRawAllocationOnlyData(f),
+		ProportionalAssetResourceCosts: ProportionalAssetResourceCosts{"NaN": *getMockPARC(f)},
+		SharedCostBreakdown:            SharedCostBreakdowns{"NaN": *getMockSharedCostBreakdown(f)},
+		LoadBalancers:                  LbAllocations{"NaN": getMockLbAllocation(f)},
+	}
+	return alloc
+}
+
+func TestPVAllocation_SanitizeNaN(t *testing.T) {
+	pva := getMockPVAllocation(math.NaN())
+	pva.SanitizeNaN()
+	v := reflect.ValueOf(*pva)
+	checkAllFloat64sForNaN(t, v, "TestPVAllocation_SanitizeNaN")
+}
+
+func TestPVAllocations_SanitizeNaN(t *testing.T) {
+	pvaNaN := getMockPVAllocation(math.NaN())
+	pvaNotNaN := getMockPVAllocation(1.2)
+	pvs := PVAllocations{{Cluster: "testPV", Name: "PVName1"}: pvaNaN, {Cluster: "testPV", Name: "PVName2"}: pvaNotNaN}
+	pvs.SanitizeNaN()
+	for _, pv := range pvs {
+		v := reflect.ValueOf(*pv)
+		checkAllFloat64sForNaN(t, v, "TestPVAllocations_SanitizeNaN")
+	}
+
+}
+
+func getMockPVAllocation(f float64) *PVAllocation {
+	return &PVAllocation{
+		ByteHours: f,
+		Cost:      f,
+	}
+}
+
+func TestRawAllocationOnlyData_SanitizeNaN(t *testing.T) {
+	raw := getMockRawAllocationOnlyData(math.NaN())
+	raw.SanitizeNaN()
+	v := reflect.ValueOf(*raw)
+	checkAllFloat64sForNaN(t, v, "TestRawAllocationOnlyData_SanitizeNaN")
+}
+
+func getMockRawAllocationOnlyData(f float64) *RawAllocationOnlyData {
+	return &RawAllocationOnlyData{
+		CPUCoreUsageMax:  f,
+		RAMBytesUsageMax: f,
+	}
+}
+
+func TestLbAllocation_SanitizeNaN(t *testing.T) {
+	lbaNaN := getMockLbAllocation(math.NaN())
+	lbaNaN.SanitizeNaN()
+	v := reflect.ValueOf(*lbaNaN)
+	checkAllFloat64sForNaN(t, v, "TestLbAllocation_SanitizeNaN")
+}
+
+func TestLbAllocations_SanitizeNaN(t *testing.T) {
+	lbaNaN := getMockLbAllocation(math.NaN())
+	lbaValid := getMockLbAllocation(1.2)
+
+	lbas := LbAllocations{"NaN": lbaNaN, "notNaN": lbaValid}
+	lbas.SanitizeNaN()
+	for _, lba := range lbas {
+		v := reflect.ValueOf(*lba)
+		checkAllFloat64sForNaN(t, v, "TestLbAllocations_SanitizeNaN")
+	}
+}
+
+func getMockLbAllocation(f float64) *LbAllocation {
+	return &LbAllocation{
+		Service: "testLoadBalancer",
+		Cost:    f,
+		Private: false,
+	}
+}
+
+func TestProportionalAssetResourceCosts_SanitizeNaN(t *testing.T) {
+	parcAllNaN := getMockPARC(math.NaN())
+	parcNotNaN := getMockPARC(1.2)
+
+	parcs := ProportionalAssetResourceCosts{"NaN": *parcAllNaN, "notNaN": *parcNotNaN}
+	parcs.SanitizeNaN()
+
+	for _, parc := range parcs {
+		v := reflect.ValueOf(parc)
+		checkAllFloat64sForNaN(t, v, "TestProportionalAssetResourceCosts_SanitizeNaN")
+	}
+}
+
+func getMockPARC(f float64) *ProportionalAssetResourceCost {
+	return &ProportionalAssetResourceCost{
+		Cluster:                      "testCluster",
+		Name:                         "testName",
+		Type:                         "testType",
+		ProviderID:                   "testProvider",
+		CPUPercentage:                f,
+		GPUPercentage:                f,
+		RAMPercentage:                f,
+		LoadBalancerPercentage:       f,
+		PVPercentage:                 f,
+		NodeResourceCostPercentage:   f,
+		GPUTotalCost:                 f,
+		GPUProportionalCost:          f,
+		CPUTotalCost:                 f,
+		CPUProportionalCost:          f,
+		RAMTotalCost:                 f,
+		RAMProportionalCost:          f,
+		LoadBalancerProportionalCost: f,
+		LoadBalancerTotalCost:        f,
+		PVProportionalCost:           f,
+		PVTotalCost:                  f,
+	}
+}
+
+func TestSharedCostBreakdowns_SanitizeNaN(t *testing.T) {
+	scbNaN := getMockSharedCostBreakdown(math.NaN())
+	scbNotNaN := getMockSharedCostBreakdown(1.2)
+
+	scbs := SharedCostBreakdowns{"NaN": *scbNaN, "notNaN": *scbNotNaN}
+	scbs.SanitizeNaN()
+	for _, scb := range scbs {
+		v := reflect.ValueOf(scb)
+		checkAllFloat64sForNaN(t, v, "TestSharedCostBreakdowns_SanitizeNaN")
+	}
+}
+
+func getMockSharedCostBreakdown(f float64) *SharedCostBreakdown {
+	return &SharedCostBreakdown{
+		Name:         "testBreakdown",
+		TotalCost:    f,
+		CPUCost:      f,
+		GPUCost:      f,
+		RAMCost:      f,
+		PVCost:       f,
+		NetworkCost:  f,
+		LBCost:       f,
+		ExternalCost: f,
+	}
+}
+
+func checkAllFloat64sForNaN(t *testing.T, v reflect.Value, testCaseName string) {
+	vType := v.Type()
+
+	// go through each field on the struct
+	for i := 0; i < v.NumField(); i++ {
+		// Check if field is public and can be converted to a float
+		if v.Field(i).CanInterface() && v.Field(i).CanFloat() {
+			f := v.Field(i).Float()
+			if math.IsNaN(f) {
+				t.Fatalf("%s: expected not NaN for field: %s, got:NaN", testCaseName, vType.Field(i).Name)
+			}
+		}
+	}
+}
