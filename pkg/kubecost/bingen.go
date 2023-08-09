@@ -46,7 +46,11 @@ package kubecost
 // @bingen:end
 
 // Allocation Version Set: Includes Allocation pipeline specific resources
+<<<<<<< HEAD
 // @bingen:set[name=Allocation,version=20]
+=======
+// @bingen:set[name=Allocation,version=19]
+>>>>>>> b3b6f5bc (add ip field to load balancers)
 // @bingen:generate:Allocation
 // @bingen:generate[stringtable]:AllocationSet
 // @bingen:generate:AllocationSetRange
