@@ -2360,11 +2360,12 @@ type LoadBalancer struct {
 	Window     Window
 	Adjustment float64
 	Cost       float64
-	Private    bool // @bingen:field[version=20]
+	Private    bool   // @bingen:field[version=20]
+	Ip         string // @bingen:field[version=21]
 }
 
 // NewLoadBalancer instantiates and returns a new LoadBalancer
-func NewLoadBalancer(name, cluster, providerID string, start, end time.Time, window Window, private bool) *LoadBalancer {
+func NewLoadBalancer(name, cluster, providerID string, start, end time.Time, window Window, private bool, ip string) *LoadBalancer {
 	properties := &AssetProperties{
 		Category:   NetworkCategory,
 		Name:       name,
@@ -2380,6 +2381,7 @@ func NewLoadBalancer(name, cluster, providerID string, start, end time.Time, win
 		End:        end,
 		Window:     window,
 		Private:    private,
+		Ip:         ip,
 	}
 }
 
@@ -2526,6 +2528,11 @@ func (lb *LoadBalancer) add(that *LoadBalancer) {
 
 	lb.Cost += that.Cost
 	lb.Adjustment += that.Adjustment
+
+	if lb.Ip != that.Ip {
+		//TODO: should we add to an array here or just ignore?
+		log.DedupedWarningf(5, "LoadBalancer add: load balancer ip fields (%s and %s) do not match. ignoring...", lb.Ip, that.Ip)
+	}
 }
 
 // Clone returns a cloned instance of the given Asset
@@ -2538,10 +2545,12 @@ func (lb *LoadBalancer) Clone() Asset {
 		Window:     lb.Window.Clone(),
 		Adjustment: lb.Adjustment,
 		Cost:       lb.Cost,
+		Private:    lb.Private,
+		Ip:         lb.Ip,
 	}
 }
 
-// Equal returns true if the tow Assets match precisely
+// Equal returns true if the two Assets match precisely
 func (lb *LoadBalancer) Equal(a Asset) bool {
 	that, ok := a.(*LoadBalancer)
 	if !ok {
@@ -2567,6 +2576,12 @@ func (lb *LoadBalancer) Equal(a Asset) bool {
 		return false
 	}
 	if lb.Cost != that.Cost {
+		return false
+	}
+	if lb.Private != that.Private {
+		return false
+	}
+	if lb.Ip != that.Ip {
 		return false
 	}
 

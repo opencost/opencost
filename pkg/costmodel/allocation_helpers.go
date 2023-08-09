@@ -1392,6 +1392,7 @@ func getLoadBalancerCosts(lbMap map[serviceKey]*lbCost, resLBCost, resLBActiveMi
 			lb.End = lb.End.Add(resolution)
 
 			lb.TotalCost += lbPricePerHr * resultHours * scaleFactor
+			lb.Ip = ip
 			lb.Private = privateIPCheck(ip)
 		} else {
 			log.DedupedWarningf(20, "CostModel: found minutes for key that does not exist: %s", serviceKey)
@@ -1449,6 +1450,7 @@ func applyLoadBalancersToPods(window kubecost.Window, podMap map[podKey]*pod, lb
 					Service: sKey.Namespace + "/" + sKey.Service,
 					Cost:    alloc.LoadBalancerCost,
 					Private: lb.Private,
+					Ip:      lb.Ip,
 				}
 			}
 		}
