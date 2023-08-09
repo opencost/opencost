@@ -119,6 +119,7 @@ type LbAllocation struct {
 	Service string  `json:"service"`
 	Cost    float64 `json:"cost"`
 	Private bool    `json:"private"`
+	Ip      string  `json:"ip"`
 }
 
 func (lba *LbAllocation) SanitizeNaN() {

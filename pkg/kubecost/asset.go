@@ -2360,11 +2360,12 @@ type LoadBalancer struct {
 	Window     Window
 	Adjustment float64
 	Cost       float64
-	Private    bool // @bingen:field[version=20]
+	Private    bool   // @bingen:field[version=20]
+	Ip         string // @bingen:field[version=21]
 }
 
 // NewLoadBalancer instantiates and returns a new LoadBalancer
-func NewLoadBalancer(name, cluster, providerID string, start, end time.Time, window Window, private bool) *LoadBalancer {
+func NewLoadBalancer(name, cluster, providerID string, start, end time.Time, window Window, private bool, ip string) *LoadBalancer {
 	properties := &AssetProperties{
 		Category:   NetworkCategory,
 		Name:       name,
@@ -2380,6 +2381,7 @@ func NewLoadBalancer(name, cluster, providerID string, start, end time.Time, win
 		End:        end,
 		Window:     window,
 		Private:    private,
+		Ip:         ip,
 	}
 }
 

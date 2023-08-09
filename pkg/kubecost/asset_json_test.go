@@ -419,7 +419,7 @@ func TestNode_Unmarshal(t *testing.T) {
 
 func TestLoadBalancer_Unmarshal(t *testing.T) {
 
-	lb1 := NewLoadBalancer("loadbalancer1", "cluster1", "provider1", *unmarshalWindow.start, *unmarshalWindow.end, unmarshalWindow, false)
+	lb1 := NewLoadBalancer("loadbalancer1", "cluster1", "provider1", *unmarshalWindow.start, *unmarshalWindow.end, unmarshalWindow, false, "127.0.0.1")
 	lb1.Cost = 12.0
 	lb1.SetAdjustment(4.0)
 
@@ -515,7 +515,7 @@ func TestAssetset_Unmarshal(t *testing.T) {
 	disk := NewDisk("disk1", "cluster1", "disk1", *unmarshalWindow.start, *unmarshalWindow.end, unmarshalWindow)
 	network := NewNetwork("network1", "cluster1", "provider1", *unmarshalWindow.start, *unmarshalWindow.end, unmarshalWindow)
 	node := NewNode("node1", "cluster1", "provider1", *unmarshalWindow.start, *unmarshalWindow.end, unmarshalWindow)
-	lb := NewLoadBalancer("loadbalancer1", "cluster1", "provider1", *unmarshalWindow.start, *unmarshalWindow.end, unmarshalWindow, false)
+	lb := NewLoadBalancer("loadbalancer1", "cluster1", "provider1", *unmarshalWindow.start, *unmarshalWindow.end, unmarshalWindow, false, "127.0.0.1")
 	sa := NewSharedAsset("sharedasset1", unmarshalWindow)
 
 	assetList := []Asset{any, cloud, cm, disk, network, node, lb, sa}

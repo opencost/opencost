@@ -716,6 +716,7 @@ type LoadBalancer struct {
 	End        time.Time
 	Minutes    float64
 	Private    bool
+	Ip         string
 }
 
 func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[LoadBalancerIdentifier]*LoadBalancer, error) {
@@ -851,6 +852,7 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 
 			hrs := (lb.Minutes * scaleFactor) / 60.0
 			lb.Cost += lbPricePerHr * hrs
+			lb.Ip = providerID
 			lb.Private = privateIPCheck(providerID)
 		} else {
 			log.DedupedWarningf(20, "ClusterLoadBalancers: found minutes for key that does not exist: %v", key)
