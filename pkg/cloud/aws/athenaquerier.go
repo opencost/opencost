@@ -24,6 +24,10 @@ type AthenaQuerier struct {
 	ConnectionStatus cloud.ConnectionStatus
 }
 
+func (aq *AthenaQuerier) GetStatus() cloud.ConnectionStatus {
+	return aq.ConnectionStatus
+}
+
 func (aq *AthenaQuerier) Equals(config cloudconfig.Config) bool {
 	thatConfig, ok := config.(*AthenaQuerier)
 	if !ok {
