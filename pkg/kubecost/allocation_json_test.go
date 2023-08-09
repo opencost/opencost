@@ -2,10 +2,11 @@ package kubecost
 
 import (
 	"encoding/json"
-	"github.com/opencost/opencost/pkg/util/mathutil"
 	"math"
 	"testing"
 	"time"
+
+	"github.com/opencost/opencost/pkg/util/mathutil"
 )
 
 func TestAllocation_MarshalJSON(t *testing.T) {
@@ -147,6 +148,72 @@ func TestPVAllocations_MarshalJSON(t *testing.T) {
 
 				if beforePV.ByteHours != afterPV.ByteHours {
 					t.Fatalf("PVAllocations.MarshalJSON: PVAllocation ByteHours not equal for PVKey %s", pvKey)
+				}
+			}
+
+		})
+	}
+
+}
+
+func TestLbAllocation_MarshalJSON(t *testing.T) {
+	testCases := map[string]LbAllocations{
+		"empty": {},
+		"single": {
+			"cluster1/namespace1/ingress": {
+				Service: "namespace1/ingress",
+				Cost:    1,
+				Private: false,
+				Ip:      "127.0.0.1",
+			},
+		},
+		"multi": {
+			"cluster1/namespace1/ingress": {
+				Service: "namespace1/ingress",
+				Cost:    1,
+				Private: false,
+				Ip:      "127.0.0.1",
+			},
+			"cluster1/namespace1/frontend": {
+				Service: "namespace1/frontend",
+				Cost:    1,
+				Private: false,
+				Ip:      "127.0.0.2",
+			},
+		},
+		"emptyLB": {
+			"cluster1/namespace1/pod": {},
+		},
+	}
+
+	for name, before := range testCases {
+		t.Run(name, func(t *testing.T) {
+			data, err := json.Marshal(before)
+			if err != nil {
+				t.Fatalf("LbAllocations.MarshalJSON: unexpected error: %s", err)
+			}
+
+			after := LbAllocations{}
+			err = json.Unmarshal(data, &after)
+			if err != nil {
+				t.Fatalf("LbAllocations.UnmarshalJSON: unexpected error: %s", err)
+			}
+
+			if len(before) != len(after) {
+				t.Fatalf("LbAllocations.MarshalJSON: before and after are not equal")
+			}
+
+			for serviceKey, beforeLB := range before {
+				afterLB, ok := after[serviceKey]
+				if !ok {
+					t.Fatalf("LbAllocations.MarshalJSON: after missing serviceKey %s", serviceKey)
+				}
+				if beforeLB.Cost != afterLB.Cost {
+					t.Fatalf("LbAllocations.MarshalJSON: LbAllocation Cost not equal for serviceKey %s", serviceKey)
+				}
+
+				if beforeLB.Ip != afterLB.Ip {
+					t.Fatalf("LbAllocations.MarshalJSON: LbAllocation Ip not equal for serviceKey %s", serviceKey)
 				}
 			}
 
