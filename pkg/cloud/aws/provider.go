@@ -1240,8 +1240,10 @@ func (aws *AWS) savingsPlanPricing(instanceID string) (*SavingsPlanData, bool) {
 	return data, ok
 }
 
-func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Key) (*models.Node, error) {
+func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Key) (*models.Node, models.PricingMetadata, error) {
 	key := k.Features()
+
+	meta := models.PricingMetadata{}
 
 	if spotInfo, ok := aws.spotPricing(k.ID()); ok {
 		var spotcost string
@@ -1262,7 +1264,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 			BaseRAMPrice: aws.BaseRAMPrice,
 			BaseGPUPrice: aws.BaseGPUPrice,
 			UsageType:    PreemptibleType,
-		}, nil
+		}, meta, nil
 	} else if aws.isPreemptible(key) { // Preemptible but we don't have any data in the pricing report.
 		log.DedupedWarningf(5, "Node %s marked preemptible but we have no data in spot feed", k.ID())
 		return &models.Node{
@@ -1275,7 +1277,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 			BaseRAMPrice: aws.BaseRAMPrice,
 			BaseGPUPrice: aws.BaseGPUPrice,
 			UsageType:    PreemptibleType,
-		}, nil
+		}, meta, nil
 	} else if sp, ok := aws.savingsPlanPricing(k.ID()); ok {
 		strCost := fmt.Sprintf("%f", sp.EffectiveCost)
 		return &models.Node{
@@ -1288,7 +1290,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 			BaseRAMPrice: aws.BaseRAMPrice,
 			BaseGPUPrice: aws.BaseGPUPrice,
 			UsageType:    usageType,
-		}, nil
+		}, meta, nil
 
 	} else if ri, ok := aws.reservedInstancePricing(k.ID()); ok {
 		strCost := fmt.Sprintf("%f", ri.EffectiveCost)
@@ -1302,7 +1304,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 			BaseRAMPrice: aws.BaseRAMPrice,
 			BaseGPUPrice: aws.BaseGPUPrice,
 			UsageType:    usageType,
-		}, nil
+		}, meta, nil
 
 	}
 	var cost string
@@ -1315,7 +1317,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 		if ok {
 			cost = c.PricePerUnit.CNY
 		} else {
-			return nil, fmt.Errorf("Could not fetch data for \"%s\"", k.ID())
+			return nil, meta, fmt.Errorf("Could not fetch data for \"%s\"", k.ID())
 		}
 	}
 
@@ -1329,11 +1331,11 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 		BaseRAMPrice: aws.BaseRAMPrice,
 		BaseGPUPrice: aws.BaseGPUPrice,
 		UsageType:    usageType,
-	}, nil
+	}, meta, nil
 }
 
 // NodePricing takes in a key from GetKey and returns a Node object for use in building the cost model.
-func (aws *AWS) NodePricing(k models.Key) (*models.Node, error) {
+func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata, error) {
 	aws.DownloadPricingDataLock.RLock()
 	defer aws.DownloadPricingDataLock.RUnlock()
 
@@ -1342,6 +1344,8 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, error) {
 	if aws.isPreemptible(key) {
 		usageType = PreemptibleType
 	}
+
+	meta := models.PricingMetadata{}
 
 	terms, ok := aws.Pricing[key]
 	if ok {
@@ -1358,7 +1362,7 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, error) {
 				BaseGPUPrice:     aws.BaseGPUPrice,
 				UsageType:        usageType,
 				UsesBaseCPUPrice: true,
-			}, err
+			}, meta, err
 		}
 		terms, termsOk := aws.Pricing[key]
 		if !termsOk {
@@ -1369,11 +1373,11 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, error) {
 				BaseGPUPrice:     aws.BaseGPUPrice,
 				UsageType:        usageType,
 				UsesBaseCPUPrice: true,
-			}, fmt.Errorf("Unable to find any Pricing data for \"%s\"", key)
+			}, meta, fmt.Errorf("Unable to find any Pricing data for \"%s\"", key)
 		}
 		return aws.createNode(terms, usageType, k)
 	} else { // Fall back to base pricing if we can't find the key. Base pricing is handled at the costmodel level.
-		return nil, fmt.Errorf("Invalid Pricing Key \"%s\"", key)
+		return nil, meta, fmt.Errorf("Invalid Pricing Key \"%s\"", key)
 
 	}
 }
