@@ -514,23 +514,25 @@ func (alibaba *Alibaba) AllNodePricing() (interface{}, error) {
 }
 
 // NodePricing gives pricing information of a specific node given by the key
-func (alibaba *Alibaba) NodePricing(key models.Key) (*models.Node, error) {
+func (alibaba *Alibaba) NodePricing(key models.Key) (*models.Node, models.PricingMetadata, error) {
 	alibaba.DownloadPricingDataLock.RLock()
 	defer alibaba.DownloadPricingDataLock.RUnlock()
 
 	// Get node features for the key
 	keyFeature := key.Features()
 
+	meta := models.PricingMetadata{}
+
 	pricing, ok := alibaba.Pricing[keyFeature]
 	if !ok {
 		log.Errorf("Node pricing information not found for node with feature: %s", keyFeature)
-		return nil, fmt.Errorf("Node pricing information not found for node with feature: %s letting it use default values", keyFeature)
+		return nil, meta, fmt.Errorf("Node pricing information not found for node with feature: %s letting it use default values", keyFeature)
 	}
 
 	log.Debugf("returning the node price for the node with feature: %s", keyFeature)
 	returnNode := pricing.Node
 
-	return returnNode, nil
+	return returnNode, meta, nil
 }
 
 // PVPricing gives a pricing information of a specific PV given by PVkey
