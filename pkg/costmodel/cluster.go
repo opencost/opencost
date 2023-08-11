@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud/provider"
+	cprovider "github.com/opencost/opencost/pkg/cloud/provider"
 	prometheus "github.com/prometheus/client_golang/api"
 	"golang.org/x/exp/slices"
 
@@ -450,6 +450,11 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 		} else {
 			diskMap[key].StorageClass = storageClass
 		}
+
+		providerID, _ := result.GetString("provider_id")
+		if providerID != "" {
+			diskMap[key].ProviderID = cprovider.ParsePVID(providerID)
+		}
 	}
 
 	// Logging the unidentified disk information outside the loop
@@ -796,7 +801,7 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 				Cluster:    cluster,
 				Namespace:  namespace,
 				Name:       fmt.Sprintf("%s/%s", namespace, name), // TODO:ETL this is kept for backwards-compatibility, but not good
-				ProviderID: provider.ParseLBID(providerID),
+				ProviderID: cprovider.ParseLBID(providerID),
 			}
 		}
 
@@ -1399,7 +1404,7 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 		diskMap[key].Bytes = bytes
 	}
 
-	customPricingEnabled := provider.CustomPricesEnabled(cp)
+	customPricingEnabled := cprovider.CustomPricesEnabled(cp)
 	customPricingConfig, err := cp.GetConfig()
 	if err != nil {
 		log.Warnf("ClusterDisks: failed to load custom pricing: %s", err)
@@ -1443,10 +1448,6 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 		}
 
 		diskMap[key].Cost = cost * (diskMap[key].Bytes / 1024 / 1024 / 1024) * (diskMap[key].Minutes / 60)
-		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
-		if providerID != "" {
-			diskMap[key].ProviderID = provider.ParsePVID(providerID)
-		}
 	}
 
 	for _, result := range resPVUsedAvg {
