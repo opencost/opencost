@@ -13,6 +13,10 @@ type BigQueryQuerier struct {
 	ConnectionStatus cloud.ConnectionStatus
 }
 
+func (bqq *BigQueryQuerier) GetStatus() cloud.ConnectionStatus {
+	return bqq.ConnectionStatus
+}
+
 func (bqq *BigQueryQuerier) Equals(config cloudconfig.Config) bool {
 	thatConfig, ok := config.(*BigQueryQuerier)
 	if !ok {

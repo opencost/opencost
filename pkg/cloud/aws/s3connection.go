@@ -5,11 +5,17 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/config"
 )
 
 type S3Connection struct {
 	S3Configuration
+	ConnectionStatus cloud.ConnectionStatus
+}
+
+func (s3c *S3Connection) GetStatus() cloud.ConnectionStatus {
+	return s3c.ConnectionStatus
 }
 
 func (s3c *S3Connection) Equals(config config.Config) bool {
