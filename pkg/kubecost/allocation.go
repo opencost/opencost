@@ -110,6 +110,8 @@ func (orig LbAllocations) Clone() LbAllocations {
 		newAllocs[key] = &LbAllocation{
 			Service: lbAlloc.Service,
 			Cost:    lbAlloc.Cost,
+			Private: lbAlloc.Private,
+			Ip:      lbAlloc.Ip,
 		}
 	}
 	return newAllocs
@@ -119,6 +121,7 @@ type LbAllocation struct {
 	Service string  `json:"service"`
 	Cost    float64 `json:"cost"`
 	Private bool    `json:"private"`
+	Ip      string  `json:"ip"` //@bingen:field[version=19]
 }
 
 func (lba *LbAllocation) SanitizeNaN() {
