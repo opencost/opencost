@@ -37,6 +37,7 @@ import (
 
 const GKE_GPU_TAG = "cloud.google.com/gke-accelerator"
 const BigqueryUpdateType = "bigqueryupdate"
+const BillingAPIURLFmt = "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus?key=%s&currencyCode=%s"
 
 const (
 	GCPHourlyPublicIPCost = 0.01
@@ -627,7 +628,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			return nil, "", fmt.Errorf("Error parsing GCP pricing page: %s", err)
+			return nil, "", fmt.Errorf("error parsing GCP pricing page: %s", err)
 		}
 		if t == "skus" {
 			_, err := dec.Token() // consumes [
@@ -760,19 +761,19 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 				partialCPUMap["e2micro"] = 0.25
 				partialCPUMap["e2small"] = 0.5
 				partialCPUMap["e2medium"] = 1
-				/*
-					var partialCPU float64
-					if strings.ToLower(instanceType) == "f1micro" {
-						partialCPU = 0.2
-					} else if strings.ToLower(instanceType) == "g1small" {
-						partialCPU = 0.5
-					}
-				*/
+
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "T2D AMD") {
+					instanceType = "t2dstandard"
+				}
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "T2A ARM") {
+					instanceType = "t2astandard"
+				}
+
 				var gpuType string
 				for matchnum, group := range nvidiaGPURegex.FindStringSubmatch(product.Description) {
 					if matchnum == 1 {
 						gpuType = strings.ToLower(strings.Join(strings.Split(group, " "), "-"))
-						log.Debug("GPU type found: " + gpuType)
+						log.Debugf("GCP Billing API: GPU type found: '%s'", gpuType)
 					}
 				}
 
@@ -826,16 +827,15 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 						// (E.g., SKU "2013-37B4-22EA")
 						// and are excluded from cost computations
 						if hourlyPrice == 0 {
-							log.Infof("Excluding reserved GPU SKU #%s", product.SKUID)
+							log.Debugf("GCP Billing API: excluding reserved GPU SKU #%s", product.SKUID)
 							continue
 						}
 
 						for k, key := range inputKeys {
 							if key.GPUType() == gpuType+","+usageType {
 								if region == strings.Split(k, ",")[0] {
-									log.Infof("Matched GPU to node in region \"%s\"", region)
-									log.Debugf("PRODUCT DESCRIPTION: %s", product.Description)
 									matchedKey := key.Features()
+									log.Debugf("GCP Billing API: matched GPU to node: %s: %s", matchedKey, product.Description)
 									if pl, ok := gcpPricingList[matchedKey]; ok {
 										pl.Node.GPUName = gpuType
 										pl.Node.GPUCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
@@ -848,7 +848,6 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 										}
 										gcpPricingList[matchedKey] = product
 									}
-									log.Infof("Added data for " + matchedKey)
 								}
 							}
 						}
@@ -856,14 +855,18 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 						_, ok := inputKeys[candidateKey]
 						_, ok2 := inputKeys[candidateKeyGPU]
 						if ok || ok2 {
-							lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
 							var nanos float64
 							var unitsBaseCurrency int
-							if lastRateIndex > -1 && len(product.PricingInfo) > 0 {
-								nanos = product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Nanos
-								unitsBaseCurrency, err = strconv.Atoi(product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Units)
-								if err != nil {
-									return nil, "", fmt.Errorf("error parsing base unit price for instance: %w", err)
+							if len(product.PricingInfo) > 0 {
+								lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
+								if lastRateIndex >= 0 {
+									nanos = product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Nanos
+									unitsBaseCurrency, err = strconv.Atoi(product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Units)
+									if err != nil {
+										return nil, "", fmt.Errorf("error parsing base unit price for instance: %w", err)
+									}
+								} else {
+									continue
 								}
 							} else {
 								continue
@@ -877,69 +880,73 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 								continue
 							} else if strings.Contains(strings.ToUpper(product.Description), "RAM") {
 								if instanceType == "custom" {
-									log.Debug("RAM custom sku is: " + product.Name)
+									log.Debugf("GCP Billing API: RAM custom sku '%s'", product.Name)
 								}
 								if _, ok := gcpPricingList[candidateKey]; ok {
+									log.Debugf("GCP Billing API: key '%s': RAM price: %f", candidateKey, hourlyPrice)
 									gcpPricingList[candidateKey].Node.RAMCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 								} else {
-									product = &GCPPricing{}
-									product.Node = &models.Node{
+									log.Debugf("GCP Billing API: key '%s': RAM price: %f", candidateKey, hourlyPrice)
+									pricing := &GCPPricing{}
+									pricing.Node = &models.Node{
 										RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
 									partialCPU, pcok := partialCPUMap[instanceType]
 									if pcok {
-										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+										pricing.Node.VCPU = fmt.Sprintf("%f", partialCPU)
 									}
-									product.Node.UsageType = usageType
-									gcpPricingList[candidateKey] = product
+									pricing.Node.UsageType = usageType
+									gcpPricingList[candidateKey] = pricing
 								}
 								if _, ok := gcpPricingList[candidateKeyGPU]; ok {
-									log.Infof("Adding RAM %f for %s", hourlyPrice, candidateKeyGPU)
+									log.Debugf("GCP Billing API: key '%s': RAM price: %f", candidateKeyGPU, hourlyPrice)
 									gcpPricingList[candidateKeyGPU].Node.RAMCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 								} else {
-									log.Infof("Adding RAM %f for %s", hourlyPrice, candidateKeyGPU)
-									product = &GCPPricing{}
-									product.Node = &models.Node{
+									log.Debugf("GCP Billing API: key '%s': RAM price: %f", candidateKeyGPU, hourlyPrice)
+									pricing := &GCPPricing{}
+									pricing.Node = &models.Node{
 										RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
 									partialCPU, pcok := partialCPUMap[instanceType]
 									if pcok {
-										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+										pricing.Node.VCPU = fmt.Sprintf("%f", partialCPU)
 									}
-									product.Node.UsageType = usageType
-									gcpPricingList[candidateKeyGPU] = product
+									pricing.Node.UsageType = usageType
+									gcpPricingList[candidateKeyGPU] = pricing
 								}
-								break
 							} else {
 								if _, ok := gcpPricingList[candidateKey]; ok {
+									log.Debugf("GCP Billing API: key '%s': CPU price: %f", candidateKey, hourlyPrice)
 									gcpPricingList[candidateKey].Node.VCPUCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 								} else {
-									product = &GCPPricing{}
-									product.Node = &models.Node{
+									log.Debugf("GCP Billing API: key '%s': CPU price: %f", candidateKey, hourlyPrice)
+									pricing := &GCPPricing{}
+									pricing.Node = &models.Node{
 										VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
 									partialCPU, pcok := partialCPUMap[instanceType]
 									if pcok {
-										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+										pricing.Node.VCPU = fmt.Sprintf("%f", partialCPU)
 									}
-									product.Node.UsageType = usageType
-									gcpPricingList[candidateKey] = product
+									pricing.Node.UsageType = usageType
+									gcpPricingList[candidateKey] = pricing
 								}
 								if _, ok := gcpPricingList[candidateKeyGPU]; ok {
+									log.Debugf("GCP Billing API: key '%s': CPU price: %f", candidateKeyGPU, hourlyPrice)
 									gcpPricingList[candidateKeyGPU].Node.VCPUCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 								} else {
-									product = &GCPPricing{}
-									product.Node = &models.Node{
+									log.Debugf("GCP Billing API: key '%s': CPU price: %f", candidateKeyGPU, hourlyPrice)
+									pricing := &GCPPricing{}
+									pricing.Node = &models.Node{
 										VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
 									partialCPU, pcok := partialCPUMap[instanceType]
 									if pcok {
-										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+										pricing.Node.VCPU = fmt.Sprintf("%f", partialCPU)
 									}
-									product.Node.UsageType = usageType
-									gcpPricingList[candidateKeyGPU] = product
+									pricing.Node.UsageType = usageType
+									gcpPricingList[candidateKeyGPU] = pricing
 								}
-								break
 							}
 						}
 					}
@@ -962,13 +969,19 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 	return gcpPricingList, nextPageToken, nil
 }
 
+func (gcp *GCP) getBillingAPIURL(apiKey, currencyCode string) string {
+	return fmt.Sprintf(BillingAPIURLFmt, apiKey, currencyCode)
+}
+
 func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]models.PVKey) (map[string]*GCPPricing, error) {
 	var pages []map[string]*GCPPricing
 	c, err := gcp.GetConfig()
 	if err != nil {
 		return nil, err
 	}
-	url := "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus?key=" + gcp.APIKey + "&currencyCode=" + c.CurrencyCode
+
+	url := gcp.getBillingAPIURL(gcp.APIKey, c.CurrencyCode)
+
 	log.Infof("Fetch GCP Billing Data from URL: %s", url)
 	var parsePagesHelper func(string) error
 	parsePagesHelper = func(pageToken string) error {
@@ -1019,6 +1032,7 @@ func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]mo
 			}
 		}
 	}
+
 	log.Debugf("ALL PAGES: %+v", returnPages)
 	for k, v := range returnPages {
 		if v.Node != nil {
@@ -1539,25 +1553,57 @@ func (gcp *GCP) isValidPricingKey(key models.Key) bool {
 }
 
 // NodePricing returns GCP pricing data for a single node
-func (gcp *GCP) NodePricing(key models.Key) (*models.Node, error) {
+func (gcp *GCP) NodePricing(key models.Key) (*models.Node, models.PricingMetadata, error) {
+	meta := models.PricingMetadata{}
+
+	c, err := gcp.Config.GetCustomPricingData()
+	if err != nil {
+		meta.Warnings = append(meta.Warnings, fmt.Sprintf("failed to detect currency: %s", err))
+	} else {
+		meta.Currency = c.CurrencyCode
+	}
+
 	if n, ok := gcp.getPricing(key); ok {
 		log.Debugf("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
+
+		// Add pricing URL, but redact the key (hence, "***"")
+		meta.Source = fmt.Sprintf("Downloaded pricing from %s", gcp.getBillingAPIURL("***", c.CurrencyCode))
+
 		n.Node.BaseCPUPrice = gcp.BaseCPUPrice
-		return n.Node, nil
+
+		return n.Node, meta, nil
 	} else if ok := gcp.isValidPricingKey(key); ok {
+		meta.Warnings = append(meta.Warnings, fmt.Sprintf("No pricing found, but key is valid: %s", key.Features()))
+
 		err := gcp.DownloadPricingData()
 		if err != nil {
-			return nil, fmt.Errorf("Download pricing data failed: %s", err.Error())
+			log.Warnf("no pricing data found for %s", key.Features())
+
+			meta.Warnings = append(meta.Warnings, "Failed to download pricing data")
+
+			return nil, meta, fmt.Errorf("failed to download pricing data: %w", err)
 		}
 		if n, ok := gcp.getPricing(key); ok {
 			log.Debugf("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
+
+			// Add pricing URL, but redact the key (hence, "***"")
+			meta.Source = fmt.Sprintf("Downloaded pricing from %s", gcp.getBillingAPIURL("***", c.CurrencyCode))
+
 			n.Node.BaseCPUPrice = gcp.BaseCPUPrice
-			return n.Node, nil
+
+			return n.Node, meta, nil
 		}
-		log.Warnf("no pricing data found for %s: %s", key.Features(), key)
-		return nil, fmt.Errorf("Warning: no pricing data found for %s", key)
+
+		log.Warnf("no pricing data found for %s", key.Features())
+
+		meta.Warnings = append(meta.Warnings, "Failed to find pricing after downloading data, but key is valid")
+
+		return nil, meta, fmt.Errorf("failed to find pricing data: %s", key.Features())
 	}
-	return nil, fmt.Errorf("Warning: no pricing data found for %s", key)
+
+	meta.Warnings = append(meta.Warnings, fmt.Sprintf("No pricing found, and key is not valid: %s", key.Features()))
+
+	return nil, meta, fmt.Errorf("no pricing data found for %s", key.Features())
 }
 
 func (gcp *GCP) ServiceAccountStatus() *models.ServiceAccountStatus {
