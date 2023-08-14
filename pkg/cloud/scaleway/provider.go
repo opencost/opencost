@@ -132,9 +132,11 @@ func (k *scalewayKey) ID() string {
 	return ""
 }
 
-func (c *Scaleway) NodePricing(key models.Key) (*models.Node, error) {
+func (c *Scaleway) NodePricing(key models.Key) (*models.Node, models.PricingMetadata, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
+
+	meta := models.PricingMetadata{}
 
 	// There is only the zone and the instance ID in the providerID, hence we must use the features
 	split := strings.Split(key.Features(), ",")
@@ -151,12 +153,12 @@ func (c *Scaleway) NodePricing(key models.Key) (*models.Node, error) {
 				InstanceType: split[1],
 				Region:       split[0],
 				GPUName:      key.GPUType(),
-			}, nil
+			}, meta, nil
 
 		}
 
 	}
-	return nil, fmt.Errorf("Unable to find node pricing matching thes features `%s`", key.Features())
+	return nil, meta, fmt.Errorf("Unable to find node pricing matching thes features `%s`", key.Features())
 }
 
 func (c *Scaleway) LoadBalancerPricing() (*models.LoadBalancer, error) {

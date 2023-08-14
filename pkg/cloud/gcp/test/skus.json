@@ -1,0 +1,319 @@
+{
+    "skus": [
+        {
+            "name": "services/6F81-5844-456A/skus/039F-D0DA-4055",
+            "skuId": "039F-D0DA-4055",
+            "description": "Nvidia Tesla A100 GPU running in Americas",
+            "category": {
+              "serviceDisplayName": "Compute Engine",
+              "resourceFamily": "Compute",
+              "resourceGroup": "GPU",
+              "usageType": "OnDemand"
+            },
+            "serviceRegions": [
+              "us-central1",
+              "us-east1",
+              "us-west1"
+            ],
+            "pricingInfo": [
+              {
+                "summary": "",
+                "pricingExpression": {
+                  "usageUnit": "h",
+                  "displayQuantity": 1,
+                  "tieredRates": [
+                    {
+                      "startUsageAmount": 0,
+                      "unitPrice": {
+                        "currencyCode": "USD",
+                        "units": "2",
+                        "nanos": 933908000
+                      }
+                    }
+                  ],
+                  "usageUnitDescription": "hour",
+                  "baseUnit": "s",
+                  "baseUnitDescription": "second",
+                  "baseUnitConversionFactor": 3600
+                },
+                "currencyConversionRate": 1,
+                "effectiveTime": "2023-03-24T10:52:50.681Z"
+              }
+            ],
+            "serviceProviderName": "Google",
+            "geoTaxonomy": {
+              "type": "MULTI_REGIONAL",
+              "regions": [
+                "us-central1",
+                "us-east1",
+                "us-west1"
+              ]
+            }
+        },
+        {
+            "name": "services/6F81-5844-456A/skus/2390-DCAF-DA38",
+            "skuId": "2390-DCAF-DA38",
+            "description": "A2 Instance Ram running in Americas",
+            "category": {
+              "serviceDisplayName": "Compute Engine",
+              "resourceFamily": "Compute",
+              "resourceGroup": "RAM",
+              "usageType": "OnDemand"
+            },
+            "serviceRegions": [
+              "us-central1",
+              "us-east1",
+              "us-west1"
+            ],
+            "pricingInfo": [
+              {
+                "summary": "",
+                "pricingExpression": {
+                  "usageUnit": "GiBy.h",
+                  "displayQuantity": 1,
+                  "tieredRates": [
+                    {
+                      "startUsageAmount": 0,
+                      "unitPrice": {
+                        "currencyCode": "USD",
+                        "units": "0",
+                        "nanos": 4237000
+                      }
+                    }
+                  ],
+                  "usageUnitDescription": "gibibyte hour",
+                  "baseUnit": "By.s",
+                  "baseUnitDescription": "byte second",
+                  "baseUnitConversionFactor": 3865470566400
+                },
+                "currencyConversionRate": 1,
+                "effectiveTime": "2023-03-24T10:52:50.681Z"
+              }
+            ],
+            "serviceProviderName": "Google",
+            "geoTaxonomy": {
+              "type": "MULTI_REGIONAL",
+              "regions": [
+                "us-central1",
+                "us-east1",
+                "us-west1"
+              ]
+            }
+        },
+        {
+            "name": "services/6F81-5844-456A/skus/2922-40C5-B19F",
+            "skuId": "2922-40C5-B19F",
+            "description": "A2 Instance Core running in Americas",
+            "category": {
+              "serviceDisplayName": "Compute Engine",
+              "resourceFamily": "Compute",
+              "resourceGroup": "CPU",
+              "usageType": "OnDemand"
+            },
+            "serviceRegions": [
+              "us-central1",
+              "us-east1",
+              "us-west1"
+            ],
+            "pricingInfo": [
+              {
+                "summary": "",
+                "pricingExpression": {
+                  "usageUnit": "h",
+                  "displayQuantity": 1,
+                  "tieredRates": [
+                    {
+                      "startUsageAmount": 0,
+                      "unitPrice": {
+                        "currencyCode": "USD",
+                        "units": "0",
+                        "nanos": 31611000
+                      }
+                    }
+                  ],
+                  "usageUnitDescription": "hour",
+                  "baseUnit": "s",
+                  "baseUnitDescription": "second",
+                  "baseUnitConversionFactor": 3600
+                },
+                "currencyConversionRate": 1,
+                "effectiveTime": "2023-03-24T10:52:50.681Z"
+              }
+            ],
+            "serviceProviderName": "Google",
+            "geoTaxonomy": {
+              "type": "MULTI_REGIONAL",
+              "regions": [
+                "us-central1",
+                "us-east1",
+                "us-west1"
+              ]
+            }
+        },
+        {
+            "name": "services/6F81-5844-456A/skus/4756-01E4-0F32",
+            "skuId": "4756-01E4-0F32",
+            "description": "T2D AMD Instance Ram running in Singapore",
+            "category": {
+                "serviceDisplayName": "Compute Engine",
+                "resourceFamily": "Compute",
+                "resourceGroup": "RAM",
+                "usageType": "OnDemand"
+            },
+            "serviceRegions": [
+                "asia-southeast1"
+            ],
+            "pricingInfo": [
+                {
+                    "summary": "",
+                    "pricingExpression": {
+                        "usageUnit": "GiBy.h",
+                        "usageUnitDescription": "gibibyte hour",
+                        "baseUnit": "By.s",
+                        "displayQuantity": 1,
+                        "tieredRates": [
+                            {
+                                "startUsageAmount": 0,
+                                "unitPrice": {
+                                    "currencyCode": "IDR",
+                                    "units": "68",
+                                    "nanos": 204999658
+                                }
+                            }
+                        ]
+                    },
+                    "currencyConversionRate": 14999.999925,
+                    "EffectiveTime": "2023-08-10T22:49:22.905126Z"
+                }
+            ],
+            "serviceProviderName": "Google",
+            "node": null,
+            "pv": null
+        },
+        {
+            "name": "services/6F81-5844-456A/skus/9E37-EAF4-1576",
+            "skuId": "9E37-EAF4-1576",
+            "description": "T2D AMD Instance Core running in Singapore",
+            "category": {
+                "serviceDisplayName": "Compute Engine",
+                "resourceFamily": "Compute",
+                "resourceGroup": "CPU",
+                "usageType": "OnDemand"
+            },
+            "serviceRegions": [
+                "asia-southeast1"
+            ],
+            "pricingInfo": [
+                {
+                    "summary": "",
+                    "pricingExpression": {
+                        "usageUnit": "h",
+                        "usageUnitDescription": "hour",
+                        "baseUnit": "s",
+                        "displayQuantity": 1,
+                        "tieredRates": [
+                            {
+                                "startUsageAmount": 0,
+                                "unitPrice": {
+                                    "currencyCode": "IDR",
+                                    "units": "508",
+                                    "nanos": 934997455
+                                }
+                            }
+                        ]
+                    },
+                    "currencyConversionRate": 14999.999925,
+                    "EffectiveTime": "2023-08-10T22:49:22.905126Z"
+                }
+            ],
+            "serviceProviderName": "Google",
+            "node": null,
+            "pv": null
+        },
+        {
+            "name": "services/6F81-5844-456A/skus/CF4E-A0C7-E3BF",
+            "skuId": "CF4E-A0C7-E3BF",
+            "description": "E2 Instance Core running in Americas",
+            "category": {
+                "serviceDisplayName": "Compute Engine",
+                "resourceFamily": "Compute",
+                "resourceGroup": "CPU",
+                "usageType": "OnDemand"
+            },
+            "serviceRegions": [
+                "us-central1",
+                "us-east1",
+                "us-west1"
+            ],
+            "pricingInfo": [
+                {
+                    "summary": "",
+                    "pricingExpression": {
+                        "usageUnit": "h",
+                        "usageUnitDescription": "hour",
+                        "baseUnit": "s",
+                        "displayQuantity": 1,
+                        "tieredRates": [
+                            {
+                                "startUsageAmount": 0,
+                                "unitPrice": {
+                                    "currencyCode": "IDR",
+                                    "units": "327",
+                                    "nanos": 173848364
+                                }
+                            }
+                        ]
+                    },
+                    "currencyConversionRate": 14999.999925,
+                    "EffectiveTime": "2023-08-09T07:28:37.555408Z"
+                }
+            ],
+            "serviceProviderName": "Google",
+            "node": null,
+            "pv": null
+        },
+        {
+            "name": "services/6F81-5844-456A/skus/F449-33EC-A5EF",
+            "skuId": "F449-33EC-A5EF",
+            "description": "E2 Instance Ram running in Americas",
+            "category": {
+                "serviceDisplayName": "Compute Engine",
+                "resourceFamily": "Compute",
+                "resourceGroup": "RAM",
+                "usageType": "OnDemand"
+            },
+            "serviceRegions": [
+                "us-central1",
+                "us-east1",
+                "us-west1"
+            ],
+            "pricingInfo": [
+                {
+                    "summary": "",
+                    "pricingExpression": {
+                        "usageUnit": "GiBy.h",
+                        "usageUnitDescription": "gibibyte hour",
+                        "baseUnit": "By.s",
+                        "displayQuantity": 1,
+                        "tieredRates": [
+                            {
+                                "startUsageAmount": 0,
+                                "unitPrice": {
+                                    "currencyCode": "IDR",
+                                    "units": "43",
+                                    "nanos": 852949780
+                                }
+                            }
+                        ]
+                    },
+                    "currencyConversionRate": 14999.999925,
+                    "EffectiveTime": "2023-08-09T07:28:37.555408Z"
+                }
+            ],
+            "serviceProviderName": "Google",
+            "node": null,
+            "pv": null
+        }
+    ],
+    "nextPageToken": "APKCS1HVa0YpwgyTFbqbJ1eGwzKZmsPwLqzMZPTSNia5ck1Hc54Tx_Kz3oBxwSnRIdGVxXoSPdf-XlDpyNBf4QuxKcIEgtrQ1LDLWAgZowI0ns7HjrGta2s="
+}
