@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/opencost/opencost/pkg/filter"
+	filter21 "github.com/opencost/opencost/pkg/filter21"
 	"github.com/opencost/opencost/pkg/log"
 )
 
@@ -267,7 +267,7 @@ func (ccs *CloudCostSet) Equal(that *CloudCostSet) bool {
 	return true
 }
 
-func (ccs *CloudCostSet) Filter(filters filter.Filter[*CloudCost]) *CloudCostSet {
+func (ccs *CloudCostSet) Filter(filters *filter21.Filter) *CloudCostSet {
 	if ccs == nil {
 		return nil
 	}
