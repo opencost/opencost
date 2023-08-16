@@ -8,10 +8,14 @@ import (
 	"net/url"
 	"os"
 <<<<<<< HEAD
+<<<<<<< HEAD
 	"path"
 =======
 	gp "path"
 >>>>>>> 77f58e7c (feat: add custom s3 export endpoint)
+=======
+	"path"
+>>>>>>> 9c4755fb (refactor: renamed path arguments to filePath in order to prevent import alias for path)
 	"path/filepath"
 	"strings"
 	"time"
@@ -53,6 +57,9 @@ type FileManager interface {
 func NewFileManager(filePath string) (FileManager, error) {
 	switch {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 9c4755fb (refactor: renamed path arguments to filePath in order to prevent import alias for path)
 	case strings.HasPrefix(filePath, "s3://"):
 		return NewS3File(filePath)
 	case strings.HasPrefix(filePath, "gs://"):
@@ -62,6 +69,7 @@ func NewFileManager(filePath string) (FileManager, error) {
 	case strings.HasPrefix(filePath, "alts3://"):
 		return NewAltS3File(filePath)
 	case filePath == "":
+<<<<<<< HEAD
 =======
 	case strings.HasPrefix(path, "s3://"):
 		return NewS3File(path)
@@ -73,6 +81,8 @@ func NewFileManager(filePath string) (FileManager, error) {
 		return NewAltS3File(path)
 	case path == "":
 >>>>>>> 77f58e7c (feat: add custom s3 export endpoint)
+=======
+>>>>>>> 9c4755fb (refactor: renamed path arguments to filePath in order to prevent import alias for path)
 		return nil, errors.New("empty path")
 	default:
 		return NewSystemFile(filePath), nil
@@ -139,16 +149,22 @@ func NewS3File(filePath string) (*S3File, error) {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 func NewAltS3File(filePath string) (*S3File, error) {
 	u, err := url.Parse(filePath)
 =======
 func NewAltS3File(path string) (*S3File, error) {
 	u, err := url.Parse(path)
 >>>>>>> e339a9af (feat: changed custom s3 endpoint naming and scheme to alts3, used aws sdk based s3 client endpoint construction)
+=======
+func NewAltS3File(filePath string) (*S3File, error) {
+	u, err := url.Parse(filePath)
+>>>>>>> 9c4755fb (refactor: renamed path arguments to filePath in order to prevent import alias for path)
 	if err != nil {
 		return nil, err
 	}
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 	clPath := path.Clean(u.Path)
 
@@ -160,6 +176,12 @@ func NewAltS3File(path string) (*S3File, error) {
 	if len(strings.Split(clPath, "/")) < 3 {
 		return nil, fmt.Errorf("invalid s3 path: %s", path)
 >>>>>>> e339a9af (feat: changed custom s3 endpoint naming and scheme to alts3, used aws sdk based s3 client endpoint construction)
+=======
+	clPath := path.Clean(u.Path)
+
+	if len(strings.Split(clPath, "/")) < 3 {
+		return nil, fmt.Errorf("invalid s3 path: %s", filePath)
+>>>>>>> 9c4755fb (refactor: renamed path arguments to filePath in order to prevent import alias for path)
 	}
 
 	// Extract bucket and path from url
@@ -167,10 +189,14 @@ func NewAltS3File(path string) (*S3File, error) {
 
 	if bucket == "" || key == "" {
 <<<<<<< HEAD
+<<<<<<< HEAD
 		return nil, fmt.Errorf("invalid s3 path: %s", filePath)
 =======
 		return nil, fmt.Errorf("invalid s3 path: %s", path)
 >>>>>>> e339a9af (feat: changed custom s3 endpoint naming and scheme to alts3, used aws sdk based s3 client endpoint construction)
+=======
+		return nil, fmt.Errorf("invalid s3 path: %s", filePath)
+>>>>>>> 9c4755fb (refactor: renamed path arguments to filePath in order to prevent import alias for path)
 	}
 
 	cfg, err := config.LoadDefaultConfig(context.Background())
