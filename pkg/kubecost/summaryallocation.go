@@ -3,6 +3,7 @@ package kubecost
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -98,6 +99,9 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 	// expensive.
 	sa.Properties = nil
 
+	sa.sanitizeNaN()
+	that.sanitizeNaN()
+
 	// Sum non-cumulative fields by turning them into cumulative, adding them,
 	// and then converting them back into averages after minutes have been
 	// combined (just below).
@@ -176,6 +180,8 @@ func (sa *SummaryAllocation) CPUEfficiency() float64 {
 	if sa == nil || sa.IsIdle() {
 		return 0.0
 	}
+
+	sa.sanitizeNaN()
 
 	if sa.CPUCoreRequestAverage > 0 {
 		return sa.CPUCoreUsageAverage / sa.CPUCoreRequestAverage
@@ -328,6 +334,8 @@ func (sa *SummaryAllocation) RAMEfficiency() float64 {
 		return 0.0
 	}
 
+	sa.sanitizeNaN()
+
 	if sa.RAMBytesRequestAverage > 0 {
 		return sa.RAMBytesUsageAverage / sa.RAMBytesRequestAverage
 	}
@@ -345,6 +353,8 @@ func (sa *SummaryAllocation) TotalCost() float64 {
 		return 0.0
 	}
 
+	sa.sanitizeNaN()
+
 	return sa.CPUCost + sa.GPUCost + sa.RAMCost + sa.PVCost + sa.NetworkCost + sa.LoadBalancerCost + sa.SharedCost + sa.ExternalCost
 }
 
@@ -355,6 +365,8 @@ func (sa *SummaryAllocation) TotalEfficiency() float64 {
 		return 0.0
 	}
 
+	sa.sanitizeNaN()
+
 	if sa.RAMCost+sa.CPUCost > 0 {
 		ramCostEff := sa.RAMEfficiency() * sa.RAMCost
 		cpuCostEff := sa.CPUEfficiency() * sa.CPUCost
@@ -362,6 +374,45 @@ func (sa *SummaryAllocation) TotalEfficiency() float64 {
 	}
 
 	return 0.0
+}
+
+func (sa *SummaryAllocation) sanitizeNaN() {
+	if math.IsNaN(sa.CPUCoreRequestAverage) {
+		sa.CPUCoreRequestAverage = 0
+	}
+	if math.IsNaN(sa.CPUCoreUsageAverage) {
+		sa.CPUCoreUsageAverage = 0
+	}
+	if math.IsNaN(sa.CPUCost) {
+		sa.CPUCost = 0
+	}
+	if math.IsNaN(sa.GPUCost) {
+		sa.GPUCost = 0
+	}
+	if math.IsNaN(sa.NetworkCost) {
+		sa.NetworkCost = 0
+	}
+	if math.IsNaN(sa.LoadBalancerCost) {
+		sa.LoadBalancerCost = 0
+	}
+	if math.IsNaN(sa.PVCost) {
+		sa.PVCost = 0
+	}
+	if math.IsNaN(sa.RAMBytesRequestAverage) {
+		sa.RAMBytesRequestAverage = 0
+	}
+	if math.IsNaN(sa.RAMBytesUsageAverage) {
+		sa.RAMBytesUsageAverage = 0
+	}
+	if math.IsNaN(sa.RAMCost) {
+		sa.RAMCost = 0
+	}
+	if math.IsNaN(sa.SharedCost) {
+		sa.SharedCost = 0
+	}
+	if math.IsNaN(sa.ExternalCost) {
+		sa.ExternalCost = 0
+	}
 }
 
 // SummaryAllocationSet stores a set of SummaryAllocations, each with a unique
@@ -655,6 +706,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 
 	// 1 & 2. Identify set membership and aggregate aforementioned totals.
 	for _, sa := range sas.SummaryAllocations {
+		sa.sanitizeNaN()
 		if sa.Share {
 			var key string
 			if options.IdleByNode {
