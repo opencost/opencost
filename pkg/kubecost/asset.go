@@ -540,6 +540,7 @@ func (a *Any) SetLabels(labels AssetLabels) {
 
 // Adjustment returns the Asset's cost adjustment
 func (a *Any) GetAdjustment() float64 {
+	a.SanitizeNaN()
 	return a.Adjustment
 }
 
@@ -550,6 +551,7 @@ func (a *Any) SetAdjustment(adj float64) {
 
 // TotalCost returns the Asset's TotalCost
 func (a *Any) TotalCost() float64 {
+	a.SanitizeNaN()
 	return a.Cost + a.Adjustment
 }
 
@@ -601,6 +603,9 @@ func (a *Any) SetStartEnd(start, end time.Time) {
 // as much relevant information as possible (i.e. type, Properties, labels).
 func (a *Any) Add(that Asset) Asset {
 	this := a.Clone().(*Any)
+
+	this.SanitizeNaN()
+	that.SanitizeNaN()
 
 	props := a.Properties.Merge(that.GetProperties())
 	labels := a.Labels.Merge(that.GetLabels())
@@ -744,6 +749,7 @@ func (ca *Cloud) SetLabels(labels AssetLabels) {
 
 // Adjustment returns the Asset's adjustment value
 func (ca *Cloud) GetAdjustment() float64 {
+	ca.SanitizeNaN()
 	return ca.Adjustment
 }
 
@@ -754,6 +760,7 @@ func (ca *Cloud) SetAdjustment(adj float64) {
 
 // TotalCost returns the Asset's total cost
 func (ca *Cloud) TotalCost() float64 {
+	ca.SanitizeNaN()
 	return ca.Cost + ca.Adjustment + ca.Credit
 }
 
@@ -811,6 +818,9 @@ func (ca *Cloud) Add(a Asset) Asset {
 		return this
 	}
 
+	ca.SanitizeNaN()
+	a.SanitizeNaN()
+
 	props := ca.Properties.Merge(a.GetProperties())
 	labels := ca.Labels.Merge(a.GetLabels())
 
@@ -839,6 +849,9 @@ func (ca *Cloud) add(that *Cloud) {
 		ca = that
 		return
 	}
+
+	ca.SanitizeNaN()
+	that.SanitizeNaN()
 
 	props := ca.Properties.Merge(that.Properties)
 	labels := ca.Labels.Merge(that.Labels)
@@ -987,6 +1000,7 @@ func (cm *ClusterManagement) SetLabels(props AssetLabels) {
 
 // Adjustment does not apply to ClusterManagement
 func (cm *ClusterManagement) GetAdjustment() float64 {
+	cm.SanitizeNaN()
 	return cm.Adjustment
 }
 
@@ -997,6 +1011,7 @@ func (cm *ClusterManagement) SetAdjustment(adj float64) {
 
 // TotalCost returns the Asset's total cost
 func (cm *ClusterManagement) TotalCost() float64 {
+	cm.SanitizeNaN()
 	return cm.Cost + cm.Adjustment
 }
 
@@ -1044,6 +1059,9 @@ func (cm *ClusterManagement) Add(a Asset) Asset {
 		return this
 	}
 
+	cm.SanitizeNaN()
+	a.SanitizeNaN()
+
 	props := cm.Properties.Merge(a.GetProperties())
 	labels := cm.Labels.Merge(a.GetLabels())
 
@@ -1072,6 +1090,9 @@ func (cm *ClusterManagement) add(that *ClusterManagement) {
 		cm = that
 		return
 	}
+
+	cm.SanitizeNaN()
+	that.SanitizeNaN()
 
 	props := cm.Properties.Merge(that.Properties)
 	labels := cm.Labels.Merge(that.Labels)
@@ -1210,6 +1231,7 @@ func (d *Disk) SetLabels(labels AssetLabels) {
 
 // Adjustment returns the Asset's cost adjustment
 func (d *Disk) GetAdjustment() float64 {
+	d.SanitizeNaN()
 	return d.Adjustment
 }
 
@@ -1220,6 +1242,7 @@ func (d *Disk) SetAdjustment(adj float64) {
 
 // TotalCost returns the Asset's total cost
 func (d *Disk) TotalCost() float64 {
+	d.SanitizeNaN()
 	return d.Cost + d.Adjustment
 }
 
@@ -1289,6 +1312,9 @@ func (d *Disk) Add(a Asset) Asset {
 		return this
 	}
 
+	d.SanitizeNaN()
+	a.SanitizeNaN()
+
 	props := d.Properties.Merge(a.GetProperties())
 	labels := d.Labels.Merge(a.GetLabels())
 
@@ -1317,6 +1343,9 @@ func (d *Disk) add(that *Disk) {
 		d = that
 		return
 	}
+
+	d.SanitizeNaN()
+	that.SanitizeNaN()
 
 	props := d.Properties.Merge(that.Properties)
 	labels := d.Labels.Merge(that.Labels)
@@ -1666,6 +1695,7 @@ func (n *Network) SetLabels(labels AssetLabels) {
 
 // Adjustment returns the Asset's cost adjustment
 func (n *Network) GetAdjustment() float64 {
+	n.SanitizeNaN()
 	return n.Adjustment
 }
 
@@ -1676,6 +1706,7 @@ func (n *Network) SetAdjustment(adj float64) {
 
 // TotalCost returns the Asset's total cost
 func (n *Network) TotalCost() float64 {
+	n.SanitizeNaN()
 	return n.Cost + n.Adjustment
 }
 
@@ -1745,6 +1776,9 @@ func (n *Network) Add(a Asset) Asset {
 		return this
 	}
 
+	n.SanitizeNaN()
+	a.SanitizeNaN()
+
 	props := n.Properties.Merge(a.GetProperties())
 	labels := n.Labels.Merge(a.GetLabels())
 
@@ -1773,6 +1807,9 @@ func (n *Network) add(that *Network) {
 		n = that
 		return
 	}
+
+	n.SanitizeNaN()
+	that.SanitizeNaN()
 
 	props := n.Properties.Merge(that.Properties)
 	labels := n.Labels.Merge(that.Labels)
@@ -1960,6 +1997,7 @@ func (n *Node) SetLabels(labels AssetLabels) {
 
 // Adjustment returns the Asset's cost adjustment
 func (n *Node) GetAdjustment() float64 {
+	n.SanitizeNaN()
 	return n.Adjustment
 }
 
@@ -1970,6 +2008,7 @@ func (n *Node) SetAdjustment(adj float64) {
 
 // TotalCost returns the Asset's total cost
 func (n *Node) TotalCost() float64 {
+	n.SanitizeNaN()
 	return ((n.CPUCost + n.RAMCost) * (1.0 - n.Discount)) + n.GPUCost + n.Adjustment
 }
 
@@ -2039,6 +2078,9 @@ func (n *Node) Add(a Asset) Asset {
 		return this
 	}
 
+	n.SanitizeNaN()
+	a.SanitizeNaN()
+
 	props := n.Properties.Merge(a.GetProperties())
 	labels := n.Labels.Merge(a.GetLabels())
 
@@ -2067,6 +2109,9 @@ func (n *Node) add(that *Node) {
 		n = that
 		return
 	}
+
+	n.SanitizeNaN()
+	that.SanitizeNaN()
 
 	props := n.Properties.Merge(that.Properties)
 	labels := n.Labels.Merge(that.Labels)
@@ -2412,6 +2457,7 @@ func (lb *LoadBalancer) SetLabels(labels AssetLabels) {
 
 // Adjustment returns the Asset's cost adjustment
 func (lb *LoadBalancer) GetAdjustment() float64 {
+	lb.SanitizeNaN()
 	return lb.Adjustment
 }
 
@@ -2422,6 +2468,7 @@ func (lb *LoadBalancer) SetAdjustment(adj float64) {
 
 // TotalCost returns the total cost of the Asset
 func (lb *LoadBalancer) TotalCost() float64 {
+	lb.SanitizeNaN()
 	return lb.Cost + lb.Adjustment
 }
 
@@ -2479,6 +2526,9 @@ func (lb *LoadBalancer) Add(a Asset) Asset {
 		return this
 	}
 
+	lb.SanitizeNaN()
+	a.SanitizeNaN()
+
 	props := lb.GetProperties().Merge(a.GetProperties())
 	labels := lb.Labels.Merge(a.GetLabels())
 
@@ -2507,6 +2557,9 @@ func (lb *LoadBalancer) add(that *LoadBalancer) {
 		lb = that
 		return
 	}
+
+	lb.SanitizeNaN()
+	that.SanitizeNaN()
 
 	props := lb.Properties.Merge(that.GetProperties())
 	labels := lb.Labels.Merge(that.GetLabels())
@@ -2667,6 +2720,7 @@ func (sa *SharedAsset) SetAdjustment(float64) {
 
 // TotalCost returns the Asset's total cost
 func (sa *SharedAsset) TotalCost() float64 {
+	sa.SanitizeNaN()
 	return sa.Cost
 }
 
@@ -2714,6 +2768,9 @@ func (sa *SharedAsset) Add(a Asset) Asset {
 		return this
 	}
 
+	sa.SanitizeNaN()
+	a.SanitizeNaN()
+
 	props := sa.Properties.Merge(a.GetProperties())
 	labels := sa.Labels.Merge(a.GetLabels())
 
@@ -2742,6 +2799,9 @@ func (sa *SharedAsset) add(that *SharedAsset) {
 		sa = that
 		return
 	}
+
+	sa.SanitizeNaN()
+	that.SanitizeNaN()
 
 	props := sa.Properties.Merge(that.GetProperties())
 	labels := sa.Labels.Merge(that.GetLabels())

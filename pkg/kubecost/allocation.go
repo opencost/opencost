@@ -223,6 +223,8 @@ func (pv PVAllocations) Clone() PVAllocations {
 // Add adds contents of that to the calling PVAllocations
 func (pv PVAllocations) Add(that PVAllocations) PVAllocations {
 	apv := pv.Clone()
+	apv.SanitizeNaN()
+	that.SanitizeNaN()
 	if that != nil {
 		if apv == nil {
 			apv = PVAllocations{}
@@ -439,6 +441,8 @@ func ComputePercentages(toInsert *ProportionalAssetResourceCost) {
 }
 
 func (parcs ProportionalAssetResourceCosts) Add(that ProportionalAssetResourceCosts) {
+	parcs.SanitizeNaN()
+	that.SanitizeNaN()
 	for _, parc := range that {
 		// if name field is empty, we know this is a cluster level PARC aggregation
 		insertByName := true
@@ -562,6 +566,8 @@ func (scbs SharedCostBreakdowns) Insert(scb SharedCostBreakdown) {
 }
 
 func (scbs SharedCostBreakdowns) Add(that SharedCostBreakdowns) {
+	scbs.SanitizeNaN()
+	that.SanitizeNaN()
 	for _, scb := range that {
 		scbs.Insert(scb)
 	}
@@ -783,6 +789,8 @@ func (a *Allocation) TotalCost() float64 {
 		return 0.0
 	}
 
+	a.SanitizeNaN()
+
 	return a.CPUTotalCost() + a.GPUTotalCost() + a.RAMTotalCost() + a.PVTotalCost() + a.NetworkTotalCost() + a.LBTotalCost() + a.SharedTotalCost() + a.ExternalCost
 }
 
@@ -791,6 +799,8 @@ func (a *Allocation) CPUTotalCost() float64 {
 	if a == nil {
 		return 0.0
 	}
+
+	a.SanitizeNaN()
 
 	return a.CPUCost + a.CPUCostAdjustment
 }
@@ -801,6 +811,8 @@ func (a *Allocation) GPUTotalCost() float64 {
 		return 0.0
 	}
 
+	a.SanitizeNaN()
+
 	return a.GPUCost + a.GPUCostAdjustment
 }
 
@@ -809,6 +821,8 @@ func (a *Allocation) RAMTotalCost() float64 {
 	if a == nil {
 		return 0.0
 	}
+
+	a.SanitizeNaN()
 
 	return a.RAMCost + a.RAMCostAdjustment
 }
@@ -819,6 +833,8 @@ func (a *Allocation) PVTotalCost() float64 {
 		return 0.0
 	}
 
+	a.SanitizeNaN()
+
 	return a.PVCost() + a.PVCostAdjustment
 }
 
@@ -827,6 +843,8 @@ func (a *Allocation) NetworkTotalCost() float64 {
 	if a == nil {
 		return 0.0
 	}
+
+	a.SanitizeNaN()
 
 	return a.NetworkCost + a.NetworkCostAdjustment
 }
@@ -843,6 +861,7 @@ func (a *Allocation) LoadBalancerTotalCost() float64 {
 		return 0.0
 	}
 
+	a.SanitizeNaN()
 	return a.LoadBalancerCost + a.LoadBalancerCostAdjustment
 }
 
@@ -852,6 +871,8 @@ func (a *Allocation) SharedTotalCost() float64 {
 		return 0.0
 	}
 
+	a.SanitizeNaN()
+
 	return a.SharedCost
 }
 
@@ -860,6 +881,8 @@ func (a *Allocation) PVCost() float64 {
 	if a == nil {
 		return 0.0
 	}
+
+	a.SanitizeNaN()
 
 	cost := 0.0
 	for _, pv := range a.PVs {
@@ -873,6 +896,8 @@ func (a *Allocation) PVByteHours() float64 {
 	if a == nil {
 		return 0.0
 	}
+
+	a.SanitizeNaN()
 
 	byteHours := 0.0
 	for _, pv := range a.PVs {
@@ -888,6 +913,8 @@ func (a *Allocation) CPUEfficiency() float64 {
 	if a == nil {
 		return 0.0
 	}
+
+	a.SanitizeNaN()
 
 	if a.CPUCoreRequestAverage > 0 {
 		return a.CPUCoreUsageAverage / a.CPUCoreRequestAverage
@@ -908,6 +935,8 @@ func (a *Allocation) RAMEfficiency() float64 {
 		return 0.0
 	}
 
+	a.SanitizeNaN()
+
 	if a.RAMBytesRequestAverage > 0 {
 		return a.RAMBytesUsageAverage / a.RAMBytesRequestAverage
 	}
@@ -926,6 +955,8 @@ func (a *Allocation) TotalEfficiency() float64 {
 		return 0.0
 	}
 
+	a.SanitizeNaN()
+
 	if a.RAMTotalCost()+a.CPUTotalCost() > 0 {
 		ramCostEff := a.RAMEfficiency() * a.RAMTotalCost()
 		cpuCostEff := a.CPUEfficiency() * a.CPUTotalCost()
@@ -937,6 +968,12 @@ func (a *Allocation) TotalEfficiency() float64 {
 
 // CPUCores converts the Allocation's CPUCoreHours into average CPUCores
 func (a *Allocation) CPUCores() float64 {
+	if a == nil {
+		return 0.0
+	}
+
+	a.SanitizeNaN()
+
 	if a.Minutes() <= 0.0 {
 		return 0.0
 	}
@@ -945,6 +982,12 @@ func (a *Allocation) CPUCores() float64 {
 
 // RAMBytes converts the Allocation's RAMByteHours into average RAMBytes
 func (a *Allocation) RAMBytes() float64 {
+	if a == nil {
+		return 0.0
+	}
+
+	a.SanitizeNaN()
+
 	if a.Minutes() <= 0.0 {
 		return 0.0
 	}
@@ -953,6 +996,12 @@ func (a *Allocation) RAMBytes() float64 {
 
 // GPUs converts the Allocation's GPUHours into average GPUs
 func (a *Allocation) GPUs() float64 {
+	if a == nil {
+		return 0.0
+	}
+
+	a.SanitizeNaN()
+
 	if a.Minutes() <= 0.0 {
 		return 0.0
 	}
@@ -961,6 +1010,12 @@ func (a *Allocation) GPUs() float64 {
 
 // PVBytes converts the Allocation's PVByteHours into average PVBytes
 func (a *Allocation) PVBytes() float64 {
+	if a == nil {
+		return 0.0
+	}
+
+	a.SanitizeNaN()
+
 	if a.Minutes() <= 0.0 {
 		return 0.0
 	}
@@ -1079,6 +1134,9 @@ func (a *Allocation) add(that *Allocation) {
 		log.Warnf("Allocation.AggregateBy: trying to add a nil receiver")
 		return
 	}
+
+	a.SanitizeNaN()
+	that.SanitizeNaN()
 
 	// Generate keys for each allocation to allow for special logic to set the controller
 	// in the case of keys matching but controllers not matching.
@@ -1217,6 +1275,8 @@ func (a *Allocation) add(that *Allocation) {
 func (thisLbAllocs LbAllocations) Add(thatLbAllocs LbAllocations) LbAllocations {
 	// loop through both sets of LB allocations, building a new LBAllocations that has the summed set
 	mergedLbAllocs := thisLbAllocs.Clone()
+	mergedLbAllocs.SanitizeNaN()
+	thatLbAllocs.SanitizeNaN()
 	if thatLbAllocs != nil {
 		if mergedLbAllocs == nil {
 			mergedLbAllocs = LbAllocations{}
@@ -1439,6 +1499,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// them to their respective sets, removing them from the set of allocations
 	// to aggregate.
 	for _, alloc := range as.Allocations {
+		alloc.SanitizeNaN()
 
 		alloc.Properties.AggregatedMetadata = options.IncludeAggregatedMetadata
 		// build a parallel set of allocations to only be used

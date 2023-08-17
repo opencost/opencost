@@ -1,6 +1,8 @@
 package kubecost
 
 import (
+	"math"
+	"reflect"
 	"testing"
 	"time"
 
@@ -209,6 +211,73 @@ func TestSummaryAllocation_Add(t *testing.T) {
 			t.Fatalf("incorrect ExternalCost: expected %.5f; actual %.5f", osa2.ExternalCost+osa1.ExternalCost, sa2.ExternalCost)
 		}
 	})
+}
+
+func TestSummaryAllocation_Add_SanitizeNaNs(t *testing.T) {
+	window, _ := ParseWindowUTC("yesterday")
+
+	var sa, nansa *SummaryAllocation
+	var err error
+
+	start := *window.Start()
+
+	end := *window.End()
+
+	sa = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container1",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container1",
+		},
+		Start:                  start,
+		End:                    end,
+		CPUCoreRequestAverage:  0.5,
+		CPUCoreUsageAverage:    0.1,
+		CPUCost:                0.2,
+		GPUCost:                1.0,
+		NetworkCost:            0.1,
+		LoadBalancerCost:       0.6,
+		PVCost:                 0.005,
+		RAMBytesRequestAverage: 50.0 * 1024.0 * 1024.0,
+		RAMBytesUsageAverage:   10.0 * 1024.0 * 1024.0,
+		RAMCost:                0.05,
+		SharedCost:             1.0,
+		ExternalCost:           1.0,
+	}
+
+	nansa = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod2/container2",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod2",
+			Container: "container2",
+		},
+		Start:                  start,
+		End:                    end,
+		CPUCoreRequestAverage:  math.NaN(),
+		CPUCoreUsageAverage:    math.NaN(),
+		CPUCost:                math.NaN(),
+		GPUCost:                math.NaN(),
+		NetworkCost:            math.NaN(),
+		LoadBalancerCost:       math.NaN(),
+		PVCost:                 math.NaN(),
+		RAMBytesRequestAverage: math.NaN(),
+		RAMBytesUsageAverage:   math.NaN(),
+		RAMCost:                math.NaN(),
+		SharedCost:             math.NaN(),
+		ExternalCost:           math.NaN(),
+	}
+
+	err = nansa.Add(sa)
+	if err != nil {
+		t.Fatalf("TestSummaryAllocation_Add_SanitizeNaNs: unexpected error: %s", err)
+	}
+
+	v := reflect.ValueOf(*nansa)
+	checkAllFloat64sForNaN(t, v, "TestSummaryAllocation_Add_SanitizeNaNs")
 }
 
 func TestSummaryAllocationSet_RAMEfficiency(t *testing.T) {
