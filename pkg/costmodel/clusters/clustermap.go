@@ -13,6 +13,7 @@ import (
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/thanos"
 	"github.com/opencost/opencost/pkg/util/retry"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 
 	prometheus "github.com/prometheus/client_golang/api"
 )
@@ -107,6 +108,7 @@ type PrometheusClusterMap struct {
 	clusters    map[string]*ClusterInfo
 	clusterInfo ClusterInfoProvider
 	stop        chan struct{}
+	refresh     time.Duration
 }
 
 // NewClusterMap creates a new ClusterMap implementation using a prometheus or thanos client
@@ -118,6 +120,7 @@ func NewClusterMap(client prometheus.Client, cip ClusterInfoProvider, refresh ti
 		clusters:    make(map[string]*ClusterInfo),
 		clusterInfo: cip,
 		stop:        stop,
+		refresh:     refresh,
 	}
 
 	// Run an updater to ensure cluster data stays relevant over time
@@ -142,12 +145,13 @@ func NewClusterMap(client prometheus.Client, cip ClusterInfoProvider, refresh ti
 }
 
 // clusterInfoQuery returns the query string to load cluster info
-func clusterInfoQuery(offset string) string {
-	return fmt.Sprintf("kubecost_cluster_info{%s}%s", env.GetPromClusterFilter(), offset)
+func clusterInfoQuery(offset string, promClusterFilter string, refreshTime time.Duration) string {
+	return fmt.Sprintf("avg_over_time(kubecost_cluster_info{%s}[%s]%s)", promClusterFilter, timeutil.DurationString(refreshTime), offset)
 }
 
 // loadClusters loads all the cluster info to map
 func (pcm *PrometheusClusterMap) loadClusters() (map[string]*ClusterInfo, error) {
+	log.Infof("BD-143: running local cluster at time: %s", time.Now().UTC().String())
 	var offset string = ""
 	if prom.IsThanos(pcm.client) {
 		offset = thanos.QueryOffset()
@@ -156,7 +160,7 @@ func (pcm *PrometheusClusterMap) loadClusters() (map[string]*ClusterInfo, error)
 	// Execute Query
 	tryQuery := func() (interface{}, error) {
 		ctx := prom.NewNamedContext(pcm.client, prom.ClusterMapContextName)
-		resCh := ctx.QueryAtTime(clusterInfoQuery(offset), time.Now().Add(-promQueryOffset))
+		resCh := ctx.QueryAtTime(clusterInfoQuery(offset, env.GetPromClusterFilter(), pcm.refresh), time.Now().Add(-promQueryOffset))
 		r, e := resCh.Await()
 		return r, e
 	}
@@ -257,7 +261,7 @@ func (pcm *PrometheusClusterMap) getLocalClusterInfo() (*ClusterInfo, error) {
 func (pcm *PrometheusClusterMap) refreshClusters() {
 	updated, err := pcm.loadClusters()
 	if err != nil {
-		log.Errorf("Failed to load cluster info via query after %d retries", LoadRetries)
+		log.Errorf("Failed to load cluster info via query after %d retries with the most recent error: %v", LoadRetries, err)
 		return
 	}
 
