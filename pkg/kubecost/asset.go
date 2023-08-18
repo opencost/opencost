@@ -1584,6 +1584,9 @@ type Breakdown struct {
 }
 
 func (b *Breakdown) SanitizeNaN() {
+	if b == nil {
+		return
+	}
 	if math.IsNaN(b.Idle) {
 		log.DedupedWarningf(5, "Breakdown: Unexpected NaN found for Idle")
 		b.Idle = 0
@@ -1912,6 +1915,9 @@ type NodeOverhead struct {
 }
 
 func (n *NodeOverhead) SanitizeNaN() {
+	if n == nil {
+		return
+	}
 	if math.IsNaN(n.CpuOverheadFraction) {
 		log.DedupedWarningf(5, "NodeOverhead: Unexpected NaN found for CpuOverheadFraction")
 		n.CpuOverheadFraction = 0
@@ -2349,6 +2355,9 @@ func (n *Node) GPUs() float64 {
 }
 
 func (n *Node) SanitizeNaN() {
+	if n == nil {
+		return
+	}
 	if math.IsNaN(n.Adjustment) {
 		log.DedupedWarningf(5, "Node: Unexpected NaN found for Adjustment: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
 		n.Adjustment = 0
@@ -3464,6 +3473,9 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 }
 
 func (as *AssetSet) SanitizeNaN() {
+	if as == nil {
+		return
+	}
 	for _, a := range as.Assets {
 		a.SanitizeNaN()
 	}
