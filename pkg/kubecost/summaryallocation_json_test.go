@@ -112,9 +112,9 @@ func TestSummaryAllocationSetRangeResponse_MarshalJSON(t *testing.T) {
 	sas := NewSummaryAllocationSet(as, nil, nil, true, true)
 	sasr := NewSummaryAllocationSetRange(sas)
 
-	// Confirm that SummaryAllocationSetRange does error because on NaN
+	// Confirm that SummaryAllocationSetRange does not error on NaN
 	_, err := json.Marshal(sasr)
-	if err == nil {
+	if err != nil {
 		t.Fatalf("expected NaN values to cause error")
 	}
 
