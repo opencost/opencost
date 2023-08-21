@@ -104,3 +104,17 @@ func KubeAnnotationsToLabels(labels map[string]string) ([]string, []string) {
 func SanitizeLabelName(s string) string {
 	return invalidLabelCharRE.ReplaceAllString(s, "_")
 }
+
+// SanitizeLabels sanitizes all label names in the given map. This may cause
+// collisions, which is intentional as collisions that are not caught prior to
+// attempted emission will cause fatal errors. In the case of a collision, the
+// last value seen will be set, and all previous values will be overwritten.
+func SanitizeLabels(labels map[string]string) map[string]string {
+	response := make(map[string]string, len(labels))
+
+	for k, v := range labels {
+		response[SanitizeLabelName(k)] = v
+	}
+
+	return response
+}
