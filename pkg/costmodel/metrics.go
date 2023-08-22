@@ -187,7 +187,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		spotGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "kubecost_node_is_spot",
 			Help: "kubecost_node_is_spot Cloud provider info about node preemptibility",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
 		if _, disabled := disabledMetrics["kubecost_node_is_spot"]; !disabled {
 			toRegisterGV = append(toRegisterGV, spotGv)
 		}
@@ -513,7 +513,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
-				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID)
+				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType)
 
 				avgCosts, ok := nodeCostAverages[labelKey]
 
@@ -558,9 +558,9 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				nodeCostAverages[labelKey] = avgCosts
 
 				if node.IsSpot() {
-					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(1.0)
+					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(1.0)
 				} else {
-					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(0.0)
+					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(0.0)
 				}
 				nodeSeen[labelKey] = true
 			}
@@ -670,6 +670,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				if !seen {
 					log.Debugf("Removing %s from nodes", labelString)
 					labels := getLabelStringsFromKey(labelString)
+
 					ok := cmme.NodeTotalPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
 						log.Debugf("removed %s from totalprice", labelString)
@@ -712,6 +713,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					nodeSeen[labelString] = false
 				}
 			}
+
 			for labelString, seen := range loadBalancerSeen {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
