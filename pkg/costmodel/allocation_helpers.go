@@ -1961,7 +1961,7 @@ func buildPodPVCMap(podPVCMap map[podKey][]*pvc, pvMap map[pvKey]*pv, pvcMap map
 	}
 }
 
-func applyPVCsToPods(window kubecost.Window, podMap map[podKey]*pod, podPVCMap map[podKey][]*pvc, pvcMap map[pvcKey]*pvc, resolution time.Duration) {
+func applyPVCsToPods(window kubecost.Window, podMap map[podKey]*pod, podPVCMap map[podKey][]*pvc, pvcMap map[pvcKey]*pvc) {
 	// Because PVCs can be shared among pods, the respective pv cost
 	// needs to be evenly distributed to those pods based on time
 	// running, as well as the amount of time the pvc was shared.
@@ -2006,12 +2006,20 @@ func applyPVCsToPods(window kubecost.Window, podMap map[podKey]*pod, podPVCMap m
 
 		pvc, ok := pvcMap[thisPVCKey]
 		if !ok {
-			log.DedupedWarningf(5, "Missing pvc with key %s", thisPVCKey)
+			log.Warnf("Allocation: Compute: applyPVCsToPods: missing pvc with key %s", thisPVCKey)
+			continue
+		}
+		if pvc == nil {
+			log.Warnf("Allocation: Compute: applyPVCsToPods: nil pvc with key %s", thisPVCKey)
 			continue
 		}
 
 		// Determine coefficients for each pvc-pod relation.
-		sharedPVCCostCoefficients := getPVCCostCoefficients(intervals, pvc, resolution)
+		sharedPVCCostCoefficients, err := getPVCCostCoefficients(intervals, pvc)
+		if err != nil {
+			log.Warnf("Allocation: Compute: applyPVCsToPods: getPVCCostCoefficients: %s", err)
+			continue
+		}
 
 		// Distribute pvc costs to Allocations
 		for thisPodKey, coeffComponents := range sharedPVCCostCoefficients {
@@ -2043,8 +2051,9 @@ func applyPVCsToPods(window kubecost.Window, podMap map[podKey]*pod, podPVCMap m
 					Cluster: pvc.Volume.Cluster,
 					Name:    pvc.Volume.Name,
 				}
+
 				// Both Cost and byteHours should be multiplied by the coef and divided by count
-				// so that you if all allocations with a given pv key are summed the result of those
+				// so that if all allocations with a given pv key are summed the result of those
 				// would be equal to the values of the original pv
 				count := float64(len(pod.Allocations))
 				alloc.PVs[pvKey] = &kubecost.PVAllocation{
