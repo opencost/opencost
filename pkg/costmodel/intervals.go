@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"fmt"
 	"sort"
 	"time"
 
@@ -79,40 +80,49 @@ func getIntervalPointsFromWindows(windows map[podKey]kubecost.Window) IntervalPo
 // getPVCCostCoefficients gets a coefficient which represents the scale
 // factor that each PVC in a pvcIntervalMap and corresponding slice of
 // IntervalPoints intervals uses to calculate a cost for that PVC's PV.
-func getPVCCostCoefficients(intervals IntervalPoints, thisPVC *pvc, resolution time.Duration) map[podKey][]CoefficientComponent {
+func getPVCCostCoefficients(intervals IntervalPoints, thisPVC *pvc) (map[podKey][]CoefficientComponent, error) {
 	// pvcCostCoefficientMap has a format such that the individual coefficient
 	// components are preserved for testing purposes.
 	pvcCostCoefficientMap := make(map[podKey][]CoefficientComponent)
 
-	// Reset the start time by the offset as well. so that offset is not used in coefficient calculation!
-	startTime := thisPVC.Start.Add(resolution)
-	pvcWindow := kubecost.NewWindow(&startTime, &thisPVC.End)
+	pvcWindow := kubecost.NewWindow(&thisPVC.Start, &thisPVC.End)
+	pvcWindowDurationMinutes := pvcWindow.Duration().Minutes()
+	if pvcWindowDurationMinutes <= 0.0 {
+		// Protect against Inf and NaN issues that would be caused by dividing
+		// by zero later on.
+		return nil, fmt.Errorf("detected PVC with window of zero duration: %s/%s/%s", thisPVC.Cluster, thisPVC.Namespace, thisPVC.Name)
+	}
+
 	unmountedKey := getUnmountedPodKey(thisPVC.Cluster)
 
 	var void struct{}
 	activeKeys := map[podKey]struct{}{}
 
-	currentTime := startTime
+	currentTime := thisPVC.Start
+
 	// For each interval i.e. for any time a pod-PVC relation ends or starts...
 	for _, point := range intervals {
 		// If the current point happens at a later time than the previous point
 		if !point.Time.Equal(currentTime) {
+			// If there are active keys, attribute one unit of proportion to
+			// each active key.
 			for key := range activeKeys {
 				pvcCostCoefficientMap[key] = append(
 					pvcCostCoefficientMap[key],
 					CoefficientComponent{
-						Time:       point.Time.Sub(currentTime).Minutes() / pvcWindow.Duration().Minutes(),
+						Time:       point.Time.Sub(currentTime).Minutes() / pvcWindowDurationMinutes,
 						Proportion: 1.0 / float64(len(activeKeys)),
 					},
 				)
 
 			}
+
 			// If there are no active keys attribute all cost to the unmounted pv
 			if len(activeKeys) == 0 {
 				pvcCostCoefficientMap[unmountedKey] = append(
 					pvcCostCoefficientMap[unmountedKey],
 					CoefficientComponent{
-						Time:       point.Time.Sub(currentTime).Minutes() / pvcWindow.Duration().Minutes(),
+						Time:       point.Time.Sub(currentTime).Minutes() / pvcWindowDurationMinutes,
 						Proportion: 1.0,
 					},
 				)
@@ -142,7 +152,7 @@ func getPVCCostCoefficients(intervals IntervalPoints, thisPVC *pvc, resolution t
 			},
 		)
 	}
-	return pvcCostCoefficientMap
+	return pvcCostCoefficientMap, nil
 }
 
 // getCoefficientFromComponents takes the components of a PVC-pod PV cost coefficient
