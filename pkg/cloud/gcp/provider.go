@@ -153,7 +153,7 @@ func (gcp *GCP) GetLocalStorageQuery(window, offset time.Duration, rate bool, us
 	}
 	fmtWindow := timeutil.DurationString(window)
 
-	return fmt.Sprintf(fmtQuery, env.GetPromClusterFilter(), baseMetric, fmtWindow, fmtOffset, env.GetPromClusterLabel(), localStorageCost)
+	return fmt.Sprintf(fmtQuery, baseMetric, env.GetPromClusterFilter(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), localStorageCost)
 }
 
 func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
