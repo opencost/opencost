@@ -5,10 +5,10 @@
     "spotCPU": "0.006655",
     "RAM": "0.004237",
     "spotRAM": "0.000892",
-    "projectID": "todo",
+    "projectID": "",
     "storage": "0.00005479452",
     "zoneNetworkEgress": "0.01",
     "regionNetworkEgress": "0.01",
     "internetNetworkEgress": "0.12",
-    "billingDataDataset": "billing_data.gcp_billing_export_v1_01AC9F_74CF1D_5565A2"
+    "billingDataDataset": ""
 }
