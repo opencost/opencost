@@ -666,6 +666,8 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				pvSeen[labelKey] = true
 			}
 
+			// Remove metrics on Nodes/LoadBalancers/Containers/PVs that no
+			// longer exist
 			for labelString, seen := range nodeSeen {
 				if !seen {
 					log.Debugf("Removing %s from nodes", labelString)
@@ -675,37 +677,37 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					if ok {
 						log.Debugf("removed %s from totalprice", labelString)
 					} else {
-						log.Infof("FAILURE TO REMOVE %s from totalprice", labelString)
+						log.Errorf("FAILURE TO REMOVE %s from totalprice", labelString)
 					}
 					ok = cmme.NodeSpotRecorder.DeleteLabelValues(labels...)
 					if ok {
 						log.Debugf("removed %s from spot records", labelString)
 					} else {
-						log.Infof("FAILURE TO REMOVE %s from spot records", labelString)
+						log.Errorf("FAILURE TO REMOVE %s from spot records", labelString)
 					}
 					ok = cmme.CPUPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
 						log.Debugf("removed %s from cpuprice", labelString)
 					} else {
-						log.Infof("FAILURE TO REMOVE %s from cpuprice", labelString)
+						log.Errorf("FAILURE TO REMOVE %s from cpuprice", labelString)
 					}
 					ok = cmme.GPUPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
 						log.Debugf("removed %s from gpuprice", labelString)
 					} else {
-						log.Infof("FAILURE TO REMOVE %s from gpuprice", labelString)
+						log.Errorf("FAILURE TO REMOVE %s from gpuprice", labelString)
 					}
 					ok = cmme.GPUCountRecorder.DeleteLabelValues(labels...)
 					if ok {
 						log.Debugf("removed %s from gpucount", labelString)
 					} else {
-						log.Infof("FAILURE TO REMOVE %s from gpucount", labelString)
+						log.Errorf("FAILURE TO REMOVE %s from gpucount", labelString)
 					}
 					ok = cmme.RAMPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
 						log.Debugf("removed %s from ramprice", labelString)
 					} else {
-						log.Infof("FAILURE TO REMOVE %s from ramprice", labelString)
+						log.Errorf("FAILURE TO REMOVE %s from ramprice", labelString)
 					}
 					delete(nodeSeen, labelString)
 					delete(nodeCostAverages, labelString)
@@ -713,13 +715,12 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					nodeSeen[labelString] = false
 				}
 			}
-
 			for labelString, seen := range loadBalancerSeen {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
 					ok := cmme.LBCostRecorder.DeleteLabelValues(labels...)
 					if !ok {
-						log.Warnf("Metric emission: failed to delete LoadBalancer with labels: %v", labels)
+						log.Errorf("Metric emission: failed to delete LoadBalancer with labels: %v", labels)
 					}
 					delete(loadBalancerSeen, labelString)
 				} else {
@@ -729,9 +730,18 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			for labelString, seen := range containerSeen {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
-					cmme.RAMAllocationRecorder.DeleteLabelValues(labels...)
-					cmme.CPUAllocationRecorder.DeleteLabelValues(labels...)
-					cmme.GPUAllocationRecorder.DeleteLabelValues(labels...)
+					ok := cmme.RAMAllocationRecorder.DeleteLabelValues(labels...)
+					if !ok {
+						log.Errorf("Metric emission: failed to delete RAMAllocation with labels: %v", labels)
+					}
+					ok = cmme.CPUAllocationRecorder.DeleteLabelValues(labels...)
+					if !ok {
+						log.Errorf("Metric emission: failed to delete CPUAllocation with labels: %v", labels)
+					}
+					ok = cmme.GPUAllocationRecorder.DeleteLabelValues(labels...)
+					if !ok {
+						log.Errorf("Metric emission: failed to delete GPUAllocation with labels: %v", labels)
+					}
 					delete(containerSeen, labelString)
 				} else {
 					containerSeen[labelString] = false
@@ -740,7 +750,10 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			for labelString, seen := range pvSeen {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
-					cmme.PersistentVolumePriceRecorder.DeleteLabelValues(labels...)
+					ok := cmme.PersistentVolumePriceRecorder.DeleteLabelValues(labels...)
+					if !ok {
+						log.Errorf("Metric emission: failed to delete PVPrice with labels: %v", labels)
+					}
 					delete(pvSeen, labelString)
 				} else {
 					pvSeen[labelString] = false
@@ -749,7 +762,10 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			for labelString, seen := range pvcSeen {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
-					cmme.PVAllocationRecorder.DeleteLabelValues(labels...)
+					ok := cmme.PVAllocationRecorder.DeleteLabelValues(labels...)
+					if !ok {
+						log.Errorf("Metric emission: failed to delete PVAllocation with labels: %v", labels)
+					}
 					delete(pvcSeen, labelString)
 				} else {
 					pvcSeen[labelString] = false
