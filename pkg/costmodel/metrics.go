@@ -715,7 +715,6 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					nodeSeen[labelString] = false
 				}
 			}
-
 			for labelString, seen := range loadBalancerSeen {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
