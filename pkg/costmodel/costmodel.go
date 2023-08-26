@@ -156,7 +156,11 @@ const (
 			label_replace(
 				label_replace(
 					label_replace(
-						count_over_time(container_memory_working_set_bytes{container!="", container!="POD", instance!="", %s}[%s] %s), "node", "$1", "instance", "(.+)"
+						label_replace(
+							label_replace(
+								count_over_time(container_memory_working_set_bytes{container!="", container!="POD", instance!="", %s}[%s] %s), "node_name", "$1", "node", "(.+)"
+							), "node", "$1", "instance", "(.+)"
+						), "node", "$1", "node_name", "(.+)"
 					), "container_name", "$1", "container", "(.+)"
 				), "pod_name", "$1", "pod", "(.+)"
 			)
@@ -164,7 +168,11 @@ const (
 			label_replace(
 				label_replace(
 					label_replace(
-						avg_over_time(container_memory_working_set_bytes{container!="", container!="POD", instance!="", %s}[%s] %s), "node", "$1", "instance", "(.+)"
+						label_replace(
+							label_replace(
+								avg_over_time(container_memory_working_set_bytes{container!="", container!="POD", instance!="", %s}[%s] %s), "node_name", "$1", "node", "(.+)"
+							), "node", "$1", "instance", "(.+)"
+						), "node", "$1", "node_name", "(.+)"
 					), "container_name", "$1", "container", "(.+)"
 				), "pod_name", "$1", "pod", "(.+)"
 			)
@@ -185,9 +193,13 @@ const (
 		label_replace(
 			label_replace(
 				label_replace(
-					rate(
-						container_cpu_usage_seconds_total{container!="", container!="POD", instance!="", %s}[%s] %s
-					), "node", "$1", "instance", "(.+)"
+					label_replace(
+						label_replace(
+							rate(
+								container_cpu_usage_seconds_total{container!="", container!="POD", instance!="", %s}[%s] %s
+							), "node_name", "$1", "node", "(.+)"
+						), "node", "$1", "instance", "(.+)"
+					), "node", "$1", "node_name", "(.+)"
 				), "container_name", "$1", "container", "(.+)"
 			), "pod_name", "$1", "pod", "(.+)"
 		)
