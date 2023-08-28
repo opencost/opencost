@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"reflect"
 	"testing"
 	"time"
 
@@ -1684,4 +1685,261 @@ func TestAssetSetRange_AccumulateBy_Month(t *testing.T) {
 			t.Fatalf("expected window duration to be between 1 and 31 days, got:%s", as.Window.Duration().String())
 		}
 	}
+}
+
+func TestAny_SanitizeNaN(t *testing.T) {
+	any := getMockAny(math.NaN())
+	any.SanitizeNaN()
+	v := reflect.ValueOf(any)
+	checkAllFloat64sForNaN(t, v, "TestAny_SanitizeNaN")
+}
+
+func getMockAny(f float64) Any {
+	return Any{
+		Adjustment: f,
+		Cost:       f,
+	}
+}
+
+func TestCloud_SanitizeNaN(t *testing.T) {
+	cloud := getMockCloud(math.NaN())
+	cloud.SanitizeNaN()
+	v := reflect.ValueOf(cloud)
+	checkAllFloat64sForNaN(t, v, "TestCloud_SanitizeNaN")
+}
+
+func getMockCloud(f float64) Cloud {
+	return Cloud{
+		Adjustment: f,
+		Cost:       f,
+		Credit:     f,
+	}
+}
+
+func TestClusterManagement_SanitizeNaN(t *testing.T) {
+	cm := getMockClusterManagement(math.NaN())
+	cm.SanitizeNaN()
+	v := reflect.ValueOf(cm)
+	checkAllFloat64sForNaN(t, v, "TestClusterManagement_SanitizeNaN")
+}
+
+func getMockClusterManagement(f float64) ClusterManagement {
+	return ClusterManagement{
+		Cost:       f,
+		Adjustment: f,
+	}
+}
+
+func TestDisk_SanitizeNaN(t *testing.T) {
+	disk := getMockDisk(math.NaN())
+	disk.SanitizeNaN()
+	v := reflect.ValueOf(disk)
+	checkAllFloat64sForNaN(t, v, "TestDisk_SanitizeNaN")
+
+	vBreakdown := reflect.ValueOf(*disk.Breakdown)
+	checkAllFloat64sForNaN(t, vBreakdown, "TestDisk_SanitizeNaN")
+}
+
+func getMockDisk(f float64) Disk {
+	bhu := f
+	bum := f
+	breakdown := getMockBreakdown(f)
+	return Disk{
+		Adjustment:    f,
+		Cost:          f,
+		ByteHours:     f,
+		Local:         f,
+		Breakdown:     &breakdown,
+		ByteHoursUsed: &bhu,
+		ByteUsageMax:  &bum,
+	}
+}
+
+func TestBreakdown_SanitizeNaN(t *testing.T) {
+	b := getMockBreakdown(math.NaN())
+	b.SanitizeNaN()
+	v := reflect.ValueOf(b)
+	checkAllFloat64sForNaN(t, v, "TestBreakdown_SanitizeNaN")
+}
+
+func getMockBreakdown(f float64) Breakdown {
+	return Breakdown{
+		Idle:   f,
+		Other:  f,
+		System: f,
+		User:   f,
+	}
+}
+
+func TestNetwork_SanitizeNaN(t *testing.T) {
+	n := getMockNetwork(math.NaN())
+	n.SanitizeNaN()
+	v := reflect.ValueOf(n)
+	checkAllFloat64sForNaN(t, v, "TestNetwork_SanitizeNaN")
+}
+
+func getMockNetwork(f float64) Network {
+	return Network{
+		Adjustment: f,
+		Cost:       f,
+	}
+}
+
+func TestNodeOverhead_SanitizeNaN(t *testing.T) {
+	n := getMockNodeOverhead(math.NaN())
+	n.SanitizeNaN()
+	v := reflect.ValueOf(n)
+	checkAllFloat64sForNaN(t, v, "TestNodeOverhead_SanitizeNaN")
+}
+
+func getMockNodeOverhead(f float64) NodeOverhead {
+	return NodeOverhead{
+		CpuOverheadFraction:  f,
+		RamOverheadFraction:  f,
+		OverheadCostFraction: f,
+	}
+}
+
+func TestNode_SanitizeNaN(t *testing.T) {
+	n := getMockNode(math.NaN())
+	n.SanitizeNaN()
+	v := reflect.ValueOf(n)
+	checkAllFloat64sForNaN(t, v, "TestNode_SanitizeNaN")
+
+	vCpu := reflect.ValueOf(*n.CPUBreakdown)
+	checkAllFloat64sForNaN(t, vCpu, "TestNode_SanitizeNaN")
+
+	vRam := reflect.ValueOf(*n.RAMBreakdown)
+	checkAllFloat64sForNaN(t, vRam, "TestNode_SanitizeNaN")
+
+	vOverhead := reflect.ValueOf(*n.Overhead)
+	checkAllFloat64sForNaN(t, vOverhead, "TestNode_SanitizeNaN")
+}
+
+func getMockNode(f float64) Node {
+	cpuBreakdown := getMockBreakdown(f)
+	ramBreakdown := getMockBreakdown(f)
+	overhead := getMockNodeOverhead(f)
+	return Node{
+		Adjustment:   f,
+		CPUCoreHours: f,
+		RAMByteHours: f,
+		GPUHours:     f,
+		CPUBreakdown: &cpuBreakdown,
+		RAMBreakdown: &ramBreakdown,
+		CPUCost:      f,
+		GPUCost:      f,
+		GPUCount:     f,
+		RAMCost:      f,
+		Discount:     f,
+		Preemptible:  f,
+		Overhead:     &overhead,
+	}
+}
+
+func TestLoadBalancer_SanitizeNaN(t *testing.T) {
+	lb := getMockLoadBalancer(math.NaN())
+	lb.SanitizeNaN()
+	v := reflect.ValueOf(lb)
+	checkAllFloat64sForNaN(t, v, "TestLoadBalancer_SanitizeNaN")
+}
+
+func getMockLoadBalancer(f float64) LoadBalancer {
+	return LoadBalancer{
+		Adjustment: f,
+		Cost:       f,
+	}
+}
+
+func TestSharedAsset_SanitizeNaN(t *testing.T) {
+	sa := getMockSharedAsset(math.NaN())
+	sa.SanitizeNaN()
+	v := reflect.ValueOf(sa)
+	checkAllFloat64sForNaN(t, v, "TestSharedAsset_SanitizeNaN")
+}
+
+func getMockSharedAsset(f float64) SharedAsset {
+	return SharedAsset{
+		Cost: f,
+	}
+}
+
+func TestAssetSet_SanitizeNaN(t *testing.T) {
+	testCaseName := "TestAssetSet_SanitizeNaN"
+	as := getMockAssetSet(math.NaN())
+	as.SanitizeNaN()
+	v := reflect.ValueOf(as)
+	checkAllFloat64sForNaN(t, v, testCaseName)
+
+	for _, a := range as.Assets {
+		if math.IsNaN(a.TotalCost()) {
+			t.Fatalf("TestAssetSet_SanitizeNaN: Asset: expected not NaN for TotalCost(): expected NaN, got:%f", a.TotalCost())
+
+		}
+		if math.IsNaN(a.GetAdjustment()) {
+			t.Fatalf("TestAssetSet_SanitizeNaN: Asset: expected not NaN for GetAdjustment(): expected NaN, got:%f", a.GetAdjustment())
+		}
+	}
+
+	for _, any := range as.Any {
+		vAny := reflect.ValueOf(*any)
+		checkAllFloat64sForNaN(t, vAny, testCaseName)
+	}
+
+	for _, cloud := range as.Cloud {
+		vCloud := reflect.ValueOf(*cloud)
+		checkAllFloat64sForNaN(t, vCloud, testCaseName)
+	}
+
+	for _, cm := range as.ClusterManagement {
+		vCM := reflect.ValueOf(*cm)
+		checkAllFloat64sForNaN(t, vCM, testCaseName)
+	}
+
+	for _, disk := range as.Disks {
+		vDisk := reflect.ValueOf(*disk)
+		checkAllFloat64sForNaN(t, vDisk, testCaseName)
+	}
+
+	for _, network := range as.Network {
+		vNetwork := reflect.ValueOf(*network)
+		checkAllFloat64sForNaN(t, vNetwork, testCaseName)
+	}
+
+	for _, node := range as.Nodes {
+		vNode := reflect.ValueOf(*node)
+		checkAllFloat64sForNaN(t, vNode, testCaseName)
+	}
+
+	for _, sa := range as.SharedAssets {
+		vSA := reflect.ValueOf(*sa)
+		checkAllFloat64sForNaN(t, vSA, testCaseName)
+	}
+
+}
+
+func getMockAssetSet(f float64) AssetSet {
+	any := getMockAny(f)
+	cloud := getMockCloud(f)
+	cm := getMockClusterManagement(f)
+	disk := getMockDisk(f)
+	network := getMockNetwork(f)
+	node := getMockNode(f)
+	lb := getMockLoadBalancer(f)
+	sa := getMockSharedAsset(f)
+
+	assets := map[string]Asset{"any": &any, "cloud": &cloud}
+	as := AssetSet{
+		Assets:            assets,
+		Any:               map[string]*Any{"NaN": &any},
+		Cloud:             map[string]*Cloud{"NaN": &cloud},
+		ClusterManagement: map[string]*ClusterManagement{"NaN": &cm},
+		Disks:             map[string]*Disk{"NaN": &disk},
+		Network:           map[string]*Network{"NaN": &network},
+		Nodes:             map[string]*Node{"NaN": &node},
+		LoadBalancers:     map[string]*LoadBalancer{"NaN": &lb},
+		SharedAssets:      map[string]*SharedAsset{"NaN": &sa},
+	}
+
+	return as
 }

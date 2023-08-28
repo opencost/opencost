@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/opencost/opencost/pkg/cloud"
 	cloudconfig "github.com/opencost/opencost/pkg/cloud/config"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
@@ -20,6 +21,11 @@ const (
 
 type BoaQuerier struct {
 	BOAConfiguration
+	ConnectionStatus cloud.ConnectionStatus
+}
+
+func (bq *BoaQuerier) GetStatus() cloud.ConnectionStatus {
+	return bq.ConnectionStatus
 }
 
 func (bq *BoaQuerier) Equals(config cloudconfig.Config) bool {

@@ -60,6 +60,7 @@ type Asset interface {
 	Add(Asset) Asset
 	Clone() Asset
 	Equal(Asset) bool
+	SanitizeNaN()
 
 	// Representations
 	encoding.BinaryMarshaler
@@ -674,6 +675,20 @@ func (a *Any) String() string {
 	return toString(a)
 }
 
+func (a *Any) SanitizeNaN() {
+	if a == nil {
+		return
+	}
+	if math.IsNaN(a.Adjustment) {
+		log.DedupedWarningf(5, "Any: Unexpected NaN found for Adjustment: labels:%v, window:%s, properties:%s", a.Labels, a.Window.String(), a.Properties.String())
+		a.Adjustment = 0
+	}
+	if math.IsNaN(a.Cost) {
+		log.DedupedWarningf(5, "Any: Unexpected NaN found for Cost: name:%v, window:%s, properties:%s", a.Labels, a.Window.String(), a.Properties.String())
+		a.Cost = 0
+	}
+}
+
 // Cloud describes a cloud asset
 type Cloud struct {
 	Labels     AssetLabels
@@ -902,6 +917,24 @@ func (ca *Cloud) String() string {
 	return toString(ca)
 }
 
+func (ca *Cloud) SanitizeNaN() {
+	if ca == nil {
+		return
+	}
+	if math.IsNaN(ca.Adjustment) {
+		log.DedupedWarningf(5, "Cloud: Unexpected NaN found for Adjustment: labels:%v, window:%s, properties:%s", ca.Labels, ca.Window.String(), ca.Properties.String())
+		ca.Adjustment = 0
+	}
+	if math.IsNaN(ca.Cost) {
+		log.DedupedWarningf(5, "Cloud: Unexpected NaN found for Cost: name:%v, window:%s, properties:%s", ca.Labels, ca.Window.String(), ca.Properties.String())
+		ca.Cost = 0
+	}
+	if math.IsNaN(ca.Credit) {
+		log.DedupedWarningf(5, "Cloud: Unexpected NaN found for Credit: name:%v, window:%s, properties:%s", ca.Labels, ca.Window.String(), ca.Properties.String())
+		ca.Credit = 0
+	}
+}
+
 // ClusterManagement describes a provider's cluster management fee
 type ClusterManagement struct {
 	Labels     AssetLabels
@@ -1094,6 +1127,20 @@ func (cm *ClusterManagement) Equal(a Asset) bool {
 // String implements fmt.Stringer
 func (cm *ClusterManagement) String() string {
 	return toString(cm)
+}
+
+func (cm *ClusterManagement) SanitizeNaN() {
+	if cm == nil {
+		return
+	}
+	if math.IsNaN(cm.Adjustment) {
+		log.DedupedWarningf(5, "ClusterManagement: Unexpected NaN found for Adjustment: labels:%v, window:%s, properties:%s", cm.Labels, cm.Window.String(), cm.Properties.String())
+		cm.Adjustment = 0
+	}
+	if math.IsNaN(cm.Cost) {
+		log.DedupedWarningf(5, "ClusterManagement: Unexpected NaN found for Cost: name:%v, window:%s, properties:%s", cm.Labels, cm.Window.String(), cm.Properties.String())
+		cm.Cost = 0
+	}
 }
 
 // Disk represents an in-cluster disk Asset
@@ -1465,12 +1512,65 @@ func (d *Disk) Bytes() float64 {
 	return d.ByteHours * (60.0 / d.Minutes())
 }
 
+func (d *Disk) SanitizeNaN() {
+	if d == nil {
+		return
+	}
+	if math.IsNaN(d.Adjustment) {
+		log.DedupedWarningf(5, "Disk: Unexpected NaN found for Adjustment: labels:%v, window:%s, properties:%s", d.Labels, d.Window.String(), d.Properties.String())
+		d.Adjustment = 0
+	}
+	if math.IsNaN(d.Cost) {
+		log.DedupedWarningf(5, "Disk: Unexpected NaN found for Cost: labels:%v, window:%s, properties:%s", d.Labels, d.Window.String(), d.Properties.String())
+		d.Cost = 0
+	}
+	if math.IsNaN(d.ByteHours) {
+		log.DedupedWarningf(5, "Disk: Unexpected NaN found for ByteHours: labels:%v, window:%s, properties:%s", d.Labels, d.Window.String(), d.Properties.String())
+		d.ByteHours = 0
+	}
+	if math.IsNaN(d.Local) {
+		log.DedupedWarningf(5, "Disk: Unexpected NaN found for Local: labels:%v, window:%s, properties:%s", d.Labels, d.Window.String(), d.Properties.String())
+		d.Local = 0
+	}
+	if d.ByteHoursUsed != nil && math.IsNaN(*d.ByteHoursUsed) {
+		log.DedupedWarningf(5, "Disk: Unexpected NaN found for ByteHoursUsed: labels:%v, window:%s, properties:%s", d.Labels, d.Window.String(), d.Properties.String())
+		f := 0.0
+		d.ByteHoursUsed = &f
+	}
+	if d.ByteUsageMax != nil && math.IsNaN(*d.ByteUsageMax) {
+		log.DedupedWarningf(5, "Disk: Unexpected NaN found for ByteUsageMax: labels:%v, window:%s, properties:%s", d.Labels, d.Window.String(), d.Properties.String())
+		f := 0.0
+		d.ByteUsageMax = &f
+	}
+
+	d.Breakdown.SanitizeNaN()
+}
+
 // Breakdown describes a resource's use as a percentage of various usage types
 type Breakdown struct {
 	Idle   float64 `json:"idle"`
 	Other  float64 `json:"other"`
 	System float64 `json:"system"`
 	User   float64 `json:"user"`
+}
+
+func (b *Breakdown) SanitizeNaN() {
+	if math.IsNaN(b.Idle) {
+		log.DedupedWarningf(5, "Breakdown: Unexpected NaN found for Idle")
+		b.Idle = 0
+	}
+	if math.IsNaN(b.Other) {
+		log.DedupedWarningf(5, "Breakdown: Unexpected NaN found for Other")
+		b.Other = 0
+	}
+	if math.IsNaN(b.System) {
+		log.DedupedWarningf(5, "Breakdown: Unexpected NaN found for System")
+		b.System = 0
+	}
+	if math.IsNaN(b.User) {
+		log.DedupedWarningf(5, "Breakdown: Unexpected NaN found for User")
+		b.User = 0
+	}
 }
 
 // Clone returns a cloned instance of the Breakdown
@@ -1752,12 +1852,41 @@ func (n *Network) String() string {
 	return toString(n)
 }
 
+func (n *Network) SanitizeNaN() {
+	if n == nil {
+		return
+	}
+	if math.IsNaN(n.Adjustment) {
+		log.DedupedWarningf(5, "Network: Unexpected NaN found for Adjustment: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.Adjustment = 0
+	}
+	if math.IsNaN(n.Cost) {
+		log.DedupedWarningf(5, "Network: Unexpected NaN found for Cost: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.Cost = 0
+	}
+}
+
 // NodeOverhead represents the delta between the allocatable resources
 // of the node and the node nameplate capacity
 type NodeOverhead struct {
 	CpuOverheadFraction  float64
 	RamOverheadFraction  float64
 	OverheadCostFraction float64
+}
+
+func (n *NodeOverhead) SanitizeNaN() {
+	if math.IsNaN(n.CpuOverheadFraction) {
+		log.DedupedWarningf(5, "NodeOverhead: Unexpected NaN found for CpuOverheadFraction")
+		n.CpuOverheadFraction = 0
+	}
+	if math.IsNaN(n.RamOverheadFraction) {
+		log.DedupedWarningf(5, "NodeOverhead: Unexpected NaN found for RamOverheadFraction")
+		n.RamOverheadFraction = 0
+	}
+	if math.IsNaN(n.OverheadCostFraction) {
+		log.DedupedWarningf(5, "NodeOverhead: Unexpected NaN found for OverheadCostFraction")
+		n.OverheadCostFraction = 0
+	}
 }
 
 // Node is an Asset representing a single node in a cluster
@@ -2174,6 +2303,53 @@ func (n *Node) GPUs() float64 {
 	return n.GPUHours * (60.0 / n.Minutes())
 }
 
+func (n *Node) SanitizeNaN() {
+	if math.IsNaN(n.Adjustment) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for Adjustment: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.Adjustment = 0
+	}
+	if math.IsNaN(n.CPUCoreHours) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for CPUCoreHours: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.CPUCoreHours = 0
+	}
+	if math.IsNaN(n.RAMByteHours) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for RAMByteHours: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.RAMByteHours = 0
+	}
+	if math.IsNaN(n.GPUHours) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for GPUHours: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.GPUHours = 0
+	}
+	if math.IsNaN(n.CPUCost) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for CPUCost: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.CPUCost = 0
+	}
+	if math.IsNaN(n.GPUCost) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for GPUCost: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.GPUCost = 0
+	}
+	if math.IsNaN(n.GPUCount) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for GPUCount: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.GPUCount = 0
+	}
+	if math.IsNaN(n.RAMCost) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for RAMCost: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.RAMCost = 0
+	}
+	if math.IsNaN(n.Discount) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for Discount: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.Discount = 0
+	}
+	if math.IsNaN(n.Preemptible) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for Preemptible: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.Preemptible = 0
+	}
+
+	n.CPUBreakdown.SanitizeNaN()
+	n.RAMBreakdown.SanitizeNaN()
+	n.Overhead.SanitizeNaN()
+}
+
 // LoadBalancer is an Asset representing a single load balancer in a cluster
 // TODO: add GB of ingress processed, numForwardingRules once we start recording those to prometheus metric
 type LoadBalancer struct {
@@ -2184,11 +2360,12 @@ type LoadBalancer struct {
 	Window     Window
 	Adjustment float64
 	Cost       float64
-	Private    bool // @bingen:field[version=20]
+	Private    bool   // @bingen:field[version=20]
+	Ip         string // @bingen:field[version=21]
 }
 
 // NewLoadBalancer instantiates and returns a new LoadBalancer
-func NewLoadBalancer(name, cluster, providerID string, start, end time.Time, window Window, private bool) *LoadBalancer {
+func NewLoadBalancer(name, cluster, providerID string, start, end time.Time, window Window, private bool, ip string) *LoadBalancer {
 	properties := &AssetProperties{
 		Category:   NetworkCategory,
 		Name:       name,
@@ -2204,6 +2381,7 @@ func NewLoadBalancer(name, cluster, providerID string, start, end time.Time, win
 		End:        end,
 		Window:     window,
 		Private:    private,
+		Ip:         ip,
 	}
 }
 
@@ -2350,6 +2528,11 @@ func (lb *LoadBalancer) add(that *LoadBalancer) {
 
 	lb.Cost += that.Cost
 	lb.Adjustment += that.Adjustment
+
+	if lb.Ip != that.Ip {
+		//TODO: should we add to an array here or just ignore?
+		log.DedupedWarningf(5, "LoadBalancer add: load balancer ip fields (%s and %s) do not match. ignoring...", lb.Ip, that.Ip)
+	}
 }
 
 // Clone returns a cloned instance of the given Asset
@@ -2362,10 +2545,12 @@ func (lb *LoadBalancer) Clone() Asset {
 		Window:     lb.Window.Clone(),
 		Adjustment: lb.Adjustment,
 		Cost:       lb.Cost,
+		Private:    lb.Private,
+		Ip:         lb.Ip,
 	}
 }
 
-// Equal returns true if the tow Assets match precisely
+// Equal returns true if the two Assets match precisely
 func (lb *LoadBalancer) Equal(a Asset) bool {
 	that, ok := a.(*LoadBalancer)
 	if !ok {
@@ -2393,6 +2578,12 @@ func (lb *LoadBalancer) Equal(a Asset) bool {
 	if lb.Cost != that.Cost {
 		return false
 	}
+	if lb.Private != that.Private {
+		return false
+	}
+	if lb.Ip != that.Ip {
+		return false
+	}
 
 	return true
 }
@@ -2400,6 +2591,20 @@ func (lb *LoadBalancer) Equal(a Asset) bool {
 // String implements fmt.Stringer
 func (lb *LoadBalancer) String() string {
 	return toString(lb)
+}
+
+func (lb *LoadBalancer) SanitizeNaN() {
+	if lb == nil {
+		return
+	}
+	if math.IsNaN(lb.Adjustment) {
+		log.DedupedWarningf(5, "LoadBalancer: Unexpected NaN found for Adjustment: labels:%v, window:%s, properties:%s", lb.Labels, lb.Window.String(), lb.Properties.String())
+		lb.Adjustment = 0
+	}
+	if math.IsNaN(lb.Cost) {
+		log.DedupedWarningf(5, "LoadBalancer: Unexpected NaN found for Cost: labels:%v, window:%s, properties:%s", lb.Labels, lb.Window.String(), lb.Properties.String())
+		lb.Cost = 0
+	}
 }
 
 // SharedAsset is an Asset representing a shared cost
@@ -2589,6 +2794,16 @@ func (sa *SharedAsset) Equal(a Asset) bool {
 // String implements fmt.Stringer
 func (sa *SharedAsset) String() string {
 	return toString(sa)
+}
+
+func (sa *SharedAsset) SanitizeNaN() {
+	if sa == nil {
+		return
+	}
+	if math.IsNaN(sa.Cost) {
+		log.DedupedWarningf(5, "SharedAsset: Unexpected NaN found for Cost: labels:%v, window:%s, properties:%s", sa.Labels, sa.Window.String(), sa.Properties.String())
+		sa.Cost = 0
+	}
 }
 
 // This type exists because only the assets map of AssetSet is marshaled to
@@ -3186,6 +3401,44 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	}
 
 	return acc, nil
+}
+
+func (as *AssetSet) SanitizeNaN() {
+	for _, a := range as.Assets {
+		a.SanitizeNaN()
+	}
+
+	for _, a := range as.Any {
+		a.SanitizeNaN()
+	}
+
+	for _, c := range as.Cloud {
+		c.SanitizeNaN()
+	}
+
+	for _, cm := range as.ClusterManagement {
+		cm.SanitizeNaN()
+	}
+
+	for _, d := range as.Disks {
+		d.SanitizeNaN()
+	}
+
+	for _, n := range as.Network {
+		n.SanitizeNaN()
+	}
+
+	for _, n := range as.Nodes {
+		n.SanitizeNaN()
+	}
+
+	for _, lb := range as.LoadBalancers {
+		lb.SanitizeNaN()
+	}
+
+	for _, sa := range as.SharedAssets {
+		sa.SanitizeNaN()
+	}
 }
 
 type DiffKind string

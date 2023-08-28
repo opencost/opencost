@@ -24,6 +24,10 @@ type AthenaQuerier struct {
 	ConnectionStatus cloud.ConnectionStatus
 }
 
+func (aq *AthenaQuerier) GetStatus() cloud.ConnectionStatus {
+	return aq.ConnectionStatus
+}
+
 func (aq *AthenaQuerier) Equals(config cloudconfig.Config) bool {
 	thatConfig, ok := config.(*AthenaQuerier)
 	if !ok {
@@ -106,6 +110,9 @@ func (aq *AthenaQuerier) queryAthenaPaginated(ctx context.Context, query string,
 
 	// Create Athena Client
 	cli, err := aq.GetAthenaClient()
+	if err != nil {
+		return fmt.Errorf("QueryAthenaPaginated: GetAthenaClient error: %s", err.Error())
+	}
 
 	// Query Athena
 	startQueryExecutionOutput, err := cli.StartQueryExecution(ctx, startQueryExecutionInput)

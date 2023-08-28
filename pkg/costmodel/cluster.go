@@ -254,7 +254,7 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 		diskMap[key].ClaimNamespace = claimNamespace
 	}
 
-	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo, provider)
+	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo, provider, kubecost.NewClosedWindow(start, end))
 
 	for _, result := range resLocalStorageCost {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
@@ -630,7 +630,7 @@ func ClusterNodes(cp models.Provider, client prometheus.Client, start, end time.
 		return nil, requiredCtx.ErrorCollection()
 	}
 
-	activeDataMap := buildActiveDataMap(resActiveMins, resolution)
+	activeDataMap := buildActiveDataMap(resActiveMins, resolution, kubecost.NewClosedWindow(start, end))
 
 	gpuCountMap := buildGPUCountMap(resNodeGPUCount)
 	preemptibleMap := buildPreemptibleMap(resIsSpot)
@@ -716,6 +716,7 @@ type LoadBalancer struct {
 	End        time.Time
 	Minutes    float64
 	Private    bool
+	Ip         string
 }
 
 func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[LoadBalancerIdentifier]*LoadBalancer, error) {
@@ -851,6 +852,12 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 
 			hrs := (lb.Minutes * scaleFactor) / 60.0
 			lb.Cost += lbPricePerHr * hrs
+
+			if lb.Ip != "" && lb.Ip != providerID {
+				log.DedupedWarningf(5, "ClusterLoadBalancers: multiple IPs per load balancer not supported, using most recent IP")
+			}
+			lb.Ip = providerID
+
 			lb.Private = privateIPCheck(providerID)
 		} else {
 			log.DedupedWarningf(20, "ClusterLoadBalancers: found minutes for key that does not exist: %v", key)
@@ -1332,7 +1339,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider models.Provider, start
 	}, nil
 }
 
-func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo []*prom.QueryResult, cp models.Provider) {
+func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo []*prom.QueryResult, cp models.Provider, window kubecost.Window) {
 	for _, result := range resActiveMins {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
@@ -1357,8 +1364,8 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 				Breakdown: &ClusterCostsBreakdown{},
 			}
 		}
-		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
+
+		s, e := calculateStartAndEnd(result, resolution, window)
 		mins := e.Sub(s).Minutes()
 
 		diskMap[key].End = e

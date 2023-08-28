@@ -1035,7 +1035,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 		pmd.TotalNodes++
 
-		cnode, err := cp.NodePricing(cp.GetKey(nodeLabels, n))
+		cnode, _, err := cp.NodePricing(cp.GetKey(nodeLabels, n))
 		if err != nil {
 			log.Infof("Error getting node pricing. Error: %s", err.Error())
 			if cnode != nil {
@@ -2520,6 +2520,7 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 					parc.CPUTotalCost = totals.CPUCost
 					parc.GPUTotalCost = totals.GPUCost
 					parc.RAMTotalCost = totals.RAMCost
+					parc.PVTotalCost = totals.PersistentVolumeCost
 					if !isAzure {
 						parc.LoadBalancerTotalCost = totals.LoadBalancerCost
 					} else if len(alloc.LoadBalancers) > 0 {

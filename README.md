@@ -21,13 +21,13 @@ To see the full functionality of OpenCost you can view [OpenCost features](https
 
 You can deploy OpenCost on any Kubernetes 1.8+ cluster in a matter of minutes, if not seconds!
 
-Visit the full documentation for [recommended install options](https://www.opencost.io/docs/install).
+Visit the full documentation for [recommended install options](https://www.opencost.io/docs/installation/install).
 
 ## Usage
 
-- [Cost APIs](https://www.opencost.io/docs/api)
-- [CLI / kubectl cost](https://www.opencost.io/docs/kubectl-cost)
-- [Prometheus Metrics](https://www.opencost.io/docs/prometheus)
+- [Cost APIs](https://www.opencost.io/docs/integrations/api)
+- [CLI / kubectl cost](https://www.opencost.io/docs/integrations/kubectl-cost)
+- [Prometheus Metrics](https://www.opencost.io/docs/integrations/prometheus)
 - Reference [User Interface](https://github.com/opencost/opencost/tree/develop/ui)
 
 ## Contributing
