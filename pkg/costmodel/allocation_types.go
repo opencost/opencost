@@ -212,4 +212,5 @@ type lbCost struct {
 	Start     time.Time
 	End       time.Time
 	Private   bool
+	Ip        string
 }

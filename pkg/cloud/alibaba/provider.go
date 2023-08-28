@@ -448,6 +448,10 @@ func (alibaba *Alibaba) DownloadPricingData() error {
 		slimK8sNode.SystemDisk = getSystemDiskInfoOfANode(instanceID, slimK8sNode.RegionID, client, signer)
 
 		lookupKey, err = determineKeyForPricing(slimK8sNode)
+		if err != nil {
+			return fmt.Errorf("unable to determine key for pricing: %w", err)
+		}
+
 		if _, ok := alibaba.Pricing[lookupKey]; ok {
 			log.Debugf("Pricing information for node with same features %s already exists hence skipping", lookupKey)
 			continue
@@ -484,6 +488,9 @@ func (alibaba *Alibaba) DownloadPricingData() error {
 		pricingObj := &AlibabaPricing{}
 		slimK8sDisk := generateSlimK8sDiskFromV1PV(pv, pvRegion)
 		lookupKey, err = determineKeyForPricing(slimK8sDisk)
+		if err != nil {
+			return fmt.Errorf("unable to determine key for pricing: %w", err)
+		}
 		if _, ok := alibaba.Pricing[lookupKey]; ok {
 			log.Debugf("Pricing information for pv with same features %s already exists hence skipping", lookupKey)
 			continue
@@ -514,23 +521,25 @@ func (alibaba *Alibaba) AllNodePricing() (interface{}, error) {
 }
 
 // NodePricing gives pricing information of a specific node given by the key
-func (alibaba *Alibaba) NodePricing(key models.Key) (*models.Node, error) {
+func (alibaba *Alibaba) NodePricing(key models.Key) (*models.Node, models.PricingMetadata, error) {
 	alibaba.DownloadPricingDataLock.RLock()
 	defer alibaba.DownloadPricingDataLock.RUnlock()
 
 	// Get node features for the key
 	keyFeature := key.Features()
 
+	meta := models.PricingMetadata{}
+
 	pricing, ok := alibaba.Pricing[keyFeature]
 	if !ok {
 		log.Errorf("Node pricing information not found for node with feature: %s", keyFeature)
-		return nil, fmt.Errorf("Node pricing information not found for node with feature: %s letting it use default values", keyFeature)
+		return nil, meta, fmt.Errorf("Node pricing information not found for node with feature: %s letting it use default values", keyFeature)
 	}
 
 	log.Debugf("returning the node price for the node with feature: %s", keyFeature)
 	returnNode := pricing.Node
 
-	return returnNode, nil
+	return returnNode, meta, nil
 }
 
 // PVPricing gives a pricing information of a specific PV given by PVkey

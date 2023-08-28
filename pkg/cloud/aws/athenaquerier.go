@@ -110,6 +110,9 @@ func (aq *AthenaQuerier) queryAthenaPaginated(ctx context.Context, query string,
 
 	// Create Athena Client
 	cli, err := aq.GetAthenaClient()
+	if err != nil {
+		return fmt.Errorf("QueryAthenaPaginated: GetAthenaClient error: %s", err.Error())
+	}
 
 	// Query Athena
 	startQueryExecutionOutput, err := cli.StartQueryExecution(ctx, startQueryExecutionInput)
