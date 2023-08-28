@@ -46,7 +46,7 @@ package kubecost
 // @bingen:end
 
 // Allocation Version Set: Includes Allocation pipeline specific resources
-// @bingen:set[name=Allocation,version=19]
+// @bingen:set[name=Allocation,version=20]
 // @bingen:generate:Allocation
 // @bingen:generate[stringtable]:AllocationSet
 // @bingen:generate:AllocationSetRange
