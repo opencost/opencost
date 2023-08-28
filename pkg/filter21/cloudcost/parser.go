@@ -5,8 +5,8 @@ import "github.com/opencost/opencost/pkg/filter21/ast"
 // a slice of all the cloud costs field instances the lexer should recognize as
 // valid left-hand comparators
 var cloudCostFilterFields []*ast.Field = []*ast.Field{
-	ast.NewField(FieldInvoiceEntity),
-	ast.NewField(FieldAccount),
+	ast.NewField(FieldInvoiceEntityID),
+	ast.NewField(FieldAccountID),
 	ast.NewField(FieldProvider),
 	ast.NewField(FieldProviderID),
 	ast.NewField(FieldCategory),

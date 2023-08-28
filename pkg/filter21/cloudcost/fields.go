@@ -4,11 +4,11 @@ package cloudcost
 type CloudCostField string
 
 const (
-	FieldInvoiceEntity CloudCostField = "invoiceEntity"
-	FieldAccount       CloudCostField = "account"
-	FieldProvider      CloudCostField = "provider"
-	FieldProviderID    CloudCostField = "providerID"
-	FieldCategory      CloudCostField = "category"
-	FieldService       CloudCostField = "service"
-	FieldLabel         CloudCostField = "label"
+	FieldInvoiceEntityID CloudCostField = "invoiceEntityID"
+	FieldAccountID       CloudCostField = "accountID"
+	FieldProvider        CloudCostField = "provider"
+	FieldProviderID      CloudCostField = "providerID"
+	FieldCategory        CloudCostField = "category"
+	FieldService         CloudCostField = "service"
+	FieldLabel           CloudCostField = "label"
 )

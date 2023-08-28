@@ -46,9 +46,9 @@ func cloudCostFieldMap(cc *CloudCost, identifier ast.Identifier) (string, error)
 		return "", fmt.Errorf("cannot map field from identifier with nil field")
 	}
 	switch ccfilter.CloudCostField(identifier.Field.Name) {
-	case ccfilter.FieldInvoiceEntity:
+	case ccfilter.FieldInvoiceEntityID:
 		return cc.Properties.InvoiceEntityID, nil
-	case ccfilter.FieldAccount:
+	case ccfilter.FieldAccountID:
 		return cc.Properties.AccountID, nil
 	case ccfilter.FieldProvider:
 		return cc.Properties.Provider, nil
