@@ -132,57 +132,7 @@ type pv struct {
 	Cluster        string    `json:"cluster"`
 	Name           string    `json:"name"`
 	StorageClass   string    `json:"storageClass"`
-}
-
-func (p *pv) clone() *pv {
-	if p == nil {
-		return nil
-	}
-	return &pv{
-		Start:          p.Start,
-		End:            p.End,
-		Bytes:          p.Bytes,
-		CostPerGiBHour: p.CostPerGiBHour,
-		Cluster:        p.Cluster,
-		Name:           p.Name,
-		StorageClass:   p.StorageClass,
-	}
-}
-
-func (p *pv) equal(that *pv) bool {
-	if p == nil {
-		return that == nil
-	}
-
-	if !p.Start.Equal(that.Start) {
-		return false
-	}
-
-	if !p.End.Equal(that.End) {
-		return false
-	}
-
-	if p.Bytes != that.Bytes {
-		return false
-	}
-
-	if p.CostPerGiBHour != that.CostPerGiBHour {
-		return false
-	}
-
-	if p.Cluster != that.Cluster {
-		return false
-	}
-
-	if p.Name != that.Name {
-		return false
-	}
-
-	if p.StorageClass != that.StorageClass {
-		return false
-	}
-
-	return true
+	ProviderID     string    `json:"providerID"`
 }
 
 // String returns a string representation of the pv
@@ -190,7 +140,7 @@ func (p *pv) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("%s/%s{Bytes:%.2f, Cost/GiB*Hr:%.6f, StorageClass:%s}", p.Cluster, p.Name, p.Bytes, p.CostPerGiBHour, p.StorageClass)
+	return fmt.Sprintf("%s/%s{Bytes:%.2f, Cost/GiB*Hr:%.6f, StorageClass:%s, ProviderID: %s}", p.Cluster, p.Name, p.Bytes, p.CostPerGiBHour, p.StorageClass, p.ProviderID)
 }
 
 func (p *pv) minutes() float64 {
@@ -199,11 +149,6 @@ func (p *pv) minutes() float64 {
 	}
 
 	return p.End.Sub(p.Start).Minutes()
-}
-
-// key returns the pvKey for the calling pvc
-func (p *pv) key() pvKey {
-	return newPVKey(p.Cluster, p.Name)
 }
 
 // lbCost describes the start and end time of a Load Balancer along with cost
