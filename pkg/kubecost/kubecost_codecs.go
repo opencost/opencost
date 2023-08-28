@@ -13,12 +13,11 @@ package kubecost
 
 import (
 	"fmt"
+	util "github.com/opencost/opencost/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
-
-	util "github.com/opencost/opencost/pkg/util"
 )
 
 const (
@@ -35,6 +34,7 @@ const (
 
 const (
 <<<<<<< HEAD
+<<<<<<< HEAD
 	// DefaultCodecVersion is used for any resources listed in the Default version set
 	DefaultCodecVersion uint8 = 17
 
@@ -47,18 +47,26 @@ const (
 	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
 	CloudCostCodecVersion uint8 = 2
 =======
+=======
+	// DefaultCodecVersion is used for any resources listed in the Default version set
+	DefaultCodecVersion uint8 = 17
+
+>>>>>>> 17fb63b8 (bingen work)
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
 	AssetsCodecVersion uint8 = 21
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
-	AllocationCodecVersion uint8 = 19
+	AllocationCodecVersion uint8 = 20
 
 	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
 	CloudCostCodecVersion uint8 = 2
+<<<<<<< HEAD
 
 	// DefaultCodecVersion is used for any resources listed in the Default version set
 	DefaultCodecVersion uint8 = 17
 >>>>>>> b3b6f5bc (add ip field to load balancers)
+=======
+>>>>>>> 17fb63b8 (bingen work)
 )
 
 //--------------------------------------------------------------------------
