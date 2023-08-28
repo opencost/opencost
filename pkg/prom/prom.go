@@ -152,8 +152,14 @@ func NewRateLimitedClient(
 	var logger *golog.Logger
 	if queryLogFile != "" {
 		exists, err := fileutil.FileExists(queryLogFile)
+		if err != nil {
+			log.Infof("Failed to check for existence of queryLogFile: %s: %s", queryLogFile, err)
+		}
 		if exists {
-			os.Remove(queryLogFile)
+			err = os.Remove(queryLogFile)
+			if err != nil {
+				log.Infof("Failed to remove queryLogFile: %s: %s", queryLogFile, err)
+			}
 		}
 
 		f, err := os.OpenFile(queryLogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
