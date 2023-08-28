@@ -2,42 +2,44 @@ package costmodel
 
 import (
 	"fmt"
+	"net"
 	"strconv"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/util/timeutil"
-
-	"github.com/kubecost/cost-model/pkg/cloud"
-	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/prom"
-
+	"github.com/opencost/opencost/pkg/cloud/provider"
 	prometheus "github.com/prometheus/client_golang/api"
-	"k8s.io/klog"
+	"golang.org/x/exp/slices"
+
+	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/kubecost"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/prom"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
 const (
 	queryClusterCores = `sum(
-		avg(avg_over_time(kube_node_status_capacity_cpu_cores[%s] %s)) by (node, %s) * avg(avg_over_time(node_cpu_hourly_cost[%s] %s)) by (node, %s) * 730 +
-		avg(avg_over_time(node_gpu_hourly_cost[%s] %s)) by (node, %s) * 730
+		avg(avg_over_time(kube_node_status_capacity_cpu_cores{%s}[%s] %s)) by (node, %s) * avg(avg_over_time(node_cpu_hourly_cost{%s}[%s] %s)) by (node, %s) * 730 +
+		avg(avg_over_time(node_gpu_hourly_cost{%s}[%s] %s)) by (node, %s) * 730
 	  ) by (%s)`
 
 	queryClusterRAM = `sum(
-		avg(avg_over_time(kube_node_status_capacity_memory_bytes[%s] %s)) by (node, %s) / 1024 / 1024 / 1024 * avg(avg_over_time(node_ram_hourly_cost[%s] %s)) by (node, %s) * 730
+		avg(avg_over_time(kube_node_status_capacity_memory_bytes{%s}[%s] %s)) by (node, %s) / 1024 / 1024 / 1024 * avg(avg_over_time(node_ram_hourly_cost{%s}[%s] %s)) by (node, %s) * 730
 	  ) by (%s)`
 
 	queryStorage = `sum(
-		avg(avg_over_time(pv_hourly_cost[%s] %s)) by (persistentvolume, %s) * 730
-		* avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s] %s)) by (persistentvolume, %s) / 1024 / 1024 / 1024
+		avg(avg_over_time(pv_hourly_cost{%s}[%s] %s)) by (persistentvolume, %s) * 730
+		* avg(avg_over_time(kube_persistentvolume_capacity_bytes{%s}[%s] %s)) by (persistentvolume, %s) / 1024 / 1024 / 1024
 	  ) by (%s) %s`
 
-	queryTotal = `sum(avg(node_total_hourly_cost) by (node, %s)) * 730 +
+	queryTotal = `sum(avg(node_total_hourly_cost{%s}) by (node, %s)) * 730 +
 	  sum(
-		avg(avg_over_time(pv_hourly_cost[1h])) by (persistentvolume, %s) * 730
-		* avg(avg_over_time(kube_persistentvolume_capacity_bytes[1h])) by (persistentvolume, %s) / 1024 / 1024 / 1024
+		avg(avg_over_time(pv_hourly_cost{%s}[1h])) by (persistentvolume, %s) * 730
+		* avg(avg_over_time(kube_persistentvolume_capacity_bytes{%s}[1h])) by (persistentvolume, %s) / 1024 / 1024 / 1024
 	  ) by (%s) %s`
 
-	queryNodes = `sum(avg(node_total_hourly_cost) by (node, %s)) * 730 %s`
+	queryNodes = `sum(avg(node_total_hourly_cost{%s}) by (node, %s)) * 730 %s`
 )
 
 const maxLocalDiskSize = 200 // AWS limits root disks to 100 Gi, and occasional metric errors in filesystem size should not contribute to large costs.
@@ -106,31 +108,59 @@ func NewClusterCostsFromCumulative(cpu, gpu, ram, storage float64, window, offse
 }
 
 type Disk struct {
-	Cluster    string
-	Name       string
-	ProviderID string
-	Cost       float64
-	Bytes      float64
-	Local      bool
-	Start      time.Time
-	End        time.Time
-	Minutes    float64
-	Breakdown  *ClusterCostsBreakdown
+	Cluster        string
+	Name           string
+	ProviderID     string
+	StorageClass   string
+	VolumeName     string
+	ClaimName      string
+	ClaimNamespace string
+	Cost           float64
+	Bytes          float64
+
+	// These two fields may not be available at all times because they rely on
+	// a new set of metrics that may or may not be available. Thus, they must
+	// be nilable to represent the complete absence of the data.
+	//
+	// In other words, nilability here lets us distinguish between
+	// "metric is not available" and "metric is available but is 0".
+	//
+	// They end in "Ptr" to distinguish from an earlier version in order to
+	// ensure that all usages are checked for nil.
+	BytesUsedAvgPtr *float64
+	BytesUsedMaxPtr *float64
+
+	Local     bool
+	Start     time.Time
+	End       time.Time
+	Minutes   float64
+	Breakdown *ClusterCostsBreakdown
 }
 
-func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, offset time.Duration) (map[string]*Disk, error) {
-	durationStr := fmt.Sprintf("%dm", int64(duration.Minutes()))
-	offsetStr := fmt.Sprintf(" offset %dm", int64(offset.Minutes()))
-	if offset < time.Minute {
-		offsetStr = ""
-	}
+type DiskIdentifier struct {
+	Cluster string
+	Name    string
+}
+
+func ClusterDisks(client prometheus.Client, provider models.Provider, start, end time.Time) (map[DiskIdentifier]*Disk, error) {
+	// Start from the time "end", querying backwards
+	t := end
 
 	// minsPerResolution determines accuracy and resource use for the following
 	// queries. Smaller values (higher resolution) result in better accuracy,
 	// but more expensive queries, and vice-a-versa.
-	minsPerResolution := 1
-	resolution := time.Duration(minsPerResolution) * time.Minute
+	resolution := env.GetETLResolution()
+	//Ensuring if ETL_RESOLUTION_SECONDS is less than 60s default it to 1m
+	var minsPerResolution int
+	if minsPerResolution = int(resolution.Minutes()); int(resolution.Minutes()) == 0 {
+		minsPerResolution = 1
+		log.DedupedWarningf(3, "ClusterDisks(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
+	}
 
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
+	}
 	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
 	// value, converts it to a cumulative value; i.e.
 	// [$/hr] * [min/res]*[hr/min] = [$/res]
@@ -140,37 +170,91 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 	costPerGBHr := 0.04 / 730.0
 
 	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
-	queryPVCost := fmt.Sprintf(`avg(avg_over_time(pv_hourly_cost[%s]%s)) by (%s, persistentvolume,provider_id)`, durationStr, offsetStr, env.GetPromClusterLabel())
-	queryPVSize := fmt.Sprintf(`avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s]%s)) by (%s, persistentvolume)`, durationStr, offsetStr, env.GetPromClusterLabel())
-	queryActiveMins := fmt.Sprintf(`count(pv_hourly_cost) by (%s, persistentvolume)[%s:%dm]%s`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr)
+	queryPVCost := fmt.Sprintf(`avg(avg_over_time(pv_hourly_cost{%s}[%s])) by (%s, persistentvolume,provider_id)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryPVSize := fmt.Sprintf(`avg(avg_over_time(kube_persistentvolume_capacity_bytes{%s}[%s])) by (%s, persistentvolume)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryActiveMins := fmt.Sprintf(`avg(kube_persistentvolume_capacity_bytes{%s}) by (%s, persistentvolume)[%s:%dm]`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
+	queryPVStorageClass := fmt.Sprintf(`avg(avg_over_time(kubecost_pv_info{%s}[%s])) by (%s, persistentvolume, storageclass)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryPVUsedAvg := fmt.Sprintf(`avg(avg_over_time(kubelet_volume_stats_used_bytes{%s}[%s])) by (%s, persistentvolumeclaim, namespace)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryPVUsedMax := fmt.Sprintf(`max(max_over_time(kubelet_volume_stats_used_bytes{%s}[%s])) by (%s, persistentvolumeclaim, namespace)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryPVCInfo := fmt.Sprintf(`avg(avg_over_time(kube_persistentvolumeclaim_info{%s}[%s])) by (%s, volumename, persistentvolumeclaim, namespace)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryLocalStorageCost := fmt.Sprintf(`sum_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/", %s}) by (instance, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution, hourlyToCumulative, costPerGBHr)
+	queryLocalStorageUsedCost := fmt.Sprintf(`sum_over_time(sum(container_fs_usage_bytes{device!="tmpfs", id="/", %s}) by (instance, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution, hourlyToCumulative, costPerGBHr)
+	queryLocalStorageUsedAvg := fmt.Sprintf(`avg(avg_over_time(container_fs_usage_bytes{device!="tmpfs", id="/", %s}[%s])) by (instance, %s)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryLocalStorageUsedMax := fmt.Sprintf(`max(max_over_time(container_fs_usage_bytes{device!="tmpfs", id="/", %s}[%s])) by (instance, %s)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryLocalStorageBytes := fmt.Sprintf(`avg_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/", %s}) by (instance, %s)[%s:%dm])`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
+	queryLocalActiveMins := fmt.Sprintf(`count(node_total_hourly_cost{%s}) by (%s, node)[%s:%dm]`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
 
-	queryLocalStorageCost := fmt.Sprintf(`sum_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm]%s) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr, hourlyToCumulative, costPerGBHr)
-	queryLocalStorageUsedCost := fmt.Sprintf(`sum_over_time(sum(container_fs_usage_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm]%s) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr, hourlyToCumulative, costPerGBHr)
-	queryLocalStorageBytes := fmt.Sprintf(`avg_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm]%s)`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr)
-	queryLocalActiveMins := fmt.Sprintf(`count(node_total_hourly_cost) by (%s, node)[%s:%dm]%s`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr)
-
-	resChPVCost := ctx.Query(queryPVCost)
-	resChPVSize := ctx.Query(queryPVSize)
-	resChActiveMins := ctx.Query(queryActiveMins)
-	resChLocalStorageCost := ctx.Query(queryLocalStorageCost)
-	resChLocalStorageUsedCost := ctx.Query(queryLocalStorageUsedCost)
-	resChLocalStorageBytes := ctx.Query(queryLocalStorageBytes)
-	resChLocalActiveMins := ctx.Query(queryLocalActiveMins)
+	resChPVCost := ctx.QueryAtTime(queryPVCost, t)
+	resChPVSize := ctx.QueryAtTime(queryPVSize, t)
+	resChActiveMins := ctx.QueryAtTime(queryActiveMins, t)
+	resChPVStorageClass := ctx.QueryAtTime(queryPVStorageClass, t)
+	resChPVUsedAvg := ctx.QueryAtTime(queryPVUsedAvg, t)
+	resChPVUsedMax := ctx.QueryAtTime(queryPVUsedMax, t)
+	resChPVCInfo := ctx.QueryAtTime(queryPVCInfo, t)
+	resChLocalStorageCost := ctx.QueryAtTime(queryLocalStorageCost, t)
+	resChLocalStorageUsedCost := ctx.QueryAtTime(queryLocalStorageUsedCost, t)
+	resChLocalStoreageUsedAvg := ctx.QueryAtTime(queryLocalStorageUsedAvg, t)
+	resChLocalStoreageUsedMax := ctx.QueryAtTime(queryLocalStorageUsedMax, t)
+	resChLocalStorageBytes := ctx.QueryAtTime(queryLocalStorageBytes, t)
+	resChLocalActiveMins := ctx.QueryAtTime(queryLocalActiveMins, t)
 
 	resPVCost, _ := resChPVCost.Await()
 	resPVSize, _ := resChPVSize.Await()
 	resActiveMins, _ := resChActiveMins.Await()
+	resPVStorageClass, _ := resChPVStorageClass.Await()
+	resPVUsedAvg, _ := resChPVUsedAvg.Await()
+	resPVUsedMax, _ := resChPVUsedMax.Await()
+	resPVCInfo, _ := resChPVCInfo.Await()
 	resLocalStorageCost, _ := resChLocalStorageCost.Await()
 	resLocalStorageUsedCost, _ := resChLocalStorageUsedCost.Await()
+	resLocalStorageUsedAvg, _ := resChLocalStoreageUsedAvg.Await()
+	resLocalStorageUsedMax, _ := resChLocalStoreageUsedMax.Await()
 	resLocalStorageBytes, _ := resChLocalStorageBytes.Await()
 	resLocalActiveMins, _ := resChLocalActiveMins.Await()
+
 	if ctx.HasErrors() {
 		return nil, ctx.ErrorCollection()
 	}
 
-	diskMap := map[string]*Disk{}
+	diskMap := map[DiskIdentifier]*Disk{}
 
-	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost, provider)
+	for _, result := range resPVCInfo {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		volumeName, err := result.GetString("volumename")
+		if err != nil {
+			log.Debugf("ClusterDisks: pv claim data missing volumename")
+			continue
+		}
+		claimName, err := result.GetString("persistentvolumeclaim")
+		if err != nil {
+			log.Debugf("ClusterDisks: pv claim data missing persistentvolumeclaim")
+			continue
+		}
+		claimNamespace, err := result.GetString("namespace")
+		if err != nil {
+			log.Debugf("ClusterDisks: pv claim data missing namespace")
+			continue
+		}
+
+		key := DiskIdentifier{cluster, volumeName}
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      volumeName,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+
+		diskMap[key].VolumeName = volumeName
+		diskMap[key].ClaimName = claimName
+		diskMap[key].ClaimNamespace = claimNamespace
+	}
+
+	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo, provider, kubecost.NewClosedWindow(start, end))
 
 	for _, result := range resLocalStorageCost {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
@@ -180,12 +264,12 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 
 		name, err := result.GetString("instance")
 		if err != nil {
-			log.Warningf("ClusterDisks: local storage data missing instance")
+			log.Warnf("ClusterDisks: local storage data missing instance")
 			continue
 		}
 
 		cost := result.Values[0].Value
-		key := fmt.Sprintf("%s/%s", cluster, name)
+		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
@@ -195,6 +279,9 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 			}
 		}
 		diskMap[key].Cost += cost
+
+		//Assigning explicitly the storage class of local storage to local
+		diskMap[key].StorageClass = kubecost.LocalStorageClass
 	}
 
 	for _, result := range resLocalStorageUsedCost {
@@ -205,12 +292,12 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 
 		name, err := result.GetString("instance")
 		if err != nil {
-			log.Warningf("ClusterDisks: local storage usage data missing instance")
+			log.Warnf("ClusterDisks: local storage usage data missing instance")
 			continue
 		}
 
 		cost := result.Values[0].Value
-		key := fmt.Sprintf("%s/%s", cluster, name)
+		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
@@ -222,6 +309,56 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 		diskMap[key].Breakdown.System = cost / diskMap[key].Cost
 	}
 
+	for _, result := range resLocalStorageUsedAvg {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("instance")
+		if err != nil {
+			log.Warnf("ClusterDisks: local storage data missing instance")
+			continue
+		}
+
+		bytesAvg := result.Values[0].Value
+		key := DiskIdentifier{cluster, name}
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+				Local:     true,
+			}
+		}
+		diskMap[key].BytesUsedAvgPtr = &bytesAvg
+	}
+
+	for _, result := range resLocalStorageUsedMax {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("instance")
+		if err != nil {
+			log.Warnf("ClusterDisks: local storage data missing instance")
+			continue
+		}
+
+		bytesMax := result.Values[0].Value
+		key := DiskIdentifier{cluster, name}
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+				Local:     true,
+			}
+		}
+		diskMap[key].BytesUsedMaxPtr = &bytesMax
+	}
+
 	for _, result := range resLocalStorageBytes {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
@@ -230,12 +367,12 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 
 		name, err := result.GetString("instance")
 		if err != nil {
-			log.Warningf("ClusterDisks: local storage data missing instance")
+			log.Warnf("ClusterDisks: local storage data missing instance")
 			continue
 		}
 
 		bytes := result.Values[0].Value
-		key := fmt.Sprintf("%s/%s", cluster, name)
+		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
@@ -246,7 +383,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 		}
 		diskMap[key].Bytes = bytes
 		if bytes/1024/1024/1024 > maxLocalDiskSize {
-			log.Warningf("Deleting large root disk/localstorage disk from analysis")
+			log.DedupedWarningf(5, "Deleting large root disk/localstorage disk from analysis")
 			delete(diskMap, key)
 		}
 	}
@@ -259,13 +396,13 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 
 		name, err := result.GetString("node")
 		if err != nil {
-			log.Warningf("ClusterDisks: local active mins data missing instance")
+			log.DedupedWarningf(5, "ClusterDisks: local active mins data missing instance")
 			continue
 		}
 
-		key := fmt.Sprintf("%s/%s", cluster, name)
+		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
-			log.Warningf("ClusterDisks: local active mins for unidentified disk or disk deleted from analysis")
+			log.DedupedWarningf(5, "ClusterDisks: local active mins for unidentified disk or disk deleted from analysis")
 			continue
 		}
 
@@ -274,7 +411,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 		}
 
 		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).Add(resolution)
+		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
 		mins := e.Sub(s).Minutes()
 
 		// TODO niko/assets if mins >= threshold, interpolate for missing data?
@@ -284,21 +421,60 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 		diskMap[key].Minutes = mins
 	}
 
+	var unTracedDiskLogData []DiskIdentifier
+	//Iterating through Persistent Volume given by custom metrics kubecost_pv_info and assign the storage class if known and __unknown__ if not populated.
+	for _, result := range resPVStorageClass {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, _ := result.GetString("persistentvolume")
+
+		key := DiskIdentifier{cluster, name}
+		if _, ok := diskMap[key]; !ok {
+			if !slices.Contains(unTracedDiskLogData, key) {
+				unTracedDiskLogData = append(unTracedDiskLogData, key)
+			}
+			continue
+		}
+
+		if len(result.Values) == 0 {
+			continue
+		}
+
+		storageClass, err := result.GetString("storageclass")
+
+		if err != nil {
+			diskMap[key].StorageClass = kubecost.UnknownStorageClass
+		} else {
+			diskMap[key].StorageClass = storageClass
+		}
+	}
+
+	// Logging the unidentified disk information outside the loop
+
+	for _, unIdentifiedDisk := range unTracedDiskLogData {
+		log.Warnf("ClusterDisks: Cluster %s has Storage Class information for unidentified disk %s or disk deleted from analysis", unIdentifiedDisk.Cluster, unIdentifiedDisk.Name)
+	}
+
 	for _, disk := range diskMap {
 		// Apply all remaining RAM to Idle
 		disk.Breakdown.Idle = 1.0 - (disk.Breakdown.System + disk.Breakdown.Other + disk.Breakdown.User)
 
-		// Set provider Id to the name for reconciliation on Azure
-		if fmt.Sprintf("%T", provider) == "*provider.Azure" {
-			if disk.ProviderID == "" {
-				disk.ProviderID = disk.Name
-			}
+		// Set provider Id to the name for reconciliation
+		if disk.ProviderID == "" {
+			disk.ProviderID = disk.Name
 		}
 	}
 
 	return diskMap, nil
 }
 
+type NodeOverhead struct {
+	CpuOverheadFraction float64
+	RamOverheadFraction float64
+}
 type Node struct {
 	Cluster         string
 	Name            string
@@ -321,6 +497,7 @@ type Node struct {
 	CostPerCPUHr    float64
 	CostPerRAMGiBHr float64
 	CostPerGPUHr    float64
+	Overhead        *NodeOverhead
 }
 
 // GKE lies about the number of cores e2 nodes have. This table
@@ -369,57 +546,70 @@ func costTimesMinute(activeDataMap map[NodeIdentifier]activeData, costMap map[No
 	}
 }
 
-func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset time.Duration) (map[NodeIdentifier]*Node, error) {
-	durationStr := fmt.Sprintf("%dm", int64(duration.Minutes()))
-	offsetStr := fmt.Sprintf(" offset %dm", int64(offset.Minutes()))
-	if offset < time.Minute {
-		offsetStr = ""
-	}
+func ClusterNodes(cp models.Provider, client prometheus.Client, start, end time.Time) (map[NodeIdentifier]*Node, error) {
+	// Start from the time "end", querying backwards
+	t := end
 
 	// minsPerResolution determines accuracy and resource use for the following
 	// queries. Smaller values (higher resolution) result in better accuracy,
 	// but more expensive queries, and vice-a-versa.
-	minsPerResolution := 1
-	resolution := time.Duration(minsPerResolution) * time.Minute
+	resolution := env.GetETLResolution()
+	//Ensuring if ETL_RESOLUTION_SECONDS is less than 60s default it to 1m
+	var minsPerResolution int
+	if minsPerResolution = int(resolution.Minutes()); int(resolution.Minutes()) == 0 {
+		minsPerResolution = 1
+		log.DedupedWarningf(3, "ClusterNodes(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
+	}
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
+	}
 
 	requiredCtx := prom.NewNamedContext(client, prom.ClusterContextName)
 	optionalCtx := prom.NewNamedContext(client, prom.ClusterOptionalContextName)
 
-	queryNodeCPUHourlyCost := fmt.Sprintf(`avg(avg_over_time(node_cpu_hourly_cost[%s]%s)) by (%s, node, instance_type, provider_id)`, durationStr, offsetStr, env.GetPromClusterLabel())
-	queryNodeCPUCores := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity_cpu_cores[%s]%s)) by (%s, node)`, durationStr, offsetStr, env.GetPromClusterLabel())
-	queryNodeRAMHourlyCost := fmt.Sprintf(`avg(avg_over_time(node_ram_hourly_cost[%s]%s)) by (%s, node, instance_type, provider_id) / 1024 / 1024 / 1024`, durationStr, offsetStr, env.GetPromClusterLabel())
-	queryNodeRAMBytes := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity_memory_bytes[%s]%s)) by (%s, node)`, durationStr, offsetStr, env.GetPromClusterLabel())
-	queryNodeGPUCount := fmt.Sprintf(`avg(avg_over_time(node_gpu_count[%s]%s)) by (%s, node, provider_id)`, durationStr, offsetStr, env.GetPromClusterLabel())
-	queryNodeGPUHourlyCost := fmt.Sprintf(`avg(avg_over_time(node_gpu_hourly_cost[%s]%s)) by (%s, node, instance_type, provider_id)`, durationStr, offsetStr, env.GetPromClusterLabel())
-	queryNodeCPUModeTotal := fmt.Sprintf(`sum(rate(node_cpu_seconds_total[%s:%dm]%s)) by (kubernetes_node, %s, mode)`, durationStr, minsPerResolution, offsetStr, env.GetPromClusterLabel())
-	queryNodeRAMSystemPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace="kube-system"}[%s:%dm]%s)) by (instance, %s) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm]%s)) by (node, %s), "instance", "$1", "node", "(.*)")) by (instance, %s)`, durationStr, minsPerResolution, offsetStr, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr, env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	queryNodeRAMUserPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace!="kube-system"}[%s:%dm]%s)) by (instance, %s) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm]%s)) by (node, %s), "instance", "$1", "node", "(.*)")) by (instance, %s)`, durationStr, minsPerResolution, offsetStr, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr, env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	queryActiveMins := fmt.Sprintf(`avg(node_total_hourly_cost) by (node, %s, provider_id)[%s:%dm]%s`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr)
-	queryIsSpot := fmt.Sprintf(`avg_over_time(kubecost_node_is_spot[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
-	queryLabels := fmt.Sprintf(`count_over_time(kube_node_labels[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
+	queryNodeCPUHourlyCost := fmt.Sprintf(`avg(avg_over_time(node_cpu_hourly_cost{%s}[%s])) by (%s, node, instance_type, provider_id)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryNodeCPUCoresCapacity := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity_cpu_cores{%s}[%s])) by (%s, node)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryNodeCPUCoresAllocatable := fmt.Sprintf(`avg(avg_over_time(kube_node_status_allocatable_cpu_cores{%s}[%s])) by (%s, node)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryNodeRAMHourlyCost := fmt.Sprintf(`avg(avg_over_time(node_ram_hourly_cost{%s}[%s])) by (%s, node, instance_type, provider_id) / 1024 / 1024 / 1024`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryNodeRAMBytesCapacity := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity_memory_bytes{%s}[%s])) by (%s, node)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryNodeRAMBytesAllocatable := fmt.Sprintf(`avg(avg_over_time(kube_node_status_allocatable_memory_bytes{%s}[%s])) by (%s, node)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryNodeGPUCount := fmt.Sprintf(`avg(avg_over_time(node_gpu_count{%s}[%s])) by (%s, node, provider_id)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryNodeGPUHourlyCost := fmt.Sprintf(`avg(avg_over_time(node_gpu_hourly_cost{%s}[%s])) by (%s, node, instance_type, provider_id)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryNodeCPUModeTotal := fmt.Sprintf(`sum(rate(node_cpu_seconds_total{%s}[%s:%dm])) by (kubernetes_node, %s, mode)`, env.GetPromClusterFilter(), durStr, minsPerResolution, env.GetPromClusterLabel())
+	queryNodeRAMSystemPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace="kube-system", %s}[%s:%dm])) by (instance, %s) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes{%s}[%s:%dm])) by (node, %s), "instance", "$1", "node", "(.*)")) by (instance, %s)`, env.GetPromClusterFilter(), durStr, minsPerResolution, env.GetPromClusterLabel(), env.GetPromClusterFilter(), durStr, minsPerResolution, env.GetPromClusterLabel(), env.GetPromClusterLabel())
+	queryNodeRAMUserPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace!="kube-system", %s}[%s:%dm])) by (instance, %s) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes{%s}[%s:%dm])) by (node, %s), "instance", "$1", "node", "(.*)")) by (instance, %s)`, env.GetPromClusterFilter(), durStr, minsPerResolution, env.GetPromClusterLabel(), env.GetPromClusterFilter(), durStr, minsPerResolution, env.GetPromClusterLabel(), env.GetPromClusterLabel())
+	queryActiveMins := fmt.Sprintf(`avg(node_total_hourly_cost{%s}) by (node, %s, provider_id)[%s:%dm]`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
+	queryIsSpot := fmt.Sprintf(`avg_over_time(kubecost_node_is_spot{%s}[%s:%dm])`, env.GetPromClusterFilter(), durStr, minsPerResolution)
+	queryLabels := fmt.Sprintf(`count_over_time(kube_node_labels{%s}[%s:%dm])`, env.GetPromClusterFilter(), durStr, minsPerResolution)
 
 	// Return errors if these fail
-	resChNodeCPUHourlyCost := requiredCtx.Query(queryNodeCPUHourlyCost)
-	resChNodeCPUCores := requiredCtx.Query(queryNodeCPUCores)
-	resChNodeRAMHourlyCost := requiredCtx.Query(queryNodeRAMHourlyCost)
-	resChNodeRAMBytes := requiredCtx.Query(queryNodeRAMBytes)
-	resChNodeGPUCount := requiredCtx.Query(queryNodeGPUCount)
-	resChNodeGPUHourlyCost := requiredCtx.Query(queryNodeGPUHourlyCost)
-	resChActiveMins := requiredCtx.Query(queryActiveMins)
-	resChIsSpot := requiredCtx.Query(queryIsSpot)
+	resChNodeCPUHourlyCost := requiredCtx.QueryAtTime(queryNodeCPUHourlyCost, t)
+	resChNodeCPUCoresCapacity := requiredCtx.QueryAtTime(queryNodeCPUCoresCapacity, t)
+	resChNodeCPUCoresAllocatable := requiredCtx.QueryAtTime(queryNodeCPUCoresAllocatable, t)
+	resChNodeRAMHourlyCost := requiredCtx.QueryAtTime(queryNodeRAMHourlyCost, t)
+	resChNodeRAMBytesCapacity := requiredCtx.QueryAtTime(queryNodeRAMBytesCapacity, t)
+	resChNodeRAMBytesAllocatable := requiredCtx.QueryAtTime(queryNodeRAMBytesAllocatable, t)
+	resChNodeGPUCount := requiredCtx.QueryAtTime(queryNodeGPUCount, t)
+	resChNodeGPUHourlyCost := requiredCtx.QueryAtTime(queryNodeGPUHourlyCost, t)
+	resChActiveMins := requiredCtx.QueryAtTime(queryActiveMins, t)
+	resChIsSpot := requiredCtx.QueryAtTime(queryIsSpot, t)
 
 	// Do not return errors if these fail, but log warnings
-	resChNodeCPUModeTotal := optionalCtx.Query(queryNodeCPUModeTotal)
-	resChNodeRAMSystemPct := optionalCtx.Query(queryNodeRAMSystemPct)
-	resChNodeRAMUserPct := optionalCtx.Query(queryNodeRAMUserPct)
-	resChLabels := optionalCtx.Query(queryLabels)
+	resChNodeCPUModeTotal := optionalCtx.QueryAtTime(queryNodeCPUModeTotal, t)
+	resChNodeRAMSystemPct := optionalCtx.QueryAtTime(queryNodeRAMSystemPct, t)
+	resChNodeRAMUserPct := optionalCtx.QueryAtTime(queryNodeRAMUserPct, t)
+	resChLabels := optionalCtx.QueryAtTime(queryLabels, t)
 
 	resNodeCPUHourlyCost, _ := resChNodeCPUHourlyCost.Await()
-	resNodeCPUCores, _ := resChNodeCPUCores.Await()
+	resNodeCPUCoresCapacity, _ := resChNodeCPUCoresCapacity.Await()
+	resNodeCPUCoresAllocatable, _ := resChNodeCPUCoresAllocatable.Await()
 	resNodeGPUCount, _ := resChNodeGPUCount.Await()
 	resNodeGPUHourlyCost, _ := resChNodeGPUHourlyCost.Await()
 	resNodeRAMHourlyCost, _ := resChNodeRAMHourlyCost.Await()
-	resNodeRAMBytes, _ := resChNodeRAMBytes.Await()
+	resNodeRAMBytesCapacity, _ := resChNodeRAMBytesCapacity.Await()
+	resNodeRAMBytesAllocatable, _ := resChNodeRAMBytesAllocatable.Await()
 	resIsSpot, _ := resChIsSpot.Await()
 	resNodeCPUModeTotal, _ := resChNodeCPUModeTotal.Await()
 	resNodeRAMSystemPct, _ := resChNodeRAMSystemPct.Await()
@@ -429,7 +619,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 
 	if optionalCtx.HasErrors() {
 		for _, err := range optionalCtx.Errors() {
-			log.Warningf("ClusterNodes: %s", err)
+			log.Warnf("ClusterNodes: %s", err)
 		}
 	}
 	if requiredCtx.HasErrors() {
@@ -440,7 +630,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		return nil, requiredCtx.ErrorCollection()
 	}
 
-	activeDataMap := buildActiveDataMap(resActiveMins, resolution)
+	activeDataMap := buildActiveDataMap(resActiveMins, resolution, kubecost.NewClosedWindow(start, end))
 
 	gpuCountMap := buildGPUCountMap(resNodeGPUCount)
 	preemptibleMap := buildPreemptibleMap(resIsSpot)
@@ -452,8 +642,12 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	clusterAndNameToTypeIntermediate := mergeTypeMaps(clusterAndNameToType1, clusterAndNameToType2)
 	clusterAndNameToType := mergeTypeMaps(clusterAndNameToTypeIntermediate, clusterAndNameToType3)
 
-	cpuCoresMap := buildCPUCoresMap(resNodeCPUCores)
-	ramBytesMap := buildRAMBytesMap(resNodeRAMBytes)
+	cpuCoresCapacityMap := buildCPUCoresMap(resNodeCPUCoresCapacity)
+	ramBytesCapacityMap := buildRAMBytesMap(resNodeRAMBytesCapacity)
+
+	cpuCoresAllocatableMap := buildCPUCoresMap(resNodeCPUCoresAllocatable)
+	ramBytesAllocatableMap := buildRAMBytesMap(resNodeRAMBytesAllocatable)
+	overheadMap := buildOverheadMap(ramBytesCapacityMap, ramBytesAllocatableMap, cpuCoresCapacityMap, cpuCoresAllocatableMap)
 
 	ramUserPctMap := buildRAMUserPctMap(resNodeRAMUserPct)
 	ramSystemPctMap := buildRAMSystemPctMap(resNodeRAMSystemPct)
@@ -462,19 +656,21 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 
 	labelsMap := buildLabelsMap(resLabels)
 
-	costTimesMinuteAndCount(activeDataMap, cpuCostMap, cpuCoresMap)
-	costTimesMinuteAndCount(activeDataMap, ramCostMap, ramBytesMap)
+	costTimesMinuteAndCount(activeDataMap, cpuCostMap, cpuCoresCapacityMap)
+	costTimesMinuteAndCount(activeDataMap, ramCostMap, ramBytesCapacityMap)
 	costTimesMinute(activeDataMap, gpuCostMap) // there's no need to do a weird "nodeIdentifierNoProviderID" type match since gpuCounts have a providerID
 
 	nodeMap := buildNodeMap(
 		cpuCostMap, ramCostMap, gpuCostMap, gpuCountMap,
-		cpuCoresMap, ramBytesMap, ramUserPctMap,
+		cpuCoresCapacityMap, ramBytesCapacityMap, ramUserPctMap,
 		ramSystemPctMap,
 		cpuBreakdownMap,
 		activeDataMap,
 		preemptibleMap,
 		labelsMap,
 		clusterAndNameToType,
+		resolution,
+		overheadMap,
 	)
 
 	c, err := cp.GetConfig()
@@ -504,38 +700,54 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	return nodeMap, nil
 }
 
+type LoadBalancerIdentifier struct {
+	Cluster   string
+	Namespace string
+	Name      string
+}
+
 type LoadBalancer struct {
 	Cluster    string
+	Namespace  string
 	Name       string
 	ProviderID string
 	Cost       float64
 	Start      time.Time
+	End        time.Time
 	Minutes    float64
+	Private    bool
+	Ip         string
 }
 
-func ClusterLoadBalancers(client prometheus.Client, duration, offset time.Duration) (map[string]*LoadBalancer, error) {
-	durationStr := fmt.Sprintf("%dm", int64(duration.Minutes()))
-	offsetStr := fmt.Sprintf(" offset %dm", int64(offset.Minutes()))
-	if offset < time.Minute {
-		offsetStr = ""
-	}
+func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[LoadBalancerIdentifier]*LoadBalancer, error) {
+
+	// Start from the time "end", querying backwards
+	t := end
 
 	// minsPerResolution determines accuracy and resource use for the following
 	// queries. Smaller values (higher resolution) result in better accuracy,
 	// but more expensive queries, and vice-a-versa.
-	minsPerResolution := 5
+	resolution := env.GetETLResolution()
+	//Ensuring if ETL_RESOLUTION_SECONDS is less than 60s default it to 1m
+	var minsPerResolution int
+	if minsPerResolution = int(resolution.Minutes()); int(resolution.Minutes()) == 0 {
+		minsPerResolution = 1
+		log.DedupedWarningf(3, "ClusterLoadBalancers(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
+	}
 
-	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
-	// value, converts it to a cumulative value; i.e.
-	// [$/hr] * [min/res]*[hr/min] = [$/res]
-	hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
+	// Query for the duration between start and end
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
+	}
 
 	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
-	queryLBCost := fmt.Sprintf(`sum_over_time((avg(kubecost_load_balancer_cost) by (namespace, service_name, %s, ingress_ip))[%s:%dm]%s) * %f`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
-	queryActiveMins := fmt.Sprintf(`count(kubecost_load_balancer_cost) by (namespace, service_name, %s, ingress_ip)[%s:%dm]%s`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr)
 
-	resChLBCost := ctx.Query(queryLBCost)
-	resChActiveMins := ctx.Query(queryActiveMins)
+	queryLBCost := fmt.Sprintf(`avg(avg_over_time(kubecost_load_balancer_cost{%s}[%s])) by (namespace, service_name, %s, ingress_ip)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryActiveMins := fmt.Sprintf(`avg(kubecost_load_balancer_cost{%s}) by (namespace, service_name, %s, ingress_ip)[%s:%dm]`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
+
+	resChLBCost := ctx.QueryAtTime(queryLBCost, t)
+	resChActiveMins := ctx.QueryAtTime(queryActiveMins, t)
 
 	resLBCost, _ := resChLBCost.Await()
 	resActiveMins, _ := resChActiveMins.Await()
@@ -544,45 +756,7 @@ func ClusterLoadBalancers(client prometheus.Client, duration, offset time.Durati
 		return nil, ctx.ErrorCollection()
 	}
 
-	loadBalancerMap := map[string]*LoadBalancer{}
-
-	for _, result := range resLBCost {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-		namespace, err := result.GetString("namespace")
-		if err != nil {
-			log.Warningf("ClusterLoadBalancers: LB cost data missing namespace")
-			continue
-		}
-		serviceName, err := result.GetString("service_name")
-		if err != nil {
-			log.Warningf("ClusterLoadBalancers: LB cost data missing service_name")
-			continue
-		}
-		providerID, err := result.GetString("ingress_ip")
-		if err != nil {
-			log.DedupedWarningf(5, "ClusterLoadBalancers: LB cost data missing ingress_ip")
-			providerID = ""
-		}
-		lbCost := result.Values[0].Value
-
-		key := fmt.Sprintf("%s/%s/%s", cluster, namespace, serviceName)
-		if _, ok := loadBalancerMap[key]; !ok {
-			loadBalancerMap[key] = &LoadBalancer{
-				Cluster:    cluster,
-				Name:       namespace + "/" + serviceName,
-				ProviderID: cloud.ParseLBID(providerID),
-			}
-		}
-		// Fill in Provider ID if it is available and missing in the loadBalancerMap
-		// Prevents there from being a duplicate LoadBalancers on the same day
-		if providerID != "" && loadBalancerMap[key].ProviderID == "" {
-			loadBalancerMap[key].ProviderID = providerID
-		}
-		loadBalancerMap[key].Cost += lbCost
-	}
+	loadBalancerMap := make(map[LoadBalancerIdentifier]*LoadBalancer, len(resActiveMins))
 
 	for _, result := range resActiveMins {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
@@ -591,36 +765,120 @@ func ClusterLoadBalancers(client prometheus.Client, duration, offset time.Durati
 		}
 		namespace, err := result.GetString("namespace")
 		if err != nil {
-			log.Warningf("ClusterLoadBalancers: LB cost data missing namespace")
+			log.Warnf("ClusterLoadBalancers: LB cost data missing namespace")
 			continue
 		}
-		serviceName, err := result.GetString("service_name")
+		name, err := result.GetString("service_name")
 		if err != nil {
-			log.Warningf("ClusterLoadBalancers: LB cost data missing service_name")
+			log.Warnf("ClusterLoadBalancers: LB cost data missing service_name")
 			continue
 		}
-		key := fmt.Sprintf("%s/%s/%s", cluster, namespace, serviceName)
+		providerID, err := result.GetString("ingress_ip")
+		if err != nil {
+			log.DedupedWarningf(5, "ClusterLoadBalancers: LB cost data missing ingress_ip")
+			providerID = ""
+		}
 
+		key := LoadBalancerIdentifier{
+			Cluster:   cluster,
+			Namespace: namespace,
+			Name:      name,
+		}
+
+		// Skip if there are no data
 		if len(result.Values) == 0 {
 			continue
 		}
 
-		if lb, ok := loadBalancerMap[key]; ok {
-			s := time.Unix(int64(result.Values[0].Timestamp), 0)
-			e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
-			mins := e.Sub(s).Minutes()
+		// Add load balancer to the set of load balancers
+		if _, ok := loadBalancerMap[key]; !ok {
+			loadBalancerMap[key] = &LoadBalancer{
+				Cluster:    cluster,
+				Namespace:  namespace,
+				Name:       fmt.Sprintf("%s/%s", namespace, name), // TODO:ETL this is kept for backwards-compatibility, but not good
+				ProviderID: provider.ParseLBID(providerID),
+			}
+		}
 
-			lb.Start = s
-			lb.Minutes = mins
-		} else {
-			log.DedupedWarningf(20, "ClusterLoadBalancers: found minutes for key that does not exist: %s", key)
+		// Append start, end, and minutes. This should come before all other data.
+		s := time.Unix(int64(result.Values[0].Timestamp), 0)
+		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
+		loadBalancerMap[key].Start = s
+		loadBalancerMap[key].End = e
+		loadBalancerMap[key].Minutes = e.Sub(s).Minutes()
+
+		// Fill in Provider ID if it is available and missing in the loadBalancerMap
+		// Prevents there from being a duplicate LoadBalancers on the same day
+		if providerID != "" && loadBalancerMap[key].ProviderID == "" {
+			loadBalancerMap[key].ProviderID = providerID
 		}
 	}
+
+	for _, result := range resLBCost {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+		namespace, err := result.GetString("namespace")
+		if err != nil {
+			log.Warnf("ClusterLoadBalancers: LB cost data missing namespace")
+			continue
+		}
+		name, err := result.GetString("service_name")
+		if err != nil {
+			log.Warnf("ClusterLoadBalancers: LB cost data missing service_name")
+			continue
+		}
+
+		providerID, err := result.GetString("ingress_ip")
+		if err != nil {
+			log.DedupedWarningf(5, "ClusterLoadBalancers: LB cost data missing ingress_ip")
+			// only update asset cost when an actual IP was returned
+			continue
+		}
+		key := LoadBalancerIdentifier{
+			Cluster:   cluster,
+			Namespace: namespace,
+			Name:      name,
+		}
+
+		// Apply cost as price-per-hour * hours
+		if lb, ok := loadBalancerMap[key]; ok {
+			lbPricePerHr := result.Values[0].Value
+
+			// interpolate any missing data
+			resultMins := lb.Minutes
+			scaleFactor := (resultMins + resolution.Minutes()) / resultMins
+
+			hrs := (lb.Minutes * scaleFactor) / 60.0
+			lb.Cost += lbPricePerHr * hrs
+
+			if lb.Ip != "" && lb.Ip != providerID {
+				log.DedupedWarningf(5, "ClusterLoadBalancers: multiple IPs per load balancer not supported, using most recent IP")
+			}
+			lb.Ip = providerID
+
+			lb.Private = privateIPCheck(providerID)
+		} else {
+			log.DedupedWarningf(20, "ClusterLoadBalancers: found minutes for key that does not exist: %v", key)
+		}
+	}
+
 	return loadBalancerMap, nil
 }
 
+// Check if an ip is private.
+func privateIPCheck(ip string) bool {
+	ipAddress := net.ParseIP(ip)
+	return ipAddress.IsPrivate()
+}
+
 // ComputeClusterCosts gives the cumulative and monthly-rate cluster costs over a window of time for all clusters.
-func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, window, offset time.Duration, withBreakdown bool) (map[string]*ClusterCosts, error) {
+func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider models.Provider, window, offset time.Duration, withBreakdown bool) (map[string]*ClusterCosts, error) {
+	if window < 10*time.Minute {
+		return nil, fmt.Errorf("minimum window of 10m required; got %s", window)
+	}
+
 	// Compute number of minutes in the full interval, for use interpolating missed scrapes or scaling missing data
 	start, end := timeutil.ParseTimeRange(window, offset)
 
@@ -629,7 +887,15 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 	// minsPerResolution determines accuracy and resource use for the following
 	// queries. Smaller values (higher resolution) result in better accuracy,
 	// but more expensive queries, and vice-a-versa.
-	minsPerResolution := 5
+	resolution := env.GetETLResolution()
+	//Ensuring if ETL_RESOLUTION_SECONDS is less than 60s default it to 1m
+	var minsPerResolution int
+	if minsPerResolution = int(resolution.Minutes()); int(resolution.Minutes()) < 1 {
+		minsPerResolution = 1
+		log.DedupedWarningf(3, "ComputeClusterCosts(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
+	}
+
+	windowStr := timeutil.DurationString(window)
 
 	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
 	// value, converts it to a cumulative value; i.e.
@@ -637,49 +903,49 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 	hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
 
 	const fmtQueryDataCount = `
-		count_over_time(sum(kube_node_status_capacity_cpu_cores) by (%s)[%s:%dm]%s) * %d
+		count_over_time(sum(kube_node_status_capacity_cpu_cores{%s}) by (%s)[%s:%dm]%s) * %d
 	`
 
 	const fmtQueryTotalGPU = `
 		sum(
-			sum_over_time(node_gpu_hourly_cost[%s:%dm]%s) * %f
+			sum_over_time(node_gpu_hourly_cost{%s}[%s:%dm]%s) * %f
 		) by (%s)
 	`
 
 	const fmtQueryTotalCPU = `
 		sum(
-			sum_over_time(avg(kube_node_status_capacity_cpu_cores) by (node, %s)[%s:%dm]%s) *
-			avg(avg_over_time(node_cpu_hourly_cost[%s:%dm]%s)) by (node, %s) * %f
+			sum_over_time(avg(kube_node_status_capacity_cpu_cores{%s}) by (node, %s)[%s:%dm]%s) *
+			avg(avg_over_time(node_cpu_hourly_cost{%s}[%s:%dm]%s)) by (node, %s) * %f
 		) by (%s)
 	`
 
 	const fmtQueryTotalRAM = `
 		sum(
-			sum_over_time(avg(kube_node_status_capacity_memory_bytes) by (node, %s)[%s:%dm]%s) / 1024 / 1024 / 1024 *
-			avg(avg_over_time(node_ram_hourly_cost[%s:%dm]%s)) by (node, %s) * %f
+			sum_over_time(avg(kube_node_status_capacity_memory_bytes{%s}) by (node, %s)[%s:%dm]%s) / 1024 / 1024 / 1024 *
+			avg(avg_over_time(node_ram_hourly_cost{%s}[%s:%dm]%s)) by (node, %s) * %f
 		) by (%s)
 	`
 
 	const fmtQueryTotalStorage = `
 		sum(
-			sum_over_time(avg(kube_persistentvolume_capacity_bytes) by (persistentvolume, %s)[%s:%dm]%s) / 1024 / 1024 / 1024 *
-			avg(avg_over_time(pv_hourly_cost[%s:%dm]%s)) by (persistentvolume, %s) * %f
+			sum_over_time(avg(kube_persistentvolume_capacity_bytes{%s}) by (persistentvolume, %s)[%s:%dm]%s) / 1024 / 1024 / 1024 *
+			avg(avg_over_time(pv_hourly_cost{%s}[%s:%dm]%s)) by (persistentvolume, %s) * %f
 		) by (%s)
 	`
 
 	const fmtQueryCPUModePct = `
-		sum(rate(node_cpu_seconds_total[%s]%s)) by (%s, mode) / ignoring(mode)
-		group_left sum(rate(node_cpu_seconds_total[%s]%s)) by (%s)
+		sum(rate(node_cpu_seconds_total{%s}[%s]%s)) by (%s, mode) / ignoring(mode)
+		group_left sum(rate(node_cpu_seconds_total{%s}[%s]%s)) by (%s)
 	`
 
 	const fmtQueryRAMSystemPct = `
-		sum(sum_over_time(container_memory_usage_bytes{container_name!="",namespace="kube-system"}[%s:%dm]%s)) by (%s)
-		/ sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm]%s)) by (%s)
+		sum(sum_over_time(container_memory_usage_bytes{container_name!="",namespace="kube-system", %s}[%s:%dm]%s)) by (%s)
+		/ sum(sum_over_time(kube_node_status_capacity_memory_bytes{%s}[%s:%dm]%s)) by (%s)
 	`
 
 	const fmtQueryRAMUserPct = `
-		sum(sum_over_time(kubecost_cluster_memory_working_set_bytes[%s:%dm]%s)) by (%s)
-		/ sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm]%s)) by (%s)
+		sum(sum_over_time(kubecost_cluster_memory_working_set_bytes{%s}[%s:%dm]%s)) by (%s)
+		/ sum(sum_over_time(kube_node_status_capacity_memory_bytes{%s}[%s:%dm]%s)) by (%s)
 	`
 
 	// TODO niko/clustercost metric "kubelet_volume_stats_used_bytes" was deprecated in 1.12, then seems to have come back in 1.17
@@ -695,11 +961,11 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 
 	fmtOffset := timeutil.DurationToPromOffsetString(offset)
 
-	queryDataCount := fmt.Sprintf(fmtQueryDataCount, env.GetPromClusterLabel(), window, minsPerResolution, fmtOffset, minsPerResolution)
-	queryTotalGPU := fmt.Sprintf(fmtQueryTotalGPU, window, minsPerResolution, fmtOffset, hourlyToCumulative, env.GetPromClusterLabel())
-	queryTotalCPU := fmt.Sprintf(fmtQueryTotalCPU, env.GetPromClusterLabel(), window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), hourlyToCumulative, env.GetPromClusterLabel())
-	queryTotalRAM := fmt.Sprintf(fmtQueryTotalRAM, env.GetPromClusterLabel(), window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), hourlyToCumulative, env.GetPromClusterLabel())
-	queryTotalStorage := fmt.Sprintf(fmtQueryTotalStorage, env.GetPromClusterLabel(), window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), hourlyToCumulative, env.GetPromClusterLabel())
+	queryDataCount := fmt.Sprintf(fmtQueryDataCount, env.GetPromClusterFilter(), env.GetPromClusterLabel(), windowStr, minsPerResolution, fmtOffset, minsPerResolution)
+	queryTotalGPU := fmt.Sprintf(fmtQueryTotalGPU, env.GetPromClusterFilter(), windowStr, minsPerResolution, fmtOffset, hourlyToCumulative, env.GetPromClusterLabel())
+	queryTotalCPU := fmt.Sprintf(fmtQueryTotalCPU, env.GetPromClusterFilter(), env.GetPromClusterLabel(), windowStr, minsPerResolution, fmtOffset, env.GetPromClusterFilter(), windowStr, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), hourlyToCumulative, env.GetPromClusterLabel())
+	queryTotalRAM := fmt.Sprintf(fmtQueryTotalRAM, env.GetPromClusterFilter(), env.GetPromClusterLabel(), windowStr, minsPerResolution, fmtOffset, env.GetPromClusterFilter(), windowStr, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), hourlyToCumulative, env.GetPromClusterLabel())
+	queryTotalStorage := fmt.Sprintf(fmtQueryTotalStorage, env.GetPromClusterFilter(), env.GetPromClusterLabel(), windowStr, minsPerResolution, fmtOffset, env.GetPromClusterFilter(), windowStr, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), hourlyToCumulative, env.GetPromClusterLabel())
 
 	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
 
@@ -721,9 +987,9 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 	}
 
 	if withBreakdown {
-		queryCPUModePct := fmt.Sprintf(fmtQueryCPUModePct, window, fmtOffset, env.GetPromClusterLabel(), window, fmtOffset, env.GetPromClusterLabel())
-		queryRAMSystemPct := fmt.Sprintf(fmtQueryRAMSystemPct, window, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), window, minsPerResolution, fmtOffset, env.GetPromClusterLabel())
-		queryRAMUserPct := fmt.Sprintf(fmtQueryRAMUserPct, window, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), window, minsPerResolution, fmtOffset, env.GetPromClusterLabel())
+		queryCPUModePct := fmt.Sprintf(fmtQueryCPUModePct, env.GetPromClusterFilter(), windowStr, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterFilter(), windowStr, fmtOffset, env.GetPromClusterLabel())
+		queryRAMSystemPct := fmt.Sprintf(fmtQueryRAMSystemPct, env.GetPromClusterFilter(), windowStr, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterFilter(), windowStr, minsPerResolution, fmtOffset, env.GetPromClusterLabel())
+		queryRAMUserPct := fmt.Sprintf(fmtQueryRAMUserPct, env.GetPromClusterFilter(), windowStr, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterFilter(), windowStr, minsPerResolution, fmtOffset, env.GetPromClusterLabel())
 
 		bdResChs := ctx.QueryAll(
 			queryCPUModePct,
@@ -764,7 +1030,7 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 		if len(result.Values) > 0 {
 			dataMins = result.Values[0].Value
 		} else {
-			klog.V(3).Infof("[Warning] cluster cost data count returned no results for cluster %s", clusterID)
+			log.Warnf("Cluster cost data count returned no results for cluster %s", clusterID)
 		}
 		dataMinsByCluster[clusterID] = dataMins
 	}
@@ -840,7 +1106,7 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 
 			mode, err := result.GetString("mode")
 			if err != nil {
-				klog.V(3).Infof("[Warning] ComputeClusterCosts: unable to read CPU mode: %s", err)
+				log.Warnf("ComputeClusterCosts: unable to read CPU mode: %s", err)
 				mode = "other"
 			}
 
@@ -914,11 +1180,11 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 		dataMins, ok := dataMinsByCluster[id]
 		if !ok {
 			dataMins = mins
-			klog.V(3).Infof("[Warning] cluster cost data count not found for cluster %s", id)
+			log.Warnf("Cluster cost data count not found for cluster %s", id)
 		}
 		costs, err := NewClusterCostsFromCumulative(cd["cpu"], cd["gpu"], cd["ram"], cd["storage"]+cd["localstorage"], window, offset, dataMins/timeutil.MinsPerHour)
 		if err != nil {
-			klog.V(3).Infof("[Warning] Failed to parse cluster costs on %s (%s) from cumulative data: %+v", window, offset, cd)
+			log.Warnf("Failed to parse cluster costs on %s (%s) from cumulative data: %+v", window, offset, cd)
 			return nil, err
 		}
 
@@ -967,7 +1233,7 @@ func resultToTotals(qrs []*prom.QueryResult) ([][]string, error) {
 }
 
 // ClusterCostsOverTime gives the full cluster costs over time
-func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startString, endString string, window, offset time.Duration) (*Totals, error) {
+func ClusterCostsOverTime(cli prometheus.Client, provider models.Provider, startString, endString string, window, offset time.Duration) (*Totals, error) {
 	localStorageQuery := provider.GetLocalStorageQuery(window, offset, true, false)
 	if localStorageQuery != "" {
 		localStorageQuery = fmt.Sprintf("+ %s", localStorageQuery)
@@ -977,28 +1243,28 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 
 	start, err := time.Parse(layout, startString)
 	if err != nil {
-		klog.V(1).Infof("Error parsing time %s. Error: %s", startString, err.Error())
+		log.Errorf("Error parsing time %s. Error: %s", startString, err.Error())
 		return nil, err
 	}
 	end, err := time.Parse(layout, endString)
 	if err != nil {
-		klog.V(1).Infof("Error parsing time %s. Error: %s", endString, err.Error())
+		log.Errorf("Error parsing time %s. Error: %s", endString, err.Error())
 		return nil, err
 	}
 	fmtWindow := timeutil.DurationString(window)
 
 	if fmtWindow == "" {
 		err := fmt.Errorf("window value invalid or missing")
-		klog.V(1).Infof("Error parsing time %v. Error: %s", window, err.Error())
+		log.Errorf("Error parsing time %v. Error: %s", window, err.Error())
 		return nil, err
 	}
 
 	fmtOffset := timeutil.DurationToPromOffsetString(offset)
 
-	qCores := fmt.Sprintf(queryClusterCores, fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	qRAM := fmt.Sprintf(queryClusterRAM, fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	qStorage := fmt.Sprintf(queryStorage, fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterLabel(), localStorageQuery)
-	qTotal := fmt.Sprintf(queryTotal, env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), localStorageQuery)
+	qCores := fmt.Sprintf(queryClusterCores, env.GetPromClusterFilter(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterFilter(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterFilter(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterLabel())
+	qRAM := fmt.Sprintf(queryClusterRAM, env.GetPromClusterFilter(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterFilter(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterLabel())
+	qStorage := fmt.Sprintf(queryStorage, env.GetPromClusterFilter(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterFilter(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterLabel(), localStorageQuery)
+	qTotal := fmt.Sprintf(queryTotal, env.GetPromClusterFilter(), env.GetPromClusterLabel(), env.GetPromClusterFilter(), env.GetPromClusterLabel(), env.GetPromClusterFilter(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), localStorageQuery)
 
 	ctx := prom.NewNamedContext(cli, prom.ClusterContextName)
 	resChClusterCores := ctx.QueryRange(qCores, start, end, window)
@@ -1028,19 +1294,19 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 
 	coreTotal, err := resultToTotals(resultClusterCores)
 	if err != nil {
-		klog.Infof("[Warning] ClusterCostsOverTime: no cpu data: %s", err)
+		log.Infof("[Warning] ClusterCostsOverTime: no cpu data: %s", err)
 		return nil, err
 	}
 
 	ramTotal, err := resultToTotals(resultClusterRAM)
 	if err != nil {
-		klog.Infof("[Warning] ClusterCostsOverTime: no ram data: %s", err)
+		log.Infof("[Warning] ClusterCostsOverTime: no ram data: %s", err)
 		return nil, err
 	}
 
 	storageTotal, err := resultToTotals(resultStorage)
 	if err != nil {
-		klog.Infof("[Warning] ClusterCostsOverTime: no storage data: %s", err)
+		log.Infof("[Warning] ClusterCostsOverTime: no storage data: %s", err)
 	}
 
 	clusterTotal, err := resultToTotals(resultTotal)
@@ -1048,11 +1314,11 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 		// If clusterTotal query failed, it's likely because there are no PVs, which
 		// causes the qTotal query to return no data. Instead, query only node costs.
 		// If that fails, return an error because something is actually wrong.
-		qNodes := fmt.Sprintf(queryNodes, env.GetPromClusterLabel(), localStorageQuery)
+		qNodes := fmt.Sprintf(queryNodes, env.GetPromClusterFilter(), env.GetPromClusterLabel(), localStorageQuery)
 
 		resultNodes, warnings, err := ctx.QueryRangeSync(qNodes, start, end, window)
 		for _, warning := range warnings {
-			log.Warningf(warning)
+			log.Warnf(warning)
 		}
 		if err != nil {
 			return nil, err
@@ -1060,7 +1326,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 
 		clusterTotal, err = resultToTotals(resultNodes)
 		if err != nil {
-			klog.Infof("[Warning] ClusterCostsOverTime: no node data: %s", err)
+			log.Infof("[Warning] ClusterCostsOverTime: no node data: %s", err)
 			return nil, err
 		}
 	}
@@ -1073,7 +1339,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 	}, nil
 }
 
-func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost []*prom.QueryResult, cp cloud.Provider) {
+func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo []*prom.QueryResult, cp models.Provider, window kubecost.Window) {
 	for _, result := range resActiveMins {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
@@ -1082,7 +1348,7 @@ func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, 
 
 		name, err := result.GetString("persistentvolume")
 		if err != nil {
-			log.Warningf("ClusterDisks: active mins missing pv name")
+			log.Warnf("ClusterDisks: active mins missing pv name")
 			continue
 		}
 
@@ -1090,7 +1356,7 @@ func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, 
 			continue
 		}
 
-		key := fmt.Sprintf("%s/%s", cluster, name)
+		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
@@ -1098,11 +1364,9 @@ func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, 
 				Breakdown: &ClusterCostsBreakdown{},
 			}
 		}
-		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).Add(resolution)
-		mins := e.Sub(s).Minutes()
 
-		// TODO niko/assets if mins >= threshold, interpolate for missing data?
+		s, e := calculateStartAndEnd(result, resolution, window)
+		mins := e.Sub(s).Minutes()
 
 		diskMap[key].End = e
 		diskMap[key].Start = s
@@ -1117,14 +1381,14 @@ func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, 
 
 		name, err := result.GetString("persistentvolume")
 		if err != nil {
-			log.Warningf("ClusterDisks: PV size data missing persistentvolume")
+			log.Warnf("ClusterDisks: PV size data missing persistentvolume")
 			continue
 		}
 
 		// TODO niko/assets storage class
 
 		bytes := result.Values[0].Value
-		key := fmt.Sprintf("%s/%s", cluster, name)
+		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
@@ -1135,10 +1399,10 @@ func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, 
 		diskMap[key].Bytes = bytes
 	}
 
-	customPricingEnabled := cloud.CustomPricesEnabled(cp)
+	customPricingEnabled := provider.CustomPricesEnabled(cp)
 	customPricingConfig, err := cp.GetConfig()
 	if err != nil {
-		log.Warningf("ClusterDisks: failed to load custom pricing: %s", err)
+		log.Warnf("ClusterDisks: failed to load custom pricing: %s", err)
 	}
 
 	for _, result := range resPVCost {
@@ -1149,32 +1413,27 @@ func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, 
 
 		name, err := result.GetString("persistentvolume")
 		if err != nil {
-			log.Warningf("ClusterDisks: PV cost data missing persistentvolume")
+			log.Warnf("ClusterDisks: PV cost data missing persistentvolume")
 			continue
 		}
 
 		// TODO niko/assets storage class
 
 		var cost float64
-
 		if customPricingEnabled && customPricingConfig != nil {
-
 			customPVCostStr := customPricingConfig.Storage
 
 			customPVCost, err := strconv.ParseFloat(customPVCostStr, 64)
 			if err != nil {
-				log.Warningf("ClusterDisks: error parsing custom PV price: %s", customPVCostStr)
+				log.Warnf("ClusterDisks: error parsing custom PV price: %s", customPVCostStr)
 			}
 
 			cost = customPVCost
-
 		} else {
-
 			cost = result.Values[0].Value
-
 		}
 
-		key := fmt.Sprintf("%s/%s", cluster, name)
+		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
@@ -1182,10 +1441,133 @@ func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, 
 				Breakdown: &ClusterCostsBreakdown{},
 			}
 		}
+
 		diskMap[key].Cost = cost * (diskMap[key].Bytes / 1024 / 1024 / 1024) * (diskMap[key].Minutes / 60)
 		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
 		if providerID != "" {
-			diskMap[key].ProviderID = cloud.ParsePVID(providerID)
+			diskMap[key].ProviderID = provider.ParsePVID(providerID)
 		}
+	}
+
+	for _, result := range resPVUsedAvg {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		claimName, err := result.GetString("persistentvolumeclaim")
+		if err != nil {
+			log.Debugf("ClusterDisks: pv usage data missing persistentvolumeclaim")
+			continue
+		}
+		claimNamespace, err := result.GetString("namespace")
+		if err != nil {
+			log.Debugf("ClusterDisks: pv usage data missing namespace")
+			continue
+		}
+
+		var volumeName string
+
+		for _, thatRes := range resPVCInfo {
+
+			thatCluster, err := thatRes.GetString(env.GetPromClusterLabel())
+			if err != nil {
+				thatCluster = env.GetClusterID()
+			}
+
+			thatVolumeName, err := thatRes.GetString("volumename")
+			if err != nil {
+				log.Debugf("ClusterDisks: pv claim data missing volumename")
+				continue
+			}
+			thatClaimName, err := thatRes.GetString("persistentvolumeclaim")
+			if err != nil {
+				log.Debugf("ClusterDisks: pv claim data missing persistentvolumeclaim")
+				continue
+			}
+			thatClaimNamespace, err := thatRes.GetString("namespace")
+			if err != nil {
+				log.Debugf("ClusterDisks: pv claim data missing namespace")
+				continue
+			}
+
+			if cluster == thatCluster && claimName == thatClaimName && claimNamespace == thatClaimNamespace {
+				volumeName = thatVolumeName
+			}
+		}
+
+		usage := result.Values[0].Value
+
+		key := DiskIdentifier{cluster, volumeName}
+
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      volumeName,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+		diskMap[key].BytesUsedAvgPtr = &usage
+	}
+
+	for _, result := range resPVUsedMax {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		claimName, err := result.GetString("persistentvolumeclaim")
+		if err != nil {
+			log.Debugf("ClusterDisks: pv usage data missing persistentvolumeclaim")
+			continue
+		}
+		claimNamespace, err := result.GetString("namespace")
+		if err != nil {
+			log.Debugf("ClusterDisks: pv usage data missing namespace")
+			continue
+		}
+
+		var volumeName string
+
+		for _, thatRes := range resPVCInfo {
+
+			thatCluster, err := thatRes.GetString(env.GetPromClusterLabel())
+			if err != nil {
+				thatCluster = env.GetClusterID()
+			}
+
+			thatVolumeName, err := thatRes.GetString("volumename")
+			if err != nil {
+				log.Debugf("ClusterDisks: pv claim data missing volumename")
+				continue
+			}
+			thatClaimName, err := thatRes.GetString("persistentvolumeclaim")
+			if err != nil {
+				log.Debugf("ClusterDisks: pv claim data missing persistentvolumeclaim")
+				continue
+			}
+			thatClaimNamespace, err := thatRes.GetString("namespace")
+			if err != nil {
+				log.Debugf("ClusterDisks: pv claim data missing namespace")
+				continue
+			}
+
+			if cluster == thatCluster && claimName == thatClaimName && claimNamespace == thatClaimNamespace {
+				volumeName = thatVolumeName
+			}
+		}
+
+		usage := result.Values[0].Value
+
+		key := DiskIdentifier{cluster, volumeName}
+
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      volumeName,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+		diskMap[key].BytesUsedMaxPtr = &usage
 	}
 }
