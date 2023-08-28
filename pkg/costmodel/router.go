@@ -1533,8 +1533,9 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 			Password:    env.GetDBBasicAuthUserPassword(),
 			BearerToken: env.GetDBBearerToken(),
 		},
-		QueryConcurrency: queryConcurrency,
-		QueryLogFile:     "",
+		QueryConcurrency:  queryConcurrency,
+		QueryLogFile:      "",
+		HeaderXScopeOrgId: env.GetPrometheusHeaderXScopeOrgId(),
 	})
 	if err != nil {
 		log.Fatalf("Failed to create prometheus client, Error: %v", err)

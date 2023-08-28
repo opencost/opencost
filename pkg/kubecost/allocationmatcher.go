@@ -29,7 +29,7 @@ func NewAllocationMatchCompiler(labelConfig *LabelConfig) *matcher.MatchCompiler
 
 	// The label config pass should be the first pass
 	if labelConfig != nil {
-		passes = append(passes, NewAliasPass(*labelConfig))
+		passes = append(passes, NewAllocationAliasPass(*labelConfig))
 	}
 
 	passes = append(passes,
@@ -46,6 +46,12 @@ func NewAllocationMatchCompiler(labelConfig *LabelConfig) *matcher.MatchCompiler
 
 // Maps fields from an allocation to a string value based on an identifier
 func allocationFieldMap(a *Allocation, identifier ast.Identifier) (string, error) {
+	if a == nil {
+		return "", fmt.Errorf("cannot map to nil allocation")
+	}
+	if a.Properties == nil {
+		return "", fmt.Errorf("cannot map to nil properties")
+	}
 	if identifier.Field == nil {
 		return "", fmt.Errorf("cannot map field from identifier with nil field")
 	}
@@ -96,10 +102,10 @@ func allocationMapFieldMap(a *Allocation, identifier ast.Identifier) (map[string
 	return nil, fmt.Errorf("Failed to find map[string]string identifier on Allocation: %s", identifier.Field.Name)
 }
 
-// aliasPass implements the transform.CompilerPass interface, providing a pass
-// which converts alias nodes to logically-equivalent label/annotation filter
-// nodes based on the label config.
-type aliasPass struct {
+// allocatioAliasPass implements the transform.CompilerPass interface, providing
+// a pass which converts alias nodes to logically-equivalent label/annotation
+// filter nodes based on the label config.
+type allocationAliasPass struct {
 	Config              LabelConfig
 	AliasNameToAliasKey map[afilter.AllocationAlias]string
 }
@@ -118,7 +124,7 @@ type aliasPass struct {
 //	(and (not (contains labels <parseraliaskey>))
 //	     (and (contains annotations departmentkey)
 //	          (<op> annotations[<parseraliaskey>] <filtervalue>))))
-func NewAliasPass(config LabelConfig) transform.CompilerPass {
+func NewAllocationAliasPass(config LabelConfig) transform.CompilerPass {
 	aliasNameToAliasKey := map[afilter.AllocationAlias]string{
 		afilter.AliasDepartment:  config.DepartmentLabel,
 		afilter.AliasEnvironment: config.EnvironmentLabel,
@@ -127,7 +133,7 @@ func NewAliasPass(config LabelConfig) transform.CompilerPass {
 		afilter.AliasTeam:        config.TeamLabel,
 	}
 
-	return &aliasPass{
+	return &allocationAliasPass{
 		Config:              config,
 		AliasNameToAliasKey: aliasNameToAliasKey,
 	}
@@ -135,7 +141,7 @@ func NewAliasPass(config LabelConfig) transform.CompilerPass {
 
 // Exec implements the transform.CompilerPass interface for an alias pass.
 // See aliasPass struct documentation for an explanation.
-func (p *aliasPass) Exec(filter ast.FilterNode) (ast.FilterNode, error) {
+func (p *allocationAliasPass) Exec(filter ast.FilterNode) (ast.FilterNode, error) {
 	if p.AliasNameToAliasKey == nil {
 		return nil, fmt.Errorf("cannot perform alias conversion with nil mapping of alias name -> key")
 	}
@@ -238,7 +244,9 @@ func convertAliasFilterToLabelAnnotationFilter(aliasKey string, filterValue stri
 		return nil, fmt.Errorf("unsupported op type '%s' for alias conversion", op)
 	}
 
-	return ops.Or(
+	// This handles the case where a label EXISTS/IS PRESENT for (is extant)
+	// for an aliased field. That's the primary case.
+	extantCaseNode := ops.Or(
 		ops.And(
 			ops.Contains(afilter.FieldLabel, aliasKey),
 			labelOp,
@@ -250,5 +258,27 @@ func convertAliasFilterToLabelAnnotationFilter(aliasKey string, filterValue stri
 				annotationOp,
 			),
 		),
-	), nil
+	)
+	var node ast.FilterNode
+	// This handles the special case of unallocated aliased value. There's
+	// two forms of this; first is where the label/annotation exists, but
+	// has an empty string value. That's actually handled by the extant case,
+	// because the API passes through that empty string. The other is when
+	// the aliased label/annotation doesn't exist for an allocation. That's
+	// what this modification to the tree handles. This matters when you're
+	// trying to drill into/identify workloads "not allocated" within that
+	// specific aliased field.
+	if filterValue == "" || filterValue == UnallocatedSuffix {
+		node = ops.Or(
+			extantCaseNode,
+			ops.And(
+				ops.Not(ops.Contains(afilter.FieldLabel, aliasKey)),
+				ops.Not(ops.Contains(afilter.FieldAnnotation, aliasKey)),
+			),
+		)
+	} else {
+		node = extantCaseNode
+	}
+
+	return node, nil
 }

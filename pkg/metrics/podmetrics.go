@@ -135,7 +135,7 @@ func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 
 		// Pod Labels
 		if _, disabled := disabledMetrics["kube_pod_labels"]; !disabled {
-			labelNames, labelValues := prom.KubePrependQualifierToLabels(pod.GetLabels(), "label_")
+			labelNames, labelValues := prom.KubePrependQualifierToLabels(prom.SanitizeLabels(pod.GetLabels()), "label_")
 			ch <- newKubePodLabelsMetric("kube_pod_labels", podNS, podName, podUID, labelNames, labelValues)
 		}
 

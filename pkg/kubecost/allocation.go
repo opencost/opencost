@@ -2,6 +2,7 @@ package kubecost
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -92,6 +93,45 @@ type Allocation struct {
 	// and appended to an Allocation, and so by default is is nil.
 	ProportionalAssetResourceCosts ProportionalAssetResourceCosts `json:"proportionalAssetResourceCosts"` //@bingen:field[ignore]
 	SharedCostBreakdown            SharedCostBreakdowns           `json:"sharedCostBreakdown"`            //@bingen:field[ignore]
+	LoadBalancers                  LbAllocations                  `json:"LoadBalancers"`                  // @bingen:field[version=18]
+
+}
+
+type LbAllocations map[string]*LbAllocation
+
+func (orig LbAllocations) Clone() LbAllocations {
+	if orig == nil {
+		return nil
+	}
+
+	newAllocs := LbAllocations{}
+
+	for key, lbAlloc := range orig {
+		newAllocs[key] = &LbAllocation{
+			Service: lbAlloc.Service,
+			Cost:    lbAlloc.Cost,
+			Private: lbAlloc.Private,
+			Ip:      lbAlloc.Ip,
+		}
+	}
+	return newAllocs
+}
+
+type LbAllocation struct {
+	Service string  `json:"service"`
+	Cost    float64 `json:"cost"`
+	Private bool    `json:"private"`
+	Ip      string  `json:"ip"` //@bingen:field[version=19]
+}
+
+func (lba *LbAllocation) SanitizeNaN() {
+	if lba == nil {
+		return
+	}
+	if math.IsNaN(lba.Cost) {
+		log.DedupedWarningf(5, "LBAllocation: Unexpected NaN found for Cost service:%s", lba.Service)
+		lba.Cost = 0
+	}
 }
 
 // RawAllocationOnlyData is information that only belong in "raw" Allocations,
@@ -145,6 +185,20 @@ func (r *RawAllocationOnlyData) Equal(that *RawAllocationOnlyData) bool {
 	}
 	return util.IsApproximately(r.CPUCoreUsageMax, that.CPUCoreUsageMax) &&
 		util.IsApproximately(r.RAMBytesUsageMax, that.RAMBytesUsageMax)
+}
+
+func (r *RawAllocationOnlyData) SanitizeNaN() {
+	if r == nil {
+		return
+	}
+	if math.IsNaN(r.CPUCoreUsageMax) {
+		log.DedupedWarningf(5, "RawAllocationOnlyData: Unexpected NaN found for CPUCoreUsageMax")
+		r.CPUCoreUsageMax = 0
+	}
+	if math.IsNaN(r.RAMBytesUsageMax) {
+		log.DedupedWarningf(5, "RawAllocationOnlyData: Unexpected NaN found for RAMBytesUsageMax")
+		r.RAMBytesUsageMax = 0
+	}
 }
 
 // PVAllocations is a map of Disk Asset Identifiers to the
@@ -210,6 +264,12 @@ func (this PVAllocations) Equal(that PVAllocations) bool {
 	return true
 }
 
+func (pvs PVAllocations) SanitizeNaN() {
+	for _, pv := range pvs {
+		pv.SanitizeNaN()
+	}
+}
+
 // PVKey for identifying Disk type assets
 type PVKey struct {
 	Cluster string `json:"cluster"`
@@ -251,25 +311,46 @@ func (pva *PVAllocation) Equal(that *PVAllocation) bool {
 		util.IsApproximately(pva.Cost, that.Cost)
 }
 
-type ProportionalAssetResourceCost struct {
-	Cluster                    string  `json:"cluster"`
-	Node                       string  `json:"node,omitempty"`
-	ProviderID                 string  `json:"providerID,omitempty"`
-	CPUPercentage              float64 `json:"cpuPercentage"`
-	GPUPercentage              float64 `json:"gpuPercentage"`
-	RAMPercentage              float64 `json:"ramPercentage"`
-	NodeResourceCostPercentage float64 `json:"nodeResourceCostPercentage"`
-	GPUTotalCost               float64 `json:"-"`
-	GPUProportionalCost        float64 `json:"-"`
-	CPUTotalCost               float64 `json:"-"`
-	CPUProportionalCost        float64 `json:"-"`
-	RAMTotalCost               float64 `json:"-"`
-	RAMProportionalCost        float64 `json:"-"`
+func (pva *PVAllocation) SanitizeNaN() {
+	if pva == nil {
+		return
+	}
+	if math.IsNaN(pva.ByteHours) {
+		log.DedupedWarningf(5, "PVAllocation: Unexpected NaN found for ByteHours")
+		pva.ByteHours = 0
+	}
+	if math.IsNaN(pva.Cost) {
+		log.DedupedWarningf(5, "PVAllocation: Unexpected NaN found for Cost")
+		pva.Cost = 0
+	}
 }
 
-func (parc ProportionalAssetResourceCost) Key(insertByNode bool) string {
-	if insertByNode {
-		return parc.Cluster + "," + parc.Node
+type ProportionalAssetResourceCost struct {
+	Cluster                      string  `json:"cluster"`
+	Name                         string  `json:"name,omitempty"`
+	Type                         string  `json:"type,omitempty"`
+	ProviderID                   string  `json:"providerID,omitempty"`
+	CPUPercentage                float64 `json:"cpuPercentage"`
+	GPUPercentage                float64 `json:"gpuPercentage"`
+	RAMPercentage                float64 `json:"ramPercentage"`
+	LoadBalancerPercentage       float64 `json:"loadBalancerPercentage"`
+	PVPercentage                 float64 `json:"pvPercentage"`
+	NodeResourceCostPercentage   float64 `json:"nodeResourceCostPercentage"`
+	GPUTotalCost                 float64 `json:"-"`
+	GPUProportionalCost          float64 `json:"-"`
+	CPUTotalCost                 float64 `json:"-"`
+	CPUProportionalCost          float64 `json:"-"`
+	RAMTotalCost                 float64 `json:"-"`
+	RAMProportionalCost          float64 `json:"-"`
+	LoadBalancerProportionalCost float64 `json:"-"`
+	LoadBalancerTotalCost        float64 `json:"-"`
+	PVProportionalCost           float64 `json:"-"`
+	PVTotalCost                  float64 `json:"-"`
+}
+
+func (parc ProportionalAssetResourceCost) Key(insertByName bool) string {
+	if insertByName {
+		return parc.Cluster + "," + parc.Name
 	} else {
 		return parc.Cluster
 	}
@@ -287,36 +368,36 @@ func (parcs ProportionalAssetResourceCosts) Clone() ProportionalAssetResourceCos
 	return cloned
 }
 
-func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourceCost, insertByNode bool) {
-	if !insertByNode {
-		parc.Node = ""
+func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourceCost, insertByName bool) {
+	if !insertByName {
+		parc.Name = ""
+		parc.Type = ""
 		parc.ProviderID = ""
 	}
-	if curr, ok := parcs[parc.Key(insertByNode)]; ok {
 
+	if curr, ok := parcs[parc.Key(insertByName)]; ok {
 		toInsert := ProportionalAssetResourceCost{
-			Node:                curr.Node,
-			Cluster:             curr.Cluster,
-			ProviderID:          curr.ProviderID,
-			CPUTotalCost:        curr.CPUTotalCost + parc.CPUTotalCost,
-			CPUProportionalCost: curr.CPUProportionalCost + parc.CPUProportionalCost,
-			RAMTotalCost:        curr.RAMTotalCost + parc.RAMTotalCost,
-			RAMProportionalCost: curr.RAMProportionalCost + parc.RAMProportionalCost,
-			GPUProportionalCost: curr.GPUProportionalCost + parc.GPUProportionalCost,
-			GPUTotalCost:        curr.GPUTotalCost + parc.GPUTotalCost,
+			Name:                         curr.Name,
+			Type:                         curr.Type,
+			Cluster:                      curr.Cluster,
+			ProviderID:                   curr.ProviderID,
+			CPUProportionalCost:          curr.CPUProportionalCost + parc.CPUProportionalCost,
+			RAMProportionalCost:          curr.RAMProportionalCost + parc.RAMProportionalCost,
+			GPUProportionalCost:          curr.GPUProportionalCost + parc.GPUProportionalCost,
+			PVProportionalCost:           curr.PVProportionalCost + parc.PVProportionalCost,
+			LoadBalancerProportionalCost: curr.LoadBalancerProportionalCost + parc.LoadBalancerProportionalCost,
 		}
 
-		computePercentages(&toInsert)
-		parcs[parc.Key(insertByNode)] = toInsert
+		ComputePercentages(&toInsert)
+		parcs[parc.Key(insertByName)] = toInsert
 	} else {
-		computePercentages(&parc)
-		parcs[parc.Key(insertByNode)] = parc
+		ComputePercentages(&parc)
+		parcs[parc.Key(insertByName)] = parc
 	}
 }
 
-func computePercentages(toInsert *ProportionalAssetResourceCost) {
-	// compute percentages
-	totalCost := toInsert.RAMTotalCost + toInsert.CPUTotalCost + toInsert.GPUTotalCost
+func ComputePercentages(toInsert *ProportionalAssetResourceCost) {
+	totalNodeCost := toInsert.RAMTotalCost + toInsert.CPUTotalCost + toInsert.GPUTotalCost
 
 	if toInsert.CPUTotalCost > 0 {
 		toInsert.CPUPercentage = toInsert.CPUProportionalCost / toInsert.CPUTotalCost
@@ -326,21 +407,29 @@ func computePercentages(toInsert *ProportionalAssetResourceCost) {
 		toInsert.GPUPercentage = toInsert.GPUProportionalCost / toInsert.GPUTotalCost
 	}
 
+	if toInsert.LoadBalancerTotalCost > 0 {
+		toInsert.LoadBalancerPercentage = toInsert.LoadBalancerProportionalCost / toInsert.LoadBalancerTotalCost
+	}
+
 	if toInsert.RAMTotalCost > 0 {
 		toInsert.RAMPercentage = toInsert.RAMProportionalCost / toInsert.RAMTotalCost
 	}
 
-	ramFraction := toInsert.RAMTotalCost / totalCost
+	if toInsert.PVTotalCost > 0 {
+		toInsert.PVPercentage = toInsert.PVProportionalCost / toInsert.PVTotalCost
+	}
+
+	ramFraction := toInsert.RAMTotalCost / totalNodeCost
 	if ramFraction != ramFraction || ramFraction < 0 {
 		ramFraction = 0
 	}
 
-	cpuFraction := toInsert.CPUTotalCost / totalCost
+	cpuFraction := toInsert.CPUTotalCost / totalNodeCost
 	if cpuFraction != cpuFraction || cpuFraction < 0 {
 		cpuFraction = 0
 	}
 
-	gpuFraction := toInsert.GPUTotalCost / totalCost
+	gpuFraction := toInsert.GPUTotalCost / totalNodeCost
 	if gpuFraction != gpuFraction || gpuFraction < 0 {
 		gpuFraction = 0
 	}
@@ -350,14 +439,84 @@ func computePercentages(toInsert *ProportionalAssetResourceCost) {
 }
 
 func (parcs ProportionalAssetResourceCosts) Add(that ProportionalAssetResourceCosts) {
-
 	for _, parc := range that {
-		// if node field is empty, we know this is a cluster level PARC aggregation
-		insertByNode := true
-		if parc.Node == "" {
-			insertByNode = false
+		// if name field is empty, we know this is a cluster level PARC aggregation
+		insertByName := true
+		if parc.Name == "" {
+			insertByName = false
 		}
-		parcs.Insert(parc, insertByNode)
+		parcs.Insert(parc, insertByName)
+	}
+}
+
+func (parcs ProportionalAssetResourceCosts) SanitizeNaN() {
+	for key, parc := range parcs {
+		if math.IsNaN(parc.CPUPercentage) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for CPUPercentage name:%s", parc.Name)
+			parc.CPUPercentage = 0
+		}
+		if math.IsNaN(parc.GPUPercentage) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for GPUPercentage name:%s", parc.Name)
+			parc.GPUPercentage = 0
+		}
+		if math.IsNaN(parc.RAMPercentage) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for RAMPercentage name:%s", parc.Name)
+			parc.RAMPercentage = 0
+		}
+		if math.IsNaN(parc.LoadBalancerPercentage) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for LoadBalancerPercentage name:%s", parc.Name)
+			parc.LoadBalancerPercentage = 0
+		}
+		if math.IsNaN(parc.PVPercentage) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for PVPercentage name:%s", parc.Name)
+			parc.PVPercentage = 0
+		}
+		if math.IsNaN(parc.NodeResourceCostPercentage) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for NodeResourceCostPercentage name:%s", parc.Name)
+			parc.NodeResourceCostPercentage = 0
+		}
+		if math.IsNaN(parc.GPUTotalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for GPUTotalCost name:%s", parc.Name)
+			parc.GPUTotalCost = 0
+		}
+		if math.IsNaN(parc.GPUProportionalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for GPUProportionalCost name:%s", parc.Name)
+			parc.GPUProportionalCost = 0
+		}
+		if math.IsNaN(parc.CPUTotalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for CPUTotalCost name:%s", parc.Name)
+			parc.CPUTotalCost = 0
+		}
+		if math.IsNaN(parc.CPUProportionalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for CPUProportionalCost name:%s", parc.Name)
+			parc.CPUProportionalCost = 0
+		}
+		if math.IsNaN(parc.RAMTotalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for RAMTotalCost name:%s", parc.Name)
+			parc.RAMTotalCost = 0
+		}
+		if math.IsNaN(parc.RAMProportionalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for RAMProportionalCost name:%s", parc.Name)
+			parc.RAMProportionalCost = 0
+		}
+		if math.IsNaN(parc.LoadBalancerProportionalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for LoadBalancerProportionalCost name:%s", parc.Name)
+			parc.LoadBalancerProportionalCost = 0
+		}
+		if math.IsNaN(parc.LoadBalancerTotalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for LoadBalancerTotalCost name:%s", parc.Name)
+			parc.LoadBalancerTotalCost = 0
+		}
+		if math.IsNaN(parc.PVProportionalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for PVProportionalCost name:%s", parc.Name)
+			parc.PVProportionalCost = 0
+		}
+		if math.IsNaN(parc.PVTotalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for PVTotalCost name:%s", parc.Name)
+			parc.PVTotalCost = 0
+		}
+
+		parcs[key] = parc
 	}
 }
 
@@ -405,6 +564,44 @@ func (scbs SharedCostBreakdowns) Insert(scb SharedCostBreakdown) {
 func (scbs SharedCostBreakdowns) Add(that SharedCostBreakdowns) {
 	for _, scb := range that {
 		scbs.Insert(scb)
+	}
+}
+
+func (scbs SharedCostBreakdowns) SanitizeNaN() {
+	for key, scb := range scbs {
+		if math.IsNaN(scb.CPUCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for CPUCost name:%s", scb.Name)
+			scb.CPUCost = 0
+		}
+		if math.IsNaN(scb.GPUCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for GPUCost name:%s", scb.Name)
+			scb.GPUCost = 0
+		}
+		if math.IsNaN(scb.RAMCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for RAMCost name:%s", scb.Name)
+			scb.RAMCost = 0
+		}
+		if math.IsNaN(scb.PVCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for PVCost name:%s", scb.Name)
+			scb.PVCost = 0
+		}
+		if math.IsNaN(scb.NetworkCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for NetworkCost name:%s", scb.Name)
+			scb.NetworkCost = 0
+		}
+		if math.IsNaN(scb.LBCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for LBCost name:%s", scb.Name)
+			scb.LBCost = 0
+		}
+		if math.IsNaN(scb.ExternalCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for ExternalCost name:%s", scb.Name)
+			scb.ExternalCost = 0
+		}
+		if math.IsNaN(scb.TotalCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for TotalCost name:%s", scb.Name)
+			scb.TotalCost = 0
+		}
+		scbs[key] = scb
 	}
 }
 
@@ -477,6 +674,7 @@ func (a *Allocation) Clone() *Allocation {
 		RawAllocationOnly:              a.RawAllocationOnly.Clone(),
 		ProportionalAssetResourceCosts: a.ProportionalAssetResourceCosts.Clone(),
 		SharedCostBreakdown:            a.SharedCostBreakdown.Clone(),
+		LoadBalancers:                  a.LoadBalancers.Clone(),
 	}
 }
 
@@ -822,12 +1020,21 @@ func (a *Allocation) IsUnallocated() bool {
 }
 
 // IsUnmounted is true if the given Allocation represents unmounted volume costs.
+// Note: Due to change in https://github.com/opencost/opencost/pull/1477 made to include Unmounted
+// PVC cost inside namespace we need to check unmounted suffix across all the three major properties
+// to actually classify it as unmounted.
 func (a *Allocation) IsUnmounted() bool {
 	if a == nil {
 		return false
 	}
 
-	return strings.Contains(a.Name, UnmountedSuffix)
+	props := a.Properties
+	if props != nil {
+		if props.Container == UnmountedSuffix && props.Namespace == UnmountedSuffix && props.Pod == UnmountedSuffix {
+			return true
+		}
+	}
+	return false
 }
 
 // Minutes returns the number of minutes the Allocation represents, as defined
@@ -999,9 +1206,42 @@ func (a *Allocation) add(that *Allocation) {
 	a.NetworkCostAdjustment += that.NetworkCostAdjustment
 	a.LoadBalancerCostAdjustment += that.LoadBalancerCostAdjustment
 
+	// Sum LoadBalancer Allocations
+	a.LoadBalancers = a.LoadBalancers.Add(that.LoadBalancers)
+
 	// Any data that is in a "raw allocation only" is not valid in any
 	// sort of cumulative Allocation (like one that is added).
 	a.RawAllocationOnly = nil
+}
+
+func (thisLbAllocs LbAllocations) Add(thatLbAllocs LbAllocations) LbAllocations {
+	// loop through both sets of LB allocations, building a new LBAllocations that has the summed set
+	mergedLbAllocs := thisLbAllocs.Clone()
+	if thatLbAllocs != nil {
+		if mergedLbAllocs == nil {
+			mergedLbAllocs = LbAllocations{}
+		}
+		for lbKey, thatlbAlloc := range thatLbAllocs {
+			thisLbAlloc, ok := mergedLbAllocs[lbKey]
+			if !ok {
+				thisLbAlloc = &LbAllocation{
+					Service: thatlbAlloc.Service,
+					Cost:    thatlbAlloc.Cost,
+				}
+				mergedLbAllocs[lbKey] = thisLbAlloc
+			} else {
+				thisLbAlloc.Cost += thatlbAlloc.Cost
+			}
+
+		}
+	}
+	return mergedLbAllocs
+}
+
+func (thisLbAllocs LbAllocations) SanitizeNaN() {
+	for _, lba := range thisLbAllocs {
+		lba.SanitizeNaN()
+	}
 }
 
 // AllocationSet stores a set of Allocations, each with a unique name, that share
@@ -1158,6 +1398,12 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	shouldShare := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
 	if !shouldAggregate && !shouldFilter && !shouldShare && options.ShareIdle == ShareNone && !options.IncludeProportionalAssetResourceCosts {
 		// There is nothing for AggregateBy to do, so simply return nil
+		// before returning, set aggregated metadata inclusion in properties
+		if options.IncludeAggregatedMetadata {
+			for index := range as.Allocations {
+				as.Allocations[index].Properties.AggregatedMetadata = true
+			}
+		}
 		return nil
 	}
 
@@ -1195,6 +1441,12 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	for _, alloc := range as.Allocations {
 
 		alloc.Properties.AggregatedMetadata = options.IncludeAggregatedMetadata
+		// build a parallel set of allocations to only be used
+		// for computing PARCs
+		if options.IncludeProportionalAssetResourceCosts {
+			parcSet.Insert(alloc.Clone())
+		}
+
 		// External allocations get aggregated post-hoc (see step 6) and do
 		// not necessarily contain complete sets of properties, so they are
 		// moved to a separate AllocationSet.
@@ -1216,12 +1468,6 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 				idleSet.Insert(alloc)
 			} else {
 				aggSet.Insert(alloc)
-			}
-
-			// build a parallel set of allocations to only be used
-			// for computing PARCs
-			if options.IncludeProportionalAssetResourceCosts {
-				parcSet.Insert(alloc.Clone())
 			}
 
 			continue
@@ -1294,7 +1540,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// (2b) If proportional asset resource costs are to be included, compute them
 	// and add them to the allocations.
 	if options.IncludeProportionalAssetResourceCosts {
-		err := deriveProportionalAssetResourceCosts(options, as, shareSet)
+		err := deriveProportionalAssetResourceCosts(options, as, shareSet, parcSet)
 		if err != nil {
 			log.Debugf("AggregateBy: failed to derive proportional asset resource costs from idle coefficients: %s", err)
 			return fmt.Errorf("AggregateBy: failed to derive proportional asset resource costs from idle coefficients: %s", err)
@@ -1895,7 +2141,7 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 	return coeffs, totals, nil
 }
 
-func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions, as *AllocationSet, shareSet *AllocationSet) error {
+func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions, as *AllocationSet, shareSet, parcsSet *AllocationSet) error {
 
 	// Compute idle coefficients, then save them in AllocationAggregationOptions
 	// [idle_id][allocation name][resource] = [coeff]
@@ -1906,11 +2152,7 @@ func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions,
 	totals := map[string]map[string]float64{}
 
 	// Record allocation values first, then normalize by totals to get percentages
-	for _, alloc := range as.Allocations {
-		if alloc.IsIdle() {
-			// Skip idle allocations in coefficient calculation
-			continue
-		}
+	for _, alloc := range parcsSet.Allocations {
 
 		idleId, err := alloc.getIdleId(options)
 		if err != nil {
@@ -1930,6 +2172,22 @@ func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions,
 
 		if _, ok := coeffs[idleId][name]; !ok {
 			coeffs[idleId][name] = map[string]float64{}
+		}
+		// idle IDs for load balancers are their services
+		for key := range alloc.LoadBalancers {
+			if _, ok := totals[key]; !ok {
+				totals[key] = map[string]float64{}
+			}
+
+			if _, ok := coeffs[key]; !ok {
+				coeffs[key] = map[string]map[string]float64{}
+			}
+			if _, ok := coeffs[key][name]; !ok {
+				coeffs[key][name] = map[string]float64{}
+			}
+
+			coeffs[key][name]["loadbalancer"] += alloc.LoadBalancerTotalCost()
+			totals[key]["loadbalancer"] += alloc.LoadBalancerTotalCost()
 		}
 
 		coeffs[idleId][name]["cpu"] += alloc.CPUTotalCost()
@@ -1976,6 +2234,23 @@ func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions,
 		totals[idleId]["cpu"] += alloc.CPUTotalCost()
 		totals[idleId]["gpu"] += alloc.GPUTotalCost()
 		totals[idleId]["ram"] += alloc.RAMTotalCost()
+
+		// idle IDs for load balancers are their services
+		for key := range alloc.LoadBalancers {
+			if _, ok := totals[key]; !ok {
+				totals[key] = map[string]float64{}
+			}
+
+			if _, ok := coeffs[key]; !ok {
+				coeffs[key] = map[string]map[string]float64{}
+			}
+			if _, ok := coeffs[key][name]; !ok {
+				coeffs[key][name] = map[string]float64{}
+			}
+			coeffs[key][name]["loadbalancer"] += alloc.LoadBalancerTotalCost()
+			totals[key]["loadbalancer"] += alloc.LoadBalancerTotalCost()
+		}
+
 	}
 
 	// after totals are computed, loop through and set parcs on allocations
@@ -1988,15 +2263,35 @@ func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions,
 		alloc.ProportionalAssetResourceCosts = ProportionalAssetResourceCosts{}
 		alloc.ProportionalAssetResourceCosts.Insert(ProportionalAssetResourceCost{
 			Cluster:             alloc.Properties.Cluster,
-			Node:                alloc.Properties.Node,
+			Name:                alloc.Properties.Node,
+			Type:                "Node",
 			ProviderID:          alloc.Properties.ProviderID,
-			GPUTotalCost:        totals[idleId]["gpu"],
-			CPUTotalCost:        totals[idleId]["cpu"],
-			RAMTotalCost:        totals[idleId]["ram"],
 			GPUProportionalCost: coeffs[idleId][alloc.Name]["gpu"],
 			CPUProportionalCost: coeffs[idleId][alloc.Name]["cpu"],
 			RAMProportionalCost: coeffs[idleId][alloc.Name]["ram"],
 		}, options.IdleByNode)
+		// insert a separate PARC for the load balancer
+		if alloc.LoadBalancerCost != 0 {
+			for key, svc := range alloc.LoadBalancers {
+
+				alloc.ProportionalAssetResourceCosts.Insert(ProportionalAssetResourceCost{
+					Cluster:                      alloc.Properties.Cluster,
+					Name:                         svc.Service,
+					Type:                         "LoadBalancer",
+					LoadBalancerProportionalCost: coeffs[key][alloc.Name]["loadbalancer"],
+				}, options.IdleByNode)
+			}
+		}
+
+		for name, pvAlloc := range alloc.PVs {
+			// insert a separate PARC for each PV attached
+			alloc.ProportionalAssetResourceCosts.Insert(ProportionalAssetResourceCost{
+				Cluster:            name.Cluster,
+				Name:               name.Name,
+				Type:               "PV",
+				PVProportionalCost: pvAlloc.Cost,
+			}, options.IdleByNode)
+		}
 	}
 
 	return nil
@@ -2167,6 +2462,118 @@ func (a *Allocation) StringMapProperty(property string) (map[string]string, erro
 	default:
 		return nil, fmt.Errorf("Allocation: StringMapProperty: invalid property name: %s", property)
 	}
+}
+
+func (a *Allocation) SanitizeNaN() {
+	if a == nil {
+		return
+	}
+	if math.IsNaN(a.CPUCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCost: name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.CPUCost = 0
+	}
+	if math.IsNaN(a.CPUCoreRequestAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCoreRequestAverage: name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.CPUCoreRequestAverage = 0
+	}
+	if math.IsNaN(a.CPUCoreHours) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCoreHours: name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.CPUCoreHours = 0
+	}
+	if math.IsNaN(a.CPUCoreUsageAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCoreUsageAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.CPUCoreUsageAverage = 0
+	}
+	if math.IsNaN(a.CPUCostAdjustment) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.CPUCostAdjustment = 0
+	}
+	if math.IsNaN(a.GPUHours) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUHours name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.GPUHours = 0
+	}
+	if math.IsNaN(a.GPUCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.GPUCost = 0
+	}
+	if math.IsNaN(a.GPUCostAdjustment) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.GPUCostAdjustment = 0
+	}
+	if math.IsNaN(a.NetworkTransferBytes) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkTransferBytes name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkTransferBytes = 0
+	}
+	if math.IsNaN(a.NetworkReceiveBytes) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkReceiveBytes name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkReceiveBytes = 0
+	}
+	if math.IsNaN(a.NetworkCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkCost = 0
+	}
+	if math.IsNaN(a.NetworkCrossZoneCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkCrossZoneCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkCrossZoneCost = 0
+	}
+	if math.IsNaN(a.NetworkCrossRegionCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkCrossRegionCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkCrossRegionCost = 0
+	}
+	if math.IsNaN(a.NetworkInternetCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkInternetCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkInternetCost = 0
+	}
+	if math.IsNaN(a.NetworkCostAdjustment) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkCostAdjustment = 0
+	}
+	if math.IsNaN(a.LoadBalancerCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for LoadBalancerCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.LoadBalancerCost = 0
+	}
+	if math.IsNaN(a.LoadBalancerCostAdjustment) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for LoadBalancerCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.LoadBalancerCostAdjustment = 0
+	}
+	if math.IsNaN(a.PVCostAdjustment) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for PVCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.PVCostAdjustment = 0
+	}
+	if math.IsNaN(a.RAMByteHours) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMByteHours name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.RAMByteHours = 0
+	}
+	if math.IsNaN(a.RAMBytesRequestAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMBytesRequestAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.RAMBytesRequestAverage = 0
+	}
+	if math.IsNaN(a.RAMBytesUsageAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMBytesUsageAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.RAMBytesUsageAverage = 0
+	}
+	if math.IsNaN(a.RAMCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.RAMCost = 0
+	}
+	if math.IsNaN(a.RAMCostAdjustment) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.RAMCostAdjustment = 0
+	}
+	if math.IsNaN(a.SharedCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for SharedCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.SharedCost = 0
+	}
+	if math.IsNaN(a.ExternalCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for ExternalCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.ExternalCost = 0
+	}
+
+	a.PVs.SanitizeNaN()
+	a.RawAllocationOnly.SanitizeNaN()
+	a.ProportionalAssetResourceCosts.SanitizeNaN()
+	a.SharedCostBreakdown.SanitizeNaN()
+	a.LoadBalancers.SanitizeNaN()
 }
 
 // Clone returns a new AllocationSet with a deep copy of the given
@@ -2491,6 +2898,15 @@ func (as *AllocationSet) Accumulate(that *AllocationSet) (*AllocationSet, error)
 	}
 
 	return acc, nil
+}
+
+func (as *AllocationSet) SanitizeNaN() {
+	if as == nil {
+		return
+	}
+	for _, a := range as.Allocations {
+		a.SanitizeNaN()
+	}
 }
 
 // AllocationSetRange is a thread-safe slice of AllocationSets. It is meant to

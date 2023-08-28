@@ -26,7 +26,7 @@ package kubecost
 // @bingen:generate:CoverageSet
 
 // Asset Version Set: Includes Asset pipeline specific resources
-// @bingen:set[name=Assets,version=19]
+// @bingen:set[name=Assets,version=21]
 // @bingen:generate:Any
 // @bingen:generate:Asset
 // @bingen:generate:AssetLabels
@@ -46,7 +46,7 @@ package kubecost
 // @bingen:end
 
 // Allocation Version Set: Includes Allocation pipeline specific resources
-// @bingen:set[name=Allocation,version=17]
+// @bingen:set[name=Allocation,version=19]
 // @bingen:generate:Allocation
 // @bingen:generate[stringtable]:AllocationSet
 // @bingen:generate:AllocationSetRange
@@ -58,20 +58,8 @@ package kubecost
 // @bingen:generate:PVAllocations
 // @bingen:generate:PVKey
 // @bingen:generate:PVAllocation
-// @bingen:end
-
-// @bingen:set[name=Audit,version=1]
-// @bingen:generate:AllocationReconciliationAudit
-// @bingen:generate:TotalAudit
-// @bingen:generate:AggAudit
-// @bingen:generate:AuditFloatResult
-// @bingen:generate:AuditMissingValue
-// @bingen:generate:AssetReconciliationAudit
-// @bingen:generate:EqualityAudit
-// @bingen:generate:AuditType
-// @bingen:generate:AuditStatus
-// @bingen:generate[stringtable]:AuditSet
-// @bingen:generate:AuditSetRange
+// @bingen:generate:LbAllocations
+// @bingen:generate:LbAllocation
 // @bingen:end
 
 // @bingen:set[name=CloudCost,version=2]

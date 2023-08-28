@@ -211,4 +211,6 @@ type lbCost struct {
 	TotalCost float64
 	Start     time.Time
 	End       time.Time
+	Private   bool
+	Ip        string
 }

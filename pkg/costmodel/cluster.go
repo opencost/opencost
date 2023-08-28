@@ -2,6 +2,7 @@ package costmodel
 
 import (
 	"fmt"
+	"net"
 	"strconv"
 	"time"
 
@@ -142,12 +143,6 @@ type DiskIdentifier struct {
 }
 
 func ClusterDisks(client prometheus.Client, provider models.Provider, start, end time.Time) (map[DiskIdentifier]*Disk, error) {
-	// Query for the duration between start and end
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
-	}
-
 	// Start from the time "end", querying backwards
 	t := end
 
@@ -162,6 +157,10 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 		log.DedupedWarningf(3, "ClusterDisks(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
 	}
 
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
+	}
 	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
 	// value, converts it to a cumulative value; i.e.
 	// [$/hr] * [min/res]*[hr/min] = [$/res]
@@ -255,7 +254,7 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 		diskMap[key].ClaimNamespace = claimNamespace
 	}
 
-	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo, provider)
+	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo, provider, kubecost.NewClosedWindow(start, end))
 
 	for _, result := range resLocalStorageCost {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
@@ -548,12 +547,6 @@ func costTimesMinute(activeDataMap map[NodeIdentifier]activeData, costMap map[No
 }
 
 func ClusterNodes(cp models.Provider, client prometheus.Client, start, end time.Time) (map[NodeIdentifier]*Node, error) {
-	// Query for the duration between start and end
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
-	}
-
 	// Start from the time "end", querying backwards
 	t := end
 
@@ -568,14 +561,19 @@ func ClusterNodes(cp models.Provider, client prometheus.Client, start, end time.
 		log.DedupedWarningf(3, "ClusterNodes(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
 	}
 
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
+	}
+
 	requiredCtx := prom.NewNamedContext(client, prom.ClusterContextName)
 	optionalCtx := prom.NewNamedContext(client, prom.ClusterOptionalContextName)
 
 	queryNodeCPUHourlyCost := fmt.Sprintf(`avg(avg_over_time(node_cpu_hourly_cost{%s}[%s])) by (%s, node, instance_type, provider_id)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
-  queryNodeCPUCoresCapacity := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity_cpu_cores{%s}[%s])) by (%s, node)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryNodeCPUCoresCapacity := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity_cpu_cores{%s}[%s])) by (%s, node)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 	queryNodeCPUCoresAllocatable := fmt.Sprintf(`avg(avg_over_time(kube_node_status_allocatable_cpu_cores{%s}[%s])) by (%s, node)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 	queryNodeRAMHourlyCost := fmt.Sprintf(`avg(avg_over_time(node_ram_hourly_cost{%s}[%s])) by (%s, node, instance_type, provider_id) / 1024 / 1024 / 1024`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
-  queryNodeRAMBytesCapacity := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity_memory_bytes{%s}[%s])) by (%s, node)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	queryNodeRAMBytesCapacity := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity_memory_bytes{%s}[%s])) by (%s, node)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 	queryNodeRAMBytesAllocatable := fmt.Sprintf(`avg(avg_over_time(kube_node_status_allocatable_memory_bytes{%s}[%s])) by (%s, node)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 	queryNodeGPUCount := fmt.Sprintf(`avg(avg_over_time(node_gpu_count{%s}[%s])) by (%s, node, provider_id)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 	queryNodeGPUHourlyCost := fmt.Sprintf(`avg(avg_over_time(node_gpu_hourly_cost{%s}[%s])) by (%s, node, instance_type, provider_id)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
@@ -632,7 +630,7 @@ func ClusterNodes(cp models.Provider, client prometheus.Client, start, end time.
 		return nil, requiredCtx.ErrorCollection()
 	}
 
-	activeDataMap := buildActiveDataMap(resActiveMins, resolution)
+	activeDataMap := buildActiveDataMap(resActiveMins, resolution, kubecost.NewClosedWindow(start, end))
 
 	gpuCountMap := buildGPUCountMap(resNodeGPUCount)
 	preemptibleMap := buildPreemptibleMap(resIsSpot)
@@ -717,14 +715,11 @@ type LoadBalancer struct {
 	Start      time.Time
 	End        time.Time
 	Minutes    float64
+	Private    bool
+	Ip         string
 }
 
 func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[LoadBalancerIdentifier]*LoadBalancer, error) {
-	// Query for the duration between start and end
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
-	}
 
 	// Start from the time "end", querying backwards
 	t := end
@@ -738,6 +733,12 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 	if minsPerResolution = int(resolution.Minutes()); int(resolution.Minutes()) == 0 {
 		minsPerResolution = 1
 		log.DedupedWarningf(3, "ClusterLoadBalancers(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
+	}
+
+	// Query for the duration between start and end
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
 	}
 
 	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
@@ -829,6 +830,12 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 			continue
 		}
 
+		providerID, err := result.GetString("ingress_ip")
+		if err != nil {
+			log.DedupedWarningf(5, "ClusterLoadBalancers: LB cost data missing ingress_ip")
+			// only update asset cost when an actual IP was returned
+			continue
+		}
 		key := LoadBalancerIdentifier{
 			Cluster:   cluster,
 			Namespace: namespace,
@@ -838,14 +845,32 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 		// Apply cost as price-per-hour * hours
 		if lb, ok := loadBalancerMap[key]; ok {
 			lbPricePerHr := result.Values[0].Value
-			hrs := lb.Minutes / 60.0
+
+			// interpolate any missing data
+			resultMins := lb.Minutes
+			scaleFactor := (resultMins + resolution.Minutes()) / resultMins
+
+			hrs := (lb.Minutes * scaleFactor) / 60.0
 			lb.Cost += lbPricePerHr * hrs
+
+			if lb.Ip != "" && lb.Ip != providerID {
+				log.DedupedWarningf(5, "ClusterLoadBalancers: multiple IPs per load balancer not supported, using most recent IP")
+			}
+			lb.Ip = providerID
+
+			lb.Private = privateIPCheck(providerID)
 		} else {
-			log.DedupedWarningf(20, "ClusterLoadBalancers: found minutes for key that does not exist: %s", key)
+			log.DedupedWarningf(20, "ClusterLoadBalancers: found minutes for key that does not exist: %v", key)
 		}
 	}
 
 	return loadBalancerMap, nil
+}
+
+// Check if an ip is private.
+func privateIPCheck(ip string) bool {
+	ipAddress := net.ParseIP(ip)
+	return ipAddress.IsPrivate()
 }
 
 // ComputeClusterCosts gives the cumulative and monthly-rate cluster costs over a window of time for all clusters.
@@ -859,8 +884,6 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider models
 
 	mins := end.Sub(start).Minutes()
 
-	windowStr := timeutil.DurationString(window)
-
 	// minsPerResolution determines accuracy and resource use for the following
 	// queries. Smaller values (higher resolution) result in better accuracy,
 	// but more expensive queries, and vice-a-versa.
@@ -871,6 +894,8 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider models
 		minsPerResolution = 1
 		log.DedupedWarningf(3, "ComputeClusterCosts(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
 	}
+
+	windowStr := timeutil.DurationString(window)
 
 	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
 	// value, converts it to a cumulative value; i.e.
@@ -1314,7 +1339,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider models.Provider, start
 	}, nil
 }
 
-func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo []*prom.QueryResult, cp models.Provider) {
+func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo []*prom.QueryResult, cp models.Provider, window kubecost.Window) {
 	for _, result := range resActiveMins {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
@@ -1339,11 +1364,9 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 				Breakdown: &ClusterCostsBreakdown{},
 			}
 		}
-		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
-		mins := e.Sub(s).Minutes()
 
-		// TODO niko/assets if mins >= threshold, interpolate for missing data?
+		s, e := calculateStartAndEnd(result, resolution, window)
+		mins := e.Sub(s).Minutes()
 
 		diskMap[key].End = e
 		diskMap[key].Start = s
@@ -1418,6 +1441,7 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 				Breakdown: &ClusterCostsBreakdown{},
 			}
 		}
+
 		diskMap[key].Cost = cost * (diskMap[key].Bytes / 1024 / 1024 / 1024) * (diskMap[key].Minutes / 60)
 		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
 		if providerID != "" {

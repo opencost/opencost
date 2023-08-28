@@ -48,7 +48,7 @@ func NewMatchCompiler[T any](
 	}
 }
 
-// Compile accepts anb `ast.FilterNode` tree and compiles it into a `Matcher[T]` implementation
+// Compile accepts an `ast.FilterNode` tree and compiles it into a `Matcher[T]` implementation
 // which can be used to match T instances dynamically.
 func (mc *MatchCompiler[T]) Compile(filter ast.FilterNode) (Matcher[T], error) {
 	// apply compiler passes on parsed ast

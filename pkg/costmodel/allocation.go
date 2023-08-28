@@ -55,7 +55,7 @@ const (
 	queryFmtPodsWithReplicaSetOwner     = `sum(avg_over_time(kube_pod_owner{owner_kind="ReplicaSet", %s}[%s])) by (pod, owner_name, namespace ,%s)`
 	queryFmtReplicaSetsWithoutOwners    = `avg(avg_over_time(kube_replicaset_owner{owner_kind="<none>", owner_name="<none>", %s}[%s])) by (replicaset, namespace, %s)`
 	queryFmtReplicaSetsWithRolloutOwner = `avg(avg_over_time(kube_replicaset_owner{owner_kind="Rollout", %s}[%s])) by (replicaset, namespace, owner_kind, owner_name, %s)`
-	queryFmtLBCostPerHr                 = `avg(avg_over_time(kubecost_load_balancer_cost{%s}[%s])) by (namespace, service_name, %s)`
+	queryFmtLBCostPerHr                 = `avg(avg_over_time(kubecost_load_balancer_cost{%s}[%s])) by (namespace, service_name, ingress_ip, %s)`
 	queryFmtLBActiveMins                = `count(kubecost_load_balancer_cost{%s}) by (namespace, service_name, %s)[%s:%s]`
 	queryFmtOldestSample                = `min_over_time(timestamp(group(node_cpu_hourly_cost{%s}))[%s:%s])`
 	queryFmtNewestSample                = `max_over_time(timestamp(group(node_cpu_hourly_cost{%s}))[%s:%s])`
@@ -84,7 +84,7 @@ const (
 	// the resolution, to make sure the irate always has two points to query
 	// in case the Prom scrape duration has been reduced to be equal to the
 	// ETL resolution.
-	queryFmtCPUUsageMaxSubquery = `max(max_over_time(irate(container_cpu_usage_seconds_total{container_name!="POD", container_name!="", %s}[%s])[%s:%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	queryFmtCPUUsageMaxSubquery = `max(max_over_time(irate(container_cpu_usage_seconds_total{container!="POD", container!="", %s}[%s])[%s:%s])) by (container, pod_name, pod, namespace, instance, %s)`
 )
 
 // Constants for Network Cost Subtype
@@ -278,6 +278,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	// Append errors and warnings
 	result.Errors = errors
 	result.Warnings = warnings
+
+	// Convert any NaNs to 0 to avoid JSON marshaling issues and avoid cascading NaN appearances elsewhere
+	result.SanitizeNaN()
 
 	return result, nil
 }
@@ -647,14 +650,14 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	// a PVC, we get time running there, so this is only inaccurate
 	// for short-lived, unmounted PVs.)
 	pvMap := map[pvKey]*pv{}
-	buildPVMap(resolution, pvMap, resPVCostPerGiBHour, resPVActiveMins)
+	buildPVMap(resolution, pvMap, resPVCostPerGiBHour, resPVActiveMins, window)
 	applyPVBytes(pvMap, resPVBytes)
 
 	// Build out the map of all PVCs with time running, bytes requested,
 	// and connect to the correct PV from pvMap. (If no PV exists, that
 	// is noted, but does not result in any allocation/cost.)
 	pvcMap := map[pvcKey]*pvc{}
-	buildPVCMap(resolution, pvcMap, pvMap, resPVCInfo)
+	buildPVCMap(resolution, pvcMap, pvMap, resPVCInfo, window)
 	applyPVCBytesRequested(pvcMap, resPVCBytesRequested)
 
 	// Build out the relationships of pods to their PVCs. This step
@@ -671,7 +674,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	applyUnmountedPVs(window, podMap, pvMap, pvcMap)
 
 	lbMap := make(map[serviceKey]*lbCost)
-	getLoadBalancerCosts(lbMap, resLBCostPerHr, resLBActiveMins, resolution)
+	getLoadBalancerCosts(lbMap, resLBCostPerHr, resLBActiveMins, resolution, window)
 	applyLoadBalancersToPods(window, podMap, lbMap, allocsByService)
 
 	// Build out a map of Nodes with resource costs, discounts, and node types

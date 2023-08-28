@@ -47,7 +47,7 @@ func allocGenerator(props kubecost.AllocationProperties) kubecost.Allocation {
 	return a
 }
 
-func TestFiltersFromParamsV1(t *testing.T) {
+func TestAllocationFiltersFromParamsV1(t *testing.T) {
 	// TODO: __unallocated__ case?
 	cases := []struct {
 		name           string

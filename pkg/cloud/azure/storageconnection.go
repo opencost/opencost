@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/opencost/opencost/pkg/cloud"
 	cloudconfig "github.com/opencost/opencost/pkg/cloud/config"
 	"github.com/opencost/opencost/pkg/log"
 )
@@ -15,6 +16,11 @@ import (
 // StorageConnection provides access to Azure Storage
 type StorageConnection struct {
 	StorageConfiguration
+	ConnectionStatus cloud.ConnectionStatus
+}
+
+func (sc *StorageConnection) GetStatus() cloud.ConnectionStatus {
+	return sc.ConnectionStatus
 }
 
 func (sc *StorageConnection) Equals(config cloudconfig.Config) bool {
