@@ -613,7 +613,9 @@ func (lb *LoadBalancer) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "end", lb.End.Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", lb.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "adjustment", lb.Adjustment, ",")
-	jsonEncodeFloat64(buffer, "totalCost", lb.TotalCost(), "")
+	jsonEncodeFloat64(buffer, "totalCost", lb.TotalCost(), ",")
+	jsonEncode(buffer, "private", lb.Private, ",")
+	jsonEncodeString(buffer, "ip", lb.Ip, "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
@@ -674,6 +676,12 @@ func (lb *LoadBalancer) InterfaceToLoadBalancer(itf interface{}) error {
 	}
 	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
 		lb.Cost = Cost.(float64) - lb.Adjustment
+	}
+	if private, err := getTypedVal(fmap["private"]); err == nil {
+		lb.Private = private.(bool)
+	}
+	if ip, err := getTypedVal(fmap["ip"]); err == nil {
+		lb.Ip = ip.(string)
 	}
 
 	return nil

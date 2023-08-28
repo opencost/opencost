@@ -13,11 +13,12 @@ package kubecost
 
 import (
 	"fmt"
-	util "github.com/opencost/opencost/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
+
+	util "github.com/opencost/opencost/pkg/util"
 )
 
 const (
@@ -33,17 +34,17 @@ const (
 )
 
 const (
+	// AssetsCodecVersion is used for any resources listed in the Assets version set
+	AssetsCodecVersion uint8 = 21
+
+	// AllocationCodecVersion is used for any resources listed in the Allocation version set
+	AllocationCodecVersion uint8 = 19
+
 	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
 	CloudCostCodecVersion uint8 = 2
 
 	// DefaultCodecVersion is used for any resources listed in the Default version set
 	DefaultCodecVersion uint8 = 17
-
-	// AssetsCodecVersion is used for any resources listed in the Assets version set
-	AssetsCodecVersion uint8 = 20
-
-	// AllocationCodecVersion is used for any resources listed in the Allocation version set
-	AllocationCodecVersion uint8 = 18
 )
 
 //--------------------------------------------------------------------------
@@ -5426,6 +5427,12 @@ func (target *LbAllocation) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 	}
 	buff.WriteFloat64(target.Cost) // write float64
 	buff.WriteBool(target.Private) // write bool
+	if ctx.IsStringTable() {
+		b := ctx.Table.AddOrGet(target.Ip)
+		buff.WriteInt(b) // write table index
+	} else {
+		buff.WriteString(target.Ip) // write string
+	}
 	return nil
 }
 
@@ -5498,6 +5505,22 @@ func (target *LbAllocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 
 	e := buff.ReadBool() // read bool
 	target.Private = e
+
+	// field version check
+	if uint8(19) <= version {
+		var g string
+		if ctx.IsStringTable() {
+			h := buff.ReadInt() // read string index
+			g = ctx.Table[h]
+		} else {
+			g = buff.ReadString() // read string
+		}
+		f := g
+		target.Ip = f
+
+	} else {
+		target.Ip = "" // default
+	}
 
 	return nil
 }
@@ -5612,6 +5635,12 @@ func (target *LoadBalancer) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 	buff.WriteFloat64(target.Adjustment) // write float64
 	buff.WriteFloat64(target.Cost)       // write float64
 	buff.WriteBool(target.Private)       // write bool
+	if ctx.IsStringTable() {
+		e := ctx.Table.AddOrGet(target.Ip)
+		buff.WriteInt(e) // write table index
+	} else {
+		buff.WriteString(target.Ip) // write string
+	}
 	return nil
 }
 
@@ -5768,6 +5797,22 @@ func (target *LoadBalancer) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 
 	} else {
 		target.Private = false // default
+	}
+
+	// field version check
+	if uint8(21) <= version {
+		var y string
+		if ctx.IsStringTable() {
+			aa := buff.ReadInt() // read string index
+			y = ctx.Table[aa]
+		} else {
+			y = buff.ReadString() // read string
+		}
+		x := y
+		target.Ip = x
+
+	} else {
+		target.Ip = "" // default
 	}
 
 	return nil
