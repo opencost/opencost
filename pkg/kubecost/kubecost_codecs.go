@@ -13,12 +13,11 @@ package kubecost
 
 import (
 	"fmt"
+	util "github.com/opencost/opencost/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
-
-	util "github.com/opencost/opencost/pkg/util"
 )
 
 const (
@@ -34,17 +33,17 @@ const (
 )
 
 const (
+	// DefaultCodecVersion is used for any resources listed in the Default version set
+	DefaultCodecVersion uint8 = 17
+
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
 	AssetsCodecVersion uint8 = 21
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
-	AllocationCodecVersion uint8 = 19
+	AllocationCodecVersion uint8 = 20
 
 	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
 	CloudCostCodecVersion uint8 = 2
-
-	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 17
 )
 
 //--------------------------------------------------------------------------
@@ -6633,6 +6632,12 @@ func (target *PVAllocation) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 
 	buff.WriteFloat64(target.ByteHours) // write float64
 	buff.WriteFloat64(target.Cost)      // write float64
+	if ctx.IsStringTable() {
+		a := ctx.Table.AddOrGet(target.ProviderID)
+		buff.WriteInt(a) // write table index
+	} else {
+		buff.WriteString(target.ProviderID) // write string
+	}
 	return nil
 }
 
@@ -6695,6 +6700,22 @@ func (target *PVAllocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 
 	b := buff.ReadFloat64() // read float64
 	target.Cost = b
+
+	// field version check
+	if uint8(20) <= version {
+		var d string
+		if ctx.IsStringTable() {
+			e := buff.ReadInt() // read string index
+			d = ctx.Table[e]
+		} else {
+			d = buff.ReadString() // read string
+		}
+		c := d
+		target.ProviderID = c
+
+	} else {
+		target.ProviderID = "" // default
+	}
 
 	return nil
 }
