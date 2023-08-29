@@ -150,13 +150,16 @@ func clusterInfoQuery(offset string) string {
 func (pcm *PrometheusClusterMap) loadClusters() (map[string]*ClusterInfo, error) {
 	var offset string = ""
 	if prom.IsThanos(pcm.client) {
+		log.Debugf("setting thanos offset %s", thanos.QueryOffset())
 		offset = thanos.QueryOffset()
 	}
 
 	// Execute Query
 	tryQuery := func() (interface{}, error) {
 		ctx := prom.NewNamedContext(pcm.client, prom.ClusterMapContextName)
-		resCh := ctx.QueryAtTime(clusterInfoQuery(offset), time.Now().Add(-promQueryOffset))
+		clusterQuery := clusterInfoQuery(offset)
+		log.Debugf("cluster info query used is: %s", clusterQuery)
+		resCh := ctx.QueryAtTime(clusterQuery, time.Now().Add(-promQueryOffset))
 		r, e := resCh.Await()
 		return r, e
 	}
@@ -257,7 +260,7 @@ func (pcm *PrometheusClusterMap) getLocalClusterInfo() (*ClusterInfo, error) {
 func (pcm *PrometheusClusterMap) refreshClusters() {
 	updated, err := pcm.loadClusters()
 	if err != nil {
-		log.Errorf("Failed to load cluster info via query after %d retries", LoadRetries)
+		log.Errorf("Failed to load cluster info via query after %d retries with most recent error %v", LoadRetries, err)
 		return
 	}
 
