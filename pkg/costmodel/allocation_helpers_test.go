@@ -354,7 +354,7 @@ func TestBuildPVMap(t *testing.T) {
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
 			pvMap := make(map[pvKey]*pv)
-			buildPVMap(testCase.resolution, pvMap, testCase.resultsPVCostPerGiBHour, testCase.resultsActiveMinutes, window)
+			buildPVMap(testCase.resolution, pvMap, testCase.resultsPVCostPerGiBHour, testCase.resultsActiveMinutes, []*prom.QueryResult{}, window)
 			if len(pvMap) != len(testCase.expected) {
 				t.Errorf("pv map does not have the expected length %d : %d", len(pvMap), len(testCase.expected))
 			}
