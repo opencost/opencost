@@ -135,6 +135,57 @@ type pv struct {
 	ProviderID     string    `json:"providerID"`
 }
 
+func (p *pv) clone() *pv {
+	if p == nil {
+		return nil
+	}
+	return &pv{
+		Start:          p.Start,
+		End:            p.End,
+		Bytes:          p.Bytes,
+		CostPerGiBHour: p.CostPerGiBHour,
+		Cluster:        p.Cluster,
+		Name:           p.Name,
+		StorageClass:   p.StorageClass,
+	}
+}
+
+func (p *pv) equal(that *pv) bool {
+	if p == nil {
+		return that == nil
+	}
+
+	if !p.Start.Equal(that.Start) {
+		return false
+	}
+
+	if !p.End.Equal(that.End) {
+		return false
+	}
+
+	if p.Bytes != that.Bytes {
+		return false
+	}
+
+	if p.CostPerGiBHour != that.CostPerGiBHour {
+		return false
+	}
+
+	if p.Cluster != that.Cluster {
+		return false
+	}
+
+	if p.Name != that.Name {
+		return false
+	}
+
+	if p.StorageClass != that.StorageClass {
+		return false
+	}
+
+	return true
+}
+
 // String returns a string representation of the pv
 func (p *pv) String() string {
 	if p == nil {
