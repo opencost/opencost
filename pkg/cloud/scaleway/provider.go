@@ -317,7 +317,7 @@ func (c *Scaleway) UpdateConfig(r io.Reader, updateType string) (*models.CustomP
 			if ok {
 				err := models.SetCustomPricingField(c, kUpper, vstr)
 				if err != nil {
-					return err
+					return fmt.Errorf("error setting custom pricing field: %w", err)
 				}
 			} else {
 				return fmt.Errorf("type error while updating config for %s", kUpper)
