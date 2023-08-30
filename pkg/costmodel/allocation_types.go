@@ -132,6 +132,7 @@ type pv struct {
 	Cluster        string    `json:"cluster"`
 	Name           string    `json:"name"`
 	StorageClass   string    `json:"storageClass"`
+	ProviderID     string    `json:"providerID"`
 }
 
 func (p *pv) clone() *pv {
@@ -190,7 +191,7 @@ func (p *pv) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("%s/%s{Bytes:%.2f, Cost/GiB*Hr:%.6f, StorageClass:%s}", p.Cluster, p.Name, p.Bytes, p.CostPerGiBHour, p.StorageClass)
+	return fmt.Sprintf("%s/%s{Bytes:%.2f, Cost/GiB*Hr:%.6f, StorageClass:%s, ProviderID: %s}", p.Cluster, p.Name, p.Bytes, p.CostPerGiBHour, p.StorageClass, p.ProviderID)
 }
 
 func (p *pv) minutes() float64 {
