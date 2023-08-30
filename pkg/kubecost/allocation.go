@@ -213,8 +213,9 @@ func (pv PVAllocations) Clone() PVAllocations {
 	clonePV := make(map[PVKey]*PVAllocation, len(pv))
 	for k, v := range pv {
 		clonePV[k] = &PVAllocation{
-			ByteHours: v.ByteHours,
-			Cost:      v.Cost,
+			ByteHours:  v.ByteHours,
+			Cost:       v.Cost,
+			ProviderID: v.ProviderID,
 		}
 	}
 	return clonePV
@@ -235,6 +236,11 @@ func (pv PVAllocations) Add(that PVAllocations) PVAllocations {
 			apvAlloc.Cost += thatPVAlloc.Cost
 			apvAlloc.ByteHours += thatPVAlloc.ByteHours
 			apv[pvKey] = apvAlloc
+			if apvAlloc.ProviderID == thatPVAlloc.ProviderID {
+				apv[pvKey].ProviderID = apvAlloc.ProviderID
+			} else {
+				apv[pvKey].ProviderID = ""
+			}
 		}
 	}
 	return apv
@@ -294,8 +300,9 @@ func (pvk *PVKey) FromString(key string) error {
 // PVAllocation contains the byte hour usage
 // and cost of an Allocation for a single PV
 type PVAllocation struct {
-	ByteHours float64 `json:"byteHours"`
-	Cost      float64 `json:"cost"`
+	ByteHours  float64 `json:"byteHours"`
+	Cost       float64 `json:"cost"`
+	ProviderID string  `json:"providerID"` // @bingen:field[version=20]
 }
 
 // Equal returns true if the two PVAllocation instances contain approximately the same
@@ -2289,6 +2296,7 @@ func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions,
 				Cluster:            name.Cluster,
 				Name:               name.Name,
 				Type:               "PV",
+				ProviderID:         pvAlloc.ProviderID,
 				PVProportionalCost: pvAlloc.Cost,
 			}, options.IdleByNode)
 		}
