@@ -13,8 +13,12 @@ import (
 )
 
 const (
-	queryFmtPods                        = `avg(kube_pod_container_status_running{%s}) by (pod, namespace, %s)[%s:%s]`
-	queryFmtPodsUID                     = `avg(kube_pod_container_status_running{%s}) by (pod, namespace, uid, %s)[%s:%s]`
+	// https://kubecost.atlassian.net/browse/BURNDOWN-234
+	// upstream KSM has implementation change vs OC internal KSM - it sets metric to 0 when pod goes down
+	// VS OC implementation which stops emitting it
+	// by adding != 0 filter, we keep just the active times in the prom result
+	queryFmtPods                        = `avg(kube_pod_container_status_running{%s} != 0) by (pod, namespace, %s)[%s:%s]`
+	queryFmtPodsUID                     = `avg(kube_pod_container_status_running{%s} != 0) by (pod, namespace, uid, %s)[%s:%s]`
 	queryFmtRAMBytesAllocated           = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s, provider_id)`
 	queryFmtRAMRequests                 = `avg(avg_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
 	queryFmtRAMUsageAvg                 = `avg(avg_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
