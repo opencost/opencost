@@ -12,6 +12,7 @@ type AthenaConfiguration struct {
 	Bucket     string     `json:"bucket"`
 	Region     string     `json:"region"`
 	Database   string     `json:"database"`
+	Catalog    string     `json:"catalog""`
 	Table      string     `json:"table"`
 	Workgroup  string     `json:"workgroup"`
 	Account    string     `json:"account"`
@@ -85,6 +86,10 @@ func (ac *AthenaConfiguration) Equals(config config.Config) bool {
 		return false
 	}
 
+	if ac.Catalog != thatConfig.Catalog {
+		return false
+	}
+
 	if ac.Table != thatConfig.Table {
 		return false
 	}
@@ -105,6 +110,7 @@ func (ac *AthenaConfiguration) Sanitize() config.Config {
 		Bucket:     ac.Bucket,
 		Region:     ac.Region,
 		Database:   ac.Database,
+		Catalog:    ac.Catalog,
 		Table:      ac.Table,
 		Workgroup:  ac.Workgroup,
 		Account:    ac.Account,
@@ -142,6 +148,12 @@ func (ac *AthenaConfiguration) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %s", err.Error())
 	}
 	ac.Database = database
+
+	catalog, err := config.GetInterfaceValue[string](fmap, "catalog")
+	if err != nil {
+		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %s", err.Error())
+	}
+	ac.Catalog = catalog
 
 	table, err := config.GetInterfaceValue[string](fmap, "table")
 	if err != nil {
@@ -204,6 +216,7 @@ func ConvertAwsAthenaInfoToConfig(aai AwsAthenaInfo) config.KeyedConfig {
 		config = &AthenaConfiguration{
 			Bucket:     aai.AthenaBucketName,
 			Region:     aai.AthenaRegion,
+			Catalog:    aai.AthenaCatalog,
 			Database:   aai.AthenaDatabase,
 			Table:      aai.AthenaTable,
 			Workgroup:  aai.AthenaWorkgroup,

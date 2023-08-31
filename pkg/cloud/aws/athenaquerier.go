@@ -94,6 +94,9 @@ func (aq *AthenaQuerier) queryAthenaPaginated(ctx context.Context, query string,
 		Database: aws.String(aq.Database),
 	}
 
+	if aq.Catalog != "" {
+		queryExecutionCtx.Catalog = aws.String(aq.Catalog)
+	}
 	resultConfiguration := &types.ResultConfiguration{
 		OutputLocation: aws.String(aq.Bucket),
 	}
