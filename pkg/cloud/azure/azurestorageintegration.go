@@ -30,12 +30,13 @@ func (asi *AzureStorageIntegration) GetCloudCost(start, end time.Time) (*kubecos
 			k8sPtc = 1.0
 		}
 
+		providerID, _ := AzureSetProviderID(abv)
 		// Create CloudCost
 		// Using the NetCost as a 'placeholder' for Invoiced and Amortized Net costs now,
 		// until we can revisit and spend the time to do the calculations correctly
 		cc := &kubecost.CloudCost{
 			Properties: &kubecost.CloudCostProperties{
-				ProviderID:      AzureSetProviderID(abv),
+				ProviderID:      providerID,
 				Provider:        kubecost.AzureProvider,
 				AccountID:       abv.SubscriptionID,
 				InvoiceEntityID: abv.InvoiceEntityID,
