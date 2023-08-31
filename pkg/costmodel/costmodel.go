@@ -2499,10 +2499,6 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 			for _, alloc := range as.Allocations {
 				for rawKey, parc := range alloc.ProportionalAssetResourceCosts {
 
-					if parc.Type == "LoadBalancer" {
-						log.Debug("brk")
-					}
-
 					key := strings.TrimSuffix(strings.ReplaceAll(rawKey, ",", "/"), "/")
 					// for each parc , check the totals store for each
 					// on a totals hit, set the corresponding total and calculate percentage
@@ -2544,9 +2540,6 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 						parc.LoadBalancerTotalCost = totals.LoadBalancerCost
 					}
 
-					if parc.LoadBalancerProportionalCost > 0 {
-						log.Debug("brk")
-					}
 					kubecost.ComputePercentages(&parc)
 					alloc.ProportionalAssetResourceCosts[rawKey] = parc
 				}
