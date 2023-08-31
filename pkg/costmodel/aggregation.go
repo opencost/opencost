@@ -2275,6 +2275,7 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// Otherwise it is computed at the cluster level. (Not relevant if idle
 	// is not included.)
 	idleByNode := qp.GetBool("idleByNode", false)
+	sharedLoadBalancer := qp.GetBool("sharelb", false)
 
 	// IncludeProportionalAssetResourceCosts, if true,
 	includeProportionalAssetResourceCosts := qp.GetBool("includeProportionalAssetResourceCosts", false)
@@ -2282,7 +2283,7 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// include aggregated labels/annotations if true
 	includeAggregatedMetadata := qp.GetBool("includeAggregatedMetadata", false)
 
-	asr, err := a.Model.QueryAllocation(window, resolution, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, accumulateBy)
+	asr, err := a.Model.QueryAllocation(window, resolution, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer, accumulateBy)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "bad request") {
 			WriteError(w, BadRequest(err.Error()))

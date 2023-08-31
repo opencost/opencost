@@ -2361,7 +2361,7 @@ func measureTimeAsync(start time.Time, threshold time.Duration, name string, ch 
 	}
 }
 
-func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata bool, accumulateBy kubecost.AccumulateOption) (*kubecost.AllocationSetRange, error) {
+func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer bool, accumulateBy kubecost.AccumulateOption) (*kubecost.AllocationSetRange, error) {
 	// Validate window is legal
 	if window.IsOpen() || window.IsNegative() {
 		return nil, fmt.Errorf("illegal window: %s", window)
@@ -2484,7 +2484,7 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 			}
 
 			var totalPublicLbCost, totalPrivateLbCost float64
-			if isAKS && env.IsSingleLB() {
+			if isAKS && sharedLoadBalancer {
 				// loop through all assetTotals, adding all load balancer costs by public and private
 				for _, tot := range totalStoreByNode {
 					if tot.PrivateLoadBalancer {
@@ -2525,7 +2525,7 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 					parc.GPUTotalCost = totals.GPUCost
 					parc.RAMTotalCost = totals.RAMCost
 					parc.PVTotalCost = totals.PersistentVolumeCost
-					if isAKS && env.IsSingleLB() && len(alloc.LoadBalancers) > 0 {
+					if isAKS && sharedLoadBalancer && len(alloc.LoadBalancers) > 0 {
 						// Azure is a special case - use computed totals above
 						// use the lbAllocations in the object to determine if
 						// this PARC is a public or private load balancer
