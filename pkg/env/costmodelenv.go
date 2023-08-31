@@ -86,6 +86,7 @@ const (
 	KubecostConfigBucketEnvVar    = "KUBECOST_CONFIG_BUCKET"
 	ClusterInfoFileEnabledEnvVar  = "CLUSTER_INFO_FILE_ENABLED"
 	ClusterCacheFileEnabledEnvVar = "CLUSTER_CACHE_FILE_ENABLED"
+	SingleLoadBalancerEnabled     = "SINGLE_LOAD_BALANCER"
 
 	PrometheusQueryOffsetEnvVar                 = "PROMETHEUS_QUERY_OFFSET"
 	PrometheusRetryOnRateLimitResponseEnvVar    = "PROMETHEUS_RETRY_ON_RATE_LIMIT"
@@ -111,6 +112,10 @@ const (
 const DefaultConfigMountPath = "/var/configs"
 
 var offsetRegex = regexp.MustCompile(`^(\+|-)(\d\d):(\d\d)$`)
+
+func IsSingleLB() bool {
+	return GetBool(SingleLoadBalancerEnabled, false)
+}
 
 func IsETLReadOnlyMode() bool {
 	return GetBool(ETLReadOnlyMode, false)

@@ -2383,7 +2383,7 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 	// appending each to the response.
 	stepStart := *window.Start()
 	stepEnd := stepStart.Add(step)
-	var isAzure bool
+	var isAKS bool
 	for window.End().After(stepStart) {
 		allocSet, err := cm.ComputeAllocation(stepStart, stepEnd, resolution)
 		if err != nil {
@@ -2404,7 +2404,7 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 				// we must know if this is an AKS cluster
 				for _, node := range assetSet.Nodes {
 					if _, found := node.Labels["label_kubernetes_azure_com_cluster"]; found {
-						isAzure = true
+						isAKS = true
 						break
 					}
 				}
@@ -2484,7 +2484,7 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 			}
 
 			var totalPublicLbCost, totalPrivateLbCost float64
-			if isAzure {
+			if isAKS && env.IsSingleLB() {
 				// loop through all assetTotals, adding all load balancer costs by public and private
 				for _, tot := range totalStoreByNode {
 					if tot.PrivateLoadBalancer {
@@ -2498,6 +2498,10 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 			// loop through each allocation set, using total cost from totals store
 			for _, alloc := range as.Allocations {
 				for rawKey, parc := range alloc.ProportionalAssetResourceCosts {
+
+					if parc.Type == "LoadBalancer" {
+						log.Debug("brk")
+					}
 
 					key := strings.TrimSuffix(strings.ReplaceAll(rawKey, ",", "/"), "/")
 					// for each parc , check the totals store for each
@@ -2521,9 +2525,7 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 					parc.GPUTotalCost = totals.GPUCost
 					parc.RAMTotalCost = totals.RAMCost
 					parc.PVTotalCost = totals.PersistentVolumeCost
-					if !isAzure {
-						parc.LoadBalancerTotalCost = totals.LoadBalancerCost
-					} else if len(alloc.LoadBalancers) > 0 {
+					if isAKS && env.IsSingleLB() && len(alloc.LoadBalancers) > 0 {
 						// Azure is a special case - use computed totals above
 						// use the lbAllocations in the object to determine if
 						// this PARC is a public or private load balancer
@@ -2538,8 +2540,13 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 								parc.LoadBalancerTotalCost = totalPublicLbCost
 							}
 						}
+					} else {
+						parc.LoadBalancerTotalCost = totals.LoadBalancerCost
 					}
 
+					if parc.LoadBalancerProportionalCost > 0 {
+						log.Debug("brk")
+					}
 					kubecost.ComputePercentages(&parc)
 					alloc.ProportionalAssetResourceCosts[rawKey] = parc
 				}
