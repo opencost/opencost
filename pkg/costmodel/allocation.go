@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	queryFmtPods                        = `avg(kube_pod_container_status_running{%s}) by (pod, namespace, %s)[%s:%s]`
-	queryFmtPodsUID                     = `avg(kube_pod_container_status_running{%s}) by (pod, namespace, uid, %s)[%s:%s]`
+	queryFmtPods                        = `avg(kube_pod_container_status_running{job="kubecost", %s}) by (pod, namespace, %s)[%s:%s]`
+	queryFmtPodsUID                     = `avg(kube_pod_container_status_running{job="kubecost", %s}) by (pod, namespace, uid, %s)[%s:%s]`
 	queryFmtRAMBytesAllocated           = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s, provider_id)`
 	queryFmtRAMRequests                 = `avg(avg_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
 	queryFmtRAMUsageAvg                 = `avg(avg_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
