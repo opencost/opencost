@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aws/smithy-go"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/kubecost"
@@ -1559,8 +1561,20 @@ func (aws *AWS) getAllAddresses() ([]*ec2Types.Address, error) {
 			// Query for first page of volume results
 			resp, err := aws.getAddressesForRegion(context.TODO(), region)
 			if err != nil {
-				errorCh <- err
-				return
+				var awsErr smithy.APIError
+				if errors.As(err, &awsErr) {
+					switch awsErr.ErrorCode() {
+					case "AuthFailure", "InvalidClientTokenId", "UnauthorizedOperation":
+						log.DedupedInfof(5, "Unable to get addresses for region %s due to AWS permissions, error message: %s", r, awsErr.ErrorMessage())
+						return
+					default:
+						errorCh <- err
+						return
+					}
+				} else {
+					errorCh <- err
+					return
+				}
 			}
 			addressCh <- resp
 		}(r)
@@ -1661,8 +1675,20 @@ func (aws *AWS) getAllDisks() ([]*ec2Types.Volume, error) {
 			// Query for first page of volume results
 			resp, err := aws.getDisksForRegion(context.TODO(), region, 1000, nil)
 			if err != nil {
-				errorCh <- err
-				return
+				var awsErr smithy.APIError
+				if errors.As(err, &awsErr) {
+					switch awsErr.ErrorCode() {
+					case "AuthFailure", "InvalidClientTokenId", "UnauthorizedOperation":
+						log.DedupedInfof(5, "Unable to get disks for region %s due to AWS permissions, error message: %s", r, awsErr.ErrorMessage())
+						return
+					default:
+						errorCh <- err
+						return
+					}
+				} else {
+					errorCh <- err
+					return
+				}
 			}
 			volumeCh <- resp
 
@@ -1744,14 +1770,17 @@ func (aws *AWS) isDiskOrphaned(vol *ec2Types.Volume) bool {
 }
 
 func (aws *AWS) GetOrphanedResources() ([]models.OrphanedResource, error) {
-	volumes, err := aws.getAllDisks()
-	if err != nil {
-		return nil, err
-	}
+	volumes, volumesErr := aws.getAllDisks()
+	addresses, addressesErr := aws.getAllAddresses()
 
-	addresses, err := aws.getAllAddresses()
-	if err != nil {
-		return nil, err
+	// If we have any orphaned resources - prioritize returning them over returning errors
+	if len(addresses) == 0 && len(volumes) == 0 {
+		if volumesErr != nil {
+			return nil, volumesErr
+		}
+		if addressesErr != nil {
+			return nil, addressesErr
+		}
 	}
 
 	var orphanedResources []models.OrphanedResource
