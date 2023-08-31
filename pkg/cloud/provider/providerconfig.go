@@ -181,7 +181,7 @@ func (pc *ProviderConfig) Update(updateFunc func(*models.CustomPricing) error) (
 	// explicitly
 	err := updateFunc(c)
 	if err != nil {
-		return c, err
+		return c, fmt.Errorf("error updating provider config: %w", err)
 	}
 
 	// Cache Update (possible the ptr already references the cached value)
@@ -189,12 +189,12 @@ func (pc *ProviderConfig) Update(updateFunc func(*models.CustomPricing) error) (
 
 	cj, err := json.Marshal(c)
 	if err != nil {
-		return c, err
+		return c, fmt.Errorf("error marshaling JSON for provider config: %w", err)
 	}
-	err = pc.configFile.Write(cj)
 
+	err = pc.configFile.Write(cj)
 	if err != nil {
-		return c, err
+		return c, fmt.Errorf("error writing config file for provider config: %w", err)
 	}
 
 	return c, nil
@@ -210,14 +210,14 @@ func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*models.CustomPric
 			if kUpper == "CPU" || kUpper == "SpotCPU" || kUpper == "RAM" || kUpper == "SpotRAM" || kUpper == "GPU" || kUpper == "Storage" {
 				val, err := strconv.ParseFloat(v, 64)
 				if err != nil {
-					return fmt.Errorf("Unable to parse CPU from string to float: %s", err.Error())
+					return fmt.Errorf("unable to parse CPU from string to float: %s", err.Error())
 				}
 				v = fmt.Sprintf("%f", val/730)
 			}
 
 			err := models.SetCustomPricingField(c, kUpper, v)
 			if err != nil {
-				return err
+				return fmt.Errorf("error setting custom pricing field: %w", err)
 			}
 		}
 
