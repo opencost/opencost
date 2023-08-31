@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/pkg/filter"
+	filter21 "github.com/opencost/opencost/pkg/filter21"
+	"github.com/opencost/opencost/pkg/filter21/ast"
 	"github.com/opencost/opencost/pkg/log"
 )
 
@@ -285,6 +287,37 @@ func (ccs *CloudCostSet) Filter(filters filter.Filter[*CloudCost]) *CloudCostSet
 	}
 
 	return result
+}
+
+func (ccs *CloudCostSet) Filter21(filters filter21.Filter) (*CloudCostSet, error) {
+	if ccs == nil {
+		return nil, nil
+	}
+
+	if filters == nil {
+		return ccs.Clone(), nil
+	}
+
+	compiler := NewCloudCostMatchCompiler()
+	var err error
+	matcher, err := compiler.Compile(filters)
+	if err != nil {
+		return ccs.Clone(), fmt.Errorf("compiling filter '%s': %w", ast.ToPreOrderShortString(filters), err)
+	}
+
+	if matcher == nil {
+		return ccs.Clone(), fmt.Errorf("unexpected nil filter")
+	}
+
+	result := ccs.cloneSet()
+
+	for _, cc := range ccs.CloudCosts {
+		if matcher.Matches(cc) {
+			result.Insert(cc.Clone())
+		}
+	}
+
+	return result, nil
 }
 
 // Insert adds a CloudCost to a CloudCostSet using its AggregationProperties and LabelConfig
