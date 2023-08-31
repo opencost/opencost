@@ -1771,6 +1771,21 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*nodePricing, nodeKey no
 		node.Source += "/customRAM"
 	}
 
+	// Double check each for NaNs, as there is a chance that our custom pricing
+	// config could, itself, contain NaNs...
+	if math.IsNaN(node.CostPerCPUHr) || math.IsInf(node.CostPerCPUHr, 0) {
+		log.Warnf("CostModel: %s: node pricing has illegal CPU value: %v (setting to 0.0)", nodeKey, node.CostPerCPUHr)
+		node.CostPerCPUHr = 0.0
+	}
+	if math.IsNaN(node.CostPerGPUHr) || math.IsInf(node.CostPerGPUHr, 0) {
+		log.Warnf("CostModel: %s: node pricing has illegal RAM value: %v (setting to 0.0)", nodeKey, node.CostPerGPUHr)
+		node.CostPerGPUHr = 0.0
+	}
+	if math.IsNaN(node.CostPerRAMGiBHr) || math.IsInf(node.CostPerRAMGiBHr, 0) {
+		log.Warnf("CostModel: %s: node pricing has illegal RAM value: %v (setting to 0.0)", nodeKey, node.CostPerRAMGiBHr)
+		node.CostPerRAMGiBHr = 0.0
+	}
+
 	return node
 }
 
