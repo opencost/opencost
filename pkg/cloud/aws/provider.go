@@ -401,6 +401,7 @@ type AwsAthenaInfo struct {
 	AthenaBucketName string `json:"athenaBucketName"`
 	AthenaRegion     string `json:"athenaRegion"`
 	AthenaDatabase   string `json:"athenaDatabase"`
+	AthenaCatalog    string `json:"athenaCatalog"`
 	AthenaTable      string `json:"athenaTable"`
 	AthenaWorkgroup  string `json:"athenaWorkgroup"`
 	ServiceKeyName   string `json:"serviceKeyName"`
@@ -414,6 +415,7 @@ func (aai *AwsAthenaInfo) IsEmpty() bool {
 	return aai.AthenaBucketName == "" &&
 		aai.AthenaRegion == "" &&
 		aai.AthenaDatabase == "" &&
+		aai.AthenaCatalog == "" &&
 		aai.AthenaTable == "" &&
 		aai.AthenaWorkgroup == "" &&
 		aai.ServiceKeyName == "" &&
@@ -514,6 +516,7 @@ func (aws *AWS) GetAWSAthenaInfo() (*AwsAthenaInfo, error) {
 		AthenaBucketName: config.AthenaBucketName,
 		AthenaRegion:     config.AthenaRegion,
 		AthenaDatabase:   config.AthenaDatabase,
+		AthenaCatalog:    config.AthenaCatalog,
 		AthenaTable:      config.AthenaTable,
 		AthenaWorkgroup:  config.AthenaWorkgroup,
 		ServiceKeyName:   aak.AccessKeyID,
@@ -569,6 +572,7 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 			c.AthenaBucketName = aai.AthenaBucketName
 			c.AthenaRegion = aai.AthenaRegion
 			c.AthenaDatabase = aai.AthenaDatabase
+			c.AthenaCatalog = aai.AthenaCatalog
 			c.AthenaTable = aai.AthenaTable
 			c.AthenaWorkgroup = aai.AthenaWorkgroup
 			c.ServiceKeyName = aai.ServiceKeyName
@@ -1900,6 +1904,10 @@ func (aws *AWS) QueryAthenaPaginated(ctx context.Context, query string, fn func(
 
 	queryExecutionCtx := &athenaTypes.QueryExecutionContext{
 		Database: awsSDK.String(awsAthenaInfo.AthenaDatabase),
+	}
+
+	if awsAthenaInfo.AthenaCatalog != "" {
+		queryExecutionCtx.Catalog = awsSDK.String(awsAthenaInfo.AthenaCatalog)
 	}
 
 	resultConfiguration := &athenaTypes.ResultConfiguration{
