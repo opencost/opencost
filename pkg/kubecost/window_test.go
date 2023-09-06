@@ -2,6 +2,7 @@ package kubecost
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -1217,5 +1218,26 @@ func TestMarshalUnmarshal(t *testing.T) {
 				t.Errorf(diff)
 			}
 		})
+	}
+}
+
+func TestBoundaryErrorIs(t *testing.T) {
+	baseError := &BoundaryError{Message: "cde"}
+	singleWrapError := fmt.Errorf("wrap: %w", &BoundaryError{Message: "abc"})
+
+	if errors.Is(singleWrapError, baseError) {
+		t.Logf("Single wrap success")
+	} else {
+		t.Errorf("Single wrap failure: %s != %s", baseError, singleWrapError)
+	}
+
+	multiWrapError := fmt.Errorf("wrap: %w", &BoundaryError{Message: "abc"})
+	multiWrapError = fmt.Errorf("wrap x2: %w", multiWrapError)
+	multiWrapError = fmt.Errorf("wrap x3: %w", multiWrapError)
+
+	if errors.Is(multiWrapError, baseError) {
+		t.Logf("Multi wrap success")
+	} else {
+		t.Errorf("Multi wrap failure: %s != %s", baseError, multiWrapError)
 	}
 }

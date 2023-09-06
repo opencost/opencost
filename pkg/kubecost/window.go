@@ -875,3 +875,11 @@ func (be *BoundaryError) Error() string {
 
 	return fmt.Sprintf("boundary error: requested %s; supported %s: %s", be.Requested, be.Supported, be.Message)
 }
+
+func (be *BoundaryError) Is(target error) bool {
+	if _, ok := target.(*BoundaryError); ok {
+		return true
+	}
+
+	return false
+}
