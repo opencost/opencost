@@ -258,7 +258,7 @@ func encloseInBrackets(jsonString string) string {
 	return fmt.Sprintf("{%s}", jsonString)
 }
 
-func AzureSetProviderID(abv *BillingRowValues) (providerID string, isAggregated bool) {
+func AzureSetProviderID(abv *BillingRowValues) (providerID string, isShared bool) {
 	category := SelectAzureCategory(abv.MeterCategory)
 	if value, ok := abv.AdditionalInfo["VMName"]; ok {
 		return "azure://" + resourceGroupToLowerCase(abv.InstanceID) + getVMNumberForVMSS(fmt.Sprintf("%v", value)), false
@@ -279,7 +279,7 @@ func AzureSetProviderID(abv *BillingRowValues) (providerID string, isAggregated 
 			return getSubStringAfterFinalSlash(abv.InstanceID), true
 		}
 	}
-	return "azure://" + resourceGroupToLowerCase(abv.InstanceID), false
+	return "azure://" + resourceGroupToLowerCase(abv.InstanceID), true
 }
 
 func SelectAzureCategory(meterCategory string) string {
