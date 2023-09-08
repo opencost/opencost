@@ -190,18 +190,18 @@ func GetAthenaRowValueFloat(row types.Row, queryColumnIndexes map[string]int, co
 	return cost, nil
 }
 
-func SelectAWSCategory(isNode, isVol, isNetwork bool, providerID, service string) string {
+func SelectAWSCategory(providerID, usageType, service string) string {
 	// Network has the highest priority and is based on the usage type ending in "Bytes"
-	if isNetwork {
+	if strings.HasSuffix(usageType, "Bytes") {
 		return kubecost.NetworkCategory
 	}
 	// The node and volume conditions are mutually exclusive.
 	// Provider ID has prefix "i-"
-	if isNode {
+	if strings.HasPrefix(providerID, "i-") {
 		return kubecost.ComputeCategory
 	}
 	// Provider ID has prefix "vol-"
-	if isVol {
+	if strings.HasPrefix(providerID, "vol-") {
 		return kubecost.StorageCategory
 	}
 
