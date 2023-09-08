@@ -2,7 +2,7 @@ package aws
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -305,7 +305,7 @@ func Test_populate_pricing(t *testing.T) {
 	`
 
 	testResponse := http.Response{
-		Body: ioutil.NopCloser(bytes.NewBufferString(awsUSEastString)),
+		Body: io.NopCloser(bytes.NewBufferString(awsUSEastString)),
 		Request: &http.Request{
 			URL: &url.URL{
 				Scheme: "https",
@@ -444,7 +444,7 @@ func Test_populate_pricing(t *testing.T) {
 	}
 
 	testResponse = http.Response{
-		Body: ioutil.NopCloser(bytes.NewBufferString(awsCnString)),
+		Body: io.NopCloser(bytes.NewBufferString(awsCnString)),
 		Request: &http.Request{
 			URL: &url.URL{
 				Scheme: "https",
