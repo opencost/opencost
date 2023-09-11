@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -8,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud"
+	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"
@@ -143,55 +144,71 @@ const (
 		label_replace(
 			label_replace(
 				avg(
-					count_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="",container!="POD", node!=""}[%s] %s)
+					count_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="",container!="POD", node!="", %s}[%s] %s)
 					*
-					avg_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="",container!="POD", node!=""}[%s] %s)
+					avg_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="",container!="POD", node!="", %s}[%s] %s)
 				) by (namespace,container,pod,node,%s) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		)
 	) by (namespace,container_name,pod_name,node,%s)`
 	queryRAMUsageStr = `sort_desc(
 		avg(
-			label_replace(count_over_time(container_memory_working_set_bytes{container_name!="",container_name!="POD", instance!=""}[%s] %s), "node", "$1", "instance","(.+)")
+			label_replace(
+				label_replace(
+					label_replace(
+						count_over_time(container_memory_working_set_bytes{container!="", container!="POD", instance!="", %s}[%s] %s), "node", "$1", "instance", "(.+)"
+					), "container_name", "$1", "container", "(.+)"
+				), "pod_name", "$1", "pod", "(.+)"
+			)
 			*
-			label_replace(avg_over_time(container_memory_working_set_bytes{container_name!="",container_name!="POD", instance!=""}[%s] %s), "node", "$1", "instance","(.+)")
-		) by (namespace,container_name,pod_name,node,%s)
+			label_replace(
+				label_replace(
+					label_replace(
+						avg_over_time(container_memory_working_set_bytes{container!="", container!="POD", instance!="", %s}[%s] %s), "node", "$1", "instance", "(.+)"
+					), "container_name", "$1", "container", "(.+)"
+				), "pod_name", "$1", "pod", "(.+)"
+			)
+		) by (namespace, container_name, pod_name, node, %s)
 	)`
 	queryCPURequestsStr = `avg(
 		label_replace(
 			label_replace(
 				avg(
-					count_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="",container!="POD", node!=""}[%s] %s)
+					count_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="",container!="POD", node!="", %s}[%s] %s)
 					*
-					avg_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="",container!="POD", node!=""}[%s] %s)
+					avg_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="",container!="POD", node!="", %s}[%s] %s)
 				) by (namespace,container,pod,node,%s) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		)
 	) by (namespace,container_name,pod_name,node,%s)`
 	queryCPUUsageStr = `avg(
 		label_replace(
-		rate(
-			container_cpu_usage_seconds_total{container_name!="",container_name!="POD",instance!=""}[%s] %s
-		) , "node", "$1", "instance", "(.+)"
+			label_replace(
+				label_replace(
+					rate(
+						container_cpu_usage_seconds_total{container!="", container!="POD", instance!="", %s}[%s] %s
+					), "node", "$1", "instance", "(.+)"
+				), "container_name", "$1", "container", "(.+)"
+			), "pod_name", "$1", "pod", "(.+)"
 		)
-	) by (namespace,container_name,pod_name,node,%s)`
+	) by (namespace, container_name, pod_name, node, %s)`
 	queryGPURequestsStr = `avg(
 		label_replace(
 			label_replace(
 				avg(
-					count_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s] %s)
+					count_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!="", %s}[%s] %s)
 					*
-					avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s] %s)
+					avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!="", %s}[%s] %s)
 					* %f
 				) by (namespace,container,pod,node,%s) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		)
 	) by (namespace,container_name,pod_name,node,%s)
-	* on (pod_name, namespace, %s) group_left(container) label_replace(avg(avg_over_time(kube_pod_status_phase{phase="Running"}[%s] %s)) by (pod,namespace,%s), "pod_name","$1","pod","(.+)")`
-	queryPVRequestsStr = `avg(avg(kube_persistentvolumeclaim_info{volumename != ""}) by (persistentvolumeclaim, storageclass, namespace, volumename, %s, kubernetes_node)
+	* on (pod_name, namespace, %s) group_left(container) label_replace(avg(avg_over_time(kube_pod_status_phase{phase="Running", %s}[%s] %s)) by (pod,namespace,%s), "pod_name","$1","pod","(.+)")`
+	queryPVRequestsStr = `avg(avg(kube_persistentvolumeclaim_info{volumename != "", %s}) by (persistentvolumeclaim, storageclass, namespace, volumename, %s, kubernetes_node)
 	*
 	on (persistentvolumeclaim, namespace, %s, kubernetes_node) group_right(storageclass, volumename)
-	sum(kube_persistentvolumeclaim_resource_requests_storage_bytes{}) by (persistentvolumeclaim, namespace, %s, kubernetes_node, kubernetes_name)) by (persistentvolumeclaim, storageclass, namespace, %s, volumename, kubernetes_node)`
+	sum(kube_persistentvolumeclaim_resource_requests_storage_bytes{%s}) by (persistentvolumeclaim, namespace, %s, kubernetes_node, kubernetes_name)) by (persistentvolumeclaim, storageclass, namespace, %s, volumename, kubernetes_node)`
 	// queryRAMAllocationByteHours yields the total byte-hour RAM allocation over the given
 	// window, aggregated by container.
 	//  [line 3]  sum_over_time(each byte) = [byte*scrape] by metric
@@ -201,7 +218,7 @@ const (
 	queryRAMAllocationByteHours = `
 		label_replace(label_replace(
 			sum(
-				sum_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s])
+				sum_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!="", %s}[%s])
 			) by (namespace,container,pod,node,%s) * %f / 60 / 60
 		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
 	// queryCPUAllocationVCPUHours yields the total VCPU-hour CPU allocation over the given
@@ -213,35 +230,35 @@ const (
 	queryCPUAllocationVCPUHours = `
 		label_replace(label_replace(
 			sum(
-				sum_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s])
+				sum_over_time(container_cpu_allocation{container!="",container!="POD", node!="", %s}[%s])
 			) by (namespace,container,pod,node,%s) * %f / 60 / 60
 		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
 	// queryPVCAllocationFmt yields the total byte-hour PVC allocation over the given window.
 	// sum_over_time(each byte) = [byte*scrape] by metric *(scalar(avg(prometheus_target_interval_length_seconds)) = [seconds/scrape] / 60 / 60 =  [hours/scrape] by pod
-	queryPVCAllocationFmt     = `sum(sum_over_time(pod_pvc_allocation[%s])) by (%s, namespace, pod, persistentvolume, persistentvolumeclaim) * %f/60/60`
-	queryPVHourlyCostFmt      = `avg_over_time(pv_hourly_cost[%s])`
-	queryNSLabels             = `avg_over_time(kube_namespace_labels[%s])`
-	queryPodLabels            = `avg_over_time(kube_pod_labels[%s])`
-	queryNSAnnotations        = `avg_over_time(kube_namespace_annotations[%s])`
-	queryPodAnnotations       = `avg_over_time(kube_pod_annotations[%s])`
-	queryDeploymentLabels     = `avg_over_time(deployment_match_labels[%s])`
-	queryStatefulsetLabels    = `avg_over_time(statefulSet_match_labels[%s])`
-	queryPodDaemonsets        = `sum(kube_pod_owner{owner_kind="DaemonSet"}) by (namespace,pod,owner_name,%s)`
-	queryPodJobs              = `sum(kube_pod_owner{owner_kind="Job"}) by (namespace,pod,owner_name,%s)`
-	queryServiceLabels        = `avg_over_time(service_selector_labels[%s])`
-	queryZoneNetworkUsage     = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s] %s)) by (namespace,pod_name,%s) / 1024 / 1024 / 1024`
-	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name,%s) / 1024 / 1024 / 1024`
-	queryInternetNetworkUsage = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s] %s)) by (namespace,pod_name,%s) / 1024 / 1024 / 1024`
-	normalizationStr          = `max(count_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte"}[%s] %s))`
+	queryPVCAllocationFmt     = `sum(sum_over_time(pod_pvc_allocation{%s}[%s])) by (%s, namespace, pod, persistentvolume, persistentvolumeclaim) * %f/60/60`
+	queryPVHourlyCostFmt      = `avg_over_time(pv_hourly_cost{%s}[%s])`
+	queryNSLabels             = `avg_over_time(kube_namespace_labels{%s}[%s])`
+	queryPodLabels            = `avg_over_time(kube_pod_labels{%s}[%s])`
+	queryNSAnnotations        = `avg_over_time(kube_namespace_annotations{%s}[%s])`
+	queryPodAnnotations       = `avg_over_time(kube_pod_annotations{%s}[%s])`
+	queryDeploymentLabels     = `avg_over_time(deployment_match_labels{%s}[%s])`
+	queryStatefulsetLabels    = `avg_over_time(statefulSet_match_labels{%s}[%s])`
+	queryPodDaemonsets        = `sum(kube_pod_owner{owner_kind="DaemonSet", %s}) by (namespace,pod,owner_name,%s)`
+	queryPodJobs              = `sum(kube_pod_owner{owner_kind="Job", %s}) by (namespace,pod,owner_name,%s)`
+	queryServiceLabels        = `avg_over_time(service_selector_labels{%s}[%s])`
+	queryZoneNetworkUsage     = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true", %s}[%s] %s)) by (namespace,pod_name,%s) / 1024 / 1024 / 1024`
+	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false", %s}[%s] %s)) by (namespace,pod_name,%s) / 1024 / 1024 / 1024`
+	queryInternetNetworkUsage = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true", %s}[%s] %s)) by (namespace,pod_name,%s) / 1024 / 1024 / 1024`
+	normalizationStr          = `max(count_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", %s}[%s] %s))`
 )
 
 func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
-	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset, env.GetPromClusterLabel())
-	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, window, offset, env.GetPromClusterLabel())
-	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, window, "", env.GetPromClusterLabel())
-	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, window, "", env.GetPromClusterLabel())
-	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, window, "", env.GetPromClusterLabel())
-	queryNormalization := fmt.Sprintf(normalizationStr, window, offset)
+	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, env.GetPromClusterFilter(), window, offset, env.GetPromClusterFilter(), window, offset, env.GetPromClusterLabel())
+	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, env.GetPromClusterFilter(), window, offset, env.GetPromClusterLabel())
+	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, env.GetPromClusterFilter(), window, "", env.GetPromClusterLabel())
+	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, env.GetPromClusterFilter(), window, "", env.GetPromClusterLabel())
+	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, env.GetPromClusterFilter(), window, "", env.GetPromClusterLabel())
+	queryNormalization := fmt.Sprintf(normalizationStr, env.GetPromClusterFilter(), window, offset)
 
 	// Cluster ID is specific to the source cluster
 	clusterID := env.GetClusterID()
@@ -483,11 +500,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				// for the units of memory and CPU.
 				ramRequestBytes := container.Resources.Requests.Memory().Value()
 
-				// Because RAM (and CPU) information isn't coming from Prometheus, it won't
-				// have a timestamp associated with it. We need to provide a timestamp,
-				// otherwise the vector op that gets applied to take the max of usage
-				// and request won't work properly and will only take into account
-				// usage.
+				// Because information on container RAM & CPU requests isn't
+				// coming from Prometheus, it won't have a timestamp associated
+				// with it. We need to provide a timestamp.
 				RAMReqV := []*util.Vector{
 					{
 						Value:     float64(ramRequestBytes),
@@ -565,8 +580,25 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 					ClusterID:       clusterID,
 					ClusterName:     cm.ClusterMap.NameFor(clusterID),
 				}
-				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed, "CPU")
-				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed, "RAM")
+
+				var cpuReq, cpuUse *util.Vector
+				if len(costs.CPUReq) > 0 {
+					cpuReq = costs.CPUReq[0]
+				}
+				if len(costs.CPUUsed) > 0 {
+					cpuUse = costs.CPUUsed[0]
+				}
+				costs.CPUAllocation = getContainerAllocation(cpuReq, cpuUse, "CPU")
+
+				var ramReq, ramUse *util.Vector
+				if len(costs.RAMReq) > 0 {
+					ramReq = costs.RAMReq[0]
+				}
+				if len(costs.RAMUsed) > 0 {
+					ramUse = costs.RAMUsed[0]
+				}
+				costs.RAMAllocation = getContainerAllocation(ramReq, ramUse, "RAM")
+
 				if filterNamespace == "" {
 					containerNameCost[newKey] = costs
 				} else if costs.Namespace == filterNamespace {
@@ -633,8 +665,25 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				ClusterID:       c.ClusterID,
 				ClusterName:     cm.ClusterMap.NameFor(c.ClusterID),
 			}
-			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed, "CPU")
-			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed, "RAM")
+
+			var cpuReq, cpuUse *util.Vector
+			if len(costs.CPUReq) > 0 {
+				cpuReq = costs.CPUReq[0]
+			}
+			if len(costs.CPUUsed) > 0 {
+				cpuUse = costs.CPUUsed[0]
+			}
+			costs.CPUAllocation = getContainerAllocation(cpuReq, cpuUse, "CPU")
+
+			var ramReq, ramUse *util.Vector
+			if len(costs.RAMReq) > 0 {
+				ramReq = costs.RAMReq[0]
+			}
+			if len(costs.RAMUsed) > 0 {
+				ramUse = costs.RAMUsed[0]
+			}
+			costs.RAMAllocation = getContainerAllocation(ramReq, ramUse, "RAM")
+
 			if filterNamespace == "" {
 				containerNameCost[key] = costs
 				missingContainers[key] = costs
@@ -717,7 +766,7 @@ func findUnmountedPVCostData(clusterMap clusters.ClusterMap, unmountedPVs map[st
 
 func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[string]*CostData, window string) error {
 	if len(missingContainers) > 0 {
-		queryHistoricalPodLabels := fmt.Sprintf(`kube_pod_labels{}[%s]`, window)
+		queryHistoricalPodLabels := fmt.Sprintf(`kube_pod_labels{%s}[%s]`, env.GetPromClusterFilter(), window)
 
 		podLabelsResult, _, err := prom.NewNamedContext(cli, prom.ComputeCostDataContextName).QuerySync(queryHistoricalPodLabels)
 		if err != nil {
@@ -756,9 +805,9 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 			offsetStr = fmt.Sprintf("offset %s", offset)
 		}
 
-		queryHistoricalCPUCost := fmt.Sprintf(`avg(avg_over_time(node_cpu_hourly_cost[%s] %s)) by (node, instance, %s)`, window, offsetStr, env.GetPromClusterLabel())
-		queryHistoricalRAMCost := fmt.Sprintf(`avg(avg_over_time(node_ram_hourly_cost[%s] %s)) by (node, instance, %s)`, window, offsetStr, env.GetPromClusterLabel())
-		queryHistoricalGPUCost := fmt.Sprintf(`avg(avg_over_time(node_gpu_hourly_cost[%s] %s)) by (node, instance, %s)`, window, offsetStr, env.GetPromClusterLabel())
+		queryHistoricalCPUCost := fmt.Sprintf(`avg(avg_over_time(node_cpu_hourly_cost{%s}[%s] %s)) by (node, instance, %s)`, env.GetPromClusterFilter(), window, offsetStr, env.GetPromClusterLabel())
+		queryHistoricalRAMCost := fmt.Sprintf(`avg(avg_over_time(node_ram_hourly_cost{%s}[%s] %s)) by (node, instance, %s)`, env.GetPromClusterFilter(), window, offsetStr, env.GetPromClusterLabel())
+		queryHistoricalGPUCost := fmt.Sprintf(`avg(avg_over_time(node_gpu_hourly_cost{%s}[%s] %s)) by (node, instance, %s)`, env.GetPromClusterFilter(), window, offsetStr, env.GetPromClusterLabel())
 
 		ctx := prom.NewNamedContext(cli, prom.ComputeCostDataContextName)
 		cpuCostResCh := ctx.Query(queryHistoricalCPUCost)
@@ -811,32 +860,62 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 	return nil
 }
 
-func getContainerAllocation(req []*util.Vector, used []*util.Vector, allocationType string) []*util.Vector {
-	// The result of the normalize operation will be a new []*util.Vector to replace the requests
-	allocationOp := func(r *util.Vector, x *float64, y *float64) bool {
-		if x != nil && y != nil {
-			x1 := *x
-			if math.IsNaN(x1) {
-				log.Warnf("NaN value found during %s allocation calculation for requests.", allocationType)
-				x1 = 0.0
-			}
-			y1 := *y
-			if math.IsNaN(y1) {
-				log.Warnf("NaN value found during %s allocation calculation for used.", allocationType)
-				y1 = 0.0
-			}
+// getContainerAllocation takes the max between request and usage. This function
+// returns a slice containing a single element describing the container's
+// allocation.
+//
+// Additionally, the timestamp of the allocation will be the highest value
+// timestamp between the two vectors. This mitigates situations where
+// Timestamp=0. This should have no effect on the metrics emitted by the
+// CostModelMetricsEmitter
+func getContainerAllocation(req *util.Vector, used *util.Vector, allocationType string) []*util.Vector {
+	var result []*util.Vector
 
-			r.Value = math.Max(x1, y1)
-		} else if x != nil {
-			r.Value = *x
-		} else if y != nil {
-			r.Value = *y
+	if req != nil && used != nil {
+		x1 := req.Value
+		if math.IsNaN(x1) {
+			log.Warnf("NaN value found during %s allocation calculation for requests.", allocationType)
+			x1 = 0.0
 		}
-
-		return true
+		y1 := used.Value
+		if math.IsNaN(y1) {
+			log.Warnf("NaN value found during %s allocation calculation for used.", allocationType)
+			y1 = 0.0
+		}
+		result = []*util.Vector{
+			{
+				Value:     math.Max(x1, y1),
+				Timestamp: math.Max(req.Timestamp, used.Timestamp),
+			},
+		}
+		if result[0].Value == 0 && result[0].Timestamp == 0 {
+			log.Warnf("No request or usage data found during %s allocation calculation. Setting allocation to 0.", allocationType)
+		}
+	} else if req != nil {
+		result = []*util.Vector{
+			{
+				Value:     req.Value,
+				Timestamp: req.Timestamp,
+			},
+		}
+	} else if used != nil {
+		result = []*util.Vector{
+			{
+				Value:     used.Value,
+				Timestamp: used.Timestamp,
+			},
+		}
+	} else {
+		log.Warnf("No request or usage data found during %s allocation calculation. Setting allocation to 0.", allocationType)
+		result = []*util.Vector{
+			{
+				Value:     0,
+				Timestamp: float64(time.Now().UTC().Unix()),
+			},
+		}
 	}
 
-	return util.ApplyVectorOp(req, used, allocationOp)
+	return result
 }
 
 func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*PersistentVolumeClaimData, cloud costAnalyzerCloud.Provider) error {
@@ -956,7 +1035,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 		pmd.TotalNodes++
 
-		cnode, err := cp.NodePricing(cp.GetKey(nodeLabels, n))
+		cnode, _, err := cp.NodePricing(cp.GetKey(nodeLabels, n))
 		if err != nil {
 			log.Infof("Error getting node pricing. Error: %s", err.Error())
 			if cnode != nil {
@@ -984,6 +1063,10 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		if newCnode.Region == "" {
 			region, _ := util.GetRegion(n.Labels)
 			newCnode.Region = region
+		}
+		if newCnode.ArchType == "" {
+			arch, _ := util.GetArchType(n.Labels)
+			newCnode.ArchType = arch
 		}
 		newCnode.ProviderID = n.Spec.ProviderID
 
@@ -1022,13 +1105,13 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		if ok {
 			gpuCount := q.Value()
 			if gpuCount != 0 {
-				newCnode.GPU = fmt.Sprintf("%d", q.Value())
+				newCnode.GPU = fmt.Sprintf("%d", gpuCount)
 				gpuc = float64(gpuCount)
 			}
 		} else if g, ok := n.Status.Capacity["k8s.amazonaws.com/vgpu"]; ok {
 			gpuCount := g.Value()
 			if gpuCount != 0 {
-				newCnode.GPU = fmt.Sprintf("%d", int(float64(q.Value())/vgpuCoeff))
+				newCnode.GPU = fmt.Sprintf("%d", int(float64(gpuCount)/vgpuCoeff))
 				gpuc = float64(gpuCount) / vgpuCoeff
 			}
 		} else {
@@ -1107,12 +1190,15 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 					log.Errorf("Could not parse total node price")
 					return nil, err
 				}
-			} else {
+			} else if newCnode.VCPUCost != "" {
 				nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated to the CPU
 				if err != nil {
 					log.Errorf("Could not parse node vcpu price")
 					return nil, err
 				}
+			} else { // add case to use default pricing model when API data fails.
+				log.Debugf("No node price or CPUprice found, falling back to default")
+				nodePrice = defaultCPU*cpu + defaultRAM*ram + gpuc*defaultGPU
 			}
 			if math.IsNaN(nodePrice) {
 				log.Warnf("nodePrice parsed as NaN. Setting to 0.")
@@ -1189,12 +1275,15 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 					}
 					nodePrice = nodePrice - gpuPrice // remove the gpuPrice from the total, we're just costing out RAM and CPU.
 				}
-			} else {
+			} else if newCnode.VCPUCost != "" {
 				nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated to the CPU
 				if err != nil {
 					log.Warnf("Could not parse node vcpu price")
 					return nil, err
 				}
+			} else { // add case to use default pricing model when API data fails.
+				log.Debugf("No node price or CPUprice found, falling back to default")
+				nodePrice = defaultCPU*cpu + defaultRAM*ramGB
 			}
 			if math.IsNaN(nodePrice) {
 				log.Warnf("nodePrice parsed as NaN. Setting to 0.")
@@ -1602,20 +1691,20 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 
 	ctx := prom.NewNamedContext(cli, prom.ComputeCostDataRangeContextName)
 
-	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
-	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
-	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, resStr, "", resStr, "", env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, resStr, "", resStr, "", env.GetPromClusterLabel())
-	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, resStr, "", resStr, "", env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, resStr, "", env.GetPromClusterLabel())
-	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, resStr, "", resStr, "", resolution.Hours(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), resStr, "", env.GetPromClusterLabel())
-	queryPVRequests := fmt.Sprintf(queryPVRequestsStr, env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	queryPVCAllocation := fmt.Sprintf(queryPVCAllocationFmt, resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
-	queryPVHourlyCost := fmt.Sprintf(queryPVHourlyCostFmt, resStr)
-	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, resStr, "", env.GetPromClusterLabel())
-	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, resStr, "", env.GetPromClusterLabel())
-	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, resStr, "", env.GetPromClusterLabel())
-	queryNormalization := fmt.Sprintf(normalizationStr, resStr, "")
+	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, env.GetPromClusterFilter(), resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
+	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, env.GetPromClusterFilter(), resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
+	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel(), env.GetPromClusterLabel())
+	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
+	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel(), env.GetPromClusterLabel())
+	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
+	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterFilter(), resStr, "", resolution.Hours(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
+	queryPVRequests := fmt.Sprintf(queryPVRequestsStr, env.GetPromClusterFilter(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterFilter(), env.GetPromClusterLabel(), env.GetPromClusterLabel())
+	queryPVCAllocation := fmt.Sprintf(queryPVCAllocationFmt, env.GetPromClusterFilter(), resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
+	queryPVHourlyCost := fmt.Sprintf(queryPVHourlyCostFmt, env.GetPromClusterFilter(), resStr)
+	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
+	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
+	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
+	queryNormalization := fmt.Sprintf(normalizationStr, env.GetPromClusterFilter(), resStr, "")
 
 	// Submit all queries for concurrent evaluation
 	resChRAMRequests := ctx.QueryRange(queryRAMRequests, start, end, resolution)
@@ -1631,15 +1720,15 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 	resChNetZoneRequests := ctx.QueryRange(queryNetZoneRequests, start, end, resolution)
 	resChNetRegionRequests := ctx.QueryRange(queryNetRegionRequests, start, end, resolution)
 	resChNetInternetRequests := ctx.QueryRange(queryNetInternetRequests, start, end, resolution)
-	resChNSLabels := ctx.QueryRange(fmt.Sprintf(queryNSLabels, resStr), start, end, resolution)
-	resChPodLabels := ctx.QueryRange(fmt.Sprintf(queryPodLabels, resStr), start, end, resolution)
-	resChNSAnnotations := ctx.QueryRange(fmt.Sprintf(queryNSAnnotations, resStr), start, end, resolution)
-	resChPodAnnotations := ctx.QueryRange(fmt.Sprintf(queryPodAnnotations, resStr), start, end, resolution)
-	resChServiceLabels := ctx.QueryRange(fmt.Sprintf(queryServiceLabels, resStr), start, end, resolution)
-	resChDeploymentLabels := ctx.QueryRange(fmt.Sprintf(queryDeploymentLabels, resStr), start, end, resolution)
-	resChStatefulsetLabels := ctx.QueryRange(fmt.Sprintf(queryStatefulsetLabels, resStr), start, end, resolution)
-	resChJobs := ctx.QueryRange(fmt.Sprintf(queryPodJobs, env.GetPromClusterLabel()), start, end, resolution)
-	resChDaemonsets := ctx.QueryRange(fmt.Sprintf(queryPodDaemonsets, env.GetPromClusterLabel()), start, end, resolution)
+	resChNSLabels := ctx.QueryRange(fmt.Sprintf(queryNSLabels, env.GetPromClusterFilter(), resStr), start, end, resolution)
+	resChPodLabels := ctx.QueryRange(fmt.Sprintf(queryPodLabels, env.GetPromClusterFilter(), resStr), start, end, resolution)
+	resChNSAnnotations := ctx.QueryRange(fmt.Sprintf(queryNSAnnotations, env.GetPromClusterFilter(), resStr), start, end, resolution)
+	resChPodAnnotations := ctx.QueryRange(fmt.Sprintf(queryPodAnnotations, env.GetPromClusterFilter(), resStr), start, end, resolution)
+	resChServiceLabels := ctx.QueryRange(fmt.Sprintf(queryServiceLabels, env.GetPromClusterFilter(), resStr), start, end, resolution)
+	resChDeploymentLabels := ctx.QueryRange(fmt.Sprintf(queryDeploymentLabels, env.GetPromClusterFilter(), resStr), start, end, resolution)
+	resChStatefulsetLabels := ctx.QueryRange(fmt.Sprintf(queryStatefulsetLabels, env.GetPromClusterFilter(), resStr), start, end, resolution)
+	resChJobs := ctx.QueryRange(fmt.Sprintf(queryPodJobs, env.GetPromClusterFilter(), env.GetPromClusterLabel()), start, end, resolution)
+	resChDaemonsets := ctx.QueryRange(fmt.Sprintf(queryPodDaemonsets, env.GetPromClusterFilter(), env.GetPromClusterLabel()), start, end, resolution)
 	resChNormalization := ctx.QueryRange(queryNormalization, start, end, resolution)
 
 	// Pull k8s pod, controller, service, and namespace details
@@ -2270,4 +2359,255 @@ func measureTimeAsync(start time.Time, threshold time.Duration, name string, ch 
 	if elapsed > threshold {
 		ch <- fmt.Sprintf("%s took %s", name, time.Since(start))
 	}
+}
+
+func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer bool, accumulateBy kubecost.AccumulateOption) (*kubecost.AllocationSetRange, error) {
+	// Validate window is legal
+	if window.IsOpen() || window.IsNegative() {
+		return nil, fmt.Errorf("illegal window: %s", window)
+	}
+
+	var totalsStore kubecost.TotalsStore
+	// Idle is required for proportional asset costs
+	if includeProportionalAssetResourceCosts {
+		if !includeIdle {
+			return nil, errors.New("bad request - includeIdle must be set true if includeProportionalAssetResourceCosts is true")
+		}
+		totalsStore = kubecost.NewMemoryTotalsStore()
+	}
+
+	// Begin with empty response
+	asr := kubecost.NewAllocationSetRange()
+
+	// Query for AllocationSets in increments of the given step duration,
+	// appending each to the response.
+	stepStart := *window.Start()
+	stepEnd := stepStart.Add(step)
+	var isAKS bool
+	for window.End().After(stepStart) {
+		allocSet, err := cm.ComputeAllocation(stepStart, stepEnd, resolution)
+		if err != nil {
+			return nil, fmt.Errorf("error computing allocations for %s: %w", kubecost.NewClosedWindow(stepStart, stepEnd), err)
+		}
+
+		if includeIdle {
+			assetSet, err := cm.ComputeAssets(stepStart, stepEnd)
+			if err != nil {
+				return nil, fmt.Errorf("error computing assets for %s: %w", kubecost.NewClosedWindow(stepStart, stepEnd), err)
+			}
+
+			if includeProportionalAssetResourceCosts {
+
+				// AKS is a special case - there can be a maximum of 2
+				// load balancers (1 public and 1 private) in an AKS cluster
+				// therefore, when calculating PARCs for load balancers,
+				// we must know if this is an AKS cluster
+				for _, node := range assetSet.Nodes {
+					if _, found := node.Labels["label_kubernetes_azure_com_cluster"]; found {
+						isAKS = true
+						break
+					}
+				}
+
+				_, err := kubecost.UpdateAssetTotalsStore(totalsStore, assetSet)
+				if err != nil {
+					log.Errorf("ETL: error updating asset resource totals for %s: %s", assetSet.Window, err)
+				}
+			}
+
+			idleSet, err := computeIdleAllocations(allocSet, assetSet, true)
+			if err != nil {
+				return nil, fmt.Errorf("error computing idle allocations for %s: %w", kubecost.NewClosedWindow(stepStart, stepEnd), err)
+			}
+
+			for _, idleAlloc := range idleSet.Allocations {
+				allocSet.Insert(idleAlloc)
+			}
+		}
+
+		asr.Append(allocSet)
+
+		stepStart = stepEnd
+		stepEnd = stepStart.Add(step)
+	}
+
+	// Set aggregation options and aggregate
+	opts := &kubecost.AllocationAggregationOptions{
+		IncludeProportionalAssetResourceCosts: includeProportionalAssetResourceCosts,
+		IdleByNode:                            idleByNode,
+		IncludeAggregatedMetadata:             includeAggregatedMetadata,
+	}
+
+	// Aggregate
+	err := asr.AggregateBy(aggregate, opts)
+	if err != nil {
+		return nil, fmt.Errorf("error aggregating for %s: %w", window, err)
+	}
+
+	// Accumulate, if requested
+	if accumulateBy != kubecost.AccumulateOptionNone {
+		asr, err = asr.Accumulate(accumulateBy)
+		if err != nil {
+			log.Errorf("error accumulating by %v: %s", accumulateBy, err)
+			return nil, fmt.Errorf("error accumulating by %v: %s", accumulateBy, err)
+		}
+
+		// when accumulating and returning PARCs, we need the totals for the
+		// accumulated windows to accurately compute a fraction
+		if includeProportionalAssetResourceCosts {
+			assetSet, err := cm.ComputeAssets(*asr.Window().Start(), *asr.Window().End())
+			if err != nil {
+				return nil, fmt.Errorf("error computing assets for %s: %w", kubecost.NewClosedWindow(*asr.Window().Start(), *asr.Window().End()), err)
+			}
+
+			_, err = kubecost.UpdateAssetTotalsStore(totalsStore, assetSet)
+			if err != nil {
+				log.Errorf("ETL: error updating asset resource totals for %s: %s", kubecost.NewClosedWindow(*asr.Window().Start(), *asr.Window().End()), err)
+			}
+
+		}
+	}
+
+	if includeProportionalAssetResourceCosts {
+
+		for _, as := range asr.Allocations {
+			totalStoreByNode, ok := totalsStore.GetAssetTotalsByNode(as.Start(), as.End())
+			if !ok {
+				log.Errorf("unable to locate allocation totals for node for window %v - %v", as.Start(), as.End())
+				return nil, fmt.Errorf("unable to locate allocation totals for node for window %v - %v", as.Start(), as.End())
+			}
+
+			totalStoreByCluster, ok := totalsStore.GetAssetTotalsByCluster(as.Start(), as.End())
+			if !ok {
+				log.Errorf("unable to locate allocation totals for cluster for window %v - %v", as.Start(), as.End())
+				return nil, fmt.Errorf("unable to locate allocation totals for cluster for window %v - %v", as.Start(), as.End())
+			}
+
+			var totalPublicLbCost, totalPrivateLbCost float64
+			if isAKS && sharedLoadBalancer {
+				// loop through all assetTotals, adding all load balancer costs by public and private
+				for _, tot := range totalStoreByNode {
+					if tot.PrivateLoadBalancer {
+						totalPrivateLbCost += tot.LoadBalancerCost
+					} else {
+						totalPublicLbCost += tot.LoadBalancerCost
+					}
+				}
+			}
+
+			// loop through each allocation set, using total cost from totals store
+			for _, alloc := range as.Allocations {
+				for rawKey, parc := range alloc.ProportionalAssetResourceCosts {
+
+					key := strings.TrimSuffix(strings.ReplaceAll(rawKey, ",", "/"), "/")
+					// for each parc , check the totals store for each
+					// on a totals hit, set the corresponding total and calculate percentage
+					var totals *kubecost.AssetTotals
+					if totalsLoc, found := totalStoreByCluster[key]; found {
+						totals = totalsLoc
+					}
+
+					if totalsLoc, found := totalStoreByNode[key]; found {
+						totals = totalsLoc
+					}
+
+					if totals == nil {
+						log.Errorf("unable to locate asset totals for allocation %s", key)
+						return nil, fmt.Errorf("unable to locate allocation totals for allocation")
+
+					}
+
+					parc.CPUTotalCost = totals.CPUCost
+					parc.GPUTotalCost = totals.GPUCost
+					parc.RAMTotalCost = totals.RAMCost
+					parc.PVTotalCost = totals.PersistentVolumeCost
+					if isAKS && sharedLoadBalancer && len(alloc.LoadBalancers) > 0 {
+						// Azure is a special case - use computed totals above
+						// use the lbAllocations in the object to determine if
+						// this PARC is a public or private load balancer
+						// then set the total accordingly
+						// AKS only has 1 public and 1 private load balancer
+
+						lbAlloc, found := alloc.LoadBalancers[key]
+						if found {
+							if lbAlloc.Private {
+								parc.LoadBalancerTotalCost = totalPrivateLbCost
+							} else {
+								parc.LoadBalancerTotalCost = totalPublicLbCost
+							}
+						}
+					} else {
+						parc.LoadBalancerTotalCost = totals.LoadBalancerCost
+					}
+
+					kubecost.ComputePercentages(&parc)
+					alloc.ProportionalAssetResourceCosts[rawKey] = parc
+				}
+			}
+
+		}
+	}
+
+	return asr, nil
+}
+
+func computeIdleAllocations(allocSet *kubecost.AllocationSet, assetSet *kubecost.AssetSet, idleByNode bool) (*kubecost.AllocationSet, error) {
+	if !allocSet.Window.Equal(assetSet.Window) {
+		return nil, fmt.Errorf("cannot compute idle allocations for mismatched sets: %s does not equal %s", allocSet.Window, assetSet.Window)
+	}
+
+	var allocTotals map[string]*kubecost.AllocationTotals
+	var assetTotals map[string]*kubecost.AssetTotals
+
+	if idleByNode {
+		allocTotals = kubecost.ComputeAllocationTotals(allocSet, kubecost.AllocationNodeProp)
+		assetTotals = kubecost.ComputeAssetTotals(assetSet, true)
+	} else {
+		allocTotals = kubecost.ComputeAllocationTotals(allocSet, kubecost.AllocationClusterProp)
+		assetTotals = kubecost.ComputeAssetTotals(assetSet, false)
+	}
+
+	start, end := *allocSet.Window.Start(), *allocSet.Window.End()
+	idleSet := kubecost.NewAllocationSet(start, end)
+
+	for key, assetTotal := range assetTotals {
+		allocTotal, ok := allocTotals[key]
+		if !ok {
+			log.Warnf("ETL: did not find allocations for asset key: %s", key)
+
+			// Use a zero-value set of totals. This indicates either (1) an
+			// error computing totals, or (2) that no allocations ran on the
+			// given node for the given window.
+			allocTotal = &kubecost.AllocationTotals{
+				Cluster: assetTotal.Cluster,
+				Node:    assetTotal.Node,
+				Start:   assetTotal.Start,
+				End:     assetTotal.End,
+			}
+		}
+
+		// Insert one idle allocation for each key (whether by node or
+		// by cluster), defined as the difference between the total
+		// asset cost and the allocated cost per-resource.
+		name := fmt.Sprintf("%s/%s", key, kubecost.IdleSuffix)
+		err := idleSet.Insert(&kubecost.Allocation{
+			Name:   name,
+			Window: idleSet.Window.Clone(),
+			Properties: &kubecost.AllocationProperties{
+				Cluster:    assetTotal.Cluster,
+				Node:       assetTotal.Node,
+				ProviderID: assetTotal.Node,
+			},
+			Start:   assetTotal.Start,
+			End:     assetTotal.End,
+			CPUCost: assetTotal.TotalCPUCost() - allocTotal.TotalCPUCost(),
+			GPUCost: assetTotal.TotalGPUCost() - allocTotal.TotalGPUCost(),
+			RAMCost: assetTotal.TotalRAMCost() - allocTotal.TotalRAMCost(),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to insert idle allocation %s: %w", name, err)
+		}
+	}
+
+	return idleSet, nil
 }

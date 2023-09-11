@@ -142,6 +142,7 @@ func TestRateLimitedOnceAndSuccess(t *testing.T) {
 		nil,
 		newTestRetryOpts(),
 		"",
+		"",
 	)
 
 	if err != nil {
@@ -182,6 +183,7 @@ func TestRateLimitedOnceAndFail(t *testing.T) {
 		nil,
 		nil,
 		newTestRetryOpts(),
+		"",
 		"",
 	)
 
@@ -228,6 +230,7 @@ func TestRateLimitedResponses(t *testing.T) {
 		nil,
 		nil,
 		newTestRetryOpts(),
+		"",
 		"",
 	)
 
@@ -293,7 +296,6 @@ func TestRateLimitedResponses(t *testing.T) {
 
 }
 
-//
 func AssertDurationEqual(t *testing.T, expected, actual time.Duration) {
 	if actual != expected {
 		t.Fatalf("Expected: %dms, Got: %dms", expected.Milliseconds(), actual.Milliseconds())
@@ -342,6 +344,7 @@ func TestConcurrentRateLimiting(t *testing.T) {
 		nil,
 		nil,
 		newTestRetryOpts(),
+		"",
 		"",
 	)
 

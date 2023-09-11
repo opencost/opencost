@@ -22,6 +22,7 @@ function EditControl({
   windowOptions, window, setWindow,
   aggregationOptions, aggregateBy, setAggregateBy,
   accumulateOptions, accumulate, setAccumulate,
+  currencyOptions, currency, setCurrency,
 }) {
   const classes = useStyles();
   return (
@@ -50,6 +51,20 @@ function EditControl({
           onChange={e => setAccumulate(e.target.value)}
         >
           {accumulateOptions.map((opt) => <MenuItem key={opt.value} value={opt.value}>{opt.name}</MenuItem>)}
+        </Select>
+      </FormControl>
+      <FormControl className={classes.formControl}>
+        <InputLabel id="currency-label">Currency</InputLabel>
+        <Select
+          id="currency"
+          value={currency}
+          onChange={e => setCurrency(e.target.value)}
+        >
+          {currencyOptions?.map((currency) => (
+            <MenuItem key={currency} value={currency}>
+              {currency}
+            </MenuItem>
+          ))}
         </Select>
       </FormControl>
     </div>

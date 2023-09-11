@@ -10,11 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opencost/opencost/pkg/util/httputil"
-	"github.com/opencost/opencost/pkg/util/timeutil"
-
 	"github.com/julienschmidt/httprouter"
-	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/provider"
+	"github.com/patrickmn/go-cache"
+	prometheusClient "github.com/prometheus/client_golang/api"
+
+	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/errors"
 	"github.com/opencost/opencost/pkg/kubecost"
@@ -22,9 +23,9 @@ import (
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/thanos"
 	"github.com/opencost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/util/httputil"
 	"github.com/opencost/opencost/pkg/util/json"
-	"github.com/patrickmn/go-cache"
-	prometheusClient "github.com/prometheus/client_golang/api"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
 const (
@@ -181,7 +182,7 @@ func NewSharedResourceInfo(shareResources bool, sharedNamespaces []string, label
 	return sr
 }
 
-func GetTotalContainerCost(costData map[string]*CostData, rate string, cp cloud.Provider, discount float64, customDiscount float64, idleCoefficients map[string]float64) float64 {
+func GetTotalContainerCost(costData map[string]*CostData, rate string, cp models.Provider, discount float64, customDiscount float64, idleCoefficients map[string]float64) float64 {
 	totalContainerCost := 0.0
 	for _, costDatum := range costData {
 		clusterID := costDatum.ClusterID
@@ -197,7 +198,7 @@ func GetTotalContainerCost(costData map[string]*CostData, rate string, cp cloud.
 	return totalContainerCost
 }
 
-func (a *Accesses) ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cp cloud.Provider, discount float64, customDiscount float64, window, offset time.Duration) (map[string]float64, error) {
+func (a *Accesses) ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cp models.Provider, discount float64, customDiscount float64, window, offset time.Duration) (map[string]float64, error) {
 	coefficients := make(map[string]float64)
 
 	profileName := "ComputeIdleCoefficient: ComputeClusterCosts"
@@ -287,7 +288,7 @@ func clampAverage(requestsAvg float64, usedAverage float64, allocationAvg float6
 // AggregateCostData aggregates raw cost data by field; e.g. namespace, cluster, service, or label. In the case of label, callers
 // must pass a slice of subfields indicating the labels by which to group. Provider is used to define custom resource pricing.
 // See AggregationOptions for optional parameters.
-func AggregateCostData(costData map[string]*CostData, field string, subfields []string, cp cloud.Provider, opts *AggregationOptions) map[string]*Aggregation {
+func AggregateCostData(costData map[string]*CostData, field string, subfields []string, cp models.Provider, opts *AggregationOptions) map[string]*Aggregation {
 	discount := opts.Discount
 	customDiscount := opts.CustomDiscount
 	idleCoefficients := opts.IdleCoefficients
@@ -451,7 +452,7 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 		agg.PVAllocationHourlyAverage = totalVectors(agg.PVAllocationVectors) / agg.TotalHours(resolutionHours)
 
 		// TODO niko/etl does this check out for GPU data? Do we need to rewrite GPU queries to be
-		// culumative?
+		// cumulative?
 		agg.CPUAllocationTotal = totalVectors(agg.CPUAllocationVectors)
 		agg.GPUAllocationTotal = totalVectors(agg.GPUAllocationVectors)
 		agg.PVAllocationTotal = totalVectors(agg.PVAllocationVectors)
@@ -584,7 +585,7 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 	return aggregations
 }
 
-func aggregateDatum(cp cloud.Provider, aggregations map[string]*Aggregation, costDatum *CostData, field string, subfields []string, rate string, key string, discount float64, customDiscount float64, idleCoefficient float64, includeProperties bool) {
+func aggregateDatum(cp models.Provider, aggregations map[string]*Aggregation, costDatum *CostData, field string, subfields []string, rate string, key string, discount float64, customDiscount float64, idleCoefficient float64, includeProperties bool) {
 	// add new entry to aggregation results if a new key is encountered
 	if _, ok := aggregations[key]; !ok {
 		agg := &Aggregation{
@@ -617,7 +618,7 @@ func aggregateDatum(cp cloud.Provider, aggregations map[string]*Aggregation, cos
 	mergeVectors(cp, costDatum, aggregations[key], rate, discount, customDiscount, idleCoefficient)
 }
 
-func mergeVectors(cp cloud.Provider, costDatum *CostData, aggregation *Aggregation, rate string, discount float64, customDiscount float64, idleCoefficient float64) {
+func mergeVectors(cp models.Provider, costDatum *CostData, aggregation *Aggregation, rate string, discount float64, customDiscount float64, idleCoefficient float64) {
 	aggregation.CPUAllocationVectors = addVectors(costDatum.CPUAllocation, aggregation.CPUAllocationVectors)
 	aggregation.CPURequestedVectors = addVectors(costDatum.CPUReq, aggregation.CPURequestedVectors)
 	aggregation.CPUUsedVectors = addVectors(costDatum.CPUUsed, aggregation.CPUUsedVectors)
@@ -711,7 +712,7 @@ func getDiscounts(costDatum *CostData, cpuCost float64, ramCost float64, discoun
 	return blendedCPUDiscount, blendedRAMDiscount
 }
 
-func parseVectorPricing(cfg *cloud.CustomPricing, costDatum *CostData, cpuCostStr, ramCostStr, gpuCostStr, pvCostStr string) (float64, float64, float64, float64, bool) {
+func parseVectorPricing(cfg *models.CustomPricing, costDatum *CostData, cpuCostStr, ramCostStr, gpuCostStr, pvCostStr string) (float64, float64, float64, float64, bool) {
 	usesCustom := false
 	cpuCost, err := strconv.ParseFloat(cpuCostStr, 64)
 	if err != nil || math.IsNaN(cpuCost) || math.IsInf(cpuCost, 0) || cpuCost == 0 {
@@ -746,7 +747,7 @@ func parseVectorPricing(cfg *cloud.CustomPricing, costDatum *CostData, cpuCostSt
 	return cpuCost, ramCost, gpuCost, pvCost, usesCustom
 }
 
-func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discount float64, customDiscount float64, idleCoefficient float64) ([]*util.Vector, []*util.Vector, []*util.Vector, [][]*util.Vector, []*util.Vector) {
+func getPriceVectors(cp models.Provider, costDatum *CostData, rate string, discount float64, customDiscount float64, idleCoefficient float64) ([]*util.Vector, []*util.Vector, []*util.Vector, [][]*util.Vector, []*util.Vector) {
 
 	var cpuCost float64
 	var ramCost float64
@@ -760,7 +761,7 @@ func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discou
 	if err != nil {
 		log.Errorf("failed to load custom pricing: %s", err)
 	}
-	if cloud.CustomPricesEnabled(cp) && err == nil {
+	if provider.CustomPricesEnabled(cp) && err == nil {
 		var cpuCostStr string
 		var ramCostStr string
 		var gpuCostStr string
@@ -838,7 +839,7 @@ func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discou
 			cost, _ := strconv.ParseFloat(pvcData.Volume.Cost, 64)
 
 			// override with custom pricing if enabled
-			if cloud.CustomPricesEnabled(cp) {
+			if provider.CustomPricesEnabled(cp) {
 				cost = pvCost
 			}
 
@@ -1767,10 +1768,10 @@ func (a *Accesses) warmAggregateCostModelCache() {
 		aggOpts.NoExpireCache = false
 		aggOpts.ShareSplit = SplitTypeWeighted
 		aggOpts.RemoteEnabled = env.IsRemoteEnabled()
-		aggOpts.AllocateIdle = cloud.AllocateIdleByDefault(a.CloudProvider)
+		aggOpts.AllocateIdle = provider.AllocateIdleByDefault(a.CloudProvider)
 
-		sharedNamespaces := cloud.SharedNamespaces(a.CloudProvider)
-		sharedLabelNames, sharedLabelValues := cloud.SharedLabels(a.CloudProvider)
+		sharedNamespaces := provider.SharedNamespaces(a.CloudProvider)
+		sharedLabelNames, sharedLabelValues := provider.SharedLabels(a.CloudProvider)
 
 		if len(sharedNamespaces) > 0 || len(sharedLabelNames) > 0 {
 			aggOpts.SharedResources = NewSharedResourceInfo(true, sharedNamespaces, sharedLabelNames, sharedLabelValues)
@@ -2111,17 +2112,30 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 // ParseAggregationProperties attempts to parse and return aggregation properties
 // encoded under the given key. If none exist, or if parsing fails, an error
 // is returned with empty AllocationProperties.
-func ParseAggregationProperties(qp httputil.QueryParams, key string) ([]string, error) {
+func ParseAggregationProperties(aggregations []string) ([]string, error) {
 	aggregateBy := []string{}
-	for _, agg := range qp.GetList(key, ",") {
-		aggregate := strings.TrimSpace(agg)
-		if aggregate != "" {
-			if prop, err := kubecost.ParseProperty(aggregate); err == nil {
-				aggregateBy = append(aggregateBy, string(prop))
-			} else if strings.HasPrefix(aggregate, "label:") {
-				aggregateBy = append(aggregateBy, aggregate)
-			} else if strings.HasPrefix(aggregate, "annotation:") {
-				aggregateBy = append(aggregateBy, aggregate)
+	// In case of no aggregation option, aggregate to the container, with a key Cluster/Node/Namespace/Pod/Container
+	if len(aggregations) == 0 {
+		aggregateBy = []string{
+			kubecost.AllocationClusterProp,
+			kubecost.AllocationNodeProp,
+			kubecost.AllocationNamespaceProp,
+			kubecost.AllocationPodProp,
+			kubecost.AllocationContainerProp,
+		}
+	} else if len(aggregations) == 1 && aggregations[0] == "all" {
+		aggregateBy = []string{}
+	} else {
+		for _, agg := range aggregations {
+			aggregate := strings.TrimSpace(agg)
+			if aggregate != "" {
+				if prop, err := kubecost.ParseProperty(aggregate); err == nil {
+					aggregateBy = append(aggregateBy, string(prop))
+				} else if strings.HasPrefix(aggregate, "label:") {
+					aggregateBy = append(aggregateBy, aggregate)
+				} else if strings.HasPrefix(aggregate, "annotation:") {
+					aggregateBy = append(aggregateBy, aggregate)
+				}
 			}
 		}
 	}
@@ -2153,7 +2167,8 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 	// aggregate results. Some fields allow a sub-field, which is distinguished
 	// with a colon; e.g. "label:app".
 	// Examples: "namespace", "namespace,label:app"
-	aggregateBy, err := ParseAggregationProperties(qp, "aggregate")
+	aggregations := qp.GetList("aggregate", ",")
+	aggregateBy, err := ParseAggregationProperties(aggregations)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Invalid 'aggregate' parameter: %s", err), http.StatusBadRequest)
 	}
@@ -2191,12 +2206,11 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 
 	// Accumulate, if requested
 	if accumulate {
-		as, err := asr.Accumulate()
+		asr, err = asr.Accumulate(kubecost.AccumulateOptionAll)
 		if err != nil {
 			WriteError(w, InternalServerError(err.Error()))
 			return
 		}
-		asr = kubecost.NewAllocationSetRange(as)
 	}
 
 	sasl := []*kubecost.SummaryAllocationSet{}
@@ -2222,74 +2236,62 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 		http.Error(w, fmt.Sprintf("Invalid 'window' parameter: %s", err), http.StatusBadRequest)
 	}
 
+	// Resolution is an optional parameter, defaulting to the configured ETL
+	// resolution.
+	resolution := qp.GetDuration("resolution", env.GetETLResolution())
+
 	// Step is an optional parameter that defines the duration per-set, i.e.
 	// the window for an AllocationSet, of the AllocationSetRange to be
 	// computed. Defaults to the window size, making one set.
 	step := qp.GetDuration("step", window.Duration())
 
-	// Resolution is an optional parameter, defaulting to the configured ETL
-	// resolution.
-	resolution := qp.GetDuration("resolution", env.GetETLResolution())
-
 	// Aggregation is an optional comma-separated list of fields by which to
 	// aggregate results. Some fields allow a sub-field, which is distinguished
 	// with a colon; e.g. "label:app".
 	// Examples: "namespace", "namespace,label:app"
-	aggregateBy, err := ParseAggregationProperties(qp, "aggregate")
+	aggregations := qp.GetList("aggregate", ",")
+	aggregateBy, err := ParseAggregationProperties(aggregations)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Invalid 'aggregate' parameter: %s", err), http.StatusBadRequest)
 	}
 
+	// IncludeIdle, if true, uses Asset data to incorporate Idle Allocation
+	includeIdle := qp.GetBool("includeIdle", false)
 	// Accumulate is an optional parameter, defaulting to false, which if true
 	// sums each Set in the Range, producing one Set.
 	accumulate := qp.GetBool("accumulate", false)
 
-	// AccumulateBy is an optional parameter that accumulates an AllocationSetRange
+	// Accumulate is an optional parameter that accumulates an AllocationSetRange
 	// by the resolution of the given time duration.
 	// Defaults to 0. If a value is not passed then the parameter is not used.
-	accumulateBy := qp.GetDuration("accumulateBy", 0)
+	accumulateBy := kubecost.AccumulateOption(qp.Get("accumulateBy", ""))
 
-	// Query for AllocationSets in increments of the given step duration,
-	// appending each to the AllocationSetRange.
-	asr := kubecost.NewAllocationSetRange()
-	stepStart := *window.Start()
-	for window.End().After(stepStart) {
-		stepEnd := stepStart.Add(step)
-		stepWindow := kubecost.NewWindow(&stepStart, &stepEnd)
-
-		as, err := a.Model.ComputeAllocation(*stepWindow.Start(), *stepWindow.End(), resolution)
-		if err != nil {
-			WriteError(w, InternalServerError(err.Error()))
-			return
-		}
-		asr.Append(as)
-
-		stepStart = stepEnd
+	// if accumulateBy is not explicitly set, and accumulate is true, ensure result is accumulated
+	if accumulateBy == kubecost.AccumulateOptionNone && accumulate {
+		accumulateBy = kubecost.AccumulateOptionAll
 	}
 
-	// Aggregate, if requested
-	if len(aggregateBy) > 0 {
-		err = asr.AggregateBy(aggregateBy, nil)
-		if err != nil {
-			WriteError(w, InternalServerError(err.Error()))
-			return
-		}
-	}
+	// IdleByNode, if true, computes idle allocations at the node level.
+	// Otherwise it is computed at the cluster level. (Not relevant if idle
+	// is not included.)
+	idleByNode := qp.GetBool("idleByNode", false)
+	sharedLoadBalancer := qp.GetBool("sharelb", false)
 
-	// Accumulate, if requested
-	if accumulateBy != 0 {
-		asr, err = asr.AccumulateBy(accumulateBy)
-		if err != nil {
+	// IncludeProportionalAssetResourceCosts, if true,
+	includeProportionalAssetResourceCosts := qp.GetBool("includeProportionalAssetResourceCosts", false)
+
+	// include aggregated labels/annotations if true
+	includeAggregatedMetadata := qp.GetBool("includeAggregatedMetadata", false)
+
+	asr, err := a.Model.QueryAllocation(window, resolution, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer, accumulateBy)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "bad request") {
+			WriteError(w, BadRequest(err.Error()))
+		} else {
 			WriteError(w, InternalServerError(err.Error()))
-			return
 		}
-	} else if accumulate {
-		as, err := asr.Accumulate()
-		if err != nil {
-			WriteError(w, InternalServerError(err.Error()))
-			return
-		}
-		asr = kubecost.NewAllocationSetRange(as)
+
+		return
 	}
 
 	w.Write(WrapData(asr, nil))

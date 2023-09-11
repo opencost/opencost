@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud"
+	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
@@ -95,10 +95,10 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 	address := env.GetSQLAddress()
 	connStr := fmt.Sprintf("postgres://postgres:%s@%s:5432?sslmode=disable", pw, address)
 	db, err := sql.Open("postgres", connStr)
-	defer db.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer db.Close()
 	nodes, err := getNodeCosts(db)
 	if err != nil {
 		return nil, err
@@ -260,7 +260,7 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 	rawResult := make([][]byte, len(cols))
 	result := make([]string, len(cols))
 	dest := make([]interface{}, len(cols)) // A temporary interface{} slice
-	for i, _ := range rawResult {
+	for i := range rawResult {
 		dest[i] = &rawResult[i] // Put pointers to each string in the interface slice
 	}
 	nsToLabels := make(map[string]map[string]string)

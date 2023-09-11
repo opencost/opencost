@@ -118,11 +118,20 @@ const OtherCategory = "Other"
 // AWSProvider describes the provider AWS
 const AWSProvider = "AWS"
 
+// describes how AWS labels nodepool nodes
+const EKSNodepoolLabel = "eks.amazonaws.com/nodegroup"
+
 // GCPProvider describes the provider GCP
 const GCPProvider = "GCP"
 
+// describes how nodepool nodes are labeled in GKE
+const GKENodePoolLabel = "cloud.google.com/gke-nodepool"
+
 // AzureProvider describes the provider Azure
 const AzureProvider = "Azure"
+
+// describes how Azure labels nodepool nodes
+const AKSNodepoolLabel = "kubernetes.azure.com/agentpool"
 
 // AlibabaProvider describes the provider for Alibaba Cloud
 const AlibabaProvider = "Alibaba"

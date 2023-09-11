@@ -477,6 +477,9 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "end", n.End.Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", n.Minutes(), ",")
 	jsonEncodeString(buffer, "nodeType", n.NodeType, ",")
+	if poolName := GetNodePoolName(n.Properties.Provider, n.Labels); poolName != "" {
+		jsonEncodeString(buffer, "pool", poolName, ",")
+	}
 	jsonEncodeFloat64(buffer, "cpuCores", n.CPUCores(), ",")
 	jsonEncodeFloat64(buffer, "ramBytes", n.RAMBytes(), ",")
 	jsonEncodeFloat64(buffer, "cpuCoreHours", n.CPUCoreHours, ",")
@@ -491,7 +494,11 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "gpuCount", n.GPUs(), ",")
 	jsonEncodeFloat64(buffer, "ramCost", n.RAMCost, ",")
 	jsonEncodeFloat64(buffer, "adjustment", n.Adjustment, ",")
+	if n.Overhead != nil {
+		jsonEncode(buffer, "overhead", n.Overhead, ",")
+	}
 	jsonEncodeFloat64(buffer, "totalCost", n.TotalCost(), "")
+
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
@@ -561,6 +568,7 @@ func (n *Node) InterfaceToNode(itf interface{}) error {
 	if NodeType, err := getTypedVal(fmap["nodeType"]); err == nil {
 		n.NodeType = NodeType.(string)
 	}
+
 	if CPUCoreHours, err := getTypedVal(fmap["cpuCoreHours"]); err == nil {
 		n.CPUCoreHours = CPUCoreHours.(float64)
 	}
@@ -605,7 +613,9 @@ func (lb *LoadBalancer) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "end", lb.End.Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", lb.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "adjustment", lb.Adjustment, ",")
-	jsonEncodeFloat64(buffer, "totalCost", lb.TotalCost(), "")
+	jsonEncodeFloat64(buffer, "totalCost", lb.TotalCost(), ",")
+	jsonEncode(buffer, "private", lb.Private, ",")
+	jsonEncodeString(buffer, "ip", lb.Ip, "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
@@ -666,6 +676,12 @@ func (lb *LoadBalancer) InterfaceToLoadBalancer(itf interface{}) error {
 	}
 	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
 		lb.Cost = Cost.(float64) - lb.Adjustment
+	}
+	if private, err := getTypedVal(fmap["private"]); err == nil {
+		lb.Private = private.(bool)
+	}
+	if ip, err := getTypedVal(fmap["ip"]); err == nil {
+		lb.Ip = ip.(string)
 	}
 
 	return nil

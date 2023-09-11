@@ -1,4 +1,4 @@
-name: Develop PR - build, test
+name: Develop PR - build test
 
 on:
   pull_request:
@@ -6,27 +6,74 @@ on:
       - develop
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - component: Frontend
-            location: ui
-          - component: Backend
-            location: .
+  backend:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v2
         with:
           path: ./
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+      -
+        name: Install just
+        uses: extractions/setup-just@v1
 
-      - name: Build ${{ matrix.component }}
-        uses: docker/build-push-action@v2
+      -
+        name: Install Go
+        uses: actions/setup-go@v4
         with:
-          context: ${{ matrix.location }}/
-          file: ${{ matrix.location }}/Dockerfile
-          push: false
+          go-version: 'stable'
+
+      # Saves us from having to redownload all modules
+      - name: Go Mod cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
+      -
+        name: Test
+        run: |
+          just test
+
+      -
+        name: Build
+        run: |
+          just build-local
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: ./
+
+      -
+        name: Install just
+        uses: extractions/setup-just@v1
+
+      -
+        name: Install node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18.3.0'
+
+      - name: Get npm cache directory
+        id: npm-cache-dir
+        shell: bash
+        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
+
+      - uses: actions/cache@v3
+        id: npm-cache # use this to check for `cache-hit` ==> if: steps.npm-cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ steps.npm-cache-dir.outputs.dir }}
+          key: ${{ runner.os }}-node-${{ hashFiles('./ui/**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      -
+        name: Build
+        working-directory: ./ui
+        run: |
+          just build-local

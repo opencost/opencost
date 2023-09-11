@@ -2,12 +2,18 @@ package kubecost
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
 
+	filter21 "github.com/opencost/opencost/pkg/filter21"
+	"github.com/opencost/opencost/pkg/filter21/ast"
+	"github.com/opencost/opencost/pkg/filter21/matcher"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/util/timeutil"
+	"golang.org/x/exp/slices"
 )
 
 // TODO Clean-up use of IsEmpty; nil checks should be separated for safety.
@@ -81,6 +87,51 @@ type Allocation struct {
 	// RawAllocationOnly is a pointer so if it is not present it will be
 	// marshalled as null rather than as an object with Go default values.
 	RawAllocationOnly *RawAllocationOnlyData `json:"rawAllocationOnly"`
+	// ProportionalAssetResourceCost represents the per-resource costs of the
+	// allocation as a percentage of the per-resource total cost of the
+	// asset on which the allocation was run. It is optionally computed
+	// and appended to an Allocation, and so by default is is nil.
+	ProportionalAssetResourceCosts ProportionalAssetResourceCosts `json:"proportionalAssetResourceCosts"` //@bingen:field[ignore]
+	SharedCostBreakdown            SharedCostBreakdowns           `json:"sharedCostBreakdown"`            //@bingen:field[ignore]
+	LoadBalancers                  LbAllocations                  `json:"LoadBalancers"`                  // @bingen:field[version=18]
+
+}
+
+type LbAllocations map[string]*LbAllocation
+
+func (orig LbAllocations) Clone() LbAllocations {
+	if orig == nil {
+		return nil
+	}
+
+	newAllocs := LbAllocations{}
+
+	for key, lbAlloc := range orig {
+		newAllocs[key] = &LbAllocation{
+			Service: lbAlloc.Service,
+			Cost:    lbAlloc.Cost,
+			Private: lbAlloc.Private,
+			Ip:      lbAlloc.Ip,
+		}
+	}
+	return newAllocs
+}
+
+type LbAllocation struct {
+	Service string  `json:"service"`
+	Cost    float64 `json:"cost"`
+	Private bool    `json:"private"`
+	Ip      string  `json:"ip"` //@bingen:field[version=19]
+}
+
+func (lba *LbAllocation) SanitizeNaN() {
+	if lba == nil {
+		return
+	}
+	if math.IsNaN(lba.Cost) {
+		log.DedupedWarningf(5, "LBAllocation: Unexpected NaN found for Cost service:%s", lba.Service)
+		lba.Cost = 0
+	}
 }
 
 // RawAllocationOnlyData is information that only belong in "raw" Allocations,
@@ -136,6 +187,20 @@ func (r *RawAllocationOnlyData) Equal(that *RawAllocationOnlyData) bool {
 		util.IsApproximately(r.RAMBytesUsageMax, that.RAMBytesUsageMax)
 }
 
+func (r *RawAllocationOnlyData) SanitizeNaN() {
+	if r == nil {
+		return
+	}
+	if math.IsNaN(r.CPUCoreUsageMax) {
+		log.DedupedWarningf(5, "RawAllocationOnlyData: Unexpected NaN found for CPUCoreUsageMax")
+		r.CPUCoreUsageMax = 0
+	}
+	if math.IsNaN(r.RAMBytesUsageMax) {
+		log.DedupedWarningf(5, "RawAllocationOnlyData: Unexpected NaN found for RAMBytesUsageMax")
+		r.RAMBytesUsageMax = 0
+	}
+}
+
 // PVAllocations is a map of Disk Asset Identifiers to the
 // usage of them by an Allocation as recorded in a PVAllocation
 type PVAllocations map[PVKey]*PVAllocation
@@ -148,8 +213,9 @@ func (pv PVAllocations) Clone() PVAllocations {
 	clonePV := make(map[PVKey]*PVAllocation, len(pv))
 	for k, v := range pv {
 		clonePV[k] = &PVAllocation{
-			ByteHours: v.ByteHours,
-			Cost:      v.Cost,
+			ByteHours:  v.ByteHours,
+			Cost:       v.Cost,
+			ProviderID: v.ProviderID,
 		}
 	}
 	return clonePV
@@ -170,6 +236,11 @@ func (pv PVAllocations) Add(that PVAllocations) PVAllocations {
 			apvAlloc.Cost += thatPVAlloc.Cost
 			apvAlloc.ByteHours += thatPVAlloc.ByteHours
 			apv[pvKey] = apvAlloc
+			if apvAlloc.ProviderID == thatPVAlloc.ProviderID {
+				apv[pvKey].ProviderID = apvAlloc.ProviderID
+			} else {
+				apv[pvKey].ProviderID = ""
+			}
 		}
 	}
 	return apv
@@ -199,6 +270,12 @@ func (this PVAllocations) Equal(that PVAllocations) bool {
 	return true
 }
 
+func (pvs PVAllocations) SanitizeNaN() {
+	for _, pv := range pvs {
+		pv.SanitizeNaN()
+	}
+}
+
 // PVKey for identifying Disk type assets
 type PVKey struct {
 	Cluster string `json:"cluster"`
@@ -223,8 +300,9 @@ func (pvk *PVKey) FromString(key string) error {
 // PVAllocation contains the byte hour usage
 // and cost of an Allocation for a single PV
 type PVAllocation struct {
-	ByteHours float64 `json:"byteHours"`
-	Cost      float64 `json:"cost"`
+	ByteHours  float64 `json:"byteHours"`
+	Cost       float64 `json:"cost"`
+	ProviderID string  `json:"providerID"` // @bingen:field[version=20]
 }
 
 // Equal returns true if the two PVAllocation instances contain approximately the same
@@ -238,6 +316,300 @@ func (pva *PVAllocation) Equal(that *PVAllocation) bool {
 	}
 	return util.IsApproximately(pva.ByteHours, that.ByteHours) &&
 		util.IsApproximately(pva.Cost, that.Cost)
+}
+
+func (pva *PVAllocation) SanitizeNaN() {
+	if pva == nil {
+		return
+	}
+	if math.IsNaN(pva.ByteHours) {
+		log.DedupedWarningf(5, "PVAllocation: Unexpected NaN found for ByteHours")
+		pva.ByteHours = 0
+	}
+	if math.IsNaN(pva.Cost) {
+		log.DedupedWarningf(5, "PVAllocation: Unexpected NaN found for Cost")
+		pva.Cost = 0
+	}
+}
+
+type ProportionalAssetResourceCost struct {
+	Cluster                      string  `json:"cluster"`
+	Name                         string  `json:"name,omitempty"`
+	Type                         string  `json:"type,omitempty"`
+	ProviderID                   string  `json:"providerID,omitempty"`
+	CPUPercentage                float64 `json:"cpuPercentage"`
+	GPUPercentage                float64 `json:"gpuPercentage"`
+	RAMPercentage                float64 `json:"ramPercentage"`
+	LoadBalancerPercentage       float64 `json:"loadBalancerPercentage"`
+	PVPercentage                 float64 `json:"pvPercentage"`
+	NodeResourceCostPercentage   float64 `json:"nodeResourceCostPercentage"`
+	GPUTotalCost                 float64 `json:"-"`
+	GPUProportionalCost          float64 `json:"-"`
+	CPUTotalCost                 float64 `json:"-"`
+	CPUProportionalCost          float64 `json:"-"`
+	RAMTotalCost                 float64 `json:"-"`
+	RAMProportionalCost          float64 `json:"-"`
+	LoadBalancerProportionalCost float64 `json:"-"`
+	LoadBalancerTotalCost        float64 `json:"-"`
+	PVProportionalCost           float64 `json:"-"`
+	PVTotalCost                  float64 `json:"-"`
+}
+
+func (parc ProportionalAssetResourceCost) Key(insertByName bool) string {
+	if insertByName {
+		return parc.Cluster + "," + parc.Name
+	} else {
+		return parc.Cluster
+	}
+
+}
+
+type ProportionalAssetResourceCosts map[string]ProportionalAssetResourceCost
+
+func (parcs ProportionalAssetResourceCosts) Clone() ProportionalAssetResourceCosts {
+	cloned := ProportionalAssetResourceCosts{}
+
+	for key, parc := range parcs {
+		cloned[key] = parc
+	}
+	return cloned
+}
+
+func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourceCost, insertByName bool) {
+	if !insertByName {
+		parc.Name = ""
+		parc.Type = ""
+		parc.ProviderID = ""
+	}
+
+	if curr, ok := parcs[parc.Key(insertByName)]; ok {
+		toInsert := ProportionalAssetResourceCost{
+			Name:                         curr.Name,
+			Type:                         curr.Type,
+			Cluster:                      curr.Cluster,
+			ProviderID:                   curr.ProviderID,
+			CPUProportionalCost:          curr.CPUProportionalCost + parc.CPUProportionalCost,
+			RAMProportionalCost:          curr.RAMProportionalCost + parc.RAMProportionalCost,
+			GPUProportionalCost:          curr.GPUProportionalCost + parc.GPUProportionalCost,
+			PVProportionalCost:           curr.PVProportionalCost + parc.PVProportionalCost,
+			LoadBalancerProportionalCost: curr.LoadBalancerProportionalCost + parc.LoadBalancerProportionalCost,
+		}
+
+		ComputePercentages(&toInsert)
+		parcs[parc.Key(insertByName)] = toInsert
+	} else {
+		ComputePercentages(&parc)
+		parcs[parc.Key(insertByName)] = parc
+	}
+}
+
+func ComputePercentages(toInsert *ProportionalAssetResourceCost) {
+	totalNodeCost := toInsert.RAMTotalCost + toInsert.CPUTotalCost + toInsert.GPUTotalCost
+
+	if toInsert.CPUTotalCost > 0 {
+		toInsert.CPUPercentage = toInsert.CPUProportionalCost / toInsert.CPUTotalCost
+	}
+
+	if toInsert.GPUTotalCost > 0 {
+		toInsert.GPUPercentage = toInsert.GPUProportionalCost / toInsert.GPUTotalCost
+	}
+
+	if toInsert.LoadBalancerTotalCost > 0 {
+		toInsert.LoadBalancerPercentage = toInsert.LoadBalancerProportionalCost / toInsert.LoadBalancerTotalCost
+	}
+
+	if toInsert.RAMTotalCost > 0 {
+		toInsert.RAMPercentage = toInsert.RAMProportionalCost / toInsert.RAMTotalCost
+	}
+
+	if toInsert.PVTotalCost > 0 {
+		toInsert.PVPercentage = toInsert.PVProportionalCost / toInsert.PVTotalCost
+	}
+
+	ramFraction := toInsert.RAMTotalCost / totalNodeCost
+	if ramFraction != ramFraction || ramFraction < 0 {
+		ramFraction = 0
+	}
+
+	cpuFraction := toInsert.CPUTotalCost / totalNodeCost
+	if cpuFraction != cpuFraction || cpuFraction < 0 {
+		cpuFraction = 0
+	}
+
+	gpuFraction := toInsert.GPUTotalCost / totalNodeCost
+	if gpuFraction != gpuFraction || gpuFraction < 0 {
+		gpuFraction = 0
+	}
+
+	toInsert.NodeResourceCostPercentage = (toInsert.RAMPercentage * ramFraction) +
+		(toInsert.CPUPercentage * cpuFraction) + (toInsert.GPUPercentage * gpuFraction)
+}
+
+func (parcs ProportionalAssetResourceCosts) Add(that ProportionalAssetResourceCosts) {
+	for _, parc := range that {
+		// if name field is empty, we know this is a cluster level PARC aggregation
+		insertByName := true
+		if parc.Name == "" {
+			insertByName = false
+		}
+		parcs.Insert(parc, insertByName)
+	}
+}
+
+func (parcs ProportionalAssetResourceCosts) SanitizeNaN() {
+	for key, parc := range parcs {
+		if math.IsNaN(parc.CPUPercentage) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for CPUPercentage name:%s", parc.Name)
+			parc.CPUPercentage = 0
+		}
+		if math.IsNaN(parc.GPUPercentage) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for GPUPercentage name:%s", parc.Name)
+			parc.GPUPercentage = 0
+		}
+		if math.IsNaN(parc.RAMPercentage) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for RAMPercentage name:%s", parc.Name)
+			parc.RAMPercentage = 0
+		}
+		if math.IsNaN(parc.LoadBalancerPercentage) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for LoadBalancerPercentage name:%s", parc.Name)
+			parc.LoadBalancerPercentage = 0
+		}
+		if math.IsNaN(parc.PVPercentage) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for PVPercentage name:%s", parc.Name)
+			parc.PVPercentage = 0
+		}
+		if math.IsNaN(parc.NodeResourceCostPercentage) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for NodeResourceCostPercentage name:%s", parc.Name)
+			parc.NodeResourceCostPercentage = 0
+		}
+		if math.IsNaN(parc.GPUTotalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for GPUTotalCost name:%s", parc.Name)
+			parc.GPUTotalCost = 0
+		}
+		if math.IsNaN(parc.GPUProportionalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for GPUProportionalCost name:%s", parc.Name)
+			parc.GPUProportionalCost = 0
+		}
+		if math.IsNaN(parc.CPUTotalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for CPUTotalCost name:%s", parc.Name)
+			parc.CPUTotalCost = 0
+		}
+		if math.IsNaN(parc.CPUProportionalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for CPUProportionalCost name:%s", parc.Name)
+			parc.CPUProportionalCost = 0
+		}
+		if math.IsNaN(parc.RAMTotalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for RAMTotalCost name:%s", parc.Name)
+			parc.RAMTotalCost = 0
+		}
+		if math.IsNaN(parc.RAMProportionalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for RAMProportionalCost name:%s", parc.Name)
+			parc.RAMProportionalCost = 0
+		}
+		if math.IsNaN(parc.LoadBalancerProportionalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for LoadBalancerProportionalCost name:%s", parc.Name)
+			parc.LoadBalancerProportionalCost = 0
+		}
+		if math.IsNaN(parc.LoadBalancerTotalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for LoadBalancerTotalCost name:%s", parc.Name)
+			parc.LoadBalancerTotalCost = 0
+		}
+		if math.IsNaN(parc.PVProportionalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for PVProportionalCost name:%s", parc.Name)
+			parc.PVProportionalCost = 0
+		}
+		if math.IsNaN(parc.PVTotalCost) {
+			log.DedupedWarningf(5, "ProportionalAssetResourceCosts: Unexpected NaN found for PVTotalCost name:%s", parc.Name)
+			parc.PVTotalCost = 0
+		}
+
+		parcs[key] = parc
+	}
+}
+
+type SharedCostBreakdown struct {
+	Name         string  `json:"name"`
+	TotalCost    float64 `json:"totalCost"`
+	CPUCost      float64 `json:"cpuCost,omitempty"`
+	GPUCost      float64 `json:"gpuCost,omitempty"`
+	RAMCost      float64 `json:"ramCost,omitempty"`
+	PVCost       float64 `json:"pvCost,omitempty"`
+	NetworkCost  float64 `json:"networkCost,omitempty"`
+	LBCost       float64 `json:"loadBalancerCost,omitempty"`
+	ExternalCost float64 `json:"externalCost,omitempty"`
+}
+
+type SharedCostBreakdowns map[string]SharedCostBreakdown
+
+func (scbs SharedCostBreakdowns) Clone() SharedCostBreakdowns {
+	cloned := SharedCostBreakdowns{}
+
+	for key, scb := range scbs {
+		cloned[key] = scb
+	}
+	return cloned
+}
+
+func (scbs SharedCostBreakdowns) Insert(scb SharedCostBreakdown) {
+	if curr, ok := scbs[scb.Name]; ok {
+		scbs[scb.Name] = SharedCostBreakdown{
+			Name:         curr.Name,
+			TotalCost:    curr.TotalCost + scb.TotalCost,
+			CPUCost:      curr.CPUCost + scb.CPUCost,
+			GPUCost:      curr.GPUCost + scb.GPUCost,
+			RAMCost:      curr.RAMCost + scb.RAMCost,
+			PVCost:       curr.PVCost + scb.PVCost,
+			NetworkCost:  curr.NetworkCost + scb.NetworkCost,
+			LBCost:       curr.LBCost + scb.LBCost,
+			ExternalCost: curr.ExternalCost + scb.ExternalCost,
+		}
+	} else {
+		scbs[scb.Name] = scb
+	}
+}
+
+func (scbs SharedCostBreakdowns) Add(that SharedCostBreakdowns) {
+	for _, scb := range that {
+		scbs.Insert(scb)
+	}
+}
+
+func (scbs SharedCostBreakdowns) SanitizeNaN() {
+	for key, scb := range scbs {
+		if math.IsNaN(scb.CPUCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for CPUCost name:%s", scb.Name)
+			scb.CPUCost = 0
+		}
+		if math.IsNaN(scb.GPUCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for GPUCost name:%s", scb.Name)
+			scb.GPUCost = 0
+		}
+		if math.IsNaN(scb.RAMCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for RAMCost name:%s", scb.Name)
+			scb.RAMCost = 0
+		}
+		if math.IsNaN(scb.PVCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for PVCost name:%s", scb.Name)
+			scb.PVCost = 0
+		}
+		if math.IsNaN(scb.NetworkCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for NetworkCost name:%s", scb.Name)
+			scb.NetworkCost = 0
+		}
+		if math.IsNaN(scb.LBCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for LBCost name:%s", scb.Name)
+			scb.LBCost = 0
+		}
+		if math.IsNaN(scb.ExternalCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for ExternalCost name:%s", scb.Name)
+			scb.ExternalCost = 0
+		}
+		if math.IsNaN(scb.TotalCost) {
+			log.DedupedWarningf(5, "SharedCostBreakdown: Unexpected NaN found for TotalCost name:%s", scb.Name)
+			scb.TotalCost = 0
+		}
+		scbs[key] = scb
+	}
 }
 
 // GetWindow returns the window of the struct
@@ -275,38 +647,41 @@ func (a *Allocation) Clone() *Allocation {
 	}
 
 	return &Allocation{
-		Name:                       a.Name,
-		Properties:                 a.Properties.Clone(),
-		Window:                     a.Window.Clone(),
-		Start:                      a.Start,
-		End:                        a.End,
-		CPUCoreHours:               a.CPUCoreHours,
-		CPUCoreRequestAverage:      a.CPUCoreRequestAverage,
-		CPUCoreUsageAverage:        a.CPUCoreUsageAverage,
-		CPUCost:                    a.CPUCost,
-		CPUCostAdjustment:          a.CPUCostAdjustment,
-		GPUHours:                   a.GPUHours,
-		GPUCost:                    a.GPUCost,
-		GPUCostAdjustment:          a.GPUCostAdjustment,
-		NetworkTransferBytes:       a.NetworkTransferBytes,
-		NetworkReceiveBytes:        a.NetworkReceiveBytes,
-		NetworkCost:                a.NetworkCost,
-		NetworkCrossZoneCost:       a.NetworkCrossZoneCost,
-		NetworkCrossRegionCost:     a.NetworkCrossRegionCost,
-		NetworkInternetCost:        a.NetworkInternetCost,
-		NetworkCostAdjustment:      a.NetworkCostAdjustment,
-		LoadBalancerCost:           a.LoadBalancerCost,
-		LoadBalancerCostAdjustment: a.LoadBalancerCostAdjustment,
-		PVs:                        a.PVs.Clone(),
-		PVCostAdjustment:           a.PVCostAdjustment,
-		RAMByteHours:               a.RAMByteHours,
-		RAMBytesRequestAverage:     a.RAMBytesRequestAverage,
-		RAMBytesUsageAverage:       a.RAMBytesUsageAverage,
-		RAMCost:                    a.RAMCost,
-		RAMCostAdjustment:          a.RAMCostAdjustment,
-		SharedCost:                 a.SharedCost,
-		ExternalCost:               a.ExternalCost,
-		RawAllocationOnly:          a.RawAllocationOnly.Clone(),
+		Name:                           a.Name,
+		Properties:                     a.Properties.Clone(),
+		Window:                         a.Window.Clone(),
+		Start:                          a.Start,
+		End:                            a.End,
+		CPUCoreHours:                   a.CPUCoreHours,
+		CPUCoreRequestAverage:          a.CPUCoreRequestAverage,
+		CPUCoreUsageAverage:            a.CPUCoreUsageAverage,
+		CPUCost:                        a.CPUCost,
+		CPUCostAdjustment:              a.CPUCostAdjustment,
+		GPUHours:                       a.GPUHours,
+		GPUCost:                        a.GPUCost,
+		GPUCostAdjustment:              a.GPUCostAdjustment,
+		NetworkTransferBytes:           a.NetworkTransferBytes,
+		NetworkReceiveBytes:            a.NetworkReceiveBytes,
+		NetworkCost:                    a.NetworkCost,
+		NetworkCrossZoneCost:           a.NetworkCrossZoneCost,
+		NetworkCrossRegionCost:         a.NetworkCrossRegionCost,
+		NetworkInternetCost:            a.NetworkInternetCost,
+		NetworkCostAdjustment:          a.NetworkCostAdjustment,
+		LoadBalancerCost:               a.LoadBalancerCost,
+		LoadBalancerCostAdjustment:     a.LoadBalancerCostAdjustment,
+		PVs:                            a.PVs.Clone(),
+		PVCostAdjustment:               a.PVCostAdjustment,
+		RAMByteHours:                   a.RAMByteHours,
+		RAMBytesRequestAverage:         a.RAMBytesRequestAverage,
+		RAMBytesUsageAverage:           a.RAMBytesUsageAverage,
+		RAMCost:                        a.RAMCost,
+		RAMCostAdjustment:              a.RAMCostAdjustment,
+		SharedCost:                     a.SharedCost,
+		ExternalCost:                   a.ExternalCost,
+		RawAllocationOnly:              a.RawAllocationOnly.Clone(),
+		ProportionalAssetResourceCosts: a.ProportionalAssetResourceCosts.Clone(),
+		SharedCostBreakdown:            a.SharedCostBreakdown.Clone(),
+		LoadBalancers:                  a.LoadBalancers.Clone(),
 	}
 }
 
@@ -652,12 +1027,21 @@ func (a *Allocation) IsUnallocated() bool {
 }
 
 // IsUnmounted is true if the given Allocation represents unmounted volume costs.
+// Note: Due to change in https://github.com/opencost/opencost/pull/1477 made to include Unmounted
+// PVC cost inside namespace we need to check unmounted suffix across all the three major properties
+// to actually classify it as unmounted.
 func (a *Allocation) IsUnmounted() bool {
 	if a == nil {
 		return false
 	}
 
-	return strings.Contains(a.Name, UnmountedSuffix)
+	props := a.Properties
+	if props != nil {
+		if props.Container == UnmountedSuffix && props.Namespace == UnmountedSuffix && props.Pod == UnmountedSuffix {
+			return true
+		}
+	}
+	return false
 }
 
 // Minutes returns the number of minutes the Allocation represents, as defined
@@ -713,6 +1097,31 @@ func (a *Allocation) add(that *Allocation) {
 
 	// Preserve string properties that are matching between the two allocations
 	a.Properties = a.Properties.Intersection(that.Properties)
+
+	// If both Allocations have ProportionalAssetResourceCosts, then
+	// add those from the given Allocation into the receiver.
+	if a.ProportionalAssetResourceCosts != nil || that.ProportionalAssetResourceCosts != nil {
+		// init empty PARCs if either operand has nil PARCs
+		if a.ProportionalAssetResourceCosts == nil {
+			a.ProportionalAssetResourceCosts = ProportionalAssetResourceCosts{}
+		}
+		if that.ProportionalAssetResourceCosts == nil {
+			that.ProportionalAssetResourceCosts = ProportionalAssetResourceCosts{}
+		}
+		a.ProportionalAssetResourceCosts.Add(that.ProportionalAssetResourceCosts)
+	}
+
+	// If both Allocations have SharedCostBreakdowns, then
+	// add those from the given Allocation into the receiver.
+	if a.SharedCostBreakdown != nil || that.SharedCostBreakdown != nil {
+		if a.SharedCostBreakdown == nil {
+			a.SharedCostBreakdown = SharedCostBreakdowns{}
+		}
+		if that.SharedCostBreakdown == nil {
+			that.SharedCostBreakdown = SharedCostBreakdowns{}
+		}
+		a.SharedCostBreakdown.Add(that.SharedCostBreakdown)
+	}
 
 	// Overwrite regular intersection logic for the controller name property in the
 	// case that the Allocation keys are the same but the controllers are not.
@@ -804,9 +1213,42 @@ func (a *Allocation) add(that *Allocation) {
 	a.NetworkCostAdjustment += that.NetworkCostAdjustment
 	a.LoadBalancerCostAdjustment += that.LoadBalancerCostAdjustment
 
+	// Sum LoadBalancer Allocations
+	a.LoadBalancers = a.LoadBalancers.Add(that.LoadBalancers)
+
 	// Any data that is in a "raw allocation only" is not valid in any
 	// sort of cumulative Allocation (like one that is added).
 	a.RawAllocationOnly = nil
+}
+
+func (thisLbAllocs LbAllocations) Add(thatLbAllocs LbAllocations) LbAllocations {
+	// loop through both sets of LB allocations, building a new LBAllocations that has the summed set
+	mergedLbAllocs := thisLbAllocs.Clone()
+	if thatLbAllocs != nil {
+		if mergedLbAllocs == nil {
+			mergedLbAllocs = LbAllocations{}
+		}
+		for lbKey, thatlbAlloc := range thatLbAllocs {
+			thisLbAlloc, ok := mergedLbAllocs[lbKey]
+			if !ok {
+				thisLbAlloc = &LbAllocation{
+					Service: thatlbAlloc.Service,
+					Cost:    thatlbAlloc.Cost,
+				}
+				mergedLbAllocs[lbKey] = thisLbAlloc
+			} else {
+				thisLbAlloc.Cost += thatlbAlloc.Cost
+			}
+
+		}
+	}
+	return mergedLbAllocs
+}
+
+func (thisLbAllocs LbAllocations) SanitizeNaN() {
+	for _, lba := range thisLbAllocs {
+		lba.SanitizeNaN()
+	}
 }
 
 // AllocationSet stores a set of Allocations, each with a unique name, that share
@@ -845,18 +1287,30 @@ func NewAllocationSet(start, end time.Time, allocs ...*Allocation) *AllocationSe
 // succeeds, the allocation is marked as a shared resource. ShareIdle is a
 // simple flag for sharing idle resources.
 type AllocationAggregationOptions struct {
-	AllocationTotalsStore AllocationTotalsStore
-	Filter                AllocationFilter
-	IdleByNode            bool
-	LabelConfig           *LabelConfig
-	MergeUnallocated      bool
-	Reconcile             bool
-	ReconcileNetwork      bool
-	ShareFuncs            []AllocationMatchFunc
-	ShareIdle             string
-	ShareSplit            string
-	SharedHourlyCosts     map[string]float64
-	SplitIdle             bool
+	AllocationTotalsStore                 AllocationTotalsStore
+	Filter                                filter21.Filter
+	IdleByNode                            bool
+	IncludeProportionalAssetResourceCosts bool
+	LabelConfig                           *LabelConfig
+	MergeUnallocated                      bool
+	Reconcile                             bool
+	ReconcileNetwork                      bool
+	ShareFuncs                            []AllocationMatchFunc
+	SharedNamespaces                      []string
+	SharedLabels                          map[string][]string
+	ShareIdle                             string
+	ShareSplit                            string
+	SharedHourlyCosts                     map[string]float64
+	IncludeSharedCostBreakdown            bool
+	SplitIdle                             bool
+	IncludeAggregatedMetadata             bool
+}
+
+func isFilterEmpty(filter AllocationMatcher) bool {
+	if _, isAllPass := filter.(*matcher.AllPass[*Allocation]); isAllPass {
+		return true
+	}
+	return false
 }
 
 // AggregateBy aggregates the Allocations in the given AllocationSet by the given
@@ -869,14 +1323,18 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	//     Also, create the aggSet into which the results will be aggregated.
 	//
 	//  2. Compute sharing coefficients for idle and shared resources
-	//     a) if idle allocation is to be shared, compute idle coefficients
-	//     b) if idle allocation is NOT shared, but filters are present, compute
+	//     a) if idle allocation is to be shared, or if proportional asset
+	//        resource costs are to be included, then compute idle coefficients
+	//        (proportional asset resource costs are derived from idle coefficients)
+	//     b) if proportional asset costs are to be included, derive them from
+	//        idle coefficients and add them to the allocations.
+	//     c) if idle allocation is NOT shared, but filters are present, compute
 	//        idle filtration coefficients for the purpose of only returning the
 	//        portion of idle allocation that would have been shared with the
 	//        unfiltered results. (See unit tests 5.a,b,c)
-	//     c) generate shared allocation for them given shared overhead, which
+	//     d) generate shared allocation for them given shared overhead, which
 	//        must happen after (2a) and (2b)
-	//     d) if there are shared resources, compute share coefficients
+	//     e) if there are shared resources, compute share coefficients
 	//
 	//  3. Drop any allocation that fails any of the filters
 	//
@@ -922,10 +1380,19 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		options.ShareIdle = ShareNone
 	}
 
-	// Pre-flatten the filter so we can just check == nil to see if there are
-	// filters.
-	if options.Filter != nil {
-		options.Filter = options.Filter.Flattened()
+	var filter AllocationMatcher
+	if options.Filter == nil {
+		filter = &matcher.AllPass[*Allocation]{}
+	} else {
+		compiler := NewAllocationMatchCompiler(options.LabelConfig)
+		var err error
+		filter, err = compiler.Compile(options.Filter)
+		if err != nil {
+			return fmt.Errorf("compiling filter '%s': %w", ast.ToPreOrderShortString(options.Filter), err)
+		}
+	}
+	if filter == nil {
+		return fmt.Errorf("unexpected nil filter")
 	}
 
 	var allocatedTotalsMap map[string]map[string]float64
@@ -934,10 +1401,16 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// an empty slice implies that we should aggregate everything. See
 	// generateKey for why that makes sense.
 	shouldAggregate := aggregateBy != nil
-	shouldFilter := options.Filter != nil
+	shouldFilter := !isFilterEmpty(filter)
 	shouldShare := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
-	if !shouldAggregate && !shouldFilter && !shouldShare && options.ShareIdle == ShareNone {
+	if !shouldAggregate && !shouldFilter && !shouldShare && options.ShareIdle == ShareNone && !options.IncludeProportionalAssetResourceCosts {
 		// There is nothing for AggregateBy to do, so simply return nil
+		// before returning, set aggregated metadata inclusion in properties
+		if options.IncludeAggregatedMetadata {
+			for index := range as.Allocations {
+				as.Allocations[index].Properties.AggregatedMetadata = true
+			}
+		}
 		return nil
 	}
 
@@ -957,6 +1430,12 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		Window: as.Window.Clone(),
 	}
 
+	// parcSet is used to compute proportionalAssetResourceCosts
+	// for surfacing in the API
+	parcSet := &AllocationSet{
+		Window: as.Window.Clone(),
+	}
+
 	// shareSet will be shared among aggSet after initial aggregation
 	// is complete
 	shareSet := &AllocationSet{
@@ -967,6 +1446,14 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// them to their respective sets, removing them from the set of allocations
 	// to aggregate.
 	for _, alloc := range as.Allocations {
+
+		alloc.Properties.AggregatedMetadata = options.IncludeAggregatedMetadata
+		// build a parallel set of allocations to only be used
+		// for computing PARCs
+		if options.IncludeProportionalAssetResourceCosts {
+			parcSet.Insert(alloc.Clone())
+		}
+
 		// External allocations get aggregated post-hoc (see step 6) and do
 		// not necessarily contain complete sets of properties, so they are
 		// moved to a separate AllocationSet.
@@ -1057,7 +1544,17 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 	}
 
-	// (2b) If idle costs are not to be shared, but there are filters, then we
+	// (2b) If proportional asset resource costs are to be included, compute them
+	// and add them to the allocations.
+	if options.IncludeProportionalAssetResourceCosts {
+		err := deriveProportionalAssetResourceCosts(options, as, shareSet, parcSet)
+		if err != nil {
+			log.Debugf("AggregateBy: failed to derive proportional asset resource costs from idle coefficients: %s", err)
+			return fmt.Errorf("AggregateBy: failed to derive proportional asset resource costs from idle coefficients: %s", err)
+		}
+	}
+
+	// (2c) If idle costs are not to be shared, but there are filters, then we
 	// need to track the amount of each idle allocation to "filter" in order to
 	// maintain parity with the results when idle is shared. That is, we want
 	// to return only the idle costs that would have been shared with the given
@@ -1089,7 +1586,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 	}
 
-	// (2c) Convert SharedHourlyCosts to Allocations in the shareSet. This must
+	// (2d) Convert SharedHourlyCosts to Allocations in the shareSet. This must
 	// come after idle coefficients are computed so that allocations generated
 	// by shared overhead do not skew the idle coefficient computation.
 	for name, cost := range options.SharedHourlyCosts {
@@ -1114,7 +1611,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 	}
 
-	// (2d) Compute share coefficients for shared resources. These are computed
+	// (2e) Compute share coefficients for shared resources. These are computed
 	// after idle coefficients, and are computed for the aggregated allocations
 	// of the main allocation set. See above for details and an example.
 	var shareCoefficients map[string]float64
@@ -1132,14 +1629,9 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 			log.DedupedWarningf(3, "AllocationSet.AggregateBy: missing idleId for allocation: %s", alloc.Name)
 		}
 
-		skip := false
-
 		// (3) If the allocation does not match the filter, immediately skip the
 		// allocation.
-		if options.Filter != nil {
-			skip = !options.Filter.Matches(alloc)
-		}
-		if skip {
+		if !filter.Matches(alloc) {
 			// If we are tracking idle filtration coefficients, delete the
 			// entry corresponding to the filtered allocation. (Deleting the
 			// entry will result in that proportional amount being removed
@@ -1254,7 +1746,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 
 	// groupingIdleFiltrationCoeffs is used to track per-resource idle
 	// coefficients on a cluster-by-cluster or node-by-node basis depending
-	// on the IdleByNode option. It is, essentailly, an aggregation of
+	// on the IdleByNode option. It is, essentially, an aggregation of
 	// idleFiltrationCoefficients after they have been
 	// filtered above (in step 3)
 	var groupingIdleFiltrationCoeffs map[string]map[string]float64
@@ -1306,9 +1798,39 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 			for _, sharedAlloc := range shareSet.Allocations {
 				if _, ok := shareCoefficients[alloc.Name]; !ok {
 					if !alloc.IsIdle() && !alloc.IsUnmounted() {
-						log.Warnf("AllocationSet.AggregateBy: error getting share coefficienct for '%s'", alloc.Name)
+						log.Warnf("AllocationSet.AggregateBy: error getting share coefficient for '%s'", alloc.Name)
 					}
 					continue
+				}
+
+				if options.IncludeSharedCostBreakdown {
+					if alloc.SharedCostBreakdown == nil {
+						alloc.SharedCostBreakdown = map[string]SharedCostBreakdown{}
+					}
+
+					sharedCostName, err := sharedAlloc.determineSharingName(options)
+					if err != nil {
+						return fmt.Errorf("failed to group shared costs: %s", err)
+					}
+
+					// check if current allocation is a shared flat overhead cost
+					if strings.Contains(sharedAlloc.Name, SharedSuffix) {
+						sharedCostName = "overheadCost"
+					}
+
+					scb := SharedCostBreakdown{
+						Name:         sharedCostName,
+						TotalCost:    sharedAlloc.TotalCost() * shareCoefficients[alloc.Name],
+						CPUCost:      sharedAlloc.CPUTotalCost() * shareCoefficients[alloc.Name],
+						GPUCost:      sharedAlloc.GPUTotalCost() * shareCoefficients[alloc.Name],
+						RAMCost:      sharedAlloc.RAMTotalCost() * shareCoefficients[alloc.Name],
+						PVCost:       sharedAlloc.PVCost() * shareCoefficients[alloc.Name],
+						NetworkCost:  sharedAlloc.NetworkTotalCost() * shareCoefficients[alloc.Name],
+						LBCost:       sharedAlloc.LBTotalCost() * shareCoefficients[alloc.Name],
+						ExternalCost: sharedAlloc.ExternalCost * shareCoefficients[alloc.Name],
+					}
+					// fmt.Printf("shared cost: %+v", scb)
+					alloc.SharedCostBreakdown.Insert(scb)
 				}
 
 				alloc.SharedCost += sharedAlloc.TotalCost() * shareCoefficients[alloc.Name]
@@ -1321,11 +1843,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// exact key match, given each external allocation's proerties, and
 	// aggregate if an exact match is found.
 	for _, alloc := range externalSet.Allocations {
-		skip := false
-		if options.Filter != nil {
-			skip = !options.Filter.Matches(alloc)
-		}
-		if !skip {
+		if filter.Matches(alloc) {
 			key := alloc.generateKey(aggregateBy, options.LabelConfig)
 
 			alloc.Name = key
@@ -1355,11 +1873,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	if idleSet.Length() > 0 {
 		for _, idleAlloc := range idleSet.Allocations {
 			// if the idle does not apply to the non-filtered values, skip it
-			skip := false
-			if options.Filter != nil {
-				skip = !options.Filter.Matches(idleAlloc)
-			}
-			if skip {
+			if !filter.Matches(idleAlloc) {
 				continue
 			}
 
@@ -1470,6 +1984,21 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 	// counts each aggregation proportionally to its respective costs
 	shareType := options.ShareSplit
 
+	var filter AllocationMatcher
+	if options.Filter == nil {
+		filter = &matcher.AllPass[*Allocation]{}
+	} else {
+		compiler := NewAllocationMatchCompiler(options.LabelConfig)
+		var err error
+		filter, err = compiler.Compile(options.Filter)
+		if err != nil {
+			return nil, fmt.Errorf("compiling filter '%s': %w", ast.ToPreOrderShortString(options.Filter), err)
+		}
+	}
+	if filter == nil {
+		return nil, fmt.Errorf("unexpected nil filter")
+	}
+
 	// Record allocation values first, then normalize by totals to get percentages
 	for _, alloc := range as.Allocations {
 		if alloc.IsIdle() {
@@ -1491,11 +2020,7 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 		// of a non-filtered allocation will be conserved even when the filter
 		// is removed. (Otherwise, all the shared cost will get redistributed
 		// over the unfiltered results, inflating their shared costs.)
-		filtered := false
-		if options.Filter != nil {
-			filtered = !options.Filter.Matches(alloc)
-		}
-		if filtered {
+		if !filter.Matches(alloc) {
 			name = "__filtered__"
 		}
 
@@ -1623,6 +2148,226 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 	return coeffs, totals, nil
 }
 
+func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions, as *AllocationSet, shareSet, parcsSet *AllocationSet) error {
+
+	// Compute idle coefficients, then save them in AllocationAggregationOptions
+	// [idle_id][allocation name][resource] = [coeff]
+	coeffs := map[string]map[string]map[string]float64{}
+
+	// Compute totals per resource for CPU, GPU, RAM, and PV
+	// [idle_id][resource] = [total]
+	totals := map[string]map[string]float64{}
+
+	// Record allocation values first, then normalize by totals to get percentages
+	for _, alloc := range parcsSet.Allocations {
+
+		idleId, err := alloc.getIdleId(options)
+		if err != nil {
+			log.DedupedWarningf(3, "Missing Idle Key for %s", alloc.Name)
+		}
+
+		// get the name key for the allocation
+		name := alloc.Name
+
+		// Create key based tables if they don't exist
+		if _, ok := coeffs[idleId]; !ok {
+			coeffs[idleId] = map[string]map[string]float64{}
+		}
+		if _, ok := totals[idleId]; !ok {
+			totals[idleId] = map[string]float64{}
+		}
+
+		if _, ok := coeffs[idleId][name]; !ok {
+			coeffs[idleId][name] = map[string]float64{}
+		}
+		// idle IDs for load balancers are their services
+		for key := range alloc.LoadBalancers {
+			if _, ok := totals[key]; !ok {
+				totals[key] = map[string]float64{}
+			}
+
+			if _, ok := coeffs[key]; !ok {
+				coeffs[key] = map[string]map[string]float64{}
+			}
+			if _, ok := coeffs[key][name]; !ok {
+				coeffs[key][name] = map[string]float64{}
+			}
+
+			coeffs[key][name]["loadbalancer"] += alloc.LoadBalancerTotalCost()
+			totals[key]["loadbalancer"] += alloc.LoadBalancerTotalCost()
+		}
+
+		coeffs[idleId][name]["cpu"] += alloc.CPUTotalCost()
+		coeffs[idleId][name]["gpu"] += alloc.GPUTotalCost()
+		coeffs[idleId][name]["ram"] += alloc.RAMTotalCost()
+
+		totals[idleId]["cpu"] += alloc.CPUTotalCost()
+		totals[idleId]["gpu"] += alloc.GPUTotalCost()
+		totals[idleId]["ram"] += alloc.RAMTotalCost()
+	}
+
+	// Do the same for shared allocations
+	for _, alloc := range shareSet.Allocations {
+		if alloc.IsIdle() {
+			// Skip idle allocations in coefficient calculation
+			continue
+		}
+
+		// idleId will be providerId or cluster
+		idleId, err := alloc.getIdleId(options)
+		if err != nil {
+			log.DedupedWarningf(3, "Missing Idle Key in share set for %s", alloc.Name)
+		}
+
+		// get the name key for the allocation
+		name := alloc.Name
+
+		// Create idleId based tables if they don't exist
+		if _, ok := coeffs[idleId]; !ok {
+			coeffs[idleId] = map[string]map[string]float64{}
+		}
+		if _, ok := totals[idleId]; !ok {
+			totals[idleId] = map[string]float64{}
+		}
+
+		if _, ok := coeffs[idleId][name]; !ok {
+			coeffs[idleId][name] = map[string]float64{}
+		}
+
+		coeffs[idleId][name]["cpu"] += alloc.CPUTotalCost()
+		coeffs[idleId][name]["gpu"] += alloc.GPUTotalCost()
+		coeffs[idleId][name]["ram"] += alloc.RAMTotalCost()
+
+		totals[idleId]["cpu"] += alloc.CPUTotalCost()
+		totals[idleId]["gpu"] += alloc.GPUTotalCost()
+		totals[idleId]["ram"] += alloc.RAMTotalCost()
+
+		// idle IDs for load balancers are their services
+		for key := range alloc.LoadBalancers {
+			if _, ok := totals[key]; !ok {
+				totals[key] = map[string]float64{}
+			}
+
+			if _, ok := coeffs[key]; !ok {
+				coeffs[key] = map[string]map[string]float64{}
+			}
+			if _, ok := coeffs[key][name]; !ok {
+				coeffs[key][name] = map[string]float64{}
+			}
+			coeffs[key][name]["loadbalancer"] += alloc.LoadBalancerTotalCost()
+			totals[key]["loadbalancer"] += alloc.LoadBalancerTotalCost()
+		}
+
+	}
+
+	// after totals are computed, loop through and set parcs on allocations
+	for _, alloc := range as.Allocations {
+		idleId, err := alloc.getIdleId(options)
+		if err != nil {
+			log.DedupedWarningf(3, "Missing Idle Key in share set for %s", alloc.Name)
+		}
+
+		alloc.ProportionalAssetResourceCosts = ProportionalAssetResourceCosts{}
+		alloc.ProportionalAssetResourceCosts.Insert(ProportionalAssetResourceCost{
+			Cluster:             alloc.Properties.Cluster,
+			Name:                alloc.Properties.Node,
+			Type:                "Node",
+			ProviderID:          alloc.Properties.ProviderID,
+			GPUProportionalCost: coeffs[idleId][alloc.Name]["gpu"],
+			CPUProportionalCost: coeffs[idleId][alloc.Name]["cpu"],
+			RAMProportionalCost: coeffs[idleId][alloc.Name]["ram"],
+		}, options.IdleByNode)
+		// insert a separate PARC for the load balancer
+		if alloc.LoadBalancerCost != 0 {
+			for key, svc := range alloc.LoadBalancers {
+
+				alloc.ProportionalAssetResourceCosts.Insert(ProportionalAssetResourceCost{
+					Cluster:                      alloc.Properties.Cluster,
+					Name:                         svc.Service,
+					Type:                         "LoadBalancer",
+					LoadBalancerProportionalCost: coeffs[key][alloc.Name]["loadbalancer"],
+				}, options.IdleByNode)
+			}
+		}
+
+		for name, pvAlloc := range alloc.PVs {
+			// insert a separate PARC for each PV attached
+			alloc.ProportionalAssetResourceCosts.Insert(ProportionalAssetResourceCost{
+				Cluster:            name.Cluster,
+				Name:               name.Name,
+				Type:               "PV",
+				ProviderID:         pvAlloc.ProviderID,
+				PVProportionalCost: pvAlloc.Cost,
+			}, options.IdleByNode)
+		}
+	}
+
+	return nil
+}
+
+func (a *Allocation) determineSharingName(options *AllocationAggregationOptions) (string, error) {
+	if a == nil {
+		return "", fmt.Errorf("determineSharingName called on nil Allocation")
+	} else if options == nil {
+		return "unknown", nil
+	}
+
+	// grab SharedLabels keys and sort them, to keep this function deterministic
+	var labelKeys []string
+	for labelKey, _ := range options.SharedLabels {
+		labelKeys = append(labelKeys, labelKey)
+	}
+	slices.Sort(labelKeys)
+
+	var sharedAggregateBy []string
+	var sharedLabels [][]string
+	for _, labelKey := range labelKeys {
+		sharedAgg := fmt.Sprintf("label:%s", labelKey)
+		if !slices.Contains(sharedAggregateBy, sharedAgg) {
+			sharedAggregateBy = append(sharedAggregateBy, sharedAgg)
+		}
+		sharedLabels = append(sharedLabels, options.SharedLabels[labelKey])
+	}
+	if len(options.SharedNamespaces) > 0 {
+		sharedAggregateBy = append(sharedAggregateBy, "namespace")
+	}
+	sharedCostName := a.generateKey(sharedAggregateBy, options.LabelConfig)
+
+	// get each value in the generated key, then reset the name
+	sharedCostNameValues := strings.Split(sharedCostName, "/")
+	sharedCostName = ""
+
+	// if we don't have as many values as aggregateBys, something went wrong in generateKey
+	if len(sharedCostNameValues) != len(sharedAggregateBy) {
+		log.Warnf("Unable to determine share cost group for allocation \"%s\"", a.Name)
+	} else {
+		// try to match to the first label
+		for i, sharedLabelValues := range sharedLabels {
+			allocLabel := sharedCostNameValues[i]
+			if slices.Contains(sharedLabelValues, allocLabel) {
+				return allocLabel, nil
+			}
+		}
+
+		// if we didn't match to a label, try to match to a namespace
+		if len(options.SharedNamespaces) > 0 {
+			// namespace will always be the last value, if SharedNamespaces is set
+			allocNamespace := sharedCostNameValues[len(sharedCostNameValues)-1]
+			if slices.Contains(options.SharedNamespaces, allocNamespace) {
+				return allocNamespace, nil
+			}
+		}
+
+		// if neither the labels nor the namespaces matched, we log a warning and mark this allocation
+		// as unknown
+		if len(sharedCostName) == 0 {
+			log.Warnf("Failed to determine shared cost grouping for allocation \"%s\"", a.Name)
+		}
+	}
+
+	return "unknown", nil
+}
+
 // getIdleId returns the providerId or cluster of an Allocation depending on the IdleByNode
 // option in the AllocationAggregationOptions and an error if the respective field is missing
 func (a *Allocation) getIdleId(options *AllocationAggregationOptions) (string, error) {
@@ -1725,6 +2470,118 @@ func (a *Allocation) StringMapProperty(property string) (map[string]string, erro
 	default:
 		return nil, fmt.Errorf("Allocation: StringMapProperty: invalid property name: %s", property)
 	}
+}
+
+func (a *Allocation) SanitizeNaN() {
+	if a == nil {
+		return
+	}
+	if math.IsNaN(a.CPUCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCost: name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.CPUCost = 0
+	}
+	if math.IsNaN(a.CPUCoreRequestAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCoreRequestAverage: name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.CPUCoreRequestAverage = 0
+	}
+	if math.IsNaN(a.CPUCoreHours) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCoreHours: name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.CPUCoreHours = 0
+	}
+	if math.IsNaN(a.CPUCoreUsageAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCoreUsageAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.CPUCoreUsageAverage = 0
+	}
+	if math.IsNaN(a.CPUCostAdjustment) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.CPUCostAdjustment = 0
+	}
+	if math.IsNaN(a.GPUHours) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUHours name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.GPUHours = 0
+	}
+	if math.IsNaN(a.GPUCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.GPUCost = 0
+	}
+	if math.IsNaN(a.GPUCostAdjustment) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.GPUCostAdjustment = 0
+	}
+	if math.IsNaN(a.NetworkTransferBytes) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkTransferBytes name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkTransferBytes = 0
+	}
+	if math.IsNaN(a.NetworkReceiveBytes) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkReceiveBytes name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkReceiveBytes = 0
+	}
+	if math.IsNaN(a.NetworkCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkCost = 0
+	}
+	if math.IsNaN(a.NetworkCrossZoneCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkCrossZoneCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkCrossZoneCost = 0
+	}
+	if math.IsNaN(a.NetworkCrossRegionCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkCrossRegionCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkCrossRegionCost = 0
+	}
+	if math.IsNaN(a.NetworkInternetCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkInternetCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkInternetCost = 0
+	}
+	if math.IsNaN(a.NetworkCostAdjustment) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkCostAdjustment = 0
+	}
+	if math.IsNaN(a.LoadBalancerCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for LoadBalancerCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.LoadBalancerCost = 0
+	}
+	if math.IsNaN(a.LoadBalancerCostAdjustment) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for LoadBalancerCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.LoadBalancerCostAdjustment = 0
+	}
+	if math.IsNaN(a.PVCostAdjustment) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for PVCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.PVCostAdjustment = 0
+	}
+	if math.IsNaN(a.RAMByteHours) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMByteHours name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.RAMByteHours = 0
+	}
+	if math.IsNaN(a.RAMBytesRequestAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMBytesRequestAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.RAMBytesRequestAverage = 0
+	}
+	if math.IsNaN(a.RAMBytesUsageAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMBytesUsageAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.RAMBytesUsageAverage = 0
+	}
+	if math.IsNaN(a.RAMCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.RAMCost = 0
+	}
+	if math.IsNaN(a.RAMCostAdjustment) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.RAMCostAdjustment = 0
+	}
+	if math.IsNaN(a.SharedCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for SharedCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.SharedCost = 0
+	}
+	if math.IsNaN(a.ExternalCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for ExternalCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.ExternalCost = 0
+	}
+
+	a.PVs.SanitizeNaN()
+	a.RawAllocationOnly.SanitizeNaN()
+	a.ProportionalAssetResourceCosts.SanitizeNaN()
+	a.SharedCostBreakdown.SanitizeNaN()
+	a.LoadBalancers.SanitizeNaN()
 }
 
 // Clone returns a new AllocationSet with a deep copy of the given
@@ -2051,6 +2908,15 @@ func (as *AllocationSet) Accumulate(that *AllocationSet) (*AllocationSet, error)
 	return acc, nil
 }
 
+func (as *AllocationSet) SanitizeNaN() {
+	if as == nil {
+		return
+	}
+	for _, a := range as.Allocations {
+		a.SanitizeNaN()
+	}
+}
+
 // AllocationSetRange is a thread-safe slice of AllocationSets. It is meant to
 // be used such that the AllocationSets held are consecutive and coherent with
 // respect to using the same aggregation properties, UTC offset, and
@@ -2079,7 +2945,7 @@ func (asr *AllocationSetRange) Get(i int) (*AllocationSet, error) {
 
 // Accumulate sums each AllocationSet in the given range, returning a single cumulative
 // AllocationSet for the entire range.
-func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
+func (asr *AllocationSetRange) accumulate() (*AllocationSet, error) {
 	var allocSet *AllocationSet
 	var err error
 
@@ -2093,15 +2959,23 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 	return allocSet, nil
 }
 
-// NewAccumulation clones the first available AllocationSet to use as the data structure to
+// newAccumulation clones the first available AllocationSet to use as the data structure to
 // Accumulate the remaining data. This leaves the original AllocationSetRange intact.
-func (asr *AllocationSetRange) NewAccumulation() (*AllocationSet, error) {
+func (asr *AllocationSetRange) newAccumulation() (*AllocationSet, error) {
 	// NOTE: Adding this API for consistency across SummaryAllocation and Assets, but this
 	// NOTE: implementation is almost identical to regular Accumulate(). The Accumulate() method
-	// NOTE: for Allocation returns Clone() of the input, which is required for AccumulateBy
+	// NOTE: for Allocation returns Clone() of the input, which is required for Accumulate
 	// NOTE: support (unit tests are great for verifying this information).
 	var allocSet *AllocationSet
 	var err error
+
+	if asr == nil {
+		return nil, fmt.Errorf("nil AllocationSetRange in accumulation")
+	}
+
+	if len(asr.Allocations) == 0 {
+		return nil, fmt.Errorf("AllocationSetRange has empty AssetSet in accumulation")
+	}
 
 	for _, as := range asr.Allocations {
 		if allocSet == nil {
@@ -2123,34 +2997,163 @@ func (asr *AllocationSetRange) NewAccumulation() (*AllocationSet, error) {
 	return allocSet, nil
 }
 
-// AccumulateBy sums AllocationSets based on the resolution given. The resolution given is subject to the scale used for the AllocationSets.
-// Resolutions not evenly divisible by the AllocationSetRange window durations Accumulate sets until a sum greater than or equal to the resolution is met,
-// at which point AccumulateBy will start summing from 0 until the requested resolution is met again.
-// If the requested resolution is smaller than the window of an AllocationSet then the resolution will default to the duration of a set.
-// Resolutions larger than the duration of the entire AllocationSetRange will default to the duration of the range.
-func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*AllocationSetRange, error) {
-	allocSetRange := NewAllocationSetRange()
-	var allocSet *AllocationSet
-	var err error
-
-	for i, as := range asr.Allocations {
-		allocSet, err = allocSet.Accumulate(as)
-		if err != nil {
-			return nil, err
-		}
-
-		if allocSet != nil {
-
-			// check if end of asr to sum the final set
-			// If total asr accumulated sum <= resolution return 1 accumulated set
-			if allocSet.Window.Duration() >= resolution || i == len(asr.Allocations)-1 {
-				allocSetRange.Allocations = append(allocSetRange.Allocations, allocSet)
-				allocSet = NewAllocationSet(time.Time{}, time.Time{})
-			}
-		}
+// Accumulate sums AllocationSets based on the AccumulateOption (calendar week or calendar month).
+// The accumulated set is determined by the start of the window of the allocation set.
+func (asr *AllocationSetRange) Accumulate(accumulateBy AccumulateOption) (*AllocationSetRange, error) {
+	switch accumulateBy {
+	case AccumulateOptionNone:
+		return asr.accumulateByNone()
+	case AccumulateOptionAll:
+		return asr.accumulateByAll()
+	case AccumulateOptionHour:
+		return asr.accumulateByHour()
+	case AccumulateOptionDay:
+		return asr.accumulateByDay()
+	case AccumulateOptionWeek:
+		return asr.accumulateByWeek()
+	case AccumulateOptionMonth:
+		return asr.accumulateByMonth()
+	default:
+		// ideally, this should never happen
+		return nil, fmt.Errorf("unexpected error, invalid accumulateByType: %s", accumulateBy)
 	}
 
-	return allocSetRange, nil
+}
+
+func (asr *AllocationSetRange) accumulateByAll() (*AllocationSetRange, error) {
+	var err error
+	var as *AllocationSet
+	as, err = asr.newAccumulation()
+	if err != nil {
+		return nil, fmt.Errorf("error accumulating all:%s", err)
+	}
+
+	accumulated := NewAllocationSetRange(as)
+	return accumulated, nil
+}
+
+func (asr *AllocationSetRange) accumulateByNone() (*AllocationSetRange, error) {
+	return asr.Clone(), nil
+}
+func (asr *AllocationSetRange) accumulateByHour() (*AllocationSetRange, error) {
+	// ensure that the summary allocation sets have a 1-hour window, if a set exists
+	if len(asr.Allocations) > 0 && asr.Allocations[0].Window.Duration() != time.Hour {
+		return nil, fmt.Errorf("window duration must equal 1 hour; got:%s", asr.Allocations[0].Window.Duration())
+	}
+
+	return asr.Clone(), nil
+}
+
+func (asr *AllocationSetRange) accumulateByDay() (*AllocationSetRange, error) {
+	// if the allocation set window is 1-day, just return the existing allocation set range
+	if len(asr.Allocations) > 0 && asr.Allocations[0].Window.Duration() == time.Hour*24 {
+		return asr, nil
+	}
+
+	var toAccumulate *AllocationSetRange
+	result := NewAllocationSetRange()
+	for i, as := range asr.Allocations {
+
+		if as.Window.Duration() != time.Hour {
+			return nil, fmt.Errorf("window duration must equal 1 hour; got:%s", as.Window.Duration())
+		}
+
+		hour := as.Window.Start().Hour()
+
+		if toAccumulate == nil {
+			toAccumulate = NewAllocationSetRange()
+			as = as.Clone()
+		}
+
+		toAccumulate.Append(as)
+		asAccumulated, err := toAccumulate.accumulate()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = NewAllocationSetRange(asAccumulated)
+
+		if hour == 23 || i == len(asr.Allocations)-1 {
+			if length := len(toAccumulate.Allocations); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			result.Append(toAccumulate.Allocations[0])
+			toAccumulate = nil
+		}
+	}
+	return result, nil
+}
+
+func (asr *AllocationSetRange) accumulateByMonth() (*AllocationSetRange, error) {
+	var toAccumulate *AllocationSetRange
+	result := NewAllocationSetRange()
+	for i, as := range asr.Allocations {
+		if as.Window.Duration() != time.Hour*24 {
+			return nil, fmt.Errorf("window duration must equal 24 hours; got:%s", as.Window.Duration())
+		}
+
+		_, month, _ := as.Window.Start().Date()
+		_, nextDayMonth, _ := as.Window.Start().Add(time.Hour * 24).Date()
+
+		if toAccumulate == nil {
+			toAccumulate = NewAllocationSetRange()
+			as = as.Clone()
+		}
+
+		toAccumulate.Append(as)
+		asAccumulated, err := toAccumulate.accumulate()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = NewAllocationSetRange(asAccumulated)
+
+		// either the month has ended, or there are no more allocation sets
+		if month != nextDayMonth || i == len(asr.Allocations)-1 {
+			if length := len(toAccumulate.Allocations); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			result.Append(toAccumulate.Allocations[0])
+			toAccumulate = nil
+		}
+	}
+	return result, nil
+}
+
+func (asr *AllocationSetRange) accumulateByWeek() (*AllocationSetRange, error) {
+	if len(asr.Allocations) > 0 && asr.Allocations[0].Window.Duration() == timeutil.Week {
+		return asr, nil
+	}
+
+	var toAccumulate *AllocationSetRange
+	result := NewAllocationSetRange()
+	for i, as := range asr.Allocations {
+		if as.Window.Duration() != time.Hour*24 {
+			return nil, fmt.Errorf("window duration must equal 24 hours; got:%s", as.Window.Duration())
+		}
+
+		dayOfWeek := as.Window.Start().Weekday()
+
+		if toAccumulate == nil {
+			toAccumulate = NewAllocationSetRange()
+			as = as.Clone()
+		}
+
+		toAccumulate.Append(as)
+		asAccumulated, err := toAccumulate.accumulate()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = NewAllocationSetRange(asAccumulated)
+
+		// current assumption is the week always ends on Saturday, or there are no more allocation sets
+		if dayOfWeek == time.Saturday || i == len(asr.Allocations)-1 {
+			if length := len(toAccumulate.Allocations); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			result.Append(toAccumulate.Allocations[0])
+			toAccumulate = nil
+		}
+	}
+	return result, nil
 }
 
 // AggregateBy aggregates each AllocationSet in the range by the given
@@ -2426,4 +3429,17 @@ func (asr *AllocationSetRange) TotalCost() float64 {
 		tc += as.TotalCost()
 	}
 	return tc
+}
+
+// Clone returns a new AllocationSetRange cloned from the existing ASR
+func (asr *AllocationSetRange) Clone() *AllocationSetRange {
+	sasrClone := NewAllocationSetRange()
+	sasrClone.FromStore = asr.FromStore
+
+	for _, as := range asr.Allocations {
+		asClone := as.Clone()
+		sasrClone.Append(asClone)
+	}
+
+	return sasrClone
 }

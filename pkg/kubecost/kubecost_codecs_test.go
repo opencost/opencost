@@ -212,9 +212,9 @@ func TestAssetSetRange_BinaryEncoding(t *testing.T) {
 	var err error
 
 	asr0 = NewAssetSetRange(
-		GenerateMockAssetSet(startD0),
-		GenerateMockAssetSet(startD1),
-		GenerateMockAssetSet(startD2),
+		GenerateMockAssetSet(startD0, day),
+		GenerateMockAssetSet(startD1, day),
+		GenerateMockAssetSet(startD2, day),
 	)
 
 	bs, err = asr0.MarshalBinary()
@@ -480,6 +480,14 @@ func TestProperties_BinaryEncoding(t *testing.T) {
 	p0.Controller = "daemonset-abc"
 	p0.ControllerKind = "daemonset"
 	p0.Namespace = "namespace1"
+	p0.NamespaceLabels = map[string]string{
+		"app":                "cost-analyzer-namespace",
+		"kubernetes.io/name": "cost-analyzer",
+	}
+	p0.NamespaceAnnotations = map[string]string{
+		"com.kubernetes.io/managed-by":             "helm",
+		"kubernetes.io/last-applied-configuration": "cost-analyzer",
+	}
 	p0.Node = "node1"
 	p0.Pod = "daemonset-abc-123"
 	p0.Labels = map[string]string{
@@ -508,6 +516,10 @@ func TestProperties_BinaryEncoding(t *testing.T) {
 	p0.Controller = "daemonset-abc"
 	p0.ControllerKind = "daemonset"
 	p0.Namespace = "namespace1"
+	p0.NamespaceAnnotations = map[string]string{
+		"com.kubernetes.io/managed-by":             "helm",
+		"kubernetes.io/last-applied-configuration": "cost-analyzer",
+	}
 	p0.Services = []string{}
 	bs, err = p0.MarshalBinary()
 	if err != nil {

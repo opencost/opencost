@@ -15,7 +15,7 @@ func NewClusterManagerService() HTTPService {
 
 // newClusterManager creates a new cluster manager instance for use in the service
 func newClusterManager() *clusters.ClusterManager {
-	clustersConfigFile := path.Join(env.GetConfigPathWithDefault("/var/configs/"), "clusters/default-clusters.yaml")
+	clustersConfigFile := path.Join(env.GetCostAnalyzerVolumeMountPath(), "clusters/default-clusters.yaml")
 
 	// Return a memory-backed cluster manager populated by configmap
 	return clusters.NewConfiguredClusterManager(clusters.NewMapDBClusterStorage(), clustersConfigFile)

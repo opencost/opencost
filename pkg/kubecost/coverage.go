@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/pkg/filter"
+	"github.com/opencost/opencost/pkg/log"
 )
 
 // Coverage This is a placeholder struct which can be replaced by a more specific implementation later
@@ -25,10 +26,18 @@ func (c *Coverage) Key() string {
 }
 
 func (c *Coverage) IsEmpty() bool {
+	if c == nil {
+		log.Warnf("calling IsEmpty() on a nil Coverage")
+		return true
+	}
 	return c.Type == "" && c.Count == 0 && len(c.Errors) == 0 && len(c.Warnings) == 0 && c.Updated == time.Time{}
 }
 
 func (c *Coverage) Clone() *Coverage {
+	if c == nil {
+		log.Warnf("calling Clone() on a nil Coverage")
+		return nil
+	}
 	var errors []string
 	if len(c.Errors) > 0 {
 		errors = make([]string, len(c.Errors))
@@ -67,6 +76,10 @@ func (cs *CoverageSet) GetWindow() Window {
 }
 
 func (cs *CoverageSet) IsEmpty() bool {
+	if cs == nil {
+		log.Warnf("calling IsEmpty() on a nil CoverageSet")
+		return true
+	}
 	for _, item := range cs.Items {
 		if !item.IsEmpty() {
 			return false

@@ -143,7 +143,7 @@ func NewClusterMap(client prometheus.Client, cip ClusterInfoProvider, refresh ti
 
 // clusterInfoQuery returns the query string to load cluster info
 func clusterInfoQuery(offset string) string {
-	return fmt.Sprintf("kubecost_cluster_info%s", offset)
+	return fmt.Sprintf("kubecost_cluster_info{%s}%s", env.GetPromClusterFilter(), offset)
 }
 
 // loadClusters loads all the cluster info to map

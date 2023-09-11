@@ -139,7 +139,7 @@ func (nsac KubeNamespaceCollector) Collect(ch chan<- prometheus.Metric) {
 	for _, namespace := range namespaces {
 		nsName := namespace.GetName()
 
-		labels, values := prom.KubeLabelsToLabels(namespace.Labels)
+		labels, values := prom.KubeLabelsToLabels(prom.SanitizeLabels(namespace.Labels))
 		if len(labels) > 0 {
 			m := newNamespaceAnnotationsMetric("kube_namespace_labels", nsName, labels, values)
 			ch <- m

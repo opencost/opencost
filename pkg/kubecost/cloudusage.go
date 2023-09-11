@@ -11,6 +11,3 @@ type CloudUsageSetRange = AssetSetRange
 
 // CloudUsageAggregationOptions is temporarily aliased as the AssetAggregationOptions until further infrastructure and pages can be built to support its usage
 type CloudUsageAggregationOptions = AssetAggregationOptions
-
-// CloudUsageMatchFunc is temporarily aliased as the AssetMatchFunc until further infrastructure and pages can be built to support its usage
-type CloudUsageMatchFunc = AssetMatchFunc

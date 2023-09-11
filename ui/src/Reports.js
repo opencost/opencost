@@ -17,6 +17,7 @@ import Subtitle from './components/Subtitle';
 import Warnings from './components/Warnings';
 import AllocationService from './services/allocation';
 import { checkCustomWindow, cumulativeToTotals, rangeToCumulative, toVerboseTimeRange } from './util';
+import { currencyCodes } from './constants/currencyCodes'
 
 const windowOptions = [
   { name: 'Today', value: 'today' },
@@ -39,6 +40,7 @@ const aggregationOptions = [
   { name: 'Controller', value: 'controller' },
   { name: 'Service', value: 'service' },
   { name: 'Pod', value: 'pod' },
+  { name: 'Container', value: 'container' },
 ]
 
 const accumulateOptions = [
@@ -103,6 +105,7 @@ const ReportsPage = () => {
   const [window, setWindow] = useState(windowOptions[0].value)
   const [aggregateBy, setAggregateBy] = useState(aggregationOptions[0].value)
   const [accumulate, setAccumulate] = useState(accumulateOptions[0].value)
+  const [currency, setCurrency] = useState('USD')
 
   // Report state, including current report and saved options
   const [title, setTitle] = useState('Last 7 days by namespace daily')
@@ -119,7 +122,6 @@ const ReportsPage = () => {
   const [fetch, setFetch] = useState(false)
   const [loading, setLoading] = useState(true)
   const [errors, setErrors] = useState([])
-  const [currency, setCurrency] = useState('USD')
 
   // Initialize once, then fetch report each time setFetch(true) is called
   useEffect(() => {
@@ -139,6 +141,7 @@ const ReportsPage = () => {
     setWindow(searchParams.get('window') || '6d');
     setAggregateBy(searchParams.get('agg') || 'namespace');
     setAccumulate((searchParams.get('acc') === 'true') || false);
+    setCurrency(searchParams.get('currency') || 'USD');
   }, [routerLocation]);
 
   async function initialize() {
@@ -245,6 +248,13 @@ const ReportsPage = () => {
             title={title}
             cumulativeData={cumulativeData}
             currency={currency}
+            currencyOptions={currencyCodes}
+            setCurrency={(curr) => {
+              searchParams.set('currency', curr);
+              routerHistory.push({
+                search: `?${searchParams.toString()}`
+              });
+            }}
           />
         </div>
 

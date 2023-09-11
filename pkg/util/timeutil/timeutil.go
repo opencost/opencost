@@ -37,6 +37,8 @@ const (
 
 	// Day expresses 24 hours
 	Day = time.Hour * 24.0
+
+	Week = Day * 7.0
 )
 
 // DurationString converts a duration to a Prometheus-compatible string in
@@ -110,7 +112,8 @@ var unitMap = map[string]int64{
 	"s":  int64(time.Second),
 	"m":  int64(time.Minute),
 	"h":  int64(time.Hour),
-	"d":  int64(time.Hour * 24),
+	"d":  int64(Day),
+	"w":  int64(Week),
 }
 
 // goParseDuration is time.ParseDuration lifted from the go std library and enhanced with the ability to
@@ -226,7 +229,7 @@ func CleanDurationString(duration string) string {
 // ParseTimeRange returns a start and end time, respectively, which are converted from
 // a duration and offset, defined as strings with Prometheus-style syntax.
 func ParseTimeRange(duration, offset time.Duration) (time.Time, time.Time) {
-	// endTime defaults to the current time, unless an offset is explicity declared,
+	// endTime defaults to the current time, unless an offset is explicitly declared,
 	// in which case it shifts endTime back by given duration
 	endTime := time.Now()
 	if offset > 0 {
@@ -260,6 +263,20 @@ func FormatDurationStringDaysToHours(param string) (string, error) {
 	}
 
 	return param, nil
+}
+
+// RoundToStartOfWeek creates a new time.Time for the preceding Sunday 00:00 UTC
+func RoundToStartOfWeek(t time.Time) time.Time {
+	date := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+	daysFromSunday := int(date.Weekday())
+	return date.Add(-1 * time.Duration(daysFromSunday) * Day)
+}
+
+// RoundToStartOfFollowingWeek creates a new time.Time for the following Sunday 00:00 UTC
+func RoundToStartOfFollowingWeek(t time.Time) time.Time {
+	date := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+	daysFromSunday := 7 - int(date.Weekday())
+	return date.Add(time.Duration(daysFromSunday) * Day)
 }
 
 // JobTicker is a ticker used to synchronize the next run of a repeating
@@ -435,4 +452,20 @@ func leadingInt(s string) (x int64, rem string, err error) {
 		}
 	}
 	return x, s[i:], nil
+}
+
+// EarlierOf returns the second time passed in if both are equal
+func EarlierOf(timeOne, timeTwo time.Time) time.Time {
+	if timeOne.Before(timeTwo) {
+		return timeOne
+	}
+	return timeTwo
+}
+
+// LaterOf returns the second time passed in if both are equal
+func LaterOf(timeOne, timeTwo time.Time) time.Time {
+	if timeOne.After(timeTwo) {
+		return timeOne
+	}
+	return timeTwo
 }

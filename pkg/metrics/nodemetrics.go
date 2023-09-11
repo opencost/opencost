@@ -120,7 +120,7 @@ func (nsac KubeNodeCollector) Collect(ch chan<- prometheus.Metric) {
 
 		// node labels
 		if _, disabled := disabledMetrics["kube_node_labels"]; !disabled {
-			labelNames, labelValues := prom.KubePrependQualifierToLabels(node.GetLabels(), "label_")
+			labelNames, labelValues := prom.KubePrependQualifierToLabels(prom.SanitizeLabels(node.GetLabels()), "label_")
 			ch <- newKubeNodeLabelsMetric(nodeName, "kube_node_labels", labelNames, labelValues)
 		}
 

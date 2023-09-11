@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -31,8 +30,6 @@ import (
 const (
 	azureDefaultEndpoint = "blob.core.windows.net"
 )
-
-var errorCodeRegex = regexp.MustCompile(`X-Ms-Error-Code:\D*\[(\w+)\]`)
 
 // Set default retry values to default Azure values. 0 = use Default Azure.
 var defaultAzureConfig = AzureConfig{
@@ -270,28 +267,6 @@ func (b *AzureStorage) Stat(name string) (*StorageInfo, error) {
 	}, nil
 }
 
-func (b *AzureStorage) StatDirectories(name string) (*StorageInfo, error) {
-	name = trimLeading(name)
-	ctx := context.Background()
-
-	blobURL := getBlobURL(name, b.containerURL)
-	props, err := blobURL.GetProperties(ctx, blob.BlobAccessConditions{}, blob.ClientProvidedKeyOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	if trimName(name) == "" {
-		return &StorageInfo{
-			Name:    trimName(name),
-			Size:    props.ContentLength(),
-			ModTime: props.LastModified(),
-		}, nil
-	} else {
-		return nil, fmt.Errorf("non-directory in dir")
-	}
-
-}
-
 // Read uses the relative path of the storage combined with the provided path to
 // read the contents.
 func (b *AzureStorage) Read(name string) ([]byte, error) {
@@ -354,12 +329,13 @@ func (b *AzureStorage) Remove(name string) error {
 func (b *AzureStorage) Exists(name string) (bool, error) {
 	name = trimLeading(name)
 	ctx := context.Background()
-
 	blobURL := getBlobURL(name, b.containerURL)
 	if _, err := blobURL.GetProperties(ctx, blob.BlobAccessConditions{}, blob.ClientProvidedKeyOptions{}); err != nil {
-		if b.isObjNotFoundErr(err) {
+		var se blob.StorageError
+		if errors.As(err, &se) && se.ServiceCode() == blob.ServiceCodeBlobNotFound {
 			return false, nil
 		}
+
 		return false, errors.Wrapf(err, "cannot get properties for Azure blob, address: %s", name)
 	}
 
@@ -434,9 +410,10 @@ func (b *AzureStorage) List(path string) ([]*StorageInfo, error) {
 }
 
 func (b *AzureStorage) ListDirectories(path string) ([]*StorageInfo, error) {
+
 	path = trimLeading(path)
 
-	log.Debugf("AzureStorage::List(%s)", path)
+	log.Debugf("AzureStorage::ListDirectories(%s)", path)
 	ctx := context.Background()
 
 	// Ensure the object name actually ends with a dir suffix. Otherwise we'll just iterate the
@@ -448,9 +425,9 @@ func (b *AzureStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 	marker := blob.Marker{}
 	listOptions := blob.ListBlobsSegmentOptions{Prefix: path}
 
-	var names []string
+	var stats []*StorageInfo
 	for i := 1; ; i++ {
-		var blobItems []blob.BlobItemInternal
+		var blobPrefixes []blob.BlobPrefix
 
 		list, err := b.containerURL.ListBlobsHierarchySegment(ctx, marker, DirDelim, listOptions)
 		if err != nil {
@@ -458,10 +435,12 @@ func (b *AzureStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 		}
 
 		marker = list.NextMarker
-		blobItems = list.Segment.BlobItems
+		blobPrefixes = list.Segment.BlobPrefixes
 
-		for _, blob := range blobItems {
-			names = append(names, blob.Name)
+		for _, prefix := range blobPrefixes {
+			stats = append(stats, &StorageInfo{
+				Name: trimLeading(prefix.Name),
+			})
 		}
 
 		// Continue iterating if we are not done.
@@ -469,47 +448,10 @@ func (b *AzureStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 			break
 		}
 
-		log.Debugf("Requesting next iteration of listing blobs. Entries: %d, iteration: %d", len(names), i)
+		log.Debugf("Requesting next iteration of listing blobs. Entries: %d, iteration: %d", len(stats), i)
 	}
-
-	// get the storage information for each blob (really unfortunate we have to do this)
-	var lock sync.Mutex
-	var stats []*StorageInfo
-	var wg sync.WaitGroup
-	wg.Add(len(names))
-
-	for i := 0; i < len(names); i++ {
-		go func(n string) {
-			defer wg.Done()
-
-			stat, err := b.StatDirectories(n)
-			if err != nil {
-				log.Errorf("Error statting blob %s: %s", n, err)
-			} else {
-				lock.Lock()
-				stats = append(stats, stat)
-				lock.Unlock()
-			}
-		}(names[i])
-	}
-
-	wg.Wait()
 
 	return stats, nil
-}
-
-// IsObjNotFoundErr returns true if error means that object is not found. Relevant to Get operations.
-func (b *AzureStorage) isObjNotFoundErr(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	errorCode := parseError(err.Error())
-	if errorCode == "InvalidUri" || errorCode == "BlobNotFound" {
-		return true
-	}
-
-	return false
 }
 
 func (b *AzureStorage) getBlobReader(ctx context.Context, name string, offset, length int64) (io.ReadCloser, error) {
@@ -722,12 +664,4 @@ func createContainer(ctx context.Context, conf AzureConfig) (blob.ContainerURL, 
 
 func getBlobURL(blobName string, c blob.ContainerURL) blob.BlockBlobURL {
 	return c.NewBlockBlobURL(blobName)
-}
-
-func parseError(errorCode string) string {
-	match := errorCodeRegex.FindStringSubmatch(errorCode)
-	if len(match) == 2 {
-		return match[1]
-	}
-	return errorCode
 }
