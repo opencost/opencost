@@ -1,6 +1,6 @@
 # OpenCost Maintainers
 
-Official list of OpenCost Maintainers.
+Official list of [OpenCost Maintainers](https://github.com/orgs/opencost/teams/opencost-maintainers). [OpenCost Committers](https://github.com/orgs/opencost/teams/opencost-committers) are granted Triage permissions for the OpenCost repositories. The [GOVERNANCE.md](https://github.com/opencost/opencost/blob/develop/GOVERNANCE.md) describes the process for becoming a committer and maintainer of the project.
 
 Please keep the below list sorted in ascending order.
 
