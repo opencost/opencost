@@ -167,7 +167,7 @@ spec:
             privileged: false
             readOnlyRootFilesystem: true
             runAsUser: 1001
-        - image: quay.io/kubecost1/opencost-ui:latest
+        - image: quay.io/kubecost1/opencost-ui:1.105.2
           name: opencost-ui
           resources:
             requests:
