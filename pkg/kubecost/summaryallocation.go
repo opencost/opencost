@@ -384,7 +384,7 @@ type SummaryAllocationSet struct {
 // This filter is an AllocationMatcher, not an AST, because at this point we
 // already have the data and want to make sure that the filter has already
 // gone through a compile step to deal with things like aliases.
-func NewSummaryAllocationSet(as *AllocationSet, filter AllocationMatcher, kfs []AllocationMatchFunc, reconcile, reconcileNetwork bool) *SummaryAllocationSet {
+func NewSummaryAllocationSet(as *AllocationSet, filter, keep AllocationMatcher, reconcile, reconcileNetwork bool) *SummaryAllocationSet {
 	if as == nil {
 		return nil
 	}
@@ -392,7 +392,7 @@ func NewSummaryAllocationSet(as *AllocationSet, filter AllocationMatcher, kfs []
 	// If we can know the exact size of the map, use it. If filters or sharing
 	// functions are present, we can't know the size, so we make a default map.
 	var sasMap map[string]*SummaryAllocation
-	if filter == nil && len(kfs) == 0 {
+	if filter == nil {
 		// No filters, so make the map of summary allocations exactly the size
 		// of the origin allocation set.
 		sasMap = make(map[string]*SummaryAllocation, len(as.Allocations))
@@ -409,14 +409,7 @@ func NewSummaryAllocationSet(as *AllocationSet, filter AllocationMatcher, kfs []
 	for _, alloc := range as.Allocations {
 		// First, detect if the allocation should be kept. If so, mark it as
 		// such, insert it, and continue.
-		shouldKeep := false
-		for _, kf := range kfs {
-			if kf(alloc) {
-				shouldKeep = true
-				break
-			}
-		}
-		if shouldKeep {
+		if keep != nil && keep.Matches(alloc) {
 			sa := NewSummaryAllocation(alloc, reconcile, reconcileNetwork)
 			sa.Share = true
 			sas.Insert(sa)
@@ -570,7 +563,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// an empty slice implies that we should aggregate everything. (See
 	// generateKey for why that makes sense.)
 	shouldAggregate := aggregateBy != nil
-	shouldKeep := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
+	shouldKeep := len(options.SharedHourlyCosts) > 0 || options.Share != nil
 	if !shouldAggregate && !shouldKeep {
 		return nil
 	}
