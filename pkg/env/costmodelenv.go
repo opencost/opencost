@@ -106,6 +106,7 @@ const (
 	ExportCSVFile       = "EXPORT_CSV_FILE"
 	ExportCSVLabelsList = "EXPORT_CSV_LABELS_LIST"
 	ExportCSVLabelsAll  = "EXPORT_CSV_LABELS_ALL"
+	ExportCSVMaxDays    = "EXPORT_CSV_MAX_DAYS"
 )
 
 const DefaultConfigMountPath = "/var/configs"
@@ -126,6 +127,10 @@ func GetExportCSVLabelsAll() bool {
 
 func GetExportCSVLabelsList() []string {
 	return GetList(ExportCSVLabelsList, ",")
+}
+
+func GetExportCSVMaxDays() int {
+	return GetInt(ExportCSVMaxDays, 90)
 }
 
 // GetKubecostConfigBucket returns a file location for a mounted bucket configuration which is used to store
