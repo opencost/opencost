@@ -128,7 +128,7 @@ func (aq *AthenaQuerier) queryAthenaPaginated(ctx context.Context, query string,
 	}
 	queryResultsInput := &athena.GetQueryResultsInput{
 		QueryExecutionId: startQueryExecutionOutput.QueryExecutionId,
-		MaxResults:       aws.Int32(1000),
+		MaxResults:       aws.Int32(1000), // this is the default value
 	}
 	getQueryResultsPaginator := athena.NewGetQueryResultsPaginator(cli, queryResultsInput)
 	for getQueryResultsPaginator.HasMorePages() {
