@@ -12,7 +12,7 @@ type AthenaConfiguration struct {
 	Bucket     string     `json:"bucket"`
 	Region     string     `json:"region"`
 	Database   string     `json:"database"`
-	Catalog    string     `json:"catalog""`
+	Catalog    string     `json:"catalog"`
 	Table      string     `json:"table"`
 	Workgroup  string     `json:"workgroup"`
 	Account    string     `json:"account"`
@@ -149,11 +149,13 @@ func (ac *AthenaConfiguration) UnmarshalJSON(b []byte) error {
 	}
 	ac.Database = database
 
-	catalog, err := config.GetInterfaceValue[string](fmap, "catalog")
-	if err != nil {
-		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %s", err.Error())
+	if _, ok := fmap["catalog"]; ok {
+		catalog, err := config.GetInterfaceValue[string](fmap, "catalog")
+		if err == nil {
+			return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %s", err.Error())
+		}
+		ac.Catalog = catalog
 	}
-	ac.Catalog = catalog
 
 	table, err := config.GetInterfaceValue[string](fmap, "table")
 	if err != nil {
