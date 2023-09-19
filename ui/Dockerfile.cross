@@ -1,5 +1,4 @@
 FROM nginx:alpine
-
 COPY ./dist /var/www
 COPY default.nginx.conf /etc/nginx/conf.d/
 COPY nginx.conf /etc/nginx/
@@ -12,8 +11,6 @@ RUN chown 1001:1000 -R /etc/nginx
 RUN chown 1001:1000 -R /usr/local/bin/docker-entrypoint.sh
 
 ENV BASE_URL=/model
-
-USER 1001
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["nginx", "-g", "daemon off;"]
