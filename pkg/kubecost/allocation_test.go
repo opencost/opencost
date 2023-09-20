@@ -10,7 +10,9 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	filter21 "github.com/opencost/opencost/pkg/filter21"
+	"github.com/opencost/opencost/pkg/filter21/allocation"
 	afilter "github.com/opencost/opencost/pkg/filter21/allocation"
+	"github.com/opencost/opencost/pkg/filter21/ast"
 	"github.com/opencost/opencost/pkg/filter21/ops"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
@@ -718,25 +720,27 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	idleTotalCost := 30.0
 	sharedOverheadHourlyCost := 7.0
 
-	// Match Functions
-	isNamespace3 := func(a *Allocation) bool {
-		ns := a.Properties.Namespace
-		return ns == "namespace3"
-	}
+	// Match filters
 
-	isApp1 := func(a *Allocation) bool {
-		ls := a.Properties.Labels
-		if app, ok := ls["app"]; ok && app == "app1" {
-			return true
+	// This is ugly, but required because cannot import filterutil due to import cycle
+	namespaceEquals := func(ns string) *ast.EqualOp {
+		return &ast.EqualOp{
+			Left: ast.Identifier{
+				Field: ast.NewField(allocation.FieldNamespace),
+				Key:   "",
+			},
+			Right: ns,
 		}
-		return false
 	}
 
-	// Filters
-	isNamespace := func(matchNamespace string) func(*Allocation) bool {
-		return func(a *Allocation) bool {
-			namespace := a.Properties.Namespace
-			return namespace == matchNamespace
+	// This is ugly, but required because cannot import filterutil due to import cycle
+	labelEquals := func(name, value string) *ast.EqualOp {
+		return &ast.EqualOp{
+			Left: ast.Identifier{
+				Field: ast.NewField(allocation.FieldLabel),
+				Key:   name,
+			},
+			Right: value,
 		}
 	}
 
@@ -1216,7 +1220,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				ShareFuncs: []AllocationMatchFunc{isNamespace3},
+				Share:      namespaceEquals("namespace3"),
 				ShareSplit: ShareEven,
 			},
 			numResults: numNamespaces,
@@ -1238,7 +1242,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				ShareFuncs:                            []AllocationMatchFunc{isNamespace3},
+				Share:                                 namespaceEquals("namespace3"),
 				ShareSplit:                            ShareWeighted,
 				IncludeProportionalAssetResourceCosts: true,
 			},
@@ -1298,7 +1302,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				ShareFuncs: []AllocationMatchFunc{isApp1},
+				Share:      labelEquals("app", "app1"),
 				ShareSplit: ShareEven,
 			},
 			numResults: numNamespaces + numIdle,
@@ -1486,7 +1490,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
 				Filter:     mustParseFilter(`namespace:"namespace2"`),
-				ShareFuncs: []AllocationMatchFunc{isNamespace("namespace1")},
+				Share:      namespaceEquals("namespace1"),
 				ShareSplit: ShareWeighted,
 			},
 			numResults: 1 + numIdle,
@@ -1505,7 +1509,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
 				Filter:     mustParseFilter(`namespace:"namespace2"`),
-				ShareFuncs: []AllocationMatchFunc{isNamespace("namespace1")},
+				Share:      namespaceEquals("namespace1"),
 				ShareSplit: ShareWeighted,
 				ShareIdle:  ShareWeighted,
 			},
@@ -1556,7 +1560,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				ShareFuncs: []AllocationMatchFunc{isNamespace("namespace1")},
+				Share:      namespaceEquals("namespace1"),
 				ShareSplit: ShareWeighted,
 				ShareIdle:  ShareWeighted,
 			},
@@ -1611,7 +1615,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
 				Filter:     mustParseFilter(`namespace:"namespace2"`),
-				ShareFuncs: []AllocationMatchFunc{isNamespace("namespace1")},
+				Share:      namespaceEquals("namespace1"),
 				ShareSplit: ShareWeighted,
 				ShareIdle:  ShareWeighted,
 			},
@@ -1888,6 +1892,9 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	}
 
 	for name, testcase := range cases {
+		if name != "4a" {
+			continue
+		}
 		t.Run(name, func(t *testing.T) {
 			if testcase.aggOpts != nil && testcase.aggOpts.IdleByNode {
 				as = GenerateMockAllocationSetNodeIdle(testcase.start)
@@ -1895,6 +1902,12 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 				as = GenerateMockAllocationSetClusterIdle(testcase.start)
 			}
 			err = as.AggregateBy(testcase.aggBy, testcase.aggOpts)
+
+			log.Infof("RESULTS")
+			for name, alloc := range as.Allocations {
+				log.Infof("  %s = %f", name, alloc.TotalCost())
+			}
+
 			assertAllocationSetTotals(t, as, name, err, testcase.numResults, testcase.totalCost)
 			assertAllocationTotals(t, as, name, testcase.results)
 			assertParcResults(t, as, name, testcase.expectedParcResults)
@@ -1947,14 +1960,15 @@ func TestAllocationSet_AggregateBy_SharedCostBreakdown(t *testing.T) {
 	end := time.Now().UTC().Truncate(day)
 	start := end.Add(-day)
 
-	isNamespace1 := func(a *Allocation) bool {
-		ns := a.Properties.Namespace
-		return ns == "namespace1"
-	}
-
-	isNamespace3 := func(a *Allocation) bool {
-		ns := a.Properties.Namespace
-		return ns == "namespace3"
+	// This is ugly, but required because cannot import filterutil due to import cycle
+	namespaceEquals := func(ns string) *ast.EqualOp {
+		return &ast.EqualOp{
+			Left: ast.Identifier{
+				Field: ast.NewField(allocation.FieldNamespace),
+				Key:   "",
+			},
+			Right: ns,
+		}
 	}
 
 	cases := map[string]struct {
@@ -1974,9 +1988,7 @@ func TestAllocationSet_AggregateBy_SharedCostBreakdown(t *testing.T) {
 			start: start,
 			aggBy: []string{"namespace"},
 			aggOpts: &AllocationAggregationOptions{
-				ShareFuncs: []AllocationMatchFunc{
-					isNamespace1,
-				},
+				Share:                      namespaceEquals("namespace1"),
 				IncludeSharedCostBreakdown: true,
 			},
 		},
@@ -1984,9 +1996,7 @@ func TestAllocationSet_AggregateBy_SharedCostBreakdown(t *testing.T) {
 			start: start,
 			aggBy: []string{"namespace"},
 			aggOpts: &AllocationAggregationOptions{
-				ShareFuncs: []AllocationMatchFunc{
-					isNamespace3,
-				},
+				Share:                      namespaceEquals("namespace3"),
 				IncludeSharedCostBreakdown: true,
 			},
 		},

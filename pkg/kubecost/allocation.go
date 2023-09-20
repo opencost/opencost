@@ -1295,7 +1295,7 @@ type AllocationAggregationOptions struct {
 	MergeUnallocated                      bool
 	Reconcile                             bool
 	ReconcileNetwork                      bool
-	ShareFuncs                            []AllocationMatchFunc
+	Share                                 filter21.Filter
 	SharedNamespaces                      []string
 	SharedLabels                          map[string][]string
 	ShareIdle                             string
@@ -1395,6 +1395,16 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		return fmt.Errorf("unexpected nil filter")
 	}
 
+	var sharer AllocationMatcher
+	if options.Share != nil {
+		compiler := NewAllocationMatchCompiler(options.LabelConfig)
+		var err error
+		sharer, err = compiler.Compile(options.Share)
+		if err != nil {
+			return fmt.Errorf("compiling sharer '%s': %w", ast.ToPreOrderShortString(options.Filter), err)
+		}
+	}
+
 	var allocatedTotalsMap map[string]map[string]float64
 
 	// If aggregateBy is nil, we don't aggregate anything. On the other hand,
@@ -1402,7 +1412,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// generateKey for why that makes sense.
 	shouldAggregate := aggregateBy != nil
 	shouldFilter := !isFilterEmpty(filter)
-	shouldShare := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
+	shouldShare := len(options.SharedHourlyCosts) > 0 || sharer != nil
 	if !shouldAggregate && !shouldFilter && !shouldShare && options.ShareIdle == ShareNone && !options.IncludeProportionalAssetResourceCosts {
 		// There is nothing for AggregateBy to do, so simply return nil
 		// before returning, set aggregated metadata inclusion in properties
@@ -1446,7 +1456,6 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// them to their respective sets, removing them from the set of allocations
 	// to aggregate.
 	for _, alloc := range as.Allocations {
-
 		alloc.Properties.AggregatedMetadata = options.IncludeAggregatedMetadata
 		// build a parallel set of allocations to only be used
 		// for computing PARCs
@@ -1483,13 +1492,11 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		// Shared allocations must be identified and separated prior to
 		// aggregation and filtering. That is, if any of the ShareFuncs return
 		// true for the allocation, then move it to shareSet.
-		for _, sf := range options.ShareFuncs {
-			if sf(alloc) {
-				delete(as.IdleKeys, alloc.Name)
-				delete(as.Allocations, alloc.Name)
-				shareSet.Insert(alloc)
-				break
-			}
+		if sharer != nil && sharer.Matches(alloc) {
+			delete(as.IdleKeys, alloc.Name)
+			delete(as.Allocations, alloc.Name)
+			shareSet.Insert(alloc)
+			continue
 		}
 	}
 
@@ -2314,7 +2321,7 @@ func (a *Allocation) determineSharingName(options *AllocationAggregationOptions)
 
 	// grab SharedLabels keys and sort them, to keep this function deterministic
 	var labelKeys []string
-	for labelKey, _ := range options.SharedLabels {
+	for labelKey := range options.SharedLabels {
 		labelKeys = append(labelKeys, labelKey)
 	}
 	slices.Sort(labelKeys)
