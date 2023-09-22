@@ -9,14 +9,15 @@ import (
 
 // AthenaConfiguration
 type AthenaConfiguration struct {
-	Bucket     string     `json:"bucket"`
-	Region     string     `json:"region"`
-	Database   string     `json:"database"`
-	Catalog    string     `json:"catalog""`
-	Table      string     `json:"table"`
-	Workgroup  string     `json:"workgroup"`
-	Account    string     `json:"account"`
-	Authorizer Authorizer `json:"authorizer"`
+	Bucket          string     `json:"bucket"`
+	Region          string     `json:"region"`
+	Database        string     `json:"database"`
+	Catalog         string     `json:"catalog"`
+	Table           string     `json:"table"`
+	Workgroup       string     `json:"workgroup"`
+	Account         string     `json:"account"`
+	MaxQueryResults int32      `json:"maxQueryResults"`
+	Authorizer      Authorizer `json:"authorizer"`
 }
 
 func (ac *AthenaConfiguration) Validate() error {
@@ -102,19 +103,24 @@ func (ac *AthenaConfiguration) Equals(config config.Config) bool {
 		return false
 	}
 
+	if ac.MaxQueryResults != thatConfig.MaxQueryResults {
+		return false
+	}
+
 	return true
 }
 
 func (ac *AthenaConfiguration) Sanitize() config.Config {
 	return &AthenaConfiguration{
-		Bucket:     ac.Bucket,
-		Region:     ac.Region,
-		Database:   ac.Database,
-		Catalog:    ac.Catalog,
-		Table:      ac.Table,
-		Workgroup:  ac.Workgroup,
-		Account:    ac.Account,
-		Authorizer: ac.Authorizer.Sanitize().(Authorizer),
+		Bucket:          ac.Bucket,
+		Region:          ac.Region,
+		Database:        ac.Database,
+		Catalog:         ac.Catalog,
+		Table:           ac.Table,
+		Workgroup:       ac.Workgroup,
+		Account:         ac.Account,
+		MaxQueryResults: ac.MaxQueryResults,
+		Authorizer:      ac.Authorizer.Sanitize().(Authorizer),
 	}
 }
 
@@ -172,6 +178,15 @@ func (ac *AthenaConfiguration) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %s", err.Error())
 	}
 	ac.Account = account
+
+	// "maxQueryResults" is an optional param, so we need to check if it exists in the JSON
+	if _, ok := fmap["maxQueryResults"]; ok {
+		maxQueryResults, err := config.GetInterfaceValue[int32](fmap, "maxQueryResults")
+		if err != nil {
+			return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
+		}
+		ac.MaxQueryResults = maxQueryResults
+	}
 
 	authAny, ok := fmap["authorizer"]
 	if !ok {
