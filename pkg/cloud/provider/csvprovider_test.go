@@ -2,6 +2,8 @@ package provider
 
 import (
 	"testing"
+
+	"github.com/opencost/opencost/pkg/cloud/models"
 )
 
 func TestCSVProvider(t *testing.T) {
@@ -69,9 +71,26 @@ func TestCSVProvider(t *testing.T) {
 
 		node, _, _ := csv.NodePricing(key)
 
-		if node.Cost != "0.259100" {
-			t.Errorf("want: %#v, got: %#v\n", "0.259100", node.Cost)
-		}
+		// TODO: fix - we are expecting "0.60000"
+		assertNode(t, node, &models.Node{Cost: "0.259100", PricingType: models.CsvClass})
 	})
 
+}
+
+func assertNode(t *testing.T, got, want *models.Node) {
+	if got.Cost != want.Cost {
+		t.Errorf("Cost: want %#v but got %#v", want.Cost, got.Cost)
+	}
+
+	if got.GPUCost != want.GPUCost {
+		t.Errorf("GPUCost: want %#v but got %#v", want.GPUCost, got.GPUCost)
+	}
+
+	if got.GPU != want.GPU {
+		t.Errorf("GPU: want %#v but got %#v", want.GPU, got.GPU)
+	}
+
+	if got.PricingType != want.PricingType {
+		t.Errorf("PricingType: want %#v but got %#v", want.PricingType, got.PricingType)
+	}
 }
