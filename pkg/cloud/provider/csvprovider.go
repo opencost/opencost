@@ -257,31 +257,30 @@ func (c *CSVProvider) NodePricing(key models.Key) (*models.Node, models.PricingM
 		}
 	}
 
-	if node != nil {
-		if t := key.GPUType(); t != "" {
-			t = strings.ToLower(t)
-			count := key.GPUCount()
-			node.GPU = strconv.Itoa(count)
-			hourly := 0.0
-			if p, ok := c.GPUClassPricing[t]; ok {
-				var err error
-				hourly, err = strconv.ParseFloat(p.MarketPriceHourly, 64)
-				if err != nil {
-					log.Errorf("Unable to parse %s as float", p.MarketPriceHourly)
-				}
-			}
-			totalCost := hourly * float64(count)
-			node.GPUCost = fmt.Sprintf("%f", totalCost)
-			nc, err := strconv.ParseFloat(node.Cost, 64)
-			if err != nil {
-				log.Errorf("Unable to parse %s as float", node.Cost)
-			}
-			node.Cost = fmt.Sprintf("%f", nc+totalCost)
-		}
-		return node, meta, nil
-	} else {
+	if node == nil {
 		return nil, meta, fmt.Errorf("Unable to find Node matching `%s`:`%s`", key.ID(), key.Features())
 	}
+	if t := key.GPUType(); t != "" {
+		t = strings.ToLower(t)
+		count := key.GPUCount()
+		node.GPU = strconv.Itoa(count)
+		hourly := 0.0
+		if p, ok := c.GPUClassPricing[t]; ok {
+			var err error
+			hourly, err = strconv.ParseFloat(p.MarketPriceHourly, 64)
+			if err != nil {
+				log.Errorf("Unable to parse %s as float", p.MarketPriceHourly)
+			}
+		}
+		totalCost := hourly * float64(count)
+		node.GPUCost = fmt.Sprintf("%f", totalCost)
+		nc, err := strconv.ParseFloat(node.Cost, 64)
+		if err != nil {
+			log.Errorf("Unable to parse %s as float", node.Cost)
+		}
+		node.Cost = fmt.Sprintf("%f", nc+totalCost)
+	}
+	return node, meta, nil
 }
 
 func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
