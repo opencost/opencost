@@ -228,9 +228,7 @@ func (k *csvKey) ID() string {
 	return k.ProviderID
 }
 
-func (c *CSVProvider) NodePricing(key models.Key) (*models.Node, models.PricingMetadata, error) {
-	c.DownloadPricingDataLock.RLock()
-	defer c.DownloadPricingDataLock.RUnlock()
+func (c *CSVProvider) nodePricing(key models.Key) (*models.Node, models.PricingMetadata) {
 	meta := models.PricingMetadata{}
 	var node *models.Node
 	if p, ok := c.Pricing[key.ID()]; ok {
@@ -256,6 +254,14 @@ func (c *CSVProvider) NodePricing(key models.Key) (*models.Node, models.PricingM
 			PricingType: models.CsvClass,
 		}
 	}
+	return node, meta
+}
+
+func (c *CSVProvider) NodePricing(key models.Key) (*models.Node, models.PricingMetadata, error) {
+	c.DownloadPricingDataLock.RLock()
+	defer c.DownloadPricingDataLock.RUnlock()
+
+	node, meta := c.nodePricing(key)
 
 	if node == nil {
 		return nil, meta, fmt.Errorf("Unable to find Node matching `%s`:`%s`", key.ID(), key.Features())
