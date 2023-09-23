@@ -77,6 +77,43 @@ func TestCSVProvider(t *testing.T) {
 		assertNode(t, node, &models.Node{Cost: "0.259100", PricingType: models.CsvClass})
 	})
 
+	t.Run("it should lookup from ProviderID and Region (NO1. studentID)", func(t *testing.T) {
+		pr := map[string]*price{
+			"us-east-1,aorjoa-1": {
+				EndTimestamp:      "2023-07-24 16:00:00 UTC",
+				InstanceID:        "aorjoa-1",
+				Region:            "us-east-1",
+				AssetClass:        "node",
+				InstanceIDField:   "metadata.labels.instance-group",
+				InstanceType:      "c5.4xlarge",
+				MarketPriceHourly: "0.60000",
+				Version:           "",
+			},
+			"aorjoa-1": {
+				EndTimestamp:      "2023-07-24 16:00:00 UTC",
+				InstanceID:        "aorjoa-1",
+				Region:            "us-east-1",
+				AssetClass:        "node",
+				InstanceIDField:   "metadata.labels.instance-group",
+				InstanceType:      "c5.4xlarge",
+				MarketPriceHourly: "0.77777",
+				Version:           "",
+			},
+		}
+
+		key := &csvKey{
+			ProviderID: "us-east-1,aorjoa-1",
+		}
+
+		csv := &CSVProvider{
+			Pricing: pr,
+		}
+
+		node, _, _ := csv.NodePricing(key)
+
+		assertNode(t, node, &models.Node{Cost: "0.60000", PricingType: models.CsvExact})
+	})
+
 	t.Run("Node Pricing lookup by region,instance-group key.ID() (us-east-1,aorjoa-1)", func(t *testing.T) {
 		pr := map[string]*price{
 			"us-east-1,aorjoa-1": {
@@ -106,16 +143,6 @@ func TestCSVProvider(t *testing.T) {
 
 	t.Run("Try without a region to be sure key.ID() (I don not understand this logic??)", func(t *testing.T) {
 		pr := map[string]*price{
-			"us-east-1,aorjoa-1": {
-				EndTimestamp:      "2023-07-24 16:00:00 UTC",
-				InstanceID:        "aorjoa-1",
-				Region:            "us-east-1",
-				AssetClass:        "node",
-				InstanceIDField:   "metadata.labels.instance-group",
-				InstanceType:      "c5.4xlarge",
-				MarketPriceHourly: "0.60000",
-				Version:           "",
-			},
 			"aorjoa-1": {
 				EndTimestamp:      "2023-07-24 16:00:00 UTC",
 				InstanceID:        "aorjoa-1",

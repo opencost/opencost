@@ -228,43 +228,43 @@ func (k *csvKey) ID() string {
 	return k.ProviderID
 }
 
-func (c *CSVProvider) nodePricing(key models.Key) (*models.Node, models.PricingMetadata) {
-	meta := models.PricingMetadata{}
-	var node *models.Node
+func (c *CSVProvider) nodePricing(key models.Key) *models.Node {
 	if p, ok := c.Pricing[key.ID()]; ok {
-		node = &models.Node{
+		return &models.Node{
 			Cost:        p.MarketPriceHourly,
 			PricingType: models.CsvExact,
 		}
 	}
+
 	s := strings.Split(key.ID(), ",") // Try without a region to be sure
 	if len(s) == 2 {
 		if p, ok := c.Pricing[s[1]]; ok {
-			node = &models.Node{
+			return &models.Node{
 				Cost:        p.MarketPriceHourly,
 				PricingType: models.CsvExact,
 			}
 		}
 	}
+
 	classKey := key.Features() // Use node attributes to try and do a class match
 	if cost, ok := c.NodeClassPricing[classKey]; ok {
 		log.Infof("Unable to find provider ID `%s`, using features:`%s`", key.ID(), key.Features())
-		node = &models.Node{
+		return &models.Node{
 			Cost:        fmt.Sprintf("%f", cost),
 			PricingType: models.CsvClass,
 		}
 	}
-	return node, meta
+
+	return nil
 }
 
 func (c *CSVProvider) NodePricing(key models.Key) (*models.Node, models.PricingMetadata, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
 
-	node, meta := c.nodePricing(key)
-
+	node := c.nodePricing(key)
 	if node == nil {
-		return nil, meta, fmt.Errorf("Unable to find Node matching `%s`:`%s`", key.ID(), key.Features())
+		return nil, models.PricingMetadata{}, fmt.Errorf("Unable to find Node matching `%s`:`%s`", key.ID(), key.Features())
 	}
 	if t := key.GPUType(); t != "" {
 		t = strings.ToLower(t)
@@ -286,7 +286,7 @@ func (c *CSVProvider) NodePricing(key models.Key) (*models.Node, models.PricingM
 		}
 		node.Cost = fmt.Sprintf("%f", nc+totalCost)
 	}
-	return node, meta, nil
+	return node, models.PricingMetadata{}, nil
 }
 
 func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
