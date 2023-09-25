@@ -89,24 +89,21 @@ func TestCSVProvider(t *testing.T) {
 				MarketPriceHourly: "0.60000",
 				Version:           "",
 			},
-			"aorjoa-1": {
-				EndTimestamp:      "2023-07-24 16:00:00 UTC",
-				InstanceID:        "aorjoa-1",
-				Region:            "us-east-1",
-				AssetClass:        "node",
-				InstanceIDField:   "metadata.labels.instance-group",
-				InstanceType:      "c5.4xlarge",
-				MarketPriceHourly: "0.77777",
-				Version:           "",
-			},
 		}
 
 		key := &csvKey{
 			ProviderID: "us-east-1,aorjoa-1",
+			Labels: map[string]string{
+				"beta.kubernetes.io/instance-type": "c5.4xlarge",
+				"topology.kubernetes.io/region":    "us-east-1",
+			},
 		}
 
 		csv := &CSVProvider{
 			Pricing: pr,
+			NodeClassPricing: map[string]float64{
+				"us-east-1,c5.4xlarge,node": 0.3599,
+			},
 		}
 
 		node, _, _ := csv.NodePricing(key)
