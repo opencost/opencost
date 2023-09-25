@@ -9,7 +9,6 @@ import (
 
 func TestCSVProvider(t *testing.T) {
 	t.Run("this test we need to fix", func(t *testing.T) {
-		t.Skip()
 		pricing := map[string]*price{
 			"region,instanceid": {},
 
@@ -73,8 +72,7 @@ func TestCSVProvider(t *testing.T) {
 
 		node, _, _ := csv.NodePricing(key)
 
-		// TODO: fix - we are expecting "0.60000"
-		assertNode(t, node, &models.Node{Cost: "0.259100", PricingType: models.CsvClass})
+		assertNode(t, node, &models.Node{Cost: "0.60000", PricingType: models.CsvExact})
 	})
 
 	t.Run("it should lookup from ProviderID and Region (NO1. studentID)", func(t *testing.T) {
