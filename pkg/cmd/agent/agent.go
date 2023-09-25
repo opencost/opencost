@@ -117,7 +117,7 @@ func newPrometheusClient() (prometheus.Client, error) {
 	api := prometheusAPI.NewAPI(promCli)
 	_, err = api.Config(context.Background())
 	if err != nil {
-		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
+		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/mimir/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
 	} else {
 		log.Infof("Retrieved a prometheus config file from: %s", address)
 	}
