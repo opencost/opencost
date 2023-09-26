@@ -94,7 +94,10 @@ type Allocation struct {
 	ProportionalAssetResourceCosts ProportionalAssetResourceCosts `json:"proportionalAssetResourceCosts"` //@bingen:field[ignore]
 	SharedCostBreakdown            SharedCostBreakdowns           `json:"sharedCostBreakdown"`            //@bingen:field[ignore]
 	LoadBalancers                  LbAllocations                  `json:"LoadBalancers"`                  // @bingen:field[version=18]
-
+	// UnmountedPVCost is used to track how much of the cost in PVs is for an
+	// unmounted PV. It is not additive of PVCost() and need not be sent in API
+	// responses.
+	UnmountedPVCost float64 `json:"-"`
 }
 
 type LbAllocations map[string]*LbAllocation
@@ -682,6 +685,7 @@ func (a *Allocation) Clone() *Allocation {
 		ProportionalAssetResourceCosts: a.ProportionalAssetResourceCosts.Clone(),
 		SharedCostBreakdown:            a.SharedCostBreakdown.Clone(),
 		LoadBalancers:                  a.LoadBalancers.Clone(),
+		UnmountedPVCost:                a.UnmountedPVCost,
 	}
 }
 
@@ -778,6 +782,10 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	}
 
 	if !a.PVs.Equal(that.PVs) {
+		return false
+	}
+
+	if !util.IsApproximately(a.UnmountedPVCost, that.UnmountedPVCost) {
 		return false
 	}
 
@@ -1027,21 +1035,12 @@ func (a *Allocation) IsUnallocated() bool {
 }
 
 // IsUnmounted is true if the given Allocation represents unmounted volume costs.
-// Note: Due to change in https://github.com/opencost/opencost/pull/1477 made to include Unmounted
-// PVC cost inside namespace we need to check unmounted suffix across all the three major properties
-// to actually classify it as unmounted.
 func (a *Allocation) IsUnmounted() bool {
 	if a == nil {
 		return false
 	}
 
-	props := a.Properties
-	if props != nil {
-		if props.Container == UnmountedSuffix && props.Namespace == UnmountedSuffix && props.Pod == UnmountedSuffix {
-			return true
-		}
-	}
-	return false
+	return strings.Contains(a.Name, UnmountedSuffix)
 }
 
 // Minutes returns the number of minutes the Allocation represents, as defined
@@ -1052,6 +1051,21 @@ func (a *Allocation) Minutes() float64 {
 	}
 
 	return a.End.Sub(a.Start).Minutes()
+}
+
+// SetUnmountedPVCost determines if the Allocation is unmounted and, if so, it
+// sets the UnmountedPVCost field appropriately.
+func (a *Allocation) SetUnmountedPVCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
+	if a.IsUnmounted() {
+		a.UnmountedPVCost = a.PVTotalCost()
+		return a.UnmountedPVCost
+	}
+
+	return 0.0
 }
 
 // Share adds the TotalCost of the given Allocation to the SharedCost of the
@@ -1201,6 +1215,7 @@ func (a *Allocation) add(that *Allocation) {
 	a.LoadBalancerCost += that.LoadBalancerCost
 	a.SharedCost += that.SharedCost
 	a.ExternalCost += that.ExternalCost
+	a.UnmountedPVCost += that.UnmountedPVCost
 
 	// Sum PVAllocations
 	a.PVs = a.PVs.Add(that.PVs)
@@ -2039,8 +2054,8 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 		} else {
 			// Both are additive for weighted distribution, where each
 			// cumulative coefficient will be divided by the total.
-			coeffs[name] += alloc.TotalCost() - alloc.SharedCost
-			total += alloc.TotalCost() - alloc.SharedCost
+			coeffs[name] += alloc.TotalCost() - alloc.SharedCost - alloc.UnmountedPVCost
+			total += alloc.TotalCost() - alloc.SharedCost - alloc.UnmountedPVCost
 		}
 	}
 
@@ -2830,6 +2845,30 @@ func (as *AllocationSet) Set(alloc *Allocation) error {
 	}
 
 	return nil
+}
+
+// GetUnmountedPVCost returns the sum of all UnmountedPVCost fields across all
+// allocations in the set.
+func (as *AllocationSet) GetUnmountedPVCost() float64 {
+	upvc := 0.0
+
+	for _, a := range as.Allocations {
+		upvc += a.UnmountedPVCost
+	}
+
+	return upvc
+}
+
+// SetUnmountedPVCost sets the UnmountedPVCost field for all allocations in the
+// set.
+func (as *AllocationSet) SetUnmountedPVCost() float64 {
+	upvc := 0.0
+
+	for _, a := range as.Allocations {
+		upvc += a.SetUnmountedPVCost()
+	}
+
+	return upvc
 }
 
 // Start returns the Start time of the AllocationSet window
