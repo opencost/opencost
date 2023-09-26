@@ -147,7 +147,7 @@ func (cc *CloudCost) GetCostMetric(costMetricName string) (CostMetric, error) {
 
 // WeightCostMetrics weights all the cost metrics with the given weightedAverage
 func (cc *CloudCost) WeightCostMetrics(weightedAverge float64) {
-	cc.AmortizedCost.Cost *= weightedAverge
+	cc.ListCost.Cost *= weightedAverge
 	cc.NetCost.Cost *= weightedAverge
 	cc.AmortizedNetCost.Cost *= weightedAverge
 	cc.InvoicedCost.Cost *= weightedAverge
