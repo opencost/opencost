@@ -258,7 +258,9 @@ func encloseInBrackets(jsonString string) string {
 	return fmt.Sprintf("{%s}", jsonString)
 }
 
-func AzureSetProviderID(abv *BillingRowValues) (providerID string, isShared bool) {
+// isVMSSShared represents a bool that lets you know while setting providerID we were
+// able to get the actual VMName associated with a VM of a group of VMs in VMSS.
+func AzureSetProviderID(abv *BillingRowValues) (providerID string, isVMSSShared bool) {
 	category := SelectAzureCategory(abv.MeterCategory)
 	if value, ok := abv.AdditionalInfo["VMName"]; ok {
 		return "azure://" + resourceGroupToLowerCase(abv.InstanceID) + getVMNumberForVMSS(fmt.Sprintf("%v", value)), false
