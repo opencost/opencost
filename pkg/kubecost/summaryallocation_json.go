@@ -24,6 +24,8 @@ type SummaryAllocationResponse struct {
 	RAMCost                *float64  `json:"ramCost"`
 	SharedCost             *float64  `json:"sharedCost"`
 	ExternalCost           *float64  `json:"externalCost"`
+	TotalEfficiency        *float64  `json:"totalEfficiency"`
+	TotalCost              *float64  `json:"totalCost"`
 }
 
 // ToResponse converts a SummaryAllocation to a SummaryAllocationResponse,
@@ -49,6 +51,8 @@ func (sa *SummaryAllocation) ToResponse() *SummaryAllocationResponse {
 		RAMCost:                formatutil.Float64ToResponse(sa.RAMCost),
 		SharedCost:             formatutil.Float64ToResponse(sa.SharedCost),
 		ExternalCost:           formatutil.Float64ToResponse(sa.ExternalCost),
+		TotalEfficiency:        formatutil.Float64ToResponse(sa.TotalEfficiency()),
+		TotalCost:              formatutil.Float64ToResponse(sa.TotalCost()),
 	}
 }
 

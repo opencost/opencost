@@ -39,6 +39,7 @@ type SummaryAllocation struct {
 	SharedCost             float64               `json:"sharedCost"`
 	ExternalCost           float64               `json:"externalCost"`
 	Share                  bool                  `json:"-"`
+	UnmountedPVCost        float64               `json:"-"`
 }
 
 // NewSummaryAllocation converts an Allocation to a SummaryAllocation by
@@ -67,6 +68,7 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 		RAMCost:                alloc.RAMCost + alloc.RAMCostAdjustment,
 		SharedCost:             alloc.SharedCost,
 		ExternalCost:           alloc.ExternalCost,
+		UnmountedPVCost:        alloc.UnmountedPVCost,
 	}
 
 	// Revert adjustments if reconciliation is off. If only network
@@ -80,6 +82,11 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 		sa.RAMCost -= alloc.RAMCostAdjustment
 	} else if !reconcileNetwork {
 		sa.NetworkCost -= alloc.NetworkCostAdjustment
+	}
+
+	// If the allocation is unmounted, set UnmountedPVCost to the full PVCost.
+	if sa.IsUnmounted() {
+		sa.UnmountedPVCost = sa.PVCost
 	}
 
 	return sa
@@ -294,20 +301,12 @@ func (sa *SummaryAllocation) IsUnallocated() bool {
 
 // IsUnmounted is true if the given SummaryAllocation represents unmounted
 // volume costs.
-// Note: Due to change in https://github.com/opencost/opencost/pull/1477 made to include Unmounted
-// PVC cost inside namespace we need to check unmounted suffix across all the three major properties
-// to actually classify it as unmounted.
 func (sa *SummaryAllocation) IsUnmounted() bool {
 	if sa == nil {
 		return false
 	}
-	props := sa.Properties
-	if props != nil {
-		if props.Container == UnmountedSuffix && props.Namespace == UnmountedSuffix && props.Pod == UnmountedSuffix {
-			return true
-		}
-	}
-	return false
+
+	return strings.Contains(sa.Name, UnmountedSuffix)
 }
 
 // Minutes returns the number of minutes the SummaryAllocation represents, as
@@ -523,6 +522,16 @@ func (sas *SummaryAllocationSet) Add(that *SummaryAllocationSet) (*SummaryAlloca
 	return acc, nil
 }
 
+func (sas *SummaryAllocationSet) GetUnmountedPVCost() float64 {
+	upvc := 0.0
+
+	for _, sa := range sas.SummaryAllocations {
+		upvc += sa.UnmountedPVCost
+	}
+
+	return upvc
+}
+
 // AggregateBy aggregates the Allocations in the given AllocationSet by the given
 // AllocationProperty. This will only be legal if the AllocationSet is divisible by the
 // given AllocationProperty; e.g. Containers can be divided by Namespace, but not vice-a-versa.
@@ -665,6 +674,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 			sharedResourceTotals[key].NetworkCost += sa.NetworkCost
 			sharedResourceTotals[key].PersistentVolumeCost += sa.PVCost
 			sharedResourceTotals[key].RAMCost += sa.RAMCost
+			sharedResourceTotals[key].UnmountedPVCost += sa.UnmountedPVCost
 
 			shareSet.Insert(sa)
 			delete(sas.SummaryAllocations, sa.Name)
@@ -824,8 +834,9 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		// 0.0 and 1.0.
 		// NOTE: SummaryAllocation does not support ShareEven, so only record
 		// by cost for cost-weighted distribution.
-		if sharingCoeffs != nil {
-			sharingCoeffs[key] += sa.TotalCost() - sa.SharedCost
+		// if sharingCoeffs != nil {
+		if sharingCoeffs != nil && !sa.IsUnmounted() {
+			sharingCoeffs[key] += sa.TotalCost() - sa.SharedCost - sa.UnmountedPVCost
 		}
 
 		// 6. Distribute idle allocations according to the idle coefficients.
@@ -984,20 +995,23 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// NOTE: ShareEven is not supported
 	if len(shareSet.SummaryAllocations) > 0 {
 
+		shareCoeffSum := 0.0
+
 		sharingCoeffDenominator := 0.0
 		for _, rt := range allocTotals {
-			sharingCoeffDenominator += rt.TotalCost()
+			// Here, the allocation totals
+			sharingCoeffDenominator += rt.TotalCost() // does NOT include unmounted PVs at all
 		}
 
 		// Do not include the shared costs, themselves, when determining
 		// sharing coefficients.
 		for _, rt := range sharedResourceTotals {
-			sharingCoeffDenominator -= rt.TotalCost()
+			// Due to the fact that sharingCoeffDenominator already has no
+			// unmounted PV costs, we need to be careful not to additionally
+			// subtract the unmounted PV cost when we remove shared costs
+			// from the denominator.
+			sharingCoeffDenominator -= (rt.TotalCost() - rt.UnmountedPVCost)
 		}
-
-		// Do not include the unmounted costs when determining sharing
-		// coefficients because they do not receive shared costs.
-		sharingCoeffDenominator -= totalUnmountedCost
 
 		if sharingCoeffDenominator <= 0.0 {
 			log.Warnf("SummaryAllocation: sharing coefficient denominator is %f", sharingCoeffDenominator)
@@ -1012,6 +1026,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 				}
 				if sharingCoeffs[key] > 0.0 {
 					sharingCoeffs[key] /= sharingCoeffDenominator
+					shareCoeffSum += sharingCoeffs[key]
 				} else {
 					log.Warnf("SummaryAllocation: detected illegal sharing coefficient for %s: %v (setting to zero)", key, sharingCoeffs[key])
 					sharingCoeffs[key] = 0.0
