@@ -258,28 +258,30 @@ func encloseInBrackets(jsonString string) string {
 	return fmt.Sprintf("{%s}", jsonString)
 }
 
-func AzureSetProviderID(abv *BillingRowValues) string {
+// isVMSSShared represents a bool that lets you know while setting providerID we were
+// able to get the actual VMName associated with a VM of a group of VMs in VMSS.
+func AzureSetProviderID(abv *BillingRowValues) (providerID string, isVMSSShared bool) {
 	category := SelectAzureCategory(abv.MeterCategory)
 	if value, ok := abv.AdditionalInfo["VMName"]; ok {
-		return "azure://" + resourceGroupToLowerCase(abv.InstanceID) + getVMNumberForVMSS(fmt.Sprintf("%v", value))
+		return "azure://" + resourceGroupToLowerCase(abv.InstanceID) + getVMNumberForVMSS(fmt.Sprintf("%v", value)), false
 	} else if value, ok := abv.AdditionalInfo["VmName"]; ok {
-		return "azure://" + resourceGroupToLowerCase(abv.InstanceID) + getVMNumberForVMSS(fmt.Sprintf("%v", value))
+		return "azure://" + resourceGroupToLowerCase(abv.InstanceID) + getVMNumberForVMSS(fmt.Sprintf("%v", value)), false
 	} else if value2, ook := abv.AdditionalInfo["IpAddress"]; ook && abv.MeterCategory == "Virtual Network" {
-		return fmt.Sprintf("%v", value2)
+		return fmt.Sprintf("%v", value2), false
 	}
 
 	if category == kubecost.StorageCategory || (category == kubecost.NetworkCategory && abv.MeterCategory == "Bandwidth") {
 		if value2, ok2 := abv.Tags["creationSource"]; ok2 {
 			creationSource := fmt.Sprintf("%v", value2)
-			return strings.TrimPrefix(creationSource, "aks-")
+			return strings.TrimPrefix(creationSource, "aks-"), true
 		} else if value2, ok2 := abv.Tags["aks-managed-creationSource"]; ok2 {
 			creationSource := fmt.Sprintf("%v", value2)
-			return strings.TrimPrefix(creationSource, "vmssclient-")
+			return strings.TrimPrefix(creationSource, "vmssclient-"), true
 		} else {
-			return getSubStringAfterFinalSlash(abv.InstanceID)
+			return getSubStringAfterFinalSlash(abv.InstanceID), true
 		}
 	}
-	return "azure://" + resourceGroupToLowerCase(abv.InstanceID)
+	return "azure://" + resourceGroupToLowerCase(abv.InstanceID), true
 }
 
 func SelectAzureCategory(meterCategory string) string {

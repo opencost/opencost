@@ -355,6 +355,20 @@ func AllocationFilterFromParamsV1(
 	return andFilter
 }
 
+func AllocationSharerFromParamsV1(params AllocationFilterV1) filter.Filter {
+	var filterOps []ast.FilterNode
+
+	if len(params.Namespaces) > 0 {
+		filterOps = push(filterOps, filterV1SingleValueFromList(params.Namespaces, afilter.FieldNamespace))
+	}
+
+	if len(params.Labels) > 0 {
+		filterOps = push(filterOps, filterV1DoubleValueFromList(params.Labels, afilter.FieldLabel))
+	}
+
+	return opsToAnd(filterOps)
+}
+
 func AssetFilterFromParamsV1(
 	qp mapper.PrimitiveMapReader,
 	clusterMap clusters.ClusterMap,

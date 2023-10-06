@@ -3211,24 +3211,27 @@ func (as *AssetSet) ReconciliationMatchMap() map[string]map[string]Asset {
 			continue
 		}
 
-		if _, ok := matchMap[props.ProviderID]; !ok {
-			matchMap[props.ProviderID] = make(map[string]Asset)
+		// we can't guarantee case in providerID for Azure provider to have map working for all providers,
+		// lower casing providerID  while creating reconciliation map
+		providerID := strings.ToLower(props.ProviderID)
+		if _, ok := matchMap[providerID]; !ok {
+			matchMap[providerID] = make(map[string]Asset)
 		}
 
 		// Check if a match is already in the map
-		if duplicateAsset, ok := matchMap[props.ProviderID][props.Category]; ok {
+		if duplicateAsset, ok := matchMap[providerID][props.Category]; ok {
 			log.DedupedWarningf(5, "duplicate asset found when reconciling for %s", props.ProviderID)
 			// if one asset already has adjustment use that one
 			if duplicateAsset.GetAdjustment() == 0 && asset.GetAdjustment() != 0 {
-				matchMap[props.ProviderID][props.Category] = asset
+				matchMap[providerID][props.Category] = asset
 			} else if duplicateAsset.GetAdjustment() != 0 && asset.GetAdjustment() == 0 {
-				matchMap[props.ProviderID][props.Category] = duplicateAsset
+				matchMap[providerID][props.Category] = duplicateAsset
 				// otherwise use the one with the higher cost
 			} else if duplicateAsset.TotalCost() < asset.TotalCost() {
-				matchMap[props.ProviderID][props.Category] = asset
+				matchMap[providerID][props.Category] = asset
 			}
 		} else {
-			matchMap[props.ProviderID][props.Category] = asset
+			matchMap[providerID][props.Category] = asset
 		}
 
 	}

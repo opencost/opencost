@@ -147,6 +147,15 @@ func (cc *CloudCost) GetCostMetric(costMetricName string) (CostMetric, error) {
 	return CostMetric{}, fmt.Errorf("invalid Cost Metric: %s", costMetricName)
 }
 
+// WeightCostMetrics weights all the cost metrics with the given weightedAverage
+func (cc *CloudCost) WeightCostMetrics(weightedAverge float64) {
+	cc.ListCost.Cost *= weightedAverge
+	cc.NetCost.Cost *= weightedAverge
+	cc.AmortizedNetCost.Cost *= weightedAverge
+	cc.InvoicedCost.Cost *= weightedAverge
+	cc.AmortizedCost.Cost *= weightedAverge
+}
+
 // CloudCostSet follows the established set pattern of windowed data types. It has addition metadata types that can be
 // used to preserve data consistency and be used for validation.
 // - Integration is the ID for the integration that a CloudCostSet was sourced from, this value is cleared if when a
