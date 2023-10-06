@@ -1791,7 +1791,7 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*nodePricing, nodeKey no
 
 /* PV/PVC Helpers */
 
-func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHour, resPVActiveMins []*prom.QueryResult, window kubecost.Window) {
+func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHour, resPVActiveMins, resPVMeta []*prom.QueryResult, window kubecost.Window) {
 	for _, result := range resPVActiveMins {
 		key, err := resultPVKey(result, env.GetPromClusterLabel(), "persistentvolume")
 		if err != nil {
@@ -1826,6 +1826,25 @@ func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHo
 			}
 		}
 		pvMap[key].CostPerGiBHour = result.Values[0].Value
+
+	}
+
+	for _, result := range resPVMeta {
+		key, err := resultPVKey(result, env.GetPromClusterLabel(), "persistentvolume")
+		if err != nil {
+			log.Warnf("error getting key for PV: %v", err)
+			continue
+		}
+
+		// only add metadata for disks that exist in the other metrics
+		if _, ok := pvMap[key]; ok {
+			provId, err := result.GetString("provider_id")
+			if err != nil {
+				log.Warnf("error getting provider id for PV %v: %v", key, err)
+				continue
+			}
+			pvMap[key].ProviderID = provId
+		}
 
 	}
 }
@@ -2072,8 +2091,9 @@ func applyPVCsToPods(window kubecost.Window, podMap map[podKey]*pod, podPVCMap m
 				// would be equal to the values of the original pv
 				count := float64(len(pod.Allocations))
 				alloc.PVs[pvKey] = &kubecost.PVAllocation{
-					ByteHours: byteHours * coef / count,
-					Cost:      cost * coef / count,
+					ByteHours:  byteHours * coef / count,
+					Cost:       cost * coef / count,
+					ProviderID: pvc.Volume.ProviderID,
 				}
 			}
 		}
