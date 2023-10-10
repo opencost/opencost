@@ -14,7 +14,7 @@ To see the full functionality of OpenCost you can view [OpenCost features](https
 - Dynamic onDemand asset pricing enabled by integrations with AWS, Azure, and GCP billing APIs
 - Supports on-prem k8s clusters with custom CSV pricing
 - Allocation for in-cluster resources like CPU, GPU, memory, and persistent volumes.
-- Easily export pricing data to Prometheus with /metrics endpoint ([learn more](PROMETHEUS.md))
+- Easily export pricing data to Prometheus with /metrics endpoint ([learn more](https://www.opencost.io/docs/installation/prometheus))
 - Free and open source distribution (Apache2 license)
 
 ## Getting Started
