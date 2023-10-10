@@ -525,3 +525,39 @@ func TestFeatures(t *testing.T) {
 		})
 	}
 }
+
+func Test_getStorageClassTypeFrom(t *testing.T) {
+	tests := []struct {
+		name        string
+		provisioner string
+		want        string
+	}{
+		{
+			name:        "empty-provisioner",
+			provisioner: "",
+			want:        "",
+		},
+		{
+			name:        "ebs-default-provisioner",
+			provisioner: "kubernetes.io/aws-ebs",
+			want:        "gp2",
+		},
+		{
+			name:        "ebs-csi-provisioner",
+			provisioner: "ebs.csi.aws.com",
+			want:        "gp3",
+		},
+		{
+			name:        "unknown-provisioner",
+			provisioner: "unknown",
+			want:        "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := getStorageClassTypeFrom(tt.provisioner); got != tt.want {
+				t.Errorf("getStorageClassTypeFrom() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

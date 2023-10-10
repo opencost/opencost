@@ -70,6 +70,13 @@ var (
 	usageTypeRegx = regexp.MustCompile(".*(-|^)(EBS.+)")
 	versionRx     = regexp.MustCompile(`^#Version: (\\d+)\\.\\d+$`)
 	regionRx      = regexp.MustCompile("([a-z]+-[a-z]+-[0-9])")
+
+	// StorageClassProvisionerDefaults specifies the default storage class types depending upon the provisioner
+	StorageClassProvisionerDefaults = map[string]string{
+		"kubernetes.io/aws-ebs": "gp2",
+		"ebs.csi.aws.com":       "gp3",
+		// TODO: add efs provisioner
+	}
 )
 
 func (aws *AWS) PricingSourceStatus() map[string]*models.PricingSource {
@@ -723,7 +730,12 @@ func (key *awsPVKey) GetStorageClass() string {
 }
 
 func (key *awsPVKey) Features() string {
-	storageClass := key.StorageClassParameters["type"]
+	storageClass, ok := key.StorageClassParameters["type"]
+	if !ok {
+		log.Debugf("storage class %s doesn't have a 'type' parameter", key.Name)
+		storageClass = getStorageClassTypeFrom(key.StorageClassParameters["provisioner"])
+	}
+
 	if storageClass == "standard" {
 		storageClass = "gp2"
 	}
@@ -739,6 +751,22 @@ func (key *awsPVKey) Features() string {
 		log.Debugf("No voltype mapping for %s's storageClass: %s", key.Name, storageClass)
 	}
 	return region + "," + class
+}
+
+// getStorageClassTypeFrom returns the default ebs volume type for a provider provisioner
+func getStorageClassTypeFrom(provisioner string) string {
+	// if there isn't any provided provisioner, return empty volume type
+	if provisioner == "" {
+		return ""
+	}
+
+	scType, ok := StorageClassProvisionerDefaults[provisioner]
+	if ok {
+		log.Debugf("using default voltype %s for provisioner %s", scType, provisioner)
+		return scType
+	}
+
+	return ""
 }
 
 // GetKey maps node labels to information needed to retrieve pricing data
@@ -865,6 +893,7 @@ func (aws *AWS) DownloadPricingData() error {
 	storageClassMap := make(map[string]map[string]string)
 	for _, storageClass := range storageClasses {
 		params := storageClass.Parameters
+		params["provisioner"] = storageClass.Provisioner
 		storageClassMap[storageClass.ObjectMeta.Name] = params
 		if storageClass.GetAnnotations()["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.GetAnnotations()["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
 			storageClassMap["default"] = params
