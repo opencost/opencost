@@ -1589,6 +1589,10 @@ func (b *Breakdown) Clone() *Breakdown {
 
 // Equal returns true if the two Breakdowns are exact matches
 func (b *Breakdown) Equal(that *Breakdown) bool {
+	if b == nil && that == nil {
+		return true
+	}
+
 	if b == nil || that == nil {
 		return false
 	}
@@ -1889,6 +1893,32 @@ func (n *NodeOverhead) SanitizeNaN() {
 	}
 }
 
+func (n *NodeOverhead) Equal(other *NodeOverhead) bool {
+	if n == nil && other != nil {
+		return false
+	}
+	if n != nil && other == nil {
+		return false
+	}
+	if n == nil && other == nil {
+		return true
+	}
+
+	// This is okay because everything in NodeOverhead is a value type.
+	return *n == *other
+}
+
+func (n *NodeOverhead) Clone() *NodeOverhead {
+	if n == nil {
+		return nil
+	}
+	return &NodeOverhead{
+		CpuOverheadFraction:  n.CpuOverheadFraction,
+		RamOverheadFraction:  n.RamOverheadFraction,
+		OverheadCostFraction: n.OverheadCostFraction,
+	}
+}
+
 // Node is an Asset representing a single node in a cluster
 type Node struct {
 	Properties   *AssetProperties
@@ -2171,6 +2201,7 @@ func (n *Node) Clone() Asset {
 		GPUCount:     n.GPUCount,
 		RAMCost:      n.RAMCost,
 		Preemptible:  n.Preemptible,
+		Overhead:     n.Overhead.Clone(),
 		Discount:     n.Discount,
 	}
 }
@@ -2231,6 +2262,9 @@ func (n *Node) Equal(a Asset) bool {
 		return false
 	}
 	if n.Preemptible != that.Preemptible {
+		return false
+	}
+	if !n.Overhead.Equal(that.Overhead) {
 		return false
 	}
 
