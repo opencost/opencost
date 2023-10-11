@@ -1589,6 +1589,10 @@ func (b *Breakdown) Clone() *Breakdown {
 
 // Equal returns true if the two Breakdowns are exact matches
 func (b *Breakdown) Equal(that *Breakdown) bool {
+	if b == nil && that == nil {
+		return true
+	}
+
 	if b == nil || that == nil {
 		return false
 	}
@@ -1887,6 +1891,21 @@ func (n *NodeOverhead) SanitizeNaN() {
 		log.DedupedWarningf(5, "NodeOverhead: Unexpected NaN found for OverheadCostFraction")
 		n.OverheadCostFraction = 0
 	}
+}
+
+func (n *NodeOverhead) Equal(other *NodeOverhead) bool {
+	if n == nil && other != nil {
+		return false
+	}
+	if n != nil && other == nil {
+		return false
+	}
+	if n == nil && other == nil {
+		return true
+	}
+
+	// This is okay because everything in NodeOverhead is a value type.
+	return *n == *other
 }
 
 func (n *NodeOverhead) Clone() *NodeOverhead {
@@ -2243,6 +2262,9 @@ func (n *Node) Equal(a Asset) bool {
 		return false
 	}
 	if n.Preemptible != that.Preemptible {
+		return false
+	}
+	if !n.Overhead.Equal(that.Overhead) {
 		return false
 	}
 
