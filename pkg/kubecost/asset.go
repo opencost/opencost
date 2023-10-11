@@ -1889,6 +1889,17 @@ func (n *NodeOverhead) SanitizeNaN() {
 	}
 }
 
+func (n *NodeOverhead) Clone() *NodeOverhead {
+	if n == nil {
+		return nil
+	}
+	return &NodeOverhead{
+		CpuOverheadFraction:  n.CpuOverheadFraction,
+		RamOverheadFraction:  n.RamOverheadFraction,
+		OverheadCostFraction: n.OverheadCostFraction,
+	}
+}
+
 // Node is an Asset representing a single node in a cluster
 type Node struct {
 	Properties   *AssetProperties
@@ -2171,6 +2182,7 @@ func (n *Node) Clone() Asset {
 		GPUCount:     n.GPUCount,
 		RAMCost:      n.RAMCost,
 		Preemptible:  n.Preemptible,
+		Overhead:     n.Overhead.Clone(),
 		Discount:     n.Discount,
 	}
 }
