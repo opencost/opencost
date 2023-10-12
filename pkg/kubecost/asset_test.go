@@ -548,7 +548,37 @@ func TestNode_Add(t *testing.T) {
 }
 
 func TestNode_Clone(t *testing.T) {
-	// TODO
+	cases := []struct {
+		name string
+
+		input *Node
+	}{
+		{
+			name: "overhead nil",
+			input: &Node{
+				Overhead: nil,
+			},
+		},
+		{
+			name: "overhead non-nil",
+			input: &Node{
+				Overhead: &NodeOverhead{
+					CpuOverheadFraction:  3,
+					RamOverheadFraction:  7,
+					OverheadCostFraction: 6,
+				},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			result := c.input.Clone()
+			if !result.Equal(c.input) {
+				t.Errorf("clone result doesn't equal input")
+			}
+		})
+	}
 }
 
 func TestNode_MarshalJSON(t *testing.T) {
