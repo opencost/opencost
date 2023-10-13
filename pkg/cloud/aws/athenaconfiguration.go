@@ -12,7 +12,7 @@ type AthenaConfiguration struct {
 	Bucket     string     `json:"bucket"`
 	Region     string     `json:"region"`
 	Database   string     `json:"database"`
-	Catalog    string     `json:"catalog""`
+	Catalog    string     `json:"catalog"`
 	Table      string     `json:"table"`
 	Workgroup  string     `json:"workgroup"`
 	Account    string     `json:"account"`
@@ -133,43 +133,45 @@ func (ac *AthenaConfiguration) UnmarshalJSON(b []byte) error {
 
 	bucket, err := config.GetInterfaceValue[string](fmap, "bucket")
 	if err != nil {
-		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %s", err.Error())
+		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
 	}
 	ac.Bucket = bucket
 
 	region, err := config.GetInterfaceValue[string](fmap, "region")
 	if err != nil {
-		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %s", err.Error())
+		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
 	}
 	ac.Region = region
 
 	database, err := config.GetInterfaceValue[string](fmap, "database")
 	if err != nil {
-		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %s", err.Error())
+		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
 	}
 	ac.Database = database
 
-	catalog, err := config.GetInterfaceValue[string](fmap, "catalog")
-	if err != nil {
-		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %s", err.Error())
+	if _, ok := fmap["catalog"]; ok {
+		catalog, err := config.GetInterfaceValue[string](fmap, "catalog")
+		if err != nil {
+			return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
+		}
+		ac.Catalog = catalog
 	}
-	ac.Catalog = catalog
 
 	table, err := config.GetInterfaceValue[string](fmap, "table")
 	if err != nil {
-		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %s", err.Error())
+		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
 	}
 	ac.Table = table
 
 	workgroup, err := config.GetInterfaceValue[string](fmap, "workgroup")
 	if err != nil {
-		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %s", err.Error())
+		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
 	}
 	ac.Workgroup = workgroup
 
 	account, err := config.GetInterfaceValue[string](fmap, "account")
 	if err != nil {
-		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %s", err.Error())
+		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
 	}
 	ac.Account = account
 
@@ -179,7 +181,7 @@ func (ac *AthenaConfiguration) UnmarshalJSON(b []byte) error {
 	}
 	authorizer, err := config.AuthorizerFromInterface(authAny, SelectAuthorizerByType)
 	if err != nil {
-		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %s", err.Error())
+		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
 	}
 	ac.Authorizer = authorizer
 
