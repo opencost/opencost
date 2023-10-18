@@ -1907,7 +1907,7 @@ func (aws *AWS) findCostForDisk(disk *ec2Types.Volume) (*float64, error) {
 
 	class := volTypes[string(disk.VolumeType)]
 
-	key := "us-east-2" + "," + class
+	key := aws.ClusterRegion + "," + class
 
 	pricing, ok := aws.Pricing[key]
 	if !ok {
