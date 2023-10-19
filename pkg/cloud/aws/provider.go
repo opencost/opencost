@@ -1846,6 +1846,12 @@ func (aws *AWS) GetOrphanedResources() ([]models.OrphanedResource, error) {
 				url = "https://console.aws.amazon.com/ec2/home?#Volumes:sort=desc:createTime"
 			}
 
+			// output tags as desc
+			tags := map[string]string{}
+			for _, tag := range volume.Tags {
+				tags[*tag.Key] = *tag.Value
+			}
+
 			or := models.OrphanedResource{
 				Kind:        "disk",
 				Region:      zone,
@@ -1853,6 +1859,7 @@ func (aws *AWS) GetOrphanedResources() ([]models.OrphanedResource, error) {
 				DiskName:    *volume.VolumeId,
 				Url:         url,
 				MonthlyCost: cost,
+				Description: tags,
 			}
 
 			orphanedResources = append(orphanedResources, or)
