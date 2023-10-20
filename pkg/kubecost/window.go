@@ -246,6 +246,15 @@ func parseWindow(window string, now time.Time) (Window, error) {
 		end := now
 		start := end.Add(-time.Duration(num) * dur)
 
+		// when using windows such as "7d" and "1w", we have to have a definition for what "the past X days" means.
+		// let "the past X days" be defined as the entirety of today plus the entirety of the past X-1 days, where
+		// "entirety" is defined as midnight to midnight, UTC. given this definition, we round forward the calculated
+		// start and end times to the nearest day to align with midnight boundaries
+		if match[2] == "d" || match[2] == "w" {
+			end = end.Truncate(timeutil.Day).Add(timeutil.Day)
+			start = start.Truncate(timeutil.Day).Add(timeutil.Day)
+		}
+
 		return NewWindow(&start, &end), nil
 	}
 
