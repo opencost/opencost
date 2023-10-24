@@ -794,6 +794,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					case "a2":
 						candidateKeys = append(candidateKeys, region+","+"a2highgpu"+","+usageType)
 						candidateKeys = append(candidateKeys, region+","+"a2megagpu"+","+usageType)
+						candidateKeys = append(candidateKeys, region+","+"a2ultragpu"+","+usageType)
 					default:
 						candidateKey := region + "," + instanceType + "," + usageType
 						candidateKeys = append(candidateKeys, candidateKey)
