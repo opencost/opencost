@@ -72,6 +72,7 @@ var gcpRegions = []string{
 	"europe-west3",
 	"europe-west4",
 	"europe-west6",
+	"europe-west9",
 	"northamerica-northeast1",
 	"northamerica-northeast2",
 	"southamerica-east1",
