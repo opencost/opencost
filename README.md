@@ -15,7 +15,7 @@ To see the full functionality of OpenCost you can view [OpenCost features](https
 - Supports on-prem k8s clusters with custom CSV pricing
 - Allocation for in-cluster resources like CPU, GPU, memory, and persistent volumes.
 - Easily export pricing data to Prometheus with /metrics endpoint ([learn more](https://www.opencost.io/docs/installation/prometheus))
-- Free and open source distribution (Apache2 license)
+- Free and open source distribution ([Apache2 license](LICENSE))
 
 ## Getting Started
 
