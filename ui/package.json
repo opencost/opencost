@@ -1,7 +1,8 @@
 {
-  "name": "kubecost-ui-open",
-  "version": "0.0.1",
-  "description": "Open source UI for Kubecost",
+  "name": "opencost-ui",
+  "description": "Open source UI for OpenCost",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
   "scripts": {
     "build": "npx parcel build src/index.html",
     "serve": "npx parcel serve src/index.html",
@@ -9,8 +10,6 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "preinstall": "npx npm-force-resolutions"
   },
-  "author": "",
-  "license": "Apache-2.0",
   "browserslist": [
     "defaults"
   ],
