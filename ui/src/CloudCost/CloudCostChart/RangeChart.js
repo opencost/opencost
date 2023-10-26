@@ -34,7 +34,7 @@ const RangeChart = ({ data, currency, height }) => {
   const _OTHER_ = "others";
 
   const getItemCost = (item) => {
-    return item.totalCost;
+    return item.value;
   };
 
   function toBar({ end, graph, start }) {
@@ -151,12 +151,12 @@ const RangeChart = ({ data, currency, height }) => {
         if (keyToFill[key] === undefined) {
           assignmentOrder.push(key);
           if (key === _IDLE_) {
-            keyToFill[key] = idle;
+            keyToFill[key] = browns;
           } else if (key === _OTHER_ || key === "other") {
             keyToFill[key] = greyscale;
           } else {
             // non-idle/other allocations get the next available color
-            keyToFill[key] = primary[p];
+            keyToFill[key] = accents[p];
             p = (p + 1) % accents.length;
           }
         }
@@ -215,7 +215,7 @@ const RangeChart = ({ data, currency, height }) => {
                 <div>
                   <p className={classes.tooltipLineItem}>{`${
                     item.payload.items[i][0]
-                  }: ${toCurrency(item.value, modelConfig.currencyCode)}`}</p>
+                  }: ${toCurrency(item.value, currency)}`}</p>
                 </div>
               </div>
             ))
@@ -241,26 +241,6 @@ const RangeChart = ({ data, currency, height }) => {
       }),
     };
   });
-
-  console.log(barLabels);
-  console.log(orderedBars);
-  console.log(keyToFill);
-
-  const barssss = () => {
-    {
-      new Array(10)
-        .fill(0)
-        .map((item, idx) =>
-          orderedBars.map((b) =>
-            b.items[idx] ? console.log(keyToFill[b.items[idx][0]]) : null
-          )
-        );
-    }
-  };
-
-  React.useEffect(() => {
-    barssss();
-  }, [orderedBars, barLabels]);
 
   return (
     <ResponsiveContainer height={height} width={"100%"}>
