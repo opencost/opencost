@@ -36,4 +36,18 @@ const aggMap = {
   accountID: "Account",
 };
 
-export { windowOptions, aggregationOptions, costMetricOptions, aggMap };
+const costMetricToPropName = {
+  AmortizedNetCost: "amortizedNetCost",
+  AmortizedCost: "amortizedCost",
+  ListCost: "listCost",
+  NetCost: "netCost",
+  InvoicedCost: "invoicedCost",
+};
+
+export {
+  windowOptions,
+  aggregationOptions,
+  costMetricOptions,
+  aggMap,
+  costMetricToPropName,
+};

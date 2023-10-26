@@ -1,12 +1,13 @@
 import axios from "axios";
 import { getCloudFilters } from "../util";
+import { costMetricToPropName } from "../CloudCost/tokens";
 
-export function formatItemsForCost({ data, costType }) {
+function formatItemsForCost({ data, costType }) {
   return data.sets.map(({ cloudCosts, window }) => {
     return {
       date: window.start,
       cost: Object.values(cloudCosts).reduce(
-        (acc, costs) => acc + costs[costType].cost,
+        (acc, costs) => acc + costs[costType || "amortizedNetCost"].cost,
         0
       ),
     };
@@ -29,10 +30,10 @@ class CloudCostDayTotalsService {
           filters
         )}`
       );
-      const result_2 = await resp.data;
-      console.log(formatItemsForCost(result_2, costMetric));
+      const costMetricProp = costMetricToPropName[costMetric];
 
-      return { data: formatItemsForCost(result_2, costMetric) };
+      const result_2 = await resp.data;
+      return { data: formatItemsForCost(result_2, costMetricProp) };
     }
 
     return [];
