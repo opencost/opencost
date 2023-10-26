@@ -162,7 +162,7 @@ const CloudCostReports = () => {
     if (!init) {
       initialize();
     }
-    if (init && fetch) {
+    if (init || fetch) {
       fetchData();
     }
   }, [init, fetch]);

@@ -155,7 +155,7 @@ const CloudCost = ({ cumulativeData, totalData, graphData, currency }) => {
                     >
                       {cell.id === "kubernetesPercent"
                         ? round(totalData[cell.id] * 100, 2)
-                        : totalData[cell.id]}
+                        : toCurrency(round(totalData[cell.id]), currency)}
                     </TableCell>
                   );
                 })}
