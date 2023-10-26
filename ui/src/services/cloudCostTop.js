@@ -16,20 +16,17 @@ class CloudCostTopService {
       filters,
     };
 
-    if (aggregate.includes("Item")) {
-      console.log("here");
-      console.log(aggregate);
-      const resp = await fetch(
+    if (aggregate.includes("item")) {
+      const resp = await axios.get(
         `${
           this.BASE_URL
         }/model/cloudCost/top?window=${window}&costMetric=${costMetric}${getCloudFilters(
           filters
         )}`
       );
-      const result_2 = await Promise.resolve(resp.data.json());
-      const whatData = formatSampleItemsForGraph(result_2);
-      console.log(whatData);
-      return formatSampleItemsForGraph(result_2);
+      const result_2 = await resp.data;
+
+      return { data: formatSampleItemsForGraph(result_2) };
     }
 
     const result = await axios.get(`${this.BASE_URL}/model/cloudCost/view`, {

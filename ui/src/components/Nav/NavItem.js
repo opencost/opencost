@@ -49,7 +49,6 @@ const NavItem = ({ active, href, name, onClick, secondary, title, icon }) => {
       className={active ? "active" : ""}
       classes={{ root: classes.root }}
       onClick={(e) => {
-        console.log("click");
         if (onClick) {
           onClick();
           e.stopPropagation();

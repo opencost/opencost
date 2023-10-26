@@ -124,7 +124,7 @@ const CloudCostReports = () => {
             },
           ]);
         }
-        // setCloudCostData([]);
+        setCloudCostData([]);
       }
     } catch (err) {
       if (err.message.indexOf("404") === 0) {
@@ -148,7 +148,7 @@ const CloudCostReports = () => {
           },
         ]);
       }
-      // setCloudCostData([]);
+      setCloudCostData([]);
     }
     setLoading(false);
   }
