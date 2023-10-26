@@ -22,6 +22,7 @@ const CloudCost = ({
   graphData = [],
   currency = "USD",
   drilldown,
+  sampleData = false,
 }) => {
   const useStyles = makeStyles({
     noResults: {
@@ -152,7 +153,7 @@ const CloudCost = ({
             <TableBody>
               <TableRow>
                 {headCells.map((cell) => {
-                  return (
+                  let tableCell = (
                     <TableCell
                       key={cell.id}
                       colSpan={cell.colspan}
@@ -166,6 +167,29 @@ const CloudCost = ({
                         : toCurrency(round(totalData[cell.id]), currency)}
                     </TableCell>
                   );
+                  if (sampleData && cell.label === "Sum of Sample Data") {
+                    tableCell = (
+                      <TableCell
+                        align={cell.numeric ? "right" : "left"}
+                        key={cell.id}
+                        style={{
+                          width: cell.width,
+                          paddingRight: cell.id === "totalCost" ? "2em" : "",
+                        }}
+                      >
+                        <TableSortLabel
+                          active={orderBy === cell.id}
+                          direction={orderBy === cell.id ? order : "asc"}
+                          onClick={createSortHandler(cell.id)}
+                        >
+                          {cell.label}
+                        </TableSortLabel>
+                      </TableCell>
+                    );
+
+                    return tableCell;
+                  }
+                  return <>{tableCell}</>;
                 })}
               </TableRow>
               {pageRows.map((row, key) => {

@@ -1,7 +1,7 @@
 import axios from "axios";
 import { getCloudFilters } from "../util";
 
-export function formatItemsForCost({ data }, costType) {
+export function formatItemsForCost({ data, costType }) {
   return data.sets.map(({ cloudCosts, window }) => {
     return {
       date: window.start,
@@ -16,7 +16,7 @@ export function formatItemsForCost({ data }, costType) {
 class CloudCostDayTotalsService {
   BASE_URL = process.env.BASE_URL || "{PLACEHOLDER_BASE_URL}";
 
-  async fetchCloudCostData(window, aggregate, costMetric) {
+  async fetchCloudCostData(window, aggregate, costMetric, filters) {
     if (this.BASE_URL.includes("PLACEHOLDER_BASE_URL")) {
       this.BASE_URL = `http://localhost:9090/model`;
     }
@@ -30,8 +30,9 @@ class CloudCostDayTotalsService {
         )}`
       );
       const result_2 = await resp.data;
+      console.log(formatItemsForCost(result_2, costMetric));
 
-      return { data: formatItemsForCost(result_2) };
+      return { data: formatItemsForCost(result_2, costMetric) };
     }
 
     return [];

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Modal, Typography } from "@material-ui/core";
+import { Modal, Paper, Typography } from "@material-ui/core";
 import Warnings from "../components/Warnings";
 import CircularProgress from "@material-ui/core/CircularProgress";
 
@@ -31,6 +31,11 @@ const CloudCostDetails = ({
   const [errors, setErrors] = React.useState([]);
   const [fetch, setFetch] = React.useState(true);
 
+  const nextFilters = [
+    ...(filters ?? []),
+    { property: "providerIds", value: selectedProviderId },
+  ];
+
   async function fetchData() {
     setLoading(true);
     setErrors([]);
@@ -40,13 +45,10 @@ const CloudCostDetails = ({
         window,
         agg,
         costMetric,
-        [
-          ...(filters ?? []),
-
-          { property: "providerIds", value: selectedProviderId },
-        ]
+        nextFilters
       );
-      if (resp.data) {
+      console.log(resp);
+      if (resp) {
         setData(resp.data);
       } else {
         if (resp.message && resp.message.indexOf("boundary error") >= 0) {
@@ -64,7 +66,7 @@ const CloudCostDetails = ({
         }
         setData([]);
       }
-    } catch (error) {
+    } catch (err) {
       if (err.message.indexOf("404") === 0) {
         setErrors([
           {
@@ -92,13 +94,13 @@ const CloudCostDetails = ({
     setFetch(false);
   }
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (fetch) {
       fetchData();
     }
   }, [fetch]);
 
-  const drilldownData = (data ?? []).sort(
+  const drilldownData = data.sort(
     (a, b) =>
       new Date(a.date ?? "").getTime() - new Date(b.date ?? "").getTime()
   );
@@ -111,61 +113,65 @@ const CloudCostDetails = ({
     return dataPoint;
   });
 
+  console.log(drilldownData);
+
   return (
     <Modal
       open={true}
       onClose={onClose}
       title={`Costs over the last ${window}`}
     >
-      <Typography style={{ marginTop: "1rem" }} variant="p">
-        {selectedItem}
-      </Typography>
+      <Paper>
+        <Typography style={{ marginTop: "1rem" }} variant="body1">
+          {selectedItem}
+        </Typography>
 
-      {loading && (
-        <div style={{ display: "flex", justifyContent: "center" }}>
-          <div style={{ paddingTop: 100, paddingBottom: 100 }}>
-            <CircularProgress />
+        {loading && (
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <div style={{ paddingTop: 100, paddingBottom: 100 }}>
+              <CircularProgress />
+            </div>
           </div>
-        </div>
-      )}
-      {!loading && errors.length > 0 && (
-        <div style={{ marginBottom: 20 }}>
-          <Warnings warnings={errors} />
-        </div>
-      )}
-      {data && (
-        <div style={{ display: "flex", marginTop: "2.5rem" }}>
-          <ResponsiveContainer
-            height={250}
-            id={"cloud-cost-drilldown"}
-            width={"100%"}
-          >
-            <BarChart
-              data={itemData}
-              margin={{
-                top: 0,
-                bottom: 10,
-                left: 20,
-                right: 0,
-              }}
+        )}
+        {!loading && errors.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <Warnings warnings={errors} />
+          </div>
+        )}
+        {data && (
+          <div style={{ display: "flex", marginTop: "2.5rem" }}>
+            <ResponsiveContainer
+              height={250}
+              id={"cloud-cost-drilldown"}
+              width={"100%"}
             >
-              <CartesianGrid vertical={false} />
-              <Legend verticalAlign={"bottom"} />
-              <XAxis
-                dataKey={"time"}
-                tickFormatter={(date) => format(date, "MM/dd/yyy")}
-              />
-              <YAxis tickFormatter={(tick) => `${toCurrency(tick)}`} />
-              <Bar dataKey={"cost"} fill={"#2196f3"} name={"Item Cost"} />
-              <Tooltip
-                formatter={(value) =>
-                  `${toCurrency(value ?? 0, currency, 4, true)}`
-                }
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+              <BarChart
+                data={itemData}
+                margin={{
+                  top: 0,
+                  bottom: 10,
+                  left: 20,
+                  right: 0,
+                }}
+              >
+                <CartesianGrid vertical={false} />
+                <Legend verticalAlign={"bottom"} />
+                <XAxis
+                  dataKey={"time"}
+                  tickFormatter={(date) => format(date, "MM/dd/yyy")}
+                />
+                <YAxis tickFormatter={(tick) => `${toCurrency(tick)}`} />
+                <Bar dataKey={"cost"} fill={"#2196f3"} name={"Item Cost"} />
+                <Tooltip
+                  formatter={(value) =>
+                    `${toCurrency(value ?? 0, currency, 4, true)}`
+                  }
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </Paper>
     </Modal>
   );
 };
