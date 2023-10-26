@@ -2160,6 +2160,13 @@ func (n *Node) add(that *Node) {
 		n.RAMBreakdown.User = (n.RAMBreakdown.User*n.RAMCost + that.RAMBreakdown.User*that.RAMCost) / totalRAMCost
 	}
 
+	// These calculations have to happen before the mutable fields of n they
+	// depend on (cpu cost, ram cost) are mutated with post-add totals.
+	if n.Overhead != nil && that.Overhead != nil {
+		n.Overhead.RamOverheadFraction = (n.Overhead.RamOverheadFraction*n.RAMCost + that.Overhead.RamOverheadFraction*that.RAMCost) / totalRAMCost
+		n.Overhead.CpuOverheadFraction = (n.Overhead.CpuOverheadFraction*n.CPUCost + that.Overhead.CpuOverheadFraction*that.CPUCost) / totalCPUCost
+	}
+
 	n.CPUCoreHours += that.CPUCoreHours
 	n.RAMByteHours += that.RAMByteHours
 	n.GPUHours += that.GPUHours
@@ -2169,10 +2176,9 @@ func (n *Node) add(that *Node) {
 	n.RAMCost += that.RAMCost
 	n.Adjustment += that.Adjustment
 
-	if n.Overhead != nil && that.Overhead != nil {
-
-		n.Overhead.RamOverheadFraction = (n.Overhead.RamOverheadFraction*n.RAMCost + that.Overhead.RamOverheadFraction*that.RAMCost) / totalRAMCost
-		n.Overhead.CpuOverheadFraction = (n.Overhead.CpuOverheadFraction*n.CPUCost + that.Overhead.CpuOverheadFraction*that.CPUCost) / totalCPUCost
+	// The cost-weighted overhead is calculated after the node is totaled
+	// because the cost-weighted overhead is based on post-add data.
+	if n.Overhead != nil {
 		n.Overhead.OverheadCostFraction = ((n.Overhead.CpuOverheadFraction * n.CPUCost) + (n.Overhead.RamOverheadFraction * n.RAMCost)) / n.TotalCost()
 	}
 }
