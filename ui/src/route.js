@@ -1,9 +1,9 @@
 import React from "react";
-import ReactDOM from "react-dom";
 import { BrowserRouter as Router, Route, Switch } from "react-router-dom";
 
 import Reports from "./Reports.js";
 import CloudCostReports from "./CloudCostReports.js";
+import Sidebar from "./components/Sidebar.js";
 
 const Routes = () => {
   return (
