@@ -54,6 +54,7 @@ const CloudCostReports = () => {
   const [currency, setCurrency] = React.useState("USD");
   const [selectedProviderId, setSelectedProviderId] = React.useState("");
   const [selectedItemName, setselectedItemName] = React.useState("");
+  const sampleData = aggregateBy.includes("item");
   // page and settings state
   const [init, setInit] = React.useState(false);
   const [fetch, setFetch] = React.useState(false);
@@ -156,7 +157,7 @@ const CloudCostReports = () => {
   }
 
   function drilldown(row) {
-    if (aggregationState.includes("item")) {
+    if (aggregateBy.includes("item")) {
       try {
         setSelectedProviderId(row.providerID);
         setselectedItemName(row.labelName ?? row.name);
@@ -277,24 +278,25 @@ const CloudCostReports = () => {
               graphData={cloudCostData.graphData}
               totalData={cloudCostData.tableTotal}
               drilldown={drilldown}
+              sampleData={sampleData}
+            />
+          )}
+          {selectedProviderId && selectedItemName && (
+            <CloudCostDetails
+              onClose={() => {
+                setSelectedProviderId("");
+                setselectedItemName("");
+              }}
+              selectedProviderId={selectedProviderId}
+              selectedItem={selectedItemName}
+              agg={aggregateBy}
+              filters={filters}
+              costMetric={costMetric}
+              window={window}
+              currency={currency}
             />
           )}
         </Paper>
-      )}
-      {selectedProviderId && selectedItemName && (
-        <CloudCostDetails
-          onClose={() => {
-            setSelectedProviderId("");
-            setselectedItemName("");
-          }}
-          selectedProviderId={selectedProviderId}
-          selectedItem={selectedItemName}
-          agg={aggregateBy}
-          filters={filters}
-          costMetric={costMetric}
-          window={window}
-          currency={currency}
-        />
       )}
     </Page>
   );
