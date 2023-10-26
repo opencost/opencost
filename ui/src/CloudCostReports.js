@@ -7,6 +7,7 @@ import { makeStyles } from "@material-ui/styles";
 import { Paper, Typography } from "@material-ui/core";
 import CircularProgress from "@material-ui/core/CircularProgress";
 import { get, find, sortBy, toArray } from "lodash";
+import { checkCustomWindow, toVerboseTimeRange } from "./util";
 
 import { useLocation, useHistory } from "react-router";
 
@@ -72,7 +73,7 @@ const CloudCostReports = () => {
       console.warn(`unknown aggregation: ${aggregateBy}`);
     }
 
-    let str = `${windowName} by ${aggregationName}`;
+    let str = `Cumulative cost for ${windowName} by ${aggregationName}`;
 
     if (!costMetric) {
       str = `${str} amoritizedNetCost`;
