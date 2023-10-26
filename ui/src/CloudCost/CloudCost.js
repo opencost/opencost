@@ -21,6 +21,7 @@ const CloudCost = ({
   totalData = {},
   graphData = [],
   currency = "USD",
+  drilldown,
 }) => {
   const useStyles = makeStyles({
     noResults: {
@@ -169,7 +170,7 @@ const CloudCost = ({
               </TableRow>
               {pageRows.map((row, key) => {
                 return (
-                  <TableRow key={key}>
+                  <TableRow key={key} onClick={() => drilldown(row)}>
                     <TableCell align="left">{row.name}</TableCell>
                     <TableCell align="right">
                       {round(row.kubernetesPercent * 100) + "%"}

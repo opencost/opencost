@@ -14,11 +14,13 @@ import CloudCostEditControls from "./CloudCost/Controls/CloudCostEditControls";
 import Subtitle from "./components/Subtitle";
 import Warnings from "./components/Warnings";
 import CloudCostService from "./services/cloudCost";
+import CloudCostTopService from "./services/CloudCostTop";
 
 import {
   windowOptions,
   costMetricOptions,
   aggregationOptions,
+  aggMap,
 } from "./CloudCost/tokens";
 import { currencyCodes } from "./constants/currencyCodes";
 import CloudCost from "./CloudCost/CloudCost";
@@ -48,6 +50,7 @@ const CloudCostReports = () => {
   const [costMetric, setCostMetric] = React.useState(
     costMetricOptions[0].value
   );
+  const [filters, setFilters] = React.useState([]);
   const [currency, setCurrency] = React.useState("USD");
   // page and settings state
   const [init, setInit] = React.useState(false);
@@ -99,10 +102,11 @@ const CloudCostReports = () => {
     setLoading(true);
     setErrors([]);
     try {
-      const resp = await CloudCostService.fetchCloudCostData(
+      const resp = await CloudCostTopService.fetchCloudCostData(
         window,
         aggregateBy,
-        costMetric
+        costMetric,
+        filters
       );
       if (resp.data) {
         setCloudCostData(resp.data);
@@ -120,7 +124,7 @@ const CloudCostReports = () => {
             },
           ]);
         }
-        setCloudCostData([]);
+        // setCloudCostData([]);
       }
     } catch (err) {
       if (err.message.indexOf("404") === 0) {
@@ -144,9 +148,25 @@ const CloudCostReports = () => {
           },
         ]);
       }
-      setCloudCostData([]);
+      // setCloudCostData([]);
     }
     setLoading(false);
+  }
+
+  function drilldown(row) {
+    const nameParts = row.name.split("/");
+    const nextAgg = aggregateBy.includes("service") ? "item" : "service";
+    const aggToString = [aggregateBy];
+    const newFilters = aggToString.map((property, i) => {
+      const value = nameParts[i];
+      return {
+        property,
+        value,
+        name: aggMap[property] || property,
+      };
+    });
+    setFilters(newFilters);
+    setAggregateBy(nextAgg);
   }
 
   React.useEffect(() => {
@@ -169,7 +189,7 @@ const CloudCostReports = () => {
   React.useEffect(() => {
     setFetch(!fetch);
     setTitle(generateTitle({ window, aggregateBy, costMetric }));
-  }, [window, aggregateBy, costMetric]);
+  }, [window, aggregateBy, costMetric, filters]);
 
   return (
     <Page active="cloud.html">
@@ -244,6 +264,7 @@ const CloudCostReports = () => {
               currency={currency}
               graphData={cloudCostData.graphData}
               totalData={cloudCostData.tableTotal}
+              drilldown={drilldown}
             />
           )}
         </Paper>

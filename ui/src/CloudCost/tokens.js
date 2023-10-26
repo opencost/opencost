@@ -29,4 +29,11 @@ const costMetricOptions = [
   { name: "Amortized Cost", value: "AmortizedCost" },
 ];
 
-export { windowOptions, aggregationOptions, costMetricOptions };
+const aggMap = {
+  invoiceEntityID: "Invoice Entity",
+  provider: "Provider",
+  service: "Service",
+  accountID: "Account",
+};
+
+export { windowOptions, aggregationOptions, costMetricOptions, aggMap };
