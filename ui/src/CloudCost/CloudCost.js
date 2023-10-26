@@ -57,13 +57,13 @@ const CloudCost = ({ cumulativeData, totalData, graphData, currency }) => {
       id: "kubernetesPercent",
       numeric: true,
       label: "K8's Utilization",
-      width: 90,
+      width: 200,
     },
     {
       id: "cost",
       numeric: true,
       label: "Sum of Sample Data",
-      width: 90,
+      width: 200,
     },
   ];
 
@@ -154,7 +154,7 @@ const CloudCost = ({ cumulativeData, totalData, graphData, currency }) => {
                       style={{ fontWeight: 500 }}
                     >
                       {cell.id === "kubernetesPercent"
-                        ? round(totalData[cell.id] * 100, 2)
+                        ? round(totalData[cell.id] * 100, 2) + "%"
                         : toCurrency(round(totalData[cell.id]), currency)}
                     </TableCell>
                   );
@@ -165,7 +165,7 @@ const CloudCost = ({ cumulativeData, totalData, graphData, currency }) => {
                   <TableRow key={key}>
                     <TableCell align="left">{row.name}</TableCell>
                     <TableCell align="right">
-                      {round(row.kubernetesPercent * 100)}
+                      {round(row.kubernetesPercent * 100) + "%"}
                     </TableCell>
                     <TableCell align="right">
                       {toCurrency(row.cost, currency)}
