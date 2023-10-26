@@ -6,7 +6,7 @@ import RefreshIcon from "@material-ui/icons/Refresh";
 import { makeStyles } from "@material-ui/styles";
 import { Paper, Typography } from "@material-ui/core";
 import CircularProgress from "@material-ui/core/CircularProgress";
-import { get, find, sortBy, toArray } from "lodash";
+import { get, find } from "lodash";
 import { useLocation, useHistory } from "react-router";
 
 import { checkCustomWindow, toVerboseTimeRange } from "./util";
@@ -169,7 +169,7 @@ const CloudCostReports = () => {
   React.useEffect(() => {
     setFetch(true);
     setTitle(generateTitle({ window, aggregateBy, costMetric }));
-  }, [window, aggregateBy, costMetric]);
+  }, [window, aggregateBy, costMetric, fetch]);
 
   return (
     <Page active="cloud.html">

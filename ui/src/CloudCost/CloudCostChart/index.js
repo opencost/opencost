@@ -1,5 +1,4 @@
 import React from "react";
-import { isArray, filter, map, reduce, reverse, sortBy } from "lodash";
 
 import Typography from "@material-ui/core/Typography";
 
