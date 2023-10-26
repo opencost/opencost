@@ -99,7 +99,6 @@ const CloudCostReports = () => {
     setLoading(true);
     setErrors([]);
     try {
-      console.log("look at me fetching data");
       const resp = await CloudCostService.fetchCloudCostData(
         window,
         aggregateBy,
