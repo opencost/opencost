@@ -13,7 +13,6 @@ import { checkCustomWindow, toVerboseTimeRange } from "./util";
 import CloudCostEditControls from "./CloudCost/Controls/CloudCostEditControls";
 import Subtitle from "./components/Subtitle";
 import Warnings from "./components/Warnings";
-import CloudCostService from "./services/cloudCost";
 import CloudCostTopService from "./services/CloudCostTop";
 
 import {
