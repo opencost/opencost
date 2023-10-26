@@ -15,6 +15,7 @@ import {
 
 import { toCurrency } from "../util";
 import CloudCostChart from "./CloudCostChart";
+import { primary } from "../constants/colors";
 
 const CloudCost = ({
   cumulativeData = [],
@@ -194,8 +195,14 @@ const CloudCost = ({
               </TableRow>
               {pageRows.map((row, key) => {
                 return (
-                  <TableRow key={key} onClick={() => drilldown(row)}>
-                    <TableCell align="left">{row.name}</TableCell>
+                  <TableRow
+                    key={key}
+                    onClick={() => drilldown(row)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <TableCell align="left" style={{ color: "#346ef2" }}>
+                      {row.name}
+                    </TableCell>
                     <TableCell align="right">
                       {round(row.kubernetesPercent * 100) + "%"}
                     </TableCell>
