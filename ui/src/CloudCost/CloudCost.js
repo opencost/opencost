@@ -16,7 +16,12 @@ import {
 import { toCurrency } from "../util";
 import CloudCostChart from "./CloudCostChart";
 
-const CloudCost = ({ cumulativeData = [], totalData, graphData, currency }) => {
+const CloudCost = ({
+  cumulativeData = [],
+  totalData = {},
+  graphData = [],
+  currency = "USD",
+}) => {
   const useStyles = makeStyles({
     noResults: {
       padding: 24,
