@@ -384,6 +384,11 @@ func TestNode_Add(t *testing.T) {
 		Other:  0.0,
 	}
 	node1.SetAdjustment(1.6)
+	node1.Overhead = &NodeOverhead{
+		CpuOverheadFraction:  1,
+		RamOverheadFraction:  1,
+		OverheadCostFraction: 1,
+	}
 
 	node2 := NewNode("node2", "cluster1", "node2", *windows[0].start, *windows[0].end, windows[0])
 	node2.CPUCoreHours = 1.0 * hours
@@ -406,6 +411,11 @@ func TestNode_Add(t *testing.T) {
 		Other:  0.05,
 	}
 	node2.SetAdjustment(1.0)
+	node2.Overhead = &NodeOverhead{
+		CpuOverheadFraction:  0.6,
+		RamOverheadFraction:  0.75,
+		OverheadCostFraction: 0.7,
+	}
 
 	nodeT := node1.Add(node2).(*Node)
 
@@ -433,6 +443,19 @@ func TestNode_Add(t *testing.T) {
 	}
 	if nodeT.RAMBytes() != 4.0*gb {
 		t.Fatalf("Node.Add: expected %f; got %f", 4.0*gb, nodeT.RAMBytes())
+	}
+	if o := nodeT.Overhead; o == nil {
+		t.Errorf("Node.Add (1 + 2): expected overhead to be non-nil")
+	} else {
+		if o.CpuOverheadFraction < 0 || o.CpuOverheadFraction > 1 {
+			t.Errorf("CPU overhead must be within [0, 1], is: %f", o.CpuOverheadFraction)
+		}
+		if o.RamOverheadFraction < 0 || o.RamOverheadFraction > 1 {
+			t.Errorf("RAM overhead must be within [0, 1], is: %f", o.RamOverheadFraction)
+		}
+		if o.OverheadCostFraction < 0 || o.OverheadCostFraction > 1 {
+			t.Errorf("Cost-weighted overhead must be within [0, 1], is: %f", o.OverheadCostFraction)
+		}
 	}
 
 	// Check that the original assets are unchanged
