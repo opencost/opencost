@@ -17,8 +17,8 @@ const aggregationOptions = [
   { name: "Account", value: "accountID" },
   { name: "Invoice Entity", value: "invoiceEntityID" },
   { name: "Provider", value: "provider" },
-  { name: "service ", value: "service" },
-  { name: "category", value: "category" },
+  { name: "Service ", value: "service" },
+  { name: "Category", value: "category" },
   { name: "item", value: "item" },
 ];
 
