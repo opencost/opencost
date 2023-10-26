@@ -3,14 +3,15 @@ import { makeStyles } from "@material-ui/styles";
 import Breadcrumbs from "@material-ui/core/Breadcrumbs";
 import Link from "@material-ui/core/Link";
 import Typography from "@material-ui/core/Typography";
+import { useLocation } from "react-router-dom";
 
 const useStyles = makeStyles({
   root: {
     alignItems: "center",
     display: "flex",
     flexFlow: "row",
-    marginBottom: 20,
     width: "100%",
+    marginTop: "10px",
   },
   context: {
     flex: "1 0 auto",
@@ -23,10 +24,18 @@ const useStyles = makeStyles({
 const Header = (props) => {
   const classes = useStyles();
   const { title, breadcrumbs } = props;
+  const { pathname } = useLocation();
+
+  const mainPath = "/allocation" || "/";
+
+  const headerTitle = pathname === mainPath ? "Cost Allocation" : "Cloud Cost";
 
   return (
     <div className={classes.root}>
-      <img src={require("../images/logo.png")} alt="OpenCost" />
+      {/* <img src={require("../images/logo.png")} alt="OpenCost" /> */}
+      <Typography variant="h3" style={{ marginBottom: "10px" }}>
+        {headerTitle}
+      </Typography>
       <div className={classes.context}>
         {title && (
           <Typography variant="h4" className={classes.title}>
