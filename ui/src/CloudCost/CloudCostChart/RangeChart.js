@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { makeStyles } from "@material-ui/styles";
 import {
   BarChart,
@@ -153,10 +153,10 @@ const RangeChart = ({ data, currency, height }) => {
           if (key === _IDLE_) {
             keyToFill[key] = idle;
           } else if (key === _OTHER_ || key === "other") {
-            keyToFill[key] = accents[0];
+            keyToFill[key] = greyscale;
           } else {
             // non-idle/other allocations get the next available color
-            keyToFill[key] = accents;
+            keyToFill[key] = primary[p];
             p = (p + 1) % accents.length;
           }
         }
@@ -245,6 +245,22 @@ const RangeChart = ({ data, currency, height }) => {
   console.log(barLabels);
   console.log(orderedBars);
   console.log(keyToFill);
+
+  const barssss = () => {
+    {
+      new Array(10)
+        .fill(0)
+        .map((item, idx) =>
+          orderedBars.map((b) =>
+            b.items[idx] ? console.log(keyToFill[b.items[idx][0]]) : null
+          )
+        );
+    }
+  };
+
+  React.useEffect(() => {
+    barssss();
+  }, [orderedBars, barLabels]);
 
   return (
     <ResponsiveContainer height={height} width={"100%"}>
