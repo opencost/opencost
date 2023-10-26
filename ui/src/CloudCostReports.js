@@ -169,7 +169,7 @@ const CloudCostReports = () => {
   React.useEffect(() => {
     setFetch(true);
     setTitle(generateTitle({ window, aggregateBy, costMetric }));
-  }, [window, aggregateBy, costMetric, fetch]);
+  }, [window, aggregateBy, costMetric]);
 
   return (
     <Page active="cloud.html">
