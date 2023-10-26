@@ -7,13 +7,13 @@ import { makeStyles } from "@material-ui/styles";
 import { Paper, Typography } from "@material-ui/core";
 import CircularProgress from "@material-ui/core/CircularProgress";
 import { get, find, sortBy, toArray } from "lodash";
-import { checkCustomWindow, toVerboseTimeRange } from "./util";
-
 import { useLocation, useHistory } from "react-router";
 
+import { checkCustomWindow, toVerboseTimeRange } from "./util";
 import CloudCostEditControls from "./CloudCost/Controls/CloudCostEditControls";
 import Subtitle from "./components/Subtitle";
 import Warnings from "./components/Warnings";
+import CloudCostService from "./services/cloudCost";
 
 import {
   windowOptions,
@@ -21,6 +21,7 @@ import {
   aggregationOptions,
 } from "./CloudCost/tokens";
 import { currencyCodes } from "./constants/currencyCodes";
+import CloudCost from "./CloudCost/CloudCost";
 
 const CloudCostReports = () => {
   const useStyles = makeStyles({
@@ -53,6 +54,9 @@ const CloudCostReports = () => {
   const [fetch, setFetch] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [errors, setErrors] = React.useState([]);
+
+  // data
+  const [cloudCostData, setCloudCostData] = React.useState([]);
 
   function generateTitle({ window, aggregateBy, costMetric }) {
     let windowName = get(find(windowOptions, { value: window }), "name", "");
@@ -96,8 +100,52 @@ const CloudCostReports = () => {
     setErrors([]);
     try {
       console.log("look at me fetching data");
-    } catch (error) {
-      console.error(error);
+      const resp = await CloudCostService.fetchCloudCostData(
+        window,
+        aggregateBy,
+        costMetric
+      );
+      if (resp.data) {
+        setCloudCostData(resp.data);
+      } else {
+        if (resp.message && resp.message.indexOf("boundary error") >= 0) {
+          let match = resp.message.match(/(ETL is \d+\.\d+% complete)/);
+          let secondary = "Try again after ETL build is complete";
+          if (match.length > 0) {
+            secondary = `${match[1]}. ${secondary}`;
+          }
+          setErrors([
+            {
+              primary: "Data unavailable while ETL is building",
+              secondary: secondary,
+            },
+          ]);
+        }
+        setCloudCostData([]);
+      }
+    } catch (err) {
+      if (err.message.indexOf("404") === 0) {
+        setErrors([
+          {
+            primary: "Failed to load report data",
+            secondary:
+              "Please update Kubecost to the latest version, then contact support if problems persist.",
+          },
+        ]);
+      } else {
+        let secondary =
+          "Please contact Kubecost support with a bug report if problems persist.";
+        if (err.message.length > 0) {
+          secondary = err.message;
+        }
+        setErrors([
+          {
+            primary: "Failed to load report data",
+            secondary: secondary,
+          },
+        ]);
+      }
+      setCloudCostData([]);
     }
     setLoading(false);
   }
@@ -191,7 +239,14 @@ const CloudCostReports = () => {
             </div>
           )}
 
-          {!loading && <div>Cloud Cost Report goes here</div>}
+          {!loading && (
+            <CloudCost
+              cumulativeData={cloudCostData.tableRows}
+              currency={currency}
+              graphData={cloudCostData.graphData}
+              totalData={cloudCostData.tableTotal}
+            />
+          )}
         </Paper>
       )}
     </Page>
