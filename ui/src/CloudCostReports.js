@@ -23,6 +23,7 @@ import {
 } from "./CloudCost/tokens";
 import { currencyCodes } from "./constants/currencyCodes";
 import CloudCost from "./CloudCost/CloudCost";
+import { CloudCostDetails } from "./CloudCost/CloudCostDetails";
 
 const CloudCostReports = () => {
   const useStyles = makeStyles({
@@ -51,6 +52,8 @@ const CloudCostReports = () => {
   );
   const [filters, setFilters] = React.useState([]);
   const [currency, setCurrency] = React.useState("USD");
+  const [selectedProviderId, setSelectedProviderId] = React.useState("");
+  const [selectedItemName, setselectedItemName] = React.useState("");
   // page and settings state
   const [init, setInit] = React.useState(false);
   const [fetch, setFetch] = React.useState(false);
@@ -153,6 +156,16 @@ const CloudCostReports = () => {
   }
 
   function drilldown(row) {
+    if (aggregationState.includes("item")) {
+      try {
+        setSelectedProviderId(row.providerID);
+        setselectedItemName(row.labelName ?? row.name);
+      } catch (e) {
+        logger.error(e);
+      }
+
+      return;
+    }
     const nameParts = row.name.split("/");
     const nextAgg = aggregateBy.includes("service") ? "item" : "service";
     const aggToString = [aggregateBy];
@@ -267,6 +280,21 @@ const CloudCostReports = () => {
             />
           )}
         </Paper>
+      )}
+      {selectedProviderId && selectedItemName && (
+        <CloudCostDetails
+          onClose={() => {
+            setSelectedProviderId("");
+            setselectedItemName("");
+          }}
+          selectedProviderId={selectedProviderId}
+          selectedItem={selectedItemName}
+          agg={aggregateBy}
+          filters={filters}
+          costMetric={costMetric}
+          window={window}
+          currency={currency}
+        />
       )}
     </Page>
   );

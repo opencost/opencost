@@ -43,7 +43,7 @@ const SidebarNav = ({ active }) => {
       href: "allocation",
       icon: <BarChart />,
     },
-    { name: "Cloud Cost", href: "cloud", icon: <Cloud /> },
+    { name: "Cloud Costs", href: "cloud", icon: <Cloud /> },
   ];
 
   return (
