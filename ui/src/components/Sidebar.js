@@ -16,7 +16,7 @@ import {
 
 import { MoveToInbox as InboxIcon, Mail as MailIcon } from "@material-ui/icons";
 
-const drawerWidth = 240;
+const drawerWidth = 120;
 
 const Sidebar = () => {
   return (

@@ -16,7 +16,7 @@ import {
 import { toCurrency } from "../util";
 import CloudCostChart from "./CloudCostChart";
 
-const CloudCost = ({ cumulativeData, totalData, graphData, currency }) => {
+const CloudCost = ({ cumulativeData = [], totalData, graphData, currency }) => {
   const useStyles = makeStyles({
     noResults: {
       padding: 24,
@@ -71,7 +71,7 @@ const CloudCost = ({ cumulativeData, totalData, graphData, currency }) => {
   const [orderBy, setOrderBy] = React.useState("totalCost");
   const [page, setPage] = React.useState(0);
   const [rowsPerPage, setRowsPerPage] = React.useState(25);
-  const numData = cumulativeData.length;
+  const numData = cumulativeData?.length;
 
   const lastPage = Math.floor(numData / rowsPerPage);
 
