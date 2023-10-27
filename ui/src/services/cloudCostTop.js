@@ -20,7 +20,7 @@ class CloudCostTopService {
       const resp = await axios.get(
         `${
           this.BASE_URL
-        }/model/cloudCost/top?window=${window}&costMetric=${costMetric}${getCloudFilters(
+        }/cloudCost/top?window=${window}&costMetric=${costMetric}${getCloudFilters(
           filters
         )}`
       );
@@ -29,7 +29,7 @@ class CloudCostTopService {
       return { data: formatSampleItemsForGraph(result_2, costMetric) };
     }
 
-    const result = await axios.get(`${this.BASE_URL}/model/cloudCost/view`, {
+    const result = await axios.get(`${this.BASE_URL}/cloudCost/view`, {
       params,
     });
     return result.data;
