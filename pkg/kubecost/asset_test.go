@@ -482,6 +482,11 @@ func TestNode_Add(t *testing.T) {
 	node3.RAMCost = 0.0
 	node3.Discount = 0.3
 	node3.SetAdjustment(0.0)
+	node3.Overhead = &NodeOverhead{
+		CpuOverheadFraction:  0.6,
+		RamOverheadFraction:  0.75,
+		OverheadCostFraction: 0.7,
+	}
 
 	node4 := NewNode("node4", "cluster1", "node4", *windows[0].start, *windows[0].end, windows[0])
 	node4.CPUCoreHours = 0 * hours
@@ -492,6 +497,7 @@ func TestNode_Add(t *testing.T) {
 	node4.RAMCost = 0.0
 	node4.Discount = 0.1
 	node4.SetAdjustment(0.0)
+	node4.Overhead = nil
 
 	nodeT = node3.Add(node4).(*Node)
 
@@ -501,6 +507,9 @@ func TestNode_Add(t *testing.T) {
 	}
 	if nodeT.Discount != 0.2 {
 		t.Fatalf("Node.Add: expected %f; got %f", 0.2, nodeT.Discount)
+	}
+	if nodeT.Overhead != nil {
+		t.Errorf("Node.Add: adding a node with nil overhead should nil the resulting overhead")
 	}
 
 	// Accumulate: one nodes, two window
