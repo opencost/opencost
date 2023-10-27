@@ -1,5 +1,5 @@
 import { makeStyles } from "@material-ui/styles";
-import React from "react";
+import * as React from "react";
 import { useLocation } from "react-router-dom";
 import { SidebarNav } from "./Nav/SidebarNav";
 

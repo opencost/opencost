@@ -1,4 +1,4 @@
-import React from "react";
+import * as React from "react";
 import { makeStyles } from "@material-ui/styles";
 import Breadcrumbs from "@material-ui/core/Breadcrumbs";
 import Link from "@material-ui/core/Link";
