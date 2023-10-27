@@ -1,4 +1,5 @@
 import { forEach, get, round } from "lodash";
+import { costMetricToPropName } from "./CloudCost/tokens";
 
 // rangeToCumulative takes an AllocationSetRange (type: array[AllocationSet])
 // and accumulates the values into a single AllocationSet (type: object)
@@ -372,7 +373,10 @@ export function getCloudFilters(filters) {
   return `&${params.toString()}`;
 }
 
-export function formatSampleItemsForGraph({ data }) {
+export function formatSampleItemsForGraph({ data, costMetric }) {
+  const costMetricPropName = costMetric
+    ? costMetricToPropName[costMetric]
+    : "amortizedNetCost";
   const graphData = data.sets.map(({ cloudCosts, window: { end, start } }) => {
     return {
       end,
@@ -385,37 +389,34 @@ export function formatSampleItemsForGraph({ data }) {
   });
   const accumulator = {};
   data.sets.forEach(({ cloudCosts, window }) => {
-    Object.entries(cloudCosts).forEach(
-      ([name, { amortizedNetCost, netCost, properties }]) => {
-        accumulator[name] ||= {
-          cost: 0,
-          netCost: 0,
-          start: "",
-          end: "",
-          providerID: "",
-          labelName: "",
-          kubernetesCost: 0,
-          get kubernetesPercent() {
-            return this.kubernetesCost / this.cost;
-          },
-        };
-        accumulator[name].cost += amortizedNetCost.cost;
-        accumulator[name].kubernetesCost +=
-          amortizedNetCost.cost * amortizedNetCost.kubernetesPercent;
-        accumulator[name].netCost += netCost.cost;
-        accumulator[name].start = window.start;
-        accumulator[name].end = window.end;
-        accumulator[name].providerID = properties.providerID;
-        accumulator[name].labelName = properties.labels?.name;
-      }
-    );
+    Object.entries(cloudCosts).forEach(([name, cloudCostItem]) => {
+      const { properties } = cloudCostItem;
+      accumulator[name] ||= {
+        cost: 0,
+        start: "",
+        end: "",
+        providerID: "",
+        labelName: "",
+        kubernetesCost: 0,
+        kubernetesPercent: 0,
+      };
+      accumulator[name].cost += cloudCostItem[costMetricPropName].cost;
+      accumulator[name].kubernetesCost +=
+        cloudCostItem[costMetricPropName].cost *
+        cloudCostItem[costMetricPropName].kubernetesPercent;
+      accumulator[name].start = window.start;
+      accumulator[name].end = window.end;
+      accumulator[name].providerID = properties.providerID;
+      accumulator[name].labelName = properties.labels?.name;
+      accumulator[name].kubernetesPercent =
+        cloudCostItem[costMetricPropName].kubernetesPercent;
+    });
   });
   const tableRows = Object.entries(accumulator).map(
     ([
       name,
       {
         cost,
-        netCost,
         start,
         end,
         providerID,
@@ -427,28 +428,32 @@ export function formatSampleItemsForGraph({ data }) {
       cost,
       name,
       kubernetesCost,
-      get kubernetesPercent() {
-        return this.kubernetesCost / this.cost;
-      },
-      netCost,
+      kubernetesPercent,
       start,
       end,
       providerID,
       labelName,
     })
   );
-  const tableTotal = tableRows.reduce((tr1, tr2) => ({
-    ...tr1,
-    cost: tr2.cost,
-    name: "",
-    kubernetesCost:
-      tr1.kubernetesCost * tr1.cost + tr2.kubernetesCost * tr2.cost,
-    netCost: tr1.netCost + tr2.netCost,
-    start: "",
-    end: "",
-    labelName: "",
-    providerID: "",
-  }));
+
+  const tableTotal = tableRows.reduce(
+    (tr1, tr2) => ({
+      ...tr1,
+      cost: tr1.cost + tr2.cost,
+      kubernetesCost: tr1.kubernetesCost + tr2.kubernetesCost,
+    }),
+    {
+      cost: 0,
+      name: "",
+      kubernetesCost: 0,
+      kubernetesPercent: 0,
+      end: "",
+      start: "",
+      labelName: "",
+      providerID: "",
+    }
+  );
+
   return { graphData, tableRows, tableTotal };
 }
 
