@@ -26,7 +26,7 @@ class CloudCostTopService {
       );
       const result_2 = await resp.data;
 
-      return { data: formatSampleItemsForGraph(result_2) };
+      return { data: formatSampleItemsForGraph(result_2, costMetric) };
     }
 
     const result = await axios.get(`${this.BASE_URL}/model/cloudCost/view`, {
