@@ -25,7 +25,6 @@ const CloudCostRow = ({
     return `${totalPercent}%`;
   }
 
-  // const canShowMore = sampleData && !!row.providerID;
   const whichPercent = sampleData
     ? `${(kubernetesPercent * 100).toFixed(1)}%`
     : calculatePercent();
@@ -33,11 +32,6 @@ const CloudCostRow = ({
     <TableRow onClick={() => drilldown(row)}>
       <TableCell
         align={"left"}
-        // style={
-        //   canShowMore
-        //     ? { cursor: "pointer", color: "#346ef2", padding: "1rem" }
-        //     : { pointerEvents: "none", padding: "1rem" }
-        // }
         style={{ cursor: "pointer", color: "#346ef2", padding: "1rem" }}
       >
         {name}

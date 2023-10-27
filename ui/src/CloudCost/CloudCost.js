@@ -102,15 +102,6 @@ const CloudCost = ({
     setPage(0);
   };
 
-  const createSortHandler = (property) => (event) =>
-    handleRequestSort(event, property);
-
-  const handleRequestSort = (event, property) => {
-    const isDesc = orderBy === property && order === "desc";
-    setOrder(isDesc ? "asc" : "desc");
-    setOrderBy(property);
-  };
-
   const orderedRows = stableSort(cumulativeData, getComparator(order, orderBy));
   const pageRows = orderedRows.slice(
     page * rowsPerPage,
