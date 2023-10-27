@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Box, Modal, Paper, Typography } from "@material-ui/core";
+import { Modal, Paper, Typography } from "@material-ui/core";
 import Warnings from "../components/Warnings";
 import CircularProgress from "@material-ui/core/CircularProgress";
 
