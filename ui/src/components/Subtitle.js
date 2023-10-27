@@ -17,7 +17,7 @@ const useStyles = makeStyles({
   },
 });
 
-const Subtitle = ({ report }) => {
+const Subtitle = ({ report, onClick }) => {
   const classes = useStyles();
 
   const { aggregateBy, window } = report;
@@ -27,6 +27,7 @@ const Subtitle = ({ report }) => {
       <Breadcrumbs
         separator={<NavigateNextIcon fontSize="small" />}
         aria-label="breadcrumb"
+        onClick={onClick}
       >
         {aggregateBy && aggregateBy.length > 0 ? (
           <Typography>

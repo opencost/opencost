@@ -1,5 +1,5 @@
 import React from "react";
-import { get, round } from "lodash";
+import { get } from "lodash";
 import { makeStyles } from "@material-ui/styles";
 import {
   Typography,
@@ -15,11 +15,11 @@ import {
 
 import { toCurrency } from "../util";
 import CloudCostChart from "./CloudCostChart";
-import { primary } from "../constants/colors";
+import { CloudCostRow } from "./CloudCostRow";
 
 const CloudCost = ({
   cumulativeData = [],
-  totalData = {},
+  totalData: totalsRow = {},
   graphData = [],
   currency = "USD",
   drilldown,
@@ -60,19 +60,31 @@ const CloudCost = ({
   }
 
   const headCells = [
-    { id: "name", numeric: false, label: "Name", width: "auto" },
+    {
+      id: "name",
+      numeric: false,
+      label: "Name",
+      width: "auto",
+    },
     {
       id: "kubernetesPercent",
       numeric: true,
-      label: "K8's Utilization",
-      width: 200,
+      label: "K8s Utilization",
+      width: 160,
     },
-    {
-      id: "cost",
-      numeric: true,
-      label: "Sum of Sample Data",
-      width: 200,
-    },
+    sampleData
+      ? {
+          id: "cost",
+          numeric: true,
+          label: "Sum of Sample Data",
+          width: 200,
+        }
+      : {
+          id: "cost",
+          numeric: true,
+          label: "Total cost",
+          width: 155,
+        },
   ];
 
   const [order, setOrder] = React.useState("desc");
@@ -117,6 +129,25 @@ const CloudCost = ({
     );
   }
 
+  function dataToCloudCostRow(row) {
+    const suffix =
+      { hourly: "/hr", monthly: "/mo", daily: "/day" }["cumulative"] || "";
+    return (
+      <CloudCostRow
+        costSuffix={suffix}
+        cost={row.cost}
+        drilldown={drilldown}
+        key={row.name}
+        kubernetesPercent={row.kubernetesPercent}
+        name={
+          sampleData && row.labelName ? row.labelName ?? "" : row.name ?? ""
+        }
+        row={row}
+        sampleData={sampleData}
+      />
+    );
+  }
+
   return (
     <div id="cloud-cost">
       <div id="cloud-graph-">
@@ -143,7 +174,11 @@ const CloudCost = ({
                     <TableSortLabel
                       active={orderBy === cell.id}
                       direction={orderBy === cell.id ? order : "asc"}
-                      onClick={createSortHandler(cell.id)}
+                      onClick={() => {
+                        const isDesc = orderBy === cell.id && order === "desc";
+                        setOrder(isDesc ? "asc" : "desc");
+                        setOrderBy(cell.id);
+                      }}
                     >
                       {cell.label}
                     </TableSortLabel>
@@ -153,65 +188,22 @@ const CloudCost = ({
             </TableHead>
             <TableBody>
               <TableRow>
-                {headCells.map((cell) => {
-                  let tableCell = (
-                    <TableCell
-                      key={cell.id}
-                      colSpan={cell.colspan}
-                      align={cell.numeric ? "right" : "left"}
-                      style={{ fontWeight: 500 }}
-                    >
-                      {cell.id === "kubernetesPercent"
-                        ? round(totalData[cell.id] * 100, 2) + "%"
-                        : isNaN(totalData[cell.id])
-                        ? "Totals"
-                        : toCurrency(round(totalData[cell.id]), currency)}
-                    </TableCell>
-                  );
-                  if (sampleData && cell.label === "Sum of Sample Data") {
-                    tableCell = (
-                      <TableCell
-                        align={cell.numeric ? "right" : "left"}
-                        key={cell.id}
-                        style={{
-                          width: cell.width,
-                          paddingRight: cell.id === "totalCost" ? "2em" : "",
-                        }}
-                      >
-                        <TableSortLabel
-                          active={orderBy === cell.id}
-                          direction={orderBy === cell.id ? order : "asc"}
-                          onClick={createSortHandler(cell.id)}
-                        >
-                          {cell.label}
-                        </TableSortLabel>
-                      </TableCell>
-                    );
+                <TableCell align={"left"} style={{ fontWeight: 500 }}>
+                  {totalsRow?.name || "Totals"}
+                </TableCell>
 
-                    return tableCell;
-                  }
-                  return <>{tableCell}</>;
-                })}
+                <TableCell align={"right"} style={{ fontWeight: 500 }}>
+                  {Math.round(totalsRow?.kubernetesPercent * 100)}%
+                </TableCell>
+
+                <TableCell
+                  align={"right"}
+                  style={{ fontWeight: 500, paddingRight: "2em" }}
+                >
+                  {toCurrency(totalsRow?.cost || 0, currency)}
+                </TableCell>
               </TableRow>
-              {pageRows.map((row, key) => {
-                return (
-                  <TableRow
-                    key={key}
-                    onClick={() => drilldown(row)}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <TableCell align="left" style={{ color: "#346ef2" }}>
-                      {row.name}
-                    </TableCell>
-                    <TableCell align="right">
-                      {round(row.kubernetesPercent * 100) + "%"}
-                    </TableCell>
-                    <TableCell align="right">
-                      {toCurrency(row.cost, currency)}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+              {pageRows.map(dataToCloudCostRow)}
             </TableBody>
           </Table>
         </TableContainer>
