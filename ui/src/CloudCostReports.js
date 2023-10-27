@@ -1,4 +1,4 @@
-import React from "react";
+import * as React from "react";
 import Page from "./components/Page";
 import Header from "./components/Header";
 import IconButton from "@material-ui/core/IconButton";

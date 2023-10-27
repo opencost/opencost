@@ -1,4 +1,4 @@
-import React from "react";
+import * as React from "react";
 import { get } from "lodash";
 import { makeStyles } from "@material-ui/styles";
 import {

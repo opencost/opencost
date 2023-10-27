@@ -1,4 +1,4 @@
-import React from "react";
+import * as React from "react";
 import { makeStyles } from "@material-ui/styles";
 import { upperFirst } from "lodash";
 import Breadcrumbs from "@material-ui/core/Breadcrumbs";
