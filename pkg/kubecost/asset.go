@@ -2165,6 +2165,8 @@ func (n *Node) add(that *Node) {
 	if n.Overhead != nil && that.Overhead != nil {
 		n.Overhead.RamOverheadFraction = (n.Overhead.RamOverheadFraction*n.RAMCost + that.Overhead.RamOverheadFraction*that.RAMCost) / totalRAMCost
 		n.Overhead.CpuOverheadFraction = (n.Overhead.CpuOverheadFraction*n.CPUCost + that.Overhead.CpuOverheadFraction*that.CPUCost) / totalCPUCost
+	} else {
+		n.Overhead = nil
 	}
 
 	n.CPUCoreHours += that.CPUCoreHours
