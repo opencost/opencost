@@ -5,7 +5,7 @@ import (
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/credentials"
-	"github.com/opencost/opencost/pkg/cloud/config"
+	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/util/json"
 )
 
@@ -13,7 +13,7 @@ const AccessKeyAuthorizerType = "AlibabaAccessKey"
 
 // Authorizer provide *bssopenapi.Client for Alibaba cloud BOS for Billing related SDK calls
 type Authorizer interface {
-	config.Authorizer
+	cloud.Authorizer
 	GetCredentials() (auth.Credential, error)
 }
 
@@ -36,7 +36,7 @@ type AccessKey struct {
 // MarshalJSON custom json marshalling functions, sets properties as tagged in struct and sets the authorizer type property
 func (ak *AccessKey) MarshalJSON() ([]byte, error) {
 	fmap := make(map[string]any, 3)
-	fmap[config.AuthorizerTypeProperty] = AccessKeyAuthorizerType
+	fmap[cloud.AuthorizerTypeProperty] = AccessKeyAuthorizerType
 	fmap["accessKeyID"] = ak.AccessKeyID
 	fmap["accessKeySecret"] = ak.AccessKeySecret
 	return json.Marshal(fmap)
@@ -52,7 +52,7 @@ func (ak *AccessKey) Validate() error {
 	return nil
 }
 
-func (ak *AccessKey) Equals(config config.Config) bool {
+func (ak *AccessKey) Equals(config cloud.Config) bool {
 	if config == nil {
 		return false
 	}
@@ -70,10 +70,10 @@ func (ak *AccessKey) Equals(config config.Config) bool {
 	return true
 }
 
-func (ak *AccessKey) Sanitize() config.Config {
+func (ak *AccessKey) Sanitize() cloud.Config {
 	return &AccessKey{
 		AccessKeyID:     ak.AccessKeyID,
-		AccessKeySecret: config.Redacted,
+		AccessKeySecret: cloud.Redacted,
 	}
 }
 

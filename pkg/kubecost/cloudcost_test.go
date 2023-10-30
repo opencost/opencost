@@ -28,7 +28,7 @@ func TestCloudCost_LoadCloudCost(t *testing.T) {
 	end := RoundBack(time.Now().UTC(), timeutil.Day)
 	start := end.Add(-3 * timeutil.Day)
 	dayWindows, _ := GetWindows(start, end, timeutil.Day)
-	emtpyCCSR, _ := NewCloudCostSetRange(start, end, timeutil.Day, "integration")
+	emtpyCCSR, _ := NewCloudCostSetRange(start, end, AccumulateOptionDay, "integration")
 	testCases := map[string]struct {
 		cc       []*CloudCost
 		ccsr     *CloudCostSetRange

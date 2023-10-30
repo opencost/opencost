@@ -6,7 +6,8 @@ import (
 	"strings"
 
 	"cloud.google.com/go/bigquery"
-	"github.com/opencost/opencost/pkg/cloud/config"
+	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/util/json"
 )
 
@@ -43,7 +44,7 @@ func (bqc *BigQueryConfiguration) Validate() error {
 	return nil
 }
 
-func (bqc *BigQueryConfiguration) Equals(config config.Config) bool {
+func (bqc *BigQueryConfiguration) Equals(config cloud.Config) bool {
 	if config == nil {
 		return false
 	}
@@ -77,7 +78,7 @@ func (bqc *BigQueryConfiguration) Equals(config config.Config) bool {
 	return true
 }
 
-func (bqc *BigQueryConfiguration) Sanitize() config.Config {
+func (bqc *BigQueryConfiguration) Sanitize() cloud.Config {
 	return &BigQueryConfiguration{
 		ProjectID:  bqc.ProjectID,
 		Dataset:    bqc.Dataset,
@@ -89,6 +90,10 @@ func (bqc *BigQueryConfiguration) Sanitize() config.Config {
 // Key uses the Usage Project Id as the Provider Key for GCP
 func (bqc *BigQueryConfiguration) Key() string {
 	return fmt.Sprintf("%s/%s", bqc.ProjectID, bqc.GetBillingDataDataset())
+}
+
+func (bqc *BigQueryConfiguration) Provider() string {
+	return kubecost.GCPProvider
 }
 
 func (bqc *BigQueryConfiguration) GetBillingDataDataset() string {
@@ -113,19 +118,19 @@ func (bqc *BigQueryConfiguration) UnmarshalJSON(b []byte) error {
 
 	fmap := f.(map[string]interface{})
 
-	projectID, err := config.GetInterfaceValue[string](fmap, "projectID")
+	projectID, err := cloud.GetInterfaceValue[string](fmap, "projectID")
 	if err != nil {
 		return fmt.Errorf("BigQueryConfiguration: FromInterface: %s", err.Error())
 	}
 	bqc.ProjectID = projectID
 
-	dataset, err := config.GetInterfaceValue[string](fmap, "dataset")
+	dataset, err := cloud.GetInterfaceValue[string](fmap, "dataset")
 	if err != nil {
 		return fmt.Errorf("BigQueryConfiguration: FromInterface: %s", err.Error())
 	}
 	bqc.Dataset = dataset
 
-	table, err := config.GetInterfaceValue[string](fmap, "table")
+	table, err := cloud.GetInterfaceValue[string](fmap, "table")
 	if err != nil {
 		return fmt.Errorf("BigQueryConfiguration: FromInterface: %s", err.Error())
 	}
@@ -135,7 +140,7 @@ func (bqc *BigQueryConfiguration) UnmarshalJSON(b []byte) error {
 	if !ok {
 		return fmt.Errorf("StorageConfiguration: UnmarshalJSON: missing authorizer")
 	}
-	authorizer, err := config.AuthorizerFromInterface(authAny, SelectAuthorizerByType)
+	authorizer, err := cloud.AuthorizerFromInterface(authAny, SelectAuthorizerByType)
 	if err != nil {
 		return fmt.Errorf("StorageConfiguration: UnmarshalJSON: %s", err.Error())
 	}
@@ -143,7 +148,7 @@ func (bqc *BigQueryConfiguration) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func ConvertBigQueryConfigToConfig(bqc BigQueryConfig) config.KeyedConfig {
+func ConvertBigQueryConfigToConfig(bqc BigQueryConfig) cloud.KeyedConfig {
 	if bqc.IsEmpty() {
 		return nil
 	}

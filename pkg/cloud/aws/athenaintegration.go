@@ -11,7 +11,6 @@ import (
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
 const LabelColumnPrefix = "resource_tags_user_"
@@ -154,7 +153,7 @@ func (ai *AthenaIntegration) GetCloudCost(start, end time.Time) (*kubecost.Cloud
 	`
 	aqi.Query = fmt.Sprintf(queryStr, columnStr, ai.Table, whereClause, groupByStr)
 
-	ccsr, err := kubecost.NewCloudCostSetRange(start, end, timeutil.Day, ai.Key())
+	ccsr, err := kubecost.NewCloudCostSetRange(start, end, kubecost.AccumulateOptionDay, ai.Key())
 	if err != nil {
 		return nil, err
 	}
@@ -441,13 +440,4 @@ func (ai *AthenaIntegration) GetConnectionStatusFromResult(result cloud.EmptyChe
 		return cloud.MissingData
 	}
 	return cloud.SuccessfulConnection
-}
-
-func (ai *AthenaIntegration) GetConnectionStatus() string {
-	// initialize status if it has not done so; this can happen if the integration is inactive
-	if ai.ConnectionStatus.String() == "" {
-		ai.ConnectionStatus = cloud.InitialStatus
-	}
-
-	return ai.ConnectionStatus.String()
 }
