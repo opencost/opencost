@@ -20,6 +20,10 @@ type StorageConnection struct {
 }
 
 func (sc *StorageConnection) GetStatus() cloud.ConnectionStatus {
+	// initialize status if it has not done so; this can happen if the integration is inactive
+	if sc.ConnectionStatus.String() == "" {
+		sc.ConnectionStatus = cloud.InitialStatus
+	}
 	return sc.ConnectionStatus
 }
 

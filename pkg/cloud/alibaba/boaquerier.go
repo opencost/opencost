@@ -25,6 +25,10 @@ type BoaQuerier struct {
 }
 
 func (bq *BoaQuerier) GetStatus() cloud.ConnectionStatus {
+	// initialize status if it has not done so; this can happen if the integration is inactive
+	if bq.ConnectionStatus.String() == "" {
+		bq.ConnectionStatus = cloud.InitialStatus
+	}
 	return bq.ConnectionStatus
 }
 

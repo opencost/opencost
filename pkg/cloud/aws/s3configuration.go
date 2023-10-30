@@ -5,6 +5,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/opencost/opencost/pkg/cloud/config"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/util/json"
 )
 
@@ -87,6 +88,10 @@ func (s3c *S3Configuration) Sanitize() config.Config {
 
 func (s3c *S3Configuration) Key() string {
 	return fmt.Sprintf("%s/%s", s3c.Account, s3c.Bucket)
+}
+
+func (s3c *S3Configuration) Provider() string {
+	return kubecost.AWSProvider
 }
 
 func (s3c *S3Configuration) UnmarshalJSON(b []byte) error {
