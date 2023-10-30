@@ -30,7 +30,6 @@ const Header = (props) => {
 
   return (
     <div className={classes.root}>
-      {/* <img src={require("../images/logo.png")} alt="OpenCost" /> */}
       <Typography variant="h3" style={{ marginBottom: "10px" }}>
         {headerTitle}
       </Typography>
