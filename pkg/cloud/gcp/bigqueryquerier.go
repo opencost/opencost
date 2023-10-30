@@ -14,6 +14,10 @@ type BigQueryQuerier struct {
 }
 
 func (bqq *BigQueryQuerier) GetStatus() cloud.ConnectionStatus {
+	// initialize status if it has not done so; this can happen if the integration is inactive
+	if bqq.ConnectionStatus.String() == "" {
+		bqq.ConnectionStatus = cloud.InitialStatus
+	}
 	return bqq.ConnectionStatus
 }
 
@@ -41,5 +45,14 @@ func (bqq *BigQueryQuerier) Query(ctx context.Context, queryStr string) (*bigque
 	}
 
 	query := client.Query(queryStr)
-	return query.Read(ctx)
+	iter, err := query.Read(ctx)
+
+	// If result is empty and connection status is not already successful update status to missing data
+	if iter == nil && bqq.ConnectionStatus != cloud.SuccessfulConnection {
+		bqq.ConnectionStatus = cloud.MissingData
+		return iter, nil
+	}
+
+	bqq.ConnectionStatus = cloud.SuccessfulConnection
+	return iter, nil
 }

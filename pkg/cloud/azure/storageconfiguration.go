@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/opencost/opencost/pkg/cloud/config"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/util/json"
 )
 
@@ -103,6 +104,10 @@ func (sc *StorageConfiguration) Key() string {
 		key = fmt.Sprintf("%s/%s", key, sc.Path)
 	}
 	return key
+}
+
+func (sc *StorageConfiguration) Provider() string {
+	return kubecost.AzureProvider
 }
 
 func (sc *StorageConfiguration) UnmarshalJSON(b []byte) error {

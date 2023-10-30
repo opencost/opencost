@@ -9,4 +9,6 @@ import (
 // CloudCostIntegration is an interface for retrieving daily granularity CloudCost data for a given range
 type CloudCostIntegration interface {
 	GetCloudCost(time.Time, time.Time) (*kubecost.CloudCostSetRange, error)
+	Provider() string
+	GetStatus() ConnectionStatus
 }

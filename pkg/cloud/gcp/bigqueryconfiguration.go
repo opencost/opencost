@@ -7,6 +7,7 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"github.com/opencost/opencost/pkg/cloud/config"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/util/json"
 )
 
@@ -89,6 +90,10 @@ func (bqc *BigQueryConfiguration) Sanitize() config.Config {
 // Key uses the Usage Project Id as the Provider Key for GCP
 func (bqc *BigQueryConfiguration) Key() string {
 	return fmt.Sprintf("%s/%s", bqc.ProjectID, bqc.GetBillingDataDataset())
+}
+
+func (bqc *BigQueryConfiguration) Provider() string {
+	return kubecost.GCPProvider
 }
 
 func (bqc *BigQueryConfiguration) GetBillingDataDataset() string {

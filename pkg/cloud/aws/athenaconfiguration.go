@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/opencost/opencost/pkg/cloud/config"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/util/json"
 )
 
@@ -120,6 +121,10 @@ func (ac *AthenaConfiguration) Sanitize() config.Config {
 
 func (ac *AthenaConfiguration) Key() string {
 	return fmt.Sprintf("%s/%s", ac.Account, ac.Bucket)
+}
+
+func (ac *AthenaConfiguration) Provider() string {
+	return kubecost.AWSProvider
 }
 
 func (ac *AthenaConfiguration) UnmarshalJSON(b []byte) error {

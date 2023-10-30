@@ -15,6 +15,10 @@ type S3Connection struct {
 }
 
 func (s3c *S3Connection) GetStatus() cloud.ConnectionStatus {
+	// initialize status if it has not done so; this can happen if the integration is inactive
+	if s3c.ConnectionStatus.String() == "" {
+		s3c.ConnectionStatus = cloud.InitialStatus
+	}
 	return s3c.ConnectionStatus
 }
 

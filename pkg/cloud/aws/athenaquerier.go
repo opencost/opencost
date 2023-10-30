@@ -25,6 +25,10 @@ type AthenaQuerier struct {
 }
 
 func (aq *AthenaQuerier) GetStatus() cloud.ConnectionStatus {
+	// initialize status if it has not done so; this can happen if the integration is inactive
+	if aq.ConnectionStatus.String() == "" {
+		aq.ConnectionStatus = cloud.InitialStatus
+	}
 	return aq.ConnectionStatus
 }
 
