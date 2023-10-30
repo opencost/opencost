@@ -2387,9 +2387,16 @@ func (n *Node) SanitizeNaN() {
 		n.Preemptible = 0
 	}
 
-	n.CPUBreakdown.SanitizeNaN()
-	n.RAMBreakdown.SanitizeNaN()
-	n.Overhead.SanitizeNaN()
+	if n.CPUBreakdown != nil {
+		n.CPUBreakdown.SanitizeNaN()
+	}
+	if n.RAMBreakdown != nil {
+		n.RAMBreakdown.SanitizeNaN()
+	}
+
+	if n.Overhead != nil {
+		n.Overhead.SanitizeNaN()
+	}
 }
 
 // LoadBalancer is an Asset representing a single load balancer in a cluster
