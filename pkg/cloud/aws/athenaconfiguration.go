@@ -3,7 +3,8 @@ package aws
 import (
 	"fmt"
 
-	"github.com/opencost/opencost/pkg/cloud/config"
+	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/util/json"
 )
 
@@ -55,7 +56,7 @@ func (ac *AthenaConfiguration) Validate() error {
 	return nil
 }
 
-func (ac *AthenaConfiguration) Equals(config config.Config) bool {
+func (ac *AthenaConfiguration) Equals(config cloud.Config) bool {
 	if config == nil {
 		return false
 	}
@@ -105,7 +106,7 @@ func (ac *AthenaConfiguration) Equals(config config.Config) bool {
 	return true
 }
 
-func (ac *AthenaConfiguration) Sanitize() config.Config {
+func (ac *AthenaConfiguration) Sanitize() cloud.Config {
 	return &AthenaConfiguration{
 		Bucket:     ac.Bucket,
 		Region:     ac.Region,
@@ -122,6 +123,10 @@ func (ac *AthenaConfiguration) Key() string {
 	return fmt.Sprintf("%s/%s", ac.Account, ac.Bucket)
 }
 
+func (ac *AthenaConfiguration) Provider() string {
+	return kubecost.AWSProvider
+}
+
 func (ac *AthenaConfiguration) UnmarshalJSON(b []byte) error {
 	var f interface{}
 	err := json.Unmarshal(b, &f)
@@ -131,45 +136,45 @@ func (ac *AthenaConfiguration) UnmarshalJSON(b []byte) error {
 
 	fmap := f.(map[string]interface{})
 
-	bucket, err := config.GetInterfaceValue[string](fmap, "bucket")
+	bucket, err := cloud.GetInterfaceValue[string](fmap, "bucket")
 	if err != nil {
 		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
 	}
 	ac.Bucket = bucket
 
-	region, err := config.GetInterfaceValue[string](fmap, "region")
+	region, err := cloud.GetInterfaceValue[string](fmap, "region")
 	if err != nil {
 		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
 	}
 	ac.Region = region
 
-	database, err := config.GetInterfaceValue[string](fmap, "database")
+	database, err := cloud.GetInterfaceValue[string](fmap, "database")
 	if err != nil {
 		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
 	}
 	ac.Database = database
 
 	if _, ok := fmap["catalog"]; ok {
-		catalog, err := config.GetInterfaceValue[string](fmap, "catalog")
+		catalog, err := cloud.GetInterfaceValue[string](fmap, "catalog")
 		if err != nil {
 			return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
 		}
 		ac.Catalog = catalog
 	}
 
-	table, err := config.GetInterfaceValue[string](fmap, "table")
+	table, err := cloud.GetInterfaceValue[string](fmap, "table")
 	if err != nil {
 		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
 	}
 	ac.Table = table
 
-	workgroup, err := config.GetInterfaceValue[string](fmap, "workgroup")
+	workgroup, err := cloud.GetInterfaceValue[string](fmap, "workgroup")
 	if err != nil {
 		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
 	}
 	ac.Workgroup = workgroup
 
-	account, err := config.GetInterfaceValue[string](fmap, "account")
+	account, err := cloud.GetInterfaceValue[string](fmap, "account")
 	if err != nil {
 		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
 	}
@@ -179,7 +184,7 @@ func (ac *AthenaConfiguration) UnmarshalJSON(b []byte) error {
 	if !ok {
 		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: missing authorizer")
 	}
-	authorizer, err := config.AuthorizerFromInterface(authAny, SelectAuthorizerByType)
+	authorizer, err := cloud.AuthorizerFromInterface(authAny, SelectAuthorizerByType)
 	if err != nil {
 		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
 	}
@@ -190,7 +195,7 @@ func (ac *AthenaConfiguration) UnmarshalJSON(b []byte) error {
 
 // ConvertAwsAthenaInfoToConfig takes a legacy config and generates a Config based on the presence of properties to match
 // legacy behavior
-func ConvertAwsAthenaInfoToConfig(aai AwsAthenaInfo) config.KeyedConfig {
+func ConvertAwsAthenaInfoToConfig(aai AwsAthenaInfo) cloud.KeyedConfig {
 	if aai.IsEmpty() {
 		return nil
 	}
@@ -213,7 +218,7 @@ func ConvertAwsAthenaInfoToConfig(aai AwsAthenaInfo) config.KeyedConfig {
 		}
 	}
 
-	var config config.KeyedConfig
+	var config cloud.KeyedConfig
 	if aai.AthenaTable != "" || aai.AthenaDatabase != "" {
 		config = &AthenaConfiguration{
 			Bucket:     aai.AthenaBucketName,

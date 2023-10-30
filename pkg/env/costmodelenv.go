@@ -107,6 +107,14 @@ const (
 	ExportCSVLabelsList = "EXPORT_CSV_LABELS_LIST"
 	ExportCSVLabelsAll  = "EXPORT_CSV_LABELS_ALL"
 	ExportCSVMaxDays    = "EXPORT_CSV_MAX_DAYS"
+
+	DataRetentionDailyResolutionDaysEnvVar = "DATA_RETENTION_DAILY_RESOLUTION_DAYS"
+
+	CloudCostEnabledEnvVar          = "CLOUD_COST_ENABLED"
+	CloudCostMonthToDateIntervalVar = "CLOUD_COST_MONTH_TO_DATE_INTERVAL"
+	CloudCostRefreshRateHoursEnvVar = "CLOUD_COST_REFRESH_RATE_HOURS"
+	CloudCostQueryWindowDaysEnvVar  = "CLOUD_COST_QUERY_WINDOW_DAYS"
+	CloudCostRunWindowDaysEnvVar    = "CLOUD_COST_RUN_WINDOW_DAYS"
 )
 
 const DefaultConfigMountPath = "/var/configs"
@@ -607,4 +615,28 @@ func GetRegionOverrideList() []string {
 	}
 
 	return regionList
+}
+
+func GetDataRetentionDailyResolutionDays() int64 {
+	return GetInt64(DataRetentionDailyResolutionDaysEnvVar, 15)
+}
+
+func IsCloudCostEnabled() bool {
+	return GetBool(CloudCostEnabledEnvVar, false)
+}
+
+func GetCloudCostMonthToDateInterval() int {
+	return GetInt(CloudCostMonthToDateIntervalVar, 6)
+}
+
+func GetCloudCostRefreshRateHours() int64 {
+	return GetInt64(CloudCostRefreshRateHoursEnvVar, 6)
+}
+
+func GetCloudCostQueryWindowDays() int64 {
+	return GetInt64(CloudCostQueryWindowDaysEnvVar, 7)
+}
+
+func GetCloudCostRunWindowDays() int64 {
+	return GetInt64(CloudCostRunWindowDaysEnvVar, 3)
 }

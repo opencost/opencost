@@ -4,23 +4,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
 type AzureStorageIntegration struct {
 	AzureStorageBillingParser
-	ConnectionStatus cloud.ConnectionStatus
 }
 
 func (asi *AzureStorageIntegration) GetCloudCost(start, end time.Time) (*kubecost.CloudCostSetRange, error) {
-	ccsr, err := kubecost.NewCloudCostSetRange(start, end, timeutil.Day, asi.Key())
+	ccsr, err := kubecost.NewCloudCostSetRange(start, end, kubecost.AccumulateOptionDay, asi.Key())
 	if err != nil {
 		return nil, err
 	}
 
-	status, err := asi.ParseBillingData(start, end, func(abv *BillingRowValues) error {
+	err = asi.ParseBillingData(start, end, func(abv *BillingRowValues) error {
 		s := abv.Date
 		e := abv.Date.Add(timeutil.Day)
 		window := kubecost.NewWindow(&s, &e)
@@ -77,7 +75,6 @@ func (asi *AzureStorageIntegration) GetCloudCost(start, end time.Time) (*kubecos
 		return nil
 	})
 	if err != nil {
-		asi.ConnectionStatus = status
 		return nil, err
 	}
 	return ccsr, nil
