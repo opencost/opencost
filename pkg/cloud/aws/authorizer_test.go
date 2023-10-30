@@ -3,7 +3,7 @@ package aws
 import (
 	"testing"
 
-	"github.com/opencost/opencost/pkg/cloud/config"
+	"github.com/opencost/opencost/pkg/cloud"
 )
 
 func TestAuthorizerJSON_Sanitize(t *testing.T) {
@@ -19,7 +19,7 @@ func TestAuthorizerJSON_Sanitize(t *testing.T) {
 			},
 			expected: &AccessKey{
 				ID:     "ID",
-				Secret: config.Redacted,
+				Secret: cloud.Redacted,
 			},
 		},
 		"Service Account": {
@@ -37,7 +37,7 @@ func TestAuthorizerJSON_Sanitize(t *testing.T) {
 			expected: &AssumeRole{
 				Authorizer: &AccessKey{
 					ID:     "ID",
-					Secret: config.Redacted,
+					Secret: cloud.Redacted,
 				},
 				RoleARN: "role arn",
 			},

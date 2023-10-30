@@ -9,7 +9,6 @@ import (
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/opencost/opencost/pkg/cloud"
-	cloudconfig "github.com/opencost/opencost/pkg/cloud/config"
 	"github.com/opencost/opencost/pkg/log"
 )
 
@@ -20,10 +19,14 @@ type StorageConnection struct {
 }
 
 func (sc *StorageConnection) GetStatus() cloud.ConnectionStatus {
+	// initialize status if it has not done so; this can happen if the integration is inactive
+	if sc.ConnectionStatus.String() == "" {
+		sc.ConnectionStatus = cloud.InitialStatus
+	}
 	return sc.ConnectionStatus
 }
 
-func (sc *StorageConnection) Equals(config cloudconfig.Config) bool {
+func (sc *StorageConnection) Equals(config cloud.Config) bool {
 	thatConfig, ok := config.(*StorageConnection)
 	if !ok {
 		return false

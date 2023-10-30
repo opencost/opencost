@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/opencost/opencost/pkg/cloud/config"
+	"github.com/opencost/opencost/pkg/cloud"
 	"google.golang.org/api/option"
 )
 
@@ -13,7 +13,7 @@ const WorkloadIdentityAuthorizerType = "GCPWorkloadIdentity"
 
 // Authorizer provide a []option.ClientOption which is used in when creating clients in the GCP SDK
 type Authorizer interface {
-	config.Authorizer
+	cloud.Authorizer
 	CreateGCPClientOptions() ([]option.ClientOption, error)
 }
 
@@ -36,7 +36,7 @@ type ServiceAccountKey struct {
 // MarshalJSON custom json marshalling functions, sets properties as tagged in struct and sets the authorizer type property
 func (gkc *ServiceAccountKey) MarshalJSON() ([]byte, error) {
 	fmap := make(map[string]any, 2)
-	fmap[config.AuthorizerTypeProperty] = ServiceAccountKeyAuthorizerType
+	fmap[cloud.AuthorizerTypeProperty] = ServiceAccountKeyAuthorizerType
 	fmap["key"] = gkc.Key
 	return json.Marshal(fmap)
 }
@@ -49,7 +49,7 @@ func (gkc *ServiceAccountKey) Validate() error {
 	return nil
 }
 
-func (gkc *ServiceAccountKey) Equals(config config.Config) bool {
+func (gkc *ServiceAccountKey) Equals(config cloud.Config) bool {
 	if config == nil {
 		return false
 	}
@@ -71,10 +71,10 @@ func (gkc *ServiceAccountKey) Equals(config config.Config) bool {
 	return true
 }
 
-func (gkc *ServiceAccountKey) Sanitize() config.Config {
+func (gkc *ServiceAccountKey) Sanitize() cloud.Config {
 	redactedMap := make(map[string]string, len(gkc.Key))
 	for key, _ := range gkc.Key {
-		redactedMap[key] = config.Redacted
+		redactedMap[key] = cloud.Redacted
 	}
 	return &ServiceAccountKey{
 		Key: redactedMap,
@@ -103,7 +103,7 @@ type WorkloadIdentity struct{}
 // MarshalJSON custom json marshalling functions, sets properties as tagged in struct and sets the authorizer type property
 func (wi *WorkloadIdentity) MarshalJSON() ([]byte, error) {
 	fmap := make(map[string]any, 1)
-	fmap[config.AuthorizerTypeProperty] = WorkloadIdentityAuthorizerType
+	fmap[cloud.AuthorizerTypeProperty] = WorkloadIdentityAuthorizerType
 	return json.Marshal(fmap)
 }
 
@@ -111,7 +111,7 @@ func (wi *WorkloadIdentity) Validate() error {
 	return nil
 }
 
-func (wi *WorkloadIdentity) Equals(config config.Config) bool {
+func (wi *WorkloadIdentity) Equals(config cloud.Config) bool {
 	if config == nil {
 		return false
 	}
@@ -123,7 +123,7 @@ func (wi *WorkloadIdentity) Equals(config config.Config) bool {
 	return true
 }
 
-func (wi *WorkloadIdentity) Sanitize() config.Config {
+func (wi *WorkloadIdentity) Sanitize() cloud.Config {
 	return &WorkloadIdentity{}
 }
 

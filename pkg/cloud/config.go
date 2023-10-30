@@ -1,4 +1,4 @@
-package config
+package cloud
 
 import (
 	"fmt"
@@ -17,6 +17,7 @@ type Config interface {
 type KeyedConfig interface {
 	Config
 	Key() string
+	Provider() string
 }
 
 type KeyedConfigWatcher interface {
