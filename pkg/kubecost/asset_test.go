@@ -384,6 +384,11 @@ func TestNode_Add(t *testing.T) {
 		Other:  0.0,
 	}
 	node1.SetAdjustment(1.6)
+	node1.Overhead = &NodeOverhead{
+		CpuOverheadFraction:  1,
+		RamOverheadFraction:  1,
+		OverheadCostFraction: 1,
+	}
 
 	node2 := NewNode("node2", "cluster1", "node2", *windows[0].start, *windows[0].end, windows[0])
 	node2.CPUCoreHours = 1.0 * hours
@@ -406,6 +411,11 @@ func TestNode_Add(t *testing.T) {
 		Other:  0.05,
 	}
 	node2.SetAdjustment(1.0)
+	node2.Overhead = &NodeOverhead{
+		CpuOverheadFraction:  0.6,
+		RamOverheadFraction:  0.75,
+		OverheadCostFraction: 0.7,
+	}
 
 	nodeT := node1.Add(node2).(*Node)
 
@@ -434,6 +444,19 @@ func TestNode_Add(t *testing.T) {
 	if nodeT.RAMBytes() != 4.0*gb {
 		t.Fatalf("Node.Add: expected %f; got %f", 4.0*gb, nodeT.RAMBytes())
 	}
+	if o := nodeT.Overhead; o == nil {
+		t.Errorf("Node.Add (1 + 2): expected overhead to be non-nil")
+	} else {
+		if o.CpuOverheadFraction < 0 || o.CpuOverheadFraction > 1 {
+			t.Errorf("CPU overhead must be within [0, 1], is: %f", o.CpuOverheadFraction)
+		}
+		if o.RamOverheadFraction < 0 || o.RamOverheadFraction > 1 {
+			t.Errorf("RAM overhead must be within [0, 1], is: %f", o.RamOverheadFraction)
+		}
+		if o.OverheadCostFraction < 0 || o.OverheadCostFraction > 1 {
+			t.Errorf("Cost-weighted overhead must be within [0, 1], is: %f", o.OverheadCostFraction)
+		}
+	}
 
 	// Check that the original assets are unchanged
 	if !util.IsApproximately(node1.TotalCost(), 10.0) {
@@ -459,6 +482,11 @@ func TestNode_Add(t *testing.T) {
 	node3.RAMCost = 0.0
 	node3.Discount = 0.3
 	node3.SetAdjustment(0.0)
+	node3.Overhead = &NodeOverhead{
+		CpuOverheadFraction:  0.6,
+		RamOverheadFraction:  0.75,
+		OverheadCostFraction: 0.7,
+	}
 
 	node4 := NewNode("node4", "cluster1", "node4", *windows[0].start, *windows[0].end, windows[0])
 	node4.CPUCoreHours = 0 * hours
@@ -469,6 +497,7 @@ func TestNode_Add(t *testing.T) {
 	node4.RAMCost = 0.0
 	node4.Discount = 0.1
 	node4.SetAdjustment(0.0)
+	node4.Overhead = nil
 
 	nodeT = node3.Add(node4).(*Node)
 
@@ -478,6 +507,9 @@ func TestNode_Add(t *testing.T) {
 	}
 	if nodeT.Discount != 0.2 {
 		t.Fatalf("Node.Add: expected %f; got %f", 0.2, nodeT.Discount)
+	}
+	if nodeT.Overhead != nil {
+		t.Errorf("Node.Add: adding a node with nil overhead should nil the resulting overhead")
 	}
 
 	// Accumulate: one nodes, two window

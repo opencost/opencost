@@ -5,13 +5,13 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
-	"github.com/opencost/opencost/pkg/cloud/config"
+	"github.com/opencost/opencost/pkg/cloud"
 )
 
 const AccessKeyAuthorizerType = "AzureAccessKey"
 
 type Authorizer interface {
-	config.Authorizer
+	cloud.Authorizer
 	GetBlobCredentials() (azblob.Credential, error)
 }
 
@@ -32,7 +32,7 @@ type AccessKey struct {
 
 func (ak *AccessKey) MarshalJSON() ([]byte, error) {
 	fmap := make(map[string]any, 3)
-	fmap[config.AuthorizerTypeProperty] = AccessKeyAuthorizerType
+	fmap[cloud.AuthorizerTypeProperty] = AccessKeyAuthorizerType
 	fmap["accessKey"] = ak.AccessKey
 	fmap["account"] = ak.Account
 	return json.Marshal(fmap)
@@ -48,7 +48,7 @@ func (ak *AccessKey) Validate() error {
 	return nil
 }
 
-func (ak *AccessKey) Equals(config config.Config) bool {
+func (ak *AccessKey) Equals(config cloud.Config) bool {
 	if config == nil {
 		return false
 	}
@@ -67,9 +67,9 @@ func (ak *AccessKey) Equals(config config.Config) bool {
 	return true
 }
 
-func (ak *AccessKey) Sanitize() config.Config {
+func (ak *AccessKey) Sanitize() cloud.Config {
 	return &AccessKey{
-		AccessKey: config.Redacted,
+		AccessKey: cloud.Redacted,
 		Account:   ak.Account,
 	}
 }
