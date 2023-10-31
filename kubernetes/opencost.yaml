@@ -167,7 +167,7 @@ spec:
             privileged: false
             readOnlyRootFilesystem: true
             runAsUser: 1001
-        - image: gcr.io/kubecost1/opencost
+        - image: gcr.io/kubecost1/opencost-ui
           name: opencost-ui
           resources:
             requests:
