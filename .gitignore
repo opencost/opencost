@@ -13,3 +13,6 @@ pkg/cloud/azureorphan_test.go
 
 # VS Code
 .vscode
+
+#Apple
+*.DS_Store
