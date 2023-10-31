@@ -31,7 +31,7 @@ const CloudCost = ({
     },
   });
 
-  console.log("Totals", totalsRow);
+ 
 
   const classes = useStyles();
 
