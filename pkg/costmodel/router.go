@@ -17,8 +17,10 @@ import (
 
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/opencost/opencost/pkg/cloud/aws"
+	cloudconfig "github.com/opencost/opencost/pkg/cloud/config"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/provider"
+	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/kubeconfig"
 	"github.com/opencost/opencost/pkg/metrics"
@@ -82,24 +84,27 @@ var (
 // Accesses defines a singleton application instance, providing access to
 // Prometheus, Kubernetes, the cloud provider, and caches.
 type Accesses struct {
-	Router                 *httprouter.Router
-	PrometheusClient       prometheus.Client
-	PrometheusScrapeClient prometheus.Client
-	ThanosClient           prometheus.Client
-	KubeClientSet          kubernetes.Interface
-	ClusterCache           clustercache.ClusterCache
-	ClusterMap             clusters.ClusterMap
-	CloudProvider          models.Provider
-	ConfigFileManager      *config.ConfigFileManager
-	ClusterInfoProvider    clusters.ClusterInfoProvider
-	Model                  *CostModel
-	MetricsEmitter         *CostModelMetricsEmitter
-	OutOfClusterCache      *cache.Cache
-	AggregateCache         *cache.Cache
-	CostDataCache          *cache.Cache
-	ClusterCostsCache      *cache.Cache
-	CacheExpiration        map[time.Duration]time.Duration
-	AggAPI                 Aggregator
+	Router                   *httprouter.Router
+	PrometheusClient         prometheus.Client
+	PrometheusScrapeClient   prometheus.Client
+	ThanosClient             prometheus.Client
+	KubeClientSet            kubernetes.Interface
+	ClusterCache             clustercache.ClusterCache
+	ClusterMap               clusters.ClusterMap
+	CloudProvider            models.Provider
+	ConfigFileManager        *config.ConfigFileManager
+  CloudConfigController    *cloudconfig.Controller
+	CloudCostPipelineService *cloudcost.PipelineService
+	CloudCostQueryService    *cloudcost.QueryService
+	ClusterInfoProvider      clusters.ClusterInfoProvider
+	Model                    *CostModel
+	MetricsEmitter           *CostModelMetricsEmitter
+	OutOfClusterCache        *cache.Cache
+	AggregateCache           *cache.Cache
+	CostDataCache            *cache.Cache
+	ClusterCostsCache        *cache.Cache
+	CacheExpiration          map[time.Duration]time.Duration
+	AggAPI                   Aggregator
 	// SettingsCache stores current state of app settings
 	SettingsCache *cache.Cache
 	// settingsSubscribers tracks channels through which changes to different
@@ -1733,6 +1738,9 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		KubeClientSet:          kubeClientset,
 		ClusterCache:           k8sCache,
 		ClusterMap:             clusterMap,
+    CloudProvider:          cloudProvider,
+		CloudConfigController:  cloudconfig.NewController(cloudProvider),
+		ConfigFileManager:      confManager,
 		CloudProvider:          cloudProvider,
 		ConfigFileManager:      confManager,
 		ClusterInfoProvider:    clusterInfoProvider,
@@ -1746,6 +1754,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		CacheExpiration:        cacheExpiration,
 		httpServices:           services.NewCostModelServices(),
 	}
+
 	// Use the Accesses instance, itself, as the CostModelAggregator. This is
 	// confusing and unconventional, but necessary so that we can swap it
 	// out for the ETL-adapted version elsewhere.
@@ -1823,6 +1832,11 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 
 	a.Router.GET("/logs/level", a.GetLogLevel)
 	a.Router.POST("/logs/level", a.SetLogLevel)
+
+	a.Router.GET("/cloud/config/export", a.CloudConfigController.GetExportConfigHandler())
+	a.Router.GET("/cloud/config/enable", a.CloudConfigController.GetEnableConfigHandler())
+	a.Router.GET("/cloud/config/disable", a.CloudConfigController.GetDisableConfigHandler())
+	a.Router.GET("/cloud/config/delete", a.CloudConfigController.GetDeleteConfigHandler())
 
 	a.httpServices.RegisterAll(a.Router)
 

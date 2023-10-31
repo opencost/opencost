@@ -11,7 +11,6 @@ import (
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/opencost/opencost/pkg/cloud"
-	cloudconfig "github.com/opencost/opencost/pkg/cloud/config"
 	"github.com/opencost/opencost/pkg/log"
 )
 
@@ -20,7 +19,7 @@ type AzureStorageBillingParser struct {
 	StorageConnection
 }
 
-func (asbp *AzureStorageBillingParser) Equals(config cloudconfig.Config) bool {
+func (asbp *AzureStorageBillingParser) Equals(config cloud.Config) bool {
 	thatConfig, ok := config.(*AzureStorageBillingParser)
 	if !ok {
 		return false
@@ -30,33 +29,45 @@ func (asbp *AzureStorageBillingParser) Equals(config cloudconfig.Config) bool {
 
 type AzureBillingResultFunc func(*BillingRowValues) error
 
-func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, resultFn AzureBillingResultFunc) (cloud.ConnectionStatus, error) {
+func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, resultFn AzureBillingResultFunc) error {
 	err := asbp.Validate()
 	if err != nil {
-		return cloud.InvalidConfiguration, err
+		asbp.ConnectionStatus = cloud.InvalidConfiguration
+		return err
 	}
 
 	containerURL, err := asbp.getContainer()
 	if err != nil {
-		return cloud.FailedConnection, err
+		asbp.ConnectionStatus = cloud.FailedConnection
+		return err
 	}
 	ctx := context.Background()
 	blobNames, err := asbp.getMostRecentBlobs(start, end, containerURL, ctx)
 	if err != nil {
-		return cloud.FailedConnection, err
+		asbp.ConnectionStatus = cloud.FailedConnection
+		return err
 	}
+
+	if len(blobNames) == 0 && asbp.ConnectionStatus != cloud.SuccessfulConnection {
+		asbp.ConnectionStatus = cloud.MissingData
+		return nil
+	}
+
 	for _, blobName := range blobNames {
 		blobBytes, err2 := asbp.DownloadBlob(blobName, containerURL, ctx)
 		if err2 != nil {
-			return cloud.FailedConnection, err2
+			asbp.ConnectionStatus = cloud.FailedConnection
+			return err2
 		}
 		err2 = asbp.parseCSV(start, end, csv.NewReader(bytes.NewReader(blobBytes)), resultFn)
 		if err2 != nil {
-			return cloud.ParseError, err2
+			asbp.ConnectionStatus = cloud.ParseError
+			return err2
 		}
 
 	}
-	return cloud.SuccessfulConnection, nil
+	asbp.ConnectionStatus = cloud.SuccessfulConnection
+	return nil
 }
 
 func (asbp *AzureStorageBillingParser) parseCSV(start, end time.Time, reader *csv.Reader, resultFn AzureBillingResultFunc) error {

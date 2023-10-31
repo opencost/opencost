@@ -84,7 +84,7 @@ func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*k
 
 	// Perform Query and parse values
 
-	ccsr, err := kubecost.NewCloudCostSetRange(start, end, timeutil.Day, bqi.Key())
+	ccsr, err := kubecost.NewCloudCostSetRange(start, end, kubecost.AccumulateOptionDay, bqi.Key())
 	if err != nil {
 		return ccsr, fmt.Errorf("error creating new CloudCostSetRange: %s", err)
 	}
@@ -110,6 +110,7 @@ func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*k
 		ccsr.LoadCloudCost(ccl.CloudCost)
 
 	}
+
 	return ccsr, nil
 
 }

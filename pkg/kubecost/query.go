@@ -1,6 +1,7 @@
 package kubecost
 
 import (
+	"strings"
 	"time"
 
 	filter21 "github.com/opencost/opencost/pkg/filter21"
@@ -68,6 +69,28 @@ const (
 	AccumulateOptionMonth   AccumulateOption = "month"
 	AccumulateOptionQuarter AccumulateOption = "quarter"
 )
+
+// ParseAccumulate converts a string to an AccumulateOption
+func ParseAccumulate(acc string) AccumulateOption {
+	var opt AccumulateOption
+	switch strings.ToLower(acc) {
+	case "quarter":
+		opt = AccumulateOptionQuarter
+	case "month":
+		opt = AccumulateOptionMonth
+	case "week":
+		opt = AccumulateOptionWeek
+	case "day":
+		opt = AccumulateOptionDay
+	case "hour":
+		opt = AccumulateOptionHour
+	case "true":
+		opt = AccumulateOptionAll
+	default:
+		opt = AccumulateOptionNone
+	}
+	return opt
+}
 
 // AssetQueryOptions defines optional parameters for querying an Asset Store
 type AssetQueryOptions struct {
