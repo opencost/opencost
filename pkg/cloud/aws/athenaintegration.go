@@ -442,3 +442,12 @@ func (ai *AthenaIntegration) GetConnectionStatusFromResult(result cloud.EmptyChe
 	}
 	return cloud.SuccessfulConnection
 }
+
+func (ai *AthenaIntegration) GetConnectionStatus() string {
+	// initialize status if it has not done so; this can happen if the integration is inactive
+	if ai.ConnectionStatus.String() == "" {
+		ai.ConnectionStatus = cloud.InitialStatus
+	}
+
+	return ai.ConnectionStatus.String()
+}
