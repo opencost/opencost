@@ -14,25 +14,40 @@ class CloudCostTopService {
       aggregate,
       costMetric,
       filters,
+      limit: 1000,
     };
 
     if (aggregate.includes("item")) {
       const resp = await axios.get(
         `${
           this.BASE_URL
-        }/cloudCost/top?window=${window}&costMetric=${costMetric}${getCloudFilters(
+        }/cloudCost?window=${window}&costMetric=${costMetric}${getCloudFilters(
           filters
         )}`
       );
       const result_2 = await resp.data;
 
-      return { data: formatSampleItemsForGraph(result_2, costMetric) };
+      return formatSampleItemsForGraph(result_2, costMetric);
     }
 
-    const result = await axios.get(`${this.BASE_URL}/cloudCost/view`, {
+    const tableView = await axios.get(`${this.BASE_URL}/cloudCost/view/table`, {
       params,
     });
-    return result.data;
+    const totalsView = await axios.get(
+      `${this.BASE_URL}/cloudCost/view/totals`,
+      {
+        params,
+      }
+    );
+    const graphView = await axios.get(`${this.BASE_URL}/cloudCost/view/graph`, {
+      params,
+    });
+
+    return {
+      tableRows: tableView.data.data,
+      graphData: graphView.data.data,
+      tableTotal: totalsView.data.data.combined,
+    };
   }
 }
 

@@ -2,7 +2,7 @@ import * as React from "react";
 import { BrowserRouter as Router, Route, Switch } from "react-router-dom";
 
 import Reports from "./Reports.js";
-import CloudCostReports from "./CloudCostReports.js";
+import CloudCostReports from "./cloudCostReports.js";
 
 const Routes = () => {
   return (

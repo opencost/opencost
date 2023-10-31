@@ -2,7 +2,7 @@ import * as React from "react";
 
 import Typography from "@material-ui/core/Typography";
 
-import RangeChart from "./RangeChart";
+import RangeChart from "./rangeChart";
 
 const CloudCostChart = ({ graphData, currency, n, height }) => {
   if (graphData.length === 0) {

@@ -10,20 +10,20 @@ import { get, find } from "lodash";
 import { useLocation, useHistory } from "react-router";
 
 import { checkCustomWindow, toVerboseTimeRange } from "./util";
-import CloudCostEditControls from "./CloudCost/Controls/CloudCostEditControls";
+import CloudCostEditControls from "./cloudcost/controls/cloudCostEditControls";
 import Subtitle from "./components/Subtitle";
 import Warnings from "./components/Warnings";
-import CloudCostTopService from "./services/CloudCostTop";
+import CloudCostTopService from "./services/cloudCostTop";
 
 import {
   windowOptions,
   costMetricOptions,
   aggregationOptions,
   aggMap,
-} from "./CloudCost/tokens";
+} from "./cloudcost/tokens";
 import { currencyCodes } from "./constants/currencyCodes";
-import CloudCost from "./CloudCost/CloudCost";
-import { CloudCostDetails } from "./CloudCost/CloudCostDetails";
+import CloudCost from "./cloudcost/cloudCost";
+import { CloudCostDetails } from "./cloudcost/cloudCostDetails";
 
 const CloudCostReports = () => {
   const useStyles = makeStyles({
@@ -111,8 +111,8 @@ const CloudCostReports = () => {
         costMetric,
         filters
       );
-      if (resp.data) {
-        setCloudCostData(resp.data);
+      if (resp) {
+        setCloudCostData(resp);
       } else {
         if (resp.message && resp.message.indexOf("boundary error") >= 0) {
           let match = resp.message.match(/(ETL is \d+\.\d+% complete)/);
@@ -184,7 +184,7 @@ const CloudCostReports = () => {
 
   React.useEffect(() => {
     setWindow(searchParams.get("window") || "7d");
-    setAggregateBy(searchParams.get("agg") || "service");
+    setAggregateBy(searchParams.get("agg") || "provider");
     setCostMetric(searchParams.get("costMetric") || "AmortizedNetCost");
     setCurrency(searchParams.get("currency") || "USD");
   }, [routerLocation]);

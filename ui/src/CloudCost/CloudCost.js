@@ -14,8 +14,8 @@ import {
 } from "@material-ui/core";
 
 import { toCurrency } from "../util";
-import CloudCostChart from "./CloudCostChart";
-import { CloudCostRow } from "./CloudCostRow";
+import CloudCostChart from "./cloudCostChart";
+import { CloudCostRow } from "./cloudCostRow";
 
 const CloudCost = ({
   cumulativeData = [],
@@ -30,6 +30,8 @@ const CloudCost = ({
       padding: 24,
     },
   });
+
+  console.log("Totals", totalsRow);
 
   const classes = useStyles();
 

@@ -5,7 +5,7 @@
   "license": "Apache-2.0",
   "scripts": {
     "build": "npx parcel build src/index.html",
-    "serve": "npx parcel serve src/index.html",
+    "serve": "npx parcel serve src/index.html --no-cache",
     "clean": "rm -rf dist/*",
     "test": "echo \"Error: no test specified\" && exit 1",
     "preinstall": "npx npm-force-resolutions"
