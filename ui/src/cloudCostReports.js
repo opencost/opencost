@@ -10,7 +10,7 @@ import { get, find } from "lodash";
 import { useLocation, useHistory } from "react-router";
 
 import { checkCustomWindow, toVerboseTimeRange } from "./util";
-import CloudCostEditControls from "./cloudcost/controls/cloudCostEditControls";
+import CloudCostEditControls from "./cloudCost/controls/cloudCostEditControls";
 import Subtitle from "./components/Subtitle";
 import Warnings from "./components/Warnings";
 import CloudCostTopService from "./services/cloudCostTop";
@@ -20,10 +20,10 @@ import {
   costMetricOptions,
   aggregationOptions,
   aggMap,
-} from "./cloudcost/tokens";
+} from "./cloudCost/tokens";
 import { currencyCodes } from "./constants/currencyCodes";
-import CloudCost from "./cloudcost/cloudCost";
-import { CloudCostDetails } from "./cloudcost/cloudCostDetails";
+import CloudCost from "./cloudCost/cloudCost";
+import { CloudCostDetails } from "./cloudCost/cloudCostDetails";
 
 const CloudCostReports = () => {
   const useStyles = makeStyles({
