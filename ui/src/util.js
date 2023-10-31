@@ -1,5 +1,5 @@
 import { forEach, get, round } from "lodash";
-import { costMetricToPropName } from "./cloudcost/tokens";
+import { costMetricToPropName } from "./cloudCost/tokens";
 
 // rangeToCumulative takes an AllocationSetRange (type: array[AllocationSet])
 // and accumulates the values into a single AllocationSet (type: object)

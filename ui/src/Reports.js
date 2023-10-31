@@ -18,7 +18,7 @@ import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom";
 import { useLocation, useHistory } from "react-router";
 
-import AllocationReport from "./components/AllocationReport";
+import AllocationReport from "./components/allocationReport";
 import Controls from "./components/Controls";
 import Header from "./components/Header";
 import Page from "./components/Page";
