@@ -2,13 +2,13 @@
 
 # OpenCost — your favorite open source cost monitoring tool for Kubernetes
 
-OpenCost models give teams visibility into current and historical Kubernetes spend and resource allocation. These models provide cost transparency in Kubernetes environments that support multiple applications, teams, departments, etc.
+OpenCost models offer teams visibility into both current and historical Kubernetes spending and resource allocation. These models provide cost transparency in Kubernetes environments that support multiple applications, teams, departments, and more.
 
 OpenCost was originally developed and open sourced by [Kubecost](https://kubecost.com). This project combines a [specification](/spec/) as well as a Golang implementation of these detailed requirements.
 
 ![OpenCost allocation UI](./ui/src/opencost-ui.png)
 
-To see the full functionality of OpenCost you can view [OpenCost features](https://opencost.io). Here is a summary of features enabled:
+To explore the full functionality of OpenCost you can view [OpenCost features](https://opencost.io). Here is a summary of features it offers:
 
 - Real-time cost allocation by Kubernetes cluster, node, namespace, controller kind, controller, service, or pod
 - Dynamic on-demand asset pricing enabled by integrations with AWS, Azure, and GCP billing APIs
@@ -21,7 +21,7 @@ To see the full functionality of OpenCost you can view [OpenCost features](https
 
 You can deploy OpenCost on any Kubernetes 1.8+ cluster in a matter of minutes, if not seconds!
 
-Visit the full documentation for [recommended install options](https://www.opencost.io/docs/installation/install).
+Please Visit the full documentation for [recommended install options](https://www.opencost.io/docs/installation/install).
 
 ## Usage
 
@@ -37,7 +37,7 @@ and contributing changes.
 
 ## Community
 
-If you need any support or have any questions on contributing to the project, you can reach us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or attend the biweekly [OpenCost Working Group community meeting](https://bit.ly/opencost-meeting) from the [Community Calendar](https://bit.ly/opencost-calendar) to discuss OpenCost development.
+If you need any support or have any questions regarding contributing to the project, you can reach us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or attend the biweekly [OpenCost Working Group community meeting](https://bit.ly/opencost-meeting) from the [Community Calendar](https://bit.ly/opencost-calendar) to discuss OpenCost development.
 
 ## FAQ
 
