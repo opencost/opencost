@@ -54,6 +54,7 @@ const aggregationOptions = [
   { name: "Controller", value: "controller" },
   { name: "Service", value: "service" },
   { name: "Pod", value: "pod" },
+  { name: "Deployment", value: "deployment" },
   { name: "Container", value: "container" },
 ];
 
