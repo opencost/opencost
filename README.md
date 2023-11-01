@@ -1,4 +1,5 @@
-<img src="./opencost-header.png"/>
+[![OpenCost UI Walkthrough](./ui/src/thumbnail.png)](https://youtu.be/j_4aaE5zk7M)
+*OpenCost UI Walkthrough*
 
 # OpenCost — your favorite open source cost monitoring tool for Kubernetes
 
@@ -32,10 +33,14 @@ Visit the full documentation for [recommended install options](https://www.openc
 
 ## Using the UI
 
-The OpenCost UI provides a visualization of the Kubernetes allocations and the related Cloud Costs. This walkthrough highlights some of the components of the OpenCost UI:
+The OpenCost UI provides a visualization of the Kubernetes allocations and the related Cloud Costs.
+<img src="./opencost-header.png"/>
 
-![Watch the Video](./ui/src/thumbnail.png)](https://youtu.be/j_4aaE5zk7M)
-*OpenCost UI Walkthrough*
+After following the installation instructions, access the UI by port forwarding:
+```
+kubectl port-forward --namespace opencost service/opencost 9090
+```
+and connecting to [http://localhost:9090](http://localhost:9090)
 
 ## Contributing
 
