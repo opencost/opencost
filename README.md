@@ -6,8 +6,8 @@ OpenCost models give teams visibility into current and historical Kubernetes spe
 
 OpenCost was originally developed and open sourced by [Kubecost](https://kubecost.com). This project combines a [specification](/spec/) as well as a Golang implementation of these detailed requirements.
 
-+[![OpenCost UI Walkthrough](./ui/src/thumbnail.png)](https://youtu.be/j_4aaE5zk7M)
-+*OpenCost UI Walkthrough*
+[![OpenCost UI Walkthrough](./ui/src/thumbnail.png)](https://youtu.be/lCP4Ci9Kcdg)
+*OpenCost UI Walkthrough*
 
 To see the full functionality of OpenCost you can view [OpenCost features](https://opencost.io). Here is a summary of features enabled:
 
