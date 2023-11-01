@@ -1,5 +1,4 @@
-[![OpenCost UI Walkthrough](./ui/src/thumbnail.png)](https://youtu.be/j_4aaE5zk7M)
-*OpenCost UI Walkthrough*
+<img src="./opencost-header.png"/>
 
 # OpenCost — your favorite open source cost monitoring tool for Kubernetes
 
@@ -7,7 +6,8 @@ OpenCost models give teams visibility into current and historical Kubernetes spe
 
 OpenCost was originally developed and open sourced by [Kubecost](https://kubecost.com). This project combines a [specification](/spec/) as well as a Golang implementation of these detailed requirements.
 
-![OpenCost allocation UI](./ui/src/opencost-ui.png)
++[![OpenCost UI Walkthrough](./ui/src/thumbnail.png)](https://youtu.be/j_4aaE5zk7M)
++*OpenCost UI Walkthrough*
 
 To see the full functionality of OpenCost you can view [OpenCost features](https://opencost.io). Here is a summary of features enabled:
 
@@ -34,7 +34,8 @@ Visit the full documentation for [recommended install options](https://www.openc
 ## Using the UI
 
 The OpenCost UI provides a visualization of the Kubernetes allocations and the related Cloud Costs.
-<img src="./opencost-header.png"/>
+
+![OpenCost allocation UI](./ui/src/opencost-ui.png)
 
 After following the installation instructions, access the UI by port forwarding:
 ```
