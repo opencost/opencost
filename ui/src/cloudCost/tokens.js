@@ -19,7 +19,7 @@ const aggregationOptions = [
   { name: "Provider", value: "provider" },
   { name: "Service ", value: "service" },
   { name: "Category", value: "category" },
-  { name: "item", value: "item" },
+  { name: "Item", value: "item" },
 ];
 
 const costMetricOptions = [
