@@ -30,6 +30,12 @@ Visit the full documentation for [recommended install options](https://www.openc
 - [Prometheus Metrics](https://www.opencost.io/docs/integrations/prometheus)
 - Reference [User Interface](https://github.com/opencost/opencost/tree/develop/ui)
 
+## Using the UI
+
+The OpenCost UI provides a visualization of the Kubernetes allocations and the related Cloud Costs. This walkthrough highlights some of the components of the OpenCost UI:
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/j_4aaE5zk7M?si=N01C23OyAx3qa12b" title="OpenCost UI walkthrough" frameborder="1" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
 ## Contributing
 
 We :heart: pull requests! See [`CONTRIBUTING.md`](CONTRIBUTING.md) for information on building the project from source
