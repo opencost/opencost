@@ -34,7 +34,8 @@ Visit the full documentation for [recommended install options](https://www.openc
 
 The OpenCost UI provides a visualization of the Kubernetes allocations and the related Cloud Costs. This walkthrough highlights some of the components of the OpenCost UI:
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/j_4aaE5zk7M?si=N01C23OyAx3qa12b" title="OpenCost UI walkthrough" frameborder="1" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+![Watch the Video](./ui/src/thumbnail.png)](https://youtu.be/j_4aaE5zk7M)
+*OpenCost UI Walkthrough*
 
 ## Contributing
 
