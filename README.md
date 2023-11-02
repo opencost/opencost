@@ -11,6 +11,7 @@ OpenCost was originally developed and open sourced by [Kubecost](https://kubecos
 
 To see the full functionality of OpenCost you can view [OpenCost features](https://opencost.io). Here is a summary of features enabled:
 
+- Access and view billing for multiple cloud providers.
 - Real-time cost allocation by Kubernetes cluster, node, namespace, controller kind, controller, service, or pod
 - Dynamic on-demand asset pricing enabled by integrations with AWS, Azure, and GCP billing APIs
 - Supports on-prem k8s clusters with custom CSV pricing
@@ -30,14 +31,6 @@ Visit the full documentation for [recommended install options](https://www.openc
 - [CLI / kubectl cost](https://www.opencost.io/docs/integrations/kubectl-cost)
 - [Prometheus Metrics](https://www.opencost.io/docs/integrations/prometheus)
 - [User Interface](https://www.opencost.io/docs/installation/ui)
-
-## Using the UI
-
-The OpenCost UI provides a visualization of the Kubernetes allocations and the related Cloud Costs.
-
-![OpenCost allocation UI](./ui/src/opencost-ui.png)
-
-You can learn more about working with it in the [UI documentation](https://www.opencost.io/docs/installation/ui).
 
 ## Contributing
 
