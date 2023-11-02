@@ -29,7 +29,7 @@ Visit the full documentation for [recommended install options](https://www.openc
 - [Cost APIs](https://www.opencost.io/docs/integrations/api)
 - [CLI / kubectl cost](https://www.opencost.io/docs/integrations/kubectl-cost)
 - [Prometheus Metrics](https://www.opencost.io/docs/integrations/prometheus)
-- Reference [User Interface](https://github.com/opencost/opencost/tree/develop/ui)
+- [User Interface](https://www.opencost.io/docs/installation/ui)
 
 ## Using the UI
 
@@ -37,11 +37,7 @@ The OpenCost UI provides a visualization of the Kubernetes allocations and the r
 
 ![OpenCost allocation UI](./ui/src/opencost-ui.png)
 
-After following the installation instructions, access the UI by port forwarding:
-```
-kubectl port-forward --namespace opencost service/opencost 9090
-```
-and connecting to [http://localhost:9090](http://localhost:9090)
+You can learn more about working with it in the [UI documentation](https://www.opencost.io/docs/installation/ui).
 
 ## Contributing
 
