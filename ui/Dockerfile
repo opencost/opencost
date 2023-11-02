@@ -7,8 +7,11 @@ RUN npx parcel build src/index.html
 
 FROM nginx:alpine
 
+ENV API_PORT=9003
+ENV UI_PORT=9090
+
 COPY --from=builder /opt/ui/dist /var/www
-COPY default.nginx.conf /etc/nginx/conf.d/
+COPY default.nginx.conf.template /etc/nginx/conf.d/default.nginx.conf.template
 COPY nginx.conf /etc/nginx/
 COPY ./docker-entrypoint.sh /usr/local/bin/
 
