@@ -9,5 +9,7 @@ else
     sed -i "s^{PLACEHOLDER_BASE_URL}^$BASE_URL^g" /var/www/*.js
 fi
 
+envsubst '$API_PORT $UI_PORT' < /etc/nginx/conf.d/default.nginx.conf.template > /etc/nginx/conf.d/default.nginx.conf
+
 # Run the parent (nginx) container's entrypoint script
 exec /docker-entrypoint.sh "$@"
