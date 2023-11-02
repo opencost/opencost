@@ -35,7 +35,7 @@ gzip_types
 upstream model {
     # Update to the cost model endpoint
     # Example: host.docker.internal:9003;
-    server 0.0.0.0:9003;
+    server 0.0.0.0:${API_PORT};
 }
 
 server {
@@ -58,8 +58,8 @@ server {
     }
 
     add_header ETag "1.96.0";
-    listen 9090;
-    listen [::]:9090;
+    listen ${UI_PORT};
+    listen [::]:${UI_PORT};
     resolver 127.0.0.1 valid=5s;
     location /healthz {
         access_log /dev/null;
