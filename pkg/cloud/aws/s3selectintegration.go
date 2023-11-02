@@ -10,7 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
 const S3SelectDateLayout = "2006-01-02T15:04:05Z"
@@ -58,7 +57,7 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 	ccsr, err := kubecost.NewCloudCostSetRange(
 		start,
 		end,
-		timeutil.Day,
+		kubecost.AccumulateOptionDay,
 		s3si.Key(),
 	)
 	if err != nil {

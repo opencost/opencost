@@ -199,8 +199,12 @@ func (ap *AssetProperties) Clone() *AssetProperties {
 	return clone
 }
 
-// Equal returns true only if both AssetProperties are non-nil exact matches
+// Equal returns true only if both AssetProperties are matches
 func (ap *AssetProperties) Equal(that *AssetProperties) bool {
+	if ap == nil && that == nil {
+		return true
+	}
+
 	if ap == nil || that == nil {
 		return false
 	}

@@ -8,12 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
-	cloudconfig "github.com/opencost/opencost/pkg/cloud/config"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	"github.com/aws/aws-sdk-go-v2/service/athena/types"
+	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util/stringutil"
@@ -25,10 +23,14 @@ type AthenaQuerier struct {
 }
 
 func (aq *AthenaQuerier) GetStatus() cloud.ConnectionStatus {
+	// initialize status if it has not done so; this can happen if the integration is inactive
+	if aq.ConnectionStatus.String() == "" {
+		aq.ConnectionStatus = cloud.InitialStatus
+	}
 	return aq.ConnectionStatus
 }
 
-func (aq *AthenaQuerier) Equals(config cloudconfig.Config) bool {
+func (aq *AthenaQuerier) Equals(config cloud.Config) bool {
 	thatConfig, ok := config.(*AthenaQuerier)
 	if !ok {
 		return false

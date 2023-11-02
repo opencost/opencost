@@ -156,7 +156,7 @@ func getPersistentVolumeClaimClass(claim *v1.PersistentVolumeClaim) string {
 	}
 
 	// Special non-empty string to indicate absence of storage class.
-	return "<none>"
+	return ""
 }
 
 // toResourceUnitValue accepts a resource name and quantity and returns the sanitized resource, the unit, and the value in the units.

@@ -7,6 +7,10 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/opencost/opencost/pkg/cloud/alibaba"
+	"github.com/opencost/opencost/pkg/cloud/aws"
+	"github.com/opencost/opencost/pkg/cloud/azure"
+	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/config"
@@ -293,4 +297,28 @@ func ReturnPricingFromConfigs(filename string) (*models.CustomPricing, error) {
 		return &models.CustomPricing{}, fmt.Errorf("ReturnPricingFromConfigs: unable to open file %s with err: %v", providerConfigFile, err)
 	}
 	return defaultPricing, nil
+}
+
+func ExtractConfigFromProviders(prov models.Provider) models.ProviderConfig {
+	if prov == nil {
+		log.Errorf("cannot extract config from nil provider")
+		return nil
+	}
+	switch p := prov.(type) {
+	case *CSVProvider:
+		return ExtractConfigFromProviders(p.CustomProvider)
+	case *CustomProvider:
+		return p.Config
+	case *gcp.GCP:
+		return p.Config
+	case *aws.AWS:
+		return p.Config
+	case *azure.Azure:
+		return p.Config
+	case *alibaba.Alibaba:
+		return p.Config
+	default:
+		log.Errorf("failed to extract config from provider")
+		return nil
+	}
 }

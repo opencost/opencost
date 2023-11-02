@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/opencost/opencost/pkg/cloud/models"
+	v1 "k8s.io/api/core/v1"
 )
 
 func Test_awsKey_getUsageType(t *testing.T) {
@@ -492,5 +493,71 @@ func Test_populate_pricing(t *testing.T) {
 	if !reflect.DeepEqual(expectedPricing, awsTest.Pricing) {
 		t.Fatalf("expected parsed pricing did not match actual parsed result (cn)")
 	}
+}
 
+func TestFeatures(t *testing.T) {
+	testCases := map[string]struct {
+		aws      awsKey
+		expected string
+	}{
+		"Spot from custom labels": {
+			aws: awsKey{
+				SpotLabelName:  "node-type",
+				SpotLabelValue: "node-spot",
+				Labels: map[string]string{
+					"node-type":                "node-spot",
+					v1.LabelOSStable:           "linux",
+					v1.LabelHostname:           "my-hostname",
+					v1.LabelTopologyRegion:     "us-west-2",
+					v1.LabelTopologyZone:       "us-west-2b",
+					v1.LabelInstanceTypeStable: "m5.large",
+				},
+			},
+			expected: "us-west-2,m5.large,linux,preemptible",
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			features := tc.aws.Features()
+			if features != tc.expected {
+				t.Errorf("expected %s, got %s", tc.expected, features)
+			}
+		})
+	}
+}
+
+func Test_getStorageClassTypeFrom(t *testing.T) {
+	tests := []struct {
+		name        string
+		provisioner string
+		want        string
+	}{
+		{
+			name:        "empty-provisioner",
+			provisioner: "",
+			want:        "",
+		},
+		{
+			name:        "ebs-default-provisioner",
+			provisioner: "kubernetes.io/aws-ebs",
+			want:        "gp2",
+		},
+		{
+			name:        "ebs-csi-provisioner",
+			provisioner: "ebs.csi.aws.com",
+			want:        "gp3",
+		},
+		{
+			name:        "unknown-provisioner",
+			provisioner: "unknown",
+			want:        "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := getStorageClassTypeFrom(tt.provisioner); got != tt.want {
+				t.Errorf("getStorageClassTypeFrom() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
