@@ -959,9 +959,12 @@ func TestAssetSetRange_AccumulateToAssetSet(t *testing.T) {
 		GenerateMockAssetSet(startD2, day),
 	)
 	err = asr.AggregateBy(nil, nil)
-	as, err = asr.AccumulateToAssetSet()
 	if err != nil {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
+	}
+	as, err = asr.AccumulateToAssetSet()
+	if err != nil {
+		t.Fatalf("AssetSetRange.AccumulateToAssetSet: unexpected error: %s", err)
 	}
 	assertAssetSet(t, as, "1a", window, map[string]float64{
 		"__undefined__/__undefined__/__undefined__/Compute/cluster1/Node/Kubernetes/gcp-node1/node1":                   21.00,
@@ -983,9 +986,12 @@ func TestAssetSetRange_AccumulateToAssetSet(t *testing.T) {
 		GenerateMockAssetSet(startD2, day),
 	)
 	err = asr.AggregateBy([]string{}, nil)
-	as, err = asr.AccumulateToAssetSet()
 	if err != nil {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
+	}
+	as, err = asr.AccumulateToAssetSet()
+	if err != nil {
+		t.Fatalf("AssetSetRange.AccumulateToAssetSet: unexpected error: %s", err)
 	}
 	assertAssetSet(t, as, "1b", window, map[string]float64{
 		"": 180.00,
@@ -1038,6 +1044,9 @@ func TestAssetSetRange_AccumulateToAssetSet(t *testing.T) {
 	)
 
 	err = asr.AggregateBy([]string{string(AssetTypeProp)}, nil)
+	if err != nil {
+		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
+	}
 	as, err = asr.AccumulateToAssetSet()
 	if err != nil {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)

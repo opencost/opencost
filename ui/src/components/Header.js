@@ -26,7 +26,7 @@ const Header = (props) => {
   const { title, breadcrumbs } = props;
   const { pathname } = useLocation();
 
-  const headerTitle = pathname === "/cloud" ? "Cloud Cost" : "Cost Allocation";
+  const headerTitle = pathname === "/cloud" ? "Cloud Costs" : "Cost Allocation";
 
   return (
     <div className={classes.root}>
