@@ -3,7 +3,8 @@
 # OpenCost — your favorite open source cost monitoring tool for Kubernetes and cloud spend
 
 OpenCost give teams visibility into current and historical Kubernetes and cloud spend and resource allocation, as well as cloud costs.
-These models provide cost transparency in Kubernetes environments that support multiple applications, teams, departments, etc. It also provides visibility into the cloud costs across multiple providers.
+These models provide cost transparency in Kubernetes environments that support multiple applications, teams, departments, etc.
+It also provides visibility into the cloud costs across multiple providers.
 
 OpenCost was originally developed and open sourced by [Kubecost](https://kubecost.com). This project combines a [specification](/spec/) as well as a Golang implementation of these detailed requirements.
 
@@ -14,7 +15,7 @@ To see the full functionality of OpenCost you can view [OpenCost features](https
 
 - Real-time cost allocation by Kubernetes cluster, node, namespace, controller kind, controller, service, or pod
 - Multi-cloud cost monitoring for all cloud services on AWS, Azure, GCP
-- Dynamic on-demand asset pricing enabled by integrations with AWS, Azure, and GCP billing APIs
+- Dynamic on-demand k8s asset pricing enabled by integrations with AWS, Azure, and GCP billing APIs
 - Supports on-prem k8s clusters with custom CSV pricing
 - Allocation for in-cluster K8s resources like CPU, GPU, memory, and persistent volumes
 - Easily export pricing data to Prometheus with /metrics endpoint ([learn more](https://www.opencost.io/docs/installation/prometheus))
@@ -24,7 +25,7 @@ To see the full functionality of OpenCost you can view [OpenCost features](https
 
 You can deploy OpenCost on any Kubernetes 1.20+ cluster in a matter of minutes, if not seconds!
 
-Visit the full documentation for [recommended install options](https://www.opencost.io/docs/installation/install).
+Visit the full documentation for [recommended installation options](https://www.opencost.io/docs/installation/install).
 
 ## Usage
 
@@ -35,8 +36,7 @@ Visit the full documentation for [recommended install options](https://www.openc
 
 ## Contributing
 
-We :heart: pull requests! See [`CONTRIBUTING.md`](CONTRIBUTING.md) for information on building the project from source
-and contributing changes.
+We :heart: pull requests! See [`CONTRIBUTING.md`](CONTRIBUTING.md) for information on building the project from source and contributing changes.
 
 ## Community
 
