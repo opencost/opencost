@@ -1167,14 +1167,14 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 			cpuToRAMRatio := defaultCPU / defaultRAM
 			if math.IsNaN(cpuToRAMRatio) {
-				log.Warnf("cpuToRAMRatio[defaultCPU: %f / defaultRAM: %f] is NaN. Setting to 0.", defaultCPU, defaultRAM)
-				cpuToRAMRatio = 0
+				log.Warnf("cpuToRAMRatio[defaultCPU: %f / defaultRAM: %f] is NaN. Setting to 10.", defaultCPU, defaultRAM)
+				cpuToRAMRatio = 10
 			}
 
 			gpuToRAMRatio := defaultGPU / defaultRAM
 			if math.IsNaN(gpuToRAMRatio) {
-				log.Warnf("gpuToRAMRatio is NaN. Setting to 0.")
-				gpuToRAMRatio = 0
+				log.Warnf("gpuToRAMRatio is NaN. Setting to 100.")
+				gpuToRAMRatio = 100
 			}
 
 			ramGB := ram / 1024 / 1024 / 1024
@@ -1250,8 +1250,8 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 			cpuToRAMRatio := defaultCPU / defaultRAM
 			if math.IsNaN(cpuToRAMRatio) {
-				log.Warnf("cpuToRAMRatio[defaultCPU: %f / defaultRAM: %f] is NaN. Setting to 0.", defaultCPU, defaultRAM)
-				cpuToRAMRatio = 0
+				log.Warnf("cpuToRAMRatio[defaultCPU: %f / defaultRAM: %f] is NaN. Setting to 10.", defaultCPU, defaultRAM)
+				cpuToRAMRatio = 10
 			}
 
 			ramGB := ram / 1024 / 1024 / 1024
