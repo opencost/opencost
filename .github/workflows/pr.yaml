@@ -44,19 +44,12 @@ jobs:
       - name: save coverage file
         uses: actions/upload-artifact@v3
         with:
-            path: ./opencost/opencost/coverage.out
+            path: ./opencost/coverage.out
             name: coverage-${{ env.BRANCH_NAME }}-${{ github.sha }}
       -
         name: Build
         run: |
           just build-local
-
-
-      - name: Submit Code Coverage
-        uses: sonarsource/sonarqube-scan-action@master
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
   submit-to-sonarqube:
     needs: backend
     name: Submit to sonar
