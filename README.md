@@ -2,7 +2,7 @@
 
 # OpenCost — your favorite open source cost monitoring tool for Kubernetes and cloud spend
 
-OpenCost give teams visibility into current and historical Kubernetes and cloud spend and resource allocation, as well as cloud costs.
+OpenCost give teams visibility into current and historical Kubernetes and cloud spend and resource allocation.
 These models provide cost transparency in Kubernetes environments that support multiple applications, teams, departments, etc.
 It also provides visibility into the cloud costs across multiple providers.
 
