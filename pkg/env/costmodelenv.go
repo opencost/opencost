@@ -1,6 +1,7 @@
 package env
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"time"
@@ -10,8 +11,6 @@ import (
 )
 
 const (
-	AppVersionEnvVar = "APP_VERSION"
-
 	AWSAccessKeyIDEnvVar     = "AWS_ACCESS_KEY_ID"
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
@@ -19,6 +18,9 @@ const (
 
 	AlibabaAccessKeyIDEnvVar     = "ALIBABA_ACCESS_KEY_ID"
 	AlibabaAccessKeySecretEnvVar = "ALIBABA_SECRET_ACCESS_KEY"
+
+	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
+	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
 
 	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
 	PodNameEnvVar                  = "POD_NAME"
@@ -66,7 +68,8 @@ const (
 
 	KubeConfigPathEnvVar = "KUBECONFIG_PATH"
 
-	UTCOffsetEnvVar = "UTC_OFFSET"
+	UTCOffsetEnvVar                  = "UTC_OFFSET"
+	CurrentClusterIdFilterEnabledVar = "CURRENT_CLUSTER_ID_FILTER_ENABLED"
 
 	CacheWarmingEnabledEnvVar            = "CACHE_WARMING_ENABLED"
 	ETLEnabledEnvVar                     = "ETL_ENABLED"
@@ -89,15 +92,53 @@ const (
 	PrometheusRetryOnRateLimitMaxRetriesEnvVar  = "PROMETHEUS_RETRY_ON_RATE_LIMIT_MAX_RETRIES"
 	PrometheusRetryOnRateLimitDefaultWaitEnvVar = "PROMETHEUS_RETRY_ON_RATE_LIMIT_DEFAULT_WAIT"
 
+	PrometheusHeaderXScopeOrgIdEnvVar = "PROMETHEUS_HEADER_X_SCOPE_ORGID"
+
 	IngestPodUIDEnvVar = "INGEST_POD_UID"
 
 	ETLReadOnlyMode = "ETL_READ_ONLY"
+
+	AllocationNodeLabelsEnabled     = "ALLOCATION_NODE_LABELS_ENABLED"
+	AllocationNodeLabelsIncludeList = "ALLOCATION_NODE_LABELS_INCLUDE_LIST"
+
+	regionOverrideList = "REGION_OVERRIDE_LIST"
+
+	ExportCSVFile       = "EXPORT_CSV_FILE"
+	ExportCSVLabelsList = "EXPORT_CSV_LABELS_LIST"
+	ExportCSVLabelsAll  = "EXPORT_CSV_LABELS_ALL"
+	ExportCSVMaxDays    = "EXPORT_CSV_MAX_DAYS"
+
+	DataRetentionDailyResolutionDaysEnvVar = "DATA_RETENTION_DAILY_RESOLUTION_DAYS"
+
+	CloudCostEnabledEnvVar          = "CLOUD_COST_ENABLED"
+	CloudCostMonthToDateIntervalVar = "CLOUD_COST_MONTH_TO_DATE_INTERVAL"
+	CloudCostRefreshRateHoursEnvVar = "CLOUD_COST_REFRESH_RATE_HOURS"
+	CloudCostQueryWindowDaysEnvVar  = "CLOUD_COST_QUERY_WINDOW_DAYS"
+	CloudCostRunWindowDaysEnvVar    = "CLOUD_COST_RUN_WINDOW_DAYS"
 )
+
+const DefaultConfigMountPath = "/var/configs"
 
 var offsetRegex = regexp.MustCompile(`^(\+|-)(\d\d):(\d\d)$`)
 
 func IsETLReadOnlyMode() bool {
 	return GetBool(ETLReadOnlyMode, false)
+}
+
+func GetExportCSVFile() string {
+	return Get(ExportCSVFile, "")
+}
+
+func GetExportCSVLabelsAll() bool {
+	return GetBool(ExportCSVLabelsAll, false)
+}
+
+func GetExportCSVLabelsList() []string {
+	return GetList(ExportCSVLabelsList, ",")
+}
+
+func GetExportCSVMaxDays() int {
+	return GetInt(ExportCSVMaxDays, 90)
 }
 
 // GetKubecostConfigBucket returns a file location for a mounted bucket configuration which is used to store
@@ -136,12 +177,21 @@ func GetPrometheusRetryOnRateLimitDefaultWait() time.Duration {
 	return GetDuration(PrometheusRetryOnRateLimitDefaultWaitEnvVar, 100*time.Millisecond)
 }
 
+// GetPrometheusHeaderXScopeOrgId returns the default value for X-Scope-OrgID header used for requests in Mimir/Cortex-Tenant API.
+// To use Mimir(or Cortex-Tenant) instead of Prometheus add variable from cluster settings:
+// "PROMETHEUS_HEADER_X_SCOPE_ORGID": "my-cluster-name"
+// Then set Prometheus URL to prometheus API endpoint:
+// "PROMETHEUS_SERVER_ENDPOINT": "http://mimir-url/prometheus/"
+func GetPrometheusHeaderXScopeOrgId() string {
+	return Get(PrometheusHeaderXScopeOrgIdEnvVar, "")
+}
+
 // GetPrometheusQueryOffset returns the time.Duration to offset all prometheus queries by. NOTE: This env var is applied
 // to all non-range queries made via our query context. This should only be applied when there is a significant delay in
 // data arriving in the target prom db. For example, if supplying a thanos or cortex querier for the prometheus server, using
 // a 3h offset will ensure that current time = current time - 3h.
 //
-// This offset is NOT the same as the GetThanosOffset() option, as that is only applied to queries made specifically targetting
+// This offset is NOT the same as the GetThanosOffset() option, as that is only applied to queries made specifically targeting
 // thanos. This offset is applied globally.
 func GetPrometheusQueryOffset() time.Duration {
 	offset := Get(PrometheusQueryOffsetEnvVar, "")
@@ -162,12 +212,6 @@ func GetPricingConfigmapName() string {
 
 func GetMetricsConfigmapName() string {
 	return Get(MetricsConfigmapName, "metrics-config")
-}
-
-// GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
-// the AWS access key for authentication
-func GetAppVersion() string {
-	return Get(AppVersionEnvVar, "1.91.0-rc.0")
 }
 
 // IsEmitNamespaceAnnotationsMetric returns true if cost-model is configured to emit the kube_namespace_annotations metric
@@ -195,7 +239,13 @@ func IsEmitKsmV1MetricsOnly() bool {
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
 // the AWS access key for authentication
 func GetAWSAccessKeyID() string {
-	return Get(AWSAccessKeyIDEnvVar, "")
+	awsAccessKeyID := Get(AWSAccessKeyIDEnvVar, "")
+	// If the sample nil service key name is set, zero it out so that it is not
+	// misinterpreted as a real service key.
+	if awsAccessKeyID == "AKIXXX" {
+		awsAccessKeyID = ""
+	}
+	return awsAccessKeyID
 }
 
 // GetAWSAccessKeySecret returns the environment variable value for AWSAccessKeySecretEnvVar which represents
@@ -227,6 +277,21 @@ func GetAlibabaAccessKeySecret() string {
 	return Get(AlibabaAccessKeySecretEnvVar, "")
 }
 
+// GetAzureOfferID returns the environment variable value for AzureOfferIDEnvVar which represents
+// the Azure offer ID for determining prices.
+func GetAzureOfferID() string {
+	return Get(AzureOfferIDEnvVar, "")
+}
+
+// GetAzureBillingAccount returns the environment variable value for
+// AzureBillingAccountEnvVar which represents the Azure billing
+// account for determining prices. If this is specified
+// customer-specific prices will be downloaded from the consumption
+// price sheet API.
+func GetAzureBillingAccount() string {
+	return Get(AzureBillingAccountEnvVar, "")
+}
+
 // GetKubecostNamespace returns the environment variable value for KubecostNamespaceEnvVar which
 // represents the namespace the cost model exists in.
 func GetKubecostNamespace() string {
@@ -249,6 +314,15 @@ func GetClusterProfile() string {
 // configurable identifier used for multi-cluster metric emission.
 func GetClusterID() string {
 	return Get(ClusterIDEnvVar, "")
+}
+
+// GetPromClusterFilter returns environment variable value CurrentClusterIdFilterEnabledVar which
+// represents additional prometheus filter for all metrics for current cluster id
+func GetPromClusterFilter() string {
+	if GetBool(CurrentClusterIdFilterEnabledVar, false) {
+		return fmt.Sprintf("%s=\"%s\"", GetPromClusterLabel(), GetClusterID())
+	}
+	return ""
 }
 
 // GetPrometheusServerEndpoint returns the environment variable value for PrometheusServerEndpointEnvVar which
@@ -309,10 +383,10 @@ func GetCSVPath() string {
 	return Get(CSVPathEnvVar, "")
 }
 
-// GetConfigPath returns the environment variable value for ConfigPathEnvVar which represents the cost
-// model configuration path
-func GetConfigPath() string {
-	return Get(ConfigPathEnvVar, "")
+// GetCostAnalyzerVolumeMountPath is an alias of GetConfigPath, which returns the mount path for the
+// Cost Analyzer volume, which stores configs, persistent data, etc.
+func GetCostAnalyzerVolumeMountPath() string {
+	return GetConfigPathWithDefault(DefaultConfigMountPath)
 }
 
 // GetConfigPath returns the environment variable value for ConfigPathEnvVar which represents the cost
@@ -408,12 +482,12 @@ func GetDBBearerToken() string {
 	return Get(DBBearerToken, "")
 }
 
-// GetMultiClusterBasicAuthUsername returns the environemnt variable value for MultiClusterBasicAuthUsername
+// GetMultiClusterBasicAuthUsername returns the environment variable value for MultiClusterBasicAuthUsername
 func GetMultiClusterBasicAuthUsername() string {
 	return Get(MultiClusterBasicAuthUsername, "")
 }
 
-// GetMultiClusterBasicAuthPassword returns the environemnt variable value for MultiClusterBasicAuthPassword
+// GetMultiClusterBasicAuthPassword returns the environment variable value for MultiClusterBasicAuthPassword
 func GetMultiClusterBasicAuthPassword() string {
 	return Get(MultiClusterBasicAuthPassword, "")
 }
@@ -427,7 +501,7 @@ func GetKubeConfigPath() string {
 	return Get(KubeConfigPathEnvVar, "")
 }
 
-// GetUTCOffset returns the environemnt variable value for UTCOffset
+// GetUTCOffset returns the environment variable value for UTCOffset
 func GetUTCOffset() string {
 	return Get(UTCOffsetEnvVar, "")
 }
@@ -481,15 +555,9 @@ func GetETLMaxPrometheusQueryDuration() time.Duration {
 
 // GetETLResolution determines the resolution of ETL queries. The smaller the
 // duration, the higher the resolution; the higher the resolution, the more
-// accurate the query results, but the more computationally expensive. This
-// value is always 1m for Prometheus, but is configurable for Thanos.
+// accurate the query results, but the more computationally expensive.
 func GetETLResolution() time.Duration {
-	// If Thanos is not enabled, hard-code to 1m resolution
-	if !IsThanosEnabled() {
-		return 60 * time.Second
-	}
-
-	// Thanos is enabled, so use the configured ETL resolution, or default to
+	// Use the configured ETL resolution, or default to
 	// 5m (i.e. 300s)
 	secs := time.Duration(GetInt64(ETLResolutionSeconds, 300))
 	return secs * time.Second
@@ -499,7 +567,7 @@ func LegacyExternalCostsAPIDisabled() bool {
 	return GetBool(LegacyExternalAPIDisabledVar, false)
 }
 
-// GetPromClusterLabel returns the environemnt variable value for PromClusterIDLabel
+// GetPromClusterLabel returns the environment variable value for PromClusterIDLabel
 func GetPromClusterLabel() string {
 	return Get(PromClusterIDLabelEnvVar, "cluster_id")
 }
@@ -508,4 +576,67 @@ func GetPromClusterLabel() string {
 // contents of podKeys in Allocation
 func IsIngestingPodUID() bool {
 	return GetBool(IngestPodUIDEnvVar, false)
+}
+
+func GetAllocationNodeLabelsEnabled() bool {
+	return GetBool(AllocationNodeLabelsEnabled, true)
+}
+
+var defaultAllocationNodeLabelsIncludeList []string = []string{
+	"cloud.google.com/gke-nodepool",
+	"eks.amazonaws.com/nodegroup",
+	"kubernetes.azure.com/agentpool",
+	"node.kubernetes.io/instance-type",
+	"topology.kubernetes.io/region",
+	"topology.kubernetes.io/zone",
+}
+
+func GetAllocationNodeLabelsIncludeList() []string {
+	// If node labels are not enabled, return an empty list.
+	if !GetAllocationNodeLabelsEnabled() {
+		return []string{}
+	}
+
+	list := GetList(AllocationNodeLabelsIncludeList, ",")
+
+	// If node labels are enabled, but the white list is empty, use defaults.
+	if len(list) == 0 {
+		return defaultAllocationNodeLabelsIncludeList
+	}
+
+	return list
+}
+
+func GetRegionOverrideList() []string {
+	regionList := GetList(regionOverrideList, ",")
+
+	if regionList == nil {
+		return []string{}
+	}
+
+	return regionList
+}
+
+func GetDataRetentionDailyResolutionDays() int64 {
+	return GetInt64(DataRetentionDailyResolutionDaysEnvVar, 15)
+}
+
+func IsCloudCostEnabled() bool {
+	return GetBool(CloudCostEnabledEnvVar, false)
+}
+
+func GetCloudCostMonthToDateInterval() int {
+	return GetInt(CloudCostMonthToDateIntervalVar, 6)
+}
+
+func GetCloudCostRefreshRateHours() int64 {
+	return GetInt64(CloudCostRefreshRateHoursEnvVar, 6)
+}
+
+func GetCloudCostQueryWindowDays() int64 {
+	return GetInt64(CloudCostQueryWindowDaysEnvVar, 7)
+}
+
+func GetCloudCostRunWindowDays() int64 {
+	return GetInt64(CloudCostRunWindowDaysEnvVar, 3)
 }

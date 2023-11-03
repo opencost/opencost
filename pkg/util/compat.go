@@ -45,3 +45,13 @@ func GetOperatingSystem(labels map[string]string) (string, bool) {
 		return "", false
 	}
 }
+
+func GetArchType(labels map[string]string) (string, bool) {
+	if _, ok := labels[v1.LabelArchStable]; ok {
+		return labels[v1.LabelArchStable], true
+	} else if _, ok := labels["beta.kubernetes.io/arch"]; ok {
+		return labels["beta.kubernetes.io/arch"], true
+	} else {
+		return "", false
+	}
+}

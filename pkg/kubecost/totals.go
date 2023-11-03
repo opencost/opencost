@@ -10,6 +10,16 @@ import (
 	"github.com/patrickmn/go-cache"
 )
 
+type AllocationTotalsResult struct {
+	Cluster map[string]*AllocationTotals `json:"cluster"`
+	Node    map[string]*AllocationTotals `json:"node"`
+}
+
+type AssetTotalsResult struct {
+	Cluster map[string]*AssetTotals `json:"cluster"`
+	Node    map[string]*AssetTotals `json:"node"`
+}
+
 // AllocationTotals represents aggregate costs of all Allocations for
 // a given cluster or tuple of (cluster, node) between a given start and end
 // time, where the costs are aggregated per-resource. AllocationTotals
@@ -35,6 +45,10 @@ type AllocationTotals struct {
 	PersistentVolumeCostAdjustment float64   `json:"persistentVolumeCostAdjustment"`
 	RAMCost                        float64   `json:"ramCost"`
 	RAMCostAdjustment              float64   `json:"ramCostAdjustment"`
+	// UnmountedPVCost is used to track how much of the cost in
+	// PersistentVolumeCost is for an unmounted PV. It is not additive of that
+	// field, and need not be sent in API responses.
+	UnmountedPVCost float64 `json:"-"`
 }
 
 // ClearAdjustments sets all adjustment fields to 0.0
@@ -210,6 +224,7 @@ type AssetTotals struct {
 	PersistentVolumeCostAdjustment  float64   `json:"persistentVolumeCostAdjustment"`
 	RAMCost                         float64   `json:"ramCost"`
 	RAMCostAdjustment               float64   `json:"ramCostAdjustment"`
+	PrivateLoadBalancer             bool      `json:"privateLoadBalancer"`
 }
 
 // ClearAdjustments sets all adjustment fields to 0.0
@@ -245,6 +260,7 @@ func (art *AssetTotals) Clone() *AssetTotals {
 		PersistentVolumeCostAdjustment:  art.PersistentVolumeCostAdjustment,
 		RAMCost:                         art.RAMCost,
 		RAMCostAdjustment:               art.RAMCostAdjustment,
+		PrivateLoadBalancer:             art.PrivateLoadBalancer,
 	}
 }
 
@@ -295,7 +311,7 @@ func (art *AssetTotals) TotalCost() float64 {
 // use the fully-qualified (cluster, node) tuple.
 // NOTE: we're not capturing LoadBalancers here yet, but only because we don't
 // yet need them. They could be added.
-func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotals {
+func ComputeAssetTotals(as *AssetSet, byAsset bool) map[string]*AssetTotals {
 	arts := map[string]*AssetTotals{}
 
 	// Attached disks are tracked by matching their name with the name of the
@@ -306,7 +322,7 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 	for _, node := range as.Nodes {
 		// Default to computing totals by Cluster, but allow override to use Node.
 		key := node.Properties.Cluster
-		if prop == AssetNodeProp {
+		if byAsset {
 			key = fmt.Sprintf("%s/%s", node.Properties.Cluster, node.Properties.Name)
 		}
 
@@ -397,25 +413,30 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 		arts[key].GPUCostAdjustment += gpuCostAdjustment
 	}
 
-	// Only record LoadBalancer and ClusterManagement when prop
-	// is cluster. We can't breakdown these types by Node.
-	if prop == AssetClusterProp {
-		for _, lb := range as.LoadBalancers {
-			key := lb.Properties.Cluster
-
-			if _, ok := arts[key]; !ok {
-				arts[key] = &AssetTotals{
-					Start:   lb.Start,
-					End:     lb.End,
-					Cluster: lb.Properties.Cluster,
-				}
-			}
-
-			arts[key].Count++
-			arts[key].LoadBalancerCost += lb.Cost
-			arts[key].LoadBalancerCostAdjustment += lb.Adjustment
+	for _, lb := range as.LoadBalancers {
+		// Default to computing totals by Cluster, but allow override to use LoadBalancer.
+		key := lb.Properties.Cluster
+		if byAsset {
+			key = fmt.Sprintf("%s/%s", lb.Properties.Cluster, lb.Properties.Name)
 		}
 
+		if _, ok := arts[key]; !ok {
+			arts[key] = &AssetTotals{
+				Start:               lb.Start,
+				End:                 lb.End,
+				Cluster:             lb.Properties.Cluster,
+				Node:                lb.Properties.Name,
+				PrivateLoadBalancer: lb.Private,
+			}
+		}
+
+		arts[key].LoadBalancerCost += lb.Cost
+		arts[key].LoadBalancerCostAdjustment += lb.Adjustment
+	}
+
+	// Only record ClusterManagement when prop
+	// is cluster. We can't breakdown these types by Node.
+	if !byAsset {
 		for _, cm := range as.ClusterManagement {
 			key := cm.Properties.Cluster
 
@@ -447,7 +468,7 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 		// cluster/node. But if we're aggregating by cluster only, then
 		// reset the key to just the cluster.
 		key := name
-		if prop == AssetClusterProp {
+		if !byAsset {
 			key = disk.Properties.Cluster
 		}
 
@@ -458,7 +479,7 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 				Cluster: disk.Properties.Cluster,
 			}
 
-			if prop == AssetNodeProp {
+			if byAsset {
 				arts[key].Node = disk.Properties.Name
 			}
 		}
@@ -471,10 +492,9 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 			arts[key].Count++
 			arts[key].AttachedVolumeCost += disk.Cost
 			arts[key].AttachedVolumeCostAdjustment += disk.Adjustment
-		} else if prop == AssetClusterProp {
+		} else {
 			// Here, we're looking at a PersistentVolume because we're not
-			// looking at an AttachedVolume. Only record PersistentVolume data
-			// at the cluster level (i.e. prop == AssetClusterProp).
+			// looking at an AttachedVolume.
 			arts[key].Count++
 			arts[key].PersistentVolumeCost += disk.Cost
 			arts[key].PersistentVolumeCostAdjustment += disk.Adjustment
@@ -621,10 +641,10 @@ func UpdateAssetTotalsStore(arts AssetTotalsStore, as *AssetSet) (*AssetTotalsSe
 	start := *as.Window.Start()
 	end := *as.Window.End()
 
-	artsByCluster := ComputeAssetTotals(as, AssetClusterProp)
+	artsByCluster := ComputeAssetTotals(as, false)
 	arts.SetAssetTotalsByCluster(start, end, artsByCluster)
 
-	artsByNode := ComputeAssetTotals(as, AssetNodeProp)
+	artsByNode := ComputeAssetTotals(as, true)
 	arts.SetAssetTotalsByNode(start, end, artsByNode)
 
 	log.Debugf("ETL: Asset: updated resource totals for %s", as.Window)
@@ -730,6 +750,8 @@ func (mts *MemoryTotalsStore) GetAssetTotalsByCluster(start time.Time, end time.
 func (mts *MemoryTotalsStore) GetAssetTotalsByNode(start time.Time, end time.Time) (map[string]*AssetTotals, bool) {
 	k := storeKey(start, end)
 	if raw, ok := mts.assetTotalsByNode.Get(k); !ok {
+		// it's possible that after accumulation, the time chunks stored here
+		// are being queried combined
 		return map[string]*AssetTotals{}, false
 	} else {
 		original := raw.(map[string]*AssetTotals)

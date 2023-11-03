@@ -62,6 +62,7 @@ func NewMockUnitAllocation(name string, start time.Time, resolution time.Duratio
 			CPUCoreUsageMax:  1,
 			RAMBytesUsageMax: 1,
 		},
+		ProportionalAssetResourceCosts: nil,
 	}
 
 	// If idle allocation, remove non-idle costs, but maintain total cost
@@ -162,6 +163,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		Node:       "c1nodes",
 	})
 	a1111.RAMCost = 11.00
+	a1111.PVs = PVAllocations{
+		PVKey{Cluster: "cluster1", Name: "pv-a1111"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a11abc2 := NewMockUnitAllocation("cluster1/namespace1/pod-abc/container2", start, day, &AllocationProperties{
 		Cluster:    "cluster1",
@@ -171,6 +178,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "c1nodes",
 		Node:       "c1nodes",
 	})
+	a11abc2.PVs = PVAllocations{
+		PVKey{Cluster: "cluster1", Name: "pv-a11abc2"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a11def3 := NewMockUnitAllocation("cluster1/namespace1/pod-def/container3", start, day, &AllocationProperties{
 		Cluster:    "cluster1",
@@ -180,6 +193,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "c1nodes",
 		Node:       "c1nodes",
 	})
+	a11def3.PVs = PVAllocations{
+		PVKey{Cluster: "cluster1", Name: "pv-a11def3"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a12ghi4 := NewMockUnitAllocation("cluster1/namespace2/pod-ghi/container4", start, day, &AllocationProperties{
 		Cluster:    "cluster1",
@@ -189,6 +208,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "c1nodes",
 		Node:       "c1nodes",
 	})
+	a12ghi4.PVs = PVAllocations{
+		PVKey{Cluster: "cluster1", Name: "pv-a12ghi4"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a12ghi5 := NewMockUnitAllocation("cluster1/namespace2/pod-ghi/container5", start, day, &AllocationProperties{
 		Cluster:    "cluster1",
@@ -198,6 +223,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "c1nodes",
 		Node:       "c1nodes",
 	})
+	a12ghi5.PVs = PVAllocations{
+		PVKey{Cluster: "cluster1", Name: "pv-a12ghi5"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a12jkl6 := NewMockUnitAllocation("cluster1/namespace2/pod-jkl/container6", start, day, &AllocationProperties{
 		Cluster:    "cluster1",
@@ -207,6 +238,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "c1nodes",
 		Node:       "c1nodes",
 	})
+	a12jkl6.PVs = PVAllocations{
+		PVKey{Cluster: "cluster1", Name: "pv-a12jkl6"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a22mno4 := NewMockUnitAllocation("cluster2/namespace2/pod-mno/container4", start, day, &AllocationProperties{
 		Cluster:    "cluster2",
@@ -216,6 +253,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "node1",
 		Node:       "node1",
 	})
+	a22mno4.PVs = PVAllocations{
+		PVKey{Cluster: "cluster2", Name: "pv-a22mno4"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a22mno5 := NewMockUnitAllocation("cluster2/namespace2/pod-mno/container5", start, day, &AllocationProperties{
 		Cluster:    "cluster2",
@@ -225,6 +268,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "node1",
 		Node:       "node1",
 	})
+	a22mno5.PVs = PVAllocations{
+		PVKey{Cluster: "cluster2", Name: "pv-a22mno5"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a22pqr6 := NewMockUnitAllocation("cluster2/namespace2/pod-pqr/container6", start, day, &AllocationProperties{
 		Cluster:    "cluster2",
@@ -234,6 +283,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "node2",
 		Node:       "node2",
 	})
+	a22pqr6.PVs = PVAllocations{
+		PVKey{Cluster: "cluster2", Name: "pv-a22pqr6"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a23stu7 := NewMockUnitAllocation("cluster2/namespace3/pod-stu/container7", start, day, &AllocationProperties{
 		Cluster:    "cluster2",
@@ -243,6 +298,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "node2",
 		Node:       "node2",
 	})
+	a23stu7.PVs = PVAllocations{
+		PVKey{Cluster: "cluster2", Name: "pv-a23stu7"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a23vwx8 := NewMockUnitAllocation("cluster2/namespace3/pod-vwx/container8", start, day, &AllocationProperties{
 		Cluster:    "cluster2",
@@ -252,6 +313,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "node3",
 		Node:       "node3",
 	})
+	a23vwx8.PVs = PVAllocations{
+		PVKey{Cluster: "cluster2", Name: "pv-a23vwx8"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	a23vwx9 := NewMockUnitAllocation("cluster2/namespace3/pod-vwx/container9", start, day, &AllocationProperties{
 		Cluster:    "cluster2",
@@ -261,6 +328,12 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "node3",
 		Node:       "node3",
 	})
+	a23vwx9.PVs = PVAllocations{
+		PVKey{Cluster: "cluster2", Name: "pv-a23vwx9"}: {
+			ByteHours: 1,
+			Cost:      1,
+		},
+	}
 
 	// Controllers
 
@@ -475,10 +548,10 @@ func GenerateMockAssetSets(start, end time.Time) []*AssetSet {
 	node3Network.Cost = 2.0
 
 	// Add LoadBalancers
-	cluster2LoadBalancer1 := NewLoadBalancer("namespace2/loadBalancer1", "cluster2", "lb1", start, end, NewWindow(&start, &end))
+	cluster2LoadBalancer1 := NewLoadBalancer("namespace2/loadBalancer1", "cluster2", "lb1", start, end, NewWindow(&start, &end), false, "127.0.0.1")
 	cluster2LoadBalancer1.Cost = 10.0
 
-	cluster2LoadBalancer2 := NewLoadBalancer("namespace2/loadBalancer2", "cluster2", "lb2", start, end, NewWindow(&start, &end))
+	cluster2LoadBalancer2 := NewLoadBalancer("namespace2/loadBalancer2", "cluster2", "lb2", start, end, NewWindow(&start, &end), false, "127.0.0.1")
 	cluster2LoadBalancer2.Cost = 15.0
 
 	assetSet1 := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1,
@@ -568,33 +641,47 @@ func GenerateMockAssetSets(start, end time.Time) []*AssetSet {
 //
 // | Asset                        | Cost |  Adj |
 // +------------------------------+------+------+
-//   cluster1:
-//     node1:                        6.00   1.00
-//     node2:                        4.00   1.50
-//     node3:                        7.00  -0.50
-//     disk1:                        2.50   0.00
-//     disk2:                        1.50   0.00
-//     clusterManagement1:           3.00   0.00
+//
+//	cluster1:
+//	  node1:                        6.00   1.00
+//	  node2:                        4.00   1.50
+//	  node3:                        7.00  -0.50
+//	  disk1:                        2.50   0.00
+//	  disk2:                        1.50   0.00
+//	  clusterManagement1:           3.00   0.00
+//
 // +------------------------------+------+------+
-//   cluster1 subtotal              24.00   2.00
+//
+//	cluster1 subtotal              24.00   2.00
+//
 // +------------------------------+------+------+
-//   cluster2:
-//     node4:                       12.00  -1.00
-//     disk3:                        2.50   0.00
-//     disk4:                        1.50   0.00
-//     clusterManagement2:           0.00   0.00
+//
+//	cluster2:
+//	  node4:                       12.00  -1.00
+//	  disk3:                        2.50   0.00
+//	  disk4:                        1.50   0.00
+//	  clusterManagement2:           0.00   0.00
+//
 // +------------------------------+------+------+
-//   cluster2 subtotal              16.00  -1.00
+//
+//	cluster2 subtotal              16.00  -1.00
+//
 // +------------------------------+------+------+
-//   cluster3:
-//     node5:                       17.00   2.00
+//
+//	cluster3:
+//	  node5:                       17.00   2.00
+//
 // +------------------------------+------+------+
-//   cluster3 subtotal              17.00   2.00
+//
+//	cluster3 subtotal              17.00   2.00
+//
 // +------------------------------+------+------+
-//   total                          57.00   3.00
+//
+//	total                          57.00   3.00
+//
 // +------------------------------+------+------+
-func GenerateMockAssetSet(start time.Time) *AssetSet {
-	end := start.Add(day)
+func GenerateMockAssetSet(start time.Time, duration time.Duration) *AssetSet {
+	end := start.Add(duration)
 	window := NewWindow(&start, &end)
 
 	hours := window.Duration().Hours()
@@ -681,4 +768,63 @@ func GenerateMockAssetSet(start time.Time) *AssetSet {
 		// cluster 3
 		node5,
 	)
+}
+
+// NewMockUnitSummaryAllocation creates an *SummaryAllocation with all of its float64 values set to 1 and generic properties if not provided in arg
+func NewMockUnitSummaryAllocation(name string, start time.Time, resolution time.Duration, props *AllocationProperties) *SummaryAllocation {
+	if name == "" {
+		name = "cluster1/namespace1/pod1/container1"
+	}
+
+	properties := &AllocationProperties{}
+	if props == nil {
+		properties.Cluster = "cluster1"
+		properties.Node = "node1"
+		properties.Namespace = "namespace1"
+		properties.ControllerKind = "deployment"
+		properties.Controller = "deployment1"
+		properties.Pod = "pod1"
+		properties.Container = "container1"
+	} else {
+		properties = props
+	}
+
+	end := start.Add(resolution)
+
+	alloc := &SummaryAllocation{
+		Name:                   name,
+		Properties:             properties,
+		Start:                  start,
+		End:                    end,
+		CPUCost:                1,
+		CPUCoreRequestAverage:  1,
+		CPUCoreUsageAverage:    1,
+		GPUCost:                1,
+		NetworkCost:            1,
+		LoadBalancerCost:       1,
+		RAMCost:                1,
+		RAMBytesRequestAverage: 1,
+		RAMBytesUsageAverage:   1,
+	}
+
+	// If idle allocation, remove non-idle costs, but maintain total cost
+	if alloc.IsIdle() {
+		alloc.NetworkCost = 0.0
+		alloc.LoadBalancerCost = 0.0
+		alloc.CPUCost += 1.0
+		alloc.RAMCost += 1.0
+	}
+
+	return alloc
+}
+
+// NewMockUnitSummaryAllocationSet creates an *SummaryAllocationSet
+func NewMockUnitSummaryAllocationSet(start time.Time, resolution time.Duration) *SummaryAllocationSet {
+
+	end := start.Add(resolution)
+	sas := &SummaryAllocationSet{
+		Window: NewWindow(&start, &end),
+	}
+
+	return sas
 }

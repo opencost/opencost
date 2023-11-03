@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"reflect"
 	"testing"
 	"time"
 
@@ -383,6 +384,11 @@ func TestNode_Add(t *testing.T) {
 		Other:  0.0,
 	}
 	node1.SetAdjustment(1.6)
+	node1.Overhead = &NodeOverhead{
+		CpuOverheadFraction:  1,
+		RamOverheadFraction:  1,
+		OverheadCostFraction: 1,
+	}
 
 	node2 := NewNode("node2", "cluster1", "node2", *windows[0].start, *windows[0].end, windows[0])
 	node2.CPUCoreHours = 1.0 * hours
@@ -405,6 +411,11 @@ func TestNode_Add(t *testing.T) {
 		Other:  0.05,
 	}
 	node2.SetAdjustment(1.0)
+	node2.Overhead = &NodeOverhead{
+		CpuOverheadFraction:  0.6,
+		RamOverheadFraction:  0.75,
+		OverheadCostFraction: 0.7,
+	}
 
 	nodeT := node1.Add(node2).(*Node)
 
@@ -433,6 +444,19 @@ func TestNode_Add(t *testing.T) {
 	if nodeT.RAMBytes() != 4.0*gb {
 		t.Fatalf("Node.Add: expected %f; got %f", 4.0*gb, nodeT.RAMBytes())
 	}
+	if o := nodeT.Overhead; o == nil {
+		t.Errorf("Node.Add (1 + 2): expected overhead to be non-nil")
+	} else {
+		if o.CpuOverheadFraction < 0 || o.CpuOverheadFraction > 1 {
+			t.Errorf("CPU overhead must be within [0, 1], is: %f", o.CpuOverheadFraction)
+		}
+		if o.RamOverheadFraction < 0 || o.RamOverheadFraction > 1 {
+			t.Errorf("RAM overhead must be within [0, 1], is: %f", o.RamOverheadFraction)
+		}
+		if o.OverheadCostFraction < 0 || o.OverheadCostFraction > 1 {
+			t.Errorf("Cost-weighted overhead must be within [0, 1], is: %f", o.OverheadCostFraction)
+		}
+	}
 
 	// Check that the original assets are unchanged
 	if !util.IsApproximately(node1.TotalCost(), 10.0) {
@@ -458,6 +482,11 @@ func TestNode_Add(t *testing.T) {
 	node3.RAMCost = 0.0
 	node3.Discount = 0.3
 	node3.SetAdjustment(0.0)
+	node3.Overhead = &NodeOverhead{
+		CpuOverheadFraction:  0.6,
+		RamOverheadFraction:  0.75,
+		OverheadCostFraction: 0.7,
+	}
 
 	node4 := NewNode("node4", "cluster1", "node4", *windows[0].start, *windows[0].end, windows[0])
 	node4.CPUCoreHours = 0 * hours
@@ -468,6 +497,7 @@ func TestNode_Add(t *testing.T) {
 	node4.RAMCost = 0.0
 	node4.Discount = 0.1
 	node4.SetAdjustment(0.0)
+	node4.Overhead = nil
 
 	nodeT = node3.Add(node4).(*Node)
 
@@ -477,6 +507,9 @@ func TestNode_Add(t *testing.T) {
 	}
 	if nodeT.Discount != 0.2 {
 		t.Fatalf("Node.Add: expected %f; got %f", 0.2, nodeT.Discount)
+	}
+	if nodeT.Overhead != nil {
+		t.Errorf("Node.Add: adding a node with nil overhead should nil the resulting overhead")
 	}
 
 	// Accumulate: one nodes, two window
@@ -547,7 +580,37 @@ func TestNode_Add(t *testing.T) {
 }
 
 func TestNode_Clone(t *testing.T) {
-	// TODO
+	cases := []struct {
+		name string
+
+		input *Node
+	}{
+		{
+			name: "overhead nil",
+			input: &Node{
+				Overhead: nil,
+			},
+		},
+		{
+			name: "overhead non-nil",
+			input: &Node{
+				Overhead: &NodeOverhead{
+					CpuOverheadFraction:  3,
+					RamOverheadFraction:  7,
+					OverheadCostFraction: 6,
+				},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			result := c.input.Clone()
+			if !result.Equal(c.input) {
+				t.Errorf("clone result doesn't equal input")
+			}
+		})
+	}
 }
 
 func TestNode_MarshalJSON(t *testing.T) {
@@ -673,7 +736,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	// 1  Single-aggregation
 
 	// 1a []AssetProperty=[Cluster]
-	as = GenerateMockAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday, day)
 	err = as.AggregateBy([]string{string(AssetClusterProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
@@ -685,7 +748,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	}, nil)
 
 	// 1b []AssetProperty=[Type]
-	as = GenerateMockAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday, day)
 	err = as.AggregateBy([]string{string(AssetTypeProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
@@ -697,7 +760,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	}, nil)
 
 	// 1c []AssetProperty=[Nil]
-	as = GenerateMockAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday, day)
 	err = as.AggregateBy([]string{}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
@@ -707,7 +770,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	}, nil)
 
 	// 1d []AssetProperty=nil
-	as = GenerateMockAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday, day)
 	err = as.AggregateBy(nil, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
@@ -727,7 +790,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	}, nil)
 
 	// 1e aggregateBy []string=["label:test"]
-	as = GenerateMockAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday, day)
 	err = as.AggregateBy([]string{"label:test"}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
@@ -740,7 +803,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	// 2  Multi-aggregation
 
 	// 2a []AssetProperty=[Cluster,Type]
-	as = GenerateMockAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday, day)
 	err = as.AggregateBy([]string{string(AssetClusterProp), string(AssetTypeProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
@@ -758,7 +821,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	// 3  Share resources
 
 	// 3a Shared hourly cost > 0.0
-	as = GenerateMockAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday, day)
 	err = as.AggregateBy([]string{string(AssetTypeProp)}, &AssetAggregationOptions{
 		SharedHourlyCosts: map[string]float64{"shared1": 0.5},
 	})
@@ -784,7 +847,7 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	var err error
 
 	// Assert success of a simple match of Type and ProviderID
-	as = GenerateMockAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday, day)
 	query = NewNode("", "", "gcp-node3", s, e, w)
 	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)}, nil)
 	if err != nil {
@@ -792,7 +855,7 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	}
 
 	// Assert error of a simple non-match of Type and ProviderID
-	as = GenerateMockAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday, day)
 	query = NewNode("", "", "aws-node3", s, e, w)
 	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)}, nil)
 	if err == nil {
@@ -800,7 +863,7 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	}
 
 	// Assert error of matching ProviderID, but not Type
-	as = GenerateMockAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday, day)
 	query = NewCloud(ComputeCategory, "gcp-node3", s, e, w)
 	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)}, nil)
 	if err == nil {
@@ -854,7 +917,7 @@ func TestAssetSet_ReconciliationMatchMap(t *testing.T) {
 	endYesterday := time.Now().UTC().Truncate(day)
 	startYesterday := endYesterday.Add(-day)
 
-	as := GenerateMockAssetSet(startYesterday)
+	as := GenerateMockAssetSet(startYesterday, day)
 	matchMap := as.ReconciliationMatchMap()
 
 	// Determine the number of assets by provider ID
@@ -876,7 +939,7 @@ func TestAssetSet_ReconciliationMatchMap(t *testing.T) {
 	}
 }
 
-func TestAssetSetRange_Accumulate(t *testing.T) {
+func TestAssetSetRange_AccumulateToAssetSet(t *testing.T) {
 	endYesterday := time.Now().UTC().Truncate(day)
 	startYesterday := endYesterday.Add(-day)
 
@@ -891,14 +954,17 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 	var err error
 
 	asr = NewAssetSetRange(
-		GenerateMockAssetSet(startD0),
-		GenerateMockAssetSet(startD1),
-		GenerateMockAssetSet(startD2),
+		GenerateMockAssetSet(startD0, day),
+		GenerateMockAssetSet(startD1, day),
+		GenerateMockAssetSet(startD2, day),
 	)
 	err = asr.AggregateBy(nil, nil)
-	as, err = asr.Accumulate()
 	if err != nil {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
+	}
+	as, err = asr.AccumulateToAssetSet()
+	if err != nil {
+		t.Fatalf("AssetSetRange.AccumulateToAssetSet: unexpected error: %s", err)
 	}
 	assertAssetSet(t, as, "1a", window, map[string]float64{
 		"__undefined__/__undefined__/__undefined__/Compute/cluster1/Node/Kubernetes/gcp-node1/node1":                   21.00,
@@ -915,29 +981,32 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 	}, nil)
 
 	asr = NewAssetSetRange(
-		GenerateMockAssetSet(startD0),
-		GenerateMockAssetSet(startD1),
-		GenerateMockAssetSet(startD2),
+		GenerateMockAssetSet(startD0, day),
+		GenerateMockAssetSet(startD1, day),
+		GenerateMockAssetSet(startD2, day),
 	)
 	err = asr.AggregateBy([]string{}, nil)
-	as, err = asr.Accumulate()
 	if err != nil {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
+	}
+	as, err = asr.AccumulateToAssetSet()
+	if err != nil {
+		t.Fatalf("AssetSetRange.AccumulateToAssetSet: unexpected error: %s", err)
 	}
 	assertAssetSet(t, as, "1b", window, map[string]float64{
 		"": 180.00,
 	}, nil)
 
 	asr = NewAssetSetRange(
-		GenerateMockAssetSet(startD0),
-		GenerateMockAssetSet(startD1),
-		GenerateMockAssetSet(startD2),
+		GenerateMockAssetSet(startD0, day),
+		GenerateMockAssetSet(startD1, day),
+		GenerateMockAssetSet(startD2, day),
 	)
 	err = asr.AggregateBy([]string{string(AssetTypeProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
 	}
-	as, err = asr.Accumulate()
+	as, err = asr.AccumulateToAssetSet()
 	if err != nil {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
 	}
@@ -948,15 +1017,15 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 	}, nil)
 
 	asr = NewAssetSetRange(
-		GenerateMockAssetSet(startD0),
-		GenerateMockAssetSet(startD1),
-		GenerateMockAssetSet(startD2),
+		GenerateMockAssetSet(startD0, day),
+		GenerateMockAssetSet(startD1, day),
+		GenerateMockAssetSet(startD2, day),
 	)
 	err = asr.AggregateBy([]string{string(AssetClusterProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
 	}
-	as, err = asr.Accumulate()
+	as, err = asr.AccumulateToAssetSet()
 	if err != nil {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
 	}
@@ -970,12 +1039,15 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 	// is empty (this was previously an issue)
 	asr = NewAssetSetRange(
 		NewAssetSet(startD0, startD1),
-		GenerateMockAssetSet(startD1),
-		GenerateMockAssetSet(startD2),
+		GenerateMockAssetSet(startD1, day),
+		GenerateMockAssetSet(startD2, day),
 	)
 
 	err = asr.AggregateBy([]string{string(AssetTypeProp)}, nil)
-	as, err = asr.Accumulate()
+	if err != nil {
+		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
+	}
+	as, err = asr.AccumulateToAssetSet()
 	if err != nil {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
 	}
@@ -1478,4 +1550,467 @@ func TestAssetSetRange_MarshalJSON(t *testing.T) {
 
 		// asset don't unmarshal back from json
 	}
+}
+
+func TestAssetSetRange_AccumulateBy_None(t *testing.T) {
+	ago4d := time.Now().UTC().Truncate(day).Add(-4 * day)
+	ago3d := time.Now().UTC().Truncate(day).Add(-3 * day)
+	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
+	yesterday := time.Now().UTC().Truncate(day).Add(-day)
+	today := time.Now().UTC().Truncate(day)
+
+	ago4dAS := GenerateMockAssetSet(ago4d, day)
+	ago3dAS := GenerateMockAssetSet(ago3d, day)
+	ago2dAS := GenerateMockAssetSet(ago2d, day)
+	yesterdayAS := GenerateMockAssetSet(yesterday, day)
+	todayAS := GenerateMockAssetSet(today, day)
+
+	asr := NewAssetSetRange(ago4dAS, ago3dAS, ago2dAS, yesterdayAS, todayAS)
+	asr, err := asr.Accumulate(AccumulateOptionNone)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
+	}
+
+	if len(asr.Assets) != 5 {
+		t.Fatalf("expected 5 asset sets, got:%d", len(asr.Assets))
+	}
+}
+
+func TestAssetSetRange_AccumulateBy_All(t *testing.T) {
+	ago4d := time.Now().UTC().Truncate(day).Add(-4 * day)
+	ago3d := time.Now().UTC().Truncate(day).Add(-3 * day)
+	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
+	yesterday := time.Now().UTC().Truncate(day).Add(-day)
+	today := time.Now().UTC().Truncate(day)
+
+	ago4dAS := GenerateMockAssetSet(ago4d, day)
+	ago3dAS := GenerateMockAssetSet(ago3d, day)
+	ago2dAS := GenerateMockAssetSet(ago2d, day)
+	yesterdayAS := GenerateMockAssetSet(yesterday, day)
+	todayAS := GenerateMockAssetSet(today, day)
+
+	asr := NewAssetSetRange(ago4dAS, ago3dAS, ago2dAS, yesterdayAS, todayAS)
+	asr, err := asr.Accumulate(AccumulateOptionAll)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
+	}
+
+	if len(asr.Assets) != 1 {
+		t.Fatalf("expected 1 asset set, got:%d", len(asr.Assets))
+	}
+}
+
+func TestAssetSetRange_AccumulateBy_Hour(t *testing.T) {
+	ago4h := time.Now().UTC().Truncate(time.Hour).Add(-4 * time.Hour)
+	ago3h := time.Now().UTC().Truncate(time.Hour).Add(-3 * time.Hour)
+	ago2h := time.Now().UTC().Truncate(time.Hour).Add(-2 * time.Hour)
+	ago1h := time.Now().UTC().Truncate(time.Hour).Add(-time.Hour)
+	currentHour := time.Now().UTC().Truncate(time.Hour)
+
+	ago4hAS := GenerateMockAssetSet(ago4h, time.Hour)
+	ago3hAS := GenerateMockAssetSet(ago3h, time.Hour)
+	ago2hAS := GenerateMockAssetSet(ago2h, time.Hour)
+	ago1hAS := GenerateMockAssetSet(ago1h, time.Hour)
+	currentHourAS := GenerateMockAssetSet(currentHour, time.Hour)
+
+	asr := NewAssetSetRange(ago4hAS, ago3hAS, ago2hAS, ago1hAS, currentHourAS)
+	asr, err := asr.Accumulate(AccumulateOptionHour)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
+	}
+
+	if len(asr.Assets) != 5 {
+		t.Fatalf("expected 5 asset sets, got:%d", len(asr.Assets))
+	}
+
+	allocMap := asr.Assets[0].Assets
+	alloc := allocMap["__undefined__/__undefined__/__undefined__/Storage/cluster2/Disk/Kubernetes/gcp-disk4/disk4"]
+	if alloc.Minutes() != 60.0 {
+		t.Errorf("accumulating asset set range: expected %f minutes; actual %f", 60.0, alloc.Minutes())
+	}
+}
+
+func TestAssetSetRange_AccumulateBy_Day_From_Day(t *testing.T) {
+	ago4d := time.Now().UTC().Truncate(day).Add(-4 * day)
+	ago3d := time.Now().UTC().Truncate(day).Add(-3 * day)
+	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
+	yesterday := time.Now().UTC().Truncate(day).Add(-day)
+	today := time.Now().UTC().Truncate(day)
+
+	ago4dAS := GenerateMockAssetSet(ago4d, day)
+	ago3dAS := GenerateMockAssetSet(ago3d, day)
+	ago2dAS := GenerateMockAssetSet(ago2d, day)
+	yesterdayAS := GenerateMockAssetSet(yesterday, day)
+	todayAS := GenerateMockAssetSet(today, day)
+
+	asr := NewAssetSetRange(ago4dAS, ago3dAS, ago2dAS, yesterdayAS, todayAS)
+	asr, err := asr.Accumulate(AccumulateOptionDay)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
+	}
+
+	if len(asr.Assets) != 5 {
+		t.Fatalf("expected 5 asset sets, got:%d", len(asr.Assets))
+	}
+
+	allocMap := asr.Assets[0].Assets
+	alloc := allocMap["__undefined__/__undefined__/__undefined__/Storage/cluster2/Disk/Kubernetes/gcp-disk4/disk4"]
+	if alloc.Minutes() != 1440.0 {
+		t.Errorf("accumulating asset set range: expected %f minutes; actual %f", 1440.0, alloc.Minutes())
+	}
+}
+
+func TestAssetSetRange_AccumulateBy_Day_From_Hours(t *testing.T) {
+	ago4h := time.Now().UTC().Truncate(time.Hour).Add(-4 * time.Hour)
+	ago3h := time.Now().UTC().Truncate(time.Hour).Add(-3 * time.Hour)
+	ago2h := time.Now().UTC().Truncate(time.Hour).Add(-2 * time.Hour)
+	ago1h := time.Now().UTC().Truncate(time.Hour).Add(-time.Hour)
+	currentHour := time.Now().UTC().Truncate(time.Hour)
+
+	ago4hAS := GenerateMockAssetSet(ago4h, time.Hour)
+	ago3hAS := GenerateMockAssetSet(ago3h, time.Hour)
+	ago2hAS := GenerateMockAssetSet(ago2h, time.Hour)
+	ago1hAS := GenerateMockAssetSet(ago1h, time.Hour)
+	currentHourAS := GenerateMockAssetSet(currentHour, time.Hour)
+
+	asr := NewAssetSetRange(ago4hAS, ago3hAS, ago2hAS, ago1hAS, currentHourAS)
+	asr, err := asr.Accumulate(AccumulateOptionDay)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
+	}
+
+	if len(asr.Assets) != 1 && len(asr.Assets) != 2 {
+		t.Fatalf("expected 1 allocation set, got:%d", len(asr.Assets))
+	}
+
+	allocMap := asr.Assets[0].Assets
+	alloc := allocMap["__undefined__/__undefined__/__undefined__/Storage/cluster2/Disk/Kubernetes/gcp-disk4/disk4"]
+	if alloc.Minutes() > 300.0 {
+		t.Errorf("accumulating AllocationSetRange: expected %f or less minutes; actual %f", 300.0, alloc.Minutes())
+	}
+}
+
+func TestAssetSetRange_AccumulateBy_Week(t *testing.T) {
+	ago9d := time.Now().UTC().Truncate(day).Add(-9 * day)
+	ago8d := time.Now().UTC().Truncate(day).Add(-8 * day)
+	ago7d := time.Now().UTC().Truncate(day).Add(-7 * day)
+	ago6d := time.Now().UTC().Truncate(day).Add(-6 * day)
+	ago5d := time.Now().UTC().Truncate(day).Add(-5 * day)
+	ago4d := time.Now().UTC().Truncate(day).Add(-4 * day)
+	ago3d := time.Now().UTC().Truncate(day).Add(-3 * day)
+	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
+	yesterday := time.Now().UTC().Truncate(day).Add(-day)
+	today := time.Now().UTC().Truncate(day)
+
+	ago9dAS := GenerateMockAssetSet(ago9d, day)
+	ago8dAS := GenerateMockAssetSet(ago8d, day)
+	ago7dAS := GenerateMockAssetSet(ago7d, day)
+	ago6dAS := GenerateMockAssetSet(ago6d, day)
+	ago5dAS := GenerateMockAssetSet(ago5d, day)
+	ago4dAS := GenerateMockAssetSet(ago4d, day)
+	ago3dAS := GenerateMockAssetSet(ago3d, day)
+	ago2dAS := GenerateMockAssetSet(ago2d, day)
+	yesterdayAS := GenerateMockAssetSet(yesterday, day)
+	todayAS := GenerateMockAssetSet(today, day)
+
+	asr := NewAssetSetRange(ago9dAS, ago8dAS, ago7dAS, ago6dAS, ago5dAS, ago4dAS, ago3dAS, ago2dAS, yesterdayAS, todayAS)
+	asr, err := asr.Accumulate(AccumulateOptionWeek)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
+	}
+
+	if len(asr.Assets) != 2 && len(asr.Assets) != 3 {
+		t.Fatalf("expected 2 or 3 asset sets, got:%d", len(asr.Assets))
+	}
+
+	for _, as := range asr.Assets {
+		if as.Window.Duration() < time.Hour*24 || as.Window.Duration() > time.Hour*24*7 {
+			t.Fatalf("expected window duration to be between 1 and 7 days, got:%s", as.Window.Duration().String())
+		}
+	}
+}
+
+func TestAssetSetRange_AccumulateBy_Month(t *testing.T) {
+	prevMonth1stDay := time.Date(2020, 01, 29, 0, 0, 0, 0, time.UTC)
+	prevMonth2ndDay := time.Date(2020, 01, 30, 0, 0, 0, 0, time.UTC)
+	prevMonth3ndDay := time.Date(2020, 01, 31, 0, 0, 0, 0, time.UTC)
+	nextMonth1stDay := time.Date(2020, 02, 01, 0, 0, 0, 0, time.UTC)
+
+	prev1AS := GenerateMockAssetSet(prevMonth1stDay, day)
+	prev2AS := GenerateMockAssetSet(prevMonth2ndDay, day)
+	prev3AS := GenerateMockAssetSet(prevMonth3ndDay, day)
+	nextAS := GenerateMockAssetSet(nextMonth1stDay, day)
+
+	asr := NewAssetSetRange(prev1AS, prev2AS, prev3AS, nextAS)
+	asr, err := asr.Accumulate(AccumulateOptionMonth)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
+	}
+
+	if len(asr.Assets) != 2 {
+		t.Fatalf("expected 2 assets sets, got:%d", len(asr.Assets))
+	}
+
+	for _, as := range asr.Assets {
+		if as.Window.Duration() < time.Hour*24 || as.Window.Duration() > time.Hour*24*31 {
+			t.Fatalf("expected window duration to be between 1 and 31 days, got:%s", as.Window.Duration().String())
+		}
+	}
+}
+
+func TestAny_SanitizeNaN(t *testing.T) {
+	any := getMockAny(math.NaN())
+	any.SanitizeNaN()
+	v := reflect.ValueOf(any)
+	checkAllFloat64sForNaN(t, v, "TestAny_SanitizeNaN")
+}
+
+func getMockAny(f float64) Any {
+	return Any{
+		Adjustment: f,
+		Cost:       f,
+	}
+}
+
+func TestCloud_SanitizeNaN(t *testing.T) {
+	cloud := getMockCloud(math.NaN())
+	cloud.SanitizeNaN()
+	v := reflect.ValueOf(cloud)
+	checkAllFloat64sForNaN(t, v, "TestCloud_SanitizeNaN")
+}
+
+func getMockCloud(f float64) Cloud {
+	return Cloud{
+		Adjustment: f,
+		Cost:       f,
+		Credit:     f,
+	}
+}
+
+func TestClusterManagement_SanitizeNaN(t *testing.T) {
+	cm := getMockClusterManagement(math.NaN())
+	cm.SanitizeNaN()
+	v := reflect.ValueOf(cm)
+	checkAllFloat64sForNaN(t, v, "TestClusterManagement_SanitizeNaN")
+}
+
+func getMockClusterManagement(f float64) ClusterManagement {
+	return ClusterManagement{
+		Cost:       f,
+		Adjustment: f,
+	}
+}
+
+func TestDisk_SanitizeNaN(t *testing.T) {
+	disk := getMockDisk(math.NaN())
+	disk.SanitizeNaN()
+	v := reflect.ValueOf(disk)
+	checkAllFloat64sForNaN(t, v, "TestDisk_SanitizeNaN")
+
+	vBreakdown := reflect.ValueOf(*disk.Breakdown)
+	checkAllFloat64sForNaN(t, vBreakdown, "TestDisk_SanitizeNaN")
+}
+
+func getMockDisk(f float64) Disk {
+	bhu := f
+	bum := f
+	breakdown := getMockBreakdown(f)
+	return Disk{
+		Adjustment:    f,
+		Cost:          f,
+		ByteHours:     f,
+		Local:         f,
+		Breakdown:     &breakdown,
+		ByteHoursUsed: &bhu,
+		ByteUsageMax:  &bum,
+	}
+}
+
+func TestBreakdown_SanitizeNaN(t *testing.T) {
+	b := getMockBreakdown(math.NaN())
+	b.SanitizeNaN()
+	v := reflect.ValueOf(b)
+	checkAllFloat64sForNaN(t, v, "TestBreakdown_SanitizeNaN")
+}
+
+func getMockBreakdown(f float64) Breakdown {
+	return Breakdown{
+		Idle:   f,
+		Other:  f,
+		System: f,
+		User:   f,
+	}
+}
+
+func TestNetwork_SanitizeNaN(t *testing.T) {
+	n := getMockNetwork(math.NaN())
+	n.SanitizeNaN()
+	v := reflect.ValueOf(n)
+	checkAllFloat64sForNaN(t, v, "TestNetwork_SanitizeNaN")
+}
+
+func getMockNetwork(f float64) Network {
+	return Network{
+		Adjustment: f,
+		Cost:       f,
+	}
+}
+
+func TestNodeOverhead_SanitizeNaN(t *testing.T) {
+	n := getMockNodeOverhead(math.NaN())
+	n.SanitizeNaN()
+	v := reflect.ValueOf(n)
+	checkAllFloat64sForNaN(t, v, "TestNodeOverhead_SanitizeNaN")
+}
+
+func getMockNodeOverhead(f float64) NodeOverhead {
+	return NodeOverhead{
+		CpuOverheadFraction:  f,
+		RamOverheadFraction:  f,
+		OverheadCostFraction: f,
+	}
+}
+
+func TestNode_SanitizeNaN(t *testing.T) {
+	n := getMockNode(math.NaN())
+	n.SanitizeNaN()
+	v := reflect.ValueOf(n)
+	checkAllFloat64sForNaN(t, v, "TestNode_SanitizeNaN")
+
+	vCpu := reflect.ValueOf(*n.CPUBreakdown)
+	checkAllFloat64sForNaN(t, vCpu, "TestNode_SanitizeNaN")
+
+	vRam := reflect.ValueOf(*n.RAMBreakdown)
+	checkAllFloat64sForNaN(t, vRam, "TestNode_SanitizeNaN")
+
+	vOverhead := reflect.ValueOf(*n.Overhead)
+	checkAllFloat64sForNaN(t, vOverhead, "TestNode_SanitizeNaN")
+}
+
+func getMockNode(f float64) Node {
+	cpuBreakdown := getMockBreakdown(f)
+	ramBreakdown := getMockBreakdown(f)
+	overhead := getMockNodeOverhead(f)
+	return Node{
+		Adjustment:   f,
+		CPUCoreHours: f,
+		RAMByteHours: f,
+		GPUHours:     f,
+		CPUBreakdown: &cpuBreakdown,
+		RAMBreakdown: &ramBreakdown,
+		CPUCost:      f,
+		GPUCost:      f,
+		GPUCount:     f,
+		RAMCost:      f,
+		Discount:     f,
+		Preemptible:  f,
+		Overhead:     &overhead,
+	}
+}
+
+func TestLoadBalancer_SanitizeNaN(t *testing.T) {
+	lb := getMockLoadBalancer(math.NaN())
+	lb.SanitizeNaN()
+	v := reflect.ValueOf(lb)
+	checkAllFloat64sForNaN(t, v, "TestLoadBalancer_SanitizeNaN")
+}
+
+func getMockLoadBalancer(f float64) LoadBalancer {
+	return LoadBalancer{
+		Adjustment: f,
+		Cost:       f,
+	}
+}
+
+func TestSharedAsset_SanitizeNaN(t *testing.T) {
+	sa := getMockSharedAsset(math.NaN())
+	sa.SanitizeNaN()
+	v := reflect.ValueOf(sa)
+	checkAllFloat64sForNaN(t, v, "TestSharedAsset_SanitizeNaN")
+}
+
+func getMockSharedAsset(f float64) SharedAsset {
+	return SharedAsset{
+		Cost: f,
+	}
+}
+
+func TestAssetSet_SanitizeNaN(t *testing.T) {
+	testCaseName := "TestAssetSet_SanitizeNaN"
+	as := getMockAssetSet(math.NaN())
+	as.SanitizeNaN()
+	v := reflect.ValueOf(as)
+	checkAllFloat64sForNaN(t, v, testCaseName)
+
+	for _, a := range as.Assets {
+		if math.IsNaN(a.TotalCost()) {
+			t.Fatalf("TestAssetSet_SanitizeNaN: Asset: expected not NaN for TotalCost(): expected NaN, got:%f", a.TotalCost())
+
+		}
+		if math.IsNaN(a.GetAdjustment()) {
+			t.Fatalf("TestAssetSet_SanitizeNaN: Asset: expected not NaN for GetAdjustment(): expected NaN, got:%f", a.GetAdjustment())
+		}
+	}
+
+	for _, any := range as.Any {
+		vAny := reflect.ValueOf(*any)
+		checkAllFloat64sForNaN(t, vAny, testCaseName)
+	}
+
+	for _, cloud := range as.Cloud {
+		vCloud := reflect.ValueOf(*cloud)
+		checkAllFloat64sForNaN(t, vCloud, testCaseName)
+	}
+
+	for _, cm := range as.ClusterManagement {
+		vCM := reflect.ValueOf(*cm)
+		checkAllFloat64sForNaN(t, vCM, testCaseName)
+	}
+
+	for _, disk := range as.Disks {
+		vDisk := reflect.ValueOf(*disk)
+		checkAllFloat64sForNaN(t, vDisk, testCaseName)
+	}
+
+	for _, network := range as.Network {
+		vNetwork := reflect.ValueOf(*network)
+		checkAllFloat64sForNaN(t, vNetwork, testCaseName)
+	}
+
+	for _, node := range as.Nodes {
+		vNode := reflect.ValueOf(*node)
+		checkAllFloat64sForNaN(t, vNode, testCaseName)
+	}
+
+	for _, sa := range as.SharedAssets {
+		vSA := reflect.ValueOf(*sa)
+		checkAllFloat64sForNaN(t, vSA, testCaseName)
+	}
+
+}
+
+func getMockAssetSet(f float64) AssetSet {
+	any := getMockAny(f)
+	cloud := getMockCloud(f)
+	cm := getMockClusterManagement(f)
+	disk := getMockDisk(f)
+	network := getMockNetwork(f)
+	node := getMockNode(f)
+	lb := getMockLoadBalancer(f)
+	sa := getMockSharedAsset(f)
+
+	assets := map[string]Asset{"any": &any, "cloud": &cloud}
+	as := AssetSet{
+		Assets:            assets,
+		Any:               map[string]*Any{"NaN": &any},
+		Cloud:             map[string]*Cloud{"NaN": &cloud},
+		ClusterManagement: map[string]*ClusterManagement{"NaN": &cm},
+		Disks:             map[string]*Disk{"NaN": &disk},
+		Network:           map[string]*Network{"NaN": &network},
+		Nodes:             map[string]*Node{"NaN": &node},
+		LoadBalancers:     map[string]*LoadBalancer{"NaN": &lb},
+		SharedAssets:      map[string]*SharedAsset{"NaN": &sa},
+	}
+
+	return as
 }

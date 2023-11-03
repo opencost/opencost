@@ -35,7 +35,7 @@ type Context struct {
 	errorCollector *QueryErrorCollector
 }
 
-// NewContext creates a new Promethues querying context from the given client
+// NewContext creates a new Prometheus querying context from the given client
 func NewContext(client prometheus.Client) *Context {
 	var ec QueryErrorCollector
 
@@ -46,7 +46,7 @@ func NewContext(client prometheus.Client) *Context {
 	}
 }
 
-// NewNamedContext creates a new named Promethues querying context from the given client
+// NewNamedContext creates a new named Prometheus querying context from the given client
 func NewNamedContext(client prometheus.Client, name string) *Context {
 	ctx := NewContext(client)
 	ctx.name = name

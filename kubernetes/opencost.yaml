@@ -1,7 +1,7 @@
 # <https://www.opencost.io/docs/>
 ---
 
-# The namespace opencost will run in
+# The namespace OpenCost will run in
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -13,9 +13,10 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: opencost
+  namespace: opencost
 ---
 
-# Cluster role giving opencost to get, list, watch required recources
+# Cluster role giving OpenCost to get, list, watch required resources
 # No write permissions are required
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -120,6 +121,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: opencost
+  namespace: opencost
   labels:
     app: opencost
 spec:
@@ -140,7 +142,7 @@ spec:
       restartPolicy: Always
       serviceAccountName: opencost
       containers:
-        - image: quay.io/kubecost1/kubecost-cost-model:latest
+        - image: gcr.io/kubecost1/opencost
           name: opencost
           resources:
             requests:
@@ -157,17 +159,36 @@ spec:
             - name: CLUSTER_ID
               value: "cluster-one" # Default cluster ID to use if cluster_id is not set in Prometheus metrics.
           imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsUser: 1001
+        - image: gcr.io/kubecost1/opencost-ui
+          name: opencost-ui
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "55M"
+            limits:
+              cpu: "999m"
+              memory: "1G"
+          imagePullPolicy: Always
 ---
 
 # Expose the cost model with a service
 #
 # Without a Prometheus endpoint configured in the deployment,
 # only opencost/metrics will have useful data as it is intended
-# to be used as just an exporter.
+# to be used as only an exporter.
 kind: Service
 apiVersion: v1
 metadata:
   name: opencost
+  namespace: opencost
 spec:
   selector:
     app: opencost
@@ -176,4 +197,7 @@ spec:
     - name: opencost
       port: 9003
       targetPort: 9003
+    - name: opencost-ui
+      port: 9090
+      targetPort: 9090
 ---

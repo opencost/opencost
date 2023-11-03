@@ -2,8 +2,9 @@ package costmodel
 
 import (
 	"fmt"
-	"github.com/opencost/opencost/pkg/kubecost"
 	"time"
+
+	"github.com/opencost/opencost/pkg/kubecost"
 )
 
 // pod describes a running pod's start and end time within a Window and
@@ -13,6 +14,7 @@ type pod struct {
 	Start       time.Time
 	End         time.Time
 	Key         podKey
+	Node        string
 	Allocations map[string]*kubecost.Allocation
 }
 
@@ -130,6 +132,7 @@ type pv struct {
 	Cluster        string    `json:"cluster"`
 	Name           string    `json:"name"`
 	StorageClass   string    `json:"storageClass"`
+	ProviderID     string    `json:"providerID"`
 }
 
 func (p *pv) clone() *pv {
@@ -188,7 +191,7 @@ func (p *pv) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("%s/%s{Bytes:%.2f, Cost/GiB*Hr:%.6f, StorageClass:%s}", p.Cluster, p.Name, p.Bytes, p.CostPerGiBHour, p.StorageClass)
+	return fmt.Sprintf("%s/%s{Bytes:%.2f, Cost/GiB*Hr:%.6f, StorageClass:%s, ProviderID: %s}", p.Cluster, p.Name, p.Bytes, p.CostPerGiBHour, p.StorageClass, p.ProviderID)
 }
 
 func (p *pv) minutes() float64 {
@@ -209,18 +212,6 @@ type lbCost struct {
 	TotalCost float64
 	Start     time.Time
 	End       time.Time
-}
-
-// NodePricing describes the resource costs associated with a given node, as
-// well as the source of the information (e.g. prometheus, custom)
-type nodePricing struct {
-	Name            string
-	NodeType        string
-	ProviderID      string
-	Preemptible     bool
-	CostPerCPUHr    float64
-	CostPerRAMGiBHr float64
-	CostPerGPUHr    float64
-	Discount        float64
-	Source          string
+	Private   bool
+	Ip        string
 }

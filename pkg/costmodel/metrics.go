@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"
@@ -38,7 +38,7 @@ type ClusterInfoCollector struct {
 // collected by this Collector.
 func (cic ClusterInfoCollector) Describe(ch chan<- *prometheus.Desc) {
 	disabledMetrics := cic.metricsConfig.GetDisabledMetricsMap()
-	if _, disabled := disabledMetrics["kube_pod_annotations"]; disabled {
+	if _, disabled := disabledMetrics["kubecost_cluster_info"]; disabled {
 		return
 	}
 
@@ -49,7 +49,7 @@ func (cic ClusterInfoCollector) Describe(ch chan<- *prometheus.Desc) {
 // Collect is called by the Prometheus registry when collecting metrics.
 func (cic ClusterInfoCollector) Collect(ch chan<- prometheus.Metric) {
 	disabledMetrics := cic.metricsConfig.GetDisabledMetricsMap()
-	if _, disabled := disabledMetrics["kube_pod_annotations"]; disabled {
+	if _, disabled := disabledMetrics["kubecost_cluster_info"]; disabled {
 		return
 	}
 
@@ -136,7 +136,7 @@ var (
 )
 
 // initCostModelMetrics uses a sync.Once to ensure that these metrics are only created once
-func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud.Provider, clusterInfo clusters.ClusterInfoProvider, metricsConfig *metrics.MetricsConfig) {
+func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider models.Provider, clusterInfo clusters.ClusterInfoProvider, metricsConfig *metrics.MetricsConfig) {
 
 	disabledMetrics := metricsConfig.GetDisabledMetricsMap()
 	var toRegisterGV []*prometheus.GaugeVec
@@ -144,131 +144,131 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud
 
 	metricsInit.Do(func() {
 
+		cpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "node_cpu_hourly_cost",
+			Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
 		if _, disabled := disabledMetrics["node_cpu_hourly_cost"]; !disabled {
-			cpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "node_cpu_hourly_cost",
-				Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
-			}, []string{"instance", "node", "instance_type", "region", "provider_id"})
 			toRegisterGV = append(toRegisterGV, cpuGv)
 		}
 
+		ramGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "node_ram_hourly_cost",
+			Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
 		if _, disabled := disabledMetrics["node_ram_hourly_cost"]; !disabled {
-			ramGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "node_ram_hourly_cost",
-				Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
-			}, []string{"instance", "node", "instance_type", "region", "provider_id"})
 			toRegisterGV = append(toRegisterGV, ramGv)
 		}
 
+		gpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "node_gpu_hourly_cost",
+			Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
 		if _, disabled := disabledMetrics["node_gpu_hourly_cost"]; !disabled {
-			gpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "node_gpu_hourly_cost",
-				Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
-			}, []string{"instance", "node", "instance_type", "region", "provider_id"})
 			toRegisterGV = append(toRegisterGV, gpuGv)
 		}
 
+		gpuCountGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "node_gpu_count",
+			Help: "node_gpu_count count of gpu on this node",
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
 		if _, disabled := disabledMetrics["node_gpu_count"]; !disabled {
-			gpuCountGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "node_gpu_count",
-				Help: "node_gpu_count count of gpu on this node",
-			}, []string{"instance", "node", "instance_type", "region", "provider_id"})
 			toRegisterGV = append(toRegisterGV, gpuCountGv)
 		}
 
+		pvGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "pv_hourly_cost",
+			Help: "pv_hourly_cost Cost per GB per hour on a persistent disk",
+		}, []string{"volumename", "persistentvolume", "provider_id"})
 		if _, disabled := disabledMetrics["pv_hourly_cost"]; !disabled {
-			pvGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "pv_hourly_cost",
-				Help: "pv_hourly_cost Cost per GB per hour on a persistent disk",
-			}, []string{"volumename", "persistentvolume", "provider_id"})
 			toRegisterGV = append(toRegisterGV, pvGv)
 		}
 
+		spotGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "kubecost_node_is_spot",
+			Help: "kubecost_node_is_spot Cloud provider info about node preemptibility",
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
 		if _, disabled := disabledMetrics["kubecost_node_is_spot"]; !disabled {
-			spotGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "kubecost_node_is_spot",
-				Help: "kubecost_node_is_spot Cloud provider info about node preemptibility",
-			}, []string{"instance", "node", "instance_type", "region", "provider_id"})
 			toRegisterGV = append(toRegisterGV, spotGv)
 		}
 
+		totalGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "node_total_hourly_cost",
+			Help: "node_total_hourly_cost Total node cost per hour",
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
 		if _, disabled := disabledMetrics["node_total_hourly_cost"]; !disabled {
-			totalGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "node_total_hourly_cost",
-				Help: "node_total_hourly_cost Total node cost per hour",
-			}, []string{"instance", "node", "instance_type", "region", "provider_id"})
 			toRegisterGV = append(toRegisterGV, totalGv)
 		}
 
+		ramAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "container_memory_allocation_bytes",
+			Help: "container_memory_allocation_bytes Bytes of RAM used",
+		}, []string{"namespace", "pod", "container", "instance", "node"})
 		if _, disabled := disabledMetrics["container_memory_allocation_bytes"]; !disabled {
-			ramAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "container_memory_allocation_bytes",
-				Help: "container_memory_allocation_bytes Bytes of RAM used",
-			}, []string{"namespace", "pod", "container", "instance", "node"})
 			toRegisterGV = append(toRegisterGV, ramAllocGv)
 		}
 
+		cpuAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "container_cpu_allocation",
+			Help: "container_cpu_allocation Percent of a single CPU used in a minute",
+		}, []string{"namespace", "pod", "container", "instance", "node"})
 		if _, disabled := disabledMetrics["container_cpu_allocation"]; !disabled {
-			cpuAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "container_cpu_allocation",
-				Help: "container_cpu_allocation Percent of a single CPU used in a minute",
-			}, []string{"namespace", "pod", "container", "instance", "node"})
 			toRegisterGV = append(toRegisterGV, cpuAllocGv)
 		}
 
+		gpuAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "container_gpu_allocation",
+			Help: "container_gpu_allocation GPU used",
+		}, []string{"namespace", "pod", "container", "instance", "node"})
 		if _, disabled := disabledMetrics["container_gpu_allocation"]; !disabled {
-			gpuAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "container_gpu_allocation",
-				Help: "container_gpu_allocation GPU used",
-			}, []string{"namespace", "pod", "container", "instance", "node"})
 			toRegisterGV = append(toRegisterGV, gpuAllocGv)
 		}
 
+		pvAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "pod_pvc_allocation",
+			Help: "pod_pvc_allocation Bytes used by a PVC attached to a pod",
+		}, []string{"namespace", "pod", "persistentvolumeclaim", "persistentvolume"})
 		if _, disabled := disabledMetrics["pod_pvc_allocation"]; !disabled {
-			pvAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "pod_pvc_allocation",
-				Help: "pod_pvc_allocation Bytes used by a PVC attached to a pod",
-			}, []string{"namespace", "pod", "persistentvolumeclaim", "persistentvolume"})
 			toRegisterGV = append(toRegisterGV, pvAllocGv)
 		}
 
+		networkZoneEgressCostG = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "kubecost_network_zone_egress_cost",
+			Help: "kubecost_network_zone_egress_cost Total cost per GB egress across zones",
+		})
 		if _, disabled := disabledMetrics["kubecost_network_zone_egress_cost"]; !disabled {
-			networkZoneEgressCostG = prometheus.NewGauge(prometheus.GaugeOpts{
-				Name: "kubecost_network_zone_egress_cost",
-				Help: "kubecost_network_zone_egress_cost Total cost per GB egress across zones",
-			})
 			toRegisterGauge = append(toRegisterGauge, networkZoneEgressCostG)
 		}
 
+		networkRegionEgressCostG = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "kubecost_network_region_egress_cost",
+			Help: "kubecost_network_region_egress_cost Total cost per GB egress across regions",
+		})
 		if _, disabled := disabledMetrics["kubecost_network_region_egress_cost"]; !disabled {
-			networkRegionEgressCostG = prometheus.NewGauge(prometheus.GaugeOpts{
-				Name: "kubecost_network_region_egress_cost",
-				Help: "kubecost_network_region_egress_cost Total cost per GB egress across regions",
-			})
 			toRegisterGauge = append(toRegisterGauge, networkRegionEgressCostG)
 		}
 
+		networkInternetEgressCostG = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "kubecost_network_internet_egress_cost",
+			Help: "kubecost_network_internet_egress_cost Total cost per GB of internet egress.",
+		})
 		if _, disabled := disabledMetrics["kubecost_network_internet_egress_cost"]; !disabled {
-			networkInternetEgressCostG = prometheus.NewGauge(prometheus.GaugeOpts{
-				Name: "kubecost_network_internet_egress_cost",
-				Help: "kubecost_network_internet_egress_cost Total cost per GB of internet egress.",
-			})
 			toRegisterGauge = append(toRegisterGauge, networkInternetEgressCostG)
 		}
 
+		clusterManagementCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "kubecost_cluster_management_cost",
+			Help: "kubecost_cluster_management_cost Hourly cost paid as a cluster management fee.",
+		}, []string{"provisioner_name"})
 		if _, disabled := disabledMetrics["kubecost_cluster_management_cost"]; !disabled {
-			clusterManagementCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "kubecost_cluster_management_cost",
-				Help: "kubecost_cluster_management_cost Hourly cost paid as a cluster management fee.",
-			}, []string{"provisioner_name"})
 			toRegisterGV = append(toRegisterGV, clusterManagementCostGv)
 		}
 
+		lbCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{ // no differentiation between ELB and ALB right now
+			Name: "kubecost_load_balancer_cost",
+			Help: "kubecost_load_balancer_cost Hourly cost of load balancer",
+		}, []string{"ingress_ip", "namespace", "service_name"}) // assumes one ingress IP per load balancer
 		if _, disabled := disabledMetrics["kubecost_load_balancer_cost"]; !disabled {
-			lbCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{ // no differentiation between ELB and ALB right now
-				Name: "kubecost_load_balancer_cost",
-				Help: "kubecost_load_balancer_cost Hourly cost of load balancer",
-			}, []string{"ingress_ip", "namespace", "service_name"}) // assumes one ingress IP per load balancer
 			toRegisterGV = append(toRegisterGV, lbCostGv)
 		}
 
@@ -297,7 +297,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud
 type CostModelMetricsEmitter struct {
 	PrometheusClient promclient.Client
 	KubeClusterCache clustercache.ClusterCache
-	CloudProvider    cloud.Provider
+	CloudProvider    models.Provider
 	Model            *CostModel
 
 	// Metrics
@@ -323,7 +323,7 @@ type CostModelMetricsEmitter struct {
 }
 
 // NewCostModelMetricsEmitter creates a new cost-model metrics emitter. Use Start() to begin metric emission.
-func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clustercache.ClusterCache, provider cloud.Provider, clusterInfo clusters.ClusterInfoProvider, model *CostModel) *CostModelMetricsEmitter {
+func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clustercache.ClusterCache, provider models.Provider, clusterInfo clusters.ClusterInfoProvider, model *CostModel) *CostModelMetricsEmitter {
 
 	// Get metric configurations, if any
 	metricsConfig, err := metrics.GetMetricsConfig()
@@ -513,7 +513,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
-				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID)
+				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType)
 
 				avgCosts, ok := nodeCostAverages[labelKey]
 
@@ -528,22 +528,22 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					nodeCostAverages[labelKey] = avgCosts
 				}
 
-				cmme.GPUCountRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(gpu)
-				cmme.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(gpuCost)
+				cmme.GPUCountRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(gpu)
+				cmme.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(gpuCost)
 
 				const outlierFactor float64 = 30
 				// don't record cpuCost, ramCost, or gpuCost in the case of wild outliers
 				// k8s api sometimes causes cost spikes as described here:
 				// https://github.com/opencost/opencost/issues/927
 				if cpuCost < outlierFactor*avgCosts.CpuCostAverage {
-					cmme.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(cpuCost)
+					cmme.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(cpuCost)
 					avgCosts.CpuCostAverage = (avgCosts.CpuCostAverage*avgCosts.NumCpuDataPoints + cpuCost) / (avgCosts.NumCpuDataPoints + 1)
 					avgCosts.NumCpuDataPoints += 1
 				} else {
 					log.Warnf("CPU cost outlier detected; skipping data point.")
 				}
 				if ramCost < outlierFactor*avgCosts.RamCostAverage {
-					cmme.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(ramCost)
+					cmme.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(ramCost)
 					avgCosts.RamCostAverage = (avgCosts.RamCostAverage*avgCosts.NumRamDataPoints + ramCost) / (avgCosts.NumRamDataPoints + 1)
 					avgCosts.NumRamDataPoints += 1
 				} else {
@@ -552,15 +552,15 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				// skip redording totalCost if any constituent costs were outliers
 				if cpuCost < outlierFactor*avgCosts.CpuCostAverage &&
 					ramCost < outlierFactor*avgCosts.RamCostAverage {
-					cmme.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(totalCost)
+					cmme.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(totalCost)
 				}
 
 				nodeCostAverages[labelKey] = avgCosts
 
 				if node.IsSpot() {
-					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(1.0)
+					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(1.0)
 				} else {
-					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(0.0)
+					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(0.0)
 				}
 				nodeSeen[labelKey] = true
 			}
@@ -652,7 +652,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				} else {
 					region = defaultRegion
 				}
-				cacPv := &cloud.PV{
+				cacPv := &models.PV{
 					Class:      pv.Spec.StorageClassName,
 					Region:     region,
 					Parameters: parameters,
@@ -666,45 +666,48 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				pvSeen[labelKey] = true
 			}
 
+			// Remove metrics on Nodes/LoadBalancers/Containers/PVs that no
+			// longer exist
 			for labelString, seen := range nodeSeen {
 				if !seen {
 					log.Debugf("Removing %s from nodes", labelString)
 					labels := getLabelStringsFromKey(labelString)
+
 					ok := cmme.NodeTotalPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
 						log.Debugf("removed %s from totalprice", labelString)
 					} else {
-						log.Infof("FAILURE TO REMOVE %s from totalprice", labelString)
+						log.Errorf("FAILURE TO REMOVE %s from totalprice", labelString)
 					}
 					ok = cmme.NodeSpotRecorder.DeleteLabelValues(labels...)
 					if ok {
 						log.Debugf("removed %s from spot records", labelString)
 					} else {
-						log.Infof("FAILURE TO REMOVE %s from spot records", labelString)
+						log.Errorf("FAILURE TO REMOVE %s from spot records", labelString)
 					}
 					ok = cmme.CPUPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
 						log.Debugf("removed %s from cpuprice", labelString)
 					} else {
-						log.Infof("FAILURE TO REMOVE %s from cpuprice", labelString)
+						log.Errorf("FAILURE TO REMOVE %s from cpuprice", labelString)
 					}
 					ok = cmme.GPUPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
 						log.Debugf("removed %s from gpuprice", labelString)
 					} else {
-						log.Infof("FAILURE TO REMOVE %s from gpuprice", labelString)
+						log.Errorf("FAILURE TO REMOVE %s from gpuprice", labelString)
 					}
 					ok = cmme.GPUCountRecorder.DeleteLabelValues(labels...)
 					if ok {
 						log.Debugf("removed %s from gpucount", labelString)
 					} else {
-						log.Infof("FAILURE TO REMOVE %s from gpucount", labelString)
+						log.Errorf("FAILURE TO REMOVE %s from gpucount", labelString)
 					}
 					ok = cmme.RAMPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
 						log.Debugf("removed %s from ramprice", labelString)
 					} else {
-						log.Infof("FAILURE TO REMOVE %s from ramprice", labelString)
+						log.Errorf("FAILURE TO REMOVE %s from ramprice", labelString)
 					}
 					delete(nodeSeen, labelString)
 					delete(nodeCostAverages, labelString)
@@ -717,7 +720,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					labels := getLabelStringsFromKey(labelString)
 					ok := cmme.LBCostRecorder.DeleteLabelValues(labels...)
 					if !ok {
-						log.Warnf("Metric emission: failed to delete LoadBalancer with labels: %v", labels)
+						log.Errorf("Metric emission: failed to delete LoadBalancer with labels: %v", labels)
 					}
 					delete(loadBalancerSeen, labelString)
 				} else {
@@ -727,9 +730,18 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			for labelString, seen := range containerSeen {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
-					cmme.RAMAllocationRecorder.DeleteLabelValues(labels...)
-					cmme.CPUAllocationRecorder.DeleteLabelValues(labels...)
-					cmme.GPUAllocationRecorder.DeleteLabelValues(labels...)
+					ok := cmme.RAMAllocationRecorder.DeleteLabelValues(labels...)
+					if !ok {
+						log.Errorf("Metric emission: failed to delete RAMAllocation with labels: %v", labels)
+					}
+					ok = cmme.CPUAllocationRecorder.DeleteLabelValues(labels...)
+					if !ok {
+						log.Errorf("Metric emission: failed to delete CPUAllocation with labels: %v", labels)
+					}
+					ok = cmme.GPUAllocationRecorder.DeleteLabelValues(labels...)
+					if !ok {
+						log.Errorf("Metric emission: failed to delete GPUAllocation with labels: %v", labels)
+					}
 					delete(containerSeen, labelString)
 				} else {
 					containerSeen[labelString] = false
@@ -738,7 +750,10 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			for labelString, seen := range pvSeen {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
-					cmme.PersistentVolumePriceRecorder.DeleteLabelValues(labels...)
+					ok := cmme.PersistentVolumePriceRecorder.DeleteLabelValues(labels...)
+					if !ok {
+						log.Errorf("Metric emission: failed to delete PVPrice with labels: %v", labels)
+					}
 					delete(pvSeen, labelString)
 				} else {
 					pvSeen[labelString] = false
@@ -747,7 +762,10 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			for labelString, seen := range pvcSeen {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
-					cmme.PVAllocationRecorder.DeleteLabelValues(labels...)
+					ok := cmme.PVAllocationRecorder.DeleteLabelValues(labels...)
+					if !ok {
+						log.Errorf("Metric emission: failed to delete PVAllocation with labels: %v", labels)
+					}
 					delete(pvcSeen, labelString)
 				} else {
 					pvcSeen[labelString] = false

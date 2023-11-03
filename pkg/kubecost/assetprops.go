@@ -118,11 +118,20 @@ const OtherCategory = "Other"
 // AWSProvider describes the provider AWS
 const AWSProvider = "AWS"
 
+// describes how AWS labels nodepool nodes
+const EKSNodepoolLabel = "eks.amazonaws.com/nodegroup"
+
 // GCPProvider describes the provider GCP
 const GCPProvider = "GCP"
 
+// describes how nodepool nodes are labeled in GKE
+const GKENodePoolLabel = "cloud.google.com/gke-nodepool"
+
 // AzureProvider describes the provider Azure
 const AzureProvider = "Azure"
+
+// describes how Azure labels nodepool nodes
+const AKSNodepoolLabel = "kubernetes.azure.com/agentpool"
 
 // AlibabaProvider describes the provider for Alibaba Cloud
 const AlibabaProvider = "Alibaba"
@@ -190,8 +199,12 @@ func (ap *AssetProperties) Clone() *AssetProperties {
 	return clone
 }
 
-// Equal returns true only if both AssetProperties are non-nil exact matches
+// Equal returns true only if both AssetProperties are matches
 func (ap *AssetProperties) Equal(that *AssetProperties) bool {
+	if ap == nil && that == nil {
+		return true
+	}
+
 	if ap == nil || that == nil {
 		return false
 	}

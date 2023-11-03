@@ -104,5 +104,6 @@ func NewThanosClient(address string, config *prom.PrometheusClientConfig) (prome
 		maxSourceDecorator,
 		config.RateLimitRetryOpts,
 		config.QueryLogFile,
+		"",
 	)
 }

@@ -7,7 +7,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/costmodel"
@@ -117,7 +117,7 @@ func newPrometheusClient() (prometheus.Client, error) {
 	api := prometheusAPI.NewAPI(promCli)
 	_, err = api.Config(context.Background())
 	if err != nil {
-		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
+		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/mimir/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
 	} else {
 		log.Infof("Retrieved a prometheus config file from: %s", address)
 	}
@@ -157,13 +157,13 @@ func Execute(opts *AgentOpts) error {
 	})
 
 	cloudProviderKey := env.GetCloudProviderAPIKey()
-	cloudProvider, err := cloud.NewProvider(clusterCache, cloudProviderKey, confManager)
+	cloudProvider, err := provider.NewProvider(clusterCache, cloudProviderKey, confManager)
 	if err != nil {
 		panic(err.Error())
 	}
 
 	// Append the pricing config watcher
-	configWatchers.AddWatcher(cloud.ConfigWatcherFor(cloudProvider))
+	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
 	watchConfigFunc := configWatchers.ToWatchFunc()
 	watchedConfigs := configWatchers.GetWatchedConfigs()
 
@@ -181,7 +181,7 @@ func Execute(opts *AgentOpts) error {
 
 	clusterCache.SetConfigMapUpdateFunc(watchConfigFunc)
 
-	configPrefix := env.GetConfigPathWithDefault("/var/configs/")
+	configPrefix := env.GetConfigPathWithDefault(env.DefaultConfigMountPath)
 
 	// Initialize cluster exporting if it's enabled
 	if env.IsExportClusterCacheEnabled() {
@@ -195,7 +195,7 @@ func Execute(opts *AgentOpts) error {
 
 	var clusterInfoProvider clusters.ClusterInfoProvider
 	if env.IsExportClusterInfoEnabled() {
-		clusterInfoConf := confManager.ConfigFileAt(path.Join(configPrefix, " cluster-info.json"))
+		clusterInfoConf := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-info.json"))
 		clusterInfoProvider = costmodel.NewClusterInfoWriteOnRequest(localClusterInfo, clusterInfoConf)
 	} else {
 		clusterInfoProvider = localClusterInfo

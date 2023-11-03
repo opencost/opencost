@@ -1,0 +1,178 @@
+---
+
+# The namespace opencost will run in
+apiVersion: v1
+kind: Namespace
+metadata:
+    name: opencost-exporter
+---
+
+# Service account for permissions
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opencost
+---
+
+# Cluster role giving opencost to get, list, watch required resources
+# No write permissions are required
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: opencost
+rules:
+  - apiGroups:
+      - ''
+    resources:
+      - configmaps
+      - deployments
+      - nodes
+      - pods
+      - services
+      - resourcequotas
+      - replicationcontrollers
+      - limitranges
+      - persistentvolumeclaims
+      - persistentvolumes
+      - namespaces
+      - endpoints
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - extensions
+    resources:
+      - daemonsets
+      - deployments
+      - replicasets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - statefulsets
+      - deployments
+      - daemonsets
+      - replicasets
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - batch
+    resources:
+      - cronjobs
+      - jobs
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - autoscaling
+    resources:
+      - horizontalpodautoscalers
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - policy
+    resources:
+      - poddisruptionbudgets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - storage.k8s.io
+    resources:
+      - storageclasses
+    verbs:
+      - get
+      - list
+      - watch
+
+---
+
+# Bind the role to the service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: opencost
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: opencost
+subjects:
+  - kind: ServiceAccount
+    name: opencost
+    namespace: opencost-exporter
+---
+
+# Create a deployment for a single cost model pod
+#
+# See environment variables if you would like to add a Prometheus for
+# cost model to read from for full functionality.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opencost
+  labels:
+    app: opencost
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opencost
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: opencost
+    spec:
+      restartPolicy: Always
+      serviceAccountName: opencost
+      containers:
+        - image: quay.io/kubecost1/kubecost-cost-model:latest
+          name: opencost
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "55M"
+            limits:
+              cpu: "999m"
+              memory: "1G"
+          env:
+            - name: PROMETHEUS_SERVER_ENDPOINT
+              value: "http://my-prometheus-server.prometheus.svc" # The endpoint should have the form http://<service-name>.<namespace-name>.svc
+            - name: CLOUD_PROVIDER_API_KEY
+              value: "AIzaSyD29bGxmHAVEOBYtgd8sYM2gM2ekfxQX4U" # The GCP Pricing API requires a key. This is supplied just for evaluation.
+            - name: CLUSTER_ID
+              value: "cluster-one" # Default cluster ID to use if cluster_id is not set in Prometheus metrics.
+          imagePullPolicy: Always
+---
+
+# Expose the cost model with a service
+#
+# Without a Prometheus endpoint configured in the deployment,
+# only opencost/metrics will have useful data as it is intended
+# to be used as just an exporter.
+kind: Service
+apiVersion: v1
+metadata:
+  name: opencost
+spec:
+  selector:
+    app: opencost
+  type: ClusterIP
+  ports:
+    - name: opencost
+      port: 9003
+      targetPort: 9003
+---

@@ -4,11 +4,16 @@ import (
 	"encoding"
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 	"time"
 
+	filter21 "github.com/opencost/opencost/pkg/filter21"
+	"github.com/opencost/opencost/pkg/filter21/ast"
+	"github.com/opencost/opencost/pkg/filter21/matcher"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
 // UndefinedKey is used in composing Asset group keys if the group does not have that property defined.
@@ -55,6 +60,7 @@ type Asset interface {
 	Add(Asset) Asset
 	Clone() Asset
 	Equal(Asset) bool
+	SanitizeNaN()
 
 	// Representations
 	encoding.BinaryMarshaler
@@ -67,7 +73,7 @@ type Asset interface {
 // the Properties to use to aggregate, and the mapping from Allocation property
 // to Asset label. For example, consider this asset:
 //
-// CURRENT: Asset ETL stores its data ALREADY MAPPED from label to k8s concept. This isn't ideal-- see the TOOD.
+// CURRENT: Asset ETL stores its data ALREADY MAPPED from label to k8s concept. This isn't ideal-- see the TODO.
 //
 //	  Cloud {
 //		   TotalCost: 10.00,
@@ -420,10 +426,6 @@ func (al AssetLabels) Append(newLabels map[string]string, overwrite bool) {
 	}
 }
 
-// AssetMatchFunc is a function that can be used to match Assets by
-// returning true for any given Asset if a condition is met.
-type AssetMatchFunc func(Asset) bool
-
 // AssetType identifies a type of Asset
 type AssetType int
 
@@ -673,6 +675,20 @@ func (a *Any) String() string {
 	return toString(a)
 }
 
+func (a *Any) SanitizeNaN() {
+	if a == nil {
+		return
+	}
+	if math.IsNaN(a.Adjustment) {
+		log.DedupedWarningf(5, "Any: Unexpected NaN found for Adjustment: labels:%v, window:%s, properties:%s", a.Labels, a.Window.String(), a.Properties.String())
+		a.Adjustment = 0
+	}
+	if math.IsNaN(a.Cost) {
+		log.DedupedWarningf(5, "Any: Unexpected NaN found for Cost: name:%v, window:%s, properties:%s", a.Labels, a.Window.String(), a.Properties.String())
+		a.Cost = 0
+	}
+}
+
 // Cloud describes a cloud asset
 type Cloud struct {
 	Labels     AssetLabels
@@ -901,6 +917,24 @@ func (ca *Cloud) String() string {
 	return toString(ca)
 }
 
+func (ca *Cloud) SanitizeNaN() {
+	if ca == nil {
+		return
+	}
+	if math.IsNaN(ca.Adjustment) {
+		log.DedupedWarningf(5, "Cloud: Unexpected NaN found for Adjustment: labels:%v, window:%s, properties:%s", ca.Labels, ca.Window.String(), ca.Properties.String())
+		ca.Adjustment = 0
+	}
+	if math.IsNaN(ca.Cost) {
+		log.DedupedWarningf(5, "Cloud: Unexpected NaN found for Cost: name:%v, window:%s, properties:%s", ca.Labels, ca.Window.String(), ca.Properties.String())
+		ca.Cost = 0
+	}
+	if math.IsNaN(ca.Credit) {
+		log.DedupedWarningf(5, "Cloud: Unexpected NaN found for Credit: name:%v, window:%s, properties:%s", ca.Labels, ca.Window.String(), ca.Properties.String())
+		ca.Credit = 0
+	}
+}
+
 // ClusterManagement describes a provider's cluster management fee
 type ClusterManagement struct {
 	Labels     AssetLabels
@@ -1093,6 +1127,20 @@ func (cm *ClusterManagement) Equal(a Asset) bool {
 // String implements fmt.Stringer
 func (cm *ClusterManagement) String() string {
 	return toString(cm)
+}
+
+func (cm *ClusterManagement) SanitizeNaN() {
+	if cm == nil {
+		return
+	}
+	if math.IsNaN(cm.Adjustment) {
+		log.DedupedWarningf(5, "ClusterManagement: Unexpected NaN found for Adjustment: labels:%v, window:%s, properties:%s", cm.Labels, cm.Window.String(), cm.Properties.String())
+		cm.Adjustment = 0
+	}
+	if math.IsNaN(cm.Cost) {
+		log.DedupedWarningf(5, "ClusterManagement: Unexpected NaN found for Cost: name:%v, window:%s, properties:%s", cm.Labels, cm.Window.String(), cm.Properties.String())
+		cm.Cost = 0
+	}
 }
 
 // Disk represents an in-cluster disk Asset
@@ -1464,12 +1512,65 @@ func (d *Disk) Bytes() float64 {
 	return d.ByteHours * (60.0 / d.Minutes())
 }
 
+func (d *Disk) SanitizeNaN() {
+	if d == nil {
+		return
+	}
+	if math.IsNaN(d.Adjustment) {
+		log.DedupedWarningf(5, "Disk: Unexpected NaN found for Adjustment: labels:%v, window:%s, properties:%s", d.Labels, d.Window.String(), d.Properties.String())
+		d.Adjustment = 0
+	}
+	if math.IsNaN(d.Cost) {
+		log.DedupedWarningf(5, "Disk: Unexpected NaN found for Cost: labels:%v, window:%s, properties:%s", d.Labels, d.Window.String(), d.Properties.String())
+		d.Cost = 0
+	}
+	if math.IsNaN(d.ByteHours) {
+		log.DedupedWarningf(5, "Disk: Unexpected NaN found for ByteHours: labels:%v, window:%s, properties:%s", d.Labels, d.Window.String(), d.Properties.String())
+		d.ByteHours = 0
+	}
+	if math.IsNaN(d.Local) {
+		log.DedupedWarningf(5, "Disk: Unexpected NaN found for Local: labels:%v, window:%s, properties:%s", d.Labels, d.Window.String(), d.Properties.String())
+		d.Local = 0
+	}
+	if d.ByteHoursUsed != nil && math.IsNaN(*d.ByteHoursUsed) {
+		log.DedupedWarningf(5, "Disk: Unexpected NaN found for ByteHoursUsed: labels:%v, window:%s, properties:%s", d.Labels, d.Window.String(), d.Properties.String())
+		f := 0.0
+		d.ByteHoursUsed = &f
+	}
+	if d.ByteUsageMax != nil && math.IsNaN(*d.ByteUsageMax) {
+		log.DedupedWarningf(5, "Disk: Unexpected NaN found for ByteUsageMax: labels:%v, window:%s, properties:%s", d.Labels, d.Window.String(), d.Properties.String())
+		f := 0.0
+		d.ByteUsageMax = &f
+	}
+
+	d.Breakdown.SanitizeNaN()
+}
+
 // Breakdown describes a resource's use as a percentage of various usage types
 type Breakdown struct {
 	Idle   float64 `json:"idle"`
 	Other  float64 `json:"other"`
 	System float64 `json:"system"`
 	User   float64 `json:"user"`
+}
+
+func (b *Breakdown) SanitizeNaN() {
+	if math.IsNaN(b.Idle) {
+		log.DedupedWarningf(5, "Breakdown: Unexpected NaN found for Idle")
+		b.Idle = 0
+	}
+	if math.IsNaN(b.Other) {
+		log.DedupedWarningf(5, "Breakdown: Unexpected NaN found for Other")
+		b.Other = 0
+	}
+	if math.IsNaN(b.System) {
+		log.DedupedWarningf(5, "Breakdown: Unexpected NaN found for System")
+		b.System = 0
+	}
+	if math.IsNaN(b.User) {
+		log.DedupedWarningf(5, "Breakdown: Unexpected NaN found for User")
+		b.User = 0
+	}
 }
 
 // Clone returns a cloned instance of the Breakdown
@@ -1488,6 +1589,10 @@ func (b *Breakdown) Clone() *Breakdown {
 
 // Equal returns true if the two Breakdowns are exact matches
 func (b *Breakdown) Equal(that *Breakdown) bool {
+	if b == nil && that == nil {
+		return true
+	}
+
 	if b == nil || that == nil {
 		return false
 	}
@@ -1751,6 +1856,69 @@ func (n *Network) String() string {
 	return toString(n)
 }
 
+func (n *Network) SanitizeNaN() {
+	if n == nil {
+		return
+	}
+	if math.IsNaN(n.Adjustment) {
+		log.DedupedWarningf(5, "Network: Unexpected NaN found for Adjustment: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.Adjustment = 0
+	}
+	if math.IsNaN(n.Cost) {
+		log.DedupedWarningf(5, "Network: Unexpected NaN found for Cost: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.Cost = 0
+	}
+}
+
+// NodeOverhead represents the delta between the allocatable resources
+// of the node and the node nameplate capacity
+type NodeOverhead struct {
+	CpuOverheadFraction  float64
+	RamOverheadFraction  float64
+	OverheadCostFraction float64
+}
+
+func (n *NodeOverhead) SanitizeNaN() {
+	if math.IsNaN(n.CpuOverheadFraction) {
+		log.DedupedWarningf(5, "NodeOverhead: Unexpected NaN found for CpuOverheadFraction")
+		n.CpuOverheadFraction = 0
+	}
+	if math.IsNaN(n.RamOverheadFraction) {
+		log.DedupedWarningf(5, "NodeOverhead: Unexpected NaN found for RamOverheadFraction")
+		n.RamOverheadFraction = 0
+	}
+	if math.IsNaN(n.OverheadCostFraction) {
+		log.DedupedWarningf(5, "NodeOverhead: Unexpected NaN found for OverheadCostFraction")
+		n.OverheadCostFraction = 0
+	}
+}
+
+func (n *NodeOverhead) Equal(other *NodeOverhead) bool {
+	if n == nil && other != nil {
+		return false
+	}
+	if n != nil && other == nil {
+		return false
+	}
+	if n == nil && other == nil {
+		return true
+	}
+
+	// This is okay because everything in NodeOverhead is a value type.
+	return *n == *other
+}
+
+func (n *NodeOverhead) Clone() *NodeOverhead {
+	if n == nil {
+		return nil
+	}
+	return &NodeOverhead{
+		CpuOverheadFraction:  n.CpuOverheadFraction,
+		RamOverheadFraction:  n.RamOverheadFraction,
+		OverheadCostFraction: n.OverheadCostFraction,
+	}
+}
+
 // Node is an Asset representing a single node in a cluster
 type Node struct {
 	Properties   *AssetProperties
@@ -1771,6 +1939,7 @@ type Node struct {
 	RAMCost      float64
 	Discount     float64
 	Preemptible  float64
+	Overhead     *NodeOverhead // @bingen:field[version=19]
 }
 
 // NewNode creates and returns a new Node Asset
@@ -1991,6 +2160,15 @@ func (n *Node) add(that *Node) {
 		n.RAMBreakdown.User = (n.RAMBreakdown.User*n.RAMCost + that.RAMBreakdown.User*that.RAMCost) / totalRAMCost
 	}
 
+	// These calculations have to happen before the mutable fields of n they
+	// depend on (cpu cost, ram cost) are mutated with post-add totals.
+	if n.Overhead != nil && that.Overhead != nil {
+		n.Overhead.RamOverheadFraction = (n.Overhead.RamOverheadFraction*n.RAMCost + that.Overhead.RamOverheadFraction*that.RAMCost) / totalRAMCost
+		n.Overhead.CpuOverheadFraction = (n.Overhead.CpuOverheadFraction*n.CPUCost + that.Overhead.CpuOverheadFraction*that.CPUCost) / totalCPUCost
+	} else {
+		n.Overhead = nil
+	}
+
 	n.CPUCoreHours += that.CPUCoreHours
 	n.RAMByteHours += that.RAMByteHours
 	n.GPUHours += that.GPUHours
@@ -1999,6 +2177,12 @@ func (n *Node) add(that *Node) {
 	n.GPUCost += that.GPUCost
 	n.RAMCost += that.RAMCost
 	n.Adjustment += that.Adjustment
+
+	// The cost-weighted overhead is calculated after the node is totaled
+	// because the cost-weighted overhead is based on post-add data.
+	if n.Overhead != nil {
+		n.Overhead.OverheadCostFraction = ((n.Overhead.CpuOverheadFraction * n.CPUCost) + (n.Overhead.RamOverheadFraction * n.RAMCost)) / n.TotalCost()
+	}
 }
 
 // Clone returns a deep copy of the given Node
@@ -2025,6 +2209,7 @@ func (n *Node) Clone() Asset {
 		GPUCount:     n.GPUCount,
 		RAMCost:      n.RAMCost,
 		Preemptible:  n.Preemptible,
+		Overhead:     n.Overhead.Clone(),
 		Discount:     n.Discount,
 	}
 }
@@ -2085,6 +2270,9 @@ func (n *Node) Equal(a Asset) bool {
 		return false
 	}
 	if n.Preemptible != that.Preemptible {
+		return false
+	}
+	if !n.Overhead.Equal(that.Overhead) {
 		return false
 	}
 
@@ -2157,6 +2345,60 @@ func (n *Node) GPUs() float64 {
 	return n.GPUHours * (60.0 / n.Minutes())
 }
 
+func (n *Node) SanitizeNaN() {
+	if math.IsNaN(n.Adjustment) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for Adjustment: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.Adjustment = 0
+	}
+	if math.IsNaN(n.CPUCoreHours) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for CPUCoreHours: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.CPUCoreHours = 0
+	}
+	if math.IsNaN(n.RAMByteHours) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for RAMByteHours: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.RAMByteHours = 0
+	}
+	if math.IsNaN(n.GPUHours) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for GPUHours: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.GPUHours = 0
+	}
+	if math.IsNaN(n.CPUCost) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for CPUCost: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.CPUCost = 0
+	}
+	if math.IsNaN(n.GPUCost) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for GPUCost: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.GPUCost = 0
+	}
+	if math.IsNaN(n.GPUCount) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for GPUCount: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.GPUCount = 0
+	}
+	if math.IsNaN(n.RAMCost) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for RAMCost: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.RAMCost = 0
+	}
+	if math.IsNaN(n.Discount) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for Discount: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.Discount = 0
+	}
+	if math.IsNaN(n.Preemptible) {
+		log.DedupedWarningf(5, "Node: Unexpected NaN found for Preemptible: labels:%v, window:%s, properties:%s", n.Labels, n.Window.String(), n.Properties.String())
+		n.Preemptible = 0
+	}
+
+	if n.CPUBreakdown != nil {
+		n.CPUBreakdown.SanitizeNaN()
+	}
+	if n.RAMBreakdown != nil {
+		n.RAMBreakdown.SanitizeNaN()
+	}
+
+	if n.Overhead != nil {
+		n.Overhead.SanitizeNaN()
+	}
+}
+
 // LoadBalancer is an Asset representing a single load balancer in a cluster
 // TODO: add GB of ingress processed, numForwardingRules once we start recording those to prometheus metric
 type LoadBalancer struct {
@@ -2167,10 +2409,12 @@ type LoadBalancer struct {
 	Window     Window
 	Adjustment float64
 	Cost       float64
+	Private    bool   // @bingen:field[version=20]
+	Ip         string // @bingen:field[version=21]
 }
 
 // NewLoadBalancer instantiates and returns a new LoadBalancer
-func NewLoadBalancer(name, cluster, providerID string, start, end time.Time, window Window) *LoadBalancer {
+func NewLoadBalancer(name, cluster, providerID string, start, end time.Time, window Window, private bool, ip string) *LoadBalancer {
 	properties := &AssetProperties{
 		Category:   NetworkCategory,
 		Name:       name,
@@ -2185,6 +2429,8 @@ func NewLoadBalancer(name, cluster, providerID string, start, end time.Time, win
 		Start:      start,
 		End:        end,
 		Window:     window,
+		Private:    private,
+		Ip:         ip,
 	}
 }
 
@@ -2331,6 +2577,11 @@ func (lb *LoadBalancer) add(that *LoadBalancer) {
 
 	lb.Cost += that.Cost
 	lb.Adjustment += that.Adjustment
+
+	if lb.Ip != that.Ip {
+		//TODO: should we add to an array here or just ignore?
+		log.DedupedWarningf(5, "LoadBalancer add: load balancer ip fields (%s and %s) do not match. ignoring...", lb.Ip, that.Ip)
+	}
 }
 
 // Clone returns a cloned instance of the given Asset
@@ -2343,10 +2594,12 @@ func (lb *LoadBalancer) Clone() Asset {
 		Window:     lb.Window.Clone(),
 		Adjustment: lb.Adjustment,
 		Cost:       lb.Cost,
+		Private:    lb.Private,
+		Ip:         lb.Ip,
 	}
 }
 
-// Equal returns true if the tow Assets match precisely
+// Equal returns true if the two Assets match precisely
 func (lb *LoadBalancer) Equal(a Asset) bool {
 	that, ok := a.(*LoadBalancer)
 	if !ok {
@@ -2374,6 +2627,12 @@ func (lb *LoadBalancer) Equal(a Asset) bool {
 	if lb.Cost != that.Cost {
 		return false
 	}
+	if lb.Private != that.Private {
+		return false
+	}
+	if lb.Ip != that.Ip {
+		return false
+	}
 
 	return true
 }
@@ -2381,6 +2640,20 @@ func (lb *LoadBalancer) Equal(a Asset) bool {
 // String implements fmt.Stringer
 func (lb *LoadBalancer) String() string {
 	return toString(lb)
+}
+
+func (lb *LoadBalancer) SanitizeNaN() {
+	if lb == nil {
+		return
+	}
+	if math.IsNaN(lb.Adjustment) {
+		log.DedupedWarningf(5, "LoadBalancer: Unexpected NaN found for Adjustment: labels:%v, window:%s, properties:%s", lb.Labels, lb.Window.String(), lb.Properties.String())
+		lb.Adjustment = 0
+	}
+	if math.IsNaN(lb.Cost) {
+		log.DedupedWarningf(5, "LoadBalancer: Unexpected NaN found for Cost: labels:%v, window:%s, properties:%s", lb.Labels, lb.Window.String(), lb.Properties.String())
+		lb.Cost = 0
+	}
 }
 
 // SharedAsset is an Asset representing a shared cost
@@ -2572,6 +2845,16 @@ func (sa *SharedAsset) String() string {
 	return toString(sa)
 }
 
+func (sa *SharedAsset) SanitizeNaN() {
+	if sa == nil {
+		return
+	}
+	if math.IsNaN(sa.Cost) {
+		log.DedupedWarningf(5, "SharedAsset: Unexpected NaN found for Cost: labels:%v, window:%s, properties:%s", sa.Labels, sa.Window.String(), sa.Properties.String())
+		sa.Cost = 0
+	}
+}
+
 // This type exists because only the assets map of AssetSet is marshaled to
 // json, which makes it impossible to recreate an AssetSet struct. Thus,
 // the type when unmarshaling a marshaled AssetSet,is AssetSetResponse
@@ -2725,6 +3008,21 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 		return nil
 	}
 
+	var filter AssetMatcher
+	if opts.Filter == nil {
+		filter = &matcher.AllPass[Asset]{}
+	} else {
+		compiler := NewAssetMatchCompiler()
+		var err error
+		filter, err = compiler.Compile(opts.Filter)
+		if err != nil {
+			return fmt.Errorf("compiling filter '%s': %w", ast.ToPreOrderShortString(opts.Filter), err)
+		}
+	}
+	if filter == nil {
+		return fmt.Errorf("unexpected nil filter")
+	}
+
 	aggSet := NewAssetSet(as.Start(), as.End())
 	aggSet.AggregationKeys = aggregateBy
 
@@ -2741,15 +3039,8 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 		sa := NewSharedAsset(name, as.Window.Clone())
 		sa.Cost = hourlyCost * hours
 
-		// Insert shared asset if it passes all filters
-		insert := true
-		for _, ff := range opts.FilterFuncs {
-			if !ff(sa) {
-				insert = false
-				break
-			}
-		}
-		if insert {
+		// Insert shared asset if it passes filter
+		if filter.Matches(sa) {
 			err := aggSet.Insert(sa, opts.LabelConfig)
 			if err != nil {
 				return err
@@ -2758,11 +3049,9 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 	}
 
 	// Delete the Assets that don't pass each filter
-	for _, ff := range opts.FilterFuncs {
-		for key, asset := range as.Assets {
-			if !ff(asset) {
-				delete(as.Assets, key)
-			}
+	for key, asset := range as.Assets {
+		if !filter.Matches(asset) {
+			delete(as.Assets, key)
 		}
 	}
 
@@ -2971,24 +3260,27 @@ func (as *AssetSet) ReconciliationMatchMap() map[string]map[string]Asset {
 			continue
 		}
 
-		if _, ok := matchMap[props.ProviderID]; !ok {
-			matchMap[props.ProviderID] = make(map[string]Asset)
+		// we can't guarantee case in providerID for Azure provider to have map working for all providers,
+		// lower casing providerID  while creating reconciliation map
+		providerID := strings.ToLower(props.ProviderID)
+		if _, ok := matchMap[providerID]; !ok {
+			matchMap[providerID] = make(map[string]Asset)
 		}
 
 		// Check if a match is already in the map
-		if duplicateAsset, ok := matchMap[props.ProviderID][props.Category]; ok {
+		if duplicateAsset, ok := matchMap[providerID][props.Category]; ok {
 			log.DedupedWarningf(5, "duplicate asset found when reconciling for %s", props.ProviderID)
 			// if one asset already has adjustment use that one
 			if duplicateAsset.GetAdjustment() == 0 && asset.GetAdjustment() != 0 {
-				matchMap[props.ProviderID][props.Category] = asset
+				matchMap[providerID][props.Category] = asset
 			} else if duplicateAsset.GetAdjustment() != 0 && asset.GetAdjustment() == 0 {
-				matchMap[props.ProviderID][props.Category] = duplicateAsset
+				matchMap[providerID][props.Category] = duplicateAsset
 				// otherwise use the one with the higher cost
 			} else if duplicateAsset.TotalCost() < asset.TotalCost() {
-				matchMap[props.ProviderID][props.Category] = asset
+				matchMap[providerID][props.Category] = asset
 			}
 		} else {
-			matchMap[props.ProviderID][props.Category] = asset
+			matchMap[providerID][props.Category] = asset
 		}
 
 	}
@@ -3163,6 +3455,44 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	return acc, nil
 }
 
+func (as *AssetSet) SanitizeNaN() {
+	for _, a := range as.Assets {
+		a.SanitizeNaN()
+	}
+
+	for _, a := range as.Any {
+		a.SanitizeNaN()
+	}
+
+	for _, c := range as.Cloud {
+		c.SanitizeNaN()
+	}
+
+	for _, cm := range as.ClusterManagement {
+		cm.SanitizeNaN()
+	}
+
+	for _, d := range as.Disks {
+		d.SanitizeNaN()
+	}
+
+	for _, n := range as.Network {
+		n.SanitizeNaN()
+	}
+
+	for _, n := range as.Nodes {
+		n.SanitizeNaN()
+	}
+
+	for _, lb := range as.LoadBalancers {
+		lb.SanitizeNaN()
+	}
+
+	for _, sa := range as.SharedAssets {
+		sa.SanitizeNaN()
+	}
+}
+
 type DiffKind string
 
 const (
@@ -3227,9 +3557,170 @@ func NewAssetSetRange(assets ...*AssetSet) *AssetSetRange {
 	}
 }
 
+func (asr *AssetSetRange) Accumulate(accumulateBy AccumulateOption) (*AssetSetRange, error) {
+	switch accumulateBy {
+	case AccumulateOptionNone:
+		return asr.accumulateByNone()
+	case AccumulateOptionAll:
+		return asr.accumulateByAll()
+	case AccumulateOptionHour:
+		return asr.accumulateByHour()
+	case AccumulateOptionDay:
+		return asr.accumulateByDay()
+	case AccumulateOptionWeek:
+		return asr.accumulateByWeek()
+	case AccumulateOptionMonth:
+		return asr.accumulateByMonth()
+	default:
+		// ideally, this should never happen
+		return nil, fmt.Errorf("unexpected error, invalid accumulateByType: %s", accumulateBy)
+	}
+}
+
+func (asr *AssetSetRange) accumulateByNone() (*AssetSetRange, error) {
+	return asr.clone(), nil
+}
+
+func (asr *AssetSetRange) accumulateByAll() (*AssetSetRange, error) {
+	var err error
+	var as *AssetSet
+	as, err = asr.newAccumulation()
+	if err != nil {
+		return nil, fmt.Errorf("error accumulating all:%s", err)
+	}
+
+	accumulated := NewAssetSetRange(as)
+	return accumulated, nil
+}
+
+func (asr *AssetSetRange) accumulateByHour() (*AssetSetRange, error) {
+	// ensure that the asset sets have a 1-hour window, if a set exists
+	if len(asr.Assets) > 0 && asr.Assets[0].Window.Duration() != time.Hour {
+		return nil, fmt.Errorf("window duration must equal 1 hour; got:%s", asr.Assets[0].Window.Duration())
+	}
+
+	return asr.clone(), nil
+}
+
+func (asr *AssetSetRange) accumulateByDay() (*AssetSetRange, error) {
+	// if the asset set window is 1-day, just return the existing asset set range
+	if len(asr.Assets) > 0 && asr.Assets[0].Window.Duration() == time.Hour*24 {
+		return asr, nil
+	}
+
+	var toAccumulate *AssetSetRange
+	result := NewAssetSetRange()
+	for i, as := range asr.Assets {
+
+		if as.Window.Duration() != time.Hour {
+			return nil, fmt.Errorf("window duration must equal 1 hour; got:%s", as.Window.Duration())
+		}
+
+		hour := as.Window.Start().Hour()
+
+		if toAccumulate == nil {
+			toAccumulate = NewAssetSetRange()
+			as = as.Clone()
+		}
+
+		toAccumulate.Append(as)
+		asAccumulated, err := toAccumulate.accumulate()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = NewAssetSetRange(asAccumulated)
+
+		if hour == 23 || i == len(asr.Assets)-1 {
+			if length := len(toAccumulate.Assets); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			result.Append(toAccumulate.Assets[0])
+			toAccumulate = nil
+		}
+	}
+	return result, nil
+}
+
+func (asr *AssetSetRange) accumulateByMonth() (*AssetSetRange, error) {
+	var toAccumulate *AssetSetRange
+	result := NewAssetSetRange()
+	for i, as := range asr.Assets {
+		if as.Window.Duration() != time.Hour*24 {
+			return nil, fmt.Errorf("window duration must equal 24 hours; got:%s", as.Window.Duration())
+		}
+
+		_, month, _ := as.Window.Start().Date()
+		_, nextDayMonth, _ := as.Window.Start().Add(time.Hour * 24).Date()
+
+		if toAccumulate == nil {
+			toAccumulate = NewAssetSetRange()
+			as = as.Clone()
+		}
+
+		toAccumulate.Append(as)
+		asAccumulated, err := toAccumulate.accumulate()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = NewAssetSetRange(asAccumulated)
+
+		// either the month has ended, or there are no more asset sets
+		if month != nextDayMonth || i == len(asr.Assets)-1 {
+			if length := len(toAccumulate.Assets); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			result.Append(toAccumulate.Assets[0])
+			toAccumulate = nil
+		}
+	}
+	return result, nil
+}
+
+func (asr *AssetSetRange) accumulateByWeek() (*AssetSetRange, error) {
+	if len(asr.Assets) > 0 && asr.Assets[0].Window.Duration() == timeutil.Week {
+		return asr, nil
+	}
+
+	var toAccumulate *AssetSetRange
+	result := NewAssetSetRange()
+	for i, as := range asr.Assets {
+		if as.Window.Duration() != time.Hour*24 {
+			return nil, fmt.Errorf("window duration must equal 24 hours; got:%s", as.Window.Duration())
+		}
+
+		dayOfWeek := as.Window.Start().Weekday()
+
+		if toAccumulate == nil {
+			toAccumulate = NewAssetSetRange()
+			as = as.Clone()
+		}
+
+		toAccumulate.Append(as)
+		asAccumulated, err := toAccumulate.accumulate()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = NewAssetSetRange(asAccumulated)
+
+		// current assumption is the week always ends on Saturday, or there are no more asset sets
+		if dayOfWeek == time.Saturday || i == len(asr.Assets)-1 {
+			if length := len(toAccumulate.Assets); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			result.Append(toAccumulate.Assets[0])
+			toAccumulate = nil
+		}
+	}
+	return result, nil
+}
+
+func (asr *AssetSetRange) AccumulateToAssetSet() (*AssetSet, error) {
+	return asr.accumulate()
+}
+
 // Accumulate sums each AssetSet in the given range, returning a single cumulative
 // AssetSet for the entire range.
-func (asr *AssetSetRange) Accumulate() (*AssetSet, error) {
+func (asr *AssetSetRange) accumulate() (*AssetSet, error) {
 	var assetSet *AssetSet
 	var err error
 
@@ -3245,9 +3736,17 @@ func (asr *AssetSetRange) Accumulate() (*AssetSet, error) {
 
 // NewAccumulation clones the first available AssetSet to use as the data structure to
 // accumulate the remaining data. This leaves the original AssetSetRange intact.
-func (asr *AssetSetRange) NewAccumulation() (*AssetSet, error) {
+func (asr *AssetSetRange) newAccumulation() (*AssetSet, error) {
 	var assetSet *AssetSet
 	var err error
+
+	if asr == nil {
+		return nil, fmt.Errorf("nil AssetSetRange in accumulation")
+	}
+
+	if len(asr.Assets) == 0 {
+		return nil, fmt.Errorf("AssetSetRange has empty AssetSet in accumulation")
+	}
 
 	for _, as := range asr.Assets {
 		if assetSet == nil {
@@ -3273,7 +3772,7 @@ func (asr *AssetSetRange) NewAccumulation() (*AssetSet, error) {
 
 type AssetAggregationOptions struct {
 	SharedHourlyCosts map[string]float64
-	FilterFuncs       []AssetMatchFunc
+	Filter            filter21.Filter
 	LabelConfig       *LabelConfig
 }
 
@@ -3371,6 +3870,28 @@ func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 
 	// err might be nil
 	return err
+}
+
+func (asr *AssetSetRange) GetWarnings() []string {
+	warnings := []string{}
+
+	for _, as := range asr.Assets {
+		if len(as.Warnings) > 0 {
+			warnings = append(warnings, as.Warnings...)
+		}
+	}
+
+	return warnings
+}
+
+func (asr *AssetSetRange) HasWarnings() bool {
+	for _, as := range asr.Assets {
+		if len(as.Warnings) > 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 // IsEmpty returns false if AssetSetRange contains a single AssetSet that is not empty
@@ -3559,6 +4080,17 @@ func (asr *AssetSetRange) TotalCost() float64 {
 	return tc
 }
 
+func (asr *AssetSetRange) clone() *AssetSetRange {
+	asrClone := NewAssetSetRange()
+	asrClone.FromStore = asr.FromStore
+	for _, as := range asr.Assets {
+		asClone := as.Clone()
+		asrClone.Append(asClone)
+	}
+
+	return asrClone
+}
+
 // This is a helper type. The Asset API returns a json which cannot be natively
 // unmarshaled into any Asset struct. Therefore, this struct IN COMBINATION WITH
 // DESERIALIZATION LOGIC DEFINED IN asset_json.go can unmarshal a json directly
@@ -3588,4 +4120,29 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+func GetNodePoolName(provider string, labels map[string]string) string {
+
+	switch provider {
+	case AzureProvider:
+		return getPoolNameHelper(AKSNodepoolLabel, labels)
+	case AWSProvider:
+		return getPoolNameHelper(EKSNodepoolLabel, labels)
+	case GCPProvider:
+		return getPoolNameHelper(GKENodePoolLabel, labels)
+	default:
+		log.Warnf("node pool name not supported for this provider")
+		return ""
+	}
+}
+
+func getPoolNameHelper(label string, labels map[string]string) string {
+	sanitizedLabel := regexp.MustCompile(`[^a-zA-Z0-9 ]+`).ReplaceAllString(label, "_")
+	if poolName, found := labels[fmt.Sprintf("label_%s", sanitizedLabel)]; found {
+		return poolName
+	} else {
+		log.Warnf("unable to derive node pool name from node labels")
+		return ""
+	}
 }

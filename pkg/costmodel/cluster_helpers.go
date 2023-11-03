@@ -4,7 +4,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/provider"
+	"github.com/opencost/opencost/pkg/kubecost"
 
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/log"
@@ -30,7 +32,7 @@ func mergeTypeMaps(clusterAndNameToType1, clusterAndNameToType2 map[nodeIdentifi
 
 func buildCPUCostMap(
 	resNodeCPUCost []*prom.QueryResult,
-	cp cloud.Provider,
+	cp models.Provider,
 	preemptible map[NodeIdentifier]bool,
 ) (
 	map[NodeIdentifier]float64,
@@ -40,7 +42,7 @@ func buildCPUCostMap(
 	cpuCostMap := make(map[NodeIdentifier]float64)
 	clusterAndNameToType := make(map[nodeIdentifierNoProviderID]string)
 
-	customPricingEnabled := cloud.CustomPricesEnabled(cp)
+	customPricingEnabled := provider.CustomPricesEnabled(cp)
 	customPricingConfig, err := cp.GetConfig()
 	if err != nil {
 		log.Warnf("ClusterNodes: failed to load custom pricing: %s", err)
@@ -64,7 +66,7 @@ func buildCPUCostMap(
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       name,
-			ProviderID: cloud.ParseID(providerID),
+			ProviderID: provider.ParseID(providerID),
 		}
 		keyNon := nodeIdentifierNoProviderID{
 			Cluster: cluster,
@@ -104,7 +106,7 @@ func buildCPUCostMap(
 
 func buildRAMCostMap(
 	resNodeRAMCost []*prom.QueryResult,
-	cp cloud.Provider,
+	cp models.Provider,
 	preemptible map[NodeIdentifier]bool,
 ) (
 	map[NodeIdentifier]float64,
@@ -114,7 +116,7 @@ func buildRAMCostMap(
 	ramCostMap := make(map[NodeIdentifier]float64)
 	clusterAndNameToType := make(map[nodeIdentifierNoProviderID]string)
 
-	customPricingEnabled := cloud.CustomPricesEnabled(cp)
+	customPricingEnabled := provider.CustomPricesEnabled(cp)
 	customPricingConfig, err := cp.GetConfig()
 	if err != nil {
 		log.Warnf("ClusterNodes: failed to load custom pricing: %s", err)
@@ -138,7 +140,7 @@ func buildRAMCostMap(
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       name,
-			ProviderID: cloud.ParseID(providerID),
+			ProviderID: provider.ParseID(providerID),
 		}
 		keyNon := nodeIdentifierNoProviderID{
 			Cluster: cluster,
@@ -179,7 +181,7 @@ func buildRAMCostMap(
 func buildGPUCostMap(
 	resNodeGPUCost []*prom.QueryResult,
 	gpuCountMap map[NodeIdentifier]float64,
-	cp cloud.Provider,
+	cp models.Provider,
 	preemptible map[NodeIdentifier]bool,
 ) (
 	map[NodeIdentifier]float64,
@@ -189,7 +191,7 @@ func buildGPUCostMap(
 	gpuCostMap := make(map[NodeIdentifier]float64)
 	clusterAndNameToType := make(map[nodeIdentifierNoProviderID]string)
 
-	customPricingEnabled := cloud.CustomPricesEnabled(cp)
+	customPricingEnabled := provider.CustomPricesEnabled(cp)
 	customPricingConfig, err := cp.GetConfig()
 	if err != nil {
 		log.Warnf("ClusterNodes: failed to load custom pricing: %s", err)
@@ -213,7 +215,7 @@ func buildGPUCostMap(
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       name,
-			ProviderID: cloud.ParseID(providerID),
+			ProviderID: provider.ParseID(providerID),
 		}
 		keyNon := nodeIdentifierNoProviderID{
 			Cluster: cluster,
@@ -281,7 +283,7 @@ func buildGPUCountMap(
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       name,
-			ProviderID: cloud.ParseID(providerID),
+			ProviderID: provider.ParseID(providerID),
 		}
 		gpuCountMap[key] = gpuCount
 	}
@@ -425,6 +427,43 @@ func buildCPUBreakdownMap(resNodeCPUModeTotal []*prom.QueryResult) map[nodeIdent
 	return cpuBreakdownMap
 }
 
+func buildOverheadMap(capRam, allocRam, capCPU, allocCPU map[nodeIdentifierNoProviderID]float64) map[nodeIdentifierNoProviderID]*NodeOverhead {
+	m := make(map[nodeIdentifierNoProviderID]*NodeOverhead, len(capRam))
+
+	for identifier, ramCapacity := range capRam {
+		allocatableRam, ok := allocRam[identifier]
+		if !ok {
+			log.Warnf("Could not find allocatable ram for node %s", identifier.Name)
+			continue
+		}
+		overheadBytes := ramCapacity - allocatableRam
+		m[identifier] = &NodeOverhead{
+			RamOverheadFraction: overheadBytes / ramCapacity,
+		}
+	}
+
+	for identifier, cpuCapacity := range capCPU {
+		allocatableCPU, ok := allocCPU[identifier]
+		if !ok {
+			log.Warnf("Could not find allocatable cpu for node %s", identifier.Name)
+			continue
+		}
+
+		overhead := cpuCapacity - allocatableCPU
+
+		if _, found := m[identifier]; found {
+			m[identifier].CpuOverheadFraction = overhead / cpuCapacity
+		} else {
+			m[identifier] = &NodeOverhead{
+				CpuOverheadFraction: overhead / cpuCapacity,
+			}
+		}
+
+	}
+
+	return m
+}
+
 func buildRAMUserPctMap(resNodeRAMUserPct []*prom.QueryResult) map[nodeIdentifierNoProviderID]float64 {
 
 	m := make(map[nodeIdentifierNoProviderID]float64)
@@ -489,7 +528,7 @@ type activeData struct {
 	minutes float64
 }
 
-func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Duration) map[NodeIdentifier]activeData {
+func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Duration, window kubecost.Window) map[NodeIdentifier]activeData {
 
 	m := make(map[NodeIdentifier]activeData)
 
@@ -510,15 +549,14 @@ func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Durat
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       name,
-			ProviderID: cloud.ParseID(providerID),
+			ProviderID: provider.ParseID(providerID),
 		}
 
 		if len(result.Values) == 0 {
 			continue
 		}
 
-		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
+		s, e := calculateStartAndEnd(result, resolution, window)
 		mins := e.Sub(s).Minutes()
 
 		// TODO niko/assets if mins >= threshold, interpolate for missing data?
@@ -559,7 +597,7 @@ func buildPreemptibleMap(
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       nodeName,
-			ProviderID: cloud.ParseID(providerID),
+			ProviderID: provider.ParseID(providerID),
 		}
 
 		// TODO(michaelmdresser): check this condition at merge time?
@@ -706,6 +744,7 @@ func buildNodeMap(
 	labelsMap map[nodeIdentifierNoProviderID]map[string]string,
 	clusterAndNameToType map[nodeIdentifierNoProviderID]string,
 	res time.Duration,
+	overheadMap map[nodeIdentifierNoProviderID]*NodeOverhead,
 ) map[NodeIdentifier]*Node {
 
 	nodeMap := make(map[NodeIdentifier]*Node)
@@ -783,6 +822,16 @@ func buildNodeMap(
 		if labels, ok := labelsMap[clusterAndNameID]; ok {
 			nodePtr.Labels = labels
 		}
+
+		if overhead, ok := overheadMap[clusterAndNameID]; ok {
+			nodePtr.Overhead = overhead
+		} else {
+			// we were unable to compute overhead for this node
+			// assume default case of no overhead
+			nodePtr.Overhead = &NodeOverhead{}
+			log.Warnf("unable to compute overhead for node %s - defaulting to no overhead", clusterAndNameID.Name)
+		}
+
 	}
 
 	return nodeMap

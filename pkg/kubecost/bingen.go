@@ -26,7 +26,7 @@ package kubecost
 // @bingen:generate:CoverageSet
 
 // Asset Version Set: Includes Asset pipeline specific resources
-// @bingen:set[name=Assets,version=18]
+// @bingen:set[name=Assets,version=21]
 // @bingen:generate:Any
 // @bingen:generate:Asset
 // @bingen:generate:AssetLabels
@@ -41,11 +41,12 @@ package kubecost
 // @bingen:generate:LoadBalancer
 // @bingen:generate:Network
 // @bingen:generate:Node
+// @bingen:generate:NodeOverhead
 // @bingen:generate:SharedAsset
 // @bingen:end
 
 // Allocation Version Set: Includes Allocation pipeline specific resources
-// @bingen:set[name=Allocation,version=15]
+// @bingen:set[name=Allocation,version=20]
 // @bingen:generate:Allocation
 // @bingen:generate[stringtable]:AllocationSet
 // @bingen:generate:AllocationSetRange
@@ -57,36 +58,17 @@ package kubecost
 // @bingen:generate:PVAllocations
 // @bingen:generate:PVKey
 // @bingen:generate:PVAllocation
+// @bingen:generate:LbAllocations
+// @bingen:generate:LbAllocation
 // @bingen:end
 
-// @bingen:set[name=Audit,version=1]
-// @bingen:generate:AllocationReconciliationAudit
-// @bingen:generate:TotalAudit
-// @bingen:generate:AggAudit
-// @bingen:generate:AuditFloatResult
-// @bingen:generate:AuditMissingValue
-// @bingen:generate:AssetReconciliationAudit
-// @bingen:generate:EqualityAudit
-// @bingen:generate:AuditType
-// @bingen:generate:AuditStatus
-// @bingen:generate[stringtable]:AuditSet
-// @bingen:generate:AuditSetRange
-// @bingen:end
-
-// @bingen:set[name=CloudCostAggregate,version=1]
-// @bingen:generate:CloudCostAggregate
-// @bingen:generate[stringtable]:CloudCostAggregateSet
-// @bingen:generate:CloudCostAggregateSetRange
-// @bingen:generate:CloudCostAggregateProperties
-// @bingen:generate:CloudCostAggregateLabels
-// @bingen:end
-
-// @bingen:set[name=CloudCostItem,version=1]
-// @bingen:generate:CloudCostItem
-// @bingen:generate[stringtable]:CloudCostItemSet
-// @bingen:generate:CloudCostItemSetRange
-// @bingen:generate:CloudCostItemProperties
-// @bingen:generate:CloudCostItemLabels
+// @bingen:set[name=CloudCost,version=2]
+// @bingen:generate:CloudCost
+// @bingen:generate:CostMetric
+// @bingen:generate[stringtable]:CloudCostSet
+// @bingen:generate:CloudCostSetRange
+// @bingen:generate:CloudCostProperties
+// @bingen:generate:CloudCostLabels
 // @bingen:end
 
 //go:generate bingen -package=kubecost -version=17 -buffer=github.com/opencost/opencost/pkg/util

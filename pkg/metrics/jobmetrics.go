@@ -25,7 +25,7 @@ type KubeJobCollector struct {
 // collected by this Collector.
 func (kjc KubeJobCollector) Describe(ch chan<- *prometheus.Desc) {
 	disabledMetrics := kjc.metricsConfig.GetDisabledMetricsMap()
-	if _, disabled := disabledMetrics["kube_pod_annotations"]; disabled {
+	if _, disabled := disabledMetrics["kube_job_status_failed"]; disabled {
 		return
 	}
 
@@ -35,7 +35,7 @@ func (kjc KubeJobCollector) Describe(ch chan<- *prometheus.Desc) {
 // Collect is called by the Prometheus registry when collecting metrics.
 func (kjc KubeJobCollector) Collect(ch chan<- prometheus.Metric) {
 	disabledMetrics := kjc.metricsConfig.GetDisabledMetricsMap()
-	if _, disabled := disabledMetrics["kube_pod_annotations"]; disabled {
+	if _, disabled := disabledMetrics["kube_job_status_failed"]; disabled {
 		return
 	}
 

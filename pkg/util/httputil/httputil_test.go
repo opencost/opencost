@@ -2,8 +2,26 @@ package httputil
 
 import (
 	"net/http"
+	"net/url"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
+
+func TestInvalidKeys(t *testing.T) {
+	vals := url.Values{}
+	vals.Set("window", "7d")
+	vals.Set("aggregate", "namespace")
+	vals.Set("filterClsuters", "cluster-two") // Intentional typo
+
+	qp := NewQueryParams(vals)
+
+	result := qp.InvalidKeys([]string{"window", "aggregate", "filterClusters", "filterNamespaces"})
+	expected := []string{"filterClsuters"}
+	if diff := cmp.Diff(result, expected); len(diff) > 0 {
+		t.Errorf("Expected: %+v. Got: %+v", expected, result)
+	}
+}
 
 func TestHeaderString(t *testing.T) {
 	h := make(http.Header)

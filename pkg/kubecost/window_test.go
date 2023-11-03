@@ -1,11 +1,16 @@
 package kubecost
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/opencost/opencost/pkg/util/timeutil"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/go-cmp/cmp"
+
+	"github.com/opencost/opencost/pkg/util/timeutil"
 
 	"github.com/opencost/opencost/pkg/env"
 )
@@ -85,6 +90,12 @@ func TestRoundBack(t *testing.T) {
 	if !tb.Equal(time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("RoundBack: expected 2020-01-01T00:00:00Z; actual %s", tb)
 	}
+
+	to = time.Date(2020, time.January, 1, 23, 59, 0, 0, time.UTC)
+	tb = RoundBack(to, timeutil.Week)
+	if !tb.Equal(time.Date(2019, time.December, 29, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("RoundForward: expected 2019-12-29T00:00:00Z; actual %s", tb)
+	}
 }
 
 func TestRoundForward(t *testing.T) {
@@ -162,6 +173,24 @@ func TestRoundForward(t *testing.T) {
 	if !tb.Equal(time.Date(2020, time.January, 2, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("RoundForward: expected 2020-01-02T00:00:00Z; actual %s", tb)
 	}
+
+	to = time.Date(2020, time.January, 1, 23, 59, 0, 0, time.UTC)
+	tb = RoundForward(to, timeutil.Week)
+	if !tb.Equal(time.Date(2020, time.January, 5, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("RoundForward: expected 2020-01-05T00:00:00Z; actual %s", tb)
+	}
+
+	to = time.Date(2020, time.January, 5, 23, 59, 0, 0, time.UTC)
+	tb = RoundForward(to, timeutil.Week)
+	if !tb.Equal(time.Date(2020, time.January, 12, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("RoundForward: expected 2020-01-05T00:00:00Z; actual %s", tb)
+	}
+
+	to = time.Date(2020, time.January, 5, 0, 0, 0, 0, time.UTC)
+	tb = RoundForward(to, timeutil.Week)
+	if !tb.Equal(time.Date(2020, time.January, 5, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("RoundForward: expected 2020-01-05T00:00:00Z; actual %s", tb)
+	}
 }
 
 func TestParseWindowUTC(t *testing.T) {
@@ -211,7 +240,11 @@ func TestParseWindowUTC(t *testing.T) {
 	if month.Duration().Hours() > hoursThisMonth || month.Duration().Hours() < (hoursThisMonth-24.0) {
 		t.Fatalf(`expect: window "month" to have approximately %f hours; actual: %f hours`, hoursThisMonth, month.Duration().Hours())
 	}
-	if !month.End().Before(time.Now().UTC()) {
+
+	// this test fails periodically if execution is so fast that time.Now() during the condition
+	// check is the same as the end of the current month time computed by ParseWindowUTC
+	// so we add one nanosecond to sure time.Now() is later than when invoked earlier
+	if !month.End().Before(time.Now().UTC().Add(time.Nanosecond)) {
 		t.Fatalf(`expect: window "month" to end before now; actual: %s ends after %s`, month, time.Now().UTC())
 	}
 
@@ -232,6 +265,7 @@ func TestParseWindowUTC(t *testing.T) {
 	}
 
 	ago12h := time.Now().UTC().Add(-12 * time.Hour)
+	ago24h := time.Now().UTC().Add(-24 * time.Hour)
 	ago36h := time.Now().UTC().Add(-36 * time.Hour)
 	ago60h := time.Now().UTC().Add(-60 * time.Hour)
 
@@ -258,8 +292,8 @@ func TestParseWindowUTC(t *testing.T) {
 	if dur2d.Duration().Hours() != 48 {
 		t.Fatalf(`expect: window "2d" to have duration 48 hour; actual: %f hours`, dur2d.Duration().Hours())
 	}
-	if !dur2d.Contains(ago36h) {
-		t.Fatalf(`expect: window "2d" to contain 36 hours ago; actual: %s doesn't contain %s`, dur2d, ago36h)
+	if !dur2d.Contains(ago24h) {
+		t.Fatalf(`expect: window "2d" to contain 24 hours ago; actual: %s doesn't contain %s`, dur2d, ago24h)
 	}
 	if dur2d.Contains(ago60h) {
 		t.Fatalf(`expect: window "2d" to not contain 60 hours ago; actual: %s contains %s`, dur2d, ago60h)
@@ -625,16 +659,21 @@ func TestWindow_DurationOffsetForPrometheus(t *testing.T) {
 		t.Fatalf("expected env.IsThanosEnabled() == false")
 	}
 
-	w, err := ParseWindowUTC("1d")
+	now := time.Now().UTC()
+	startOfToday := now.Truncate(timeutil.Day)
+	w, err := parseWindow("1d", now)
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "1d": %s`, err)
 	}
+
 	dur, off, err := w.DurationOffsetForPrometheus()
+	expDur := int(now.Sub(startOfToday).Seconds())
+	expDurStr := fmt.Sprintf("%ds", expDur)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	if dur != "1d" {
-		t.Fatalf(`expect: window to be "1d"; actual: "%s"`, dur)
+	if dur != expDurStr {
+		t.Fatalf(`expect: window to be "%s"; actual: "%s"`, expDurStr, dur)
 	}
 	if off != "" {
 		t.Fatalf(`expect: offset to be ""; actual: "%s"`, off)
@@ -706,9 +745,11 @@ func TestWindow_DurationOffsetForPrometheus(t *testing.T) {
 		t.Fatalf("expected env.IsThanosEnabled() == true")
 	}
 
-	w, err = ParseWindowUTC("1d")
+	// Note - with the updated logic of 1d, 1w, etc. rounding the start and end times forward to the nearest midnight,
+	// DurationOffsetForPrometheus may fail if not using a window using "Xh" as the string to parse
+	w, err = ParseWindowUTC("24h")
 	if err != nil {
-		t.Fatalf(`unexpected error parsing "1d": %s`, err)
+		t.Fatalf(`unexpected error parsing "24h": %s`, err)
 	}
 	dur, off, err = w.DurationOffsetForPrometheus()
 	if err != nil {
@@ -915,7 +956,8 @@ func TestWindow_GetPercentInWindow(t *testing.T) {
 	}
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			if actual := tc.window.GetPercentInWindow(tc.itemStart, tc.itemEnd); actual != tc.expected {
+			thatWindow := NewWindow(&tc.itemStart, &tc.itemEnd)
+			if actual := tc.window.GetPercentInWindow(thatWindow); actual != tc.expected {
 				t.Errorf("GetPercentInWindow() = %v, want %v", actual, tc.expected)
 			}
 		})
@@ -1143,5 +1185,67 @@ func TestWindow_GetWindowsForQueryWindow(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestMarshalUnmarshal(t *testing.T) {
+	t1 := time.Date(2023, 03, 11, 01, 29, 15, 0, time.UTC)
+	t2 := t1.Add(8 * time.Minute)
+	cases := []struct {
+		w Window
+	}{
+		{
+			w: NewClosedWindow(t1, t2),
+		},
+		{
+			w: NewWindow(&t1, nil),
+		},
+		{
+			w: NewWindow(nil, &t2),
+		},
+		{
+			w: NewWindow(nil, nil),
+		},
+	}
+
+	for _, c := range cases {
+		name := c.w.String()
+		t.Run(name, func(t *testing.T) {
+			marshaled, err := json.Marshal(c.w)
+			if err != nil {
+				t.Fatalf("marshaling: %s", err)
+			}
+
+			var unmarshaledW Window
+			err = json.Unmarshal(marshaled, &unmarshaledW)
+			if err != nil {
+				t.Fatalf("unmarshaling: %s", err)
+			}
+
+			if diff := cmp.Diff(c.w, unmarshaledW); len(diff) > 0 {
+				t.Errorf(diff)
+			}
+		})
+	}
+}
+
+func TestBoundaryErrorIs(t *testing.T) {
+	baseError := &BoundaryError{Message: "cde"}
+	singleWrapError := fmt.Errorf("wrap: %w", &BoundaryError{Message: "abc"})
+
+	if errors.Is(singleWrapError, baseError) {
+		t.Logf("Single wrap success")
+	} else {
+		t.Errorf("Single wrap failure: %s != %s", baseError, singleWrapError)
+	}
+
+	multiWrapError := fmt.Errorf("wrap: %w", &BoundaryError{Message: "abc"})
+	multiWrapError = fmt.Errorf("wrap x2: %w", multiWrapError)
+	multiWrapError = fmt.Errorf("wrap x3: %w", multiWrapError)
+
+	if errors.Is(multiWrapError, baseError) {
+		t.Logf("Multi wrap success")
+	} else {
+		t.Errorf("Multi wrap failure: %s != %s", baseError, multiWrapError)
 	}
 }

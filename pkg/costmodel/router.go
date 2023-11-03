@@ -16,6 +16,11 @@ import (
 	"time"
 
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/opencost/opencost/pkg/cloud/aws"
+	cloudconfig "github.com/opencost/opencost/pkg/cloud/config"
+	"github.com/opencost/opencost/pkg/cloud/gcp"
+	"github.com/opencost/opencost/pkg/cloud/provider"
+	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/kubeconfig"
 	"github.com/opencost/opencost/pkg/metrics"
@@ -30,9 +35,11 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 
-	sentry "github.com/getsentry/sentry-go"
+	"github.com/getsentry/sentry-go"
 
-	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/azure"
+	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"
@@ -77,23 +84,26 @@ var (
 // Accesses defines a singleton application instance, providing access to
 // Prometheus, Kubernetes, the cloud provider, and caches.
 type Accesses struct {
-	Router              *httprouter.Router
-	PrometheusClient    prometheus.Client
-	ThanosClient        prometheus.Client
-	KubeClientSet       kubernetes.Interface
-	ClusterCache        clustercache.ClusterCache
-	ClusterMap          clusters.ClusterMap
-	CloudProvider       cloud.Provider
-	ConfigFileManager   *config.ConfigFileManager
-	ClusterInfoProvider clusters.ClusterInfoProvider
-	Model               *CostModel
-	MetricsEmitter      *CostModelMetricsEmitter
-	OutOfClusterCache   *cache.Cache
-	AggregateCache      *cache.Cache
-	CostDataCache       *cache.Cache
-	ClusterCostsCache   *cache.Cache
-	CacheExpiration     map[time.Duration]time.Duration
-	AggAPI              Aggregator
+	Router                   *httprouter.Router
+	PrometheusClient         prometheus.Client
+	ThanosClient             prometheus.Client
+	KubeClientSet            kubernetes.Interface
+	ClusterCache             clustercache.ClusterCache
+	ClusterMap               clusters.ClusterMap
+	CloudProvider            models.Provider
+	ConfigFileManager        *config.ConfigFileManager
+	CloudConfigController    *cloudconfig.Controller
+	CloudCostPipelineService *cloudcost.PipelineService
+	CloudCostQueryService    *cloudcost.QueryService
+	ClusterInfoProvider      clusters.ClusterInfoProvider
+	Model                    *CostModel
+	MetricsEmitter           *CostModelMetricsEmitter
+	OutOfClusterCache        *cache.Cache
+	AggregateCache           *cache.Cache
+	CostDataCache            *cache.Cache
+	ClusterCostsCache        *cache.Cache
+	CacheExpiration          map[time.Duration]time.Duration
+	AggAPI                   Aggregator
 	// SettingsCache stores current state of app settings
 	SettingsCache *cache.Cache
 	// settingsSubscribers tracks channels through which changes to different
@@ -278,11 +288,14 @@ func WrapData(data interface{}, err error) []byte {
 			Data:    data,
 		})
 	} else {
-		resp, _ = json.Marshal(&Response{
+		resp, err = json.Marshal(&Response{
 			Code:   http.StatusOK,
 			Status: "success",
 			Data:   data,
 		})
+		if err != nil {
+			log.Errorf("error marshaling response json: %s", err.Error())
+		}
 	}
 
 	return resp
@@ -413,7 +426,7 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 	offset := r.URL.Query().Get("offset")
 
 	if window == "" {
-		w.Write(WrapData(nil, fmt.Errorf("missing window arguement")))
+		w.Write(WrapData(nil, fmt.Errorf("missing window argument")))
 		return
 	}
 	windowDur, err := timeutil.ParseDuration(window)
@@ -462,7 +475,7 @@ func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, 
 	offset := r.URL.Query().Get("offset")
 
 	if window == "" {
-		w.Write(WrapData(nil, fmt.Errorf("missing window arguement")))
+		w.Write(WrapData(nil, fmt.Errorf("missing window argument")))
 		return
 	}
 	windowDur, err := timeutil.ParseDuration(window)
@@ -579,7 +592,7 @@ func (a *Accesses) GetConfigs(w http.ResponseWriter, r *http.Request, ps httprou
 func (a *Accesses) UpdateSpotInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := a.CloudProvider.UpdateConfig(r.Body, cloud.SpotInfoUpdateType)
+	data, err := a.CloudProvider.UpdateConfig(r.Body, aws.SpotInfoUpdateType)
 	if err != nil {
 		w.Write(WrapData(data, err))
 		return
@@ -595,7 +608,7 @@ func (a *Accesses) UpdateSpotInfoConfigs(w http.ResponseWriter, r *http.Request,
 func (a *Accesses) UpdateAthenaInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := a.CloudProvider.UpdateConfig(r.Body, cloud.AthenaInfoUpdateType)
+	data, err := a.CloudProvider.UpdateConfig(r.Body, aws.AthenaInfoUpdateType)
 	if err != nil {
 		w.Write(WrapData(data, err))
 		return
@@ -607,7 +620,7 @@ func (a *Accesses) UpdateAthenaInfoConfigs(w http.ResponseWriter, r *http.Reques
 func (a *Accesses) UpdateBigQueryInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := a.CloudProvider.UpdateConfig(r.Body, cloud.BigqueryUpdateType)
+	data, err := a.CloudProvider.UpdateConfig(r.Body, gcp.BigqueryUpdateType)
 	if err != nil {
 		w.Write(WrapData(data, err))
 		return
@@ -619,7 +632,7 @@ func (a *Accesses) UpdateBigQueryInfoConfigs(w http.ResponseWriter, r *http.Requ
 func (a *Accesses) UpdateAzureStorageConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := a.CloudProvider.UpdateConfig(r.Body, cloud.AzureStorageUpdateType)
+	data, err := a.CloudProvider.UpdateConfig(r.Body, azure.AzureStorageUpdateType)
 	if err != nil {
 		w.Write(WrapData(data, err))
 		return
@@ -690,6 +703,14 @@ func (a *Accesses) GetPricingSourceCounts(w http.ResponseWriter, _ *http.Request
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	w.Write(WrapData(a.Model.GetPricingSourceCounts()))
+}
+
+func (a *Accesses) GetPricingSourceSummary(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	data := a.CloudProvider.PricingSourceSummary()
+	w.Write(WrapData(data, nil))
 }
 
 func (a *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
@@ -1355,7 +1376,7 @@ func (a *Accesses) AddServiceKey(w http.ResponseWriter, r *http.Request, ps http
 
 	key := r.PostForm.Get("key")
 	k := []byte(key)
-	err := os.WriteFile(path.Join(env.GetConfigPathWithDefault("/var/configs/"), "key.json"), k, 0644)
+	err := os.WriteFile(path.Join(env.GetConfigPathWithDefault(env.DefaultConfigMountPath), "key.json"), k, 0644)
 	if err != nil {
 		fmt.Fprintf(w, "Error writing service key: "+err.Error())
 	}
@@ -1398,6 +1419,47 @@ func (a *Accesses) Status(w http.ResponseWriter, r *http.Request, _ httprouter.P
 	}
 }
 
+type LogLevelRequestResponse struct {
+	Level string `json:"level"`
+}
+
+func (a *Accesses) GetLogLevel(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	level := log.GetLogLevel()
+	llrr := LogLevelRequestResponse{
+		Level: level,
+	}
+
+	body, err := json.Marshal(llrr)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("unable to retrive log level"), http.StatusInternalServerError)
+		return
+	}
+	_, err = w.Write(body)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("unable to write response: %s", body), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (a *Accesses) SetLogLevel(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	params := LogLevelRequestResponse{}
+	err := json.NewDecoder(r.Body).Decode(&params)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("unable to decode request body, error: %s", err), http.StatusBadRequest)
+		return
+	}
+
+	err = log.SetLogLevel(params.Level)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("level must be a valid log level according to zerolog; level given: %s, error: %s", params.Level, err), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 // captures the panic event in sentry
 func capturePanicEvent(err string, stack string) {
 	msg := fmt.Sprintf("Panic: %s\nStackTrace: %s\n", err, stack)
@@ -1433,7 +1495,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 
 	var err error
 	if errorReportingEnabled {
-		err = sentry.Init(sentry.ClientOptions{Release: env.GetAppVersion()})
+		err = sentry.Init(sentry.ClientOptions{Release: version.FriendlyVersion()})
 		if err != nil {
 			log.Infof("Failed to initialize sentry for error reporting")
 		} else {
@@ -1476,8 +1538,9 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 			Password:    env.GetDBBasicAuthUserPassword(),
 			BearerToken: env.GetDBBearerToken(),
 		},
-		QueryConcurrency: queryConcurrency,
-		QueryLogFile:     "",
+		QueryConcurrency:  queryConcurrency,
+		QueryLogFile:      "",
+		HeaderXScopeOrgId: env.GetPrometheusHeaderXScopeOrgId(),
 	})
 	if err != nil {
 		log.Fatalf("Failed to create prometheus client, Error: %v", err)
@@ -1497,7 +1560,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	api := prometheusAPI.NewAPI(promCli)
 	_, err = api.Config(context.Background())
 	if err != nil {
-		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
+		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/mimir/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
 	} else {
 		log.Infof("Retrieved a prometheus config file from: %s", address)
 	}
@@ -1535,13 +1598,13 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	k8sCache.Run()
 
 	cloudProviderKey := env.GetCloudProviderAPIKey()
-	cloudProvider, err := cloud.NewProvider(k8sCache, cloudProviderKey, confManager)
+	cloudProvider, err := provider.NewProvider(k8sCache, cloudProviderKey, confManager)
 	if err != nil {
 		panic(err.Error())
 	}
 
 	// Append the pricing config watcher
-	configWatchers.AddWatcher(cloud.ConfigWatcherFor(cloudProvider))
+	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
 	configWatchers.AddWatcher(metrics.GetMetricsConfigWatcher())
 
 	watchConfigFunc := configWatchers.ToWatchFunc()
@@ -1568,7 +1631,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		if err != nil {
 			log.Infof("Error saving cluster id %s", err.Error())
 		}
-		_, _, err = cloud.GetOrCreateClusterMeta(info["id"], info["name"])
+		_, _, err = utils.GetOrCreateClusterMeta(info["id"], info["name"])
 		if err != nil {
 			log.Infof("Unable to set cluster id '%s' for cluster '%s', %s", info["id"], info["name"], err.Error())
 		}
@@ -1656,25 +1719,27 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	metricsEmitter := NewCostModelMetricsEmitter(promCli, k8sCache, cloudProvider, clusterInfoProvider, costModel)
 
 	a := &Accesses{
-		Router:              httprouter.New(),
-		PrometheusClient:    promCli,
-		ThanosClient:        thanosClient,
-		KubeClientSet:       kubeClientset,
-		ClusterCache:        k8sCache,
-		ClusterMap:          clusterMap,
-		CloudProvider:       cloudProvider,
-		ConfigFileManager:   confManager,
-		ClusterInfoProvider: clusterInfoProvider,
-		Model:               costModel,
-		MetricsEmitter:      metricsEmitter,
-		AggregateCache:      aggregateCache,
-		CostDataCache:       costDataCache,
-		ClusterCostsCache:   clusterCostsCache,
-		OutOfClusterCache:   outOfClusterCache,
-		SettingsCache:       settingsCache,
-		CacheExpiration:     cacheExpiration,
-		httpServices:        services.NewCostModelServices(),
+		Router:                httprouter.New(),
+		PrometheusClient:      promCli,
+		ThanosClient:          thanosClient,
+		KubeClientSet:         kubeClientset,
+		ClusterCache:          k8sCache,
+		ClusterMap:            clusterMap,
+		CloudProvider:         cloudProvider,
+		CloudConfigController: cloudconfig.NewController(cloudProvider),
+		ConfigFileManager:     confManager,
+		ClusterInfoProvider:   clusterInfoProvider,
+		Model:                 costModel,
+		MetricsEmitter:        metricsEmitter,
+		AggregateCache:        aggregateCache,
+		CostDataCache:         costDataCache,
+		ClusterCostsCache:     clusterCostsCache,
+		OutOfClusterCache:     outOfClusterCache,
+		SettingsCache:         settingsCache,
+		CacheExpiration:       cacheExpiration,
+		httpServices:          services.NewCostModelServices(),
 	}
+
 	// Use the Accesses instance, itself, as the CostModelAggregator. This is
 	// confusing and unconventional, but necessary so that we can swap it
 	// out for the ETL-adapted version elsewhere.
@@ -1716,6 +1781,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	a.Router.GET("/clusterInfoMap", a.GetClusterInfoMap)
 	a.Router.GET("/serviceAccountStatus", a.GetServiceAccountStatus)
 	a.Router.GET("/pricingSourceStatus", a.GetPricingSourceStatus)
+	a.Router.GET("/pricingSourceSummary", a.GetPricingSourceSummary)
 	a.Router.GET("/pricingSourceCounts", a.GetPricingSourceCounts)
 
 	// endpoints migrated from server
@@ -1748,6 +1814,14 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	// diagnostics
 	a.Router.GET("/diagnostics/requestQueue", a.GetPrometheusQueueState)
 	a.Router.GET("/diagnostics/prometheusMetrics", a.GetPrometheusMetrics)
+
+	a.Router.GET("/logs/level", a.GetLogLevel)
+	a.Router.POST("/logs/level", a.SetLogLevel)
+
+	a.Router.GET("/cloud/config/export", a.CloudConfigController.GetExportConfigHandler())
+	a.Router.GET("/cloud/config/enable", a.CloudConfigController.GetEnableConfigHandler())
+	a.Router.GET("/cloud/config/disable", a.CloudConfigController.GetDisableConfigHandler())
+	a.Router.GET("/cloud/config/delete", a.CloudConfigController.GetDeleteConfigHandler())
 
 	a.httpServices.RegisterAll(a.Router)
 

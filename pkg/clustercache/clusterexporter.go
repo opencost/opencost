@@ -29,8 +29,8 @@ type clusterEncoding struct {
 	PersistentVolumeClaims []*v1.PersistentVolumeClaim    `json:"persistentVolumeClaims,omitempty"`
 	StorageClasses         []*stv1.StorageClass           `json:"storageClasses,omitempty"`
 	Jobs                   []*batchv1.Job                 `json:"jobs,omitempty"`
-	PodDisruptionBudgets   []*v1beta1.PodDisruptionBudget `json:"podDisruptionBudgets,omitEmpty"`
-	ReplicationControllers []*v1.ReplicationController    `json:"replicationController,omitEmpty"`
+	PodDisruptionBudgets   []*v1beta1.PodDisruptionBudget `json:"podDisruptionBudgets,omitempty"`
+	ReplicationControllers []*v1.ReplicationController    `json:"replicationController,omitempty"`
 }
 
 // ClusterExporter manages and runs an file export process which dumps the local kubernetes cluster to a target location.

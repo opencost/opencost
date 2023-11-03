@@ -2,9 +2,9 @@ package costmodel
 
 import (
 	"fmt"
-	"github.com/opencost/opencost/pkg/kubecost"
 
 	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/prom"
 )
 
@@ -241,6 +241,12 @@ func resultJobKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controlle
 // (See resultControllerKey for more.)
 func resultReplicaSetKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
 	return resultControllerKey("replicaset", res, clusterLabel, namespaceLabel, controllerLabel)
+}
+
+// resultReplicaSetRolloutKey creates a controllerKey for a Job.
+// (See resultControllerKey for more.)
+func resultReplicaSetRolloutKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
+	return resultControllerKey("rollout", res, clusterLabel, namespaceLabel, controllerLabel)
 }
 
 type serviceKey struct {

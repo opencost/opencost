@@ -16,6 +16,8 @@ const Controls = ({
   title,
   cumulativeData,
   currency,
+  currencyOptions,
+  setCurrency,
 }) => {
 
   return (
@@ -31,6 +33,8 @@ const Controls = ({
         accumulate={accumulate}
         setAccumulate={setAccumulate}
         currency={currency}
+        currencyOptions={currencyOptions}
+        setCurrency={setCurrency}
       />
 
       <DownloadControl

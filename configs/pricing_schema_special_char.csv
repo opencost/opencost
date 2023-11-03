@@ -1,0 +1,2 @@
+EndTimestamp,InstanceID,Region,AssetClass,InstanceIDField,InstanceType,MarketPriceHourly,Version
+2019-04-17 23:34:22 UTC,gke-standard-cluster-1-pool-1-91dc432d-cg69,,node,metadata.labels.<http://metadata.label.servers.com/label|metadata.label.servers.com/label>,,0.1337,

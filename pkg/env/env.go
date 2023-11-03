@@ -14,6 +14,11 @@ import (
 // envMap contains Getter and Setter implementations for environment variables
 type envMap struct{}
 
+func (em *envMap) Has(key string) bool {
+	_, ok := os.LookupEnv(key)
+	return ok
+}
+
 // Get returns the value for the provided environment variable
 func (em *envMap) Get(key string) string {
 	return os.Getenv(key)
@@ -123,7 +128,7 @@ func GetDuration(key string, defaultValue time.Duration) time.Duration {
 	return envMapper.GetDuration(key, defaultValue)
 }
 
-// GetList parses a []string from the enviroment variable key parameter.  If the environment
+// GetList parses a []string from the environment variable key parameter.  If the environment
 // // variable is empty or fails to parse, nil is returned.
 func GetList(key, delimiter string) []string {
 	return envMapper.GetList(key, delimiter)
