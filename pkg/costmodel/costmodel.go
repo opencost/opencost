@@ -333,6 +333,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	// Determine if there are vgpus configured and if so get the total allocatable number
 	// If there are no vgpus, the coefficient is set to 1.0
 	vgpuCount, err := getAllocatableVGPUs(cm.Cache)
+	if err != nil {
+		log.Warnf("getAllocatableVGCPUs error: %s", err.Error())
+	}
 	vgpuCoeff := 10.0
 	if vgpuCount > 0.0 {
 		vgpuCoeff = vgpuCount
@@ -1019,6 +1022,9 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 	nodes := make(map[string]*costAnalyzerCloud.Node)
 
 	vgpuCount, err := getAllocatableVGPUs(cm.Cache)
+	if err != nil {
+		return nil, err
+	}
 	vgpuCoeff := 10.0
 	if vgpuCount > 0.0 {
 		vgpuCoeff = vgpuCount
@@ -1161,14 +1167,14 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 			cpuToRAMRatio := defaultCPU / defaultRAM
 			if math.IsNaN(cpuToRAMRatio) {
-				log.Warnf("cpuToRAMRatio[defaultCPU: %f / defaultRAM: %f] is NaN. Setting to 0.", defaultCPU, defaultRAM)
-				cpuToRAMRatio = 0
+				log.Warnf("cpuToRAMRatio[defaultCPU: %f / defaultRAM: %f] is NaN. Setting to 10.", defaultCPU, defaultRAM)
+				cpuToRAMRatio = 10
 			}
 
 			gpuToRAMRatio := defaultGPU / defaultRAM
 			if math.IsNaN(gpuToRAMRatio) {
-				log.Warnf("gpuToRAMRatio is NaN. Setting to 0.")
-				gpuToRAMRatio = 0
+				log.Warnf("gpuToRAMRatio is NaN. Setting to 100.")
+				gpuToRAMRatio = 100
 			}
 
 			ramGB := ram / 1024 / 1024 / 1024
@@ -1244,8 +1250,8 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 			cpuToRAMRatio := defaultCPU / defaultRAM
 			if math.IsNaN(cpuToRAMRatio) {
-				log.Warnf("cpuToRAMRatio[defaultCPU: %f / defaultRAM: %f] is NaN. Setting to 0.", defaultCPU, defaultRAM)
-				cpuToRAMRatio = 0
+				log.Warnf("cpuToRAMRatio[defaultCPU: %f / defaultRAM: %f] is NaN. Setting to 10.", defaultCPU, defaultRAM)
+				cpuToRAMRatio = 10
 			}
 
 			ramGB := ram / 1024 / 1024 / 1024
