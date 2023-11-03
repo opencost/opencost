@@ -4,7 +4,7 @@ import Header from "./components/Header";
 import IconButton from "@material-ui/core/IconButton";
 import RefreshIcon from "@material-ui/icons/Refresh";
 import { makeStyles } from "@material-ui/styles";
-import { Paper, Typography } from "@material-ui/core";
+import { Box, Link, Paper, Typography } from "@material-ui/core";
 import CircularProgress from "@material-ui/core/CircularProgress";
 import { get, find } from "lodash";
 import { useLocation, useHistory } from "react-router";
@@ -204,6 +204,10 @@ const CloudCostReports = () => {
     setTitle(generateTitle({ window, aggregateBy, costMetric }));
   }, [window, aggregateBy, costMetric, filters]);
 
+  const hasCloudCostEnabled = aggregateBy.includes("item")
+    ? true
+    : !!cloudCostData.cloudCostStatus?.length;
+
   return (
     <Page active="cloud.html">
       <Header>
@@ -215,6 +219,27 @@ const CloudCostReports = () => {
       {!loading && errors.length > 0 && (
         <div style={{ marginBottom: 20 }}>
           <Warnings warnings={errors} />
+        </div>
+      )}
+      {!loading && !hasCloudCostEnabled && (
+        <div style={{ marginBottom: 20 }}>
+          <Paper>
+            <Box>
+              <Typography variant="h4">
+                There are no Cloud Cost integrations currently configured.
+              </Typography>
+              <Typography>
+                Learn more about setting up Cloud Costs{" "}
+                <Link
+                  href={
+                    "https://docs.kubecost.com/using-kubecost/navigating-the-kubecost-ui/cloud-costs-explorer#installation-and-configuration"
+                  }
+                >
+                  here
+                </Link>
+              </Typography>
+            </Box>
+          </Paper>
         </div>
       )}
 
