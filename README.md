@@ -1,8 +1,9 @@
 <img src="./opencost-header.png"/>
 
-# OpenCost — your favorite open source cost monitoring tool for Kubernetes
+# OpenCost — your favorite open source cost monitoring tool for Kubernetes and cloud spend
 
-OpenCost models give teams visibility into current and historical Kubernetes spend and resource allocation. These models provide cost transparency in Kubernetes environments that support multiple applications, teams, departments, etc. It also provides visibility into the cloud costs across multiple providers.
+OpenCost give teams visibility into current and historical Kubernetes and cloud spend and resource allocation, as well as cloud costs.
+These models provide cost transparency in Kubernetes environments that support multiple applications, teams, departments, etc. It also provides visibility into the cloud costs across multiple providers.
 
 OpenCost was originally developed and open sourced by [Kubecost](https://kubecost.com). This project combines a [specification](/spec/) as well as a Golang implementation of these detailed requirements.
 
@@ -21,7 +22,7 @@ To see the full functionality of OpenCost you can view [OpenCost features](https
 
 ## Getting Started
 
-You can deploy OpenCost on any Kubernetes 1.8+ cluster in a matter of minutes, if not seconds!
+You can deploy OpenCost on any Kubernetes 1.20+ cluster in a matter of minutes, if not seconds!
 
 Visit the full documentation for [recommended install options](https://www.opencost.io/docs/installation/install).
 
