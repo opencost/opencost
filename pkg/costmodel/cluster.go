@@ -848,10 +848,14 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 
 			// interpolate any missing data
 			resultMins := lb.Minutes
-			scaleFactor := (resultMins + resolution.Minutes()) / resultMins
+			if resultMins > 0 {
+				scaleFactor := (resultMins + resolution.Minutes()) / resultMins
 
-			hrs := (lb.Minutes * scaleFactor) / 60.0
-			lb.Cost += lbPricePerHr * hrs
+				hrs := (lb.Minutes * scaleFactor) / 60.0
+				lb.Cost += lbPricePerHr * hrs
+			} else {
+				log.DedupedWarningf(20, "ClusterLoadBalancers: found zero minutes for key: %v", key)
+			}
 
 			if lb.Ip != "" && lb.Ip != providerID {
 				log.DedupedWarningf(5, "ClusterLoadBalancers: multiple IPs per load balancer not supported, using most recent IP")

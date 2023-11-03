@@ -3,7 +3,8 @@ package alibaba
 import (
 	"fmt"
 
-	"github.com/opencost/opencost/pkg/cloud/config"
+	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/util/json"
 )
 
@@ -36,7 +37,7 @@ func (bc *BOAConfiguration) Validate() error {
 	return nil
 }
 
-func (bc *BOAConfiguration) Equals(config config.Config) bool {
+func (bc *BOAConfiguration) Equals(config cloud.Config) bool {
 	if config == nil {
 		return false
 	}
@@ -65,7 +66,7 @@ func (bc *BOAConfiguration) Equals(config config.Config) bool {
 	return true
 }
 
-func (bc *BOAConfiguration) Sanitize() config.Config {
+func (bc *BOAConfiguration) Sanitize() cloud.Config {
 	return &BOAConfiguration{
 		Account:    bc.Account,
 		Region:     bc.Region,
@@ -77,6 +78,10 @@ func (bc *BOAConfiguration) Key() string {
 	return fmt.Sprintf("%s/%s", bc.Account, bc.Region)
 }
 
+func (bc *BOAConfiguration) Provider() string {
+	return kubecost.AlibabaProvider
+}
+
 func (bc *BOAConfiguration) UnmarshalJSON(b []byte) error {
 	var f interface{}
 	err := json.Unmarshal(b, &f)
@@ -86,13 +91,13 @@ func (bc *BOAConfiguration) UnmarshalJSON(b []byte) error {
 
 	fmap := f.(map[string]interface{})
 
-	account, err := config.GetInterfaceValue[string](fmap, "account")
+	account, err := cloud.GetInterfaceValue[string](fmap, "account")
 	if err != nil {
 		return fmt.Errorf("BOAConfiguration: UnmarshalJSON: %s", err.Error())
 	}
 	bc.Account = account
 
-	region, err := config.GetInterfaceValue[string](fmap, "region")
+	region, err := cloud.GetInterfaceValue[string](fmap, "region")
 	if err != nil {
 		return fmt.Errorf("BOAConfiguration: UnmarshalJSON: %s", err.Error())
 	}
@@ -102,7 +107,7 @@ func (bc *BOAConfiguration) UnmarshalJSON(b []byte) error {
 	if !ok {
 		return fmt.Errorf("BOAConfiguration: UnmarshalJSON: missing authorizer")
 	}
-	authorizer, err := config.AuthorizerFromInterface(authAny, SelectAuthorizerByType)
+	authorizer, err := cloud.AuthorizerFromInterface(authAny, SelectAuthorizerByType)
 	if err != nil {
 		return fmt.Errorf("BOAConfiguration: UnmarshalJSON: %s", err.Error())
 	}
@@ -111,7 +116,7 @@ func (bc *BOAConfiguration) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func ConvertAlibabaInfoToConfig(acc AlibabaInfo) config.KeyedConfig {
+func ConvertAlibabaInfoToConfig(acc AlibabaInfo) cloud.KeyedConfig {
 	if acc.IsEmpty() {
 		return nil
 	}

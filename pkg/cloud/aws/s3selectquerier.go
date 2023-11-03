@@ -13,7 +13,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/opencost/opencost/pkg/cloud"
-	"github.com/opencost/opencost/pkg/cloud/config"
 	"github.com/opencost/opencost/pkg/util/stringutil"
 )
 
@@ -22,7 +21,7 @@ type S3SelectQuerier struct {
 	connectionStatus cloud.ConnectionStatus
 }
 
-func (s3sq *S3SelectQuerier) Equals(config config.Config) bool {
+func (s3sq *S3SelectQuerier) Equals(config cloud.Config) bool {
 	thatConfig, ok := config.(*S3SelectQuerier)
 	if !ok {
 		return false

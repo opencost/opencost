@@ -11,11 +11,11 @@ OpenCost was originally developed and open sourced by [Kubecost](https://kubecos
 To see the full functionality of OpenCost you can view [OpenCost features](https://opencost.io). Here is a summary of features enabled:
 
 - Real-time cost allocation by Kubernetes cluster, node, namespace, controller kind, controller, service, or pod
-- Dynamic onDemand asset pricing enabled by integrations with AWS, Azure, and GCP billing APIs
+- Dynamic on-demand asset pricing enabled by integrations with AWS, Azure, and GCP billing APIs
 - Supports on-prem k8s clusters with custom CSV pricing
 - Allocation for in-cluster resources like CPU, GPU, memory, and persistent volumes.
-- Easily export pricing data to Prometheus with /metrics endpoint ([learn more](PROMETHEUS.md))
-- Free and open source distribution (Apache2 license)
+- Easily export pricing data to Prometheus with /metrics endpoint ([learn more](https://www.opencost.io/docs/installation/prometheus))
+- Free and open source distribution ([Apache2 license](LICENSE))
 
 ## Getting Started
 

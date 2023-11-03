@@ -149,7 +149,7 @@ func (c *Scaleway) NodePricing(key models.Key) (*models.Node, models.PricingMeta
 				RAM:         fmt.Sprintf("%d", info.RAM),
 				// This is tricky, as instances can have local volumes or not
 				Storage:      fmt.Sprintf("%d", info.PerVolumeConstraint.LSSD.MinSize),
-				GPU:          fmt.Sprintf("%d", info.Gpu),
+				GPU:          fmt.Sprintf("%d", *info.Gpu),
 				InstanceType: split[1],
 				Region:       split[0],
 				GPUName:      key.GPUType(),

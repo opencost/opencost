@@ -30,7 +30,7 @@ will run on both AMD64 and ARM64 clusters).
 
 Dependencies:
 1. Docker (with `buildx`)
-2. [just](https://github.com/casey/just) (if you don't want to install Just, read the `justfile` and run the commands manually)
+2. [just](https://github.com/casey/just) (if you don't want to install it , Just read the `justfile` and run the commands manually)
 3. Multi-arch `buildx` builders set up via https://github.com/tonistiigi/binfmt
 4. `npm` (if you want to build the UI)
 
