@@ -44,7 +44,7 @@ jobs:
       - name: save coverage file
         uses: actions/upload-artifact@v3
         with:
-            path: ./opencost/coverage.out
+            path: ./coverage.out
             name: coverage-${{ env.BRANCH_NAME }}-${{ github.sha }}
       -
         name: Build
