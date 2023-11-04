@@ -412,29 +412,31 @@ export function formatSampleItemsForGraph({ data, costMetric }) {
         cloudCostItem[costMetricPropName].kubernetesPercent;
     });
   });
-  const tableRows = Object.entries(accumulator).map(
-    ([
-      name,
-      {
+  const tableRows = Object.entries(accumulator)
+    .map(
+      ([
+        name,
+        {
+          cost,
+          start,
+          end,
+          providerID,
+          kubernetesCost,
+          kubernetesPercent,
+          labelName,
+        },
+      ]) => ({
         cost,
+        name,
+        kubernetesCost,
+        kubernetesPercent,
         start,
         end,
         providerID,
-        kubernetesCost,
-        kubernetesPercent,
         labelName,
-      },
-    ]) => ({
-      cost,
-      name,
-      kubernetesCost,
-      kubernetesPercent,
-      start,
-      end,
-      providerID,
-      labelName,
-    })
-  );
+      })
+    )
+    .sort((a, b) => (a.cost > b.cost ? -1 : 1));
 
   const tableTotal = tableRows.reduce(
     (tr1, tr2) => ({

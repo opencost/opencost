@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getCloudFilters, parseFilters } from "../util";
+import { parseFilters } from "../util";
 import { costMetricToPropName } from "../cloudCost/tokens";
 
 function formatItemsForCost({ data, costType }) {

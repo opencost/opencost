@@ -1,9 +1,5 @@
 import axios from "axios";
-import {
-  getCloudFilters,
-  formatSampleItemsForGraph,
-  parseFilters,
-} from "../util";
+import { formatSampleItemsForGraph, parseFilters } from "../util";
 
 class CloudCostTopService {
   BASE_URL = process.env.BASE_URL || "{PLACEHOLDER_BASE_URL}";
