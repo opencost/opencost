@@ -205,8 +205,27 @@ const CloudCostReports = () => {
   }, [window, aggregateBy, costMetric, filters]);
 
   const hasCloudCostEnabled = aggregateBy.includes("item")
-    ? true
-    : !!cloudCostData.cloudCostStatus?.length;
+    ? true // this is kind of hacky but something weird is happening
+    : // when drilling down will address in a later PR - @jjarrett21
+      !!cloudCostData.cloudCostStatus?.length;
+
+  const enabledWarnings = [
+    {
+      primary: "There are no Cloud Cost integrations currently configured.",
+      secondary: (
+        <>
+          Learn more about setting up Cloud Costs{" "}
+          <Link
+            href={
+              "https://docs.kubecost.com/using-kubecost/navigating-the-kubecost-ui/cloud-costs-explorer#installation-and-configuration"
+            }
+          >
+            here
+          </Link>
+        </>
+      ),
+    },
+  ];
 
   return (
     <Page active="cloud.html">
@@ -223,27 +242,11 @@ const CloudCostReports = () => {
       )}
       {!loading && !hasCloudCostEnabled && (
         <div style={{ marginBottom: 20 }}>
-          <Paper>
-            <Box>
-              <Typography variant="h4">
-                There are no Cloud Cost integrations currently configured.
-              </Typography>
-              <Typography>
-                Learn more about setting up Cloud Costs{" "}
-                <Link
-                  href={
-                    "https://docs.kubecost.com/using-kubecost/navigating-the-kubecost-ui/cloud-costs-explorer#installation-and-configuration"
-                  }
-                >
-                  here
-                </Link>
-              </Typography>
-            </Box>
-          </Paper>
+          <Warnings warnings={enabledWarnings} />
         </div>
       )}
 
-      {init && (
+      {init && hasCloudCostEnabled && (
         <Paper id="cloud-cost">
           <div className={classes.reportHeader}>
             <div className={classes.titles}>
