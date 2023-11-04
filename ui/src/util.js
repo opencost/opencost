@@ -344,35 +344,6 @@ export function checkCustomWindow(window) {
   return customDateRegex.test(window);
 }
 
-export function getCloudFilters(filters) {
-  const filterNamesMap = {
-    "invoice entity": "filterInvoiceEntityIDs",
-    provider: "filterProviders",
-    providerids: "filterProviderIDs",
-    service: "filterServices",
-    account: "filterAccountIDs",
-  };
-  const params = new URLSearchParams();
-  const labelFilters = [];
-
-  for (let filter of filters) {
-    const mapped = filterNamesMap[filter.property.toLowerCase()];
-
-    if (mapped) {
-      params.set(mapped, filter.value);
-    } else if (filter.property === "Labels") {
-      labelFilters.push(filter.value);
-    } else if (filter.property.startsWith(":")) {
-      labelFilters.push(`${filter.property.slice(6)}:${filter.value}`);
-    }
-  }
-  if (labelFilters.length) {
-    params.set("filterLabels", labelFilters.join(","));
-  }
-
-  return `&${params.toString()}`;
-}
-
 export function formatSampleItemsForGraph({ data, costMetric }) {
   const costMetricPropName = costMetric
     ? costMetricToPropName[costMetric]
