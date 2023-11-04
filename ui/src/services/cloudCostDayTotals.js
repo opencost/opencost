@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getCloudFilters } from "../util";
+import { getCloudFilters, parseFilters } from "../util";
 import { costMetricToPropName } from "../cloudCost/tokens";
 
 function formatItemsForCost({ data, costType }) {
@@ -26,7 +26,7 @@ class CloudCostDayTotalsService {
       const resp = await axios.get(
         `${
           this.BASE_URL
-        }/cloudCost?window=${window}&costMetric=${costMetric}${getCloudFilters(
+        }/cloudCost?window=${window}&costMetric=${costMetric}$&filter=${parseFilters(
           filters
         )}`
       );

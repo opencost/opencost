@@ -457,6 +457,17 @@ export function formatSampleItemsForGraph({ data, costMetric }) {
   return { graphData, tableRows, tableTotal };
 }
 
+export function parseFilters(filters) {
+  if (typeof filters === "string") {
+    return filters;
+  }
+  // remove dups (via context ) and format
+  return (
+    [...new Set(filters.map((f) => `${f.property}:"${f.value}"`))].join("+") ||
+    ""
+  );
+}
+
 export default {
   rangeToCumulative,
   cumulativeToTotals,
