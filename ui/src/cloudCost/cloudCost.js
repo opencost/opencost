@@ -31,8 +31,6 @@ const CloudCost = ({
     },
   });
 
- 
-
   const classes = useStyles();
 
   function descendingComparator(a, b, orderBy) {

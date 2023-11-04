@@ -13,7 +13,7 @@ class CloudCostTopService {
       window,
       aggregate,
       costMetric,
-      filter: parseFilters(filters),
+      filter: parseFilters(filters ?? []),
       limit: 1000,
     };
 
