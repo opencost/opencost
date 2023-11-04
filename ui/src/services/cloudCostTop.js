@@ -13,7 +13,7 @@ class CloudCostTopService {
       window,
       aggregate,
       costMetric,
-      filters,
+      filter: parseFilters(filters),
       limit: 1000,
     };
 
@@ -32,18 +32,15 @@ class CloudCostTopService {
 
     const tableView = await axios.get(`${this.BASE_URL}/cloudCost/view/table`, {
       params,
-      filter: parseFilters(params.filters),
     });
     const totalsView = await axios.get(
       `${this.BASE_URL}/cloudCost/view/totals`,
       {
         params,
-        filter: parseFilters(params.filters),
       }
     );
     const graphView = await axios.get(`${this.BASE_URL}/cloudCost/view/graph`, {
       params,
-      filter: parseFilters(params.filters),
     });
 
     return {

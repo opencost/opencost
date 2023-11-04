@@ -175,7 +175,6 @@ const CloudCostReports = () => {
       return {
         property,
         value,
-        name: aggMap[property] || property,
       };
     });
     setFilters(newFilters);
@@ -187,6 +186,7 @@ const CloudCostReports = () => {
     setAggregateBy(searchParams.get("agg") || "provider");
     setCostMetric(searchParams.get("costMetric") || "AmortizedNetCost");
     setCurrency(searchParams.get("currency") || "USD");
+    // setFilters(searchParams.get("filter" || []));
   }, [routerLocation]);
 
   // Initialize once, then fetch report each time setFetch(true) is called
