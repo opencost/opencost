@@ -26,7 +26,7 @@ class CloudCostDayTotalsService {
       const resp = await axios.get(
         `${
           this.BASE_URL
-        }/cloudCost?window=${window}&costMetric=${costMetric}$&filter=${parseFilters(
+        }/cloudCost?window=${window}&costMetric=${costMetric}&filter=${parseFilters(
           filters
         )}`
       );
