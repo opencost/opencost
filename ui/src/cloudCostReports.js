@@ -240,7 +240,7 @@ const CloudCostReports = () => {
           <Warnings warnings={errors} />
         </div>
       )}
-      {!loading && !hasCloudCostEnabled && (
+      {!loading && !errors && !hasCloudCostEnabled && (
         <div style={{ marginBottom: 20 }}>
           <Warnings warnings={enabledWarnings} />
         </div>
