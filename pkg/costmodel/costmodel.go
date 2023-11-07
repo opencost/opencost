@@ -149,17 +149,15 @@ const (
 			), "pod_name","$1","pod","(.+)"
 		)
 	) by (namespace,container_name,pod_name,node,%s)`
-	queryRAMUsageStr = `sort_desc(
-		avg(
+	queryRAMUsageStr = `avg(
+		label_replace(
 			label_replace(
 				label_replace(
-					label_replace(
-						sum_over_time(container_memory_working_set_bytes{container!="", container!="POD", instance!="", %s}[%s] %s), "node", "$1", "instance", "(.+)"
-					), "container_name", "$1", "container", "(.+)"
-				), "pod_name", "$1", "pod", "(.+)"
-			)
-		) by (namespace, container_name, pod_name, node, %s)
-	)`
+					sum_over_time(container_memory_working_set_bytes{container!="", container!="POD", instance!="", %s}[%s] %s), "node", "$1", "instance", "(.+)"
+				), "container_name", "$1", "container", "(.+)"
+			), "pod_name", "$1", "pod", "(.+)"
+		)
+	) by (namespace, container_name, pod_name, node, %s)`
 	queryCPURequestsStr = `avg(
 		label_replace(
 			label_replace(
