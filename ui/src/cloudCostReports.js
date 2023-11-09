@@ -234,7 +234,8 @@ const CloudCostReports = () => {
           <RefreshIcon />
         </IconButton>
       </Header>
-      {!loading && !errors.length && !hasCloudCostEnabled && (
+
+      {!loading && !hasCloudCostEnabled && (
         <div style={{ marginBottom: 20 }}>
           <Warnings warnings={enabledWarnings} />
         </div>
