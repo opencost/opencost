@@ -219,6 +219,7 @@ const CloudCostReports = () => {
             href={
               "https://docs.kubecost.com/using-kubecost/navigating-the-kubecost-ui/cloud-costs-explorer#installation-and-configuration"
             }
+            target="_blank"
           >
             here
           </Link>
