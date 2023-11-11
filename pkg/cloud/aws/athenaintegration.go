@@ -147,7 +147,7 @@ func (ai *AthenaIntegration) GetCloudCost(start, end time.Time) (*kubecost.Cloud
 	groupByStr := strings.Join(groupByColumns, ", ")
 	queryStr := `
 		SELECT %s
-		FROM %s
+		FROM "%s"
 		WHERE %s
 		GROUP BY %s
 	`
