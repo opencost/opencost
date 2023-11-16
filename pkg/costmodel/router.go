@@ -93,7 +93,7 @@ type Accesses struct {
 	ClusterMap               clusters.ClusterMap
 	CloudProvider            models.Provider
 	ConfigFileManager        *config.ConfigFileManager
-  CloudConfigController    *cloudconfig.Controller
+	CloudConfigController    *cloudconfig.Controller
 	CloudCostPipelineService *cloudcost.PipelineService
 	CloudCostQueryService    *cloudcost.QueryService
 	ClusterInfoProvider      clusters.ClusterInfoProvider
@@ -1738,10 +1738,8 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		KubeClientSet:          kubeClientset,
 		ClusterCache:           k8sCache,
 		ClusterMap:             clusterMap,
-    CloudProvider:          cloudProvider,
-		CloudConfigController:  cloudconfig.NewController(cloudProvider),
-		ConfigFileManager:      confManager,
 		CloudProvider:          cloudProvider,
+		CloudConfigController:  cloudconfig.NewController(cloudProvider),
 		ConfigFileManager:      confManager,
 		ClusterInfoProvider:    clusterInfoProvider,
 		Model:                  costModel,
