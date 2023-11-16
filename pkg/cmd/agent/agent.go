@@ -65,9 +65,14 @@ func newKubernetesClusterCache() (kubernetes.Interface, clustercache.ClusterCach
 }
 
 func newPrometheusClient() (prometheus.Client, error) {
-	address := env.GetPrometheusServerEndpoint()
-	if address == "" {
+	promAddrs := env.GetPrometheusEndpoints()
+	if promAddrs[env.Server] == "" {
 		return nil, fmt.Errorf("No address for prometheus set in $%s. Aborting.", env.PrometheusServerEndpointEnvVar)
+	}
+
+	scrapeKey := env.Scrape
+	if _, ok := promAddrs[env.Scrape]; !ok {
+		scrapeKey = env.Server
 	}
 
 	queryConcurrency := env.GetMaxQueryConcurrency()
@@ -85,44 +90,48 @@ func newPrometheusClient() (prometheus.Client, error) {
 		}
 	}
 
-	promCli, err := prom.NewPrometheusClient(address, &prom.PrometheusClientConfig{
-		Timeout:               timeout,
-		KeepAlive:             keepAlive,
-		TLSHandshakeTimeout:   tlsHandshakeTimeout,
-		TLSInsecureSkipVerify: env.GetInsecureSkipVerify(),
-		RateLimitRetryOpts:    rateLimitRetryOpts,
-		Auth: &prom.ClientAuth{
-			Username:    env.GetDBBasicAuthUsername(),
-			Password:    env.GetDBBasicAuthUserPassword(),
-			BearerToken: env.GetDBBearerToken(),
-		},
-		QueryConcurrency: queryConcurrency,
-		QueryLogFile:     "",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("Failed to create prometheus client, Error: %v", err)
-	}
-
-	m, err := prom.Validate(promCli)
-	if err != nil || !m.Running {
+	promClis := map[env.PrometheusType]prometheus.Client{}
+	var err error
+	for clientType, addr := range promAddrs {
+		promClis[clientType], err = prom.NewPrometheusClient(addr, &prom.PrometheusClientConfig{
+			Timeout:               timeout,
+			KeepAlive:             keepAlive,
+			TLSHandshakeTimeout:   tlsHandshakeTimeout,
+			TLSInsecureSkipVerify: env.GetInsecureSkipVerify(env.Server),
+			RateLimitRetryOpts:    rateLimitRetryOpts,
+			Auth: &prom.ClientAuth{
+				Username:    env.GetDBBasicAuthUsername(clientType),
+				Password:    env.GetDBBasicAuthUserPassword(clientType),
+				BearerToken: env.GetDBBearerToken(clientType),
+			},
+			QueryConcurrency: queryConcurrency,
+			QueryLogFile:     "",
+		})
 		if err != nil {
-			log.Errorf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prom.PrometheusTroubleshootingURL)
-		} else if !m.Running {
-			log.Errorf("Prometheus at %s is not running. Troubleshooting help available at: %s", address, prom.PrometheusTroubleshootingURL)
+			return nil, fmt.Errorf("Failed to create prometheus client, Error: %v", err)
 		}
-	} else {
-		log.Infof("Success: retrieved the 'up' query against prometheus at: %s", address)
+
+		m, err := prom.Validate(promClis[clientType])
+		if err != nil || !m.Running {
+			if err != nil {
+				log.Errorf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", addr, err.Error(), prom.PrometheusTroubleshootingURL)
+			} else if !m.Running {
+				log.Errorf("Prometheus at %s is not running. Troubleshooting help available at: %s", addr, prom.PrometheusTroubleshootingURL)
+			}
+		} else {
+			log.Infof("Success: retrieved the 'up' query against prometheus at: %s", addr)
+		}
 	}
 
-	api := prometheusAPI.NewAPI(promCli)
+	api := prometheusAPI.NewAPI(promClis[scrapeKey])
 	_, err = api.Config(context.Background())
 	if err != nil {
-		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/mimir/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
+		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/mimir/thanos here.", promAddrs[scrapeKey], err.Error(), prom.PrometheusTroubleshootingURL)
 	} else {
-		log.Infof("Retrieved a prometheus config file from: %s", address)
+		log.Infof("Retrieved a prometheus config file from: %s", promAddrs[scrapeKey])
 	}
 
-	return promCli, nil
+	return promClis[env.Server], nil
 }
 
 func Execute(opts *AgentOpts) error {
