@@ -230,11 +230,7 @@ func TestCSVProvider(t *testing.T) {
 
 			assertNode(t, node, &models.Node{Cost: "3.695720", GPUCost: "3.295720", GPU: "4", PricingType: models.CsvExact})
 		})
-		// NOTE: good example of 100% test coverage but the case it not really cover
 		t.Run("should not be adjust Cost when can not parse Pricing `MarketPriceHourly` to float64", func(t *testing.T) {
-			// totalCost := hourly * float64(count) ==> 0.20000 * 4.0 = 0.800000
-			// node.GPUCost = fmt.Sprintf("%f", totalCost) ==> 0.800000
-			// node.Cost = fmt.Sprintf("%f", nc + totalCost) ===>  0 + 0.800000 = 0.800000
 			csv := &CSVProvider{
 				GPUClassPricing: map[string]*price{
 					"cluster-api/value/arm64": {MarketPriceHourly: "0.20000"},
@@ -262,9 +258,6 @@ func TestCSVProvider(t *testing.T) {
 		})
 
 		t.Run("should not be adjust Cost when can not parse GPUClassPricing `MarketPriceHourly` to float64", func(t *testing.T) {
-			// totalCost := hourly * float64(count) ==> 0.0 * 4.0 = 0.0
-			// node.GPUCost = fmt.Sprintf("%f", totalCost) ==> 0.0
-			// node.Cost = fmt.Sprintf("%f", nc + totalCost) ===>  0.60001 + 0.0 = 0.60001
 			csv := &CSVProvider{
 				GPUClassPricing: map[string]*price{
 					"cluster-api/value/arm64": {MarketPriceHourly: "not a number"},
