@@ -162,7 +162,7 @@ func TestGetKubernetesEnabled(t *testing.T) {
 
 }
 
-func TestGetCloudIntegrationSecretPath(t *testing.T) {
+func TestGetCloudCostConfigPath(t *testing.T) {
 	tests := []struct {
 		name string
 		want string
@@ -173,17 +173,17 @@ func TestGetCloudIntegrationSecretPath(t *testing.T) {
 			want: "cloud-integration.json",
 		},
 		{
-			name: "Ensure the value is 'cloud-integration.json' when CLOUD_INTEGRATION_SECRET_PATH is set to ''",
+			name: "Ensure the value is 'cloud-integration.json' when CLOUD_COST_CONFIG_PATH is set to ''",
 			want: "cloud-integration.json",
 			pre: func() {
-				os.Setenv("CLOUD_INTEGRATION_SECRET_PATH", "")
+				os.Setenv("CLOUD_COST_CONFIG_PATH", "")
 			},
 		},
 		{
-			name: "Ensure the value is 'flying-pig.json' when CLOUD_INTEGRATION_SECRET_PATH is set to 'flying-pig.json'",
+			name: "Ensure the value is 'flying-pig.json' when CLOUD_COST_CONFIG_PATH is set to 'flying-pig.json'",
 			want: "flying-pig.json",
 			pre: func() {
-				os.Setenv("CLOUD_INTEGRATION_SECRET_PATH", "flying-pig.json")
+				os.Setenv("CLOUD_COST_CONFIG_PATH", "flying-pig.json")
 			},
 		},
 	}
@@ -192,8 +192,8 @@ func TestGetCloudIntegrationSecretPath(t *testing.T) {
 			tt.pre()
 		}
 		t.Run(tt.name, func(t *testing.T) {
-			if got := GetCloudIntegrationSecretPath(); got != tt.want {
-				t.Errorf("GetCloudIntegrationSecretPath() = %v, want %v", got, tt.want)
+			if got := GetCloudCostConfigPath(); got != tt.want {
+				t.Errorf("GetCloudCostConfigPath() = %v, want %v", got, tt.want)
 			}
 		})
 	}
