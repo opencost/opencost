@@ -36,15 +36,16 @@ func Execute(opts *CostModelOpts) error {
 	log.Infof("Starting cost-model version %s", version.FriendlyVersion())
 	log.Infof("Kubernetes enabled: %t", env.IsKubernetesEnabled())
 
-	a := costmodel.InitializeWithoutKubernetes()
+	var a *costmodel.Accesses
 
 	if env.IsKubernetesEnabled() {
-		a := costmodel.Initialize()
-
+		a = costmodel.Initialize()
 		err := StartExportWorker(context.Background(), a.Model)
 		if err != nil {
 			log.Errorf("couldn't start CSV export worker: %v", err)
 		}
+	} else {
+		a = costmodel.InitializeWithoutKubernetes()
 	}
 
 	log.Infof("Cloud Costs enabled: %t", env.IsCloudCostEnabled())
