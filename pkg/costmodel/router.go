@@ -1493,8 +1493,6 @@ func handlePanic(p errors.Panic) bool {
 func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses {
 	configWatchers := watcher.NewConfigMapWatchers(additionalConfigWatchers...)
 
-	log.Debugf("Initialize-START: %v", configWatchers.GetWatchedConfigs())
-
 	var err error
 	if errorReportingEnabled {
 		err = sentry.Init(sentry.ClientOptions{Release: version.FriendlyVersion()})
@@ -1827,15 +1825,11 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 
 	a.httpServices.RegisterAll(a.Router)
 
-	log.Debugf("Initialize-START: %v", configWatchers.GetWatchedConfigs())
-
 	return a
 }
 
 func InitializeWithoutKubernetes(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses {
 	configWatchers := watcher.NewConfigMapWatchers(additionalConfigWatchers...)
-
-	log.Debugf("InitializeWithoutKubernetes-START: %v", configWatchers.GetWatchedConfigs())
 
 	var err error
 	if errorReportingEnabled {
@@ -1862,7 +1856,6 @@ func InitializeWithoutKubernetes(additionalConfigWatchers ...*watcher.ConfigMapW
 		a.httpServices.RegisterAll(a.Router)
 	*/
 
-	log.Debugf("InitializeWithoutKubernetes-END: %v", configWatchers.GetWatchedConfigs())
 	return a
 }
 

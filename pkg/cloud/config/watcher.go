@@ -30,7 +30,6 @@ type HelmWatcher struct {
 // only one billing integration due to values being shared by different configuration types.
 func (hw *HelmWatcher) GetConfigs() []cloud.KeyedConfig {
 	var configs []cloud.KeyedConfig
-	log.Info("+++HelmWatcher GetConfigs")
 
 	customPricing, _ := hw.providerConfig.GetCustomPricingData()
 
@@ -149,8 +148,6 @@ type ConfigFileWatcher struct {
 // only one billing integration due to values being shared by different configuration types.
 func (cfw *ConfigFileWatcher) GetConfigs() []cloud.KeyedConfig {
 	var configs []cloud.KeyedConfig
-
-	log.Info("+++ConfigFileWatcher GetConfigs")
 
 	customPricing, _ := cfw.providerConfig.GetCustomPricingData()
 

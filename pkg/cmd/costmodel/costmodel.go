@@ -34,7 +34,7 @@ func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 
 func Execute(opts *CostModelOpts) error {
 	log.Infof("Starting cost-model version %s", version.FriendlyVersion())
-	log.Debugf("Kubernetes enabled: %t", env.IsKubernetesEnabled())
+	log.Infof("Kubernetes enabled: %t", env.IsKubernetesEnabled())
 
 	var a *costmodel.Accesses
 
@@ -52,8 +52,6 @@ func Execute(opts *CostModelOpts) error {
 	log.Infof("Cloud Costs enabled: %t", env.IsCloudCostEnabled())
 	if env.IsCloudCostEnabled() {
 		repo := cloudcost.NewMemoryRepository()
-		keys, _ := repo.Keys()
-		log.Infof("repo: %v", keys)
 		a.CloudCostPipelineService = cloudcost.NewPipelineService(repo, a.CloudConfigController, cloudcost.DefaultIngestorConfiguration())
 		repoQuerier := cloudcost.NewRepositoryQuerier(repo)
 		a.CloudCostQueryService = cloudcost.NewQueryService(repoQuerier, repoQuerier)
