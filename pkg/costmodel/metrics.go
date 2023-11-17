@@ -344,6 +344,7 @@ func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clust
 		EmitPodAnnotations:            env.IsEmitPodAnnotationsMetric(),
 		EmitKubeStateMetrics:          env.IsEmitKsmV1Metrics(),
 		EmitKubeStateMetricsV1Only:    env.IsEmitKsmV1MetricsOnly(),
+		EmitDeprecatedMetrics:         env.IsEmitDeprecatedMetrics(),
 	})
 
 	metrics.InitKubecostTelemetry(metricsConfig)
