@@ -123,3 +123,41 @@ func TestGetExportCSVMaxDays(t *testing.T) {
 		})
 	}
 }
+
+func TestGetKubernetesEnabled(t *testing.T) {
+	tests := []struct {
+		name string
+		want bool
+		pre  func()
+	}{
+		{
+			name: "Ensure the default value is true",
+			want: true,
+		},
+		{
+			name: "Ensure the value is true when KUBERNETES_ENABLED is set to true",
+			want: true,
+			pre: func() {
+				os.Setenv("EXPORT_KUBERNETES_ENABLED", "true")
+			},
+		},
+		{
+			name: "Ensure the value is false when KUBERNETES_ENABLED is set to false",
+			want: false,
+			pre: func() {
+				os.Setenv("EXPORT_KUBERNETES_ENABLED", "false")
+			},
+		},
+	}
+	for _, tt := range tests {
+		if tt.pre != nil {
+			tt.pre()
+		}
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsKubernetesEnabled(); got != tt.want {
+				t.Errorf("IsKubernetesEnabled() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+
+}

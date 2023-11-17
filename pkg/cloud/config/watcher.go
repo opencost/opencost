@@ -30,6 +30,7 @@ type HelmWatcher struct {
 // only one billing integration due to values being shared by different configuration types.
 func (hw *HelmWatcher) GetConfigs() []cloud.KeyedConfig {
 	var configs []cloud.KeyedConfig
+	log.Info("+++HelmWatcher GetConfigs")
 
 	customPricing, _ := hw.providerConfig.GetCustomPricingData()
 
@@ -149,6 +150,8 @@ type ConfigFileWatcher struct {
 func (cfw *ConfigFileWatcher) GetConfigs() []cloud.KeyedConfig {
 	var configs []cloud.KeyedConfig
 
+	log.Info("+++ConfigFileWatcher GetConfigs")
+
 	customPricing, _ := cfw.providerConfig.GetCustomPricingData()
 
 	// Detect Azure Storage configuration
@@ -239,7 +242,12 @@ type MultiCloudWatcher struct {
 }
 
 func (mcw *MultiCloudWatcher) GetConfigs() []cloud.KeyedConfig {
+	log.Info("+++MultiCloudWatcher GetConfigs")
+
 	multiConfigPath := path.Join(env.GetConfigPathWithDefault("/var/configs"), cloudIntegrationSecretPath)
+
+	log.Infof("+++ConfigFileWatcher GetConfigs: multiConfigPath: %s", multiConfigPath)
+
 	exists, err := fileutil.FileExists(multiConfigPath)
 	if err != nil {
 		log.Errorf("MultiCloudWatcher:  error checking file at '%s': %s", multiConfigPath, err.Error())

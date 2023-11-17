@@ -1493,6 +1493,8 @@ func handlePanic(p errors.Panic) bool {
 func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses {
 	configWatchers := watcher.NewConfigMapWatchers(additionalConfigWatchers...)
 
+	log.Infof("+++Initialize: %v", configWatchers.GetWatchedConfigs())
+
 	var err error
 	if errorReportingEnabled {
 		err = sentry.Init(sentry.ClientOptions{Release: version.FriendlyVersion()})
@@ -1825,6 +1827,47 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 
 	a.httpServices.RegisterAll(a.Router)
 
+	return a
+}
+
+func InitializeWithoutKubernetes(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses {
+	configWatchers := watcher.NewConfigMapWatchers(additionalConfigWatchers...)
+
+	log.Infof("+++InitializeWithoutKubernetes: %v", configWatchers.GetWatchedConfigs())
+
+	var err error
+	if errorReportingEnabled {
+		err = sentry.Init(sentry.ClientOptions{Release: version.FriendlyVersion()})
+		if err != nil {
+			log.Infof("Failed to initialize sentry for error reporting")
+		} else {
+			err = errors.SetPanicHandler(handlePanic)
+			if err != nil {
+				log.Infof("Failed to set panic handler: %s", err)
+			}
+		}
+	}
+
+	// // Create ConfigFileManager for synchronization of shared configuration
+	// confManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+	// 	BucketStoreConfig: env.GetKubecostConfigBucket(),
+	// 	LocalConfigPath:   "/",
+	// })
+
+	// configPrefix := env.GetConfigPathWithDefault("/var/configs/")
+
+	// cloudProviderKey := env.GetCloudProviderAPIKey()
+
+	a := &Accesses{
+		Router: httprouter.New(),
+	}
+	/*
+		a.Router.GET("/status", a.Status)
+		a.Router.GET("/logs/level", a.GetLogLevel)
+		a.Router.POST("/logs/level", a.SetLogLevel)
+
+		a.httpServices.RegisterAll(a.Router)
+	*/
 	return a
 }
 

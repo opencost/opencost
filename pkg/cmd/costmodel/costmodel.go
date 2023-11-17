@@ -34,15 +34,23 @@ func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 
 func Execute(opts *CostModelOpts) error {
 	log.Infof("Starting cost-model version %s", version.FriendlyVersion())
-	a := costmodel.Initialize()
+	log.Infof("Kubernetes enabled: %t", env.IsKubernetesEnabled())
+	a := costmodel.InitializeWithoutKubernetes()
 
-	err := StartExportWorker(context.Background(), a.Model)
-	if err != nil {
-		log.Errorf("couldn't start CSV export worker: %v", err)
+	if env.IsKubernetesEnabled() {
+		a := costmodel.Initialize()
+
+		err := StartExportWorker(context.Background(), a.Model)
+		if err != nil {
+			log.Errorf("couldn't start CSV export worker: %v", err)
+		}
 	}
 
+	log.Infof("Cloud Costs enabled: %t", env.IsCloudCostEnabled())
 	if env.IsCloudCostEnabled() {
 		repo := cloudcost.NewMemoryRepository()
+		keys, _ := repo.Keys()
+		log.Infof("repo: %v", keys)
 		a.CloudCostPipelineService = cloudcost.NewPipelineService(repo, a.CloudConfigController, cloudcost.DefaultIngestorConfiguration())
 		repoQuerier := cloudcost.NewRepositoryQuerier(repo)
 		a.CloudCostQueryService = cloudcost.NewQueryService(repoQuerier, repoQuerier)
@@ -50,9 +58,12 @@ func Execute(opts *CostModelOpts) error {
 
 	rootMux := http.NewServeMux()
 	a.Router.GET("/healthz", Healthz)
-	a.Router.GET("/allocation", a.ComputeAllocationHandler)
-	a.Router.GET("/allocation/summary", a.ComputeAllocationHandlerSummary)
-	a.Router.GET("/assets", a.ComputeAssetsHandler)
+
+	if env.IsKubernetesEnabled() {
+		a.Router.GET("/allocation", a.ComputeAllocationHandler)
+		a.Router.GET("/allocation/summary", a.ComputeAllocationHandlerSummary)
+		a.Router.GET("/assets", a.ComputeAssetsHandler)
+	}
 
 	a.Router.GET("/cloudCost", a.CloudCostQueryService.GetCloudCostHandler())
 	a.Router.GET("/cloudCost/view/graph", a.CloudCostQueryService.GetCloudCostViewGraphHandler())
