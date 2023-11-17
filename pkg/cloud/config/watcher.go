@@ -242,12 +242,13 @@ type MultiCloudWatcher struct {
 }
 
 func (mcw *MultiCloudWatcher) GetConfigs() []cloud.KeyedConfig {
-	log.Info("+++MultiCloudWatcher GetConfigs")
+	var multiConfigPath string
 
-	multiConfigPath := path.Join(env.GetConfigPathWithDefault("/var/configs"), cloudIntegrationSecretPath)
-
-	log.Infof("+++ConfigFileWatcher GetConfigs: multiConfigPath: %s", multiConfigPath)
-
+	if !env.IsKubernetesEnabled() {
+		multiConfigPath = env.GetCloudCostConfigPath()
+	} else {
+		multiConfigPath = path.Join(env.GetConfigPathWithDefault("/var/configs"), cloudIntegrationSecretPath)
+	}
 	exists, err := fileutil.FileExists(multiConfigPath)
 	if err != nil {
 		log.Errorf("MultiCloudWatcher:  error checking file at '%s': %s", multiConfigPath, err.Error())
@@ -267,6 +268,8 @@ func (mcw *MultiCloudWatcher) GetConfigs() []cloud.KeyedConfig {
 			return nil
 		}
 	}
+
+	log.Debugf("MultiCloudWatcher GetConfigs: multiConfigPath: %s", multiConfigPath)
 
 	configurations := &Configurations{}
 	err = loadFile(multiConfigPath, configurations)
