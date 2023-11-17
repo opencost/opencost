@@ -4,36 +4,31 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
-const s3SelectDateLayout = "2006-01-02T15:04:05Z"
+const S3SelectDateLayout = "2006-01-02T15:04:05Z"
 
 // S3Object is aliased as "s" in queries
-const s3SelectAccountID = `s."bill/PayerAccountId"`
+const S3SelectAccountID = `s."bill/PayerAccountId"`
 
-const s3SelectItemType = `s."lineItem/LineItemType"`
-const s3SelectStartDate = `s."lineItem/UsageStartDate"`
-const s3SelectProductCode = `s."lineItem/ProductCode"`
-const s3SelectResourceID = `s."lineItem/ResourceId"`
+const S3SelectItemType = `s."lineItem/LineItemType"`
+const S3SelectStartDate = `s."lineItem/UsageStartDate"`
+const S3SelectProductCode = `s."lineItem/ProductCode"`
+const S3SelectResourceID = `s."lineItem/ResourceId"`
+const S3SelectUsageType = `s."lineItem/UsageType"`
 
-const s3SelectIsNode = `SUBSTRING(s."lineItem/ResourceId",1,2) = 'i-'`
-const s3SelectIsVol = `SUBSTRING(s."lineItem/ResourceId", 1, 4) = 'vol-'`
-const s3SelectIsNetwork = `s."lineItem/UsageType" LIKE '%Bytes'`
-
-const s3SelectListCost = `s."lineItem/UnblendedCost"`
-const s3SelectNetCost = `s."lineItem/NetUnblendedCost"`
+const S3SelectListCost = `s."lineItem/UnblendedCost"`
+const S3SelectNetCost = `s."lineItem/NetUnblendedCost"`
 
 // These two may be used for Amortized<Net>Cost
-const s3SelectRICost = `s."reservation/EffectiveCost"`
-const s3SelectSPCost = `s."savingsPlan/SavingsPlanEffectiveCost"`
+const S3SelectRICost = `s."reservation/EffectiveCost"`
+const S3SelectSPCost = `s."savingsPlan/SavingsPlanEffectiveCost"`
 
 type S3SelectIntegration struct {
 	S3SelectQuerier
@@ -62,7 +57,7 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 	ccsr, err := kubecost.NewCloudCostSetRange(
 		start,
 		end,
-		timeutil.Day,
+		kubecost.AccumulateOptionDay,
 		s3si.Key(),
 	)
 	if err != nil {
@@ -93,27 +88,25 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 	formattedStart := start.Format("2006-01-02")
 	formattedEnd := end.Format("2006-01-02")
 	selectColumns := []string{
-		s3SelectStartDate,
-		s3SelectAccountID,
-		s3SelectResourceID,
-		s3SelectItemType,
-		s3SelectProductCode,
-		s3SelectIsNode,
-		s3SelectIsVol,
-		s3SelectIsNetwork,
-		s3SelectListCost,
+		S3SelectStartDate,
+		S3SelectAccountID,
+		S3SelectResourceID,
+		S3SelectItemType,
+		S3SelectProductCode,
+		S3SelectUsageType,
+		S3SelectListCost,
 	}
 	// OC equivalent to KCM env flags relevant at all?
 	// Check for Reservation columns in CUR and query if available
-	checkReservations := allColumns[s3SelectRICost]
+	checkReservations := allColumns[S3SelectRICost]
 	if checkReservations {
-		selectColumns = append(selectColumns, s3SelectRICost)
+		selectColumns = append(selectColumns, S3SelectRICost)
 	}
 
 	// Check for Savings Plan Columns in CUR and query if available
-	checkSavingsPlan := allColumns[s3SelectSPCost]
+	checkSavingsPlan := allColumns[S3SelectSPCost]
 	if checkSavingsPlan {
-		selectColumns = append(selectColumns, s3SelectSPCost)
+		selectColumns = append(selectColumns, S3SelectSPCost)
 	}
 
 	// Build map of query columns to use for parsing query
@@ -149,39 +142,38 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 				return nil
 			}
 
-			startStr := GetCSVRowValue(row, columnIndexes, s3SelectStartDate)
-			itemAccountID := GetCSVRowValue(row, columnIndexes, s3SelectAccountID)
-			itemProviderID := GetCSVRowValue(row, columnIndexes, s3SelectResourceID)
-			lineItemType := GetCSVRowValue(row, columnIndexes, s3SelectItemType)
-			itemProductCode := GetCSVRowValue(row, columnIndexes, s3SelectProductCode)
-			isNode, _ := strconv.ParseBool(GetCSVRowValue(row, columnIndexes, s3SelectIsNode))
-			isVol, _ := strconv.ParseBool(GetCSVRowValue(row, columnIndexes, s3SelectIsVol))
-			isNetwork, _ := strconv.ParseBool(GetCSVRowValue(row, columnIndexes, s3SelectIsNetwork))
+			startStr := GetCSVRowValue(row, columnIndexes, S3SelectStartDate)
+			itemAccountID := GetCSVRowValue(row, columnIndexes, S3SelectAccountID)
+			itemProviderID := GetCSVRowValue(row, columnIndexes, S3SelectResourceID)
+			lineItemType := GetCSVRowValue(row, columnIndexes, S3SelectItemType)
+			itemProductCode := GetCSVRowValue(row, columnIndexes, S3SelectProductCode)
+			usageType := GetCSVRowValue(row, columnIndexes, S3SelectUsageType)
+
 			var (
 				amortizedCost float64
 				listCost      float64
 				netCost       float64
 			)
 			// Get list and net costs
-			listCost, err = GetCSVRowValueFloat(row, columnIndexes, s3SelectListCost)
+			listCost, err = GetCSVRowValueFloat(row, columnIndexes, S3SelectListCost)
 			if err != nil {
 				return err
 			}
-			netCost, err = GetCSVRowValueFloat(row, columnIndexes, s3SelectNetCost)
+			netCost, err = GetCSVRowValueFloat(row, columnIndexes, S3SelectNetCost)
 			if err != nil {
 				return err
 			}
 
 			// If there is a reservation_reservation_a_r_n on the line item use the awsRIPricingSUMColumn as cost
 			if checkReservations && lineItemType == "DiscountedUsage" {
-				amortizedCost, err = GetCSVRowValueFloat(row, columnIndexes, s3SelectRICost)
+				amortizedCost, err = GetCSVRowValueFloat(row, columnIndexes, S3SelectRICost)
 				if err != nil {
 					log.Errorf(err.Error())
 					continue
 				}
 				// If there is a lineItemType of SavingsPlanCoveredUsage use the awsSPPricingSUMColumn
 			} else if checkSavingsPlan && lineItemType == "SavingsPlanCoveredUsage" {
-				amortizedCost, err = GetCSVRowValueFloat(row, columnIndexes, s3SelectSPCost)
+				amortizedCost, err = GetCSVRowValueFloat(row, columnIndexes, S3SelectSPCost)
 				if err != nil {
 					log.Errorf(err.Error())
 					continue
@@ -190,7 +182,7 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 				// Default to listCost
 				amortizedCost = listCost
 			}
-			category := SelectAWSCategory(isNode, isVol, isNetwork, itemProductCode, "")
+			category := SelectAWSCategory(itemProviderID, usageType, itemProductCode)
 			// Retrieve final stanza of product code for ProviderID
 			if itemProductCode == "AWSELB" || itemProductCode == "AmazonFSx" {
 				itemProviderID = ParseARN(itemProviderID)
@@ -203,11 +195,11 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 			properties.Service = itemProductCode
 			properties.ProviderID = itemProviderID
 
-			itemStart, err := time.Parse(s3SelectDateLayout, startStr)
+			itemStart, err := time.Parse(S3SelectDateLayout, startStr)
 			if err != nil {
 				log.Infof(
 					"Unable to parse '%s': '%s'",
-					s3SelectStartDate,
+					S3SelectStartDate,
 					err.Error(),
 				)
 				itemStart = time.Now()

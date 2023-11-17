@@ -17,8 +17,10 @@ import (
 
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/opencost/opencost/pkg/cloud/aws"
+	cloudconfig "github.com/opencost/opencost/pkg/cloud/config"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/provider"
+	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/kubeconfig"
 	"github.com/opencost/opencost/pkg/metrics"
@@ -82,23 +84,26 @@ var (
 // Accesses defines a singleton application instance, providing access to
 // Prometheus, Kubernetes, the cloud provider, and caches.
 type Accesses struct {
-	Router              *httprouter.Router
-	PrometheusClient    prometheus.Client
-	ThanosClient        prometheus.Client
-	KubeClientSet       kubernetes.Interface
-	ClusterCache        clustercache.ClusterCache
-	ClusterMap          clusters.ClusterMap
-	CloudProvider       models.Provider
-	ConfigFileManager   *config.ConfigFileManager
-	ClusterInfoProvider clusters.ClusterInfoProvider
-	Model               *CostModel
-	MetricsEmitter      *CostModelMetricsEmitter
-	OutOfClusterCache   *cache.Cache
-	AggregateCache      *cache.Cache
-	CostDataCache       *cache.Cache
-	ClusterCostsCache   *cache.Cache
-	CacheExpiration     map[time.Duration]time.Duration
-	AggAPI              Aggregator
+	Router                   *httprouter.Router
+	PrometheusClient         prometheus.Client
+	ThanosClient             prometheus.Client
+	KubeClientSet            kubernetes.Interface
+	ClusterCache             clustercache.ClusterCache
+	ClusterMap               clusters.ClusterMap
+	CloudProvider            models.Provider
+	ConfigFileManager        *config.ConfigFileManager
+	CloudConfigController    *cloudconfig.Controller
+	CloudCostPipelineService *cloudcost.PipelineService
+	CloudCostQueryService    *cloudcost.QueryService
+	ClusterInfoProvider      clusters.ClusterInfoProvider
+	Model                    *CostModel
+	MetricsEmitter           *CostModelMetricsEmitter
+	OutOfClusterCache        *cache.Cache
+	AggregateCache           *cache.Cache
+	CostDataCache            *cache.Cache
+	ClusterCostsCache        *cache.Cache
+	CacheExpiration          map[time.Duration]time.Duration
+	AggAPI                   Aggregator
 	// SettingsCache stores current state of app settings
 	SettingsCache *cache.Cache
 	// settingsSubscribers tracks channels through which changes to different
@@ -1533,8 +1538,9 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 			Password:    env.GetDBBasicAuthUserPassword(),
 			BearerToken: env.GetDBBearerToken(),
 		},
-		QueryConcurrency: queryConcurrency,
-		QueryLogFile:     "",
+		QueryConcurrency:  queryConcurrency,
+		QueryLogFile:      "",
+		HeaderXScopeOrgId: env.GetPrometheusHeaderXScopeOrgId(),
 	})
 	if err != nil {
 		log.Fatalf("Failed to create prometheus client, Error: %v", err)
@@ -1554,7 +1560,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	api := prometheusAPI.NewAPI(promCli)
 	_, err = api.Config(context.Background())
 	if err != nil {
-		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
+		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/mimir/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
 	} else {
 		log.Infof("Retrieved a prometheus config file from: %s", address)
 	}
@@ -1713,25 +1719,27 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	metricsEmitter := NewCostModelMetricsEmitter(promCli, k8sCache, cloudProvider, clusterInfoProvider, costModel)
 
 	a := &Accesses{
-		Router:              httprouter.New(),
-		PrometheusClient:    promCli,
-		ThanosClient:        thanosClient,
-		KubeClientSet:       kubeClientset,
-		ClusterCache:        k8sCache,
-		ClusterMap:          clusterMap,
-		CloudProvider:       cloudProvider,
-		ConfigFileManager:   confManager,
-		ClusterInfoProvider: clusterInfoProvider,
-		Model:               costModel,
-		MetricsEmitter:      metricsEmitter,
-		AggregateCache:      aggregateCache,
-		CostDataCache:       costDataCache,
-		ClusterCostsCache:   clusterCostsCache,
-		OutOfClusterCache:   outOfClusterCache,
-		SettingsCache:       settingsCache,
-		CacheExpiration:     cacheExpiration,
-		httpServices:        services.NewCostModelServices(),
+		Router:                httprouter.New(),
+		PrometheusClient:      promCli,
+		ThanosClient:          thanosClient,
+		KubeClientSet:         kubeClientset,
+		ClusterCache:          k8sCache,
+		ClusterMap:            clusterMap,
+		CloudProvider:         cloudProvider,
+		CloudConfigController: cloudconfig.NewController(cloudProvider),
+		ConfigFileManager:     confManager,
+		ClusterInfoProvider:   clusterInfoProvider,
+		Model:                 costModel,
+		MetricsEmitter:        metricsEmitter,
+		AggregateCache:        aggregateCache,
+		CostDataCache:         costDataCache,
+		ClusterCostsCache:     clusterCostsCache,
+		OutOfClusterCache:     outOfClusterCache,
+		SettingsCache:         settingsCache,
+		CacheExpiration:       cacheExpiration,
+		httpServices:          services.NewCostModelServices(),
 	}
+
 	// Use the Accesses instance, itself, as the CostModelAggregator. This is
 	// confusing and unconventional, but necessary so that we can swap it
 	// out for the ETL-adapted version elsewhere.
@@ -1809,6 +1817,11 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 
 	a.Router.GET("/logs/level", a.GetLogLevel)
 	a.Router.POST("/logs/level", a.SetLogLevel)
+
+	a.Router.GET("/cloud/config/export", a.CloudConfigController.GetExportConfigHandler())
+	a.Router.GET("/cloud/config/enable", a.CloudConfigController.GetEnableConfigHandler())
+	a.Router.GET("/cloud/config/disable", a.CloudConfigController.GetDisableConfigHandler())
+	a.Router.GET("/cloud/config/delete", a.CloudConfigController.GetDeleteConfigHandler())
 
 	a.httpServices.RegisterAll(a.Router)
 

@@ -25,7 +25,8 @@ const (
 // Filtering based on label aliases (team, department, etc.) should be a
 // responsibility of the query handler. By the time it reaches this
 // structured representation, we shouldn't have to be aware of what is
-// aliased to what.
+// aliased to what. The aliases correspond to either a label or annotation,
+// defined by the user.
 type AllocationAlias string
 
 const (

@@ -92,6 +92,8 @@ const (
 	PrometheusRetryOnRateLimitMaxRetriesEnvVar  = "PROMETHEUS_RETRY_ON_RATE_LIMIT_MAX_RETRIES"
 	PrometheusRetryOnRateLimitDefaultWaitEnvVar = "PROMETHEUS_RETRY_ON_RATE_LIMIT_DEFAULT_WAIT"
 
+	PrometheusHeaderXScopeOrgIdEnvVar = "PROMETHEUS_HEADER_X_SCOPE_ORGID"
+
 	IngestPodUIDEnvVar = "INGEST_POD_UID"
 
 	ETLReadOnlyMode = "ETL_READ_ONLY"
@@ -104,6 +106,15 @@ const (
 	ExportCSVFile       = "EXPORT_CSV_FILE"
 	ExportCSVLabelsList = "EXPORT_CSV_LABELS_LIST"
 	ExportCSVLabelsAll  = "EXPORT_CSV_LABELS_ALL"
+	ExportCSVMaxDays    = "EXPORT_CSV_MAX_DAYS"
+
+	DataRetentionDailyResolutionDaysEnvVar = "DATA_RETENTION_DAILY_RESOLUTION_DAYS"
+
+	CloudCostEnabledEnvVar          = "CLOUD_COST_ENABLED"
+	CloudCostMonthToDateIntervalVar = "CLOUD_COST_MONTH_TO_DATE_INTERVAL"
+	CloudCostRefreshRateHoursEnvVar = "CLOUD_COST_REFRESH_RATE_HOURS"
+	CloudCostQueryWindowDaysEnvVar  = "CLOUD_COST_QUERY_WINDOW_DAYS"
+	CloudCostRunWindowDaysEnvVar    = "CLOUD_COST_RUN_WINDOW_DAYS"
 )
 
 const DefaultConfigMountPath = "/var/configs"
@@ -124,6 +135,10 @@ func GetExportCSVLabelsAll() bool {
 
 func GetExportCSVLabelsList() []string {
 	return GetList(ExportCSVLabelsList, ",")
+}
+
+func GetExportCSVMaxDays() int {
+	return GetInt(ExportCSVMaxDays, 90)
 }
 
 // GetKubecostConfigBucket returns a file location for a mounted bucket configuration which is used to store
@@ -160,6 +175,15 @@ func GetPrometheusRetryOnRateLimitMaxRetries() int {
 // Retry-After header.
 func GetPrometheusRetryOnRateLimitDefaultWait() time.Duration {
 	return GetDuration(PrometheusRetryOnRateLimitDefaultWaitEnvVar, 100*time.Millisecond)
+}
+
+// GetPrometheusHeaderXScopeOrgId returns the default value for X-Scope-OrgID header used for requests in Mimir/Cortex-Tenant API.
+// To use Mimir(or Cortex-Tenant) instead of Prometheus add variable from cluster settings:
+// "PROMETHEUS_HEADER_X_SCOPE_ORGID": "my-cluster-name"
+// Then set Prometheus URL to prometheus API endpoint:
+// "PROMETHEUS_SERVER_ENDPOINT": "http://mimir-url/prometheus/"
+func GetPrometheusHeaderXScopeOrgId() string {
+	return Get(PrometheusHeaderXScopeOrgIdEnvVar, "")
 }
 
 // GetPrometheusQueryOffset returns the time.Duration to offset all prometheus queries by. NOTE: This env var is applied
@@ -591,4 +615,28 @@ func GetRegionOverrideList() []string {
 	}
 
 	return regionList
+}
+
+func GetDataRetentionDailyResolutionDays() int64 {
+	return GetInt64(DataRetentionDailyResolutionDaysEnvVar, 15)
+}
+
+func IsCloudCostEnabled() bool {
+	return GetBool(CloudCostEnabledEnvVar, false)
+}
+
+func GetCloudCostMonthToDateInterval() int {
+	return GetInt(CloudCostMonthToDateIntervalVar, 6)
+}
+
+func GetCloudCostRefreshRateHours() int64 {
+	return GetInt64(CloudCostRefreshRateHoursEnvVar, 6)
+}
+
+func GetCloudCostQueryWindowDays() int64 {
+	return GetInt64(CloudCostQueryWindowDaysEnvVar, 7)
+}
+
+func GetCloudCostRunWindowDays() int64 {
+	return GetInt64(CloudCostRunWindowDaysEnvVar, 3)
 }

@@ -7,6 +7,10 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/opencost/opencost/pkg/cloud/alibaba"
+	"github.com/opencost/opencost/pkg/cloud/aws"
+	"github.com/opencost/opencost/pkg/cloud/azure"
+	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/config"
@@ -181,7 +185,7 @@ func (pc *ProviderConfig) Update(updateFunc func(*models.CustomPricing) error) (
 	// explicitly
 	err := updateFunc(c)
 	if err != nil {
-		return c, err
+		return c, fmt.Errorf("error updating provider config: %w", err)
 	}
 
 	// Cache Update (possible the ptr already references the cached value)
@@ -189,12 +193,12 @@ func (pc *ProviderConfig) Update(updateFunc func(*models.CustomPricing) error) (
 
 	cj, err := json.Marshal(c)
 	if err != nil {
-		return c, err
+		return c, fmt.Errorf("error marshaling JSON for provider config: %w", err)
 	}
-	err = pc.configFile.Write(cj)
 
+	err = pc.configFile.Write(cj)
 	if err != nil {
-		return c, err
+		return c, fmt.Errorf("error writing config file for provider config: %w", err)
 	}
 
 	return c, nil
@@ -210,14 +214,14 @@ func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*models.CustomPric
 			if kUpper == "CPU" || kUpper == "SpotCPU" || kUpper == "RAM" || kUpper == "SpotRAM" || kUpper == "GPU" || kUpper == "Storage" {
 				val, err := strconv.ParseFloat(v, 64)
 				if err != nil {
-					return fmt.Errorf("Unable to parse CPU from string to float: %s", err.Error())
+					return fmt.Errorf("unable to parse CPU from string to float: %s", err.Error())
 				}
 				v = fmt.Sprintf("%f", val/730)
 			}
 
 			err := models.SetCustomPricingField(c, kUpper, v)
 			if err != nil {
-				return err
+				return fmt.Errorf("error setting custom pricing field: %w", err)
 			}
 		}
 
@@ -293,4 +297,28 @@ func ReturnPricingFromConfigs(filename string) (*models.CustomPricing, error) {
 		return &models.CustomPricing{}, fmt.Errorf("ReturnPricingFromConfigs: unable to open file %s with err: %v", providerConfigFile, err)
 	}
 	return defaultPricing, nil
+}
+
+func ExtractConfigFromProviders(prov models.Provider) models.ProviderConfig {
+	if prov == nil {
+		log.Errorf("cannot extract config from nil provider")
+		return nil
+	}
+	switch p := prov.(type) {
+	case *CSVProvider:
+		return ExtractConfigFromProviders(p.CustomProvider)
+	case *CustomProvider:
+		return p.Config
+	case *gcp.GCP:
+		return p.Config
+	case *aws.AWS:
+		return p.Config
+	case *azure.Azure:
+		return p.Config
+	case *alibaba.Alibaba:
+		return p.Config
+	default:
+		log.Errorf("failed to extract config from provider")
+		return nil
+	}
 }

@@ -2,7 +2,8 @@ package gcp
 
 import (
 	"bytes"
-	"io/ioutil"
+	"encoding/json"
+	"os"
 	"reflect"
 	"testing"
 
@@ -118,169 +119,80 @@ func TestGetUsageType(t *testing.T) {
 	}
 }
 
+func TestKeyFeatures(t *testing.T) {
+	type testCase struct {
+		key *gcpKey
+		exp string
+	}
+
+	testCases := []testCase{
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "n2-standard-4",
+					"topology.kubernetes.io/region":    "us-east1",
+				},
+			},
+			exp: "us-east1,n2standard,ondemand",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "e2-standard-8",
+					"topology.kubernetes.io/region":    "us-west1",
+					"cloud.google.com/gke-preemptible": "true",
+				},
+			},
+			exp: "us-west1,e2standard,preemptible",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "a2-highgpu-1g",
+					"cloud.google.com/gke-gpu":         "true",
+					"cloud.google.com/gke-accelerator": "nvidia-tesla-a100",
+					"topology.kubernetes.io/region":    "us-central1",
+				},
+			},
+			exp: "us-central1,a2highgpu,ondemand,gpu",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "t2d-standard-1",
+					"topology.kubernetes.io/region":    "asia-southeast1",
+				},
+			},
+			exp: "asia-southeast1,t2dstandard,ondemand",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.exp, func(t *testing.T) {
+			act := tc.key.Features()
+			if act != tc.exp {
+				t.Errorf("expected '%s'; got '%s'", tc.exp, act)
+			}
+		})
+	}
+}
+
 // tests basic parsing of GCP pricing API responses
 // Load a reader object on a portion of a GCP api response
 // Confirm that the resting *GCP object contains the correctly parsed pricing info
 func TestParsePage(t *testing.T) {
-
-	gcpSkuString := `
-	{
-		"skus": [
-			{
-				"name": "services/6F81-5844-456A/skus/039F-D0DA-4055",
-				"skuId": "039F-D0DA-4055",
-				"description": "Nvidia Tesla A100 GPU running in Americas",
-				"category": {
-				  "serviceDisplayName": "Compute Engine",
-				  "resourceFamily": "Compute",
-				  "resourceGroup": "GPU",
-				  "usageType": "OnDemand"
-				},
-				"serviceRegions": [
-				  "us-central1",
-				  "us-east1",
-				  "us-west1"
-				],
-				"pricingInfo": [
-				  {
-					"summary": "",
-					"pricingExpression": {
-					  "usageUnit": "h",
-					  "displayQuantity": 1,
-					  "tieredRates": [
-						{
-						  "startUsageAmount": 0,
-						  "unitPrice": {
-							"currencyCode": "USD",
-							"units": "2",
-							"nanos": 933908000
-						  }
-						}
-					  ],
-					  "usageUnitDescription": "hour",
-					  "baseUnit": "s",
-					  "baseUnitDescription": "second",
-					  "baseUnitConversionFactor": 3600
-					},
-					"currencyConversionRate": 1,
-					"effectiveTime": "2023-03-24T10:52:50.681Z"
-				  }
-				],
-				"serviceProviderName": "Google",
-				"geoTaxonomy": {
-				  "type": "MULTI_REGIONAL",
-				  "regions": [
-					"us-central1",
-					"us-east1",
-					"us-west1"
-				  ]
-				}
-			},
-			{
-				"name": "services/6F81-5844-456A/skus/2390-DCAF-DA38",
-				"skuId": "2390-DCAF-DA38",
-				"description": "A2 Instance Ram running in Americas",
-				"category": {
-				  "serviceDisplayName": "Compute Engine",
-				  "resourceFamily": "Compute",
-				  "resourceGroup": "RAM",
-				  "usageType": "OnDemand"
-				},
-				"serviceRegions": [
-				  "us-central1",
-				  "us-east1",
-				  "us-west1"
-				],
-				"pricingInfo": [
-				  {
-					"summary": "",
-					"pricingExpression": {
-					  "usageUnit": "GiBy.h",
-					  "displayQuantity": 1,
-					  "tieredRates": [
-						{
-						  "startUsageAmount": 0,
-						  "unitPrice": {
-							"currencyCode": "USD",
-							"units": "0",
-							"nanos": 4237000
-						  }
-						}
-					  ],
-					  "usageUnitDescription": "gibibyte hour",
-					  "baseUnit": "By.s",
-					  "baseUnitDescription": "byte second",
-					  "baseUnitConversionFactor": 3865470566400
-					},
-					"currencyConversionRate": 1,
-					"effectiveTime": "2023-03-24T10:52:50.681Z"
-				  }
-				],
-				"serviceProviderName": "Google",
-				"geoTaxonomy": {
-				  "type": "MULTI_REGIONAL",
-				  "regions": [
-					"us-central1",
-					"us-east1",
-					"us-west1"
-				  ]
-				}
-			},
-			{
-				"name": "services/6F81-5844-456A/skus/2922-40C5-B19F",
-				"skuId": "2922-40C5-B19F",
-				"description": "A2 Instance Core running in Americas",
-				"category": {
-				  "serviceDisplayName": "Compute Engine",
-				  "resourceFamily": "Compute",
-				  "resourceGroup": "CPU",
-				  "usageType": "OnDemand"
-				},
-				"serviceRegions": [
-				  "us-central1",
-				  "us-east1",
-				  "us-west1"
-				],
-				"pricingInfo": [
-				  {
-					"summary": "",
-					"pricingExpression": {
-					  "usageUnit": "h",
-					  "displayQuantity": 1,
-					  "tieredRates": [
-						{
-						  "startUsageAmount": 0,
-						  "unitPrice": {
-							"currencyCode": "USD",
-							"units": "0",
-							"nanos": 31611000
-						  }
-						}
-					  ],
-					  "usageUnitDescription": "hour",
-					  "baseUnit": "s",
-					  "baseUnitDescription": "second",
-					  "baseUnitConversionFactor": 3600
-					},
-					"currencyConversionRate": 1,
-					"effectiveTime": "2023-03-24T10:52:50.681Z"
-				  }
-				],
-				"serviceProviderName": "Google",
-				"geoTaxonomy": {
-				  "type": "MULTI_REGIONAL",
-				  "regions": [
-					"us-central1",
-					"us-east1",
-					"us-west1"
-				  ]
-				}
-			}
-		],
-			"nextPageToken": "APKCS1HVa0YpwgyTFbqbJ1eGwzKZmsPwLqzMZPTSNia5ck1Hc54Tx_Kz3oBxwSnRIdGVxXoSPdf-XlDpyNBf4QuxKcIEgtrQ1LDLWAgZowI0ns7HjrGta2s="
-		}
-	`
-	reader := ioutil.NopCloser(bytes.NewBufferString(gcpSkuString))
+	// NOTE: SKUs here are copied directly from GCP Billing API. Some of them
+	// are in currency IDR, which relates directly to ticket GTM-52, for which
+	// some of this work was done. So if the prices look huge... don't panic.
+	// The only thing we're testing here is that, given these instance types
+	// and regions and prices, those same prices get set appropriately into
+	// the returned pricing map.
+	skuFilePath := "./test/skus.json"
+	fileBytes, err := os.ReadFile(skuFilePath)
+	if err != nil {
+		t.Fatalf("failed to open file '%s': %s", skuFilePath, err)
+	}
+	reader := bytes.NewReader(fileBytes)
 
 	testGcp := &GCP{}
 
@@ -291,6 +203,24 @@ func TestParsePage(t *testing.T) {
 				"cloud.google.com/gke-gpu":         "true",
 				"cloud.google.com/gke-accelerator": "nvidia-tesla-a100",
 				"topology.kubernetes.io/region":    "us-central1",
+			},
+		},
+		"us-central1,e2medium,ondemand": &gcpKey{
+			Labels: map[string]string{
+				"node.kubernetes.io/instance-type": "e2-medium",
+				"topology.kubernetes.io/region":    "us-central1",
+			},
+		},
+		"us-central1,e2standard,ondemand": &gcpKey{
+			Labels: map[string]string{
+				"node.kubernetes.io/instance-type": "e2-standard",
+				"topology.kubernetes.io/region":    "us-central1",
+			},
+		},
+		"asia-southeast1,t2dstandard,ondemand": &gcpKey{
+			Labels: map[string]string{
+				"node.kubernetes.io/instance-type": "t2d-standard-1",
+				"topology.kubernetes.io/region":    "asia-southeast1",
 			},
 		},
 	}
@@ -361,9 +291,61 @@ func TestParsePage(t *testing.T) {
 				UsageType:        "ondemand",
 			},
 		},
+		"us-central1,e2medium,ondemand": {
+			Node: &models.Node{
+				VCPU:             "1.000000",
+				VCPUCost:         "327.173848364",
+				RAMCost:          "43.85294978",
+				UsesBaseCPUPrice: false,
+				UsageType:        "ondemand",
+			},
+		},
+		"us-central1,e2medium,ondemand,gpu": {
+			Node: &models.Node{
+				VCPU:             "1.000000",
+				VCPUCost:         "327.173848364",
+				RAMCost:          "43.85294978",
+				UsesBaseCPUPrice: false,
+				UsageType:        "ondemand",
+			},
+		},
+		"us-central1,e2standard,ondemand": {
+			Node: &models.Node{
+				VCPUCost:         "327.173848364",
+				RAMCost:          "43.85294978",
+				UsesBaseCPUPrice: false,
+				UsageType:        "ondemand",
+			},
+		},
+		"us-central1,e2standard,ondemand,gpu": {
+			Node: &models.Node{
+				VCPUCost:         "327.173848364",
+				RAMCost:          "43.85294978",
+				UsesBaseCPUPrice: false,
+				UsageType:        "ondemand",
+			},
+		},
+		"asia-southeast1,t2dstandard,ondemand": {
+			Node: &models.Node{
+				VCPUCost:         "508.934997455",
+				RAMCost:          "68.204999658",
+				UsesBaseCPUPrice: false,
+				UsageType:        "ondemand",
+			},
+		},
+		"asia-southeast1,t2dstandard,ondemand,gpu": {
+			Node: &models.Node{
+				VCPUCost:         "508.934997455",
+				RAMCost:          "68.204999658",
+				UsesBaseCPUPrice: false,
+				UsageType:        "ondemand",
+			},
+		},
 	}
 
 	if !reflect.DeepEqual(actualPrices, expectedActualPrices) {
-		t.Fatalf("error parsing GCP prices. parsed %v but expected %v", actualPrices, expectedActualPrices)
+		act, _ := json.Marshal(actualPrices)
+		exp, _ := json.Marshal(expectedActualPrices)
+		t.Errorf("error parsing GCP prices: parsed \n%s\n expected \n%s\n", string(act), string(exp))
 	}
 }

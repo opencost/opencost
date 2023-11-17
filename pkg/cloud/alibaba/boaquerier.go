@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	cloudconfig "github.com/opencost/opencost/pkg/cloud/config"
-
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/bssopenapi"
+	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
 )
@@ -20,9 +19,18 @@ const (
 
 type BoaQuerier struct {
 	BOAConfiguration
+	ConnectionStatus cloud.ConnectionStatus
 }
 
-func (bq *BoaQuerier) Equals(config cloudconfig.Config) bool {
+func (bq *BoaQuerier) GetStatus() cloud.ConnectionStatus {
+	// initialize status if it has not done so; this can happen if the integration is inactive
+	if bq.ConnectionStatus.String() == "" {
+		bq.ConnectionStatus = cloud.InitialStatus
+	}
+	return bq.ConnectionStatus
+}
+
+func (bq *BoaQuerier) Equals(config cloud.Config) bool {
 	thatConfig, ok := config.(*BoaQuerier)
 	if !ok {
 		return false

@@ -2112,17 +2112,30 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 // ParseAggregationProperties attempts to parse and return aggregation properties
 // encoded under the given key. If none exist, or if parsing fails, an error
 // is returned with empty AllocationProperties.
-func ParseAggregationProperties(qp httputil.QueryParams, key string) ([]string, error) {
+func ParseAggregationProperties(aggregations []string) ([]string, error) {
 	aggregateBy := []string{}
-	for _, agg := range qp.GetList(key, ",") {
-		aggregate := strings.TrimSpace(agg)
-		if aggregate != "" {
-			if prop, err := kubecost.ParseProperty(aggregate); err == nil {
-				aggregateBy = append(aggregateBy, string(prop))
-			} else if strings.HasPrefix(aggregate, "label:") {
-				aggregateBy = append(aggregateBy, aggregate)
-			} else if strings.HasPrefix(aggregate, "annotation:") {
-				aggregateBy = append(aggregateBy, aggregate)
+	// In case of no aggregation option, aggregate to the container, with a key Cluster/Node/Namespace/Pod/Container
+	if len(aggregations) == 0 {
+		aggregateBy = []string{
+			kubecost.AllocationClusterProp,
+			kubecost.AllocationNodeProp,
+			kubecost.AllocationNamespaceProp,
+			kubecost.AllocationPodProp,
+			kubecost.AllocationContainerProp,
+		}
+	} else if len(aggregations) == 1 && aggregations[0] == "all" {
+		aggregateBy = []string{}
+	} else {
+		for _, agg := range aggregations {
+			aggregate := strings.TrimSpace(agg)
+			if aggregate != "" {
+				if prop, err := kubecost.ParseProperty(aggregate); err == nil {
+					aggregateBy = append(aggregateBy, string(prop))
+				} else if strings.HasPrefix(aggregate, "label:") {
+					aggregateBy = append(aggregateBy, aggregate)
+				} else if strings.HasPrefix(aggregate, "annotation:") {
+					aggregateBy = append(aggregateBy, aggregate)
+				}
 			}
 		}
 	}
@@ -2154,7 +2167,8 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 	// aggregate results. Some fields allow a sub-field, which is distinguished
 	// with a colon; e.g. "label:app".
 	// Examples: "namespace", "namespace,label:app"
-	aggregateBy, err := ParseAggregationProperties(qp, "aggregate")
+	aggregations := qp.GetList("aggregate", ",")
+	aggregateBy, err := ParseAggregationProperties(aggregations)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Invalid 'aggregate' parameter: %s", err), http.StatusBadRequest)
 	}
@@ -2201,7 +2215,7 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 
 	sasl := []*kubecost.SummaryAllocationSet{}
 	for _, as := range asr.Slice() {
-		sas := kubecost.NewSummaryAllocationSet(as, nil, []kubecost.AllocationMatchFunc{}, false, false)
+		sas := kubecost.NewSummaryAllocationSet(as, nil, nil, false, false)
 		sasl = append(sasl, sas)
 	}
 	sasr := kubecost.NewSummaryAllocationSetRange(sasl...)
@@ -2235,7 +2249,8 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// aggregate results. Some fields allow a sub-field, which is distinguished
 	// with a colon; e.g. "label:app".
 	// Examples: "namespace", "namespace,label:app"
-	aggregateBy, err := ParseAggregationProperties(qp, "aggregate")
+	aggregations := qp.GetList("aggregate", ",")
+	aggregateBy, err := ParseAggregationProperties(aggregations)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Invalid 'aggregate' parameter: %s", err), http.StatusBadRequest)
 	}
@@ -2260,6 +2275,7 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// Otherwise it is computed at the cluster level. (Not relevant if idle
 	// is not included.)
 	idleByNode := qp.GetBool("idleByNode", false)
+	sharedLoadBalancer := qp.GetBool("sharelb", false)
 
 	// IncludeProportionalAssetResourceCosts, if true,
 	includeProportionalAssetResourceCosts := qp.GetBool("includeProportionalAssetResourceCosts", false)
@@ -2267,7 +2283,7 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// include aggregated labels/annotations if true
 	includeAggregatedMetadata := qp.GetBool("includeAggregatedMetadata", false)
 
-	asr, err := a.Model.QueryAllocation(window, resolution, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, accumulateBy)
+	asr, err := a.Model.QueryAllocation(window, resolution, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer, accumulateBy)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "bad request") {
 			WriteError(w, BadRequest(err.Error()))

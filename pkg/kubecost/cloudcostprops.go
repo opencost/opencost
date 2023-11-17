@@ -1,7 +1,6 @@
 package kubecost
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/opencost/opencost/pkg/log"
@@ -156,10 +155,22 @@ func (ccp *CloudCostProperties) Intersection(that *CloudCostProperties) *CloudCo
 	return intersectionCCP
 }
 
+var cloudCostDefaultKeyProperties = []string{
+	CloudCostProviderProp,
+	CloudCostInvoiceEntityIDProp,
+	CloudCostAccountIDProp,
+	CloudCostCategoryProp,
+	CloudCostServiceProp,
+	CloudCostProviderIDProp,
+}
+
+// GenerateKey takes a list of properties and creates a "/" seperated key based on the values of the requested properties.
+// Invalid values are ignored with a warning. A nil input returns the default key, while an empty slice  returns the empty string
 func (ccp *CloudCostProperties) GenerateKey(props []string) string {
 
-	if len(props) == 0 {
-		return fmt.Sprintf("%s/%s/%s/%s/%s/%s", ccp.Provider, ccp.InvoiceEntityID, ccp.AccountID, ccp.Category, ccp.Service, ccp.ProviderID)
+	// nil props replaced with default property list
+	if props == nil {
+		props = cloudCostDefaultKeyProperties
 	}
 
 	values := make([]string, len(props))

@@ -194,7 +194,7 @@ func TestNodePriceFromCSVWithGPU(t *testing.T) {
 
 	c.DownloadPricingData()
 	k := c.GetKey(n.Labels, n)
-	resN, err := c.NodePricing(k)
+	resN, _, err := c.NodePricing(k)
 	if err != nil {
 		t.Errorf("Error in NodePricing: %s", err.Error())
 	} else {
@@ -210,7 +210,7 @@ func TestNodePriceFromCSVWithGPU(t *testing.T) {
 	}
 
 	k2 := c.GetKey(n2.Labels, n2)
-	resN2, err := c.NodePricing(k2)
+	resN2, _, err := c.NodePricing(k2)
 	if err != nil {
 		t.Errorf("Error in NodePricing: %s", err.Error())
 	} else {
@@ -249,7 +249,7 @@ func TestNodePriceFromCSVSpecialChar(t *testing.T) {
 	}
 	c.DownloadPricingData()
 	k := c.GetKey(n.Labels, n)
-	resN, err := c.NodePricing(k)
+	resN, _, err := c.NodePricing(k)
 	if err != nil {
 		t.Errorf("Error in NodePricing: %s", err.Error())
 	} else {
@@ -285,7 +285,7 @@ func TestNodePriceFromCSV(t *testing.T) {
 	}
 	c.DownloadPricingData()
 	k := c.GetKey(n.Labels, n)
-	resN, err := c.NodePricing(k)
+	resN, _, err := c.NodePricing(k)
 	if err != nil {
 		t.Errorf("Error in NodePricing: %s", err.Error())
 	} else {
@@ -302,7 +302,7 @@ func TestNodePriceFromCSV(t *testing.T) {
 	unknownN.Labels["foo"] = labelFooWant
 	unknownN.Labels["topology.kubernetes.io/region"] = "fakeregion"
 	k2 := c.GetKey(unknownN.Labels, unknownN)
-	resN2, _ := c.NodePricing(k2)
+	resN2, _, _ := c.NodePricing(k2)
 	if resN2 != nil {
 		t.Errorf("CSV provider should return nil on missing node")
 	}
@@ -314,7 +314,7 @@ func TestNodePriceFromCSV(t *testing.T) {
 		},
 	}
 	k3 := c.GetKey(n.Labels, n)
-	resN3, _ := c2.NodePricing(k3)
+	resN3, _, _ := c2.NodePricing(k3)
 	if resN3 != nil {
 		t.Errorf("CSV provider should return nil on missing csv")
 	}
@@ -361,7 +361,7 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	}
 	c.DownloadPricingData()
 	k := c.GetKey(n.Labels, n)
-	resN, err := c.NodePricing(k)
+	resN, _, err := c.NodePricing(k)
 	if err != nil {
 		t.Errorf("Error in NodePricing: %s", err.Error())
 	} else {
@@ -371,7 +371,7 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 		}
 	}
 	k2 := c.GetKey(n2.Labels, n2)
-	resN2, err := c.NodePricing(k2)
+	resN2, _, err := c.NodePricing(k2)
 	if err != nil {
 		t.Errorf("Error in NodePricing: %s", err.Error())
 	} else {
@@ -381,7 +381,7 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 		}
 	}
 	k3 := c.GetKey(n3.Labels, n3)
-	resN3, err := c.NodePricing(k3)
+	resN3, _, err := c.NodePricing(k3)
 	if err != nil {
 		t.Errorf("Error in NodePricing: %s", err.Error())
 	} else {
@@ -398,7 +398,7 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	unknownN.Labels["topology.kubernetes.io/region"] = "fakeregion"
 	unknownN.Labels["foo"] = labelFooWant
 	k4 := c.GetKey(unknownN.Labels, unknownN)
-	resN4, _ := c.NodePricing(k4)
+	resN4, _, _ := c.NodePricing(k4)
 	if resN4 != nil {
 		t.Errorf("CSV provider should return nil on missing node, instead returned %+v", resN4)
 	}
@@ -410,7 +410,7 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 		},
 	}
 	k5 := c.GetKey(n.Labels, n)
-	resN5, _ := c2.NodePricing(k5)
+	resN5, _, _ := c2.NodePricing(k5)
 	if resN5 != nil {
 		t.Errorf("CSV provider should return nil on missing csv")
 	}
@@ -501,7 +501,7 @@ func TestSourceMatchesFromCSV(t *testing.T) {
 	n2.Labels["foo"] = "labelFooWant"
 
 	k := c.GetKey(n2.Labels, n2)
-	resN, err := c.NodePricing(k)
+	resN, _, err := c.NodePricing(k)
 	if err != nil {
 		t.Errorf("Error in NodePricing: %s", err.Error())
 	} else {
@@ -567,7 +567,7 @@ func TestNodePriceFromCSVWithCase(t *testing.T) {
 
 	c.DownloadPricingData()
 	k := c.GetKey(n.Labels, n)
-	resN, err := c.NodePricing(k)
+	resN, _, err := c.NodePricing(k)
 	if err != nil {
 		t.Errorf("Error in NodePricing: %s", err.Error())
 	} else {
@@ -602,7 +602,7 @@ func TestNodePriceFromCSVByClass(t *testing.T) {
 	c.DownloadPricingData()
 
 	k := c.GetKey(n.Labels, n)
-	resN, err := c.NodePricing(k)
+	resN, _, err := c.NodePricing(k)
 	if err != nil {
 		t.Errorf("Error in NodePricing: %s", err.Error())
 	} else {
@@ -620,7 +620,7 @@ func TestNodePriceFromCSVByClass(t *testing.T) {
 	k2 := c.GetKey(n2.Labels, n)
 
 	c.DownloadPricingData()
-	resN2, err := c.NodePricing(k2)
+	resN2, _, err := c.NodePricing(k2)
 
 	if resN2 != nil {
 		t.Errorf("CSV provider should return nil on missing node, instead returned %+v", resN2)

@@ -2,6 +2,7 @@ package prom
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -91,5 +92,69 @@ func TestKubeLabelsToPromLabels(t *testing.T) {
 	err = checkSlice(v2, values)
 	if err != nil {
 		t.Errorf("%s", err)
+	}
+}
+
+func TestSanitizeLabels(t *testing.T) {
+	type testCase struct {
+		in  map[string]string
+		exp map[string]string
+	}
+
+	tcs := map[string]testCase{
+		"empty labels": {
+			in:  map[string]string{},
+			exp: map[string]string{},
+		},
+		"no op": {
+			in: map[string]string{
+				"foo": "bar",
+				"baz": "loo",
+			},
+			exp: map[string]string{
+				"foo": "bar",
+				"baz": "loo",
+			},
+		},
+		"modification, no collisions": {
+			in: map[string]string{
+				"foo-foo":   "bar",
+				"baz---baz": "loo",
+			},
+			exp: map[string]string{
+				"foo_foo":   "bar",
+				"baz___baz": "loo",
+			},
+		},
+		"modification, one collision": {
+			in: map[string]string{
+				"foo-foo":   "bar",
+				"foo+foo":   "bar",
+				"baz---baz": "loo",
+			},
+			exp: map[string]string{
+				"foo_foo":   "bar",
+				"baz___baz": "loo",
+			},
+		},
+		"modification, all collisions": {
+			in: map[string]string{
+				"foo-foo": "bar",
+				"foo+foo": "bar",
+				"foo_foo": "bar",
+			},
+			exp: map[string]string{
+				"foo_foo": "bar",
+			},
+		},
+	}
+
+	for name, tc := range tcs {
+		t.Run(name, func(t *testing.T) {
+			act := SanitizeLabels(tc.in)
+			if !reflect.DeepEqual(tc.exp, act) {
+				t.Errorf("sanitizing labels failed for case %s: %+v != %+v", name, tc.exp, act)
+			}
+		})
 	}
 }

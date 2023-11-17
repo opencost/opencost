@@ -119,7 +119,7 @@ func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*models.
 			if ok {
 				err := models.SetCustomPricingField(c, kUpper, vstr)
 				if err != nil {
-					return err
+					return fmt.Errorf("error setting custom pricing field: %w", err)
 				}
 			} else {
 				return fmt.Errorf("type error while updating config for %s", kUpper)
@@ -172,9 +172,11 @@ func (cp *CustomProvider) AllNodePricing() (interface{}, error) {
 	return cp.Pricing, nil
 }
 
-func (cp *CustomProvider) NodePricing(key models.Key) (*models.Node, error) {
+func (cp *CustomProvider) NodePricing(key models.Key) (*models.Node, models.PricingMetadata, error) {
 	cp.DownloadPricingDataLock.RLock()
 	defer cp.DownloadPricingDataLock.RUnlock()
+
+	meta := models.PricingMetadata{}
 
 	k := key.Features()
 	var gpuCount string
@@ -205,7 +207,7 @@ func (cp *CustomProvider) NodePricing(key models.Key) (*models.Node, error) {
 		RAMCost:  ramCost,
 		GPUCost:  gpuCost,
 		GPU:      gpuCount,
-	}, nil
+	}, meta, nil
 }
 
 func (cp *CustomProvider) DownloadPricingData() error {

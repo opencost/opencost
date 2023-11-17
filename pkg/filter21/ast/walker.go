@@ -2,6 +2,7 @@ package ast
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/opencost/opencost/pkg/filter21/util"
@@ -366,4 +367,43 @@ func indent(depth int) string {
 		return ""
 	}
 	return strings.Repeat("  ", depth)
+}
+
+func Fields(filter FilterNode) []Field {
+	fields := map[Field]bool{}
+
+	PreOrderTraversal(filter, func(fn FilterNode, state TraversalState) {
+		if fn == nil {
+			return
+		}
+		switch n := fn.(type) {
+		case *EqualOp:
+			if n.Left.Field != nil {
+				fields[*n.Left.Field] = true
+			}
+		case *ContainsOp:
+			if n.Left.Field != nil {
+				fields[*n.Left.Field] = true
+			}
+		case *ContainsPrefixOp:
+			if n.Left.Field != nil {
+				fields[*n.Left.Field] = true
+			}
+		case *ContainsSuffixOp:
+			if n.Left.Field != nil {
+				fields[*n.Left.Field] = true
+			}
+		}
+	})
+
+	response := make([]Field, 0, len(fields))
+	for field := range fields {
+		response = append(response, field)
+	}
+
+	sort.Slice(response, func(i, j int) bool {
+		return response[i].Name < response[j].Name
+	})
+
+	return response
 }

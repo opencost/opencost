@@ -208,7 +208,7 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 						if loc, ok := allLocations[displName]; ok {
 							supLocations[loc] = displName
 						} else {
-							log.Warnf("unsupported cloud region %q", loc)
+							log.Warnf("unsupported cloud region %q", displName)
 						}
 					}
 					break
@@ -226,7 +226,7 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 						if loc, ok := allLocations[displName]; ok {
 							supLocations[loc] = displName
 						} else {
-							log.Warnf("unsupported cloud region %q", loc)
+							log.Warnf("unsupported cloud region %q", displName)
 						}
 					}
 					break
@@ -1079,7 +1079,7 @@ func (az *Azure) AllNodePricing() (interface{}, error) {
 }
 
 // NodePricing returns Azure pricing data for a single node
-func (az *Azure) NodePricing(key models.Key) (*models.Node, error) {
+func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetadata, error) {
 	az.DownloadPricingDataLock.RLock()
 	defer az.DownloadPricingDataLock.RUnlock()
 	pricingDataExists := true
@@ -1088,14 +1088,18 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, error) {
 		log.DedupedWarningf(1, "Unable to download Azure pricing data")
 	}
 
+	meta := models.PricingMetadata{}
+
 	azKey, ok := key.(*azureKey)
 	if !ok {
-		return nil, fmt.Errorf("azure: NodePricing: key is of type %T", key)
+		return nil, meta, fmt.Errorf("azure: NodePricing: key is of type %T", key)
 	}
 	config, _ := az.GetConfig()
 
 	// Spot Node
-	if slv, ok := azKey.Labels[config.SpotLabel]; ok && slv == config.SpotLabelValue && config.SpotLabel != "" && config.SpotLabelValue != "" {
+	slv, ok := azKey.Labels[config.SpotLabel]
+	isSpot := ok && slv == config.SpotLabelValue && config.SpotLabel != "" && config.SpotLabelValue != ""
+	if isSpot {
 		features := strings.Split(azKey.Features(), ",")
 		region := features[0]
 		instance := features[1]
@@ -1105,7 +1109,7 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, error) {
 			if azKey.isValidGPUNode() {
 				n.Node.GPU = "1" // TODO: support multiple GPUs
 			}
-			return n.Node, nil
+			return n.Node, meta, nil
 		}
 		log.Infof("[Info] found spot instance, trying to get retail price for %s: %s, ", spotFeatures, azKey)
 		spotCost, err := getRetailPrice(region, instance, config.CurrencyCode, true)
@@ -1124,7 +1128,7 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, error) {
 			az.addPricing(spotFeatures, &AzurePricing{
 				Node: spotNode,
 			})
-			return spotNode, nil
+			return spotNode, meta, nil
 		}
 	}
 
@@ -1136,24 +1140,38 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, error) {
 			if azKey.isValidGPUNode() {
 				n.Node.GPU = azKey.GetGPUCount()
 			}
-			return n.Node, nil
+			return n.Node, meta, nil
 		}
 		log.DedupedWarningf(5, "No pricing data found for node %s from key %s", azKey, azKey.Features())
 	}
 	c, err := az.GetConfig()
 	if err != nil {
-		return nil, fmt.Errorf("No default pricing data available")
+		return nil, meta, fmt.Errorf("No default pricing data available")
+	}
+
+	var vcpuCost string
+	var ramCost string
+	var gpuCost string
+
+	if isSpot {
+		vcpuCost = c.SpotCPU
+		ramCost = c.SpotRAM
+		gpuCost = c.SpotGPU
+	} else {
+		vcpuCost = c.CPU
+		ramCost = c.RAM
+		gpuCost = c.GPU
 	}
 
 	// GPU Node
 	if azKey.isValidGPUNode() {
 		return &models.Node{
-			VCPUCost:         c.CPU,
-			RAMCost:          c.RAM,
+			VCPUCost:         vcpuCost,
+			RAMCost:          ramCost,
 			UsesBaseCPUPrice: true,
-			GPUCost:          c.GPU,
+			GPUCost:          gpuCost,
 			GPU:              azKey.GetGPUCount(),
-		}, nil
+		}, meta, nil
 	}
 
 	// Serverless Node. This is an Azure Container Instance, and no pods can be
@@ -1163,15 +1181,15 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, error) {
 		return &models.Node{
 			VCPUCost: "0",
 			RAMCost:  "0",
-		}, nil
+		}, meta, nil
 	}
 
 	// Regular Node
 	return &models.Node{
-		VCPUCost:         c.CPU,
-		RAMCost:          c.RAM,
+		VCPUCost:         vcpuCost,
+		RAMCost:          ramCost,
 		UsesBaseCPUPrice: true,
-	}, nil
+	}, meta, nil
 }
 
 // Stubbed NetworkPricing for Azure. Pull directly from azure.json for now

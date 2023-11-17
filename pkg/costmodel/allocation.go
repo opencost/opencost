@@ -13,8 +13,13 @@ import (
 )
 
 const (
-	queryFmtPods                        = `avg(kube_pod_container_status_running{%s}) by (pod, namespace, %s)[%s:%s]`
-	queryFmtPodsUID                     = `avg(kube_pod_container_status_running{%s}) by (pod, namespace, uid, %s)[%s:%s]`
+	// https://kubecost.atlassian.net/browse/BURNDOWN-234
+	// upstream KSM has implementation change vs OC internal KSM - it sets metric to 0 when pod goes down
+	// VS OC implementation which stops emitting it
+	// by adding != 0 filter, we keep just the active times in the prom result
+	queryFmtPods                        = `avg(kube_pod_container_status_running{%s} != 0) by (pod, namespace, %s)[%s:%s]`
+	queryFmtPodsUID                     = `avg(kube_pod_container_status_running{%s} != 0) by (pod, namespace, uid, %s)[%s:%s]`
+
 	queryFmtRAMBytesAllocated           = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s, provider_id)`
 	queryFmtRAMRequests                 = `avg(avg_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
 	queryFmtRAMUsageAvg                 = `avg(avg_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
@@ -34,6 +39,7 @@ const (
 	queryFmtPVActiveMins                = `count(kube_persistentvolume_capacity_bytes{%s}) by (persistentvolume, %s)[%s:%s]`
 	queryFmtPVBytes                     = `avg(avg_over_time(kube_persistentvolume_capacity_bytes{%s}[%s])) by (persistentvolume, %s)`
 	queryFmtPVCostPerGiBHour            = `avg(avg_over_time(pv_hourly_cost{%s}[%s])) by (volumename, %s)`
+	queryFmtPVMeta                      = `avg(avg_over_time(kubecost_pv_info{%s}[%s])) by (%s, persistentvolume, provider_id)`
 	queryFmtNetZoneGiB                  = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
 	queryFmtNetZoneCostPerGiB           = `avg(avg_over_time(kubecost_network_zone_egress_cost{%s}[%s])) by (%s)`
 	queryFmtNetRegionGiB                = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
@@ -84,7 +90,7 @@ const (
 	// the resolution, to make sure the irate always has two points to query
 	// in case the Prom scrape duration has been reduced to be equal to the
 	// ETL resolution.
-	queryFmtCPUUsageMaxSubquery = `max(max_over_time(irate(container_cpu_usage_seconds_total{container_name!="POD", container_name!="", %s}[%s])[%s:%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	queryFmtCPUUsageMaxSubquery = `max(max_over_time(irate(container_cpu_usage_seconds_total{container!="POD", container!="", %s}[%s])[%s:%s])) by (container, pod_name, pod, namespace, instance, %s)`
 )
 
 // Constants for Network Cost Subtype
@@ -279,6 +285,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	result.Errors = errors
 	result.Warnings = warnings
 
+	// Convert any NaNs to 0 to avoid JSON marshaling issues and avoid cascading NaN appearances elsewhere
+	result.SanitizeNaN()
+
 	return result, nil
 }
 
@@ -286,8 +295,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 // it supposed to be a good indicator of available allocation data
 func (cm *CostModel) DateRange() (time.Time, time.Time, error) {
 	ctx := prom.NewNamedContext(cm.PrometheusClient, prom.AllocationContextName)
+	exportCsvDaysFmt := fmt.Sprintf("%dd", env.GetExportCSVMaxDays())
 
-	resOldest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtOldestSample, env.GetPromClusterFilter(), "90d", "1h"))
+	resOldest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtOldestSample, env.GetPromClusterFilter(), exportCsvDaysFmt, "1h"))
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("querying oldest sample: %w", err)
 	}
@@ -296,7 +306,7 @@ func (cm *CostModel) DateRange() (time.Time, time.Time, error) {
 	}
 	oldest := time.Unix(int64(resOldest[0].Values[0].Value), 0)
 
-	resNewest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtNewestSample, env.GetPromClusterFilter(), "90d", "1h"))
+	resNewest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtNewestSample, env.GetPromClusterFilter(), exportCsvDaysFmt, "1h"))
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("querying newest sample: %w", err)
 	}
@@ -451,6 +461,9 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	queryPVCostPerGiBHour := fmt.Sprintf(queryFmtPVCostPerGiBHour, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 	resChPVCostPerGiBHour := ctx.QueryAtTime(queryPVCostPerGiBHour, end)
 
+	queryPVMeta := fmt.Sprintf(queryFmtPVMeta, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
+	resChPVMeta := ctx.QueryAtTime(queryPVMeta, end)
+
 	queryNetTransferBytes := fmt.Sprintf(queryFmtNetTransferBytes, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 	resChNetTransferBytes := ctx.QueryAtTime(queryNetTransferBytes, end)
 
@@ -542,6 +555,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	resPVActiveMins, _ := resChPVActiveMins.Await()
 	resPVBytes, _ := resChPVBytes.Await()
 	resPVCostPerGiBHour, _ := resChPVCostPerGiBHour.Await()
+	resPVMeta, _ := resChPVMeta.Await()
 
 	resPVCInfo, _ := resChPVCInfo.Await()
 	resPVCBytesRequested, _ := resChPVCBytesRequested.Await()
@@ -647,14 +661,14 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	// a PVC, we get time running there, so this is only inaccurate
 	// for short-lived, unmounted PVs.)
 	pvMap := map[pvKey]*pv{}
-	buildPVMap(resolution, pvMap, resPVCostPerGiBHour, resPVActiveMins)
+	buildPVMap(resolution, pvMap, resPVCostPerGiBHour, resPVActiveMins, resPVMeta, window)
 	applyPVBytes(pvMap, resPVBytes)
 
 	// Build out the map of all PVCs with time running, bytes requested,
 	// and connect to the correct PV from pvMap. (If no PV exists, that
 	// is noted, but does not result in any allocation/cost.)
 	pvcMap := map[pvcKey]*pvc{}
-	buildPVCMap(resolution, pvcMap, pvMap, resPVCInfo)
+	buildPVCMap(resolution, pvcMap, pvMap, resPVCInfo, window)
 	applyPVCBytesRequested(pvcMap, resPVCBytesRequested)
 
 	// Build out the relationships of pods to their PVCs. This step
@@ -671,7 +685,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	applyUnmountedPVs(window, podMap, pvMap, pvcMap)
 
 	lbMap := make(map[serviceKey]*lbCost)
-	getLoadBalancerCosts(lbMap, resLBCostPerHr, resLBActiveMins, resolution)
+	getLoadBalancerCosts(lbMap, resLBCostPerHr, resLBActiveMins, resolution, window)
 	applyLoadBalancersToPods(window, podMap, lbMap, allocsByService)
 
 	// Build out a map of Nodes with resource costs, discounts, and node types

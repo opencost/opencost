@@ -10,6 +10,16 @@ import (
 	"github.com/patrickmn/go-cache"
 )
 
+type AllocationTotalsResult struct {
+	Cluster map[string]*AllocationTotals `json:"cluster"`
+	Node    map[string]*AllocationTotals `json:"node"`
+}
+
+type AssetTotalsResult struct {
+	Cluster map[string]*AssetTotals `json:"cluster"`
+	Node    map[string]*AssetTotals `json:"node"`
+}
+
 // AllocationTotals represents aggregate costs of all Allocations for
 // a given cluster or tuple of (cluster, node) between a given start and end
 // time, where the costs are aggregated per-resource. AllocationTotals
@@ -35,6 +45,10 @@ type AllocationTotals struct {
 	PersistentVolumeCostAdjustment float64   `json:"persistentVolumeCostAdjustment"`
 	RAMCost                        float64   `json:"ramCost"`
 	RAMCostAdjustment              float64   `json:"ramCostAdjustment"`
+	// UnmountedPVCost is used to track how much of the cost in
+	// PersistentVolumeCost is for an unmounted PV. It is not additive of that
+	// field, and need not be sent in API responses.
+	UnmountedPVCost float64 `json:"-"`
 }
 
 // ClearAdjustments sets all adjustment fields to 0.0
@@ -478,10 +492,9 @@ func ComputeAssetTotals(as *AssetSet, byAsset bool) map[string]*AssetTotals {
 			arts[key].Count++
 			arts[key].AttachedVolumeCost += disk.Cost
 			arts[key].AttachedVolumeCostAdjustment += disk.Adjustment
-		} else if !byAsset {
+		} else {
 			// Here, we're looking at a PersistentVolume because we're not
-			// looking at an AttachedVolume. Only record PersistentVolume data
-			// at the cluster level (i.e. prop == AssetClusterProp).
+			// looking at an AttachedVolume.
 			arts[key].Count++
 			arts[key].PersistentVolumeCost += disk.Cost
 			arts[key].PersistentVolumeCostAdjustment += disk.Adjustment

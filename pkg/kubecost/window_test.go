@@ -2,6 +2,7 @@ package kubecost
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -264,6 +265,7 @@ func TestParseWindowUTC(t *testing.T) {
 	}
 
 	ago12h := time.Now().UTC().Add(-12 * time.Hour)
+	ago24h := time.Now().UTC().Add(-24 * time.Hour)
 	ago36h := time.Now().UTC().Add(-36 * time.Hour)
 	ago60h := time.Now().UTC().Add(-60 * time.Hour)
 
@@ -290,8 +292,8 @@ func TestParseWindowUTC(t *testing.T) {
 	if dur2d.Duration().Hours() != 48 {
 		t.Fatalf(`expect: window "2d" to have duration 48 hour; actual: %f hours`, dur2d.Duration().Hours())
 	}
-	if !dur2d.Contains(ago36h) {
-		t.Fatalf(`expect: window "2d" to contain 36 hours ago; actual: %s doesn't contain %s`, dur2d, ago36h)
+	if !dur2d.Contains(ago24h) {
+		t.Fatalf(`expect: window "2d" to contain 24 hours ago; actual: %s doesn't contain %s`, dur2d, ago24h)
 	}
 	if dur2d.Contains(ago60h) {
 		t.Fatalf(`expect: window "2d" to not contain 60 hours ago; actual: %s contains %s`, dur2d, ago60h)
@@ -657,16 +659,21 @@ func TestWindow_DurationOffsetForPrometheus(t *testing.T) {
 		t.Fatalf("expected env.IsThanosEnabled() == false")
 	}
 
-	w, err := ParseWindowUTC("1d")
+	now := time.Now().UTC()
+	startOfToday := now.Truncate(timeutil.Day)
+	w, err := parseWindow("1d", now)
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "1d": %s`, err)
 	}
+
 	dur, off, err := w.DurationOffsetForPrometheus()
+	expDur := int(now.Sub(startOfToday).Seconds())
+	expDurStr := fmt.Sprintf("%ds", expDur)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	if dur != "1d" {
-		t.Fatalf(`expect: window to be "1d"; actual: "%s"`, dur)
+	if dur != expDurStr {
+		t.Fatalf(`expect: window to be "%s"; actual: "%s"`, expDurStr, dur)
 	}
 	if off != "" {
 		t.Fatalf(`expect: offset to be ""; actual: "%s"`, off)
@@ -738,9 +745,11 @@ func TestWindow_DurationOffsetForPrometheus(t *testing.T) {
 		t.Fatalf("expected env.IsThanosEnabled() == true")
 	}
 
-	w, err = ParseWindowUTC("1d")
+	// Note - with the updated logic of 1d, 1w, etc. rounding the start and end times forward to the nearest midnight,
+	// DurationOffsetForPrometheus may fail if not using a window using "Xh" as the string to parse
+	w, err = ParseWindowUTC("24h")
 	if err != nil {
-		t.Fatalf(`unexpected error parsing "1d": %s`, err)
+		t.Fatalf(`unexpected error parsing "24h": %s`, err)
 	}
 	dur, off, err = w.DurationOffsetForPrometheus()
 	if err != nil {
@@ -1217,5 +1226,26 @@ func TestMarshalUnmarshal(t *testing.T) {
 				t.Errorf(diff)
 			}
 		})
+	}
+}
+
+func TestBoundaryErrorIs(t *testing.T) {
+	baseError := &BoundaryError{Message: "cde"}
+	singleWrapError := fmt.Errorf("wrap: %w", &BoundaryError{Message: "abc"})
+
+	if errors.Is(singleWrapError, baseError) {
+		t.Logf("Single wrap success")
+	} else {
+		t.Errorf("Single wrap failure: %s != %s", baseError, singleWrapError)
+	}
+
+	multiWrapError := fmt.Errorf("wrap: %w", &BoundaryError{Message: "abc"})
+	multiWrapError = fmt.Errorf("wrap x2: %w", multiWrapError)
+	multiWrapError = fmt.Errorf("wrap x3: %w", multiWrapError)
+
+	if errors.Is(multiWrapError, baseError) {
+		t.Logf("Multi wrap success")
+	} else {
+		t.Errorf("Multi wrap failure: %s != %s", baseError, multiWrapError)
 	}
 }

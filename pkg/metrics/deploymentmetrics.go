@@ -42,7 +42,7 @@ func (kdc KubecostDeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 		deploymentName := deployment.GetName()
 		deploymentNS := deployment.GetNamespace()
 
-		labels, values := prom.KubeLabelsToLabels(deployment.Spec.Selector.MatchLabels)
+		labels, values := prom.KubeLabelsToLabels(prom.SanitizeLabels(deployment.Spec.Selector.MatchLabels))
 		if len(labels) > 0 {
 			m := newDeploymentMatchLabelsMetric(deploymentName, deploymentNS, "deployment_match_labels", labels, values)
 			ch <- m

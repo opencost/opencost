@@ -440,11 +440,11 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: `product != unallocated -> true`,
+			name: `department != unallocated -> true`,
 			a: &Allocation{
 				Properties: &AllocationProperties{
 					Annotations: AllocationAnnotations{
-						"keyproduct": "foo",
+						"keydepartment": "foo",
 					},
 				},
 			},
@@ -457,6 +457,43 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 					Right: UnallocatedSuffix,
 				},
+			},
+			expected: true,
+		},
+		{
+			name: `product == unallocated -> true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Annotations: AllocationAnnotations{
+						"keydepartment": "foo",
+					},
+				},
+			},
+			filter: &ast.EqualOp{
+				Left: ast.Identifier{
+					Field: ast.NewAliasField(afilter.AliasProduct),
+				},
+				Right: UnallocatedSuffix,
+			},
+			expected: true,
+		},
+		{
+			name: `product == "" -> true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Labels: AllocationLabels{
+						"keydepartment": "foo",
+					},
+					Annotations: AllocationAnnotations{
+						"keyowner": "bar",
+					},
+				},
+			},
+			filter: &ast.EqualOp{
+				Left: ast.Identifier{
+					Field: ast.NewAliasField(afilter.AliasProduct),
+				},
+				Right: "",
 			},
 			expected: true,
 		},

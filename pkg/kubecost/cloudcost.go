@@ -6,7 +6,10 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/pkg/filter"
+	filter21 "github.com/opencost/opencost/pkg/filter21"
+	"github.com/opencost/opencost/pkg/filter21/ast"
 	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
 // CloudCost represents a CUR line item, identifying a cloud resource and
@@ -129,20 +132,29 @@ func (cc *CloudCost) StringMapProperty(property string) (map[string]string, erro
 	}
 }
 
-func (cc *CloudCost) GetCostMetric(costMetricName string) (CostMetric, error) {
+func (cc *CloudCost) GetCostMetric(costMetricName CostMetricName) (CostMetric, error) {
 	switch costMetricName {
-	case ListCostMetric:
+	case CostMetricListCost:
 		return cc.ListCost, nil
-	case NetCostMetric:
+	case CostMetricNetCost:
 		return cc.NetCost, nil
-	case AmortizedNetCostMetric:
+	case CostMetricAmortizedNetCost:
 		return cc.AmortizedNetCost, nil
-	case InvoicedCostMetric:
+	case CostMetricInvoicedCost:
 		return cc.InvoicedCost, nil
-	case AmortizedCostMetric:
+	case CostMetricAmortizedCost:
 		return cc.AmortizedCost, nil
 	}
 	return CostMetric{}, fmt.Errorf("invalid Cost Metric: %s", costMetricName)
+}
+
+// WeightCostMetrics weights all the cost metrics with the given weightedAverage
+func (cc *CloudCost) WeightCostMetrics(weightedAverge float64) {
+	cc.ListCost.Cost *= weightedAverge
+	cc.NetCost.Cost *= weightedAverge
+	cc.AmortizedNetCost.Cost *= weightedAverge
+	cc.InvoicedCost.Cost *= weightedAverge
+	cc.AmortizedCost.Cost *= weightedAverge
 }
 
 // CloudCostSet follows the established set pattern of windowed data types. It has addition metadata types that can be
@@ -287,6 +299,37 @@ func (ccs *CloudCostSet) Filter(filters filter.Filter[*CloudCost]) *CloudCostSet
 	return result
 }
 
+func (ccs *CloudCostSet) Filter21(filters filter21.Filter) (*CloudCostSet, error) {
+	if ccs == nil {
+		return nil, nil
+	}
+
+	if filters == nil {
+		return ccs.Clone(), nil
+	}
+
+	compiler := NewCloudCostMatchCompiler()
+	var err error
+	matcher, err := compiler.Compile(filters)
+	if err != nil {
+		return ccs.Clone(), fmt.Errorf("compiling filter '%s': %w", ast.ToPreOrderShortString(filters), err)
+	}
+
+	if matcher == nil {
+		return ccs.Clone(), fmt.Errorf("unexpected nil filter")
+	}
+
+	result := ccs.cloneSet()
+
+	for _, cc := range ccs.CloudCosts {
+		if matcher.Matches(cc) {
+			result.Insert(cc.Clone())
+		}
+	}
+
+	return result, nil
+}
+
 // Insert adds a CloudCost to a CloudCostSet using its AggregationProperties and LabelConfig
 // to determine the key where it will be inserted
 func (ccs *CloudCostSet) Insert(cc *CloudCost) error {
@@ -329,9 +372,12 @@ func (ccs *CloudCostSet) Clone() *CloudCostSet {
 
 // cloneSet creates a copy of the receiver without any of its CloudCosts
 func (ccs *CloudCostSet) cloneSet() *CloudCostSet {
-	aggProps := make([]string, len(ccs.AggregationProperties))
-	for i, v := range ccs.AggregationProperties {
-		aggProps[i] = v
+	var aggProps []string
+	if ccs.AggregationProperties != nil {
+		aggProps = make([]string, len(ccs.AggregationProperties))
+		for i, v := range ccs.AggregationProperties {
+			aggProps[i] = v
+		}
 	}
 	return &CloudCostSet{
 		CloudCosts:            make(map[string]*CloudCost),
@@ -401,8 +447,8 @@ type CloudCostSetRange struct {
 
 // NewCloudCostSetRange create a CloudCostSetRange containing CloudCostSets with windows of equal duration
 // the duration between start and end must be divisible by the window duration argument
-func NewCloudCostSetRange(start time.Time, end time.Time, window time.Duration, integration string) (*CloudCostSetRange, error) {
-	windows, err := GetWindows(start, end, window)
+func NewCloudCostSetRange(start time.Time, end time.Time, accumOpt AccumulateOption, integration string) (*CloudCostSetRange, error) {
+	windows, err := NewClosedWindow(start.UTC(), end.UTC()).GetAccumulateWindows(accumOpt)
 	if err != nil {
 		return nil, err
 	}
@@ -415,7 +461,6 @@ func NewCloudCostSetRange(start time.Time, end time.Time, window time.Duration, 
 		cloudCostItemSets[i] = ccs
 	}
 	return &CloudCostSetRange{
-		Window:        NewWindow(&start, &end),
 		CloudCostSets: cloudCostItemSets,
 	}, nil
 }
@@ -426,7 +471,6 @@ func (ccsr *CloudCostSetRange) Clone() *CloudCostSetRange {
 		ccsSlice[i] = ccs.Clone()
 	}
 	return &CloudCostSetRange{
-		Window:        ccsr.Window.Clone(),
 		CloudCostSets: ccsSlice,
 	}
 }
@@ -440,11 +484,19 @@ func (ccsr *CloudCostSetRange) IsEmpty() bool {
 	return true
 }
 
-// Accumulate sums each CloudCostSet in the given range, returning a single cumulative
+// accumulate sums each CloudCostSet in the given range, returning a single cumulative
 // CloudCostSet for the entire range.
-func (ccsr *CloudCostSetRange) Accumulate() (*CloudCostSet, error) {
+func (ccsr *CloudCostSetRange) AccumulateAll() (*CloudCostSet, error) {
 	var cloudCostSet *CloudCostSet
 	var err error
+
+	if ccsr == nil {
+		return nil, fmt.Errorf("nil CloudCostSetRange in accumulation")
+	}
+
+	if len(ccsr.CloudCostSets) == 0 {
+		return nil, fmt.Errorf("CloudCostSetRange has empty CloudCostSet in accumulation")
+	}
 
 	for _, ccs := range ccsr.CloudCostSets {
 		if cloudCostSet == nil {
@@ -458,6 +510,171 @@ func (ccsr *CloudCostSetRange) Accumulate() (*CloudCostSet, error) {
 	}
 
 	return cloudCostSet, nil
+}
+
+// Accumulate sums CloudCostSets based on the AccumulateOption (calendar week or calendar month).
+// The accumulated set is determined by the start of the window of the allocation set.
+func (ccsr *CloudCostSetRange) Accumulate(accumulateBy AccumulateOption) (*CloudCostSetRange, error) {
+	switch accumulateBy {
+	case AccumulateOptionNone:
+		return ccsr.accumulateByNone()
+	case AccumulateOptionAll:
+		return ccsr.accumulateByAll()
+	case AccumulateOptionHour:
+		return ccsr.accumulateByHour()
+	case AccumulateOptionDay:
+		return ccsr.accumulateByDay()
+	case AccumulateOptionWeek:
+		return ccsr.accumulateByWeek()
+	case AccumulateOptionMonth:
+		return ccsr.accumulateByMonth()
+	default:
+		// ideally, this should never happen
+		return nil, fmt.Errorf("unexpected error, invalid accumulateByType: %s", accumulateBy)
+	}
+}
+
+func (ccsr *CloudCostSetRange) accumulateByAll() (*CloudCostSetRange, error) {
+
+	ccs, err := ccsr.AccumulateAll()
+	if err != nil {
+		return nil, fmt.Errorf("error accumulating all:%s", err)
+	}
+
+	accumulated := &CloudCostSetRange{
+		CloudCostSets: []*CloudCostSet{ccs},
+	}
+	return accumulated, nil
+}
+
+func (ccsr *CloudCostSetRange) accumulateByNone() (*CloudCostSetRange, error) {
+	return ccsr.Clone(), nil
+}
+func (ccsr *CloudCostSetRange) accumulateByHour() (*CloudCostSetRange, error) {
+	// ensure that the summary allocation sets have a 1-hour window, if a set exists
+	if len(ccsr.CloudCostSets) > 0 && ccsr.CloudCostSets[0].Window.Duration() != time.Hour {
+		return nil, fmt.Errorf("window duration must equal 1 hour; got:%s", ccsr.CloudCostSets[0].Window.Duration())
+	}
+
+	return ccsr.Clone(), nil
+}
+
+func (ccsr *CloudCostSetRange) accumulateByDay() (*CloudCostSetRange, error) {
+	// if the allocation set window is 1-day, just return the existing allocation set range
+	if len(ccsr.CloudCostSets) > 0 && ccsr.CloudCostSets[0].Window.Duration() == time.Hour*24 {
+		return ccsr, nil
+	}
+
+	var toAccumulate *CloudCostSetRange
+	result := &CloudCostSetRange{}
+	for i, ccs := range ccsr.CloudCostSets {
+
+		if ccs.Window.Duration() != time.Hour {
+			return nil, fmt.Errorf("window duration must equal 1 hour; got:%s", ccs.Window.Duration())
+		}
+
+		hour := ccs.Window.Start().Hour()
+
+		if toAccumulate == nil {
+			toAccumulate = &CloudCostSetRange{}
+			ccs = ccs.Clone()
+		}
+
+		toAccumulate.Append(ccs)
+		accumulated, err := toAccumulate.accumulateByAll()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = accumulated
+
+		if hour == 23 || i == len(ccsr.CloudCostSets)-1 {
+			if length := len(toAccumulate.CloudCostSets); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			result.Append(toAccumulate.CloudCostSets[0])
+			toAccumulate = nil
+		}
+	}
+	return result, nil
+}
+
+func (ccsr *CloudCostSetRange) accumulateByWeek() (*CloudCostSetRange, error) {
+	if len(ccsr.CloudCostSets) > 0 && ccsr.CloudCostSets[0].Window.Duration() == timeutil.Week {
+		return ccsr, nil
+	}
+
+	var toAccumulate *CloudCostSetRange
+	result := &CloudCostSetRange{}
+	for i, css := range ccsr.CloudCostSets {
+		if css.Window.Duration() != time.Hour*24 {
+			return nil, fmt.Errorf("window duration must equal 24 hours; got:%s", css.Window.Duration())
+		}
+
+		dayOfWeek := css.Window.Start().Weekday()
+
+		if toAccumulate == nil {
+			toAccumulate = &CloudCostSetRange{}
+			css = css.Clone()
+		}
+
+		toAccumulate.Append(css)
+		accumulated, err := toAccumulate.accumulateByAll()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = accumulated
+
+		// current assumption is the week always ends on Saturday, or there are no more allocation sets
+		if dayOfWeek == time.Saturday || i == len(ccsr.CloudCostSets)-1 {
+			if length := len(toAccumulate.CloudCostSets); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			result.Append(toAccumulate.CloudCostSets[0])
+			toAccumulate = nil
+		}
+	}
+	return result, nil
+}
+
+func (ccsr *CloudCostSetRange) accumulateByMonth() (*CloudCostSetRange, error) {
+	var toAccumulate *CloudCostSetRange
+	result := &CloudCostSetRange{}
+	for i, css := range ccsr.CloudCostSets {
+		if css.Window.Duration() != time.Hour*24 {
+			return nil, fmt.Errorf("window duration must equal 24 hours; got:%s", css.Window.Duration())
+		}
+
+		_, month, _ := css.Window.Start().Date()
+		_, nextDayMonth, _ := css.Window.Start().Add(time.Hour * 24).Date()
+
+		if toAccumulate == nil {
+			toAccumulate = &CloudCostSetRange{}
+			css = css.Clone()
+		}
+
+		toAccumulate.Append(css)
+		accumulated, err := toAccumulate.accumulateByAll()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = accumulated
+
+		// either the month has ended, or there are no more allocation sets
+		if month != nextDayMonth || i == len(ccsr.CloudCostSets)-1 {
+			if length := len(toAccumulate.CloudCostSets); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			result.Append(toAccumulate.CloudCostSets[0])
+			toAccumulate = nil
+		}
+	}
+	return result, nil
+}
+
+// Append appends the given CloudCostSet to the end of the range. It does not
+// validate whether or not that violates window continuity.
+func (ccsr *CloudCostSetRange) Append(that *CloudCostSet) {
+	ccsr.CloudCostSets = append(ccsr.CloudCostSets, that)
 }
 
 // LoadCloudCost loads CloudCosts into existing CloudCostSets of the CloudCostSetRange.
@@ -510,53 +727,5 @@ func (ccsr *CloudCostSetRange) LoadCloudCost(cloudCost *CloudCost) {
 		if totalPct >= 1.0 {
 			return
 		}
-	}
-}
-
-const (
-	ListCostMetric         string = "ListCost"
-	NetCostMetric          string = "NetCost"
-	AmortizedNetCostMetric string = "AmortizedNetCost"
-	InvoicedCostMetric     string = "InvoicedCost"
-	AmortizedCostMetric    string = "AmortizedCost"
-)
-
-type CostMetric struct {
-	Cost              float64 `json:"cost"`
-	KubernetesPercent float64 `json:"kubernetesPercent"`
-}
-
-func (cm CostMetric) Equal(that CostMetric) bool {
-	return cm.Cost == that.Cost && cm.KubernetesPercent == that.KubernetesPercent
-}
-
-func (cm CostMetric) Clone() CostMetric {
-	return CostMetric{
-		Cost:              cm.Cost,
-		KubernetesPercent: cm.KubernetesPercent,
-	}
-}
-
-func (cm CostMetric) add(that CostMetric) CostMetric {
-	// Compute KubernetesPercent for sum
-	k8sPct := 0.0
-	sumCost := cm.Cost + that.Cost
-	if sumCost > 0.0 {
-		thisK8sCost := cm.Cost * cm.KubernetesPercent
-		thatK8sCost := that.Cost * that.KubernetesPercent
-		k8sPct = (thisK8sCost + thatK8sCost) / sumCost
-	}
-
-	return CostMetric{
-		Cost:              sumCost,
-		KubernetesPercent: k8sPct,
-	}
-}
-
-// percent returns the product of the given percent and the cost, KubernetesPercent remains the same
-func (cm CostMetric) percent(pct float64) CostMetric {
-	return CostMetric{
-		Cost:              cm.Cost * pct,
-		KubernetesPercent: cm.KubernetesPercent,
 	}
 }

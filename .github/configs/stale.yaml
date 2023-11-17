@@ -1,0 +1,5 @@
+## https://github.com/marketplace/actions/close-stale-issues#recommended-permissions
+# Give stalebot permission to update issues and pull requests
+permissions:
+  issues: write
+  pull-requests: write

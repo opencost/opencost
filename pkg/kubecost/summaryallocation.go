@@ -39,6 +39,7 @@ type SummaryAllocation struct {
 	SharedCost             float64               `json:"sharedCost"`
 	ExternalCost           float64               `json:"externalCost"`
 	Share                  bool                  `json:"-"`
+	UnmountedPVCost        float64               `json:"-"`
 }
 
 // NewSummaryAllocation converts an Allocation to a SummaryAllocation by
@@ -67,6 +68,7 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 		RAMCost:                alloc.RAMCost + alloc.RAMCostAdjustment,
 		SharedCost:             alloc.SharedCost,
 		ExternalCost:           alloc.ExternalCost,
+		UnmountedPVCost:        alloc.UnmountedPVCost,
 	}
 
 	// Revert adjustments if reconciliation is off. If only network
@@ -80,6 +82,11 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 		sa.RAMCost -= alloc.RAMCostAdjustment
 	} else if !reconcileNetwork {
 		sa.NetworkCost -= alloc.NetworkCostAdjustment
+	}
+
+	// If the allocation is unmounted, set UnmountedPVCost to the full PVCost.
+	if sa.IsUnmounted() {
+		sa.UnmountedPVCost = sa.PVCost
 	}
 
 	return sa
@@ -376,7 +383,7 @@ type SummaryAllocationSet struct {
 // This filter is an AllocationMatcher, not an AST, because at this point we
 // already have the data and want to make sure that the filter has already
 // gone through a compile step to deal with things like aliases.
-func NewSummaryAllocationSet(as *AllocationSet, filter AllocationMatcher, kfs []AllocationMatchFunc, reconcile, reconcileNetwork bool) *SummaryAllocationSet {
+func NewSummaryAllocationSet(as *AllocationSet, filter, keep AllocationMatcher, reconcile, reconcileNetwork bool) *SummaryAllocationSet {
 	if as == nil {
 		return nil
 	}
@@ -384,7 +391,7 @@ func NewSummaryAllocationSet(as *AllocationSet, filter AllocationMatcher, kfs []
 	// If we can know the exact size of the map, use it. If filters or sharing
 	// functions are present, we can't know the size, so we make a default map.
 	var sasMap map[string]*SummaryAllocation
-	if filter == nil && len(kfs) == 0 {
+	if filter == nil {
 		// No filters, so make the map of summary allocations exactly the size
 		// of the origin allocation set.
 		sasMap = make(map[string]*SummaryAllocation, len(as.Allocations))
@@ -401,14 +408,7 @@ func NewSummaryAllocationSet(as *AllocationSet, filter AllocationMatcher, kfs []
 	for _, alloc := range as.Allocations {
 		// First, detect if the allocation should be kept. If so, mark it as
 		// such, insert it, and continue.
-		shouldKeep := false
-		for _, kf := range kfs {
-			if kf(alloc) {
-				shouldKeep = true
-				break
-			}
-		}
-		if shouldKeep {
+		if keep != nil && keep.Matches(alloc) {
 			sa := NewSummaryAllocation(alloc, reconcile, reconcileNetwork)
 			sa.Share = true
 			sas.Insert(sa)
@@ -522,6 +522,16 @@ func (sas *SummaryAllocationSet) Add(that *SummaryAllocationSet) (*SummaryAlloca
 	return acc, nil
 }
 
+func (sas *SummaryAllocationSet) GetUnmountedPVCost() float64 {
+	upvc := 0.0
+
+	for _, sa := range sas.SummaryAllocations {
+		upvc += sa.UnmountedPVCost
+	}
+
+	return upvc
+}
+
 // AggregateBy aggregates the Allocations in the given AllocationSet by the given
 // AllocationProperty. This will only be legal if the AllocationSet is divisible by the
 // given AllocationProperty; e.g. Containers can be divided by Namespace, but not vice-a-versa.
@@ -562,7 +572,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// an empty slice implies that we should aggregate everything. (See
 	// generateKey for why that makes sense.)
 	shouldAggregate := aggregateBy != nil
-	shouldKeep := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
+	shouldKeep := len(options.SharedHourlyCosts) > 0 || options.Share != nil
 	if !shouldAggregate && !shouldKeep {
 		return nil
 	}
@@ -664,6 +674,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 			sharedResourceTotals[key].NetworkCost += sa.NetworkCost
 			sharedResourceTotals[key].PersistentVolumeCost += sa.PVCost
 			sharedResourceTotals[key].RAMCost += sa.RAMCost
+			sharedResourceTotals[key].UnmountedPVCost += sa.UnmountedPVCost
 
 			shareSet.Insert(sa)
 			delete(sas.SummaryAllocations, sa.Name)
@@ -823,8 +834,9 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		// 0.0 and 1.0.
 		// NOTE: SummaryAllocation does not support ShareEven, so only record
 		// by cost for cost-weighted distribution.
-		if sharingCoeffs != nil {
-			sharingCoeffs[key] += sa.TotalCost() - sa.SharedCost
+		// if sharingCoeffs != nil {
+		if sharingCoeffs != nil && !sa.IsUnmounted() {
+			sharingCoeffs[key] += sa.TotalCost() - sa.SharedCost - sa.UnmountedPVCost
 		}
 
 		// 6. Distribute idle allocations according to the idle coefficients.
@@ -982,29 +994,39 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// 11. Distribute shared resources according to sharing coefficients.
 	// NOTE: ShareEven is not supported
 	if len(shareSet.SummaryAllocations) > 0 {
+
+		shareCoeffSum := 0.0
+
 		sharingCoeffDenominator := 0.0
 		for _, rt := range allocTotals {
-			sharingCoeffDenominator += rt.TotalCost()
+			// Here, the allocation totals
+			sharingCoeffDenominator += rt.TotalCost() // does NOT include unmounted PVs at all
 		}
 
 		// Do not include the shared costs, themselves, when determining
 		// sharing coefficients.
 		for _, rt := range sharedResourceTotals {
-			sharingCoeffDenominator -= rt.TotalCost()
+			// Due to the fact that sharingCoeffDenominator already has no
+			// unmounted PV costs, we need to be careful not to additionally
+			// subtract the unmounted PV cost when we remove shared costs
+			// from the denominator.
+			sharingCoeffDenominator -= (rt.TotalCost() - rt.UnmountedPVCost)
 		}
-
-		// Do not include the unmounted costs when determining sharing
-		// coefficients because they do not receive shared costs.
-		sharingCoeffDenominator -= totalUnmountedCost
 
 		if sharingCoeffDenominator <= 0.0 {
 			log.Warnf("SummaryAllocation: sharing coefficient denominator is %f", sharingCoeffDenominator)
 		} else {
+
 			// Compute sharing coeffs by dividing the thus-far accumulated
 			// numerators by the now-finalized denominator.
 			for key := range sharingCoeffs {
+				// Do not share the value with unmounted suffix since it's not included in the computation.
+				if key == UnmountedSuffix {
+					continue
+				}
 				if sharingCoeffs[key] > 0.0 {
 					sharingCoeffs[key] /= sharingCoeffDenominator
+					shareCoeffSum += sharingCoeffs[key]
 				} else {
 					log.Warnf("SummaryAllocation: detected illegal sharing coefficient for %s: %v (setting to zero)", key, sharingCoeffs[key])
 					sharingCoeffs[key] = 0.0

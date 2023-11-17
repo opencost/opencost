@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 
@@ -39,11 +40,28 @@ func Execute(opts *CostModelOpts) error {
 		log.Errorf("couldn't start CSV export worker: %v", err)
 	}
 
+	if env.IsCloudCostEnabled() {
+		repo := cloudcost.NewMemoryRepository()
+		a.CloudCostPipelineService = cloudcost.NewPipelineService(repo, a.CloudConfigController, cloudcost.DefaultIngestorConfiguration())
+		repoQuerier := cloudcost.NewRepositoryQuerier(repo)
+		a.CloudCostQueryService = cloudcost.NewQueryService(repoQuerier, repoQuerier)
+	}
+
 	rootMux := http.NewServeMux()
 	a.Router.GET("/healthz", Healthz)
 	a.Router.GET("/allocation", a.ComputeAllocationHandler)
 	a.Router.GET("/allocation/summary", a.ComputeAllocationHandlerSummary)
 	a.Router.GET("/assets", a.ComputeAssetsHandler)
+
+	a.Router.GET("/cloudCost", a.CloudCostQueryService.GetCloudCostHandler())
+	a.Router.GET("/cloudCost/view/graph", a.CloudCostQueryService.GetCloudCostViewGraphHandler())
+	a.Router.GET("/cloudCost/view/totals", a.CloudCostQueryService.GetCloudCostViewTotalsHandler())
+	a.Router.GET("/cloudCost/view/table", a.CloudCostQueryService.GetCloudCostViewTableHandler())
+
+	a.Router.GET("/cloudCost/status", a.CloudCostPipelineService.GetCloudCostStatusHandler())
+	a.Router.GET("/cloudCost/rebuild", a.CloudCostPipelineService.GetCloudCostRebuildHandler())
+	a.Router.GET("/cloudCost/repair", a.CloudCostPipelineService.GetCloudCostRepairHandler())
+
 	rootMux.Handle("/", a.Router)
 	rootMux.Handle("/metrics", promhttp.Handler())
 	telemetryHandler := metrics.ResponseMetricMiddleware(rootMux)
@@ -55,7 +73,8 @@ func Execute(opts *CostModelOpts) error {
 func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) error {
 	exportPath := env.GetExportCSVFile()
 	if exportPath == "" {
-		return fmt.Errorf("%s is not set, skipping CSV exporter", exportPath)
+		log.Infof("%s is not set, CSV export is disabled", env.ExportCSVFile)
+		return nil
 	}
 	fm, err := filemanager.NewFileManager(exportPath)
 	if err != nil {

@@ -8,12 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
-	cloudconfig "github.com/opencost/opencost/pkg/cloud/config"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	"github.com/aws/aws-sdk-go-v2/service/athena/types"
+	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util/stringutil"
@@ -24,7 +22,15 @@ type AthenaQuerier struct {
 	ConnectionStatus cloud.ConnectionStatus
 }
 
-func (aq *AthenaQuerier) Equals(config cloudconfig.Config) bool {
+func (aq *AthenaQuerier) GetStatus() cloud.ConnectionStatus {
+	// initialize status if it has not done so; this can happen if the integration is inactive
+	if aq.ConnectionStatus.String() == "" {
+		aq.ConnectionStatus = cloud.InitialStatus
+	}
+	return aq.ConnectionStatus
+}
+
+func (aq *AthenaQuerier) Equals(config cloud.Config) bool {
 	thatConfig, ok := config.(*AthenaQuerier)
 	if !ok {
 		return false
@@ -90,6 +96,9 @@ func (aq *AthenaQuerier) queryAthenaPaginated(ctx context.Context, query string,
 		Database: aws.String(aq.Database),
 	}
 
+	if aq.Catalog != "" {
+		queryExecutionCtx.Catalog = aws.String(aq.Catalog)
+	}
 	resultConfiguration := &types.ResultConfiguration{
 		OutputLocation: aws.String(aq.Bucket),
 	}
@@ -106,6 +115,9 @@ func (aq *AthenaQuerier) queryAthenaPaginated(ctx context.Context, query string,
 
 	// Create Athena Client
 	cli, err := aq.GetAthenaClient()
+	if err != nil {
+		return fmt.Errorf("QueryAthenaPaginated: GetAthenaClient error: %s", err.Error())
+	}
 
 	// Query Athena
 	startQueryExecutionOutput, err := cli.StartQueryExecution(ctx, startQueryExecutionInput)
@@ -118,6 +130,7 @@ func (aq *AthenaQuerier) queryAthenaPaginated(ctx context.Context, query string,
 	}
 	queryResultsInput := &athena.GetQueryResultsInput{
 		QueryExecutionId: startQueryExecutionOutput.QueryExecutionId,
+		MaxResults:       aws.Int32(1000), // this is the default value
 	}
 	getQueryResultsPaginator := athena.NewGetQueryResultsPaginator(cli, queryResultsInput)
 	for getQueryResultsPaginator.HasMorePages() {
@@ -187,18 +200,18 @@ func GetAthenaRowValueFloat(row types.Row, queryColumnIndexes map[string]int, co
 	return cost, nil
 }
 
-func SelectAWSCategory(isNode, isVol, isNetwork bool, providerID, service string) string {
+func SelectAWSCategory(providerID, usageType, service string) string {
 	// Network has the highest priority and is based on the usage type ending in "Bytes"
-	if isNetwork {
+	if strings.HasSuffix(usageType, "Bytes") {
 		return kubecost.NetworkCategory
 	}
 	// The node and volume conditions are mutually exclusive.
 	// Provider ID has prefix "i-"
-	if isNode {
+	if strings.HasPrefix(providerID, "i-") {
 		return kubecost.ComputeCategory
 	}
 	// Provider ID has prefix "vol-"
-	if isVol {
+	if strings.HasPrefix(providerID, "vol-") {
 		return kubecost.StorageCategory
 	}
 

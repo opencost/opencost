@@ -41,7 +41,7 @@ func (sc KubecostStatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
 		statefulsetName := statefulset.GetName()
 		statefulsetNS := statefulset.GetNamespace()
 
-		labels, values := prom.KubeLabelsToLabels(statefulset.Spec.Selector.MatchLabels)
+		labels, values := prom.KubeLabelsToLabels(prom.SanitizeLabels(statefulset.Spec.Selector.MatchLabels))
 		if len(labels) > 0 {
 			m := newStatefulsetMatchLabelsMetric(statefulsetName, statefulsetNS, "statefulSet_match_labels", labels, values)
 			ch <- m

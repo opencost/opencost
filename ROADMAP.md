@@ -8,7 +8,7 @@ __2023 roadmap__
 * Add external cloud asset cost monitoring ([see the current working group](https://docs.google.com/document/d/1-d-Vvy1VGHW0sXKiTjTplIUEnrElIlnfMU8sUpEehlA/edit#heading=h.vmcygvd1xmbm))
 * More accessible & improved user interface
 * Continued improvement of the [OpenCost Helm chart](https://github.com/opencost/opencost-helm-chart)
-* More robust [API documentation](https://www.opencost.io/api) and examples.
+* More robust [API documentation](https://www.opencost.io/docs/integrations/api) and examples.
 * Expose carbon emission ratings
 
-Please contact us at opencost@kubecost.com if you're interest in more detail.
+Please reach us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or attend the biweekly [OpenCost Working Group community meeting](https://bit.ly/opencost-meeting) from the [Community Calendar](https://bit.ly/opencost-calendar) to discuss OpenCost development.

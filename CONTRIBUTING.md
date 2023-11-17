@@ -3,7 +3,7 @@
 Thanks for your help improving the OpenCost project! There are many ways to contribute to the project, including the following:
 
 * contributing or providing feedback on the [OpenCost Spec](https://github.com/opencost/opencost/tree/develop/spec)
-* contributing documentation here or to the [OpenCost website](https://github.com/kubecost/opencost-website)
+* contributing documentation here or to the [OpenCost website](https://github.com/opencost/opencost-website)
 * joining the discussion in the [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel
 * keep up with community events using our [Calendar](https://bit.ly/opencost-calendar)
 * participating in the fortnightly [OpenCost Working Group](https://bit.ly/opencost-calendar) meetings ([notes here](https://bit.ly/opencost-meeting))
@@ -12,7 +12,7 @@ Thanks for your help improving the OpenCost project! There are many ways to cont
 ## Getting Help
 
 If you have a question about OpenCost or have encountered problems using it,
-you can start by asking a question on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or via email at [opencost@kubecost.com](opencost@kubecost.com)
+you can start by asking a question on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or attend the biweekly [OpenCost Working Group community meeting](https://bit.ly/opencost-meeting) from the [Community Calendar](https://bit.ly/opencost-calendar) to discuss OpenCost development.
 
 ## Workflow
 
@@ -30,7 +30,7 @@ will run on both AMD64 and ARM64 clusters).
 
 Dependencies:
 1. Docker (with `buildx`)
-2. [just](https://github.com/casey/just) (if you don't want to install Just, read the `justfile` and run the commands manually)
+2. [just](https://github.com/casey/just) (if you don't want to install it , Just read the `justfile` and run the commands manually)
 3. Multi-arch `buildx` builders set up via https://github.com/tonistiigi/binfmt
 4. `npm` (if you want to build the UI)
 
@@ -85,7 +85,7 @@ export KUBECONFIG=~/.kube/config
 An example of the full command:
 
 ```bash
-ETL_PATH_PREFIX="/my/cool/path/kubecost/var/config" CONFIG_PATH="/my/cool/path/kubecost/var/config" PROMETHEUS_SERVER_ENDPOINT="http://127.0.0.1:9090" go run main.go
+PROMETHEUS_SERVER_ENDPOINT="http://127.0.0.1:9090" go run main.go
 ```
 
 ## Running the integration tests
@@ -109,4 +109,4 @@ Please write a commit message with Fixes Issue # if there is an outstanding issu
 
 Please run `go fmt` on the project directory. Lint can be okay (for example, comments on exported functions are nice but not required on the server).
 
-Please email us [opencost@kubecost.com](opencost@kubecost.com) or reach out to us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel if you need help or have any questions!
+Please reach us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or attend the biweekly [OpenCost Working Group community meeting](https://bit.ly/opencost-meeting) from the [Community Calendar](https://bit.ly/opencost-calendar) to discuss OpenCost development.

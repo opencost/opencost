@@ -2,8 +2,9 @@ package metrics
 
 import (
 	"fmt"
-	"github.com/opencost/opencost/pkg/version"
 	"sync"
+
+	"github.com/opencost/opencost/pkg/version"
 
 	"github.com/kubecost/events"
 	"github.com/prometheus/client_golang/prometheus"
