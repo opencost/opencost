@@ -35,6 +35,7 @@ func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 func Execute(opts *CostModelOpts) error {
 	log.Infof("Starting cost-model version %s", version.FriendlyVersion())
 	log.Infof("Kubernetes enabled: %t", env.IsKubernetesEnabled())
+
 	a := costmodel.InitializeWithoutKubernetes()
 
 	if env.IsKubernetesEnabled() {
