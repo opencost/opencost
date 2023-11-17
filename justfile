@@ -8,7 +8,7 @@ default:
 
 # Run unit tests
 test:
-    {{commonenv}} go test ./... -coverprofile=coverage.out
+    {{commonenv}} go test ./...
 
 # Compile a local binary
 build-local:

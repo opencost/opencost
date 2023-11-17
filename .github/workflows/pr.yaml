@@ -4,9 +4,7 @@ on:
   pull_request:
     branches:
       - develop
-  push:
-    branches:
-      - develop
+
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -38,18 +36,12 @@ jobs:
         name: Test
         run: |
           just test
-      - name: Get branch name 
-        shell: bash
-        run: echo "BRANCH_NAME=$(echo ${GITHUB_REF} | tr / -)" >> $GITHUB_ENV
-      - name: save coverage file
-        uses: actions/upload-artifact@v3
-        with:
-            path: ./coverage.out
-            name: coverage-${{ env.BRANCH_NAME }}-${{ github.sha }}
+
       -
         name: Build
         run: |
           just build-local
+
   frontend:
     runs-on: ubuntu-latest
     steps:
