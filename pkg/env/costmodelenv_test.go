@@ -138,14 +138,14 @@ func TestGetKubernetesEnabled(t *testing.T) {
 			name: "Ensure the value is true when KUBERNETES_ENABLED is set to true",
 			want: true,
 			pre: func() {
-				os.Setenv("EXPORT_KUBERNETES_ENABLED", "true")
+				os.Setenv("KUBERNETES_ENABLED", "true")
 			},
 		},
 		{
 			name: "Ensure the value is false when KUBERNETES_ENABLED is set to false",
 			want: false,
 			pre: func() {
-				os.Setenv("EXPORT_KUBERNETES_ENABLED", "false")
+				os.Setenv("KUBERNETES_ENABLED", "false")
 			},
 		},
 	}
@@ -156,6 +156,44 @@ func TestGetKubernetesEnabled(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := IsKubernetesEnabled(); got != tt.want {
 				t.Errorf("IsKubernetesEnabled() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+
+}
+
+func TestGetCloudIntegrationSecretPath(t *testing.T) {
+	tests := []struct {
+		name string
+		want string
+		pre  func()
+	}{
+		{
+			name: "Ensure the default value is 'cloud-integration.json'",
+			want: "cloud-integration.json",
+		},
+		{
+			name: "Ensure the value is 'cloud-integration.json' when CLOUD_INTEGRATION_SECRET_PATH is set to ''",
+			want: "cloud-integration.json",
+			pre: func() {
+				os.Setenv("CLOUD_INTEGRATION_SECRET_PATH", "")
+			},
+		},
+		{
+			name: "Ensure the value is 'flying-pig.json' when CLOUD_INTEGRATION_SECRET_PATH is set to 'flying-pig.json'",
+			want: "flying-pig.json",
+			pre: func() {
+				os.Setenv("CLOUD_INTEGRATION_SECRET_PATH", "flying-pig.json")
+			},
+		},
+	}
+	for _, tt := range tests {
+		if tt.pre != nil {
+			tt.pre()
+		}
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GetCloudIntegrationSecretPath(); got != tt.want {
+				t.Errorf("GetCloudIntegrationSecretPath() = %v, want %v", got, tt.want)
 			}
 		})
 	}
