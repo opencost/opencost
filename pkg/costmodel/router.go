@@ -1493,7 +1493,7 @@ func handlePanic(p errors.Panic) bool {
 func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses {
 	configWatchers := watcher.NewConfigMapWatchers(additionalConfigWatchers...)
 
-	log.Infof("+++Initialize: %v", configWatchers.GetWatchedConfigs())
+	log.Debugf("Initialize-START: %v", configWatchers.GetWatchedConfigs())
 
 	var err error
 	if errorReportingEnabled {
@@ -1827,13 +1827,15 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 
 	a.httpServices.RegisterAll(a.Router)
 
+	log.Debugf("Initialize-START: %v", configWatchers.GetWatchedConfigs())
+
 	return a
 }
 
 func InitializeWithoutKubernetes(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses {
 	configWatchers := watcher.NewConfigMapWatchers(additionalConfigWatchers...)
 
-	log.Infof("+++InitializeWithoutKubernetes: %v", configWatchers.GetWatchedConfigs())
+	log.Debugf("InitializeWithoutKubernetes-START: %v", configWatchers.GetWatchedConfigs())
 
 	var err error
 	if errorReportingEnabled {
@@ -1848,26 +1850,19 @@ func InitializeWithoutKubernetes(additionalConfigWatchers ...*watcher.ConfigMapW
 		}
 	}
 
-	// // Create ConfigFileManager for synchronization of shared configuration
-	// confManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-	// 	BucketStoreConfig: env.GetKubecostConfigBucket(),
-	// 	LocalConfigPath:   "/",
-	// })
-
-	// configPrefix := env.GetConfigPathWithDefault("/var/configs/")
-
-	// cloudProviderKey := env.GetCloudProviderAPIKey()
-
 	a := &Accesses{
-		Router: httprouter.New(),
+		Router:                httprouter.New(),
+		CloudConfigController: cloudconfig.NewController(nil),
 	}
+
 	/*
 		a.Router.GET("/status", a.Status)
 		a.Router.GET("/logs/level", a.GetLogLevel)
 		a.Router.POST("/logs/level", a.SetLogLevel)
-
 		a.httpServices.RegisterAll(a.Router)
 	*/
+
+	log.Debugf("InitializeWithoutKubernetes-END: %v", configWatchers.GetWatchedConfigs())
 	return a
 }
 
