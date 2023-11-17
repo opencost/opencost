@@ -1828,9 +1828,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	return a
 }
 
-func InitializeWithoutKubernetes(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses {
-	configWatchers := watcher.NewConfigMapWatchers(additionalConfigWatchers...)
-
+func InitializeWithoutKubernetes() *Accesses {
 	var err error
 	if errorReportingEnabled {
 		err = sentry.Init(sentry.ClientOptions{Release: version.FriendlyVersion()})
@@ -1847,14 +1845,13 @@ func InitializeWithoutKubernetes(additionalConfigWatchers ...*watcher.ConfigMapW
 	a := &Accesses{
 		Router:                httprouter.New(),
 		CloudConfigController: cloudconfig.NewController(nil),
+		httpServices:          services.NewCostModelServices(),
 	}
 
-	/*
-		a.Router.GET("/status", a.Status)
-		a.Router.GET("/logs/level", a.GetLogLevel)
-		a.Router.POST("/logs/level", a.SetLogLevel)
-		a.httpServices.RegisterAll(a.Router)
-	*/
+	a.Router.GET("/logs/level", a.GetLogLevel)
+	a.Router.POST("/logs/level", a.SetLogLevel)
+
+	a.httpServices.RegisterAll(a.Router)
 
 	return a
 }
