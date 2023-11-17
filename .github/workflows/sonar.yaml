@@ -1,0 +1,64 @@
+Name: Sonar Code Quality Checks
+
+on:
+  workflow_run:
+    workflows: ["Develop PR - build test"]
+    types:
+      - completed
+
+jobs: 
+  submit-to-sonarcloud:
+    needs: backend
+    name: Submit to sonar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      - name: Get branch name 
+        shell: bash
+        run: echo "BRANCH_NAME=$(echo ${GITHUB_REF} | tr / -)" >> $GITHUB_ENV
+      - name: Restore coverage file
+        uses: actions/download-artifact@v3
+        with:
+          path: /tmp/coverage.out
+          name: coverage-${{ env.BRANCH_NAME }}-${{ github.sha }}
+      - name: copy output file
+        shell: bash
+        run: mv /tmp/coverage.out/coverage.out coverage.out
+      - uses: sonarsource/sonarcloud-github-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: geekyeggo/delete-artifact@v2
+        with:
+          name: coverage-${{ env.BRANCH_NAME }}-${{ github.sha }}
+      - name: save report file
+        uses: actions/upload-artifact@v3
+        with:
+            path: .scannerwork
+            name: report-${{ env.BRANCH_NAME }}-${{ github.sha }}
+  # code-quality-gate:  
+  #     needs: submit-to-sonarqube
+  #     name: Code Quality Gate
+  #     if: github.ref != 'refs/heads/develop'
+  #     runs-on: ubuntu-latest
+  #     steps: 
+  #       - name: Get branch name 
+  #         shell: bash
+  #         run: echo "BRANCH_NAME=$(echo ${GITHUB_REF} | tr / -)" >> $GITHUB_ENV
+  #       - name: Restore report file
+  #         uses: actions/download-artifact@v3
+  #         with:
+  #           path: /tmp/.scannerwork
+  #           name: report-${{ env.BRANCH_NAME }}-${{ github.sha }}
+  #       - name: copy output file
+  #         shell: bash
+  #         run: mv /tmp/.scannerwork .scannerwork
+  #       - uses: sonarsource/sonarqube-quality-gate-action@master
+  #         timeout-minutes: 5
+  #         env:
+  #           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  #       - uses: geekyeggo/delete-artifact@v2
+  #         with:
+  #           name: report-${{ env.BRANCH_NAME }}-${{ github.sha }}      
