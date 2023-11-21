@@ -23,7 +23,7 @@ import (
 // context must be provided by a SummaryAllocationSet.
 type SummaryAllocation struct {
 	Name                   string                `json:"name"`
-	Properties             *AllocationProperties `json:"-"`
+	Properties             *AllocationProperties `json:"properties"`
 	Start                  time.Time             `json:"start"`
 	End                    time.Time             `json:"end"`
 	CPUCoreRequestAverage  float64               `json:"cpuCoreRequestAverage"`
