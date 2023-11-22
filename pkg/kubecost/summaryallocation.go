@@ -40,6 +40,10 @@ type SummaryAllocation struct {
 	ExternalCost           float64               `json:"externalCost"`
 	Share                  bool                  `json:"-"`
 	UnmountedPVCost        float64               `json:"-"`
+	// RawAllocationOnly added back in to the summary to support row modals.
+	// RawAllocationOnly is a pointer so if it is not present it will be
+	// marshalled as null rather than as an object with Go default values.
+	RawAllocationOnly *RawAllocationOnlyData `json:"rawAllocationOnly"`
 }
 
 // NewSummaryAllocation converts an Allocation to a SummaryAllocation by
@@ -69,6 +73,7 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 		SharedCost:             alloc.SharedCost,
 		ExternalCost:           alloc.ExternalCost,
 		UnmountedPVCost:        alloc.UnmountedPVCost,
+		RawAllocationOnly:      alloc.RawAllocationOnly,
 	}
 
 	// Revert adjustments if reconciliation is off. If only network
