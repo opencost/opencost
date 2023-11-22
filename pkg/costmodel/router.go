@@ -86,7 +86,6 @@ var (
 type Accesses struct {
 	Router                   *httprouter.Router
 	PrometheusClient         prometheus.Client
-	PrometheusScrapeClient   prometheus.Client
 	ThanosClient             prometheus.Client
 	KubeClientSet            kubernetes.Interface
 	ClusterCache             clustercache.ClusterCache
@@ -1133,7 +1132,7 @@ func (a *Accesses) PrometheusConfig(w http.ResponseWriter, r *http.Request, _ ht
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	pConfig := map[string]string{
-		"address": env.GetPrometheusEndpoints()[env.Scrape],
+		"address": env.GetPrometheusServerEndpoint(),
 	}
 
 	body, err := json.Marshal(pConfig)
@@ -1408,19 +1407,15 @@ func (a *Accesses) Status(w http.ResponseWriter, r *http.Request, _ httprouter.P
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	endpoints := env.GetPrometheusEndpoints()
-	scrapeServer, ok := endpoints[env.Scrape]
-	if !ok {
-		scrapeServer = endpoints[env.Server]
-	}
+	promServer := env.GetPrometheusServerEndpoint()
 
-	api := prometheusAPI.NewAPI(a.PrometheusScrapeClient)
+	api := prometheusAPI.NewAPI(a.PrometheusClient)
 	result, err := api.Config(r.Context())
 	if err != nil {
-		fmt.Fprintf(w, "Using Prometheus at "+scrapeServer+". Error: "+err.Error())
+		fmt.Fprintf(w, "Using Prometheus at "+promServer+". Error: "+err.Error())
 	} else {
 
-		fmt.Fprintf(w, "Using Prometheus at "+scrapeServer+". PrometheusConfig: "+result.YAML)
+		fmt.Fprintf(w, "Using Prometheus at "+promServer+". PrometheusConfig: "+result.YAML)
 	}
 }
 
@@ -1511,8 +1506,8 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		}
 	}
 
-	promAddrs := env.GetPrometheusEndpoints()
-	if promAddrs[env.Server] == "" {
+	address := env.GetPrometheusServerEndpoint()
+	if address == "" {
 		log.Fatalf("No address for prometheus set in $%s. Aborting.", env.PrometheusServerEndpointEnvVar)
 	}
 
@@ -1532,53 +1527,46 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		}
 	}
 
-	promClis := map[env.PrometheusType]prometheus.Client{}
-	for clientName, addr := range promAddrs {
-		promClis[clientName], err = prom.NewPrometheusClient(addr, &prom.PrometheusClientConfig{
-			Timeout:               timeout,
-			KeepAlive:             keepAlive,
-			TLSHandshakeTimeout:   tlsHandshakeTimeout,
-			TLSInsecureSkipVerify: env.GetInsecureSkipVerify(clientName),
-			RateLimitRetryOpts:    rateLimitRetryOpts,
-			Auth: &prom.ClientAuth{
-				Username:    env.GetDBBasicAuthUsername(clientName),
-				Password:    env.GetDBBasicAuthUserPassword(clientName),
-				BearerToken: env.GetDBBearerToken(clientName),
-			},
-			QueryConcurrency:  queryConcurrency,
-			QueryLogFile:      "",
-			HeaderXScopeOrgId: env.GetPrometheusHeaderXScopeOrgId(clientName),
-		})
+	promCli, err := prom.NewPrometheusClient(address, &prom.PrometheusClientConfig{
+		Timeout:               timeout,
+		KeepAlive:             keepAlive,
+		TLSHandshakeTimeout:   tlsHandshakeTimeout,
+		TLSInsecureSkipVerify: env.GetInsecureSkipVerify(),
+		RateLimitRetryOpts:    rateLimitRetryOpts,
+		Auth: &prom.ClientAuth{
+			Username:    env.GetDBBasicAuthUsername(),
+			Password:    env.GetDBBasicAuthUserPassword(),
+			BearerToken: env.GetDBBearerToken(),
+		},
+		QueryConcurrency:  queryConcurrency,
+		QueryLogFile:      "",
+		HeaderXScopeOrgId: env.GetPrometheusHeaderXScopeOrgId(),
+	})
+	if err != nil {
+		log.Fatalf("Failed to create prometheus client, Error: %v", err)
+	}
+
+	m, err := prom.Validate(promCli)
+	if err != nil || !m.Running {
 		if err != nil {
-			log.Fatalf("Failed to create prometheus client, Error: %v", err)
+			log.Errorf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prom.PrometheusTroubleshootingURL)
+		} else if !m.Running {
+			log.Errorf("Prometheus at %s is not running. Troubleshooting help available at: %s", address, prom.PrometheusTroubleshootingURL)
 		}
-		m, err := prom.Validate(promClis[clientName])
-		if err != nil || !m.Running {
-			if err != nil {
-				log.Errorf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", addr, err.Error(), prom.PrometheusTroubleshootingURL)
-			} else if !m.Running {
-				log.Errorf("Prometheus at %s is not running. Troubleshooting help available at: %s", addr, prom.PrometheusTroubleshootingURL)
-			}
-		} else {
-			log.Infof("Success: retrieved the 'up' query against prometheus at: " + addr)
-		}
+	} else {
+		log.Infof("Success: retrieved the 'up' query against prometheus at: " + address)
 	}
-	scrapeKey := env.Scrape
-	promScrapeCli, ok := promClis[env.Scrape]
-	if !ok {
-		promScrapeCli = promClis[env.Server]
-		scrapeKey = env.Server
-	}
-	api := prometheusAPI.NewAPI(promScrapeCli)
+
+	api := prometheusAPI.NewAPI(promCli)
 	_, err = api.Config(context.Background())
 	if err != nil {
-		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/mimir/thanos here.", promAddrs[scrapeKey], err.Error(), prom.PrometheusTroubleshootingURL)
+		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/mimir/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
 	} else {
-		log.Infof("Retrieved a prometheus config file from: %s", promAddrs[scrapeKey])
+		log.Infof("Retrieved a prometheus config file from: %s", address)
 	}
 
 	// Lookup scrape interval for kubecost job, update if found
-	si, err := prom.ScrapeIntervalFor(promClis[env.Server], env.GetKubecostJobName())
+	si, err := prom.ScrapeIntervalFor(promCli, env.GetKubecostJobName())
 	if err == nil {
 		scrapeInterval = si
 	}
@@ -1659,7 +1647,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 				Timeout:               timeout,
 				KeepAlive:             keepAlive,
 				TLSHandshakeTimeout:   tlsHandshakeTimeout,
-				TLSInsecureSkipVerify: env.GetInsecureSkipVerify(env.Server),
+				TLSInsecureSkipVerify: env.GetInsecureSkipVerify(),
 				RateLimitRetryOpts:    rateLimitRetryOpts,
 				Auth: &prom.ClientAuth{
 					Username:    env.GetMultiClusterBasicAuthUsername(),
@@ -1699,7 +1687,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	if thanosClient != nil {
 		clusterMap = clusters.NewClusterMap(thanosClient, clusterInfoProvider, 10*time.Minute)
 	} else {
-		clusterMap = clusters.NewClusterMap(promClis[env.Server], clusterInfoProvider, 5*time.Minute)
+		clusterMap = clusters.NewClusterMap(promCli, clusterInfoProvider, 5*time.Minute)
 	}
 
 	// cache responses from model and aggregation for a default of 10 minutes;
@@ -1725,32 +1713,31 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	if thanosClient != nil {
 		pc = thanosClient
 	} else {
-		pc = promClis[env.Server]
+		pc = promCli
 	}
 	costModel := NewCostModel(pc, cloudProvider, k8sCache, clusterMap, scrapeInterval)
-	metricsEmitter := NewCostModelMetricsEmitter(promClis[env.Server], k8sCache, cloudProvider, clusterInfoProvider, costModel)
+	metricsEmitter := NewCostModelMetricsEmitter(promCli, k8sCache, cloudProvider, clusterInfoProvider, costModel)
 
 	a := &Accesses{
-		Router:                 httprouter.New(),
-		PrometheusClient:       promClis[env.Server],
-		PrometheusScrapeClient: promClis[scrapeKey],
-		ThanosClient:           thanosClient,
-		KubeClientSet:          kubeClientset,
-		ClusterCache:           k8sCache,
-		ClusterMap:             clusterMap,
-		CloudProvider:          cloudProvider,
-		CloudConfigController:  cloudconfig.NewController(cloudProvider),
-		ConfigFileManager:      confManager,
-		ClusterInfoProvider:    clusterInfoProvider,
-		Model:                  costModel,
-		MetricsEmitter:         metricsEmitter,
-		AggregateCache:         aggregateCache,
-		CostDataCache:          costDataCache,
-		ClusterCostsCache:      clusterCostsCache,
-		OutOfClusterCache:      outOfClusterCache,
-		SettingsCache:          settingsCache,
-		CacheExpiration:        cacheExpiration,
-		httpServices:           services.NewCostModelServices(),
+		Router:                httprouter.New(),
+		PrometheusClient:      promCli,
+		ThanosClient:          thanosClient,
+		KubeClientSet:         kubeClientset,
+		ClusterCache:          k8sCache,
+		ClusterMap:            clusterMap,
+		CloudProvider:         cloudProvider,
+		CloudConfigController: cloudconfig.NewController(cloudProvider),
+		ConfigFileManager:     confManager,
+		ClusterInfoProvider:   clusterInfoProvider,
+		Model:                 costModel,
+		MetricsEmitter:        metricsEmitter,
+		AggregateCache:        aggregateCache,
+		CostDataCache:         costDataCache,
+		ClusterCostsCache:     clusterCostsCache,
+		OutOfClusterCache:     outOfClusterCache,
+		SettingsCache:         settingsCache,
+		CacheExpiration:       cacheExpiration,
+		httpServices:          services.NewCostModelServices(),
 	}
 
 	// Use the Accesses instance, itself, as the CostModelAggregator. This is
