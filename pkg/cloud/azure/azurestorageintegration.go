@@ -67,11 +67,8 @@ func (asi *AzureStorageIntegration) GetCloudCost(start, end time.Time) (*kubecos
 			},
 		}
 
-		// Check if Item
-		if abv.IsCompute(cc.Properties.Category) {
-			// TODO: Will need to split VMSS for other features
-			ccsr.LoadCloudCost(cc)
-		}
+		ccsr.LoadCloudCost(cc)
+
 		return nil
 	})
 	if err != nil {
