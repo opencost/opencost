@@ -1,7 +1,7 @@
 name: Sonar Code Coverage Upload
 on:
   workflow_run:
-    workflows: ['Build/Test']
+    workflows: ["Build/Test"]
     types: [completed]
 jobs:
   sonar:
