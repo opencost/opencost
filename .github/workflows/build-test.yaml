@@ -1,4 +1,4 @@
-name: Develop PR - build test
+name: Build/Test
 
 on:
   push:
