@@ -1,6 +1,10 @@
 name: Develop PR - build test
 
 on:
+  push:
+    branches:
+      - develop
+
   pull_request:
     branches:
       - develop
@@ -41,6 +45,11 @@ jobs:
         name: Build
         run: |
           just build-local
+      - name: Upload code coverage
+        uses: actions/upload-artifact@v3
+        with:
+          name: oc-code-coverage
+          path: coverage.out
 
   frontend:
     runs-on: ubuntu-latest
