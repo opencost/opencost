@@ -220,10 +220,17 @@ func (rq *RepositoryQuerier) QueryViewTable(request ViewQueryRequest, ctx contex
 		return make([]*ViewTableRow, 0), nil
 	}
 
-	limit := request.Offset + request.Limit
-	if limit > len(rows) {
+	if request.Limit > 0 {
+		limit := request.Offset + request.Limit
+		if limit > len(rows) {
+			return rows[request.Offset:], nil
+		}
+		return rows[request.Offset:limit], nil
+	}
+
+	if request.Offset > 0 {
 		return rows[request.Offset:], nil
 	}
 
-	return rows[request.Offset:limit], nil
+	return rows, nil
 }
