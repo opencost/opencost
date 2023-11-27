@@ -3841,6 +3841,7 @@ func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 	}
 
 	var err error
+	var as *AssetSet
 	for _, thatAS := range that.Assets {
 		if thatAS == nil || err != nil {
 			continue
@@ -3852,7 +3853,7 @@ func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 			err = fmt.Errorf("cannot merge AssetSet into window that does not exist: %s", thatAS.Window.String())
 			continue
 		}
-		as, err := asr.Get(i)
+		as, err = asr.Get(i)
 		if err != nil {
 			err = fmt.Errorf("AssetSetRange index does not exist: %d", i)
 			continue
