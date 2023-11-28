@@ -4,7 +4,7 @@ import Header from "./components/Header";
 import IconButton from "@material-ui/core/IconButton";
 import RefreshIcon from "@material-ui/icons/Refresh";
 import { makeStyles } from "@material-ui/styles";
-import { Paper, Typography } from "@material-ui/core";
+import { Box, Link, Paper, Typography } from "@material-ui/core";
 import CircularProgress from "@material-ui/core/CircularProgress";
 import { get, find } from "lodash";
 import { useLocation, useHistory } from "react-router";
@@ -204,6 +204,30 @@ const CloudCostReports = () => {
     setTitle(generateTitle({ window, aggregateBy, costMetric }));
   }, [window, aggregateBy, costMetric, filters]);
 
+  const hasCloudCostEnabled = aggregateBy.includes("item")
+    ? true // this is kind of hacky but something weird is happening
+    : // when drilling down will address in a later PR - @jjarrett21
+      !!cloudCostData.cloudCostStatus?.length;
+
+  const enabledWarnings = [
+    {
+      primary: "There are no Cloud Cost integrations currently configured.",
+      secondary: (
+        <>
+          Learn more about setting up Cloud Costs{" "}
+          <Link
+            href={
+              "https://docs.kubecost.com/using-kubecost/navigating-the-kubecost-ui/cloud-costs-explorer#installation-and-configuration"
+            }
+            target="_blank"
+          >
+            here
+          </Link>
+        </>
+      ),
+    },
+  ];
+
   return (
     <Page active="cloud.html">
       <Header>
@@ -212,13 +236,19 @@ const CloudCostReports = () => {
         </IconButton>
       </Header>
 
-      {!loading && errors.length > 0 && (
+      {!loading && !hasCloudCostEnabled && (
+        <div style={{ marginBottom: 20 }}>
+          <Warnings warnings={enabledWarnings} />
+        </div>
+      )}
+
+      {!loading && errors.length > 0 && hasCloudCostEnabled && (
         <div style={{ marginBottom: 20 }}>
           <Warnings warnings={errors} />
         </div>
       )}
 
-      {init && (
+      {init && hasCloudCostEnabled && (
         <Paper id="cloud-cost">
           <div className={classes.reportHeader}>
             <div className={classes.titles}>
