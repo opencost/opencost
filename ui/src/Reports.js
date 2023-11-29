@@ -36,14 +36,12 @@ import { currencyCodes } from "./constants/currencyCodes";
 const windowOptions = [
   { name: "Today", value: "today" },
   { name: "Yesterday", value: "yesterday" },
+  { name: "Last 24h", value: "24h" },
+  { name: "Last 48h", value: "48h" },
   { name: "Week-to-date", value: "week" },
-  { name: "Month-to-date", value: "month" },
   { name: "Last week", value: "lastweek" },
-  { name: "Last month", value: "lastmonth" },
-  { name: "Last 7 days", value: "6d" },
-  { name: "Last 30 days", value: "29d" },
-  { name: "Last 60 days", value: "59d" },
-  { name: "Last 90 days", value: "89d" },
+  { name: "Last 7 days", value: "7d" },
+  { name: "Last 14 days", value: "14d" },
 ];
 
 const aggregationOptions = [
@@ -54,6 +52,7 @@ const aggregationOptions = [
   { name: "Controller", value: "controller" },
   { name: "Service", value: "service" },
   { name: "Pod", value: "pod" },
+  { name: "Deployment", value: "deployment" },
   { name: "Container", value: "container" },
 ];
 
