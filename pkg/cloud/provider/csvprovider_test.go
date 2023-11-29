@@ -136,7 +136,7 @@ func TestCSVProvider(t *testing.T) {
 		assertNode(t, node, &models.Node{Cost: "0.60001", PricingType: models.CsvExact})
 	})
 
-	t.Run("Try without a region to be sure key.ID() (I don not understand this logic??)", func(t *testing.T) {
+	t.Run("Try without a region to be sure key.ID()", func(t *testing.T) {
 		pr := map[string]*price{
 			"aorjoa-1": {
 				EndTimestamp:      "2023-07-24 16:00:00 UTC",
