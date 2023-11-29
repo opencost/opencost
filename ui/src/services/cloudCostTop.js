@@ -43,10 +43,13 @@ class CloudCostTopService {
       params,
     });
 
+    const status = await axios.get(`${this.BASE_URL}/cloudCost/status`);
+
     return {
       tableRows: tableView.data.data,
       graphData: graphView.data.data,
       tableTotal: totalsView.data.data.combined,
+      cloudCostStatus: status.data.data,
     };
   }
 }
