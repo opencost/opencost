@@ -985,7 +985,6 @@ func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]mo
 
 	url := gcp.getBillingAPIURL(gcp.APIKey, c.CurrencyCode)
 
-	log.Infof("Fetch GCP Billing Data from URL: %s", url)
 	var parsePagesHelper func(string) error
 	parsePagesHelper = func(pageToken string) error {
 		if pageToken == "done" {
