@@ -1,0 +1,118 @@
+# DO NOT USE FOR DEPLOYMENT. This file is intended to be used with a Tiltfile
+# and for development purposes only. Please refer to
+# https://github.com/opencost/opencost-helm-chart
+service:
+  enabled: true
+  # --  Kubernetes Service type
+  type: ClusterIP
+  # -- extra ports.  Useful for sidecar pods such as oauth-proxy
+  extraPorts:
+    - name: debug
+      port: 40000
+      targetPort: 40000
+
+opencost:
+  exporter:
+    # -- The GCP Pricing API requires a key. This is supplied just for evaluation.
+    cloudProviderApiKey: ""
+    # -- Default cluster ID to use if cluster_id is not set in Prometheus metrics.
+    defaultClusterId: 'tilt-cluster'
+  livenessProbe:
+    # -- Whether probe is enabled
+    enabled: true
+    # -- Number of seconds before probe is initiated
+    initialDelaySeconds: 120
+    # -- Probe frequency in seconds
+    periodSeconds: 10
+    # -- Number of failures for probe to be considered failed
+    failureThreshold: 3
+  # Readiness probe configuration
+  readinessProbe:
+    # -- Whether probe is enabled
+    enabled: true
+    # -- Number of seconds before probe is initiated
+    initialDelaySeconds: 120
+    # -- Probe frequency in seconds
+    periodSeconds: 10
+    # -- Number of failures for probe to be considered failed
+    failureThreshold: 3
+
+  # Persistent volume claim for storing the data. eg: csv file
+  persistence:
+    enabled: false
+
+  aws:
+    # -- AWS secret access key
+    secret_access_key: ""
+    # -- AWS secret key id
+    access_key_id: ""
+
+  customPricing:
+    # -- Enables custom pricing configuration
+    enabled: false
+    # -- Customize the configmap name used for custom pricing
+    configmapName: custom-pricing-model
+    # -- Path for the pricing configuration.
+    configPath: /tmp/custom-config
+    # -- Configures the pricing model provided in the values file.
+    createConfigmap: true
+    # -- Sets the provider type for the custom pricing file.
+    provider: custom
+    # -- More information about these values here: https://www.opencost.io/docs/configuration/on-prem#custom-pricing-using-the-opencost-helm-chart
+    costModel:
+      description: Modified pricing configuration.
+      CPU: 1.25
+      spotCPU: 0.006655
+      RAM: 0.50
+      spotRAM: 0.000892
+      GPU: 0.95
+      storage: 0.25
+      zoneNetworkEgress: 0.01
+      regionNetworkEgress: 0.01
+      internetNetworkEgress: 0.12
+
+  dataRetention:
+    dailyResolutionDays: 15
+
+  cloudCost:
+    # -- Enable cloud cost ingestion and querying, dependant on valid integration credentials
+    enabled: false
+    # -- Number of hours between each run of the Cloud Cost pipeline
+    refreshRateHours: 6
+    # -- Number of days into the past that a Cloud Cost standard run will query for
+    runWindowDays: 3
+    # -- The number of standard runs before a Month-to-Date run occurs
+    monthToDateInterval: 6
+    # -- The max number of days that any single query will be made to construct Cloud Costs
+    queryWindowDays: 7
+
+  metrics:
+    serviceMonitor:
+      # -- Create ServiceMonitor resource for scraping metrics using PrometheusOperator
+      enabled: false
+      # -- Additional labels to add to the ServiceMonitor
+      additionalLabels: {}
+      # -- Specify if the ServiceMonitor will be deployed into a different namespace (blank deploys into same namespace as chart)
+      namespace: ""
+      # -- Interval at which metrics should be scraped
+      scrapeInterval: 30s
+      # -- Timeout after which the scrape is ended
+      scrapeTimeout: 10s
+      # -- HonorLabels chooses the metric's labels on collisions with target labels
+      honorLabels: true
+      # -- RelabelConfigs to apply to samples before scraping. Prometheus Operator automatically adds relabelings for a few standard Kubernetes fields
+      relabelings: []
+      # -- MetricRelabelConfigs to apply to samples before ingestion
+      metricRelabelings: []
+      # -- HTTP scheme used for scraping. Defaults to `http`
+      scheme: http
+  prometheus:
+    internal:
+      enabled: true
+      # -- Service name of in-cluster Prometheus
+      serviceName: prometheus-server
+      # -- Service port of in-cluster Prometheus
+      port: 80
+  ui:
+    # -- Enable OpenCost UI
+    enabled: true

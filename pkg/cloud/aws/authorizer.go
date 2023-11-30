@@ -8,7 +8,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/opencost/opencost/pkg/cloud/config"
+	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/util/json"
 )
 
@@ -18,7 +18,7 @@ const AssumeRoleAuthorizerType = "AWSAssumeRole"
 
 // Authorizer implementations provide aws.Config for AWS SDK calls
 type Authorizer interface {
-	config.Authorizer
+	cloud.Authorizer
 	CreateAWSConfig(string) (aws.Config, error)
 }
 
@@ -45,7 +45,7 @@ type AccessKey struct {
 // MarshalJSON custom json marshalling functions, sets properties as tagged in struct and sets the authorizer type property
 func (ak *AccessKey) MarshalJSON() ([]byte, error) {
 	fmap := make(map[string]any, 3)
-	fmap[config.AuthorizerTypeProperty] = AccessKeyAuthorizerType
+	fmap[cloud.AuthorizerTypeProperty] = AccessKeyAuthorizerType
 	fmap["id"] = ak.ID
 	fmap["secret"] = ak.Secret
 	return json.Marshal(fmap)
@@ -70,7 +70,7 @@ func (ak *AccessKey) Validate() error {
 	return nil
 }
 
-func (ak *AccessKey) Equals(config config.Config) bool {
+func (ak *AccessKey) Equals(config cloud.Config) bool {
 	if config == nil {
 		return false
 	}
@@ -88,10 +88,10 @@ func (ak *AccessKey) Equals(config config.Config) bool {
 	return true
 }
 
-func (ak *AccessKey) Sanitize() config.Config {
+func (ak *AccessKey) Sanitize() cloud.Config {
 	return &AccessKey{
 		ID:     ak.ID,
-		Secret: config.Redacted,
+		Secret: cloud.Redacted,
 	}
 }
 
@@ -115,7 +115,7 @@ type ServiceAccount struct{}
 // MarshalJSON custom json marshalling functions, sets properties as tagged in struct and sets the authorizer type property
 func (sa *ServiceAccount) MarshalJSON() ([]byte, error) {
 	fmap := make(map[string]any, 1)
-	fmap[config.AuthorizerTypeProperty] = ServiceAccountAuthorizerType
+	fmap[cloud.AuthorizerTypeProperty] = ServiceAccountAuthorizerType
 	return json.Marshal(fmap)
 }
 
@@ -124,7 +124,7 @@ func (sa *ServiceAccount) Validate() error {
 	return nil
 }
 
-func (sa *ServiceAccount) Equals(config config.Config) bool {
+func (sa *ServiceAccount) Equals(config cloud.Config) bool {
 	if config == nil {
 		return false
 	}
@@ -136,7 +136,7 @@ func (sa *ServiceAccount) Equals(config config.Config) bool {
 	return true
 }
 
-func (sa *ServiceAccount) Sanitize() config.Config {
+func (sa *ServiceAccount) Sanitize() cloud.Config {
 	return &ServiceAccount{}
 }
 
@@ -157,7 +157,7 @@ type AssumeRole struct {
 // MarshalJSON custom json marshalling functions, sets properties as tagged in struct and sets the authorizer type property
 func (ara *AssumeRole) MarshalJSON() ([]byte, error) {
 	fmap := make(map[string]any, 3)
-	fmap[config.AuthorizerTypeProperty] = AssumeRoleAuthorizerType
+	fmap[cloud.AuthorizerTypeProperty] = AssumeRoleAuthorizerType
 	fmap["roleARN"] = ara.RoleARN
 	fmap["authorizer"] = ara.Authorizer
 	return json.Marshal(fmap)
@@ -173,7 +173,7 @@ func (ara *AssumeRole) UnmarshalJSON(b []byte) error {
 
 	fmap := f.(map[string]interface{})
 
-	roleARN, err := config.GetInterfaceValue[string](fmap, "roleARN")
+	roleARN, err := cloud.GetInterfaceValue[string](fmap, "roleARN")
 	if err != nil {
 		return fmt.Errorf("StorageConfiguration: UnmarshalJSON: %s", err.Error())
 	}
@@ -183,7 +183,7 @@ func (ara *AssumeRole) UnmarshalJSON(b []byte) error {
 	if !ok {
 		return fmt.Errorf("AssumeRole: UnmarshalJSON: missing Authorizer")
 	}
-	authorizer, err := config.AuthorizerFromInterface(authAny, SelectAuthorizerByType)
+	authorizer, err := cloud.AuthorizerFromInterface(authAny, SelectAuthorizerByType)
 	if err != nil {
 		return fmt.Errorf("AssumeRole: UnmarshalJSON: %s", err.Error())
 	}
@@ -218,7 +218,7 @@ func (ara *AssumeRole) Validate() error {
 	return nil
 }
 
-func (ara *AssumeRole) Equals(config config.Config) bool {
+func (ara *AssumeRole) Equals(config cloud.Config) bool {
 	if config == nil {
 		return false
 	}
@@ -243,7 +243,7 @@ func (ara *AssumeRole) Equals(config config.Config) bool {
 	return true
 }
 
-func (ara *AssumeRole) Sanitize() config.Config {
+func (ara *AssumeRole) Sanitize() cloud.Config {
 	return &AssumeRole{
 		Authorizer: ara.Authorizer.Sanitize().(Authorizer),
 		RoleARN:    ara.RoleARN,

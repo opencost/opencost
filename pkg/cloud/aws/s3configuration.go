@@ -4,7 +4,8 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/opencost/opencost/pkg/cloud/config"
+	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/util/json"
 )
 
@@ -42,7 +43,7 @@ func (s3c *S3Configuration) Validate() error {
 	return nil
 }
 
-func (s3c *S3Configuration) Equals(config config.Config) bool {
+func (s3c *S3Configuration) Equals(config cloud.Config) bool {
 	if config == nil {
 		return false
 	}
@@ -76,7 +77,7 @@ func (s3c *S3Configuration) Equals(config config.Config) bool {
 	return true
 }
 
-func (s3c *S3Configuration) Sanitize() config.Config {
+func (s3c *S3Configuration) Sanitize() cloud.Config {
 	return &S3Configuration{
 		Bucket:     s3c.Bucket,
 		Region:     s3c.Region,
@@ -89,6 +90,10 @@ func (s3c *S3Configuration) Key() string {
 	return fmt.Sprintf("%s/%s", s3c.Account, s3c.Bucket)
 }
 
+func (s3c *S3Configuration) Provider() string {
+	return kubecost.AWSProvider
+}
+
 func (s3c *S3Configuration) UnmarshalJSON(b []byte) error {
 	var f interface{}
 	err := json.Unmarshal(b, &f)
@@ -98,19 +103,19 @@ func (s3c *S3Configuration) UnmarshalJSON(b []byte) error {
 
 	fmap := f.(map[string]interface{})
 
-	bucket, err := config.GetInterfaceValue[string](fmap, "bucket")
+	bucket, err := cloud.GetInterfaceValue[string](fmap, "bucket")
 	if err != nil {
 		return fmt.Errorf("S3Configuration: UnmarshalJSON: %s", err.Error())
 	}
 	s3c.Bucket = bucket
 
-	region, err := config.GetInterfaceValue[string](fmap, "region")
+	region, err := cloud.GetInterfaceValue[string](fmap, "region")
 	if err != nil {
 		return fmt.Errorf("S3Configuration: UnmarshalJSON: %s", err.Error())
 	}
 	s3c.Region = region
 
-	account, err := config.GetInterfaceValue[string](fmap, "account")
+	account, err := cloud.GetInterfaceValue[string](fmap, "account")
 	if err != nil {
 		return fmt.Errorf("S3Configuration: UnmarshalJSON: %s", err.Error())
 	}
@@ -120,7 +125,7 @@ func (s3c *S3Configuration) UnmarshalJSON(b []byte) error {
 	if !ok {
 		return fmt.Errorf("S3Configuration: UnmarshalJSON: missing authorizer")
 	}
-	authorizer, err := config.AuthorizerFromInterface(authAny, SelectAuthorizerByType)
+	authorizer, err := cloud.AuthorizerFromInterface(authAny, SelectAuthorizerByType)
 	if err != nil {
 		return fmt.Errorf("S3Configuration: UnmarshalJSON: %s", err.Error())
 	}
