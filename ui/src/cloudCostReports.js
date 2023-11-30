@@ -135,12 +135,12 @@ const CloudCostReports = () => {
           {
             primary: "Failed to load report data",
             secondary:
-              "Please update Kubecost to the latest version, then contact support if problems persist.",
+            "Please update OpenCost to the latest version, and open an Issue if problems persist.",
           },
         ]);
       } else {
         let secondary =
-          "Please contact Kubecost support with a bug report if problems persist.";
+          "Please open an Issue with OpenCost if problems persist.";
         if (err.message.length > 0) {
           secondary = err.message;
         }
@@ -217,7 +217,7 @@ const CloudCostReports = () => {
           Learn more about setting up Cloud Costs{" "}
           <Link
             href={
-              "https://docs.kubecost.com/using-kubecost/navigating-the-kubecost-ui/cloud-costs-explorer#installation-and-configuration"
+              "https://www.opencost.io/docs/configuration/#cloud-costs"
             }
             target="_blank"
           >
