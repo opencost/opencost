@@ -11,4 +11,4 @@ __2023 roadmap__
 * More robust [API documentation](https://www.opencost.io/docs/integrations/api) and examples.
 * Expose carbon emission ratings
 
-Please contact us at opencost@kubecost.com if you're interest in more detail.
+Please reach us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or attend the biweekly [OpenCost Working Group community meeting](https://bit.ly/opencost-meeting) from the [Community Calendar](https://bit.ly/opencost-calendar) to discuss OpenCost development.

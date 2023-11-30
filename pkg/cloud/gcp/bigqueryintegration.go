@@ -2,16 +2,13 @@ package gcp
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
-	"cloud.google.com/go/bigquery"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util/timeutil"
 	"google.golang.org/api/iterator"
 )
 
@@ -28,6 +25,7 @@ const (
 	LabelsColumnName             = "labels"
 	ResourceNameColumnName       = "resource"
 	CostColumnName               = "cost"
+	ListCostColumnName           = "list_cost"
 	CreditsColumnName            = "credits"
 )
 
@@ -35,8 +33,12 @@ const BiqQueryWherePartitionFmt = `DATE(_PARTITIONTIME) >= "%s" AND DATE(_PARTIT
 const BiqQueryWhereDateFmt = `usage_start_time >= "%s" AND usage_start_time < "%s"`
 
 func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*kubecost.CloudCostSetRange, error) {
-	// Build Query
+	cudRates, err := bqi.GetFlexibleCUDRates(start, end)
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving CUD rates: %w", err)
+	}
 
+	// Build Query
 	selectColumns := []string{
 		fmt.Sprintf("TIMESTAMP_TRUNC(usage_start_time, day) as %s", UsageDateColumnName),
 		fmt.Sprintf("billing_account_id as %s", BillingAccountIDColumnName),
@@ -46,7 +48,8 @@ func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*k
 		fmt.Sprintf("resource.name as %s", ResourceNameColumnName),
 		fmt.Sprintf("TO_JSON_STRING(labels) as %s", LabelsColumnName),
 		fmt.Sprintf("SUM(cost) as %s", CostColumnName),
-		fmt.Sprintf("IFNULL(SUM((Select SUM(amount) FROM bd.credits)),0) as %s", CreditsColumnName),
+		fmt.Sprintf("SUM(cost_at_list) as %s", ListCostColumnName),
+		fmt.Sprintf("ARRAY_CONCAT_AGG(credits) as %s", CreditsColumnName),
 	}
 
 	groupByColumns := []string{
@@ -59,15 +62,7 @@ func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*k
 		ResourceNameColumnName,
 	}
 
-	partitionStart := start
-	partitionEnd := end.AddDate(0, 0, 2)
-	wherePartition := fmt.Sprintf(BiqQueryWherePartitionFmt, partitionStart.Format("2006-01-02"), partitionEnd.Format("2006-01-02"))
-	whereDate := fmt.Sprintf(BiqQueryWhereDateFmt, start.Format("2006-01-02"), end.Format("2006-01-02"))
-
-	whereConjuncts := []string{
-		wherePartition,
-		whereDate,
-	}
+	whereConjuncts := GetWhereConjuncts(start, end)
 
 	columnStr := strings.Join(selectColumns, ", ")
 	table := fmt.Sprintf(" `%s` bd ", bqi.GetBillingDataDataset())
@@ -84,7 +79,7 @@ func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*k
 
 	// Perform Query and parse values
 
-	ccsr, err := kubecost.NewCloudCostSetRange(start, end, timeutil.Day, bqi.Key())
+	ccsr, err := kubecost.NewCloudCostSetRange(start, end, kubecost.AccumulateOptionDay, bqi.Key())
 	if err != nil {
 		return ccsr, fmt.Errorf("error creating new CloudCostSetRange: %s", err)
 	}
@@ -95,8 +90,11 @@ func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*k
 	}
 
 	// Parse query into CloudCostSetRange
+
 	for {
-		var ccl CloudCostLoader
+		ccl := CloudCostLoader{
+			FlexibleCUDRates: cudRates,
+		}
 		err = iter.Next(&ccl)
 		if err == iterator.Done {
 			break
@@ -110,260 +108,131 @@ func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*k
 		ccsr.LoadCloudCost(ccl.CloudCost)
 
 	}
+
 	return ccsr, nil
 
 }
 
-type CloudCostLoader struct {
-	CloudCost *kubecost.CloudCost
+// GetWhereConjuncts creates a list of Where filter statements that filter for usage start date and partition time
+// additional filters can be added before combining into the final where clause
+func GetWhereConjuncts(start time.Time, end time.Time) []string {
+	partitionStart := start
+	partitionEnd := end.AddDate(0, 0, 2)
+	wherePartition := fmt.Sprintf(BiqQueryWherePartitionFmt, partitionStart.Format("2006-01-02"), partitionEnd.Format("2006-01-02"))
+	whereDate := fmt.Sprintf(BiqQueryWhereDateFmt, start.Format("2006-01-02"), end.Format("2006-01-02"))
+	return []string{wherePartition, whereDate}
 }
 
-// Load populates the fields of a CloudCostValues with bigquery.Value from provided slice
-func (ccl *CloudCostLoader) Load(values []bigquery.Value, schema bigquery.Schema) error {
+// FlexibleCUDRates are the total amount paid / total amount credited per day for all Flexible CUDs. Since credited will be a negative value
+// this will be a negative ratio. This can then be multiplied with the credits from Flexible CUDs on specific line items to determine
+// the amount paid for the credit it received. This allows us to amortize the Flexible CUD costs which are not associated with resources
+// in the billing export. AmountPayed itself may have some credits on it so a Rate and a NetRate are created.
+// Having both allow us to populate AmortizedCost and AmortizedNetCost respectively.
+type FlexibleCUDRates struct {
+	NetRate float64
+	Rate    float64
+}
 
-	// Create Cloud Cost Properties
-	properties := kubecost.CloudCostProperties{
-		Provider: kubecost.GCPProvider,
+// GetFlexibleCUDRates returns a map of FlexibleCUDRates keyed on the start time of the day which those
+// FlexibleCUDRates were derived from.
+func (bqi *BigQueryIntegration) GetFlexibleCUDRates(start time.Time, end time.Time) (map[time.Time]FlexibleCUDRates, error) {
+	costsByDate, err := bqi.queryFlexibleCUDTotalCosts(start, end)
+	if err != nil {
+		return nil, fmt.Errorf("GetFlexibleCUDRates: %w", err)
 	}
-	var window kubecost.Window
-	var description string
-	var listCost float64
-	var credits float64
 
-	for i, field := range schema {
-		if field == nil {
-			log.DedupedErrorf(5, "GCP: BigQuery: found nil field in schema")
+	creditsByDate, err := bqi.queryFlexibleCUDTotalCredits(start, end)
+	if err != nil {
+		return nil, fmt.Errorf("GetFlexibleCUDRates: %w", err)
+	}
+
+	results := map[time.Time]FlexibleCUDRates{}
+	for date, amountCredited := range creditsByDate {
+		// Protection against divide by zero
+		if amountCredited == 0 {
+			log.Warnf("GetFlexibleCUDRates: 0 value total credit for Flexible CUDs for date %s", date.Format(time.RFC3339))
+			continue
+		}
+		amountPayed, ok := costsByDate[date]
+		if !ok {
+			log.Warnf("GetFlexibleCUDRates: could not find Flexible CUD payments for date %s", date.Format(time.RFC3339))
 			continue
 		}
 
-		switch field.Name {
-		case UsageDateColumnName:
-			usageDate, ok := values[i].(time.Time)
-			if !ok {
-				// It would be very surprising if an unparsable time came back from the API, so it should be ok to return here.
-				return fmt.Errorf("error parsing usage date: %v", values[0])
-			}
-			// start and end will be the day that the usage occurred on
-			s := usageDate
-			e := s.Add(timeutil.Day)
-			window = kubecost.NewWindow(&s, &e)
-		case BillingAccountIDColumnName:
-			invoiceEntityID, ok := values[i].(string)
-			if !ok {
-				log.DedupedErrorf(5, "error parsing GCP CloudCost %s: %v", BillingAccountIDColumnName, values[i])
-				invoiceEntityID = ""
-			}
-			properties.InvoiceEntityID = invoiceEntityID
-		case ProjectIDColumnName:
-			accountID, ok := values[i].(string)
-			if !ok {
-				log.DedupedErrorf(5, "error parsing GCP CloudCost %s: %v", ProjectIDColumnName, values[i])
-				accountID = ""
-			}
-			properties.AccountID = accountID
-		case ServiceDescriptionColumnName:
-			service, ok := values[i].(string)
-			if !ok {
-				log.DedupedErrorf(5, "error parsing GCP CloudCost %s: %v", ServiceDescriptionColumnName, values[i])
-				service = ""
-			}
-			properties.Service = service
-		case SKUDescriptionColumnName:
-			d, ok := values[i].(string)
-			if !ok {
-				log.DedupedErrorf(5, "error parsing GCP CloudCost %s: %v", SKUDescriptionColumnName, values[i])
-				d = ""
-			}
-			description = d
-		case LabelsColumnName:
-			labelJSON, ok := values[i].(string)
-			if !ok {
-				log.DedupedErrorf(5, "error parsing GCP CloudCost %s: %v", LabelsColumnName, values[i])
-			}
-			labelList := []map[string]string{}
-			err := json.Unmarshal([]byte(labelJSON), &labelList)
-			if err != nil {
-				log.Warnf("GCP Cloud Assets: error unmarshaling GCP CloudCost labels: %s", err)
-			}
-			labels := map[string]string{}
-			for _, pair := range labelList {
-				key := pair["key"]
-				value := pair["value"]
-				labels[key] = value
-			}
-			properties.Labels = labels
-		case ResourceNameColumnName:
-			resouceNameValue := values[i]
-			if resouceNameValue == nil {
-				properties.ProviderID = ""
-				continue
-			}
-			resource, ok := resouceNameValue.(string)
-			if !ok {
-				log.DedupedErrorf(5, "error parsing GCP CloudCost %s: %v", ResourceNameColumnName, values[i])
-				properties.ProviderID = ""
-				continue
-			}
+		// amountPayed itself may have some credits on it so a Rate and a NetRate are created.
+		// Having both allow us to populate AmortizedCost and AmortizedNetCost respectively.
+		results[date] = FlexibleCUDRates{
+			NetRate: (amountPayed.cost + amountPayed.credits) / amountCredited,
+			Rate:    amountPayed.cost / amountCredited,
+		}
 
-			properties.ProviderID = ParseProviderID(resource)
-		case CostColumnName:
-			cost, ok := values[i].(float64)
-			if !ok {
-				log.DedupedErrorf(5, "error parsing GCP CloudCost %s: %v", CostColumnName, values[i])
-				cost = 0.0
-			}
-			listCost = cost
-		case CreditsColumnName:
-			creditSum, ok := values[i].(float64)
-			if !ok {
-				log.DedupedErrorf(5, "error parsing GCP CloudCost %s: %v", CreditsColumnName, values[i])
-				creditSum = 0.0
-			}
-			credits = creditSum
-		default:
-			log.DedupedErrorf(5, "GCP: BigQuery: found unrecognized column name %s", field.Name)
+	}
+	return results, nil
+}
+
+func (bqi *BigQueryIntegration) queryFlexibleCUDTotalCosts(start time.Time, end time.Time) (map[time.Time]flexibleCUDCostTotals, error) {
+	queryFmt := `
+		SELECT
+		  TIMESTAMP_TRUNC(usage_start_time, day) as usage_date, 
+		  sum(cost), 
+		  IFNULL(SUM((Select SUM(amount) FROM bd.credits)),0),
+		FROM %s
+		WHERE %s
+		GROUP BY usage_date, sku.description
+	`
+
+	table := fmt.Sprintf(" `%s` bd ", bqi.GetBillingDataDataset())
+	whereConjuncts := GetWhereConjuncts(start, end)
+	whereConjuncts = append(whereConjuncts, "sku.description like 'Commitment - dollar based v1:%'")
+	whereClause := strings.Join(whereConjuncts, " AND ")
+	query := fmt.Sprintf(queryFmt, table, whereClause)
+
+	iter, err := bqi.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("queryCUDAmountPayed: query error %w", err)
+	}
+	var loader FlexibleCUDCostTotalsLoader
+	for {
+		err = iter.Next(&loader)
+		if errors.Is(err, iterator.Done) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("queryCUDAmountPayed: load error %w", err)
 		}
 	}
-
-	// Check required Fields
-	if window.IsOpen() {
-		return fmt.Errorf("GCP: BigQuery: error parsing, item had invalid window")
-	}
-
-	// Determine Category
-	properties.Category = SelectCategory(properties.Service, description)
-
-	// sum credit and cost for NetCost
-	netCost := listCost + credits
-
-	// Using the NetCost as a 'placeholder' for these costs now, until we can revisit and spend the time to do
-	// the calculations correctly
-	amortizedCost := netCost
-	amortizedNetCost := netCost
-	invoicedCost := netCost
-
-	// percent k8s is determined by the presence of labels
-	k8sPercent := 0.0
-	if IsK8s(properties.Labels) {
-		k8sPercent = 1.0
-	}
-
-	ccl.CloudCost = &kubecost.CloudCost{
-		Properties: &properties,
-		Window:     window,
-		ListCost: kubecost.CostMetric{
-			Cost:              listCost,
-			KubernetesPercent: k8sPercent,
-		},
-		AmortizedCost: kubecost.CostMetric{
-			Cost:              amortizedCost,
-			KubernetesPercent: k8sPercent,
-		},
-		AmortizedNetCost: kubecost.CostMetric{
-			Cost:              amortizedNetCost,
-			KubernetesPercent: k8sPercent,
-		},
-		InvoicedCost: kubecost.CostMetric{
-			Cost:              invoicedCost,
-			KubernetesPercent: k8sPercent,
-		},
-		NetCost: kubecost.CostMetric{
-			Cost:              netCost,
-			KubernetesPercent: k8sPercent,
-		},
-	}
-
-	return nil
+	return loader.values, nil
 }
 
-func IsK8s(labels map[string]string) bool {
-	if _, ok := labels["goog-gke-volume"]; ok {
-		return true
-	}
+func (bqi *BigQueryIntegration) queryFlexibleCUDTotalCredits(start time.Time, end time.Time) (map[time.Time]float64, error) {
+	queryFmt := `SELECT
+	TIMESTAMP_TRUNC(usage_start_time, day) as usage_date,
+	sum(credits.amount)
+	FROM %s
+	CROSS JOIN UNNEST(bd.credits) AS credits
+	WHERE %s
+	GROUP BY usage_date, credits.id
+	`
 
-	if _, ok := labels["goog-gke-node"]; ok {
-		return true
-	}
+	table := fmt.Sprintf(" `%s` bd ", bqi.GetBillingDataDataset())
+	whereConjuncts := GetWhereConjuncts(start, end)
+	whereConjuncts = append(whereConjuncts, "credits.type = 'COMMITTED_USAGE_DISCOUNT_DOLLAR_BASE'")
+	whereClause := strings.Join(whereConjuncts, " AND ")
+	query := fmt.Sprintf(queryFmt, table, whereClause)
 
-	if _, ok := labels["goog-k8s-cluster-name"]; ok {
-		return true
+	iter, err := bqi.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("queryFlexibleCUDTotalCredits: query error %w", err)
 	}
-
-	return false
-}
-
-var parseProviderIDRx = regexp.MustCompile("^.+\\/(.+)?") // Capture "gke-cluster-3-default-pool-xxxx-yy" from "projects/###/instances/gke-cluster-3-default-pool-xxxx-yy"
-
-func ParseProviderID(id string) string {
-	match := parseProviderIDRx.FindStringSubmatch(id)
-	if len(match) == 0 {
-		return id
+	var loader FlexibleCUDCreditTotalsLoader
+	for {
+		err = iter.Next(&loader)
+		if errors.Is(err, iterator.Done) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("queryFlexibleCUDTotalCredits: load error %w", err)
+		}
 	}
-	return match[len(match)-1]
-}
-
-func SelectCategory(service, description string) string {
-	s := strings.ToLower(service)
-	d := strings.ToLower(description)
-
-	// Network descriptions
-	if strings.Contains(d, "download") {
-		return kubecost.NetworkCategory
-	}
-	if strings.Contains(d, "network") {
-		return kubecost.NetworkCategory
-	}
-	if strings.Contains(d, "ingress") {
-		return kubecost.NetworkCategory
-	}
-	if strings.Contains(d, "egress") {
-		return kubecost.NetworkCategory
-	}
-	if strings.Contains(d, "static ip") {
-		return kubecost.NetworkCategory
-	}
-	if strings.Contains(d, "external ip") {
-		return kubecost.NetworkCategory
-	}
-	if strings.Contains(d, "load balanced") {
-		return kubecost.NetworkCategory
-	}
-	if strings.Contains(d, "licensing fee") {
-		return kubecost.OtherCategory
-	}
-
-	// Storage Descriptions
-	if strings.Contains(d, "storage") {
-		return kubecost.StorageCategory
-	}
-	if strings.Contains(d, "pd capacity") {
-		return kubecost.StorageCategory
-	}
-	if strings.Contains(d, "pd iops") {
-		return kubecost.StorageCategory
-	}
-	if strings.Contains(d, "pd snapshot") {
-		return kubecost.StorageCategory
-	}
-
-	// Service Defaults
-	if strings.Contains(s, "storage") {
-		return kubecost.StorageCategory
-	}
-	if strings.Contains(s, "compute") {
-		return kubecost.ComputeCategory
-	}
-	if strings.Contains(s, "sql") {
-		return kubecost.StorageCategory
-	}
-	if strings.Contains(s, "bigquery") {
-		return kubecost.StorageCategory
-	}
-	if strings.Contains(s, "kubernetes") {
-		return kubecost.ManagementCategory
-	} else if strings.Contains(s, "pub/sub") {
-		return kubecost.NetworkCategory
-	}
-
-	return kubecost.OtherCategory
+	return loader.values, nil
 }

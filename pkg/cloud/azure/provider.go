@@ -1097,7 +1097,9 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 	config, _ := az.GetConfig()
 
 	// Spot Node
-	if slv, ok := azKey.Labels[config.SpotLabel]; ok && slv == config.SpotLabelValue && config.SpotLabel != "" && config.SpotLabelValue != "" {
+	slv, ok := azKey.Labels[config.SpotLabel]
+	isSpot := ok && slv == config.SpotLabelValue && config.SpotLabel != "" && config.SpotLabelValue != ""
+	if isSpot {
 		features := strings.Split(azKey.Features(), ",")
 		region := features[0]
 		instance := features[1]
@@ -1147,13 +1149,27 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 		return nil, meta, fmt.Errorf("No default pricing data available")
 	}
 
+	var vcpuCost string
+	var ramCost string
+	var gpuCost string
+
+	if isSpot {
+		vcpuCost = c.SpotCPU
+		ramCost = c.SpotRAM
+		gpuCost = c.SpotGPU
+	} else {
+		vcpuCost = c.CPU
+		ramCost = c.RAM
+		gpuCost = c.GPU
+	}
+
 	// GPU Node
 	if azKey.isValidGPUNode() {
 		return &models.Node{
-			VCPUCost:         c.CPU,
-			RAMCost:          c.RAM,
+			VCPUCost:         vcpuCost,
+			RAMCost:          ramCost,
 			UsesBaseCPUPrice: true,
-			GPUCost:          c.GPU,
+			GPUCost:          gpuCost,
 			GPU:              azKey.GetGPUCount(),
 		}, meta, nil
 	}
@@ -1170,8 +1186,8 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 
 	// Regular Node
 	return &models.Node{
-		VCPUCost:         c.CPU,
-		RAMCost:          c.RAM,
+		VCPUCost:         vcpuCost,
+		RAMCost:          ramCost,
 		UsesBaseCPUPrice: true,
 	}, meta, nil
 }

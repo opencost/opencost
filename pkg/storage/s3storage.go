@@ -565,13 +565,13 @@ func (s3 *S3Storage) getRange(ctx context.Context, name string, off, length int6
 		}
 	}
 	r, err := s3.client.GetObject(ctx, s3.name, name, *opts)
-	defer r.Close()
 	if err != nil {
 		if s3.isObjNotFound(err) {
 			return nil, DoesNotExistError
 		}
 		return nil, err
 	}
+	defer r.Close()
 
 	// NotFoundObject error is revealed only after first Read. This does the initial GetRequest. Prefetch this here
 	// for convenience.

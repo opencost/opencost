@@ -1589,6 +1589,10 @@ func (b *Breakdown) Clone() *Breakdown {
 
 // Equal returns true if the two Breakdowns are exact matches
 func (b *Breakdown) Equal(that *Breakdown) bool {
+	if b == nil && that == nil {
+		return true
+	}
+
 	if b == nil || that == nil {
 		return false
 	}
@@ -1889,6 +1893,32 @@ func (n *NodeOverhead) SanitizeNaN() {
 	}
 }
 
+func (n *NodeOverhead) Equal(other *NodeOverhead) bool {
+	if n == nil && other != nil {
+		return false
+	}
+	if n != nil && other == nil {
+		return false
+	}
+	if n == nil && other == nil {
+		return true
+	}
+
+	// This is okay because everything in NodeOverhead is a value type.
+	return *n == *other
+}
+
+func (n *NodeOverhead) Clone() *NodeOverhead {
+	if n == nil {
+		return nil
+	}
+	return &NodeOverhead{
+		CpuOverheadFraction:  n.CpuOverheadFraction,
+		RamOverheadFraction:  n.RamOverheadFraction,
+		OverheadCostFraction: n.OverheadCostFraction,
+	}
+}
+
 // Node is an Asset representing a single node in a cluster
 type Node struct {
 	Properties   *AssetProperties
@@ -2130,6 +2160,15 @@ func (n *Node) add(that *Node) {
 		n.RAMBreakdown.User = (n.RAMBreakdown.User*n.RAMCost + that.RAMBreakdown.User*that.RAMCost) / totalRAMCost
 	}
 
+	// These calculations have to happen before the mutable fields of n they
+	// depend on (cpu cost, ram cost) are mutated with post-add totals.
+	if n.Overhead != nil && that.Overhead != nil {
+		n.Overhead.RamOverheadFraction = (n.Overhead.RamOverheadFraction*n.RAMCost + that.Overhead.RamOverheadFraction*that.RAMCost) / totalRAMCost
+		n.Overhead.CpuOverheadFraction = (n.Overhead.CpuOverheadFraction*n.CPUCost + that.Overhead.CpuOverheadFraction*that.CPUCost) / totalCPUCost
+	} else {
+		n.Overhead = nil
+	}
+
 	n.CPUCoreHours += that.CPUCoreHours
 	n.RAMByteHours += that.RAMByteHours
 	n.GPUHours += that.GPUHours
@@ -2139,10 +2178,9 @@ func (n *Node) add(that *Node) {
 	n.RAMCost += that.RAMCost
 	n.Adjustment += that.Adjustment
 
-	if n.Overhead != nil && that.Overhead != nil {
-
-		n.Overhead.RamOverheadFraction = (n.Overhead.RamOverheadFraction*n.RAMCost + that.Overhead.RamOverheadFraction*that.RAMCost) / totalRAMCost
-		n.Overhead.CpuOverheadFraction = (n.Overhead.CpuOverheadFraction*n.CPUCost + that.Overhead.CpuOverheadFraction*that.CPUCost) / totalCPUCost
+	// The cost-weighted overhead is calculated after the node is totaled
+	// because the cost-weighted overhead is based on post-add data.
+	if n.Overhead != nil {
 		n.Overhead.OverheadCostFraction = ((n.Overhead.CpuOverheadFraction * n.CPUCost) + (n.Overhead.RamOverheadFraction * n.RAMCost)) / n.TotalCost()
 	}
 }
@@ -2171,6 +2209,7 @@ func (n *Node) Clone() Asset {
 		GPUCount:     n.GPUCount,
 		RAMCost:      n.RAMCost,
 		Preemptible:  n.Preemptible,
+		Overhead:     n.Overhead.Clone(),
 		Discount:     n.Discount,
 	}
 }
@@ -2231,6 +2270,9 @@ func (n *Node) Equal(a Asset) bool {
 		return false
 	}
 	if n.Preemptible != that.Preemptible {
+		return false
+	}
+	if !n.Overhead.Equal(that.Overhead) {
 		return false
 	}
 
@@ -2345,9 +2387,16 @@ func (n *Node) SanitizeNaN() {
 		n.Preemptible = 0
 	}
 
-	n.CPUBreakdown.SanitizeNaN()
-	n.RAMBreakdown.SanitizeNaN()
-	n.Overhead.SanitizeNaN()
+	if n.CPUBreakdown != nil {
+		n.CPUBreakdown.SanitizeNaN()
+	}
+	if n.RAMBreakdown != nil {
+		n.RAMBreakdown.SanitizeNaN()
+	}
+
+	if n.Overhead != nil {
+		n.Overhead.SanitizeNaN()
+	}
 }
 
 // LoadBalancer is an Asset representing a single load balancer in a cluster
@@ -3211,24 +3260,27 @@ func (as *AssetSet) ReconciliationMatchMap() map[string]map[string]Asset {
 			continue
 		}
 
-		if _, ok := matchMap[props.ProviderID]; !ok {
-			matchMap[props.ProviderID] = make(map[string]Asset)
+		// we can't guarantee case in providerID for Azure provider to have map working for all providers,
+		// lower casing providerID  while creating reconciliation map
+		providerID := strings.ToLower(props.ProviderID)
+		if _, ok := matchMap[providerID]; !ok {
+			matchMap[providerID] = make(map[string]Asset)
 		}
 
 		// Check if a match is already in the map
-		if duplicateAsset, ok := matchMap[props.ProviderID][props.Category]; ok {
+		if duplicateAsset, ok := matchMap[providerID][props.Category]; ok {
 			log.DedupedWarningf(5, "duplicate asset found when reconciling for %s", props.ProviderID)
 			// if one asset already has adjustment use that one
 			if duplicateAsset.GetAdjustment() == 0 && asset.GetAdjustment() != 0 {
-				matchMap[props.ProviderID][props.Category] = asset
+				matchMap[providerID][props.Category] = asset
 			} else if duplicateAsset.GetAdjustment() != 0 && asset.GetAdjustment() == 0 {
-				matchMap[props.ProviderID][props.Category] = duplicateAsset
+				matchMap[providerID][props.Category] = duplicateAsset
 				// otherwise use the one with the higher cost
 			} else if duplicateAsset.TotalCost() < asset.TotalCost() {
-				matchMap[props.ProviderID][props.Category] = asset
+				matchMap[providerID][props.Category] = asset
 			}
 		} else {
-			matchMap[props.ProviderID][props.Category] = asset
+			matchMap[providerID][props.Category] = asset
 		}
 
 	}
@@ -3789,6 +3841,7 @@ func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 	}
 
 	var err error
+	var as *AssetSet
 	for _, thatAS := range that.Assets {
 		if thatAS == nil || err != nil {
 			continue
@@ -3800,7 +3853,7 @@ func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 			err = fmt.Errorf("cannot merge AssetSet into window that does not exist: %s", thatAS.Window.String())
 			continue
 		}
-		as, err := asr.Get(i)
+		as, err = asr.Get(i)
 		if err != nil {
 			err = fmt.Errorf("AssetSetRange index does not exist: %d", i)
 			continue

@@ -144,39 +144,25 @@ const (
 		label_replace(
 			label_replace(
 				avg(
-					count_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="",container!="POD", node!="", %s}[%s] %s)
-					*
-					avg_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="",container!="POD", node!="", %s}[%s] %s)
+					sum_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="",container!="POD", node!="", %s}[%s] %s)
 				) by (namespace,container,pod,node,%s) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		)
 	) by (namespace,container_name,pod_name,node,%s)`
-	queryRAMUsageStr = `sort_desc(
-		avg(
+	queryRAMUsageStr = `avg(
+		label_replace(
 			label_replace(
 				label_replace(
-					label_replace(
-						count_over_time(container_memory_working_set_bytes{container!="", container!="POD", instance!="", %s}[%s] %s), "node", "$1", "instance", "(.+)"
-					), "container_name", "$1", "container", "(.+)"
-				), "pod_name", "$1", "pod", "(.+)"
-			)
-			*
-			label_replace(
-				label_replace(
-					label_replace(
-						avg_over_time(container_memory_working_set_bytes{container!="", container!="POD", instance!="", %s}[%s] %s), "node", "$1", "instance", "(.+)"
-					), "container_name", "$1", "container", "(.+)"
-				), "pod_name", "$1", "pod", "(.+)"
-			)
-		) by (namespace, container_name, pod_name, node, %s)
-	)`
+					sum_over_time(container_memory_working_set_bytes{container!="", container!="POD", instance!="", %s}[%s] %s), "node", "$1", "instance", "(.+)"
+				), "container_name", "$1", "container", "(.+)"
+			), "pod_name", "$1", "pod", "(.+)"
+		)
+	) by (namespace, container_name, pod_name, node, %s)`
 	queryCPURequestsStr = `avg(
 		label_replace(
 			label_replace(
 				avg(
-					count_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="",container!="POD", node!="", %s}[%s] %s)
-					*
-					avg_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="",container!="POD", node!="", %s}[%s] %s)
+					sum_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="",container!="POD", node!="", %s}[%s] %s)
 				) by (namespace,container,pod,node,%s) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		)
@@ -196,9 +182,7 @@ const (
 		label_replace(
 			label_replace(
 				avg(
-					count_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!="", %s}[%s] %s)
-					*
-					avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!="", %s}[%s] %s)
+					sum_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!="", %s}[%s] %s)
 					* %f
 				) by (namespace,container,pod,node,%s) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
@@ -253,7 +237,7 @@ const (
 )
 
 func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
-	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, env.GetPromClusterFilter(), window, offset, env.GetPromClusterFilter(), window, offset, env.GetPromClusterLabel())
+	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, env.GetPromClusterFilter(), window, offset, env.GetPromClusterLabel())
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, env.GetPromClusterFilter(), window, offset, env.GetPromClusterLabel())
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, env.GetPromClusterFilter(), window, "", env.GetPromClusterLabel())
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, env.GetPromClusterFilter(), window, "", env.GetPromClusterLabel())
@@ -333,6 +317,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	// Determine if there are vgpus configured and if so get the total allocatable number
 	// If there are no vgpus, the coefficient is set to 1.0
 	vgpuCount, err := getAllocatableVGPUs(cm.Cache)
+	if err != nil {
+		log.Warnf("getAllocatableVGCPUs error: %s", err.Error())
+	}
 	vgpuCoeff := 10.0
 	if vgpuCount > 0.0 {
 		vgpuCoeff = vgpuCount
@@ -1019,6 +1006,9 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 	nodes := make(map[string]*costAnalyzerCloud.Node)
 
 	vgpuCount, err := getAllocatableVGPUs(cm.Cache)
+	if err != nil {
+		return nil, err
+	}
 	vgpuCoeff := 10.0
 	if vgpuCount > 0.0 {
 		vgpuCoeff = vgpuCount
@@ -1161,14 +1151,14 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 			cpuToRAMRatio := defaultCPU / defaultRAM
 			if math.IsNaN(cpuToRAMRatio) {
-				log.Warnf("cpuToRAMRatio[defaultCPU: %f / defaultRAM: %f] is NaN. Setting to 0.", defaultCPU, defaultRAM)
-				cpuToRAMRatio = 0
+				log.Warnf("cpuToRAMRatio[defaultCPU: %f / defaultRAM: %f] is NaN. Setting to 10.", defaultCPU, defaultRAM)
+				cpuToRAMRatio = 10
 			}
 
 			gpuToRAMRatio := defaultGPU / defaultRAM
 			if math.IsNaN(gpuToRAMRatio) {
-				log.Warnf("gpuToRAMRatio is NaN. Setting to 0.")
-				gpuToRAMRatio = 0
+				log.Warnf("gpuToRAMRatio is NaN. Setting to 100.")
+				gpuToRAMRatio = 100
 			}
 
 			ramGB := ram / 1024 / 1024 / 1024
@@ -1244,8 +1234,8 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 			cpuToRAMRatio := defaultCPU / defaultRAM
 			if math.IsNaN(cpuToRAMRatio) {
-				log.Warnf("cpuToRAMRatio[defaultCPU: %f / defaultRAM: %f] is NaN. Setting to 0.", defaultCPU, defaultRAM)
-				cpuToRAMRatio = 0
+				log.Warnf("cpuToRAMRatio[defaultCPU: %f / defaultRAM: %f] is NaN. Setting to 10.", defaultCPU, defaultRAM)
+				cpuToRAMRatio = 10
 			}
 
 			ramGB := ram / 1024 / 1024 / 1024
@@ -1693,11 +1683,11 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 
 	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, env.GetPromClusterFilter(), resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
 	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, env.GetPromClusterFilter(), resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
-	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
-	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel(), env.GetPromClusterLabel())
+	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel(), env.GetPromClusterLabel())
+	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
+	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel(), env.GetPromClusterLabel())
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
-	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterFilter(), resStr, "", resolution.Hours(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
+	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, env.GetPromClusterFilter(), resStr, "", resolution.Hours(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr, env.GetPromClusterFilter(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterFilter(), env.GetPromClusterLabel(), env.GetPromClusterLabel())
 	queryPVCAllocation := fmt.Sprintf(queryPVCAllocationFmt, env.GetPromClusterFilter(), resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
 	queryPVHourlyCost := fmt.Sprintf(queryPVHourlyCostFmt, env.GetPromClusterFilter(), resStr)

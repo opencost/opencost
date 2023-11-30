@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/opencost/opencost/pkg/cloud/config"
+	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util/json"
 )
@@ -97,7 +97,7 @@ func TestBoaConfiguration_Validate(t *testing.T) {
 func TestBOAConfiguration_Equals(t *testing.T) {
 	testCases := map[string]struct {
 		left     BOAConfiguration
-		right    config.Config
+		right    cloud.Config
 		expected bool
 	}{
 		"matching config": {

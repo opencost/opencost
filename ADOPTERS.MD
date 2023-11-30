@@ -14,3 +14,4 @@ If you would like to be included in this table, please submit a PR to this file 
 | Grafana Labs                               | *                                 | end user               | [How Grafana Labs uses and contributes to OpenCost](https://grafana.com/blog/2023/02/02/how-grafana-labs-uses-and-contributes-to-opencost-the-open-source-project-for-real-time-cost-monitoring-in-kubernetes/) |
 | Microsoft                                  | *                                 | Service Provider       | [Leverage OpenCost on Azure Kubernetes Service](http://aka.ms/aks/OpenCost-AKS) |
 | mindcurv group                             | *                                 | Consultancy            | [mindcurv group](https://mindcurv.com/en/) |
+| Zendesk                                    | *                                 | end user               | [Zendesk](https://www.zendesk.com/) |
