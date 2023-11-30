@@ -733,7 +733,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			for labelString, seen := range containerSeen {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
-					if labels[1] == unmountedPVsContainer { // special "pod" to contain the mounted PVs - does not have RAM/CPU/...
+					if labels[1] == unmountedPVsContainer { // special "pod" to contain the unmounted PVs - does not have RAM/CPU/...
 						ok := cmme.RAMAllocationRecorder.DeleteLabelValues(labels...)
 						if !ok {
 							log.Debugf("Failed to delete RAMAllocation for container with labels: %v", labels)
