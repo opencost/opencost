@@ -4,7 +4,7 @@ import Header from "./components/Header";
 import IconButton from "@material-ui/core/IconButton";
 import RefreshIcon from "@material-ui/icons/Refresh";
 import { makeStyles } from "@material-ui/styles";
-import { Paper, Typography } from "@material-ui/core";
+import { Box, Link, Paper, Typography } from "@material-ui/core";
 import CircularProgress from "@material-ui/core/CircularProgress";
 import { get, find } from "lodash";
 import { useLocation, useHistory } from "react-router";
@@ -135,12 +135,12 @@ const CloudCostReports = () => {
           {
             primary: "Failed to load report data",
             secondary:
-              "Please update Kubecost to the latest version, then contact support if problems persist.",
+            "Please update OpenCost to the latest version, and open an Issue if problems persist.",
           },
         ]);
       } else {
         let secondary =
-          "Please contact Kubecost support with a bug report if problems persist.";
+          "Please open an Issue with OpenCost if problems persist.";
         if (err.message.length > 0) {
           secondary = err.message;
         }
@@ -204,6 +204,30 @@ const CloudCostReports = () => {
     setTitle(generateTitle({ window, aggregateBy, costMetric }));
   }, [window, aggregateBy, costMetric, filters]);
 
+  const hasCloudCostEnabled = aggregateBy.includes("item")
+    ? true // this is kind of hacky but something weird is happening
+    : // when drilling down will address in a later PR - @jjarrett21
+      !!cloudCostData.cloudCostStatus?.length;
+
+  const enabledWarnings = [
+    {
+      primary: "There are no Cloud Cost integrations currently configured.",
+      secondary: (
+        <>
+          Learn more about setting up Cloud Costs{" "}
+          <Link
+            href={
+              "https://www.opencost.io/docs/configuration/#cloud-costs"
+            }
+            target="_blank"
+          >
+            here
+          </Link>
+        </>
+      ),
+    },
+  ];
+
   return (
     <Page active="cloud.html">
       <Header>
@@ -212,13 +236,19 @@ const CloudCostReports = () => {
         </IconButton>
       </Header>
 
-      {!loading && errors.length > 0 && (
+      {!loading && !hasCloudCostEnabled && (
+        <div style={{ marginBottom: 20 }}>
+          <Warnings warnings={enabledWarnings} />
+        </div>
+      )}
+
+      {!loading && errors.length > 0 && hasCloudCostEnabled && (
         <div style={{ marginBottom: 20 }}>
           <Warnings warnings={errors} />
         </div>
       )}
 
-      {init && (
+      {init && hasCloudCostEnabled && (
         <Paper id="cloud-cost">
           <div className={classes.reportHeader}>
             <div className={classes.titles}>
