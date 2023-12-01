@@ -51,6 +51,8 @@ const (
 	ThanosOffsetEnvVar       = "THANOS_QUERY_OFFSET"
 	ThanosMaxSourceResEnvVar = "THANOS_MAX_SOURCE_RESOLUTION"
 
+	PProfEnabledEnvVar = "PPROF_ENABLED"
+
 	LogCollectionEnabledEnvVar    = "LOG_COLLECTION_ENABLED"
 	ProductAnalyticsEnabledEnvVar = "PRODUCT_ANALYTICS_ENABLED"
 	ErrorReportingEnabledEnvVar   = "ERROR_REPORTING_ENABLED"
@@ -135,6 +137,10 @@ func GetExportCSVLabelsAll() bool {
 
 func GetExportCSVLabelsList() []string {
 	return GetList(ExportCSVLabelsList, ",")
+}
+
+func IsPProfEnabled() bool {
+	return GetBool(PProfEnabledEnvVar, false)
 }
 
 func GetExportCSVMaxDays() int {
