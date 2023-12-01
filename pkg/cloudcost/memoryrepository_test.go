@@ -2,6 +2,7 @@ package cloudcost
 
 import (
 	"reflect"
+	"sort"
 	"testing"
 	"time"
 
@@ -172,6 +173,8 @@ func TestMemoryRepository_Keys(t *testing.T) {
 				t.Errorf("Keys() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+			sort.Strings(got)
+			sort.Strings(tt.want)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Keys() got = %v, want %v", got, tt.want)
 			}
