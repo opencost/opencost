@@ -662,8 +662,11 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				GetPVCost(cacPv, pv, cmme.CloudProvider, region)
 				c, _ := strconv.ParseFloat(cacPv.Cost, 64)
 				cmme.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name, cacPv.ProviderID).Set(c)
-				labelKey := getKeyFromLabelStrings(pv.Name, pv.Name)
+				labelKey := getKeyFromLabelStrings(pv.Name, pv.Name, cacPv.ProviderID)
 				pvSeen[labelKey] = true
+
+				// NOTE: cacPv.ProviderID is seemingly always an empty string
+				log.Infof("GTM-151: RECORD: pv %s cost %f labelKey %s", pv.Name, c, labelKey)
 			}
 
 			// Remove metrics on Nodes/LoadBalancers/Containers/PVs that no
@@ -748,8 +751,10 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				}
 			}
 			for labelString, seen := range pvSeen {
+				log.Infof("GTM-151: DELETE: labelString %s seen %t", labelString, seen)
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
+					log.Infof("GTM-151: DELETE: labels %s", labels)
 					ok := cmme.PersistentVolumePriceRecorder.DeleteLabelValues(labels...)
 					if !ok {
 						log.Errorf("Metric emission: failed to delete PVPrice with labels: %v", labels)
