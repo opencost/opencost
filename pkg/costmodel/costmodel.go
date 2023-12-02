@@ -144,7 +144,7 @@ const (
 		label_replace(
 			label_replace(
 				avg(
-					sum_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="",container!="POD", node!="", %s}[%s] %s)
+					sum_over_time(%skube_pod_container_resource_requests{resource="memory", unit="byte", container!="",container!="POD", node!="", %s}[%s] %s)
 				) by (namespace,container,pod,node,%s) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		)
@@ -153,7 +153,7 @@ const (
 		label_replace(
 			label_replace(
 				label_replace(
-					sum_over_time(container_memory_working_set_bytes{container!="", container!="POD", instance!="", %s}[%s] %s), "node", "$1", "instance", "(.+)"
+					sum_over_time(%scontainer_memory_working_set_bytes{container!="", container!="POD", instance!="", %s}[%s] %s), "node", "$1", "instance", "(.+)"
 				), "container_name", "$1", "container", "(.+)"
 			), "pod_name", "$1", "pod", "(.+)"
 		)
@@ -162,7 +162,7 @@ const (
 		label_replace(
 			label_replace(
 				avg(
-					sum_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="",container!="POD", node!="", %s}[%s] %s)
+					sum_over_time(%skube_pod_container_resource_requests{resource="cpu", unit="core", container!="",container!="POD", node!="", %s}[%s] %s)
 				) by (namespace,container,pod,node,%s) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		)
@@ -172,7 +172,7 @@ const (
 			label_replace(
 				label_replace(
 					rate(
-						container_cpu_usage_seconds_total{container!="", container!="POD", instance!="", %s}[%s] %s
+						%scontainer_cpu_usage_seconds_total{container!="", container!="POD", instance!="", %s}[%s] %s
 					), "node", "$1", "instance", "(.+)"
 				), "container_name", "$1", "container", "(.+)"
 			), "pod_name", "$1", "pod", "(.+)"
@@ -182,17 +182,17 @@ const (
 		label_replace(
 			label_replace(
 				avg(
-					sum_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!="", %s}[%s] %s)
+					sum_over_time(%skube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!="", %s}[%s] %s)
 					* %f
 				) by (namespace,container,pod,node,%s) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		)
 	) by (namespace,container_name,pod_name,node,%s)
-	* on (pod_name, namespace, %s) group_left(container) label_replace(avg(avg_over_time(kube_pod_status_phase{phase="Running", %s}[%s] %s)) by (pod,namespace,%s), "pod_name","$1","pod","(.+)")`
-	queryPVRequestsStr = `avg(avg(kube_persistentvolumeclaim_info{volumename != "", %s}) by (persistentvolumeclaim, storageclass, namespace, volumename, %s, kubernetes_node)
+	* on (pod_name, namespace, %s) group_left(container) label_replace(avg(avg_over_time(%skube_pod_status_phase{phase="Running", %s}[%s] %s)) by (pod,namespace,%s), "pod_name","$1","pod","(.+)")`
+	queryPVRequestsStr = `avg(avg(%skube_persistentvolumeclaim_info{volumename != "", %s}) by (persistentvolumeclaim, storageclass, namespace, volumename, %s, kubernetes_node)
 	*
 	on (persistentvolumeclaim, namespace, %s, kubernetes_node) group_right(storageclass, volumename)
-	sum(kube_persistentvolumeclaim_resource_requests_storage_bytes{%s}) by (persistentvolumeclaim, namespace, %s, kubernetes_node, kubernetes_name)) by (persistentvolumeclaim, storageclass, namespace, %s, volumename, kubernetes_node)`
+	sum(%skube_persistentvolumeclaim_resource_requests_storage_bytes{%s}) by (persistentvolumeclaim, namespace, %s, kubernetes_node, kubernetes_name)) by (persistentvolumeclaim, storageclass, namespace, %s, volumename, kubernetes_node)`
 	// queryRAMAllocationByteHours yields the total byte-hour RAM allocation over the given
 	// window, aggregated by container.
 	//  [line 3]  sum_over_time(each byte) = [byte*scrape] by metric
@@ -202,7 +202,7 @@ const (
 	queryRAMAllocationByteHours = `
 		label_replace(label_replace(
 			sum(
-				sum_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!="", %s}[%s])
+				sum_over_time(%scontainer_memory_allocation_bytes{container!="",container!="POD", node!="", %s}[%s])
 			) by (namespace,container,pod,node,%s) * %f / 60 / 60
 		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
 	// queryCPUAllocationVCPUHours yields the total VCPU-hour CPU allocation over the given
@@ -214,35 +214,35 @@ const (
 	queryCPUAllocationVCPUHours = `
 		label_replace(label_replace(
 			sum(
-				sum_over_time(container_cpu_allocation{container!="",container!="POD", node!="", %s}[%s])
+				sum_over_time(%scontainer_cpu_allocation{container!="",container!="POD", node!="", %s}[%s])
 			) by (namespace,container,pod,node,%s) * %f / 60 / 60
 		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
 	// queryPVCAllocationFmt yields the total byte-hour PVC allocation over the given window.
 	// sum_over_time(each byte) = [byte*scrape] by metric *(scalar(avg(prometheus_target_interval_length_seconds)) = [seconds/scrape] / 60 / 60 =  [hours/scrape] by pod
-	queryPVCAllocationFmt     = `sum(sum_over_time(pod_pvc_allocation{%s}[%s])) by (%s, namespace, pod, persistentvolume, persistentvolumeclaim) * %f/60/60`
-	queryPVHourlyCostFmt      = `avg_over_time(pv_hourly_cost{%s}[%s])`
-	queryNSLabels             = `avg_over_time(kube_namespace_labels{%s}[%s])`
-	queryPodLabels            = `avg_over_time(kube_pod_labels{%s}[%s])`
-	queryNSAnnotations        = `avg_over_time(kube_namespace_annotations{%s}[%s])`
-	queryPodAnnotations       = `avg_over_time(kube_pod_annotations{%s}[%s])`
-	queryDeploymentLabels     = `avg_over_time(deployment_match_labels{%s}[%s])`
-	queryStatefulsetLabels    = `avg_over_time(statefulSet_match_labels{%s}[%s])`
-	queryPodDaemonsets        = `sum(kube_pod_owner{owner_kind="DaemonSet", %s}) by (namespace,pod,owner_name,%s)`
-	queryPodJobs              = `sum(kube_pod_owner{owner_kind="Job", %s}) by (namespace,pod,owner_name,%s)`
-	queryServiceLabels        = `avg_over_time(service_selector_labels{%s}[%s])`
-	queryZoneNetworkUsage     = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true", %s}[%s] %s)) by (namespace,pod_name,%s) / 1024 / 1024 / 1024`
-	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false", %s}[%s] %s)) by (namespace,pod_name,%s) / 1024 / 1024 / 1024`
-	queryInternetNetworkUsage = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true", %s}[%s] %s)) by (namespace,pod_name,%s) / 1024 / 1024 / 1024`
-	normalizationStr          = `max(count_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", %s}[%s] %s))`
+	queryPVCAllocationFmt     = `sum(sum_over_time(%spod_pvc_allocation{%s}[%s])) by (%s, namespace, pod, persistentvolume, persistentvolumeclaim) * %f/60/60`
+	queryPVHourlyCostFmt      = `avg_over_time(%spv_hourly_cost{%s}[%s])`
+	queryNSLabels             = `avg_over_time(%skube_namespace_labels{%s}[%s])`
+	queryPodLabels            = `avg_over_time(%skube_pod_labels{%s}[%s])`
+	queryNSAnnotations        = `avg_over_time(%skube_namespace_annotations{%s}[%s])`
+	queryPodAnnotations       = `avg_over_time(%skube_pod_annotations{%s}[%s])`
+	queryDeploymentLabels     = `avg_over_time(%sdeployment_match_labels{%s}[%s])`
+	queryStatefulsetLabels    = `avg_over_time(%sstatefulSet_match_labels{%s}[%s])`
+	queryPodDaemonsets        = `sum(%skube_pod_owner{owner_kind="DaemonSet", %s}) by (namespace,pod,owner_name,%s)`
+	queryPodJobs              = `sum(%skube_pod_owner{owner_kind="Job", %s}) by (namespace,pod,owner_name,%s)`
+	queryServiceLabels        = `avg_over_time(%sservice_selector_labels{%s}[%s])`
+	queryZoneNetworkUsage     = `sum(increase(%skubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true", %s}[%s] %s)) by (namespace,pod_name,%s) / 1024 / 1024 / 1024`
+	queryRegionNetworkUsage   = `sum(increase(%skubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false", %s}[%s] %s)) by (namespace,pod_name,%s) / 1024 / 1024 / 1024`
+	queryInternetNetworkUsage = `sum(increase(%skubecost_pod_network_egress_bytes_total{internet="true", %s}[%s] %s)) by (namespace,pod_name,%s) / 1024 / 1024 / 1024`
+	normalizationStr          = `max(count_over_time(%skube_pod_container_resource_requests{resource="memory", unit="byte", %s}[%s] %s))`
 )
 
 func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
-	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, env.GetPromClusterFilter(), window, offset, env.GetPromClusterLabel())
-	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, env.GetPromClusterFilter(), window, offset, env.GetPromClusterLabel())
-	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, env.GetPromClusterFilter(), window, "", env.GetPromClusterLabel())
-	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, env.GetPromClusterFilter(), window, "", env.GetPromClusterLabel())
-	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, env.GetPromClusterFilter(), window, "", env.GetPromClusterLabel())
-	queryNormalization := fmt.Sprintf(normalizationStr, env.GetPromClusterFilter(), window, offset)
+	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), window, offset, env.GetPromClusterLabel())
+	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), window, offset, env.GetPromClusterLabel())
+	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), window, "", env.GetPromClusterLabel())
+	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), window, "", env.GetPromClusterLabel())
+	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), window, "", env.GetPromClusterLabel())
+	queryNormalization := fmt.Sprintf(normalizationStr, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), window, offset)
 
 	// Cluster ID is specific to the source cluster
 	clusterID := env.GetClusterID()
@@ -792,9 +792,9 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 			offsetStr = fmt.Sprintf("offset %s", offset)
 		}
 
-		queryHistoricalCPUCost := fmt.Sprintf(`avg(avg_over_time(node_cpu_hourly_cost{%s}[%s] %s)) by (node, instance, %s)`, env.GetPromClusterFilter(), window, offsetStr, env.GetPromClusterLabel())
-		queryHistoricalRAMCost := fmt.Sprintf(`avg(avg_over_time(node_ram_hourly_cost{%s}[%s] %s)) by (node, instance, %s)`, env.GetPromClusterFilter(), window, offsetStr, env.GetPromClusterLabel())
-		queryHistoricalGPUCost := fmt.Sprintf(`avg(avg_over_time(node_gpu_hourly_cost{%s}[%s] %s)) by (node, instance, %s)`, env.GetPromClusterFilter(), window, offsetStr, env.GetPromClusterLabel())
+		queryHistoricalCPUCost := fmt.Sprintf(`avg(avg_over_time(%snode_cpu_hourly_cost{%s}[%s] %s)) by (node, instance, %s)`, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), window, offsetStr, env.GetPromClusterLabel())
+		queryHistoricalRAMCost := fmt.Sprintf(`avg(avg_over_time(%snode_ram_hourly_cost{%s}[%s] %s)) by (node, instance, %s)`, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), window, offsetStr, env.GetPromClusterLabel())
+		queryHistoricalGPUCost := fmt.Sprintf(`avg(avg_over_time(%snode_gpu_hourly_cost{%s}[%s] %s)) by (node, instance, %s)`, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), window, offsetStr, env.GetPromClusterLabel())
 
 		ctx := prom.NewNamedContext(cli, prom.ComputeCostDataContextName)
 		cpuCostResCh := ctx.Query(queryHistoricalCPUCost)
@@ -1634,7 +1634,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, cp costAn
 
 	data, ok := result.(map[string]*CostData)
 	if !ok {
-		return nil, fmt.Errorf("Failed to cast result as map[string]*CostData")
+		return nil, fmt.Errorf("failed to cast result as map[string]*CostData")
 	}
 
 	return data, err
@@ -1681,20 +1681,20 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 
 	ctx := prom.NewNamedContext(cli, prom.ComputeCostDataRangeContextName)
 
-	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, env.GetPromClusterFilter(), resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
-	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, env.GetPromClusterFilter(), resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
-	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
-	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
-	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, env.GetPromClusterFilter(), resStr, "", resolution.Hours(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
-	queryPVRequests := fmt.Sprintf(queryPVRequestsStr, env.GetPromClusterFilter(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterFilter(), env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	queryPVCAllocation := fmt.Sprintf(queryPVCAllocationFmt, env.GetPromClusterFilter(), resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
-	queryPVHourlyCost := fmt.Sprintf(queryPVHourlyCostFmt, env.GetPromClusterFilter(), resStr)
-	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
-	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
-	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
-	queryNormalization := fmt.Sprintf(normalizationStr, env.GetPromClusterFilter(), resStr, "")
+	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
+	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
+	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel(), env.GetPromClusterLabel())
+	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
+	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel(), env.GetPromClusterLabel())
+	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
+	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr, "", resolution.Hours(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPrometheusMetricPrefix(), env.GetPromClusterLabel(), env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
+	queryPVRequests := fmt.Sprintf(queryPVRequestsStr, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), env.GetPromClusterLabel(), env.GetPromClusterLabel())
+	queryPVCAllocation := fmt.Sprintf(queryPVCAllocationFmt, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
+	queryPVHourlyCost := fmt.Sprintf(queryPVHourlyCostFmt, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr)
+	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
+	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
+	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr, "", env.GetPromClusterLabel())
+	queryNormalization := fmt.Sprintf(normalizationStr, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr, "")
 
 	// Submit all queries for concurrent evaluation
 	resChRAMRequests := ctx.QueryRange(queryRAMRequests, start, end, resolution)
@@ -1710,15 +1710,15 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 	resChNetZoneRequests := ctx.QueryRange(queryNetZoneRequests, start, end, resolution)
 	resChNetRegionRequests := ctx.QueryRange(queryNetRegionRequests, start, end, resolution)
 	resChNetInternetRequests := ctx.QueryRange(queryNetInternetRequests, start, end, resolution)
-	resChNSLabels := ctx.QueryRange(fmt.Sprintf(queryNSLabels, env.GetPromClusterFilter(), resStr), start, end, resolution)
-	resChPodLabels := ctx.QueryRange(fmt.Sprintf(queryPodLabels, env.GetPromClusterFilter(), resStr), start, end, resolution)
-	resChNSAnnotations := ctx.QueryRange(fmt.Sprintf(queryNSAnnotations, env.GetPromClusterFilter(), resStr), start, end, resolution)
-	resChPodAnnotations := ctx.QueryRange(fmt.Sprintf(queryPodAnnotations, env.GetPromClusterFilter(), resStr), start, end, resolution)
-	resChServiceLabels := ctx.QueryRange(fmt.Sprintf(queryServiceLabels, env.GetPromClusterFilter(), resStr), start, end, resolution)
-	resChDeploymentLabels := ctx.QueryRange(fmt.Sprintf(queryDeploymentLabels, env.GetPromClusterFilter(), resStr), start, end, resolution)
-	resChStatefulsetLabels := ctx.QueryRange(fmt.Sprintf(queryStatefulsetLabels, env.GetPromClusterFilter(), resStr), start, end, resolution)
-	resChJobs := ctx.QueryRange(fmt.Sprintf(queryPodJobs, env.GetPromClusterFilter(), env.GetPromClusterLabel()), start, end, resolution)
-	resChDaemonsets := ctx.QueryRange(fmt.Sprintf(queryPodDaemonsets, env.GetPromClusterFilter(), env.GetPromClusterLabel()), start, end, resolution)
+	resChNSLabels := ctx.QueryRange(fmt.Sprintf(queryNSLabels, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr), start, end, resolution)
+	resChPodLabels := ctx.QueryRange(fmt.Sprintf(queryPodLabels, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr), start, end, resolution)
+	resChNSAnnotations := ctx.QueryRange(fmt.Sprintf(queryNSAnnotations, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr), start, end, resolution)
+	resChPodAnnotations := ctx.QueryRange(fmt.Sprintf(queryPodAnnotations, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr), start, end, resolution)
+	resChServiceLabels := ctx.QueryRange(fmt.Sprintf(queryServiceLabels, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr), start, end, resolution)
+	resChDeploymentLabels := ctx.QueryRange(fmt.Sprintf(queryDeploymentLabels, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr), start, end, resolution)
+	resChStatefulsetLabels := ctx.QueryRange(fmt.Sprintf(queryStatefulsetLabels, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), resStr), start, end, resolution)
+	resChJobs := ctx.QueryRange(fmt.Sprintf(queryPodJobs, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), env.GetPromClusterLabel()), start, end, resolution)
+	resChDaemonsets := ctx.QueryRange(fmt.Sprintf(queryPodDaemonsets, env.GetPrometheusMetricPrefix(), env.GetPromClusterFilter(), env.GetPromClusterLabel()), start, end, resolution)
 	resChNormalization := ctx.QueryRange(queryNormalization, start, end, resolution)
 
 	// Pull k8s pod, controller, service, and namespace details
