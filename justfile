@@ -1,6 +1,6 @@
 commonenv := "CGO_ENABLED=0"
 
-version := "dev"
+version := `./tools/image-tag`
 commit := `git rev-parse --short HEAD`
 
 default:
