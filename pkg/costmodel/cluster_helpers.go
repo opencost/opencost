@@ -636,13 +636,11 @@ func buildLabelsMap(
 			Name:    node,
 		}
 
-		m[key] = make(map[string]string)
-
-		for name, value := range result.Metric {
-			if val, ok := value.(string); ok {
-				m[key][name] = val
-			}
-		}
+		// The QueryResult.GetLabels function needs to be called to sanitize the
+		// ingested label data. This removes the label_ prefix that prometheus
+		// adds to emitted labels. It also keeps from ingesting prometheus labels
+		// that aren't a part of the asset.
+		m[key] = result.GetLabels()
 	}
 	return m
 }
