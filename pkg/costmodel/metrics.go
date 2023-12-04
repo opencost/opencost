@@ -662,7 +662,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				GetPVCost(cacPv, pv, cmme.CloudProvider, region)
 				c, _ := strconv.ParseFloat(cacPv.Cost, 64)
 				cmme.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name, cacPv.ProviderID).Set(c)
-				labelKey := getKeyFromLabelStrings(pv.Name, pv.Name)
+				labelKey := getKeyFromLabelStrings(pv.Name, pv.Name, cacPv.ProviderID)
 				pvSeen[labelKey] = true
 			}
 
