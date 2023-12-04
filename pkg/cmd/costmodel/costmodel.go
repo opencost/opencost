@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/pprof"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
@@ -61,6 +62,16 @@ func Execute(opts *CostModelOpts) error {
 	a.Router.GET("/cloudCost/status", a.CloudCostPipelineService.GetCloudCostStatusHandler())
 	a.Router.GET("/cloudCost/rebuild", a.CloudCostPipelineService.GetCloudCostRebuildHandler())
 	a.Router.GET("/cloudCost/repair", a.CloudCostPipelineService.GetCloudCostRepairHandler())
+
+	if env.IsPProfEnabled() {
+		a.Router.HandlerFunc(http.MethodGet, "/debug/pprof/", pprof.Index)
+		a.Router.HandlerFunc(http.MethodGet, "/debug/pprof/cmdline", pprof.Cmdline)
+		a.Router.HandlerFunc(http.MethodGet, "/debug/pprof/profile", pprof.Profile)
+		a.Router.HandlerFunc(http.MethodGet, "/debug/pprof/symbol", pprof.Symbol)
+		a.Router.HandlerFunc(http.MethodGet, "/debug/pprof/trace", pprof.Trace)
+		a.Router.Handler(http.MethodGet, "/debug/pprof/goroutine", pprof.Handler("goroutine"))
+		a.Router.Handler(http.MethodGet, "/debug/pprof/heap", pprof.Handler("heap"))
+	}
 
 	rootMux.Handle("/", a.Router)
 	rootMux.Handle("/metrics", promhttp.Handler())
