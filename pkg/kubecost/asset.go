@@ -4,7 +4,6 @@ import (
 	"encoding"
 	"fmt"
 	"math"
-	"regexp"
 	"strings"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/opencost/opencost/pkg/filter21/ast"
 	"github.com/opencost/opencost/pkg/filter21/matcher"
 	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/util/json"
 	"github.com/opencost/opencost/pkg/util/timeutil"
 )
@@ -4138,8 +4138,8 @@ func GetNodePoolName(provider string, labels map[string]string) string {
 }
 
 func getPoolNameHelper(label string, labels map[string]string) string {
-	sanitizedLabel := regexp.MustCompile(`[^a-zA-Z0-9 ]+`).ReplaceAllString(label, "_")
-	if poolName, found := labels[fmt.Sprintf("label_%s", sanitizedLabel)]; found {
+	sanitizedLabel := prom.SanitizeLabelName(label)
+	if poolName, found := labels[sanitizedLabel]; found {
 		return poolName
 	} else {
 		log.Warnf("unable to derive node pool name from node labels")
