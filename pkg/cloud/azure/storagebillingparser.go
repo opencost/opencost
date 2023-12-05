@@ -125,13 +125,16 @@ func (asbp *AzureStorageBillingParser) getMostRecentBlobs(start, end time.Time, 
 
 		// Using the list of months strings find the most resent blob for each month in the range
 		for _, blobInfo := range resp.Segment.BlobItems {
+			if blobInfo.Name == nil {
+				continue
+			}
+			// If Container Path configuration exists, check if it is in the blobs name
+			if asbp.Path != "" && !strings.Contains(*blobInfo.Name, asbp.Path) {
+				continue
+			}
 			for _, month := range monthStrs {
 				if strings.Contains(*blobInfo.Name, month) {
-					// If Container Path configuration exists, check if it is in the blobs name
-					if asbp.Path != "" && !strings.Contains(*blobInfo.Name, asbp.Path) {
-						continue
-					}
-
+					// check if blob is the newest seen for this month
 					if prevBlob, ok := mostResentBlobs[month]; ok {
 						if prevBlob.Properties.CreationTime.After(*blobInfo.Properties.CreationTime) {
 							continue

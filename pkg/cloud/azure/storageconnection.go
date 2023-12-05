@@ -3,6 +3,7 @@ package azure
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
@@ -49,22 +50,19 @@ func (sc *StorageConnection) DownloadBlob(blobName string, client *azblob.Client
 
 	downloadResponse, err := client.DownloadStream(ctx, sc.Container, blobName, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Azure: DownloadBlob: failed to download %w", err)
 	}
 	// NOTE: automatically retries are performed if the connection fails
 	retryReader := downloadResponse.NewRetryReader(ctx, &azblob.RetryReaderOptions{})
+	defer retryReader.Close()
 
 	// read the body into a buffer
 	downloadedData := bytes.Buffer{}
 
 	_, err = downloadedData.ReadFrom(retryReader)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Azure: DownloadBlob: failed to read downloaded data %w", err)
 	}
 
-	err = retryReader.Close()
-	if err != nil {
-		return nil, err
-	}
 	return downloadedData.Bytes(), nil
 }
