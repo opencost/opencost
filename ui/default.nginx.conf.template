@@ -35,7 +35,7 @@ gzip_types
 upstream model {
     # Update to the cost model endpoint
     # Example: host.docker.internal:9003;
-    server 0.0.0.0:${API_PORT};
+    server ${API_SERVER}:${API_PORT};
 }
 
 server {

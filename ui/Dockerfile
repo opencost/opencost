@@ -8,6 +8,7 @@ RUN npx parcel build src/index.html
 FROM nginx:alpine
 
 ENV API_PORT=9003
+ENV API_SERVER=0.0.0.0
 ENV UI_PORT=9090
 
 COPY --from=builder /opt/ui/dist /var/www
