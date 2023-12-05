@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 
+	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/costmodel"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/errors"
@@ -36,7 +36,9 @@ func Execute(opts *CostModelOpts) error {
 	log.Infof("Starting cost-model version %s", version.FriendlyVersion())
 	a := costmodel.Initialize()
 
-	err := StartExportWorker(context.Background(), a.Model)
+	triggerSetCSVExportCh := make(chan time.Time)
+
+	err := StartExportWorker(context.Background(), a.Model, triggerSetCSVExportCh)
 	if err != nil {
 		log.Errorf("couldn't start CSV export worker: %v", err)
 	}
@@ -63,6 +65,11 @@ func Execute(opts *CostModelOpts) error {
 	a.Router.GET("/cloudCost/rebuild", a.CloudCostPipelineService.GetCloudCostRebuildHandler())
 	a.Router.GET("/cloudCost/repair", a.CloudCostPipelineService.GetCloudCostRepairHandler())
 
+	a.Router.POST("/export", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+		triggerSetCSVExportCh <- time.Now()
+		w.WriteHeader(http.StatusOK)
+	})
+
 	if env.IsPProfEnabled() {
 		a.Router.HandlerFunc(http.MethodGet, "/debug/pprof/", pprof.Index)
 		a.Router.HandlerFunc(http.MethodGet, "/debug/pprof/cmdline", pprof.Cmdline)
@@ -81,7 +88,7 @@ func Execute(opts *CostModelOpts) error {
 	return http.ListenAndServe(":9003", errors.PanicHandlerMiddleware(handler))
 }
 
-func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) error {
+func StartExportWorker(ctx context.Context, model costmodel.AllocationModel, triggerSetCSVExportCh chan time.Time) error {
 	exportPath := env.GetExportCSVFile()
 	if exportPath == "" {
 		log.Infof("%s is not set, CSV export is disabled", env.ExportCSVFile)
@@ -100,11 +107,13 @@ func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) err
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(nextRunAt.Sub(time.Now())):
+			case t := <-triggerSetCSVExportCh:
+				nextRunAt = t
+			case <-time.After(time.Until(nextRunAt)):
 				err := costmodel.UpdateCSV(ctx, fm, model, env.GetExportCSVLabelsAll(), env.GetExportCSVLabelsList())
 				if err != nil {
 					// it's background worker, log error and carry on, maybe next time it will work
-					log.Errorf("Error updating CSV: %s", err)
+					log.Errorf("error updating CSV: %s", err)
 				}
 				now := time.Now().UTC()
 				// next launch is at 00:10 UTC tomorrow
