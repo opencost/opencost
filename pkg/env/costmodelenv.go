@@ -151,8 +151,8 @@ func GetExportCSVMaxDays() int {
 
 // GetAPIPort returns the environment variable value for APIPortEnvVar which
 // is the port number the API is available on.
-func GetAPIPort() string {
-	return Get(APIPortEnvVar, "9003")
+func GetAPIPort() int {
+	return GetInt(APIPortEnvVar, 9003)
 }
 
 // GetKubecostConfigBucket returns a file location for a mounted bucket configuration which is used to store
