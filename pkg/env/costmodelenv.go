@@ -11,6 +11,8 @@ import (
 )
 
 const (
+	APIPortEnvVar = "API_PORT"
+
 	AWSAccessKeyIDEnvVar     = "AWS_ACCESS_KEY_ID"
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
@@ -145,6 +147,12 @@ func IsPProfEnabled() bool {
 
 func GetExportCSVMaxDays() int {
 	return GetInt(ExportCSVMaxDays, 90)
+}
+
+// GetAPIPort returns the environment variable value for APIPortEnvVar which
+// is the port number the API is available on.
+func GetAPIPort() string {
+	return Get(APIPortEnvVar, "9003")
 }
 
 // GetKubecostConfigBucket returns a file location for a mounted bucket configuration which is used to store

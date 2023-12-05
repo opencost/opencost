@@ -78,7 +78,7 @@ func Execute(opts *CostModelOpts) error {
 	telemetryHandler := metrics.ResponseMetricMiddleware(rootMux)
 	handler := cors.AllowAll().Handler(telemetryHandler)
 
-	return http.ListenAndServe(":9003", errors.PanicHandlerMiddleware(handler))
+	return http.ListenAndServe(":"+env.GetAPIPort(), errors.PanicHandlerMiddleware(handler))
 }
 
 func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) error {
