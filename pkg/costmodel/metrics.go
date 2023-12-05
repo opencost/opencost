@@ -680,37 +680,37 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					if ok {
 						log.Debugf("No data observed for node with labels %v, removed from totalprice", labels)
 					} else {
-						log.Warnf("Failed to remove label set %v from metric node_total_hourly_cost", labels)
+						log.Warnf("Failed to remove label set %v from metric node_total_hourly_cost. Failure to remove stale metrics may result in inaccurate data.", labels)
 					}
 					ok = cmme.NodeSpotRecorder.DeleteLabelValues(labels...)
 					if ok {
 						log.Debugf("No data observed for node with labels %v, removed from spot records", labels)
 					} else {
-						log.Warnf("Failed to remove label set %v from metric kubecost_node_is_spot", labels)
+						log.Warnf("Failed to remove label set %v from metric kubecost_node_is_spot. Failure to remove stale metrics may result in inaccurate data.", labels)
 					}
 					ok = cmme.CPUPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
 						log.Debugf("No data observed for node with labels %v, removed from cpuprice", labels)
 					} else {
-						log.Warnf("Failed to remove label set %v from metric node_cpu_hourly_cost", labels)
+						log.Warnf("Failed to remove label set %v from metric node_cpu_hourly_cost. Failure to remove stale metrics may result in inaccurate data.", labels)
 					}
 					ok = cmme.GPUPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
 						log.Debugf("No data observed for node with labels %v, removed from gpuprice", labels)
 					} else {
-						log.Warnf("Failed to remove label set %v from metric node_gpu_hourly_cost", labels)
+						log.Warnf("Failed to remove label set %v from metric node_gpu_hourly_cost. Failure to remove stale metrics may result in inaccurate data.", labels)
 					}
 					ok = cmme.GPUCountRecorder.DeleteLabelValues(labels...)
 					if ok {
 						log.Debugf("No data observed for node with labels %v, removed from gpucount", labels)
 					} else {
-						log.Warnf("Failed to remove label set %v from metric node_gpu_count", labels)
+						log.Warnf("Failed to remove label set %v from metric node_gpu_count. Failure to remove stale metrics may result in inaccurate data.", labels)
 					}
 					ok = cmme.RAMPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
 						log.Debugf("No data observed for node with labels %v, removed from ramprice", labels)
 					} else {
-						log.Warnf("Failed to remove label set %v from metric node_ram_hourly_cost", labels)
+						log.Warnf("Failed to remove label set %v from metric node_ram_hourly_cost. Failure to remove stale metrics may result in inaccurate data.", labels)
 					}
 					delete(nodeSeen, labelString)
 					delete(nodeCostAverages, labelString)
@@ -723,7 +723,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					labels := getLabelStringsFromKey(labelString)
 					ok := cmme.LBCostRecorder.DeleteLabelValues(labels...)
 					if !ok {
-						log.Warnf("Failed to remove label set %v from metric kubecost_load_balancer_cost: %v", labels)
+						log.Warnf("Failed to remove label set %v from metric kubecost_load_balancer_cost. Failure to remove stale metrics may result in inaccurate data.", labels)
 					}
 					delete(loadBalancerSeen, labelString)
 				} else {
@@ -733,18 +733,18 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			for labelString, seen := range containerSeen {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
-					if labels[1] != unmountedPVsContainer { // special "pod" to contain the unmounted PVs - does not have RAM/CPU/...
+					if len(labels) >= 2 && labels[1] != unmountedPVsContainer { // special "pod" to contain the unmounted PVs - does not have RAM/CPU/...
 						ok := cmme.RAMAllocationRecorder.DeleteLabelValues(labels...)
 						if !ok {
-							log.Warnf("Failed to remove label set %v from metric container_memory_allocation_bytes", labels)
+							log.Warnf("Failed to remove label set %v from metric container_memory_allocation_bytes. Failure to remove stale metrics may result in inaccurate data.", labels)
 						}
 						ok = cmme.CPUAllocationRecorder.DeleteLabelValues(labels...)
 						if !ok {
-							log.Warnf("Failed to remove label set %v from metric container_cpu_allocation", labels)
+							log.Warnf("Failed to remove label set %v from metric container_cpu_allocation. Failure to remove stale metrics may result in inaccurate data.", labels)
 						}
 						ok = cmme.GPUAllocationRecorder.DeleteLabelValues(labels...)
 						if !ok {
-							log.Warnf("Failed to remove label set %v from metric container_gpu_allocation", labels)
+							log.Warnf("Failed to remove label set %v from metric container_gpu_allocation. Failure to remove stale metrics may result in inaccurate data.", labels)
 						}
 					} else {
 						log.Debugf("Did not try to delete RAM/CPU/GPU for fake '%s' container: %v", unmountedPVsContainer, labels)
@@ -759,7 +759,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					labels := getLabelStringsFromKey(labelString)
 					ok := cmme.PersistentVolumePriceRecorder.DeleteLabelValues(labels...)
 					if !ok {
-						log.Warnf("Failed to remove label set %v from metric pv_hourly_cost", labels)
+						log.Warnf("Failed to remove label set %v from metric pv_hourly_cost. Failure to remove stale metrics may result in inaccurate data.", labels)
 					}
 					delete(pvSeen, labelString)
 				} else {
@@ -771,7 +771,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					labels := getLabelStringsFromKey(labelString)
 					ok := cmme.PVAllocationRecorder.DeleteLabelValues(labels...)
 					if !ok {
-						log.Warnf("Failed to remove label set %v from metric pod_pvc_allocation", labels)
+						log.Warnf("Failed to remove label set %v from metric pod_pvc_allocation. Failure to remove stale metrics may result in inaccurate data.", labels)
 					}
 					delete(pvcSeen, labelString)
 				} else {
