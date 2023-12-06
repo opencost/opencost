@@ -1,5 +1,9 @@
 FROM nginx:alpine
 
+ENV API_PORT=9003
+ENV API_SERVER=0.0.0.0
+ENV UI_PORT=9090
+
 COPY ./dist /var/www
 COPY default.nginx.conf /etc/nginx/conf.d/
 COPY nginx.conf /etc/nginx/
