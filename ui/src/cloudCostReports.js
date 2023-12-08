@@ -175,7 +175,6 @@ const CloudCostReports = () => {
       return {
         property,
         value,
-        name: aggMap[property] || property,
       };
     });
     setFilters(newFilters);
@@ -267,6 +266,7 @@ const CloudCostReports = () => {
               aggregationOptions={aggregationOptions}
               aggregateBy={aggregateBy}
               setAggregateBy={(agg) => {
+                setFilters([])
                 searchParams.set("agg", agg);
                 routerHistory.push({
                   search: `?${searchParams.toString()}`,
