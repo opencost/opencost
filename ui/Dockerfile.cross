@@ -5,7 +5,7 @@ ENV API_SERVER=0.0.0.0
 ENV UI_PORT=9090
 
 COPY ./dist /var/www
-COPY default.nginx.conf /etc/nginx/conf.d/
+COPY default.nginx.conf.template /etc/nginx/conf.d/default.nginx.conf.template
 COPY nginx.conf /etc/nginx/
 COPY ./docker-entrypoint.sh /usr/local/bin/
 
