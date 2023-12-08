@@ -41,7 +41,7 @@ func TestParseCloudCostRequest(t *testing.T) {
 			want: &QueryRequest{
 				Start:       start,
 				End:         end,
-				AggregateBy: nil,
+				AggregateBy: []string{kubecost.CloudCostInvoiceEntityIDProp, kubecost.CloudCostAccountIDProp, kubecost.CloudCostProviderProp, kubecost.CloudCostProviderIDProp, kubecost.CloudCostCategoryProp, kubecost.CloudCostServiceProp},
 				Accumulate:  "",
 				Filter:      nil,
 			},
@@ -77,7 +77,7 @@ func TestParseCloudCostRequest(t *testing.T) {
 			want: &QueryRequest{
 				Start:       start,
 				End:         end,
-				AggregateBy: nil,
+				AggregateBy: []string{kubecost.CloudCostInvoiceEntityIDProp, kubecost.CloudCostAccountIDProp, kubecost.CloudCostProviderProp, kubecost.CloudCostProviderIDProp, kubecost.CloudCostCategoryProp, kubecost.CloudCostServiceProp},
 				Accumulate:  kubecost.AccumulateOptionWeek,
 				Filter:      nil,
 			},
@@ -91,7 +91,7 @@ func TestParseCloudCostRequest(t *testing.T) {
 			want: &QueryRequest{
 				Start:       start,
 				End:         end,
-				AggregateBy: nil,
+				AggregateBy: []string{kubecost.CloudCostInvoiceEntityIDProp, kubecost.CloudCostAccountIDProp, kubecost.CloudCostProviderProp, kubecost.CloudCostProviderIDProp, kubecost.CloudCostCategoryProp, kubecost.CloudCostServiceProp},
 				Accumulate:  kubecost.AccumulateOptionNone,
 				Filter:      nil,
 			},
@@ -105,7 +105,7 @@ func TestParseCloudCostRequest(t *testing.T) {
 			want: &QueryRequest{
 				Start:       start,
 				End:         end,
-				AggregateBy: nil,
+				AggregateBy: []string{kubecost.CloudCostInvoiceEntityIDProp, kubecost.CloudCostAccountIDProp, kubecost.CloudCostProviderProp, kubecost.CloudCostProviderIDProp, kubecost.CloudCostCategoryProp, kubecost.CloudCostServiceProp},
 				Accumulate:  kubecost.AccumulateOptionNone,
 				Filter:      validFilter,
 			},
