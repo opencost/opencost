@@ -38,6 +38,11 @@ func ParseCloudCostRequest(qp httputil.QueryParams) (*QueryRequest, error) {
 		aggregateBy = append(aggregateBy, prop)
 	}
 
+	// if we're aggregating by nothing (aka `item` on the frontend) then aggregate by all
+	if len(aggregateBy) == 0 {
+		aggregateBy = []string{kubecost.CloudCostInvoiceEntityIDProp, kubecost.CloudCostAccountIDProp, kubecost.CloudCostProviderProp, kubecost.CloudCostProviderIDProp, kubecost.CloudCostCategoryProp, kubecost.CloudCostServiceProp}
+	}
+
 	accumulate := kubecost.ParseAccumulate(qp.Get("accumulate", ""))
 
 	var filter filter21.Filter
