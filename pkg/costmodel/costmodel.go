@@ -31,6 +31,8 @@ const (
 
 	profileThreshold = 1000 * 1000 * 1000 // 1s (in ns)
 
+	unmountedPVsContainer = "unmounted-pvs"
+
 	apiPrefix         = "/api/v1"
 	epAlertManagers   = apiPrefix + "/alertmanagers"
 	epLabelValues     = apiPrefix + "/label/:name/values"
@@ -724,16 +726,13 @@ func findUnmountedPVCostData(clusterMap clusters.ClusterMap, unmountedPVs map[st
 
 		namespaceAnnotations, _ := namespaceAnnotationsMapping[ns+","+clusterID]
 
-		// Should be a unique "Unmounted" cost data type
-		name := "unmounted-pvs"
-
-		metric := NewContainerMetricFromValues(ns, name, name, "", clusterID)
+		metric := NewContainerMetricFromValues(ns, unmountedPVsContainer, unmountedPVsContainer, "", clusterID)
 		key := metric.Key()
 
 		if costData, ok := costs[key]; !ok {
 			costs[key] = &CostData{
-				Name:            name,
-				PodName:         name,
+				Name:            unmountedPVsContainer,
+				PodName:         unmountedPVsContainer,
 				NodeName:        "",
 				Annotations:     namespaceAnnotations,
 				Namespace:       ns,
