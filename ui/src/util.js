@@ -344,35 +344,6 @@ export function checkCustomWindow(window) {
   return customDateRegex.test(window);
 }
 
-export function getCloudFilters(filters) {
-  const filterNamesMap = {
-    "invoice entity": "filterInvoiceEntityIDs",
-    provider: "filterProviders",
-    providerids: "filterProviderIDs",
-    service: "filterServices",
-    account: "filterAccountIDs",
-  };
-  const params = new URLSearchParams();
-  const labelFilters = [];
-
-  for (let filter of filters) {
-    const mapped = filterNamesMap[filter.property.toLowerCase()];
-
-    if (mapped) {
-      params.set(mapped, filter.value);
-    } else if (filter.property === "Labels") {
-      labelFilters.push(filter.value);
-    } else if (filter.property.startsWith(":")) {
-      labelFilters.push(`${filter.property.slice(6)}:${filter.value}`);
-    }
-  }
-  if (labelFilters.length) {
-    params.set("filterLabels", labelFilters.join(","));
-  }
-
-  return `&${params.toString()}`;
-}
-
 export function formatSampleItemsForGraph({ data, costMetric }) {
   const costMetricPropName = costMetric
     ? costMetricToPropName[costMetric]
@@ -412,29 +383,31 @@ export function formatSampleItemsForGraph({ data, costMetric }) {
         cloudCostItem[costMetricPropName].kubernetesPercent;
     });
   });
-  const tableRows = Object.entries(accumulator).map(
-    ([
-      name,
-      {
+  const tableRows = Object.entries(accumulator)
+    .map(
+      ([
+        name,
+        {
+          cost,
+          start,
+          end,
+          providerID,
+          kubernetesCost,
+          kubernetesPercent,
+          labelName,
+        },
+      ]) => ({
         cost,
+        name,
+        kubernetesCost,
+        kubernetesPercent,
         start,
         end,
         providerID,
-        kubernetesCost,
-        kubernetesPercent,
         labelName,
-      },
-    ]) => ({
-      cost,
-      name,
-      kubernetesCost,
-      kubernetesPercent,
-      start,
-      end,
-      providerID,
-      labelName,
-    })
-  );
+      })
+    )
+    .sort((a, b) => (a.cost > b.cost ? -1 : 1));
 
   const tableTotal = tableRows.reduce(
     (tr1, tr2) => ({
@@ -455,6 +428,18 @@ export function formatSampleItemsForGraph({ data, costMetric }) {
   );
 
   return { graphData, tableRows, tableTotal };
+}
+
+export function parseFilters(filters) {
+  if (typeof filters === "string") {
+    return filters;
+  }
+  // remove dups (via context ) and format
+  return (
+    [...new Set(filters.map((f) => `${f.property}:"${f.value}"`))].join(
+      encodeURIComponent("+")
+    ) || ""
+  );
 }
 
 export default {
