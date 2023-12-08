@@ -29,7 +29,7 @@ const DefaultChartItemsLength int = 10
 // ViewQuerier defines a contract for return View types to the QueryService to service the View Api
 type ViewQuerier interface {
 	QueryViewGraph(ViewQueryRequest, context.Context) (ViewGraphData, error)
-	QueryViewTotals(ViewQueryRequest, context.Context) (*ViewTableRow, int, error)
+	QueryViewTotals(ViewQueryRequest, context.Context) (*ViewTotals, error)
 	QueryViewTable(ViewQueryRequest, context.Context) (ViewTableRows, error)
 }
 
