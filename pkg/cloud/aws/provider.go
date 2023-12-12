@@ -1285,6 +1285,20 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 	key := k.Features()
 
 	meta := models.PricingMetadata{}
+	var cost string
+	publicPricingFound := true
+	c, ok := terms.OnDemand.PriceDimensions[strings.Join([]string{terms.Sku, terms.OnDemand.OfferTermCode, HourlyRateCode}, ".")]
+	if ok {
+		cost = c.PricePerUnit.USD
+	} else {
+		// Check for Chinese pricing
+		c, ok = terms.OnDemand.PriceDimensions[strings.Join([]string{terms.Sku, terms.OnDemand.OfferTermCode, HourlyRateCodeCn}, ".")]
+		if ok {
+			cost = c.PricePerUnit.CNY
+		} else {
+			publicPricingFound = false
+		}
+	}
 
 	if spotInfo, ok := aws.spotPricing(k.ID()); ok {
 		var spotcost string
@@ -1308,9 +1322,14 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 		}, meta, nil
 	} else if aws.isPreemptible(key) { // Preemptible but we don't have any data in the pricing report.
 		log.DedupedWarningf(5, "Node %s marked preemptible but we have no data in spot feed", k.ID())
+		// Throw error if public price is not found
+		if !publicPricingFound {
+			log.Errorf("Could not fetch public pricing data for spot instance \"%s\"", k.ID())
+			return nil, meta, fmt.Errorf("Could not fetch data for \"%s\"", k.ID())
+		}
 		return &models.Node{
+			Cost:         cost,
 			VCPU:         terms.VCpu,
-			VCPUCost:     aws.BaseSpotCPUPrice,
 			RAM:          terms.Memory,
 			GPU:          terms.GPU,
 			Storage:      terms.Storage,
@@ -1348,18 +1367,10 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 		}, meta, nil
 
 	}
-	var cost string
-	c, ok := terms.OnDemand.PriceDimensions[strings.Join([]string{terms.Sku, terms.OnDemand.OfferTermCode, HourlyRateCode}, ".")]
-	if ok {
-		cost = c.PricePerUnit.USD
-	} else {
-		// Check for Chinese pricing before throwing error
-		c, ok = terms.OnDemand.PriceDimensions[strings.Join([]string{terms.Sku, terms.OnDemand.OfferTermCode, HourlyRateCodeCn}, ".")]
-		if ok {
-			cost = c.PricePerUnit.CNY
-		} else {
-			return nil, meta, fmt.Errorf("Could not fetch data for \"%s\"", k.ID())
-		}
+	// Throw error if public price is not found
+	if !publicPricingFound {
+		log.Errorf("Could not fetch data for \"%s\"", k.ID())
+		return nil, meta, fmt.Errorf("Could not fetch data for \"%s\"", k.ID())
 	}
 
 	return &models.Node{
