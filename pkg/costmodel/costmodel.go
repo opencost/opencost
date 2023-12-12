@@ -2554,9 +2554,8 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 					}
 
 					if totals == nil {
-						log.Errorf("unable to locate asset totals for allocation %s", key)
-						return nil, fmt.Errorf("unable to locate allocation totals for allocation")
-
+						log.Errorf("unable to locate asset totals for allocation %s, corresponding PARC is being skipped", key)
+						continue
 					}
 
 					parc.CPUTotalCost = totals.CPUCost
