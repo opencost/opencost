@@ -2554,7 +2554,7 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 					}
 
 					if totals == nil {
-						log.Errorf("unable to locate asset totals for allocation %s", key)
+						log.Errorf("unable to locate asset totals for allocation %s, corresponding PARC is being skipped", key)
 						continue
 					}
 
