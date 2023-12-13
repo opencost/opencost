@@ -1337,6 +1337,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 			}, meta, nil
 		} else {
 			// return defaults if public pricing not found
+			log.DedupedWarningf(5, "Could not find Node %s's public pricing info", k.ID())
 			return &models.Node{
 				VCPU:         terms.VCpu,
 				VCPUCost:     aws.BaseSpotCPUPrice,
