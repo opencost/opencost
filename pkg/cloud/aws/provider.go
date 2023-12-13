@@ -1321,22 +1321,34 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 		}, meta, nil
 	} else if aws.isPreemptible(key) { // Preemptible but we don't have any data in the pricing report.
 		log.DedupedWarningf(5, "Node %s marked preemptible but we have no data in spot feed", k.ID())
-		// Throw error if public price is not found
-		if !publicPricingFound {
-			log.Errorf("Could not fetch public pricing data for spot instance \"%s\"", k.ID())
-			return nil, meta, fmt.Errorf("Could not fetch data for \"%s\"", k.ID())
+		if publicPricingFound {
+			// return public price if found
+			return &models.Node{
+				Cost:         cost,
+				VCPU:         terms.VCpu,
+				RAM:          terms.Memory,
+				GPU:          terms.GPU,
+				Storage:      terms.Storage,
+				BaseCPUPrice: aws.BaseCPUPrice,
+				BaseRAMPrice: aws.BaseRAMPrice,
+				BaseGPUPrice: aws.BaseGPUPrice,
+				UsageType:    PreemptibleType,
+			}, meta, nil
+		} else {
+			// return defaults if public pricing not found
+			return &models.Node{
+				VCPU:         terms.VCpu,
+				VCPUCost:     aws.BaseSpotCPUPrice,
+				RAMCost:      aws.BaseSpotRAMPrice,
+				RAM:          terms.Memory,
+				GPU:          terms.GPU,
+				Storage:      terms.Storage,
+				BaseCPUPrice: aws.BaseCPUPrice,
+				BaseRAMPrice: aws.BaseRAMPrice,
+				BaseGPUPrice: aws.BaseGPUPrice,
+				UsageType:    PreemptibleType,
+			}, meta, nil
 		}
-		return &models.Node{
-			Cost:         cost,
-			VCPU:         terms.VCpu,
-			RAM:          terms.Memory,
-			GPU:          terms.GPU,
-			Storage:      terms.Storage,
-			BaseCPUPrice: aws.BaseCPUPrice,
-			BaseRAMPrice: aws.BaseRAMPrice,
-			BaseGPUPrice: aws.BaseGPUPrice,
-			UsageType:    PreemptibleType,
-		}, meta, nil
 	} else if sp, ok := aws.savingsPlanPricing(k.ID()); ok {
 		strCost := fmt.Sprintf("%f", sp.EffectiveCost)
 		return &models.Node{
