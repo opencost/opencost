@@ -11,5 +11,7 @@ fi
 
 envsubst '$API_PORT $API_SERVER $UI_PORT' < /etc/nginx/conf.d/default.nginx.conf.template > /etc/nginx/conf.d/default.nginx.conf
 
+echo "Starting ui version $VERSION ($HEAD)"
+
 # Run the parent (nginx) container's entrypoint script
 exec /docker-entrypoint.sh "$@"

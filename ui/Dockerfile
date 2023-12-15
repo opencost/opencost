@@ -7,6 +7,11 @@ RUN npx parcel build src/index.html
 
 FROM nginx:alpine
 
+ARG version=dev
+ARG	commit=HEAD
+ENV VERSION=${version}
+ENV HEAD=${commit}
+
 ENV API_PORT=9003
 ENV API_SERVER=0.0.0.0
 ENV UI_PORT=9090
