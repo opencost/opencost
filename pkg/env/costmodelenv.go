@@ -11,6 +11,8 @@ import (
 )
 
 const (
+	APIPortEnvVar = "API_PORT"
+
 	AWSAccessKeyIDEnvVar     = "AWS_ACCESS_KEY_ID"
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
@@ -50,6 +52,8 @@ const (
 	ThanosQueryUrlEnvVar     = "THANOS_QUERY_URL"
 	ThanosOffsetEnvVar       = "THANOS_QUERY_OFFSET"
 	ThanosMaxSourceResEnvVar = "THANOS_MAX_SOURCE_RESOLUTION"
+
+	PProfEnabledEnvVar = "PPROF_ENABLED"
 
 	LogCollectionEnabledEnvVar    = "LOG_COLLECTION_ENABLED"
 	ProductAnalyticsEnabledEnvVar = "PRODUCT_ANALYTICS_ENABLED"
@@ -137,8 +141,18 @@ func GetExportCSVLabelsList() []string {
 	return GetList(ExportCSVLabelsList, ",")
 }
 
+func IsPProfEnabled() bool {
+	return GetBool(PProfEnabledEnvVar, false)
+}
+
 func GetExportCSVMaxDays() int {
 	return GetInt(ExportCSVMaxDays, 90)
+}
+
+// GetAPIPort returns the environment variable value for APIPortEnvVar which
+// is the port number the API is available on.
+func GetAPIPort() int {
+	return GetInt(APIPortEnvVar, 9003)
 }
 
 // GetKubecostConfigBucket returns a file location for a mounted bucket configuration which is used to store

@@ -5,10 +5,13 @@
 ui/.parcel-cache
 ui/.cache
 ui/dist
+ui/.env
 ui/node_modules/
 cmd/costmodel/costmodel
 cmd/costmodel/costmodel-amd64
 cmd/costmodel/costmodel-arm64
+cmd/costmodel/costmodel-tilt
+
 pkg/cloud/azureorphan_test.go
 
 # VS Code

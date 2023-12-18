@@ -33,7 +33,7 @@ const CloudCostDetails = ({
 
   const nextFilters = [
     ...(filters ?? []),
-    { property: "providerIds", value: selectedProviderId },
+    { property: "providerID", value: selectedProviderId },
   ];
 
   async function fetchData() {
@@ -122,7 +122,7 @@ const CloudCostDetails = ({
         title={`Costs over the last ${window}`}
         style={{ margin: "10%" }}
       >
-        <Paper>
+        <Paper style={{ padding: 20 }}>
           <Typography style={{ marginTop: "1rem" }} variant="body1">
             {selectedItem}
           </Typography>
