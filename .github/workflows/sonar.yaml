@@ -41,8 +41,21 @@ jobs:
           echo "SONAR_PR_NUM=$(cat coverage/pr_num.txt)" >> $GITHUB_ENV
           echo "SONAR_BASE=$(cat coverage/base.txt)" >> $GITHUB_ENV
           echo "SONAR_HEAD=$(cat coverage/head.txt)" >> $GITHUB_ENV
-      - name: SonarCloud Scan
+      # on develop branch, only run a baseline scan
+      - name: SonarCloud Scan (Baseline)
         uses: sonarsource/sonarcloud-github-action@master
+        if: env.SONAR_HEAD == 'develop'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.scm.revision=${{ github.event.workflow_run.head_sha }}
+            -Dsonar.projectKey=opencost_opencost
+            -Dsonar.organization=opencost
+      - name: SonarCloud Scan (PR)
+        uses: sonarsource/sonarcloud-github-action@master
+        if: env.SONAR_HEAD != 'develop'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
