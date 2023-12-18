@@ -67,6 +67,5 @@ jobs:
             -Dsonar.pullrequest.key=${{ env.SONAR_PR_NUM }}
             -Dsonar.pullrequest.branch=${{ env.SONAR_HEAD }}
             -Dsonar.pullrequest.base=${{ env.SONAR_BASE }}
-            -Dsonar.branch.name=${{ env.SONAR_HEAD }}
             -Dsonar.projectKey=opencost_opencost
             -Dsonar.organization=opencost
