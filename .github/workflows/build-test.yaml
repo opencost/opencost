@@ -45,8 +45,6 @@ jobs:
         name: Build
         run: |
           just build-local
-      - name: Dump context
-        uses: crazy-max/ghaction-dump-context@v2
       - name: get-pr-info
         shell: bash
         env:
