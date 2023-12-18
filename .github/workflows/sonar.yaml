@@ -53,6 +53,8 @@ jobs:
             -Dsonar.scm.revision=${{ github.event.workflow_run.head_sha }}
             -Dsonar.projectKey=opencost_opencost
             -Dsonar.organization=opencost
+            -Dsonar.branch.name=develop
+            -Dsonar.branch.target=develop
       - name: SonarCloud Scan (PR)
         uses: sonarsource/sonarcloud-github-action@master
         if: env.SONAR_HEAD != 'develop'
@@ -65,5 +67,7 @@ jobs:
             -Dsonar.pullrequest.key=${{ env.SONAR_PR_NUM }}
             -Dsonar.pullrequest.branch=${{ env.SONAR_HEAD }}
             -Dsonar.pullrequest.base=${{ env.SONAR_BASE }}
+            -Dsonar.branch.name=${{ env.SONAR_HEAD }}
+            -Dsonar.branch.target=develop
             -Dsonar.projectKey=opencost_opencost
             -Dsonar.organization=opencost
