@@ -31,7 +31,7 @@ var (
 					Container:      "containerName",
 					Path:           "containerPath",
 					Cloud:          "azureCloud",
-					Authorizer: &azure.AccessKey{
+					Authorizer: &azure.SharedKeyCredential{
 						AccessKey: "accessKey",
 						Account:   "accountName",
 					},
@@ -214,11 +214,11 @@ func TestConfigurations_UnmarshalJSON(t *testing.T) {
 		input    any
 		expected *Configurations
 	}{
-		"Azure Storage AccessKey": {
+		"Azure Storage SharedKeyCredential": {
 			input:    azureConfiguration,
 			expected: azureConfiguration,
 		},
-		"Azure Storage AccessKey Conversion": {
+		"Azure Storage SharedKeyCredential Conversion": {
 			input:    azureMultiCloudConf,
 			expected: azureConfiguration,
 		},

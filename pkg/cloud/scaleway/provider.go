@@ -207,7 +207,13 @@ func (key *scalewayPVKey) Features() string {
 
 func (c *Scaleway) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
 	// the csi volume handle is the form <az>/<volume-id>
-	zone := strings.Split(pv.Spec.CSI.VolumeHandle, "/")[0]
+	zone := ""
+	if pv.Spec.CSI != nil {
+		zoneVolID := strings.Split(pv.Spec.CSI.VolumeHandle, "/")
+		if len(zoneVolID) > 0 {
+			zone = zoneVolID[0]
+		}
+	}
 	return &scalewayPVKey{
 		Labels:                 pv.Labels,
 		StorageClassName:       pv.Spec.StorageClassName,

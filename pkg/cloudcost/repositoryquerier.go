@@ -114,42 +114,45 @@ func (rq *RepositoryQuerier) QueryViewGraph(request ViewQueryRequest, ctx contex
 	return sets, nil
 }
 
-func (rq *RepositoryQuerier) QueryViewTotals(request ViewQueryRequest, ctx context.Context) (*ViewTableRow, int, error) {
+func (rq *RepositoryQuerier) QueryViewTotals(request ViewQueryRequest, ctx context.Context) (*ViewTotals, error) {
 	ccasr, err := rq.Query(request.QueryRequest, ctx)
 	if err != nil {
-		return nil, -1, fmt.Errorf("QueryViewTotals: query failed: %w", err)
+		return nil, fmt.Errorf("QueryViewTotals: query failed: %w", err)
 	}
 	acc, err := ccasr.AccumulateAll()
 	if err != nil {
-		return nil, -1, fmt.Errorf("QueryViewTotals: accumulate failed: %w", err)
+		return nil, fmt.Errorf("QueryViewTotals: accumulate failed: %w", err)
 	}
 	if acc.IsEmpty() {
-		return nil, 0, nil
+		return nil, nil
 	}
 	count := len(acc.CloudCosts)
 
 	total, err := acc.Aggregate([]string{})
 	if err != nil {
-		return nil, -1, fmt.Errorf("QueryViewTotals: aggregate total failed: %w", err)
+		return nil, fmt.Errorf("QueryViewTotals: aggregate total failed: %w", err)
 	}
 
 	if total.IsEmpty() {
-		return nil, -1, fmt.Errorf("QueryViewTotals: missing total: %w", err)
+		return nil, fmt.Errorf("QueryViewTotals: missing total: %w", err)
 	}
 
 	if len(total.CloudCosts) != 1 {
-		return nil, -1, fmt.Errorf("QueryViewTotals: total did not aggregate: %w", err)
+		return nil, fmt.Errorf("QueryViewTotals: total did not aggregate: %w", err)
 	}
 
 	cm, err := total.CloudCosts[""].GetCostMetric(request.CostMetricName)
 	if err != nil {
-		return nil, -1, fmt.Errorf("QueryViewTotals: failed to retrieve cost metric: %w", err)
+		return nil, fmt.Errorf("QueryViewTotals: failed to retrieve cost metric: %w", err)
 	}
-	return &ViewTableRow{
-		Name:              "Totals",
-		KubernetesPercent: cm.KubernetesPercent,
-		Cost:              cm.Cost,
-	}, count, nil
+	return &ViewTotals{
+		NumResults: count,
+		Combined: &ViewTableRow{
+			Name:              "Totals",
+			KubernetesPercent: cm.KubernetesPercent,
+			Cost:              cm.Cost,
+		},
+	}, nil
 }
 
 func (rq *RepositoryQuerier) QueryViewTable(request ViewQueryRequest, ctx context.Context) (ViewTableRows, error) {
@@ -168,8 +171,14 @@ func (rq *RepositoryQuerier) QueryViewTable(request ViewQueryRequest, ctx contex
 		if err2 != nil {
 			return nil, fmt.Errorf("QueryViewTable: failed to retrieve cost metric: %w", err)
 		}
+		var labels map[string]string
+		if cloudCost.Properties != nil {
+			labels = cloudCost.Properties.Labels
+		}
+
 		vtr := &ViewTableRow{
 			Name:              key,
+			Labels:            labels,
 			KubernetesPercent: costMetric.KubernetesPercent,
 			Cost:              costMetric.Cost,
 		}

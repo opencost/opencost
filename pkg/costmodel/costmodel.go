@@ -31,6 +31,8 @@ const (
 
 	profileThreshold = 1000 * 1000 * 1000 // 1s (in ns)
 
+	unmountedPVsContainer = "unmounted-pvs"
+
 	apiPrefix         = "/api/v1"
 	epAlertManagers   = apiPrefix + "/alertmanagers"
 	epLabelValues     = apiPrefix + "/label/:name/values"
@@ -719,16 +721,13 @@ func findUnmountedPVCostData(clusterMap clusters.ClusterMap, unmountedPVs map[st
 
 		namespaceAnnotations, _ := namespaceAnnotationsMapping[ns+","+clusterID]
 
-		// Should be a unique "Unmounted" cost data type
-		name := "unmounted-pvs"
-
-		metric := NewContainerMetricFromValues(ns, name, name, "", clusterID)
+		metric := NewContainerMetricFromValues(ns, unmountedPVsContainer, unmountedPVsContainer, "", clusterID)
 		key := metric.Key()
 
 		if costData, ok := costs[key]; !ok {
 			costs[key] = &CostData{
-				Name:            name,
-				PodName:         name,
+				Name:            unmountedPVsContainer,
+				PodName:         unmountedPVsContainer,
 				NodeName:        "",
 				Annotations:     namespaceAnnotations,
 				Namespace:       ns,
@@ -1110,7 +1109,60 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			gpuc = 0.0
 		}
 
-		if newCnode.GPU != "" && newCnode.GPUCost == "" {
+		// Special case for SUSE rancher, since it won't behave with normal
+		// calculations, courtesy of the instance type not being "real" (a
+		// recognizable AWS instance type.)
+		if newCnode.InstanceType == "rke2" {
+			log.Infof(
+				"Found a SUSE Rancher node %s, defaulting and skipping math",
+				cp.GetKey(nodeLabels, n).Features(),
+			)
+
+			defaultCPUCorePrice, err := strconv.ParseFloat(cfg.CPU, 64)
+			if err != nil {
+				log.Errorf("Could not parse default cpu price")
+				defaultCPUCorePrice = 0
+			}
+			if math.IsNaN(defaultCPUCorePrice) {
+				log.Warnf("defaultCPU parsed as NaN. Setting to 0.")
+				defaultCPUCorePrice = 0
+			}
+
+			defaultRAMPrice, err := strconv.ParseFloat(cfg.RAM, 64)
+			if err != nil {
+				log.Errorf("Could not parse default ram price")
+				defaultRAMPrice = 0
+			}
+			if math.IsNaN(defaultRAMPrice) {
+				log.Warnf("defaultRAM parsed as NaN. Setting to 0.")
+				defaultRAMPrice = 0
+			}
+
+			defaultGPUPrice, err := strconv.ParseFloat(cfg.GPU, 64)
+			if err != nil {
+				log.Errorf("Could not parse default gpu price")
+				defaultGPUPrice = 0
+			}
+			if math.IsNaN(defaultGPUPrice) {
+				log.Warnf("defaultGPU parsed as NaN. Setting to 0.")
+				defaultGPUPrice = 0
+			}
+			// Just say no to doing the ratios!
+			cpuCost := defaultCPUCorePrice * cpu
+			gpuCost := defaultGPUPrice * gpuc
+			ramCost := defaultRAMPrice * ram
+			nodeCost := cpuCost + gpuCost + ramCost
+
+			newCnode.Cost = fmt.Sprintf("%f", nodeCost)
+			newCnode.VCPUCost = fmt.Sprintf("%f", cpuCost)
+			newCnode.GPUCost = fmt.Sprintf("%f", gpuCost)
+			newCnode.RAMCost = fmt.Sprintf("%f", ramCost)
+			newCnode.RAMBytes = fmt.Sprintf("%f", ram)
+
+		} else if newCnode.GPU != "" && newCnode.GPUCost == "" {
+			// was the big thing to investigate. All the funky ratio math
+			// we were doing was messing with their default pricing. for SUSE Rancher.
+
 			// We couldn't find a gpu cost, so fix cpu and ram, then accordingly
 			log.Infof("GPU without cost found for %s, calculating...", cp.GetKey(nodeLabels, n).Features())
 
@@ -2497,9 +2549,8 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 					}
 
 					if totals == nil {
-						log.Errorf("unable to locate asset totals for allocation %s", key)
-						return nil, fmt.Errorf("unable to locate allocation totals for allocation")
-
+						log.Errorf("unable to locate asset totals for allocation %s, corresponding PARC is being skipped", key)
+						continue
 					}
 
 					parc.CPUTotalCost = totals.CPUCost
