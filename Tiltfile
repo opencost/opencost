@@ -90,7 +90,7 @@ docker_build(
     only=[
         'dist',
         'nginx.conf',
-        'default.nginx.conf',
+        'default.nginx.conf.template',
         'docker-entrypoint.sh',
     ],
     live_update=[
