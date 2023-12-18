@@ -43,6 +43,10 @@ func (apt *AllocationProperty) GetAnnotation() string {
 
 // IsAliasedLabel returns true if the allocation property corresponds to an aliased label
 func (apt *AllocationProperty) IsAliasedLabel() bool {
+	if apt == nil {
+		return false
+	}
+
 	return *apt == AllocationDepartmentProp ||
 		*apt == AllocationEnvironmentProp ||
 		*apt == AllocationOwnerProp ||
