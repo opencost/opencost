@@ -8,6 +8,29 @@ type Not[T any] struct {
 }
 
 func (n Not[T]) String() string {
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
+	fmt.Print("test")
 	return fmt.Sprintf("(not %s)", n.Filter.String())
 }
 
