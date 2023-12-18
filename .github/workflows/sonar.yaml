@@ -36,8 +36,6 @@ jobs:
             fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/oc-code-coverage.zip`, Buffer.from(download.data));
       - name: 'Unzip code coverage'
         run: unzip oc-code-coverage.zip -d coverage
-      - name: Dump context
-        uses: crazy-max/ghaction-dump-context@v2
       - name: SonarCloud Scan
         uses: sonarsource/sonarcloud-github-action@master
         env:
