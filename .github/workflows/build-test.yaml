@@ -53,6 +53,8 @@ jobs:
           PR_NUM: ${{ github.event.number }}
         run: |
           echo $PR_NUM > pr_num.txt
+          echo $GITHUB_BASE_REF > base.txt
+          echo $GITHUB_HEAD_REF > head.txt
       - name: Upload code coverage
         uses: actions/upload-artifact@v3
         with:
@@ -60,8 +62,9 @@ jobs:
           path: |
            coverage.out
            pr_num.txt
+           base.txt
+           head.txt
       
-
   frontend:
     runs-on: ubuntu-latest
     steps:
