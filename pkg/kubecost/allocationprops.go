@@ -41,6 +41,37 @@ func (apt *AllocationProperty) GetAnnotation() string {
 	return ""
 }
 
+// IsAliasedLabel returns true if the allocation property corresponds to an aliased label
+func (apt *AllocationProperty) IsAliasedLabel() bool {
+	if apt == nil {
+		return false
+	}
+
+	return *apt == AllocationDepartmentProp ||
+		*apt == AllocationEnvironmentProp ||
+		*apt == AllocationOwnerProp ||
+		*apt == AllocationProductProp ||
+		*apt == AllocationTeamProp
+}
+
+// GetAliasedLabelDefault returns the corresponding default aliased label name
+func (apt *AllocationProperty) GetAliasedLabelDefault() string {
+	switch *apt {
+	case AllocationDepartmentProp:
+		return "department"
+	case AllocationEnvironmentProp:
+		return "env"
+	case AllocationOwnerProp:
+		return "owner"
+	case AllocationProductProp:
+		return "app"
+	case AllocationTeamProp:
+		return "team"
+	default:
+		return ""
+	}
+}
+
 const (
 	AllocationNilProp            AllocationProperty = ""
 	AllocationClusterProp                           = "cluster"
