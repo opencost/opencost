@@ -38,9 +38,9 @@
     "buffer": "^6.0.3",
     "parcel": "^2.2.1",
     "process": "^0.11.10",
-    "set-value": "4.0.1"
+    "set-value": "4.1.0"
   },
   "resolutions": {
-    "set-value": "4.0.1"
+    "set-value": "4.1.0"
   }
 }
