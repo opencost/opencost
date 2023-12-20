@@ -131,21 +131,14 @@ func TestGetKubernetesEnabled(t *testing.T) {
 		pre  func()
 	}{
 		{
-			name: "Ensure the default value is true",
-			want: true,
-		},
-		{
-			name: "Ensure the value is true when KUBERNETES_ENABLED is set to true",
-			want: true,
-			pre: func() {
-				os.Setenv("KUBERNETES_ENABLED", "true")
-			},
-		},
-		{
-			name: "Ensure the value is false when KUBERNETES_ENABLED is set to false",
+			name: "Ensure the default value is false",
 			want: false,
+		},
+		{
+			name: "Ensure the value is true when KUBERNETES_PORT has a value",
+			want: true,
 			pre: func() {
-				os.Setenv("KUBERNETES_ENABLED", "false")
+				os.Setenv("KUBERNETES_PORT", "tcp://10.43.0.1:443")
 			},
 		},
 	}
