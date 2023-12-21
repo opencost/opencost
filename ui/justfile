@@ -1,3 +1,6 @@
+version := `../tools/image-tag`
+commit := `git rev-parse --short HEAD`
+
 default:
     just --list
 
@@ -13,6 +16,8 @@ build IMAGETAG: build-local
         -f 'Dockerfile.cross' \
         --provenance=false \
         -t {{IMAGETAG}}-amd64 \
+        --build-arg version={{version}} \
+        --build-arg commit={{commit}} \
         --push \
         .
 
@@ -22,6 +27,8 @@ build IMAGETAG: build-local
         -f 'Dockerfile.cross' \
         --provenance=false \
         -t {{IMAGETAG}}-arm64 \
+        --build-arg version={{version}} \
+        --build-arg commit={{commit}} \
         --push \
         .
 

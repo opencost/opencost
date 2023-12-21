@@ -9,7 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/log"
 )
@@ -36,13 +37,14 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 		return err
 	}
 
-	containerURL, err := asbp.getContainer()
+	serviceURL := fmt.Sprintf(asbp.StorageConnection.getBlobURLTemplate(), asbp.Account, "")
+	client, err := asbp.Authorizer.GetBlobClient(serviceURL)
 	if err != nil {
 		asbp.ConnectionStatus = cloud.FailedConnection
 		return err
 	}
 	ctx := context.Background()
-	blobNames, err := asbp.getMostRecentBlobs(start, end, containerURL, ctx)
+	blobNames, err := asbp.getMostRecentBlobs(start, end, client, ctx)
 	if err != nil {
 		asbp.ConnectionStatus = cloud.FailedConnection
 		return err
@@ -54,7 +56,7 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 	}
 
 	for _, blobName := range blobNames {
-		blobBytes, err2 := asbp.DownloadBlob(blobName, containerURL, ctx)
+		blobBytes, err2 := asbp.DownloadBlob(blobName, client, ctx)
 		if err2 != nil {
 			asbp.ConnectionStatus = cloud.FailedConnection
 			return err2
@@ -101,7 +103,7 @@ func (asbp *AzureStorageBillingParser) parseCSV(start, end time.Time, reader *cs
 	return nil
 }
 
-func (asbp *AzureStorageBillingParser) getMostRecentBlobs(start, end time.Time, containerURL *azblob.ContainerURL, ctx context.Context) ([]string, error) {
+func (asbp *AzureStorageBillingParser) getMostRecentBlobs(start, end time.Time, client *azblob.Client, ctx context.Context) ([]string, error) {
 	log.Infof("Azure Storage: retrieving most recent reports from: %v - %v", start, end)
 
 	// Get list of month substrings for months contained in the start to end range
@@ -109,33 +111,36 @@ func (asbp *AzureStorageBillingParser) getMostRecentBlobs(start, end time.Time, 
 	if err != nil {
 		return nil, err
 	}
-	mostResentBlobs := make(map[string]azblob.BlobItemInternal)
-	for marker := (azblob.Marker{}); marker.NotDone(); {
-		// Get a result segment starting with the blob indicated by the current Marker.
-		listBlob, err := containerURL.ListBlobsFlatSegment(ctx, marker, azblob.ListBlobsSegmentOptions{})
+	mostResentBlobs := make(map[string]container.BlobItem)
+
+	pager := client.NewListBlobsFlatPager(asbp.Container, &azblob.ListBlobsFlatOptions{
+		Include: container.ListBlobsInclude{Deleted: false, Versions: false},
+	})
+
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
 		if err != nil {
 			return nil, err
 		}
 
-		// ListBlobs returns the start of the next segment; you MUST use this to get
-		// the next segment (after processing the current result segment).
-		marker = listBlob.NextMarker
-
 		// Using the list of months strings find the most resent blob for each month in the range
-		for _, blobInfo := range listBlob.Segment.BlobItems {
+		for _, blobInfo := range resp.Segment.BlobItems {
+			if blobInfo.Name == nil {
+				continue
+			}
+			// If Container Path configuration exists, check if it is in the blobs name
+			if asbp.Path != "" && !strings.Contains(*blobInfo.Name, asbp.Path) {
+				continue
+			}
 			for _, month := range monthStrs {
-				if strings.Contains(blobInfo.Name, month) {
-					// If Container Path configuration exists, check if it is in the blobs name
-					if asbp.Path != "" && !strings.Contains(blobInfo.Name, asbp.Path) {
-						continue
-					}
-
+				if strings.Contains(*blobInfo.Name, month) {
+					// check if blob is the newest seen for this month
 					if prevBlob, ok := mostResentBlobs[month]; ok {
 						if prevBlob.Properties.CreationTime.After(*blobInfo.Properties.CreationTime) {
 							continue
 						}
 					}
-					mostResentBlobs[month] = blobInfo
+					mostResentBlobs[month] = *blobInfo
 				}
 			}
 		}
@@ -145,7 +150,7 @@ func (asbp *AzureStorageBillingParser) getMostRecentBlobs(start, end time.Time, 
 	var blobNames []string
 	for _, month := range monthStrs {
 		if blob, ok := mostResentBlobs[month]; ok {
-			blobNames = append(blobNames, blob.Name)
+			blobNames = append(blobNames, *blob.Name)
 		}
 	}
 

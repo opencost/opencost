@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getCloudFilters, formatSampleItemsForGraph } from "../util";
+import { formatSampleItemsForGraph, parseFilters } from "../util";
 
 class CloudCostTopService {
   BASE_URL = process.env.BASE_URL || "{PLACEHOLDER_BASE_URL}";
@@ -13,7 +13,7 @@ class CloudCostTopService {
       window,
       aggregate,
       costMetric,
-      filters,
+      filter: parseFilters(filters ?? []),
       limit: 1000,
     };
 
@@ -21,7 +21,7 @@ class CloudCostTopService {
       const resp = await axios.get(
         `${
           this.BASE_URL
-        }/cloudCost?window=${window}&costMetric=${costMetric}${getCloudFilters(
+        }/cloudCost?window=${window}&costMetric=${costMetric}&filter=${parseFilters(
           filters
         )}`
       );
