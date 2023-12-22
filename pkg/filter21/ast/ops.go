@@ -191,3 +191,11 @@ type ContainsSuffixOp struct {
 func (_ *ContainsSuffixOp) Op() FilterOp {
 	return FilterOpContainsSuffix
 }
+
+func Not(fn FilterNode) FilterNode {
+	return &NotOp{Operand: fn}
+}
+
+func NotVoid() FilterNode {
+	return Not(&VoidOp{})
+}

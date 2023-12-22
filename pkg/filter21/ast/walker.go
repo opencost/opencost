@@ -407,3 +407,8 @@ func Fields(filter FilterNode) []Field {
 
 	return response
 }
+
+func ToString(filter FilterNode) string {
+	// TODO make this return a parseable filter string, if possible...
+	return ToPreOrderShortString(filter)
+}
