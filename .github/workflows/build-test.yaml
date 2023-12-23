@@ -77,7 +77,7 @@ jobs:
 
       -
         name: Install node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '18.3.0'
 
