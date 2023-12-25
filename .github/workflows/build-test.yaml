@@ -55,7 +55,7 @@ jobs:
           echo $GITHUB_HEAD_REF > head.txt
 
       - name: Upload code coverage
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: oc-code-coverage
           path: |
