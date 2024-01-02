@@ -14,7 +14,6 @@ ADD --chmod=644 ./configs/aws.json /models/aws.json
 ADD --chmod=644 ./configs/gcp.json /models/gcp.json
 ADD --chmod=644 ./configs/alibaba.json /models/alibaba.json
 
-RUN echo "binary_path"
 COPY ${binary_path} main
 
 ENTRYPOINT ["/go/bin/dlv exec --listen=:40000 --api-version=2 --headless=true --accept-multiclient --log --continue /app/main"]
