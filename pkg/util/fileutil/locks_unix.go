@@ -1,3 +1,7 @@
+//go:build darwin || dragonfly || freebsd || illumos || linux || netbsd || openbsd
+
+// The above platforms support flock()
+
 package fileutil
 
 import (
