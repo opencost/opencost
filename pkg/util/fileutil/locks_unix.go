@@ -10,6 +10,8 @@ import (
 	"io"
 	"os"
 	"syscall"
+
+	"github.com/opencost/opencost/pkg/log"
 )
 
 // WriteLockedFD uses the flock() syscall to safely write to an open file as
@@ -29,6 +31,9 @@ func WriteLockedFD(f *os.File, data []byte) (int, error) {
 
 	n, err := f.Write(data)
 	if err != nil {
+		if err := syscall.Flock(int(f.Fd()), syscall.LOCK_UN); err != nil {
+			log.Errorf("unexpected error flock()-ing with UN after error writing: %s", err)
+		}
 		return n, fmt.Errorf("writing data: %w", err)
 	}
 
@@ -48,7 +53,7 @@ func WriteLockedFD(f *os.File, data []byte) (int, error) {
 // flock() instead of fcntl(). The ability to lock byte ranges is not necessary
 // and flock() has better behavior.
 func WriteLocked(filename string, data []byte) (int, error) {
-	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0600)
+	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return 0, fmt.Errorf("opening %s: %w", filename, err)
 	}
@@ -74,6 +79,9 @@ func ReadLockedFD(f *os.File) ([]byte, error) {
 
 	buf := bytes.NewBuffer(nil)
 	if _, err := io.Copy(buf, f); err != nil {
+		if err := syscall.Flock(int(f.Fd()), syscall.LOCK_UN); err != nil {
+			log.Errorf("unexpected error flock()-ing with UN after error reading: %s", err)
+		}
 		return nil, fmt.Errorf("copying data out of file: %w", err)
 	}
 
