@@ -246,7 +246,7 @@ func applyCPUCoresAllocated(podMap map[podKey]*pod, resCPUCoresAllocated []*prom
 			hours := thisPod.Allocations[container].Minutes() / 60.0
 			thisPod.Allocations[container].CPUCoreHours = cpuCores * hours
 
-			node, err := res.GetString("node")
+			node, err := res.GetString(env.GetPromNodeLabel())
 			if err != nil {
 				log.Warnf("CostModel.ComputeAllocation: CPU allocation query result missing 'node': %s", key)
 				continue
@@ -304,7 +304,7 @@ func applyCPUCoresRequested(podMap map[podKey]*pod, resCPUCoresRequested []*prom
 				log.Infof("[WARNING] Very large cpu allocation, clamping! to %f", res.Values[0].Value*(thisPod.Allocations[container].Minutes()/60.0))
 				thisPod.Allocations[container].CPUCoreHours = res.Values[0].Value * (thisPod.Allocations[container].Minutes() / 60.0)
 			}
-			node, err := res.GetString("node")
+			node, err := res.GetString(env.GetPromNodeLabel())
 			if err != nil {
 				log.Warnf("CostModel.ComputeAllocation: CPU request query result missing 'node': %s", key)
 				continue
@@ -453,7 +453,7 @@ func applyRAMBytesAllocated(podMap map[podKey]*pod, resRAMBytesAllocated []*prom
 			hours := thisPod.Allocations[container].Minutes() / 60.0
 			thisPod.Allocations[container].RAMByteHours = ramBytes * hours
 
-			node, err := res.GetString("node")
+			node, err := res.GetString(env.GetPromNodeLabel())
 			if err != nil {
 				log.Warnf("CostModel.ComputeAllocation: RAM allocation query result missing 'node': %s", key)
 				continue
@@ -508,7 +508,7 @@ func applyRAMBytesRequested(podMap map[podKey]*pod, resRAMBytesRequested []*prom
 				pod.Allocations[container].RAMByteHours = res.Values[0].Value * (pod.Allocations[container].Minutes() / 60.0)
 			}
 
-			node, err := res.GetString("node")
+			node, err := res.GetString(env.GetPromNodeLabel())
 			if err != nil {
 				log.Warnf("CostModel.ComputeAllocation: RAM request query result missing 'node': %s", key)
 				continue
@@ -1473,7 +1473,7 @@ func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerCPUHr
 			cluster = env.GetClusterID()
 		}
 
-		node, err := res.GetString("node")
+		node, err := res.GetString(env.GetPromNodeLabel())
 		if err != nil {
 			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
@@ -1511,7 +1511,7 @@ func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerRA
 			cluster = env.GetClusterID()
 		}
 
-		node, err := res.GetString("node")
+		node, err := res.GetString(env.GetPromNodeLabel())
 		if err != nil {
 			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
@@ -1549,7 +1549,7 @@ func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerGPUHr
 			cluster = env.GetClusterID()
 		}
 
-		node, err := res.GetString("node")
+		node, err := res.GetString(env.GetPromNodeLabel())
 		if err != nil {
 			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
@@ -1587,7 +1587,7 @@ func applyNodeSpot(nodeMap map[nodeKey]*nodePricing, resNodeIsSpot []*prom.Query
 			cluster = env.GetClusterID()
 		}
 
-		node, err := res.GetString("node")
+		node, err := res.GetString(env.GetPromNodeLabel())
 		if err != nil {
 			log.Warnf("CostModel.ComputeAllocation: Node spot query result missing field: %s", err)
 			continue

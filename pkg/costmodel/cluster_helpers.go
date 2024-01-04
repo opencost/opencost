@@ -54,7 +54,7 @@ func buildCPUCostMap(
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("node")
+		name, err := result.GetString(env.GetPromNodeLabel())
 		if err != nil {
 			log.Warnf("ClusterNodes: CPU cost data missing node")
 			continue
@@ -128,7 +128,7 @@ func buildRAMCostMap(
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("node")
+		name, err := result.GetString(env.GetPromNodeLabel())
 		if err != nil {
 			log.Warnf("ClusterNodes: RAM cost data missing node")
 			continue
@@ -203,7 +203,7 @@ func buildGPUCostMap(
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("node")
+		name, err := result.GetString(env.GetPromNodeLabel())
 		if err != nil {
 			log.Warnf("ClusterNodes: GPU cost data missing node")
 			continue
@@ -271,7 +271,7 @@ func buildGPUCountMap(
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("node")
+		name, err := result.GetString(env.GetPromNodeLabel())
 		if err != nil {
 			log.Warnf("ClusterNodes: GPU count data missing node")
 			continue
@@ -303,7 +303,7 @@ func buildCPUCoresMap(
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("node")
+		name, err := result.GetString(env.GetPromNodeLabel())
 		if err != nil {
 			log.Warnf("ClusterNodes: CPU cores data missing node")
 			continue
@@ -331,7 +331,7 @@ func buildRAMBytesMap(resNodeRAMBytes []*prom.QueryResult) map[nodeIdentifierNoP
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("node")
+		name, err := result.GetString(env.GetPromNodeLabel())
 		if err != nil {
 			log.Warnf("ClusterNodes: RAM bytes data missing node")
 			continue
@@ -538,7 +538,7 @@ func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Durat
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("node")
+		name, err := result.GetString(env.GetPromNodeLabel())
 		if err != nil {
 			log.Warnf("ClusterNodes: active mins missing node")
 			continue
@@ -579,7 +579,7 @@ func buildPreemptibleMap(
 	m := make(map[NodeIdentifier]bool)
 
 	for _, result := range resIsSpot {
-		nodeName, err := result.GetString("node")
+		nodeName, err := result.GetString(env.GetPromNodeLabel())
 		if err != nil {
 			continue
 		}
@@ -626,7 +626,7 @@ func buildLabelsMap(
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
-		node, err := result.GetString("node")
+		node, err := result.GetString(env.GetPromNodeLabel())
 		if err != nil {
 			log.DedupedWarningf(5, "ClusterNodes: label data missing node")
 			continue

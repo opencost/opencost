@@ -471,7 +471,7 @@ func getCost(qrs []*prom.QueryResult) (map[string][]*util.Vector, error) {
 	toReturn := make(map[string][]*util.Vector)
 
 	for _, val := range qrs {
-		instance, err := val.GetString("node")
+		instance, err := val.GetString(env.GetPromNodeLabel())
 		if err != nil {
 			return toReturn, err
 		}

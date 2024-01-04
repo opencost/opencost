@@ -183,7 +183,7 @@ func NewContainerMetricFromPrometheus(metrics map[string]interface{}, defaultClu
 	if !ok {
 		return nil, NoNamespaceNameErr
 	}
-	node, ok := metrics["node"]
+	node, ok := metrics[env.GetPromNodeLabel()]
 	if !ok {
 		log.Debugf("Prometheus vector does not have node name")
 		node = ""

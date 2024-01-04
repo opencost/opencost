@@ -394,7 +394,7 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("node")
+		name, err := result.GetString(env.GetPromNodeLabel())
 		if err != nil {
 			log.DedupedWarningf(5, "ClusterDisks: local active mins data missing instance")
 			continue
