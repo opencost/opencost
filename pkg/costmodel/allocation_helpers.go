@@ -782,7 +782,7 @@ func resToNodeLabels(resNodeLabels []*prom.QueryResult) map[nodeKey]map[string]s
 	nodeLabels := map[nodeKey]map[string]string{}
 
 	for _, res := range resNodeLabels {
-		nodeKey, err := resultNodeKey(res, env.GetPromClusterLabel(), "node")
+		nodeKey, err := resultNodeKey(res, env.GetPromClusterLabel(), env.GetPromNodeLabel())
 		if err != nil {
 			continue
 		}
