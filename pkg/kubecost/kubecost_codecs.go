@@ -33,6 +33,9 @@ const (
 )
 
 const (
+	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
+	CloudCostCodecVersion uint8 = 3
+
 	// DefaultCodecVersion is used for any resources listed in the Default version set
 	DefaultCodecVersion uint8 = 17
 
@@ -41,9 +44,6 @@ const (
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
 	AllocationCodecVersion uint8 = 20
-
-	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
-	CloudCostCodecVersion uint8 = 2
 )
 
 //--------------------------------------------------------------------------
@@ -3604,6 +3604,30 @@ func (target *CloudCostProperties) MarshalBinaryWithContext(ctx *EncodingContext
 	}
 	// --- [end][write][alias](CloudCostLabels) ---
 
+	if target.Metadata == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]string) ---
+		buff.WriteInt(len(target.Metadata)) // map length
+		for vv, zz := range target.Metadata {
+			if ctx.IsStringTable() {
+				k := ctx.Table.AddOrGet(vv)
+				buff.WriteInt(k) // write table index
+			} else {
+				buff.WriteString(vv) // write string
+			}
+			if ctx.IsStringTable() {
+				l := ctx.Table.AddOrGet(zz)
+				buff.WriteInt(l) // write table index
+			} else {
+				buff.WriteString(zz) // write string
+			}
+		}
+		// --- [end][write][map](map[string]string) ---
+
+	}
 	return nil
 }
 
@@ -3760,6 +3784,48 @@ func (target *CloudCostProperties) UnmarshalBinaryWithContext(ctx *DecodingConte
 	}
 	target.Labels = CloudCostLabels(u)
 	// --- [end][read][alias](CloudCostLabels) ---
+
+	// field version check
+	if uint8(3) <= version {
+		if buff.ReadUInt8() == uint8(0) {
+			target.Metadata = nil
+		} else {
+			// --- [begin][read][map](map[string]string) ---
+			gg := buff.ReadInt() // map len
+			ff := make(map[string]string, gg)
+			for j := 0; j < gg; j++ {
+				var vv string
+				var kk string
+				if ctx.IsStringTable() {
+					ll := buff.ReadInt() // read string index
+					kk = ctx.Table[ll]
+				} else {
+					kk = buff.ReadString() // read string
+				}
+				hh := kk
+				vv = hh
+
+				var zz string
+				var nn string
+				if ctx.IsStringTable() {
+					oo := buff.ReadInt() // read string index
+					nn = ctx.Table[oo]
+				} else {
+					nn = buff.ReadString() // read string
+				}
+				mm := nn
+				zz = mm
+
+				ff[vv] = zz
+			}
+			target.Metadata = ff
+			// --- [end][read][map](map[string]string) ---
+
+		}
+	} else {
+		target.Metadata = nil
+
+	}
 
 	return nil
 }

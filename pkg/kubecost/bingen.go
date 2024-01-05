@@ -62,7 +62,7 @@ package kubecost
 // @bingen:generate:LbAllocation
 // @bingen:end
 
-// @bingen:set[name=CloudCost,version=2]
+// @bingen:set[name=CloudCost,version=3]
 // @bingen:generate:CloudCost
 // @bingen:generate:CostMetric
 // @bingen:generate[stringtable]:CloudCostSet

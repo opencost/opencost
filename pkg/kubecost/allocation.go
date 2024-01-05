@@ -97,7 +97,7 @@ type Allocation struct {
 	// UnmountedPVCost is used to track how much of the cost in PVs is for an
 	// unmounted PV. It is not additive of PVCost() and need not be sent in API
 	// responses.
-	UnmountedPVCost float64 `json:"-"`
+	UnmountedPVCost float64 `json:"-"` //@bingen:field[ignore]
 }
 
 type LbAllocations map[string]*LbAllocation

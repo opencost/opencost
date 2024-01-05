@@ -94,6 +94,9 @@ type CloudCostProperties struct {
 	Service         string          `json:"service,omitempty"`
 	Category        string          `json:"category,omitempty"`
 	Labels          CloudCostLabels `json:"labels,omitempty"`
+	// holds resource and provider specfic metadata
+	// e.g. disk attachment status for disk cloud resources
+	Metadata map[string]string `json:"metadata,omitempty"` // @bingen:field[version=3]
 }
 
 func (ccp *CloudCostProperties) Equal(that *CloudCostProperties) bool {
