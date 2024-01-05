@@ -1,6 +1,8 @@
 package fileutil
 
-import "os"
+import (
+	"os"
+)
 
 // File exists has three different return cases that should be handled:
 //  1. File exists and is not a directory (true, nil)
