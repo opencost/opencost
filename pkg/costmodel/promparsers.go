@@ -50,10 +50,7 @@ func GetPVInfo(qrs []*prom.QueryResult, defaultClusterID string) (map[string]*Pe
 	toReturn := make(map[string]*PersistentVolumeClaimData)
 
 	for _, val := range qrs {
-		clusterID, err := val.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			return toReturn, err
-		}
+		clusterID, _ := val.GetString(env.GetPromClusterLabel())
 		if clusterID == "" {
 			clusterID = defaultClusterID
 		}
@@ -99,10 +96,7 @@ func GetPVAllocationMetrics(qrs []*prom.QueryResult, defaultClusterID string) (m
 	toReturn := make(map[string][]*PersistentVolumeClaimData)
 
 	for _, val := range qrs {
-		clusterID, err := val.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			return toReturn, err
-		}
+		clusterID, _ := val.GetString(env.GetPromClusterLabel())
 		if clusterID == "" {
 			clusterID = defaultClusterID
 		}
@@ -148,10 +142,7 @@ func GetPVCostMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[str
 	toReturn := make(map[string]*costAnalyzerCloud.PV)
 
 	for _, val := range qrs {
-		clusterID, err := val.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			return toReturn, err
-		}
+		clusterID, _ := val.GetString(env.GetPromClusterLabel())
 		if clusterID == "" {
 			clusterID = defaultClusterID
 		}
@@ -180,10 +171,7 @@ func GetNamespaceLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID string)
 			return toReturn, err
 		}
 
-		clusterID, err := val.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			return toReturn, err
-		}
+		clusterID, _ := val.GetString(env.GetPromClusterLabel())
 		if clusterID == "" {
 			clusterID = defaultClusterID
 		}
@@ -215,10 +203,7 @@ func GetPodLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[
 			return toReturn, err
 		}
 
-		clusterID, err := val.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			return toReturn, err
-		}
+		clusterID, _ := val.GetString(env.GetPromClusterLabel())
 		if clusterID == "" {
 			clusterID = defaultClusterID
 		}
@@ -247,10 +232,7 @@ func GetNamespaceAnnotationsMetrics(qrs []*prom.QueryResult, defaultClusterID st
 			return toReturn, err
 		}
 
-		clusterID, err := val.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			return toReturn, err
-		}
+		clusterID, _ := val.GetString(env.GetPromClusterLabel())
 		if clusterID == "" {
 			clusterID = defaultClusterID
 		}
@@ -282,10 +264,8 @@ func GetPodAnnotationsMetrics(qrs []*prom.QueryResult, defaultClusterID string) 
 			return toReturn, err
 		}
 
-		clusterID, err := val.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			return toReturn, err
-		}
+		clusterID, _ := val.GetString(env.GetPromClusterLabel())
+
 		if clusterID == "" {
 			clusterID = defaultClusterID
 		}
@@ -318,10 +298,7 @@ func GetStatefulsetMatchLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID 
 			return toReturn, err
 		}
 
-		clusterID, err := val.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			return toReturn, err
-		}
+		clusterID, _ := val.GetString(env.GetPromClusterLabel())
 		if clusterID == "" {
 			clusterID = defaultClusterID
 		}
@@ -347,10 +324,7 @@ func GetPodDaemonsetsWithMetrics(qrs []*prom.QueryResult, defaultClusterID strin
 			return toReturn, err
 		}
 
-		clusterID, err := val.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			return toReturn, err
-		}
+		clusterID, _ := val.GetString(env.GetPromClusterLabel())
 		if clusterID == "" {
 			clusterID = defaultClusterID
 		}
@@ -381,10 +355,7 @@ func GetPodJobsWithMetrics(qrs []*prom.QueryResult, defaultClusterID string) (ma
 			return toReturn, err
 		}
 
-		clusterID, err := val.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			return toReturn, err
-		}
+		clusterID, _ := val.GetString(env.GetPromClusterLabel())
 		if clusterID == "" {
 			clusterID = defaultClusterID
 		}
@@ -416,10 +387,7 @@ func GetDeploymentMatchLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID s
 			return toReturn, err
 		}
 
-		clusterID, err := val.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			return toReturn, err
-		}
+		clusterID, _ := val.GetString(env.GetPromClusterLabel())
 		if clusterID == "" {
 			clusterID = defaultClusterID
 		}
@@ -446,10 +414,7 @@ func GetServiceSelectorLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID s
 			return toReturn, err
 		}
 
-		clusterID, err := val.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			return toReturn, err
-		}
+		clusterID, _ := val.GetString(env.GetPromClusterLabel())
 		if clusterID == "" {
 			clusterID = defaultClusterID
 		}
