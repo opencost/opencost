@@ -5,10 +5,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/kubecost"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/config"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/log"
 )
 
 // IngestionManager is a config.Observer which creates Ingestor instances based on the signals that it receives from the

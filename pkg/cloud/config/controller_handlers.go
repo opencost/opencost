@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/opencost/opencost/core/pkg/proto"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/proto"
 )
 
 var protocol = proto.HTTP()

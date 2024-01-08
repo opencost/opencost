@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/filemanager"
-	"github.com/opencost/opencost/pkg/kubecost"
 )
 
 //go:generate moq -out moq_cloud_storage_test.go . CloudStorage:CloudStorageMock

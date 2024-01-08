@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/util/timeutil"
+	"github.com/opencost/opencost/core/pkg/kubecost"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
 
 type AzureStorageIntegration struct {

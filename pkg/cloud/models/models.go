@@ -12,8 +12,8 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/config"
-	"github.com/opencost/opencost/pkg/log"
 )
 
 var (

@@ -3,7 +3,7 @@ package cloudcost
 import (
 	"time"
 
-	"github.com/opencost/opencost/pkg/kubecost"
+	"github.com/opencost/opencost/core/pkg/kubecost"
 )
 
 // Repository is an interface for storing and retrieving CloudCost data

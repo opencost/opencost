@@ -15,15 +15,17 @@ import (
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/credentials"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/signers"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
+	"github.com/opencost/opencost/core/pkg/env"
+	"github.com/opencost/opencost/core/pkg/kubecost"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util/fileutil"
+	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/opencost/opencost/core/pkg/util/stringutil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/clustercache"
-	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util/fileutil"
-	"github.com/opencost/opencost/pkg/util/json"
-	"github.com/opencost/opencost/pkg/util/stringutil"
+
+	ocenv "github.com/opencost/opencost/pkg/env"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 )
@@ -350,10 +352,10 @@ func (alibaba *Alibaba) GetAlibabaAccessKey() (*credentials.AccessKeyCredential,
 	}
 
 	if config.AlibabaServiceKeyName == "" {
-		config.AlibabaServiceKeyName = env.GetAlibabaAccessKeyID()
+		config.AlibabaServiceKeyName = ocenv.GetAlibabaAccessKeyID()
 	}
 	if config.AlibabaServiceKeySecret == "" {
-		config.AlibabaServiceKeySecret = env.GetAlibabaAccessKeySecret()
+		config.AlibabaServiceKeySecret = ocenv.GetAlibabaAccessKeySecret()
 	}
 
 	if config.AlibabaServiceKeyName == "" && config.AlibabaServiceKeySecret == "" {
@@ -362,8 +364,8 @@ func (alibaba *Alibaba) GetAlibabaAccessKey() (*credentials.AccessKeyCredential,
 		if err != nil {
 			return nil, fmt.Errorf("unable to set the Alibaba Cloud key/secret from config file %w", err)
 		}
-		config.AlibabaServiceKeyName = env.GetAlibabaAccessKeyID()
-		config.AlibabaServiceKeySecret = env.GetAlibabaAccessKeySecret()
+		config.AlibabaServiceKeyName = ocenv.GetAlibabaAccessKeyID()
+		config.AlibabaServiceKeySecret = ocenv.GetAlibabaAccessKeySecret()
 	}
 
 	if config.AlibabaServiceKeyName == "" && config.AlibabaServiceKeySecret == "" {
@@ -645,13 +647,13 @@ func (alibaba *Alibaba) loadAlibabaAuthSecretAndSetEnv(force bool) error {
 		return fmt.Errorf("failed to unmarshall access key id and access key secret with err: %w", err)
 	}
 
-	err = env.Set(env.AlibabaAccessKeyIDEnvVar, ak.AccessKeyID)
+	err = env.Set(ocenv.AlibabaAccessKeyIDEnvVar, ak.AccessKeyID)
 	if err != nil {
-		return fmt.Errorf("failed to set environment variable: %s with err: %w", env.AlibabaAccessKeyIDEnvVar, err)
+		return fmt.Errorf("failed to set environment variable: %s with err: %w", ocenv.AlibabaAccessKeyIDEnvVar, err)
 	}
-	err = env.Set(env.AlibabaAccessKeySecretEnvVar, ak.SecretAccessKey)
+	err = env.Set(ocenv.AlibabaAccessKeySecretEnvVar, ak.SecretAccessKey)
 	if err != nil {
-		return fmt.Errorf("failed to set environment variable: %s with err: %w", env.AlibabaAccessKeySecretEnvVar, err)
+		return fmt.Errorf("failed to set environment variable: %s with err: %w", ocenv.AlibabaAccessKeySecretEnvVar, err)
 	}
 
 	alibaba.accessKey = &credentials.AccessKeyCredential{
@@ -664,7 +666,7 @@ func (alibaba *Alibaba) loadAlibabaAuthSecretAndSetEnv(force bool) error {
 // Regions returns a current supported list of Alibaba regions
 func (alibaba *Alibaba) Regions() []string {
 
-	regionOverrides := env.GetRegionOverrideList()
+	regionOverrides := ocenv.GetRegionOverrideList()
 
 	if len(regionOverrides) > 0 {
 		log.Debugf("Overriding Alibaba regions with configured region list: %+v", regionOverrides)
@@ -689,7 +691,7 @@ func (alibaba *Alibaba) ClusterInfo() (map[string]string, error) {
 
 	// Set it to environment clusterID if not set at this point
 	if clusterName == "" {
-		clusterName = env.GetClusterID()
+		clusterName = ocenv.GetClusterID()
 	}
 
 	m := make(map[string]string)
@@ -697,7 +699,7 @@ func (alibaba *Alibaba) ClusterInfo() (map[string]string, error) {
 	m["provider"] = kubecost.AlibabaProvider
 	m["project"] = alibaba.ClusterAccountId
 	m["region"] = alibaba.ClusterRegion
-	m["id"] = env.GetClusterID()
+	m["id"] = ocenv.GetClusterID()
 	return m, nil
 }
 
@@ -740,8 +742,8 @@ func (alibaba *Alibaba) UpdateConfig(r io.Reader, updateType string) (*models.Cu
 			}
 		}
 
-		if env.IsRemoteEnabled() {
-			err := utils.UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
+		if ocenv.IsRemoteEnabled() {
+			err := utils.UpdateClusterMeta(ocenv.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return err
 			}
@@ -1383,7 +1385,7 @@ func determinePVRegion(pv *v1.PersistentVolume) string {
 		}
 	}
 
-	regionOverrides := env.GetRegionOverrideList()
+	regionOverrides := ocenv.GetRegionOverrideList()
 	regions := alibabaRegions
 
 	if len(regionOverrides) > 0 {

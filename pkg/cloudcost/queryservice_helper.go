@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"strings"
 
-	filter21 "github.com/opencost/opencost/pkg/filter21"
-	"github.com/opencost/opencost/pkg/filter21/cloudcost"
-	"github.com/opencost/opencost/pkg/kubecost"
+	filter21 "github.com/opencost/opencost/core/pkg/filter"
+	"github.com/opencost/opencost/core/pkg/filter/cloudcost"
+	"github.com/opencost/opencost/core/pkg/kubecost"
+	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"github.com/opencost/opencost/pkg/prom"
-	"github.com/opencost/opencost/pkg/util/httputil"
 )
 
 func ParseCloudCostRequest(qp httputil.QueryParams) (*QueryRequest, error) {

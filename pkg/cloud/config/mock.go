@@ -3,8 +3,8 @@ package config
 import (
 	"fmt"
 
+	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/cloud"
-	"github.com/opencost/opencost/pkg/kubecost"
 )
 
 type MockConfig struct {

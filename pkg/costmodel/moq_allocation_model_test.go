@@ -4,7 +4,7 @@
 package costmodel
 
 import (
-	"github.com/opencost/opencost/pkg/kubecost"
+	"github.com/opencost/opencost/core/pkg/kubecost"
 	"sync"
 	"time"
 )
