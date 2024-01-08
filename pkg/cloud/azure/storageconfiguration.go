@@ -3,9 +3,9 @@ package azure
 import (
 	"fmt"
 
+	"github.com/opencost/opencost/core/pkg/kubecost"
+	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/util/json"
 )
 
 type StorageConfiguration struct {

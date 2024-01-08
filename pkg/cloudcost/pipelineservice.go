@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/opencost/opencost/core/pkg/kubecost"
+	"github.com/opencost/opencost/core/pkg/proto"
 	cloudconfig "github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/config"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/proto"
 )
 
 var protocol = proto.HTTP()

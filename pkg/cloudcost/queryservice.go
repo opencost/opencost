@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/util/httputil"
+	"github.com/opencost/opencost/core/pkg/kubecost"
+	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"go.opentelemetry.io/otel"
 )
 

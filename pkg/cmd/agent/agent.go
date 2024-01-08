@@ -7,17 +7,19 @@ import (
 	"path"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/clusters"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util/watcher"
+
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/costmodel"
-	"github.com/opencost/opencost/pkg/costmodel/clusters"
+	clustermap "github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/kubeconfig"
-	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/metrics"
 	"github.com/opencost/opencost/pkg/prom"
-	"github.com/opencost/opencost/pkg/util/watcher"
 	"github.com/opencost/opencost/pkg/version"
 
 	prometheus "github.com/prometheus/client_golang/api"
@@ -202,7 +204,7 @@ func Execute(opts *AgentOpts) error {
 	}
 
 	// Initialize ClusterMap for maintaining ClusterInfo by ClusterID
-	clusterMap := clusters.NewClusterMap(promCli, clusterInfoProvider, 5*time.Minute)
+	clusterMap := clustermap.NewClusterMap(promCli, clusterInfoProvider, 5*time.Minute)
 
 	costModel := costmodel.NewCostModel(promCli, cloudProvider, clusterCache, clusterMap, scrapeInterval)
 

@@ -5,12 +5,12 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
+	assetfilter "github.com/opencost/opencost/core/pkg/filter/asset"
+	"github.com/opencost/opencost/core/pkg/filter/ast"
+	"github.com/opencost/opencost/core/pkg/filter/matcher"
+	"github.com/opencost/opencost/core/pkg/kubecost"
+	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"github.com/opencost/opencost/pkg/env"
-	assetfilter "github.com/opencost/opencost/pkg/filter21/asset"
-	"github.com/opencost/opencost/pkg/filter21/ast"
-	"github.com/opencost/opencost/pkg/filter21/matcher"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/util/httputil"
 )
 
 // ComputeAllocationHandler returns the assets from the CostModel.

@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/opencost/opencost/pkg/kubecost"
+	"github.com/opencost/opencost/core/pkg/kubecost"
 )
 
 func IsK8s(labels map[string]string) bool {
