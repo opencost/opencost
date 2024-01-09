@@ -20,6 +20,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/env"
@@ -170,7 +171,7 @@ func NewSharedResourceInfo(shareResources bool, sharedNamespaces []string, label
 	// the cardinality matches
 	if len(labelNames) == len(labelValues) {
 		for i := range labelNames {
-			cleanedLname := prom.SanitizeLabelName(strings.Trim(labelNames[i], " "))
+			cleanedLname := promutil.SanitizeLabelName(strings.Trim(labelNames[i], " "))
 			if values, ok := sr.LabelSelectors[cleanedLname]; ok {
 				values[strings.Trim(labelValues[i], " ")] = true
 			} else {
@@ -1258,7 +1259,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 			lTrim := strings.TrimSpace(l)
 			label := strings.Split(lTrim, "=")
 			if len(label) == 2 {
-				ln := prom.SanitizeLabelName(strings.TrimSpace(label[0]))
+				ln := promutil.SanitizeLabelName(strings.TrimSpace(label[0]))
 				lv := strings.TrimSpace(label[1])
 				labelValues[ln] = append(labelValues[ln], lv)
 			} else {
@@ -1307,7 +1308,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 			aTrim := strings.TrimSpace(annot)
 			annotation := strings.Split(aTrim, "=")
 			if len(annotation) == 2 {
-				an := prom.SanitizeLabelName(strings.TrimSpace(annotation[0]))
+				an := promutil.SanitizeLabelName(strings.TrimSpace(annotation[0]))
 				av := strings.TrimSpace(annotation[1])
 				annotationValues[an] = append(annotationValues[an], av)
 			} else {
@@ -1965,7 +1966,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	if len(subfieldStr) > 0 {
 		s := strings.Split(r.URL.Query().Get("aggregationSubfield"), ",")
 		for _, rawLabel := range s {
-			subfields = append(subfields, prom.SanitizeLabelName(rawLabel))
+			subfields = append(subfields, promutil.SanitizeLabelName(rawLabel))
 		}
 	}
 
