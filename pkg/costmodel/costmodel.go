@@ -13,6 +13,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
@@ -2306,7 +2307,7 @@ func getNamespaceLabels(cache clustercache.ClusterCache, clusterID string) (map[
 	for _, ns := range nss {
 		labels := make(map[string]string)
 		for k, v := range ns.Labels {
-			labels[prom.SanitizeLabelName(k)] = v
+			labels[promutil.SanitizeLabelName(k)] = v
 		}
 		nsToLabels[ns.Name+","+clusterID] = labels
 	}
@@ -2319,7 +2320,7 @@ func getNamespaceAnnotations(cache clustercache.ClusterCache, clusterID string) 
 	for _, ns := range nss {
 		annotations := make(map[string]string)
 		for k, v := range ns.Annotations {
-			annotations[prom.SanitizeLabelName(k)] = v
+			annotations[promutil.SanitizeLabelName(k)] = v
 		}
 		nsToAnnotations[ns.Name+","+clusterID] = annotations
 	}

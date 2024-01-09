@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"strings"
 
-	filter21 "github.com/opencost/opencost/core/pkg/filter"
+	"github.com/opencost/opencost/core/pkg/filter"
 	"github.com/opencost/opencost/core/pkg/filter/cloudcost"
 	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
-	"github.com/opencost/opencost/pkg/prom"
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 )
 
 func ParseCloudCostRequest(qp httputil.QueryParams) (*QueryRequest, error) {
@@ -45,7 +45,7 @@ func ParseCloudCostRequest(qp httputil.QueryParams) (*QueryRequest, error) {
 
 	accumulate := kubecost.ParseAccumulate(qp.Get("accumulate", ""))
 
-	var filter filter21.Filter
+	var filter filter.Filter
 	filterString := qp.Get("filter", "")
 	if filterString != "" {
 		parser := cloudcost.NewCloudCostFilterParser()
@@ -83,7 +83,7 @@ func ParseCloudCostProperty(text string) (string, error) {
 	}
 
 	if strings.HasPrefix(text, "label:") {
-		label := prom.SanitizeLabelName(strings.TrimSpace(strings.TrimPrefix(text, "label:")))
+		label := promutil.SanitizeLabelName(strings.TrimSpace(strings.TrimPrefix(text, "label:")))
 		return fmt.Sprintf("label:%s", label), nil
 	}
 
