@@ -9,6 +9,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/env"
@@ -796,7 +797,7 @@ func resToNodeLabels(resNodeLabels []*prom.QueryResult) map[nodeKey]map[string]s
 
 			// Sanitize the given label name to match Prometheus formatting
 			// e.g. topology.kubernetes.io/zone => topology_kubernetes_io_zone
-			k := prom.SanitizeLabelName(rawK)
+			k := promutil.SanitizeLabelName(rawK)
 			if v, ok := labels[k]; ok {
 				nodeLabels[nodeKey][k] = v
 				continue
