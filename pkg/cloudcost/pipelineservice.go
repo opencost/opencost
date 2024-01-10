@@ -7,7 +7,7 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/core/pkg/kubecost"
-	"github.com/opencost/opencost/core/pkg/proto"
+	proto "github.com/opencost/opencost/core/pkg/protocol"
 	cloudconfig "github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/config"
 	"github.com/opencost/opencost/pkg/env"
