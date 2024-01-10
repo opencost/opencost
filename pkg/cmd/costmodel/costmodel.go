@@ -13,12 +13,12 @@ import (
 	"github.com/rs/cors"
 
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/version"
 	"github.com/opencost/opencost/pkg/costmodel"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/errors"
 	"github.com/opencost/opencost/pkg/filemanager"
 	"github.com/opencost/opencost/pkg/metrics"
-	"github.com/opencost/opencost/pkg/version"
 )
 
 // CostModelOpts contain configuration options that can be passed to the Execute() method
