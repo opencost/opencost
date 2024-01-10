@@ -16,7 +16,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/fileutil"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
-	"github.com/opencost/opencost/pkg/version"
+	"github.com/opencost/opencost/core/pkg/version"
 
 	golog "log"
 
