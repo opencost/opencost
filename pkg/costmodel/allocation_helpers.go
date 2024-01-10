@@ -77,9 +77,9 @@ func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSiz
 			var queryPods string
 			// If ingesting UIDs, avg on them
 			if ingestPodUID {
-				queryPods = fmt.Sprintf(queryFmtPodsUID, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr)
+				queryPods = fmt.Sprintf(queryFmtPodsUID, env.GetPromClusterFilter(), env.GetPromNamespaceLabel(), env.GetPromClusterLabel(), durStr, resStr)
 			} else {
-				queryPods = fmt.Sprintf(queryFmtPods, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr)
+				queryPods = fmt.Sprintf(queryFmtPods, env.GetPromClusterFilter(), env.GetPromNamespaceLabel(), env.GetPromClusterLabel(), durStr, resStr)
 			}
 
 			queryProfile := time.Now()
@@ -839,7 +839,7 @@ func resToPodLabels(resPodLabels []*prom.QueryResult, podUIDKeyMap map[podKey][]
 	podLabels := map[podKey]map[string]string{}
 
 	for _, res := range resPodLabels {
-		key, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace")
+		key, err := resultPodKey(res, env.GetPromClusterLabel(), env.GetPromNamespaceLabel())
 		if err != nil {
 			continue
 		}

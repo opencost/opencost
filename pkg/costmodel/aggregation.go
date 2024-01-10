@@ -1754,7 +1754,7 @@ func (a *Accesses) warmAggregateCostModelCache() {
 			return nil, fmt.Errorf("invalid window from window string: %s", windowStr)
 		}
 
-		field := "namespace"
+		field := "namespace" // TODO: Parameterize?
 		subfields := []string{}
 
 		aggOpts := DefaultAggregateQueryOpts()

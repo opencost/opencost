@@ -83,6 +83,7 @@ const (
 
 	PromClusterIDLabelEnvVar = "PROM_CLUSTER_ID_LABEL"
 	PromNodeLabelEnvVar      = "PROM_NODE_LABEL"
+	PromNamespaceLabelEnvVar = "PROM_NAMESPACE_LABEL"
 
 	PricingConfigmapName  = "PRICING_CONFIGMAP_NAME"
 	MetricsConfigmapName  = "METRICS_CONFIGMAP_NAME"
@@ -589,6 +590,10 @@ func GetPromClusterLabel() string {
 
 func GetPromNodeLabel() string {
 	return Get(PromNodeLabelEnvVar, "node")
+}
+
+func GetPromNamespaceLabel() string {
+	return Get(PromNamespaceLabelEnvVar, "namespace")
 }
 
 // IsIngestingPodUID returns the env variable from ingestPodUID, which alters the
