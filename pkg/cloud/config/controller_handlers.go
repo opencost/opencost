@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/opencost/opencost/core/pkg/proto"
+	proto "github.com/opencost/opencost/core/pkg/protocol"
 	"github.com/opencost/opencost/pkg/env"
 )
 
