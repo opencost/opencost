@@ -56,6 +56,7 @@ type Node struct {
 	GPU              string                `json:"gpu"` // GPU represents the number of GPU on the instance
 	GPUName          string                `json:"gpuName"`
 	GPUCost          string                `json:"gpuCost"`
+	VGPU             string                `json:"vgpu"` // virtualized gpu-- if we are using gpu replicas
 	InstanceType     string                `json:"instanceType,omitempty"`
 	Region           string                `json:"region,omitempty"`
 	Reserved         *ReservedInstanceData `json:"reserved,omitempty"`

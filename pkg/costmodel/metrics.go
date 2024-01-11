@@ -617,7 +617,15 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				}
 				if len(costs.GPUReq) > 0 {
 					// allocation here is set to the request because shared GPU usage not yet supported.
-					cmme.GPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.GPUReq[0].Value)
+					// if VPGUs, request x (actual/virtual)
+					vgpu, verr := strconv.ParseFloat(nodes[nodeName].VGPU, 64)
+					gpu, err := strconv.ParseFloat(nodes[nodeName].GPU, 64)
+					gpualloc := costs.GPUReq[0].Value
+					if verr != nil && err != nil && vgpu != 0 {
+						gpualloc = gpualloc * (gpu / vgpu)
+					}
+
+					cmme.GPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(gpualloc)
 				}
 				labelKey := getKeyFromLabelStrings(namespace, podName, containerName, nodeName, nodeName)
 				if podStatus[podName] == v1.PodRunning { // Only report data for current pods
