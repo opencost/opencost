@@ -55,7 +55,7 @@ func GetPVInfo(qrs []*prom.QueryResult, defaultClusterID string) (map[string]*Pe
 			clusterID = defaultClusterID
 		}
 
-		ns, err := val.GetString("namespace")
+		ns, err := val.GetString(env.GetPromNamespaceLabel())
 		if err != nil {
 			return toReturn, err
 		}
@@ -101,7 +101,7 @@ func GetPVAllocationMetrics(qrs []*prom.QueryResult, defaultClusterID string) (m
 			clusterID = defaultClusterID
 		}
 
-		ns, err := val.GetString("namespace")
+		ns, err := val.GetString(env.GetPromNamespaceLabel())
 		if err != nil {
 			return toReturn, err
 		}
@@ -166,7 +166,7 @@ func GetNamespaceLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID string)
 
 	for _, val := range qrs {
 		// We want Namespace and ClusterID for key generation purposes
-		ns, err := val.GetString("namespace")
+		ns, err := val.GetString(env.GetPromNamespaceLabel())
 		if err != nil {
 			return toReturn, err
 		}
@@ -198,7 +198,7 @@ func GetPodLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[
 			return toReturn, err
 		}
 
-		ns, err := val.GetString("namespace")
+		ns, err := val.GetString(env.GetPromNamespaceLabel())
 		if err != nil {
 			return toReturn, err
 		}
@@ -227,7 +227,7 @@ func GetNamespaceAnnotationsMetrics(qrs []*prom.QueryResult, defaultClusterID st
 
 	for _, val := range qrs {
 		// We want Namespace and ClusterID for key generation purposes
-		ns, err := val.GetString("namespace")
+		ns, err := val.GetString(env.GetPromNamespaceLabel())
 		if err != nil {
 			return toReturn, err
 		}
@@ -259,7 +259,7 @@ func GetPodAnnotationsMetrics(qrs []*prom.QueryResult, defaultClusterID string) 
 			return toReturn, err
 		}
 
-		ns, err := val.GetString("namespace")
+		ns, err := val.GetString(env.GetPromNamespaceLabel())
 		if err != nil {
 			return toReturn, err
 		}
@@ -292,7 +292,7 @@ func GetStatefulsetMatchLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID 
 			return toReturn, err
 		}
 
-		ns, err := val.GetString("namespace")
+		ns, err := val.GetString(env.GetPromNamespaceLabel())
 		if err != nil {
 			return toReturn, err
 		}
@@ -318,7 +318,7 @@ func GetPodDaemonsetsWithMetrics(qrs []*prom.QueryResult, defaultClusterID strin
 			return toReturn, err
 		}
 
-		ns, err := val.GetString("namespace")
+		ns, err := val.GetString(env.GetPromNamespaceLabel())
 		if err != nil {
 			return toReturn, err
 		}
@@ -349,7 +349,7 @@ func GetPodJobsWithMetrics(qrs []*prom.QueryResult, defaultClusterID string) (ma
 			return toReturn, err
 		}
 
-		ns, err := val.GetString("namespace")
+		ns, err := val.GetString(env.GetPromNamespaceLabel())
 		if err != nil {
 			return toReturn, err
 		}
@@ -381,7 +381,7 @@ func GetDeploymentMatchLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID s
 			return toReturn, err
 		}
 
-		ns, err := val.GetString("namespace")
+		ns, err := val.GetString(env.GetPromNamespaceLabel())
 		if err != nil {
 			return toReturn, err
 		}
@@ -408,7 +408,7 @@ func GetServiceSelectorLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID s
 			return toReturn, err
 		}
 
-		ns, err := val.GetString("namespace")
+		ns, err := val.GetString(env.GetPromNamespaceLabel())
 		if err != nil {
 			return toReturn, err
 		}

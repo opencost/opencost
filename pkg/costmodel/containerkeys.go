@@ -175,7 +175,7 @@ func NewContainerMetricFromPrometheus(metrics map[string]interface{}, defaultClu
 	if !ok {
 		return nil, NoPodNameErr
 	}
-	ns, ok := metrics["namespace"]
+	ns, ok := metrics[env.GetPromNamespaceLabel()]
 	if !ok {
 		return nil, NoNamespaceErr
 	}
