@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -58,23 +60,30 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 	}
 
 	for _, blobName := range blobNames {
+
+		// ----- INSTRUMENTATION -----
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+		log.Infof("HeapAlloc:  %v MB", m.HeapAlloc/1024/1024)
+		// ----- INSTRUMENTATION -----
+
 		if env.IsAzureParseBillingPaginated() {
-			localFilepath := "/var/configs/db/cloudCost/azurebilling.csv"
-			err := asbp.DownloadBlobToFile(localFilepath, blobName, client, ctx)
+			localFilePath := filepath.Join(env.GetConfigPathWithDefault(env.DefaultConfigMountPath), "db", "cloudCost", "azurebilling.csv")
+			err := asbp.DownloadBlobToFile(localFilePath, blobName, client, ctx)
 			if err != nil {
 				asbp.ConnectionStatus = cloud.FailedConnection
 				return err
 			}
-			file, err := os.Open(localFilepath)
+			fp, err := os.Open(localFilePath)
 			if err != nil {
 				asbp.ConnectionStatus = cloud.FailedConnection
 				return err
 			}
-			defer file.Close()
-			err2 = asbp.parseCSV(start, end, csv.NewReader(bytes.NewReader(blobBytes)), resultFn)
-			if err2 != nil {
+			defer fp.Close()
+			err = asbp.parseCSV(start, end, csv.NewReader(fp), resultFn)
+			if err != nil {
 				asbp.ConnectionStatus = cloud.ParseError
-				return err2
+				return err
 			}
 		} else {
 			blobBytes, err2 := asbp.DownloadBlob(blobName, client, ctx)
