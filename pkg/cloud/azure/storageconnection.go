@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
@@ -65,4 +66,35 @@ func (sc *StorageConnection) DownloadBlob(blobName string, client *azblob.Client
 	}
 
 	return downloadedData.Bytes(), nil
+}
+
+// DownloadBlobToFile downloads the Azure Cloud Billing CSV file to a local file
+func (sc *StorageConnection) DownloadBlobToFile(localFilePath string, blobName string, client *azblob.Client, ctx context.Context) error {
+	log.Infof("Azure: DownloadBlobToFile: retrieving blob: %v", blobName)
+
+	// Remove existing
+	if _, err := os.Stat(localFilePath); err == nil {
+		err := os.Remove(localFilePath)
+		if err != nil {
+			return fmt.Errorf("Azure: DownloadBlobToFile: failed to delete existing file %w", err)
+		}
+	} else {
+		return fmt.Errorf("Azure: DownloadBlobToFile: error checking for file %w", err)
+	}
+
+	// Create new
+	file, err := os.Create(localFilePath)
+	if err != nil {
+		return fmt.Errorf("Azure: DownloadBlobToFile: failed to create file %w", err)
+	}
+	defer file.Close()
+
+	filesize, err := client.DownloadFile(ctx, sc.Container, blobName, file, nil)
+	if err != nil {
+		return fmt.Errorf("Azure: DownloadBlobToFile: failed to download %w", err)
+	}
+
+	log.Infof("Azure: DownloadBlobToFile: retrieved %v of size %d", blobName, filesize)
+
+	return nil
 }

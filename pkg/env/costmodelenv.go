@@ -21,8 +21,9 @@ const (
 	AlibabaAccessKeyIDEnvVar     = "ALIBABA_ACCESS_KEY_ID"
 	AlibabaAccessKeySecretEnvVar = "ALIBABA_SECRET_ACCESS_KEY"
 
-	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
-	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
+	AzureOfferIDEnvVar               = "AZURE_OFFER_ID"
+	AzureBillingAccountEnvVar        = "AZURE_BILLING_ACCOUNT"
+	AzureParseBillingPaginatedEnvVar = "AZURE_PARSE_BILLING_PAGINATED"
 
 	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
 	PodNameEnvVar                  = "POD_NAME"
@@ -304,6 +305,10 @@ func GetAzureOfferID() string {
 // price sheet API.
 func GetAzureBillingAccount() string {
 	return Get(AzureBillingAccountEnvVar, "")
+}
+
+func IsAzureParseBillingPaginated() bool {
+	return GetBool(AzureParseBillingPaginatedEnvVar, false)
 }
 
 // GetKubecostNamespace returns the environment variable value for KubecostNamespaceEnvVar which

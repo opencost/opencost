@@ -6,12 +6,14 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/log"
 )
 
@@ -56,17 +58,36 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 	}
 
 	for _, blobName := range blobNames {
-		blobBytes, err2 := asbp.DownloadBlob(blobName, client, ctx)
-		if err2 != nil {
-			asbp.ConnectionStatus = cloud.FailedConnection
-			return err2
+		if env.IsAzureParseBillingPaginated() {
+			localFilepath := "/var/configs/db/cloudCost/azurebilling.csv"
+			err := asbp.DownloadBlobToFile(localFilepath, blobName, client, ctx)
+			if err != nil {
+				asbp.ConnectionStatus = cloud.FailedConnection
+				return err
+			}
+			file, err := os.Open(localFilepath)
+			if err != nil {
+				asbp.ConnectionStatus = cloud.FailedConnection
+				return err
+			}
+			defer file.Close()
+			err2 = asbp.parseCSV(start, end, csv.NewReader(bytes.NewReader(blobBytes)), resultFn)
+			if err2 != nil {
+				asbp.ConnectionStatus = cloud.ParseError
+				return err2
+			}
+		} else {
+			blobBytes, err2 := asbp.DownloadBlob(blobName, client, ctx)
+			if err2 != nil {
+				asbp.ConnectionStatus = cloud.FailedConnection
+				return err2
+			}
+			err2 = asbp.parseCSV(start, end, csv.NewReader(bytes.NewReader(blobBytes)), resultFn)
+			if err2 != nil {
+				asbp.ConnectionStatus = cloud.ParseError
+				return err2
+			}
 		}
-		err2 = asbp.parseCSV(start, end, csv.NewReader(bytes.NewReader(blobBytes)), resultFn)
-		if err2 != nil {
-			asbp.ConnectionStatus = cloud.ParseError
-			return err2
-		}
-
 	}
 	asbp.ConnectionStatus = cloud.SuccessfulConnection
 	return nil
