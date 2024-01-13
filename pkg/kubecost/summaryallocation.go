@@ -39,6 +39,7 @@ type SummaryAllocation struct {
 	SharedCost             float64               `json:"sharedCost"`
 	ExternalCost           float64               `json:"externalCost"`
 	Share                  bool                  `json:"-"`
+	SharedCostBreakdown    SharedCostBreakdowns  `json:"sharedCostBreakdown"`
 	UnmountedPVCost        float64               `json:"-"`
 }
 
@@ -151,6 +152,18 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 	sa.RAMCost += that.RAMCost
 	sa.SharedCost += that.SharedCost
 
+	// If both Summary Allocations have SharedCostBreakdowns, then
+	// add those from the given Summary Allocation into the receiver.
+	if sa.SharedCostBreakdown != nil || that.SharedCostBreakdown != nil {
+		if sa.SharedCostBreakdown == nil {
+			sa.SharedCostBreakdown = SharedCostBreakdowns{}
+		}
+		if that.SharedCostBreakdown == nil {
+			that.SharedCostBreakdown = SharedCostBreakdowns{}
+		}
+		sa.SharedCostBreakdown.Add(that.SharedCostBreakdown)
+	}
+
 	return nil
 }
 
@@ -173,6 +186,7 @@ func (sa *SummaryAllocation) Clone() *SummaryAllocation {
 		RAMCost:                sa.RAMCost,
 		SharedCost:             sa.SharedCost,
 		ExternalCost:           sa.ExternalCost,
+		SharedCostBreakdown:    sa.SharedCostBreakdown.Clone(),
 	}
 }
 
