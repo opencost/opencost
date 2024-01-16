@@ -31,6 +31,17 @@ func (hp HTTPProtocol) BadRequest(message string) HTTPError {
 	}
 }
 
+// UnprocessableEntity creates an UnprocessableEntity HTTPError
+func (hp HTTPProtocol) UnprocessableEntity(message string) HTTPError {
+	if message == "" {
+		message = "Unprocessable Entity"
+	}
+	return HTTPError{
+		StatusCode: http.StatusUnprocessableEntity,
+		Body:       message,
+	}
+}
+
 // InternalServerError creates an InternalServerError HTTPError
 func (hp HTTPProtocol) InternalServerError(message string) HTTPError {
 	if message == "" {
