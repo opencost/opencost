@@ -103,6 +103,14 @@ func Infof(format string, a ...interface{}) {
 	log.Info().Msgf(format, a...)
 }
 
+func Trace(msg string) {
+	log.Trace().Msg(msg)
+}
+
+func Tracef(format string, a ...interface{}) {
+	log.Trace().Msgf(format, a...)
+}
+
 func DedupedInfof(logTypeLimit int, format string, a ...interface{}) {
 	timesLogged := ctr.increment(format)
 
