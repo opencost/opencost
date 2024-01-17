@@ -16,6 +16,7 @@ func GetZone(labels map[string]string) (string, bool) {
 	}
 }
 
+// TODO: anuchito - reduce multiple key lookup
 func GetRegion(labels map[string]string) (string, bool) {
 	if _, ok := labels[v1.LabelTopologyRegion]; ok { // Label as of 1.17
 		return labels[v1.LabelTopologyRegion], true
@@ -26,6 +27,7 @@ func GetRegion(labels map[string]string) (string, bool) {
 	}
 }
 
+// TODO: anuchito - reduce multiple key lookup
 func GetInstanceType(labels map[string]string) (string, bool) {
 	if _, ok := labels[v1.LabelInstanceType]; ok {
 		return labels[v1.LabelInstanceType], true

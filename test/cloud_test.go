@@ -239,7 +239,7 @@ func TestNodePriceFromCSVSpecialChar(t *testing.T) {
 	n.Labels = make(map[string]string)
 	n.Labels["<http://metadata.label.servers.com/label|metadata.label.servers.com/label>"] = nameWant
 
-	wantPrice := "0.133700"
+	wantPrice := "0.1337"
 
 	c := &provider.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_special_char.csv",
@@ -275,7 +275,7 @@ func TestNodePriceFromCSV(t *testing.T) {
 	n.Labels = make(map[string]string)
 	n.Labels["foo"] = labelFooWant
 
-	wantPrice := "0.133700"
+	wantPrice := "0.1337"
 
 	c := &provider.CSVProvider{
 		CSVLocation: "../configs/pricing_schema.csv",
@@ -335,7 +335,7 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	n.Labels = make(map[string]string)
 	n.Labels["foo"] = labelFooWant
 	n.Labels[v1.LabelZoneRegion] = "regionone"
-	wantPrice := "0.133700"
+	wantPrice := "0.1337"
 
 	n2 := &v1.Node{}
 	n2.Spec.ProviderID = providerIDWant
@@ -343,7 +343,7 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	n2.Labels = make(map[string]string)
 	n2.Labels["foo"] = labelFooWant
 	n2.Labels[v1.LabelZoneRegion] = "regiontwo"
-	wantPrice2 := "0.133800"
+	wantPrice2 := "0.1338"
 
 	n3 := &v1.Node{}
 	n3.Spec.ProviderID = providerIDWant
