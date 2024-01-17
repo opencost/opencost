@@ -71,32 +71,30 @@ func (sc *StorageConnection) DownloadBlob(blobName string, client *azblob.Client
 
 // DownloadBlobToFile downloads the Azure Billing CSV to a local file
 func (sc *StorageConnection) DownloadBlobToFile(localFilePath string, blobName string, client *azblob.Client, ctx context.Context) error {
-	// Remove existing Azure Billing CSV on disk
+	// If file exists, don't download it again
 	if _, err := os.Stat(localFilePath); err == nil {
-		err := os.Remove(localFilePath)
-		if err != nil {
-			return fmt.Errorf("Azure: DownloadBlobToFile: failed to delete existing file %w", err)
-		}
+		log.DedupedInfof(3, "CloudCost: Azure: DownloadBlobToFile: file %v already exists, not downloading %v", localFilePath, blobName)
+		return nil
 	}
 
 	// Create filepath
 	dir := filepath.Dir(localFilePath)
 	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-		return fmt.Errorf("Azure: DownloadBlobToFile: failed to create directory %w", err)
+		return fmt.Errorf("CloudCost: Azure: DownloadBlobToFile: failed to create directory %w", err)
 	}
 	fp, err := os.Create(localFilePath)
 	if err != nil {
-		return fmt.Errorf("Azure: DownloadBlobToFile: failed to create file %w", err)
+		return fmt.Errorf("CloudCost: Azure: DownloadBlobToFile: failed to create file %w", err)
 	}
 	defer fp.Close()
 
 	// Download newest Azure Billing CSV to disk
-	log.Infof("Azure: DownloadBlobToFile: retrieving blob: %v", blobName)
+	log.Infof("CloudCost: Azure: DownloadBlobToFile: retrieving blob: %v", blobName)
 	filesize, err := client.DownloadFile(ctx, sc.Container, blobName, fp, nil)
 	if err != nil {
-		return fmt.Errorf("Azure: DownloadBlobToFile: failed to download %w", err)
+		return fmt.Errorf("CloudCost: Azure: DownloadBlobToFile: failed to download %w", err)
 	}
-	log.Infof("Azure: DownloadBlobToFile: retrieved %v of size %d", blobName, filesize)
+	log.Infof("CloudCost: Azure: DownloadBlobToFile: retrieved %v of size %dMB", blobName, filesize/1024/1024)
 
 	return nil
 }

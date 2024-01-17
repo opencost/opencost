@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -48,6 +47,7 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 		return err
 	}
 	ctx := context.Background()
+	// Example blobNames: [ export/myExport/20240101-20240131/myExport_758a42af-0731-4edb-b498-1e523bb40f12.csv ]
 	blobNames, err := asbp.getMostRecentBlobs(start, end, client, ctx)
 	if err != nil {
 		asbp.ConnectionStatus = cloud.FailedConnection
@@ -60,15 +60,12 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 	}
 
 	for _, blobName := range blobNames {
-
-		// ----- INSTRUMENTATION -----
-		var m runtime.MemStats
-		runtime.ReadMemStats(&m)
-		log.Infof("HeapAlloc:  %v MB", m.HeapAlloc/1024/1024)
-		// ----- INSTRUMENTATION -----
-
-		if env.IsAzureParseBillingPaginated() {
-			localFilePath := filepath.Join(env.GetConfigPathWithDefault(env.DefaultConfigMountPath), "db", "cloudCost", "azurebilling.csv")
+		if env.IsAzureDownloadBillingDataToDisk() {
+			localPath := filepath.Join(env.GetConfigPathWithDefault(env.DefaultConfigMountPath), "db", "cloudCost")
+			localFilePath := filepath.Join(localPath, filepath.Base(blobName))
+			if _, err := asbp.deleteFilesOlderThan7d(localPath); err != nil {
+				log.Warnf("CloudCost: Azure: ParseBillingData: failed to remove the following stale files: %v", err)
+			}
 			err := asbp.DownloadBlobToFile(localFilePath, blobName, client, ctx)
 			if err != nil {
 				asbp.ConnectionStatus = cloud.FailedConnection
@@ -213,4 +210,35 @@ func (asbp *AzureStorageBillingParser) timeToMonthString(input time.Time) string
 	startOfMonth := input.AddDate(0, 0, -input.Day()+1)
 	endOfMonth := input.AddDate(0, 1, -input.Day())
 	return startOfMonth.Format(format) + "-" + endOfMonth.Format(format)
+}
+
+// deleteFilesOlderThan7d recursively walks the directory specified and deletes
+// files which have not been modified in the last 7 days. Returns a list of
+// files deleted.
+func (asbp *AzureStorageBillingParser) deleteFilesOlderThan7d(localPath string) ([]string, error) {
+	duration := 7 * 24 * time.Hour
+	cleaned := []string{}
+	errs := []string{}
+
+	filepath.Walk(localPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			errs = append(errs, err.Error())
+			return err
+		}
+
+		if time.Since(info.ModTime()) > duration {
+			err := os.Remove(path)
+			if err != nil {
+				errs = append(errs, err.Error())
+			}
+			cleaned = append(cleaned, path)
+		}
+		return nil
+	})
+
+	if len(errs) == 0 {
+		return cleaned, nil
+	} else {
+		return cleaned, fmt.Errorf("deleteFilesOlderThan7d: %v", errs)
+	}
 }
