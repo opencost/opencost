@@ -457,7 +457,6 @@ func (target *Allocation) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 	}
 	// --- [end][write][alias](LbAllocations) ---
 
-	buff.WriteFloat64(target.UnmountedPVCost) // write float64
 	return nil
 }
 
@@ -769,9 +768,6 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 
 	} else {
 	}
-
-	fff := buff.ReadFloat64() // read float64
-	target.UnmountedPVCost = fff
 
 	return nil
 }

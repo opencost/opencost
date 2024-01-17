@@ -93,11 +93,11 @@ type Allocation struct {
 	// and appended to an Allocation, and so by default is is nil.
 	ProportionalAssetResourceCosts ProportionalAssetResourceCosts `json:"proportionalAssetResourceCosts"` //@bingen:field[ignore]
 	SharedCostBreakdown            SharedCostBreakdowns           `json:"sharedCostBreakdown"`            //@bingen:field[ignore]
-	LoadBalancers                  LbAllocations                  `json:"LoadBalancers"`                  // @bingen:field[version=18]
+	LoadBalancers                  LbAllocations                  `json:"LoadBalancers"`                  //@bingen:field[version=18]
 	// UnmountedPVCost is used to track how much of the cost in PVs is for an
 	// unmounted PV. It is not additive of PVCost() and need not be sent in API
 	// responses.
-	UnmountedPVCost float64 `json:"-"`
+	UnmountedPVCost float64 `json:"-"` //@bingen:field[ignore]
 }
 
 type LbAllocations map[string]*LbAllocation
