@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	// https://opencost.atlassian.net/browse/BURNDOWN-234
+	// https://kubecost.atlassian.net/browse/BURNDOWN-234
 	// upstream KSM has implementation change vs OC internal KSM - it sets metric to 0 when pod goes down
 	// VS OC implementation which stops emitting it
 	// by adding != 0 filter, we keep just the active times in the prom result
