@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/alibaba"
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
-	"github.com/opencost/opencost/pkg/log"
 )
 
 // MultiCloudConfig struct is used to unmarshal cloud configs for each provider out of cloud-integration file

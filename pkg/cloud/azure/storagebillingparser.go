@@ -13,9 +13,9 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/log"
 )
 
 // AzureStorageBillingParser accesses billing data stored in CSV files in Azure Storage

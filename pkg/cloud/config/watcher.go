@@ -12,10 +12,10 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/models"
 
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util/fileutil"
+	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util/fileutil"
-	"github.com/opencost/opencost/pkg/util/json"
 )
 
 const authSecretPath = "/var/secrets/service-key.json"
