@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/cloud/alibaba"
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/azure"
@@ -16,6 +15,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/scaleway"
 
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
 
 	"cloud.google.com/go/compute/metadata"
@@ -170,7 +170,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	})
 
 	switch cp.provider {
-	case kubecost.CSVProvider:
+	case opencost.CSVProvider:
 		log.Infof("Using CSV Provider with CSV at %s", env.GetCSVPath())
 		return &CSVProvider{
 			CSVLocation: env.GetCSVPath(),
@@ -181,7 +181,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 				Config:           NewProviderConfig(config, cp.configFileName),
 			},
 		}, nil
-	case kubecost.GCPProvider:
+	case opencost.GCPProvider:
 		log.Info("Found ProviderID starting with \"gce\", using GCP Provider")
 		if apiKey == "" {
 			return nil, errors.New("Supply a GCP Key to start getting data")
@@ -204,7 +204,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 					Timeout: 5 * time.Second,
 				}),
 		}, nil
-	case kubecost.AWSProvider:
+	case opencost.AWSProvider:
 		log.Info("Found ProviderID starting with \"aws\", using AWS Provider")
 		return &aws.AWS{
 			Clientset:            cache,
@@ -213,7 +213,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			ClusterAccountID:     cp.accountID,
 			ServiceAccountChecks: models.NewServiceAccountChecks(),
 		}, nil
-	case kubecost.AzureProvider:
+	case opencost.AzureProvider:
 		log.Info("Found ProviderID starting with \"azure\", using Azure Provider")
 		return &azure.Azure{
 			Clientset:            cache,
@@ -222,7 +222,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			ClusterAccountID:     cp.accountID,
 			ServiceAccountChecks: models.NewServiceAccountChecks(),
 		}, nil
-	case kubecost.AlibabaProvider:
+	case opencost.AlibabaProvider:
 		log.Info("Found ProviderID starting with \"alibaba\", using Alibaba Cloud Provider")
 		return &alibaba.Alibaba{
 			Clientset:            cache,
@@ -231,7 +231,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			ClusterAccountId:     cp.accountID,
 			ServiceAccountChecks: models.NewServiceAccountChecks(),
 		}, nil
-	case kubecost.ScalewayProvider:
+	case opencost.ScalewayProvider:
 		log.Info("Found ProviderID starting with \"scaleway\", using Scaleway Provider")
 		return &scaleway.Scaleway{
 			Clientset:        cache,
@@ -271,25 +271,25 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 	}
 	// The second conditional is mainly if you're running opencost outside of GCE, say in a local environment.
 	if metadata.OnGCE() || strings.HasPrefix(providerID, "gce") {
-		cp.provider = kubecost.GCPProvider
+		cp.provider = opencost.GCPProvider
 		cp.configFileName = "gcp.json"
 		cp.projectID = gcp.ParseGCPProjectID(providerID)
 	} else if strings.HasPrefix(providerID, "aws") {
-		cp.provider = kubecost.AWSProvider
+		cp.provider = opencost.AWSProvider
 		cp.configFileName = "aws.json"
 	} else if strings.HasPrefix(providerID, "azure") {
-		cp.provider = kubecost.AzureProvider
+		cp.provider = opencost.AzureProvider
 		cp.configFileName = "azure.json"
 		cp.accountID = azure.ParseAzureSubscriptionID(providerID)
 	} else if strings.HasPrefix(providerID, "scaleway") { // the scaleway provider ID looks like scaleway://instance/<instance_id>
-		cp.provider = kubecost.ScalewayProvider
+		cp.provider = opencost.ScalewayProvider
 		cp.configFileName = "scaleway.json"
 	} else if strings.Contains(node.Status.NodeInfo.KubeletVersion, "aliyun") { // provider ID is not prefix with any distinct keyword like other providers
-		cp.provider = kubecost.AlibabaProvider
+		cp.provider = opencost.AlibabaProvider
 		cp.configFileName = "alibaba.json"
 	}
 	if env.IsUseCSVProvider() {
-		cp.provider = kubecost.CSVProvider
+		cp.provider = opencost.CSVProvider
 	}
 
 	return cp

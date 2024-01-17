@@ -3,7 +3,7 @@ package azure
 import (
 	"fmt"
 
-	"github.com/opencost/opencost/core/pkg/kubecost"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud"
 )
@@ -107,7 +107,7 @@ func (sc *StorageConfiguration) Key() string {
 }
 
 func (sc *StorageConfiguration) Provider() string {
-	return kubecost.AzureProvider
+	return opencost.AzureProvider
 }
 
 func (sc *StorageConfiguration) UnmarshalJSON(b []byte) error {

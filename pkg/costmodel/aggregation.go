@@ -15,8 +15,8 @@ import (
 	"github.com/patrickmn/go-cache"
 	prometheusClient "github.com/prometheus/client_golang/api"
 
-	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"github.com/opencost/opencost/core/pkg/util/json"
@@ -50,7 +50,7 @@ type Aggregation struct {
 	Subfields                  []string                       `json:"subfields,omitempty"`
 	Environment                string                         `json:"environment"`
 	Cluster                    string                         `json:"cluster,omitempty"`
-	Properties                 *kubecost.AllocationProperties `json:"-"`
+	Properties                 *opencost.AllocationProperties `json:"-"`
 	Start                      time.Time                      `json:"-"`
 	End                        time.Time                      `json:"-"`
 	CPUAllocationHourlyAverage float64                        `json:"cpuAllocationAverage"`
@@ -597,7 +597,7 @@ func aggregateDatum(cp models.Provider, aggregations map[string]*Aggregation, co
 			agg.Subfields = subfields
 		}
 		if includeProperties {
-			props := &kubecost.AllocationProperties{}
+			props := &opencost.AllocationProperties{}
 			props.Cluster = costDatum.ClusterID
 			props.Node = costDatum.NodeName
 			if controller, kind, hasController := costDatum.GetController(); hasController {
@@ -908,7 +908,7 @@ const minCostDataLength = 2
 // defined interval
 type EmptyDataError struct {
 	err    error
-	window kubecost.Window
+	window opencost.Window
 }
 
 // Error implements the error interface
@@ -1051,7 +1051,7 @@ func DefaultAggregateQueryOpts() *AggregateQueryOpts {
 
 // ComputeAggregateCostModel computes cost data for the given window, then aggregates it by the given fields.
 // Data is cached on two levels: the aggregation is cached as well as the underlying cost data.
-func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client, window kubecost.Window, field string, subfields []string, opts *AggregateQueryOpts) (map[string]*Aggregation, string, error) {
+func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client, window opencost.Window, field string, subfields []string, opts *AggregateQueryOpts) (map[string]*Aggregation, string, error) {
 	// Window is the range of the query, i.e. (start, end)
 	// It must be closed, i.e. neither start nor end can be nil
 	if window.IsOpen() {
@@ -1620,7 +1620,7 @@ type aggKeyParams struct {
 }
 
 // GenerateAggKey generates a parameter-unique key for caching the aggregate cost model
-func GenerateAggKey(window kubecost.Window, field string, subfields []string, opts *AggregateQueryOpts) string {
+func GenerateAggKey(window opencost.Window, field string, subfields []string, opts *AggregateQueryOpts) string {
 	if opts == nil {
 		opts = DefaultAggregateQueryOpts()
 	}
@@ -1729,7 +1729,7 @@ func GenerateAggKey(window kubecost.Window, field string, subfields []string, op
 // a brutal interface, which should be cleaned up, but it's necessary for
 // being able to swap in an ETL-backed implementation.
 type Aggregator interface {
-	ComputeAggregateCostModel(promClient prometheusClient.Client, window kubecost.Window, field string, subfields []string, opts *AggregateQueryOpts) (map[string]*Aggregation, string, error)
+	ComputeAggregateCostModel(promClient prometheusClient.Client, window opencost.Window, field string, subfields []string, opts *AggregateQueryOpts) (map[string]*Aggregation, string, error)
 }
 
 func (a *Accesses) warmAggregateCostModelCache() {
@@ -1750,7 +1750,7 @@ func (a *Accesses) warmAggregateCostModelCache() {
 		promClient := a.GetPrometheusClient(true)
 
 		windowStr := fmt.Sprintf("%s offset %s", fmtDuration, fmtOffset)
-		window, err := kubecost.ParseWindowUTC(windowStr)
+		window, err := opencost.ParseWindowUTC(windowStr)
 		if err != nil {
 			return nil, fmt.Errorf("invalid window from window string: %s", windowStr)
 		}
@@ -1914,7 +1914,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	}
 
 	// determine duration and offset from query parameters
-	window, err := kubecost.ParseWindowWithOffset(windowStr, env.GetParsedUTCOffset())
+	window, err := opencost.ParseWindowWithOffset(windowStr, env.GetParsedUTCOffset())
 	if err != nil || window.Start() == nil {
 		WriteError(w, BadRequest(fmt.Sprintf("invalid window: %s", err)))
 		return
@@ -2077,7 +2077,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 			}
 			return
 		}
-		if boundaryErr, ok := err.(*kubecost.BoundaryError); ok {
+		if boundaryErr, ok := err.(*opencost.BoundaryError); ok {
 			if window.Start() != nil && window.Start().After(time.Now().Add(-90*24*time.Hour)) {
 				// Asking for data within a 90 day period: it will be available
 				// after the pipeline builds
@@ -2118,11 +2118,11 @@ func ParseAggregationProperties(aggregations []string) ([]string, error) {
 	// In case of no aggregation option, aggregate to the container, with a key Cluster/Node/Namespace/Pod/Container
 	if len(aggregations) == 0 {
 		aggregateBy = []string{
-			kubecost.AllocationClusterProp,
-			kubecost.AllocationNodeProp,
-			kubecost.AllocationNamespaceProp,
-			kubecost.AllocationPodProp,
-			kubecost.AllocationContainerProp,
+			opencost.AllocationClusterProp,
+			opencost.AllocationNodeProp,
+			opencost.AllocationNamespaceProp,
+			opencost.AllocationPodProp,
+			opencost.AllocationContainerProp,
 		}
 	} else if len(aggregations) == 1 && aggregations[0] == "all" {
 		aggregateBy = []string{}
@@ -2130,7 +2130,7 @@ func ParseAggregationProperties(aggregations []string) ([]string, error) {
 		for _, agg := range aggregations {
 			aggregate := strings.TrimSpace(agg)
 			if aggregate != "" {
-				if prop, err := kubecost.ParseProperty(aggregate); err == nil {
+				if prop, err := opencost.ParseProperty(aggregate); err == nil {
 					aggregateBy = append(aggregateBy, string(prop))
 				} else if strings.HasPrefix(aggregate, "label:") {
 					aggregateBy = append(aggregateBy, aggregate)
@@ -2150,7 +2150,7 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 
 	// Window is a required field describing the window of time over which to
 	// compute allocation data.
-	window, err := kubecost.ParseWindowWithOffset(qp.Get("window", ""), env.GetParsedUTCOffset())
+	window, err := opencost.ParseWindowWithOffset(qp.Get("window", ""), env.GetParsedUTCOffset())
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Invalid 'window' parameter: %s", err), http.StatusBadRequest)
 	}
@@ -2180,11 +2180,11 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 
 	// Query for AllocationSets in increments of the given step duration,
 	// appending each to the AllocationSetRange.
-	asr := kubecost.NewAllocationSetRange()
+	asr := opencost.NewAllocationSetRange()
 	stepStart := *window.Start()
 	for window.End().After(stepStart) {
 		stepEnd := stepStart.Add(step)
-		stepWindow := kubecost.NewWindow(&stepStart, &stepEnd)
+		stepWindow := opencost.NewWindow(&stepStart, &stepEnd)
 
 		as, err := a.Model.ComputeAllocation(*stepWindow.Start(), *stepWindow.End(), resolution)
 		if err != nil {
@@ -2207,19 +2207,19 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 
 	// Accumulate, if requested
 	if accumulate {
-		asr, err = asr.Accumulate(kubecost.AccumulateOptionAll)
+		asr, err = asr.Accumulate(opencost.AccumulateOptionAll)
 		if err != nil {
 			WriteError(w, InternalServerError(err.Error()))
 			return
 		}
 	}
 
-	sasl := []*kubecost.SummaryAllocationSet{}
+	sasl := []*opencost.SummaryAllocationSet{}
 	for _, as := range asr.Slice() {
-		sas := kubecost.NewSummaryAllocationSet(as, nil, nil, false, false)
+		sas := opencost.NewSummaryAllocationSet(as, nil, nil, false, false)
 		sasl = append(sasl, sas)
 	}
-	sasr := kubecost.NewSummaryAllocationSetRange(sasl...)
+	sasr := opencost.NewSummaryAllocationSetRange(sasl...)
 
 	w.Write(WrapData(sasr, nil))
 }
@@ -2232,7 +2232,7 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 
 	// Window is a required field describing the window of time over which to
 	// compute allocation data.
-	window, err := kubecost.ParseWindowWithOffset(qp.Get("window", ""), env.GetParsedUTCOffset())
+	window, err := opencost.ParseWindowWithOffset(qp.Get("window", ""), env.GetParsedUTCOffset())
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Invalid 'window' parameter: %s", err), http.StatusBadRequest)
 	}
@@ -2265,11 +2265,11 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// Accumulate is an optional parameter that accumulates an AllocationSetRange
 	// by the resolution of the given time duration.
 	// Defaults to 0. If a value is not passed then the parameter is not used.
-	accumulateBy := kubecost.AccumulateOption(qp.Get("accumulateBy", ""))
+	accumulateBy := opencost.AccumulateOption(qp.Get("accumulateBy", ""))
 
 	// if accumulateBy is not explicitly set, and accumulate is true, ensure result is accumulated
-	if accumulateBy == kubecost.AccumulateOptionNone && accumulate {
-		accumulateBy = kubecost.AccumulateOptionAll
+	if accumulateBy == opencost.AccumulateOptionNone && accumulate {
+		accumulateBy = opencost.AccumulateOptionAll
 	}
 
 	// IdleByNode, if true, computes idle allocations at the node level.

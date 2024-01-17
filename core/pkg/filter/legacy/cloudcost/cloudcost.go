@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	filter "github.com/opencost/opencost/core/pkg/filter/legacy"
-	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/mapper"
 )
 
@@ -33,7 +33,7 @@ func parseWildcardEnd(rawFilterValue string) (string, bool) {
 	return strings.TrimSuffix(rawFilterValue, "*"), strings.HasSuffix(rawFilterValue, "*")
 }
 
-func CloudCostFilterFromParams(pmr mapper.PrimitiveMapReader) filter.Filter[*kubecost.CloudCost] {
+func CloudCostFilterFromParams(pmr mapper.PrimitiveMapReader) filter.Filter[*opencost.CloudCost] {
 	ccFilter := convertFilterQueryParams(pmr)
 	return ParseCloudCostFilter(ccFilter)
 }
@@ -49,37 +49,37 @@ func convertFilterQueryParams(pmr mapper.PrimitiveMapReader) CloudCostFilter {
 		Services:         pmr.GetList("filterServices", ","),
 	}
 }
-func ParseCloudCostFilter(filters CloudCostFilter) filter.Filter[*kubecost.CloudCost] {
-	result := filter.And[*kubecost.CloudCost]{
-		Filters: []filter.Filter[*kubecost.CloudCost]{},
+func ParseCloudCostFilter(filters CloudCostFilter) filter.Filter[*opencost.CloudCost] {
+	result := filter.And[*opencost.CloudCost]{
+		Filters: []filter.Filter[*opencost.CloudCost]{},
 	}
 
 	if len(filters.InvoiceEntityIDs) > 0 {
-		result.Filters = append(result.Filters, filterV1SingleValueFromList(filters.InvoiceEntityIDs, kubecost.CloudCostInvoiceEntityIDProp))
+		result.Filters = append(result.Filters, filterV1SingleValueFromList(filters.InvoiceEntityIDs, opencost.CloudCostInvoiceEntityIDProp))
 	}
 
 	if len(filters.AccountIDs) > 0 {
-		result.Filters = append(result.Filters, filterV1SingleValueFromList(filters.AccountIDs, kubecost.CloudCostAccountIDProp))
+		result.Filters = append(result.Filters, filterV1SingleValueFromList(filters.AccountIDs, opencost.CloudCostAccountIDProp))
 	}
 
 	if len(filters.Providers) > 0 {
-		result.Filters = append(result.Filters, filterV1SingleValueFromList(filters.Providers, kubecost.CloudCostProviderProp))
+		result.Filters = append(result.Filters, filterV1SingleValueFromList(filters.Providers, opencost.CloudCostProviderProp))
 	}
 
 	if len(filters.ProviderIDs) > 0 {
-		result.Filters = append(result.Filters, filterV1SingleValueFromList(filters.ProviderIDs, kubecost.CloudCostProviderIDProp))
+		result.Filters = append(result.Filters, filterV1SingleValueFromList(filters.ProviderIDs, opencost.CloudCostProviderIDProp))
 	}
 
 	if len(filters.Services) > 0 {
-		result.Filters = append(result.Filters, filterV1SingleValueFromList(filters.Services, kubecost.CloudCostServiceProp))
+		result.Filters = append(result.Filters, filterV1SingleValueFromList(filters.Services, opencost.CloudCostServiceProp))
 	}
 
 	if len(filters.Categories) > 0 {
-		result.Filters = append(result.Filters, filterV1SingleValueFromList(filters.Categories, kubecost.CloudCostCategoryProp))
+		result.Filters = append(result.Filters, filterV1SingleValueFromList(filters.Categories, opencost.CloudCostCategoryProp))
 	}
 
 	if len(filters.Labels) > 0 {
-		result.Filters = append(result.Filters, filterV1DoubleValueFromList(filters.Labels, kubecost.CloudCostLabelProp))
+		result.Filters = append(result.Filters, filterV1DoubleValueFromList(filters.Labels, opencost.CloudCostLabelProp))
 	}
 
 	if len(result.Filters) == 0 {
@@ -89,16 +89,16 @@ func ParseCloudCostFilter(filters CloudCostFilter) filter.Filter[*kubecost.Cloud
 	return result
 }
 
-func filterV1SingleValueFromList(rawFilterValues []string, field string) filter.Filter[*kubecost.CloudCost] {
-	result := filter.Or[*kubecost.CloudCost]{
-		Filters: []filter.Filter[*kubecost.CloudCost]{},
+func filterV1SingleValueFromList(rawFilterValues []string, field string) filter.Filter[*opencost.CloudCost] {
+	result := filter.Or[*opencost.CloudCost]{
+		Filters: []filter.Filter[*opencost.CloudCost]{},
 	}
 
 	for _, filterValue := range rawFilterValues {
 		filterValue = strings.TrimSpace(filterValue)
 		filterValue, wildcard := parseWildcardEnd(filterValue)
 
-		subFilter := filter.StringProperty[*kubecost.CloudCost]{
+		subFilter := filter.StringProperty[*opencost.CloudCost]{
 			Field: field,
 			Op:    filter.StringEquals,
 			Value: filterValue,
@@ -119,9 +119,9 @@ func filterV1SingleValueFromList(rawFilterValues []string, field string) filter.
 //
 // The v1 query language (e.g. "filterLabels=app:foo,l2:bar") uses OR within
 // a field (e.g. label[app] = foo OR label[l2] = bar)
-func filterV1DoubleValueFromList(rawFilterValuesUnsplit []string, filterField string) filter.Filter[*kubecost.CloudCost] {
-	result := filter.Or[*kubecost.CloudCost]{
-		Filters: []filter.Filter[*kubecost.CloudCost]{},
+func filterV1DoubleValueFromList(rawFilterValuesUnsplit []string, filterField string) filter.Filter[*opencost.CloudCost] {
+	result := filter.Or[*opencost.CloudCost]{
+		Filters: []filter.Filter[*opencost.CloudCost]{},
 	}
 
 	for _, unsplit := range rawFilterValuesUnsplit {
@@ -135,7 +135,7 @@ func filterV1DoubleValueFromList(rawFilterValuesUnsplit []string, filterField st
 			val := strings.TrimSpace(split[1])
 			val, wildcard := parseWildcardEnd(val)
 
-			subFilter := filter.StringMapProperty[*kubecost.CloudCost]{
+			subFilter := filter.StringMapProperty[*opencost.CloudCost]{
 				Field: filterField,
 				// All v1 filters are equality comparisons
 				Op:    filter.StringMapEquals,

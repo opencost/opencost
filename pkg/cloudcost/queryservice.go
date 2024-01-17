@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/opencost/opencost/core/pkg/kubecost"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"go.opentelemetry.io/otel"
 )
@@ -187,7 +187,7 @@ func (s *QueryService) GetCloudCostViewTableHandler() func(w http.ResponseWriter
 		_, spanResp := tracer.Start(ctx, "write response")
 		defer spanResp.End()
 		if format == csvFormat {
-			window := kubecost.NewClosedWindow(request.Start, request.End)
+			window := opencost.NewClosedWindow(request.Start, request.End)
 			writeCloudCostViewTableRowsAsCSV(w, resp, window.String())
 			return
 		}

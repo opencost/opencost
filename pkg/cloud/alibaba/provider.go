@@ -16,8 +16,8 @@ import (
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/signers"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
 	"github.com/opencost/opencost/core/pkg/env"
-	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/fileutil"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/core/pkg/util/stringutil"
@@ -696,7 +696,7 @@ func (alibaba *Alibaba) ClusterInfo() (map[string]string, error) {
 
 	m := make(map[string]string)
 	m["name"] = clusterName
-	m["provider"] = kubecost.AlibabaProvider
+	m["provider"] = opencost.AlibabaProvider
 	m["project"] = alibaba.ClusterAccountId
 	m["region"] = alibaba.ClusterRegion
 	m["id"] = ocenv.GetClusterID()

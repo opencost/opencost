@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/core/pkg/util/watcher"
@@ -40,7 +41,6 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clusters"
 	sysenv "github.com/opencost/opencost/core/pkg/env"
-	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud/azure"
@@ -525,7 +525,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 		return
 	}
 
-	window := kubecost.NewWindow(&start, &end)
+	window := opencost.NewWindow(&start, &end)
 	if window.IsOpen() || !window.HasDuration() || window.IsNegative() {
 		w.Write(WrapDataWithMessage(nil, fmt.Errorf("invalid date range: %s", window), fmt.Sprintf("invalid date range: %s", window)))
 		return

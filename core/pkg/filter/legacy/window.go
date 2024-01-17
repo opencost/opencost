@@ -8,7 +8,7 @@ package legacy
 //)
 //
 //type Windowed interface {
-//	GetWindow() kubecost.Window
+//	GetWindow() opencost.Window
 //}
 //
 //// WindowOperation are operations that can be performed on types that have windows
@@ -20,7 +20,7 @@ package legacy
 //
 //// WindowCondition is a filter can be used on any type that has a window and implements GetWindow()
 //type WindowCondition[T Windowed] struct {
-//	Window kubecost.Window
+//	Window opencost.Window
 //	Op     WindowOperation
 //}
 //

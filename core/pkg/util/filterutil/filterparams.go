@@ -3,8 +3,8 @@ package filterutil
 import (
 	"reflect"
 
-	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/mapper"
 )
 
@@ -63,35 +63,35 @@ func ValidAssetFilterParams() []string {
 // representations to v1 filter param keys for legacy filter config support
 // (e.g. reports). Example mapping: "cluster" -> "filterClusters"
 var AllocationPropToV1FilterParamKey = map[string]string{
-	kubecost.AllocationClusterProp:        ParamFilterClusters,
-	kubecost.AllocationNodeProp:           ParamFilterNodes,
-	kubecost.AllocationNamespaceProp:      ParamFilterNamespaces,
-	kubecost.AllocationControllerProp:     ParamFilterControllers,
-	kubecost.AllocationControllerKindProp: ParamFilterControllerKinds,
-	kubecost.AllocationPodProp:            ParamFilterPods,
-	kubecost.AllocationLabelProp:          ParamFilterLabels,
-	kubecost.AllocationServiceProp:        ParamFilterServices,
-	kubecost.AllocationDepartmentProp:     ParamFilterDepartments,
-	kubecost.AllocationEnvironmentProp:    ParamFilterEnvironments,
-	kubecost.AllocationOwnerProp:          ParamFilterOwners,
-	kubecost.AllocationProductProp:        ParamFilterProducts,
-	kubecost.AllocationTeamProp:           ParamFilterTeams,
+	opencost.AllocationClusterProp:        ParamFilterClusters,
+	opencost.AllocationNodeProp:           ParamFilterNodes,
+	opencost.AllocationNamespaceProp:      ParamFilterNamespaces,
+	opencost.AllocationControllerProp:     ParamFilterControllers,
+	opencost.AllocationControllerKindProp: ParamFilterControllerKinds,
+	opencost.AllocationPodProp:            ParamFilterPods,
+	opencost.AllocationLabelProp:          ParamFilterLabels,
+	opencost.AllocationServiceProp:        ParamFilterServices,
+	opencost.AllocationDepartmentProp:     ParamFilterDepartments,
+	opencost.AllocationEnvironmentProp:    ParamFilterEnvironments,
+	opencost.AllocationOwnerProp:          ParamFilterOwners,
+	opencost.AllocationProductProp:        ParamFilterProducts,
+	opencost.AllocationTeamProp:           ParamFilterTeams,
 }
 
 // Map to store Kubecost Asset property to Asset Filter types.
 // AssetPropToV1FilterParamKey maps asset string property representations to v1
 // filter param keys for legacy filter config support (e.g. reports). Example
 // mapping: "category" -> "filterCategories"
-var AssetPropToV1FilterParamKey = map[kubecost.AssetProperty]string{
-	kubecost.AssetNameProp:       ParamFilterNames,
-	kubecost.AssetTypeProp:       ParamFilterTypes,
-	kubecost.AssetAccountProp:    ParamFilterAccounts,
-	kubecost.AssetCategoryProp:   ParamFilterCategories,
-	kubecost.AssetClusterProp:    ParamFilterClusters,
-	kubecost.AssetProjectProp:    ParamFilterProjects,
-	kubecost.AssetProviderProp:   ParamFilterProviders,
-	kubecost.AssetProviderIDProp: ParamFilterProviderIDs,
-	kubecost.AssetServiceProp:    ParamFilterServices,
+var AssetPropToV1FilterParamKey = map[opencost.AssetProperty]string{
+	opencost.AssetNameProp:       ParamFilterNames,
+	opencost.AssetTypeProp:       ParamFilterTypes,
+	opencost.AssetAccountProp:    ParamFilterAccounts,
+	opencost.AssetCategoryProp:   ParamFilterCategories,
+	opencost.AssetClusterProp:    ParamFilterClusters,
+	opencost.AssetProjectProp:    ParamFilterProjects,
+	opencost.AssetProviderProp:   ParamFilterProviders,
+	opencost.AssetProviderIDProp: ParamFilterProviderIDs,
+	opencost.AssetServiceProp:    ParamFilterServices,
 }
 
 // AllHTTPParamKeys returns all HTTP GET parameters used for v1 filters. It is
@@ -119,7 +119,7 @@ func AllHTTPParamKeys() []string {
 	}
 }
 
-func ConvertFilterQueryParams(qp mapper.PrimitiveMapReader, labelConfig *kubecost.LabelConfig) AllocationFilterV1 {
+func ConvertFilterQueryParams(qp mapper.PrimitiveMapReader, labelConfig *opencost.LabelConfig) AllocationFilterV1 {
 	filter := AllocationFilterV1{
 		Annotations:     qp.GetList(ParamFilterAnnotations, ","),
 		Containers:      qp.GetList(ParamFilterContainers, ","),

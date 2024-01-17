@@ -4,50 +4,50 @@ import (
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/clusters"
-	"github.com/opencost/opencost/core/pkg/kubecost"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/mapper"
 )
 
-var assetCompiler = kubecost.NewAssetMatchCompiler()
+var assetCompiler = opencost.NewAssetMatchCompiler()
 
 func TestAssetFiltersFromParamsV1(t *testing.T) {
 	cases := []struct {
 		name           string
 		qp             map[string]string
-		shouldMatch    []kubecost.Asset
-		shouldNotMatch []kubecost.Asset
+		shouldMatch    []opencost.Asset
+		shouldNotMatch []opencost.Asset
 	}{
 		{
 			name: "empty",
 			qp:   map[string]string{},
-			shouldMatch: []kubecost.Asset{
-				&kubecost.Node{},
-				&kubecost.Any{},
-				&kubecost.Cloud{},
-				&kubecost.LoadBalancer{},
-				&kubecost.ClusterManagement{},
-				&kubecost.Disk{},
-				&kubecost.Network{},
-				&kubecost.SharedAsset{},
+			shouldMatch: []opencost.Asset{
+				&opencost.Node{},
+				&opencost.Any{},
+				&opencost.Cloud{},
+				&opencost.LoadBalancer{},
+				&opencost.ClusterManagement{},
+				&opencost.Disk{},
+				&opencost.Network{},
+				&opencost.SharedAsset{},
 			},
-			shouldNotMatch: []kubecost.Asset{},
+			shouldNotMatch: []opencost.Asset{},
 		},
 		{
 			name: "type: node",
 			qp: map[string]string{
 				ParamFilterTypes: "node",
 			},
-			shouldMatch: []kubecost.Asset{
-				&kubecost.Node{},
+			shouldMatch: []opencost.Asset{
+				&opencost.Node{},
 			},
-			shouldNotMatch: []kubecost.Asset{
-				&kubecost.Any{},
-				&kubecost.Cloud{},
-				&kubecost.LoadBalancer{},
-				&kubecost.ClusterManagement{},
-				&kubecost.Disk{},
-				&kubecost.Network{},
-				&kubecost.SharedAsset{},
+			shouldNotMatch: []opencost.Asset{
+				&opencost.Any{},
+				&opencost.Cloud{},
+				&opencost.LoadBalancer{},
+				&opencost.ClusterManagement{},
+				&opencost.Disk{},
+				&opencost.Network{},
+				&opencost.SharedAsset{},
 			},
 		},
 		{
@@ -55,17 +55,17 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				ParamFilterTypes: "Node",
 			},
-			shouldMatch: []kubecost.Asset{
-				&kubecost.Node{},
+			shouldMatch: []opencost.Asset{
+				&opencost.Node{},
 			},
-			shouldNotMatch: []kubecost.Asset{
-				&kubecost.Any{},
-				&kubecost.Cloud{},
-				&kubecost.LoadBalancer{},
-				&kubecost.ClusterManagement{},
-				&kubecost.Disk{},
-				&kubecost.Network{},
-				&kubecost.SharedAsset{},
+			shouldNotMatch: []opencost.Asset{
+				&opencost.Any{},
+				&opencost.Cloud{},
+				&opencost.LoadBalancer{},
+				&opencost.ClusterManagement{},
+				&opencost.Disk{},
+				&opencost.Network{},
+				&opencost.SharedAsset{},
 			},
 		},
 		{
@@ -73,17 +73,17 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				ParamFilterTypes: "disk",
 			},
-			shouldMatch: []kubecost.Asset{
-				&kubecost.Disk{},
+			shouldMatch: []opencost.Asset{
+				&opencost.Disk{},
 			},
-			shouldNotMatch: []kubecost.Asset{
-				&kubecost.Any{},
-				&kubecost.Cloud{},
-				&kubecost.Network{},
-				&kubecost.Node{},
-				&kubecost.LoadBalancer{},
-				&kubecost.ClusterManagement{},
-				&kubecost.SharedAsset{},
+			shouldNotMatch: []opencost.Asset{
+				&opencost.Any{},
+				&opencost.Cloud{},
+				&opencost.Network{},
+				&opencost.Node{},
+				&opencost.LoadBalancer{},
+				&opencost.ClusterManagement{},
+				&opencost.SharedAsset{},
 			},
 		},
 		{
@@ -91,17 +91,17 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				ParamFilterTypes: "loadbalancer",
 			},
-			shouldMatch: []kubecost.Asset{
-				&kubecost.LoadBalancer{},
+			shouldMatch: []opencost.Asset{
+				&opencost.LoadBalancer{},
 			},
-			shouldNotMatch: []kubecost.Asset{
-				&kubecost.Any{},
-				&kubecost.Cloud{},
-				&kubecost.Node{},
-				&kubecost.ClusterManagement{},
-				&kubecost.Disk{},
-				&kubecost.Network{},
-				&kubecost.SharedAsset{},
+			shouldNotMatch: []opencost.Asset{
+				&opencost.Any{},
+				&opencost.Cloud{},
+				&opencost.Node{},
+				&opencost.ClusterManagement{},
+				&opencost.Disk{},
+				&opencost.Network{},
+				&opencost.SharedAsset{},
 			},
 		},
 		{
@@ -109,17 +109,17 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				ParamFilterTypes: "clustermanagement",
 			},
-			shouldMatch: []kubecost.Asset{
-				&kubecost.ClusterManagement{},
+			shouldMatch: []opencost.Asset{
+				&opencost.ClusterManagement{},
 			},
-			shouldNotMatch: []kubecost.Asset{
-				&kubecost.Any{},
-				&kubecost.Cloud{},
-				&kubecost.LoadBalancer{},
-				&kubecost.Node{},
-				&kubecost.Disk{},
-				&kubecost.Network{},
-				&kubecost.SharedAsset{},
+			shouldNotMatch: []opencost.Asset{
+				&opencost.Any{},
+				&opencost.Cloud{},
+				&opencost.LoadBalancer{},
+				&opencost.Node{},
+				&opencost.Disk{},
+				&opencost.Network{},
+				&opencost.SharedAsset{},
 			},
 		},
 		{
@@ -127,17 +127,17 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				ParamFilterTypes: "network",
 			},
-			shouldMatch: []kubecost.Asset{
-				&kubecost.Network{},
+			shouldMatch: []opencost.Asset{
+				&opencost.Network{},
 			},
-			shouldNotMatch: []kubecost.Asset{
-				&kubecost.Any{},
-				&kubecost.Cloud{},
-				&kubecost.LoadBalancer{},
-				&kubecost.ClusterManagement{},
-				&kubecost.Node{},
-				&kubecost.Disk{},
-				&kubecost.SharedAsset{},
+			shouldNotMatch: []opencost.Asset{
+				&opencost.Any{},
+				&opencost.Cloud{},
+				&opencost.LoadBalancer{},
+				&opencost.ClusterManagement{},
+				&opencost.Node{},
+				&opencost.Disk{},
+				&opencost.SharedAsset{},
 			},
 		},
 		{
@@ -145,21 +145,21 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				ParamFilterAccounts: "foo,bar",
 			},
-			shouldMatch: []kubecost.Asset{
-				&kubecost.Node{
-					Properties: &kubecost.AssetProperties{
+			shouldMatch: []opencost.Asset{
+				&opencost.Node{
+					Properties: &opencost.AssetProperties{
 						Account: "foo",
 					},
 				},
-				&kubecost.Network{
-					Properties: &kubecost.AssetProperties{
+				&opencost.Network{
+					Properties: &opencost.AssetProperties{
 						Account: "bar",
 					},
 				},
 			},
-			shouldNotMatch: []kubecost.Asset{
-				&kubecost.Network{
-					Properties: &kubecost.AssetProperties{
+			shouldNotMatch: []opencost.Asset{
+				&opencost.Network{
+					Properties: &opencost.AssetProperties{
 						Account: "baz",
 					},
 				},
@@ -170,22 +170,22 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				ParamFilterCategories: "Network,Compute",
 			},
-			shouldMatch: []kubecost.Asset{
-				&kubecost.Network{
-					Properties: &kubecost.AssetProperties{
-						Category: kubecost.NetworkCategory,
+			shouldMatch: []opencost.Asset{
+				&opencost.Network{
+					Properties: &opencost.AssetProperties{
+						Category: opencost.NetworkCategory,
 					},
 				},
-				&kubecost.Node{
-					Properties: &kubecost.AssetProperties{
-						Category: kubecost.ComputeCategory,
+				&opencost.Node{
+					Properties: &opencost.AssetProperties{
+						Category: opencost.ComputeCategory,
 					},
 				},
 			},
-			shouldNotMatch: []kubecost.Asset{
-				&kubecost.ClusterManagement{
-					Properties: &kubecost.AssetProperties{
-						Category: kubecost.ManagementCategory,
+			shouldNotMatch: []opencost.Asset{
+				&opencost.ClusterManagement{
+					Properties: &opencost.AssetProperties{
+						Category: opencost.ManagementCategory,
 					},
 				},
 			},
@@ -195,21 +195,21 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				ParamFilterClusters: "cluster-one",
 			},
-			shouldMatch: []kubecost.Asset{
-				&kubecost.LoadBalancer{
-					Properties: &kubecost.AssetProperties{
+			shouldMatch: []opencost.Asset{
+				&opencost.LoadBalancer{
+					Properties: &opencost.AssetProperties{
 						Cluster: "cluster-one",
 					},
 				},
-				&kubecost.Node{
-					Properties: &kubecost.AssetProperties{
+				&opencost.Node{
+					Properties: &opencost.AssetProperties{
 						Cluster: "cluster-one",
 					},
 				},
 			},
-			shouldNotMatch: []kubecost.Asset{
-				&kubecost.ClusterManagement{
-					Properties: &kubecost.AssetProperties{
+			shouldNotMatch: []opencost.Asset{
+				&opencost.ClusterManagement{
+					Properties: &opencost.AssetProperties{
 						Cluster: "cluster-two",
 					},
 				},
@@ -220,21 +220,21 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				ParamFilterProjects: "proj1,proj2",
 			},
-			shouldMatch: []kubecost.Asset{
-				&kubecost.Disk{
-					Properties: &kubecost.AssetProperties{
+			shouldMatch: []opencost.Asset{
+				&opencost.Disk{
+					Properties: &opencost.AssetProperties{
 						Project: "proj1",
 					},
 				},
-				&kubecost.Node{
-					Properties: &kubecost.AssetProperties{
+				&opencost.Node{
+					Properties: &opencost.AssetProperties{
 						Project: "proj2",
 					},
 				},
 			},
-			shouldNotMatch: []kubecost.Asset{
-				&kubecost.ClusterManagement{
-					Properties: &kubecost.AssetProperties{
+			shouldNotMatch: []opencost.Asset{
+				&opencost.ClusterManagement{
+					Properties: &opencost.AssetProperties{
 						Project: "proj3",
 					},
 				},
@@ -245,21 +245,21 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				ParamFilterProviders: "p1,p2",
 			},
-			shouldMatch: []kubecost.Asset{
-				&kubecost.Disk{
-					Properties: &kubecost.AssetProperties{
+			shouldMatch: []opencost.Asset{
+				&opencost.Disk{
+					Properties: &opencost.AssetProperties{
 						Provider: "p1",
 					},
 				},
-				&kubecost.Network{
-					Properties: &kubecost.AssetProperties{
+				&opencost.Network{
+					Properties: &opencost.AssetProperties{
 						Provider: "p2",
 					},
 				},
 			},
-			shouldNotMatch: []kubecost.Asset{
-				&kubecost.Node{
-					Properties: &kubecost.AssetProperties{
+			shouldNotMatch: []opencost.Asset{
+				&opencost.Node{
+					Properties: &opencost.AssetProperties{
 						Provider: "p3",
 					},
 				},
@@ -270,21 +270,21 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				ParamFilterProviderIDs: "p1,p2",
 			},
-			shouldMatch: []kubecost.Asset{
-				&kubecost.Disk{
-					Properties: &kubecost.AssetProperties{
+			shouldMatch: []opencost.Asset{
+				&opencost.Disk{
+					Properties: &opencost.AssetProperties{
 						ProviderID: "p1",
 					},
 				},
-				&kubecost.Network{
-					Properties: &kubecost.AssetProperties{
+				&opencost.Network{
+					Properties: &opencost.AssetProperties{
 						ProviderID: "p2",
 					},
 				},
 			},
-			shouldNotMatch: []kubecost.Asset{
-				&kubecost.Node{
-					Properties: &kubecost.AssetProperties{
+			shouldNotMatch: []opencost.Asset{
+				&opencost.Node{
+					Properties: &opencost.AssetProperties{
 						ProviderID: "p3",
 					},
 				},
@@ -295,21 +295,21 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				ParamFilterProviderIDsV2: "p1,p2",
 			},
-			shouldMatch: []kubecost.Asset{
-				&kubecost.Disk{
-					Properties: &kubecost.AssetProperties{
+			shouldMatch: []opencost.Asset{
+				&opencost.Disk{
+					Properties: &opencost.AssetProperties{
 						ProviderID: "p1",
 					},
 				},
-				&kubecost.Network{
-					Properties: &kubecost.AssetProperties{
+				&opencost.Network{
+					Properties: &opencost.AssetProperties{
 						ProviderID: "p2",
 					},
 				},
 			},
-			shouldNotMatch: []kubecost.Asset{
-				&kubecost.Node{
-					Properties: &kubecost.AssetProperties{
+			shouldNotMatch: []opencost.Asset{
+				&opencost.Node{
+					Properties: &opencost.AssetProperties{
 						ProviderID: "p3",
 					},
 				},
@@ -320,21 +320,21 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				ParamFilterServices: "p1,p2",
 			},
-			shouldMatch: []kubecost.Asset{
-				&kubecost.Disk{
-					Properties: &kubecost.AssetProperties{
+			shouldMatch: []opencost.Asset{
+				&opencost.Disk{
+					Properties: &opencost.AssetProperties{
 						Service: "p1",
 					},
 				},
-				&kubecost.Network{
-					Properties: &kubecost.AssetProperties{
+				&opencost.Network{
+					Properties: &opencost.AssetProperties{
 						Service: "p2",
 					},
 				},
 			},
-			shouldNotMatch: []kubecost.Asset{
-				&kubecost.Node{
-					Properties: &kubecost.AssetProperties{
+			shouldNotMatch: []opencost.Asset{
+				&opencost.Node{
+					Properties: &opencost.AssetProperties{
 						Service: "p3",
 					},
 				},
@@ -345,22 +345,22 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				ParamFilterLabels: "foo:bar,baz:qux",
 			},
-			shouldMatch: []kubecost.Asset{
-				&kubecost.Disk{
-					Labels: kubecost.AssetLabels{
+			shouldMatch: []opencost.Asset{
+				&opencost.Disk{
+					Labels: opencost.AssetLabels{
 						"foo": "bar",
 						"baz": "other",
 					},
 				},
-				&kubecost.Node{
-					Labels: kubecost.AssetLabels{
+				&opencost.Node{
+					Labels: opencost.AssetLabels{
 						"baz": "qux",
 					},
 				},
 			},
-			shouldNotMatch: []kubecost.Asset{
-				&kubecost.ClusterManagement{
-					Labels: kubecost.AssetLabels{
+			shouldNotMatch: []opencost.Asset{
+				&opencost.ClusterManagement{
+					Labels: opencost.AssetLabels{
 						"baz": "other",
 					},
 				},
@@ -371,21 +371,21 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				ParamFilterRegions: "r1,r2",
 			},
-			shouldMatch: []kubecost.Asset{
-				&kubecost.Node{
-					Labels: kubecost.AssetLabels{
+			shouldMatch: []opencost.Asset{
+				&opencost.Node{
+					Labels: opencost.AssetLabels{
 						"label_topology_kubernetes_io_region": "r1",
 					},
 				},
-				&kubecost.Node{
-					Labels: kubecost.AssetLabels{
+				&opencost.Node{
+					Labels: opencost.AssetLabels{
 						"label_topology_kubernetes_io_region": "r2",
 					},
 				},
 			},
-			shouldNotMatch: []kubecost.Asset{
-				&kubecost.Node{
-					Labels: kubecost.AssetLabels{
+			shouldNotMatch: []opencost.Asset{
+				&opencost.Node{
+					Labels: opencost.AssetLabels{
 						"label_topology_kubernetes_io_region": "r3",
 					},
 				},
@@ -398,32 +398,32 @@ func TestAssetFiltersFromParamsV1(t *testing.T) {
 				ParamFilterTypes:    "node",
 				ParamFilterAccounts: "a*",
 			},
-			shouldMatch: []kubecost.Asset{
-				&kubecost.Node{
-					Labels: kubecost.AssetLabels{
+			shouldMatch: []opencost.Asset{
+				&opencost.Node{
+					Labels: opencost.AssetLabels{
 						"label_topology_kubernetes_io_region": "r1",
 					},
-					Properties: &kubecost.AssetProperties{
+					Properties: &opencost.AssetProperties{
 						Account: "a1",
 					},
 				},
-				&kubecost.Node{
-					Labels: kubecost.AssetLabels{
+				&opencost.Node{
+					Labels: opencost.AssetLabels{
 						"label_topology_kubernetes_io_region": "r2",
 					},
-					Properties: &kubecost.AssetProperties{
+					Properties: &opencost.AssetProperties{
 						Account: "a2",
 					},
 				},
 			},
-			shouldNotMatch: []kubecost.Asset{
-				&kubecost.Node{
-					Properties: &kubecost.AssetProperties{
+			shouldNotMatch: []opencost.Asset{
+				&opencost.Node{
+					Properties: &opencost.AssetProperties{
 						Account: "b1",
 					},
 				},
-				&kubecost.Node{
-					Properties: &kubecost.AssetProperties{
+				&opencost.Node{
+					Properties: &opencost.AssetProperties{
 						Account: "3a",
 					},
 				},

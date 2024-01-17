@@ -10,8 +10,8 @@ import (
 	prometheus "github.com/prometheus/client_golang/api"
 	"golang.org/x/exp/slices"
 
-	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/env"
@@ -159,7 +159,7 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 
 	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
-		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
+		return nil, fmt.Errorf("illegal duration value for %s", opencost.NewClosedWindow(start, end))
 	}
 	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
 	// value, converts it to a cumulative value; i.e.
@@ -254,7 +254,7 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 		diskMap[key].ClaimNamespace = claimNamespace
 	}
 
-	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo, provider, kubecost.NewClosedWindow(start, end))
+	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo, provider, opencost.NewClosedWindow(start, end))
 
 	for _, result := range resLocalStorageCost {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
@@ -281,7 +281,7 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 		diskMap[key].Cost += cost
 
 		//Assigning explicitly the storage class of local storage to local
-		diskMap[key].StorageClass = kubecost.LocalStorageClass
+		diskMap[key].StorageClass = opencost.LocalStorageClass
 	}
 
 	for _, result := range resLocalStorageUsedCost {
@@ -446,7 +446,7 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 		storageClass, err := result.GetString("storageclass")
 
 		if err != nil {
-			diskMap[key].StorageClass = kubecost.UnknownStorageClass
+			diskMap[key].StorageClass = opencost.UnknownStorageClass
 		} else {
 			diskMap[key].StorageClass = storageClass
 		}
@@ -563,7 +563,7 @@ func ClusterNodes(cp models.Provider, client prometheus.Client, start, end time.
 
 	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
-		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
+		return nil, fmt.Errorf("illegal duration value for %s", opencost.NewClosedWindow(start, end))
 	}
 
 	requiredCtx := prom.NewNamedContext(client, prom.ClusterContextName)
@@ -630,7 +630,7 @@ func ClusterNodes(cp models.Provider, client prometheus.Client, start, end time.
 		return nil, requiredCtx.ErrorCollection()
 	}
 
-	activeDataMap := buildActiveDataMap(resActiveMins, resolution, kubecost.NewClosedWindow(start, end))
+	activeDataMap := buildActiveDataMap(resActiveMins, resolution, opencost.NewClosedWindow(start, end))
 
 	gpuCountMap := buildGPUCountMap(resNodeGPUCount)
 	preemptibleMap := buildPreemptibleMap(resIsSpot)
@@ -738,7 +738,7 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 	// Query for the duration between start and end
 	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
-		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
+		return nil, fmt.Errorf("illegal duration value for %s", opencost.NewClosedWindow(start, end))
 	}
 
 	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
@@ -1343,7 +1343,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider models.Provider, start
 	}, nil
 }
 
-func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo []*prom.QueryResult, cp models.Provider, window kubecost.Window) {
+func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo []*prom.QueryResult, cp models.Provider, window opencost.Window) {
 	for _, result := range resActiveMins {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {

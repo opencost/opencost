@@ -4,11 +4,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/prom"
 )
@@ -528,7 +528,7 @@ type activeData struct {
 	minutes float64
 }
 
-func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Duration, window kubecost.Window) map[NodeIdentifier]activeData {
+func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Duration, window opencost.Window) map[NodeIdentifier]activeData {
 
 	m := make(map[NodeIdentifier]activeData)
 

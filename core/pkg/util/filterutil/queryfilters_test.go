@@ -4,11 +4,11 @@ import (
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/clusters"
-	"github.com/opencost/opencost/core/pkg/kubecost"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/mapper"
 )
 
-var allocCompiler = kubecost.NewAllocationMatchCompiler(nil)
+var allocCompiler = opencost.NewAllocationMatchCompiler(nil)
 
 type mockClusterMap struct {
 	m map[string]*clusters.ClusterInfo
@@ -38,8 +38,8 @@ func (mcp mockClusterMap) SplitNameID(nameID string) (string, string) {
 
 func (mcp mockClusterMap) StopRefresh() {}
 
-func allocGenerator(props kubecost.AllocationProperties) kubecost.Allocation {
-	a := kubecost.Allocation{
+func allocGenerator(props opencost.AllocationProperties) opencost.Allocation {
+	a := opencost.Allocation{
 		Properties: &props,
 	}
 
@@ -52,21 +52,21 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 	cases := []struct {
 		name           string
 		qp             map[string]string
-		shouldMatch    []kubecost.Allocation
-		shouldNotMatch []kubecost.Allocation
+		shouldMatch    []opencost.Allocation
+		shouldNotMatch []opencost.Allocation
 	}{
 		{
 			name: "single cluster ID",
 			qp: map[string]string{
 				"filterClusters": "cluster-one",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Cluster: "cluster-one",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Cluster: "foo",
 				}),
 			},
@@ -76,22 +76,22 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterClusters": "cluster*",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Cluster: "cluster-one",
 				}),
-				allocGenerator(kubecost.AllocationProperties{
+				allocGenerator(opencost.AllocationProperties{
 					Cluster: "cluster-two",
 				}),
-				allocGenerator(kubecost.AllocationProperties{
+				allocGenerator(opencost.AllocationProperties{
 					Cluster: "cluster",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Cluster: "foo",
 				}),
-				allocGenerator(kubecost.AllocationProperties{
+				allocGenerator(opencost.AllocationProperties{
 					Cluster: "cluste",
 				}),
 			},
@@ -101,13 +101,13 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterClusters": "cluster ABC",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Cluster: "mapped-cluster-ID-ABC",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Cluster: "cluster-one",
 				}),
 			},
@@ -117,13 +117,13 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterClusters": "cluster A*",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Cluster: "mapped-cluster-ID-ABC",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Cluster: "cluster-one",
 				}),
 			},
@@ -133,13 +133,13 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterNodes": "node-123-abc",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Node: "node-123-abc",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Node: "node-456-def",
 				}),
 			},
@@ -149,13 +149,13 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterNodes": "node-1*",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Node: "node-123-abc",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Node: "node-456-def",
 				}),
 			},
@@ -165,13 +165,13 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterNamespaces": "kubecost",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Namespace: "kubecost",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Namespace: "kubecost2",
 				}),
 			},
@@ -181,16 +181,16 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterNamespaces": "kube*",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Namespace: "kubecost",
 				}),
-				allocGenerator(kubecost.AllocationProperties{
+				allocGenerator(opencost.AllocationProperties{
 					Namespace: "kube-system",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Namespace: "kub",
 				}),
 			},
@@ -200,13 +200,13 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterControllerKinds": "deployment",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					ControllerKind: "deployment",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					ControllerKind: "daemonset",
 				}),
 			},
@@ -216,13 +216,13 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterControllerKinds": "depl*",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					ControllerKind: "deployment",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					ControllerKind: "daemonset",
 				}),
 			},
@@ -232,13 +232,13 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterControllers": "kubecost-cost-analyzer",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Controller: "kubecost-cost-analyzer",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Controller: "kube-proxy",
 				}),
 			},
@@ -248,16 +248,16 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterControllers": "kubecost-*",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Controller: "kubecost-cost-analyzer",
 				}),
-				allocGenerator(kubecost.AllocationProperties{
+				allocGenerator(opencost.AllocationProperties{
 					Controller: "kubecost-frontend",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Controller: "kube-proxy",
 				}),
 			},
@@ -267,14 +267,14 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterControllers": "deployment:kubecost-cost-analyzer",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					ControllerKind: "deployment",
 					Controller:     "kubecost-cost-analyzer",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					ControllerKind: "daemonset",
 					Controller:     "kubecost-cost-analyzer",
 				}),
@@ -285,18 +285,18 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterControllers": "deployment:kubecost*",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					ControllerKind: "deployment",
 					Controller:     "kubecost-cost-analyzer",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					ControllerKind: "daemonset",
 					Controller:     "kubecost-cost-analyzer",
 				}),
-				allocGenerator(kubecost.AllocationProperties{
+				allocGenerator(opencost.AllocationProperties{
 					ControllerKind: "deployment",
 					Controller:     "kube-system",
 				}),
@@ -307,13 +307,13 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterPods": "pod-123-abc",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Pod: "pod-123-abc",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Pod: "pod-456-def",
 				}),
 			},
@@ -323,13 +323,13 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterPods": "pod-1*",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Pod: "pod-123-abc",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Pod: "pod-456-def",
 				}),
 			},
@@ -339,13 +339,13 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterContainers": "container-123-abc",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Container: "container-123-abc",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Container: "container-456-def",
 				}),
 			},
@@ -355,13 +355,13 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterContainers": "container-1*",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Container: "container-123-abc",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Container: "container-456-def",
 				}),
 			},
@@ -371,15 +371,15 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterDepartments": "pa-1",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Labels: map[string]string{
 						"internal_product_umbrella": "pa-1",
 					},
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Labels: map[string]string{
 						"internal_product_umbrella": "ps-N",
 					},
@@ -391,16 +391,16 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterDepartments": "pa-1",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Annotations: map[string]string{
 						"internal_product_umbrella": "pa-1",
 					},
 				}),
 			},
 			// should find labels first and fail
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Labels: map[string]string{
 						"internal_product_umbrella": "ps-N",
 					},
@@ -415,15 +415,15 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterDepartments": "pa*",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Labels: map[string]string{
 						"internal_product_umbrella": "pa-1",
 					},
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Labels: map[string]string{
 						"internal_product_umbrella": "ps-N",
 					},
@@ -435,20 +435,20 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterLabels": "app-a:cost-analyzer",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Labels: map[string]string{
 						"app_a": "cost-analyzer",
 					},
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Labels: map[string]string{
 						"app_a": "foo",
 					},
 				}),
-				allocGenerator(kubecost.AllocationProperties{
+				allocGenerator(opencost.AllocationProperties{
 					Labels: map[string]string{
 						"foo": "bar",
 					},
@@ -460,20 +460,20 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterLabels": "app:cost-*",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Labels: map[string]string{
 						"app": "cost-analyzer",
 					},
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Labels: map[string]string{
 						"app": "foo",
 					},
 				}),
-				allocGenerator(kubecost.AllocationProperties{
+				allocGenerator(opencost.AllocationProperties{
 					Labels: map[string]string{
 						"foo": "bar",
 					},
@@ -485,20 +485,20 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterAnnotations": "app:cost-analyzer",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Annotations: map[string]string{
 						"app": "cost-analyzer",
 					},
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Annotations: map[string]string{
 						"app": "foo",
 					},
 				}),
-				allocGenerator(kubecost.AllocationProperties{
+				allocGenerator(opencost.AllocationProperties{
 					Annotations: map[string]string{
 						"foo": "bar",
 					},
@@ -510,20 +510,20 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterAnnotations": "app:cost-*",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Annotations: map[string]string{
 						"app": "cost-analyzer",
 					},
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Annotations: map[string]string{
 						"app": "foo",
 					},
 				}),
-				allocGenerator(kubecost.AllocationProperties{
+				allocGenerator(opencost.AllocationProperties{
 					Annotations: map[string]string{
 						"foo": "bar",
 					},
@@ -535,14 +535,14 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterServices": "serv1",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Services: []string{"serv1"},
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{}),
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{}),
+				allocGenerator(opencost.AllocationProperties{
 					Services: []string{"serv2"},
 				}),
 			},
@@ -552,17 +552,17 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterServices": "serv1,serv3",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Services: []string{"serv1"},
 				}),
-				allocGenerator(kubecost.AllocationProperties{
+				allocGenerator(opencost.AllocationProperties{
 					Services: []string{"serv2", "serv3"},
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{}),
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{}),
+				allocGenerator(opencost.AllocationProperties{
 					Services: []string{"serv2"},
 				}),
 			},
@@ -572,17 +572,17 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterServices": "serv*",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Services: []string{"serv1"},
 				}),
-				allocGenerator(kubecost.AllocationProperties{
+				allocGenerator(opencost.AllocationProperties{
 					Services: []string{"serv2"},
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{}),
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{}),
+				allocGenerator(opencost.AllocationProperties{
 					Services: []string{"foo"},
 				}),
 			},
@@ -593,42 +593,42 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 				"filterNamespaces": "kube-system,kubecost",
 				"filterLabels":     "app:cost-analyzer,app:kube-proxy,foo:bar",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Namespace: "kubecost",
 					Labels: map[string]string{
 						"app": "cost-analyzer",
 					},
 				}),
-				allocGenerator(kubecost.AllocationProperties{
+				allocGenerator(opencost.AllocationProperties{
 					Namespace: "kubecost",
 					Labels: map[string]string{
 						"foo": "bar",
 					},
 				}),
-				allocGenerator(kubecost.AllocationProperties{
+				allocGenerator(opencost.AllocationProperties{
 					Namespace: "kube-system",
 					Labels: map[string]string{
 						"app": "kube-proxy",
 					},
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Namespace: "kubecost",
 				}),
-				allocGenerator(kubecost.AllocationProperties{
+				allocGenerator(opencost.AllocationProperties{
 					Namespace: "kubecost",
 					Labels: map[string]string{
 						"app": "something",
 					},
 				}),
-				allocGenerator(kubecost.AllocationProperties{
+				allocGenerator(opencost.AllocationProperties{
 					Labels: map[string]string{
 						"app": "foo",
 					},
 				}),
-				allocGenerator(kubecost.AllocationProperties{
+				allocGenerator(opencost.AllocationProperties{
 					Labels: map[string]string{
 						"foo": "bar",
 					},
@@ -640,16 +640,16 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterClusters": "cluster ABC,cluster-one",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Cluster: "mapped-cluster-ID-ABC",
 				}),
-				allocGenerator(kubecost.AllocationProperties{
+				allocGenerator(opencost.AllocationProperties{
 					Cluster: "cluster-one",
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
 					Cluster: "cluster",
 				}),
 			},
@@ -659,48 +659,48 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			qp: map[string]string{
 				"filterOwners": "nick",
 			},
-			shouldMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
-					Labels: kubecost.AllocationLabels{
+			shouldMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
+					Labels: opencost.AllocationLabels{
 						"testowner": "nick",
 					},
 				}),
-				allocGenerator(kubecost.AllocationProperties{
-					Annotations: kubecost.AllocationAnnotations{
+				allocGenerator(opencost.AllocationProperties{
+					Annotations: opencost.AllocationAnnotations{
 						"testowner": "nick",
 					},
 				}),
-				allocGenerator(kubecost.AllocationProperties{
-					Labels: kubecost.AllocationLabels{
+				allocGenerator(opencost.AllocationProperties{
+					Labels: opencost.AllocationLabels{
 						"testowner": "nick",
 					},
-					Annotations: kubecost.AllocationAnnotations{
+					Annotations: opencost.AllocationAnnotations{
 						"dontpick": "notnick",
 					},
 				}),
-				allocGenerator(kubecost.AllocationProperties{
-					Labels: kubecost.AllocationLabels{
+				allocGenerator(opencost.AllocationProperties{
+					Labels: opencost.AllocationLabels{
 						"dontpick": "notnick",
 					},
-					Annotations: kubecost.AllocationAnnotations{
+					Annotations: opencost.AllocationAnnotations{
 						"testowner": "nick",
 					},
 				}),
 			},
-			shouldNotMatch: []kubecost.Allocation{
-				allocGenerator(kubecost.AllocationProperties{
-					Labels: kubecost.AllocationLabels{
+			shouldNotMatch: []opencost.Allocation{
+				allocGenerator(opencost.AllocationProperties{
+					Labels: opencost.AllocationLabels{
 						"dontpick": "notnick",
 					},
-					Annotations: kubecost.AllocationAnnotations{
+					Annotations: opencost.AllocationAnnotations{
 						"dontpick": "notnick",
 					},
 				}),
-				allocGenerator(kubecost.AllocationProperties{
-					Labels: kubecost.AllocationLabels{
+				allocGenerator(opencost.AllocationProperties{
+					Labels: opencost.AllocationLabels{
 						"testowner": "notnick",
 					},
-					Annotations: kubecost.AllocationAnnotations{
+					Annotations: opencost.AllocationAnnotations{
 						"testowner": "nick",
 					},
 				}),
@@ -718,7 +718,7 @@ func TestAllocationFiltersFromParamsV1(t *testing.T) {
 			}
 			qpMapper := mapper.NewMapper(qpMap)
 
-			labelConfig := kubecost.LabelConfig{}
+			labelConfig := opencost.LabelConfig{}
 			labelConfig.DepartmentLabel = "internal-product-umbrella"
 			labelConfig.OwnerLabel = "testowner"
 

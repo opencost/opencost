@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 )
 
 // RepositoryQuerier is an implementation of Querier and ViewQuerier which pulls directly from a Repository
@@ -18,21 +18,21 @@ func NewRepositoryQuerier(repo Repository) *RepositoryQuerier {
 	return &RepositoryQuerier{repo: repo}
 }
 
-func (rq *RepositoryQuerier) Query(request QueryRequest, ctx context.Context) (*kubecost.CloudCostSetRange, error) {
+func (rq *RepositoryQuerier) Query(request QueryRequest, ctx context.Context) (*opencost.CloudCostSetRange, error) {
 	repoKeys, err := rq.repo.Keys()
 	if err != nil {
 		return nil, fmt.Errorf("RepositoryQuerier: Query: failed to get list of keys from repository: %w", err)
 	}
 
 	// create filter
-	compiler := kubecost.NewCloudCostMatchCompiler()
+	compiler := opencost.NewCloudCostMatchCompiler()
 	matcher, err := compiler.Compile(request.Filter)
 	if err != nil {
 		return nil, fmt.Errorf("RepositoryQuerier: Query: failed to compile filters: %w", err)
 	}
 
 	// Create a Cloud Cost Set Range in the resolution of the repository
-	ccsr, err := kubecost.NewCloudCostSetRange(request.Start, request.End, kubecost.AccumulateOptionDay, "")
+	ccsr, err := opencost.NewCloudCostSetRange(request.Start, request.End, opencost.AccumulateOptionDay, "")
 	if err != nil {
 		return nil, fmt.Errorf("RepositoryQuerier: Query: failed to create Cloud Cost Set Range: %w", err)
 	}
@@ -57,7 +57,7 @@ func (rq *RepositoryQuerier) Query(request QueryRequest, ctx context.Context) (*
 		}
 	}
 
-	if request.Accumulate != kubecost.AccumulateOptionNone {
+	if request.Accumulate != opencost.AccumulateOptionNone {
 		ccsr, err = ccsr.Accumulate(request.Accumulate)
 		if err != nil {
 			return nil, fmt.Errorf("RepositoryQuerier: Query: error accumulating: %w", err)

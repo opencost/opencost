@@ -21,8 +21,8 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 
-	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/fileutil"
 	"github.com/opencost/opencost/core/pkg/util/json"
@@ -1472,7 +1472,7 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 	if c.ClusterName != "" {
 		m["name"] = c.ClusterName
 	}
-	m["provider"] = kubecost.AzureProvider
+	m["provider"] = opencost.AzureProvider
 	m["account"] = az.ClusterAccountID
 	m["region"] = az.ClusterRegion
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)

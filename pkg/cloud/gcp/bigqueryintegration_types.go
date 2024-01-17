@@ -6,14 +6,14 @@ import (
 	"time"
 
 	"cloud.google.com/go/bigquery"
-	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
 
 type CloudCostLoader struct {
-	CloudCost        *kubecost.CloudCost
+	CloudCost        *opencost.CloudCost
 	FlexibleCUDRates map[time.Time]FlexibleCUDRates
 }
 
@@ -21,10 +21,10 @@ type CloudCostLoader struct {
 func (ccl *CloudCostLoader) Load(values []bigquery.Value, schema bigquery.Schema) error {
 
 	// Create Cloud Cost Properties
-	properties := kubecost.CloudCostProperties{
-		Provider: kubecost.GCPProvider,
+	properties := opencost.CloudCostProperties{
+		Provider: opencost.GCPProvider,
 	}
-	var window kubecost.Window
+	var window opencost.Window
 	var description string
 	var cost float64
 	var listCost float64
@@ -53,7 +53,7 @@ func (ccl *CloudCostLoader) Load(values []bigquery.Value, schema bigquery.Schema
 			// start and end will be the day that the usage occurred on
 			s := usageDate
 			e := s.Add(timeutil.Day)
-			window = kubecost.NewClosedWindow(s, e)
+			window = opencost.NewClosedWindow(s, e)
 		case BillingAccountIDColumnName:
 			invoiceEntityID, ok := values[i].(string)
 			if !ok {
@@ -217,26 +217,26 @@ func (ccl *CloudCostLoader) Load(values []bigquery.Value, schema bigquery.Schema
 		k8sPercent = 1.0
 	}
 
-	ccl.CloudCost = &kubecost.CloudCost{
+	ccl.CloudCost = &opencost.CloudCost{
 		Properties: &properties,
 		Window:     window,
-		ListCost: kubecost.CostMetric{
+		ListCost: opencost.CostMetric{
 			Cost:              listCost,
 			KubernetesPercent: k8sPercent,
 		},
-		AmortizedCost: kubecost.CostMetric{
+		AmortizedCost: opencost.CostMetric{
 			Cost:              amortizedCost,
 			KubernetesPercent: k8sPercent,
 		},
-		AmortizedNetCost: kubecost.CostMetric{
+		AmortizedNetCost: opencost.CostMetric{
 			Cost:              amortizedNetCost,
 			KubernetesPercent: k8sPercent,
 		},
-		InvoicedCost: kubecost.CostMetric{
+		InvoicedCost: opencost.CostMetric{
 			Cost:              invoicedCost,
 			KubernetesPercent: k8sPercent,
 		},
-		NetCost: kubecost.CostMetric{
+		NetCost: opencost.CostMetric{
 			Cost:              netCost,
 			KubernetesPercent: k8sPercent,
 		},

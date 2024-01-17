@@ -17,12 +17,12 @@ import (
 	"time"
 
 	"github.com/aws/smithy-go"
-	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 
 	"github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/fileutil"
 	"github.com/opencost/opencost/core/pkg/util/json"
@@ -1483,7 +1483,7 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 
 	m := make(map[string]string)
 	m["name"] = clusterName
-	m["provider"] = kubecost.AWSProvider
+	m["provider"] = opencost.AWSProvider
 	m["account"] = clusterAccountID
 	m["region"] = awsProvider.ClusterRegion
 	m["id"] = ocenv.GetClusterID()

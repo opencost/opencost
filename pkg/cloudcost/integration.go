@@ -3,7 +3,7 @@ package cloudcost
 import (
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/kubecost"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/alibaba"
 	"github.com/opencost/opencost/pkg/cloud/aws"
@@ -13,7 +13,7 @@ import (
 
 // CloudCostIntegration is an interface for retrieving daily granularity CloudCost data for a given range
 type CloudCostIntegration interface {
-	GetCloudCost(time.Time, time.Time) (*kubecost.CloudCostSetRange, error)
+	GetCloudCost(time.Time, time.Time) (*opencost.CloudCostSetRange, error)
 	GetStatus() cloud.ConnectionStatus
 }
 

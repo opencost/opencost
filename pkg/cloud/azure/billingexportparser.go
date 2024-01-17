@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/json"
 )
 
@@ -32,19 +32,19 @@ type BillingRowValues struct {
 }
 
 func (brv *BillingRowValues) IsCompute(category string) bool {
-	if category == kubecost.ComputeCategory {
+	if category == opencost.ComputeCategory {
 		return true
 	}
 
-	if category == kubecost.StorageCategory || category == kubecost.NetworkCategory {
+	if category == opencost.StorageCategory || category == opencost.NetworkCategory {
 		if brv.Service == "Microsoft.Compute" {
 			return true
 		}
 	}
-	if category == kubecost.NetworkCategory && brv.MeterCategory == "Virtual Network" {
+	if category == opencost.NetworkCategory && brv.MeterCategory == "Virtual Network" {
 		return true
 	}
-	if category == kubecost.NetworkCategory && brv.MeterCategory == "Bandwidth" {
+	if category == opencost.NetworkCategory && brv.MeterCategory == "Bandwidth" {
 		return true
 	}
 	return false
@@ -270,7 +270,7 @@ func AzureSetProviderID(abv *BillingRowValues) (providerID string, isVMSSShared 
 		return fmt.Sprintf("%v", value2), false
 	}
 
-	if category == kubecost.StorageCategory || (category == kubecost.NetworkCategory && abv.MeterCategory == "Bandwidth") {
+	if category == opencost.StorageCategory || (category == opencost.NetworkCategory && abv.MeterCategory == "Bandwidth") {
 		if value2, ok2 := abv.Tags["creationSource"]; ok2 {
 			creationSource := fmt.Sprintf("%v", value2)
 			return strings.TrimPrefix(creationSource, "aks-"), true
@@ -286,13 +286,13 @@ func AzureSetProviderID(abv *BillingRowValues) (providerID string, isVMSSShared 
 
 func SelectAzureCategory(meterCategory string) string {
 	if meterCategory == "Virtual Machines" {
-		return kubecost.ComputeCategory
+		return opencost.ComputeCategory
 	} else if meterCategory == "Storage" {
-		return kubecost.StorageCategory
+		return opencost.StorageCategory
 	} else if meterCategory == "Load Balancer" || meterCategory == "Bandwidth" || meterCategory == "Virtual Network" {
-		return kubecost.NetworkCategory
+		return opencost.NetworkCategory
 	} else {
-		return kubecost.OtherCategory
+		return opencost.OtherCategory
 	}
 }
 

@@ -7,15 +7,15 @@ package legacy_test
 // )
 
 // type windowedImpl struct {
-// 	kubecost.Window
+// 	opencost.Window
 // }
 
-// func (w *windowedImpl) GetWindow() kubecost.Window {
+// func (w *windowedImpl) GetWindow() opencost.Window {
 // 	return w.Window
 // }
 
 // func newWindowedImpl(start, end *time.Time) *windowedImpl {
-// 	return &windowedImpl{kubecost.NewWindow(start, end)}
+// 	return &windowedImpl{opencost.NewWindow(start, end)}
 // }
 
 // func Test_WindowContains_Matches(t *testing.T) {
@@ -31,7 +31,7 @@ package legacy_test
 // 		"fully contains": {
 // 			windowed: newWindowedImpl(&one, &two),
 // 			filter: WindowCondition[*windowedImpl]{
-// 				Window: kubecost.NewWindow(&noon, &three),
+// 				Window: opencost.NewWindow(&noon, &three),
 // 				Op:     WindowContains,
 // 			},
 
@@ -40,7 +40,7 @@ package legacy_test
 // 		"window matches": {
 // 			windowed: newWindowedImpl(&one, &two),
 // 			filter: WindowCondition[*windowedImpl]{
-// 				Window: kubecost.NewWindow(&one, &two),
+// 				Window: opencost.NewWindow(&one, &two),
 // 				Op:     WindowContains,
 // 			},
 
@@ -49,7 +49,7 @@ package legacy_test
 // 		"contains start": {
 // 			windowed: newWindowedImpl(&one, &three),
 // 			filter: WindowCondition[*windowedImpl]{
-// 				Window: kubecost.NewWindow(&noon, &two),
+// 				Window: opencost.NewWindow(&noon, &two),
 // 				Op:     WindowContains,
 // 			},
 
@@ -58,7 +58,7 @@ package legacy_test
 // 		"contains end": {
 // 			windowed: newWindowedImpl(&noon, &two),
 // 			filter: WindowCondition[*windowedImpl]{
-// 				Window: kubecost.NewWindow(&one, &three),
+// 				Window: opencost.NewWindow(&one, &three),
 // 				Op:     WindowContains,
 // 			},
 
@@ -67,7 +67,7 @@ package legacy_test
 // 		"window start = filter end": {
 // 			windowed: newWindowedImpl(&one, &two),
 // 			filter: WindowCondition[*windowedImpl]{
-// 				Window: kubecost.NewWindow(&noon, &one),
+// 				Window: opencost.NewWindow(&noon, &one),
 // 				Op:     WindowContains,
 // 			},
 
@@ -76,7 +76,7 @@ package legacy_test
 // 		"window end = filter start": {
 // 			windowed: newWindowedImpl(&noon, &one),
 // 			filter: WindowCondition[*windowedImpl]{
-// 				Window: kubecost.NewWindow(&one, &two),
+// 				Window: opencost.NewWindow(&one, &two),
 // 				Op:     WindowContains,
 // 			},
 
@@ -85,7 +85,7 @@ package legacy_test
 // 		"window before": {
 // 			windowed: newWindowedImpl(&noon, &one),
 // 			filter: WindowCondition[*windowedImpl]{
-// 				Window: kubecost.NewWindow(&two, &three),
+// 				Window: opencost.NewWindow(&two, &three),
 // 				Op:     WindowContains,
 // 			},
 
@@ -94,7 +94,7 @@ package legacy_test
 // 		"window after": {
 // 			windowed: newWindowedImpl(&two, &three),
 // 			filter: WindowCondition[*windowedImpl]{
-// 				Window: kubecost.NewWindow(&noon, &one),
+// 				Window: opencost.NewWindow(&noon, &one),
 // 				Op:     WindowContains,
 // 			},
 

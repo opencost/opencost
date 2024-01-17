@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/opencost/opencost/core/pkg/kubecost"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	proto "github.com/opencost/opencost/core/pkg/protocol"
 	cloudconfig "github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/config"
@@ -138,9 +138,9 @@ func (s *PipelineService) GetCloudCostRepairHandler() func(w http.ResponseWriter
 
 		windowStr := r.URL.Query().Get("window")
 
-		var window kubecost.Window
+		var window opencost.Window
 		if windowStr != "" {
-			win, err := kubecost.ParseWindowWithOffset(windowStr, env.GetParsedUTCOffset())
+			win, err := opencost.ParseWindowWithOffset(windowStr, env.GetParsedUTCOffset())
 			if err != nil {
 				http.Error(w, fmt.Sprintf("Invalid parameter: %s", err), http.StatusBadRequest)
 				return

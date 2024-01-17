@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud/models"
@@ -146,7 +146,7 @@ func (cp *CustomProvider) ClusterInfo() (map[string]string, error) {
 	if conf.ClusterName != "" {
 		m["name"] = conf.ClusterName
 	}
-	m["provider"] = kubecost.CustomProvider
+	m["provider"] = opencost.CustomProvider
 	m["region"] = cp.ClusterRegion
 	m["account"] = cp.ClusterAccountID
 	m["id"] = env.GetClusterID()

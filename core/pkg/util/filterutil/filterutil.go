@@ -4,8 +4,8 @@ import (
 	"strings"
 
 	"github.com/opencost/opencost/core/pkg/clusters"
-	"github.com/opencost/opencost/core/pkg/kubecost"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/mapper"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/core/pkg/util/typeutil"
@@ -66,7 +66,7 @@ func DefaultFieldByName[T ~string](field T) *ast.Field {
 // of `clusterID = "foo" OR clusterName = "foo"`.
 func AllocationFilterFromParamsV1(
 	params AllocationFilterV1,
-	labelConfig *kubecost.LabelConfig,
+	labelConfig *opencost.LabelConfig,
 	clusterMap clusters.ClusterMap,
 ) filter.Filter {
 
