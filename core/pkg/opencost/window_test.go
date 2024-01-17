@@ -672,13 +672,17 @@ func TestWindow_DurationOffsetForPrometheus(t *testing.T) {
 	}
 
 	dur, off, err := w.DurationOffsetForPrometheus()
-	expDur := int(now.Sub(startOfToday).Seconds())
-	expDurStr := fmt.Sprintf("%ds", expDur)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	if dur != expDurStr {
-		t.Fatalf(`expect: window to be "%s"; actual: "%s"`, expDurStr, dur)
+	// We can get a response in seconds OR minutes. Check seconds first as it
+	// is higher resolution.
+	expDurSec := int(now.Sub(startOfToday).Seconds())
+	expDurSecStr := fmt.Sprintf("%ds", expDurSec)
+	expDurMin := int(now.Sub(startOfToday).Minutes())
+	expDurMinStr := fmt.Sprintf("%dm", expDurMin)
+	if dur != expDurSecStr && dur != expDurMinStr {
+		t.Fatalf(`expect: window to be "%s" (or "%s"); actual: "%s"`, expDurSecStr, expDurMinStr, dur)
 	}
 	if off != "" {
 		t.Fatalf(`expect: offset to be ""; actual: "%s"`, off)
