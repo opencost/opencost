@@ -317,17 +317,6 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 		log.Warnf("ComputeCostData: continuing despite error parsing normalization values from %s: %s", queryNormalization, err.Error())
 	}
 
-	// Determine if there are vgpus configured and if so get the total allocatable number
-	// If there are no vgpus, the coefficient is set to 1.0
-	vgpuCount, err := getAllocatableVGPUs(cm.Cache)
-	if err != nil {
-		log.Warnf("getAllocatableVGCPUs error: %s", err.Error())
-	}
-	vgpuCoeff := 10.0
-	if vgpuCount > 0.0 {
-		vgpuCoeff = vgpuCount
-	}
-
 	nodes, err := cm.GetNodeCost(cp)
 	if err != nil {
 		log.Warnf("GetNodeCost: no node cost model available: " + err.Error())
@@ -515,10 +504,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				} else if g, ok := container.Resources.Limits["nvidia.com/gpu"]; ok {
 					gpuReqCount = g.AsApproximateFloat64()
 				} else if g, ok := container.Resources.Requests["k8s.amazonaws.com/vgpu"]; ok {
-					// divide vgpu request/limits by total vgpus to get the portion of physical gpus requested
-					gpuReqCount = g.AsApproximateFloat64() / vgpuCoeff
+					gpuReqCount = g.AsApproximateFloat64()
 				} else if g, ok := container.Resources.Limits["k8s.amazonaws.com/vgpu"]; ok {
-					gpuReqCount = g.AsApproximateFloat64() / vgpuCoeff
+					gpuReqCount = g.AsApproximateFloat64()
 				}
 				GPUReqV := []*util.Vector{
 					{
@@ -1092,16 +1080,32 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		// not all providers are guaranteed to use this, so don't overwrite a Provider assignment if we can't find something under that capacity exists
 		gpuc := 0.0
 		q, ok := n.Status.Capacity["nvidia.com/gpu"]
-		if ok {
+		_, hasReplicas := n.Labels["nvidia.com/gpu.replicas"]
+
+		if ok && !hasReplicas {
 			gpuCount := q.Value()
 			if gpuCount != 0 {
 				newCnode.GPU = fmt.Sprintf("%d", gpuCount)
+				newCnode.VGPU = newCnode.GPU
 				gpuc = float64(gpuCount)
 			}
+		} else if hasReplicas { // See https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html
+			if q.Value() == 0 {
+				q = n.Status.Capacity["nvidia.com/gpu.shared"]
+			}
+			g, ok := n.Labels["nvidia.com/gpu.count"]
+			if ok {
+				newCnode.GPU = g
+			} else {
+				newCnode.GPU = fmt.Sprintf("%d", 0)
+			}
+			newCnode.VGPU = fmt.Sprintf("%d", q.Value())
+
 		} else if g, ok := n.Status.Capacity["k8s.amazonaws.com/vgpu"]; ok {
 			gpuCount := g.Value()
 			if gpuCount != 0 {
 				newCnode.GPU = fmt.Sprintf("%d", int(float64(gpuCount)/vgpuCoeff))
+				newCnode.VGPU = fmt.Sprintf("%d", gpuCount)
 				gpuc = float64(gpuCount) / vgpuCoeff
 			}
 		} else {
