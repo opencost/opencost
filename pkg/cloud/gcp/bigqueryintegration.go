@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"google.golang.org/api/iterator"
 )
 
@@ -32,7 +32,7 @@ const (
 const BiqQueryWherePartitionFmt = `DATE(_PARTITIONTIME) >= "%s" AND DATE(_PARTITIONTIME) < "%s"`
 const BiqQueryWhereDateFmt = `usage_start_time >= "%s" AND usage_start_time < "%s"`
 
-func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*kubecost.CloudCostSetRange, error) {
+func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*opencost.CloudCostSetRange, error) {
 	cudRates, err := bqi.GetFlexibleCUDRates(start, end)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving CUD rates: %w", err)
@@ -79,7 +79,7 @@ func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*k
 
 	// Perform Query and parse values
 
-	ccsr, err := kubecost.NewCloudCostSetRange(start, end, kubecost.AccumulateOptionDay, bqi.Key())
+	ccsr, err := opencost.NewCloudCostSetRange(start, end, opencost.AccumulateOptionDay, bqi.Key())
 	if err != nil {
 		return ccsr, fmt.Errorf("error creating new CloudCostSetRange: %s", err)
 	}
