@@ -1,8 +1,8 @@
 package metrics
 
 import (
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/pkg/clustercache"
-	"github.com/opencost/opencost/pkg/prom"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -41,7 +41,7 @@ func (nsac KubecostNamespaceCollector) Collect(ch chan<- prometheus.Metric) {
 	for _, namespace := range namespaces {
 		nsName := namespace.GetName()
 
-		labels, values := prom.KubeAnnotationsToLabels(namespace.Annotations)
+		labels, values := promutil.KubeAnnotationsToLabels(namespace.Annotations)
 		if len(labels) > 0 {
 			m := newNamespaceAnnotationsMetric("kube_namespace_annotations", nsName, labels, values)
 			ch <- m
@@ -139,7 +139,7 @@ func (nsac KubeNamespaceCollector) Collect(ch chan<- prometheus.Metric) {
 	for _, namespace := range namespaces {
 		nsName := namespace.GetName()
 
-		labels, values := prom.KubeLabelsToLabels(prom.SanitizeLabels(namespace.Labels))
+		labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(namespace.Labels))
 		if len(labels) > 0 {
 			m := newNamespaceAnnotationsMetric("kube_namespace_labels", nsName, labels, values)
 			ch <- m

@@ -9,14 +9,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/clusters"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/clustercache"
-	"github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/prom"
-	"github.com/opencost/opencost/pkg/util"
 	prometheus "github.com/prometheus/client_golang/api"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	v1 "k8s.io/api/core/v1"
@@ -1653,7 +1654,7 @@ func floorMultiple(value int64, multiple int64) int64 {
 
 // Attempt to create a key for the request. Reduce the times to minutes in order to more easily group requests based on
 // real time ranges. If for any reason, the key generation fails, return a uuid to ensure uniqueness.
-func requestKeyFor(window kubecost.Window, resolution time.Duration, filterNamespace string, filterCluster string, remoteEnabled bool) string {
+func requestKeyFor(window opencost.Window, resolution time.Duration, filterNamespace string, filterCluster string, remoteEnabled bool) string {
 	keyLayout := "2006-01-02T15:04Z"
 
 	// We "snap" start time and duration to their closest 5 min multiple less than itself, by
@@ -1675,7 +1676,7 @@ func requestKeyFor(window kubecost.Window, resolution time.Duration, filterNames
 
 // ComputeCostDataRange executes a range query for cost data.
 // Note that "offset" represents the time between the function call and "endString", and is also passed for convenience
-func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window kubecost.Window, resolution time.Duration, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
+func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window opencost.Window, resolution time.Duration, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
 	// Create a request key for request grouping. This key will be used to represent the cost-model result
 	// for the specific inputs to prevent multiple queries for identical data.
 	key := requestKeyFor(window, resolution, filterNamespace, filterCluster, remoteEnabled)
@@ -1696,7 +1697,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, cp costAn
 	return data, err
 }
 
-func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window kubecost.Window, resolution time.Duration, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
+func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window opencost.Window, resolution time.Duration, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
 	clusterID := env.GetClusterID()
 
 	// durHrs := end.Sub(start).Hours() + 1
@@ -2310,7 +2311,7 @@ func getNamespaceLabels(cache clustercache.ClusterCache, clusterID string) (map[
 	for _, ns := range nss {
 		labels := make(map[string]string)
 		for k, v := range ns.Labels {
-			labels[prom.SanitizeLabelName(k)] = v
+			labels[promutil.SanitizeLabelName(k)] = v
 		}
 		nsToLabels[ns.Name+","+clusterID] = labels
 	}
@@ -2323,7 +2324,7 @@ func getNamespaceAnnotations(cache clustercache.ClusterCache, clusterID string) 
 	for _, ns := range nss {
 		annotations := make(map[string]string)
 		for k, v := range ns.Annotations {
-			annotations[prom.SanitizeLabelName(k)] = v
+			annotations[promutil.SanitizeLabelName(k)] = v
 		}
 		nsToAnnotations[ns.Name+","+clusterID] = annotations
 	}
@@ -2407,23 +2408,23 @@ func measureTimeAsync(start time.Time, threshold time.Duration, name string, ch 
 	}
 }
 
-func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer bool, accumulateBy kubecost.AccumulateOption) (*kubecost.AllocationSetRange, error) {
+func (cm *CostModel) QueryAllocation(window opencost.Window, resolution, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer bool, accumulateBy opencost.AccumulateOption) (*opencost.AllocationSetRange, error) {
 	// Validate window is legal
 	if window.IsOpen() || window.IsNegative() {
 		return nil, fmt.Errorf("illegal window: %s", window)
 	}
 
-	var totalsStore kubecost.TotalsStore
+	var totalsStore opencost.TotalsStore
 	// Idle is required for proportional asset costs
 	if includeProportionalAssetResourceCosts {
 		if !includeIdle {
 			return nil, errors.New("bad request - includeIdle must be set true if includeProportionalAssetResourceCosts is true")
 		}
-		totalsStore = kubecost.NewMemoryTotalsStore()
+		totalsStore = opencost.NewMemoryTotalsStore()
 	}
 
 	// Begin with empty response
-	asr := kubecost.NewAllocationSetRange()
+	asr := opencost.NewAllocationSetRange()
 
 	// Query for AllocationSets in increments of the given step duration,
 	// appending each to the response.
@@ -2433,13 +2434,13 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 	for window.End().After(stepStart) {
 		allocSet, err := cm.ComputeAllocation(stepStart, stepEnd, resolution)
 		if err != nil {
-			return nil, fmt.Errorf("error computing allocations for %s: %w", kubecost.NewClosedWindow(stepStart, stepEnd), err)
+			return nil, fmt.Errorf("error computing allocations for %s: %w", opencost.NewClosedWindow(stepStart, stepEnd), err)
 		}
 
 		if includeIdle {
 			assetSet, err := cm.ComputeAssets(stepStart, stepEnd)
 			if err != nil {
-				return nil, fmt.Errorf("error computing assets for %s: %w", kubecost.NewClosedWindow(stepStart, stepEnd), err)
+				return nil, fmt.Errorf("error computing assets for %s: %w", opencost.NewClosedWindow(stepStart, stepEnd), err)
 			}
 
 			if includeProportionalAssetResourceCosts {
@@ -2455,7 +2456,7 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 					}
 				}
 
-				_, err := kubecost.UpdateAssetTotalsStore(totalsStore, assetSet)
+				_, err := opencost.UpdateAssetTotalsStore(totalsStore, assetSet)
 				if err != nil {
 					log.Errorf("ETL: error updating asset resource totals for %s: %s", assetSet.Window, err)
 				}
@@ -2463,7 +2464,7 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 
 			idleSet, err := computeIdleAllocations(allocSet, assetSet, true)
 			if err != nil {
-				return nil, fmt.Errorf("error computing idle allocations for %s: %w", kubecost.NewClosedWindow(stepStart, stepEnd), err)
+				return nil, fmt.Errorf("error computing idle allocations for %s: %w", opencost.NewClosedWindow(stepStart, stepEnd), err)
 			}
 
 			for _, idleAlloc := range idleSet.Allocations {
@@ -2478,7 +2479,7 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 	}
 
 	// Set aggregation options and aggregate
-	opts := &kubecost.AllocationAggregationOptions{
+	opts := &opencost.AllocationAggregationOptions{
 		IncludeProportionalAssetResourceCosts: includeProportionalAssetResourceCosts,
 		IdleByNode:                            idleByNode,
 		IncludeAggregatedMetadata:             includeAggregatedMetadata,
@@ -2491,7 +2492,7 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 	}
 
 	// Accumulate, if requested
-	if accumulateBy != kubecost.AccumulateOptionNone {
+	if accumulateBy != opencost.AccumulateOptionNone {
 		asr, err = asr.Accumulate(accumulateBy)
 		if err != nil {
 			log.Errorf("error accumulating by %v: %s", accumulateBy, err)
@@ -2503,12 +2504,12 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 		if includeProportionalAssetResourceCosts {
 			assetSet, err := cm.ComputeAssets(*asr.Window().Start(), *asr.Window().End())
 			if err != nil {
-				return nil, fmt.Errorf("error computing assets for %s: %w", kubecost.NewClosedWindow(*asr.Window().Start(), *asr.Window().End()), err)
+				return nil, fmt.Errorf("error computing assets for %s: %w", opencost.NewClosedWindow(*asr.Window().Start(), *asr.Window().End()), err)
 			}
 
-			_, err = kubecost.UpdateAssetTotalsStore(totalsStore, assetSet)
+			_, err = opencost.UpdateAssetTotalsStore(totalsStore, assetSet)
 			if err != nil {
-				log.Errorf("ETL: error updating asset resource totals for %s: %s", kubecost.NewClosedWindow(*asr.Window().Start(), *asr.Window().End()), err)
+				log.Errorf("ETL: error updating asset resource totals for %s: %s", opencost.NewClosedWindow(*asr.Window().Start(), *asr.Window().End()), err)
 			}
 
 		}
@@ -2548,7 +2549,7 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 					key := strings.TrimSuffix(strings.ReplaceAll(rawKey, ",", "/"), "/")
 					// for each parc , check the totals store for each
 					// on a totals hit, set the corresponding total and calculate percentage
-					var totals *kubecost.AssetTotals
+					var totals *opencost.AssetTotals
 					if totalsLoc, found := totalStoreByCluster[key]; found {
 						totals = totalsLoc
 					}
@@ -2585,7 +2586,7 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 						parc.LoadBalancerTotalCost = totals.LoadBalancerCost
 					}
 
-					kubecost.ComputePercentages(&parc)
+					opencost.ComputePercentages(&parc)
 					alloc.ProportionalAssetResourceCosts[rawKey] = parc
 				}
 			}
@@ -2596,24 +2597,24 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 	return asr, nil
 }
 
-func computeIdleAllocations(allocSet *kubecost.AllocationSet, assetSet *kubecost.AssetSet, idleByNode bool) (*kubecost.AllocationSet, error) {
+func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost.AssetSet, idleByNode bool) (*opencost.AllocationSet, error) {
 	if !allocSet.Window.Equal(assetSet.Window) {
 		return nil, fmt.Errorf("cannot compute idle allocations for mismatched sets: %s does not equal %s", allocSet.Window, assetSet.Window)
 	}
 
-	var allocTotals map[string]*kubecost.AllocationTotals
-	var assetTotals map[string]*kubecost.AssetTotals
+	var allocTotals map[string]*opencost.AllocationTotals
+	var assetTotals map[string]*opencost.AssetTotals
 
 	if idleByNode {
-		allocTotals = kubecost.ComputeAllocationTotals(allocSet, kubecost.AllocationNodeProp)
-		assetTotals = kubecost.ComputeAssetTotals(assetSet, true)
+		allocTotals = opencost.ComputeAllocationTotals(allocSet, opencost.AllocationNodeProp)
+		assetTotals = opencost.ComputeAssetTotals(assetSet, true)
 	} else {
-		allocTotals = kubecost.ComputeAllocationTotals(allocSet, kubecost.AllocationClusterProp)
-		assetTotals = kubecost.ComputeAssetTotals(assetSet, false)
+		allocTotals = opencost.ComputeAllocationTotals(allocSet, opencost.AllocationClusterProp)
+		assetTotals = opencost.ComputeAssetTotals(assetSet, false)
 	}
 
 	start, end := *allocSet.Window.Start(), *allocSet.Window.End()
-	idleSet := kubecost.NewAllocationSet(start, end)
+	idleSet := opencost.NewAllocationSet(start, end)
 
 	for key, assetTotal := range assetTotals {
 		allocTotal, ok := allocTotals[key]
@@ -2623,7 +2624,7 @@ func computeIdleAllocations(allocSet *kubecost.AllocationSet, assetSet *kubecost
 			// Use a zero-value set of totals. This indicates either (1) an
 			// error computing totals, or (2) that no allocations ran on the
 			// given node for the given window.
-			allocTotal = &kubecost.AllocationTotals{
+			allocTotal = &opencost.AllocationTotals{
 				Cluster: assetTotal.Cluster,
 				Node:    assetTotal.Node,
 				Start:   assetTotal.Start,
@@ -2634,11 +2635,11 @@ func computeIdleAllocations(allocSet *kubecost.AllocationSet, assetSet *kubecost
 		// Insert one idle allocation for each key (whether by node or
 		// by cluster), defined as the difference between the total
 		// asset cost and the allocated cost per-resource.
-		name := fmt.Sprintf("%s/%s", key, kubecost.IdleSuffix)
-		err := idleSet.Insert(&kubecost.Allocation{
+		name := fmt.Sprintf("%s/%s", key, opencost.IdleSuffix)
+		err := idleSet.Insert(&opencost.Allocation{
 			Name:   name,
 			Window: idleSet.Window.Clone(),
-			Properties: &kubecost.AllocationProperties{
+			Properties: &opencost.AllocationProperties{
 				Cluster:    assetTotal.Cluster,
 				Node:       assetTotal.Node,
 				ProviderID: assetTotal.Node,

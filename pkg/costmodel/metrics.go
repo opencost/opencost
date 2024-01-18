@@ -7,16 +7,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/clusters"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/core/pkg/util/atomic"
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/clustercache"
-	"github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/errors"
-	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/metrics"
 	"github.com/opencost/opencost/pkg/prom"
-	"github.com/opencost/opencost/pkg/util"
-	"github.com/opencost/opencost/pkg/util/atomic"
 
 	promclient "github.com/prometheus/client_golang/api"
 	"github.com/prometheus/client_golang/prometheus"
@@ -54,7 +55,7 @@ func (cic ClusterInfoCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	clusterInfo := cic.ClusterInfo.GetClusterInfo()
-	labels := prom.MapToLabels(clusterInfo)
+	labels := promutil.MapToLabels(clusterInfo)
 
 	m := newClusterInfoMetric("kubecost_cluster_info", labels)
 	ch <- m
@@ -85,7 +86,7 @@ func newClusterInfoMetric(fqName string, labels map[string]string) ClusterInfoMe
 // returns the same descriptor throughout the lifetime of the Metric.
 func (cim ClusterInfoMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{}
-	return prometheus.NewDesc(cim.fqName, cim.help, prom.LabelNamesFrom(cim.labels), l)
+	return prometheus.NewDesc(cim.fqName, cim.help, promutil.LabelNamesFrom(cim.labels), l)
 }
 
 // Write encodes the Metric into a "Metric" Protocol Buffer data
