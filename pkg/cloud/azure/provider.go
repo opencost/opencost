@@ -1728,12 +1728,17 @@ func (az *Azure) refreshClusterManagementPricing(config *models.CustomPricing) e
 
 	managedCluster, err := getManagedCluster(ctx, managedClustersClient, config.AzureResourceGroupName, config.AzureClusterName)
 	if err != nil {
-		log.Errorf("error getting managed cluster cost: %s", err.Error())
+		log.Errorf("error getting AKS cluster %s info, err: %s", config.AzureClusterName, err.Error())
 		return nil
 	}
 
-	if managedCluster == nil || managedCluster.SKU == nil || managedCluster.SKU.Tier == nil {
-		log.Errorf("managed cluster info not present: %s", *managedCluster.ID)
+	if managedCluster == nil {
+		log.Errorf("managed cluster info not present: %s", config.AzureClusterName)
+		return nil
+	}
+
+	if managedCluster.SKU == nil || managedCluster.SKU.Tier == nil {
+		log.Errorf("managed cluster sku info not present. cluster name: %s, managed cluster id: %s", config.AzureClusterName, *managedCluster.ID)
 		return nil
 	}
 
