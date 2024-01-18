@@ -20,9 +20,8 @@ const (
 	AlibabaAccessKeyIDEnvVar     = "ALIBABA_ACCESS_KEY_ID"
 	AlibabaAccessKeySecretEnvVar = "ALIBABA_SECRET_ACCESS_KEY"
 
-	AzureOfferIDEnvVar                   = "AZURE_OFFER_ID"
-	AzureBillingAccountEnvVar            = "AZURE_BILLING_ACCOUNT"
-	AzureDownloadBillingDataToDiskEnvVar = "AZURE_DOWNLOAD_BILLING_DATA_TO_DISK"
+	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
+	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
 
 	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
 	PodNameEnvVar                  = "POD_NAME"
@@ -302,13 +301,6 @@ func GetAzureOfferID() string {
 // price sheet API.
 func GetAzureBillingAccount() string {
 	return env.Get(AzureBillingAccountEnvVar, "")
-}
-
-// IsAzureDownloadBillingDataToDisk returns the environment variable value for
-// AzureDownloadBillingDataToDiskEnvVar which indicates whether the Azure
-// Billing Data should be held in memory or written to disk.
-func IsAzureDownloadBillingDataToDisk() bool {
-	return env.GetBool(AzureDownloadBillingDataToDiskEnvVar, false)
 }
 
 // GetKubecostNamespace returns the environment variable value for KubecostNamespaceEnvVar which

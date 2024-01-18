@@ -1,7 +1,6 @@
 package azure
 
 import (
-	"bytes"
 	"context"
 	"encoding/csv"
 	"fmt"
@@ -60,39 +59,29 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 	}
 
 	for _, blobName := range blobNames {
-		if env.IsAzureDownloadBillingDataToDisk() {
-			localPath := filepath.Join(env.GetConfigPathWithDefault(env.DefaultConfigMountPath), "db", "cloudcost")
-			localFilePath := filepath.Join(localPath, filepath.Base(blobName))
-			if _, err := asbp.deleteFilesOlderThan7d(localPath); err != nil {
-				log.Warnf("CloudCost: Azure: ParseBillingData: failed to remove the following stale files: %v", err)
-			}
-			err := asbp.DownloadBlobToFile(localFilePath, blobName, client, ctx)
-			if err != nil {
-				asbp.ConnectionStatus = cloud.FailedConnection
-				return err
-			}
-			fp, err := os.Open(localFilePath)
-			if err != nil {
-				asbp.ConnectionStatus = cloud.FailedConnection
-				return err
-			}
-			defer fp.Close()
-			err = asbp.parseCSV(start, end, csv.NewReader(fp), resultFn)
-			if err != nil {
-				asbp.ConnectionStatus = cloud.ParseError
-				return err
-			}
-		} else {
-			blobBytes, err2 := asbp.DownloadBlob(blobName, client, ctx)
-			if err2 != nil {
-				asbp.ConnectionStatus = cloud.FailedConnection
-				return err2
-			}
-			err2 = asbp.parseCSV(start, end, csv.NewReader(bytes.NewReader(blobBytes)), resultFn)
-			if err2 != nil {
-				asbp.ConnectionStatus = cloud.ParseError
-				return err2
-			}
+		localPath := filepath.Join(env.GetConfigPathWithDefault(env.DefaultConfigMountPath), "db", "cloudcost")
+		localFilePath := filepath.Join(localPath, filepath.Base(blobName))
+
+		if _, err := asbp.deleteFilesOlderThan7d(localPath); err != nil {
+			log.Warnf("CloudCost: Azure: ParseBillingData: failed to remove the following stale files: %v", err)
+		}
+
+		err := asbp.DownloadBlobToFile(localFilePath, blobName, client, ctx)
+		if err != nil {
+			asbp.ConnectionStatus = cloud.FailedConnection
+			return err
+		}
+
+		fp, err := os.Open(localFilePath)
+		if err != nil {
+			asbp.ConnectionStatus = cloud.FailedConnection
+			return err
+		}
+		defer fp.Close()
+		err = asbp.parseCSV(start, end, csv.NewReader(fp), resultFn)
+		if err != nil {
+			asbp.ConnectionStatus = cloud.ParseError
+			return err
 		}
 	}
 	asbp.ConnectionStatus = cloud.SuccessfulConnection
