@@ -126,6 +126,14 @@ func Debugf(format string, a ...interface{}) {
 	log.Debug().Msgf(format, a...)
 }
 
+func Trace(msg string) {
+	log.Trace().Msg(msg)
+}
+
+func Tracef(format string, a ...interface{}) {
+	log.Trace().Msgf(format, a...)
+}
+
 func Fatalf(format string, a ...interface{}) {
 	log.Fatal().Msgf(format, a...)
 }
