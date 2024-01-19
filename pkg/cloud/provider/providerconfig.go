@@ -14,6 +14,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/oracle"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/env"
@@ -316,6 +317,8 @@ func ExtractConfigFromProviders(prov models.Provider) models.ProviderConfig {
 	case *azure.Azure:
 		return p.Config
 	case *alibaba.Alibaba:
+		return p.Config
+	case *oracle.Oracle:
 		return p.Config
 	default:
 		log.Errorf("failed to extract config from provider")
