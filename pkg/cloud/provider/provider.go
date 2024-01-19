@@ -240,7 +240,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			ClusterAccountID: cp.accountID,
 			Config:           NewProviderConfig(config, cp.configFileName),
 		}, nil
-	case kubecost.OracleProvider:
+	case opencost.OracleProvider:
 		log.Info("Found ProviderID starting with \"oracle\", using Oracle Provider")
 		return &oracle.Oracle{
 			Clientset:            cache,
@@ -297,7 +297,7 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 		cp.provider = opencost.AlibabaProvider
 		cp.configFileName = "alibaba.json"
 	} else if strings.HasPrefix(providerID, "ocid") {
-		cp.provider = kubecost.OracleProvider
+		cp.provider = opencost.OracleProvider
 		cp.configFileName = "oracle.json"
 	}
 	if env.IsUseCSVProvider() {

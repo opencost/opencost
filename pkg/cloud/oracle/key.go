@@ -3,7 +3,7 @@ package oracle
 import (
 	"fmt"
 
-	"github.com/opencost/opencost/pkg/util"
+	"github.com/opencost/opencost/core/pkg/util"
 )
 
 type oracleKey struct {
