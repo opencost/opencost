@@ -241,10 +241,10 @@ type MultiCloudWatcher struct {
 func (mcw *MultiCloudWatcher) GetConfigs() []cloud.KeyedConfig {
 	var multiConfigPath string
 
-	if !env.IsKubernetesEnabled() {
-		multiConfigPath = env.GetCloudCostConfigPath()
-	} else {
+	if env.IsKubernetesEnabled() {
 		multiConfigPath = path.Join(env.GetConfigPathWithDefault("/var/configs"), cloudIntegrationSecretPath)
+	} else {
+		multiConfigPath = env.GetCloudCostConfigPath()
 	}
 	exists, err := fileutil.FileExists(multiConfigPath)
 	if err != nil {
