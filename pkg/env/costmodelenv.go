@@ -118,6 +118,8 @@ const (
 	CloudCostRefreshRateHoursEnvVar = "CLOUD_COST_REFRESH_RATE_HOURS"
 	CloudCostQueryWindowDaysEnvVar  = "CLOUD_COST_QUERY_WINDOW_DAYS"
 	CloudCostRunWindowDaysEnvVar    = "CLOUD_COST_RUN_WINDOW_DAYS"
+
+	OCIPricingURL = "OCI_PRICING_URL"
 )
 
 const DefaultConfigMountPath = "/var/configs"
@@ -632,4 +634,8 @@ func GetCloudCostQueryWindowDays() int64 {
 
 func GetCloudCostRunWindowDays() int64 {
 	return env.GetInt64(CloudCostRunWindowDaysEnvVar, 3)
+}
+
+func GetOCIPricingURL() string {
+	return env.Get(OCIPricingURL, "https://apexapps.oracle.com/pls/apex/cetools/api/v1/products")
 }

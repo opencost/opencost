@@ -3,7 +3,6 @@ package oracle
 import (
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -109,10 +108,7 @@ func (o *Oracle) DownloadPricingData() error {
 		return err
 	}
 	if o.RateCardStore == nil {
-		url := os.Getenv("OCI_PRICING_URL")
-		if len(url) == 0 {
-			url = defaultPricingURL
-		}
+		url := env.GetOCIPricingURL()
 		o.RateCardStore = NewRateCardStore(url, cfg.CurrencyCode)
 	}
 	if _, err := o.RateCardStore.Refresh(); err != nil {

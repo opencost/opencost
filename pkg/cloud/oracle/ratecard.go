@@ -13,7 +13,6 @@ import (
 
 // 1 month = 744 hours by price list documentation.
 const hoursPerMonth = 24 * 31
-const defaultPricingURL = "https://apexapps.oracle.com/pls/apex/cetools/api/v1/products"
 
 type RateCardStore struct {
 	shapesEndpoint string
