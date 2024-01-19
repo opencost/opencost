@@ -7,8 +7,8 @@ import (
 	gopath "path"
 	"path/filepath"
 
-	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util/fileutil"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util/fileutil"
 	"github.com/pkg/errors"
 )
 

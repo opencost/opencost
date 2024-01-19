@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"strings"
 
-	filter21 "github.com/opencost/opencost/pkg/filter21"
-	"github.com/opencost/opencost/pkg/filter21/cloudcost"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/prom"
-	"github.com/opencost/opencost/pkg/util/httputil"
+	"github.com/opencost/opencost/core/pkg/filter"
+	"github.com/opencost/opencost/core/pkg/filter/cloudcost"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util/httputil"
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 )
 
 func ParseCloudCostRequest(qp httputil.QueryParams) (*QueryRequest, error) {
@@ -20,7 +20,7 @@ func ParseCloudCostRequest(qp httputil.QueryParams) (*QueryRequest, error) {
 		return nil, fmt.Errorf("missing require window param")
 	}
 
-	window, err := kubecost.ParseWindowUTC(windowStr)
+	window, err := opencost.ParseWindowUTC(windowStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid window parameter: %w", err)
 	}
@@ -40,12 +40,12 @@ func ParseCloudCostRequest(qp httputil.QueryParams) (*QueryRequest, error) {
 
 	// if we're aggregating by nothing (aka `item` on the frontend) then aggregate by all
 	if len(aggregateBy) == 0 {
-		aggregateBy = []string{kubecost.CloudCostInvoiceEntityIDProp, kubecost.CloudCostAccountIDProp, kubecost.CloudCostProviderProp, kubecost.CloudCostProviderIDProp, kubecost.CloudCostCategoryProp, kubecost.CloudCostServiceProp}
+		aggregateBy = []string{opencost.CloudCostInvoiceEntityIDProp, opencost.CloudCostAccountIDProp, opencost.CloudCostProviderProp, opencost.CloudCostProviderIDProp, opencost.CloudCostCategoryProp, opencost.CloudCostServiceProp}
 	}
 
-	accumulate := kubecost.ParseAccumulate(qp.Get("accumulate", ""))
+	accumulate := opencost.ParseAccumulate(qp.Get("accumulate", ""))
 
-	var filter filter21.Filter
+	var filter filter.Filter
 	filterString := qp.Get("filter", "")
 	if filterString != "" {
 		parser := cloudcost.NewCloudCostFilterParser()
@@ -68,22 +68,22 @@ func ParseCloudCostRequest(qp httputil.QueryParams) (*QueryRequest, error) {
 
 func ParseCloudCostProperty(text string) (string, error) {
 	switch strings.TrimSpace(strings.ToLower(text)) {
-	case strings.ToLower(kubecost.CloudCostInvoiceEntityIDProp):
-		return kubecost.CloudCostInvoiceEntityIDProp, nil
-	case strings.ToLower(kubecost.CloudCostAccountIDProp):
-		return kubecost.CloudCostAccountIDProp, nil
-	case strings.ToLower(kubecost.CloudCostProviderProp):
-		return kubecost.CloudCostProviderProp, nil
-	case strings.ToLower(kubecost.CloudCostProviderIDProp):
-		return kubecost.CloudCostProviderIDProp, nil
-	case strings.ToLower(kubecost.CloudCostCategoryProp):
-		return kubecost.CloudCostCategoryProp, nil
-	case strings.ToLower(kubecost.CloudCostServiceProp):
-		return kubecost.CloudCostServiceProp, nil
+	case strings.ToLower(opencost.CloudCostInvoiceEntityIDProp):
+		return opencost.CloudCostInvoiceEntityIDProp, nil
+	case strings.ToLower(opencost.CloudCostAccountIDProp):
+		return opencost.CloudCostAccountIDProp, nil
+	case strings.ToLower(opencost.CloudCostProviderProp):
+		return opencost.CloudCostProviderProp, nil
+	case strings.ToLower(opencost.CloudCostProviderIDProp):
+		return opencost.CloudCostProviderIDProp, nil
+	case strings.ToLower(opencost.CloudCostCategoryProp):
+		return opencost.CloudCostCategoryProp, nil
+	case strings.ToLower(opencost.CloudCostServiceProp):
+		return opencost.CloudCostServiceProp, nil
 	}
 
 	if strings.HasPrefix(text, "label:") {
-		label := prom.SanitizeLabelName(strings.TrimSpace(strings.TrimPrefix(text, "label:")))
+		label := promutil.SanitizeLabelName(strings.TrimSpace(strings.TrimPrefix(text, "label:")))
 		return fmt.Sprintf("label:%s", label), nil
 	}
 
@@ -97,7 +97,7 @@ func parseCloudCostViewRequest(qp httputil.QueryParams) (*ViewQueryRequest, erro
 	}
 
 	// parse cost metric
-	costMetricName, err := kubecost.ParseCostMetricName(qp.Get("costMetric", string(kubecost.CostMetricAmortizedNetCost)))
+	costMetricName, err := opencost.ParseCostMetricName(qp.Get("costMetric", string(opencost.CostMetricAmortizedNetCost)))
 	if err != nil {
 		return nil, fmt.Errorf("error parsing 'costMetric': %w", err)
 	}

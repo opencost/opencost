@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/athena/types"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/pkg/cloud"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/log"
 )
 
 const LabelColumnPrefix = "resource_tags_user_"
@@ -64,8 +64,8 @@ type AthenaIntegration struct {
 }
 
 // Query Athena for CUR data and build a new CloudCostSetRange containing the info
-func (ai *AthenaIntegration) GetCloudCost(start, end time.Time) (*kubecost.CloudCostSetRange, error) {
-	log.Infof("AthenaIntegration[%s]: GetCloudCost: %s", ai.Key(), kubecost.NewWindow(&start, &end).String())
+func (ai *AthenaIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCostSetRange, error) {
+	log.Infof("AthenaIntegration[%s]: GetCloudCost: %s", ai.Key(), opencost.NewWindow(&start, &end).String())
 	// Query for all column names
 	allColumns, err := ai.GetColumns()
 	if err != nil {
@@ -153,7 +153,7 @@ func (ai *AthenaIntegration) GetCloudCost(start, end time.Time) (*kubecost.Cloud
 	`
 	aqi.Query = fmt.Sprintf(queryStr, columnStr, ai.Table, whereClause, groupByStr)
 
-	ccsr, err := kubecost.NewCloudCostSetRange(start, end, kubecost.AccumulateOptionDay, ai.Key())
+	ccsr, err := opencost.NewCloudCostSetRange(start, end, opencost.AccumulateOptionDay, ai.Key())
 	if err != nil {
 		return nil, err
 	}
@@ -324,14 +324,14 @@ func (ai *AthenaIntegration) GetPartitionWhere(start, end time.Time) string {
 	return str
 }
 
-func (ai *AthenaIntegration) RowToCloudCost(row types.Row, aqi AthenaQueryIndexes, ccsr *kubecost.CloudCostSetRange) error {
+func (ai *AthenaIntegration) RowToCloudCost(row types.Row, aqi AthenaQueryIndexes, ccsr *opencost.CloudCostSetRange) error {
 	if len(row.Data) < len(aqi.ColumnIndexes) {
 		return fmt.Errorf("rowToCloudCost: row with fewer than %d columns (has only %d)", len(aqi.ColumnIndexes), len(row.Data))
 	}
 
 	// Iterate through the slice of tag columns, assigning
 	// values to the column names, minus the tag prefix.
-	labels := kubecost.CloudCostLabels{}
+	labels := opencost.CloudCostLabels{}
 	labelValues := []string{}
 	for _, tagColumnName := range aqi.TagColumns {
 		labelName := strings.TrimPrefix(tagColumnName, LabelColumnPrefix)
@@ -382,7 +382,7 @@ func (ai *AthenaIntegration) RowToCloudCost(row types.Row, aqi AthenaQueryIndexe
 		providerID = ParseARN(providerID)
 	}
 
-	if productCode == "AmazonEKS" && category == kubecost.ComputeCategory {
+	if productCode == "AmazonEKS" && category == opencost.ComputeCategory {
 		if strings.Contains(usageType, "CPU") {
 			providerID = fmt.Sprintf("%s/CPU", providerID)
 		} else if strings.Contains(usageType, "GB") {
@@ -390,9 +390,9 @@ func (ai *AthenaIntegration) RowToCloudCost(row types.Row, aqi AthenaQueryIndexe
 		}
 	}
 
-	properties := kubecost.CloudCostProperties{
+	properties := opencost.CloudCostProperties{
 		ProviderID:      providerID,
-		Provider:        kubecost.AWSProvider,
+		Provider:        opencost.AWSProvider,
 		AccountID:       accountID,
 		InvoiceEntityID: invoiceEntityID,
 		Service:         productCode,
@@ -406,26 +406,26 @@ func (ai *AthenaIntegration) RowToCloudCost(row types.Row, aqi AthenaQueryIndexe
 	}
 	end := start.AddDate(0, 0, 1)
 
-	cc := &kubecost.CloudCost{
+	cc := &opencost.CloudCost{
 		Properties: &properties,
-		Window:     kubecost.NewWindow(&start, &end),
-		ListCost: kubecost.CostMetric{
+		Window:     opencost.NewWindow(&start, &end),
+		ListCost: opencost.CostMetric{
 			Cost:              listCost,
 			KubernetesPercent: k8sPct,
 		},
-		NetCost: kubecost.CostMetric{
+		NetCost: opencost.CostMetric{
 			Cost:              netCost,
 			KubernetesPercent: k8sPct,
 		},
-		AmortizedNetCost: kubecost.CostMetric{
+		AmortizedNetCost: opencost.CostMetric{
 			Cost:              amortizedNetCost,
 			KubernetesPercent: k8sPct,
 		},
-		AmortizedCost: kubecost.CostMetric{
+		AmortizedCost: opencost.CostMetric{
 			Cost:              amortizedCost,
 			KubernetesPercent: k8sPct,
 		},
-		InvoicedCost: kubecost.CostMetric{
+		InvoicedCost: opencost.CostMetric{
 			Cost:              netCost, // We are using Net Cost for Invoiced Cost for now as it is the closest approximation
 			KubernetesPercent: k8sPct,
 		},

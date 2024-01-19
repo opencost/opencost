@@ -1,8 +1,8 @@
 package metrics
 
 import (
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/pkg/clustercache"
-	"github.com/opencost/opencost/pkg/prom"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -42,7 +42,7 @@ func (sc KubecostServiceCollector) Collect(ch chan<- prometheus.Metric) {
 		serviceName := svc.GetName()
 		serviceNS := svc.GetNamespace()
 
-		labels, values := prom.KubeLabelsToLabels(prom.SanitizeLabels(svc.Spec.Selector))
+		labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(svc.Spec.Selector))
 		if len(labels) > 0 {
 			m := newServiceSelectorLabelsMetric(serviceName, serviceNS, "service_selector_labels", labels, values)
 			ch <- m
