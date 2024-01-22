@@ -11,14 +11,14 @@ import (
 
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
-	"github.com/opencost/opencost/pkg/kubecost"
 
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/util"
-	"github.com/opencost/opencost/pkg/util/json"
 
-	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/core/pkg/log"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/scaleway/scaleway-sdk-go/api/instance/v1"
@@ -295,7 +295,7 @@ func (scw *Scaleway) ClusterInfo() (map[string]string, error) {
 	if c.ClusterName != "" {
 		m["name"] = c.ClusterName
 	}
-	m["provider"] = kubecost.ScalewayProvider
+	m["provider"] = opencost.ScalewayProvider
 	m["region"] = scw.ClusterRegion
 	m["account"] = scw.ClusterAccountID
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
