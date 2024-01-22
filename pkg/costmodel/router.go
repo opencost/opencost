@@ -1830,6 +1830,34 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	return a
 }
 
+func InitializeWithoutKubernetes() *Accesses {
+	var err error
+	if errorReportingEnabled {
+		err = sentry.Init(sentry.ClientOptions{Release: version.FriendlyVersion()})
+		if err != nil {
+			log.Infof("Failed to initialize sentry for error reporting")
+		} else {
+			err = errors.SetPanicHandler(handlePanic)
+			if err != nil {
+				log.Infof("Failed to set panic handler: %s", err)
+			}
+		}
+	}
+
+	a := &Accesses{
+		Router:                httprouter.New(),
+		CloudConfigController: cloudconfig.NewController(nil),
+		httpServices:          services.NewCostModelServices(),
+	}
+
+	a.Router.GET("/logs/level", a.GetLogLevel)
+	a.Router.POST("/logs/level", a.SetLogLevel)
+
+	a.httpServices.RegisterAll(a.Router)
+
+	return a
+}
+
 func writeErrorResponse(w http.ResponseWriter, code int, message string) {
 	out := map[string]string{
 		"message": message,
