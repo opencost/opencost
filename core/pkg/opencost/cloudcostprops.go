@@ -55,13 +55,13 @@ func ParseCloudProperties(props []string) ([]CloudCostProperty, error) {
 
 func ParseCloudCostProperty(text string) (CloudCostProperty, error) {
 	switch strings.TrimSpace(strings.ToLower(text)) {
-	case "invoiceEntityID":
+	case "invoiceentityid":
 		return CloudCostProperty(CloudCostInvoiceEntityIDProp), nil
-	case "accountID":
+	case "accountid":
 		return CloudCostProperty(CloudCostAccountIDProp), nil
 	case "provider":
 		return CloudCostProperty(CloudCostProviderProp), nil
-	case "providerID":
+	case "providerid":
 		return CloudCostProperty(CloudCostProviderIDProp), nil
 	case "category":
 		return CloudCostProperty(CloudCostCategoryProp), nil
