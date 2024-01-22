@@ -618,7 +618,7 @@ func GetDataRetentionDailyResolutionDays() int64 {
 }
 
 func IsKubernetesEnabled() bool {
-	return Get(KubernetesEnabledEnvVar, "") != ""
+	return env.Get(KubernetesEnabledEnvVar, "") != ""
 }
 
 func IsCloudCostEnabled() bool {
@@ -626,7 +626,7 @@ func IsCloudCostEnabled() bool {
 }
 
 func GetCloudCostConfigPath() string {
-	return Get(CloudCostConfigPath, "cloud-integration.json")
+	return env.Get(CloudCostConfigPath, "cloud-integration.json")
 }
 
 func GetCloudCostMonthToDateInterval() int {
