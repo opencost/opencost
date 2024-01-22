@@ -4,13 +4,11 @@ import (
 	"encoding/csv"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/opencost/opencost/core/pkg/filter"
 	"github.com/opencost/opencost/core/pkg/filter/cloudcost"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
-	"github.com/opencost/opencost/core/pkg/util/promutil"
 )
 
 func ParseCloudCostRequest(qp httputil.QueryParams) (*QueryRequest, error) {
@@ -31,11 +29,11 @@ func ParseCloudCostRequest(qp httputil.QueryParams) (*QueryRequest, error) {
 	aggregateByRaw := qp.GetList("aggregate", ",")
 	var aggregateBy []string
 	for _, aggBy := range aggregateByRaw {
-		prop, err := ParseCloudCostProperty(aggBy)
+		prop, err := opencost.ParseCloudCostProperty(aggBy)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing aggregate by %v", err)
 		}
-		aggregateBy = append(aggregateBy, prop)
+		aggregateBy = append(aggregateBy, string(prop))
 	}
 
 	// if we're aggregating by nothing (aka `item` on the frontend) then aggregate by all
@@ -66,28 +64,12 @@ func ParseCloudCostRequest(qp httputil.QueryParams) (*QueryRequest, error) {
 	return opts, nil
 }
 
-func ParseCloudCostProperty(text string) (string, error) {
-	switch strings.TrimSpace(strings.ToLower(text)) {
-	case strings.ToLower(opencost.CloudCostInvoiceEntityIDProp):
-		return opencost.CloudCostInvoiceEntityIDProp, nil
-	case strings.ToLower(opencost.CloudCostAccountIDProp):
-		return opencost.CloudCostAccountIDProp, nil
-	case strings.ToLower(opencost.CloudCostProviderProp):
-		return opencost.CloudCostProviderProp, nil
-	case strings.ToLower(opencost.CloudCostProviderIDProp):
-		return opencost.CloudCostProviderIDProp, nil
-	case strings.ToLower(opencost.CloudCostCategoryProp):
-		return opencost.CloudCostCategoryProp, nil
-	case strings.ToLower(opencost.CloudCostServiceProp):
-		return opencost.CloudCostServiceProp, nil
+func convertProps[T ~string](values []T) []string {
+	var result []string
+	for _, value := range values {
+		result = append(result, string(value))
 	}
-
-	if strings.HasPrefix(text, "label:") {
-		label := promutil.SanitizeLabelName(strings.TrimSpace(strings.TrimPrefix(text, "label:")))
-		return fmt.Sprintf("label:%s", label), nil
-	}
-
-	return "", fmt.Errorf("invalid cloud cost property: %s", text)
+	return result
 }
 
 func parseCloudCostViewRequest(qp httputil.QueryParams) (*ViewQueryRequest, error) {

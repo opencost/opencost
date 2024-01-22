@@ -1,10 +1,28 @@
 package opencost
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 )
+
+type CloudCostProperty string
+
+// IsLabel returns true if the allocation property has a label prefix
+func (apt *CloudCostProperty) IsLabel() bool {
+	return strings.HasPrefix(string(*apt), "label:")
+}
+
+// GetLabel returns the label string associated with the label property if it exists.
+// Otherwise, empty string is returned.
+func (apt *CloudCostProperty) GetLabel() string {
+	if apt.IsLabel() {
+		return strings.TrimSpace(strings.TrimPrefix(string(*apt), "label:"))
+	}
+	return ""
+}
 
 const (
 	CloudCostInvoiceEntityIDProp string = "invoiceEntityID"
@@ -15,6 +33,49 @@ const (
 	CloudCostServiceProp         string = "service"
 	CloudCostLabelProp           string = "label"
 )
+
+func ParseCloudProperties(props []string) ([]CloudCostProperty, error) {
+	properties := []CloudCostProperty{}
+	added := make(map[CloudCostProperty]struct{})
+
+	for _, prop := range props {
+		property, err := ParseCloudCostProperty(prop)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to parse property: %w", err)
+		}
+
+		if _, ok := added[property]; !ok {
+			added[property] = struct{}{}
+			properties = append(properties, property)
+		}
+	}
+
+	return properties, nil
+}
+
+func ParseCloudCostProperty(text string) (CloudCostProperty, error) {
+	switch strings.TrimSpace(strings.ToLower(text)) {
+	case "invoiceEntityID":
+		return CloudCostProperty(CloudCostInvoiceEntityIDProp), nil
+	case "accountID":
+		return CloudCostProperty(CloudCostAccountIDProp), nil
+	case "provider":
+		return CloudCostProperty(CloudCostProviderProp), nil
+	case "providerID":
+		return CloudCostProperty(CloudCostProviderIDProp), nil
+	case "category":
+		return CloudCostProperty(CloudCostCategoryProp), nil
+	case "service":
+		return CloudCostProperty(CloudCostServiceProp), nil
+	}
+
+	if strings.HasPrefix(text, "label:") {
+		label := promutil.SanitizeLabelName(strings.TrimSpace(strings.TrimPrefix(text, "label:")))
+		return CloudCostProperty(fmt.Sprintf("label:%s", label)), nil
+	}
+
+	return "", fmt.Errorf("invalid cloud cost property: %s", text)
+}
 
 const (
 	// CloudCostClusterManagementCategory describes CloudCost representing Hosted Kubernetes Fees
