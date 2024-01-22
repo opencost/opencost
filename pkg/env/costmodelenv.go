@@ -113,7 +113,10 @@ const (
 
 	DataRetentionDailyResolutionDaysEnvVar = "DATA_RETENTION_DAILY_RESOLUTION_DAYS"
 
+	// We assume that Kubernetes is enabled if there is a KUBERNETES_PORT environment variable present
+	KubernetesEnabledEnvVar         = "KUBERNETES_PORT"
 	CloudCostEnabledEnvVar          = "CLOUD_COST_ENABLED"
+	CloudCostConfigPath             = "CLOUD_COST_CONFIG_PATH"
 	CloudCostMonthToDateIntervalVar = "CLOUD_COST_MONTH_TO_DATE_INTERVAL"
 	CloudCostRefreshRateHoursEnvVar = "CLOUD_COST_REFRESH_RATE_HOURS"
 	CloudCostQueryWindowDaysEnvVar  = "CLOUD_COST_QUERY_WINDOW_DAYS"
@@ -614,8 +617,16 @@ func GetDataRetentionDailyResolutionDays() int64 {
 	return env.GetInt64(DataRetentionDailyResolutionDaysEnvVar, 15)
 }
 
+func IsKubernetesEnabled() bool {
+	return env.Get(KubernetesEnabledEnvVar, "") != ""
+}
+
 func IsCloudCostEnabled() bool {
 	return env.GetBool(CloudCostEnabledEnvVar, false)
+}
+
+func GetCloudCostConfigPath() string {
+	return env.Get(CloudCostConfigPath, "cloud-integration.json")
 }
 
 func GetCloudCostMonthToDateInterval() int {
