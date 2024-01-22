@@ -64,14 +64,6 @@ func ParseCloudCostRequest(qp httputil.QueryParams) (*QueryRequest, error) {
 	return opts, nil
 }
 
-func convertProps[T ~string](values []T) []string {
-	var result []string
-	for _, value := range values {
-		result = append(result, string(value))
-	}
-	return result
-}
-
 func parseCloudCostViewRequest(qp httputil.QueryParams) (*ViewQueryRequest, error) {
 	qr, err := ParseCloudCostRequest(qp)
 	if err != nil {
