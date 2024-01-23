@@ -14,10 +14,12 @@ ARG CGO_ENABLED=0
 ARG version=dev
 ARG	commit=HEAD
 
-# Get dependencies - will also be cached if we won't change mod/sum
-RUN go mod download
 # COPY the source code as the last step
 COPY . .
+
+# Get dependencies - will also be cached if we won't change mod/sum
+RUN go mod download
+
 # Build the binary
 RUN set -e ;\
     go test ./test/*.go;\
@@ -26,8 +28,8 @@ RUN set -e ;\
     GOOS=linux \
     go build -a -installsuffix cgo \
     -ldflags \
-    "-X github.com/opencost/opencost/pkg/version.Version=${version} \
-    -X github.com/opencost/opencost/pkg/version.GitCommit=${commit}" \
+    "-X github.com/opencost/opencost/core/pkg/version.Version=${version} \
+    -X github.com/opencost/opencost/core/pkg/version.GitCommit=${commit}" \
     -o /go/bin/app
 
 FROM alpine:latest
