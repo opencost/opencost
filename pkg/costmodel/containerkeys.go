@@ -177,7 +177,12 @@ func NewContainerMetricFromPrometheus(metrics map[string]interface{}, defaultClu
 	}
 	ns, ok := metrics[env.GetPromNamespaceLabel()]
 	if !ok {
-		return nil, NoNamespaceErr
+		// Check the default label name if the custom/relabeled label is not found
+		altns, ok := metrics["namespace"]
+		if !ok {
+			return nil, NoNamespaceErr
+		}
+		ns = altns
 	}
 	namespace, ok := ns.(string)
 	if !ok {
