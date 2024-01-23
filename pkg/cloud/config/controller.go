@@ -5,10 +5,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/provider"
-	"github.com/opencost/opencost/pkg/util/timeutil"
+	"github.com/opencost/opencost/pkg/env"
 )
 
 // configID identifies the source and the ID of a configuration to handle duplicate configs from multiple sources
@@ -47,8 +48,13 @@ type Controller struct {
 
 // NewController initializes an Config Controller
 func NewController(cp models.Provider) *Controller {
-	providerConfig := provider.ExtractConfigFromProviders(cp)
-	watchers := GetCloudBillingWatchers(providerConfig)
+	var watchers map[ConfigSource]cloud.KeyedConfigWatcher
+	if env.IsKubernetesEnabled() {
+		providerConfig := provider.ExtractConfigFromProviders(cp)
+		watchers = GetCloudBillingWatchers(providerConfig)
+	} else {
+		watchers = GetCloudBillingWatchers(nil)
+	}
 	ic := &Controller{
 		statuses: make(map[configID]*Status),
 		watchers: watchers,
