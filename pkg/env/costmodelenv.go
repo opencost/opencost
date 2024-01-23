@@ -589,7 +589,10 @@ func GetPromClusterLabel() string {
 }
 
 func GetPromNodeLabel() string {
-	return Get(PromNodeLabelEnvVar, "node")
+	// return Get(PromNodeLabelEnvVar, "node")
+
+	// TODO: ThomasN: This is a custom config. Revert back to above before merging.
+	return Get(PromNodeLabelEnvVar, "exported_node")
 }
 
 func GetPromNamespaceLabel() string {
