@@ -589,17 +589,17 @@ func GetPromClusterLabel() string {
 }
 
 func GetPromNodeLabel() string {
-	// return Get(PromNodeLabelEnvVar, "node")
+	return Get(PromNodeLabelEnvVar, "node")
 
 	// TODO: ThomasN: This is a custom config. Revert back to above before merging.
-	return Get(PromNodeLabelEnvVar, "exported_node")
+	// return Get(PromNodeLabelEnvVar, "exported_node")
 }
 
 func GetPromNamespaceLabel() string {
-	// return Get(PromNamespaceLabelEnvVar, "namespace")
+	return Get(PromNamespaceLabelEnvVar, "namespace")
 
 	// TODO: ThomasN: This is a custom config. Revert back to above before merging.
-	return Get(PromNamespaceLabelEnvVar, "exported_namespace")
+	// return Get(PromNamespaceLabelEnvVar, "exported_namespace")
 }
 
 // IsIngestingPodUID returns the env variable from ingestPodUID, which alters the
