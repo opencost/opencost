@@ -1189,7 +1189,7 @@ func (a *Accesses) GetInstallNamespace(w http.ResponseWriter, r *http.Request, _
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	ns := env.GetKubecostNamespace()
+	ns := env.GetOpenCostNamespace()
 	w.Write([]byte(ns))
 }
 
@@ -1211,7 +1211,7 @@ func (a *Accesses) GetInstallInfo(w http.ResponseWriter, r *http.Request, _ http
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	pods, err := a.KubeClientSet.CoreV1().Pods(env.GetKubecostNamespace()).List(context.Background(), metav1.ListOptions{
+	pods, err := a.KubeClientSet.CoreV1().Pods(env.GetOpenCostNamespace()).List(context.Background(), metav1.ListOptions{
 		LabelSelector: "app=cost-analyzer",
 		FieldSelector: "status.phase=Running",
 		Limit:         1,
@@ -1295,7 +1295,7 @@ func (a *Accesses) GetPodLogs(w http.ResponseWriter, r *http.Request, ps httprou
 
 	qp := httputil.NewQueryParams(r.URL.Query())
 
-	ns := qp.Get("namespace", env.GetKubecostNamespace())
+	ns := qp.Get("namespace", env.GetOpenCostNamespace())
 	pod := qp.Get("pod", "")
 	selector := qp.Get("selector", "")
 	container := qp.Get("container", "")
@@ -1568,7 +1568,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	}
 
 	// Lookup scrape interval for kubecost job, update if found
-	si, err := prom.ScrapeIntervalFor(promCli, env.GetKubecostJobName())
+	si, err := prom.ScrapeIntervalFor(promCli, env.GetOpenCostJobName())
 	if err == nil {
 		scrapeInterval = si
 	}
@@ -1583,7 +1583,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 
 	// Create ConfigFileManager for synchronization of shared configuration
 	confManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-		BucketStoreConfig: env.GetKubecostConfigBucket(),
+		BucketStoreConfig: env.GetOpenCostConfigBucket(),
 		LocalConfigPath:   "/",
 	})
 
@@ -1612,10 +1612,10 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	watchConfigFunc := configWatchers.ToWatchFunc()
 	watchedConfigs := configWatchers.GetWatchedConfigs()
 
-	kubecostNamespace := env.GetKubecostNamespace()
+	openCostNamespace := env.GetOpenCostNamespace()
 	// We need an initial invocation because the init of the cache has happened before we had access to the provider.
 	for _, cw := range watchedConfigs {
-		configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get(context.Background(), cw, metav1.GetOptions{})
+		configs, err := kubeClientset.CoreV1().ConfigMaps(openCostNamespace).Get(context.Background(), cw, metav1.GetOptions{})
 		if err != nil {
 			log.Infof("No %s configmap found at install time, using existing configs: %s", cw, err.Error())
 		} else {

@@ -104,15 +104,15 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	batchClient := client.BatchV1().RESTClient()
 	pdbClient := client.PolicyV1beta1().RESTClient()
 
-	kubecostNamespace := env.GetKubecostNamespace()
-	log.Infof("NAMESPACE: %s", kubecostNamespace)
+	openCostNamespace := env.GetOpenCostNamespace()
+	log.Infof("NAMESPACE: %s", openCostNamespace)
 
 	kcc := &KubernetesClusterCache{
 		client:                     client,
 		namespaceWatch:             NewCachingWatcher(coreRestClient, "namespaces", &v1.Namespace{}, "", fields.Everything()),
 		nodeWatch:                  NewCachingWatcher(coreRestClient, "nodes", &v1.Node{}, "", fields.Everything()),
 		podWatch:                   NewCachingWatcher(coreRestClient, "pods", &v1.Pod{}, "", fields.Everything()),
-		kubecostConfigMapWatch:     NewCachingWatcher(coreRestClient, "configmaps", &v1.ConfigMap{}, kubecostNamespace, fields.Everything()),
+		kubecostConfigMapWatch:     NewCachingWatcher(coreRestClient, "configmaps", &v1.ConfigMap{}, openCostNamespace, fields.Everything()),
 		serviceWatch:               NewCachingWatcher(coreRestClient, "services", &v1.Service{}, "", fields.Everything()),
 		daemonsetsWatch:            NewCachingWatcher(appsRestClient, "daemonsets", &appsv1.DaemonSet{}, "", fields.Everything()),
 		deploymentsWatch:           NewCachingWatcher(appsRestClient, "deployments", &appsv1.Deployment{}, "", fields.Everything()),

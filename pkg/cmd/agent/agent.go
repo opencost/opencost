@@ -139,7 +139,7 @@ func Execute(opts *AgentOpts) error {
 	}
 
 	// Lookup scrape interval for kubecost job, update if found
-	si, err := prom.ScrapeIntervalFor(promCli, env.GetKubecostJobName())
+	si, err := prom.ScrapeIntervalFor(promCli, env.GetOpenCostJobName())
 	if err == nil {
 		scrapeInterval = si
 	}
@@ -154,7 +154,7 @@ func Execute(opts *AgentOpts) error {
 
 	// Create ConfigFileManager for synchronization of shared configuration
 	confManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-		BucketStoreConfig: env.GetKubecostConfigBucket(),
+		BucketStoreConfig: env.GetOpenCostConfigBucket(),
 		LocalConfigPath:   "/",
 	})
 
@@ -169,11 +169,11 @@ func Execute(opts *AgentOpts) error {
 	watchConfigFunc := configWatchers.ToWatchFunc()
 	watchedConfigs := configWatchers.GetWatchedConfigs()
 
-	kubecostNamespace := env.GetKubecostNamespace()
+	openCostNamespace := env.GetOpenCostNamespace()
 
 	// We need an initial invocation because the init of the cache has happened before we had access to the provider.
 	for _, cw := range watchedConfigs {
-		configs, err := k8sClient.CoreV1().ConfigMaps(kubecostNamespace).Get(context.Background(), cw, metav1.GetOptions{})
+		configs, err := k8sClient.CoreV1().ConfigMaps(openCostNamespace).Get(context.Background(), cw, metav1.GetOptions{})
 		if err != nil {
 			log.Infof("No %s configmap found at install time, using existing configs: %s", cw, err.Error())
 		} else {

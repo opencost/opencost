@@ -190,5 +190,142 @@ func TestGetCloudCostConfigPath(t *testing.T) {
 			}
 		})
 	}
+}
 
+func TestGetOpenCostConfigBucket(t *testing.T) {
+	tests := []struct {
+		name string
+		want string
+		pre  func()
+	}{
+		{
+			name: "Ensure the default value is ''",
+			want: "",
+		},
+		{
+			name: "Ensure the value is 'FOO' when KUBECOST_CONFIG_BUCKET is set to 'FOO'",
+			want: "FOO",
+			pre: func() {
+				os.Setenv("KUBECOST_CONFIG_BUCKET", "FOO")
+			},
+		},
+		{
+			name: "Ensure the value is 'FOO' when KUBECOST_CONFIG_BUCKET is set to 'FOO' and OPENCOST_CONFIG_BUCKET is set",
+			want: "FOO",
+			pre: func() {
+				os.Setenv("KUBECOST_CONFIG_BUCKET", "FOO")
+				os.Setenv("OPENCOST_CONFIG_BUCKET", "BAR")
+			},
+		},
+		{
+			name: "Ensure the value is 'BAR' when OPENCOST_CONFIG_BUCKET is set to 'BAR'",
+			want: "BAR",
+			pre: func() {
+				os.Setenv("KUBECOST_CONFIG_BUCKET", "")
+				os.Setenv("OPENCOST_CONFIG_BUCKET", "BAR")
+			},
+		},
+	}
+	for _, tt := range tests {
+		if tt.pre != nil {
+			tt.pre()
+		}
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GetOpenCostConfigBucket(); got != tt.want {
+				t.Errorf("GetOpenCostConfigBucket() = %s, want %s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetOpenCostJobName(t *testing.T) {
+	tests := []struct {
+		name string
+		want string
+		pre  func()
+	}{
+		{
+			name: "Ensure the default value is 'opencost'",
+			want: "opencost",
+		},
+		{
+			name: "Ensure the value is 'FOO' when KUBECOST_JOB_NAME is set to 'FOO'",
+			want: "FOO",
+			pre: func() {
+				os.Setenv("KUBECOST_JOB_NAME", "FOO")
+			},
+		},
+		{
+			name: "Ensure the value is 'FOO' when KUBECOST_JOB_NAME is set to 'FOO' and OPENCOST_JOB_NAME is set",
+			want: "FOO",
+			pre: func() {
+				os.Setenv("KUBECOST_JOB_NAME", "FOO")
+				os.Setenv("OPENCOST_JOB_NAME", "BAR")
+			},
+		},
+		{
+			name: "Ensure the value is 'BAR' when OPENCOST_JOB_NAME is set to 'BAR'",
+			want: "BAR",
+			pre: func() {
+				os.Setenv("KUBECOST_JOB_NAME", "")
+				os.Setenv("OPENCOST_JOB_NAME", "BAR")
+			},
+		},
+	}
+	for _, tt := range tests {
+		if tt.pre != nil {
+			tt.pre()
+		}
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GetOpenCostJobName(); got != tt.want {
+				t.Errorf("GetOpenCostJobName() = %s, want %s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetOpenCostNamespace(t *testing.T) {
+	tests := []struct {
+		name string
+		want string
+		pre  func()
+	}{
+		{
+			name: "Ensure the default value is 'opencost'",
+			want: "opencost",
+		},
+		{
+			name: "Ensure the value is 'FOO' when KUBECOST_NAMESPACE is set to 'FOO'",
+			want: "FOO",
+			pre: func() {
+				os.Setenv("KUBECOST_NAMESPACE", "FOO")
+			},
+		},
+		{
+			name: "Ensure the value is 'FOO' when KUBECOST_NAMESPACE is set to 'FOO' and OPENCOST_NAMESPACE is set",
+			want: "FOO",
+			pre: func() {
+				os.Setenv("KUBECOST_NAMESPACE", "FOO")
+				os.Setenv("OPENCOST_NAMESPACE", "BAR")
+			},
+		},
+		{
+			name: "Ensure the value is 'BAR' when OPENCOST_NAMESPACE is set to 'BAR'",
+			want: "BAR",
+			pre: func() {
+				os.Setenv("KUBECOST_NAMESPACE", "")
+				os.Setenv("OPENCOST_NAMESPACE", "BAR")
+			},
+		},
+	}
+	for _, tt := range tests {
+		if tt.pre != nil {
+			tt.pre()
+		}
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GetOpenCostNamespace(); got != tt.want {
+				t.Errorf("GetOpenCostNamespace() = %s, want %s", got, tt.want)
+			}
+		})
+	}
 }

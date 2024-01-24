@@ -24,6 +24,7 @@ const (
 	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
 
 	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
+	OpenCostNamespaceEnvVar        = "OPENCOST_NAMESPACE"
 	PodNameEnvVar                  = "POD_NAME"
 	ClusterIDEnvVar                = "CLUSTER_ID"
 	ClusterProfileEnvVar           = "CLUSTER_PROFILE"
@@ -85,8 +86,10 @@ const (
 	PricingConfigmapName  = "PRICING_CONFIGMAP_NAME"
 	MetricsConfigmapName  = "METRICS_CONFIGMAP_NAME"
 	KubecostJobNameEnvVar = "KUBECOST_JOB_NAME"
+	OpenCostJobNameEnvVar = "OPENCOST_JOB_NAME"
 
 	KubecostConfigBucketEnvVar    = "KUBECOST_CONFIG_BUCKET"
+	OpenCostConfigBucketEnvVar    = "OPENCOST_CONFIG_BUCKET"
 	ClusterInfoFileEnabledEnvVar  = "CLUSTER_INFO_FILE_ENABLED"
 	ClusterCacheFileEnabledEnvVar = "CLUSTER_CACHE_FILE_ENABLED"
 
@@ -157,10 +160,14 @@ func GetAPIPort() int {
 	return env.GetInt(APIPortEnvVar, 9003)
 }
 
-// GetKubecostConfigBucket returns a file location for a mounted bucket configuration which is used to store
-// a subset of kubecost configurations that require sharing via remote storage.
-func GetKubecostConfigBucket() string {
-	return env.Get(KubecostConfigBucketEnvVar, "")
+// GetOpenCostConfigBucket returns a file location for a mounted bucket configuration which is used to store
+// a subset of opencost/kubecost configurations that require sharing via remote storage.
+func GetOpenCostConfigBucket() string {
+	bucket := env.Get(KubecostConfigBucketEnvVar, "")
+	if bucket == "" {
+		bucket = env.Get(OpenCostConfigBucketEnvVar, "")
+	}
+	return bucket
 }
 
 // IsClusterInfoFileEnabled returns true if the cluster info is read from a file or pulled from the local
@@ -308,10 +315,14 @@ func GetAzureBillingAccount() string {
 	return env.Get(AzureBillingAccountEnvVar, "")
 }
 
-// GetKubecostNamespace returns the environment variable value for KubecostNamespaceEnvVar which
-// represents the namespace the cost model exists in.
-func GetKubecostNamespace() string {
-	return env.Get(KubecostNamespaceEnvVar, "kubecost")
+// GetOpenCostNamespace returns the environment variable value for the namespace the cost model exists
+// in. If KUBECOST_NAMESPACE is set, that is used, if not OPENCOST_NAMESPACE or "opencost" is used
+func GetOpenCostNamespace() string {
+	namespace := env.Get(KubecostNamespaceEnvVar, "")
+	if namespace == "" {
+		namespace = env.Get(OpenCostNamespaceEnvVar, "opencost")
+	}
+	return namespace
 }
 
 // GetPodName returns the name of the current running pod. If this environment variable is not set,
@@ -532,9 +543,13 @@ func GetParsedUTCOffset() time.Duration {
 	return offset
 }
 
-// GetKubecostJobName returns the environment variable value for KubecostJobNameEnvVar
-func GetKubecostJobName() string {
-	return env.Get(KubecostJobNameEnvVar, "kubecost")
+// GetOpenCostJobName returns the environment variable value for KubecostJobNameEnvVar
+func GetOpenCostJobName() string {
+	jobname := env.Get(KubecostJobNameEnvVar, "")
+	if jobname == "" {
+		jobname = env.Get(OpenCostJobNameEnvVar, "opencost")
+	}
+	return jobname
 }
 
 func IsCacheWarmingEnabled() bool {
