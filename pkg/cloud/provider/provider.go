@@ -13,6 +13,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/oracle"
 	"github.com/opencost/opencost/pkg/cloud/scaleway"
 
 	"github.com/opencost/opencost/core/pkg/opencost"
@@ -239,7 +240,15 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			ClusterAccountID: cp.accountID,
 			Config:           NewProviderConfig(config, cp.configFileName),
 		}, nil
-
+	case opencost.OracleProvider:
+		log.Info("Found ProviderID starting with \"oracle\", using Oracle Provider")
+		return &oracle.Oracle{
+			Clientset:            cache,
+			Config:               NewProviderConfig(config, cp.configFileName),
+			ClusterRegion:        cp.region,
+			ClusterAccountID:     cp.accountID,
+			ServiceAccountChecks: models.NewServiceAccountChecks(),
+		}, nil
 	default:
 		log.Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
@@ -287,6 +296,9 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 	} else if strings.Contains(node.Status.NodeInfo.KubeletVersion, "aliyun") { // provider ID is not prefix with any distinct keyword like other providers
 		cp.provider = opencost.AlibabaProvider
 		cp.configFileName = "alibaba.json"
+	} else if strings.HasPrefix(providerID, "ocid") {
+		cp.provider = opencost.OracleProvider
+		cp.configFileName = "oracle.json"
 	}
 	if env.IsUseCSVProvider() {
 		cp.provider = opencost.CSVProvider
