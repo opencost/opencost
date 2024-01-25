@@ -1615,9 +1615,10 @@ func (aws *AWS) getAllAddresses() ([]*ec2Types.Address, error) {
 
 	// Get volumes from each AWS region
 	for _, r := range regions {
+		region := r // make a copy of r to avoid capturing loop variable
 		// Fetch IP address response and send results and errors to their
 		// respective channels
-		go func(region string) {
+		go func() {
 			defer wg.Done()
 			defer errs.HandlePanic()
 
@@ -1628,7 +1629,7 @@ func (aws *AWS) getAllAddresses() ([]*ec2Types.Address, error) {
 				if errors.As(err, &awsErr) {
 					switch awsErr.ErrorCode() {
 					case "AuthFailure", "InvalidClientTokenId", "UnauthorizedOperation":
-						log.DedupedInfof(5, "Unable to get addresses for region %s due to AWS permissions, error message: %s", r, awsErr.ErrorMessage())
+						log.DedupedInfof(5, "Unable to get addresses for region %s due to AWS permissions, error message: %s", region, awsErr.ErrorMessage())
 						return
 					default:
 						errorCh <- err
@@ -1640,7 +1641,7 @@ func (aws *AWS) getAllAddresses() ([]*ec2Types.Address, error) {
 				}
 			}
 			addressCh <- resp
-		}(r)
+		}()
 	}
 
 	// Close the result channels after everything has been sent
@@ -1742,7 +1743,7 @@ func (aws *AWS) getAllDisks() ([]*ec2Types.Volume, error) {
 				if errors.As(err, &awsErr) {
 					switch awsErr.ErrorCode() {
 					case "AuthFailure", "InvalidClientTokenId", "UnauthorizedOperation":
-						log.DedupedInfof(5, "Unable to get disks for region %s due to AWS permissions, error message: %s", r, awsErr.ErrorMessage())
+						log.DedupedInfof(5, "Unable to get disks for region %s due to AWS permissions, error message: %s", region, awsErr.ErrorMessage())
 						return
 					default:
 						errorCh <- err
