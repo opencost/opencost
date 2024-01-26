@@ -619,8 +619,17 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				if len(costs.GPUReq) > 0 {
 					// allocation here is set to the request because shared GPU usage not yet supported.
 					// if VPGUs, request x (actual/virtual)
-					vgpu, verr := strconv.ParseFloat(nodes[nodeName].VGPU, 64)
-					gpu, err := strconv.ParseFloat(nodes[nodeName].GPU, 64)
+					vgpu := 0.0
+					gpu := 0.0
+					var err, verr error
+					if matchedNode, found := nodes[nodeName]; found {
+						vgpu, verr = strconv.ParseFloat(matchedNode.VGPU, 64)
+						gpu, err = strconv.ParseFloat(matchedNode.GPU, 64)
+					} else {
+						log.Tracef("cost data for node %s had GPUReq, but there was no cost data available for the node", nodeName)
+						log.Trace("defaulting GPU to 0 cost")
+					}
+
 					gpualloc := costs.GPUReq[0].Value
 					if verr != nil && err != nil && vgpu != 0 {
 						gpualloc = gpualloc * (gpu / vgpu)
