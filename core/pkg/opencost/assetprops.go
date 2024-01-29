@@ -184,9 +184,6 @@ const CustomProvider = "custom"
 // ScalewayProvider describes the provider Scaleway
 const ScalewayProvider = "Scaleway"
 
-// OracleProvider describes the provider Oracle
-const OracleProvider = "Oracle"
-
 // NilProvider describes unknown provider
 const NilProvider = "-"
 
@@ -205,8 +202,6 @@ func ParseProvider(str string) string {
 		return AzureProvider
 	case "scaleway", "scw", "kapsule":
 		return ScalewayProvider
-	case "oci", "oracle":
-		return OracleProvider
 	default:
 		return NilProvider
 	}
