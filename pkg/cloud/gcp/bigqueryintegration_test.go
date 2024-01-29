@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/util/timeutil"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
 
 func TestBigQueryIntegration_GetCloudCost(t *testing.T) {
@@ -25,7 +25,7 @@ func TestBigQueryIntegration_GetCloudCost(t *testing.T) {
 		t.Fatalf("failed to unmarshal config from JSON: %s", err.Error())
 	}
 
-	today := kubecost.RoundBack(time.Now().UTC(), timeutil.Day)
+	today := opencost.RoundBack(time.Now().UTC(), timeutil.Day)
 
 	testCases := map[string]struct {
 		integration *BigQueryIntegration

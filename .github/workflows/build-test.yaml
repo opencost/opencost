@@ -13,7 +13,7 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           path: ./
 
@@ -23,13 +23,13 @@ jobs:
 
       -
         name: Install Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: 'stable'
 
       # Saves us from having to redownload all modules
       - name: Go Mod cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go-build
@@ -45,16 +45,29 @@ jobs:
         name: Build
         run: |
           just build-local
+      - name: get-pr-info
+        shell: bash
+        env:
+          PR_NUM: ${{ github.event.number }}
+        run: |
+          echo $PR_NUM > pr_num.txt
+          echo $GITHUB_BASE_REF > base.txt
+          echo $GITHUB_HEAD_REF > head.txt
+
       - name: Upload code coverage
         uses: actions/upload-artifact@v3
         with:
           name: oc-code-coverage
-          path: coverage.out
+          path: |
+           coverage.out
+           pr_num.txt
+           base.txt
+           head.txt
 
   frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           path: ./
 
@@ -64,7 +77,7 @@ jobs:
 
       -
         name: Install node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '18.3.0'
 
@@ -73,7 +86,7 @@ jobs:
         shell: bash
         run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         id: npm-cache # use this to check for `cache-hit` ==> if: steps.npm-cache.outputs.cache-hit != 'true'
         with:
           path: ${{ steps.npm-cache-dir.outputs.dir }}

@@ -7,6 +7,13 @@ RUN npx parcel build src/index.html
 
 FROM nginx:alpine
 
+LABEL org.opencontainers.image.description="Cross-cloud cost allocation models for Kubernetes workloads"
+LABEL org.opencontainers.image.documentation=https://opencost.io/docs/
+LABEL org.opencontainers.image.licenses=Apache-2.0
+LABEL org.opencontainers.image.source=https://github.com/opencost/opencost
+LABEL org.opencontainers.image.title=opencost-ui
+LABEL org.opencontainers.image.url=https://github.com/opencost/opencost
+
 ARG version=dev
 ARG	commit=HEAD
 ENV VERSION=${version}

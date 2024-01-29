@@ -1,8 +1,8 @@
 package metrics
 
 import (
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/pkg/clustercache"
-	"github.com/opencost/opencost/pkg/prom"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -42,7 +42,7 @@ func (kdc KubecostDeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 		deploymentName := deployment.GetName()
 		deploymentNS := deployment.GetNamespace()
 
-		labels, values := prom.KubeLabelsToLabels(prom.SanitizeLabels(deployment.Spec.Selector.MatchLabels))
+		labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(deployment.Spec.Selector.MatchLabels))
 		if len(labels) > 0 {
 			m := newDeploymentMatchLabelsMetric(deploymentName, deploymentNS, "deployment_match_labels", labels, values)
 			ch <- m
