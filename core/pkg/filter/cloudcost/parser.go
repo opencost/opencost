@@ -17,16 +17,16 @@ var cloudCostFilterFields []*ast.Field = []*ast.Field{
 // fieldMap is a lazily loaded mapping from CloudAggregationField to ast.Field
 var fieldMap map[CloudCostField]*ast.Field
 
+func init() {
+	fieldMap = make(map[CloudCostField]*ast.Field, len(cloudCostFilterFields))
+	for _, f := range cloudCostFilterFields {
+		ff := *f
+		fieldMap[CloudCostField(ff.Name)] = &ff
+	}
+}
+
 // DefaultFieldByName returns only default cloud cost filter fields by name.
 func DefaultFieldByName(field CloudCostField) *ast.Field {
-	if fieldMap == nil {
-		fieldMap = make(map[CloudCostField]*ast.Field, len(cloudCostFilterFields))
-		for _, f := range cloudCostFilterFields {
-			ff := *f
-			fieldMap[CloudCostField(ff.Name)] = &ff
-		}
-	}
-
 	if af, ok := fieldMap[field]; ok {
 		afcopy := *af
 		return &afcopy
