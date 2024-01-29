@@ -5,8 +5,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/pkg/clustercache"
-	"github.com/opencost/opencost/pkg/prom"
 
 	"github.com/prometheus/client_golang/prometheus"
 	batchv1 "k8s.io/api/batch/v1"
@@ -178,7 +178,7 @@ func getPersistentVolumeClaimClass(claim *v1.PersistentVolumeClaim) string {
 // toResourceUnitValue accepts a resource name and quantity and returns the sanitized resource, the unit, and the value in the units.
 // Returns an empty string for resource and unit if there was a failure.
 func toResourceUnitValue(resourceName v1.ResourceName, quantity resource.Quantity) (resource string, unit string, value float64) {
-	resource = prom.SanitizeLabelName(string(resourceName))
+	resource = promutil.SanitizeLabelName(string(resourceName))
 
 	switch resourceName {
 	case v1.ResourceCPU:

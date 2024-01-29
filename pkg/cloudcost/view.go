@@ -3,7 +3,7 @@ package cloudcost
 import (
 	"time"
 
-	"github.com/opencost/opencost/pkg/util/mathutil"
+	"github.com/opencost/opencost/core/pkg/util/mathutil"
 )
 
 // View serves data to the Cloud Cost front end, in the
@@ -31,14 +31,29 @@ func (vtrs ViewTableRows) Equal(that ViewTableRows) bool {
 }
 
 type ViewTableRow struct {
-	Name              string  `json:"name"`
-	KubernetesPercent float64 `json:"kubernetesPercent"`
-	Cost              float64 `json:"cost"`
+	Name              string            `json:"name"`
+	Labels            map[string]string `json:"labels"`
+	KubernetesPercent float64           `json:"kubernetesPercent"`
+	Cost              float64           `json:"cost"`
 }
 
 func (vtr *ViewTableRow) Equal(that *ViewTableRow) bool {
 	if vtr.Name != that.Name {
 		return false
+	}
+
+	if len(vtr.Labels) != len(that.Labels) {
+		return false
+	}
+
+	for key, value := range vtr.Labels {
+		thatValue, ok := that.Labels[key]
+		if !ok {
+			return false
+		}
+		if value != thatValue {
+			return false
+		}
 	}
 
 	if !mathutil.Approximately(vtr.KubernetesPercent, that.KubernetesPercent) {
@@ -104,4 +119,9 @@ func (vgdsi ViewGraphDataSetItem) Equal(that ViewGraphDataSetItem) bool {
 	}
 
 	return true
+}
+
+type ViewTotals struct {
+	NumResults int           `json:"numResults"`
+	Combined   *ViewTableRow `json:"combined"`
 }

@@ -32,6 +32,7 @@ Dependencies:
 1. Docker (with `buildx`)
 2. [just](https://github.com/casey/just) (if you don't want to install it , Just read the `justfile` and run the commands manually)
 3. Multi-arch `buildx` builders set up via https://github.com/tonistiigi/binfmt
+4. `manifest-tool` via https://github.com/estesp/manifest-tool
 4. `npm` (if you want to build the UI)
 
 ### Build the backend

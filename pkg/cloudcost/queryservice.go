@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/util/httputil"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"go.opentelemetry.io/otel"
 )
 
@@ -106,11 +106,6 @@ func (s *QueryService) GetCloudCostViewGraphHandler() func(w http.ResponseWriter
 	}
 }
 
-type CloudCostViewTotalsResponse struct {
-	NumResults int           `json:"numResults"`
-	Combined   *ViewTableRow `json:"combined"`
-}
-
 func (s *QueryService) GetCloudCostViewTotalsHandler() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	// Return valid handler func
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -136,15 +131,10 @@ func (s *QueryService) GetCloudCostViewTotalsHandler() func(w http.ResponseWrite
 			return
 		}
 
-		totals, count, err := s.ViewQuerier.QueryViewTotals(*request, ctx)
+		resp, err := s.ViewQuerier.QueryViewTotals(*request, ctx)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Internal server error: %s", err), http.StatusInternalServerError)
 			return
-		}
-
-		resp := CloudCostViewTotalsResponse{
-			NumResults: count,
-			Combined:   totals,
 		}
 
 		_, spanResp := tracer.Start(ctx, "write response")
@@ -197,7 +187,7 @@ func (s *QueryService) GetCloudCostViewTableHandler() func(w http.ResponseWriter
 		_, spanResp := tracer.Start(ctx, "write response")
 		defer spanResp.End()
 		if format == csvFormat {
-			window := kubecost.NewClosedWindow(request.Start, request.End)
+			window := opencost.NewClosedWindow(request.Start, request.End)
 			writeCloudCostViewTableRowsAsCSV(w, resp, window.String())
 			return
 		}

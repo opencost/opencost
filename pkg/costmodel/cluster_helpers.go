@@ -6,10 +6,10 @@ import (
 
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/provider"
-	"github.com/opencost/opencost/pkg/kubecost"
 
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/prom"
 )
 
@@ -528,7 +528,7 @@ type activeData struct {
 	minutes float64
 }
 
-func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Duration, window kubecost.Window) map[NodeIdentifier]activeData {
+func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Duration, window opencost.Window) map[NodeIdentifier]activeData {
 
 	m := make(map[NodeIdentifier]activeData)
 
@@ -636,13 +636,11 @@ func buildLabelsMap(
 			Name:    node,
 		}
 
-		m[key] = make(map[string]string)
-
-		for name, value := range result.Metric {
-			if val, ok := value.(string); ok {
-				m[key][name] = val
-			}
-		}
+		// The QueryResult.GetLabels function needs to be called to sanitize the
+		// ingested label data. This removes the label_ prefix that prometheus
+		// adds to emitted labels. It also keeps from ingesting prometheus labels
+		// that aren't a part of the asset.
+		m[key] = result.GetLabels()
 	}
 	return m
 }

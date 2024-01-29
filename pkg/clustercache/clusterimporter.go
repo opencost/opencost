@@ -3,9 +3,9 @@ package clustercache
 import (
 	"sync"
 
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/config"
-	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util/json"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
