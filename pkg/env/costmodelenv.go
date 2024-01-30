@@ -2,6 +2,7 @@ package env
 
 import (
 	"fmt"
+	"path"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/env"
@@ -126,6 +127,8 @@ const (
 )
 
 const DefaultConfigMountPath = "/var/configs"
+
+const cloudIntegrationSecretPath = "/cloud-integration/cloud-integration.json"
 
 func IsETLReadOnlyMode() bool {
 	return env.GetBool(ETLReadOnlyMode, false)
@@ -628,7 +631,7 @@ func IsCloudCostEnabled() bool {
 }
 
 func GetCloudCostConfigPath() string {
-	return env.Get(CloudCostConfigPath, "cloud-integration.json")
+	return env.Get(CloudCostConfigPath, path.Join(GetConfigPathWithDefault(DefaultConfigMountPath), cloudIntegrationSecretPath))
 }
 
 func GetCloudCostMonthToDateInterval() int {

@@ -163,11 +163,11 @@ func TestGetCloudCostConfigPath(t *testing.T) {
 	}{
 		{
 			name: "Ensure the default value is 'cloud-integration.json'",
-			want: "cloud-integration.json",
+			want: "/var/configs/cloud-integration/cloud-integration.json",
 		},
 		{
 			name: "Ensure the value is 'cloud-integration.json' when CLOUD_COST_CONFIG_PATH is set to ''",
-			want: "cloud-integration.json",
+			want: "/var/configs/cloud-integration/cloud-integration.json",
 			pre: func() {
 				os.Setenv("CLOUD_COST_CONFIG_PATH", "")
 			},

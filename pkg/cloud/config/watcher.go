@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"io/ioutil"
-	"path"
 
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/alibaba"
@@ -20,7 +19,6 @@ import (
 
 const authSecretPath = "/var/secrets/service-key.json"
 const storageConfigSecretPath = "/var/azure-storage-config/azure-storage-config.json"
-const cloudIntegrationSecretPath = "/cloud-integration/cloud-integration.json"
 
 type HelmWatcher struct {
 	providerConfig models.ProviderConfig
@@ -239,13 +237,9 @@ type MultiCloudWatcher struct {
 }
 
 func (mcw *MultiCloudWatcher) GetConfigs() []cloud.KeyedConfig {
-	var multiConfigPath string
 
-	if env.IsKubernetesEnabled() {
-		multiConfigPath = path.Join(env.GetConfigPathWithDefault("/var/configs"), cloudIntegrationSecretPath)
-	} else {
-		multiConfigPath = env.GetCloudCostConfigPath()
-	}
+	multiConfigPath := env.GetCloudCostConfigPath()
+
 	exists, err := fileutil.FileExists(multiConfigPath)
 	if err != nil {
 		log.Errorf("MultiCloudWatcher:  error checking file at '%s': %s", multiConfigPath, err.Error())
@@ -253,17 +247,7 @@ func (mcw *MultiCloudWatcher) GetConfigs() []cloud.KeyedConfig {
 
 	// If config does not exist implies that this configuration method was not used
 	if !exists {
-		// check the original location of secret mount
-		multiConfigPath = path.Join("/var", cloudIntegrationSecretPath)
-		exists, err = fileutil.FileExists(multiConfigPath)
-		if err != nil {
-			log.Errorf("MultiCloudWatcher:  error checking file at '%s': %s", multiConfigPath, err.Error())
-		}
-
-		// If config does not exist implies that this configuration method was not used
-		if !exists {
-			return nil
-		}
+		return nil
 	}
 
 	log.Debugf("MultiCloudWatcher GetConfigs: multiConfigPath: %s", multiConfigPath)
