@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/core/pkg/util/promutil"
 )
 
 type CloudCostProperty string
@@ -70,7 +69,7 @@ func ParseCloudCostProperty(text string) (CloudCostProperty, error) {
 	}
 
 	if strings.HasPrefix(text, "label:") {
-		label := promutil.SanitizeLabelName(strings.TrimSpace(strings.TrimPrefix(text, "label:")))
+		label := strings.TrimSpace(strings.TrimPrefix(text, "label:"))
 		return CloudCostProperty(fmt.Sprintf("label:%s", label)), nil
 	}
 
