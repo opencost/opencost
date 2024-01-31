@@ -89,6 +89,12 @@ An example of the full command:
 PROMETHEUS_SERVER_ENDPOINT="http://127.0.0.1:9090" go run main.go
 ```
 
+## Testing code
+
+Testing is provided by the `just test` command which runs
+- [go test](https://go.dev/doc/tutorial/add-a-test) unit tests
+- [go vet](https://pkg.go.dev/cmd/vet) code quality checks
+
 ## Running the integration tests
 
 To run these tests:
