@@ -44,6 +44,7 @@ const (
 
 	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
 	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
+	EmitDeprecatedMetrics                = "EMIT_DEPRECATED_METRICS"
 
 	EmitKsmV1MetricsEnvVar = "EMIT_KSM_V1_METRICS"
 	EmitKsmV1MetricsOnly   = "EMIT_KSM_V1_METRICS_ONLY"
@@ -251,6 +252,10 @@ func IsEmitKsmV1Metrics() bool {
 
 func IsEmitKsmV1MetricsOnly() bool {
 	return env.GetBool(EmitKsmV1MetricsOnly, false)
+}
+
+func IsEmitDeprecatedMetrics() bool {
+	return env.GetBool(EmitDeprecatedMetrics, false)
 }
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents

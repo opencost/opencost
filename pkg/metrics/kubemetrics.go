@@ -29,6 +29,7 @@ type KubeMetricsOpts struct {
 	EmitPodAnnotations            bool
 	EmitKubeStateMetrics          bool
 	EmitKubeStateMetricsV1Only    bool
+	EmitDeprecatedMetrics         bool
 }
 
 // DefaultKubeMetricsOpts returns KubeMetricsOpts with default values set
@@ -39,6 +40,7 @@ func DefaultKubeMetricsOpts() *KubeMetricsOpts {
 		EmitPodAnnotations:            false,
 		EmitKubeStateMetrics:          true,
 		EmitKubeStateMetricsV1Only:    false,
+		EmitDeprecatedMetrics:         false,
 	}
 }
 
@@ -49,6 +51,20 @@ func InitKubeMetrics(clusterCache clustercache.ClusterCache, metricsConfig *Metr
 	}
 
 	kubeMetricInit.Do(func() {
+		if !opts.EmitDeprecatedMetrics {
+			metricsConfig.DisabledMetrics = append(metricsConfig.DisabledMetrics,
+				"kube_pod_container_resource_limits",
+				"kube_pod_container_resource_limits_memory_bytes",
+				"kube_pod_container_resource_limits_cpu_cores",
+				"kube_pod_container_status_restarts_total",
+				"kube_node_status_condition",
+				"kube_deployment_status_replicas_available",
+				"kube_deployment_spec_replicas",
+				"kube_persistentvolume_status_phase",
+				"kube_pod_status_phase",
+			)
+		}
+
 		if opts.EmitKubecostControllerMetrics {
 			prometheus.MustRegister(KubecostServiceCollector{
 				KubeClusterCache: clusterCache,
