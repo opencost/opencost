@@ -389,10 +389,10 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	queryRAMRequests := fmt.Sprintf(queryFmtRAMRequests, env.GetPromNodeLabel(), env.GetPromClusterFilter(), durStr, env.GetPromNamespaceLabel(), env.GetPromNodeLabel(), env.GetPromClusterLabel())
 	resChRAMRequests := ctx.QueryAtTime(queryRAMRequests, end)
 
-	queryRAMUsageAvg := fmt.Sprintf(queryFmtRAMUsageAvg, env.GetPromClusterFilter(), durStr, env.GetPromNamespaceLabel(), env.GetPromClusterLabel())
+	queryRAMUsageAvg := fmt.Sprintf(queryFmtRAMUsageAvg, env.GetPromClusterFilter(), durStr, env.GetDefaultPromNamespaceLabel(), env.GetPromClusterLabel())
 	resChRAMUsageAvg := ctx.QueryAtTime(queryRAMUsageAvg, end)
 
-	queryRAMUsageMax := fmt.Sprintf(queryFmtRAMUsageMax, env.GetPromClusterFilter(), durStr, env.GetPromNamespaceLabel(), env.GetPromClusterLabel())
+	queryRAMUsageMax := fmt.Sprintf(queryFmtRAMUsageMax, env.GetPromClusterFilter(), durStr, env.GetDefaultPromNamespaceLabel(), env.GetPromClusterLabel())
 	resChRAMUsageMax := ctx.QueryAtTime(queryRAMUsageMax, end)
 
 	queryCPUCoresAllocated := fmt.Sprintf(queryFmtCPUCoresAllocated, env.GetPromNodeLabel(), env.GetPromClusterFilter(), durStr, env.GetPromNamespaceLabel(), env.GetPromNodeLabel(), env.GetPromClusterLabel())
@@ -401,10 +401,10 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	queryCPURequests := fmt.Sprintf(queryFmtCPURequests, env.GetPromNodeLabel(), env.GetPromClusterFilter(), durStr, env.GetPromNamespaceLabel(), env.GetPromNodeLabel(), env.GetPromClusterLabel())
 	resChCPURequests := ctx.QueryAtTime(queryCPURequests, end)
 
-	queryCPUUsageAvg := fmt.Sprintf(queryFmtCPUUsageAvg, env.GetPromClusterFilter(), durStr, env.GetPromNamespaceLabel(), env.GetPromClusterLabel())
+	queryCPUUsageAvg := fmt.Sprintf(queryFmtCPUUsageAvg, env.GetPromClusterFilter(), durStr, env.GetDefaultPromNamespaceLabel(), env.GetPromClusterLabel())
 	resChCPUUsageAvg := ctx.QueryAtTime(queryCPUUsageAvg, end)
 
-	queryCPUUsageMax := fmt.Sprintf(queryFmtCPUUsageMaxRecordingRule, env.GetPromClusterFilter(), durStr, env.GetPromNamespaceLabel(), env.GetPromClusterLabel())
+	queryCPUUsageMax := fmt.Sprintf(queryFmtCPUUsageMaxRecordingRule, env.GetPromClusterFilter(), durStr, env.GetDefaultPromNamespaceLabel(), env.GetPromClusterLabel())
 	resChCPUUsageMax := ctx.QueryAtTime(queryCPUUsageMax, end)
 	resCPUUsageMax, _ := resChCPUUsageMax.Await()
 	// If the recording rule has no data, try to fall back to the subquery.
@@ -414,7 +414,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 		// in case the Prom scrape duration has been reduced to be equal to the
 		// resolution.
 		doubleResStr := timeutil.DurationString(2 * resolution)
-		queryCPUUsageMax = fmt.Sprintf(queryFmtCPUUsageMaxSubquery, env.GetPromClusterFilter(), doubleResStr, durStr, resStr, env.GetPromNamespaceLabel(), env.GetPromClusterLabel())
+		queryCPUUsageMax = fmt.Sprintf(queryFmtCPUUsageMaxSubquery, env.GetPromClusterFilter(), doubleResStr, durStr, resStr, env.GetDefaultPromNamespaceLabel(), env.GetPromClusterLabel())
 		resChCPUUsageMax = ctx.QueryAtTime(queryCPUUsageMax, end)
 		resCPUUsageMax, _ = resChCPUUsageMax.Await()
 
@@ -443,7 +443,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	queryNodeIsSpot := fmt.Sprintf(queryFmtNodeIsSpot, env.GetPromClusterFilter(), durStr)
 	resChNodeIsSpot := ctx.QueryAtTime(queryNodeIsSpot, end)
 
-	queryPVCInfo := fmt.Sprintf(queryFmtPVCInfo, env.GetPromClusterFilter(), env.GetPromNamespaceLabel(), env.GetPromClusterLabel(), durStr, resStr)
+	queryPVCInfo := fmt.Sprintf(queryFmtPVCInfo, env.GetPromClusterFilter(), env.GetDefaultPromNamespaceLabel(), env.GetPromClusterLabel(), durStr, resStr)
 	resChPVCInfo := ctx.QueryAtTime(queryPVCInfo, end)
 
 	queryPodPVCAllocation := fmt.Sprintf(queryFmtPodPVCAllocation, env.GetPromClusterFilter(), durStr, env.GetPromNamespaceLabel(), env.GetPromClusterLabel())

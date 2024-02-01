@@ -1681,8 +1681,8 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 
 	ctx := prom.NewNamedContext(cli, prom.ComputeCostDataRangeContextName)
 
-	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, env.GetPromNodeLabel(), env.GetPromClusterFilter(), resStr, env.GetPromNamespaceLabel(), env.GetPromNodeLabel(), env.GetPromClusterLabel(), scrapeIntervalSeconds)
-	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, env.GetPromNodeLabel(), env.GetPromClusterFilter(), resStr, env.GetPromNamespaceLabel(), env.GetPromNodeLabel(), env.GetPromClusterLabel(), scrapeIntervalSeconds)
+	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, env.GetPromNodeLabel(), env.GetPromClusterFilter(), resStr, env.GetDefaultPromNamespaceLabel(), env.GetPromNodeLabel(), env.GetPromClusterLabel(), scrapeIntervalSeconds)
+	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, env.GetPromNodeLabel(), env.GetPromClusterFilter(), resStr, env.GetDefaultPromNamespaceLabel(), env.GetPromNodeLabel(), env.GetPromClusterLabel(), scrapeIntervalSeconds)
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, env.GetPromNodeLabel(), env.GetPromClusterFilter(), resStr, "", env.GetPromNamespaceLabel(), env.GetPromNodeLabel(), env.GetPromClusterLabel(), env.GetPromNamespaceLabel(), env.GetPromNodeLabel(), env.GetPromClusterLabel())
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, env.GetPromClusterFilter(), resStr, "", env.GetPromNodeLabel(), env.GetPromNodeLabel(), env.GetPromClusterLabel())
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, env.GetPromNodeLabel(), env.GetPromClusterFilter(), resStr, "", env.GetPromNamespaceLabel(), env.GetPromNodeLabel(), env.GetPromClusterLabel(), env.GetPromNamespaceLabel(), env.GetPromNodeLabel(), env.GetPromClusterLabel())
@@ -1691,9 +1691,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr, env.GetPromClusterFilter(), env.GetPromNamespaceLabel(), env.GetPromClusterLabel(), env.GetPromNamespaceLabel(), env.GetPromClusterLabel(), env.GetPromClusterFilter(), env.GetPromNamespaceLabel(), env.GetPromClusterLabel(), env.GetPromNamespaceLabel(), env.GetPromClusterLabel())
 	queryPVCAllocation := fmt.Sprintf(queryPVCAllocationFmt, env.GetPromClusterFilter(), resStr, env.GetPromClusterLabel(), env.GetPromNamespaceLabel(), scrapeIntervalSeconds)
 	queryPVHourlyCost := fmt.Sprintf(queryPVHourlyCostFmt, env.GetPromClusterFilter(), resStr)
-	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, env.GetPromClusterFilter(), resStr, "", env.GetPromNamespaceLabel(), env.GetPromClusterLabel())
-	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, env.GetPromClusterFilter(), resStr, "", env.GetPromNamespaceLabel(), env.GetPromClusterLabel())
-	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, env.GetPromClusterFilter(), resStr, "", env.GetPromNamespaceLabel(), env.GetPromClusterLabel())
+	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, env.GetPromClusterFilter(), resStr, "", env.GetDefaultPromNamespaceLabel(), env.GetPromClusterLabel())
+	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, env.GetPromClusterFilter(), resStr, "", env.GetDefaultPromNamespaceLabel(), env.GetPromClusterLabel())
+	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, env.GetPromClusterFilter(), resStr, "", env.GetDefaultPromNamespaceLabel(), env.GetPromClusterLabel())
 	queryNormalization := fmt.Sprintf(normalizationStr, env.GetPromClusterFilter(), resStr, "")
 
 	// Submit all queries for concurrent evaluation

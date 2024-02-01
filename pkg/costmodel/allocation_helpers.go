@@ -317,7 +317,7 @@ func applyCPUCoresRequested(podMap map[podKey]*pod, resCPUCoresRequested []*prom
 
 func applyCPUCoresUsedAvg(podMap map[podKey]*pod, resCPUCoresUsedAvg []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey) {
 	for _, res := range resCPUCoresUsedAvg {
-		key, err := resultPodKey(res, env.GetPromClusterLabel(), env.GetPromNamespaceLabel())
+		key, err := resultPodKey(res, env.GetPromClusterLabel(), env.GetDefaultPromNamespaceLabel())
 		if err != nil {
 			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage avg result missing field: %s", err)
 			continue
@@ -365,7 +365,7 @@ func applyCPUCoresUsedAvg(podMap map[podKey]*pod, resCPUCoresUsedAvg []*prom.Que
 
 func applyCPUCoresUsedMax(podMap map[podKey]*pod, resCPUCoresUsedMax []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey) {
 	for _, res := range resCPUCoresUsedMax {
-		key, err := resultPodKey(res, env.GetPromClusterLabel(), env.GetPromNamespaceLabel())
+		key, err := resultPodKey(res, env.GetPromClusterLabel(), env.GetDefaultPromNamespaceLabel())
 		if err != nil {
 			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage max result missing field: %s", err)
 			continue
@@ -521,7 +521,7 @@ func applyRAMBytesRequested(podMap map[podKey]*pod, resRAMBytesRequested []*prom
 
 func applyRAMBytesUsedAvg(podMap map[podKey]*pod, resRAMBytesUsedAvg []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey) {
 	for _, res := range resRAMBytesUsedAvg {
-		key, err := resultPodKey(res, env.GetPromClusterLabel(), env.GetPromNamespaceLabel())
+		key, err := resultPodKey(res, env.GetPromClusterLabel(), env.GetDefaultPromNamespaceLabel())
 		if err != nil {
 			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM avg usage result missing field: %s", err)
 			continue
@@ -565,7 +565,7 @@ func applyRAMBytesUsedAvg(podMap map[podKey]*pod, resRAMBytesUsedAvg []*prom.Que
 
 func applyRAMBytesUsedMax(podMap map[podKey]*pod, resRAMBytesUsedMax []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey) {
 	for _, res := range resRAMBytesUsedMax {
-		key, err := resultPodKey(res, env.GetPromClusterLabel(), env.GetPromNamespaceLabel())
+		key, err := resultPodKey(res, env.GetPromClusterLabel(), env.GetDefaultPromNamespaceLabel())
 		if err != nil {
 			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage max result missing field: %s", err)
 			continue
@@ -1879,13 +1879,13 @@ func buildPVCMap(resolution time.Duration, pvcMap map[pvcKey]*pvc, pvMap map[pvK
 			cluster = env.GetClusterID()
 		}
 
-		values, err := res.GetStrings("persistentvolumeclaim", "storageclass", "volumename", env.GetPromNamespaceLabel())
+		values, err := res.GetStrings("persistentvolumeclaim", "storageclass", "volumename", env.GetDefaultPromNamespaceLabel())
 		if err != nil {
 			log.DedupedWarningf(10, "CostModel.ComputeAllocation: pvc info query result missing field: %s", err)
 			continue
 		}
 
-		namespace := values[env.GetPromNamespaceLabel()]
+		namespace := values[env.GetDefaultPromNamespaceLabel()]
 		name := values["persistentvolumeclaim"]
 		volume := values["volumename"]
 		storageClass := values["storageclass"]

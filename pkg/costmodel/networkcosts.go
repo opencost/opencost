@@ -149,7 +149,10 @@ func getNetworkUsage(qrs []*prom.QueryResult, defaultClusterID string) (map[stri
 
 		namespace, err := val.GetString(env.GetPromNamespaceLabel())
 		if err != nil {
-			return nil, err
+			namespace, err = val.GetString(env.GetDefaultPromNamespaceLabel())
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		clusterID, err := val.GetString(env.GetPromClusterLabel())
