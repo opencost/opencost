@@ -209,7 +209,7 @@ func GetPodLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[
 
 		ns, err := val.GetString(env.GetPromNamespaceLabel())
 		if err != nil {
-			ns, err := val.GetString(env.GetDefaultPromNamespaceLabel())
+			ns, err = val.GetString(env.GetDefaultPromNamespaceLabel())
 			if err != nil {
 				return toReturn, err
 			}

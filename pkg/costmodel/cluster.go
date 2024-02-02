@@ -182,7 +182,7 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 	queryLocalStorageUsedAvg := fmt.Sprintf(`avg(sum(avg_over_time(container_fs_usage_bytes{device!="tmpfs", id="/", %s}[%s])) by (instance, %s, job)) by (instance, %s)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel(), env.GetPromClusterLabel())
 	queryLocalStorageUsedMax := fmt.Sprintf(`max(sum(max_over_time(container_fs_usage_bytes{device!="tmpfs", id="/", %s}[%s])) by (instance, %s, job)) by (instance, %s)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel(), env.GetPromClusterLabel())
 	queryLocalStorageBytes := fmt.Sprintf(`avg_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/", %s}) by (instance, %s)[%s:%dm])`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
-	queryLocalActiveMins := fmt.Sprintf(`count(node_total_hourly_cost{%s}) by (%s, node)[%s:%dm]`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
+	queryLocalActiveMins := fmt.Sprintf(`count(node_total_hourly_cost{%s}) by (%s, %s)[%s:%dm]`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), env.GetPromNodeLabel(), durStr, minsPerResolution)
 
 	resChPVCost := ctx.QueryAtTime(queryPVCost, t)
 	resChPVSize := ctx.QueryAtTime(queryPVSize, t)

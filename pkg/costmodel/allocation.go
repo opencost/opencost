@@ -443,7 +443,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	queryNodeIsSpot := fmt.Sprintf(queryFmtNodeIsSpot, env.GetPromClusterFilter(), durStr)
 	resChNodeIsSpot := ctx.QueryAtTime(queryNodeIsSpot, end)
 
-	queryPVCInfo := fmt.Sprintf(queryFmtPVCInfo, env.GetPromClusterFilter(), env.GetDefaultPromNamespaceLabel(), env.GetPromClusterLabel(), durStr, resStr)
+	queryPVCInfo := fmt.Sprintf(queryFmtPVCInfo, env.GetPromClusterFilter(), env.GetPromNamespaceLabel(), env.GetPromClusterLabel(), durStr, resStr)
 	resChPVCInfo := ctx.QueryAtTime(queryPVCInfo, end)
 
 	queryPodPVCAllocation := fmt.Sprintf(queryFmtPodPVCAllocation, env.GetPromClusterFilter(), durStr, env.GetPromNamespaceLabel(), env.GetPromClusterLabel())
