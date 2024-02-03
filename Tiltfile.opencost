@@ -149,9 +149,11 @@ def run_opencost(options):
     ]
     k8s_resource(workload='opencost', port_forwards=port_forwards)
 
+    helm_repo('prometheus-community', 'https://prometheus-community.github.io/helm-charts')
     helm_resource(
         name='prometheus',
-        chart='prometheus-community/prometheus')
+        chart='prometheus-community/prometheus',
+        resource_deps=['prometheus-community'])
     k8s_resource(workload='prometheus', port_forwards=[options['port_prometheus']+':9090'])
 
     local_resource(
