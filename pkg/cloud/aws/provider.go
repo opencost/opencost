@@ -1822,11 +1822,9 @@ func (aws *AWS) isDiskOrphaned(vol *ec2Types.Volume) bool {
 	}
 
 	// Do not consider volume orphaned if volume is attached to any attachments
-	if len(vol.Attachments) != 0 {
-		for _, attachment := range vol.Attachments {
-			if attachment.State == AttachedState {
-				return false
-			}
+	for _, attachment := range vol.Attachments {
+		if attachment.State == AttachedState {
+			return false
 		}
 	}
 

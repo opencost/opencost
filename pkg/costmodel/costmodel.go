@@ -2359,18 +2359,15 @@ func getAllocatableVGPUs(cache clustercache.ClusterCache) (float64, error) {
 	for _, ds := range daemonsets {
 		dsContainerList := &ds.Spec.Template.Spec.Containers
 		for _, ctnr := range *dsContainerList {
-			if ctnr.Args != nil {
-				for _, arg := range ctnr.Args {
-					if strings.Contains(arg, "--vgpu=") {
-						vgpus, err := strconv.ParseFloat(arg[strings.IndexByte(arg, '=')+1:], 64)
-						if err != nil {
-							log.Errorf("failed to parse vgpu allocation string %s: %v", arg, err)
-							continue
-						}
-						vgpuCount = vgpus
-						return vgpuCount, nil
+			for _, arg := range ctnr.Args {
+				if strings.Contains(arg, "--vgpu=") {
+					vgpus, err := strconv.ParseFloat(arg[strings.IndexByte(arg, '=')+1:], 64)
+					if err != nil {
+						log.Errorf("failed to parse vgpu allocation string %s: %v", arg, err)
+						continue
 					}
-
+					vgpuCount = vgpus
+					return vgpuCount, nil
 				}
 			}
 		}
