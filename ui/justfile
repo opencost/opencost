@@ -1,5 +1,6 @@
 version := `../tools/image-tag`
 commit := `git rev-parse --short HEAD`
+thirdPartyLicenseFile := "THIRD_PARTY_LICENSES.txt"
 
 default:
     just --list
@@ -10,6 +11,7 @@ build-local:
     npx parcel build src/index.html
 
 build IMAGETAG: build-local
+    cp ../{{thirdPartyLicenseFile}} .
     docker buildx build \
         --rm \
         --platform "linux/amd64" \
@@ -36,3 +38,6 @@ build IMAGETAG: build-local
         --platforms "linux/amd64,linux/arm64" \
         --template {{IMAGETAG}}-ARCH \
         --target {{IMAGETAG}}
+
+    rm -f {{thirdPartyLicenseFile}}
+
