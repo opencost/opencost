@@ -1262,6 +1262,8 @@ func GetKubecostContainers(kubeClientSet kubernetes.Interface) ([]ContainerInfo,
 				containers = append(containers, c)
 			}
 		}
+	} else {
+		log.Infof("Empty list of pods")
 	}
 
 	return containers, nil
