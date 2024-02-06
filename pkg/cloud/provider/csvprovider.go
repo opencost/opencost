@@ -373,7 +373,7 @@ func (c *CSVProvider) GetKey(l map[string]string, n *v1.Node) models.Key {
 		gpuCount = gpuc.Value()
 	}
 	return &csvKey{
-		ProviderID: id,
+		ProviderID: strings.ToLower(id),
 		Labels:     l,
 		GPULabel:   c.GPUMapFields,
 		GPU:        gpuCount,
