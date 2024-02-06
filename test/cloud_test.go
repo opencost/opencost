@@ -579,6 +579,59 @@ func TestNodePriceFromCSVWithCase(t *testing.T) {
 
 }
 
+func TestNodePriceFromCSVMixed(t *testing.T) {
+	labelFooWant := "OnDemand"
+
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
+
+	n := &v1.Node{}
+	n.Labels = make(map[string]string)
+	n.Labels["TestClusterUsage"] = labelFooWant
+	n.Labels["nvidia.com/gpu_type"] = "a100-ondemand"
+	n.Status.Capacity = v1.ResourceList{"nvidia.com/gpu": *resource.NewScaledQuantity(2, 0)}
+	wantPrice := "1.904110"
+
+	labelFooWant2 := "Reserved"
+	n2 := &v1.Node{}
+	n2.Labels = make(map[string]string)
+	n2.Labels["TestClusterUsage"] = labelFooWant2
+	n2.Labels["nvidia.com/gpu_type"] = "a100-reserved"
+	n2.Status.Capacity = v1.ResourceList{"nvidia.com/gpu": *resource.NewScaledQuantity(1, 0)}
+
+	wantPrice2 := "1.654795"
+
+	c := &provider.CSVProvider{
+		CSVLocation: "../configs/pricing_schema_mixed_gpu_ondemand.csv",
+		CustomProvider: &provider.CustomProvider{
+			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
+		},
+	}
+	c.DownloadPricingData()
+	k := c.GetKey(n.Labels, n)
+	resN, _, err := c.NodePricing(k)
+	if err != nil {
+		t.Errorf("Error in NodePricing: %s", err.Error())
+	} else {
+		gotPrice := resN.Cost
+		if gotPrice != wantPrice {
+			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+		}
+	}
+	k2 := c.GetKey(n2.Labels, n2)
+	resN2, _, err2 := c.NodePricing(k2)
+	if err2 != nil {
+		t.Errorf("Error in NodePricing: %s", err.Error())
+	} else {
+		gotPrice := resN2.Cost
+		if gotPrice != wantPrice2 {
+			t.Errorf("Wanted price '%s' got price '%s'", wantPrice2, gotPrice)
+		}
+	}
+
+}
+
 func TestNodePriceFromCSVByClass(t *testing.T) {
 	n := &v1.Node{}
 	n.Spec.ProviderID = "fakeproviderid"
