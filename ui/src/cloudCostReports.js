@@ -1,6 +1,7 @@
 import * as React from "react";
 import Page from "./components/Page";
 import Header from "./components/Header";
+import Footer from "./components/Footer";
 import IconButton from "@material-ui/core/IconButton";
 import RefreshIcon from "@material-ui/icons/Refresh";
 import { makeStyles } from "@material-ui/styles";
@@ -328,6 +329,7 @@ const CloudCostReports = () => {
           )}
         </Paper>
       )}
+      <Footer/>
     </Page>
   );
 };
