@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -119,8 +120,10 @@ func TestPVPriceFromCSV(t *testing.T) {
 		t.Errorf("Error in NodePricing: %s", err.Error())
 	} else {
 		gotPrice := resPV.Cost
-		if gotPrice != wantPrice {
-			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+		wantPriceFloat, _ := strconv.ParseFloat(wantPrice, 64)
+		gotPriceFloat, _ := strconv.ParseFloat(gotPrice, 64)
+		if gotPriceFloat != wantPriceFloat {
+			t.Errorf("Wanted price '%f' got price '%f'", wantPriceFloat, gotPriceFloat)
 		}
 	}
 
@@ -151,8 +154,10 @@ func TestPVPriceFromCSVStorageClass(t *testing.T) {
 		t.Errorf("Error in NodePricing: %s", err.Error())
 	} else {
 		gotPrice := resPV.Cost
-		if gotPrice != wantPrice {
-			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+		wantPriceFloat, _ := strconv.ParseFloat(wantPrice, 64)
+		gotPriceFloat, _ := strconv.ParseFloat(gotPrice, 64)
+		if gotPriceFloat != wantPriceFloat {
+			t.Errorf("Wanted price '%f' got price '%f'", wantPriceFloat, gotPriceFloat)
 		}
 	}
 
@@ -204,8 +209,10 @@ func TestNodePriceFromCSVWithGPU(t *testing.T) {
 		if gotGPU != wantGPU {
 			t.Errorf("Wanted gpu count '%s' got gpu count '%s'", wantGPU, gotGPU)
 		}
-		if gotPrice != wantPrice {
-			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+		wantPriceFloat, _ := strconv.ParseFloat(wantPrice, 64)
+		gotPriceFloat, _ := strconv.ParseFloat(gotPrice, 64)
+		if gotPriceFloat != wantPriceFloat {
+			t.Errorf("Wanted price '%f' got price '%f'", wantPriceFloat, gotPriceFloat)
 		}
 
 	}
@@ -220,8 +227,10 @@ func TestNodePriceFromCSVWithGPU(t *testing.T) {
 		if gotGPU != wantGPU {
 			t.Errorf("Wanted gpu count '%s' got gpu count '%s'", wantGPU, gotGPU)
 		}
-		if gotPrice != wantPrice2 {
-			t.Errorf("Wanted price '%s' got price '%s'", wantPrice2, gotPrice)
+		wantPriceFloat, _ := strconv.ParseFloat(wantPrice2, 64)
+		gotPriceFloat, _ := strconv.ParseFloat(gotPrice, 64)
+		if gotPriceFloat != wantPriceFloat {
+			t.Errorf("Wanted price '%f' got price '%f'", wantPriceFloat, gotPriceFloat)
 		}
 
 	}
@@ -255,8 +264,10 @@ func TestNodePriceFromCSVSpecialChar(t *testing.T) {
 		t.Errorf("Error in NodePricing: %s", err.Error())
 	} else {
 		gotPrice := resN.Cost
-		if gotPrice != wantPrice {
-			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+		wantPriceFloat, _ := strconv.ParseFloat(wantPrice, 64)
+		gotPriceFloat, _ := strconv.ParseFloat(gotPrice, 64)
+		if gotPriceFloat != wantPriceFloat {
+			t.Errorf("Wanted price '%f' got price '%f'", wantPriceFloat, gotPriceFloat)
 		}
 	}
 }
@@ -291,8 +302,10 @@ func TestNodePriceFromCSV(t *testing.T) {
 		t.Errorf("Error in NodePricing: %s", err.Error())
 	} else {
 		gotPrice := resN.Cost
-		if gotPrice != wantPrice {
-			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+		wantPriceFloat, _ := strconv.ParseFloat(wantPrice, 64)
+		gotPriceFloat, _ := strconv.ParseFloat(gotPrice, 64)
+		if gotPriceFloat != wantPriceFloat {
+			t.Errorf("Wanted price '%f' got price '%f'", wantPriceFloat, gotPriceFloat)
 		}
 	}
 
@@ -367,8 +380,10 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 		t.Errorf("Error in NodePricing: %s", err.Error())
 	} else {
 		gotPrice := resN.Cost
-		if gotPrice != wantPrice {
-			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+		wantPriceFloat, _ := strconv.ParseFloat(wantPrice, 64)
+		gotPriceFloat, _ := strconv.ParseFloat(gotPrice, 64)
+		if gotPriceFloat != wantPriceFloat {
+			t.Errorf("Wanted price '%f' got price '%f'", wantPriceFloat, gotPriceFloat)
 		}
 	}
 	k2 := c.GetKey(n2.Labels, n2)
@@ -377,8 +392,10 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 		t.Errorf("Error in NodePricing: %s", err.Error())
 	} else {
 		gotPrice := resN2.Cost
-		if gotPrice != wantPrice2 {
-			t.Errorf("Wanted price '%s' got price '%s'", wantPrice2, gotPrice)
+		wantPriceFloat, _ := strconv.ParseFloat(wantPrice2, 64)
+		gotPriceFloat, _ := strconv.ParseFloat(gotPrice, 64)
+		if gotPriceFloat != wantPriceFloat {
+			t.Errorf("Wanted price '%f' got price '%f'", wantPriceFloat, gotPriceFloat)
 		}
 	}
 	k3 := c.GetKey(n3.Labels, n3)
@@ -387,8 +404,10 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 		t.Errorf("Error in NodePricing: %s", err.Error())
 	} else {
 		gotPrice := resN3.Cost
-		if gotPrice != wantPrice3 {
-			t.Errorf("Wanted price '%s' got price '%s'", wantPrice3, gotPrice)
+		wantPriceFloat, _ := strconv.ParseFloat(wantPrice3, 64)
+		gotPriceFloat, _ := strconv.ParseFloat(gotPrice, 64)
+		if gotPriceFloat != wantPriceFloat {
+			t.Errorf("Wanted price '%f' got price '%f'", wantPriceFloat, gotPriceFloat)
 		}
 	}
 
@@ -573,8 +592,67 @@ func TestNodePriceFromCSVWithCase(t *testing.T) {
 		t.Errorf("Error in NodePricing: %s", err.Error())
 	} else {
 		gotPrice := resN.Cost
-		if gotPrice != wantPrice {
-			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+		wantPriceFloat, _ := strconv.ParseFloat(wantPrice, 64)
+		gotPriceFloat, _ := strconv.ParseFloat(gotPrice, 64)
+		if gotPriceFloat != wantPriceFloat {
+			t.Errorf("Wanted price '%f' got price '%f'", wantPriceFloat, gotPriceFloat)
+		}
+	}
+
+}
+
+func TestNodePriceFromCSVMixed(t *testing.T) {
+	labelFooWant := "OnDemand"
+
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
+
+	n := &v1.Node{}
+	n.Labels = make(map[string]string)
+	n.Labels["TestClusterUsage"] = labelFooWant
+	n.Labels["nvidia.com/gpu_type"] = "a100-ondemand"
+	n.Status.Capacity = v1.ResourceList{"nvidia.com/gpu": *resource.NewScaledQuantity(2, 0)}
+	wantPrice := "1.904110"
+
+	labelFooWant2 := "Reserved"
+	n2 := &v1.Node{}
+	n2.Labels = make(map[string]string)
+	n2.Labels["TestClusterUsage"] = labelFooWant2
+	n2.Labels["nvidia.com/gpu_type"] = "a100-reserved"
+	n2.Status.Capacity = v1.ResourceList{"nvidia.com/gpu": *resource.NewScaledQuantity(1, 0)}
+
+	wantPrice2 := "1.654795"
+
+	c := &provider.CSVProvider{
+		CSVLocation: "../configs/pricing_schema_mixed_gpu_ondemand.csv",
+		CustomProvider: &provider.CustomProvider{
+			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
+		},
+	}
+	c.DownloadPricingData()
+	k := c.GetKey(n.Labels, n)
+	resN, _, err := c.NodePricing(k)
+	if err != nil {
+		t.Errorf("Error in NodePricing: %s", err.Error())
+	} else {
+		gotPrice := resN.Cost
+		wantPriceFloat, _ := strconv.ParseFloat(wantPrice, 64)
+		gotPriceFloat, _ := strconv.ParseFloat(gotPrice, 64)
+		if gotPriceFloat != wantPriceFloat {
+			t.Errorf("Wanted price '%f' got price '%f'", wantPriceFloat, gotPriceFloat)
+		}
+	}
+	k2 := c.GetKey(n2.Labels, n2)
+	resN2, _, err2 := c.NodePricing(k2)
+	if err2 != nil {
+		t.Errorf("Error in NodePricing: %s", err.Error())
+	} else {
+		gotPrice := resN2.Cost
+		wantPriceFloat, _ := strconv.ParseFloat(wantPrice2, 64)
+		gotPriceFloat, _ := strconv.ParseFloat(gotPrice, 64)
+		if gotPriceFloat != wantPriceFloat {
+			t.Errorf("Wanted price '%f' got price '%f'", wantPriceFloat, gotPriceFloat)
 		}
 	}
 
