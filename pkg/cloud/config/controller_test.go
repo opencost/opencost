@@ -1,11 +1,14 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	cloudconfig "github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
+	"github.com/opencost/opencost/pkg/env"
 )
 
 // Baseline valid config
@@ -67,22 +70,24 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: HelmSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     HelmSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 		},
 		"Helm Source No Change": {
 			initialStatuses: []*Status{
 				{
-					Source: HelmSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     HelmSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -94,22 +99,24 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: HelmSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     HelmSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 		},
 		"Helm Source Update Config": {
 			initialStatuses: []*Status{
 				{
-					Source: HelmSource,
-					Key:    validAthenaConfModifiedProperty.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConfModifiedProperty,
+					Source:     HelmSource,
+					Key:        validAthenaConfModifiedProperty.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConfModifiedProperty,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -121,22 +128,24 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: HelmSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     HelmSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 		},
 		"Helm Source Update Config Invalid": {
 			initialStatuses: []*Status{
 				{
-					Source: HelmSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     HelmSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -148,22 +157,24 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: HelmSource,
-					Key:    invalidAthenaConf.Key(),
-					Active: false,
-					Valid:  false,
-					Config: invalidAthenaConf,
+					Source:     HelmSource,
+					Key:        invalidAthenaConf.Key(),
+					Active:     false,
+					Valid:      false,
+					ConfigType: AthenaConfigType,
+					Config:     invalidAthenaConf,
 				},
 			},
 		},
 		"Helm Source New Config": {
 			initialStatuses: []*Status{
 				{
-					Source: HelmSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     HelmSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -175,18 +186,20 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: HelmSource,
-					Key:    validAthenaConf.Key(),
-					Active: false, // this value changed
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     HelmSource,
+					Key:        validAthenaConf.Key(),
+					Active:     false, // this value changed
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 				{
-					Source: HelmSource,
-					Key:    validBigQueryConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validBigQueryConf,
+					Source:     HelmSource,
+					Key:        validBigQueryConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validBigQueryConf,
 				},
 			},
 		},
@@ -202,22 +215,24 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: ConfigFileSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     ConfigFileSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 		},
 		"Config File No Change": {
 			initialStatuses: []*Status{
 				{
-					Source: ConfigFileSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     ConfigFileSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -229,22 +244,24 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: ConfigFileSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     ConfigFileSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 		},
 		"Config File Update Config": {
 			initialStatuses: []*Status{
 				{
-					Source: ConfigFileSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     ConfigFileSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -256,22 +273,24 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: ConfigFileSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     ConfigFileSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 		},
 		"Config File Update Config Invalid": {
 			initialStatuses: []*Status{
 				{
-					Source: ConfigFileSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     ConfigFileSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -283,22 +302,24 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: ConfigFileSource,
-					Key:    invalidAthenaConf.Key(),
-					Active: false,
-					Valid:  false,
-					Config: invalidAthenaConf,
+					Source:     ConfigFileSource,
+					Key:        invalidAthenaConf.Key(),
+					Active:     false,
+					Valid:      false,
+					ConfigType: AthenaConfigType,
+					Config:     invalidAthenaConf,
 				},
 			},
 		},
 		"Config File New Config": {
 			initialStatuses: []*Status{
 				{
-					Source: ConfigFileSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     ConfigFileSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -310,18 +331,20 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: ConfigFileSource,
-					Key:    validAthenaConf.Key(),
-					Active: false, // this value changed
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     ConfigFileSource,
+					Key:        validAthenaConf.Key(),
+					Active:     false, // this value changed
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 				{
-					Source: ConfigFileSource,
-					Key:    validBigQueryConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validBigQueryConf,
+					Source:     ConfigFileSource,
+					Key:        validBigQueryConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: BigQueryConfigType,
+					Config:     validBigQueryConf,
 				},
 			},
 		},
@@ -337,22 +360,24 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: MultiCloudSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     MultiCloudSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 		},
 		"Multi Cloud No Change": {
 			initialStatuses: []*Status{
 				{
-					Source: MultiCloudSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     MultiCloudSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -364,22 +389,24 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: MultiCloudSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     MultiCloudSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 		},
 		"Multi Cloud Update Config": {
 			initialStatuses: []*Status{
 				{
-					Source: MultiCloudSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     MultiCloudSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -391,22 +418,24 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: MultiCloudSource,
-					Key:    validAthenaConfModifiedProperty.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConfModifiedProperty,
+					Source:     MultiCloudSource,
+					Key:        validAthenaConfModifiedProperty.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConfModifiedProperty,
 				},
 			},
 		},
 		"Multi Cloud Update Config Invalid": {
 			initialStatuses: []*Status{
 				{
-					Source: MultiCloudSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     MultiCloudSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -418,22 +447,24 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: MultiCloudSource,
-					Key:    invalidAthenaConf.Key(),
-					Active: false,
-					Valid:  false,
-					Config: invalidAthenaConf,
+					Source:     MultiCloudSource,
+					Key:        invalidAthenaConf.Key(),
+					Active:     false,
+					Valid:      false,
+					ConfigType: AthenaConfigType,
+					Config:     invalidAthenaConf,
 				},
 			},
 		},
 		"Multi Cloud New Config": {
 			initialStatuses: []*Status{
 				{
-					Source: MultiCloudSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     MultiCloudSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -445,18 +476,20 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: MultiCloudSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     MultiCloudSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 				{
-					Source: MultiCloudSource,
-					Key:    validBigQueryConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validBigQueryConf,
+					Source:     MultiCloudSource,
+					Key:        validBigQueryConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: BigQueryConfigType,
+					Config:     validBigQueryConf,
 				},
 			},
 		},
@@ -464,11 +497,12 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 		"New Helm, Existing Config File": {
 			initialStatuses: []*Status{
 				{
-					Source: ConfigFileSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     ConfigFileSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -485,36 +519,40 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: ConfigFileSource,
-					Key:    validAthenaConf.Key(),
-					Active: false,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     ConfigFileSource,
+					Key:        validAthenaConf.Key(),
+					Active:     false,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 				{
-					Source: HelmSource,
-					Key:    validBigQueryConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validBigQueryConf,
+					Source:     HelmSource,
+					Key:        validBigQueryConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: BigQueryConfigType,
+					Config:     validBigQueryConf,
 				},
 			},
 		},
 		"Update Helm, Existing Config File": {
 			initialStatuses: []*Status{
 				{
-					Source: HelmSource,
-					Key:    validAthenaConf.Key(),
-					Active: false,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     HelmSource,
+					Key:        validAthenaConf.Key(),
+					Active:     false,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 				{
-					Source: ConfigFileSource,
-					Key:    validBigQueryConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validBigQueryConf,
+					Source:     ConfigFileSource,
+					Key:        validBigQueryConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: BigQueryConfigType,
+					Config:     validBigQueryConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -531,29 +569,32 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: HelmSource,
-					Key:    validAthenaConfModifiedProperty.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConfModifiedProperty,
+					Source:     HelmSource,
+					Key:        validAthenaConfModifiedProperty.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConfModifiedProperty,
 				},
 				{
-					Source: ConfigFileSource,
-					Key:    validBigQueryConf.Key(),
-					Active: false,
-					Valid:  true,
-					Config: validBigQueryConf,
+					Source:     ConfigFileSource,
+					Key:        validBigQueryConf.Key(),
+					Active:     false,
+					Valid:      true,
+					ConfigType: BigQueryConfigType,
+					Config:     validBigQueryConf,
 				},
 			},
 		},
 		"New Helm Invalid, Existing Config File": {
 			initialStatuses: []*Status{
 				{
-					Source: ConfigFileSource,
-					Key:    validBigQueryConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validBigQueryConf,
+					Source:     ConfigFileSource,
+					Key:        validBigQueryConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: BigQueryConfigType,
+					Config:     validBigQueryConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -570,36 +611,40 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: ConfigFileSource,
-					Key:    validBigQueryConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validBigQueryConf,
+					Source:     ConfigFileSource,
+					Key:        validBigQueryConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: BigQueryConfigType,
+					Config:     validBigQueryConf,
 				},
 				{
-					Source: HelmSource,
-					Key:    invalidAthenaConf.Key(),
-					Active: false,
-					Valid:  false,
-					Config: invalidAthenaConf,
+					Source:     HelmSource,
+					Key:        invalidAthenaConf.Key(),
+					Active:     false,
+					Valid:      false,
+					ConfigType: AthenaConfigType,
+					Config:     invalidAthenaConf,
 				},
 			},
 		},
 		"Update Helm Invalid, Existing Config File": {
 			initialStatuses: []*Status{
 				{
-					Source: ConfigFileSource,
-					Key:    validBigQueryConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validBigQueryConf,
+					Source:     ConfigFileSource,
+					Key:        validBigQueryConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: BigQueryConfigType,
+					Config:     validBigQueryConf,
 				},
 				{
-					Source: HelmSource,
-					Key:    validAthenaConf.Key(),
-					Active: false,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     HelmSource,
+					Key:        validAthenaConf.Key(),
+					Active:     false,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -616,29 +661,32 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: ConfigFileSource,
-					Key:    validBigQueryConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validBigQueryConf,
+					Source:     ConfigFileSource,
+					Key:        validBigQueryConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: BigQueryConfigType,
+					Config:     validBigQueryConf,
 				},
 				{
-					Source: HelmSource,
-					Key:    invalidAthenaConf.Key(),
-					Active: false,
-					Valid:  false,
-					Config: invalidAthenaConf,
+					Source:     HelmSource,
+					Key:        invalidAthenaConf.Key(),
+					Active:     false,
+					Valid:      false,
+					ConfigType: AthenaConfigType,
+					Config:     invalidAthenaConf,
 				},
 			},
 		},
 		"New Config File, Existing Helm": {
 			initialStatuses: []*Status{
 				{
-					Source: HelmSource,
-					Key:    validAthenaConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     HelmSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -655,36 +703,40 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: HelmSource,
-					Key:    validAthenaConf.Key(),
-					Active: false,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     HelmSource,
+					Key:        validAthenaConf.Key(),
+					Active:     false,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 				{
-					Source: ConfigFileSource,
-					Key:    validBigQueryConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validBigQueryConf,
+					Source:     ConfigFileSource,
+					Key:        validBigQueryConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: BigQueryConfigType,
+					Config:     validBigQueryConf,
 				},
 			},
 		},
 		"Update Config File, Existing Helm": {
 			initialStatuses: []*Status{
 				{
-					Source: ConfigFileSource,
-					Key:    validAthenaConf.Key(),
-					Active: false,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     ConfigFileSource,
+					Key:        validAthenaConf.Key(),
+					Active:     false,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 				{
-					Source: HelmSource,
-					Key:    validBigQueryConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validBigQueryConf,
+					Source:     HelmSource,
+					Key:        validBigQueryConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: BigQueryConfigType,
+					Config:     validBigQueryConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -699,29 +751,32 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: ConfigFileSource,
-					Key:    validAthenaConfModifiedProperty.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validAthenaConfModifiedProperty,
+					Source:     ConfigFileSource,
+					Key:        validAthenaConfModifiedProperty.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConfModifiedProperty,
 				},
 				{
-					Source: HelmSource,
-					Key:    validBigQueryConf.Key(),
-					Active: false,
-					Valid:  true,
-					Config: validBigQueryConf,
+					Source:     HelmSource,
+					Key:        validBigQueryConf.Key(),
+					Active:     false,
+					Valid:      true,
+					ConfigType: BigQueryConfigType,
+					Config:     validBigQueryConf,
 				},
 			},
 		},
 		"New Config File Invalid, Existing Helm": {
 			initialStatuses: []*Status{
 				{
-					Source: HelmSource,
-					Key:    validBigQueryConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validBigQueryConf,
+					Source:     HelmSource,
+					Key:        validBigQueryConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: BigQueryConfigType,
+					Config:     validBigQueryConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -738,36 +793,40 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: HelmSource,
-					Key:    validBigQueryConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validBigQueryConf,
+					Source:     HelmSource,
+					Key:        validBigQueryConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: BigQueryConfigType,
+					Config:     validBigQueryConf,
 				},
 				{
-					Source: ConfigFileSource,
-					Key:    invalidAthenaConf.Key(),
-					Active: false,
-					Valid:  false,
-					Config: invalidAthenaConf,
+					Source:     ConfigFileSource,
+					Key:        invalidAthenaConf.Key(),
+					Active:     false,
+					Valid:      false,
+					ConfigType: AthenaConfigType,
+					Config:     invalidAthenaConf,
 				},
 			},
 		},
 		"Update Config File Invalid, Existing Helm": {
 			initialStatuses: []*Status{
 				{
-					Source: HelmSource,
-					Key:    validBigQueryConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validBigQueryConf,
+					Source:     HelmSource,
+					Key:        validBigQueryConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: BigQueryConfigType,
+					Config:     validBigQueryConf,
 				},
 				{
-					Source: ConfigFileSource,
-					Key:    validAthenaConf.Key(),
-					Active: false,
-					Valid:  true,
-					Config: validAthenaConf,
+					Source:     ConfigFileSource,
+					Key:        validAthenaConf.Key(),
+					Active:     false,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
 				},
 			},
 			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
@@ -784,18 +843,20 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			},
 			expectedStatuses: []*Status{
 				{
-					Source: HelmSource,
-					Key:    validBigQueryConf.Key(),
-					Active: true,
-					Valid:  true,
-					Config: validBigQueryConf,
+					Source:     HelmSource,
+					Key:        validBigQueryConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: BigQueryConfigType,
+					Config:     validBigQueryConf,
 				},
 				{
-					Source: ConfigFileSource,
-					Key:    invalidAthenaConf.Key(),
-					Active: false,
-					Valid:  false,
-					Config: invalidAthenaConf,
+					Source:     ConfigFileSource,
+					Key:        invalidAthenaConf.Key(),
+					Active:     false,
+					Valid:      false,
+					ConfigType: AthenaConfigType,
+					Config:     invalidAthenaConf,
 				},
 			},
 		},
@@ -804,44 +865,43 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			// Test set up and validation
-			initialStatuses := make(map[configID]*Status)
+			initialStatuses := Statuses{}
 			for _, status := range tc.initialStatuses {
-				iID := configID{
-					source: status.Source,
-					key:    status.Key,
+				if _, ok := initialStatuses.Get(status.Key, status.Source); ok {
+					t.Errorf("invalid test, duplicate initial status with key: %s source: %s", status.Key, status.Source.String())
 				}
-				if _, ok := initialStatuses[iID]; ok {
-					t.Errorf("invalid test, duplicate initial status with key: %s source: %s", iID.key, iID.source.String())
-				}
-				initialStatuses[iID] = status
+				initialStatuses.Insert(status)
 			}
 
-			expectedStatuses := make(map[configID]*Status)
+			expectedStatuses := Statuses{}
 			for _, status := range tc.expectedStatuses {
-				iID := configID{
-					source: status.Source,
-					key:    status.Key,
+				if _, ok := expectedStatuses.Get(status.Key, status.Source); ok {
+					t.Errorf("invalid test, duplicate expected status with key: %s source: %s", status.Key, status.Source.String())
 				}
-				if _, ok := expectedStatuses[iID]; ok {
-					t.Errorf("invalid test, duplicate expected status with key: %s source: %s", iID.key, iID.source.String())
-				}
-				expectedStatuses[iID] = status
+				expectedStatuses.Insert(status)
 			}
 
+			tempDir := os.TempDir()
+			os.Setenv(env.ConfigPathEnvVar, tempDir)
+			defer os.Remove(filepath.Join(tempDir, configFile))
 			// Initialize controller
 			icd := &Controller{
-				statuses: initialStatuses,
 				watchers: tc.configWatchers,
 			}
+			icd.save(initialStatuses)
 			icd.pullWatchers()
-			if len(icd.statuses) != len(tc.expectedStatuses) {
-				t.Errorf("integration statueses did not have the correct length actaul: %d, expected: %d", len(icd.statuses), len(tc.expectedStatuses))
+			status, err := icd.load()
+			if err != nil {
+				t.Errorf("failed to load status file: %s", err.Error())
+			}
+			if len(status.List()) != len(expectedStatuses.List()) {
+				t.Errorf("integration statueses did not have the correct length actaul: %d, expected: %d", len(status), len(tc.expectedStatuses))
 			}
 
-			for iID, actualStatus := range icd.statuses {
-				expectedStatus, ok := expectedStatuses[iID]
+			for _, actualStatus := range status.List() {
+				expectedStatus, ok := expectedStatuses.Get(actualStatus.Key, actualStatus.Source)
 				if !ok {
-					t.Errorf("expected integration statuses is missing with integration ID: %v", iID)
+					t.Errorf("expected integration statuses is missing with integration key: %s, source: %s", actualStatus.Key, actualStatus.Source.String())
 				}
 
 				// failure here indicates an issue with the configID
