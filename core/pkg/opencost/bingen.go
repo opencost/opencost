@@ -22,8 +22,6 @@ package opencost
 
 // Default Version Set (uses -version flag passed) includes shared resources
 // @bingen:generate:Window
-// @bingen:generate:Coverage
-// @bingen:generate:CoverageSet
 
 // Asset Version Set: Includes Asset pipeline specific resources
 // @bingen:set[name=Assets,version=21]
