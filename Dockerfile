@@ -43,6 +43,7 @@ LABEL org.opencontainers.image.url=https://github.com/opencost/opencost
 
 RUN apk add --update --no-cache ca-certificates
 COPY --from=build-env /go/bin/app /go/bin/app
+ADD --chmod=644 ./THIRD_PARTY_LICENSES.txt /THIRD_PARTY_LICENSES.txt
 ADD --chmod=644 ./configs/default.json /models/default.json
 ADD --chmod=644 ./configs/azure.json /models/azure.json
 ADD --chmod=644 ./configs/aws.json /models/aws.json
