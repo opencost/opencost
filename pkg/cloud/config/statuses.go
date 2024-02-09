@@ -29,7 +29,7 @@ func ConfigTypeFromConfig(config cloud.KeyedConfig) (string, error) {
 	case *azure.StorageConfiguration:
 		return AzureStorageConfigType, nil
 	}
-	return "", fmt.Errorf("failed to config type for config with key: %s", config.Key())
+	return "", fmt.Errorf("failed to config type for config with key: %s, type %T", config.Key(), config)
 }
 
 type Statuses map[ConfigSource]map[string]*Status

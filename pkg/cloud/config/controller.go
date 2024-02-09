@@ -16,10 +16,13 @@ import (
 	"github.com/opencost/opencost/pkg/env"
 )
 
+const configFile = "cloud-configurations.json"
+
 // Controller manages the cloud.Config using config Watcher(s) to track various configuration
 // methods. To do this it has a map of config watchers mapped on configuration source and a list Observers that it updates
 // upon any change detected from the config watchers.
 type Controller struct {
+	path      string
 	lock      sync.RWMutex
 	observers []Observer
 	watchers  map[ConfigSource]cloud.KeyedConfigWatcher
@@ -35,6 +38,7 @@ func NewController(cp models.Provider) *Controller {
 		watchers = GetCloudBillingWatchers(nil)
 	}
 	ic := &Controller{
+		path:     filepath.Join(env.GetConfigPathWithDefault(env.DefaultConfigMountPath), configFile),
 		watchers: watchers,
 	}
 
@@ -182,12 +186,18 @@ func (c *Controller) CreateConfig(conf cloud.KeyedConfig) error {
 		return fmt.Errorf("config with key %s from source %s already exist", key, source.String())
 	}
 
+	configType, err := ConfigTypeFromConfig(conf)
+	if err != nil {
+		return fmt.Errorf("config did not have recoginzed config: %w", err)
+	}
+
 	statuses.Insert(&Status{
-		Key:    key,
-		Source: source,
-		Valid:  true,
-		Active: true,
-		Config: conf,
+		Key:        key,
+		Source:     source,
+		Valid:      true,
+		Active:     true,
+		ConfigType: configType,
+		Config:     conf,
 	})
 
 	// check for configurations with the same configuration key that are already active.
@@ -205,7 +215,10 @@ func (c *Controller) CreateConfig(conf cloud.KeyedConfig) error {
 	}
 
 	c.broadcastAddConfig(conf)
-	c.save(statuses)
+	err = c.save(statuses)
+	if err != nil {
+		return fmt.Errorf("failed to save statues: %w", err)
+	}
 	return nil
 }
 
@@ -306,12 +319,8 @@ func (c *Controller) deleteConfig(key string, source ConfigSource, statuses Stat
 	return nil
 }
 
-const configFile = "cloud-configurations.json"
-
 func (c *Controller) load() (Statuses, error) {
-
-	filePath := filepath.Join(env.GetConfigPathWithDefault(env.DefaultConfigMountPath), configFile)
-	raw, err := os.ReadFile(filePath)
+	raw, err := os.ReadFile(c.path)
 	if err != nil {
 		return nil, fmt.Errorf("ConfigController: failed to load config statuses from file: %w", err)
 	}
@@ -327,13 +336,12 @@ func (c *Controller) load() (Statuses, error) {
 
 func (c *Controller) save(statuses Statuses) error {
 
-	filePath := filepath.Join(env.GetConfigPathWithDefault(env.DefaultConfigMountPath), configFile)
 	raw, err := json.Marshal(statuses)
 	if err != nil {
 		return fmt.Errorf("ConfigController: failed to marshal config statuses: %s", err)
 	}
 
-	err = os.WriteFile(filePath, raw, 0644)
+	err = os.WriteFile(c.path, raw, 0644)
 	if err != nil {
 		return fmt.Errorf("ConfigController: failed to save config statuses to file: %s", err)
 	}
