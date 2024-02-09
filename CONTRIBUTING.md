@@ -117,3 +117,34 @@ Please write a commit message with Fixes Issue # if there is an outstanding issu
 Please run `go fmt` on the project directory. Lint can be okay (for example, comments on exported functions are nice but not required on the server).
 
 Please reach us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or attend the biweekly [OpenCost Working Group community meeting](https://bit.ly/opencost-meeting) from the [Community Calendar](https://bit.ly/opencost-calendar) to discuss OpenCost development.
+
+## Third Party Attributions
+
+The THIRD_PARTY_LICENSES.txt file should contain the up-to-date license, copyright, and notice information for dependencies used by Opencost.
+When adding, updating, or removing dependencies, please update the associate section(s) of the [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt) file. 
+
+For example, the `github.com/opencost/opencost/core` dependency contains the following third party attributions.
+The license associated with the SPDX identifier should also be included in the attributions file, if it is not already present.
+
+```
+== Dependency
+github.com/opencost/opencost/core
+
+== License Type
+SPDX:Apache-2.0
+
+== Copyright
+Copyright 2019 - 2022 Stackwatch Incorporated. All Rights Reserved.
+Copyright 2022 - 2024 Cloud Native Computing Foundation
+
+== Notices
+OpenCost
+Copyright 2022 - 2024 Cloud Native Computing Foundation
+
+This product includes software developed at
+The Cloud Native Computing Foundation (http://www.cncf.io).
+
+The Initial Developer of some parts of the specification and project is
+Kubecost (http://www.kubecost.com).
+Copyright 2019 - 2022 Stackwatch Incorporated. All Rights Reserved.
+```
