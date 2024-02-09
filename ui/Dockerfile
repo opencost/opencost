@@ -23,7 +23,8 @@ ENV API_PORT=9003
 ENV API_SERVER=0.0.0.0
 ENV UI_PORT=9090
 
-COPY --from=builder /opt/ui/dist /var/www
+COPY --from=builder /opt/ui/dist /opt/ui/dist
+RUN mkdir -p /var/www
 COPY default.nginx.conf.template /etc/nginx/conf.d/default.nginx.conf.template
 COPY nginx.conf /etc/nginx/
 COPY ./docker-entrypoint.sh /usr/local/bin/
