@@ -187,14 +187,6 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			expectedStatuses: []*Status{
 				{
 					Source:     HelmSource,
-					Key:        validAthenaConf.Key(),
-					Active:     false, // this value changed
-					Valid:      true,
-					ConfigType: AthenaConfigType,
-					Config:     validAthenaConf,
-				},
-				{
-					Source:     HelmSource,
 					Key:        validBigQueryConf.Key(),
 					Active:     true,
 					Valid:      true,
@@ -330,14 +322,6 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 				},
 			},
 			expectedStatuses: []*Status{
-				{
-					Source:     ConfigFileSource,
-					Key:        validAthenaConf.Key(),
-					Active:     false, // this value changed
-					Valid:      true,
-					ConfigType: AthenaConfigType,
-					Config:     validAthenaConf,
-				},
 				{
 					Source:     ConfigFileSource,
 					Key:        validBigQueryConf.Key(),
@@ -477,14 +461,6 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			expectedStatuses: []*Status{
 				{
 					Source:     MultiCloudSource,
-					Key:        validAthenaConf.Key(),
-					Active:     true,
-					Valid:      true,
-					ConfigType: AthenaConfigType,
-					Config:     validAthenaConf,
-				},
-				{
-					Source:     MultiCloudSource,
 					Key:        validBigQueryConf.Key(),
 					Active:     true,
 					Valid:      true,
@@ -492,6 +468,22 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 					Config:     validBigQueryConf,
 				},
 			},
+		},
+		"Multi Cloud Delete All": {
+			initialStatuses: []*Status{
+				{
+					Source:     MultiCloudSource,
+					Key:        validAthenaConf.Key(),
+					Active:     true,
+					Valid:      true,
+					ConfigType: AthenaConfigType,
+					Config:     validAthenaConf,
+				},
+			},
+			configWatchers: map[ConfigSource]cloudconfig.KeyedConfigWatcher{
+				MultiCloudSource: &MockKeyedConfigWatcher{},
+			},
+			expectedStatuses: []*Status{},
 		},
 		// Watch Interaction
 		"New Helm, Existing Config File": {
@@ -723,14 +715,6 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 		"Update Config File, Existing Helm": {
 			initialStatuses: []*Status{
 				{
-					Source:     ConfigFileSource,
-					Key:        validAthenaConf.Key(),
-					Active:     false,
-					Valid:      true,
-					ConfigType: AthenaConfigType,
-					Config:     validAthenaConf,
-				},
-				{
 					Source:     HelmSource,
 					Key:        validBigQueryConf.Key(),
 					Active:     true,
@@ -757,14 +741,6 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 					Valid:      true,
 					ConfigType: AthenaConfigType,
 					Config:     validAthenaConfModifiedProperty,
-				},
-				{
-					Source:     HelmSource,
-					Key:        validBigQueryConf.Key(),
-					Active:     false,
-					Valid:      true,
-					ConfigType: BigQueryConfigType,
-					Config:     validBigQueryConf,
 				},
 			},
 		},
@@ -1037,13 +1013,6 @@ func TestIntegrationController_EnableConfig(t *testing.T) {
 			inputSource: ConfigControllerSource.String(),
 			expectErr:   true,
 		},
-		"invalid source": {
-			initial:     []*Status{},
-			expected:    []*Status{},
-			inputKey:    validAthenaConf.Key(),
-			inputSource: MultiCloudSource.String(),
-			expectErr:   true,
-		},
 		"config is already enabled": {
 			initial: []*Status{
 				makeStatus(validAthenaConf, true, ConfigControllerSource),
@@ -1054,6 +1023,17 @@ func TestIntegrationController_EnableConfig(t *testing.T) {
 			inputKey:    validAthenaConf.Key(),
 			inputSource: ConfigControllerSource.String(),
 			expectErr:   true,
+		},
+		"alternate source": {
+			initial: []*Status{
+				makeStatus(validAthenaConf, false, MultiCloudSource),
+			},
+			expected: []*Status{
+				makeStatus(validAthenaConf, true, MultiCloudSource),
+			},
+			inputKey:    validAthenaConf.Key(),
+			inputSource: MultiCloudSource.String(),
+			expectErr:   false,
 		},
 		"enabled disabled single config": {
 			initial: []*Status{
@@ -1146,13 +1126,7 @@ func TestIntegrationController_DisableConfig(t *testing.T) {
 			inputSource: ConfigControllerSource.String(),
 			expectErr:   true,
 		},
-		"invalid source": {
-			initial:     []*Status{},
-			expected:    []*Status{},
-			inputKey:    validAthenaConf.Key(),
-			inputSource: MultiCloudSource.String(),
-			expectErr:   true,
-		},
+
 		"config is already disabled": {
 			initial: []*Status{
 				makeStatus(validAthenaConf, false, ConfigControllerSource),
@@ -1175,6 +1149,17 @@ func TestIntegrationController_DisableConfig(t *testing.T) {
 			},
 			inputKey:    validAthenaConf.Key(),
 			inputSource: ConfigControllerSource.String(),
+			expectErr:   false,
+		},
+		"alternate source": {
+			initial: []*Status{
+				makeStatus(validAthenaConf, true, MultiCloudSource),
+			},
+			expected: []*Status{
+				makeStatus(validAthenaConf, false, MultiCloudSource),
+			},
+			inputKey:    validAthenaConf.Key(),
+			inputSource: MultiCloudSource.String(),
 			expectErr:   false,
 		},
 		"disable config, matching config from separate source": {
@@ -1369,7 +1354,7 @@ func buildStatuses(statusList []*Status) (Statuses, error) {
 
 func checkStatuses(actual, expected Statuses) error {
 	if len(actual.List()) != len(expected.List()) {
-		return fmt.Errorf("integration statueses did not have the correct length actaul: %d, expected: %d", len(actual), len(expected))
+		return fmt.Errorf("integration statueses did not have the correct length actaul: %d, expected: %d", len(actual.List()), len(expected.List()))
 	}
 
 	for _, actualStatus := range actual.List() {

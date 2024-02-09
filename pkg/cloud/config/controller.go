@@ -284,16 +284,22 @@ func (c *Controller) DisableConfig(key, sourceStr string) error {
 	return nil
 }
 
-// DeleteConfig removes an config from the statuses and deletes the config on all observers if it was active
-func (c *Controller) DeleteConfig(key, source string) error {
+// DeleteConfig removes a config from the statuses and deletes the config on all observers if it was active
+// This can only be used on configs with ConfigControllerSource
+func (c *Controller) DeleteConfig(key, sourceStr string) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
+	source := GetConfigSource(sourceStr)
+	if source != ConfigControllerSource {
+		return fmt.Errorf("controller does not own config with key %s from source %s, manage this config at its source", key, source.String())
+	}
+
 	statuses, err := c.load()
 	if err != nil {
 		return fmt.Errorf("failed to load statuses")
 	}
 
-	err = c.deleteConfig(key, GetConfigSource(source), statuses)
+	err = c.deleteConfig(key, source, statuses)
 	if err != nil {
 		return fmt.Errorf("Controller: DeleteConfig: %w", err)
 	}
@@ -301,10 +307,6 @@ func (c *Controller) DeleteConfig(key, source string) error {
 }
 
 func (c *Controller) deleteConfig(key string, source ConfigSource, statuses Statuses) error {
-	if source != ConfigControllerSource {
-		return fmt.Errorf("controller does not own config with key %s from source %s, manage this config at its source", key, source.String())
-	}
-
 	is, ok := statuses.Get(key, source)
 	if !ok {
 		return fmt.Errorf("config with key %s from source %s does not exist", key, source.String())
