@@ -1,12 +1,13 @@
-import parse from 'html-react-parser';
+import {Parser as HtmlToReactParser} from 'html-to-react'
 
-function Footer() {
+// Footer could be HTML, so we need to parse it.
+const Footer = () => {
+  const content = '<div align="right"><br/>PLACEHOLDER_FOOTER_CONTENT</div>';
+  const htmlToReactParser = new HtmlToReactParser();
+  const parsedContent = htmlToReactParser.parse(content);
   return (
-    <div align="right">
-      <br/>
-      { parse('PLACEHOLDER_FOOTER_CONTENT') }
-    </div>
-  )
-}
+    parsedContent
+    )
+  }
 
 export default Footer;

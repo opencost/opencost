@@ -9,6 +9,7 @@ else
     sed -i "s^{PLACEHOLDER_BASE_URL}^$BASE_URL^g" /var/www/*.js
 fi
 
+# export your OPENCOST_FOOTER_CONTENT='<a href="https://opencost.io">OpenCost</a>' in your Dockerfile to set
 if [[ ! -z "$OPENCOST_FOOTER_CONTENT" ]]; then
     sed -i "s^PLACEHOLDER_FOOTER_CONTENT^$OPENCOST_FOOTER_CONTENT^g" /var/www/*.js
 else
