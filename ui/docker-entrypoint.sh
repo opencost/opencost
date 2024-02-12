@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
 
+cp -rv /opt/ui/dist/* /var/www
+
 if [[ ! -z "$BASE_URL_OVERRIDE" ]]; then
     echo "running with BASE_URL=${BASE_URL_OVERRIDE}"
     sed -i "s^{PLACEHOLDER_BASE_URL}^$BASE_URL_OVERRIDE^g" /var/www/*.js
