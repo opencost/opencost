@@ -279,7 +279,7 @@ func (c *CSVProvider) NodePricing(key models.Key) (*models.Node, models.PricingM
 			}
 		}
 		totalCost := hourly * float64(count)
-		node.GPUCost = fmt.Sprintf("%f", totalCost)
+		node.GPUCost = fmt.Sprintf("%f", hourly)
 		nc, err := strconv.ParseFloat(node.Cost, 64)
 		if err != nil {
 			log.Errorf("Unable to parse %s as float", node.Cost)
