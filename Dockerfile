@@ -39,7 +39,7 @@ LABEL org.opencontainers.image.documentation=https://opencost.io/docs/
 LABEL org.opencontainers.image.licenses=Apache-2.0
 LABEL org.opencontainers.image.source=https://github.com/opencost/opencost
 LABEL org.opencontainers.image.title=kubecost-cost-model
-LABEL org.opencontainers.image.url=https://github.com/opencost/opencost
+LABEL org.opencontainers.image.url=https://opencost.io
 
 RUN apk add --update --no-cache ca-certificates
 COPY --from=build-env /go/bin/app /go/bin/app
