@@ -22,6 +22,7 @@ import AllocationReport from "./components/allocationReport";
 import Controls from "./components/Controls";
 import Header from "./components/Header";
 import Page from "./components/Page";
+import Footer from "./components/Footer";
 import Subtitle from "./components/Subtitle";
 import Warnings from "./components/Warnings";
 import AllocationService from "./services/allocation";
@@ -302,6 +303,7 @@ const ReportsPage = () => {
           )}
         </Paper>
       )}
+      <Footer/>
     </Page>
   );
 };
