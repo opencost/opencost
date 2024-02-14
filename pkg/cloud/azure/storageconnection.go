@@ -1,6 +1,7 @@
 package azure
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -44,6 +45,29 @@ func (sc *StorageConnection) getBlobURLTemplate() string {
 	}
 	// default to Public Cloud template
 	return "https://%s.blob.core.windows.net/%s"
+}
+
+// DownloadBlob downloads the Azure Billing CSV into a byte slice
+func (sc *StorageConnection) DownloadBlob(blobName string, client *azblob.Client, ctx context.Context) ([]byte, error) {
+	log.Infof("Azure Storage: retrieving blob: %v", blobName)
+
+	downloadResponse, err := client.DownloadStream(ctx, sc.Container, blobName, nil)
+	if err != nil {
+		return nil, fmt.Errorf("Azure: DownloadBlob: failed to download %w", err)
+	}
+	// NOTE: automatically retries are performed if the connection fails
+	retryReader := downloadResponse.NewRetryReader(ctx, &azblob.RetryReaderOptions{})
+	defer retryReader.Close()
+
+	// read the body into a buffer
+	downloadedData := bytes.Buffer{}
+
+	_, err = downloadedData.ReadFrom(retryReader)
+	if err != nil {
+		return nil, fmt.Errorf("Azure: DownloadBlob: failed to read downloaded data %w", err)
+	}
+
+	return downloadedData.Bytes(), nil
 }
 
 // DownloadBlobToFile downloads the Azure Billing CSV to a local file
