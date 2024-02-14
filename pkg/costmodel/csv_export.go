@@ -309,7 +309,6 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 			},
 		})
 	}
-	csvDef = append(csvDef)
 
 	header := make([]string, 0, len(csvDef))
 	for _, def := range csvDef {
