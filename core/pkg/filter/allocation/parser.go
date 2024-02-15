@@ -26,16 +26,16 @@ var allocationFilterFields []*ast.Field = []*ast.Field{
 // fieldMap is a lazily loaded mapping from AllocationField to ast.Field
 var fieldMap map[AllocationField]*ast.Field
 
+func init() {
+	fieldMap = make(map[AllocationField]*ast.Field, len(allocationFilterFields))
+	for _, f := range allocationFilterFields {
+		ff := *f
+		fieldMap[AllocationField(ff.Name)] = &ff
+	}
+}
+
 // DefaultFieldByName returns only default allocation filter fields by name.
 func DefaultFieldByName(field AllocationField) *ast.Field {
-	if fieldMap == nil {
-		fieldMap = make(map[AllocationField]*ast.Field, len(allocationFilterFields))
-		for _, f := range allocationFilterFields {
-			ff := *f
-			fieldMap[AllocationField(ff.Name)] = &ff
-		}
-	}
-
 	if af, ok := fieldMap[field]; ok {
 		afcopy := *af
 		return &afcopy
