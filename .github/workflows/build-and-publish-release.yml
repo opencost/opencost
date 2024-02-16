@@ -68,6 +68,11 @@ jobs:
       - name: Install crane
         uses: imjasonh/setup-crane@v0.1
 
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
       ## Install manifest-tool, which is required to combine multi-arch images
       ## https://github.com/estesp/manifest-tool
       - name: Install manifest-tool
