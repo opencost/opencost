@@ -88,18 +88,18 @@ jobs:
       - name: Build and push (multiarch) OpenCost
         working-directory: ./opencost
         run: |
-          just build '${steps.tags.outputs.IMAGE_TAG}'
-          crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_LATEST}'
-          crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_VERSION}'
-          crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_QUAY}'
-          crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_LATEST_QUAY}'
-          crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_VERSION_QUAY}'
+          just build '${env.IMAGE_TAG}'
+          crane copy '${env.IMAGE_TAG}' '${env.IMAGE_TAG_LATEST}'
+          crane copy '${env.IMAGE_TAG}' '${env.IMAGE_TAG_VERSION}'
+          crane copy '${env.IMAGE_TAG}' '${env.IMAGE_TAG_QUAY}'
+          crane copy '${env.IMAGE_TAG}' '${env.IMAGE_TAG_LATEST_QUAY}'
+          crane copy '${env.IMAGE_TAG}' '${env.IMAGE_TAG_VERSION_QUAY}'
 
       - name: Build and push (multiarch) OpenCost UI
         working-directory: ./opencost/ui
         run: |
-          just build '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_LATEST}'
-          crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_VERSION}'
-          crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_QUAY}'
-          crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_LATEST_QUAY}'
-          crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_VERSION_QUAY}'
+          just build '${env.IMAGE_TAG_UI}' '${env.IMAGE_TAG_UI_LATEST}'
+          crane copy '${env.IMAGE_TAG_UI}' '${env.IMAGE_TAG_UI_VERSION}'
+          crane copy '${env.IMAGE_TAG_UI}' '${env.IMAGE_TAG_UI_QUAY}'
+          crane copy '${env.IMAGE_TAG_UI}' '${env.IMAGE_TAG_UI_LATEST_QUAY}'
+          crane copy '${env.IMAGE_TAG_UI}' '${env.IMAGE_TAG_UI_VERSION_QUAY}'
