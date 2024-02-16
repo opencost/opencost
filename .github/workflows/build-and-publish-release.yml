@@ -26,7 +26,8 @@ jobs:
       - name: Make Branch Name
         id: branch
         run: |
-          echo "BRANCH_NAME=v${${{ inputs.release_version}}%.*}" >> $GITHUB_ENV
+          VERSION_NUMBER=${{ inputs.release_version }}
+          echo "BRANCH_NAME=v${VERSION_NUMBER%.*}" >> $GITHUB_ENV
   
       - name: Checkout Repo
         uses: actions/checkout@v4
