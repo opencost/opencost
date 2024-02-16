@@ -52,12 +52,12 @@ jobs:
           echo "IMAGE_TAG_UI=ghcr.io/opencost/opencost-ui:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
           echo "IMAGE_TAG_UI_LATEST=ghcr.io/opencost/opencost-ui:latest" >> $GITHUB_OUTPUT
           echo "IMAGE_TAG_UI_VERSION=ghcr.io/opencost/opencost-ui:${{ inputs.release_version }}" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_QUAY=quay.io/kubecost1/kubecost-cost-model:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_LATEST_QUAY=quay.io/kubecost1/kubecost-cost-model:latest" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_VERSION_QUAY=quay.io/kubecost1/kubecost-cost-model:prod-${{ inputs.release_version }}" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_UI_QUAY=quay.io/kubecost1/opencost-ui:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_UI_LATEST_QUAY=quay.io/kubecost1/opencost-ui:latest" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_UI_VERSION_QUAY=quay.io/kubecost1/opencost-ui:prod-${{ inputs.release_version }}" >> $GITHUB_OUTPUT
+        #  echo "IMAGE_TAG_QUAY=quay.io/kubecost1/kubecost-cost-model:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+        #  echo "IMAGE_TAG_LATEST_QUAY=quay.io/kubecost1/kubecost-cost-model:latest" >> $GITHUB_OUTPUT
+        #  echo "IMAGE_TAG_VERSION_QUAY=quay.io/kubecost1/kubecost-cost-model:prod-${{ inputs.release_version }}" >> $GITHUB_OUTPUT
+        #  echo "IMAGE_TAG_UI_QUAY=quay.io/kubecost1/opencost-ui:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+        #  echo "IMAGE_TAG_UI_LATEST_QUAY=quay.io/kubecost1/opencost-ui:latest" >> $GITHUB_OUTPUT
+        #  echo "IMAGE_TAG_UI_VERSION_QUAY=quay.io/kubecost1/opencost-ui:prod-${{ inputs.release_version }}" >> $GITHUB_OUTPUT
      
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -79,12 +79,12 @@ jobs:
           cp manifest-tool-linux-amd64 manifest-tool
           echo "$(pwd)" >> $GITHUB_PATH
 
-      - name: Login to Quay
-        uses: docker/login-action@v3
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
+#      - name: Login to Quay
+#        uses: docker/login-action@v3
+#        with:
+#          registry: quay.io
+#          username: ${{ secrets.QUAY_USERNAME }}
+#          password: ${{ secrets.QUAY_PASSWORD }}
       
       - name: Build and push (multiarch) OpenCost
         working-directory: ./opencost
@@ -92,15 +92,15 @@ jobs:
           just build '${steps.tags.outputs.IMAGE_TAG}'
           crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_LATEST}'
           crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_VERSION}'
-          crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_QUAY}'
-          crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_LATEST_QUAY}'
-          crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_VERSION_QUAY}'
+        #  crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_QUAY}'
+        #  crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_LATEST_QUAY}'
+        #  crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_VERSION_QUAY}'
 
       - name: Build and push (multiarch) OpenCost UI
         working-directory: ./opencost/ui
         run: |
           just build '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_LATEST}'
           crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_VERSION}'
-          crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_QUAY}'
-          crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_LATEST_QUAY}'
-          crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_VERSION_QUAY}'
+        #  crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_QUAY}'
+        #  crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_LATEST_QUAY}'
+        #  crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_VERSION_QUAY}'
