@@ -122,11 +122,12 @@ func (orig LbAllocations) Clone() LbAllocations {
 }
 
 type LbAllocation struct {
-	Service string  `json:"service"`
-	Cost    float64 `json:"cost"`
-	Private bool    `json:"private"`
-	Ip      string  `json:"ip"`    //@bingen:field[version=19]
-	Hours   float64 `json:"hours"` //@bingen:field[version=21]
+	Service    string  `json:"service"`
+	Cost       float64 `json:"cost"`
+	Private    bool    `json:"private"`
+	Ip         string  `json:"ip"`         //@bingen:field[version=19]
+	Hours      float64 `json:"hours"`      //@bingen:field[version=21]
+	Adjustment float64 `json:"adjustment"` //@bingen:field[ignore]
 }
 
 func (lba *LbAllocation) SanitizeNaN() {
@@ -312,6 +313,7 @@ type PVAllocation struct {
 	ByteHours  float64 `json:"byteHours"`
 	Cost       float64 `json:"cost"`
 	ProviderID string  `json:"providerID"` // @bingen:field[version=20]
+	Adjustment float64 `json:"adjustment"` //@bingen:field[ignore]
 }
 
 // Equal returns true if the two PVAllocation instances contain approximately the same
