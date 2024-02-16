@@ -88,7 +88,7 @@ jobs:
       - name: Build and push (multiarch) OpenCost
         working-directory: ./opencost
         run: |
-          just build '${env.IMAGE_TAG}'
+          just build '${steps.tags.outputs.IMAGE_TAG}'
           crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_LATEST}'
           crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_VERSION}'
           crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_QUAY}'
