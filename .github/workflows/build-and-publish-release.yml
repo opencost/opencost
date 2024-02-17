@@ -40,7 +40,7 @@ jobs:
         id: sha
         run: |
           pushd ./opencost
-          echo "OC_SHORTHASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "OC_SHORTHASH=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           popd
 
       - name: Set OpenCost Image Tags
