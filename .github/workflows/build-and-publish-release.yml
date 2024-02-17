@@ -62,12 +62,12 @@ jobs:
       - name: Set OpenCost Image Tags
         id: tags
         run: |
-          echo "IMAGE_TAG=ghcr.io/opencost/opencost:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_LATEST=ghcr.io/opencost/opencost:latest" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_VERSION=ghcr.io/opencost/opencost:${{ inputs.release_version }}" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_UI=ghcr.io/opencost/opencost-ui:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_UI_LATEST=ghcr.io/opencost/opencost-ui:latest" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_UI_VERSION=ghcr.io/opencost/opencost-ui:${{ inputs.release_version }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=ghcr.io/opencost/opencost/opencost:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG_LATEST=ghcr.io/opencost/opencost/opencost:latest" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG_VERSION=ghcr.io/opencost/opencost/opencost:${{ inputs.release_version }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG_UI=ghcr.io/opencost/opencost/opencost-ui:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG_UI_LATEST=ghcr.io/opencost/opencost/opencost-ui:latest" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG_UI_VERSION=ghcr.io/opencost/opencost/opencost-ui:${{ inputs.release_version }}" >> $GITHUB_OUTPUT
         #  echo "IMAGE_TAG_QUAY=quay.io/kubecost1/kubecost-cost-model:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
         #  echo "IMAGE_TAG_LATEST_QUAY=quay.io/kubecost1/kubecost-cost-model:latest" >> $GITHUB_OUTPUT
         #  echo "IMAGE_TAG_VERSION_QUAY=quay.io/kubecost1/kubecost-cost-model:prod-${{ inputs.release_version }}" >> $GITHUB_OUTPUT
