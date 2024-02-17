@@ -11,6 +11,12 @@ concurrency:
   group: build-opencost
   cancel-in-progress: true
 
+env:
+  # Use docker.io for Docker Hub if empty
+  REGISTRY: ghcr.io
+  # github.repository as <account>/<repo>
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
   build-and-publish-opencost:
     runs-on: ubuntu-latest
@@ -43,10 +49,13 @@ jobs:
           echo "OC_SHORTHASH=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           popd
       
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+      # Login against a Docker registry except on PR
+      # https://github.com/docker/login-action
+      - name: Log into registry ${{ env.REGISTRY }}
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
