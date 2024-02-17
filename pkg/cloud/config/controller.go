@@ -49,7 +49,7 @@ type Controller struct {
 // NewController initializes an Config Controller
 func NewController(cp models.Provider) *Controller {
 	var watchers map[ConfigSource]cloud.KeyedConfigWatcher
-	if env.IsKubernetesEnabled() {
+	if env.IsKubernetesEnabled() && cp != nil {
 		providerConfig := provider.ExtractConfigFromProviders(cp)
 		watchers = GetCloudBillingWatchers(providerConfig)
 	} else {
