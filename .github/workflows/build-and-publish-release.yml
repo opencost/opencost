@@ -94,9 +94,9 @@ jobs:
       - name: Build and push (multiarch) OpenCost
         working-directory: ./opencost
         run: |
-          just build '${steps.tags.outputs.IMAGE_TAG}' ${{ inputs.release_version }}
-          crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_LATEST}'
-          crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_VERSION}'
+          just build '${{steps.tags.outputs.IMAGE_TAG}}' ${{ inputs.release_version }}
+          crane copy '${{steps.tags.outputs.IMAGE_TAG}}' '${{steps.tags.outputs.IMAGE_TAG_LATEST}}'
+          crane copy '${{steps.tags.outputs.IMAGE_TAG}}' '${{steps.tags.outputs.IMAGE_TAG_VERSION}}'
         #  crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_QUAY}'
         #  crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_LATEST_QUAY}'
         #  crane copy '${steps.tags.outputs.IMAGE_TAG}' '${steps.tags.outputs.IMAGE_TAG_VERSION_QUAY}'
@@ -104,9 +104,9 @@ jobs:
       - name: Build and push (multiarch) OpenCost UI
         working-directory: ./opencost/ui
         run: |
-          just build '${steps.tags.outputs.IMAGE_TAG_UI}' ${{ inputs.release_version }}
-          crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_LATEST}'
-          crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_VERSION}'
+          just build '${{steps.tags.outputs.IMAGE_TAG_UI}}' ${{ inputs.release_version }}
+          crane copy '${{steps.tags.outputs.IMAGE_TAG_UI}}' '${{steps.tags.outputs.IMAGE_TAG_UI_LATEST}}'
+          crane copy '${{steps.tags.outputs.IMAGE_TAG_UI}}' '${{steps.tags.outputs.IMAGE_TAG_UI_VERSION}}'
         #  crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_QUAY}'
         #  crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_LATEST_QUAY}'
         #  crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_VERSION_QUAY}'
