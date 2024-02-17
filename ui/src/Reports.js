@@ -49,11 +49,14 @@ const aggregationOptions = [
   { name: "Cluster", value: "cluster" },
   { name: "Node", value: "node" },
   { name: "Namespace", value: "namespace" },
-  { name: "Controller kind", value: "controllerKind" },
+  { name: "Controller Kind", value: "controllerKind" },
   { name: "Controller", value: "controller" },
-  { name: "Service", value: "service" },
-  { name: "Pod", value: "pod" },
+  { name: "DaemonSet", value: "daemonset" },
   { name: "Deployment", value: "deployment" },
+  { name: "Job", value: "job" },
+  { name: "Service", value: "service" },
+  { name: "StatefulSet", value: "statefulset" },
+  { name: "Pod", value: "pod" },
   { name: "Container", value: "container" },
 ];
 
