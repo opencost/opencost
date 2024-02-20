@@ -90,7 +90,9 @@ func Execute(opts *CostModelOpts) error {
 	telemetryHandler := metrics.ResponseMetricMiddleware(rootMux)
 	handler := cors.AllowAll().Handler(telemetryHandler)
 
-	return http.ListenAndServe(fmt.Sprint(":", env.GetAPIPort()), errors.PanicHandlerMiddleware(handler))
+	addr := fmt.Sprint(":", env.GetAPIPort())
+	log.Infof("Starting cost-model server on %s", addr)
+	return http.ListenAndServe(addr, errors.PanicHandlerMiddleware(handler))
 }
 
 func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) error {
