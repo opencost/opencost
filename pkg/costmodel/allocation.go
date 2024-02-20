@@ -391,6 +391,7 @@ func (cm *CostModel) execAllPromQueries(queries []promQuery, time time.Time) err
 	errs := make([]error, 0, len(queries))
 	for range queries {
 		if err := <-errCh; err != nil {
+			log.Errorf("CostModel.ComputeAllocation: query context error %s", err)
 			errs = append(errs, err)
 		}
 	}
