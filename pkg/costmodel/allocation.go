@@ -382,15 +382,19 @@ func (cm *CostModel) fetchPromData(start, end time.Time, resolution time.Duratio
 	var errMux sync.Mutex
 	errs := []error{}
 
+	addErr := func(err error) {
+		errMux.Lock()
+		errs = append(errs, err)
+		errMux.Unlock()
+	}
+
 	query := func(query string, out *[]*prom.QueryResult) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			result, _, err := ctx.QuerySync(query, end)
 			if err != nil {
-				errMux.Lock()
-				errs = append(errs, err)
-				errMux.Unlock()
+				addErr(err)
 				return
 			}
 			*out = result
@@ -462,9 +466,7 @@ func (cm *CostModel) fetchPromData(start, end time.Time, resolution time.Duratio
 		var err error
 		data.CPUUsageMax, _, err = ctx.QuerySync(fmt.Sprintf(queryFmtCPUUsageMaxSubquery, env.GetPromClusterFilter(), doubleResStr, durStr, resStr, env.GetPromClusterLabel()), end)
 		if err != nil {
-			errMux.Lock()
-			errs = append(errs, err)
-			errMux.Unlock()
+			addErr(err)
 		}
 
 		// This avoids logspam if there is no data for either metric (e.g. if
