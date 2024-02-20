@@ -156,7 +156,7 @@ func (c *Controller) pullWatchers() {
 			}
 			err = c.save(statuses)
 			if err != nil {
-				fmt.Errorf("failed to save statuses %s", err.Error())
+				log.Errorf("failed to save statuses %s", err.Error())
 			}
 		}
 	}
@@ -171,7 +171,7 @@ func (c *Controller) CreateConfig(conf cloud.KeyedConfig) error {
 
 	err := conf.Validate()
 	if err != nil {
-		return fmt.Errorf("provided configuration was invalid: %s", err.Error())
+		return fmt.Errorf("provided configuration was invalid: %w", err)
 	}
 
 	statuses, err := c.load()
