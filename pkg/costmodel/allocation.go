@@ -1,7 +1,9 @@
 package costmodel
 
 import (
+	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/opencost"
@@ -297,7 +299,7 @@ func (cm *CostModel) DateRange() (time.Time, time.Time, error) {
 	ctx := prom.NewNamedContext(cm.PrometheusClient, prom.AllocationContextName)
 	exportCsvDaysFmt := fmt.Sprintf("%dd", env.GetExportCSVMaxDays())
 
-	resOldest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtOldestSample, env.GetPromClusterFilter(), exportCsvDaysFmt, "1h"))
+	resOldest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtOldestSample, env.GetPromClusterFilter(), exportCsvDaysFmt, "1h"), time.Now())
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("querying oldest sample: %w", err)
 	}
@@ -306,7 +308,7 @@ func (cm *CostModel) DateRange() (time.Time, time.Time, error) {
 	}
 	oldest := time.Unix(int64(resOldest[0].Values[0].Value), 0)
 
-	resNewest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtNewestSample, env.GetPromClusterFilter(), exportCsvDaysFmt, "1h"))
+	resNewest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtNewestSample, env.GetPromClusterFilter(), exportCsvDaysFmt, "1h"), time.Now())
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("querying newest sample: %w", err)
 	}
@@ -316,6 +318,47 @@ func (cm *CostModel) DateRange() (time.Time, time.Time, error) {
 	newest := time.Unix(int64(resNewest[0].Values[0].Value), 0)
 
 	return oldest, newest, nil
+}
+
+type PromData struct {
+	RAMBytesAllocated []*prom.QueryResult
+}
+
+func (cm *CostModel) fetchPromData(start, end time.Time, resolution time.Duration) (*PromData, error) {
+	data := &PromData{}
+	// Query for the duration between start and end
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		return nil, fmt.Errorf("illegal duration value for %s", opencost.NewClosedWindow(start, end))
+	}
+	ctx := prom.NewNamedContext(cm.PrometheusClient, prom.AllocationContextName)
+
+	wg := sync.WaitGroup{}
+	var errMux sync.Mutex
+	errs := []error{}
+
+	query := func(query string, out *[]*prom.QueryResult) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			result, _, err := ctx.QuerySync(query, end)
+			if err != nil {
+				errMux.Lock()
+				errs = append(errs, err)
+				errMux.Unlock()
+				return
+			}
+			*out = result
+		}()
+	}
+
+	ctx.Errors()
+
+	query(fmt.Sprintf(queryFmtRAMBytesAllocated, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.RAMBytesAllocated)
+
+	wg.Wait()
+
+	return data, errors.Join(errs...)
 }
 
 func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Duration) (*opencost.AllocationSet, map[nodeKey]*nodePricing, error) {

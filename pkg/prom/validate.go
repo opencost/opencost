@@ -2,6 +2,7 @@ package prom
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/opencost/opencost/pkg/env"
 
@@ -33,7 +34,7 @@ func Validate(cli prometheus.Client) (*PrometheusMetadata, error) {
 func validate(cli prometheus.Client, q string) (*PrometheusMetadata, error) {
 	ctx := NewContext(cli)
 
-	resUp, _, err := ctx.QuerySync(q)
+	resUp, _, err := ctx.QuerySync(q, time.Now())
 	if err != nil {
 		return &PrometheusMetadata{
 			Running:            false,
