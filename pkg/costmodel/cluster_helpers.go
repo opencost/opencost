@@ -640,7 +640,12 @@ func buildLabelsMap(
 		// ingested label data. This removes the label_ prefix that prometheus
 		// adds to emitted labels. It also keeps from ingesting prometheus labels
 		// that aren't a part of the asset.
-		m[key] = result.GetLabels()
+		if _, ok := m[key]; !ok {
+			m[key] = map[string]string{}
+		}
+		for k, l := range result.GetLabels() {
+			m[key][k] = l
+		}
 	}
 	return m
 }
