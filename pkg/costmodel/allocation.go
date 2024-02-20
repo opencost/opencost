@@ -3,7 +3,6 @@ package costmodel
 import (
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/opencost"
@@ -320,7 +319,7 @@ func (cm *CostModel) DateRange() (time.Time, time.Time, error) {
 	return oldest, newest, nil
 }
 
-type PromData struct {
+type allocationPromData struct {
 	RAMBytesAllocated           []*prom.QueryResult
 	RAMRequests                 []*prom.QueryResult
 	RAMUsageAvg                 []*prom.QueryResult
@@ -367,95 +366,100 @@ type PromData struct {
 	CPUUsageMax                 []*prom.QueryResult
 
 	NodeExtendedData *extendedNodeQueryResults
+	PodMap           map[podKey]*pod
+	PodUIDKeyMap     map[podKey][]podKey
 }
 
-func (cm *CostModel) fetchPromData(start, end time.Time, resolution time.Duration) (*PromData, error) {
-	data := &PromData{}
+type promQuery struct {
+	out   *[]*prom.QueryResult
+	query string
+}
+
+func (cm *CostModel) execAllPromQueries(queries []promQuery, time time.Time) error {
+	ctx := prom.NewNamedContext(cm.PrometheusClient, prom.AllocationContextName)
+	// Run all queries concurrently
+	errCh := make(chan error, len(queries))
+	for _, q := range queries {
+		go func(q string, out *[]*prom.QueryResult) {
+			var err error
+			*out, _, err = ctx.QuerySync(q, time)
+			errCh <- err
+		}(q.query, q.out)
+	}
+
+	// Collect errors from the queries
+	errs := make([]error, 0, len(queries))
+	for range queries {
+		if err := <-errCh; err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (cm *CostModel) fetchAllocationPromData(start, end time.Time, resolution time.Duration, ingestPodUID bool) (*allocationPromData, error) {
+	data := &allocationPromData{}
 	// Query for the duration between start and end
 	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
 		return nil, fmt.Errorf("illegal duration value for %s", opencost.NewClosedWindow(start, end))
 	}
-	ctx := prom.NewNamedContext(cm.PrometheusClient, prom.AllocationContextName)
-
-	wg := sync.WaitGroup{}
-	var errMux sync.Mutex
-	errs := []error{}
-
-	addErr := func(err error) {
-		errMux.Lock()
-		errs = append(errs, err)
-		errMux.Unlock()
-	}
-
-	query := func(query string, out *[]*prom.QueryResult) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			result, _, err := ctx.QuerySync(query, end)
-			if err != nil {
-				addErr(err)
-				return
-			}
-			*out = result
-		}()
-	}
-
-	ctx.Errors()
 
 	// Convert resolution duration to a query-ready string
 	resStr := timeutil.DurationString(resolution)
 
-	query(fmt.Sprintf(queryFmtRAMBytesAllocated, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.RAMBytesAllocated)
-	query(fmt.Sprintf(queryFmtRAMRequests, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.RAMRequests)
-	query(fmt.Sprintf(queryFmtRAMUsageAvg, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.RAMUsageAvg)
-	query(fmt.Sprintf(queryFmtRAMUsageMax, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.RAMUsageMax)
-	query(fmt.Sprintf(queryFmtCPUCoresAllocated, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.CPUCoresAllocated)
-	query(fmt.Sprintf(queryFmtCPURequests, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.CPUCoresRequest)
-	query(fmt.Sprintf(queryFmtCPUUsageAvg, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.CPUUsageAvg)
-	query(fmt.Sprintf(queryFmtGPUsRequested, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.GPURequested)
-	query(fmt.Sprintf(queryFmtGPUsAllocated, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.GPUAllocated)
-	query(fmt.Sprintf(queryFmtNodeCostPerCPUHr, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.NodeCostPerCPUHr)
-	query(fmt.Sprintf(queryFmtNodeCostPerRAMGiBHr, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.NodeCostPerRAMGiBHr)
-	query(fmt.Sprintf(queryFmtNodeCostPerGPUHr, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.NodeCostPerGPUHr)
-	query(fmt.Sprintf(queryFmtNodeIsSpot, env.GetPromClusterFilter(), durStr), &data.NodeIsSpot)
-	query(fmt.Sprintf(queryFmtPVCInfo, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr), &data.PVCInfo)
-	query(fmt.Sprintf(queryFmtPodPVCAllocation, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.PodPVCAllocation)
-	query(fmt.Sprintf(queryFmtPVCBytesRequested, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.PVCBytesRequested)
-	query(fmt.Sprintf(queryFmtPVActiveMins, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr), &data.PVActiveMins)
-	query(fmt.Sprintf(queryFmtPVBytes, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.PVBytes)
-	query(fmt.Sprintf(queryFmtPVCostPerGiBHour, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.PVCostPerGiBHour)
-	query(fmt.Sprintf(queryFmtPVMeta, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.PVMeta)
-	query(fmt.Sprintf(queryFmtNetTransferBytes, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.NetTransferBytes)
-	query(fmt.Sprintf(queryFmtNetReceiveBytes, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.NetReceiveBytes)
-	query(fmt.Sprintf(queryFmtNetZoneGiB, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.NetZoneGiB)
-	query(fmt.Sprintf(queryFmtNetZoneCostPerGiB, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.NetZoneCostPerGiB)
-	query(fmt.Sprintf(queryFmtNetRegionGiB, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.NetRegionGiB)
-	query(fmt.Sprintf(queryFmtNetRegionCostPerGiB, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.NetRegionCostPerGiB)
-	query(fmt.Sprintf(queryFmtNetInternetGiB, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.NetInternetGiB)
-	query(fmt.Sprintf(queryFmtNetInternetCostPerGiB, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.NetInternetCostPerGiB)
-	query(fmt.Sprintf(queryFmtNamespaceLabels, env.GetPromClusterFilter(), durStr), &data.NamespaceLabels)
-	query(fmt.Sprintf(queryFmtNamespaceAnnotations, env.GetPromClusterFilter(), durStr), &data.NamespaceAnnotations)
-	query(fmt.Sprintf(queryFmtPodLabels, env.GetPromClusterFilter(), durStr), &data.PodLabels)
-	query(fmt.Sprintf(queryFmtPodAnnotations, env.GetPromClusterFilter(), durStr), &data.PodAnnotations)
-	query(fmt.Sprintf(queryFmtServiceLabels, env.GetPromClusterFilter(), durStr), &data.ServiceLabels)
-	query(fmt.Sprintf(queryFmtDeploymentLabels, env.GetPromClusterFilter(), durStr), &data.DeploymentLabels)
-	query(fmt.Sprintf(queryFmtStatefulSetLabels, env.GetPromClusterFilter(), durStr), &data.StatefulSetLabels)
-	query(fmt.Sprintf(queryFmtDaemonSetLabels, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.DaemonSetLabels)
-	query(fmt.Sprintf(queryFmtPodsWithReplicaSetOwner, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.PodsWithReplicaSetOwner)
-	query(fmt.Sprintf(queryFmtReplicaSetsWithoutOwners, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.ReplicaSetsWithoutOwners)
-	query(fmt.Sprintf(queryFmtReplicaSetsWithRolloutOwner, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.ReplicaSetsWithRolloutOwner)
-	query(fmt.Sprintf(queryFmtJobLabels, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.JobLabels)
-	query(fmt.Sprintf(queryFmtLBCostPerHr, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.LBCostPerHr)
-	query(fmt.Sprintf(queryFmtLBActiveMins, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr), &data.LBActiveMins)
-
+	queries := []promQuery{
+		{&data.CPUCoresAllocated, fmt.Sprintf(queryFmtCPUCoresAllocated, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.CPUCoresRequest, fmt.Sprintf(queryFmtCPURequests, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.CPUUsageAvg, fmt.Sprintf(queryFmtCPUUsageAvg, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.CPUUsageMax, fmt.Sprintf(queryFmtCPUUsageMaxRecordingRule, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.DaemonSetLabels, fmt.Sprintf(queryFmtDaemonSetLabels, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.DeploymentLabels, fmt.Sprintf(queryFmtDeploymentLabels, env.GetPromClusterFilter(), durStr)},
+		{&data.GPUAllocated, fmt.Sprintf(queryFmtGPUsAllocated, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.GPURequested, fmt.Sprintf(queryFmtGPUsRequested, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.JobLabels, fmt.Sprintf(queryFmtJobLabels, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.LBActiveMins, fmt.Sprintf(queryFmtLBActiveMins, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr)},
+		{&data.LBCostPerHr, fmt.Sprintf(queryFmtLBCostPerHr, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.NamespaceAnnotations, fmt.Sprintf(queryFmtNamespaceAnnotations, env.GetPromClusterFilter(), durStr)},
+		{&data.NamespaceLabels, fmt.Sprintf(queryFmtNamespaceLabels, env.GetPromClusterFilter(), durStr)},
+		{&data.NetInternetCostPerGiB, fmt.Sprintf(queryFmtNetInternetCostPerGiB, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.NetInternetGiB, fmt.Sprintf(queryFmtNetInternetGiB, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.NetReceiveBytes, fmt.Sprintf(queryFmtNetReceiveBytes, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.NetRegionCostPerGiB, fmt.Sprintf(queryFmtNetRegionCostPerGiB, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.NetRegionGiB, fmt.Sprintf(queryFmtNetRegionGiB, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.NetTransferBytes, fmt.Sprintf(queryFmtNetTransferBytes, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.NetZoneCostPerGiB, fmt.Sprintf(queryFmtNetZoneCostPerGiB, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.NetZoneGiB, fmt.Sprintf(queryFmtNetZoneGiB, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.NodeCostPerCPUHr, fmt.Sprintf(queryFmtNodeCostPerCPUHr, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.NodeCostPerGPUHr, fmt.Sprintf(queryFmtNodeCostPerGPUHr, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.NodeCostPerRAMGiBHr, fmt.Sprintf(queryFmtNodeCostPerRAMGiBHr, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.NodeIsSpot, fmt.Sprintf(queryFmtNodeIsSpot, env.GetPromClusterFilter(), durStr)},
+		{&data.PVActiveMins, fmt.Sprintf(queryFmtPVActiveMins, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr)},
+		{&data.PVBytes, fmt.Sprintf(queryFmtPVBytes, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.PVCBytesRequested, fmt.Sprintf(queryFmtPVCBytesRequested, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.PVCInfo, fmt.Sprintf(queryFmtPVCInfo, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr)},
+		{&data.PVCostPerGiBHour, fmt.Sprintf(queryFmtPVCostPerGiBHour, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.PVMeta, fmt.Sprintf(queryFmtPVMeta, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.PodAnnotations, fmt.Sprintf(queryFmtPodAnnotations, env.GetPromClusterFilter(), durStr)},
+		{&data.PodLabels, fmt.Sprintf(queryFmtPodLabels, env.GetPromClusterFilter(), durStr)},
+		{&data.PodPVCAllocation, fmt.Sprintf(queryFmtPodPVCAllocation, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.PodsWithReplicaSetOwner, fmt.Sprintf(queryFmtPodsWithReplicaSetOwner, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.RAMBytesAllocated, fmt.Sprintf(queryFmtRAMBytesAllocated, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.RAMRequests, fmt.Sprintf(queryFmtRAMRequests, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.RAMUsageAvg, fmt.Sprintf(queryFmtRAMUsageAvg, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.RAMUsageMax, fmt.Sprintf(queryFmtRAMUsageMax, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.ReplicaSetsWithRolloutOwner, fmt.Sprintf(queryFmtReplicaSetsWithRolloutOwner, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.ReplicaSetsWithoutOwners, fmt.Sprintf(queryFmtReplicaSetsWithoutOwners, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())},
+		{&data.ServiceLabels, fmt.Sprintf(queryFmtServiceLabels, env.GetPromClusterFilter(), durStr)},
+		{&data.StatefulSetLabels, fmt.Sprintf(queryFmtStatefulSetLabels, env.GetPromClusterFilter(), durStr)},
+	}
 	if env.GetAllocationNodeLabelsEnabled() {
-		query(fmt.Sprintf(queryFmtNodeLabels, env.GetPromClusterFilter(), durStr), &data.NodeLabels)
+		queries = append(queries, promQuery{&data.NodeLabels, fmt.Sprintf(queryFmtNodeLabels, env.GetPromClusterFilter(), durStr)})
 	}
 
-	query(fmt.Sprintf(queryFmtCPUUsageMaxRecordingRule, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()), &data.CPUUsageMax)
-
-	wg.Wait()
+	if err := cm.execAllPromQueries(queries, end); err != nil {
+		return nil, err
+	}
 
 	if len(data.CPUUsageMax) == 0 {
 		// The parameter after the metric ...{}[<thisone>] should be set to 2x
@@ -463,10 +467,11 @@ func (cm *CostModel) fetchPromData(start, end time.Time, resolution time.Duratio
 		// in case the Prom scrape duration has been reduced to be equal to the
 		// resolution.
 		doubleResStr := timeutil.DurationString(2 * resolution)
+		ctx := prom.NewNamedContext(cm.PrometheusClient, prom.AllocationContextName)
 		var err error
 		data.CPUUsageMax, _, err = ctx.QuerySync(fmt.Sprintf(queryFmtCPUUsageMaxSubquery, env.GetPromClusterFilter(), doubleResStr, durStr, resStr, env.GetPromClusterLabel()), end)
 		if err != nil {
-			addErr(err)
+			return nil, fmt.Errorf("querying CPU usage max subquery: %w", err)
 		}
 
 		// This avoids logspam if there is no data for either metric (e.g. if
@@ -475,23 +480,8 @@ func (cm *CostModel) fetchPromData(start, end time.Time, resolution time.Duratio
 			log.Debugf("CPU usage recording rule query returned an empty result when queried at %s over %s. Fell back to subquery. Consider setting up Kubecost CPU usage recording role to reduce query load on Prometheus; subqueries are expensive.", end.String(), durStr)
 		}
 	}
+	ctx := prom.NewNamedContext(cm.PrometheusClient, prom.AllocationContextName)
 	data.NodeExtendedData, _ = queryExtendedNodeData(ctx, start, end, durStr, resStr)
-
-	return data, errors.Join(errs...)
-}
-
-func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Duration) (*opencost.AllocationSet, map[nodeKey]*nodePricing, error) {
-	// 1. Build out Pod map from resolution-tuned, batched Pod start/end query
-	// 2. Run and apply the results of the remaining queries to
-	// 3. Build out AllocationSet from completed Pod map
-
-	// Create a window spanning the requested query
-	window := opencost.NewWindow(&start, &end)
-
-	// Create an empty AllocationSet. For safety, in the case of an error, we
-	// should prefer to return this empty set with the error. (In the case of
-	// no error, of course we populate the set and return it.)
-	allocSet := opencost.NewAllocationSet(start, end)
 
 	// (1) Build out Pod map
 
@@ -499,7 +489,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	// underlying-Allocation instance, starting with (start, end) so that we
 	// begin with minutes, from which we compute resource allocation and cost
 	// totals from measured rate data.
-	podMap := map[podKey]*pod{}
+	data.PodMap = make(map[podKey]*pod)
 
 	// If ingesting pod UID, we query kube_pod_container_status_running avg
 	// by uid as well as the default values, and all podKeys/pods have their
@@ -513,36 +503,61 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	// with the same names. However, this will lead to a many-to-one metric
 	// to podKey relation, so this map allows us to map the metric's
 	// "<pod_name>" key to the edited "<pod_name> <pod_uid>" keys in podMap.
-	ingestPodUID := env.IsIngestingPodUID()
-	podUIDKeyMap := make(map[podKey][]podKey)
+	data.PodUIDKeyMap = make(map[podKey][]podKey)
 
 	if ingestPodUID {
 		log.Debugf("CostModel.ComputeAllocation: ingesting UID data from KSM metrics...")
 	}
-
+	window := opencost.NewWindow(&start, &end)
 	// TODO:CLEANUP remove "max batch" idea and clusterStart/End
-	err := cm.buildPodMap(window, resolution, env.GetETLMaxPrometheusQueryDuration(), podMap, ingestPodUID, podUIDKeyMap)
+	err := cm.buildPodMap(window, resolution, env.GetETLMaxPrometheusQueryDuration(), data.PodMap, ingestPodUID, data.PodUIDKeyMap)
 	if err != nil {
 		log.Errorf("CostModel.ComputeAllocation: failed to build pod map: %s", err.Error())
 	}
+
+	return data, nil
+}
+
+func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Duration) (*opencost.AllocationSet, map[nodeKey]*nodePricing, error) {
+	ingestPodUID := env.IsIngestingPodUID()
+	data, err := cm.fetchAllocationPromData(start, end, resolution, ingestPodUID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return cm.calcAllocation(start, end, resolution, data, ingestPodUID)
+}
+
+func (cm *CostModel) calcAllocation(start, end time.Time, resolution time.Duration, promData *allocationPromData, ingestPodUID bool) (*opencost.AllocationSet, map[nodeKey]*nodePricing, error) {
+	// 1. Build out Pod map from resolution-tuned, batched Pod start/end query
+	// 2. Run and apply the results of the remaining queries to
+	// 3. Build out AllocationSet from completed Pod map
+
+	// Create a window spanning the requested query
+	window := opencost.NewWindow(&start, &end)
+
+	// Create an empty AllocationSet. For safety, in the case of an error, we
+	// should prefer to return this empty set with the error. (In the case of
+	// no error, of course we populate the set and return it.)
+	allocSet := opencost.NewAllocationSet(start, end)
+
 	// (2) Run and apply remaining queries
 
 	// We choose to apply allocation before requests in the cases of RAM and
 	// CPU so that we can assert that allocation should always be greater than
 	// or equal to request.
-	applyCPUCoresAllocated(podMap, promData.CPUCoresAllocated, podUIDKeyMap)
-	applyCPUCoresRequested(podMap, promData.CPUCoresRequest, podUIDKeyMap)
-	applyCPUCoresUsedAvg(podMap, promData.CPUUsageAvg, podUIDKeyMap)
-	applyCPUCoresUsedMax(podMap, promData.CPUUsageMax, podUIDKeyMap)
-	applyRAMBytesAllocated(podMap, promData.RAMBytesAllocated, podUIDKeyMap)
-	applyRAMBytesRequested(podMap, promData.RAMRequests, podUIDKeyMap)
-	applyRAMBytesUsedAvg(podMap, promData.RAMUsageAvg, podUIDKeyMap)
-	applyRAMBytesUsedMax(podMap, promData.RAMUsageMax, podUIDKeyMap)
-	applyGPUsAllocated(podMap, promData.GPURequested, promData.GPUAllocated, podUIDKeyMap)
-	applyNetworkTotals(podMap, promData.NetTransferBytes, promData.NetReceiveBytes, podUIDKeyMap)
-	applyNetworkAllocation(podMap, promData.NetZoneGiB, promData.NetZoneCostPerGiB, podUIDKeyMap, networkCrossZoneCost)
-	applyNetworkAllocation(podMap, promData.NetRegionGiB, promData.NetRegionCostPerGiB, podUIDKeyMap, networkCrossRegionCost)
-	applyNetworkAllocation(podMap, promData.NetInternetGiB, promData.NetInternetCostPerGiB, podUIDKeyMap, networkInternetCost)
+	applyCPUCoresAllocated(promData.PodMap, promData.CPUCoresAllocated, promData.PodUIDKeyMap)
+	applyCPUCoresRequested(promData.PodMap, promData.CPUCoresRequest, promData.PodUIDKeyMap)
+	applyCPUCoresUsedAvg(promData.PodMap, promData.CPUUsageAvg, promData.PodUIDKeyMap)
+	applyCPUCoresUsedMax(promData.PodMap, promData.CPUUsageMax, promData.PodUIDKeyMap)
+	applyRAMBytesAllocated(promData.PodMap, promData.RAMBytesAllocated, promData.PodUIDKeyMap)
+	applyRAMBytesRequested(promData.PodMap, promData.RAMRequests, promData.PodUIDKeyMap)
+	applyRAMBytesUsedAvg(promData.PodMap, promData.RAMUsageAvg, promData.PodUIDKeyMap)
+	applyRAMBytesUsedMax(promData.PodMap, promData.RAMUsageMax, promData.PodUIDKeyMap)
+	applyGPUsAllocated(promData.PodMap, promData.GPURequested, promData.GPUAllocated, promData.PodUIDKeyMap)
+	applyNetworkTotals(promData.PodMap, promData.NetTransferBytes, promData.NetReceiveBytes, promData.PodUIDKeyMap)
+	applyNetworkAllocation(promData.PodMap, promData.NetZoneGiB, promData.NetZoneCostPerGiB, promData.PodUIDKeyMap, networkCrossZoneCost)
+	applyNetworkAllocation(promData.PodMap, promData.NetRegionGiB, promData.NetRegionCostPerGiB, promData.PodUIDKeyMap, networkCrossRegionCost)
+	applyNetworkAllocation(promData.PodMap, promData.NetInternetGiB, promData.NetInternetCostPerGiB, promData.PodUIDKeyMap, networkInternetCost)
 
 	// In the case that a two pods with the same name had different containers,
 	// we will double-count the containers. There is no way to associate each
@@ -559,27 +574,28 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	if env.GetAllocationNodeLabelsEnabled() {
 		nodeLabels = resToNodeLabels(promData.NodeLabels)
 	}
+
 	namespaceLabels := resToNamespaceLabels(promData.NamespaceLabels)
-	podLabels := resToPodLabels(promData.PodLabels, podUIDKeyMap, ingestPodUID)
+	podLabels := resToPodLabels(promData.PodLabels, promData.PodUIDKeyMap, ingestPodUID)
 	namespaceAnnotations := resToNamespaceAnnotations(promData.NamespaceAnnotations)
-	podAnnotations := resToPodAnnotations(promData.PodAnnotations, podUIDKeyMap, ingestPodUID)
-	applyLabels(podMap, nodeLabels, namespaceLabels, podLabels)
-	applyAnnotations(podMap, namespaceAnnotations, podAnnotations)
+	podAnnotations := resToPodAnnotations(promData.PodAnnotations, promData.PodUIDKeyMap, ingestPodUID)
+	applyLabels(promData.PodMap, nodeLabels, namespaceLabels, podLabels)
+	applyAnnotations(promData.PodMap, namespaceAnnotations, podAnnotations)
 
 	podDeploymentMap := labelsToPodControllerMap(podLabels, resToDeploymentLabels(promData.DeploymentLabels))
 	podStatefulSetMap := labelsToPodControllerMap(podLabels, resToStatefulSetLabels(promData.StatefulSetLabels))
-	podDaemonSetMap := resToPodDaemonSetMap(promData.DaemonSetLabels, podUIDKeyMap, ingestPodUID)
-	podJobMap := resToPodJobMap(promData.JobLabels, podUIDKeyMap, ingestPodUID)
-	podReplicaSetMap := resToPodReplicaSetMap(promData.PodsWithReplicaSetOwner, promData.ReplicaSetsWithoutOwners, promData.ReplicaSetsWithRolloutOwner, podUIDKeyMap, ingestPodUID)
-	applyControllersToPods(podMap, podDeploymentMap)
-	applyControllersToPods(podMap, podStatefulSetMap)
-	applyControllersToPods(podMap, podDaemonSetMap)
-	applyControllersToPods(podMap, podJobMap)
-	applyControllersToPods(podMap, podReplicaSetMap)
+	podDaemonSetMap := resToPodDaemonSetMap(promData.DaemonSetLabels, promData.PodUIDKeyMap, ingestPodUID)
+	podJobMap := resToPodJobMap(promData.JobLabels, promData.PodUIDKeyMap, ingestPodUID)
+	podReplicaSetMap := resToPodReplicaSetMap(promData.PodsWithReplicaSetOwner, promData.ReplicaSetsWithoutOwners, promData.ReplicaSetsWithRolloutOwner, promData.PodUIDKeyMap, ingestPodUID)
+	applyControllersToPods(promData.PodMap, podDeploymentMap)
+	applyControllersToPods(promData.PodMap, podStatefulSetMap)
+	applyControllersToPods(promData.PodMap, podDaemonSetMap)
+	applyControllersToPods(promData.PodMap, podJobMap)
+	applyControllersToPods(promData.PodMap, podReplicaSetMap)
 
 	serviceLabels := getServiceLabels(promData.ServiceLabels)
 	allocsByService := map[serviceKey][]*opencost.Allocation{}
-	applyServicesToPods(podMap, podLabels, allocsByService, serviceLabels)
+	applyServicesToPods(promData.PodMap, podLabels, allocsByService, serviceLabels)
 
 	// TODO breakdown network costs?
 
@@ -603,18 +619,18 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	// populates the pvc.Count field so that pvc allocation can be
 	// split appropriately among each pod's container allocation.
 	podPVCMap := map[podKey][]*pvc{}
-	buildPodPVCMap(podPVCMap, pvMap, pvcMap, podMap, promData.PodPVCAllocation, podUIDKeyMap, ingestPodUID)
-	applyPVCsToPods(window, podMap, podPVCMap, pvcMap)
+	buildPodPVCMap(podPVCMap, pvMap, pvcMap, promData.PodMap, promData.PodPVCAllocation, promData.PodUIDKeyMap, ingestPodUID)
+	applyPVCsToPods(window, promData.PodMap, podPVCMap, pvcMap)
 
 	// Identify PVCs without pods and add pv costs to the unmounted Allocation for the pvc's cluster
-	applyUnmountedPVCs(window, podMap, pvcMap)
+	applyUnmountedPVCs(window, promData.PodMap, pvcMap)
 
 	// Identify PVs without PVCs and add PV costs to the unmounted Allocation for the PV's cluster
-	applyUnmountedPVs(window, podMap, pvMap, pvcMap)
+	applyUnmountedPVs(window, promData.PodMap, pvMap, pvcMap)
 
 	lbMap := make(map[serviceKey]*lbCost)
 	getLoadBalancerCosts(lbMap, promData.LBCostPerHr, promData.LBActiveMins, resolution, window)
-	applyLoadBalancersToPods(window, podMap, lbMap, allocsByService)
+	applyLoadBalancersToPods(window, promData.PodMap, lbMap, allocsByService)
 
 	// Build out a map of Nodes with resource costs, discounts, and node types
 	// for converting resource allocation data to cumulative costs.
@@ -626,10 +642,10 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	applyNodeSpot(nodeMap, promData.NodeIsSpot)
 	applyNodeDiscount(nodeMap, cm)
 	applyExtendedNodeData(nodeMap, promData.NodeExtendedData)
-	cm.applyNodesToPod(podMap, nodeMap)
+	cm.applyNodesToPod(promData.PodMap, nodeMap)
 
 	// (3) Build out AllocationSet from Pod map
-	for _, pod := range podMap {
+	for _, pod := range promData.PodMap {
 		for _, alloc := range pod.Allocations {
 			cluster := alloc.Properties.Cluster
 			nodeName := alloc.Properties.Node
