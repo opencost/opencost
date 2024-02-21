@@ -1,7 +1,6 @@
 package costmodel
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -378,24 +377,25 @@ type promQuery struct {
 func (cm *CostModel) execAllPromQueries(queries []promQuery, time time.Time) error {
 	ctx := prom.NewNamedContext(cm.PrometheusClient, prom.AllocationContextName)
 	// Run all queries concurrently
-	errCh := make(chan error, len(queries))
-	for _, q := range queries {
-		go func(q string, out *[]*prom.QueryResult) {
-			var err error
-			*out, _, err = ctx.QuerySync(q, time)
-			errCh <- err
-		}(q.query, q.out)
+	resultChs := make([]prom.QueryResultsChan, len(queries))
+	for i := range queries {
+		resultChs[i] = ctx.QueryAtTime(queries[i].query, time)
 	}
 
-	// Collect errors from the queries
-	errs := make([]error, 0, len(queries))
-	for range queries {
-		if err := <-errCh; err != nil {
-			log.Errorf("CostModel.ComputeAllocation: query context error %s", err)
-			errs = append(errs, err)
-		}
+	// match result to query by index
+	for i := range queries {
+		resp, _ := resultChs[i].Await()
+		*queries[i].out = resp
 	}
-	return errors.Join(errs...)
+
+	if ctx.HasErrors() {
+		for _, err := range ctx.Errors() {
+			log.Errorf("CostModel.ComputeAllocation: query context error %s", err)
+		}
+		return ctx.ErrorCollection()
+	}
+
+	return nil
 }
 
 func (cm *CostModel) fetchAllocationPromData(start, end time.Time, resolution time.Duration, ingestPodUID bool) (*allocationPromData, error) {
