@@ -207,12 +207,12 @@ const ReportsPage = () => {
           {
             primary: "Failed to load report data",
             secondary:
-              "Please update Kubecost to the latest version, then contact support if problems persist.",
+              "Please update OpenCost to the latest version, then open an Issue on GitHub if problems persist.",
           },
         ]);
       } else {
         let secondary =
-          "Please contact Kubecost support with a bug report if problems persist.";
+          "Please open an Issue on GitHub if problems persist.";
         if (err.message.length > 0) {
           secondary = err.message;
         }
