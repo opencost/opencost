@@ -158,7 +158,7 @@ const ReportsPage = () => {
   const searchParams = new URLSearchParams(routerLocation.search);
   const routerHistory = useHistory();
   useEffect(() => {
-    setWindow(searchParams.get("window") || "6d");
+    setWindow(searchParams.get("window") || "7d");
     setAggregateBy(searchParams.get("agg") || "namespace");
     setAccumulate(searchParams.get("acc") === "true" || false);
     setCurrency(searchParams.get("currency") || "USD");
