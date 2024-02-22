@@ -56,6 +56,7 @@ def run_opencost(options):
         only=[
             'cmd/costmodel/costmodel-tilt',
             'configs',
+            'THIRD_PARTY_LICENSES.txt',
         ],
         live_update=[
             sync('../opencost/cmd/costmodel/costmodel-tilt', '/app/main'),
@@ -90,7 +91,7 @@ def run_opencost(options):
     docker_build(
         ref=options["docker_repo"]+'opencost-ui',
         context='../opencost/ui',
-        dockerfile='../opencost/ui/Dockerfile.cross',
+        dockerfile='../opencost/ui/Dockerfile.debug',
         only=[
             'dist',
             'nginx.conf',
