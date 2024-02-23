@@ -62,12 +62,12 @@ jobs:
       - name: Set OpenCost Image Tags
         id: tags
         run: |
-          echo "IMAGE_TAG=ghcr.io/opencost/opencost/opencost:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_LATEST=ghcr.io/opencost/opencost/opencost:latest" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_VERSION=ghcr.io/opencost/opencost/opencost:${{ inputs.release_version }}" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_UI=ghcr.io/opencost/opencost/opencost-ui:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_UI_LATEST=ghcr.io/opencost/opencost/opencost-ui:latest" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_UI_VERSION=ghcr.io/opencost/opencost/opencost-ui:${{ inputs.release_version }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=ghcr.io/opencost/opencost:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG_LATEST=ghcr.io/opencost/opencost:latest" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG_VERSION=ghcr.io/opencost/opencost:${{ inputs.release_version }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG_UI=ghcr.io/opencost/opencost-ui:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG_UI_LATEST=ghcr.io/opencost/opencost-ui:latest" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG_UI_VERSION=ghcr.io/opencost/opencost-ui:${{ inputs.release_version }}" >> $GITHUB_OUTPUT
         #  echo "IMAGE_TAG_QUAY=quay.io/kubecost1/kubecost-cost-model:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
         #  echo "IMAGE_TAG_LATEST_QUAY=quay.io/kubecost1/kubecost-cost-model:latest" >> $GITHUB_OUTPUT
         #  echo "IMAGE_TAG_VERSION_QUAY=quay.io/kubecost1/kubecost-cost-model:prod-${{ inputs.release_version }}" >> $GITHUB_OUTPUT
@@ -106,6 +106,16 @@ jobs:
 #          registry: quay.io
 #          username: ${{ secrets.QUAY_USERNAME }}
 #          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
+        with:
+          context: .
+          file: Dockerfile.cross
+          push: true
+          provenancs: false
+          build-args: binarypath=./cmd/costmodel/costmodel-amd64
+          tags: ${{ steps.tags.outputs.IMAGE_TAG }}, ${{ steps.tags.outputs.IMAGE_TAG_LATEST }}, ${{ steps.tags.outputs.IMAGE_TAG_VERSION }}
       
       - name: Build and push (multiarch) OpenCost
         working-directory: ./opencost
