@@ -107,16 +107,6 @@ jobs:
 #          username: ${{ secrets.QUAY_USERNAME }}
 #          password: ${{ secrets.QUAY_PASSWORD }}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
-        with:
-          context: .
-          file: Dockerfile.cross
-          push: true
-          provenancs: false
-          build-args: binarypath=./cmd/costmodel/costmodel-amd64
-          tags: ${{ steps.tags.outputs.IMAGE_TAG }}, ${{ steps.tags.outputs.IMAGE_TAG_LATEST }}, ${{ steps.tags.outputs.IMAGE_TAG_VERSION }}
-      
       - name: Build and push (multiarch) OpenCost
         working-directory: ./opencost
         run: |
