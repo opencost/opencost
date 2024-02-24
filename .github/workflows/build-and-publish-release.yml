@@ -121,7 +121,7 @@ jobs:
       - name: Build and push (multiarch) OpenCost UI
         working-directory: ./opencost/ui
         run: |
-          just build '${{steps.tags.outputs.IMAGE_TAG_UI}}' ${{ inputs.release_version }}
+          just build '${{steps.tags.outputs.IMAGE_TAG_UI}}'
           crane copy '${{steps.tags.outputs.IMAGE_TAG_UI}}' '${{steps.tags.outputs.IMAGE_TAG_UI_LATEST}}'
           crane copy '${{steps.tags.outputs.IMAGE_TAG_UI}}' '${{steps.tags.outputs.IMAGE_TAG_UI_VERSION}}'
         #  crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_QUAY}'
