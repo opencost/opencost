@@ -216,7 +216,7 @@ func GetPrometheusRetryOnRateLimitDefaultWait() time.Duration {
 // Then set Prometheus URL to prometheus API endpoint:
 // "PROMETHEUS_SERVER_ENDPOINT": "http://mimir-url/prometheus/"
 func GetPrometheusHeaderXScopeOrgId(clientType PrometheusType) string {
-	return Get(clientType.envFormat(PrometheusHeaderXScopeOrgIdEnv), "")
+	return env.Get(clientType.envFormat(PrometheusHeaderXScopeOrgIdEnv), "")
 }
 
 // GetPrometheusQueryOffset returns the time.Duration to offset all prometheus queries by. NOTE: This env var is applied
@@ -374,16 +374,16 @@ func GetPromClusterFilter() string {
 // SCRAPE_PrometheusServerEndpointEnvVar which represents prometheus scrape server endpoint used to get scrape config.
 func GetPrometheusEndpoints() map[PrometheusType]string {
 	output := map[PrometheusType]string{
-		Server: Get(Server.envFormat(PrometheusServerEndpointEnvVar), ""),
+		Server: env.Get(Server.envFormat(PrometheusServerEndpointEnvVar), ""),
 	}
-	if value := Get(Scrape.envFormat(PrometheusServerEndpointEnvVar), ""); value != "" {
+	if value := env.Get(Scrape.envFormat(PrometheusServerEndpointEnvVar), ""); value != "" {
 		output[Scrape] = value
 	}
 	return output
 }
 
 func GetInsecureSkipVerify(clientType PrometheusType) bool {
-	return GetBool(clientType.envFormat(InsecureSkipVerify), false)
+	return env.GetBool(clientType.envFormat(InsecureSkipVerify), false)
 }
 
 // IsAggregateCostModelCacheDisabled returns the environment variable value for DisableAggregateCostModelCache which
@@ -521,15 +521,15 @@ func GetQueryLoggingFile() string {
 }
 
 func GetDBBasicAuthUsername(clientType PrometheusType) string {
-	return Get(clientType.envFormat(DBBasicAuthUsername), "")
+	return env.Get(clientType.envFormat(DBBasicAuthUsername), "")
 }
 
 func GetDBBasicAuthUserPassword(clientType PrometheusType) string {
-	return Get(clientType.envFormat(DBBasicAuthPassword), "")
+	return env.Get(clientType.envFormat(DBBasicAuthPassword), "")
 }
 
 func GetDBBearerToken(clientType PrometheusType) string {
-	return Get(clientType.envFormat(DBBearerToken), "")
+	return env.Get(clientType.envFormat(DBBearerToken), "")
 }
 
 // GetMultiClusterBasicAuthUsername returns the environment variable value for MultiClusterBasicAuthUsername

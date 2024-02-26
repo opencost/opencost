@@ -1701,7 +1701,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	if thanosClient != nil {
 		clusterMap = clustermap.NewClusterMap(thanosClient, clusterInfoProvider, 10*time.Minute)
 	} else {
-		clusterMap = clusters.NewClusterMap(promClis[env.Server], clusterInfoProvider, 5*time.Minute)
+		clusterMap = clustermap.NewClusterMap(promClis[env.Server], clusterInfoProvider, 5*time.Minute)
 	}
 
 	// cache responses from model and aggregation for a default of 10 minutes;
