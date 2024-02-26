@@ -33,7 +33,7 @@ const CloudCostDetails = ({
 
   const nextFilters = [
     ...(filters ?? []),
-    { property: "providerIds", value: selectedProviderId },
+    { property: "providerID", value: selectedProviderId },
   ];
 
   async function fetchData() {
@@ -73,12 +73,12 @@ const CloudCostDetails = ({
           {
             primary: "Failed to load report data",
             secondary:
-              "Please update Kubecost to the latest version, then contact support if problems persist.",
+              "Please update OpenCost to the latest version, then open an Issue on GitHub if problems persist.",
           },
         ]);
       } else {
         let secondary =
-          "Please contact Kubecost support with a bug report if problems persist.";
+          "Please open an Issue on GitHub if problems persist.";
         if (err.message.length > 0) {
           secondary = err.message;
         }
@@ -122,7 +122,7 @@ const CloudCostDetails = ({
         title={`Costs over the last ${window}`}
         style={{ margin: "10%" }}
       >
-        <Paper>
+        <Paper style={{ padding: 20 }}>
           <Typography style={{ marginTop: "1rem" }} variant="body1">
             {selectedItem}
           </Typography>

@@ -1,6 +1,7 @@
 import * as React from "react";
 import Page from "./components/Page";
 import Header from "./components/Header";
+import Footer from "./components/Footer";
 import IconButton from "@material-ui/core/IconButton";
 import RefreshIcon from "@material-ui/icons/Refresh";
 import { makeStyles } from "@material-ui/styles";
@@ -175,7 +176,6 @@ const CloudCostReports = () => {
       return {
         property,
         value,
-        name: aggMap[property] || property,
       };
     });
     setFilters(newFilters);
@@ -267,6 +267,7 @@ const CloudCostReports = () => {
               aggregationOptions={aggregationOptions}
               aggregateBy={aggregateBy}
               setAggregateBy={(agg) => {
+                setFilters([])
                 searchParams.set("agg", agg);
                 routerHistory.push({
                   search: `?${searchParams.toString()}`,
@@ -328,6 +329,7 @@ const CloudCostReports = () => {
           )}
         </Paper>
       )}
+      <Footer/>
     </Page>
   );
 };

@@ -6,20 +6,20 @@ import (
 	"strings"
 	"time"
 
-	filter "github.com/opencost/opencost/pkg/filter21"
-	"github.com/opencost/opencost/pkg/kubecost"
+	"github.com/opencost/opencost/core/pkg/filter"
+	"github.com/opencost/opencost/core/pkg/opencost"
 )
 
 // Querier allows for querying ranges of CloudCost data
 type Querier interface {
-	Query(QueryRequest, context.Context) (*kubecost.CloudCostSetRange, error)
+	Query(QueryRequest, context.Context) (*opencost.CloudCostSetRange, error)
 }
 
 type QueryRequest struct {
 	Start       time.Time
 	End         time.Time
 	AggregateBy []string
-	Accumulate  kubecost.AccumulateOption
+	Accumulate  opencost.AccumulateOption
 	Filter      filter.Filter
 }
 
@@ -29,13 +29,13 @@ const DefaultChartItemsLength int = 10
 // ViewQuerier defines a contract for return View types to the QueryService to service the View Api
 type ViewQuerier interface {
 	QueryViewGraph(ViewQueryRequest, context.Context) (ViewGraphData, error)
-	QueryViewTotals(ViewQueryRequest, context.Context) (*ViewTableRow, int, error)
+	QueryViewTotals(ViewQueryRequest, context.Context) (*ViewTotals, error)
 	QueryViewTable(ViewQueryRequest, context.Context) (ViewTableRows, error)
 }
 
 type ViewQueryRequest struct {
 	QueryRequest
-	CostMetricName   kubecost.CostMetricName
+	CostMetricName   opencost.CostMetricName
 	ChartItemsLength int
 	Offset           int
 	Limit            int
