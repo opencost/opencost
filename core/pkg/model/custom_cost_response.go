@@ -9,7 +9,7 @@ type CustomCostResponse struct {
 	Version    string
 	Currency   string
 	Window     opencost.Window
-	Costs      [][]*CustomCost
+	Costs      []*CustomCost
 	Errors     []error
 }
 
@@ -232,7 +232,7 @@ func (d *CustomCostResponse) GetWindow() opencost.Window {
 	return d.Window
 }
 
-func (d *CustomCostResponse) GetCosts() [][]*CustomCost {
+func (d *CustomCostResponse) GetCosts() []*CustomCost {
 	return d.Costs
 }
 
