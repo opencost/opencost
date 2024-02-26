@@ -16,8 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
-    
+      packages: write
+
     steps:
       - name: Show Input Values
         run: |
@@ -27,13 +27,13 @@ jobs:
         id: branch
         run: |
           echo "BRANCH_NAME=v${${{ inputs.release_version}}%.*}" >> $GITHUB_ENV
-  
+
       - name: Checkout Repo
         uses: actions/checkout@v4
         with:
           repository: 'opencost/opencost'
           ref: '${{ steps.branch.outputs.BRANCH_NAME }}'
-          path: ./opencost  
+          path: ./opencost
 
       - name: Set SHA
         id: sha
@@ -57,13 +57,15 @@ jobs:
           echo "IMAGE_TAG_UI_QUAY=quay.io/kubecost1/opencost-ui:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
           echo "IMAGE_TAG_UI_LATEST_QUAY=quay.io/kubecost1/opencost-ui:latest" >> $GITHUB_OUTPUT
           echo "IMAGE_TAG_UI_VERSION_QUAY=quay.io/kubecost1/opencost-ui:prod-${{ inputs.release_version }}" >> $GITHUB_OUTPUT
-     
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
+        with:
+          buildkitd-flags: --debug
+
       - name: Set up just
         uses: extractions/setup-just@v1
-      
+
       - name: Install crane
         uses: imjasonh/setup-crane@v0.1
 
@@ -84,7 +86,7 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-      
+
       - name: Build and push (multiarch) OpenCost
         working-directory: ./opencost
         run: |
