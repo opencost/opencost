@@ -17,7 +17,14 @@ func LoadKubeconfig(path string) (*rest.Config, error) {
 		loadingRules.ExplicitPath = path
 	}
 	loader := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &clientcmd.ConfigOverrides{})
-	return loader.ClientConfig()
+	config, err := loader.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	config.UserAgent = "opencost"
+	config.AcceptContentTypes = "application/vnd.kubernetes.protobuf,application/json"
+	config.ContentType = "application/vnd.kubernetes.protobuf"
+	return config, nil
 }
 
 // LoadKubeClient accepts a path to a kubeconfig to load and returns the clientset
