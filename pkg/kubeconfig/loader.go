@@ -24,6 +24,8 @@ func LoadKubeconfig(path string) (*rest.Config, error) {
 		return nil, fmt.Errorf("loading kubeconfig: %w", err)
 	}
 	config.UserAgent = "opencost"
+	// use protobuf for faster serialization instead of default json
+	// https://kubernetes.io/docs/reference/using-api/api-concepts/#alternate-representations-of-resources
 	config.AcceptContentTypes = "application/vnd.kubernetes.protobuf,application/json"
 	config.ContentType = "application/vnd.kubernetes.protobuf"
 	return config, nil
