@@ -1,10 +1,13 @@
 name: Build and Publish Release
 
 on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
     inputs:
       release_version:
-        description: "Version. Please DO NOT include the 'v' prefix"
+        description: "Version of the release"
         required: true
 
 concurrency:
@@ -23,8 +26,29 @@ jobs:
     permissions:
       contents: read
       packages: write
-
     steps:
+      - name: Get Version From Tag
+        id: tag
+        if: ${{ github.event_name }} == 'push'
+        run: |
+          echo "TRIGGERED_TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+
+      - name: Determine Version Number
+        id: version_number
+        run: |
+          if [ -z "${TRIGGERED_TAG}" ];
+          then
+            version=${{ inputs.release_version }}
+          else
+            version=$TRIGGERED_TAG
+          fi
+          if [[ ${version:0:1} == "v" ]];
+            echo "RELEASE_VERSION=${version:1}" >> $GITHUB_OUTPUT
+          then
+            echo "RELEASE_VERSION=$version" >> $GITHUB_OUTPUT
+          else
+          fi
+
       - name: Show Input Values
         run: |
           echo "release version: ${{ inputs.release_version }}"
@@ -32,7 +56,7 @@ jobs:
       - name: Make Branch Name
         id: branch
         run: |
-          VERSION_NUMBER=${{ inputs.release_version }}
+          VERSION_NUMBER=${{ steps.version_number.outputs.RELEASE_VERSION }}
           echo "BRANCH_NAME=v${VERSION_NUMBER%.*}" >> $GITHUB_ENV
 
       - name: Checkout Repo
@@ -52,7 +76,6 @@ jobs:
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action
       - name: Log into registry ${{ env.REGISTRY }}
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
           registry: ${{ env.REGISTRY }}
@@ -64,14 +87,14 @@ jobs:
         run: |
           echo "IMAGE_TAG=ghcr.io/opencost/opencost:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
           echo "IMAGE_TAG_LATEST=ghcr.io/opencost/opencost:latest" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_VERSION=ghcr.io/opencost/opencost:${{ inputs.release_version }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG_VERSION=ghcr.io/opencost/opencost:${{ steps.version_number.outputs.RELEASE_VERSION }}" >> $GITHUB_OUTPUT
           echo "IMAGE_TAG_UI=ghcr.io/opencost/opencost-ui:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
           echo "IMAGE_TAG_UI_LATEST=ghcr.io/opencost/opencost-ui:latest" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_UI_VERSION=ghcr.io/opencost/opencost-ui:${{ inputs.release_version }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG_UI_VERSION=ghcr.io/opencost/opencost-ui:${{ steps.version_number.outputs.RELEASE_VERSION }}" >> $GITHUB_OUTPUT
         #  echo "IMAGE_TAG_QUAY=quay.io/kubecost1/kubecost-cost-model:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
         #  echo "IMAGE_TAG_LATEST_QUAY=quay.io/kubecost1/kubecost-cost-model:latest" >> $GITHUB_OUTPUT
-        #  echo "IMAGE_TAG_VERSION_QUAY=quay.io/kubecost1/kubecost-cost-model:prod-${{ inputs.release_version }}" >> $GITHUB_OUTPUT
-        # echo "IMAGE_TAG_UI_QUAY=quay.io/kubecost1/opencost-ui:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+        #  echo "IMAGE_TAG_VERSION_QUAY=quay.io/kubecost1/kubecost-cost-model:prod-${{ steps.version_number.outputs.RELEASE_VERSION }}" >> $GITHUB_OUTPUT
+        #  echo "IMAGE_TAG_UI_QUAY=quay.io/kubecost1/opencost-ui:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
         #  echo "IMAGE_TAG_UI_LATEST_QUAY=quay.io/kubecost1/opencost-ui:latest" >> $GITHUB_OUTPUT
         #  echo "IMAGE_TAG_UI_VERSION_QUAY=quay.io/kubecost1/opencost-ui:prod-${{ inputs.release_version }}" >> $GITHUB_OUTPUT
 
