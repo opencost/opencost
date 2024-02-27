@@ -1,6 +1,8 @@
 package kubeconfig
 
 import (
+	"fmt"
+
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
@@ -19,7 +21,7 @@ func LoadKubeconfig(path string) (*rest.Config, error) {
 	loader := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &clientcmd.ConfigOverrides{})
 	config, err := loader.ClientConfig()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("loading kubeconfig: %w", err)
 	}
 	config.UserAgent = "opencost"
 	config.AcceptContentTypes = "application/vnd.kubernetes.protobuf,application/json"
