@@ -249,13 +249,18 @@ func SetCustomPricingField(obj *CustomPricing, name string, value string) error 
 	// from getting set here.
 	switch strings.ToLower(name) {
 	case "cpu", "gpu", "ram", "spotcpu", "spotgpu", "spotram", "storage", "zonenetworkegress", "regionnetworkegress", "internetnetworkegress":
-		// Validate that "value" represents a real floating point number, and
-		// set precision, bits, etc. Do not allow NaN.
-		val, err := sanitizeFloatString(value, false)
-		if err != nil {
-			return fmt.Errorf("invalid numeric value for field '%s': %s", name, value)
+		//what should we default to here?
+		if value == "" {
+			value = "1.0"
+		} else {
+			// Validate that "value" represents a real floating point number, and
+			// set precision, bits, etc. Do not allow NaN.
+			val, err := sanitizeFloatString(value, false)
+			if err != nil {
+				return fmt.Errorf("invalid numeric value for field '%s': %s", name, value)
+			}
+			value = val
 		}
-		value = val
 	default:
 	}
 
