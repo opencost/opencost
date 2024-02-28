@@ -43,10 +43,10 @@ jobs:
             version=$TRIGGERED_TAG
           fi
           if [[ ${version:0:1} == "v" ]];
-            echo "RELEASE_VERSION=${version:1}" >> $GITHUB_OUTPUT
           then
-            echo "RELEASE_VERSION=$version" >> $GITHUB_OUTPUT
+            echo "RELEASE_VERSION=${version:1}" >> $GITHUB_OUTPUT
           else
+            echo "RELEASE_VERSION=$version" >> $GITHUB_OUTPUT
           fi
 
       - name: Show Input Values
