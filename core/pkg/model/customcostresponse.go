@@ -2,60 +2,136 @@ package model
 
 import "github.com/opencost/opencost/core/pkg/opencost"
 
+// see design at https://link.excalidraw.com/l/ABLQ24dkKai/CBEQtjH6Mr
+// for additional details on how these objects work in the context of
+// opencost's plugin system
+
 type CustomCostResponse struct {
-	Metadata   map[string]string
+	// provides metadata on the Custom CostResponse
+	// deliberately left unstructured
+	Metadata map[string]string
+	// declared by plugin
+	// eg snowflake == "data management",
+	// datadog == "observability" etc
+	// intended for top level agg
 	Costsource string
-	Domain     string
-	Version    string
-	Currency   string
-	Window     opencost.Window
-	Costs      []*CustomCost
-	Errors     []error
+	// the name of the custom cost source
+	// e.g., "datadog"
+	Domain string
+	// the version of the Custom Cost response
+	// is set by the plugin, will vary between
+	// different plugins
+	Version string
+	// FOCUS billing currency
+	Currency string
+	// the window of the returned objects
+	Window opencost.Window
+	// array of CustomCosts
+	Costs []*CustomCost
+	// any errors in processing
+	Errors []error
 }
 
+// designed to provide a superset of the FOCUS spec
+// https://github.com/FinOps-Open-Cost-and-Usage-Spec/FOCUS_Spec/releases/latest/download/spec.pdf
 type CustomCost struct {
-	Metadata       map[string]string
-	Zone           string
-	BilledCost     float32
-	AccountName    string
+	// provides metadata on the Custom CostResponse
+	// deliberately left unstructured
+	Metadata map[string]string
+	// the region that the resource was incurred
+	// corresponds to 'availability zone' of FOCUS
+	Zone string
+	// FOCUS billed Cost
+	BilledCost float32
+	// FOCUS billing account name
+	AccountName string
+	// FOCUS charge category
 	ChargeCategory string
-	Description    string
-	ListCost       float32
-	ListUnitPrice  float32
-	ResourceName   string
-	ResourceType   string
-	Id             string
-	ProviderId     string
-
-	Window             *opencost.Window
-	Labels             map[string]string
-	UsageQty           float32
-	UsageUnit          string
+	// FOCUS charge description
+	Description string
+	// FOCUS List Cost
+	ListCost float32
+	// FOCUS List Unit Price
+	ListUnitPrice float32
+	// FOCUS Resource Name
+	ResourceName string
+	// FOCUS Resource type
+	// if not set, assumed to be domain
+	ResourceType string
+	// ID of the individual cost. should be globally
+	// unique. Assigned by plugin on read
+	Id string
+	// the provider's ID for the cost, if
+	// available
+	// FOCUS resource ID
+	ProviderId string
+	// the window of the returned specific
+	// custom cost
+	// equivalent to charge period start/end of FOCUS
+	Window *opencost.Window
+	// Returns key/value sets of labels
+	// equivalent to Tags in focus spec
+	Labels map[string]string
+	// FOCUS usage quantity
+	UsageQty float32
+	// FOCUS usage Unit
+	UsageUnit string
+	// Optional struct to implement other focus
+	// spec attributes
 	ExtendedAttributes *ExtendedCustomCostAttributes
 }
 
+// These parts of the FOCUS spec are not expected
+// to be implemented by every plugin
+// however, if these bits of information are available,
+// they should be provided
 type ExtendedCustomCostAttributes struct {
-	BillingPeriod              *opencost.Window
-	AccountID                  string
-	ChargeFrequency            string
-	Subcategory                string
+	// FOCUS billing period start/end
+	BillingPeriod *opencost.Window
+	// FOCUS Billing Account ID
+	AccountID string
+	// FOCUS Charge Frequency
+	ChargeFrequency string
+	// FOCUS Charge Subcategory
+	Subcategory string
+	// FOCUS Commitment Discount Category
 	CommitmentDiscountCategory string
-	CommitmentDiscountID       string
-	CommitmentDiscountName     string
-	CommitmentDiscountType     string
-	EffectiveCost              float32
-	InvoiceIssuer              string
-	Provider                   string
-	Publisher                  string
-	ServiceCategory            string
-	ServiceName                string
-	SkuID                      string
-	SkuPriceID                 string
-	SubAccountID               string
-	SubAccountName             string
-	PricingQuantity            float32
-	PricingUnit                string
-	PricingCategory            string
+	// FOCUS Commitment Discount ID
+	CommitmentDiscountID string
+	// FOCUS Commitment Discount Name
+	CommitmentDiscountName string
+	// FOCUS Commitment Discount Type
+	CommitmentDiscountType string
+	// FOCUS Effective Cost
+	EffectiveCost float32
+	// FOCUS Invoice Issuer
+	InvoiceIssuer string
+	// FOCUS Provider
+	// if unset, assumed to be domain
+	Provider string
+	// FOCUS Publisher
+	// if unset, assumed to be domain
+	Publisher string
+	// FOCUS Service Category
+	// if unset, assumed to be cost source
+	ServiceCategory string
+	// FOCUS Service Name
+	// if unset, assumed to be cost source
+	ServiceName string
+	// FOCUS SKU ID
+	SkuID string
+	// FOCUS SKU Price ID
+	SkuPriceID string
+	// FOCUS Sub Account ID
+	SubAccountID string
+	// FOCUS Sub Account Name
+	SubAccountName string
+	// FOCUS Pricing Quantity
+	PricingQuantity float32
+	// FOCUS Pricing Unit
+	PricingUnit string
+	// FOCUS Pricing Category
+	PricingCategory string
 }
 
 func (e *ExtendedCustomCostAttributes) GetBillingPeriod() *opencost.Window {
