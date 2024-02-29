@@ -147,7 +147,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 		go initializeCache(kcc.pvcWatch, &wg, cancel)
 		go initializeCache(kcc.storageClassWatch, &wg, cancel)
 		go initializeCache(kcc.jobsWatch, &wg, cancel)
-		go initializeCache(kcc.podWatch, &wg, cancel)
+		go initializeCache(kcc.pdbWatch, &wg, cancel)
 		go initializeCache(kcc.replicationControllerWatch, &wg, cancel)
 	}
 

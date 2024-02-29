@@ -14,7 +14,6 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
-	"github.com/opencost/opencost/pkg/env"
 )
 
 var protocol = proto.HTTP()
@@ -24,12 +23,6 @@ func (c *Controller) cloudCostChecks() func(w http.ResponseWriter, r *http.Reque
 	if c == nil {
 		return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 			http.Error(w, "ConfigController: is nil", http.StatusServiceUnavailable)
-		}
-	}
-
-	if !env.IsCloudCostEnabled() {
-		return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-			http.Error(w, "ConfigController: is not enabled", http.StatusServiceUnavailable)
 		}
 	}
 

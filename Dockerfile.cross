@@ -1,5 +1,8 @@
 FROM alpine:latest
 
+ARG version=dev
+ARG	commit=HEAD
+
 LABEL org.opencontainers.image.description="Cross-cloud cost allocation models for Kubernetes workloads"
 LABEL org.opencontainers.image.documentation=https://opencost.io/docs/
 LABEL org.opencontainers.image.licenses=Apache-2.0
