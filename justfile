@@ -16,8 +16,8 @@ build-local:
     cd ./cmd/costmodel && \
         {{commonenv}} go build \
         -ldflags \
-          "-X github.com/opencost/opencost/pkg/version.Version={{version}} \
-           -X github.com/opencost/opencost/pkg/version.GitCommit={{commit}}" \
+          "-X github.com/opencost/opencost/core/pkg/version.Version={{version}} \
+           -X github.com/opencost/opencost/core/pkg/version.GitCommit={{commit}}" \
         -o ./costmodel
 
 # Build multiarch binaries
@@ -25,15 +25,15 @@ build-binary VERSION=version:
     cd ./cmd/costmodel && \
         {{commonenv}} GOOS=linux GOARCH=amd64 go build \
         -ldflags \
-          "-X github.com/opencost/opencost/pkg/version.Version={{VERSION}} \
-           -X github.com/opencost/opencost/pkg/version.GitCommit={{commit}}" \
+          "-X github.com/opencost/opencost/core/pkg/version.Version={{VERSION}} \
+           -X github.com/opencost/opencost/core/pkg/version.GitCommit={{commit}}" \
         -o ./costmodel-amd64
 
     cd ./cmd/costmodel && \
         {{commonenv}} GOOS=linux GOARCH=arm64 go build \
         -ldflags \
-          "-X github.com/opencost/opencost/pkg/version.Version={{VERSION}} \
-           -X github.com/opencost/opencost/pkg/version.GitCommit={{commit}}" \
+          "-X github.com/opencost/opencost/core/pkg/version.Version={{VERSION}} \
+           -X github.com/opencost/opencost/core/pkg/version.GitCommit={{commit}}" \
         -o ./costmodel-arm64
 
 # Build and push a multi-arch Docker image
