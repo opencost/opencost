@@ -16,17 +16,21 @@ import (
 	"time"
 
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util/httputil"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
+	"github.com/opencost/opencost/core/pkg/util/watcher"
+	"github.com/opencost/opencost/core/pkg/version"
 	"github.com/opencost/opencost/pkg/cloud/aws"
+	cloudconfig "github.com/opencost/opencost/pkg/cloud/config"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/provider"
+	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/config"
+	clustermap "github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/kubeconfig"
 	"github.com/opencost/opencost/pkg/metrics"
 	"github.com/opencost/opencost/pkg/services"
-	"github.com/opencost/opencost/pkg/util/httputil"
-	"github.com/opencost/opencost/pkg/util/timeutil"
-	"github.com/opencost/opencost/pkg/util/watcher"
-	"github.com/opencost/opencost/pkg/version"
 	"github.com/spf13/viper"
 
 	v1 "k8s.io/api/core/v1"
@@ -35,18 +39,18 @@ import (
 
 	"github.com/getsentry/sentry-go"
 
+	"github.com/opencost/opencost/core/pkg/clusters"
+	sysenv "github.com/opencost/opencost/core/pkg/env"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/clustercache"
-	"github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/errors"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/thanos"
-	"github.com/opencost/opencost/pkg/util/json"
 	prometheus "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -82,23 +86,26 @@ var (
 // Accesses defines a singleton application instance, providing access to
 // Prometheus, Kubernetes, the cloud provider, and caches.
 type Accesses struct {
-	Router              *httprouter.Router
-	PrometheusClient    prometheus.Client
-	ThanosClient        prometheus.Client
-	KubeClientSet       kubernetes.Interface
-	ClusterCache        clustercache.ClusterCache
-	ClusterMap          clusters.ClusterMap
-	CloudProvider       models.Provider
-	ConfigFileManager   *config.ConfigFileManager
-	ClusterInfoProvider clusters.ClusterInfoProvider
-	Model               *CostModel
-	MetricsEmitter      *CostModelMetricsEmitter
-	OutOfClusterCache   *cache.Cache
-	AggregateCache      *cache.Cache
-	CostDataCache       *cache.Cache
-	ClusterCostsCache   *cache.Cache
-	CacheExpiration     map[time.Duration]time.Duration
-	AggAPI              Aggregator
+	Router                   *httprouter.Router
+	PrometheusClient         prometheus.Client
+	ThanosClient             prometheus.Client
+	KubeClientSet            kubernetes.Interface
+	ClusterCache             clustercache.ClusterCache
+	ClusterMap               clusters.ClusterMap
+	CloudProvider            models.Provider
+	ConfigFileManager        *config.ConfigFileManager
+	CloudConfigController    *cloudconfig.Controller
+	CloudCostPipelineService *cloudcost.PipelineService
+	CloudCostQueryService    *cloudcost.QueryService
+	ClusterInfoProvider      clusters.ClusterInfoProvider
+	Model                    *CostModel
+	MetricsEmitter           *CostModelMetricsEmitter
+	OutOfClusterCache        *cache.Cache
+	AggregateCache           *cache.Cache
+	CostDataCache            *cache.Cache
+	ClusterCostsCache        *cache.Cache
+	CacheExpiration          map[time.Duration]time.Duration
+	AggAPI                   Aggregator
 	// SettingsCache stores current state of app settings
 	SettingsCache *cache.Cache
 	// settingsSubscribers tracks channels through which changes to different
@@ -518,7 +525,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 		return
 	}
 
-	window := kubecost.NewWindow(&start, &end)
+	window := opencost.NewWindow(&start, &end)
 	if window.IsOpen() || !window.HasDuration() || window.IsNegative() {
 		w.Write(WrapDataWithMessage(nil, fmt.Errorf("invalid date range: %s", window), fmt.Sprintf("invalid date range: %s", window)))
 		return
@@ -1383,7 +1390,7 @@ func (a *Accesses) GetHelmValues(w http.ResponseWriter, r *http.Request, ps http
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	encodedValues := env.Get("HELM_VALUES", "")
+	encodedValues := sysenv.Get("HELM_VALUES", "")
 	if encodedValues == "" {
 		fmt.Fprintf(w, "Values reporting disabled")
 		return
@@ -1680,9 +1687,9 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	// Initialize ClusterMap for maintaining ClusterInfo by ClusterID
 	var clusterMap clusters.ClusterMap
 	if thanosClient != nil {
-		clusterMap = clusters.NewClusterMap(thanosClient, clusterInfoProvider, 10*time.Minute)
+		clusterMap = clustermap.NewClusterMap(thanosClient, clusterInfoProvider, 10*time.Minute)
 	} else {
-		clusterMap = clusters.NewClusterMap(promCli, clusterInfoProvider, 5*time.Minute)
+		clusterMap = clustermap.NewClusterMap(promCli, clusterInfoProvider, 5*time.Minute)
 	}
 
 	// cache responses from model and aggregation for a default of 10 minutes;
@@ -1714,25 +1721,27 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	metricsEmitter := NewCostModelMetricsEmitter(promCli, k8sCache, cloudProvider, clusterInfoProvider, costModel)
 
 	a := &Accesses{
-		Router:              httprouter.New(),
-		PrometheusClient:    promCli,
-		ThanosClient:        thanosClient,
-		KubeClientSet:       kubeClientset,
-		ClusterCache:        k8sCache,
-		ClusterMap:          clusterMap,
-		CloudProvider:       cloudProvider,
-		ConfigFileManager:   confManager,
-		ClusterInfoProvider: clusterInfoProvider,
-		Model:               costModel,
-		MetricsEmitter:      metricsEmitter,
-		AggregateCache:      aggregateCache,
-		CostDataCache:       costDataCache,
-		ClusterCostsCache:   clusterCostsCache,
-		OutOfClusterCache:   outOfClusterCache,
-		SettingsCache:       settingsCache,
-		CacheExpiration:     cacheExpiration,
-		httpServices:        services.NewCostModelServices(),
+		Router:                httprouter.New(),
+		PrometheusClient:      promCli,
+		ThanosClient:          thanosClient,
+		KubeClientSet:         kubeClientset,
+		ClusterCache:          k8sCache,
+		ClusterMap:            clusterMap,
+		CloudProvider:         cloudProvider,
+		CloudConfigController: cloudconfig.NewController(cloudProvider),
+		ConfigFileManager:     confManager,
+		ClusterInfoProvider:   clusterInfoProvider,
+		Model:                 costModel,
+		MetricsEmitter:        metricsEmitter,
+		AggregateCache:        aggregateCache,
+		CostDataCache:         costDataCache,
+		ClusterCostsCache:     clusterCostsCache,
+		OutOfClusterCache:     outOfClusterCache,
+		SettingsCache:         settingsCache,
+		CacheExpiration:       cacheExpiration,
+		httpServices:          services.NewCostModelServices(),
 	}
+
 	// Use the Accesses instance, itself, as the CostModelAggregator. This is
 	// confusing and unconventional, but necessary so that we can swap it
 	// out for the ETL-adapted version elsewhere.
@@ -1807,6 +1816,39 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	// diagnostics
 	a.Router.GET("/diagnostics/requestQueue", a.GetPrometheusQueueState)
 	a.Router.GET("/diagnostics/prometheusMetrics", a.GetPrometheusMetrics)
+
+	a.Router.GET("/logs/level", a.GetLogLevel)
+	a.Router.POST("/logs/level", a.SetLogLevel)
+
+	a.Router.GET("/cloud/config/export", a.CloudConfigController.GetExportConfigHandler())
+	a.Router.GET("/cloud/config/enable", a.CloudConfigController.GetEnableConfigHandler())
+	a.Router.GET("/cloud/config/disable", a.CloudConfigController.GetDisableConfigHandler())
+	a.Router.GET("/cloud/config/delete", a.CloudConfigController.GetDeleteConfigHandler())
+
+	a.httpServices.RegisterAll(a.Router)
+
+	return a
+}
+
+func InitializeWithoutKubernetes() *Accesses {
+	var err error
+	if errorReportingEnabled {
+		err = sentry.Init(sentry.ClientOptions{Release: version.FriendlyVersion()})
+		if err != nil {
+			log.Infof("Failed to initialize sentry for error reporting")
+		} else {
+			err = errors.SetPanicHandler(handlePanic)
+			if err != nil {
+				log.Infof("Failed to set panic handler: %s", err)
+			}
+		}
+	}
+
+	a := &Accesses{
+		Router:                httprouter.New(),
+		CloudConfigController: cloudconfig.NewController(nil),
+		httpServices:          services.NewCostModelServices(),
+	}
 
 	a.Router.GET("/logs/level", a.GetLogLevel)
 	a.Router.POST("/logs/level", a.SetLogLevel)

@@ -7,16 +7,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/clusters"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/core/pkg/util/atomic"
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/clustercache"
-	"github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/errors"
-	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/metrics"
 	"github.com/opencost/opencost/pkg/prom"
-	"github.com/opencost/opencost/pkg/util"
-	"github.com/opencost/opencost/pkg/util/atomic"
 
 	promclient "github.com/prometheus/client_golang/api"
 	"github.com/prometheus/client_golang/prometheus"
@@ -54,7 +55,7 @@ func (cic ClusterInfoCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	clusterInfo := cic.ClusterInfo.GetClusterInfo()
-	labels := prom.MapToLabels(clusterInfo)
+	labels := promutil.MapToLabels(clusterInfo)
 
 	m := newClusterInfoMetric("kubecost_cluster_info", labels)
 	ch <- m
@@ -85,7 +86,7 @@ func newClusterInfoMetric(fqName string, labels map[string]string) ClusterInfoMe
 // returns the same descriptor throughout the lifetime of the Metric.
 func (cim ClusterInfoMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{}
-	return prometheus.NewDesc(cim.fqName, cim.help, prom.LabelNamesFrom(cim.labels), l)
+	return prometheus.NewDesc(cim.fqName, cim.help, promutil.LabelNamesFrom(cim.labels), l)
 }
 
 // Write encodes the Metric into a "Metric" Protocol Buffer data
@@ -344,9 +345,10 @@ func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clust
 		EmitPodAnnotations:            env.IsEmitPodAnnotationsMetric(),
 		EmitKubeStateMetrics:          env.IsEmitKsmV1Metrics(),
 		EmitKubeStateMetricsV1Only:    env.IsEmitKsmV1MetricsOnly(),
+		EmitDeprecatedMetrics:         env.IsEmitDeprecatedMetrics(),
 	})
 
-	metrics.InitKubecostTelemetry(metricsConfig)
+	metrics.InitOpencostTelemetry(metricsConfig)
 
 	return &CostModelMetricsEmitter{
 		PrometheusClient:              promClient,
@@ -421,7 +423,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			var ok bool
 			defaultRegion, ok = util.GetRegion(nodeList[0].Labels)
 			if !ok {
-				log.DedupedWarningf(5, "Failed to locate default region")
+				log.DedupedWarningf(5, "Failed to read default region from labels on node %s", nodeList[0].Name)
 			}
 		}
 
@@ -471,7 +473,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			// TODO: Pass CloudProvider into CostModel on instantiation so this isn't so awkward
 			nodes, err := cmme.Model.GetNodeCost(cmme.CloudProvider)
 			if err != nil {
-				log.Warnf("Metric emission: error getting Node cost: %s", err)
+				log.Warnf("Error getting Node cost: %s", err)
 			}
 			for nodeName, node := range nodes {
 				// Emit costs, guarding against NaN inputs for custom pricing.
@@ -535,24 +537,27 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				// don't record cpuCost, ramCost, or gpuCost in the case of wild outliers
 				// k8s api sometimes causes cost spikes as described here:
 				// https://github.com/opencost/opencost/issues/927
-				if cpuCost < outlierFactor*avgCosts.CpuCostAverage {
+				cpuOutlierCutoff := outlierFactor * avgCosts.CpuCostAverage
+				if cpuCost < cpuOutlierCutoff {
 					cmme.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(cpuCost)
 					avgCosts.CpuCostAverage = (avgCosts.CpuCostAverage*avgCosts.NumCpuDataPoints + cpuCost) / (avgCosts.NumCpuDataPoints + 1)
 					avgCosts.NumCpuDataPoints += 1
 				} else {
-					log.Warnf("CPU cost outlier detected; skipping data point.")
+					log.Debugf("CPU cost outlier detected; skipping data point: %s had %f as cost, which is above %f.", nodeName, cpuCost, cpuOutlierCutoff)
 				}
-				if ramCost < outlierFactor*avgCosts.RamCostAverage {
+				ramOutlierCutoff := outlierFactor * avgCosts.RamCostAverage
+				if ramCost < ramOutlierCutoff {
 					cmme.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(ramCost)
 					avgCosts.RamCostAverage = (avgCosts.RamCostAverage*avgCosts.NumRamDataPoints + ramCost) / (avgCosts.NumRamDataPoints + 1)
 					avgCosts.NumRamDataPoints += 1
 				} else {
-					log.Warnf("RAM cost outlier detected; skipping data point.")
+					log.Debugf("RAM cost outlier detected; skipping data point: %s had %f as cost, which is above %f.", nodeName, ramCost, ramOutlierCutoff)
 				}
 				// skip redording totalCost if any constituent costs were outliers
-				if cpuCost < outlierFactor*avgCosts.CpuCostAverage &&
-					ramCost < outlierFactor*avgCosts.RamCostAverage {
+				if cpuCost < cpuOutlierCutoff && ramCost < ramOutlierCutoff {
 					cmme.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(totalCost)
+				} else {
+					log.Debugf("CPU and RAM outlier detected, not recording node %s total cost %f", nodeName, totalCost)
 				}
 
 				nodeCostAverages[labelKey] = avgCosts
@@ -568,7 +573,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			// TODO: Pass CloudProvider into CostModel on instantiation so this isn't so awkward
 			loadBalancers, err := cmme.Model.GetLBCost(cmme.CloudProvider)
 			if err != nil {
-				log.Warnf("Metric emission: error getting LoadBalancer cost: %s", err)
+				log.Warnf("Error getting LoadBalancer cost: %s", err)
 			}
 			for lbKey, lb := range loadBalancers {
 				// TODO: parse (if necessary) and calculate cost associated with loadBalancer based on dynamic cloud prices fetched into each lb struct on GetLBCost() call
@@ -614,7 +619,24 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				}
 				if len(costs.GPUReq) > 0 {
 					// allocation here is set to the request because shared GPU usage not yet supported.
-					cmme.GPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.GPUReq[0].Value)
+					// if VPGUs, request x (actual/virtual)
+					vgpu := 0.0
+					gpu := 0.0
+					var err, verr error
+					if matchedNode, found := nodes[nodeName]; found {
+						vgpu, verr = strconv.ParseFloat(matchedNode.VGPU, 64)
+						gpu, err = strconv.ParseFloat(matchedNode.GPU, 64)
+					} else {
+						log.Tracef("cost data for node %s had GPUReq, but there was no cost data available for the node", nodeName)
+						log.Trace("defaulting GPU to 0 cost")
+					}
+
+					gpualloc := costs.GPUReq[0].Value
+					if verr != nil && err != nil && vgpu != 0 {
+						gpualloc = gpualloc * (gpu / vgpu)
+					}
+
+					cmme.GPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(gpualloc)
 				}
 				labelKey := getKeyFromLabelStrings(namespace, podName, containerName, nodeName, nodeName)
 				if podStatus[podName] == v1.PodRunning { // Only report data for current pods
@@ -644,7 +666,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 				parameters, ok := storageClassMap[pv.Spec.StorageClassName]
 				if !ok {
-					log.Debugf("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
+					log.Debugf("Unable to find parameters for storage class \"%s\". Pv \"%s\" might have an empty or invalid storageClassName.", pv.Spec.StorageClassName, pv.Name)
 				}
 				var region string
 				if r, ok := util.GetRegion(pv.Labels); ok {
@@ -662,7 +684,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				GetPVCost(cacPv, pv, cmme.CloudProvider, region)
 				c, _ := strconv.ParseFloat(cacPv.Cost, 64)
 				cmme.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name, cacPv.ProviderID).Set(c)
-				labelKey := getKeyFromLabelStrings(pv.Name, pv.Name)
+				labelKey := getKeyFromLabelStrings(pv.Name, pv.Name, cacPv.ProviderID)
 				pvSeen[labelKey] = true
 			}
 
@@ -670,44 +692,44 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			// longer exist
 			for labelString, seen := range nodeSeen {
 				if !seen {
-					log.Debugf("Removing %s from nodes", labelString)
+					log.Debugf("Removing metrics for %s, no data observed recently", labelString)
 					labels := getLabelStringsFromKey(labelString)
 
 					ok := cmme.NodeTotalPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
-						log.Debugf("removed %s from totalprice", labelString)
+						log.Debugf("No data observed for node with labels %v, removed from totalprice", labels)
 					} else {
-						log.Errorf("FAILURE TO REMOVE %s from totalprice", labelString)
+						log.Warnf("Failed to remove label set %v from metric node_total_hourly_cost. Failure to remove stale metrics may result in inaccurate data.", labels)
 					}
 					ok = cmme.NodeSpotRecorder.DeleteLabelValues(labels...)
 					if ok {
-						log.Debugf("removed %s from spot records", labelString)
+						log.Debugf("No data observed for node with labels %v, removed from spot records", labels)
 					} else {
-						log.Errorf("FAILURE TO REMOVE %s from spot records", labelString)
+						log.Warnf("Failed to remove label set %v from metric kubecost_node_is_spot. Failure to remove stale metrics may result in inaccurate data.", labels)
 					}
 					ok = cmme.CPUPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
-						log.Debugf("removed %s from cpuprice", labelString)
+						log.Debugf("No data observed for node with labels %v, removed from cpuprice", labels)
 					} else {
-						log.Errorf("FAILURE TO REMOVE %s from cpuprice", labelString)
+						log.Warnf("Failed to remove label set %v from metric node_cpu_hourly_cost. Failure to remove stale metrics may result in inaccurate data.", labels)
 					}
 					ok = cmme.GPUPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
-						log.Debugf("removed %s from gpuprice", labelString)
+						log.Debugf("No data observed for node with labels %v, removed from gpuprice", labels)
 					} else {
-						log.Errorf("FAILURE TO REMOVE %s from gpuprice", labelString)
+						log.Warnf("Failed to remove label set %v from metric node_gpu_hourly_cost. Failure to remove stale metrics may result in inaccurate data.", labels)
 					}
 					ok = cmme.GPUCountRecorder.DeleteLabelValues(labels...)
 					if ok {
-						log.Debugf("removed %s from gpucount", labelString)
+						log.Debugf("No data observed for node with labels %v, removed from gpucount", labels)
 					} else {
-						log.Errorf("FAILURE TO REMOVE %s from gpucount", labelString)
+						log.Warnf("Failed to remove label set %v from metric node_gpu_count. Failure to remove stale metrics may result in inaccurate data.", labels)
 					}
 					ok = cmme.RAMPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
-						log.Debugf("removed %s from ramprice", labelString)
+						log.Debugf("No data observed for node with labels %v, removed from ramprice", labels)
 					} else {
-						log.Errorf("FAILURE TO REMOVE %s from ramprice", labelString)
+						log.Warnf("Failed to remove label set %v from metric node_ram_hourly_cost. Failure to remove stale metrics may result in inaccurate data.", labels)
 					}
 					delete(nodeSeen, labelString)
 					delete(nodeCostAverages, labelString)
@@ -720,7 +742,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					labels := getLabelStringsFromKey(labelString)
 					ok := cmme.LBCostRecorder.DeleteLabelValues(labels...)
 					if !ok {
-						log.Errorf("Metric emission: failed to delete LoadBalancer with labels: %v", labels)
+						log.Warnf("Failed to remove label set %v from metric kubecost_load_balancer_cost. Failure to remove stale metrics may result in inaccurate data.", labels)
 					}
 					delete(loadBalancerSeen, labelString)
 				} else {
@@ -730,17 +752,21 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			for labelString, seen := range containerSeen {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
-					ok := cmme.RAMAllocationRecorder.DeleteLabelValues(labels...)
-					if !ok {
-						log.Errorf("Metric emission: failed to delete RAMAllocation with labels: %v", labels)
-					}
-					ok = cmme.CPUAllocationRecorder.DeleteLabelValues(labels...)
-					if !ok {
-						log.Errorf("Metric emission: failed to delete CPUAllocation with labels: %v", labels)
-					}
-					ok = cmme.GPUAllocationRecorder.DeleteLabelValues(labels...)
-					if !ok {
-						log.Errorf("Metric emission: failed to delete GPUAllocation with labels: %v", labels)
+					if len(labels) >= 2 && labels[1] != unmountedPVsContainer { // special "pod" to contain the unmounted PVs - does not have RAM/CPU/...
+						ok := cmme.RAMAllocationRecorder.DeleteLabelValues(labels...)
+						if !ok {
+							log.Warnf("Failed to remove label set %v from metric container_memory_allocation_bytes. Failure to remove stale metrics may result in inaccurate data.", labels)
+						}
+						ok = cmme.CPUAllocationRecorder.DeleteLabelValues(labels...)
+						if !ok {
+							log.Warnf("Failed to remove label set %v from metric container_cpu_allocation. Failure to remove stale metrics may result in inaccurate data.", labels)
+						}
+						ok = cmme.GPUAllocationRecorder.DeleteLabelValues(labels...)
+						if !ok {
+							log.Warnf("Failed to remove label set %v from metric container_gpu_allocation. Failure to remove stale metrics may result in inaccurate data.", labels)
+						}
+					} else {
+						log.Debugf("Did not try to delete RAM/CPU/GPU for fake '%s' container: %v", unmountedPVsContainer, labels)
 					}
 					delete(containerSeen, labelString)
 				} else {
@@ -752,7 +778,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					labels := getLabelStringsFromKey(labelString)
 					ok := cmme.PersistentVolumePriceRecorder.DeleteLabelValues(labels...)
 					if !ok {
-						log.Errorf("Metric emission: failed to delete PVPrice with labels: %v", labels)
+						log.Warnf("Failed to remove label set %v from metric pv_hourly_cost. Failure to remove stale metrics may result in inaccurate data.", labels)
 					}
 					delete(pvSeen, labelString)
 				} else {
@@ -764,7 +790,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					labels := getLabelStringsFromKey(labelString)
 					ok := cmme.PVAllocationRecorder.DeleteLabelValues(labels...)
 					if !ok {
-						log.Errorf("Metric emission: failed to delete PVAllocation with labels: %v", labels)
+						log.Warnf("Failed to remove label set %v from metric pod_pvc_allocation. Failure to remove stale metrics may result in inaccurate data.", labels)
 					}
 					delete(pvcSeen, labelString)
 				} else {

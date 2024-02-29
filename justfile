@@ -1,6 +1,6 @@
 commonenv := "CGO_ENABLED=0"
 
-version := "dev"
+version := `./tools/image-tag`
 commit := `git rev-parse --short HEAD`
 
 default:
@@ -8,7 +8,8 @@ default:
 
 # Run unit tests
 test:
-    {{commonenv}} go test ./...
+    {{commonenv}} go test ./... -coverprofile=coverage.out
+    {{commonenv}} go vet ./...
 
 # Compile a local binary
 build-local:
@@ -42,6 +43,8 @@ build IMAGETAG VERSION=version: test (build-binary VERSION)
         --platform "linux/amd64" \
         -f 'Dockerfile.cross' \
         --build-arg binarypath=./cmd/costmodel/costmodel-amd64 \
+        --build-arg version={{version}} \
+        --build-arg commit={{commit}} \
         --provenance=false \
         -t {{IMAGETAG}}-amd64 \
         --push \
@@ -52,6 +55,8 @@ build IMAGETAG VERSION=version: test (build-binary VERSION)
         --platform "linux/arm64" \
         -f 'Dockerfile.cross' \
         --build-arg binarypath=./cmd/costmodel/costmodel-arm64 \
+        --build-arg version={{version}} \
+        --build-arg commit={{commit}} \
         --provenance=false \
         -t {{IMAGETAG}}-arm64 \
         --push \

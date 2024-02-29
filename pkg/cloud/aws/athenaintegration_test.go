@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opencost/opencost/pkg/util/json"
-	"github.com/opencost/opencost/pkg/util/timeutil"
+	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
 
 func TestAthenaIntegration_GetCloudCost(t *testing.T) {

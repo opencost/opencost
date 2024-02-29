@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/opencost/opencost/pkg/cloud"
-	cloudconfig "github.com/opencost/opencost/pkg/cloud/config"
-
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/bssopenapi"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/pkg/cloud"
 )
 
 const (
@@ -25,10 +23,14 @@ type BoaQuerier struct {
 }
 
 func (bq *BoaQuerier) GetStatus() cloud.ConnectionStatus {
+	// initialize status if it has not done so; this can happen if the integration is inactive
+	if bq.ConnectionStatus.String() == "" {
+		bq.ConnectionStatus = cloud.InitialStatus
+	}
 	return bq.ConnectionStatus
 }
 
-func (bq *BoaQuerier) Equals(config cloudconfig.Config) bool {
+func (bq *BoaQuerier) Equals(config cloud.Config) bool {
 	thatConfig, ok := config.(*BoaQuerier)
 	if !ok {
 		return false
@@ -104,15 +106,15 @@ func SelectAlibabaCategory(item bssopenapi.Item) string {
 	if (item != bssopenapi.Item{}) {
 		// Provider ID has prefix "i-" for node in Alibaba
 		if strings.HasPrefix(item.InstanceID, boaIsNode) {
-			return kubecost.ComputeCategory
+			return opencost.ComputeCategory
 		}
 		// Provider ID for disk start with "d-" for storage type in Alibaba
 		if strings.HasPrefix(item.InstanceID, boaIsDisk) {
-			return kubecost.StorageCategory
+			return opencost.StorageCategory
 		}
 		// Network has the highest priority and is based on the usage type of "piece" in Alibaba
 		if item.UsageUnit == boaIsNetwork {
-			return kubecost.NetworkCategory
+			return opencost.NetworkCategory
 		}
 	}
 
@@ -120,14 +122,14 @@ func SelectAlibabaCategory(item bssopenapi.Item) string {
 	// TO-DO: Can investigate further product codes but bare minimal differentiation for start
 	switch strings.ToLower(item.ProductCode) {
 	case "slb", "eip", "nis", "gtm":
-		return kubecost.NetworkCategory
+		return opencost.NetworkCategory
 	case "ecs", "eds", "sas":
-		return kubecost.ComputeCategory
+		return opencost.ComputeCategory
 	case "ack":
-		return kubecost.ManagementCategory
+		return opencost.ManagementCategory
 	case "ebs", "oss", "scu":
-		return kubecost.StorageCategory
+		return opencost.StorageCategory
 	default:
-		return kubecost.OtherCategory
+		return opencost.OtherCategory
 	}
 }

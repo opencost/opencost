@@ -21,16 +21,16 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/core/pkg/util/fileutil"
+	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util"
-	"github.com/opencost/opencost/pkg/util/fileutil"
-	"github.com/opencost/opencost/pkg/util/json"
-	"github.com/opencost/opencost/pkg/util/timeutil"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -1097,7 +1097,9 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 	config, _ := az.GetConfig()
 
 	// Spot Node
-	if slv, ok := azKey.Labels[config.SpotLabel]; ok && slv == config.SpotLabelValue && config.SpotLabel != "" && config.SpotLabelValue != "" {
+	slv, ok := azKey.Labels[config.SpotLabel]
+	isSpot := ok && slv == config.SpotLabelValue && config.SpotLabel != "" && config.SpotLabelValue != ""
+	if isSpot {
 		features := strings.Split(azKey.Features(), ",")
 		region := features[0]
 		instance := features[1]
@@ -1147,13 +1149,27 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 		return nil, meta, fmt.Errorf("No default pricing data available")
 	}
 
+	var vcpuCost string
+	var ramCost string
+	var gpuCost string
+
+	if isSpot {
+		vcpuCost = c.SpotCPU
+		ramCost = c.SpotRAM
+		gpuCost = c.SpotGPU
+	} else {
+		vcpuCost = c.CPU
+		ramCost = c.RAM
+		gpuCost = c.GPU
+	}
+
 	// GPU Node
 	if azKey.isValidGPUNode() {
 		return &models.Node{
-			VCPUCost:         c.CPU,
-			RAMCost:          c.RAM,
+			VCPUCost:         vcpuCost,
+			RAMCost:          ramCost,
 			UsesBaseCPUPrice: true,
-			GPUCost:          c.GPU,
+			GPUCost:          gpuCost,
 			GPU:              azKey.GetGPUCount(),
 		}, meta, nil
 	}
@@ -1170,8 +1186,8 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 
 	// Regular Node
 	return &models.Node{
-		VCPUCost:         c.CPU,
-		RAMCost:          c.RAM,
+		VCPUCost:         vcpuCost,
+		RAMCost:          ramCost,
 		UsesBaseCPUPrice: true,
 	}, meta, nil
 }
@@ -1456,7 +1472,7 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 	if c.ClusterName != "" {
 		m["name"] = c.ClusterName
 	}
-	m["provider"] = kubecost.AzureProvider
+	m["provider"] = opencost.AzureProvider
 	m["account"] = az.ClusterAccountID
 	m["region"] = az.ClusterRegion
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)

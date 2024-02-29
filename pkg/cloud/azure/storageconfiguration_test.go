@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/opencost/opencost/pkg/cloud/config"
-	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/opencost/opencost/pkg/cloud"
 )
 
 func TestStorageConfiguration_Validate(t *testing.T) {
@@ -14,14 +14,14 @@ func TestStorageConfiguration_Validate(t *testing.T) {
 		config   StorageConfiguration
 		expected error
 	}{
-		"valid config Azure AccessKey": {
+		"valid config Azure SharedKeyCredential": {
 			config: StorageConfiguration{
 				SubscriptionID: "subscriptionID",
 				Account:        "account",
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -35,11 +35,11 @@ func TestStorageConfiguration_Validate(t *testing.T) {
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					Account: "account",
 				},
 			},
-			expected: fmt.Errorf("AccessKey: missing access key"),
+			expected: fmt.Errorf("SharedKeyCredential: missing access key"),
 		},
 		"missing authorizer": {
 			config: StorageConfiguration{
@@ -59,7 +59,7 @@ func TestStorageConfiguration_Validate(t *testing.T) {
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -73,7 +73,7 @@ func TestStorageConfiguration_Validate(t *testing.T) {
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -87,7 +87,7 @@ func TestStorageConfiguration_Validate(t *testing.T) {
 				Container:      "",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -101,7 +101,7 @@ func TestStorageConfiguration_Validate(t *testing.T) {
 				Container:      "container",
 				Path:           "",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -115,7 +115,7 @@ func TestStorageConfiguration_Validate(t *testing.T) {
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -145,7 +145,7 @@ func TestStorageConfiguration_Validate(t *testing.T) {
 func TestStorageConfiguration_Equals(t *testing.T) {
 	testCases := map[string]struct {
 		left     StorageConfiguration
-		right    config.Config
+		right    cloud.Config
 		expected bool
 	}{
 		"matching config": {
@@ -155,7 +155,7 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -166,14 +166,36 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
 			},
 			expected: true,
 		},
-
+		"matching config AuthorizerHolder": {
+			left: StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer: &AuthorizerHolder{
+					Authorizer: &DefaultAzureCredentialHolder{},
+				},
+			},
+			right: &StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer: &AuthorizerHolder{
+					Authorizer: &DefaultAzureCredentialHolder{},
+				},
+			},
+			expected: true,
+		},
 		"missing both authorizer": {
 			left: StorageConfiguration{
 				SubscriptionID: "subscriptionID",
@@ -208,7 +230,7 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -222,7 +244,7 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -237,6 +259,30 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 			},
 			expected: false,
 		},
+		"differing storage authorizer": {
+			left: StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer: &SharedKeyCredential{
+					AccessKey: "accessKey",
+					Account:   "account",
+				},
+			},
+			right: &StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer: &AuthorizerHolder{
+					Authorizer: &DefaultAzureCredentialHolder{},
+				},
+			},
+			expected: false,
+		},
 		"different subscriptionID": {
 			left: StorageConfiguration{
 				SubscriptionID: "subscriptionID",
@@ -244,7 +290,7 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -255,7 +301,7 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -269,7 +315,7 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -280,7 +326,7 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -294,7 +340,7 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -305,7 +351,7 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 				Container:      "container2",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -319,7 +365,7 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -330,7 +376,7 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 				Container:      "container",
 				Path:           "path2",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -344,7 +390,7 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -355,7 +401,7 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "cloud2",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
@@ -369,12 +415,12 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
 				},
 			},
-			right: &AccessKey{
+			right: &SharedKeyCredential{
 				AccessKey: "accessKey",
 				Account:   "account",
 			},
@@ -409,16 +455,28 @@ func TestStorageConfiguration_JSON(t *testing.T) {
 				Authorizer:     nil,
 			},
 		},
-		"AccessKey Authorizer": {
+		"SharedKeyCredential Authorizer": {
 			config: StorageConfiguration{
 				SubscriptionID: "subscriptionID",
 				Account:        "account",
 				Container:      "container",
 				Path:           "path",
 				Cloud:          "cloud",
-				Authorizer: &AccessKey{
+				Authorizer: &SharedKeyCredential{
 					AccessKey: "accessKey",
 					Account:   "account",
+				},
+			},
+		},
+		"Default AuthorizerHolder Authorizer": {
+			config: StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer: &AuthorizerHolder{
+					Authorizer: &DefaultAzureCredentialHolder{},
 				},
 			},
 		},

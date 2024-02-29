@@ -1,8 +1,8 @@
 package metrics
 
 import (
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/pkg/clustercache"
-	"github.com/opencost/opencost/pkg/prom"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -41,7 +41,7 @@ func (kpmc KubePodLabelsCollector) Collect(ch chan<- prometheus.Metric) {
 
 		// Pod Labels
 		if _, disabled := disabledMetrics["kube_pod_labels"]; !disabled {
-			labelNames, labelValues := prom.KubePrependQualifierToLabels(prom.SanitizeLabels(pod.GetLabels()), "label_")
+			labelNames, labelValues := promutil.KubePrependQualifierToLabels(promutil.SanitizeLabels(pod.GetLabels()), "label_")
 			ch <- newKubePodLabelsMetric("kube_pod_labels", podNS, podName, podUID, labelNames, labelValues)
 		}
 

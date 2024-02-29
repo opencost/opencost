@@ -2,14 +2,15 @@ package costmodel
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/config"
-	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/prom"
-	"github.com/opencost/opencost/pkg/util"
 
 	"github.com/davecgh/go-spew/spew"
 )
@@ -894,7 +895,7 @@ func TestAssetCustompricing(t *testing.T) {
 
 	windowStart := time.Date(2020, time.April, 13, 0, 0, 0, 0, time.UTC)
 	windowEnd := windowStart.Add(time.Hour)
-	window := kubecost.NewClosedWindow(windowStart, windowEnd)
+	window := opencost.NewClosedWindow(windowStart, windowEnd)
 
 	startTimestamp := float64(windowStart.Unix())
 
@@ -1107,4 +1108,75 @@ func TestAssetCustompricing(t *testing.T) {
 		})
 	}
 
+}
+
+func TestBuildLabelsMap(t *testing.T) {
+	const (
+		labelKey1   = "testlabelkey1"
+		labelValue1 = "testlabel1-value"
+		labelKey2   = "test-label-key-2"
+		labelValue2 = "testlabel2.value"
+		nonLabelKey = "instance_type"
+		labelPrefix = "label_"
+	)
+
+	startTimestamp := float64(windowStart.Unix())
+
+	nodePromResult := []*prom.QueryResult{
+		{
+			Metric: map[string]interface{}{
+				"cluster_id":             "cluster1",
+				"node":                   "node1",
+				"instance_type":          "type1",
+				"provider_id":            "provider1",
+				"label_testlabelkey1":    "testlabel1-value",
+				"label_test-label-key-2": "testlabel2.value",
+			},
+			Values: []*util.Vector{
+				{
+					Timestamp: startTimestamp,
+					Value:     0.5,
+				},
+			},
+		},
+		{
+			Metric: map[string]interface{}{
+				"cluster_id":             "cluster1",
+				"node":                   "node2",
+				"instance_type":          "type1",
+				"provider_id":            "provider1",
+				"label_testlabelkey1":    "testlabel1-value",
+				"label_test-label-key-2": "testlabel2.value",
+			},
+			Values: []*util.Vector{
+				{
+					Timestamp: startTimestamp,
+					Value:     0.5,
+				},
+			},
+		},
+	}
+
+	nodeLabelMap := buildLabelsMap(nodePromResult)
+	// Test that for all nodes and all label keys in the map there isn't a key with the label_ prefix.
+	for _, labelMap := range nodeLabelMap {
+		for key, value := range labelMap {
+			if strings.HasPrefix(key, labelPrefix) {
+				t.Errorf("Asset label maps aren't sanitized. Expected no '%v' prefix in %v", labelPrefix, key)
+			}
+			// Test that the label value isn't touched
+			if key == labelKey1 && value != labelValue1 {
+				t.Errorf("Label Value didn't match. Got %v, but Expected: %v", value, labelValue1)
+			}
+			// Test that the label value isn't touched
+			if key == labelKey2 && value != labelValue2 {
+				t.Errorf("Label Value didn't match. Got %v, but Expected: %v", value, labelValue2)
+			}
+		}
+		// Test that keys that don't have the label_ prefix aren't in the resultant label map.
+		_, ok := labelMap[nonLabelKey]
+		if ok {
+			t.Errorf("Non-label keys are included in label mapping for asset labels. Expected '%v' to not exist'.", nonLabelKey)
+		}
+	}
 }

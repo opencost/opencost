@@ -17,15 +17,15 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
-	"github.com/opencost/opencost/pkg/kubecost"
 
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/core/pkg/util/fileutil"
+	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util"
-	"github.com/opencost/opencost/pkg/util/fileutil"
-	"github.com/opencost/opencost/pkg/util/json"
-	"github.com/opencost/opencost/pkg/util/timeutil"
 	"github.com/rs/zerolog"
 
 	"cloud.google.com/go/bigquery"
@@ -72,6 +72,7 @@ var gcpRegions = []string{
 	"europe-west3",
 	"europe-west4",
 	"europe-west6",
+	"europe-west9",
 	"northamerica-northeast1",
 	"northamerica-northeast2",
 	"southamerica-east1",
@@ -85,7 +86,8 @@ var gcpRegions = []string{
 }
 
 var (
-	nvidiaGPURegex = regexp.MustCompile("(Nvidia Tesla [^ ]+) ")
+	nvidiaTeslaGPURegex = regexp.MustCompile("(Nvidia Tesla [^ ]+) ")
+	nvidiaGPURegex      = regexp.MustCompile("(Nvidia [^ ]+) ")
 	// gce://guestbook-12345/...
 	//  => guestbook-12345
 	gceRegex = regexp.MustCompile("gce://([^/]*)/*")
@@ -338,7 +340,7 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 
 	m := make(map[string]string)
 	m["name"] = attribute
-	m["provider"] = kubecost.GCPProvider
+	m["provider"] = opencost.GCPProvider
 	m["region"] = gcp.ClusterRegion
 	m["account"] = gcp.ClusterAccountID
 	m["project"] = gcp.ClusterProjectID
@@ -771,10 +773,20 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 				}
 
 				var gpuType string
-				for matchnum, group := range nvidiaGPURegex.FindStringSubmatch(product.Description) {
+				for matchnum, group := range nvidiaTeslaGPURegex.FindStringSubmatch(product.Description) {
 					if matchnum == 1 {
 						gpuType = strings.ToLower(strings.Join(strings.Split(group, " "), "-"))
 						log.Debugf("GCP Billing API: GPU type found: '%s'", gpuType)
+					}
+				}
+
+				// If a 'Nvidia Tesla' is not found, try 'Nvidia'
+				if gpuType == "" {
+					for matchnum, group := range nvidiaGPURegex.FindStringSubmatch(product.Description) {
+						if matchnum == 1 {
+							gpuType = strings.ToLower(strings.Join(strings.Split(group, " "), "-"))
+							log.Debugf("GCP Billing API: GPU type found: '%s'", gpuType)
+						}
 					}
 				}
 
@@ -794,6 +806,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					case "a2":
 						candidateKeys = append(candidateKeys, region+","+"a2highgpu"+","+usageType)
 						candidateKeys = append(candidateKeys, region+","+"a2megagpu"+","+usageType)
+						candidateKeys = append(candidateKeys, region+","+"a2ultragpu"+","+usageType)
 					default:
 						candidateKey := region + "," + instanceType + "," + usageType
 						candidateKeys = append(candidateKeys, candidateKey)
@@ -983,7 +996,6 @@ func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]mo
 
 	url := gcp.getBillingAPIURL(gcp.APIKey, c.CurrencyCode)
 
-	log.Infof("Fetch GCP Billing Data from URL: %s", url)
 	var parsePagesHelper func(string) error
 	parsePagesHelper = func(pageToken string) error {
 		if pageToken == "done" {

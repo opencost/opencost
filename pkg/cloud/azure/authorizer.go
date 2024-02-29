@@ -1,80 +1,60 @@
 package azure
 
 import (
-	"encoding/json"
 	"fmt"
 
-	"github.com/Azure/azure-storage-blob-go/azblob"
-	"github.com/opencost/opencost/pkg/cloud/config"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/opencost/opencost/pkg/cloud"
 )
 
-const AccessKeyAuthorizerType = "AzureAccessKey"
+const DefaultCredentialAuthorizerType = "AzureDefaultCredential"
 
+// Authorizer configs provide credentials from azidentity to connect to Azure services.
 type Authorizer interface {
-	config.Authorizer
-	GetBlobCredentials() (azblob.Credential, error)
+	cloud.Authorizer
+	GetCredential() (azcore.TokenCredential, error)
 }
 
 // SelectAuthorizerByType is an implementation of AuthorizerSelectorFn and acts as a register for Authorizer types
 func SelectAuthorizerByType(typeStr string) (Authorizer, error) {
 	switch typeStr {
-	case AccessKeyAuthorizerType:
-		return &AccessKey{}, nil
+	case DefaultCredentialAuthorizerType:
+		return &DefaultAzureCredentialHolder{}, nil
 	default:
 		return nil, fmt.Errorf("azure: provider authorizer type '%s' is not valid", typeStr)
 	}
 }
 
-type AccessKey struct {
-	AccessKey string `json:"accessKey"`
-	Account   string `json:"account"`
-}
+type DefaultAzureCredentialHolder struct{}
 
-func (ak *AccessKey) MarshalJSON() ([]byte, error) {
-	fmap := make(map[string]any, 3)
-	fmap[config.AuthorizerTypeProperty] = AccessKeyAuthorizerType
-	fmap["accessKey"] = ak.AccessKey
-	fmap["account"] = ak.Account
+func (dac *DefaultAzureCredentialHolder) MarshalJSON() ([]byte, error) {
+	fmap := make(map[string]any, 1)
+	fmap[cloud.AuthorizerTypeProperty] = DefaultCredentialAuthorizerType
+
 	return json.Marshal(fmap)
 }
 
-func (ak *AccessKey) Validate() error {
-	if ak.AccessKey == "" {
-		return fmt.Errorf("AccessKey: missing access key")
-	}
-	if ak.Account == "" {
-		return fmt.Errorf("AccessKey: missing account")
-	}
+func (dac *DefaultAzureCredentialHolder) Validate() error {
 	return nil
 }
 
-func (ak *AccessKey) Equals(config config.Config) bool {
+func (dac *DefaultAzureCredentialHolder) Equals(config cloud.Config) bool {
 	if config == nil {
 		return false
 	}
-	thatConfig, ok := config.(*AccessKey)
+	_, ok := config.(*DefaultAzureCredentialHolder)
 	if !ok {
 		return false
 	}
-
-	if ak.AccessKey != thatConfig.AccessKey {
-		return false
-	}
-	if ak.Account != thatConfig.Account {
-		return false
-	}
-
 	return true
 }
 
-func (ak *AccessKey) Sanitize() config.Config {
-	return &AccessKey{
-		AccessKey: config.Redacted,
-		Account:   ak.Account,
-	}
+func (dac *DefaultAzureCredentialHolder) Sanitize() cloud.Config {
+	return &DefaultAzureCredentialHolder{}
 }
 
-func (ak *AccessKey) GetBlobCredentials() (azblob.Credential, error) {
-	// Create a default request pipeline using your storage account name and account key.
-	return azblob.NewSharedKeyCredential(ak.Account, ak.AccessKey)
+func (dac *DefaultAzureCredentialHolder) GetCredential() (azcore.TokenCredential, error) {
+	return azidentity.NewDefaultAzureCredential(nil)
 }

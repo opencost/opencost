@@ -150,12 +150,26 @@ spec:
               memory: "1G"
           env:
             - name: PROMETHEUS_SERVER_ENDPOINT
-              value: "http://my-prometheus-server.prometheus.svc" # The endpoint should have the form http://<service-name>.<namespace-name>.svc
+              value: "http://prometheus-server.prometheus-system.svc" # The endpoint should have the form http://<service-name>.<namespace-name>.svc
             - name: CLOUD_PROVIDER_API_KEY
               value: "AIzaSyD29bGxmHAVEOBYtgd8sYM2gM2ekfxQX4U" # The GCP Pricing API requires a key. This is supplied just for evaluation.
             - name: CLUSTER_ID
               value: "cluster-one" # Default cluster ID to use if cluster_id is not set in Prometheus metrics.
+            - name: EXPORT_CSV_FILE
+              value: "s3://path/to/csv"
+            - name: AWS_ACCESS_KEY_ID  
+              value: "XXXXXXXXXXXXXXX" ## AWS Access KeyID
+            - name: AWS_SECRET_ACCESS_KEY
+              value: "XXXXXXXXXXXXXXX" ## AWS Secret Access Key
+            - name: AWS_REGION
+              value: "us-west-2" ## AWS Region where bucket is hosted
           imagePullPolicy: Always
+          volumeMounts:
+          - name: tmp-volume
+            mountPath: /tmp
+      volumes:
+      - name: tmp-volume
+        emptyDir: {}
 ---
 
 # Expose the cost model with a service

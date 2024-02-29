@@ -8,9 +8,8 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util/timeutil"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 )
 
 const S3SelectDateLayout = "2006-01-02T15:04:05Z"
@@ -38,11 +37,11 @@ type S3SelectIntegration struct {
 func (s3si *S3SelectIntegration) GetCloudCost(
 	start,
 	end time.Time,
-) (*kubecost.CloudCostSetRange, error) {
+) (*opencost.CloudCostSetRange, error) {
 	log.Infof(
 		"S3SelectIntegration[%s]: GetCloudCost: %s",
 		s3si.Key(),
-		kubecost.NewWindow(&start, &end).String(),
+		opencost.NewWindow(&start, &end).String(),
 	)
 
 	// Set midnight yesterday as last point in time reconciliation data
@@ -55,10 +54,10 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 	}
 
 	// ccsr to populate with cloudcosts.
-	ccsr, err := kubecost.NewCloudCostSetRange(
+	ccsr, err := opencost.NewCloudCostSetRange(
 		start,
 		end,
-		timeutil.Day,
+		opencost.AccumulateOptionDay,
 		s3si.Key(),
 	)
 	if err != nil {
@@ -189,8 +188,8 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 				itemProviderID = ParseARN(itemProviderID)
 			}
 
-			properties := kubecost.CloudCostProperties{}
-			properties.Provider = kubecost.AWSProvider
+			properties := opencost.CloudCostProperties{}
+			properties.Provider = opencost.AWSProvider
 			properties.AccountID = itemAccountID
 			properties.Category = category
 			properties.Service = itemProductCode
@@ -208,22 +207,22 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 			itemStart = itemStart.Truncate(time.Hour * 24)
 			itemEnd := itemStart.AddDate(0, 0, 1)
 
-			cc := &kubecost.CloudCost{
+			cc := &opencost.CloudCost{
 				Properties: &properties,
-				Window:     kubecost.NewWindow(&itemStart, &itemEnd),
-				ListCost: kubecost.CostMetric{
+				Window:     opencost.NewWindow(&itemStart, &itemEnd),
+				ListCost: opencost.CostMetric{
 					Cost: listCost,
 				},
-				NetCost: kubecost.CostMetric{
+				NetCost: opencost.CostMetric{
 					Cost: netCost,
 				},
-				AmortizedNetCost: kubecost.CostMetric{
+				AmortizedNetCost: opencost.CostMetric{
 					Cost: amortizedCost,
 				},
-				AmortizedCost: kubecost.CostMetric{
+				AmortizedCost: opencost.CostMetric{
 					Cost: amortizedCost,
 				},
-				InvoicedCost: kubecost.CostMetric{
+				InvoicedCost: opencost.CostMetric{
 					Cost: netCost,
 				},
 			}

@@ -3,17 +3,18 @@ package azure
 import (
 	"fmt"
 
-	"github.com/opencost/opencost/pkg/cloud/config"
-	"github.com/opencost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/opencost/opencost/pkg/cloud"
 )
 
 type StorageConfiguration struct {
-	SubscriptionID string     `json:"subscriptionID"`
-	Account        string     `json:"account"`
-	Container      string     `json:"container"`
-	Path           string     `json:"path"`
-	Cloud          string     `json:"cloud"`
-	Authorizer     Authorizer `json:"authorizer"`
+	SubscriptionID string            `json:"subscriptionID"`
+	Account        string            `json:"account"`
+	Container      string            `json:"container"`
+	Path           string            `json:"path"`
+	Cloud          string            `json:"cloud"`
+	Authorizer     StorageAuthorizer `json:"authorizer"`
 }
 
 // Check ensures that all required fields are set, and throws an error if they are not
@@ -43,7 +44,7 @@ func (sc *StorageConfiguration) Validate() error {
 	return nil
 }
 
-func (sc *StorageConfiguration) Equals(config config.Config) bool {
+func (sc *StorageConfiguration) Equals(config cloud.Config) bool {
 	if config == nil {
 		return false
 	}
@@ -85,14 +86,14 @@ func (sc *StorageConfiguration) Equals(config config.Config) bool {
 	return true
 }
 
-func (sc *StorageConfiguration) Sanitize() config.Config {
+func (sc *StorageConfiguration) Sanitize() cloud.Config {
 	return &StorageConfiguration{
 		SubscriptionID: sc.SubscriptionID,
 		Account:        sc.Account,
 		Container:      sc.Container,
 		Path:           sc.Path,
 		Cloud:          sc.Cloud,
-		Authorizer:     sc.Authorizer.Sanitize().(Authorizer),
+		Authorizer:     sc.Authorizer.Sanitize().(StorageAuthorizer),
 	}
 }
 
@@ -105,6 +106,10 @@ func (sc *StorageConfiguration) Key() string {
 	return key
 }
 
+func (sc *StorageConfiguration) Provider() string {
+	return opencost.AzureProvider
+}
+
 func (sc *StorageConfiguration) UnmarshalJSON(b []byte) error {
 	var f interface{}
 	err := json.Unmarshal(b, &f)
@@ -114,41 +119,41 @@ func (sc *StorageConfiguration) UnmarshalJSON(b []byte) error {
 
 	fmap := f.(map[string]interface{})
 
-	subscriptionID, err := config.GetInterfaceValue[string](fmap, "subscriptionID")
+	subscriptionID, err := cloud.GetInterfaceValue[string](fmap, "subscriptionID")
 	if err != nil {
 		return fmt.Errorf("StorageConfiguration: UnmarshalJSON: %s", err.Error())
 	}
 	sc.SubscriptionID = subscriptionID
 
-	account, err := config.GetInterfaceValue[string](fmap, "account")
+	account, err := cloud.GetInterfaceValue[string](fmap, "account")
 	if err != nil {
 		return fmt.Errorf("StorageConfiguration: UnmarshalJSON: %s", err.Error())
 	}
 	sc.Account = account
 
-	container, err := config.GetInterfaceValue[string](fmap, "container")
+	container, err := cloud.GetInterfaceValue[string](fmap, "container")
 	if err != nil {
 		return fmt.Errorf("StorageConfiguration: UnmarshalJSON: %s", err.Error())
 	}
 	sc.Container = container
 
-	path, err := config.GetInterfaceValue[string](fmap, "path")
+	path, err := cloud.GetInterfaceValue[string](fmap, "path")
 	if err != nil {
 		return fmt.Errorf("StorageConfiguration: UnmarshalJSON: %s", err.Error())
 	}
 	sc.Path = path
 
-	cloud, err := config.GetInterfaceValue[string](fmap, "cloud")
+	cloudValue, err := cloud.GetInterfaceValue[string](fmap, "cloud")
 	if err != nil {
 		return fmt.Errorf("StorageConfiguration: UnmarshalJSON: %s", err.Error())
 	}
-	sc.Cloud = cloud
+	sc.Cloud = cloudValue
 
 	authAny, ok := fmap["authorizer"]
 	if !ok {
 		return fmt.Errorf("StorageConfiguration: UnmarshalJSON: missing authorizer")
 	}
-	authorizer, err := config.AuthorizerFromInterface(authAny, SelectAuthorizerByType)
+	authorizer, err := cloud.AuthorizerFromInterface(authAny, SelectStorageAuthorizerByType)
 	if err != nil {
 		return fmt.Errorf("StorageConfiguration: UnmarshalJSON: %s", err.Error())
 	}
@@ -157,13 +162,13 @@ func (sc *StorageConfiguration) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func ConvertAzureStorageConfigToConfig(asc AzureStorageConfig) config.KeyedConfig {
+func ConvertAzureStorageConfigToConfig(asc AzureStorageConfig) cloud.KeyedConfig {
 	if asc.IsEmpty() {
 		return nil
 	}
 
-	var authorizer Authorizer
-	authorizer = &AccessKey{
+	var authorizer StorageAuthorizer
+	authorizer = &SharedKeyCredential{
 		AccessKey: asc.AccessKey,
 		Account:   asc.AccountName,
 	}

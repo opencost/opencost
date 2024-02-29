@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/opencost/opencost/pkg/cloud/config"
-	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/opencost/opencost/pkg/cloud"
 )
 
 func TestS3Configuration_Validate(t *testing.T) {
@@ -105,7 +105,7 @@ func TestS3Configuration_Validate(t *testing.T) {
 func TestS3Configuration_Equals(t *testing.T) {
 	testCases := map[string]struct {
 		left     S3Configuration
-		right    config.Config
+		right    cloud.Config
 		expected bool
 	}{
 		"matching config": {

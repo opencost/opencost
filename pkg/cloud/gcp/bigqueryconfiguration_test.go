@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/opencost/opencost/pkg/cloud/config"
-	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/opencost/opencost/pkg/cloud"
 )
 
 func TestBigQueryConfiguration_Validate(t *testing.T) {
@@ -122,7 +122,7 @@ func TestBigQueryConfiguration_Validate(t *testing.T) {
 func TestBigQueryConfiguration_Equals(t *testing.T) {
 	testCases := map[string]struct {
 		left     BigQueryConfiguration
-		right    config.Config
+		right    cloud.Config
 		expected bool
 	}{
 		"matching config": {

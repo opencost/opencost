@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/opencost/opencost/pkg/util/timeutil"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/prom"
 )
 
@@ -17,8 +17,8 @@ const (
 	// upstream KSM has implementation change vs OC internal KSM - it sets metric to 0 when pod goes down
 	// VS OC implementation which stops emitting it
 	// by adding != 0 filter, we keep just the active times in the prom result
-	queryFmtPods                        = `avg(kube_pod_container_status_running{%s} != 0) by (pod, namespace, %s)[%s:%s]`
-	queryFmtPodsUID                     = `avg(kube_pod_container_status_running{%s} != 0) by (pod, namespace, uid, %s)[%s:%s]`
+	queryFmtPods    = `avg(kube_pod_container_status_running{%s} != 0) by (pod, namespace, %s)[%s:%s]`
+	queryFmtPodsUID = `avg(kube_pod_container_status_running{%s} != 0) by (pod, namespace, uid, %s)[%s:%s]`
 
 	queryFmtRAMBytesAllocated           = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s, provider_id)`
 	queryFmtRAMRequests                 = `avg(avg_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
@@ -40,9 +40,9 @@ const (
 	queryFmtPVBytes                     = `avg(avg_over_time(kube_persistentvolume_capacity_bytes{%s}[%s])) by (persistentvolume, %s)`
 	queryFmtPVCostPerGiBHour            = `avg(avg_over_time(pv_hourly_cost{%s}[%s])) by (volumename, %s)`
 	queryFmtPVMeta                      = `avg(avg_over_time(kubecost_pv_info{%s}[%s])) by (%s, persistentvolume, provider_id)`
-	queryFmtNetZoneGiB                  = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
+	queryFmtNetZoneGiB                  = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", same_zone="false", same_region="true", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
 	queryFmtNetZoneCostPerGiB           = `avg(avg_over_time(kubecost_network_zone_egress_cost{%s}[%s])) by (%s)`
-	queryFmtNetRegionGiB                = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
+	queryFmtNetRegionGiB                = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", same_zone="false", same_region="false", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
 	queryFmtNetRegionCostPerGiB         = `avg(avg_over_time(kubecost_network_region_egress_cost{%s}[%s])) by (%s)`
 	queryFmtNetInternetGiB              = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
 	queryFmtNetInternetCostPerGiB       = `avg(avg_over_time(kubecost_network_internet_egress_cost{%s}[%s])) by (%s)`
@@ -117,7 +117,7 @@ func (cm *CostModel) Name() string {
 // ComputeAllocation uses the CostModel instance to compute an AllocationSet
 // for the window defined by the given start and end times. The Allocations
 // returned are unaggregated (i.e. down to the container level).
-func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Duration) (*kubecost.AllocationSet, error) {
+func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Duration) (*opencost.AllocationSet, error) {
 
 	// If the duration is short enough, compute the AllocationSet directly
 	if end.Sub(start) <= cm.MaxPrometheusQueryDuration {
@@ -134,7 +134,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 	// Collect AllocationSets in a range, then accumulate
 	// TODO optimize by collecting consecutive AllocationSets, accumulating as we go
-	asr := kubecost.NewAllocationSetRange()
+	asr := opencost.NewAllocationSetRange()
 
 	for e.Before(end) {
 		// By default, query for the full remaining duration. But do not let
@@ -151,7 +151,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 		// Compute the individual AllocationSet for just (s, e)
 		as, _, err := cm.computeAllocation(s, e, resolution)
 		if err != nil {
-			return kubecost.NewAllocationSet(start, end), fmt.Errorf("error computing allocation for %s: %s", kubecost.NewClosedWindow(s, e), err)
+			return opencost.NewAllocationSet(start, end), fmt.Errorf("error computing allocation for %s: %s", opencost.NewClosedWindow(s, e), err)
 		}
 
 		// Append to the range
@@ -210,15 +210,15 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	// Accumulate to yield the result AllocationSet. After this step, we will
 	// be nearly complete, but without the raw allocation data, which must be
 	// recomputed.
-	resultASR, err := asr.Accumulate(kubecost.AccumulateOptionAll)
+	resultASR, err := asr.Accumulate(opencost.AccumulateOptionAll)
 	if err != nil {
-		return kubecost.NewAllocationSet(start, end), fmt.Errorf("error accumulating data for %s: %s", kubecost.NewClosedWindow(s, e), err)
+		return opencost.NewAllocationSet(start, end), fmt.Errorf("error accumulating data for %s: %s", opencost.NewClosedWindow(s, e), err)
 	}
 	if resultASR != nil && len(resultASR.Allocations) == 0 {
-		return kubecost.NewAllocationSet(start, end), nil
+		return opencost.NewAllocationSet(start, end), nil
 	}
 	if length := len(resultASR.Allocations); length != 1 {
-		return kubecost.NewAllocationSet(start, end), fmt.Errorf("expected 1 accumulated allocation set, found %d sets", length)
+		return opencost.NewAllocationSet(start, end), fmt.Errorf("expected 1 accumulated allocation set, found %d sets", length)
 	}
 	result := resultASR.Allocations[0]
 
@@ -256,7 +256,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 			}
 
 			if resultAlloc.RawAllocationOnly == nil {
-				resultAlloc.RawAllocationOnly = &kubecost.RawAllocationOnlyData{}
+				resultAlloc.RawAllocationOnly = &opencost.RawAllocationOnlyData{}
 			}
 
 			if alloc.RawAllocationOnly == nil {
@@ -295,8 +295,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 // it supposed to be a good indicator of available allocation data
 func (cm *CostModel) DateRange() (time.Time, time.Time, error) {
 	ctx := prom.NewNamedContext(cm.PrometheusClient, prom.AllocationContextName)
+	exportCsvDaysFmt := fmt.Sprintf("%dd", env.GetExportCSVMaxDays())
 
-	resOldest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtOldestSample, env.GetPromClusterFilter(), "90d", "1h"))
+	resOldest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtOldestSample, env.GetPromClusterFilter(), exportCsvDaysFmt, "1h"))
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("querying oldest sample: %w", err)
 	}
@@ -305,7 +306,7 @@ func (cm *CostModel) DateRange() (time.Time, time.Time, error) {
 	}
 	oldest := time.Unix(int64(resOldest[0].Values[0].Value), 0)
 
-	resNewest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtNewestSample, env.GetPromClusterFilter(), "90d", "1h"))
+	resNewest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtNewestSample, env.GetPromClusterFilter(), exportCsvDaysFmt, "1h"))
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("querying newest sample: %w", err)
 	}
@@ -317,18 +318,18 @@ func (cm *CostModel) DateRange() (time.Time, time.Time, error) {
 	return oldest, newest, nil
 }
 
-func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Duration) (*kubecost.AllocationSet, map[nodeKey]*nodePricing, error) {
+func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Duration) (*opencost.AllocationSet, map[nodeKey]*nodePricing, error) {
 	// 1. Build out Pod map from resolution-tuned, batched Pod start/end query
 	// 2. Run and apply the results of the remaining queries to
 	// 3. Build out AllocationSet from completed Pod map
 
 	// Create a window spanning the requested query
-	window := kubecost.NewWindow(&start, &end)
+	window := opencost.NewWindow(&start, &end)
 
 	// Create an empty AllocationSet. For safety, in the case of an error, we
 	// should prefer to return this empty set with the error. (In the case of
 	// no error, of course we populate the set and return it.)
-	allocSet := kubecost.NewAllocationSet(start, end)
+	allocSet := opencost.NewAllocationSet(start, end)
 
 	// (1) Build out Pod map
 
@@ -374,7 +375,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	// Query for the duration between start and end
 	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
-		return allocSet, nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
+		return allocSet, nil, fmt.Errorf("illegal duration value for %s", opencost.NewClosedWindow(start, end))
 	}
 
 	// Convert resolution duration to a query-ready string
@@ -649,7 +650,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	applyControllersToPods(podMap, podReplicaSetMap)
 
 	serviceLabels := getServiceLabels(resServiceLabels)
-	allocsByService := map[serviceKey][]*kubecost.Allocation{}
+	allocsByService := map[serviceKey][]*opencost.Allocation{}
 	applyServicesToPods(podMap, podLabels, allocsByService, serviceLabels)
 
 	// TODO breakdown network costs?

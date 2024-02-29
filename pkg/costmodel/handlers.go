@@ -5,12 +5,12 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
+	assetfilter "github.com/opencost/opencost/core/pkg/filter/asset"
+	"github.com/opencost/opencost/core/pkg/filter/ast"
+	"github.com/opencost/opencost/core/pkg/filter/matcher"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"github.com/opencost/opencost/pkg/env"
-	assetfilter "github.com/opencost/opencost/pkg/filter21/asset"
-	"github.com/opencost/opencost/pkg/filter21/ast"
-	"github.com/opencost/opencost/pkg/filter21/matcher"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/util/httputil"
 )
 
 // ComputeAllocationHandler returns the assets from the CostModel.
@@ -21,7 +21,7 @@ func (a *Accesses) ComputeAssetsHandler(w http.ResponseWriter, r *http.Request, 
 
 	// Window is a required field describing the window of time over which to
 	// compute allocation data.
-	window, err := kubecost.ParseWindowWithOffset(qp.Get("window", ""), env.GetParsedUTCOffset())
+	window, err := opencost.ParseWindowWithOffset(qp.Get("window", ""), env.GetParsedUTCOffset())
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Invalid 'window' parameter: %s", err), http.StatusBadRequest)
 		return
@@ -34,16 +34,16 @@ func (a *Accesses) ComputeAssetsHandler(w http.ResponseWriter, r *http.Request, 
 	}
 	filterString := qp.Get("filter", "")
 
-	var filter kubecost.AssetMatcher
+	var filter opencost.AssetMatcher
 	if filterString == "" {
-		filter = &matcher.AllPass[kubecost.Asset]{}
+		filter = &matcher.AllPass[opencost.Asset]{}
 	} else {
 		parser := assetfilter.NewAssetFilterParser()
 		tree, errParse := parser.Parse(filterString)
 		if errParse != nil {
 			http.Error(w, fmt.Sprintf("err parsing filter '%s': %v", ast.ToPreOrderShortString(tree), errParse), http.StatusBadRequest)
 		}
-		compiler := kubecost.NewAssetMatchCompiler()
+		compiler := opencost.NewAssetMatchCompiler()
 		var err error
 		filter, err = compiler.Compile(tree)
 		if err != nil {

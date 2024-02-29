@@ -11,14 +11,14 @@ import (
 
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
-	"github.com/opencost/opencost/pkg/kubecost"
 
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/util"
-	"github.com/opencost/opencost/pkg/util/json"
 
-	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/core/pkg/log"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/scaleway/scaleway-sdk-go/api/instance/v1"
@@ -149,7 +149,7 @@ func (c *Scaleway) NodePricing(key models.Key) (*models.Node, models.PricingMeta
 				RAM:         fmt.Sprintf("%d", info.RAM),
 				// This is tricky, as instances can have local volumes or not
 				Storage:      fmt.Sprintf("%d", info.PerVolumeConstraint.LSSD.MinSize),
-				GPU:          fmt.Sprintf("%d", info.Gpu),
+				GPU:          fmt.Sprintf("%d", *info.Gpu),
 				InstanceType: split[1],
 				Region:       split[0],
 				GPUName:      key.GPUType(),
@@ -207,7 +207,13 @@ func (key *scalewayPVKey) Features() string {
 
 func (c *Scaleway) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
 	// the csi volume handle is the form <az>/<volume-id>
-	zone := strings.Split(pv.Spec.CSI.VolumeHandle, "/")[0]
+	zone := ""
+	if pv.Spec.CSI != nil {
+		zoneVolID := strings.Split(pv.Spec.CSI.VolumeHandle, "/")
+		if len(zoneVolID) > 0 {
+			zone = zoneVolID[0]
+		}
+	}
 	return &scalewayPVKey{
 		Labels:                 pv.Labels,
 		StorageClassName:       pv.Spec.StorageClassName,
@@ -289,7 +295,7 @@ func (scw *Scaleway) ClusterInfo() (map[string]string, error) {
 	if c.ClusterName != "" {
 		m["name"] = c.ClusterName
 	}
-	m["provider"] = kubecost.ScalewayProvider
+	m["provider"] = opencost.ScalewayProvider
 	m["region"] = scw.ClusterRegion
 	m["account"] = scw.ClusterAccountID
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)

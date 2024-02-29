@@ -4,19 +4,21 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/pprof"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/version"
 	"github.com/opencost/opencost/pkg/costmodel"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/errors"
 	"github.com/opencost/opencost/pkg/filemanager"
-	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/metrics"
-	"github.com/opencost/opencost/pkg/version"
 )
 
 // CostModelOpts contain configuration options that can be passed to the Execute() method
@@ -32,24 +34,63 @@ func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 
 func Execute(opts *CostModelOpts) error {
 	log.Infof("Starting cost-model version %s", version.FriendlyVersion())
-	a := costmodel.Initialize()
+	log.Infof("Kubernetes enabled: %t", env.IsKubernetesEnabled())
 
-	err := StartExportWorker(context.Background(), a.Model)
-	if err != nil {
-		log.Errorf("couldn't start CSV export worker: %v", err)
+	var a *costmodel.Accesses
+
+	if env.IsKubernetesEnabled() {
+		a = costmodel.Initialize()
+		err := StartExportWorker(context.Background(), a.Model)
+		if err != nil {
+			log.Errorf("couldn't start CSV export worker: %v", err)
+		}
+	} else {
+		a = costmodel.InitializeWithoutKubernetes()
+		log.Debugf("Cloud Cost config path: %s", env.GetCloudCostConfigPath())
+	}
+
+	log.Infof("Cloud Costs enabled: %t", env.IsCloudCostEnabled())
+	if env.IsCloudCostEnabled() {
+		repo := cloudcost.NewMemoryRepository()
+		a.CloudCostPipelineService = cloudcost.NewPipelineService(repo, a.CloudConfigController, cloudcost.DefaultIngestorConfiguration())
+		repoQuerier := cloudcost.NewRepositoryQuerier(repo)
+		a.CloudCostQueryService = cloudcost.NewQueryService(repoQuerier, repoQuerier)
 	}
 
 	rootMux := http.NewServeMux()
 	a.Router.GET("/healthz", Healthz)
-	a.Router.GET("/allocation", a.ComputeAllocationHandler)
-	a.Router.GET("/allocation/summary", a.ComputeAllocationHandlerSummary)
-	a.Router.GET("/assets", a.ComputeAssetsHandler)
+
+	if env.IsKubernetesEnabled() {
+		a.Router.GET("/allocation", a.ComputeAllocationHandler)
+		a.Router.GET("/allocation/summary", a.ComputeAllocationHandlerSummary)
+		a.Router.GET("/assets", a.ComputeAssetsHandler)
+	}
+
+	a.Router.GET("/cloudCost", a.CloudCostQueryService.GetCloudCostHandler())
+	a.Router.GET("/cloudCost/view/graph", a.CloudCostQueryService.GetCloudCostViewGraphHandler())
+	a.Router.GET("/cloudCost/view/totals", a.CloudCostQueryService.GetCloudCostViewTotalsHandler())
+	a.Router.GET("/cloudCost/view/table", a.CloudCostQueryService.GetCloudCostViewTableHandler())
+
+	a.Router.GET("/cloudCost/status", a.CloudCostPipelineService.GetCloudCostStatusHandler())
+	a.Router.GET("/cloudCost/rebuild", a.CloudCostPipelineService.GetCloudCostRebuildHandler())
+	a.Router.GET("/cloudCost/repair", a.CloudCostPipelineService.GetCloudCostRepairHandler())
+
+	if env.IsPProfEnabled() {
+		a.Router.HandlerFunc(http.MethodGet, "/debug/pprof/", pprof.Index)
+		a.Router.HandlerFunc(http.MethodGet, "/debug/pprof/cmdline", pprof.Cmdline)
+		a.Router.HandlerFunc(http.MethodGet, "/debug/pprof/profile", pprof.Profile)
+		a.Router.HandlerFunc(http.MethodGet, "/debug/pprof/symbol", pprof.Symbol)
+		a.Router.HandlerFunc(http.MethodGet, "/debug/pprof/trace", pprof.Trace)
+		a.Router.Handler(http.MethodGet, "/debug/pprof/goroutine", pprof.Handler("goroutine"))
+		a.Router.Handler(http.MethodGet, "/debug/pprof/heap", pprof.Handler("heap"))
+	}
+
 	rootMux.Handle("/", a.Router)
 	rootMux.Handle("/metrics", promhttp.Handler())
 	telemetryHandler := metrics.ResponseMetricMiddleware(rootMux)
 	handler := cors.AllowAll().Handler(telemetryHandler)
 
-	return http.ListenAndServe(":9003", errors.PanicHandlerMiddleware(handler))
+	return http.ListenAndServe(fmt.Sprint(":", env.GetAPIPort()), errors.PanicHandlerMiddleware(handler))
 }
 
 func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) error {
