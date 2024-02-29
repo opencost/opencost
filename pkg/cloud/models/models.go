@@ -249,9 +249,9 @@ func SetCustomPricingField(obj *CustomPricing, name string, value string) error 
 	// from getting set here.
 	switch strings.ToLower(name) {
 	case "cpu", "gpu", "ram", "spotcpu", "spotgpu", "spotram", "storage", "zonenetworkegress", "regionnetworkegress", "internetnetworkegress":
-		//what should we default to here?
+		// If we are sent an empty string, ignore the key and don't change the value
 		if value == "" {
-			value = "1.0"
+			return nil
 		} else {
 			// Validate that "value" represents a real floating point number, and
 			// set precision, bits, etc. Do not allow NaN.
