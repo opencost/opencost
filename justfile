@@ -65,3 +65,4 @@ build IMAGE_TAG RELEASE_VERSION: test (build-binary RELEASE_VERSION)
     manifest-tool push from-args \
         --platforms "linux/amd64,linux/arm64" \
         --template {{IMAGE_TAG}}-ARCH \
+        --target {{IMAGE_TAG}}
