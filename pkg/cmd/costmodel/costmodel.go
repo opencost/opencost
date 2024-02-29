@@ -57,6 +57,14 @@ func Execute(opts *CostModelOpts) error {
 		a.CloudCostQueryService = cloudcost.NewQueryService(repoQuerier, repoQuerier)
 	}
 
+	log.Infof("Custom Costs enabled: %t", env.IsCustomCostEnabled())
+	if env.IsCustomCostEnabled() {
+		repo := cloudcost.NewMemoryRepository()
+		a.CloudCostPipelineService = cloudcost.NewPipelineService(repo, a.CloudConfigController, cloudcost.DefaultIngestorConfiguration())
+		repoQuerier := cloudcost.NewRepositoryQuerier(repo)
+		a.CloudCostQueryService = cloudcost.NewQueryService(repoQuerier, repoQuerier)
+	}
+
 	rootMux := http.NewServeMux()
 	a.Router.GET("/healthz", Healthz)
 

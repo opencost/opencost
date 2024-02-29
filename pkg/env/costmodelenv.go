@@ -124,6 +124,8 @@ const (
 	CloudCostQueryWindowDaysEnvVar  = "CLOUD_COST_QUERY_WINDOW_DAYS"
 	CloudCostRunWindowDaysEnvVar    = "CLOUD_COST_RUN_WINDOW_DAYS"
 
+	CustomCostEnabledEnvVar = "CUSTOM_COST_ENABLED"
+
 	OCIPricingURL = "OCI_PRICING_URL"
 )
 
@@ -638,6 +640,10 @@ func IsKubernetesEnabled() bool {
 
 func IsCloudCostEnabled() bool {
 	return env.GetBool(CloudCostEnabledEnvVar, false)
+}
+
+func IsCustomCostEnabled() bool {
+	return env.GetBool(CustomCostEnabledEnvVar, false)
 }
 
 func GetCloudCostConfigPath() string {
