@@ -37,16 +37,16 @@ build-binary VERSION=version:
         -o ./costmodel-arm64
 
 # Build and push a multi-arch Docker image
-build IMAGETAG VERSION=version: test (build-binary VERSION)
+build IMAGE_TAG RELEASE_VERSION: test (build-binary RELEASE_VERSION)
     docker buildx build \
         --rm \
         --platform "linux/amd64" \
         -f 'Dockerfile.cross' \
         --build-arg binarypath=./cmd/costmodel/costmodel-amd64 \
-        --build-arg version={{version}} \
+        --build-arg version={{RELEASE_VERSION}} \
         --build-arg commit={{commit}} \
         --provenance=false \
-        -t {{IMAGETAG}}-amd64 \
+        -t {{IMAGE_TAG}}-amd64 \
         --push \
         .
 
@@ -55,14 +55,14 @@ build IMAGETAG VERSION=version: test (build-binary VERSION)
         --platform "linux/arm64" \
         -f 'Dockerfile.cross' \
         --build-arg binarypath=./cmd/costmodel/costmodel-arm64 \
-        --build-arg version={{version}} \
+        --build-arg version={{RELEASE_VERSION}} \
         --build-arg commit={{commit}} \
         --provenance=false \
-        -t {{IMAGETAG}}-arm64 \
+        -t {{IMAGE_TAG}}-arm64 \
         --push \
         .
 
     manifest-tool push from-args \
         --platforms "linux/amd64,linux/arm64" \
-        --template {{IMAGETAG}}-ARCH \
-        --target {{IMAGETAG}}
+        --template {{IMAGE_TAG}}-ARCH \
+        --target {{IMAGE_TAG}}
