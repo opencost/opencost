@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"encoding/gob"
+	"fmt"
 	"net/rpc"
 
 	"github.com/hashicorp/go-plugin"
@@ -26,6 +27,13 @@ func (c *CustomCostRPC) GetCustomCosts(req model.CustomCostRequestInterface) []m
 	err := c.client.Call("Plugin.GetCustomCosts", &req, &resp)
 	if err != nil {
 		log.Errorf("error calling plugin: %v", err)
+		resp = []model.CustomCostResponse{
+			{
+				Errors: []error{
+					fmt.Errorf("error calling plugin: %v", err),
+				},
+			},
+		}
 	}
 
 	return resp
@@ -46,10 +54,16 @@ type CustomCostPlugin struct {
 	Impl CustomCostSource
 }
 
+// this method is called for as part of the reference plugin implementation
+// see https://github.com/hashicorp/go-plugin/blob/main/examples/basic/shared/greeter_interface.go#L59
+// for context and details
 func (p *CustomCostPlugin) Server(*plugin.MuxBroker) (interface{}, error) {
 	return &CustomCostRPCServer{Impl: p.Impl}, nil
 }
 
+// this method is called for as part of the reference plugin implementation
+// see https://github.com/hashicorp/go-plugin/blob/main/examples/basic/shared/greeter_interface.go#L63
+// for context and details
 func (CustomCostPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
 	return &CustomCostRPC{client: c}, nil
 }
