@@ -60,10 +60,11 @@ type CustomCostIngestor struct {
 	isStopping   atomic.Bool
 	exitBuildCh  chan string
 	exitRunCh    chan string
+	plugins      map[string]*plugin.ClientProtocol
 }
 
 // NewIngestor is an initializer for ingestor
-func NewCustomCostIngestor(ingestorConfig *CustomCostIngestorConfig, repo Repository, plugins map[string]*plugin.Client) (*CustomCostIngestor, error) {
+func NewCustomCostIngestor(ingestorConfig *CustomCostIngestorConfig, repo Repository, plugins map[string]*plugin.ClientProtocol) (*CustomCostIngestor, error) {
 	if repo == nil {
 		return nil, fmt.Errorf("CustomCost: NewCustomCostIngestor: repository connot be nil")
 	}
@@ -79,6 +80,7 @@ func NewCustomCostIngestor(ingestorConfig *CustomCostIngestorConfig, repo Reposi
 		creationTime: now,
 		lastRun:      now,
 		coverage:     opencost.NewClosedWindow(midnight, midnight),
+		plugins:      plugins,
 	}, nil
 }
 
