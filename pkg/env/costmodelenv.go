@@ -25,6 +25,7 @@ const (
 	AzureDownloadBillingDataToDiskEnvVar = "AZURE_DOWNLOAD_BILLING_DATA_TO_DISK"
 
 	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
+	KubecostScrapeIntervalEnvVar   = "KUBECOST_SCRAPE_INTERVAL"
 	PodNameEnvVar                  = "POD_NAME"
 	ClusterIDEnvVar                = "CLUSTER_ID"
 	ClusterProfileEnvVar           = "CLUSTER_PROFILE"
@@ -147,6 +148,10 @@ func GetExportCSVFile() string {
 
 func GetExportCSVLabelsAll() bool {
 	return env.GetBool(ExportCSVLabelsAll, false)
+}
+
+func GetKubecostScrapeInterval() time.Duration {
+	return env.GetDuration(KubecostScrapeIntervalEnvVar, 0)
 }
 
 func GetExportCSVLabelsList() []string {

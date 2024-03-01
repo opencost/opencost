@@ -134,6 +134,7 @@ type ExtendedCustomCostAttributes struct {
 	PricingCategory string
 }
 
+
 func (c *CustomCostResponse) Clone() CustomCostResponse {
 	win := c.GetWindow().Clone()
 	costClones := []*CustomCost{}
@@ -196,6 +197,7 @@ func (c *CustomCost) Clone() CustomCost {
 		ExtendedAttributes: &ext,
 	}
 }
+
 func (e *ExtendedCustomCostAttributes) Clone() ExtendedCustomCostAttributes {
 	win := e.BillingPeriod.Clone()
 	return ExtendedCustomCostAttributes{
@@ -222,6 +224,7 @@ func (e *ExtendedCustomCostAttributes) Clone() ExtendedCustomCostAttributes {
 		PricingCategory:            e.GetPricingCategory(),
 	}
 }
+
 
 func (e *ExtendedCustomCostAttributes) GetBillingPeriod() *opencost.Window {
 	return e.BillingPeriod
