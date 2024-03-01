@@ -1,0 +1,112 @@
+package customcost
+
+import (
+	"fmt"
+
+	"github.com/opencost/opencost/core/pkg/filter"
+	"github.com/opencost/opencost/core/pkg/filter/cloudcost"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util/httputil"
+)
+
+func ParseCustomCostTotalRequest(qp httputil.QueryParams) (*CostTotalRequest, error) {
+	windowStr := qp.Get("window", "")
+	if windowStr == "" {
+		return nil, fmt.Errorf("missing require window param")
+	}
+
+	window, err := opencost.ParseWindowUTC(windowStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid window parameter: %w", err)
+	}
+	if window.IsOpen() {
+		return nil, fmt.Errorf("invalid window parameter: %s", window.String())
+	}
+
+	aggregateByRaw := qp.GetList("aggregate", ",")
+	var aggregateBy []string
+	for _, aggBy := range aggregateByRaw {
+		prop, err := opencost.ParseCloudCostProperty(aggBy)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing aggregate by %v", err)
+		}
+		aggregateBy = append(aggregateBy, string(prop))
+	}
+
+	// TODO what should the default aggBy be?
+	if len(aggregateBy) == 0 {
+		aggregateBy = []string{}
+	}
+
+	var filter filter.Filter
+	filterString := qp.Get("filter", "")
+	if filterString != "" {
+		parser := cloudcost.NewCloudCostFilterParser()
+		filter, err = parser.Parse(filterString)
+		if err != nil {
+			return nil, fmt.Errorf("parsing 'filter' parameter: %s", err)
+		}
+	}
+
+	opts := &CostTotalRequest{
+		Start:       *window.Start(),
+		End:         *window.End(),
+		AggregateBy: aggregateBy,
+		Filter:      filter,
+	}
+
+	return opts, nil
+}
+
+func ParseCustomCostTimeseriesRequest(qp httputil.QueryParams) (*CostTimeseriesRequest, error) {
+	windowStr := qp.Get("window", "")
+	if windowStr == "" {
+		return nil, fmt.Errorf("missing require window param")
+	}
+
+	window, err := opencost.ParseWindowUTC(windowStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid window parameter: %w", err)
+	}
+	if window.IsOpen() {
+		return nil, fmt.Errorf("invalid window parameter: %s", window.String())
+	}
+
+	aggregateByRaw := qp.GetList("aggregate", ",")
+	var aggregateBy []string
+	for _, aggBy := range aggregateByRaw {
+		prop, err := opencost.ParseCloudCostProperty(aggBy)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing aggregate by %v", err)
+		}
+		aggregateBy = append(aggregateBy, string(prop))
+	}
+
+	// TODO what should the default aggBy be?
+	if len(aggregateBy) == 0 {
+		aggregateBy = []string{}
+	}
+
+	// TODO what should the default step be?
+	step := qp.GetDuration("step", 0)
+
+	var filter filter.Filter
+	filterString := qp.Get("filter", "")
+	if filterString != "" {
+		parser := cloudcost.NewCloudCostFilterParser()
+		filter, err = parser.Parse(filterString)
+		if err != nil {
+			return nil, fmt.Errorf("parsing 'filter' parameter: %s", err)
+		}
+	}
+
+	opts := &CostTimeseriesRequest{
+		Start:       *window.Start(),
+		End:         *window.End(),
+		AggregateBy: aggregateBy,
+		Step:        step,
+		Filter:      filter,
+	}
+
+	return opts, nil
+}

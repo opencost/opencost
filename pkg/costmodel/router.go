@@ -28,6 +28,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/config"
 	clustermap "github.com/opencost/opencost/pkg/costmodel/clusters"
+	"github.com/opencost/opencost/pkg/customcost"
 	"github.com/opencost/opencost/pkg/kubeconfig"
 	"github.com/opencost/opencost/pkg/metrics"
 	"github.com/opencost/opencost/pkg/services"
@@ -97,6 +98,7 @@ type Accesses struct {
 	CloudConfigController    *cloudconfig.Controller
 	CloudCostPipelineService *cloudcost.PipelineService
 	CloudCostQueryService    *cloudcost.QueryService
+	CustomCostQueryService   *customcost.QueryService
 	ClusterInfoProvider      clusters.ClusterInfoProvider
 	Model                    *CostModel
 	MetricsEmitter           *CostModelMetricsEmitter

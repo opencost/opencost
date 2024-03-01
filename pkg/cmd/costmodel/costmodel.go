@@ -9,6 +9,7 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/pkg/cloudcost"
+	"github.com/opencost/opencost/pkg/customcost"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 
@@ -57,6 +58,9 @@ func Execute(opts *CostModelOpts) error {
 		a.CloudCostQueryService = cloudcost.NewQueryService(repoQuerier, repoQuerier)
 	}
 
+	customCostQuerier := customcost.NewQuerier()
+	a.CustomCostQueryService = customcost.NewQueryService(customCostQuerier)
+
 	rootMux := http.NewServeMux()
 	a.Router.GET("/healthz", Healthz)
 
@@ -74,6 +78,9 @@ func Execute(opts *CostModelOpts) error {
 	a.Router.GET("/cloudCost/status", a.CloudCostPipelineService.GetCloudCostStatusHandler())
 	a.Router.GET("/cloudCost/rebuild", a.CloudCostPipelineService.GetCloudCostRebuildHandler())
 	a.Router.GET("/cloudCost/repair", a.CloudCostPipelineService.GetCloudCostRepairHandler())
+
+	a.Router.GET("/customCost/total", a.CustomCostQueryService.GetCustomCostTotalHandler())
+	a.Router.GET("/customCost/timeseries", a.CustomCostQueryService.GetCustomCostTimeseriesHandler())
 
 	if env.IsPProfEnabled() {
 		a.Router.HandlerFunc(http.MethodGet, "/debug/pprof/", pprof.Index)
