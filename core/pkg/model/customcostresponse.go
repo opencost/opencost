@@ -134,6 +134,95 @@ type ExtendedCustomCostAttributes struct {
 	PricingCategory string
 }
 
+func (c *CustomCostResponse) Clone() CustomCostResponse {
+	win := c.GetWindow().Clone()
+	costClones := []*CustomCost{}
+
+	for _, cost := range c.GetCosts() {
+		clone := cost.Clone()
+		costClones = append(costClones, &clone)
+	}
+
+	errClones := []error{}
+	for _, err := range c.GetErrors() {
+		errClones = append(errClones, err)
+	}
+	return CustomCostResponse{
+		Metadata:   cloneMap(c.GetMetadata()),
+		Costsource: c.GetCostSource(),
+		Domain:     c.GetDomain(),
+		Version:    c.GetVersion(),
+		Currency:   c.GetCurrency(),
+		Window:     win,
+		Costs:      costClones,
+		Errors:     errClones,
+	}
+}
+
+func cloneMap(input map[string]string) map[string]string {
+	if input == nil {
+		return nil
+	}
+	result := map[string]string{}
+	for key, val := range input {
+		result[key] = val
+	}
+	return result
+}
+
+func (c *CustomCost) Clone() CustomCost {
+	win := c.GetWindow().Clone()
+	var ext ExtendedCustomCostAttributes
+	if c.GetExtendedAttributes() != nil {
+		ext = c.GetExtendedAttributes().Clone()
+	}
+	return CustomCost{
+		Metadata:           cloneMap(c.GetMetadata()),
+		Zone:               c.GetCostIncurredZone(),
+		BilledCost:         c.GetBilledCost(),
+		AccountName:        c.GetAccountName(),
+		ChargeCategory:     c.GetChargeCategory(),
+		Description:        c.GetDescription(),
+		ListCost:           c.GetListCost(),
+		ListUnitPrice:      c.GetListUnitPrice(),
+		ResourceName:       c.GetResourceName(),
+		ResourceType:       c.GetResourceType(),
+		Id:                 c.GetID(),
+		ProviderId:         c.GetProviderID(),
+		Window:             &win,
+		Labels:             cloneMap(c.GetLabels()),
+		UsageQty:           c.GetUsageQuantity(),
+		UsageUnit:          c.GetUsageUnit(),
+		ExtendedAttributes: &ext,
+	}
+}
+func (e *ExtendedCustomCostAttributes) Clone() ExtendedCustomCostAttributes {
+	win := e.BillingPeriod.Clone()
+	return ExtendedCustomCostAttributes{
+		BillingPeriod:              &win,
+		AccountID:                  e.GetAccountID(),
+		ChargeFrequency:            e.GetChargeFrequency(),
+		Subcategory:                e.GetSubcategory(),
+		CommitmentDiscountCategory: e.GetCommitmentDiscountCategory(),
+		CommitmentDiscountID:       e.GetCommitmentDiscountID(),
+		CommitmentDiscountName:     e.GetCommitmentDiscountName(),
+		CommitmentDiscountType:     e.GetCommitmentDiscountType(),
+		EffectiveCost:              e.GetEffectiveCost(),
+		InvoiceIssuer:              e.GetInvoiceIssuer(),
+		Provider:                   e.GetProvider(),
+		Publisher:                  e.GetPublisher(),
+		ServiceCategory:            e.GetServiceCategory(),
+		ServiceName:                e.GetServiceName(),
+		SkuID:                      e.GetSKUID(),
+		SkuPriceID:                 e.GetSKUPriceID(),
+		SubAccountID:               e.GetSubAccountID(),
+		SubAccountName:             e.GetSubAccountName(),
+		PricingQuantity:            e.GetPricingQuantity(),
+		PricingUnit:                e.GetPricingUnit(),
+		PricingCategory:            e.GetPricingCategory(),
+	}
+}
+
 func (e *ExtendedCustomCostAttributes) GetBillingPeriod() *opencost.Window {
 	return e.BillingPeriod
 }
