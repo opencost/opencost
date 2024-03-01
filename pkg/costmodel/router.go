@@ -98,6 +98,7 @@ type Accesses struct {
 	CloudCostPipelineService  *cloudcost.PipelineService
 	CloudCostQueryService     *cloudcost.QueryService
 	CustomCostPipelineService *customcost.PipelineService
+	CustomCostQueryService    *customcost.QueryService
 	ClusterInfoProvider       clusters.ClusterInfoProvider
 	Model                     *CostModel
 	MetricsEmitter            *CostModelMetricsEmitter

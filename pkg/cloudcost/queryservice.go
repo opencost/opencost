@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-const tracerName = "github.com/opencost/ooencost/pkg/cloudcost"
+const tracerName = "github.com/opencost/opencost/pkg/cloudcost"
 
 const (
 	csvFormat = "csv"
