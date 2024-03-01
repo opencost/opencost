@@ -13,12 +13,12 @@ import (
 // RWMutex to make it threadsafe
 type MemoryRepository struct {
 	rwLock sync.RWMutex
-	data   map[string]map[time.Time][]*model.CustomCostResponse
+	data   map[string]map[time.Time]*model.CustomCostResponse
 }
 
 func NewMemoryRepository() *MemoryRepository {
 	return &MemoryRepository{
-		data: make(map[string]map[time.Time][]*model.CustomCostResponse),
+		data: make(map[string]map[time.Time]*model.CustomCostResponse),
 	}
 }
 
@@ -35,7 +35,7 @@ func (m *MemoryRepository) Has(startTime time.Time, domain string) (bool, error)
 	return ook, nil
 }
 
-func (m *MemoryRepository) Get(startTime time.Time, domain string) ([]*model.CustomCostResponse, error) {
+func (m *MemoryRepository) Get(startTime time.Time, domain string) (*model.CustomCostResponse, error) {
 	m.rwLock.RLock()
 	defer m.rwLock.RUnlock()
 
@@ -44,18 +44,13 @@ func (m *MemoryRepository) Get(startTime time.Time, domain string) ([]*model.Cus
 		return nil, nil
 	}
 
-	ccr, ook := domainData[startTime.UTC()]
+	cc, ook := domainData[startTime.UTC()]
 	if !ook {
 		return nil, nil
 	}
-	clones := []*model.CustomCostResponse{}
 
-	for _, cc := range ccr {
-		clone := cc.Clone()
-		clones = append(clones, &clone)
-	}
-
-	return clones, nil
+	clone := cc.Clone()
+	return &clone, nil
 }
 
 func (m *MemoryRepository) Keys() ([]string, error) {
@@ -66,7 +61,7 @@ func (m *MemoryRepository) Keys() ([]string, error) {
 	return keys, nil
 }
 
-func (m *MemoryRepository) Put(ccr []*model.CustomCostResponse) error {
+func (m *MemoryRepository) Put(ccr *model.CustomCostResponse) error {
 	m.rwLock.Lock()
 	defer m.rwLock.Unlock()
 
@@ -74,21 +69,20 @@ func (m *MemoryRepository) Put(ccr []*model.CustomCostResponse) error {
 		return fmt.Errorf("MemoryRepository: Put: cannot save nil")
 	}
 
-	for _, cc := range ccr {
-		if cc.Window.IsOpen() {
-			return fmt.Errorf("MemoryRepository: Put: custom cost response has invalid window %s", cc.Window.String())
-		}
-
-		if cc.GetDomain() == "" {
-			return fmt.Errorf("MemoryRepository: Put: custom cost response does not have a domain value")
-		}
-
-		if _, ok := m.data[cc.GetDomain()]; !ok {
-			m.data[cc.GetDomain()] = make(map[time.Time][]*model.CustomCostResponse)
-		}
-
-		m.data[cc.GetDomain()][cc.Window.Start().UTC()] = append(m.data[cc.GetDomain()][cc.Window.Start().UTC()], cc)
+	if ccr.Window.IsOpen() {
+		return fmt.Errorf("MemoryRepository: Put: custom cost response has invalid window %s", ccr.Window.String())
 	}
+
+	if ccr.GetDomain() == "" {
+		return fmt.Errorf("MemoryRepository: Put: custom cost response does not have a domain value")
+	}
+
+	if _, ok := m.data[ccr.GetDomain()]; !ok {
+		m.data[ccr.GetDomain()] = make(map[time.Time]*model.CustomCostResponse)
+	}
+
+	m.data[ccr.GetDomain()][ccr.Window.Start().UTC()] = ccr
+
 	return nil
 }
 
