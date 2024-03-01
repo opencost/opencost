@@ -66,7 +66,7 @@ func (c *Controller) pullWatchers() {
 	defer c.lock.Unlock()
 	statuses, err := c.load()
 	if err != nil {
-		log.Errorf("failed to load statuses when pulling watchers %s", err)
+		log.Warnf("Controller: pullWatchers: %s. Proceeding to create the file", err.Error())
 		statuses = Statuses{}
 	}
 	for source, watcher := range c.watchers {
@@ -81,7 +81,7 @@ func (c *Controller) pullWatchers() {
 				if _, ok := watcherConfsByKey[status.Key]; !ok {
 					err := c.deleteConfig(status.Key, status.Source, statuses)
 					if err != nil {
-						log.Errorf("Conrtoller: pullWatchers: %s", err.Error())
+						log.Errorf("Controller: pullWatchers: %s", err.Error())
 					}
 				}
 
@@ -99,7 +99,7 @@ func (c *Controller) pullWatchers() {
 				// remove the existing config
 				err := c.deleteConfig(key, source, statuses)
 				if err != nil {
-					log.Errorf("Conrtoller: pullWatchers: %s", err.Error())
+					log.Errorf("Controller: pullWatchers: %s", err.Error())
 				}
 
 			}
@@ -109,7 +109,7 @@ func (c *Controller) pullWatchers() {
 
 			configType, err := ConfigTypeFromConfig(conf)
 			if err != nil {
-				log.Errorf("failed to get config type for config with key: %s", conf.Key())
+				log.Errorf("Controller: pullWatchers: failed to get config type for config with key: %s", conf.Key())
 				continue
 			}
 
@@ -156,7 +156,7 @@ func (c *Controller) pullWatchers() {
 			}
 			err = c.save(statuses)
 			if err != nil {
-				log.Errorf("failed to save statuses %s", err.Error())
+				log.Errorf("Controller: pullWatchers: failed to save statuses %s", err.Error())
 			}
 		}
 	}
@@ -324,13 +324,13 @@ func (c *Controller) deleteConfig(key string, source ConfigSource, statuses Stat
 func (c *Controller) load() (Statuses, error) {
 	raw, err := os.ReadFile(c.path)
 	if err != nil {
-		return nil, fmt.Errorf("ConfigController: failed to load config statuses from file: %w", err)
+		return nil, fmt.Errorf("failed to load config statuses from file: %w", err)
 	}
 
 	statuses := Statuses{}
 	err = json.Unmarshal(raw, &statuses)
 	if err != nil {
-		return nil, fmt.Errorf("ConfigController: failed to marshal config statuses: %s", err.Error())
+		return nil, fmt.Errorf("failed to marshal config statuses: %s", err.Error())
 	}
 
 	return statuses, nil
@@ -340,12 +340,12 @@ func (c *Controller) save(statuses Statuses) error {
 
 	raw, err := json.Marshal(statuses)
 	if err != nil {
-		return fmt.Errorf("ConfigController: failed to marshal config statuses: %s", err)
+		return fmt.Errorf("failed to marshal config statuses: %s", err)
 	}
 
 	err = os.WriteFile(c.path, raw, 0644)
 	if err != nil {
-		return fmt.Errorf("ConfigController: failed to save config statuses to file: %s", err)
+		return fmt.Errorf("failed to save config statuses to file: %s", err)
 	}
 
 	return nil
