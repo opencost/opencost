@@ -28,11 +28,11 @@ import (
 	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/config"
 	clustermap "github.com/opencost/opencost/pkg/costmodel/clusters"
+	"github.com/opencost/opencost/pkg/customcost"
 	"github.com/opencost/opencost/pkg/kubeconfig"
 	"github.com/opencost/opencost/pkg/metrics"
 	"github.com/opencost/opencost/pkg/services"
 	"github.com/spf13/viper"
-
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/julienschmidt/httprouter"
@@ -86,26 +86,27 @@ var (
 // Accesses defines a singleton application instance, providing access to
 // Prometheus, Kubernetes, the cloud provider, and caches.
 type Accesses struct {
-	Router                   *httprouter.Router
-	PrometheusClient         prometheus.Client
-	ThanosClient             prometheus.Client
-	KubeClientSet            kubernetes.Interface
-	ClusterCache             clustercache.ClusterCache
-	ClusterMap               clusters.ClusterMap
-	CloudProvider            models.Provider
-	ConfigFileManager        *config.ConfigFileManager
-	CloudConfigController    *cloudconfig.Controller
-	CloudCostPipelineService *cloudcost.PipelineService
-	CloudCostQueryService    *cloudcost.QueryService
-	ClusterInfoProvider      clusters.ClusterInfoProvider
-	Model                    *CostModel
-	MetricsEmitter           *CostModelMetricsEmitter
-	OutOfClusterCache        *cache.Cache
-	AggregateCache           *cache.Cache
-	CostDataCache            *cache.Cache
-	ClusterCostsCache        *cache.Cache
-	CacheExpiration          map[time.Duration]time.Duration
-	AggAPI                   Aggregator
+	Router                    *httprouter.Router
+	PrometheusClient          prometheus.Client
+	ThanosClient              prometheus.Client
+	KubeClientSet             kubernetes.Interface
+	ClusterCache              clustercache.ClusterCache
+	ClusterMap                clusters.ClusterMap
+	CloudProvider             models.Provider
+	ConfigFileManager         *config.ConfigFileManager
+	CloudConfigController     *cloudconfig.Controller
+	CloudCostPipelineService  *cloudcost.PipelineService
+	CloudCostQueryService     *cloudcost.QueryService
+	CustomCostPipelineService *customcost.PipelineService
+	ClusterInfoProvider       clusters.ClusterInfoProvider
+	Model                     *CostModel
+	MetricsEmitter            *CostModelMetricsEmitter
+	OutOfClusterCache         *cache.Cache
+	AggregateCache            *cache.Cache
+	CostDataCache             *cache.Cache
+	ClusterCostsCache         *cache.Cache
+	CacheExpiration           map[time.Duration]time.Duration
+	AggAPI                    Aggregator
 	// SettingsCache stores current state of app settings
 	SettingsCache *cache.Cache
 	// settingsSubscribers tracks channels through which changes to different

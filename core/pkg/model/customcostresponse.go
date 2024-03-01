@@ -172,7 +172,10 @@ func cloneMap(input map[string]string) map[string]string {
 
 func (c *CustomCost) Clone() CustomCost {
 	win := c.GetWindow().Clone()
-	ext := c.GetExtendedAttributes().Clone()
+	var ext ExtendedCustomCostAttributes
+	if c.GetExtendedAttributes() != nil {
+		ext = c.GetExtendedAttributes().Clone()
+	}
 	return CustomCost{
 		Metadata:           cloneMap(c.GetMetadata()),
 		Zone:               c.GetCostIncurredZone(),

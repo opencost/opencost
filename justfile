@@ -26,6 +26,7 @@ build-binary VERSION=version:
         {{commonenv}} GOOS=linux GOARCH=amd64 go build \
         -ldflags \
           "-X github.com/opencost/opencost/pkg/version.Version={{VERSION}} \
+           -X github.com/opencost/opencost/pkg/version.Architecture=amd64 \
            -X github.com/opencost/opencost/pkg/version.GitCommit={{commit}}" \
         -o ./costmodel-amd64
 
@@ -33,6 +34,7 @@ build-binary VERSION=version:
         {{commonenv}} GOOS=linux GOARCH=arm64 go build \
         -ldflags \
           "-X github.com/opencost/opencost/pkg/version.Version={{VERSION}} \
+           -X github.com/opencost/opencost/pkg/version.Architecture=arm64 \
            -X github.com/opencost/opencost/pkg/version.GitCommit={{commit}}" \
         -o ./costmodel-arm64
 
