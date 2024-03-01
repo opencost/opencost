@@ -107,12 +107,12 @@ func (ing *CustomCostIngestor) LoadWindow(start, end time.Time) {
 }
 
 func (ing *CustomCostIngestor) BuildWindow(start, end time.Time) {
-	// log.Infof("CloudCost[%s]: ingestor: building window %s", ing.key, opencost.NewWindow(&start, &end))
-	// ccsr, err := ing.integration.GetCloudCost(start, end)
-	// if err != nil {
-	// 	log.Errorf("CloudCost[%s]: ingestor: build failed for window %s: %s", ing.key, opencost.NewWindow(&start, &end), err.Error())
-	// 	return
-	// }
+	log.Infof("ingestor: building window %s", opencost.NewWindow(&start, &end))
+
+	// // build customCostRequest
+	// // make RPC call via plugin
+
+	// // loop through each customCostResponse, adding
 	// for _, ccs := range ccsr.CloudCostSets {
 	// 	log.Debugf("BuildWindow[%s]: GetCloudCost: writing cloud costs for window %s: %d", ccs.Integration, ccs.Window, len(ccs.CloudCosts))
 	// 	err2 := ing.repo.Put(ccs)
@@ -148,9 +148,12 @@ func (ing *CustomCostIngestor) Start(rebuild bool) {
 	if err != nil {
 		panic(err)
 	}
-	err = ing.repo.Put(resps)
-	if err != nil {
-		panic(err)
+
+	for _, resp := range resps {
+		err = ing.repo.Put(resp)
+		if err != nil {
+			panic(err)
+		}
 	}
 	//2024-02-27T01:00:00
 	target := time.Date(2024, 2, 27, 1, 0, 0, 0, time.UTC)
@@ -159,10 +162,9 @@ func (ing *CustomCostIngestor) Start(rebuild bool) {
 		panic(err)
 	}
 
-	for _, storedResp := range stored {
-		log.Debug("got stored object: ")
-		spew.Dump(storedResp)
-	}
+	log.Debug("got stored object: ")
+	spew.Dump(stored)
+
 }
 
 func (ing *CustomCostIngestor) Stop() {
