@@ -9,6 +9,7 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/pkg/cloudcost"
+	"github.com/opencost/opencost/pkg/customcost"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 
@@ -55,6 +56,20 @@ func Execute(opts *CostModelOpts) error {
 		a.CloudCostPipelineService = cloudcost.NewPipelineService(repo, a.CloudConfigController, cloudcost.DefaultIngestorConfiguration())
 		repoQuerier := cloudcost.NewRepositoryQuerier(repo)
 		a.CloudCostQueryService = cloudcost.NewQueryService(repoQuerier, repoQuerier)
+	}
+
+	log.Infof("Custom Costs enabled: %t", env.IsCustomCostEnabled())
+	if env.IsCustomCostEnabled() {
+		hourlyRepo := customcost.NewMemoryRepository()
+		dailyRepo := customcost.NewMemoryRepository()
+		ingConfig := customcost.DefaultIngestorConfiguration()
+		var err error
+		a.CustomCostPipelineService, err = customcost.NewPipelineService(hourlyRepo, dailyRepo, ingConfig)
+		if err != nil {
+			return fmt.Errorf("error instantiating custom cost pipeline service: %v", err)
+		}
+		//repoQuerier := cloudcost.NewRepositoryQuerier(repo)
+		//a.CloudCostQueryService = cloudcost.NewQueryService(repoQuerier, repoQuerier)
 	}
 
 	rootMux := http.NewServeMux()

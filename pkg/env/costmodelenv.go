@@ -114,7 +114,8 @@ const (
 	ExportCSVLabelsAll  = "EXPORT_CSV_LABELS_ALL"
 	ExportCSVMaxDays    = "EXPORT_CSV_MAX_DAYS"
 
-	DataRetentionDailyResolutionDaysEnvVar = "DATA_RETENTION_DAILY_RESOLUTION_DAYS"
+	DataRetentionDailyResolutionDaysEnvVar   = "DATA_RETENTION_DAILY_RESOLUTION_DAYS"
+	DataRetentionHourlyResolutionHoursEnvVar = "DATA_RETENTION_HOURLY_RESOLUTION_HOURS"
 
 	// We assume that Kubernetes is enabled if there is a KUBERNETES_PORT environment variable present
 	KubernetesEnabledEnvVar         = "KUBERNETES_PORT"
@@ -124,6 +125,13 @@ const (
 	CloudCostRefreshRateHoursEnvVar = "CLOUD_COST_REFRESH_RATE_HOURS"
 	CloudCostQueryWindowDaysEnvVar  = "CLOUD_COST_QUERY_WINDOW_DAYS"
 	CloudCostRunWindowDaysEnvVar    = "CLOUD_COST_RUN_WINDOW_DAYS"
+
+	CustomCostEnabledEnvVar          = "CUSTOM_COST_ENABLED"
+	CustomCostQueryWindowDaysEnvVar  = "CUSTOM_COST_QUERY_WINDOW_DAYS"
+	CustomCostRefreshRateHoursEnvVar = "CUSTOM_COST_REFRESH_RATE_HOURS"
+
+	PluginConfigDirEnvVar     = "PLUGIN_CONFIG_DIR"
+	PluginExecutableDirEnvVar = "PLUGIN_EXECUTABLE_DIR"
 
 	OCIPricingURL = "OCI_PRICING_URL"
 )
@@ -637,12 +645,20 @@ func GetDataRetentionDailyResolutionDays() int64 {
 	return env.GetInt64(DataRetentionDailyResolutionDaysEnvVar, 15)
 }
 
+func GetDataRetentionHourlyResolutionHours() int64 {
+	return env.GetInt64(DataRetentionHourlyResolutionHoursEnvVar, 49)
+}
+
 func IsKubernetesEnabled() bool {
 	return env.Get(KubernetesEnabledEnvVar, "") != ""
 }
 
 func IsCloudCostEnabled() bool {
 	return env.GetBool(CloudCostEnabledEnvVar, false)
+}
+
+func IsCustomCostEnabled() bool {
+	return env.GetBool(CustomCostEnabledEnvVar, false)
 }
 
 func GetCloudCostConfigPath() string {
@@ -661,10 +677,26 @@ func GetCloudCostQueryWindowDays() int64 {
 	return env.GetInt64(CloudCostQueryWindowDaysEnvVar, 7)
 }
 
+func GetCustomCostQueryWindowDays() int64 {
+	return env.GetInt64(CustomCostQueryWindowDaysEnvVar, 7)
+}
+
 func GetCloudCostRunWindowDays() int64 {
 	return env.GetInt64(CloudCostRunWindowDaysEnvVar, 3)
 }
 
 func GetOCIPricingURL() string {
 	return env.Get(OCIPricingURL, "https://apexapps.oracle.com/pls/apex/cetools/api/v1/products")
+}
+
+func GetPluginConfigDir() string {
+	return env.Get(PluginConfigDirEnvVar, "/opt/opencost/plugin/config")
+}
+
+func GetPluginExecutableDir() string {
+	return env.Get(PluginExecutableDirEnvVar, "/opt/opencost/plugin/bin")
+}
+
+func GetCustomCostRefreshRateHours() string {
+	return env.Get(CustomCostRefreshRateHoursEnvVar, "12h")
 }
