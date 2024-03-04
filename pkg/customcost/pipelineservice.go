@@ -14,6 +14,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	ocplugin "github.com/opencost/opencost/core/pkg/plugin"
 	proto "github.com/opencost/opencost/core/pkg/protocol"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/core/pkg/version"
 	"github.com/opencost/opencost/pkg/env"
 )
@@ -106,21 +107,20 @@ func getRegisteredPlugins(configDir string, execDir string) (map[string]*plugin.
 // NewPipelineService is a constructor for a PipelineService
 func NewPipelineService(hourlyrepo, dailyrepo Repository, ingConf CustomCostIngestorConfig) (*PipelineService, error) {
 
-	var registeredPlugins map[string]*plugin.ClientProtocol
-	var err error //getRegisteredPlugins(ingConf.PluginConfigDir, ingConf.PluginExecutableDir)
+	registeredPlugins, err := getRegisteredPlugins(ingConf.PluginConfigDir, ingConf.PluginExecutableDir)
 	if err != nil {
 		log.Errorf("error getting registered plugins: %v", err)
 		return nil, fmt.Errorf("error getting registered plugins: %v", err)
 	}
 
-	hourlyIngestor, err := NewCustomCostIngestor(&ingConf, hourlyrepo, registeredPlugins)
+	hourlyIngestor, err := NewCustomCostIngestor(&ingConf, hourlyrepo, registeredPlugins, time.Hour)
 	if err != nil {
 		return nil, err
 	}
 
 	hourlyIngestor.Start(false)
 
-	dailyIngestor, err := NewCustomCostIngestor(&ingConf, dailyrepo, registeredPlugins)
+	dailyIngestor, err := NewCustomCostIngestor(&ingConf, dailyrepo, registeredPlugins, timeutil.Day)
 	if err != nil {
 		return nil, err
 	}
@@ -148,15 +148,15 @@ func (dp *PipelineService) Status() Status {
 
 	// These are the statuses
 	return Status{
-		Coverage:    ingstatus.Coverage.String(),
+		Coverage:    fmt.Sprintf("%v", ingstatus.Coverage),
 		RefreshRate: refreshRate.String(),
 	}
 
 }
 
-// GetCloudCostRebuildHandler creates a handler from a http request which initiates a rebuild of cloud cost pipeline, if an
-// integrationKey is provided then it only rebuilds the specified billing integration
-func (s *PipelineService) GetCloudCostRebuildHandler() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+// GetCustomCostRebuildHandler creates a handler from a http request which initiates a rebuild of custom cost pipeline, if a
+// domain is provided then it only rebuilds the specified billing domain
+func (s *PipelineService) GetCustomCostRebuildHandler() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	// If pipeline Service is nil, always return 501
 	if s == nil {
 		return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -175,7 +175,7 @@ func (s *PipelineService) GetCloudCostRebuildHandler() func(w http.ResponseWrite
 		commit := r.URL.Query().Get("commit") == "true" || r.URL.Query().Get("commit") == "1"
 
 		if !commit {
-			protocol.WriteData(w, "Pass parameter 'commit=true' to confirm Cloud Cost rebuild")
+			protocol.WriteData(w, "Pass parameter 'commit=true' to confirm Custom Cost rebuild")
 			return
 		}
 
@@ -194,17 +194,15 @@ func (s *PipelineService) GetCloudCostRebuildHandler() func(w http.ResponseWrite
 			return
 		}
 		protocol.WriteData(w, fmt.Sprintf("Rebuilding Custom Cost For Domain %s", domain))
-		return
-
 	}
 }
 
-// GetCloudCostStatusHandler creates a handler from a http request which returns a list of the billing integration status
+// GetCustomCostStatusHandler creates a handler from a http request which returns the custom cost ingestor status
 func (s *PipelineService) GetCustomCostStatusHandler() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	// If Reporting Service is nil, always return 501
 	if s == nil {
 		return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-			http.Error(w, "Reporting Service is nil", http.StatusNotImplemented)
+			http.Error(w, "Custom cost pipeline Service is nil", http.StatusNotImplemented)
 		}
 	}
 	if s.hourlyIngestor == nil || s.dailyIngestor == nil {
