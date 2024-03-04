@@ -133,6 +133,9 @@ func (asbp *AzureStorageBillingParser) parseCSV(start, end time.Time, reader *cs
 	return nil
 }
 
+// getMostRecentBlobs returns a list of filepaths on the Azure Storage
+// Container. It uses the "Last Modified Time" of the file to determine which
+// has the latest month-to-date billing data.
 func (asbp *AzureStorageBillingParser) getMostRecentBlobs(start, end time.Time, client *azblob.Client, ctx context.Context) ([]string, error) {
 	log.Infof("Azure Storage: retrieving most recent reports from: %v - %v", start, end)
 
@@ -141,7 +144,7 @@ func (asbp *AzureStorageBillingParser) getMostRecentBlobs(start, end time.Time, 
 	if err != nil {
 		return nil, err
 	}
-	mostResentBlobs := make(map[string]container.BlobItem)
+	mostRecentBlobs := make(map[string]container.BlobItem)
 
 	pager := client.NewListBlobsFlatPager(asbp.Container, &azblob.ListBlobsFlatOptions{
 		Include: container.ListBlobsInclude{Deleted: false, Versions: false},
@@ -165,12 +168,12 @@ func (asbp *AzureStorageBillingParser) getMostRecentBlobs(start, end time.Time, 
 			for _, month := range monthStrs {
 				if strings.Contains(*blobInfo.Name, month) {
 					// check if blob is the newest seen for this month
-					if prevBlob, ok := mostResentBlobs[month]; ok {
+					if prevBlob, ok := mostRecentBlobs[month]; ok {
 						if prevBlob.Properties.CreationTime.After(*blobInfo.Properties.CreationTime) {
 							continue
 						}
 					}
-					mostResentBlobs[month] = *blobInfo
+					mostRecentBlobs[month] = *blobInfo
 				}
 			}
 		}
@@ -179,7 +182,7 @@ func (asbp *AzureStorageBillingParser) getMostRecentBlobs(start, end time.Time, 
 	// convert blob names into blob urls and move from map into ordered list of blob names
 	var blobNames []string
 	for _, month := range monthStrs {
-		if blob, ok := mostResentBlobs[month]; ok {
+		if blob, ok := mostRecentBlobs[month]; ok {
 			blobNames = append(blobNames, *blob.Name)
 		}
 	}
@@ -187,6 +190,11 @@ func (asbp *AzureStorageBillingParser) getMostRecentBlobs(start, end time.Time, 
 	return blobNames, nil
 }
 
+// getMonthStrings returns a list of month strings in the format
+// "YYYYMMDD-YYYYMMDD", where the dates are exactly the first and last day of
+// the month. It includes all month strings which would capture the start and
+// end parameters.
+// For example: ["20240201-20240229", "20240101-20240131", "20231201-20231231"]
 func (asbp *AzureStorageBillingParser) getMonthStrings(start, end time.Time) ([]string, error) {
 	if start.After(end) {
 		return []string{}, fmt.Errorf("start date must be before end date")
