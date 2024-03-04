@@ -142,7 +142,7 @@ spec:
       restartPolicy: Always
       serviceAccountName: opencost
       containers:
-        - image: quay.io/kubecost1/kubecost-cost-model:latest
+        - image: ghcr.io/opencost/opencost:latest
           name: opencost
           resources:
             requests:
@@ -167,7 +167,7 @@ spec:
             privileged: false
             readOnlyRootFilesystem: true
             runAsUser: 1001
-        - image: quay.io/kubecost1/opencost-ui:latest
+        - image: ghcr.io/opencost/opencost-ui:latest
           name: opencost-ui
           resources:
             requests:

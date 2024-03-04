@@ -19,3 +19,6 @@ pkg/cloud/azureorphan_test.go
 
 #Apple
 *.DS_Store
+
+# tilt
+tilt_config.json
