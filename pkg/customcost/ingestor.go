@@ -45,6 +45,7 @@ func DefaultIngestorConfiguration() CustomCostIngestorConfig {
 		MonthToDateRunInterval: env.GetCloudCostMonthToDateInterval(),
 		QueryWindow:            timeutil.Day * time.Duration(env.GetCloudCostQueryWindowDays()),
 		PluginConfigDir:        env.GetPluginConfigDir(),
+		PluginExecutableDir:    env.GetPluginExecutableDir(),
 	}
 }
 

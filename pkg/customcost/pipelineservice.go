@@ -148,7 +148,7 @@ func (dp *PipelineService) Status() Status {
 
 	// These are the statuses
 	return Status{
-		Coverage:    fmt.Sprintf("%v", ingstatus.Coverage),
+		Coverage:    ingstatus.Coverage,
 		RefreshRate: refreshRate.String(),
 	}
 
