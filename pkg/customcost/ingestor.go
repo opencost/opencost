@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-plugin"
+
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/model"
 	"github.com/opencost/opencost/core/pkg/opencost"
@@ -31,10 +32,8 @@ type IngestorStatus struct {
 type CustomCostIngestorConfig struct {
 	MonthToDateRunInterval               int
 	HourlyDuration, DailyDuration        time.Duration
-	QueryWindow                          time.Duration
-	RunWindow                            time.Duration
+	DailyQueryWindow, HourlyQueryWindow  time.Duration
 	PluginConfigDir, PluginExecutableDir string
-	RefreshRate                          time.Duration
 }
 
 // DefaultIngestorConfiguration retrieves an CustomCostIngestorConfig from env variables
@@ -43,7 +42,8 @@ func DefaultIngestorConfiguration() CustomCostIngestorConfig {
 		DailyDuration:          timeutil.Day * time.Duration(env.GetDataRetentionDailyResolutionDays()),
 		HourlyDuration:         time.Hour * time.Duration(env.GetDataRetentionHourlyResolutionHours()),
 		MonthToDateRunInterval: env.GetCloudCostMonthToDateInterval(),
-		QueryWindow:            timeutil.Day * time.Duration(env.GetCloudCostQueryWindowDays()),
+		DailyQueryWindow:       timeutil.Day * time.Duration(env.GetCustomCostQueryWindowDays()),
+		HourlyQueryWindow:      time.Hour * time.Duration(env.GetCustomCostQueryWindowHours()),
 		PluginConfigDir:        env.GetPluginConfigDir(),
 		PluginExecutableDir:    env.GetPluginExecutableDir(),
 	}
@@ -63,12 +63,13 @@ type CustomCostIngestor struct {
 	isStopping   atomic.Bool
 	exitBuildCh  chan string
 	exitRunCh    chan string
-	plugins      map[string]*plugin.ClientProtocol
+	plugins      map[string]*plugin.Client
 	resolution   time.Duration
+	refreshRate  time.Duration
 }
 
 // NewIngestor is an initializer for ingestor
-func NewCustomCostIngestor(ingestorConfig *CustomCostIngestorConfig, repo Repository, plugins map[string]*plugin.ClientProtocol, res time.Duration) (*CustomCostIngestor, error) {
+func NewCustomCostIngestor(ingestorConfig *CustomCostIngestorConfig, repo Repository, plugins map[string]*plugin.Client, res time.Duration) (*CustomCostIngestor, error) {
 	if repo == nil {
 		return nil, fmt.Errorf("CustomCost: NewCustomCostIngestor: repository connot be nil")
 	}
@@ -94,13 +95,14 @@ func NewCustomCostIngestor(ingestorConfig *CustomCostIngestorConfig, repo Reposi
 		coverage:     map[string]opencost.Window{},
 		plugins:      plugins,
 		resolution:   res,
+		refreshRate:  res,
 	}, nil
 }
 
 func (ing *CustomCostIngestor) LoadWindow(start, end time.Time) {
 	var targets []opencost.Window
-	if ing.resolution == time.Hour {
-		oldestDailyDate := time.Now().UTC().Add(-1 * ing.config.DailyDuration)
+	if ing.resolution == timeutil.Day {
+		oldestDailyDate := time.Now().UTC().Add(-1 * ing.config.DailyDuration).Truncate(timeutil.Day)
 		if !oldestDailyDate.After(start) {
 			windows, err := opencost.GetWindows(start, end, timeutil.Day)
 			if err != nil {
@@ -111,7 +113,7 @@ func (ing *CustomCostIngestor) LoadWindow(start, end time.Time) {
 		}
 	} else {
 
-		oldestHourlyDate := time.Now().UTC().Add(-1 * ing.config.HourlyDuration)
+		oldestHourlyDate := time.Now().UTC().Add(-1 * ing.config.HourlyDuration).Truncate(time.Hour)
 		if !oldestHourlyDate.After(start) {
 			windows, err := opencost.GetWindows(start, end, time.Hour)
 			if err != nil {
@@ -135,7 +137,7 @@ func (ing *CustomCostIngestor) LoadWindow(start, end time.Time) {
 			}
 		}
 		if !allPluginsHave {
-			ing.BuildWindow(start, end)
+			ing.BuildWindow(*window.Start(), *window.End())
 		} else {
 			for domain := range ing.plugins {
 				ing.expandCoverage(window, domain)
@@ -166,9 +168,16 @@ func (ing *CustomCostIngestor) buildSingleDomain(start, end time.Time, domain st
 		log.Errorf("could not find plugin client for plugin %s. Did you initialize the plugin correctly?", domain)
 		return
 	}
-	pluginClientDeref := *pluginClient
+
+	// connect the client
+	rpcClient, err := pluginClient.Client()
+	if err != nil {
+		log.Errorf("error connecting client for plugin %s: %v", domain, err)
+		return
+	}
+
 	// Request the plugin
-	raw, err := pluginClientDeref.Dispense("CustomCostSource")
+	raw, err := rpcClient.Dispense("CustomCostSource")
 	if err != nil {
 		log.Errorf("error creating new plugin client for plugin %s: %v", domain, err)
 		return
@@ -214,9 +223,9 @@ func (ing *CustomCostIngestor) Start(rebuild bool) {
 
 	// Build the store once, advancing backward in time from the earliest
 	// point of coverage.
-	go ing.build(rebuild)
+	//go ing.build(rebuild)
 
-	go ing.run()
+	ing.run()
 
 }
 
@@ -262,7 +271,7 @@ func (ing *CustomCostIngestor) Status() IngestorStatus {
 	return IngestorStatus{
 		Created:  ing.creationTime,
 		LastRun:  ing.lastRun,
-		NextRun:  ing.lastRun.Add(ing.config.RefreshRate).UTC(),
+		NextRun:  ing.lastRun.Add(ing.refreshRate).UTC(),
 		Runs:     ing.runs,
 		Coverage: ing.coverage,
 	}
@@ -270,60 +279,24 @@ func (ing *CustomCostIngestor) Status() IngestorStatus {
 
 func (ing *CustomCostIngestor) build(rebuild bool) {
 	defer errors.HandlePanic()
-
+	e := opencost.RoundBack(time.Now().UTC(), ing.resolution)
+	s := e.Add(-ing.config.DailyDuration)
+	if ing.resolution == time.Hour {
+		s = e.Add(-ing.config.HourlyDuration)
+	}
 	// Profile the full Duration of the build time
 	buildStart := time.Now()
 
-	targetDur := ing.config.DailyDuration
-	if ing.resolution == time.Hour {
-		targetDur = ing.config.HourlyDuration
-	}
-	// Build as far back as the configures build Duration
-	limit := opencost.RoundBack(time.Now().UTC().Add(-1*targetDur), ing.resolution)
+	log.Infof("CustomCost[%s]: ingestor: build[%s]: Starting build back to %s in blocks of %s", ing.key, ing.runID, s, ing.resolution)
 
-	queryWindowStr := timeutil.FormatStoreResolution(ing.config.QueryWindow)
-	log.Infof("CustomCost[%s]: ingestor: build[%s]: Starting build back to %s in blocks of %s", ing.key, ing.runID, limit.String(), queryWindowStr)
-
-	// Start with a window of the configured Duration and ending on the given
-	// start time. Build windows repeating until the window reaches the
-	// given limit time
-
-	// Round end times back to nearest Resolution points in the past,
-	// querying for exactly one interval
-	e := opencost.RoundBack(time.Now().UTC(), ing.resolution)
-	s := e.Add(-ing.config.QueryWindow)
-
-	// Continue until limit is reached
-	for limit.Before(e) {
-		// If exit instruction is received, log and return
-		select {
-		case <-ing.exitBuildCh:
-			log.Debugf("CustomCost[%s][%s]: ingestor: build[%s]: exiting", ing.key, ing.resolution, ing.runID)
-			return
-		default:
-		}
-
-		// Profile the current build step
-		stepStart := time.Now()
-
-		// if rebuild is not specified then check for existing coverage on window
-		if rebuild {
-			ing.BuildWindow(s, e)
-		} else {
-			ing.LoadWindow(s, e)
-		}
-
-		log.Infof("CustomCost[%s]: ingestor: build[%s]:  %s in %v", ing.key, ing.runID, opencost.NewClosedWindow(s, e), time.Since(stepStart))
-
-		// Shift to next QueryWindow
-		s = s.Add(-ing.config.QueryWindow)
-		if s.Before(limit) {
-			s = limit
-		}
-		e = e.Add(-ing.config.QueryWindow)
+	// if rebuild is not specified then check for existing coverage on window
+	if rebuild {
+		ing.BuildWindow(s, e)
+	} else {
+		ing.LoadWindow(s, e)
 	}
 
-	log.Infof(fmt.Sprintf("CusomCost[%s]: ingestor: build[%s]: completed in %v", ing.key, ing.runID, time.Since(buildStart)))
+	log.Infof(fmt.Sprintf("CustomCost[%s]: ingestor: build[%s]: completed in %v", ing.key, ing.runID, time.Since(buildStart)))
 
 	// In order to be able to Stop, we have to wait on an exit message
 	// here
@@ -363,12 +336,17 @@ func (ing *CustomCostIngestor) run() {
 
 		// Start from the last covered time, minus the RunWindow
 		start := ing.lastRun
-		start = start.Add(-ing.config.RunWindow)
+		start = start.Add(-ing.resolution)
+
+		queryWin := ing.config.DailyQueryWindow
+		if ing.resolution == time.Hour {
+			queryWin = ing.config.HourlyQueryWindow
+		}
 
 		// Round start time back to the nearest Resolution point in the past from the
 		// last update to the QueryWindow
 		s := opencost.RoundBack(start.UTC(), ing.resolution)
-		e := s.Add(ing.config.QueryWindow)
+		e := s.Add(queryWin)
 
 		// Start with a window of the configured Duration and starting on the given
 		// start time. Do the following, repeating until the window reaches the
@@ -379,10 +357,10 @@ func (ing *CustomCostIngestor) run() {
 			profStart := time.Now()
 			ing.BuildWindow(s, e)
 
-			log.Debugf("CUstomCost[%s]: ingestor: Run[%s]: completed %s in %v", ing.key, ing.runID, opencost.NewWindow(&s, &e), time.Since(profStart))
+			log.Debugf("CustomCost[%s]: ingestor: Run[%s]: completed %s in %v", ing.key, ing.runID, opencost.NewWindow(&s, &e), time.Since(profStart))
 
-			s = s.Add(ing.config.QueryWindow)
-			e = e.Add(ing.config.QueryWindow)
+			s = s.Add(queryWin)
+			e = e.Add(queryWin)
 			// prevent builds into the future
 			if e.After(time.Now().UTC()) {
 				e = opencost.RoundForward(time.Now().UTC(), ing.resolution)
@@ -393,7 +371,7 @@ func (ing *CustomCostIngestor) run() {
 
 		ing.runs++
 
-		ticker.TickIn(ing.config.RefreshRate)
+		ticker.TickIn(ing.refreshRate)
 	}
 }
 

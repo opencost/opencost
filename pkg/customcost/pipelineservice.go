@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -27,7 +28,7 @@ type PipelineService struct {
 	hourlyStore, dailyStore       Repository
 }
 
-func getRegisteredPlugins(configDir string, execDir string) (map[string]*plugin.ClientProtocol, error) {
+func getRegisteredPlugins(configDir string, execDir string) (map[string]*plugin.Client, error) {
 
 	pluginNames := map[string]string{}
 	// scan plugin config directory for all file names
@@ -57,7 +58,7 @@ func getRegisteredPlugins(configDir string, execDir string) (map[string]*plugin.
 	configs := map[string]*plugin.ClientConfig{}
 	// set up the client config
 	for name, config := range pluginNames {
-		if _, err := os.Stat(execDir + "/" + name + ".ocplugin." + version.Architecture); err != nil {
+		if _, err := os.Stat(execDir + "/" + name + ".ocplugin." + runtime.GOOS + "." + version.Architecture); err != nil {
 			msg := fmt.Sprintf("error reading executable for %s plugin. Plugin executables must be in %s and have name format <plugin name>.ocplugin.<opencost binary archtecture (arm64 or amd64)>", name, execDir)
 			log.Errorf(msg)
 			return nil, fmt.Errorf(msg)
@@ -82,23 +83,18 @@ func getRegisteredPlugins(configDir string, execDir string) (map[string]*plugin.
 		configs[name] = &plugin.ClientConfig{
 			HandshakeConfig: handshakeConfig,
 			Plugins:         pluginMap,
-			Cmd:             exec.Command(execDir+"/"+name+".ocplugin."+version.Architecture, config),
+			Cmd:             exec.Command(execDir+"/"+name+".ocplugin."+runtime.GOOS+"."+version.Architecture, config),
 			Logger:          logger,
 		}
 	}
 
-	plugins := map[string]*plugin.ClientProtocol{}
+	plugins := map[string]*plugin.Client{}
 
 	for name, config := range configs {
 		client := plugin.NewClient(config)
-		// connect the client
-		rpcClient, err := client.Client()
-		if err != nil {
-			log.Errorf("error connecting client for plugin %s: %v", name, err)
-			return nil, fmt.Errorf("error connecting client for plugin %s: %v", name, err)
-		}
+
 		// add the connected, initialized client to the ma
-		plugins[name] = &rpcClient
+		plugins[name] = client
 	}
 
 	return plugins, nil
@@ -125,7 +121,7 @@ func NewPipelineService(hourlyrepo, dailyrepo Repository, ingConf CustomCostInge
 		return nil, err
 	}
 
-	dailyIngestor.Start(false)
+	//dailyIngestor.Start(false)
 	return &PipelineService{
 		hourlyIngestor: hourlyIngestor,
 		hourlyStore:    hourlyrepo,
