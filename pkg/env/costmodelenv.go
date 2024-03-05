@@ -677,6 +677,10 @@ func GetCloudCostQueryWindowDays() int64 {
 	return env.GetInt64(CloudCostQueryWindowDaysEnvVar, 7)
 }
 
+func GetCustomCostQueryWindowHours() int64 {
+	return env.GetInt64(CustomCostQueryWindowDaysEnvVar, 1)
+}
+
 func GetCustomCostQueryWindowDays() int64 {
 	return env.GetInt64(CustomCostQueryWindowDaysEnvVar, 7)
 }
