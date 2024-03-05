@@ -1,4 +1,3 @@
-version := `../tools/image-tag`
 commit := `git rev-parse --short HEAD`
 thirdPartyLicenseFile := "THIRD_PARTY_LICENSES.txt"
 
@@ -10,15 +9,15 @@ build-local:
 
     npx parcel build src/index.html
 
-build IMAGETAG: build-local
+build IMAGE_TAG RELEASE_VERSION: build-local
     cp ../{{thirdPartyLicenseFile}} .
     docker buildx build \
         --rm \
         --platform "linux/amd64" \
         -f 'Dockerfile.cross' \
         --provenance=false \
-        -t {{IMAGETAG}}-amd64 \
-        --build-arg version={{version}} \
+        -t {{IMAGE_TAG}}-amd64 \
+        --build-arg version={{RELEASE_VERSION}} \
         --build-arg commit={{commit}} \
         --push \
         .
@@ -28,16 +27,15 @@ build IMAGETAG: build-local
         --platform "linux/arm64" \
         -f 'Dockerfile.cross' \
         --provenance=false \
-        -t {{IMAGETAG}}-arm64 \
-        --build-arg version={{version}} \
+        -t {{IMAGE_TAG}}-arm64 \
+        --build-arg version={{RELEASE_VERSION}} \
         --build-arg commit={{commit}} \
         --push \
         .
 
     manifest-tool push from-args \
         --platforms "linux/amd64,linux/arm64" \
-        --template {{IMAGETAG}}-ARCH \
-        --target {{IMAGETAG}}
+        --template {{IMAGE_TAG}}-ARCH \
+        --target {{IMAGE_TAG}}
 
     rm -f {{thirdPartyLicenseFile}}
-
