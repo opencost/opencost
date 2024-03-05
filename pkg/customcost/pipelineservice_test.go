@@ -56,7 +56,7 @@ func TestPipelineService(t *testing.T) {
 	config := DefaultIngestorConfiguration()
 
 	config.DailyDuration = 7 * timeutil.Day
-	config.HourlyDuration = 12 * time.Hour
+	config.HourlyDuration = 16 * time.Hour
 	pipeline, err := NewPipelineService(hourlyRepo, dailyRepo, config)
 	if err != nil {
 		t.Fatalf("error starting pipeline: %v", err)
@@ -69,17 +69,18 @@ func TestPipelineService(t *testing.T) {
 	for !ingestionComplete && loopCount < maxLoops {
 		status := pipeline.Status()
 		log.Debugf("got status: %v", status)
-		coverage, found := status.Coverage["datadog"]
-		if found {
+		coverageHourly, foundHourly := status.CoverageHourly["datadog"]
+		coverageDaily, foundDaily := status.CoverageDaily["datadog"]
+		if foundHourly && foundDaily {
 			// check coverage
 			minTime := time.Now().UTC().Add(-6 * timeutil.Day)
 			maxTime := time.Now().UTC().Add(-3 * time.Hour)
-			if coverage.Start().Before(minTime) && coverage.End().After(maxTime) {
+			if coverageDaily.Start().Before(minTime) && coverageHourly.End().After(maxTime) {
 				log.Infof("good coverage, breaking out of loop")
 				ingestionComplete = true
 				break
 			} else {
-				log.Infof("coverage not within range. Looking for coverage %v to %v, but current coverage is %v", minTime, maxTime, coverage)
+				log.Infof("coverage not within range. Looking for coverage %v to %v, but current coverage is %v/%v", minTime, maxTime, coverageDaily, coverageHourly)
 			}
 		} else {
 			log.Debugf("no coverage info ready yet for datadog")
@@ -97,7 +98,7 @@ func TestPipelineService(t *testing.T) {
 	pipeline.dailyIngestor.Stop()
 
 	// inspect data from yesterday
-	targetTime := time.Now().Add(-1 * timeutil.Day).Truncate(timeutil.Day)
+	targetTime := time.Now().UTC().Add(-1 * timeutil.Day).Truncate(timeutil.Day)
 	log.Infof("querying for data with window start: %v", targetTime)
 	// check for presence of hosts in DD response
 	ddCosts, err := dailyRepo.Get(targetTime, "datadog")
@@ -112,12 +113,31 @@ func TestPipelineService(t *testing.T) {
 	}
 
 	if !foundInfraHosts {
-		t.Fatal("expecting infra_hosts costs in response")
+		t.Fatal("expecting infra_hosts costs in daily response")
+	}
+
+	// query data from 4 hours ago (hourly)
+	targetTime = time.Now().UTC().Add(-12 * time.Hour).Truncate(time.Hour)
+	log.Infof("querying for data with window start: %v", targetTime)
+	// check for presence of hosts in DD response
+	ddCosts, err = hourlyRepo.Get(targetTime, "datadog")
+	if err != nil {
+		t.Fatalf("error getting results for targetTime")
+	}
+	foundInfraHosts = false
+	for _, cost := range ddCosts.Costs {
+		if cost.ResourceType == "infra_hosts" {
+			foundInfraHosts = true
+		}
+	}
+
+	if !foundInfraHosts {
+		t.Fatal("expecting infra_hosts costs in hourly response")
 	}
 }
 
 func downloadLatestPluginExec(dirName string, t *testing.T) {
-	ddPluginURL := "https://github.com/opencost/opencost-plugins/releases/download/v0.0.2/datadog.ocplugin." + runtime.GOOS + "." + version.Architecture
+	ddPluginURL := "https://github.com/opencost/opencost-plugins/releases/download/v0.0.3/datadog.ocplugin." + runtime.GOOS + "." + version.Architecture
 	out, err := os.OpenFile(dirName+"/datadog.ocplugin."+runtime.GOOS+"."+version.Architecture, 0755|os.O_CREATE, 0755)
 	if err != nil {
 		t.Fatalf("error creating executable file: %v", err)

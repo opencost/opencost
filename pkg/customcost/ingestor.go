@@ -21,11 +21,12 @@ import (
 
 // IngestorStatus includes diagnostic values for a given Ingestor
 type IngestorStatus struct {
-	Created  time.Time
-	LastRun  time.Time
-	NextRun  time.Time
-	Runs     int
-	Coverage map[string]opencost.Window
+	Created     time.Time
+	LastRun     time.Time
+	NextRun     time.Time
+	Runs        int
+	Coverage    map[string]opencost.Window
+	RefreshRate time.Duration
 }
 
 // CustomCost IngestorConfig is a configuration struct for an Ingestor
@@ -223,9 +224,9 @@ func (ing *CustomCostIngestor) Start(rebuild bool) {
 
 	// Build the store once, advancing backward in time from the earliest
 	// point of coverage.
-	//go ing.build(rebuild)
+	go ing.build(rebuild)
 
-	ing.run()
+	go ing.run()
 
 }
 
@@ -269,11 +270,12 @@ func (ing *CustomCostIngestor) Stop() {
 // Status returns an IngestorStatus that describes the current state of the ingestor
 func (ing *CustomCostIngestor) Status() IngestorStatus {
 	return IngestorStatus{
-		Created:  ing.creationTime,
-		LastRun:  ing.lastRun,
-		NextRun:  ing.lastRun.Add(ing.refreshRate).UTC(),
-		Runs:     ing.runs,
-		Coverage: ing.coverage,
+		Created:     ing.creationTime,
+		LastRun:     ing.lastRun,
+		NextRun:     ing.lastRun.Add(ing.refreshRate).UTC(),
+		Runs:        ing.runs,
+		Coverage:    ing.coverage,
+		RefreshRate: ing.refreshRate,
 	}
 }
 

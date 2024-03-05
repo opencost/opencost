@@ -17,7 +17,6 @@ import (
 	proto "github.com/opencost/opencost/core/pkg/protocol"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/core/pkg/version"
-	"github.com/opencost/opencost/pkg/env"
 )
 
 var protocol = proto.HTTP()
@@ -121,7 +120,7 @@ func NewPipelineService(hourlyrepo, dailyrepo Repository, ingConf CustomCostInge
 		return nil, err
 	}
 
-	//dailyIngestor.Start(false)
+	dailyIngestor.Start(false)
 	return &PipelineService{
 		hourlyIngestor: hourlyIngestor,
 		hourlyStore:    hourlyrepo,
@@ -134,18 +133,17 @@ func NewPipelineService(hourlyrepo, dailyrepo Repository, ingConf CustomCostInge
 func (dp *PipelineService) Status() Status {
 
 	// Pull config status from the config controller
-	ingstatus := dp.hourlyIngestor.Status()
-	dur, err := time.ParseDuration(env.GetCustomCostRefreshRateHours())
-	if err != nil {
-		log.Errorf("error parsing duration %s: %v", env.GetCustomCostRefreshRateHours(), err)
-		return Status{}
-	}
-	refreshRate := time.Hour * dur
+	ingstatusHourly := dp.hourlyIngestor.Status()
+
+	// Pull config status from the config controller
+	ingstatusDaily := dp.dailyIngestor.Status()
 
 	// These are the statuses
 	return Status{
-		Coverage:    ingstatus.Coverage,
-		RefreshRate: refreshRate.String(),
+		CoverageDaily:     ingstatusDaily.Coverage,
+		CoverageHourly:    ingstatusHourly.Coverage,
+		RefreshRateHourly: ingstatusHourly.RefreshRate.String(),
+		RefreshRateDaily:  ingstatusDaily.RefreshRate.String(),
 	}
 
 }
