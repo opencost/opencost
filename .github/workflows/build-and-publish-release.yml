@@ -102,7 +102,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
         with:
           buildkitd-flags: --debug
-    
+
       - name: Install Go
         uses: actions/setup-go@v5
         with:
@@ -145,7 +145,7 @@ jobs:
       - name: Build and push (multiarch) OpenCost UI
         working-directory: ./opencost/ui
         run: |
-          just build '${{ steps.tags.outputs.IMAGE_TAG_UI }}'
+          just build '${{ steps.tags.outputs.IMAGE_TAG_UI }}' '${{ steps.version_number.outputs.RELEASE_VERSION }}'
           crane copy '${{ steps.tags.outputs.IMAGE_TAG_UI }}' '${{ steps.tags.outputs.IMAGE_TAG_UI_LATEST }}'
           crane copy '${{ steps.tags.outputs.IMAGE_TAG_UI }}' '${{ steps.tags.outputs.IMAGE_TAG_UI_VERSION }}'
         #  crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_QUAY}'

@@ -59,8 +59,10 @@ func getRegisteredPlugins(configDir string, execDir string) (map[string]*plugin.
 	configs := map[string]*plugin.ClientConfig{}
 	// set up the client config
 	for name, config := range pluginNames {
-		if _, err := os.Stat(fmt.Sprintf(execFmt, execDir, name, runtime.GOOS, version.Architecture)); err != nil {
-			msg := fmt.Sprintf("error reading executable for %s plugin. Plugin executables must be in %s and have name format <plugin name>.ocplugin.<opencost binary archtecture (arm64 or amd64)>", name, execDir)
+		file := fmt.Sprintf(execFmt, execDir, name, runtime.GOOS, version.Architecture)
+		log.Debugf("looking for file: %s", file)
+		if _, err := os.Stat(file); err != nil {
+			msg := fmt.Sprintf("error reading executable for %s plugin. Plugin executables must be in %s and have name format <plugin name>.ocplugin.<os>.<opencost binary archtecture (arm64 or amd64)>", name, execDir)
 			log.Errorf(msg)
 			return nil, fmt.Errorf(msg)
 		}
