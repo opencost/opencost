@@ -16,13 +16,10 @@ import (
 
 func TestPipelineService(t *testing.T) {
 	// establish temporary test assets dir
-	dir, err := os.MkdirTemp("", "ocplugin-*")
-	if err != nil {
-		t.Fatalf("error creating temp dir: %v", err)
-	}
-	defer os.Remove(dir)
 
-	err = os.MkdirAll(dir+"/config", 0777)
+	dir := t.TempDir()
+
+	err := os.MkdirAll(dir+"/config", 0777)
 	if err != nil {
 		t.Fatalf("error creating temp config dir: %v", err)
 	}
@@ -117,7 +114,7 @@ func TestPipelineService(t *testing.T) {
 	}
 
 	// query data from 4 hours ago (hourly)
-	targetTime = time.Now().UTC().Add(-12 * time.Hour).Truncate(time.Hour)
+	targetTime = time.Now().UTC().Add(-13 * time.Hour).Truncate(time.Hour)
 	log.Infof("querying for data with window start: %v", targetTime)
 	// check for presence of hosts in DD response
 	ddCosts, err = hourlyRepo.Get(targetTime, "datadog")

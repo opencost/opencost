@@ -21,6 +21,8 @@ import (
 
 var protocol = proto.HTTP()
 
+const execFmt = `%s/%s.ocplugin.%s.%s`
+
 // PipelineService exposes CloudCost pipeline controls and diagnostics endpoints
 type PipelineService struct {
 	hourlyIngestor, dailyIngestor *CustomCostIngestor
@@ -57,7 +59,7 @@ func getRegisteredPlugins(configDir string, execDir string) (map[string]*plugin.
 	configs := map[string]*plugin.ClientConfig{}
 	// set up the client config
 	for name, config := range pluginNames {
-		if _, err := os.Stat(execDir + "/" + name + ".ocplugin." + runtime.GOOS + "." + version.Architecture); err != nil {
+		if _, err := os.Stat(fmt.Sprintf(execFmt, execDir, name, runtime.GOOS, version.Architecture)); err != nil {
 			msg := fmt.Sprintf("error reading executable for %s plugin. Plugin executables must be in %s and have name format <plugin name>.ocplugin.<opencost binary archtecture (arm64 or amd64)>", name, execDir)
 			log.Errorf(msg)
 			return nil, fmt.Errorf(msg)
@@ -82,7 +84,7 @@ func getRegisteredPlugins(configDir string, execDir string) (map[string]*plugin.
 		configs[name] = &plugin.ClientConfig{
 			HandshakeConfig: handshakeConfig,
 			Plugins:         pluginMap,
-			Cmd:             exec.Command(execDir+"/"+name+".ocplugin."+runtime.GOOS+"."+version.Architecture, config),
+			Cmd:             exec.Command(fmt.Sprintf(execFmt, execDir, name, runtime.GOOS, version.Architecture), config),
 			Logger:          logger,
 		}
 	}
