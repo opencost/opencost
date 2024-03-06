@@ -16,7 +16,6 @@ import (
 	ocplugin "github.com/opencost/opencost/core/pkg/plugin"
 	proto "github.com/opencost/opencost/core/pkg/protocol"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
-	"github.com/opencost/opencost/core/pkg/version"
 )
 
 var protocol = proto.HTTP()
@@ -55,11 +54,11 @@ func getRegisteredPlugins(configDir string, execDir string) (map[string]*plugin.
 		return nil, nil
 	}
 
-	log.Infof("requiring plugins matching your architecture: " + version.Architecture)
+	log.Infof("requiring plugins matching your architecture: %s", runtime.GOARCH)
 	configs := map[string]*plugin.ClientConfig{}
 	// set up the client config
 	for name, config := range pluginNames {
-		file := fmt.Sprintf(execFmt, execDir, name, runtime.GOOS, version.Architecture)
+		file := fmt.Sprintf(execFmt, execDir, name, runtime.GOOS, runtime.GOARCH)
 		log.Debugf("looking for file: %s", file)
 		if _, err := os.Stat(file); err != nil {
 			msg := fmt.Sprintf("error reading executable for %s plugin. Plugin executables must be in %s and have name format <plugin name>.ocplugin.<os>.<opencost binary archtecture (arm64 or amd64)>", name, execDir)
@@ -86,7 +85,7 @@ func getRegisteredPlugins(configDir string, execDir string) (map[string]*plugin.
 		configs[name] = &plugin.ClientConfig{
 			HandshakeConfig: handshakeConfig,
 			Plugins:         pluginMap,
-			Cmd:             exec.Command(fmt.Sprintf(execFmt, execDir, name, runtime.GOOS, version.Architecture), config),
+			Cmd:             exec.Command(fmt.Sprintf(execFmt, execDir, name, runtime.GOOS, runtime.GOARCH), config),
 			Logger:          logger,
 		}
 	}
