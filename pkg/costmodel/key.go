@@ -8,62 +8,6 @@ import (
 	"github.com/opencost/opencost/pkg/prom"
 )
 
-type containerKey struct {
-	Cluster   string
-	Namespace string
-	Pod       string
-	Container string
-}
-
-func (k containerKey) String() string {
-	return fmt.Sprintf("%s/%s/%s/%s", k.Cluster, k.Namespace, k.Pod, k.Container)
-}
-
-func newContainerKey(cluster, namespace, pod, container string) containerKey {
-	return containerKey{
-		Cluster:   cluster,
-		Namespace: namespace,
-		Pod:       pod,
-		Container: container,
-	}
-}
-
-// resultContainerKey converts a Prometheus query result to a containerKey by
-// looking up values associated with the given label names. For example,
-// passing "cluster_id" for clusterLabel will use the value of the label
-// "cluster_id" as the containerKey's Cluster field. If a given field does not
-// exist on the result, an error is returned. (The only exception to that is
-// clusterLabel, which we expect may not exist, but has a default value.)
-func resultContainerKey(res *prom.QueryResult, clusterLabel, namespaceLabel, podLabel, containerLabel string) (containerKey, error) {
-	key := containerKey{}
-
-	cluster, err := res.GetString(clusterLabel)
-	if err != nil {
-		cluster = env.GetClusterID()
-	}
-	key.Cluster = cluster
-
-	namespace, err := res.GetString(namespaceLabel)
-	if err != nil {
-		return key, err
-	}
-	key.Namespace = namespace
-
-	pod, err := res.GetString(podLabel)
-	if err != nil {
-		return key, err
-	}
-	key.Pod = pod
-
-	container, err := res.GetString(containerLabel)
-	if err != nil {
-		return key, err
-	}
-	key.Container = container
-
-	return key, nil
-}
-
 type podKey struct {
 	namespaceKey
 	Pod string
@@ -128,13 +72,6 @@ type namespaceKey struct {
 
 func (k namespaceKey) String() string {
 	return fmt.Sprintf("%s/%s", k.Cluster, k.Namespace)
-}
-
-func newNamespaceKey(cluster, namespace string) namespaceKey {
-	return namespaceKey{
-		Cluster:   cluster,
-		Namespace: namespace,
-	}
 }
 
 // resultNamespaceKey converts a Prometheus query result to a namespaceKey by
