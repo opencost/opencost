@@ -5,20 +5,21 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/model"
+	"github.com/opencost/opencost/core/pkg/model/pb"
 	"golang.org/x/exp/maps"
+	"google.golang.org/protobuf/proto"
 )
 
 // MemoryRepository is an implementation of Repository that uses a map keyed on config key and window start along with a
 // RWMutex to make it threadsafe
 type MemoryRepository struct {
 	rwLock sync.RWMutex
-	data   map[string]map[time.Time]*model.CustomCostResponse
+	data   map[string]map[time.Time][]byte
 }
 
 func NewMemoryRepository() *MemoryRepository {
 	return &MemoryRepository{
-		data: make(map[string]map[time.Time]*model.CustomCostResponse),
+		data: make(map[string]map[time.Time][]byte),
 	}
 }
 
@@ -35,7 +36,7 @@ func (m *MemoryRepository) Has(startTime time.Time, domain string) (bool, error)
 	return ook, nil
 }
 
-func (m *MemoryRepository) Get(startTime time.Time, domain string) (*model.CustomCostResponse, error) {
+func (m *MemoryRepository) Get(startTime time.Time, domain string) (*pb.CustomCostResponse, error) {
 	m.rwLock.RLock()
 	defer m.rwLock.RUnlock()
 
@@ -44,13 +45,17 @@ func (m *MemoryRepository) Get(startTime time.Time, domain string) (*model.Custo
 		return nil, nil
 	}
 
-	cc, ook := domainData[startTime.UTC()]
+	b, ook := domainData[startTime.UTC()]
 	if !ook {
 		return nil, nil
 	}
 
-	clone := cc.Clone()
-	return &clone, nil
+	var ccr *pb.CustomCostResponse
+	err := proto.Unmarshal(b, ccr)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling data: %w")
+	}
+	return ccr, nil
 }
 
 func (m *MemoryRepository) Keys() ([]string, error) {
@@ -61,7 +66,7 @@ func (m *MemoryRepository) Keys() ([]string, error) {
 	return keys, nil
 }
 
-func (m *MemoryRepository) Put(ccr *model.CustomCostResponse) error {
+func (m *MemoryRepository) Put(ccr *pb.CustomCostResponse) error {
 	m.rwLock.Lock()
 	defer m.rwLock.Unlock()
 
@@ -69,8 +74,8 @@ func (m *MemoryRepository) Put(ccr *model.CustomCostResponse) error {
 		return fmt.Errorf("MemoryRepository: Put: cannot save nil")
 	}
 
-	if ccr.Window.IsOpen() {
-		return fmt.Errorf("MemoryRepository: Put: custom cost response has invalid window %s", ccr.Window.String())
+	if ccr.Start == nil || ccr.End == nil {
+		return fmt.Errorf("MemoryRepository: Put: custom cost response has invalid window")
 	}
 
 	if ccr.GetDomain() == "" {
@@ -78,10 +83,13 @@ func (m *MemoryRepository) Put(ccr *model.CustomCostResponse) error {
 	}
 
 	if _, ok := m.data[ccr.GetDomain()]; !ok {
-		m.data[ccr.GetDomain()] = make(map[time.Time]*model.CustomCostResponse)
+		m.data[ccr.GetDomain()] = make(map[time.Time][]byte)
 	}
-
-	m.data[ccr.GetDomain()][ccr.Window.Start().UTC()] = ccr
+	b, err := proto.Marshal(ccr)
+	if err != nil {
+		return fmt.Errorf("MemoryRepository: Put: custom cost could not be marshalled")
+	}
+	m.data[ccr.GetDomain()][ccr.Start.AsTime().UTC()] = b
 
 	return nil
 }
