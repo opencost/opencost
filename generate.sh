@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env sh
 #
 
 protoc --go_out=./core --go_opt=module=github.com/opencost/opencost/core \
