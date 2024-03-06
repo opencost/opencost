@@ -177,6 +177,7 @@ func (ing *CustomCostIngestor) buildSingleDomain(start, end time.Time, domain st
 		return
 	}
 
+	// TODO HAVE PLUG IN RETURN DATA AS PROTOBUF
 	// Request the plugin
 	raw, err := rpcClient.Dispense("CustomCostSource")
 	if err != nil {
