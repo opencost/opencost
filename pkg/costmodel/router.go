@@ -97,6 +97,7 @@ type Accesses struct {
 	CloudConfigController     *cloudconfig.Controller
 	CloudCostPipelineService  *cloudcost.PipelineService
 	CloudCostQueryService     *cloudcost.QueryService
+	CustomCostQueryService    *customcost.QueryService
 	CustomCostPipelineService *customcost.PipelineService
 	ClusterInfoProvider       clusters.ClusterInfoProvider
 	Model                     *CostModel

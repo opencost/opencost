@@ -68,8 +68,9 @@ func Execute(opts *CostModelOpts) error {
 		if err != nil {
 			return fmt.Errorf("error instantiating custom cost pipeline service: %v", err)
 		}
-		//repoQuerier := cloudcost.NewRepositoryQuerier(repo)
-		//a.CloudCostQueryService = cloudcost.NewQueryService(repoQuerier, repoQuerier)
+
+		customCostQuerier := customcost.NewQuerier(hourlyRepo, dailyRepo, ingConfig.HourlyDuration, ingConfig.DailyDuration)
+		a.CustomCostQueryService = customcost.NewQueryService(customCostQuerier)
 	}
 
 	rootMux := http.NewServeMux()
@@ -89,6 +90,9 @@ func Execute(opts *CostModelOpts) error {
 	a.Router.GET("/cloudCost/status", a.CloudCostPipelineService.GetCloudCostStatusHandler())
 	a.Router.GET("/cloudCost/rebuild", a.CloudCostPipelineService.GetCloudCostRebuildHandler())
 	a.Router.GET("/cloudCost/repair", a.CloudCostPipelineService.GetCloudCostRepairHandler())
+
+	a.Router.GET("/customCost/total", a.CustomCostQueryService.GetCustomCostTotalHandler())
+	a.Router.GET("/customCost/timeseries", a.CustomCostQueryService.GetCustomCostTimeseriesHandler())
 
 	if env.IsPProfEnabled() {
 		a.Router.HandlerFunc(http.MethodGet, "/debug/pprof/", pprof.Index)

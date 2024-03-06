@@ -1,11 +1,14 @@
 package version
 
-import "fmt"
+import (
+	"fmt"
+	"runtime"
+)
 
 var (
 	Version      = "dev"
 	GitCommit    = "HEAD"
-	Architecture = "amd64"
+	Architecture = runtime.GOARCH
 )
 
 func FriendlyVersion() string {

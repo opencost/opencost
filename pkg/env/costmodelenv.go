@@ -127,6 +127,7 @@ const (
 	CloudCostRunWindowDaysEnvVar    = "CLOUD_COST_RUN_WINDOW_DAYS"
 
 	CustomCostEnabledEnvVar          = "CUSTOM_COST_ENABLED"
+	CustomCostQueryWindowHoursEnvVar = "CUSTOM_COST_QUERY_WINDOW_HOURS"
 	CustomCostQueryWindowDaysEnvVar  = "CUSTOM_COST_QUERY_WINDOW_DAYS"
 	CustomCostRefreshRateHoursEnvVar = "CUSTOM_COST_REFRESH_RATE_HOURS"
 
@@ -678,7 +679,7 @@ func GetCloudCostQueryWindowDays() int64 {
 }
 
 func GetCustomCostQueryWindowHours() int64 {
-	return env.GetInt64(CustomCostQueryWindowDaysEnvVar, 1)
+	return env.GetInt64(CustomCostQueryWindowHoursEnvVar, 1)
 }
 
 func GetCustomCostQueryWindowDays() int64 {
