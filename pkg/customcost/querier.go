@@ -35,11 +35,6 @@ type CostTotalRequest struct {
 	Filter      filter.Filter
 }
 
-type CostTotalResult struct {
-	TotalCost float32
-	Response  []model.CustomCostResponse
-}
-
 type CostTimeseriesRequest struct {
 	Start       time.Time
 	End         time.Time
@@ -48,10 +43,15 @@ type CostTimeseriesRequest struct {
 	Filter      filter.Filter
 }
 
+type CostTotalResult struct {
+	TotalCost float32                    `json:"total_cost"`
+	Response  []model.CustomCostResponse `json:"response"`
+}
+
 type CostTimeseriesResult struct {
-	TotalCost float32
-	Window    opencost.Window
-	Response  []model.CustomCostResponse
+	TotalCost float32                    `json:"total_cost"`
+	Window    opencost.Window            `json:"window"`
+	Response  []model.CustomCostResponse `json:"response"`
 }
 
 func (q *Querier) QueryTotal(request CostTotalRequest, ctx context.Context) (*CostTotalResult, error) {
