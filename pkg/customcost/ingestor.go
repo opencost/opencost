@@ -8,9 +8,11 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-plugin"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/core/pkg/model"
+	"github.com/opencost/opencost/core/pkg/model/pb"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	ocplugin "github.com/opencost/opencost/core/pkg/plugin"
 	"github.com/opencost/opencost/core/pkg/util/stringutil"
@@ -157,10 +159,10 @@ func (ing *CustomCostIngestor) BuildWindow(start, end time.Time) {
 }
 
 func (ing *CustomCostIngestor) buildSingleDomain(start, end time.Time, domain string) {
-	target := opencost.NewWindow(&start, &end)
-	req := model.CustomCostRequest{
-		TargetWindow: &target,
-		Resolution:   ing.resolution,
+	req := pb.CustomCostRequest{
+		Start:      timestamppb.New(start),
+		End:        timestamppb.New(end),
+		Resolution: durationpb.New(ing.resolution),
 	}
 	log.Infof("ingestor: building window %s for plugin %s", opencost.NewWindow(&start, &end), domain)
 	// make RPC call via plugin
@@ -196,17 +198,17 @@ func (ing *CustomCostIngestor) buildSingleDomain(start, end time.Time, domain st
 			for _, errResp := range ccr.Errors {
 				log.Errorf("error in getting custom costs for plugin %s: %v", domain, errResp)
 			}
-			log.Errorf("not adding any costs for window %v on plugin %s", req.TargetWindow, domain)
+			log.Errorf("not adding any costs for window %v-%v on plugin %s", req.Start, req.End, domain)
 			continue
 		}
-		log.Debugf("BuildWindow[%s]: GetCustomCost: writing custom costs for window %s: %d", domain, ccr.Window, len(ccr.Costs))
+		log.Debugf("BuildWindow[%s]: GetCustomCost: writing custom costs for window %v-%v: %d", domain, ccr.Start, ccr.End, len(ccr.Costs))
 
 		err2 := ing.repo.Put(&ccr)
 		if err2 != nil {
-			log.Errorf("CustomCost[%s]: ingestor: failed to save Custom Cost Set with window %s: %s", domain, ccr.GetWindow().String(), err2.Error())
+			log.Errorf("CustomCost[%s]: ingestor: failed to save Custom Cost Set with window %v-%v: %s", domain, ccr.Start, ccr.End, err2.Error())
 		}
 
-		ing.expandCoverage(ccr.Window, domain)
+		ing.expandCoverage(opencost.NewClosedWindow(ccr.Start.AsTime(), ccr.End.AsTime()), domain)
 	}
 }
 

@@ -84,10 +84,11 @@ func getRegisteredPlugins(configDir string, execDir string) (map[string]*plugin.
 			"CustomCostSource": &ocplugin.CustomCostPlugin{},
 		}
 		configs[name] = &plugin.ClientConfig{
-			HandshakeConfig: handshakeConfig,
-			Plugins:         pluginMap,
-			Cmd:             exec.Command(fmt.Sprintf(execFmt, execDir, name, runtime.GOOS, version.Architecture), config),
-			Logger:          logger,
+			HandshakeConfig:  handshakeConfig,
+			Plugins:          pluginMap,
+			Cmd:              exec.Command(fmt.Sprintf(execFmt, execDir, name, runtime.GOOS, version.Architecture), config),
+			Logger:           logger,
+			AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
 		}
 	}
 

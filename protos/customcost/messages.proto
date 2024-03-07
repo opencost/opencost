@@ -3,13 +3,27 @@ syntax = "proto3";
 package customcost.messages;
 
 import "google/protobuf/timestamp.proto";
-
+import "google/protobuf/duration.proto";
 // Sets the golang package for the protobuf generated code
 option go_package = "github.com/opencost/opencost/core/pkg/model/pb";
 
 // see design at https://link.excalidraw.com/l/ABLQ24dkKai/CBEQtjH6Mr
 // for additional details on how these objects work in the context of
 // opencost's plugin system
+
+message CustomCostRequest {
+  // the window of the returned objects
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+
+  // resolution of steps to return
+  google.protobuf.Duration resolution = 3;
+
+}
+
+message CustomCostResponseSet {
+  repeated CustomCostResponse resps = 1;
+}
 
 message CustomCostResponse {
   // provides metadata on the Custom CostResponse
@@ -133,4 +147,8 @@ message CustomCostExtendedAttributes {
   optional string pricing_unit = 21;
   // FOCUS Pricing Category
   optional string pricing_category = 22;
+}
+
+service CustomCostsSource {
+    rpc GetCustomCosts(CustomCostRequest) returns (CustomCostResponseSet);
 }
