@@ -10,7 +10,7 @@ import (
 
 // plugin interface
 type CustomCostSource interface {
-	GetCustomCosts(req pb.CustomCostRequest) []pb.CustomCostResponse
+	GetCustomCosts(req *pb.CustomCostRequest) []*pb.CustomCostResponse
 }
 
 type CustomCostPlugin struct {
