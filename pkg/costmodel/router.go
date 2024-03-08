@@ -1772,6 +1772,22 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		a.MetricsEmitter.Start()
 	}
 
+	log.Infof("Custom Costs enabled: %t", env.IsCustomCostEnabled())
+	if env.IsCustomCostEnabled() {
+		hourlyRepo := customcost.NewMemoryRepository()
+		dailyRepo := customcost.NewMemoryRepository()
+		ingConfig := customcost.DefaultIngestorConfiguration()
+		var err error
+		a.CustomCostPipelineService, err = customcost.NewPipelineService(hourlyRepo, dailyRepo, ingConfig)
+		if err != nil {
+			log.Errorf("error instantiating custom cost pipeline service: %v", err)
+			return nil
+		}
+
+		customCostQuerier := customcost.NewQuerier(hourlyRepo, dailyRepo, ingConfig.HourlyDuration, ingConfig.DailyDuration)
+		a.CustomCostQueryService = customcost.NewQueryService(customCostQuerier)
+	}
+
 	a.Router.GET("/costDataModel", a.CostDataModel)
 	a.Router.GET("/costDataModelRange", a.CostDataModelRange)
 	a.Router.GET("/aggregatedCostModel", a.AggregateCostModelHandler)
@@ -1829,6 +1845,9 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	a.Router.GET("/cloud/config/enable", a.CloudConfigController.GetEnableConfigHandler())
 	a.Router.GET("/cloud/config/disable", a.CloudConfigController.GetDisableConfigHandler())
 	a.Router.GET("/cloud/config/delete", a.CloudConfigController.GetDeleteConfigHandler())
+
+	a.Router.GET("/customCost/total", a.CustomCostQueryService.GetCustomCostTotalHandler())
+	a.Router.GET("/customCost/timeseries", a.CustomCostQueryService.GetCustomCostTimeseriesHandler())
 
 	a.httpServices.RegisterAll(a.Router)
 

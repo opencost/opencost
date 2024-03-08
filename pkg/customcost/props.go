@@ -27,10 +27,6 @@ func ParseCustomCostProperties(props []string) ([]string, error) {
 		}
 	}
 
-	if len(properties) == 0 {
-		properties = []string{string(CustomCostDomainProp)}
-	}
-
 	return properties, nil
 }
 
