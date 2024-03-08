@@ -101,7 +101,54 @@ func (cc *CustomCost) Add(other *CustomCost) {
 	cc.BilledCost += other.BilledCost
 	cc.ListCost += other.ListCost
 	cc.ListUnitPrice += other.ListUnitPrice
-	cc.UsageQuantity += other.UsageQuantity
+
+	if cc.Id != other.Id {
+		cc.Id = ""
+	}
+
+	if cc.Zone != other.Zone {
+		cc.Zone = ""
+	}
+
+	if cc.AccountName != other.AccountName {
+		cc.AccountName = ""
+	}
+
+	if cc.ChargeCategory != other.ChargeCategory {
+		cc.ChargeCategory = ""
+	}
+
+	if cc.Description != other.Description {
+		cc.Description = ""
+	}
+
+	if cc.ResourceName != other.ResourceName {
+		cc.ResourceName = ""
+	}
+
+	if cc.ResourceType != other.ResourceType {
+		cc.ResourceType = ""
+	}
+
+	if cc.ProviderId != other.ProviderId {
+		cc.ProviderId = ""
+	}
+
+	if cc.UsageUnit != other.UsageUnit {
+		cc.UsageUnit = ""
+	} else {
+		// when usage units are the same, then we can sum the usages
+		cc.UsageQuantity += other.UsageQuantity
+	}
+
+	if cc.Domain != other.Domain {
+		cc.Domain = ""
+	}
+
+	if cc.Aggregate != other.Aggregate {
+		cc.Aggregate = ""
+	}
+
 }
 
 type CustomCostSet struct {
