@@ -56,8 +56,6 @@ type CostTimeseriesResponse struct {
 	Timeseries []*CostResponse `json:"timeseries"`
 }
 
-// --------------
-
 func NewCostResponse(ccs *CustomCostSet) *CostResponse {
 	costResponse := &CostResponse{
 		Window:      ccs.Window,
@@ -72,8 +70,6 @@ func NewCostResponse(ccs *CustomCostSet) *CostResponse {
 
 	return costResponse
 }
-
-// --------------
 
 func ParseCustomCostResponse(ccResponse *pb.CustomCostResponse) []*CustomCost {
 	costs := ccResponse.GetCosts()
