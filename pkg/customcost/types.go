@@ -168,8 +168,9 @@ func (ccs *CustomCostSet) Add(customCosts []*CustomCost) {
 }
 
 func (ccs *CustomCostSet) Aggregate(aggregateBy []string) error {
+	// when no aggregation, return the original CustomCostSet
 	if len(aggregateBy) == 0 {
-		return fmt.Errorf("found empty aggregateBy")
+		return nil
 	}
 
 	aggMap := make(map[string]*CustomCost)
