@@ -11,7 +11,6 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
-	"github.com/opencost/opencost/core/pkg/version"
 )
 
 func TestPipelineService(t *testing.T) {
@@ -28,7 +27,6 @@ func TestPipelineService(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating temp exec dir: %v", err)
 	}
-	version.Architecture = runtime.GOARCH
 	// write DD secrets to config files
 	// write config file to temp dir
 	writeDDConfig(dir+"/config", t)
@@ -134,8 +132,8 @@ func TestPipelineService(t *testing.T) {
 }
 
 func downloadLatestPluginExec(dirName string, t *testing.T) {
-	ddPluginURL := "https://github.com/opencost/opencost-plugins/releases/download/v0.0.3/datadog.ocplugin." + runtime.GOOS + "." + version.Architecture
-	out, err := os.OpenFile(dirName+"/datadog.ocplugin."+runtime.GOOS+"."+version.Architecture, 0755|os.O_CREATE, 0755)
+	ddPluginURL := "https://github.com/opencost/opencost-plugins/releases/download/v0.0.3/datadog.ocplugin." + runtime.GOOS + "." + runtime.GOARCH
+	out, err := os.OpenFile(dirName+"/datadog.ocplugin."+runtime.GOOS+"."+runtime.GOARCH, 0755|os.O_CREATE, 0755)
 	if err != nil {
 		t.Fatalf("error creating executable file: %v", err)
 	}

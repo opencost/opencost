@@ -3,9 +3,8 @@ package version
 import "fmt"
 
 var (
-	Version      = "dev"
-	GitCommit    = "HEAD"
-	Architecture = "amd64"
+	Version   = "dev"
+	GitCommit = "HEAD"
 )
 
 func FriendlyVersion() string {
