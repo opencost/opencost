@@ -1846,6 +1846,9 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	a.Router.GET("/cloud/config/disable", a.CloudConfigController.GetDisableConfigHandler())
 	a.Router.GET("/cloud/config/delete", a.CloudConfigController.GetDeleteConfigHandler())
 
+	a.Router.GET("/customCost/total", a.CustomCostQueryService.GetCustomCostTotalHandler())
+	a.Router.GET("/customCost/timeseries", a.CustomCostQueryService.GetCustomCostTimeseriesHandler())
+
 	a.httpServices.RegisterAll(a.Router)
 
 	return a

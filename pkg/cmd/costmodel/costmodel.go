@@ -75,9 +75,6 @@ func Execute(opts *CostModelOpts) error {
 	a.Router.GET("/cloudCost/rebuild", a.CloudCostPipelineService.GetCloudCostRebuildHandler())
 	a.Router.GET("/cloudCost/repair", a.CloudCostPipelineService.GetCloudCostRepairHandler())
 
-	a.Router.GET("/customCost/total", a.CustomCostQueryService.GetCustomCostTotalHandler())
-	a.Router.GET("/customCost/timeseries", a.CustomCostQueryService.GetCustomCostTimeseriesHandler())
-
 	if env.IsPProfEnabled() {
 		a.Router.HandlerFunc(http.MethodGet, "/debug/pprof/", pprof.Index)
 		a.Router.HandlerFunc(http.MethodGet, "/debug/pprof/cmdline", pprof.Cmdline)
