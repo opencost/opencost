@@ -159,7 +159,7 @@ func (ing *CustomCostIngestor) BuildWindow(start, end time.Time) {
 }
 
 func (ing *CustomCostIngestor) buildSingleDomain(start, end time.Time, domain string) {
-	req := pb.CustomCostRequest{
+	req := &pb.CustomCostRequest{
 		Start:      timestamppb.New(start),
 		End:        timestamppb.New(end),
 		Resolution: durationpb.New(ing.resolution),
@@ -203,7 +203,7 @@ func (ing *CustomCostIngestor) buildSingleDomain(start, end time.Time, domain st
 		}
 		log.Debugf("BuildWindow[%s]: GetCustomCost: writing custom costs for window %v-%v: %d", domain, ccr.Start, ccr.End, len(ccr.Costs))
 
-		err2 := ing.repo.Put(&ccr)
+		err2 := ing.repo.Put(ccr)
 		if err2 != nil {
 			log.Errorf("CustomCost[%s]: ingestor: failed to save Custom Cost Set with window %v-%v: %s", domain, ccr.Start, ccr.End, err2.Error())
 		}

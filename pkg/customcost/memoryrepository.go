@@ -50,7 +50,7 @@ func (m *MemoryRepository) Get(startTime time.Time, domain string) (*pb.CustomCo
 		return nil, nil
 	}
 
-	var ccr *pb.CustomCostResponse
+	ccr := &pb.CustomCostResponse{}
 	err := proto.Unmarshal(b, ccr)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling data: %w")
