@@ -1784,7 +1784,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 			return nil
 		}
 
-		customCostQuerier := customcost.NewQuerier(hourlyRepo, dailyRepo, ingConfig.HourlyDuration, ingConfig.DailyDuration)
+		customCostQuerier := customcost.NewRepositoryQuerier(hourlyRepo, dailyRepo, ingConfig.HourlyDuration, ingConfig.DailyDuration)
 		a.CustomCostQueryService = customcost.NewQueryService(customCostQuerier)
 	}
 
