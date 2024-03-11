@@ -10,6 +10,21 @@ on:
       - develop
 
 jobs:
+  validate-protobuf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ./
+
+      -
+        name: Install protoc
+        uses: extractions/setup-protoc@v1
+
+      -
+        name: Validate
+        run: |
+          just validate-protobuf
   backend:
     runs-on: ubuntu-latest
     steps:
