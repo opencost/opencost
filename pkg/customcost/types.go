@@ -14,7 +14,7 @@ type CostTotalRequest struct {
 	Start       time.Time
 	End         time.Time
 	AggregateBy []string
-	Step        time.Duration
+	Accumulate  opencost.AccumulateOption
 	Filter      filter.Filter
 }
 
@@ -22,7 +22,7 @@ type CostTimeseriesRequest struct {
 	Start       time.Time
 	End         time.Time
 	AggregateBy []string
-	Step        time.Duration
+	Accumulate  opencost.AccumulateOption
 	Filter      filter.Filter
 }
 

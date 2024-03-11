@@ -12,10 +12,10 @@ import (
 const tracerName = "github.com/opencost/opencost/pkg/customcost"
 
 type QueryService struct {
-	Querier *Querier
+	Querier Querier
 }
 
-func NewQueryService(querier *Querier) *QueryService {
+func NewQueryService(querier Querier) *QueryService {
 	return &QueryService{
 		Querier: querier,
 	}
@@ -45,7 +45,7 @@ func (qs *QueryService) GetCustomCostTotalHandler() func(w http.ResponseWriter, 
 			return
 		}
 
-		resp, err := qs.Querier.QueryTotal(*request, ctx)
+		resp, err := qs.Querier.QueryTotal(ctx, *request)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Internal server error: %s", err), http.StatusInternalServerError)
 			return
@@ -82,7 +82,7 @@ func (qs *QueryService) GetCustomCostTimeseriesHandler() func(w http.ResponseWri
 			return
 		}
 
-		resp, err := qs.Querier.QueryTimeseries(*request, ctx)
+		resp, err := qs.Querier.QueryTimeseries(ctx, *request)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Internal server error: %s", err), http.StatusInternalServerError)
 			return

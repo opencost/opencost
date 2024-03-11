@@ -68,7 +68,7 @@ func ParseCustomCostTimeseriesRequest(qp httputil.QueryParams) (*CostTimeseriesR
 		return nil, err
 	}
 
-	step := qp.GetDuration("step", 0)
+	accumulate := opencost.ParseAccumulate(qp.Get("accumulate", ""))
 
 	var filter filter.Filter
 	//filterString := qp.Get("filter", "")
@@ -84,7 +84,7 @@ func ParseCustomCostTimeseriesRequest(qp httputil.QueryParams) (*CostTimeseriesR
 		Start:       *window.Start(),
 		End:         *window.End(),
 		AggregateBy: aggregateBy,
-		Step:        step,
+		Accumulate:  accumulate,
 		Filter:      filter,
 	}
 
