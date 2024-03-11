@@ -17,13 +17,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: ./
-
+      -
+        name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          
       -
         name: Install protoc
         uses: arduino/setup-protoc@v3
       -
         name: Install just
         uses: extractions/setup-just@v1
+
+      - name: install protobuf-go
+        run: |
+          go install github.com/golang/protobuf/protoc-gen-go
       -
         name: Validate
         run: |
