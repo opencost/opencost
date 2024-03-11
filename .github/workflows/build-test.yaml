@@ -20,7 +20,7 @@ jobs:
 
       -
         name: Install protoc
-        uses: extractions/setup-protoc@v1
+        uses: arduino/setup-protoc@v3
 
       -
         name: Validate
