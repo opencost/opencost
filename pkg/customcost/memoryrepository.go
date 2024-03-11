@@ -42,12 +42,12 @@ func (m *MemoryRepository) Get(startTime time.Time, domain string) (*pb.CustomCo
 
 	domainData, ok := m.data[domain]
 	if !ok {
-		return nil, nil
+		return &pb.CustomCostResponse{}, nil
 	}
 
 	b, ook := domainData[startTime.UTC()]
 	if !ook {
-		return nil, nil
+		return &pb.CustomCostResponse{}, nil
 	}
 
 	ccr := &pb.CustomCostResponse{}

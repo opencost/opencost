@@ -22,7 +22,7 @@ var protocol = proto.HTTP()
 
 const execFmt = `%s/%s.ocplugin.%s.%s`
 
-// PipelineService exposes CloudCost pipeline controls and diagnostics endpoints
+// PipelineService exposes CustomCost pipeline controls and diagnostics endpoints
 type PipelineService struct {
 	hourlyIngestor, dailyIngestor *CustomCostIngestor
 	hourlyStore, dailyStore       Repository

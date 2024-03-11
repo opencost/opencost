@@ -42,13 +42,12 @@ type CustomCostIngestorConfig struct {
 // DefaultIngestorConfiguration retrieves an CustomCostIngestorConfig from env variables
 func DefaultIngestorConfiguration() CustomCostIngestorConfig {
 	return CustomCostIngestorConfig{
-		DailyDuration:          timeutil.Day * time.Duration(env.GetDataRetentionDailyResolutionDays()),
-		HourlyDuration:         time.Hour * time.Duration(env.GetDataRetentionHourlyResolutionHours()),
-		MonthToDateRunInterval: env.GetCloudCostMonthToDateInterval(),
-		DailyQueryWindow:       timeutil.Day * time.Duration(env.GetCustomCostQueryWindowDays()),
-		HourlyQueryWindow:      time.Hour * time.Duration(env.GetCustomCostQueryWindowHours()),
-		PluginConfigDir:        env.GetPluginConfigDir(),
-		PluginExecutableDir:    env.GetPluginExecutableDir(),
+		DailyDuration:       timeutil.Day * time.Duration(env.GetDataRetentionDailyResolutionDays()),
+		HourlyDuration:      time.Hour * time.Duration(env.GetDataRetentionHourlyResolutionHours()),
+		DailyQueryWindow:    timeutil.Day * time.Duration(env.GetCustomCostQueryWindowDays()),
+		HourlyQueryWindow:   time.Hour * time.Duration(env.GetCustomCostQueryWindowHours()),
+		PluginConfigDir:     env.GetPluginConfigDir(),
+		PluginExecutableDir: env.GetPluginExecutableDir(),
 	}
 }
 
@@ -179,7 +178,6 @@ func (ing *CustomCostIngestor) buildSingleDomain(start, end time.Time, domain st
 		return
 	}
 
-	// TODO HAVE PLUG IN RETURN DATA AS PROTOBUF
 	// Request the plugin
 	raw, err := rpcClient.Dispense("CustomCostSource")
 	if err != nil {
@@ -236,7 +234,7 @@ func (ing *CustomCostIngestor) Start(rebuild bool) {
 func (ing *CustomCostIngestor) Stop() {
 	// If already stopping, log that and return.
 	if !ing.isStopping.CompareAndSwap(false, true) {
-		log.Infof("CloudCost: ingestor: is already stopping")
+		log.Infof("CustomCost: ingestor: is already stopping")
 		return
 	}
 
