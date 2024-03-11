@@ -26,7 +26,6 @@ build-binary VERSION=version:
         {{commonenv}} GOOS=linux GOARCH=amd64 go build \
         -ldflags \
           "-X github.com/opencost/opencost/pkg/version.Version={{VERSION}} \
-           -X github.com/opencost/opencost/pkg/version.Architecture=amd64 \
            -X github.com/opencost/opencost/pkg/version.GitCommit={{commit}}" \
         -o ./costmodel-amd64
 
@@ -34,7 +33,6 @@ build-binary VERSION=version:
         {{commonenv}} GOOS=linux GOARCH=arm64 go build \
         -ldflags \
           "-X github.com/opencost/opencost/pkg/version.Version={{VERSION}} \
-           -X github.com/opencost/opencost/pkg/version.Architecture=arm64 \
            -X github.com/opencost/opencost/pkg/version.GitCommit={{commit}}" \
         -o ./costmodel-arm64
 
@@ -68,3 +66,7 @@ build IMAGE_TAG RELEASE_VERSION: test (build-binary RELEASE_VERSION)
         --platforms "linux/amd64,linux/arm64" \
         --template {{IMAGE_TAG}}-ARCH \
         --target {{IMAGE_TAG}}
+
+validate-protobuf:
+    ./generate.sh
+    git diff --quiet --exit-code
