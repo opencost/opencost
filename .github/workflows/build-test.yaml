@@ -33,12 +33,11 @@ jobs:
       - name: install protobuf-go
         run: |
           go install github.com/golang/protobuf/protoc-gen-go
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
           which protoc-gen-go-grpc
       -
         name: Validate
         run: |
-          export PATH=${PATH}:`go env GOPATH`/bin
-          which protoc-gen-go-grpc
           just validate-protobuf
   backend:
     runs-on: ubuntu-latest
