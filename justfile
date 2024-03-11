@@ -69,4 +69,4 @@ build IMAGE_TAG RELEASE_VERSION: test (build-binary RELEASE_VERSION)
 
 validate-protobuf:
     ./generate.sh
-    git diff --quiet --exit-code
+    git diff --exit-code
