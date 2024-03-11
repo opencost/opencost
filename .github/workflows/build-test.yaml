@@ -8,7 +8,6 @@ on:
   pull_request:
     branches:
       - develop
-      - plugin-working-branch # can be removed before plugin 1.0 merge
 
 jobs:
   validate-protobuf:
