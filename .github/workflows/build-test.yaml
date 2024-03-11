@@ -33,9 +33,11 @@ jobs:
       - name: install protobuf-go
         run: |
           go install github.com/golang/protobuf/protoc-gen-go
+      
       -
         name: Validate
         run: |
+          export PATH=${PATH}:`go env GOPATH`/bin
           just validate-protobuf
   backend:
     runs-on: ubuntu-latest
