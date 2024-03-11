@@ -157,7 +157,7 @@ type CustomCostResponse struct {
 	// FOCUS billing currency
 	Currency string `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
 	// the window of the returned objects
-	Start *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=start,proto3" json:"start,omitempty"`
+	Start *timestamppb.Timestamp`protobuf:"bytes,6,opt,name=start,proto3" json:"start,omitempty"`
 	End   *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=end,proto3" json:"end,omitempty"`
 	// array of CustomCosts
 	Costs []*CustomCost `protobuf:"bytes,8,rep,name=costs,proto3" json:"costs,omitempty"`
