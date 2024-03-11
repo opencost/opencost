@@ -1851,6 +1851,8 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		a.Router.GET("/customCost/timeseries", a.CustomCostQueryService.GetCustomCostTimeseriesHandler())
 	}
 
+	a.Router.GET("/customCost/status", a.CustomCostPipelineService.GetCustomCostStatusHandler())
+
 	a.httpServices.RegisterAll(a.Router)
 
 	return a

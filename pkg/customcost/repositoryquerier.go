@@ -48,7 +48,7 @@ func (rq *RepositoryQuerier) QueryTotal(ctx context.Context, request CostTotalRe
 			ccResponse, err := repo.Get(queryStart, domain)
 			if err != nil {
 				return nil, fmt.Errorf("QueryTotal: %w", err)
-			} else if ccResponse == nil {
+			} else if ccResponse == nil || ccResponse.Start == nil || ccResponse.End == nil {
 				continue
 			}
 
