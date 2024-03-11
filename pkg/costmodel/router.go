@@ -28,11 +28,11 @@ import (
 	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/config"
 	clustermap "github.com/opencost/opencost/pkg/costmodel/clusters"
+	"github.com/opencost/opencost/pkg/customcost"
 	"github.com/opencost/opencost/pkg/kubeconfig"
 	"github.com/opencost/opencost/pkg/metrics"
 	"github.com/opencost/opencost/pkg/services"
 	"github.com/spf13/viper"
-
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/julienschmidt/httprouter"
@@ -86,26 +86,28 @@ var (
 // Accesses defines a singleton application instance, providing access to
 // Prometheus, Kubernetes, the cloud provider, and caches.
 type Accesses struct {
-	Router                   *httprouter.Router
-	PrometheusClient         prometheus.Client
-	ThanosClient             prometheus.Client
-	KubeClientSet            kubernetes.Interface
-	ClusterCache             clustercache.ClusterCache
-	ClusterMap               clusters.ClusterMap
-	CloudProvider            models.Provider
-	ConfigFileManager        *config.ConfigFileManager
-	CloudConfigController    *cloudconfig.Controller
-	CloudCostPipelineService *cloudcost.PipelineService
-	CloudCostQueryService    *cloudcost.QueryService
-	ClusterInfoProvider      clusters.ClusterInfoProvider
-	Model                    *CostModel
-	MetricsEmitter           *CostModelMetricsEmitter
-	OutOfClusterCache        *cache.Cache
-	AggregateCache           *cache.Cache
-	CostDataCache            *cache.Cache
-	ClusterCostsCache        *cache.Cache
-	CacheExpiration          map[time.Duration]time.Duration
-	AggAPI                   Aggregator
+	Router                    *httprouter.Router
+	PrometheusClient          prometheus.Client
+	ThanosClient              prometheus.Client
+	KubeClientSet             kubernetes.Interface
+	ClusterCache              clustercache.ClusterCache
+	ClusterMap                clusters.ClusterMap
+	CloudProvider             models.Provider
+	ConfigFileManager         *config.ConfigFileManager
+	CloudConfigController     *cloudconfig.Controller
+	CloudCostPipelineService  *cloudcost.PipelineService
+	CloudCostQueryService     *cloudcost.QueryService
+	CustomCostQueryService    *customcost.QueryService
+	CustomCostPipelineService *customcost.PipelineService
+	ClusterInfoProvider       clusters.ClusterInfoProvider
+	Model                     *CostModel
+	MetricsEmitter            *CostModelMetricsEmitter
+	OutOfClusterCache         *cache.Cache
+	AggregateCache            *cache.Cache
+	CostDataCache             *cache.Cache
+	ClusterCostsCache         *cache.Cache
+	CacheExpiration           map[time.Duration]time.Duration
+	AggAPI                    Aggregator
 	// SettingsCache stores current state of app settings
 	SettingsCache *cache.Cache
 	// settingsSubscribers tracks channels through which changes to different
@@ -1770,6 +1772,22 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		a.MetricsEmitter.Start()
 	}
 
+	log.Infof("Custom Costs enabled: %t", env.IsCustomCostEnabled())
+	if env.IsCustomCostEnabled() {
+		hourlyRepo := customcost.NewMemoryRepository()
+		dailyRepo := customcost.NewMemoryRepository()
+		ingConfig := customcost.DefaultIngestorConfiguration()
+		var err error
+		a.CustomCostPipelineService, err = customcost.NewPipelineService(hourlyRepo, dailyRepo, ingConfig)
+		if err != nil {
+			log.Errorf("error instantiating custom cost pipeline service: %v", err)
+			return nil
+		}
+
+		customCostQuerier := customcost.NewRepositoryQuerier(hourlyRepo, dailyRepo, ingConfig.HourlyDuration, ingConfig.DailyDuration)
+		a.CustomCostQueryService = customcost.NewQueryService(customCostQuerier)
+	}
+
 	a.Router.GET("/costDataModel", a.CostDataModel)
 	a.Router.GET("/costDataModelRange", a.CostDataModelRange)
 	a.Router.GET("/aggregatedCostModel", a.AggregateCostModelHandler)
@@ -1827,6 +1845,15 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	a.Router.GET("/cloud/config/enable", a.CloudConfigController.GetEnableConfigHandler())
 	a.Router.GET("/cloud/config/disable", a.CloudConfigController.GetDisableConfigHandler())
 	a.Router.GET("/cloud/config/delete", a.CloudConfigController.GetDeleteConfigHandler())
+
+	if env.IsCustomCostEnabled() {
+		a.Router.GET("/customCost/total", a.CustomCostQueryService.GetCustomCostTotalHandler())
+		a.Router.GET("/customCost/timeseries", a.CustomCostQueryService.GetCustomCostTimeseriesHandler())
+	}
+
+	// this endpoint is intentionally left out of the "if env.IsCustomCostEnabled()" conditional; in the handler, it is
+	// valid for CustomCostPipelineService to be nil
+	a.Router.GET("/customCost/status", a.CustomCostPipelineService.GetCustomCostStatusHandler())
 
 	a.httpServices.RegisterAll(a.Router)
 
