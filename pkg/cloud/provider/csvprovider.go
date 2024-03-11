@@ -320,11 +320,11 @@ func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
 			akey := strings.Join(mf[2:len(mf)], ".")
 			return toReturn + n.Annotations[akey]
 		} else {
-			log.Errorf("Unsupported InstanceIDField %s in CSV For Node", m)
+			log.DedupedInfof(10, "Unsupported InstanceIDField %s in CSV For Node", m)
 			return ""
 		}
 	} else {
-		log.Errorf("Unsupported InstanceIDField %s in CSV For Node", m)
+		log.DedupedInfof(10, "Unsupported InstanceIDField %s in CSV For Node", m)
 		return ""
 	}
 }

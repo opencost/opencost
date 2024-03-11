@@ -22,7 +22,7 @@ var protocol = proto.HTTP()
 
 const execFmt = `%s/%s.ocplugin.%s.%s`
 
-// PipelineService exposes CloudCost pipeline controls and diagnostics endpoints
+// PipelineService exposes CustomCost pipeline controls and diagnostics endpoints
 type PipelineService struct {
 	hourlyIngestor, dailyIngestor *CustomCostIngestor
 	hourlyStore, dailyStore       Repository
@@ -197,10 +197,13 @@ func (s *PipelineService) GetCustomCostRebuildHandler() func(w http.ResponseWrit
 
 // GetCustomCostStatusHandler creates a handler from a http request which returns the custom cost ingestor status
 func (s *PipelineService) GetCustomCostStatusHandler() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	// If Reporting Service is nil, always return 501
+
 	if s == nil {
+		resultStatus := Status{
+			Enabled: false,
+		}
 		return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-			http.Error(w, "Custom cost pipeline Service is nil", http.StatusNotImplemented)
+			protocol.WriteData(w, resultStatus)
 		}
 	}
 	if s.hourlyIngestor == nil || s.dailyIngestor == nil {
@@ -212,7 +215,8 @@ func (s *PipelineService) GetCustomCostStatusHandler() func(w http.ResponseWrite
 	// Return valid handler func
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		w.Header().Set("Content-Type", "application/json")
-
-		protocol.WriteData(w, s.Status())
+		stat := s.Status()
+		stat.Enabled = true
+		protocol.WriteData(w, stat)
 	}
 }
