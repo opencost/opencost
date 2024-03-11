@@ -197,7 +197,7 @@ func (s *PipelineService) GetCustomCostRebuildHandler() func(w http.ResponseWrit
 
 // GetCustomCostStatusHandler creates a handler from a http request which returns the custom cost ingestor status
 func (s *PipelineService) GetCustomCostStatusHandler() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	// If Reporting Service is nil, always return 501
+
 	if s == nil {
 		resultStatus := Status{
 			Enabled: false,
