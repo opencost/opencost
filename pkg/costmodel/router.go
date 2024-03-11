@@ -1851,6 +1851,8 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		a.Router.GET("/customCost/timeseries", a.CustomCostQueryService.GetCustomCostTimeseriesHandler())
 	}
 
+	// this endpoint is intentionally left out of the "if env.IsCustomCostEnabled()" conditional; in the handler, it is
+	// valid for CustomCostPipelineService to be nil
 	a.Router.GET("/customCost/status", a.CustomCostPipelineService.GetCustomCostStatusHandler())
 
 	a.httpServices.RegisterAll(a.Router)
