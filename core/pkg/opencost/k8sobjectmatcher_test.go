@@ -38,8 +38,36 @@ func TestK8sObjectMatcher(t *testing.T) {
 			expected: false,
 		},
 		{
+			filter: `pod:"foo"`,
+			o: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+			},
+			expected: true,
+		},
+		{
+			filter: `pod:"foo"`,
+			o: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "bar"},
+			},
+			expected: false,
+		},
+		{
+			filter: `pod:"foo"`,
+			o: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+			},
+			expected: false,
+		},
+		{
 			filter:   `controllerKind:"deployment"`,
 			o:        &appsv1.Deployment{},
+			expected: true,
+		},
+		{
+			filter: `controllerName:"foo"`,
+			o: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+			},
 			expected: true,
 		},
 		{
@@ -48,13 +76,34 @@ func TestK8sObjectMatcher(t *testing.T) {
 			expected: true,
 		},
 		{
+			filter: `controllerName:"foo"`,
+			o: &appsv1.StatefulSet{
+				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+			},
+			expected: true,
+		},
+		{
 			filter:   `controllerKind:"daemonset"`,
 			o:        &appsv1.DaemonSet{},
 			expected: true,
 		},
 		{
+			filter: `controllerName:"foo"`,
+			o: &appsv1.DaemonSet{
+				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+			},
+			expected: true,
+		},
+		{
 			filter:   `controllerKind:"cronjob"`,
 			o:        &batchv1.CronJob{},
+			expected: true,
+		},
+		{
+			filter: `controllerName:"foo"`,
+			o: &batchv1.CronJob{
+				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+			},
 			expected: true,
 		},
 		{
@@ -69,6 +118,78 @@ func TestK8sObjectMatcher(t *testing.T) {
 					OwnerReferences: []metav1.OwnerReference{
 						{}, // Having an owner reference makes this Pod "controlled"
 					},
+				},
+			},
+			expected: false,
+		},
+		{
+			filter: `label[app]:"foo"`,
+			o: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": "foo"},
+				},
+			},
+			expected: true,
+		},
+		{
+			filter: `label[app]:"foo"`,
+			o: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": "bar"},
+				},
+			},
+			expected: false,
+		},
+		{
+			filter: `label[app]:"foo"`,
+			o: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{},
+				},
+			},
+			expected: false,
+		},
+		{
+			filter: `label[app]:"foo"`,
+			o: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: nil,
+				},
+			},
+			expected: false,
+		},
+		{
+			filter: `annotation[app]:"foo"`,
+			o: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{"app": "foo"},
+				},
+			},
+			expected: true,
+		},
+		{
+			filter: `annotation[app]:"foo"`,
+			o: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{"app": "bar"},
+				},
+			},
+			expected: false,
+		},
+		{
+			filter: `annotation[app]:"foo"`,
+			o: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{},
+				},
+			},
+			expected: false,
+		},
+		{
+			filter: `annotation[app]:"foo"`,
+			o: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: nil,
 				},
 			},
 			expected: false,
