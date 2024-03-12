@@ -39,6 +39,12 @@ func (rq *RepositoryQuerier) QueryTotal(ctx context.Context, request CostTotalRe
 		return nil, fmt.Errorf("QueryTotal: %w", err)
 	}
 
+	compiler := NewCustomCostMatchCompiler()
+	matcher, err := compiler.Compile(request.Filter)
+	if err != nil {
+		return nil, fmt.Errorf("RepositoryQuerier: Query: failed to compile filters: %w", err)
+	}
+
 	requestWindow := opencost.NewClosedWindow(request.Start, request.End)
 	ccs := NewCustomCostSet(requestWindow)
 	queryStart := request.Start
@@ -54,7 +60,11 @@ func (rq *RepositoryQuerier) QueryTotal(ctx context.Context, request CostTotalRe
 			}
 
 			customCosts := ParseCustomCostResponse(ccResponse)
-			ccs.Add(customCosts)
+			for _, customCost := range customCosts {
+				if matcher.Matches(customCost) {
+					ccs.Add(customCost)
+				}
+			}
 		}
 
 		queryStart = queryEnd

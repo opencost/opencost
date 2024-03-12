@@ -29,14 +29,14 @@ func ParseCustomCostTotalRequest(qp httputil.QueryParams) (*CostTotalRequest, er
 	}
 
 	var filter filter.Filter
-	//filterString := qp.Get("filter", "")
-	//if filterString != "" {
-	//	parser := cloudcost.NewCloudCostFilterParser()
-	//	filter, err = parser.Parse(filterString)
-	//	if err != nil {
-	//		return nil, fmt.Errorf("parsing 'filter' parameter: %s", err)
-	//	}
-	//}
+	filterString := qp.Get("filter", "")
+	if filterString != "" {
+		parser := NewCustomCostFilterParser()
+		filter, err = parser.Parse(filterString)
+		if err != nil {
+			return nil, fmt.Errorf("parsing 'filter' parameter: %s", err)
+		}
+	}
 
 	opts := &CostTotalRequest{
 		Start:       *window.Start(),
@@ -71,14 +71,14 @@ func ParseCustomCostTimeseriesRequest(qp httputil.QueryParams) (*CostTimeseriesR
 	accumulate := opencost.ParseAccumulate(qp.Get("accumulate", ""))
 
 	var filter filter.Filter
-	//filterString := qp.Get("filter", "")
-	//if filterString != "" {
-	//	parser := cloudcost.NewCloudCostFilterParser()
-	//	filter, err = parser.Parse(filterString)
-	//	if err != nil {
-	//		return nil, fmt.Errorf("parsing 'filter' parameter: %s", err)
-	//	}
-	//}
+	filterString := qp.Get("filter", "")
+	if filterString != "" {
+		parser := NewCustomCostFilterParser()
+		filter, err = parser.Parse(filterString)
+		if err != nil {
+			return nil, fmt.Errorf("parsing 'filter' parameter: %s", err)
+		}
+	}
 
 	opts := &CostTimeseriesRequest{
 		Start:       *window.Start(),
