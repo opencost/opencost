@@ -115,9 +115,13 @@ func getCustomCostAccumulateOption(window opencost.Window, from []opencost.Accum
 		return opencost.AccumulateOptionHour, nil
 	}
 
+	dailyStoreDays := env.GetCustomCostQueryWindowDays()
+	dailySteps := time.Duration(dailyStoreDays) * timeutil.Day
+	oldestDaily := time.Now().Add(-1 * dailySteps)
 	// Use daily if...
-	//  (1) daily is an option
-	if hasDaily(from) {
+	//  (1) daily is an option; and
+	//  (2) we have daily store coverage
+	if hasDaily(from) && oldestDaily.Before(*window.Start()) {
 		return opencost.AccumulateOptionDay, nil
 	}
 
