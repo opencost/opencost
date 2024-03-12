@@ -115,7 +115,7 @@ func k8sObjectFieldMap(o runtime.Object, identifier ast.Identifier) (string, err
 		return "", nil
 	}
 
-	return "", fmt.Errorf("Failed to find string identifier on K8sObject: %s", identifier.Field.Name)
+	return "", fmt.Errorf("Failed to find string identifier on K8sObject: %s (consider adding support if this is an expected field)", identifier.Field.Name)
 }
 
 // Maps slice fields from an allocation to a []string value based on an identifier
