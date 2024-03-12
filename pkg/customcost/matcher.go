@@ -36,8 +36,16 @@ func customCostFieldMap(cc *CustomCost, identifier ast.Identifier) (string, erro
 		return cc.AccountName, nil
 	case CustomCostChargeCategoryProp:
 		return cc.ChargeCategory, nil
+	case CustomCostDescriptionProp:
+		return cc.Description, nil
+	case CustomCostResourceNameProp:
+		return cc.ResourceName, nil
 	case CustomCostResourceTypeProp:
 		return cc.ResourceType, nil
+	case CustomCostProviderIdProp:
+		return cc.ProviderId, nil
+	case CustomCostUsageUnitProp:
+		return cc.UsageUnit, nil
 	case CustomCostDomainProp:
 		return cc.Domain, nil
 	}

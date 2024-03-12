@@ -11,7 +11,11 @@ const (
 	CustomCostZoneProp           CustomCostProperty = "zone"
 	CustomCostAccountNameProp                       = "accountName"
 	CustomCostChargeCategoryProp                    = "chargeCategory"
+	CustomCostDescriptionProp                       = "description"
+	CustomCostResourceNameProp                      = "resourceName"
 	CustomCostResourceTypeProp                      = "resourceType"
+	CustomCostProviderIdProp                        = "providerId"
+	CustomCostUsageUnitProp                         = "usageUnit"
 	CustomCostDomainProp                            = "domain"
 )
 
@@ -42,8 +46,16 @@ func ParseCustomCostProperty(text string) (CustomCostProperty, error) {
 		return CustomCostAccountNameProp, nil
 	case strings.TrimSpace(strings.ToLower(CustomCostChargeCategoryProp)):
 		return CustomCostChargeCategoryProp, nil
+	case strings.TrimSpace(strings.ToLower(CustomCostDescriptionProp)):
+		return CustomCostDescriptionProp, nil
+	case strings.TrimSpace(strings.ToLower(CustomCostResourceNameProp)):
+		return CustomCostResourceNameProp, nil
 	case strings.TrimSpace(strings.ToLower(CustomCostResourceTypeProp)):
 		return CustomCostResourceTypeProp, nil
+	case strings.TrimSpace(strings.ToLower(CustomCostProviderIdProp)):
+		return CustomCostProviderIdProp, nil
+	case strings.TrimSpace(strings.ToLower(CustomCostUsageUnitProp)):
+		return CustomCostUsageUnitProp, nil
 	case strings.TrimSpace(strings.ToLower(CustomCostDomainProp)):
 		return CustomCostDomainProp, nil
 	}

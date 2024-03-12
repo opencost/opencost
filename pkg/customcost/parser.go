@@ -8,7 +8,11 @@ var customCostFilterFields = []*ast.Field{
 	ast.NewField(CustomCostZoneProp),
 	ast.NewField(CustomCostAccountNameProp),
 	ast.NewField(CustomCostChargeCategoryProp),
+	ast.NewField(CustomCostDescriptionProp),
+	ast.NewField(CustomCostResourceNameProp),
 	ast.NewField(CustomCostResourceTypeProp),
+	ast.NewField(CustomCostProviderIdProp),
+	ast.NewField(CustomCostUsageUnitProp),
 	ast.NewField(CustomCostDomainProp),
 }
 

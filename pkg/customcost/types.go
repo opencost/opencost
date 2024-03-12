@@ -207,8 +207,16 @@ func generateAggKey(cc *CustomCost, aggregateBy []CustomCostProperty) (string, e
 			aggKey = cc.AccountName
 		} else if agg == CustomCostChargeCategoryProp {
 			aggKey = cc.ChargeCategory
+		} else if agg == CustomCostDescriptionProp {
+			aggKey = cc.Description
+		} else if agg == CustomCostResourceNameProp {
+			aggKey = cc.ResourceName
 		} else if agg == CustomCostResourceTypeProp {
 			aggKey = cc.ResourceType
+		} else if agg == CustomCostProviderIdProp {
+			aggKey = cc.ProviderId
+		} else if agg == CustomCostUsageUnitProp {
+			aggKey = cc.UsageUnit
 		} else if agg == CustomCostDomainProp {
 			aggKey = cc.Domain
 		} else {
