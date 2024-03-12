@@ -8,6 +8,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
+	"github.com/opencost/opencost/pkg/env"
 )
 
 type RepositoryQuerier struct {
@@ -67,8 +68,75 @@ func (rq *RepositoryQuerier) QueryTotal(ctx context.Context, request CostTotalRe
 	return NewCostResponse(ccs), nil
 }
 
+var allSteppedAccumulateOptions = []opencost.AccumulateOption{
+	opencost.AccumulateOptionHour,
+	opencost.AccumulateOptionDay,
+}
+
+func hasHourly(opts []opencost.AccumulateOption) bool {
+	for _, opt := range opts {
+		if opt == opencost.AccumulateOptionHour {
+			return true
+		}
+	}
+
+	return false
+}
+
+func hasDaily(opts []opencost.AccumulateOption) bool {
+	for _, opt := range opts {
+		if opt == opencost.AccumulateOptionDay {
+			return true
+		}
+	}
+
+	return false
+}
+
+// GetCustomCostAccumulateOption determines defaults in a way that matches options presented in the UI
+func getCustomCostAccumulateOption(window opencost.Window, from []opencost.AccumulateOption) (opencost.AccumulateOption, error) {
+	if window.IsOpen() || window.IsNegative() {
+		return opencost.AccumulateOptionNone, fmt.Errorf("invalid window '%s'", window.String())
+	}
+
+	if len(from) == 0 {
+		from = allSteppedAccumulateOptions
+	}
+
+	hourlyStoreHours := env.GetDataRetentionHourlyResolutionHours()
+	hourlySteps := time.Duration(hourlyStoreHours) * time.Hour
+	oldestHourly := time.Now().Add(-1 * hourlySteps)
+
+	// Use hourly if...
+	//  (1) hourly is an option;
+	//  (2) we have hourly store coverage; and
+	//  (3) the window duration is less than the hourly break point.
+	if hasHourly(from) && oldestHourly.Before(*window.Start()) && window.Duration() <= hourlySteps {
+		return opencost.AccumulateOptionHour, nil
+	}
+
+	dailyStoreDays := env.GetCustomCostQueryWindowDays()
+	dailySteps := time.Duration(dailyStoreDays) * timeutil.Day
+	oldestDaily := time.Now().Add(-1 * dailySteps)
+	// Use daily if...
+	//  (1) daily is an option; and
+	//  (2) we have daily store coverage
+	if hasDaily(from) && oldestDaily.Before(*window.Start()) {
+		return opencost.AccumulateOptionDay, nil
+	}
+
+	return opencost.AccumulateOptionNone, fmt.Errorf("no valid accumulate option in %v for %s", from, window)
+}
+
 func (rq *RepositoryQuerier) QueryTimeseries(ctx context.Context, request CostTimeseriesRequest) (*CostTimeseriesResponse, error) {
 	window, _ := opencost.NewClosedWindow(request.Start, request.End).GetAccumulateWindow(request.Accumulate)
+	var err error
+	if request.Accumulate == opencost.AccumulateOptionNone {
+		request.Accumulate, err = getCustomCostAccumulateOption(window, nil)
+		if err != nil {
+			return nil, fmt.Errorf("error determining accumulation option: %v", err)
+		}
+	}
 
 	windows, err := window.GetAccumulateWindows(request.Accumulate)
 	if err != nil {
