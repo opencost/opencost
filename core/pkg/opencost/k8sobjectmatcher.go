@@ -3,8 +3,8 @@ package opencost
 import (
 	"fmt"
 
-	afilter "github.com/opencost/opencost/core/pkg/filter/allocation"
 	"github.com/opencost/opencost/core/pkg/filter/ast"
+	kfilter "github.com/opencost/opencost/core/pkg/filter/k8sobject"
 	"github.com/opencost/opencost/core/pkg/filter/matcher"
 	"github.com/opencost/opencost/core/pkg/filter/transform"
 	appsv1 "k8s.io/api/apps/v1"
@@ -93,28 +93,26 @@ func k8sObjectFieldMap(o runtime.Object, identifier ast.Identifier) (string, err
 	// most k8s-based queries are on Allocation data. The other we will
 	// eventually want to support is Asset, but I'm not sure that I have time
 	// for that right now.
-	field := afilter.AllocationField(identifier.Field.Name)
+	field := kfilter.K8sObjectField(identifier.Field.Name)
 	switch field {
-	case afilter.FieldNamespace:
+	case kfilter.FieldNamespace:
 		return m.Namespace, nil
-	case afilter.FieldControllerName:
+	case kfilter.FieldControllerName:
 		return controllerName, nil
-	case afilter.FieldControllerKind:
+	case kfilter.FieldControllerKind:
 		return controllerKind, nil
-	case afilter.FieldPod:
+	case kfilter.FieldPod:
 		return pod, nil
-	case afilter.FieldLabel:
+	case kfilter.FieldLabel:
 		if m.Labels != nil {
 			return m.Labels[identifier.Key], nil
 		}
 		return "", nil
-	case afilter.FieldAnnotation:
+	case kfilter.FieldAnnotation:
 		if m.Annotations != nil {
 			return m.Annotations[identifier.Key], nil
 		}
 		return "", nil
-	case afilter.FieldServices, afilter.FieldNode, afilter.FieldClusterID, afilter.FieldProvider, afilter.FieldContainer:
-		return "", fmt.Errorf("cannot use Field %s with a K8sObject filter", field)
 	}
 
 	return "", fmt.Errorf("Failed to find string identifier on K8sObject: %s", identifier.Field.Name)
@@ -131,10 +129,10 @@ func k8sObjectMapFieldMap(o runtime.Object, identifier ast.Identifier) (map[stri
 	if err != nil {
 		return nil, fmt.Errorf("retrieving object meta: %w", err)
 	}
-	switch afilter.AllocationField(identifier.Field.Name) {
-	case afilter.FieldLabel:
+	switch kfilter.K8sObjectField(identifier.Field.Name) {
+	case kfilter.FieldLabel:
 		return m.Labels, nil
-	case afilter.FieldAnnotation:
+	case kfilter.FieldAnnotation:
 		return m.Annotations, nil
 	}
 	return nil, fmt.Errorf("Failed to find map[string]string identifier on K8sObject: %s", identifier.Field.Name)
