@@ -48,6 +48,8 @@ func customCostFieldMap(cc *CustomCost, identifier ast.Identifier) (string, erro
 		return cc.UsageUnit, nil
 	case CustomCostDomainProp:
 		return cc.Domain, nil
+	case CustomCostCostSourceProp:
+		return cc.CostSource, nil
 	}
 
 	return "", fmt.Errorf("failed to find string identifier on CustomCost: %s", identifier.Field.Name)
