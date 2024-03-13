@@ -1,5 +1,9 @@
 package asset
 
+import (
+	"github.com/opencost/opencost/core/pkg/filter/fieldstrings"
+)
+
 // AssetField is an enum that represents Asset-specific fields that can be
 // filtered on (namespace, label, etc.)
 type AssetField string
@@ -7,16 +11,16 @@ type AssetField string
 // If you add a AssetField, make sure to update field maps to return the correct
 // Asset value does not enforce exhaustive pattern matching on "enum" types.
 const (
-	FieldName       AssetField = "name"
-	FieldType       AssetField = "assetType"
-	FieldCategory   AssetField = "category"
-	FieldClusterID  AssetField = "cluster"
-	FieldProject    AssetField = "project"
-	FieldProvider   AssetField = "provider"
-	FieldProviderID AssetField = "providerID"
-	FieldAccount    AssetField = "account"
-	FieldService    AssetField = "service"
-	FieldLabel      AssetField = "label"
+	FieldName       AssetField = AssetField(fieldstrings.FieldName)
+	FieldType       AssetField = AssetField(fieldstrings.FieldType)
+	FieldCategory   AssetField = AssetField(fieldstrings.FieldCategory)
+	FieldClusterID  AssetField = AssetField(fieldstrings.FieldClusterID)
+	FieldProject    AssetField = AssetField(fieldstrings.FieldProject)
+	FieldProvider   AssetField = AssetField(fieldstrings.FieldProvider)
+	FieldProviderID AssetField = AssetField(fieldstrings.FieldProviderID)
+	FieldAccount    AssetField = AssetField(fieldstrings.FieldAccount)
+	FieldService    AssetField = AssetField(fieldstrings.FieldService)
+	FieldLabel      AssetField = AssetField(fieldstrings.FieldLabel)
 )
 
 // AssetAlias represents an alias field type for assets.
@@ -27,9 +31,9 @@ const (
 type AssetAlias string
 
 const (
-	DepartmentProp  AssetAlias = "department"
-	EnvironmentProp AssetAlias = "environment"
-	OwnerProp       AssetAlias = "owner"
-	ProductProp     AssetAlias = "product"
-	TeamProp        AssetAlias = "team"
+	DepartmentProp  AssetAlias = AssetAlias(fieldstrings.AliasDepartment)
+	EnvironmentProp AssetAlias = AssetAlias(fieldstrings.AliasEnvironment)
+	OwnerProp       AssetAlias = AssetAlias(fieldstrings.AliasOwner)
+	ProductProp     AssetAlias = AssetAlias(fieldstrings.AliasProduct)
+	TeamProp        AssetAlias = AssetAlias(fieldstrings.AliasTeam)
 )

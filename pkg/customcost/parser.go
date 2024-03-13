@@ -14,6 +14,7 @@ var customCostFilterFields = []*ast.Field{
 	ast.NewField(CustomCostProviderIdProp),
 	ast.NewField(CustomCostUsageUnitProp),
 	ast.NewField(CustomCostDomainProp),
+	ast.NewField(CustomCostCostSourceProp),
 }
 
 // NewCustomCostFilterParser creates a new `ast.FilterParser` implementation

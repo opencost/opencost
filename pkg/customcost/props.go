@@ -17,6 +17,7 @@ const (
 	CustomCostProviderIdProp                        = "providerId"
 	CustomCostUsageUnitProp                         = "usageUnit"
 	CustomCostDomainProp                            = "domain"
+	CustomCostCostSourceProp                        = "costSource"
 )
 
 func ParseCustomCostProperties(props []string) ([]CustomCostProperty, error) {
@@ -58,6 +59,8 @@ func ParseCustomCostProperty(text string) (CustomCostProperty, error) {
 		return CustomCostUsageUnitProp, nil
 	case strings.TrimSpace(strings.ToLower(CustomCostDomainProp)):
 		return CustomCostDomainProp, nil
+	case strings.TrimSpace(strings.ToLower(CustomCostCostSourceProp)):
+		return CustomCostCostSourceProp, nil
 	}
 
 	return "", fmt.Errorf("invalid custom cost property: %s", text)
