@@ -48,6 +48,7 @@ type CustomCost struct {
 	UsageQuantity  float32 `json:"usage_quantity"`
 	UsageUnit      string  `json:"usage_unit"`
 	Domain         string  `json:"domain"`
+	CostSource     string  `json:"cost_source"`
 	Aggregate      string  `json:"aggregate"`
 }
 
@@ -91,6 +92,7 @@ func ParseCustomCostResponse(ccResponse *pb.CustomCostResponse) []*CustomCost {
 			UsageQuantity:  cost.GetUsageQuantity(),
 			UsageUnit:      cost.GetUsageUnit(),
 			Domain:         ccResponse.GetDomain(),
+			CostSource:     ccResponse.GetCostSource(),
 		}
 	}
 
@@ -143,6 +145,10 @@ func (cc *CustomCost) Add(other *CustomCost) {
 
 	if cc.Domain != other.Domain {
 		cc.Domain = ""
+	}
+
+	if cc.CostSource != other.CostSource {
+		cc.CostSource = ""
 	}
 
 	if cc.Aggregate != other.Aggregate {
@@ -219,6 +225,8 @@ func generateAggKey(cc *CustomCost, aggregateBy []CustomCostProperty) (string, e
 			aggKey = cc.UsageUnit
 		} else if agg == CustomCostDomainProp {
 			aggKey = cc.Domain
+		} else if agg == CustomCostCostSourceProp {
+			aggKey = cc.CostSource
 		} else {
 			return "", fmt.Errorf("unsupported aggregation type: %s", agg)
 		}
