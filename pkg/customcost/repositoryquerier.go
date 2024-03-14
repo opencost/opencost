@@ -135,6 +135,10 @@ func getCustomCostAccumulateOption(window opencost.Window, from []opencost.Accum
 		return opencost.AccumulateOptionDay, nil
 	}
 
+	if oldestDaily.After(*window.Start()) {
+		return opencost.AccumulateOptionNone, fmt.Errorf("data store does not have coverage for %v", window)
+	}
+
 	return opencost.AccumulateOptionNone, fmt.Errorf("no valid accumulate option in %v for %s", from, window)
 }
 
