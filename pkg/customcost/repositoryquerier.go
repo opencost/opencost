@@ -125,7 +125,7 @@ func getCustomCostAccumulateOption(window opencost.Window, from []opencost.Accum
 		return opencost.AccumulateOptionHour, nil
 	}
 
-	dailyStoreDays := env.GetCustomCostQueryWindowDays()
+	dailyStoreDays := env.GetDataRetentionDailyResolutionDays()
 	dailySteps := time.Duration(dailyStoreDays) * timeutil.Day
 	oldestDaily := time.Now().Add(-1 * dailySteps)
 	// Use daily if...
@@ -133,6 +133,10 @@ func getCustomCostAccumulateOption(window opencost.Window, from []opencost.Accum
 	//  (2) we have daily store coverage
 	if hasDaily(from) && oldestDaily.Before(*window.Start()) {
 		return opencost.AccumulateOptionDay, nil
+	}
+
+	if oldestDaily.After(*window.Start()) {
+		return opencost.AccumulateOptionNone, fmt.Errorf("data store does not have coverage for %v", window)
 	}
 
 	return opencost.AccumulateOptionNone, fmt.Errorf("no valid accumulate option in %v for %s", from, window)
