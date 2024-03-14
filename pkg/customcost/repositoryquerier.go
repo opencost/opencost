@@ -125,7 +125,7 @@ func getCustomCostAccumulateOption(window opencost.Window, from []opencost.Accum
 		return opencost.AccumulateOptionHour, nil
 	}
 
-	dailyStoreDays := env.GetCustomCostQueryWindowDays()
+	dailyStoreDays := env.GetDataRetentionDailyResolutionDays()
 	dailySteps := time.Duration(dailyStoreDays) * timeutil.Day
 	oldestDaily := time.Now().Add(-1 * dailySteps)
 	// Use daily if...
