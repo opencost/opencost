@@ -642,7 +642,7 @@ func GetRegionOverrideList() []string {
 }
 
 func GetDataRetentionDailyResolutionDays() int64 {
-	return env.GetInt64(DataRetentionDailyResolutionDaysEnvVar, 15)
+	return env.GetInt64(DataRetentionDailyResolutionDaysEnvVar, 30)
 }
 
 func GetDataRetentionHourlyResolutionHours() int64 {
