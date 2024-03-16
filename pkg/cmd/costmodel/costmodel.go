@@ -64,6 +64,9 @@ func Execute(opts *CostModelOpts) error {
 		a.Router.GET("/allocation", a.ComputeAllocationHandler)
 		a.Router.GET("/allocation/summary", a.ComputeAllocationHandlerSummary)
 		a.Router.GET("/assets", a.ComputeAssetsHandler)
+		if env.IsCarbonEstimatesEnabled() {
+			a.Router.GET("/assets/carbon", a.ComputeAssetsCarbonHandler)
+		}
 	}
 
 	a.Router.GET("/cloudCost", a.CloudCostQueryService.GetCloudCostHandler())
