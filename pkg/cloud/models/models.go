@@ -197,7 +197,9 @@ type CustomPricing struct {
 	GoogleAnalyticsTag           string `json:"googleAnalyticsTag"`
 	ExcludeProviderID            string `json:"excludeProviderID"`
 	DefaultLBPrice               string `json:"defaultLBPrice"`
-	CarbonEstimates              string `json:"carbonEstimates"`
+	// CarbonEstimates a string-encoded bool describing whether carbon
+	// cost estimation is enabled for Kubecost.
+	CarbonEstimates string `json:"carbonEstimates"`
 }
 
 // GetSharedOverheadCostPerMonth parses and returns a float64 representation
