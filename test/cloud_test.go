@@ -36,7 +36,7 @@ func TestRegionValueFromMapField(t *testing.T) {
 	n := &v1.Node{}
 	n.Spec.ProviderID = "azure:///subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/MC_test_test_eastus/providers/Microsoft.Compute/virtualMachines/aks-agentpool-20139558-0"
 	n.Labels = make(map[string]string)
-	n.Labels[v1.LabelZoneRegion] = wantRegion
+	n.Labels[v1.LabelTopologyRegion] = wantRegion
 	got := provider.NodeValueFromMapField(providerIDMap, n, true)
 	if got != providerIDWant {
 		t.Errorf("Assert on '%s' want '%s' got '%s'", providerIDMap, providerIDWant, got)
@@ -314,7 +314,7 @@ func TestNodePriceFromCSV(t *testing.T) {
 	unknownN.Name = "unknownname"
 	unknownN.Labels = make(map[string]string)
 	unknownN.Labels["foo"] = labelFooWant
-	unknownN.Labels["topology.kubernetes.io/region"] = "fakeregion"
+	unknownN.Labels[v1.LabelTopologyRegion] = "fakeregion"
 	k2 := c.GetKey(unknownN.Labels, unknownN)
 	resN2, _, _ := c.NodePricing(k2)
 	if resN2 != nil {
@@ -348,7 +348,7 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	n.Name = nameWant
 	n.Labels = make(map[string]string)
 	n.Labels["foo"] = labelFooWant
-	n.Labels[v1.LabelZoneRegion] = "regionone"
+	n.Labels[v1.LabelTopologyRegion] = "regionone"
 	wantPrice := "0.133700"
 
 	n2 := &v1.Node{}
@@ -356,7 +356,7 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	n2.Name = nameWant
 	n2.Labels = make(map[string]string)
 	n2.Labels["foo"] = labelFooWant
-	n2.Labels[v1.LabelZoneRegion] = "regiontwo"
+	n2.Labels[v1.LabelTopologyRegion] = "regiontwo"
 	wantPrice2 := "0.133800"
 
 	n3 := &v1.Node{}
@@ -364,7 +364,7 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	n3.Name = nameWant
 	n3.Labels = make(map[string]string)
 	n3.Labels["foo"] = labelFooWant
-	n3.Labels[v1.LabelZoneRegion] = "fakeregion"
+	n3.Labels[v1.LabelTopologyRegion] = "fakeregion"
 	wantPrice3 := "0.1339"
 
 	c := &provider.CSVProvider{
@@ -415,7 +415,7 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	unknownN.Spec.ProviderID = "fake providerID"
 	unknownN.Name = "unknownname"
 	unknownN.Labels = make(map[string]string)
-	unknownN.Labels["topology.kubernetes.io/region"] = "fakeregion"
+	unknownN.Labels[v1.LabelTopologyRegion] = "fakeregion"
 	unknownN.Labels["foo"] = labelFooWant
 	k4 := c.GetKey(unknownN.Labels, unknownN)
 	resN4, _, _ := c.NodePricing(k4)
@@ -478,7 +478,7 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 	n.Name = "nameWant"
 	n.Labels = make(map[string]string)
 	n.Labels["foo"] = "labelFooWant"
-	n.Labels[v1.LabelZoneRegion] = "regionone"
+	n.Labels[v1.LabelTopologyRegion] = "regionone"
 
 	fc := NewFakeNodeCache([]*v1.Node{n})
 	fm := FakeClusterMap{}
@@ -512,12 +512,12 @@ func TestSourceMatchesFromCSV(t *testing.T) {
 	n.Name = "nameWant"
 	n.Labels = make(map[string]string)
 	n.Labels["foo"] = "labelFooWant"
-	n.Labels[v1.LabelZoneRegion] = "regionone"
+	n.Labels[v1.LabelTopologyRegion] = "regionone"
 
 	n2 := &v1.Node{}
 	n2.Spec.ProviderID = "azure:///subscriptions/123a7sd-asd-1234-578a9-123abcdef/resourceGroups/case_12_STaGe_TeSt7/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-agent-worker0-12stagetest7-ezggnore/virtualMachines/7"
 	n2.Labels = make(map[string]string)
-	n2.Labels[v1.LabelZoneRegion] = "eastus2"
+	n2.Labels[v1.LabelTopologyRegion] = "eastus2"
 	n2.Labels["foo"] = "labelFooWant"
 
 	k := c.GetKey(n2.Labels, n2)
@@ -536,8 +536,8 @@ func TestSourceMatchesFromCSV(t *testing.T) {
 	n3.Spec.ProviderID = "fake"
 	n3.Name = "nameWant"
 	n3.Labels = make(map[string]string)
-	n.Labels[v1.LabelZoneRegion] = "eastus2"
-	n.Labels[v1.LabelInstanceType] = "Standard_F32s_v2"
+	n3.Labels[v1.LabelTopologyRegion] = "eastus2"
+	n3.Labels[v1.LabelInstanceTypeStable] = "Standard_F32s_v2"
 
 	fc := NewFakeNodeCache([]*v1.Node{n, n2, n3})
 	fm := FakeClusterMap{}
@@ -571,7 +571,7 @@ func TestNodePriceFromCSVWithCase(t *testing.T) {
 	n := &v1.Node{}
 	n.Spec.ProviderID = "azure:///subscriptions/123a7sd-asd-1234-578a9-123abcdef/resourceGroups/case_12_STaGe_TeSt7/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-agent-worker0-12stagetest7-ezggnore/virtualMachines/7"
 	n.Labels = make(map[string]string)
-	n.Labels[v1.LabelZoneRegion] = "eastus2"
+	n.Labels[v1.LabelTopologyRegion] = "eastus2"
 	wantPrice := "0.13370357"
 
 	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
@@ -662,8 +662,8 @@ func TestNodePriceFromCSVByClass(t *testing.T) {
 	n := &v1.Node{}
 	n.Spec.ProviderID = "fakeproviderid"
 	n.Labels = make(map[string]string)
-	n.Labels[v1.LabelZoneRegion] = "eastus2"
-	n.Labels[v1.LabelInstanceType] = "Standard_F32s_v2"
+	n.Labels[v1.LabelTopologyRegion] = "eastus2"
+	n.Labels[v1.LabelInstanceTypeStable] = "Standard_F32s_v2"
 	wantpricefloat := 0.13370357
 	wantPrice := fmt.Sprintf("%f", (math.Round(wantpricefloat*1000000) / 1000000))
 
@@ -694,8 +694,8 @@ func TestNodePriceFromCSVByClass(t *testing.T) {
 	n2 := &v1.Node{}
 	n2.Spec.ProviderID = "fakeproviderid"
 	n2.Labels = make(map[string]string)
-	n2.Labels[v1.LabelZoneRegion] = "fakeregion"
-	n2.Labels[v1.LabelInstanceType] = "Standard_F32s_v2"
+	n2.Labels[v1.LabelTopologyRegion] = "fakeregion"
+	n2.Labels[v1.LabelInstanceTypeStable] = "Standard_F32s_v2"
 	k2 := c.GetKey(n2.Labels, n)
 
 	c.DownloadPricingData()
