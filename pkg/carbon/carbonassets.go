@@ -17,6 +17,7 @@ var f embed.FS
 var carbonLookupNode map[interface{}]float64
 var carbonLookupDisk map[interface{}]float64
 
+// Opencost does not build network types
 var carbonValidInstanceTypes map[string]string
 var carbonValidRegions map[string]string
 
@@ -31,7 +32,7 @@ func init() {
 	reader := csv.NewReader(strings.NewReader(string(carbonData)))
 
 	// skip header
-	reader.Read()
+	_, err = reader.Read()
 	if err != nil {
 		log.Errorf("Error reading carbon lookup data: %s", err)
 		return
@@ -123,11 +124,10 @@ func RelateCarbonAssets(as *opencost.AssetSet) (map[string]CarbonRow, error) {
 			log.DedupedErrorf(10, "Cannot infer region information for asset '%s'", asset.GetProperties().ProviderID)
 		}
 
-		var foundCarbonCoeff bool
 		var carbonCoeff float64
 		switch asset.Type() {
 		case opencost.NodeAssetType:
-			carbonCoeff, foundCarbonCoeff = carbonLookupNode[struct {
+			carbonCoeff = carbonLookupNode[struct {
 				provider     string
 				region       string
 				instanceType string
@@ -137,7 +137,7 @@ func RelateCarbonAssets(as *opencost.AssetSet) (map[string]CarbonRow, error) {
 				instanceType: instanceType,
 			}]
 		case opencost.DiskAssetType:
-			carbonCoeff, foundCarbonCoeff = carbonLookupDisk[struct {
+			carbonCoeff = carbonLookupDisk[struct {
 				provider string
 				region   string
 			}{
@@ -146,14 +146,8 @@ func RelateCarbonAssets(as *opencost.AssetSet) (map[string]CarbonRow, error) {
 			}]
 		}
 
-		if !foundCarbonCoeff {
-
-			carbonCoeff = 0
-
-		}
-
 		res[key] = CarbonRow{
-			Co2e: carbonCoeff * asset.GetWindow().Duration().Hours(),
+			Co2e: carbonCoeff * asset.Minutes() / 60,
 		}
 
 	}
