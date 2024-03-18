@@ -13,6 +13,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/filter/asset"
 	"github.com/opencost/opencost/core/pkg/filter/ast"
 	"github.com/opencost/opencost/core/pkg/filter/cloudcost"
+	"github.com/opencost/opencost/core/pkg/filter/k8sobject"
 	"github.com/opencost/opencost/core/pkg/util/typeutil"
 )
 
@@ -29,6 +30,7 @@ var defaultFieldByType = map[string]any{
 	typeutil.TypeOf[allocation.AllocationField](): allocation.DefaultFieldByName,
 	typeutil.TypeOf[asset.AssetField]():           asset.DefaultFieldByName,
 	typeutil.TypeOf[cloudcost.CloudCostField]():   cloudcost.DefaultFieldByName,
+	typeutil.TypeOf[k8sobject.K8sObjectField]():   k8sobject.DefaultFieldByName,
 	// typeutil.TypeOf[containerstats.ContainerStatsField](): containerstats.DefaultFieldByName,
 }
 
