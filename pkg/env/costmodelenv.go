@@ -134,6 +134,8 @@ const (
 	PluginExecutableDirEnvVar = "PLUGIN_EXECUTABLE_DIR"
 
 	OCIPricingURL = "OCI_PRICING_URL"
+
+	CarbonEstimatesEnabledEnvVar = "CARBON_ESTIMATES_ENABLED"
 )
 
 const DefaultConfigMountPath = "/var/configs"
@@ -703,4 +705,8 @@ func GetPluginExecutableDir() string {
 
 func GetCustomCostRefreshRateHours() string {
 	return env.Get(CustomCostRefreshRateHoursEnvVar, "12h")
+}
+
+func IsCarbonEstimatesEnabled() bool {
+	return env.GetBool(CarbonEstimatesEnabledEnvVar, false)
 }
