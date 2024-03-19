@@ -3,6 +3,7 @@ package carbon
 import (
 	"embed"
 	"encoding/csv"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -14,8 +15,19 @@ import (
 //go:embed carbonlookupdata.csv
 var f embed.FS
 
-var carbonLookupNode map[interface{}]float64
-var carbonLookupDisk map[interface{}]float64
+type carbonLookupKeyDisk struct {
+	provider string
+	region   string
+}
+
+type carbonLookupKeyNode struct {
+	provider     string
+	region       string
+	instanceType string
+}
+
+var carbonLookupNode map[carbonLookupKeyNode]float64
+var carbonLookupDisk map[carbonLookupKeyDisk]float64
 
 // Opencost does not build network types
 var carbonValidInstanceTypes map[string]string
@@ -44,8 +56,8 @@ func init() {
 		return
 	}
 
-	carbonLookupNode = make(map[interface{}]float64)
-	carbonLookupDisk = make(map[interface{}]float64)
+	carbonLookupNode = make(map[carbonLookupKeyNode]float64)
+	carbonLookupDisk = make(map[carbonLookupKeyDisk]float64)
 
 	carbonValidInstanceTypes = make(map[string]string)
 	carbonValidRegions = make(map[string]string)
@@ -54,7 +66,7 @@ func init() {
 
 		if coeff, err := strconv.ParseFloat(carbonItem[5], 64); err != nil {
 
-			log.DedupedWarningf(5, "Error setting carbon lookup item: malformed carbon cost '%s'", carbonItem[5])
+			panic(fmt.Errorf("error setting up carbon lookup table: malformed carbon cost '%s'", carbonItem[5]))
 
 		} else {
 
@@ -65,20 +77,13 @@ func init() {
 
 			switch assetType {
 			case "Node":
-				carbonLookupNode[struct {
-					provider     string
-					region       string
-					instanceType string
-				}{
+				carbonLookupNode[carbonLookupKeyNode{
 					provider:     provider,
 					region:       region,
 					instanceType: instanceType,
 				}] = coeff
 			case "Disk":
-				carbonLookupDisk[struct {
-					provider string
-					region   string
-				}{
+				carbonLookupDisk[carbonLookupKeyDisk{
 					provider: provider,
 					region:   region,
 				}] = coeff
@@ -121,26 +126,21 @@ func RelateCarbonAssets(as *opencost.AssetSet) (map[string]CarbonRow, error) {
 		if provider == "" && region != "average-region" {
 			provider = carbonValidRegions[region]
 		} else {
-			log.DedupedErrorf(10, "Cannot infer region information for asset '%s'", asset.GetProperties().ProviderID)
+			if asset.Type() == opencost.NodeAssetType || asset.Type() == opencost.DiskAssetType {
+				log.DedupedErrorf(10, "Cannot infer region information for asset '%s'", asset.GetProperties().ProviderID)
+			}
 		}
 
 		var carbonCoeff float64
 		switch asset.Type() {
 		case opencost.NodeAssetType:
-			carbonCoeff = carbonLookupNode[struct {
-				provider     string
-				region       string
-				instanceType string
-			}{
+			carbonCoeff = carbonLookupNode[carbonLookupKeyNode{
 				provider:     provider,
 				region:       region,
 				instanceType: instanceType,
 			}]
 		case opencost.DiskAssetType:
-			carbonCoeff = carbonLookupDisk[struct {
-				provider string
-				region   string
-			}{
+			carbonCoeff = carbonLookupDisk[carbonLookupKeyDisk{
 				provider: provider,
 				region:   region,
 			}]
