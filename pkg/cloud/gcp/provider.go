@@ -164,7 +164,7 @@ func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 		return nil, err
 	}
 	if c.Discount == "" {
-		c.Discount = "30%"
+		c.Discount = "0%"
 	}
 	if c.NegotiatedDiscount == "" {
 		c.NegotiatedDiscount = "0%"
