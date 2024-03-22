@@ -462,17 +462,21 @@ func (s3 *S3Storage) List(path string) ([]*StorageInfo, error) {
 		if object.Err != nil {
 			return nil, object.Err
 		}
-		// This sometimes happens with empty buckets.
-		if object.Key == "" {
-			continue
-		}
+
 		// The s3 client can also return the directory itself in the ListObjects call above.
 		if object.Key == path {
 			continue
 		}
 
+		name := trimName(object.Key)
+
+		// This sometimes happens with empty buckets.
+		if name == "" {
+			continue
+		}
+
 		stats = append(stats, &StorageInfo{
-			Name:    trimName(object.Key),
+			Name:    name,
 			Size:    object.Size,
 			ModTime: object.LastModified,
 		})
