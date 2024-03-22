@@ -225,7 +225,7 @@ func (ctx *Context) RawQuery(query string, t time.Time) ([]byte, error) {
 	statusCode := resp.StatusCode
 	statusText := http.StatusText(statusCode)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, CommErrorf("%d (%s) URL: '%s', Request Headers: '%s', Headers: '%s', Body: '%s' Query: '%s'", statusCode, statusText, req.URL, req.Header, httputil.HeaderString(resp.Header), body, query)
+		return nil, CommErrorf("%d (%s) URL: '%s', Body: '%s' Query: '%s'", statusCode, statusText, req.URL, body, query)
 	}
 
 	return body, err
@@ -354,14 +354,14 @@ func (ctx *Context) RawQueryRange(query string, start, end time.Time, step time.
 			return nil, fmt.Errorf("Error: %s, Body: %s Query: %s", err.Error(), body, query)
 		}
 
-		return nil, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", resp.StatusCode, http.StatusText(resp.StatusCode), httputil.HeaderString(resp.Header), body, err.Error(), query)
+		return nil, fmt.Errorf("%d (%s) Error: %s Body: %s Query: %s", resp.StatusCode, http.StatusText(resp.StatusCode), body, err.Error(), query)
 	}
 
 	// Unsuccessful Status Code, log body and status
 	statusCode := resp.StatusCode
 	statusText := http.StatusText(statusCode)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, CommErrorf("%d (%s) Headers: %s, Body: %s Query: %s", statusCode, statusText, httputil.HeaderString(resp.Header), body, query)
+		return nil, CommErrorf("%d (%s) Body: %s Query: %s", statusCode, statusText, body, query)
 	}
 
 	return body, err
