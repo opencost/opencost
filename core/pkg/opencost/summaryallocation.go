@@ -869,6 +869,8 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 				sa.GPUCost += idle.GPUCost * gpuCoeff
 				sa.RAMCost += idle.RAMCost * ramCoeff
 			}
+		} else {
+			log.Errorf("SummaryAllocations: idle allocation is empty")
 		}
 
 		// The key becomes the allocation's name, which is used as the key by
@@ -935,6 +937,8 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 				sa.RAMCost += idle.RAMCost * ramCoeff
 			}
 		}
+	} else {
+		log.Warnf("SummaryAllocations: shared allocation and idle allocation are empty")
 	}
 
 	// 10. Apply idle filtration, which "filters" the idle cost, i.e. scales

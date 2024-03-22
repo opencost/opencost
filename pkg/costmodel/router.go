@@ -1243,6 +1243,8 @@ func (a *Accesses) GetInstallInfo(w http.ResponseWriter, r *http.Request, _ http
 				info.Containers = append(info.Containers, c)
 			}
 		}
+	} else {
+		log.Infof("Empty list of pods")
 	}
 
 	nodes := a.ClusterCache.GetAllNodes()
