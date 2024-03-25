@@ -104,7 +104,7 @@ func hasDaily(opts []opencost.AccumulateOption) bool {
 }
 
 // GetCustomCostAccumulateOption determines defaults in a way that matches options presented in the UI
-func getCustomCostAccumulateOption(window opencost.Window, from []opencost.AccumulateOption) (opencost.AccumulateOption, error) {
+func GetCustomCostAccumulateOption(window opencost.Window, from []opencost.AccumulateOption) (opencost.AccumulateOption, error) {
 	if window.IsOpen() || window.IsNegative() {
 		return opencost.AccumulateOptionNone, fmt.Errorf("invalid window '%s'", window.String())
 	}
@@ -129,9 +129,9 @@ func getCustomCostAccumulateOption(window opencost.Window, from []opencost.Accum
 	dailySteps := time.Duration(dailyStoreDays) * timeutil.Day
 	oldestDaily := time.Now().Add(-1 * dailySteps)
 	// Use daily if...
-	//  (1) daily is an option; and
-	//  (2) we have daily store coverage
-	if hasDaily(from) && oldestDaily.Before(*window.Start()) {
+	//  (1) daily is an option
+	// It is acceptable to query a range for which we only have partial data
+	if hasDaily(from) {
 		return opencost.AccumulateOptionDay, nil
 	}
 
@@ -146,7 +146,7 @@ func (rq *RepositoryQuerier) QueryTimeseries(ctx context.Context, request CostTi
 	window, _ := opencost.NewClosedWindow(request.Start, request.End).GetAccumulateWindow(request.Accumulate)
 	var err error
 	if request.Accumulate == opencost.AccumulateOptionNone {
-		request.Accumulate, err = getCustomCostAccumulateOption(window, nil)
+		request.Accumulate, err = GetCustomCostAccumulateOption(window, nil)
 		if err != nil {
 			return nil, fmt.Errorf("error determining accumulation option: %v", err)
 		}

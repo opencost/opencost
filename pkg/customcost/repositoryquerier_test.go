@@ -52,8 +52,8 @@ func TestGetCustomCostAccumulateOption(t *testing.T) {
 		"out of range": {
 			window:  opencost.NewClosedWindow(midnight.Add(-timeutil.Day*120), midnight.Add(-timeutil.Day*30)),
 			from:    nil,
-			want:    opencost.AccumulateOptionNone,
-			wantErr: true,
+			want:    opencost.AccumulateOptionDay,
+			wantErr: false,
 		},
 		"daily from daily, monthly": {
 			window: opencost.NewClosedWindow(nextHour.Add(-time.Hour*24), nextHour),
@@ -67,7 +67,7 @@ func TestGetCustomCostAccumulateOption(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			got, err := getCustomCostAccumulateOption(tt.window, tt.from)
+			got, err := GetCustomCostAccumulateOption(tt.window, tt.from)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetAccumulateOption() error = %v, wantErr %v", err, tt.wantErr)
 				return
