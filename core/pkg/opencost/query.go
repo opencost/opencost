@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	filter21 "github.com/opencost/opencost/core/pkg/filter"
+	"github.com/opencost/opencost/core/pkg/filter"
 )
 
 // Querier is an aggregate interface which has the ability to query each Kubecost store type
@@ -12,7 +12,6 @@ type Querier interface {
 	AllocationQuerier
 	SummaryAllocationQuerier
 	AssetQuerier
-	CloudUsageQuerier
 }
 
 // AllocationQuerier interface defining api for requesting Allocation data
@@ -30,32 +29,26 @@ type AssetQuerier interface {
 	QueryAsset(start, end time.Time, opts *AssetQueryOptions) (*AssetSetRange, error)
 }
 
-// CloudUsageQuerier interface defining api for requesting CloudUsage data
-type CloudUsageQuerier interface {
-	QueryCloudUsage(start, end time.Time, opts *CloudUsageQueryOptions) (*CloudUsageSetRange, error)
-}
-
 // AllocationQueryOptions defines optional parameters for querying an Allocation Store
 type AllocationQueryOptions struct {
-	Accumulate              AccumulateOption
-	AggregateBy             []string
-	Compute                 bool
-	DisableAggregatedStores bool
-	Filter                  filter21.Filter
-	IdleByNode              bool
-	IncludeExternal         bool
-	IncludeIdle             bool
-	LabelConfig             *LabelConfig
-	MergeUnallocated        bool
-	Reconcile               bool
-	ReconcileNetwork        bool
-	ShareFuncs              []AllocationMatchFunc
-	SharedHourlyCosts       map[string]float64
-	ShareIdle               string
-	ShareSplit              string
-	ShareTenancyCosts       bool
-	SplitIdle               bool
-	Step                    time.Duration
+	Accumulate        AccumulateOption
+	AggregateBy       []string
+	Compute           bool
+	Filter            filter.Filter
+	IdleByNode        bool
+	IncludeExternal   bool
+	IncludeIdle       bool
+	LabelConfig       *LabelConfig
+	MergeUnallocated  bool
+	Reconcile         bool
+	ReconcileNetwork  bool
+	ShareFuncs        []AllocationMatchFunc
+	SharedHourlyCosts map[string]float64
+	ShareIdle         string
+	ShareSplit        string
+	ShareTenancyCosts bool
+	SplitIdle         bool
+	Step              time.Duration
 }
 
 type AccumulateOption string
@@ -94,36 +87,15 @@ func ParseAccumulate(acc string) AccumulateOption {
 
 // AssetQueryOptions defines optional parameters for querying an Asset Store
 type AssetQueryOptions struct {
-	Accumulate              bool
-	AggregateBy             []string
-	Compute                 bool
-	DisableAdjustments      bool
-	DisableAggregatedStores bool
-	Filter                  filter21.Filter
-	IncludeCloud            bool
-	SharedHourlyCosts       map[string]float64
-	Step                    time.Duration
-	LabelConfig             *LabelConfig
-}
-
-// CloudUsageQueryOptions define optional parameters for querying a Store
-type CloudUsageQueryOptions struct {
-	Accumulate   bool
-	AggregateBy  []string
-	Compute      bool
-	Filter       filter21.Filter
-	FilterValues CloudUsageFilter
-	LabelConfig  *LabelConfig
-}
-
-type CloudUsageFilter struct {
-	Categories  []string            `json:"categories"`
-	Providers   []string            `json:"providers"`
-	ProviderIDs []string            `json:"providerIDs"`
-	Accounts    []string            `json:"accounts"`
-	Projects    []string            `json:"projects"`
-	Services    []string            `json:"services"`
-	Labels      map[string][]string `json:"labels"`
+	Accumulate         bool
+	AggregateBy        []string
+	Compute            bool
+	DisableAdjustments bool
+	Filter             filter.Filter
+	IncludeCloud       bool
+	SharedHourlyCosts  map[string]float64
+	Step               time.Duration
+	LabelConfig        *LabelConfig
 }
 
 // QueryAllocationAsync provide a functions for retrieving results from any AllocationQuerier Asynchronously
@@ -187,25 +159,4 @@ func QueryAssetAsync(assetQuerier AssetQuerier, start, end time.Time, opts *Asse
 	}(asrCh, errCh)
 
 	return asrCh, errCh
-}
-
-// QueryCloudUsageAsync provide a functions for retrieving results from any CloudUsageQuerier Asynchronously
-func QueryCloudUsageAsync(cloudUsageQuerier CloudUsageQuerier, start, end time.Time, opts *CloudUsageQueryOptions) (chan *CloudUsageSetRange, chan error) {
-	cusrCh := make(chan *CloudUsageSetRange)
-	errCh := make(chan error)
-
-	go func(cusrCh chan *CloudUsageSetRange, errCh chan error) {
-		defer close(cusrCh)
-		defer close(errCh)
-
-		cusr, err := cloudUsageQuerier.QueryCloudUsage(start, end, opts)
-		if err != nil {
-			errCh <- err
-			return
-		}
-
-		cusrCh <- cusr
-	}(cusrCh, errCh)
-
-	return cusrCh, errCh
 }

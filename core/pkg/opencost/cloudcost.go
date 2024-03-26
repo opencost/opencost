@@ -7,7 +7,6 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/filter"
 	"github.com/opencost/opencost/core/pkg/filter/ast"
-	legacyfilter "github.com/opencost/opencost/core/pkg/filter/legacy"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
@@ -279,27 +278,7 @@ func (ccs *CloudCostSet) Equal(that *CloudCostSet) bool {
 	return true
 }
 
-func (ccs *CloudCostSet) Filter(filters legacyfilter.Filter[*CloudCost]) *CloudCostSet {
-	if ccs == nil {
-		return nil
-	}
-
-	if filters == nil {
-		return ccs.Clone()
-	}
-
-	result := ccs.cloneSet()
-
-	for _, cc := range ccs.CloudCosts {
-		if filters.Matches(cc) {
-			result.Insert(cc.Clone())
-		}
-	}
-
-	return result
-}
-
-func (ccs *CloudCostSet) Filter21(filters filter.Filter) (*CloudCostSet, error) {
+func (ccs *CloudCostSet) Filter(filters filter.Filter) (*CloudCostSet, error) {
 	if ccs == nil {
 		return nil, nil
 	}
