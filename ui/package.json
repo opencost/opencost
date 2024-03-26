@@ -35,7 +35,7 @@
     "@babel/core": "^7.13.10",
     "@babel/plugin-proposal-class-properties": "^7.13.0",
     "@babel/plugin-transform-runtime": "^7.23.9",
-    "@babel/preset-react": "^7.12.13",
+    "@babel/preset-react": "^7.24.1",
     "buffer": "^6.0.3",
     "parcel": "^2.11.0",
     "process": "^0.11.10",
