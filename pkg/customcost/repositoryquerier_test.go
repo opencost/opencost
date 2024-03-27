@@ -67,7 +67,7 @@ func TestGetCustomCostAccumulateOption(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			got, err := GetCustomCostAccumulateOption(tt.window, tt.from)
+			got, err := getCustomCostAccumulateOption(tt.window, tt.from)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetAccumulateOption() error = %v, wantErr %v", err, tt.wantErr)
 				return
