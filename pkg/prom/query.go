@@ -146,8 +146,8 @@ func (ctx *Context) ProfileQueryAll(queries ...string) []QueryResultsChan {
 	return resChs
 }
 
-func (ctx *Context) QuerySync(query string) ([]*QueryResult, v1.Warnings, error) {
-	raw, warnings, err := ctx.query(query, time.Now())
+func (ctx *Context) QuerySync(query string, time time.Time) ([]*QueryResult, v1.Warnings, error) {
+	raw, warnings, err := ctx.query(query, time)
 	if err != nil {
 		return nil, warnings, err
 	}

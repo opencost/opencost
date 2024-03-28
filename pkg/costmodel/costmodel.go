@@ -738,7 +738,7 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 	if len(missingContainers) > 0 {
 		queryHistoricalPodLabels := fmt.Sprintf(`kube_pod_labels{%s}[%s]`, env.GetPromClusterFilter(), window)
 
-		podLabelsResult, _, err := prom.NewNamedContext(cli, prom.ComputeCostDataContextName).QuerySync(queryHistoricalPodLabels)
+		podLabelsResult, _, err := prom.NewNamedContext(cli, prom.ComputeCostDataContextName).QuerySync(queryHistoricalPodLabels, time.Now())
 		if err != nil {
 			log.Errorf("failed to parse historical pod labels: %s", err.Error())
 		}

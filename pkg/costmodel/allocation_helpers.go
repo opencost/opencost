@@ -31,7 +31,7 @@ const PV_USAGE_SANITY_LIMIT_BYTES = 10.0 * PiB
 
 /* Pod Helpers */
 
-func (cm *CostModel) buildPodMap(window opencost.Window, resolution, maxBatchSize time.Duration, podMap map[podKey]*pod, clusterStart, clusterEnd map[string]time.Time, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) error {
+func (cm *CostModel) buildPodMap(window opencost.Window, resolution, maxBatchSize time.Duration, podMap map[podKey]*pod, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) error {
 	// Assumes that window is positive and closed
 	start, end := *window.Start(), *window.End()
 
@@ -116,7 +116,7 @@ func (cm *CostModel) buildPodMap(window opencost.Window, resolution, maxBatchSiz
 			}
 		}
 
-		applyPodResults(window, resolution, podMap, clusterStart, clusterEnd, resPods, ingestPodUID, podUIDKeyMap)
+		applyPodResults(window, resolution, podMap, resPods, ingestPodUID, podUIDKeyMap)
 
 		coverage = coverage.ExpandEnd(batchEnd)
 		numQuery++
@@ -125,7 +125,7 @@ func (cm *CostModel) buildPodMap(window opencost.Window, resolution, maxBatchSiz
 	return nil
 }
 
-func applyPodResults(window opencost.Window, resolution time.Duration, podMap map[podKey]*pod, clusterStart, clusterEnd map[string]time.Time, resPods []*prom.QueryResult, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) {
+func applyPodResults(window opencost.Window, resolution time.Duration, podMap map[podKey]*pod, resPods []*prom.QueryResult, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) {
 	for _, res := range resPods {
 		if len(res.Values) == 0 {
 			log.Warnf("CostModel.ComputeAllocation: empty minutes result")
@@ -168,18 +168,6 @@ func applyPodResults(window opencost.Window, resolution time.Duration, podMap ma
 		allocStart, allocEnd := calculateStartAndEnd(res, resolution, window)
 		if allocStart.IsZero() || allocEnd.IsZero() {
 			continue
-		}
-
-		// Set start if unset or this datum's start time is earlier than the
-		// current earliest time.
-		if _, ok := clusterStart[cluster]; !ok || allocStart.Before(clusterStart[cluster]) {
-			clusterStart[cluster] = allocStart
-		}
-
-		// Set end if unset or this datum's end time is later than the
-		// current latest time.
-		if _, ok := clusterEnd[cluster]; !ok || allocEnd.After(clusterEnd[cluster]) {
-			clusterEnd[cluster] = allocEnd
 		}
 
 		if thisPod, ok := podMap[key]; ok {
