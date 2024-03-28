@@ -1204,6 +1204,7 @@ type InstallInfo struct {
 type ContainerInfo struct {
 	ContainerName string `json:"containerName"`
 	Image         string `json:"image"`
+	StartTime     string `json:"startTime"`
 }
 
 func (a *Accesses) GetInstallInfo(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -1233,6 +1234,7 @@ func (a *Accesses) GetInstallInfo(w http.ResponseWriter, r *http.Request, _ http
 				c := ContainerInfo{
 					ContainerName: container.Name,
 					Image:         container.Image,
+					StartTime:     pod.Status.StartTime.String(),
 				}
 				info.Containers = append(info.Containers, c)
 			}
