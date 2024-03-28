@@ -64,7 +64,7 @@ func ParseCloudCostRequest(qp httputil.QueryParams) (*QueryRequest, error) {
 	return opts, nil
 }
 
-func parseCloudCostViewRequest(qp httputil.QueryParams) (*ViewQueryRequest, error) {
+func ParseCloudCostViewRequest(qp httputil.QueryParams) (*ViewQueryRequest, error) {
 	qr, err := ParseCloudCostRequest(qp)
 	if err != nil {
 		return nil, err

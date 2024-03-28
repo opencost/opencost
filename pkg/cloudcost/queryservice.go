@@ -87,7 +87,7 @@ func (s *QueryService) GetCloudCostViewGraphHandler() func(w http.ResponseWriter
 		}
 
 		qp := httputil.NewQueryParams(r.URL.Query())
-		request, err := parseCloudCostViewRequest(qp)
+		request, err := ParseCloudCostViewRequest(qp)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -125,7 +125,7 @@ func (s *QueryService) GetCloudCostViewTotalsHandler() func(w http.ResponseWrite
 		}
 
 		qp := httputil.NewQueryParams(r.URL.Query())
-		request, err := parseCloudCostViewRequest(qp)
+		request, err := ParseCloudCostViewRequest(qp)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -163,7 +163,7 @@ func (s *QueryService) GetCloudCostViewTableHandler() func(w http.ResponseWriter
 		}
 
 		qp := httputil.NewQueryParams(r.URL.Query())
-		request, err := parseCloudCostViewRequest(qp)
+		request, err := ParseCloudCostViewRequest(qp)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
