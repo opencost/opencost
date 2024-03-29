@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"runtime"
 	"strings"
 	"time"
@@ -40,6 +41,11 @@ func getRegisteredPlugins(configDir string, execDir string) (map[string]*plugin.
 
 	// list of plugins that we must run are the strings before _
 	for _, file := range configFiles {
+		// skip hidden files and directories
+		if strings.HasPrefix(file.Name(), ".") || file.IsDir() {
+			continue
+		}
+
 		log.Tracef("parsing config file name: %s", file.Name())
 		fileParts := strings.Split(file.Name(), "_")
 
@@ -47,7 +53,7 @@ func getRegisteredPlugins(configDir string, execDir string) (map[string]*plugin.
 			return nil, fmt.Errorf("plugin config file name %s invalid. Config files must have the form <plugin name>_config.json", file.Name())
 		}
 
-		pluginNames[fileParts[0]] = configDir + "/" + file.Name()
+		pluginNames[fileParts[0]] = path.Join(configDir, file.Name())
 	}
 
 	if len(pluginNames) == 0 {
