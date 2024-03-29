@@ -9,6 +9,7 @@ import (
 // Status gives the details and metadata of a CustomCost integration
 type Status struct {
 	Enabled           bool                       `json:"enabled"`
+	Domains           []string                   `json:"domains"`
 	Key               string                     `json:"key,omitempty"`
 	Source            string                     `json:"source,omitempty"`
 	Provider          string                     `json:"provider,omitempty"`
