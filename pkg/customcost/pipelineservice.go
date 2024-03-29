@@ -26,6 +26,7 @@ const execFmt = `%s/%s.ocplugin.%s.%s`
 type PipelineService struct {
 	hourlyIngestor, dailyIngestor *CustomCostIngestor
 	hourlyStore, dailyStore       Repository
+	domains                       []string
 }
 
 func getRegisteredPlugins(configDir string, execDir string) (map[string]*plugin.Client, error) {
@@ -105,7 +106,6 @@ func getRegisteredPlugins(configDir string, execDir string) (map[string]*plugin.
 
 // NewPipelineService is a constructor for a PipelineService
 func NewPipelineService(hourlyrepo, dailyrepo Repository, ingConf CustomCostIngestorConfig) (*PipelineService, error) {
-
 	registeredPlugins, err := getRegisteredPlugins(ingConf.PluginConfigDir, ingConf.PluginExecutableDir)
 	if err != nil {
 		log.Errorf("error getting registered plugins: %v", err)
@@ -125,15 +125,22 @@ func NewPipelineService(hourlyrepo, dailyrepo Repository, ingConf CustomCostInge
 	}
 
 	dailyIngestor.Start(false)
+
+	var domains []string
+	for domain, _ := range registeredPlugins {
+		domains = append(domains, domain)
+	}
+
 	return &PipelineService{
 		hourlyIngestor: hourlyIngestor,
 		hourlyStore:    hourlyrepo,
 		dailyStore:     dailyrepo,
 		dailyIngestor:  dailyIngestor,
+		domains:        domains,
 	}, nil
 }
 
-// Status gives a combined view of the state of configs and the ingestior status
+// Status gives a combined view of the state of configs and the ingestor status
 func (dp *PipelineService) Status() Status {
 
 	// Pull config status from the config controller
@@ -148,6 +155,7 @@ func (dp *PipelineService) Status() Status {
 		CoverageHourly:    ingstatusHourly.Coverage,
 		RefreshRateHourly: ingstatusHourly.RefreshRate.String(),
 		RefreshRateDaily:  ingstatusDaily.RefreshRate.String(),
+		Domains:           dp.domains,
 	}
 
 }
