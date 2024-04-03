@@ -12,7 +12,7 @@ import (
 
 // Querier allows for querying ranges of CloudCost data
 type Querier interface {
-	Query(QueryRequest, context.Context) (*opencost.CloudCostSetRange, error)
+	Query(context.Context, QueryRequest) (*opencost.CloudCostSetRange, error)
 }
 
 type QueryRequest struct {
@@ -28,9 +28,9 @@ const DefaultChartItemsLength int = 10
 
 // ViewQuerier defines a contract for return View types to the QueryService to service the View Api
 type ViewQuerier interface {
-	QueryViewGraph(ViewQueryRequest, context.Context) (ViewGraphData, error)
-	QueryViewTotals(ViewQueryRequest, context.Context) (*ViewTotals, error)
-	QueryViewTable(ViewQueryRequest, context.Context) (ViewTableRows, error)
+	QueryViewGraph(context.Context, ViewQueryRequest) (ViewGraphData, error)
+	QueryViewTotals(context.Context, ViewQueryRequest) (*ViewTotals, error)
+	QueryViewTable(context.Context, ViewQueryRequest) (ViewTableRows, error)
 }
 
 type ViewQueryRequest struct {
