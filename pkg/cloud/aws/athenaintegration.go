@@ -337,9 +337,9 @@ func (ai *AthenaIntegration) RowToCloudCost(row types.Row, aqi AthenaQueryIndexe
 	for _, tagColumnName := range aqi.TagColumns {
 		// remove quotes
 		labelName := strings.TrimPrefix(tagColumnName, `"`)
-		labelName = strings.TrimSuffix(tagColumnName, `"`)
+		labelName = strings.TrimSuffix(labelName, `"`)
 		// remove prefix
-		labelName = strings.TrimPrefix(tagColumnName, LabelColumnPrefix)
+		labelName = strings.TrimPrefix(labelName, LabelColumnPrefix)
 		value := GetAthenaRowValue(row, aqi.ColumnIndexes, tagColumnName)
 		if value != "" {
 			labels[labelName] = value
