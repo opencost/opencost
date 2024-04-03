@@ -1204,9 +1204,7 @@ type InstallInfo struct {
 type ContainerInfo struct {
 	ContainerName string `json:"containerName"`
 	Image         string `json:"image"`
-	ImageID       string `json:"imageID"`
 	StartTime     string `json:"startTime"`
-	Restarts      int32  `json:"restarts"`
 }
 
 func (a *Accesses) GetInstallInfo(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -1232,13 +1230,11 @@ func (a *Accesses) GetInstallInfo(w http.ResponseWriter, r *http.Request, _ http
 	// chart or more likely we are running locally - in either case Images field will return as null
 	if len(pods.Items) > 0 {
 		for _, pod := range pods.Items {
-			for _, container := range pod.Status.ContainerStatuses {
+			for _, container := range pod.Spec.Containers {
 				c := ContainerInfo{
 					ContainerName: container.Name,
 					Image:         container.Image,
-					ImageID:       container.ImageID,
 					StartTime:     pod.Status.StartTime.String(),
-					Restarts:      container.RestartCount,
 				}
 				info.Containers = append(info.Containers, c)
 			}
