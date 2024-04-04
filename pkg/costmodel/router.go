@@ -1211,34 +1211,16 @@ func (a *Accesses) GetInstallInfo(w http.ResponseWriter, r *http.Request, _ http
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	pods, err := a.KubeClientSet.CoreV1().Pods(env.GetKubecostNamespace()).List(context.Background(), metav1.ListOptions{
-		LabelSelector: "app=cost-analyzer",
-		FieldSelector: "status.phase=Running",
-		Limit:         1,
-	})
+	containers, err := GetKubecostContainers(a.KubeClientSet)
 	if err != nil {
 		writeErrorResponse(w, 500, fmt.Sprintf("Unable to list pods: %s", err.Error()))
 		return
 	}
 
 	info := InstallInfo{
+		Containers:  containers,
 		ClusterInfo: make(map[string]string),
 		Version:     version.FriendlyVersion(),
-	}
-
-	// If we have zero pods either something is weird with the install since the app selector is not exposed in the helm
-	// chart or more likely we are running locally - in either case Images field will return as null
-	if len(pods.Items) > 0 {
-		for _, pod := range pods.Items {
-			for _, container := range pod.Spec.Containers {
-				c := ContainerInfo{
-					ContainerName: container.Name,
-					Image:         container.Image,
-					StartTime:     pod.Status.StartTime.String(),
-				}
-				info.Containers = append(info.Containers, c)
-			}
-		}
 	}
 
 	nodes := a.ClusterCache.GetAllNodes()
@@ -1254,6 +1236,35 @@ func (a *Accesses) GetInstallInfo(w http.ResponseWriter, r *http.Request, _ http
 	}
 
 	w.Write(body)
+}
+
+func GetKubecostContainers(kubeClientSet kubernetes.Interface) ([]ContainerInfo, error) {
+	pods, err := kubeClientSet.CoreV1().Pods(env.GetKubecostNamespace()).List(context.Background(), metav1.ListOptions{
+		LabelSelector: "app=cost-analyzer",
+		FieldSelector: "status.phase=Running",
+		Limit:         1,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// If we have zero pods either something is weird with the install since the app selector is not exposed in the helm
+	// chart or more likely we are running locally - in either case Images field will return as null
+	var containers []ContainerInfo
+	if len(pods.Items) > 0 {
+		for _, pod := range pods.Items {
+			for _, container := range pod.Spec.Containers {
+				c := ContainerInfo{
+					ContainerName: container.Name,
+					Image:         container.Image,
+					StartTime:     pod.Status.StartTime.String(),
+				}
+				containers = append(containers, c)
+			}
+		}
+	}
+
+	return containers, nil
 }
 
 // logsFor pulls the logs for a specific pod, namespace, and container
