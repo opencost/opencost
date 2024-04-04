@@ -126,17 +126,6 @@ func Debugf(format string, a ...interface{}) {
 	log.Debug().Msgf(format, a...)
 }
 
-func DedupedDebugf(logTypeLimit int, format string, a ...interface{}) {
-	timesLogged := ctr.increment(format)
-
-	if timesLogged < logTypeLimit {
-		Debugf(format, a...)
-	} else if timesLogged == logTypeLimit {
-		Debugf(format, a...)
-		Debugf("%s logged %d times: suppressing future logs", format, logTypeLimit)
-	}
-}
-
 func Trace(msg string) {
 	log.Trace().Msg(msg)
 }

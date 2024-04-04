@@ -1245,7 +1245,7 @@ func GetKubecostContainers(kubeClientSet kubernetes.Interface) ([]ContainerInfo,
 		Limit:         1,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query kubernetes client for kubecost pods: %s", err)
 	}
 
 	// If we have zero pods either something is weird with the install since the app selector is not exposed in the helm
