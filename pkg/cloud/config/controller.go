@@ -68,6 +68,10 @@ func (c *Controller) pullWatchers() {
 	if err != nil {
 		log.Warnf("Controller: pullWatchers: %s. Proceeding to create the file", err.Error())
 		statuses = Statuses{}
+		err = c.save(statuses)
+		if err != nil {
+			log.Errorf("Controller: pullWatchers: failed to save statuses %s", err.Error())
+		}
 	}
 	for source, watcher := range c.watchers {
 		watcherConfsByKey := map[string]cloud.KeyedConfig{}
