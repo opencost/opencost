@@ -1,10 +1,14 @@
 package opencost
 
 import (
+	"encoding/hex"
 	"fmt"
+	"hash/fnv"
+	"sort"
 	"strings"
 
 	"github.com/opencost/opencost/core/pkg/log"
+	"golang.org/x/exp/maps"
 )
 
 type CloudCostProperty string
@@ -31,6 +35,7 @@ const (
 	CloudCostCategoryProp        string = "category"
 	CloudCostServiceProp         string = "service"
 	CloudCostLabelProp           string = "label"
+	CloudCostLabelSetProp        string = "labelSet"
 )
 
 func ParseCloudProperties(props []string) ([]CloudCostProperty, error) {
@@ -230,7 +235,7 @@ func (ccp *CloudCostProperties) GenerateKey(props []string) string {
 
 	// nil props replaced with default property list
 	if props == nil {
-		props = cloudCostDefaultKeyProperties
+		return ccp.hashKey()
 	}
 
 	values := make([]string, len(props))
@@ -282,4 +287,27 @@ func (ccp *CloudCostProperties) GenerateKey(props []string) string {
 	}
 
 	return strings.Join(values, "/")
+}
+
+// HashKey creates a key on the entire property set including labels of a uniform length.
+// This key is meant to be used when constructing unaggregated CloudCostSet for storage
+func (ccp *CloudCostProperties) hashKey() string {
+	builder := strings.Builder{}
+	builder.WriteString(ccp.ProviderID)
+	builder.WriteString(ccp.Provider)
+	builder.WriteString(ccp.AccountID)
+	builder.WriteString(ccp.InvoiceEntityID)
+	builder.WriteString(ccp.Service)
+	builder.WriteString(ccp.Category)
+
+	// Sort label keys before adding key/value pairs to the hash string
+	labelKeys := maps.Keys(ccp.Labels)
+	sort.Strings(labelKeys)
+	for _, k := range labelKeys {
+		builder.WriteString(k)
+		builder.WriteString(ccp.Labels[k])
+	}
+	hasher := fnv.New64a()
+	hasher.Write([]byte(builder.String()))
+	return hex.EncodeToString(hasher.Sum(nil))
 }
