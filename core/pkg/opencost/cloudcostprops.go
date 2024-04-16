@@ -290,7 +290,9 @@ func (ccp *CloudCostProperties) GenerateKey(props []string) string {
 }
 
 // HashKey creates a key on the entire property set including labels of a uniform length.
-// This key is meant to be used when constructing unaggregated CloudCostSet for storage
+// This key is meant to be used when constructing unaggregated CloudCostSet for storage.
+// Including labels prevents CloudCosts that are missing providerIDs from having their labels
+// erased as they are saved to cloud cost set.
 func (ccp *CloudCostProperties) hashKey() string {
 	builder := strings.Builder{}
 	builder.WriteString(ccp.ProviderID)
@@ -300,7 +302,8 @@ func (ccp *CloudCostProperties) hashKey() string {
 	builder.WriteString(ccp.Service)
 	builder.WriteString(ccp.Category)
 
-	// Sort label keys before adding key/value pairs to the hash string
+	// Sort label keys before adding key/value pairs to the hash string to ensure label set is
+	// always returns the same key
 	labelKeys := maps.Keys(ccp.Labels)
 	sort.Strings(labelKeys)
 	for _, k := range labelKeys {
