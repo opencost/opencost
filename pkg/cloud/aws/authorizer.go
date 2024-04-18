@@ -10,11 +10,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud"
+	"golang.org/x/oauth2/google"
+	"google.golang.org/api/idtoken"
+	"google.golang.org/api/option"
 )
 
 const AccessKeyAuthorizerType = "AWSAccessKey"
 const ServiceAccountAuthorizerType = "AWSServiceAccount"
 const AssumeRoleAuthorizerType = "AWSAssumeRole"
+const GoogleWebIdentityAuthorizerType = "GoogleWebIdentity"
 
 // Authorizer implementations provide aws.Config for AWS SDK calls
 type Authorizer interface {
@@ -129,11 +133,7 @@ func (sa *ServiceAccount) Equals(config cloud.Config) bool {
 		return false
 	}
 	_, ok := config.(*ServiceAccount)
-	if !ok {
-		return false
-	}
-
-	return true
+	return ok
 }
 
 func (sa *ServiceAccount) Sanitize() cloud.Config {
@@ -204,7 +204,7 @@ func (ara *AssumeRole) CreateAWSConfig(region string) (aws.Config, error) {
 
 func (ara *AssumeRole) Validate() error {
 	if ara.Authorizer == nil {
-		return fmt.Errorf("AssumeRole: misisng base Authorizer")
+		return fmt.Errorf("AssumeRole: missing base Authorizer")
 	}
 	err := ara.Authorizer.Validate()
 	if err != nil {
@@ -212,7 +212,7 @@ func (ara *AssumeRole) Validate() error {
 	}
 
 	if ara.RoleARN == "" {
-		return fmt.Errorf("AssumeRole: misisng RoleARN configuration")
+		return fmt.Errorf("AssumeRole: missing RoleARN configuration")
 	}
 
 	return nil
@@ -247,5 +247,90 @@ func (ara *AssumeRole) Sanitize() cloud.Config {
 	return &AssumeRole{
 		Authorizer: ara.Authorizer.Sanitize().(Authorizer),
 		RoleARN:    ara.RoleARN,
+	}
+}
+
+type GoogleWebIdentity struct {
+	RoleARN        string                 `json:"roleARN"`
+	TokenRetriever GoogleIDTokenRetriever `json:"tokenRetriever"`
+}
+
+type GoogleIDTokenRetriever struct {
+	Aud string `json:"aud"`
+}
+
+func (gitr *GoogleIDTokenRetriever) GetIdentityToken() ([]byte, error) {
+	ctx := context.Background()
+	res := []byte{}
+
+	credentials, err := google.FindDefaultCredentials(ctx)
+	if err != nil {
+		return res, fmt.Errorf("failed to find default credentials: %v", err)
+	}
+
+	ts, err := idtoken.NewTokenSource(ctx, gitr.Aud, option.WithCredentials(credentials))
+	if err != nil {
+		return res, fmt.Errorf("failed to create ID token source: %w", err)
+	}
+
+	t, err := ts.Token()
+	if err != nil {
+		return res, fmt.Errorf("failed to receive ID token from metadata server: %w", err)
+	}
+
+	return []byte(t.AccessToken), nil
+}
+
+func (wea *GoogleWebIdentity) CreateAWSConfig(region string) (aws.Config, error) {
+	cfg, err := awsconfig.LoadDefaultConfig(context.TODO(), awsconfig.WithRegion(region))
+	if err != nil {
+		return cfg, fmt.Errorf("failed to initialize AWS SDK config for region from annotation %s: %s", region, err)
+	}
+
+	stsSvc := sts.NewFromConfig(cfg)
+	creds := stscreds.NewWebIdentityRoleProvider(stsSvc, wea.RoleARN, &wea.TokenRetriever)
+
+	cfg.Credentials = aws.NewCredentialsCache(creds)
+	return cfg, nil
+}
+
+func (wea *GoogleWebIdentity) MarshalJSON() ([]byte, error) {
+	fmap := make(map[string]any, 1)
+	fmap[cloud.AuthorizerTypeProperty] = GoogleWebIdentityAuthorizerType
+	fmap["roleARN"] = wea.RoleARN
+	fmap["tokenRetriever"] = wea.TokenRetriever
+	return json.Marshal(fmap)
+}
+
+func (wea *GoogleWebIdentity) Validate() error {
+	if wea.TokenRetriever.Aud == "" {
+		return fmt.Errorf("GoogleWebIdenity: missing token retriver audience")
+	}
+
+	if wea.RoleARN == "" {
+		return fmt.Errorf("GoogleWebIdenity: missing RoleARN configuration")
+	}
+
+	return nil
+}
+
+func (wea *GoogleWebIdentity) Equals(config cloud.Config) bool {
+	if config == nil {
+		return false
+	}
+	thatConfig, ok := config.(*GoogleWebIdentity)
+	if !ok {
+		return false
+	}
+
+	return wea.RoleARN == thatConfig.RoleARN && wea.TokenRetriever.Aud == thatConfig.TokenRetriever.Aud
+}
+
+func (wea *GoogleWebIdentity) Sanitize() cloud.Config {
+	return &GoogleWebIdentity{
+		RoleARN: wea.RoleARN,
+		TokenRetriever: GoogleIDTokenRetriever{
+			Aud: wea.TokenRetriever.Aud,
+		},
 	}
 }

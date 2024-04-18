@@ -52,6 +52,20 @@ func TestAuthorizerJSON_Sanitize(t *testing.T) {
 				RoleARN:    "role arn",
 			},
 		},
+		"Google Web Identity": {
+			input: &GoogleWebIdentity{
+				RoleARN: "role arn",
+				TokenRetriever: GoogleIDTokenRetriever{
+					Aud: "aud",
+				},
+			},
+			expected: &GoogleWebIdentity{
+				RoleARN: "role arn",
+				TokenRetriever: GoogleIDTokenRetriever{
+					Aud: "aud",
+				},
+			},
+		},
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
