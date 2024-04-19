@@ -51,11 +51,10 @@ func PackageFor(value any) string {
 	return t.PkgPath()
 }
 
-// CurrentPackage returns the package name of the caller. This is especially handy for automatically
-// generating package scoped tracing identifiers.
-func CurrentPackage() string {
+// PackageFromCaller returns the package name of the caller at the specified depth.
+func PackageFromCaller(depth int) string {
 	// get program counter for the first depth caller into this function
-	if pc, _, _, ok := runtime.Caller(1); ok {
+	if pc, _, _, ok := runtime.Caller(depth); ok {
 		f := runtime.FuncForPC(pc)
 		if f == nil {
 			return ""
@@ -88,4 +87,11 @@ func CurrentPackage() string {
 		return parentPkg + pkg[:dotIndex]
 	}
 	return ""
+}
+
+// CurrentPackage returns the package name of the caller. This is especially handy for automatically
+// generating package scoped tracing identifiers.
+func CurrentPackage() string {
+	// Depth is from: (0) Caller -> (1) CurrentPackage -> (2) PackageFromCaller
+	return PackageFromCaller(2)
 }
