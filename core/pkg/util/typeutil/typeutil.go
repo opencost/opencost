@@ -25,8 +25,26 @@ func TypeOf[T any]() string {
 		panic(fmt.Sprintf("failed to locate non-pointer type: %+v", reflect.TypeFor[T]()))
 	}
 
+	name := t.Name()
+
+	// special cases for built-ins struct{} and interface{}
+	if name == "" {
+		name = t.String()
+	}
+
+	// no package path, do not use a / separator
+	if t.PkgPath() == "" {
+		return prefix + name
+	}
+
 	// combine the prefix, package path, and the type name
-	return fmt.Sprintf("%s%s/%s", prefix, t.PkgPath(), t.Name())
+	return fmt.Sprintf("%s%s/%s", prefix, t.PkgPath(), name)
+}
+
+// TypeFor uses type inferencing to accepts a value and returns the fully qualified package
+// and type name
+func TypeFor[T any](value T) string {
+	return TypeOf[T]()
 }
 
 // PackageOf is a utility that can return the package name for the type provided.
@@ -45,20 +63,10 @@ func PackageOf[T any]() string {
 	return t.PkgPath()
 }
 
-// PackageFor accepts a value and returns the package name for the type of the value.
-func PackageFor(value any) string {
-	t := reflect.TypeOf(value)
-
-	for t != nil && t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-
-	// this should not be possible, but in the event that it does, we want to be loud about it
-	if t == nil {
-		panic(fmt.Sprintf("failed to locate package for: %+v", reflect.TypeOf(value)))
-	}
-
-	return t.PkgPath()
+// PackageFor uses type inferencing to accepts a value and returns
+// the package name for the type of the value.
+func PackageFor[T any](value T) string {
+	return PackageOf[T]()
 }
 
 // PackageFromCaller returns the package name of the caller at the specified depth.

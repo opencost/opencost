@@ -33,6 +33,8 @@ func cmp[T comparable](t *testing.T, result, expected T) {
 	}
 }
 
+type InterfaceType interface{}
+
 var packageScoped = typeutil.CurrentPackage()
 
 func TestTypeOf(t *testing.T) {
@@ -40,7 +42,16 @@ func TestTypeOf(t *testing.T) {
 	const testTypeName = packageName + "/TestType"
 	const genericTestTypeName = packageName + "/GenericTestType"
 	const genericTypeParameterTypeName = packageName + ".GenericTestType"
+	const interfaceTypeName = packageName + "/InterfaceType"
 
+	// Basic Types
+	cmp(t, typeutil.TypeOf[int](), "int")
+	cmp(t, typeutil.TypeOf[int8](), "int8")
+	cmp(t, typeutil.TypeOf[any](), "interface {}")
+	cmp(t, typeutil.TypeOf[interface{}](), "interface {}")
+	cmp(t, typeutil.TypeOf[struct{}](), "struct {}")
+
+	// Specific Types
 	cmp(t, typeutil.TypeOf[TestType](), testTypeName)
 	cmp(t, typeutil.TypeOf[*TestType](), "*"+testTypeName)
 	cmp(t, typeutil.TypeOf[**TestType](), "**"+testTypeName)
@@ -48,6 +59,21 @@ func TestTypeOf(t *testing.T) {
 	cmp(t, typeutil.TypeOf[GenericTestType[GenericTestType[string]]](), genericTestTypeName+"["+genericTypeParameterTypeName+"[string]"+"]")
 	cmp(t, typeutil.TypeOf[GenericTestType[*GenericTestType[string]]](), genericTestTypeName+"[*"+genericTypeParameterTypeName+"[string]"+"]")
 	cmp(t, typeutil.TypeOf[GenericTestType[*GenericTestType[map[int][]float64]]](), genericTestTypeName+"[*"+genericTypeParameterTypeName+"[map[int][]float64]"+"]")
+
+	// interface types
+	cmp(t, typeutil.TypeOf[InterfaceType](), interfaceTypeName)
+	cmp(t, typeutil.TypeOf[*InterfaceType](), "*"+interfaceTypeName)
+	cmp(t, typeutil.TypeOf[**InterfaceType](), "**"+interfaceTypeName)
+
+	// TypeFor variants
+	var value any
+	cmp(t, typeutil.TypeFor(value), "interface {}")
+
+	var ivalue InterfaceType
+	cmp(t, typeutil.TypeFor(ivalue), interfaceTypeName)
+
+	var testType **TestType
+	cmp(t, typeutil.TypeFor(testType), "**"+testTypeName)
 }
 
 func DeferredCurrentPackage() (result string) {
@@ -87,4 +113,11 @@ func TestPackageOf(t *testing.T) {
 	// this will normally return something like:
 	// "github.com/opencost/opencost/core/pkg/util/typeutil_test.init"
 	cmp(t, packageScoped, currentPackageName)
+
+	// PackageFor variants
+	var value any
+	cmp(t, typeutil.PackageFor(value), "")
+
+	var ivalue InterfaceType
+	cmp(t, typeutil.PackageFor(ivalue), currentPackageName)
 }
