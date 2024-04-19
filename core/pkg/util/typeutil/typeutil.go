@@ -92,6 +92,6 @@ func PackageFromCaller(depth int) string {
 // CurrentPackage returns the package name of the caller. This is especially handy for automatically
 // generating package scoped tracing identifiers.
 func CurrentPackage() string {
-	// Depth is from: (0) Caller -> (1) CurrentPackage -> (2) PackageFromCaller
+	// Depth is from: (2) Caller -> (1) CurrentPackage -> (0) PackageFromCaller
 	return PackageFromCaller(2)
 }
