@@ -22,7 +22,7 @@ func TypeOf[T any]() string {
 
 	// this should not be possible, but in the event that it does, we want to be loud about it
 	if t == nil {
-		panic(fmt.Sprintf("Unable to generate a key for type: %+v", reflect.TypeFor[T]()))
+		panic(fmt.Sprintf("failed to locate non-pointer type: %+v", reflect.TypeFor[T]()))
 	}
 
 	// combine the prefix, package path, and the type name
@@ -37,6 +37,11 @@ func PackageOf[T any]() string {
 		t = t.Elem()
 	}
 
+	// this should not be possible, but in the event that it does, we want to be loud about it
+	if t == nil {
+		panic(fmt.Sprintf("failed to locate package for: %+v", reflect.TypeFor[T]()))
+	}
+
 	return t.PkgPath()
 }
 
@@ -46,6 +51,11 @@ func PackageFor(value any) string {
 
 	for t != nil && t.Kind() == reflect.Ptr {
 		t = t.Elem()
+	}
+
+	// this should not be possible, but in the event that it does, we want to be loud about it
+	if t == nil {
+		panic(fmt.Sprintf("failed to locate package for: %+v", reflect.TypeOf(value)))
 	}
 
 	return t.PkgPath()
