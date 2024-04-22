@@ -73,29 +73,10 @@ func TestAuthorizerJSON_Sanitize(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 
-			b, err := tc.input.MarshalJSON()
-			if err != nil {
-				t.Errorf("Failed to Marshal Authorizer: %s", err)
-			}
+			sanitizedAuthorizer := tc.input.Sanitize()
 
-			var f interface{}
-			err = json.Unmarshal(b, &f)
-			if err != nil {
-				t.Errorf("Failed to Unmarshal Authorizer: %s", err)
-			}
-
-			authorizer, err := cloud.AuthorizerFromInterface(f, SelectAuthorizerByType)
-			if err != nil {
-				t.Errorf("Failed to Unmarshal Authorizer: %s", err)
-			}
-
-			// Convert to AuthorizerJSON for sanitization
-			if authorizer != nil {
-				sanitizedAuthorizer := authorizer.Sanitize()
-
-				if !tc.expected.Equals(sanitizedAuthorizer) {
-					t.Error("Authorizer was not as expected after Sanitization")
-				}
+			if !tc.expected.Equals(sanitizedAuthorizer) {
+				t.Error("Authorizer was not as expected after Sanitization")
 			}
 
 		})
