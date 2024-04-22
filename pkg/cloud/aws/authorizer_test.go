@@ -72,7 +72,7 @@ func TestAuthorizerJSON_Sanitize(t *testing.T) {
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-
+			// Convert to AuthorizerJSON for sanitization
 			sanitizedAuthorizer := tc.input.Sanitize()
 
 			if !tc.expected.Equals(sanitizedAuthorizer) {
