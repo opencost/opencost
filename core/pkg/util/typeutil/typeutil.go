@@ -41,7 +41,7 @@ func TypeOf[T any]() string {
 	return fmt.Sprintf("%s%s/%s", prefix, t.PkgPath(), name)
 }
 
-// TypeFor uses type inferencing to accepts a value and returns the fully qualified package
+// TypeFor uses type inferencing to accept a value and returns the fully qualified package
 // and type name
 func TypeFor[T any](value T) string {
 	return TypeOf[T]()
