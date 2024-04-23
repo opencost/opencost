@@ -70,6 +70,12 @@ func (sc *StorageConnection) DownloadBlob(blobName string, client *azblob.Client
 	return downloadedData.Bytes(), nil
 }
 
+// StreamBlob returns an io.Reader for the given blob which uses a re-usable double buffer approach to stream directly
+// from blob storage.
+func (sc *StorageConnection) StreamBlob(blobName string, client *azblob.Client) (*StreamReader, error) {
+	return NewStreamReader(client, sc.Container, blobName)
+}
+
 // DownloadBlobToFile downloads the Azure Billing CSV to a local file
 func (sc *StorageConnection) DownloadBlobToFile(localFilePath string, blobName string, client *azblob.Client, ctx context.Context) error {
 	// If file exists, don't download it again
