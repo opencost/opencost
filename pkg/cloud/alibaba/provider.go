@@ -69,7 +69,6 @@ var (
 // Variable to keep track of instance families that fail in DescribePrice API due improper defaulting of systemDisk if the information is not available
 var alibabaDefaultToCloudEssd = []string{"g6e", "r6e", "r7", "g7", "g7a", "r7a"}
 
-// Why predefined and dependency on code? Can be converted to API call - https://www.alibabacloud.com/help/en/elastic-compute-service/latest/regions-describeregions
 var alibabaRegions = []string{
 	"cn-qingdao",
 	"cn-beijing",
@@ -79,48 +78,28 @@ var alibabaRegions = []string{
 	"cn-hangzhou",
 	"cn-shanghai",
 	"cn-nanjing",
-	"cn-fuzhou",
 	"cn-shenzhen",
+	"cn-heyuan",
 	"cn-guangzhou",
+	"cn-fuzhou",
+	"cn-wuhan-lr",
 	"cn-chengdu",
 	"cn-hongkong",
+	"ap-northeast-1",
+	"ap-northeast-2",
 	"ap-southeast-1",
 	"ap-southeast-2",
 	"ap-southeast-3",
-	"ap-southeast-5",
 	"ap-southeast-6",
-	"ap-southeast-7",
+	"ap-southeast-5",
 	"ap-south-1",
-	"ap-northeast-1",
-	"ap-northeast-2",
-	"us-west-1",
+	"ap-southeast-7",
 	"us-east-1",
-	"eu-central-1",
+	"us-west-1",
+	"eu-west-1",
 	"me-east-1",
-}
-
-// To-Do: Convert to API call - https://www.alibabacloud.com/help/en/elastic-compute-service/latest/describeinstancetypefamilies
-// Also first pass only completely tested pricing API for General pupose instances families & memory optimized instance families
-var alibabaInstanceFamilies = []string{
-	"g7",
-	"g7a",
-	"g6e",
-	"g6",
-	"g5",
-	"sn2",
-	"sn2ne",
-	"r7",
-	"r7a",
-	"r6e",
-	"r6a",
-	"r6",
-	"r5",
-	"se1",
-	"se1ne",
-	"re6",
-	"re6p",
-	"re4",
-	"se1",
+	"me-central-1",
+	"eu-central-1",
 }
 
 // AlibabaInfo contains configuration for Alibaba's CUR integration
@@ -430,7 +409,6 @@ func (alibaba *Alibaba) DownloadPricingData() error {
 	var lookupKey string
 	alibaba.clients = make(map[string]*sdk.Client)
 	alibaba.Pricing = make(map[string]*AlibabaPricing)
-
 	for _, node := range nodeList {
 		pricingObj := &AlibabaPricing{}
 		slimK8sNode := generateSlimK8sNodeFromV1Node(node)
@@ -534,7 +512,11 @@ func (alibaba *Alibaba) NodePricing(key models.Key) (*models.Node, models.Pricin
 
 	pricing, ok := alibaba.Pricing[keyFeature]
 	if !ok {
-		log.Errorf("Node pricing information not found for node with feature: %s", keyFeature)
+		keys := make([]string, 0, len(alibaba.Pricing))
+		for k := range alibaba.Pricing {
+			keys = append(keys, k)
+		}
+		log.Errorf("Node pricing information not found for node with feature: %s . Existing keys are: %+v", keyFeature, keys)
 		return nil, meta, fmt.Errorf("Node pricing information not found for node with feature: %s letting it use default values", keyFeature)
 	}
 
@@ -1096,7 +1078,7 @@ func processDescribePriceAndCreateAlibabaPricing(client *sdk.Client, i interface
 		resp, err := client.ProcessCommonRequestWithSigner(req, signer)
 		pricing.NodeAttributes = NewAlibabaNodeAttributes(node)
 		if err != nil || resp.GetHttpStatus() != 200 {
-			// Can be defaulted to some value here?
+			// Try again but default the disk to something else
 			return nil, fmt.Errorf("unable to fetch information for node with InstanceType: %v", node.InstanceType)
 		} else {
 			// This is where population of Pricing happens
@@ -1151,10 +1133,6 @@ func getInstanceFamilyFromType(instanceType string) string {
 	if len(splitinstanceType) != 3 {
 		log.Warnf("unable to find the family of the instance type %s, returning its family type unknown", instanceType)
 		return ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE
-	}
-	if !slices.Contains(alibabaInstanceFamilies, splitinstanceType[1]) {
-		log.Warnf("currently the instance family type %s is not valid or not tested completely for pricing API", instanceType)
-		return ALIBABA_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE
 	}
 	return splitinstanceType[1]
 }
