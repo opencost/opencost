@@ -223,6 +223,10 @@ func (pv PVAllocations) Clone() PVAllocations {
 	clonePV := make(map[PVKey]*PVAllocation, len(pv))
 	for k, v := range pv {
 		clonePV[k] = &PVAllocation{
+			Name:       v.Name,
+			Labels:     v.Labels,
+			Capacity:   v.Capacity,
+			Status:     v.Status,
 			ByteHours:  v.ByteHours,
 			Cost:       v.Cost,
 			ProviderID: v.ProviderID,
@@ -310,10 +314,14 @@ func (pvk *PVKey) FromString(key string) error {
 // PVAllocation contains the byte hour usage
 // and cost of an Allocation for a single PV
 type PVAllocation struct {
-	ByteHours  float64 `json:"byteHours"`
-	Cost       float64 `json:"cost"`
-	ProviderID string  `json:"providerID"` // @bingen:field[version=20]
-	Adjustment float64 `json:"adjustment"` //@bingen:field[ignore]
+	Name       string            `json:"name"`
+	Labels     map[string]string `json:"labels"`
+	Capacity   string            `json:"capacity"`
+	Status     string            `json:"status"`
+	ByteHours  float64           `json:"byteHours"`
+	Cost       float64           `json:"cost"`
+	ProviderID string            `json:"providerID"` // @bingen:field[version=20]
+	Adjustment float64           `json:"adjustment"` //@bingen:field[ignore]
 }
 
 // Equal returns true if the two PVAllocation instances contain approximately the same
