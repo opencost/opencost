@@ -190,10 +190,10 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 	resPVCInfo, _ := resChPVCInfo.Await()
 	resLocalActiveMins, _ := resChLocalActiveMins.Await()
 
-	// Only query metrics about local disk costs if the user has opted in. This
-	// is default disabled because most cloud providers do not charge unless you
-	// attach a storage volume to your instance. That cost is accounted for when
-	// querying the other prom metrics.
+	// Cloud providers do not always charge for a node's local disk costs (i.e.
+	// ephemeral storage). Provide an option to opt out of calculating &
+	// allocating local disk costs. Note, that this does not affect
+	// PersistentVolume costs.
 	//
 	// Ref:
 	// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/RootDeviceStorage.html

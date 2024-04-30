@@ -636,7 +636,7 @@ func GetAllocationNodeLabelsIncludeList() []string {
 }
 
 func GetAssetIncludeLocalDiskCost() bool {
-	return GetBool(AssetIncludeLocalDiskCostEnvVar, false)
+	return env.GetBool(AssetIncludeLocalDiskCostEnvVar, true)
 }
 
 func GetRegionOverrideList() []string {
