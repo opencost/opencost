@@ -39,16 +39,15 @@ build-binary VERSION=version:
 # Build and push a multi-arch Docker image
 build IMAGE_TAG RELEASE_VERSION: test (build-binary RELEASE_VERSION)
     docker buildx build \
-        --rm \
-        --platform "linux/amd64" \
-        -f 'Dockerfile.cross' \
-        --build-arg binarypath=./cmd/costmodel/costmodel-amd64 \
-        --build-arg version={{RELEASE_VERSION}} \
-        --build-arg commit={{commit}} \
-        --provenance=false \
-        -t {{IMAGE_TAG}}-amd64 \
-        --push \
-        .
+            --rm \
+            --platform "linux/amd64" \
+            -f 'Dockerfile.cross' \
+            --build-arg binarypath=./cmd/costmodel/costmodel-amd64 \
+            --build-arg version={{RELEASE_VERSION}} \
+            --build-arg commit={{commit}} \
+            --provenance=false \
+            -t {{IMAGE_TAG}}-amd64 \
+            .
 
     docker buildx build \
         --rm \
@@ -59,13 +58,12 @@ build IMAGE_TAG RELEASE_VERSION: test (build-binary RELEASE_VERSION)
         --build-arg commit={{commit}} \
         --provenance=false \
         -t {{IMAGE_TAG}}-arm64 \
-        --push \
         .
 
-    manifest-tool push from-args \
-        --platforms "linux/amd64,linux/arm64" \
-        --template {{IMAGE_TAG}}-ARCH \
-        --target {{IMAGE_TAG}}
+#    manifest-tool push from-args \
+#        --platforms "linux/amd64,linux/arm64" \
+#        --template {{IMAGE_TAG}}-ARCH \
+#        --target {{IMAGE_TAG}}
 
 validate-protobuf:
     ./generate.sh
