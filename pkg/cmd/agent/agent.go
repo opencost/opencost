@@ -7,18 +7,20 @@ import (
 	"path"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/clusters"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util/watcher"
+
+	"github.com/opencost/opencost/core/pkg/version"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/costmodel"
-	"github.com/opencost/opencost/pkg/costmodel/clusters"
+	clustermap "github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/kubeconfig"
-	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/metrics"
 	"github.com/opencost/opencost/pkg/prom"
-	"github.com/opencost/opencost/pkg/util/watcher"
-	"github.com/opencost/opencost/pkg/version"
 
 	prometheus "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -115,7 +117,7 @@ func newPrometheusClient() (prometheus.Client, error) {
 	}
 
 	api := prometheusAPI.NewAPI(promCli)
-	_, err = api.Config(context.Background())
+	_, err = api.Buildinfo(context.Background())
 	if err != nil {
 		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/mimir/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
 	} else {
@@ -130,16 +132,19 @@ func Execute(opts *AgentOpts) error {
 
 	configWatchers := watcher.NewConfigMapWatchers()
 
-	scrapeInterval := time.Minute
+	scrapeInterval := env.GetKubecostScrapeInterval()
 	promCli, err := newPrometheusClient()
 	if err != nil {
 		panic(err.Error())
 	}
 
-	// Lookup scrape interval for kubecost job, update if found
-	si, err := prom.ScrapeIntervalFor(promCli, env.GetKubecostJobName())
-	if err == nil {
-		scrapeInterval = si
+	if scrapeInterval == 0 {
+		scrapeInterval = time.Minute
+		// Lookup scrape interval for kubecost job, update if found
+		si, err := prom.ScrapeIntervalFor(promCli, env.GetKubecostJobName())
+		if err == nil {
+			scrapeInterval = si
+		}
 	}
 
 	log.Infof("Using scrape interval of %f", scrapeInterval.Seconds())
@@ -202,7 +207,7 @@ func Execute(opts *AgentOpts) error {
 	}
 
 	// Initialize ClusterMap for maintaining ClusterInfo by ClusterID
-	clusterMap := clusters.NewClusterMap(promCli, clusterInfoProvider, 5*time.Minute)
+	clusterMap := clustermap.NewClusterMap(promCli, clusterInfoProvider, 5*time.Minute)
 
 	costModel := costmodel.NewCostModel(promCli, cloudProvider, clusterCache, clusterMap, scrapeInterval)
 

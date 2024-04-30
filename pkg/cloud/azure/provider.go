@@ -21,16 +21,16 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/core/pkg/util/fileutil"
+	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util"
-	"github.com/opencost/opencost/pkg/util/fileutil"
-	"github.com/opencost/opencost/pkg/util/json"
-	"github.com/opencost/opencost/pkg/util/timeutil"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -1472,7 +1472,7 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 	if c.ClusterName != "" {
 		m["name"] = c.ClusterName
 	}
-	m["provider"] = kubecost.AzureProvider
+	m["provider"] = opencost.AzureProvider
 	m["account"] = az.ClusterAccountID
 	m["region"] = az.ClusterRegion
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)

@@ -7,12 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util/promutil"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/prom"
-	"github.com/opencost/opencost/pkg/util/timeutil"
 	"k8s.io/apimachinery/pkg/labels"
 )
 
@@ -30,7 +31,7 @@ const PV_USAGE_SANITY_LIMIT_BYTES = 10.0 * PiB
 
 /* Pod Helpers */
 
-func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSize time.Duration, podMap map[podKey]*pod, clusterStart, clusterEnd map[string]time.Time, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) error {
+func (cm *CostModel) buildPodMap(window opencost.Window, resolution, maxBatchSize time.Duration, podMap map[podKey]*pod, clusterStart, clusterEnd map[string]time.Time, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) error {
 	// Assumes that window is positive and closed
 	start, end := *window.Start(), *window.End()
 
@@ -45,7 +46,7 @@ func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSiz
 	// overall progress by starting with (window.start, window.start) and
 	// querying in batches no larger than maxBatchSize from start-to-end,
 	// folding each result set into podMap as the results come back.
-	coverage := kubecost.NewWindow(&start, &start)
+	coverage := opencost.NewWindow(&start, &start)
 
 	numQuery := 1
 	for coverage.End().Before(end) {
@@ -124,7 +125,7 @@ func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSiz
 	return nil
 }
 
-func applyPodResults(window kubecost.Window, resolution time.Duration, podMap map[podKey]*pod, clusterStart, clusterEnd map[string]time.Time, resPods []*prom.QueryResult, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) {
+func applyPodResults(window opencost.Window, resolution time.Duration, podMap map[podKey]*pod, clusterStart, clusterEnd map[string]time.Time, resPods []*prom.QueryResult, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) {
 	for _, res := range resPods {
 		if len(res.Values) == 0 {
 			log.Warnf("CostModel.ComputeAllocation: empty minutes result")
@@ -196,7 +197,7 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 				Start:       allocStart,
 				End:         allocEnd,
 				Key:         key,
-				Allocations: map[string]*kubecost.Allocation{},
+				Allocations: map[string]*opencost.Allocation{},
 			}
 		}
 	}
@@ -403,7 +404,7 @@ func applyCPUCoresUsedMax(podMap map[podKey]*pod, resCPUCoresUsedMax []*prom.Que
 			}
 
 			if thisPod.Allocations[container].RawAllocationOnly == nil {
-				thisPod.Allocations[container].RawAllocationOnly = &kubecost.RawAllocationOnlyData{
+				thisPod.Allocations[container].RawAllocationOnly = &opencost.RawAllocationOnlyData{
 					CPUCoreUsageMax: res.Values[0].Value,
 				}
 			} else {
@@ -603,7 +604,7 @@ func applyRAMBytesUsedMax(podMap map[podKey]*pod, resRAMBytesUsedMax []*prom.Que
 			}
 
 			if thisPod.Allocations[container].RawAllocationOnly == nil {
-				thisPod.Allocations[container].RawAllocationOnly = &kubecost.RawAllocationOnlyData{
+				thisPod.Allocations[container].RawAllocationOnly = &opencost.RawAllocationOnlyData{
 					RAMBytesUsageMax: res.Values[0].Value,
 				}
 			} else {
@@ -796,7 +797,7 @@ func resToNodeLabels(resNodeLabels []*prom.QueryResult) map[nodeKey]map[string]s
 
 			// Sanitize the given label name to match Prometheus formatting
 			// e.g. topology.kubernetes.io/zone => topology_kubernetes_io_zone
-			k := prom.SanitizeLabelName(rawK)
+			k := promutil.SanitizeLabelName(rawK)
 			if v, ok := labels[k]; ok {
 				nodeLabels[nodeKey][k] = v
 				continue
@@ -1300,7 +1301,7 @@ func getServiceLabels(resServiceLabels []*prom.QueryResult) map[serviceKey]map[s
 	return serviceLabels
 }
 
-func applyServicesToPods(podMap map[podKey]*pod, podLabels map[podKey]map[string]string, allocsByService map[serviceKey][]*kubecost.Allocation, serviceLabels map[serviceKey]map[string]string) {
+func applyServicesToPods(podMap map[podKey]*pod, podLabels map[podKey]map[string]string, allocsByService map[serviceKey][]*opencost.Allocation, serviceLabels map[serviceKey]map[string]string) {
 	podServicesMap := map[podKey][]serviceKey{}
 
 	// For each service, turn the labels into a selector and attempt to
@@ -1343,7 +1344,7 @@ func applyServicesToPods(podMap map[podKey]*pod, podLabels map[podKey]map[string
 	}
 }
 
-func getLoadBalancerCosts(lbMap map[serviceKey]*lbCost, resLBCost, resLBActiveMins []*prom.QueryResult, resolution time.Duration, window kubecost.Window) {
+func getLoadBalancerCosts(lbMap map[serviceKey]*lbCost, resLBCost, resLBActiveMins []*prom.QueryResult, resolution time.Duration, window opencost.Window) {
 	for _, res := range resLBActiveMins {
 		serviceKey, err := resultServiceKey(res, env.GetPromClusterLabel(), "namespace", "service_name")
 		if err != nil || len(res.Values) == 0 {
@@ -1400,17 +1401,17 @@ func getLoadBalancerCosts(lbMap map[serviceKey]*lbCost, resLBCost, resLBActiveMi
 	}
 }
 
-func applyLoadBalancersToPods(window kubecost.Window, podMap map[podKey]*pod, lbMap map[serviceKey]*lbCost, allocsByService map[serviceKey][]*kubecost.Allocation) {
+func applyLoadBalancersToPods(window opencost.Window, podMap map[podKey]*pod, lbMap map[serviceKey]*lbCost, allocsByService map[serviceKey][]*opencost.Allocation) {
 	for sKey, lb := range lbMap {
 		totalHours := 0.0
-		allocHours := make(map[*kubecost.Allocation]float64)
+		allocHours := make(map[*opencost.Allocation]float64)
 
 		allocs, ok := allocsByService[sKey]
 		// if there are no allocations using the service, add its cost to the Unmounted pod for its cluster
 		if !ok {
 			pod := getUnmountedPodForCluster(window, podMap, sKey.Cluster)
-			pod.Allocations[kubecost.UnmountedSuffix].LoadBalancerCost += lb.TotalCost
-			pod.Allocations[kubecost.UnmountedSuffix].Properties.Services = append(pod.Allocations[kubecost.UnmountedSuffix].Properties.Services, sKey.Service)
+			pod.Allocations[opencost.UnmountedSuffix].LoadBalancerCost += lb.TotalCost
+			pod.Allocations[opencost.UnmountedSuffix].Properties.Services = append(pod.Allocations[opencost.UnmountedSuffix].Properties.Services, sKey.Service)
 		}
 		// Add portion of load balancing cost to each allocation
 		// proportional to the total number of hours allocations used the load balancer
@@ -1439,18 +1440,29 @@ func applyLoadBalancersToPods(window kubecost.Window, podMap map[podKey]*pod, lb
 		}
 
 		for _, alloc := range allocs {
+			// reocord the hours overlapped with the allocation for the load balancer
+			// if there was overlap. Otherwise, record a 0.0.
+			// TODO: Do we really want to include load balancers that have 0 overlap
+			// TODO: hours with the allocation?
+			var hours float64 = 0.0
+			if _, ok := allocHours[alloc]; ok {
+				hours = allocHours[alloc]
+			}
+
 			if alloc.LoadBalancers == nil {
-				alloc.LoadBalancers = kubecost.LbAllocations{}
+				alloc.LoadBalancers = opencost.LbAllocations{}
 			}
 
 			if _, found := alloc.LoadBalancers[sKey.String()]; found {
 				alloc.LoadBalancers[sKey.String()].Cost += alloc.LoadBalancerCost
+				alloc.LoadBalancers[sKey.String()].Hours += hours
 			} else {
-				alloc.LoadBalancers[sKey.String()] = &kubecost.LbAllocation{
+				alloc.LoadBalancers[sKey.String()] = &opencost.LbAllocation{
 					Service: sKey.Namespace + "/" + sKey.Service,
 					Cost:    alloc.LoadBalancerCost,
 					Private: lb.Private,
 					Ip:      lb.Ip,
+					Hours:   hours,
 				}
 			}
 		}
@@ -1458,8 +1470,8 @@ func applyLoadBalancersToPods(window kubecost.Window, podMap map[podKey]*pod, lb
 		// If there was no overlap apply to Unmounted pod
 		if len(allocHours) == 0 {
 			pod := getUnmountedPodForCluster(window, podMap, sKey.Cluster)
-			pod.Allocations[kubecost.UnmountedSuffix].LoadBalancerCost += lb.TotalCost
-			pod.Allocations[kubecost.UnmountedSuffix].Properties.Services = append(pod.Allocations[kubecost.UnmountedSuffix].Properties.Services, sKey.Service)
+			pod.Allocations[opencost.UnmountedSuffix].LoadBalancerCost += lb.TotalCost
+			pod.Allocations[opencost.UnmountedSuffix].Properties.Services = append(pod.Allocations[opencost.UnmountedSuffix].Properties.Services, sKey.Service)
 		}
 	}
 }
@@ -1482,13 +1494,11 @@ func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerCPUHr
 		instanceType, err := res.GetString("instance_type")
 		if err != nil {
 			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
-			continue
 		}
 
 		providerID, err := res.GetString("provider_id")
 		if err != nil {
 			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
-			continue
 		}
 
 		key := newNodeKey(cluster, node)
@@ -1520,13 +1530,11 @@ func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerRA
 		instanceType, err := res.GetString("instance_type")
 		if err != nil {
 			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: \"%s\" for node \"%s\"", err, node)
-			continue
 		}
 
 		providerID, err := res.GetString("provider_id")
 		if err != nil {
 			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: \"%s\" for node \"%s\"", err, node)
-			continue
 		}
 
 		key := newNodeKey(cluster, node)
@@ -1558,13 +1566,11 @@ func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerGPUHr
 		instanceType, err := res.GetString("instance_type")
 		if err != nil {
 			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
-			continue
 		}
 
 		providerID, err := res.GetString("provider_id")
 		if err != nil {
 			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
-			continue
 		}
 
 		key := newNodeKey(cluster, node)
@@ -1791,7 +1797,7 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*nodePricing, nodeKey no
 
 /* PV/PVC Helpers */
 
-func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHour, resPVActiveMins, resPVMeta []*prom.QueryResult, window kubecost.Window) {
+func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHour, resPVActiveMins, resPVMeta []*prom.QueryResult, window opencost.Window) {
 	for _, result := range resPVActiveMins {
 		key, err := resultPVKey(result, env.GetPromClusterLabel(), "persistentvolume")
 		if err != nil {
@@ -1872,7 +1878,7 @@ func applyPVBytes(pvMap map[pvKey]*pv, resPVBytes []*prom.QueryResult) {
 	}
 }
 
-func buildPVCMap(resolution time.Duration, pvcMap map[pvcKey]*pvc, pvMap map[pvKey]*pv, resPVCInfo []*prom.QueryResult, window kubecost.Window) {
+func buildPVCMap(resolution time.Duration, pvcMap map[pvcKey]*pvc, pvMap map[pvKey]*pv, resPVCInfo []*prom.QueryResult, window opencost.Window) {
 	for _, res := range resPVCInfo {
 		cluster, err := res.GetString(env.GetPromClusterLabel())
 		if err != nil {
@@ -1995,7 +2001,7 @@ func buildPodPVCMap(podPVCMap map[podKey][]*pvc, pvMap map[pvKey]*pv, pvcMap map
 	}
 }
 
-func applyPVCsToPods(window kubecost.Window, podMap map[podKey]*pod, podPVCMap map[podKey][]*pvc, pvcMap map[pvcKey]*pvc) {
+func applyPVCsToPods(window opencost.Window, podMap map[podKey]*pod, podPVCMap map[podKey][]*pvc, pvcMap map[pvcKey]*pvc) {
 	// Because PVCs can be shared among pods, the respective pv cost
 	// needs to be evenly distributed to those pods based on time
 	// running, as well as the amount of time the pvc was shared.
@@ -2003,7 +2009,7 @@ func applyPVCsToPods(window kubecost.Window, podMap map[podKey]*pod, podPVCMap m
 	// Build a relation between every pvc to the pods that mount it
 	// and a window representing the interval during which they
 	// were associated.
-	pvcPodWindowMap := make(map[pvcKey]map[podKey]kubecost.Window)
+	pvcPodWindowMap := make(map[pvcKey]map[podKey]opencost.Window)
 
 	for thisPodKey, thisPod := range podMap {
 		if pvcs, ok := podPVCMap[thisPodKey]; ok {
@@ -2022,10 +2028,10 @@ func applyPVCsToPods(window kubecost.Window, podMap map[podKey]*pod, podPVCMap m
 
 				thisPVCKey := thisPVC.key()
 				if pvcPodWindowMap[thisPVCKey] == nil {
-					pvcPodWindowMap[thisPVCKey] = make(map[podKey]kubecost.Window)
+					pvcPodWindowMap[thisPVCKey] = make(map[podKey]opencost.Window)
 				}
 
-				pvcPodWindowMap[thisPVCKey][thisPodKey] = kubecost.NewWindow(&s, &e)
+				pvcPodWindowMap[thisPVCKey][thisPodKey] = opencost.NewWindow(&s, &e)
 			}
 		}
 	}
@@ -2079,9 +2085,9 @@ func applyPVCsToPods(window kubecost.Window, podMap map[podKey]*pod, podPVCMap m
 				// weighted by count (i.e. the number of containers in the pod)
 				// record the amount of total PVBytes Hours attributable to a given pv
 				if alloc.PVs == nil {
-					alloc.PVs = kubecost.PVAllocations{}
+					alloc.PVs = opencost.PVAllocations{}
 				}
-				pvKey := kubecost.PVKey{
+				pvKey := opencost.PVKey{
 					Cluster: pvc.Volume.Cluster,
 					Name:    pvc.Volume.Name,
 				}
@@ -2090,7 +2096,7 @@ func applyPVCsToPods(window kubecost.Window, podMap map[podKey]*pod, podPVCMap m
 				// so that if all allocations with a given pv key are summed the result of those
 				// would be equal to the values of the original pv
 				count := float64(len(pod.Allocations))
-				alloc.PVs[pvKey] = &kubecost.PVAllocation{
+				alloc.PVs[pvKey] = &opencost.PVAllocation{
 					ByteHours:  byteHours * coef / count,
 					Cost:       cost * coef / count,
 					ProviderID: pvc.Volume.ProviderID,
@@ -2100,7 +2106,7 @@ func applyPVCsToPods(window kubecost.Window, podMap map[podKey]*pod, podPVCMap m
 	}
 }
 
-func applyUnmountedPVs(window kubecost.Window, podMap map[podKey]*pod, pvMap map[pvKey]*pv, pvcMap map[pvcKey]*pvc) {
+func applyUnmountedPVs(window opencost.Window, podMap map[podKey]*pod, pvMap map[pvKey]*pv, pvcMap map[pvcKey]*pvc) {
 	for _, pv := range pvMap {
 		mounted := false
 		for _, pvc := range pvcMap {
@@ -2121,25 +2127,25 @@ func applyUnmountedPVs(window kubecost.Window, podMap map[podKey]*pod, pvMap map
 			// Calculate pv Cost
 
 			// Unmounted pv should have correct keyso it can still reconcile
-			thisPVKey := kubecost.PVKey{
+			thisPVKey := opencost.PVKey{
 				Cluster: pv.Cluster,
 				Name:    pv.Name,
 			}
 			gib := pv.Bytes / 1024 / 1024 / 1024
 			hrs := pv.minutes() / 60.0
 			cost := pv.CostPerGiBHour * gib * hrs
-			unmountedPVs := kubecost.PVAllocations{
+			unmountedPVs := opencost.PVAllocations{
 				thisPVKey: {
 					ByteHours: pv.Bytes * hrs,
 					Cost:      cost,
 				},
 			}
-			pod.Allocations[kubecost.UnmountedSuffix].PVs = pod.Allocations[kubecost.UnmountedSuffix].PVs.Add(unmountedPVs)
+			pod.Allocations[opencost.UnmountedSuffix].PVs = pod.Allocations[opencost.UnmountedSuffix].PVs.Add(unmountedPVs)
 		}
 	}
 }
 
-func applyUnmountedPVCs(window kubecost.Window, podMap map[podKey]*pod, pvcMap map[pvcKey]*pvc) {
+func applyUnmountedPVCs(window opencost.Window, podMap map[podKey]*pod, pvcMap map[pvcKey]*pvc) {
 	for _, pvc := range pvcMap {
 		if !pvc.Mounted && pvc.Volume != nil {
 
@@ -2149,7 +2155,7 @@ func applyUnmountedPVCs(window kubecost.Window, podMap map[podKey]*pod, pvcMap m
 			// Calculate pv Cost
 
 			// Unmounted pv should have correct key so it can still reconcile
-			thisPVKey := kubecost.PVKey{
+			thisPVKey := opencost.PVKey{
 				Cluster: pvc.Volume.Cluster,
 				Name:    pvc.Volume.Name,
 			}
@@ -2159,13 +2165,13 @@ func applyUnmountedPVCs(window kubecost.Window, podMap map[podKey]*pod, pvcMap m
 			gib := pvc.Volume.Bytes / 1024 / 1024 / 1024
 			hrs := pvc.Volume.minutes() / 60.0
 			cost := pvc.Volume.CostPerGiBHour * gib * hrs
-			unmountedPVs := kubecost.PVAllocations{
+			unmountedPVs := opencost.PVAllocations{
 				thisPVKey: {
 					ByteHours: pvc.Volume.Bytes * hrs,
 					Cost:      cost,
 				},
 			}
-			pod.Allocations[kubecost.UnmountedSuffix].PVs = pod.Allocations[kubecost.UnmountedSuffix].PVs.Add(unmountedPVs)
+			pod.Allocations[opencost.UnmountedSuffix].PVs = pod.Allocations[opencost.UnmountedSuffix].PVs.Add(unmountedPVs)
 		}
 	}
 }
@@ -2173,10 +2179,10 @@ func applyUnmountedPVCs(window kubecost.Window, podMap map[podKey]*pod, pvcMap m
 /* Helper Helpers */
 
 // getUnmountedPodForCluster retrieve the unmounted pod for a cluster and create it if it does not exist
-func getUnmountedPodForCluster(window kubecost.Window, podMap map[podKey]*pod, cluster string) *pod {
-	container := kubecost.UnmountedSuffix
-	podName := kubecost.UnmountedSuffix
-	namespace := kubecost.UnmountedSuffix
+func getUnmountedPodForCluster(window opencost.Window, podMap map[podKey]*pod, cluster string) *pod {
+	container := opencost.UnmountedSuffix
+	podName := opencost.UnmountedSuffix
+	namespace := opencost.UnmountedSuffix
 	node := ""
 
 	thisPodKey := getUnmountedPodKey(cluster)
@@ -2188,7 +2194,7 @@ func getUnmountedPodForCluster(window kubecost.Window, podMap map[podKey]*pod, c
 			Start:       *window.Start(),
 			End:         *window.End(),
 			Key:         thisPodKey,
-			Allocations: map[string]*kubecost.Allocation{},
+			Allocations: map[string]*opencost.Allocation{},
 		}
 
 		thisPod.appendContainer(container)
@@ -2207,8 +2213,8 @@ func getUnmountedPodForCluster(window kubecost.Window, podMap map[podKey]*pod, c
 
 // getUnmountedPodForNamespace is as getUnmountedPodForCluster, but keys allocation property pod/namespace field off namespace
 // This creates or adds allocations to an unmounted pod in the specified namespace, rather than in __unmounted__
-func getUnmountedPodForNamespace(window kubecost.Window, podMap map[podKey]*pod, cluster string, namespace string) *pod {
-	container := kubecost.UnmountedSuffix
+func getUnmountedPodForNamespace(window opencost.Window, podMap map[podKey]*pod, cluster string, namespace string) *pod {
+	container := opencost.UnmountedSuffix
 	podName := fmt.Sprintf("%s-unmounted-pvcs", namespace)
 	node := ""
 
@@ -2221,7 +2227,7 @@ func getUnmountedPodForNamespace(window kubecost.Window, podMap map[podKey]*pod,
 			Start:       *window.Start(),
 			End:         *window.End(),
 			Key:         thisPodKey,
-			Allocations: map[string]*kubecost.Allocation{},
+			Allocations: map[string]*opencost.Allocation{},
 		}
 
 		thisPod.appendContainer(container)
@@ -2238,7 +2244,7 @@ func getUnmountedPodForNamespace(window kubecost.Window, podMap map[podKey]*pod,
 	return thisPod
 }
 
-func calculateStartAndEnd(result *prom.QueryResult, resolution time.Duration, window kubecost.Window) (time.Time, time.Time) {
+func calculateStartAndEnd(result *prom.QueryResult, resolution time.Duration, window opencost.Window) (time.Time, time.Time) {
 	// Start and end for a range vector are pulled from the timestamps of the
 	// first and final values in the range. There is no "offsetting" required
 	// of the start or the end, as we used to do. If you query for a duration

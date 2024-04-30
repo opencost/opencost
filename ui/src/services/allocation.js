@@ -12,6 +12,7 @@ class AllocationService {
     const params = {
       window: win,
       aggregate: aggregate,
+      includeIdle: true,
       step: "1d",
     };
     if (typeof accumulate === "boolean") {

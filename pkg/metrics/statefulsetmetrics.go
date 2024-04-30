@@ -1,8 +1,8 @@
 package metrics
 
 import (
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/pkg/clustercache"
-	"github.com/opencost/opencost/pkg/prom"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -41,7 +41,7 @@ func (sc KubecostStatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
 		statefulsetName := statefulset.GetName()
 		statefulsetNS := statefulset.GetNamespace()
 
-		labels, values := prom.KubeLabelsToLabels(prom.SanitizeLabels(statefulset.Spec.Selector.MatchLabels))
+		labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(statefulset.Spec.Selector.MatchLabels))
 		if len(labels) > 0 {
 			m := newStatefulsetMatchLabelsMetric(statefulsetName, statefulsetNS, "statefulSet_match_labels", labels, values)
 			ch <- m
