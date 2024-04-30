@@ -844,12 +844,12 @@ func getContainerAllocation(req *util.Vector, used *util.Vector, allocationType 
 	if req != nil && used != nil {
 		x1 := req.Value
 		if math.IsNaN(x1) {
-			log.Warnf("NaN value found during %s allocation calculation for requests.", allocationType)
+			log.Debugf("NaN value found during %s allocation calculation for requests.", allocationType)
 			x1 = 0.0
 		}
 		y1 := used.Value
 		if math.IsNaN(y1) {
-			log.Warnf("NaN value found during %s allocation calculation for used.", allocationType)
+			log.Debugf("NaN value found during %s allocation calculation for used.", allocationType)
 			y1 = 0.0
 		}
 		result = []*util.Vector{
@@ -859,7 +859,7 @@ func getContainerAllocation(req *util.Vector, used *util.Vector, allocationType 
 			},
 		}
 		if result[0].Value == 0 && result[0].Timestamp == 0 {
-			log.Warnf("No request or usage data found during %s allocation calculation. Setting allocation to 0.", allocationType)
+			log.Debugf("No request or usage data found during %s allocation calculation. Setting allocation to 0.", allocationType)
 		}
 	} else if req != nil {
 		result = []*util.Vector{
@@ -876,7 +876,7 @@ func getContainerAllocation(req *util.Vector, used *util.Vector, allocationType 
 			},
 		}
 	} else {
-		log.Warnf("No request or usage data found during %s allocation calculation. Setting allocation to 0.", allocationType)
+		log.Debugf("No request or usage data found during %s allocation calculation. Setting allocation to 0.", allocationType)
 		result = []*util.Vector{
 			{
 				Value:     0,
