@@ -133,7 +133,7 @@ func (r *StreamReader) nextBlock() error {
 		r.container,
 		r.blobName,
 		currentBuffer, // recycle the old current buffer as the next buffer
-		r.position+int64(r.block.Cap()),
+		r.position+int64(defaultBlockSize),
 		int64(defaultBlockSize),
 		r.size,
 	)
