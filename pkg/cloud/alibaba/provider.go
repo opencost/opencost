@@ -516,8 +516,13 @@ func (alibaba *Alibaba) NodePricing(key models.Key) (*models.Node, models.Pricin
 		for k := range alibaba.Pricing {
 			keys = append(keys, k)
 		}
-		log.Errorf("Node pricing information not found for node with feature: %s . Existing keys are: %+v", keyFeature, keys)
-		return nil, meta, fmt.Errorf("Node pricing information not found for node with feature: %s letting it use default values", keyFeature)
+		kf := key.(*AlibabaNodeKey)
+		// Try to look up pricing with no disk attached
+		pricing, ok = alibaba.Pricing[kf.FeaturesWithOtherDisk("")]
+		if !ok {
+			log.Errorf("Node pricing information not found for node with feature: %s . Existing keys are: %+v", keyFeature, keys)
+			return nil, meta, fmt.Errorf("Node pricing information not found for node with feature: %s letting it use default values", keyFeature)
+		}
 	}
 
 	log.Debugf("returning the node price for the node with feature: %s", keyFeature)
@@ -824,6 +829,12 @@ func (alibabaNodeKey *AlibabaNodeKey) ID() string {
 func (alibabaNodeKey *AlibabaNodeKey) Features() string {
 	keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{alibabaNodeKey.RegionID, alibabaNodeKey.InstanceType, alibabaNodeKey.OSType,
 		alibabaNodeKey.OptimizedKeyword, alibabaNodeKey.SystemDiskCategory, alibabaNodeKey.SystemDiskSizeInGiB, alibabaNodeKey.SystemDiskPerformanceLevel})
+	return strings.Join(keyLookup, "::")
+}
+
+func (alibabaNodeKey *AlibabaNodeKey) FeaturesWithOtherDisk(overrideDiskCategory string) string {
+	keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{alibabaNodeKey.RegionID, alibabaNodeKey.InstanceType, alibabaNodeKey.OSType,
+		alibabaNodeKey.OptimizedKeyword, overrideDiskCategory, alibabaNodeKey.SystemDiskSizeInGiB, alibabaNodeKey.SystemDiskPerformanceLevel})
 	return strings.Join(keyLookup, "::")
 }
 
