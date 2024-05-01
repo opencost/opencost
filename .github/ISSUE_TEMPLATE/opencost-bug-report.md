@@ -8,7 +8,7 @@ assignees: ''
 ---
 
 **Describe the bug**
-A clear and concise description of what the OpenCost bug is. Please ensure this is an issue related to the OpenCost cost model, API, UI or specification. Public Kubecost bugs may be opened at https://github.com/kubecost/cost-analyzer-helm-chart/ 
+A clear and concise description of what the OpenCost bug is. Please ensure this is an issue related to the OpenCost cost model, API, UI or specification. Public Kubecost bugs may be opened at https://github.com/kubecost/features-bugs
 
 **To Reproduce**
 Steps to reproduce the behavior:

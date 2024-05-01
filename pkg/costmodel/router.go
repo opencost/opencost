@@ -28,11 +28,11 @@ import (
 	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/config"
 	clustermap "github.com/opencost/opencost/pkg/costmodel/clusters"
+	"github.com/opencost/opencost/pkg/customcost"
 	"github.com/opencost/opencost/pkg/kubeconfig"
 	"github.com/opencost/opencost/pkg/metrics"
 	"github.com/opencost/opencost/pkg/services"
 	"github.com/spf13/viper"
-
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/julienschmidt/httprouter"
@@ -86,26 +86,28 @@ var (
 // Accesses defines a singleton application instance, providing access to
 // Prometheus, Kubernetes, the cloud provider, and caches.
 type Accesses struct {
-	Router                   *httprouter.Router
-	PrometheusClient         prometheus.Client
-	ThanosClient             prometheus.Client
-	KubeClientSet            kubernetes.Interface
-	ClusterCache             clustercache.ClusterCache
-	ClusterMap               clusters.ClusterMap
-	CloudProvider            models.Provider
-	ConfigFileManager        *config.ConfigFileManager
-	CloudConfigController    *cloudconfig.Controller
-	CloudCostPipelineService *cloudcost.PipelineService
-	CloudCostQueryService    *cloudcost.QueryService
-	ClusterInfoProvider      clusters.ClusterInfoProvider
-	Model                    *CostModel
-	MetricsEmitter           *CostModelMetricsEmitter
-	OutOfClusterCache        *cache.Cache
-	AggregateCache           *cache.Cache
-	CostDataCache            *cache.Cache
-	ClusterCostsCache        *cache.Cache
-	CacheExpiration          map[time.Duration]time.Duration
-	AggAPI                   Aggregator
+	Router                    *httprouter.Router
+	PrometheusClient          prometheus.Client
+	ThanosClient              prometheus.Client
+	KubeClientSet             kubernetes.Interface
+	ClusterCache              clustercache.ClusterCache
+	ClusterMap                clusters.ClusterMap
+	CloudProvider             models.Provider
+	ConfigFileManager         *config.ConfigFileManager
+	CloudConfigController     *cloudconfig.Controller
+	CloudCostPipelineService  *cloudcost.PipelineService
+	CloudCostQueryService     *cloudcost.QueryService
+	CustomCostQueryService    *customcost.QueryService
+	CustomCostPipelineService *customcost.PipelineService
+	ClusterInfoProvider       clusters.ClusterInfoProvider
+	Model                     *CostModel
+	MetricsEmitter            *CostModelMetricsEmitter
+	OutOfClusterCache         *cache.Cache
+	AggregateCache            *cache.Cache
+	CostDataCache             *cache.Cache
+	ClusterCostsCache         *cache.Cache
+	CacheExpiration           map[time.Duration]time.Duration
+	AggAPI                    Aggregator
 	// SettingsCache stores current state of app settings
 	SettingsCache *cache.Cache
 	// settingsSubscribers tracks channels through which changes to different
@@ -1202,45 +1204,23 @@ type InstallInfo struct {
 type ContainerInfo struct {
 	ContainerName string `json:"containerName"`
 	Image         string `json:"image"`
-	ImageID       string `json:"imageID"`
 	StartTime     string `json:"startTime"`
-	Restarts      int32  `json:"restarts"`
 }
 
 func (a *Accesses) GetInstallInfo(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	pods, err := a.KubeClientSet.CoreV1().Pods(env.GetKubecostNamespace()).List(context.Background(), metav1.ListOptions{
-		LabelSelector: "app=cost-analyzer",
-		FieldSelector: "status.phase=Running",
-		Limit:         1,
-	})
+	containers, err := GetKubecostContainers(a.KubeClientSet)
 	if err != nil {
 		writeErrorResponse(w, 500, fmt.Sprintf("Unable to list pods: %s", err.Error()))
 		return
 	}
 
 	info := InstallInfo{
+		Containers:  containers,
 		ClusterInfo: make(map[string]string),
 		Version:     version.FriendlyVersion(),
-	}
-
-	// If we have zero pods either something is weird with the install since the app selector is not exposed in the helm
-	// chart or more likely we are running locally - in either case Images field will return as null
-	if len(pods.Items) > 0 {
-		for _, pod := range pods.Items {
-			for _, container := range pod.Status.ContainerStatuses {
-				c := ContainerInfo{
-					ContainerName: container.Name,
-					Image:         container.Image,
-					ImageID:       container.ImageID,
-					StartTime:     pod.Status.StartTime.String(),
-					Restarts:      container.RestartCount,
-				}
-				info.Containers = append(info.Containers, c)
-			}
-		}
 	}
 
 	nodes := a.ClusterCache.GetAllNodes()
@@ -1256,6 +1236,35 @@ func (a *Accesses) GetInstallInfo(w http.ResponseWriter, r *http.Request, _ http
 	}
 
 	w.Write(body)
+}
+
+func GetKubecostContainers(kubeClientSet kubernetes.Interface) ([]ContainerInfo, error) {
+	pods, err := kubeClientSet.CoreV1().Pods(env.GetKubecostNamespace()).List(context.Background(), metav1.ListOptions{
+		LabelSelector: "app=cost-analyzer",
+		FieldSelector: "status.phase=Running",
+		Limit:         1,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to query kubernetes client for kubecost pods: %s", err)
+	}
+
+	// If we have zero pods either something is weird with the install since the app selector is not exposed in the helm
+	// chart or more likely we are running locally - in either case Images field will return as null
+	var containers []ContainerInfo
+	if len(pods.Items) > 0 {
+		for _, pod := range pods.Items {
+			for _, container := range pod.Spec.Containers {
+				c := ContainerInfo{
+					ContainerName: container.Name,
+					Image:         container.Image,
+					StartTime:     pod.Status.StartTime.String(),
+				}
+				containers = append(containers, c)
+			}
+		}
+	}
+
+	return containers, nil
 }
 
 // logsFor pulls the logs for a specific pod, namespace, and container
@@ -1412,12 +1421,12 @@ func (a *Accesses) Status(w http.ResponseWriter, r *http.Request, _ httprouter.P
 	promServer := env.GetPrometheusServerEndpoint()
 
 	api := prometheusAPI.NewAPI(a.PrometheusClient)
-	result, err := api.Config(r.Context())
+	result, err := api.Buildinfo(r.Context())
 	if err != nil {
 		fmt.Fprintf(w, "Using Prometheus at "+promServer+". Error: "+err.Error())
 	} else {
 
-		fmt.Fprintf(w, "Using Prometheus at "+promServer+". PrometheusConfig: "+result.YAML)
+		fmt.Fprintf(w, "Using Prometheus at "+promServer+". Version: "+result.Version)
 	}
 }
 
@@ -1519,7 +1528,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	timeout := 120 * time.Second
 	keepAlive := 120 * time.Second
 	tlsHandshakeTimeout := 10 * time.Second
-	scrapeInterval := time.Minute
+	scrapeInterval := env.GetKubecostScrapeInterval()
 
 	var rateLimitRetryOpts *prom.RateLimitRetryOpts = nil
 	if env.IsPrometheusRetryOnRateLimitResponse() {
@@ -1560,17 +1569,20 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	}
 
 	api := prometheusAPI.NewAPI(promCli)
-	_, err = api.Config(context.Background())
+	_, err = api.Buildinfo(context.Background())
 	if err != nil {
 		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/mimir/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
 	} else {
 		log.Infof("Retrieved a prometheus config file from: %s", address)
 	}
 
-	// Lookup scrape interval for kubecost job, update if found
-	si, err := prom.ScrapeIntervalFor(promCli, env.GetKubecostJobName())
-	if err == nil {
-		scrapeInterval = si
+	if scrapeInterval == 0 {
+		scrapeInterval = time.Minute
+		// Lookup scrape interval for kubecost job, update if found
+		si, err := prom.ScrapeIntervalFor(promCli, env.GetKubecostJobName())
+		if err == nil {
+			scrapeInterval = si
+		}
 	}
 
 	log.Infof("Using scrape interval of %f", scrapeInterval.Seconds())
@@ -1767,6 +1779,22 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		a.MetricsEmitter.Start()
 	}
 
+	log.Infof("Custom Costs enabled: %t", env.IsCustomCostEnabled())
+	if env.IsCustomCostEnabled() {
+		hourlyRepo := customcost.NewMemoryRepository()
+		dailyRepo := customcost.NewMemoryRepository()
+		ingConfig := customcost.DefaultIngestorConfiguration()
+		var err error
+		a.CustomCostPipelineService, err = customcost.NewPipelineService(hourlyRepo, dailyRepo, ingConfig)
+		if err != nil {
+			log.Errorf("error instantiating custom cost pipeline service: %v", err)
+			return nil
+		}
+
+		customCostQuerier := customcost.NewRepositoryQuerier(hourlyRepo, dailyRepo, ingConfig.HourlyDuration, ingConfig.DailyDuration)
+		a.CustomCostQueryService = customcost.NewQueryService(customCostQuerier)
+	}
+
 	a.Router.GET("/costDataModel", a.CostDataModel)
 	a.Router.GET("/costDataModelRange", a.CostDataModelRange)
 	a.Router.GET("/aggregatedCostModel", a.AggregateCostModelHandler)
@@ -1824,6 +1852,15 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	a.Router.GET("/cloud/config/enable", a.CloudConfigController.GetEnableConfigHandler())
 	a.Router.GET("/cloud/config/disable", a.CloudConfigController.GetDisableConfigHandler())
 	a.Router.GET("/cloud/config/delete", a.CloudConfigController.GetDeleteConfigHandler())
+
+	if env.IsCustomCostEnabled() {
+		a.Router.GET("/customCost/total", a.CustomCostQueryService.GetCustomCostTotalHandler())
+		a.Router.GET("/customCost/timeseries", a.CustomCostQueryService.GetCustomCostTimeseriesHandler())
+	}
+
+	// this endpoint is intentionally left out of the "if env.IsCustomCostEnabled()" conditional; in the handler, it is
+	// valid for CustomCostPipelineService to be nil
+	a.Router.GET("/customCost/status", a.CustomCostPipelineService.GetCustomCostStatusHandler())
 
 	a.httpServices.RegisterAll(a.Router)
 

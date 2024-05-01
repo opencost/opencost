@@ -39,10 +39,11 @@ LABEL org.opencontainers.image.documentation=https://opencost.io/docs/
 LABEL org.opencontainers.image.licenses=Apache-2.0
 LABEL org.opencontainers.image.source=https://github.com/opencost/opencost
 LABEL org.opencontainers.image.title=kubecost-cost-model
-LABEL org.opencontainers.image.url=https://github.com/opencost/opencost
+LABEL org.opencontainers.image.url=https://opencost.io
 
 RUN apk add --update --no-cache ca-certificates
 COPY --from=build-env /go/bin/app /go/bin/app
+ADD --chmod=644 ./THIRD_PARTY_LICENSES.txt /THIRD_PARTY_LICENSES.txt
 ADD --chmod=644 ./configs/default.json /models/default.json
 ADD --chmod=644 ./configs/azure.json /models/azure.json
 ADD --chmod=644 ./configs/aws.json /models/aws.json

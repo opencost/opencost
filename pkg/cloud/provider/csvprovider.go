@@ -228,60 +228,65 @@ func (k *csvKey) ID() string {
 	return k.ProviderID
 }
 
-func (c *CSVProvider) NodePricing(key models.Key) (*models.Node, models.PricingMetadata, error) {
-	c.DownloadPricingDataLock.RLock()
-	defer c.DownloadPricingDataLock.RUnlock()
-	meta := models.PricingMetadata{}
-	var node *models.Node
+func (c *CSVProvider) nodePricing(key models.Key) *models.Node {
 	if p, ok := c.Pricing[key.ID()]; ok {
-		node = &models.Node{
+		return &models.Node{
 			Cost:        p.MarketPriceHourly,
 			PricingType: models.CsvExact,
 		}
 	}
+
 	s := strings.Split(key.ID(), ",") // Try without a region to be sure
 	if len(s) == 2 {
 		if p, ok := c.Pricing[s[1]]; ok {
-			node = &models.Node{
+			return &models.Node{
 				Cost:        p.MarketPriceHourly,
 				PricingType: models.CsvExact,
 			}
 		}
 	}
+
 	classKey := key.Features() // Use node attributes to try and do a class match
 	if cost, ok := c.NodeClassPricing[classKey]; ok {
 		log.Infof("Unable to find provider ID `%s`, using features:`%s`", key.ID(), key.Features())
-		node = &models.Node{
+		return &models.Node{
 			Cost:        fmt.Sprintf("%f", cost),
 			PricingType: models.CsvClass,
 		}
 	}
 
-	if node != nil {
-		if t := key.GPUType(); t != "" {
-			t = strings.ToLower(t)
-			count := key.GPUCount()
-			node.GPU = strconv.Itoa(count)
-			hourly := 0.0
-			if p, ok := c.GPUClassPricing[t]; ok {
-				var err error
-				hourly, err = strconv.ParseFloat(p.MarketPriceHourly, 64)
-				if err != nil {
-					log.Errorf("Unable to parse %s as float", p.MarketPriceHourly)
-				}
-			}
-			totalCost := hourly * float64(count)
-			node.GPUCost = fmt.Sprintf("%f", totalCost)
-			nc, err := strconv.ParseFloat(node.Cost, 64)
-			if err != nil {
-				log.Errorf("Unable to parse %s as float", node.Cost)
-			}
-			node.Cost = fmt.Sprintf("%f", nc+totalCost)
-		}
-		return node, meta, nil
-	} else {
-		return nil, meta, fmt.Errorf("Unable to find Node matching `%s`:`%s`", key.ID(), key.Features())
+	return nil
+}
+
+func (c *CSVProvider) NodePricing(key models.Key) (*models.Node, models.PricingMetadata, error) {
+	c.DownloadPricingDataLock.RLock()
+	defer c.DownloadPricingDataLock.RUnlock()
+
+	node := c.nodePricing(key)
+	if node == nil {
+		return nil, models.PricingMetadata{}, fmt.Errorf("Unable to find Node matching `%s`:`%s`", key.ID(), key.Features())
 	}
+	if t := key.GPUType(); t != "" {
+		t = strings.ToLower(t)
+		count := key.GPUCount()
+		node.GPU = strconv.Itoa(count)
+		hourly := 0.0
+		if p, ok := c.GPUClassPricing[t]; ok {
+			var err error
+			hourly, err = strconv.ParseFloat(p.MarketPriceHourly, 64)
+			if err != nil {
+				log.Errorf("Unable to parse %s as float", p.MarketPriceHourly)
+			}
+		}
+		totalCost := hourly * float64(count)
+		node.GPUCost = fmt.Sprintf("%f", hourly)
+		nc, err := strconv.ParseFloat(node.Cost, 64)
+		if err != nil {
+			log.Errorf("Unable to parse %s as float", node.Cost)
+		}
+		node.Cost = fmt.Sprintf("%f", nc+totalCost)
+	}
+	return node, models.PricingMetadata{}, nil
 }
 
 func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
@@ -315,11 +320,11 @@ func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
 			akey := strings.Join(mf[2:len(mf)], ".")
 			return toReturn + n.Annotations[akey]
 		} else {
-			log.Errorf("Unsupported InstanceIDField %s in CSV For Node", m)
+			log.DedupedInfof(10, "Unsupported InstanceIDField %s in CSV For Node", m)
 			return ""
 		}
 	} else {
-		log.Errorf("Unsupported InstanceIDField %s in CSV For Node", m)
+		log.DedupedInfof(10, "Unsupported InstanceIDField %s in CSV For Node", m)
 		return ""
 	}
 }
@@ -368,7 +373,7 @@ func (c *CSVProvider) GetKey(l map[string]string, n *v1.Node) models.Key {
 		gpuCount = gpuc.Value()
 	}
 	return &csvKey{
-		ProviderID: id,
+		ProviderID: strings.ToLower(id),
 		Labels:     l,
 		GPULabel:   c.GPUMapFields,
 		GPU:        gpuCount,

@@ -115,16 +115,19 @@ func (orig LbAllocations) Clone() LbAllocations {
 			Cost:    lbAlloc.Cost,
 			Private: lbAlloc.Private,
 			Ip:      lbAlloc.Ip,
+			Hours:   lbAlloc.Hours,
 		}
 	}
 	return newAllocs
 }
 
 type LbAllocation struct {
-	Service string  `json:"service"`
-	Cost    float64 `json:"cost"`
-	Private bool    `json:"private"`
-	Ip      string  `json:"ip"` //@bingen:field[version=19]
+	Service    string  `json:"service"`
+	Cost       float64 `json:"cost"`
+	Private    bool    `json:"private"`
+	Ip         string  `json:"ip"`         //@bingen:field[version=19]
+	Hours      float64 `json:"hours"`      //@bingen:field[version=21]
+	Adjustment float64 `json:"adjustment"` //@bingen:field[ignore]
 }
 
 func (lba *LbAllocation) SanitizeNaN() {
@@ -134,6 +137,10 @@ func (lba *LbAllocation) SanitizeNaN() {
 	if math.IsNaN(lba.Cost) {
 		log.DedupedWarningf(5, "LBAllocation: Unexpected NaN found for Cost service:%s", lba.Service)
 		lba.Cost = 0
+	}
+	if math.IsNaN(lba.Hours) {
+		log.DedupedWarningf(5, "LBAllocation: Unexpected NaN found for Hours service:%s", lba.Service)
+		lba.Hours = 0
 	}
 }
 
@@ -306,6 +313,7 @@ type PVAllocation struct {
 	ByteHours  float64 `json:"byteHours"`
 	Cost       float64 `json:"cost"`
 	ProviderID string  `json:"providerID"` // @bingen:field[version=20]
+	Adjustment float64 `json:"adjustment"` //@bingen:field[ignore]
 }
 
 // Equal returns true if the two PVAllocation instances contain approximately the same
@@ -1249,10 +1257,12 @@ func (thisLbAllocs LbAllocations) Add(thatLbAllocs LbAllocations) LbAllocations 
 				thisLbAlloc = &LbAllocation{
 					Service: thatlbAlloc.Service,
 					Cost:    thatlbAlloc.Cost,
+					Hours:   thatlbAlloc.Hours,
 				}
 				mergedLbAllocs[lbKey] = thisLbAlloc
 			} else {
 				thisLbAlloc.Cost += thatlbAlloc.Cost
+				thisLbAlloc.Hours += thatlbAlloc.Hours
 			}
 
 		}

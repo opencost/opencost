@@ -32,7 +32,7 @@ func TestGetKey(t *testing.T) {
 	for instanceType, testCase := range testCases {
 		t.Run(instanceType, func(t *testing.T) {
 			labels := map[string]string{
-				v1.LabelInstanceType: instanceType,
+				v1.LabelInstanceTypeStable: instanceType,
 			}
 			if testCase.isVirtual {
 				labels[virtualNodeLabel] = ""

@@ -1440,18 +1440,29 @@ func applyLoadBalancersToPods(window opencost.Window, podMap map[podKey]*pod, lb
 		}
 
 		for _, alloc := range allocs {
+			// reocord the hours overlapped with the allocation for the load balancer
+			// if there was overlap. Otherwise, record a 0.0.
+			// TODO: Do we really want to include load balancers that have 0 overlap
+			// TODO: hours with the allocation?
+			var hours float64 = 0.0
+			if _, ok := allocHours[alloc]; ok {
+				hours = allocHours[alloc]
+			}
+
 			if alloc.LoadBalancers == nil {
 				alloc.LoadBalancers = opencost.LbAllocations{}
 			}
 
 			if _, found := alloc.LoadBalancers[sKey.String()]; found {
 				alloc.LoadBalancers[sKey.String()].Cost += alloc.LoadBalancerCost
+				alloc.LoadBalancers[sKey.String()].Hours += hours
 			} else {
 				alloc.LoadBalancers[sKey.String()] = &opencost.LbAllocation{
 					Service: sKey.Namespace + "/" + sKey.Service,
 					Cost:    alloc.LoadBalancerCost,
 					Private: lb.Private,
 					Ip:      lb.Ip,
+					Hours:   hours,
 				}
 			}
 		}
@@ -1483,13 +1494,11 @@ func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerCPUHr
 		instanceType, err := res.GetString("instance_type")
 		if err != nil {
 			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
-			continue
 		}
 
 		providerID, err := res.GetString("provider_id")
 		if err != nil {
 			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
-			continue
 		}
 
 		key := newNodeKey(cluster, node)
@@ -1521,13 +1530,11 @@ func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerRA
 		instanceType, err := res.GetString("instance_type")
 		if err != nil {
 			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: \"%s\" for node \"%s\"", err, node)
-			continue
 		}
 
 		providerID, err := res.GetString("provider_id")
 		if err != nil {
 			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: \"%s\" for node \"%s\"", err, node)
-			continue
 		}
 
 		key := newNodeKey(cluster, node)
@@ -1559,13 +1566,11 @@ func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerGPUHr
 		instanceType, err := res.GetString("instance_type")
 		if err != nil {
 			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
-			continue
 		}
 
 		providerID, err := res.GetString("provider_id")
 		if err != nil {
 			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
-			continue
 		}
 
 		key := newNodeKey(cluster, node)

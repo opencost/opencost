@@ -117,7 +117,7 @@ func newPrometheusClient() (prometheus.Client, error) {
 	}
 
 	api := prometheusAPI.NewAPI(promCli)
-	_, err = api.Config(context.Background())
+	_, err = api.Buildinfo(context.Background())
 	if err != nil {
 		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/mimir/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
 	} else {
@@ -132,16 +132,19 @@ func Execute(opts *AgentOpts) error {
 
 	configWatchers := watcher.NewConfigMapWatchers()
 
-	scrapeInterval := time.Minute
+	scrapeInterval := env.GetKubecostScrapeInterval()
 	promCli, err := newPrometheusClient()
 	if err != nil {
 		panic(err.Error())
 	}
 
-	// Lookup scrape interval for kubecost job, update if found
-	si, err := prom.ScrapeIntervalFor(promCli, env.GetKubecostJobName())
-	if err == nil {
-		scrapeInterval = si
+	if scrapeInterval == 0 {
+		scrapeInterval = time.Minute
+		// Lookup scrape interval for kubecost job, update if found
+		si, err := prom.ScrapeIntervalFor(promCli, env.GetKubecostJobName())
+		if err == nil {
+			scrapeInterval = si
+		}
 	}
 
 	log.Infof("Using scrape interval of %f", scrapeInterval.Seconds())

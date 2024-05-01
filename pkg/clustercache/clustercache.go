@@ -9,7 +9,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/api/policy/v1beta1"
+	policyv1 "k8s.io/api/policy/v1"
 	stv1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
@@ -61,7 +61,7 @@ type ClusterCache interface {
 	GetAllJobs() []*batchv1.Job
 
 	// GetAllPodDisruptionBudgets returns all cached pod disruption budgets
-	GetAllPodDisruptionBudgets() []*v1beta1.PodDisruptionBudget
+	GetAllPodDisruptionBudgets() []*policyv1.PodDisruptionBudget
 
 	// GetAllReplicationControllers returns all cached replication controllers
 	GetAllReplicationControllers() []*v1.ReplicationController
@@ -102,7 +102,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	appsRestClient := client.AppsV1().RESTClient()
 	storageRestClient := client.StorageV1().RESTClient()
 	batchClient := client.BatchV1().RESTClient()
-	pdbClient := client.PolicyV1beta1().RESTClient()
+	pdbClient := client.PolicyV1().RESTClient()
 
 	kubecostNamespace := env.GetKubecostNamespace()
 	log.Infof("NAMESPACE: %s", kubecostNamespace)
@@ -122,7 +122,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 		pvcWatch:                   NewCachingWatcher(coreRestClient, "persistentvolumeclaims", &v1.PersistentVolumeClaim{}, "", fields.Everything()),
 		storageClassWatch:          NewCachingWatcher(storageRestClient, "storageclasses", &stv1.StorageClass{}, "", fields.Everything()),
 		jobsWatch:                  NewCachingWatcher(batchClient, "jobs", &batchv1.Job{}, "", fields.Everything()),
-		pdbWatch:                   NewCachingWatcher(pdbClient, "poddisruptionbudgets", &v1beta1.PodDisruptionBudget{}, "", fields.Everything()),
+		pdbWatch:                   NewCachingWatcher(pdbClient, "poddisruptionbudgets", &policyv1.PodDisruptionBudget{}, "", fields.Everything()),
 		replicationControllerWatch: NewCachingWatcher(coreRestClient, "replicationcontrollers", &v1.ReplicationController{}, "", fields.Everything()),
 	}
 
@@ -147,7 +147,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 		go initializeCache(kcc.pvcWatch, &wg, cancel)
 		go initializeCache(kcc.storageClassWatch, &wg, cancel)
 		go initializeCache(kcc.jobsWatch, &wg, cancel)
-		go initializeCache(kcc.podWatch, &wg, cancel)
+		go initializeCache(kcc.pdbWatch, &wg, cancel)
 		go initializeCache(kcc.replicationControllerWatch, &wg, cancel)
 	}
 
@@ -300,11 +300,11 @@ func (kcc *KubernetesClusterCache) GetAllJobs() []*batchv1.Job {
 	return jobs
 }
 
-func (kcc *KubernetesClusterCache) GetAllPodDisruptionBudgets() []*v1beta1.PodDisruptionBudget {
-	var pdbs []*v1beta1.PodDisruptionBudget
+func (kcc *KubernetesClusterCache) GetAllPodDisruptionBudgets() []*policyv1.PodDisruptionBudget {
+	var pdbs []*policyv1.PodDisruptionBudget
 	items := kcc.pdbWatch.GetAll()
 	for _, pdb := range items {
-		pdbs = append(pdbs, pdb.(*v1beta1.PodDisruptionBudget))
+		pdbs = append(pdbs, pdb.(*policyv1.PodDisruptionBudget))
 	}
 	return pdbs
 }

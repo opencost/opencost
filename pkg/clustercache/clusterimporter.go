@@ -9,7 +9,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/api/policy/v1beta1"
+	policyv1 "k8s.io/api/policy/v1"
 	stv1 "k8s.io/api/storage/v1"
 )
 
@@ -271,14 +271,14 @@ func (ci *ClusterImporter) GetAllJobs() []*batchv1.Job {
 }
 
 // GetAllPodDisruptionBudgets returns all cached pod disruption budgets
-func (ci *ClusterImporter) GetAllPodDisruptionBudgets() []*v1beta1.PodDisruptionBudget {
+func (ci *ClusterImporter) GetAllPodDisruptionBudgets() []*policyv1.PodDisruptionBudget {
 	ci.dataLock.Lock()
 	defer ci.dataLock.Unlock()
 
 	// Deep copy here to avoid callers from corrupting the cache
 	// This also mimics the behavior of the default cluster cache impl.
 	pdbs := ci.data.PodDisruptionBudgets
-	cloneList := make([]*v1beta1.PodDisruptionBudget, 0, len(pdbs))
+	cloneList := make([]*policyv1.PodDisruptionBudget, 0, len(pdbs))
 	for _, v := range pdbs {
 		cloneList = append(cloneList, v.DeepCopy())
 	}

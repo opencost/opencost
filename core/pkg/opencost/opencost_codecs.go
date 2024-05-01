@@ -41,7 +41,7 @@ const (
 	AssetsCodecVersion uint8 = 21
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
-	AllocationCodecVersion uint8 = 20
+	AllocationCodecVersion uint8 = 21
 
 	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
 	CloudCostCodecVersion uint8 = 2
@@ -5433,6 +5433,7 @@ func (target *LbAllocation) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 	} else {
 		buff.WriteString(target.Ip) // write string
 	}
+	buff.WriteFloat64(target.Hours) // write float64
 	return nil
 }
 
@@ -5520,6 +5521,15 @@ func (target *LbAllocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 
 	} else {
 		target.Ip = "" // default
+	}
+
+	// field version check
+	if uint8(21) <= version {
+		k := buff.ReadFloat64() // read float64
+		target.Hours = k
+
+	} else {
+		target.Hours = float64(0) // default
 	}
 
 	return nil

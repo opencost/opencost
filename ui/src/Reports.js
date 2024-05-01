@@ -22,6 +22,7 @@ import AllocationReport from "./components/allocationReport";
 import Controls from "./components/Controls";
 import Header from "./components/Header";
 import Page from "./components/Page";
+import Footer from "./components/Footer";
 import Subtitle from "./components/Subtitle";
 import Warnings from "./components/Warnings";
 import AllocationService from "./services/allocation";
@@ -48,11 +49,14 @@ const aggregationOptions = [
   { name: "Cluster", value: "cluster" },
   { name: "Node", value: "node" },
   { name: "Namespace", value: "namespace" },
-  { name: "Controller kind", value: "controllerKind" },
+  { name: "Controller Kind", value: "controllerKind" },
   { name: "Controller", value: "controller" },
-  { name: "Service", value: "service" },
-  { name: "Pod", value: "pod" },
+  { name: "DaemonSet", value: "daemonset" },
   { name: "Deployment", value: "deployment" },
+  { name: "Job", value: "job" },
+  { name: "Service", value: "service" },
+  { name: "StatefulSet", value: "statefulset" },
+  { name: "Pod", value: "pod" },
   { name: "Container", value: "container" },
 ];
 
@@ -154,7 +158,7 @@ const ReportsPage = () => {
   const searchParams = new URLSearchParams(routerLocation.search);
   const routerHistory = useHistory();
   useEffect(() => {
-    setWindow(searchParams.get("window") || "6d");
+    setWindow(searchParams.get("window") || "7d");
     setAggregateBy(searchParams.get("agg") || "namespace");
     setAccumulate(searchParams.get("acc") === "true" || false);
     setCurrency(searchParams.get("currency") || "USD");
@@ -203,12 +207,12 @@ const ReportsPage = () => {
           {
             primary: "Failed to load report data",
             secondary:
-              "Please update Kubecost to the latest version, then contact support if problems persist.",
+              "Please update OpenCost to the latest version, then open an Issue on GitHub if problems persist.",
           },
         ]);
       } else {
         let secondary =
-          "Please contact Kubecost support with a bug report if problems persist.";
+          "Please open an Issue on GitHub if problems persist.";
         if (err.message.length > 0) {
           secondary = err.message;
         }
@@ -302,6 +306,7 @@ const ReportsPage = () => {
           )}
         </Paper>
       )}
+      <Footer/>
     </Page>
   );
 };

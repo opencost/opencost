@@ -296,6 +296,9 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 	} else if strings.HasPrefix(providerID, "aws") {
 		cp.provider = opencost.AWSProvider
 		cp.configFileName = "aws.json"
+	} else if strings.Contains(node.Status.NodeInfo.KubeletVersion, "eks") { // Additional check for EKS, via kubelet check
+		cp.provider = opencost.AWSProvider
+		cp.configFileName = "aws.json"
 	} else if strings.HasPrefix(providerID, "azure") {
 		cp.provider = opencost.AzureProvider
 		cp.configFileName = "azure.json"
