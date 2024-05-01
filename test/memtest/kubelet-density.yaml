@@ -1,0 +1,19 @@
+---
+jobs:
+  - name: churning
+    preLoadImages: false
+    jobIterations: 3
+    namespacedIterations: true
+    namespace: churning
+    waitWhenFinished: true
+    podWait: false
+
+    churn: true
+    churnPercent: 50
+    churnDuration: 1m
+
+    objects:
+      - objectTemplate: deployment.yaml
+        replicas: 100
+        inputVars:
+          containerImage: registry.k8s.io/pause:3.1

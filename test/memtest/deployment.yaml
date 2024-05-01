@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubelet-density-deployment-v3-{{.Iteration}}-{{.Replica}}
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kubelet-density-{{.Iteration}}-{{.Replica}}
+  template:
+    metadata:
+      labels:
+        app: kubelet-density-{{.Iteration}}-{{.Replica}}
+        label1: label-{{.Iteration}}-{{.Replica}}
+        label2: label-{{.Iteration}}-{{.Replica}}
+        label3: label-{{.Iteration}}-{{.Replica}}
+        label4: label-{{.Iteration}}-{{.Replica}}
+        label5: label-{{.Iteration}}-{{.Replica}}
+        label6: label-{{.Iteration}}-{{.Replica}}
+        label7: label-{{.Iteration}}-{{.Replica}}
+        label8: label-{{.Iteration}}-{{.Replica}}
+        label9: label-{{.Iteration}}-{{.Replica}}
+        label10: label-{{.Iteration}}-{{.Replica}}
+        label11: label-{{.Iteration}}-{{.Replica}}
+        label12: label-{{.Iteration}}-{{.Replica}}
+        label13: label-{{.Iteration}}-{{.Replica}}
+        label14: label-{{.Iteration}}-{{.Replica}}
+        label15: label-{{.Iteration}}-{{.Replica}}
+        label16: label-{{.Iteration}}-{{.Replica}}
+        label17: label-{{.Iteration}}-{{.Replica}}
+        label18: label-{{.Iteration}}-{{.Replica}}
+        label19: label-{{.Iteration}}-{{.Replica}}
+        label20: label-{{.Iteration}}-{{.Replica}}
+        label21: label-{{.Iteration}}-{{.Replica}}
+        label22: label-{{.Iteration}}-{{.Replica}}
+        label23: label-{{.Iteration}}-{{.Replica}}
+        label24: label-{{.Iteration}}-{{.Replica}}
+        label25: label-{{.Iteration}}-{{.Replica}}
+        label26: label-{{.Iteration}}-{{.Replica}}
+        label27: label-{{.Iteration}}-{{.Replica}}
+        label28: label-{{.Iteration}}-{{.Replica}}
+        label29: label-{{.Iteration}}-{{.Replica}}
+        label30: label-{{.Iteration}}-{{.Replica}}
+    spec:
+      containers:
+        - name: kubelet-density-1
+          image: {{.containerImage}}
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: false
+          resources:
+            requests:
+              cpu: "1m"
+              memory: "1Ki"
+        - name: kubelet-density-2
+          image: {{.containerImage}}
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: false
+          resources:
+            requests:
+              cpu: "1m"
+              memory: "1Ki"

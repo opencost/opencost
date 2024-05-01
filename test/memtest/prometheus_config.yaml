@@ -1,0 +1,28 @@
+global:
+  scrape_interval: 10s
+  scrape_timeout: 10s
+scrape_configs:
+  - job_name: opencost
+    honor_labels: true
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.testcontainers.internal:9003
+  - job_name: kubelet
+    kubernetes_sd_configs:
+      - role: node
+        kubeconfig_file: /.kube/config
+    relabel_configs:
+      - replacement: http://host.testcontainers.internal:8001 # kubectl proxy
+        target_label: __address__
+      - regex: (.+)
+        replacement: /api/v1/nodes/$1/proxy/metrics/resource
+        source_labels:
+          - __meta_kubernetes_node_name
+        target_label: __metrics_path__
+    metric_relabel_configs:
+      - action: keep
+        source_labels: [__name__]
+        regex: "container_cpu_usage_seconds_total|container_memory_working_set_bytes"
+    tls_config:
+      insecure_skip_verify: true
