@@ -357,7 +357,7 @@ func (s3 *S3Storage) Read(name string) ([]byte, error) {
 // Exists checks if the given object exists.
 func (s3 *S3Storage) Exists(name string) (bool, error) {
 	name = trimLeading(name)
-	//log.Tracef("S3Storage::Exists(%s)", name)
+	log.Tracef("S3Storage::Exists(%s)", name)
 
 	ctx := context.Background()
 
@@ -410,7 +410,7 @@ func (s3 *S3Storage) Write(name string, data []byte) error {
 func (s3 *S3Storage) Stat(name string) (*StorageInfo, error) {
 	name = trimLeading(name)
 
-	//log.Tracef("S3Storage::Stat(%s)", name)
+	log.Tracef("S3Storage::Stat(%s)", name)
 	ctx := context.Background()
 
 	objInfo, err := s3.client.StatObject(ctx, s3.name, name, minio.StatObjectOptions{})
