@@ -408,6 +408,30 @@ func TestProcessDescribePriceAndCreateAlibabaPricing(t *testing.T) {
 			},
 			expectedError: nil,
 		},
+		{
+			name: "test incorrect disk type",
+			teststruct: &SlimK8sNode{
+				InstanceType:       "ecs.g6.xlarge",
+				RegionID:           "ap-northeast-1",
+				PriceUnit:          "Hour",
+				MemorySizeInKiB:    "33554432KiB",
+				IsIoOptimized:      true,
+				OSType:             "Linux",
+				ProviderID:         "cn-hangzhou.i-test-15",
+				InstanceTypeFamily: "se1",
+				SystemDisk: &SlimK8sDisk{
+					DiskType:         "data",
+					RegionID:         "ap-northeast-1",
+					PriceUnit:        "Hour",
+					SizeInGiB:        "40",
+					DiskCategory:     "cloud_essd",
+					PerformanceLevel: "PL1",
+					ProviderID:       "d-Ali-cloud-XXX-04",
+					StorageClass:     "temp",
+				},
+			},
+			expectedError: nil,
+		},
 	}
 	custom := &models.CustomPricing{}
 	for _, c := range cases {
