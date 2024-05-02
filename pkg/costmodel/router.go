@@ -1767,14 +1767,6 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		log.Infof("Failed to download pricing data: " + err.Error())
 	}
 
-	// Warm the aggregate cache unless explicitly set to false
-	if env.IsCacheWarmingEnabled() {
-		log.Infof("Init: AggregateCostModel cache warming enabled")
-		a.warmAggregateCostModelCache()
-	} else {
-		log.Infof("Init: AggregateCostModel cache warming disabled")
-	}
-
 	if !env.IsKubecostMetricsPodEnabled() {
 		a.MetricsEmitter.Start()
 	}
