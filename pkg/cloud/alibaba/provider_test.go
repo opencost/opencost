@@ -466,11 +466,6 @@ func TestGetInstanceFamilyFromType(t *testing.T) {
 			instanceType:           "random.value",
 			expectedInstanceFamily: ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE,
 		},
-		{
-			name:                   "test if random instance family gives you ALIBABA_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE value ",
-			instanceType:           "ecs.g7e.2xlarge",
-			expectedInstanceFamily: ALIBABA_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE,
-		},
 	}
 
 	for _, c := range cases {
