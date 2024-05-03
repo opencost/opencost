@@ -614,6 +614,38 @@ func applyRAMBytesUsedMax(podMap map[podKey]*pod, resRAMBytesUsedMax []*prom.Que
 	}
 }
 
+// Example PromQueryResult: DCGM_FI_DEV_GPU_UTIL{gpu="0",UUID="GPU-d63da75b-f5a3-de2e-67bd-a72803ded604",device="nvidia0",modelName="Tesla V100-SXM2-16GB",Hostname="ip-192-168-5-95.us-east-2.compute.internal",DCGM_FI_DRIVER_VERSION="535.161.08",container="dcgmproftester12",namespace="kubecost",pod="dcgmproftester2"} 99
+func applyGPUUsageAvg(podMap map[podKey]*pod, resGPUUsageAvg []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey) {
+	for _, res := range resGPUUsageAvg {
+		// TODO: The returned metric does not have an associated `cluster_id`? Does this need to be appended via scrapeconfig?
+		key, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU usage avg result missing field: %s", err)
+			continue
+		}
+
+		// TODO: Do we also need to check the podUIDKeyMap?
+		pod, ok := podMap[key]
+		if !ok {
+			continue
+		}
+
+		// Add the container to the pod if it doesn't exist
+		container, err := res.GetString("container")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU usage avg query result missing 'container': %s", key)
+			continue
+		}
+		if _, ok := pod.Allocations[container]; !ok {
+			pod.appendContainer(container)
+		}
+
+		// DCGM_FI_DEV_GPU_UTIL metric is a number 0-100. Scale down to a
+		// percentage so it is consistent with other efficiency fields.
+		pod.Allocations[container].GPUUsageAverage = res.Values[0].Value * 0.01
+	}
+}
+
 func applyGPUsAllocated(podMap map[podKey]*pod, resGPUsRequested []*prom.QueryResult, resGPUsAllocated []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey) {
 	if len(resGPUsAllocated) > 0 { // Use the new query, when it's become available in a window
 		resGPUsRequested = resGPUsAllocated

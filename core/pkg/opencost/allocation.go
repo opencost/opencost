@@ -64,6 +64,8 @@ type Allocation struct {
 	CPUCost                    float64               `json:"cpuCost"`
 	CPUCostAdjustment          float64               `json:"cpuCostAdjustment"`
 	GPUHours                   float64               `json:"gpuHours"`
+	GPURequestAverage          float64               `json:"gpuRequestAverage"`
+	GPUUsageAverage            float64               `json:"gpuUsageAverage"`
 	GPUCost                    float64               `json:"gpuCost"`
 	GPUCostAdjustment          float64               `json:"gpuCostAdjustment"`
 	NetworkTransferBytes       float64               `json:"networkTransferBytes"`
@@ -669,6 +671,8 @@ func (a *Allocation) Clone() *Allocation {
 		CPUCost:                        a.CPUCost,
 		CPUCostAdjustment:              a.CPUCostAdjustment,
 		GPUHours:                       a.GPUHours,
+		GPURequestAverage:              a.GPURequestAverage,
+		GPUUsageAverage:                a.GPUUsageAverage,
 		GPUCost:                        a.GPUCost,
 		GPUCostAdjustment:              a.GPUCostAdjustment,
 		NetworkTransferBytes:           a.NetworkTransferBytes,
@@ -731,6 +735,12 @@ func (a *Allocation) Equal(that *Allocation) bool {
 		return false
 	}
 	if !util.IsApproximately(a.GPUHours, that.GPUHours) {
+		return false
+	}
+	if !util.IsApproximately(a.GPURequestAverage, that.GPURequestAverage) {
+		return false
+	}
+	if !util.IsApproximately(a.GPUUsageAverage, that.GPUUsageAverage) {
 		return false
 	}
 	if !util.IsApproximately(a.GPUCost, that.GPUCost) {
