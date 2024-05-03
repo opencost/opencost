@@ -430,6 +430,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	resChGPUsRequested := ctx.QueryAtTime(queryGPUsRequested, end)
 
 	queryGPUsUsageAvg := fmt.Sprintf(queryFmtGPUsUsageAvg, durStr, env.GetPromClusterLabel())
+	log.Infof("THOMAS: queryGPUsUsageAvg: %s", queryGPUsUsageAvg)
 	resChGPUsUsageAvg := ctx.Query(queryGPUsUsageAvg)
 
 	queryGPUsAllocated := fmt.Sprintf(queryFmtGPUsAllocated, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())

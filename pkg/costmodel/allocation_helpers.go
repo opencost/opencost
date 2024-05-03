@@ -617,32 +617,45 @@ func applyRAMBytesUsedMax(podMap map[podKey]*pod, resRAMBytesUsedMax []*prom.Que
 // Example PromQueryResult: DCGM_FI_DEV_GPU_UTIL{gpu="0",UUID="GPU-d63da75b-f5a3-de2e-67bd-a72803ded604",device="nvidia0",modelName="Tesla V100-SXM2-16GB",Hostname="ip-192-168-5-95.us-east-2.compute.internal",DCGM_FI_DRIVER_VERSION="535.161.08",container="dcgmproftester12",namespace="kubecost",pod="dcgmproftester2"} 99
 func applyGPUUsageAvg(podMap map[podKey]*pod, resGPUUsageAvg []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey) {
 	for _, res := range resGPUUsageAvg {
-		// TODO: The returned metric does not have an associated `cluster_id`? Does this need to be appended via scrapeconfig?
+
+		log.Infof("THOMAS: applyGPUUsageAvg result: %v: %v", res.Metric, res.Values[0].Value)
+
 		key, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace")
 		if err != nil {
 			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU usage avg result missing field: %s", err)
 			continue
 		}
 
-		// TODO: Do we also need to check the podUIDKeyMap?
-		pod, ok := podMap[key]
-		if !ok {
-			continue
+		var pods []*pod
+		if thisPod, ok := podMap[key]; !ok {
+			if uidKeys, ok := podUIDKeyMap[key]; ok {
+				for _, uidKey := range uidKeys {
+					thisPod, ok = podMap[uidKey]
+					if ok {
+						pods = append(pods, thisPod)
+					}
+				}
+			} else {
+				continue
+			}
+		} else {
+			pods = []*pod{thisPod}
 		}
 
-		// Add the container to the pod if it doesn't exist
-		container, err := res.GetString("container")
-		if err != nil {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU usage avg query result missing 'container': %s", key)
-			continue
-		}
-		if _, ok := pod.Allocations[container]; !ok {
-			pod.appendContainer(container)
-		}
+		for _, thisPod := range pods {
+			container, err := res.GetString("container")
+			if err != nil {
+				log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU usage avg query result missing 'container': %s", key)
+				continue
+			}
+			if _, ok := thisPod.Allocations[container]; !ok {
+				thisPod.appendContainer(container)
+			}
 
-		// DCGM_FI_DEV_GPU_UTIL metric is a number 0-100. Scale down to a
-		// percentage so it is consistent with other efficiency fields.
-		pod.Allocations[container].GPUUsageAverage = res.Values[0].Value * 0.01
+			// DCGM_FI_DEV_GPU_UTIL metric is a number 0-100. Scale down to a
+			// percentage so it is consistent with other fields.
+			thisPod.Allocations[container].GPUUsageAverage = res.Values[0].Value * 0.01
+		}
 	}
 }
 
@@ -687,6 +700,7 @@ func applyGPUsAllocated(podMap map[podKey]*pod, resGPUsRequested []*prom.QueryRe
 
 			hrs := thisPod.Allocations[container].Minutes() / 60.0
 			thisPod.Allocations[container].GPUHours = res.Values[0].Value * hrs
+			thisPod.Allocations[container].GPURequestAverage = res.Values[0].Value
 		}
 	}
 }

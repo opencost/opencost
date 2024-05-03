@@ -952,6 +952,21 @@ func (a *Allocation) RAMEfficiency() float64 {
 	return 1.0
 }
 
+// GPUEfficiency is the ratio of usage to request. Note that, without the NVIDIA
+// DCGM exporter providing Prometheus with usage metrics, this will always be
+// zero, as GPUUsageAverage will be zero (the default value).
+func (a *Allocation) GPUEfficiency() float64 {
+	if a.GPURequestAverage > 0 && a.GPUUsageAverage > 0 {
+		return a.GPUUsageAverage / a.GPURequestAverage
+	}
+
+	if a.GPUUsageAverage == 0.0 || a.GPUCost == 0.0 {
+		return 0.0
+	}
+
+	return 1.0
+}
+
 // TotalEfficiency is the cost-weighted average of CPU and RAM efficiency. If
 // there is no cost at all, then efficiency is zero.
 func (a *Allocation) TotalEfficiency() float64 {
