@@ -114,6 +114,10 @@ func (b *Buffer) WriteFloat64(i float64) {
 // WriteString writes the string's length as a uint16 followed by the string contents.
 func (b *Buffer) WriteString(i string) {
 	s := stringToBytes(i)
+	// string lengths are limited to uint16 - See ReadString()
+	if len(s) > math.MaxUint16 {
+		s = s[:math.MaxUint16]
+	}
 	write(b.b, uint16(len(s)))
 	b.b.Write(s)
 }
