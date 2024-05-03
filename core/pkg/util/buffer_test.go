@@ -231,12 +231,18 @@ func TestTooLargeStringTruncate(t *testing.T) {
 	bigStr := generateRandomString(math.MaxUint16 + (math.MaxUint16 / 2))
 	expectedBigStrRead := bigStr[:math.MaxUint16]
 
+	otherBigStr := generateRandomString(math.MaxUint16)
+	plusOne := generateRandomString(math.MaxUint16 + 1)
+	expectedPlusOne := plusOne[:math.MaxUint16]
+
 	buf := NewBuffer()
 
 	buf.WriteInt(42)
 	buf.WriteFloat64(3.14)
 	buf.WriteString(normalStr)
 	buf.WriteString(bigStr)
+	buf.WriteString(otherBigStr)
+	buf.WriteString(plusOne)
 
 	readBuf := NewBufferFromBytes(buf.Bytes())
 
@@ -244,6 +250,8 @@ func TestTooLargeStringTruncate(t *testing.T) {
 	floatVal := readBuf.ReadFloat64()
 	normalStrRead := readBuf.ReadString()
 	bigStrRead := readBuf.ReadString()
+	otherBigStrRead := readBuf.ReadString()
+	plusOneRead := readBuf.ReadString()
 
 	if intVal != 42 {
 		t.Errorf("Expected int value to be 42, got %v", intVal)
@@ -255,6 +263,12 @@ func TestTooLargeStringTruncate(t *testing.T) {
 		t.Errorf("Expected string value to be %v, got %v", normalStr, normalStrRead)
 	}
 	if bigStrRead != expectedBigStrRead {
+		t.Errorf("Expected large string values to be equivalent!")
+	}
+	if otherBigStrRead != otherBigStr {
+		t.Errorf("Expected large string values to be equivalent!")
+	}
+	if plusOneRead != expectedPlusOne {
 		t.Errorf("Expected large string values to be equivalent!")
 	}
 }
