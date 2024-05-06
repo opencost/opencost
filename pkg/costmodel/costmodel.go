@@ -1468,14 +1468,14 @@ func getPodDeployments(cache clustercache.ClusterCache, podList []*clustercache.
 	deploymentsList := cache.GetAllDeployments()
 	podDeploymentsMapping := make(map[string]map[string][]string) // namespace: podName: [deploymentNames]
 	for _, deployment := range deploymentsList {
-		namespace := deployment.GetObjectMeta().GetNamespace()
-		name := deployment.GetObjectMeta().GetName()
+		namespace := deployment.Namespace
+		name := deployment.Name
 
 		key := namespace + "," + clusterID
 		if _, ok := podDeploymentsMapping[key]; !ok {
 			podDeploymentsMapping[key] = make(map[string][]string)
 		}
-		s, err := metav1.LabelSelectorAsSelector(deployment.Spec.Selector)
+		s, err := metav1.LabelSelectorAsSelector(deployment.SpecSelector)
 		if err != nil {
 			log.Errorf("Error doing deployment label conversion: " + err.Error())
 		}

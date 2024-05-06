@@ -150,6 +150,28 @@ func transformDaemonSet(input *appsv1.DaemonSet) *DaemonSet {
 	}
 }
 
+type Deployment struct {
+	Name                    string
+	Namespace               string
+	Labels                  map[string]string
+	MatchLabels             map[string]string
+	SpecSelector            *metav1.LabelSelector
+	SpecReplicas            *int32
+	StatusAvailableReplicas int32
+}
+
+func transformDeployment(input *appsv1.Deployment) *Deployment {
+	return &Deployment{
+		Name:                    input.Name,
+		Namespace:               input.Namespace,
+		Labels:                  input.Labels,
+		MatchLabels:             input.Spec.Selector.MatchLabels,
+		SpecReplicas:            input.Spec.Replicas,
+		SpecSelector:            input.Spec.Selector,
+		StatusAvailableReplicas: input.Status.AvailableReplicas,
+	}
+}
+
 // ClusterCache defines an contract for an object which caches components within a cluster, ensuring
 // up to date resources using watchers
 type ClusterCache interface {
@@ -175,7 +197,7 @@ type ClusterCache interface {
 	GetAllDaemonSets() []*DaemonSet
 
 	// GetAllDeployments returns all the cached deployments
-	GetAllDeployments() []*appsv1.Deployment
+	GetAllDeployments() []*Deployment
 
 	// GetAllStatfulSets returns all the cached StatefulSets
 	GetAllStatefulSets() []*appsv1.StatefulSet
@@ -367,16 +389,16 @@ func (kcc *KubernetesClusterCache) GetAllDaemonSets() []*DaemonSet {
 	var daemonsets []*DaemonSet
 	items := kcc.daemonsetsWatch.GetAll()
 	for _, daemonset := range items {
-		daemonsets = append(daemonsets, daemonset.(*DaemonSet))
+		daemonsets = append(daemonsets, transformDaemonSet(daemonset.(*appsv1.DaemonSet)))
 	}
 	return daemonsets
 }
 
-func (kcc *KubernetesClusterCache) GetAllDeployments() []*appsv1.Deployment {
-	var deployments []*appsv1.Deployment
+func (kcc *KubernetesClusterCache) GetAllDeployments() []*Deployment {
+	var deployments []*Deployment
 	items := kcc.deploymentsWatch.GetAll()
 	for _, deployment := range items {
-		deployments = append(deployments, deployment.(*appsv1.Deployment))
+		deployments = append(deployments, transformDeployment(deployment.(*appsv1.Deployment)))
 	}
 	return deployments
 }

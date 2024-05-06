@@ -962,11 +962,11 @@ func (a *Accesses) GetAllDeployments(w http.ResponseWriter, r *http.Request, ps 
 	deploymentsList := a.ClusterCache.GetAllDeployments()
 
 	// filter for provided namespace
-	var deployments []*appsv1.Deployment
+	var deployments []*clustercache.Deployment
 	if namespace == "" {
 		deployments = deploymentsList
 	} else {
-		deployments = []*appsv1.Deployment{}
+		deployments = []*clustercache.Deployment{}
 
 		for _, d := range deploymentsList {
 			if d.Namespace == namespace {
