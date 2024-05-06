@@ -222,6 +222,22 @@ func transformPersistentVolumeClaim(input *v1.PersistentVolumeClaim) *Persistent
 	}
 }
 
+type StorageClass struct {
+	Name        string
+	Annotations map[string]string
+	Parameters  map[string]string
+	Provisioner string
+}
+
+func transformStorageClass(input *stv1.StorageClass) *StorageClass {
+	return &StorageClass{
+		Name:        input.Name,
+		Annotations: input.Annotations,
+		Parameters:  input.Parameters,
+		Provisioner: input.Provisioner,
+	}
+}
+
 // ClusterCache defines an contract for an object which caches components within a cluster, ensuring
 // up to date resources using watchers
 type ClusterCache interface {
@@ -259,7 +275,7 @@ type ClusterCache interface {
 	GetAllPersistentVolumeClaims() []*PersistentVolumeClaim
 
 	// GetAllStorageClasses returns all the cached storage classes
-	GetAllStorageClasses() []*stv1.StorageClass
+	GetAllStorageClasses() []*StorageClass
 
 	// GetAllJobs returns all the cached jobs
 	GetAllJobs() []*batchv1.Job
@@ -465,11 +481,11 @@ func (kcc *KubernetesClusterCache) GetAllPersistentVolumeClaims() []*PersistentV
 	return pvcs
 }
 
-func (kcc *KubernetesClusterCache) GetAllStorageClasses() []*stv1.StorageClass {
-	var storageClasses []*stv1.StorageClass
+func (kcc *KubernetesClusterCache) GetAllStorageClasses() []*StorageClass {
+	var storageClasses []*StorageClass
 	items := kcc.storageClassWatch.GetAll()
 	for _, stc := range items {
-		storageClasses = append(storageClasses, stc.(*stv1.StorageClass))
+		storageClasses = append(storageClasses, transformStorageClass(stc.(*stv1.StorageClass)))
 	}
 	return storageClasses
 }

@@ -904,8 +904,8 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 	storageClassMap := make(map[string]map[string]string)
 	for _, storageClass := range storageClasses {
 		params := storageClass.Parameters
-		storageClassMap[storageClass.ObjectMeta.Name] = params
-		if storageClass.GetAnnotations()["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.GetAnnotations()["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
+		storageClassMap[storageClass.Name] = params
+		if storageClass.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.Annotations["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
 			storageClassMap["default"] = params
 			storageClassMap[""] = params
 		}

@@ -895,8 +895,8 @@ func (aws *AWS) DownloadPricingData() error {
 		if params != nil {
 			params["provisioner"] = storageClass.Provisioner
 		}
-		storageClassMap[storageClass.ObjectMeta.Name] = params
-		if storageClass.GetAnnotations()["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.GetAnnotations()["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
+		storageClassMap[storageClass.Name] = params
+		if storageClass.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.Annotations["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
 			storageClassMap["default"] = params
 			storageClassMap[""] = params
 		}
