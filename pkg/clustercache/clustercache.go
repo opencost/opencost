@@ -134,6 +134,22 @@ func transformService(input *v1.Service) *Service {
 	}
 }
 
+type DaemonSet struct {
+	Name           string
+	Namespace      string
+	Labels         map[string]string
+	SpecContainers []v1.Container
+}
+
+func transformDaemonSet(input *appsv1.DaemonSet) *DaemonSet {
+	return &DaemonSet{
+		Name:           input.Name,
+		Namespace:      input.Namespace,
+		Labels:         input.Labels,
+		SpecContainers: input.Spec.Template.Spec.Containers,
+	}
+}
+
 // ClusterCache defines an contract for an object which caches components within a cluster, ensuring
 // up to date resources using watchers
 type ClusterCache interface {
@@ -156,7 +172,7 @@ type ClusterCache interface {
 	GetAllServices() []*Service
 
 	// GetAllDaemonSets returns all the cached DaemonSets
-	GetAllDaemonSets() []*appsv1.DaemonSet
+	GetAllDaemonSets() []*DaemonSet
 
 	// GetAllDeployments returns all the cached deployments
 	GetAllDeployments() []*appsv1.Deployment
@@ -347,11 +363,11 @@ func (kcc *KubernetesClusterCache) GetAllServices() []*Service {
 	return services
 }
 
-func (kcc *KubernetesClusterCache) GetAllDaemonSets() []*appsv1.DaemonSet {
-	var daemonsets []*appsv1.DaemonSet
+func (kcc *KubernetesClusterCache) GetAllDaemonSets() []*DaemonSet {
+	var daemonsets []*DaemonSet
 	items := kcc.daemonsetsWatch.GetAll()
 	for _, daemonset := range items {
-		daemonsets = append(daemonsets, daemonset.(*appsv1.DaemonSet))
+		daemonsets = append(daemonsets, daemonset.(*DaemonSet))
 	}
 	return daemonsets
 }

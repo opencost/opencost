@@ -16,7 +16,6 @@ import (
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/costmodel"
 
-	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
@@ -445,7 +444,7 @@ func (f FakeCache) GetAllNodes() []*clustercache.Node {
 	return f.nodes
 }
 
-func (f FakeCache) GetAllDaemonSets() []*appsv1.DaemonSet {
+func (f FakeCache) GetAllDaemonSets() []*clustercache.DaemonSet {
 	return nil
 }
 

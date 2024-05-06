@@ -2357,7 +2357,7 @@ func getAllocatableVGPUs(cache clustercache.ClusterCache) (float64, error) {
 	daemonsets := cache.GetAllDaemonSets()
 	vgpuCount := 0.0
 	for _, ds := range daemonsets {
-		dsContainerList := &ds.Spec.Template.Spec.Containers
+		dsContainerList := &ds.SpecContainers
 		for _, ctnr := range *dsContainerList {
 			if ctnr.Args != nil {
 				for _, arg := range ctnr.Args {
