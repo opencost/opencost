@@ -206,6 +206,22 @@ func transformPersistentVolume(input *v1.PersistentVolume) *PersistentVolume {
 	}
 }
 
+type PersistentVolumeClaim struct {
+	Name        string
+	Namespace   string
+	Spec        v1.PersistentVolumeClaimSpec
+	Annotations map[string]string
+}
+
+func transformPersistentVolumeClaim(input *v1.PersistentVolumeClaim) *PersistentVolumeClaim {
+	return &PersistentVolumeClaim{
+		Name:        input.Name,
+		Namespace:   input.Namespace,
+		Spec:        input.Spec,
+		Annotations: input.Annotations,
+	}
+}
+
 // ClusterCache defines an contract for an object which caches components within a cluster, ensuring
 // up to date resources using watchers
 type ClusterCache interface {
@@ -240,7 +256,7 @@ type ClusterCache interface {
 	GetAllPersistentVolumes() []*PersistentVolume
 
 	// GetAllPersistentVolumeClaims returns all the cached persistent volume claims
-	GetAllPersistentVolumeClaims() []*v1.PersistentVolumeClaim
+	GetAllPersistentVolumeClaims() []*PersistentVolumeClaim
 
 	// GetAllStorageClasses returns all the cached storage classes
 	GetAllStorageClasses() []*stv1.StorageClass
@@ -440,11 +456,11 @@ func (kcc *KubernetesClusterCache) GetAllPersistentVolumes() []*PersistentVolume
 	return pvs
 }
 
-func (kcc *KubernetesClusterCache) GetAllPersistentVolumeClaims() []*v1.PersistentVolumeClaim {
-	var pvcs []*v1.PersistentVolumeClaim
+func (kcc *KubernetesClusterCache) GetAllPersistentVolumeClaims() []*PersistentVolumeClaim {
+	var pvcs []*PersistentVolumeClaim
 	items := kcc.pvcWatch.GetAll()
 	for _, pvc := range items {
-		pvcs = append(pvcs, pvc.(*v1.PersistentVolumeClaim))
+		pvcs = append(pvcs, transformPersistentVolumeClaim(pvc.(*v1.PersistentVolumeClaim)))
 	}
 	return pvcs
 }
