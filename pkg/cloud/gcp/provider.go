@@ -32,7 +32,6 @@ import (
 	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/compute/v1"
-	v1 "k8s.io/api/core/v1"
 )
 
 const GKE_GPU_TAG = "cloud.google.com/gke-accelerator"
@@ -1432,7 +1431,7 @@ func (key *pvKey) GetStorageClass() string {
 	return key.StorageClass
 }
 
-func (gcp *GCP) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
+func (gcp *GCP) GetPVKey(pv *clustercache.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
 	providerID := ""
 	if pv.Spec.GCEPersistentDisk != nil {
 		providerID = pv.Spec.GCEPersistentDisk.PDName

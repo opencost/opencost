@@ -27,7 +27,6 @@ import (
 
 	ocenv "github.com/opencost/opencost/pkg/env"
 	"golang.org/x/exp/slices"
-	v1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -920,7 +919,7 @@ type AlibabaPVKey struct {
 	SizeInGiB         string
 }
 
-func (alibaba *Alibaba) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
+func (alibaba *Alibaba) GetPVKey(pv *clustercache.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
 	regionID := defaultRegion
 	// If default Region is not passed default it to cluster region ID.
 	if defaultRegion == "" {
@@ -1294,7 +1293,7 @@ func getNumericalValueFromResourceQuantity(quantity string) (value string) {
 
 // generateSlimK8sDiskFromV1PV function generates SlimK8sDisk from v1.PersistentVolume
 // to generate slim disk type that can be used to fetch pricing information for Data disk type.
-func generateSlimK8sDiskFromV1PV(pv *v1.PersistentVolume, regionID string) *SlimK8sDisk {
+func generateSlimK8sDiskFromV1PV(pv *clustercache.PersistentVolume, regionID string) *SlimK8sDisk {
 
 	// All PVs are data disks while local disk are categorized as system disk
 	diskType := ALIBABA_DATA_DISK_CATEGORY
@@ -1340,7 +1339,7 @@ func generateSlimK8sDiskFromV1PV(pv *v1.PersistentVolume, regionID string) *Slim
 // if topology.diskplugin.csi.alibabacloud.com/zone label/annotation is passed during PV creation determine the region based on this pv label.
 // if neither of the above label/annotation is present check node affinity for the zone affinity and determine the region based on this zone.
 // if nether of the above yields a region , return empty string to default it to cluster region.
-func determinePVRegion(pv *v1.PersistentVolume) string {
+func determinePVRegion(pv *clustercache.PersistentVolume) string {
 	// if "topology.diskplugin.csi.alibabacloud.com/region" is present as a label or annotation return that as the PV region
 	if val, ok := pv.Labels[ALIBABA_DISK_TOPOLOGY_REGION_LABEL]; ok {
 		log.Debugf("determinePVRegion returned a region value of: %s through label: %s for PV name: %s", val, ALIBABA_DISK_TOPOLOGY_REGION_LABEL, pv.Name)

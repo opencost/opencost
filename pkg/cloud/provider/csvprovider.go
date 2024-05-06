@@ -19,10 +19,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/opencost/opencost/core/pkg/log"
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/jszwec/csvutil"
+	"github.com/opencost/opencost/core/pkg/log"
 )
 
 const refreshMinutes = 60
@@ -330,7 +328,7 @@ func NodeValueFromMapField(m string, n *clustercache.Node, useRegion bool) strin
 	}
 }
 
-func PVValueFromMapField(m string, n *v1.PersistentVolume) string {
+func PVValueFromMapField(m string, n *clustercache.PersistentVolume) string {
 	mf := strings.Split(m, ".")
 	if len(mf) > 1 && mf[0] == "metadata" {
 		if mf[1] == "name" {
@@ -402,7 +400,7 @@ func (key *csvPVKey) Features() string {
 	return key.ProviderID
 }
 
-func (c *CSVProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
+func (c *CSVProvider) GetPVKey(pv *clustercache.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
 	id := PVValueFromMapField(c.PVMapField, pv)
 	return &csvPVKey{
 		Labels:                 pv.Labels,

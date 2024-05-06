@@ -57,7 +57,7 @@ func TestGetKey(t *testing.T) {
 func TestGetPVKey(t *testing.T) {
 	storageClass := "xyz"
 	providerID := "ocid.abc"
-	pv := &v1.PersistentVolume{
+	pv := &clustercache.PersistentVolume{
 		Spec: v1.PersistentVolumeSpec{
 			StorageClassName: storageClass,
 			PersistentVolumeSource: v1.PersistentVolumeSource{

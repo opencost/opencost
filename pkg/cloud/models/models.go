@@ -10,10 +10,8 @@ import (
 	"time"
 
 	"github.com/microcosm-cc/bluemonday"
-	"github.com/opencost/opencost/pkg/clustercache"
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/config"
 )
 
@@ -317,7 +315,7 @@ type Provider interface {
 	AllNodePricing() (interface{}, error)
 	DownloadPricingData() error
 	GetKey(map[string]string, *clustercache.Node) Key
-	GetPVKey(*v1.PersistentVolume, map[string]string, string) PVKey
+	GetPVKey(*clustercache.PersistentVolume, map[string]string, string) PVKey
 	UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error)
 	UpdateConfigFromConfigMap(map[string]string) (*CustomPricing, error)
 	GetConfig() (*CustomPricing, error)

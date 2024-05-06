@@ -31,8 +31,6 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
-
-	v1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -1236,7 +1234,7 @@ type azurePvKey struct {
 	ProviderId             string
 }
 
-func (az *Azure) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
+func (az *Azure) GetPVKey(pv *clustercache.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
 	providerID := ""
 	if pv.Spec.AzureDisk != nil {
 		providerID = pv.Spec.AzureDisk.DiskName

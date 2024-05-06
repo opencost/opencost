@@ -98,7 +98,7 @@ func TestNodeValueFromMapField(t *testing.T) {
 
 func TestPVPriceFromCSV(t *testing.T) {
 	nameWant := "pvc-08e1f205-d7a9-4430-90fc-7b3965a18c4d"
-	pv := &v1.PersistentVolume{}
+	pv := &clustercache.PersistentVolume{}
 	pv.Name = nameWant
 
 	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
@@ -131,7 +131,7 @@ func TestPVPriceFromCSV(t *testing.T) {
 func TestPVPriceFromCSVStorageClass(t *testing.T) {
 	nameWant := "pvc-08e1f205-d7a9-4430-90fc-7b3965a18c4d"
 	storageClassWant := "storageclass0"
-	pv := &v1.PersistentVolume{}
+	pv := &clustercache.PersistentVolume{}
 	pv.Name = nameWant
 	pv.Spec.StorageClassName = storageClassWant
 
