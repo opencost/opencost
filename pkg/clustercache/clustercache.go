@@ -238,6 +238,20 @@ func transformStorageClass(input *stv1.StorageClass) *StorageClass {
 	}
 }
 
+type Job struct {
+	Name      string
+	Namespace string
+	Status    batchv1.JobStatus
+}
+
+func transformJob(input *batchv1.Job) *Job {
+	return &Job{
+		Name:      input.Name,
+		Namespace: input.Namespace,
+		Status:    input.Status,
+	}
+}
+
 // ClusterCache defines an contract for an object which caches components within a cluster, ensuring
 // up to date resources using watchers
 type ClusterCache interface {
@@ -278,7 +292,7 @@ type ClusterCache interface {
 	GetAllStorageClasses() []*StorageClass
 
 	// GetAllJobs returns all the cached jobs
-	GetAllJobs() []*batchv1.Job
+	GetAllJobs() []*Job
 
 	// GetAllPodDisruptionBudgets returns all cached pod disruption budgets
 	GetAllPodDisruptionBudgets() []*policyv1.PodDisruptionBudget
@@ -490,11 +504,11 @@ func (kcc *KubernetesClusterCache) GetAllStorageClasses() []*StorageClass {
 	return storageClasses
 }
 
-func (kcc *KubernetesClusterCache) GetAllJobs() []*batchv1.Job {
-	var jobs []*batchv1.Job
+func (kcc *KubernetesClusterCache) GetAllJobs() []*Job {
+	var jobs []*Job
 	items := kcc.jobsWatch.GetAll()
 	for _, job := range items {
-		jobs = append(jobs, job.(*batchv1.Job))
+		jobs = append(jobs, transformJob(job.(*batchv1.Job)))
 	}
 	return jobs
 }
