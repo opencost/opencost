@@ -53,7 +53,6 @@ import (
 	"github.com/opencost/opencost/pkg/thanos"
 	prometheus "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
-	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/patrickmn/go-cache"
@@ -1008,11 +1007,11 @@ func (a *Accesses) GetAllStatefulSets(w http.ResponseWriter, r *http.Request, ps
 	statefulSetsList := a.ClusterCache.GetAllStatefulSets()
 
 	// filter for provided namespace
-	var statefulSets []*appsv1.StatefulSet
+	var statefulSets []*clustercache.StatefulSet
 	if namespace == "" {
 		statefulSets = statefulSetsList
 	} else {
-		statefulSets = []*appsv1.StatefulSet{}
+		statefulSets = []*clustercache.StatefulSet{}
 
 		for _, ss := range statefulSetsList {
 			if ss.Namespace == namespace {

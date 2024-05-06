@@ -172,6 +172,20 @@ func transformDeployment(input *appsv1.Deployment) *Deployment {
 	}
 }
 
+type StatefulSet struct {
+	Name         string
+	Namespace    string
+	SpecSelector *metav1.LabelSelector
+}
+
+func transformStatefulSet(input *appsv1.StatefulSet) *StatefulSet {
+	return &StatefulSet{
+		Name:         input.Name,
+		Namespace:    input.Namespace,
+		SpecSelector: input.Spec.Selector,
+	}
+}
+
 // ClusterCache defines an contract for an object which caches components within a cluster, ensuring
 // up to date resources using watchers
 type ClusterCache interface {
@@ -200,7 +214,7 @@ type ClusterCache interface {
 	GetAllDeployments() []*Deployment
 
 	// GetAllStatfulSets returns all the cached StatefulSets
-	GetAllStatefulSets() []*appsv1.StatefulSet
+	GetAllStatefulSets() []*StatefulSet
 
 	// GetAllReplicaSets returns all the cached ReplicaSets
 	GetAllReplicaSets() []*appsv1.ReplicaSet
@@ -403,11 +417,11 @@ func (kcc *KubernetesClusterCache) GetAllDeployments() []*Deployment {
 	return deployments
 }
 
-func (kcc *KubernetesClusterCache) GetAllStatefulSets() []*appsv1.StatefulSet {
-	var statefulsets []*appsv1.StatefulSet
+func (kcc *KubernetesClusterCache) GetAllStatefulSets() []*StatefulSet {
+	var statefulsets []*StatefulSet
 	items := kcc.statefulsetWatch.GetAll()
 	for _, statefulset := range items {
-		statefulsets = append(statefulsets, statefulset.(*appsv1.StatefulSet))
+		statefulsets = append(statefulsets, transformStatefulSet(statefulset.(*appsv1.StatefulSet)))
 	}
 	return statefulsets
 }

@@ -1437,14 +1437,14 @@ func getPodStatefulsets(cache clustercache.ClusterCache, podList []*clustercache
 	ssList := cache.GetAllStatefulSets()
 	podSSMapping := make(map[string]map[string][]string) // namespace: podName: [deploymentNames]
 	for _, ss := range ssList {
-		namespace := ss.GetObjectMeta().GetNamespace()
-		name := ss.GetObjectMeta().GetName()
+		namespace := ss.Namespace
+		name := ss.Name
 
 		key := namespace + "," + clusterID
 		if _, ok := podSSMapping[key]; !ok {
 			podSSMapping[key] = make(map[string][]string)
 		}
-		s, err := metav1.LabelSelectorAsSelector(ss.Spec.Selector)
+		s, err := metav1.LabelSelectorAsSelector(ss.SpecSelector)
 		if err != nil {
 			log.Errorf("Error doing deployment label conversion: " + err.Error())
 		}
