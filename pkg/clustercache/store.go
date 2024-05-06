@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
@@ -26,6 +25,18 @@ func NewGenericStore[Input any, Output any](transformFunc func(input Input) Outp
 		items:         make(map[types.UID]Output),
 		transformFunc: transformFunc,
 	}
+}
+
+type uidGetter interface {
+	GetUID() types.UID
+}
+
+func getUid(obj any) types.UID {
+	if o, ok := obj.(uidGetter); ok {
+		return o.GetUID()
+	}
+	return ""
+
 }
 
 func CreateStoreAndWatch[Input any, Output any](
@@ -52,32 +63,20 @@ func (s *GenericStore[Input, Output]) Add(obj any) error {
 
 // Update updates the existing entry in the store.
 func (s *GenericStore[Input, Output]) Update(obj any) error {
-	// The 'meta.Accessor' function can be used for types implementing 'metav1.Object'.
-	o, err := meta.Accessor(obj)
-	if err != nil {
-		return err
-	}
-	uid := o.GetUID()
-
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	s.items[uid] = s.transformFunc(obj.(Input))
+	s.items[getUid(obj)] = s.transformFunc(obj.(Input))
 
 	return nil
 }
 
 // Delete removes an object from the store.
 func (s *GenericStore[Input, Output]) Delete(obj any) error {
-	o, err := meta.Accessor(obj)
-	if err != nil {
-		return err
-	}
-
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	delete(s.items, o.GetUID())
+	delete(s.items, getUid(obj))
 
 	return nil
 }
