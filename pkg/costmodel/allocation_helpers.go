@@ -1816,6 +1816,7 @@ func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHo
 			Start:   pvStart,
 			End:     pvEnd,
 		}
+		// TODO
 	}
 
 	for _, result := range resPVCostPerGiBHour {
@@ -1850,6 +1851,7 @@ func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHo
 				continue
 			}
 			pvMap[key].ProviderID = provId
+
 		}
 
 	}
@@ -1916,6 +1918,7 @@ func buildPVCMap(resolution time.Duration, pvcMap map[pvcKey]*pvc, pvMap map[pvK
 
 		pvcMap[pvcKey].Name = name
 		pvcMap[pvcKey].Namespace = namespace
+		pvcMap[pvcKey].StorageClass = storageClass
 		pvcMap[pvcKey].Cluster = cluster
 		pvcMap[pvcKey].Volume = pvMap[pvKey]
 		pvcMap[pvcKey].Start = pvcStart
@@ -2071,6 +2074,8 @@ func applyPVCsToPods(window opencost.Window, podMap map[podKey]*pod, podPVCMap m
 				pod = getUnmountedPodForNamespace(window, podMap, pvc.Cluster, pvc.Namespace)
 			}
 			for _, alloc := range pod.Allocations {
+				name := pvc.Name
+
 				s, e := pod.Start, pod.End
 
 				minutes := e.Sub(s).Minutes()
@@ -2097,6 +2102,7 @@ func applyPVCsToPods(window opencost.Window, podMap map[podKey]*pod, podPVCMap m
 				// would be equal to the values of the original pv
 				count := float64(len(pod.Allocations))
 				alloc.PVs[pvKey] = &opencost.PVAllocation{
+					Name:       name,
 					ByteHours:  byteHours * coef / count,
 					Cost:       cost * coef / count,
 					ProviderID: pvc.Volume.ProviderID,
@@ -2136,6 +2142,7 @@ func applyUnmountedPVs(window opencost.Window, podMap map[podKey]*pod, pvMap map
 			cost := pv.CostPerGiBHour * gib * hrs
 			unmountedPVs := opencost.PVAllocations{
 				thisPVKey: {
+					Name:      pv.Name,
 					ByteHours: pv.Bytes * hrs,
 					Cost:      cost,
 				},
@@ -2167,8 +2174,10 @@ func applyUnmountedPVCs(window opencost.Window, podMap map[podKey]*pod, pvcMap m
 			cost := pvc.Volume.CostPerGiBHour * gib * hrs
 			unmountedPVs := opencost.PVAllocations{
 				thisPVKey: {
-					ByteHours: pvc.Volume.Bytes * hrs,
-					Cost:      cost,
+					Name:         pvc.Name,
+					StorageClass: pvc.StorageClass,
+					ByteHours:    pvc.Volume.Bytes * hrs,
+					Cost:         cost,
 				},
 			}
 			pod.Allocations[opencost.UnmountedSuffix].PVs = pod.Allocations[opencost.UnmountedSuffix].PVs.Add(unmountedPVs)

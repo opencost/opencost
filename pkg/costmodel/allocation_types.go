@@ -79,14 +79,15 @@ func (p *pod) appendContainer(container string) {
 // TODO:CLEANUP move to pkg/kubecost?
 // TODO:CLEANUP add PersistentVolumeClaims field to type Allocation?
 type pvc struct {
-	Bytes     float64   `json:"bytes"`
-	Name      string    `json:"name"`
-	Cluster   string    `json:"cluster"`
-	Namespace string    `json:"namespace"`
-	Volume    *pv       `json:"persistentVolume"`
-	Mounted   bool      `json:"mounted"`
-	Start     time.Time `json:"start"`
-	End       time.Time `json:"end"`
+	Bytes        float64   `json:"bytes"`
+	Name         string    `json:"name"`
+	StorageClass string    `json:"storageClass"`
+	Cluster      string    `json:"cluster"`
+	Namespace    string    `json:"namespace"`
+	Volume       *pv       `json:"persistentVolume"`
+	Mounted      bool      `json:"mounted"`
+	Start        time.Time `json:"start"`
+	End          time.Time `json:"end"`
 }
 
 // Cost computes the cumulative cost of the pvc
