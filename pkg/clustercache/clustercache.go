@@ -216,9 +216,6 @@ type ClusterCache interface {
 	// GetAllStatfulSets returns all the cached StatefulSets
 	GetAllStatefulSets() []*StatefulSet
 
-	// GetAllReplicaSets returns all the cached ReplicaSets
-	GetAllReplicaSets() []*appsv1.ReplicaSet
-
 	// GetAllPersistentVolumes returns all the cached persistent volumes
 	GetAllPersistentVolumes() []*v1.PersistentVolume
 
@@ -233,10 +230,6 @@ type ClusterCache interface {
 
 	// GetAllPodDisruptionBudgets returns all cached pod disruption budgets
 	GetAllPodDisruptionBudgets() []*policyv1.PodDisruptionBudget
-
-	// GetAllReplicationControllers returns all cached replication controllers
-	GetAllReplicationControllers() []*v1.ReplicationController
-
 	// SetConfigMapUpdateFunc sets the configmap update function
 	SetConfigMapUpdateFunc(func(interface{}))
 }
@@ -245,22 +238,20 @@ type ClusterCache interface {
 type KubernetesClusterCache struct {
 	client kubernetes.Interface
 
-	namespaceWatch             WatchController
-	nodeWatch                  WatchController
-	podWatch                   WatchController
-	kubecostConfigMapWatch     WatchController
-	serviceWatch               WatchController
-	daemonsetsWatch            WatchController
-	deploymentsWatch           WatchController
-	statefulsetWatch           WatchController
-	replicasetWatch            WatchController
-	pvWatch                    WatchController
-	pvcWatch                   WatchController
-	storageClassWatch          WatchController
-	jobsWatch                  WatchController
-	pdbWatch                   WatchController
-	replicationControllerWatch WatchController
-	stop                       chan struct{}
+	namespaceWatch         WatchController
+	nodeWatch              WatchController
+	podWatch               WatchController
+	kubecostConfigMapWatch WatchController
+	serviceWatch           WatchController
+	daemonsetsWatch        WatchController
+	deploymentsWatch       WatchController
+	statefulsetWatch       WatchController
+	pvWatch                WatchController
+	pvcWatch               WatchController
+	storageClassWatch      WatchController
+	jobsWatch              WatchController
+	pdbWatch               WatchController
+	stop                   chan struct{}
 }
 
 func initializeCache(wc WatchController, wg *sync.WaitGroup, cancel chan struct{}) {
@@ -279,22 +270,20 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	log.Infof("NAMESPACE: %s", kubecostNamespace)
 
 	kcc := &KubernetesClusterCache{
-		client:                     client,
-		namespaceWatch:             NewCachingWatcher(coreRestClient, "namespaces", &v1.Namespace{}, "", fields.Everything()),
-		nodeWatch:                  NewCachingWatcher(coreRestClient, "nodes", &v1.Node{}, "", fields.Everything()),
-		podWatch:                   NewCachingWatcher(coreRestClient, "pods", &v1.Pod{}, "", fields.Everything()),
-		kubecostConfigMapWatch:     NewCachingWatcher(coreRestClient, "configmaps", &v1.ConfigMap{}, kubecostNamespace, fields.Everything()),
-		serviceWatch:               NewCachingWatcher(coreRestClient, "services", &v1.Service{}, "", fields.Everything()),
-		daemonsetsWatch:            NewCachingWatcher(appsRestClient, "daemonsets", &appsv1.DaemonSet{}, "", fields.Everything()),
-		deploymentsWatch:           NewCachingWatcher(appsRestClient, "deployments", &appsv1.Deployment{}, "", fields.Everything()),
-		statefulsetWatch:           NewCachingWatcher(appsRestClient, "statefulsets", &appsv1.StatefulSet{}, "", fields.Everything()),
-		replicasetWatch:            NewCachingWatcher(appsRestClient, "replicasets", &appsv1.ReplicaSet{}, "", fields.Everything()),
-		pvWatch:                    NewCachingWatcher(coreRestClient, "persistentvolumes", &v1.PersistentVolume{}, "", fields.Everything()),
-		pvcWatch:                   NewCachingWatcher(coreRestClient, "persistentvolumeclaims", &v1.PersistentVolumeClaim{}, "", fields.Everything()),
-		storageClassWatch:          NewCachingWatcher(storageRestClient, "storageclasses", &stv1.StorageClass{}, "", fields.Everything()),
-		jobsWatch:                  NewCachingWatcher(batchClient, "jobs", &batchv1.Job{}, "", fields.Everything()),
-		pdbWatch:                   NewCachingWatcher(pdbClient, "poddisruptionbudgets", &policyv1.PodDisruptionBudget{}, "", fields.Everything()),
-		replicationControllerWatch: NewCachingWatcher(coreRestClient, "replicationcontrollers", &v1.ReplicationController{}, "", fields.Everything()),
+		client:                 client,
+		namespaceWatch:         NewCachingWatcher(coreRestClient, "namespaces", &v1.Namespace{}, "", fields.Everything()),
+		nodeWatch:              NewCachingWatcher(coreRestClient, "nodes", &v1.Node{}, "", fields.Everything()),
+		podWatch:               NewCachingWatcher(coreRestClient, "pods", &v1.Pod{}, "", fields.Everything()),
+		kubecostConfigMapWatch: NewCachingWatcher(coreRestClient, "configmaps", &v1.ConfigMap{}, kubecostNamespace, fields.Everything()),
+		serviceWatch:           NewCachingWatcher(coreRestClient, "services", &v1.Service{}, "", fields.Everything()),
+		daemonsetsWatch:        NewCachingWatcher(appsRestClient, "daemonsets", &appsv1.DaemonSet{}, "", fields.Everything()),
+		deploymentsWatch:       NewCachingWatcher(appsRestClient, "deployments", &appsv1.Deployment{}, "", fields.Everything()),
+		statefulsetWatch:       NewCachingWatcher(appsRestClient, "statefulsets", &appsv1.StatefulSet{}, "", fields.Everything()),
+		pvWatch:                NewCachingWatcher(coreRestClient, "persistentvolumes", &v1.PersistentVolume{}, "", fields.Everything()),
+		pvcWatch:               NewCachingWatcher(coreRestClient, "persistentvolumeclaims", &v1.PersistentVolumeClaim{}, "", fields.Everything()),
+		storageClassWatch:      NewCachingWatcher(storageRestClient, "storageclasses", &stv1.StorageClass{}, "", fields.Everything()),
+		jobsWatch:              NewCachingWatcher(batchClient, "jobs", &batchv1.Job{}, "", fields.Everything()),
+		pdbWatch:               NewCachingWatcher(pdbClient, "poddisruptionbudgets", &policyv1.PodDisruptionBudget{}, "", fields.Everything()),
 	}
 
 	// Wait for each caching watcher to initialize
@@ -304,7 +293,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 		wg.Add(1)
 		go initializeCache(kcc.kubecostConfigMapWatch, &wg, cancel)
 	} else {
-		wg.Add(15)
+		wg.Add(13)
 		go initializeCache(kcc.kubecostConfigMapWatch, &wg, cancel)
 		go initializeCache(kcc.namespaceWatch, &wg, cancel)
 		go initializeCache(kcc.nodeWatch, &wg, cancel)
@@ -313,13 +302,11 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 		go initializeCache(kcc.daemonsetsWatch, &wg, cancel)
 		go initializeCache(kcc.deploymentsWatch, &wg, cancel)
 		go initializeCache(kcc.statefulsetWatch, &wg, cancel)
-		go initializeCache(kcc.replicasetWatch, &wg, cancel)
 		go initializeCache(kcc.pvWatch, &wg, cancel)
 		go initializeCache(kcc.pvcWatch, &wg, cancel)
 		go initializeCache(kcc.storageClassWatch, &wg, cancel)
 		go initializeCache(kcc.jobsWatch, &wg, cancel)
 		go initializeCache(kcc.pdbWatch, &wg, cancel)
-		go initializeCache(kcc.replicationControllerWatch, &wg, cancel)
 	}
 
 	wg.Wait()
@@ -343,13 +330,11 @@ func (kcc *KubernetesClusterCache) Run() {
 	go kcc.daemonsetsWatch.Run(1, stopCh)
 	go kcc.deploymentsWatch.Run(1, stopCh)
 	go kcc.statefulsetWatch.Run(1, stopCh)
-	go kcc.replicasetWatch.Run(1, stopCh)
 	go kcc.pvWatch.Run(1, stopCh)
 	go kcc.pvcWatch.Run(1, stopCh)
 	go kcc.storageClassWatch.Run(1, stopCh)
 	go kcc.jobsWatch.Run(1, stopCh)
 	go kcc.pdbWatch.Run(1, stopCh)
-	go kcc.replicationControllerWatch.Run(1, stopCh)
 
 	kcc.stop = stopCh
 }
@@ -426,15 +411,6 @@ func (kcc *KubernetesClusterCache) GetAllStatefulSets() []*StatefulSet {
 	return statefulsets
 }
 
-func (kcc *KubernetesClusterCache) GetAllReplicaSets() []*appsv1.ReplicaSet {
-	var replicasets []*appsv1.ReplicaSet
-	items := kcc.replicasetWatch.GetAll()
-	for _, replicaset := range items {
-		replicasets = append(replicasets, replicaset.(*appsv1.ReplicaSet))
-	}
-	return replicasets
-}
-
 func (kcc *KubernetesClusterCache) GetAllPersistentVolumes() []*v1.PersistentVolume {
 	var pvs []*v1.PersistentVolume
 	items := kcc.pvWatch.GetAll()
@@ -478,15 +454,6 @@ func (kcc *KubernetesClusterCache) GetAllPodDisruptionBudgets() []*policyv1.PodD
 		pdbs = append(pdbs, pdb.(*policyv1.PodDisruptionBudget))
 	}
 	return pdbs
-}
-
-func (kcc *KubernetesClusterCache) GetAllReplicationControllers() []*v1.ReplicationController {
-	var rcs []*v1.ReplicationController
-	items := kcc.replicationControllerWatch.GetAll()
-	for _, rc := range items {
-		rcs = append(rcs, rc.(*v1.ReplicationController))
-	}
-	return rcs
 }
 
 func (kcc *KubernetesClusterCache) SetConfigMapUpdateFunc(f func(interface{})) {
