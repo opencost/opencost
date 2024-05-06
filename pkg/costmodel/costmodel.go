@@ -358,7 +358,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	for key := range CPUUsedMap {
 		containers[key] = true
 	}
-	currentContainers := make(map[string]v1.Pod)
+	currentContainers := make(map[string]clustercache.Pod)
 	for _, pod := range podlist {
 		if pod.Status.Phase != v1.PodRunning {
 			continue
@@ -382,11 +382,11 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 		// deleted so we have usage information but not request information. In that case,
 		// we return partial data for CPU and RAM: only usage and not requests.
 		if pod, ok := currentContainers[key]; ok {
-			podName := pod.GetObjectMeta().GetName()
-			ns := pod.GetObjectMeta().GetNamespace()
+			podName := pod.Name
+			ns := pod.Namespace
 
 			nsLabels := namespaceLabelsMapping[ns+","+clusterID]
-			podLabels := pod.GetObjectMeta().GetLabels()
+			podLabels := pod.Labels
 			if podLabels == nil {
 				podLabels = make(map[string]string)
 			}
@@ -398,7 +398,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 			}
 
 			nsAnnotations := namespaceAnnotationsMapping[ns+","+clusterID]
-			podAnnotations := pod.GetObjectMeta().GetAnnotations()
+			podAnnotations := pod.Annotations
 			if podAnnotations == nil {
 				podAnnotations = make(map[string]string)
 			}
@@ -419,7 +419,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 
 			var podDeployments []string
 			if _, ok := podDeploymentsMapping[nsKey]; ok {
-				if ds, ok := podDeploymentsMapping[nsKey][pod.GetObjectMeta().GetName()]; ok {
+				if ds, ok := podDeploymentsMapping[nsKey][pod.Name]; ok {
 					podDeployments = ds
 				} else {
 					podDeployments = []string{}
@@ -454,7 +454,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 
 			var podServices []string
 			if _, ok := podServicesMapping[nsKey]; ok {
-				if svcs, ok := podServicesMapping[nsKey][pod.GetObjectMeta().GetName()]; ok {
+				if svcs, ok := podServicesMapping[nsKey][pod.Name]; ok {
 					podServices = svcs
 				} else {
 					podServices = []string{}
@@ -1404,7 +1404,7 @@ func (cm *CostModel) GetLBCost(cp costAnalyzerCloud.Provider) (map[serviceKey]*c
 	return loadBalancerMap, nil
 }
 
-func getPodServices(cache clustercache.ClusterCache, podList []*v1.Pod, clusterID string) (map[string]map[string][]string, error) {
+func getPodServices(cache clustercache.ClusterCache, podList []*clustercache.Pod, clusterID string) (map[string]map[string][]string, error) {
 	servicesList := cache.GetAllServices()
 	podServicesMapping := make(map[string]map[string][]string)
 	for _, service := range servicesList {
@@ -1419,13 +1419,13 @@ func getPodServices(cache clustercache.ClusterCache, podList []*v1.Pod, clusterI
 			s = labels.Set(service.Spec.Selector).AsSelectorPreValidated()
 		}
 		for _, pod := range podList {
-			labelSet := labels.Set(pod.GetObjectMeta().GetLabels())
-			if s.Matches(labelSet) && pod.GetObjectMeta().GetNamespace() == namespace {
-				services, ok := podServicesMapping[key][pod.GetObjectMeta().GetName()]
+			labelSet := labels.Set(pod.Labels)
+			if s.Matches(labelSet) && pod.Namespace == namespace {
+				services, ok := podServicesMapping[key][pod.Name]
 				if ok {
-					podServicesMapping[key][pod.GetObjectMeta().GetName()] = append(services, name)
+					podServicesMapping[key][pod.Name] = append(services, name)
 				} else {
-					podServicesMapping[key][pod.GetObjectMeta().GetName()] = []string{name}
+					podServicesMapping[key][pod.Name] = []string{name}
 				}
 			}
 		}
@@ -1433,7 +1433,7 @@ func getPodServices(cache clustercache.ClusterCache, podList []*v1.Pod, clusterI
 	return podServicesMapping, nil
 }
 
-func getPodStatefulsets(cache clustercache.ClusterCache, podList []*v1.Pod, clusterID string) (map[string]map[string][]string, error) {
+func getPodStatefulsets(cache clustercache.ClusterCache, podList []*clustercache.Pod, clusterID string) (map[string]map[string][]string, error) {
 	ssList := cache.GetAllStatefulSets()
 	podSSMapping := make(map[string]map[string][]string) // namespace: podName: [deploymentNames]
 	for _, ss := range ssList {
@@ -1449,13 +1449,13 @@ func getPodStatefulsets(cache clustercache.ClusterCache, podList []*v1.Pod, clus
 			log.Errorf("Error doing deployment label conversion: " + err.Error())
 		}
 		for _, pod := range podList {
-			labelSet := labels.Set(pod.GetObjectMeta().GetLabels())
-			if s.Matches(labelSet) && pod.GetObjectMeta().GetNamespace() == namespace {
-				sss, ok := podSSMapping[key][pod.GetObjectMeta().GetName()]
+			labelSet := labels.Set(pod.Labels)
+			if s.Matches(labelSet) && pod.Namespace == namespace {
+				sss, ok := podSSMapping[key][pod.Name]
 				if ok {
-					podSSMapping[key][pod.GetObjectMeta().GetName()] = append(sss, name)
+					podSSMapping[key][pod.Name] = append(sss, name)
 				} else {
-					podSSMapping[key][pod.GetObjectMeta().GetName()] = []string{name}
+					podSSMapping[key][pod.Name] = []string{name}
 				}
 			}
 		}
@@ -1464,7 +1464,7 @@ func getPodStatefulsets(cache clustercache.ClusterCache, podList []*v1.Pod, clus
 
 }
 
-func getPodDeployments(cache clustercache.ClusterCache, podList []*v1.Pod, clusterID string) (map[string]map[string][]string, error) {
+func getPodDeployments(cache clustercache.ClusterCache, podList []*clustercache.Pod, clusterID string) (map[string]map[string][]string, error) {
 	deploymentsList := cache.GetAllDeployments()
 	podDeploymentsMapping := make(map[string]map[string][]string) // namespace: podName: [deploymentNames]
 	for _, deployment := range deploymentsList {
@@ -1480,13 +1480,13 @@ func getPodDeployments(cache clustercache.ClusterCache, podList []*v1.Pod, clust
 			log.Errorf("Error doing deployment label conversion: " + err.Error())
 		}
 		for _, pod := range podList {
-			labelSet := labels.Set(pod.GetObjectMeta().GetLabels())
-			if s.Matches(labelSet) && pod.GetObjectMeta().GetNamespace() == namespace {
-				deployments, ok := podDeploymentsMapping[key][pod.GetObjectMeta().GetName()]
+			labelSet := labels.Set(pod.Labels)
+			if s.Matches(labelSet) && pod.Namespace == namespace {
+				deployments, ok := podDeploymentsMapping[key][pod.Name]
 				if ok {
-					podDeploymentsMapping[key][pod.GetObjectMeta().GetName()] = append(deployments, name)
+					podDeploymentsMapping[key][pod.Name] = append(deployments, name)
 				} else {
-					podDeploymentsMapping[key][pod.GetObjectMeta().GetName()] = []string{name}
+					podDeploymentsMapping[key][pod.Name] = []string{name}
 				}
 			}
 		}
@@ -2326,8 +2326,8 @@ func getNamespaceAnnotations(cache clustercache.ClusterCache, clusterID string) 
 	return nsToAnnotations, nil
 }
 
-func getDaemonsetsOfPod(pod v1.Pod) []string {
-	for _, ownerReference := range pod.ObjectMeta.OwnerReferences {
+func getDaemonsetsOfPod(pod clustercache.Pod) []string {
+	for _, ownerReference := range pod.OwnerReferences {
 		if ownerReference.Kind == "DaemonSet" {
 			return []string{ownerReference.Name}
 		}
@@ -2335,8 +2335,8 @@ func getDaemonsetsOfPod(pod v1.Pod) []string {
 	return []string{}
 }
 
-func getJobsOfPod(pod v1.Pod) []string {
-	for _, ownerReference := range pod.ObjectMeta.OwnerReferences {
+func getJobsOfPod(pod clustercache.Pod) []string {
+	for _, ownerReference := range pod.OwnerReferences {
 		if ownerReference.Kind == "Job" {
 			return []string{ownerReference.Name}
 		}
@@ -2344,8 +2344,8 @@ func getJobsOfPod(pod v1.Pod) []string {
 	return []string{}
 }
 
-func getStatefulSetsOfPod(pod v1.Pod) []string {
-	for _, ownerReference := range pod.ObjectMeta.OwnerReferences {
+func getStatefulSetsOfPod(pod clustercache.Pod) []string {
+	for _, ownerReference := range pod.OwnerReferences {
 		if ownerReference.Kind == "StatefulSet" {
 			return []string{ownerReference.Name}
 		}

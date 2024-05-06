@@ -5,6 +5,8 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/env"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -14,6 +16,87 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 )
+
+type Namespace struct {
+	Name        string
+	Labels      map[string]string
+	Annotations map[string]string
+}
+
+func transformNamespace(input *v1.Namespace) *Namespace {
+	return &Namespace{
+		Name:        input.Name,
+		Annotations: input.Annotations,
+		Labels:      input.Labels,
+	}
+}
+
+type Pod struct {
+	UID             types.UID
+	Name            string
+	Namespace       string
+	Labels          map[string]string
+	Annotations     map[string]string
+	OwnerReferences []metav1.OwnerReference
+	Status          PodStatus
+	Spec            PodSpec
+}
+
+type PodStatus struct {
+	Phase             v1.PodPhase
+	ContainerStatuses []v1.ContainerStatus
+}
+
+type PodSpec struct {
+	NodeName   string
+	Containers []Container
+	Volumes    []v1.Volume
+}
+
+type Container struct {
+	Name      string
+	Resources v1.ResourceRequirements
+}
+
+func transformPodContainer(input v1.Container) Container {
+	return Container{
+		Name:      input.Name,
+		Resources: input.Resources,
+	}
+}
+
+func transformPodStatus(input v1.PodStatus) PodStatus {
+	return PodStatus{
+		Phase:             input.Phase,
+		ContainerStatuses: input.ContainerStatuses,
+	}
+}
+
+func transformPodSpec(input v1.PodSpec) PodSpec {
+	containers := make([]Container, len(input.Containers))
+	for i, container := range input.Containers {
+		containers[i] = transformPodContainer(container)
+	}
+	return PodSpec{
+		NodeName:   input.NodeName,
+		Containers: containers,
+		Volumes:    input.Volumes,
+	}
+
+}
+
+func transformPod(input *v1.Pod) *Pod {
+	return &Pod{
+		UID:             input.UID,
+		Name:            input.Name,
+		Namespace:       input.Namespace,
+		Labels:          input.Labels,
+		Annotations:     input.Annotations,
+		OwnerReferences: input.OwnerReferences,
+		Spec:            transformPodSpec(input.Spec),
+		Status:          transformPodStatus(input.Status),
+	}
+}
 
 // ClusterCache defines an contract for an object which caches components within a cluster, ensuring
 // up to date resources using watchers
@@ -25,13 +108,13 @@ type ClusterCache interface {
 	Stop()
 
 	// GetAllNamespaces returns all the cached namespaces
-	GetAllNamespaces() []*v1.Namespace
+	GetAllNamespaces() []*Namespace
 
 	// GetAllNodes returns all the cached nodes
 	GetAllNodes() []*v1.Node
 
 	// GetAllPods returns all the cached pods
-	GetAllPods() []*v1.Pod
+	GetAllPods() []*Pod
 
 	// GetAllServices returns all the cached services
 	GetAllServices() []*v1.Service
@@ -192,11 +275,11 @@ func (kcc *KubernetesClusterCache) Stop() {
 	kcc.stop = nil
 }
 
-func (kcc *KubernetesClusterCache) GetAllNamespaces() []*v1.Namespace {
-	var namespaces []*v1.Namespace
+func (kcc *KubernetesClusterCache) GetAllNamespaces() []*Namespace {
+	var namespaces []*Namespace
 	items := kcc.namespaceWatch.GetAll()
 	for _, ns := range items {
-		namespaces = append(namespaces, ns.(*v1.Namespace))
+		namespaces = append(namespaces, transformNamespace(ns.(*v1.Namespace)))
 	}
 	return namespaces
 }
@@ -210,11 +293,11 @@ func (kcc *KubernetesClusterCache) GetAllNodes() []*v1.Node {
 	return nodes
 }
 
-func (kcc *KubernetesClusterCache) GetAllPods() []*v1.Pod {
-	var pods []*v1.Pod
+func (kcc *KubernetesClusterCache) GetAllPods() []*Pod {
+	var pods []*Pod
 	items := kcc.podWatch.GetAll()
 	for _, pod := range items {
-		pods = append(pods, pod.(*v1.Pod))
+		pods = append(pods, transformPod(pod.(*v1.Pod)))
 	}
 	return pods
 }
