@@ -1602,13 +1602,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	configPrefix := env.GetConfigPathWithDefault("/var/configs/")
 
 	// Create Kubernetes Cluster Cache + Watchers
-	var k8sCache clustercache.ClusterCache
-	if env.IsClusterCacheFileEnabled() {
-		importLocation := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-cache.json"))
-		k8sCache = clustercache.NewClusterImporter(importLocation)
-	} else {
-		k8sCache = clustercache.NewKubernetesClusterCache(kubeClientset)
-	}
+	k8sCache := clustercache.NewKubernetesClusterCache(kubeClientset)
 	k8sCache.Run()
 
 	cloudProviderKey := env.GetCloudProviderAPIKey()

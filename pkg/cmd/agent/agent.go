@@ -39,10 +39,6 @@ type AgentOpts struct {
 // ClusterExportInterval is the interval used to export the cluster if env.IsExportClusterCacheEnabled() is true
 const ClusterExportInterval = 5 * time.Minute
 
-// clusterExporter is used if env.IsExportClusterCacheEnabled() is set to true
-// it will export the kubernetes cluster data to a file on a specific interval
-var clusterExporter *clustercache.ClusterExporter
-
 func Healthz(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(200)
 	w.Header().Set("Content-Length", "0")
@@ -187,13 +183,6 @@ func Execute(opts *AgentOpts) error {
 	clusterCache.SetConfigMapUpdateFunc(watchConfigFunc)
 
 	configPrefix := env.GetConfigPathWithDefault(env.DefaultConfigMountPath)
-
-	// Initialize cluster exporting if it's enabled
-	if env.IsExportClusterCacheEnabled() {
-		cacheLocation := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-cache.json"))
-		clusterExporter = clustercache.NewClusterExporter(clusterCache, cacheLocation, ClusterExportInterval)
-		clusterExporter.Run()
-	}
 
 	// ClusterInfo Provider to provide the cluster map with local and remote cluster data
 	localClusterInfo := costmodel.NewLocalClusterInfoProvider(k8sClient, cloudProvider)
