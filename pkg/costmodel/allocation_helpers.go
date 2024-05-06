@@ -1796,7 +1796,7 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*nodePricing, nodeKey no
 }
 
 /* PV/PVC Helpers */
-
+// query `avg(avg_over_time(kubecost_pv_info{%s}[%s])) by (%s, persistentvolume, provider_id)`
 func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHour, resPVActiveMins, resPVMeta []*prom.QueryResult, window opencost.Window) {
 	for _, result := range resPVActiveMins {
 		key, err := resultPVKey(result, env.GetPromClusterLabel(), "persistentvolume")
@@ -1857,6 +1857,7 @@ func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHo
 	}
 }
 
+// query `avg(avg_over_time(kube_persistentvolume_capacity_bytes{%s}[%s])) by (persistentvolume, %s)`
 func applyPVBytes(pvMap map[pvKey]*pv, resPVBytes []*prom.QueryResult) {
 	for _, res := range resPVBytes {
 		key, err := resultPVKey(res, env.GetPromClusterLabel(), "persistentvolume")
@@ -1880,6 +1881,7 @@ func applyPVBytes(pvMap map[pvKey]*pv, resPVBytes []*prom.QueryResult) {
 	}
 }
 
+// query `avg(kube_persistentvolumeclaim_info{volumename != "", %s}) by (persistentvolumeclaim, storageclass, volumename, namespace, %s)[%s:%s]`
 func buildPVCMap(resolution time.Duration, pvcMap map[pvcKey]*pvc, pvMap map[pvKey]*pv, resPVCInfo []*prom.QueryResult, window opencost.Window) {
 	for _, res := range resPVCInfo {
 		cluster, err := res.GetString(env.GetPromClusterLabel())
@@ -1926,6 +1928,7 @@ func buildPVCMap(resolution time.Duration, pvcMap map[pvcKey]*pvc, pvMap map[pvK
 	}
 }
 
+// Query `avg(avg_over_time(kube_persistentvolumeclaim_resource_requests_storage_bytes{%s}[%s])) by (persistentvolumeclaim, namespace, %s)`
 func applyPVCBytesRequested(pvcMap map[pvcKey]*pvc, resPVCBytesRequested []*prom.QueryResult) {
 	for _, res := range resPVCBytesRequested {
 		key, err := resultPVCKey(res, env.GetPromClusterLabel(), "namespace", "persistentvolumeclaim")
@@ -1941,6 +1944,7 @@ func applyPVCBytesRequested(pvcMap map[pvcKey]*pvc, resPVCBytesRequested []*prom
 	}
 }
 
+// query `avg(avg_over_time(pod_pvc_allocation{%s}[%s])) by (persistentvolume, persistentvolumeclaim, pod, namespace, %s)`
 func buildPodPVCMap(podPVCMap map[podKey][]*pvc, pvMap map[pvKey]*pv, pvcMap map[pvcKey]*pvc, podMap map[podKey]*pod, resPodPVCAllocation []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey, ingestPodUID bool) {
 	for _, res := range resPodPVCAllocation {
 		cluster, err := res.GetString(env.GetPromClusterLabel())
@@ -2142,9 +2146,10 @@ func applyUnmountedPVs(window opencost.Window, podMap map[podKey]*pod, pvMap map
 			cost := pv.CostPerGiBHour * gib * hrs
 			unmountedPVs := opencost.PVAllocations{
 				thisPVKey: {
-					Name:      pv.Name,
-					ByteHours: pv.Bytes * hrs,
-					Cost:      cost,
+					Name:         pv.Name,
+					StorageClass: pv.StorageClass,
+					ByteHours:    pv.Bytes * hrs,
+					Cost:         cost,
 				},
 			}
 			pod.Allocations[opencost.UnmountedSuffix].PVs = pod.Allocations[opencost.UnmountedSuffix].PVs.Add(unmountedPVs)

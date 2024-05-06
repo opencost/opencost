@@ -133,8 +133,10 @@ var podMap1 = map[podKey]*pod{
 				LoadBalancerCostAdjustment: 0,
 				PVs: opencost.PVAllocations{
 					kcPVKey2: &opencost.PVAllocation{
-						ByteHours: 24 * Gi,
-						Cost:      2.25,
+						Name:         "test-pvc",
+						StorageClass: "gp2",
+						ByteHours:    24 * Gi,
+						Cost:         2.25,
 					},
 				},
 			},
@@ -434,8 +436,10 @@ func TestGetUnmountedPodForCluster(t *testing.T) {
 						LoadBalancerCostAdjustment: 0,
 						PVs: opencost.PVAllocations{
 							kcPVKey2: &opencost.PVAllocation{
-								ByteHours: 24 * Gi,
-								Cost:      2.25,
+								Name:         "test-pvc",
+								StorageClass: "gp2",
+								ByteHours:    24 * Gi,
+								Cost:         2.25,
 							},
 						},
 					},
