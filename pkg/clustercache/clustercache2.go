@@ -24,7 +24,7 @@ type KubernetesClusterCacheV2 struct {
 	jobStore                   *GenericStore[*batchv1.Job, *Job]
 }
 
-func NewKubernetesClusterCache2(clientset kubernetes.Interface) *KubernetesClusterCacheV2 {
+func NewKubernetesClusterCacheV2(clientset kubernetes.Interface) *KubernetesClusterCacheV2 {
 	ctx := context.TODO()
 	return &KubernetesClusterCacheV2{
 		namespaceStore:             CreateStoreAndWatch(ctx, clientset.CoreV1().RESTClient(), "namespaces", transformNamespace),

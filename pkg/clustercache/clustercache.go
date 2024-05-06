@@ -321,7 +321,7 @@ func initializeCache(wc WatchController, wg *sync.WaitGroup, cancel chan struct{
 }
 
 func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
-	return NewKubernetesClusterCache2(client)
+	return NewKubernetesClusterCacheV2(client)
 }
 
 func NewKubernetesClusterCacheV1(client kubernetes.Interface) ClusterCache {
