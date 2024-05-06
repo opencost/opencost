@@ -181,7 +181,7 @@ func (c *Scaleway) NetworkPricing() (*models.Network, error) {
 	}, nil
 }
 
-func (c *Scaleway) GetKey(l map[string]string, n *v1.Node) models.Key {
+func (c *Scaleway) GetKey(l map[string]string, n *clustercache.Node) models.Key {
 	return &scalewayKey{
 		Labels: l,
 	}

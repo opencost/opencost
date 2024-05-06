@@ -1002,9 +1002,9 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		PricingTypeCounts: make(map[costAnalyzerCloud.PricingType]int),
 	}
 	for _, n := range nodeList {
-		name := n.GetObjectMeta().GetName()
-		nodeLabels := n.GetObjectMeta().GetLabels()
-		nodeLabels["providerID"] = n.Spec.ProviderID
+		name := n.Name
+		nodeLabels := n.Labels
+		nodeLabels["providerID"] = n.SpecProviderID
 
 		pmd.TotalNodes++
 
@@ -1041,7 +1041,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			arch, _ := util.GetArchType(n.Labels)
 			newCnode.ArchType = arch
 		}
-		newCnode.ProviderID = n.Spec.ProviderID
+		newCnode.ProviderID = n.SpecProviderID
 
 		var cpu float64
 		if newCnode.VCPU == "" {

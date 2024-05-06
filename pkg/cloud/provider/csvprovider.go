@@ -13,6 +13,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -289,7 +290,7 @@ func (c *CSVProvider) NodePricing(key models.Key) (*models.Node, models.PricingM
 	return node, models.PricingMetadata{}, nil
 }
 
-func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
+func NodeValueFromMapField(m string, n *clustercache.Node, useRegion bool) string {
 	mf := strings.Split(m, ".")
 	toReturn := ""
 	if useRegion {
@@ -300,16 +301,16 @@ func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
 		}
 	}
 	if len(mf) == 2 && mf[0] == "spec" && mf[1] == "providerID" {
-		for matchNum, group := range provIdRx.FindStringSubmatch(n.Spec.ProviderID) {
+		for matchNum, group := range provIdRx.FindStringSubmatch(n.SpecProviderID) {
 			if matchNum == 2 {
 				return toReturn + group
 			}
 		}
-		if strings.HasPrefix(n.Spec.ProviderID, "azure://") {
-			vmOrScaleSet := strings.ToLower(strings.TrimPrefix(n.Spec.ProviderID, "azure://"))
+		if strings.HasPrefix(n.SpecProviderID, "azure://") {
+			vmOrScaleSet := strings.ToLower(strings.TrimPrefix(n.SpecProviderID, "azure://"))
 			return toReturn + vmOrScaleSet
 		}
-		return toReturn + n.Spec.ProviderID
+		return toReturn + n.SpecProviderID
 	} else if len(mf) > 1 && mf[0] == "metadata" {
 		if mf[1] == "name" {
 			return toReturn + n.Name
@@ -365,7 +366,7 @@ func PVValueFromMapField(m string, n *v1.PersistentVolume) string {
 	}
 }
 
-func (c *CSVProvider) GetKey(l map[string]string, n *v1.Node) models.Key {
+func (c *CSVProvider) GetKey(l map[string]string, n *clustercache.Node) models.Key {
 	id := NodeValueFromMapField(c.NodeMapField, n, c.UsesRegion)
 	var gpuCount int64
 	gpuCount = 0

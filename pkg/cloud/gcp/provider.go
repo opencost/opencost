@@ -1078,7 +1078,7 @@ func (gcp *GCP) DownloadPricingData() error {
 
 	defaultRegion := "" // Sometimes, PVs may be missing the region label. In that case assume that they are in the same region as the nodes
 	for _, n := range nodeList {
-		labels := n.GetObjectMeta().GetLabels()
+		labels := n.Labels
 		if _, ok := labels["cloud.google.com/gke-nodepool"]; ok { // The node is part of a GKE nodepool, so you're paying a cluster management cost
 			gcp.clusterManagementPrice = 0.10
 			gcp.clusterProvisioner = "GKE"
@@ -1275,12 +1275,12 @@ func (gcp *GCP) ApplyReservedInstancePricing(nodes map[string]*models.Node) {
 		}
 	}
 
-	gcpNodes := make(map[string]*v1.Node)
+	gcpNodes := make(map[string]*clustercache.Node)
 	currentNodes := gcp.Clientset.GetAllNodes()
 
 	// Create a node name -> node map
 	for _, gcpNode := range currentNodes {
-		gcpNodes[gcpNode.GetName()] = gcpNode
+		gcpNodes[gcpNode.Name] = gcpNode
 	}
 
 	// go through all provider nodes using k8s nodes for region
@@ -1471,7 +1471,7 @@ type gcpKey struct {
 	Labels map[string]string
 }
 
-func (gcp *GCP) GetKey(labels map[string]string, n *v1.Node) models.Key {
+func (gcp *GCP) GetKey(labels map[string]string, n *clustercache.Node) models.Key {
 	return &gcpKey{
 		Labels: labels,
 	}

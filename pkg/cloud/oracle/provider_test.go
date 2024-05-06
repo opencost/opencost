@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -73,15 +74,13 @@ func TestGetPVKey(t *testing.T) {
 	assert.Equal(t, providerID, pvkey.ID())
 }
 
-func testNode(gpus int) *v1.Node {
+func testNode(gpus int) *clustercache.Node {
 	capacity := map[v1.ResourceName]resource.Quantity{}
 	if gpus > 0 {
 		capacity["nvidia.com/gpu"] = resource.MustParse(fmt.Sprintf("%d", gpus))
 	}
-	return &v1.Node{
-		Spec: v1.NodeSpec{
-			ProviderID: "ocid.abc",
-		},
+	return &clustercache.Node{
+		SpecProviderID: "ocid.abc",
 		Status: v1.NodeStatus{
 			Capacity: capacity,
 		},

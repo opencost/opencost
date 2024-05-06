@@ -242,7 +242,7 @@ func (cp *CustomProvider) DownloadPricingData() error {
 	return nil
 }
 
-func (cp *CustomProvider) GetKey(labels map[string]string, n *v1.Node) models.Key {
+func (cp *CustomProvider) GetKey(labels map[string]string, n *clustercache.Node) models.Key {
 	return &customProviderKey{
 		SpotLabel:      cp.SpotLabel,
 		SpotLabelValue: cp.SpotLabelValue,

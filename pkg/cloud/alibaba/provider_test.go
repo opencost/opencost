@@ -8,6 +8,7 @@ import (
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/credentials"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/signers"
 	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/clustercache"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
@@ -604,7 +605,7 @@ func TestDetermineKeyForPricing(t *testing.T) {
 }
 
 func TestGenerateSlimK8sNodeFromV1Node(t *testing.T) {
-	testv1Node := &v1.Node{}
+	testv1Node := &clustercache.Node{}
 	testv1Node.Labels = make(map[string]string)
 	testv1Node.Labels["topology.kubernetes.io/region"] = "us-east-1"
 	testv1Node.Labels["beta.kubernetes.io/os"] = "linux"
@@ -614,7 +615,7 @@ func TestGenerateSlimK8sNodeFromV1Node(t *testing.T) {
 	}
 	cases := []struct {
 		name             string
-		testNode         *v1.Node
+		testNode         *clustercache.Node
 		expectedSlimNode *SlimK8sNode
 	}{
 		{

@@ -675,7 +675,7 @@ func (az *Azure) loadAzureStorageConfig(force bool) (*AzureStorageConfig, error)
 	return &asc, nil
 }
 
-func (az *Azure) GetKey(labels map[string]string, n *v1.Node) models.Key {
+func (az *Azure) GetKey(labels map[string]string, n *clustercache.Node) models.Key {
 	cfg, err := az.GetConfig()
 	if err != nil {
 		log.Infof("Error loading azure custom pricing information")
@@ -772,7 +772,7 @@ func (az *Azure) GetManagementPlatform() (string, error) {
 
 	if len(nodes) > 0 {
 		n := nodes[0]
-		providerID := n.Spec.ProviderID
+		providerID := n.SpecProviderID
 		if strings.Contains(providerID, "aks") {
 			return "aks", nil
 		}

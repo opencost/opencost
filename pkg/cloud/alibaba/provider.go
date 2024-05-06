@@ -854,7 +854,7 @@ func (alibabaNodeKey *AlibabaNodeKey) GPUCount() int {
 }
 
 // Get's the key for the k8s node input
-func (alibaba *Alibaba) GetKey(mapValue map[string]string, node *v1.Node) models.Key {
+func (alibaba *Alibaba) GetKey(mapValue map[string]string, node *clustercache.Node) models.Key {
 	slimK8sNode := generateSlimK8sNodeFromV1Node(node)
 
 	var aak *credentials.AccessKeyCredential
@@ -1244,7 +1244,7 @@ func getSystemDiskInfoOfANode(instanceID, regionID string, client *sdk.Client, s
 }
 
 // generateSlimK8sNodeFromV1Node generates SlimK8sNode struct from v1.Node to fetch pricing information and call alibaba API.
-func generateSlimK8sNodeFromV1Node(node *v1.Node) *SlimK8sNode {
+func generateSlimK8sNodeFromV1Node(node *clustercache.Node) *SlimK8sNode {
 	var regionID, osType, instanceType, providerID, priceUnit, instanceFamily string
 	var memorySizeInKiB string // TO-DO: try to convert it into float
 	var ok, IsIoOptimized bool
@@ -1263,7 +1263,7 @@ func generateSlimK8sNodeFromV1Node(node *v1.Node) *SlimK8sNode {
 
 	instanceFamily = getInstanceFamilyFromType(instanceType)
 	memorySizeInKiB = fmt.Sprintf("%s", node.Status.Capacity.Memory())
-	providerID = node.Spec.ProviderID // Alibaba Cloud provider doesnt follow convention of prefix with cloud provider name
+	providerID = node.SpecProviderID // Alibaba Cloud provider doesnt follow convention of prefix with cloud provider name
 
 	// Looking at current Instance offering , all of the Instances seem to be I/O optimized - https://www.alibabacloud.com/help/en/elastic-compute-service/latest/instance-family
 	// Basic price Json has it as part of the key so defaulting to true.
