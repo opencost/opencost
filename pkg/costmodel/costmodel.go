@@ -1375,15 +1375,15 @@ func (cm *CostModel) GetLBCost(cp costAnalyzerCloud.Provider) (map[serviceKey]*c
 	loadBalancerMap := make(map[serviceKey]*costAnalyzerCloud.LoadBalancer)
 
 	for _, service := range servicesList {
-		namespace := service.GetObjectMeta().GetNamespace()
-		name := service.GetObjectMeta().GetName()
+		namespace := service.Namespace
+		name := service.Name
 		key := serviceKey{
 			Cluster:   env.GetClusterID(),
 			Namespace: namespace,
 			Service:   name,
 		}
 
-		if service.Spec.Type == "LoadBalancer" {
+		if service.Type == "LoadBalancer" {
 			loadBalancer, err := cp.LoadBalancerPricing()
 			if err != nil {
 				return nil, err
@@ -1408,15 +1408,15 @@ func getPodServices(cache clustercache.ClusterCache, podList []*clustercache.Pod
 	servicesList := cache.GetAllServices()
 	podServicesMapping := make(map[string]map[string][]string)
 	for _, service := range servicesList {
-		namespace := service.GetObjectMeta().GetNamespace()
-		name := service.GetObjectMeta().GetName()
+		namespace := service.Namespace
+		name := service.Name
 		key := namespace + "," + clusterID
 		if _, ok := podServicesMapping[key]; !ok {
 			podServicesMapping[key] = make(map[string][]string)
 		}
 		s := labels.Nothing()
-		if service.Spec.Selector != nil && len(service.Spec.Selector) > 0 {
-			s = labels.Set(service.Spec.Selector).AsSelectorPreValidated()
+		if service.Selector != nil && len(service.Selector) > 0 {
+			s = labels.Set(service.Selector).AsSelectorPreValidated()
 		}
 		for _, pod := range podList {
 			labelSet := labels.Set(pod.Labels)

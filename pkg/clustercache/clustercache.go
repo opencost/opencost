@@ -116,6 +116,24 @@ func transformNode(input *v1.Node) *Node {
 	}
 }
 
+type Service struct {
+	Name      string
+	Namespace string
+	Selector  map[string]string
+	Type      v1.ServiceType
+	Status    v1.ServiceStatus
+}
+
+func transformService(input *v1.Service) *Service {
+	return &Service{
+		Name:      input.Name,
+		Namespace: input.Namespace,
+		Selector:  input.Spec.Selector,
+		Type:      input.Spec.Type,
+		Status:    input.Status,
+	}
+}
+
 // ClusterCache defines an contract for an object which caches components within a cluster, ensuring
 // up to date resources using watchers
 type ClusterCache interface {
@@ -135,7 +153,7 @@ type ClusterCache interface {
 	GetAllPods() []*Pod
 
 	// GetAllServices returns all the cached services
-	GetAllServices() []*v1.Service
+	GetAllServices() []*Service
 
 	// GetAllDaemonSets returns all the cached DaemonSets
 	GetAllDaemonSets() []*appsv1.DaemonSet
@@ -320,11 +338,11 @@ func (kcc *KubernetesClusterCache) GetAllPods() []*Pod {
 	return pods
 }
 
-func (kcc *KubernetesClusterCache) GetAllServices() []*v1.Service {
-	var services []*v1.Service
+func (kcc *KubernetesClusterCache) GetAllServices() []*Service {
+	var services []*Service
 	items := kcc.serviceWatch.GetAll()
 	for _, service := range items {
-		services = append(services, service.(*v1.Service))
+		services = append(services, transformService(service.(*v1.Service)))
 	}
 	return services
 }
