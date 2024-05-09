@@ -208,6 +208,10 @@ func SelectAWSCategory(providerID, usageType, service string) string {
 	// The node and volume conditions are mutually exclusive.
 	// Provider ID has prefix "i-"
 	if strings.HasPrefix(providerID, "i-") {
+		// GuardDuty has a ProviderID prefix of "i-", but should not be categorized as compute
+		if strings.ToUpper(service) == "AMAZONGUARDDUTY" {
+			return opencost.OtherCategory
+		}
 		return opencost.ComputeCategory
 	}
 	// Provider ID has prefix "vol-"
