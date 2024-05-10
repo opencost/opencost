@@ -352,6 +352,8 @@ func (target *Allocation) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 	buff.WriteFloat64(target.CPUCost)                    // write float64
 	buff.WriteFloat64(target.CPUCostAdjustment)          // write float64
 	buff.WriteFloat64(target.GPUHours)                   // write float64
+	buff.WriteFloat64(target.GPURequestAverage)          // write float64
+	buff.WriteFloat64(target.GPUUsageAverage)            // write float64
 	buff.WriteFloat64(target.GPUCost)                    // write float64
 	buff.WriteFloat64(target.GPUCostAdjustment)          // write float64
 	buff.WriteFloat64(target.NetworkTransferBytes)       // write float64
@@ -587,6 +589,12 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 
 	s := buff.ReadFloat64() // read float64
 	target.GPUHours = s
+
+	s1 := buff.ReadFloat64() // read float64
+	target.GPURequestAverage = s1
+
+	s2 := buff.ReadFloat64() // read float64
+	target.GPUUsageAverage = s2
 
 	t := buff.ReadFloat64() // read float64
 	target.GPUCost = t
