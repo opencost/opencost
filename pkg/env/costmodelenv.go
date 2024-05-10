@@ -413,7 +413,7 @@ func IsUseCSVProvider() bool {
 // IsUseCustomProvider returns the environment variable value for UseCustomProviderEnvVar which represents
 // whether or not the use of a custom cost provider is enabled.
 func IsUseCustomProvider() bool {
-	return GetBool(UseCustomProviderEnvVar, false)
+	return env.GetBool(UseCustomProviderEnvVar, false)
 }
 
 // GetCSVRegion returns the environment variable value for CSVRegionEnvVar which represents the

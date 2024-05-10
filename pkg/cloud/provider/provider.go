@@ -283,7 +283,7 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 	if env.IsUseCustomProvider() {
 		// Use CSV provider if set
 		if env.IsUseCSVProvider() {
-			cp.provider = kubecost.CSVProvider
+			cp.provider = opencost.CSVProvider
 		}
 		return cp
 	}
