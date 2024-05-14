@@ -47,8 +47,8 @@ func DefaultIngestorConfiguration() IngestorConfig {
 	}
 }
 
-// ingestor runs the process for ingesting CloudCost from its CloudCostIntegration and store it in a Repository
-type ingestor struct {
+// Ingestor runs the process for ingesting CloudCost from its CloudCostIntegration and store it in a Repository
+type Ingestor struct {
 	key          string
 	integration  CloudCostIntegration
 	config       IngestorConfig
@@ -66,7 +66,7 @@ type ingestor struct {
 }
 
 // NewIngestor is an initializer for ingestor
-func NewIngestor(ingestorConfig IngestorConfig, repo Repository, config cloud.KeyedConfig) (*ingestor, error) {
+func NewIngestor(ingestorConfig IngestorConfig, repo Repository, config cloud.KeyedConfig) (*Ingestor, error) {
 	if repo == nil {
 		return nil, fmt.Errorf("CloudCost: NewIngestor: repository connot be nil")
 	}
@@ -79,7 +79,7 @@ func NewIngestor(ingestorConfig IngestorConfig, repo Repository, config cloud.Ke
 	}
 	now := time.Now().UTC()
 	midnight := opencost.RoundForward(now, timeutil.Day)
-	return &ingestor{
+	return &Ingestor{
 		config:       ingestorConfig,
 		repo:         repo,
 		key:          config.Key(),
@@ -90,7 +90,7 @@ func NewIngestor(ingestorConfig IngestorConfig, repo Repository, config cloud.Ke
 	}, nil
 }
 
-func (ing *ingestor) LoadWindow(start, end time.Time) {
+func (ing *Ingestor) LoadWindow(start, end time.Time) {
 	windows, err := opencost.GetWindows(start, end, timeutil.Day)
 	if err != nil {
 		log.Errorf("CloudCost[%s]: ingestor: invalid window %s", ing.key, opencost.NewWindow(&start, &end))
@@ -112,7 +112,7 @@ func (ing *ingestor) LoadWindow(start, end time.Time) {
 
 }
 
-func (ing *ingestor) BuildWindow(start, end time.Time) {
+func (ing *Ingestor) BuildWindow(start, end time.Time) {
 	log.Infof("CloudCost[%s]: ingestor: building window %s", ing.key, opencost.NewWindow(&start, &end))
 	ccsr, err := ing.integration.GetCloudCost(start, end)
 	if err != nil {
@@ -129,7 +129,7 @@ func (ing *ingestor) BuildWindow(start, end time.Time) {
 	}
 }
 
-func (ing *ingestor) Start(rebuild bool) {
+func (ing *Ingestor) Start(rebuild bool) {
 
 	// If already running, log that and return.
 	if !ing.isRunning.CompareAndSwap(false, true) {
@@ -149,7 +149,7 @@ func (ing *ingestor) Start(rebuild bool) {
 	go ing.run()
 }
 
-func (ing *ingestor) Stop() {
+func (ing *Ingestor) Stop() {
 	// If already stopping, log that and return.
 	if !ing.isStopping.CompareAndSwap(false, true) {
 		log.Infof("CloudCost: ingestor: is already stopping")
@@ -187,7 +187,7 @@ func (ing *ingestor) Stop() {
 }
 
 // Status returns an IngestorStatus that describes the current state of the ingestor
-func (ing *ingestor) Status() IngestorStatus {
+func (ing *Ingestor) Status() IngestorStatus {
 	return IngestorStatus{
 		Created:          ing.creationTime,
 		LastRun:          ing.lastRun,
@@ -198,7 +198,7 @@ func (ing *ingestor) Status() IngestorStatus {
 	}
 }
 
-func (ing *ingestor) build(rebuild bool) {
+func (ing *Ingestor) build(rebuild bool) {
 	defer errors.HandlePanic()
 
 	// Profile the full Duration of the build time
@@ -257,7 +257,7 @@ func (ing *ingestor) build(rebuild bool) {
 
 }
 
-func (ing *ingestor) run() {
+func (ing *Ingestor) run() {
 	defer errors.HandlePanic()
 
 	ticker := timeutil.NewJobTicker()
@@ -328,7 +328,7 @@ func (ing *ingestor) run() {
 	}
 }
 
-func (ing *ingestor) expandCoverage(window opencost.Window) {
+func (ing *Ingestor) expandCoverage(window opencost.Window) {
 	if window.IsOpen() {
 		return
 	}

@@ -1,19 +1,11 @@
 package config
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"strings"
 
 	"github.com/julienschmidt/httprouter"
 	proto "github.com/opencost/opencost/core/pkg/protocol"
-	"github.com/opencost/opencost/pkg/cloud"
-	"github.com/opencost/opencost/pkg/cloud/aws"
-	"github.com/opencost/opencost/pkg/cloud/azure"
-	"github.com/opencost/opencost/pkg/cloud/gcp"
 )
 
 var protocol = proto.HTTP()
@@ -66,7 +58,7 @@ func (c *Controller) GetAddConfigHandler() func(w http.ResponseWriter, r *http.R
 
 		configType := r.URL.Query().Get("type")
 
-		config, err := parseConfig(configType, r.Body)
+		config, err := ParseConfig(configType, r.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -80,47 +72,6 @@ func (c *Controller) GetAddConfigHandler() func(w http.ResponseWriter, r *http.R
 
 		protocol.WriteData(w, fmt.Sprintf("Successfully added integration with key %s", config.Key()))
 	}
-}
-
-func parseConfig(configType string, body io.Reader) (cloud.KeyedConfig, error) {
-	buf := new(bytes.Buffer)
-	_, err := buf.ReadFrom(body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read body: %w", err)
-	}
-	bytes := buf.Bytes()
-	switch strings.ToLower(configType) {
-	case S3ConfigType:
-		config := &aws.S3Configuration{}
-		err = json.Unmarshal(bytes, config)
-		if err != nil {
-			return nil, fmt.Errorf("error unmarshalling S3 Configuration: %w", err)
-		}
-		return config, nil
-	case AthenaConfigType:
-		config := &aws.AthenaConfiguration{}
-		err = json.Unmarshal(bytes, config)
-		if err != nil {
-			return nil, fmt.Errorf("error unmarshalling Athena Configuration: %w", err)
-		}
-		return config, nil
-	case BigQueryConfigType:
-		config := &gcp.BigQueryConfiguration{}
-		err = json.Unmarshal(bytes, config)
-		if err != nil {
-			return nil, fmt.Errorf("error unmarshalling Big Query Configuration: %w", err)
-		}
-		return config, nil
-	case AzureStorageConfigType:
-		config := &azure.StorageConfiguration{}
-		err = json.Unmarshal(bytes, config)
-		if err != nil {
-			return nil, fmt.Errorf("error unmarshalling Azure Storage Configuration: %w", err)
-		}
-		return config, nil
-
-	}
-	return nil, fmt.Errorf("provided config type was not recognised %s", configType)
 }
 
 // GetEnableConfigHandler creates a handler from a http request which enables an integration via the integrationController

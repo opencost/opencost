@@ -15,7 +15,7 @@ import (
 // config.Controller
 type IngestionManager struct {
 	lock      sync.Mutex
-	ingestors map[string]*ingestor
+	ingestors map[string]*Ingestor
 	config    IngestorConfig
 	repo      Repository
 }
@@ -25,12 +25,12 @@ func NewIngestionManager(controller *config.Controller, repo Repository, ingConf
 	// return empty ingestion manager if store or integration controller are nil
 	if controller == nil || repo == nil {
 		return &IngestionManager{
-			ingestors: map[string]*ingestor{},
+			ingestors: map[string]*Ingestor{},
 		}
 	}
 
 	im := &IngestionManager{
-		ingestors: map[string]*ingestor{},
+		ingestors: map[string]*Ingestor{},
 		repo:      repo,
 		config:    ingConf,
 	}
@@ -110,7 +110,7 @@ func (im *IngestionManager) RebuildAll() {
 	var wg sync.WaitGroup
 	wg.Add(len(im.ingestors))
 	for key := range im.ingestors {
-		go func(ing *ingestor) {
+		go func(ing *Ingestor) {
 			defer wg.Done()
 			ing.Stop()
 			ing.Start(true)
@@ -143,7 +143,7 @@ func (im *IngestionManager) RepairAll(start, end time.Time) error {
 	}
 
 	for key := range im.ingestors {
-		go func(ing *ingestor) {
+		go func(ing *Ingestor) {
 			for _, window := range windows {
 				ing.BuildWindow(*window.Start(), *window.End())
 			}
@@ -166,7 +166,7 @@ func (im *IngestionManager) Repair(integrationKey string, start, end time.Time) 
 	if !ok {
 		return fmt.Errorf("CloudCost: IngestionManager: Repair: failed to rebuild, integration with key does not exist: %s", integrationKey)
 	}
-	go func(ing *ingestor) {
+	go func(ing *Ingestor) {
 		for _, window := range windows {
 			ing.BuildWindow(*window.Start(), *window.End())
 		}
