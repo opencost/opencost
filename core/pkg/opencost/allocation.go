@@ -2557,6 +2557,14 @@ func (a *Allocation) SanitizeNaN() {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUHours name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
 		a.GPUHours = 0
 	}
+	if math.IsNaN(a.GPURequestAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPURequestAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.GPURequestAverage = 0
+	}
+	if math.IsNaN(a.GPUUsageAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUUsageAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.GPUUsageAverage = 0
+	}
 	if math.IsNaN(a.GPUCost) {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
 		a.GPUCost = 0
