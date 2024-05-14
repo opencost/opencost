@@ -1159,9 +1159,9 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			nodeCost := cpuCost + gpuCost + ramCost
 
 			newCnode.Cost = fmt.Sprintf("%f", nodeCost)
-			newCnode.VCPUCost = fmt.Sprintf("%f", cpuCost)
-			newCnode.GPUCost = fmt.Sprintf("%f", gpuCost)
-			newCnode.RAMCost = fmt.Sprintf("%f", ramCost)
+			newCnode.VCPUCost = fmt.Sprintf("%f", defaultCPUCorePrice)
+			newCnode.GPUCost = fmt.Sprintf("%f", defaultGPUPrice)
+			newCnode.RAMCost = fmt.Sprintf("%f", defaultRAMPrice)
 			newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
 		} else if newCnode.GPU != "" && newCnode.GPUCost == "" {
