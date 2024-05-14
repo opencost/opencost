@@ -324,18 +324,21 @@ const (
 	MultiCloudSource
 	ConfigFileSource
 	HelmSource
+	DBSource
 )
 
 func GetConfigSource(str string) ConfigSource {
 	switch str {
-	case "configController":
+	case ConfigControllerSource.String():
 		return ConfigControllerSource
-	case "configfile":
+	case ConfigFileSource.String():
 		return ConfigFileSource
-	case "helm":
+	case HelmSource.String():
 		return HelmSource
-	case "multicloud":
+	case MultiCloudSource.String():
 		return MultiCloudSource
+	case DBSource.String():
+		return DBSource
 	default:
 		return UnknownSource
 	}
@@ -353,6 +356,8 @@ func (cs ConfigSource) String() string {
 		return "multicloud"
 	case UnknownSource:
 		return "unknown"
+	case DBSource:
+		return "db"
 	default:
 		return "unknown"
 	}
