@@ -64,8 +64,6 @@ type Allocation struct {
 	CPUCost                    float64               `json:"cpuCost"`
 	CPUCostAdjustment          float64               `json:"cpuCostAdjustment"`
 	GPUHours                   float64               `json:"gpuHours"`
-	GPURequestAverage          float64               `json:"gpuRequestAverage"`
-	GPUUsageAverage            float64               `json:"gpuUsageAverage"`
 	GPUCost                    float64               `json:"gpuCost"`
 	GPUCostAdjustment          float64               `json:"gpuCostAdjustment"`
 	NetworkTransferBytes       float64               `json:"networkTransferBytes"`
@@ -99,7 +97,9 @@ type Allocation struct {
 	// UnmountedPVCost is used to track how much of the cost in PVs is for an
 	// unmounted PV. It is not additive of PVCost() and need not be sent in API
 	// responses.
-	UnmountedPVCost float64 `json:"-"` //@bingen:field[ignore]
+	UnmountedPVCost   float64 `json:"-"`                 //@bingen:field[ignore]
+	GPURequestAverage float64 `json:"gpuRequestAverage"` //@bingen:field[version=22]
+	GPUUsageAverage   float64 `json:"gpuUsageAverage"`   //@bingen:field[version=22]
 }
 
 type LbAllocations map[string]*LbAllocation
