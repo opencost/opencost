@@ -65,6 +65,13 @@ jobs:
           repository: 'opencost/opencost'
           ref: '${{ steps.branch.outputs.BRANCH_NAME }}'
           path: ./opencost
+      
+      - name: Checkout UI Repo
+        uses: actions/checkout@v4
+        with:
+          repository: 'opencost/opencost-ui'
+          ref: '${{ steps.branch.outputs.BRANCH_NAME }}'
+          path: ./opencost-ui
 
       - name: Set SHA
         id: sha
@@ -143,7 +150,7 @@ jobs:
         #  crane copy '${{ steps.tags.outputs.IMAGE_TAG }}' '${steps.tags.outputs.IMAGE_TAG_VERSION_QUAY}'
 
       - name: Build and push (multiarch) OpenCost UI
-        working-directory: ./opencost/ui
+        working-directory: ./opencost-ui
         run: |
           just build '${{ steps.tags.outputs.IMAGE_TAG_UI }}' '${{ steps.version_number.outputs.RELEASE_VERSION }}'
           crane copy '${{ steps.tags.outputs.IMAGE_TAG_UI }}' '${{ steps.tags.outputs.IMAGE_TAG_UI_LATEST }}'
