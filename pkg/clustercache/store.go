@@ -13,43 +13,32 @@ import (
 
 // GenericStore is a generic store implementation. It converts objects to a different type using a transform function.
 // The main purpose is to reduce a memory footprint by storing only the necessary data.
-type GenericStore[Input any, Output any] struct {
+type GenericStore[Input UIDGetter, Output any] struct {
 	mutex         sync.RWMutex
 	items         map[types.UID]Output
 	transformFunc func(input Input) Output
 }
 
 // NewGenericStore creates a new instance of GenericStore.
-func NewGenericStore[Input any, Output any](transformFunc func(input Input) Output) *GenericStore[Input, Output] {
+func NewGenericStore[Input UIDGetter, Output any](transformFunc func(input Input) Output) *GenericStore[Input, Output] {
 	return &GenericStore[Input, Output]{
 		items:         make(map[types.UID]Output),
 		transformFunc: transformFunc,
 	}
 }
 
-type uidGetter interface {
+type UIDGetter interface {
 	GetUID() types.UID
 }
 
-func getUid(obj any) types.UID {
-	if o, ok := obj.(uidGetter); ok {
-		return o.GetUID()
-	}
-	return ""
-
-}
-
-func CreateStoreAndWatch[Input any, Output any](
+func CreateStoreAndWatch[Input UIDGetter, Output any](
 	ctx context.Context,
 	restClient rest.Interface,
 	resource string,
 	transformFunc func(input Input) Output,
 ) *GenericStore[Input, Output] {
 	lw := cache.NewListWatchFromClient(restClient, resource, v1.NamespaceAll, fields.Everything())
-	store := &GenericStore[Input, Output]{
-		items:         make(map[types.UID]Output),
-		transformFunc: transformFunc,
-	}
+	store := NewGenericStore(transformFunc)
 	var zeroValue Input
 	reflector := cache.NewReflector(lw, zeroValue, store, 0)
 	go reflector.Run(ctx.Done())
@@ -66,7 +55,8 @@ func (s *GenericStore[Input, Output]) Update(obj any) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	s.items[getUid(obj)] = s.transformFunc(obj.(Input))
+	item := obj.(Input)
+	s.items[item.GetUID()] = s.transformFunc(item)
 
 	return nil
 }
@@ -76,7 +66,8 @@ func (s *GenericStore[Input, Output]) Delete(obj any) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	delete(s.items, getUid(obj))
+	item := obj.(Input)
+	delete(s.items, item.GetUID())
 
 	return nil
 }
