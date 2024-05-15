@@ -130,10 +130,9 @@ func (ing *Ingestor) BuildWindow(start, end time.Time) {
 }
 
 func (ing *Ingestor) Start(rebuild bool) {
-
 	// If already running, log that and return.
 	if !ing.isRunning.CompareAndSwap(false, true) {
-		log.Infof("CloudCost: ingestor: is already running")
+		log.Debugf("CloudCost: ingestor: is already running")
 		return
 	}
 
@@ -152,7 +151,7 @@ func (ing *Ingestor) Start(rebuild bool) {
 func (ing *Ingestor) Stop() {
 	// If already stopping, log that and return.
 	if !ing.isStopping.CompareAndSwap(false, true) {
-		log.Infof("CloudCost: ingestor: is already stopping")
+		log.Debugf("CloudCost: ingestor: is already stopping")
 		return
 	}
 
