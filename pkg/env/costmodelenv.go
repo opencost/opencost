@@ -89,8 +89,9 @@ const (
 	MetricsConfigmapName  = "METRICS_CONFIGMAP_NAME"
 	KubecostJobNameEnvVar = "KUBECOST_JOB_NAME"
 
-	KubecostConfigBucketEnvVar   = "KUBECOST_CONFIG_BUCKET"
-	ClusterInfoFileEnabledEnvVar = "CLUSTER_INFO_FILE_ENABLED"
+	KubecostConfigBucketEnvVar    = "KUBECOST_CONFIG_BUCKET"
+	ClusterInfoFileEnabledEnvVar  = "CLUSTER_INFO_FILE_ENABLED"
+	ClusterCacheFileEnabledEnvVar = "CLUSTER_CACHE_FILE_ENABLED"
 
 	PrometheusQueryOffsetEnvVar                 = "PROMETHEUS_QUERY_OFFSET"
 	PrometheusRetryOnRateLimitResponseEnvVar    = "PROMETHEUS_RETRY_ON_RATE_LIMIT"
@@ -183,6 +184,12 @@ func GetKubecostConfigBucket() string {
 // cloud provider and kubernetes.
 func IsClusterInfoFileEnabled() bool {
 	return env.GetBool(ClusterInfoFileEnabledEnvVar, false)
+}
+
+// IsClusterCacheFileEnabled returns true if the kubernetes cluster data is read from a file or pulled from the local
+// kubernetes API.
+func IsClusterCacheFileEnabled() bool {
+	return env.GetBool(ClusterCacheFileEnabledEnvVar, false)
 }
 
 // IsPrometheusRetryOnRateLimitResponse will attempt to retry if a 429 response is received OR a 400 with a body containing
