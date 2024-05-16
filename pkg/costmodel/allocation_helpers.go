@@ -614,12 +614,9 @@ func applyRAMBytesUsedMax(podMap map[podKey]*pod, resRAMBytesUsedMax []*prom.Que
 	}
 }
 
-// Example PromQueryResult: DCGM_FI_DEV_GPU_UTIL{gpu="0",UUID="GPU-d63da75b-f5a3-de2e-67bd-a72803ded604",device="nvidia0",modelName="Tesla V100-SXM2-16GB",Hostname="ip-192-168-5-95.us-east-2.compute.internal",DCGM_FI_DRIVER_VERSION="535.161.08",container="dcgmproftester12",namespace="kubecost",pod="dcgmproftester2"} 99
 func applyGPUUsageAvg(podMap map[podKey]*pod, resGPUUsageAvg []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey) {
+	// Example PromQueryResult: {container="dcgmproftester12", namespace="gpu", pod="dcgmproftester3-deployment-fc89c8dd6-ph7z5"} 99
 	for _, res := range resGPUUsageAvg {
-
-		log.Infof("THOMAS: applyGPUUsageAvg result: %v: %v", res.Metric, res.Values[0].Value)
-
 		key, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace")
 		if err != nil {
 			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU usage avg result missing field: %s", err)
