@@ -6,6 +6,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
 	stv1 "k8s.io/api/storage/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -22,6 +23,9 @@ type KubernetesClusterCacheV2 struct {
 	persistentVolumeClaimStore *GenericStore[*v1.PersistentVolumeClaim, *PersistentVolumeClaim]
 	storageClassStore          *GenericStore[*stv1.StorageClass, *StorageClass]
 	jobStore                   *GenericStore[*batchv1.Job, *Job]
+	replicationControllerStore *GenericStore[*v1.ReplicationController, *ReplicationController]
+	replicaSetStore            *GenericStore[*appsv1.ReplicaSet, *ReplicaSet]
+	pdbStore                   *GenericStore[*policyv1.PodDisruptionBudget, *PodDisruptionBudget]
 }
 
 func NewKubernetesClusterCacheV2(clientset kubernetes.Interface) *KubernetesClusterCacheV2 {
@@ -31,6 +35,8 @@ func NewKubernetesClusterCacheV2(clientset kubernetes.Interface) *KubernetesClus
 		nodeStore:                  CreateStoreAndWatch(ctx, clientset.CoreV1().RESTClient(), "nodes", transformNode),
 		podStore:                   CreateStoreAndWatch(ctx, clientset.CoreV1().RESTClient(), "pods", transformPod),
 		serviceStore:               CreateStoreAndWatch(ctx, clientset.CoreV1().RESTClient(), "services", transformService),
+		replicationControllerStore: CreateStoreAndWatch(ctx, clientset.CoreV1().RESTClient(), "replicationcontrollers", transformReplicationController),
+		replicaSetStore:            CreateStoreAndWatch(ctx, clientset.AppsV1().RESTClient(), "replicasets", transformReplicaSet),
 		daemonSetStore:             CreateStoreAndWatch(ctx, clientset.AppsV1().RESTClient(), "daemonsets", transformDaemonSet),
 		deploymentStore:            CreateStoreAndWatch(ctx, clientset.AppsV1().RESTClient(), "deployments", transformDeployment),
 		statefulSetStore:           CreateStoreAndWatch(ctx, clientset.AppsV1().RESTClient(), "statefulsets", transformStatefulSet),
@@ -38,6 +44,7 @@ func NewKubernetesClusterCacheV2(clientset kubernetes.Interface) *KubernetesClus
 		persistentVolumeClaimStore: CreateStoreAndWatch(ctx, clientset.CoreV1().RESTClient(), "persistentvolumeclaims", transformPersistentVolumeClaim),
 		storageClassStore:          CreateStoreAndWatch(ctx, clientset.StorageV1().RESTClient(), "storageclasses", transformStorageClass),
 		jobStore:                   CreateStoreAndWatch(ctx, clientset.BatchV1().RESTClient(), "jobs", transformJob),
+		pdbStore:                   CreateStoreAndWatch(ctx, clientset.PolicyV1beta1().RESTClient(), "poddisruptionbudgets", transformPodDisruptionBudget),
 	}
 }
 
@@ -91,4 +98,16 @@ func (kcc *KubernetesClusterCacheV2) GetAllStorageClasses() []*StorageClass {
 
 func (kcc *KubernetesClusterCacheV2) GetAllJobs() []*Job {
 	return kcc.jobStore.GetAll()
+}
+
+func (kcc *KubernetesClusterCacheV2) GetAllReplicationControllers() []*ReplicationController {
+	return kcc.replicationControllerStore.GetAll()
+}
+
+func (kcc *KubernetesClusterCacheV2) GetAllReplicaSets() []*ReplicaSet {
+	return kcc.replicaSetStore.GetAll()
+}
+
+func (kcc *KubernetesClusterCacheV2) GetAllPodDisruptionBudgets() []*PodDisruptionBudget {
+	return kcc.pdbStore.GetAll()
 }
