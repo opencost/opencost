@@ -23,14 +23,6 @@ type Namespace struct {
 	Annotations map[string]string
 }
 
-func transformNamespace(input *v1.Namespace) *Namespace {
-	return &Namespace{
-		Name:        input.Name,
-		Annotations: input.Annotations,
-		Labels:      input.Labels,
-	}
-}
-
 type Pod struct {
 	UID             types.UID
 	Name            string
@@ -56,6 +48,87 @@ type PodSpec struct {
 type Container struct {
 	Name      string
 	Resources v1.ResourceRequirements
+}
+
+type Node struct {
+	Name           string
+	Labels         map[string]string
+	Annotations    map[string]string
+	Status         v1.NodeStatus
+	SpecProviderID string
+}
+
+type Service struct {
+	Name      string
+	Namespace string
+	Selector  map[string]string
+	Type      v1.ServiceType
+	Status    v1.ServiceStatus
+}
+
+type DaemonSet struct {
+	Name           string
+	Namespace      string
+	Labels         map[string]string
+	SpecContainers []v1.Container
+}
+
+type Deployment struct {
+	Name                    string
+	Namespace               string
+	Labels                  map[string]string
+	MatchLabels             map[string]string
+	SpecSelector            *metav1.LabelSelector
+	SpecReplicas            *int32
+	StatusAvailableReplicas int32
+}
+
+type StatefulSet struct {
+	Name         string
+	Namespace    string
+	SpecSelector *metav1.LabelSelector
+}
+
+type PersistentVolumeClaim struct {
+	Name        string
+	Namespace   string
+	Spec        v1.PersistentVolumeClaimSpec
+	Annotations map[string]string
+}
+
+type StorageClass struct {
+	Name        string
+	Annotations map[string]string
+	Parameters  map[string]string
+	Provisioner string
+}
+
+type Job struct {
+	Name      string
+	Namespace string
+	Status    batchv1.JobStatus
+}
+
+type PersistentVolume struct {
+	Name        string
+	Namespace   string
+	Labels      map[string]string
+	Annotations map[string]string
+	Spec        v1.PersistentVolumeSpec
+	Status      v1.PersistentVolumeStatus
+}
+
+type ReplicationController struct{}
+
+type PodDisruptionBudget struct{}
+type ReplicaSet struct{}
+
+func transformNamespace(input *v1.Namespace) *Namespace {
+	return &Namespace{
+		Name:        input.Name,
+		Annotations: input.Annotations,
+		Labels:      input.Labels,
+	}
 }
 
 func transformPodContainer(input v1.Container) Container {
@@ -98,14 +171,6 @@ func transformPod(input *v1.Pod) *Pod {
 	}
 }
 
-type Node struct {
-	Name           string
-	Labels         map[string]string
-	Annotations    map[string]string
-	Status         v1.NodeStatus
-	SpecProviderID string
-}
-
 func transformNode(input *v1.Node) *Node {
 	return &Node{
 		Name:           input.Name,
@@ -114,14 +179,6 @@ func transformNode(input *v1.Node) *Node {
 		Status:         input.Status,
 		SpecProviderID: input.Spec.ProviderID,
 	}
-}
-
-type Service struct {
-	Name      string
-	Namespace string
-	Selector  map[string]string
-	Type      v1.ServiceType
-	Status    v1.ServiceStatus
 }
 
 func transformService(input *v1.Service) *Service {
@@ -134,13 +191,6 @@ func transformService(input *v1.Service) *Service {
 	}
 }
 
-type DaemonSet struct {
-	Name           string
-	Namespace      string
-	Labels         map[string]string
-	SpecContainers []v1.Container
-}
-
 func transformDaemonSet(input *appsv1.DaemonSet) *DaemonSet {
 	return &DaemonSet{
 		Name:           input.Name,
@@ -148,16 +198,6 @@ func transformDaemonSet(input *appsv1.DaemonSet) *DaemonSet {
 		Labels:         input.Labels,
 		SpecContainers: input.Spec.Template.Spec.Containers,
 	}
-}
-
-type Deployment struct {
-	Name                    string
-	Namespace               string
-	Labels                  map[string]string
-	MatchLabels             map[string]string
-	SpecSelector            *metav1.LabelSelector
-	SpecReplicas            *int32
-	StatusAvailableReplicas int32
 }
 
 func transformDeployment(input *appsv1.Deployment) *Deployment {
@@ -172,27 +212,12 @@ func transformDeployment(input *appsv1.Deployment) *Deployment {
 	}
 }
 
-type StatefulSet struct {
-	Name         string
-	Namespace    string
-	SpecSelector *metav1.LabelSelector
-}
-
 func transformStatefulSet(input *appsv1.StatefulSet) *StatefulSet {
 	return &StatefulSet{
 		Name:         input.Name,
 		Namespace:    input.Namespace,
 		SpecSelector: input.Spec.Selector,
 	}
-}
-
-type PersistentVolume struct {
-	Name        string
-	Namespace   string
-	Labels      map[string]string
-	Annotations map[string]string
-	Spec        v1.PersistentVolumeSpec
-	Status      v1.PersistentVolumeStatus
 }
 
 func transformPersistentVolume(input *v1.PersistentVolume) *PersistentVolume {
@@ -206,13 +231,6 @@ func transformPersistentVolume(input *v1.PersistentVolume) *PersistentVolume {
 	}
 }
 
-type PersistentVolumeClaim struct {
-	Name        string
-	Namespace   string
-	Spec        v1.PersistentVolumeClaimSpec
-	Annotations map[string]string
-}
-
 func transformPersistentVolumeClaim(input *v1.PersistentVolumeClaim) *PersistentVolumeClaim {
 	return &PersistentVolumeClaim{
 		Name:        input.Name,
@@ -220,13 +238,6 @@ func transformPersistentVolumeClaim(input *v1.PersistentVolumeClaim) *Persistent
 		Spec:        input.Spec,
 		Annotations: input.Annotations,
 	}
-}
-
-type StorageClass struct {
-	Name        string
-	Annotations map[string]string
-	Parameters  map[string]string
-	Provisioner string
 }
 
 func transformStorageClass(input *stv1.StorageClass) *StorageClass {
@@ -238,12 +249,6 @@ func transformStorageClass(input *stv1.StorageClass) *StorageClass {
 	}
 }
 
-type Job struct {
-	Name      string
-	Namespace string
-	Status    batchv1.JobStatus
-}
-
 func transformJob(input *batchv1.Job) *Job {
 	return &Job{
 		Name:      input.Name,
@@ -252,19 +257,13 @@ func transformJob(input *batchv1.Job) *Job {
 	}
 }
 
-type ReplicationController struct{}
-
 func transformReplicationController(input *v1.ReplicationController) *ReplicationController {
 	return &ReplicationController{}
 }
 
-type PodDisruptionBudget struct{}
-
 func transformPodDisruptionBudget(input *policyv1.PodDisruptionBudget) *PodDisruptionBudget {
 	return &PodDisruptionBudget{}
 }
-
-type ReplicaSet struct{}
 
 func transformReplicaSet(input *appsv1.ReplicaSet) *ReplicaSet {
 	return &ReplicaSet{}
