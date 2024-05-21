@@ -25,9 +25,9 @@ type AllocationJSON struct {
 	CPUCostAdjustment              *float64                        `json:"cpuCostAdjustment"`
 	CPUEfficiency                  *float64                        `json:"cpuEfficiency"`
 	GPUCount                       *float64                        `json:"gpuCount"`
-	GPUHours                       *float64                        `json:"gpuHours"`
 	GPURequestAverage              *float64                        `json:"gpuRequestAverage"`
 	GPUUsageAverage                *float64                        `json:"gpuUsageAverage"`
+	GPUHours                       *float64                        `json:"gpuHours"`
 	GPUCost                        *float64                        `json:"gpuCost"`
 	GPUCostAdjustment              *float64                        `json:"gpuCostAdjustment"`
 	GPUEfficiency                  *float64                        `json:"gpuEfficiency"`
@@ -80,9 +80,9 @@ func (aj *AllocationJSON) BuildFromAllocation(a *Allocation) {
 	aj.CPUCostAdjustment = formatFloat64ForResponse(a.CPUCostAdjustment)
 	aj.CPUEfficiency = formatFloat64ForResponse(a.CPUEfficiency())
 	aj.GPUCount = formatFloat64ForResponse(a.GPUs())
-	aj.GPUHours = formatFloat64ForResponse(a.GPUHours)
 	aj.GPURequestAverage = formatFloat64ForResponse(a.GPURequestAverage)
 	aj.GPUUsageAverage = formatFloat64ForResponse(a.GPUUsageAverage)
+	aj.GPUHours = formatFloat64ForResponse(a.GPUHours)
 	aj.GPUCost = formatFloat64ForResponse(a.GPUCost)
 	aj.GPUCostAdjustment = formatFloat64ForResponse(a.GPUCostAdjustment)
 	aj.GPUEfficiency = formatFloat64ForResponse(a.GPUEfficiency())
