@@ -15,6 +15,8 @@ type SummaryAllocationResponse struct {
 	CPUCoreRequestAverage  *float64  `json:"cpuCoreRequestAverage"`
 	CPUCoreUsageAverage    *float64  `json:"cpuCoreUsageAverage"`
 	CPUCost                *float64  `json:"cpuCost"`
+	GPURequestAverage      *float64  `json:"gpuRequestAverage"`
+	GPUUsageAverage        *float64  `json:"gpuUsageAverage"`
 	GPUCost                *float64  `json:"gpuCost"`
 	NetworkCost            *float64  `json:"networkCost"`
 	LoadBalancerCost       *float64  `json:"loadBalancerCost"`
@@ -42,6 +44,8 @@ func (sa *SummaryAllocation) ToResponse() *SummaryAllocationResponse {
 		CPUCoreRequestAverage:  formatutil.Float64ToResponse(sa.CPUCoreRequestAverage),
 		CPUCoreUsageAverage:    formatutil.Float64ToResponse(sa.CPUCoreUsageAverage),
 		CPUCost:                formatutil.Float64ToResponse(sa.CPUCost),
+		GPURequestAverage:      formatutil.Float64ToResponse(sa.GPURequestAverage),
+		GPUUsageAverage:        formatutil.Float64ToResponse(sa.GPUUsageAverage),
 		GPUCost:                formatutil.Float64ToResponse(sa.GPUCost),
 		NetworkCost:            formatutil.Float64ToResponse(sa.NetworkCost),
 		LoadBalancerCost:       formatutil.Float64ToResponse(sa.LoadBalancerCost),
