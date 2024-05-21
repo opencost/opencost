@@ -15,7 +15,7 @@ import (
 const AccessKeyAuthorizerType = "AWSAccessKey"
 const ServiceAccountAuthorizerType = "AWSServiceAccount"
 const AssumeRoleAuthorizerType = "AWSAssumeRole"
-const WebIdentityAuthorizerType = "WebIdentity"
+const WebIdentityAuthorizerType = "AWSWebIdentity"
 
 // Authorizer implementations provide aws.Config for AWS SDK calls
 type Authorizer interface {
@@ -269,7 +269,7 @@ func (wea *WebIdentity) CreateAWSConfig(region string) (aws.Config, error) {
 }
 
 func (wea *WebIdentity) MarshalJSON() ([]byte, error) {
-	fmap := make(map[string]any, 1)
+	fmap := make(map[string]any, 4)
 	fmap[cloud.AuthorizerTypeProperty] = WebIdentityAuthorizerType
 	fmap["roleARN"] = wea.RoleARN
 	fmap["identityProvider"] = wea.IdentityProvider
@@ -314,7 +314,6 @@ func (wea *WebIdentity) UnmarshalJSON(b []byte) error {
 	switch idp {
 	case "Google":
 		tokenRetriever = &GoogleIDTokenRetriever{}
-
 	}
 
 	err = json.Unmarshal(trb, &tokenRetriever)
