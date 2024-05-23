@@ -1382,8 +1382,8 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 	}
 	// Throw error if public price is not found
 	if !publicPricingFound {
-		log.Errorf("Could not fetch data for \"%s\"", k.ID())
-		return nil, meta, fmt.Errorf("Could not fetch data for \"%s\"", k.ID())
+		log.Errorf("For node \"%s\", cannot find the following key in OnDemand pricing data \"%s\"", k.ID(), k.Features())
+		return nil, meta, fmt.Errorf("for node \"%s\", cannot find the following key in OnDemand pricing data \"%s\"", k.ID(), k.Features())
 	}
 
 	return &models.Node{
