@@ -278,12 +278,25 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 		accountID:      "",
 		projectID:      "",
 	}
+
+	// Check for custom provider settings
+	if env.IsUseCustomProvider() {
+		// Use CSV provider if set
+		if env.IsUseCSVProvider() {
+			cp.provider = opencost.CSVProvider
+		}
+		return cp
+	}
+
 	// The second conditional is mainly if you're running opencost outside of GCE, say in a local environment.
 	if metadata.OnGCE() || strings.HasPrefix(providerID, "gce") {
 		cp.provider = opencost.GCPProvider
 		cp.configFileName = "gcp.json"
 		cp.projectID = gcp.ParseGCPProjectID(providerID)
 	} else if strings.HasPrefix(providerID, "aws") {
+		cp.provider = opencost.AWSProvider
+		cp.configFileName = "aws.json"
+	} else if strings.Contains(node.Status.NodeInfo.KubeletVersion, "eks") { // Additional check for EKS, via kubelet check
 		cp.provider = opencost.AWSProvider
 		cp.configFileName = "aws.json"
 	} else if strings.HasPrefix(providerID, "azure") {
@@ -300,6 +313,7 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 		cp.provider = opencost.OracleProvider
 		cp.configFileName = "oracle.json"
 	}
+	// Override provider to CSV if CSVProvider is used and custom provider is not set
 	if env.IsUseCSVProvider() {
 		cp.provider = opencost.CSVProvider
 	}

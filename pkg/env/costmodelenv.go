@@ -36,6 +36,7 @@ const (
 	RemotePWEnvVar                 = "REMOTE_WRITE_PASSWORD"
 	SQLAddressEnvVar               = "SQL_ADDRESS"
 	UseCSVProviderEnvVar           = "USE_CSV_PROVIDER"
+	UseCustomProviderEnvVar        = "USE_CUSTOM_PROVIDER"
 	CSVRegionEnvVar                = "CSV_REGION"
 	CSVEndpointEnvVar              = "CSV_ENDPOINT"
 	CSVPathEnvVar                  = "CSV_PATH"
@@ -134,6 +135,8 @@ const (
 	PluginExecutableDirEnvVar = "PLUGIN_EXECUTABLE_DIR"
 
 	OCIPricingURL = "OCI_PRICING_URL"
+
+	CarbonEstimatesEnabledEnvVar = "CARBON_ESTIMATES_ENABLED"
 )
 
 const DefaultConfigMountPath = "/var/configs"
@@ -405,6 +408,12 @@ func GetSQLAddress() string {
 // whether or not the use of a CSV cost provider is enabled.
 func IsUseCSVProvider() bool {
 	return env.GetBool(UseCSVProviderEnvVar, false)
+}
+
+// IsUseCustomProvider returns the environment variable value for UseCustomProviderEnvVar which represents
+// whether or not the use of a custom cost provider is enabled.
+func IsUseCustomProvider() bool {
+	return env.GetBool(UseCustomProviderEnvVar, false)
 }
 
 // GetCSVRegion returns the environment variable value for CSVRegionEnvVar which represents the
@@ -703,4 +712,8 @@ func GetPluginExecutableDir() string {
 
 func GetCustomCostRefreshRateHours() string {
 	return env.Get(CustomCostRefreshRateHoursEnvVar, "12h")
+}
+
+func IsCarbonEstimatesEnabled() bool {
+	return env.GetBool(CarbonEstimatesEnabledEnvVar, false)
 }

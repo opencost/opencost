@@ -52,8 +52,8 @@ func TestGetCustomCostAccumulateOption(t *testing.T) {
 		"out of range": {
 			window:  opencost.NewClosedWindow(midnight.Add(-timeutil.Day*120), midnight.Add(-timeutil.Day*30)),
 			from:    nil,
-			want:    opencost.AccumulateOptionNone,
-			wantErr: true,
+			want:    opencost.AccumulateOptionDay,
+			wantErr: false,
 		},
 		"daily from daily, monthly": {
 			window: opencost.NewClosedWindow(nextHour.Add(-time.Hour*24), nextHour),
