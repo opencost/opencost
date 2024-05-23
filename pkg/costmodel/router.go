@@ -16,39 +16,41 @@ import (
 	"time"
 
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util/httputil"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
+	"github.com/opencost/opencost/core/pkg/util/watcher"
+	"github.com/opencost/opencost/core/pkg/version"
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	cloudconfig "github.com/opencost/opencost/pkg/cloud/config"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/config"
+	clustermap "github.com/opencost/opencost/pkg/costmodel/clusters"
+	"github.com/opencost/opencost/pkg/customcost"
 	"github.com/opencost/opencost/pkg/kubeconfig"
 	"github.com/opencost/opencost/pkg/metrics"
 	"github.com/opencost/opencost/pkg/services"
-	"github.com/opencost/opencost/pkg/util/httputil"
-	"github.com/opencost/opencost/pkg/util/timeutil"
-	"github.com/opencost/opencost/pkg/util/watcher"
-	"github.com/opencost/opencost/pkg/version"
 	"github.com/spf13/viper"
-
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/getsentry/sentry-go"
 
+	"github.com/opencost/opencost/core/pkg/clusters"
+	sysenv "github.com/opencost/opencost/core/pkg/env"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/clustercache"
-	"github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/errors"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/thanos"
-	"github.com/opencost/opencost/pkg/util/json"
 	prometheus "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -84,26 +86,22 @@ var (
 // Accesses defines a singleton application instance, providing access to
 // Prometheus, Kubernetes, the cloud provider, and caches.
 type Accesses struct {
-	Router                   *httprouter.Router
-	PrometheusClient         prometheus.Client
-	ThanosClient             prometheus.Client
-	KubeClientSet            kubernetes.Interface
-	ClusterCache             clustercache.ClusterCache
-	ClusterMap               clusters.ClusterMap
-	CloudProvider            models.Provider
-	ConfigFileManager        *config.ConfigFileManager
-	CloudConfigController    *cloudconfig.Controller
-	CloudCostPipelineService *cloudcost.PipelineService
-	CloudCostQueryService    *cloudcost.QueryService
-	ClusterInfoProvider      clusters.ClusterInfoProvider
-	Model                    *CostModel
-	MetricsEmitter           *CostModelMetricsEmitter
-	OutOfClusterCache        *cache.Cache
-	AggregateCache           *cache.Cache
-	CostDataCache            *cache.Cache
-	ClusterCostsCache        *cache.Cache
-	CacheExpiration          map[time.Duration]time.Duration
-	AggAPI                   Aggregator
+	PrometheusClient    prometheus.Client
+	ThanosClient        prometheus.Client
+	KubeClientSet       kubernetes.Interface
+	ClusterCache        clustercache.ClusterCache
+	ClusterMap          clusters.ClusterMap
+	CloudProvider       models.Provider
+	ConfigFileManager   *config.ConfigFileManager
+	ClusterInfoProvider clusters.ClusterInfoProvider
+	Model               *CostModel
+	MetricsEmitter      *CostModelMetricsEmitter
+	OutOfClusterCache   *cache.Cache
+	AggregateCache      *cache.Cache
+	CostDataCache       *cache.Cache
+	ClusterCostsCache   *cache.Cache
+	CacheExpiration     map[time.Duration]time.Duration
+	AggAPI              Aggregator
 	// SettingsCache stores current state of app settings
 	SettingsCache *cache.Cache
 	// settingsSubscribers tracks channels through which changes to different
@@ -523,7 +521,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 		return
 	}
 
-	window := kubecost.NewWindow(&start, &end)
+	window := opencost.NewWindow(&start, &end)
 	if window.IsOpen() || !window.HasDuration() || window.IsNegative() {
 		w.Write(WrapDataWithMessage(nil, fmt.Errorf("invalid date range: %s", window), fmt.Sprintf("invalid date range: %s", window)))
 		return
@@ -1200,45 +1198,23 @@ type InstallInfo struct {
 type ContainerInfo struct {
 	ContainerName string `json:"containerName"`
 	Image         string `json:"image"`
-	ImageID       string `json:"imageID"`
 	StartTime     string `json:"startTime"`
-	Restarts      int32  `json:"restarts"`
 }
 
 func (a *Accesses) GetInstallInfo(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	pods, err := a.KubeClientSet.CoreV1().Pods(env.GetKubecostNamespace()).List(context.Background(), metav1.ListOptions{
-		LabelSelector: "app=cost-analyzer",
-		FieldSelector: "status.phase=Running",
-		Limit:         1,
-	})
+	containers, err := GetKubecostContainers(a.KubeClientSet)
 	if err != nil {
 		writeErrorResponse(w, 500, fmt.Sprintf("Unable to list pods: %s", err.Error()))
 		return
 	}
 
 	info := InstallInfo{
+		Containers:  containers,
 		ClusterInfo: make(map[string]string),
 		Version:     version.FriendlyVersion(),
-	}
-
-	// If we have zero pods either something is weird with the install since the app selector is not exposed in the helm
-	// chart or more likely we are running locally - in either case Images field will return as null
-	if len(pods.Items) > 0 {
-		for _, pod := range pods.Items {
-			for _, container := range pod.Status.ContainerStatuses {
-				c := ContainerInfo{
-					ContainerName: container.Name,
-					Image:         container.Image,
-					ImageID:       container.ImageID,
-					StartTime:     pod.Status.StartTime.String(),
-					Restarts:      container.RestartCount,
-				}
-				info.Containers = append(info.Containers, c)
-			}
-		}
 	}
 
 	nodes := a.ClusterCache.GetAllNodes()
@@ -1254,6 +1230,35 @@ func (a *Accesses) GetInstallInfo(w http.ResponseWriter, r *http.Request, _ http
 	}
 
 	w.Write(body)
+}
+
+func GetKubecostContainers(kubeClientSet kubernetes.Interface) ([]ContainerInfo, error) {
+	pods, err := kubeClientSet.CoreV1().Pods(env.GetKubecostNamespace()).List(context.Background(), metav1.ListOptions{
+		LabelSelector: "app=cost-analyzer",
+		FieldSelector: "status.phase=Running",
+		Limit:         1,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to query kubernetes client for kubecost pods: %s", err)
+	}
+
+	// If we have zero pods either something is weird with the install since the app selector is not exposed in the helm
+	// chart or more likely we are running locally - in either case Images field will return as null
+	var containers []ContainerInfo
+	if len(pods.Items) > 0 {
+		for _, pod := range pods.Items {
+			for _, container := range pod.Spec.Containers {
+				c := ContainerInfo{
+					ContainerName: container.Name,
+					Image:         container.Image,
+					StartTime:     pod.Status.StartTime.String(),
+				}
+				containers = append(containers, c)
+			}
+		}
+	}
+
+	return containers, nil
 }
 
 // logsFor pulls the logs for a specific pod, namespace, and container
@@ -1388,7 +1393,7 @@ func (a *Accesses) GetHelmValues(w http.ResponseWriter, r *http.Request, ps http
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	encodedValues := env.Get("HELM_VALUES", "")
+	encodedValues := sysenv.Get("HELM_VALUES", "")
 	if encodedValues == "" {
 		fmt.Fprintf(w, "Values reporting disabled")
 		return
@@ -1410,54 +1415,13 @@ func (a *Accesses) Status(w http.ResponseWriter, r *http.Request, _ httprouter.P
 	promServer := env.GetPrometheusServerEndpoint()
 
 	api := prometheusAPI.NewAPI(a.PrometheusClient)
-	result, err := api.Config(r.Context())
+	result, err := api.Buildinfo(r.Context())
 	if err != nil {
 		fmt.Fprintf(w, "Using Prometheus at "+promServer+". Error: "+err.Error())
 	} else {
 
-		fmt.Fprintf(w, "Using Prometheus at "+promServer+". PrometheusConfig: "+result.YAML)
+		fmt.Fprintf(w, "Using Prometheus at "+promServer+". Version: "+result.Version)
 	}
-}
-
-type LogLevelRequestResponse struct {
-	Level string `json:"level"`
-}
-
-func (a *Accesses) GetLogLevel(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	level := log.GetLogLevel()
-	llrr := LogLevelRequestResponse{
-		Level: level,
-	}
-
-	body, err := json.Marshal(llrr)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("unable to retrive log level"), http.StatusInternalServerError)
-		return
-	}
-	_, err = w.Write(body)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("unable to write response: %s", body), http.StatusInternalServerError)
-		return
-	}
-}
-
-func (a *Accesses) SetLogLevel(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	params := LogLevelRequestResponse{}
-	err := json.NewDecoder(r.Body).Decode(&params)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("unable to decode request body, error: %s", err), http.StatusBadRequest)
-		return
-	}
-
-	err = log.SetLogLevel(params.Level)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("level must be a valid log level according to zerolog; level given: %s, error: %s", params.Level, err), http.StatusBadRequest)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
 }
 
 // captures the panic event in sentry
@@ -1490,7 +1454,7 @@ func handlePanic(p errors.Panic) bool {
 	return p.Type == errors.PanicTypeHTTP
 }
 
-func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses {
+func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses {
 	configWatchers := watcher.NewConfigMapWatchers(additionalConfigWatchers...)
 
 	var err error
@@ -1517,7 +1481,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	timeout := 120 * time.Second
 	keepAlive := 120 * time.Second
 	tlsHandshakeTimeout := 10 * time.Second
-	scrapeInterval := time.Minute
+	scrapeInterval := env.GetKubecostScrapeInterval()
 
 	var rateLimitRetryOpts *prom.RateLimitRetryOpts = nil
 	if env.IsPrometheusRetryOnRateLimitResponse() {
@@ -1558,17 +1522,20 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	}
 
 	api := prometheusAPI.NewAPI(promCli)
-	_, err = api.Config(context.Background())
+	_, err = api.Buildinfo(context.Background())
 	if err != nil {
 		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/mimir/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
 	} else {
 		log.Infof("Retrieved a prometheus config file from: %s", address)
 	}
 
-	// Lookup scrape interval for kubecost job, update if found
-	si, err := prom.ScrapeIntervalFor(promCli, env.GetKubecostJobName())
-	if err == nil {
-		scrapeInterval = si
+	if scrapeInterval == 0 {
+		scrapeInterval = time.Minute
+		// Lookup scrape interval for kubecost job, update if found
+		si, err := prom.ScrapeIntervalFor(promCli, env.GetKubecostJobName())
+		if err == nil {
+			scrapeInterval = si
+		}
 	}
 
 	log.Infof("Using scrape interval of %f", scrapeInterval.Seconds())
@@ -1685,9 +1652,9 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	// Initialize ClusterMap for maintaining ClusterInfo by ClusterID
 	var clusterMap clusters.ClusterMap
 	if thanosClient != nil {
-		clusterMap = clusters.NewClusterMap(thanosClient, clusterInfoProvider, 10*time.Minute)
+		clusterMap = clustermap.NewClusterMap(thanosClient, clusterInfoProvider, 10*time.Minute)
 	} else {
-		clusterMap = clusters.NewClusterMap(promCli, clusterInfoProvider, 5*time.Minute)
+		clusterMap = clustermap.NewClusterMap(promCli, clusterInfoProvider, 5*time.Minute)
 	}
 
 	// cache responses from model and aggregation for a default of 10 minutes;
@@ -1719,25 +1686,23 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	metricsEmitter := NewCostModelMetricsEmitter(promCli, k8sCache, cloudProvider, clusterInfoProvider, costModel)
 
 	a := &Accesses{
-		Router:                httprouter.New(),
-		PrometheusClient:      promCli,
-		ThanosClient:          thanosClient,
-		KubeClientSet:         kubeClientset,
-		ClusterCache:          k8sCache,
-		ClusterMap:            clusterMap,
-		CloudProvider:         cloudProvider,
-		CloudConfigController: cloudconfig.NewController(cloudProvider),
-		ConfigFileManager:     confManager,
-		ClusterInfoProvider:   clusterInfoProvider,
-		Model:                 costModel,
-		MetricsEmitter:        metricsEmitter,
-		AggregateCache:        aggregateCache,
-		CostDataCache:         costDataCache,
-		ClusterCostsCache:     clusterCostsCache,
-		OutOfClusterCache:     outOfClusterCache,
-		SettingsCache:         settingsCache,
-		CacheExpiration:       cacheExpiration,
-		httpServices:          services.NewCostModelServices(),
+		httpServices:        services.NewCostModelServices(),
+		PrometheusClient:    promCli,
+		ThanosClient:        thanosClient,
+		KubeClientSet:       kubeClientset,
+		ClusterCache:        k8sCache,
+		ClusterMap:          clusterMap,
+		CloudProvider:       cloudProvider,
+		ConfigFileManager:   confManager,
+		ClusterInfoProvider: clusterInfoProvider,
+		Model:               costModel,
+		MetricsEmitter:      metricsEmitter,
+		AggregateCache:      aggregateCache,
+		CostDataCache:       costDataCache,
+		ClusterCostsCache:   clusterCostsCache,
+		OutOfClusterCache:   outOfClusterCache,
+		SettingsCache:       settingsCache,
+		CacheExpiration:     cacheExpiration,
 	}
 
 	// Use the Accesses instance, itself, as the CostModelAggregator. This is
@@ -1765,67 +1730,104 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		a.MetricsEmitter.Start()
 	}
 
-	a.Router.GET("/costDataModel", a.CostDataModel)
-	a.Router.GET("/costDataModelRange", a.CostDataModelRange)
-	a.Router.GET("/aggregatedCostModel", a.AggregateCostModelHandler)
-	a.Router.GET("/allocation/compute", a.ComputeAllocationHandler)
-	a.Router.GET("/allocation/compute/summary", a.ComputeAllocationHandlerSummary)
-	a.Router.GET("/allNodePricing", a.GetAllNodePricing)
-	a.Router.POST("/refreshPricing", a.RefreshPricingData)
-	a.Router.GET("/clusterCostsOverTime", a.ClusterCostsOverTime)
-	a.Router.GET("/clusterCosts", a.ClusterCosts)
-	a.Router.GET("/clusterCostsFromCache", a.ClusterCostsFromCacheHandler)
-	a.Router.GET("/validatePrometheus", a.GetPrometheusMetadata)
-	a.Router.GET("/managementPlatform", a.ManagementPlatform)
-	a.Router.GET("/clusterInfo", a.ClusterInfo)
-	a.Router.GET("/clusterInfoMap", a.GetClusterInfoMap)
-	a.Router.GET("/serviceAccountStatus", a.GetServiceAccountStatus)
-	a.Router.GET("/pricingSourceStatus", a.GetPricingSourceStatus)
-	a.Router.GET("/pricingSourceSummary", a.GetPricingSourceSummary)
-	a.Router.GET("/pricingSourceCounts", a.GetPricingSourceCounts)
+	a.httpServices.RegisterAll(router)
+
+	router.GET("/costDataModel", a.CostDataModel)
+	router.GET("/costDataModelRange", a.CostDataModelRange)
+	router.GET("/aggregatedCostModel", a.AggregateCostModelHandler)
+	router.GET("/allocation/compute", a.ComputeAllocationHandler)
+	router.GET("/allocation/compute/summary", a.ComputeAllocationHandlerSummary)
+	router.GET("/allNodePricing", a.GetAllNodePricing)
+	router.POST("/refreshPricing", a.RefreshPricingData)
+	router.GET("/clusterCostsOverTime", a.ClusterCostsOverTime)
+	router.GET("/clusterCosts", a.ClusterCosts)
+	router.GET("/clusterCostsFromCache", a.ClusterCostsFromCacheHandler)
+	router.GET("/validatePrometheus", a.GetPrometheusMetadata)
+	router.GET("/managementPlatform", a.ManagementPlatform)
+	router.GET("/clusterInfo", a.ClusterInfo)
+	router.GET("/clusterInfoMap", a.GetClusterInfoMap)
+	router.GET("/serviceAccountStatus", a.GetServiceAccountStatus)
+	router.GET("/pricingSourceStatus", a.GetPricingSourceStatus)
+	router.GET("/pricingSourceSummary", a.GetPricingSourceSummary)
+	router.GET("/pricingSourceCounts", a.GetPricingSourceCounts)
 
 	// endpoints migrated from server
-	a.Router.GET("/allPersistentVolumes", a.GetAllPersistentVolumes)
-	a.Router.GET("/allDeployments", a.GetAllDeployments)
-	a.Router.GET("/allStorageClasses", a.GetAllStorageClasses)
-	a.Router.GET("/allStatefulSets", a.GetAllStatefulSets)
-	a.Router.GET("/allNodes", a.GetAllNodes)
-	a.Router.GET("/allPods", a.GetAllPods)
-	a.Router.GET("/allNamespaces", a.GetAllNamespaces)
-	a.Router.GET("/allDaemonSets", a.GetAllDaemonSets)
-	a.Router.GET("/pod/:namespace/:name", a.GetPod)
-	a.Router.GET("/prometheusRecordingRules", a.PrometheusRecordingRules)
-	a.Router.GET("/prometheusConfig", a.PrometheusConfig)
-	a.Router.GET("/prometheusTargets", a.PrometheusTargets)
-	a.Router.GET("/orphanedPods", a.GetOrphanedPods)
-	a.Router.GET("/installNamespace", a.GetInstallNamespace)
-	a.Router.GET("/installInfo", a.GetInstallInfo)
-	a.Router.GET("/podLogs", a.GetPodLogs)
-	a.Router.POST("/serviceKey", a.AddServiceKey)
-	a.Router.GET("/helmValues", a.GetHelmValues)
-	a.Router.GET("/status", a.Status)
+	router.GET("/allPersistentVolumes", a.GetAllPersistentVolumes)
+	router.GET("/allDeployments", a.GetAllDeployments)
+	router.GET("/allStorageClasses", a.GetAllStorageClasses)
+	router.GET("/allStatefulSets", a.GetAllStatefulSets)
+	router.GET("/allNodes", a.GetAllNodes)
+	router.GET("/allPods", a.GetAllPods)
+	router.GET("/allNamespaces", a.GetAllNamespaces)
+	router.GET("/allDaemonSets", a.GetAllDaemonSets)
+	router.GET("/pod/:namespace/:name", a.GetPod)
+	router.GET("/prometheusRecordingRules", a.PrometheusRecordingRules)
+	router.GET("/prometheusConfig", a.PrometheusConfig)
+	router.GET("/prometheusTargets", a.PrometheusTargets)
+	router.GET("/orphanedPods", a.GetOrphanedPods)
+	router.GET("/installNamespace", a.GetInstallNamespace)
+	router.GET("/installInfo", a.GetInstallInfo)
+	router.GET("/podLogs", a.GetPodLogs)
+	router.POST("/serviceKey", a.AddServiceKey)
+	router.GET("/helmValues", a.GetHelmValues)
+	router.GET("/status", a.Status)
 
 	// prom query proxies
-	a.Router.GET("/prometheusQuery", a.PrometheusQuery)
-	a.Router.GET("/prometheusQueryRange", a.PrometheusQueryRange)
-	a.Router.GET("/thanosQuery", a.ThanosQuery)
-	a.Router.GET("/thanosQueryRange", a.ThanosQueryRange)
+	router.GET("/prometheusQuery", a.PrometheusQuery)
+	router.GET("/prometheusQueryRange", a.PrometheusQueryRange)
+	router.GET("/thanosQuery", a.ThanosQuery)
+	router.GET("/thanosQueryRange", a.ThanosQueryRange)
 
 	// diagnostics
-	a.Router.GET("/diagnostics/requestQueue", a.GetPrometheusQueueState)
-	a.Router.GET("/diagnostics/prometheusMetrics", a.GetPrometheusMetrics)
-
-	a.Router.GET("/logs/level", a.GetLogLevel)
-	a.Router.POST("/logs/level", a.SetLogLevel)
-
-	a.Router.GET("/cloud/config/export", a.CloudConfigController.GetExportConfigHandler())
-	a.Router.GET("/cloud/config/enable", a.CloudConfigController.GetEnableConfigHandler())
-	a.Router.GET("/cloud/config/disable", a.CloudConfigController.GetDisableConfigHandler())
-	a.Router.GET("/cloud/config/delete", a.CloudConfigController.GetDeleteConfigHandler())
-
-	a.httpServices.RegisterAll(a.Router)
+	router.GET("/diagnostics/requestQueue", a.GetPrometheusQueueState)
+	router.GET("/diagnostics/prometheusMetrics", a.GetPrometheusMetrics)
 
 	return a
+}
+
+// InitializeCloudCost Initializes Cloud Cost pipeline and querier and registers endpoints
+func InitializeCloudCost(router *httprouter.Router, cp models.Provider) {
+	log.Debugf("Cloud Cost config path: %s", env.GetCloudCostConfigPath())
+	cloudConfigController := cloudconfig.NewController(cp)
+
+	repo := cloudcost.NewMemoryRepository()
+	cloudCostPipelineService := cloudcost.NewPipelineService(repo, cloudConfigController, cloudcost.DefaultIngestorConfiguration())
+	repoQuerier := cloudcost.NewRepositoryQuerier(repo)
+	cloudCostQueryService := cloudcost.NewQueryService(repoQuerier, repoQuerier)
+
+	router.GET("/cloud/config/export", cloudConfigController.GetExportConfigHandler())
+	router.GET("/cloud/config/enable", cloudConfigController.GetEnableConfigHandler())
+	router.GET("/cloud/config/disable", cloudConfigController.GetDisableConfigHandler())
+	router.GET("/cloud/config/delete", cloudConfigController.GetDeleteConfigHandler())
+
+	router.GET("/cloudCost", cloudCostQueryService.GetCloudCostHandler())
+	router.GET("/cloudCost/view/graph", cloudCostQueryService.GetCloudCostViewGraphHandler())
+	router.GET("/cloudCost/view/totals", cloudCostQueryService.GetCloudCostViewTotalsHandler())
+	router.GET("/cloudCost/view/table", cloudCostQueryService.GetCloudCostViewTableHandler())
+
+	router.GET("/cloudCost/status", cloudCostPipelineService.GetCloudCostStatusHandler())
+	router.GET("/cloudCost/rebuild", cloudCostPipelineService.GetCloudCostRebuildHandler())
+	router.GET("/cloudCost/repair", cloudCostPipelineService.GetCloudCostRepairHandler())
+}
+
+func InitializeCustomCost(router *httprouter.Router) *customcost.PipelineService {
+	hourlyRepo := customcost.NewMemoryRepository()
+	dailyRepo := customcost.NewMemoryRepository()
+	ingConfig := customcost.DefaultIngestorConfiguration()
+	var err error
+	customCostPipelineService, err := customcost.NewPipelineService(hourlyRepo, dailyRepo, ingConfig)
+	if err != nil {
+		log.Errorf("error instantiating custom cost pipeline service: %v", err)
+		return nil
+	}
+
+	customCostQuerier := customcost.NewRepositoryQuerier(hourlyRepo, dailyRepo, ingConfig.HourlyDuration, ingConfig.DailyDuration)
+	customCostQueryService := customcost.NewQueryService(customCostQuerier)
+
+	router.GET("/customCost/total", customCostQueryService.GetCustomCostTotalHandler())
+	router.GET("/customCost/timeseries", customCostQueryService.GetCustomCostTimeseriesHandler())
+
+	return customCostPipelineService
 }
 
 func writeErrorResponse(w http.ResponseWriter, code int, message string) {

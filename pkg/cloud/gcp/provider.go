@@ -17,15 +17,15 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
-	"github.com/opencost/opencost/pkg/kubecost"
 
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/core/pkg/util/fileutil"
+	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util"
-	"github.com/opencost/opencost/pkg/util/fileutil"
-	"github.com/opencost/opencost/pkg/util/json"
-	"github.com/opencost/opencost/pkg/util/timeutil"
 	"github.com/rs/zerolog"
 
 	"cloud.google.com/go/bigquery"
@@ -350,7 +350,7 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 
 	m := make(map[string]string)
 	m["name"] = attribute
-	m["provider"] = kubecost.GCPProvider
+	m["provider"] = opencost.GCPProvider
 	m["region"] = gcp.ClusterRegion
 	m["account"] = gcp.ClusterAccountID
 	m["project"] = gcp.ClusterProjectID

@@ -3,7 +3,7 @@ package costmodel
 import (
 	"testing"
 
-	"github.com/opencost/opencost/pkg/util"
+	"github.com/opencost/opencost/core/pkg/util"
 )
 
 func Test_CostData_GetController_CronJob(t *testing.T) {

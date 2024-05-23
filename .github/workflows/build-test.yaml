@@ -10,10 +10,40 @@ on:
       - develop
 
 jobs:
+  validate-protobuf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ./
+      -
+        name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      -
+        name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '25.3'
+      -
+        name: Install just
+        uses: extractions/setup-just@v1
+
+      - name: install protobuf-go
+        run: |
+          go install github.com/golang/protobuf/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+          which protoc-gen-go-grpc
+      -
+        name: Validate
+        run: |
+          just validate-protobuf
   backend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           path: ./
 
@@ -23,13 +53,13 @@ jobs:
 
       -
         name: Install Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: 'stable'
 
       # Saves us from having to redownload all modules
       - name: Go Mod cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go-build
@@ -45,44 +75,21 @@ jobs:
         name: Build
         run: |
           just build-local
+      - name: get-pr-info
+        shell: bash
+        env:
+          PR_NUM: ${{ github.event.number }}
+        run: |
+          echo $PR_NUM > pr_num.txt
+          echo $GITHUB_BASE_REF > base.txt
+          echo $GITHUB_HEAD_REF > head.txt
+
       - name: Upload code coverage
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: oc-code-coverage
-          path: coverage.out
-
-  frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          path: ./
-
-      -
-        name: Install just
-        uses: extractions/setup-just@v1
-
-      -
-        name: Install node
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18.3.0'
-
-      - name: Get npm cache directory
-        id: npm-cache-dir
-        shell: bash
-        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
-
-      - uses: actions/cache@v3
-        id: npm-cache # use this to check for `cache-hit` ==> if: steps.npm-cache.outputs.cache-hit != 'true'
-        with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: ${{ runner.os }}-node-${{ hashFiles('./ui/**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-
-      -
-        name: Build
-        working-directory: ./ui
-        run: |
-          just build-local
+          path: |
+           coverage.out
+           pr_num.txt
+           base.txt
+           head.txt
