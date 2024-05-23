@@ -18,7 +18,7 @@ func NewRepositoryQuerier(repo Repository) *RepositoryQuerier {
 	return &RepositoryQuerier{repo: repo}
 }
 
-func (rq *RepositoryQuerier) Query(request QueryRequest, ctx context.Context) (*opencost.CloudCostSetRange, error) {
+func (rq *RepositoryQuerier) Query(ctx context.Context, request QueryRequest) (*opencost.CloudCostSetRange, error) {
 	repoKeys, err := rq.repo.Keys()
 	if err != nil {
 		return nil, fmt.Errorf("RepositoryQuerier: Query: failed to get list of keys from repository: %w", err)
@@ -67,8 +67,8 @@ func (rq *RepositoryQuerier) Query(request QueryRequest, ctx context.Context) (*
 	return ccsr, nil
 }
 
-func (rq *RepositoryQuerier) QueryViewGraph(request ViewQueryRequest, ctx context.Context) (ViewGraphData, error) {
-	ccasr, err := rq.Query(request.QueryRequest, ctx)
+func (rq *RepositoryQuerier) QueryViewGraph(ctx context.Context, request ViewQueryRequest) (ViewGraphData, error) {
+	ccasr, err := rq.Query(ctx, request.QueryRequest)
 	if err != nil {
 		return nil, fmt.Errorf("QueryViewGraph: query failed: %w", err)
 	}
@@ -114,8 +114,8 @@ func (rq *RepositoryQuerier) QueryViewGraph(request ViewQueryRequest, ctx contex
 	return sets, nil
 }
 
-func (rq *RepositoryQuerier) QueryViewTotals(request ViewQueryRequest, ctx context.Context) (*ViewTotals, error) {
-	ccasr, err := rq.Query(request.QueryRequest, ctx)
+func (rq *RepositoryQuerier) QueryViewTotals(ctx context.Context, request ViewQueryRequest) (*ViewTotals, error) {
+	ccasr, err := rq.Query(ctx, request.QueryRequest)
 	if err != nil {
 		return nil, fmt.Errorf("QueryViewTotals: query failed: %w", err)
 	}
@@ -155,8 +155,8 @@ func (rq *RepositoryQuerier) QueryViewTotals(request ViewQueryRequest, ctx conte
 	}, nil
 }
 
-func (rq *RepositoryQuerier) QueryViewTable(request ViewQueryRequest, ctx context.Context) (ViewTableRows, error) {
-	ccasr, err := rq.Query(request.QueryRequest, ctx)
+func (rq *RepositoryQuerier) QueryViewTable(ctx context.Context, request ViewQueryRequest) (ViewTableRows, error) {
+	ccasr, err := rq.Query(ctx, request.QueryRequest)
 	if err != nil {
 		return nil, fmt.Errorf("QueryViewTable: query failed: %w", err)
 	}

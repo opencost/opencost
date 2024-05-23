@@ -27,9 +27,15 @@ func NewRepositoryQuerier(hourlyRepo, dailyRepo Repository, hourlyDuration, dail
 }
 
 func (rq *RepositoryQuerier) QueryTotal(ctx context.Context, request CostTotalRequest) (*CostResponse, error) {
+	window := opencost.NewClosedWindow(request.Start, request.End)
+	window, accumulate, err := GetCustomCostWindowAccumulation(window, request.Accumulate)
+	if err != nil {
+		return nil, fmt.Errorf("error getting custom cost total window accumulation: %w", err)
+	}
+
 	repo := rq.dailyRepo
 	step := timeutil.Day
-	if request.Accumulate == opencost.AccumulateOptionHour {
+	if accumulate == opencost.AccumulateOptionHour {
 		repo = rq.hourlyRepo
 		step = time.Hour
 	}
@@ -38,10 +44,15 @@ func (rq *RepositoryQuerier) QueryTotal(ctx context.Context, request CostTotalRe
 		return nil, fmt.Errorf("QueryTotal: %w", err)
 	}
 
-	requestWindow := opencost.NewClosedWindow(request.Start, request.End)
-	ccs := NewCustomCostSet(requestWindow)
-	queryStart := request.Start
-	for queryStart.Before(request.End) {
+	compiler := NewCustomCostMatchCompiler()
+	matcher, err := compiler.Compile(request.Filter)
+	if err != nil {
+		return nil, fmt.Errorf("RepositoryQuerier: Query: failed to compile filters: %w", err)
+	}
+
+	ccs := NewCustomCostSet(window)
+	queryStart := *window.Start()
+	for queryStart.Before(*window.End()) {
 		queryEnd := queryStart.Add(step)
 
 		for _, domain := range domains {
@@ -53,7 +64,11 @@ func (rq *RepositoryQuerier) QueryTotal(ctx context.Context, request CostTotalRe
 			}
 
 			customCosts := ParseCustomCostResponse(ccResponse)
-			ccs.Add(customCosts)
+			for _, customCost := range customCosts {
+				if matcher.Matches(customCost) {
+					ccs.Add(customCost)
+				}
+			}
 		}
 
 		queryStart = queryEnd
@@ -68,9 +83,13 @@ func (rq *RepositoryQuerier) QueryTotal(ctx context.Context, request CostTotalRe
 }
 
 func (rq *RepositoryQuerier) QueryTimeseries(ctx context.Context, request CostTimeseriesRequest) (*CostTimeseriesResponse, error) {
-	window, _ := opencost.NewClosedWindow(request.Start, request.End).GetAccumulateWindow(request.Accumulate)
+	window := opencost.NewClosedWindow(request.Start, request.End)
+	window, accumulate, err := GetCustomCostWindowAccumulation(window, request.Accumulate)
+	if err != nil {
+		return nil, fmt.Errorf("error getting custom cost timeseries window accumulation: %w", err)
+	}
 
-	windows, err := window.GetAccumulateWindows(request.Accumulate)
+	windows, err := window.GetAccumulateWindows(accumulate)
 	if err != nil {
 		return nil, fmt.Errorf("error getting timeseries windows: %w", err)
 	}
@@ -90,7 +109,7 @@ func (rq *RepositoryQuerier) QueryTimeseries(ctx context.Context, request CostTi
 				End:         *window.End(),
 				AggregateBy: request.AggregateBy,
 				Filter:      request.Filter,
-				Accumulate:  request.Accumulate,
+				Accumulate:  accumulate,
 			})
 		}(i, w, totals)
 	}

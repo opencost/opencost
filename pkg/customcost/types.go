@@ -13,7 +13,7 @@ import (
 type CostTotalRequest struct {
 	Start       time.Time
 	End         time.Time
-	AggregateBy []string
+	AggregateBy []CustomCostProperty
 	Accumulate  opencost.AccumulateOption
 	Filter      filter.Filter
 }
@@ -21,7 +21,7 @@ type CostTotalRequest struct {
 type CostTimeseriesRequest struct {
 	Start       time.Time
 	End         time.Time
-	AggregateBy []string
+	AggregateBy []CustomCostProperty
 	Accumulate  opencost.AccumulateOption
 	Filter      filter.Filter
 }
@@ -48,6 +48,7 @@ type CustomCost struct {
 	UsageQuantity  float32 `json:"usage_quantity"`
 	UsageUnit      string  `json:"usage_unit"`
 	Domain         string  `json:"domain"`
+	CostSource     string  `json:"cost_source"`
 	Aggregate      string  `json:"aggregate"`
 }
 
@@ -91,6 +92,7 @@ func ParseCustomCostResponse(ccResponse *pb.CustomCostResponse) []*CustomCost {
 			UsageQuantity:  cost.GetUsageQuantity(),
 			UsageUnit:      cost.GetUsageUnit(),
 			Domain:         ccResponse.GetDomain(),
+			CostSource:     ccResponse.GetCostSource(),
 		}
 	}
 
@@ -145,6 +147,10 @@ func (cc *CustomCost) Add(other *CustomCost) {
 		cc.Domain = ""
 	}
 
+	if cc.CostSource != other.CostSource {
+		cc.CostSource = ""
+	}
+
 	if cc.Aggregate != other.Aggregate {
 		cc.Aggregate = ""
 	}
@@ -163,11 +169,11 @@ func NewCustomCostSet(window opencost.Window) *CustomCostSet {
 	}
 }
 
-func (ccs *CustomCostSet) Add(customCosts []*CustomCost) {
-	ccs.CustomCosts = append(ccs.CustomCosts, customCosts...)
+func (ccs *CustomCostSet) Add(customCost *CustomCost) {
+	ccs.CustomCosts = append(ccs.CustomCosts, customCost)
 }
 
-func (ccs *CustomCostSet) Aggregate(aggregateBy []string) error {
+func (ccs *CustomCostSet) Aggregate(aggregateBy []CustomCostProperty) error {
 	// when no aggregation, return the original CustomCostSet
 	if len(aggregateBy) == 0 {
 		return nil
@@ -197,15 +203,38 @@ func (ccs *CustomCostSet) Aggregate(aggregateBy []string) error {
 	return nil
 }
 
-func generateAggKey(cc *CustomCost, aggregateBy []string) (string, error) {
+func generateAggKey(cc *CustomCost, aggregateBy []CustomCostProperty) (string, error) {
 	var aggKeys []string
 	for _, agg := range aggregateBy {
-		// TODO only domain is supported currently
-		if agg == string(CustomCostDomainProp) {
-			aggKeys = append(aggKeys, cc.Domain)
+		var aggKey string
+		if agg == CustomCostZoneProp {
+			aggKey = cc.Zone
+		} else if agg == CustomCostAccountNameProp {
+			aggKey = cc.AccountName
+		} else if agg == CustomCostChargeCategoryProp {
+			aggKey = cc.ChargeCategory
+		} else if agg == CustomCostDescriptionProp {
+			aggKey = cc.Description
+		} else if agg == CustomCostResourceNameProp {
+			aggKey = cc.ResourceName
+		} else if agg == CustomCostResourceTypeProp {
+			aggKey = cc.ResourceType
+		} else if agg == CustomCostProviderIdProp {
+			aggKey = cc.ProviderId
+		} else if agg == CustomCostUsageUnitProp {
+			aggKey = cc.UsageUnit
+		} else if agg == CustomCostDomainProp {
+			aggKey = cc.Domain
+		} else if agg == CustomCostCostSourceProp {
+			aggKey = cc.CostSource
 		} else {
 			return "", fmt.Errorf("unsupported aggregation type: %s", agg)
 		}
+
+		if len(aggKey) == 0 {
+			aggKey = opencost.UnallocatedSuffix
+		}
+		aggKeys = append(aggKeys, aggKey)
 	}
 	aggKey := strings.Join(aggKeys, "/")
 

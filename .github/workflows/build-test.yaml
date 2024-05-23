@@ -21,7 +21,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: 'stable'
-          
+
       -
         name: Install protoc
         uses: arduino/setup-protoc@v3
@@ -93,39 +93,3 @@ jobs:
            pr_num.txt
            base.txt
            head.txt
-
-  frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          path: ./
-
-      -
-        name: Install just
-        uses: extractions/setup-just@v2
-
-      -
-        name: Install node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18.3.0'
-
-      - name: Get npm cache directory
-        id: npm-cache-dir
-        shell: bash
-        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
-
-      - uses: actions/cache@v4
-        id: npm-cache # use this to check for `cache-hit` ==> if: steps.npm-cache.outputs.cache-hit != 'true'
-        with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: ${{ runner.os }}-node-${{ hashFiles('./ui/**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-
-      -
-        name: Build
-        working-directory: ./ui
-        run: |
-          just build-local

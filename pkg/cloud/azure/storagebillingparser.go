@@ -1,7 +1,6 @@
 package azure
 
 import (
-	"bytes"
 	"context"
 	"encoding/csv"
 	"fmt"
@@ -86,12 +85,13 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 				return err
 			}
 		} else {
-			blobBytes, err2 := asbp.DownloadBlob(blobName, client, ctx)
+			streamReader, err2 := asbp.StreamBlob(blobName, client)
 			if err2 != nil {
 				asbp.ConnectionStatus = cloud.FailedConnection
 				return err2
 			}
-			err2 = asbp.parseCSV(start, end, csv.NewReader(bytes.NewReader(blobBytes)), resultFn)
+
+			err2 = asbp.parseCSV(start, end, csv.NewReader(streamReader), resultFn)
 			if err2 != nil {
 				asbp.ConnectionStatus = cloud.ParseError
 				return err2

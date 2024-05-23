@@ -94,8 +94,9 @@ func (ai *AthenaIntegration) GetCloudCost(start, end time.Time) (*opencost.Cloud
 	// of columns to query.
 	for column := range allColumns {
 		if strings.HasPrefix(column, LabelColumnPrefix) {
-			groupByColumns = append(groupByColumns, column)
-			aqi.TagColumns = append(aqi.TagColumns, column)
+			quotedTag := fmt.Sprintf(`"%s"`, column)
+			groupByColumns = append(groupByColumns, quotedTag)
+			aqi.TagColumns = append(aqi.TagColumns, quotedTag)
 		}
 	}
 	var selectColumns []string
@@ -334,7 +335,11 @@ func (ai *AthenaIntegration) RowToCloudCost(row types.Row, aqi AthenaQueryIndexe
 	labels := opencost.CloudCostLabels{}
 	labelValues := []string{}
 	for _, tagColumnName := range aqi.TagColumns {
-		labelName := strings.TrimPrefix(tagColumnName, LabelColumnPrefix)
+		// remove quotes
+		labelName := strings.TrimPrefix(tagColumnName, `"`)
+		labelName = strings.TrimSuffix(labelName, `"`)
+		// remove prefix
+		labelName = strings.TrimPrefix(labelName, LabelColumnPrefix)
 		value := GetAthenaRowValue(row, aqi.ColumnIndexes, tagColumnName)
 		if value != "" {
 			labels[labelName] = value
