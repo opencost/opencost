@@ -113,6 +113,25 @@ func (ccl *CloudCostLoader) Load(values []bigquery.Value, schema bigquery.Schema
 			}
 
 			properties.ProviderID = ParseProviderID(resource)
+		case ResourceGlobalNameColumnName:
+			// skip if we already got ProviderID from resource.name, as resource.global_name is a fallback for when
+			// resource.name is null
+			if len(properties.ProviderID) > 0 {
+				continue
+			}
+
+			resourceGlobalNameValue := values[i]
+			if resourceGlobalNameValue == nil {
+				continue
+			}
+			resourceGlobalName, ok := resourceGlobalNameValue.(string)
+			if !ok {
+				log.DedupedErrorf(5, "error parsing GCP CloudCost %s: %v", ResourceGlobalNameColumnName, values[i])
+				properties.ProviderID = ""
+				continue
+			}
+
+			properties.ProviderID = ParseProviderID(resourceGlobalName)
 		case CostColumnName:
 			costValue, ok := values[i].(float64)
 			if !ok {
