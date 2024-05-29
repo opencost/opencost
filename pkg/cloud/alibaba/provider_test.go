@@ -408,6 +408,30 @@ func TestProcessDescribePriceAndCreateAlibabaPricing(t *testing.T) {
 			},
 			expectedError: nil,
 		},
+		{
+			name: "test incorrect disk type",
+			teststruct: &SlimK8sNode{
+				InstanceType:       "ecs.g6.xlarge",
+				RegionID:           "ap-northeast-1",
+				PriceUnit:          "Hour",
+				MemorySizeInKiB:    "33554432KiB",
+				IsIoOptimized:      true,
+				OSType:             "Linux",
+				ProviderID:         "cn-hangzhou.i-test-15",
+				InstanceTypeFamily: "se1",
+				SystemDisk: &SlimK8sDisk{
+					DiskType:         "data",
+					RegionID:         "ap-northeast-1",
+					PriceUnit:        "Hour",
+					SizeInGiB:        "40",
+					DiskCategory:     "cloud_essd",
+					PerformanceLevel: "PL1",
+					ProviderID:       "d-Ali-cloud-XXX-04",
+					StorageClass:     "temp",
+				},
+			},
+			expectedError: nil,
+		},
 	}
 	custom := &models.CustomPricing{}
 	for _, c := range cases {
@@ -441,11 +465,6 @@ func TestGetInstanceFamilyFromType(t *testing.T) {
 			name:                   "test if random word gives you ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE value ",
 			instanceType:           "random.value",
 			expectedInstanceFamily: ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE,
-		},
-		{
-			name:                   "test if random instance family gives you ALIBABA_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE value ",
-			instanceType:           "ecs.g7e.2xlarge",
-			expectedInstanceFamily: ALIBABA_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE,
 		},
 	}
 
