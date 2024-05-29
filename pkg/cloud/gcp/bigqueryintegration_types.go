@@ -122,6 +122,7 @@ func (ccl *CloudCostLoader) Load(values []bigquery.Value, schema bigquery.Schema
 
 			resourceGlobalNameValue := values[i]
 			if resourceGlobalNameValue == nil {
+				properties.ProviderID = ""
 				continue
 			}
 			resourceGlobalName, ok := resourceGlobalNameValue.(string)
