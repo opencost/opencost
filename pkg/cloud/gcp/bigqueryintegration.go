@@ -24,6 +24,7 @@ const (
 	SKUDescriptionColumnName     = "description"
 	LabelsColumnName             = "labels"
 	ResourceNameColumnName       = "resource"
+	ResourceGlobalNameColumnName = "global_resource"
 	CostColumnName               = "cost"
 	ListCostColumnName           = "list_cost"
 	CreditsColumnName            = "credits"
@@ -46,6 +47,7 @@ func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*o
 		fmt.Sprintf("service.description as %s", ServiceDescriptionColumnName),
 		fmt.Sprintf("sku.description as %s", SKUDescriptionColumnName),
 		fmt.Sprintf("resource.name as %s", ResourceNameColumnName),
+		fmt.Sprintf("resource.global_name as %s", ResourceGlobalNameColumnName),
 		fmt.Sprintf("TO_JSON_STRING(labels) as %s", LabelsColumnName),
 		fmt.Sprintf("SUM(cost) as %s", CostColumnName),
 		fmt.Sprintf("SUM(cost_at_list) as %s", ListCostColumnName),
@@ -60,6 +62,7 @@ func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*o
 		SKUDescriptionColumnName,
 		LabelsColumnName,
 		ResourceNameColumnName,
+		ResourceGlobalNameColumnName,
 	}
 
 	whereConjuncts := GetWhereConjuncts(start, end)
