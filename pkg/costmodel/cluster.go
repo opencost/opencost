@@ -170,7 +170,6 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 	queryPVUsedAvg := fmt.Sprintf(`avg(avg_over_time(kubelet_volume_stats_used_bytes{%s}[%s])) by (%s, persistentvolumeclaim, namespace)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 	queryPVUsedMax := fmt.Sprintf(`max(max_over_time(kubelet_volume_stats_used_bytes{%s}[%s])) by (%s, persistentvolumeclaim, namespace)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 	queryPVCInfo := fmt.Sprintf(`avg(avg_over_time(kube_persistentvolumeclaim_info{%s}[%s])) by (%s, volumename, persistentvolumeclaim, namespace)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
-	queryLocalActiveMins := fmt.Sprintf(`count(node_total_hourly_cost{%s}) by (%s, node)[%s:%dm]`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
 
 	resChPVCost := ctx.QueryAtTime(queryPVCost, t)
 	resChPVSize := ctx.QueryAtTime(queryPVSize, t)
@@ -179,7 +178,6 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 	resChPVUsedAvg := ctx.QueryAtTime(queryPVUsedAvg, t)
 	resChPVUsedMax := ctx.QueryAtTime(queryPVUsedMax, t)
 	resChPVCInfo := ctx.QueryAtTime(queryPVCInfo, t)
-	resChLocalActiveMins := ctx.QueryAtTime(queryLocalActiveMins, t)
 
 	resPVCost, _ := resChPVCost.Await()
 	resPVSize, _ := resChPVSize.Await()
@@ -188,7 +186,6 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 	resPVUsedAvg, _ := resChPVUsedAvg.Await()
 	resPVUsedMax, _ := resChPVUsedMax.Await()
 	resPVCInfo, _ := resChPVCInfo.Await()
-	resLocalActiveMins, _ := resChLocalActiveMins.Await()
 
 	// Cloud providers do not always charge for a node's local disk costs (i.e.
 	// ephemeral storage). Provide an option to opt out of calculating &
@@ -204,6 +201,7 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 	resLocalStorageUsedAvg := []*prom.QueryResult{}
 	resLocalStorageUsedMax := []*prom.QueryResult{}
 	resLocalStorageBytes := []*prom.QueryResult{}
+	resLocalActiveMins := []*prom.QueryResult{}
 	if env.GetAssetIncludeLocalDiskCost() {
 		// hourlyToCumulative is a scaling factor that, when multiplied by an
 		// hourly value, converts it to a cumulative value; i.e. [$/hr] *
@@ -216,18 +214,21 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 		queryLocalStorageUsedAvg := fmt.Sprintf(`avg(sum(avg_over_time(container_fs_usage_bytes{device!="tmpfs", id="/", %s}[%s])) by (instance, %s, job)) by (instance, %s)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel(), env.GetPromClusterLabel())
 		queryLocalStorageUsedMax := fmt.Sprintf(`max(sum(max_over_time(container_fs_usage_bytes{device!="tmpfs", id="/", %s}[%s])) by (instance, %s, job)) by (instance, %s)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel(), env.GetPromClusterLabel())
 		queryLocalStorageBytes := fmt.Sprintf(`avg_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/", %s}) by (instance, %s)[%s:%dm])`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
+		queryLocalActiveMins := fmt.Sprintf(`count(node_total_hourly_cost{%s}) by (%s, node)[%s:%dm]`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
 
 		resChLocalStorageCost := ctx.QueryAtTime(queryLocalStorageCost, t)
 		resChLocalStorageUsedCost := ctx.QueryAtTime(queryLocalStorageUsedCost, t)
 		resChLocalStoreageUsedAvg := ctx.QueryAtTime(queryLocalStorageUsedAvg, t)
 		resChLocalStoreageUsedMax := ctx.QueryAtTime(queryLocalStorageUsedMax, t)
 		resChLocalStorageBytes := ctx.QueryAtTime(queryLocalStorageBytes, t)
+		resChLocalActiveMins := ctx.QueryAtTime(queryLocalActiveMins, t)
 
 		resLocalStorageCost, _ = resChLocalStorageCost.Await()
 		resLocalStorageUsedCost, _ = resChLocalStorageUsedCost.Await()
 		resLocalStorageUsedAvg, _ = resChLocalStoreageUsedAvg.Await()
 		resLocalStorageUsedMax, _ = resChLocalStoreageUsedMax.Await()
 		resLocalStorageBytes, _ = resChLocalStorageBytes.Await()
+		resLocalActiveMins, _ = resChLocalActiveMins.Await()
 	}
 
 	if ctx.HasErrors() {
