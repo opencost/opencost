@@ -40,7 +40,13 @@ func TestWhitelist(t *testing.T) {
 		metricsConfig:    mc,
 	}
 	kplc.UpdateWhitelist()
-	//kplc.labelsWhitelist[]
+	if !kplc.labelsWhitelist["servicewhitelistlabel"] {
+		t.Errorf("Missing expected label %s", "servicewhitelistlabel")
+	}
+	if !kplc.labelsWhitelist["replicasetwhitelistlabel1"] {
+		t.Errorf("Missing expected label %s", "servicewhitelistlabel1")
+	}
+
 }
 
 type FakeCache struct {
