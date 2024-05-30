@@ -1159,17 +1159,20 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			nodeCost := cpuCost + gpuCost + ramCost
 
 			newCnode.Cost = fmt.Sprintf("%f", nodeCost)
-			newCnode.VCPUCost = fmt.Sprintf("%f", cpuCost)
-			newCnode.GPUCost = fmt.Sprintf("%f", gpuCost)
-			newCnode.RAMCost = fmt.Sprintf("%f", ramCost)
+			newCnode.VCPUCost = fmt.Sprintf("%f", defaultCPUCorePrice)
+			newCnode.GPUCost = fmt.Sprintf("%f", defaultGPUPrice)
+			newCnode.RAMCost = fmt.Sprintf("%f", defaultRAMPrice)
 			newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
 		} else if newCnode.GPU != "" && newCnode.GPUCost == "" {
 			// was the big thing to investigate. All the funky ratio math
 			// we were doing was messing with their default pricing. for SUSE Rancher.
 
-			// We couldn't find a gpu cost, so fix cpu and ram, then accordingly
-			log.Infof("GPU without cost found for %s, calculating...", cp.GetKey(nodeLabels, n).Features())
+			// We reach this when a GPU is detected on a node, but no cost for
+			// the GPU is defined in the OnDemand pricing. Calculate ratios of
+			// CPU to RAM and GPU to RAM costs, then distribute the total node
+			// cost among the CPU, RAM, and GPU.
+			log.Tracef("GPU without cost found for %s, calculating...", cp.GetKey(nodeLabels, n).Features())
 
 			defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
 			if err != nil {
@@ -1261,8 +1264,10 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 			newCnode.GPUCost = fmt.Sprintf("%f", gpuPrice)
 		} else if newCnode.RAMCost == "" {
-			// We couldn't find a ramcost, so fix cpu and allocate ram accordingly
-			log.Debugf("No RAM cost found for %s, calculating...", cp.GetKey(nodeLabels, n).Features())
+			// We reach this when no RAM cost is defined in the OnDemand
+			// pricing. It calculates a cpuToRAMRatio and ramMultiple to
+			// distrubte the total node cost among CPU and RAM costs.
+			log.Tracef("No RAM cost found for %s, calculating...", cp.GetKey(nodeLabels, n).Features())
 
 			defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
 			if err != nil {
@@ -1352,7 +1357,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			}
 			newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
-			log.Debugf("Computed \"%s\" RAM Cost := %v", name, newCnode.RAMCost)
+			log.Tracef("Computed \"%s\" RAM Cost := %v", name, newCnode.RAMCost)
 		}
 
 		nodes[name] = &newCnode
