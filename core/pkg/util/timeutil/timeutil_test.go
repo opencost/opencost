@@ -407,13 +407,13 @@ func TestRoundToStartOfWeek(t *testing.T) {
 func TestRoundToStartOfFollowingWeek(t *testing.T) {
 	sunday := time.Date(2023, 03, 26, 12, 12, 12, 12, time.UTC)
 	roundedFromSunday := RoundToStartOfFollowingWeek(sunday)
-	if roundedFromSunday.Month() != 4 || roundedFromSunday.Day() != 2 || roundedFromSunday.Weekday() == time.Sunday {
+	if roundedFromSunday.Month() != 4 || roundedFromSunday.Day() != 2 || roundedFromSunday.Weekday() != time.Sunday {
 		t.Errorf("expected date to be rounded to the same sunday, got: %d, %s", roundedFromSunday.Day(), roundedFromSunday.Weekday().String())
 	}
 
 	tuesday := time.Date(2023, 03, 28, 12, 12, 12, 12, time.UTC)
 	roundedFromTuesday := RoundToStartOfFollowingWeek(tuesday)
-	if roundedFromTuesday.Month() != 4 || roundedFromTuesday.Day() != 2 || roundedFromTuesday.Weekday() == time.Sunday {
+	if roundedFromTuesday.Month() != 4 || roundedFromTuesday.Day() != 2 || roundedFromTuesday.Weekday() != time.Sunday {
 		t.Errorf("expected date to be rounded to the same sunday, got: %d, %s", roundedFromTuesday.Day(), roundedFromTuesday.Weekday().String())
 	}
 }
