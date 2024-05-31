@@ -40,6 +40,7 @@ type SummaryAllocation struct {
 	ExternalCost           float64               `json:"externalCost"`
 	Share                  bool                  `json:"-"`
 	UnmountedPVCost        float64               `json:"-"`
+	Efficiency             float64               `json:"efficiency"`
 }
 
 // NewSummaryAllocation converts an Allocation to a SummaryAllocation by
