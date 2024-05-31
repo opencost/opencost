@@ -232,7 +232,7 @@ func (c *Scaleway) PVPricing(pvk models.PVKey) (*models.PV, error) {
 
 	pricing, ok := c.Pricing[pvk.Features()]
 	if !ok {
-		log.Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
+		log.Debugf("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
 		return &models.PV{}, nil
 	}
 	return &models.PV{
