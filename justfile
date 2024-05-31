@@ -7,7 +7,7 @@ default:
     just --list
 
 # run core unit tests
-test: test-core
+test-core:
     {{commonenv}} cd ./core && go test ./... -coverprofile=coverage.out
     {{commonenv}} cd ./core && go vet ./...
 
