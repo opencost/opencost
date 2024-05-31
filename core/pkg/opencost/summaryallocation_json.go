@@ -51,7 +51,7 @@ func (sa *SummaryAllocation) ToResponse() *SummaryAllocationResponse {
 		RAMCost:                formatutil.Float64ToResponse(sa.RAMCost),
 		SharedCost:             formatutil.Float64ToResponse(sa.SharedCost),
 		ExternalCost:           formatutil.Float64ToResponse(sa.ExternalCost),
-		TotalEfficiency:        formatutil.Float64ToResponse(sa.TotalEfficiency()),
+		TotalEfficiency:        formatutil.Float64ToResponse(sa.Efficiency),
 		TotalCost:              formatutil.Float64ToResponse(sa.TotalCost()),
 	}
 }
