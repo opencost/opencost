@@ -35,6 +35,16 @@ func (sa *SummaryAllocation) ToResponse() *SummaryAllocationResponse {
 		return nil
 	}
 
+	// if the efficiency has already been set,
+	// prefer that since it has been calculated in the DB
+	// and matches the sorting criteria more closely
+	efficiency := sa.Efficiency
+	if efficiency == 0 {
+		// if efficiency has not been set by SQL or otherwise, calculate it
+		// using the object method
+		efficiency = sa.TotalEfficiency()
+
+	}
 	return &SummaryAllocationResponse{
 		Name:                   sa.Name,
 		Start:                  sa.Start,
@@ -51,7 +61,7 @@ func (sa *SummaryAllocation) ToResponse() *SummaryAllocationResponse {
 		RAMCost:                formatutil.Float64ToResponse(sa.RAMCost),
 		SharedCost:             formatutil.Float64ToResponse(sa.SharedCost),
 		ExternalCost:           formatutil.Float64ToResponse(sa.ExternalCost),
-		TotalEfficiency:        formatutil.Float64ToResponse(sa.Efficiency),
+		TotalEfficiency:        formatutil.Float64ToResponse(efficiency),
 		TotalCost:              formatutil.Float64ToResponse(sa.TotalCost()),
 	}
 }
