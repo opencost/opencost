@@ -2,6 +2,7 @@ package aws
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
@@ -230,7 +231,7 @@ func Test_populate_pricing(t *testing.T) {
 				  "servicename" : "Amazon Elastic Compute Cloud",
 				  "volumeApiName" : "gp3"
 				}
-			  }
+			}
 		},
 		"terms" : {
 			"OnDemand" : {
@@ -383,7 +384,199 @@ func Test_populate_pricing(t *testing.T) {
 		t.Fatalf("expected parsed pricing did not match actual parsed result (us-east-1)")
 	}
 
-	// Case 1
+	// Case 1 - Only accept `"marketoption":"OnDemand"`
+	inputkeysCase1 := map[string]bool{
+		"us-east-1,p4d.24xlarge,linux": true,
+	}
+	awsUSEast1String := `
+	{
+		"formatVersion" : "v1.0",
+		"disclaimer" : "This pricing list is for informational purposes only. All prices are subject to the additional terms included in the pricing pages on http://aws.amazon.com. All Free Tier prices are also subject to the terms included at https://aws.amazon.com/free/",
+		"offerCode" : "AmazonEC2",
+		"version" : "20240528203522",
+		"publicationDate" : "2024-05-28T20:35:22Z",
+		"products" : {
+			"H7NGEAC6UEHNTKSJ" : {
+				"sku" : "H7NGEAC6UEHNTKSJ",
+				"productFamily" : "Compute Instance",
+				"attributes" : {
+					"servicecode" : "AmazonEC2",
+					"location" : "US East (N. Virginia)",
+					"locationType" : "AWS Region",
+					"instanceType" : "p4d.24xlarge",
+					"currentGeneration" : "Yes",
+					"instanceFamily" : "GPU instance",
+					"vcpu" : "96",
+					"physicalProcessor" : "Intel Xeon Platinum 8275L",
+					"clockSpeed" : "3 GHz",
+					"memory" : "1152 GiB",
+					"storage" : "8 x 1000 SSD",
+					"networkPerformance" : "400 Gigabit",
+					"processorArchitecture" : "64-bit",
+					"tenancy" : "Shared",
+					"operatingSystem" : "Linux",
+					"licenseModel" : "No License required",
+					"usagetype" : "BoxUsage:p4d.24xlarge",
+					"operation" : "RunInstances",
+					"availabilityzone" : "NA",
+					"capacitystatus" : "Used",
+					"classicnetworkingsupport" : "false",
+					"dedicatedEbsThroughput" : "19000 Mbps",
+					"ecu" : "345",
+					"enhancedNetworkingSupported" : "No",
+					"gpu" : "8",
+					"gpuMemory" : "NA",
+					"intelAvxAvailable" : "Yes",
+					"intelAvx2Available" : "Yes",
+					"intelTurboAvailable" : "Yes",
+					"marketoption" : "OnDemand",
+					"normalizationSizeFactor" : "192",
+					"preInstalledSw" : "NA",
+					"processorFeatures" : "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
+					"regionCode" : "us-east-1",
+					"servicename" : "Amazon Elastic Compute Cloud",
+					"vpcnetworkingsupport" : "true"
+				}
+			},
+			"YSXJGN78QTXNVGDQ" : {
+				"sku" : "YSXJGN78QTXNVGDQ",
+				"productFamily" : "Compute Instance",
+				"attributes" : {
+					"servicecode" : "AmazonEC2",
+					"location" : "US East (N. Virginia)",
+					"locationType" : "AWS Region",
+					"instanceType" : "p4d.24xlarge",
+					"currentGeneration" : "Yes",
+					"instanceFamily" : "GPU instance",
+					"vcpu" : "96",
+					"physicalProcessor" : "Intel Xeon Platinum 8275L",
+					"clockSpeed" : "3 GHz",
+					"memory" : "1152 GiB",
+					"storage" : "8 x 1000 SSD",
+					"networkPerformance" : "400 Gigabit",
+					"processorArchitecture" : "64-bit",
+					"tenancy" : "Shared",
+					"operatingSystem" : "Linux",
+					"licenseModel" : "No License required",
+					"usagetype" : "BoxUsage:p4d.24xlarge",
+					"operation" : "RunInstances:CB",
+					"availabilityzone" : "NA",
+					"capacitystatus" : "Used",
+					"classicnetworkingsupport" : "false",
+					"dedicatedEbsThroughput" : "19000 Mbps",
+					"ecu" : "345",
+					"enhancedNetworkingSupported" : "No",
+					"gpu" : "8",
+					"gpuMemory" : "NA",
+					"intelAvxAvailable" : "Yes",
+					"intelAvx2Available" : "Yes",
+					"intelTurboAvailable" : "Yes",
+					"marketoption" : "CapacityBlock",
+					"normalizationSizeFactor" : "192",
+					"preInstalledSw" : "NA",
+					"processorFeatures" : "Intel AVX; Intel AVX2; Intel AVX512; Intel Turbo",
+					"regionCode" : "us-east-1",
+					"servicename" : "Amazon Elastic Compute Cloud",
+					"vpcnetworkingsupport" : "true"
+				}
+			}
+		},
+		"terms" : {
+			"OnDemand" : {
+				"H7NGEAC6UEHNTKSJ" : {
+					"H7NGEAC6UEHNTKSJ.JRTCKXETXF" : {
+						"offerTermCode" : "JRTCKXETXF",
+						"sku" : "H7NGEAC6UEHNTKSJ",
+						"effectiveDate" : "2024-05-01T00:00:00Z",
+						"priceDimensions" : {
+							"H7NGEAC6UEHNTKSJ.JRTCKXETXF.6YS6EN2CT7" : {
+								"rateCode" : "H7NGEAC6UEHNTKSJ.JRTCKXETXF.6YS6EN2CT7",
+								"description" : "$32.7726 per On Demand Linux p4d.24xlarge Instance Hour",
+								"beginRange" : "0",
+								"endRange" : "Inf",
+								"unit" : "Hrs",
+								"pricePerUnit" : {
+									"USD" : "32.7726000000"
+								},
+								"appliesTo" : [ ]
+							}
+						},
+						"termAttributes" : { }
+					}
+				},
+				"YSXJGN78QTXNVGDQ" : {
+					"YSXJGN78QTXNVGDQ.JRTCKXETXF" : {
+						"offerTermCode" : "JRTCKXETXF",
+						"sku" : "YSXJGN78QTXNVGDQ",
+						"effectiveDate" : "2024-05-01T00:00:00Z",
+						"priceDimensions" : {
+							"YSXJGN78QTXNVGDQ.JRTCKXETXF.6YS6EN2CT7" : {
+							"rateCode" : "YSXJGN78QTXNVGDQ.JRTCKXETXF.6YS6EN2CT7",
+							"description" : "$0.00 per Capacity Block Linux p4d.24xlarge Instance Hour",
+							"beginRange" : "0",
+							"endRange" : "Inf",
+							"unit" : "Hrs",
+							"pricePerUnit" : {
+								"USD" : "0.0000000000"
+							},
+							"appliesTo" : [ ]
+						}
+					},
+					"termAttributes" : { }
+					}
+				},
+			}
+		},
+		"attributesList" : { }
+	}
+	`
+
+	testResponseCase1 := http.Response{
+		Body: io.NopCloser(bytes.NewBufferString(awsUSEast1String)),
+		Request: &http.Request{
+			URL: &url.URL{
+				Scheme: "https",
+				Host:   "test-aws-http-endpoint:443",
+			},
+		},
+	}
+
+	awsTest.populatePricing(&testResponseCase1, inputkeysCase1)
+
+	expectedProdTermsInstanceOndemandCase1 := &AWSProductTerms{
+		Sku:     "H7NGEAC6UEHNTKSJ",
+		Memory:  "1152 GiB",
+		Storage: "8 x 1000 SSD",
+		VCpu:    "96",
+		GPU:     "8",
+		OnDemand: &AWSOfferTerm{
+			Sku:           "H7NGEAC6UEHNTKSJ",
+			OfferTermCode: "JRTCKXETXF",
+			PriceDimensions: map[string]*AWSRateCode{
+				"H7NGEAC6UEHNTKSJ.JRTCKXETXF.6YS6EN2CT7": {
+					Unit: "Hrs",
+					PricePerUnit: AWSCurrencyCode{
+						USD: "32.7726000000",
+					},
+				},
+			},
+		},
+	}
+
+	expectedPricingCase1 := map[string]*AWSProductTerms{
+		"us-east-1,p4d.24xlarge,linux":             expectedProdTermsInstanceOndemandCase1,
+		"us-east-1,p4d.24xlarge,linux,preemptible": expectedProdTermsInstanceOndemandCase1,
+	}
+
+	if !reflect.DeepEqual(expectedPricingCase1, awsTest.Pricing) {
+		expectedJsonString, _ := json.MarshalIndent(expectedPricingCase1, "", "  ")
+		resultJsonString, _ := json.MarshalIndent(awsTest.Pricing, "", "  ")
+		t.Logf("Expected: %s", string(expectedJsonString))
+		t.Logf("Result: %s", string(resultJsonString))
+		t.Fatalf("expected parsed pricing did not match actual parsed result (us-east-1)")
+	}
+
+	// Case 2
 	awsCnString := `
 	{
 		"formatVersion" : "v1.0",
