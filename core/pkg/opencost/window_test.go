@@ -709,15 +709,15 @@ func TestWindow_Duration(t *testing.T) {
 		t.Fatalf(`unexpected error parsing "2h": %s`, err)
 	}
 
-	if w.Duration().String() != "2h" {
+	if w.Duration().String() != "2h0m0s" {
 		t.Fatalf(`expect: window to be "2h"; actual: "%s"`, w.Duration().String())
 	}
-	w, err = ParseWindowUTC("10m")
+	w, err = ParseWindowUTC("10m0s")
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "10m": %s`, err)
 	}
 
-	if w.Duration().String() != "10m" {
+	if w.Duration().String() != "10m0s" {
 		t.Fatalf(`expect: window to be "10m"; actual: "%s"`, w.Duration().String())
 	}
 
@@ -725,7 +725,7 @@ func TestWindow_Duration(t *testing.T) {
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "1589448338,1589534798": %s`, err)
 	}
-	if w.Duration().String() != "1441m" {
+	if w.Duration().String() != "1441m0s" {
 		t.Fatalf(`expect: window to be "1441m"; actual: "%s"`, w.Duration().String())
 	}
 
@@ -733,7 +733,7 @@ func TestWindow_Duration(t *testing.T) {
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "yesterday": %s`, err)
 	}
-	if w.Duration().String() != "1d" {
+	if w.Duration().String() != "1d0h0m0s" {
 		t.Fatalf(`expect: window to be "1d"; actual: "%s"`, w.Duration().String())
 	}
 
