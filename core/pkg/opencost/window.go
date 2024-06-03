@@ -303,8 +303,14 @@ func parseWindow(window string, now time.Time) (Window, error) {
 		// "entirety" is defined as midnight to midnight, UTC. given this definition, we round forward the calculated
 		// start and end times to the nearest day to align with midnight boundaries
 		// an analogous definition applies to "the past X weeks" and "the past X hours"
-		end = now.Truncate(dur).Add(dur)
-		start = end.Add(-time.Duration(num) * dur)
+		if match[2] == "w" {
+			// special case - with a week, we say the week ends today
+			end = end.Truncate(timeutil.Day).Add(timeutil.Day)
+			start = start.Truncate(timeutil.Day).Add(timeutil.Day)
+		} else {
+			end = now.Truncate(dur).Add(dur)
+			start = end.Add(-time.Duration(num) * dur)
+		}
 
 		return NewWindow(&start, &end), nil
 	}
