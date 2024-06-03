@@ -161,13 +161,6 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 	if durStr == "" {
 		return nil, fmt.Errorf("illegal duration value for %s", opencost.NewClosedWindow(start, end))
 	}
-	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
-	// value, converts it to a cumulative value; i.e.
-	// [$/hr] * [min/res]*[hr/min] = [$/res]
-	hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
-
-	// TODO niko/assets how do we not hard-code this price?
-	costPerGBHr := 0.04 / 730.0
 
 	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
 	queryPVCost := fmt.Sprintf(`avg(avg_over_time(pv_hourly_cost{%s}[%s])) by (%s, persistentvolume,provider_id)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
@@ -177,12 +170,6 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 	queryPVUsedAvg := fmt.Sprintf(`avg(avg_over_time(kubelet_volume_stats_used_bytes{%s}[%s])) by (%s, persistentvolumeclaim, namespace)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 	queryPVUsedMax := fmt.Sprintf(`max(max_over_time(kubelet_volume_stats_used_bytes{%s}[%s])) by (%s, persistentvolumeclaim, namespace)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 	queryPVCInfo := fmt.Sprintf(`avg(avg_over_time(kube_persistentvolumeclaim_info{%s}[%s])) by (%s, volumename, persistentvolumeclaim, namespace)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
-	queryLocalStorageCost := fmt.Sprintf(`sum_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/", %s}) by (instance, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution, hourlyToCumulative, costPerGBHr)
-	queryLocalStorageUsedCost := fmt.Sprintf(`sum_over_time(sum(container_fs_usage_bytes{device!="tmpfs", id="/", %s}) by (instance, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution, hourlyToCumulative, costPerGBHr)
-	queryLocalStorageUsedAvg := fmt.Sprintf(`avg(sum(avg_over_time(container_fs_usage_bytes{device!="tmpfs", id="/", %s}[%s])) by (instance, %s, job)) by (instance, %s)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	queryLocalStorageUsedMax := fmt.Sprintf(`max(sum(max_over_time(container_fs_usage_bytes{device!="tmpfs", id="/", %s}[%s])) by (instance, %s, job)) by (instance, %s)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	queryLocalStorageBytes := fmt.Sprintf(`avg_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/", %s}) by (instance, %s)[%s:%dm])`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
-	queryLocalActiveMins := fmt.Sprintf(`count(node_total_hourly_cost{%s}) by (%s, node)[%s:%dm]`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
 
 	resChPVCost := ctx.QueryAtTime(queryPVCost, t)
 	resChPVSize := ctx.QueryAtTime(queryPVSize, t)
@@ -191,12 +178,6 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 	resChPVUsedAvg := ctx.QueryAtTime(queryPVUsedAvg, t)
 	resChPVUsedMax := ctx.QueryAtTime(queryPVUsedMax, t)
 	resChPVCInfo := ctx.QueryAtTime(queryPVCInfo, t)
-	resChLocalStorageCost := ctx.QueryAtTime(queryLocalStorageCost, t)
-	resChLocalStorageUsedCost := ctx.QueryAtTime(queryLocalStorageUsedCost, t)
-	resChLocalStoreageUsedAvg := ctx.QueryAtTime(queryLocalStorageUsedAvg, t)
-	resChLocalStoreageUsedMax := ctx.QueryAtTime(queryLocalStorageUsedMax, t)
-	resChLocalStorageBytes := ctx.QueryAtTime(queryLocalStorageBytes, t)
-	resChLocalActiveMins := ctx.QueryAtTime(queryLocalActiveMins, t)
 
 	resPVCost, _ := resChPVCost.Await()
 	resPVSize, _ := resChPVSize.Await()
@@ -205,12 +186,50 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 	resPVUsedAvg, _ := resChPVUsedAvg.Await()
 	resPVUsedMax, _ := resChPVUsedMax.Await()
 	resPVCInfo, _ := resChPVCInfo.Await()
-	resLocalStorageCost, _ := resChLocalStorageCost.Await()
-	resLocalStorageUsedCost, _ := resChLocalStorageUsedCost.Await()
-	resLocalStorageUsedAvg, _ := resChLocalStoreageUsedAvg.Await()
-	resLocalStorageUsedMax, _ := resChLocalStoreageUsedMax.Await()
-	resLocalStorageBytes, _ := resChLocalStorageBytes.Await()
-	resLocalActiveMins, _ := resChLocalActiveMins.Await()
+
+	// Cloud providers do not always charge for a node's local disk costs (i.e.
+	// ephemeral storage). Provide an option to opt out of calculating &
+	// allocating local disk costs. Note, that this does not affect
+	// PersistentVolume costs.
+	//
+	// Ref:
+	// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/RootDeviceStorage.html
+	// https://learn.microsoft.com/en-us/azure/virtual-machines/managed-disks-overview#temporary-disk
+	// https://cloud.google.com/compute/docs/disks/local-ssd
+	resLocalStorageCost := []*prom.QueryResult{}
+	resLocalStorageUsedCost := []*prom.QueryResult{}
+	resLocalStorageUsedAvg := []*prom.QueryResult{}
+	resLocalStorageUsedMax := []*prom.QueryResult{}
+	resLocalStorageBytes := []*prom.QueryResult{}
+	resLocalActiveMins := []*prom.QueryResult{}
+	if env.GetAssetIncludeLocalDiskCost() {
+		// hourlyToCumulative is a scaling factor that, when multiplied by an
+		// hourly value, converts it to a cumulative value; i.e. [$/hr] *
+		// [min/res]*[hr/min] = [$/res]
+		hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
+		costPerGBHr := 0.04 / 730.0
+
+		queryLocalStorageCost := fmt.Sprintf(`sum_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/", %s}) by (instance, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution, hourlyToCumulative, costPerGBHr)
+		queryLocalStorageUsedCost := fmt.Sprintf(`sum_over_time(sum(container_fs_usage_bytes{device!="tmpfs", id="/", %s}) by (instance, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution, hourlyToCumulative, costPerGBHr)
+		queryLocalStorageUsedAvg := fmt.Sprintf(`avg(sum(avg_over_time(container_fs_usage_bytes{device!="tmpfs", id="/", %s}[%s])) by (instance, %s, job)) by (instance, %s)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel(), env.GetPromClusterLabel())
+		queryLocalStorageUsedMax := fmt.Sprintf(`max(sum(max_over_time(container_fs_usage_bytes{device!="tmpfs", id="/", %s}[%s])) by (instance, %s, job)) by (instance, %s)`, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel(), env.GetPromClusterLabel())
+		queryLocalStorageBytes := fmt.Sprintf(`avg_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/", %s}) by (instance, %s)[%s:%dm])`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
+		queryLocalActiveMins := fmt.Sprintf(`count(node_total_hourly_cost{%s}) by (%s, node)[%s:%dm]`, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
+
+		resChLocalStorageCost := ctx.QueryAtTime(queryLocalStorageCost, t)
+		resChLocalStorageUsedCost := ctx.QueryAtTime(queryLocalStorageUsedCost, t)
+		resChLocalStoreageUsedAvg := ctx.QueryAtTime(queryLocalStorageUsedAvg, t)
+		resChLocalStoreageUsedMax := ctx.QueryAtTime(queryLocalStorageUsedMax, t)
+		resChLocalStorageBytes := ctx.QueryAtTime(queryLocalStorageBytes, t)
+		resChLocalActiveMins := ctx.QueryAtTime(queryLocalActiveMins, t)
+
+		resLocalStorageCost, _ = resChLocalStorageCost.Await()
+		resLocalStorageUsedCost, _ = resChLocalStorageUsedCost.Await()
+		resLocalStorageUsedAvg, _ = resChLocalStoreageUsedAvg.Await()
+		resLocalStorageUsedMax, _ = resChLocalStoreageUsedMax.Await()
+		resLocalStorageBytes, _ = resChLocalStorageBytes.Await()
+		resLocalActiveMins, _ = resChLocalActiveMins.Await()
+	}
 
 	if ctx.HasErrors() {
 		return nil, ctx.ErrorCollection()

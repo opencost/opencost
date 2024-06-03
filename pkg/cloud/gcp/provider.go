@@ -1142,7 +1142,7 @@ func (gcp *GCP) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	defer gcp.DownloadPricingDataLock.RUnlock()
 	pricing, ok := gcp.Pricing[pvk.Features()]
 	if !ok {
-		log.Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
+		log.Debugf("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
 		return &models.PV{}, nil
 	}
 	return pricing.PV, nil
