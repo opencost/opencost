@@ -36,7 +36,7 @@ func (sa *SummaryAllocation) ToResponse() *SummaryAllocationResponse {
 	}
 
 	// if the efficiency has already been set,
-	// prefer that since it has been calculated in the DB
+	// prefer that since it has been calculated elsewhere
 	// and matches the sorting criteria more closely
 	efficiency := sa.Efficiency
 	if efficiency == 0 {

@@ -89,7 +89,7 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 	if sa.IsUnmounted() {
 		sa.UnmountedPVCost = sa.PVCost
 	}
-
+	sa.Efficiency = sa.TotalEfficiency()
 	return sa
 }
 
@@ -152,6 +152,8 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 	sa.RAMCost += that.RAMCost
 	sa.SharedCost += that.SharedCost
 
+	// zero out the effieciency, as it is no longer valid
+	sa.Efficiency = sa.TotalEfficiency()
 	return nil
 }
 
@@ -174,6 +176,7 @@ func (sa *SummaryAllocation) Clone() *SummaryAllocation {
 		RAMCost:                sa.RAMCost,
 		SharedCost:             sa.SharedCost,
 		ExternalCost:           sa.ExternalCost,
+		Efficiency:             sa.Efficiency,
 	}
 }
 
