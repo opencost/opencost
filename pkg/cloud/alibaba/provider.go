@@ -541,7 +541,7 @@ func (alibaba *Alibaba) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	pricing, ok := alibaba.Pricing[keyFeature]
 
 	if !ok {
-		log.Errorf("Persistent Volume pricing not found for PV with feature: %s", keyFeature)
+		log.Debugf("Persistent Volume pricing not found for PV with feature: %s", keyFeature)
 		return nil, fmt.Errorf("Persistent Volume pricing not found for PV with feature: %s letting it use default values", keyFeature)
 	}
 
