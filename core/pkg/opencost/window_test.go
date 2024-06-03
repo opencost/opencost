@@ -733,8 +733,8 @@ func TestWindow_Duration(t *testing.T) {
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "yesterday": %s`, err)
 	}
-	if w.Duration().String() != "1d0h0m0s" {
-		t.Fatalf(`expect: window to be "1d"; actual: "%s"`, w.Duration().String())
+	if w.Duration().String() != "24h0m0s" {
+		t.Fatalf(`expect: window to be "24h0m0s"; actual: "%s"`, w.Duration().String())
 	}
 
 }
