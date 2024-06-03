@@ -65,6 +65,13 @@ jobs:
           repository: 'opencost/opencost'
           ref: '${{ steps.branch.outputs.BRANCH_NAME }}'
           path: ./opencost
+      
+      - name: Checkout UI Repo
+        uses: actions/checkout@v4
+        with:
+          repository: 'opencost/opencost-ui'
+          ref: '${{ steps.branch.outputs.BRANCH_NAME }}'
+          path: ./opencost-ui
 
       - name: Set SHA
         id: sha
@@ -103,7 +110,7 @@ jobs:
           go-version: 'stable'
 
       - name: Set up just
-        uses: extractions/setup-just@v1
+        uses: extractions/setup-just@v2
 
       - name: Install crane
         uses: imjasonh/setup-crane@v0.3
@@ -135,3 +142,13 @@ jobs:
         #  crane copy '${{ steps.tags.outputs.IMAGE_TAG }}' '${steps.tags.outputs.IMAGE_TAG_QUAY}'
         #  crane copy '${{ steps.tags.outputs.IMAGE_TAG }}' '${steps.tags.outputs.IMAGE_TAG_LATEST_QUAY}'
         #  crane copy '${{ steps.tags.outputs.IMAGE_TAG }}' '${steps.tags.outputs.IMAGE_TAG_VERSION_QUAY}'
+
+      - name: Build and push (multiarch) OpenCost UI
+        working-directory: ./opencost-ui
+        run: |
+          just build '${{ steps.tags.outputs.IMAGE_TAG_UI }}' '${{ steps.version_number.outputs.RELEASE_VERSION }}'
+          crane copy '${{ steps.tags.outputs.IMAGE_TAG_UI }}' '${{ steps.tags.outputs.IMAGE_TAG_UI_LATEST }}'
+          crane copy '${{ steps.tags.outputs.IMAGE_TAG_UI }}' '${{ steps.tags.outputs.IMAGE_TAG_UI_VERSION }}'
+        #  crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_QUAY}'
+        #  crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_LATEST_QUAY}'
+        #  crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_VERSION_QUAY}'
