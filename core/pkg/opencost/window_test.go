@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -653,7 +652,39 @@ func TestWindow_DurationOffsetStrings(t *testing.T) {
 	}
 }
 
-func TestWindow_DurationOffsetForPrometheus(t *testing.T) {
+func TestParse_Window(t *testing.T) {
+	now := time.Date(2024, time.May, 3, 8, 1, 4, 6, time.UTC)
+	win, err := parseWindow("2h", now)
+	if err != nil {
+		t.Fatalf(`unexpected error parsing "2h": %s`, err)
+	}
+
+	expectedStart := time.Date(2024, time.May, 3, 7, 0, 0, 0, time.UTC)
+	expectedEnd := time.Date(2024, time.May, 3, 9, 0, 0, 0, time.UTC)
+
+	if !win.start.Equal(expectedStart) {
+		t.Fatalf(`expect: window start to be %s; actual: %s`, expectedStart, win.start)
+	}
+	if !win.end.Equal(expectedEnd) {
+		t.Fatalf(`expect: window end to be %s; actual: %s`, expectedEnd, win.end)
+	}
+
+	win, err = parseWindow("3d", now)
+	if err != nil {
+		t.Fatalf(`unexpected error parsing "3d": %s`, err)
+	}
+
+	expectedStart = time.Date(2024, time.May, 1, 0, 0, 0, 0, time.UTC)
+	expectedEnd = time.Date(2024, time.May, 4, 0, 0, 0, 0, time.UTC)
+
+	if !win.start.Equal(expectedStart) {
+		t.Fatalf(`expect: window start to be %s; actual: %s`, expectedStart, win.start)
+	}
+	if !win.end.Equal(expectedEnd) {
+		t.Fatalf(`expect: window end to be %s; actual: %s`, expectedEnd, win.end)
+	}
+}
+func TestWindow_Duration(t *testing.T) {
 	// Set-up and tear-down
 	thanosEnabled := env.GetBool(ThanosEnabledEnvVarName, false)
 	defer env.SetBool(ThanosEnabledEnvVarName, thanosEnabled)
@@ -665,144 +696,47 @@ func TestWindow_DurationOffsetForPrometheus(t *testing.T) {
 	}
 
 	now := time.Now().UTC()
-	startOfToday := now.Truncate(timeutil.Day)
 	w, err := parseWindow("1d", now)
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "1d": %s`, err)
 	}
-
-	dur, off, err := w.DurationOffsetForPrometheus()
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	// We can get a response in seconds OR minutes. Check seconds first as it
-	// is higher resolution.
-	expDurSec := int(now.Sub(startOfToday).Seconds())
-	expDurSecStr := fmt.Sprintf("%ds", expDurSec)
-	expDurMin := int(now.Sub(startOfToday).Minutes())
-	expDurMinStr := fmt.Sprintf("%dm", expDurMin)
-	if dur != expDurSecStr && dur != expDurMinStr {
-		t.Fatalf(`expect: window to be "%s" (or "%s"); actual: "%s"`, expDurSecStr, expDurMinStr, dur)
-	}
-	if off != "" {
-		t.Fatalf(`expect: offset to be ""; actual: "%s"`, off)
+	if w.Duration() != 24*time.Hour {
+		t.Fatalf(`expect: window to be 24 hours; actual: %s`, w.Duration())
 	}
 
 	w, err = ParseWindowUTC("2h")
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "2h": %s`, err)
 	}
-	dur, off, err = w.DurationOffsetForPrometheus()
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if dur != "2h" {
-		t.Fatalf(`expect: window to be "2h"; actual: "%s"`, dur)
-	}
-	if off != "" {
-		t.Fatalf(`expect: offset to be ""; actual: "%s"`, off)
-	}
 
+	if w.Duration().String() != "2h" {
+		t.Fatalf(`expect: window to be "2h"; actual: "%s"`, w.Duration().String())
+	}
 	w, err = ParseWindowUTC("10m")
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "10m": %s`, err)
 	}
-	dur, off, err = w.DurationOffsetForPrometheus()
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if dur != "10m" {
-		t.Fatalf(`expect: window to be "10m"; actual: "%s"`, dur)
-	}
-	if off != "" {
-		t.Fatalf(`expect: offset to be ""; actual: "%s"`, off)
+
+	if w.Duration().String() != "10m" {
+		t.Fatalf(`expect: window to be "10m"; actual: "%s"`, w.Duration().String())
 	}
 
 	w, err = ParseWindowUTC("1589448338,1589534798")
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "1589448338,1589534798": %s`, err)
 	}
-	dur, off, err = w.DurationOffsetForPrometheus()
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if dur != "1441m" {
-		t.Fatalf(`expect: window to be "1441m"; actual: "%s"`, dur)
-	}
-	if !strings.HasPrefix(off, " offset ") {
-		t.Fatalf(`expect: offset to start with " offset "; actual: "%s"`, off)
+	if w.Duration().String() != "1441m" {
+		t.Fatalf(`expect: window to be "1441m"; actual: "%s"`, w.Duration().String())
 	}
 
 	w, err = ParseWindowUTC("yesterday")
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "yesterday": %s`, err)
 	}
-	dur, off, err = w.DurationOffsetForPrometheus()
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if dur != "1d" {
-		t.Fatalf(`expect: window to be "1d"; actual: "%s"`, dur)
-	}
-	if !strings.HasPrefix(off, " offset ") {
-		t.Fatalf(`expect: offset to start with " offset "; actual: "%s"`, off)
+	if w.Duration().String() != "1d" {
+		t.Fatalf(`expect: window to be "1d"; actual: "%s"`, w.Duration().String())
 	}
 
-	// Test for Thanos (env.IsThanosEnabled() == true)
-	env.SetBool(ThanosEnabledEnvVarName, true)
-	if !env.GetBool(ThanosEnabledEnvVarName, false) {
-		t.Fatalf("expected env.IsThanosEnabled() == true")
-	}
-
-	// Note - with the updated logic of 1d, 1w, etc. rounding the start and end times forward to the nearest midnight,
-	// DurationOffsetForPrometheus may fail if not using a window using "Xh" as the string to parse
-	w, err = ParseWindowUTC("24h")
-	if err != nil {
-		t.Fatalf(`unexpected error parsing "24h": %s`, err)
-	}
-	dur, off, err = w.DurationOffsetForPrometheus()
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if dur != "21h" {
-		t.Fatalf(`expect: window to be "21d"; actual: "%s"`, dur)
-	}
-	if off != " offset 3h" {
-		t.Fatalf(`expect: offset to be " offset 3h"; actual: "%s"`, off)
-	}
-
-	w, err = ParseWindowUTC("2h")
-	if err != nil {
-		t.Fatalf(`unexpected error parsing "2h": %s`, err)
-	}
-	dur, off, err = w.DurationOffsetForPrometheus()
-	if err == nil {
-		t.Fatalf(`expected error (negative duration); got ("%s", "%s")`, dur, off)
-	}
-
-	w, err = ParseWindowUTC("10m")
-	if err != nil {
-		t.Fatalf(`unexpected error parsing "1d": %s`, err)
-	}
-	dur, off, err = w.DurationOffsetForPrometheus()
-	if err == nil {
-		t.Fatalf(`expected error (negative duration); got ("%s", "%s")`, dur, off)
-	}
-
-	w, err = ParseWindowUTC("1589448338,1589534798")
-	if err != nil {
-		t.Fatalf(`unexpected error parsing "1589448338,1589534798": %s`, err)
-	}
-	dur, off, err = w.DurationOffsetForPrometheus()
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if dur != "1441m" {
-		t.Fatalf(`expect: window to be "1441m"; actual: "%s"`, dur)
-	}
-	if !strings.HasPrefix(off, " offset ") {
-		t.Fatalf(`expect: offset to start with " offset "; actual: "%s"`, off)
-	}
 }
 
 // TODO
