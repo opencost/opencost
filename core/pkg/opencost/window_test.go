@@ -725,8 +725,8 @@ func TestWindow_Duration(t *testing.T) {
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "1589448338,1589534798": %s`, err)
 	}
-	if w.Duration().String() != "1441m0s" {
-		t.Fatalf(`expect: window to be "1441m"; actual: "%s"`, w.Duration().String())
+	if w.Duration().String() != "24h1m0s" {
+		t.Fatalf(`expect: window to be "24h1m0s"; actual: "%s"`, w.Duration().String())
 	}
 
 	w, err = ParseWindowUTC("yesterday")
