@@ -737,12 +737,6 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if !util.IsApproximately(a.GPUHours, that.GPUHours) {
 		return false
 	}
-	if !util.IsApproximately(a.GPURequestAverage, that.GPURequestAverage) {
-		return false
-	}
-	if !util.IsApproximately(a.GPUUsageAverage, that.GPUUsageAverage) {
-		return false
-	}
 	if !util.IsApproximately(a.GPUCost, that.GPUCost) {
 		return false
 	}
@@ -1208,6 +1202,12 @@ func (a *Allocation) add(that *Allocation) {
 	ramUseByteMins := a.RAMBytesUsageAverage * a.Minutes()
 	ramUseByteMins += that.RAMBytesUsageAverage * that.Minutes()
 
+	gpuReqMins := a.GPURequestAverage * a.Minutes()
+	gpuReqMins += that.GPURequestAverage * that.Minutes()
+
+	gpuUseMins := a.GPUUsageAverage * a.Minutes()
+	gpuUseMins += that.GPUUsageAverage * that.Minutes()
+
 	// Expand Start and End to be the "max" of among the given Allocations
 	if that.Start.Before(a.Start) {
 		a.Start = that.Start
@@ -1223,11 +1223,15 @@ func (a *Allocation) add(that *Allocation) {
 		a.CPUCoreUsageAverage = cpuUseCoreMins / a.Minutes()
 		a.RAMBytesRequestAverage = ramReqByteMins / a.Minutes()
 		a.RAMBytesUsageAverage = ramUseByteMins / a.Minutes()
+		a.GPURequestAverage = gpuReqMins / a.Minutes()
+		a.GPUUsageAverage = gpuUseMins / a.Minutes()
 	} else {
 		a.CPUCoreRequestAverage = 0.0
 		a.CPUCoreUsageAverage = 0.0
 		a.RAMBytesRequestAverage = 0.0
 		a.RAMBytesUsageAverage = 0.0
+		a.GPURequestAverage = 0.0
+		a.GPUUsageAverage = 0.0
 	}
 
 	// Sum all cumulative resource fields
