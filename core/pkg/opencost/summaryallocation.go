@@ -152,7 +152,6 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 	sa.RAMCost += that.RAMCost
 	sa.SharedCost += that.SharedCost
 
-	// zero out the effieciency, as it is no longer valid
 	sa.Efficiency = sa.TotalEfficiency()
 	return nil
 }
