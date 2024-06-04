@@ -40,6 +40,7 @@ type SummaryAllocation struct {
 	ExternalCost           float64               `json:"externalCost"`
 	Share                  bool                  `json:"-"`
 	UnmountedPVCost        float64               `json:"-"`
+	Efficiency             float64               `json:"efficiency"`
 }
 
 // NewSummaryAllocation converts an Allocation to a SummaryAllocation by
@@ -88,7 +89,7 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 	if sa.IsUnmounted() {
 		sa.UnmountedPVCost = sa.PVCost
 	}
-
+	sa.Efficiency = sa.TotalEfficiency()
 	return sa
 }
 
@@ -151,6 +152,7 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 	sa.RAMCost += that.RAMCost
 	sa.SharedCost += that.SharedCost
 
+	sa.Efficiency = sa.TotalEfficiency()
 	return nil
 }
 
@@ -173,6 +175,7 @@ func (sa *SummaryAllocation) Clone() *SummaryAllocation {
 		RAMCost:                sa.RAMCost,
 		SharedCost:             sa.SharedCost,
 		ExternalCost:           sa.ExternalCost,
+		Efficiency:             sa.Efficiency,
 	}
 }
 
