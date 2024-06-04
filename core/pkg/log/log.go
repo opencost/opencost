@@ -76,7 +76,7 @@ func DedupedErrorf(logTypeLimit int, format string, a ...interface{}) {
 		Errorf(format, a...)
 	} else if timesLogged == logTypeLimit {
 		Errorf(format, a...)
-		Infof("%s logged %d times: suppressing future logs", format, logTypeLimit)
+		Infof("%s logged %d times: suppressing future logs", fmt.Sprintf(format, a...), logTypeLimit)
 	}
 }
 
@@ -91,7 +91,7 @@ func DedupedWarningf(logTypeLimit int, format string, a ...interface{}) {
 		Warnf(format, a...)
 	} else if timesLogged == logTypeLimit {
 		Warnf(format, a...)
-		Infof("%s logged %d times: suppressing future logs", format, logTypeLimit)
+		Infof("%s logged %d times: suppressing future logs", fmt.Sprintf(format, a...), logTypeLimit)
 	}
 }
 
@@ -110,7 +110,7 @@ func DedupedInfof(logTypeLimit int, format string, a ...interface{}) {
 		Infof(format, a...)
 	} else if timesLogged == logTypeLimit {
 		Infof(format, a...)
-		Infof("%s logged %d times: suppressing future logs", format, logTypeLimit)
+		Infof("%s logged %d times: suppressing future logs", fmt.Sprintf(format, a...), logTypeLimit)
 	}
 }
 
