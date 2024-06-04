@@ -298,13 +298,18 @@ func parseWindow(window string, now time.Time) (Window, error) {
 		end := now
 		start := end.Add(-time.Duration(num) * dur)
 
-		// when using windows such as "7d" and "1w", we have to have a definition for what "the past X days" means.
+		// when using windows such as "7d", "1w", and "2h" we have to have a definition for what "the past X days/hours" means.
 		// let "the past X days" be defined as the entirety of today plus the entirety of the past X-1 days, where
 		// "entirety" is defined as midnight to midnight, UTC. given this definition, we round forward the calculated
 		// start and end times to the nearest day to align with midnight boundaries
-		if match[2] == "d" || match[2] == "w" {
+		// an analogous definition applies to "the past X weeks" and "the past X hours"
+		if match[2] == "w" {
+			// special case - with a week, we say the week ends today
 			end = end.Truncate(timeutil.Day).Add(timeutil.Day)
 			start = start.Truncate(timeutil.Day).Add(timeutil.Day)
+		} else {
+			end = now.Truncate(dur).Add(dur)
+			start = end.Add(-time.Duration(num) * dur)
 		}
 
 		return NewWindow(&start, &end), nil
@@ -741,53 +746,6 @@ func (w Window) DurationOffset() (time.Duration, time.Duration, error) {
 	offset := time.Since(*w.End())
 
 	return duration, offset, nil
-}
-
-// DurationOffsetForPrometheus returns strings representing durations for the
-// duration and offset of the given window, factoring in the Thanos offset if
-// necessary. Whereas duration is a simple duration string (e.g. "1d"), the
-// offset includes the word "offset" (e.g. " offset 2d") so that the values
-// returned can be used directly in the formatting string "some_metric[%s]%s"
-// to generate the query "some_metric[1d] offset 2d".
-func (w Window) DurationOffsetForPrometheus() (string, string, error) {
-	duration, offset, err := w.DurationOffset()
-	if err != nil {
-		return "", "", err
-	}
-
-	// If using Thanos, increase offset to 3 hours, reducing the duration by
-	// equal measure to maintain the same starting point.
-	// TODO: This logic should technically be decoupled from this type, but
-	// TODO: current use cases are unclear. To ensure we do not break existing
-	// TODO: (or legacy) use-cases, temporarily support this one-off logic.
-	thanosDur := thanosOffset()
-	if offset < thanosDur && isThanosEnabled() {
-		diff := thanosDur - offset
-		offset += diff
-		duration -= diff
-	}
-
-	// If duration < 0, return an error
-	if duration < 0 {
-		return "", "", fmt.Errorf("negative duration: %s", duration)
-	}
-
-	// Negative offset means that the end time is in the future. Prometheus
-	// fails for non-positive offset values, so shrink the duration and
-	// remove the offset altogether.
-	if offset < 0 {
-		duration = duration + offset
-		offset = 0
-	}
-
-	durStr, offStr := timeutil.DurationOffsetStrings(duration, offset)
-	if offset < time.Minute {
-		offStr = ""
-	} else {
-		offStr = " offset " + offStr
-	}
-
-	return durStr, offStr, nil
 }
 
 // DurationOffsetStrings returns formatted, Prometheus-compatible strings representing
