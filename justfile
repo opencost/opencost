@@ -6,8 +6,14 @@ commit := `git rev-parse --short HEAD`
 default:
     just --list
 
+# run core unit tests
+test-core: 
+    {{commonenv}} cd ./core && go test ./... -coverprofile=coverage.out
+    {{commonenv}} cd ./core && go vet ./...
+
+
 # Run unit tests
-test:
+test: test-core
     {{commonenv}} go test ./... -coverprofile=coverage.out
     {{commonenv}} go vet ./...
 
