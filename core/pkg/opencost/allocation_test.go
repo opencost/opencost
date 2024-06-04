@@ -19,7 +19,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
 
-// test
 var filterParser = allocation.NewAllocationFilterParser()
 var matcherCompiler = NewAllocationMatchCompiler(nil)
 
