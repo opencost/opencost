@@ -1004,8 +1004,6 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 					product.Attributes.MarketOption == "OnDemand" {
 					key := aws.KubeAttrConversion(product.Attributes.RegionCode, product.Attributes.InstanceType, product.Attributes.OperatingSystem)
 					spotKey := key + ",preemptible"
-					log.Infof("THOMAS: Key: %s", key)
-					log.Infof("THOMAS: ProductAttributes: %v", product.Attributes)
 					if inputkeys[key] || inputkeys[spotKey] { // Just grab the sku even if spot, and change the price later.
 						productTerms := &AWSProductTerms{
 							Sku:     product.Sku,
@@ -1387,6 +1385,12 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 	meta := models.PricingMetadata{}
 
 	terms, ok := aws.Pricing[key]
+
+	// Temporary debug logs
+	log.Infof("THOMAS: Key: %s", key)
+	termsStr, _ := json.Marshal(terms)
+	log.Infof("THOMAS: Terms: %s", string(termsStr))
+
 	if ok {
 		return aws.createNode(terms, usageType, k)
 	} else if _, ok := aws.ValidPricingKeys[key]; ok {
