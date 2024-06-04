@@ -697,6 +697,12 @@ func applyGPUsAllocated(podMap map[podKey]*pod, resGPUsRequested []*prom.QueryRe
 
 			hrs := thisPod.Allocations[container].Minutes() / 60.0
 			thisPod.Allocations[container].GPUHours = res.Values[0].Value * hrs
+
+			// For now, it will always be the case that Request==Allocation. If
+			// you would like to use a GPU you need to request the full GPU.
+			// Therefore max(usage,request) will always equal request. In the
+			// future this may need to be refactored when building support for
+			// GPU Time Slicing.
 			thisPod.Allocations[container].GPURequestAverage = res.Values[0].Value
 		}
 	}

@@ -950,6 +950,10 @@ func (a *Allocation) RAMEfficiency() float64 {
 // DCGM exporter providing Prometheus with usage metrics, this will always be
 // zero, as GPUUsageAverage will be zero (the default value).
 func (a *Allocation) GPUEfficiency() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	if a.GPURequestAverage > 0 && a.GPUUsageAverage > 0 {
 		return a.GPUUsageAverage / a.GPURequestAverage
 	}
