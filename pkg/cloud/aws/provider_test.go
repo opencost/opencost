@@ -116,6 +116,7 @@ func Test_awsKey_getUsageType(t *testing.T) {
 func Test_populate_pricing(t *testing.T) {
 	awsTest := AWS{
 		ValidPricingKeys: map[string]bool{},
+		ClusterRegion:    "us-east-2",
 	}
 	inputkeys := map[string]bool{
 		"us-east-2,m5.large,linux": true,
@@ -230,6 +231,21 @@ func Test_populate_pricing(t *testing.T) {
 				  "servicename" : "Amazon Elastic Compute Cloud",
 				  "volumeApiName" : "gp3"
 				}
+			  },
+			  "Y9RYMSE644KDSV4S" : {
+				"sku" : "Y9RYMSE644KDSV4S",
+				"productFamily" : "Load Balancer-Network",
+				"attributes" : {
+					"servicecode" : "AmazonEC2",
+					"location" : "US East (Ohio)",
+					"locationType" : "AWS Region",
+					"group" : "ELB:Balancer",
+					"groupDescription" : "LoadBalancer hourly usage by Network Load Balancer",
+					"usagetype" : "USE2-LoadBalancerUsage",
+					"operation" : "LoadBalancing:Network",
+					"regionCode" : "us-east-2",
+					"servicename" : "Amazon Elastic Compute Cloud"
+				}
 			  }
 		},
 		"terms" : {
@@ -290,7 +306,7 @@ func Test_populate_pricing(t *testing.T) {
 							"USD" : "1161"
 						  },
 						  "appliesTo" : [ ]
-						},
+						}
 					  },
 					  "termAttributes" : {
 						"LeaseContractLength" : "3yr",
@@ -298,7 +314,27 @@ func Test_populate_pricing(t *testing.T) {
 						"PurchaseOption" : "All Upfront"
 					  }
 					}
-				}
+				},
+				"Y9RYMSE644KDSV4S" : {
+					"Y9RYMSE644KDSV4S.JRTCKXETXF" : {
+					  "offerTermCode" : "JRTCKXETXF",
+					  "sku" : "Y9RYMSE644KDSV4S",
+					  "effectiveDate" : "2024-05-01T00:00:00Z",
+					  "priceDimensions" : {
+					    "Y9RYMSE644KDSV4S.JRTCKXETXF.6YS6EN2CT7" : {
+					      "rateCode" : "Y9RYMSE644KDSV4S.JRTCKXETXF.6YS6EN2CT7",
+					      "description" : "$0.0225 per Network LoadBalancer-hour (or partial hour)",
+					      "beginRange" : "0",
+					      "endRange" : "Inf",
+					      "unit" : "Hrs",
+					      "pricePerUnit" : {
+					        "USD" : "0.0225000000"
+					      },
+					      "appliesTo" : [ ]
+					    }
+					  },
+					  "termAttributes" : { }
+					}
 			}
 		},
 		"attributesList" : { }
@@ -353,9 +389,17 @@ func Test_populate_pricing(t *testing.T) {
 		VCpu:    "2",
 		GPU:     "",
 		OnDemand: &AWSOfferTerm{
-			Sku:             "",
-			OfferTermCode:   "",
-			PriceDimensions: nil,
+			Sku:           "8D49XP354UEYTHGM",
+			OfferTermCode: "MZU6U2429S",
+			PriceDimensions: map[string]*AWSRateCode{
+				"8D49XP354UEYTHGM.MZU6U2429S.2TG2D8R56U": {
+					Unit: "Quantity",
+					PricePerUnit: AWSCurrencyCode{
+						USD: "1161",
+						CNY: "",
+					},
+				},
+			},
 		},
 	}
 
@@ -366,9 +410,37 @@ func Test_populate_pricing(t *testing.T) {
 		VCpu:    "2",
 		GPU:     "",
 		OnDemand: &AWSOfferTerm{
-			Sku:             "",
-			OfferTermCode:   "",
-			PriceDimensions: nil,
+			Sku:           "8D49XP354UEYTHGM",
+			OfferTermCode: "MZU6U2429S",
+			PriceDimensions: map[string]*AWSRateCode{
+				"8D49XP354UEYTHGM.MZU6U2429S.2TG2D8R56U": {
+					Unit: "Quantity",
+					PricePerUnit: AWSCurrencyCode{
+						USD: "1161",
+						CNY: "",
+					},
+				},
+			},
+		},
+	}
+
+	expectedProdTermsLoadbalancer := &AWSProductTerms{
+		Sku: "Y9RYMSE644KDSV4S",
+		OnDemand: &AWSOfferTerm{
+			Sku:           "Y9RYMSE644KDSV4S",
+			OfferTermCode: "JRTCKXETXF",
+			PriceDimensions: map[string]*AWSRateCode{
+				"Y9RYMSE644KDSV4S.JRTCKXETXF.6YS6EN2CT7": {
+					Unit: "Hrs",
+					PricePerUnit: AWSCurrencyCode{
+						USD: "0.0225000000",
+						CNY: "",
+					},
+				},
+			},
+		},
+		LoadBalancer: &models.LoadBalancer{
+			Cost: 0.0225,
 		},
 	}
 
@@ -377,10 +449,16 @@ func Test_populate_pricing(t *testing.T) {
 		"us-east-2,EBS:VolumeUsage.gp3,preemptible": expectedProdTermsDisk,
 		"us-east-2,m5.large,linux":                  expectedProdTermsInstanceOndemand,
 		"us-east-2,m5.large,linux,preemptible":      expectedProdTermsInstanceSpot,
+		"us-east-2,LoadBalancerUsage":               expectedProdTermsLoadbalancer,
 	}
 
 	if !reflect.DeepEqual(expectedPricing, awsTest.Pricing) {
-		t.Fatalf("expected parsed pricing did not match actual parsed result (us-east-1)")
+		t.Fatalf("expected parsed pricing did not match actual parsed result (us-east-2)")
+	}
+
+	lbPricing, _ := awsTest.LoadBalancerPricing()
+	if lbPricing.Cost != 0.0225 {
+		t.Fatalf("expected loadbalancer pricing of 0.0225 but got %f (us-east-2)", lbPricing.Cost)
 	}
 
 	// Case 1
