@@ -42,6 +42,9 @@ func (sc *StorageConnection) getBlobURLTemplate() string {
 	// Use gov cloud blob url if gov is detected in AzureCloud
 	if strings.Contains(strings.ToLower(sc.Cloud), "gov") {
 		return "https://%s.blob.core.usgovcloudapi.net/%s"
+	} else if strings.Contains(strings.ToLower(sc.Cloud), "china") {
+		// Use China cloud blob url if china is detected in AzureCloud
+		return "https://%s.blob.core.chinacloudapi.cn/%s"
 	}
 	// default to Public Cloud template
 	return "https://%s.blob.core.windows.net/%s"

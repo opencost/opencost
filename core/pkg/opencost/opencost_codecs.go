@@ -41,7 +41,7 @@ const (
 	AssetsCodecVersion uint8 = 21
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
-	AllocationCodecVersion uint8 = 21
+	AllocationCodecVersion uint8 = 22
 
 	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
 	CloudCostCodecVersion uint8 = 2
@@ -457,6 +457,8 @@ func (target *Allocation) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 	}
 	// --- [end][write][alias](LbAllocations) ---
 
+	buff.WriteFloat64(target.GPURequestAverage) // write float64
+	buff.WriteFloat64(target.GPUUsageAverage)   // write float64
 	return nil
 }
 
@@ -767,6 +769,24 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 		// --- [end][read][alias](LbAllocations) ---
 
 	} else {
+	}
+
+	// field version check
+	if uint8(22) <= version {
+		fff := buff.ReadFloat64() // read float64
+		target.GPURequestAverage = fff
+
+	} else {
+		target.GPURequestAverage = float64(0) // default
+	}
+
+	// field version check
+	if uint8(22) <= version {
+		ggg := buff.ReadFloat64() // read float64
+		target.GPUUsageAverage = ggg
+
+	} else {
+		target.GPUUsageAverage = float64(0) // default
 	}
 
 	return nil

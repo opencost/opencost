@@ -66,6 +66,13 @@ jobs:
           ref: '${{ steps.branch.outputs.BRANCH_NAME }}'
           path: ./opencost
 
+      - name: Checkout UI Repo
+        uses: actions/checkout@v4
+        with:
+          repository: 'opencost/opencost-ui'
+          ref: '${{ steps.branch.outputs.BRANCH_NAME }}'
+          path: ./opencost-ui
+
       - name: Set SHA
         id: sha
         run: |
@@ -76,7 +83,7 @@ jobs:
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action
       - name: Log into registry ${{ env.REGISTRY }}
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -103,7 +110,7 @@ jobs:
           go-version: 'stable'
 
       - name: Set up just
-        uses: extractions/setup-just@v1
+        uses: extractions/setup-just@v2
 
       - name: Install crane
         uses: imjasonh/setup-crane@v0.3
@@ -135,3 +142,13 @@ jobs:
         #  crane copy '${{ steps.tags.outputs.IMAGE_TAG }}' '${steps.tags.outputs.IMAGE_TAG_QUAY}'
         #  crane copy '${{ steps.tags.outputs.IMAGE_TAG }}' '${steps.tags.outputs.IMAGE_TAG_LATEST_QUAY}'
         #  crane copy '${{ steps.tags.outputs.IMAGE_TAG }}' '${steps.tags.outputs.IMAGE_TAG_VERSION_QUAY}'
+
+      - name: Build and push (multiarch) OpenCost UI
+        working-directory: ./opencost-ui
+        run: |
+          just build '${{ steps.tags.outputs.IMAGE_TAG_UI }}' '${{ steps.version_number.outputs.RELEASE_VERSION }}'
+          crane copy '${{ steps.tags.outputs.IMAGE_TAG_UI }}' '${{ steps.tags.outputs.IMAGE_TAG_UI_LATEST }}'
+          crane copy '${{ steps.tags.outputs.IMAGE_TAG_UI }}' '${{ steps.tags.outputs.IMAGE_TAG_UI_VERSION }}'
+        #  crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_QUAY}'
+        #  crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_LATEST_QUAY}'
+        #  crane copy '${steps.tags.outputs.IMAGE_TAG_UI}' '${steps.tags.outputs.IMAGE_TAG_UI_VERSION_QUAY}'
