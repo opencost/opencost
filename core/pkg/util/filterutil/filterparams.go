@@ -3,6 +3,7 @@ package filterutil
 import (
 	"reflect"
 
+	"github.com/opencost/opencost/core/pkg/filter/fieldstrings"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/mapper"
@@ -92,6 +93,16 @@ var AssetPropToV1FilterParamKey = map[opencost.AssetProperty]string{
 	opencost.AssetProviderProp:   ParamFilterProviders,
 	opencost.AssetProviderIDProp: ParamFilterProviderIDs,
 	opencost.AssetServiceProp:    ParamFilterServices,
+}
+
+var CloudPropToV1FilterParamKey = map[string]string{
+	fieldstrings.FieldAccountID:       ParamFilterAccountIDs,
+	fieldstrings.FieldCategory:        ParamFilterCategories,
+	fieldstrings.FieldInvoiceEntityID: ParamFilterInvoiceEntityIDs,
+	fieldstrings.FieldLabel:           ParamFilterLabels,
+	fieldstrings.FieldProvider:        ParamFilterProviders,
+	fieldstrings.FieldProviderID:      ParamFilterProviderIDs,
+	fieldstrings.FieldService:         ParamFilterServices,
 }
 
 // AllHTTPParamKeys returns all HTTP GET parameters used for v1 filters. It is
