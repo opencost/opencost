@@ -5,10 +5,10 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/filter"
 	"github.com/opencost/opencost/core/pkg/opencost"
-	"github.com/opencost/opencost/core/pkg/util/httputil"
+	"github.com/opencost/opencost/core/pkg/util/mapper"
 )
 
-func ParseCustomCostTotalRequest(qp httputil.QueryParams) (*CostTotalRequest, error) {
+func ParseCustomCostTotalRequest(qp mapper.PrimitiveMap) (*CostTotalRequest, error) {
 	windowStr := qp.Get("window", "")
 	if windowStr == "" {
 		return nil, fmt.Errorf("missing require window param")
@@ -27,6 +27,8 @@ func ParseCustomCostTotalRequest(qp httputil.QueryParams) (*CostTotalRequest, er
 	if err != nil {
 		return nil, err
 	}
+
+	accumulate := opencost.ParseAccumulate(qp.Get("accumulate", "day"))
 
 	var filter filter.Filter
 	filterString := qp.Get("filter", "")
@@ -42,13 +44,14 @@ func ParseCustomCostTotalRequest(qp httputil.QueryParams) (*CostTotalRequest, er
 		Start:       *window.Start(),
 		End:         *window.End(),
 		AggregateBy: aggregateBy,
+		Accumulate:  accumulate,
 		Filter:      filter,
 	}
 
 	return opts, nil
 }
 
-func ParseCustomCostTimeseriesRequest(qp httputil.QueryParams) (*CostTimeseriesRequest, error) {
+func ParseCustomCostTimeseriesRequest(qp mapper.PrimitiveMap) (*CostTimeseriesRequest, error) {
 	windowStr := qp.Get("window", "")
 	if windowStr == "" {
 		return nil, fmt.Errorf("missing require window param")
@@ -68,7 +71,7 @@ func ParseCustomCostTimeseriesRequest(qp httputil.QueryParams) (*CostTimeseriesR
 		return nil, err
 	}
 
-	accumulate := opencost.ParseAccumulate(qp.Get("accumulate", ""))
+	accumulate := opencost.ParseAccumulate(qp.Get("accumulate", "day"))
 
 	var filter filter.Filter
 	filterString := qp.Get("filter", "")
