@@ -28,6 +28,8 @@ func ParseCustomCostTotalRequest(qp httputil.QueryParams) (*CostTotalRequest, er
 		return nil, err
 	}
 
+	accumulate := opencost.ParseAccumulate(qp.Get("accumulate", "day"))
+
 	var filter filter.Filter
 	filterString := qp.Get("filter", "")
 	if filterString != "" {
@@ -42,6 +44,7 @@ func ParseCustomCostTotalRequest(qp httputil.QueryParams) (*CostTotalRequest, er
 		Start:       *window.Start(),
 		End:         *window.End(),
 		AggregateBy: aggregateBy,
+		Accumulate:  accumulate,
 		Filter:      filter,
 	}
 
@@ -68,7 +71,7 @@ func ParseCustomCostTimeseriesRequest(qp httputil.QueryParams) (*CostTimeseriesR
 		return nil, err
 	}
 
-	accumulate := opencost.ParseAccumulate(qp.Get("accumulate", ""))
+	accumulate := opencost.ParseAccumulate(qp.Get("accumulate", "day"))
 
 	var filter filter.Filter
 	filterString := qp.Get("filter", "")
