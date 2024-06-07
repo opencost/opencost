@@ -1786,9 +1786,9 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 }
 
 // InitializeCloudCost Initializes Cloud Cost pipeline and querier and registers endpoints
-func InitializeCloudCost(router *httprouter.Router, cp models.Provider) {
+func InitializeCloudCost(router *httprouter.Router, providerConfig models.ProviderConfig) {
 	log.Debugf("Cloud Cost config path: %s", env.GetCloudCostConfigPath())
-	cloudConfigController := cloudconfig.NewController(cp)
+	cloudConfigController := cloudconfig.NewMemoryController(providerConfig)
 
 	repo := cloudcost.NewMemoryRepository()
 	cloudCostPipelineService := cloudcost.NewPipelineService(repo, cloudConfigController, cloudcost.DefaultIngestorConfiguration())
