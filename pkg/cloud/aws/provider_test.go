@@ -103,17 +103,46 @@ func Test_awsKey_getUsageType(t *testing.T) {
 	}
 }
 
+// Test_PricingData_Regression
+//
+// Objective: To test the pricing data download and validate the schema is still
+// as expected
+func Test_PricingData_Regression(t *testing.T) {
+	awsRegions := []string{"us-east-1", "us-west-2", "eu-west-1"}
+
+	for _, region := range awsRegions {
+		node := v1.Node{}
+		node.SetLabels(map[string]string{"topology.kubernetes.io/region": region})
+
+		awsTest := AWS{}
+		res, _, err := awsTest.getRegionPricing([]*v1.Node{&node})
+		if err != nil {
+			t.Errorf("Failed to download pricing data for region %s: %v", region, err)
+		}
+
+		awsTest.populatePricing(res, map[string]bool{})
+	}
+
+	// Check the schema to validate that marketOption is only CapacityBlock or OnDemand
+}
+
 // Test_populate_pricing
 //
 // Objective: To test core pricing population logic for AWS
 //
-//	Case 0: US endpoints
-//	 Take a portion of json returned from ondemand terms in us endpoints
-//	 load the request into the http response and give it to the function
-//	 inspect the resulting aws object after the function returns and validate fields
-//	Case 1: Chinese endpoints
-//	 Same as above US test case, except using CN PV offer codes
-//	 Validate populated fields in AWS object
+// Case 0: US endpoints
+// Take a portion of json returned from ondemand terms in us endpoints load the
+// request into the http response and give it to the function inspect the
+// resulting aws object after the function returns and validate fields
+//
+// Case 1: Ensure marketOption=OnDemand
+// AWS introduced the field marketOption. We need to further filter for
+// marketOption=OnDemand to ensure we are not getting pricing from a line item
+// such as marketOption=CapacityBlock
+//
+// Case 2: Chinese endpoints
+// Same as above US test case, except using CN PV offer codes. Validate
+// populated fields in AWS object
 func Test_populate_pricing(t *testing.T) {
 	awsTest := AWS{
 		ValidPricingKeys: map[string]bool{},
@@ -388,7 +417,7 @@ func Test_populate_pricing(t *testing.T) {
 	inputkeysCase1 := map[string]bool{
 		"us-east-1,p4d.24xlarge,linux": true,
 	}
-	awsUSEast1String := `
+	pricingCase1 := `
 	{
 		"formatVersion" : "v1.0",
 		"disclaimer" : "This pricing list is for informational purposes only. All prices are subject to the additional terms included in the pricing pages on http://aws.amazon.com. All Free Tier prices are also subject to the terms included at https://aws.amazon.com/free/",
@@ -532,7 +561,7 @@ func Test_populate_pricing(t *testing.T) {
 	`
 
 	testResponseCase1 := http.Response{
-		Body: io.NopCloser(bytes.NewBufferString(awsUSEast1String)),
+		Body: io.NopCloser(bytes.NewBufferString(pricingCase1)),
 		Request: &http.Request{
 			URL: &url.URL{
 				Scheme: "https",

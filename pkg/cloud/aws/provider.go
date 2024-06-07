@@ -1000,6 +1000,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 
 				if product.Attributes.PreInstalledSw == "NA" &&
 					(strings.HasPrefix(product.Attributes.UsageType, "BoxUsage") || strings.Contains(product.Attributes.UsageType, "-BoxUsage")) &&
+					// product.Attributes.CapacityStatus == "Used" {
 					product.Attributes.CapacityStatus == "Used" &&
 					product.Attributes.MarketOption == "OnDemand" {
 					key := aws.KubeAttrConversion(product.Attributes.RegionCode, product.Attributes.InstanceType, product.Attributes.OperatingSystem)
@@ -1354,7 +1355,6 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 	}
 	// Throw error if public price is not found
 	if !publicPricingFound {
-		log.Errorf("For node \"%s\", cannot find the following key in OnDemand pricing data \"%s\"", k.ID(), k.Features())
 		return nil, meta, fmt.Errorf("for node \"%s\", cannot find the following key in OnDemand pricing data \"%s\"", k.ID(), k.Features())
 	}
 
@@ -1385,12 +1385,9 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 	meta := models.PricingMetadata{}
 
 	terms, ok := aws.Pricing[key]
-
-	// Temporary debug logs
-	log.Infof("THOMAS: Key: %s", key)
-	termsStr, _ := json.Marshal(terms)
-	log.Infof("THOMAS: Terms: %s", string(termsStr))
-
+	if termsStr, err := json.Marshal(terms); err == nil {
+		log.Debugf("NodePricing: for key \"%s\" found the following OnDemand data: %s", key, string(termsStr))
+	}
 	if ok {
 		return aws.createNode(terms, usageType, k)
 	} else if _, ok := aws.ValidPricingKeys[key]; ok {
