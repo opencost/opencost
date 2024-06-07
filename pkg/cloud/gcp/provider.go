@@ -643,6 +643,16 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 		} else if err != nil {
 			return nil, "", fmt.Errorf("error parsing GCP pricing page: %s", err)
 		}
+		if t == "error" {
+			errReader := dec.Buffered()
+			buf := new(strings.Builder)
+			_, err = io.Copy(buf, errReader)
+			if err != nil {
+				return nil, "", fmt.Errorf("error respnse: could not be read %s", err)
+			}
+
+			return nil, "", fmt.Errorf("error respnse: %s", buf.String())
+		}
 		if t == "skus" {
 			_, err := dec.Token() // consumes [
 			if err != nil {
