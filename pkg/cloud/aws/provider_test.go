@@ -107,9 +107,13 @@ func Test_awsKey_getUsageType(t *testing.T) {
 //
 // Objective: To test the pricing data download and validate the schema is still
 // as expected
+//
+// These tests may take a long time to complete. It is downloading AWS Pricing
+// data files (~500MB) for each region.
 func Test_PricingData_Regression(t *testing.T) {
-	awsRegions := []string{"us-east-1", "us-west-2", "eu-west-1"}
+	awsRegions := []string{"us-east-1", "eu-west-1"}
 
+	// Check pricing data produced for each region
 	for _, region := range awsRegions {
 		node := v1.Node{}
 		node.SetLabels(map[string]string{"topology.kubernetes.io/region": region})
@@ -120,10 +124,29 @@ func Test_PricingData_Regression(t *testing.T) {
 			t.Errorf("Failed to download pricing data for region %s: %v", region, err)
 		}
 
-		awsTest.populatePricing(res, map[string]bool{})
-	}
+		// Unmarshal pricing data into AWSPricing
+		var pricingData AWSPricing
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			t.Errorf("Failed to read pricing data for region %s: %v", region, err)
+		}
+		err = json.Unmarshal(body, &pricingData)
+		if err != nil {
+			t.Errorf("Failed to unmarshal pricing data for region %s: %v", region, err)
+		}
 
-	// Check the schema to validate that marketOption is only CapacityBlock or OnDemand
+		// ASSERTION. We only anticipate "OnDemand" or "CapacityBlock" in the
+		// pricing data.
+		//
+		// Failing this test does not necessarily mean we have regressed. Just
+		// that we need to revisit this code to ensure OnDemand pricing is still
+		// functioning as expected.
+		for _, product := range pricingData.Products {
+			if product.Attributes.MarketOption != "OnDemand" && product.Attributes.MarketOption != "CapacityBlock" && product.Attributes.MarketOption != "" {
+				t.Errorf("Invalid marketOption for product %s: %s", product.Sku, product.Attributes.MarketOption)
+			}
+		}
+	}
 }
 
 // Test_populate_pricing
