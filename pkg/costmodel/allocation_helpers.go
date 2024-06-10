@@ -1913,7 +1913,7 @@ func applyPVBytes(pvMap map[pvKey]*pv, resPVBytes []*prom.QueryResult) {
 		}
 
 		if _, ok := pvMap[key]; !ok {
-			log.Warnf("CostModel.ComputeAllocation: pv bytes result for missing pv: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: pv bytes result for missing pv: %s", key)
 			continue
 		}
 
