@@ -855,12 +855,16 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			path := filepath.Join(tempDir, configFile)
 			defer os.Remove(path)
 
+			storage := &FileControllerStorage{
+				path: path,
+			}
+
 			// Initialize controller
 			icd := &Controller{
-				path:     path,
+				storage:  storage,
 				watchers: tc.configWatchers,
 			}
-			err = icd.save(initialStatuses)
+			err = icd.storage.save(initialStatuses)
 			if err != nil {
 				t.Errorf("failed to save initial statuses: %s", err.Error())
 			}
@@ -869,7 +873,7 @@ func TestIntegrationController_pullWatchers(t *testing.T) {
 			icd.pullWatchers()
 
 			// Test Result
-			status, err := icd.load()
+			status, err := icd.storage.load()
 			if err != nil {
 				t.Errorf("failed to load status file: %s", err.Error())
 			}
@@ -964,11 +968,15 @@ func TestIntegrationController_CreateConfig(t *testing.T) {
 			path := filepath.Join(tempDir, configFile)
 			defer os.Remove(path)
 
-			// Initialize controller
-			icd := &Controller{
+			storage := &FileControllerStorage{
 				path: path,
 			}
-			err = icd.save(initialStatuses)
+
+			// Initialize controller
+			icd := &Controller{
+				storage: storage,
+			}
+			err = icd.storage.save(initialStatuses)
 			if err != nil {
 				t.Errorf("failed to save initial statuses: %s", err.Error())
 			}
@@ -984,7 +992,7 @@ func TestIntegrationController_CreateConfig(t *testing.T) {
 				t.Errorf("no error where expect")
 			}
 
-			status, err := icd.load()
+			status, err := icd.storage.load()
 			if err != nil {
 				t.Errorf("failed to load status file: %s", err.Error())
 			}
@@ -1078,11 +1086,16 @@ func TestIntegrationController_EnableConfig(t *testing.T) {
 			path := filepath.Join(tempDir, configFile)
 			defer os.Remove(path)
 
-			// Initialize controller
-			icd := &Controller{
+			storage := &FileControllerStorage{
 				path: path,
 			}
-			err = icd.save(initialStatuses)
+
+			// Initialize controller
+			icd := &Controller{
+				storage: storage,
+			}
+
+			err = icd.storage.save(initialStatuses)
 			if err != nil {
 				t.Errorf("failed to save initial statuses: %s", err.Error())
 			}
@@ -1098,7 +1111,7 @@ func TestIntegrationController_EnableConfig(t *testing.T) {
 				t.Errorf("no error where expect")
 			}
 
-			status, err := icd.load()
+			status, err := icd.storage.load()
 			if err != nil {
 				t.Errorf("failed to load status file: %s", err.Error())
 			}
@@ -1194,11 +1207,16 @@ func TestIntegrationController_DisableConfig(t *testing.T) {
 			path := filepath.Join(tempDir, configFile)
 			defer os.Remove(path)
 
-			// Initialize controller
-			icd := &Controller{
+			storage := &FileControllerStorage{
 				path: path,
 			}
-			err = icd.save(initialStatuses)
+
+			// Initialize controller
+			icd := &Controller{
+				storage: storage,
+			}
+
+			err = icd.storage.save(initialStatuses)
 			if err != nil {
 				t.Errorf("failed to save initial statuses: %s", err.Error())
 			}
@@ -1214,7 +1232,7 @@ func TestIntegrationController_DisableConfig(t *testing.T) {
 				t.Errorf("no error where expect")
 			}
 
-			status, err := icd.load()
+			status, err := icd.storage.load()
 			if err != nil {
 				t.Errorf("failed to load status file: %s", err.Error())
 			}
@@ -1289,11 +1307,16 @@ func TestIntegrationController_DeleteConfig(t *testing.T) {
 			path := filepath.Join(tempDir, configFile)
 			defer os.Remove(path)
 
-			// Initialize controller
-			icd := &Controller{
+			storage := &FileControllerStorage{
 				path: path,
 			}
-			err = icd.save(initialStatuses)
+
+			// Initialize controller
+			icd := &Controller{
+				storage: storage,
+			}
+
+			err = icd.storage.save(initialStatuses)
 			if err != nil {
 				t.Errorf("failed to save initial statuses: %s", err.Error())
 			}
@@ -1309,7 +1332,7 @@ func TestIntegrationController_DeleteConfig(t *testing.T) {
 				t.Errorf("no error where expect")
 			}
 
-			status, err := icd.load()
+			status, err := icd.storage.load()
 			if err != nil {
 				t.Errorf("failed to load status file: %s", err.Error())
 			}
