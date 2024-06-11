@@ -1000,7 +1000,6 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 
 				if product.Attributes.PreInstalledSw == "NA" &&
 					(strings.HasPrefix(product.Attributes.UsageType, "BoxUsage") || strings.Contains(product.Attributes.UsageType, "-BoxUsage")) &&
-					// product.Attributes.CapacityStatus == "Used" {
 					product.Attributes.CapacityStatus == "Used" &&
 					product.Attributes.MarketOption == "OnDemand" {
 					key := aws.KubeAttrConversion(product.Attributes.RegionCode, product.Attributes.InstanceType, product.Attributes.OperatingSystem)
