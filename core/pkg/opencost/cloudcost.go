@@ -345,6 +345,7 @@ func (ccs *CloudCostSet) Insert(cc *CloudCost) error {
 		ccs.CloudCosts = map[string]*CloudCost{}
 	}
 
+	// If the Aggregation properties is not set the returned key will be a hash of the properties values
 	ccKey := cc.Properties.GenerateKey(ccs.AggregationProperties)
 
 	// Add the given CloudCost to the existing entry, if there is one;

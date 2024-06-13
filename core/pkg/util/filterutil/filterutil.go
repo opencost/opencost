@@ -15,7 +15,6 @@ import (
 	assetfilter "github.com/opencost/opencost/core/pkg/filter/asset"
 	"github.com/opencost/opencost/core/pkg/filter/ast"
 	cloudcostfilter "github.com/opencost/opencost/core/pkg/filter/cloudcost"
-	// cloudfilter "github.com/opencost/opencost/core/pkg/filter/cloud"
 )
 
 // ============================================================================
@@ -29,8 +28,9 @@ import (
 // funcs by Field type.
 var defaultFieldByType = map[string]any{
 	// typeutil.TypeOf[cloudfilter.CloudAggregationField](): cloudfilter.DefaultFieldByName,
-	typeutil.TypeOf[afilter.AllocationField](): afilter.DefaultFieldByName,
-	typeutil.TypeOf[assetfilter.AssetField]():  assetfilter.DefaultFieldByName,
+	typeutil.TypeOf[afilter.AllocationField]():        afilter.DefaultFieldByName,
+	typeutil.TypeOf[assetfilter.AssetField]():         assetfilter.DefaultFieldByName,
+	typeutil.TypeOf[cloudcostfilter.CloudCostField](): cloudcostfilter.DefaultFieldByName,
 }
 
 // DefaultFieldByName looks up a specific T field instance by name and returns the default

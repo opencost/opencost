@@ -248,6 +248,7 @@ type AWSProduct struct {
 // AWSProductAttributes represents metadata about the product used to map to a node.
 type AWSProductAttributes struct {
 	Location        string `json:"location"`
+	RegionCode      string `json:"regionCode"`
 	InstanceType    string `json:"instanceType"`
 	Memory          string `json:"memory"`
 	Storage         string `json:"storage"`
@@ -346,36 +347,6 @@ var volTypes = map[string]string{
 	"st1":                    "EBS:VolumeUsage.st1",
 }
 
-// locationToRegion maps AWS region names (As they come from Billing)
-// to actual region identifiers
-var locationToRegion = map[string]string{
-	"US East (Ohio)":            "us-east-2",
-	"US East (N. Virginia)":     "us-east-1",
-	"US West (N. California)":   "us-west-1",
-	"US West (Oregon)":          "us-west-2",
-	"Asia Pacific (Hong Kong)":  "ap-east-1",
-	"Asia Pacific (Mumbai)":     "ap-south-1",
-	"Asia Pacific (Osaka)":      "ap-northeast-3",
-	"Asia Pacific (Seoul)":      "ap-northeast-2",
-	"Asia Pacific (Singapore)":  "ap-southeast-1",
-	"Asia Pacific (Sydney)":     "ap-southeast-2",
-	"Asia Pacific (Tokyo)":      "ap-northeast-1",
-	"Asia Pacific (Jakarta)":    "ap-southeast-3",
-	"Canada (Central)":          "ca-central-1",
-	"China (Beijing)":           "cn-north-1",
-	"China (Ningxia)":           "cn-northwest-1",
-	"EU (Frankfurt)":            "eu-central-1",
-	"EU (Ireland)":              "eu-west-1",
-	"EU (London)":               "eu-west-2",
-	"EU (Paris)":                "eu-west-3",
-	"EU (Stockholm)":            "eu-north-1",
-	"EU (Milan)":                "eu-south-1",
-	"South America (Sao Paulo)": "sa-east-1",
-	"Africa (Cape Town)":        "af-south-1",
-	"AWS GovCloud (US-East)":    "us-gov-east-1",
-	"AWS GovCloud (US-West)":    "us-gov-west-1",
-}
-
 var loadedAWSSecret bool = false
 var awsSecret *AWSAccessKey = nil
 
@@ -383,11 +354,10 @@ func (aws *AWS) GetLocalStorageQuery(window, offset time.Duration, rate bool, us
 	return ""
 }
 
-// KubeAttrConversion maps the k8s labels for region to an aws region
-func (aws *AWS) KubeAttrConversion(location, instanceType, operatingSystem string) string {
+// KubeAttrConversion maps the k8s labels for region to an AWS key
+func (aws *AWS) KubeAttrConversion(region, instanceType, operatingSystem string) string {
 	operatingSystem = strings.ToLower(operatingSystem)
 
-	region := locationToRegion[location]
 	return region + "," + instanceType + "," + operatingSystem
 }
 
@@ -1030,7 +1000,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 				if product.Attributes.PreInstalledSw == "NA" &&
 					(strings.HasPrefix(product.Attributes.UsageType, "BoxUsage") || strings.Contains(product.Attributes.UsageType, "-BoxUsage")) &&
 					product.Attributes.CapacityStatus == "Used" {
-					key := aws.KubeAttrConversion(product.Attributes.Location, product.Attributes.InstanceType, product.Attributes.OperatingSystem)
+					key := aws.KubeAttrConversion(product.Attributes.RegionCode, product.Attributes.InstanceType, product.Attributes.OperatingSystem)
 					spotKey := key + ",preemptible"
 					if inputkeys[key] || inputkeys[spotKey] { // Just grab the sku even if spot, and change the price later.
 						productTerms := &AWSProductTerms{
@@ -1051,11 +1021,11 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 					// volTypes to keep lookups generic
 					usageTypeMatch := usageTypeRegx.FindStringSubmatch(product.Attributes.UsageType)
 					usageTypeNoRegion := usageTypeMatch[len(usageTypeMatch)-1]
-					key := locationToRegion[product.Attributes.Location] + "," + usageTypeNoRegion
+					key := product.Attributes.RegionCode + "," + usageTypeNoRegion
 					spotKey := key + ",preemptible"
 					pv := &models.PV{
 						Class:  volTypes[usageTypeNoRegion],
-						Region: locationToRegion[product.Attributes.Location],
+						Region: product.Attributes.RegionCode,
 					}
 					productTerms := &AWSProductTerms{
 						Sku: product.Sku,
@@ -1382,8 +1352,8 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 	}
 	// Throw error if public price is not found
 	if !publicPricingFound {
-		log.Errorf("Could not fetch data for \"%s\"", k.ID())
-		return nil, meta, fmt.Errorf("Could not fetch data for \"%s\"", k.ID())
+		log.Errorf("For node \"%s\", cannot find the following key in OnDemand pricing data \"%s\"", k.ID(), k.Features())
+		return nil, meta, fmt.Errorf("for node \"%s\", cannot find the following key in OnDemand pricing data \"%s\"", k.ID(), k.Features())
 	}
 
 	return &models.Node{

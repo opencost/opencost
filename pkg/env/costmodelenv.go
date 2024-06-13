@@ -36,6 +36,7 @@ const (
 	RemotePWEnvVar                 = "REMOTE_WRITE_PASSWORD"
 	SQLAddressEnvVar               = "SQL_ADDRESS"
 	UseCSVProviderEnvVar           = "USE_CSV_PROVIDER"
+	UseCustomProviderEnvVar        = "USE_CUSTOM_PROVIDER"
 	CSVRegionEnvVar                = "CSV_REGION"
 	CSVEndpointEnvVar              = "CSV_ENDPOINT"
 	CSVPathEnvVar                  = "CSV_PATH"
@@ -107,6 +108,8 @@ const (
 	AllocationNodeLabelsEnabled     = "ALLOCATION_NODE_LABELS_ENABLED"
 	AllocationNodeLabelsIncludeList = "ALLOCATION_NODE_LABELS_INCLUDE_LIST"
 
+	AssetIncludeLocalDiskCostEnvVar = "ASSET_INCLUDE_LOCAL_DISK_COST"
+
 	regionOverrideList = "REGION_OVERRIDE_LIST"
 
 	ExportCSVFile       = "EXPORT_CSV_FILE"
@@ -114,7 +117,8 @@ const (
 	ExportCSVLabelsAll  = "EXPORT_CSV_LABELS_ALL"
 	ExportCSVMaxDays    = "EXPORT_CSV_MAX_DAYS"
 
-	DataRetentionDailyResolutionDaysEnvVar = "DATA_RETENTION_DAILY_RESOLUTION_DAYS"
+	DataRetentionDailyResolutionDaysEnvVar   = "DATA_RETENTION_DAILY_RESOLUTION_DAYS"
+	DataRetentionHourlyResolutionHoursEnvVar = "DATA_RETENTION_HOURLY_RESOLUTION_HOURS"
 
 	// We assume that Kubernetes is enabled if there is a KUBERNETES_PORT environment variable present
 	KubernetesEnabledEnvVar         = "KUBERNETES_PORT"
@@ -125,7 +129,16 @@ const (
 	CloudCostQueryWindowDaysEnvVar  = "CLOUD_COST_QUERY_WINDOW_DAYS"
 	CloudCostRunWindowDaysEnvVar    = "CLOUD_COST_RUN_WINDOW_DAYS"
 
+	CustomCostEnabledEnvVar          = "CUSTOM_COST_ENABLED"
+	CustomCostQueryWindowDaysEnvVar  = "CUSTOM_COST_QUERY_WINDOW_DAYS"
+	CustomCostRefreshRateHoursEnvVar = "CUSTOM_COST_REFRESH_RATE_HOURS"
+
+	PluginConfigDirEnvVar     = "PLUGIN_CONFIG_DIR"
+	PluginExecutableDirEnvVar = "PLUGIN_EXECUTABLE_DIR"
+
 	OCIPricingURL = "OCI_PRICING_URL"
+
+	CarbonEstimatesEnabledEnvVar = "CARBON_ESTIMATES_ENABLED"
 )
 
 const DefaultConfigMountPath = "/var/configs"
@@ -399,6 +412,12 @@ func IsUseCSVProvider() bool {
 	return env.GetBool(UseCSVProviderEnvVar, false)
 }
 
+// IsUseCustomProvider returns the environment variable value for UseCustomProviderEnvVar which represents
+// whether or not the use of a custom cost provider is enabled.
+func IsUseCustomProvider() bool {
+	return env.GetBool(UseCustomProviderEnvVar, false)
+}
+
 // GetCSVRegion returns the environment variable value for CSVRegionEnvVar which represents the
 // region configured for a CSV provider.
 func GetCSVRegion() string {
@@ -623,6 +642,10 @@ func GetAllocationNodeLabelsIncludeList() []string {
 	return list
 }
 
+func GetAssetIncludeLocalDiskCost() bool {
+	return env.GetBool(AssetIncludeLocalDiskCostEnvVar, true)
+}
+
 func GetRegionOverrideList() []string {
 	regionList := env.GetList(regionOverrideList, ",")
 
@@ -634,7 +657,11 @@ func GetRegionOverrideList() []string {
 }
 
 func GetDataRetentionDailyResolutionDays() int64 {
-	return env.GetInt64(DataRetentionDailyResolutionDaysEnvVar, 15)
+	return env.GetInt64(DataRetentionDailyResolutionDaysEnvVar, 30)
+}
+
+func GetDataRetentionHourlyResolutionHours() int64 {
+	return env.GetInt64(DataRetentionHourlyResolutionHoursEnvVar, 49)
 }
 
 func IsKubernetesEnabled() bool {
@@ -643,6 +670,10 @@ func IsKubernetesEnabled() bool {
 
 func IsCloudCostEnabled() bool {
 	return env.GetBool(CloudCostEnabledEnvVar, false)
+}
+
+func IsCustomCostEnabled() bool {
+	return env.GetBool(CustomCostEnabledEnvVar, false)
 }
 
 func GetCloudCostConfigPath() string {
@@ -661,10 +692,34 @@ func GetCloudCostQueryWindowDays() int64 {
 	return env.GetInt64(CloudCostQueryWindowDaysEnvVar, 7)
 }
 
+func GetCustomCostQueryWindowHours() int64 {
+	return env.GetInt64(CustomCostQueryWindowDaysEnvVar, 1)
+}
+
+func GetCustomCostQueryWindowDays() int64 {
+	return env.GetInt64(CustomCostQueryWindowDaysEnvVar, 7)
+}
+
 func GetCloudCostRunWindowDays() int64 {
 	return env.GetInt64(CloudCostRunWindowDaysEnvVar, 3)
 }
 
 func GetOCIPricingURL() string {
 	return env.Get(OCIPricingURL, "https://apexapps.oracle.com/pls/apex/cetools/api/v1/products")
+}
+
+func GetPluginConfigDir() string {
+	return env.Get(PluginConfigDirEnvVar, "/opt/opencost/plugin/config")
+}
+
+func GetPluginExecutableDir() string {
+	return env.Get(PluginExecutableDirEnvVar, "/opt/opencost/plugin/bin")
+}
+
+func GetCustomCostRefreshRateHours() string {
+	return env.Get(CustomCostRefreshRateHoursEnvVar, "12h")
+}
+
+func IsCarbonEstimatesEnabled() bool {
+	return env.GetBool(CarbonEstimatesEnabledEnvVar, false)
 }

@@ -42,6 +42,9 @@ func (sc *StorageConnection) getBlobURLTemplate() string {
 	// Use gov cloud blob url if gov is detected in AzureCloud
 	if strings.Contains(strings.ToLower(sc.Cloud), "gov") {
 		return "https://%s.blob.core.usgovcloudapi.net/%s"
+	} else if strings.Contains(strings.ToLower(sc.Cloud), "china") {
+		// Use China cloud blob url if china is detected in AzureCloud
+		return "https://%s.blob.core.chinacloudapi.cn/%s"
 	}
 	// default to Public Cloud template
 	return "https://%s.blob.core.windows.net/%s"
@@ -68,6 +71,12 @@ func (sc *StorageConnection) DownloadBlob(blobName string, client *azblob.Client
 	}
 
 	return downloadedData.Bytes(), nil
+}
+
+// StreamBlob returns an io.Reader for the given blob which uses a re-usable double buffer approach to stream directly
+// from blob storage.
+func (sc *StorageConnection) StreamBlob(blobName string, client *azblob.Client) (*StreamReader, error) {
+	return NewStreamReader(client, sc.Container, blobName)
 }
 
 // DownloadBlobToFile downloads the Azure Billing CSV to a local file

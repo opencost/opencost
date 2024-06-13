@@ -68,7 +68,10 @@ func (c *Scaleway) DownloadPricingData() error {
 		"fr-par-3": 0.00032,
 		"nl-ams-1": 0.00008,
 		"nl-ams-2": 0.00008,
+		"nl-ams-3": 0.00008,
 		"pl-waw-1": 0.00011,
+		"pl-waw-2": 0.00011,
+		"pl-waw-3": 0.00011,
 	}
 
 	c.Pricing = make(map[string]*ScalewayPricing)
@@ -229,7 +232,7 @@ func (c *Scaleway) PVPricing(pvk models.PVKey) (*models.PV, error) {
 
 	pricing, ok := c.Pricing[pvk.Features()]
 	if !ok {
-		log.Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
+		log.Debugf("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
 		return &models.PV{}, nil
 	}
 	return &models.PV{

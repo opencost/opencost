@@ -29,6 +29,8 @@ type SummaryAllocation struct {
 	CPUCoreRequestAverage  float64               `json:"cpuCoreRequestAverage"`
 	CPUCoreUsageAverage    float64               `json:"cpuCoreUsageAverage"`
 	CPUCost                float64               `json:"cpuCost"`
+	GPURequestAverage      float64               `json:"gpuRequestAverage"`
+	GPUUsageAverage        float64               `json:"gpuUsageAverage"`
 	GPUCost                float64               `json:"gpuCost"`
 	NetworkCost            float64               `json:"networkCost"`
 	LoadBalancerCost       float64               `json:"loadBalancerCost"`
@@ -40,6 +42,7 @@ type SummaryAllocation struct {
 	ExternalCost           float64               `json:"externalCost"`
 	Share                  bool                  `json:"-"`
 	UnmountedPVCost        float64               `json:"-"`
+	Efficiency             float64               `json:"efficiency"`
 }
 
 // NewSummaryAllocation converts an Allocation to a SummaryAllocation by
@@ -59,6 +62,8 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 		CPUCoreRequestAverage:  alloc.CPUCoreRequestAverage,
 		CPUCoreUsageAverage:    alloc.CPUCoreUsageAverage,
 		CPUCost:                alloc.CPUCost + alloc.CPUCostAdjustment,
+		GPURequestAverage:      alloc.GPURequestAverage,
+		GPUUsageAverage:        alloc.GPUUsageAverage,
 		GPUCost:                alloc.GPUCost + alloc.GPUCostAdjustment,
 		NetworkCost:            alloc.NetworkCost + alloc.NetworkCostAdjustment,
 		LoadBalancerCost:       alloc.LoadBalancerCost + alloc.LoadBalancerCostAdjustment,
@@ -88,7 +93,7 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 	if sa.IsUnmounted() {
 		sa.UnmountedPVCost = sa.PVCost
 	}
-
+	sa.Efficiency = sa.TotalEfficiency()
 	return sa
 }
 
@@ -120,6 +125,12 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 	ramUseByteMins := sa.RAMBytesUsageAverage * sa.Minutes()
 	ramUseByteMins += that.RAMBytesUsageAverage * that.Minutes()
 
+	gpuReqMins := sa.GPURequestAverage * sa.Minutes()
+	gpuReqMins += that.GPURequestAverage * that.Minutes()
+
+	gpuUseMins := sa.GPUUsageAverage * sa.Minutes()
+	gpuUseMins += that.GPUUsageAverage * that.Minutes()
+
 	// Expand Start and End to be the "max" of among the given Allocations
 	if that.Start.Before(sa.Start) {
 		sa.Start = that.Start
@@ -134,11 +145,15 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 		sa.CPUCoreUsageAverage = cpuUseCoreMins / sa.Minutes()
 		sa.RAMBytesRequestAverage = ramReqByteMins / sa.Minutes()
 		sa.RAMBytesUsageAverage = ramUseByteMins / sa.Minutes()
+		sa.GPURequestAverage = gpuReqMins / sa.Minutes()
+		sa.GPUUsageAverage = gpuUseMins / sa.Minutes()
 	} else {
 		sa.CPUCoreRequestAverage = 0.0
 		sa.CPUCoreUsageAverage = 0.0
 		sa.RAMBytesRequestAverage = 0.0
 		sa.RAMBytesUsageAverage = 0.0
+		sa.GPURequestAverage = 0.0
+		sa.GPUUsageAverage = 0.0
 	}
 
 	// Sum all cumulative cost fields
@@ -151,6 +166,7 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 	sa.RAMCost += that.RAMCost
 	sa.SharedCost += that.SharedCost
 
+	sa.Efficiency = sa.TotalEfficiency()
 	return nil
 }
 
@@ -164,6 +180,8 @@ func (sa *SummaryAllocation) Clone() *SummaryAllocation {
 		CPUCoreRequestAverage:  sa.CPUCoreRequestAverage,
 		CPUCoreUsageAverage:    sa.CPUCoreUsageAverage,
 		CPUCost:                sa.CPUCost,
+		GPURequestAverage:      sa.GPURequestAverage,
+		GPUUsageAverage:        sa.GPUUsageAverage,
 		GPUCost:                sa.GPUCost,
 		NetworkCost:            sa.NetworkCost,
 		LoadBalancerCost:       sa.LoadBalancerCost,
@@ -173,6 +191,7 @@ func (sa *SummaryAllocation) Clone() *SummaryAllocation {
 		RAMCost:                sa.RAMCost,
 		SharedCost:             sa.SharedCost,
 		ExternalCost:           sa.ExternalCost,
+		Efficiency:             sa.Efficiency,
 	}
 }
 
@@ -221,6 +240,14 @@ func (sa *SummaryAllocation) Equal(that *SummaryAllocation) bool {
 	}
 
 	if sa.CPUCost != that.CPUCost {
+		return false
+	}
+
+	if sa.GPURequestAverage != that.GPURequestAverage {
+		return false
+	}
+
+	if sa.GPUUsageAverage != that.GPUUsageAverage {
 		return false
 	}
 

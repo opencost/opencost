@@ -1,5 +1,9 @@
 package allocation
 
+import (
+	"github.com/opencost/opencost/core/pkg/filter/fieldstrings"
+)
+
 // AllocationField is an enum that represents Allocation-specific fields that can be
 // filtered on (namespace, label, etc.)
 type AllocationField string
@@ -8,17 +12,17 @@ type AllocationField string
 // Allocation value
 // does not enforce exhaustive pattern matching on "enum" types.
 const (
-	FieldClusterID      AllocationField = "cluster"
-	FieldNode           AllocationField = "node"
-	FieldNamespace      AllocationField = "namespace"
-	FieldControllerKind AllocationField = "controllerKind"
-	FieldControllerName AllocationField = "controllerName"
-	FieldPod            AllocationField = "pod"
-	FieldContainer      AllocationField = "container"
-	FieldProvider       AllocationField = "provider"
-	FieldServices       AllocationField = "services"
-	FieldLabel          AllocationField = "label"
-	FieldAnnotation     AllocationField = "annotation"
+	FieldClusterID      AllocationField = AllocationField(fieldstrings.FieldClusterID)
+	FieldNode           AllocationField = AllocationField(fieldstrings.FieldNode)
+	FieldNamespace      AllocationField = AllocationField(fieldstrings.FieldNamespace)
+	FieldControllerKind AllocationField = AllocationField(fieldstrings.FieldControllerKind)
+	FieldControllerName AllocationField = AllocationField(fieldstrings.FieldControllerName)
+	FieldPod            AllocationField = AllocationField(fieldstrings.FieldPod)
+	FieldContainer      AllocationField = AllocationField(fieldstrings.FieldContainer)
+	FieldProvider       AllocationField = AllocationField(fieldstrings.FieldProvider)
+	FieldServices       AllocationField = AllocationField(fieldstrings.FieldServices)
+	FieldLabel          AllocationField = AllocationField(fieldstrings.FieldLabel)
+	FieldAnnotation     AllocationField = AllocationField(fieldstrings.FieldAnnotation)
 )
 
 // AllocationAlias represents an alias field type for allocations.
@@ -30,9 +34,9 @@ const (
 type AllocationAlias string
 
 const (
-	AliasDepartment  AllocationAlias = "department"
-	AliasEnvironment AllocationAlias = "environment"
-	AliasOwner       AllocationAlias = "owner"
-	AliasProduct     AllocationAlias = "product"
-	AliasTeam        AllocationAlias = "team"
+	AliasDepartment  AllocationAlias = AllocationAlias(fieldstrings.AliasDepartment)
+	AliasEnvironment AllocationAlias = AllocationAlias(fieldstrings.AliasEnvironment)
+	AliasOwner       AllocationAlias = AllocationAlias(fieldstrings.AliasOwner)
+	AliasProduct     AllocationAlias = AllocationAlias(fieldstrings.AliasProduct)
+	AliasTeam        AllocationAlias = AllocationAlias(fieldstrings.AliasTeam)
 )

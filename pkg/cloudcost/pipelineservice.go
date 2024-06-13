@@ -35,9 +35,11 @@ func NewPipelineService(repo Repository, ic *config.Controller, ingConf Ingestor
 // Status merges status values from the config.Controller and the IngestionManager to give a combined view of that state
 // of configs and their ingestion status
 func (dp *PipelineService) Status() []Status {
-	var statuses []Status
 	// Pull config status from the config controller
 	confStatuses := dp.configController.GetStatus()
+
+	statuses := make([]Status, 0, len(confStatuses))
+
 	refreshRate := time.Hour * time.Duration(env.GetCloudCostRefreshRateHours())
 	for _, confStat := range confStatuses {
 		var conf cloudconfig.Config

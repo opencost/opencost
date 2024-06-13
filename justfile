@@ -6,8 +6,14 @@ commit := `git rev-parse --short HEAD`
 default:
     just --list
 
+# run core unit tests
+test-core: 
+    {{commonenv}} cd ./core && go test ./... -coverprofile=coverage.out
+    {{commonenv}} cd ./core && go vet ./...
+
+
 # Run unit tests
-test:
+test: test-core
     {{commonenv}} go test ./... -coverprofile=coverage.out
     {{commonenv}} go vet ./...
 
@@ -66,3 +72,7 @@ build IMAGE_TAG RELEASE_VERSION: test (build-binary RELEASE_VERSION)
         --platforms "linux/amd64,linux/arm64" \
         --template {{IMAGE_TAG}}-ARCH \
         --target {{IMAGE_TAG}}
+
+validate-protobuf:
+    ./generate.sh
+    git diff --exit-code

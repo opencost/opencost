@@ -320,11 +320,11 @@ func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
 			akey := strings.Join(mf[2:len(mf)], ".")
 			return toReturn + n.Annotations[akey]
 		} else {
-			log.Errorf("Unsupported InstanceIDField %s in CSV For Node", m)
+			log.DedupedInfof(10, "Unsupported InstanceIDField %s in CSV For Node", m)
 			return ""
 		}
 	} else {
-		log.Errorf("Unsupported InstanceIDField %s in CSV For Node", m)
+		log.DedupedInfof(10, "Unsupported InstanceIDField %s in CSV For Node", m)
 		return ""
 	}
 }
@@ -418,7 +418,7 @@ func (c *CSVProvider) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	defer c.DownloadPricingDataLock.RUnlock()
 	pricing, ok := c.PricingPV[pvk.Features()]
 	if !ok {
-		log.Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
+		log.Debugf("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
 		return &models.PV{}, nil
 	}
 	return &models.PV{
