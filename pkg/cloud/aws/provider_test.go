@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"reflect"
 	"testing"
 
@@ -111,6 +112,10 @@ func Test_awsKey_getUsageType(t *testing.T) {
 // These tests may take a long time to complete. It is downloading AWS Pricing
 // data files (~500MB) for each region.
 func Test_PricingData_Regression(t *testing.T) {
+	if os.Getenv("INTEGRATION") == "" {
+		t.Skip("skipping integration tests, set environment variable INTEGRATION")
+	}
+
 	awsRegions := []string{"us-east-1", "eu-west-1"}
 
 	// Check pricing data produced for each region
