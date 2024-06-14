@@ -258,6 +258,7 @@ type AWSProductAttributes struct {
 	InstanceFamily  string `json:"instanceFamily"`
 	CapacityStatus  string `json:"capacitystatus"`
 	GPU             string `json:"gpu"` // GPU represents the number of GPU on the instance
+	MarketOption    string `json:"marketOption"`
 }
 
 // AWSPricingTerms are how you pay for the node: OnDemand, Reserved, or (TODO) Spot
@@ -1029,7 +1030,8 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 
 				if product.Attributes.PreInstalledSw == "NA" &&
 					(strings.HasPrefix(product.Attributes.UsageType, "BoxUsage") || strings.Contains(product.Attributes.UsageType, "-BoxUsage")) &&
-					product.Attributes.CapacityStatus == "Used" {
+					product.Attributes.CapacityStatus == "Used" &&
+					product.Attributes.MarketOption == "OnDemand" {
 					key := aws.KubeAttrConversion(product.Attributes.Location, product.Attributes.InstanceType, product.Attributes.OperatingSystem)
 					spotKey := key + ",preemptible"
 					if inputkeys[key] || inputkeys[spotKey] { // Just grab the sku even if spot, and change the price later.
@@ -1382,8 +1384,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 	}
 	// Throw error if public price is not found
 	if !publicPricingFound {
-		log.Errorf("Could not fetch data for \"%s\"", k.ID())
-		return nil, meta, fmt.Errorf("Could not fetch data for \"%s\"", k.ID())
+		return nil, meta, fmt.Errorf("for node \"%s\", cannot find the following key in OnDemand pricing data \"%s\"", k.ID(), k.Features())
 	}
 
 	return &models.Node{
@@ -1413,6 +1414,9 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 	meta := models.PricingMetadata{}
 
 	terms, ok := aws.Pricing[key]
+	if termsStr, err := json.Marshal(terms); err == nil {
+		log.Debugf("NodePricing: for key \"%s\" found the following OnDemand data: %s", key, string(termsStr))
+	}
 	if ok {
 		return aws.createNode(terms, usageType, k)
 	} else if _, ok := aws.ValidPricingKeys[key]; ok {

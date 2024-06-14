@@ -11,11 +11,14 @@ test-core:
     {{commonenv}} cd ./core && go test ./... -coverprofile=coverage.out
     {{commonenv}} cd ./core && go vet ./...
 
-
 # Run unit tests
 test: test-core
     {{commonenv}} go test ./... -coverprofile=coverage.out
     {{commonenv}} go vet ./...
+
+# Run unit tests and integration tests
+test-integration:
+    {{commonenv}} INTEGRATION=true go test ./... -coverprofile=coverage.out
 
 # Compile a local binary
 build-local:
