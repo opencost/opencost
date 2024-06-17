@@ -169,3 +169,26 @@ func getProviderFromProviderID(providerid string) string {
 	return ""
 
 }
+
+func GetCarbonLookupKeyNode(provider string, region string, instanceType string) carbonLookupKeyNode {
+	return carbonLookupKeyNode{
+		provider:     provider,
+		region:       region,
+		instanceType: instanceType,
+	}
+}
+
+func GetCarbonLookupKeyDisk(provider string, region string) carbonLookupKeyNode {
+	return carbonLookupKeyNode{
+		provider: provider,
+		region:   region,
+	}
+}
+
+func (carbonLookupKeyNode carbonLookupKeyNode) GetCarbonCoeff() float64 {
+	return carbonLookupNode[carbonLookupKeyNode]
+}
+
+func (carbonLookupKeyDisk carbonLookupKeyDisk) GetCarbonCoeff() float64 {
+	return carbonLookupDisk[carbonLookupKeyDisk]
+}

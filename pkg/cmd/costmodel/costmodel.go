@@ -76,6 +76,9 @@ func Execute(opts *CostModelOpts) error {
 		customCostPipelineService = costmodel.InitializeCustomCost(router)
 	}
 
+	log.Infof("Carbon estimates enabled: %t", env.IsCarbonEstimatesEnabled())
+	log.Infof("Carbon metrics enabled: %t", env.IsCarbonMetricsEnabled())
+
 	// this endpoint is intentionally left out of the "if env.IsCustomCostEnabled()" conditional; in the handler, it is
 	// valid for CustomCostPipelineService to be nil
 	router.GET("/customCost/status", customCostPipelineService.GetCustomCostStatusHandler())

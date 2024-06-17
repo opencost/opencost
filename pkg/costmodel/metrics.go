@@ -12,6 +12,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/atomic"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
+	"github.com/opencost/opencost/pkg/carbon"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
@@ -134,6 +135,8 @@ var (
 	networkInternetEgressCostG prometheus.Gauge
 	clusterManagementCostGv    *prometheus.GaugeVec
 	lbCostGv                   *prometheus.GaugeVec
+	nodeCarbonCostGv           *prometheus.GaugeVec
+	diskCarbonCostGv           *prometheus.GaugeVec
 )
 
 // initCostModelMetrics uses a sync.Once to ensure that these metrics are only created once
@@ -273,6 +276,22 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 			toRegisterGV = append(toRegisterGV, lbCostGv)
 		}
 
+		nodeCarbonCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "node_carbon_cost_total",
+			Help: "node_carbon_cost_total Total carbon cost per node",
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
+		if _, disabled := disabledMetrics["node_carbon_cost_total"]; !disabled && env.IsCarbonMetricsEnabled() {
+			toRegisterGV = append(toRegisterGV, nodeCarbonCostGv)
+		}
+
+		diskCarbonCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "disk_carbon_cost_total",
+			Help: "disk_carbon_cost_total Total carbon cost per disk",
+		}, []string{"instance", "node", "region", "provider_id"})
+		if _, disabled := disabledMetrics["disk_carbon_cost_total"]; !disabled && env.IsCarbonMetricsEnabled() {
+			toRegisterGV = append(toRegisterGV, diskCarbonCostGv)
+		}
+
 		// Register cost-model metrics for emission
 		for _, gv := range toRegisterGV {
 			prometheus.MustRegister(gv)
@@ -318,6 +337,8 @@ type CostModelMetricsEmitter struct {
 	NetworkZoneEgressRecorder     prometheus.Gauge
 	NetworkRegionEgressRecorder   prometheus.Gauge
 	NetworkInternetEgressRecorder prometheus.Gauge
+	NodeCarbonCostRecorder        *prometheus.GaugeVec
+	DiskCarbonCostRecorder        *prometheus.GaugeVec
 
 	// Concurrent Flow Control - Manages the run state of the metric emitter
 	runState atomic.AtomicRunState
@@ -371,6 +392,8 @@ func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clust
 		NetworkInternetEgressRecorder: networkInternetEgressCostG,
 		ClusterManagementCostRecorder: clusterManagementCostGv,
 		LBCostRecorder:                lbCostGv,
+		NodeCarbonCostRecorder:        nodeCarbonCostGv,
+		DiskCarbonCostRecorder:        diskCarbonCostGv,
 	}
 }
 
@@ -688,6 +711,38 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				pvSeen[labelKey] = true
 			}
 
+			if env.IsCarbonMetricsEnabled() {
+				end := time.Now()
+				start := end.Add(-1 * time.Hour)
+				assetSet, err := cmme.Model.ComputeAssets(start, end)
+				if err != nil {
+					log.Debugf("Unable to compute assets: %s", err)
+				}
+				for _, node := range assetSet.Nodes {
+					hostname := node.GetProperties().Name
+					provider := node.GetProperties().Provider
+					providerID := node.GetProperties().ProviderID
+					instanceType := node.GetLabels()["node_kubernetes_io_instance_type"]
+					region := node.GetLabels()["topology_kubernetes_io_region"]
+					arch := node.GetLabels()["kubernetes_io_arch"]
+
+					carbonLookupKeyNode := carbon.GetCarbonLookupKeyNode(provider, region, instanceType)
+					carbonCoeff := carbonLookupKeyNode.GetCarbonCoeff()
+					carbonCostTotal := carbonCoeff * node.Minutes() / 60
+					cmme.NodeCarbonCostRecorder.WithLabelValues(hostname, hostname, instanceType, region, providerID, arch).Set(carbonCostTotal)
+				}
+				for _, disk := range assetSet.Disks {
+					name := disk.GetProperties().Name
+					provider := disk.GetProperties().Provider
+					providerID := disk.GetProperties().ProviderID
+					region := disk.GetLabels()["topology_kubernetes_io_region"]
+
+					carbonLookupKeyDisk := carbon.GetCarbonLookupKeyDisk(provider, region)
+					carbonCoeff := carbonLookupKeyDisk.GetCarbonCoeff()
+					carbonCostTotal := carbonCoeff * disk.Minutes() / 60
+					cmme.DiskCarbonCostRecorder.WithLabelValues(name, name, region, providerID).Set(carbonCostTotal)
+				}
+			}
 			// Remove metrics on Nodes/LoadBalancers/Containers/PVs that no
 			// longer exist
 			for labelString, seen := range nodeSeen {

@@ -39,7 +39,7 @@ func (a *Accesses) ComputeAssetsHandler(w http.ResponseWriter, r *http.Request, 
 	w.Write(WrapData(assetSet, nil))
 }
 
-// ComputeAllocationHandler returns the assets from the CostModel.
+// ComputeAssetsCarbonHandler returns the assets from the CostModel.
 func (a *Accesses) ComputeAssetsCarbonHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -62,6 +62,10 @@ func (a *Accesses) ComputeAssetsCarbonHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	carbonEstimates, err := carbon.RelateCarbonAssets(assetSet)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error getting carbon estimates: %s", err), http.StatusInternalServerError)
+		return
+	}
 
 	w.Write(WrapData(carbonEstimates, nil))
 }

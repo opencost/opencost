@@ -139,6 +139,7 @@ const (
 	OCIPricingURL = "OCI_PRICING_URL"
 
 	CarbonEstimatesEnabledEnvVar = "CARBON_ESTIMATES_ENABLED"
+	CarbonMetricsEnabledEnvVar   = "CARBON_METRICS_ENABLED"
 )
 
 const DefaultConfigMountPath = "/var/configs"
@@ -722,4 +723,11 @@ func GetCustomCostRefreshRateHours() string {
 
 func IsCarbonEstimatesEnabled() bool {
 	return env.GetBool(CarbonEstimatesEnabledEnvVar, false)
+}
+
+func IsCarbonMetricsEnabled() bool {
+	if !IsCarbonEstimatesEnabled() {
+		return false
+	}
+	return env.GetBool(CarbonMetricsEnabledEnvVar, false)
 }
