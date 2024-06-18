@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/cloud"
 )
@@ -80,11 +81,18 @@ func (sc *StorageConnection) StreamBlob(blobName string, client *azblob.Client) 
 }
 
 // DownloadBlobToFile downloads the Azure Billing CSV to a local file
-func (sc *StorageConnection) DownloadBlobToFile(localFilePath string, blobName string, client *azblob.Client, ctx context.Context) error {
-	// If file exists, don't download it again
-	if _, err := os.Stat(localFilePath); err == nil {
-		log.DedupedInfof(3, "CloudCost: Azure: DownloadBlobToFile: file %v already exists, not downloading %v", localFilePath, blobName)
-		return nil
+func (sc *StorageConnection) DownloadBlobToFile(localFilePath string, blob container.BlobItem, client *azblob.Client, ctx context.Context) error {
+	blobName := *blob.Name
+	// Check if file already exists
+	if fileInfo, err := os.Stat(localFilePath); err == nil {
+		blobModTime := *blob.Properties.LastModified
+		// Check if the blob was last modified before the file was modified, indicating that the
+		// file is the most recent version of the blob
+		if blobModTime.Before(fileInfo.ModTime()) {
+			log.Debugf("CloudCost: Azure: DownloadBlobToFile: file %s is more recent than correspondig blob %s", localFilePath, blobName)
+			return nil
+		}
+
 	}
 
 	// Create filepath
