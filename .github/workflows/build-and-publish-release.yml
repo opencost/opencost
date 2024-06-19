@@ -113,7 +113,7 @@ jobs:
         uses: extractions/setup-just@v2
 
       - name: Install crane
-        uses: imjasonh/setup-crane@v0.3
+        uses: imjasonh/setup-crane@v0.4
 
       ## Install manifest-tool, which is required to combine multi-arch images
       ## https://github.com/estesp/manifest-tool
