@@ -122,3 +122,4 @@ jobs:
           just build '${{ steps.tags.outputs.IMAGE_TAG }}' '${{ steps.version_number.outputs.RELEASE_VERSION }}'
           crane copy '${{ steps.tags.outputs.IMAGE_TAG }}' '${{ steps.tags.outputs.IMAGE_TAG_LATEST }}'
           crane copy '${{ steps.tags.outputs.IMAGE_TAG }}' '${{ steps.tags.outputs.IMAGE_TAG_VERSION }}'
+
