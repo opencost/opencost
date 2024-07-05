@@ -1,13 +1,13 @@
 # OpenCost Specification
 
 
-The OpenCost Spec is a vendor-neutral specification for measuring and allocating infrastructure and container costs in Kubernetes environments.
+The OpenCost Specification is a vendor-neutral specification for measuring and allocating infrastructure and container costs in Kubernetes environments.
 
 
 ## Introduction
 
 
-Kubernetes enables complex deployments of containerized workloads, which are often transient and consume variable amounts of cluster resources. While this enables teams to construct powerful solutions to a broad range of technical problems, it also creates complexities when measuring the resource utilization and costs of workloads and their associated infrastructure within the  dynamics of shared Kubernetes environments.
+Kubernetes enables complex deployments of containerized workloads, which are often transient and consume variable amounts of cluster resources. While this enables teams to construct powerful solutions to a broad range of technical problems, it also creates complexities when measuring the resource utilization and costs of workloads and their associated infrastructure within the dynamics of shared Kubernetes environments.
 
 
 As Kubernetes adoption increases within an organization, these complexities become a business-critical challenge to solve. In this document, we specify a vendor-agnostic methodology for accurately measuring and allocating the costs of a Kubernetes cluster to its hosted tenants. This community resource is maintained by Kubernetes practitioners and we welcome all contributions.
@@ -34,7 +34,7 @@ As Kubernetes adoption increases within an organization, these complexities beco
 </table>
 
 
-Cluster Asset Costs can be further segmented into **Resource Allocation Costs** and **Resource Usage Costs**. Resource Allocation Costs are expenses that accumulate based on the amount of time provisioned irrespective of usage (e.g. CPU hourly rate) whereas Resource Usage Costs accumulate on a per-unit basis (e.g. cost per byte egressed). Costs for an individual Asset are the summation of it’s Resource Allocation and Usage Costs, e.g. a Node’s cost is equal to CPU cost + GPU cost + RAM cost + Node Network Costs
+Cluster Asset Costs can be further segmented into **Resource Allocation Costs** and **Resource Usage Costs**. Resource Allocation Costs are expenses that accumulate based on the amount of time provisioned irrespective of usage (e.g. CPU hourly rate) whereas Resource Usage Costs accumulate on a per-unit basis (e.g. cost per byte egressed). Costs for an individual Asset are the summation of its Resource Allocation and Usage Costs, e.g. a Node’s cost is equal to CPU cost + GPU cost + RAM cost + Node Network Costs
 
 
 <table>
