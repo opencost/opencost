@@ -42,7 +42,7 @@ const (
 	queryNodes = `sum(avg(node_total_hourly_cost{%s}) by (node, %s)) * 730 %s`
 )
 
-const maxLocalDiskSize = 200 // AWS limits root disks to 100 Gi, and occasional metric errors in filesystem size should not contribute to large costs.
+const MAX_LOCAL_STORAGE_SIZE = 1024 * 1024 * 1024 * 1024
 
 // Costs represents cumulative and monthly cluster costs over a given duration. Costs
 // are broken down by cores, memory, and storage.
@@ -279,6 +279,57 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 
 	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo, provider, opencost.NewClosedWindow(start, end))
 
+	type localStorage struct {
+		device string
+		disk   *Disk
+	}
+
+	localStorageDisks := map[DiskIdentifier]localStorage{}
+
+	// Start with local storage bytes so that the device with the largest size which has passed the
+	// query filters can be determined
+	for _, result := range resLocalStorageBytes {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("instance")
+		if err != nil {
+			log.Warnf("ClusterDisks: local storage data missing instance")
+			continue
+		}
+
+		device, err := result.GetString("device")
+		if err != nil {
+			log.Warnf("ClusterDisks: local storage data missing device")
+			continue
+		}
+
+		bytes := result.Values[0].Value
+		// Ignore disks that are larger than the max size
+		if bytes > MAX_LOCAL_STORAGE_SIZE {
+			continue
+		}
+
+		key := DiskIdentifier{cluster, name}
+
+		// only keep the device with the most bytes per instance
+		if current, ok := localStorageDisks[key]; !ok || current.disk.Bytes < bytes {
+			localStorageDisks[key] = localStorage{
+				device: device,
+				disk: &Disk{
+					Cluster:      cluster,
+					Name:         name,
+					Breakdown:    &ClusterCostsBreakdown{},
+					Local:        true,
+					StorageClass: opencost.LocalStorageClass,
+					Bytes:        bytes,
+				},
+			}
+		}
+	}
+
 	for _, result := range resLocalStorageCost {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
@@ -291,20 +342,20 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 			continue
 		}
 
+		device, err := result.GetString("device")
+		if err != nil {
+			log.Warnf("ClusterDisks: local storage data missing device")
+			continue
+		}
+
 		cost := result.Values[0].Value
 		key := DiskIdentifier{cluster, name}
-		if _, ok := diskMap[key]; !ok {
-			diskMap[key] = &Disk{
-				Cluster:   cluster,
-				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
-				Local:     true,
-			}
+		ls, ok := localStorageDisks[key]
+		if !ok || ls.device != device {
+			continue
 		}
-		diskMap[key].Cost += cost
+		ls.disk.Cost = cost
 
-		//Assigning explicitly the storage class of local storage to local
-		diskMap[key].StorageClass = opencost.LocalStorageClass
 	}
 
 	for _, result := range resLocalStorageUsedCost {
@@ -319,17 +370,19 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 			continue
 		}
 
+		device, err := result.GetString("device")
+		if err != nil {
+			log.Warnf("ClusterDisks: local storage data missing device")
+			continue
+		}
+
 		cost := result.Values[0].Value
 		key := DiskIdentifier{cluster, name}
-		if _, ok := diskMap[key]; !ok {
-			diskMap[key] = &Disk{
-				Cluster:   cluster,
-				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
-				Local:     true,
-			}
+		ls, ok := localStorageDisks[key]
+		if !ok || ls.device != device {
+			continue
 		}
-		diskMap[key].Breakdown.System = cost / diskMap[key].Cost
+		ls.disk.Breakdown.System = cost / ls.disk.Cost
 	}
 
 	for _, result := range resLocalStorageUsedAvg {
@@ -344,17 +397,19 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 			continue
 		}
 
+		device, err := result.GetString("device")
+		if err != nil {
+			log.Warnf("ClusterDisks: local storage data missing device")
+			continue
+		}
+
 		bytesAvg := result.Values[0].Value
 		key := DiskIdentifier{cluster, name}
-		if _, ok := diskMap[key]; !ok {
-			diskMap[key] = &Disk{
-				Cluster:   cluster,
-				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
-				Local:     true,
-			}
+		ls, ok := localStorageDisks[key]
+		if !ok || ls.device != device {
+			continue
 		}
-		diskMap[key].BytesUsedAvgPtr = &bytesAvg
+		ls.disk.BytesUsedAvgPtr = &bytesAvg
 	}
 
 	for _, result := range resLocalStorageUsedMax {
@@ -369,46 +424,19 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 			continue
 		}
 
-		bytesMax := result.Values[0].Value
-		key := DiskIdentifier{cluster, name}
-		if _, ok := diskMap[key]; !ok {
-			diskMap[key] = &Disk{
-				Cluster:   cluster,
-				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
-				Local:     true,
-			}
-		}
-		diskMap[key].BytesUsedMaxPtr = &bytesMax
-	}
-
-	for _, result := range resLocalStorageBytes {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
+		device, err := result.GetString("device")
 		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := result.GetString("instance")
-		if err != nil {
-			log.Warnf("ClusterDisks: local storage data missing instance")
+			log.Warnf("ClusterDisks: local storage data missing device")
 			continue
 		}
 
-		bytes := result.Values[0].Value
+		bytesMax := result.Values[0].Value
 		key := DiskIdentifier{cluster, name}
-		if _, ok := diskMap[key]; !ok {
-			diskMap[key] = &Disk{
-				Cluster:   cluster,
-				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
-				Local:     true,
-			}
+		ls, ok := localStorageDisks[key]
+		if !ok || ls.device != device {
+			continue
 		}
-		diskMap[key].Bytes = bytes
-		if bytes/1024/1024/1024 > maxLocalDiskSize {
-			log.DedupedWarningf(5, "Deleting large root disk/localstorage disk from analysis")
-			delete(diskMap, key)
-		}
+		ls.disk.BytesUsedMaxPtr = &bytesMax
 	}
 
 	for _, result := range resLocalActiveMins {
@@ -424,8 +452,8 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 		}
 
 		key := DiskIdentifier{cluster, name}
-		if _, ok := diskMap[key]; !ok {
-			log.DedupedWarningf(5, "ClusterDisks: local active mins for unidentified disk or disk deleted from analysis")
+		ls, ok := localStorageDisks[key]
+		if !ok {
 			continue
 		}
 
@@ -439,9 +467,14 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 
 		// TODO niko/assets if mins >= threshold, interpolate for missing data?
 
-		diskMap[key].End = e
-		diskMap[key].Start = s
-		diskMap[key].Minutes = mins
+		ls.disk.End = e
+		ls.disk.Start = s
+		ls.disk.Minutes = mins
+	}
+
+	// move local storage disks to main disk map
+	for key, ls := range localStorageDisks {
+		diskMap[key] = ls.disk
 	}
 
 	var unTracedDiskLogData []DiskIdentifier
