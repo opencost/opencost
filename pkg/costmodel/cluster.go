@@ -142,7 +142,7 @@ type DiskIdentifier struct {
 	Name    string
 }
 
-func ClusterDisks(client prometheus.Client, provider models.Provider, start, end time.Time) (map[DiskIdentifier]*Disk, error) {
+func ClusterDisks(client prometheus.Client, cp models.Provider, start, end time.Time) (map[DiskIdentifier]*Disk, error) {
 	// Start from the time "end", querying backwards
 	t := end
 
@@ -277,7 +277,7 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 		diskMap[key].ClaimNamespace = claimNamespace
 	}
 
-	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo, provider, opencost.NewClosedWindow(start, end))
+	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo, cp, opencost.NewClosedWindow(start, end))
 
 	type localStorage struct {
 		device string
@@ -451,11 +451,19 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 			continue
 		}
 
+		providerID, err := result.GetString("provider_id")
+		if err != nil {
+			log.DedupedWarningf(5, "ClusterDisks: local active mins data missing instance")
+			continue
+		}
+
 		key := DiskIdentifier{cluster, name}
 		ls, ok := localStorageDisks[key]
 		if !ok {
 			continue
 		}
+
+		ls.disk.ProviderID = provider.ParseLocalDiskID(providerID)
 
 		if len(result.Values) == 0 {
 			continue
