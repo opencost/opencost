@@ -2,9 +2,11 @@ package provider
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -327,6 +329,7 @@ var (
 	// gce://guestbook-227502/us-central1-a/gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
 	//  => gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
 	providerGCERegex = regexp.MustCompile("gce://[^/]*/[^/]*/([^/]+)")
+
 	// Capture "vol-0fc54c5e83b8d2b76" from "aws://us-east-2a/vol-0fc54c5e83b8d2b76"
 	persistentVolumeAWSRegex = regexp.MustCompile("aws:/[^/]*/[^/]*/([^/]+)")
 	// Capture "ad9d88195b52a47c89b5055120f28c58" from "ad9d88195b52a47c89b5055120f28c58-1037804914.us-east-2.elb.amazonaws.com"
@@ -371,5 +374,34 @@ func ParseLBID(id string) string {
 	}
 
 	// Return id for GCP Provider, Azure Provider, CSV Provider and Custom Provider
+	return id
+}
+
+// ParseLocalDiskID attempts to parse a ProviderID from the ProviderID of the node that the local disk is running on
+func ParseLocalDiskID(id string) string {
+	// Parse like node
+	id = ParseID(id)
+
+	if strings.HasPrefix(id, "azure://") {
+
+		// handle vmss ProviderID of type azure:///subscriptions/ae337b64-e7ba-3387-b043-187289efe4e3/resourceGroups/mc_test_eastus2/providers/Microsoft.Compute/virtualMachineScaleSets/aks-userpool-12345678-vmss/virtualMachines/11
+		if strings.Contains(id, "virtualMachineScaleSets") {
+			split := strings.Split(id, "/virtualMachineScaleSets/")
+			// combine vmss name and number into a single string ending in a 6 character base 32 number
+			vmSplit := strings.Split(split[1], "/")
+			if len(vmSplit) != 3 {
+				return id
+			}
+			vmNum, err := strconv.ParseInt(vmSplit[2], 10, 64)
+			if err != nil {
+				return id
+			}
+
+			id = fmt.Sprintf("%s/disks/%s%06s", split[0], vmSplit[0], strconv.FormatInt(vmNum, 32))
+		}
+		id = strings.Replace(id, "/virtualMachines/", "/disks/", -1)
+		id = strings.ToLower(id)
+		return fmt.Sprintf("%s_osdisk", id)
+	}
 	return id
 }
