@@ -29,15 +29,18 @@ type SummaryAllocation struct {
 	CPUCoreRequestAverage  float64               `json:"cpuCoreRequestAverage"`
 	CPUCoreUsageAverage    float64               `json:"cpuCoreUsageAverage"`
 	CPUCost                float64               `json:"cpuCost"`
+	CPUCostIdle            float64               `json:"cpuCostIdle"`
 	GPURequestAverage      float64               `json:"gpuRequestAverage"`
 	GPUUsageAverage        float64               `json:"gpuUsageAverage"`
 	GPUCost                float64               `json:"gpuCost"`
+	GPUCostIdle            float64               `json:"gpuCostIdle"`
 	NetworkCost            float64               `json:"networkCost"`
 	LoadBalancerCost       float64               `json:"loadBalancerCost"`
 	PVCost                 float64               `json:"pvCost"`
 	RAMBytesRequestAverage float64               `json:"ramByteRequestAverage"`
 	RAMBytesUsageAverage   float64               `json:"ramByteUsageAverage"`
 	RAMCost                float64               `json:"ramCost"`
+	RAMCostIdle            float64               `json:"ramCostIdle"`
 	SharedCost             float64               `json:"sharedCost"`
 	ExternalCost           float64               `json:"externalCost"`
 	Share                  bool                  `json:"-"`
@@ -371,7 +374,7 @@ func (sa *SummaryAllocation) TotalCost() float64 {
 		return 0.0
 	}
 
-	return sa.CPUCost + sa.GPUCost + sa.RAMCost + sa.PVCost + sa.NetworkCost + sa.LoadBalancerCost + sa.SharedCost + sa.ExternalCost
+	return sa.CPUCost + sa.CPUCostIdle + sa.GPUCost + sa.GPUCostIdle + sa.RAMCost + sa.RAMCostIdle + sa.PVCost + sa.NetworkCost + sa.LoadBalancerCost + sa.SharedCost + sa.ExternalCost
 }
 
 // TotalEfficiency is the cost-weighted average of CPU and RAM efficiency. If
