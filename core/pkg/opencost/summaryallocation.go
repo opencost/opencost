@@ -374,7 +374,7 @@ func (sa *SummaryAllocation) TotalCost() float64 {
 		return 0.0
 	}
 
-	return sa.CPUCost + sa.CPUCostIdle + sa.GPUCost + sa.GPUCostIdle + sa.RAMCost + sa.RAMCostIdle + sa.PVCost + sa.NetworkCost + sa.LoadBalancerCost + sa.SharedCost + sa.ExternalCost
+	return sa.CPUCost + sa.GPUCost + sa.RAMCost + sa.PVCost + sa.NetworkCost + sa.LoadBalancerCost + sa.SharedCost + sa.ExternalCost
 }
 
 // TotalEfficiency is the cost-weighted average of CPU and RAM efficiency. If

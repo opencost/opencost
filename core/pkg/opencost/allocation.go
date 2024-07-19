@@ -834,7 +834,7 @@ func (a *Allocation) CPUTotalCost() float64 {
 		return 0.0
 	}
 
-	return a.CPUCost + a.CPUCostAdjustment + a.CPUCostIdle
+	return a.CPUCost + a.CPUCostAdjustment
 }
 
 // GPUTotalCost calculates total GPU cost of Allocation including adjustment
@@ -843,7 +843,7 @@ func (a *Allocation) GPUTotalCost() float64 {
 		return 0.0
 	}
 
-	return a.GPUCost + a.GPUCostAdjustment + a.GPUCostIdle
+	return a.GPUCost + a.GPUCostAdjustment
 }
 
 // RAMTotalCost calculates total RAM cost of Allocation including adjustment
@@ -852,7 +852,7 @@ func (a *Allocation) RAMTotalCost() float64 {
 		return 0.0
 	}
 
-	return a.RAMCost + a.RAMCostAdjustment + a.CPUCostIdle
+	return a.RAMCost + a.RAMCostAdjustment
 }
 
 // PVTotalCost calculates total PV cost of Allocation including adjustment
