@@ -182,7 +182,7 @@ const (
 	queryGPURequestsStr = `avg(
 		label_replace(
 			label_replace(
-				sum_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!="", %s}[%s] %s), 
+				sum_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!="", %s}[%s] %s),
 				"container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		)
@@ -2408,7 +2408,7 @@ func measureTimeAsync(start time.Time, threshold time.Duration, name string, ch 
 	}
 }
 
-func (cm *CostModel) QueryAllocation(window opencost.Window, resolution, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer bool, accumulateBy opencost.AccumulateOption) (*opencost.AllocationSetRange, error) {
+func (cm *CostModel) QueryAllocation(window opencost.Window, resolution, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer bool, accumulateBy opencost.AccumulateOption, shareIdle bool) (*opencost.AllocationSetRange, error) {
 	// Validate window is legal
 	if window.IsOpen() || window.IsNegative() {
 		return nil, fmt.Errorf("illegal window: %s", window)
@@ -2479,10 +2479,18 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, resolution, step ti
 	}
 
 	// Set aggregation options and aggregate
+	var shareIdleOpt string
+	if shareIdle {
+		shareIdleOpt = opencost.ShareWeighted
+	} else {
+		shareIdleOpt = opencost.ShareNone
+	}
+
 	opts := &opencost.AllocationAggregationOptions{
 		IncludeProportionalAssetResourceCosts: includeProportionalAssetResourceCosts,
 		IdleByNode:                            idleByNode,
 		IncludeAggregatedMetadata:             includeAggregatedMetadata,
+		ShareIdle:                             shareIdleOpt,
 	}
 
 	// Aggregate
