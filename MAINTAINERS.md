@@ -17,6 +17,7 @@ Official list of [OpenCost Maintainers](https://github.com/orgs/opencost/teams/o
 
 ## Opencost Emeritus Committers
 We would like to acknowledge previous committers and their huge contributions to our collective success:
+
 | Maintainer | GitHub ID | Affiliation | Email |
 | --------------- | --------- | ----------- | ----------- |
 | Michael Dresser | @michaelmdresser | Kubecost | <michaelmdresser@gmail.com> |
