@@ -45,6 +45,18 @@ func (s3sq *S3SelectQuerier) Query(query string, queryKeys []string, cli *s3.Cli
 	return nil
 }
 
+func (s3sq *S3SelectQuerier) GetHeaders(queryKey string, cli *s3.Client) ([]string, error) {
+	reader, err := s3sq.fetchCSVReader("SELECT * FROM S3Object LIMIT 1", queryKey, cli, s3Types.FileHeaderInfoNone)
+	if err != nil {
+		return nil, err
+	}
+	record, err := reader.Read()
+	if err != nil {
+		return nil, err
+	}
+	return record, nil
+}
+
 // GetQueryKeys returns a list of s3 object names, where the there are 1 object for each month within the range between
 // start and end
 func (s3sq *S3SelectQuerier) GetQueryKeys(start, end time.Time, client *s3.Client) ([]string, error) {

@@ -61,6 +61,8 @@ func (ccl *CloudCostLoader) Load(values []bigquery.Value, schema bigquery.Schema
 				invoiceEntityID = ""
 			}
 			properties.InvoiceEntityID = invoiceEntityID
+			// Use InvoiceEntityID as InvoiceEntityName
+			properties.InvoiceEntityName = invoiceEntityID
 		case ProjectIDColumnName:
 			accountID, ok := values[i].(string)
 			if !ok {
@@ -68,6 +70,27 @@ func (ccl *CloudCostLoader) Load(values []bigquery.Value, schema bigquery.Schema
 				accountID = ""
 			}
 			properties.AccountID = accountID
+		case ProjectNameColumnName:
+			accountName, ok := values[i].(string)
+			if !ok {
+				log.DedupedErrorf(5, "error parsing GCP CloudCost %s: %v", ProjectNameColumnName, values[i])
+				accountName = ""
+			}
+			properties.AccountName = accountName
+		case RegionColumnName:
+			regionID, ok := values[i].(string)
+			if !ok {
+				log.DedupedErrorf(5, "error parsing GCP CloudCost %s: %v", RegionColumnName, values[i])
+				regionID = ""
+			}
+			properties.RegionID = regionID
+		case ZoneColumnName:
+			zone, ok := values[i].(string)
+			if !ok {
+				log.DedupedErrorf(5, "error parsing GCP CloudCost %s: %v", ZoneColumnName, values[i])
+				zone = ""
+			}
+			properties.AvailabilityZone = zone
 		case ServiceDescriptionColumnName:
 			service, ok := values[i].(string)
 			if !ok {
