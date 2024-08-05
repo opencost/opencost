@@ -1076,22 +1076,19 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		gpuc := 0.0
 		q, ok := n.Status.Capacity["nvidia.com/gpu"]
 		gpuCount := q.Value()
+		_, hasReplicas := n.Labels["nvidia.com/gpu.replicas"]
 
-		if ok && gpuCount != 0 {
+		if ok && gpuCount != 0 && !hasReplicas {
 			newCnode.GPU = fmt.Sprintf("%d", gpuCount)
 			newCnode.VGPU = newCnode.GPU
 			gpuc = float64(gpuCount)
-		} else {
-			gpuc, err = strconv.ParseFloat(newCnode.GPU, 64)
-			if err != nil {
-				gpuc = 0.0
-			}
-		}
+		} else if hasReplicas {
+			// Special case. The "nvidia.com/gpu.replicas" label is usually
+			// applied by NVIDIA's GPU Operator or GPU Feature Discovery pod.
+			// Ref: https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html#verifying-the-gpu-time-slicing-configuration
+			// Ref: https://github.com/NVIDIA/k8s-device-plugin/blob/d899752a424818428f744a946d32b132ea2c0cf1/internal/lm/resource_test.go#L44-L45
+			// Ref: https://github.com/NVIDIA/k8s-device-plugin/blob/d899752a424818428f744a946d32b132ea2c0cf1/internal/lm/resource_test.go#L103-L118
 
-		// Special case. The "nvidia.com/gpu.replicas" label is usually applied
-		// by NVIDIA's GPU Operator or GPU Feature Discovery pod.
-		// Ref: https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html
-		if _, hasReplicas := n.Labels["nvidia.com/gpu.replicas"]; hasReplicas && gpuCount == 0 {
 			g, ok := n.Labels["nvidia.com/gpu.count"]
 			if ok {
 				newCnode.GPU = g
@@ -1100,21 +1097,29 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 					log.Warnf("Could not parse label \"nvidia.com/gpu.count\": \"%s\". Setting to 0.", g)
 					gpuc = 0.0
 				}
+			} else {
+				log.Warnf("Could not find label \"nvidia.com/gpu.count\". Setting to 0.")
 			}
-			q = n.Status.Capacity["nvidia.com/gpu.shared"]
-			newCnode.VGPU = fmt.Sprintf("%d", q.Value())
-		}
 
-		// Special case. "k8s.amazonaws.com/vgpu"
-		if g, ok := n.Status.Capacity["k8s.amazonaws.com/vgpu"]; ok {
+			s, hasGpuShared := n.Status.Capacity["nvidia.com/gpu.shared"]
+			if hasGpuShared {
+				newCnode.VGPU = fmt.Sprintf("%d", s.Value())
+			} else {
+				newCnode.VGPU = fmt.Sprintf("%d", gpuCount)
+			}
+		} else if g, ok := n.Status.Capacity["k8s.amazonaws.com/vgpu"]; ok {
 			gpuCount := g.Value()
 			if gpuCount != 0 {
 				newCnode.GPU = fmt.Sprintf("%d", int(float64(gpuCount)/vgpuCoeff))
 				newCnode.VGPU = fmt.Sprintf("%d", gpuCount)
 				gpuc = float64(gpuCount) / vgpuCoeff
 			}
+		} else {
+			gpuc, err = strconv.ParseFloat(newCnode.GPU, 64)
+			if err != nil {
+				gpuc = 0.0
+			}
 		}
-
 		if math.IsNaN(gpuc) {
 			log.Warnf("gpu count parsed as NaN. Setting to 0.")
 			gpuc = 0.0
