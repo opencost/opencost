@@ -982,7 +982,7 @@ func createDescribePriceACSRequest(i interface{}) (*requests.CommonRequest, erro
 		} else {
 			// When System Disk information is not available for instance family g6e, r7 and r6e the defaults in
 			// DescribePrice dont default rightly to cloud_essd for these instances.
-			if slices.Contains(alibabaDefaultToCloudEssd, node.InstanceTypeFamily) {
+			if slices.Contains(alibabaDefaultToCloudEssd, node.InstanceTypeFamily) || getInstanceFamilyGenerationFromType(node.InstanceType) > 6 {
 				request.QueryParams["SystemDisk.Category"] = ALIBABA_DISK_CLOUD_ESSD_CATEGORY
 			}
 		}
@@ -1146,6 +1146,24 @@ func getInstanceFamilyFromType(instanceType string) string {
 		return ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE
 	}
 	return splitinstanceType[1]
+}
+
+// This function is used to obtain the generation of the instance family from the InstanceType,
+// because when the generation is higher than or equal to 7, the instance disk type will not support cloud_efficiency.
+// In such cases, when calling the DescribePrice interface, the system disk type will default to cloud_essd.
+func getInstanceFamilyGenerationFromType(instanceType string) int {
+	// FamilyName format: g7ne or g7 or r7 or r6e,
+	familyName := getInstanceFamilyFromType(instanceType)
+	re := regexp.MustCompile(`(\d+)`)
+	match := re.FindString(familyName)
+	if match != "" {
+		generation, err := strconv.Atoi(match)
+		if err == nil {
+			return generation
+		}
+	}
+	log.Warnf("unable to find the generation of the instance type %s, returning its default generation as 6", instanceType)
+	return 6
 }
 
 // getInstanceIDFromProviderID returns the instance ID associated with the Node. A *v1.Node providerID in Alibaba cloud

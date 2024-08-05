@@ -113,6 +113,20 @@ func TestProcessDescribePriceAndCreateAlibabaPricing(t *testing.T) {
 			expectedError: nil,
 		},
 		{
+			name: "test General Purpose Type g8a instance family",
+			teststruct: &SlimK8sNode{
+				InstanceType:       "ecs.g8a.8xlarge",
+				RegionID:           "cn-hangzhou",
+				PriceUnit:          "Hour",
+				MemorySizeInKiB:    "33554432KiB",
+				IsIoOptimized:      true,
+				OSType:             "Linux",
+				ProviderID:         "cn-hangzhou.i-test-01c",
+				InstanceTypeFamily: "g8a",
+			},
+			expectedError: nil,
+		},
+		{
 			name: "test Enhanced General Purpose Type g6e instance family",
 			teststruct: &SlimK8sNode{
 				InstanceType:       "ecs.g6e.xlarge",
@@ -855,4 +869,37 @@ func TestDeterminePVRegion(t *testing.T) {
 		})
 	}
 
+}
+
+func TestGetInstanceFamilyGenerationFromType(t *testing.T) {
+	cases := []struct {
+		name                             string
+		instanceType                     string
+		expectedInstanceFamilyGeneration int
+	}{
+		{
+			name:                             "test if ecs.[instance-family].[different-type] work",
+			instanceType:                     "ecs.sn2ne.2xlarge",
+			expectedInstanceFamilyGeneration: 2,
+		},
+		{
+			name:                             "test if ecs.[instance-family].[different-type] work",
+			instanceType:                     "ecs.g7.large",
+			expectedInstanceFamilyGeneration: 7,
+		},
+		{
+			name:                             "test if random word gives you ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE value ",
+			instanceType:                     "random.value",
+			expectedInstanceFamilyGeneration: 6,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			returnValue := getInstanceFamilyGenerationFromType(c.instanceType)
+			if returnValue != c.expectedInstanceFamilyGeneration {
+				t.Fatalf("Case name %s: expected instance family generation of type %d but got %d", c.name, c.expectedInstanceFamilyGeneration, returnValue)
+			}
+		})
+	}
 }
