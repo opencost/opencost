@@ -181,7 +181,7 @@ func (bqi *BigQueryIntegration) queryFlexibleCUDTotalCosts(start time.Time, end 
 		  IFNULL(SUM((Select SUM(amount) FROM bd.credits)),0),
 		FROM %s
 		WHERE %s
-		GROUP BY usage_date, sku.description
+		GROUP BY usage_date
 	`
 
 	table := fmt.Sprintf(" `%s` bd ", bqi.GetBillingDataDataset())
@@ -214,7 +214,7 @@ func (bqi *BigQueryIntegration) queryFlexibleCUDTotalCredits(start time.Time, en
 	FROM %s
 	CROSS JOIN UNNEST(bd.credits) AS credits
 	WHERE %s
-	GROUP BY usage_date, credits.id
+	GROUP BY usage_date
 	`
 
 	table := fmt.Sprintf(" `%s` bd ", bqi.GetBillingDataDataset())
