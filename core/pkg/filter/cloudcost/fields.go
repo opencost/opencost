@@ -13,7 +13,7 @@ const (
 	FieldAccountID         CloudCostField = CloudCostField(fieldstrings.FieldAccountID)
 	FieldAccountName       CloudCostField = CloudCostField(fieldstrings.FieldAccountName)
 	FieldRegionID          CloudCostField = CloudCostField(fieldstrings.FieldRegionID)
-	FieldAvailabilityZone                 = CloudCostField(fieldstrings.FieldAvailabilityZone)
+	FieldAvailabilityZone  CloudCostField = CloudCostField(fieldstrings.FieldAvailabilityZone)
 	FieldProvider          CloudCostField = CloudCostField(fieldstrings.FieldProvider)
 	FieldProviderID        CloudCostField = CloudCostField(fieldstrings.FieldProviderID)
 	FieldCategory          CloudCostField = CloudCostField(fieldstrings.FieldCategory)
