@@ -104,8 +104,16 @@ func (cc *CloudCost) StringProperty(prop string) (string, error) {
 	switch prop {
 	case CloudCostInvoiceEntityIDProp:
 		return cc.Properties.InvoiceEntityID, nil
+	case CloudCostInvoiceEntityNameProp:
+		return cc.Properties.InvoiceEntityName, nil
 	case CloudCostAccountIDProp:
 		return cc.Properties.AccountID, nil
+	case CloudCostAccountNameProp:
+		return cc.Properties.AccountName, nil
+	case CloudCostRegionIDProp:
+		return cc.Properties.RegionID, nil
+	case CloudCostAvailabilityZoneProp:
+		return cc.Properties.AvailabilityZone, nil
 	case CloudCostProviderProp:
 		return cc.Properties.Provider, nil
 	case CloudCostProviderIDProp:
