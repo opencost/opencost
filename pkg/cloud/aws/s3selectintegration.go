@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
@@ -15,13 +14,15 @@ import (
 const S3SelectDateLayout = "2006-01-02T15:04:05Z"
 
 // S3Object is aliased as "s" in queries
-const S3SelectAccountID = `s."bill/PayerAccountId"`
-
+const S3SelectBillPayerAccountID = `s."bill/PayerAccountId"`
+const S3SelectAccountID = `s."lineItem/UsageAccountId"`
 const S3SelectItemType = `s."lineItem/LineItemType"`
 const S3SelectStartDate = `s."lineItem/UsageStartDate"`
 const S3SelectProductCode = `s."lineItem/ProductCode"`
 const S3SelectResourceID = `s."lineItem/ResourceId"`
 const S3SelectUsageType = `s."lineItem/UsageType"`
+const S3SelectRegionCode = `s."product/regionCode"`
+const S3SelectAvailabilityZone = `s."lineItem/AvailabilityZone"`
 
 const S3SelectListCost = `s."lineItem/UnblendedCost"`
 const S3SelectNetCost = `s."lineItem/NetUnblendedCost"`
@@ -29,6 +30,10 @@ const S3SelectNetCost = `s."lineItem/NetUnblendedCost"`
 // These two may be used for Amortized<Net>Cost
 const S3SelectRICost = `s."reservation/EffectiveCost"`
 const S3SelectSPCost = `s."savingsPlan/SavingsPlanEffectiveCost"`
+const S3SelectNetRICost = `s."reservation/NetEffectiveCost"`
+const S3SelectNetSPCost = `s."savingsPlan/NetSavingsPlanEffectiveCost"`
+
+const S3SelectUserLabelPrefix = "resourceTags/user:"
 
 type S3SelectIntegration struct {
 	S3SelectQuerier
@@ -43,15 +48,6 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 		s3si.Key(),
 		opencost.NewWindow(&start, &end).String(),
 	)
-
-	// Set midnight yesterday as last point in time reconciliation data
-	// can be pulled from to ensure complete days of data
-	midnightYesterday := time.Now().In(
-		time.UTC,
-	).Truncate(time.Hour*24).AddDate(0, 0, -1)
-	if end.After(midnightYesterday) {
-		end = midnightYesterday
-	}
 
 	// ccsr to populate with cloudcosts.
 	ccsr, err := opencost.NewCloudCostSetRange(
@@ -74,39 +70,64 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 		return nil, err
 	}
 	// Acquire headers
-	headers, err := s3si.GetHeaders(queryKeys, client)
+	headers, err := s3si.GetHeaders(queryKeys[0], client)
 	if err != nil {
 		return nil, err
 	}
-	// Exactly what it says on the tin. Though is there a set equivalent
-	// in Go? This seems like a good use case for that.
-	allColumns := map[string]bool{}
+
+	allColumns := map[string]struct{}{}
 	for _, header := range headers {
-		allColumns[header] = true
+		allColumns[header] = struct{}{}
 	}
 
 	formattedStart := start.Format("2006-01-02")
 	formattedEnd := end.Format("2006-01-02")
 	selectColumns := []string{
 		S3SelectStartDate,
+		S3SelectBillPayerAccountID,
 		S3SelectAccountID,
 		S3SelectResourceID,
 		S3SelectItemType,
 		S3SelectProductCode,
 		S3SelectUsageType,
+		S3SelectRegionCode,
+		S3SelectAvailabilityZone,
 		S3SelectListCost,
 	}
-	// OC equivalent to KCM env flags relevant at all?
+	_, checkNet := allColumns[S3SelectNetCost]
+	if checkNet {
+		selectColumns = append(selectColumns, S3SelectNetCost)
+	}
+
 	// Check for Reservation columns in CUR and query if available
-	checkReservations := allColumns[S3SelectRICost]
+	_, checkReservations := allColumns[S3SelectRICost]
 	if checkReservations {
 		selectColumns = append(selectColumns, S3SelectRICost)
 	}
+	_, checkNetReservations := allColumns[S3SelectNetRICost]
+	if checkNetReservations {
+		selectColumns = append(selectColumns, S3SelectNetRICost)
+	}
 
 	// Check for Savings Plan Columns in CUR and query if available
-	checkSavingsPlan := allColumns[S3SelectSPCost]
+	_, checkSavingsPlan := allColumns[S3SelectSPCost]
 	if checkSavingsPlan {
 		selectColumns = append(selectColumns, S3SelectSPCost)
+	}
+	_, checkNetSavingsPlan := allColumns[S3SelectNetSPCost]
+	if checkNetSavingsPlan {
+		selectColumns = append(selectColumns, S3SelectNetSPCost)
+	}
+
+	// Determine which columns are user-defined tags and add those to the list
+	// of columns to query.
+	labelColumns := []string{}
+	for column := range allColumns {
+		if strings.HasPrefix(column, S3SelectUserLabelPrefix) {
+			quotedTag := fmt.Sprintf(`s."%s"`, column)
+			selectColumns = append(selectColumns, quotedTag)
+			labelColumns = append(labelColumns, quotedTag)
+		}
 	}
 
 	// Build map of query columns to use for parsing query
@@ -118,17 +139,8 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 	selectStr := strings.Join(selectColumns, ", ")
 	queryStr := `SELECT %s FROM s3object s
 	WHERE (CAST(s."lineItem/UsageStartDate" AS TIMESTAMP) BETWEEN CAST('%s' AS TIMESTAMP) AND CAST('%s' AS TIMESTAMP))
-	AND s."lineItem/ResourceId" <> ''
-	AND (
-		(
-			s."lineItem/ProductCode" = 'AmazonEC2' AND (
-				SUBSTRING(s."lineItem/ResourceId",1,2) = 'i-'
-				OR SUBSTRING(s."lineItem/ResourceId",1,4) = 'vol-'
-			)
-		)
-		OR s."lineItem/ProductCode" = 'AWSELB'
-       OR s."lineItem/ProductCode" = 'AmazonFSx'
-	)`
+	AND (s."lineItem/LineItemType" = 'Usage' OR s."lineItem/LineItemType" = 'DiscountedUsage' OR s."lineItem/LineItemType" = 'SavingsPlanCoveredUsage' OR s."lineItem/LineItemType" = 'EdpDiscount' OR s."lineItem/LineItemType" = 'PrivateRateDiscount')
+	`
 	query := fmt.Sprintf(queryStr, selectStr, formattedStart, formattedEnd)
 
 	processResults := func(reader *csv.Reader) error {
@@ -143,45 +155,96 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 			}
 
 			startStr := GetCSVRowValue(row, columnIndexes, S3SelectStartDate)
+			billPayerAccountID := GetCSVRowValue(row, columnIndexes, S3SelectBillPayerAccountID)
 			itemAccountID := GetCSVRowValue(row, columnIndexes, S3SelectAccountID)
 			itemProviderID := GetCSVRowValue(row, columnIndexes, S3SelectResourceID)
 			lineItemType := GetCSVRowValue(row, columnIndexes, S3SelectItemType)
 			itemProductCode := GetCSVRowValue(row, columnIndexes, S3SelectProductCode)
 			usageType := GetCSVRowValue(row, columnIndexes, S3SelectUsageType)
+			regionCode := GetCSVRowValue(row, columnIndexes, S3SelectRegionCode)
+			availabilityZone := GetCSVRowValue(row, columnIndexes, S3SelectAvailabilityZone)
+
+			// Iterate through the slice of tag columns, assigning
+			// values to the column names, minus the tag prefix.
+			labels := opencost.CloudCostLabels{}
+			for _, labelColumnName := range labelColumns {
+				// remove quotes
+				labelName := strings.TrimPrefix(labelColumnName, `s."`)
+				labelName = strings.TrimSuffix(labelName, `"`)
+				// remove prefix
+				labelName = strings.TrimPrefix(labelName, S3SelectUserLabelPrefix)
+				value := GetCSVRowValue(row, columnIndexes, labelColumnName)
+				if value != "" {
+					labels[labelName] = value
+				}
+			}
+
+			isKubernetes := 0.0
+			if itemProductCode == "AmazonEKS" || hasK8sLabel(labels) {
+				isKubernetes = 1.0
+			}
 
 			var (
-				amortizedCost float64
-				listCost      float64
-				netCost       float64
+				amortizedCost    float64
+				amortizedNetCost float64
+				listCost         float64
+				netCost          float64
 			)
 			// Get list and net costs
-			listCost, err = GetCSVRowValueFloat(row, columnIndexes, S3SelectListCost)
-			if err != nil {
-				return err
+			if lineItemType != "EdpDiscount" && lineItemType != "PrivateRateDiscount" {
+				listCost, err = GetCSVRowValueFloat(row, columnIndexes, S3SelectListCost)
+				if err != nil {
+					return err
+				}
 			}
-			netCost, err = GetCSVRowValueFloat(row, columnIndexes, S3SelectNetCost)
-			if err != nil {
-				return err
+
+			// Get net cost if available
+			netCost = listCost
+			if checkNet {
+				netCost, err = GetCSVRowValueFloat(row, columnIndexes, S3SelectNetCost)
+				if err != nil {
+					return err
+				}
 			}
 
 			// If there is a reservation_reservation_a_r_n on the line item use the awsRIPricingSUMColumn as cost
-			if checkReservations && lineItemType == "DiscountedUsage" {
-				amortizedCost, err = GetCSVRowValueFloat(row, columnIndexes, S3SelectRICost)
-				if err != nil {
-					log.Errorf(err.Error())
-					continue
+			amortizedCost = listCost
+			amortizedNetCost = listCost
+			if lineItemType == "DiscountedUsage" {
+				if checkReservations {
+					amortizedCost, err = GetCSVRowValueFloat(row, columnIndexes, S3SelectRICost)
+					if err != nil {
+						log.Errorf(err.Error())
+						continue
+					}
+					amortizedNetCost = amortizedCost
+				}
+				if checkNetReservations {
+					amortizedNetCost, err = GetCSVRowValueFloat(row, columnIndexes, S3SelectNetRICost)
+					if err != nil {
+						log.Errorf(err.Error())
+						continue
+					}
 				}
 				// If there is a lineItemType of SavingsPlanCoveredUsage use the awsSPPricingSUMColumn
-			} else if checkSavingsPlan && lineItemType == "SavingsPlanCoveredUsage" {
-				amortizedCost, err = GetCSVRowValueFloat(row, columnIndexes, S3SelectSPCost)
-				if err != nil {
-					log.Errorf(err.Error())
-					continue
+			} else if lineItemType == "SavingsPlanCoveredUsage" {
+				if checkSavingsPlan {
+					amortizedCost, err = GetCSVRowValueFloat(row, columnIndexes, S3SelectSPCost)
+					if err != nil {
+						log.Errorf(err.Error())
+						continue
+					}
+					amortizedNetCost = amortizedCost
 				}
-			} else {
-				// Default to listCost
-				amortizedCost = listCost
+				if checkNetSavingsPlan {
+					amortizedNetCost, err = GetCSVRowValueFloat(row, columnIndexes, S3SelectNetSPCost)
+					if err != nil {
+						log.Errorf(err.Error())
+						continue
+					}
+				}
 			}
+
 			category := SelectAWSCategory(itemProviderID, usageType, itemProductCode)
 			// Retrieve final stanza of product code for ProviderID
 			if itemProductCode == "AWSELB" || itemProductCode == "AmazonFSx" {
@@ -190,10 +253,16 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 
 			properties := opencost.CloudCostProperties{}
 			properties.Provider = opencost.AWSProvider
+			properties.InvoiceEntityID = billPayerAccountID
+			properties.InvoiceEntityName = billPayerAccountID
 			properties.AccountID = itemAccountID
+			properties.AccountName = itemAccountID
 			properties.Category = category
 			properties.Service = itemProductCode
 			properties.ProviderID = itemProviderID
+			properties.RegionID = regionCode
+			properties.AvailabilityZone = availabilityZone
+			properties.Labels = labels
 
 			itemStart, err := time.Parse(S3SelectDateLayout, startStr)
 			if err != nil {
@@ -211,19 +280,24 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 				Properties: &properties,
 				Window:     opencost.NewWindow(&itemStart, &itemEnd),
 				ListCost: opencost.CostMetric{
-					Cost: listCost,
+					Cost:              listCost,
+					KubernetesPercent: isKubernetes,
 				},
 				NetCost: opencost.CostMetric{
-					Cost: netCost,
+					Cost:              netCost,
+					KubernetesPercent: isKubernetes,
 				},
 				AmortizedNetCost: opencost.CostMetric{
-					Cost: amortizedCost,
+					Cost:              amortizedCost,
+					KubernetesPercent: isKubernetes,
 				},
 				AmortizedCost: opencost.CostMetric{
-					Cost: amortizedCost,
+					Cost:              amortizedNetCost,
+					KubernetesPercent: isKubernetes,
 				},
 				InvoicedCost: opencost.CostMetric{
-					Cost: netCost,
+					Cost:              netCost,
+					KubernetesPercent: isKubernetes,
 				},
 			}
 			ccsr.LoadCloudCost(cc)
@@ -237,25 +311,22 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 	return ccsr, nil
 }
 
-func (s3si *S3SelectIntegration) GetHeaders(queryKeys []string, client *s3.Client) ([]string, error) {
-	// Query to grab only header line from file
-	query := "SELECT * FROM S3OBJECT LIMIT 1"
-	var record []string
-
-	proccessheaders := func(reader *csv.Reader) error {
-		var err error
-		record, err = reader.Read()
-		if err != nil {
-			return err
-		}
-		return nil
+// hsK8sLabel checks if the labels contain a k8s label
+func hasK8sLabel(labels opencost.CloudCostLabels) bool {
+	if _, ok := labels["eks:cluster-name"]; ok {
+		return true
 	}
-
-	// Use only the first query key with assumption that files share schema
-	err := s3si.Query(query, []string{queryKeys[0]}, client, proccessheaders)
-	if err != nil {
-		return nil, err
+	if _, ok := labels["alpha.eksctl.io/cluster-name"]; ok {
+		return true
 	}
-
-	return record, nil
+	if _, ok := labels["kubernetes.io/service-name"]; ok {
+		return true
+	}
+	if _, ok := labels["kubernetes.io/created-for/pvc/name"]; ok {
+		return true
+	}
+	if _, ok := labels["kubernetes.io/created-for/pv/name"]; ok {
+		return true
+	}
+	return false
 }
