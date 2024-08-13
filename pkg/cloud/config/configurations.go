@@ -10,6 +10,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
+	"github.com/opencost/opencost/pkg/cloud/oracle"
 )
 
 // MultiCloudConfig struct is used to unmarshal cloud configs for each provider out of cloud-integration file
@@ -66,6 +67,7 @@ type Configurations struct {
 	GCP     *GCPConfigs     `json:"gcp,omitempty"`
 	Azure   *AzureConfigs   `json:"azure,omitempty"`
 	Alibaba *AlibabaConfigs `json:"alibaba,omitempty"`
+	OCI     *OCIConfigs     `json:"oci,omitempty"`
 }
 
 // UnmarshalJSON custom json unmarshalling to maintain support for MultiCloudConfig format
@@ -283,6 +285,31 @@ func (ac *AlibabaConfigs) Equals(that *AlibabaConfigs) bool {
 	for i, thisBOA := range ac.BOA {
 		thatBOA := that.BOA[i]
 		if !thisBOA.Equals(thatBOA) {
+			return false
+		}
+	}
+
+	return true
+}
+
+type OCIConfigs struct {
+	UsageAPI []*oracle.UsageApiConfiguration `json:"usageApi,omitempty"`
+}
+
+func (oc *OCIConfigs) Equals(that *OCIConfigs) bool {
+	if oc == nil && that == nil {
+		return true
+	}
+	if oc == nil || that == nil {
+		return false
+	}
+	// Check BOA
+	if len(oc.UsageAPI) != len(that.UsageAPI) {
+		return false
+	}
+	for i, thisUsageAPI := range oc.UsageAPI {
+		thatUsageAPI := that.UsageAPI[i]
+		if !thisUsageAPI.Equals(thatUsageAPI) {
 			return false
 		}
 	}
