@@ -49,6 +49,7 @@ const (
 	ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE       = "unknown"
 	ALIBABA_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE = "unsupported"
 	ALIBABA_DISK_CLOUD_ESSD_CATEGORY           = "cloud_essd"
+	ALIBABA_DISK_CLOUD_EFFICIENCY_CATEGORY     = "cloud_efficiency"
 	ALIBABA_DISK_CLOUD_CATEGORY                = "cloud"
 	ALIBABA_DATA_DISK_CATEGORY                 = "data"
 	ALIBABA_SYSTEM_DISK_CATEGORY               = "system"
@@ -67,7 +68,7 @@ var (
 )
 
 // Variable to keep track of instance families that fail in DescribePrice API due improper defaulting of systemDisk if the information is not available
-var alibabaDefaultToCloudEssd = []string{"g6e", "r6e", "r7", "g7", "g7a", "r7a"}
+var alibabaDefaultToCloudEssd = []string{"g6e", "r6e"}
 
 var alibabaRegions = []string{
 	"cn-qingdao",
@@ -980,8 +981,8 @@ func createDescribePriceACSRequest(i interface{}) (*requests.CommonRequest, erro
 				request.QueryParams["SystemDisk.PerformanceLevel"] = node.SystemDisk.PerformanceLevel
 			}
 		} else {
-			// When System Disk information is not available for instance family g6e, r7 and r6e the defaults in
-			// DescribePrice dont default rightly to cloud_essd for these instances.
+			// When the system disk information is not available, and the instance family is g6e or r6e,
+			// or the instance generation is 6 or above, the default disk category in DescribePrice should be cloud_essd.
 			if slices.Contains(alibabaDefaultToCloudEssd, node.InstanceTypeFamily) || getInstanceFamilyGenerationFromType(node.InstanceType) > 6 {
 				request.QueryParams["SystemDisk.Category"] = ALIBABA_DISK_CLOUD_ESSD_CATEGORY
 			}
@@ -1158,12 +1159,14 @@ func getInstanceFamilyGenerationFromType(instanceType string) int {
 	match := re.FindString(familyName)
 	if match != "" {
 		generation, err := strconv.Atoi(match)
-		if err == nil {
+		if err != nil {
+			log.Errorf("unable to convert the generation of the instance type %s to integer", instanceType)
+		} else {
 			return generation
 		}
 	}
 	log.Warnf("unable to find the generation of the instance type %s, returning its default generation as 6", instanceType)
-	return 6
+	return -1
 }
 
 // getInstanceIDFromProviderID returns the instance ID associated with the Node. A *v1.Node providerID in Alibaba cloud
