@@ -1165,7 +1165,7 @@ func getInstanceFamilyGenerationFromType(instanceType string) int {
 			return generation
 		}
 	}
-	log.Warnf("unable to find the generation of the instance type %s, returning its default generation as 6", instanceType)
+	log.Warnf("unable to find the generation of the instance type %s,", instanceType)
 	return -1
 }
 
