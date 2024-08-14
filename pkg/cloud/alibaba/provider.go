@@ -49,7 +49,6 @@ const (
 	ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE       = "unknown"
 	ALIBABA_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE = "unsupported"
 	ALIBABA_DISK_CLOUD_ESSD_CATEGORY           = "cloud_essd"
-	ALIBABA_DISK_CLOUD_EFFICIENCY_CATEGORY     = "cloud_efficiency"
 	ALIBABA_DISK_CLOUD_CATEGORY                = "cloud"
 	ALIBABA_DATA_DISK_CATEGORY                 = "data"
 	ALIBABA_SYSTEM_DISK_CATEGORY               = "system"
