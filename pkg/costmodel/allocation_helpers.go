@@ -615,7 +615,7 @@ func applyRAMBytesUsedMax(podMap map[podKey]*pod, resRAMBytesUsedMax []*prom.Que
 }
 
 func applyGPUUsageAvg(podMap map[podKey]*pod, resGPUUsageAvg []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey) {
-	// Example PromQueryResult: {container="dcgmproftester12", namespace="gpu", pod="dcgmproftester3-deployment-fc89c8dd6-ph7z5"} 99
+	// Example PromQueryResult: {container="dcgmproftester12", namespace="gpu", pod="dcgmproftester3-deployment-fc89c8dd6-ph7z5"} 0.997307
 	for _, res := range resGPUUsageAvg {
 		key, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace")
 		if err != nil {
@@ -649,9 +649,8 @@ func applyGPUUsageAvg(podMap map[podKey]*pod, resGPUUsageAvg []*prom.QueryResult
 				thisPod.appendContainer(container)
 			}
 
-			// DCGM_FI_DEV_GPU_UTIL metric is a number 0-100. Scale down to a
-			// percentage so it is consistent with other fields.
-			thisPod.Allocations[container].GPUUsageAverage = res.Values[0].Value * 0.01
+			// DCGM_FI_PROF_GR_ENGINE_ACTIVE metric is a float between 0-1.
+			thisPod.Allocations[container].GPUUsageAverage = res.Values[0].Value
 		}
 	}
 }

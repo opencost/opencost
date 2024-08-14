@@ -6,7 +6,11 @@ import "github.com/opencost/opencost/core/pkg/filter/ast"
 // valid left-hand comparators
 var cloudCostFilterFields []*ast.Field = []*ast.Field{
 	ast.NewField(FieldInvoiceEntityID),
+	ast.NewField(FieldInvoiceEntityName),
 	ast.NewField(FieldAccountID),
+	ast.NewField(FieldAccountName),
+	ast.NewField(FieldRegionID),
+	ast.NewField(FieldAvailabilityZone),
 	ast.NewField(FieldProvider),
 	ast.NewField(FieldProviderID),
 	ast.NewField(FieldCategory),

@@ -80,6 +80,8 @@ func (ai *AthenaIntegration) GetCloudCost(start, end time.Time) (*opencost.Cloud
 		"line_item_usage_account_id",
 		"line_item_product_code",
 		"line_item_usage_type",
+		"product_region_code",
+		"line_item_availability_zone",
 	}
 
 	// Create query indices
@@ -333,7 +335,6 @@ func (ai *AthenaIntegration) RowToCloudCost(row types.Row, aqi AthenaQueryIndexe
 	// Iterate through the slice of tag columns, assigning
 	// values to the column names, minus the tag prefix.
 	labels := opencost.CloudCostLabels{}
-	labelValues := []string{}
 	for _, tagColumnName := range aqi.TagColumns {
 		// remove quotes
 		labelName := strings.TrimPrefix(tagColumnName, `"`)
@@ -343,7 +344,6 @@ func (ai *AthenaIntegration) RowToCloudCost(row types.Row, aqi AthenaQueryIndexe
 		value := GetAthenaRowValue(row, aqi.ColumnIndexes, tagColumnName)
 		if value != "" {
 			labels[labelName] = value
-			labelValues = append(labelValues, value)
 		}
 	}
 
@@ -353,6 +353,8 @@ func (ai *AthenaIntegration) RowToCloudCost(row types.Row, aqi AthenaQueryIndexe
 	providerID := GetAthenaRowValue(row, aqi.ColumnIndexes, "line_item_resource_id")
 	productCode := GetAthenaRowValue(row, aqi.ColumnIndexes, "line_item_product_code")
 	usageType := GetAthenaRowValue(row, aqi.ColumnIndexes, "line_item_usage_type")
+	regionCode := GetAthenaRowValue(row, aqi.ColumnIndexes, "product_region_code")
+	availabilityZone := GetAthenaRowValue(row, aqi.ColumnIndexes, "line_item_availability_zone")
 	isK8s, _ := strconv.ParseBool(GetAthenaRowValue(row, aqi.ColumnIndexes, aqi.IsK8sColumn))
 	k8sPct := 0.0
 	if isK8s {
@@ -396,13 +398,17 @@ func (ai *AthenaIntegration) RowToCloudCost(row types.Row, aqi AthenaQueryIndexe
 	}
 
 	properties := opencost.CloudCostProperties{
-		ProviderID:      providerID,
-		Provider:        opencost.AWSProvider,
-		AccountID:       accountID,
-		InvoiceEntityID: invoiceEntityID,
-		Service:         productCode,
-		Category:        category,
-		Labels:          labels,
+		ProviderID:        providerID,
+		Provider:          opencost.AWSProvider,
+		AccountID:         accountID,
+		AccountName:       accountID,
+		InvoiceEntityID:   invoiceEntityID,
+		InvoiceEntityName: invoiceEntityID,
+		RegionID:          regionCode,
+		AvailabilityZone:  availabilityZone,
+		Service:           productCode,
+		Category:          category,
+		Labels:            labels,
 	}
 
 	start, err := time.Parse(AthenaDateLayout, startStr)
