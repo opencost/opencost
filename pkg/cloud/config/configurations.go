@@ -23,6 +23,7 @@ type MultiCloudConfig struct {
 }
 
 func (mcc MultiCloudConfig) loadConfigurations(configs *Configurations) {
+	log.Info("load configurations")
 	// Load AWS configs
 	for _, awsConfig := range mcc.AWSConfigs {
 		kc := aws.ConvertAwsAthenaInfoToConfig(awsConfig)
@@ -72,18 +73,28 @@ type Configurations struct {
 
 // UnmarshalJSON custom json unmarshalling to maintain support for MultiCloudConfig format
 func (c *Configurations) UnmarshalJSON(bytes []byte) error {
-	// Attempt to unmarshal into old config object
-	multiConfig := &MultiCloudConfig{}
-	err := json.Unmarshal(bytes, multiConfig)
-	// If unmarshal is successful, move values into config and return
-	if err == nil {
-		multiConfig.loadConfigurations(c)
-		return nil
-	}
+	// This has been tested for backwards compatability, and it works in both config formats.
+	// It also coincidentally works if you mix-and-match both the old format and the new
+	// format.
+	log.Info("unmarshal configurations")
 	// Create inline type to gain access to default Unmarshalling
 	type ConfUnmarshaller *Configurations
 	var conf ConfUnmarshaller = c
-	return json.Unmarshal(bytes, conf)
+	err := json.Unmarshal(bytes, conf)
+	// If unmarshal is successful, return
+	if err == nil {
+		return nil
+	}
+
+	log.Debug("using legacy")
+	// Attempt to unmarshal into old config object
+	multiConfig := &MultiCloudConfig{}
+	err = json.Unmarshal(bytes, multiConfig)
+	if err != nil {
+		return err
+	}
+	multiConfig.loadConfigurations(c)
+	return nil
 }
 
 func (c *Configurations) Equals(that *Configurations) bool {
@@ -107,6 +118,10 @@ func (c *Configurations) Equals(that *Configurations) bool {
 	}
 
 	if !c.Alibaba.Equals(that.Alibaba) {
+		return false
+	}
+
+	if !c.OCI.Equals(that.OCI) {
 		return false
 	}
 
@@ -140,6 +155,11 @@ func (c *Configurations) Insert(keyedConfig cloud.Config) error {
 			c.Alibaba = &AlibabaConfigs{}
 		}
 		c.Alibaba.BOA = append(c.Alibaba.BOA, keyedConfig.(*alibaba.BOAConfiguration))
+	case *oracle.UsageApiConfiguration:
+		if c.OCI == nil {
+			c.OCI = &OCIConfigs{}
+		}
+		c.OCI.UsageAPI = append(c.OCI.UsageAPI, keyedConfig.(*oracle.UsageApiConfiguration))
 	default:
 		return fmt.Errorf("Configurations: Insert: failed to insert config of type: %T", keyedConfig)
 	}
@@ -173,6 +193,12 @@ func (c *Configurations) ToSlice() []cloud.KeyedConfig {
 	if c.Alibaba != nil {
 		for _, boaConfig := range c.Alibaba.BOA {
 			keyedConfigs = append(keyedConfigs, boaConfig)
+		}
+	}
+
+	if c.OCI != nil {
+		for _, usageConfig := range c.OCI.UsageAPI {
+			keyedConfigs = append(keyedConfigs, usageConfig)
 		}
 	}
 
@@ -303,7 +329,7 @@ func (oc *OCIConfigs) Equals(that *OCIConfigs) bool {
 	if oc == nil || that == nil {
 		return false
 	}
-	// Check BOA
+	// Check Usage API
 	if len(oc.UsageAPI) != len(that.UsageAPI) {
 		return false
 	}

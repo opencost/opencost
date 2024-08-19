@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/oracle/oci-go-sdk/v65/common"
 	"github.com/oracle/oci-go-sdk/v65/example/helpers"
 	"github.com/oracle/oci-go-sdk/v65/usageapi"
@@ -14,6 +15,7 @@ import (
 
 type UsageApiIntegration struct {
 	UsageApiConfiguration
+	ConnectionStatus cloud.ConnectionStatus
 }
 
 func (uai *UsageApiIntegration) GetCloudCost(start time.Time, end time.Time) (*opencost.CloudCostSetRange, error) {
@@ -104,4 +106,12 @@ func (uai *UsageApiIntegration) GetCloudCost(start time.Time, end time.Time) (*o
 	}
 
 	return ccsr, nil
+}
+
+func (uai *UsageApiIntegration) GetStatus() cloud.ConnectionStatus {
+	// initialize status if it has not done so; this can happen if the integration is inactive
+	if uai.ConnectionStatus.String() == "" {
+		uai.ConnectionStatus = cloud.InitialStatus
+	}
+	return uai.ConnectionStatus
 }

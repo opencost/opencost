@@ -65,9 +65,9 @@ func (ak *RawConfigProvider) Validate() error {
 	if ak.PrivateKey == "" {
 		return fmt.Errorf("AccessKey: missing private key")
 	}
-	if *ak.PrivateKeyPassphrase == "" {
-		return fmt.Errorf("AccessKey: missing private key passphrase")
-	}
+	// if *ak.PrivateKeyPassphrase == "" {
+	// 	return fmt.Errorf("AccessKey: missing private key passphrase")
+	// }
 
 	return nil
 }
@@ -96,9 +96,9 @@ func (ak *RawConfigProvider) Equals(config cloud.Config) bool {
 	if ak.PrivateKey != thatConfig.PrivateKey {
 		return false
 	}
-	if ak.PrivateKeyPassphrase != thatConfig.PrivateKeyPassphrase {
-		return false
-	}
+	// if *ak.PrivateKeyPassphrase != *thatConfig.PrivateKeyPassphrase {
+	// 	return false
+	// }
 
 	return true
 }
