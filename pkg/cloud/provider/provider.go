@@ -14,6 +14,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
+	"github.com/opencost/opencost/pkg/cloud/linode"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/oracle"
 	"github.com/opencost/opencost/pkg/cloud/scaleway"
@@ -31,6 +32,7 @@ import (
 	"github.com/opencost/opencost/pkg/env"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 // ClusterName returns the name defined in cluster info, defaulting to the
@@ -148,7 +150,7 @@ func ShareTenancyCosts(p models.Provider) bool {
 }
 
 // NewProvider looks at the nodespec or provider metadata server to decide which provider to instantiate.
-func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.ConfigFileManager) (models.Provider, error) {
+func NewProvider(kubeClientset kubernetes.Interface, cache clustercache.ClusterCache, apiKey string, config *config.ConfigFileManager) (models.Provider, error) {
 	nodes := cache.GetAllNodes()
 	if len(nodes) == 0 {
 		log.Infof("Could not locate any nodes for cluster.") // valid in ETL readonly mode
@@ -242,6 +244,16 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			ClusterAccountID: cp.accountID,
 			Config:           NewProviderConfig(config, cp.configFileName),
 		}, nil
+	case opencost.LinodeProvider:
+		log.Info("Found ProviderID starting with \"linode\", using Linode Provider")
+		return &linode.Linode{
+			KubeClient:       kubeClientset,
+			Clientset:        cache,
+			ClusterRegion:    cp.region,
+			ClusterAccountID: cp.accountID,
+			ClusterProjectID: cp.projectID,
+			Config:           NewProviderConfig(config, cp.configFileName),
+		}, nil
 	case opencost.OracleProvider:
 		log.Info("Found ProviderID starting with \"oracle\", using Oracle Provider")
 		return &oracle.Oracle{
@@ -308,6 +320,10 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 	} else if strings.HasPrefix(providerID, "scaleway") { // the scaleway provider ID looks like scaleway://instance/<instance_id>
 		cp.provider = opencost.ScalewayProvider
 		cp.configFileName = "scaleway.json"
+	} else if strings.HasPrefix(providerID, "linode") { // the linode provider ID looks like linode://<instance_id>
+		cp.provider = opencost.LinodeProvider
+		cp.configFileName = "linode.json"
+		cp.projectID = strings.Split(node.Name, "-")[0] // the default name looks like lke<cluster_id>-<random>
 	} else if strings.Contains(node.Status.NodeInfo.KubeletVersion, "aliyun") { // provider ID is not prefix with any distinct keyword like other providers
 		cp.provider = opencost.AlibabaProvider
 		cp.configFileName = "alibaba.json"
