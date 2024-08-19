@@ -486,7 +486,7 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 
 	model := costmodel.NewCostModel(nil, nil, fc, fm, d)
 
-	_, err := model.GetNodeCost(c)
+	_, err := model.GetNodeCost()
 	if err != nil {
 		t.Errorf("Error in node pricing: %s", err)
 	}
@@ -545,7 +545,7 @@ func TestSourceMatchesFromCSV(t *testing.T) {
 
 	model := costmodel.NewCostModel(nil, nil, fc, fm, d)
 
-	_, err = model.GetNodeCost(c)
+	_, err = model.GetNodeCost()
 	if err != nil {
 		t.Errorf("Error in node pricing: %s", err)
 	}
