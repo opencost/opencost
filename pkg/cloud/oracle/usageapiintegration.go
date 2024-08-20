@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/oracle/oci-go-sdk/v65/common"
@@ -28,41 +29,43 @@ func (uai *UsageApiIntegration) GetCloudCost(start time.Time, end time.Time) (*o
 		RequestSummarizedUsagesDetails: usageapi.RequestSummarizedUsagesDetails{
 			CompartmentDepth: common.Float32(5.749769), //todo: what does this mean
 			Granularity:      usageapi.RequestSummarizedUsagesDetailsGranularityDaily,
-			GroupBy:          []string{"group-by"},
-			GroupByTag: []usageapi.Tag{
-				{
-					Key:       common.String("key"),
-					Namespace: common.String("namespace"),
-					Value:     common.String("value"),
-				},
-			},
+			// GroupBy:          []string{"group-by"},
+			// GroupByTag: []usageapi.Tag{
+			// 	{
+			// 		Key:       common.String("key"),
+			// 		Namespace: common.String("namespace"),
+			// 		Value:     common.String("value"),
+			// 	},
+			// },
 			IsAggregateByTime: common.Bool(false),
 			TimeUsageStarted:  &common.SDKTime{Time: start},
 			TimeUsageEnded:    &common.SDKTime{Time: end},
-			Filter: &usageapi.Filter{
-				Dimensions: []usageapi.Dimension{
-					{
-						Key:   common.String("key"),
-						Value: common.String("value"),
-					},
-				},
-				Operator: usageapi.FilterOperatorAnd,
-				Tags: []usageapi.Tag{
-					{
-						Key:       common.String("key"),
-						Namespace: common.String("namespace"),
-						Value:     common.String("value"),
-					},
-				},
-			},
+			// Filter: &usageapi.Filter{
+			// 	Dimensions: []usageapi.Dimension{
+			// 		{
+			// 			Key:   common.String("key"),
+			// 			Value: common.String("value"),
+			// 		},
+			// 	},
+			// 	Operator: usageapi.FilterOperatorAnd,
+			// 	Tags: []usageapi.Tag{
+			// 		{
+			// 			Key:       common.String("key"),
+			// 			Namespace: common.String("namespace"),
+			// 			Value:     common.String("value"),
+			// 		},
+			// 	},
+			// },
 			QueryType: usageapi.RequestSummarizedUsagesDetailsQueryTypeCost,
-			TenantId:  common.String("tenantid"),
+			TenantId:  common.String(uai.TenancyID),
 		},
 		Limit: common.Int(533),
 	}
 
 	resp, err := client.RequestSummarizedUsages(context.Background(), req)
 	helpers.FatalIfError(err)
+
+	log.Infof("%+v", resp.UsageAggregation)
 
 	ccsr := &opencost.CloudCostSetRange{}
 
