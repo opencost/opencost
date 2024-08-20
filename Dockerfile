@@ -28,16 +28,16 @@ RUN set -e ;\
     GOOS=linux \
     go build -a -installsuffix cgo \
     -ldflags \
-    "-X github.com/opencost/opencost/core/pkg/version.Version=${version} \
-    -X github.com/opencost/opencost/core/pkg/version.GitCommit=${commit}" \
+    "-X github.com/oraichain/opencost/core/pkg/version.Version=${version} \
+    -X github.com/oraichain/opencost/core/pkg/version.GitCommit=${commit}" \
     -o /go/bin/app
 
 FROM alpine:latest
 
-LABEL org.opencontainers.image.description="Cross-cloud cost allocation models for Kubernetes workloads"
+LABEL org.opencontainers.image.description="Cross-cloud cost allocation models for Kubernetes workloads (Oraichain ver)"
 LABEL org.opencontainers.image.documentation=https://opencost.io/docs/
 LABEL org.opencontainers.image.licenses=Apache-2.0
-LABEL org.opencontainers.image.source=https://github.com/opencost/opencost
+LABEL org.opencontainers.image.source=https://github.com/oraichain/opencost
 LABEL org.opencontainers.image.title=kubecost-cost-model
 LABEL org.opencontainers.image.url=https://opencost.io
 
