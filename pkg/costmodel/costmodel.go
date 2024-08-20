@@ -182,7 +182,7 @@ const (
 	queryGPURequestsStr = `avg(
 		label_replace(
 			label_replace(
-				sum_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!="", %s}[%s] %s),
+				sum_over_time(kube_pod_container_resource_requests{resource=~"nvidia_.+", container!="",container!="POD", node!="", %s}[%s] %s),
 				"container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		)
