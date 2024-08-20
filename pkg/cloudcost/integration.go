@@ -3,12 +3,14 @@ package cloudcost
 import (
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/alibaba"
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
+	"github.com/opencost/opencost/pkg/cloud/oracle"
 )
 
 // CloudCostIntegration is an interface for retrieving daily granularity CloudCost data for a given range
@@ -99,6 +101,11 @@ func GetIntegrationFromConfig(kc cloud.KeyedConfig) CloudCostIntegration {
 	// Alibaba BOA Integration
 	case *alibaba.BOAConfiguration:
 		return nil
+	case *oracle.UsageApiConfiguration:
+		log.Infof("integration: doing nothing (oci)")
+		return &oracle.UsageApiIntegration{
+			UsageApiConfiguration: *keyedConfig,
+		}
 	default:
 		return nil
 	}
