@@ -24,8 +24,12 @@ const (
 	FieldAccount    string = "account"
 	FieldService    string = "service"
 
-	FieldInvoiceEntityID string = "invoiceEntityID"
-	FieldAccountID       string = "accountID"
+	FieldInvoiceEntityID   string = "invoiceEntityID"
+	FieldInvoiceEntityName string = "invoiceEntityName"
+	FieldAccountID         string = "accountID"
+	FieldAccountName       string = "accountName"
+	FieldRegionID          string = "regionID"
+	FieldAvailabilityZone  string = "availabilityZone"
 
 	AliasDepartment  string = "department"
 	AliasEnvironment string = "environment"

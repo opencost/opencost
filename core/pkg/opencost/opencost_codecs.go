@@ -13,12 +13,11 @@ package opencost
 
 import (
 	"fmt"
+	util "github.com/opencost/opencost/core/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
-
-	util "github.com/opencost/opencost/core/pkg/util"
 )
 
 const (
@@ -44,7 +43,7 @@ const (
 	AllocationCodecVersion uint8 = 22
 
 	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
-	CloudCostCodecVersion uint8 = 2
+	CloudCostCodecVersion uint8 = 3
 )
 
 //--------------------------------------------------------------------------
@@ -3581,20 +3580,44 @@ func (target *CloudCostProperties) MarshalBinaryWithContext(ctx *EncodingContext
 		buff.WriteString(target.AccountID) // write string
 	}
 	if ctx.IsStringTable() {
-		d := ctx.Table.AddOrGet(target.InvoiceEntityID)
+		d := ctx.Table.AddOrGet(target.AccountName)
 		buff.WriteInt(d) // write table index
+	} else {
+		buff.WriteString(target.AccountName) // write string
+	}
+	if ctx.IsStringTable() {
+		e := ctx.Table.AddOrGet(target.InvoiceEntityID)
+		buff.WriteInt(e) // write table index
 	} else {
 		buff.WriteString(target.InvoiceEntityID) // write string
 	}
 	if ctx.IsStringTable() {
-		e := ctx.Table.AddOrGet(target.Service)
-		buff.WriteInt(e) // write table index
+		f := ctx.Table.AddOrGet(target.InvoiceEntityName)
+		buff.WriteInt(f) // write table index
+	} else {
+		buff.WriteString(target.InvoiceEntityName) // write string
+	}
+	if ctx.IsStringTable() {
+		g := ctx.Table.AddOrGet(target.RegionID)
+		buff.WriteInt(g) // write table index
+	} else {
+		buff.WriteString(target.RegionID) // write string
+	}
+	if ctx.IsStringTable() {
+		h := ctx.Table.AddOrGet(target.AvailabilityZone)
+		buff.WriteInt(h) // write table index
+	} else {
+		buff.WriteString(target.AvailabilityZone) // write string
+	}
+	if ctx.IsStringTable() {
+		k := ctx.Table.AddOrGet(target.Service)
+		buff.WriteInt(k) // write table index
 	} else {
 		buff.WriteString(target.Service) // write string
 	}
 	if ctx.IsStringTable() {
-		f := ctx.Table.AddOrGet(target.Category)
-		buff.WriteInt(f) // write table index
+		l := ctx.Table.AddOrGet(target.Category)
+		buff.WriteInt(l) // write table index
 	} else {
 		buff.WriteString(target.Category) // write string
 	}
@@ -3608,14 +3631,14 @@ func (target *CloudCostProperties) MarshalBinaryWithContext(ctx *EncodingContext
 		buff.WriteInt(len(map[string]string(target.Labels))) // map length
 		for v, z := range map[string]string(target.Labels) {
 			if ctx.IsStringTable() {
-				g := ctx.Table.AddOrGet(v)
-				buff.WriteInt(g) // write table index
+				m := ctx.Table.AddOrGet(v)
+				buff.WriteInt(m) // write table index
 			} else {
 				buff.WriteString(v) // write string
 			}
 			if ctx.IsStringTable() {
-				h := ctx.Table.AddOrGet(z)
-				buff.WriteInt(h) // write table index
+				n := ctx.Table.AddOrGet(z)
+				buff.WriteInt(n) // write table index
 			} else {
 				buff.WriteString(z) // write string
 			}
@@ -3712,15 +3735,21 @@ func (target *CloudCostProperties) UnmarshalBinaryWithContext(ctx *DecodingConte
 	g := h
 	target.AccountID = g
 
-	var m string
-	if ctx.IsStringTable() {
-		n := buff.ReadInt() // read string index
-		m = ctx.Table[n]
+	// field version check
+	if uint8(3) <= version {
+		var m string
+		if ctx.IsStringTable() {
+			n := buff.ReadInt() // read string index
+			m = ctx.Table[n]
+		} else {
+			m = buff.ReadString() // read string
+		}
+		l := m
+		target.AccountName = l
+
 	} else {
-		m = buff.ReadString() // read string
+		target.AccountName = "" // default
 	}
-	l := m
-	target.InvoiceEntityID = l
 
 	var p string
 	if ctx.IsStringTable() {
@@ -3730,56 +3759,114 @@ func (target *CloudCostProperties) UnmarshalBinaryWithContext(ctx *DecodingConte
 		p = buff.ReadString() // read string
 	}
 	o := p
-	target.Service = o
+	target.InvoiceEntityID = o
 
-	var s string
-	if ctx.IsStringTable() {
-		t := buff.ReadInt() // read string index
-		s = ctx.Table[t]
+	// field version check
+	if uint8(3) <= version {
+		var s string
+		if ctx.IsStringTable() {
+			t := buff.ReadInt() // read string index
+			s = ctx.Table[t]
+		} else {
+			s = buff.ReadString() // read string
+		}
+		r := s
+		target.InvoiceEntityName = r
+
 	} else {
-		s = buff.ReadString() // read string
+		target.InvoiceEntityName = "" // default
 	}
-	r := s
-	target.Category = r
+
+	// field version check
+	if uint8(3) <= version {
+		var w string
+		if ctx.IsStringTable() {
+			x := buff.ReadInt() // read string index
+			w = ctx.Table[x]
+		} else {
+			w = buff.ReadString() // read string
+		}
+		u := w
+		target.RegionID = u
+
+	} else {
+		target.RegionID = "" // default
+	}
+
+	// field version check
+	if uint8(3) <= version {
+		var aa string
+		if ctx.IsStringTable() {
+			bb := buff.ReadInt() // read string index
+			aa = ctx.Table[bb]
+		} else {
+			aa = buff.ReadString() // read string
+		}
+		y := aa
+		target.AvailabilityZone = y
+
+	} else {
+		target.AvailabilityZone = "" // default
+	}
+
+	var dd string
+	if ctx.IsStringTable() {
+		ee := buff.ReadInt() // read string index
+		dd = ctx.Table[ee]
+	} else {
+		dd = buff.ReadString() // read string
+	}
+	cc := dd
+	target.Service = cc
+
+	var gg string
+	if ctx.IsStringTable() {
+		hh := buff.ReadInt() // read string index
+		gg = ctx.Table[hh]
+	} else {
+		gg = buff.ReadString() // read string
+	}
+	ff := gg
+	target.Category = ff
 
 	// --- [begin][read][alias](CloudCostLabels) ---
-	var u map[string]string
+	var kk map[string]string
 	if buff.ReadUInt8() == uint8(0) {
-		u = nil
+		kk = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		x := buff.ReadInt() // map len
-		w := make(map[string]string, x)
-		for i := 0; i < x; i++ {
+		mm := buff.ReadInt() // map len
+		ll := make(map[string]string, mm)
+		for i := 0; i < mm; i++ {
 			var v string
-			var aa string
+			var oo string
 			if ctx.IsStringTable() {
-				bb := buff.ReadInt() // read string index
-				aa = ctx.Table[bb]
+				pp := buff.ReadInt() // read string index
+				oo = ctx.Table[pp]
 			} else {
-				aa = buff.ReadString() // read string
+				oo = buff.ReadString() // read string
 			}
-			y := aa
-			v = y
+			nn := oo
+			v = nn
 
 			var z string
-			var dd string
+			var rr string
 			if ctx.IsStringTable() {
-				ee := buff.ReadInt() // read string index
-				dd = ctx.Table[ee]
+				ss := buff.ReadInt() // read string index
+				rr = ctx.Table[ss]
 			} else {
-				dd = buff.ReadString() // read string
+				rr = buff.ReadString() // read string
 			}
-			cc := dd
-			z = cc
+			qq := rr
+			z = qq
 
-			w[v] = z
+			ll[v] = z
 		}
-		u = w
+		kk = ll
 		// --- [end][read][map](map[string]string) ---
 
 	}
-	target.Labels = CloudCostLabels(u)
+	target.Labels = CloudCostLabels(kk)
 	// --- [end][read][alias](CloudCostLabels) ---
 
 	return nil

@@ -20,6 +20,9 @@ const (
 	UsageDateColumnName          = "usage_date"
 	BillingAccountIDColumnName   = "billing_id"
 	ProjectIDColumnName          = "project_id"
+	ProjectNameColumnName        = "project_name"
+	RegionColumnName             = "region"
+	ZoneColumnName               = "zone"
 	ServiceDescriptionColumnName = "service"
 	SKUDescriptionColumnName     = "description"
 	LabelsColumnName             = "labels"
@@ -44,6 +47,9 @@ func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*o
 		fmt.Sprintf("TIMESTAMP_TRUNC(usage_start_time, day) as %s", UsageDateColumnName),
 		fmt.Sprintf("billing_account_id as %s", BillingAccountIDColumnName),
 		fmt.Sprintf("project.id as %s", ProjectIDColumnName),
+		fmt.Sprintf("project.name as %s", ProjectNameColumnName),
+		fmt.Sprintf("location.region as %s", RegionColumnName),
+		fmt.Sprintf("location.zone as %s", ZoneColumnName),
 		fmt.Sprintf("service.description as %s", ServiceDescriptionColumnName),
 		fmt.Sprintf("sku.description as %s", SKUDescriptionColumnName),
 		fmt.Sprintf("resource.name as %s", ResourceNameColumnName),
@@ -58,6 +64,9 @@ func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*o
 		UsageDateColumnName,
 		BillingAccountIDColumnName,
 		ProjectIDColumnName,
+		ProjectNameColumnName,
+		RegionColumnName,
+		ZoneColumnName,
 		ServiceDescriptionColumnName,
 		SKUDescriptionColumnName,
 		LabelsColumnName,
@@ -181,7 +190,7 @@ func (bqi *BigQueryIntegration) queryFlexibleCUDTotalCosts(start time.Time, end 
 		  IFNULL(SUM((Select SUM(amount) FROM bd.credits)),0),
 		FROM %s
 		WHERE %s
-		GROUP BY usage_date, sku.description
+		GROUP BY usage_date
 	`
 
 	table := fmt.Sprintf(" `%s` bd ", bqi.GetBillingDataDataset())
@@ -214,7 +223,7 @@ func (bqi *BigQueryIntegration) queryFlexibleCUDTotalCredits(start time.Time, en
 	FROM %s
 	CROSS JOIN UNNEST(bd.credits) AS credits
 	WHERE %s
-	GROUP BY usage_date, credits.id
+	GROUP BY usage_date
 	`
 
 	table := fmt.Sprintf(" `%s` bd ", bqi.GetBillingDataDataset())
