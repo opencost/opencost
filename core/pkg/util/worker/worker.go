@@ -218,8 +218,9 @@ type collector[T any, U any] struct {
 	wg         sync.WaitGroup
 }
 
-// NewGroup creates a new WorkGroup implementation for processing a group of inputs in the order in which
-// they are pushed. Ordered groups do not support concurrent Push() calls.
+// NewCollectionGroup creates a new WorkGroup implementation for processing a group of inputs concurrently. The
+// collection group implementation will collect all non-nil results into the output slice. Thus, the worker pool
+// parameter requires the output type to be a pointer.
 func NewCollectionGroup[T any, U any](pool WorkerPool[T, *U]) WorkGroup[T, *U] {
 	return &collector[T, U]{
 		workPool: pool,
