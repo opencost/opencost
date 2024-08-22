@@ -74,7 +74,6 @@ func TestWorkerPoolExactWorkers(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Errorf("Failed to Complete Run for %d jobs in 5s\n", workers)
 	}
-
 }
 
 func TestOrderedWorkGroup(t *testing.T) {
@@ -116,6 +115,38 @@ func TestOrderedWorkGroup(t *testing.T) {
 	// above assertion
 }
 
+func TestConcurrentRun(t *testing.T) {
+	const tasks = 50
+
+	var wg sync.WaitGroup
+	wg.Add(tasks)
+
+	// worker func logs start/finish for simulated work, returns input value
+	// for testing resulting group output
+	work := func(i int) {
+		defer wg.Done()
+
+		t.Logf("Starting Work: %d\n", i)
+		time.Sleep(time.Duration(rand.Intn(250)+250) * time.Millisecond)
+		t.Logf("Finished Work: %d\n", i)
+	}
+
+	// pre-build inputs
+	input := make([]int, tasks)
+	for i := 0; i < tasks; i++ {
+		input[i] = i + 1
+	}
+
+	// get results and verify they match the recorded inputs
+	ConcurrentRunWith(10, work, input)
+
+	select {
+	case <-waitChannelFor(&wg):
+	case <-time.After(5 * time.Second):
+		t.Errorf("Failed to Complete Run for %d jobs in 5s\n", tasks)
+	}
+}
+
 func TestConcurrentDoOrdered(t *testing.T) {
 	// Perform a similar test to the above ordered test, but use the helper func with pre-built inputs
 	const tasks = 50
@@ -146,4 +177,109 @@ func TestConcurrentDoOrdered(t *testing.T) {
 	// The typical test run will show different tasks starting and stopping out of order (expected),
 	// the result collection handles the ordering in the group, which is what we want to ensure in the
 	// above assertion
+}
+
+func TestConcurrentCollect(t *testing.T) {
+	type A struct {
+		Value int
+	}
+
+	type B struct {
+		Value int
+	}
+
+	// Perform a similar test to the above ordered test, but use the helper func with pre-built inputs
+	const tasks = 100
+	const expectedResults = 50
+
+	var inputs []*A
+	for i := 0; i < tasks; i++ {
+		inputs = append(inputs, &A{Value: i})
+	}
+
+	workerFunc := func(a *A) *B {
+		time.Sleep(time.Duration(rand.Intn(150)+100) * time.Millisecond)
+
+		if a.Value%2 == 0 {
+			return &B{Value: a.Value}
+		}
+
+		return nil
+	}
+
+	results := ConcurrentCollect(workerFunc, inputs)
+
+	if len(results) != expectedResults {
+		t.Errorf("Expected 50 results, got %d", len(results))
+	}
+
+	seen := map[int]bool{}
+	for _, result := range results {
+		if seen[result.Value] {
+			t.Errorf("Duplicate result: %d", result.Value)
+		}
+		seen[result.Value] = true
+
+		if result.Value%2 != 0 {
+			t.Errorf("Found odd value: %d", result.Value)
+		}
+	}
+}
+
+func TestConcurrentDoWithLessThanOne(t *testing.T) {
+	const tasks = 4
+
+	var wg sync.WaitGroup
+	wg.Add(tasks)
+
+	now := time.Now()
+
+	doIt := func(i int) int {
+		defer wg.Done()
+		time.Sleep(250 * time.Millisecond)
+		return i
+	}
+
+	results := ConcurrentDoWith(-1, doIt, []int{1, 2, 3, 4})
+
+	select {
+	case <-waitChannelFor(&wg):
+	case <-time.After(2 * time.Second):
+		t.Errorf("Failed to Complete Run for %d jobs in 2s\n", tasks)
+	}
+
+	if time.Since(now) > 1500*time.Millisecond {
+		t.Errorf("Expected to complete in 1.5s, took %dms", time.Since(now).Milliseconds())
+	}
+	for i := 1; i <= tasks; i++ {
+		if results[i-1] != i {
+			t.Errorf("Expected %d, got %d", i, results[i])
+		}
+	}
+}
+
+func TestConcurrentRunWithLessThanOne(t *testing.T) {
+	const tasks = 4
+
+	var wg sync.WaitGroup
+	wg.Add(tasks)
+
+	now := time.Now()
+
+	doIt := func(i int) {
+		defer wg.Done()
+		time.Sleep(250 * time.Millisecond)
+	}
+
+	ConcurrentRunWith(-1, doIt, []int{1, 2, 3, 4})
+
+	select {
+	case <-waitChannelFor(&wg):
+	case <-time.After(2 * time.Second):
+		t.Errorf("Failed to Complete Run for %d jobs in 2s\n", tasks)
+	}
+
+	if time.Since(now) > 1500*time.Millisecond {
+		t.Errorf("Expected to complete in 1.5s, took %dms", time.Since(now).Milliseconds())
+	}
 }
