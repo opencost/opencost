@@ -1019,7 +1019,8 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			pmd.PricingTypeCounts[cnode.PricingType] = 1
 		}
 
-		// newCnode builds upon cnode (populated by cloud provider specific code), but with additional fields populated
+		// newCnode builds upon cnode but populates/overrides certain fields.
+		// cnode was populated leveraging cloud provider public pricing APIs.
 		newCnode := *cnode
 		if newCnode.InstanceType == "" {
 			it, _ := util.GetInstanceType(n.Labels)
@@ -1068,7 +1069,8 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		}
 
 		// The k8s API will often report more accurate results for GPU count
-		// than cloud provider APIs. If found, override the original value.
+		// than cloud provider public pricing APIs. If found, override the
+		// original value.
 		gpuOverride, vgpuOverride, err := getGPUCount(cm.Cache, n)
 		if err != nil {
 			log.Warnf("Unable to get GPUCount for node %s: %s", n.Name, err.Error())
