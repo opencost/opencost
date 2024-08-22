@@ -45,6 +45,9 @@ const (
 
 const MAX_LOCAL_STORAGE_SIZE = 1024 * 1024 * 1024 * 1024
 
+// When ASSET_INCLUDE_LOCAL_DISK_COST is set to false, local storage
+// provisioned by sig-storage-local-static-provisioner is excluded
+// by checking if the volume is prefixed by "local-pv-"
 const SIG_STORAGE_LOCAL_PROVISIONER_PREFIX = "local-pv-"
 
 // Costs represents cumulative and monthly cluster costs over a given duration. Costs
