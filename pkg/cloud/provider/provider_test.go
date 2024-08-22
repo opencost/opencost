@@ -2,6 +2,10 @@ package provider
 
 import (
 	"testing"
+
+	"github.com/opencost/opencost/core/pkg/opencost"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestParseLocalDiskID(t *testing.T) {
@@ -38,6 +42,133 @@ func TestParseLocalDiskID(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			if got := ParseLocalDiskID(tt.input); got != tt.want {
 				t.Errorf("ParseLocalDiskID() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_getClusterProperties(t *testing.T) {
+	type testCase struct {
+		name string
+		node *v1.Node
+		exp  clusterProperties
+	}
+
+	testCases := []testCase{
+		{
+			name: "empty = default",
+			node: &v1.Node{
+				Spec: v1.NodeSpec{},
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{},
+				},
+			},
+			exp: clusterProperties{
+				provider:       "DEFAULT",
+				configFileName: "default.json",
+			},
+		},
+		{
+			name: "AWS by provider ID",
+			node: &v1.Node{
+				Spec: v1.NodeSpec{
+					ProviderID: "aws:///us-east-2a/i-0d907d7e1918849fc",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{},
+				},
+			},
+			exp: clusterProperties{
+				provider:       "AWS",
+				configFileName: "aws.json",
+			},
+		},
+		{
+			name: "Azure by provider ID",
+			node: &v1.Node{
+				Spec: v1.NodeSpec{
+					ProviderID: "azure:///subscriptions/3hd721c9-d305-43fd-8130-a0hfh37jja21/resourceGroups/mc_default-001_aks-tool-prd-useast-001_useast/providers/Microsoft.Compute/virtualMachineScaleSets/aks-default-92337122-vmss/virtualMachines/2",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{},
+				},
+			},
+			exp: clusterProperties{
+				provider:       "Azure",
+				configFileName: "azure.json",
+				accountID:      "3hd721c9-d305-43fd-8130-a0hfh37jja21",
+			},
+		},
+		{
+			name: "Google by provider ID",
+			node: &v1.Node{
+				Spec: v1.NodeSpec{
+					ProviderID: "gce://guestbook-227502/us-central1-a/gke-kc-integration-t-recommended-by-k-58c36f92-4i62",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{},
+				},
+			},
+			exp: clusterProperties{
+				provider:       "GCP",
+				configFileName: "gcp.json",
+				projectID:      "guestbook-227502",
+			},
+		},
+		{
+			name: "Scaleway by provider ID",
+			node: &v1.Node{
+				Spec: v1.NodeSpec{
+					ProviderID: "scaleway://something/something",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{},
+				},
+			},
+			exp: clusterProperties{
+				provider:       opencost.ScalewayProvider,
+				configFileName: "scaleway.json",
+			},
+		},
+		{
+			name: "Alibaba by kubelet version",
+			node: &v1.Node{
+				Status: v1.NodeStatus{
+					NodeInfo: v1.NodeSystemInfo{
+						KubeletVersion: "something-aliyun-version-97",
+					},
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{},
+				},
+			},
+			exp: clusterProperties{
+				provider:       opencost.AlibabaProvider,
+				configFileName: "alibaba.json",
+			},
+		},
+		{
+			name: "Oracle by providerId",
+			node: &v1.Node{
+				Spec: v1.NodeSpec{
+					ProviderID: "ocid://something/something",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{},
+				},
+			},
+			exp: clusterProperties{
+				provider:       opencost.OracleProvider,
+				configFileName: "oracle.json",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cp := getClusterProperties(tc.node)
+			if !cp.Equal(tc.exp) {
+				t.Errorf("expected %+v; received %+v", tc.exp, cp)
 			}
 		})
 	}

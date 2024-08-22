@@ -270,6 +270,14 @@ type clusterProperties struct {
 	projectID      string
 }
 
+func (cp clusterProperties) Equal(that clusterProperties) bool {
+	return cp.provider == that.provider &&
+		cp.configFileName == that.configFileName &&
+		cp.region == that.region &&
+		cp.accountID == that.accountID &&
+		cp.projectID == that.projectID
+}
+
 func getClusterProperties(node *v1.Node) clusterProperties {
 	providerID := strings.ToLower(node.Spec.ProviderID)
 	region, _ := util.GetRegion(node.Labels)
@@ -291,11 +299,7 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 	}
 
 	// The second conditional is mainly if you're running opencost outside of GCE, say in a local environment.
-	if metadata.OnGCE() || strings.HasPrefix(providerID, "gce") {
-		cp.provider = opencost.GCPProvider
-		cp.configFileName = "gcp.json"
-		cp.projectID = gcp.ParseGCPProjectID(providerID)
-	} else if strings.HasPrefix(providerID, "aws") {
+	if strings.HasPrefix(providerID, "aws") {
 		cp.provider = opencost.AWSProvider
 		cp.configFileName = "aws.json"
 	} else if strings.Contains(node.Status.NodeInfo.KubeletVersion, "eks") { // Additional check for EKS, via kubelet check
@@ -305,6 +309,10 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 		cp.provider = opencost.AzureProvider
 		cp.configFileName = "azure.json"
 		cp.accountID = azure.ParseAzureSubscriptionID(providerID)
+	} else if metadata.OnGCE() || strings.HasPrefix(providerID, "gce") {
+		cp.provider = opencost.GCPProvider
+		cp.configFileName = "gcp.json"
+		cp.projectID = gcp.ParseGCPProjectID(providerID)
 	} else if strings.HasPrefix(providerID, "scaleway") { // the scaleway provider ID looks like scaleway://instance/<instance_id>
 		cp.provider = opencost.ScalewayProvider
 		cp.configFileName = "scaleway.json"
