@@ -175,8 +175,8 @@ type noResultGroup[T any] struct {
 	wg       sync.WaitGroup
 }
 
-// NewGroup creates a new WorkGroup implementation for processing a group of inputs in the order in which
-// they are pushed. Ordered groups do not support concurrent Push() calls.
+// NewNoResultGroup creates a new WorkGroup implementation for processing a group of inputs concurrently. This
+// work group implementation does not collect results, and therefore, requires a worker pool with a struct{} output.
 func NewNoResultGroup[T any](pool WorkerPool[T, struct{}]) WorkGroup[T, struct{}] {
 	return &noResultGroup[T]{
 		workPool: pool,
