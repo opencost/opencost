@@ -494,15 +494,31 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				}
 
 				gpuReqCount := 0.0
+
 				if g, ok := container.Resources.Requests["nvidia.com/gpu"]; ok {
 					gpuReqCount = g.AsApproximateFloat64()
 				} else if g, ok := container.Resources.Limits["nvidia.com/gpu"]; ok {
+					gpuReqCount = g.AsApproximateFloat64()
+				} else if g, ok := container.Resources.Requests["nvidia.com/mig-1g.5gb"]; ok {
+					gpuReqCount = g.AsApproximateFloat64()
+				} else if g, ok := container.Resources.Limits["nvidia.com/mig-1g.5gb"]; ok {
+					gpuReqCount = g.AsApproximateFloat64()
+				} else if g, ok := container.Resources.Requests["nvidia.com/mig-2g.10gb"]; ok {
+					gpuReqCount = g.AsApproximateFloat64()
+				} else if g, ok := container.Resources.Limits["nvidia.com/mig-2g.10gb"]; ok {
+					gpuReqCount = g.AsApproximateFloat64()
+				} else if g, ok := container.Resources.Requests["nvidia.com/mig-3g.20gb"]; ok {
+					gpuReqCount = g.AsApproximateFloat64()
+				} else if g, ok := container.Resources.Limits["nvidia.com/mig-3g.20gb"]; ok {
 					gpuReqCount = g.AsApproximateFloat64()
 				} else if g, ok := container.Resources.Requests["k8s.amazonaws.com/vgpu"]; ok {
 					gpuReqCount = g.AsApproximateFloat64()
 				} else if g, ok := container.Resources.Limits["k8s.amazonaws.com/vgpu"]; ok {
 					gpuReqCount = g.AsApproximateFloat64()
 				}
+
+				log.Debug("Num of GPUs: " + fmt.Sprintf("%f", gpuReqCount))
+
 				GPUReqV := []*util.Vector{
 					{
 						Value:     float64(gpuReqCount),
@@ -1074,6 +1090,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		// So the k8s api will often report more accurate results for GPU count under status > capacity > nvidia.com/gpu than the cloud providers billing data
 		// not all providers are guaranteed to use this, so don't overwrite a Provider assignment if we can't find something under that capacity exists
 		gpuc := 0.0
+
 		q, ok := n.Status.Capacity["nvidia.com/gpu"]
 		_, hasReplicas := n.Labels["nvidia.com/gpu.replicas"]
 
@@ -1095,7 +1112,20 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 				newCnode.GPU = fmt.Sprintf("%d", 0)
 			}
 			newCnode.VGPU = fmt.Sprintf("%d", q.Value())
-
+		} else if g, ok := n.Status.Capacity["nvidia.com/mig-2g.10gb"]; ok {
+			gpuCount := g.Value()
+			if gpuCount != 0 {
+				newCnode.GPU = fmt.Sprintf("%d", gpuCount)
+				newCnode.VGPU = newCnode.GPU
+				gpuc = float64(gpuCount)
+			}
+		} else if g, ok := n.Status.Capacity["nvidia.com/mig-3g.20gb"]; ok {
+			gpuCount := g.Value()
+			if gpuCount != 0 {
+				newCnode.GPU = fmt.Sprintf("%d", gpuCount)
+				newCnode.VGPU = newCnode.GPU
+				gpuc = float64(gpuCount)
+			}
 		} else if g, ok := n.Status.Capacity["k8s.amazonaws.com/vgpu"]; ok {
 			gpuCount := g.Value()
 			if gpuCount != 0 {
