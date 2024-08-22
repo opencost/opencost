@@ -47,7 +47,11 @@ const MAX_LOCAL_STORAGE_SIZE = 1024 * 1024 * 1024 * 1024
 
 // When ASSET_INCLUDE_LOCAL_DISK_COST is set to false, local storage
 // provisioned by sig-storage-local-static-provisioner is excluded
-// by checking if the volume is prefixed by "local-pv-"
+// by checking if the volume is prefixed by "local-pv-".
+//
+// This is based on the sig-storage-local-static-provisioner implementation,
+// which creates all PVs with the "local-pv-" prefix. For reference, see:
+// https://github.com/kubernetes-sigs/sig-storage-local-static-provisioner/blob/b6f465027bd059e92c0032c81dd1e1d90e35c909/pkg/discovery/discovery.go#L410-L417
 const SIG_STORAGE_LOCAL_PROVISIONER_PREFIX = "local-pv-"
 
 // Costs represents cumulative and monthly cluster costs over a given duration. Costs
