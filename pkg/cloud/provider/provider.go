@@ -291,7 +291,7 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 	}
 
 	// The second conditional is mainly if you're running opencost outside of GCE, say in a local environment.
-	if strings.HasPrefix(providerID, "gce") {
+	if metadata.OnGCE() || strings.HasPrefix(providerID, "gce") {
 		cp.provider = opencost.GCPProvider
 		cp.configFileName = "gcp.json"
 		cp.projectID = gcp.ParseGCPProjectID(providerID)
