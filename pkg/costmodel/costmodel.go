@@ -1075,12 +1075,12 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		if err != nil {
 			log.Warnf("Unable to get GPUCount for node %s: %s", n.Name, err.Error())
 		}
-		if gpuOverride != nil {
-			newCnode.GPU = fmt.Sprintf("%f", *gpuOverride)
-			gpuc = *gpuOverride
+		if gpuOverride > 0 {
+			newCnode.GPU = fmt.Sprintf("%f", gpuOverride)
+			gpuc = gpuOverride
 		}
-		if vgpuOverride != nil {
-			newCnode.VGPU = fmt.Sprintf("%f", *vgpuOverride)
+		if vgpuOverride > 0 {
+			newCnode.VGPU = fmt.Sprintf("%f", vgpuOverride)
 		}
 
 		// Special case for SUSE rancher, since it won't behave with normal
@@ -2327,16 +2327,16 @@ func getStatefulSetsOfPod(pod v1.Pod) []string {
 	return []string{}
 }
 
-// getGPUCount leverages the k8s API to identify the number of GPUs and vGPUs on
-// the node.
-func getGPUCount(cache clustercache.ClusterCache, n *v1.Node) (*float64, *float64, error) {
+// getGPUCount reads the node's Status and Labels (via the k8s API) to identify
+// the number of GPUs and vGPUs are equipped on the node. If unable to identify
+// a GPU count, it will return -1.
+func getGPUCount(cache clustercache.ClusterCache, n *v1.Node) (float64, float64, error) {
 	g, hasGpu := n.Status.Capacity["nvidia.com/gpu"]
 	_, hasReplicas := n.Labels["nvidia.com/gpu.replicas"]
 
 	// Case 1: Standard NVIDIA GPU
 	if hasGpu && g.Value() != 0 && !hasReplicas {
-		resultGPU := float64(g.Value())
-		return &resultGPU, &resultGPU, nil
+		return float64(g.Value()), float64(g.Value()), nil
 	}
 
 	// Case 2: NVIDIA GPU with GPU Feature Discovery (GFD) Pod enabled.
@@ -2351,7 +2351,7 @@ func getGPUCount(cache clustercache.ClusterCache, n *v1.Node) (*float64, *float6
 			var err error
 			resultGPU, err = strconv.ParseFloat(c, 64)
 			if err != nil {
-				return nil, nil, fmt.Errorf("could not parse label \"nvidia.com/gpu.count\": %v", err)
+				return -1, -1, fmt.Errorf("could not parse label \"nvidia.com/gpu.count\": %v", err)
 			}
 		}
 
@@ -2363,14 +2363,14 @@ func getGPUCount(cache clustercache.ClusterCache, n *v1.Node) (*float64, *float6
 			resultVGPU = resultGPU
 		}
 
-		return &resultGPU, &resultVGPU, nil
+		return resultGPU, resultVGPU, nil
 	}
 
 	// Case 3: AWS vGPU
 	if vgpu, ok := n.Status.Capacity["k8s.amazonaws.com/vgpu"]; ok {
 		vgpuCount, err := getAllocatableVGPUs(cache)
 		if err != nil {
-			return nil, nil, err
+			return -1, -1, err
 		}
 
 		vgpuCoeff := 10.0
@@ -2381,12 +2381,12 @@ func getGPUCount(cache clustercache.ClusterCache, n *v1.Node) (*float64, *float6
 		if vgpu.Value() != 0 {
 			resultGPU := float64(vgpu.Value()) / vgpuCoeff
 			resultVGPU := float64(vgpu.Value())
-			return &resultGPU, &resultVGPU, nil
+			return resultGPU, resultVGPU, nil
 		}
 	}
 
 	// No GPU found
-	return nil, nil, nil
+	return -1, -1, nil
 }
 
 func getAllocatableVGPUs(cache clustercache.ClusterCache) (float64, error) {

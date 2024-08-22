@@ -14,8 +14,8 @@ func TestGetGPUCount(t *testing.T) {
 	tests := []struct {
 		name          string
 		node          *v1.Node
-		expectedGPU   *float64
-		expectedVGPU  *float64
+		expectedGPU   float64
+		expectedVGPU  float64
 		expectedError bool
 	}{
 		{
@@ -27,8 +27,8 @@ func TestGetGPUCount(t *testing.T) {
 					},
 				},
 			},
-			expectedGPU:  float64Ptr(2),
-			expectedVGPU: float64Ptr(2),
+			expectedGPU:  2.0,
+			expectedVGPU: 2.0,
 		},
 		{
 			name: "NVIDIA GPU with GFD - renameByDefault=true",
@@ -45,8 +45,8 @@ func TestGetGPUCount(t *testing.T) {
 					},
 				},
 			},
-			expectedGPU:  float64Ptr(1),
-			expectedVGPU: float64Ptr(4),
+			expectedGPU:  1.0,
+			expectedVGPU: 4.0,
 		},
 		{
 			name: "NVIDIA GPU with GFD - renameByDefault=false",
@@ -63,8 +63,8 @@ func TestGetGPUCount(t *testing.T) {
 					},
 				},
 			},
-			expectedGPU:  float64Ptr(1),
-			expectedVGPU: float64Ptr(4),
+			expectedGPU:  1.0,
+			expectedVGPU: 4.0,
 		},
 		{
 			name: "No GPU",
@@ -73,8 +73,8 @@ func TestGetGPUCount(t *testing.T) {
 					Capacity: v1.ResourceList{},
 				},
 			},
-			expectedGPU:  nil,
-			expectedVGPU: nil,
+			expectedGPU:  -1.0,
+			expectedVGPU: -1.0,
 		},
 	}
 
@@ -91,10 +91,6 @@ func TestGetGPUCount(t *testing.T) {
 			}
 		})
 	}
-}
-
-func float64Ptr(v float64) *float64 {
-	return &v
 }
 
 func Test_CostData_GetController_CronJob(t *testing.T) {
