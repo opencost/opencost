@@ -543,7 +543,7 @@ func ClusterDisks(client prometheus.Client, cp models.Provider, start, end time.
 	}
 
 	if !env.GetAssetIncludeLocalDiskCost() {
-		return filterSigStorageLocalProvisonerPVs(diskMap), nil
+		return filterOutLocalPVs(diskMap), nil
 	}
 
 	return diskMap, nil
@@ -1659,12 +1659,21 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 	}
 }
 
-func filterSigStorageLocalProvisonerPVs(diskMap map[DiskIdentifier]*Disk) map[DiskIdentifier]*Disk {
-	diskMapFilteredLocalPVs := map[DiskIdentifier]*Disk{}
+// filterOutLocalPVs removes local Persistent Volumes (PVs) from the given disk map.
+// Local PVs are identified by the prefix "local-pv-" in their names, which is the
+// convention used by sig-storage-local-static-provisioner.
+//
+// Parameters:
+//   - diskMap: A map of DiskIdentifier to Disk pointers, representing all PVs.
+//
+// Returns:
+//   - A new map of DiskIdentifier to Disk pointers, containing only non-local PVs.
+func filterOutLocalPVs(diskMap map[DiskIdentifier]*Disk) map[DiskIdentifier]*Disk {
+	nonLocalPVDiskMap := map[DiskIdentifier]*Disk{}
 	for key, val := range diskMap {
 		if !strings.HasPrefix(key.Name, SIG_STORAGE_LOCAL_PROVISIONER_PREFIX) {
-			diskMapFilteredLocalPVs[key] = val
+			nonLocalPVDiskMap[key] = val
 		}
 	}
-	return diskMapFilteredLocalPVs
+	return nonLocalPVDiskMap
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_filterSigStorageLocalProvisonerPVs(t *testing.T) {
+func Test_filterOutLocalPVs(t *testing.T) {
 	testCases := []struct {
 		name     string
 		input    map[DiskIdentifier]*Disk
@@ -47,7 +47,7 @@ func Test_filterSigStorageLocalProvisonerPVs(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := filterSigStorageLocalProvisonerPVs(tc.input)
+			result := filterOutLocalPVs(tc.input)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
