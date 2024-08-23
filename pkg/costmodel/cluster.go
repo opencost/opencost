@@ -273,10 +273,6 @@ func ClusterDisks(client prometheus.Client, cp models.Provider, start, end time.
 			continue
 		}
 
-		if !env.GetAssetIncludeLocalDiskCost() && strings.HasPrefix(volumeName, SIG_STORAGE_LOCAL_PROVISIONER_PREFIX) {
-			continue
-		}
-
 		key := DiskIdentifier{cluster, volumeName}
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
@@ -544,6 +540,10 @@ func ClusterDisks(client prometheus.Client, cp models.Provider, start, end time.
 		if disk.ProviderID == "" {
 			disk.ProviderID = disk.Name
 		}
+	}
+
+	if !env.GetAssetIncludeLocalDiskCost() {
+		return filterSigStorageLocalProvisonerPVs(diskMap), nil
 	}
 
 	return diskMap, nil
@@ -1434,10 +1434,6 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 			continue
 		}
 
-		if !env.GetAssetIncludeLocalDiskCost() && strings.HasPrefix(name, SIG_STORAGE_LOCAL_PROVISIONER_PREFIX) {
-			continue
-		}
-
 		if len(result.Values) == 0 {
 			continue
 		}
@@ -1471,10 +1467,6 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 			continue
 		}
 
-		if !env.GetAssetIncludeLocalDiskCost() && strings.HasPrefix(name, SIG_STORAGE_LOCAL_PROVISIONER_PREFIX) {
-			continue
-		}
-
 		// TODO niko/assets storage class
 
 		bytes := result.Values[0].Value
@@ -1504,10 +1496,6 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 		name, err := result.GetString("persistentvolume")
 		if err != nil {
 			log.Warnf("ClusterDisks: PV cost data missing persistentvolume")
-			continue
-		}
-
-		if !env.GetAssetIncludeLocalDiskCost() && strings.HasPrefix(name, SIG_STORAGE_LOCAL_PROVISIONER_PREFIX) {
 			continue
 		}
 
@@ -1575,10 +1563,6 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 				continue
 			}
 
-			if !env.GetAssetIncludeLocalDiskCost() && strings.HasPrefix(thatVolumeName, SIG_STORAGE_LOCAL_PROVISIONER_PREFIX) {
-				continue
-			}
-
 			thatClaimName, err := thatRes.GetString("persistentvolumeclaim")
 			if err != nil {
 				log.Debugf("ClusterDisks: pv claim data missing persistentvolumeclaim")
@@ -1643,10 +1627,6 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 				continue
 			}
 
-			if !env.GetAssetIncludeLocalDiskCost() && strings.HasPrefix(thatVolumeName, SIG_STORAGE_LOCAL_PROVISIONER_PREFIX) {
-				continue
-			}
-
 			thatClaimName, err := thatRes.GetString("persistentvolumeclaim")
 			if err != nil {
 				log.Debugf("ClusterDisks: pv claim data missing persistentvolumeclaim")
@@ -1677,4 +1657,14 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 		}
 		diskMap[key].BytesUsedMaxPtr = &usage
 	}
+}
+
+func filterSigStorageLocalProvisonerPVs(diskMap map[DiskIdentifier]*Disk) map[DiskIdentifier]*Disk {
+	diskMapFilteredLocalPVs := map[DiskIdentifier]*Disk{}
+	for key, val := range diskMap {
+		if !strings.HasPrefix(key.Name, SIG_STORAGE_LOCAL_PROVISIONER_PREFIX) {
+			diskMapFilteredLocalPVs[key] = val
+		}
+	}
+	return diskMapFilteredLocalPVs
 }
