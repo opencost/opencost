@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/opencost/opencost/pkg/cloud/provider"
@@ -43,6 +44,15 @@ const (
 )
 
 const MAX_LOCAL_STORAGE_SIZE = 1024 * 1024 * 1024 * 1024
+
+// When ASSET_INCLUDE_LOCAL_DISK_COST is set to false, local storage
+// provisioned by sig-storage-local-static-provisioner is excluded
+// by checking if the volume is prefixed by "local-pv-".
+//
+// This is based on the sig-storage-local-static-provisioner implementation,
+// which creates all PVs with the "local-pv-" prefix. For reference, see:
+// https://github.com/kubernetes-sigs/sig-storage-local-static-provisioner/blob/b6f465027bd059e92c0032c81dd1e1d90e35c909/pkg/discovery/discovery.go#L410-L417
+const SIG_STORAGE_LOCAL_PROVISIONER_PREFIX = "local-pv-"
 
 // Costs represents cumulative and monthly cluster costs over a given duration. Costs
 // are broken down by cores, memory, and storage.
@@ -530,6 +540,10 @@ func ClusterDisks(client prometheus.Client, cp models.Provider, start, end time.
 		if disk.ProviderID == "" {
 			disk.ProviderID = disk.Name
 		}
+	}
+
+	if !env.GetAssetIncludeLocalDiskCost() {
+		return filterOutLocalPVs(diskMap), nil
 	}
 
 	return diskMap, nil
@@ -1548,11 +1562,13 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 				log.Debugf("ClusterDisks: pv claim data missing volumename")
 				continue
 			}
+
 			thatClaimName, err := thatRes.GetString("persistentvolumeclaim")
 			if err != nil {
 				log.Debugf("ClusterDisks: pv claim data missing persistentvolumeclaim")
 				continue
 			}
+
 			thatClaimNamespace, err := thatRes.GetString("namespace")
 			if err != nil {
 				log.Debugf("ClusterDisks: pv claim data missing namespace")
@@ -1589,6 +1605,7 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 			log.Debugf("ClusterDisks: pv usage data missing persistentvolumeclaim")
 			continue
 		}
+
 		claimNamespace, err := result.GetString("namespace")
 		if err != nil {
 			log.Debugf("ClusterDisks: pv usage data missing namespace")
@@ -1609,11 +1626,13 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 				log.Debugf("ClusterDisks: pv claim data missing volumename")
 				continue
 			}
+
 			thatClaimName, err := thatRes.GetString("persistentvolumeclaim")
 			if err != nil {
 				log.Debugf("ClusterDisks: pv claim data missing persistentvolumeclaim")
 				continue
 			}
+
 			thatClaimNamespace, err := thatRes.GetString("namespace")
 			if err != nil {
 				log.Debugf("ClusterDisks: pv claim data missing namespace")
@@ -1638,4 +1657,23 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 		}
 		diskMap[key].BytesUsedMaxPtr = &usage
 	}
+}
+
+// filterOutLocalPVs removes local Persistent Volumes (PVs) from the given disk map.
+// Local PVs are identified by the prefix "local-pv-" in their names, which is the
+// convention used by sig-storage-local-static-provisioner.
+//
+// Parameters:
+//   - diskMap: A map of DiskIdentifier to Disk pointers, representing all PVs.
+//
+// Returns:
+//   - A new map of DiskIdentifier to Disk pointers, containing only non-local PVs.
+func filterOutLocalPVs(diskMap map[DiskIdentifier]*Disk) map[DiskIdentifier]*Disk {
+	nonLocalPVDiskMap := map[DiskIdentifier]*Disk{}
+	for key, val := range diskMap {
+		if !strings.HasPrefix(key.Name, SIG_STORAGE_LOCAL_PROVISIONER_PREFIX) {
+			nonLocalPVDiskMap[key] = val
+		}
+	}
+	return nonLocalPVDiskMap
 }
