@@ -70,6 +70,8 @@ jobs:
           echo "SONAR_PR_NUM=$(cat pr-artifact/pr_num.txt | tr -d '\n' | tr -d ' ')" >> $GITHUB_OUTPUT
           echo "SONAR_BASE=$(cat pr-artifact/base.txt | tr -d '\n' | tr -d ' ')" >> $GITHUB_OUTPUT
           echo "SONAR_HEAD=$(cat pr-artifact/head.txt | tr -d '\n' | tr -d ' ')" >> $GITHUB_OUTPUT
+          # move coverage file to root where sonar properties file is expecting it
+          cp pr-artifact/coverage.out coverage.out
       # on develop branch, only run a baseline scan
       - name: SonarCloud Scan (Baseline)
         uses: sonarsource/sonarcloud-github-action@master
