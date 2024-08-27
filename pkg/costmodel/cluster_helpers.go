@@ -45,6 +45,7 @@ func mergeTypeMaps(clusterAndNameToType1, clusterAndNameToType2 map[nodeIdentifi
 		log.Debug("untested")
 		log.Debug("untested")
 		log.Debug("untested")
+		log.Debug("untested")
 	}
 	merged := map[nodeIdentifierNoProviderID]string{}
 	for k, v := range clusterAndNameToType2 {
