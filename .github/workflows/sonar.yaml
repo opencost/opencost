@@ -31,13 +31,14 @@ jobs:
           name: code-coverage
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
+          path: pr-artifact
       - name: Validate Coverage Vars
         id: validate-vars
         if: github.event.workflow_run.head_branch != 'develop'
         shell: bash
         run: | 
           # check the PR number
-          pr_content=$(cat pr_num.txt | tr -d '\n' | tr -d ' ')
+          pr_content=$(cat pr-artifact/pr_num.txt | tr -d '\n' | tr -d ' ')
 
           # Check if the content matches a single number
           if [[ "$pr_content" =~ ^[0-9]+$ ]]; then
@@ -47,7 +48,7 @@ jobs:
             exit 1
           fi
 
-          base_content=$(cat base.txt | tr -d '\n' | tr -d ' ')
+          base_content=$(cat pr-artifact/base.txt | tr -d '\n' | tr -d ' ')
           if git check-ref-format --allow-onelevel "$base_content"; then
             echo "The file 'base.txt' contains a valid git ref: $base_content"
           else
@@ -55,7 +56,7 @@ jobs:
             exit 1
           fi
 
-          head_content=$(cat head.txt | tr -d '\n' | tr -d ' ')
+          head_content=$(cat pr-artifact/head.txt | tr -d '\n' | tr -d ' ')
           if git check-ref-format --allow-onelevel "$head_content"; then
             echo "The file 'head.txt' contains a valid git ref: $head_content"
           else
@@ -66,9 +67,9 @@ jobs:
       - name: set vars 
         id: set-vars
         run: | 
-          echo "SONAR_PR_NUM=$(cat pr_num.txt | tr -d '\n' | tr -d ' ')" >> $GITHUB_OUTPUT
-          echo "SONAR_BASE=$(cat base.txt | tr -d '\n' | tr -d ' ')" >> $GITHUB_OUTPUT
-          echo "SONAR_HEAD=$(cat head.txt | tr -d '\n' | tr -d ' ')" >> $GITHUB_OUTPUT
+          echo "SONAR_PR_NUM=$(cat pr-artifact/pr_num.txt | tr -d '\n' | tr -d ' ')" >> $GITHUB_OUTPUT
+          echo "SONAR_BASE=$(cat pr-artifact/base.txt | tr -d '\n' | tr -d ' ')" >> $GITHUB_OUTPUT
+          echo "SONAR_HEAD=$(cat pr-artifact/head.txt | tr -d '\n' | tr -d ' ')" >> $GITHUB_OUTPUT
       # on develop branch, only run a baseline scan
       - name: SonarCloud Scan (Baseline)
         uses: sonarsource/sonarcloud-github-action@master
