@@ -57,7 +57,8 @@ func GetIntegrationFromConfig(kc cloud.KeyedConfig) CloudCostIntegration {
 	case *azure.StorageConnection:
 		return &azure.AzureStorageIntegration{
 			AzureStorageBillingParser: azure.AzureStorageBillingParser{
-				StorageConnection: *keyedConfig,
+				StorageConnection: azure.StorageConnection{
+					StorageConfiguration: keyedConfig.StorageConfiguration},
 			},
 		}
 	case *azure.AzureStorageBillingParser:
