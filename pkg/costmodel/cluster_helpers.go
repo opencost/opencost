@@ -17,6 +17,34 @@ import (
 // and combines them into a single map, preferring the k/v pairs in
 // the first map.
 func mergeTypeMaps(clusterAndNameToType1, clusterAndNameToType2 map[nodeIdentifierNoProviderID]string) map[nodeIdentifierNoProviderID]string {
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
+	log.Debug("tested")
 	merged := map[nodeIdentifierNoProviderID]string{}
 	for k, v := range clusterAndNameToType2 {
 		merged[k] = v
