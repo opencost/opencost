@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/oracle/oci-go-sdk/v65/usageapi"
@@ -78,9 +77,8 @@ func (uac *UsageApiConfiguration) Sanitize() cloud.Config {
 }
 
 func (uac *UsageApiConfiguration) Key() string {
-	log.Infof("getting usage api key")
 	//todo: is this enough to be unique
-	return fmt.Sprintf("%s", uac.TenancyID)
+	return uac.TenancyID
 }
 
 func (uac *UsageApiConfiguration) Provider() string {

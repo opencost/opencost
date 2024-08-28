@@ -51,23 +51,25 @@ func (ak *RawConfigProvider) MarshalJSON() ([]byte, error) {
 
 func (ak *RawConfigProvider) Validate() error {
 	if ak.TenancyID == "" {
-		return fmt.Errorf("AccessKey: missing tenancy ID")
+		return fmt.Errorf("RawConfigProvider: missing tenancy ID")
 	}
 	if ak.UserID == "" {
-		return fmt.Errorf("AccessKey: missing user ID")
+		return fmt.Errorf("RawConfigProvider: missing user ID")
 	}
 	if ak.Fingerprint == "" {
-		return fmt.Errorf("AccessKey: missing key fingerprint")
+		return fmt.Errorf("RawConfigProvider: missing key fingerprint")
 	}
 	if ak.Region == "" {
-		return fmt.Errorf("AccessKey: missing region")
+		return fmt.Errorf("RawConfigProvider: missing region")
 	}
 	if ak.PrivateKey == "" {
-		return fmt.Errorf("AccessKey: missing private key")
+		return fmt.Errorf("RawConfigProvider: missing private key")
 	}
-	// if *ak.PrivateKeyPassphrase == "" {
-	// 	return fmt.Errorf("AccessKey: missing private key passphrase")
-	// }
+	if ak.PrivateKeyPassphrase != nil {
+		if *ak.PrivateKeyPassphrase == "" {
+			return fmt.Errorf("RawConfigProvider: missing private key passphrase")
+		}
+	}
 
 	return nil
 }
@@ -96,8 +98,10 @@ func (ak *RawConfigProvider) Equals(config cloud.Config) bool {
 	if ak.PrivateKey != thatConfig.PrivateKey {
 		return false
 	}
-	// if *ak.PrivateKeyPassphrase != *thatConfig.PrivateKeyPassphrase {
-	// 	return false
+	// if ak.PrivateKeyPassphrase != nil && thatConfig.PrivateKeyPassphrase != nil {
+	// 	if *ak.PrivateKeyPassphrase != *thatConfig.PrivateKeyPassphrase {
+	// 		return false
+	// 	}
 	// }
 
 	return true
