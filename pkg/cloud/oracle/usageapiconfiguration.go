@@ -77,7 +77,6 @@ func (uac *UsageApiConfiguration) Sanitize() cloud.Config {
 }
 
 func (uac *UsageApiConfiguration) Key() string {
-	//todo: is this enough to be unique
 	return uac.TenancyID
 }
 

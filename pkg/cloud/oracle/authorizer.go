@@ -98,11 +98,17 @@ func (ak *RawConfigProvider) Equals(config cloud.Config) bool {
 	if ak.PrivateKey != thatConfig.PrivateKey {
 		return false
 	}
-	// if ak.PrivateKeyPassphrase != nil && thatConfig.PrivateKeyPassphrase != nil {
-	// 	if *ak.PrivateKeyPassphrase != *thatConfig.PrivateKeyPassphrase {
-	// 		return false
-	// 	}
-	// }
+	if ak.PrivateKeyPassphrase == nil && thatConfig.PrivateKeyPassphrase != nil {
+		return false
+	}
+	if ak.PrivateKeyPassphrase != nil && thatConfig.PrivateKeyPassphrase == nil {
+		return false
+	}
+	if ak.PrivateKeyPassphrase != nil && thatConfig.PrivateKeyPassphrase != nil {
+		if *ak.PrivateKeyPassphrase != *thatConfig.PrivateKeyPassphrase {
+			return false
+		}
+	}
 
 	return true
 }

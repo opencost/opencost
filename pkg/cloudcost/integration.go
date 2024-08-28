@@ -3,7 +3,6 @@ package cloudcost
 import (
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/alibaba"
@@ -102,7 +101,6 @@ func GetIntegrationFromConfig(kc cloud.KeyedConfig) CloudCostIntegration {
 	case *alibaba.BOAConfiguration:
 		return nil
 	case *oracle.UsageApiConfiguration:
-		log.Infof("integration: doing nothing (oci)")
 		return &oracle.UsageApiIntegration{
 			UsageApiConfiguration: *keyedConfig,
 		}

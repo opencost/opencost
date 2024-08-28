@@ -23,7 +23,6 @@ type MultiCloudConfig struct {
 }
 
 func (mcc MultiCloudConfig) loadConfigurations(configs *Configurations) {
-	log.Info("load configurations")
 	// Load AWS configs
 	for _, awsConfig := range mcc.AWSConfigs {
 		kc := aws.ConvertAwsAthenaInfoToConfig(awsConfig)
@@ -76,7 +75,6 @@ func (c *Configurations) UnmarshalJSON(bytes []byte) error {
 	// This has been tested for backwards compatability, and it works in both config formats.
 	// It also coincidentally works if you mix-and-match both the old format and the new
 	// format.
-	log.Info("unmarshal configurations")
 	// Create inline type to gain access to default Unmarshalling
 	type ConfUnmarshaller *Configurations
 	var conf ConfUnmarshaller = c
@@ -86,7 +84,6 @@ func (c *Configurations) UnmarshalJSON(bytes []byte) error {
 		return nil
 	}
 
-	log.Debug("using legacy")
 	// Attempt to unmarshal into old config object
 	multiConfig := &MultiCloudConfig{}
 	err = json.Unmarshal(bytes, multiConfig)
