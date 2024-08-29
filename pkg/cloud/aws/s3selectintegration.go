@@ -34,6 +34,7 @@ const S3SelectNetRICost = `s."reservation/NetEffectiveCost"`
 const S3SelectNetSPCost = `s."savingsPlan/NetSavingsPlanEffectiveCost"`
 
 const S3SelectUserLabelPrefix = "resourceTags/user:"
+const S3SelectAWSLabelPrefix = "resourceTags/aws:"
 
 type S3SelectIntegration struct {
 	S3SelectQuerier
@@ -122,11 +123,17 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 	// Determine which columns are user-defined tags and add those to the list
 	// of columns to query.
 	labelColumns := []string{}
+	awsLabelColumns := []string{}
 	for column := range allColumns {
 		if strings.HasPrefix(column, S3SelectUserLabelPrefix) {
 			quotedTag := fmt.Sprintf(`s."%s"`, column)
 			selectColumns = append(selectColumns, quotedTag)
 			labelColumns = append(labelColumns, quotedTag)
+		}
+		if strings.HasPrefix(column, S3SelectAWSLabelPrefix) {
+			quotedTag := fmt.Sprintf(`s."%s"`, column)
+			selectColumns = append(selectColumns, quotedTag)
+			awsLabelColumns = append(awsLabelColumns, quotedTag)
 		}
 	}
 
@@ -174,6 +181,17 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 				// remove prefix
 				labelName = strings.TrimPrefix(labelName, S3SelectUserLabelPrefix)
 				value := GetCSVRowValue(row, columnIndexes, labelColumnName)
+				if value != "" {
+					labels[labelName] = value
+				}
+			}
+			for _, awsLabelColumnName := range awsLabelColumns {
+				// remove quotes
+				labelName := strings.TrimPrefix(awsLabelColumnName, `s."`)
+				labelName = strings.TrimSuffix(labelName, `"`)
+				// partially remove prefix leaving "aws:"
+				labelName = strings.TrimPrefix(labelName, "resourceTags/")
+				value := GetCSVRowValue(row, columnIndexes, awsLabelColumnName)
 				if value != "" {
 					labels[labelName] = value
 				}
@@ -313,6 +331,9 @@ func (s3si *S3SelectIntegration) GetCloudCost(
 
 // hsK8sLabel checks if the labels contain a k8s label
 func hasK8sLabel(labels opencost.CloudCostLabels) bool {
+	if _, ok := labels["aws:eks:cluster-name"]; ok {
+		return true
+	}
 	if _, ok := labels["eks:cluster-name"]; ok {
 		return true
 	}
