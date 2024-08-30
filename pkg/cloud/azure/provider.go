@@ -922,16 +922,10 @@ func (az *Azure) DownloadPricingData() error {
 	}
 
 	envResourceGroupName := env.GetAzureResourceGroupName()
-	if envResourceGroupName != "" {
-		config.AzureResourceGroupName = envResourceGroupName
-	}
 
 	envManagedClustersName := env.GetAzureClusterName()
-	if envManagedClustersName != "" {
-		config.AzureClusterName = envManagedClustersName
-	}
 
-	err = az.refreshClusterManagementPricing(config)
+	err = az.refreshClusterManagementPricing(config, envResourceGroupName, envManagedClustersName)
 	if err != nil {
 		log.Errorf("error getting managed cluster cost: %s", err.Error())
 	}
@@ -944,7 +938,7 @@ func (az *Azure) DownloadPricingData() error {
 			log.Infof("Azure AKS Tier Refresh scheduled in %.2f minutes.", AzureAksTierRefreshDuration.Minutes())
 			time.Sleep(AzureAksTierRefreshDuration)
 
-			err := az.refreshClusterManagementPricing(config)
+			err := az.refreshClusterManagementPricing(config, envResourceGroupName, envManagedClustersName)
 			if err != nil {
 				log.Errorf("error getting managed cluster cost: %s", err.Error())
 			}
@@ -1711,7 +1705,8 @@ func getManagedCluster(ctx context.Context, managedClustersClient *armcontainers
 	return &getClusterResp.ManagedCluster, nil
 }
 
-func (az *Azure) refreshClusterManagementPricing(config *models.CustomPricing) error {
+func (az *Azure) refreshClusterManagementPricing(config *models.CustomPricing, resourceGroupName, clusterName string) error {
+
 	cred, err := azidentity.NewClientSecretCredential(config.AzureTenantID, config.AzureClientID, config.AzureClientSecret, nil)
 	if err != nil {
 		log.Errorf("error while creating new default azure creds %s", err.Error())
@@ -1726,19 +1721,19 @@ func (az *Azure) refreshClusterManagementPricing(config *models.CustomPricing) e
 	}
 	managedClustersClient := containerserviceClientFactory.NewManagedClustersClient()
 
-	managedCluster, err := getManagedCluster(ctx, managedClustersClient, config.AzureResourceGroupName, config.AzureClusterName)
+	managedCluster, err := getManagedCluster(ctx, managedClustersClient, resourceGroupName, clusterName)
 	if err != nil {
-		log.Errorf("error getting AKS cluster %s info, err: %s", config.AzureClusterName, err.Error())
+		log.Errorf("error getting AKS cluster %s info, err: %s", clusterName, err.Error())
 		return nil
 	}
 
 	if managedCluster == nil {
-		log.Errorf("managed cluster info not present: %s", config.AzureClusterName)
+		log.Errorf("managed cluster info not present: %s", clusterName)
 		return nil
 	}
 
 	if managedCluster.SKU == nil || managedCluster.SKU.Tier == nil {
-		log.Errorf("managed cluster sku info not present. cluster name: %s, managed cluster id: %s", config.AzureClusterName, *managedCluster.ID)
+		log.Errorf("managed cluster sku info not present. cluster name: %s, managed cluster id: %s", clusterName, *managedCluster.ID)
 		return nil
 	}
 

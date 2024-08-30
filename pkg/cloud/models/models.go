@@ -181,8 +181,6 @@ type CustomPricing struct {
 	AzureStorageContainer        string `json:"azureStorageContainer"`
 	AzureContainerPath           string `json:"azureContainerPath"`
 	AzureCloud                   string `json:"azureCloud"`
-	AzureResourceGroupName       string `json:"azureResourceGroupName"`
-	AzureClusterName             string `json:"azureClusterName"`
 	CurrencyCode                 string `json:"currencyCode"`
 	Discount                     string `json:"discount"`
 	NegotiatedDiscount           string `json:"negotiatedDiscount"`
