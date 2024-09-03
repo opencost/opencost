@@ -1,4 +1,10 @@
 {
+  "": {
+    "OCPU": "B88516",
+    "Memory": "",
+    "GPU": "",
+    "Disk": ""
+  },
   "BM.DenseIO.E4.128": {
     "OCPU": "B93121",
     "Memory": "B93122",
