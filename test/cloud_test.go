@@ -543,7 +543,7 @@ func TestSourceMatchesFromCSV(t *testing.T) {
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 
-	model := costmodel.NewCostModel(nil, nil, fc, fm, d)
+	model := costmodel.NewCostModel(nil, c, fc, fm, d)
 
 	_, err = model.GetNodeCost()
 	if err != nil {
