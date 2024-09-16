@@ -97,7 +97,9 @@ type Allocation struct {
 	// UnmountedPVCost is used to track how much of the cost in PVs is for an
 	// unmounted PV. It is not additive of PVCost() and need not be sent in API
 	// responses.
-	UnmountedPVCost float64 `json:"-"` //@bingen:field[ignore]
+	UnmountedPVCost   float64 `json:"-"`                 //@bingen:field[ignore]
+	GPURequestAverage float64 `json:"gpuRequestAverage"` //@bingen:field[version=22]
+	GPUUsageAverage   float64 `json:"gpuUsageAverage"`   //@bingen:field[version=22]
 }
 
 type LbAllocations map[string]*LbAllocation
@@ -669,6 +671,8 @@ func (a *Allocation) Clone() *Allocation {
 		CPUCost:                        a.CPUCost,
 		CPUCostAdjustment:              a.CPUCostAdjustment,
 		GPUHours:                       a.GPUHours,
+		GPURequestAverage:              a.GPURequestAverage,
+		GPUUsageAverage:                a.GPUUsageAverage,
 		GPUCost:                        a.GPUCost,
 		GPUCostAdjustment:              a.GPUCostAdjustment,
 		NetworkTransferBytes:           a.NetworkTransferBytes,
@@ -1183,6 +1187,12 @@ func (a *Allocation) add(that *Allocation) {
 	ramUseByteMins := a.RAMBytesUsageAverage * a.Minutes()
 	ramUseByteMins += that.RAMBytesUsageAverage * that.Minutes()
 
+	gpuReqMins := a.GPURequestAverage * a.Minutes()
+	gpuReqMins += that.GPURequestAverage * that.Minutes()
+
+	gpuUseMins := a.GPUUsageAverage * a.Minutes()
+	gpuUseMins += that.GPUUsageAverage * that.Minutes()
+
 	// Expand Start and End to be the "max" of among the given Allocations
 	if that.Start.Before(a.Start) {
 		a.Start = that.Start
@@ -1198,11 +1208,15 @@ func (a *Allocation) add(that *Allocation) {
 		a.CPUCoreUsageAverage = cpuUseCoreMins / a.Minutes()
 		a.RAMBytesRequestAverage = ramReqByteMins / a.Minutes()
 		a.RAMBytesUsageAverage = ramUseByteMins / a.Minutes()
+		a.GPURequestAverage = gpuReqMins / a.Minutes()
+		a.GPUUsageAverage = gpuUseMins / a.Minutes()
 	} else {
 		a.CPUCoreRequestAverage = 0.0
 		a.CPUCoreUsageAverage = 0.0
 		a.RAMBytesRequestAverage = 0.0
 		a.RAMBytesUsageAverage = 0.0
+		a.GPURequestAverage = 0.0
+		a.GPUUsageAverage = 0.0
 	}
 
 	// Sum all cumulative resource fields
@@ -2531,6 +2545,14 @@ func (a *Allocation) SanitizeNaN() {
 	if math.IsNaN(a.GPUHours) {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUHours name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
 		a.GPUHours = 0
+	}
+	if math.IsNaN(a.GPURequestAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPURequestAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.GPURequestAverage = 0
+	}
+	if math.IsNaN(a.GPUUsageAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUUsageAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.GPUUsageAverage = 0
 	}
 	if math.IsNaN(a.GPUCost) {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
