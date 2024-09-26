@@ -9,6 +9,7 @@ on:
       release_version:
         description: "Version of the release"
         required: true
+        type: string
 
 concurrency:
   group: build-opencost
@@ -27,20 +28,28 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Get Version From Tag
-        id: tag
-        if: ${{ github.event_name }} == 'push'
+      - name: Get Version From Tag or Input
+        id: get_tag_version
         run: |
-          echo "TRIGGERED_TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "TAG_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_OUTPUT
+          else
+            echo "TAG_VERSION=${{ github.event.inputs.release_version }}" >> $GITHUB_OUTPUT
+          fi
+
+      # Use the version in subsequent steps
+      - name: Use Version
+        run: |
+          echo "The version is: ${{ steps.get_version.outputs.TAG_VERSION }}"
 
       - name: Determine Version Number
         id: version_number
         run: |
-          if [ -z "${TRIGGERED_TAG}" ];
+          if [ -z "${TAG_VERSION}" ];
           then
             version=${{ inputs.release_version }}
           else
-            version=$TRIGGERED_TAG
+            version=$TAG_VERSION
           fi
           if [[ ${version:0:1} == "v" ]];
           then
