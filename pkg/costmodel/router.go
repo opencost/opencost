@@ -1193,6 +1193,7 @@ type InstallInfo struct {
 	Containers  []ContainerInfo   `json:"containers"`
 	ClusterInfo map[string]string `json:"clusterInfo"`
 	Version     string            `json:"version"`
+	CostModelImageTag string      `json:"costModelImageTag"`
 }
 
 type ContainerInfo struct {
@@ -1211,10 +1212,19 @@ func (a *Accesses) GetInstallInfo(w http.ResponseWriter, r *http.Request, _ http
 		return
 	}
 
+	costModelImageTag := ""
+	for _, container := range containers {
+		if container.ContainerName != "cost-model" {
+			continue
+		}
+		costModelImageTag = strings.Split(container.Image, ":")[1]
+	}
+
 	info := InstallInfo{
 		Containers:  containers,
 		ClusterInfo: make(map[string]string),
 		Version:     version.FriendlyVersion(),
+		CostModelImageTag: costModelImageTag,
 	}
 
 	nodes := a.ClusterCache.GetAllNodes()
