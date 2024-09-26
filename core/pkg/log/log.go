@@ -49,12 +49,19 @@ func InitLogging(showLogLevelSetMessage bool) {
 
 }
 
+func GetLogger() *zerolog.Logger {
+	return &log.Logger
+}
+
+func SetLogger(l *zerolog.Logger) {
+	log.Logger = *l
+}
+
 func GetLogLevel() string {
 	return zerolog.GlobalLevel().String()
 }
 
 func SetLogLevel(l string) error {
-
 	level, err := zerolog.ParseLevel(l)
 	if err != nil {
 		return err
