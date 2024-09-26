@@ -29,13 +29,13 @@ jobs:
     steps:
       - name: Get Version From Tag
         id: tag
-        if: github.event_name == 'push'
+        if: ${{ github.event_name }} == 'push'
         run: |
           echo "TRIGGERED_TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
 
       - name: Get Version From Input
         id: input_version
-        if: github.event_name == 'workflow_dispatch'
+        if: ${{ github.event_name }} == 'workflow_dispatch'
         run: |
           echo "TRIGGERED_TAG=${{ github.event.inputs.release_version }}" >> $GITHUB_ENV
 
