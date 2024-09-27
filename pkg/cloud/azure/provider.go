@@ -936,7 +936,7 @@ func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, 
 		return nil, nil
 	}
 
-	if strings.Contains(meterSubCategory, "Cloud Services") {
+	if strings.Contains(meterSubCategory, "Cloud Services") || strings.Contains(meterSubCategory, "CloudServices") {
 		// This meter doesn't correspond to any pricings.
 		return nil, nil
 	}
