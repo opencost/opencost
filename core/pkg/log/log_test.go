@@ -1,20 +1,20 @@
 package log
 
 import (
+	"bytes"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/rs/zerolog"
 )
 
 func TestGetLogger(t *testing.T) {
-	// Get the initial logger
 	initialLogger := GetLogger()
-
 	if initialLogger == nil {
 		t.Error("GetLogger() returned nil")
 	}
 
-	// Ensure that calling GetLogger() multiple times returns the same logger
 	secondLogger := GetLogger()
 	if initialLogger != secondLogger {
 		t.Error("GetLogger() returned different loggers on subsequent calls")
@@ -22,47 +22,43 @@ func TestGetLogger(t *testing.T) {
 }
 
 func TestSetLogger(t *testing.T) {
-	// Create a new logger
-	newLogger := zerolog.New(nil).With().Timestamp().Logger()
-
-	// Set the new logger
+	var buf bytes.Buffer
+	newLogger := zerolog.New(&buf).With().Str("test", "value").Logger()
 	SetLogger(&newLogger)
 
-	// Get the logger and check if it's the one we set
-	retrievedLogger := GetLogger()
-	if retrievedLogger != &newLogger {
-		t.Error("SetLogger() did not set the logger correctly")
-	}
+	// Log a message using the global logger
+	Infof("Test message")
 
-	// Reset the logger to its original state (assuming there's a default logger)
-	defaultLogger := zerolog.New(nil).With().Timestamp().Logger()
-	SetLogger(&defaultLogger)
+	// Parse the logged message
+	loggedData := parseLogMessage(t, buf.String())
+
+	// Check if the "test" field is present in the logged message
+	if value, exists := loggedData["test"]; !exists || value != "value" {
+		t.Error("SetLogger() did not set the logger with expected context")
+	}
 }
 
 func TestLoggerConsistency(t *testing.T) {
-	// Get the initial logger
-	initialLogger := GetLogger()
-
-	// Create a new logger
-	newLogger := zerolog.New(nil).With().Timestamp().Logger()
-
-	// Set the new logger
+	var buf bytes.Buffer
+	newLogger := zerolog.New(&buf).With().Str("test", "consistency").Logger()
 	SetLogger(&newLogger)
 
-	// Get the logger again
-	updatedLogger := GetLogger()
+	// Log a message using the global logger
+	Infof("Consistency test message")
 
-	// Check if the updated logger is the one we set
-	if updatedLogger != &newLogger {
-		t.Error("Logger inconsistency: GetLogger() did not return the logger set by SetLogger()")
+	// Parse the logged message
+	loggedData := parseLogMessage(t, buf.String())
+
+	// Check if the "test" field is present in the logged message
+	if value, exists := loggedData["test"]; !exists || value != "consistency" {
+		t.Error("Logger inconsistency: Updated logger does not have expected context")
 	}
+}
 
-	// Check that the initial logger is different from the updated logger
-	if initialLogger == updatedLogger {
-		t.Error("Logger inconsistency: Initial logger should be different from updated logger")
+func parseLogMessage(t *testing.T, logMessage string) map[string]interface{} {
+	var loggedData map[string]interface{}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(logMessage)), &loggedData); err != nil {
+		t.Fatalf("Failed to parse logged message: %v", err)
 	}
-
-	// Reset the logger to its original state (assuming there's a default logger)
-	defaultLogger := zerolog.New(nil).With().Timestamp().Logger()
-	SetLogger(&defaultLogger)
+	return loggedData
 }
