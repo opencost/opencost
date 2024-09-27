@@ -8,7 +8,7 @@ import (
 )
 
 func TestRegionValidation(t *testing.T) {
-	for _, r := range oracleRegions {
+	for _, r := range oracleRegions() {
 		// Use the OCI SDK to validate static regions.
 		region := common.StringToRegion(r)
 		_, err := region.RealmID()
