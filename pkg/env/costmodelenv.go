@@ -36,6 +36,7 @@ const (
 	RemotePWEnvVar                 = "REMOTE_WRITE_PASSWORD"
 	SQLAddressEnvVar               = "SQL_ADDRESS"
 	UseCSVProviderEnvVar           = "USE_CSV_PROVIDER"
+	UseCustomProviderEnvVar        = "USE_CUSTOM_PROVIDER"
 	CSVRegionEnvVar                = "CSV_REGION"
 	CSVEndpointEnvVar              = "CSV_ENDPOINT"
 	CSVPathEnvVar                  = "CSV_PATH"
@@ -106,6 +107,8 @@ const (
 
 	AllocationNodeLabelsEnabled     = "ALLOCATION_NODE_LABELS_ENABLED"
 	AllocationNodeLabelsIncludeList = "ALLOCATION_NODE_LABELS_INCLUDE_LIST"
+
+	AssetIncludeLocalDiskCostEnvVar = "ASSET_INCLUDE_LOCAL_DISK_COST"
 
 	regionOverrideList = "REGION_OVERRIDE_LIST"
 
@@ -409,6 +412,12 @@ func IsUseCSVProvider() bool {
 	return env.GetBool(UseCSVProviderEnvVar, false)
 }
 
+// IsUseCustomProvider returns the environment variable value for UseCustomProviderEnvVar which represents
+// whether or not the use of a custom cost provider is enabled.
+func IsUseCustomProvider() bool {
+	return env.GetBool(UseCustomProviderEnvVar, false)
+}
+
 // GetCSVRegion returns the environment variable value for CSVRegionEnvVar which represents the
 // region configured for a CSV provider.
 func GetCSVRegion() string {
@@ -631,6 +640,10 @@ func GetAllocationNodeLabelsIncludeList() []string {
 	}
 
 	return list
+}
+
+func GetAssetIncludeLocalDiskCost() bool {
+	return env.GetBool(AssetIncludeLocalDiskCostEnvVar, true)
 }
 
 func GetRegionOverrideList() []string {

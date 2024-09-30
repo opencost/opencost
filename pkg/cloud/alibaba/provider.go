@@ -66,9 +66,8 @@ var (
 )
 
 // Variable to keep track of instance families that fail in DescribePrice API due improper defaulting of systemDisk if the information is not available
-var alibabaDefaultToCloudEssd = []string{"g6e", "r6e", "r7", "g7", "g7a", "r7a"}
+var alibabaDefaultToCloudEssd = []string{"g6e", "r6e"}
 
-// Why predefined and dependency on code? Can be converted to API call - https://www.alibabacloud.com/help/en/elastic-compute-service/latest/regions-describeregions
 var alibabaRegions = []string{
 	"cn-qingdao",
 	"cn-beijing",
@@ -78,48 +77,28 @@ var alibabaRegions = []string{
 	"cn-hangzhou",
 	"cn-shanghai",
 	"cn-nanjing",
-	"cn-fuzhou",
 	"cn-shenzhen",
+	"cn-heyuan",
 	"cn-guangzhou",
+	"cn-fuzhou",
+	"cn-wuhan-lr",
 	"cn-chengdu",
 	"cn-hongkong",
+	"ap-northeast-1",
+	"ap-northeast-2",
 	"ap-southeast-1",
 	"ap-southeast-2",
 	"ap-southeast-3",
-	"ap-southeast-5",
 	"ap-southeast-6",
-	"ap-southeast-7",
+	"ap-southeast-5",
 	"ap-south-1",
-	"ap-northeast-1",
-	"ap-northeast-2",
-	"us-west-1",
+	"ap-southeast-7",
 	"us-east-1",
-	"eu-central-1",
+	"us-west-1",
+	"eu-west-1",
 	"me-east-1",
-}
-
-// To-Do: Convert to API call - https://www.alibabacloud.com/help/en/elastic-compute-service/latest/describeinstancetypefamilies
-// Also first pass only completely tested pricing API for General pupose instances families & memory optimized instance families
-var alibabaInstanceFamilies = []string{
-	"g7",
-	"g7a",
-	"g6e",
-	"g6",
-	"g5",
-	"sn2",
-	"sn2ne",
-	"r7",
-	"r7a",
-	"r6e",
-	"r6a",
-	"r6",
-	"r5",
-	"se1",
-	"se1ne",
-	"re6",
-	"re6p",
-	"re4",
-	"se1",
+	"me-central-1",
+	"eu-central-1",
 }
 
 // AlibabaInfo contains configuration for Alibaba's CUR integration
@@ -429,7 +408,6 @@ func (alibaba *Alibaba) DownloadPricingData() error {
 	var lookupKey string
 	alibaba.clients = make(map[string]*sdk.Client)
 	alibaba.Pricing = make(map[string]*AlibabaPricing)
-
 	for _, node := range nodeList {
 		pricingObj := &AlibabaPricing{}
 		slimK8sNode := generateSlimK8sNodeFromV1Node(node)
@@ -533,8 +511,17 @@ func (alibaba *Alibaba) NodePricing(key models.Key) (*models.Node, models.Pricin
 
 	pricing, ok := alibaba.Pricing[keyFeature]
 	if !ok {
-		log.Errorf("Node pricing information not found for node with feature: %s", keyFeature)
-		return nil, meta, fmt.Errorf("Node pricing information not found for node with feature: %s letting it use default values", keyFeature)
+		keys := make([]string, 0, len(alibaba.Pricing))
+		for k := range alibaba.Pricing {
+			keys = append(keys, k)
+		}
+		kf := key.(*AlibabaNodeKey)
+		// Try to look up pricing with no disk attached
+		pricing, ok = alibaba.Pricing[kf.FeaturesWithOtherDisk("")]
+		if !ok {
+			log.Errorf("Node pricing information not found for node with feature: %s . Existing keys are: %+v", keyFeature, keys)
+			return nil, meta, fmt.Errorf("Node pricing information not found for node with feature: %s letting it use default values", keyFeature)
+		}
 	}
 
 	log.Debugf("returning the node price for the node with feature: %s", keyFeature)
@@ -553,7 +540,7 @@ func (alibaba *Alibaba) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	pricing, ok := alibaba.Pricing[keyFeature]
 
 	if !ok {
-		log.Errorf("Persistent Volume pricing not found for PV with feature: %s", keyFeature)
+		log.Debugf("Persistent Volume pricing not found for PV with feature: %s", keyFeature)
 		return nil, fmt.Errorf("Persistent Volume pricing not found for PV with feature: %s letting it use default values", keyFeature)
 	}
 
@@ -844,6 +831,12 @@ func (alibabaNodeKey *AlibabaNodeKey) Features() string {
 	return strings.Join(keyLookup, "::")
 }
 
+func (alibabaNodeKey *AlibabaNodeKey) FeaturesWithOtherDisk(overrideDiskCategory string) string {
+	keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{alibabaNodeKey.RegionID, alibabaNodeKey.InstanceType, alibabaNodeKey.OSType,
+		alibabaNodeKey.OptimizedKeyword, overrideDiskCategory, alibabaNodeKey.SystemDiskSizeInGiB, alibabaNodeKey.SystemDiskPerformanceLevel})
+	return strings.Join(keyLookup, "::")
+}
+
 func (alibabaNodeKey *AlibabaNodeKey) GPUType() string {
 	return ""
 }
@@ -986,9 +979,9 @@ func createDescribePriceACSRequest(i interface{}) (*requests.CommonRequest, erro
 				request.QueryParams["SystemDisk.PerformanceLevel"] = node.SystemDisk.PerformanceLevel
 			}
 		} else {
-			// When System Disk information is not available for instance family g6e, r7 and r6e the defaults in
-			// DescribePrice dont default rightly to cloud_essd for these instances.
-			if slices.Contains(alibabaDefaultToCloudEssd, node.InstanceTypeFamily) {
+			// When the system disk information is not available, and the instance family is g6e or r6e,
+			// or the instance generation is 6 or above, the default disk category in DescribePrice should be cloud_essd.
+			if slices.Contains(alibabaDefaultToCloudEssd, node.InstanceTypeFamily) || getInstanceFamilyGenerationFromType(node.InstanceType) > 6 {
 				request.QueryParams["SystemDisk.Category"] = ALIBABA_DISK_CLOUD_ESSD_CATEGORY
 			}
 		}
@@ -1095,7 +1088,7 @@ func processDescribePriceAndCreateAlibabaPricing(client *sdk.Client, i interface
 		resp, err := client.ProcessCommonRequestWithSigner(req, signer)
 		pricing.NodeAttributes = NewAlibabaNodeAttributes(node)
 		if err != nil || resp.GetHttpStatus() != 200 {
-			// Can be defaulted to some value here?
+			// Try again but default the disk to something else
 			return nil, fmt.Errorf("unable to fetch information for node with InstanceType: %v", node.InstanceType)
 		} else {
 			// This is where population of Pricing happens
@@ -1151,11 +1144,27 @@ func getInstanceFamilyFromType(instanceType string) string {
 		log.Warnf("unable to find the family of the instance type %s, returning its family type unknown", instanceType)
 		return ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE
 	}
-	if !slices.Contains(alibabaInstanceFamilies, splitinstanceType[1]) {
-		log.Warnf("currently the instance family type %s is not valid or not tested completely for pricing API", instanceType)
-		return ALIBABA_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE
-	}
 	return splitinstanceType[1]
+}
+
+// This function is used to obtain the generation of the instance family from the InstanceType,
+// because when the generation is higher than or equal to 7, the instance disk type will not support cloud_efficiency.
+// In such cases, when calling the DescribePrice interface, the system disk type will default to cloud_essd.
+func getInstanceFamilyGenerationFromType(instanceType string) int {
+	// FamilyName format: g7ne or g7 or r7 or r6e,
+	familyName := getInstanceFamilyFromType(instanceType)
+	re := regexp.MustCompile(`(\d+)`)
+	match := re.FindString(familyName)
+	if match != "" {
+		generation, err := strconv.Atoi(match)
+		if err != nil {
+			log.Errorf("unable to convert the generation of the instance type %s to integer", instanceType)
+		} else {
+			return generation
+		}
+	}
+	log.Warnf("unable to find the generation of the instance type %s,", instanceType)
+	return -1
 }
 
 // getInstanceIDFromProviderID returns the instance ID associated with the Node. A *v1.Node providerID in Alibaba cloud

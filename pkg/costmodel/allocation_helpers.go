@@ -614,6 +614,47 @@ func applyRAMBytesUsedMax(podMap map[podKey]*pod, resRAMBytesUsedMax []*prom.Que
 	}
 }
 
+func applyGPUUsageAvg(podMap map[podKey]*pod, resGPUUsageAvg []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey) {
+	// Example PromQueryResult: {container="dcgmproftester12", namespace="gpu", pod="dcgmproftester3-deployment-fc89c8dd6-ph7z5"} 0.997307
+	for _, res := range resGPUUsageAvg {
+		key, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU usage avg result missing field: %s", err)
+			continue
+		}
+
+		var pods []*pod
+		if thisPod, ok := podMap[key]; !ok {
+			if uidKeys, ok := podUIDKeyMap[key]; ok {
+				for _, uidKey := range uidKeys {
+					thisPod, ok = podMap[uidKey]
+					if ok {
+						pods = append(pods, thisPod)
+					}
+				}
+			} else {
+				continue
+			}
+		} else {
+			pods = []*pod{thisPod}
+		}
+
+		for _, thisPod := range pods {
+			container, err := res.GetString("container")
+			if err != nil {
+				log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU usage avg query result missing 'container': %s", key)
+				continue
+			}
+			if _, ok := thisPod.Allocations[container]; !ok {
+				thisPod.appendContainer(container)
+			}
+
+			// DCGM_FI_PROF_GR_ENGINE_ACTIVE metric is a float between 0-1.
+			thisPod.Allocations[container].GPUUsageAverage = res.Values[0].Value
+		}
+	}
+}
+
 func applyGPUsAllocated(podMap map[podKey]*pod, resGPUsRequested []*prom.QueryResult, resGPUsAllocated []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey) {
 	if len(resGPUsAllocated) > 0 { // Use the new query, when it's become available in a window
 		resGPUsRequested = resGPUsAllocated
@@ -655,6 +696,13 @@ func applyGPUsAllocated(podMap map[podKey]*pod, resGPUsRequested []*prom.QueryRe
 
 			hrs := thisPod.Allocations[container].Minutes() / 60.0
 			thisPod.Allocations[container].GPUHours = res.Values[0].Value * hrs
+
+			// For now, it will always be the case that Request==Allocation. If
+			// you would like to use a GPU you need to request the full GPU.
+			// Therefore max(usage,request) will always equal request. In the
+			// future this may need to be refactored when building support for
+			// GPU Time Slicing.
+			thisPod.Allocations[container].GPURequestAverage = res.Values[0].Value
 		}
 	}
 }
@@ -1864,7 +1912,7 @@ func applyPVBytes(pvMap map[pvKey]*pv, resPVBytes []*prom.QueryResult) {
 		}
 
 		if _, ok := pvMap[key]; !ok {
-			log.Warnf("CostModel.ComputeAllocation: pv bytes result for missing pv: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: pv bytes result for missing pv: %s", key)
 			continue
 		}
 

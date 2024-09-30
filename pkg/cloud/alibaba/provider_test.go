@@ -114,6 +114,20 @@ func TestProcessDescribePriceAndCreateAlibabaPricing(t *testing.T) {
 			expectedError: nil,
 		},
 		{
+			name: "test General Purpose Type g8a instance family",
+			teststruct: &SlimK8sNode{
+				InstanceType:       "ecs.g8a.8xlarge",
+				RegionID:           "cn-hangzhou",
+				PriceUnit:          "Hour",
+				MemorySizeInKiB:    "33554432KiB",
+				IsIoOptimized:      true,
+				OSType:             "Linux",
+				ProviderID:         "cn-hangzhou.i-test-01c",
+				InstanceTypeFamily: "g8a",
+			},
+			expectedError: nil,
+		},
+		{
 			name: "test Enhanced General Purpose Type g6e instance family",
 			teststruct: &SlimK8sNode{
 				InstanceType:       "ecs.g6e.xlarge",
@@ -409,6 +423,30 @@ func TestProcessDescribePriceAndCreateAlibabaPricing(t *testing.T) {
 			},
 			expectedError: nil,
 		},
+		{
+			name: "test incorrect disk type",
+			teststruct: &SlimK8sNode{
+				InstanceType:       "ecs.g6.xlarge",
+				RegionID:           "ap-northeast-1",
+				PriceUnit:          "Hour",
+				MemorySizeInKiB:    "33554432KiB",
+				IsIoOptimized:      true,
+				OSType:             "Linux",
+				ProviderID:         "cn-hangzhou.i-test-15",
+				InstanceTypeFamily: "se1",
+				SystemDisk: &SlimK8sDisk{
+					DiskType:         "data",
+					RegionID:         "ap-northeast-1",
+					PriceUnit:        "Hour",
+					SizeInGiB:        "40",
+					DiskCategory:     "cloud_essd",
+					PerformanceLevel: "PL1",
+					ProviderID:       "d-Ali-cloud-XXX-04",
+					StorageClass:     "temp",
+				},
+			},
+			expectedError: nil,
+		},
 	}
 	custom := &models.CustomPricing{}
 	for _, c := range cases {
@@ -442,11 +480,6 @@ func TestGetInstanceFamilyFromType(t *testing.T) {
 			name:                   "test if random word gives you ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE value ",
 			instanceType:           "random.value",
 			expectedInstanceFamily: ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE,
-		},
-		{
-			name:                   "test if random instance family gives you ALIBABA_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE value ",
-			instanceType:           "ecs.g7e.2xlarge",
-			expectedInstanceFamily: ALIBABA_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE,
 		},
 	}
 
@@ -837,4 +870,109 @@ func TestDeterminePVRegion(t *testing.T) {
 		})
 	}
 
+}
+
+func TestGetInstanceFamilyGenerationFromType(t *testing.T) {
+	cases := []struct {
+		name                             string
+		instanceType                     string
+		expectedInstanceFamilyGeneration int
+	}{
+		{
+			name:                             "test if ecs.[instance-family].[different-type] work",
+			instanceType:                     "ecs.sn2ne.2xlarge",
+			expectedInstanceFamilyGeneration: 2,
+		},
+		{
+			name:                             "test if ecs.[instance-family].[different-type] work",
+			instanceType:                     "ecs.g7.large",
+			expectedInstanceFamilyGeneration: 7,
+		},
+		{
+			name:                             "test if random word gives you ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE value ",
+			instanceType:                     "random.value",
+			expectedInstanceFamilyGeneration: -1,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			returnValue := getInstanceFamilyGenerationFromType(c.instanceType)
+			if returnValue != c.expectedInstanceFamilyGeneration {
+				t.Fatalf("Case name %s: expected instance family generation of type %d but got %d", c.name, c.expectedInstanceFamilyGeneration, returnValue)
+			}
+		})
+	}
+}
+
+func TestCreateDescribeNodePriceACSRequest(t *testing.T) {
+
+	cases := []struct {
+		name                 string
+		testStruct           interface{}
+		expectedError        error
+		expectedDiskCategory string
+	}{
+		{
+			// Test case for instance type ecs.g6.large
+			name: "test request parma when instance type is ecs.g6.large",
+			testStruct: &SlimK8sNode{
+				InstanceType:       "ecs.g6.large",
+				RegionID:           "cn-hangzhou",
+				PriceUnit:          "Hour",
+				MemorySizeInKiB:    "16KiB",
+				IsIoOptimized:      true,
+				OSType:             "Linux",
+				ProviderID:         "Ali-XXX-node-01",
+				InstanceTypeFamily: "g6",
+			},
+			expectedError:        nil,
+			expectedDiskCategory: "",
+		},
+		{
+			// Test case for instance type ecs.g7.large
+			name: "test request parma when instance type is ecs.g7.large",
+			testStruct: &SlimK8sNode{
+				InstanceType:       "ecs.g7.large",
+				RegionID:           "cn-hangzhou",
+				PriceUnit:          "Hour",
+				MemorySizeInKiB:    "16KiB",
+				IsIoOptimized:      true,
+				OSType:             "Linux",
+				ProviderID:         "Ali-XXX-node-02",
+				InstanceTypeFamily: "g7",
+			},
+			expectedError:        nil,
+			expectedDiskCategory: ALIBABA_DISK_CLOUD_ESSD_CATEGORY,
+		},
+		{
+			// Test case for instance type ecs.g7.large, this instance type is in 'alibabaDefaultToCloudEssd'
+			name: "test request parma when instance type is ecs.g6e.large",
+			testStruct: &SlimK8sNode{
+				InstanceType:       "ecs.g6e.large",
+				RegionID:           "cn-hangzhou",
+				PriceUnit:          "Hour",
+				MemorySizeInKiB:    "16KiB",
+				IsIoOptimized:      true,
+				OSType:             "Linux",
+				ProviderID:         "Ali-XXX-node-03",
+				InstanceTypeFamily: "g6e",
+			},
+			expectedError:        nil,
+			expectedDiskCategory: ALIBABA_DISK_CLOUD_ESSD_CATEGORY,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req, err := createDescribePriceACSRequest(c.testStruct)
+			t.Logf("Request Params SystemDisk.Category: %v", req.QueryParams["SystemDisk.Category"])
+			if err != nil && c.expectedError != nil {
+				t.Fatalf("Case name %s: Error converting to Alibaba cloud request", c.name)
+			}
+			if c.expectedDiskCategory != req.QueryParams["SystemDisk.Category"] {
+				t.Fatalf("Case name %s: Disk Category is not set correctly", c.name)
+			}
+		})
+	}
 }

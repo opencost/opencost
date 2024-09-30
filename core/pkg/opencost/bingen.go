@@ -46,7 +46,7 @@ package opencost
 // @bingen:end
 
 // Allocation Version Set: Includes Allocation pipeline specific resources
-// @bingen:set[name=Allocation,version=21]
+// @bingen:set[name=Allocation,version=22]
 // @bingen:generate:Allocation
 // @bingen:generate[stringtable]:AllocationSet
 // @bingen:generate:AllocationSetRange
@@ -62,7 +62,7 @@ package opencost
 // @bingen:generate:LbAllocation
 // @bingen:end
 
-// @bingen:set[name=CloudCost,version=2]
+// @bingen:set[name=CloudCost,version=3]
 // @bingen:generate:CloudCost
 // @bingen:generate:CostMetric
 // @bingen:generate[stringtable]:CloudCostSet

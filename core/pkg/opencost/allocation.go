@@ -63,9 +63,11 @@ type Allocation struct {
 	CPUCoreUsageAverage        float64               `json:"cpuCoreUsageAverage"`
 	CPUCost                    float64               `json:"cpuCost"`
 	CPUCostAdjustment          float64               `json:"cpuCostAdjustment"`
+	CPUCostIdle                float64               `json:"cpuCostIdle"` //@bingen:field[ignore]
 	GPUHours                   float64               `json:"gpuHours"`
 	GPUCost                    float64               `json:"gpuCost"`
 	GPUCostAdjustment          float64               `json:"gpuCostAdjustment"`
+	GPUCostIdle                float64               `json:"gpuCostIdle"` //@bingen:field[ignore]
 	NetworkTransferBytes       float64               `json:"networkTransferBytes"`
 	NetworkReceiveBytes        float64               `json:"networkReceiveBytes"`
 	NetworkCost                float64               `json:"networkCost"`
@@ -82,6 +84,7 @@ type Allocation struct {
 	RAMBytesUsageAverage       float64               `json:"ramByteUsageAverage"`
 	RAMCost                    float64               `json:"ramCost"`
 	RAMCostAdjustment          float64               `json:"ramCostAdjustment"`
+	RAMCostIdle                float64               `json:"ramCostIdle"` //@bingen:field[ignore]
 	SharedCost                 float64               `json:"sharedCost"`
 	ExternalCost               float64               `json:"externalCost"`
 	// RawAllocationOnly is a pointer so if it is not present it will be
@@ -97,7 +100,9 @@ type Allocation struct {
 	// UnmountedPVCost is used to track how much of the cost in PVs is for an
 	// unmounted PV. It is not additive of PVCost() and need not be sent in API
 	// responses.
-	UnmountedPVCost float64 `json:"-"` //@bingen:field[ignore]
+	UnmountedPVCost   float64 `json:"-"`                 //@bingen:field[ignore]
+	GPURequestAverage float64 `json:"gpuRequestAverage"` //@bingen:field[version=22]
+	GPUUsageAverage   float64 `json:"gpuUsageAverage"`   //@bingen:field[version=22]
 }
 
 type LbAllocations map[string]*LbAllocation
@@ -667,9 +672,13 @@ func (a *Allocation) Clone() *Allocation {
 		CPUCoreRequestAverage:          a.CPUCoreRequestAverage,
 		CPUCoreUsageAverage:            a.CPUCoreUsageAverage,
 		CPUCost:                        a.CPUCost,
+		CPUCostIdle:                    a.CPUCostIdle,
 		CPUCostAdjustment:              a.CPUCostAdjustment,
 		GPUHours:                       a.GPUHours,
+		GPURequestAverage:              a.GPURequestAverage,
+		GPUUsageAverage:                a.GPUUsageAverage,
 		GPUCost:                        a.GPUCost,
+		GPUCostIdle:                    a.GPUCostIdle,
 		GPUCostAdjustment:              a.GPUCostAdjustment,
 		NetworkTransferBytes:           a.NetworkTransferBytes,
 		NetworkReceiveBytes:            a.NetworkReceiveBytes,
@@ -686,6 +695,7 @@ func (a *Allocation) Clone() *Allocation {
 		RAMBytesRequestAverage:         a.RAMBytesRequestAverage,
 		RAMBytesUsageAverage:           a.RAMBytesUsageAverage,
 		RAMCost:                        a.RAMCost,
+		RAMCostIdle:                    a.RAMCostIdle,
 		RAMCostAdjustment:              a.RAMCostAdjustment,
 		SharedCost:                     a.SharedCost,
 		ExternalCost:                   a.ExternalCost,
@@ -727,6 +737,9 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if !util.IsApproximately(a.CPUCost, that.CPUCost) {
 		return false
 	}
+	if !util.IsApproximately(a.CPUCostIdle, that.CPUCostIdle) {
+		return false
+	}
 	if !util.IsApproximately(a.CPUCostAdjustment, that.CPUCostAdjustment) {
 		return false
 	}
@@ -734,6 +747,9 @@ func (a *Allocation) Equal(that *Allocation) bool {
 		return false
 	}
 	if !util.IsApproximately(a.GPUCost, that.GPUCost) {
+		return false
+	}
+	if !util.IsApproximately(a.GPUCostIdle, that.GPUCostIdle) {
 		return false
 	}
 	if !util.IsApproximately(a.GPUCostAdjustment, that.GPUCostAdjustment) {
@@ -773,6 +789,9 @@ func (a *Allocation) Equal(that *Allocation) bool {
 		return false
 	}
 	if !util.IsApproximately(a.RAMCost, that.RAMCost) {
+		return false
+	}
+	if !util.IsApproximately(a.RAMCostIdle, that.RAMCostIdle) {
 		return false
 	}
 	if !util.IsApproximately(a.RAMCostAdjustment, that.RAMCostAdjustment) {
@@ -916,7 +935,7 @@ func (a *Allocation) CPUEfficiency() float64 {
 		return a.CPUCoreUsageAverage / a.CPUCoreRequestAverage
 	}
 
-	if a.CPUCoreUsageAverage == 0.0 || a.CPUCost == 0.0 {
+	if a.CPUCoreUsageAverage == 0.0 || a.CPUTotalCost() == 0.0 {
 		return 0.0
 	}
 
@@ -935,7 +954,26 @@ func (a *Allocation) RAMEfficiency() float64 {
 		return a.RAMBytesUsageAverage / a.RAMBytesRequestAverage
 	}
 
-	if a.RAMBytesUsageAverage == 0.0 || a.RAMCost == 0.0 {
+	if a.RAMBytesUsageAverage == 0.0 || a.RAMTotalCost() == 0.0 {
+		return 0.0
+	}
+
+	return 1.0
+}
+
+// GPUEfficiency is the ratio of usage to request. Note that, without the NVIDIA
+// DCGM exporter providing Prometheus with usage metrics, this will always be
+// zero, as GPUUsageAverage will be zero (the default value).
+func (a *Allocation) GPUEfficiency() float64 {
+	if a == nil {
+		return 0.0
+	}
+
+	if a.GPURequestAverage > 0 && a.GPUUsageAverage > 0 {
+		return a.GPUUsageAverage / a.GPURequestAverage
+	}
+
+	if a.GPUUsageAverage == 0.0 || a.GPUTotalCost() == 0.0 {
 		return 0.0
 	}
 
@@ -1183,6 +1221,12 @@ func (a *Allocation) add(that *Allocation) {
 	ramUseByteMins := a.RAMBytesUsageAverage * a.Minutes()
 	ramUseByteMins += that.RAMBytesUsageAverage * that.Minutes()
 
+	gpuReqMins := a.GPURequestAverage * a.Minutes()
+	gpuReqMins += that.GPURequestAverage * that.Minutes()
+
+	gpuUseMins := a.GPUUsageAverage * a.Minutes()
+	gpuUseMins += that.GPUUsageAverage * that.Minutes()
+
 	// Expand Start and End to be the "max" of among the given Allocations
 	if that.Start.Before(a.Start) {
 		a.Start = that.Start
@@ -1198,11 +1242,15 @@ func (a *Allocation) add(that *Allocation) {
 		a.CPUCoreUsageAverage = cpuUseCoreMins / a.Minutes()
 		a.RAMBytesRequestAverage = ramReqByteMins / a.Minutes()
 		a.RAMBytesUsageAverage = ramUseByteMins / a.Minutes()
+		a.GPURequestAverage = gpuReqMins / a.Minutes()
+		a.GPUUsageAverage = gpuUseMins / a.Minutes()
 	} else {
 		a.CPUCoreRequestAverage = 0.0
 		a.CPUCoreUsageAverage = 0.0
 		a.RAMBytesRequestAverage = 0.0
 		a.RAMBytesUsageAverage = 0.0
+		a.GPURequestAverage = 0.0
+		a.GPUUsageAverage = 0.0
 	}
 
 	// Sum all cumulative resource fields
@@ -1216,6 +1264,9 @@ func (a *Allocation) add(that *Allocation) {
 	a.CPUCost += that.CPUCost
 	a.GPUCost += that.GPUCost
 	a.RAMCost += that.RAMCost
+	a.CPUCostIdle += that.CPUCostIdle
+	a.GPUCostIdle += that.GPUCostIdle
+	a.RAMCostIdle += that.RAMCostIdle
 	a.NetworkCost += that.NetworkCost
 	a.NetworkCrossZoneCost += that.NetworkCrossZoneCost
 	a.NetworkCrossRegionCost += that.NetworkCrossRegionCost
@@ -2512,6 +2563,10 @@ func (a *Allocation) SanitizeNaN() {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCost: name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
 		a.CPUCost = 0
 	}
+	if math.IsNaN(a.CPUCostIdle) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCostIdle: name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.CPUCostIdle = 0
+	}
 	if math.IsNaN(a.CPUCoreRequestAverage) {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCoreRequestAverage: name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
 		a.CPUCoreRequestAverage = 0
@@ -2532,9 +2587,21 @@ func (a *Allocation) SanitizeNaN() {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUHours name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
 		a.GPUHours = 0
 	}
+	if math.IsNaN(a.GPURequestAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPURequestAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.GPURequestAverage = 0
+	}
+	if math.IsNaN(a.GPUUsageAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUUsageAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.GPUUsageAverage = 0
+	}
 	if math.IsNaN(a.GPUCost) {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
 		a.GPUCost = 0
+	}
+	if math.IsNaN(a.GPUCostIdle) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUCostIdle name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.GPUCostIdle = 0
 	}
 	if math.IsNaN(a.GPUCostAdjustment) {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
@@ -2595,6 +2662,10 @@ func (a *Allocation) SanitizeNaN() {
 	if math.IsNaN(a.RAMCost) {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
 		a.RAMCost = 0
+	}
+	if math.IsNaN(a.RAMCostIdle) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMCostIdle name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.RAMCostIdle = 0
 	}
 	if math.IsNaN(a.RAMCostAdjustment) {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
