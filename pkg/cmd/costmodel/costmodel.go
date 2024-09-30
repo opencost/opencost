@@ -10,6 +10,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/customcost"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
@@ -62,7 +63,11 @@ func Execute(opts *CostModelOpts) error {
 
 	log.Infof("Cloud Costs enabled: %t", env.IsCloudCostEnabled())
 	if env.IsCloudCostEnabled() {
-		costmodel.InitializeCloudCost(router, cp)
+		var providerConfig models.ProviderConfig
+		if cp != nil {
+			providerConfig = provider.ExtractConfigFromProviders(cp)
+		}
+		costmodel.InitializeCloudCost(router, providerConfig)
 	}
 
 	log.Infof("Custom Costs enabled: %t", env.IsCustomCostEnabled())

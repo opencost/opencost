@@ -15,13 +15,18 @@ type SummaryAllocationResponse struct {
 	CPUCoreRequestAverage  *float64  `json:"cpuCoreRequestAverage"`
 	CPUCoreUsageAverage    *float64  `json:"cpuCoreUsageAverage"`
 	CPUCost                *float64  `json:"cpuCost"`
+	CPUCostIdle            *float64  `json:"cpuCostIdle"`
+	GPURequestAverage      *float64  `json:"gpuRequestAverage"`
+	GPUUsageAverage        *float64  `json:"gpuUsageAverage"`
 	GPUCost                *float64  `json:"gpuCost"`
+	GPUCostIdle            *float64  `json:"gpuCostIdle"`
 	NetworkCost            *float64  `json:"networkCost"`
 	LoadBalancerCost       *float64  `json:"loadBalancerCost"`
 	PVCost                 *float64  `json:"pvCost"`
 	RAMBytesRequestAverage *float64  `json:"ramByteRequestAverage"`
 	RAMBytesUsageAverage   *float64  `json:"ramByteUsageAverage"`
 	RAMCost                *float64  `json:"ramCost"`
+	RAMCostIdle            *float64  `json:"ramCostIdle"`
 	SharedCost             *float64  `json:"sharedCost"`
 	ExternalCost           *float64  `json:"externalCost"`
 	TotalEfficiency        *float64  `json:"totalEfficiency"`
@@ -52,13 +57,18 @@ func (sa *SummaryAllocation) ToResponse() *SummaryAllocationResponse {
 		CPUCoreRequestAverage:  formatutil.Float64ToResponse(sa.CPUCoreRequestAverage),
 		CPUCoreUsageAverage:    formatutil.Float64ToResponse(sa.CPUCoreUsageAverage),
 		CPUCost:                formatutil.Float64ToResponse(sa.CPUCost),
+		CPUCostIdle:            formatutil.Float64ToResponse(sa.CPUCostIdle),
+		GPURequestAverage:      formatutil.Float64ToResponse(sa.GPURequestAverage),
+		GPUUsageAverage:        formatutil.Float64ToResponse(sa.GPUUsageAverage),
 		GPUCost:                formatutil.Float64ToResponse(sa.GPUCost),
+		GPUCostIdle:            formatutil.Float64ToResponse(sa.GPUCostIdle),
 		NetworkCost:            formatutil.Float64ToResponse(sa.NetworkCost),
 		LoadBalancerCost:       formatutil.Float64ToResponse(sa.LoadBalancerCost),
 		PVCost:                 formatutil.Float64ToResponse(sa.PVCost),
 		RAMBytesRequestAverage: formatutil.Float64ToResponse(sa.RAMBytesRequestAverage),
 		RAMBytesUsageAverage:   formatutil.Float64ToResponse(sa.RAMBytesUsageAverage),
 		RAMCost:                formatutil.Float64ToResponse(sa.RAMCost),
+		RAMCostIdle:            formatutil.Float64ToResponse(sa.RAMCostIdle),
 		SharedCost:             formatutil.Float64ToResponse(sa.SharedCost),
 		ExternalCost:           formatutil.Float64ToResponse(sa.ExternalCost),
 		TotalEfficiency:        formatutil.Float64ToResponse(efficiency),

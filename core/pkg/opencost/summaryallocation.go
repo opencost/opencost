@@ -29,13 +29,18 @@ type SummaryAllocation struct {
 	CPUCoreRequestAverage  float64               `json:"cpuCoreRequestAverage"`
 	CPUCoreUsageAverage    float64               `json:"cpuCoreUsageAverage"`
 	CPUCost                float64               `json:"cpuCost"`
+	CPUCostIdle            float64               `json:"cpuCostIdle"`
+	GPURequestAverage      float64               `json:"gpuRequestAverage"`
+	GPUUsageAverage        float64               `json:"gpuUsageAverage"`
 	GPUCost                float64               `json:"gpuCost"`
+	GPUCostIdle            float64               `json:"gpuCostIdle"`
 	NetworkCost            float64               `json:"networkCost"`
 	LoadBalancerCost       float64               `json:"loadBalancerCost"`
 	PVCost                 float64               `json:"pvCost"`
 	RAMBytesRequestAverage float64               `json:"ramByteRequestAverage"`
 	RAMBytesUsageAverage   float64               `json:"ramByteUsageAverage"`
 	RAMCost                float64               `json:"ramCost"`
+	RAMCostIdle            float64               `json:"ramCostIdle"`
 	SharedCost             float64               `json:"sharedCost"`
 	ExternalCost           float64               `json:"externalCost"`
 	Share                  bool                  `json:"-"`
@@ -60,6 +65,8 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 		CPUCoreRequestAverage:  alloc.CPUCoreRequestAverage,
 		CPUCoreUsageAverage:    alloc.CPUCoreUsageAverage,
 		CPUCost:                alloc.CPUCost + alloc.CPUCostAdjustment,
+		GPURequestAverage:      alloc.GPURequestAverage,
+		GPUUsageAverage:        alloc.GPUUsageAverage,
 		GPUCost:                alloc.GPUCost + alloc.GPUCostAdjustment,
 		NetworkCost:            alloc.NetworkCost + alloc.NetworkCostAdjustment,
 		LoadBalancerCost:       alloc.LoadBalancerCost + alloc.LoadBalancerCostAdjustment,
@@ -121,6 +128,12 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 	ramUseByteMins := sa.RAMBytesUsageAverage * sa.Minutes()
 	ramUseByteMins += that.RAMBytesUsageAverage * that.Minutes()
 
+	gpuReqMins := sa.GPURequestAverage * sa.Minutes()
+	gpuReqMins += that.GPURequestAverage * that.Minutes()
+
+	gpuUseMins := sa.GPUUsageAverage * sa.Minutes()
+	gpuUseMins += that.GPUUsageAverage * that.Minutes()
+
 	// Expand Start and End to be the "max" of among the given Allocations
 	if that.Start.Before(sa.Start) {
 		sa.Start = that.Start
@@ -135,11 +148,15 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 		sa.CPUCoreUsageAverage = cpuUseCoreMins / sa.Minutes()
 		sa.RAMBytesRequestAverage = ramReqByteMins / sa.Minutes()
 		sa.RAMBytesUsageAverage = ramUseByteMins / sa.Minutes()
+		sa.GPURequestAverage = gpuReqMins / sa.Minutes()
+		sa.GPUUsageAverage = gpuUseMins / sa.Minutes()
 	} else {
 		sa.CPUCoreRequestAverage = 0.0
 		sa.CPUCoreUsageAverage = 0.0
 		sa.RAMBytesRequestAverage = 0.0
 		sa.RAMBytesUsageAverage = 0.0
+		sa.GPURequestAverage = 0.0
+		sa.GPUUsageAverage = 0.0
 	}
 
 	// Sum all cumulative cost fields
@@ -166,6 +183,8 @@ func (sa *SummaryAllocation) Clone() *SummaryAllocation {
 		CPUCoreRequestAverage:  sa.CPUCoreRequestAverage,
 		CPUCoreUsageAverage:    sa.CPUCoreUsageAverage,
 		CPUCost:                sa.CPUCost,
+		GPURequestAverage:      sa.GPURequestAverage,
+		GPUUsageAverage:        sa.GPUUsageAverage,
 		GPUCost:                sa.GPUCost,
 		NetworkCost:            sa.NetworkCost,
 		LoadBalancerCost:       sa.LoadBalancerCost,
@@ -224,6 +243,14 @@ func (sa *SummaryAllocation) Equal(that *SummaryAllocation) bool {
 	}
 
 	if sa.CPUCost != that.CPUCost {
+		return false
+	}
+
+	if sa.GPURequestAverage != that.GPURequestAverage {
+		return false
+	}
+
+	if sa.GPUUsageAverage != that.GPUUsageAverage {
 		return false
 	}
 

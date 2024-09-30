@@ -182,7 +182,7 @@ const (
 	queryGPURequestsStr = `avg(
 		label_replace(
 			label_replace(
-				sum_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!="", %s}[%s] %s), 
+				sum_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!="", %s}[%s] %s),
 				"container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		)
@@ -988,15 +988,6 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 	nodeList := cm.Cache.GetAllNodes()
 	nodes := make(map[string]*costAnalyzerCloud.Node)
 
-	vgpuCount, err := getAllocatableVGPUs(cm.Cache)
-	if err != nil {
-		return nil, err
-	}
-	vgpuCoeff := 10.0
-	if vgpuCount > 0.0 {
-		vgpuCoeff = vgpuCount
-	}
-
 	pmd := &costAnalyzerCloud.PricingMatchMetadata{
 		TotalNodes:        0,
 		PricingTypeCounts: make(map[costAnalyzerCloud.PricingType]int),
@@ -1028,6 +1019,8 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			pmd.PricingTypeCounts[cnode.PricingType] = 1
 		}
 
+		// newCnode builds upon cnode but populates/overrides certain fields.
+		// cnode was populated leveraging cloud provider public pricing APIs.
 		newCnode := *cnode
 		if newCnode.InstanceType == "" {
 			it, _ := util.GetInstanceType(n.Labels)
@@ -1070,48 +1063,24 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 		newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
-		// Azure does not seem to provide a GPU count in its pricing API. GKE supports attaching multiple GPUs
-		// So the k8s api will often report more accurate results for GPU count under status > capacity > nvidia.com/gpu than the cloud providers billing data
-		// not all providers are guaranteed to use this, so don't overwrite a Provider assignment if we can't find something under that capacity exists
-		gpuc := 0.0
-		q, ok := n.Status.Capacity["nvidia.com/gpu"]
-		_, hasReplicas := n.Labels["nvidia.com/gpu.replicas"]
-
-		if ok && !hasReplicas {
-			gpuCount := q.Value()
-			if gpuCount != 0 {
-				newCnode.GPU = fmt.Sprintf("%d", gpuCount)
-				newCnode.VGPU = newCnode.GPU
-				gpuc = float64(gpuCount)
-			}
-		} else if hasReplicas { // See https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html
-			if q.Value() == 0 {
-				q = n.Status.Capacity["nvidia.com/gpu.shared"]
-			}
-			g, ok := n.Labels["nvidia.com/gpu.count"]
-			if ok {
-				newCnode.GPU = g
-			} else {
-				newCnode.GPU = fmt.Sprintf("%d", 0)
-			}
-			newCnode.VGPU = fmt.Sprintf("%d", q.Value())
-
-		} else if g, ok := n.Status.Capacity["k8s.amazonaws.com/vgpu"]; ok {
-			gpuCount := g.Value()
-			if gpuCount != 0 {
-				newCnode.GPU = fmt.Sprintf("%d", int(float64(gpuCount)/vgpuCoeff))
-				newCnode.VGPU = fmt.Sprintf("%d", gpuCount)
-				gpuc = float64(gpuCount) / vgpuCoeff
-			}
-		} else {
-			gpuc, err = strconv.ParseFloat(newCnode.GPU, 64)
-			if err != nil {
-				gpuc = 0.0
-			}
-		}
-		if math.IsNaN(gpuc) {
-			log.Warnf("gpu count parsed as NaN. Setting to 0.")
+		gpuc, err := strconv.ParseFloat(newCnode.GPU, 64)
+		if err != nil {
 			gpuc = 0.0
+		}
+
+		// The k8s API will often report more accurate results for GPU count
+		// than cloud provider public pricing APIs. If found, override the
+		// original value.
+		gpuOverride, vgpuOverride, err := getGPUCount(cm.Cache, n)
+		if err != nil {
+			log.Warnf("Unable to get GPUCount for node %s: %s", n.Name, err.Error())
+		}
+		if gpuOverride > 0 {
+			newCnode.GPU = fmt.Sprintf("%f", gpuOverride)
+			gpuc = gpuOverride
+		}
+		if vgpuOverride > 0 {
+			newCnode.VGPU = fmt.Sprintf("%f", vgpuOverride)
 		}
 
 		// Special case for SUSE rancher, since it won't behave with normal
@@ -2358,6 +2327,68 @@ func getStatefulSetsOfPod(pod v1.Pod) []string {
 	return []string{}
 }
 
+// getGPUCount reads the node's Status and Labels (via the k8s API) to identify
+// the number of GPUs and vGPUs are equipped on the node. If unable to identify
+// a GPU count, it will return -1.
+func getGPUCount(cache clustercache.ClusterCache, n *v1.Node) (float64, float64, error) {
+	g, hasGpu := n.Status.Capacity["nvidia.com/gpu"]
+	_, hasReplicas := n.Labels["nvidia.com/gpu.replicas"]
+
+	// Case 1: Standard NVIDIA GPU
+	if hasGpu && g.Value() != 0 && !hasReplicas {
+		return float64(g.Value()), float64(g.Value()), nil
+	}
+
+	// Case 2: NVIDIA GPU with GPU Feature Discovery (GFD) Pod enabled.
+	// Ref: https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html#verifying-the-gpu-time-slicing-configuration
+	// Ref: https://github.com/NVIDIA/k8s-device-plugin/blob/d899752a424818428f744a946d32b132ea2c0cf1/internal/lm/resource_test.go#L44-L45
+	// Ref: https://github.com/NVIDIA/k8s-device-plugin/blob/d899752a424818428f744a946d32b132ea2c0cf1/internal/lm/resource_test.go#L103-L118
+	if hasReplicas {
+		resultGPU := 0.0
+		resultVGPU := 0.0
+
+		if c, ok := n.Labels["nvidia.com/gpu.count"]; ok {
+			var err error
+			resultGPU, err = strconv.ParseFloat(c, 64)
+			if err != nil {
+				return -1, -1, fmt.Errorf("could not parse label \"nvidia.com/gpu.count\": %v", err)
+			}
+		}
+
+		if s, ok := n.Status.Capacity["nvidia.com/gpu.shared"]; ok { // GFD configured `renameByDefault=true`
+			resultVGPU = float64(s.Value())
+		} else if g, ok := n.Status.Capacity["nvidia.com/gpu"]; ok { // GFD configured `renameByDefault=false`
+			resultVGPU = float64(g.Value())
+		} else {
+			resultVGPU = resultGPU
+		}
+
+		return resultGPU, resultVGPU, nil
+	}
+
+	// Case 3: AWS vGPU
+	if vgpu, ok := n.Status.Capacity["k8s.amazonaws.com/vgpu"]; ok {
+		vgpuCount, err := getAllocatableVGPUs(cache)
+		if err != nil {
+			return -1, -1, err
+		}
+
+		vgpuCoeff := 10.0
+		if vgpuCount > 0.0 {
+			vgpuCoeff = vgpuCount
+		}
+
+		if vgpu.Value() != 0 {
+			resultGPU := float64(vgpu.Value()) / vgpuCoeff
+			resultVGPU := float64(vgpu.Value())
+			return resultGPU, resultVGPU, nil
+		}
+	}
+
+	// No GPU found
+	return -1, -1, nil
+}
+
 func getAllocatableVGPUs(cache clustercache.ClusterCache) (float64, error) {
 	daemonsets := cache.GetAllDaemonSets()
 	vgpuCount := 0.0
@@ -2408,7 +2439,7 @@ func measureTimeAsync(start time.Time, threshold time.Duration, name string, ch 
 	}
 }
 
-func (cm *CostModel) QueryAllocation(window opencost.Window, resolution, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer bool, accumulateBy opencost.AccumulateOption) (*opencost.AllocationSetRange, error) {
+func (cm *CostModel) QueryAllocation(window opencost.Window, resolution, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer bool, accumulateBy opencost.AccumulateOption, shareIdle bool) (*opencost.AllocationSetRange, error) {
 	// Validate window is legal
 	if window.IsOpen() || window.IsNegative() {
 		return nil, fmt.Errorf("illegal window: %s", window)
@@ -2479,10 +2510,18 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, resolution, step ti
 	}
 
 	// Set aggregation options and aggregate
+	var shareIdleOpt string
+	if shareIdle {
+		shareIdleOpt = opencost.ShareWeighted
+	} else {
+		shareIdleOpt = opencost.ShareNone
+	}
+
 	opts := &opencost.AllocationAggregationOptions{
 		IncludeProportionalAssetResourceCosts: includeProportionalAssetResourceCosts,
 		IdleByNode:                            idleByNode,
 		IncludeAggregatedMetadata:             includeAggregatedMetadata,
+		ShareIdle:                             shareIdleOpt,
 	}
 
 	// Aggregate

@@ -67,18 +67,28 @@ var gcpRegions = []string{
 	"australia-southeast2",
 	"europe-central2",
 	"europe-north1",
+	"europe-southwest1",
 	"europe-west1",
+	"europe-west10",
+	"europe-west12",
 	"europe-west2",
 	"europe-west3",
 	"europe-west4",
 	"europe-west6",
+	"europe-west8",
 	"europe-west9",
+	"me-central1",
+	"me-central2",
+	"me-west1",
 	"northamerica-northeast1",
 	"northamerica-northeast2",
 	"southamerica-east1",
+	"southamerica-west1",
 	"us-central1",
 	"us-east1",
 	"us-east4",
+	"us-east5",
+	"us-south1",
 	"us-west1",
 	"us-west2",
 	"us-west3",
@@ -485,7 +495,8 @@ func (gcp *GCP) GetOrphanedResources() ([]models.OrphanedResource, error) {
 				desc := map[string]string{}
 				if disk.Description != "" {
 					if err := json.Unmarshal([]byte(disk.Description), &desc); err != nil {
-						return nil, fmt.Errorf("error converting string to map: %s", err)
+						log.Errorf("ignoring orphaned disk %s, failed to convert disk description to map: %s", disk.Name, err)
+						continue
 					}
 				}
 
@@ -632,6 +643,16 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 			break
 		} else if err != nil {
 			return nil, "", fmt.Errorf("error parsing GCP pricing page: %s", err)
+		}
+		if t == "error" {
+			errReader := dec.Buffered()
+			buf := new(strings.Builder)
+			_, err = io.Copy(buf, errReader)
+			if err != nil {
+				return nil, "", fmt.Errorf("error respnse: could not be read %s", err)
+			}
+
+			return nil, "", fmt.Errorf("error respnse: %s", buf.String())
 		}
 		if t == "skus" {
 			_, err := dec.Token() // consumes [
