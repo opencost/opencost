@@ -1389,8 +1389,8 @@ func getPodServices(cache clustercache.ClusterCache, podList []*clustercache.Pod
 			podServicesMapping[key] = make(map[string][]string)
 		}
 		s := labels.Nothing()
-		if service.Selector != nil && len(service.Selector) > 0 {
-			s = labels.Set(service.Selector).AsSelectorPreValidated()
+		if service.SpecSelector != nil && len(service.SpecSelector) > 0 {
+			s = labels.Set(service.SpecSelector).AsSelectorPreValidated()
 		}
 		for _, pod := range podList {
 			labelSet := labels.Set(pod.Labels)
@@ -2330,7 +2330,7 @@ func getStatefulSetsOfPod(pod clustercache.Pod) []string {
 // getGPUCount reads the node's Status and Labels (via the k8s API) to identify
 // the number of GPUs and vGPUs are equipped on the node. If unable to identify
 // a GPU count, it will return -1.
-func getGPUCount(cache clustercache.ClusterCache, n *v1.Node) (float64, float64, error) {
+func getGPUCount(cache clustercache.ClusterCache, n *clustercache.Node) (float64, float64, error) {
 	g, hasGpu := n.Status.Capacity["nvidia.com/gpu"]
 	_, hasReplicas := n.Labels["nvidia.com/gpu.replicas"]
 

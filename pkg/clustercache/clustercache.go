@@ -59,11 +59,11 @@ type Node struct {
 }
 
 type Service struct {
-	Name      string
-	Namespace string
-	Selector  map[string]string
-	Type      v1.ServiceType
-	Status    v1.ServiceStatus
+	Name         string
+	Namespace    string
+	SpecSelector map[string]string
+	Type         v1.ServiceType
+	Status       v1.ServiceStatus
 }
 
 type DaemonSet struct {
@@ -121,7 +121,9 @@ type PersistentVolume struct {
 type ReplicationController struct{}
 
 type PodDisruptionBudget struct{}
-type ReplicaSet struct{}
+type ReplicaSet struct {
+	SpecSelector *metav1.LabelSelector
+}
 
 func transformNamespace(input *v1.Namespace) *Namespace {
 	return &Namespace{
@@ -183,11 +185,11 @@ func transformNode(input *v1.Node) *Node {
 
 func transformService(input *v1.Service) *Service {
 	return &Service{
-		Name:      input.Name,
-		Namespace: input.Namespace,
-		Selector:  input.Spec.Selector,
-		Type:      input.Spec.Type,
-		Status:    input.Status,
+		Name:         input.Name,
+		Namespace:    input.Namespace,
+		SpecSelector: input.Spec.Selector,
+		Type:         input.Spec.Type,
+		Status:       input.Status,
 	}
 }
 
@@ -266,7 +268,9 @@ func transformPodDisruptionBudget(input *policyv1.PodDisruptionBudget) *PodDisru
 }
 
 func transformReplicaSet(input *appsv1.ReplicaSet) *ReplicaSet {
-	return &ReplicaSet{}
+	return &ReplicaSet{
+		SpecSelector: input.Spec.Selector,
+	}
 }
 
 // ClusterCache defines an contract for an object which caches components within a cluster, ensuring

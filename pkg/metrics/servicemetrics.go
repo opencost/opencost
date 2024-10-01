@@ -42,7 +42,7 @@ func (sc KubecostServiceCollector) Collect(ch chan<- prometheus.Metric) {
 		serviceName := svc.Name
 		serviceNS := svc.Namespace
 
-		labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(svc.Selector))
+		labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(svc.SpecSelector))
 		if len(labels) > 0 {
 			m := newServiceSelectorLabelsMetric(serviceName, serviceNS, "service_selector_labels", labels, values)
 			ch <- m
