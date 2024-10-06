@@ -3,6 +3,7 @@ package prom
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"net/http"
@@ -17,10 +18,13 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/fileutil"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"github.com/opencost/opencost/core/pkg/version"
+	"github.com/opencost/opencost/pkg/env"
 
 	golog "log"
 
 	prometheus "github.com/prometheus/client_golang/api"
+	restclient "k8s.io/client-go/rest"
+	certutil "k8s.io/client-go/util/cert"
 )
 
 var UserAgent = fmt.Sprintf("Opencost/%s", version.Version)
@@ -374,6 +378,21 @@ type PrometheusClientConfig struct {
 
 // NewPrometheusClient creates a new rate limited client which limits by outbound concurrent requests.
 func NewPrometheusClient(address string, config *PrometheusClientConfig) (prometheus.Client, error) {
+
+	var tlsCaCert *x509.CertPool
+	// get the bearer token and ca cert from serviceaccount if we have kube rbac proxy enabled
+	if env.IsKubeRbacProxyEnabled() {
+		restConfig, err := restclient.InClusterConfig()
+		if err != nil {
+			log.Fatalf("Failed to get in-cluster config: %s", err)
+		}
+		config.Auth.BearerToken = restConfig.BearerToken
+		tlsCaCert, err = certutil.NewPool(`/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt`)
+		if err != nil {
+			log.Fatalf("Failed to load service-ca.crt: %s", err)
+		}
+	}
+
 	// may be necessary for long prometheus queries
 	rt := httputil.NewUserAgentTransport(UserAgent, &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
@@ -384,6 +403,7 @@ func NewPrometheusClient(address string, config *PrometheusClientConfig) (promet
 		TLSHandshakeTimeout: config.TLSHandshakeTimeout,
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: config.TLSInsecureSkipVerify,
+			RootCAs:            tlsCaCert,
 		},
 	})
 	pc := prometheus.Config{
