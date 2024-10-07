@@ -136,14 +136,6 @@ type LbAllocation struct {
 	Adjustment float64 `json:"adjustment"` //@bingen:field[ignore]
 }
 
-type GPUAllocations struct {
-	Name         string  `json:"name"`
-	RequestUsage string  `json:"requestUsage"`
-	AvgUsage     float64 `json:"avgUsage"`
-	MaxUsage     float64 `json:"maxUsage"`
-	GpuModel     string  `json:"gpuModel"`
-}
-
 func (lba *LbAllocation) SanitizeNaN() {
 	if lba == nil {
 		return
