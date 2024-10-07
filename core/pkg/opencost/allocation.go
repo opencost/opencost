@@ -103,6 +103,7 @@ type Allocation struct {
 	UnmountedPVCost   float64 `json:"-"`                 //@bingen:field[ignore]
 	GPURequestAverage float64 `json:"gpuRequestAverage"` //@bingen:field[version=22]
 	GPUUsageAverage   float64 `json:"gpuUsageAverage"`   //@bingen:field[version=22]
+	GPUUsageMax       float64 `json:"gpuUsageMax"`       //@bingen:field[version=23]
 }
 
 type LbAllocations map[string]*LbAllocation
@@ -133,6 +134,14 @@ type LbAllocation struct {
 	Ip         string  `json:"ip"`         //@bingen:field[version=19]
 	Hours      float64 `json:"hours"`      //@bingen:field[version=21]
 	Adjustment float64 `json:"adjustment"` //@bingen:field[ignore]
+}
+
+type GPUAllocations struct {
+	Name         string  `json:"name"`
+	RequestUsage string  `json:"requestUsage"`
+	AvgUsage     float64 `json:"avgUsage"`
+	MaxUsage     float64 `json:"maxUsage"`
+	GpuModel     string  `json:"gpuModel"`
 }
 
 func (lba *LbAllocation) SanitizeNaN() {
@@ -677,6 +686,7 @@ func (a *Allocation) Clone() *Allocation {
 		GPUHours:                       a.GPUHours,
 		GPURequestAverage:              a.GPURequestAverage,
 		GPUUsageAverage:                a.GPUUsageAverage,
+		GPUUsageMax:                    a.GPUUsageMax,
 		GPUCost:                        a.GPUCost,
 		GPUCostIdle:                    a.GPUCostIdle,
 		GPUCostAdjustment:              a.GPUCostAdjustment,

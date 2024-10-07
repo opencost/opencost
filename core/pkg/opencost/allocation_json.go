@@ -28,6 +28,7 @@ type AllocationJSON struct {
 	GPUCount                       *float64                        `json:"gpuCount"`
 	GPURequestAverage              *float64                        `json:"gpuRequestAverage"`
 	GPUUsageAverage                *float64                        `json:"gpuUsageAverage"`
+	GPUUsageMax                    *float64                        `json:"gpuUsageMax"`
 	GPUHours                       *float64                        `json:"gpuHours"`
 	GPUCost                        *float64                        `json:"gpuCost"`
 	GPUCostAdjustment              *float64                        `json:"gpuCostAdjustment"`
@@ -86,6 +87,7 @@ func (aj *AllocationJSON) BuildFromAllocation(a *Allocation) {
 	aj.GPUCount = formatFloat64ForResponse(a.GPUs())
 	aj.GPURequestAverage = formatFloat64ForResponse(a.GPURequestAverage)
 	aj.GPUUsageAverage = formatFloat64ForResponse(a.GPUUsageAverage)
+	aj.GPUUsageMax = formatFloat64ForResponse(a.GPUUsageMax)
 	aj.GPUHours = formatFloat64ForResponse(a.GPUHours)
 	aj.GPUCost = formatFloat64ForResponse(a.GPUCost)
 	aj.GPUCostAdjustment = formatFloat64ForResponse(a.GPUCostAdjustment)

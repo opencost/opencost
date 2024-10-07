@@ -13,11 +13,12 @@ package opencost
 
 import (
 	"fmt"
-	util "github.com/opencost/opencost/core/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/opencost/opencost/core/pkg/util"
 )
 
 const (
@@ -786,6 +787,14 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 
 	} else {
 		target.GPUUsageAverage = float64(0) // default
+	}
+
+	// field version check
+	if uint8(23) <= version {
+		ggg := buff.ReadFloat64()
+		target.GPUCostAdjustment = ggg
+	} else {
+		target.GPUCostAdjustment = float64(0) // default
 	}
 
 	return nil
