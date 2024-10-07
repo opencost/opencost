@@ -29,6 +29,10 @@ const TiB = 1024.0 * GiB
 const PiB = 1024.0 * TiB
 const PV_USAGE_SANITY_LIMIT_BYTES = 10.0 * PiB
 
+type GpuUsageConfig struct {
+	Mode string
+}
+
 /* Pod Helpers */
 
 func (cm *CostModel) buildPodMap(window opencost.Window, resolution, maxBatchSize time.Duration, podMap map[podKey]*pod, clusterStart, clusterEnd map[string]time.Time, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) error {
@@ -614,12 +618,13 @@ func applyRAMBytesUsedMax(podMap map[podKey]*pod, resRAMBytesUsedMax []*prom.Que
 	}
 }
 
-func applyGPUUsageAvg(podMap map[podKey]*pod, resGPUUsageAvg []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey) {
+// same func is used for both GPUUsageAvg and GPUUsageMax
+func applyGPUUsage(podMap map[podKey]*pod, resGPUUsageAvgOrMax []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey, opts ...GpuUsageConfig) {
 	// Example PromQueryResult: {container="dcgmproftester12", namespace="gpu", pod="dcgmproftester3-deployment-fc89c8dd6-ph7z5"} 0.997307
-	for _, res := range resGPUUsageAvg {
+	for _, res := range resGPUUsageAvgOrMax {
 		key, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace")
 		if err != nil {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU usage avg result missing field: %s", err)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU usage avg/max result missing field: %s", err)
 			continue
 		}
 
@@ -642,7 +647,7 @@ func applyGPUUsageAvg(podMap map[podKey]*pod, resGPUUsageAvg []*prom.QueryResult
 		for _, thisPod := range pods {
 			container, err := res.GetString("container")
 			if err != nil {
-				log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU usage avg query result missing 'container': %s", key)
+				log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU usage avg/max query result missing 'container': %s", key)
 				continue
 			}
 			if _, ok := thisPod.Allocations[container]; !ok {
@@ -650,7 +655,13 @@ func applyGPUUsageAvg(podMap map[podKey]*pod, resGPUUsageAvg []*prom.QueryResult
 			}
 
 			// DCGM_FI_PROF_GR_ENGINE_ACTIVE metric is a float between 0-1.
-			thisPod.Allocations[container].GPUUsageAverage = res.Values[0].Value
+			for _, option := range opts {
+				if option.Mode == "Average" {
+					thisPod.Allocations[container].GPUUsageAverage = res.Values[0].Value
+				} else {
+					thisPod.Allocations[container].GPUUsageMax = res.Values[0].Value
+				}
+			}
 		}
 	}
 }
