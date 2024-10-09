@@ -28,7 +28,6 @@ type AllocationJSON struct {
 	GPUCount                       *float64                        `json:"gpuCount"`
 	GPURequestAverage              *float64                        `json:"gpuRequestAverage"`
 	GPUUsageAverage                *float64                        `json:"gpuUsageAverage"`
-	GPUUsageMax                    *float64                        `json:"gpuUsageMax"`
 	GPUHours                       *float64                        `json:"gpuHours"`
 	GPUCost                        *float64                        `json:"gpuCost"`
 	GPUCostAdjustment              *float64                        `json:"gpuCostAdjustment"`
