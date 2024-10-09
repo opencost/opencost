@@ -32,7 +32,6 @@ type SummaryAllocation struct {
 	CPUCostIdle            float64               `json:"cpuCostIdle"`
 	GPURequestAverage      float64               `json:"gpuRequestAverage"`
 	GPUUsageAverage        float64               `json:"gpuUsageAverage"`
-	GPUUsageMax            float64               `json:"gpuUsageMax"`
 	GPUCost                float64               `json:"gpuCost"`
 	GPUCostIdle            float64               `json:"gpuCostIdle"`
 	NetworkCost            float64               `json:"networkCost"`
@@ -135,9 +134,6 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 	gpuUseMins := sa.GPUUsageAverage * sa.Minutes()
 	gpuUseMins += that.GPUUsageAverage * that.Minutes()
 
-	gpuUsageMaxMins := sa.GPUUsageMax * sa.Minutes()
-	gpuUsageMaxMins += that.GPUUsageMax * sa.Minutes()
-
 	// Expand Start and End to be the "max" of among the given Allocations
 	if that.Start.Before(sa.Start) {
 		sa.Start = that.Start
@@ -154,7 +150,6 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 		sa.RAMBytesUsageAverage = ramUseByteMins / sa.Minutes()
 		sa.GPURequestAverage = gpuReqMins / sa.Minutes()
 		sa.GPUUsageAverage = gpuUseMins / sa.Minutes()
-		sa.GPUUsageMax = gpuUsageMaxMins / sa.Minutes()
 	} else {
 		sa.CPUCoreRequestAverage = 0.0
 		sa.CPUCoreUsageAverage = 0.0
@@ -162,7 +157,6 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 		sa.RAMBytesUsageAverage = 0.0
 		sa.GPURequestAverage = 0.0
 		sa.GPUUsageAverage = 0.0
-		sa.GPUUsageMax = 0.0
 	}
 
 	// Sum all cumulative cost fields
@@ -257,10 +251,6 @@ func (sa *SummaryAllocation) Equal(that *SummaryAllocation) bool {
 	}
 
 	if sa.GPUUsageAverage != that.GPUUsageAverage {
-		return false
-	}
-
-	if sa.GPUUsageMax != that.GPUUsageMax {
 		return false
 	}
 
