@@ -13,12 +13,11 @@ package opencost
 
 import (
 	"fmt"
+	util "github.com/opencost/opencost/core/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/opencost/opencost/core/pkg/util"
 )
 
 const (
@@ -34,6 +33,9 @@ const (
 )
 
 const (
+	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
+	CloudCostCodecVersion uint8 = 3
+
 	// DefaultCodecVersion is used for any resources listed in the Default version set
 	DefaultCodecVersion uint8 = 17
 
@@ -41,10 +43,7 @@ const (
 	AssetsCodecVersion uint8 = 21
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
-	AllocationCodecVersion uint8 = 22
-
-	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
-	CloudCostCodecVersion uint8 = 3
+	AllocationCodecVersion uint8 = 23
 )
 
 //--------------------------------------------------------------------------
@@ -787,14 +786,6 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 
 	} else {
 		target.GPUUsageAverage = float64(0) // default
-	}
-
-	// field version check
-	if uint8(23) <= version {
-		ggg := buff.ReadFloat64()
-		target.GPUCostAdjustment = ggg
-	} else {
-		target.GPUCostAdjustment = float64(0) // default
 	}
 
 	return nil
@@ -7021,6 +7012,7 @@ func (target *RawAllocationOnlyData) MarshalBinaryWithContext(ctx *EncodingConte
 
 	buff.WriteFloat64(target.CPUCoreUsageMax)  // write float64
 	buff.WriteFloat64(target.RAMBytesUsageMax) // write float64
+	buff.WriteFloat64(target.GPUUsageMax)      // write float64
 	return nil
 }
 
@@ -7083,6 +7075,15 @@ func (target *RawAllocationOnlyData) UnmarshalBinaryWithContext(ctx *DecodingCon
 
 	b := buff.ReadFloat64() // read float64
 	target.RAMBytesUsageMax = b
+
+	// field version check
+	if uint8(23) <= version {
+		c := buff.ReadFloat64() // read float64
+		target.GPUUsageMax = c
+
+	} else {
+		target.GPUUsageMax = float64(0) // default
+	}
 
 	return nil
 }

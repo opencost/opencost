@@ -29,9 +29,10 @@ const TiB = 1024.0 * GiB
 const PiB = 1024.0 * TiB
 const PV_USAGE_SANITY_LIMIT_BYTES = 10.0 * PiB
 
-type GpuUsageConfig struct {
-	Mode string
-}
+const (
+	GPU_USAGE_AVERAGE_MODE = "AVERAGE"
+	GPU_USAGE_MAX_MODE     = "MAX"
+)
 
 /* Pod Helpers */
 
@@ -619,7 +620,7 @@ func applyRAMBytesUsedMax(podMap map[podKey]*pod, resRAMBytesUsedMax []*prom.Que
 }
 
 // same func is used for both GPUUsageAvg and GPUUsageMax
-func applyGPUUsage(podMap map[podKey]*pod, resGPUUsageAvgOrMax []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey, opts ...GpuUsageConfig) {
+func applyGPUUsage(podMap map[podKey]*pod, resGPUUsageAvgOrMax []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey, mode string) {
 	// Example PromQueryResult: {container="dcgmproftester12", namespace="gpu", pod="dcgmproftester3-deployment-fc89c8dd6-ph7z5"} 0.997307
 	for _, res := range resGPUUsageAvgOrMax {
 		key, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace")
@@ -655,12 +656,10 @@ func applyGPUUsage(podMap map[podKey]*pod, resGPUUsageAvgOrMax []*prom.QueryResu
 			}
 
 			// DCGM_FI_PROF_GR_ENGINE_ACTIVE metric is a float between 0-1.
-			for _, option := range opts {
-				if option.Mode == "Average" {
-					thisPod.Allocations[container].GPUUsageAverage = res.Values[0].Value
-				} else {
-					thisPod.Allocations[container].GPUUsageMax = res.Values[0].Value
-				}
+			if mode == GPU_USAGE_AVERAGE_MODE {
+				thisPod.Allocations[container].GPUUsageAverage = res.Values[0].Value
+			} else {
+				thisPod.Allocations[container].RawAllocationOnly.GPUUsageMax = res.Values[0].Value
 			}
 		}
 	}
