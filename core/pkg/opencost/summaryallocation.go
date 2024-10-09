@@ -68,7 +68,6 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 		CPUCost:                alloc.CPUCost + alloc.CPUCostAdjustment,
 		GPURequestAverage:      alloc.GPURequestAverage,
 		GPUUsageAverage:        alloc.GPUUsageAverage,
-		GPUUsageMax:            alloc.GPUUsageMax,
 		GPUCost:                alloc.GPUCost + alloc.GPUCostAdjustment,
 		NetworkCost:            alloc.NetworkCost + alloc.NetworkCostAdjustment,
 		LoadBalancerCost:       alloc.LoadBalancerCost + alloc.LoadBalancerCostAdjustment,

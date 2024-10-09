@@ -277,6 +277,10 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 			if alloc.RawAllocationOnly.RAMBytesUsageMax > resultAlloc.RawAllocationOnly.RAMBytesUsageMax {
 				resultAlloc.RawAllocationOnly.RAMBytesUsageMax = alloc.RawAllocationOnly.RAMBytesUsageMax
 			}
+
+			if alloc.RawAllocationOnly.CPUCoreUsageMax > resultAlloc.RawAllocationOnly.CPUCoreUsageMax {
+				resultAlloc.RawAllocationOnly.GPUUsageMax = alloc.RawAllocationOnly.GPUUsageMax
+			}
 		}
 	}
 
@@ -620,8 +624,8 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	applyRAMBytesRequested(podMap, resRAMRequests, podUIDKeyMap)
 	applyRAMBytesUsedAvg(podMap, resRAMUsageAvg, podUIDKeyMap)
 	applyRAMBytesUsedMax(podMap, resRAMUsageMax, podUIDKeyMap)
-	applyGPUUsage(podMap, resGPUsUsageAvg, podUIDKeyMap, GpuUsageConfig{Mode: "Average"})
-	applyGPUUsage(podMap, resGPUsUsageMax, podUIDKeyMap, GpuUsageConfig{Mode: "Max"})
+	applyGPUUsage(podMap, resGPUsUsageAvg, podUIDKeyMap, GPU_USAGE_AVERAGE_MODE)
+	applyGPUUsage(podMap, resGPUsUsageMax, podUIDKeyMap, GPU_USAGE_MAX_MODE)
 	applyGPUsAllocated(podMap, resGPUsRequested, resGPUsAllocated, podUIDKeyMap)
 	applyNetworkTotals(podMap, resNetTransferBytes, resNetReceiveBytes, podUIDKeyMap)
 	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZoneCostPerGiB, podUIDKeyMap, networkCrossZoneCost)

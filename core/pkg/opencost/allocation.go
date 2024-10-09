@@ -103,7 +103,6 @@ type Allocation struct {
 	UnmountedPVCost   float64 `json:"-"`                 //@bingen:field[ignore]
 	GPURequestAverage float64 `json:"gpuRequestAverage"` //@bingen:field[version=22]
 	GPUUsageAverage   float64 `json:"gpuUsageAverage"`   //@bingen:field[version=22]
-	GPUUsageMax       float64 `json:"gpuUsageMax"`       //@bingen:field[version=23]
 }
 
 type LbAllocations map[string]*LbAllocation
@@ -177,6 +176,7 @@ func (lba *LbAllocation) SanitizeNaN() {
 type RawAllocationOnlyData struct {
 	CPUCoreUsageMax  float64 `json:"cpuCoreUsageMax"`
 	RAMBytesUsageMax float64 `json:"ramByteUsageMax"`
+	GPUUsageMax      float64 `json:"gpuUsageMax"` //@bingen:field[version=23]
 }
 
 // Clone returns a deep copy of the given RawAllocationOnlyData
@@ -188,6 +188,7 @@ func (r *RawAllocationOnlyData) Clone() *RawAllocationOnlyData {
 	return &RawAllocationOnlyData{
 		CPUCoreUsageMax:  r.CPUCoreUsageMax,
 		RAMBytesUsageMax: r.RAMBytesUsageMax,
+		GPUUsageMax:      r.GPUUsageMax,
 	}
 }
 
@@ -200,7 +201,8 @@ func (r *RawAllocationOnlyData) Equal(that *RawAllocationOnlyData) bool {
 		return false
 	}
 	return util.IsApproximately(r.CPUCoreUsageMax, that.CPUCoreUsageMax) &&
-		util.IsApproximately(r.RAMBytesUsageMax, that.RAMBytesUsageMax)
+		util.IsApproximately(r.RAMBytesUsageMax, that.RAMBytesUsageMax) &&
+		util.IsApproximately(r.GPUUsageMax, that.GPUUsageMax)
 }
 
 func (r *RawAllocationOnlyData) SanitizeNaN() {
@@ -214,6 +216,10 @@ func (r *RawAllocationOnlyData) SanitizeNaN() {
 	if math.IsNaN(r.RAMBytesUsageMax) {
 		log.DedupedWarningf(5, "RawAllocationOnlyData: Unexpected NaN found for RAMBytesUsageMax")
 		r.RAMBytesUsageMax = 0
+	}
+	if math.IsNaN(r.GPUUsageMax) {
+		log.DedupedWarningf(5, "RawAllocationOnlyData: Unexpected NaN found for GPUUsageMax")
+		r.GPUUsageMax = 0
 	}
 }
 
@@ -678,7 +684,6 @@ func (a *Allocation) Clone() *Allocation {
 		GPUHours:                       a.GPUHours,
 		GPURequestAverage:              a.GPURequestAverage,
 		GPUUsageAverage:                a.GPUUsageAverage,
-		GPUUsageMax:                    a.GPUUsageMax,
 		GPUCost:                        a.GPUCost,
 		GPUCostIdle:                    a.GPUCostIdle,
 		GPUCostAdjustment:              a.GPUCostAdjustment,

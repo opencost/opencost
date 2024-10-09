@@ -18,7 +18,6 @@ type SummaryAllocationResponse struct {
 	CPUCostIdle            *float64  `json:"cpuCostIdle"`
 	GPURequestAverage      *float64  `json:"gpuRequestAverage"`
 	GPUUsageAverage        *float64  `json:"gpuUsageAverage"`
-	GPUUsageMax            *float64  `json:"gpuUsageMax"`
 	GPUCost                *float64  `json:"gpuCost"`
 	GPUCostIdle            *float64  `json:"gpuCostIdle"`
 	NetworkCost            *float64  `json:"networkCost"`
