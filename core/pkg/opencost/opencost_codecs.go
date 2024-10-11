@@ -33,9 +33,6 @@ const (
 )
 
 const (
-	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
-	CloudCostCodecVersion uint8 = 3
-
 	// DefaultCodecVersion is used for any resources listed in the Default version set
 	DefaultCodecVersion uint8 = 17
 
@@ -44,6 +41,9 @@ const (
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
 	AllocationCodecVersion uint8 = 23
+
+	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
+	CloudCostCodecVersion uint8 = 3
 )
 
 //--------------------------------------------------------------------------
@@ -7012,7 +7012,13 @@ func (target *RawAllocationOnlyData) MarshalBinaryWithContext(ctx *EncodingConte
 
 	buff.WriteFloat64(target.CPUCoreUsageMax)  // write float64
 	buff.WriteFloat64(target.RAMBytesUsageMax) // write float64
-	buff.WriteFloat64(target.GPUUsageMax)      // write float64
+	if target.GPUUsageMax == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.GPUUsageMax) // write float64
+	}
 	return nil
 }
 
@@ -7078,11 +7084,16 @@ func (target *RawAllocationOnlyData) UnmarshalBinaryWithContext(ctx *DecodingCon
 
 	// field version check
 	if uint8(23) <= version {
-		c := buff.ReadFloat64() // read float64
-		target.GPUUsageMax = c
+		if buff.ReadUInt8() == uint8(0) {
+			target.GPUUsageMax = nil
+		} else {
+			c := buff.ReadFloat64() // read float64
+			target.GPUUsageMax = &c
 
+		}
 	} else {
-		target.GPUUsageMax = float64(0) // default
+		target.GPUUsageMax = nil
+
 	}
 
 	return nil

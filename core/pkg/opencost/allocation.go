@@ -174,9 +174,9 @@ func (lba *LbAllocation) SanitizeNaN() {
 // then this type would be unnecessary and its fields would go into the regular Allocation
 // and not in the AggregatedAllocation.
 type RawAllocationOnlyData struct {
-	CPUCoreUsageMax  float64 `json:"cpuCoreUsageMax"`
-	RAMBytesUsageMax float64 `json:"ramByteUsageMax"`
-	GPUUsageMax      float64 `json:"gpuUsageMax"` //@bingen:field[version=23]
+	CPUCoreUsageMax  float64  `json:"cpuCoreUsageMax"`
+	RAMBytesUsageMax float64  `json:"ramByteUsageMax"`
+	GPUUsageMax      *float64 `json:"gpuUsageMax"` //@bingen:field[version=23]
 }
 
 // Clone returns a deep copy of the given RawAllocationOnlyData
@@ -200,9 +200,16 @@ func (r *RawAllocationOnlyData) Equal(that *RawAllocationOnlyData) bool {
 	if r == nil || that == nil {
 		return false
 	}
-	return util.IsApproximately(r.CPUCoreUsageMax, that.CPUCoreUsageMax) &&
-		util.IsApproximately(r.RAMBytesUsageMax, that.RAMBytesUsageMax) &&
-		util.IsApproximately(r.GPUUsageMax, that.GPUUsageMax)
+	cmpResult := util.IsApproximately(r.CPUCoreUsageMax, that.CPUCoreUsageMax) &&
+		util.IsApproximately(r.RAMBytesUsageMax, that.RAMBytesUsageMax)
+
+	if r.GPUUsageMax != nil && that.GPUUsageMax != nil {
+		cmpResult = cmpResult && util.IsApproximately(*r.GPUUsageMax, *that.GPUUsageMax)
+	} else {
+		cmpResult = false
+	}
+
+	return cmpResult
 }
 
 func (r *RawAllocationOnlyData) SanitizeNaN() {
@@ -217,9 +224,9 @@ func (r *RawAllocationOnlyData) SanitizeNaN() {
 		log.DedupedWarningf(5, "RawAllocationOnlyData: Unexpected NaN found for RAMBytesUsageMax")
 		r.RAMBytesUsageMax = 0
 	}
-	if math.IsNaN(r.GPUUsageMax) {
+	if r.GPUUsageMax != nil || math.IsNaN(*r.GPUUsageMax) {
 		log.DedupedWarningf(5, "RawAllocationOnlyData: Unexpected NaN found for GPUUsageMax")
-		r.GPUUsageMax = 0
+		r.GPUUsageMax = nil
 	}
 }
 
