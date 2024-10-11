@@ -659,7 +659,7 @@ func applyGPUUsage(podMap map[podKey]*pod, resGPUUsageAvgOrMax []*prom.QueryResu
 			if mode == GPU_USAGE_AVERAGE_MODE {
 				thisPod.Allocations[container].GPUUsageAverage = res.Values[0].Value
 			} else {
-				thisPod.Allocations[container].RawAllocationOnly.GPUUsageMax = res.Values[0].Value
+				thisPod.Allocations[container].RawAllocationOnly.GPUUsageMax = &res.Values[0].Value
 			}
 		}
 	}
