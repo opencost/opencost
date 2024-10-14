@@ -16,6 +16,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/oracle"
+	"github.com/opencost/opencost/pkg/cloud/otc"
 	"github.com/opencost/opencost/pkg/cloud/scaleway"
 
 	"github.com/opencost/opencost/core/pkg/opencost"
@@ -251,6 +252,13 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			ClusterAccountID:     cp.accountID,
 			ServiceAccountChecks: models.NewServiceAccountChecks(),
 		}, nil
+	case opencost.OTCProvider:
+		log.Info("Found node label \"cce.cloud.com/cce-nodepool\", using OTC Provider")
+		return &otc.OTC{
+			Clientset:     cache,
+			Config:        NewProviderConfig(config, cp.configFileName),
+			ClusterRegion: cp.region,
+		}, nil
 	default:
 		log.Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
@@ -314,6 +322,9 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 	} else if strings.HasPrefix(providerID, "ocid") {
 		cp.provider = opencost.OracleProvider
 		cp.configFileName = "oracle.json"
+	} else if _, ok := node.Labels["cce.cloud.com/cce-nodepool"]; ok { // The node label "cce.cloud.com/cce-nodepool" exists
+		cp.provider = opencost.OTCProvider
+		cp.configFileName = "otc.json"
 	}
 	// Override provider to CSV if CSVProvider is used and custom provider is not set
 	if env.IsUseCSVProvider() {
@@ -329,7 +340,6 @@ var (
 	// gce://guestbook-227502/us-central1-a/gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
 	//  => gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
 	providerGCERegex = regexp.MustCompile("gce://[^/]*/[^/]*/([^/]+)")
-
 	// Capture "vol-0fc54c5e83b8d2b76" from "aws://us-east-2a/vol-0fc54c5e83b8d2b76"
 	persistentVolumeAWSRegex = regexp.MustCompile("aws:/[^/]*/[^/]*/([^/]+)")
 	// Capture "ad9d88195b52a47c89b5055120f28c58" from "ad9d88195b52a47c89b5055120f28c58-1037804914.us-east-2.elb.amazonaws.com"
