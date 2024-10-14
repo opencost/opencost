@@ -19,7 +19,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-// otc node pricing attributes
+// OTC node pricing attributes
 type OTCNodeAttributes struct {
 	Type  string // like s2.large.1
 	OS    string // like windows
@@ -54,7 +54,7 @@ type OTC struct {
 	DownloadPricingDataLock sync.RWMutex
 }
 
-// kubernetes to otc os conversion
+// Kubernetes to OTC OS conversion
 /* Note:
 Kubernetes cannot fill the "kubernetes.io/os" label with the variety that OTC provides
 because it is based on the runtime.GOOS variable (https://kubernetes.io/docs/reference/labels-annotations-taints/#kubernetes-io-os)
@@ -72,8 +72,8 @@ var kubernetesOSTypes = map[string]string{
 	"Windows":      "windows",
 }
 
-// currently assumes that no GPU is present
-// but aws does that too, so its fine
+// Currently assumes that no GPU is present
+// but aws does that too, so its fine.
 type otcKey struct {
 	ProviderID string
 	Labels     map[string]string
@@ -114,8 +114,8 @@ func (k *otcKey) Features() string {
 	return key
 }
 
-// extract/generate a key that holds the data required to calculate
-// the cost of the given node (like s2.large.4)
+// Extract/generate a key that holds the data required to calculate
+// the cost of the given node (like s2.large.4).
 func (otc *OTC) GetKey(labels map[string]string, n *v1.Node) models.Key {
 	return &otcKey{
 		Labels:     labels,
@@ -123,12 +123,12 @@ func (otc *OTC) GetKey(labels map[string]string, n *v1.Node) models.Key {
 	}
 }
 
-// returns the storage class for a persistent volume key
+// Returns the storage class for a persistent volume key.
 func (k *otcPVKey) GetStorageClass() string {
 	return k.Type
 }
 
-// returns the provider id for a persistent volume key
+// Returns the provider id for a persistent volume key.
 func (k *otcPVKey) ID() string {
 	return k.ProviderId
 }
@@ -144,22 +144,22 @@ func (otc *OTC) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, 
 	}
 }
 
-// takes a resopnse from the otc api and the respective service name as an input
-// and extracts the resulting data into a Product slice
+// Takes a resopnse from the otc api and the respective service name as an input
+// and extracts the resulting data into a product slice.
 func (otc *OTC) loadStructFromResponse(resp http.Response, serviceName string) ([]Product, error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
 
-	// unmarshal the first bit of the response
+	// Unmarshal the first bit of the response.
 	wrapper := make(map[string]map[string]interface{})
 	err = json.Unmarshal(body, &wrapper)
 	if err != nil {
 		return nil, err
 	}
 
-	// unmarshal the second, more specific, bit of the response
+	// Unmarshal the second, more specific, bit of the response.
 	data := make(map[string][]Product)
 	tmp, err := json.Marshal(wrapper["response"]["result"])
 	if err != nil {
@@ -173,10 +173,10 @@ func (otc *OTC) loadStructFromResponse(resp http.Response, serviceName string) (
 	return data[serviceName], nil
 }
 
-// the product (price) data that is fetched from OTC
+// The product (price) data that is fetched from OTC
 //
-// if OsUnit, VCpu and Ram aren't given, the product
-// is a persistent volume, else it's a node
+// If OsUnit, VCpu and Ram aren't given, the product
+// is a persistent volume, else it's a node.
 type Product struct {
 	OpiFlavour  string `json:"opiFlavour"`
 	OsUnit      string `json:"osUnit,omitempty"`
@@ -186,19 +186,19 @@ type Product struct {
 }
 
 /*
-download the pricing data from the otc api
+Download the pricing data from the OTC API
 
-when a node has a specified price of e.g. 0.014 and
-the kubernetes node has a ram attribute of 8232873984 Bytes
+When a node has a specified price of e.g. 0.014 and
+the kubernetes node has a RAM attribute of 8232873984 Bytes.
 
-the price in prometheus will be composed of:
-  - the cpu/h price multiplied with the amount of vcpus:
+The price in Prometheus will be composed of:
+  - the cpu/h price multiplied with the amount of VCPUs:
     0.006904 * 1 => 0.006904
-  - the ram/h price multiplied with the amount of ram in GiB:
+  - the RAM/h price multiplied with the amount of ram in GiB:
     0.000925 * (8232873984/1024/1024/1024) => 0.0070924
 
-And the resulting node_total_hourly_price{} metric in prometheus
-will approach the total node cost retrieved from otc:
+And the resulting node_total_hourly_price{} metric in Prometheus
+will approach the total node cost retrieved from OTC:
 
 	==> 0.006904 + 0.0070924 = 0.013996399999999999
 	    ~ 0.014
@@ -207,7 +207,7 @@ func (otc *OTC) DownloadPricingData() error {
 	otc.DownloadPricingDataLock.Lock()
 	defer otc.DownloadPricingDataLock.Unlock()
 
-	// Fetch pricing data from the otc.json config in case downloading the pricing maps fails
+	// Fetch pricing data from the otc.json config in case downloading the pricing maps fails.
 	c, err := otc.Config.GetCustomPricingData()
 	if err != nil {
 		log.Errorf("Error downloading default pricing data: %s", err.Error())
@@ -219,10 +219,10 @@ func (otc *OTC) DownloadPricingData() error {
 	otc.clusterManagementPrice = 0.10 // TODO: What is the cluster management price?
 	otc.projectID = c.ProjectID
 
-	// Slice with all nodes currently present in the cluster
+	// Slice with all nodes currently present in the cluster.
 	nodeList := otc.Clientset.GetAllNodes()
 
-	// Slice with all storage classes
+	// Slice with all storage classes.
 	storageClasses := otc.Clientset.GetAllStorageClasses()
 	for _, tmp := range storageClasses {
 		fmt.Println("storage class found:")
@@ -235,7 +235,7 @@ func (otc *OTC) DownloadPricingData() error {
 	// Slice with all persistent volumes present in the cluster
 	pvList := otc.Clientset.GetAllPersistentVolumes()
 
-	// create a slice of all existing keys in the current cluster
+	// Create a slice of all existing keys in the current cluster.
 	// (keys like "eu-de,s3.medium.1,linux" or "eu-de,s3.xlarge.2,windows")
 	inputkeys := make(map[string]bool)
 	tmp := []string{}
@@ -255,11 +255,11 @@ func (otc *OTC) DownloadPricingData() error {
 	otc.Pricing = make(map[string]*OTCPricing)
 	otc.ValidPricingKeys = make(map[string]bool)
 
-	// get pricing data from api
+	// Get pricing data from API.
 	nodePricingURL := "https://calculator.otc-service.com/de/open-telekom-price-api/?serviceName=ecs" /* + "&limitMax=200"*/ + "&columns%5B1%5D=opiFlavour" + "&columns%5B2%5D=osUnit" + "&columns%5B3%5D=vCpu" + "&columns%5B4%5D=ram" + "&columns%5B5%5D=priceAmount"
 	pvPricingURL := "https://calculator.otc-service.com/de/open-telekom-price-api/?serviceName%5B0%5D=evs&columns%5B1%5D=opiFlavour&columns%5B2%5D=priceAmount&limitFrom=0&region%5B3%5D=eu-de"
 
-	log.Info("started downloading otc pricing data ...")
+	log.Info("Started downloading OTC pricing data...")
 	resp, err := http.Get(nodePricingURL)
 	if err != nil {
 		return err
@@ -268,7 +268,7 @@ func (otc *OTC) DownloadPricingData() error {
 	if err != nil {
 		return err
 	}
-	log.Info("download successful")
+	log.Info("Succesfully downloaded OTC pricing data")
 
 	var products []Product
 
@@ -349,8 +349,8 @@ func (otc *OTC) NetworkPricing() (*models.Network, error) {
 }
 
 // NodePricing(Key) (*Node, PricingMetadata, error)
-// read the keys features and determine the price of the Node described by
-// the key to construct a Pricing Node object to return and work with
+// Read the keys features and determine the price of the Node described by
+// the key to construct a Pricing Node object to return and work with.
 func (otc *OTC) NodePricing(k models.Key) (*models.Node, models.PricingMetadata, error) {
 	otc.DownloadPricingDataLock.RLock()
 	defer otc.DownloadPricingDataLock.RUnlock()
@@ -361,13 +361,13 @@ func (otc *OTC) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 	log.Info("looking for pricing data of node with key features " + key)
 	pricing, ok := otc.Pricing[key]
 	if ok {
-		// the pricing key was found in the pricing list of the otc provider.
-		// now create a pricing node from that data and return it
+		// The pricing key was found in the pricing list of the otc provider.
+		// Now create a pricing node from that data and return it.
 		log.Info("pricing data found")
 		return otc.createNode(pricing, k)
 	} else if _, ok := otc.ValidPricingKeys[key]; ok {
-		// the pricing key is actually valid, but somehow it could not be found
-		// try re-downloading the pricing data to check for changes
+		// The pricing key is actually valid, but somehow it could not be found.
+		// Try re-downloading the pricing data to check for changes.
 		log.Info("key is valid, but no associated pricing data could be found; trying to re-download pricing data")
 		otc.DownloadPricingDataLock.RUnlock()
 		err := otc.DownloadPricingData()
@@ -383,22 +383,22 @@ func (otc *OTC) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 		}
 		pricing, ok = otc.Pricing[key]
 		if !ok {
-			// the given key does not exist in OTC or locally, return a default pricing node
+			// The given key does not exist in OTC or locally, return a default pricing node.
 			return &models.Node{
 				Cost:             otc.BaseCPUPrice,
 				BaseCPUPrice:     otc.BaseCPUPrice,
 				BaseRAMPrice:     otc.BaseRAMPrice,
 				BaseGPUPrice:     otc.BaseGPUPrice,
 				UsesBaseCPUPrice: true,
-			}, meta, fmt.Errorf("Unable to find any Pricing data for \"%s\"", key)
+			}, meta, fmt.Errorf("unable to find any Pricing data for \"%s\"", key)
 		}
-		// the local pricing date was just outdated
+		// The local pricing date was just outdated.
 		log.Info("pricing data found after re-download")
 		return otc.createNode(pricing, k)
 	} else {
-		// the given key isn't even valid, fall back to base pricing (handled by the costmodel)?
+		// The given key is not valid, fall back to base pricing (handled by the costmodel)?
 		log.Info("given key \"" + key + "\" is invalid; falling back to default pricing")
-		return nil, meta, fmt.Errorf("Invalid Pricing Key \"%s\"", key)
+		return nil, meta, fmt.Errorf("invalid Pricing Key \"%s\"", key)
 	}
 }
 
