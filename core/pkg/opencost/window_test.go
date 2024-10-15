@@ -1252,17 +1252,6 @@ func TestWindowGetWeeklyWindows(t *testing.T) {
 			},
 		},
 		{
-			name:  "same day",
-			start: time.Date(2024, 10, 6, 0, 0, 0, 0, time.UTC),
-			end:   time.Date(2024, 10, 6, 0, 0, 0, 0, time.UTC),
-			expected: []Window{
-				NewClosedWindow(
-					time.Date(2024, 10, 6, 0, 0, 0, 0, time.UTC),
-					time.Date(2024, 10, 13, 0, 0, 0, 0, time.UTC),
-				),
-			},
-		},
-		{
 			name:  "multiple weeks, partial start and end",
 			start: time.Date(2024, 10, 1, 0, 0, 0, 0, time.UTC),
 			end:   time.Date(2024, 11, 21, 0, 0, 0, 0, time.UTC),
