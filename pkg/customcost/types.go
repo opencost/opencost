@@ -6,8 +6,17 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/filter"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/model/pb"
 	"github.com/opencost/opencost/core/pkg/opencost"
+)
+
+type CostType string
+
+const (
+	CostTypeBlended CostType = "blended"
+	CostTypeList    CostType = "list"
+	CostTypeBilled  CostType = "billed"
 )
 
 type CostTotalRequest struct {
@@ -16,6 +25,7 @@ type CostTotalRequest struct {
 	AggregateBy []CustomCostProperty
 	Accumulate  opencost.AccumulateOption
 	Filter      filter.Filter
+	CostType    CostType
 }
 
 type CostTimeseriesRequest struct {
@@ -24,32 +34,33 @@ type CostTimeseriesRequest struct {
 	AggregateBy []CustomCostProperty
 	Accumulate  opencost.AccumulateOption
 	Filter      filter.Filter
+	CostType    CostType
 }
 
 type CostResponse struct {
-	Window          opencost.Window `json:"window"`
-	TotalBilledCost float32         `json:"totalBilledCost"`
-	TotalListCost   float32         `json:"totalListCost"`
-	CustomCosts     []*CustomCost   `json:"customCosts"`
+	Window        opencost.Window `json:"window"`
+	TotalCost     float32         `json:"totalCost"`
+	TotalCostType CostType        `json:"totalCostType"`
+	CustomCosts   []*CustomCost   `json:"customCosts"`
 }
 
 type CustomCost struct {
-	Id             string  `json:"id"`
-	Zone           string  `json:"zone"`
-	AccountName    string  `json:"account_name"`
-	ChargeCategory string  `json:"charge_category"`
-	Description    string  `json:"description"`
-	ResourceName   string  `json:"resource_name"`
-	ResourceType   string  `json:"resource_type"`
-	ProviderId     string  `json:"provider_id"`
-	BilledCost     float32 `json:"billedCost"`
-	ListCost       float32 `json:"listCost"`
-	ListUnitPrice  float32 `json:"list_unit_price"`
-	UsageQuantity  float32 `json:"usage_quantity"`
-	UsageUnit      string  `json:"usage_unit"`
-	Domain         string  `json:"domain"`
-	CostSource     string  `json:"cost_source"`
-	Aggregate      string  `json:"aggregate"`
+	Id             string   `json:"id"`
+	Zone           string   `json:"zone"`
+	AccountName    string   `json:"account_name"`
+	ChargeCategory string   `json:"charge_category"`
+	Description    string   `json:"description"`
+	ResourceName   string   `json:"resource_name"`
+	ResourceType   string   `json:"resource_type"`
+	ProviderId     string   `json:"provider_id"`
+	Cost           float32  `json:"cost"`
+	ListUnitPrice  float32  `json:"list_unit_price"`
+	UsageQuantity  float32  `json:"usage_quantity"`
+	UsageUnit      string   `json:"usage_unit"`
+	Domain         string   `json:"domain"`
+	CostSource     string   `json:"cost_source"`
+	Aggregate      string   `json:"aggregate"`
+	CostType       CostType `json:"cost_type"`
 }
 
 type CostTimeseriesResponse struct {
@@ -57,27 +68,45 @@ type CostTimeseriesResponse struct {
 	Timeseries []*CostResponse `json:"timeseries"`
 }
 
-func NewCostResponse(ccs *CustomCostSet) *CostResponse {
+func NewCostResponse(ccs *CustomCostSet, costType CostType) *CostResponse {
 	costResponse := &CostResponse{
-		Window:      ccs.Window,
-		CustomCosts: []*CustomCost{},
+		Window:        ccs.Window,
+		CustomCosts:   []*CustomCost{},
+		TotalCostType: costType,
 	}
 
 	for _, cc := range ccs.CustomCosts {
-		costResponse.TotalBilledCost += cc.BilledCost
-		costResponse.TotalListCost += cc.ListCost
+		costResponse.TotalCost += cc.Cost
 		costResponse.CustomCosts = append(costResponse.CustomCosts, cc)
 	}
 
 	return costResponse
 }
 
-func ParseCustomCostResponse(ccResponse *pb.CustomCostResponse) []*CustomCost {
+func ParseCostType(costTypeStr string) (CostType, error) {
+	switch costTypeStr {
+	case string(CostTypeBlended):
+		return CostTypeBlended, nil
+	case string(CostTypeList):
+		return CostTypeList, nil
+	case string(CostTypeBilled):
+		return CostTypeBilled, nil
+	default:
+		return "", fmt.Errorf("unsupported cost type: %s", costTypeStr)
+	}
+}
+
+func ParseCustomCostResponse(ccResponse *pb.CustomCostResponse, costType CostType) []*CustomCost {
 	costs := ccResponse.GetCosts()
 
-	customCosts := make([]*CustomCost, len(costs))
-	for i, cost := range costs {
-		customCosts[i] = &CustomCost{
+	customCosts := []*CustomCost{}
+	for _, cost := range costs {
+		selectedCost, selectedCostType := determineCost(cost, costType)
+		if selectedCost == 0 {
+			log.Debugf("cost %s had 0 cost for cost type %s, not including in response", cost.ProviderId, costType)
+			continue
+		}
+		customCosts = append(customCosts, &CustomCost{
 			Id:             cost.GetId(),
 			Zone:           cost.GetZone(),
 			AccountName:    cost.GetAccountName(),
@@ -86,23 +115,46 @@ func ParseCustomCostResponse(ccResponse *pb.CustomCostResponse) []*CustomCost {
 			ResourceName:   cost.GetResourceName(),
 			ResourceType:   cost.GetResourceType(),
 			ProviderId:     cost.GetProviderId(),
-			BilledCost:     cost.GetBilledCost(),
-			ListCost:       cost.GetListCost(),
+			Cost:           selectedCost,
 			ListUnitPrice:  cost.GetListUnitPrice(),
 			UsageQuantity:  cost.GetUsageQuantity(),
 			UsageUnit:      cost.GetUsageUnit(),
 			Domain:         ccResponse.GetDomain(),
 			CostSource:     ccResponse.GetCostSource(),
-		}
+			CostType:       selectedCostType,
+		})
 	}
 
 	return customCosts
 }
 
+func determineCost(cc *pb.CustomCost, costType CostType) (float32, CostType) {
+	switch costType {
+	// if the cost type is blended, first check if the billed cost is non-zero
+	// if it is, return the billed cost
+	// if it is zero, return the list cost
+	case CostTypeBlended:
+		if cc.BilledCost > 0 {
+			return cc.BilledCost, CostTypeBilled
+		}
+		return cc.ListCost, CostTypeList
+		// if the cost type is list, return the list cost
+	case CostTypeList:
+		return cc.ListCost, CostTypeList
+		// if the cost type is billed, return the billed cost
+	case CostTypeBilled:
+		return cc.BilledCost, CostTypeBilled
+	default:
+		return 0, ""
+	}
+}
 func (cc *CustomCost) Add(other *CustomCost) {
-	cc.BilledCost += other.BilledCost
-	cc.ListCost += other.ListCost
+	cc.Cost += other.Cost
 	cc.ListUnitPrice += other.ListUnitPrice
+
+	if cc.CostType != other.CostType {
+		cc.CostType = CostTypeBlended
+	}
 
 	if cc.Id != other.Id {
 		cc.Id = ""

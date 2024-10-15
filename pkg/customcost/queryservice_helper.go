@@ -40,12 +40,19 @@ func ParseCustomCostTotalRequest(qp mapper.PrimitiveMap) (*CostTotalRequest, err
 		}
 	}
 
+	costTypeStr := qp.Get("costType", string(CostTypeBlended))
+	parsedCostType, err := ParseCostType(costTypeStr)
+	if err != nil {
+		return nil, fmt.Errorf("parsing 'costType' parameter: %s", err)
+	}
+
 	opts := &CostTotalRequest{
 		Start:       *window.Start(),
 		End:         *window.End(),
 		AggregateBy: aggregateBy,
 		Accumulate:  accumulate,
 		Filter:      filter,
+		CostType:    parsedCostType,
 	}
 
 	return opts, nil
@@ -82,6 +89,11 @@ func ParseCustomCostTimeseriesRequest(qp mapper.PrimitiveMap) (*CostTimeseriesRe
 			return nil, fmt.Errorf("parsing 'filter' parameter: %s", err)
 		}
 	}
+	costTypeStr := qp.Get("costType", string(CostTypeBlended))
+	parsedCostType, err := ParseCostType(costTypeStr)
+	if err != nil {
+		return nil, fmt.Errorf("parsing 'costType' parameter: %s", err)
+	}
 
 	opts := &CostTimeseriesRequest{
 		Start:       *window.Start(),
@@ -89,6 +101,7 @@ func ParseCustomCostTimeseriesRequest(qp mapper.PrimitiveMap) (*CostTimeseriesRe
 		AggregateBy: aggregateBy,
 		Accumulate:  accumulate,
 		Filter:      filter,
+		CostType:    parsedCostType,
 	}
 
 	return opts, nil
