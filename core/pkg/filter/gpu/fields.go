@@ -2,11 +2,11 @@ package gpu
 
 import "github.com/opencost/opencost/core/pkg/filter/fieldstrings"
 
-// AllocationField is an enum that represents Allocation-specific fields that can be
-// filtered on (namespace, label, etc.)
+// AllocationGPUField is an enum that represents gpu Allocation-specific fields that can be
+// filtered on (namespace, pod, etc.)
 type AllocationGPUField string
 
-// If you add a AllocationFilterField, make sure to update field maps to return the correct
+// If you add a AllocationGPUFilterField, make sure to update field maps to return the correct
 // Allocation value
 // does not enforce exhaustive pattern matching on "enum" types.
 const (

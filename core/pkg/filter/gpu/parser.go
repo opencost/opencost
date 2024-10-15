@@ -2,7 +2,7 @@ package gpu
 
 import "github.com/opencost/opencost/core/pkg/filter/ast"
 
-// a slice of all the allocation field instances the lexer should recognize as
+// a slice of all the gpu allocation field instances the lexer should recognize as
 // valid left-hand comparators
 var allocationGPUFilterFields []*ast.Field = []*ast.Field{
 	ast.NewField(FieldClusterID),
@@ -13,7 +13,7 @@ var allocationGPUFilterFields []*ast.Field = []*ast.Field{
 	ast.NewField(FieldPod),
 }
 
-// fieldMap is a lazily loaded mapping from AllocationField to ast.Field
+// fieldMap is a lazily loaded mapping from AllocationGPUField to ast.Field
 var fieldMap map[AllocationGPUField]*ast.Field
 
 func init() {
@@ -24,7 +24,7 @@ func init() {
 	}
 }
 
-// DefaultFieldByName returns only default allocation filter fields by name.
+// DefaultFieldByName returns only default gpu allocation filter fields by name.
 func DefaultFieldByName(field AllocationGPUField) *ast.Field {
 	if af, ok := fieldMap[field]; ok {
 		afcopy := *af
@@ -34,8 +34,8 @@ func DefaultFieldByName(field AllocationGPUField) *ast.Field {
 	return nil
 }
 
-// NewAllocationFilterParser creates a new `ast.FilterParser` implementation
-// which uses allocation specific fields
+// NewAllocationGPUFilterParser creates a new `ast.FilterParser` implementation
+// which uses gpu allocation specific fields
 func NewAllocationGPUFilterParser() ast.FilterParser {
 	return ast.NewFilterParser(allocationGPUFilterFields)
 }
