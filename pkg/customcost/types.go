@@ -2,6 +2,7 @@ package customcost
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -12,29 +13,42 @@ import (
 )
 
 type CostType string
+type SortProperty string
+type SortDirection string
 
 const (
 	CostTypeBlended CostType = "blended"
 	CostTypeList    CostType = "list"
 	CostTypeBilled  CostType = "billed"
+
+	SortPropertyCost      SortProperty = "cost"
+	SortPropertyAggregate SortProperty = "aggregate"
+	SortPropertyCostType  SortProperty = "costType"
+
+	SortDirectionAsc  SortDirection = "asc"
+	SortDirectionDesc SortDirection = "desc"
 )
 
 type CostTotalRequest struct {
-	Start       time.Time
-	End         time.Time
-	AggregateBy []CustomCostProperty
-	Accumulate  opencost.AccumulateOption
-	Filter      filter.Filter
-	CostType    CostType
+	Start         time.Time
+	End           time.Time
+	AggregateBy   []CustomCostProperty
+	Accumulate    opencost.AccumulateOption
+	Filter        filter.Filter
+	CostType      CostType
+	SortBy        SortProperty
+	SortDirection SortDirection
 }
 
 type CostTimeseriesRequest struct {
-	Start       time.Time
-	End         time.Time
-	AggregateBy []CustomCostProperty
-	Accumulate  opencost.AccumulateOption
-	Filter      filter.Filter
-	CostType    CostType
+	Start         time.Time
+	End           time.Time
+	AggregateBy   []CustomCostProperty
+	Accumulate    opencost.AccumulateOption
+	Filter        filter.Filter
+	CostType      CostType
+	SortBy        SortProperty
+	SortDirection SortDirection
 }
 
 type CostResponse struct {
@@ -291,4 +305,40 @@ func generateAggKey(cc *CustomCost, aggregateBy []CustomCostProperty) (string, e
 	aggKey := strings.Join(aggKeys, "/")
 
 	return aggKey, nil
+}
+
+func (ccs *CustomCostSet) Sort(sortBy SortProperty, sortDirection SortDirection) {
+
+	switch sortBy {
+	case SortPropertyCost:
+		if sortDirection == SortDirectionAsc {
+			sort.Slice(ccs.CustomCosts, func(i, j int) bool {
+				return ccs.CustomCosts[i].Cost < ccs.CustomCosts[j].Cost
+			})
+		} else {
+			sort.Slice(ccs.CustomCosts, func(i, j int) bool {
+				return ccs.CustomCosts[i].Cost > ccs.CustomCosts[j].Cost
+			})
+		}
+	case SortPropertyAggregate:
+		if sortDirection == SortDirectionAsc {
+			sort.Slice(ccs.CustomCosts, func(i, j int) bool {
+				return ccs.CustomCosts[i].Aggregate < ccs.CustomCosts[j].Aggregate
+			})
+		} else {
+			sort.Slice(ccs.CustomCosts, func(i, j int) bool {
+				return ccs.CustomCosts[i].Aggregate > ccs.CustomCosts[j].Aggregate
+			})
+		}
+	case SortPropertyCostType:
+		if sortDirection == SortDirectionAsc {
+			sort.Slice(ccs.CustomCosts, func(i, j int) bool {
+				return ccs.CustomCosts[i].CostType < ccs.CustomCosts[j].CostType
+			})
+		} else {
+			sort.Slice(ccs.CustomCosts, func(i, j int) bool {
+				return ccs.CustomCosts[i].CostType > ccs.CustomCosts[j].CostType
+			})
+		}
+	}
 }
