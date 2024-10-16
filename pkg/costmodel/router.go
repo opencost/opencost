@@ -53,7 +53,6 @@ import (
 	"github.com/opencost/opencost/pkg/thanos"
 	prometheus "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
-	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/patrickmn/go-cache"
@@ -956,11 +955,11 @@ func (a *Accesses) GetAllDeployments(w http.ResponseWriter, r *http.Request, ps 
 	deploymentsList := a.ClusterCache.GetAllDeployments()
 
 	// filter for provided namespace
-	var deployments []*appsv1.Deployment
+	var deployments []*clustercache.Deployment
 	if namespace == "" {
 		deployments = deploymentsList
 	} else {
-		deployments = []*appsv1.Deployment{}
+		deployments = []*clustercache.Deployment{}
 
 		for _, d := range deploymentsList {
 			if d.Namespace == namespace {
@@ -1002,11 +1001,11 @@ func (a *Accesses) GetAllStatefulSets(w http.ResponseWriter, r *http.Request, ps
 	statefulSetsList := a.ClusterCache.GetAllStatefulSets()
 
 	// filter for provided namespace
-	var statefulSets []*appsv1.StatefulSet
+	var statefulSets []*clustercache.StatefulSet
 	if namespace == "" {
 		statefulSets = statefulSetsList
 	} else {
-		statefulSets = []*appsv1.StatefulSet{}
+		statefulSets = []*clustercache.StatefulSet{}
 
 		for _, ss := range statefulSetsList {
 			if ss.Namespace == namespace {
@@ -1089,9 +1088,6 @@ func (a *Accesses) GetPod(w http.ResponseWriter, r *http.Request, ps httprouter.
 	// TODO: ClusterCache API could probably afford to have some better filtering
 	allPods := a.ClusterCache.GetAllPods()
 	for _, pod := range allPods {
-		for _, container := range pod.Spec.Containers {
-			container.Env = make([]v1.EnvVar, 0)
-		}
 		if pod.Namespace == podNamespace && pod.Name == podName {
 			body, err := json.Marshal(pod)
 			if err != nil {
@@ -1166,7 +1162,7 @@ func (a *Accesses) GetOrphanedPods(w http.ResponseWriter, r *http.Request, ps ht
 
 	podlist := a.ClusterCache.GetAllPods()
 
-	var lonePods []*v1.Pod
+	var lonePods []*clustercache.Pod
 	for _, pod := range podlist {
 		if len(pod.OwnerReferences) == 0 {
 			lonePods = append(lonePods, pod)
@@ -1555,13 +1551,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	configPrefix := env.GetConfigPathWithDefault("/var/configs/")
 
 	// Create Kubernetes Cluster Cache + Watchers
-	var k8sCache clustercache.ClusterCache
-	if env.IsClusterCacheFileEnabled() {
-		importLocation := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-cache.json"))
-		k8sCache = clustercache.NewClusterImporter(importLocation)
-	} else {
-		k8sCache = clustercache.NewKubernetesClusterCache(kubeClientset)
-	}
+	k8sCache := clustercache.NewKubernetesClusterCache(kubeClientset)
 	k8sCache.Run()
 
 	cloudProviderKey := env.GetCloudProviderAPIKey()

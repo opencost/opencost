@@ -43,8 +43,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 
 	"github.com/jszwec/csvutil"
-
-	v1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -676,7 +674,7 @@ type awsPVKey struct {
 	ProviderID             string
 }
 
-func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
+func (aws *AWS) GetPVKey(pv *clustercache.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
 	providerID := ""
 	if pv.Spec.AWSElasticBlockStore != nil {
 		providerID = pv.Spec.AWSElasticBlockStore.VolumeID
@@ -742,7 +740,7 @@ func getStorageClassTypeFrom(provisioner string) string {
 }
 
 // GetKey maps node labels to information needed to retrieve pricing data
-func (aws *AWS) GetKey(labels map[string]string, n *v1.Node) models.Key {
+func (aws *AWS) GetKey(labels map[string]string, n *clustercache.Node) models.Key {
 	return &awsKey{
 		SpotLabelName:  aws.SpotLabelName,
 		SpotLabelValue: aws.SpotLabelValue,
@@ -764,13 +762,13 @@ func (aws *AWS) ClusterManagementPricing() (string, float64, error) {
 }
 
 // Use the pricing data from the current region. Fall back to using all region data if needed.
-func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, error) {
+func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response, string, error) {
 
 	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/"
 	region := ""
 	multiregion := false
 	for _, n := range nodeList {
-		labels := n.GetLabels()
+		labels := n.Labels
 		currentNodeRegion := ""
 		if r, ok := util.GetRegion(labels); ok {
 			currentNodeRegion = r
@@ -854,7 +852,7 @@ func (aws *AWS) DownloadPricingData() error {
 			aws.clusterProvisioner = "KOPS"
 		}
 
-		labels := n.GetObjectMeta().GetLabels()
+		labels := n.Labels
 		key := aws.GetKey(labels, n)
 		inputkeys[key.Features()] = true
 	}
@@ -868,8 +866,8 @@ func (aws *AWS) DownloadPricingData() error {
 		if params != nil {
 			params["provisioner"] = storageClass.Provisioner
 		}
-		storageClassMap[storageClass.ObjectMeta.Name] = params
-		if storageClass.GetAnnotations()["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.GetAnnotations()["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
+		storageClassMap[storageClass.Name] = params
+		if storageClass.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.Annotations["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
 			storageClassMap["default"] = params
 			storageClassMap[""] = params
 		}

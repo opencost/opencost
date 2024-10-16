@@ -31,8 +31,6 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
-
-	v1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -675,7 +673,7 @@ func (az *Azure) loadAzureStorageConfig(force bool) (*AzureStorageConfig, error)
 	return &asc, nil
 }
 
-func (az *Azure) GetKey(labels map[string]string, n *v1.Node) models.Key {
+func (az *Azure) GetKey(labels map[string]string, n *clustercache.Node) models.Key {
 	cfg, err := az.GetConfig()
 	if err != nil {
 		log.Infof("Error loading azure custom pricing information")
@@ -772,7 +770,7 @@ func (az *Azure) GetManagementPlatform() (string, error) {
 
 	if len(nodes) > 0 {
 		n := nodes[0]
-		providerID := n.Spec.ProviderID
+		providerID := n.SpecProviderID
 		if strings.Contains(providerID, "aks") {
 			return "aks", nil
 		}
@@ -1241,7 +1239,7 @@ type azurePvKey struct {
 	ProviderId             string
 }
 
-func (az *Azure) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
+func (az *Azure) GetPVKey(pv *clustercache.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
 	providerID := ""
 	if pv.Spec.AzureDisk != nil {
 		providerID = pv.Spec.AzureDisk.DiskName
