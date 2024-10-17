@@ -33,7 +33,7 @@ As Kubernetes adoption increases within an organization, these complexities beco
   </tr>
 </table>
 
-Cluster Asset Costs can be further segmented into **Resource Allocation Costs** and **Resource Usage Costs**. Resource Allocation Costs are expenses that accumulate based on the amount of time provisioned irrespective of usage (e.g. CPU hourly rate) whereas Resource Usage Costs accumulate on a per-unit basis (e.g. cost per byte egressed). Costs for an individual Asset are the summation of its Resource Allocation and Usage Costs, e.g. a Node’s cost is equal to CPU cost + GPU cost + RAM cost + Node Network Costs
+Cluster Asset Costs can be further segmented into **Resource Allocation Costs** and **Resource Usage Costs**. Resource Allocation Costs are expenses that accumulate based on the amount of time provisioned irrespective of usage (e.g. CPU hourly rate) whereas Resource Usage Costs accumulate on a per-unit basis (e.g. cost per byte egressed). Costs for an individual Asset are the summation of its Resource Allocation and Usage Costs, e.g. a Node’s cost is equal to CPU cost + GPU cost + RAM cost + Node Network Costs.
 
 <table>
   <tr>
