@@ -13,38 +13,46 @@ import (
 	"github.com/opencost/opencost/pkg/cloud"
 )
 
-const LabelColumnPrefix = "resource_tags_user_"
-const AWSLabelColumnPrefix = "resource_tags_aws_"
-const AthenaResourceTagPrefix = "resource_tags_"
+const AthenaTagPrefixResourceTagsUser = "resource_tags_user_"
+const AthenaTagPrefixResourceTagsAWS = "resource_tags_aws_"
+const AthenaTagPrefixResourceTags = "resource_tags_"
 
 // athenaDateLayout is the default AWS date format
 const AthenaDateLayout = "2006-01-02 15:04:05.000"
 
+const AthenaColumnLineItemUsageAccountID = "line_item_usage_account_id"
+const AthenaColumnLineItemResourceID = "line_item_resource_id"
+const AthenaColumnLineItemProductCode = "line_item_product_code"
+const AthenaColumnLineItemUsageType = "line_item_usage_type"
+const AthenaColumnProductRegionCode = "product_region_code"
+const AthenaColumnLineItemAvailabilityZone = "line_item_availability_zone"
+const AthenaColumnBillPayerAccountID = "bill_payer_account_id"
+
 // Cost Columns
-const AthenaPricingColumn = "line_item_unblended_cost"
+const AthenaColumnUnblendedCost = "line_item_unblended_cost"
 
 // Amortized Cost Columns
-const AthenaRIPricingColumn = "reservation_effective_cost"
-const AthenaSPPricingColumn = "savings_plan_savings_plan_effective_cost"
+const AthenaColumnReservationEffectiveCost = "reservation_effective_cost"
+const AthenaColumnSavingsPlanEffectiveCost = "savings_plan_savings_plan_effective_cost"
 
 // Net Cost Columns
-const AthenaNetPricingColumn = "line_item_net_unblended_cost"
+const AthenaColumnLineItemNetUnblendedCost = "line_item_net_unblended_cost"
 
-var AthenaNetPricingCoalesce = fmt.Sprintf("COALESCE(%s, %s, 0)", AthenaNetPricingColumn, AthenaPricingColumn)
+var AthenaNetPricingCoalesce = fmt.Sprintf("COALESCE(%s, %s, 0)", AthenaColumnLineItemNetUnblendedCost, AthenaColumnUnblendedCost)
 
 // Amortized Net Cost Columns
-const AthenaNetRIPricingColumn = "reservation_net_effective_cost"
+const AthenaColumnReservationNetEffectiveCost = "reservation_net_effective_cost"
 
-var AthenaNetRIPricingCoalesce = fmt.Sprintf("COALESCE(%s, %s, 0)", AthenaNetRIPricingColumn, AthenaRIPricingColumn)
+var AthenaNetRIPricingCoalesce = fmt.Sprintf("COALESCE(%s, %s, 0)", AthenaColumnReservationNetEffectiveCost, AthenaColumnReservationEffectiveCost)
 
-const AthenaNetSPPricingColumn = "savings_plan_net_savings_plan_effective_cost"
+const AthenaColumnNetSavingsPlanEffectiveCost = "savings_plan_net_savings_plan_effective_cost"
 
-var AthenaNetSPPricingCoalesce = fmt.Sprintf("COALESCE(%s, %s, 0)", AthenaNetSPPricingColumn, AthenaSPPricingColumn)
+var AthenaNetSPPricingCoalesce = fmt.Sprintf("COALESCE(%s, %s, 0)", AthenaColumnNetSavingsPlanEffectiveCost, AthenaColumnSavingsPlanEffectiveCost)
 
 // athenaDateTruncColumn Aggregates line items from the hourly level to daily. "line_item_usage_start_date" is used because at
 // all time values 00:00-23:00 it will truncate to the correct date.
-const AthenaDateColumn = "line_item_usage_start_date"
-const AthenaDateTruncColumn = "DATE_TRUNC('day'," + AthenaDateColumn + ") as usage_date"
+const AthenaColumnDate = "line_item_usage_start_date"
+const AthenaColumnDateTrunc = "DATE_TRUNC('day'," + AthenaColumnDate + ") as usage_date"
 
 const AthenaWhereDateFmt = `line_item_usage_start_date >= date '%s' AND line_item_usage_start_date < date '%s'`
 const AthenaWhereUsage = "(line_item_line_item_type = 'Usage' OR line_item_line_item_type = 'DiscountedUsage' OR line_item_line_item_type = 'SavingsPlanCoveredUsage' OR line_item_line_item_type = 'EdpDiscount' OR line_item_line_item_type = 'PrivateRateDiscount')"
@@ -53,7 +61,7 @@ const AthenaWhereUsage = "(line_item_line_item_type = 'Usage' OR line_item_line_
 type AthenaQueryIndexes struct {
 	Query                  string
 	ColumnIndexes          map[string]int
-	TagColumns             []string
+	UserTagColumns         []string
 	AWSTagColumns          []string
 	ListCostColumn         string
 	NetCostColumn          string
@@ -77,14 +85,14 @@ func (ai *AthenaIntegration) GetCloudCost(start, end time.Time) (*opencost.Cloud
 
 	// List known, hard-coded columns to query
 	groupByColumns := []string{
-		AthenaDateTruncColumn,
-		"line_item_resource_id",
-		"bill_payer_account_id",
-		"line_item_usage_account_id",
-		"line_item_product_code",
-		"line_item_usage_type",
-		"product_region_code",
-		"line_item_availability_zone",
+		AthenaColumnDateTrunc,
+		AthenaColumnLineItemResourceID,
+		AthenaColumnBillPayerAccountID,
+		AthenaColumnLineItemUsageAccountID,
+		AthenaColumnLineItemProductCode,
+		AthenaColumnLineItemUsageType,
+		AthenaColumnProductRegionCode,
+		AthenaColumnLineItemAvailabilityZone,
 	}
 
 	// Create query indices
@@ -98,12 +106,12 @@ func (ai *AthenaIntegration) GetCloudCost(start, end time.Time) (*opencost.Cloud
 	// Determine which columns are user-defined tags and add those to the list
 	// of columns to query.
 	for column := range allColumns {
-		if strings.HasPrefix(column, LabelColumnPrefix) {
+		if strings.HasPrefix(column, AthenaTagPrefixResourceTagsUser) {
 			quotedTag := fmt.Sprintf(`"%s"`, column)
 			groupByColumns = append(groupByColumns, quotedTag)
-			aqi.TagColumns = append(aqi.TagColumns, quotedTag)
+			aqi.UserTagColumns = append(aqi.UserTagColumns, quotedTag)
 		}
-		if strings.HasPrefix(column, AWSLabelColumnPrefix) {
+		if strings.HasPrefix(column, AthenaTagPrefixResourceTagsAWS) {
 			groupByColumns = append(groupByColumns, column)
 			aqi.AWSTagColumns = append(aqi.AWSTagColumns, column)
 		}
@@ -170,10 +178,12 @@ func (ai *AthenaIntegration) GetCloudCost(start, end time.Time) (*opencost.Cloud
 
 	// Generate row handling function.
 	rowHandler := func(row types.Row) {
-		err2 := ai.RowToCloudCost(row, aqi, ccsr)
+		cc, err2 := athenaRowToCloudCost(row, aqi)
 		if err2 != nil {
 			log.Errorf("AthenaIntegration: GetCloudCost: error while parsing row: %s", err2.Error())
+			return
 		}
+		ccsr.LoadCloudCost(cc)
 	}
 	log.Debugf("AthenaIntegration[%s]: GetCloudCost: querying: %s", ai.Key(), aqi.Query)
 	// Query CUR data and fill out CCSR
@@ -194,17 +204,17 @@ func (ai *AthenaIntegration) GetListCostColumn() string {
 	listCostBuilder.WriteString(" WHEN 'EdpDiscount' THEN 0")
 	listCostBuilder.WriteString(" WHEN 'PrivateRateDiscount' THEN 0")
 	listCostBuilder.WriteString(" ELSE ")
-	listCostBuilder.WriteString(AthenaPricingColumn)
+	listCostBuilder.WriteString(AthenaColumnUnblendedCost)
 	listCostBuilder.WriteString(" END")
 	return fmt.Sprintf("SUM(%s) as list_cost", listCostBuilder.String())
 }
 
 func (ai *AthenaIntegration) GetNetCostColumn(allColumns map[string]bool) string {
 	netCostColumn := ""
-	if allColumns[AthenaNetPricingColumn] { // if Net pricing exists
+	if allColumns[AthenaColumnLineItemNetUnblendedCost] { // if Net pricing exists
 		netCostColumn = AthenaNetPricingCoalesce
 	} else { // Non-net for if there's no net pricing.
-		netCostColumn = AthenaPricingColumn
+		netCostColumn = AthenaColumnUnblendedCost
 	}
 	return fmt.Sprintf("SUM(%s) as net_cost", netCostColumn)
 }
@@ -216,7 +226,7 @@ func (ai *AthenaIntegration) GetAmortizedCostColumn(allColumns map[string]bool) 
 
 func (ai *AthenaIntegration) GetAmortizedNetCostColumn(allColumns map[string]bool) string {
 	amortizedNetCostCase := ""
-	if allColumns[AthenaNetPricingColumn] { // if Net pricing exists
+	if allColumns[AthenaColumnLineItemNetUnblendedCost] { // if Net pricing exists
 		amortizedNetCostCase = ai.GetAmortizedNetCostCase(allColumns)
 	} else { // Non-net for if there's no net pricing.
 		amortizedNetCostCase = ai.GetAmortizedCostCase(allColumns)
@@ -226,42 +236,42 @@ func (ai *AthenaIntegration) GetAmortizedNetCostColumn(allColumns map[string]boo
 
 func (ai *AthenaIntegration) GetAmortizedCostCase(allColumns map[string]bool) string {
 	// Use unblended costs if Reserved Instances/Savings Plans aren't in use
-	if !allColumns[AthenaRIPricingColumn] && !allColumns[AthenaSPPricingColumn] {
-		return AthenaPricingColumn
+	if !allColumns[AthenaColumnReservationEffectiveCost] && !allColumns[AthenaColumnSavingsPlanEffectiveCost] {
+		return AthenaColumnUnblendedCost
 	}
 
 	var costBuilder strings.Builder
 	costBuilder.WriteString("CASE line_item_line_item_type")
-	if allColumns[AthenaRIPricingColumn] {
+	if allColumns[AthenaColumnReservationEffectiveCost] {
 		costBuilder.WriteString(" WHEN 'DiscountedUsage' THEN ")
-		costBuilder.WriteString(AthenaRIPricingColumn)
+		costBuilder.WriteString(AthenaColumnReservationEffectiveCost)
 	}
 
-	if allColumns[AthenaSPPricingColumn] {
+	if allColumns[AthenaColumnSavingsPlanEffectiveCost] {
 		costBuilder.WriteString(" WHEN 'SavingsPlanCoveredUsage' THEN ")
-		costBuilder.WriteString(AthenaSPPricingColumn)
+		costBuilder.WriteString(AthenaColumnSavingsPlanEffectiveCost)
 	}
 
 	costBuilder.WriteString(" ELSE ")
-	costBuilder.WriteString(AthenaPricingColumn)
+	costBuilder.WriteString(AthenaColumnUnblendedCost)
 	costBuilder.WriteString(" END")
 	return costBuilder.String()
 }
 
 func (ai *AthenaIntegration) GetAmortizedNetCostCase(allColumns map[string]bool) string {
 	// Use net unblended costs if Reserved Instances/Savings Plans aren't in use
-	if !allColumns[AthenaNetRIPricingColumn] && !allColumns[AthenaNetSPPricingColumn] {
+	if !allColumns[AthenaColumnReservationNetEffectiveCost] && !allColumns[AthenaColumnNetSavingsPlanEffectiveCost] {
 		return AthenaNetPricingCoalesce
 	}
 
 	var costBuilder strings.Builder
 	costBuilder.WriteString("CASE line_item_line_item_type")
-	if allColumns[AthenaNetRIPricingColumn] {
+	if allColumns[AthenaColumnReservationNetEffectiveCost] {
 		costBuilder.WriteString(" WHEN 'DiscountedUsage' THEN ")
 		costBuilder.WriteString(AthenaNetRIPricingCoalesce)
 	}
 
-	if allColumns[AthenaNetSPPricingColumn] {
+	if allColumns[AthenaColumnNetSavingsPlanEffectiveCost] {
 		costBuilder.WriteString(" WHEN 'SavingsPlanCoveredUsage' THEN ")
 		costBuilder.WriteString(AthenaNetSPPricingCoalesce)
 	}
@@ -283,7 +293,7 @@ func (ai *AthenaIntegration) RemoveColumnAliases(columns []string) {
 
 func (ai *AthenaIntegration) ConvertLabelToAWSTag(label string) string {
 	// if the label already has the column prefix assume that it is in the correct format
-	if strings.HasPrefix(label, LabelColumnPrefix) {
+	if strings.HasPrefix(label, AthenaTagPrefixResourceTagsUser) {
 		return label
 	}
 	// replace characters with underscore
@@ -293,7 +303,7 @@ func (ai *AthenaIntegration) ConvertLabelToAWSTag(label string) string {
 	tag = strings.ReplaceAll(tag, ":", "_")
 	tag = strings.ReplaceAll(tag, "-", "_")
 	// add prefix and return
-	return LabelColumnPrefix + tag
+	return AthenaTagPrefixResourceTagsUser + tag
 }
 
 // GetIsKubernetesColumn builds a column that determines if a row represents kubernetes spend
@@ -334,20 +344,20 @@ func (ai *AthenaIntegration) GetPartitionWhere(start, end time.Time) string {
 	return str
 }
 
-func (ai *AthenaIntegration) RowToCloudCost(row types.Row, aqi AthenaQueryIndexes, ccsr *opencost.CloudCostSetRange) error {
+func athenaRowToCloudCost(row types.Row, aqi AthenaQueryIndexes) (*opencost.CloudCost, error) {
 	if len(row.Data) < len(aqi.ColumnIndexes) {
-		return fmt.Errorf("rowToCloudCost: row with fewer than %d columns (has only %d)", len(aqi.ColumnIndexes), len(row.Data))
+		return nil, fmt.Errorf("rowToCloudCost: row with fewer than %d columns (has only %d)", len(aqi.ColumnIndexes), len(row.Data))
 	}
 
 	// Iterate through the slice of tag columns, assigning
 	// values to the column names, minus the tag prefix.
 	labels := opencost.CloudCostLabels{}
-	for _, tagColumnName := range aqi.TagColumns {
+	for _, tagColumnName := range aqi.UserTagColumns {
 		// remove quotes
 		labelName := strings.TrimPrefix(tagColumnName, `"`)
 		labelName = strings.TrimSuffix(labelName, `"`)
 		// remove prefix
-		labelName = strings.TrimPrefix(labelName, LabelColumnPrefix)
+		labelName = strings.TrimPrefix(labelName, AthenaTagPrefixResourceTagsUser)
 		value := GetAthenaRowValue(row, aqi.ColumnIndexes, tagColumnName)
 		if value != "" {
 			labels[labelName] = value
@@ -356,21 +366,21 @@ func (ai *AthenaIntegration) RowToCloudCost(row types.Row, aqi AthenaQueryIndexe
 
 	for _, awsColumnName := range aqi.AWSTagColumns {
 		// partially remove prefix leaving "aws_"
-		labelName := strings.TrimPrefix(awsColumnName, AthenaResourceTagPrefix)
+		labelName := strings.TrimPrefix(awsColumnName, AthenaTagPrefixResourceTags)
 		value := GetAthenaRowValue(row, aqi.ColumnIndexes, awsColumnName)
 		if value != "" {
 			labels[labelName] = value
 		}
 	}
 
-	invoiceEntityID := GetAthenaRowValue(row, aqi.ColumnIndexes, "bill_payer_account_id")
-	accountID := GetAthenaRowValue(row, aqi.ColumnIndexes, "line_item_usage_account_id")
-	startStr := GetAthenaRowValue(row, aqi.ColumnIndexes, AthenaDateTruncColumn)
-	providerID := GetAthenaRowValue(row, aqi.ColumnIndexes, "line_item_resource_id")
-	productCode := GetAthenaRowValue(row, aqi.ColumnIndexes, "line_item_product_code")
-	usageType := GetAthenaRowValue(row, aqi.ColumnIndexes, "line_item_usage_type")
-	regionCode := GetAthenaRowValue(row, aqi.ColumnIndexes, "product_region_code")
-	availabilityZone := GetAthenaRowValue(row, aqi.ColumnIndexes, "line_item_availability_zone")
+	invoiceEntityID := GetAthenaRowValue(row, aqi.ColumnIndexes, AthenaColumnBillPayerAccountID)
+	accountID := GetAthenaRowValue(row, aqi.ColumnIndexes, AthenaColumnLineItemUsageAccountID)
+	startStr := GetAthenaRowValue(row, aqi.ColumnIndexes, AthenaColumnDateTrunc)
+	providerID := GetAthenaRowValue(row, aqi.ColumnIndexes, AthenaColumnLineItemResourceID)
+	productCode := GetAthenaRowValue(row, aqi.ColumnIndexes, AthenaColumnLineItemProductCode)
+	usageType := GetAthenaRowValue(row, aqi.ColumnIndexes, AthenaColumnLineItemUsageType)
+	regionCode := GetAthenaRowValue(row, aqi.ColumnIndexes, AthenaColumnProductRegionCode)
+	availabilityZone := GetAthenaRowValue(row, aqi.ColumnIndexes, AthenaColumnLineItemAvailabilityZone)
 	isK8s, _ := strconv.ParseBool(GetAthenaRowValue(row, aqi.ColumnIndexes, aqi.IsK8sColumn))
 	k8sPct := 0.0
 	if isK8s {
@@ -379,22 +389,22 @@ func (ai *AthenaIntegration) RowToCloudCost(row types.Row, aqi AthenaQueryIndexe
 
 	listCost, err := GetAthenaRowValueFloat(row, aqi.ColumnIndexes, aqi.ListCostColumn)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	netCost, err := GetAthenaRowValueFloat(row, aqi.ColumnIndexes, aqi.NetCostColumn)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	amortizedNetCost, err := GetAthenaRowValueFloat(row, aqi.ColumnIndexes, aqi.AmortizedNetCostColumn)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	amortizedCost, err := GetAthenaRowValueFloat(row, aqi.ColumnIndexes, aqi.AmortizedCostColumn)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Identify resource category in the CUR
@@ -429,7 +439,7 @@ func (ai *AthenaIntegration) RowToCloudCost(row types.Row, aqi AthenaQueryIndexe
 
 	start, err := time.Parse(AthenaDateLayout, startStr)
 	if err != nil {
-		return fmt.Errorf("unable to parse %s: '%s'", AthenaDateTruncColumn, err.Error())
+		return nil, fmt.Errorf("unable to parse %s: '%s'", AthenaColumnDateTrunc, err.Error())
 	}
 	end := start.AddDate(0, 0, 1)
 
@@ -458,8 +468,7 @@ func (ai *AthenaIntegration) RowToCloudCost(row types.Row, aqi AthenaQueryIndexe
 		},
 	}
 
-	ccsr.LoadCloudCost(cc)
-	return nil
+	return cc, nil
 }
 
 func (ai *AthenaIntegration) GetConnectionStatusFromResult(result cloud.EmptyChecker, currentStatus cloud.ConnectionStatus) cloud.ConnectionStatus {
