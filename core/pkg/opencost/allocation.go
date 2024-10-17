@@ -1365,12 +1365,11 @@ func (a *Allocation) add(that *Allocation) {
 			a.GPUAllocation = that.GPUAllocation.Clone()
 		} else {
 			if a.GPUAllocation.GPUUsageAverage != nil && that.GPUAllocation.GPUUsageAverage != nil {
-				*a.GPUAllocation.GPUUsageAverage += that.GPUUsageAverage
+				*a.GPUAllocation.GPUUsageAverage += *that.GPUAllocation.GPUUsageAverage
 			}
 
 			if a.GPUAllocation.GPURequestAverage != nil && that.GPUAllocation.GPURequestAverage != nil {
-				//*a.GPUAllocation.GPURequestAverage += *that.GPUAllocation.GPURequestAverage
-				*a.GPUAllocation.GPURequestAverage += that.GPURequestAverage
+				*a.GPUAllocation.GPURequestAverage += *that.GPUAllocation.GPURequestAverage
 			}
 		}
 	}
