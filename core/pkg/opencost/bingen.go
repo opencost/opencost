@@ -60,6 +60,7 @@ package opencost
 // @bingen:generate:PVAllocation
 // @bingen:generate:LbAllocations
 // @bingen:generate:LbAllocation
+// @bingen:generate:GPUAllocation
 // @bingen:end
 
 // @bingen:set[name=CloudCost,version=3]

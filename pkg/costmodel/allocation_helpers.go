@@ -30,8 +30,10 @@ const PiB = 1024.0 * TiB
 const PV_USAGE_SANITY_LIMIT_BYTES = 10.0 * PiB
 
 const (
-	GPU_USAGE_AVERAGE_MODE = "AVERAGE"
-	GPU_USAGE_MAX_MODE     = "MAX"
+	GpuUsageAverageMode = "AVERAGE"
+	GpuUsageMaxMode     = "MAX"
+	GpuIsSharedMode     = "SHARED"
+	GpuInfoMode         = "GPU_INFO"
 )
 
 /* Pod Helpers */
@@ -656,10 +658,59 @@ func applyGPUUsage(podMap map[podKey]*pod, resGPUUsageAvgOrMax []*prom.QueryResu
 			}
 
 			// DCGM_FI_PROF_GR_ENGINE_ACTIVE metric is a float between 0-1.
-			if mode == GPU_USAGE_AVERAGE_MODE {
+			switch mode {
+			case GpuUsageAverageMode:
 				thisPod.Allocations[container].GPUUsageAverage = res.Values[0].Value
-			} else {
+				if thisPod.Allocations[container].GPUAllocation == nil {
+					thisPod.Allocations[container].GPUAllocation = &opencost.GPUAllocation{GPUUsageAverage: &res.Values[0].Value}
+				} else {
+					thisPod.Allocations[container].GPUAllocation.GPUUsageAverage = &res.Values[0].Value
+				}
+			case GpuUsageMaxMode:
 				thisPod.Allocations[container].RawAllocationOnly.GPUUsageMax = &res.Values[0].Value
+			case GpuIsSharedMode:
+				// if a container is using a GPU and it is shared, isGPUShared will be true
+				// if a container is using GPU and it is NOT shared, isGPUShared will be false
+				// if a container is NOT using a GPU, isGPUShared will be null
+				if res.Metric["resource"] == "nvidia_com_gpu_shared" {
+					trueVal := true
+					if res.Values[0].Value == 1 {
+						if thisPod.Allocations[container].GPUAllocation == nil {
+
+							thisPod.Allocations[container].GPUAllocation = &opencost.GPUAllocation{IsGPUShared: &trueVal}
+						} else {
+							thisPod.Allocations[container].GPUAllocation.IsGPUShared = &trueVal
+						}
+					}
+				} else if res.Metric["resource"] == "nvidia_com_gpu" {
+					falseVal := false
+					if res.Values[0].Value == 1 {
+						if thisPod.Allocations[container].GPUAllocation == nil {
+							thisPod.Allocations[container].GPUAllocation = &opencost.GPUAllocation{IsGPUShared: &falseVal}
+						} else {
+							thisPod.Allocations[container].GPUAllocation.IsGPUShared = &falseVal
+						}
+					}
+				} else {
+					continue
+				}
+			case GpuInfoMode:
+				log.DedupedInfof(10, "CostModel.ComputeAllocation: GPU info mode: %v", res.Metric)
+				log.DedupedInfof(10, "CostModel.ComputeAllocation: GPU info mode: %v", res.Values)
+				if thisPod.Allocations[container].GPUAllocation == nil {
+					thisPod.Allocations[container].GPUAllocation = &opencost.GPUAllocation{
+						GPUDevice: getSanitizedDeviceName(fmt.Sprintf("%s", res.Metric["device_name"])),
+						GPUModel:  fmt.Sprintf("%s", res.Metric["modelName"]),
+						GPUUUID:   fmt.Sprintf("%s", res.Metric["UUID"]),
+					}
+				} else {
+					thisPod.Allocations[container].GPUAllocation.GPUDevice = getSanitizedDeviceName(fmt.Sprintf("%s", res.Metric["device"]))
+					thisPod.Allocations[container].GPUAllocation.GPUModel = fmt.Sprintf("%s", res.Metric["modelName"])
+					thisPod.Allocations[container].GPUAllocation.GPUUUID = fmt.Sprintf("%s", res.Metric["UUID"])
+				}
+
+			default:
+				log.DedupedInfof(10, "CostModel.ComputeAllocation: Unknown mode: %s", mode)
 			}
 		}
 	}
@@ -713,6 +764,13 @@ func applyGPUsAllocated(podMap map[podKey]*pod, resGPUsRequested []*prom.QueryRe
 			// future this may need to be refactored when building support for
 			// GPU Time Slicing.
 			thisPod.Allocations[container].GPURequestAverage = res.Values[0].Value
+			if thisPod.Allocations[container].GPUAllocation == nil {
+				thisPod.Allocations[container].GPUAllocation = &opencost.GPUAllocation{
+					GPURequestAverage: &res.Values[0].Value,
+				}
+			} else {
+				thisPod.Allocations[container].GPUAllocation.GPURequestAverage = &res.Values[0].Value
+			}
 		}
 	}
 }
@@ -2333,4 +2391,12 @@ func calculateStartAndEnd(result *prom.QueryResult, resolution time.Duration, wi
 	}
 
 	return s, e
+}
+
+func getSanitizedDeviceName(deviceName string) string {
+	if strings.Contains(deviceName, "nvidia") {
+		return "nvidia"
+	}
+
+	return deviceName
 }

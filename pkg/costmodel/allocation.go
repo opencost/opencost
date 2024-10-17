@@ -67,6 +67,8 @@ const (
 	queryFmtLBActiveMins                = `count(kubecost_load_balancer_cost{%s}) by (namespace, service_name, %s)[%s:%s]`
 	queryFmtOldestSample                = `min_over_time(timestamp(group(node_cpu_hourly_cost{%s}))[%s:%s])`
 	queryFmtNewestSample                = `max_over_time(timestamp(group(node_cpu_hourly_cost{%s}))[%s:%s])`
+	queryFmtIsGPuShared                 = `avg(avg_over_time(kube_pod_container_resource_requests{container!="", node != "", pod != "", container!= "", unit = "integer",  %s}[%s])) by (container, pod, namespace, node, resource)`
+	queryFmtGetGPuInfo                  = `avg(avg_over_time(DCGM_FI_DEV_DEC_UTIL{container!="",%s}[%s])) by (container, pod, namespace, device, modelName, UUID)`
 
 	// Because we use container_cpu_usage_seconds_total to calculate CPU usage
 	// at any given "instant" of time, we need to use an irate or rate. To then
@@ -431,6 +433,8 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 		}
 	}
 
+	// GPU Queries
+	//queryIsGpuShared := fmt.Sprintf(queryFmtIsGPuShared, durStr)
 	queryGPUsRequested := fmt.Sprintf(queryFmtGPUsRequested, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 	resChGPUsRequested := ctx.QueryAtTime(queryGPUsRequested, end)
 
@@ -500,6 +504,13 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	queryNetInternetCostPerGiB := fmt.Sprintf(queryFmtNetInternetCostPerGiB, env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 	resChNetInternetCostPerGiB := ctx.QueryAtTime(queryNetInternetCostPerGiB, end)
 
+	//GPU Queries
+	queryIsGpuShared := fmt.Sprintf(queryFmtIsGPuShared, env.GetPromClusterFilter(), durStr)
+	resChIsGpuShared := ctx.QueryAtTime(queryIsGpuShared, end)
+
+	queryGetGPUInfo := fmt.Sprintf(queryFmtGetGPuInfo, env.GetPromClusterFilter(), durStr)
+	resChGetGPUInfo := ctx.QueryAtTime(queryGetGPUInfo, end)
+
 	var resChNodeLabels prom.QueryResultsChan
 	if env.GetAllocationNodeLabelsEnabled() {
 		queryNodeLabels := fmt.Sprintf(queryFmtNodeLabels, env.GetPromClusterFilter(), durStr)
@@ -559,6 +570,9 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	resGPUsUsageAvg, _ := resChGPUsUsageAvg.Await()
 	resGPUsUsageMax, _ := resChGPUsUsageMax.Await()
 	resGPUsAllocated, _ := resChGPUsAllocated.Await()
+
+	resIsGpuShared, _ := resChIsGpuShared.Await()
+	resGetGPUInfo, _ := resChGetGPUInfo.Await()
 
 	resNodeCostPerCPUHr, _ := resChNodeCostPerCPUHr.Await()
 	resNodeCostPerRAMGiBHr, _ := resChNodeCostPerRAMGiBHr.Await()
@@ -624,8 +638,10 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	applyRAMBytesRequested(podMap, resRAMRequests, podUIDKeyMap)
 	applyRAMBytesUsedAvg(podMap, resRAMUsageAvg, podUIDKeyMap)
 	applyRAMBytesUsedMax(podMap, resRAMUsageMax, podUIDKeyMap)
-	applyGPUUsage(podMap, resGPUsUsageAvg, podUIDKeyMap, GPU_USAGE_AVERAGE_MODE)
-	applyGPUUsage(podMap, resGPUsUsageMax, podUIDKeyMap, GPU_USAGE_MAX_MODE)
+	applyGPUUsage(podMap, resGPUsUsageAvg, podUIDKeyMap, GpuUsageAverageMode)
+	applyGPUUsage(podMap, resGPUsUsageMax, podUIDKeyMap, GpuUsageMaxMode)
+	applyGPUUsage(podMap, resIsGpuShared, podUIDKeyMap, GpuIsSharedMode)
+	applyGPUUsage(podMap, resGetGPUInfo, podUIDKeyMap, GpuInfoMode)
 	applyGPUsAllocated(podMap, resGPUsRequested, resGPUsAllocated, podUIDKeyMap)
 	applyNetworkTotals(podMap, resNetTransferBytes, resNetReceiveBytes, podUIDKeyMap)
 	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZoneCostPerGiB, podUIDKeyMap, networkCrossZoneCost)
