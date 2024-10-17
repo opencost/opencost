@@ -15,15 +15,23 @@ WORKDIR /app
 RUN apk add --update --no-cache ca-certificates
 RUN go install github.com/go-delve/delve/cmd/dlv@latest
 
-ADD --chmod=644 ./THIRD_PARTY_LICENSES.txt /THIRD_PARTY_LICENSES.txt
-ADD --chmod=644 ./configs/default.json /models/default.json
-ADD --chmod=644 ./configs/azure.json /models/azure.json
-ADD --chmod=644 ./configs/aws.json /models/aws.json
-ADD --chmod=644 ./configs/gcp.json /models/gcp.json
-ADD --chmod=644 ./configs/alibaba.json /models/alibaba.json
-ADD --chmod=644 ./configs/oracle.json /models/oracle.json
-
 COPY ${binary_path} main
 
-ENTRYPOINT ["/go/bin/dlv exec --listen=:40000 --api-version=2 --headless=true --accept-multiclient --log --continue /app/main"]
+RUN mkdir -p /models
+
+ADD --chmod=644 ./THIRD_PARTY_LICENSES.txt /THIRD_PARTY_LICENSES.txt
+ADD --chmod=644 ./configs/default.json /opt/configs/models/default.json
+ADD --chmod=644 ./configs/azure.json /opt/configs/models/azure.json
+ADD --chmod=644 ./configs/aws.json /opt/configs/models/aws.json
+ADD --chmod=644 ./configs/gcp.json /opt/configs/models/gcp.json
+ADD --chmod=644 ./configs/alibaba.json /opt/configs/models/alibaba.json
+ADD --chmod=644 ./configs/oracle.json /opt/configs/models/oracle.json
+
+RUN adduser 1001 -g 1000 -D
+COPY ./docker-entrypoint.sh /usr/local/bin/
+RUN chown 1001:1000 -R /models
+RUN chown 1001:1000 -R /usr/local/bin/docker-entrypoint.sh
+
+USER 1001
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh", "-d"]
 EXPOSE 9003 40000
