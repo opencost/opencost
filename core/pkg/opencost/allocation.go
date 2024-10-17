@@ -100,9 +100,64 @@ type Allocation struct {
 	// UnmountedPVCost is used to track how much of the cost in PVs is for an
 	// unmounted PV. It is not additive of PVCost() and need not be sent in API
 	// responses.
-	UnmountedPVCost   float64 `json:"-"`                 //@bingen:field[ignore]
-	GPURequestAverage float64 `json:"gpuRequestAverage"` //@bingen:field[version=22]
-	GPUUsageAverage   float64 `json:"gpuUsageAverage"`   //@bingen:field[version=22]
+	UnmountedPVCost   float64        `json:"-"`                 //@bingen:field[ignore]
+	GPURequestAverage float64        `json:"gpuRequestAverage"` //@bingen:field[version=22]
+	GPUUsageAverage   float64        `json:"gpuUsageAverage"`   //@bingen:field[version=22]
+	GPUAllocation     *GPUAllocation `json:"GPUAllocation"`     //@bingen:field[version=23]
+}
+
+type GPUAllocation struct {
+	GPUDevice string `json:"gpuDevice,omitempty"`
+	GPUModel  string `json:"gpuModel,omitempty"`
+	GPUUUID   string `json:"gpuUUID,omitempty"`
+
+	IsGPUShared       *bool    `json:"isGPUShared"`
+	GPUUsageAverage   *float64 `json:"gpuUsageAverage"`
+	GPURequestAverage *float64 `json:"gpuRequestAverage"`
+}
+
+func (orig *GPUAllocation) SanitizeNaN() {
+	if orig == nil {
+		return
+	}
+	if orig.GPURequestAverage == nil || math.IsNaN(*orig.GPURequestAverage) {
+		orig.GPURequestAverage = nil
+	}
+	if orig.GPUUsageAverage == nil || math.IsNaN(*orig.GPUUsageAverage) {
+		orig.GPUUsageAverage = nil
+	}
+}
+
+func (orig *GPUAllocation) Clone() *GPUAllocation {
+	if orig == nil {
+		return nil
+	}
+
+	return &GPUAllocation{
+		GPUDevice:         orig.GPUDevice,
+		GPUModel:          orig.GPUModel,
+		GPUUUID:           orig.GPUUUID,
+		IsGPUShared:       orig.IsGPUShared,
+		GPUUsageAverage:   orig.GPUUsageAverage,
+		GPURequestAverage: orig.GPURequestAverage,
+	}
+}
+
+func (orig *GPUAllocation) Equal(that *GPUAllocation) bool {
+	if orig == nil && that == nil {
+		return true
+	}
+	if orig == nil || that == nil {
+		return false
+	}
+
+	return orig.GPUDevice == that.GPUDevice &&
+		orig.GPUModel == that.GPUModel &&
+		orig.GPUUUID == that.GPUUUID &&
+		orig.IsGPUShared == that.IsGPUShared &&
+		orig.GPUUsageAverage == that.GPUUsageAverage &&
+		orig.GPURequestAverage == that.GPURequestAverage
+
 }
 
 type LbAllocations map[string]*LbAllocation
@@ -1303,6 +1358,22 @@ func (a *Allocation) add(that *Allocation) {
 
 	// Sum LoadBalancer Allocations
 	a.LoadBalancers = a.LoadBalancers.Add(that.LoadBalancers)
+
+	// Sum GPU Allocations
+	if that.GPUAllocation != nil {
+		if a.GPUAllocation == nil {
+			a.GPUAllocation = that.GPUAllocation.Clone()
+		} else {
+			if a.GPUAllocation.GPUUsageAverage != nil && that.GPUAllocation.GPUUsageAverage != nil {
+				*a.GPUAllocation.GPUUsageAverage += that.GPUUsageAverage
+			}
+
+			if a.GPUAllocation.GPURequestAverage != nil && that.GPUAllocation.GPURequestAverage != nil {
+				//*a.GPUAllocation.GPURequestAverage += *that.GPUAllocation.GPURequestAverage
+				*a.GPUAllocation.GPURequestAverage += that.GPURequestAverage
+			}
+		}
+	}
 
 	// Any data that is in a "raw allocation only" is not valid in any
 	// sort of cumulative Allocation (like one that is added).
@@ -2696,6 +2767,7 @@ func (a *Allocation) SanitizeNaN() {
 
 	a.PVs.SanitizeNaN()
 	a.RawAllocationOnly.SanitizeNaN()
+	a.GPUAllocation.SanitizeNaN()
 	a.ProportionalAssetResourceCosts.SanitizeNaN()
 	a.SharedCostBreakdown.SanitizeNaN()
 	a.LoadBalancers.SanitizeNaN()
