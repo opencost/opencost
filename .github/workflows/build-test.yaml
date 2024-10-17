@@ -87,7 +87,7 @@ jobs:
       - name: Upload code coverage
         uses: actions/upload-artifact@v4
         with:
-          name: oc-code-coverage
+          name: code-coverage
           path: |
            coverage.out
            pr_num.txt

@@ -23,6 +23,7 @@ type AllocationJSON struct {
 	CPUCoreHours                   *float64                        `json:"cpuCoreHours"`
 	CPUCost                        *float64                        `json:"cpuCost"`
 	CPUCostAdjustment              *float64                        `json:"cpuCostAdjustment"`
+	CPUCostIdle                    *float64                        `json:"cpuCostIdle"`
 	CPUEfficiency                  *float64                        `json:"cpuEfficiency"`
 	GPUCount                       *float64                        `json:"gpuCount"`
 	GPURequestAverage              *float64                        `json:"gpuRequestAverage"`
@@ -30,6 +31,7 @@ type AllocationJSON struct {
 	GPUHours                       *float64                        `json:"gpuHours"`
 	GPUCost                        *float64                        `json:"gpuCost"`
 	GPUCostAdjustment              *float64                        `json:"gpuCostAdjustment"`
+	GPUCostIdle                    *float64                        `json:"gpuCostIdle"`
 	GPUEfficiency                  *float64                        `json:"gpuEfficiency"`
 	NetworkTransferBytes           *float64                        `json:"networkTransferBytes"`
 	NetworkReceiveBytes            *float64                        `json:"networkReceiveBytes"`
@@ -51,6 +53,7 @@ type AllocationJSON struct {
 	RAMByteHours                   *float64                        `json:"ramByteHours"`
 	RAMCost                        *float64                        `json:"ramCost"`
 	RAMCostAdjustment              *float64                        `json:"ramCostAdjustment"`
+	RAMCostIdle                    *float64                        `json:"ramCostIdle"`
 	RAMEfficiency                  *float64                        `json:"ramEfficiency"`
 	ExternalCost                   *float64                        `json:"externalCost"`
 	SharedCost                     *float64                        `json:"sharedCost"`
@@ -78,6 +81,7 @@ func (aj *AllocationJSON) BuildFromAllocation(a *Allocation) {
 	aj.CPUCoreHours = formatFloat64ForResponse(a.CPUCoreHours)
 	aj.CPUCost = formatFloat64ForResponse(a.CPUCost)
 	aj.CPUCostAdjustment = formatFloat64ForResponse(a.CPUCostAdjustment)
+	aj.CPUCostIdle = formatFloat64ForResponse(a.CPUCostIdle)
 	aj.CPUEfficiency = formatFloat64ForResponse(a.CPUEfficiency())
 	aj.GPUCount = formatFloat64ForResponse(a.GPUs())
 	aj.GPURequestAverage = formatFloat64ForResponse(a.GPURequestAverage)
@@ -85,6 +89,7 @@ func (aj *AllocationJSON) BuildFromAllocation(a *Allocation) {
 	aj.GPUHours = formatFloat64ForResponse(a.GPUHours)
 	aj.GPUCost = formatFloat64ForResponse(a.GPUCost)
 	aj.GPUCostAdjustment = formatFloat64ForResponse(a.GPUCostAdjustment)
+	aj.GPUCostIdle = formatFloat64ForResponse(a.GPUCostIdle)
 	aj.GPUEfficiency = formatFloat64ForResponse(a.GPUEfficiency())
 	aj.NetworkTransferBytes = formatFloat64ForResponse(a.NetworkTransferBytes)
 	aj.NetworkReceiveBytes = formatFloat64ForResponse(a.NetworkReceiveBytes)
@@ -106,6 +111,7 @@ func (aj *AllocationJSON) BuildFromAllocation(a *Allocation) {
 	aj.RAMByteHours = formatFloat64ForResponse(a.RAMByteHours)
 	aj.RAMCost = formatFloat64ForResponse(a.RAMCost)
 	aj.RAMCostAdjustment = formatFloat64ForResponse(a.RAMCostAdjustment)
+	aj.RAMCostIdle = formatFloat64ForResponse(a.RAMCostIdle)
 	aj.RAMEfficiency = formatFloat64ForResponse(a.RAMEfficiency())
 	aj.SharedCost = formatFloat64ForResponse(a.SharedCost)
 	aj.ExternalCost = formatFloat64ForResponse(a.ExternalCost)
