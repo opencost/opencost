@@ -1,7 +1,7 @@
 # OpenCost Specification
 
 
-The OpenCost Spec is a vendor-neutral specification for measuring and allocating infrastructure and container costs in Kubernetes environments.
+The OpenCost Specification is a vendor-neutral specification for measuring and allocating infrastructure and container costs in Kubernetes environments.
 
 
 ## Introduction
