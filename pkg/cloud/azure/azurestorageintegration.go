@@ -34,13 +34,16 @@ func (asi *AzureStorageIntegration) GetCloudCost(start, end time.Time) (*opencos
 		// until we can revisit and spend the time to do the calculations correctly
 		cc := &opencost.CloudCost{
 			Properties: &opencost.CloudCostProperties{
-				ProviderID:      providerID,
-				Provider:        opencost.AzureProvider,
-				AccountID:       abv.SubscriptionID,
-				InvoiceEntityID: abv.InvoiceEntityID,
-				Service:         abv.Service,
-				Category:        SelectAzureCategory(abv.MeterCategory),
-				Labels:          abv.Tags,
+				ProviderID:        providerID,
+				Provider:          opencost.AzureProvider,
+				AccountID:         abv.SubscriptionID,
+				AccountName:       abv.SubscriptionName,
+				InvoiceEntityID:   abv.InvoiceEntityID,
+				InvoiceEntityName: abv.InvoiceEntityName,
+				RegionID:          abv.Region,
+				Service:           abv.Service,
+				Category:          SelectAzureCategory(abv.MeterCategory),
+				Labels:            abv.Tags,
 			},
 			Window: window,
 			AmortizedNetCost: opencost.CostMetric{

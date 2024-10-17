@@ -48,8 +48,16 @@ func cloudCostFieldMap(cc *CloudCost, identifier ast.Identifier) (string, error)
 	switch ccfilter.CloudCostField(identifier.Field.Name) {
 	case ccfilter.FieldInvoiceEntityID:
 		return cc.Properties.InvoiceEntityID, nil
+	case ccfilter.FieldInvoiceEntityName:
+		return cc.Properties.InvoiceEntityName, nil
 	case ccfilter.FieldAccountID:
 		return cc.Properties.AccountID, nil
+	case ccfilter.FieldAccountName:
+		return cc.Properties.AccountName, nil
+	case ccfilter.FieldRegionID:
+		return cc.Properties.RegionID, nil
+	case ccfilter.FieldAvailabilityZone:
+		return cc.Properties.AvailabilityZone, nil
 	case ccfilter.FieldProvider:
 		return cc.Properties.Provider, nil
 	case ccfilter.FieldProviderID:

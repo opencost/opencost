@@ -13,7 +13,7 @@ import (
 func TestBigQueryIntegration_GetCloudCost(t *testing.T) {
 	bigQueryConfigPath := os.Getenv("BIGQUERY_CONFIGURATION")
 	if bigQueryConfigPath == "" {
-		t.Skip("skipping integration test, set environment variable ATHENA_CONFIGURATION")
+		t.Skip("skipping integration test, set environment variable BIGQUERY_CONFIGURATION\"")
 	}
 	bigQueryConfigBin, err := os.ReadFile(bigQueryConfigPath)
 	if err != nil {
