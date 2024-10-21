@@ -13,11 +13,12 @@ package opencost
 
 import (
 	"fmt"
-	util "github.com/opencost/opencost/core/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/opencost/opencost/core/pkg/util"
 )
 
 const (
@@ -457,8 +458,8 @@ func (target *Allocation) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 	}
 	// --- [end][write][alias](LbAllocations) ---
 
-	buff.WriteFloat64(target.GPURequestAverage) // write float64
-	buff.WriteFloat64(target.GPUUsageAverage)   // write float64
+	buff.WriteFloat64(target.DeprecatedGPURequestAverage) // write float64
+	buff.WriteFloat64(target.DeprecatedGPUUsageAverage)   // write float64
 	if target.GPUAllocation == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
@@ -788,19 +789,19 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 	// field version check
 	if uint8(22) <= version {
 		fff := buff.ReadFloat64() // read float64
-		target.GPURequestAverage = fff
+		target.DeprecatedGPURequestAverage = fff
 
 	} else {
-		target.GPURequestAverage = float64(0) // default
+		target.DeprecatedGPURequestAverage = float64(0) // default
 	}
 
 	// field version check
 	if uint8(22) <= version {
 		ggg := buff.ReadFloat64() // read float64
-		target.GPUUsageAverage = ggg
+		target.DeprecatedGPUUsageAverage = ggg
 
 	} else {
-		target.GPUUsageAverage = float64(0) // default
+		target.DeprecatedGPUUsageAverage = float64(0) // default
 	}
 
 	// field version check
@@ -822,6 +823,11 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 	} else {
 		target.GPUAllocation = nil
 
+	}
+
+	// execute migration func if version delta detected
+	if version != AllocationCodecVersion {
+		migrateAllocation(target, version, AllocationCodecVersion)
 	}
 
 	return nil

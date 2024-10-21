@@ -660,7 +660,7 @@ func applyGPUUsage(podMap map[podKey]*pod, resGPUUsageAvgOrMax []*prom.QueryResu
 			// DCGM_FI_PROF_GR_ENGINE_ACTIVE metric is a float between 0-1.
 			switch mode {
 			case GpuUsageAverageMode:
-				thisPod.Allocations[container].GPUUsageAverage = res.Values[0].Value
+				thisPod.Allocations[container].DeprecatedGPUUsageAverage = res.Values[0].Value
 				if thisPod.Allocations[container].GPUAllocation == nil {
 					thisPod.Allocations[container].GPUAllocation = &opencost.GPUAllocation{GPUUsageAverage: &res.Values[0].Value}
 				} else {
@@ -763,13 +763,20 @@ func applyGPUsAllocated(podMap map[podKey]*pod, resGPUsRequested []*prom.QueryRe
 			// Therefore max(usage,request) will always equal request. In the
 			// future this may need to be refactored when building support for
 			// GPU Time Slicing.
-			thisPod.Allocations[container].GPURequestAverage = res.Values[0].Value
+			thisPod.Allocations[container].DeprecatedGPURequestAverage = res.Values[0].Value
 			if thisPod.Allocations[container].GPUAllocation == nil {
 				thisPod.Allocations[container].GPUAllocation = &opencost.GPUAllocation{
 					GPURequestAverage: &res.Values[0].Value,
 				}
 			} else {
 				thisPod.Allocations[container].GPUAllocation.GPURequestAverage = &res.Values[0].Value
+				if thisPod.Allocations[container].GPUAllocation == nil {
+					thisPod.Allocations[container].GPUAllocation = &opencost.GPUAllocation{
+						GPURequestAverage: &res.Values[0].Value,
+					}
+				} else {
+					thisPod.Allocations[container].GPUAllocation.GPURequestAverage = &res.Values[0].Value
+				}
 			}
 		}
 	}

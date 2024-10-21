@@ -100,10 +100,10 @@ type Allocation struct {
 	// UnmountedPVCost is used to track how much of the cost in PVs is for an
 	// unmounted PV. It is not additive of PVCost() and need not be sent in API
 	// responses.
-	UnmountedPVCost   float64        `json:"-"`                 //@bingen:field[ignore]
-	GPURequestAverage float64        `json:"gpuRequestAverage"` //@bingen:field[version=22]
-	GPUUsageAverage   float64        `json:"gpuUsageAverage"`   //@bingen:field[version=22]
-	GPUAllocation     *GPUAllocation `json:"GPUAllocation"`     //@bingen:field[version=23]
+	UnmountedPVCost             float64        `json:"-"`                 //@bingen:field[ignore]
+	DeprecatedGPURequestAverage float64        `json:"gpuRequestAverage"` //@bingen:field[version=22]
+	DeprecatedGPUUsageAverage   float64        `json:"gpuUsageAverage"`   //@bingen:field[version=22]
+	GPUAllocation               *GPUAllocation `json:"GPUAllocation"`     //@bingen:field[version=23]
 }
 
 type GPUAllocation struct {
@@ -744,8 +744,8 @@ func (a *Allocation) Clone() *Allocation {
 		CPUCostIdle:                    a.CPUCostIdle,
 		CPUCostAdjustment:              a.CPUCostAdjustment,
 		GPUHours:                       a.GPUHours,
-		GPURequestAverage:              a.GPURequestAverage,
-		GPUUsageAverage:                a.GPUUsageAverage,
+		DeprecatedGPURequestAverage:    a.DeprecatedGPURequestAverage,
+		DeprecatedGPUUsageAverage:      a.DeprecatedGPUUsageAverage,
 		GPUCost:                        a.GPUCost,
 		GPUCostIdle:                    a.GPUCostIdle,
 		GPUCostAdjustment:              a.GPUCostAdjustment,
@@ -773,6 +773,7 @@ func (a *Allocation) Clone() *Allocation {
 		SharedCostBreakdown:            a.SharedCostBreakdown.Clone(),
 		LoadBalancers:                  a.LoadBalancers.Clone(),
 		UnmountedPVCost:                a.UnmountedPVCost,
+		GPUAllocation:                  a.GPUAllocation.Clone(),
 	}
 }
 
@@ -882,6 +883,10 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	}
 
 	if !util.IsApproximately(a.UnmountedPVCost, that.UnmountedPVCost) {
+		return false
+	}
+
+	if !a.GPUAllocation.Equal(that.GPUAllocation) {
 		return false
 	}
 
@@ -1032,17 +1037,17 @@ func (a *Allocation) RAMEfficiency() float64 {
 
 // GPUEfficiency is the ratio of usage to request. Note that, without the NVIDIA
 // DCGM exporter providing Prometheus with usage metrics, this will always be
-// zero, as GPUUsageAverage will be zero (the default value).
+// zero, as DeprecatedGPUUsageAverage will be zero (the default value).
 func (a *Allocation) GPUEfficiency() float64 {
 	if a == nil {
 		return 0.0
 	}
 
-	if a.GPURequestAverage > 0 && a.GPUUsageAverage > 0 {
-		return a.GPUUsageAverage / a.GPURequestAverage
+	if a.DeprecatedGPURequestAverage > 0 && a.DeprecatedGPUUsageAverage > 0 {
+		return a.DeprecatedGPUUsageAverage / a.DeprecatedGPURequestAverage
 	}
 
-	if a.GPUUsageAverage == 0.0 || a.GPUTotalCost() == 0.0 {
+	if a.DeprecatedGPUUsageAverage == 0.0 || a.GPUTotalCost() == 0.0 {
 		return 0.0
 	}
 
@@ -1290,11 +1295,11 @@ func (a *Allocation) add(that *Allocation) {
 	ramUseByteMins := a.RAMBytesUsageAverage * a.Minutes()
 	ramUseByteMins += that.RAMBytesUsageAverage * that.Minutes()
 
-	gpuReqMins := a.GPURequestAverage * a.Minutes()
-	gpuReqMins += that.GPURequestAverage * that.Minutes()
+	gpuReqMins := a.DeprecatedGPURequestAverage * a.Minutes()
+	gpuReqMins += that.DeprecatedGPURequestAverage * that.Minutes()
 
-	gpuUseMins := a.GPUUsageAverage * a.Minutes()
-	gpuUseMins += that.GPUUsageAverage * that.Minutes()
+	gpuUseMins := a.DeprecatedGPUUsageAverage * a.Minutes()
+	gpuUseMins += that.DeprecatedGPUUsageAverage * that.Minutes()
 
 	// Expand Start and End to be the "max" of among the given Allocations
 	if that.Start.Before(a.Start) {
@@ -1311,15 +1316,15 @@ func (a *Allocation) add(that *Allocation) {
 		a.CPUCoreUsageAverage = cpuUseCoreMins / a.Minutes()
 		a.RAMBytesRequestAverage = ramReqByteMins / a.Minutes()
 		a.RAMBytesUsageAverage = ramUseByteMins / a.Minutes()
-		a.GPURequestAverage = gpuReqMins / a.Minutes()
-		a.GPUUsageAverage = gpuUseMins / a.Minutes()
+		a.DeprecatedGPURequestAverage = gpuReqMins / a.Minutes()
+		a.DeprecatedGPUUsageAverage = gpuUseMins / a.Minutes()
 	} else {
 		a.CPUCoreRequestAverage = 0.0
 		a.CPUCoreUsageAverage = 0.0
 		a.RAMBytesRequestAverage = 0.0
 		a.RAMBytesUsageAverage = 0.0
-		a.GPURequestAverage = 0.0
-		a.GPUUsageAverage = 0.0
+		a.DeprecatedGPURequestAverage = 0.0
+		a.DeprecatedGPUUsageAverage = 0.0
 	}
 
 	// Sum all cumulative resource fields
@@ -2671,13 +2676,13 @@ func (a *Allocation) SanitizeNaN() {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUHours name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
 		a.GPUHours = 0
 	}
-	if math.IsNaN(a.GPURequestAverage) {
-		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPURequestAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
-		a.GPURequestAverage = 0
+	if math.IsNaN(a.DeprecatedGPURequestAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for DeprecatedGPURequestAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.DeprecatedGPURequestAverage = 0
 	}
-	if math.IsNaN(a.GPUUsageAverage) {
-		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUUsageAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
-		a.GPUUsageAverage = 0
+	if math.IsNaN(a.DeprecatedGPUUsageAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for DeprecatedGPUUsageAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.DeprecatedGPUUsageAverage = 0
 	}
 	if math.IsNaN(a.GPUCost) {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for GPUCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
@@ -3654,4 +3659,15 @@ func (asr *AllocationSetRange) Clone() *AllocationSetRange {
 	}
 
 	return sasrClone
+}
+
+func migrateAllocation(as *Allocation, fromVersion uint8, toVersion uint8) {
+	if fromVersion == toVersion {
+		return
+	}
+
+	if fromVersion == 22 && toVersion >= 23 {
+		as.GPUAllocation.GPUUsageAverage = &as.DeprecatedGPUUsageAverage
+		as.GPUAllocation.GPURequestAverage = &as.DeprecatedGPURequestAverage
+	}
 }
