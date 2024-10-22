@@ -72,7 +72,7 @@ const (
 	MultiClusterBearerToken       = "MC_BEARER_TOKEN"
 
 	InsecureSkipVerify = "INSECURE_SKIP_VERIFY"
-	EnabledKubeRbacProxyEnabled = "ENABLE_KUBE_RBAC_PROXY"
+	EnableKubeRbacProxy = "ENABLE_KUBE_RBAC_PROXY"
 
 	KubeConfigPathEnvVar = "KUBECONFIG_PATH"
 
@@ -384,7 +384,7 @@ func GetInsecureSkipVerify() bool {
 }
 
 func IsKubeRbacProxyEnabled() bool {
-	return env.GetBool(EnabledKubeRbacProxyEnabled, false)
+	return env.GetBool(EnableKubeRbacProxy, false)
 }
 
 // IsAggregateCostModelCacheDisabled returns the environment variable value for DisableAggregateCostModelCache which
