@@ -260,7 +260,7 @@ func (r *RawAllocationOnlyData) Equal(that *RawAllocationOnlyData) bool {
 
 	if r.GPUUsageMax != nil && that.GPUUsageMax != nil {
 		cmpResult = cmpResult && util.IsApproximately(*r.GPUUsageMax, *that.GPUUsageMax)
-	} else {
+	} else if !(r.GPUUsageMax == nil && that.GPUUsageMax == nil) {
 		cmpResult = false
 	}
 
