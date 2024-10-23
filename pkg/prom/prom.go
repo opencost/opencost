@@ -380,7 +380,8 @@ type PrometheusClientConfig struct {
 func NewPrometheusClient(address string, config *PrometheusClientConfig) (prometheus.Client, error) {
 
 	var tlsCaCert *x509.CertPool
-	// get the bearer token and ca cert from serviceaccount if we have kube rbac proxy enabled
+	// We will use the service account token and service-ca.crt to authenticate with the Prometheus server via kube-rbac-proxy.
+	// We need to ensure that the service account has the necessary permissions to access the Prometheus server by binding it to the appropriate role.
 	if env.IsKubeRbacProxyEnabled() {
 		restConfig, err := restclient.InClusterConfig()
 		if err != nil {
@@ -389,7 +390,7 @@ func NewPrometheusClient(address string, config *PrometheusClientConfig) (promet
 		config.Auth.BearerToken = restConfig.BearerToken
 		tlsCaCert, err = certutil.NewPool(`/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt`)
 		if err != nil {
-            log.Errorf("ENABLE_KUBE_RBAC_PROXY was set to true but failed to load service-ca.crt: %s", err)
+			log.Errorf("ENABLE_KUBE_RBAC_PROXY was set to true but failed to load service-ca.crt: %s", err)
 		}
 	}
 
