@@ -385,12 +385,12 @@ func NewPrometheusClient(address string, config *PrometheusClientConfig) (promet
 	if env.IsKubeRbacProxyEnabled() {
 		restConfig, err := restclient.InClusterConfig()
 		if err != nil {
-			log.Errorf("ENABLE_KUBE_RBAC_PROXY was set to true but failed to get in-cluster config: %s", err)
+			log.Errorf("KUBE_RBAC_PROXY_ENABLED was set to true but failed to get in-cluster config: %s", err)
 		}
 		config.Auth.BearerToken = restConfig.BearerToken
 		tlsCaCert, err = certutil.NewPool(`/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt`)
 		if err != nil {
-			log.Errorf("ENABLE_KUBE_RBAC_PROXY was set to true but failed to load service-ca.crt: %s", err)
+			log.Errorf("KUBE_RBAC_PROXY_ENABLED was set to true but failed to load service-ca.crt: %s", err)
 		}
 	}
 
