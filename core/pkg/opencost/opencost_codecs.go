@@ -458,8 +458,8 @@ func (target *Allocation) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 	}
 	// --- [end][write][alias](LbAllocations) ---
 
-	buff.WriteFloat64(target.DeprecatedGPURequestAverage) // write float64
-	buff.WriteFloat64(target.DeprecatedGPUUsageAverage)   // write float64
+	buff.WriteFloat64(target.deprecatedGPURequestAverage) // write float64
+	buff.WriteFloat64(target.deprecatedGPUUsageAverage)   // write float64
 	if target.GPUAllocation == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
@@ -789,19 +789,19 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 	// field version check
 	if uint8(22) <= version {
 		fff := buff.ReadFloat64() // read float64
-		target.DeprecatedGPURequestAverage = fff
+		target.deprecatedGPURequestAverage = fff
 
 	} else {
-		target.DeprecatedGPURequestAverage = float64(0) // default
+		target.deprecatedGPURequestAverage = float64(0) // default
 	}
 
 	// field version check
 	if uint8(22) <= version {
 		ggg := buff.ReadFloat64() // read float64
-		target.DeprecatedGPUUsageAverage = ggg
+		target.deprecatedGPUUsageAverage = ggg
 
 	} else {
-		target.DeprecatedGPUUsageAverage = float64(0) // default
+		target.deprecatedGPUUsageAverage = float64(0) // default
 	}
 
 	// field version check
