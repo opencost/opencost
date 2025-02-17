@@ -154,7 +154,7 @@ func buildRAMCostMap(
 			if err != nil {
 				log.Warnf("ClusterNodes: error parsing custom RAM price: %s", customRAMStr)
 			}
-			ramCost = customRAMCost / 1024 / 1024 / 1024
+			ramCost = customRAMCost
 
 		} else {
 
@@ -164,7 +164,8 @@ func buildRAMCostMap(
 
 		clusterAndNameToType[keyNon] = nodeType
 
-		ramCostMap[key] = ramCost
+		// covert to price per byte/hr
+		ramCostMap[key] = ramCost / 1024.0 / 1024.0 / 1024.0
 	}
 
 	return ramCostMap, clusterAndNameToType
@@ -629,6 +630,48 @@ func buildPreemptibleMap(
 	}
 
 	return m
+}
+
+func buildAssetsPVCMap(resPVCInfo []*source.QueryResult) map[DiskIdentifier]*Disk {
+	diskMap := map[DiskIdentifier]*Disk{}
+
+	for _, result := range resPVCInfo {
+		cluster, err := result.GetCluster()
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		volumeName, err := result.GetString("volumename")
+		if err != nil {
+			log.Debugf("ClusterDisks: pv claim data missing volumename")
+			continue
+		}
+		claimName, err := result.GetString("persistentvolumeclaim")
+		if err != nil {
+			log.Debugf("ClusterDisks: pv claim data missing persistentvolumeclaim")
+			continue
+		}
+		claimNamespace, err := result.GetNamespace()
+		if err != nil {
+			log.Debugf("ClusterDisks: pv claim data missing namespace")
+			continue
+		}
+
+		key := DiskIdentifier{cluster, volumeName}
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      volumeName,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+
+		diskMap[key].VolumeName = volumeName
+		diskMap[key].ClaimName = claimName
+		diskMap[key].ClaimNamespace = claimNamespace
+	}
+
+	return diskMap
 }
 
 func buildLabelsMap(

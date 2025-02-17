@@ -600,8 +600,8 @@ func (pds *PrometheusDataSource) MetaData() map[string]string {
 //  InstantMetricsQuerier
 //--------------------------------------------------------------------------
 
-func (pds *PrometheusDataSource) QueryPVCost(start, end time.Time) source.QueryResultsChan {
-	const pvCostQuery = `avg(avg_over_time(pv_hourly_cost{%s}[%s])) by (%s, persistentvolume,provider_id)`
+func (pds *PrometheusDataSource) QueryPVPricePerGiBHour(start, end time.Time) source.QueryResultsChan {
+	const pvCostQuery = `avg(avg_over_time(pv_hourly_cost{%s}[%s])) by (%s, persistentvolume, volumename, provider_id)`
 
 	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
@@ -612,38 +612,6 @@ func (pds *PrometheusDataSource) QueryPVCost(start, end time.Time) source.QueryR
 
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
 	return ctx.QueryAtTime(queryPVCost, end)
-}
-
-func (pds *PrometheusDataSource) QueryPVSize(start, end time.Time) source.QueryResultsChan {
-	const pvSizeQuery = `avg(avg_over_time(kube_persistentvolume_capacity_bytes{%s}[%s])) by (%s, persistentvolume)`
-
-	cfg := pds.promConfig
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		panic("failed to parse duration string passed to QueryPVCost")
-	}
-
-	queryPVSize := fmt.Sprintf(pvSizeQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
-
-	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryPVSize, end)
-}
-
-func (pds *PrometheusDataSource) QueryPVStorageClass(start, end time.Time) source.QueryResultsChan {
-	// `avg(avg_over_time(kubecost_pv_info{%s}[%s])) by (%s, persistentvolume, storageclass)`
-	// , env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
-
-	const pvStorageSizeQuery = `avg(avg_over_time(kubecost_pv_info{%s}[%s])) by (%s, persistentvolume, storageclass)`
-	cfg := pds.promConfig
-
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		panic("failed to parse duration string passed to QueryPVStorageClass")
-	}
-
-	queryPVStorageClass := fmt.Sprintf(pvStorageSizeQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
-	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryPVStorageClass, end)
 }
 
 func (pds *PrometheusDataSource) QueryPVUsedAverage(start, end time.Time) source.QueryResultsChan {
@@ -680,11 +648,13 @@ func (pds *PrometheusDataSource) QueryPVUsedMax(start, end time.Time) source.Que
 	return ctx.QueryAtTime(queryPVUsedMax, end)
 }
 
+/*
 func (pds *PrometheusDataSource) QueryPVCInfo(start, end time.Time) source.QueryResultsChan {
 	// `avg(avg_over_time(kube_persistentvolumeclaim_info{%s}[%s])) by (%s, volumename, persistentvolumeclaim, namespace)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
 	const pvcInfoQuery = `avg(avg_over_time(kube_persistentvolumeclaim_info{%s}[%s])) by (%s, volumename, persistentvolumeclaim, namespace)`
+
 	cfg := pds.promConfig
 
 	durStr := timeutil.DurationString(end.Sub(start))
@@ -696,11 +666,29 @@ func (pds *PrometheusDataSource) QueryPVCInfo(start, end time.Time) source.Query
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
 	return ctx.QueryAtTime(queryPVCInfo, end)
 }
+*/
+
+func (pds *PrometheusDataSource) QueryPVCInfo(start, end time.Time) source.QueryResultsChan {
+	const queryFmtPVCInfo = `avg(kube_persistentvolumeclaim_info{volumename != "", %s}) by (persistentvolumeclaim, storageclass, volumename, namespace, %s)[%s:%s]`
+	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr)
+
+	cfg := pds.promConfig
+	resolution := cfg.DataResolution
+	resStr := timeutil.DurationString(resolution)
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic("failed to parse duration string passed to QueryPVCInfo")
+	}
+
+	queryPVCInfo := fmt.Sprintf(queryFmtPVCInfo, cfg.ClusterFilter, cfg.ClusterLabel, durStr, resStr)
+	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
+	return ctx.QueryAtTime(queryPVCInfo, end)
+}
 
 func (pds *PrometheusDataSource) QueryPVActiveMinutes(start, end time.Time) source.QueryResultsChan {
-	// `avg(kube_persistentvolume_capacity_bytes{%s}) by (%s, persistentvolume)[%s:%dm]`
-	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
 	const pvActiveMinsQuery = `avg(kube_persistentvolume_capacity_bytes{%s}) by (%s, persistentvolume)[%s:%dm]`
+	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -881,23 +869,6 @@ func (pds *PrometheusDataSource) QueryLocalStorageUsedByProvider(provider string
 	return ctx.QueryAtTime(localStorageUsedQuery, end)
 }
 
-func (pds *PrometheusDataSource) QueryNodeCPUHourlyCost(start, end time.Time) source.QueryResultsChan {
-	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
-
-	const nodeCPUHourlyCostQuery = `avg(avg_over_time(node_cpu_hourly_cost{%s}[%s])) by (%s, node, instance_type, provider_id)`
-
-	cfg := pds.promConfig
-
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		panic("failed to parse duration string passed to QueryNodeCPUHourlyCost")
-	}
-
-	queryNodeCPUHourlyCost := fmt.Sprintf(nodeCPUHourlyCostQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
-	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryNodeCPUHourlyCost, end)
-}
-
 func (pds *PrometheusDataSource) QueryNodeCPUCoresCapacity(start, end time.Time) source.QueryResultsChan {
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -919,6 +890,7 @@ func (pds *PrometheusDataSource) QueryNodeCPUCoresAllocatable(start, end time.Ti
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
 	const nodeCPUCoresAllocatableQuery = `avg(avg_over_time(kube_node_status_allocatable_cpu_cores{%s}[%s])) by (%s, node)`
+	// `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
 
 	cfg := pds.promConfig
 
@@ -930,23 +902,6 @@ func (pds *PrometheusDataSource) QueryNodeCPUCoresAllocatable(start, end time.Ti
 	queryNodeCPUCoresAllocatable := fmt.Sprintf(nodeCPUCoresAllocatableQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
 	return ctx.QueryAtTime(queryNodeCPUCoresAllocatable, end)
-}
-
-func (pds *PrometheusDataSource) QueryNodeRAMHourlyCost(start, end time.Time) source.QueryResultsChan {
-	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
-
-	const nodeRAMHourlyCostQuery = `avg(avg_over_time(node_ram_hourly_cost{%s}[%s])) by (%s, node, instance_type, provider_id) / 1024 / 1024 / 1024`
-
-	cfg := pds.promConfig
-
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		panic("failed to parse duration string passed to QueryNodeRAMHourlyCost")
-	}
-
-	queryNodeRAMHourlyCost := fmt.Sprintf(nodeRAMHourlyCostQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
-	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryNodeRAMHourlyCost, end)
 }
 
 func (pds *PrometheusDataSource) QueryNodeRAMBytesCapacity(start, end time.Time) source.QueryResultsChan {
@@ -1000,37 +955,18 @@ func (pds *PrometheusDataSource) QueryNodeGPUCount(start, end time.Time) source.
 	return ctx.QueryAtTime(queryNodeGPUCount, end)
 }
 
-func (pds *PrometheusDataSource) QueryNodeGPUHourlyCost(start, end time.Time) source.QueryResultsChan {
-	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
-
-	const nodeGPUHourlyCostQuery = `avg(avg_over_time(node_gpu_hourly_cost{%s}[%s])) by (%s, node, instance_type, provider_id)`
-
-	cfg := pds.promConfig
-
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		panic("failed to parse duration string passed to QueryNodeGPUHourlyCost")
-	}
-
-	queryNodeGPUHourlyCost := fmt.Sprintf(nodeGPUHourlyCostQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
-	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryNodeGPUHourlyCost, end)
-}
-
 func (pds *PrometheusDataSource) QueryNodeLabels(start, end time.Time) source.QueryResultsChan {
-	// env.GetPromClusterFilter(), durStr, minsPerResolution)
-
-	const labelsQuery = `count_over_time(kube_node_labels{%s}[%s:%dm])`
+	const labelsQuery = `avg_over_time(kube_node_labels{%s}[%s])`
+	// env.GetPromClusterFilter(), durStr
 
 	cfg := pds.promConfig
-	minsPerResolution := cfg.DataResolutionMinutes
 
 	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryNodeLabels")
 	}
 
-	queryLabels := fmt.Sprintf(labelsQuery, cfg.ClusterFilter, durStr, minsPerResolution)
+	queryLabels := fmt.Sprintf(labelsQuery, cfg.ClusterFilter, durStr)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
 	return ctx.QueryAtTime(queryLabels, end)
 }
@@ -1051,24 +987,6 @@ func (pds *PrometheusDataSource) QueryNodeActiveMinutes(start, end time.Time) so
 	queryActiveMins := fmt.Sprintf(activeMinsQuery, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
 	return ctx.QueryAtTime(queryActiveMins, end)
-}
-
-func (pds *PrometheusDataSource) QueryNodeIsSpot(start, end time.Time) source.QueryResultsChan {
-	// env.GetPromClusterFilter(), durStr, minsPerResolution)
-
-	const isSpotQuery = `avg_over_time(kubecost_node_is_spot{%s}[%s:%dm])`
-
-	cfg := pds.promConfig
-	minsPerResolution := cfg.DataResolutionMinutes
-
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		panic("failed to parse duration string passed to QueryNodeIsSpot")
-	}
-
-	queryIsSpot := fmt.Sprintf(isSpotQuery, cfg.ClusterFilter, durStr, minsPerResolution)
-	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryIsSpot, end)
 }
 
 func (pds *PrometheusDataSource) QueryNodeCPUModeTotal(start, end time.Time) source.QueryResultsChan {
@@ -1748,7 +1666,39 @@ func (pds *PrometheusDataSource) QueryGPUsAllocated(start, end time.Time) source
 	return ctx.QueryAtTime(queryGPUsAllocated, end)
 }
 
-func (pds *PrometheusDataSource) QueryNodeCostPerCPUHr(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryIsGPUShared(start, end time.Time) source.QueryResultsChan {
+	const queryFmtIsGPUShared = `avg(avg_over_time(kube_pod_container_resource_requests{container!="", node != "", pod != "", container!= "", unit = "integer",  %s}[%s])) by (container, pod, namespace, node, resource)`
+	// env.GetPromClusterFilter(), durStr
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic("failed to parse duration string passed to QueryIsGPUShared")
+	}
+
+	queryIsGPUShared := fmt.Sprintf(queryFmtIsGPUShared, cfg.ClusterFilter, durStr)
+	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
+	return ctx.QueryAtTime(queryIsGPUShared, end)
+}
+
+func (pds *PrometheusDataSource) QueryGPUInfo(start, end time.Time) source.QueryResultsChan {
+	const queryFmtGetGPUInfo = `avg(avg_over_time(DCGM_FI_DEV_DEC_UTIL{container!="",%s}[%s])) by (container, pod, namespace, device, modelName, UUID)`
+	// env.GetPromClusterFilter(), durStr
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic("failed to parse duration string passed to QueryGPUInfo")
+	}
+
+	queryGetGPUInfo := fmt.Sprintf(queryFmtGetGPUInfo, cfg.ClusterFilter, durStr)
+	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
+	return ctx.QueryAtTime(queryGetGPUInfo, end)
+}
+
+func (pds *PrometheusDataSource) QueryNodeCPUPricePerHr(start, end time.Time) source.QueryResultsChan {
 	const queryFmtNodeCostPerCPUHr = `avg(avg_over_time(node_cpu_hourly_cost{%s}[%s])) by (node, %s, instance_type, provider_id)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -1756,7 +1706,7 @@ func (pds *PrometheusDataSource) QueryNodeCostPerCPUHr(start, end time.Time) sou
 
 	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
-		panic("failed to parse duration string passed to QueryNodeCostPerCPUHr")
+		panic("failed to parse duration string passed to QueryNodeCPUPricePerHr")
 	}
 
 	queryNodeCostPerCPUHr := fmt.Sprintf(queryFmtNodeCostPerCPUHr, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
@@ -1764,7 +1714,7 @@ func (pds *PrometheusDataSource) QueryNodeCostPerCPUHr(start, end time.Time) sou
 	return ctx.QueryAtTime(queryNodeCostPerCPUHr, end)
 }
 
-func (pds *PrometheusDataSource) QueryNodeCostPerRAMGiBHr(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNodeRAMPricePerGiBHr(start, end time.Time) source.QueryResultsChan {
 	const queryFmtNodeCostPerRAMGiBHr = `avg(avg_over_time(node_ram_hourly_cost{%s}[%s])) by (node, %s, instance_type, provider_id)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -1772,7 +1722,7 @@ func (pds *PrometheusDataSource) QueryNodeCostPerRAMGiBHr(start, end time.Time) 
 
 	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
-		panic("failed to parse duration string passed to QueryNodeCostPerRAMGiBHr")
+		panic("failed to parse duration string passed to QueryNodeRAMPricePerGiBHr")
 	}
 
 	queryNodeCostPerRAMGiBHr := fmt.Sprintf(queryFmtNodeCostPerRAMGiBHr, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
@@ -1780,7 +1730,7 @@ func (pds *PrometheusDataSource) QueryNodeCostPerRAMGiBHr(start, end time.Time) 
 	return ctx.QueryAtTime(queryNodeCostPerRAMGiBHr, end)
 }
 
-func (pds *PrometheusDataSource) QueryNodeCostPerGPUHr(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNodeGPUPricePerHr(start, end time.Time) source.QueryResultsChan {
 	const queryFmtNodeCostPerGPUHr = `avg(avg_over_time(node_gpu_hourly_cost{%s}[%s])) by (node, %s, instance_type, provider_id)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -1788,7 +1738,7 @@ func (pds *PrometheusDataSource) QueryNodeCostPerGPUHr(start, end time.Time) sou
 
 	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
-		panic("failed to parse duration string passed to QueryNodeCostPerGPUHr")
+		panic("failed to parse duration string passed to QueryNodeGPUPricePerHr")
 	}
 
 	queryNodeCostPerGPUHr := fmt.Sprintf(queryFmtNodeCostPerGPUHr, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
@@ -1796,8 +1746,9 @@ func (pds *PrometheusDataSource) QueryNodeCostPerGPUHr(start, end time.Time) sou
 	return ctx.QueryAtTime(queryNodeCostPerGPUHr, end)
 }
 
-func (pds *PrometheusDataSource) QueryNodeIsSpot2(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNodeIsSpot(start, end time.Time) source.QueryResultsChan {
 	const queryFmtNodeIsSpot = `avg_over_time(kubecost_node_is_spot{%s}[%s])`
+	//`avg_over_time(kubecost_node_is_spot{%s}[%s:%dm])`
 	// env.GetPromClusterFilter(), durStr)
 
 	cfg := pds.promConfig
@@ -1810,24 +1761,6 @@ func (pds *PrometheusDataSource) QueryNodeIsSpot2(start, end time.Time) source.Q
 	queryNodeIsSpot := fmt.Sprintf(queryFmtNodeIsSpot, cfg.ClusterFilter, durStr)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
 	return ctx.QueryAtTime(queryNodeIsSpot, end)
-}
-
-func (pds *PrometheusDataSource) QueryPVCInfo2(start, end time.Time) source.QueryResultsChan {
-	const queryFmtPVCInfo = `avg(kube_persistentvolumeclaim_info{volumename != "", %s}) by (persistentvolumeclaim, storageclass, volumename, namespace, %s)[%s:%s]`
-	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr)
-
-	cfg := pds.promConfig
-	resolution := cfg.DataResolution
-	resStr := timeutil.DurationString(resolution)
-
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		panic("failed to parse duration string passed to QueryPVCInfo2")
-	}
-
-	queryPVCInfo := fmt.Sprintf(queryFmtPVCInfo, cfg.ClusterFilter, cfg.ClusterLabel, durStr, resStr)
-	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryPVCInfo, end)
 }
 
 func (pds *PrometheusDataSource) QueryPodPVCAllocation(start, end time.Time) source.QueryResultsChan {
@@ -1862,24 +1795,6 @@ func (pds *PrometheusDataSource) QueryPVCBytesRequested(start, end time.Time) so
 	return ctx.QueryAtTime(queryPVCBytesRequested, end)
 }
 
-func (pds *PrometheusDataSource) QueryPVActiveMins(start, end time.Time) source.QueryResultsChan {
-	const queryFmtPVActiveMins = `count(kube_persistentvolume_capacity_bytes{%s}) by (persistentvolume, %s)[%s:%s]`
-	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr)
-
-	cfg := pds.promConfig
-	resolution := cfg.DataResolution
-	resStr := timeutil.DurationString(resolution)
-
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		panic("failed to parse duration string passed to QueryPVActiveMins")
-	}
-
-	queryPVActiveMins := fmt.Sprintf(queryFmtPVActiveMins, cfg.ClusterFilter, cfg.ClusterLabel, durStr, resStr)
-	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryPVActiveMins, end)
-}
-
 func (pds *PrometheusDataSource) QueryPVBytes(start, end time.Time) source.QueryResultsChan {
 	const queryFmtPVBytes = `avg(avg_over_time(kube_persistentvolume_capacity_bytes{%s}[%s])) by (persistentvolume, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
@@ -1912,8 +1827,8 @@ func (pds *PrometheusDataSource) QueryPVCostPerGiBHour(start, end time.Time) sou
 	return ctx.QueryAtTime(queryPVCostPerGiBHour, end)
 }
 
-func (pds *PrometheusDataSource) QueryPVMeta(start, end time.Time) source.QueryResultsChan {
-	const queryFmtPVMeta = `avg(avg_over_time(kubecost_pv_info{%s}[%s])) by (%s, persistentvolume, provider_id)`
+func (pds *PrometheusDataSource) QueryPVInfo(start, end time.Time) source.QueryResultsChan {
+	const queryFmtPVMeta = `avg(avg_over_time(kubecost_pv_info{%s}[%s])) by (%s, storageclass, persistentvolume, provider_id)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
 	cfg := pds.promConfig
@@ -2054,22 +1969,6 @@ func (pds *PrometheusDataSource) QueryNetTransferBytes(start, end time.Time) sou
 	queryNetTransferBytes := fmt.Sprintf(queryFmtNetTransferBytes, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
 	return ctx.QueryAtTime(queryNetTransferBytes, end)
-}
-
-func (pds *PrometheusDataSource) QueryNodeLabels2(start, end time.Time) source.QueryResultsChan {
-	const queryFmtNodeLabels = `avg_over_time(kube_node_labels{%s}[%s])`
-	// env.GetPromClusterFilter(), durStr
-
-	cfg := pds.promConfig
-
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		panic("failed to parse duration string passed to QueryNodeLabels2")
-	}
-
-	queryNodeLabels := fmt.Sprintf(queryFmtNodeLabels, cfg.ClusterFilter, durStr)
-	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryNodeLabels, end)
 }
 
 func (pds *PrometheusDataSource) QueryNamespaceLabels(start, end time.Time) source.QueryResultsChan {
@@ -2302,38 +2201,6 @@ func (pds *PrometheusDataSource) QueryDataCoverage(limitDays int) (time.Time, ti
 	newest := time.Unix(int64(resNewest[0].Values[0].Value), 0)
 
 	return oldest, newest, nil
-}
-
-func (pds *PrometheusDataSource) QueryIsGPUShared(start, end time.Time) source.QueryResultsChan {
-	const queryFmtIsGPUShared = `avg(avg_over_time(kube_pod_container_resource_requests{container!="", node != "", pod != "", container!= "", unit = "integer",  %s}[%s])) by (container, pod, namespace, node, resource)`
-	// env.GetPromClusterFilter(), durStr
-
-	cfg := pds.promConfig
-
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		panic("failed to parse duration string passed to QueryIsGPUShared")
-	}
-
-	queryIsGPUShared := fmt.Sprintf(queryFmtIsGPUShared, cfg.ClusterFilter, durStr)
-	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryIsGPUShared, end)
-}
-
-func (pds *PrometheusDataSource) QueryGetGPUInfo(start, end time.Time) source.QueryResultsChan {
-	const queryFmtGetGPUInfo = `avg(avg_over_time(DCGM_FI_DEV_DEC_UTIL{container!="",%s}[%s])) by (container, pod, namespace, device, modelName, UUID)`
-	// env.GetPromClusterFilter(), durStr
-
-	cfg := pds.promConfig
-
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		panic("failed to parse duration string passed to QueryGetGPUInfo")
-	}
-
-	queryGetGPUInfo := fmt.Sprintf(queryFmtGetGPUInfo, cfg.ClusterFilter, durStr)
-	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryGetGPUInfo, end)
 }
 
 func newEmptyResult() source.QueryResultsChan {

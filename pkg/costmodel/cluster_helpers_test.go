@@ -1057,7 +1057,7 @@ func TestAssetCustompricing(t *testing.T) {
 			customPricingMap: map[string]string{},
 			expectedPricing: map[string]float64{
 				"CPU":     0.5,
-				"RAM":     0.5,
+				"RAM":     0.5 / 1024.0 / 1024.0 / 1024.0,
 				"GPU":     1.0,
 				"Storage": 1.0,
 			},

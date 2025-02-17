@@ -643,9 +643,9 @@ func findDeletedNodeInfo(dataSource source.OpenCostDataSource, missingNodes map[
 
 		grp := source.NewQueryGroup()
 
-		cpuCostResCh := grp.With(dataSource.QueryNodeCostPerCPUHr(start, end))
-		ramCostResCh := grp.With(dataSource.QueryNodeCostPerRAMGiBHr(start, end))
-		gpuCostResCh := grp.With(dataSource.QueryNodeCostPerGPUHr(start, end))
+		cpuCostResCh := grp.With(dataSource.QueryNodeCPUPricePerHr(start, end))
+		ramCostResCh := grp.With(dataSource.QueryNodeRAMPricePerGiBHr(start, end))
+		gpuCostResCh := grp.With(dataSource.QueryNodeGPUPricePerHr(start, end))
 
 		cpuCostRes, _ := cpuCostResCh.Await()
 		ramCostRes, _ := ramCostResCh.Await()

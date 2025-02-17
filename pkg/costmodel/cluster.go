@@ -132,10 +132,10 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 
 	grp := source.NewQueryGroup()
 
-	resChPVCost := grp.With(dataSource.QueryPVCost(start, end))
-	resChPVSize := grp.With(dataSource.QueryPVSize(start, end))
+	resChPVCost := grp.With(dataSource.QueryPVPricePerGiBHour(start, end))
+	resChPVSize := grp.With(dataSource.QueryPVBytes(start, end))
 	resChActiveMins := grp.With(dataSource.QueryPVActiveMinutes(start, end))
-	resChPVStorageClass := grp.With(dataSource.QueryPVStorageClass(start, end))
+	resChPVStorageClass := grp.With(dataSource.QueryPVInfo(start, end))
 	resChPVUsedAvg := grp.With(dataSource.QueryPVUsedAverage(start, end))
 	resChPVUsedMax := grp.With(dataSource.QueryPVUsedMax(start, end))
 	resChPVCInfo := grp.With(dataSource.QueryPVCInfo(start, end))
@@ -184,43 +184,7 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 		return nil, grp.Error()
 	}
 
-	diskMap := map[DiskIdentifier]*Disk{}
-
-	for _, result := range resPVCInfo {
-		cluster, err := result.GetCluster()
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		volumeName, err := result.GetString("volumename")
-		if err != nil {
-			log.Debugf("ClusterDisks: pv claim data missing volumename")
-			continue
-		}
-		claimName, err := result.GetString("persistentvolumeclaim")
-		if err != nil {
-			log.Debugf("ClusterDisks: pv claim data missing persistentvolumeclaim")
-			continue
-		}
-		claimNamespace, err := result.GetNamespace()
-		if err != nil {
-			log.Debugf("ClusterDisks: pv claim data missing namespace")
-			continue
-		}
-
-		key := DiskIdentifier{cluster, volumeName}
-		if _, ok := diskMap[key]; !ok {
-			diskMap[key] = &Disk{
-				Cluster:   cluster,
-				Name:      volumeName,
-				Breakdown: &ClusterCostsBreakdown{},
-			}
-		}
-
-		diskMap[key].VolumeName = volumeName
-		diskMap[key].ClaimName = claimName
-		diskMap[key].ClaimNamespace = claimNamespace
-	}
+	diskMap := buildAssetsPVCMap(resPVCInfo)
 
 	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo, cp, opencost.NewClosedWindow(start, end))
 
@@ -557,7 +521,7 @@ func costTimesMinuteAndCount(activeDataMap map[NodeIdentifier]activeData, costMa
 			if c, ok := resourceCountMap[keyNon]; ok {
 				count = c
 			}
-			costMap[k] = cost * (minutes / 60) * count
+			costMap[k] = cost * (minutes / 60.0) * count
 		}
 	}
 }
@@ -578,14 +542,14 @@ func ClusterNodes(dataSource source.OpenCostDataSource, cp models.Provider, star
 	optionalGrp := source.NewQueryGroup()
 
 	// return errors if these fail
-	resChNodeCPUHourlyCost := requiredGrp.With(dataSource.QueryNodeCPUHourlyCost(start, end))
+	resChNodeCPUHourlyCost := requiredGrp.With(dataSource.QueryNodeCPUPricePerHr(start, end))
 	resChNodeCPUCoresCapacity := requiredGrp.With(dataSource.QueryNodeCPUCoresCapacity(start, end))
 	resChNodeCPUCoresAllocatable := requiredGrp.With(dataSource.QueryNodeCPUCoresAllocatable(start, end))
-	resChNodeRAMHourlyCost := requiredGrp.With(dataSource.QueryNodeRAMHourlyCost(start, end))
+	resChNodeRAMHourlyCost := requiredGrp.With(dataSource.QueryNodeRAMPricePerGiBHr(start, end))
 	resChNodeRAMBytesCapacity := requiredGrp.With(dataSource.QueryNodeRAMBytesCapacity(start, end))
 	resChNodeRAMBytesAllocatable := requiredGrp.With(dataSource.QueryNodeRAMBytesAllocatable(start, end))
 	resChNodeGPUCount := requiredGrp.With(dataSource.QueryNodeGPUCount(start, end))
-	resChNodeGPUHourlyCost := requiredGrp.With(dataSource.QueryNodeGPUHourlyCost(start, end))
+	resChNodeGPUHourlyPrice := requiredGrp.With(dataSource.QueryNodeGPUPricePerHr(start, end))
 	resChActiveMins := requiredGrp.With(dataSource.QueryNodeActiveMinutes(start, end))
 	resChIsSpot := requiredGrp.With(dataSource.QueryNodeIsSpot(start, end))
 
@@ -599,7 +563,7 @@ func ClusterNodes(dataSource source.OpenCostDataSource, cp models.Provider, star
 	resNodeCPUCoresCapacity, _ := resChNodeCPUCoresCapacity.Await()
 	resNodeCPUCoresAllocatable, _ := resChNodeCPUCoresAllocatable.Await()
 	resNodeGPUCount, _ := resChNodeGPUCount.Await()
-	resNodeGPUHourlyCost, _ := resChNodeGPUHourlyCost.Await()
+	resNodeGPUHourlyPrice, _ := resChNodeGPUHourlyPrice.Await()
 	resNodeRAMHourlyCost, _ := resChNodeRAMHourlyCost.Await()
 	resNodeRAMBytesCapacity, _ := resChNodeRAMBytesCapacity.Await()
 	resNodeRAMBytesAllocatable, _ := resChNodeRAMBytesAllocatable.Await()
@@ -630,7 +594,7 @@ func ClusterNodes(dataSource source.OpenCostDataSource, cp models.Provider, star
 
 	cpuCostMap, clusterAndNameToType1 := buildCPUCostMap(resNodeCPUHourlyCost, cp, preemptibleMap)
 	ramCostMap, clusterAndNameToType2 := buildRAMCostMap(resNodeRAMHourlyCost, cp, preemptibleMap)
-	gpuCostMap, clusterAndNameToType3 := buildGPUCostMap(resNodeGPUHourlyCost, gpuCountMap, cp, preemptibleMap)
+	gpuCostMap, clusterAndNameToType3 := buildGPUCostMap(resNodeGPUHourlyPrice, gpuCountMap, cp, preemptibleMap)
 
 	clusterAndNameToTypeIntermediate := mergeTypeMaps(clusterAndNameToType1, clusterAndNameToType2)
 	clusterAndNameToType := mergeTypeMaps(clusterAndNameToTypeIntermediate, clusterAndNameToType3)
