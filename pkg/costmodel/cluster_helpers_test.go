@@ -884,7 +884,8 @@ func TestBuildGPUCostMap(t *testing.T) {
 				Config: provider.NewProviderConfig(config.NewConfigFileManager(nil), "fakeFile"),
 			}
 			testPreemptible := make(map[NodeIdentifier]bool)
-			result, _ := buildGPUCostMap(testCase.promResult, testCase.countMap, testProvider, testPreemptible)
+			gpuPrices := source.DecodeAll(testCase.promResult, source.DecodeNodeGPUPricePerHrResult)
+			result, _ := buildGPUCostMap(gpuPrices, testCase.countMap, testProvider, testPreemptible)
 			if !reflect.DeepEqual(result, testCase.expected) {
 				t.Errorf("buildGPUCostMap case %s failed. Got %+v but expected %+v", testCase.name, result, testCase.expected)
 			}
@@ -1088,16 +1089,27 @@ func TestAssetCustompricing(t *testing.T) {
 			testProvider.UpdateConfigFromConfigMap(testCase.customPricingMap)
 
 			testPreemptible := make(map[NodeIdentifier]bool)
-			cpuMap, _ := buildCPUCostMap(nodePromResult, testProvider, testPreemptible)
-			ramMap, _ := buildRAMCostMap(nodePromResult, testProvider, testPreemptible)
-			gpuMap, _ := buildGPUCostMap(nodePromResult, gpuCountMap, testProvider, testPreemptible)
+			nodeCpuResult := source.DecodeAll(nodePromResult, source.DecodeNodeCPUPricePerHrResult)
+			nodeRamResult := source.DecodeAll(nodePromResult, source.DecodeNodeRAMPricePerGiBHrResult)
+			nodeGpuResult := source.DecodeAll(nodePromResult, source.DecodeNodeGPUPricePerHrResult)
+
+			cpuMap, _ := buildCPUCostMap(nodeCpuResult, testProvider, testPreemptible)
+			ramMap, _ := buildRAMCostMap(nodeRamResult, testProvider, testPreemptible)
+			gpuMap, _ := buildGPUCostMap(nodeGpuResult, gpuCountMap, testProvider, testPreemptible)
 
 			cpuResult := cpuMap[nodeKey]
 			ramResult := ramMap[nodeKey]
 			gpuResult := gpuMap[nodeKey]
 
 			diskMap := map[DiskIdentifier]*Disk{}
-			pvCosts(diskMap, time.Hour, pvMinsPromResult, pvSizePromResult, pvCostPromResult, pvAvgUsagePromResult, pvMaxUsagePromResult, pvInfoPromResult, testProvider, window)
+			pvMinsResult := source.DecodeAll(pvMinsPromResult, source.DecodePVActiveMinutesResult)
+			pvSizeResult := source.DecodeAll(pvSizePromResult, source.DecodePVBytesResult)
+			pvCostResult := source.DecodeAll(pvCostPromResult, source.DecodePVPricePerGiBHourResult)
+			pvUsedAvgResult := source.DecodeAll(pvAvgUsagePromResult, source.DecodePVUsedAvgResult)
+			pvMaxUsageResult := source.DecodeAll(pvMaxUsagePromResult, source.DecodePVUsedMaxResult)
+			pvcInfoResult := source.DecodeAll(pvInfoPromResult, source.DecodePVCInfoResult)
+
+			pvCosts(diskMap, time.Hour, pvMinsResult, pvSizeResult, pvCostResult, pvUsedAvgResult, pvMaxUsageResult, pvcInfoResult, testProvider, window)
 
 			diskResult := diskMap[DiskIdentifier{"cluster1", "pvc1"}].Cost
 
@@ -1167,7 +1179,8 @@ func TestBuildLabelsMap(t *testing.T) {
 		),
 	}
 
-	nodeLabelMap := buildLabelsMap(nodePromResult)
+	nodeLabelsResult := source.DecodeAll(nodePromResult, source.DecodeNodeLabelsResult)
+	nodeLabelMap := buildLabelsMap(nodeLabelsResult)
 	// Test that for all nodes and all label keys in the map there isn't a key with the label_ prefix.
 	for _, labelMap := range nodeLabelMap {
 		for key, value := range labelMap {

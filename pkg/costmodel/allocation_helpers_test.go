@@ -362,7 +362,11 @@ func TestBuildPVMap(t *testing.T) {
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
 			pvMap := make(map[pvKey]*pv)
-			buildPVMap(testCase.resolution, pvMap, testCase.resultsPVCostPerGiBHour, testCase.resultsActiveMinutes, []*source.QueryResult{}, window)
+			pvCostResults := source.DecodeAll(testCase.resultsPVCostPerGiBHour, source.DecodePVPricePerGiBHourResult)
+			pvActiveMinsResults := source.DecodeAll(testCase.resultsActiveMinutes, source.DecodePVActiveMinutesResult)
+			pvInfoResult := []*source.PVInfoResult{}
+
+			buildPVMap(testCase.resolution, pvMap, pvCostResults, pvActiveMinsResults, pvInfoResult, window)
 			if len(pvMap) != len(testCase.expected) {
 				t.Errorf("pv map does not have the expected length %d : %d", len(pvMap), len(testCase.expected))
 			}
@@ -579,7 +583,7 @@ func TestCalculateStartAndEnd(t *testing.T) {
 
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
-			start, end := calculateStartAndEnd(testCase.result, testCase.resolution, window)
+			start, end := calculateStartAndEnd(testCase.result.Values, testCase.resolution, window)
 			if !start.Equal(testCase.expectedStart) {
 				t.Errorf("start does not match: expected %v; got %v", testCase.expectedStart, start)
 			}

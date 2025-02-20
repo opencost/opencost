@@ -9,6 +9,22 @@ type QueryGroupAsyncResult struct {
 	resultsChan    QueryResultsChan
 }
 
+type QueryGroupFuture[T any] struct {
+	errorCollector *QueryErrorCollector
+	future         *Future[T]
+}
+
+func WithGroup[T any](g *QueryGroup, f *Future[T]) *QueryGroupFuture[T] {
+	return &QueryGroupFuture[T]{
+		errorCollector: g.errorCollector,
+		future:         f,
+	}
+}
+
+func (qgf *QueryGroupFuture[T]) Await() ([]*T, error) {
+	return qgf.future.awaitWith(qgf.errorCollector)
+}
+
 func NewQueryGroup() *QueryGroup {
 	var errorCollector QueryErrorCollector
 
@@ -55,6 +71,7 @@ func (qgar *QueryGroupAsyncResult) Await() ([]*QueryResult, error) {
 	return result.Results, nil
 }
 
+/*
 type QueryResultCollection []*QueryResults
 
 func (qrc *QueryResultCollection) HasErrors() bool {
@@ -93,3 +110,4 @@ func (qrc *QueryResultCollection) Error() error {
 
 	return &errCollection
 }
+*/

@@ -194,3 +194,41 @@ func NewContainerMetricFromResult(result *source.QueryResult, defaultClusterID s
 		key:           containerMetricKey(namespace, podName, containerName, nodeName, clusterID),
 	}, nil
 }
+
+func NewContainerMetricFrom(result *source.ContainerMetricResult, defaultClusterID string) (*ContainerMetric, error) {
+	containerName := result.Container
+	if containerName == "" {
+		return nil, ErrNoContainer
+	}
+
+	podName := result.Pod
+	if podName == "" {
+		return nil, ErrNoPodName
+	}
+
+	namespace := result.Namespace
+	if namespace == "" {
+		return nil, ErrNoNamespaceName
+	}
+
+	nodeName := result.Node
+	if nodeName == "" {
+		log.Debugf("metric vector does not have node name")
+		nodeName = ""
+	}
+
+	clusterID := result.Cluster
+	if clusterID == "" {
+		log.Debugf("metric vector does not have cluster id")
+		clusterID = defaultClusterID
+	}
+
+	return &ContainerMetric{
+		ContainerName: containerName,
+		PodName:       podName,
+		Namespace:     namespace,
+		NodeName:      nodeName,
+		ClusterID:     clusterID,
+		key:           containerMetricKey(namespace, podName, containerName, nodeName, clusterID),
+	}, nil
+}

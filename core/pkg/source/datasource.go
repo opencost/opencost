@@ -9,115 +9,115 @@ import (
 
 type ClusterMetricsQuerier interface {
 	// Cluster Disks
-	QueryPVActiveMinutes(start, end time.Time) QueryResultsChan
-	QueryPVUsedAverage(start, end time.Time) QueryResultsChan
-	QueryPVUsedMax(start, end time.Time) QueryResultsChan
+	QueryPVActiveMinutes(start, end time.Time) *Future[PVActiveMinutesResult]
+	QueryPVUsedAverage(start, end time.Time) *Future[PVUsedAvgResult]
+	QueryPVUsedMax(start, end time.Time) *Future[PVUsedMaxResult]
 
 	// Local Cluster Disks
-	QueryLocalStorageActiveMinutes(start, end time.Time) QueryResultsChan
-	QueryLocalStorageCost(start, end time.Time) QueryResultsChan
-	QueryLocalStorageUsedCost(start, end time.Time) QueryResultsChan
-	QueryLocalStorageUsedAvg(start, end time.Time) QueryResultsChan
-	QueryLocalStorageUsedMax(start, end time.Time) QueryResultsChan
-	QueryLocalStorageBytes(start, end time.Time) QueryResultsChan
-	QueryLocalStorageBytesByProvider(provider string, start, end time.Time) QueryResultsChan
-	QueryLocalStorageUsedByProvider(provider string, start, end time.Time) QueryResultsChan
+	QueryLocalStorageActiveMinutes(start, end time.Time) *Future[LocalStorageActiveMinutesResult]
+	QueryLocalStorageCost(start, end time.Time) *Future[LocalStorageCostResult]
+	QueryLocalStorageUsedCost(start, end time.Time) *Future[LocalStorageUsedCostResult]
+	QueryLocalStorageUsedAvg(start, end time.Time) *Future[LocalStorageUsedAvgResult]
+	QueryLocalStorageUsedMax(start, end time.Time) *Future[LocalStorageUsedMaxResult]
+	QueryLocalStorageBytes(start, end time.Time) *Future[LocalStorageBytesResult]
+	QueryLocalStorageBytesByProvider(provider string, start, end time.Time) *Future[LocalStorageBytesByProviderResult]
+	QueryLocalStorageUsedByProvider(provider string, start, end time.Time) *Future[LocalStorageUsedByProviderResult]
 
 	// Nodes
-	QueryNodeActiveMinutes(start, end time.Time) QueryResultsChan
-	QueryNodeCPUCoresCapacity(start, end time.Time) QueryResultsChan
-	QueryNodeCPUCoresAllocatable(start, end time.Time) QueryResultsChan
-	QueryNodeRAMBytesCapacity(start, end time.Time) QueryResultsChan
-	QueryNodeRAMBytesAllocatable(start, end time.Time) QueryResultsChan
-	QueryNodeGPUCount(start, end time.Time) QueryResultsChan
-	QueryNodeCPUModeTotal(start, end time.Time) QueryResultsChan
-	QueryNodeIsSpot(start, end time.Time) QueryResultsChan
-	QueryNodeCPUModePercent(start, end time.Time) QueryResultsChan
-	QueryNodeRAMSystemPercent(start, end time.Time) QueryResultsChan
-	QueryNodeRAMUserPercent(start, end time.Time) QueryResultsChan
+	QueryNodeActiveMinutes(start, end time.Time) *Future[NodeActiveMinutesResult]
+	QueryNodeCPUCoresCapacity(start, end time.Time) *Future[NodeCPUCoresCapacityResult]
+	QueryNodeCPUCoresAllocatable(start, end time.Time) *Future[NodeCPUCoresAllocatableResult]
+	QueryNodeRAMBytesCapacity(start, end time.Time) *Future[NodeRAMBytesCapacityResult]
+	QueryNodeRAMBytesAllocatable(start, end time.Time) *Future[NodeRAMBytesAllocatableResult]
+	QueryNodeGPUCount(start, end time.Time) *Future[NodeGPUCountResult]
+	QueryNodeCPUModeTotal(start, end time.Time) *Future[NodeCPUModeTotalResult]
+	QueryNodeIsSpot(start, end time.Time) *Future[NodeIsSpotResult]
+	QueryNodeCPUModePercent(start, end time.Time) *Future[NodeCPUModePercentResult]
+	QueryNodeRAMSystemPercent(start, end time.Time) *Future[NodeRAMSystemPercentResult]
+	QueryNodeRAMUserPercent(start, end time.Time) *Future[NodeRAMUserPercentResult]
 
 	// Load Balancers
-	QueryLBActiveMinutes(start, end time.Time) QueryResultsChan
-	QueryLBPricePerHr(start, end time.Time) QueryResultsChan
+	QueryLBActiveMinutes(start, end time.Time) *Future[LBActiveMinutesResult]
+	QueryLBPricePerHr(start, end time.Time) *Future[LBPricePerHrResult]
 
 	// Cluster Management
-	QueryClusterManagementDuration(start, end time.Time) QueryResultsChan
-	QueryClusterManagementPricePerHr(start, end time.Time) QueryResultsChan
+	QueryClusterManagementDuration(start, end time.Time) *Future[ClusterManagementDurationResult]
+	QueryClusterManagementPricePerHr(start, end time.Time) *Future[ClusterManagementPricePerHrResult]
 
 	// Cluster Costs
-	QueryDataCount(start, end time.Time) QueryResultsChan
-	QueryTotalGPU(start, end time.Time) QueryResultsChan
-	QueryTotalCPU(start, end time.Time) QueryResultsChan
-	QueryTotalRAM(start, end time.Time) QueryResultsChan
-	QueryTotalStorage(start, end time.Time) QueryResultsChan
+	QueryDataCount(start, end time.Time) *Future[DataCountResult]
+	QueryTotalGPU(start, end time.Time) *Future[TotalGPUResult]
+	QueryTotalCPU(start, end time.Time) *Future[TotalCPUResult]
+	QueryTotalRAM(start, end time.Time) *Future[TotalRAMResult]
+	QueryTotalStorage(start, end time.Time) *Future[TotalStorageResult]
 
 	// Cluster Costs
-	QueryClusterCores(start, end time.Time, step time.Duration) QueryResultsChan
-	QueryClusterRAM(start, end time.Time, step time.Duration) QueryResultsChan
-	QueryClusterStorage(start, end time.Time, step time.Duration) QueryResultsChan
-	QueryClusterStorageByProvider(provider string, start, end time.Time, step time.Duration) QueryResultsChan
-	QueryClusterTotal(start, end time.Time, step time.Duration) QueryResultsChan
-	QueryClusterTotalByProvider(provider string, start, end time.Time, step time.Duration) QueryResultsChan
-	QueryClusterNodes(start, end time.Time, step time.Duration) QueryResultsChan
-	QueryClusterNodesByProvider(provider string, start, end time.Time, step time.Duration) QueryResultsChan
+	QueryClusterCores(start, end time.Time, step time.Duration) *Future[ClusterCoresResult]
+	QueryClusterRAM(start, end time.Time, step time.Duration) *Future[ClusterRAMResult]
+	QueryClusterStorage(start, end time.Time, step time.Duration) *Future[ClusterStorageResult]
+	QueryClusterStorageByProvider(provider string, start, end time.Time, step time.Duration) *Future[ClusterStorageResult]
+	QueryClusterTotal(start, end time.Time, step time.Duration) *Future[ClusterTotalResult]
+	QueryClusterTotalByProvider(provider string, start, end time.Time, step time.Duration) *Future[ClusterTotalResult]
+	QueryClusterNodes(start, end time.Time, step time.Duration) *Future[ClusterNodesResult]
+	QueryClusterNodesByProvider(provider string, start, end time.Time, step time.Duration) *Future[ClusterNodesResult]
 }
 
 type AllocationMetricsQuerier interface {
-	QueryPods(start, end time.Time) QueryResultsChan
-	QueryPodsUID(start, end time.Time) QueryResultsChan
+	QueryPods(start, end time.Time) *Future[PodsResult]
+	QueryPodsUID(start, end time.Time) *Future[PodsResult]
 
-	QueryRAMBytesAllocated(start, end time.Time) QueryResultsChan
-	QueryRAMRequests(start, end time.Time) QueryResultsChan
-	QueryRAMUsageAvg(start, end time.Time) QueryResultsChan
-	QueryRAMUsageMax(start, end time.Time) QueryResultsChan
-	QueryNodeRAMPricePerGiBHr(start, end time.Time) QueryResultsChan
+	QueryRAMBytesAllocated(start, end time.Time) *Future[RAMBytesAllocatedResult]
+	QueryRAMRequests(start, end time.Time) *Future[RAMRequestsResult]
+	QueryRAMUsageAvg(start, end time.Time) *Future[RAMUsageAvgResult]
+	QueryRAMUsageMax(start, end time.Time) *Future[RAMUsageMaxResult]
+	QueryNodeRAMPricePerGiBHr(start, end time.Time) *Future[NodeRAMPricePerGiBHrResult]
 
-	QueryCPUCoresAllocated(start, end time.Time) QueryResultsChan
-	QueryCPURequests(start, end time.Time) QueryResultsChan
-	QueryCPUUsageAvg(start, end time.Time) QueryResultsChan
-	QueryCPUUsageMax(start, end time.Time) QueryResultsChan
-	QueryNodeCPUPricePerHr(start, end time.Time) QueryResultsChan
+	QueryCPUCoresAllocated(start, end time.Time) *Future[CPUCoresAllocatedResult]
+	QueryCPURequests(start, end time.Time) *Future[CPURequestsResult]
+	QueryCPUUsageAvg(start, end time.Time) *Future[CPUUsageAvgResult]
+	QueryCPUUsageMax(start, end time.Time) *Future[CPUUsageMaxResult]
+	QueryNodeCPUPricePerHr(start, end time.Time) *Future[NodeCPUPricePerHrResult]
 
-	QueryGPUsAllocated(start, end time.Time) QueryResultsChan
-	QueryGPUsRequested(start, end time.Time) QueryResultsChan
-	QueryGPUsUsageAvg(start, end time.Time) QueryResultsChan
-	QueryGPUsUsageMax(start, end time.Time) QueryResultsChan
-	QueryNodeGPUPricePerHr(start, end time.Time) QueryResultsChan
-	QueryGPUInfo(start, end time.Time) QueryResultsChan
-	QueryIsGPUShared(start, end time.Time) QueryResultsChan
+	QueryGPUsAllocated(start, end time.Time) *Future[GPUsAllocatedResult]
+	QueryGPUsRequested(start, end time.Time) *Future[GPUsRequestedResult]
+	QueryGPUsUsageAvg(start, end time.Time) *Future[GPUsUsageAvgResult]
+	QueryGPUsUsageMax(start, end time.Time) *Future[GPUsUsageMaxResult]
+	QueryNodeGPUPricePerHr(start, end time.Time) *Future[NodeGPUPricePerHrResult]
+	QueryGPUInfo(start, end time.Time) *Future[GPUInfoResult]
+	QueryIsGPUShared(start, end time.Time) *Future[IsGPUSharedResult]
 
-	QueryPodPVCAllocation(start, end time.Time) QueryResultsChan
-	QueryPVCBytesRequested(start, end time.Time) QueryResultsChan
-	QueryPVCInfo(start, end time.Time) QueryResultsChan
+	QueryPodPVCAllocation(start, end time.Time) *Future[PodPVCAllocationResult]
+	QueryPVCBytesRequested(start, end time.Time) *Future[PVCBytesRequestedResult]
+	QueryPVCInfo(start, end time.Time) *Future[PVCInfoResult]
 
-	QueryPVBytes(start, end time.Time) QueryResultsChan
-	QueryPVPricePerGiBHour(start, end time.Time) QueryResultsChan
-	QueryPVInfo(start, end time.Time) QueryResultsChan
+	QueryPVBytes(start, end time.Time) *Future[PVBytesResult]
+	QueryPVPricePerGiBHour(start, end time.Time) *Future[PVPricePerGiBHourResult]
+	QueryPVInfo(start, end time.Time) *Future[PVInfoResult]
 
-	QueryNetZoneGiB(start, end time.Time) QueryResultsChan
-	QueryNetZoneCostPerGiB(start, end time.Time) QueryResultsChan
-	QueryNetRegionGiB(start, end time.Time) QueryResultsChan
-	QueryNetRegionCostPerGiB(start, end time.Time) QueryResultsChan
-	QueryNetInternetGiB(start, end time.Time) QueryResultsChan
-	QueryNetInternetCostPerGiB(start, end time.Time) QueryResultsChan
-	QueryNetReceiveBytes(start, end time.Time) QueryResultsChan
-	QueryNetTransferBytes(start, end time.Time) QueryResultsChan
+	QueryNetZoneGiB(start, end time.Time) *Future[NetZoneGiBResult]
+	QueryNetZonePricePerGiB(start, end time.Time) *Future[NetZonePricePerGiBResult]
+	QueryNetRegionGiB(start, end time.Time) *Future[NetRegionGiBResult]
+	QueryNetRegionPricePerGiB(start, end time.Time) *Future[NetRegionPricePerGiBResult]
+	QueryNetInternetGiB(start, end time.Time) *Future[NetInternetGiBResult]
+	QueryNetInternetPricePerGiB(start, end time.Time) *Future[NetInternetPricePerGiBResult]
+	QueryNetReceiveBytes(start, end time.Time) *Future[NetReceiveBytesResult]
+	QueryNetTransferBytes(start, end time.Time) *Future[NetTransferBytesResult]
 
-	QueryNamespaceAnnotations(start, end time.Time) QueryResultsChan
-	QueryPodAnnotations(start, end time.Time) QueryResultsChan
+	QueryNamespaceAnnotations(start, end time.Time) *Future[NamespaceAnnotationsResult]
+	QueryPodAnnotations(start, end time.Time) *Future[PodAnnotationsResult]
 
-	QueryNodeLabels(start, end time.Time) QueryResultsChan
-	QueryNamespaceLabels(start, end time.Time) QueryResultsChan
-	QueryPodLabels(start, end time.Time) QueryResultsChan
-	QueryServiceLabels(start, end time.Time) QueryResultsChan
-	QueryDeploymentLabels(start, end time.Time) QueryResultsChan
-	QueryStatefulSetLabels(start, end time.Time) QueryResultsChan
-	QueryDaemonSetLabels(start, end time.Time) QueryResultsChan
-	QueryJobLabels(start, end time.Time) QueryResultsChan
+	QueryNodeLabels(start, end time.Time) *Future[NodeLabelsResult]
+	QueryNamespaceLabels(start, end time.Time) *Future[NamespaceLabelsResult]
+	QueryPodLabels(start, end time.Time) *Future[PodLabelsResult]
+	QueryServiceLabels(start, end time.Time) *Future[ServiceLabelsResult]
+	QueryDeploymentLabels(start, end time.Time) *Future[DeploymentLabelsResult]
+	QueryStatefulSetLabels(start, end time.Time) *Future[StatefulSetLabelsResult]
+	QueryDaemonSetLabels(start, end time.Time) *Future[DaemonSetLabelsResult]
+	QueryJobLabels(start, end time.Time) *Future[JobLabelsResult]
 
-	QueryPodsWithReplicaSetOwner(start, end time.Time) QueryResultsChan
-	QueryReplicaSetsWithoutOwners(start, end time.Time) QueryResultsChan
-	QueryReplicaSetsWithRollout(start, end time.Time) QueryResultsChan
+	QueryPodsWithReplicaSetOwner(start, end time.Time) *Future[PodsWithReplicaSetOwnerResult]
+	QueryReplicaSetsWithoutOwners(start, end time.Time) *Future[ReplicaSetsWithoutOwnersResult]
+	QueryReplicaSetsWithRollout(start, end time.Time) *Future[ReplicaSetsWithRolloutResult]
 
 	QueryDataCoverage(limitDays int) (time.Time, time.Time, error)
 }

@@ -425,27 +425,27 @@ func GetServiceSelectorLabelsMetrics(qrs []*source.QueryResult, defaultClusterID
 	return toReturn, nil
 }
 
-func GetContainerMetricVector(qrs []*source.QueryResult, defaultClusterID string) (map[string][]*util.Vector, error) {
+func GetContainerMetricVector(qrs []*source.ContainerMetricResult, defaultClusterID string) (map[string][]*util.Vector, error) {
 	containerData := make(map[string][]*util.Vector)
 	for _, val := range qrs {
-		containerMetric, err := NewContainerMetricFromResult(val, defaultClusterID)
+		containerMetric, err := NewContainerMetricFrom(val, defaultClusterID)
 		if err != nil {
 			return nil, err
 		}
 
-		containerData[containerMetric.Key()] = val.Values
+		containerData[containerMetric.Key()] = val.Data
 	}
 	return containerData, nil
 }
 
-func GetContainerMetricVectors(qrs []*source.QueryResult, defaultClusterID string) (map[string][]*util.Vector, error) {
+func GetContainerMetricVectors(qrs []*source.ContainerMetricResult, defaultClusterID string) (map[string][]*util.Vector, error) {
 	containerData := make(map[string][]*util.Vector)
 	for _, val := range qrs {
-		containerMetric, err := NewContainerMetricFromResult(val, defaultClusterID)
+		containerMetric, err := NewContainerMetricFrom(val, defaultClusterID)
 		if err != nil {
 			return nil, err
 		}
-		containerData[containerMetric.Key()] = val.Values
+		containerData[containerMetric.Key()] = val.Data
 	}
 	return containerData, nil
 }
@@ -462,35 +462,59 @@ func GetNormalizedContainerMetricVectors(qrs []*source.QueryResult, normalizatio
 	return containerData, nil
 }
 
-func getCost(qrs []*source.QueryResult) (map[string][]*util.Vector, error) {
+func getCost[T any](qrs []*T, nodeFunc func(*T) string, dataFunc func(*T) []*util.Vector) (map[string][]*util.Vector, error) {
 	toReturn := make(map[string][]*util.Vector)
 
 	for _, val := range qrs {
-		instance, err := val.GetNode()
-		if err != nil {
-			return toReturn, err
+		instance := nodeFunc(val)
+		if instance == "" {
+			return toReturn, fmt.Errorf("missing node field")
 		}
 
-		toReturn[instance] = val.Values
+		toReturn[instance] = dataFunc(val)
 	}
 
 	return toReturn, nil
 }
 
-func parsePodLabels(qrs []*source.QueryResult) (map[string]map[string]string, error) {
+func cpuCostNode(res *source.NodeCPUPricePerHrResult) string {
+	return res.Node
+}
+
+func cpuCostData(res *source.NodeCPUPricePerHrResult) []*util.Vector {
+	return res.Data
+}
+
+func ramCostNode(res *source.NodeRAMPricePerGiBHrResult) string {
+	return res.Node
+}
+
+func ramCostData(res *source.NodeRAMPricePerGiBHrResult) []*util.Vector {
+	return res.Data
+}
+
+func gpuCostNode(res *source.NodeGPUPricePerHrResult) string {
+	return res.Node
+}
+
+func gpuCostData(res *source.NodeGPUPricePerHrResult) []*util.Vector {
+	return res.Data
+}
+
+func parsePodLabels(qrs []*source.PodLabelsResult) (map[string]map[string]string, error) {
 	podLabels := map[string]map[string]string{}
 
 	for _, result := range qrs {
-		pod, err := result.GetPod()
-		if err != nil {
+		pod := result.Pod
+		if pod == "" {
 			return podLabels, errors.New("missing pod field")
 		}
 
 		if _, ok := podLabels[pod]; ok {
-			podLabels[pod] = result.GetLabels()
+			podLabels[pod] = result.Labels
 		} else {
 			podLabels[pod] = map[string]string{}
-			podLabels[pod] = result.GetLabels()
+			podLabels[pod] = result.Labels
 		}
 	}
 

@@ -139,11 +139,11 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 
 	grp := source.NewQueryGroup()
 
-	resChRAMUsage := grp.With(ds.QueryRAMUsageAvg(start, end))
-	resChCPUUsage := grp.With(ds.QueryCPUUsageAvg(start, end))
-	resChNetZoneRequests := grp.With(ds.QueryNetZoneGiB(start, end))
-	resChNetRegionRequests := grp.With(ds.QueryNetRegionGiB(start, end))
-	resChNetInternetRequests := grp.With(ds.QueryNetInternetGiB(start, end))
+	resChRAMUsage := source.WithGroup(grp, ds.QueryRAMUsageAvg(start, end))
+	resChCPUUsage := source.WithGroup(grp, ds.QueryCPUUsageAvg(start, end))
+	resChNetZoneRequests := source.WithGroup(grp, ds.QueryNetZoneGiB(start, end))
+	resChNetRegionRequests := source.WithGroup(grp, ds.QueryNetRegionGiB(start, end))
+	resChNetInternetRequests := source.WithGroup(grp, ds.QueryNetInternetGiB(start, end))
 
 	// Pull pod information from k8s API
 	podlist := cm.Cache.GetAllPods()
@@ -643,9 +643,9 @@ func findDeletedNodeInfo(dataSource source.OpenCostDataSource, missingNodes map[
 
 		grp := source.NewQueryGroup()
 
-		cpuCostResCh := grp.With(dataSource.QueryNodeCPUPricePerHr(start, end))
-		ramCostResCh := grp.With(dataSource.QueryNodeRAMPricePerGiBHr(start, end))
-		gpuCostResCh := grp.With(dataSource.QueryNodeGPUPricePerHr(start, end))
+		cpuCostResCh := source.WithGroup(grp, dataSource.QueryNodeCPUPricePerHr(start, end))
+		ramCostResCh := source.WithGroup(grp, dataSource.QueryNodeRAMPricePerGiBHr(start, end))
+		gpuCostResCh := source.WithGroup(grp, dataSource.QueryNodeGPUPricePerHr(start, end))
 
 		cpuCostRes, _ := cpuCostResCh.Await()
 		ramCostRes, _ := ramCostResCh.Await()
@@ -655,15 +655,15 @@ func findDeletedNodeInfo(dataSource source.OpenCostDataSource, missingNodes map[
 			return grp.Error()
 		}
 
-		cpuCosts, err := getCost(cpuCostRes)
+		cpuCosts, err := getCost(cpuCostRes, cpuCostNode, cpuCostData)
 		if err != nil {
 			return err
 		}
-		ramCosts, err := getCost(ramCostRes)
+		ramCosts, err := getCost(ramCostRes, ramCostNode, ramCostData)
 		if err != nil {
 			return err
 		}
-		gpuCosts, err := getCost(gpuCostRes)
+		gpuCosts, err := getCost(gpuCostRes, gpuCostNode, gpuCostData)
 		if err != nil {
 			return err
 		}

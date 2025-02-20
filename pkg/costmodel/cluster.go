@@ -132,13 +132,13 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 
 	grp := source.NewQueryGroup()
 
-	resChPVCost := grp.With(dataSource.QueryPVPricePerGiBHour(start, end))
-	resChPVSize := grp.With(dataSource.QueryPVBytes(start, end))
-	resChActiveMins := grp.With(dataSource.QueryPVActiveMinutes(start, end))
-	resChPVStorageClass := grp.With(dataSource.QueryPVInfo(start, end))
-	resChPVUsedAvg := grp.With(dataSource.QueryPVUsedAverage(start, end))
-	resChPVUsedMax := grp.With(dataSource.QueryPVUsedMax(start, end))
-	resChPVCInfo := grp.With(dataSource.QueryPVCInfo(start, end))
+	resChPVCost := source.WithGroup(grp, dataSource.QueryPVPricePerGiBHour(start, end))
+	resChPVSize := source.WithGroup(grp, dataSource.QueryPVBytes(start, end))
+	resChActiveMins := source.WithGroup(grp, dataSource.QueryPVActiveMinutes(start, end))
+	resChPVStorageClass := source.WithGroup(grp, dataSource.QueryPVInfo(start, end))
+	resChPVUsedAvg := source.WithGroup(grp, dataSource.QueryPVUsedAverage(start, end))
+	resChPVUsedMax := source.WithGroup(grp, dataSource.QueryPVUsedMax(start, end))
+	resChPVCInfo := source.WithGroup(grp, dataSource.QueryPVCInfo(start, end))
 
 	resPVCost, _ := resChPVCost.Await()
 	resPVSize, _ := resChPVSize.Await()
@@ -157,20 +157,20 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/RootDeviceStorage.html
 	// https://learn.microsoft.com/en-us/azure/virtual-machines/managed-disks-overview#temporary-disk
 	// https://cloud.google.com/compute/docs/disks/local-ssd
-	resLocalStorageCost := []*source.QueryResult{}
-	resLocalStorageUsedCost := []*source.QueryResult{}
-	resLocalStorageUsedAvg := []*source.QueryResult{}
-	resLocalStorageUsedMax := []*source.QueryResult{}
-	resLocalStorageBytes := []*source.QueryResult{}
-	resLocalActiveMins := []*source.QueryResult{}
+	resLocalStorageCost := []*source.LocalStorageCostResult{}
+	resLocalStorageUsedCost := []*source.LocalStorageUsedCostResult{}
+	resLocalStorageUsedAvg := []*source.LocalStorageUsedAvgResult{}
+	resLocalStorageUsedMax := []*source.LocalStorageUsedMaxResult{}
+	resLocalStorageBytes := []*source.LocalStorageBytesResult{}
+	resLocalActiveMins := []*source.LocalStorageActiveMinutesResult{}
 
 	if env.GetAssetIncludeLocalDiskCost() {
-		resChLocalStorageCost := grp.With(dataSource.QueryLocalStorageCost(start, end))
-		resChLocalStorageUsedCost := grp.With(dataSource.QueryLocalStorageUsedCost(start, end))
-		resChLocalStoreageUsedAvg := grp.With(dataSource.QueryLocalStorageUsedAvg(start, end))
-		resChLocalStoreageUsedMax := grp.With(dataSource.QueryLocalStorageUsedMax(start, end))
-		resChLocalStorageBytes := grp.With(dataSource.QueryLocalStorageBytes(start, end))
-		resChLocalActiveMins := grp.With(dataSource.QueryLocalStorageActiveMinutes(start, end))
+		resChLocalStorageCost := source.WithGroup(grp, dataSource.QueryLocalStorageCost(start, end))
+		resChLocalStorageUsedCost := source.WithGroup(grp, dataSource.QueryLocalStorageUsedCost(start, end))
+		resChLocalStoreageUsedAvg := source.WithGroup(grp, dataSource.QueryLocalStorageUsedAvg(start, end))
+		resChLocalStoreageUsedMax := source.WithGroup(grp, dataSource.QueryLocalStorageUsedMax(start, end))
+		resChLocalStorageBytes := source.WithGroup(grp, dataSource.QueryLocalStorageBytes(start, end))
+		resChLocalActiveMins := source.WithGroup(grp, dataSource.QueryLocalStorageActiveMinutes(start, end))
 
 		resLocalStorageCost, _ = resChLocalStorageCost.Await()
 		resLocalStorageUsedCost, _ = resChLocalStorageUsedCost.Await()
@@ -198,24 +198,24 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	// Start with local storage bytes so that the device with the largest size which has passed the
 	// query filters can be determined
 	for _, result := range resLocalStorageBytes {
-		cluster, err := result.GetCluster()
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetInstance()
-		if err != nil {
+		name := result.Instance
+		if name == "" {
 			log.Warnf("ClusterDisks: local storage data missing instance")
 			continue
 		}
 
-		device, err := result.GetDevice()
-		if err != nil {
+		device := result.Device
+		if device == "" {
 			log.Warnf("ClusterDisks: local storage data missing device")
 			continue
 		}
 
-		bytes := result.Values[0].Value
+		bytes := result.Data[0].Value
 		// Ignore disks that are larger than the max size
 		if bytes > MAX_LOCAL_STORAGE_SIZE {
 			continue
@@ -240,24 +240,24 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	}
 
 	for _, result := range resLocalStorageCost {
-		cluster, err := result.GetCluster()
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetInstance()
-		if err != nil {
+		name := result.Instance
+		if name == "" {
 			log.Warnf("ClusterDisks: local storage data missing instance")
 			continue
 		}
 
-		device, err := result.GetDevice()
-		if err != nil {
+		device := result.Device
+		if device == "" {
 			log.Warnf("ClusterDisks: local storage data missing device")
 			continue
 		}
 
-		cost := result.Values[0].Value
+		cost := result.Data[0].Value
 		key := DiskIdentifier{cluster, name}
 		ls, ok := localStorageDisks[key]
 		if !ok || ls.device != device {
@@ -268,24 +268,24 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	}
 
 	for _, result := range resLocalStorageUsedCost {
-		cluster, err := result.GetCluster()
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetInstance()
-		if err != nil {
-			log.Warnf("ClusterDisks: local storage usage data missing instance")
+		name := result.Instance
+		if name == "" {
+			log.Warnf("ClusterDisks: local storage data missing instance")
 			continue
 		}
 
-		device, err := result.GetDevice()
-		if err != nil {
+		device := result.Device
+		if device == "" {
 			log.Warnf("ClusterDisks: local storage data missing device")
 			continue
 		}
 
-		cost := result.Values[0].Value
+		cost := result.Data[0].Value
 		key := DiskIdentifier{cluster, name}
 		ls, ok := localStorageDisks[key]
 		if !ok || ls.device != device {
@@ -295,24 +295,24 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	}
 
 	for _, result := range resLocalStorageUsedAvg {
-		cluster, err := result.GetCluster()
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetInstance()
-		if err != nil {
+		name := result.Instance
+		if name == "" {
 			log.Warnf("ClusterDisks: local storage data missing instance")
 			continue
 		}
 
-		device, err := result.GetDevice()
-		if err != nil {
+		device := result.Device
+		if device == "" {
 			log.Warnf("ClusterDisks: local storage data missing device")
 			continue
 		}
 
-		bytesAvg := result.Values[0].Value
+		bytesAvg := result.Data[0].Value
 		key := DiskIdentifier{cluster, name}
 		ls, ok := localStorageDisks[key]
 		if !ok || ls.device != device {
@@ -322,24 +322,24 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	}
 
 	for _, result := range resLocalStorageUsedMax {
-		cluster, err := result.GetCluster()
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetInstance()
-		if err != nil {
+		name := result.Instance
+		if name == "" {
 			log.Warnf("ClusterDisks: local storage data missing instance")
 			continue
 		}
 
-		device, err := result.GetDevice()
-		if err != nil {
+		device := result.Device
+		if device == "" {
 			log.Warnf("ClusterDisks: local storage data missing device")
 			continue
 		}
 
-		bytesMax := result.Values[0].Value
+		bytesMax := result.Data[0].Value
 		key := DiskIdentifier{cluster, name}
 		ls, ok := localStorageDisks[key]
 		if !ok || ls.device != device {
@@ -349,19 +349,19 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	}
 
 	for _, result := range resLocalActiveMins {
-		cluster, err := result.GetCluster()
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetNode()
-		if err != nil {
+		name := result.Node
+		if name == "" {
 			log.DedupedWarningf(5, "ClusterDisks: local active mins data missing instance")
 			continue
 		}
 
-		providerID, err := result.GetProviderID()
-		if err != nil {
+		providerID := result.ProviderID
+		if providerID == "" {
 			log.DedupedWarningf(5, "ClusterDisks: local active mins data missing instance")
 			continue
 		}
@@ -374,12 +374,12 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 
 		ls.disk.ProviderID = provider.ParseLocalDiskID(providerID)
 
-		if len(result.Values) == 0 {
+		if len(result.Data) == 0 {
 			continue
 		}
 
-		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
+		s := time.Unix(int64(result.Data[0].Timestamp), 0)
+		e := time.Unix(int64(result.Data[len(result.Data)-1].Timestamp), 0)
 		mins := e.Sub(s).Minutes()
 
 		// TODO niko/assets if mins >= threshold, interpolate for missing data?
@@ -397,13 +397,12 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	var unTracedDiskLogData []DiskIdentifier
 	//Iterating through Persistent Volume given by custom metrics kubecost_pv_info and assign the storage class if known and __unknown__ if not populated.
 	for _, result := range resPVStorageClass {
-		cluster, err := result.GetCluster()
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		name, _ := result.GetString("persistentvolume")
-
+		name := result.PersistentVolume
 		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
 			if !slices.Contains(unTracedDiskLogData, key) {
@@ -412,13 +411,12 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 			continue
 		}
 
-		if len(result.Values) == 0 {
+		if len(result.Data) == 0 {
 			continue
 		}
 
-		storageClass, err := result.GetString("storageclass")
-
-		if err != nil {
+		storageClass := result.StorageClass
+		if storageClass == "" {
 			diskMap[key].StorageClass = opencost.UnknownStorageClass
 		} else {
 			diskMap[key].StorageClass = storageClass
@@ -542,22 +540,22 @@ func ClusterNodes(dataSource source.OpenCostDataSource, cp models.Provider, star
 	optionalGrp := source.NewQueryGroup()
 
 	// return errors if these fail
-	resChNodeCPUHourlyCost := requiredGrp.With(dataSource.QueryNodeCPUPricePerHr(start, end))
-	resChNodeCPUCoresCapacity := requiredGrp.With(dataSource.QueryNodeCPUCoresCapacity(start, end))
-	resChNodeCPUCoresAllocatable := requiredGrp.With(dataSource.QueryNodeCPUCoresAllocatable(start, end))
-	resChNodeRAMHourlyCost := requiredGrp.With(dataSource.QueryNodeRAMPricePerGiBHr(start, end))
-	resChNodeRAMBytesCapacity := requiredGrp.With(dataSource.QueryNodeRAMBytesCapacity(start, end))
-	resChNodeRAMBytesAllocatable := requiredGrp.With(dataSource.QueryNodeRAMBytesAllocatable(start, end))
-	resChNodeGPUCount := requiredGrp.With(dataSource.QueryNodeGPUCount(start, end))
-	resChNodeGPUHourlyPrice := requiredGrp.With(dataSource.QueryNodeGPUPricePerHr(start, end))
-	resChActiveMins := requiredGrp.With(dataSource.QueryNodeActiveMinutes(start, end))
-	resChIsSpot := requiredGrp.With(dataSource.QueryNodeIsSpot(start, end))
+	resChNodeCPUHourlyCost := source.WithGroup(requiredGrp, dataSource.QueryNodeCPUPricePerHr(start, end))
+	resChNodeCPUCoresCapacity := source.WithGroup(requiredGrp, dataSource.QueryNodeCPUCoresCapacity(start, end))
+	resChNodeCPUCoresAllocatable := source.WithGroup(requiredGrp, dataSource.QueryNodeCPUCoresAllocatable(start, end))
+	resChNodeRAMHourlyCost := source.WithGroup(requiredGrp, dataSource.QueryNodeRAMPricePerGiBHr(start, end))
+	resChNodeRAMBytesCapacity := source.WithGroup(requiredGrp, dataSource.QueryNodeRAMBytesCapacity(start, end))
+	resChNodeRAMBytesAllocatable := source.WithGroup(requiredGrp, dataSource.QueryNodeRAMBytesAllocatable(start, end))
+	resChNodeGPUCount := source.WithGroup(requiredGrp, dataSource.QueryNodeGPUCount(start, end))
+	resChNodeGPUHourlyPrice := source.WithGroup(requiredGrp, dataSource.QueryNodeGPUPricePerHr(start, end))
+	resChActiveMins := source.WithGroup(requiredGrp, dataSource.QueryNodeActiveMinutes(start, end))
+	resChIsSpot := source.WithGroup(requiredGrp, dataSource.QueryNodeIsSpot(start, end))
 
 	// Do not return errors if these fail, but log warnings
-	resChNodeCPUModeTotal := optionalGrp.With(dataSource.QueryNodeCPUModeTotal(start, end))
-	resChNodeRAMSystemPct := optionalGrp.With(dataSource.QueryNodeRAMSystemPercent(start, end))
-	resChNodeRAMUserPct := optionalGrp.With(dataSource.QueryNodeRAMUserPercent(start, end))
-	resChLabels := optionalGrp.With(dataSource.QueryNodeLabels(start, end))
+	resChNodeCPUModeTotal := source.WithGroup(optionalGrp, dataSource.QueryNodeCPUModeTotal(start, end))
+	resChNodeRAMSystemPct := source.WithGroup(optionalGrp, dataSource.QueryNodeRAMSystemPercent(start, end))
+	resChNodeRAMUserPct := source.WithGroup(optionalGrp, dataSource.QueryNodeRAMUserPercent(start, end))
+	resChLabels := source.WithGroup(optionalGrp, dataSource.QueryNodeLabels(start, end))
 
 	resNodeCPUHourlyCost, _ := resChNodeCPUHourlyCost.Await()
 	resNodeCPUCoresCapacity, _ := resChNodeCPUCoresCapacity.Await()
@@ -587,7 +585,7 @@ func ClusterNodes(dataSource source.OpenCostDataSource, cp models.Provider, star
 		return nil, requiredGrp.Error()
 	}
 
-	activeDataMap := buildActiveDataMap(resActiveMins, nodeKeyGen, resolution, opencost.NewClosedWindow(start, end))
+	activeDataMap := buildActiveDataMap(resActiveMins, nodeKeyGen, nodeValues, resolution, opencost.NewClosedWindow(start, end))
 
 	gpuCountMap := buildGPUCountMap(resNodeGPUCount)
 	preemptibleMap := buildPreemptibleMap(resIsSpot)
@@ -681,8 +679,8 @@ func ClusterLoadBalancers(dataSource source.OpenCostDataSource, start, end time.
 
 	grp := source.NewQueryGroup()
 
-	resChLBCost := grp.With(dataSource.QueryLBPricePerHr(start, end))
-	resChActiveMins := grp.With(dataSource.QueryLBActiveMinutes(start, end))
+	resChLBCost := source.WithGroup(grp, dataSource.QueryLBPricePerHr(start, end))
+	resChActiveMins := source.WithGroup(grp, dataSource.QueryLBActiveMinutes(start, end))
 
 	resLBCost, _ := resChLBCost.Await()
 	resActiveMins, _ := resChActiveMins.Await()
@@ -692,7 +690,7 @@ func ClusterLoadBalancers(dataSource source.OpenCostDataSource, start, end time.
 	}
 
 	loadBalancerMap := make(map[LoadBalancerIdentifier]*LoadBalancer, len(resActiveMins))
-	activeMap := buildActiveDataMap(resActiveMins, loadBalancerKeyGen, resolution, opencost.NewClosedWindow(start, end))
+	activeMap := buildActiveDataMap(resActiveMins, loadBalancerKeyGen, lbValues, resolution, opencost.NewClosedWindow(start, end))
 
 	for _, result := range resLBCost {
 		key, ok := loadBalancerKeyGen(result)
@@ -700,7 +698,7 @@ func ClusterLoadBalancers(dataSource source.OpenCostDataSource, start, end time.
 			continue
 		}
 
-		lbPricePerHr := result.Values[0].Value
+		lbPricePerHr := result.Data[0].Value
 
 		lb := &LoadBalancer{
 			Cluster:   key.Cluster,
@@ -734,8 +732,8 @@ func ClusterManagement(dataSource source.OpenCostDataSource, start, end time.Tim
 
 	grp := source.NewQueryGroup()
 
-	resChCMPrice := grp.With(dataSource.QueryClusterManagementPricePerHr(start, end))
-	resChCMDur := grp.With(dataSource.QueryClusterManagementDuration(start, end))
+	resChCMPrice := source.WithGroup(grp, dataSource.QueryClusterManagementPricePerHr(start, end))
+	resChCMDur := source.WithGroup(grp, dataSource.QueryClusterManagementDuration(start, end))
 
 	resCMPrice, _ := resChCMPrice.Await()
 	resCMDur, _ := resChCMDur.Await()
@@ -745,7 +743,7 @@ func ClusterManagement(dataSource source.OpenCostDataSource, start, end time.Tim
 	}
 
 	clusterManagementPriceMap := make(map[ClusterManagementIdentifier]*ClusterManagementCost, len(resCMDur))
-	activeMap := buildActiveDataMap(resCMDur, clusterManagementKeyGen, resolution, opencost.NewClosedWindow(start, end))
+	activeMap := buildActiveDataMap(resCMDur, clusterManagementKeyGen, clusterManagementValues, resolution, opencost.NewClosedWindow(start, end))
 
 	for _, result := range resCMPrice {
 		key, ok := clusterManagementKeyGen(result)
@@ -753,7 +751,7 @@ func ClusterManagement(dataSource source.OpenCostDataSource, start, end time.Tim
 			continue
 		}
 
-		cmPricePerHr := result.Values[0].Value
+		cmPricePerHr := result.Data[0].Value
 		cm := &ClusterManagementCost{
 			Cluster:     key.Cluster,
 			Provisioner: key.Provisioner,
@@ -798,31 +796,30 @@ func (a *Accesses) ComputeClusterCosts(dataSource source.OpenCostDataSource, pro
 
 	grp := source.NewQueryGroup()
 
-	resChs := []*source.QueryGroupAsyncResult{}
+	queryDataCount := source.WithGroup(grp, dataSource.QueryDataCount(start, end))
+	queryTotalGPU := source.WithGroup(grp, dataSource.QueryTotalGPU(start, end))
+	queryTotalCPU := source.WithGroup(grp, dataSource.QueryTotalCPU(start, end))
+	queryTotalRAM := source.WithGroup(grp, dataSource.QueryTotalRAM(start, end))
+	queryTotalStorage := source.WithGroup(grp, dataSource.QueryTotalStorage(start, end))
+	queryTotalLocalStorage := source.WithGroup(grp, dataSource.QueryLocalStorageBytesByProvider(providerName, start, end))
 
-	queryDataCount := grp.With(dataSource.QueryDataCount(start, end))
-	queryTotalGPU := grp.With(dataSource.QueryTotalGPU(start, end))
-	queryTotalCPU := grp.With(dataSource.QueryTotalCPU(start, end))
-	queryTotalRAM := grp.With(dataSource.QueryTotalRAM(start, end))
-	queryTotalStorage := grp.With(dataSource.QueryTotalStorage(start, end))
-	queryTotalLocalStorage := grp.With(dataSource.QueryLocalStorageBytesByProvider(providerName, start, end))
-
-	resChs = append(resChs, queryDataCount, queryTotalGPU, queryTotalCPU, queryTotalRAM, queryTotalStorage, queryTotalLocalStorage)
+	var queryCPUModePct *source.QueryGroupFuture[source.NodeCPUModePercentResult]
+	var queryRAMSystemPct *source.QueryGroupFuture[source.NodeRAMSystemPercentResult]
+	var queryRAMUserPct *source.QueryGroupFuture[source.NodeRAMUserPercentResult]
+	var queryUsedLocalStorage *source.QueryGroupFuture[source.LocalStorageUsedByProviderResult]
 
 	if withBreakdown {
-		queryCPUModePct := grp.With(dataSource.QueryNodeCPUModePercent(start, end))
-		queryRAMSystemPct := grp.With(dataSource.QueryNodeRAMSystemPercent(start, end))
-		queryRAMUserPct := grp.With(dataSource.QueryNodeRAMUserPercent(start, end))
-		queryUsedLocalStorage := grp.With(dataSource.QueryLocalStorageUsedByProvider(providerName, start, end))
-
-		resChs = append(resChs, queryCPUModePct, queryRAMSystemPct, queryRAMUserPct, queryUsedLocalStorage)
+		queryCPUModePct = source.WithGroup(grp, dataSource.QueryNodeCPUModePercent(start, end))
+		queryRAMSystemPct = source.WithGroup(grp, dataSource.QueryNodeRAMSystemPercent(start, end))
+		queryRAMUserPct = source.WithGroup(grp, dataSource.QueryNodeRAMUserPercent(start, end))
+		queryUsedLocalStorage = source.WithGroup(grp, dataSource.QueryLocalStorageUsedByProvider(providerName, start, end))
 	}
 
-	resDataCount, _ := resChs[0].Await()
-	resTotalGPU, _ := resChs[1].Await()
-	resTotalCPU, _ := resChs[2].Await()
-	resTotalRAM, _ := resChs[3].Await()
-	resTotalStorage, _ := resChs[4].Await()
+	resDataCount, _ := queryDataCount.Await()
+	resTotalGPU, _ := queryTotalGPU.Await()
+	resTotalCPU, _ := queryTotalCPU.Await()
+	resTotalRAM, _ := queryTotalRAM.Await()
+	resTotalStorage, _ := queryTotalStorage.Await()
 
 	if grp.HasErrors() {
 		return nil, grp.Error()
@@ -832,13 +829,14 @@ func (a *Accesses) ComputeClusterCosts(dataSource source.OpenCostDataSource, pro
 
 	dataMinsByCluster := map[string]float64{}
 	for _, result := range resDataCount {
-		clusterID, _ := result.GetCluster()
+		clusterID := result.Cluster
 		if clusterID == "" {
 			clusterID = defaultClusterID
 		}
+
 		dataMins := mins
-		if len(result.Values) > 0 {
-			dataMins = result.Values[0].Value
+		if len(result.Data) > 0 {
+			dataMins = result.Data[0].Value
 		} else {
 			log.Warnf("Cluster cost data count returned no results for cluster %s", clusterID)
 		}
@@ -864,18 +862,20 @@ func (a *Accesses) ComputeClusterCosts(dataSource source.OpenCostDataSource, pro
 
 	// Helper function to iterate over Prom query results, parsing the raw values into
 	// the intermediate costData structure.
-	setCostsFromResults := func(costData map[string]map[string]float64, results []*source.QueryResult, name string, discount float64, customDiscount float64) {
+	setCostsFromResults := func(costData map[string]map[string]float64, results []*source.TotalResult, name string, discount float64, customDiscount float64) {
 		for _, result := range results {
-			clusterID, _ := result.GetCluster()
+			clusterID := result.Cluster
 			if clusterID == "" {
 				clusterID = defaultClusterID
 			}
+
 			if _, ok := costData[clusterID]; !ok {
 				costData[clusterID] = map[string]float64{}
 			}
-			if len(result.Values) > 0 {
-				costData[clusterID][name] += result.Values[0].Value * (1.0 - discount) * (1.0 - customDiscount)
-				costData[clusterID]["total"] += result.Values[0].Value * (1.0 - discount) * (1.0 - customDiscount)
+
+			if len(result.Data) > 0 {
+				costData[clusterID][name] += result.Data[0].Value * (1.0 - discount) * (1.0 - customDiscount)
+				costData[clusterID]["total"] += result.Data[0].Value * (1.0 - discount) * (1.0 - customDiscount)
 			}
 		}
 	}
@@ -886,7 +886,7 @@ func (a *Accesses) ComputeClusterCosts(dataSource source.OpenCostDataSource, pro
 	setCostsFromResults(costData, resTotalGPU, "gpu", 0.0, customDiscount)
 	setCostsFromResults(costData, resTotalStorage, "storage", 0.0, customDiscount)
 
-	resTotalLocalStorage, err := resChs[5].Await()
+	resTotalLocalStorage, err := queryTotalLocalStorage.Await()
 	if err != nil {
 		return nil, err
 	}
@@ -899,16 +899,16 @@ func (a *Accesses) ComputeClusterCosts(dataSource source.OpenCostDataSource, pro
 	ramBreakdownMap := map[string]*ClusterCostsBreakdown{}
 	pvUsedCostMap := map[string]float64{}
 	if withBreakdown {
-		resCPUModePct, _ := resChs[6].Await()
-		resRAMSystemPct, _ := resChs[7].Await()
-		resRAMUserPct, _ := resChs[8].Await()
+		resCPUModePct, _ := queryCPUModePct.Await()
+		resRAMSystemPct, _ := queryRAMSystemPct.Await()
+		resRAMUserPct, _ := queryRAMUserPct.Await()
 
 		if grp.HasErrors() {
 			return nil, grp.Error()
 		}
 
 		for _, result := range resCPUModePct {
-			clusterID, _ := result.GetCluster()
+			clusterID := result.Cluster
 			if clusterID == "" {
 				clusterID = defaultClusterID
 			}
@@ -917,26 +917,26 @@ func (a *Accesses) ComputeClusterCosts(dataSource source.OpenCostDataSource, pro
 			}
 			cpuBD := cpuBreakdownMap[clusterID]
 
-			mode, err := result.GetString("mode")
-			if err != nil {
+			mode := result.Mode
+			if mode == "" {
 				log.Warnf("ComputeClusterCosts: unable to read CPU mode: %s", err)
 				mode = "other"
 			}
 
 			switch mode {
 			case "idle":
-				cpuBD.Idle += result.Values[0].Value
+				cpuBD.Idle += result.Data[0].Value
 			case "system":
-				cpuBD.System += result.Values[0].Value
+				cpuBD.System += result.Data[0].Value
 			case "user":
-				cpuBD.User += result.Values[0].Value
+				cpuBD.User += result.Data[0].Value
 			default:
-				cpuBD.Other += result.Values[0].Value
+				cpuBD.Other += result.Data[0].Value
 			}
 		}
 
 		for _, result := range resRAMSystemPct {
-			clusterID, _ := result.GetCluster()
+			clusterID := result.Cluster
 			if clusterID == "" {
 				clusterID = defaultClusterID
 			}
@@ -944,10 +944,10 @@ func (a *Accesses) ComputeClusterCosts(dataSource source.OpenCostDataSource, pro
 				ramBreakdownMap[clusterID] = &ClusterCostsBreakdown{}
 			}
 			ramBD := ramBreakdownMap[clusterID]
-			ramBD.System += result.Values[0].Value
+			ramBD.System += result.Data[0].Value
 		}
 		for _, result := range resRAMUserPct {
-			clusterID, _ := result.GetCluster()
+			clusterID := result.Cluster
 			if clusterID == "" {
 				clusterID = defaultClusterID
 			}
@@ -955,7 +955,7 @@ func (a *Accesses) ComputeClusterCosts(dataSource source.OpenCostDataSource, pro
 				ramBreakdownMap[clusterID] = &ClusterCostsBreakdown{}
 			}
 			ramBD := ramBreakdownMap[clusterID]
-			ramBD.User += result.Values[0].Value
+			ramBD.User += result.Data[0].Value
 		}
 		for _, ramBD := range ramBreakdownMap {
 			remaining := 1.0
@@ -965,17 +965,17 @@ func (a *Accesses) ComputeClusterCosts(dataSource source.OpenCostDataSource, pro
 			ramBD.Idle = remaining
 		}
 
-		resUsedLocalStorage, err := resChs[9].Await()
+		resUsedLocalStorage, err := queryUsedLocalStorage.Await()
 		if err != nil {
 			return nil, err
 		}
 
 		for _, result := range resUsedLocalStorage {
-			clusterID, _ := result.GetCluster()
+			clusterID := result.Cluster
 			if clusterID == "" {
 				clusterID = defaultClusterID
 			}
-			pvUsedCostMap[clusterID] += result.Values[0].Value
+			pvUsedCostMap[clusterID] += result.Data[0].Value
 		}
 	}
 
@@ -1025,14 +1025,14 @@ type Totals struct {
 	StorageCost [][]string `json:"storageCost"`
 }
 
-func resultToTotals(qrs []*source.QueryResult) ([][]string, error) {
+func resultToTotals(qrs []*source.ClusterResult) ([][]string, error) {
 	if len(qrs) == 0 {
 		return [][]string{}, fmt.Errorf("not enough data available in the selected time range")
 	}
 
 	result := qrs[0]
 	totals := [][]string{}
-	for _, value := range result.Values {
+	for _, value := range result.Data {
 		d0 := fmt.Sprintf("%f", value.Timestamp)
 		d1 := fmt.Sprintf("%f", value.Value)
 		toAppend := []string{
@@ -1054,10 +1054,10 @@ func ClusterCostsOverTime(dataSource source.OpenCostDataSource, provider models.
 
 	grp := source.NewQueryGroup()
 
-	qCores := grp.With(dataSource.QueryClusterCores(start, end, window))
-	qRAM := grp.With(dataSource.QueryClusterRAM(start, end, window))
-	qStorage := grp.With(dataSource.QueryClusterStorageByProvider(providerName, start, end, window))
-	qTotal := grp.With(dataSource.QueryClusterTotalByProvider(providerName, start, end, window))
+	qCores := source.WithGroup(grp, dataSource.QueryClusterCores(start, end, window))
+	qRAM := source.WithGroup(grp, dataSource.QueryClusterRAM(start, end, window))
+	qStorage := source.WithGroup(grp, dataSource.QueryClusterStorageByProvider(providerName, start, end, window))
+	qTotal := source.WithGroup(grp, dataSource.QueryClusterTotalByProvider(providerName, start, end, window))
 
 	resultClusterCores, _ := qCores.Await()
 	resultClusterRAM, _ := qRAM.Await()
@@ -1090,7 +1090,7 @@ func ClusterCostsOverTime(dataSource source.OpenCostDataSource, provider models.
 		// If clusterTotal query failed, it's likely because there are no PVs, which
 		// causes the qTotal query to return no data. Instead, query only node costs.
 		// If that fails, return an error because something is actually wrong.
-		qNodes := grp.With(dataSource.QueryClusterNodesByProvider(providerName, start, end, window))
+		qNodes := source.WithGroup(grp, dataSource.QueryClusterNodesByProvider(providerName, start, end, window))
 
 		resultNodes, err := qNodes.Await()
 		if err != nil {
@@ -1112,20 +1112,31 @@ func ClusterCostsOverTime(dataSource source.OpenCostDataSource, provider models.
 	}, nil
 }
 
-func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo []*source.QueryResult, cp models.Provider, window opencost.Window) {
+func pvCosts(
+	diskMap map[DiskIdentifier]*Disk,
+	resolution time.Duration,
+	resActiveMins []*source.PVActiveMinutesResult,
+	resPVSize []*source.PVBytesResult,
+	resPVCost []*source.PVPricePerGiBHourResult,
+	resPVUsedAvg []*source.PVUsedAvgResult,
+	resPVUsedMax []*source.PVUsedMaxResult,
+	resPVCInfo []*source.PVCInfoResult,
+	cp models.Provider,
+	window opencost.Window,
+) {
 	for _, result := range resActiveMins {
-		cluster, err := result.GetCluster()
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("persistentvolume")
-		if err != nil {
+		name := result.PersistentVolume
+		if name == "" {
 			log.Warnf("ClusterDisks: active mins missing pv name")
 			continue
 		}
 
-		if len(result.Values) == 0 {
+		if len(result.Data) == 0 {
 			continue
 		}
 
@@ -1138,7 +1149,7 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 			}
 		}
 
-		s, e := calculateStartAndEnd(result, resolution, window)
+		s, e := calculateStartAndEnd(result.Data, resolution, window)
 		mins := e.Sub(s).Minutes()
 
 		diskMap[key].End = e
@@ -1147,20 +1158,20 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 	}
 
 	for _, result := range resPVSize {
-		cluster, err := result.GetCluster()
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("persistentvolume")
-		if err != nil {
+		name := result.PersistentVolume
+		if name == "" {
 			log.Warnf("ClusterDisks: PV size data missing persistentvolume")
 			continue
 		}
 
 		// TODO niko/assets storage class
 
-		bytes := result.Values[0].Value
+		bytes := result.Data[0].Value
 		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
@@ -1179,13 +1190,13 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 	}
 
 	for _, result := range resPVCost {
-		cluster, err := result.GetCluster()
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("persistentvolume")
-		if err != nil {
+		name := result.PersistentVolume
+		if name == "" {
 			log.Warnf("ClusterDisks: PV cost data missing persistentvolume")
 			continue
 		}
@@ -1203,7 +1214,7 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 
 			cost = customPVCost
 		} else {
-			cost = result.Values[0].Value
+			cost = result.Data[0].Value
 		}
 
 		key := DiskIdentifier{cluster, name}
@@ -1216,25 +1227,26 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 		}
 
 		diskMap[key].Cost = cost * (diskMap[key].Bytes / 1024 / 1024 / 1024) * (diskMap[key].Minutes / 60)
-		providerID, _ := result.GetProviderID() // just put the providerID set up here, it's the simplest query.
+		providerID := result.ProviderID // just put the providerID set up here, it's the simplest query.
 		if providerID != "" {
 			diskMap[key].ProviderID = provider.ParsePVID(providerID)
 		}
 	}
 
 	for _, result := range resPVUsedAvg {
-		cluster, err := result.GetCluster()
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		claimName, err := result.GetString("persistentvolumeclaim")
-		if err != nil {
+		claimName := result.PersistentVolumeClaim
+		if claimName == "" {
 			log.Debugf("ClusterDisks: pv usage data missing persistentvolumeclaim")
 			continue
 		}
-		claimNamespace, err := result.GetNamespace()
-		if err != nil {
+
+		claimNamespace := result.Namespace
+		if claimNamespace == "" {
 			log.Debugf("ClusterDisks: pv usage data missing namespace")
 			continue
 		}
@@ -1243,25 +1255,25 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 
 		for _, thatRes := range resPVCInfo {
 
-			thatCluster, err := thatRes.GetCluster()
-			if err != nil {
+			thatCluster := thatRes.Cluster
+			if thatCluster == "" {
 				thatCluster = env.GetClusterID()
 			}
 
-			thatVolumeName, err := thatRes.GetString("volumename")
-			if err != nil {
+			thatVolumeName := thatRes.VolumeName
+			if thatVolumeName == "" {
 				log.Debugf("ClusterDisks: pv claim data missing volumename")
 				continue
 			}
 
-			thatClaimName, err := thatRes.GetString("persistentvolumeclaim")
-			if err != nil {
+			thatClaimName := thatRes.PersistentVolumeClaim
+			if thatClaimName == "" {
 				log.Debugf("ClusterDisks: pv claim data missing persistentvolumeclaim")
 				continue
 			}
 
-			thatClaimNamespace, err := thatRes.GetNamespace()
-			if err != nil {
+			thatClaimNamespace := thatRes.Namespace
+			if thatClaimNamespace == "" {
 				log.Debugf("ClusterDisks: pv claim data missing namespace")
 				continue
 			}
@@ -1271,7 +1283,7 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 			}
 		}
 
-		usage := result.Values[0].Value
+		usage := result.Data[0].Value
 
 		key := DiskIdentifier{cluster, volumeName}
 
@@ -1286,19 +1298,19 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 	}
 
 	for _, result := range resPVUsedMax {
-		cluster, err := result.GetCluster()
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		claimName, err := result.GetString("persistentvolumeclaim")
-		if err != nil {
+		claimName := result.PersistentVolumeClaim
+		if claimName == "" {
 			log.Debugf("ClusterDisks: pv usage data missing persistentvolumeclaim")
 			continue
 		}
 
-		claimNamespace, err := result.GetNamespace()
-		if err != nil {
+		claimNamespace := result.Namespace
+		if claimNamespace == "" {
 			log.Debugf("ClusterDisks: pv usage data missing namespace")
 			continue
 		}
@@ -1306,26 +1318,25 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 		var volumeName string
 
 		for _, thatRes := range resPVCInfo {
-
-			thatCluster, err := thatRes.GetCluster()
-			if err != nil {
+			thatCluster := thatRes.Cluster
+			if thatCluster == "" {
 				thatCluster = env.GetClusterID()
 			}
 
-			thatVolumeName, err := thatRes.GetString("volumename")
-			if err != nil {
+			thatVolumeName := thatRes.VolumeName
+			if thatVolumeName == "" {
 				log.Debugf("ClusterDisks: pv claim data missing volumename")
 				continue
 			}
 
-			thatClaimName, err := thatRes.GetString("persistentvolumeclaim")
-			if err != nil {
+			thatClaimName := thatRes.PersistentVolumeClaim
+			if thatClaimName == "" {
 				log.Debugf("ClusterDisks: pv claim data missing persistentvolumeclaim")
 				continue
 			}
 
-			thatClaimNamespace, err := thatRes.GetNamespace()
-			if err != nil {
+			thatClaimNamespace := thatRes.Namespace
+			if thatClaimNamespace == "" {
 				log.Debugf("ClusterDisks: pv claim data missing namespace")
 				continue
 			}
@@ -1335,7 +1346,7 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 			}
 		}
 
-		usage := result.Values[0].Value
+		usage := result.Data[0].Value
 
 		key := DiskIdentifier{cluster, volumeName}
 

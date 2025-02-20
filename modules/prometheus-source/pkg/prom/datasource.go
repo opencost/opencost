@@ -600,7 +600,7 @@ func (pds *PrometheusDataSource) MetaData() map[string]string {
 //  InstantMetricsQuerier
 //--------------------------------------------------------------------------
 
-func (pds *PrometheusDataSource) QueryPVPricePerGiBHour(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryPVPricePerGiBHour(start, end time.Time) *source.Future[source.PVPricePerGiBHourResult] {
 	const pvCostQuery = `avg(avg_over_time(pv_hourly_cost{%s}[%s])) by (%s, persistentvolume, volumename, provider_id)`
 
 	durStr := timeutil.DurationString(end.Sub(start))
@@ -611,10 +611,10 @@ func (pds *PrometheusDataSource) QueryPVPricePerGiBHour(start, end time.Time) so
 	queryPVCost := fmt.Sprintf(pvCostQuery, pds.promConfig.ClusterFilter, durStr, pds.promConfig.ClusterLabel)
 
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryPVCost, end)
+	return source.NewFuture(source.DecodePVPricePerGiBHourResult, ctx.QueryAtTime(queryPVCost, end))
 }
 
-func (pds *PrometheusDataSource) QueryPVUsedAverage(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryPVUsedAverage(start, end time.Time) *source.Future[source.PVUsedAvgResult] {
 	// `avg(avg_over_time(kubelet_volume_stats_used_bytes{%s}[%s])) by (%s, persistentvolumeclaim, namespace)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -628,10 +628,10 @@ func (pds *PrometheusDataSource) QueryPVUsedAverage(start, end time.Time) source
 
 	queryPVUsedAvg := fmt.Sprintf(pvUsedAverageQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryPVUsedAvg, end)
+	return source.NewFuture(source.DecodePVUsedAvgResult, ctx.QueryAtTime(queryPVUsedAvg, end))
 }
 
-func (pds *PrometheusDataSource) QueryPVUsedMax(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryPVUsedMax(start, end time.Time) *source.Future[source.PVUsedMaxResult] {
 	// `max(max_over_time(kubelet_volume_stats_used_bytes{%s}[%s])) by (%s, persistentvolumeclaim, namespace)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -645,30 +645,10 @@ func (pds *PrometheusDataSource) QueryPVUsedMax(start, end time.Time) source.Que
 
 	queryPVUsedMax := fmt.Sprintf(pvUsedMaxQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryPVUsedMax, end)
+	return source.NewFuture(source.DecodePVUsedMaxResult, ctx.QueryAtTime(queryPVUsedMax, end))
 }
 
-/*
-func (pds *PrometheusDataSource) QueryPVCInfo(start, end time.Time) source.QueryResultsChan {
-	// `avg(avg_over_time(kube_persistentvolumeclaim_info{%s}[%s])) by (%s, volumename, persistentvolumeclaim, namespace)`
-	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
-
-	const pvcInfoQuery = `avg(avg_over_time(kube_persistentvolumeclaim_info{%s}[%s])) by (%s, volumename, persistentvolumeclaim, namespace)`
-
-	cfg := pds.promConfig
-
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		panic("failed to parse duration string passed to QueryPVCInfo")
-	}
-
-	queryPVCInfo := fmt.Sprintf(pvcInfoQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
-	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryPVCInfo, end)
-}
-*/
-
-func (pds *PrometheusDataSource) QueryPVCInfo(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryPVCInfo(start, end time.Time) *source.Future[source.PVCInfoResult] {
 	const queryFmtPVCInfo = `avg(kube_persistentvolumeclaim_info{volumename != "", %s}) by (persistentvolumeclaim, storageclass, volumename, namespace, %s)[%s:%s]`
 	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr)
 
@@ -683,10 +663,10 @@ func (pds *PrometheusDataSource) QueryPVCInfo(start, end time.Time) source.Query
 
 	queryPVCInfo := fmt.Sprintf(queryFmtPVCInfo, cfg.ClusterFilter, cfg.ClusterLabel, durStr, resStr)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryPVCInfo, end)
+	return source.NewFuture(source.DecodePVCInfoResult, ctx.QueryAtTime(queryPVCInfo, end))
 }
 
-func (pds *PrometheusDataSource) QueryPVActiveMinutes(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryPVActiveMinutes(start, end time.Time) *source.Future[source.PVActiveMinutesResult] {
 	const pvActiveMinsQuery = `avg(kube_persistentvolume_capacity_bytes{%s}) by (%s, persistentvolume)[%s:%dm]`
 	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
 
@@ -700,10 +680,10 @@ func (pds *PrometheusDataSource) QueryPVActiveMinutes(start, end time.Time) sour
 
 	queryPVActiveMins := fmt.Sprintf(pvActiveMinsQuery, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryPVActiveMins, end)
+	return source.NewFuture(source.DecodePVActiveMinutesResult, ctx.QueryAtTime(queryPVActiveMins, end))
 }
 
-func (pds *PrometheusDataSource) QueryLocalStorageCost(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryLocalStorageCost(start, end time.Time) *source.Future[source.LocalStorageCostResult] {
 	// `sum_over_time(sum(container_fs_limit_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}) by (instance, device, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`
 	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution, hourlyToCumulative, costPerGBHr)
 
@@ -732,10 +712,10 @@ func (pds *PrometheusDataSource) QueryLocalStorageCost(start, end time.Time) sou
 
 	queryLocalStorageCost := fmt.Sprintf(localStorageCostQuery, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution, hourlyToCumulative, costPerGBHr)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryLocalStorageCost, end)
+	return source.NewFuture(source.DecodeLocalStorageCostResult, ctx.QueryAtTime(queryLocalStorageCost, end))
 }
 
-func (pds *PrometheusDataSource) QueryLocalStorageUsedCost(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryLocalStorageUsedCost(start, end time.Time) *source.Future[source.LocalStorageUsedCostResult] {
 	// `sum_over_time(sum(container_fs_usage_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}) by (instance, device, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`
 	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution, hourlyToCumulative, costPerGBHr)
 
@@ -757,10 +737,10 @@ func (pds *PrometheusDataSource) QueryLocalStorageUsedCost(start, end time.Time)
 
 	queryLocalStorageUsedCost := fmt.Sprintf(localStorageUsedCostQuery, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution, hourlyToCumulative, costPerGBHr)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryLocalStorageUsedCost, end)
+	return source.NewFuture(source.DecodeLocalStorageUsedCostResult, ctx.QueryAtTime(queryLocalStorageUsedCost, end))
 }
 
-func (pds *PrometheusDataSource) QueryLocalStorageUsedAvg(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryLocalStorageUsedAvg(start, end time.Time) *source.Future[source.LocalStorageUsedAvgResult] {
 	// `avg(sum(avg_over_time(container_fs_usage_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}[%s])) by (instance, device, %s, job)) by (instance, device, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel(), env.GetPromClusterLabel())
 
@@ -775,10 +755,10 @@ func (pds *PrometheusDataSource) QueryLocalStorageUsedAvg(start, end time.Time) 
 
 	queryLocalStorageUsedAvg := fmt.Sprintf(localStorageUsedAvgQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryLocalStorageUsedAvg, end)
+	return source.NewFuture(source.DecodeLocalStorageUsedAvgResult, ctx.QueryAtTime(queryLocalStorageUsedAvg, end))
 }
 
-func (pds *PrometheusDataSource) QueryLocalStorageUsedMax(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryLocalStorageUsedMax(start, end time.Time) *source.Future[source.LocalStorageUsedMaxResult] {
 	// `max(sum(max_over_time(container_fs_usage_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}[%s])) by (instance, device, %s, job)) by (instance, device, %s)`
 	//  env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel(), env.GetPromClusterLabel())
 	const localStorageUsedMaxQuery = `max(sum(max_over_time(container_fs_usage_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}[%s])) by (instance, device, %s, job)) by (instance, device, %s)`
@@ -792,10 +772,10 @@ func (pds *PrometheusDataSource) QueryLocalStorageUsedMax(start, end time.Time) 
 
 	queryLocalStorageUsedMax := fmt.Sprintf(localStorageUsedMaxQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryLocalStorageUsedMax, end)
+	return source.NewFuture(source.DecodeLocalStorageUsedMaxResult, ctx.QueryAtTime(queryLocalStorageUsedMax, end))
 }
 
-func (pds *PrometheusDataSource) QueryLocalStorageBytes(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryLocalStorageBytes(start, end time.Time) *source.Future[source.LocalStorageBytesResult] {
 	// `avg_over_time(sum(container_fs_limit_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}) by (instance, device, %s)[%s:%dm])`
 	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
 
@@ -811,10 +791,10 @@ func (pds *PrometheusDataSource) QueryLocalStorageBytes(start, end time.Time) so
 
 	queryLocalStorageBytes := fmt.Sprintf(localStorageBytesQuery, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryLocalStorageBytes, end)
+	return source.NewFuture(source.DecodeLocalStorageBytesResult, ctx.QueryAtTime(queryLocalStorageBytes, end))
 }
 
-func (pds *PrometheusDataSource) QueryLocalStorageActiveMinutes(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryLocalStorageActiveMinutes(start, end time.Time) *source.Future[source.LocalStorageActiveMinutesResult] {
 	// `count(node_total_hourly_cost{%s}) by (%s, node)[%s:%dm]`
 	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
 
@@ -830,10 +810,10 @@ func (pds *PrometheusDataSource) QueryLocalStorageActiveMinutes(start, end time.
 
 	queryLocalStorageActiveMins := fmt.Sprintf(localStorageActiveMinutesQuery, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryLocalStorageActiveMins, end)
+	return source.NewFuture(source.DecodeLocalStorageActiveMinutesResult, ctx.QueryAtTime(queryLocalStorageActiveMins, end))
 }
 
-func (pds *PrometheusDataSource) QueryLocalStorageBytesByProvider(provider string, start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryLocalStorageBytesByProvider(provider string, start, end time.Time) *source.Future[source.LocalStorageBytesByProviderResult] {
 	var localStorageBytesQuery string
 
 	key := strings.ToLower(provider)
@@ -844,14 +824,14 @@ func (pds *PrometheusDataSource) QueryLocalStorageBytesByProvider(provider strin
 	}
 
 	if localStorageBytesQuery == "" {
-		return newEmptyResult()
+		return newEmptyResult(source.DecodeLocalStorageBytesByProviderResult)
 	}
 
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(localStorageBytesQuery, end)
+	return source.NewFuture(source.DecodeLocalStorageBytesByProviderResult, ctx.QueryAtTime(localStorageBytesQuery, end))
 }
 
-func (pds *PrometheusDataSource) QueryLocalStorageUsedByProvider(provider string, start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryLocalStorageUsedByProvider(provider string, start, end time.Time) *source.Future[source.LocalStorageUsedByProviderResult] {
 	var localStorageUsedQuery string
 
 	key := strings.ToLower(provider)
@@ -862,14 +842,14 @@ func (pds *PrometheusDataSource) QueryLocalStorageUsedByProvider(provider string
 	}
 
 	if localStorageUsedQuery == "" {
-		return newEmptyResult()
+		return newEmptyResult(source.DecodeLocalStorageUsedByProviderResult)
 	}
 
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(localStorageUsedQuery, end)
+	return source.NewFuture(source.DecodeLocalStorageUsedByProviderResult, ctx.QueryAtTime(localStorageUsedQuery, end))
 }
 
-func (pds *PrometheusDataSource) QueryNodeCPUCoresCapacity(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNodeCPUCoresCapacity(start, end time.Time) *source.Future[source.NodeCPUCoresCapacityResult] {
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
 	const nodeCPUCoresCapacityQuery = `avg(avg_over_time(kube_node_status_capacity_cpu_cores{%s}[%s])) by (%s, node)`
@@ -883,10 +863,10 @@ func (pds *PrometheusDataSource) QueryNodeCPUCoresCapacity(start, end time.Time)
 
 	queryNodeCPUCoresCapacity := fmt.Sprintf(nodeCPUCoresCapacityQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryNodeCPUCoresCapacity, end)
+	return source.NewFuture(source.DecodeNodeCPUCoresCapacityResult, ctx.QueryAtTime(queryNodeCPUCoresCapacity, end))
 }
 
-func (pds *PrometheusDataSource) QueryNodeCPUCoresAllocatable(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNodeCPUCoresAllocatable(start, end time.Time) *source.Future[source.NodeCPUCoresAllocatableResult] {
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
 	const nodeCPUCoresAllocatableQuery = `avg(avg_over_time(kube_node_status_allocatable_cpu_cores{%s}[%s])) by (%s, node)`
@@ -901,10 +881,10 @@ func (pds *PrometheusDataSource) QueryNodeCPUCoresAllocatable(start, end time.Ti
 
 	queryNodeCPUCoresAllocatable := fmt.Sprintf(nodeCPUCoresAllocatableQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryNodeCPUCoresAllocatable, end)
+	return source.NewFuture(source.DecodeNodeCPUCoresAllocatableResult, ctx.QueryAtTime(queryNodeCPUCoresAllocatable, end))
 }
 
-func (pds *PrometheusDataSource) QueryNodeRAMBytesCapacity(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNodeRAMBytesCapacity(start, end time.Time) *source.Future[source.NodeRAMBytesCapacityResult] {
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
 	const nodeRAMBytesCapacityQuery = `avg(avg_over_time(kube_node_status_capacity_memory_bytes{%s}[%s])) by (%s, node)`
@@ -918,10 +898,10 @@ func (pds *PrometheusDataSource) QueryNodeRAMBytesCapacity(start, end time.Time)
 
 	queryNodeRAMBytesCapacity := fmt.Sprintf(nodeRAMBytesCapacityQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryNodeRAMBytesCapacity, end)
+	return source.NewFuture(source.DecodeNodeRAMBytesCapacityResult, ctx.QueryAtTime(queryNodeRAMBytesCapacity, end))
 }
 
-func (pds *PrometheusDataSource) QueryNodeRAMBytesAllocatable(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNodeRAMBytesAllocatable(start, end time.Time) *source.Future[source.NodeRAMBytesAllocatableResult] {
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
 	const nodeRAMBytesAllocatableQuery = `avg(avg_over_time(kube_node_status_allocatable_memory_bytes{%s}[%s])) by (%s, node)`
@@ -935,10 +915,10 @@ func (pds *PrometheusDataSource) QueryNodeRAMBytesAllocatable(start, end time.Ti
 
 	queryNodeRAMBytesAllocatable := fmt.Sprintf(nodeRAMBytesAllocatableQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryNodeRAMBytesAllocatable, end)
+	return source.NewFuture(source.DecodeNodeRAMBytesAllocatableResult, ctx.QueryAtTime(queryNodeRAMBytesAllocatable, end))
 }
 
-func (pds *PrometheusDataSource) QueryNodeGPUCount(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNodeGPUCount(start, end time.Time) *source.Future[source.NodeGPUCountResult] {
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
 	const nodeGPUCountQuery = `avg(avg_over_time(node_gpu_count{%s}[%s])) by (%s, node, provider_id)`
@@ -952,10 +932,10 @@ func (pds *PrometheusDataSource) QueryNodeGPUCount(start, end time.Time) source.
 
 	queryNodeGPUCount := fmt.Sprintf(nodeGPUCountQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryNodeGPUCount, end)
+	return source.NewFuture(source.DecodeNodeGPUCountResult, ctx.QueryAtTime(queryNodeGPUCount, end))
 }
 
-func (pds *PrometheusDataSource) QueryNodeLabels(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNodeLabels(start, end time.Time) *source.Future[source.NodeLabelsResult] {
 	const labelsQuery = `avg_over_time(kube_node_labels{%s}[%s])`
 	// env.GetPromClusterFilter(), durStr
 
@@ -968,10 +948,10 @@ func (pds *PrometheusDataSource) QueryNodeLabels(start, end time.Time) source.Qu
 
 	queryLabels := fmt.Sprintf(labelsQuery, cfg.ClusterFilter, durStr)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryLabels, end)
+	return source.NewFuture(source.DecodeNodeLabelsResult, ctx.QueryAtTime(queryLabels, end))
 }
 
-func (pds *PrometheusDataSource) QueryNodeActiveMinutes(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNodeActiveMinutes(start, end time.Time) *source.Future[source.NodeActiveMinutesResult] {
 	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
 
 	const activeMinsQuery = `avg(node_total_hourly_cost{%s}) by (node, %s, provider_id)[%s:%dm]`
@@ -986,10 +966,10 @@ func (pds *PrometheusDataSource) QueryNodeActiveMinutes(start, end time.Time) so
 
 	queryActiveMins := fmt.Sprintf(activeMinsQuery, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryActiveMins, end)
+	return source.NewFuture(source.DecodeNodeActiveMinutesResult, ctx.QueryAtTime(queryActiveMins, end))
 }
 
-func (pds *PrometheusDataSource) QueryNodeCPUModeTotal(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNodeCPUModeTotal(start, end time.Time) *source.Future[source.NodeCPUModeTotalResult] {
 	// env.GetPromClusterFilter(), durStr, minsPerResolution, env.GetPromClusterLabel())
 
 	const nodeCPUModeTotalQuery = `sum(rate(node_cpu_seconds_total{%s}[%s:%dm])) by (kubernetes_node, %s, mode)`
@@ -1004,10 +984,10 @@ func (pds *PrometheusDataSource) QueryNodeCPUModeTotal(start, end time.Time) sou
 
 	queryCPUModeTotal := fmt.Sprintf(nodeCPUModeTotalQuery, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryCPUModeTotal, end)
+	return source.NewFuture(source.DecodeNodeCPUModeTotalResult, ctx.QueryAtTime(queryCPUModeTotal, end))
 }
 
-func (pds *PrometheusDataSource) QueryNodeCPUModePercent(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNodeCPUModePercent(start, end time.Time) *source.Future[source.NodeCPUModePercentResult] {
 	const fmtQueryCPUModePct = `
 		sum(rate(node_cpu_seconds_total{%s}[%s])) by (%s, mode) / ignoring(mode)
 		group_left sum(rate(node_cpu_seconds_total{%s}[%s])) by (%s)
@@ -1023,10 +1003,10 @@ func (pds *PrometheusDataSource) QueryNodeCPUModePercent(start, end time.Time) s
 
 	queryCPUModePct := fmt.Sprintf(fmtQueryCPUModePct, cfg.ClusterFilter, durStr, cfg.ClusterLabel, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryCPUModePct, end)
+	return source.NewFuture(source.DecodeNodeCPUModePercentResult, ctx.QueryAtTime(queryCPUModePct, end))
 }
 
-func (pds *PrometheusDataSource) QueryNodeRAMSystemPercent(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNodeRAMSystemPercent(start, end time.Time) *source.Future[source.NodeRAMSystemPercentResult] {
 	// env.GetPromClusterFilter(), durStr, minsPerResolution, env.GetPromClusterLabel(), env.GetPromClusterFilter(), durStr, minsPerResolution, env.GetPromClusterLabel(), env.GetPromClusterLabel())
 
 	const nodeRAMSystemPctQuery = `sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace="kube-system", %s}[%s:%dm])) by (instance, %s) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes{%s}[%s:%dm])) by (node, %s), "instance", "$1", "node", "(.*)")) by (instance, %s)`
@@ -1041,10 +1021,10 @@ func (pds *PrometheusDataSource) QueryNodeRAMSystemPercent(start, end time.Time)
 
 	queryRAMSystemPct := fmt.Sprintf(nodeRAMSystemPctQuery, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryRAMSystemPct, end)
+	return source.NewFuture(source.DecodeNodeRAMSystemPercentResult, ctx.QueryAtTime(queryRAMSystemPct, end))
 }
 
-func (pds *PrometheusDataSource) QueryNodeRAMUserPercent(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNodeRAMUserPercent(start, end time.Time) *source.Future[source.NodeRAMUserPercentResult] {
 	// env.GetPromClusterFilter(), durStr, minsPerResolution, env.GetPromClusterLabel(), env.GetPromClusterFilter(), durStr, minsPerResolution, env.GetPromClusterLabel(), env.GetPromClusterLabel())
 
 	const nodeRAMUserPctQuery = `sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace!="kube-system", %s}[%s:%dm])) by (instance, %s) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes{%s}[%s:%dm])) by (node, %s), "instance", "$1", "node", "(.*)")) by (instance, %s)`
@@ -1059,10 +1039,10 @@ func (pds *PrometheusDataSource) QueryNodeRAMUserPercent(start, end time.Time) s
 
 	queryRAMUserPct := fmt.Sprintf(nodeRAMUserPctQuery, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryRAMUserPct, end)
+	return source.NewFuture(source.DecodeNodeRAMUserPercentResult, ctx.QueryAtTime(queryRAMUserPct, end))
 }
 
-func (pds *PrometheusDataSource) QueryLBPricePerHr(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryLBPricePerHr(start, end time.Time) *source.Future[source.LBPricePerHrResult] {
 	const queryFmtLBCostPerHr = `avg(avg_over_time(kubecost_load_balancer_cost{%s}[%s])) by (namespace, service_name, ingress_ip, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -1075,10 +1055,10 @@ func (pds *PrometheusDataSource) QueryLBPricePerHr(start, end time.Time) source.
 
 	queryLBCostPerHr := fmt.Sprintf(queryFmtLBCostPerHr, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryLBCostPerHr, end)
+	return source.NewFuture(source.DecodeLBPricePerHrResult, ctx.QueryAtTime(queryLBCostPerHr, end))
 }
 
-func (pds *PrometheusDataSource) QueryLBActiveMinutes(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryLBActiveMinutes(start, end time.Time) *source.Future[source.LBActiveMinutesResult] {
 	const lbActiveMinutesQuery = `avg(kubecost_load_balancer_cost{%s}) by (namespace, service_name, %s, ingress_ip)[%s:%dm]`
 	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, minsPerResolution)
 
@@ -1092,10 +1072,10 @@ func (pds *PrometheusDataSource) QueryLBActiveMinutes(start, end time.Time) sour
 
 	queryLBActiveMins := fmt.Sprintf(lbActiveMinutesQuery, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryLBActiveMins, end)
+	return source.NewFuture(source.DecodeLBActiveMinutesResult, ctx.QueryAtTime(queryLBActiveMins, end))
 }
 
-func (pds *PrometheusDataSource) QueryClusterManagementDuration(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryClusterManagementDuration(start, end time.Time) *source.Future[source.ClusterManagementDurationResult] {
 	const clusterManagementDurationQuery = `avg(kubecost_cluster_management_cost{%s}) by (%s, provisioner_name)[%s:%dm]`
 
 	cfg := pds.promConfig
@@ -1108,10 +1088,10 @@ func (pds *PrometheusDataSource) QueryClusterManagementDuration(start, end time.
 
 	queryClusterManagementDuration := fmt.Sprintf(clusterManagementDurationQuery, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryClusterManagementDuration, end)
+	return source.NewFuture(source.DecodeClusterManagementDurationResult, ctx.QueryAtTime(queryClusterManagementDuration, end))
 }
 
-func (pds *PrometheusDataSource) QueryClusterManagementPricePerHr(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryClusterManagementPricePerHr(start, end time.Time) *source.Future[source.ClusterManagementPricePerHrResult] {
 	const clusterManagementCostQuery = `avg(avg_over_time(kubecost_cluster_management_cost{%s}[%s])) by (%s, provisioner_name)`
 	// env.GetPromClusterFilter(), durationStr, env.GetPromClusterLabel()
 
@@ -1124,10 +1104,10 @@ func (pds *PrometheusDataSource) QueryClusterManagementPricePerHr(start, end tim
 
 	queryClusterManagementCost := fmt.Sprintf(clusterManagementCostQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryClusterManagementCost, end)
+	return source.NewFuture(source.DecodeClusterManagementPricePerHrResult, ctx.QueryAtTime(queryClusterManagementCost, end))
 }
 
-func (pds *PrometheusDataSource) QueryDataCount(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryDataCount(start, end time.Time) *source.Future[source.DataCountResult] {
 	const fmtQueryDataCount = `
 		count_over_time(sum(kube_node_status_capacity_cpu_cores{%s}) by (%s)[%s:%dm]) * %d
 	`
@@ -1143,10 +1123,10 @@ func (pds *PrometheusDataSource) QueryDataCount(start, end time.Time) source.Que
 
 	queryDataCount := fmt.Sprintf(fmtQueryDataCount, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution, minsPerResolution)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryDataCount, end)
+	return source.NewFuture(source.DecodeDataCountResult, ctx.QueryAtTime(queryDataCount, end))
 }
 
-func (pds *PrometheusDataSource) QueryTotalGPU(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryTotalGPU(start, end time.Time) *source.Future[source.TotalGPUResult] {
 	const fmtQueryTotalGPU = `
 		sum(
 			sum_over_time(node_gpu_hourly_cost{%s}[%s:%dm]) * %f
@@ -1169,10 +1149,10 @@ func (pds *PrometheusDataSource) QueryTotalGPU(start, end time.Time) source.Quer
 
 	queryTotalGPU := fmt.Sprintf(fmtQueryTotalGPU, cfg.ClusterFilter, durStr, minsPerResolution, hourlyToCumulative, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryTotalGPU, end)
+	return source.NewFuture(source.DecodeTotalGPUResult, ctx.QueryAtTime(queryTotalGPU, end))
 }
 
-func (pds *PrometheusDataSource) QueryTotalCPU(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryTotalCPU(start, end time.Time) *source.Future[source.TotalCPUResult] {
 	const fmtQueryTotalCPU = `
 		sum(
 			sum_over_time(avg(kube_node_status_capacity_cpu_cores{%s}) by (node, %s)[%s:%dm]) *
@@ -1196,10 +1176,10 @@ func (pds *PrometheusDataSource) QueryTotalCPU(start, end time.Time) source.Quer
 
 	queryTotalCPU := fmt.Sprintf(fmtQueryTotalCPU, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel, hourlyToCumulative, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryTotalCPU, end)
+	return source.NewFuture(source.DecodeTotalCPUResult, ctx.QueryAtTime(queryTotalCPU, end))
 }
 
-func (pds *PrometheusDataSource) QueryTotalRAM(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryTotalRAM(start, end time.Time) *source.Future[source.TotalRAMResult] {
 	const fmtQueryTotalRAM = `
 		sum(
 			sum_over_time(avg(kube_node_status_capacity_memory_bytes{%s}) by (node, %s)[%s:%dm]) / 1024 / 1024 / 1024 *
@@ -1223,10 +1203,10 @@ func (pds *PrometheusDataSource) QueryTotalRAM(start, end time.Time) source.Quer
 
 	queryTotalRAM := fmt.Sprintf(fmtQueryTotalRAM, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel, hourlyToCumulative, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryTotalRAM, end)
+	return source.NewFuture(source.DecodeTotalRAMResult, ctx.QueryAtTime(queryTotalRAM, end))
 }
 
-func (pds *PrometheusDataSource) QueryTotalStorage(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryTotalStorage(start, end time.Time) *source.Future[source.TotalStorageResult] {
 	const fmtQueryTotalStorage = `
 		sum(
 			sum_over_time(avg(kube_persistentvolume_capacity_bytes{%s}) by (persistentvolume, %s)[%s:%dm]) / 1024 / 1024 / 1024 *
@@ -1250,10 +1230,10 @@ func (pds *PrometheusDataSource) QueryTotalStorage(start, end time.Time) source.
 
 	queryTotalStorage := fmt.Sprintf(fmtQueryTotalStorage, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel, hourlyToCumulative, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryAtTime(queryTotalStorage, end)
+	return source.NewFuture(source.DecodeTotalStorageResult, ctx.QueryAtTime(queryTotalStorage, end))
 }
 
-func (pds *PrometheusDataSource) QueryClusterCores(start, end time.Time, step time.Duration) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryClusterCores(start, end time.Time, step time.Duration) *source.Future[source.ClusterCoresResult] {
 	const queryClusterCores = `sum(
 		avg(avg_over_time(kube_node_status_capacity_cpu_cores{%s}[%s])) by (node, %s) * avg(avg_over_time(node_cpu_hourly_cost{%s}[%s])) by (node, %s) * 730 +
 		avg(avg_over_time(node_gpu_hourly_cost{%s}[%s])) by (node, %s) * 730
@@ -1269,10 +1249,10 @@ func (pds *PrometheusDataSource) QueryClusterCores(start, end time.Time, step ti
 
 	clusterCoresQuery := fmt.Sprintf(queryClusterCores, cfg.ClusterFilter, durStr, cfg.ClusterLabel, cfg.ClusterFilter, durStr, cfg.ClusterLabel, cfg.ClusterFilter, durStr, cfg.ClusterLabel, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryRange(clusterCoresQuery, start, end, step)
+	return source.NewFuture(source.DecodeClusterCoresResult, ctx.QueryRange(clusterCoresQuery, start, end, step))
 }
 
-func (pds *PrometheusDataSource) QueryClusterRAM(start, end time.Time, step time.Duration) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryClusterRAM(start, end time.Time, step time.Duration) *source.Future[source.ClusterRAMResult] {
 	const queryClusterRAM = `sum(
 		avg(avg_over_time(kube_node_status_capacity_memory_bytes{%s}[%s])) by (node, %s) / 1024 / 1024 / 1024 * avg(avg_over_time(node_ram_hourly_cost{%s}[%s])) by (node, %s) * 730
 	  ) by (%s)`
@@ -1287,14 +1267,14 @@ func (pds *PrometheusDataSource) QueryClusterRAM(start, end time.Time, step time
 
 	clusterRAMQuery := fmt.Sprintf(queryClusterRAM, cfg.ClusterFilter, durStr, cfg.ClusterLabel, cfg.ClusterFilter, durStr, cfg.ClusterLabel, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryRange(clusterRAMQuery, start, end, step)
+	return source.NewFuture(source.DecodeClusterRAMResult, ctx.QueryRange(clusterRAMQuery, start, end, step))
 }
 
-func (pds *PrometheusDataSource) QueryClusterStorage(start, end time.Time, step time.Duration) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryClusterStorage(start, end time.Time, step time.Duration) *source.Future[source.ClusterStorageResult] {
 	return pds.QueryClusterStorageByProvider("", start, end, step)
 }
 
-func (pds *PrometheusDataSource) QueryClusterStorageByProvider(provider string, start, end time.Time, step time.Duration) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryClusterStorageByProvider(provider string, start, end time.Time, step time.Duration) *source.Future[source.ClusterStorageResult] {
 	const queryStorage = `sum(
 		avg(avg_over_time(pv_hourly_cost{%s}[%s])) by (persistentvolume, %s) * 730
 		* avg(avg_over_time(kube_persistentvolume_capacity_bytes{%s}[%s])) by (persistentvolume, %s) / 1024 / 1024 / 1024
@@ -1324,14 +1304,14 @@ func (pds *PrometheusDataSource) QueryClusterStorageByProvider(provider string, 
 
 	clusterStorageQuery := fmt.Sprintf(queryStorage, cfg.ClusterFilter, durStr, cfg.ClusterLabel, cfg.ClusterFilter, durStr, cfg.ClusterLabel, cfg.ClusterLabel, localStorageQuery)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryRange(clusterStorageQuery, start, end, step)
+	return source.NewFuture(source.DecodeClusterStorageResult, ctx.QueryRange(clusterStorageQuery, start, end, step))
 }
 
-func (pds *PrometheusDataSource) QueryClusterTotal(start, end time.Time, step time.Duration) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryClusterTotal(start, end time.Time, step time.Duration) *source.Future[source.ClusterTotalResult] {
 	return pds.QueryClusterTotalByProvider("", start, end, step)
 }
 
-func (pds *PrometheusDataSource) QueryClusterTotalByProvider(provider string, start, end time.Time, step time.Duration) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryClusterTotalByProvider(provider string, start, end time.Time, step time.Duration) *source.Future[source.ClusterTotalResult] {
 	const queryTotal = `sum(avg(node_total_hourly_cost{%s}) by (node, %s)) * 730 +
 	  sum(
 		avg(avg_over_time(pv_hourly_cost{%s}[1h])) by (persistentvolume, %s) * 730
@@ -1361,14 +1341,14 @@ func (pds *PrometheusDataSource) QueryClusterTotalByProvider(provider string, st
 
 	clusterTotalQuery := fmt.Sprintf(queryTotal, cfg.ClusterFilter, cfg.ClusterLabel, cfg.ClusterFilter, cfg.ClusterLabel, cfg.ClusterFilter, cfg.ClusterLabel, cfg.ClusterLabel, localStorageQuery)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryRange(clusterTotalQuery, start, end, step)
+	return source.NewFuture(source.DecodeClusterTotalResult, ctx.QueryRange(clusterTotalQuery, start, end, step))
 }
 
-func (pds *PrometheusDataSource) QueryClusterNodes(start, end time.Time, step time.Duration) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryClusterNodes(start, end time.Time, step time.Duration) *source.Future[source.ClusterNodesResult] {
 	return pds.QueryClusterNodesByProvider("", start, end, step)
 }
 
-func (pds *PrometheusDataSource) QueryClusterNodesByProvider(provider string, start, end time.Time, step time.Duration) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryClusterNodesByProvider(provider string, start, end time.Time, step time.Duration) *source.Future[source.ClusterNodesResult] {
 	const queryNodes = `sum(avg(node_total_hourly_cost{%s}) by (node, %s)) * 730 %s`
 	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), localStorageQuery)
 
@@ -1395,12 +1375,12 @@ func (pds *PrometheusDataSource) QueryClusterNodesByProvider(provider string, st
 
 	clusterNodesCostQuery := fmt.Sprintf(queryNodes, cfg.ClusterFilter, cfg.ClusterLabel, localStorageQuery)
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return ctx.QueryRange(clusterNodesCostQuery, start, end, step)
+	return source.NewFuture(source.DecodeClusterNodesResult, ctx.QueryRange(clusterNodesCostQuery, start, end, step))
 }
 
 // AllocationMetricQuerier
 
-func (pds *PrometheusDataSource) QueryPods(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryPods(start, end time.Time) *source.Future[source.PodsResult] {
 	const queryFmtPods = `avg(kube_pod_container_status_running{%s} != 0) by (pod, namespace, %s)[%s:%s]`
 	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr)
 
@@ -1415,10 +1395,10 @@ func (pds *PrometheusDataSource) QueryPods(start, end time.Time) source.QueryRes
 
 	queryPods := fmt.Sprintf(queryFmtPods, cfg.ClusterFilter, cfg.ClusterLabel, durStr, resStr)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryPods, end)
+	return source.NewFuture(source.DecodePodsResult, ctx.QueryAtTime(queryPods, end))
 }
 
-func (pds *PrometheusDataSource) QueryPodsUID(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryPodsUID(start, end time.Time) *source.Future[source.PodsResult] {
 	const queryFmtPodsUID = `avg(kube_pod_container_status_running{%s} != 0) by (pod, namespace, uid, %s)[%s:%s]`
 	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr)
 
@@ -1433,10 +1413,10 @@ func (pds *PrometheusDataSource) QueryPodsUID(start, end time.Time) source.Query
 
 	queryPodsUID := fmt.Sprintf(queryFmtPodsUID, cfg.ClusterFilter, cfg.ClusterLabel, durStr, resStr)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryPodsUID, end)
+	return source.NewFuture(source.DecodePodsResult, ctx.QueryAtTime(queryPodsUID, end))
 }
 
-func (pds *PrometheusDataSource) QueryRAMBytesAllocated(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryRAMBytesAllocated(start, end time.Time) *source.Future[source.RAMBytesAllocatedResult] {
 	const queryFmtRAMBytesAllocated = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s, provider_id)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -1449,10 +1429,10 @@ func (pds *PrometheusDataSource) QueryRAMBytesAllocated(start, end time.Time) so
 
 	queryRAMBytesAllocated := fmt.Sprintf(queryFmtRAMBytesAllocated, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryRAMBytesAllocated, end)
+	return source.NewFuture(source.DecodeRAMBytesAllocatedResult, ctx.QueryAtTime(queryRAMBytesAllocated, end))
 }
 
-func (pds *PrometheusDataSource) QueryRAMRequests(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryRAMRequests(start, end time.Time) *source.Future[source.RAMRequestsResult] {
 	const queryFmtRAMRequests = `avg(avg_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
@@ -1465,10 +1445,10 @@ func (pds *PrometheusDataSource) QueryRAMRequests(start, end time.Time) source.Q
 
 	queryRAMRequests := fmt.Sprintf(queryFmtRAMRequests, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryRAMRequests, end)
+	return source.NewFuture(source.DecodeRAMRequestsResult, ctx.QueryAtTime(queryRAMRequests, end))
 }
 
-func (pds *PrometheusDataSource) QueryRAMUsageAvg(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryRAMUsageAvg(start, end time.Time) *source.Future[source.RAMUsageAvgResult] {
 	const queryFmtRAMUsageAvg = `avg(avg_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
@@ -1481,10 +1461,10 @@ func (pds *PrometheusDataSource) QueryRAMUsageAvg(start, end time.Time) source.Q
 
 	queryRAMUsageAvg := fmt.Sprintf(queryFmtRAMUsageAvg, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryRAMUsageAvg, end)
+	return source.NewFuture(source.DecodeRAMUsageAvgResult, ctx.QueryAtTime(queryRAMUsageAvg, end))
 }
 
-func (pds *PrometheusDataSource) QueryRAMUsageMax(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryRAMUsageMax(start, end time.Time) *source.Future[source.RAMUsageMaxResult] {
 	const queryFmtRAMUsageMax = `max(max_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
@@ -1497,10 +1477,10 @@ func (pds *PrometheusDataSource) QueryRAMUsageMax(start, end time.Time) source.Q
 
 	queryRAMUsageMax := fmt.Sprintf(queryFmtRAMUsageMax, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryRAMUsageMax, end)
+	return source.NewFuture(source.DecodeRAMUsageMaxResult, ctx.QueryAtTime(queryRAMUsageMax, end))
 }
 
-func (pds *PrometheusDataSource) QueryCPUCoresAllocated(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryCPUCoresAllocated(start, end time.Time) *source.Future[source.CPUCoresAllocatedResult] {
 	const queryFmtCPUCoresAllocated = `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
@@ -1513,10 +1493,10 @@ func (pds *PrometheusDataSource) QueryCPUCoresAllocated(start, end time.Time) so
 
 	queryCPUCoresAllocated := fmt.Sprintf(queryFmtCPUCoresAllocated, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryCPUCoresAllocated, end)
+	return source.NewFuture(source.DecodeCPUCoresAllocatedResult, ctx.QueryAtTime(queryCPUCoresAllocated, end))
 }
 
-func (pds *PrometheusDataSource) QueryCPURequests(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryCPURequests(start, end time.Time) *source.Future[source.CPURequestsResult] {
 	const queryFmtCPURequests = `avg(avg_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
@@ -1529,10 +1509,10 @@ func (pds *PrometheusDataSource) QueryCPURequests(start, end time.Time) source.Q
 
 	queryCPURequests := fmt.Sprintf(queryFmtCPURequests, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryCPURequests, end)
+	return source.NewFuture(source.DecodeCPURequestsResult, ctx.QueryAtTime(queryCPURequests, end))
 }
 
-func (pds *PrometheusDataSource) QueryCPUUsageAvg(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryCPUUsageAvg(start, end time.Time) *source.Future[source.CPUUsageAvgResult] {
 	const queryFmtCPUUsageAvg = `avg(rate(container_cpu_usage_seconds_total{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
@@ -1545,10 +1525,10 @@ func (pds *PrometheusDataSource) QueryCPUUsageAvg(start, end time.Time) source.Q
 
 	queryCPUUsageAvg := fmt.Sprintf(queryFmtCPUUsageAvg, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryCPUUsageAvg, end)
+	return source.NewFuture(source.DecodeCPUUsageAvgResult, ctx.QueryAtTime(queryCPUUsageAvg, end))
 }
 
-func (pds *PrometheusDataSource) QueryCPUUsageMax(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryCPUUsageMax(start, end time.Time) *source.Future[source.CPUUsageMaxResult] {
 	// Because we use container_cpu_usage_seconds_total to calculate CPU usage
 	// at any given "instant" of time, we need to use an irate or rate. To then
 	// calculate a max (or any aggregation) we have to perform an aggregation
@@ -1591,7 +1571,7 @@ func (pds *PrometheusDataSource) QueryCPUUsageMax(start, end time.Time) source.Q
 	resCPUUsageMax, _ := resCPUUsageMaxRR.Await()
 
 	if len(resCPUUsageMax) > 0 {
-		return wrapResults(queryCPUUsageMaxRecordingRule, resCPUUsageMax)
+		return wrapResults(queryCPUUsageMaxRecordingRule, source.DecodeCPUUsageMaxResult, resCPUUsageMax)
 	}
 
 	resolution := cfg.DataResolution
@@ -1599,10 +1579,10 @@ func (pds *PrometheusDataSource) QueryCPUUsageMax(start, end time.Time) source.Q
 	doubleResStr := timeutil.DurationString(2 * resolution)
 
 	queryCPUUsageMaxSubquery := fmt.Sprintf(queryFmtCPUUsageMaxSubquery, cfg.ClusterFilter, doubleResStr, durStr, resStr, cfg.ClusterLabel)
-	return ctx.QueryAtTime(queryCPUUsageMaxSubquery, end)
+	return source.NewFuture(source.DecodeCPUUsageMaxResult, ctx.QueryAtTime(queryCPUUsageMaxSubquery, end))
 }
 
-func (pds *PrometheusDataSource) QueryGPUsRequested(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryGPUsRequested(start, end time.Time) *source.Future[source.GPUsRequestedResult] {
 	const queryFmtGPUsRequested = `avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
@@ -1615,10 +1595,10 @@ func (pds *PrometheusDataSource) QueryGPUsRequested(start, end time.Time) source
 
 	queryGPUsRequested := fmt.Sprintf(queryFmtGPUsRequested, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryGPUsRequested, end)
+	return source.NewFuture(source.DecodeGPUsRequestedResult, ctx.QueryAtTime(queryGPUsRequested, end))
 }
 
-func (pds *PrometheusDataSource) QueryGPUsUsageAvg(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryGPUsUsageAvg(start, end time.Time) *source.Future[source.GPUsUsageAvgResult] {
 	const queryFmtGPUsUsageAvg = `avg(avg_over_time(DCGM_FI_PROF_GR_ENGINE_ACTIVE{container!=""}[%s])) by (container, pod, namespace, %s)`
 	// durStr, env.GetPromClusterLabel()
 
@@ -1631,10 +1611,10 @@ func (pds *PrometheusDataSource) QueryGPUsUsageAvg(start, end time.Time) source.
 
 	queryGPUsUsageAvg := fmt.Sprintf(queryFmtGPUsUsageAvg, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryGPUsUsageAvg, end)
+	return source.NewFuture(source.DecodeGPUsUsageAvgResult, ctx.QueryAtTime(queryGPUsUsageAvg, end))
 }
 
-func (pds *PrometheusDataSource) QueryGPUsUsageMax(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryGPUsUsageMax(start, end time.Time) *source.Future[source.GPUsUsageMaxResult] {
 	const queryFmtGPUsUsageMax = `max(max_over_time(DCGM_FI_PROF_GR_ENGINE_ACTIVE{container!=""}[%s])) by (container, pod, namespace, %s)`
 	// durStr, env.GetPromClusterLabel()
 
@@ -1647,10 +1627,10 @@ func (pds *PrometheusDataSource) QueryGPUsUsageMax(start, end time.Time) source.
 
 	queryGPUsUsageMax := fmt.Sprintf(queryFmtGPUsUsageMax, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryGPUsUsageMax, end)
+	return source.NewFuture(source.DecodeGPUsUsageMaxResult, ctx.QueryAtTime(queryGPUsUsageMax, end))
 }
 
-func (pds *PrometheusDataSource) QueryGPUsAllocated(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryGPUsAllocated(start, end time.Time) *source.Future[source.GPUsAllocatedResult] {
 	const queryFmtGPUsAllocated = `avg(avg_over_time(container_gpu_allocation{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
@@ -1663,10 +1643,10 @@ func (pds *PrometheusDataSource) QueryGPUsAllocated(start, end time.Time) source
 
 	queryGPUsAllocated := fmt.Sprintf(queryFmtGPUsAllocated, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryGPUsAllocated, end)
+	return source.NewFuture(source.DecodeGPUsAllocatedResult, ctx.QueryAtTime(queryGPUsAllocated, end))
 }
 
-func (pds *PrometheusDataSource) QueryIsGPUShared(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryIsGPUShared(start, end time.Time) *source.Future[source.IsGPUSharedResult] {
 	const queryFmtIsGPUShared = `avg(avg_over_time(kube_pod_container_resource_requests{container!="", node != "", pod != "", container!= "", unit = "integer",  %s}[%s])) by (container, pod, namespace, node, resource)`
 	// env.GetPromClusterFilter(), durStr
 
@@ -1679,10 +1659,10 @@ func (pds *PrometheusDataSource) QueryIsGPUShared(start, end time.Time) source.Q
 
 	queryIsGPUShared := fmt.Sprintf(queryFmtIsGPUShared, cfg.ClusterFilter, durStr)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryIsGPUShared, end)
+	return source.NewFuture(source.DecodeIsGPUSharedResult, ctx.QueryAtTime(queryIsGPUShared, end))
 }
 
-func (pds *PrometheusDataSource) QueryGPUInfo(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryGPUInfo(start, end time.Time) *source.Future[source.GPUInfoResult] {
 	const queryFmtGetGPUInfo = `avg(avg_over_time(DCGM_FI_DEV_DEC_UTIL{container!="",%s}[%s])) by (container, pod, namespace, device, modelName, UUID)`
 	// env.GetPromClusterFilter(), durStr
 
@@ -1695,10 +1675,10 @@ func (pds *PrometheusDataSource) QueryGPUInfo(start, end time.Time) source.Query
 
 	queryGetGPUInfo := fmt.Sprintf(queryFmtGetGPUInfo, cfg.ClusterFilter, durStr)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryGetGPUInfo, end)
+	return source.NewFuture(source.DecodeGPUInfoResult, ctx.QueryAtTime(queryGetGPUInfo, end))
 }
 
-func (pds *PrometheusDataSource) QueryNodeCPUPricePerHr(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNodeCPUPricePerHr(start, end time.Time) *source.Future[source.NodeCPUPricePerHrResult] {
 	const queryFmtNodeCostPerCPUHr = `avg(avg_over_time(node_cpu_hourly_cost{%s}[%s])) by (node, %s, instance_type, provider_id)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -1711,10 +1691,10 @@ func (pds *PrometheusDataSource) QueryNodeCPUPricePerHr(start, end time.Time) so
 
 	queryNodeCostPerCPUHr := fmt.Sprintf(queryFmtNodeCostPerCPUHr, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryNodeCostPerCPUHr, end)
+	return source.NewFuture(source.DecodeNodeCPUPricePerHrResult, ctx.QueryAtTime(queryNodeCostPerCPUHr, end))
 }
 
-func (pds *PrometheusDataSource) QueryNodeRAMPricePerGiBHr(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNodeRAMPricePerGiBHr(start, end time.Time) *source.Future[source.NodeRAMPricePerGiBHrResult] {
 	const queryFmtNodeCostPerRAMGiBHr = `avg(avg_over_time(node_ram_hourly_cost{%s}[%s])) by (node, %s, instance_type, provider_id)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -1727,10 +1707,10 @@ func (pds *PrometheusDataSource) QueryNodeRAMPricePerGiBHr(start, end time.Time)
 
 	queryNodeCostPerRAMGiBHr := fmt.Sprintf(queryFmtNodeCostPerRAMGiBHr, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryNodeCostPerRAMGiBHr, end)
+	return source.NewFuture(source.DecodeNodeRAMPricePerGiBHrResult, ctx.QueryAtTime(queryNodeCostPerRAMGiBHr, end))
 }
 
-func (pds *PrometheusDataSource) QueryNodeGPUPricePerHr(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNodeGPUPricePerHr(start, end time.Time) *source.Future[source.NodeGPUPricePerHrResult] {
 	const queryFmtNodeCostPerGPUHr = `avg(avg_over_time(node_gpu_hourly_cost{%s}[%s])) by (node, %s, instance_type, provider_id)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -1743,10 +1723,10 @@ func (pds *PrometheusDataSource) QueryNodeGPUPricePerHr(start, end time.Time) so
 
 	queryNodeCostPerGPUHr := fmt.Sprintf(queryFmtNodeCostPerGPUHr, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryNodeCostPerGPUHr, end)
+	return source.NewFuture(source.DecodeNodeGPUPricePerHrResult, ctx.QueryAtTime(queryNodeCostPerGPUHr, end))
 }
 
-func (pds *PrometheusDataSource) QueryNodeIsSpot(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNodeIsSpot(start, end time.Time) *source.Future[source.NodeIsSpotResult] {
 	const queryFmtNodeIsSpot = `avg_over_time(kubecost_node_is_spot{%s}[%s])`
 	//`avg_over_time(kubecost_node_is_spot{%s}[%s:%dm])`
 	// env.GetPromClusterFilter(), durStr)
@@ -1760,10 +1740,10 @@ func (pds *PrometheusDataSource) QueryNodeIsSpot(start, end time.Time) source.Qu
 
 	queryNodeIsSpot := fmt.Sprintf(queryFmtNodeIsSpot, cfg.ClusterFilter, durStr)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryNodeIsSpot, end)
+	return source.NewFuture(source.DecodeNodeIsSpotResult, ctx.QueryAtTime(queryNodeIsSpot, end))
 }
 
-func (pds *PrometheusDataSource) QueryPodPVCAllocation(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryPodPVCAllocation(start, end time.Time) *source.Future[source.PodPVCAllocationResult] {
 	const queryFmtPodPVCAllocation = `avg(avg_over_time(pod_pvc_allocation{%s}[%s])) by (persistentvolume, persistentvolumeclaim, pod, namespace, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -1776,10 +1756,10 @@ func (pds *PrometheusDataSource) QueryPodPVCAllocation(start, end time.Time) sou
 
 	queryPodPVCAllocation := fmt.Sprintf(queryFmtPodPVCAllocation, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryPodPVCAllocation, end)
+	return source.NewFuture(source.DecodePodPVCAllocationResult, ctx.QueryAtTime(queryPodPVCAllocation, end))
 }
 
-func (pds *PrometheusDataSource) QueryPVCBytesRequested(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryPVCBytesRequested(start, end time.Time) *source.Future[source.PVCBytesRequestedResult] {
 	const queryFmtPVCBytesRequested = `avg(avg_over_time(kube_persistentvolumeclaim_resource_requests_storage_bytes{%s}[%s])) by (persistentvolumeclaim, namespace, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -1792,10 +1772,10 @@ func (pds *PrometheusDataSource) QueryPVCBytesRequested(start, end time.Time) so
 
 	queryPVCBytesRequested := fmt.Sprintf(queryFmtPVCBytesRequested, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryPVCBytesRequested, end)
+	return source.NewFuture(source.DecodePVCBytesRequestedResult, ctx.QueryAtTime(queryPVCBytesRequested, end))
 }
 
-func (pds *PrometheusDataSource) QueryPVBytes(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryPVBytes(start, end time.Time) *source.Future[source.PVBytesResult] {
 	const queryFmtPVBytes = `avg(avg_over_time(kube_persistentvolume_capacity_bytes{%s}[%s])) by (persistentvolume, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -1808,10 +1788,10 @@ func (pds *PrometheusDataSource) QueryPVBytes(start, end time.Time) source.Query
 
 	queryPVBytes := fmt.Sprintf(queryFmtPVBytes, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryPVBytes, end)
+	return source.NewFuture(source.DecodePVBytesResult, ctx.QueryAtTime(queryPVBytes, end))
 }
 
-func (pds *PrometheusDataSource) QueryPVCostPerGiBHour(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryPVCostPerGiBHour(start, end time.Time) *source.Future[source.PVPricePerGiBHourResult] {
 	const queryFmtPVCostPerGiBHour = `avg(avg_over_time(pv_hourly_cost{%s}[%s])) by (volumename, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -1824,10 +1804,10 @@ func (pds *PrometheusDataSource) QueryPVCostPerGiBHour(start, end time.Time) sou
 
 	queryPVCostPerGiBHour := fmt.Sprintf(queryFmtPVCostPerGiBHour, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryPVCostPerGiBHour, end)
+	return source.NewFuture(source.DecodePVPricePerGiBHourResult, ctx.QueryAtTime(queryPVCostPerGiBHour, end))
 }
 
-func (pds *PrometheusDataSource) QueryPVInfo(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryPVInfo(start, end time.Time) *source.Future[source.PVInfoResult] {
 	const queryFmtPVMeta = `avg(avg_over_time(kubecost_pv_info{%s}[%s])) by (%s, storageclass, persistentvolume, provider_id)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -1840,10 +1820,10 @@ func (pds *PrometheusDataSource) QueryPVInfo(start, end time.Time) source.QueryR
 
 	queryPVMeta := fmt.Sprintf(queryFmtPVMeta, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryPVMeta, end)
+	return source.NewFuture(source.DecodePVInfoResult, ctx.QueryAtTime(queryPVMeta, end))
 }
 
-func (pds *PrometheusDataSource) QueryNetZoneGiB(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNetZoneGiB(start, end time.Time) *source.Future[source.NetZoneGiBResult] {
 	const queryFmtNetZoneGiB = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", same_zone="false", same_region="true", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
@@ -1856,10 +1836,10 @@ func (pds *PrometheusDataSource) QueryNetZoneGiB(start, end time.Time) source.Qu
 
 	queryNetZoneGiB := fmt.Sprintf(queryFmtNetZoneGiB, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryNetZoneGiB, end)
+	return source.NewFuture(source.DecodeNetZoneGiBResult, ctx.QueryAtTime(queryNetZoneGiB, end))
 }
 
-func (pds *PrometheusDataSource) QueryNetZoneCostPerGiB(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNetZonePricePerGiB(start, end time.Time) *source.Future[source.NetZonePricePerGiBResult] {
 	const queryFmtNetZoneCostPerGiB = `avg(avg_over_time(kubecost_network_zone_egress_cost{%s}[%s])) by (%s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
@@ -1867,15 +1847,15 @@ func (pds *PrometheusDataSource) QueryNetZoneCostPerGiB(start, end time.Time) so
 
 	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
-		panic("failed to parse duration string passed to QueryNetZoneCostPerGiB")
+		panic("failed to parse duration string passed to QueryNetZonePricePerGiB")
 	}
 
 	queryNetZoneCostPerGiB := fmt.Sprintf(queryFmtNetZoneCostPerGiB, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryNetZoneCostPerGiB, end)
+	return source.NewFuture(source.DecodeNetZonePricePerGiBResult, ctx.QueryAtTime(queryNetZoneCostPerGiB, end))
 }
 
-func (pds *PrometheusDataSource) QueryNetRegionGiB(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNetRegionGiB(start, end time.Time) *source.Future[source.NetRegionGiBResult] {
 	const queryFmtNetRegionGiB = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", same_zone="false", same_region="false", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
@@ -1888,10 +1868,10 @@ func (pds *PrometheusDataSource) QueryNetRegionGiB(start, end time.Time) source.
 
 	queryNetRegionGiB := fmt.Sprintf(queryFmtNetRegionGiB, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryNetRegionGiB, end)
+	return source.NewFuture(source.DecodeNetRegionGiBResult, ctx.QueryAtTime(queryNetRegionGiB, end))
 }
 
-func (pds *PrometheusDataSource) QueryNetRegionCostPerGiB(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNetRegionPricePerGiB(start, end time.Time) *source.Future[source.NetRegionPricePerGiBResult] {
 	const queryFmtNetRegionCostPerGiB = `avg(avg_over_time(kubecost_network_region_egress_cost{%s}[%s])) by (%s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
@@ -1899,15 +1879,15 @@ func (pds *PrometheusDataSource) QueryNetRegionCostPerGiB(start, end time.Time) 
 
 	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
-		panic("failed to parse duration string passed to QueryNetRegionCostPerGiB")
+		panic("failed to parse duration string passed to QueryNetRegionPricePerGiB")
 	}
 
 	queryNetRegionCostPerGiB := fmt.Sprintf(queryFmtNetRegionCostPerGiB, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryNetRegionCostPerGiB, end)
+	return source.NewFuture(source.DecodeNetRegionPricePerGiBResult, ctx.QueryAtTime(queryNetRegionCostPerGiB, end))
 }
 
-func (pds *PrometheusDataSource) QueryNetInternetGiB(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNetInternetGiB(start, end time.Time) *source.Future[source.NetInternetGiBResult] {
 	const queryFmtNetInternetGiB = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
@@ -1920,10 +1900,10 @@ func (pds *PrometheusDataSource) QueryNetInternetGiB(start, end time.Time) sourc
 
 	queryNetInternetGiB := fmt.Sprintf(queryFmtNetInternetGiB, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryNetInternetGiB, end)
+	return source.NewFuture(source.DecodeNetInternetGiBResult, ctx.QueryAtTime(queryNetInternetGiB, end))
 }
 
-func (pds *PrometheusDataSource) QueryNetInternetCostPerGiB(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNetInternetPricePerGiB(start, end time.Time) *source.Future[source.NetInternetPricePerGiBResult] {
 	const queryFmtNetInternetCostPerGiB = `avg(avg_over_time(kubecost_network_internet_egress_cost{%s}[%s])) by (%s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
@@ -1931,15 +1911,15 @@ func (pds *PrometheusDataSource) QueryNetInternetCostPerGiB(start, end time.Time
 
 	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
-		panic("failed to parse duration string passed to QueryNetInternetCostPerGiB")
+		panic("failed to parse duration string passed to QueryNetInternetPricePerGiB")
 	}
 
 	queryNetInternetCostPerGiB := fmt.Sprintf(queryFmtNetInternetCostPerGiB, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryNetInternetCostPerGiB, end)
+	return source.NewFuture(source.DecodeNetInternetPricePerGiBResult, ctx.QueryAtTime(queryNetInternetCostPerGiB, end))
 }
 
-func (pds *PrometheusDataSource) QueryNetReceiveBytes(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNetReceiveBytes(start, end time.Time) *source.Future[source.NetReceiveBytesResult] {
 	const queryFmtNetReceiveBytes = `sum(increase(container_network_receive_bytes_total{pod!="", %s}[%s])) by (pod_name, pod, namespace, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -1952,10 +1932,10 @@ func (pds *PrometheusDataSource) QueryNetReceiveBytes(start, end time.Time) sour
 
 	queryNetReceiveBytes := fmt.Sprintf(queryFmtNetReceiveBytes, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryNetReceiveBytes, end)
+	return source.NewFuture(source.DecodeNetReceiveBytesResult, ctx.QueryAtTime(queryNetReceiveBytes, end))
 }
 
-func (pds *PrometheusDataSource) QueryNetTransferBytes(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNetTransferBytes(start, end time.Time) *source.Future[source.NetTransferBytesResult] {
 	const queryFmtNetTransferBytes = `sum(increase(container_network_transmit_bytes_total{pod!="", %s}[%s])) by (pod_name, pod, namespace, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -1968,10 +1948,10 @@ func (pds *PrometheusDataSource) QueryNetTransferBytes(start, end time.Time) sou
 
 	queryNetTransferBytes := fmt.Sprintf(queryFmtNetTransferBytes, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryNetTransferBytes, end)
+	return source.NewFuture(source.DecodeNetTransferBytesResult, ctx.QueryAtTime(queryNetTransferBytes, end))
 }
 
-func (pds *PrometheusDataSource) QueryNamespaceLabels(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNamespaceLabels(start, end time.Time) *source.Future[source.NamespaceLabelsResult] {
 	const queryFmtNamespaceLabels = `avg_over_time(kube_namespace_labels{%s}[%s])`
 	// env.GetPromClusterFilter(), durStr
 
@@ -1984,10 +1964,10 @@ func (pds *PrometheusDataSource) QueryNamespaceLabels(start, end time.Time) sour
 
 	queryNamespaceLabels := fmt.Sprintf(queryFmtNamespaceLabels, cfg.ClusterFilter, durStr)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryNamespaceLabels, end)
+	return source.NewFuture(source.DecodeNamespaceLabelsResult, ctx.QueryAtTime(queryNamespaceLabels, end))
 }
 
-func (pds *PrometheusDataSource) QueryNamespaceAnnotations(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryNamespaceAnnotations(start, end time.Time) *source.Future[source.NamespaceAnnotationsResult] {
 	const queryFmtNamespaceAnnotations = `avg_over_time(kube_namespace_annotations{%s}[%s])`
 	// env.GetPromClusterFilter(), durStr
 
@@ -2000,10 +1980,10 @@ func (pds *PrometheusDataSource) QueryNamespaceAnnotations(start, end time.Time)
 
 	queryNamespaceAnnotations := fmt.Sprintf(queryFmtNamespaceAnnotations, cfg.ClusterFilter, durStr)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryNamespaceAnnotations, end)
+	return source.NewFuture(source.DecodeNamespaceAnnotationsResult, ctx.QueryAtTime(queryNamespaceAnnotations, end))
 }
 
-func (pds *PrometheusDataSource) QueryPodLabels(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryPodLabels(start, end time.Time) *source.Future[source.PodLabelsResult] {
 	const queryFmtPodLabels = `avg_over_time(kube_pod_labels{%s}[%s])`
 	// env.GetPromClusterFilter(), durStr
 
@@ -2016,10 +1996,10 @@ func (pds *PrometheusDataSource) QueryPodLabels(start, end time.Time) source.Que
 
 	queryPodLabels := fmt.Sprintf(queryFmtPodLabels, cfg.ClusterFilter, durStr)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryPodLabels, end)
+	return source.NewFuture(source.DecodePodLabelsResult, ctx.QueryAtTime(queryPodLabels, end))
 }
 
-func (pds *PrometheusDataSource) QueryPodAnnotations(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryPodAnnotations(start, end time.Time) *source.Future[source.PodAnnotationsResult] {
 	const queryFmtPodAnnotations = `avg_over_time(kube_pod_annotations{%s}[%s])`
 	// env.GetPromClusterFilter(), durStr
 
@@ -2032,10 +2012,10 @@ func (pds *PrometheusDataSource) QueryPodAnnotations(start, end time.Time) sourc
 
 	queryPodAnnotations := fmt.Sprintf(queryFmtPodAnnotations, cfg.ClusterFilter, durStr)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryPodAnnotations, end)
+	return source.NewFuture(source.DecodePodAnnotationsResult, ctx.QueryAtTime(queryPodAnnotations, end))
 }
 
-func (pds *PrometheusDataSource) QueryServiceLabels(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryServiceLabels(start, end time.Time) *source.Future[source.ServiceLabelsResult] {
 	const queryFmtServiceLabels = `avg_over_time(service_selector_labels{%s}[%s])`
 	// env.GetPromClusterFilter(), durStr
 
@@ -2048,10 +2028,10 @@ func (pds *PrometheusDataSource) QueryServiceLabels(start, end time.Time) source
 
 	queryServiceLabels := fmt.Sprintf(queryFmtServiceLabels, cfg.ClusterFilter, durStr)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryServiceLabels, end)
+	return source.NewFuture(source.DecodeServiceLabelsResult, ctx.QueryAtTime(queryServiceLabels, end))
 }
 
-func (pds *PrometheusDataSource) QueryDeploymentLabels(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryDeploymentLabels(start, end time.Time) *source.Future[source.DeploymentLabelsResult] {
 	const queryFmtDeploymentLabels = `avg_over_time(deployment_match_labels{%s}[%s])`
 	// env.GetPromClusterFilter(), durStr
 
@@ -2064,10 +2044,10 @@ func (pds *PrometheusDataSource) QueryDeploymentLabels(start, end time.Time) sou
 
 	queryDeploymentLabels := fmt.Sprintf(queryFmtDeploymentLabels, cfg.ClusterFilter, durStr)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryDeploymentLabels, end)
+	return source.NewFuture(source.DecodeDeploymentLabelsResult, ctx.QueryAtTime(queryDeploymentLabels, end))
 }
 
-func (pds *PrometheusDataSource) QueryStatefulSetLabels(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryStatefulSetLabels(start, end time.Time) *source.Future[source.StatefulSetLabelsResult] {
 	const queryFmtStatefulSetLabels = `avg_over_time(statefulSet_match_labels{%s}[%s])`
 	// env.GetPromClusterFilter(), durStr
 
@@ -2080,10 +2060,10 @@ func (pds *PrometheusDataSource) QueryStatefulSetLabels(start, end time.Time) so
 
 	queryStatefulSetLabels := fmt.Sprintf(queryFmtStatefulSetLabels, cfg.ClusterFilter, durStr)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryStatefulSetLabels, end)
+	return source.NewFuture(source.DecodeStatefulSetLabelsResult, ctx.QueryAtTime(queryStatefulSetLabels, end))
 }
 
-func (pds *PrometheusDataSource) QueryDaemonSetLabels(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryDaemonSetLabels(start, end time.Time) *source.Future[source.DaemonSetLabelsResult] {
 	const queryFmtDaemonSetLabels = `sum(avg_over_time(kube_pod_owner{owner_kind="DaemonSet", %s}[%s])) by (pod, owner_name, namespace, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -2096,10 +2076,10 @@ func (pds *PrometheusDataSource) QueryDaemonSetLabels(start, end time.Time) sour
 
 	queryDaemonSetLabels := fmt.Sprintf(queryFmtDaemonSetLabels, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryDaemonSetLabels, end)
+	return source.NewFuture(source.DecodeDaemonSetLabelsResult, ctx.QueryAtTime(queryDaemonSetLabels, end))
 }
 
-func (pds *PrometheusDataSource) QueryJobLabels(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryJobLabels(start, end time.Time) *source.Future[source.JobLabelsResult] {
 	const queryFmtJobLabels = `sum(avg_over_time(kube_pod_owner{owner_kind="Job", %s}[%s])) by (pod, owner_name, namespace ,%s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -2112,10 +2092,10 @@ func (pds *PrometheusDataSource) QueryJobLabels(start, end time.Time) source.Que
 
 	queryJobLabels := fmt.Sprintf(queryFmtJobLabels, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryJobLabels, end)
+	return source.NewFuture(source.DecodeJobLabelsResult, ctx.QueryAtTime(queryJobLabels, end))
 }
 
-func (pds *PrometheusDataSource) QueryPodsWithReplicaSetOwner(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryPodsWithReplicaSetOwner(start, end time.Time) *source.Future[source.PodsWithReplicaSetOwnerResult] {
 	const queryFmtPodsWithReplicaSetOwner = `sum(avg_over_time(kube_pod_owner{owner_kind="ReplicaSet", %s}[%s])) by (pod, owner_name, namespace ,%s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -2128,10 +2108,10 @@ func (pds *PrometheusDataSource) QueryPodsWithReplicaSetOwner(start, end time.Ti
 
 	queryPodsWithReplicaSetOwner := fmt.Sprintf(queryFmtPodsWithReplicaSetOwner, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryPodsWithReplicaSetOwner, end)
+	return source.NewFuture(source.DecodePodsWithReplicaSetOwnerResult, ctx.QueryAtTime(queryPodsWithReplicaSetOwner, end))
 }
 
-func (pds *PrometheusDataSource) QueryReplicaSetsWithoutOwners(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryReplicaSetsWithoutOwners(start, end time.Time) *source.Future[source.ReplicaSetsWithoutOwnersResult] {
 	const queryFmtReplicaSetsWithoutOwners = `avg(avg_over_time(kube_replicaset_owner{owner_kind="<none>", owner_name="<none>", %s}[%s])) by (replicaset, namespace, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -2144,10 +2124,10 @@ func (pds *PrometheusDataSource) QueryReplicaSetsWithoutOwners(start, end time.T
 
 	queryReplicaSetsWithoutOwners := fmt.Sprintf(queryFmtReplicaSetsWithoutOwners, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryReplicaSetsWithoutOwners, end)
+	return source.NewFuture(source.DecodeReplicaSetsWithoutOwnersResult, ctx.QueryAtTime(queryReplicaSetsWithoutOwners, end))
 }
 
-func (pds *PrometheusDataSource) QueryReplicaSetsWithRollout(start, end time.Time) source.QueryResultsChan {
+func (pds *PrometheusDataSource) QueryReplicaSetsWithRollout(start, end time.Time) *source.Future[source.ReplicaSetsWithRolloutResult] {
 	const queryFmtReplicaSetsWithRolloutOwner = `avg(avg_over_time(kube_replicaset_owner{owner_kind="Rollout", %s}[%s])) by (replicaset, namespace, owner_kind, owner_name, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
@@ -2160,7 +2140,7 @@ func (pds *PrometheusDataSource) QueryReplicaSetsWithRollout(start, end time.Tim
 
 	queryReplicaSetsWithRolloutOwner := fmt.Sprintf(queryFmtReplicaSetsWithRolloutOwner, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return ctx.QueryAtTime(queryReplicaSetsWithRolloutOwner, end)
+	return source.NewFuture(source.DecodeReplicaSetsWithRolloutResult, ctx.QueryAtTime(queryReplicaSetsWithRolloutOwner, end))
 }
 
 func (pds *PrometheusDataSource) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {
@@ -2203,16 +2183,17 @@ func (pds *PrometheusDataSource) QueryDataCoverage(limitDays int) (time.Time, ti
 	return oldest, newest, nil
 }
 
-func newEmptyResult() source.QueryResultsChan {
+func newEmptyResult[T any](decoder source.ResultDecoder[T]) *source.Future[T] {
 	ch := make(source.QueryResultsChan)
 	go func() {
 		results := source.NewQueryResults("")
 		ch <- results
 	}()
-	return ch
+
+	return source.NewFuture(decoder, ch)
 }
 
-func wrapResults(query string, results []*source.QueryResult) source.QueryResultsChan {
+func wrapResults[T any](query string, decoder source.ResultDecoder[T], results []*source.QueryResult) *source.Future[T] {
 	ch := make(source.QueryResultsChan)
 
 	go func() {
@@ -2221,7 +2202,7 @@ func wrapResults(query string, results []*source.QueryResult) source.QueryResult
 		ch <- r
 	}()
 
-	return ch
+	return source.NewFuture(decoder, ch)
 }
 
 func snapResolutionMinute(res time.Duration) time.Duration {

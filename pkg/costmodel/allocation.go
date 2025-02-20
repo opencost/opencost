@@ -12,13 +12,6 @@ import (
 	"github.com/opencost/opencost/pkg/env"
 )
 
-// Constants for Network Cost Subtype
-const (
-	networkCrossZoneCost   = "NetworkCrossZoneCost"
-	networkCrossRegionCost = "NetworkCrossRegionCost"
-	networkInternetCost    = "NetworkInternetCost"
-)
-
 // CanCompute should return true if CostModel can act as a valid source for the
 // given time range. In the case of CostModel we want to attempt to compute as
 // long as the range starts in the past. If the CostModel ends up not having
@@ -286,15 +279,15 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	grp := source.NewQueryGroup()
 	ds := cm.DataSource
 
-	resChRAMBytesAllocated := grp.With(ds.QueryRAMBytesAllocated(start, end))
-	resChRAMRequests := grp.With(ds.QueryRAMRequests(start, end))
-	resChRAMUsageAvg := grp.With(ds.QueryRAMUsageAvg(start, end))
-	resChRAMUsageMax := grp.With(ds.QueryRAMUsageMax(start, end))
+	resChRAMBytesAllocated := source.WithGroup(grp, ds.QueryRAMBytesAllocated(start, end))
+	resChRAMRequests := source.WithGroup(grp, ds.QueryRAMRequests(start, end))
+	resChRAMUsageAvg := source.WithGroup(grp, ds.QueryRAMUsageAvg(start, end))
+	resChRAMUsageMax := source.WithGroup(grp, ds.QueryRAMUsageMax(start, end))
 
-	resChCPUCoresAllocated := grp.With(ds.QueryCPUCoresAllocated(start, end))
-	resChCPURequests := grp.With(ds.QueryCPURequests(start, end))
-	resChCPUUsageAvg := grp.With(ds.QueryCPUUsageAvg(start, end))
-	resChCPUUsageMax := grp.With(ds.QueryCPUUsageMax(start, end))
+	resChCPUCoresAllocated := source.WithGroup(grp, ds.QueryCPUCoresAllocated(start, end))
+	resChCPURequests := source.WithGroup(grp, ds.QueryCPURequests(start, end))
+	resChCPUUsageAvg := source.WithGroup(grp, ds.QueryCPUUsageAvg(start, end))
+	resChCPUUsageMax := source.WithGroup(grp, ds.QueryCPUUsageMax(start, end))
 	resCPUUsageMax, _ := resChCPUUsageMax.Await()
 	// This avoids logspam if there is no data for either metric (e.g. if
 	// the Prometheus didn't exist in the queried window of time).
@@ -303,63 +296,63 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	}
 
 	// GPU Queries
-	resChIsGpuShared := grp.With(ds.QueryIsGPUShared(start, end))
-	resChGPUsAllocated := grp.With(ds.QueryGPUsAllocated(start, end))
-	resChGPUsRequested := grp.With(ds.QueryGPUsRequested(start, end))
-	resChGPUsUsageAvg := grp.With(ds.QueryGPUsUsageAvg(start, end))
-	resChGPUsUsageMax := grp.With(ds.QueryGPUsUsageMax(start, end))
-	resChGetGPUInfo := grp.With(ds.QueryGPUInfo(start, end))
+	resChIsGpuShared := source.WithGroup(grp, ds.QueryIsGPUShared(start, end))
+	resChGPUsAllocated := source.WithGroup(grp, ds.QueryGPUsAllocated(start, end))
+	resChGPUsRequested := source.WithGroup(grp, ds.QueryGPUsRequested(start, end))
+	resChGPUsUsageAvg := source.WithGroup(grp, ds.QueryGPUsUsageAvg(start, end))
+	resChGPUsUsageMax := source.WithGroup(grp, ds.QueryGPUsUsageMax(start, end))
+	resChGetGPUInfo := source.WithGroup(grp, ds.QueryGPUInfo(start, end))
 
-	resChNodeCostPerCPUHr := grp.With(ds.QueryNodeCPUPricePerHr(start, end))
-	resChNodeCostPerRAMGiBHr := grp.With(ds.QueryNodeRAMPricePerGiBHr(start, end))
-	resChNodeCostPerGPUHr := grp.With(ds.QueryNodeGPUPricePerHr(start, end))
+	resChNodeCostPerCPUHr := source.WithGroup(grp, ds.QueryNodeCPUPricePerHr(start, end))
+	resChNodeCostPerRAMGiBHr := source.WithGroup(grp, ds.QueryNodeRAMPricePerGiBHr(start, end))
+	resChNodeCostPerGPUHr := source.WithGroup(grp, ds.QueryNodeGPUPricePerHr(start, end))
 
-	resChNodeIsSpot := grp.With(ds.QueryNodeIsSpot(start, end))
-	resChPVCInfo := grp.With(ds.QueryPVCInfo(start, end))
+	resChNodeIsSpot := source.WithGroup(grp, ds.QueryNodeIsSpot(start, end))
+	resChPVCInfo := source.WithGroup(grp, ds.QueryPVCInfo(start, end))
 
-	resChPodPVCAllocation := grp.With(ds.QueryPodPVCAllocation(start, end))
-	resChPVCBytesRequested := grp.With(ds.QueryPVCBytesRequested(start, end))
-	resChPVActiveMins := grp.With(ds.QueryPVActiveMinutes(start, end))
-	resChPVBytes := grp.With(ds.QueryPVBytes(start, end))
-	resChPVCostPerGiBHour := grp.With(ds.QueryPVPricePerGiBHour(start, end))
-	resChPVMeta := grp.With(ds.QueryPVInfo(start, end))
+	resChPodPVCAllocation := source.WithGroup(grp, ds.QueryPodPVCAllocation(start, end))
+	resChPVCBytesRequested := source.WithGroup(grp, ds.QueryPVCBytesRequested(start, end))
+	resChPVActiveMins := source.WithGroup(grp, ds.QueryPVActiveMinutes(start, end))
+	resChPVBytes := source.WithGroup(grp, ds.QueryPVBytes(start, end))
+	resChPVCostPerGiBHour := source.WithGroup(grp, ds.QueryPVPricePerGiBHour(start, end))
+	resChPVMeta := source.WithGroup(grp, ds.QueryPVInfo(start, end))
 
-	resChNetTransferBytes := grp.With(ds.QueryNetTransferBytes(start, end))
-	resChNetReceiveBytes := grp.With(ds.QueryNetReceiveBytes(start, end))
+	resChNetTransferBytes := source.WithGroup(grp, ds.QueryNetTransferBytes(start, end))
+	resChNetReceiveBytes := source.WithGroup(grp, ds.QueryNetReceiveBytes(start, end))
 
-	resChNetZoneGiB := grp.With(ds.QueryNetZoneGiB(start, end))
-	resChNetZoneCostPerGiB := grp.With(ds.QueryNetZoneCostPerGiB(start, end))
+	resChNetZoneGiB := source.WithGroup(grp, ds.QueryNetZoneGiB(start, end))
+	resChNetZonePricePerGiB := source.WithGroup(grp, ds.QueryNetZonePricePerGiB(start, end))
 
-	resChNetRegionGiB := grp.With(ds.QueryNetRegionGiB(start, end))
-	resChNetRegionCostPerGiB := grp.With(ds.QueryNetRegionCostPerGiB(start, end))
+	resChNetRegionGiB := source.WithGroup(grp, ds.QueryNetRegionGiB(start, end))
+	resChNetRegionPricePerGiB := source.WithGroup(grp, ds.QueryNetRegionPricePerGiB(start, end))
 
-	resChNetInternetGiB := grp.With(ds.QueryNetInternetGiB(start, end))
-	resChNetInternetCostPerGiB := grp.With(ds.QueryNetInternetCostPerGiB(start, end))
+	resChNetInternetGiB := source.WithGroup(grp, ds.QueryNetInternetGiB(start, end))
+	resChNetInternetPricePerGiB := source.WithGroup(grp, ds.QueryNetInternetPricePerGiB(start, end))
 
-	var resChNodeLabels *source.QueryGroupAsyncResult
+	var resChNodeLabels *source.QueryGroupFuture[source.NodeLabelsResult]
 	if env.GetAllocationNodeLabelsEnabled() {
-		resChNodeLabels = grp.With(ds.QueryNodeLabels(start, end))
+		resChNodeLabels = source.WithGroup(grp, ds.QueryNodeLabels(start, end))
 	}
 
-	resChNamespaceLabels := grp.With(ds.QueryNamespaceLabels(start, end))
-	resChNamespaceAnnotations := grp.With(ds.QueryNamespaceAnnotations(start, end))
+	resChNamespaceLabels := source.WithGroup(grp, ds.QueryNamespaceLabels(start, end))
+	resChNamespaceAnnotations := source.WithGroup(grp, ds.QueryNamespaceAnnotations(start, end))
 
-	resChPodLabels := grp.With(ds.QueryPodLabels(start, end))
-	resChPodAnnotations := grp.With(ds.QueryPodAnnotations(start, end))
+	resChPodLabels := source.WithGroup(grp, ds.QueryPodLabels(start, end))
+	resChPodAnnotations := source.WithGroup(grp, ds.QueryPodAnnotations(start, end))
 
-	resChServiceLabels := grp.With(ds.QueryServiceLabels(start, end))
-	resChDeploymentLabels := grp.With(ds.QueryDeploymentLabels(start, end))
-	resChStatefulSetLabels := grp.With(ds.QueryStatefulSetLabels(start, end))
-	resChDaemonSetLabels := grp.With(ds.QueryDaemonSetLabels(start, end))
+	resChServiceLabels := source.WithGroup(grp, ds.QueryServiceLabels(start, end))
+	resChDeploymentLabels := source.WithGroup(grp, ds.QueryDeploymentLabels(start, end))
+	resChStatefulSetLabels := source.WithGroup(grp, ds.QueryStatefulSetLabels(start, end))
+	resChDaemonSetLabels := source.WithGroup(grp, ds.QueryDaemonSetLabels(start, end))
 
-	resChPodsWithReplicaSetOwner := grp.With(ds.QueryPodsWithReplicaSetOwner(start, end))
-	resChReplicaSetsWithoutOwners := grp.With(ds.QueryReplicaSetsWithoutOwners(start, end))
-	resChReplicaSetsWithRolloutOwner := grp.With(ds.QueryReplicaSetsWithRollout(start, end))
+	resChPodsWithReplicaSetOwner := source.WithGroup(grp, ds.QueryPodsWithReplicaSetOwner(start, end))
+	resChReplicaSetsWithoutOwners := source.WithGroup(grp, ds.QueryReplicaSetsWithoutOwners(start, end))
+	resChReplicaSetsWithRolloutOwner := source.WithGroup(grp, ds.QueryReplicaSetsWithRollout(start, end))
 
-	resChJobLabels := grp.With(ds.QueryJobLabels(start, end))
+	resChJobLabels := source.WithGroup(grp, ds.QueryJobLabels(start, end))
 
-	resChLBCostPerHr := grp.With(ds.QueryLBPricePerHr(start, end))
-	resChLBActiveMins := grp.With(ds.QueryLBActiveMinutes(start, end))
+	resChLBCostPerHr := source.WithGroup(grp, ds.QueryLBPricePerHr(start, end))
+	resChLBActiveMins := source.WithGroup(grp, ds.QueryLBActiveMinutes(start, end))
 
 	resCPUCoresAllocated, _ := resChCPUCoresAllocated.Await()
 	resCPURequests, _ := resChCPURequests.Await()
@@ -394,13 +387,13 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	resNetTransferBytes, _ := resChNetTransferBytes.Await()
 	resNetReceiveBytes, _ := resChNetReceiveBytes.Await()
 	resNetZoneGiB, _ := resChNetZoneGiB.Await()
-	resNetZoneCostPerGiB, _ := resChNetZoneCostPerGiB.Await()
+	resNetZonePricePerGiB, _ := resChNetZonePricePerGiB.Await()
 	resNetRegionGiB, _ := resChNetRegionGiB.Await()
-	resNetRegionCostPerGiB, _ := resChNetRegionCostPerGiB.Await()
+	resNetRegionPricePerGiB, _ := resChNetRegionPricePerGiB.Await()
 	resNetInternetGiB, _ := resChNetInternetGiB.Await()
-	resNetInternetCostPerGiB, _ := resChNetInternetCostPerGiB.Await()
+	resNetInternetPricePerGiB, _ := resChNetInternetPricePerGiB.Await()
 
-	var resNodeLabels []*source.QueryResult
+	var resNodeLabels []*source.NodeLabelsResult
 	if env.GetAllocationNodeLabelsEnabled() {
 		resNodeLabels, _ = resChNodeLabels.Await()
 	}
@@ -438,15 +431,15 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	applyRAMBytesRequested(podMap, resRAMRequests, podUIDKeyMap)
 	applyRAMBytesUsedAvg(podMap, resRAMUsageAvg, podUIDKeyMap)
 	applyRAMBytesUsedMax(podMap, resRAMUsageMax, podUIDKeyMap)
-	applyGPUUsage(podMap, resGPUsUsageAvg, podUIDKeyMap, GpuUsageAverageMode)
-	applyGPUUsage(podMap, resGPUsUsageMax, podUIDKeyMap, GpuUsageMaxMode)
-	applyGPUUsage(podMap, resIsGpuShared, podUIDKeyMap, GpuIsSharedMode)
-	applyGPUUsage(podMap, resGetGPUInfo, podUIDKeyMap, GpuInfoMode)
+	applyGPUUsageAvg(podMap, resGPUsUsageAvg, podUIDKeyMap)
+	applyGPUUsageMax(podMap, resGPUsUsageMax, podUIDKeyMap)
+	applyGPUUsageShared(podMap, resIsGpuShared, podUIDKeyMap)
+	applyGPUInfo(podMap, resGetGPUInfo, podUIDKeyMap)
 	applyGPUsAllocated(podMap, resGPUsRequested, resGPUsAllocated, podUIDKeyMap)
 	applyNetworkTotals(podMap, resNetTransferBytes, resNetReceiveBytes, podUIDKeyMap)
-	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZoneCostPerGiB, podUIDKeyMap, networkCrossZoneCost)
-	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionCostPerGiB, podUIDKeyMap, networkCrossRegionCost)
-	applyNetworkAllocation(podMap, resNetInternetGiB, resNetInternetCostPerGiB, podUIDKeyMap, networkInternetCost)
+	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZonePricePerGiB, podUIDKeyMap, applyCrossZoneNetworkAllocation)
+	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionPricePerGiB, podUIDKeyMap, applyCrossRegionNetworkAllocation)
+	applyNetworkAllocation(podMap, resNetInternetGiB, resNetInternetPricePerGiB, podUIDKeyMap, applyInternetNetworkAllocation)
 
 	// In the case that a two pods with the same name had different containers,
 	// we will double-count the containers. There is no way to associate each
