@@ -3,7 +3,6 @@ package prom
 import (
 	"context"
 	"fmt"
-	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -2203,20 +2202,4 @@ func wrapResults[T any](query string, decoder source.ResultDecoder[T], results [
 	}()
 
 	return source.NewFuture(decoder, ch)
-}
-
-func snapResolutionMinute(res time.Duration) time.Duration {
-	resMins := int64(math.Trunc(res.Minutes()))
-	if resMins <= 0 {
-		resMins = 1
-	}
-	return time.Duration(resMins) * time.Minute
-}
-
-func formatResolutionMinutes(resMins int64) string {
-	if resMins%60 == 0 {
-		return fmt.Sprintf("%dh", resMins/60)
-	}
-
-	return fmt.Sprintf("%dm", resMins)
 }

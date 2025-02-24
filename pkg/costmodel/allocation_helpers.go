@@ -11,7 +11,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
-	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/env"
@@ -1012,23 +1011,11 @@ func resToNodeLabels(resNodeLabels []*source.NodeLabelsResult) map[nodeKey]map[s
 			nodeLabels[nodeKey] = map[string]string{}
 		}
 
-		for _, rawK := range env.GetAllocationNodeLabelsIncludeList() {
-			labels := res.Labels
-
-			// Sanitize the given label name to match Prometheus formatting
-			// e.g. topology.kubernetes.io/zone => topology_kubernetes_io_zone
-			k := promutil.SanitizeLabelName(rawK)
-			if v, ok := labels[k]; ok {
-				nodeLabels[nodeKey][k] = v
-				continue
-			}
-
-			// Try with the "label_" prefix, if not found
-			// e.g. topology_kubernetes_io_zone => label_topology_kubernetes_io_zone
-			k = fmt.Sprintf("label_%s", k)
-			if v, ok := labels[k]; ok {
-				nodeLabels[nodeKey][k] = v
-			}
+		labels := res.Labels
+		// labels are retrieved from prometheus here so it will be in prometheus sanitized state
+		// e.g. topology.kubernetes.io/zone => topology_kubernetes_io_zone
+		for labelKey, labelValue := range labels {
+			nodeLabels[nodeKey][labelKey] = labelValue
 		}
 	}
 
@@ -1330,7 +1317,7 @@ func resToPodDaemonSetMap(resDaemonSetLabels []*source.DaemonSetLabelsResult, po
 		}
 
 		pod := res.Pod
-		if err != nil {
+		if pod == "" {
 			log.Warnf("CostModel.ComputeAllocation: DaemonSetLabel result without pod: %s", controllerKey)
 		}
 
