@@ -6,13 +6,13 @@ Official list of [OpenCost Maintainers](https://github.com/orgs/opencost/teams/o
 
 | Maintainer | GitHub ID | Affiliation | Email |
 | --------------- | --------- | ----------- | ----------- |
-| Ajay Tripathy | @AjayTripathy | Kubecost | <Ajay@kubecost.com> |
-| Alex Meijer | @ameijer | Kubecost | <ameijer@kubecost.com> |
+| Ajay Tripathy | @AjayTripathy | IBM | <ajay.tripathy@ibm.com> |
+| Alex Meijer | @ameijer | IBM | <alexander.meijer@ibm.com> |
 | Artur Khantimirov | @r2k1 | Microsoft | <akhantimirov@microsoft.com> |
-| Cliff Colvin | @cliffcolvin | Kubecost | <ccolvin@kubecost.com> |
-| Matt Bolt | @​mbolt35 | Kubecost | <matt@kubecost.com> |
-| Niko Kovacevic | @nikovacevic | Kubecost | <niko@kubecost.com> |
-| Sean Holcomb | @Sean-Holcomb | Kubecost | <Sean@kubecost.com> |
+| Cliff Colvin | @cliffcolvin | IBM | <clifford.colvin@ibm.com> |
+| Matt Bolt | @​mbolt35 | IBM | <matthew.bolt@ibm.com> |
+| Niko Kovacevic | @nikovacevic | IBM | <Nicholas.Kovacevic@ibm.com> |
+| Sean Holcomb | @Sean-Holcomb | IBM | <sean.holcomb@ibm.com> |
 
 ## Opencost Emeritus Committers
 We would like to acknowledge previous committers and their huge contributions to our collective success:
