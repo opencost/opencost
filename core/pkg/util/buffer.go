@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"math"
-	"reflect"
 	"unsafe"
 
 	"github.com/opencost/opencost/core/pkg/util/stringutil"
@@ -114,6 +113,7 @@ func (b *Buffer) WriteFloat64(i float64) {
 // WriteString writes the string's length as a uint16 followed by the string contents.
 func (b *Buffer) WriteString(i string) {
 	s := stringToBytes(i)
+
 	// string lengths are limited to uint16 - See ReadString()
 	if len(s) > math.MaxUint16 {
 		s = s[:math.MaxUint16]
@@ -401,7 +401,7 @@ func bytesToString(b []byte) string {
 	// cached string. If it does _not_ exist, then we use the passed func() string to allocate a new
 	// string and cache it. This will prevent us from allocating throw-away strings just to
 	// check our cache.
-	pinned := *(*string)(unsafe.Pointer(&b))
+	pinned := unsafe.String(unsafe.SliceData(b), len(b))
 
 	return stringutil.BankFunc(pinned, func() string {
 		return string(b)
@@ -409,11 +409,6 @@ func bytesToString(b []byte) string {
 }
 
 // Direct string to byte conversion that doesn't allocate.
-func stringToBytes(s string) (b []byte) {
-	strh := (*reflect.StringHeader)(unsafe.Pointer(&s))
-	sh := (*reflect.SliceHeader)(unsafe.Pointer(&b))
-	sh.Data = strh.Data
-	sh.Len = strh.Len
-	sh.Cap = strh.Len
-	return b
+func stringToBytes(s string) []byte {
+	return unsafe.Slice(unsafe.StringData(s), len(s))
 }
