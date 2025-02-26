@@ -141,7 +141,7 @@ func (nsac KubeNamespaceCollector) Collect(ch chan<- prometheus.Metric) {
 
 		labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(namespace.Labels))
 		if len(labels) > 0 {
-			m := newNamespaceAnnotationsMetric("kube_namespace_labels", nsName, labels, values)
+			m := newKubeNamespaceLabelsMetric("kube_namespace_labels", nsName, labels, values)
 			ch <- m
 		}
 	}
