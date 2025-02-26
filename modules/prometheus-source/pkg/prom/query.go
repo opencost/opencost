@@ -33,6 +33,7 @@ type ContextFactory struct {
 func NewContextFactory(client prometheus.Client, promConfig *OpenCostPrometheusConfig) *ContextFactory {
 	return &ContextFactory{
 		client: client,
+		config: promConfig,
 	}
 }
 
