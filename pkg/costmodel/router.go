@@ -914,8 +914,6 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 		log.Infof("Init: ClusterCosts cache warming disabled")
 	}
 
-	// router.GET("/aggregatedCostModel", a.AggregateCostModelHandler)
-
 	if !env.IsKubecostMetricsPodEnabled() {
 		a.MetricsEmitter.Start()
 	}

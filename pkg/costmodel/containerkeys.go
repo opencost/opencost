@@ -219,7 +219,6 @@ func NewContainerMetricFrom(result *source.ContainerMetricResult, defaultCluster
 
 	clusterID := result.Cluster
 	if clusterID == "" {
-		log.Debugf("metric vector does not have cluster id")
 		clusterID = defaultClusterID
 	}
 

@@ -1249,7 +1249,7 @@ func resToStatefulSetLabels(resStatefulSetLabels []*source.StatefulSetLabelsResu
 	statefulSetLabels := map[controllerKey]map[string]string{}
 
 	for _, res := range resStatefulSetLabels {
-		controllerKey, err := newResultControllerKey(res.Cluster, res.Namespace, res.StatefulSet, "statefulSet")
+		controllerKey, err := newResultControllerKey(res.Cluster, res.Namespace, res.StatefulSet, "statefulset")
 		if err != nil {
 			continue
 		}
