@@ -563,7 +563,14 @@ type ContainerMetricResult struct {
 
 func DecodeContainerMetricResult(result *QueryResult) *ContainerMetricResult {
 	cluster, _ := result.GetCluster()
-	node, _ := result.GetNode()
+
+	// Note: This emulates the relabel behavior from older queries - we just do this by default
+	// Note: if node is empty
+	node, err := result.GetNode()
+	if err != nil || node == "" {
+		node, _ = result.GetInstance()
+	}
+
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
 	container, _ := result.GetContainer()
@@ -1277,12 +1284,14 @@ type DaemonSetLabelsResult struct {
 func DecodeDaemonSetLabelsResult(result *QueryResult) *DaemonSetLabelsResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
+	pod, _ := result.GetPod()
 	daemonSet, _ := result.GetString("owner_name")
 	labels := result.GetLabels()
 
 	return &DaemonSetLabelsResult{
 		Cluster:   cluster,
 		Namespace: namespace,
+		Pod:       pod,
 		DaemonSet: daemonSet,
 		Labels:    labels,
 		Data:      result.Values,
