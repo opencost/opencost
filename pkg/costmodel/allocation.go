@@ -213,7 +213,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 // DateRange checks the data (up to 90 days in the past), and returns the oldest and newest sample timestamp from opencost scraping metric
 // it supposed to be a good indicator of available allocation data
 func (cm *CostModel) DateRange(limitDays int) (time.Time, time.Time, error) {
-	return cm.DataSource.QueryDataCoverage(limitDays)
+	return cm.DataSource.Metrics().QueryDataCoverage(limitDays)
 }
 
 func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Duration) (*opencost.AllocationSet, map[nodeKey]*nodePricing, error) {
@@ -277,7 +277,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	}
 
 	grp := source.NewQueryGroup()
-	ds := cm.DataSource
+	ds := cm.DataSource.Metrics()
 
 	resChRAMBytesAllocated := source.WithGroup(grp, ds.QueryRAMBytesAllocated(start, end))
 	resChRAMRequests := source.WithGroup(grp, ds.QueryRAMRequests(start, end))

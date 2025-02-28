@@ -22,7 +22,7 @@ import (
 type extendedNodeQueryResults struct{}
 
 // queryExtendedNodeData is a place holder function for the incubating feature
-func queryExtendedNodeData(_ *source.QueryGroup, _ source.OpenCostDataSource, _, _ time.Time) (*extendedNodeQueryResults, error) {
+func queryExtendedNodeData(_ *source.QueryGroup, _ source.MetricsQuerier, _, _ time.Time) (*extendedNodeQueryResults, error) {
 	return &extendedNodeQueryResults{}, nil
 }
 

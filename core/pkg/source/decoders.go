@@ -79,6 +79,9 @@ type LocalStorageActiveMinutesResult struct {
 func DecodeLocalStorageActiveMinutesResult(result *QueryResult) *LocalStorageActiveMinutesResult {
 	cluster, _ := result.GetCluster()
 	node, _ := result.GetNode()
+	if node == "" {
+		node, _ = result.GetInstance()
+	}
 	providerId, _ := result.GetProviderID()
 
 	return &LocalStorageActiveMinutesResult{
@@ -188,18 +191,6 @@ func DecodeLocalStorageBytesResult(result *QueryResult) *LocalStorageBytesResult
 		Device:   device,
 		Data:     result.Values,
 	}
-}
-
-type LocalStorageBytesByProviderResult = TotalStorageResult
-
-func DecodeLocalStorageBytesByProviderResult(result *QueryResult) *LocalStorageBytesByProviderResult {
-	return DecodeTotalStorageResult(result)
-}
-
-type LocalStorageUsedByProviderResult = TotalStorageResult
-
-func DecodeLocalStorageUsedByProviderResult(result *QueryResult) *LocalStorageUsedByProviderResult {
-	return DecodeTotalStorageResult(result)
 }
 
 type NodeActiveMinutesResult struct {
@@ -329,26 +320,6 @@ func DecodeNodeIsSpotResult(result *QueryResult) *NodeIsSpotResult {
 	}
 }
 
-type NodeCPUModePercentResult struct {
-	Cluster string
-	Node    string
-	Mode    string
-	Data    []*util.Vector
-}
-
-func DecodeNodeCPUModePercentResult(result *QueryResult) *NodeCPUModePercentResult {
-	cluster, _ := result.GetCluster()
-	node, _ := result.GetString("kubernetes_node")
-	mode, _ := result.GetString("mode")
-
-	return &NodeCPUModePercentResult{
-		Cluster: cluster,
-		Node:    node,
-		Mode:    mode,
-		Data:    result.Values,
-	}
-}
-
 type NodeRAMSystemPercentResult struct {
 	Cluster  string
 	Instance string
@@ -423,108 +394,6 @@ type ClusterManagementPricePerHrResult = ClusterManagementDurationResult
 
 func DecodeClusterManagementPricePerHrResult(result *QueryResult) *ClusterManagementPricePerHrResult {
 	return DecodeClusterManagementDurationResult(result)
-}
-
-type DataCountResult struct {
-	Cluster string
-	Data    []*util.Vector
-}
-
-func DecodeDataCountResult(result *QueryResult) *DataCountResult {
-	cluster, _ := result.GetCluster()
-
-	return &DataCountResult{
-		Cluster: cluster,
-		Data:    result.Values,
-	}
-}
-
-type TotalResult struct {
-	Cluster string
-
-	Data []*util.Vector
-}
-
-func DecodeTotalResult(result *QueryResult) *TotalResult {
-	cluster, _ := result.GetCluster()
-	return &TotalResult{
-		Cluster: cluster,
-		Data:    result.Values,
-	}
-}
-
-type TotalCPUResult = TotalResult
-
-func DecodeTotalCPUResult(result *QueryResult) *TotalCPUResult {
-	return DecodeTotalResult(result)
-}
-
-type TotalRAMResult = TotalResult
-
-func DecodeTotalRAMResult(result *QueryResult) *TotalRAMResult {
-	return DecodeTotalResult(result)
-}
-
-type TotalGPUResult = TotalResult
-
-func DecodeTotalGPUResult(result *QueryResult) *TotalGPUResult {
-	return DecodeTotalResult(result)
-}
-
-type TotalStorageResult = TotalResult
-
-func DecodeTotalStorageResult(result *QueryResult) *TotalStorageResult {
-	return DecodeTotalResult(result)
-}
-
-type ClusterResult struct {
-	Data []*util.Vector
-}
-
-func DecodeClusterResult(result *QueryResult) *ClusterResult {
-	return &ClusterResult{
-		Data: result.Values,
-	}
-}
-
-type ClusterCoresResult = ClusterResult
-
-func DecodeClusterCoresResult(result *QueryResult) *ClusterCoresResult {
-	return DecodeClusterResult(result)
-}
-
-type ClusterRAMResult = ClusterResult
-
-func DecodeClusterRAMResult(result *QueryResult) *ClusterRAMResult {
-	return DecodeClusterResult(result)
-}
-
-type ClusterStorageResult = ClusterResult
-
-func DecodeClusterStorageResult(result *QueryResult) *ClusterStorageResult {
-	return DecodeClusterResult(result)
-}
-
-type ClusterTotalResult = ClusterResult
-
-func DecodeClusterTotalResult(result *QueryResult) *ClusterTotalResult {
-	return DecodeClusterResult(result)
-}
-
-type ClusterNodesResult = ClusterResult
-
-func DecodeClusterNodesResult(result *QueryResult) *ClusterNodesResult {
-	return DecodeClusterResult(result)
-}
-
-type ClusterNodesByProviderResult struct {
-	Data []*util.Vector
-}
-
-func DecodeClusterNodesByProviderResult(result *QueryResult) *ClusterNodesByProviderResult {
-	return &ClusterNodesByProviderResult{
-		Data: result.Values,
-	}
 }
 
 type PodsResult struct {

@@ -244,7 +244,7 @@ type extendedNodeQueryResults struct {
 
 // queryExtendedNodeData makes additional prometheus queries for node data to append on
 // the AllocationNodePricing struct.
-func queryExtendedNodeData(grp *source.QueryGroup, ds source.OpenCostDataSource, start, end time.Time) (*extendedNodeQueryResults, error) {
+func queryExtendedNodeData(grp *source.QueryGroup, ds source.MetricsQuerier, start, end time.Time) (*extendedNodeQueryResults, error) {
 	resChQueryNodeCPUCores := grp.With(ds.QueryNodeCPUCoresCapacity(start, end))
 	resChQueryNodeRAMBytes := grp.With(ds.QueryNodeRAMBytesCapacity(start, end))
 	resChQueryNodeGPUCount := grp.With(ds.QueryNodeGPUCount(start, end))

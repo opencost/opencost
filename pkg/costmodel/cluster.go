@@ -131,14 +131,15 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	resolution := env.GetETLResolution()
 
 	grp := source.NewQueryGroup()
+	mq := dataSource.Metrics()
 
-	resChPVCost := source.WithGroup(grp, dataSource.QueryPVPricePerGiBHour(start, end))
-	resChPVSize := source.WithGroup(grp, dataSource.QueryPVBytes(start, end))
-	resChActiveMins := source.WithGroup(grp, dataSource.QueryPVActiveMinutes(start, end))
-	resChPVStorageClass := source.WithGroup(grp, dataSource.QueryPVInfo(start, end))
-	resChPVUsedAvg := source.WithGroup(grp, dataSource.QueryPVUsedAverage(start, end))
-	resChPVUsedMax := source.WithGroup(grp, dataSource.QueryPVUsedMax(start, end))
-	resChPVCInfo := source.WithGroup(grp, dataSource.QueryPVCInfo(start, end))
+	resChPVCost := source.WithGroup(grp, mq.QueryPVPricePerGiBHour(start, end))
+	resChPVSize := source.WithGroup(grp, mq.QueryPVBytes(start, end))
+	resChActiveMins := source.WithGroup(grp, mq.QueryPVActiveMinutes(start, end))
+	resChPVStorageClass := source.WithGroup(grp, mq.QueryPVInfo(start, end))
+	resChPVUsedAvg := source.WithGroup(grp, mq.QueryPVUsedAverage(start, end))
+	resChPVUsedMax := source.WithGroup(grp, mq.QueryPVUsedMax(start, end))
+	resChPVCInfo := source.WithGroup(grp, mq.QueryPVCInfo(start, end))
 
 	resPVCost, _ := resChPVCost.Await()
 	resPVSize, _ := resChPVSize.Await()
@@ -165,12 +166,12 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	resLocalActiveMins := []*source.LocalStorageActiveMinutesResult{}
 
 	if env.GetAssetIncludeLocalDiskCost() {
-		resChLocalStorageCost := source.WithGroup(grp, dataSource.QueryLocalStorageCost(start, end))
-		resChLocalStorageUsedCost := source.WithGroup(grp, dataSource.QueryLocalStorageUsedCost(start, end))
-		resChLocalStoreageUsedAvg := source.WithGroup(grp, dataSource.QueryLocalStorageUsedAvg(start, end))
-		resChLocalStoreageUsedMax := source.WithGroup(grp, dataSource.QueryLocalStorageUsedMax(start, end))
-		resChLocalStorageBytes := source.WithGroup(grp, dataSource.QueryLocalStorageBytes(start, end))
-		resChLocalActiveMins := source.WithGroup(grp, dataSource.QueryLocalStorageActiveMinutes(start, end))
+		resChLocalStorageCost := source.WithGroup(grp, mq.QueryLocalStorageCost(start, end))
+		resChLocalStorageUsedCost := source.WithGroup(grp, mq.QueryLocalStorageUsedCost(start, end))
+		resChLocalStoreageUsedAvg := source.WithGroup(grp, mq.QueryLocalStorageUsedAvg(start, end))
+		resChLocalStoreageUsedMax := source.WithGroup(grp, mq.QueryLocalStorageUsedMax(start, end))
+		resChLocalStorageBytes := source.WithGroup(grp, mq.QueryLocalStorageBytes(start, end))
+		resChLocalActiveMins := source.WithGroup(grp, mq.QueryLocalStorageActiveMinutes(start, end))
 
 		resLocalStorageCost, _ = resChLocalStorageCost.Await()
 		resLocalStorageUsedCost, _ = resChLocalStorageUsedCost.Await()
@@ -362,7 +363,7 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 
 		providerID := result.ProviderID
 		if providerID == "" {
-			log.DedupedWarningf(5, "ClusterDisks: local active mins data missing instance")
+			log.DedupedWarningf(5, "ClusterDisks: local active mins data missing provider_id")
 			continue
 		}
 
@@ -534,28 +535,29 @@ func costTimesMinute[T comparable](activeDataMap map[T]activeData, costMap map[T
 }
 
 func ClusterNodes(dataSource source.OpenCostDataSource, cp models.Provider, start, end time.Time) (map[NodeIdentifier]*Node, error) {
+	mq := dataSource.Metrics()
 	resolution := env.GetETLResolution()
 
 	requiredGrp := source.NewQueryGroup()
 	optionalGrp := source.NewQueryGroup()
 
 	// return errors if these fail
-	resChNodeCPUHourlyCost := source.WithGroup(requiredGrp, dataSource.QueryNodeCPUPricePerHr(start, end))
-	resChNodeCPUCoresCapacity := source.WithGroup(requiredGrp, dataSource.QueryNodeCPUCoresCapacity(start, end))
-	resChNodeCPUCoresAllocatable := source.WithGroup(requiredGrp, dataSource.QueryNodeCPUCoresAllocatable(start, end))
-	resChNodeRAMHourlyCost := source.WithGroup(requiredGrp, dataSource.QueryNodeRAMPricePerGiBHr(start, end))
-	resChNodeRAMBytesCapacity := source.WithGroup(requiredGrp, dataSource.QueryNodeRAMBytesCapacity(start, end))
-	resChNodeRAMBytesAllocatable := source.WithGroup(requiredGrp, dataSource.QueryNodeRAMBytesAllocatable(start, end))
-	resChNodeGPUCount := source.WithGroup(requiredGrp, dataSource.QueryNodeGPUCount(start, end))
-	resChNodeGPUHourlyPrice := source.WithGroup(requiredGrp, dataSource.QueryNodeGPUPricePerHr(start, end))
-	resChActiveMins := source.WithGroup(requiredGrp, dataSource.QueryNodeActiveMinutes(start, end))
-	resChIsSpot := source.WithGroup(requiredGrp, dataSource.QueryNodeIsSpot(start, end))
+	resChNodeCPUHourlyCost := source.WithGroup(requiredGrp, mq.QueryNodeCPUPricePerHr(start, end))
+	resChNodeCPUCoresCapacity := source.WithGroup(requiredGrp, mq.QueryNodeCPUCoresCapacity(start, end))
+	resChNodeCPUCoresAllocatable := source.WithGroup(requiredGrp, mq.QueryNodeCPUCoresAllocatable(start, end))
+	resChNodeRAMHourlyCost := source.WithGroup(requiredGrp, mq.QueryNodeRAMPricePerGiBHr(start, end))
+	resChNodeRAMBytesCapacity := source.WithGroup(requiredGrp, mq.QueryNodeRAMBytesCapacity(start, end))
+	resChNodeRAMBytesAllocatable := source.WithGroup(requiredGrp, mq.QueryNodeRAMBytesAllocatable(start, end))
+	resChNodeGPUCount := source.WithGroup(requiredGrp, mq.QueryNodeGPUCount(start, end))
+	resChNodeGPUHourlyPrice := source.WithGroup(requiredGrp, mq.QueryNodeGPUPricePerHr(start, end))
+	resChActiveMins := source.WithGroup(requiredGrp, mq.QueryNodeActiveMinutes(start, end))
+	resChIsSpot := source.WithGroup(requiredGrp, mq.QueryNodeIsSpot(start, end))
 
 	// Do not return errors if these fail, but log warnings
-	resChNodeCPUModeTotal := source.WithGroup(optionalGrp, dataSource.QueryNodeCPUModeTotal(start, end))
-	resChNodeRAMSystemPct := source.WithGroup(optionalGrp, dataSource.QueryNodeRAMSystemPercent(start, end))
-	resChNodeRAMUserPct := source.WithGroup(optionalGrp, dataSource.QueryNodeRAMUserPercent(start, end))
-	resChLabels := source.WithGroup(optionalGrp, dataSource.QueryNodeLabels(start, end))
+	resChNodeCPUModeTotal := source.WithGroup(optionalGrp, mq.QueryNodeCPUModeTotal(start, end))
+	resChNodeRAMSystemPct := source.WithGroup(optionalGrp, mq.QueryNodeRAMSystemPercent(start, end))
+	resChNodeRAMUserPct := source.WithGroup(optionalGrp, mq.QueryNodeRAMUserPercent(start, end))
+	resChLabels := source.WithGroup(optionalGrp, mq.QueryNodeLabels(start, end))
 
 	resNodeCPUHourlyCost, _ := resChNodeCPUHourlyCost.Await()
 	resNodeCPUCoresCapacity, _ := resChNodeCPUCoresCapacity.Await()
@@ -678,9 +680,10 @@ func ClusterLoadBalancers(dataSource source.OpenCostDataSource, start, end time.
 	resolution := env.GetETLResolution()
 
 	grp := source.NewQueryGroup()
+	mq := dataSource.Metrics()
 
-	resChLBCost := source.WithGroup(grp, dataSource.QueryLBPricePerHr(start, end))
-	resChActiveMins := source.WithGroup(grp, dataSource.QueryLBActiveMinutes(start, end))
+	resChLBCost := source.WithGroup(grp, mq.QueryLBPricePerHr(start, end))
+	resChActiveMins := source.WithGroup(grp, mq.QueryLBActiveMinutes(start, end))
 
 	resLBCost, _ := resChLBCost.Await()
 	resActiveMins, _ := resChActiveMins.Await()
@@ -701,12 +704,13 @@ func ClusterLoadBalancers(dataSource source.OpenCostDataSource, start, end time.
 		lbPricePerHr := result.Data[0].Value
 
 		lb := &LoadBalancer{
-			Cluster:   key.Cluster,
-			Namespace: key.Namespace,
-			Name:      key.Name,
-			Cost:      lbPricePerHr, // default to hourly cost, overwrite if active entry exists
-			Ip:        key.IngressIP,
-			Private:   privateIPCheck(key.IngressIP),
+			Cluster:    key.Cluster,
+			Namespace:  key.Namespace,
+			Name:       key.Name,
+			Cost:       lbPricePerHr, // default to hourly cost, overwrite if active entry exists
+			Ip:         key.IngressIP,
+			Private:    privateIPCheck(key.IngressIP),
+			ProviderID: provider.ParseLBID(key.IngressIP),
 		}
 
 		if active, ok := activeMap[key]; ok {
@@ -731,9 +735,10 @@ func ClusterManagement(dataSource source.OpenCostDataSource, start, end time.Tim
 	resolution := env.GetETLResolution()
 
 	grp := source.NewQueryGroup()
+	mq := dataSource.Metrics()
 
-	resChCMPrice := source.WithGroup(grp, dataSource.QueryClusterManagementPricePerHr(start, end))
-	resChCMDur := source.WithGroup(grp, dataSource.QueryClusterManagementDuration(start, end))
+	resChCMPrice := source.WithGroup(grp, mq.QueryClusterManagementPricePerHr(start, end))
+	resChCMDur := source.WithGroup(grp, mq.QueryClusterManagementDuration(start, end))
 
 	resCMPrice, _ := resChCMPrice.Await()
 	resCMDur, _ := resChCMDur.Await()
@@ -776,340 +781,6 @@ func ClusterManagement(dataSource source.OpenCostDataSource, start, end time.Tim
 func privateIPCheck(ip string) bool {
 	ipAddress := net.ParseIP(ip)
 	return ipAddress.IsPrivate()
-}
-
-// ComputeClusterCosts gives the cumulative and monthly-rate cluster costs over a window of time for all clusters.
-func (a *Accesses) ComputeClusterCosts(dataSource source.OpenCostDataSource, provider models.Provider, window, offset time.Duration, withBreakdown bool) (map[string]*ClusterCosts, error) {
-	if window < 10*time.Minute {
-		return nil, fmt.Errorf("minimum window of 10m required; got %s", window)
-	}
-
-	// Compute number of minutes in the full interval, for use interpolating missed scrapes or scaling missing data
-	start, end := timeutil.ParseTimeRange(window, offset)
-	mins := end.Sub(start).Minutes()
-
-	providerName := ""
-
-	if clusterInfo, err := provider.ClusterInfo(); err != nil {
-		providerName = clusterInfo["provider"]
-	}
-
-	grp := source.NewQueryGroup()
-
-	queryDataCount := source.WithGroup(grp, dataSource.QueryDataCount(start, end))
-	queryTotalGPU := source.WithGroup(grp, dataSource.QueryTotalGPU(start, end))
-	queryTotalCPU := source.WithGroup(grp, dataSource.QueryTotalCPU(start, end))
-	queryTotalRAM := source.WithGroup(grp, dataSource.QueryTotalRAM(start, end))
-	queryTotalStorage := source.WithGroup(grp, dataSource.QueryTotalStorage(start, end))
-	queryTotalLocalStorage := source.WithGroup(grp, dataSource.QueryLocalStorageBytesByProvider(providerName, start, end))
-
-	var queryCPUModePct *source.QueryGroupFuture[source.NodeCPUModePercentResult]
-	var queryRAMSystemPct *source.QueryGroupFuture[source.NodeRAMSystemPercentResult]
-	var queryRAMUserPct *source.QueryGroupFuture[source.NodeRAMUserPercentResult]
-	var queryUsedLocalStorage *source.QueryGroupFuture[source.LocalStorageUsedByProviderResult]
-
-	if withBreakdown {
-		queryCPUModePct = source.WithGroup(grp, dataSource.QueryNodeCPUModePercent(start, end))
-		queryRAMSystemPct = source.WithGroup(grp, dataSource.QueryNodeRAMSystemPercent(start, end))
-		queryRAMUserPct = source.WithGroup(grp, dataSource.QueryNodeRAMUserPercent(start, end))
-		queryUsedLocalStorage = source.WithGroup(grp, dataSource.QueryLocalStorageUsedByProvider(providerName, start, end))
-	}
-
-	resDataCount, _ := queryDataCount.Await()
-	resTotalGPU, _ := queryTotalGPU.Await()
-	resTotalCPU, _ := queryTotalCPU.Await()
-	resTotalRAM, _ := queryTotalRAM.Await()
-	resTotalStorage, _ := queryTotalStorage.Await()
-
-	if grp.HasErrors() {
-		return nil, grp.Error()
-	}
-
-	defaultClusterID := env.GetClusterID()
-
-	dataMinsByCluster := map[string]float64{}
-	for _, result := range resDataCount {
-		clusterID := result.Cluster
-		if clusterID == "" {
-			clusterID = defaultClusterID
-		}
-
-		dataMins := mins
-		if len(result.Data) > 0 {
-			dataMins = result.Data[0].Value
-		} else {
-			log.Warnf("Cluster cost data count returned no results for cluster %s", clusterID)
-		}
-		dataMinsByCluster[clusterID] = dataMins
-	}
-
-	// Determine combined discount
-	discount, customDiscount := 0.0, 0.0
-	c, err := a.CloudProvider.GetConfig()
-	if err == nil {
-		discount, err = ParsePercentString(c.Discount)
-		if err != nil {
-			discount = 0.0
-		}
-		customDiscount, err = ParsePercentString(c.NegotiatedDiscount)
-		if err != nil {
-			customDiscount = 0.0
-		}
-	}
-
-	// Intermediate structure storing mapping of [clusterID][type ∈ {cpu, ram, storage, total}]=cost
-	costData := make(map[string]map[string]float64)
-
-	// Helper function to iterate over Prom query results, parsing the raw values into
-	// the intermediate costData structure.
-	setCostsFromResults := func(costData map[string]map[string]float64, results []*source.TotalResult, name string, discount float64, customDiscount float64) {
-		for _, result := range results {
-			clusterID := result.Cluster
-			if clusterID == "" {
-				clusterID = defaultClusterID
-			}
-
-			if _, ok := costData[clusterID]; !ok {
-				costData[clusterID] = map[string]float64{}
-			}
-
-			if len(result.Data) > 0 {
-				costData[clusterID][name] += result.Data[0].Value * (1.0 - discount) * (1.0 - customDiscount)
-				costData[clusterID]["total"] += result.Data[0].Value * (1.0 - discount) * (1.0 - customDiscount)
-			}
-		}
-	}
-	// Apply both sustained use and custom discounts to RAM and CPU
-	setCostsFromResults(costData, resTotalCPU, "cpu", discount, customDiscount)
-	setCostsFromResults(costData, resTotalRAM, "ram", discount, customDiscount)
-	// Apply only custom discount to GPU and storage
-	setCostsFromResults(costData, resTotalGPU, "gpu", 0.0, customDiscount)
-	setCostsFromResults(costData, resTotalStorage, "storage", 0.0, customDiscount)
-
-	resTotalLocalStorage, err := queryTotalLocalStorage.Await()
-	if err != nil {
-		return nil, err
-	}
-
-	if len(resTotalLocalStorage) > 0 {
-		setCostsFromResults(costData, resTotalLocalStorage, "localstorage", 0.0, customDiscount)
-	}
-
-	cpuBreakdownMap := map[string]*ClusterCostsBreakdown{}
-	ramBreakdownMap := map[string]*ClusterCostsBreakdown{}
-	pvUsedCostMap := map[string]float64{}
-	if withBreakdown {
-		resCPUModePct, _ := queryCPUModePct.Await()
-		resRAMSystemPct, _ := queryRAMSystemPct.Await()
-		resRAMUserPct, _ := queryRAMUserPct.Await()
-
-		if grp.HasErrors() {
-			return nil, grp.Error()
-		}
-
-		for _, result := range resCPUModePct {
-			clusterID := result.Cluster
-			if clusterID == "" {
-				clusterID = defaultClusterID
-			}
-			if _, ok := cpuBreakdownMap[clusterID]; !ok {
-				cpuBreakdownMap[clusterID] = &ClusterCostsBreakdown{}
-			}
-			cpuBD := cpuBreakdownMap[clusterID]
-
-			mode := result.Mode
-			if mode == "" {
-				log.Warnf("ComputeClusterCosts: unable to read CPU mode: %s", err)
-				mode = "other"
-			}
-
-			switch mode {
-			case "idle":
-				cpuBD.Idle += result.Data[0].Value
-			case "system":
-				cpuBD.System += result.Data[0].Value
-			case "user":
-				cpuBD.User += result.Data[0].Value
-			default:
-				cpuBD.Other += result.Data[0].Value
-			}
-		}
-
-		for _, result := range resRAMSystemPct {
-			clusterID := result.Cluster
-			if clusterID == "" {
-				clusterID = defaultClusterID
-			}
-			if _, ok := ramBreakdownMap[clusterID]; !ok {
-				ramBreakdownMap[clusterID] = &ClusterCostsBreakdown{}
-			}
-			ramBD := ramBreakdownMap[clusterID]
-			ramBD.System += result.Data[0].Value
-		}
-		for _, result := range resRAMUserPct {
-			clusterID := result.Cluster
-			if clusterID == "" {
-				clusterID = defaultClusterID
-			}
-			if _, ok := ramBreakdownMap[clusterID]; !ok {
-				ramBreakdownMap[clusterID] = &ClusterCostsBreakdown{}
-			}
-			ramBD := ramBreakdownMap[clusterID]
-			ramBD.User += result.Data[0].Value
-		}
-		for _, ramBD := range ramBreakdownMap {
-			remaining := 1.0
-			remaining -= ramBD.Other
-			remaining -= ramBD.System
-			remaining -= ramBD.User
-			ramBD.Idle = remaining
-		}
-
-		resUsedLocalStorage, err := queryUsedLocalStorage.Await()
-		if err != nil {
-			return nil, err
-		}
-
-		for _, result := range resUsedLocalStorage {
-			clusterID := result.Cluster
-			if clusterID == "" {
-				clusterID = defaultClusterID
-			}
-			pvUsedCostMap[clusterID] += result.Data[0].Value
-		}
-	}
-
-	if grp.HasErrors() {
-		for _, err := range grp.Errors() {
-			log.Errorf("ComputeClusterCosts: %s", err)
-		}
-		return nil, grp.Error()
-	}
-
-	// Convert intermediate structure to Costs instances
-	costsByCluster := map[string]*ClusterCosts{}
-	for id, cd := range costData {
-		dataMins, ok := dataMinsByCluster[id]
-		if !ok {
-			dataMins = mins
-			log.Warnf("Cluster cost data count not found for cluster %s", id)
-		}
-		costs, err := NewClusterCostsFromCumulative(cd["cpu"], cd["gpu"], cd["ram"], cd["storage"]+cd["localstorage"], window, offset, dataMins/timeutil.MinsPerHour)
-		if err != nil {
-			log.Warnf("Failed to parse cluster costs on %s (%s) from cumulative data: %+v", window, offset, cd)
-			return nil, err
-		}
-
-		if cpuBD, ok := cpuBreakdownMap[id]; ok {
-			costs.CPUBreakdown = cpuBD
-		}
-		if ramBD, ok := ramBreakdownMap[id]; ok {
-			costs.RAMBreakdown = ramBD
-		}
-		costs.StorageBreakdown = &ClusterCostsBreakdown{}
-		if pvUC, ok := pvUsedCostMap[id]; ok {
-			costs.StorageBreakdown.Idle = (costs.StorageCumulative - pvUC) / costs.StorageCumulative
-			costs.StorageBreakdown.User = pvUC / costs.StorageCumulative
-		}
-		costs.DataMinutes = dataMins
-		costsByCluster[id] = costs
-	}
-
-	return costsByCluster, nil
-}
-
-type Totals struct {
-	TotalCost   [][]string `json:"totalcost"`
-	CPUCost     [][]string `json:"cpucost"`
-	MemCost     [][]string `json:"memcost"`
-	StorageCost [][]string `json:"storageCost"`
-}
-
-func resultToTotals(qrs []*source.ClusterResult) ([][]string, error) {
-	if len(qrs) == 0 {
-		return [][]string{}, fmt.Errorf("not enough data available in the selected time range")
-	}
-
-	result := qrs[0]
-	totals := [][]string{}
-	for _, value := range result.Data {
-		d0 := fmt.Sprintf("%f", value.Timestamp)
-		d1 := fmt.Sprintf("%f", value.Value)
-		toAppend := []string{
-			d0,
-			d1,
-		}
-		totals = append(totals, toAppend)
-	}
-	return totals, nil
-}
-
-// ClusterCostsOverTime gives the full cluster costs over time
-func ClusterCostsOverTime(dataSource source.OpenCostDataSource, provider models.Provider, start, end time.Time, window, offset time.Duration) (*Totals, error) {
-	providerName := ""
-
-	if clusterInfo, err := provider.ClusterInfo(); err != nil {
-		providerName = clusterInfo["provider"]
-	}
-
-	grp := source.NewQueryGroup()
-
-	qCores := source.WithGroup(grp, dataSource.QueryClusterCores(start, end, window))
-	qRAM := source.WithGroup(grp, dataSource.QueryClusterRAM(start, end, window))
-	qStorage := source.WithGroup(grp, dataSource.QueryClusterStorageByProvider(providerName, start, end, window))
-	qTotal := source.WithGroup(grp, dataSource.QueryClusterTotalByProvider(providerName, start, end, window))
-
-	resultClusterCores, _ := qCores.Await()
-	resultClusterRAM, _ := qRAM.Await()
-	resultStorage, _ := qStorage.Await()
-	resultTotal, _ := qTotal.Await()
-
-	if grp.HasErrors() {
-		return nil, grp.Error()
-	}
-
-	coreTotal, err := resultToTotals(resultClusterCores)
-	if err != nil {
-		log.Infof("[Warning] ClusterCostsOverTime: no cpu data: %s", err)
-		return nil, err
-	}
-
-	ramTotal, err := resultToTotals(resultClusterRAM)
-	if err != nil {
-		log.Infof("[Warning] ClusterCostsOverTime: no ram data: %s", err)
-		return nil, err
-	}
-
-	storageTotal, err := resultToTotals(resultStorage)
-	if err != nil {
-		log.Infof("[Warning] ClusterCostsOverTime: no storage data: %s", err)
-	}
-
-	clusterTotal, err := resultToTotals(resultTotal)
-	if err != nil {
-		// If clusterTotal query failed, it's likely because there are no PVs, which
-		// causes the qTotal query to return no data. Instead, query only node costs.
-		// If that fails, return an error because something is actually wrong.
-		qNodes := source.WithGroup(grp, dataSource.QueryClusterNodesByProvider(providerName, start, end, window))
-
-		resultNodes, err := qNodes.Await()
-		if err != nil {
-			return nil, err
-		}
-
-		clusterTotal, err = resultToTotals(resultNodes)
-		if err != nil {
-			log.Infof("[Warning] ClusterCostsOverTime: no node data: %s", err)
-			return nil, err
-		}
-	}
-
-	return &Totals{
-		TotalCost:   clusterTotal,
-		CPUCost:     coreTotal,
-		MemCost:     ramTotal,
-		StorageCost: storageTotal,
-	}, nil
 }
 
 func pvCosts(

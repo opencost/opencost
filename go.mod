@@ -51,7 +51,6 @@ require (
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.9.0
-	go.etcd.io/bbolt v1.3.5
 	go.opentelemetry.io/otel v1.24.0
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 	golang.org/x/oauth2 v0.23.0
@@ -63,7 +62,6 @@ require (
 	k8s.io/api v0.32.0
 	k8s.io/apimachinery v0.32.0
 	k8s.io/client-go v0.32.0
-	sigs.k8s.io/yaml v1.4.0
 )
 
 require (
@@ -72,6 +70,7 @@ require (
 	github.com/sony/gobreaker v0.5.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
+	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
 require (
@@ -125,7 +124,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/flatbuffers v23.5.26+incompatible // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/s2a-go v0.1.7 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.2 // indirect

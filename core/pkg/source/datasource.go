@@ -7,7 +7,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/clusters"
 )
 
-type ClusterMetricsQuerier interface {
+type MetricsQuerier interface {
 	// Cluster Disks
 	QueryPVActiveMinutes(start, end time.Time) *Future[PVActiveMinutesResult]
 	QueryPVUsedAverage(start, end time.Time) *Future[PVUsedAvgResult]
@@ -20,8 +20,6 @@ type ClusterMetricsQuerier interface {
 	QueryLocalStorageUsedAvg(start, end time.Time) *Future[LocalStorageUsedAvgResult]
 	QueryLocalStorageUsedMax(start, end time.Time) *Future[LocalStorageUsedMaxResult]
 	QueryLocalStorageBytes(start, end time.Time) *Future[LocalStorageBytesResult]
-	QueryLocalStorageBytesByProvider(provider string, start, end time.Time) *Future[LocalStorageBytesByProviderResult]
-	QueryLocalStorageUsedByProvider(provider string, start, end time.Time) *Future[LocalStorageUsedByProviderResult]
 
 	// Nodes
 	QueryNodeActiveMinutes(start, end time.Time) *Future[NodeActiveMinutesResult]
@@ -32,7 +30,6 @@ type ClusterMetricsQuerier interface {
 	QueryNodeGPUCount(start, end time.Time) *Future[NodeGPUCountResult]
 	QueryNodeCPUModeTotal(start, end time.Time) *Future[NodeCPUModeTotalResult]
 	QueryNodeIsSpot(start, end time.Time) *Future[NodeIsSpotResult]
-	QueryNodeCPUModePercent(start, end time.Time) *Future[NodeCPUModePercentResult]
 	QueryNodeRAMSystemPercent(start, end time.Time) *Future[NodeRAMSystemPercentResult]
 	QueryNodeRAMUserPercent(start, end time.Time) *Future[NodeRAMUserPercentResult]
 
@@ -44,40 +41,25 @@ type ClusterMetricsQuerier interface {
 	QueryClusterManagementDuration(start, end time.Time) *Future[ClusterManagementDurationResult]
 	QueryClusterManagementPricePerHr(start, end time.Time) *Future[ClusterManagementPricePerHrResult]
 
-	// Cluster Costs
-	QueryDataCount(start, end time.Time) *Future[DataCountResult]
-	QueryTotalGPU(start, end time.Time) *Future[TotalGPUResult]
-	QueryTotalCPU(start, end time.Time) *Future[TotalCPUResult]
-	QueryTotalRAM(start, end time.Time) *Future[TotalRAMResult]
-	QueryTotalStorage(start, end time.Time) *Future[TotalStorageResult]
-
-	// Cluster Costs
-	QueryClusterCores(start, end time.Time, step time.Duration) *Future[ClusterCoresResult]
-	QueryClusterRAM(start, end time.Time, step time.Duration) *Future[ClusterRAMResult]
-	QueryClusterStorage(start, end time.Time, step time.Duration) *Future[ClusterStorageResult]
-	QueryClusterStorageByProvider(provider string, start, end time.Time, step time.Duration) *Future[ClusterStorageResult]
-	QueryClusterTotal(start, end time.Time, step time.Duration) *Future[ClusterTotalResult]
-	QueryClusterTotalByProvider(provider string, start, end time.Time, step time.Duration) *Future[ClusterTotalResult]
-	QueryClusterNodes(start, end time.Time, step time.Duration) *Future[ClusterNodesResult]
-	QueryClusterNodesByProvider(provider string, start, end time.Time, step time.Duration) *Future[ClusterNodesResult]
-}
-
-type AllocationMetricsQuerier interface {
+	// Pods
 	QueryPods(start, end time.Time) *Future[PodsResult]
 	QueryPodsUID(start, end time.Time) *Future[PodsResult]
 
+	// RAM
 	QueryRAMBytesAllocated(start, end time.Time) *Future[RAMBytesAllocatedResult]
 	QueryRAMRequests(start, end time.Time) *Future[RAMRequestsResult]
 	QueryRAMUsageAvg(start, end time.Time) *Future[RAMUsageAvgResult]
 	QueryRAMUsageMax(start, end time.Time) *Future[RAMUsageMaxResult]
 	QueryNodeRAMPricePerGiBHr(start, end time.Time) *Future[NodeRAMPricePerGiBHrResult]
 
+	// CPU
 	QueryCPUCoresAllocated(start, end time.Time) *Future[CPUCoresAllocatedResult]
 	QueryCPURequests(start, end time.Time) *Future[CPURequestsResult]
 	QueryCPUUsageAvg(start, end time.Time) *Future[CPUUsageAvgResult]
 	QueryCPUUsageMax(start, end time.Time) *Future[CPUUsageMaxResult]
 	QueryNodeCPUPricePerHr(start, end time.Time) *Future[NodeCPUPricePerHrResult]
 
+	// GPU
 	QueryGPUsAllocated(start, end time.Time) *Future[GPUsAllocatedResult]
 	QueryGPUsRequested(start, end time.Time) *Future[GPUsRequestedResult]
 	QueryGPUsUsageAvg(start, end time.Time) *Future[GPUsUsageAvgResult]
@@ -86,14 +68,17 @@ type AllocationMetricsQuerier interface {
 	QueryGPUInfo(start, end time.Time) *Future[GPUInfoResult]
 	QueryIsGPUShared(start, end time.Time) *Future[IsGPUSharedResult]
 
+	// PVC
 	QueryPodPVCAllocation(start, end time.Time) *Future[PodPVCAllocationResult]
 	QueryPVCBytesRequested(start, end time.Time) *Future[PVCBytesRequestedResult]
 	QueryPVCInfo(start, end time.Time) *Future[PVCInfoResult]
 
+	// PV
 	QueryPVBytes(start, end time.Time) *Future[PVBytesResult]
 	QueryPVPricePerGiBHour(start, end time.Time) *Future[PVPricePerGiBHourResult]
 	QueryPVInfo(start, end time.Time) *Future[PVInfoResult]
 
+	// Network
 	QueryNetZoneGiB(start, end time.Time) *Future[NetZoneGiBResult]
 	QueryNetZonePricePerGiB(start, end time.Time) *Future[NetZonePricePerGiBResult]
 	QueryNetRegionGiB(start, end time.Time) *Future[NetRegionGiBResult]
@@ -103,9 +88,11 @@ type AllocationMetricsQuerier interface {
 	QueryNetReceiveBytes(start, end time.Time) *Future[NetReceiveBytesResult]
 	QueryNetTransferBytes(start, end time.Time) *Future[NetTransferBytesResult]
 
+	// Annotations
 	QueryNamespaceAnnotations(start, end time.Time) *Future[NamespaceAnnotationsResult]
 	QueryPodAnnotations(start, end time.Time) *Future[PodAnnotationsResult]
 
+	// Labels
 	QueryNodeLabels(start, end time.Time) *Future[NodeLabelsResult]
 	QueryNamespaceLabels(start, end time.Time) *Future[NamespaceLabelsResult]
 	QueryPodLabels(start, end time.Time) *Future[PodLabelsResult]
@@ -115,22 +102,26 @@ type AllocationMetricsQuerier interface {
 	QueryDaemonSetLabels(start, end time.Time) *Future[DaemonSetLabelsResult]
 	QueryJobLabels(start, end time.Time) *Future[JobLabelsResult]
 
+	// ReplicaSet -> Controller mapping
 	QueryPodsWithReplicaSetOwner(start, end time.Time) *Future[PodsWithReplicaSetOwnerResult]
 	QueryReplicaSetsWithoutOwners(start, end time.Time) *Future[ReplicaSetsWithoutOwnersResult]
 	QueryReplicaSetsWithRollout(start, end time.Time) *Future[ReplicaSetsWithRolloutResult]
 
+	// Data Coverage Query
 	QueryDataCoverage(limitDays int) (time.Time, time.Time, error)
 }
 
 type OpenCostDataSource interface {
-	ClusterMetricsQuerier
-	AllocationMetricsQuerier
-
-	NewClusterMap(clusterInfoProvider clusters.ClusterInfoProvider) clusters.ClusterMap
-
+	// RegisterEndPoints registers any custom endpoints that can be used for diagnostics or debug purposes.
 	RegisterEndPoints(router *httprouter.Router)
+
+	// Metrics returns a MetricsQuerier that can be used to query historical metrics data from the data source.
+	Metrics() MetricsQuerier
+
+	// ClusterMap returns a mapping of cluster identifier to ClusterInfo for all known clusters (local only for
+	// single cluster deployments).
+	ClusterMap() clusters.ClusterMap
 
 	BatchDuration() time.Duration
 	Resolution() time.Duration
-	MetaData() map[string]string
 }

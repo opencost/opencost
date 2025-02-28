@@ -4,17 +4,12 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/opencost/opencost/pkg/errors"
 
-	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
-	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"github.com/opencost/opencost/core/pkg/util/json"
-	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/env"
 )
 
@@ -60,124 +55,6 @@ func ParseAggregationProperties(aggregations []string) ([]string, error) {
 		}
 	}
 	return aggregateBy, nil
-}
-
-func (a *Accesses) warmAggregateCostModelCache() {
-	const clusterCostsCacheMinutes = 5.0
-
-	// Only allow one concurrent cache-warming operation
-	sem := util.NewSemaphore(1)
-
-	// Set default values, pulling them from application settings where applicable, and warm the cache
-	// for the given duration. Cache is intentionally set to expire (i.e. noExpireCache=false) so that
-	// if the default parameters change, the old cached defaults with eventually expire. Thus, the
-	// timing of the cache expiry/refresh is the only mechanism ensuring 100% cache warmth.
-	warmFunc := func(duration, offset time.Duration, cacheEfficiencyData bool) error {
-		fmtDuration, fmtOffset := timeutil.DurationOffsetStrings(duration, offset)
-		durationHrs, _ := timeutil.FormatDurationStringDaysToHours(fmtDuration)
-
-		windowStr := fmt.Sprintf("%s offset %s", fmtDuration, fmtOffset)
-		window, err := opencost.ParseWindowUTC(windowStr)
-		if err != nil {
-			return fmt.Errorf("invalid window from window string: %s", windowStr)
-		}
-
-		key := fmt.Sprintf("%s:%s", durationHrs, fmtOffset)
-
-		totals, err := a.ComputeClusterCosts(a.DataSource, a.CloudProvider, duration, offset, cacheEfficiencyData)
-		if err != nil {
-			log.Infof("Error building cluster costs cache %s", key)
-		}
-		maxMinutesWithData := 0.0
-		for _, cluster := range totals {
-			if cluster.DataMinutes > maxMinutesWithData {
-				maxMinutesWithData = cluster.DataMinutes
-			}
-		}
-		if len(totals) > 0 && maxMinutesWithData > clusterCostsCacheMinutes {
-			a.ClusterCostsCache.Set(key, totals, a.GetCacheExpiration(window.Duration()))
-			log.Infof("caching %s cluster costs for %s", fmtDuration, a.GetCacheExpiration(window.Duration()))
-		} else {
-			log.Warnf("not caching %s cluster costs: no data or less than %f minutes data ", fmtDuration, clusterCostsCacheMinutes)
-		}
-		return err
-	}
-
-	// 1 day
-	go func(sem *util.Semaphore) {
-		defer errors.HandlePanic()
-
-		offset := time.Minute
-		duration := 24 * time.Hour
-
-		for {
-			sem.Acquire()
-			warmFunc(duration, offset, true)
-			sem.Return()
-
-			log.Infof("aggregation: warm cache: %s", timeutil.DurationString(duration))
-			time.Sleep(a.GetCacheRefresh(duration))
-		}
-	}(sem)
-
-	if !env.IsETLEnabled() {
-		// 2 day
-		go func(sem *util.Semaphore) {
-			defer errors.HandlePanic()
-
-			offset := time.Minute
-			duration := 2 * 24 * time.Hour
-
-			for {
-				sem.Acquire()
-				warmFunc(duration, offset, false)
-				sem.Return()
-
-				log.Infof("aggregation: warm cache: %s", timeutil.DurationString(duration))
-				time.Sleep(a.GetCacheRefresh(duration))
-			}
-		}(sem)
-
-		// 7 day
-		go func(sem *util.Semaphore) {
-			defer errors.HandlePanic()
-
-			offset := time.Minute
-			duration := 7 * 24 * time.Hour
-
-			for {
-				sem.Acquire()
-				err := warmFunc(duration, offset, false)
-				sem.Return()
-
-				log.Infof("aggregation: warm cache: %s", timeutil.DurationString(duration))
-				if err == nil {
-					time.Sleep(a.GetCacheRefresh(duration))
-				} else {
-					time.Sleep(5 * time.Minute)
-				}
-			}
-		}(sem)
-
-		// 30 day
-		go func(sem *util.Semaphore) {
-			defer errors.HandlePanic()
-
-			for {
-				offset := time.Minute
-				duration := 30 * 24 * time.Hour
-
-				sem.Acquire()
-				err := warmFunc(duration, offset, false)
-				sem.Return()
-				if err == nil {
-					time.Sleep(a.GetCacheRefresh(duration))
-				} else {
-					time.Sleep(5 * time.Minute)
-				}
-			}
-		}(sem)
-	}
 }
 
 func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {

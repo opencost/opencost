@@ -136,14 +136,15 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 	clusterID := env.GetClusterID()
 	cp := cm.Provider
 	ds := cm.DataSource
+	mq := ds.Metrics()
 
 	grp := source.NewQueryGroup()
 
-	resChRAMUsage := source.WithGroup(grp, ds.QueryRAMUsageAvg(start, end))
-	resChCPUUsage := source.WithGroup(grp, ds.QueryCPUUsageAvg(start, end))
-	resChNetZoneRequests := source.WithGroup(grp, ds.QueryNetZoneGiB(start, end))
-	resChNetRegionRequests := source.WithGroup(grp, ds.QueryNetRegionGiB(start, end))
-	resChNetInternetRequests := source.WithGroup(grp, ds.QueryNetInternetGiB(start, end))
+	resChRAMUsage := source.WithGroup(grp, mq.QueryRAMUsageAvg(start, end))
+	resChCPUUsage := source.WithGroup(grp, mq.QueryCPUUsageAvg(start, end))
+	resChNetZoneRequests := source.WithGroup(grp, mq.QueryNetZoneGiB(start, end))
+	resChNetRegionRequests := source.WithGroup(grp, mq.QueryNetRegionGiB(start, end))
+	resChNetInternetRequests := source.WithGroup(grp, mq.QueryNetInternetGiB(start, end))
 
 	// Pull pod information from k8s API
 	podlist := cm.Cache.GetAllPods()
@@ -607,8 +608,9 @@ func findUnmountedPVCostData(clusterMap clusters.ClusterMap, unmountedPVs map[st
 
 func findDeletedPodInfo(dataSource source.OpenCostDataSource, missingContainers map[string]*CostData, start, end time.Time) error {
 	if len(missingContainers) > 0 {
+		mq := dataSource.Metrics()
 
-		podLabelsResCh := dataSource.QueryPodLabels(start, end)
+		podLabelsResCh := mq.QueryPodLabels(start, end)
 		podLabelsResult, err := podLabelsResCh.Await()
 		if err != nil {
 			log.Errorf("failed to parse historical pod labels: %s", err.Error())
@@ -642,10 +644,11 @@ func findDeletedNodeInfo(dataSource source.OpenCostDataSource, missingNodes map[
 		defer measureTime(time.Now(), profileThreshold, "Finding Deleted Node Info")
 
 		grp := source.NewQueryGroup()
+		mq := dataSource.Metrics()
 
-		cpuCostResCh := source.WithGroup(grp, dataSource.QueryNodeCPUPricePerHr(start, end))
-		ramCostResCh := source.WithGroup(grp, dataSource.QueryNodeRAMPricePerGiBHr(start, end))
-		gpuCostResCh := source.WithGroup(grp, dataSource.QueryNodeGPUPricePerHr(start, end))
+		cpuCostResCh := source.WithGroup(grp, mq.QueryNodeCPUPricePerHr(start, end))
+		ramCostResCh := source.WithGroup(grp, mq.QueryNodeRAMPricePerGiBHr(start, end))
+		gpuCostResCh := source.WithGroup(grp, mq.QueryNodeGPUPricePerHr(start, end))
 
 		cpuCostRes, _ := cpuCostResCh.Await()
 		ramCostRes, _ := ramCostResCh.Await()
@@ -877,11 +880,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			}
 		}
 
-		if _, ok := pmd.PricingTypeCounts[cnode.PricingType]; ok {
-			pmd.PricingTypeCounts[cnode.PricingType]++
-		} else {
-			pmd.PricingTypeCounts[cnode.PricingType] = 1
-		}
+		pmd.PricingTypeCounts[cnode.PricingType]++
 
 		// newCnode builds upon cnode but populates/overrides certain fields.
 		// cnode was populated leveraging cloud provider public pricing APIs.

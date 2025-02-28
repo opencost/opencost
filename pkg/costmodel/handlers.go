@@ -30,7 +30,7 @@ func (a *Accesses) ComputeAssetsHandler(w http.ResponseWriter, r *http.Request, 
 
 	filterString := qp.Get("filter", "")
 
-	assetSet, err := a.computeAssetsFromCostmodel(window, filterString)
+	assetSet, err := a.ComputeAssetsFromCostmodel(window, filterString)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error getting assets: %s", err), http.StatusInternalServerError)
 		return
@@ -55,7 +55,7 @@ func (a *Accesses) ComputeAssetsCarbonHandler(w http.ResponseWriter, r *http.Req
 
 	filterString := qp.Get("filter", "")
 
-	assetSet, err := a.computeAssetsFromCostmodel(window, filterString)
+	assetSet, err := a.ComputeAssetsFromCostmodel(window, filterString)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error getting assets: %s", err), http.StatusInternalServerError)
 		return
@@ -70,7 +70,7 @@ func (a *Accesses) ComputeAssetsCarbonHandler(w http.ResponseWriter, r *http.Req
 	w.Write(WrapData(carbonEstimates, nil))
 }
 
-func (a *Accesses) computeAssetsFromCostmodel(window opencost.Window, filterString string) (*opencost.AssetSet, error) {
+func (a *Accesses) ComputeAssetsFromCostmodel(window opencost.Window, filterString string) (*opencost.AssetSet, error) {
 
 	assetSet, err := a.Model.ComputeAssets(*window.Start(), *window.End())
 	if err != nil {

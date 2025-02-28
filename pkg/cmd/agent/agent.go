@@ -67,6 +67,37 @@ func newKubernetesClusterCache() (kubernetes.Interface, clustercache.ClusterCach
 func Execute(opts *AgentOpts) error {
 	log.Infof("Starting Kubecost Agent version %s", version.FriendlyVersion())
 
+	// initialize kubernetes client and cluster cache
+	k8sClient, clusterCache, err := newKubernetesClusterCache()
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Create ConfigFileManager for synchronization of shared configuration
+	confManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		BucketStoreConfig: env.GetKubecostConfigBucket(),
+		LocalConfigPath:   "/",
+	})
+
+	configPrefix := env.GetConfigPathWithDefault(env.DefaultConfigMountPath)
+
+	cloudProviderKey := env.GetCloudProviderAPIKey()
+	cloudProvider, err := provider.NewProvider(clusterCache, cloudProviderKey, confManager)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// ClusterInfo Provider to provide the cluster map with local and remote cluster data
+	localClusterInfo := costmodel.NewLocalClusterInfoProvider(k8sClient, cloudProvider)
+
+	var clusterInfoProvider clusters.ClusterInfoProvider
+	if env.IsExportClusterInfoEnabled() {
+		clusterInfoConf := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-info.json"))
+		clusterInfoProvider = costmodel.NewClusterInfoWriteOnRequest(localClusterInfo, clusterInfoConf)
+	} else {
+		clusterInfoProvider = localClusterInfo
+	}
+
 	const maxRetries = 10
 	const retryInterval = 10 * time.Second
 
@@ -76,7 +107,7 @@ func Execute(opts *AgentOpts) error {
 	dataSource, err := retry.Retry(
 		ctx,
 		func() (source.OpenCostDataSource, error) {
-			ds, e := prom.NewDefaultPrometheusDataSource()
+			ds, e := prom.NewDefaultPrometheusDataSource(clusterInfoProvider)
 			if e != nil {
 				if source.IsRetryable(e) {
 					return nil, e
@@ -96,31 +127,11 @@ func Execute(opts *AgentOpts) error {
 		panic(fatalErr)
 	}
 
-	// initialize kubernetes client and cluster cache
-	k8sClient, clusterCache, err := newKubernetesClusterCache()
-	if err != nil {
-		panic(err.Error())
-	}
-
-	// Create ConfigFileManager for synchronization of shared configuration
-	confManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-		BucketStoreConfig: env.GetKubecostConfigBucket(),
-		LocalConfigPath:   "/",
-	})
-
-	cloudProviderKey := env.GetCloudProviderAPIKey()
-	cloudProvider, err := provider.NewProvider(clusterCache, cloudProviderKey, confManager)
-	if err != nil {
-		panic(err.Error())
-	}
-
 	// Append the pricing config watcher
 	kubecostNamespace := env.GetKubecostNamespace()
 	configWatchers := watcher.NewConfigMapWatchers(k8sClient, kubecostNamespace)
 	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
 	configWatchers.Watch()
-
-	configPrefix := env.GetConfigPathWithDefault(env.DefaultConfigMountPath)
 
 	// Initialize cluster exporting if it's enabled
 	if env.IsExportClusterCacheEnabled() {
@@ -129,19 +140,8 @@ func Execute(opts *AgentOpts) error {
 		clusterExporter.Run()
 	}
 
-	// ClusterInfo Provider to provide the cluster map with local and remote cluster data
-	localClusterInfo := costmodel.NewLocalClusterInfoProvider(k8sClient, dataSource, cloudProvider)
-
-	var clusterInfoProvider clusters.ClusterInfoProvider
-	if env.IsExportClusterInfoEnabled() {
-		clusterInfoConf := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-info.json"))
-		clusterInfoProvider = costmodel.NewClusterInfoWriteOnRequest(localClusterInfo, clusterInfoConf)
-	} else {
-		clusterInfoProvider = localClusterInfo
-	}
-
 	// Initialize ClusterMap for maintaining ClusterInfo by ClusterID
-	clusterMap := dataSource.NewClusterMap(clusterInfoProvider)
+	clusterMap := dataSource.ClusterMap()
 
 	costModel := costmodel.NewCostModel(dataSource, cloudProvider, clusterCache, clusterMap, dataSource.BatchDuration())
 

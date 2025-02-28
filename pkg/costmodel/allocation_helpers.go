@@ -43,7 +43,8 @@ func (cm *CostModel) buildPodMap(window opencost.Window, maxBatchSize time.Durat
 	start, end := *window.Start(), *window.End()
 
 	grp := source.NewQueryGroup()
-	ds := cm.DataSource
+	ds := cm.DataSource.Metrics()
+	resolution := cm.DataSource.Resolution()
 
 	// Query for (start, end) by (pod, namespace, cluster) over the given
 	// window, using the given resolution, and if necessary in batches no
@@ -120,7 +121,7 @@ func (cm *CostModel) buildPodMap(window opencost.Window, maxBatchSize time.Durat
 			}
 		}
 
-		applyPodResults(window, ds.Resolution(), podMap, clusterStart, clusterEnd, resPods, ingestPodUID, podUIDKeyMap)
+		applyPodResults(window, resolution, podMap, clusterStart, clusterEnd, resPods, ingestPodUID, podUIDKeyMap)
 
 		coverage = coverage.ExpandEnd(batchEnd)
 		numQuery++

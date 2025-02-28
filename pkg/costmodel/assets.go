@@ -91,6 +91,7 @@ func (cm *CostModel) ComputeAssets(start, end time.Time) (*opencost.AssetSet, er
 		loadBalancer := opencost.NewLoadBalancer(lb.Name, lb.Cluster, lb.ProviderID, s, e, opencost.NewWindow(&start, &end), lb.Private, lb.Ip)
 		cm.PropertiesFromCluster(loadBalancer.Properties)
 		loadBalancer.Cost = lb.Cost
+
 		assetSet.Insert(loadBalancer, nil)
 	}
 

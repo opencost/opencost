@@ -24,6 +24,19 @@ func (qrc QueryResultsChan) Await() ([]*QueryResult, error) {
 	return results.Results, nil
 }
 
+// ResultKeys is a "configuration" struct that contains the keys/labels used to resolve labeled query
+// results. ResultKeys can be defined with every QueryResults instance if necessary, and alter the keys
+// used to fetch results when calling the following methods on QueryResults:
+//
+//	GetCluster()
+//	GetNamespace()
+//	GetNode()
+//	GetInstance()
+//	GetInstanceType()
+//	GetContainer()
+//	GetPod()
+//	GetProviderID()
+//	GetDevice()
 type ResultKeys struct {
 	ClusterKey      string
 	NamespaceKey    string
@@ -36,6 +49,7 @@ type ResultKeys struct {
 	DeviceKey       string
 }
 
+// DefaultResultKeys returns a new ResultKeys instance with typical default values.
 func DefaultResultKeys() *ResultKeys {
 	return &ResultKeys{
 		ClusterKey:      "cluster_id",
@@ -50,6 +64,8 @@ func DefaultResultKeys() *ResultKeys {
 	}
 }
 
+// ClusterKeyWithDefaults returns a new ResultKeys instance with the provided cluster key and the
+// rest of the keys set to their default values.
 func ClusterKeyWithDefaults(clusterKey string) *ResultKeys {
 	keys := DefaultResultKeys()
 	keys.ClusterKey = clusterKey

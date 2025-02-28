@@ -26,7 +26,6 @@ import (
 	"github.com/opencost/opencost/pkg/customcost"
 	"github.com/opencost/opencost/pkg/kubeconfig"
 	"github.com/opencost/opencost/pkg/metrics"
-	"github.com/opencost/opencost/pkg/services"
 	"github.com/opencost/opencost/pkg/util/watcher"
 
 	"github.com/julienschmidt/httprouter"
@@ -87,8 +86,6 @@ type Accesses struct {
 	// settings will be published in a pub/sub model
 	settingsSubscribers map[string][]chan string
 	settingsMutex       sync.Mutex
-	// registered http service instances
-	httpServices services.HTTPServices
 }
 
 // GetCacheExpiration looks up and returns custom cache expiration for the given duration.
@@ -111,25 +108,6 @@ func (a *Accesses) GetCacheRefresh(dur time.Duration) time.Duration {
 	}
 	mins := time.Duration(expiry/2.0) * time.Minute
 	return mins
-}
-
-func (a *Accesses) ClusterCostsFromCacheHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-
-	duration := 24 * time.Hour
-	offset := time.Minute
-	durationHrs := "24h"
-	fmtOffset := "1m"
-	dataSource := a.DataSource
-
-	key := fmt.Sprintf("%s:%s", durationHrs, fmtOffset)
-	if data, valid := a.ClusterCostsCache.Get(key); valid {
-		clusterCosts := data.(map[string]*ClusterCosts)
-		w.Write(WrapDataWithMessage(clusterCosts, nil, "clusterCosts cache hit"))
-	} else {
-		data, err := a.ComputeClusterCosts(dataSource, a.CloudProvider, duration, offset, true)
-		w.Write(WrapDataWithMessage(data, err, fmt.Sprintf("clusterCosts cache miss: %s", key)))
-	}
 }
 
 type Response struct {
@@ -375,104 +353,6 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 	} else {
 		w.Write(WrapData(data, err))
 	}
-}
-
-func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	window := r.URL.Query().Get("window")
-	offset := r.URL.Query().Get("offset")
-
-	if window == "" {
-		w.Write(WrapData(nil, fmt.Errorf("missing window argument")))
-		return
-	}
-	windowDur, err := timeutil.ParseDuration(window)
-	if err != nil {
-		w.Write(WrapData(nil, fmt.Errorf("error parsing window (%s): %s", window, err)))
-		return
-	}
-
-	// offset is not a required parameter
-	var offsetDur time.Duration
-	if offset != "" {
-		offsetDur, err = timeutil.ParseDuration(offset)
-		if err != nil {
-			w.Write(WrapData(nil, fmt.Errorf("error parsing offset (%s): %s", offset, err)))
-			return
-		}
-	}
-	/*
-		useThanos, _ := strconv.ParseBool(r.URL.Query().Get("multi"))
-
-		if useThanos && !thanos.IsEnabled() {
-			w.Write(WrapData(nil, fmt.Errorf("Multi=true while Thanos is not enabled.")))
-			return
-		}
-
-
-		var client prometheus.Client
-		if useThanos {
-			client = a.ThanosClient
-			offsetDur = thanos.OffsetDuration()
-
-		} else {
-			client = a.PrometheusClient
-		}
-	*/
-
-	data, err := a.ComputeClusterCosts(a.DataSource, a.CloudProvider, windowDur, offsetDur, true)
-	w.Write(WrapData(data, err))
-}
-
-func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	startString := r.URL.Query().Get("start")
-	endString := r.URL.Query().Get("end")
-	window := r.URL.Query().Get("window")
-	offset := r.URL.Query().Get("offset")
-
-	if window == "" {
-		w.Write(WrapData(nil, fmt.Errorf("missing window argument")))
-		return
-	}
-	windowDur, err := timeutil.ParseDuration(window)
-	if err != nil {
-		w.Write(WrapData(nil, fmt.Errorf("error parsing window (%s): %s", window, err)))
-		return
-	}
-
-	// offset is not a required parameter
-	var offsetDur time.Duration
-	if offset != "" {
-		offsetDur, err = timeutil.ParseDuration(offset)
-		if err != nil {
-			w.Write(WrapData(nil, fmt.Errorf("error parsing offset (%s): %s", offset, err)))
-			return
-		}
-	}
-
-	const layout = "2006-01-02T15:04:05.000Z"
-
-	start, err := time.Parse(layout, startString)
-	if err != nil {
-		log.Errorf("Error parsing time %s. Error: %s", startString, err.Error())
-		w.Write(WrapData(nil, fmt.Errorf("error parsing 'start': %s: %w", startString, err)))
-		return
-	}
-
-	end, err := time.Parse(layout, endString)
-	if err != nil {
-		log.Errorf("Error parsing time %s. Error: %s", endString, err.Error())
-		w.Write(WrapData(nil, fmt.Errorf("error parsing 'end': %s: %w", endString, err)))
-		return
-	}
-
-	data, err := ClusterCostsOverTime(a.DataSource, a.CloudProvider, start, end, windowDur, offsetDur)
-	w.Write(WrapData(data, err))
 }
 
 func (a *Accesses) GetAllNodePricing(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -788,6 +668,39 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 		}
 	}
 
+	// Kubernetes API setup
+	kubeClientset, err := kubeconfig.LoadKubeClient("")
+	if err != nil {
+		log.Fatalf("Failed to build Kubernetes client: %s", err.Error())
+	}
+
+	// Create Kubernetes Cluster Cache + Watchers
+	k8sCache := clustercache.NewKubernetesClusterCache(kubeClientset)
+	k8sCache.Run()
+
+	// Create ConfigFileManager for synchronization of shared configuration
+	confManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		BucketStoreConfig: env.GetKubecostConfigBucket(),
+		LocalConfigPath:   "/",
+	})
+
+	configPrefix := env.GetConfigPathWithDefault("/var/configs/")
+
+	cloudProviderKey := env.GetCloudProviderAPIKey()
+	cloudProvider, err := provider.NewProvider(k8sCache, cloudProviderKey, confManager)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// ClusterInfo Provider to provide the cluster map with local and remote cluster data
+	var clusterInfoProvider clusters.ClusterInfoProvider
+	if env.IsClusterInfoFileEnabled() {
+		clusterInfoFile := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-info.json"))
+		clusterInfoProvider = NewConfiguredClusterInfoProvider(clusterInfoFile)
+	} else {
+		clusterInfoProvider = NewLocalClusterInfoProvider(kubeClientset, cloudProvider)
+	}
+
 	const maxRetries = 10
 	const retryInterval = 10 * time.Second
 
@@ -797,7 +710,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	dataSource, _ := retry.Retry(
 		ctx,
 		func() (source.OpenCostDataSource, error) {
-			ds, e := prom.NewDefaultPrometheusDataSource()
+			ds, e := prom.NewDefaultPrometheusDataSource(clusterInfoProvider)
 			if e != nil {
 				if source.IsRetryable(e) {
 					return nil, e
@@ -817,30 +730,6 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 		panic(fatalErr)
 	}
 
-	// Kubernetes API setup
-	kubeClientset, err := kubeconfig.LoadKubeClient("")
-	if err != nil {
-		log.Fatalf("Failed to build Kubernetes client: %s", err.Error())
-	}
-
-	// Create ConfigFileManager for synchronization of shared configuration
-	confManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-		BucketStoreConfig: env.GetKubecostConfigBucket(),
-		LocalConfigPath:   "/",
-	})
-
-	configPrefix := env.GetConfigPathWithDefault("/var/configs/")
-
-	// Create Kubernetes Cluster Cache + Watchers
-	k8sCache := clustercache.NewKubernetesClusterCache(kubeClientset)
-	k8sCache.Run()
-
-	cloudProviderKey := env.GetCloudProviderAPIKey()
-	cloudProvider, err := provider.NewProvider(k8sCache, cloudProviderKey, confManager)
-	if err != nil {
-		panic(err.Error())
-	}
-
 	// Append the pricing config watcher
 	kubecostNamespace := env.GetKubecostNamespace()
 
@@ -849,16 +738,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	configWatchers.AddWatcher(metrics.GetMetricsConfigWatcher())
 	configWatchers.Watch()
 
-	// ClusterInfo Provider to provide the cluster map with local and remote cluster data
-	var clusterInfoProvider clusters.ClusterInfoProvider
-	if env.IsClusterInfoFileEnabled() {
-		clusterInfoFile := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-info.json"))
-		clusterInfoProvider = NewConfiguredClusterInfoProvider(clusterInfoFile)
-	} else {
-		clusterInfoProvider = NewLocalClusterInfoProvider(kubeClientset, dataSource, cloudProvider)
-	}
-
-	clusterMap := dataSource.NewClusterMap(clusterInfoProvider)
+	clusterMap := dataSource.ClusterMap()
 
 	// cache responses from model and aggregation for a default of 10 minutes;
 	// clear expired responses every 20 minutes
@@ -882,7 +762,6 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	metricsEmitter := NewCostModelMetricsEmitter(k8sCache, cloudProvider, clusterInfoProvider, costModel)
 
 	a := &Accesses{
-		httpServices:        services.NewCostModelServices(),
 		DataSource:          dataSource,
 		KubeClientSet:       kubeClientset,
 		ClusterCache:        k8sCache,
@@ -906,30 +785,17 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 		log.Infof("Failed to download pricing data: %s", err)
 	}
 
-	// NOTE: (bolt) this only warms the cache for cluster costs.
-	if env.IsCacheWarmingEnabled() {
-		log.Infof("Init: ClusterCosts cache warming enabled")
-		a.warmAggregateCostModelCache()
-	} else {
-		log.Infof("Init: ClusterCosts cache warming disabled")
-	}
-
 	if !env.IsKubecostMetricsPodEnabled() {
 		a.MetricsEmitter.Start()
 	}
 
-	a.httpServices.RegisterAll(router)
 	a.DataSource.RegisterEndPoints(router)
 
 	router.GET("/costDataModel", a.CostDataModel)
 	router.GET("/allocation/compute", a.ComputeAllocationHandler)
 	router.GET("/allocation/compute/summary", a.ComputeAllocationHandlerSummary)
-
 	router.GET("/allNodePricing", a.GetAllNodePricing)
 	router.POST("/refreshPricing", a.RefreshPricingData)
-	router.GET("/clusterCostsOverTime", a.ClusterCostsOverTime)
-	router.GET("/clusterCosts", a.ClusterCosts)
-	router.GET("/clusterCostsFromCache", a.ClusterCostsFromCacheHandler)
 	router.GET("/managementPlatform", a.ManagementPlatform)
 	router.GET("/clusterInfo", a.ClusterInfo)
 	router.GET("/clusterInfoMap", a.GetClusterInfoMap)

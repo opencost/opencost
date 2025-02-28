@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/opencost/opencost/core/pkg/opencost"
-	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/pkg/env"
 )
 
@@ -48,36 +47,6 @@ func getUnmountedPodKey(cluster string) podKey {
 	return newPodKey(cluster, opencost.UnmountedSuffix, opencost.UnmountedSuffix)
 }
 
-// resultPodKey converts a Prometheus query result to a podKey by looking
-// up values associated with the given label names. For example, passing
-// "cluster_id" for clusterLabel will use the value of the label "cluster_id"
-// as the podKey's Cluster field. If a given field does not exist on the
-// result, an error is returned. (The only exception to that is clusterLabel,
-// which we expect may not exist, but has a default value.)
-func resultPodKey(res *source.QueryResult) (podKey, error) {
-	key := podKey{}
-
-	cluster, err := res.GetCluster()
-	if err != nil {
-		cluster = env.GetClusterID()
-	}
-	key.Cluster = cluster
-
-	namespace, err := res.GetNamespace()
-	if err != nil {
-		return key, err
-	}
-	key.Namespace = namespace
-
-	pod, err := res.GetPod()
-	if err != nil {
-		return key, err
-	}
-	key.Pod = pod
-
-	return key, nil
-}
-
 type namespaceKey struct {
 	Cluster   string
 	Namespace string
@@ -92,30 +61,6 @@ func newNamespaceKey(cluster, namespace string) namespaceKey {
 		Cluster:   cluster,
 		Namespace: namespace,
 	}
-}
-
-// resultNamespaceKey converts a Prometheus query result to a namespaceKey by
-// looking up values associated with the given label names. For example,
-// passing "cluster_id" for clusterLabel will use the value of the label
-// "cluster_id" as the namespaceKey's Cluster field. If a given field does not
-// exist on the result, an error is returned. (The only exception to that is
-// clusterLabel, which we expect may not exist, but has a default value.)
-func resultNamespaceKey(res *source.QueryResult) (namespaceKey, error) {
-	key := namespaceKey{}
-
-	cluster, err := res.GetCluster()
-	if err != nil {
-		cluster = env.GetClusterID()
-	}
-	key.Cluster = cluster
-
-	namespace, err := res.GetNamespace()
-	if err != nil {
-		return key, err
-	}
-	key.Namespace = namespace
-
-	return key, nil
 }
 
 func newResultNamespaceKey(cluster string, namespace string) (namespaceKey, error) {
@@ -184,36 +129,6 @@ func newServiceKey(cluster, namespace, service string) serviceKey {
 	}
 }
 
-// resultServiceKey converts a Prometheus query result to a serviceKey by
-// looking up values associated with the given label names. For example,
-// passing "cluster_id" for clusterLabel will use the value of the label
-// "cluster_id" as the serviceKey's Cluster field. If a given field does not
-// exist on the result, an error is returned. (The only exception to that is
-// clusterLabel, which we expect may not exist, but has a default value.)
-func resultServiceKey(res *source.QueryResult, serviceLabel string) (serviceKey, error) {
-	key := serviceKey{}
-
-	cluster, err := res.GetCluster()
-	if err != nil {
-		cluster = env.GetClusterID()
-	}
-	key.Cluster = cluster
-
-	namespace, err := res.GetNamespace()
-	if err != nil {
-		return key, err
-	}
-	key.Namespace = namespace
-
-	service, err := res.GetString(serviceLabel)
-	if err != nil {
-		return key, err
-	}
-	key.Service = service
-
-	return key, nil
-}
-
 func newResultServiceKey(cluster, namespace, service string) (serviceKey, error) {
 	if cluster == "" {
 		cluster = env.GetClusterID()
@@ -244,30 +159,6 @@ func newNodeKey(cluster, node string) nodeKey {
 		Cluster: cluster,
 		Node:    node,
 	}
-}
-
-// resultNodeKey converts a Prometheus query result to a nodeKey by
-// looking up values associated with the given label names. For example,
-// passing "cluster_id" for clusterLabel will use the value of the label
-// "cluster_id" as the nodeKey's Cluster field. If a given field does not
-// exist on the result, an error is returned. (The only exception to that is
-// clusterLabel, which we expect may not exist, but has a default value.)
-func resultNodeKey(res *source.QueryResult) (nodeKey, error) {
-	key := nodeKey{}
-
-	cluster, err := res.GetCluster()
-	if err != nil {
-		cluster = env.GetClusterID()
-	}
-	key.Cluster = cluster
-
-	node, err := res.GetNode()
-	if err != nil {
-		return key, err
-	}
-	key.Node = node
-
-	return key, nil
 }
 
 func newResultNodeKey(cluster string, node string) (nodeKey, error) {
@@ -306,36 +197,6 @@ func newPVCKey(cluster, namespace, persistentVolumeClaim string) pvcKey {
 // "cluster_id" as the pvcKey's Cluster field. If a given field does not
 // exist on the result, an error is returned. (The only exception to that is
 // clusterLabel, which we expect may not exist, but has a default value.)
-func resultPVCKey(res *source.QueryResult, pvcLabel string) (pvcKey, error) {
-	key := pvcKey{}
-
-	cluster, err := res.GetCluster()
-	if err != nil {
-		cluster = env.GetClusterID()
-	}
-	key.Cluster = cluster
-
-	namespace, err := res.GetNamespace()
-	if err != nil {
-		return key, err
-	}
-	key.Namespace = namespace
-
-	pvc, err := res.GetString(pvcLabel)
-	if err != nil {
-		return key, err
-	}
-	key.PersistentVolumeClaim = pvc
-
-	return key, nil
-}
-
-// resultPVCKey converts a Prometheus query result to a pvcKey by
-// looking up values associated with the given label names. For example,
-// passing "cluster_id" for clusterLabel will use the value of the label
-// "cluster_id" as the pvcKey's Cluster field. If a given field does not
-// exist on the result, an error is returned. (The only exception to that is
-// clusterLabel, which we expect may not exist, but has a default value.)
 func newResultPVCKey(cluster, namespace, pvc string) (pvcKey, error) {
 	if cluster == "" {
 		cluster = env.GetClusterID()
@@ -366,30 +227,6 @@ func newPVKey(cluster, persistentVolume string) pvKey {
 		Cluster:          cluster,
 		PersistentVolume: persistentVolume,
 	}
-}
-
-// resultPVKey converts a Prometheus query result to a pvKey by
-// looking up values associated with the given label names. For example,
-// passing "cluster_id" for clusterLabel will use the value of the label
-// "cluster_id" as the pvKey's Cluster field. If a given field does not
-// exist on the result, an error is returned. (The only exception to that is
-// clusterLabel, which we expect may not exist, but has a default value.)
-func resultPVKey(res *source.QueryResult, persistentVolumeLabel string) (pvKey, error) {
-	key := pvKey{}
-
-	cluster, err := res.GetCluster()
-	if err != nil {
-		cluster = env.GetClusterID()
-	}
-	key.Cluster = cluster
-
-	persistentVolume, err := res.GetString(persistentVolumeLabel)
-	if err != nil {
-		return key, err
-	}
-	key.PersistentVolume = persistentVolume
-
-	return key, nil
 }
 
 func newResultPVKey(cluster, pv string) (pvKey, error) {

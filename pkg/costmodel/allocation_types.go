@@ -202,11 +202,6 @@ func (p *pv) minutes() float64 {
 	return p.End.Sub(p.Start).Minutes()
 }
 
-// key returns the pvKey for the calling pvc
-func (p *pv) key() pvKey {
-	return newPVKey(p.Cluster, p.Name)
-}
-
 // lbCost describes the start and end time of a Load Balancer along with cost
 type lbCost struct {
 	TotalCost float64
