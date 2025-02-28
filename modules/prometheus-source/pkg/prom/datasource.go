@@ -86,6 +86,7 @@ type PrometheusDataSource struct {
 
 	metricsQuerier *PrometheusMetricsQuerier
 	clusterMap     clusters.ClusterMap
+	clusterInfo    clusters.ClusterInfoProvider
 }
 
 // NewDefaultPrometheusDataSource creates and initializes a new `PrometheusDataSource` with configuration
@@ -217,6 +218,7 @@ func NewPrometheusDataSource(infoProvider clusters.ClusterInfoProvider, promConf
 		thanosContexts: thanosContexts,
 		metricsQuerier: metricsQuerier,
 		clusterMap:     clusterMap,
+		clusterInfo:    clusterInfoProvider,
 	}, nil
 }
 
@@ -548,6 +550,11 @@ func (pds *PrometheusDataSource) Metrics() source.MetricsQuerier {
 
 func (pds *PrometheusDataSource) ClusterMap() clusters.ClusterMap {
 	return pds.clusterMap
+}
+
+// ClusterInfo returns the ClusterInfoProvider for the local cluster.
+func (pds *PrometheusDataSource) ClusterInfo() clusters.ClusterInfoProvider {
+	return pds.clusterInfo
 }
 
 func (pds *PrometheusDataSource) BatchDuration() time.Duration {

@@ -122,6 +122,9 @@ type OpenCostDataSource interface {
 	// single cluster deployments).
 	ClusterMap() clusters.ClusterMap
 
+	// ClusterInfo returns the ClusterInfoProvider for the local cluster.
+	ClusterInfo() clusters.ClusterInfoProvider
+
 	BatchDuration() time.Duration
 	Resolution() time.Duration
 }
