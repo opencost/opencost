@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	prometheus "github.com/prometheus/client_golang/api"
@@ -133,18 +132,11 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageCost(start, end time.Time)
 	const localStorageCostQuery = `sum_over_time(sum(container_fs_limit_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}) by (instance, device, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`
 
 	cfg := pds.promConfig
-	resolution := cfg.DataResolution
+	minsPerResolution := cfg.DataResolutionMinutes
 
 	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryLocalStorageCost")
-	}
-
-	//Ensuring if data resolution is less than 60s default it to 1m
-	var minsPerResolution int
-	if minsPerResolution = int(resolution.Minutes()); int(resolution.Minutes()) == 0 {
-		minsPerResolution = 1
-		log.DedupedWarningf(3, "QueryLocalStorageCost: Configured resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
 	}
 
 	// hourlyToCumulative is a scaling factor that, when multiplied by an

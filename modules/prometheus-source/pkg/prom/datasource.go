@@ -16,7 +16,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"github.com/opencost/opencost/core/pkg/util/json"
-	"github.com/opencost/opencost/core/pkg/util/timeutil"
 
 	prometheus "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -63,61 +62,6 @@ func toStartEndStep(qp httputil.QueryParams) (start, end time.Time, step time.Du
 	err = nil
 
 	return
-}
-
-// FIXME: Before merge, implement a more robust design. This is brittle and bug-prone,
-// FIXME: but decouples the prom requirements from the Provider implementations.
-var providerStorageQueries = map[string]func(config *OpenCostPrometheusConfig, start, end time.Time, rate bool, used bool) string{
-	"aws": func(config *OpenCostPrometheusConfig, start, end time.Time, rate bool, used bool) string {
-		return ""
-	},
-	"gcp": func(config *OpenCostPrometheusConfig, start, end time.Time, rate bool, used bool) string {
-		// TODO Set to the price for the appropriate storage class. It's not trivial to determine the local storage disk type
-		// See https://cloud.google.com/compute/disks-image-pricing#persistentdisk
-		localStorageCost := 0.04
-
-		baseMetric := "container_fs_limit_bytes"
-		if used {
-			baseMetric = "container_fs_usage_bytes"
-		}
-
-		fmtCumulativeQuery := `sum(
-			sum_over_time(%s{device!="tmpfs", id="/", %s}[%s:1m])
-		) by (%s) / 60 / 730 / 1024 / 1024 / 1024 * %f`
-
-		fmtMonthlyQuery := `sum(
-			avg_over_time(%s{device!="tmpfs", id="/", %s}[%s:1m])
-		) by (%s) / 1024 / 1024 / 1024 * %f`
-
-		fmtQuery := fmtCumulativeQuery
-		if rate {
-			fmtQuery = fmtMonthlyQuery
-		}
-		fmtWindow := timeutil.DurationString(end.Sub(start))
-
-		return fmt.Sprintf(fmtQuery, baseMetric, config.ClusterFilter, fmtWindow, config.ClusterLabel, localStorageCost)
-	},
-	"azure": func(config *OpenCostPrometheusConfig, start, end time.Time, rate bool, used bool) string {
-		return ""
-	},
-	"alibaba": func(config *OpenCostPrometheusConfig, start, end time.Time, rate bool, used bool) string {
-		return ""
-	},
-	"scaleway": func(config *OpenCostPrometheusConfig, start, end time.Time, rate bool, used bool) string {
-		return ""
-	},
-	"otc": func(config *OpenCostPrometheusConfig, start, end time.Time, rate bool, used bool) string {
-		return ""
-	},
-	"oracle": func(config *OpenCostPrometheusConfig, start, end time.Time, rate bool, used bool) string {
-		return ""
-	},
-	"csv": func(config *OpenCostPrometheusConfig, start, end time.Time, rate bool, used bool) string {
-		return ""
-	},
-	"custom": func(config *OpenCostPrometheusConfig, start, end time.Time, rate bool, used bool) string {
-		return ""
-	},
 }
 
 // creates a new help error which indicates the caller can retry and is non-fatal.

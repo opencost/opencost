@@ -680,7 +680,10 @@ func buildAssetsPVCMap(resPVCInfo []*source.PVCInfoResult) map[DiskIdentifier]*D
 			continue
 		}
 
-		key := DiskIdentifier{cluster, volumeName}
+		key := DiskIdentifier{
+			Cluster: cluster,
+			Name:    volumeName,
+		}
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
 				Cluster:   cluster,

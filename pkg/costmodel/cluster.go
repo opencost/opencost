@@ -811,7 +811,10 @@ func pvCosts(
 			continue
 		}
 
-		key := DiskIdentifier{cluster, name}
+		key := DiskIdentifier{
+			Cluster: cluster,
+			Name:    name,
+		}
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
@@ -956,7 +959,10 @@ func pvCosts(
 
 		usage := result.Data[0].Value
 
-		key := DiskIdentifier{cluster, volumeName}
+		key := DiskIdentifier{
+			Cluster: cluster,
+			Name:    volumeName,
+		}
 
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
