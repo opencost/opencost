@@ -718,8 +718,8 @@ func ClusterLoadBalancers(dataSource source.OpenCostDataSource, start, end time.
 			lb.End = active.end
 			lb.Minutes = active.minutes
 
-			if active.minutes > 0 {
-				lb.Cost = lbPricePerHr * (active.minutes / 60.0)
+			if lb.Minutes > 0 {
+				lb.Cost = lbPricePerHr * (lb.Minutes / 60.0)
 			} else {
 				log.DedupedWarningf(20, "ClusterLoadBalancers: found zero minutes for key: %v", key)
 			}
