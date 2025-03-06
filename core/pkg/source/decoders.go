@@ -423,6 +423,7 @@ func DecodePodsResult(result *QueryResult) *PodsResult {
 type ContainerMetricResult struct {
 	Cluster   string
 	Node      string
+	Instance  string
 	Namespace string
 	Pod       string
 	Container string
@@ -433,11 +434,13 @@ type ContainerMetricResult struct {
 func DecodeContainerMetricResult(result *QueryResult) *ContainerMetricResult {
 	cluster, _ := result.GetCluster()
 
-	// Note: This emulates the relabel behavior from older queries - we just do this by default
-	// Note: if node is empty
-	node, err := result.GetNode()
-	if err != nil || node == "" {
-		node, _ = result.GetInstance()
+	node, _ := result.GetNode()
+	instance, _ := result.GetInstance()
+
+	// NOTE: this addresses cases where the node isn't set, but the instance is,
+	// NOTE: we just inherit the instance as the node
+	if node == "" {
+		node = instance
 	}
 
 	namespace, _ := result.GetNamespace()
@@ -447,6 +450,7 @@ func DecodeContainerMetricResult(result *QueryResult) *ContainerMetricResult {
 	return &ContainerMetricResult{
 		Cluster:   cluster,
 		Node:      node,
+		Instance:  instance,
 		Namespace: namespace,
 		Pod:       pod,
 		Container: container,
