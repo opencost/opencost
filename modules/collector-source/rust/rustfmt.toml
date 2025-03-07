@@ -1,0 +1,9 @@
+unstable_features = true
+chain_width = 60
+wrap_comments = true
+comment_width = 80
+reorder_imports = true
+reorder_modules = true
+imports_layout = "Vertical"
+group_imports = "StdExternalCrate"
+imports_granularity = "Module"
