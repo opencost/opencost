@@ -3,7 +3,6 @@ package collector
 import (
 	"hash/fnv"
 	"strings"
-	"time"
 )
 
 type Metric interface {
@@ -77,7 +76,7 @@ type NamedMetric struct {
 }
 
 func (nm *NamedMetric) Update(container, uid, pod, namespace, instance, node, cluster string, value float64) {
-	bucket := time.Now().Unix()
+	//bucket := time.Now().Unix()
 
 }
 
