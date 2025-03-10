@@ -16,6 +16,13 @@ type MetricRecord struct {
 	Timestamp *time.Time
 }
 
+// Parse reads the input reader containing the raw metric format, and returns a slice of MetricRecord instances
+// containing the data parsed from the input.
+func Parse(reader io.Reader) ([]*MetricRecord, error) {
+	p := newParser(reader)
+	return p.parse()
+}
+
 // Parses Metrics from raw metric format.
 //
 // metric_name ["{" label_name "=" `"` label_value `"` { "," label_name"=" `"` label_value `"` } [ "," ] "}"] value [ timestamp ]

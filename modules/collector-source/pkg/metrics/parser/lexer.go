@@ -162,12 +162,23 @@ func (l *lexer) float() string {
 			return sb.String()
 		}
 
-		if r == 'N' || r == 'a' || r == 'I' || r == 'n' || r == 'f' || r == '+' || r == '-' || r == '.' || r == 'e' || r == 'E' || r == '_' || unicode.IsDigit(r) {
+		if isOneOf(r, "NaInf+-._eE") || unicode.IsDigit(r) {
+			//if r == 'N' || r == 'a' || r == 'I' || r == 'n' || r == 'f' || r == '+' || r == '-' || r == '.' || r == 'e' || r == 'E' || r == '_' || unicode.IsDigit(r) {
 			sb.WriteRune(r)
 		} else {
 			return sb.String()
 		}
 	}
+}
+
+func isOneOf(ch rune, chars string) bool {
+	for _, c := range chars {
+		if c == ch {
+			return true
+		}
+	}
+
+	return false
 }
 
 func isAlphaNumeric(ch rune) bool {

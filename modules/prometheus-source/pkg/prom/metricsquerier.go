@@ -573,7 +573,7 @@ func (pds *PrometheusMetricsQuerier) QueryRAMUsageAvg(start, end time.Time) *sou
 }
 
 func (pds *PrometheusMetricsQuerier) QueryRAMUsageMax(start, end time.Time) *source.Future[source.RAMUsageMaxResult] {
-	const queryFmtRAMUsageMax = `max(max_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	const queryFmtRAMUsageMax = `max(max_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, node, instance, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
 	cfg := pds.promConfig
@@ -621,7 +621,7 @@ func (pds *PrometheusMetricsQuerier) QueryCPURequests(start, end time.Time) *sou
 }
 
 func (pds *PrometheusMetricsQuerier) QueryCPUUsageAvg(start, end time.Time) *source.Future[source.CPUUsageAvgResult] {
-	const queryFmtCPUUsageAvg = `avg(rate(container_cpu_usage_seconds_total{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	const queryFmtCPUUsageAvg = `avg(rate(container_cpu_usage_seconds_total{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, node, instance, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
 	cfg := pds.promConfig
@@ -650,7 +650,7 @@ func (pds *PrometheusMetricsQuerier) QueryCPUUsageMax(start, end time.Time) *sou
 	//
 	// If changing the name of the recording rule, make sure to update the
 	// corresponding diagnostic query to avoid confusion.
-	const queryFmtCPUUsageMaxRecordingRule = `max(max_over_time(kubecost_container_cpu_usage_irate{%s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	const queryFmtCPUUsageMaxRecordingRule = `max(max_over_time(kubecost_container_cpu_usage_irate{%s}[%s])) by (container_name, container, pod_name, pod, namespace, node, instance, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
 	// This is the subquery equivalent of the above recording rule query. It is
@@ -663,7 +663,7 @@ func (pds *PrometheusMetricsQuerier) QueryCPUUsageMax(start, end time.Time) *sou
 	// the resolution, to make sure the irate always has two points to query
 	// in case the Prom scrape duration has been reduced to be equal to the
 	// ETL resolution.
-	const queryFmtCPUUsageMaxSubquery = `max(max_over_time(irate(container_cpu_usage_seconds_total{container!="POD", container!="", %s}[%s])[%s:%s])) by (container, pod_name, pod, namespace, instance, %s)`
+	const queryFmtCPUUsageMaxSubquery = `max(max_over_time(irate(container_cpu_usage_seconds_total{container!="POD", container!="", %s}[%s])[%s:%s])) by (container, pod_name, pod, namespace, node, instance, %s)`
 	// env.GetPromClusterFilter(), doubleResStr, durStr, resStr, env.GetPromClusterLabel()
 
 	cfg := pds.promConfig
