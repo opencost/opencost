@@ -19,8 +19,7 @@ type MetricRecord struct {
 // Parse reads the input reader containing the raw metric format, and returns a slice of MetricRecord instances
 // containing the data parsed from the input.
 func Parse(reader io.Reader) ([]*MetricRecord, error) {
-	p := newParser(reader)
-	return p.parse()
+	return newParser(reader).parse()
 }
 
 // Parses Metrics from raw metric format.

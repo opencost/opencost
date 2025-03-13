@@ -1,111 +1,86 @@
 package collector
 
 import (
-	"hash/fnv"
-	"strings"
+	"time"
 )
 
-type Metric interface {
+// MetricValue is a resulting data point value with an optional timestamp.
+type MetricValue struct {
+	Value     float64
+	Timestamp *time.Time
+}
+
+// MetricResult contains a resulting metric name, the associated labels and label values, and a slice of
+// MetricValues.
+type MetricResult struct {
+	Name         string
+	MetricLabels map[string]string
+	Values       []MetricValue
+}
+
+// MetricAggregator is an interface that defines the methods for a metric collector aggregation.
+// For example, we have a metric `foo_metric`, and we wish to query and collect the average over time.
+// In this case, the `AverageOverTime` component is the MetricAggregator. It is the component responsible
+// for routing updates to metric values into their proper condensed form.
+type MetricAggregator interface {
 	Name() string
 	Update(value float64)
 	Value() float64
+	LabelValues() []string
 }
 
-type AverageOverTimeMetric struct {
-	name  string
-	total float64
-	count int
+// MetricAggregatorFactory is a function that accepts a string name and returns a pointer to a MetricAggregator
+// implementation.
+type MetricAggregatorFactory func(name string, labelValues []string) MetricAggregator
+
+// MetricCollector is a data structure that represents a specific metric collector instance that contains it's own breakdown
+// of stored metrics by a specific label set.
+type MetricCollector struct {
+	id                MetricCollectorID // ie: RAMUsageAverage
+	metricName        string            // ie: container_memory_working_set_bytes
+	labels            []string
+	aggregatorFactory MetricAggregatorFactory
+	metrics           map[uint64]MetricAggregator // map[hash(labelValues)] = aggregator
 }
 
-func NewAverageOverTimeMetric(name string) *AverageOverTimeMetric {
-	return &AverageOverTimeMetric{
-		name: name,
+// NewMetricCollector creates a new MetricCollector instance with a unique identifier. The metric name is the specific
+// name of the collected metric that will be used to query the
+func NewMetricCollector(id MetricCollectorID, metricName string, labels []string, aggregatorFactory MetricAggregatorFactory) *MetricCollector {
+	return &MetricCollector{
+		id:                id,
+		metricName:        metricName,
+		labels:            labels,
+		aggregatorFactory: aggregatorFactory,
+		metrics:           make(map[uint64]MetricAggregator),
 	}
 }
 
-func (m *AverageOverTimeMetric) Name() string {
-	return m.name
-}
-
-func (m *AverageOverTimeMetric) Update(value float64) {
-	m.total += value
-	m.count++
-}
-
-func (m *AverageOverTimeMetric) Value() float64 {
-	return m.total / float64(m.count)
-}
-
-// avg(
-// 		avg_over_time(
-// 			container_memory_working_set_bytes{
-// 				container!="",
-// 				container!="POD",
-// 				<some_custom_filter>
-// 			}[1h]
-// 		)
-// ) by (container, pod, namespace, instance, cluster_id)
-
-type ContainerWorkingSetBytes struct {
-	name    string
-	labels  []string
-	metrics map[uint64]*AverageOverTimeMetric
-}
-
-func NewContainerWorkingSetBytes() *ContainerWorkingSetBytes {
-	return &ContainerWorkingSetBytes{
-		name:    "container_memory_working_set_bytes",
-		labels:  []string{"container", "uid", "pod", "namespace", "instance", "node", "cluster"},
-		metrics: make(map[uint64]*AverageOverTimeMetric),
+func (mi *MetricCollector) Update(labelValues []string, value float64, timestamp *time.Time) {
+	key := hash(labelValues)
+	if mi.metrics[key] == nil {
+		mi.metrics[key] = mi.aggregatorFactory(metricNameFor(mi.metricName, mi.labels, labelValues), labelValues)
 	}
+
+	mi.metrics[key].Update(value)
 }
 
-// We could also be way more generic than this and do something like: Update(labelValues []string, value float64)
-func (cwsb *ContainerWorkingSetBytes) Update(container, uid, pod, namespace, instance, node, cluster string, value float64) {
-	// hash key
-	key := hash([]string{container, uid, pod, namespace, instance, node, cluster})
-	if cwsb.metrics[key] == nil {
-		cwsb.metrics[key] = NewAverageOverTimeMetric(metricNameFor(cwsb.name, cwsb.labels, []string{container, uid, pod, namespace, instance, node, cluster}))
-	}
-	cwsb.metrics[key].Update(value)
-}
-
-type NamedMetric struct {
-	name    string // RAMUsageAvg
-	buckets map[uint64]*ContainerWorkingSetBytes
-}
-
-func (nm *NamedMetric) Update(container, uid, pod, namespace, instance, node, cluster string, value float64) {
-	//bucket := time.Now().Unix()
-
-}
-
-func (nm *NamedMetric) Value() float64 {
-	return 0
-}
-
-func hash(s []string) uint64 {
-	h := fnv.New64a()
-	for _, v := range s {
-		h.Write([]byte(v))
-	}
-	return h.Sum64()
-}
-
-func metricNameFor(metric string, labels []string, values []string) string {
-	var sb strings.Builder
-	sb.WriteString(metric)
-	sb.WriteRune('{')
-	for i := 0; i < len(labels); i++ {
-		sb.WriteRune('"')
-		sb.WriteString(labels[i])
-		sb.WriteString(`"="`)
-		sb.WriteString(values[i])
-		sb.WriteRune('"')
-		if i < len(labels)-1 {
-			sb.WriteRune(',')
+func (mi *MetricCollector) Get() []*MetricResult {
+	results := make([]*MetricResult, 0, len(mi.metrics))
+	for _, metric := range mi.metrics {
+		mr := &MetricResult{
+			Name:         metric.Name(),
+			MetricLabels: toMap(mi.labels, metric.LabelValues()),
+			Values: []MetricValue{
+				{Value: metric.Value(), Timestamp: nil},
+			},
 		}
+
+		results = append(results, mr)
 	}
-	sb.WriteRune('}')
-	return sb.String()
+
+	return results
+}
+
+func (mi *MetricCollector) Labels() []string {
+	return mi.labels
 }
