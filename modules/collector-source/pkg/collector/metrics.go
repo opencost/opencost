@@ -10,7 +10,7 @@ package collector
 // 		)
 // ) by (container, pod, namespace, instance, cluster_id)
 
-func NewRAMUsageAverageMetricInstance() *MetricCollector {
+func NewRAMUsageAverageMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		RAMUsageAverageID,
 		ContainerMemoryWorkingSetBytes,

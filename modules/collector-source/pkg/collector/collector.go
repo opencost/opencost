@@ -10,6 +10,10 @@ import (
 // Metric names
 const (
 	ContainerMemoryWorkingSetBytes string = "container_memory_working_set_bytes"
+
+	// So it's easier to track, and so it offers to most compatibility with parsing
+	// the raw metric format, we should use the same metric names as the Prometheus
+	// queries we use to collect the metrics.
 )
 
 // MetricCollectorID is a unique identifier for a specific metric collector instance. We
@@ -21,6 +25,15 @@ type MetricCollectorID string
 const (
 	RAMUsageAverageID MetricCollectorID = "RAMUsageAverage"
 	// etc ...
+
+	// Use ./modules/prometheus-source/pkg/prom/metricsquerier.go as a good
+	// reference for the Queries we require (and therefore, the metrics we need to register).
+
+	// For each new `MetricsCollectorID`, we also need to create a new `New<MetricsCollectorID>MetricsCollector`
+	// function that assembles the metrics collector instance.
+
+	// Lastly, add the `New<MetricsCollectorID>MetricsCollector` function to the `NewOpenCostMetricCollector` function
+	// in ./modules/collector-source/pkg/collector/opencost.go
 )
 
 // MetricsCollector is an interface that defines an implementation capable of managing a collection

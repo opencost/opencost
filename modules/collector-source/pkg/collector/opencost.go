@@ -4,7 +4,7 @@ func NewOpenCostMetricCollector() MetricsCollector {
 	memCollector := NewInMemoryMetricsCollector()
 
 	// Register all the metrics
-	memCollector.Register(NewRAMUsageAverageMetricInstance())
+	memCollector.Register(NewRAMUsageAverageMetricCollector())
 	// etc...
 
 	// Use ./modules/prometheus-source/pkg/prom/metricsquerier.go as a good
