@@ -195,6 +195,4 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 )
 
-go 1.23.0
-
-toolchain go1.24.0
+go 1.23.5
