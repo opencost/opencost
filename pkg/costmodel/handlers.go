@@ -36,7 +36,7 @@ func (a *Accesses) ComputeAssetsHandler(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	w.Write(WrapData(assetSet, nil))
+	WriteData(w, assetSet, nil)
 }
 
 // ComputeAllocationHandler returns the assets from the CostModel.
@@ -67,7 +67,7 @@ func (a *Accesses) ComputeAssetsCarbonHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	w.Write(WrapData(carbonEstimates, nil))
+	WriteData(w, carbonEstimates, nil)
 }
 
 func (a *Accesses) ComputeAssetsFromCostmodel(window opencost.Window, filterString string) (*opencost.AssetSet, error) {

@@ -9,7 +9,6 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
-	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/env"
 )
 
@@ -102,7 +101,7 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 
 		as, err := a.Model.ComputeAllocation(*stepWindow.Start(), *stepWindow.End(), resolution)
 		if err != nil {
-			WriteError(w, InternalServerError(err.Error()))
+			proto.WriteError(w, proto.InternalServerError(err.Error()))
 			return
 		}
 		asr.Append(as)
@@ -114,7 +113,7 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 	if len(aggregateBy) > 0 {
 		err = asr.AggregateBy(aggregateBy, nil)
 		if err != nil {
-			WriteError(w, InternalServerError(err.Error()))
+			proto.WriteError(w, proto.InternalServerError(err.Error()))
 			return
 		}
 	}
@@ -123,7 +122,7 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 	if accumulate {
 		asr, err = asr.Accumulate(opencost.AccumulateOptionAll)
 		if err != nil {
-			WriteError(w, InternalServerError(err.Error()))
+			proto.WriteError(w, proto.InternalServerError(err.Error()))
 			return
 		}
 	}
@@ -135,7 +134,7 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 	}
 	sasr := opencost.NewSummaryAllocationSetRange(sasl...)
 
-	w.Write(WrapData(sasr, nil))
+	WriteData(w, sasr, nil)
 }
 
 // ComputeAllocationHandler computes an AllocationSetRange from the CostModel.
@@ -203,60 +202,13 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	asr, err := a.Model.QueryAllocation(window, resolution, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer, accumulateBy, shareIdle)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "bad request") {
-			WriteError(w, BadRequest(err.Error()))
+			proto.WriteError(w, proto.BadRequest(err.Error()))
 		} else {
-			WriteError(w, InternalServerError(err.Error()))
+			proto.WriteError(w, proto.InternalServerError(err.Error()))
 		}
 
 		return
 	}
 
-	w.Write(WrapData(asr, nil))
-}
-
-// The below was transferred from a different package in order to maintain
-// previous behavior. Ultimately, we should clean this up at some point.
-// TODO move to util and/or standardize everything
-
-type Error struct {
-	StatusCode int
-	Body       string
-}
-
-func WriteError(w http.ResponseWriter, err Error) {
-	status := err.StatusCode
-	if status == 0 {
-		status = http.StatusInternalServerError
-	}
-	w.WriteHeader(status)
-
-	resp, _ := json.Marshal(&Response{
-		Code:    status,
-		Message: fmt.Sprintf("Error: %s", err.Body),
-	})
-	w.Write(resp)
-}
-
-func BadRequest(message string) Error {
-	return Error{
-		StatusCode: http.StatusBadRequest,
-		Body:       message,
-	}
-}
-
-func InternalServerError(message string) Error {
-	if message == "" {
-		message = "Internal Server Error"
-	}
-	return Error{
-		StatusCode: http.StatusInternalServerError,
-		Body:       message,
-	}
-}
-
-func NotFound() Error {
-	return Error{
-		StatusCode: http.StatusNotFound,
-		Body:       "Not Found",
-	}
+	WriteData(w, asr, nil)
 }
