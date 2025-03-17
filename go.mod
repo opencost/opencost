@@ -28,7 +28,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.28.0
 	github.com/aws/smithy-go v1.20.1
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/getsentry/sentry-go v0.25.0
 	github.com/google/martian v2.1.0+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-hclog v1.6.2

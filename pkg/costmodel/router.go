@@ -30,8 +30,6 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/getsentry/sentry-go"
-
 	"github.com/opencost/opencost/core/pkg/clusters"
 	sysenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
@@ -41,7 +39,6 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/patrickmn/go-cache"
@@ -624,49 +621,8 @@ func (a *Accesses) GetHelmValues(w http.ResponseWriter, r *http.Request, ps http
 	w.Write(result)
 }
 
-// captures the panic event in sentry
-func capturePanicEvent(err string, stack string) {
-	msg := fmt.Sprintf("Panic: %s\nStackTrace: %s\n", err, stack)
-	log.Infof("%s", msg)
-	sentry.CurrentHub().CaptureEvent(&sentry.Event{
-		Level:   sentry.LevelError,
-		Message: msg,
-	})
-	sentry.Flush(5 * time.Second)
-}
-
-// handle any panics reported by the errors package
-func handlePanic(p errors.Panic) bool {
-	err := p.Error
-
-	if err != nil {
-		if err, ok := err.(error); ok {
-			capturePanicEvent(err.Error(), p.Stack)
-		}
-
-		if err, ok := err.(string); ok {
-			capturePanicEvent(err, p.Stack)
-		}
-	}
-
-	// Return true to recover iff the type is http, otherwise allow kubernetes
-	// to recover.
-	return p.Type == errors.PanicTypeHTTP
-}
-
 func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses {
 	var err error
-	if errorReportingEnabled {
-		err = sentry.Init(sentry.ClientOptions{Release: version.FriendlyVersion()})
-		if err != nil {
-			log.Infof("Failed to initialize sentry for error reporting")
-		} else {
-			err = errors.SetPanicHandler(handlePanic)
-			if err != nil {
-				log.Infof("Failed to set panic handler: %s", err)
-			}
-		}
-	}
 
 	// Kubernetes API setup
 	kubeClientset, err := kubeconfig.LoadKubeClient("")
