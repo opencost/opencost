@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/protocol"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util/retry"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
@@ -59,6 +60,8 @@ const (
 var (
 	// gitCommit is set by the build system
 	gitCommit string
+
+	proto = protocol.HTTP()
 )
 
 // Accesses defines a singleton application instance, providing access to
@@ -105,14 +108,6 @@ func (a *Accesses) GetCacheRefresh(dur time.Duration) time.Duration {
 	}
 	mins := time.Duration(expiry/2.0) * time.Minute
 	return mins
-}
-
-type Response struct {
-	Code    int         `json:"code"`
-	Status  string      `json:"status"`
-	Data    interface{} `json:"data"`
-	Message string      `json:"message,omitempty"`
-	Warning string      `json:"warning,omitempty"`
 }
 
 // FilterFunc is a filter that returns true iff the given CostData should be filtered out, and the environment that was used as the filter criteria, if it was an aggregate
@@ -195,101 +190,13 @@ func ParsePercentString(percentStr string) (float64, error) {
 	return discount, nil
 }
 
-func WrapData(data interface{}, err error) []byte {
-	var resp []byte
-
+func WriteData(w http.ResponseWriter, data interface{}, err error) {
 	if err != nil {
-		log.Errorf("Error returned to client: %s", err.Error())
-		resp, _ = json.Marshal(&Response{
-			Code:    http.StatusInternalServerError,
-			Status:  "error",
-			Message: err.Error(),
-			Data:    data,
-		})
-	} else {
-		resp, err = json.Marshal(&Response{
-			Code:   http.StatusOK,
-			Status: "success",
-			Data:   data,
-		})
-		if err != nil {
-			log.Errorf("error marshaling response json: %s", err.Error())
-		}
+		proto.WriteError(w, proto.InternalServerError(err.Error()))
+		return
 	}
 
-	return resp
-}
-
-func WrapDataWithMessage(data interface{}, err error, message string) []byte {
-	var resp []byte
-
-	if err != nil {
-		log.Errorf("Error returned to client: %s", err.Error())
-		resp, _ = json.Marshal(&Response{
-			Code:    http.StatusInternalServerError,
-			Status:  "error",
-			Message: err.Error(),
-			Data:    data,
-		})
-	} else {
-		resp, _ = json.Marshal(&Response{
-			Code:    http.StatusOK,
-			Status:  "success",
-			Data:    data,
-			Message: message,
-		})
-	}
-
-	return resp
-}
-
-func WrapDataWithWarning(data interface{}, err error, warning string) []byte {
-	var resp []byte
-
-	if err != nil {
-		log.Errorf("Error returned to client: %s", err.Error())
-		resp, _ = json.Marshal(&Response{
-			Code:    http.StatusInternalServerError,
-			Status:  "error",
-			Message: err.Error(),
-			Warning: warning,
-			Data:    data,
-		})
-	} else {
-		resp, _ = json.Marshal(&Response{
-			Code:    http.StatusOK,
-			Status:  "success",
-			Data:    data,
-			Warning: warning,
-		})
-	}
-
-	return resp
-}
-
-func WrapDataWithMessageAndWarning(data interface{}, err error, message, warning string) []byte {
-	var resp []byte
-
-	if err != nil {
-		log.Errorf("Error returned to client: %s", err.Error())
-		resp, _ = json.Marshal(&Response{
-			Code:    http.StatusInternalServerError,
-			Status:  "error",
-			Message: err.Error(),
-			Warning: warning,
-			Data:    data,
-		})
-	} else {
-		resp, _ = json.Marshal(&Response{
-			Code:    http.StatusOK,
-			Status:  "success",
-			Data:    data,
-			Message: message,
-			Warning: warning,
-		})
-	}
-
-	return resp
+	proto.WriteData(w, data)
 }
 
 // RefreshPricingData needs to be called when a new node joins the fleet, since we cache the relevant subsets of pricing data to avoid storing the whole thing.
@@ -302,7 +209,7 @@ func (a *Accesses) RefreshPricingData(w http.ResponseWriter, r *http.Request, ps
 		log.Errorf("Error refreshing pricing data: %s", err.Error())
 	}
 
-	w.Write(WrapData(nil, err))
+	WriteData(w, nil, err)
 }
 
 func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -316,7 +223,7 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 
 	duration, err := timeutil.ParseDuration(window)
 	if err != nil {
-		w.Write(WrapData(nil, fmt.Errorf("error parsing window (%s): %s", window, err)))
+		WriteData(w, nil, fmt.Errorf("error parsing window (%s): %s", window, err))
 		return
 	}
 
@@ -324,7 +231,7 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 	if offset != "" {
 		offsetDur, err := timeutil.ParseDuration(offset)
 		if err != nil {
-			w.Write(WrapData(nil, fmt.Errorf("error parsing offset (%s): %s", offset, err)))
+			WriteData(w, nil, fmt.Errorf("error parsing offset (%s): %s", offset, err))
 			return
 		}
 
@@ -346,9 +253,9 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 
 	if fields != "" {
 		filteredData := filterFields(fields, data)
-		w.Write(WrapData(filteredData, err))
+		WriteData(w, filteredData, err)
 	} else {
-		w.Write(WrapData(data, err))
+		WriteData(w, data, err)
 	}
 }
 
@@ -357,25 +264,24 @@ func (a *Accesses) GetAllNodePricing(w http.ResponseWriter, r *http.Request, ps 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	data, err := a.CloudProvider.AllNodePricing()
-	w.Write(WrapData(data, err))
+	WriteData(w, data, err)
 }
 
 func (a *Accesses) GetConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+
 	data, err := a.CloudProvider.GetConfig()
-	w.Write(WrapData(data, err))
+	WriteData(w, data, err)
 }
 
 func (a *Accesses) UpdateSpotInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+
 	data, err := a.CloudProvider.UpdateConfig(r.Body, aws.SpotInfoUpdateType)
-	if err != nil {
-		w.Write(WrapData(data, err))
-		return
-	}
-	w.Write(WrapData(data, err))
+	WriteData(w, data, nil)
+
 	err = a.CloudProvider.DownloadPricingData()
 	if err != nil {
 		log.Errorf("Error redownloading data on config update: %s", err.Error())
@@ -385,23 +291,17 @@ func (a *Accesses) UpdateSpotInfoConfigs(w http.ResponseWriter, r *http.Request,
 func (a *Accesses) UpdateAthenaInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+
 	data, err := a.CloudProvider.UpdateConfig(r.Body, aws.AthenaInfoUpdateType)
-	if err != nil {
-		w.Write(WrapData(data, err))
-		return
-	}
-	w.Write(WrapData(data, err))
+	WriteData(w, data, err)
 }
 
 func (a *Accesses) UpdateBigQueryInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+
 	data, err := a.CloudProvider.UpdateConfig(r.Body, gcp.BigqueryUpdateType)
-	if err != nil {
-		w.Write(WrapData(data, err))
-		return
-	}
-	w.Write(WrapData(data, err))
+	WriteData(w, data, err)
 }
 
 func (a *Accesses) UpdateAzureStorageConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -409,21 +309,17 @@ func (a *Accesses) UpdateAzureStorageConfigs(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	data, err := a.CloudProvider.UpdateConfig(r.Body, azure.AzureStorageUpdateType)
 	if err != nil {
-		w.Write(WrapData(data, err))
+		WriteData(w, nil, err)
 		return
 	}
-	w.Write(WrapData(data, err))
+	WriteData(w, data, err)
 }
 
 func (a *Accesses) UpdateConfigByKey(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	data, err := a.CloudProvider.UpdateConfig(r.Body, "")
-	if err != nil {
-		w.Write(WrapData(data, err))
-		return
-	}
-	w.Write(WrapData(data, err))
+	WriteData(w, data, err)
 }
 
 func (a *Accesses) ManagementPlatform(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -431,11 +327,7 @@ func (a *Accesses) ManagementPlatform(w http.ResponseWriter, r *http.Request, ps
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	data, err := a.CloudProvider.GetManagementPlatform()
-	if err != nil {
-		w.Write(WrapData(data, err))
-		return
-	}
-	w.Write(WrapData(data, err))
+	WriteData(w, data, err)
 }
 
 func (a *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -444,7 +336,7 @@ func (a *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 
 	data := a.ClusterInfoProvider.GetClusterInfo()
 
-	w.Write(WrapData(data, nil))
+	WriteData(w, data, nil)
 }
 
 func (a *Accesses) GetClusterInfoMap(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -453,28 +345,30 @@ func (a *Accesses) GetClusterInfoMap(w http.ResponseWriter, r *http.Request, ps 
 
 	data := a.ClusterMap.AsMap()
 
-	w.Write(WrapData(data, nil))
+	WriteData(w, data, nil)
 }
 
 func (a *Accesses) GetServiceAccountStatus(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	w.Write(WrapData(a.CloudProvider.ServiceAccountStatus(), nil))
+	WriteData(w, a.CloudProvider.ServiceAccountStatus(), nil)
 }
 
 func (a *Accesses) GetPricingSourceStatus(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	w.Write(WrapData(a.CloudProvider.PricingSourceStatus(), nil))
+	data := a.CloudProvider.PricingSourceStatus()
+	WriteData(w, data, nil)
 }
 
 func (a *Accesses) GetPricingSourceCounts(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	w.Write(WrapData(a.Model.GetPricingSourceCounts()))
+	data, err := a.Model.GetPricingSourceCounts()
+	WriteData(w, data, err)
 }
 
 func (a *Accesses) GetPricingSourceSummary(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -482,7 +376,7 @@ func (a *Accesses) GetPricingSourceSummary(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	data := a.CloudProvider.PricingSourceSummary()
-	w.Write(WrapData(data, nil))
+	WriteData(w, data, nil)
 }
 
 func (a *Accesses) GetOrphanedPods(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -532,7 +426,7 @@ func (a *Accesses) GetInstallInfo(w http.ResponseWriter, r *http.Request, _ http
 
 	containers, err := GetKubecostContainers(a.KubeClientSet)
 	if err != nil {
-		writeErrorResponse(w, 500, fmt.Sprintf("Unable to list pods: %s", err.Error()))
+		http.Error(w, fmt.Sprintf("Unable to list pods: %s", err.Error()), http.StatusInternalServerError)
 		return
 	}
 
@@ -550,7 +444,7 @@ func (a *Accesses) GetInstallInfo(w http.ResponseWriter, r *http.Request, _ http
 
 	body, err := json.Marshal(info)
 	if err != nil {
-		writeErrorResponse(w, 500, fmt.Sprintf("Error decoding pod: %s", err.Error()))
+		http.Error(w, fmt.Sprintf("Error decoding pod: %s", err.Error()), http.StatusInternalServerError)
 		return
 	}
 
@@ -811,20 +705,4 @@ func InitializeCustomCost(router *httprouter.Router) *customcost.PipelineService
 	router.GET("/customCost/timeseries", customCostQueryService.GetCustomCostTimeseriesHandler())
 
 	return customCostPipelineService
-}
-
-func writeErrorResponse(w http.ResponseWriter, code int, message string) {
-	out := map[string]string{
-		"message": message,
-	}
-	bytes, err := json.Marshal(out)
-	if err != nil {
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(500)
-		fmt.Fprint(w, "unable to marshall json for error")
-		log.Warnf("Failed to marshall JSON for error response: %s", err.Error())
-		return
-	}
-	w.WriteHeader(code)
-	fmt.Fprint(w, string(bytes))
 }
