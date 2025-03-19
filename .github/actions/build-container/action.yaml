@@ -51,5 +51,6 @@ runs:
           echo "$(pwd)" >> $GITHUB_PATH
 
       - name: Build and push (multiarch) OpenCost
+        shell: bash
         run: |
           just build '${{ inputs.image_tag }}' '${{ inputs.release_version }}'
