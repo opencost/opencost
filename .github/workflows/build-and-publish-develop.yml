@@ -22,15 +22,10 @@ jobs:
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
-        with:
-          path: ./opencost
-
       - name: Set SHA
         id: sha
         run: |
-          pushd ./opencost
           echo "OC_SHORTHASH=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          popd
 
       - name: Set OpenCost Image Tags
         id: tags

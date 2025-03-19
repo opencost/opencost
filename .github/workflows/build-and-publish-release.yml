@@ -61,14 +61,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: '${{ steps.branch.outputs.BRANCH_NAME }}'
-          path: ./opencost
 
       - name: Set SHA
         id: sha
         run: |
-          pushd ./opencost
           echo "OC_SHORTHASH=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          popd
 
       - name: Set OpenCost Image Tags
         id: tags
