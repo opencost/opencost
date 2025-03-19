@@ -41,6 +41,7 @@ runs:
       ## Install manifest-tool, which is required to combine multi-arch images
       ## https://github.com/estesp/manifest-tool
       - name: Install manifest-tool
+        shell: bash
         run: |
           mkdir -p manifest-tool
           pushd manifest-tool
