@@ -3,7 +3,7 @@ name: Build and Publish Develop
 on:
   push:
     branches:
-      - atm/enable-cd
+      - develop
 
 concurrency:
   group: build-opencost-develop
