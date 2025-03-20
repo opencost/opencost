@@ -856,6 +856,7 @@ type NetworkGiBResult struct {
 	Cluster   string
 	Namespace string
 	Pod       string
+	Service   string
 
 	Data []*util.Vector
 }
@@ -864,11 +865,13 @@ func DecodeNetworkGiBResult(result *QueryResult) *NetworkGiBResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
+	service, _ := result.GetString("service")
 
 	return &NetworkGiBResult{
 		Cluster:   cluster,
 		Namespace: namespace,
 		Pod:       pod,
+		Service:   service,
 		Data:      result.Values,
 	}
 }
@@ -899,6 +902,13 @@ type NetRegionPricePerGiBResult = NetworkPricePerGiBResult
 type NetInternetGiBResult = NetworkGiBResult
 type NetInternetPricePerGiBResult = NetworkPricePerGiBResult
 
+type NetInternetServiceGiBResult = NetworkGiBResult
+
+type NetZoneIngressGiBResult = NetworkGiBResult
+type NetRegionIngressGiBResult = NetworkGiBResult
+type NetInternetIngressGiBResult = NetworkGiBResult
+type NetInternetServiceIngressGiBResult = NetworkGiBResult
+
 func DecodeNetZoneGiBResult(result *QueryResult) *NetZoneGiBResult {
 	return DecodeNetworkGiBResult(result)
 }
@@ -921,6 +931,26 @@ func DecodeNetInternetGiBResult(result *QueryResult) *NetInternetGiBResult {
 
 func DecodeNetInternetPricePerGiBResult(result *QueryResult) *NetInternetPricePerGiBResult {
 	return DecodeNetworkPricePerGiBResult(result)
+}
+
+func DecodeNetInternetServiceGiBResult(result *QueryResult) *NetInternetServiceGiBResult {
+	return DecodeNetworkGiBResult(result)
+}
+
+func DecodeNetZoneIngressGiBResult(result *QueryResult) *NetZoneIngressGiBResult {
+	return DecodeNetworkGiBResult(result)
+}
+
+func DecodeNetRegionIngressGiBResult(result *QueryResult) *NetRegionIngressGiBResult {
+	return DecodeNetworkGiBResult(result)
+}
+
+func DecodeNetInternetIngressGiBResult(result *QueryResult) *NetInternetIngressGiBResult {
+	return DecodeNetworkGiBResult(result)
+}
+
+func DecodeNetInternetServiceIngressGiBResult(result *QueryResult) *NetInternetServiceIngressGiBResult {
+	return DecodeNetworkGiBResult(result)
 }
 
 type NetReceiveBytesResult struct {

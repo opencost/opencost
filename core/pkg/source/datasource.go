@@ -78,15 +78,22 @@ type MetricsQuerier interface {
 	QueryPVPricePerGiBHour(start, end time.Time) *Future[PVPricePerGiBHourResult]
 	QueryPVInfo(start, end time.Time) *Future[PVInfoResult]
 
-	// Network
+	// Network Egress
 	QueryNetZoneGiB(start, end time.Time) *Future[NetZoneGiBResult]
 	QueryNetZonePricePerGiB(start, end time.Time) *Future[NetZonePricePerGiBResult]
 	QueryNetRegionGiB(start, end time.Time) *Future[NetRegionGiBResult]
 	QueryNetRegionPricePerGiB(start, end time.Time) *Future[NetRegionPricePerGiBResult]
 	QueryNetInternetGiB(start, end time.Time) *Future[NetInternetGiBResult]
 	QueryNetInternetPricePerGiB(start, end time.Time) *Future[NetInternetPricePerGiBResult]
-	QueryNetReceiveBytes(start, end time.Time) *Future[NetReceiveBytesResult]
+	QueryNetInternetServiceGiB(start, end time.Time) *Future[NetInternetServiceGiBResult]
 	QueryNetTransferBytes(start, end time.Time) *Future[NetTransferBytesResult]
+
+	// Network Ingress
+	QueryNetZoneIngressGiB(start, end time.Time) *Future[NetZoneIngressGiBResult]
+	QueryNetRegionIngressGiB(start, end time.Time) *Future[NetRegionIngressGiBResult]
+	QueryNetInternetIngressGiB(start, end time.Time) *Future[NetInternetIngressGiBResult]
+	QueryNetInternetServiceIngressGiB(start, end time.Time) *Future[NetInternetServiceIngressGiBResult]
+	QueryNetReceiveBytes(start, end time.Time) *Future[NetReceiveBytesResult]
 
 	// Annotations
 	QueryNamespaceAnnotations(start, end time.Time) *Future[NamespaceAnnotationsResult]

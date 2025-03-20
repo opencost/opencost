@@ -28,4 +28,7 @@ const (
 	// ContainerStatsContextName is the name we assign queries that build
 	// container stats aggregations.
 	ContainerStatsContextName = "container-stats"
+
+	// NetworkInsightsContextName is the name we assign the network insights query context [metadata]
+	NetworkInsightsContextName = "networkinsight"
 )
