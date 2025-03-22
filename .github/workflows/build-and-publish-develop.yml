@@ -1,0 +1,43 @@
+name: Build and Publish Develop
+
+on:
+  push:
+    branches:
+      - develop
+
+concurrency:
+  group: build-opencost-develop
+  cancel-in-progress: false
+
+env:
+  # Use docker.io for Docker Hub if empty
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-publish-opencost:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+      - name: Set SHA
+        id: sha
+        run: |
+          echo "OC_SHORTHASH=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set OpenCost Image Tags
+        id: tags
+        run: |
+          echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:develop-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+
+      - name: Build and publish container
+        uses: ./.github/actions/build-container 
+        with:
+          actor: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          image_tag: ${{ steps.tags.outputs.IMAGE_TAG }}
+          release_version: develop-${{ steps.sha.outputs.OC_SHORTHASH }}
+
+

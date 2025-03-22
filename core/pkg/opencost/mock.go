@@ -828,3 +828,105 @@ func NewMockUnitSummaryAllocationSet(start time.Time, resolution time.Duration) 
 
 	return sas
 }
+
+const (
+	mockCloudService1    = "MockCloudService1"
+	mockCloudService2    = "MockCloudService2"
+	mockCloudService3    = "MockCloudService3"
+	mockCloudServiceName = "MockCloudService"
+)
+
+type MockNetworkInsightImportantKeys struct {
+	Cluster    string
+	Namespace  string
+	Controller string
+	Pod        string
+	Node       string
+	Labels     map[string]string
+	Region     string
+	Zone       string
+}
+
+func createMockNetworkDetail(cost, bytes float64, endPoint string, trafficDirection NetworkTrafficDirection, trafficType NetworkTrafficType) (*NetworkDetail, error) {
+	return &NetworkDetail{
+		Cost:             cost,
+		Bytes:            bytes,
+		EndPoint:         endPoint,
+		TrafficDirection: trafficDirection,
+		TrafficType:      trafficType,
+	}, nil
+}
+
+func createMockNetworkInsight(mockInsight MockNetworkInsightImportantKeys, detailsSet NetworkDetailsSet) *NetworkInsight {
+	// Ingress isnt charges at the moment
+	internetCost := detailsSet.GetTotalInternetCost()
+	crossZoneCost := detailsSet.GetCrossZoneCost()
+	crossRegionCost := detailsSet.GetCrossRegionCost()
+	totalCost := internetCost + crossZoneCost + crossRegionCost
+	return NewNetworkInsight(
+		mockInsight.Cluster, mockInsight.Namespace, mockInsight.Controller,
+		mockInsight.Pod, mockInsight.Node, mockInsight.Labels, mockInsight.Region,
+		mockInsight.Zone, totalCost, crossZoneCost, crossRegionCost, internetCost, detailsSet)
+}
+
+func GenerateMockNetworkInsightSet(start time.Time, end time.Time) *NetworkInsightSet {
+	mockInsight1 := MockNetworkInsightImportantKeys{
+		Cluster:    "mockCluster1",
+		Namespace:  "mockNamespace1",
+		Controller: "",
+		Pod:        "mockPod1",
+		Node:       "",
+		Labels:     map[string]string{},
+		Region:     "",
+		Zone:       "",
+	}
+
+	mockInsight2 := MockNetworkInsightImportantKeys{
+		Cluster:    "mockCluster1",
+		Namespace:  "mockNamespace2",
+		Controller: "",
+		Pod:        "mockPod2",
+		Node:       "",
+		Labels:     map[string]string{},
+		Region:     "",
+		Zone:       "",
+	}
+
+	mcs1inIngress, _ := createMockNetworkDetail(0, 200000, mockCloudService1, NetworkTrafficDirectionIngress, NetworkTrafficTypeInternet)
+	mcs2inIngress, _ := createMockNetworkDetail(0, 400000, mockCloudService2, NetworkTrafficDirectionIngress, NetworkTrafficTypeInternet)
+	mcs3inIngress, _ := createMockNetworkDetail(0, 800000, mockCloudService2, NetworkTrafficDirectionIngress, NetworkTrafficTypeInternet)
+	mcs1inEgress, _ := createMockNetworkDetail(0.16, 300000, mockCloudService1, NetworkTrafficDirectionEgress, NetworkTrafficTypeInternet)
+	mcs2inEgress, _ := createMockNetworkDetail(0.24, 300000, mockCloudService2, NetworkTrafficDirectionEgress, NetworkTrafficTypeInternet)
+	mcs3inEgress, _ := createMockNetworkDetail(0.35, 300000, mockCloudService3, NetworkTrafficDirectionEgress, NetworkTrafficTypeInternet)
+
+	set1 := make(NetworkDetailsSet, 0)
+	set1[mcs1inIngress.Key()] = mcs1inIngress
+	set1[mcs2inIngress.Key()] = mcs2inIngress
+	set1[mcs3inIngress.Key()] = mcs3inIngress
+	set1[mcs1inEgress.Key()] = mcs1inEgress
+	set1[mcs2inEgress.Key()] = mcs2inEgress
+	set1[mcs3inEgress.Key()] = mcs3inEgress
+
+	set2 := make(NetworkDetailsSet, 0)
+	set2[mcs1inIngress.Key()] = mcs1inIngress.Clone()
+	set2[mcs2inIngress.Key()] = mcs2inIngress.Clone()
+	set2[mcs3inIngress.Key()] = mcs3inIngress.Clone()
+	set2[mcs1inEgress.Key()] = mcs1inEgress.Clone()
+	set2[mcs2inEgress.Key()] = mcs2inEgress.Clone()
+	set2[mcs3inEgress.Key()] = mcs3inEgress.Clone()
+
+	ni1 := createMockNetworkInsight(mockInsight1, set1)
+	ni2 := createMockNetworkInsight(mockInsight1, set2)
+	ni3 := createMockNetworkInsight(mockInsight2, set1.Clone())
+
+	nis := &NetworkInsightSet{
+		NetworkInsights: make(map[string]*NetworkInsight, 0),
+		Window:          NewClosedWindow(start, end),
+	}
+
+	nis.Insert(ni1, []NetworkInsightProperty{NetworkInsightsPod})
+	nis.Insert(ni2, []NetworkInsightProperty{NetworkInsightsPod})
+	nis.Insert(ni3, []NetworkInsightProperty{NetworkInsightsPod})
+
+	return nis
+}

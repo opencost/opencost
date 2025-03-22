@@ -70,4 +70,13 @@ package opencost
 // @bingen:generate:CloudCostLabels
 // @bingen:end
 
+// @bingen:set[name=NetworkInsight,version=1]
+// @bingen:generate:NetworkInsightSet
+// @bingen:generate:NetworkInsight
+// @bingen:generate:NetworkTrafficDirection
+// @bingen:generate:NetworkTrafficType
+// @bingen:generate:NetworkDetail
+// @bingen:generate:NetworkDetailsSet
+// @bingen:end
+
 //go:generate bingen -package=opencost -version=18 -buffer=github.com/opencost/opencost/core/pkg/util
