@@ -618,6 +618,10 @@ func (a *awsAuth) Retrieve() (credentials.Value, error) {
 	}, nil
 }
 
+func (a *awsAuth) RetrieveWithCredContext(ctx *credentials.CredContext) (credentials.Value, error) {
+	return a.Retrieve()
+}
+
 // IsExpired returns if the credentials have been retrieved.
 func (a *awsAuth) IsExpired() bool {
 	return a.creds.Expired()
@@ -630,6 +634,17 @@ type overrideSignerType struct {
 
 func (s *overrideSignerType) Retrieve() (credentials.Value, error) {
 	v, err := s.Provider.Retrieve()
+	if err != nil {
+		return v, err
+	}
+	if !v.SignerType.IsAnonymous() {
+		v.SignerType = s.signerType
+	}
+	return v, nil
+}
+
+func (s *overrideSignerType) RetrieveWithCredContext(ctx *credentials.CredContext) (credentials.Value, error) {
+	v, err := s.Provider.RetrieveWithCredContext(ctx)
 	if err != nil {
 		return v, err
 	}
