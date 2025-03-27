@@ -10,10 +10,6 @@ concurrency:
   group: build-opencost-develop
   cancel-in-progress: false
 
-env:
-  # Use docker.io for Docker Hub if empty
-  REGISTRY: ghcr.io
-
 jobs:
   prep-image-name:
     runs-on: ubuntu-latest
