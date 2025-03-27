@@ -1,6 +1,8 @@
 package validator
 
 import (
+	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -9,7 +11,7 @@ import (
 )
 
 func TestWindowValidator(t *testing.T) {
-	v := NewWindowValidator[opencost.AllocationSet]()
+	v := NewSetValidator[opencost.AllocationSet](time.Hour)
 
 	end := time.Now().UTC()
 	start := end.Add(-time.Hour)
@@ -18,72 +20,32 @@ func TestWindowValidator(t *testing.T) {
 
 	invalidEnd := opencost.NewWindow(&start, nil)
 	invalidStart := opencost.NewWindow(nil, &end)
-	valid := opencost.NewWindow(&start, &end)
+
+	s := start.Truncate(time.Hour)
+	e := end.Truncate(time.Hour)
+	valid := opencost.NewWindow(&s, &e)
 
 	// Invalid End
 	set.Window = invalidEnd
-	isValid, err := v.IsValid(set)
-	if isValid || err == nil {
+	err := v.Validate(set.Window, set)
+	if err == nil {
 		t.Errorf("Validator returned valid flag for invalid window in set")
 	}
 
 	// InValid Start
 	set.Window = invalidStart
-	isValid, err = v.IsValid(set)
-	if isValid || err == nil {
+	err = v.Validate(set.Window, set)
+	if err == nil {
 		t.Errorf("Validator returned valid flag for invalid window in set")
 	}
 
 	// Valid
 	set.Window = valid
-	isValid, err = v.IsValid(set)
-	if !isValid || err != nil {
-		t.Errorf("Validator returned an invalid flag or error for a valid window")
+	err = v.Validate(set.Window, set)
+	if err != nil {
+		t.Errorf("Validator returned an error for a valid window: %v", err)
 	}
 
-}
-
-func TestResolutionValidator(t *testing.T) {
-	v := NewResolutionValidator[opencost.AllocationSet](time.Hour)
-
-	end := time.Now().UTC()
-	start := end.Add(-time.Hour)
-	start2h := start.Add(-time.Hour)
-
-	set := opencost.NewAllocationSet(start, end)
-
-	invalidEnd := opencost.NewWindow(&start, nil)
-	invalidStart := opencost.NewWindow(nil, &end)
-	invalidResolution := opencost.NewWindow(&start2h, &end)
-	valid := opencost.NewWindow(&start, &end)
-
-	// Invalid End
-	set.Window = invalidEnd
-	isValid, err := v.IsValid(set)
-	if isValid || err == nil {
-		t.Errorf("Validator returned valid flag for invalid window in set")
-	}
-
-	// Invalid Start
-	set.Window = invalidStart
-	isValid, err = v.IsValid(set)
-	if isValid || err == nil {
-		t.Errorf("Validator returned valid flag for invalid window in set")
-	}
-
-	// Invalid Resolution
-	set.Window = invalidResolution
-	isValid, err = v.IsValid(set)
-	if isValid || err == nil {
-		t.Errorf("Validator returned valid flag for invalid resolution in set")
-	}
-
-	// Valid
-	set.Window = valid
-	isValid, err = v.IsValid(set)
-	if !isValid || err != nil {
-		t.Errorf("Validator returned an invalid flag or error for a valid window")
-	}
 }
 
 func TestUTCResolutionValidator(t *testing.T) {
@@ -145,9 +107,10 @@ func TestUTCResolutionValidator(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			v := NewUTCResolutionValidator[opencost.AllocationSet](tc.resolution)
+			v := NewSetValidator[opencost.AllocationSet](tc.resolution)
 			set.Window = tc.window
-			isValid, err := v.IsValid(set)
+			err := v.Validate(tc.window, set)
+			isValid := err == nil
 			if tc.expected != isValid {
 				t.Errorf("Validator returned incorrect flag")
 			}
@@ -162,59 +125,129 @@ func TestUTCResolutionValidator(t *testing.T) {
 	}
 }
 
-func TestEmptySetValidator(t *testing.T) {
-	v := NewEmptySetValidator[opencost.AllocationSet](time.Hour)
+func TestEmptyAndNil(t *testing.T) {
+	v := NewSetValidator[opencost.AllocationSet](time.Hour)
 
-	end := time.Now().UTC()
+	end := time.Now().UTC().Truncate(time.Hour)
 	start := end.Add(-time.Hour)
-	start2h := start.Add(-time.Hour)
 
-	set := opencost.NewAllocationSet(start, end, opencost.NewMockUnitAllocation("", start, time.Hour, nil))
+	window := opencost.NewClosedWindow(start, end)
+	emptySet := opencost.NewAllocationSet(start, end)
+	nilSet := (*opencost.AllocationSet)(nil)
 
-	invalidEnd := opencost.NewWindow(&start, nil)
-	invalidStart := opencost.NewWindow(nil, &end)
-	invalidResolution := opencost.NewWindow(&start2h, &end)
-	valid := opencost.NewWindow(&start, &end)
-
-	//
-	// Non-Empty Tests
-	//
-
-	// Invalid End
-	set.Window = invalidEnd
-	isValid, err := v.IsValid(set)
-	if isValid || err == nil {
-		t.Errorf("Validator returned valid flag for invalid window in set")
+	err := v.Validate(window, nilSet)
+	if err == nil {
+		t.Errorf("Validator returned valid flag for nil data")
 	}
 
-	// Invalid Start
-	set.Window = invalidStart
-	isValid, err = v.IsValid(set)
-	if isValid || err == nil {
-		t.Errorf("Validator returned valid flag for invalid window in set")
+	isEmpty := !v.IsOverwrite(emptySet)
+	if !isEmpty {
+		t.Errorf("Validator returned overwrite flag for empty data")
+	}
+}
+
+type collection struct {
+	vs []string
+}
+
+func (c *collection) add(v string) {
+	c.vs = append(c.vs, v)
+}
+
+func (c *collection) clear() {
+	c.vs = []string{}
+}
+
+type appendingValidator struct {
+	tag  string
+	tags *collection
+	fail bool
+}
+
+func newAppendingValidator(tag string, tags *collection) *appendingValidator {
+	return &appendingValidator{
+		tag:  tag,
+		tags: tags,
+	}
+}
+
+func newFailingValidator(tag string, tags *collection) *appendingValidator {
+	return &appendingValidator{
+		tag:  tag,
+		tags: tags,
+		fail: true,
+	}
+}
+
+func (av *appendingValidator) Validate(window opencost.Window, data *opencost.AllocationSet) error {
+	if av.fail {
+		return fmt.Errorf("failed validator: %s", av.tag)
+	}
+	av.tags.add("Validate: " + av.tag)
+	return nil
+}
+
+func (av *appendingValidator) IsOverwrite(data *opencost.AllocationSet) bool {
+	av.tags.add("IsOverwrite: " + av.tag)
+	return true
+}
+
+func TestChainValidation(t *testing.T) {
+	tags := new(collection)
+
+	validators := []ExportValidator[opencost.AllocationSet]{
+		newAppendingValidator("a", tags),
+		newAppendingValidator("b", tags),
+		newAppendingValidator("c", tags),
+		newAppendingValidator("d", tags),
 	}
 
-	// Invalid Resolution
-	set.Window = invalidResolution
-	isValid, err = v.IsValid(set)
-	if isValid || err == nil {
-		t.Errorf("Validator returned valid flag for invalid resolution in set")
+	v := NewChainValidator(validators...)
+
+	end := time.Now().UTC().Truncate(time.Hour)
+	start := end.Add(-time.Hour)
+
+	window := opencost.NewClosedWindow(start, end)
+	set := opencost.NewAllocationSet(start, end)
+
+	err := v.Validate(window, set)
+	if err != nil {
+		t.Errorf("Validator returned unexpected error: %v", err)
 	}
 
-	// Valid
-	set.Window = valid
-	isValid, err = v.IsValid(set)
-	if !isValid || err != nil {
-		t.Errorf("Validator returned an invalid flag or error for a valid window")
+	if !slices.Contains(tags.vs, "Validate: a") {
+		t.Errorf("Validator did not call validate on first validator")
+	}
+	if !slices.Contains(tags.vs, "Validate: b") {
+		t.Errorf("Validator did not call validate on second validator")
+	}
+	if !slices.Contains(tags.vs, "Validate: c") {
+		t.Errorf("Validator did not call validate on third validator")
+	}
+	if !slices.Contains(tags.vs, "Validate: d") {
+		t.Errorf("Validator did not call validate on fourth validator")
 	}
 
-	//
-	// Empty Test
-	//
+	tags.clear()
 
-	set = opencost.NewAllocationSet(start, end)
-	isValid, err = v.IsValid(set)
-	if isValid || err == nil {
-		t.Errorf("Validator returned valid flag for empty set")
+	// Test failing validator
+	validators = []ExportValidator[opencost.AllocationSet]{
+		newAppendingValidator("a", tags),
+		newAppendingValidator("b", tags),
+		newFailingValidator("c", tags),
+		newAppendingValidator("d", tags),
+	}
+
+	v = NewChainValidator(validators...)
+	err = v.Validate(window, set)
+	if err == nil {
+		t.Errorf("Validator did not return expected error")
+	}
+
+	if !slices.Contains(tags.vs, "Validate: a") {
+		t.Errorf("Validator did not call validate on first validator")
+	}
+	if !slices.Contains(tags.vs, "Validate: b") {
+		t.Errorf("Validator did not call validate on second validator")
 	}
 }

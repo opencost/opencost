@@ -1,7 +1,6 @@
 package validator
 
 import (
-	"encoding"
 	"errors"
 	"fmt"
 	"time"
@@ -26,24 +25,22 @@ var (
 	ErrEmptySet error = errors.New("invalid set: empty")
 )
 
-// SetConstraint is a helper constraint for StorageStrategy
+// SetConstraint is a helper constraint for an Export[T] implementation
 type SetConstraint[T any] interface {
-	encoding.BinaryMarshaler
-	encoding.BinaryUnmarshaler
-
-	Clone() *T
-	GetWindow() opencost.Window
 	IsEmpty() bool
-
 	*T
 }
 
 // Validator is an implementation of an object capable of validating a T instance prior to
 // insertion into a store.
-type StoreValidator[T any] interface {
-	// IsValid determines whether or not the given data can be legally
+type ExportValidator[T any] interface {
+	// Validate determines whether or not the given data can be legally
 	// added to the store.
-	IsValid(*T) (bool, error)
+	Validate(window opencost.Window, data *T) error
+
+	// IsOverwrite determines whether or not the provided data can be used
+	// to overwrite existing data in the storage.
+	IsOverwrite(data *T) bool
 }
 
 // validation of a window, which is a common pattern in the validator implementations
@@ -65,163 +62,85 @@ func validateWindow(window opencost.Window) (start, end time.Time, err error) {
 }
 
 //--------------------------------------------------------------------------
-//  Window Validator
+//  Chain Validator
 //--------------------------------------------------------------------------
 
-// windowValidator is a StoreValidator implementation which ensures that all
-// set windows are closed.
-type windowValidator[T any, U SetConstraint[T]] struct{}
-
-// NewWindowValidator creates a new window validator that ensures all
-// set windows are closed.
-func NewWindowValidator[T any, U SetConstraint[T]]() StoreValidator[T] {
-	return &windowValidator[T, U]{}
+// chain validator is used to chain multiple validators together.
+type chainValidator[T any] struct {
+	validators []ExportValidator[T]
 }
 
-// IsValid determines whether or not the given data can be legally
-// added to the store.
-func (wv *windowValidator[T, U]) IsValid(t *T) (bool, error) {
-	if t == nil {
-		return false, ErrNilSet
-	}
+// NewChainValidator creates a single validator instances which chains together many validators.
+func NewChainValidator[T any](validators ...ExportValidator[T]) ExportValidator[T] {
+	return &chainValidator[T]{validators: validators}
+}
 
-	var set U = t
-	_, _, err := validateWindow(set.GetWindow())
-	if err != nil {
-		return false, err
+func (cv *chainValidator[T]) Validate(window opencost.Window, data *T) error {
+	for _, validator := range cv.validators {
+		err := validator.Validate(window, data)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
+}
 
-	return true, nil
+func (cv *chainValidator[T]) IsOverwrite(data *T) bool {
+	for _, validator := range cv.validators {
+		if !validator.IsOverwrite(data) {
+			return false
+		}
+	}
+	return true
 }
 
 //--------------------------------------------------------------------------
-//  Resolution Validator
+//  Set Validator
 //--------------------------------------------------------------------------
 
-// resolution validator is used to validate against window and the window resolution
-type resolutionValidator[T any, U SetConstraint[T]] struct {
+// setValidator is used for the a potentially "empty" set of data that should avoid
+// overwriting existing data in the store, and applies a window and resolution validation.
+type setValidator[T any, U SetConstraint[T]] struct {
 	resolution time.Duration
 }
 
-// NewResolutionValidator creates a new validator for storage sets that validate both the window
-// and whether the resolution matches the window.
-func NewResolutionValidator[T any, U SetConstraint[T]](resolution time.Duration) StoreValidator[T] {
-	return &resolutionValidator[T, U]{
+// NewSetValidator is used for the a potentially "empty" set of data that should avoid
+// overwriting existing data in the store, and applies a window and resolution validation.
+func NewSetValidator[T any, U SetConstraint[T]](resolution time.Duration) ExportValidator[T] {
+	return &setValidator[T, U]{
 		resolution: resolution,
 	}
 }
 
-// IsValid determines whether or not the given data can be legally
-// added to the store.
-func (rv *resolutionValidator[T, U]) IsValid(t *T) (bool, error) {
-	if t == nil {
-		return false, ErrNilSet
+// IsValid determines whether the provided start and end times are valid for the data provided.
+func (sv *setValidator[T, U]) Validate(window opencost.Window, data *T) error {
+	if data == nil {
+		return ErrNilSet
 	}
 
-	var set U = t
-	start, end, err := validateWindow(set.GetWindow())
+	start, end, err := validateWindow(window)
 	if err != nil {
-		return false, err
-	}
-
-	resolution := end.Sub(start)
-	if resolution != rv.resolution {
-		return false, fmt.Errorf("invalid set: resolution of %ds != %ds", uint64(resolution.Seconds()), uint64(rv.resolution.Seconds()))
-	}
-
-	return true, nil
-}
-
-//--------------------------------------------------------------------------
-//  UTC Resolution Validator
-//--------------------------------------------------------------------------
-
-// utc resolution validator is used to validate against window and the window resolution, and checks that the window
-// start and end are on the UTC multiple for that resolution
-type utcResolutionValidator[T any, U SetConstraint[T]] struct {
-	resolution time.Duration
-}
-
-// NewUTCResolutionValidator creates a new validator for storage sets that validate both the window,
-// whether the resolution matches the window and that the window is a UTC multiple of the resolution.
-func NewUTCResolutionValidator[T any, U SetConstraint[T]](resolution time.Duration) StoreValidator[T] {
-	return &utcResolutionValidator[T, U]{
-		resolution: resolution,
-	}
-}
-
-// IsValid determines whether or not the given data can be legally
-// added to the store.
-func (urv *utcResolutionValidator[T, U]) IsValid(t *T) (bool, error) {
-	if t == nil {
-		return false, ErrNilSet
-	}
-
-	// Check Valid Window
-	var set U = t
-	start, end, err := validateWindow(set.GetWindow())
-	if err != nil {
-		return false, err
+		return err
 	}
 
 	// Check Resolution
 	resolution := end.Sub(start)
-	if resolution != urv.resolution {
-		return false, fmt.Errorf("invalid set: resolution of %ds != %ds", uint64(resolution.Seconds()), uint64(urv.resolution.Seconds()))
+	if resolution != sv.resolution {
+		return fmt.Errorf("invalid set: resolution of %ds != %ds", uint64(resolution.Seconds()), uint64(sv.resolution.Seconds()))
 	}
 
 	// Check UTC Multiple
-	nearestUTCMultiple := opencost.RoundBack(start.UTC(), urv.resolution)
+	nearestUTCMultiple := opencost.RoundBack(start.UTC(), sv.resolution)
 	if !start.Equal(nearestUTCMultiple) {
-		return false, fmt.Errorf("invalid set: start %s is not a UTC multiple of resolution %ds, the nearest valid start is %s", start.String(), uint64(urv.resolution.Seconds()), nearestUTCMultiple.String())
+		return fmt.Errorf("invalid set: start %s is not a UTC multiple of resolution %ds, the nearest valid start is %s", start.String(), uint64(sv.resolution.Seconds()), nearestUTCMultiple.String())
 	}
 
-	return true, nil
+	return nil
 }
 
-//--------------------------------------------------------------------------
-//  Empty Set Validator
-//--------------------------------------------------------------------------
+// IsOverwrite should return true if the data is not nil and the set is not empty
+func (sv *setValidator[T, U]) IsOverwrite(data *T) bool {
+	var set U = data
 
-// emptySetValidator validates that a set is non empty, has a valid window,
-// and
-type emptySetValidator[T any, U SetConstraint[T]] struct {
-	resolution time.Duration
-}
-
-// NewEmptySetValidator creates a validator that checks for non-empty sets,
-// a valid window, and a valid resolution
-func NewEmptySetValidator[T any, U SetConstraint[T]](resolution time.Duration) StoreValidator[T] {
-	return &emptySetValidator[T, U]{
-		resolution: resolution,
-	}
-}
-
-// IsValid determines whether or not the given data can be legally
-// added to the store.
-func (esv *emptySetValidator[T, U]) IsValid(t *T) (bool, error) {
-	// non-nil validation
-	if t == nil {
-		return false, ErrNilSet
-	}
-
-	var set U = t
-	// non-empty validation
-	if set.IsEmpty() {
-		return false, ErrEmptySet
-	}
-
-	// window validation
-	start, end, err := validateWindow(set.GetWindow())
-	if err != nil {
-		return false, err
-	}
-
-	// resolution validation
-	resolution := end.Sub(start)
-	if resolution != esv.resolution {
-		return false, fmt.Errorf("invalid set: resolution of %ds != %ds", uint64(resolution.Seconds()), uint64(esv.resolution.Seconds()))
-	}
-
-	return true, nil
+	return set != nil && !set.IsEmpty()
 }
