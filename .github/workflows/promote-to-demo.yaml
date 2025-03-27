@@ -1,10 +1,10 @@
-name: Build and Publish Develop
+name: Promote to Demo
 
 on:
   workflow_run:
-    workflows: [Build/Test]
+    workflows: [Build and Publish Develop]
     types: [completed]
-    branches: [atm/enable-cd]
+    branches: [develop]
 
 concurrency:
   group: build-opencost-develop
@@ -15,12 +15,11 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  build-and-publish-opencost:
+  prep-image-name:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    permissions:
-      contents: read
-      packages: write
+    outputs:
+      image_tag: ${{ steps.tags.outputs.IMAGE_TAG }}
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -33,13 +32,11 @@ jobs:
         id: tags
         run: |
           echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:develop-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
-
-      - name: Build and publish container
-        uses: ./.github/actions/build-container 
-        with:
-          actor: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          image_tag: ${{ steps.tags.outputs.IMAGE_TAG }}
-          release_version: develop-${{ steps.sha.outputs.OC_SHORTHASH }}
-
-
+ 
+  install-on-demo:
+    needs: [prep-image-name]
+    uses: opencost/opencost-infra/.github/workflows/promote-to-oc-demo.yaml@atm/cd-to-demo
+    secrets: inherit
+    with:
+      image-tag: ${{ needs.prep-image-name.outputs.image_tag }}
+      is_be: true
