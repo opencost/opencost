@@ -88,8 +88,8 @@ func (s *GenericStore[Input, Output]) GetAll() []Output {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-    // Deep copy the stored items to ensure that callers do not modify
-    // the original objects in the store.
+	// Deep copy the stored items to ensure that callers do not modify
+	// the original objects in the store.
 	allItems := make([]Output, 0, len(s.items))
 	for _, item := range s.items {
 		if deepCopyable, ok := any(item).(rt.Object); ok {
