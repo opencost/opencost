@@ -250,7 +250,6 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageActiveMinutes(start, end t
 
 func (pds *PrometheusMetricsQuerier) QueryNodeCPUCoresCapacity(start, end time.Time) *source.Future[source.NodeCPUCoresCapacityResult] {
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
-
 	const nodeCPUCoresCapacityQuery = `avg(avg_over_time(kube_node_status_capacity_cpu_cores{%s}[%s])) by (%s, node)`
 
 	cfg := pds.promConfig
