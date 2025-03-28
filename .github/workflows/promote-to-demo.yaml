@@ -10,10 +10,6 @@ concurrency:
   group: build-opencost-develop
   cancel-in-progress: false
 
-env:
-  # Use docker.io for Docker Hub if empty
-  REGISTRY: ghcr.io
-
 jobs:
   prep-image-name:
     runs-on: ubuntu-latest
@@ -38,5 +34,5 @@ jobs:
     uses: opencost/opencost-infra/.github/workflows/promote-to-oc-demo.yaml@main
     secrets: inherit
     with:
-      image-tag: ${{ needs.prep-image-name.outputs.image_tag }}
+      img-fqdn: ${{ needs.prep-image-name.outputs.image_tag }}
       is_be: true
