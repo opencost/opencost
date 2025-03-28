@@ -28,7 +28,7 @@ func (m *ActiveMinutesAggregator) LabelValues() []string {
 
 func (m *ActiveMinutesAggregator) Update(value float64) {
 	now := time.Now().UTC()
-	if m.start != nil {
+	if m.start == nil {
 		m.start = &now
 	}
 

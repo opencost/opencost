@@ -26,5 +26,5 @@ func (m *InfoAggregator) Update(value float64) {
 }
 
 func (m *InfoAggregator) Value() float64 {
-	return 0
+	return 1
 }
