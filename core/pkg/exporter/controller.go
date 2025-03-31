@@ -10,23 +10,29 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/atomic"
 )
 
+// ComputeExportController[T] is a controller type which leverages a `ComputeSource[T]` and `Exporter[T]`
+// to regularly compute the data for the current resolution and export it on a specific interval.
 type ComputeExportController[T any] struct {
 	runState   atomic.AtomicRunState
 	source     ComputeSource[T]
 	exporter   Exporter[T]
 	resolution time.Duration
-	tName      string
+	typeName   string
 }
 
+// NewComputeExportController creates a new `ComputeExportController[T]` instance.
 func NewComputeExportController[T any](source ComputeSource[T], exporter Exporter[T], resolution time.Duration) *ComputeExportController[T] {
 	return &ComputeExportController[T]{
 		source:     source,
 		resolution: resolution,
 		exporter:   exporter,
-		tName:      reflect.TypeOf((*T)(nil)).Elem().String(),
+		typeName:   reflect.TypeOf((*T)(nil)).Elem().String(),
 	}
 }
 
+// Start starts a background compute processing loop, which will compute the data for the current resolution and export it
+// on the provided interval. This function will return `true` if the loop was started successfully, and `false` if it was
+// already running.
 func (cd *ComputeExportController[T]) Start(interval time.Duration) bool {
 	// Before we attempt to start, we must ensure we are not in a stopping state
 	cd.runState.WaitForReset()
@@ -56,9 +62,9 @@ func (cd *ComputeExportController[T]) Start(interval time.Duration) bool {
 			start := time.Now().UTC().Truncate(cd.resolution)
 			end := start.Add(cd.resolution)
 
-			log.Debugf("[%s] Reporting for window: %s - %s", cd.tName, start.UTC(), end.UTC())
+			log.Debugf("[%s] Reporting for window: %s - %s", cd.typeName, start.UTC(), end.UTC())
 			if !cd.source.CanCompute(start, end) {
-				log.Errorf("[%s] Cannot compute window: [Start: %s, End: %s]", cd.tName, start, end)
+				log.Errorf("[%s] Cannot compute window: [Start: %s, End: %s]", cd.typeName, start, end)
 				continue
 			}
 
@@ -82,7 +88,7 @@ func (cd *ComputeExportController[T]) Start(interval time.Duration) bool {
 
 			err = cd.exporter.Export(opencost.NewClosedWindow(start, end), set)
 			if err != nil {
-				log.Warnf("[%s] Error during Write: %s", cd.tName, err)
+				log.Warnf("[%s] Error during Write: %s", cd.typeName, err)
 			}
 		}
 	}()

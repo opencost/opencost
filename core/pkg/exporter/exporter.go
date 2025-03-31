@@ -27,6 +27,10 @@ type StorageExporter[T any] struct {
 	validator  validator.ExportValidator[T]
 }
 
+// NewStorageExporter creates a new StorageExporter instance, which is responsible for exporting data for
+// a specific window to a storage backend. It uses a pathing strategy to determine the storage location,
+// an encoder to convert the data to binary format, and a validator to check the data before export.
+// The pipeline name and resolution are also provided to help identify the data being exported.
 func NewStorageExporter[T any](
 	pipeline string,
 	resolution time.Duration,
@@ -45,6 +49,8 @@ func NewStorageExporter[T any](
 	}
 }
 
+// Export performs validation on the provided window and data, determines if it should overwrite existing data,
+// and stores the data in the location specified by the pathing formatter.
 func (se *StorageExporter[T]) Export(window opencost.Window, data *T) error {
 	if se.validator != nil {
 		err := se.validator.Validate(window, data)

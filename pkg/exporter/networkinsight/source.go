@@ -1,0 +1,40 @@
+package networkinsight
+
+import (
+	"time"
+
+	"github.com/opencost/opencost/core/pkg/exporter"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/pipelines"
+	"github.com/opencost/opencost/pkg/costmodel"
+)
+
+type NetworkInsightsComputeSource struct {
+	cm *costmodel.CostModel
+}
+
+// NewNetworkInsightsComputeSource creates an `exporter.ComputeSource[opencost.NetworkInsightSet]` implementation
+func NewNetworkInsightsComputeSource(cm *costmodel.CostModel) exporter.ComputeSource[opencost.NetworkInsightSet] {
+	return &NetworkInsightsComputeSource{
+		cm: cm,
+	}
+}
+
+// CanCompute should return true iff the ComputeSource can effectively act as
+// a source of T data for the given time range. For example, a ComputeSource
+// with two-day coverage cannot fulfill a range from three days ago, and should
+// not be left to return an error in Compute. Instead, it should report that is
+// cannot compute and allow another Source to handle the computation.
+func (acs *NetworkInsightsComputeSource) CanCompute(start, end time.Time) bool {
+	return true
+}
+
+// Compute should compute a single T for the given time range, optionally using the given resolution.
+func (acs *NetworkInsightsComputeSource) Compute(start, end time.Time, resolution time.Duration) (*opencost.NetworkInsightSet, error) {
+	return acs.cm.ComputeNetworkInsights(start, end, resolution)
+}
+
+// Name returns the name of the ComputeSource
+func (acs *NetworkInsightsComputeSource) Name() string {
+	return pipelines.NetworkInsightPipelineName
+}

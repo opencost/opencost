@@ -1,8 +1,9 @@
-package source
+package allocation
 
 import (
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/exporter"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/pipelines"
 	"github.com/opencost/opencost/pkg/costmodel"
@@ -10,6 +11,13 @@ import (
 
 type AllocationComputeSource struct {
 	cm *costmodel.CostModel
+}
+
+// NewAllocationComputeSource creates an `exporter.ComputeSource[opencost.AssetSet]` implementation
+func NewAllocationComputeSource(cm *costmodel.CostModel) exporter.ComputeSource[opencost.AllocationSet] {
+	return &AllocationComputeSource{
+		cm: cm,
+	}
 }
 
 // CanCompute should return true iff the ComputeSource can effectively act as
