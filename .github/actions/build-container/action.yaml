@@ -1,0 +1,56 @@
+name: 'Build and Publish Container'
+description: 'Build and publish container'
+
+inputs:
+    actor:
+        required: true
+        type: string
+    image_tag:
+        required: true
+        type: string
+    release_version:
+        required: true
+        type: string
+    GITHUB_TOKEN:
+        required: true
+        type: string
+
+runs:
+    using: "composite"
+    steps:
+      - name: Log into registry ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ inputs.actor }}
+          password: ${{ inputs.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-flags: --debug
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Set up just
+        uses: extractions/setup-just@v2
+
+      ## Install manifest-tool, which is required to combine multi-arch images
+      ## https://github.com/estesp/manifest-tool
+      - name: Install manifest-tool
+        shell: bash
+        run: |
+          mkdir -p manifest-tool
+          pushd manifest-tool
+          wget -q https://github.com/estesp/manifest-tool/releases/download/v2.0.8/binaries-manifest-tool-2.0.8.tar.gz
+          tar -xzf binaries-manifest-tool-2.0.8.tar.gz
+          cp manifest-tool-linux-amd64 manifest-tool
+          echo "$(pwd)" >> $GITHUB_PATH
+
+      - name: Build and push (multiarch) OpenCost
+        shell: bash
+        run: |
+          just build '${{ inputs.image_tag }}' '${{ inputs.release_version }}'
