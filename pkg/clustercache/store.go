@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	rt "k8s.io/apimachinery/pkg/runtime"
 )
 
 // GenericStore is a generic store implementation. It converts objects to a different type using a transform function.
@@ -86,9 +87,14 @@ func (s *GenericStore[Input, Output]) Delete(obj any) error {
 func (s *GenericStore[Input, Output]) GetAll() []Output {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
+
+	// Deep copy the stored items to ensure that callers do not modify
+	// the original objects in the store.
 	allItems := make([]Output, 0, len(s.items))
 	for _, item := range s.items {
-		allItems = append(allItems, item)
+		if deepCopyable, ok := any(item).(rt.Object); ok {
+			allItems = append(allItems, deepCopyable.DeepCopyObject().(Output))
+		}
 	}
 	return allItems
 }
