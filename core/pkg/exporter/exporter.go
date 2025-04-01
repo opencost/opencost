@@ -13,7 +13,11 @@ import (
 
 // Exporter[T] is a generic interface for exporting T instances to a specific storage destination.
 type Exporter[T any] interface {
+	// Export performs the export operation for the given window and data.
 	Export(window opencost.Window, data *T) error
+
+	// Resolution contains the resolution of the data being exported
+	Resolution() time.Duration
 }
 
 // StorageExporter[T] is an implementation of Exporter[T] that writes data to a storage backend using
@@ -84,4 +88,9 @@ func (se *StorageExporter[T]) Export(window opencost.Window, data *T) error {
 	}
 
 	return nil
+}
+
+// Resolution returns the resolution of the data being exported.
+func (se *StorageExporter[T]) Resolution() time.Duration {
+	return se.resolution
 }

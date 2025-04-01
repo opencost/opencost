@@ -76,38 +76,12 @@ type Accesses struct {
 	ClusterInfoProvider clusters.ClusterInfoProvider
 	Model               *CostModel
 	MetricsEmitter      *CostModelMetricsEmitter
-	OutOfClusterCache   *cache.Cache
-	CostDataCache       *cache.Cache
-	ClusterCostsCache   *cache.Cache
-	CacheExpiration     map[time.Duration]time.Duration
 	// SettingsCache stores current state of app settings
 	SettingsCache *cache.Cache
 	// settingsSubscribers tracks channels through which changes to different
 	// settings will be published in a pub/sub model
 	settingsSubscribers map[string][]chan string
 	settingsMutex       sync.Mutex
-}
-
-// GetCacheExpiration looks up and returns custom cache expiration for the given duration.
-// If one does not exists, it returns the default cache expiration, which is defined by
-// the particular cache.
-func (a *Accesses) GetCacheExpiration(dur time.Duration) time.Duration {
-	if expiration, ok := a.CacheExpiration[dur]; ok {
-		return expiration
-	}
-	return cache.DefaultExpiration
-}
-
-// GetCacheRefresh determines how long to wait before refreshing the cache for the given duration,
-// which is done 1 minute before we expect the cache to expire, or 1 minute if expiration is
-// not found or is less than 2 minutes.
-func (a *Accesses) GetCacheRefresh(dur time.Duration) time.Duration {
-	expiry := a.GetCacheExpiration(dur).Minutes()
-	if expiry <= 2.0 {
-		return time.Minute
-	}
-	mins := time.Duration(expiry/2.0) * time.Minute
-	return mins
 }
 
 // FilterFunc is a filter that returns true iff the given CostData should be filtered out, and the environment that was used as the filter criteria, if it was an aggregate
@@ -280,7 +254,7 @@ func (a *Accesses) UpdateSpotInfoConfigs(w http.ResponseWriter, r *http.Request,
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	data, err := a.CloudProvider.UpdateConfig(r.Body, aws.SpotInfoUpdateType)
-	WriteData(w, data, nil)
+	WriteData(w, data, err)
 
 	err = a.CloudProvider.DownloadPricingData()
 	if err != nil {
@@ -589,24 +563,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	configWatchers.Watch()
 
 	clusterMap := dataSource.ClusterMap()
-
-	// cache responses from model and aggregation for a default of 10 minutes;
-	// clear expired responses every 20 minutes
-	costDataCache := cache.New(time.Minute*10, time.Minute*20)
-	clusterCostsCache := cache.New(cache.NoExpiration, cache.NoExpiration)
-	outOfClusterCache := cache.New(time.Minute*5, time.Minute*10)
 	settingsCache := cache.New(cache.NoExpiration, cache.NoExpiration)
-
-	// query durations that should be cached longer should be registered here
-	// use relatively prime numbers to minimize likelihood of synchronized
-	// attempts at cache warming
-	day := 24 * time.Hour
-	cacheExpiration := map[time.Duration]time.Duration{
-		day:      maxCacheMinutes1d * time.Minute,
-		2 * day:  maxCacheMinutes2d * time.Minute,
-		7 * day:  maxCacheMinutes7d * time.Minute,
-		30 * day: maxCacheMinutes30d * time.Minute,
-	}
 
 	costModel := NewCostModel(dataSource, cloudProvider, k8sCache, clusterMap, dataSource.BatchDuration())
 	metricsEmitter := NewCostModelMetricsEmitter(k8sCache, cloudProvider, clusterInfoProvider, costModel)
@@ -621,11 +578,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 		ClusterInfoProvider: clusterInfoProvider,
 		Model:               costModel,
 		MetricsEmitter:      metricsEmitter,
-		CostDataCache:       costDataCache,
-		ClusterCostsCache:   clusterCostsCache,
-		OutOfClusterCache:   outOfClusterCache,
 		SettingsCache:       settingsCache,
-		CacheExpiration:     cacheExpiration,
 	}
 
 	// Initialize mechanism for subscribing to settings changes

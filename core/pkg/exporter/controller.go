@@ -2,32 +2,59 @@ package exporter
 
 import (
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util/atomic"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
+
+// ExportController is a controller interface that is responsible for exporting data on a specific interval.
+type ExportController interface {
+	// Name returns the name of the controller
+	Name() string
+
+	// Start starts a background compute processing loop, which will compute the data for the current resolution and export it
+	// on the provided interval. This function will return `true` if the loop was started successfully, and `false` if it was
+	// already running.
+	Start(interval time.Duration) bool
+
+	// Stops the compute processing loop
+	Stop()
+}
 
 // ComputeExportController[T] is a controller type which leverages a `ComputeSource[T]` and `Exporter[T]`
 // to regularly compute the data for the current resolution and export it on a specific interval.
 type ComputeExportController[T any] struct {
-	runState   atomic.AtomicRunState
-	source     ComputeSource[T]
-	exporter   Exporter[T]
-	resolution time.Duration
-	typeName   string
+	runState         atomic.AtomicRunState
+	source           ComputeSource[T]
+	exporter         Exporter[T]
+	resolution       time.Duration
+	sourceResolution time.Duration
+	typeName         string
 }
 
 // NewComputeExportController creates a new `ComputeExportController[T]` instance.
-func NewComputeExportController[T any](source ComputeSource[T], exporter Exporter[T], resolution time.Duration) *ComputeExportController[T] {
+func NewComputeExportController[T any](
+	source ComputeSource[T],
+	exporter Exporter[T],
+	sourceResolution time.Duration,
+) *ComputeExportController[T] {
 	return &ComputeExportController[T]{
-		source:     source,
-		resolution: resolution,
-		exporter:   exporter,
-		typeName:   reflect.TypeOf((*T)(nil)).Elem().String(),
+		source:           source,
+		resolution:       exporter.Resolution(),
+		sourceResolution: sourceResolution,
+		exporter:         exporter,
+		typeName:         reflect.TypeOf((*T)(nil)).Elem().String(),
 	}
+}
+
+// Name returns the name of the controller, which is a combination of the type name and the resolution
+func (cd *ComputeExportController[T]) Name() string {
+	return cd.typeName + "-" + timeutil.FormatStoreResolution(cd.resolution)
 }
 
 // Start starts a background compute processing loop, which will compute the data for the current resolution and export it
@@ -68,7 +95,7 @@ func (cd *ComputeExportController[T]) Start(interval time.Duration) bool {
 				continue
 			}
 
-			set, err := cd.source.Compute(start, end, cd.resolution)
+			set, err := cd.source.Compute(start, end, cd.sourceResolution)
 
 			// If a NoDataError or ErrorCollection is returned, we expect that an empty set will
 			// also be returned. Like an EOF error, this is an expected state
@@ -104,4 +131,40 @@ func (cd *ComputeExportController[T]) Stop() {
 // temporary
 func logErrors(start, end time.Time, warnings []string, errors []string) {
 
+}
+
+type ComputeExportControllerGroup[T any] struct {
+	controllers []*ComputeExportController[T]
+}
+
+func NewComputeExportControllerGroup[T any](controllers ...*ComputeExportController[T]) *ComputeExportControllerGroup[T] {
+	return &ComputeExportControllerGroup[T]{controllers: controllers}
+}
+
+func (g *ComputeExportControllerGroup[T]) Name() string {
+	var sb strings.Builder
+	sb.WriteRune('[')
+	for i, c := range g.controllers {
+		if i > 0 {
+			sb.WriteRune('/')
+		}
+		sb.WriteString(c.Name())
+	}
+	sb.WriteRune(']')
+	return sb.String()
+}
+
+func (g *ComputeExportControllerGroup[T]) Start(interval time.Duration) bool {
+	for _, c := range g.controllers {
+		if !c.Start(interval) {
+			return false
+		}
+	}
+	return true
+}
+
+func (g *ComputeExportControllerGroup[T]) Stop() {
+	for _, c := range g.controllers {
+		c.Stop()
+	}
 }
