@@ -4,7 +4,7 @@ This document governs OpenCost's approach to automated testing. OpenCost has two
 
 Unit Tests are designed to test small pieces of code. They make extensive use of mocks and other synthetic items. These tests are designed to be run quickly and easily on developers' machines. 
 
-Integration Tests are designed to test the functionality of groups of units of code working together. These are typically more complex tests that require more setup than usual. In the context of OpenCost, this means typically we are querying against a real prometheus with real data. 
+Integration Tests are designed to test the functionality of groups of units of code working together. These are typically more complex tests that require more setup than usual. In the context of OpenCost, this means typically we are querying against a real Prometheus with real data. 
 
 ## OpenCost Automation Pipeline
 
