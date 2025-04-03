@@ -455,7 +455,6 @@ func TestGetUnmountedPodForCluster(t *testing.T) {
 }
 
 func TestCalculateStartAndEnd(t *testing.T) {
-
 	testCases := map[string]struct {
 		resolution    time.Duration
 		expectedStart time.Time

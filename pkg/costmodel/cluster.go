@@ -1297,7 +1297,7 @@ type Totals struct {
 
 func resultToTotals(qrs []*prom.QueryResult) ([][]string, error) {
 	if len(qrs) == 0 {
-		return [][]string{}, fmt.Errorf("Not enough data available in the selected time range")
+		return [][]string{}, fmt.Errorf("not enough data available in the selected time range")
 	}
 
 	result := qrs[0]
