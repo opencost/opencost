@@ -879,8 +879,7 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 		}
 
 		// Append start, end, and minutes. This should come before all other data.
-		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
+		s, e := calculateStartAndEnd(result, resolution, opencost.NewClosedWindow(start, end))
 		loadBalancerMap[key].Start = s
 		loadBalancerMap[key].End = e
 		loadBalancerMap[key].Minutes = e.Sub(s).Minutes()
