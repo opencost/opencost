@@ -202,7 +202,6 @@ var pvMap1 = map[pvKey]*pv{
 	},
 }
 
-/* pv/pvc Helpers */
 func TestBuildPVMap(t *testing.T) {
 	pvMap1NoBytes := make(map[pvKey]*pv, len(pvMap1))
 	for thisPVKey, thisPV := range pvMap1 {
@@ -274,9 +273,6 @@ func TestBuildPVMap(t *testing.T) {
 					},
 					Values: []*util.Vector{
 						{
-							Timestamp: startFloat,
-						},
-						{
 							Timestamp: startFloat + (hour * 6),
 						},
 						{
@@ -293,9 +289,6 @@ func TestBuildPVMap(t *testing.T) {
 						"persistentvolume": "pv2",
 					},
 					Values: []*util.Vector{
-						{
-							Timestamp: startFloat,
-						},
 						{
 							Timestamp: startFloat + (hour * 6),
 						},
@@ -317,9 +310,6 @@ func TestBuildPVMap(t *testing.T) {
 					},
 					Values: []*util.Vector{
 						{
-							Timestamp: startFloat + (hour * 6),
-						},
-						{
 							Timestamp: startFloat + (hour * 12),
 						},
 						{
@@ -333,9 +323,6 @@ func TestBuildPVMap(t *testing.T) {
 						"persistentvolume": "pv4",
 					},
 					Values: []*util.Vector{
-						{
-							Timestamp: startFloat,
-						},
 						{
 							Timestamp: startFloat + (hour * 6),
 						},
@@ -372,8 +359,6 @@ func TestBuildPVMap(t *testing.T) {
 		})
 	}
 }
-
-/* Helper Helpers */
 
 func TestGetUnmountedPodForCluster(t *testing.T) {
 	testCases := map[string]struct {
