@@ -810,9 +810,8 @@ func (az *Azure) DownloadPricingData() error {
 	config.AzureClientID = clientID
 	config.AzureClientSecret = clientSecret
 	config.AzureTenantID = tenantID
-	var authorizer autorest.Authorizer
 
-	log.Debugf("Fetching azure rate card with credentials: %s:%s:%s:%s", config.AzureSubscriptionID, config.AzureClientID, config.AzureClientSecret, config.AzureTenantID)
+	var authorizer autorest.Authorizer
 
 	azureEnv := determineCloudByRegion(az.ClusterRegion)
 
@@ -1101,12 +1100,6 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 
 	meta := models.PricingMetadata{}
 
-	azurePricingExists := true
-	if az.Pricing == nil {
-		azurePricingExists = false
-		log.DedupedWarningf(5, "Azure pricing data not found")
-	}
-
 	azKey, ok := key.(*azureKey)
 	if !ok {
 		return nil, meta, fmt.Errorf("azure: NodePricing: key is of type %T", key)
@@ -1126,7 +1119,7 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 		featureString = azKey.Features()
 	}
 
-	if azurePricingExists {
+	if az.Pricing != nil {
 		if n, ok := az.Pricing[featureString]; ok {
 			log.Debugf("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
 			if azKey.isValidGPUNode() {
