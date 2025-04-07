@@ -87,6 +87,8 @@ const (
 	ExportCSVLabelsAll  = "EXPORT_CSV_LABELS_ALL"
 	ExportCSVMaxDays    = "EXPORT_CSV_MAX_DAYS"
 
+	ExportBucketConfigFileEnvVar = "EXPORT_BUCKET_CONFIG_FILE"
+
 	DataRetentionDailyResolutionDaysEnvVar   = "DATA_RETENTION_DAILY_RESOLUTION_DAYS"
 	DataRetentionHourlyResolutionHoursEnvVar = "DATA_RETENTION_HOURLY_RESOLUTION_HOURS"
 
@@ -518,6 +520,10 @@ func GetCustomCostRefreshRateHours() string {
 
 func IsCarbonEstimatesEnabled() bool {
 	return env.GetBool(CarbonEstimatesEnabledEnvVar, false)
+}
+
+func GetExportBucketConfigFile() string {
+	return env.Get(ExportBucketConfigFileEnvVar, "")
 }
 
 // GetUseCacheV1 is a temporary flag to allow users to opt-in to using the old cache
