@@ -63,3 +63,15 @@ func NewPipelineExportControllers(clusterId string, store storage.Storage, cm *c
 		NetworkInsightExportController: networkInsightController,
 	}
 }
+
+func (pec *PipelineExportControllers) Start(interval time.Duration) {
+	pec.AllocationExportController.Start(interval)
+	pec.AssetExportController.Start(interval)
+	pec.NetworkInsightExportController.Start(interval)
+}
+
+func (pec *PipelineExportControllers) Stop() {
+	pec.AllocationExportController.Stop()
+	pec.AssetExportController.Stop()
+	pec.NetworkInsightExportController.Stop()
+}
