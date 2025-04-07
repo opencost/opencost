@@ -9,6 +9,9 @@ type ResultDecoder[T any] func(*QueryResult) *T
 type Future[T any] struct {
 	decoder     ResultDecoder[T]
 	resultsChan QueryResultsChan
+
+	// results is set when we use a passthrough
+	results []*T
 }
 
 // NewFuture Creates a new `Future[T]` with the given `ResultDecoder[T]` and `QueryResultsChan`.
@@ -16,6 +19,13 @@ func NewFuture[T any](decoder ResultDecoder[T], resultsChan QueryResultsChan) *F
 	return &Future[T]{
 		decoder:     decoder,
 		resultsChan: resultsChan,
+	}
+}
+
+// NewFutureFrom accepts a result set to wrap in the a Future implementation for passthrough.
+func NewFutureFrom[T any](results []*T) *Future[T] {
+	return &Future[T]{
+		results: results,
 	}
 }
 
@@ -39,6 +49,11 @@ func (f *Future[T]) awaitWith(errorCollector *QueryErrorCollector) ([]*T, error)
 // Await blocks and waits for the `Future` to resolve, and returns the results if successful, or an error
 // otherwise.
 func (f *Future[T]) Await() ([]*T, error) {
+	// in the event that we have a resolved future, we can return the results directly
+	if f.results != nil {
+		return f.results, nil
+	}
+
 	results, err := f.resultsChan.Await()
 	if err != nil {
 		return nil, err
