@@ -457,13 +457,13 @@ func ClusterDisks(client prometheus.Client, cp models.Provider, start, end time.
 
 		name, err := result.GetString("node")
 		if err != nil {
-			log.DedupedWarningf(5, "ClusterDisks: local active mins data missing instance")
+			log.DedupedWarningf(3, "ClusterDisks: local active mins data missing 'node' label")
 			continue
 		}
 
 		providerID, err := result.GetString("provider_id")
 		if err != nil {
-			log.DedupedWarningf(5, "ClusterDisks: local active mins data missing instance")
+			log.DedupedWarningf(3, "ClusterDisks: local active mins data missing 'provider_id' label")
 			continue
 		}
 
