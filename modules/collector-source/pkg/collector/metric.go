@@ -13,9 +13,10 @@ type MetricValue struct {
 // MetricResult contains a resulting metric name, the associated labels and label values, and a slice of
 // MetricValues.
 type MetricResult struct {
-	Name         string
-	MetricLabels map[string]string
-	Values       []MetricValue
+	Name                string
+	MetricLabels        map[string]string
+	AdditionInformation map[string]string
+	Values              []MetricValue
 }
 
 // MetricAggregator is an interface that defines the methods for a metric collector aggregation.
@@ -24,8 +25,9 @@ type MetricResult struct {
 // for routing updates to metric values into their proper condensed form.
 type MetricAggregator interface {
 	Name() string
-	Update(value float64)
-	Value() float64
+	AdditionInfo() map[string]string
+	Update(value float64, timestamp *time.Time, additionalInfo map[string]string)
+	Value() []MetricValue
 	LabelValues() []string
 }
 
@@ -55,24 +57,23 @@ func NewMetricCollector(id MetricCollectorID, metricName string, labels []string
 	}
 }
 
-func (mi *MetricCollector) Update(labelValues []string, value float64, timestamp *time.Time) {
+func (mi *MetricCollector) Update(labelValues []string, value float64, timestamp *time.Time, additionalInfo map[string]string) {
 	key := hash(labelValues)
 	if mi.metrics[key] == nil {
 		mi.metrics[key] = mi.aggregatorFactory(metricNameFor(mi.metricName, mi.labels, labelValues), labelValues)
 	}
 
-	mi.metrics[key].Update(value)
+	mi.metrics[key].Update(value, timestamp, additionalInfo)
 }
 
 func (mi *MetricCollector) Get() []*MetricResult {
 	results := make([]*MetricResult, 0, len(mi.metrics))
 	for _, metric := range mi.metrics {
 		mr := &MetricResult{
-			Name:         metric.Name(),
-			MetricLabels: toMap(mi.labels, metric.LabelValues()),
-			Values: []MetricValue{
-				{Value: metric.Value(), Timestamp: nil},
-			},
+			Name:                metric.Name(),
+			MetricLabels:        toMap(mi.labels, metric.LabelValues()),
+			AdditionInformation: metric.AdditionInfo(),
+			Values:              metric.Value(),
 		}
 
 		results = append(results, mr)

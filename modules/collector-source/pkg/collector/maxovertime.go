@@ -1,5 +1,9 @@
 package collector
 
+import (
+	"time"
+)
+
 type MaxOverTimeAggregator struct {
 	name        string
 	labelValues []string
@@ -17,16 +21,22 @@ func (m *MaxOverTimeAggregator) Name() string {
 	return m.name
 }
 
+func (m *MaxOverTimeAggregator) AdditionInfo() map[string]string {
+	return nil
+}
+
 func (m *MaxOverTimeAggregator) LabelValues() []string {
 	return m.labelValues
 }
 
-func (m *MaxOverTimeAggregator) Update(value float64) {
+func (m *MaxOverTimeAggregator) Update(value float64, timestamp *time.Time, additionalInfo map[string]string) {
 	if value > m.max {
 		m.max = value
 	}
 }
 
-func (m *MaxOverTimeAggregator) Value() float64 {
-	return m.max
+func (m *MaxOverTimeAggregator) Value() []MetricValue {
+	return []MetricValue{
+		{Value: m.max},
+	}
 }
