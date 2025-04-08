@@ -101,6 +101,7 @@ func (cd *ComputeExportController[T]) Start(interval time.Duration) bool {
 			// also be returned. Like an EOF error, this is an expected state
 			// and indicates that we should still Insert and Save.
 			if err != nil && !source.IsNoDataError(err) && !source.IsErrorCollection(err) {
+				log.Errorf("[%s] Error during Compute: %s", cd.typeName, err)
 				continue
 			}
 
@@ -109,10 +110,11 @@ func (cd *ComputeExportController[T]) Start(interval time.Duration) bool {
 				c := err.(source.QueryErrorCollection)
 				errors, warnings := c.ToErrorAndWarningStrings()
 
-				logErrors(start, end, warnings, errors)
+				cd.logErrors(start, end, warnings, errors)
 				continue
 			}
 
+			log.Debugf("[%s] Exporting data for window: %s - %s", cd.typeName, start.UTC(), end.UTC())
 			err = cd.exporter.Export(opencost.NewClosedWindow(start, end), set)
 			if err != nil {
 				log.Warnf("[%s] Error during Write: %s", cd.typeName, err)
@@ -129,8 +131,14 @@ func (cd *ComputeExportController[T]) Stop() {
 }
 
 // temporary
-func logErrors(start, end time.Time, warnings []string, errors []string) {
+func (cd *ComputeExportController[T]) logErrors(start, end time.Time, warnings []string, errors []string) {
+	for _, w := range warnings {
+		log.Warnf("[%s] %s", cd.typeName, w)
+	}
 
+	for _, e := range errors {
+		log.Errorf("[%s] %s", cd.typeName, e)
+	}
 }
 
 type ComputeExportControllerGroup[T any] struct {

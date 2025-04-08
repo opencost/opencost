@@ -31,6 +31,10 @@ func NewFutureFrom[T any](results []*T) *Future[T] {
 
 // awaitWith allows internal callers to pass an error collector for grouping futures
 func (f *Future[T]) awaitWith(errorCollector *QueryErrorCollector) ([]*T, error) {
+	if f.results != nil {
+		return f.results, nil
+	}
+
 	defer close(f.resultsChan)
 	result := <-f.resultsChan
 
