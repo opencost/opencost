@@ -72,6 +72,10 @@ const (
 var (
 	// gitCommit is set by the build system
 	gitCommit string
+
+	// prometheusVersion is queried for using the Prometheus API client. If
+	// unable to retrieve the value from Prometheus, it is set to "0".
+	prometheusVersion string
 )
 
 // Accesses defines a singleton application instance, providing access to
@@ -1223,11 +1227,13 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	}
 
 	api := prometheusAPI.NewAPI(promCli)
-	_, err = api.Buildinfo(context.Background())
+	result, err := api.Buildinfo(context.Background())
 	if err != nil {
 		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/mimir/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
+		prometheusVersion = "0"
 	} else {
 		log.Infof("Retrieved a prometheus config file from: %s", address)
+		prometheusVersion = result.Version
 	}
 
 	if scrapeInterval == 0 {
