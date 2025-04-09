@@ -211,6 +211,9 @@ func TestBuildPVMap(t *testing.T) {
 		pvMap1NoBytes[thisPVKey] = clonePV
 	}
 
+	// These test cases are mocking behavior from Prometheus v3+
+	prometheusVersion = "3.0.0"
+
 	testCases := map[string]struct {
 		resolution              time.Duration
 		resultsPVCostPerGiBHour []*prom.QueryResult
@@ -441,6 +444,9 @@ func TestGetUnmountedPodForCluster(t *testing.T) {
 }
 
 func TestCalculateStartAndEnd(t *testing.T) {
+	// These test cases are mocking behavior from Prometheus v3+
+	prometheusVersion = "3.0.0"
+
 	testCases := map[string]struct {
 		resolution    time.Duration   // User defined config when querying Prometheus
 		window        opencost.Window // User defined config when querying Allocations/Assets
