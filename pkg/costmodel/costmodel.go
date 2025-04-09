@@ -197,7 +197,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 
 	defer measureTime(time.Now(), profileThreshold, "ComputeCostData: Processing Query Data")
 
-	nodes, err := cm.GetNodeCost(cp)
+	nodes, err := cm.GetNodeCost()
 	if err != nil {
 		log.Warnf("GetNodeCost: no node cost model available: %s", err)
 		return nil, err
@@ -210,7 +210,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 		log.Warnf("GetPVInfo: unable to get PV data: %s", err.Error())
 	}
 	if pvClaimMapping != nil {
-		err = addPVData(cm.Cache, pvClaimMapping, cp)
+		err = cm.addPVData(pvClaimMapping)
 		if err != nil {
 			return nil, err
 		}
@@ -755,7 +755,9 @@ func getContainerAllocation(req *util.Vector, used *util.Vector, allocationType 
 	return result
 }
 
-func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*PersistentVolumeClaimData, cloud costAnalyzerCloud.Provider) error {
+func (cm *CostModel) addPVData(pvClaimMapping map[string]*PersistentVolumeClaimData) error {
+	cache := cm.Cache
+	cloud := cm.Provider
 	cfg, err := cloud.GetConfig()
 	if err != nil {
 		return err
@@ -797,7 +799,7 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 			Region:     region,
 			Parameters: parameters,
 		}
-		err := GetPVCost(cacPv, pv, cloud, region)
+		err := cm.GetPVCost(cacPv, pv, region)
 		if err != nil {
 			return err
 		}
@@ -818,7 +820,8 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 	return nil
 }
 
-func GetPVCost(pv *costAnalyzerCloud.PV, kpv *clustercache.PersistentVolume, cp costAnalyzerCloud.Provider, defaultRegion string) error {
+func (cm *CostModel) GetPVCost(pv *costAnalyzerCloud.PV, kpv *clustercache.PersistentVolume, defaultRegion string) error {
+	cp := cm.Provider
 	cfg, err := cp.GetConfig()
 	if err != nil {
 		return err
@@ -846,7 +849,8 @@ func (cm *CostModel) GetPricingSourceCounts() (*costAnalyzerCloud.PricingMatchMe
 	}
 }
 
-func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.Node, error) {
+func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
+	cp := cm.Provider
 	cfg, err := cp.GetConfig()
 	if err != nil {
 		return nil, err
@@ -1247,13 +1251,13 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 }
 
 // TODO: drop some logs
-func (cm *CostModel) GetLBCost(cp costAnalyzerCloud.Provider) (map[serviceKey]*costAnalyzerCloud.LoadBalancer, error) {
+func (cm *CostModel) GetLBCost() (map[serviceKey]*costAnalyzerCloud.LoadBalancer, error) {
 	// for fetching prices from cloud provider
 	// cfg, err := cp.GetConfig()
 	// if err != nil {
 	// 	return nil, err
 	// }
-
+	cp := cm.Provider
 	servicesList := cm.Cache.GetAllServices()
 	loadBalancerMap := make(map[serviceKey]*costAnalyzerCloud.LoadBalancer)
 

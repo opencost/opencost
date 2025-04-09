@@ -471,8 +471,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				data = map[string]*CostData{}
 			}
 
-			// TODO: Pass CloudProvider into CostModel on instantiation so this isn't so awkward
-			nodes, err := cmme.Model.GetNodeCost(cmme.CloudProvider)
+			nodes, err := cmme.Model.GetNodeCost()
 			if err != nil {
 				log.Warnf("Error getting Node cost: %s", err)
 			}
@@ -571,8 +570,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				nodeSeen[labelKey] = true
 			}
 
-			// TODO: Pass CloudProvider into CostModel on instantiation so this isn't so awkward
-			loadBalancers, err := cmme.Model.GetLBCost(cmme.CloudProvider)
+			loadBalancers, err := cmme.Model.GetLBCost()
 			if err != nil {
 				log.Warnf("Error getting LoadBalancer cost: %s", err)
 			}
@@ -682,7 +680,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				}
 
 				// TODO: GetPVCost should be a method in CostModel?
-				GetPVCost(cacPv, pv, cmme.CloudProvider, region)
+				cmme.Model.GetPVCost(cacPv, pv, region)
 				c, _ := strconv.ParseFloat(cacPv.Cost, 64)
 				cmme.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name, cacPv.ProviderID).Set(c)
 				labelKey := getKeyFromLabelStrings(pv.Name, pv.Name, cacPv.ProviderID)

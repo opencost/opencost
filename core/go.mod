@@ -22,7 +22,6 @@ require (
 	github.com/prometheus/common v0.63.0
 	github.com/rs/zerolog v1.26.1
 	github.com/spf13/viper v1.8.1
-	github.com/stretchr/testify v1.10.0
 	golang.org/x/exp v0.0.0-20221031165847-c99f073a8326
 	golang.org/x/oauth2 v0.25.0
 	golang.org/x/sync v0.12.0
@@ -87,7 +86,6 @@ require (
 	github.com/oklog/run v1.1.0 // indirect
 	github.com/pelletier/go-toml v1.9.3 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/spf13/afero v1.6.0 // indirect
@@ -110,7 +108,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240221002015-b0ce06bbee7c // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/klog/v2 v2.80.0 // indirect
 	k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed // indirect
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
