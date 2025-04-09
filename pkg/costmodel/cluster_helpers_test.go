@@ -1089,7 +1089,7 @@ func TestAssetCustompricing(t *testing.T) {
 			gpuResult := gpuMap[nodeKey]
 
 			diskMap := map[DiskIdentifier]*Disk{}
-			pvCosts(diskMap, time.Hour, pvMinsPromResult, pvSizePromResult, pvCostPromResult, pvAvgUsagePromResult, pvMaxUsagePromResult, pvInfoPromResult, 3, testProvider, window)
+			pvCosts(diskMap, time.Hour, pvMinsPromResult, pvSizePromResult, pvCostPromResult, pvAvgUsagePromResult, pvMaxUsagePromResult, pvInfoPromResult, testProvider, window)
 
 			diskResult := diskMap[DiskIdentifier{"cluster1", "pvc1"}].Cost
 

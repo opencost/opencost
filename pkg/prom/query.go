@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -325,7 +324,7 @@ func runQueryRange(query string, start, end time.Time, step time.Duration, ctx *
 	resCh <- results
 }
 
-// RawQueryRange is a direct query to the prometheus client and returns the body of the response
+// RawQuery is a direct query to the prometheus client and returns the body of the response
 func (ctx *Context) RawQueryRange(query string, start, end time.Time, step time.Duration) ([]byte, error) {
 	u := ctx.Client.URL(epQueryRange, nil)
 	q := u.Query()
@@ -419,65 +418,4 @@ func warningsFrom(result interface{}) v1.Warnings {
 	}
 
 	return warnings
-}
-
-// GetMajorVersion returns the Prometheus server's major version (e.g. "3" for v3.2.1)
-// Ref: https://prometheus.io/docs/prometheus/latest/querying/api/#build-information
-func (ctx *Context) GetMajorVersion() VersionResultsChan {
-	resCh := make(VersionResultsChan)
-
-	go func() {
-		defer errors.HandlePanic()
-		if version, err := ctx.getMajorVersion(); err != nil {
-			ctx.errorCollector.Report(apiPrefix+"/status/buildinfo", nil, err, nil)
-		} else {
-			resCh <- version
-		}
-	}()
-
-	return resCh
-}
-
-func (ctx *Context) getMajorVersion() (int, error) {
-	req, err := http.NewRequest(http.MethodGet, ctx.Client.URL(apiPrefix+"/status/buildinfo", nil).String(), nil)
-	if err != nil {
-		return 0, fmt.Errorf("prom version: create request: %w", err)
-	}
-
-	if ctx.name != "" {
-		req = httputil.SetName(req, ctx.name)
-	}
-
-	resp, body, err := ctx.Client.Do(context.Background(), req)
-	if err != nil {
-		return 0, fmt.Errorf("prom version: execute request: %w", err)
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return 0, CommErrorf("prom version: unexpected status %d (%s): Body: %s", resp.StatusCode, http.StatusText(resp.StatusCode), body)
-	}
-
-	var result struct {
-		Status string `json:"status"`
-		Data   struct {
-			Version string `json:"version"`
-		} `json:"data"`
-	}
-
-	if err := json.Unmarshal(body, &result); err != nil {
-		return 0, fmt.Errorf("prom version: unmarshal response: %w", err)
-	}
-
-	if result.Status != "success" || result.Data.Version == "" {
-		return 0, fmt.Errorf("prom version: invalid response: status=%q version=%q", result.Status, result.Data.Version)
-	}
-
-	// Extract major version number (e.g., "3.1.2" -> 3)
-	majorStr := strings.Split(result.Data.Version, ".")[0]
-	majorVersion, err := strconv.Atoi(majorStr)
-	if err != nil {
-		return 0, fmt.Errorf("prom version: invalid major version %q: %w", majorStr, err)
-	}
-
-	return majorVersion, nil
 }

@@ -562,8 +562,6 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	queryLBActiveMins := fmt.Sprintf(queryFmtLBActiveMins, env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr)
 	resChLBActiveMins := ctx.QueryAtTime(queryLBActiveMins, end)
 
-	resChPromVersion := ctx.GetMajorVersion()
-
 	resCPUCoresAllocated, _ := resChCPUCoresAllocated.Await()
 	resCPURequests, _ := resChCPURequests.Await()
 	resCPUUsageAvg, _ := resChCPUUsageAvg.Await()
@@ -623,8 +621,6 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	resJobLabels, _ := resChJobLabels.Await()
 	resLBCostPerHr, _ := resChLBCostPerHr.Await()
 	resLBActiveMins, _ := resChLBActiveMins.Await()
-
-	resPromVersion, _ := resChPromVersion.Await()
 
 	if ctx.HasErrors() {
 		for _, err := range ctx.Errors() {
@@ -700,14 +696,14 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	// a PVC, we get time running there, so this is only inaccurate
 	// for short-lived, unmounted PVs.)
 	pvMap := map[pvKey]*pv{}
-	buildPVMap(resolution, pvMap, resPVCostPerGiBHour, resPVActiveMins, resPVMeta, resPromVersion, window)
+	buildPVMap(resolution, pvMap, resPVCostPerGiBHour, resPVActiveMins, resPVMeta, window)
 	applyPVBytes(pvMap, resPVBytes)
 
 	// Build out the map of all PVCs with time running, bytes requested,
 	// and connect to the correct PV from pvMap. (If no PV exists, that
 	// is noted, but does not result in any allocation/cost.)
 	pvcMap := map[pvcKey]*pvc{}
-	buildPVCMap(resolution, pvcMap, pvMap, resPVCInfo, resPromVersion, window)
+	buildPVCMap(resolution, pvcMap, pvMap, resPVCInfo, window)
 	applyPVCBytesRequested(pvcMap, resPVCBytesRequested)
 
 	// Build out the relationships of pods to their PVCs. This step
@@ -724,7 +720,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	applyUnmountedPVs(window, podMap, pvMap, pvcMap)
 
 	lbMap := make(map[serviceKey]*lbCost)
-	getLoadBalancerCosts(lbMap, resLBCostPerHr, resLBActiveMins, resolution, resPromVersion, window)
+	getLoadBalancerCosts(lbMap, resLBCostPerHr, resLBActiveMins, resolution, window)
 	applyLoadBalancersToPods(window, podMap, lbMap, allocsByService)
 
 	// Build out a map of Nodes with resource costs, discounts, and node types
