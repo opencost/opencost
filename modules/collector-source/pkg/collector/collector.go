@@ -154,7 +154,7 @@ type MetricsCollector interface {
 	// Update accepts the name of a metric, the label set and values to update the metric, the updated value, and a timestamp.
 	// This method does not accept a `MetricCollectorID` because it provides updates across many potential metric collector instances
 	// which utilize the same metric.
-	Update(metricName string, labels map[string]string, value float64, timestamp *time.Time)
+	Update(metricName string, labels map[string]string, value float64, timestamp *time.Time, additionalInformation map[string]string)
 }
 
 // InMemoryMetricsCollector is a thread-safe implementation of the `MetricsCollector` interface that stores metric instances
@@ -213,7 +213,13 @@ func (immc *InMemoryMetricsCollector) Query(collectorID MetricCollectorID) ([]*M
 	return immc.byCollectorID[collectorID].Get(), nil
 }
 
-func (immc *InMemoryMetricsCollector) Update(metricName string, labels map[string]string, value float64, timestamp *time.Time) {
+func (immc *InMemoryMetricsCollector) Update(
+	metricName string,
+	labels map[string]string,
+	value float64,
+	timestamp *time.Time,
+	additionalInformation map[string]string,
+) {
 	immc.lock.Lock()
 	defer immc.lock.Unlock()
 
@@ -223,6 +229,6 @@ func (immc *InMemoryMetricsCollector) Update(metricName string, labels map[strin
 			labelValues = append(labelValues, labels[label])
 		}
 
-		collector.Update(labelValues, value, timestamp)
+		collector.Update(labelValues, value, timestamp, additionalInformation)
 	}
 }

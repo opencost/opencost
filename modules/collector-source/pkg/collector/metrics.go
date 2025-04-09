@@ -312,7 +312,7 @@ func NewNodeActiveMinutesMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NodeActiveMinutesID,
 		NodeTotalHourlyCost,
-		[]string{"node", "cluster", "provider_id"},
+		[]string{"node", "provider_id"},
 		ActiveMinutes,
 	)
 }

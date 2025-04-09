@@ -2,6 +2,7 @@ package collector
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,13 +21,27 @@ type kubernetesScraper struct {
 }
 
 func (ks *kubernetesScraper) Scrape() {
+	timestamp := time.Now().UTC()
+	nodes := ks.clusterCache.GetAllNodes()
+	deployments := ks.clusterCache.GetAllDeployments()
+	namespaces := ks.clusterCache.GetAllNamespaces()
+	pods := ks.clusterCache.GetAllPods()
+	pvcs := ks.clusterCache.GetAllPersistentVolumeClaims()
+	pvs := ks.clusterCache.GetAllPersistentVolumes()
+	services := ks.clusterCache.GetAllServices()
+	statefulSets := ks.clusterCache.GetAllStatefulSets()
 
-	ks.scrapeNodes()
+	ks.scrapeNodes(nodes, timestamp)
+	ks.scrapeDeployments(deployments, timestamp)
+	ks.scrapeNamespaces(namespaces, timestamp)
+	ks.scrapePods(pods, timestamp)
+	ks.scrapePVCs(pvcs, timestamp)
+	ks.scrapePVs(pvs, timestamp)
+	ks.scrapeServices(services, timestamp)
+	ks.scrapeStatefulSets(statefulSets, timestamp)
 }
 
-func (ks *kubernetesScraper) scrapeNodes() {
-	timeStamp := time.Now().UTC()
-	nodes := ks.clusterCache.GetAllNodes()
+func (ks *kubernetesScraper) scrapeNodes(nodes []*clustercache.Node, timestamp time.Time) {
 	for _, node := range nodes {
 		nodeInfo := map[string]string{
 			"node":        node.Name,
@@ -34,60 +49,41 @@ func (ks *kubernetesScraper) scrapeNodes() {
 		}
 
 		// Node Capacity
-		for resourceName, quantity := range node.Status.Capacity {
-			resource, _, value := toResourceUnitValue(resourceName, quantity)
-
-			// failed to parse the resource type
-			if resource == "" {
-				log.DedupedWarningf(5, "Failed to parse resource units and quantity for resource: %s", resourceName)
-				continue
+		if node.Status.Capacity != nil {
+			if quantity, ok := node.Status.Capacity[v1.ResourceCPU]; ok {
+				_, _, value := toResourceUnitValue(v1.ResourceCPU, quantity)
+				ks.collector.Update(KubeNodeStatusCapacityCPUCores, nodeInfo, value, &timestamp, nil)
 			}
 
-			// KSM v1 Emission
-			if resource == "cpu" {
-				ks.collector.Update(KubeNodeStatusCapacityCPUCores, nodeInfo, value, &timeStamp)
-
-			}
-
-			if resource == "memory" {
-				ks.collector.Update(KubeNodeStatusCapacityMemoryBytes, nodeInfo, value, &timeStamp)
+			if quantity, ok := node.Status.Capacity[v1.ResourceMemory]; ok {
+				_, _, value := toResourceUnitValue(v1.ResourceMemory, quantity)
+				ks.collector.Update(KubeNodeStatusCapacityMemoryBytes, nodeInfo, value, &timestamp, nil)
 			}
 		}
 
 		// Node Allocatable Resources
-		for resourceName, quantity := range node.Status.Allocatable {
-			resource, _, value := toResourceUnitValue(resourceName, quantity)
-
-			// failed to parse the resource type
-			if resource == "" {
-				log.DedupedWarningf(5, "Failed to parse resource units and quantity for resource: %s", resourceName)
-				continue
+		if node.Status.Allocatable != nil {
+			if quantity, ok := node.Status.Allocatable[v1.ResourceCPU]; ok {
+				_, _, value := toResourceUnitValue(v1.ResourceCPU, quantity)
+				ks.collector.Update(KubeNodeStatusAllocatableCPUCores, nodeInfo, value, &timestamp, nil)
 			}
 
-			// KSM v1 Emission
-			if resource == "cpu" {
-				ks.collector.Update(KubeNodeStatusAllocatableCPUCores, nodeInfo, value, &timeStamp)
+			if quantity, ok := node.Status.Allocatable[v1.ResourceMemory]; ok {
+				_, _, value := toResourceUnitValue(v1.ResourceMemory, quantity)
+				ks.collector.Update(KubeNodeStatusAllocatableMemoryBytes, nodeInfo, value, &timestamp, nil)
 			}
-			if resource == "memory" {
-				ks.collector.Update(KubeNodeStatusAllocatableMemoryBytes, nodeInfo, value, &timeStamp)
-			}
-
 		}
 
 		// node labels
 		labelNames, labelValues := promutil.KubeLabelsToLabels(node.Labels)
-		nodeLabels := maps.Clone(nodeInfo)
-		for i, labelName := range labelNames {
-			nodeLabels[labelName] = labelValues[i]
-		}
-		ks.collector.Update(KubeNodeLabels, nodeLabels, 0, &timeStamp)
+		nodeLabels := toMap(labelNames, labelValues)
+
+		ks.collector.Update(KubeNodeLabels, nodeInfo, 0, &timestamp, nodeLabels)
 
 	}
 }
 
-func (ks *kubernetesScraper) scrapeDeployments() {
-	timeStamp := time.Now().UTC()
-	deployments := ks.clusterCache.GetAllDeployments()
+func (ks *kubernetesScraper) scrapeDeployments(deployments []*clustercache.Deployment, timestamp time.Time) {
 	for _, deployment := range deployments {
 		deploymentInfo := map[string]string{
 			"deployment": deployment.Name,
@@ -96,18 +92,14 @@ func (ks *kubernetesScraper) scrapeDeployments() {
 
 		// deployment labels
 		labelNames, labelValues := promutil.KubeLabelsToLabels(deployment.MatchLabels)
-		deploymentLabels := maps.Clone(deploymentInfo)
-		for i, labelName := range labelNames {
-			deploymentLabels[labelName] = labelValues[i]
-		}
-		ks.collector.Update(DeploymentMatchLabels, deploymentLabels, 0, &timeStamp)
+		deploymentLabels := toMap(labelNames, labelValues)
+
+		ks.collector.Update(DeploymentMatchLabels, deploymentInfo, 0, &timestamp, deploymentLabels)
 
 	}
 }
 
-func (ks *kubernetesScraper) scrapeNamespaces() {
-	timeStamp := time.Now().UTC()
-	namespaces := ks.clusterCache.GetAllNamespaces()
+func (ks *kubernetesScraper) scrapeNamespaces(namespaces []*clustercache.Namespace, timestamp time.Time) {
 	for _, namespace := range namespaces {
 		namespaceInfo := map[string]string{
 			"namespace": namespace.Name,
@@ -115,25 +107,17 @@ func (ks *kubernetesScraper) scrapeNamespaces() {
 
 		// namespace labels
 		labelNames, labelValues := promutil.KubeLabelsToLabels(namespace.Labels)
-		namespaceLabels := maps.Clone(namespaceInfo)
-		for i, labelName := range labelNames {
-			namespaceLabels[labelName] = labelValues[i]
-		}
-		ks.collector.Update(KubeNamespaceLabels, namespaceLabels, 0, &timeStamp)
+		namespaceLabels := toMap(labelNames, labelValues)
+		ks.collector.Update(KubeNamespaceLabels, namespaceInfo, 0, &timestamp, namespaceLabels)
 
 		// namespace annotations
-		annotationNames, annotationValues := promutil.KubeAnnotationsToLabels(namespace.Labels)
-		namespaceAnnotations := maps.Clone(namespaceInfo)
-		for i, annotationName := range annotationNames {
-			namespaceAnnotations[annotationName] = annotationValues[i]
-		}
-		ks.collector.Update(KubeNamespaceAnnotations, namespaceAnnotations, 0, &timeStamp)
+		annotationNames, annotationValues := promutil.KubeAnnotationsToLabels(namespace.Annotations)
+		namespaceAnnotations := toMap(annotationNames, annotationValues)
+		ks.collector.Update(KubeNamespaceAnnotations, namespaceInfo, 0, &timestamp, namespaceAnnotations)
 	}
 }
 
-func (ks *kubernetesScraper) scrapePods() {
-	timeStamp := time.Now().UTC()
-	pods := ks.clusterCache.GetAllPods()
+func (ks *kubernetesScraper) scrapePods(pods []*clustercache.Pod, timestamp time.Time) {
 	for _, pod := range pods {
 		podInfo := map[string]string{
 			"name":      pod.Name,
@@ -144,19 +128,13 @@ func (ks *kubernetesScraper) scrapePods() {
 
 		// pod labels
 		labelNames, labelValues := promutil.KubeLabelsToLabels(pod.Labels)
-		podLabels := maps.Clone(podInfo)
-		for i, labelName := range labelNames {
-			podLabels[labelName] = labelValues[i]
-		}
-		ks.collector.Update(KubePodLabels, podLabels, 0, &timeStamp)
+		podLabels := toMap(labelNames, labelValues)
+		ks.collector.Update(KubePodLabels, podInfo, 0, &timestamp, podLabels)
 
 		// pod annotations
-		annotationNames, annotationValues := promutil.KubeAnnotationsToLabels(pod.Labels)
-		podAnnotations := maps.Clone(podInfo)
-		for i, annotationName := range annotationNames {
-			podAnnotations[annotationName] = annotationValues[i]
-		}
-		ks.collector.Update(KubePodAnnotations, podAnnotations, 0, &timeStamp)
+		annotationNames, annotationValues := promutil.KubeAnnotationsToLabels(pod.Annotations)
+		podAnnotations := toMap(annotationNames, annotationValues)
+		ks.collector.Update(KubePodAnnotations, podInfo, 0, &timestamp, podAnnotations)
 
 		// Pod owner metric
 		for _, owner := range pod.OwnerReferences {
@@ -164,7 +142,7 @@ func (ks *kubernetesScraper) scrapePods() {
 			ownerInfo["owner_kind"] = owner.Kind
 			ownerInfo["owner_name"] = owner.Name
 			ownerInfo["owner_is_controller"] = fmt.Sprintf("%t", owner.Controller != nil)
-			ks.collector.Update(KubePodOwner, ownerInfo, 0, &timeStamp)
+			ks.collector.Update(KubePodOwner, ownerInfo, 0, &timestamp, nil)
 		}
 
 		// Container Status
@@ -172,7 +150,7 @@ func (ks *kubernetesScraper) scrapePods() {
 			if status.State.Running != nil {
 				containerInfo := maps.Clone(podInfo)
 				containerInfo["container"] = status.Name
-				ks.collector.Update(KubePodContainerStatusRunning, containerInfo, 0, &timeStamp)
+				ks.collector.Update(KubePodContainerStatusRunning, containerInfo, 0, &timestamp, nil)
 			}
 		}
 
@@ -180,27 +158,31 @@ func (ks *kubernetesScraper) scrapePods() {
 			containerInfo := maps.Clone(podInfo)
 			containerInfo["container"] = container.Name
 			// Requests
-			for resourceName, quantity := range container.Resources.Requests {
-				resource, unit, value := toResourceUnitValue(resourceName, quantity)
+			if container.Resources.Requests != nil {
+				// sorting keys here for testing purposes
+				keys := maps.Keys(container.Resources.Requests)
+				slices.Sort(keys)
+				for _, resourceName := range keys {
+					quantity := container.Resources.Requests[resourceName]
+					resource, unit, value := toResourceUnitValue(resourceName, quantity)
 
-				// failed to parse the resource type
-				if resource == "" {
-					log.DedupedWarningf(5, "Failed to parse resource units and quantity for resource: %s", resourceName)
-					continue
+					// failed to parse the resource type
+					if resource == "" {
+						log.DedupedWarningf(5, "Failed to parse resource units and quantity for resource: %s", resourceName)
+						continue
+					}
+
+					resourceRequestInfo := maps.Clone(containerInfo)
+					resourceRequestInfo["resource"] = resource
+					resourceRequestInfo["unit"] = unit
+					ks.collector.Update(KubePodContainerResourceRequests, resourceRequestInfo, value, &timestamp, nil)
 				}
-
-				resourceRequestInfo := maps.Clone(containerInfo)
-				resourceRequestInfo["resource"] = resource
-				resourceRequestInfo["unit"] = unit
-				ks.collector.Update(KubePodContainerResourceRequests, resourceRequestInfo, value, &timeStamp)
 			}
 		}
 	}
 }
 
-func (ks *kubernetesScraper) scrapePVCs() {
-	timeStamp := time.Now().UTC()
-	pvcs := ks.clusterCache.GetAllPersistentVolumeClaims()
+func (ks *kubernetesScraper) scrapePVCs(pvcs []*clustercache.PersistentVolumeClaim, timestamp time.Time) {
 	for _, pvc := range pvcs {
 		pvcInfo := map[string]string{
 			"name":         pvc.Name,
@@ -209,18 +191,15 @@ func (ks *kubernetesScraper) scrapePVCs() {
 			"storageclass": getPersistentVolumeClaimClass(pvc),
 		}
 
-		ks.collector.Update(KubePersistenVolumeClaimInfo, pvcInfo, 0, &timeStamp)
+		ks.collector.Update(KubePersistenVolumeClaimInfo, pvcInfo, 0, &timestamp, nil)
 
 		if storage, ok := pvc.Spec.Resources.Requests[v1.ResourceStorage]; ok {
-			ks.collector.Update(KubePersistentVolumeClaimResourceRequestsStorageBytes, pvcInfo, float64(storage.Value()), &timeStamp)
+			ks.collector.Update(KubePersistentVolumeClaimResourceRequestsStorageBytes, pvcInfo, float64(storage.Value()), &timestamp, nil)
 		}
-
 	}
 }
 
-func (ks *kubernetesScraper) scrapePVs() {
-	timeStamp := time.Now().UTC()
-	pvs := ks.clusterCache.GetAllPersistentVolumes()
+func (ks *kubernetesScraper) scrapePVs(pvs []*clustercache.PersistentVolume, timestamp time.Time) {
 	for _, pv := range pvs {
 		providerID := pv.Name
 		// if a more accurate provider ID is available, use that
@@ -233,17 +212,15 @@ func (ks *kubernetesScraper) scrapePVs() {
 			"providerID":   providerID,
 		}
 
-		ks.collector.Update(KubecostPVInfo, pvInfo, 0, &timeStamp)
+		ks.collector.Update(KubecostPVInfo, pvInfo, 0, &timestamp, nil)
 
 		if storage, ok := pv.Spec.Capacity[v1.ResourceStorage]; ok {
-			ks.collector.Update(KubePersistentVolumeCapacityBytes, pvInfo, float64(storage.Value()), &timeStamp)
+			ks.collector.Update(KubePersistentVolumeCapacityBytes, pvInfo, float64(storage.Value()), &timestamp, nil)
 		}
 	}
 }
 
-func (ks *kubernetesScraper) scrapeServices() {
-	timeStamp := time.Now().UTC()
-	services := ks.clusterCache.GetAllServices()
+func (ks *kubernetesScraper) scrapeServices(services []*clustercache.Service, timestamp time.Time) {
 	for _, service := range services {
 		serviceInfo := map[string]string{
 			"service":   service.Name,
@@ -252,18 +229,13 @@ func (ks *kubernetesScraper) scrapeServices() {
 
 		// service labels
 		labelNames, labelValues := promutil.KubeLabelsToLabels(service.SpecSelector)
-		serviceLabels := maps.Clone(serviceInfo)
-		for i, labelName := range labelNames {
-			serviceLabels[labelName] = labelValues[i]
-		}
-		ks.collector.Update(ServiceSelectorLabels, serviceLabels, 0, &timeStamp)
+		serviceLabels := toMap(labelNames, labelValues)
+		ks.collector.Update(ServiceSelectorLabels, serviceInfo, 0, &timestamp, serviceLabels)
 
 	}
 }
 
-func (ks *kubernetesScraper) scrapeStatefulSets() {
-	timeStamp := time.Now().UTC()
-	statefulSets := ks.clusterCache.GetAllStatefulSets()
+func (ks *kubernetesScraper) scrapeStatefulSets(statefulSets []*clustercache.StatefulSet, timestamp time.Time) {
 	for _, statefulSet := range statefulSets {
 		statefulSetInfo := map[string]string{
 			"name":      statefulSet.Name,
@@ -272,11 +244,8 @@ func (ks *kubernetesScraper) scrapeStatefulSets() {
 
 		// statefulSet labels
 		labelNames, labelValues := promutil.KubeLabelsToLabels(statefulSet.SpecSelector.MatchLabels)
-		statefulSetLabels := maps.Clone(statefulSetInfo)
-		for i, labelName := range labelNames {
-			statefulSetLabels[labelName] = labelValues[i]
-		}
-		ks.collector.Update(StatefulSetMatchLabels, statefulSetLabels, 0, &timeStamp)
+		statefulSetLabels := toMap(labelNames, labelValues)
+		ks.collector.Update(StatefulSetMatchLabels, statefulSetInfo, 0, &timestamp, statefulSetLabels)
 
 	}
 }

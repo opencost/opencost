@@ -1,7 +1,11 @@
 package collector
 
 import (
+	"maps"
 	"time"
+
+	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/core/pkg/util"
 )
 
 // MetricValue is a resulting data point value with an optional timestamp.
@@ -13,10 +17,30 @@ type MetricValue struct {
 // MetricResult contains a resulting metric name, the associated labels and label values, and a slice of
 // MetricValues.
 type MetricResult struct {
-	Name                string
-	MetricLabels        map[string]string
-	AdditionInformation map[string]string
-	Values              []MetricValue
+	Name         string
+	MetricLabels map[string]string
+	Values       []MetricValue
+}
+
+func (mr *MetricResult) ToQueryResult() *source.QueryResult {
+	metrics := map[string]any{}
+	for key, value := range mr.MetricLabels {
+		metrics[key] = value
+	}
+
+	values := make([]*util.Vector, len(mr.Values))
+	for i, value := range mr.Values {
+		timestamp := 0.0
+		if value.Timestamp != nil {
+			timestamp = float64(value.Timestamp.Unix())
+		}
+		values[i] = &util.Vector{
+			Timestamp: timestamp,
+			Value:     value.Value,
+		}
+	}
+
+	return source.NewQueryResult(metrics, values, nil)
 }
 
 // MetricAggregator is an interface that defines the methods for a metric collector aggregation.
@@ -69,11 +93,12 @@ func (mi *MetricCollector) Update(labelValues []string, value float64, timestamp
 func (mi *MetricCollector) Get() []*MetricResult {
 	results := make([]*MetricResult, 0, len(mi.metrics))
 	for _, metric := range mi.metrics {
+		labels := toMap(mi.labels, metric.LabelValues())
+		maps.Copy(labels, metric.AdditionInfo())
 		mr := &MetricResult{
-			Name:                metric.Name(),
-			MetricLabels:        toMap(mi.labels, metric.LabelValues()),
-			AdditionInformation: metric.AdditionInfo(),
-			Values:              metric.Value(),
+			Name:         metric.Name(),
+			MetricLabels: labels,
+			Values:       metric.Value(),
 		}
 
 		results = append(results, mr)
