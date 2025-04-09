@@ -122,7 +122,8 @@ func (cm *CostModel) buildPodMap(window opencost.Window, resolution, maxBatchSiz
 			}
 		}
 
-		applyPodResults(window, resolution, podMap, clusterStart, clusterEnd, resPods, ingestPodUID, podUIDKeyMap)
+		resPromVersion, _ := ctx.GetMajorVersion().Await()
+		applyPodResults(window, resolution, podMap, clusterStart, clusterEnd, resPods, ingestPodUID, podUIDKeyMap, resPromVersion)
 
 		coverage = coverage.ExpandEnd(batchEnd)
 		numQuery++
@@ -131,7 +132,7 @@ func (cm *CostModel) buildPodMap(window opencost.Window, resolution, maxBatchSiz
 	return nil
 }
 
-func applyPodResults(window opencost.Window, resolution time.Duration, podMap map[podKey]*pod, clusterStart, clusterEnd map[string]time.Time, resPods []*prom.QueryResult, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) {
+func applyPodResults(window opencost.Window, resolution time.Duration, podMap map[podKey]*pod, clusterStart, clusterEnd map[string]time.Time, resPods []*prom.QueryResult, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey, promVersion int) {
 	for _, res := range resPods {
 		if len(res.Values) == 0 {
 			log.Warnf("CostModel.ComputeAllocation: empty minutes result")
@@ -171,7 +172,7 @@ func applyPodResults(window opencost.Window, resolution time.Duration, podMap ma
 
 		}
 
-		allocStart, allocEnd := calculateStartAndEnd(res, resolution, window)
+		allocStart, allocEnd := calculateStartAndEnd(res, resolution, window, promVersion)
 		if allocStart.IsZero() || allocEnd.IsZero() {
 			continue
 		}
@@ -1451,14 +1452,14 @@ func applyServicesToPods(podMap map[podKey]*pod, podLabels map[podKey]map[string
 	}
 }
 
-func getLoadBalancerCosts(lbMap map[serviceKey]*lbCost, resLBCost, resLBActiveMins []*prom.QueryResult, resolution time.Duration, window opencost.Window) {
+func getLoadBalancerCosts(lbMap map[serviceKey]*lbCost, resLBCost, resLBActiveMins []*prom.QueryResult, resolution time.Duration, promVersion int, window opencost.Window) {
 	for _, res := range resLBActiveMins {
 		serviceKey, err := resultServiceKey(res, env.GetPromClusterLabel(), "namespace", "service_name")
 		if err != nil || len(res.Values) == 0 {
 			continue
 		}
 
-		lbStart, lbEnd := calculateStartAndEnd(res, resolution, window)
+		lbStart, lbEnd := calculateStartAndEnd(res, resolution, window, promVersion)
 		if lbStart.IsZero() || lbEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pvc %s has no running time", serviceKey)
 		}
@@ -1903,7 +1904,7 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*nodePricing, nodeKey no
 
 /* PV/PVC Helpers */
 
-func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHour, resPVActiveMins, resPVMeta []*prom.QueryResult, window opencost.Window) {
+func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHour, resPVActiveMins, resPVMeta []*prom.QueryResult, promVersion int, window opencost.Window) {
 	for _, result := range resPVActiveMins {
 		key, err := resultPVKey(result, env.GetPromClusterLabel(), "persistentvolume")
 		if err != nil {
@@ -1911,7 +1912,7 @@ func buildPVMap(resolution time.Duration, pvMap map[pvKey]*pv, resPVCostPerGiBHo
 			continue
 		}
 
-		pvStart, pvEnd := calculateStartAndEnd(result, resolution, window)
+		pvStart, pvEnd := calculateStartAndEnd(result, resolution, window, promVersion)
 		if pvStart.IsZero() || pvEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pv %s has no running time", key)
 		}
@@ -1984,7 +1985,7 @@ func applyPVBytes(pvMap map[pvKey]*pv, resPVBytes []*prom.QueryResult) {
 	}
 }
 
-func buildPVCMap(resolution time.Duration, pvcMap map[pvcKey]*pvc, pvMap map[pvKey]*pv, resPVCInfo []*prom.QueryResult, window opencost.Window) {
+func buildPVCMap(resolution time.Duration, pvcMap map[pvcKey]*pvc, pvMap map[pvKey]*pv, resPVCInfo []*prom.QueryResult, promVersion int, window opencost.Window) {
 	for _, res := range resPVCInfo {
 		cluster, err := res.GetString(env.GetPromClusterLabel())
 		if err != nil {
@@ -2005,7 +2006,7 @@ func buildPVCMap(resolution time.Duration, pvcMap map[pvcKey]*pvc, pvMap map[pvK
 		pvKey := newPVKey(cluster, volume)
 		pvcKey := newPVCKey(cluster, namespace, name)
 
-		pvcStart, pvcEnd := calculateStartAndEnd(res, resolution, window)
+		pvcStart, pvcEnd := calculateStartAndEnd(res, resolution, window, promVersion)
 		if pvcStart.IsZero() || pvcEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pvc %s has no running time", pvcKey)
 		}
@@ -2350,7 +2351,7 @@ func getUnmountedPodForNamespace(window opencost.Window, podMap map[podKey]*pod,
 	return thisPod
 }
 
-func calculateStartAndEnd(result *prom.QueryResult, resolution time.Duration, window opencost.Window) (time.Time, time.Time) {
+func calculateStartAndEnd(result *prom.QueryResult, resolution time.Duration, window opencost.Window, promVersion int) (time.Time, time.Time) {
 	// Start and end for a range vector are pulled from the timestamps of the
 	// first and final values in the range.
 	s := time.Unix(int64(result.Values[0].Timestamp), 0).UTC()
@@ -2362,7 +2363,9 @@ func calculateStartAndEnd(result *prom.QueryResult, resolution time.Duration, wi
 	// E.g. avg(node_total_hourly_cost{}) by (node, provider_id)[1h:5m] with
 	// time=01:00:00 will return, for a node running the entire time, 12
 	// timestamps where the first is 00:05:00 and the last is 01:00:00.
-	s = s.Add(-resolution)
+	if promVersion >= 3 {
+		s = s.Add(-resolution)
+	}
 
 	// The only corner-case here is what to do if you only get one timestamp.
 	// This dilemma still requires the use of the resolution, and can be

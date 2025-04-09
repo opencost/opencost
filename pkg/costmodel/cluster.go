@@ -188,6 +188,7 @@ func ClusterDisks(client prometheus.Client, cp models.Provider, start, end time.
 	resChPVUsedAvg := ctx.QueryAtTime(queryPVUsedAvg, t)
 	resChPVUsedMax := ctx.QueryAtTime(queryPVUsedMax, t)
 	resChPVCInfo := ctx.QueryAtTime(queryPVCInfo, t)
+	resChPromVersion := ctx.GetMajorVersion()
 
 	resPVCost, _ := resChPVCost.Await()
 	resPVSize, _ := resChPVSize.Await()
@@ -196,6 +197,7 @@ func ClusterDisks(client prometheus.Client, cp models.Provider, start, end time.
 	resPVUsedAvg, _ := resChPVUsedAvg.Await()
 	resPVUsedMax, _ := resChPVUsedMax.Await()
 	resPVCInfo, _ := resChPVCInfo.Await()
+	resPromVersion, _ := resChPromVersion.Await()
 
 	// Cloud providers do not always charge for a node's local disk costs (i.e.
 	// ephemeral storage). Provide an option to opt out of calculating &
@@ -287,7 +289,7 @@ func ClusterDisks(client prometheus.Client, cp models.Provider, start, end time.
 		diskMap[key].ClaimNamespace = claimNamespace
 	}
 
-	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo, cp, opencost.NewClosedWindow(start, end))
+	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo, resPromVersion, cp, opencost.NewClosedWindow(start, end))
 
 	type localStorage struct {
 		device string
@@ -673,6 +675,7 @@ func ClusterNodes(cp models.Provider, client prometheus.Client, start, end time.
 	resChNodeGPUHourlyCost := requiredCtx.QueryAtTime(queryNodeGPUHourlyCost, t)
 	resChActiveMins := requiredCtx.QueryAtTime(queryActiveMins, t)
 	resChIsSpot := requiredCtx.QueryAtTime(queryIsSpot, t)
+	resChPromVersion := requiredCtx.GetMajorVersion()
 
 	// Do not return errors if these fail, but log warnings
 	resChNodeCPUModeTotal := optionalCtx.QueryAtTime(queryNodeCPUModeTotal, t)
@@ -694,6 +697,7 @@ func ClusterNodes(cp models.Provider, client prometheus.Client, start, end time.
 	resNodeRAMUserPct, _ := resChNodeRAMUserPct.Await()
 	resActiveMins, _ := resChActiveMins.Await()
 	resLabels, _ := resChLabels.Await()
+	resPromVersion, _ := resChPromVersion.Await()
 
 	if optionalCtx.HasErrors() {
 		for _, err := range optionalCtx.Errors() {
@@ -708,7 +712,7 @@ func ClusterNodes(cp models.Provider, client prometheus.Client, start, end time.
 		return nil, requiredCtx.ErrorCollection()
 	}
 
-	activeDataMap := buildActiveDataMap(resActiveMins, resolution, opencost.NewClosedWindow(start, end))
+	activeDataMap := buildActiveDataMap(resActiveMins, resolution, opencost.NewClosedWindow(start, end), resPromVersion)
 
 	gpuCountMap := buildGPUCountMap(resNodeGPUCount)
 	preemptibleMap := buildPreemptibleMap(resIsSpot)
@@ -826,9 +830,11 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 
 	resChLBCost := ctx.QueryAtTime(queryLBCost, t)
 	resChActiveMins := ctx.QueryAtTime(queryActiveMins, t)
+	resChPromVersion := ctx.GetMajorVersion()
 
 	resLBCost, _ := resChLBCost.Await()
 	resActiveMins, _ := resChActiveMins.Await()
+	resPromVersion, _ := resChPromVersion.Await()
 
 	if ctx.HasErrors() {
 		return nil, ctx.ErrorCollection()
@@ -879,7 +885,7 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 		}
 
 		// Append start, end, and minutes. This should come before all other data.
-		s, e := calculateStartAndEnd(result, resolution, opencost.NewClosedWindow(start, end))
+		s, e := calculateStartAndEnd(result, resolution, opencost.NewClosedWindow(start, end), resPromVersion)
 		loadBalancerMap[key].Start = s
 		loadBalancerMap[key].End = e
 		loadBalancerMap[key].Minutes = e.Sub(s).Minutes()
@@ -1420,7 +1426,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider models.Provider, start
 	}, nil
 }
 
-func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo []*prom.QueryResult, cp models.Provider, window opencost.Window) {
+func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo []*prom.QueryResult, promVersion int, cp models.Provider, window opencost.Window) {
 	for _, result := range resActiveMins {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
@@ -1446,7 +1452,7 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 			}
 		}
 
-		s, e := calculateStartAndEnd(result, resolution, window)
+		s, e := calculateStartAndEnd(result, resolution, window, promVersion)
 		mins := e.Sub(s).Minutes()
 
 		diskMap[key].End = e

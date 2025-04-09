@@ -60,6 +60,18 @@ func ValueFieldDoesNotExistErr(query string, promResponse interface{}) error {
 	return fmt.Errorf("Error parsing Prometheus response: 'value' field does not exist in data result vector. Query: '%s'. Response: '%+v'", query, promResponse)
 }
 
+// VersionResultsChan is a channel for Prometheus major version results
+type VersionResultsChan chan int
+
+// Await returns the Prometheus major version, blocking until it is made
+// available, and deferring the closure of the underlying channel
+func (vrc VersionResultsChan) Await() (int, error) {
+	defer close(vrc)
+
+	version := <-vrc
+	return version, nil
+}
+
 // QueryResultsChan is a channel of query results
 type QueryResultsChan chan *QueryResults
 

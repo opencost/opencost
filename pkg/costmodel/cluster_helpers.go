@@ -500,7 +500,7 @@ type activeData struct {
 	minutes float64
 }
 
-func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Duration, window opencost.Window) map[NodeIdentifier]activeData {
+func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Duration, window opencost.Window, promVersion int) map[NodeIdentifier]activeData {
 
 	m := make(map[NodeIdentifier]activeData)
 
@@ -528,7 +528,7 @@ func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Durat
 			continue
 		}
 
-		s, e := calculateStartAndEnd(result, resolution, window)
+		s, e := calculateStartAndEnd(result, resolution, window, promVersion)
 		mins := e.Sub(s).Minutes()
 
 		m[key] = activeData{
