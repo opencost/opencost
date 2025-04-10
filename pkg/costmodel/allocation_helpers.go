@@ -2362,12 +2362,8 @@ func calculateStartAndEnd(result *prom.QueryResult, resolution time.Duration, wi
 	// E.g. avg(node_total_hourly_cost{}) by (node, provider_id)[1h:5m] with
 	// time=01:00:00 will return, for a node running the entire time, 12
 	// timestamps where the first is 00:05:00 and the last is 01:00:00.
-	//
-	// The below logic checks if the Prometheus major version is 3 or higher.
-	if v := strings.Split(prometheusVersion, "."); len(v) > 0 {
-		if major, err := strconv.Atoi(v[0]); err == nil && major >= 3 {
-			s = s.Add(-resolution)
-		}
+	if IsPrometheusVersionGTE3() {
+		s = s.Add(-resolution)
 	}
 
 	// The only corner-case here is what to do if you only get one timestamp.

@@ -72,10 +72,6 @@ const (
 var (
 	// gitCommit is set by the build system
 	gitCommit string
-
-	// prometheusVersion is queried for using the Prometheus API client. If
-	// unable to retrieve the value from Prometheus, it will remain "0".
-	prometheusVersion = "0"
 )
 
 // Accesses defines a singleton application instance, providing access to
