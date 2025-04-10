@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/opencost/opencost/modules/collector-source/pkg/metrics/target"
 	"golang.org/x/exp/maps"
 )
 
@@ -71,4 +72,16 @@ func (u UpdateArgs) equals(that UpdateArgs) error {
 	}
 
 	return nil
+}
+
+type MockTargetProvider struct {
+	targets []target.ScrapeTarget
+}
+
+func NewMockTargetProvider(targets ...target.ScrapeTarget) *MockTargetProvider {
+	return &MockTargetProvider{targets: targets}
+}
+
+func (m *MockTargetProvider) GetTargets() []target.ScrapeTarget {
+	return m.targets
 }
