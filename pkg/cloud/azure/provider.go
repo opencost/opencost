@@ -849,7 +849,8 @@ func (az *Azure) DownloadPricingData() error {
 
 	rateCardFilter := fmt.Sprintf("OfferDurableId eq '%s' and Currency eq '%s' and Locale eq 'en-US' and RegionInfo eq '%s'", config.AzureOfferDurableID, config.CurrencyCode, config.AzureBillingRegion)
 
-	log.Infof("Using ratecard query %s", rateCardFilter)
+	log.Infof("Using azureRateCard query %s", rateCardFilter)
+	log.Debugf("Using azureRateCard URI %s", rcClient.BaseURI)
 	// rate-card client is old, it can hang indefinitely in some cases
 	// this happens on the main thread, so it may block the whole app
 	// there is can be a better way to set timeout for the client
