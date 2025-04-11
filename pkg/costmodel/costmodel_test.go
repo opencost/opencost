@@ -10,6 +10,41 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
+func TestIpPortCombo(t *testing.T) {
+	tests := []string{
+		"192.168.1.1:80",
+		"10.0.0.1:443",
+		"127.0.0.1:8080",
+		"172.16.254.1:22",
+		"0.0.0.0:5000",
+		"::1:80",
+		"2001:db8::1:443",
+		"2001:0db8:85a3:0000:0000:8a2e:0370:7334:8080",
+		"fe80::1:22",
+		"10.1.2.3:10240",
+		":::80",
+	}
+
+	for _, test := range tests {
+		result := isIpPortCombo(test)
+		if !result {
+			t.Errorf("Expected %s to be a valid IP:Port combo", test)
+		}
+	}
+
+	fails := []string{
+		"foo:bar",
+		"ip-10-1-2-3.ec2.internal",
+	}
+
+	for _, fail := range fails {
+		result := isIpPortCombo(fail)
+		if result {
+			t.Errorf("Expected %s to be an invalid IP:Port combo", fail)
+		}
+	}
+}
+
 func TestGetGPUCount(t *testing.T) {
 	tests := []struct {
 		name          string

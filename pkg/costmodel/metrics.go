@@ -679,7 +679,6 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					Parameters: parameters,
 				}
 
-				// TODO: GetPVCost should be a method in CostModel?
 				cmme.Model.GetPVCost(cacPv, pv, region)
 				c, _ := strconv.ParseFloat(cacPv.Cost, 64)
 				cmme.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name, cacPv.ProviderID).Set(c)

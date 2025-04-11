@@ -2,6 +2,8 @@ package costmodel
 
 import (
 	"errors"
+	"net"
+	"strconv"
 	"strings"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -23,6 +25,11 @@ var (
 	ErrNoNamespaceName error = errors.New("vector does not have string namespace")
 	ErrNoNodeName      error = errors.New("vector does not have string node")
 	ErrNoClusterID     error = errors.New("vector does not have string cluster id")
+	ErrIpPortNodeName  error = errors.New(`node name is an IP:PORT combo, not a node name. cAdvisor scrape configs require the following:
+	relabel_configs:
+	- action: labelmap
+	  regex: __meta_kubernetes_node_name
+	  replacement: node`)
 )
 
 //--------------------------------------------------------------------------
@@ -212,6 +219,10 @@ func NewContainerMetricFrom(result *source.ContainerMetricResult, defaultCluster
 	}
 
 	nodeName := result.Node
+	if isIpPortCombo(nodeName) {
+		return nil, ErrIpPortNodeName
+	}
+
 	if nodeName == "" {
 		log.Debugf("metric vector does not have node name")
 		nodeName = ""
@@ -230,4 +241,26 @@ func NewContainerMetricFrom(result *source.ContainerMetricResult, defaultCluster
 		ClusterID:     clusterID,
 		key:           containerMetricKey(namespace, podName, containerName, nodeName, clusterID),
 	}, nil
+}
+
+func isIpPortCombo(value string) bool {
+	// handle IPv6 values as well
+	idx := strings.LastIndex(value, ":")
+	if idx == -1 {
+		return false
+	}
+
+	ipStr, portStr := value[:idx], value[idx+1:]
+
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return false
+	}
+
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return false
+	}
+
+	return port > 0 && port <= 65535
 }
