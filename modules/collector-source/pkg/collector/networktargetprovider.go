@@ -16,6 +16,14 @@ type NetworkTargetProvider struct {
 	kubeClientSet kubernetes.Interface
 }
 
+func NewNetworkTargetProvider(releaseName string, port int, k8s kubernetes.Interface) *NetworkTargetProvider {
+	return &NetworkTargetProvider{
+		releaseName:   releaseName,
+		port:          port,
+		kubeClientSet: k8s,
+	}
+}
+
 func (n NetworkTargetProvider) GetTargets() []target.ScrapeTarget {
 	k8s := n.kubeClientSet
 

@@ -224,11 +224,6 @@ func (immc *InMemoryMetricsCollector) Update(
 	defer immc.lock.Unlock()
 
 	for _, collector := range immc.byMetricName[metricName] {
-		labelValues := make([]string, 0, len(collector.labels))
-		for _, label := range collector.labels {
-			labelValues = append(labelValues, labels[label])
-		}
-
-		collector.Update(labelValues, value, timestamp, additionalInformation)
+		collector.Update(labels, value, timestamp, additionalInformation)
 	}
 }
