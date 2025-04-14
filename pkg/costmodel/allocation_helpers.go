@@ -1458,7 +1458,6 @@ func getLoadBalancerCosts(lbMap map[serviceKey]*lbCost, resLBCost, resLBActiveMi
 			continue
 		}
 
-		// load balancers have interpolation for costs, we don't need to offset the resolution
 		lbStart, lbEnd := calculateStartAndEnd(res, resolution, window)
 		if lbStart.IsZero() || lbEnd.IsZero() {
 			log.Warnf("CostModel.ComputeAllocation: pvc %s has no running time", serviceKey)
@@ -2353,17 +2352,19 @@ func getUnmountedPodForNamespace(window opencost.Window, podMap map[podKey]*pod,
 
 func calculateStartAndEnd(result *prom.QueryResult, resolution time.Duration, window opencost.Window) (time.Time, time.Time) {
 	// Start and end for a range vector are pulled from the timestamps of the
-	// first and final values in the range. There is no "offsetting" required
-	// of the start or the end, as we used to do. If you query for a duration
-	// of time that is divisible by the given resolution, and set the end time
-	// to be precisely the end of the window, Prometheus should give all the
-	// relevant timestamps.
-	//
-	// E.g. avg(kube_pod_container_status_running{}) by (pod, namespace)[1h:1m]
-	// with time=01:00:00 will return, for a pod running the entire time,
-	// 61 timestamps where the first is 00:00:00 and the last is 01:00:00.
+	// first and final values in the range.
 	s := time.Unix(int64(result.Values[0].Timestamp), 0).UTC()
 	e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).UTC()
+
+	// As of Prometheus v3, we have had to reintroduce the "offsetting" of the
+	// start time.
+	//
+	// E.g. avg(node_total_hourly_cost{}) by (node, provider_id)[1h:5m] with
+	// time=01:00:00 will return, for a node running the entire time, 12
+	// timestamps where the first is 00:05:00 and the last is 01:00:00.
+	if IsPrometheusVersionGTE3() {
+		s = s.Add(-resolution)
+	}
 
 	// The only corner-case here is what to do if you only get one timestamp.
 	// This dilemma still requires the use of the resolution, and can be

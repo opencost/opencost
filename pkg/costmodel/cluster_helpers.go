@@ -531,7 +531,6 @@ func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Durat
 		s, e := calculateStartAndEnd(result, resolution, window)
 		mins := e.Sub(s).Minutes()
 
-		// TODO niko/assets if mins >= threshold, interpolate for missing data?
 		m[key] = activeData{
 			start:   s,
 			end:     e,
