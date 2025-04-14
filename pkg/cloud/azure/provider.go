@@ -1100,10 +1100,6 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 
 	meta := models.PricingMetadata{}
 
-	if az.Pricing == nil {
-		return nil, meta, fmt.Errorf("Unable to download Azure pricing data")
-	}
-
 	azKey, ok := key.(*azureKey)
 	if !ok {
 		return nil, meta, fmt.Errorf("azure: NodePricing: key is of type %T", key)
@@ -1123,12 +1119,16 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 		featureString = azKey.Features()
 	}
 
-	if n, ok := az.Pricing[featureString]; ok {
-		log.Debugf("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
-		if azKey.isValidGPUNode() {
-			n.Node.GPU = azKey.GetGPUCount()
+	if az.Pricing != nil {
+		if n, ok := az.Pricing[featureString]; ok {
+			log.Debugf("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
+			if azKey.isValidGPUNode() {
+				n.Node.GPU = azKey.GetGPUCount()
+			}
+			return n.Node, meta, nil
+		} else {
+			log.Debugf("Could not find pricing for node %s from key %s", azKey, azKey.Features())
 		}
-		return n.Node, meta, nil
 	}
 
 	cost, err := getRetailPrice(region, instance, config.CurrencyCode, isSpot)
