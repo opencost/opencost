@@ -1,7 +1,9 @@
 package costmodel
 
 import (
+	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/pkg/clustercache"
@@ -10,8 +12,29 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-func TestIpPortCombo(t *testing.T) {
+func TestIsValidNodeName(t *testing.T) {
 	tests := []string{
+		"ip-10-1-2-3.ec2.internal",
+		"node-1",
+		"another.test.node",
+		"10-55.23-10",
+	}
+
+	for _, test := range tests {
+		if !isValidNodeName(test) {
+			t.Errorf("Expected %s to be a valid node name", test)
+		}
+	}
+
+	chars := "abcdefghijklmnopqrstuvwxyz"
+	longName := ""
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := 0; i < 255; i++ {
+		longName += string(chars[r.Intn(len(chars))])
+	}
+
+	fails := []string{
+		longName,
 		"192.168.1.1:80",
 		"10.0.0.1:443",
 		"127.0.0.1:8080",
@@ -23,24 +46,16 @@ func TestIpPortCombo(t *testing.T) {
 		"fe80::1:22",
 		"10.1.2.3:10240",
 		":::80",
-	}
-
-	for _, test := range tests {
-		result := isIpPortCombo(test)
-		if !result {
-			t.Errorf("Expected %s to be a valid IP:Port combo", test)
-		}
-	}
-
-	fails := []string{
-		"foo:bar",
-		"ip-10-1-2-3.ec2.internal",
+		"node$-15",
+		"not:valid",
+		".hello-world",
+		"hello-world.",
+		"i--",
 	}
 
 	for _, fail := range fails {
-		result := isIpPortCombo(fail)
-		if result {
-			t.Errorf("Expected %s to be an invalid IP:Port combo", fail)
+		if isValidNodeName(fail) {
+			t.Errorf("Expected %s to be an invalid node name", fail)
 		}
 	}
 }

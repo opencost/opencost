@@ -2,8 +2,8 @@ package costmodel
 
 import (
 	"errors"
-	"net"
-	"strconv"
+	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -25,12 +25,13 @@ var (
 	ErrNoNamespaceName error = errors.New("vector does not have string namespace")
 	ErrNoNodeName      error = errors.New("vector does not have string node")
 	ErrNoClusterID     error = errors.New("vector does not have string cluster id")
-	ErrIpPortNodeName  error = errors.New(`node name is an IP:PORT combo, not a node name. cAdvisor scrape configs require the following:
-	relabel_configs:
-	- action: labelmap
-	  regex: __meta_kubernetes_node_name
-	  replacement: node`)
 )
+
+const invalidNodeNameErrFmt = `invalid node name: %s was likely set from "instance" label. cAdvisor scrape configs require the following:
+relabel_configs:
+- action: labelmap
+  regex: __meta_kubernetes_node_name
+  replacement: node`
 
 //--------------------------------------------------------------------------
 //  KeyTuple
@@ -219,8 +220,8 @@ func NewContainerMetricFrom(result *source.ContainerMetricResult, defaultCluster
 	}
 
 	nodeName := result.Node
-	if isIpPortCombo(nodeName) {
-		return nil, ErrIpPortNodeName
+	if !isValidNodeName(nodeName) {
+		return nil, fmt.Errorf(invalidNodeNameErrFmt, nodeName)
 	}
 
 	if nodeName == "" {
@@ -243,24 +244,20 @@ func NewContainerMetricFrom(result *source.ContainerMetricResult, defaultCluster
 	}, nil
 }
 
-func isIpPortCombo(value string) bool {
-	// handle IPv6 values as well
-	idx := strings.LastIndex(value, ":")
-	if idx == -1 {
+/*
+- contain no more than 253 characters
+- contain only lowercase alphanumeric characters, '-' or '.'
+- start with an alphanumeric character
+- end with an alphanumeric character
+*/
+var nodeNameRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9\-\.]+[a-z0-9]$`)
+
+// isValidNodeName determines if the nodeName provided is valid according to DNS subdomain
+// specifications: RFC 1123
+func isValidNodeName(nodeName string) bool {
+	if len(nodeName) > 253 {
 		return false
 	}
 
-	ipStr, portStr := value[:idx], value[idx+1:]
-
-	ip := net.ParseIP(ipStr)
-	if ip == nil {
-		return false
-	}
-
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		return false
-	}
-
-	return port > 0 && port <= 65535
+	return nodeNameRegex.Match([]byte(nodeName))
 }
