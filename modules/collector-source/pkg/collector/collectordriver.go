@@ -1,21 +1,20 @@
 package collector
 
 import (
-	"sync/atomic"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util/atomic"
 )
 
 type Config struct {
 	ScrapeInterval time.Duration
 }
 type CollectorDriver struct {
-	config     Config
-	isRunning  atomic.Bool
-	isStopping atomic.Bool
-	stop       chan struct{}
-	collector  MetricsCollector
+	config    Config
+	runState  atomic.AtomicRunState
+	stop      chan struct{}
+	collector MetricsCollector
 }
 
 func NewCollectorDriver(config Config) *CollectorDriver {
@@ -25,17 +24,21 @@ func NewCollectorDriver(config Config) *CollectorDriver {
 }
 
 func (cd *CollectorDriver) Start() {
-	wasRunning := cd.isRunning.Swap(true)
-	if wasRunning {
+	// Before we attempt to start, we must ensure we are not in a stopping state
+	cd.runState.WaitForReset()
+
+	// This will atomically check the current state to ensure we can run, then advances the state.
+	// If the state is already started, it will return false.
+	if !cd.runState.Start() {
 		log.Info("collector already running")
 		return
 	}
 	func() {
 		for {
 			select {
-			case <-cd.stop:
-				cd.isRunning.Store(false)
-				return
+			case <-cd.runState.OnStop():
+				cd.runState.Reset()
+				return // exit go routine
 			default:
 
 			}
@@ -46,21 +49,9 @@ func (cd *CollectorDriver) Start() {
 }
 
 func (cd *CollectorDriver) Stop() {
-	if !cd.isRunning.Load() {
-		log.Info("collector already stopped")
-		return
-	}
-	wasStopping := cd.isStopping.Swap(true)
-	if wasStopping {
-		log.Info("collector already stopping")
-		return
-	}
-	cd.isStopping.Store(true)
-	cd.stop <- struct{}{}
-	cd.isRunning.Store(false)
-
+	cd.runState.Stop()
 }
 
 func (cd *CollectorDriver) scrape() {
-	
+
 }
