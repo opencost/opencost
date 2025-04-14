@@ -7,3 +7,7 @@ import "io"
 type ScrapeTarget interface {
 	Load() (io.Reader, error)
 }
+
+type TargetProvider interface {
+	GetTargets() []ScrapeTarget
+}

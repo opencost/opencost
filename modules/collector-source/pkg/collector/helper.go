@@ -43,3 +43,7 @@ func toMap(labels []string, values []string) map[string]string {
 	}
 	return m
 }
+
+func ptr[T any](v T) *T {
+	return &v
+}

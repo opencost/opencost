@@ -12,8 +12,9 @@ func NewPVPricePerGiBHourMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		PVPricePerGiBHourID,
 		PVHourlyCost,
-		[]string{"cluster", "persistentvolume", "volumename", "provider_id"},
+		[]string{"persistentvolume", "volumename", "provider_id"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -29,8 +30,9 @@ func NewPVUsedAverageMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		PVUsedAverageID,
 		KubeletVolumeStatsUsedBytes,
-		[]string{"cluster", "persistentvolumeclaim", "namespace"},
+		[]string{"persistentvolumeclaim", "namespace"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -46,8 +48,9 @@ func NewPVUsedMaxMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		PVUsedMaxID,
 		KubeletVolumeStatsUsedBytes,
-		[]string{"cluster", "persistentvolumeclaim", "namespace"},
+		[]string{"persistentvolumeclaim", "namespace"},
 		MaxOverTime,
+		nil,
 	)
 }
 
@@ -62,8 +65,9 @@ func NewPVCInfoMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		PVCInfoID,
 		KubePersistenVolumeClaimInfo,
-		[]string{"persistentvolumeclaim", "storageclass", "volumename", "namespace", "cluster"},
+		[]string{"persistentvolumeclaim", "storageclass", "volumename", "namespace"},
 		Info,
+		nil,
 	)
 }
 
@@ -77,8 +81,9 @@ func NewPVActiveMinutesMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		PVActiveMinutesID,
 		KubePersistentVolumeCapacityBytes,
-		[]string{"cluster", "persistentvolume"},
+		[]string{"persistentvolume"},
 		ActiveMinutes,
+		nil,
 	)
 }
 
@@ -97,8 +102,12 @@ func NewLocalStorageCostMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		LocalStorageCostID,
 		ContainerFSLimitBytes,
-		[]string{"instance", "device", "cluster"},
+		[]string{"instance", "device"},
 		AverageOverTime,
+		func(labels map[string]string) bool {
+			// todo this filter needs a regex
+			return true
+		},
 	)
 }
 
@@ -117,8 +126,12 @@ func NewLocalStorageUsedCostMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		LocalStorageUsedCostID,
 		ContainerFSUsageBytes,
-		[]string{"instance", "device", "cluster"},
+		[]string{"instance", "device"},
 		AverageOverTime,
+		func(labels map[string]string) bool {
+			// todo this filter needs a regex
+			return true
+		},
 	)
 }
 
@@ -138,8 +151,12 @@ func NewLocalStorageUsedAverageMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		LocalStorageUsedAverageID,
 		ContainerFSUsageBytes,
-		[]string{"instance", "device", "cluster"},
+		[]string{"instance", "device"},
 		AverageOverTime,
+		func(labels map[string]string) bool {
+			// todo this filter needs a regex
+			return true
+		},
 	)
 }
 
@@ -160,8 +177,12 @@ func NewLocalStorageUsedMaxMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		LocalStorageUsedMaxID,
 		ContainerFSUsageBytes,
-		[]string{"instance", "device", "cluster"},
+		[]string{"instance", "device"},
 		MaxOverTime,
+		func(labels map[string]string) bool {
+			// todo this filter needs a regex
+			return true
+		},
 	)
 }
 
@@ -180,8 +201,12 @@ func NewLocalStorageBytesMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		LocalStorageBytesID,
 		ContainerFSLimitBytes,
-		[]string{"instance", "device", "cluster"},
+		[]string{"instance", "device"},
 		AverageOverTime,
+		func(labels map[string]string) bool {
+			// todo this filter needs a regex
+			return true
+		},
 	)
 }
 
@@ -196,8 +221,9 @@ func NewLocalStorageActiveMinutesMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		LocalStorageActiveMinutesID,
 		NodeTotalHourlyCost,
-		[]string{"cluster", "node", "instance", "provider_id"},
+		[]string{"node", "instance", "provider_id"},
 		ActiveMinutes,
+		nil,
 	)
 }
 
@@ -214,8 +240,9 @@ func NewNodeCPUCoresCapacityMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NodeCPUCoresCapacityID,
 		KubeNodeStatusCapacityCPUCores,
-		[]string{"cluster", "node"},
+		[]string{"node"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -231,8 +258,9 @@ func NewNodeCPUCoresAllocatableMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NodeCPUCoresAllocatableID,
 		KubeNodeStatusAllocatableCPUCores,
-		[]string{"cluster", "node"},
+		[]string{"node"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -248,8 +276,9 @@ func NewNodeRAMBytesCapacityMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NodeRAMBytesCapacityID,
 		KubeNodeStatusCapacityMemoryBytes,
-		[]string{"cluster", "node"},
+		[]string{"node"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -265,8 +294,9 @@ func NewNodeRAMBytesAllocatableMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NodeRAMBytesAllocatableID,
 		KubeNodeStatusAllocatableMemoryBytes,
-		[]string{"cluster", "node"},
+		[]string{"node"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -282,8 +312,9 @@ func NewNodeGPUCountMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NodeGPUCountID,
 		NodeGPUCount,
-		[]string{"cluster", "node", "provider_id"},
+		[]string{"node", "provider_id"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -299,6 +330,7 @@ func NewNodeLabelsMetricCollector() *MetricCollector {
 		KubeNodeLabels,
 		[]string{},
 		Info,
+		nil,
 	)
 }
 
@@ -312,8 +344,9 @@ func NewNodeActiveMinutesMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NodeActiveMinutesID,
 		NodeTotalHourlyCost,
-		[]string{"node", "cluster", "provider_id"},
+		[]string{"node", "provider_id"},
 		ActiveMinutes,
+		nil,
 	)
 }
 
@@ -329,8 +362,9 @@ func NewNodeCPUModeTotalMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NodeCPUModeTotalID,
 		NodeCPUSecondsTotal,
-		[]string{"kubernetes_node", "cluster", "mode"},
+		[]string{"kubernetes_node", "mode"},
 		Increase,
+		nil,
 	)
 }
 
@@ -349,8 +383,11 @@ func NewNodeRAMSystemUsageAverageMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NodeRAMSystemUsageAverageID,
 		ContainerMemoryWorkingSetBytes,
-		[]string{"instance", "cluster"},
+		[]string{"instance"},
 		AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels["container_name"] != "POD" && labels["container_name"] != "" && labels["namespace"] == "kube-system"
+		},
 	)
 }
 
@@ -369,8 +406,11 @@ func NewNodeRAMUserUsageAverageMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NodeRAMUserUsageAverageID,
 		ContainerMemoryWorkingSetBytes,
-		[]string{"instance", "cluster"},
+		[]string{"instance"},
 		AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels["container_name"] != "POD" && labels["container_name"] != "" && labels["namespace"] != "kube-system"
+		},
 	)
 }
 
@@ -386,8 +426,9 @@ func NewLBPricePerHourMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		LBPricePerHourID,
 		KubecostLoadBalancerCost,
-		[]string{"namespace", "service_name", "ingress_ip", "cluster"},
+		[]string{"namespace", "service_name", "ingress_ip"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -401,8 +442,9 @@ func NewLBActiveMinutesMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		LBActiveMinutesID,
 		KubecostLoadBalancerCost,
-		[]string{"namespace", "service_name", "cluster", "ingress_ip"},
+		[]string{"namespace", "service_name", "ingress_ip"},
 		ActiveMinutes,
+		nil,
 	)
 }
 
@@ -416,8 +458,9 @@ func NewClusterManagementDurationMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		ClusterManagementDurationID,
 		KubecostClusterManagementCost,
-		[]string{"cluster", "provisioner_name"},
+		[]string{"provisioner_name"},
 		ActiveMinutes,
+		nil,
 	)
 }
 
@@ -433,8 +476,9 @@ func NewClusterManagementPricePerHourMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		ClusterManagementPricePerHourID,
 		KubecostClusterManagementCost,
-		[]string{"cluster", "provisioner_name"},
+		[]string{"provisioner_name"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -448,8 +492,9 @@ func NewPodActiveMinutesMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		PodActiveMinutesID,
 		KubePodContainerStatusRunning,
-		[]string{"pod", "namespace", "uid", "cluster"},
+		[]string{"pod", "namespace", "uid"},
 		ActiveMinutes,
+		nil,
 	)
 }
 
@@ -468,8 +513,11 @@ func NewRAMBytesAllocatedMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		RAMBytesAllocatedID,
 		ContainerMemoryAllocationBytes,
-		[]string{"container", "pod", "uid", "namespace", "node", "cluster", "provider_id"},
+		[]string{"container", "pod", "uid", "namespace", "node", "provider_id"},
 		AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels["container"] != "POD" && labels["container"] != "" && labels["node"] != ""
+		},
 	)
 }
 
@@ -484,14 +532,17 @@ func NewRAMBytesAllocatedMetricCollector() *MetricCollector {
 //			<some_custom_filter>
 //		}[1h]
 //	)
-//) by (container, pod, namespace, node, %s)
+//) by (container, pod, namespace, node, cluster_id)
 
 func NewRAMRequestsMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		RAMRequestsID,
 		KubePodContainerResourceRequests,
-		[]string{"container", "pod", "uid", "namespace", "node", "cluster"},
+		[]string{"container", "pod", "uid", "namespace", "node"},
 		AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels["resource"] == "memory" && labels["unit"] == "byte" && labels["container"] != "POD" && labels["container"] != "" && labels["node"] != ""
+		},
 	)
 }
 
@@ -509,8 +560,11 @@ func NewRAMUsageAverageMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		RAMUsageAverageID,
 		ContainerMemoryWorkingSetBytes,
-		[]string{"container", "uid", "pod", "namespace", "instance", "node", "cluster"},
+		[]string{"container", "uid", "pod", "namespace", "instance", "node"},
 		AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels["container"] != "POD" && labels["container"] != ""
+		},
 	)
 }
 
@@ -529,8 +583,11 @@ func NewRAMUsageMaxMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		RAMUsageMaxID,
 		ContainerMemoryWorkingSetBytes,
-		[]string{"container", "uid", "pod", "namespace", "instance", "node", "cluster"},
+		[]string{"container_name", "container", "uid", "pod", "namespace", "instance", "node"},
 		MaxOverTime,
+		func(labels map[string]string) bool {
+			return labels["container"] != "" && labels["container_name"] != "POD" && labels["container"] != "POD" && labels["node"] != ""
+		},
 	)
 }
 
@@ -549,8 +606,11 @@ func NewCPUCoresAllocatedMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		CPUCoresAllocatedID,
 		ContainerCPUAllocation,
-		[]string{"container", "uid", "pod", "namespace", "node", "cluster"},
+		[]string{"container", "uid", "pod", "namespace", "node"},
 		AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels["container"] != "POD" && labels["container"] != "" && labels["node"] != ""
+		},
 	)
 }
 
@@ -571,8 +631,11 @@ func NewCPURequestsMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		CPURequestsID,
 		KubePodContainerResourceRequests,
-		[]string{"container", "uid", "pod", "namespace", "node", "cluster"},
+		[]string{"container", "uid", "pod", "namespace", "node"},
 		AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels["resource"] == "cpu" && labels["unit"] == "core" && labels["container"] != "POD" && labels["container"] != "" && labels["node"] != ""
+		},
 	)
 }
 
@@ -591,8 +654,11 @@ func NewCPUUsageAverageMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		CPUUsageAverageID,
 		ContainerCPUUsageSecondsTotal,
-		[]string{"container", "uid", "pod", "namespace", "node", "instance", "cluster"},
+		[]string{"container", "uid", "pod", "namespace", "node", "instance"},
 		Increase,
+		func(labels map[string]string) bool {
+			return labels["container"] != "" && labels["container_name"] != "POD" && labels["container"] != "POD"
+		},
 	)
 }
 
@@ -601,8 +667,9 @@ func NewCPUUsageMaxMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		CPUUsageMaxID,
 		ContainerCPUUsageSecondsTotal,
-		[]string{"container", "uid", "pod", "namespace", "node", "instance", "cluster"},
+		[]string{"container", "uid", "pod", "namespace", "node", "instance"},
 		MaxOverTime,
+		nil,
 	)
 }
 
@@ -622,8 +689,11 @@ func NewGPUsRequestedMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		GPUsRequestedID,
 		KubePodContainerResourceRequests,
-		[]string{"container", "uid", "pod", "namespace", "node", "cluster"},
+		[]string{"container", "uid", "pod", "namespace", "node"},
 		AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels["resource"] == "nvidia_com_gpu" && labels["container"] != "POD" && labels["container"] != "" && labels["node"] != ""
+		},
 	)
 }
 
@@ -639,8 +709,11 @@ func NewGPUsUsageAverageMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		GPUsUsageAverageID,
 		DCGMFIPROFGRENGINEACTIVE,
-		[]string{"container", "uid", "pod", "namespace", "cluster"},
+		[]string{"container", "uid", "pod", "namespace"},
 		AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels["container"] != ""
+		},
 	)
 }
 
@@ -656,8 +729,11 @@ func NewGPUsUsageMaxMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		GPUsUsageMaxID,
 		DCGMFIPROFGRENGINEACTIVE,
-		[]string{"container", "uid", "pod", "namespace", "cluster"},
+		[]string{"container", "uid", "pod", "namespace"},
 		MaxOverTime,
+		func(labels map[string]string) bool {
+			return labels["container"] != ""
+		},
 	)
 }
 
@@ -676,8 +752,11 @@ func NewGPUsAllocatedMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		GPUsAllocatedID,
 		ContainerGPUAllocation,
-		[]string{"container", "uid", "pod", "namespace", "node", "cluster"},
+		[]string{"container", "uid", "pod", "namespace", "node"},
 		AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels["container"] != "" && labels["container"] != "POD" && labels["node"] != ""
+		},
 	)
 }
 
@@ -698,8 +777,11 @@ func NewIsGPUSharedMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		IsGPUSharedID,
 		KubePodContainerResourceRequests,
-		[]string{"container", "uid", "pod", "namespace", "node", "cluster"},
+		[]string{"container", "uid", "pod", "namespace", "node"},
 		AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels["container"] != "" && labels["node"] != "" && labels["pod"] != "" && labels["unit"] == "integer"
+		},
 	)
 }
 
@@ -716,8 +798,11 @@ func NewGPUInfoMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		GPUInfoID,
 		DCGMFIDEVDECUTIL,
-		[]string{"container", "uid", "pod", "namespace", "device", "modelName", "uuid", "cluster"},
+		[]string{"container", "uid", "pod", "namespace", "device", "modelName", "uuid"},
 		AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels["container"] != ""
+		},
 	)
 }
 
@@ -733,8 +818,9 @@ func NewNodeCPUPricePerHourMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NodeCPUPricePerHourID,
 		NodeCPUHourlyCost,
-		[]string{"node", "cluster", "instance_type", "provider_id"},
+		[]string{"node", "instance_type", "provider_id"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -750,8 +836,9 @@ func NewNodeRAMPricePerGiBHourMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NodeRAMPricePerGiBHourID,
 		NodeRAMHourlyCost,
-		[]string{"node", "cluster", "instance_type", "provider_id"},
+		[]string{"node", "instance_type", "provider_id"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -767,8 +854,9 @@ func NewNodeGPUPricePerHourMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NodeGPUPricePerHourID,
 		NodeGPUHourlyCost,
-		[]string{"node", "cluster", "instance_type", "provider_id"},
+		[]string{"node", "instance_type", "provider_id"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -782,8 +870,9 @@ func NewNodeIsSpotMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NodeIsSpotID,
 		KubecostNodeIsSpot,
-		[]string{"node", "cluster"}, // Todo are these the correct labels
+		[]string{"node"}, // Todo are these the correct labels
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -799,8 +888,9 @@ func NewPodPVCAllocationMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		PodPVCAllocationID,
 		PodPVCAllocation,
-		[]string{"persistentvolume", "persistentvolumeclaim", "pod", "namespace", "cluster"},
+		[]string{"persistentvolume", "persistentvolumeclaim", "pod", "namespace"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -816,8 +906,9 @@ func NewPVCBytesRequestedMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		PVCBytesRequestedID,
 		KubePersistentVolumeClaimResourceRequestsStorageBytes,
-		[]string{"persistentvolumeclaim", "namespace", "cluster"},
+		[]string{"persistentvolumeclaim", "namespace"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -833,8 +924,9 @@ func NewPVBytesMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		PVBytesID,
 		KubePersistentVolumeCapacityBytes,
-		[]string{"persistentvolume", "cluster"},
+		[]string{"persistentvolume"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -850,8 +942,9 @@ func NewPVCostPerGiBHourMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		PVCostPerGiBHourID,
 		PVHourlyCost,
-		[]string{"volumename", "cluster"},
+		[]string{"volumename"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -867,8 +960,9 @@ func NewPVInfoMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		PVInfoID,
 		KubecostPVInfo,
-		[]string{"cluster", "storageclass", "persistentvolume", "provider_id"},
+		[]string{"storageclass", "persistentvolume", "provider_id"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -887,8 +981,11 @@ func NewNetZoneGiBMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NetZoneGiBID,
 		KubecostPodNetworkEgressBytesTotal,
-		[]string{"pod", "namespace", "cluster"},
+		[]string{"pod_name", "namespace"},
 		Increase,
+		func(labels map[string]string) bool {
+			return labels["internet"] == "false" && labels["same_zone"] == "false" && labels["same_region"] == "true"
+		},
 	)
 }
 
@@ -906,6 +1003,7 @@ func NewNetZonePricePerGiBMetricCollector() *MetricCollector {
 		KubecostNetworkZoneEgressCost,
 		[]string{"cluster"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -924,8 +1022,11 @@ func NewNetRegionGiBMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NetRegionGiBID,
 		KubecostPodNetworkEgressBytesTotal,
-		[]string{"pod", "namespace", "cluster"},
+		[]string{"pod_name", "namespace"},
 		Increase,
+		func(labels map[string]string) bool {
+			return labels["internet"] == "false" && labels["same_zone"] == "false" && labels["same_region"] == "false"
+		},
 	)
 }
 
@@ -943,6 +1044,7 @@ func NewNetRegionPricePerGiBMetricCollector() *MetricCollector {
 		KubecostNetworkRegionEgressCost,
 		[]string{"cluster"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -959,8 +1061,11 @@ func NewNetInternetGiBMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NetInternetGiBID,
 		KubecostPodNetworkEgressBytesTotal,
-		[]string{"pod", "namespace", "cluster"},
+		[]string{"pod_name", "namespace"},
 		Increase,
+		func(labels map[string]string) bool {
+			return labels["internet"] == "true"
+		},
 	)
 }
 
@@ -978,6 +1083,7 @@ func NewNetInternetPricePerGiBMetricCollector() *MetricCollector {
 		KubecostNetworkInternetEgressCost,
 		[]string{"cluster"},
 		AverageOverTime,
+		nil,
 	)
 }
 
@@ -994,8 +1100,11 @@ func NewNetReceiveBytesMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NetReceiveBytesID,
 		ContainerNetworkReceiveBytesTotal,
-		[]string{"pod", "namespace", "cluster"},
+		[]string{"pod_name", "pod", "namespace"},
 		Increase,
+		func(labels map[string]string) bool {
+			return labels["pod"] != ""
+		},
 	)
 }
 
@@ -1012,8 +1121,11 @@ func NewNetTransferBytesMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		NetTransferBytesID,
 		ContainerNetworkTransmitBytesTotal,
-		[]string{"pod", "namespace", "cluster"},
+		[]string{"pod_name", "pod", "namespace"},
 		Increase,
+		func(labels map[string]string) bool {
+			return labels["pod"] != ""
+		},
 	)
 }
 
@@ -1029,6 +1141,7 @@ func NewNamespaceLabelsMetricCollector() *MetricCollector {
 		KubeNamespaceLabels,
 		[]string{},
 		Info,
+		nil,
 	)
 }
 
@@ -1044,6 +1157,7 @@ func NewNamespaceAnnotationsMetricCollector() *MetricCollector {
 		KubeNamespaceAnnotations,
 		[]string{},
 		Info,
+		nil,
 	)
 }
 
@@ -1059,6 +1173,7 @@ func NewPodLabelsMetricCollector() *MetricCollector {
 		KubePodLabels,
 		[]string{},
 		Info,
+		nil,
 	)
 }
 
@@ -1074,6 +1189,7 @@ func NewPodAnnotationsMetricCollector() *MetricCollector {
 		KubePodAnnotations,
 		[]string{},
 		Info,
+		nil,
 	)
 }
 
@@ -1089,6 +1205,7 @@ func NewServiceLabelsMetricCollector() *MetricCollector {
 		ServiceSelectorLabels,
 		[]string{},
 		Info,
+		nil,
 	)
 }
 
@@ -1104,6 +1221,7 @@ func NewDeploymentLabelsMetricCollector() *MetricCollector {
 		DeploymentMatchLabels,
 		[]string{},
 		Info,
+		nil,
 	)
 }
 
@@ -1119,6 +1237,7 @@ func NewStatefulSetLabelsMetricCollector() *MetricCollector {
 		StatefulSetMatchLabels,
 		[]string{},
 		Info,
+		nil,
 	)
 }
 
@@ -1135,8 +1254,11 @@ func NewDaemonSetLabelsMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		DaemonSetLabelsID,
 		KubePodOwner,
-		[]string{"pod", "owner_name", "namespace", "cluster_id"},
+		[]string{"pod", "owner_name", "namespace"},
 		Info,
+		func(labels map[string]string) bool {
+			return labels["owner_kind"] == "DaemonSet"
+		},
 	)
 }
 
@@ -1153,8 +1275,11 @@ func NewJobLabelsMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		JobLabelsID,
 		KubePodOwner,
-		[]string{"pod", "owner_name", "namespace", "cluster_id"},
+		[]string{"pod", "owner_name", "namespace"},
 		Info,
+		func(labels map[string]string) bool {
+			return labels["owner_kind"] == "Job"
+		},
 	)
 }
 
@@ -1171,8 +1296,11 @@ func NewPodsWithReplicaSetOwnerMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		PodsWithReplicaSetOwnerID,
 		KubePodOwner,
-		[]string{"pod", "owner_name", "namespace", "cluster_id"},
+		[]string{"pod", "owner_name", "namespace"},
 		Info,
+		func(labels map[string]string) bool {
+			return labels["owner_kind"] == "ReplicaSet"
+		},
 	)
 }
 
@@ -1190,8 +1318,11 @@ func NewReplicaSetsWithoutOwnersMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		ReplicaSetsWithoutOwnersID,
 		KubeReplicasetOwner,
-		[]string{"replicaset", "namespace", "cluster_id"},
+		[]string{"replicaset", "namespace"},
 		Info,
+		func(labels map[string]string) bool {
+			return labels["owner_kind"] == "<none>" && labels["owner_name"] == "<none>"
+		},
 	)
 }
 
@@ -1208,7 +1339,10 @@ func NewReplicaSetsWithRolloutMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		ReplicaSetsWithRolloutID,
 		KubeReplicasetOwner,
-		[]string{"replicaset", "namespace", "owner_kind", "owner_name", "cluster_id"},
+		[]string{"replicaset", "namespace", "owner_kind", "owner_name"},
 		Info,
+		func(labels map[string]string) bool {
+			return labels["owner_kind"] == "Rollout"
+		},
 	)
 }

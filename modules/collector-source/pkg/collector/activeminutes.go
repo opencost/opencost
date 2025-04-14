@@ -22,23 +22,27 @@ func (m *ActiveMinutesAggregator) Name() string {
 	return m.name
 }
 
+func (m *ActiveMinutesAggregator) AdditionInfo() map[string]string {
+	return nil
+}
+
 func (m *ActiveMinutesAggregator) LabelValues() []string {
 	return m.labelValues
 }
 
-func (m *ActiveMinutesAggregator) Update(value float64) {
-	now := time.Now().UTC()
-	if m.start == nil {
-		m.start = &now
+func (m *ActiveMinutesAggregator) Update(value float64, timestamp *time.Time, additionalInfo map[string]string) {
+	if timestamp == nil {
+		return
 	}
-
-	m.end = &now
+	if m.start == nil {
+		m.start = timestamp
+	}
+	m.end = timestamp
 }
 
-func (m *ActiveMinutesAggregator) Value() float64 {
-	if m.start == nil || m.end == nil {
-		return 0.0
+func (m *ActiveMinutesAggregator) Value() []MetricValue {
+	return []MetricValue{
+		{Value: 1, Timestamp: m.start},
+		{Value: 1, Timestamp: m.end},
 	}
-
-	return m.end.Sub(*m.start).Minutes()
 }

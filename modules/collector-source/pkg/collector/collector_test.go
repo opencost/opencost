@@ -29,8 +29,8 @@ func TestBasicCollectorFunctionality(t *testing.T) {
 	collector := NewOpenCostMetricCollector()
 
 	for i := 1; i <= 10; i++ {
-		collector.Update(ContainerMemoryWorkingSetBytes, labelsA, float64(i), nil)
-		collector.Update(ContainerMemoryWorkingSetBytes, labelsB, float64(i), nil)
+		collector.Update(ContainerMemoryWorkingSetBytes, labelsA, float64(i), nil, nil)
+		collector.Update(ContainerMemoryWorkingSetBytes, labelsB, float64(i), nil, nil)
 	}
 
 	results, err := collector.Query(RAMUsageAverageID)
