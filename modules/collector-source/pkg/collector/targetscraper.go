@@ -9,6 +9,21 @@ import (
 type TargetScraper struct {
 	targetProvider target.TargetProvider
 	collector      MetricsCollector
+	metrics        map[string]struct{} // filter for which metrics will be processed
+	includeMetrics bool                // toggle to make metrics an include or exclude list
+}
+
+func NewTargetScrapper(provider target.TargetProvider, collector MetricsCollector, metrics []string, includeMetrics bool) *TargetScraper {
+	metricSet := make(map[string]struct{})
+	for _, metric := range metrics {
+		metricSet[metric] = struct{}{}
+	}
+	return &TargetScraper{
+		targetProvider: provider,
+		collector:      collector,
+		metrics:        metricSet,
+		includeMetrics: includeMetrics,
+	}
 }
 
 func (s *TargetScraper) Scrape() {
@@ -26,7 +41,36 @@ func (s *TargetScraper) Scrape() {
 		}
 
 		for _, result := range results {
+			// filter metrics to be processed by name
+			if _, ok := s.metrics[result.Name]; ok != s.includeMetrics {
+				continue
+			}
 			s.collector.Update(result.Name, result.Labels, result.Value, result.Timestamp, nil)
 		}
 	}
+}
+
+func NewOpencostTargetScraper(provider target.TargetProvider, collector MetricsCollector) *TargetScraper {
+	return NewTargetScrapper(
+		provider,
+		collector,
+		[]string{
+			KubecostClusterManagementCost,
+			KubecostNetworkZoneEgressCost,
+			KubecostNetworkRegionEgressCost,
+			KubecostNetworkInternetEgressCost,
+			PVHourlyCost,
+			KubecostLoadBalancerCost,
+			NodeTotalHourlyCost,
+			NodeCPUHourlyCost,
+			NodeRAMHourlyCost,
+			NodeGPUHourlyCost,
+			NodeGPUCount,
+			KubecostNodeIsSpot,
+			ContainerCPUAllocation,
+			ContainerMemoryAllocationBytes,
+			ContainerGPUAllocation,
+			PodPVCAllocation,
+		},
+		true)
 }
