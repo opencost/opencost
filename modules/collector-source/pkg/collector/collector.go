@@ -9,54 +9,73 @@ import (
 
 // Metric names
 const (
-	PVHourlyCost                                          = "pv_hourly_cost"
-	KubeletVolumeStatsUsedBytes                           = "kubelet_volume_stats_used_bytes"
-	KubePersistenVolumeClaimInfo                          = "kube_persistentvolumeclaim_info"
-	KubePersistentVolumeCapacityBytes                     = "kube_persistentvolume_capacity_bytes"
-	ContainerFSLimitBytes                                 = "container_fs_limit_bytes"
-	ContainerFSUsageBytes                                 = "container_fs_usage_bytes"
-	NodeTotalHourlyCost                                   = "node_total_hourly_cost"
+
+	// Network Metrics
+	KubecostPodNetworkEgressBytesTotal = "kubecost_pod_network_egress_bytes_total"
+
+	// Kubernetes API Metrics
 	KubeNodeStatusCapacityCPUCores                        = "kube_node_status_capacity_cpu_cores"
 	KubeNodeStatusCapacityMemoryBytes                     = "kube_node_status_capacity_memory_bytes"
 	KubeNodeStatusAllocatableCPUCores                     = "kube_node_status_allocatable_cpu_cores"
 	KubeNodeStatusAllocatableMemoryBytes                  = "kube_node_status_allocatable_memory_bytes"
-	NodeGPUCount                                          = "node_gpu_count"
 	KubeNodeLabels                                        = "kube_node_labels"
-	NodeCPUSecondsTotal                                   = "node_cpu_seconds_total"
-	KubecostLoadBalancerCost                              = "kubecost_load_balancer_cost"
-	KubecostClusterManagementCost                         = "kubecost_cluster_management_cost"
-	KubePodContainerStatusRunning                         = "kube_pod_container_status_running"
-	ContainerMemoryAllocationBytes                        = "container_memory_allocation_bytes"
-	KubePodContainerResourceRequests                      = "kube_pod_container_resource_requests"
-	ContainerMemoryWorkingSetBytes                        = "container_memory_working_set_bytes"
-	ContainerCPUAllocation                                = "container_cpu_allocation"
-	ContainerCPUUsageSecondsTotal                         = "container_cpu_usage_seconds_total"
-	KubecostContainerCPUUsageIrate                        = "kubecost_container_cpu_usage_irate"
-	DCGMFIPROFGRENGINEACTIVE                              = "DCGM_FI_PROF_GR_ENGINE_ACTIVE"
-	ContainerGPUAllocation                                = "container_gpu_allocation"
-	DCGMFIDEVDECUTIL                                      = "DCGM_FI_DEV_DEC_UTIL"
-	NodeCPUHourlyCost                                     = "node_cpu_hourly_cost"
-	NodeRAMHourlyCost                                     = "node_ram_hourly_cost"
-	NodeGPUHourlyCost                                     = "node_gpu_hourly_cost"
-	KubecostNodeIsSpot                                    = "kubecost_node_is_spot"
-	PodPVCAllocation                                      = "pod_pvc_allocation"
-	KubePersistentVolumeClaimResourceRequestsStorageBytes = "kube_persistentvolumeclaim_resource_requests_storage_bytes"
-	KubecostPVInfo                                        = "kubecost_pv_info"
-	KubecostPodNetworkEgressBytesTotal                    = "kubecost_pod_network_egress_bytes_total"
-	KubecostNetworkZoneEgressCost                         = "kubecost_network_zone_egress_cost"
-	KubecostNetworkRegionEgressCost                       = "kubecost_network_region_egress_cost"
-	KubecostNetworkInternetEgressCost                     = "kubecost_network_internet_egress_cost"
-	ContainerNetworkReceiveBytesTotal                     = "container_network_receive_bytes_total"
-	ContainerNetworkTransmitBytesTotal                    = "container_network_transmit_bytes_total"
-	KubeNamespaceLabels                                   = "kube_namespace_labels"
-	KubeNamespaceAnnotations                              = "kube_namespace_annotations"
 	KubePodLabels                                         = "kube_pod_labels"
 	KubePodAnnotations                                    = "kube_pod_annotations"
-	ServiceSelectorLabels                                 = "service_selector_labels"
-	DeploymentMatchLabels                                 = "deployment_match_labels"
-	StatefulSetMatchLabels                                = "statefulSet_match_labels"
 	KubePodOwner                                          = "kube_pod_owner"
-	KubeReplicasetOwner                                   = "kube_replicaset_owner"
+	KubePodContainerStatusRunning                         = "kube_pod_container_status_running"
+	KubePodContainerResourceRequests                      = "kube_pod_container_resource_requests"
+	KubePersistenVolumeClaimInfo                          = "kube_persistentvolumeclaim_info"
+	KubePersistentVolumeClaimResourceRequestsStorageBytes = "kube_persistentvolumeclaim_resource_requests_storage_bytes"
+	KubecostPVInfo                                        = "kubecost_pv_info"
+	KubePersistentVolumeCapacityBytes                     = "kube_persistentvolume_capacity_bytes"
+	DeploymentMatchLabels                                 = "deployment_match_labels"
+	KubeNamespaceLabels                                   = "kube_namespace_labels"
+	KubeNamespaceAnnotations                              = "kube_namespace_annotations"
+	ServiceSelectorLabels                                 = "service_selector_labels"
+	StatefulSetMatchLabels                                = "statefulSet_match_labels"
+
+	KubecostClusterManagementCost     = "kubecost_cluster_management_cost"
+	KubecostNetworkZoneEgressCost     = "kubecost_network_zone_egress_cost"
+	KubecostNetworkRegionEgressCost   = "kubecost_network_region_egress_cost"
+	KubecostNetworkInternetEgressCost = "kubecost_network_internet_egress_cost"
+
+	// Kubecost Metrics
+	PVHourlyCost             = "pv_hourly_cost"
+	NodeTotalHourlyCost      = "node_total_hourly_cost"
+	NodeGPUCount             = "node_gpu_count"
+	KubecostLoadBalancerCost = "kubecost_load_balancer_cost"
+
+	ContainerMemoryAllocationBytes = "container_memory_allocation_bytes"
+	ContainerCPUAllocation         = "container_cpu_allocation"
+	NodeCPUHourlyCost              = "node_cpu_hourly_cost"
+	NodeRAMHourlyCost              = "node_ram_hourly_cost"
+	NodeGPUHourlyCost              = "node_gpu_hourly_cost"
+	KubecostNodeIsSpot             = "kubecost_node_is_spot"
+	PodPVCAllocation               = "pod_pvc_allocation"
+
+	// CAdvisor Metrics
+
+	// DCGM metrics
+	DCGMFIPROFGRENGINEACTIVE = "DCGM_FI_PROF_GR_ENGINE_ACTIVE"
+	DCGMFIDEVDECUTIL         = "DCGM_FI_DEV_DEC_UTIL"
+
+	KubeletVolumeStatsUsedBytes = "kubelet_volume_stats_used_bytes"
+
+	ContainerFSLimitBytes = "container_fs_limit_bytes"
+	ContainerFSUsageBytes = "container_fs_usage_bytes"
+
+	NodeCPUSecondsTotal = "node_cpu_seconds_total"
+
+	ContainerMemoryWorkingSetBytes = "container_memory_working_set_bytes"
+
+	ContainerCPUUsageSecondsTotal = "container_cpu_usage_seconds_total"
+
+	ContainerGPUAllocation = "container_gpu_allocation"
+
+	ContainerNetworkReceiveBytesTotal  = "container_network_receive_bytes_total"
+	ContainerNetworkTransmitBytesTotal = "container_network_transmit_bytes_total"
+
+	KubeReplicasetOwner = "kube_replicaset_owner"
 )
 
 // MetricCollectorID is a unique identifier for a specific metric collector instance. We

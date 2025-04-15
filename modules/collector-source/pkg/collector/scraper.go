@@ -8,6 +8,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
+	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
@@ -16,8 +17,9 @@ import (
 )
 
 type kubernetesScraper struct {
-	clusterCache clustercache.ClusterCache
-	collector    MetricsCollector
+	clusterCache  clustercache.ClusterCache
+	collector     MetricsCollector
+	CloudProvider models.Provider
 }
 
 func (ks *kubernetesScraper) Scrape() {
@@ -39,6 +41,25 @@ func (ks *kubernetesScraper) Scrape() {
 	ks.scrapePVs(pvs, timestamp)
 	ks.scrapeServices(services, timestamp)
 	ks.scrapeStatefulSets(statefulSets, timestamp)
+}
+
+func (ks *kubernetesScraper) scrapePricing(timestamp time.Time) {
+
+	provisioner, clusterManagementCost, err := ks.CloudProvider.ClusterManagementPricing()
+	if err != nil {
+		log.Errorf("Error getting cluster management cost %s", err.Error())
+	}
+	ks.collector.Update(KubecostClusterManagementCost, map[string]string{"provisioner_name": provisioner}, clusterManagementCost, &timestamp, nil)
+
+	// Record network pricing at global scope
+	networkCosts, err := ks.CloudProvider.NetworkPricing()
+	if err != nil {
+		log.Debugf("Failed to retrieve network costs: %s", err.Error())
+	} else {
+		ks.collector.Update(KubecostNetworkZoneEgressCost, nil, networkCosts.ZoneNetworkEgressCost, &timestamp, nil)
+		ks.collector.Update(KubecostNetworkRegionEgressCost, nil, networkCosts.RegionNetworkEgressCost, &timestamp, nil)
+		ks.collector.Update(KubecostNetworkInternetEgressCost, nil, networkCosts.InternetNetworkEgressCost, &timestamp, nil)
+	}
 }
 
 func (ks *kubernetesScraper) scrapeNodes(nodes []*clustercache.Node, timestamp time.Time) {
