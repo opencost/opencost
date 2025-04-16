@@ -5,6 +5,8 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/opencost/opencost/modules/collector-source/pkg/aggregator"
 )
 
 // Metric names
@@ -165,7 +167,7 @@ type MetricsCollector interface {
 	Unregister(collectorID MetricCollectorID) bool
 
 	// Query accepts a `MetricCollectorID` and returns a slice of `MetricResult` instances for that collector.
-	Query(collectorID MetricCollectorID) ([]*MetricResult, error)
+	Query(collectorID MetricCollectorID) ([]*aggregator.MetricResult, error)
 
 	// Update accepts the name of a metric, the label set and values to update the metric, the updated value, and a timestamp.
 	// This method does not accept a `MetricCollectorID` because it provides updates across many potential metric collector instances
@@ -218,7 +220,7 @@ func (immc *InMemoryMetricsCollector) Unregister(collectorID MetricCollectorID) 
 	return true
 }
 
-func (immc *InMemoryMetricsCollector) Query(collectorID MetricCollectorID) ([]*MetricResult, error) {
+func (immc *InMemoryMetricsCollector) Query(collectorID MetricCollectorID) ([]*aggregator.MetricResult, error) {
 	immc.lock.Lock()
 	defer immc.lock.Unlock()
 

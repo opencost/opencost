@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/opencost/opencost/modules/collector-source/pkg/aggregator"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metrics/target"
 	"golang.org/x/exp/maps"
 )
@@ -21,7 +22,7 @@ func (u *UpdateRecorderCollector) Unregister(collectorID MetricCollectorID) bool
 	panic("this mock does not support this action")
 }
 
-func (u *UpdateRecorderCollector) Query(collectorID MetricCollectorID) ([]*MetricResult, error) {
+func (u *UpdateRecorderCollector) Query(collectorID MetricCollectorID) ([]*aggregator.MetricResult, error) {
 	panic("this mock does not support this action")
 }
 

@@ -1,4 +1,4 @@
-package collector
+package aggregator
 
 import (
 	"time"

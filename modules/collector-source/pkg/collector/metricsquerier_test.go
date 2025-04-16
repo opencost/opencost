@@ -31,8 +31,15 @@ func GetMockCollectorProvider() CollectorProvider {
 		"provider_id": "node1",
 	}
 
+	cluster1Info := map[string]string{
+		"provisioner_name": "GKE",
+	}
+
 	collector.Update(NodeTotalHourlyCost, node1Info, 0, &start1, nil)
 	collector.Update(NodeTotalHourlyCost, node1Info, 0, &end1, nil)
+
+	collector.Update(KubecostClusterManagementCost, cluster1Info, 0.1, &start1, nil)
+	collector.Update(KubecostClusterManagementCost, cluster1Info, 0.1, &end1, nil)
 
 	return &MockCollectorProvider{
 		metricsCollector: collector,
@@ -71,4 +78,38 @@ func TestCollectorMetricsQuerier_QueryNodeActiveMinutes(t *testing.T) {
 	if !reflect.DeepEqual(resActiveMins, expected) {
 		t.Errorf("QueryNodeActiveMinutes() = %v, want %v", resActiveMins, expected)
 	}
+}
+
+func TestCollectorMetricsQuerier_QueryClusterManagementDuration(t *testing.T) {
+	start1, _ := time.Parse(time.RFC3339, start1Str)
+	end1, _ := time.Parse(time.RFC3339, end1Str)
+
+	c := CollectorMetricsQuerier{
+		collectorProvider: GetMockCollectorProvider(),
+	}
+	resChCMDur := c.QueryClusterManagementDuration(start1, end1)
+	resCMDur, err := resChCMDur.Await()
+	if err != nil {
+		t.Errorf("unexpected error: %v", err.Error())
+	}
+	expected := []*source.ClusterManagementDurationResult{
+		{
+			Cluster:     "",
+			Provisioner: "GKE",
+			Data: []*util.Vector{
+				{
+					Timestamp: float64(start1.Unix()),
+					Value:     1,
+				},
+				{
+					Timestamp: float64(end1.Unix()),
+					Value:     1,
+				},
+			},
+		},
+	}
+	if !reflect.DeepEqual(resCMDur, expected) {
+		t.Errorf("QueryNodeActiveMinutes() = %v, want %v", resCMDur, expected)
+	}
+
 }
