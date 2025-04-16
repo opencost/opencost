@@ -1,5 +1,9 @@
 package collector
 
+import (
+	"time"
+)
+
 type IncreaseAggregator struct {
 	name        string
 	labelValues []string
@@ -19,11 +23,15 @@ func (m *IncreaseAggregator) Name() string {
 	return m.name
 }
 
+func (m *IncreaseAggregator) AdditionInfo() map[string]string {
+	return nil
+}
+
 func (m *IncreaseAggregator) LabelValues() []string {
 	return m.labelValues
 }
 
-func (m *IncreaseAggregator) Update(value float64) {
+func (m *IncreaseAggregator) Update(value float64, timestamp *time.Time, additionalInfo map[string]string) {
 	if !m.initiated {
 		m.initiated = true
 		m.initial = value
@@ -31,6 +39,8 @@ func (m *IncreaseAggregator) Update(value float64) {
 	m.current = value
 }
 
-func (m *IncreaseAggregator) Value() float64 {
-	return m.current - m.initial
+func (m *IncreaseAggregator) Value() []MetricValue {
+	return []MetricValue{
+		{Value: m.current - m.initial},
+	}
 }

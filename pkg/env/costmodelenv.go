@@ -9,7 +9,8 @@ import (
 )
 
 const (
-	APIPortEnvVar = "API_PORT"
+	APIPortEnvVar          = "API_PORT"
+	NetworkCostsPortEnvVar = "NETWORK_COSTS_PORT"
 
 	AWSAccessKeyIDEnvVar     = "AWS_ACCESS_KEY_ID"
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
@@ -23,6 +24,7 @@ const (
 	AzureBillingAccountEnvVar            = "AZURE_BILLING_ACCOUNT"
 	AzureDownloadBillingDataToDiskEnvVar = "AZURE_DOWNLOAD_BILLING_DATA_TO_DISK"
 
+	ReleaseNameEnvVar              = "RELEASE_NAME"
 	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
 	PodNameEnvVar                  = "POD_NAME"
 	ClusterIDEnvVar                = "CLUSTER_ID"
@@ -530,4 +532,12 @@ func GetExportBucketConfigFile() string {
 // Mainly for comparison purposes
 func GetUseCacheV1() bool {
 	return env.GetBool(UseCacheV1, false)
+}
+
+func GetReleaseName() string {
+	return env.Get(ReleaseNameEnvVar, "kubecost")
+}
+
+func GetNetworkCostsPort() int {
+	return env.GetInt(NetworkCostsPortEnvVar, 3001)
 }

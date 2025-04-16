@@ -1,7 +1,11 @@
 package collector
 
 import (
+	"maps"
 	"time"
+
+	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/core/pkg/util"
 )
 
 // MetricValue is a resulting data point value with an optional timestamp.
@@ -18,14 +22,36 @@ type MetricResult struct {
 	Values       []MetricValue
 }
 
+func (mr *MetricResult) ToQueryResult() *source.QueryResult {
+	metrics := map[string]any{}
+	for key, value := range mr.MetricLabels {
+		metrics[key] = value
+	}
+
+	values := make([]*util.Vector, len(mr.Values))
+	for i, value := range mr.Values {
+		timestamp := 0.0
+		if value.Timestamp != nil {
+			timestamp = float64(value.Timestamp.Unix())
+		}
+		values[i] = &util.Vector{
+			Timestamp: timestamp,
+			Value:     value.Value,
+		}
+	}
+
+	return source.NewQueryResult(metrics, values, nil)
+}
+
 // MetricAggregator is an interface that defines the methods for a metric collector aggregation.
 // For example, we have a metric `foo_metric`, and we wish to query and collect the average over time.
 // In this case, the `AverageOverTime` component is the MetricAggregator. It is the component responsible
 // for routing updates to metric values into their proper condensed form.
 type MetricAggregator interface {
 	Name() string
-	Update(value float64)
-	Value() float64
+	AdditionInfo() map[string]string
+	Update(value float64, timestamp *time.Time, additionalInfo map[string]string)
+	Value() []MetricValue
 	LabelValues() []string
 }
 
@@ -41,38 +67,48 @@ type MetricCollector struct {
 	labels            []string
 	aggregatorFactory MetricAggregatorFactory
 	metrics           map[uint64]MetricAggregator // map[hash(labelValues)] = aggregator
+	filter            func(map[string]string) bool
 }
 
 // NewMetricCollector creates a new MetricCollector instance with a unique identifier. The metric name is the specific
 // name of the collected metric that will be used to query the
-func NewMetricCollector(id MetricCollectorID, metricName string, labels []string, aggregatorFactory MetricAggregatorFactory) *MetricCollector {
+func NewMetricCollector(id MetricCollectorID, metricName string, labels []string, aggregatorFactory MetricAggregatorFactory, fn func(map[string]string) bool) *MetricCollector {
 	return &MetricCollector{
 		id:                id,
 		metricName:        metricName,
 		labels:            labels,
 		aggregatorFactory: aggregatorFactory,
 		metrics:           make(map[uint64]MetricAggregator),
+		filter:            fn,
 	}
 }
 
-func (mi *MetricCollector) Update(labelValues []string, value float64, timestamp *time.Time) {
+func (mi *MetricCollector) Update(labels map[string]string, value float64, timestamp *time.Time, additionalInfo map[string]string) {
+	if mi.filter != nil && !mi.filter(labels) {
+		return
+	}
+
+	labelValues := make([]string, len(mi.labels))
+	for i, key := range mi.labels {
+		labelValues[i] = labels[key]
+	}
 	key := hash(labelValues)
 	if mi.metrics[key] == nil {
 		mi.metrics[key] = mi.aggregatorFactory(metricNameFor(mi.metricName, mi.labels, labelValues), labelValues)
 	}
 
-	mi.metrics[key].Update(value)
+	mi.metrics[key].Update(value, timestamp, additionalInfo)
 }
 
 func (mi *MetricCollector) Get() []*MetricResult {
 	results := make([]*MetricResult, 0, len(mi.metrics))
 	for _, metric := range mi.metrics {
+		labels := toMap(mi.labels, metric.LabelValues())
+		maps.Copy(labels, metric.AdditionInfo())
 		mr := &MetricResult{
 			Name:         metric.Name(),
-			MetricLabels: toMap(mi.labels, metric.LabelValues()),
-			Values: []MetricValue{
-				{Value: metric.Value(), Timestamp: nil},
-			},
+			MetricLabels: labels,
+			Values:       metric.Value(),
 		}
 
 		results = append(results, mr)
