@@ -9,7 +9,6 @@ replace (
 
 require (
 	github.com/julienschmidt/httprouter v1.3.0
-	github.com/opencost/opencost v1.113.0
 	github.com/opencost/opencost/core v0.0.0-20241211165149-ee44b80e2fd0
 	github.com/prometheus/client_golang v1.20.5
 	gopkg.in/yaml.v2 v2.4.0

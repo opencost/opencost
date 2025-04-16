@@ -1,7 +1,6 @@
 package costmodel
 
 import (
-	"fmt"
 	"net"
 	"strconv"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
-	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/env"
 )
@@ -57,39 +55,6 @@ type ClusterCostsBreakdown struct {
 	Other  float64 `json:"other"`
 	System float64 `json:"system"`
 	User   float64 `json:"user"`
-}
-
-// NewClusterCostsFromCumulative takes cumulative cost data over a given time range, computes
-// the associated monthly rate data, and returns the Costs.
-func NewClusterCostsFromCumulative(cpu, gpu, ram, storage float64, window, offset time.Duration, dataHours float64) (*ClusterCosts, error) {
-	start, end := timeutil.ParseTimeRange(window, offset)
-
-	// If the number of hours is not given (i.e. is zero) compute one from the window and offset
-	if dataHours == 0 {
-		dataHours = end.Sub(start).Hours()
-	}
-
-	// Do not allow zero-length windows to prevent divide-by-zero issues
-	if dataHours == 0 {
-		return nil, fmt.Errorf("illegal time range: window %s, offset %s", window, offset)
-	}
-
-	cc := &ClusterCosts{
-		Start:             &start,
-		End:               &end,
-		CPUCumulative:     cpu,
-		GPUCumulative:     gpu,
-		RAMCumulative:     ram,
-		StorageCumulative: storage,
-		TotalCumulative:   cpu + gpu + ram + storage,
-		CPUMonthly:        cpu / dataHours * (timeutil.HoursPerMonth),
-		GPUMonthly:        gpu / dataHours * (timeutil.HoursPerMonth),
-		RAMMonthly:        ram / dataHours * (timeutil.HoursPerMonth),
-		StorageMonthly:    storage / dataHours * (timeutil.HoursPerMonth),
-	}
-	cc.TotalMonthly = cc.CPUMonthly + cc.GPUMonthly + cc.RAMMonthly + cc.StorageMonthly
-
-	return cc, nil
 }
 
 type Disk struct {

@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/opencost/opencost/core/pkg/errors"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/model/pb"
 	"github.com/opencost/opencost/core/pkg/opencost"
@@ -18,7 +19,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/stringutil"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/errors"
 )
 
 // IngestorStatus includes diagnostic values for a given Ingestor
