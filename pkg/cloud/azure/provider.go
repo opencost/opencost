@@ -849,7 +849,16 @@ func (az *Azure) DownloadPricingData() error {
 
 	rateCardFilter := fmt.Sprintf("OfferDurableId eq '%s' and Currency eq '%s' and Locale eq 'en-US' and RegionInfo eq '%s'", config.AzureOfferDurableID, config.CurrencyCode, config.AzureBillingRegion)
 
-	log.Infof("Using ratecard query %s", rateCardFilter)
+	// create a preparer (the same way rcClient.Get() does) so that we can log the azureRateCard URL
+	log.Infof("Using azureRateCard query %s", rateCardFilter)
+	rcPreparer, err := rcClient.GetPreparer(context.TODO(), rateCardFilter)
+	if err != nil {
+		// this isn't an error that necessitates a return, as we only need the preparer for an informational log
+		log.Infof("Failed to get azureRateCard URL: %s", err)
+	} else {
+		log.Infof("Using azureRateCard URL %s", rcPreparer.URL.String())
+	}
+
 	// rate-card client is old, it can hang indefinitely in some cases
 	// this happens on the main thread, so it may block the whole app
 	// there is can be a better way to set timeout for the client
@@ -1099,10 +1108,6 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 
 	meta := models.PricingMetadata{}
 
-	if az.Pricing == nil {
-		return nil, meta, fmt.Errorf("Unable to download Azure pricing data")
-	}
-
 	azKey, ok := key.(*azureKey)
 	if !ok {
 		return nil, meta, fmt.Errorf("azure: NodePricing: key is of type %T", key)
@@ -1122,12 +1127,16 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 		featureString = azKey.Features()
 	}
 
-	if n, ok := az.Pricing[featureString]; ok {
-		log.Debugf("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
-		if azKey.isValidGPUNode() {
-			n.Node.GPU = azKey.GetGPUCount()
+	if az.Pricing != nil {
+		if n, ok := az.Pricing[featureString]; ok {
+			log.Debugf("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
+			if azKey.isValidGPUNode() {
+				n.Node.GPU = azKey.GetGPUCount()
+			}
+			return n.Node, meta, nil
+		} else {
+			log.Debugf("Could not find pricing for node %s from key %s", azKey, azKey.Features())
 		}
-		return n.Node, meta, nil
 	}
 
 	cost, err := getRetailPrice(region, instance, config.CurrencyCode, isSpot)
