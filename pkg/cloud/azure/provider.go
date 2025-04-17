@@ -854,7 +854,7 @@ func (az *Azure) DownloadPricingData() error {
 	rcPreparer, err := rcClient.GetPreparer(context.TODO(), rateCardFilter)
 	if err != nil {
 		// this isn't an error that necessitates a return, as we only need the preparer for an informational log
-		log.Warnf("Failed to get azureRateCard URL: %s", err)
+		log.Infof("Failed to get azureRateCard URL: %s", err)
 	} else {
 		log.Infof("Using azureRateCard URL %s", rcPreparer.URL.String())
 	}
