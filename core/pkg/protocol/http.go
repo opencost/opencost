@@ -53,6 +53,25 @@ func (hp HTTPProtocol) InternalServerError(message string) HTTPError {
 	}
 }
 
+func (hp HTTPProtocol) NotImplemented(message string) HTTPError {
+	if message == "" {
+		message = "Not Implemented"
+	}
+	return HTTPError{
+		StatusCode: http.StatusNotImplemented,
+		Body:       message,
+	}
+}
+func (hp HTTPProtocol) Forbidden(message string) HTTPError {
+	if message == "" {
+		message = "Forbidden"
+	}
+	return HTTPError{
+		StatusCode: http.StatusForbidden,
+		Body:       message,
+	}
+}
+
 // NotFound creates a NotFound HTTPError
 func (hp HTTPProtocol) NotFound() HTTPError {
 	return HTTPError{
@@ -89,6 +108,7 @@ func (hp HTTPProtocol) ToResponse(data interface{}, err error) *HTTPResponse {
 // WriteData wraps the data payload in an HTTPResponse and writes the resulting response using the
 // http.ResponseWriter
 func (hp HTTPProtocol) WriteData(w http.ResponseWriter, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
 	status := http.StatusOK
 	resp, err := json.Marshal(&HTTPResponse{
 		Code: status,
@@ -103,11 +123,12 @@ func (hp HTTPProtocol) WriteData(w http.ResponseWriter, data interface{}) {
 	}
 
 	w.WriteHeader(status)
-	w.Write(resp)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // WriteDataWithWarning writes the data payload similiar to WriteData except it provides an additional warning message.
 func (hp HTTPProtocol) WriteDataWithWarning(w http.ResponseWriter, data interface{}, warning string) {
+	w.Header().Set("Content-Type", "application/json")
 	status := http.StatusOK
 	resp, err := json.Marshal(&HTTPResponse{
 		Code:    status,
@@ -123,11 +144,12 @@ func (hp HTTPProtocol) WriteDataWithWarning(w http.ResponseWriter, data interfac
 	}
 
 	w.WriteHeader(status)
-	w.Write(resp)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // WriteDataWithMessage writes the data payload similiar to WriteData except it provides an additional string message.
 func (hp HTTPProtocol) WriteDataWithMessage(w http.ResponseWriter, data interface{}, message string) {
+	w.Header().Set("Content-Type", "application/json")
 	status := http.StatusOK
 	resp, err := json.Marshal(&HTTPResponse{
 		Code:    status,
@@ -143,7 +165,7 @@ func (hp HTTPProtocol) WriteDataWithMessage(w http.ResponseWriter, data interfac
 	}
 
 	w.WriteHeader(status)
-	w.Write(resp)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // WriteProtoWithMessage uses the protojson package to convert proto3 response to json response and
@@ -151,6 +173,7 @@ func (hp HTTPProtocol) WriteDataWithMessage(w http.ResponseWriter, data interfac
 // EmitUnpopulated to true it returns default values in the Json response payload. If error is
 // encountered it sent InternalServerError and the error why the json conversion failed.
 func (hp HTTPProtocol) WriteProtoWithMessage(w http.ResponseWriter, data proto.Message) {
+	w.Header().Set("Content-Type", "application/json")
 	m := protojson.MarshalOptions{
 		EmitUnpopulated: true,
 	}
@@ -164,11 +187,12 @@ func (hp HTTPProtocol) WriteProtoWithMessage(w http.ResponseWriter, data proto.M
 	}
 
 	w.WriteHeader(status)
-	w.Write(resp)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // WriteDataWithMessageAndWarning writes the data payload similiar to WriteData except it provides a warning and additional message string.
 func (hp HTTPProtocol) WriteDataWithMessageAndWarning(w http.ResponseWriter, data interface{}, message string, warning string) {
+	w.Header().Set("Content-Type", "application/json")
 	status := http.StatusOK
 	resp, err := json.Marshal(&HTTPResponse{
 		Code:    status,
@@ -185,11 +209,12 @@ func (hp HTTPProtocol) WriteDataWithMessageAndWarning(w http.ResponseWriter, dat
 	}
 
 	w.WriteHeader(status)
-	w.Write(resp)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // WriteError wraps the HTTPError in a HTTPResponse and writes it via http.ResponseWriter
 func (hp HTTPProtocol) WriteError(w http.ResponseWriter, err HTTPError) {
+	w.Header().Set("Content-Type", "application/json")
 	status := err.StatusCode
 	if status == 0 {
 		status = http.StatusInternalServerError
@@ -200,11 +225,12 @@ func (hp HTTPProtocol) WriteError(w http.ResponseWriter, err HTTPError) {
 		Code:    status,
 		Message: err.Body,
 	})
-	w.Write(resp)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // WriteResponse writes the provided HTTPResponse instance via http.ResponseWriter
 func (hp HTTPProtocol) WriteResponse(w http.ResponseWriter, r *HTTPResponse) {
+	w.Header().Set("Content-Type", "application/json")
 	status := r.Code
 	resp, err := json.Marshal(r)
 	if err != nil {
@@ -216,5 +242,5 @@ func (hp HTTPProtocol) WriteResponse(w http.ResponseWriter, r *HTTPResponse) {
 	}
 
 	w.WriteHeader(status)
-	w.Write(resp)
+	json.NewEncoder(w).Encode(resp)
 }
