@@ -118,8 +118,8 @@ func TestKubePrependQualifierToLabelsDuplicates(t *testing.T) {
 
 	// 8 input labels/values, with one duplicate label
 	kubeLabels := map[string]string{
-		// app$ will be sanitized to app_
-		"app$":                    "gatekeeper",
+		// app- will be sanitized to app_
+		"app-":                    "gatekeeper",
 		"app_":                    "gatekeeper",
 		"chart":                   "gatekeeper",
 		"control-plane":           "audit-controller",
