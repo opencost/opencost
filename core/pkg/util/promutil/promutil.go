@@ -75,16 +75,22 @@ func LabelNamesFrom(labels map[string]string) []string {
 
 // Prepends a qualifier string to the keys provided in the m map and returns the new keys and values.
 func KubePrependQualifierToLabels(m map[string]string, qualifier string) ([]string, []string) {
-	keys := make([]string, 0, len(m))
-	for k := range m {
+	// sanitize the keys in m to prevent duplicate output keys
+	sanitizedM := make(map[string]string)
+	for k, v := range m {
+		sanitizedM[SanitizeLabelName(k)] = v
+	}
+
+	keys := make([]string, 0, len(sanitizedM))
+	for k := range sanitizedM {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
-	values := make([]string, 0, len(m))
+	values := make([]string, 0, len(sanitizedM))
 	for i, k := range keys {
-		keys[i] = qualifier + SanitizeLabelName(k)
-		values = append(values, m[k])
+		keys[i] = qualifier + k
+		values = append(values, sanitizedM[k])
 	}
 
 	return keys, values
