@@ -31,7 +31,7 @@ func (cm *CostModel) ComputeAllocationWithNodeTotals(start, end time.Time, resol
 	nodeMap := make(map[string]*NodeTotals)
 
 	// If the duration is short enough, compute the AllocationSet directly
-	if end.Sub(start) <= cm.MaxPrometheusQueryDuration {
+	if end.Sub(start) <= cm.BatchDuration {
 		as, nodeData, err := cm.computeAllocation(start, end, resolution)
 		appendNodeData(nodeMap, start, end, nodeData)
 
@@ -54,8 +54,8 @@ func (cm *CostModel) ComputeAllocationWithNodeTotals(start, end time.Time, resol
 		// any individual query duration exceed the configured max Prometheus
 		// query duration.
 		duration := end.Sub(e)
-		if duration > cm.MaxPrometheusQueryDuration {
-			duration = cm.MaxPrometheusQueryDuration
+		if duration > cm.BatchDuration {
+			duration = cm.BatchDuration
 		}
 
 		// Set start and end parameters (s, e) for next individual computation.
@@ -237,17 +237,17 @@ func appendNodeData(nodeMap map[string]*NodeTotals, s, e time.Time, nodeData map
 // feature for extending the node details that can be returned with allocation
 // data
 type extendedNodeQueryResults struct {
-	nodeCPUCoreResults  []*source.QueryResult
-	nodeRAMByteResults  []*source.QueryResult
-	nodeGPUCountResults []*source.QueryResult
+	nodeCPUCoreResults  []*source.NodeCPUCoresCapacityResult
+	nodeRAMByteResults  []*source.NodeRAMBytesCapacityResult
+	nodeGPUCountResults []*source.NodeGPUCountResult
 }
 
 // queryExtendedNodeData makes additional prometheus queries for node data to append on
 // the AllocationNodePricing struct.
 func queryExtendedNodeData(grp *source.QueryGroup, ds source.MetricsQuerier, start, end time.Time) (*extendedNodeQueryResults, error) {
-	resChQueryNodeCPUCores := grp.With(ds.QueryNodeCPUCoresCapacity(start, end))
-	resChQueryNodeRAMBytes := grp.With(ds.QueryNodeRAMBytesCapacity(start, end))
-	resChQueryNodeGPUCount := grp.With(ds.QueryNodeGPUCount(start, end))
+	resChQueryNodeCPUCores := source.WithGroup(grp, ds.QueryNodeCPUCoresCapacity(start, end))
+	resChQueryNodeRAMBytes := source.WithGroup(grp, ds.QueryNodeRAMBytesCapacity(start, end))
+	resChQueryNodeGPUCount := source.WithGroup(grp, ds.QueryNodeGPUCount(start, end))
 
 	nodeCPUCoreResults, _ := resChQueryNodeCPUCores.Await()
 	nodeRAMByteResults, _ := resChQueryNodeRAMBytes.Await()
@@ -273,16 +273,16 @@ func applyExtendedNodeData(nodeMap map[nodeKey]*nodePricing, results *extendedNo
 	applyNodeGPUCount(nodeMap, results.nodeGPUCountResults)
 }
 
-func applyNodeCPUCores(nodeMap map[nodeKey]*nodePricing, nodeCPUCoreResults []*source.QueryResult) {
+func applyNodeCPUCores(nodeMap map[nodeKey]*nodePricing, nodeCPUCoreResults []*source.NodeCPUCoresCapacityResult) {
 	for _, res := range nodeCPUCoreResults {
-		cluster, err := res.GetCluster()
-		if err != nil {
+		cluster := res.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		node, err := res.GetNode()
-		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node CPU Cores query result missing field: %s", err)
+		node := res.Node
+		if node == "" {
+			log.Warnf("CostModel.ComputeAllocation: Node CPU Cores query result missing node field")
 			continue
 		}
 
@@ -294,20 +294,20 @@ func applyNodeCPUCores(nodeMap map[nodeKey]*nodePricing, nodeCPUCoreResults []*s
 			}
 		}
 
-		nodeMap[key].CPUCores = res.Values[0].Value
+		nodeMap[key].CPUCores = res.Data[0].Value
 	}
 }
 
-func applyNodeRAMBytes(nodeMap map[nodeKey]*nodePricing, nodeRAMByteResults []*source.QueryResult) {
+func applyNodeRAMBytes(nodeMap map[nodeKey]*nodePricing, nodeRAMByteResults []*source.NodeRAMBytesCapacityResult) {
 	for _, res := range nodeRAMByteResults {
-		cluster, err := res.GetCluster()
-		if err != nil {
+		cluster := res.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		node, err := res.GetNode()
-		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node CPU Cores query result missing field: %s", err)
+		node := res.Node
+		if node == "" {
+			log.Warnf("CostModel.ComputeAllocation: Node CPU Cores query result missing node field")
 			continue
 		}
 
@@ -319,20 +319,20 @@ func applyNodeRAMBytes(nodeMap map[nodeKey]*nodePricing, nodeRAMByteResults []*s
 			}
 		}
 
-		nodeMap[key].RAMGiB = res.Values[0].Value / 1024.0 / 1024.0 / 1024.0
+		nodeMap[key].RAMGiB = res.Data[0].Value / 1024.0 / 1024.0 / 1024.0
 	}
 }
 
-func applyNodeGPUCount(nodeMap map[nodeKey]*nodePricing, nodeGPUCountResults []*source.QueryResult) {
+func applyNodeGPUCount(nodeMap map[nodeKey]*nodePricing, nodeGPUCountResults []*source.NodeGPUCountResult) {
 	for _, res := range nodeGPUCountResults {
-		cluster, err := res.GetCluster()
-		if err != nil {
+		cluster := res.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		node, err := res.GetNode()
-		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node CPU Cores query result missing field: %s", err)
+		node := res.Node
+		if node == "" {
+			log.Warnf("CostModel.ComputeAllocation: Node CPU Cores query result missing node field")
 			continue
 		}
 
@@ -344,7 +344,7 @@ func applyNodeGPUCount(nodeMap map[nodeKey]*nodePricing, nodeGPUCountResults []*
 			}
 		}
 
-		nodeMap[key].GPUCount = res.Values[0].Value
+		nodeMap[key].GPUCount = res.Data[0].Value
 	}
 }
 

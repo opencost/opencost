@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/modules/prometheus-source/pkg/env"
 
