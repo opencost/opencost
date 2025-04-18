@@ -96,6 +96,7 @@ func TestKubeLabelsToPromLabels(t *testing.T) {
 }
 
 func TestKubePrependQualifierToLabelsDuplicates(t *testing.T) {
+	// 7 expected labels/values
 	expectedLabels := []string{
 		"label_app_",
 		"label_chart",
@@ -115,6 +116,7 @@ func TestKubePrependQualifierToLabelsDuplicates(t *testing.T) {
 		"gatekeeper",
 	}
 
+	// 8 input labels/values, with one duplicate label
 	kubeLabels := map[string]string{
 		// app$ will be sanitized to app_
 		"app$":                    "gatekeeper",
