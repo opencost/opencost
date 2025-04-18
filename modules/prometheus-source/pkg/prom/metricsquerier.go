@@ -1371,8 +1371,15 @@ func (pds *PrometheusMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time
 func (pds *PrometheusMetricsQuerier) durationStringFor(start, end time.Time, minsPerResolution int) string {
 	dur := end.Sub(start)
 
-	// if using a version of prometheus where the resolution needs duration offset,
-	// we need to apply that here
+	// If using a version of Prometheus where the resolution needs duration offset,
+	// we need to apply that here.
+	//
+	// E.g. avg(node_total_hourly_cost{}) by (node, provider_id)[60m:5m] with
+	// time=01:00:00 will return, for a node running the entire time, 12
+	// timestamps where the first is 00:05:00 and the last is 01:00:00.
+	// However, OpenCost expects for there to be 13 timestamps where the first
+	// begins at 00:00:00. To achieve this, we must modify our query to 
+	// avg(node_total_hourly_cost{}) by (node, provider_id)[65m:5m]
 	if pds.promConfig.IsOffsetResolution {
 		// increase the query time by the resolution
 		dur = dur + (time.Duration(minsPerResolution) * time.Minute)
