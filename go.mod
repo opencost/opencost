@@ -60,7 +60,7 @@ require (
 )
 
 require (
-	github.com/Masterminds/semver v1.5.0 // indirect
+	github.com/Masterminds/semver/v3 v3.3.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/gofrs/flock v0.8.1 // indirect
