@@ -115,7 +115,7 @@ func (pds *PrometheusMetricsQuerier) QueryPVActiveMinutes(start, end time.Time) 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryPVActiveMinutes")
 	}
@@ -134,7 +134,7 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageCost(start, end time.Time)
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryLocalStorageCost")
 	}
@@ -159,7 +159,7 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageUsedCost(start, end time.T
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryLocalStorageUsedCost")
 	}
@@ -219,7 +219,7 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageBytes(start, end time.Time
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryLocalStorageBytes")
 	}
@@ -238,7 +238,7 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageActiveMinutes(start, end t
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryLocalStorageActiveMinutes")
 	}
@@ -357,7 +357,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeActiveMinutes(start, end time.Time
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryNodeActiveMinutes")
 	}
@@ -375,7 +375,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeCPUModeTotal(start, end time.Time)
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryNodeCPUModeTotal")
 	}
@@ -392,7 +392,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeRAMSystemPercent(start, end time.T
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryNodeRAMSystemPercent")
 	}
@@ -410,7 +410,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeRAMUserPercent(start, end time.Tim
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryNodeRAMUserPercent")
 	}
@@ -443,7 +443,7 @@ func (pds *PrometheusMetricsQuerier) QueryLBActiveMinutes(start, end time.Time) 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryLBActiveMinutes")
 	}
@@ -459,7 +459,7 @@ func (pds *PrometheusMetricsQuerier) QueryClusterManagementDuration(start, end t
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryClusterManagementDuration")
 	}
@@ -1366,6 +1366,19 @@ func (pds *PrometheusMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time
 	newest := time.Unix(int64(resNewest[0].Values[0].Value), 0)
 
 	return oldest, newest, nil
+}
+
+func (pds *PrometheusMetricsQuerier) durationStringFor(start, end time.Time, minsPerResolution int) string {
+	dur := end.Sub(start)
+
+	// if using a version of prometheus where the resolution needs duration offset,
+	// we need to apply that here
+	if pds.promConfig.IsOffsetResolution {
+		// increase the query time by the resolution
+		dur = dur + (time.Duration(minsPerResolution) * time.Minute)
+	}
+
+	return timeutil.DurationString(dur)
 }
 
 func newEmptyResult[T any](decoder source.ResultDecoder[T]) *source.Future[T] {

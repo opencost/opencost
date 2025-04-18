@@ -8,6 +8,7 @@ replace (
 )
 
 require (
+	github.com/Masterminds/semver v1.5.0
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/opencost/opencost/core v0.0.0-20241211165149-ee44b80e2fd0
 	github.com/prometheus/client_golang v1.20.5

@@ -19,6 +19,8 @@ const (
 
 type OpenCostPrometheusConfig struct {
 	ServerEndpoint        string
+	Version               string
+	IsOffsetResolution    bool
 	ClientConfig          *PrometheusClientConfig
 	ScrapeInterval        time.Duration
 	JobName               string
@@ -117,6 +119,8 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 
 	return &OpenCostPrometheusConfig{
 		ServerEndpoint:        serverEndpoint,
+		Version:               "0.0.0",
+		IsOffsetResolution:    false,
 		ClientConfig:          clientConfig,
 		ScrapeInterval:        scrapeInterval,
 		JobName:               jobName,
@@ -188,17 +192,19 @@ func NewOpenCostThanosConfigFromEnv() (*OpenCostThanosConfig, error) {
 
 	return &OpenCostThanosConfig{
 		OpenCostPrometheusConfig: &OpenCostPrometheusConfig{
-			ServerEndpoint:   serverEndpoint,
-			ClientConfig:     clientConfig,
-			ScrapeInterval:   scrapeInterval,
-			JobName:          jobName,
-			Offset:           thanosQueryOffset,
-			QueryOffset:      d,
-			MaxQueryDuration: maxQueryDuration,
-			ClusterID:        "", // thanos is multi-cluster
-			ClusterFilter:    "", // thanos is multi-cluster
-			ClusterLabel:     clusterLabel,
-			DataResolution:   dataResolution,
+			ServerEndpoint:     serverEndpoint,
+			Version:            "0.0.0",
+			IsOffsetResolution: false,
+			ClientConfig:       clientConfig,
+			ScrapeInterval:     scrapeInterval,
+			JobName:            jobName,
+			Offset:             thanosQueryOffset,
+			QueryOffset:        d,
+			MaxQueryDuration:   maxQueryDuration,
+			ClusterID:          "", // thanos is multi-cluster
+			ClusterFilter:      "", // thanos is multi-cluster
+			ClusterLabel:       clusterLabel,
+			DataResolution:     dataResolution,
 		},
 		MaxSourceResulution: env.GetThanosMaxSourceResolution(),
 	}, nil
