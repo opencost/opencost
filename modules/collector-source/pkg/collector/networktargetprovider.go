@@ -24,14 +24,14 @@ func NewNetworkTargetProvider(releaseName string, port int, k8s kubernetes.Inter
 	}
 }
 
-func (n NetworkTargetProvider) GetTargets() []target.ScrapeTarget {
+func (n *NetworkTargetProvider) GetTargets() []target.ScrapeTarget {
 	k8s := n.kubeClientSet
 
 	pods, err := k8s.CoreV1().Pods("").List(context.Background(), metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("app=%s-network-costs", n.releaseName),
 	})
 	if err != nil {
-		log.Errorf("NetworkTargetProvider: failed to retieve nodes from kubernetes client: %s", err.Error())
+		log.Errorf("NetworkTargetProvider: failed to retieve pods from kubernetes client: %s", err.Error())
 		return nil
 	}
 

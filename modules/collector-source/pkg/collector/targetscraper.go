@@ -74,3 +74,14 @@ func NewOpencostTargetScraper(provider target.TargetProvider, collector MetricsC
 		},
 		true)
 }
+
+func NewDCGMTargetScraper(provider target.TargetProvider, collector MetricsCollector) *TargetScraper {
+	return NewTargetScrapper(
+		provider,
+		collector,
+		[]string{
+			DCGMFIPROFGRENGINEACTIVE,
+			DCGMFIDEVDECUTIL,
+		},
+		true)
+}

@@ -89,6 +89,15 @@ pod_pvc_allocation{namespace="namespace1",persistentvolume="pvc-1",persistentvol
 pod_pvc_allocation{namespace="namespace1",persistentvolume="pvc-2",persistentvolumeclaim="pvc2",pod="pod2"} 3.4359738368e+10
 `
 
+const dcgmScrape = `
+# HELP DCGM_FI_PROF_GR_ENGINE_ACTIVE Ratio of time the graphics engine is active.
+# TYPE DCGM_FI_PROF_GR_ENGINE_ACTIVE gauge
+DCGM_FI_PROF_GR_ENGINE_ACTIVE{gpu="0",UUID="GPU-1",pci_bus_id="00000000:00:0A.0",device="nvidia0",modelName="Tesla T4",Hostname="localhost"} 0.999999
+# HELP DCGM_FI_DEV_DEC_UTIL Decoder utilization (in %).
+# TYPE DCGM_FI_DEV_DEC_UTIL gauge
+DCGM_FI_DEV_DEC_UTIL{gpu="0",UUID="GPU-1",pci_bus_id="00000000:00:0A.0",device="nvidia0",modelName="Tesla T4",Hostname="localhost"} 0
+`
+
 func TestTargetScraper_Scrape(t *testing.T) {
 
 	tests := []struct {
@@ -451,6 +460,40 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"pod":                   "pod2",
 					},
 					value: 3.4359738368e+10,
+				},
+			},
+		},
+		{
+			name: "GPU Metric",
+			scrapperFactory: func(collector MetricsCollector) *TargetScraper {
+				return NewDCGMTargetScraper(NewMockTargetProvider(target.NewStringTarget(dcgmScrape)),
+					collector,
+				)
+			},
+			expected: []UpdateArgs{
+				{
+					metricName: DCGMFIPROFGRENGINEACTIVE,
+					labels: map[string]string{
+						"gpu":        "0",
+						"UUID":       "GPU-1",
+						"pci_bus_id": "00000000:00:0A.0",
+						"device":     "nvidia0",
+						"modelName":  "Tesla T4",
+						"Hostname":   "localhost",
+					},
+					value: 0.999999,
+				},
+				{
+					metricName: DCGMFIDEVDECUTIL,
+					labels: map[string]string{
+						"gpu":        "0",
+						"UUID":       "GPU-1",
+						"pci_bus_id": "00000000:00:0A.0",
+						"device":     "nvidia0",
+						"modelName":  "Tesla T4",
+						"Hostname":   "localhost",
+					},
+					value: 0,
 				},
 			},
 		},

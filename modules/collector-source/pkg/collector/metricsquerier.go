@@ -233,13 +233,11 @@ func (c *CollectorMetricsQuerier) QueryGPUsRequested(start, end time.Time) *sour
 }
 
 func (c *CollectorMetricsQuerier) QueryGPUsUsageAvg(start, end time.Time) *source.Future[source.GPUsUsageAvgResult] {
-	//TODO implement me
-	panic("implement me")
+	return queryCollector(c, start, end, GPUsUsageAverageID, source.DecodeGPUsUsageAvgResult)
 }
 
 func (c *CollectorMetricsQuerier) QueryGPUsUsageMax(start, end time.Time) *source.Future[source.GPUsUsageMaxResult] {
-	//TODO implement me
-	panic("implement me")
+	return queryCollector(c, start, end, GPUsUsageMaxID, source.DecodeGPUsUsageMaxResult)
 }
 
 func (c *CollectorMetricsQuerier) QueryNodeGPUPricePerHr(start, end time.Time) *source.Future[source.NodeGPUPricePerHrResult] {
@@ -248,8 +246,7 @@ func (c *CollectorMetricsQuerier) QueryNodeGPUPricePerHr(start, end time.Time) *
 }
 
 func (c *CollectorMetricsQuerier) QueryGPUInfo(start, end time.Time) *source.Future[source.GPUInfoResult] {
-	//TODO implement me
-	panic("implement me")
+	return queryCollector(c, start, end, GPUInfoID, source.DecodeGPUInfoResult)
 }
 
 func (c *CollectorMetricsQuerier) QueryIsGPUShared(start, end time.Time) *source.Future[source.IsGPUSharedResult] {

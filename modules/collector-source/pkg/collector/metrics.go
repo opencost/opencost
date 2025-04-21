@@ -713,7 +713,7 @@ func NewGPUsUsageAverageMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		GPUsUsageAverageID,
 		DCGMFIPROFGRENGINEACTIVE,
-		[]string{"container", "uid", "pod", "namespace"},
+		[]string{"container", "pod", "namespace"},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
 			return labels["container"] != ""
@@ -733,7 +733,7 @@ func NewGPUsUsageMaxMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		GPUsUsageMaxID,
 		DCGMFIPROFGRENGINEACTIVE,
-		[]string{"container", "uid", "pod", "namespace"},
+		[]string{"container", "pod", "namespace"},
 		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
 			return labels["container"] != ""
@@ -802,8 +802,8 @@ func NewGPUInfoMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		GPUInfoID,
 		DCGMFIDEVDECUTIL,
-		[]string{"container", "uid", "pod", "namespace", "device", "modelName", "uuid"},
-		aggregator.AverageOverTime,
+		[]string{"container", "pod", "namespace", "device", "modelName", "UUID"},
+		aggregator.Info,
 		func(labels map[string]string) bool {
 			return labels["container"] != ""
 		},
