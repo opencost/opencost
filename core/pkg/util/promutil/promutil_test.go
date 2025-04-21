@@ -95,6 +95,53 @@ func TestKubeLabelsToPromLabels(t *testing.T) {
 	}
 }
 
+func TestKubePrependQualifierToLabelsDuplicates(t *testing.T) {
+	// 7 expected labels/values
+	expectedLabels := []string{
+		"label_app_",
+		"label_chart",
+		"label_control_plane",
+		"label_gatekeeper_sh_operation",
+		"label_heritage",
+		"label_pod_template_hash",
+		"label_release",
+	}
+	expectedValues := []string{
+		"gatekeeper",
+		"gatekeeper",
+		"audit-controller",
+		"audit",
+		"Helm",
+		"5599859cd4",
+		"gatekeeper",
+	}
+
+	// 8 input labels/values, with one duplicate label
+	kubeLabels := map[string]string{
+		// app- will be sanitized to app_
+		"app-":                    "gatekeeper",
+		"app_":                    "gatekeeper",
+		"chart":                   "gatekeeper",
+		"control-plane":           "audit-controller",
+		"gatekeeper.sh/operation": "audit",
+		"heritage":                "Helm",
+		"pod-template-hash":       "5599859cd4",
+		"release":                 "gatekeeper",
+	}
+
+	labels, values := KubePrependQualifierToLabels(kubeLabels, "label_")
+
+	// Check to make sure we get expected labels and values returned
+	err := checkSlice(labels, expectedLabels)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	err = checkSlice(values, expectedValues)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+}
+
 func TestSanitizeLabels(t *testing.T) {
 	type testCase struct {
 		in  map[string]string
