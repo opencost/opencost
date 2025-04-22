@@ -1,0 +1,35 @@
+name: Build and Publish Test Image
+
+on:
+  merge_group:
+    types: [checks_requested]
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-publish-test-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.merge_group.head_sha }}
+      - name: Set SHA
+        id: sha
+        run: |
+          echo "OC_SHORTHASH=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - name: Set OpenCost Image Tags
+        id: tags
+        run: |
+          echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:test-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+      - name: Build and publish container
+        uses: ./github/actions/build-container
+        with:
+          actor: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          image_tag: ${{ steps.tags.outputs.IMAGE_TAG }}
+          release_version: test-${{ steps.sha.outputs.OC_SHORTHASH }}
