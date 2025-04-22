@@ -27,7 +27,7 @@ jobs:
         run: |
           echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:test-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
       - name: Build and publish container
-        uses: ./github/actions/build-container
+        uses: ./.github/actions/build-container
         with:
           actor: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
