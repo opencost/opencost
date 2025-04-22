@@ -1,5 +1,8 @@
 name: 'Build and Publish Container'
 description: 'Build and publish container'
+on:
+  merge_group:
+    types: [checks_requested]
 
 inputs:
     actor:
