@@ -2,7 +2,7 @@ name: Build and Publish Test Image
 
 on:
   merge_group:
-    types: [checks_requested] # Runs when a review is requested on a PR
+    types: [checks_requested]
 
 env:
   REGISTRY: ghcr.io
@@ -17,7 +17,7 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.merge_group.head_sha }}
       - name: Set SHA
         id: sha
         run: |
