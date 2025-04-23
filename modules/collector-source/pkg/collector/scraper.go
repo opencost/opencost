@@ -30,6 +30,7 @@ func (ks *kubernetesScraper) Scrape() {
 	pvs := ks.clusterCache.GetAllPersistentVolumes()
 	services := ks.clusterCache.GetAllServices()
 	statefulSets := ks.clusterCache.GetAllStatefulSets()
+	replicaSets := ks.clusterCache.GetAllReplicaSets()
 
 	ks.scrapeNodes(nodes, timestamp)
 	ks.scrapeDeployments(deployments, timestamp)
@@ -39,6 +40,7 @@ func (ks *kubernetesScraper) Scrape() {
 	ks.scrapePVs(pvs, timestamp)
 	ks.scrapeServices(services, timestamp)
 	ks.scrapeStatefulSets(statefulSets, timestamp)
+	ks.scrapeReplicaSets(replicaSets, timestamp)
 }
 
 func (ks *kubernetesScraper) scrapeNodes(nodes []*clustercache.Node, timestamp time.Time) {
@@ -247,6 +249,22 @@ func (ks *kubernetesScraper) scrapeStatefulSets(statefulSets []*clustercache.Sta
 		statefulSetLabels := toMap(labelNames, labelValues)
 		ks.collector.Update(StatefulSetMatchLabels, statefulSetInfo, 0, &timestamp, statefulSetLabels)
 
+	}
+}
+
+func (ks *kubernetesScraper) scrapeReplicaSets(replicaSets []*clustercache.ReplicaSet, timestamp time.Time) {
+	for _, replicaSet := range replicaSets {
+		replicaSetInfo := map[string]string{
+			"replicaset": replicaSet.Name,
+			"namespace":  replicaSet.Namespace,
+		}
+
+		for _, owner := range replicaSet.OwnerReferences {
+			ownerInfo := maps.Clone(replicaSetInfo)
+			ownerInfo["owner_kind"] = owner.Kind
+			ownerInfo["owner_name"] = owner.Name
+			ks.collector.Update(KubeReplicasetOwner, ownerInfo, 0, &timestamp, nil)
+		}
 	}
 }
 

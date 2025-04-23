@@ -35,6 +35,7 @@ const (
 	KubeNamespaceAnnotations                              = "kube_namespace_annotations"
 	ServiceSelectorLabels                                 = "service_selector_labels"
 	StatefulSetMatchLabels                                = "statefulSet_match_labels"
+	KubeReplicasetOwner                                   = "kube_replicaset_owner"
 
 	// Opencost Metrics
 	KubecostClusterManagementCost     = "kubecost_cluster_management_cost"
@@ -60,21 +61,15 @@ const (
 	DCGMFIPROFGRENGINEACTIVE = "DCGM_FI_PROF_GR_ENGINE_ACTIVE"
 	DCGMFIDEVDECUTIL         = "DCGM_FI_DEV_DEC_UTIL"
 
-	KubeletVolumeStatsUsedBytes = "kubelet_volume_stats_used_bytes"
-
-	ContainerFSLimitBytes = "container_fs_limit_bytes"
-	ContainerFSUsageBytes = "container_fs_usage_bytes"
-
-	NodeCPUSecondsTotal = "node_cpu_seconds_total"
-
-	ContainerMemoryWorkingSetBytes = "container_memory_working_set_bytes"
-
-	ContainerCPUUsageSecondsTotal = "container_cpu_usage_seconds_total"
-
+	// Node Stat Metrics
+	NodeCPUSecondsTotal                = "node_cpu_seconds_total"
+	NodeFSCapacityBytes                = "node_fs_capacity_bytes" // replaces container_fs_limit_bytes
 	ContainerNetworkReceiveBytesTotal  = "container_network_receive_bytes_total"
 	ContainerNetworkTransmitBytesTotal = "container_network_transmit_bytes_total"
-
-	KubeReplicasetOwner = "kube_replicaset_owner"
+	ContainerCPUUsageSecondsTotal      = "container_cpu_usage_seconds_total"
+	ContainerMemoryWorkingSetBytes     = "container_memory_working_set_bytes"
+	ContainerFSUsageBytes              = "container_fs_usage_bytes"
+	KubeletVolumeStatsUsedBytes        = "kubelet_volume_stats_used_bytes"
 )
 
 // MetricCollectorID is a unique identifier for a specific metric collector instance. We

@@ -105,7 +105,7 @@ func NewPVActiveMinutesMetricCollector() *MetricCollector {
 func NewLocalStorageCostMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		LocalStorageCostID,
-		ContainerFSLimitBytes,
+		NodeFSCapacityBytes,
 		[]string{"instance", "device"},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
@@ -204,7 +204,7 @@ func NewLocalStorageUsedMaxMetricCollector() *MetricCollector {
 func NewLocalStorageBytesMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		LocalStorageBytesID,
-		ContainerFSLimitBytes,
+		NodeFSCapacityBytes,
 		[]string{"instance", "device"},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
@@ -390,7 +390,7 @@ func NewNodeRAMSystemUsageAverageMetricCollector() *MetricCollector {
 		[]string{"instance"},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
-			return labels["container_name"] != "POD" && labels["container_name"] != "" && labels["namespace"] == "kube-system"
+			return labels["container"] != "POD" && labels["container"] != "" && labels["namespace"] == "kube-system"
 		},
 	)
 }
@@ -413,7 +413,7 @@ func NewNodeRAMUserUsageAverageMetricCollector() *MetricCollector {
 		[]string{"instance"},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
-			return labels["container_name"] != "POD" && labels["container_name"] != "" && labels["namespace"] != "kube-system"
+			return labels["container"] != "POD" && labels["container"] != "" && labels["namespace"] != "kube-system"
 		},
 	)
 }
@@ -587,10 +587,10 @@ func NewRAMUsageMaxMetricCollector() *MetricCollector {
 	return NewMetricCollector(
 		RAMUsageMaxID,
 		ContainerMemoryWorkingSetBytes,
-		[]string{"container_name", "container", "uid", "pod", "namespace", "instance", "node"},
+		[]string{"container", "uid", "pod", "namespace", "instance", "node"},
 		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
-			return labels["container"] != "" && labels["container_name"] != "POD" && labels["container"] != "POD" && labels["node"] != ""
+			return labels["container"] != "" && labels["container"] != "POD" && labels["node"] != ""
 		},
 	)
 }

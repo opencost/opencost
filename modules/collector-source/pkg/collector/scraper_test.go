@@ -794,3 +794,75 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 		})
 	}
 }
+
+func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
+
+	start1, _ := time.Parse(time.RFC3339, start1Str)
+
+	type scrape struct {
+		replicaSets []*clustercache.ReplicaSet
+		timestamp   time.Time
+	}
+	tests := []struct {
+		name     string
+		scrapes  []scrape
+		expected []UpdateArgs
+	}{
+		{
+			name: "simple",
+			scrapes: []scrape{
+				{
+					replicaSets: []*clustercache.ReplicaSet{
+						{
+							Name:      "replicaSet1",
+							Namespace: "namespace1",
+							OwnerReferences: []metav1.OwnerReference{
+								{
+									Name: "rollout1",
+									Kind: "Rollout",
+								},
+							},
+						},
+					},
+					timestamp: start1,
+				},
+			},
+			expected: []UpdateArgs{
+				{
+					metricName: KubeReplicasetOwner,
+					labels: map[string]string{
+						"replicaset": "replicaSet1",
+						"namespace":  "namespace1",
+						"owner_name": "rollout1",
+						"owner_kind": "Rollout",
+					},
+					value:     0,
+					timestamp: &start1,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			updateRecorder := UpdateRecorderCollector{}
+			ks := &kubernetesScraper{
+				collector: &updateRecorder,
+			}
+			for _, s := range tt.scrapes {
+				ks.scrapeReplicaSets(s.replicaSets, s.timestamp)
+			}
+
+			if len(updateRecorder.updateArgs) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(updateRecorder.updateArgs))
+			}
+
+			for i, expected := range tt.expected {
+				updateArg := updateRecorder.updateArgs[i]
+				err := expected.equals(updateArg)
+				if err != nil {
+					t.Errorf("Result did not match expected at index %d: %s", i, err.Error())
+				}
+			}
+		})
+	}
+}

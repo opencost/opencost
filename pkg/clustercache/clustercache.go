@@ -147,10 +147,11 @@ type PodDisruptionBudget struct {
 }
 
 type ReplicaSet struct {
-	Name         string
-	Namespace    string
-	SpecSelector *metav1.LabelSelector
-	Spec         appsv1.ReplicaSetSpec
+	Name            string
+	Namespace       string
+	OwnerReferences []metav1.OwnerReference
+	SpecSelector    *metav1.LabelSelector
+	Spec            appsv1.ReplicaSetSpec
 }
 
 type Volume struct {
@@ -353,10 +354,11 @@ func TransformPodDisruptionBudget(input *policyv1.PodDisruptionBudget) *PodDisru
 
 func TransformReplicaSet(input *appsv1.ReplicaSet) *ReplicaSet {
 	return &ReplicaSet{
-		Name:         input.Name,
-		Namespace:    input.Namespace,
-		Spec:         input.Spec,
-		SpecSelector: input.Spec.Selector,
+		Name:            input.Name,
+		Namespace:       input.Namespace,
+		OwnerReferences: input.OwnerReferences,
+		Spec:            input.Spec,
+		SpecSelector:    input.Spec.Selector,
 	}
 }
 
