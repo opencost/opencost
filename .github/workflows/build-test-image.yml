@@ -29,11 +29,28 @@ jobs:
                   permission: 'push'
                 });
                 
-                // Get team members
-                const { data: teamMembers } = await github.rest.teams.listMembersInOrg({
-                  org: 'opencost',
-                  team_slug: 'opencost-maintainers'
+                // List all teams to find the correct slug
+                const { data: teams } = await github.rest.teams.list({
+                  org: 'opencost'
                 });
+                
+                console.log('Available teams:');
+                teams.forEach(team => {
+                  console.log(`- ${team.name} (slug: ${team.slug})`);
+                });
+                
+                // Try to get team members, but don't fail if team doesn't exist
+                let teamMembers = [];
+                try {
+                  const { data: members } = await github.rest.teams.listMembersInOrg({
+                    org: 'opencost',
+                    team_slug: 'opencost-maintainers'
+                  });
+                  teamMembers = members;
+                } catch (error) {
+                  console.log('Error fetching team members:', error.message);
+                  console.log('Continuing with empty team members list');
+                }
                 
                 const writers = collaborators.map(collaborator => collaborator.login);
                 const maintainers = teamMembers.map(member => member.login);
