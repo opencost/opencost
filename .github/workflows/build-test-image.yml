@@ -22,17 +22,31 @@ jobs:
             uses: actions/github-script@v7
             with:
               script: |
+                // Get repository collaborators with push access
                 const { data: collaborators } = await github.rest.repos.listCollaborators({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   permission: 'push'
                 });
                 
+                // Get team members
+                const { data: teamMembers } = await github.rest.teams.listMembersInOrg({
+                  org: 'opencost',
+                  team_slug: 'opencost-maintainers'
+                });
+                
                 const writers = collaborators.map(collaborator => collaborator.login);
-                const isActorMaintainer = writers.includes(context.actor);
+                const maintainers = teamMembers.map(member => member.login);
+                
+                const isWriter = writers.includes(context.actor);
+                const isTeamMember = maintainers.includes(context.actor);
+                const isActorMaintainer = isWriter || isTeamMember;
                 
                 console.log(`Actor: ${context.actor}`);
                 console.log(`Repository writers: ${writers.join(', ')}`);
+                console.log(`Team maintainers: ${maintainers.join(', ')}`);
+                console.log(`Is actor a writer? ${isWriter}`);
+                console.log(`Is actor a team member? ${isTeamMember}`);
                 console.log(`Is actor a maintainer? ${isActorMaintainer}`);
                 
                 core.setOutput('ismaintainer', isActorMaintainer.toString());
