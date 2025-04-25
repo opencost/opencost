@@ -13,7 +13,7 @@ on:
       types: [checks_requested]
 
 concurrency:
-    group: ${{ github.event.merge_group.head.sha || github.ref }}-intg-tests
+    group: ${{ github.event.merge_group.head.sha || github.event.pull_request.head.sha || github.ref }}-intg-tests
     cancel-in-progress: false
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
           with:
             GITHUB_TOKEN: ${{ secrets.ORG_READER_PAT }}
             username: ${{ github.actor }}
-            org: opencost
+            organization: opencost
         - name: determine if actor is a maintainer
           id: determine-maintainer
           run: |
@@ -37,7 +37,7 @@ jobs:
     noop-tests:
         needs: check_actor_permissions
         permissions: {}
-        runs-on: Kubecost-Linux-Small-x86
+        runs-on: ubuntu-latest
         if: ${{ always() && !cancelled() && github.event_name != 'merge_group' && github.ref != 'refs/heads/develop' && needs.check_actor_permissions.outputs.ismaintainer == 'false' }}
         outputs:
             is_noop: ${{ steps.noop-tests.outputs.is_noop }}
@@ -51,7 +51,7 @@ jobs:
         runs-on: ubuntu-latest
         permissions: {}
         needs: check_actor_permissions
-        if: ${{ (always() && !cancelled()) && ( github.event_name == 'merge_group' || github.ref != 'refs/heads/develop'  || needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
+        if: ${{ (always() && !cancelled()) && ( github.event_name == 'merge_group' || github.ref == 'refs/heads/develop'  || needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
         outputs:
             IMAGE_TAG: ${{ steps.set_image_tags.outputs.IMAGE_TAG }}
             NAMESPACE: ${{ steps.set_image_tags.outputs.NAMESPACE }}
@@ -60,7 +60,7 @@ jobs:
         steps:
           - uses: actions/checkout@v4
             with:
-              ref: ${{ github.event.merge_group.head.sha || github.ref }}
+              ref: ${{ github.event.merge_group.head.sha || github.event.pull_request.head.sha || github.ref }}
           - name: Set OC SHA
             run: |
                  echo "OC_SHORTHASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
@@ -72,7 +72,13 @@ jobs:
                       echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:test-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
                       echo "NAMESPACE=merge-queue-${{ github.event.number }}-oc-${{ env.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
                       echo "mainbranch=false" >> $GITHUB_OUTPUT
+                    elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+                      echo "building on maintainer pull request branch"
+                      echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:test-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+                      echo "NAMESPACE=pr-${{ github.event.pull_request.number }}-oc-${{ env.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+                      echo "mainbranch=false" >> $GITHUB_OUTPUT
                     else
+                      else
                       echo "building on develop branch"
                       echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:develop-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
                       echo "NAMESPACE=develop-oc-${{ env.OC_SHORTHASH }}" >> $GITHUB_OUTPUT

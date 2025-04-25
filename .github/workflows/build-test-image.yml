@@ -23,7 +23,7 @@ jobs:
             with:
               GITHUB_TOKEN: ${{ secrets.ORG_READER_PAT }}
               username: ${{ github.actor }}
-              org: opencost
+              organization: opencost
           - name: determine if actor is a maintainer
             id: determine-maintainer
             run: |
