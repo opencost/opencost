@@ -18,30 +18,17 @@ concurrency:
 
 jobs:
     check_actor_permissions:
-        runs-on: ubuntu-latest
-        permissions: {}
-        outputs:
-            ismaintainer: ${{ steps.check_permissions.outputs.ismaintainer }}
-        steps:
-          - name: Check if actor is a maintainer
-            id: check_permissions
-            uses: actions/github-script@v7
-            with:
-              script: |
-                const { data: collaborators } = await github.rest.repos.listCollaborators({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  permission: 'push'
-                });
-                
-                const writers = collaborators.map(collaborator => collaborator.login);
-                const isActorMaintainer = writers.includes(context.actor);
-                
-                console.log(`Actor: ${context.actor}`);
-                console.log(`Repository writers: ${writers.join(', ')}`);
-                console.log(`Is actor a maintainer? ${isActorMaintainer}`);
-                
-                core.setOutput('ismaintainer', isActorMaintainer.toString());
+      runs-on: ubuntu-latest
+      outputs:
+        ismaintainer: ${{ steps.teamAffiliation.outputs.isTeamMember }}
+      steps:
+        - name: Check if actor is a maintainer
+          uses: tspascoal/get-user-teams-membership@v2
+          id: teamAffiliation
+          with:
+            GITHUB_TOKEN: ${{ secrets.ORG_READER_PAT }}
+            username: ${{ github.actor }}
+            team: 'OpenCost Maintainers'
     noop-tests:
         needs: check_actor_permissions
         permissions: {}
