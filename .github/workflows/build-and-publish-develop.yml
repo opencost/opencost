@@ -43,7 +43,7 @@ jobs:
           release_version: develop-${{ steps.sha.outputs.OC_SHORTHASH }}
       
       - name: Install crane
-        uses: imjasonh/crane@v0.12.0
+        uses: imjasonh/setup-crane@v0.4
 
       - name: Tag and push latest image
         run: |
