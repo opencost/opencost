@@ -16,7 +16,6 @@ jobs:
         runs-on: ubuntu-latest
         outputs:
             ismaintainer: ${{ steps.teamAffiliation.outputs.isTeamMember }}
-            teams: ${{ steps.teamAffiliation.outputs.teams }}
         steps:
           - name: Check if actor is a maintainer
             uses: tspascoal/get-user-teams-membership@v2
@@ -24,7 +23,7 @@ jobs:
             with:
               GITHUB_TOKEN: ${{ secrets.ORG_READER_PAT }}
               username: ${{ github.actor }}
-              team: OpenCost Maintainers
+              team: 'OpenCost Maintainers'
       
   build-and-publish-test-image:
     runs-on: ubuntu-latest

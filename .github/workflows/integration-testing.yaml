@@ -17,6 +17,18 @@ concurrency:
     cancel-in-progress: false
 
 jobs:
+    check_actor_permissions:
+      runs-on: ubuntu-latest
+      outputs:
+        ismaintainer: ${{ steps.teamAffiliation.outputs.isTeamMember }}
+      steps:
+        - name: Check if actor is a maintainer
+          uses: tspascoal/get-user-teams-membership@v2
+          id: teamAffiliation
+          with:
+            GITHUB_TOKEN: ${{ secrets.ORG_READER_PAT }}
+            username: ${{ github.actor }}
+            team: 'OpenCost Maintainers'
     noop-tests:
         needs: check_actor_permissions
         permissions: {}
