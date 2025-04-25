@@ -6,7 +6,7 @@ on:
     push:
       branches:
         - develop
-    pull_request:
+    pull_request_target:
       branches:
         - develop
     merge_group:
@@ -19,6 +19,7 @@ concurrency:
 jobs:
     check_actor_permissions:
       runs-on: ubuntu-latest
+      if: ${{ github.event_name != 'merge_group' && github.ref != 'refs/heads/develop' }}
       outputs:
           ismaintainer: ${{ steps.determine-maintainer.outputs.ismaintainer }}
       steps:
@@ -74,7 +75,7 @@ jobs:
                     echo "github.event_name: ${{ github.event_name }}"
                     if [[ "${{ github.event_name }}" == "merge_group" ]]; then
                       echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:test-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
-                      echo "NAMESPACE=merge-queue-${{ github.event.number }}-oc-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+                      echo "NAMESPACE=merge-queue-oc-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
                       echo "mainbranch=false" >> $GITHUB_OUTPUT
                     elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
                       echo "building on maintainer pull request branch"
