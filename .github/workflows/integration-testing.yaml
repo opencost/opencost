@@ -13,26 +13,33 @@ on:
       types: [checks_requested]
 
 concurrency:
-    group: ${{ github.event.merge_group.head.sha || github.ref }}-intg-tests
+    group: ${{ github.event.merge_group.head.sha || github.event.pull_request.head.sha || github.ref }}-intg-tests
     cancel-in-progress: false
 
 jobs:
     check_actor_permissions:
       runs-on: ubuntu-latest
       outputs:
-        ismaintainer: ${{ steps.teamAffiliation.outputs.isTeamMember }}
+          ismaintainer: ${{ steps.determine-maintainer.outputs.ismaintainer }}
       steps:
-        - name: Check if actor is a maintainer
+        - name: Check team membership
           uses: tspascoal/get-user-teams-membership@v2
           id: teamAffiliation
           with:
             GITHUB_TOKEN: ${{ secrets.ORG_READER_PAT }}
             username: ${{ github.actor }}
-            team: 'OpenCost Maintainers'
+            organization: opencost
+        - name: determine if actor is a maintainer
+          id: determine-maintainer
+          run: |
+              echo "Actor: ${{ github.actor }}"
+              echo "Is maintainer: ${{ contains(steps.teamAffiliation.outputs.teams, 'OpenCost Maintainers') }}"
+              echo "ismaintainer=${{ contains(steps.teamAffiliation.outputs.teams, 'OpenCost Maintainers') }}" >> $GITHUB_OUTPUT
+  
     noop-tests:
         needs: check_actor_permissions
         permissions: {}
-        runs-on: Kubecost-Linux-Small-x86
+        runs-on: ubuntu-latest
         if: ${{ always() && !cancelled() && github.event_name != 'merge_group' && github.ref != 'refs/heads/develop' && needs.check_actor_permissions.outputs.ismaintainer == 'false' }}
         outputs:
             is_noop: ${{ steps.noop-tests.outputs.is_noop }}
@@ -46,7 +53,7 @@ jobs:
         runs-on: ubuntu-latest
         permissions: {}
         needs: check_actor_permissions
-        if: ${{ (always() && !cancelled()) && ( github.event_name == 'merge_group' || github.ref != 'refs/heads/develop'  || needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
+        if: ${{ (always() && !cancelled()) && ( github.event_name == 'merge_group' || github.ref == 'refs/heads/develop'  || needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
         outputs:
             IMAGE_TAG: ${{ steps.set_image_tags.outputs.IMAGE_TAG }}
             NAMESPACE: ${{ steps.set_image_tags.outputs.NAMESPACE }}
@@ -55,22 +62,29 @@ jobs:
         steps:
           - uses: actions/checkout@v4
             with:
-              ref: ${{ github.event.merge_group.head.sha || github.ref }}
+              ref: ${{ github.event.merge_group.head.sha || github.event.pull_request.head.sha || github.ref }}
           - name: Set OC SHA
+            id: sha
             run: |
-                 echo "OC_SHORTHASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+                 echo "OC_SHORTHASH=$(git rev-parse --short HEAD)"
+                 echo "OC_SHORTHASH=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           - name: Set image tags
             id: set_image_tags
             run: |
                     echo "github.event_name: ${{ github.event_name }}"
                     if [[ "${{ github.event_name }}" == "merge_group" ]]; then
                       echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:test-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
-                      echo "NAMESPACE=merge-queue-${{ github.event.number }}-oc-${{ env.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+                      echo "NAMESPACE=merge-queue-${{ github.event.number }}-oc-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+                      echo "mainbranch=false" >> $GITHUB_OUTPUT
+                    elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+                      echo "building on maintainer pull request branch"
+                      echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:test-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+                      echo "NAMESPACE=pr-${{ github.event.pull_request.number }}-oc-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
                       echo "mainbranch=false" >> $GITHUB_OUTPUT
                     else
                       echo "building on develop branch"
                       echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:develop-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
-                      echo "NAMESPACE=develop-oc-${{ env.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+                      echo "NAMESPACE=develop-oc-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
                       echo "mainbranch=true" >> $GITHUB_OUTPUT
                     fi
 

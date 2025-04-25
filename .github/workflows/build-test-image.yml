@@ -17,13 +17,13 @@ jobs:
         outputs:
             ismaintainer: ${{ steps.determine-maintainer.outputs.ismaintainer }}
         steps:
-          - name: Check if actor is a maintainer
+          - name: Check team membership
             uses: tspascoal/get-user-teams-membership@v2
             id: teamAffiliation
             with:
               GITHUB_TOKEN: ${{ secrets.ORG_READER_PAT }}
               username: ${{ github.actor }}
-              org: opencost
+              organization: opencost
           - name: determine if actor is a maintainer
             id: determine-maintainer
             run: |
@@ -43,7 +43,7 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.merge_group.head_sha }}
+          ref: ${{ github.event.merge_group.head_sha || github.event.pull_request.head.sha }}
       - name: Set SHA
         id: sha
         run: |
