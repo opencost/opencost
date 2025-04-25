@@ -124,6 +124,7 @@ jobs:
     wait-for-dns:
         needs: [wait_for_image_ready, build-test-stack]
         runs-on: ubuntu-latest
+        permissions: {}
         steps:
           - name: Wait for DNS to resolve
             run: |
