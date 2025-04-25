@@ -33,7 +33,9 @@ jobs:
           id: determine-maintainer
           run: |
               echo "Actor: ${{ github.actor }}"
+              echo "Is maintainer: ${{ contains(steps.teamAffiliation.outputs.teams, 'OpenCost Maintainers') }}"
               echo "ismaintainer=${{ contains(steps.teamAffiliation.outputs.teams, 'OpenCost Maintainers') }}" >> $GITHUB_OUTPUT
+  
     noop-tests:
         needs: check_actor_permissions
         permissions: {}
