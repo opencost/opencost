@@ -20,7 +20,7 @@ jobs:
     check_actor_permissions:
       runs-on: ubuntu-latest
       outputs:
-        ismaintainer: ${{ steps.teamAffiliation.outputs.isTeamMember }}
+          ismaintainer: ${{ steps.determine-maintainer.outputs.ismaintainer }}
       steps:
         - name: Check if actor is a maintainer
           uses: tspascoal/get-user-teams-membership@v2
@@ -28,7 +28,12 @@ jobs:
           with:
             GITHUB_TOKEN: ${{ secrets.ORG_READER_PAT }}
             username: ${{ github.actor }}
-            team: 'OpenCost Maintainers'
+            org: opencost
+        - name: determine if actor is a maintainer
+          id: determine-maintainer
+          run: |
+              echo "Actor: ${{ github.actor }}"
+              echo "ismaintainer=${{ contains(steps.teamAffiliation.outputs.teams, 'OpenCost Maintainers') }}" >> $GITHUB_OUTPUT
     noop-tests:
         needs: check_actor_permissions
         permissions: {}
