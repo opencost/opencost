@@ -65,24 +65,24 @@ jobs:
               ref: ${{ github.event.merge_group.head.sha || github.event.pull_request.head.sha || github.ref }}
           - name: Set OC SHA
             run: |
-                 echo "OC_SHORTHASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+                 echo "OC_SHORTHASH=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           - name: Set image tags
             id: set_image_tags
             run: |
                     echo "github.event_name: ${{ github.event_name }}"
                     if [[ "${{ github.event_name }}" == "merge_group" ]]; then
                       echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:test-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
-                      echo "NAMESPACE=merge-queue-${{ github.event.number }}-oc-${{ env.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+                      echo "NAMESPACE=merge-queue-${{ github.event.number }}-oc-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
                       echo "mainbranch=false" >> $GITHUB_OUTPUT
                     elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
                       echo "building on maintainer pull request branch"
                       echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:test-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
-                      echo "NAMESPACE=pr-${{ github.event.pull_request.number }}-oc-${{ env.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+                      echo "NAMESPACE=pr-${{ github.event.pull_request.number }}-oc-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
                       echo "mainbranch=false" >> $GITHUB_OUTPUT
                     else
                       echo "building on develop branch"
                       echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:develop-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
-                      echo "NAMESPACE=develop-oc-${{ env.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+                      echo "NAMESPACE=develop-oc-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
                       echo "mainbranch=true" >> $GITHUB_OUTPUT
                     fi
 
