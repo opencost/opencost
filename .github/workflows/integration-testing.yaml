@@ -64,7 +64,9 @@ jobs:
             with:
               ref: ${{ github.event.merge_group.head.sha || github.event.pull_request.head.sha || github.ref }}
           - name: Set OC SHA
+            id: sha
             run: |
+                 echo "OC_SHORTHASH=$(git rev-parse --short HEAD)"
                  echo "OC_SHORTHASH=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           - name: Set image tags
             id: set_image_tags
