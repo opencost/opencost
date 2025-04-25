@@ -1,1 +1,1 @@
-This PR is testingthe security logic for the Opencost test pipeline.
+This PR is a second test of the security logic for the Opencost test pipeline.
