@@ -24,6 +24,15 @@ jobs:
               GITHUB_TOKEN: ${{ secrets.ORG_READER_PAT }}
               username: ${{ github.actor }}
               team: opencost-maintainers
+  debug-actor-permissions:
+    runs-on: ubuntu-latest
+    needs: check_actor_permissions
+    if: ${{ always() }}
+    steps:
+      - name: Debug actor permissions
+        run: |
+          echo "Actor: ${{ github.actor }}"
+          echo "Is maintainer: ${{ needs.check_actor_permissions.outputs.ismaintainer }}"
   build-and-publish-test-image:
     runs-on: ubuntu-latest
     needs: check_actor_permissions

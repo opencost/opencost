@@ -115,7 +115,7 @@ jobs:
                 
     build-test-stack:
         needs: wait_for_image_ready
-        uses: opencost/opencost-infra/.github/workflows/build-stack.yaml@master
+        uses: opencost/opencost-infra/.github/workflows/build-stack.yaml@main
         secrets: inherit
         with:
             oc-container-version: "${{ needs.wait_for_image_ready.outputs.IMAGE_TAG }}"
@@ -145,7 +145,7 @@ jobs:
     run-tests:
         needs: [wait_for_image_ready, build-test-stack, wait-for-dns]
         permissions: {}
-        uses: opencost/opencost-infra/.github/workflows/test-stack.yaml@master
+        uses: opencost/opencost-infra/.github/workflows/test-stack.yaml@main
         secrets: inherit
         with:
             namespace: "${{ needs.wait_for_image_ready.outputs.NAMESPACE }}"
@@ -154,7 +154,7 @@ jobs:
     teardown-test-stack:
         needs: [wait_for_image_ready, run-tests]
         permissions: {}
-        uses: opencost/opencost-infra/.github/workflows/destroy-stack.yaml@master
+        uses: opencost/opencost-infra/.github/workflows/destroy-stack.yaml@main
         if: always()
         secrets: inherit 
         with:
