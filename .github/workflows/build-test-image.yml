@@ -3,7 +3,7 @@ name: Build and Publish Test Image
 on:
   merge_group:
     types: [checks_requested]
-  pull_request:
+  pull_request_target:
     branches:
       - develop
 
@@ -15,58 +15,15 @@ jobs:
   check_actor_permissions:
         runs-on: ubuntu-latest
         outputs:
-            ismaintainer: ${{ steps.check_permissions.outputs.ismaintainer }}
+            ismaintainer: ${{ steps.teamAffiliation.outputs.isTeamMember }}
         steps:
           - name: Check if actor is a maintainer
-            id: check_permissions
-            uses: actions/github-script@v7
+            uses: tspascoal/get-user-teams-membership@v2
+            id: teamAffiliation
             with:
-              script: |
-                // Get repository collaborators with push access
-                const { data: collaborators } = await github.rest.repos.listCollaborators({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  permission: 'push'
-                });
-                
-                // List all teams to find the correct slug
-                const { data: teams } = await github.rest.teams.list({
-                  org: 'opencost'
-                });
-                
-                console.log('Available teams:');
-                teams.forEach(team => {
-                  console.log(`- ${team.name} (slug: ${team.slug})`);
-                });
-                
-                // Try to get team members, but don't fail if team doesn't exist
-                let teamMembers = [];
-                try {
-                  const { data: members } = await github.rest.teams.listMembersInOrg({
-                    org: 'opencost',
-                    team_slug: 'opencost-maintainers'
-                  });
-                  teamMembers = members;
-                } catch (error) {
-                  console.log('Error fetching team members:', error.message);
-                  console.log('Continuing with empty team members list');
-                }
-                
-                const writers = collaborators.map(collaborator => collaborator.login);
-                const maintainers = teamMembers.map(member => member.login);
-                
-                const isWriter = writers.includes(context.actor);
-                const isTeamMember = maintainers.includes(context.actor);
-                const isActorMaintainer = isWriter || isTeamMember;
-                
-                console.log(`Actor: ${context.actor}`);
-                console.log(`Repository writers: ${writers.join(', ')}`);
-                console.log(`Team maintainers: ${maintainers.join(', ')}`);
-                console.log(`Is actor a writer? ${isWriter}`);
-                console.log(`Is actor a team member? ${isTeamMember}`);
-                console.log(`Is actor a maintainer? ${isActorMaintainer}`);
-                
-                core.setOutput('ismaintainer', isActorMaintainer.toString());
+              GITHUB_TOKEN: ${{ secrets.ORG_READER_PAT }}
+              username: ${{ github.actor }}
+              team: opencost-maintainers
   build-and-publish-test-image:
     runs-on: ubuntu-latest
     needs: check_actor_permissions
