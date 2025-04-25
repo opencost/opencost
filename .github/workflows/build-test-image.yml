@@ -16,6 +16,7 @@ jobs:
         runs-on: ubuntu-latest
         outputs:
             ismaintainer: ${{ steps.teamAffiliation.outputs.isTeamMember }}
+            teams: ${{ steps.teamAffiliation.outputs.teams }}
         steps:
           - name: Check if actor is a maintainer
             uses: tspascoal/get-user-teams-membership@v2
@@ -24,15 +25,12 @@ jobs:
               GITHUB_TOKEN: ${{ secrets.ORG_READER_PAT }}
               username: ${{ github.actor }}
               team: opencost-maintainers
-  debug-actor-permissions:
-    runs-on: ubuntu-latest
-    needs: check_actor_permissions
-    if: ${{ always() }}
-    steps:
-      - name: Debug actor permissions
-        run: |
-          echo "Actor: ${{ github.actor }}"
-          echo "Is maintainer: ${{ needs.check_actor_permissions.outputs.ismaintainer }}"
+          - name: Debug actor permissions
+            run: |
+                echo "Actor: ${{ github.actor }}"
+                echo "teams: ${{ join(steps.teamAffiliation.outputs.teams, ',') }}"
+                echo "Is maintainer: ${{ needs.check_actor_permissions.outputs.ismaintainer }}"
+      
   build-and-publish-test-image:
     runs-on: ubuntu-latest
     needs: check_actor_permissions
