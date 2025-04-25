@@ -24,12 +24,7 @@ jobs:
             with:
               GITHUB_TOKEN: ${{ secrets.ORG_READER_PAT }}
               username: ${{ github.actor }}
-              team: opencost-maintainers
-          - name: Debug actor permissions
-            run: |
-                echo "Actor: ${{ github.actor }}"
-                echo "teams: ${{ join(steps.teamAffiliation.outputs.teams, ',') }}"
-                echo "Is maintainer: ${{ needs.check_actor_permissions.outputs.ismaintainer }}"
+              team: OpenCost Maintainers
       
   build-and-publish-test-image:
     runs-on: ubuntu-latest
