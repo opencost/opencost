@@ -22,7 +22,7 @@ jobs:
       outputs:
           ismaintainer: ${{ steps.determine-maintainer.outputs.ismaintainer }}
       steps:
-        - name: Check if actor is a maintainer
+        - name: Check team membership
           uses: tspascoal/get-user-teams-membership@v2
           id: teamAffiliation
           with:
@@ -78,7 +78,6 @@ jobs:
                       echo "NAMESPACE=pr-${{ github.event.pull_request.number }}-oc-${{ env.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
                       echo "mainbranch=false" >> $GITHUB_OUTPUT
                     else
-                      else
                       echo "building on develop branch"
                       echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:develop-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
                       echo "NAMESPACE=develop-oc-${{ env.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
