@@ -1,0 +1,210 @@
+name: Run OpenCost Integration Tests
+
+on:
+    schedule:
+      - cron: '0 14 * * *'
+    push:
+      branches:
+        - develop
+    pull_request:
+      branches:
+        - develop
+    merge_group:
+      types: [checks_requested]
+
+concurrency:
+    group: ${{ github.event.merge_group.head.sha || github.ref }}-intg-tests
+    cancel-in-progress: false
+
+jobs:
+    check_actor_permissions:
+        runs-on: ubuntu-latest
+        permissions: {}
+        outputs:
+            ismaintainer: ${{ steps.check_permissions.outputs.ismaintainer }}
+        steps:
+          - name: Check if actor is a maintainer
+            id: check_permissions
+            uses: actions/github-script@v7
+            with:
+              script: |
+                const { data: collaborators } = await github.rest.repos.listCollaborators({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  permission: 'push'
+                });
+                
+                const writers = collaborators.map(collaborator => collaborator.login);
+                const isActorMaintainer = writers.includes(context.actor);
+                
+                console.log(`Actor: ${context.actor}`);
+                console.log(`Repository writers: ${writers.join(', ')}`);
+                console.log(`Is actor a maintainer? ${isActorMaintainer}`);
+                
+                core.setOutput('ismaintainer', isActorMaintainer.toString());
+    noop-tests:
+        needs: check_actor_permissions
+        permissions: {}
+        runs-on: Kubecost-Linux-Small-x86
+        if: ${{ always() && !cancelled() && github.event_name != 'merge_group' && github.ref != 'refs/heads/develop' && needs.check_actor_permissions.outputs.ismaintainer == 'false' }}
+        outputs:
+            is_noop: ${{ steps.noop-tests.outputs.is_noop }}
+        steps:
+          - name: Tests Not Needed
+            id: noop-tests
+            run: |
+              echo "integration tests not running because you are not a maintainer. they will run automatically when a PR is merged."
+              echo "is_noop=true" >> $GITHUB_OUTPUT
+    wait_for_image_ready:
+        runs-on: ubuntu-latest
+        permissions: {}
+        needs: check_actor_permissions
+        if: ${{ (always() && !cancelled()) && ( github.event_name == 'merge_group' || github.ref != 'refs/heads/develop'  || needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
+        outputs:
+            IMAGE_TAG: ${{ steps.set_image_tags.outputs.IMAGE_TAG }}
+            NAMESPACE: ${{ steps.set_image_tags.outputs.NAMESPACE }}
+            MAINBRANCH: ${{ steps.set_image_tags.outputs.mainbranch }}
+            passed: ${{ steps.wait_for_image_ready.outputs.passed }}
+        steps:
+          - uses: actions/checkout@v4
+            with:
+              ref: ${{ github.event.merge_group.head.sha || github.ref }}
+          - name: Set OC SHA
+            run: |
+                 echo "OC_SHORTHASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          - name: Set image tags
+            id: set_image_tags
+            run: |
+                    echo "github.event_name: ${{ github.event_name }}"
+                    if [[ "${{ github.event_name }}" == "merge_group" ]]; then
+                      echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:test-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+                      echo "NAMESPACE=merge-queue-${{ github.event.number }}-oc-${{ env.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+                      echo "mainbranch=false" >> $GITHUB_OUTPUT
+                    else
+                      echo "building on develop branch"
+                      echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:develop-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+                      echo "NAMESPACE=develop-oc-${{ env.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+                      echo "mainbranch=true" >> $GITHUB_OUTPUT
+                    fi
+
+          - name: Log into ghcr.io
+            uses: docker/login-action@v3
+            with:
+              registry: ghcr.io
+              username: ${{ github.actor }}
+              password: ${{ secrets.GITHUB_TOKEN }}
+
+          - name: wait for docker image to be ready
+            id: wait_for_image_ready
+            run: |
+                max_attempts=100
+                # Loop until the Docker image can be pulled
+                until docker manifest inspect ${{ steps.set_image_tags.outputs.IMAGE_TAG }}; do
+                    echo "Waiting for Docker image ${{ steps.set_image_tags.outputs.IMAGE_TAG }} to be available, $max_attempts tries remain..."
+                    sleep 6
+                    max_attempts=$((max_attempts - 1))
+                    if [[ $max_attempts -eq 0 ]]; then
+                        echo "Docker image ${{ steps.set_image_tags.outputs.IMAGE_TAG }} is not available after 10 minutes. Exiting..."
+                        exit 1
+                    fi
+                done
+
+                echo "Docker image ${{ steps.set_image_tags.outputs.IMAGE_TAG }} is ready!"
+                
+                echo "passed=true" >> $GITHUB_OUTPUT
+                
+    build-test-stack:
+        needs: wait_for_image_ready
+        uses: opencost/opencost-infra/.github/workflows/build-stack.yaml@master
+        secrets: inherit
+        with:
+            oc-container-version: "${{ needs.wait_for_image_ready.outputs.IMAGE_TAG }}"
+            namespace: "${{ needs.wait_for_image_ready.outputs.NAMESPACE }}"
+
+    wait-for-dns:
+        needs: [wait_for_image_ready, build-test-stack]
+        runs-on: ubuntu-latest
+        permissions: {}
+        steps:
+          - name: Wait for DNS to resolve
+            run: |
+              echo "Waiting for ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}.infra.opencost.io to resolve in DNS..."
+              
+              max_attempts=60
+              until host ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}.infra.opencost.io; do
+                echo "DNS not yet resolved for ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}.infra.opencost.io, $max_attempts tries remain..."
+                sleep 10
+                max_attempts=$((max_attempts - 1))
+                if [[ $max_attempts -eq 0 ]]; then
+                  echo "DNS resolution failed for ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}.infra.opencost.io after 10 minutes. Exiting..."
+                  exit 1
+                fi
+              done
+              
+              echo "DNS resolved successfully for ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}.infra.opencost.io!"
+    run-tests:
+        needs: [wait_for_image_ready, build-test-stack, wait-for-dns]
+        permissions: {}
+        uses: opencost/opencost-infra/.github/workflows/test-stack.yaml@master
+        secrets: inherit
+        with:
+            namespace: "${{ needs.wait_for_image_ready.outputs.NAMESPACE }}"
+            target_branch: "${{ github.event.pull_request.head.ref || 'main' }}"
+    
+    teardown-test-stack:
+        needs: [wait_for_image_ready, run-tests]
+        permissions: {}
+        uses: opencost/opencost-infra/.github/workflows/destroy-stack.yaml@master
+        if: always()
+        secrets: inherit 
+        with:
+            namespace: "${{ needs.wait_for_image_ready.outputs.NAMESPACE }}"
+
+    check-success:
+        needs: [noop-tests, run-tests]
+        permissions: {}
+        runs-on: ubuntu-latest
+        if: ${{ always() }}
+        steps:
+          - name: Check success
+            run: |
+              if [[ "${{ needs.noop-tests.outputs.is_noop }}" == "true" ]]; then
+                echo "No-op tests, skipping success check"
+                exit 0
+              fi
+              
+              if [[ "${{ needs.run-tests.outputs.passed }}" != "true" ]]; then
+                echo "One or more integration tests failed"
+                exit 1
+              fi
+              
+              echo "All integration tests passed"
+              exit 0
+
+    set-labels:
+      needs: [wait_for_image_ready, run-tests]
+      runs-on: ubuntu-latest
+      permissions: {}
+      steps:
+        - name: label integration tests failing
+          if: ${{ always()  && contains(needs.*.result, 'failure') && !cancelled()}}
+          uses: andymckay/labeler@1.0.4
+          with:
+            add-labels: "integration tests failed"
+        - uses: mondeja/remove-labels-gh-action@v2
+          if: ${{ always()  && contains(needs.*.result, 'failure') && !cancelled()}}
+          with:
+                token: ${{ secrets.GITHUB_TOKEN }}
+                labels: |
+                  integration tests passed
+        - name: Label integration tests passing
+          if: ${{ always()  && !contains(needs.*.result, 'failure') && !cancelled()}}
+          uses: andymckay/labeler@1.0.4
+          with:
+            add-labels: "integration tests passed"
+        - uses: mondeja/remove-labels-gh-action@v2
+          if: ${{ always()  && !contains(needs.*.result, 'failure') && !cancelled()}}
+          with:
+              token: ${{ secrets.GITHUB_TOKEN }}
+              labels: |
+                integration tests failed
