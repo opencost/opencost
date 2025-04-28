@@ -19,7 +19,7 @@ concurrency:
 jobs:
     check_actor_permissions:
       runs-on: ubuntu-latest
-      if: ${{ github.event_name != 'merge_group' && github.ref != 'refs/heads/develop' }}
+      if: ${{ github.event_name == 'pull_request' }}
       outputs:
           ismaintainer: ${{ steps.determine-maintainer.outputs.ismaintainer }}
       steps:
@@ -41,7 +41,7 @@ jobs:
         needs: check_actor_permissions
         permissions: {}
         runs-on: ubuntu-latest
-        if: ${{ always() && !cancelled() && github.event_name != 'merge_group' && github.ref != 'refs/heads/develop' && needs.check_actor_permissions.outputs.ismaintainer == 'false' }}
+        if: ${{ (always() && !cancelled()) && github.event_name == 'pull_request'  && needs.check_actor_permissions.outputs.ismaintainer == 'false' }}
         outputs:
             is_noop: ${{ steps.noop-tests.outputs.is_noop }}
         steps:
@@ -54,7 +54,7 @@ jobs:
         runs-on: ubuntu-latest
         permissions: {}
         needs: check_actor_permissions
-        if: ${{ (always() && !cancelled()) && ( github.event_name == 'merge_group' || github.ref == 'refs/heads/develop'  || needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
+        if: ${{ (always() && !cancelled()) && ( github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
         outputs:
             IMAGE_TAG: ${{ steps.set_image_tags.outputs.IMAGE_TAG }}
             NAMESPACE: ${{ steps.set_image_tags.outputs.NAMESPACE }}
@@ -117,7 +117,7 @@ jobs:
                 
     build-test-stack:
         needs: wait_for_image_ready
-        if: ${{ (always() && !cancelled()) && ( github.event_name == 'merge_group' || github.ref == 'refs/heads/develop'  || needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
+        if: ${{ (always() && !cancelled()) && ( github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
         uses: opencost/opencost-infra/.github/workflows/build-stack.yaml@main
         secrets: inherit
         with:
@@ -127,7 +127,7 @@ jobs:
     wait-for-dns:
         needs: [wait_for_image_ready, build-test-stack]
         runs-on: ubuntu-latest
-        if: ${{ (always() && !cancelled()) && ( github.event_name == 'merge_group' || github.ref == 'refs/heads/develop'  || needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
+        if: ${{ (always() && !cancelled()) && ( github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
         permissions: {}
         steps:
           - name: Wait for DNS to resolve
@@ -148,7 +148,7 @@ jobs:
               echo "DNS resolved successfully for ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}.infra.opencost.io!"
     run-tests:
         needs: [wait_for_image_ready, build-test-stack, wait-for-dns]
-        if: ${{ (always() && !cancelled()) && ( github.event_name == 'merge_group' || github.ref == 'refs/heads/develop'  || needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
+        if: ${{ (always() && !cancelled()) && ( github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
         permissions: {}
         uses: opencost/opencost-infra/.github/workflows/test-stack.yaml@main
         secrets: inherit
@@ -158,8 +158,7 @@ jobs:
     
     teardown-test-stack:
         needs: [wait_for_image_ready, run-tests]
-        if: ${{ (always() && !cancelled()) && ( github.event_name == 'merge_group' || github.ref == 'refs/heads/develop'  || needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
-        permissions: {}
+        if: ${{ (always() && !cancelled()) && ( github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
         uses: opencost/opencost-infra/.github/workflows/destroy-stack.yaml@main
         secrets: inherit 
         with:
