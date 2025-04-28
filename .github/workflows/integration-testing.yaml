@@ -19,7 +19,7 @@ concurrency:
 jobs:
     check_actor_permissions:
       runs-on: ubuntu-latest
-      if: ${{ github.event_name != 'merge_group' && github.ref != 'refs/heads/develop' }}
+      if: ${{ github.event_name == 'pull_request_target' }}
       outputs:
           ismaintainer: ${{ steps.determine-maintainer.outputs.ismaintainer }}
       steps:
@@ -41,7 +41,7 @@ jobs:
         needs: check_actor_permissions
         permissions: {}
         runs-on: ubuntu-latest
-        if: ${{ always() && !cancelled() && github.event_name != 'merge_group' && github.ref != 'refs/heads/develop' && needs.check_actor_permissions.outputs.ismaintainer == 'false' }}
+        if: ${{ (always() && !cancelled()) && github.event_name == 'pull_request_target'  && needs.check_actor_permissions.outputs.ismaintainer == 'false' }}
         outputs:
             is_noop: ${{ steps.noop-tests.outputs.is_noop }}
         steps:
@@ -54,7 +54,7 @@ jobs:
         runs-on: ubuntu-latest
         permissions: {}
         needs: check_actor_permissions
-        if: ${{ (always() && !cancelled()) && ( github.event_name == 'merge_group' || github.ref == 'refs/heads/develop'  || needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
+        if: ${{ (always() && !cancelled()) && ( github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request_target'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
         outputs:
             IMAGE_TAG: ${{ steps.set_image_tags.outputs.IMAGE_TAG }}
             NAMESPACE: ${{ steps.set_image_tags.outputs.NAMESPACE }}
@@ -77,7 +77,7 @@ jobs:
                       echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:test-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
                       echo "NAMESPACE=merge-queue-oc-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
                       echo "mainbranch=false" >> $GITHUB_OUTPUT
-                    elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+                    elif [[ "${{ github.event_name }}" == "pull_request_target" ]]; then
                       echo "building on maintainer pull request branch"
                       echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:test-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
                       echo "NAMESPACE=pr-${{ github.event.pull_request.number }}-oc-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
@@ -117,7 +117,7 @@ jobs:
                 
     build-test-stack:
         needs: wait_for_image_ready
-        if: ${{ (always() && !cancelled()) && ( github.event_name == 'merge_group' || github.ref == 'refs/heads/develop'  || needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
+        if: ${{ (always() && !cancelled()) && ( github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request_target'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
         uses: opencost/opencost-infra/.github/workflows/build-stack.yaml@main
         secrets: inherit
         with:
@@ -127,7 +127,7 @@ jobs:
     wait-for-dns:
         needs: [wait_for_image_ready, build-test-stack]
         runs-on: ubuntu-latest
-        if: ${{ (always() && !cancelled()) && ( github.event_name == 'merge_group' || github.ref == 'refs/heads/develop'  || needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
+        if: ${{ (always() && !cancelled()) && ( github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request_target'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
         permissions: {}
         steps:
           - name: Wait for DNS to resolve
@@ -146,9 +146,10 @@ jobs:
               done
               
               echo "DNS resolved successfully for ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}.infra.opencost.io!"
+
     run-tests:
         needs: [wait_for_image_ready, build-test-stack, wait-for-dns]
-        if: ${{ (always() && !cancelled()) && ( github.event_name == 'merge_group' || github.ref == 'refs/heads/develop'  || needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
+        if: ${{ (always() && !cancelled()) && ( github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request_target'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
         permissions: {}
         uses: opencost/opencost-infra/.github/workflows/test-stack.yaml@main
         secrets: inherit
@@ -158,10 +159,10 @@ jobs:
     
     teardown-test-stack:
         needs: [wait_for_image_ready, run-tests]
-        if: ${{ (always() && !cancelled()) && ( github.event_name == 'merge_group' || github.ref == 'refs/heads/develop'  || needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
-        permissions: {}
+        if: ${{ (always() && !cancelled()) && ( github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request_target'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
         uses: opencost/opencost-infra/.github/workflows/destroy-stack.yaml@main
         secrets: inherit 
+        permissions: {}
         with:
             namespace: "${{ needs.wait_for_image_ready.outputs.NAMESPACE }}"
 
@@ -188,7 +189,7 @@ jobs:
 
     set-labels:
       needs: [wait_for_image_ready, run-tests]
-      if: ${{ (always() && !cancelled()) && ( github.event_name == 'pull_request' && needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
+      if: ${{ (always() && !cancelled()) && ( github.event_name == 'pull_request_target' && needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
       runs-on: ubuntu-latest
       permissions: {}
       steps:
