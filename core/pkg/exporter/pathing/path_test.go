@@ -115,7 +115,7 @@ func TestEventPathFormatter(t *testing.T) {
 			event:     "heartbeat",
 			prefix:    "",
 			fileExt:   "json",
-			expected:  "/tmp/federated/cluster-a/heartbeat/202401011240.json",
+			expected:  "/tmp/federated/cluster-a/heartbeat/20240101124000.json",
 		},
 		{
 			name:      "with file extension",
@@ -124,7 +124,7 @@ func TestEventPathFormatter(t *testing.T) {
 			event:     "heartbeat",
 			prefix:    "",
 			fileExt:   "json",
-			expected:  "federated/cluster-a/heartbeat/202401011240.json",
+			expected:  "federated/cluster-a/heartbeat/20240101124000.json",
 		},
 		{
 			name:      "without file extension",
@@ -133,7 +133,7 @@ func TestEventPathFormatter(t *testing.T) {
 			event:     "heartbeat",
 			prefix:    "",
 			fileExt:   "",
-			expected:  "federated/cluster-a/heartbeat/202401011240",
+			expected:  "federated/cluster-a/heartbeat/20240101124000",
 		},
 		{
 			name:      "with prefix with file extension",
@@ -142,7 +142,7 @@ func TestEventPathFormatter(t *testing.T) {
 			event:     "heartbeat",
 			prefix:    "test",
 			fileExt:   "json",
-			expected:  "federated/cluster-a/heartbeat/test.202401011240.json",
+			expected:  "federated/cluster-a/heartbeat/test.20240101124000.json",
 		},
 		{
 			name:      "with prefix without file extension",
@@ -151,7 +151,7 @@ func TestEventPathFormatter(t *testing.T) {
 			event:     "heartbeat",
 			prefix:    "test",
 			fileExt:   "",
-			expected:  "federated/cluster-a/heartbeat/test.202401011240",
+			expected:  "federated/cluster-a/heartbeat/test.20240101124000",
 		},
 	}
 
