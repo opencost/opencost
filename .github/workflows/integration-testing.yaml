@@ -146,6 +146,7 @@ jobs:
               done
               
               echo "DNS resolved successfully for ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}.infra.opencost.io!"
+              
     run-tests:
         needs: [wait_for_image_ready, build-test-stack, wait-for-dns]
         if: ${{ (always() && !cancelled()) && ( github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
