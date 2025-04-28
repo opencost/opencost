@@ -1,0 +1,38 @@
+name: Promote to Demo
+
+on:
+  workflow_run:
+    workflows: [Build and Publish Develop]
+    types: [completed]
+    branches: [develop]
+
+concurrency:
+  group: build-opencost-develop
+  cancel-in-progress: false
+
+jobs:
+  prep-image-name:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    outputs:
+      image_tag: ${{ steps.tags.outputs.IMAGE_TAG }}
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+      - name: Set SHA
+        id: sha
+        run: |
+          echo "OC_SHORTHASH=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set OpenCost Image Tags
+        id: tags
+        run: |
+          echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:develop-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+ 
+  install-on-demo:
+    needs: [prep-image-name]
+    uses: opencost/opencost-infra/.github/workflows/promote-to-oc-demo.yaml@main
+    secrets: inherit
+    with:
+      img-fqdn: ${{ needs.prep-image-name.outputs.image_tag }}
+      is_be: true

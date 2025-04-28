@@ -457,13 +457,13 @@ func ClusterDisks(client prometheus.Client, cp models.Provider, start, end time.
 
 		name, err := result.GetString("node")
 		if err != nil {
-			log.DedupedWarningf(5, "ClusterDisks: local active mins data missing instance")
+			log.DedupedWarningf(3, "ClusterDisks: local active mins data missing 'node' label")
 			continue
 		}
 
 		providerID, err := result.GetString("provider_id")
 		if err != nil {
-			log.DedupedWarningf(5, "ClusterDisks: local active mins data missing instance")
+			log.DedupedWarningf(3, "ClusterDisks: local active mins data missing 'provider_id' label")
 			continue
 		}
 
@@ -879,8 +879,7 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 		}
 
 		// Append start, end, and minutes. This should come before all other data.
-		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
+		s, e := calculateStartAndEnd(result, resolution, opencost.NewClosedWindow(start, end))
 		loadBalancerMap[key].Start = s
 		loadBalancerMap[key].End = e
 		loadBalancerMap[key].Minutes = e.Sub(s).Minutes()
@@ -1297,7 +1296,7 @@ type Totals struct {
 
 func resultToTotals(qrs []*prom.QueryResult) ([][]string, error) {
 	if len(qrs) == 0 {
-		return [][]string{}, fmt.Errorf("Not enough data available in the selected time range")
+		return [][]string{}, fmt.Errorf("not enough data available in the selected time range")
 	}
 
 	result := qrs[0]
