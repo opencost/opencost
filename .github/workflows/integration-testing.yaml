@@ -161,6 +161,7 @@ jobs:
         if: ${{ (always() && !cancelled()) && ( github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
         uses: opencost/opencost-infra/.github/workflows/destroy-stack.yaml@main
         secrets: inherit 
+        permissions: {}
         with:
             namespace: "${{ needs.wait_for_image_ready.outputs.NAMESPACE }}"
 
