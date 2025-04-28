@@ -2,6 +2,14 @@ package exporter
 
 import "time"
 
+// ExportSource[T] provides a factory style contract for creating new `T` instances for exporting.
+type ExportSource[T any] interface {
+	Make(timestamp time.Time) *T
+
+	// Name returns the name of the ExportSource.
+	Name() string
+}
+
 // ComputeSource[T] provides an interface for a compute data source.
 type ComputeSource[T any] interface {
 	// CanCompute should return true iff the ComputeSource can effectively act as

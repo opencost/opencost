@@ -12,14 +12,14 @@ import (
 	"github.com/opencost/opencost/core/pkg/storage"
 )
 
-func NewAllocationStorageExporter(clusterId string, resolution time.Duration, store storage.Storage) export.Exporter[opencost.AllocationSet] {
+func NewAllocationStorageExporter(clusterId string, resolution time.Duration, store storage.Storage) export.ComputeExporter[opencost.AllocationSet] {
 	pathing, err := pathing.NewBingenStoragePathFormatter("", clusterId, pipelines.AllocationPipelineName, &resolution)
 	if err != nil {
 		log.Errorf("failed to create pathing formatter: %v", err)
 		return nil
 	}
 
-	return export.NewStorageExporter(
+	return export.NewComputeStorageExporter(
 		pipelines.AllocationPipelineName,
 		resolution,
 		pathing,
@@ -29,14 +29,14 @@ func NewAllocationStorageExporter(clusterId string, resolution time.Duration, st
 	)
 }
 
-func NewAssetsStorageExporter(clusterId string, resolution time.Duration, store storage.Storage) export.Exporter[opencost.AssetSet] {
+func NewAssetsStorageExporter(clusterId string, resolution time.Duration, store storage.Storage) export.ComputeExporter[opencost.AssetSet] {
 	pathing, err := pathing.NewBingenStoragePathFormatter("", clusterId, pipelines.AssetsPipelineName, &resolution)
 	if err != nil {
 		log.Errorf("failed to create pathing formatter: %v", err)
 		return nil
 	}
 
-	return export.NewStorageExporter(
+	return export.NewComputeStorageExporter(
 		pipelines.AssetsPipelineName,
 		resolution,
 		pathing,
@@ -46,14 +46,14 @@ func NewAssetsStorageExporter(clusterId string, resolution time.Duration, store 
 	)
 }
 
-func NewNetworkInsightStorageExporter(clusterId string, resolution time.Duration, store storage.Storage) export.Exporter[opencost.NetworkInsightSet] {
+func NewNetworkInsightStorageExporter(clusterId string, resolution time.Duration, store storage.Storage) export.ComputeExporter[opencost.NetworkInsightSet] {
 	pathing, err := pathing.NewBingenStoragePathFormatter("", clusterId, pipelines.NetworkInsightPipelineName, &resolution)
 	if err != nil {
 		log.Errorf("failed to create pathing formatter: %v", err)
 		return nil
 	}
 
-	return export.NewStorageExporter(
+	return export.NewComputeStorageExporter(
 		pipelines.NetworkInsightPipelineName,
 		resolution,
 		pathing,
