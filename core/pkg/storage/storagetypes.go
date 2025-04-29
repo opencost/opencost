@@ -18,6 +18,7 @@ import (
 type StorageType string
 
 const (
+	StorageTypeMemory      StorageType = "memory"
 	StorageTypeFile        StorageType = "file"
 	StorageTypeBucketS3    StorageType = "bucket|s3"
 	StorageTypeBucketGCS   StorageType = "bucket|gcs"
@@ -53,6 +54,11 @@ func (st *StorageType) UnmarshalJSON(data []byte) error {
 
 	*st = StorageType(str)
 	return nil
+}
+
+// IsMemoryStorage returns true if the StorageType is a memory storage type.
+func (st StorageType) IsMemoryStorage() bool {
+	return st.BackendType() == "memory"
 }
 
 // IsFileStorage returns true if the StorageType is a file storage type.

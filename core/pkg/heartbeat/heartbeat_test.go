@@ -28,7 +28,7 @@ func (m *MockHeartbeatMetadataProvider) GetMetadata() map[string]any {
 
 func TestHeartbeatExporter(t *testing.T) {
 	mdp := NewMockHeartbeatMetadataProvider()
-	store := NewMockStorage()
+	store := storage.NewMemoryStorage()
 
 	controller := NewHeartbeatExportController(MockClusterId, store, mdp)
 
@@ -64,7 +64,7 @@ func TestHeartbeatExporter(t *testing.T) {
 			t.Fatalf("Failed to unmarshal heartbeat data: %v", err)
 		}
 
-		fmt.Printf("%s\n%s\n\n", f, string(data))
+		fmt.Printf("%s: %d bytes\n%s\n\n", f, len(data), string(data))
 
 		if hb.Metadata["cluster_id"] != MockClusterId {
 			t.Fatalf("Expected cluster ID %s, got %s", MockClusterId, hb.Metadata["cluster_id"])

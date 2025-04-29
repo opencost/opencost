@@ -1,6 +1,8 @@
 package exporter
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding"
 
 	"github.com/opencost/opencost/core/pkg/util/json"
@@ -63,4 +65,42 @@ func (j *JSONEncoder[T]) Encode(data *T) ([]byte, error) {
 // that the data is in JSON format.
 func (j *JSONEncoder[T]) FileExt() string {
 	return "json"
+}
+
+type GZipEncoder[T any] struct {
+	encoder Encoder[T]
+}
+
+// NewGZipEncoder creates a new GZip encoder which wraps the provided encoder.
+// The encoder is used to encode the data before compressing it with GZip.
+func NewGZipEncoder[T any](encoder Encoder[T]) Encoder[T] {
+	return &GZipEncoder[T]{
+		encoder: encoder,
+	}
+}
+
+// Encode encodes the provided data of type T into a byte slice using JSON encoding.
+func (gz *GZipEncoder[T]) Encode(data *T) ([]byte, error) {
+	encoded, err := gz.encoder.Encode(data)
+	if err != nil {
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+
+	gzWriter, err := gzip.NewWriterLevel(&buf, gzip.BestCompression)
+	if err != nil {
+		return nil, err
+	}
+
+	gzWriter.Write(encoded)
+	gzWriter.Close()
+
+	return buf.Bytes(), nil
+}
+
+// FileExt returns the file extension for the encoded data. In this case, it returns the wrapped encoder's
+// file extension with ".gz" appended to indicate that the data is compressed with GZip.
+func (gz *GZipEncoder[T]) FileExt() string {
+	return gz.encoder.FileExt() + ".gz"
 }
