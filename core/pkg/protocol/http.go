@@ -104,6 +104,41 @@ func (hp HTTPProtocol) ToResponse(data interface{}, err error) *HTTPResponse {
 		Data: data,
 	}
 }
+func (hp HTTPProtocol) WriteRawOK(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", "0")
+	w.WriteHeader(http.StatusOK)
+}
+
+func (hp HTTPProtocol) WriteRawNoContent(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// WriteJSONData uses json content-type and json encoder with no data envelope allowing to remove
+// xss CWE as well as backwards compatibility to exisitng FE expectations
+func (hp HTTPProtocol) WriteJSONData(w http.ResponseWriter, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	status := http.StatusOK
+
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(data)
+}
+
+// WriteRawError uses json content-type and outputs raw error message for backwards compatibility to existing
+// frontend expectations.
+func (hp HTTPProtocol) WriteRawError(w http.ResponseWriter, httpStatusCode int, err string) {
+	// I know this isn't json, but its what we've done and don't want to break frontned while we fix CWE
+	w.Header().Set("Content-Type", "application/json")
+	http.Error(w, err, httpStatusCode)
+}
+
+// WriteEncodedError writes an error response in the format of HTTPResponse
+func (hp HTTPProtocol) WriteEncodedError(w http.ResponseWriter, httpStatusCode int, errorResponse interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(httpStatusCode)
+	json.NewEncoder(w).Encode(errorResponse)
+}
 
 // WriteData wraps the data payload in an HTTPResponse and writes the resulting response using the
 // http.ResponseWriter
