@@ -849,8 +849,16 @@ func (az *Azure) DownloadPricingData() error {
 
 	rateCardFilter := fmt.Sprintf("OfferDurableId eq '%s' and Currency eq '%s' and Locale eq 'en-US' and RegionInfo eq '%s'", config.AzureOfferDurableID, config.CurrencyCode, config.AzureBillingRegion)
 
+	// create a preparer (the same way rcClient.Get() does) so that we can log the azureRateCard URL
 	log.Infof("Using azureRateCard query %s", rateCardFilter)
-	log.Debugf("Using azureRateCard URI %s", rcClient.BaseURI)
+	rcPreparer, err := rcClient.GetPreparer(context.TODO(), rateCardFilter)
+	if err != nil {
+		// this isn't an error that necessitates a return, as we only need the preparer for an informational log
+		log.Infof("Failed to get azureRateCard URL: %s", err)
+	} else {
+		log.Infof("Using azureRateCard URL %s", rcPreparer.URL.String())
+	}
+
 	// rate-card client is old, it can hang indefinitely in some cases
 	// this happens on the main thread, so it may block the whole app
 	// there is can be a better way to set timeout for the client
