@@ -37,6 +37,9 @@ func (ms *MemoryStorage) FullPath(path string) string {
 
 // Stat returns the StorageStats for the specific path.
 func (ms *MemoryStorage) Stat(path string) (*StorageInfo, error) {
+	ms.lock.Lock()
+	defer ms.lock.Unlock()
+
 	path = filepath.Clean(path)
 	if file, ok := ms.directPaths[path]; ok {
 		return &StorageInfo{
@@ -52,6 +55,9 @@ func (ms *MemoryStorage) Stat(path string) (*StorageInfo, error) {
 // Read uses the relative path of the storage combined with the provided path to
 // read the contents.
 func (ms *MemoryStorage) Read(path string) ([]byte, error) {
+	ms.lock.Lock()
+	defer ms.lock.Unlock()
+
 	path = filepath.Clean(path)
 
 	if file, ok := ms.directPaths[path]; ok {
@@ -64,6 +70,9 @@ func (ms *MemoryStorage) Read(path string) ([]byte, error) {
 // Write uses the relative path of the storage combined with the provided path
 // to write a new file or overwrite an existing file.
 func (ms *MemoryStorage) Write(path string, data []byte) error {
+	ms.lock.Lock()
+	defer ms.lock.Unlock()
+
 	paths, pFile := memfile.Split(path)
 
 	f := memfile.NewMemoryFile(pFile, data)
