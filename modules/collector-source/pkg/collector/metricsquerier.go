@@ -4,17 +4,15 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 )
 
-type CollectorProvider interface {
-	GetCollector(start, end time.Time) MetricsCollector
-}
 type CollectorMetricsQuerier struct {
-	collectorProvider CollectorProvider
+	collectorProvider StoreProvider
 }
 
-func queryCollector[T any](c *CollectorMetricsQuerier, start, end time.Time, id MetricCollectorID, decoder source.ResultDecoder[T]) *source.Future[T] {
-	collector := c.collectorProvider.GetCollector(start, end)
+func queryCollector[T any](c *CollectorMetricsQuerier, start, end time.Time, id metric.MetricCollectorID, decoder source.ResultDecoder[T]) *source.Future[T] {
+	collector := c.collectorProvider.GetStore(start, end)
 	results, err := collector.Query(id)
 	queryResults := source.NewQueryResults(string(id))
 	queryResults.Error = err
@@ -30,19 +28,19 @@ func queryCollector[T any](c *CollectorMetricsQuerier, start, end time.Time, id 
 }
 
 func (c *CollectorMetricsQuerier) QueryPVActiveMinutes(start, end time.Time) *source.Future[source.PVActiveMinutesResult] {
-	return queryCollector(c, start, end, PVActiveMinutesID, source.DecodePVActiveMinutesResult)
+	return queryCollector(c, start, end, metric.PVActiveMinutesID, source.DecodePVActiveMinutesResult)
 }
 
 func (c *CollectorMetricsQuerier) QueryPVUsedAverage(start, end time.Time) *source.Future[source.PVUsedAvgResult] {
-	return queryCollector(c, start, end, PVUsedAverageID, source.DecodePVUsedAvgResult)
+	return queryCollector(c, start, end, metric.PVUsedAverageID, source.DecodePVUsedAvgResult)
 }
 
 func (c *CollectorMetricsQuerier) QueryPVUsedMax(start, end time.Time) *source.Future[source.PVUsedMaxResult] {
-	return queryCollector(c, start, end, PVUsedMaxID, source.DecodePVUsedMaxResult)
+	return queryCollector(c, start, end, metric.PVUsedMaxID, source.DecodePVUsedMaxResult)
 }
 
 func (c *CollectorMetricsQuerier) QueryLocalStorageActiveMinutes(start, end time.Time) *source.Future[source.LocalStorageActiveMinutesResult] {
-	return queryCollector(c, start, end, LocalStorageActiveMinutesID, source.DecodeLocalStorageActiveMinutesResult)
+	return queryCollector(c, start, end, metric.LocalStorageActiveMinutesID, source.DecodeLocalStorageActiveMinutesResult)
 }
 
 func (c *CollectorMetricsQuerier) QueryLocalStorageCost(start, end time.Time) *source.Future[source.LocalStorageCostResult] {
@@ -71,9 +69,9 @@ func (c *CollectorMetricsQuerier) QueryLocalStorageBytes(start, end time.Time) *
 }
 
 func (c *CollectorMetricsQuerier) QueryNodeActiveMinutes(start, end time.Time) *source.Future[source.NodeActiveMinutesResult] {
-	collector := c.collectorProvider.GetCollector(start, end)
-	results, err := collector.Query(NodeActiveMinutesID)
-	queryResults := source.NewQueryResults(string(NodeActiveMinutesID))
+	collector := c.collectorProvider.GetStore(start, end)
+	results, err := collector.Query(metric.NodeActiveMinutesID)
+	queryResults := source.NewQueryResults(string(metric.NodeActiveMinutesID))
 	queryResults.Error = err
 	for _, result := range results {
 		queryResults.Results = append(queryResults.Results, result.ToQueryResult())
@@ -142,9 +140,9 @@ func (c *CollectorMetricsQuerier) QueryLBPricePerHr(start, end time.Time) *sourc
 }
 
 func (c *CollectorMetricsQuerier) QueryClusterManagementDuration(start, end time.Time) *source.Future[source.ClusterManagementDurationResult] {
-	collector := c.collectorProvider.GetCollector(start, end)
-	results, err := collector.Query(ClusterManagementDurationID)
-	queryResults := source.NewQueryResults(string(ClusterManagementDurationID))
+	collector := c.collectorProvider.GetStore(start, end)
+	results, err := collector.Query(metric.ClusterManagementDurationID)
+	queryResults := source.NewQueryResults(string(metric.ClusterManagementDurationID))
 	queryResults.Error = err
 	for _, result := range results {
 		queryResults.Results = append(queryResults.Results, result.ToQueryResult())
@@ -233,11 +231,11 @@ func (c *CollectorMetricsQuerier) QueryGPUsRequested(start, end time.Time) *sour
 }
 
 func (c *CollectorMetricsQuerier) QueryGPUsUsageAvg(start, end time.Time) *source.Future[source.GPUsUsageAvgResult] {
-	return queryCollector(c, start, end, GPUsUsageAverageID, source.DecodeGPUsUsageAvgResult)
+	return queryCollector(c, start, end, metric.GPUsUsageAverageID, source.DecodeGPUsUsageAvgResult)
 }
 
 func (c *CollectorMetricsQuerier) QueryGPUsUsageMax(start, end time.Time) *source.Future[source.GPUsUsageMaxResult] {
-	return queryCollector(c, start, end, GPUsUsageMaxID, source.DecodeGPUsUsageMaxResult)
+	return queryCollector(c, start, end, metric.GPUsUsageMaxID, source.DecodeGPUsUsageMaxResult)
 }
 
 func (c *CollectorMetricsQuerier) QueryNodeGPUPricePerHr(start, end time.Time) *source.Future[source.NodeGPUPricePerHrResult] {
@@ -246,7 +244,7 @@ func (c *CollectorMetricsQuerier) QueryNodeGPUPricePerHr(start, end time.Time) *
 }
 
 func (c *CollectorMetricsQuerier) QueryGPUInfo(start, end time.Time) *source.Future[source.GPUInfoResult] {
-	return queryCollector(c, start, end, GPUInfoID, source.DecodeGPUInfoResult)
+	return queryCollector(c, start, end, metric.GPUInfoID, source.DecodeGPUInfoResult)
 }
 
 func (c *CollectorMetricsQuerier) QueryIsGPUShared(start, end time.Time) *source.Future[source.IsGPUSharedResult] {

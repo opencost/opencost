@@ -1,13 +1,19 @@
-package collector
+package scrape
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/modules/collector-source/pkg/metrics/target"
+	target2 "github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+)
+
+// DCGM metrics
+const (
+	DCGMFIPROFGRENGINEACTIVE = "DCGM_FI_PROF_GR_ENGINE_ACTIVE"
+	DCGMFIDEVDECUTIL         = "DCGM_FI_DEV_DEC_UTIL"
 )
 
 type DCGMTargetProvider struct {
@@ -20,7 +26,7 @@ func NewDCGMTargetProvider(kubeClientSet kubernetes.Interface) *DCGMTargetProvid
 	}
 }
 
-func (p *DCGMTargetProvider) GetTargets() []target.ScrapeTarget {
+func (p *DCGMTargetProvider) GetTargets() []target2.ScrapeTarget {
 	k8s := p.kubeClientSet
 
 	// Find service
@@ -28,11 +34,11 @@ func (p *DCGMTargetProvider) GetTargets() []target.ScrapeTarget {
 		LabelSelector: "app.kubernetes.io/component=dcgm-exporter",
 	})
 	if err != nil {
-		log.Errorf("DCGMTargetProvider: failed to retieve services from kubernetes client: %s", err.Error())
+		log.Errorf("DCGMTargetProvider: failed to retieve Services from kubernetes client: %s", err.Error())
 		return nil
 	}
 
-	var targets []target.ScrapeTarget
+	var targets []target2.ScrapeTarget
 	for _, svc := range svcs.Items {
 		port := 9400
 		for _, prt := range svc.Spec.Ports {
@@ -40,7 +46,7 @@ func (p *DCGMTargetProvider) GetTargets() []target.ScrapeTarget {
 				port = int(prt.Port)
 			}
 		}
-		t := target.NewUrlTarget(fmt.Sprintf("http://%s:%d/metrics", svc.Spec.ClusterIP, port))
+		t := target2.NewUrlTarget(fmt.Sprintf("http://%s:%d/metrics", svc.Spec.ClusterIP, port))
 		targets = append(targets, t)
 	}
 

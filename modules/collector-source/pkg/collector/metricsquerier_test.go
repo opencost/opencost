@@ -7,24 +7,26 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
+	"github.com/opencost/opencost/modules/collector-source/pkg/scrape"
 )
 
-var start1Str = "2025-01-01T00:00:00Z00:00"
-var end1Str = "2025-01-01T00:01:00Z00:00"
+var Start1Str = "2025-01-01T00:00:00Z00:00"
+var End1Str = "2025-01-01T00:01:00Z00:00"
 
 type MockCollectorProvider struct {
-	metricsCollector MetricsCollector
+	metricsCollector metric.MetricStore
 }
 
-func (m *MockCollectorProvider) GetCollector(start, end time.Time) MetricsCollector {
+func (m *MockCollectorProvider) GetStore(start, end time.Time) metric.MetricStore {
 	return m.metricsCollector
 }
 
-func GetMockCollectorProvider() CollectorProvider {
-	collector := NewOpenCostMetricCollector()
+func GetMockCollectorProvider() StoreProvider {
+	collector := NewOpenCostMetricStore()
 
-	start1, _ := time.Parse(time.RFC3339, start1Str)
-	end1, _ := time.Parse(time.RFC3339, end1Str)
+	start1, _ := time.Parse(time.RFC3339, Start1Str)
+	end1, _ := time.Parse(time.RFC3339, End1Str)
 
 	node1Info := map[string]string{
 		"node":        "node1",
@@ -47,15 +49,15 @@ func GetMockCollectorProvider() CollectorProvider {
 		"Hostname":   "localhost",
 	}
 
-	collector.Update(NodeTotalHourlyCost, node1Info, 0, &start1, nil)
-	collector.Update(NodeTotalHourlyCost, node1Info, 0, &end1, nil)
+	collector.Update(scrape.NodeTotalHourlyCost, node1Info, 0, &start1, nil)
+	collector.Update(scrape.NodeTotalHourlyCost, node1Info, 0, &end1, nil)
 
-	collector.Update(KubecostClusterManagementCost, cluster1Info, 0.1, &start1, nil)
-	collector.Update(KubecostClusterManagementCost, cluster1Info, 0.1, &end1, nil)
+	collector.Update(scrape.KubecostClusterManagementCost, cluster1Info, 0.1, &start1, nil)
+	collector.Update(scrape.KubecostClusterManagementCost, cluster1Info, 0.1, &end1, nil)
 
-	collector.Update(DCGMFIDEVDECUTIL, gpu1Info, 0, &start1, nil)
-	collector.Update(DCGMFIPROFGRENGINEACTIVE, gpu1Info, 0, &start1, nil)
-	collector.Update(DCGMFIPROFGRENGINEACTIVE, gpu1Info, 1, &end1, nil)
+	collector.Update(scrape.DCGMFIDEVDECUTIL, gpu1Info, 0, &start1, nil)
+	collector.Update(scrape.DCGMFIPROFGRENGINEACTIVE, gpu1Info, 0, &start1, nil)
+	collector.Update(scrape.DCGMFIPROFGRENGINEACTIVE, gpu1Info, 1, &end1, nil)
 
 	return &MockCollectorProvider{
 		metricsCollector: collector,
@@ -63,8 +65,8 @@ func GetMockCollectorProvider() CollectorProvider {
 }
 
 func TestCollectorMetricsQuerier_QueryNodeActiveMinutes(t *testing.T) {
-	start1, _ := time.Parse(time.RFC3339, start1Str)
-	end1, _ := time.Parse(time.RFC3339, end1Str)
+	start1, _ := time.Parse(time.RFC3339, Start1Str)
+	end1, _ := time.Parse(time.RFC3339, End1Str)
 
 	c := CollectorMetricsQuerier{
 		collectorProvider: GetMockCollectorProvider(),
@@ -97,8 +99,8 @@ func TestCollectorMetricsQuerier_QueryNodeActiveMinutes(t *testing.T) {
 }
 
 func TestCollectorMetricsQuerier_QueryClusterManagementDuration(t *testing.T) {
-	start1, _ := time.Parse(time.RFC3339, start1Str)
-	end1, _ := time.Parse(time.RFC3339, end1Str)
+	start1, _ := time.Parse(time.RFC3339, Start1Str)
+	end1, _ := time.Parse(time.RFC3339, End1Str)
 
 	c := CollectorMetricsQuerier{
 		collectorProvider: GetMockCollectorProvider(),
@@ -131,8 +133,8 @@ func TestCollectorMetricsQuerier_QueryClusterManagementDuration(t *testing.T) {
 }
 
 func TestCollectorMetricsQuerier_QueryGPUsUsageAvg(t *testing.T) {
-	start1, _ := time.Parse(time.RFC3339, start1Str)
-	end1, _ := time.Parse(time.RFC3339, end1Str)
+	start1, _ := time.Parse(time.RFC3339, Start1Str)
+	end1, _ := time.Parse(time.RFC3339, End1Str)
 
 	c := CollectorMetricsQuerier{
 		collectorProvider: GetMockCollectorProvider(),
@@ -161,8 +163,8 @@ func TestCollectorMetricsQuerier_QueryGPUsUsageAvg(t *testing.T) {
 }
 
 func TestCollectorMetricsQuerier_QueryGPUsUsageMax(t *testing.T) {
-	start1, _ := time.Parse(time.RFC3339, start1Str)
-	end1, _ := time.Parse(time.RFC3339, end1Str)
+	start1, _ := time.Parse(time.RFC3339, Start1Str)
+	end1, _ := time.Parse(time.RFC3339, End1Str)
 
 	c := CollectorMetricsQuerier{
 		collectorProvider: GetMockCollectorProvider(),
@@ -191,8 +193,8 @@ func TestCollectorMetricsQuerier_QueryGPUsUsageMax(t *testing.T) {
 }
 
 func TestCollectorMetricsQuerier_QueryGPUInfo(t *testing.T) {
-	start1, _ := time.Parse(time.RFC3339, start1Str)
-	end1, _ := time.Parse(time.RFC3339, end1Str)
+	start1, _ := time.Parse(time.RFC3339, Start1Str)
+	end1, _ := time.Parse(time.RFC3339, End1Str)
 
 	c := CollectorMetricsQuerier{
 		collectorProvider: GetMockCollectorProvider(),

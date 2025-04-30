@@ -1,9 +1,10 @@
-package collector
+package scrape
 
 import (
 	"testing"
 
-	"github.com/opencost/opencost/modules/collector-source/pkg/metrics/target"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
+	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 )
 
 const networkScape = `
@@ -98,27 +99,39 @@ DCGM_FI_PROF_GR_ENGINE_ACTIVE{gpu="0",UUID="GPU-1",pci_bus_id="00000000:00:0A.0"
 DCGM_FI_DEV_DEC_UTIL{gpu="0",UUID="GPU-1",pci_bus_id="00000000:00:0A.0",device="nvidia0",modelName="Tesla T4",Hostname="localhost"} 0
 `
 
+type MockTargetProvider struct {
+	targets []target.ScrapeTarget
+}
+
+func NewMockTargetProvider(targets ...target.ScrapeTarget) *MockTargetProvider {
+	return &MockTargetProvider{targets: targets}
+}
+
+func (m *MockTargetProvider) GetTargets() []target.ScrapeTarget {
+	return m.targets
+}
+
 func TestTargetScraper_Scrape(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		scrapperFactory func(collector MetricsCollector) *TargetScraper
-		expected        []UpdateArgs
+		scrapperFactory func(metric.MetricUpdater) *TargetScraper
+		expected        []metric.UpdateArgs
 	}{
 		{
 			name: "Network Scrape",
-			scrapperFactory: func(collector MetricsCollector) *TargetScraper {
+			scrapperFactory: func(updater metric.MetricUpdater) *TargetScraper {
 				return NewTargetScrapper(
 					NewMockTargetProvider(target.NewStringTarget(networkScape)),
-					collector,
+					updater,
 					nil,
 					false,
 				)
 			},
-			expected: []UpdateArgs{
+			expected: []metric.UpdateArgs{
 				{
-					metricName: KubecostPodNetworkEgressBytesTotal,
-					labels: map[string]string{
+					MetricName: KubecostPodNetworkEgressBytesTotal,
+					Labels: map[string]string{
 						"pod_name":    "pod1",
 						"namespace":   "namespace1",
 						"internet":    "false",
@@ -126,13 +139,12 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"same_zone":   "true",
 						"service":     "service1",
 					},
-					value:                 3127969647,
-					timestamp:             nil,
-					additionalInformation: nil,
+					Value:     3127969647,
+					Timestamp: nil,
 				},
 				{
-					metricName: KubecostPodNetworkEgressBytesTotal,
-					labels: map[string]string{
+					MetricName: KubecostPodNetworkEgressBytesTotal,
+					Labels: map[string]string{
 						"pod_name":    "pod2",
 						"namespace":   "namespace1",
 						"internet":    "true",
@@ -140,13 +152,12 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"same_zone":   "false",
 						"service":     "",
 					},
-					value:                 335188219,
-					timestamp:             nil,
-					additionalInformation: nil,
+					Value:     335188219,
+					Timestamp: nil,
 				},
 				{
-					metricName: "kubecost_pod_network_ingress_bytes_total",
-					labels: map[string]string{
+					MetricName: "kubecost_pod_network_ingress_bytes_total",
+					Labels: map[string]string{
 						"pod_name":    "pod1",
 						"namespace":   "namespace1",
 						"internet":    "true",
@@ -154,13 +165,12 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"same_zone":   "false",
 						"service":     "service1",
 					},
-					value:                 17941460,
-					timestamp:             nil,
-					additionalInformation: nil,
+					Value:     17941460,
+					Timestamp: nil,
 				},
 				{
-					metricName: "kubecost_pod_network_ingress_bytes_total",
-					labels: map[string]string{
+					MetricName: "kubecost_pod_network_ingress_bytes_total",
+					Labels: map[string]string{
 						"pod_name":    "pod2",
 						"namespace":   "namespace1",
 						"internet":    "false",
@@ -168,72 +178,71 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"same_zone":   "false",
 						"service":     "",
 					},
-					value:                 13948766,
-					timestamp:             nil,
-					additionalInformation: nil,
+					Value:     13948766,
+					Timestamp: nil,
 				},
 			},
 		},
 		{
 			name: "Opencost Metric",
-			scrapperFactory: func(collector MetricsCollector) *TargetScraper {
+			scrapperFactory: func(updater metric.MetricUpdater) *TargetScraper {
 				return NewOpencostTargetScraper(NewMockTargetProvider(target.NewStringTarget(opencostScrape)),
-					collector,
+					updater,
 				)
 			},
-			expected: []UpdateArgs{
+			expected: []metric.UpdateArgs{
 				{
-					metricName: KubecostClusterManagementCost,
-					labels: map[string]string{
+					MetricName: KubecostClusterManagementCost,
+					Labels: map[string]string{
 						"provisioner_name": "GKE",
 					},
-					value: 0.1,
+					Value: 0.1,
 				},
 				{
-					metricName: KubecostNetworkZoneEgressCost,
-					labels:     map[string]string{},
-					value:      0.01,
+					MetricName: KubecostNetworkZoneEgressCost,
+					Labels:     map[string]string{},
+					Value:      0.01,
 				},
 				{
-					metricName: KubecostNetworkRegionEgressCost,
-					labels:     map[string]string{},
-					value:      0.01,
+					MetricName: KubecostNetworkRegionEgressCost,
+					Labels:     map[string]string{},
+					Value:      0.01,
 				},
 				{
-					metricName: KubecostNetworkInternetEgressCost,
-					labels:     map[string]string{},
-					value:      0.12,
+					MetricName: KubecostNetworkInternetEgressCost,
+					Labels:     map[string]string{},
+					Value:      0.12,
 				},
 				{
-					metricName: PVHourlyCost,
-					labels: map[string]string{
+					MetricName: PVHourlyCost,
+					Labels: map[string]string{
 						"persistentvolume": "pvc-1",
 						"provider_id":      "pvc-1",
 						"volumename":       "pvc-1",
 					},
-					value: 5.479452054794521e-05,
+					Value: 5.479452054794521e-05,
 				},
 				{
-					metricName: PVHourlyCost,
-					labels: map[string]string{
+					MetricName: PVHourlyCost,
+					Labels: map[string]string{
 						"persistentvolume": "pvc-2",
 						"provider_id":      "pvc-2",
 						"volumename":       "pvc-2",
 					},
-					value: 5.479452054794521e-05,
+					Value: 5.479452054794521e-05,
 				},
 				{
-					metricName: KubecostLoadBalancerCost,
-					labels: map[string]string{
+					MetricName: KubecostLoadBalancerCost,
+					Labels: map[string]string{
 						"ingress_ip":   "127.0.0.1",
 						"namespace":    "namespace1",
 						"service_name": "service1",
 					},
-					value: 0.025,
+					Value: 0.025,
 				},
 				{
-					metricName: NodeTotalHourlyCost,
-					labels: map[string]string{
+					MetricName: NodeTotalHourlyCost,
+					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node1",
 						"instance_type": "e2-standard-2",
@@ -241,11 +250,11 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"provider_id":   "node1",
 						"region":        "region1",
 					},
-					value: 0.06631302438846588,
+					Value: 0.06631302438846588,
 				},
 				{
-					metricName: NodeTotalHourlyCost,
-					labels: map[string]string{
+					MetricName: NodeTotalHourlyCost,
+					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node2",
 						"instance_type": "e2-standard-2",
@@ -253,11 +262,11 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"provider_id":   "node2",
 						"region":        "region1",
 					},
-					value: 0.06631302438846588,
+					Value: 0.06631302438846588,
 				},
 				{
-					metricName: NodeCPUHourlyCost,
-					labels: map[string]string{
+					MetricName: NodeCPUHourlyCost,
+					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node1",
 						"instance_type": "e2-standard-2",
@@ -265,11 +274,11 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"provider_id":   "node1",
 						"region":        "region1",
 					},
-					value: 0.021811590000000002,
+					Value: 0.021811590000000002,
 				},
 				{
-					metricName: NodeCPUHourlyCost,
-					labels: map[string]string{
+					MetricName: NodeCPUHourlyCost,
+					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node2",
 						"instance_type": "e2-standard-2",
@@ -277,11 +286,11 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"provider_id":   "node2",
 						"region":        "region1",
 					},
-					value: 0.021811590000000002,
+					Value: 0.021811590000000002,
 				},
 				{
-					metricName: NodeRAMHourlyCost,
-					labels: map[string]string{
+					MetricName: NodeRAMHourlyCost,
+					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node1",
 						"instance_type": "e2-standard-2",
@@ -289,11 +298,11 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"provider_id":   "node1",
 						"region":        "region1",
 					},
-					value: 0.00292353,
+					Value: 0.00292353,
 				},
 				{
-					metricName: NodeRAMHourlyCost,
-					labels: map[string]string{
+					MetricName: NodeRAMHourlyCost,
+					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node2",
 						"instance_type": "e2-standard-2",
@@ -301,11 +310,11 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"provider_id":   "node2",
 						"region":        "region1",
 					},
-					value: 0.00292353,
+					Value: 0.00292353,
 				},
 				{
-					metricName: NodeGPUHourlyCost,
-					labels: map[string]string{
+					MetricName: NodeGPUHourlyCost,
+					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node1",
 						"instance_type": "e2-standard-2",
@@ -313,11 +322,11 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"provider_id":   "node1",
 						"region":        "region1",
 					},
-					value: 0,
+					Value: 0,
 				},
 				{
-					metricName: NodeGPUHourlyCost,
-					labels: map[string]string{
+					MetricName: NodeGPUHourlyCost,
+					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node2",
 						"instance_type": "e2-standard-2",
@@ -325,11 +334,11 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"provider_id":   "node2",
 						"region":        "region1",
 					},
-					value: 0,
+					Value: 0,
 				},
 				{
-					metricName: NodeGPUCount,
-					labels: map[string]string{
+					MetricName: NodeGPUCount,
+					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node1",
 						"instance_type": "e2-standard-2",
@@ -337,11 +346,11 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"provider_id":   "node1",
 						"region":        "region1",
 					},
-					value: 0,
+					Value: 0,
 				},
 				{
-					metricName: NodeGPUCount,
-					labels: map[string]string{
+					MetricName: NodeGPUCount,
+					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node2",
 						"instance_type": "e2-standard-2",
@@ -349,11 +358,11 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"provider_id":   "node2",
 						"region":        "region1",
 					},
-					value: 0,
+					Value: 0,
 				},
 				{
-					metricName: KubecostNodeIsSpot,
-					labels: map[string]string{
+					MetricName: KubecostNodeIsSpot,
+					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node1",
 						"instance_type": "e2-standard-2",
@@ -361,11 +370,11 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"provider_id":   "node1",
 						"region":        "region1",
 					},
-					value: 0,
+					Value: 0,
 				},
 				{
-					metricName: KubecostNodeIsSpot,
-					labels: map[string]string{
+					MetricName: KubecostNodeIsSpot,
+					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node2",
 						"instance_type": "e2-standard-2",
@@ -373,107 +382,107 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"provider_id":   "node2",
 						"region":        "region1",
 					},
-					value: 0,
+					Value: 0,
 				},
 				{
-					metricName: ContainerCPUAllocation,
-					labels: map[string]string{
+					MetricName: ContainerCPUAllocation,
+					Labels: map[string]string{
 						"container": "container1",
 						"instance":  "node1",
 						"namespace": "namespace1",
 						"node":      "node1",
 						"pod":       "pod1",
 					},
-					value: 0.02,
+					Value: 0.02,
 				},
 				{
-					metricName: ContainerCPUAllocation,
-					labels: map[string]string{
+					MetricName: ContainerCPUAllocation,
+					Labels: map[string]string{
 						"container": "container2",
 						"instance":  "node2",
 						"namespace": "namespace1",
 						"node":      "node2",
 						"pod":       "pod2",
 					},
-					value: 0.01,
+					Value: 0.01,
 				},
 				{
-					metricName: ContainerMemoryAllocationBytes,
-					labels: map[string]string{
+					MetricName: ContainerMemoryAllocationBytes,
+					Labels: map[string]string{
 						"container": "container1",
 						"instance":  "node1",
 						"namespace": "namespace1",
 						"node":      "node1",
 						"pod":       "pod1",
 					},
-					value: 1.1528192e+07,
+					Value: 1.1528192e+07,
 				},
 				{
-					metricName: ContainerMemoryAllocationBytes,
-					labels: map[string]string{
+					MetricName: ContainerMemoryAllocationBytes,
+					Labels: map[string]string{
 						"container": "container2",
 						"instance":  "node2",
 						"namespace": "namespace1",
 						"node":      "node2",
 						"pod":       "pod2",
 					},
-					value: 1e+07,
+					Value: 1e+07,
 				},
 				{
-					metricName: ContainerGPUAllocation,
-					labels: map[string]string{
+					MetricName: ContainerGPUAllocation,
+					Labels: map[string]string{
 						"container": "container1",
 						"instance":  "node1",
 						"namespace": "namespace1",
 						"node":      "node1",
 						"pod":       "pod1",
 					},
-					value: 0,
+					Value: 0,
 				},
 				{
-					metricName: ContainerGPUAllocation,
-					labels: map[string]string{
+					MetricName: ContainerGPUAllocation,
+					Labels: map[string]string{
 						"container": "container2",
 						"instance":  "node2",
 						"namespace": "namespace1",
 						"node":      "node2",
 						"pod":       "pod2",
 					},
-					value: 0,
+					Value: 0,
 				},
 				{
-					metricName: PodPVCAllocation,
-					labels: map[string]string{
+					MetricName: PodPVCAllocation,
+					Labels: map[string]string{
 						"namespace":             "namespace1",
 						"persistentvolume":      "pvc-1",
 						"persistentvolumeclaim": "pvc1",
 						"pod":                   "pod1",
 					},
-					value: 3.4359738368e+10,
+					Value: 3.4359738368e+10,
 				},
 				{
-					metricName: PodPVCAllocation,
-					labels: map[string]string{
+					MetricName: PodPVCAllocation,
+					Labels: map[string]string{
 						"namespace":             "namespace1",
 						"persistentvolume":      "pvc-2",
 						"persistentvolumeclaim": "pvc2",
 						"pod":                   "pod2",
 					},
-					value: 3.4359738368e+10,
+					Value: 3.4359738368e+10,
 				},
 			},
 		},
 		{
 			name: "GPU Metric",
-			scrapperFactory: func(collector MetricsCollector) *TargetScraper {
+			scrapperFactory: func(updater metric.MetricUpdater) *TargetScraper {
 				return NewDCGMTargetScraper(NewMockTargetProvider(target.NewStringTarget(dcgmScrape)),
-					collector,
+					updater,
 				)
 			},
-			expected: []UpdateArgs{
+			expected: []metric.UpdateArgs{
 				{
-					metricName: DCGMFIPROFGRENGINEACTIVE,
-					labels: map[string]string{
+					MetricName: DCGMFIPROFGRENGINEACTIVE,
+					Labels: map[string]string{
 						"gpu":        "0",
 						"UUID":       "GPU-1",
 						"pci_bus_id": "00000000:00:0A.0",
@@ -481,11 +490,11 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"modelName":  "Tesla T4",
 						"Hostname":   "localhost",
 					},
-					value: 0.999999,
+					Value: 0.999999,
 				},
 				{
-					metricName: DCGMFIDEVDECUTIL,
-					labels: map[string]string{
+					MetricName: DCGMFIDEVDECUTIL,
+					Labels: map[string]string{
 						"gpu":        "0",
 						"UUID":       "GPU-1",
 						"pci_bus_id": "00000000:00:0A.0",
@@ -493,24 +502,24 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"modelName":  "Tesla T4",
 						"Hostname":   "localhost",
 					},
-					value: 0,
+					Value: 0,
 				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			updateRecorder := UpdateRecorderCollector{}
+			updateRecorder := metric.ArgRecordUpdater{}
 			scrapper := tt.scrapperFactory(&updateRecorder)
 			scrapper.Scrape()
 
-			if len(updateRecorder.updateArgs) != len(tt.expected) {
-				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(updateRecorder.updateArgs))
+			if len(updateRecorder.UpdateArgs) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(updateRecorder.UpdateArgs))
 			}
 
 			for i, expected := range tt.expected {
-				updateArg := updateRecorder.updateArgs[i]
-				err := expected.equals(updateArg)
+				updateArg := updateRecorder.UpdateArgs[i]
+				err := expected.Equals(updateArg)
 				if err != nil {
 					t.Errorf("Result did not match expected at index %d: %s", i, err.Error())
 				}

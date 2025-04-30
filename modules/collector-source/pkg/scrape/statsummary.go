@@ -1,26 +1,39 @@
-package collector
+package scrape
 
 import (
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
+)
+
+// Stat Summary Metrics
+const (
+	NodeCPUSecondsTotal                = "node_cpu_seconds_total"
+	NodeFSCapacityBytes                = "node_fs_capacity_bytes" // replaces container_fs_limit_bytes
+	ContainerNetworkReceiveBytesTotal  = "container_network_receive_bytes_total"
+	ContainerNetworkTransmitBytesTotal = "container_network_transmit_bytes_total"
+	ContainerCPUUsageSecondsTotal      = "container_cpu_usage_seconds_total"
+	ContainerMemoryWorkingSetBytes     = "container_memory_working_set_bytes"
+	ContainerFSUsageBytes              = "container_fs_usage_bytes"
+	KubeletVolumeStatsUsedBytes        = "kubelet_volume_stats_used_bytes"
 )
 
 type StatSummaryClient interface {
 	GetNodeData() ([]*stats.Summary, error)
 }
 
-type StatScraper struct {
-	client    StatSummaryClient
-	collector MetricsCollector
+type StatSummaryScraper struct {
+	client  StatSummaryClient
+	updater metric.MetricUpdater
 }
 
-func NewStatScraper(client StatSummaryClient) *StatScraper {
-	return &StatScraper{
+func NewStatSummaryScraper(client StatSummaryClient) *StatSummaryScraper {
+	return &StatSummaryScraper{
 		client: client,
 	}
 }
 
-func (s *StatScraper) Scrape() {
+func (s *StatSummaryScraper) Scrape() {
 	nodeStats, err := s.client.GetNodeData()
 	if err != nil {
 		log.Errorf("error retrieving node stat data: %s", err.Error())
@@ -33,7 +46,7 @@ func (s *StatScraper) Scrape() {
 	for _, stat := range nodeStats {
 		nodeName := stat.Node.NodeName
 		if stat.Node.CPU != nil && stat.Node.CPU.UsageCoreNanoSeconds != nil {
-			s.collector.Update(
+			s.updater.Update(
 				NodeCPUSecondsTotal,
 				map[string]string{
 					"kubernetes_node": nodeName,
@@ -46,7 +59,7 @@ func (s *StatScraper) Scrape() {
 		}
 
 		if stat.Node.Fs != nil && stat.Node.Fs.CapacityBytes != nil {
-			s.collector.Update(
+			s.updater.Update(
 				NodeFSCapacityBytes,
 				map[string]string{
 					"instance": nodeName,
@@ -65,7 +78,7 @@ func (s *StatScraper) Scrape() {
 
 			if pod.Network != nil {
 				if pod.Network.RxBytes != nil {
-					s.collector.Update(
+					s.updater.Update(
 						ContainerNetworkReceiveBytesTotal,
 						map[string]string{
 							"pod":       podUID,
@@ -79,7 +92,7 @@ func (s *StatScraper) Scrape() {
 				}
 
 				if pod.Network.TxBytes != nil {
-					s.collector.Update(
+					s.updater.Update(
 						ContainerNetworkTransmitBytesTotal,
 						map[string]string{
 							"pod":       podUID,
@@ -100,7 +113,7 @@ func (s *StatScraper) Scrape() {
 				if _, ok := seenPVC[*volumeStats.PVCRef]; ok {
 					continue
 				}
-				s.collector.Update(
+				s.updater.Update(
 					KubeletVolumeStatsUsedBytes,
 					map[string]string{
 						"persistentvolumeclaim": volumeStats.PVCRef.Name,
@@ -115,7 +128,7 @@ func (s *StatScraper) Scrape() {
 
 			for _, container := range pod.Containers {
 				if container.CPU != nil && container.CPU.UsageCoreNanoSeconds != nil {
-					s.collector.Update(
+					s.updater.Update(
 						ContainerCPUUsageSecondsTotal,
 						map[string]string{
 							"container": container.Name,
@@ -131,7 +144,7 @@ func (s *StatScraper) Scrape() {
 					)
 				}
 				if container.Memory != nil && container.Memory.WorkingSetBytes != nil {
-					s.collector.Update(
+					s.updater.Update(
 						ContainerMemoryWorkingSetBytes,
 						map[string]string{
 							"container": container.Name,
@@ -148,7 +161,7 @@ func (s *StatScraper) Scrape() {
 				}
 
 				if container.Rootfs != nil && container.Rootfs.UsedBytes != nil {
-					s.collector.Update(
+					s.updater.Update(
 						ContainerFSUsageBytes,
 						map[string]string{
 							"instance": nodeName,

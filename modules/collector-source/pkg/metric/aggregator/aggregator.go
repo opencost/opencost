@@ -42,7 +42,7 @@ func (mr *MetricResult) ToQueryResult() *source.QueryResult {
 	return source.NewQueryResult(metrics, values, nil)
 }
 
-// MetricAggregator is an interface that defines the methods for a metric collector aggregation.
+// MetricAggregator is an interface that defines the methods for a metric metric aggregation.
 // For example, we have a metric `foo_metric`, and we wish to query and collect the average over time.
 // In this case, the `AverageOverTime` component is the MetricAggregator. It is the component responsible
 // for routing updates to metric values into their proper condensed form.

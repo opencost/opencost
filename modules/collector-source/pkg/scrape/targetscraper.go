@@ -1,27 +1,28 @@
-package collector
+package scrape
 
 import (
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/modules/collector-source/pkg/metrics/parser"
-	"github.com/opencost/opencost/modules/collector-source/pkg/metrics/target"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
+	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/parser"
+	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 )
 
 type TargetScraper struct {
 	targetProvider target.TargetProvider
-	collector      MetricsCollector
-	metrics        map[string]struct{} // filter for which metrics will be processed
+	metricUpdater  metric.MetricUpdater
+	metricNames    map[string]struct{} // filter for which metrics will be processed
 	includeMetrics bool                // toggle to make metrics an include or exclude list
 }
 
-func NewTargetScrapper(provider target.TargetProvider, collector MetricsCollector, metrics []string, includeMetrics bool) *TargetScraper {
+func NewTargetScrapper(provider target.TargetProvider, updater metric.MetricUpdater, metricNames []string, includeMetrics bool) *TargetScraper {
 	metricSet := make(map[string]struct{})
-	for _, metric := range metrics {
+	for _, metric := range metricNames {
 		metricSet[metric] = struct{}{}
 	}
 	return &TargetScraper{
 		targetProvider: provider,
-		collector:      collector,
-		metrics:        metricSet,
+		metricUpdater:  updater,
+		metricNames:    metricSet,
 		includeMetrics: includeMetrics,
 	}
 }
@@ -42,18 +43,18 @@ func (s *TargetScraper) Scrape() {
 
 		for _, result := range results {
 			// filter metrics to be processed by name
-			if _, ok := s.metrics[result.Name]; ok != s.includeMetrics {
+			if _, ok := s.metricNames[result.Name]; ok != s.includeMetrics {
 				continue
 			}
-			s.collector.Update(result.Name, result.Labels, result.Value, result.Timestamp, nil)
+			s.metricUpdater.Update(result.Name, result.Labels, result.Value, result.Timestamp, nil)
 		}
 	}
 }
 
-func NewOpencostTargetScraper(provider target.TargetProvider, collector MetricsCollector) *TargetScraper {
+func NewOpencostTargetScraper(provider target.TargetProvider, updater metric.MetricUpdater) *TargetScraper {
 	return NewTargetScrapper(
 		provider,
-		collector,
+		updater,
 		[]string{
 			KubecostClusterManagementCost,
 			KubecostNetworkZoneEgressCost,
@@ -75,10 +76,10 @@ func NewOpencostTargetScraper(provider target.TargetProvider, collector MetricsC
 		true)
 }
 
-func NewDCGMTargetScraper(provider target.TargetProvider, collector MetricsCollector) *TargetScraper {
+func NewDCGMTargetScraper(provider target.TargetProvider, updater metric.MetricUpdater) *TargetScraper {
 	return NewTargetScrapper(
 		provider,
-		collector,
+		updater,
 		[]string{
 			DCGMFIPROFGRENGINEACTIVE,
 			DCGMFIDEVDECUTIL,

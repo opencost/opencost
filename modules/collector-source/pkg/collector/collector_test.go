@@ -1,6 +1,11 @@
 package collector
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
+	"github.com/opencost/opencost/modules/collector-source/pkg/scrape"
+)
 
 func TestBasicCollectorFunctionality(t *testing.T) {
 	// avg of 55 (sum of [1,10]) / data points (10) = 5.5
@@ -26,14 +31,14 @@ func TestBasicCollectorFunctionality(t *testing.T) {
 		"cluster":   "cluster-a",
 	}
 
-	collector := NewOpenCostMetricCollector()
+	collector := NewOpenCostMetricStore()
 
 	for i := 1; i <= 10; i++ {
-		collector.Update(ContainerMemoryWorkingSetBytes, labelsA, float64(i), nil, nil)
-		collector.Update(ContainerMemoryWorkingSetBytes, labelsB, float64(i), nil, nil)
+		collector.Update(scrape.ContainerMemoryWorkingSetBytes, labelsA, float64(i), nil, nil)
+		collector.Update(scrape.ContainerMemoryWorkingSetBytes, labelsB, float64(i), nil, nil)
 	}
 
-	results, err := collector.Query(RAMUsageAverageID)
+	results, err := collector.Query(metric.RAMUsageAverageID)
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
