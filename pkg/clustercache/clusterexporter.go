@@ -3,6 +3,7 @@ package clustercache
 import (
 	"time"
 
+	cc "github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/atomic"
 	"github.com/opencost/opencost/core/pkg/util/json"
@@ -11,32 +12,32 @@ import (
 
 // clusterEncoding is used to represent the cluster objects in the encoded states.
 type clusterEncoding struct {
-	Namespaces             []*Namespace             `json:"namespaces,omitempty"`
-	Nodes                  []*Node                  `json:"nodes,omitempty"`
-	Pods                   []*Pod                   `json:"pods,omitempty"`
-	Services               []*Service               `json:"services,omitempty"`
-	DaemonSets             []*DaemonSet             `json:"daemonSets,omitempty"`
-	Deployments            []*Deployment            `json:"deployments,omitempty"`
-	StatefulSets           []*StatefulSet           `json:"statefulSets,omitempty"`
-	ReplicaSets            []*ReplicaSet            `json:"replicaSets,omitempty"`
-	PersistentVolumes      []*PersistentVolume      `json:"persistentVolumes,omitempty"`
-	PersistentVolumeClaims []*PersistentVolumeClaim `json:"persistentVolumeClaims,omitempty"`
-	StorageClasses         []*StorageClass          `json:"storageClasses,omitempty"`
-	Jobs                   []*Job                   `json:"jobs,omitempty"`
-	PodDisruptionBudgets   []*PodDisruptionBudget   `json:"podDisruptionBudgets,omitempty"`
-	ReplicationControllers []*ReplicationController `json:"replicationController,omitempty"`
+	Namespaces             []*cc.Namespace             `json:"namespaces,omitempty"`
+	Nodes                  []*cc.Node                  `json:"nodes,omitempty"`
+	Pods                   []*cc.Pod                   `json:"pods,omitempty"`
+	Services               []*cc.Service               `json:"services,omitempty"`
+	DaemonSets             []*cc.DaemonSet             `json:"daemonSets,omitempty"`
+	Deployments            []*cc.Deployment            `json:"deployments,omitempty"`
+	StatefulSets           []*cc.StatefulSet           `json:"statefulSets,omitempty"`
+	ReplicaSets            []*cc.ReplicaSet            `json:"replicaSets,omitempty"`
+	PersistentVolumes      []*cc.PersistentVolume      `json:"persistentVolumes,omitempty"`
+	PersistentVolumeClaims []*cc.PersistentVolumeClaim `json:"persistentVolumeClaims,omitempty"`
+	StorageClasses         []*cc.StorageClass          `json:"storageClasses,omitempty"`
+	Jobs                   []*cc.Job                   `json:"jobs,omitempty"`
+	PodDisruptionBudgets   []*cc.PodDisruptionBudget   `json:"podDisruptionBudgets,omitempty"`
+	ReplicationControllers []*cc.ReplicationController `json:"replicationController,omitempty"`
 }
 
 // ClusterExporter manages and runs an file export process which dumps the local kubernetes cluster to a target location.
 type ClusterExporter struct {
-	cluster  ClusterCache
+	cluster  cc.ClusterCache
 	target   *config.ConfigFile
 	interval time.Duration
 	runState atomic.AtomicRunState
 }
 
 // NewClusterExporter creates a new ClusterExporter instance for exporting the kubernetes cluster.
-func NewClusterExporter(cluster ClusterCache, target *config.ConfigFile, interval time.Duration) *ClusterExporter {
+func NewClusterExporter(cluster cc.ClusterCache, target *config.ConfigFile, interval time.Duration) *ClusterExporter {
 	return &ClusterExporter{
 		cluster:  cluster,
 		target:   target,

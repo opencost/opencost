@@ -31,6 +31,7 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
 	sysenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
@@ -38,7 +39,7 @@ import (
 	"github.com/opencost/opencost/modules/prometheus-source/pkg/prom"
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/models"
-	"github.com/opencost/opencost/pkg/clustercache"
+	clusterc "github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -499,7 +500,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	}
 
 	// Create Kubernetes Cluster Cache + Watchers
-	k8sCache := clustercache.NewKubernetesClusterCache(kubeClientset)
+	k8sCache := clusterc.NewKubernetesClusterCache(kubeClientset)
 	k8sCache.Run()
 
 	// Create ConfigFileManager for synchronization of shared configuration

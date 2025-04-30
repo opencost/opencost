@@ -3,6 +3,8 @@ package pathing
 import (
 	"testing"
 	"time"
+
+	"github.com/opencost/opencost/core/pkg/opencost"
 )
 
 func TestBingenPathFormatter(t *testing.T) {
@@ -86,7 +88,83 @@ func TestBingenPathFormatter(t *testing.T) {
 				end = start.Add(*tc.resolution)
 			}
 
-			result := pathing.ToFullPath(tc.prefix, start, end)
+			result := pathing.ToFullPath(tc.prefix, opencost.NewClosedWindow(start, end), "")
+			if result != tc.expected {
+				t.Errorf("Expected %s, got %s", tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestEventPathFormatter(t *testing.T) {
+	type testCase struct {
+		name      string
+		rootPath  string
+		clusterID string
+		event     string
+		prefix    string
+		fileExt   string
+		expected  string
+	}
+
+	testCases := []testCase{
+		{
+			name:      "with root path with file extension",
+			rootPath:  "/tmp",
+			clusterID: "cluster-a",
+			event:     "heartbeat",
+			prefix:    "",
+			fileExt:   "json",
+			expected:  "/tmp/federated/cluster-a/heartbeat/20240101124000.json",
+		},
+		{
+			name:      "with file extension",
+			rootPath:  "",
+			clusterID: "cluster-a",
+			event:     "heartbeat",
+			prefix:    "",
+			fileExt:   "json",
+			expected:  "federated/cluster-a/heartbeat/20240101124000.json",
+		},
+		{
+			name:      "without file extension",
+			rootPath:  "",
+			clusterID: "cluster-a",
+			event:     "heartbeat",
+			prefix:    "",
+			fileExt:   "",
+			expected:  "federated/cluster-a/heartbeat/20240101124000",
+		},
+		{
+			name:      "with prefix with file extension",
+			rootPath:  "",
+			clusterID: "cluster-a",
+			event:     "heartbeat",
+			prefix:    "test",
+			fileExt:   "json",
+			expected:  "federated/cluster-a/heartbeat/test.20240101124000.json",
+		},
+		{
+			name:      "with prefix without file extension",
+			rootPath:  "",
+			clusterID: "cluster-a",
+			event:     "heartbeat",
+			prefix:    "test",
+			fileExt:   "",
+			expected:  "federated/cluster-a/heartbeat/test.20240101124000",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			pathing, err := NewEventStoragePathFormatter(tc.rootPath, tc.clusterID, tc.event)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			timestamp := time.Date(2024, 1, 1, 12, 40, 0, 0, time.UTC)
+
+			result := pathing.ToFullPath(tc.prefix, timestamp, tc.fileExt)
 			if result != tc.expected {
 				t.Errorf("Expected %s, got %s", tc.expected, result)
 			}

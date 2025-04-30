@@ -6,13 +6,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/errors"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/stringutil"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/errors"
 )
 
 // IngestorStatus includes diagnostic values for a given Ingestor

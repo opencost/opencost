@@ -2,13 +2,10 @@ package clustercache
 
 import (
 	"sync"
-	"time"
 
+	cc "github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/env"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -19,6 +16,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+<<<<<<< HEAD
 type Namespace struct {
 	Name        string
 	Labels      map[string]string
@@ -414,6 +412,8 @@ type ClusterCache interface {
 	GetAllReplicationControllers() []*ReplicationController
 }
 
+=======
+>>>>>>> 73e0ffbc6daefd526154900dfda22e027ee839be
 // KubernetesClusterCache is the implementation of ClusterCache
 type KubernetesClusterCache struct {
 	client kubernetes.Interface
@@ -440,14 +440,14 @@ func initializeCache(wc WatchController, wg *sync.WaitGroup, cancel chan struct{
 	wc.WarmUp(cancel)
 }
 
-func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
+func NewKubernetesClusterCache(client kubernetes.Interface) cc.ClusterCache {
 	if env.GetUseCacheV1() {
 		return NewKubernetesClusterCacheV1(client)
 	}
 	return NewKubernetesClusterCacheV2(client)
 }
 
-func NewKubernetesClusterCacheV1(client kubernetes.Interface) ClusterCache {
+func NewKubernetesClusterCacheV1(client kubernetes.Interface) cc.ClusterCache {
 	coreRestClient := client.CoreV1().RESTClient()
 	appsRestClient := client.AppsV1().RESTClient()
 	storageRestClient := client.StorageV1().RESTClient()
@@ -536,128 +536,128 @@ func (kcc *KubernetesClusterCache) Stop() {
 	kcc.stop = nil
 }
 
-func (kcc *KubernetesClusterCache) GetAllNamespaces() []*Namespace {
-	var namespaces []*Namespace
+func (kcc *KubernetesClusterCache) GetAllNamespaces() []*cc.Namespace {
+	var namespaces []*cc.Namespace
 	items := kcc.namespaceWatch.GetAll()
 	for _, ns := range items {
-		namespaces = append(namespaces, TransformNamespace(ns.(*v1.Namespace)))
+		namespaces = append(namespaces, cc.TransformNamespace(ns.(*v1.Namespace)))
 	}
 	return namespaces
 }
 
-func (kcc *KubernetesClusterCache) GetAllNodes() []*Node {
-	var nodes []*Node
+func (kcc *KubernetesClusterCache) GetAllNodes() []*cc.Node {
+	var nodes []*cc.Node
 	items := kcc.nodeWatch.GetAll()
 	for _, node := range items {
-		nodes = append(nodes, TransformNode(node.(*v1.Node)))
+		nodes = append(nodes, cc.TransformNode(node.(*v1.Node)))
 	}
 	return nodes
 }
 
-func (kcc *KubernetesClusterCache) GetAllPods() []*Pod {
-	var pods []*Pod
+func (kcc *KubernetesClusterCache) GetAllPods() []*cc.Pod {
+	var pods []*cc.Pod
 	items := kcc.podWatch.GetAll()
 	for _, pod := range items {
-		pods = append(pods, TransformPod(pod.(*v1.Pod)))
+		pods = append(pods, cc.TransformPod(pod.(*v1.Pod)))
 	}
 	return pods
 }
 
-func (kcc *KubernetesClusterCache) GetAllServices() []*Service {
-	var services []*Service
+func (kcc *KubernetesClusterCache) GetAllServices() []*cc.Service {
+	var services []*cc.Service
 	items := kcc.serviceWatch.GetAll()
 	for _, service := range items {
-		services = append(services, TransformService(service.(*v1.Service)))
+		services = append(services, cc.TransformService(service.(*v1.Service)))
 	}
 	return services
 }
 
-func (kcc *KubernetesClusterCache) GetAllDaemonSets() []*DaemonSet {
-	var daemonsets []*DaemonSet
+func (kcc *KubernetesClusterCache) GetAllDaemonSets() []*cc.DaemonSet {
+	var daemonsets []*cc.DaemonSet
 	items := kcc.daemonsetsWatch.GetAll()
 	for _, daemonset := range items {
-		daemonsets = append(daemonsets, TransformDaemonSet(daemonset.(*appsv1.DaemonSet)))
+		daemonsets = append(daemonsets, cc.TransformDaemonSet(daemonset.(*appsv1.DaemonSet)))
 	}
 	return daemonsets
 }
 
-func (kcc *KubernetesClusterCache) GetAllDeployments() []*Deployment {
-	var deployments []*Deployment
+func (kcc *KubernetesClusterCache) GetAllDeployments() []*cc.Deployment {
+	var deployments []*cc.Deployment
 	items := kcc.deploymentsWatch.GetAll()
 	for _, deployment := range items {
-		deployments = append(deployments, TransformDeployment(deployment.(*appsv1.Deployment)))
+		deployments = append(deployments, cc.TransformDeployment(deployment.(*appsv1.Deployment)))
 	}
 	return deployments
 }
 
-func (kcc *KubernetesClusterCache) GetAllStatefulSets() []*StatefulSet {
-	var statefulsets []*StatefulSet
+func (kcc *KubernetesClusterCache) GetAllStatefulSets() []*cc.StatefulSet {
+	var statefulsets []*cc.StatefulSet
 	items := kcc.statefulsetWatch.GetAll()
 	for _, statefulset := range items {
-		statefulsets = append(statefulsets, TransformStatefulSet(statefulset.(*appsv1.StatefulSet)))
+		statefulsets = append(statefulsets, cc.TransformStatefulSet(statefulset.(*appsv1.StatefulSet)))
 	}
 	return statefulsets
 }
 
-func (kcc *KubernetesClusterCache) GetAllReplicaSets() []*ReplicaSet {
-	var replicasets []*ReplicaSet
+func (kcc *KubernetesClusterCache) GetAllReplicaSets() []*cc.ReplicaSet {
+	var replicasets []*cc.ReplicaSet
 	items := kcc.replicasetWatch.GetAll()
 	for _, replicaset := range items {
-		replicasets = append(replicasets, TransformReplicaSet(replicaset.(*appsv1.ReplicaSet)))
+		replicasets = append(replicasets, cc.TransformReplicaSet(replicaset.(*appsv1.ReplicaSet)))
 	}
 	return replicasets
 }
 
-func (kcc *KubernetesClusterCache) GetAllPersistentVolumes() []*PersistentVolume {
-	var pvs []*PersistentVolume
+func (kcc *KubernetesClusterCache) GetAllPersistentVolumes() []*cc.PersistentVolume {
+	var pvs []*cc.PersistentVolume
 	items := kcc.pvWatch.GetAll()
 	for _, pv := range items {
-		pvs = append(pvs, TransformPersistentVolume(pv.(*v1.PersistentVolume)))
+		pvs = append(pvs, cc.TransformPersistentVolume(pv.(*v1.PersistentVolume)))
 	}
 	return pvs
 }
 
-func (kcc *KubernetesClusterCache) GetAllPersistentVolumeClaims() []*PersistentVolumeClaim {
-	var pvcs []*PersistentVolumeClaim
+func (kcc *KubernetesClusterCache) GetAllPersistentVolumeClaims() []*cc.PersistentVolumeClaim {
+	var pvcs []*cc.PersistentVolumeClaim
 	items := kcc.pvcWatch.GetAll()
 	for _, pvc := range items {
-		pvcs = append(pvcs, TransformPersistentVolumeClaim(pvc.(*v1.PersistentVolumeClaim)))
+		pvcs = append(pvcs, cc.TransformPersistentVolumeClaim(pvc.(*v1.PersistentVolumeClaim)))
 	}
 	return pvcs
 }
 
-func (kcc *KubernetesClusterCache) GetAllStorageClasses() []*StorageClass {
-	var storageClasses []*StorageClass
+func (kcc *KubernetesClusterCache) GetAllStorageClasses() []*cc.StorageClass {
+	var storageClasses []*cc.StorageClass
 	items := kcc.storageClassWatch.GetAll()
 	for _, stc := range items {
-		storageClasses = append(storageClasses, TransformStorageClass(stc.(*stv1.StorageClass)))
+		storageClasses = append(storageClasses, cc.TransformStorageClass(stc.(*stv1.StorageClass)))
 	}
 	return storageClasses
 }
 
-func (kcc *KubernetesClusterCache) GetAllJobs() []*Job {
-	var jobs []*Job
+func (kcc *KubernetesClusterCache) GetAllJobs() []*cc.Job {
+	var jobs []*cc.Job
 	items := kcc.jobsWatch.GetAll()
 	for _, job := range items {
-		jobs = append(jobs, TransformJob(job.(*batchv1.Job)))
+		jobs = append(jobs, cc.TransformJob(job.(*batchv1.Job)))
 	}
 	return jobs
 }
 
-func (kcc *KubernetesClusterCache) GetAllPodDisruptionBudgets() []*PodDisruptionBudget {
-	var pdbs []*PodDisruptionBudget
+func (kcc *KubernetesClusterCache) GetAllPodDisruptionBudgets() []*cc.PodDisruptionBudget {
+	var pdbs []*cc.PodDisruptionBudget
 	items := kcc.pdbWatch.GetAll()
 	for _, pdb := range items {
-		pdbs = append(pdbs, TransformPodDisruptionBudget(pdb.(*policyv1.PodDisruptionBudget)))
+		pdbs = append(pdbs, cc.TransformPodDisruptionBudget(pdb.(*policyv1.PodDisruptionBudget)))
 	}
 	return pdbs
 }
 
-func (kcc *KubernetesClusterCache) GetAllReplicationControllers() []*ReplicationController {
-	var rcs []*ReplicationController
+func (kcc *KubernetesClusterCache) GetAllReplicationControllers() []*cc.ReplicationController {
+	var rcs []*cc.ReplicationController
 	items := kcc.replicationControllerWatch.GetAll()
 	for _, rc := range items {
-		rcs = append(rcs, TransformReplicationController(rc.(*v1.ReplicationController)))
+		rcs = append(rcs, cc.TransformReplicationController(rc.(*v1.ReplicationController)))
 	}
 	return rcs
 }

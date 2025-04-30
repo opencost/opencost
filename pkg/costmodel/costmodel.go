@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
@@ -16,7 +17,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
-	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

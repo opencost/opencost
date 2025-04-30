@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/modules/prometheus-source/pkg/env"
 
@@ -132,11 +133,22 @@ func NewPrometheusDataSource(infoProvider clusters.ClusterInfoProvider, promConf
 
 	// we don't consider this a fatal error, but we log for visibility
 	api := prometheusAPI.NewAPI(promClient)
-	_, err = api.Buildinfo(context.Background())
+	bi, err := api.Buildinfo(context.Background())
+
 	if err != nil {
 		log.Infof("No valid prometheus config file at %s. Error: %s.\nTroubleshooting help available at: %s.\n**Ignore if using cortex/mimir/thanos here**", promConfig.ServerEndpoint, err.Error(), PrometheusTroubleshootingURL)
 	} else {
 		log.Infof("Retrieved a prometheus config file from: %s", promConfig.ServerEndpoint)
+		promConfig.Version = bi.Version
+
+		// for versions of prometheus >= 3.0.0, we need to offset the resolution for range queries
+		// due to a breaking change in prometheus lookback and range query alignment
+		v, err := semver.NewVersion(promConfig.Version)
+		if err != nil {
+			log.Warnf("Failed to parse prometheus version %s. Error: %s", promConfig.Version, err.Error())
+		} else {
+			promConfig.IsOffsetResolution = v.Major() >= 3
+		}
 	}
 
 	// Fix scrape interval if zero by attempting to lookup the interval for the configured job

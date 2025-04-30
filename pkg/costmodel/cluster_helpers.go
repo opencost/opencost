@@ -586,7 +586,13 @@ func lbValues(result *source.LBActiveMinutesResult) []*util.Vector {
 	return result.Data
 }
 
-func buildActiveDataMap[T comparable, U any](results []*U, keyGen func(*U) (T, bool), valuesFunc func(*U) []*util.Vector, resolution time.Duration, window opencost.Window) map[T]activeData {
+func buildActiveDataMap[T comparable, U any](
+	results []*U,
+	keyGen func(*U) (T, bool),
+	valuesFunc func(*U) []*util.Vector,
+	resolution time.Duration,
+	window opencost.Window,
+) map[T]activeData {
 	m := make(map[T]activeData)
 
 	for _, result := range results {

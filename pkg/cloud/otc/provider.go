@@ -9,11 +9,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/pkg/cloud/models"
-	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
 )
 

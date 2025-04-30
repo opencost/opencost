@@ -3,6 +3,7 @@ package clustercache
 import (
 	"sync"
 
+	cc "github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/config"
@@ -19,7 +20,7 @@ type ClusterImporter struct {
 }
 
 // Creates a new ClusterCache implementation which uses an import process to provide cluster data
-func NewClusterImporter(source *config.ConfigFile) ClusterCache {
+func NewClusterImporter(source *config.ConfigFile) cc.ClusterCache {
 	return &ClusterImporter{
 		source:   source,
 		dataLock: new(sync.Mutex),
@@ -87,7 +88,7 @@ func (ci *ClusterImporter) Stop() {
 }
 
 // GetAllNamespaces returns all the cached namespaces
-func (ci *ClusterImporter) GetAllNamespaces() []*Namespace {
+func (ci *ClusterImporter) GetAllNamespaces() []*cc.Namespace {
 	ci.dataLock.Lock()
 	defer ci.dataLock.Unlock()
 
@@ -95,7 +96,7 @@ func (ci *ClusterImporter) GetAllNamespaces() []*Namespace {
 }
 
 // GetAllNodes returns all the cached nodes
-func (ci *ClusterImporter) GetAllNodes() []*Node {
+func (ci *ClusterImporter) GetAllNodes() []*cc.Node {
 	ci.dataLock.Lock()
 	defer ci.dataLock.Unlock()
 
@@ -103,7 +104,7 @@ func (ci *ClusterImporter) GetAllNodes() []*Node {
 }
 
 // GetAllPods returns all the cached pods
-func (ci *ClusterImporter) GetAllPods() []*Pod {
+func (ci *ClusterImporter) GetAllPods() []*cc.Pod {
 	ci.dataLock.Lock()
 	defer ci.dataLock.Unlock()
 
@@ -111,7 +112,7 @@ func (ci *ClusterImporter) GetAllPods() []*Pod {
 }
 
 // GetAllServices returns all the cached services
-func (ci *ClusterImporter) GetAllServices() []*Service {
+func (ci *ClusterImporter) GetAllServices() []*cc.Service {
 	ci.dataLock.Lock()
 	defer ci.dataLock.Unlock()
 
@@ -119,7 +120,7 @@ func (ci *ClusterImporter) GetAllServices() []*Service {
 }
 
 // GetAllDaemonSets returns all the cached DaemonSets
-func (ci *ClusterImporter) GetAllDaemonSets() []*DaemonSet {
+func (ci *ClusterImporter) GetAllDaemonSets() []*cc.DaemonSet {
 	ci.dataLock.Lock()
 	defer ci.dataLock.Unlock()
 
@@ -127,7 +128,7 @@ func (ci *ClusterImporter) GetAllDaemonSets() []*DaemonSet {
 }
 
 // GetAllDeployments returns all the cached deployments
-func (ci *ClusterImporter) GetAllDeployments() []*Deployment {
+func (ci *ClusterImporter) GetAllDeployments() []*cc.Deployment {
 	ci.dataLock.Lock()
 	defer ci.dataLock.Unlock()
 
@@ -135,7 +136,7 @@ func (ci *ClusterImporter) GetAllDeployments() []*Deployment {
 }
 
 // GetAllStatfulSets returns all the cached StatefulSets
-func (ci *ClusterImporter) GetAllStatefulSets() []*StatefulSet {
+func (ci *ClusterImporter) GetAllStatefulSets() []*cc.StatefulSet {
 	ci.dataLock.Lock()
 	defer ci.dataLock.Unlock()
 
@@ -143,7 +144,7 @@ func (ci *ClusterImporter) GetAllStatefulSets() []*StatefulSet {
 }
 
 // GetAllReplicaSets returns all the cached ReplicaSets
-func (ci *ClusterImporter) GetAllReplicaSets() []*ReplicaSet {
+func (ci *ClusterImporter) GetAllReplicaSets() []*cc.ReplicaSet {
 	ci.dataLock.Lock()
 	defer ci.dataLock.Unlock()
 
@@ -151,7 +152,7 @@ func (ci *ClusterImporter) GetAllReplicaSets() []*ReplicaSet {
 }
 
 // GetAllPersistentVolumes returns all the cached persistent volumes
-func (ci *ClusterImporter) GetAllPersistentVolumes() []*PersistentVolume {
+func (ci *ClusterImporter) GetAllPersistentVolumes() []*cc.PersistentVolume {
 	ci.dataLock.Lock()
 	defer ci.dataLock.Unlock()
 
@@ -159,7 +160,7 @@ func (ci *ClusterImporter) GetAllPersistentVolumes() []*PersistentVolume {
 }
 
 // GetAllPersistentVolumeClaims returns all the cached persistent volume claims
-func (ci *ClusterImporter) GetAllPersistentVolumeClaims() []*PersistentVolumeClaim {
+func (ci *ClusterImporter) GetAllPersistentVolumeClaims() []*cc.PersistentVolumeClaim {
 	ci.dataLock.Lock()
 	defer ci.dataLock.Unlock()
 
@@ -167,7 +168,7 @@ func (ci *ClusterImporter) GetAllPersistentVolumeClaims() []*PersistentVolumeCla
 }
 
 // GetAllStorageClasses returns all the cached storage classes
-func (ci *ClusterImporter) GetAllStorageClasses() []*StorageClass {
+func (ci *ClusterImporter) GetAllStorageClasses() []*cc.StorageClass {
 	ci.dataLock.Lock()
 	defer ci.dataLock.Unlock()
 
@@ -175,7 +176,7 @@ func (ci *ClusterImporter) GetAllStorageClasses() []*StorageClass {
 }
 
 // GetAllJobs returns all the cached jobs
-func (ci *ClusterImporter) GetAllJobs() []*Job {
+func (ci *ClusterImporter) GetAllJobs() []*cc.Job {
 	ci.dataLock.Lock()
 	defer ci.dataLock.Unlock()
 
@@ -183,14 +184,14 @@ func (ci *ClusterImporter) GetAllJobs() []*Job {
 }
 
 // GetAllPodDisruptionBudgets returns all cached pod disruption budgets
-func (ci *ClusterImporter) GetAllPodDisruptionBudgets() []*PodDisruptionBudget {
+func (ci *ClusterImporter) GetAllPodDisruptionBudgets() []*cc.PodDisruptionBudget {
 	ci.dataLock.Lock()
 	defer ci.dataLock.Unlock()
 
 	return slices.Clone(ci.data.PodDisruptionBudgets)
 }
 
-func (ci *ClusterImporter) GetAllReplicationControllers() []*ReplicationController {
+func (ci *ClusterImporter) GetAllReplicationControllers() []*cc.ReplicationController {
 	ci.dataLock.Lock()
 	defer ci.dataLock.Unlock()
 

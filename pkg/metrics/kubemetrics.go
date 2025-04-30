@@ -5,8 +5,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
-	"github.com/opencost/opencost/pkg/clustercache"
 
 	"github.com/prometheus/client_golang/prometheus"
 	batchv1 "k8s.io/api/batch/v1"

@@ -12,6 +12,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/goccy/go-json v0.10.5
 	github.com/google/go-cmp v0.7.0
+	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-plugin v1.6.0
 	github.com/json-iterator/go v1.1.12
@@ -32,6 +33,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.25.3
 	k8s.io/apimachinery v0.25.3
+	k8s.io/utils v0.0.0-20250321185631-1f6e0b77f77e
 )
 
 require (
@@ -64,7 +66,6 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/s2a-go v0.1.7 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.2 // indirect
 	github.com/googleapis/gax-go/v2 v2.12.0 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
@@ -108,8 +109,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240221002015-b0ce06bbee7c // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	k8s.io/klog/v2 v2.80.0 // indirect
-	k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed // indirect
+	k8s.io/klog/v2 v2.80.1 // indirect
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect

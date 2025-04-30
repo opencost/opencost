@@ -129,6 +129,10 @@ func FormatStoreResolution(dur time.Duration) string {
 	if dur >= time.Hour {
 		return fmt.Sprintf("%dh", int(dur.Hours()))
 	}
+	if dur >= 10*time.Minute {
+		return fmt.Sprintf("%dm", int(dur.Minutes()))
+	}
+
 	return fmt.Sprint(dur)
 }
 

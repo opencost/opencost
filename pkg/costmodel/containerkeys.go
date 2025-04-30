@@ -6,9 +6,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
-	"github.com/opencost/opencost/pkg/clustercache"
 )
 
 var (

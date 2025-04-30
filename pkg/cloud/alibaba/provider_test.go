@@ -7,8 +7,8 @@ import (
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/credentials"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/signers"
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/cloud/models"
-	"github.com/opencost/opencost/pkg/clustercache"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )

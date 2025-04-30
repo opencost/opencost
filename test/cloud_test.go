@@ -11,8 +11,8 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clusters"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/cloud/provider"
-	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/costmodel"
 

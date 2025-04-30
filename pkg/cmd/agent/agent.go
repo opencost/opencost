@@ -13,10 +13,11 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/retry"
 	"github.com/opencost/opencost/pkg/util/watcher"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/version"
 	"github.com/opencost/opencost/modules/prometheus-source/pkg/prom"
 	"github.com/opencost/opencost/pkg/cloud/provider"
-	"github.com/opencost/opencost/pkg/clustercache"
+	cluster "github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/costmodel"
 	"github.com/opencost/opencost/pkg/env"
@@ -39,7 +40,7 @@ const ClusterExportInterval = 5 * time.Minute
 
 // clusterExporter is used if env.IsExportClusterCacheEnabled() is set to true
 // it will export the kubernetes cluster data to a file on a specific interval
-var clusterExporter *clustercache.ClusterExporter
+var clusterExporter *cluster.ClusterExporter
 
 func Healthz(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(200)
@@ -58,7 +59,7 @@ func newKubernetesClusterCache() (kubernetes.Interface, clustercache.ClusterCach
 	}
 
 	// Create Kubernetes Cluster Cache + Watchers
-	k8sCache := clustercache.NewKubernetesClusterCache(kubeClientset)
+	k8sCache := cluster.NewKubernetesClusterCache(kubeClientset)
 	k8sCache.Run()
 
 	return kubeClientset, k8sCache, nil
@@ -136,7 +137,7 @@ func Execute(opts *AgentOpts) error {
 	// Initialize cluster exporting if it's enabled
 	if env.IsExportClusterCacheEnabled() {
 		cacheLocation := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-cache.json"))
-		clusterExporter = clustercache.NewClusterExporter(clusterCache, cacheLocation, ClusterExportInterval)
+		clusterExporter = cluster.NewClusterExporter(clusterCache, cacheLocation, ClusterExportInterval)
 		clusterExporter.Run()
 	}
 

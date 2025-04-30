@@ -26,12 +26,72 @@ type ExportController interface {
 	Stop()
 }
 
+// EventExportController[T] is used to export timestamped events of type T on a specific interval.
+type EventExportController[T any] struct {
+	runState atomic.AtomicRunState
+	source   ExportSource[T]
+	exporter Exporter[T]
+	typeName string
+}
+
+// NewEventExportController creates a new `EventExportController[T]` instance which is used to export timestamped events of type T
+// on a specific interval.
+func NewEventExportController[T any](source ExportSource[T], exporter Exporter[T]) *EventExportController[T] {
+	return &EventExportController[T]{
+		source:   source,
+		exporter: exporter,
+		typeName: reflect.TypeOf((*T)(nil)).Elem().String(),
+	}
+}
+
+// Name returns the name of the controller, which is the name of the T-type
+func (cd *EventExportController[T]) Name() string {
+	return cd.typeName
+}
+
+// Start starts a background export loop, which will create a new event instance for the current minute-truncated time
+// and export it on the provided interval. This function will return `true` if the loop was started successfully, and
+// `false` if it was already running.
+func (cd *EventExportController[T]) Start(interval time.Duration) bool {
+	cd.runState.WaitForReset()
+	if !cd.runState.Start() {
+		return false
+	}
+
+	go func() {
+		for {
+			select {
+			case <-cd.runState.OnStop():
+				cd.runState.Reset()
+				return // exit go routine
+
+			case <-time.After(interval):
+			}
+
+			// truncate the time to the minute to ensure broad enough coverage for event exports
+			t := time.Now().UTC().Truncate(time.Second)
+
+			err := cd.exporter.Export(cd.source.Make(t))
+			if err != nil {
+				log.Warnf("[%s] Error during Write: %s", cd.typeName, err)
+			}
+		}
+	}()
+
+	return true
+}
+
+// Stops the export loop
+func (cd *EventExportController[T]) Stop() {
+	cd.runState.Stop()
+}
+
 // ComputeExportController[T] is a controller type which leverages a `ComputeSource[T]` and `Exporter[T]`
 // to regularly compute the data for the current resolution and export it on a specific interval.
 type ComputeExportController[T any] struct {
 	runState         atomic.AtomicRunState
 	source           ComputeSource[T]
-	exporter         Exporter[T]
+	exporter         ComputeExporter[T]
 	resolution       time.Duration
 	sourceResolution time.Duration
 	typeName         string
@@ -40,7 +100,7 @@ type ComputeExportController[T any] struct {
 // NewComputeExportController creates a new `ComputeExportController[T]` instance.
 func NewComputeExportController[T any](
 	source ComputeSource[T],
-	exporter Exporter[T],
+	exporter ComputeExporter[T],
 	sourceResolution time.Duration,
 ) *ComputeExportController[T] {
 	return &ComputeExportController[T]{
@@ -133,11 +193,11 @@ func (cd *ComputeExportController[T]) Stop() {
 // temporary
 func (cd *ComputeExportController[T]) logErrors(start, end time.Time, warnings []string, errors []string) {
 	for _, w := range warnings {
-		log.Warnf("[%s] %s", cd.typeName, w)
+		log.Warnf("[%s] (%s-%s) %s", cd.typeName, start.Format(time.RFC3339), end.Format(time.RFC3339), w)
 	}
 
 	for _, e := range errors {
-		log.Errorf("[%s] %s", cd.typeName, e)
+		log.Errorf("[%s] (%s-%s) %s", cd.typeName, start.Format(time.RFC3339), end.Format(time.RFC3339), e)
 	}
 }
 
