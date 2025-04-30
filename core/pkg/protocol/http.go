@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/opencost/opencost/core/pkg/util/json"
@@ -120,7 +119,6 @@ func (hp HTTPProtocol) WriteRawNoContent(w http.ResponseWriter) {
 func (hp HTTPProtocol) WriteJSONData(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	status := http.StatusOK
-
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(data)
 }
@@ -145,39 +143,19 @@ func (hp HTTPProtocol) WriteEncodedError(w http.ResponseWriter, httpStatusCode i
 func (hp HTTPProtocol) WriteData(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	status := http.StatusOK
-	resp, err := json.Marshal(&HTTPResponse{
-		Code: status,
-		Data: data,
-	})
-	if err != nil {
-		status = http.StatusInternalServerError
-		resp, _ = json.Marshal(&HTTPResponse{
-			Code:    status,
-			Message: fmt.Sprintf("Error: %s", err),
-		})
-	}
-
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(data)
 }
 
 // WriteDataWithWarning writes the data payload similiar to WriteData except it provides an additional warning message.
 func (hp HTTPProtocol) WriteDataWithWarning(w http.ResponseWriter, data interface{}, warning string) {
 	w.Header().Set("Content-Type", "application/json")
 	status := http.StatusOK
-	resp, err := json.Marshal(&HTTPResponse{
+	resp := &HTTPResponse{
 		Code:    status,
 		Data:    data,
 		Warning: warning,
-	})
-	if err != nil {
-		status = http.StatusInternalServerError
-		resp, _ = json.Marshal(&HTTPResponse{
-			Code:    status,
-			Message: fmt.Sprintf("Error: %s", err),
-		})
 	}
-
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(resp)
 }
@@ -186,19 +164,11 @@ func (hp HTTPProtocol) WriteDataWithWarning(w http.ResponseWriter, data interfac
 func (hp HTTPProtocol) WriteDataWithMessage(w http.ResponseWriter, data interface{}, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	status := http.StatusOK
-	resp, err := json.Marshal(&HTTPResponse{
+	resp := &HTTPResponse{
 		Code:    status,
 		Data:    data,
 		Message: message,
-	})
-	if err != nil {
-		status = http.StatusInternalServerError
-		resp, _ = json.Marshal(&HTTPResponse{
-			Code:    status,
-			Message: fmt.Sprintf("Error: %s", err),
-		})
 	}
-
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(resp)
 }
@@ -213,36 +183,20 @@ func (hp HTTPProtocol) WriteProtoWithMessage(w http.ResponseWriter, data proto.M
 		EmitUnpopulated: true,
 	}
 	status := http.StatusOK
-	resp, err := m.Marshal(data)
-	if err != nil {
-		status = http.StatusInternalServerError
-		resp, _ = json.Marshal(&HTTPResponse{
-			Message: fmt.Sprintf("Error: %s", err),
-		})
-	}
-
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(data)
 }
 
 // WriteDataWithMessageAndWarning writes the data payload similiar to WriteData except it provides a warning and additional message string.
 func (hp HTTPProtocol) WriteDataWithMessageAndWarning(w http.ResponseWriter, data interface{}, message string, warning string) {
 	w.Header().Set("Content-Type", "application/json")
 	status := http.StatusOK
-	resp, err := json.Marshal(&HTTPResponse{
+	resp := &HTTPResponse{
 		Code:    status,
 		Data:    data,
 		Message: message,
 		Warning: warning,
-	})
-	if err != nil {
-		status = http.StatusInternalServerError
-		resp, _ = json.Marshal(&HTTPResponse{
-			Code:    status,
-			Message: fmt.Sprintf("Error: %s", err),
-		})
 	}
-
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(resp)
 }
@@ -267,15 +221,6 @@ func (hp HTTPProtocol) WriteError(w http.ResponseWriter, err HTTPError) {
 func (hp HTTPProtocol) WriteResponse(w http.ResponseWriter, r *HTTPResponse) {
 	w.Header().Set("Content-Type", "application/json")
 	status := r.Code
-	resp, err := json.Marshal(r)
-	if err != nil {
-		status = http.StatusInternalServerError
-		resp, _ = json.Marshal(&HTTPResponse{
-			Code:    status,
-			Message: fmt.Sprintf("Error: %s", err),
-		})
-	}
-
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(r)
 }
