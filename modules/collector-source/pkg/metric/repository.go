@@ -10,7 +10,7 @@ import (
 )
 
 type RepositoryConfig struct {
-	resolutions []util.ResolutionConfiguration
+	Resolutions []util.ResolutionConfiguration
 }
 
 // MetricRepository is an MetricUpdater which applies calls to update to all resolutions being tracked. It holds the
@@ -20,13 +20,13 @@ type MetricRepository struct {
 	resolutionStores map[string]*resolutionStores
 }
 
-func NewRepository(config RepositoryConfig, factory MetricStoreFactory) *MetricRepository {
+func NewMetricRepository(config RepositoryConfig, factory MetricStoreFactory) *MetricRepository {
 	resoluationCollectors := make(map[string]*resolutionStores)
 
-	for _, resConf := range config.resolutions {
+	for _, resConf := range config.Resolutions {
 		resCollector, err := newResolutionStores(resConf, factory)
 		if err != nil {
-			log.Errorf("NewRepository: failed to init resolution metric: %s", err.Error())
+			log.Errorf("NewMetricRepository: failed to init resolution metric: %s", err.Error())
 			continue
 		}
 		resoluationCollectors[resConf.Interval] = resCollector
@@ -45,7 +45,7 @@ func (r *MetricRepository) GetCollector(interval string, t time.Time) (MetricSto
 
 	resCollector, ok := r.resolutionStores[interval]
 	if !ok {
-		return nil, fmt.Errorf("failed to find resolution metric for %s", interval)
+		return nil, fmt.Errorf("failed to find resolution for key %s", interval)
 	}
 
 	return resCollector.getCollector(t)

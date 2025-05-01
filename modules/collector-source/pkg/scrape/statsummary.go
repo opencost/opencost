@@ -3,6 +3,7 @@ package scrape
 import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
+	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
@@ -18,18 +19,15 @@ const (
 	KubeletVolumeStatsUsedBytes        = "kubelet_volume_stats_used_bytes"
 )
 
-type StatSummaryClient interface {
-	GetNodeData() ([]*stats.Summary, error)
-}
-
 type StatSummaryScraper struct {
-	client  StatSummaryClient
+	client  util.StatSummaryClient
 	updater metric.MetricUpdater
 }
 
-func NewStatSummaryScraper(client StatSummaryClient) *StatSummaryScraper {
+func newStatSummaryScraper(client util.StatSummaryClient, updater metric.MetricUpdater) Scraper {
 	return &StatSummaryScraper{
-		client: client,
+		client:  client,
+		updater: updater,
 	}
 }
 
@@ -175,5 +173,4 @@ func (s *StatSummaryScraper) Scrape() {
 			}
 		}
 	}
-
 }

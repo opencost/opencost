@@ -14,10 +14,10 @@ type TargetScraper struct {
 	includeMetrics bool                // toggle to make metrics an include or exclude list
 }
 
-func NewTargetScrapper(provider target.TargetProvider, updater metric.MetricUpdater, metricNames []string, includeMetrics bool) *TargetScraper {
+func newTargetScrapper(provider target.TargetProvider, updater metric.MetricUpdater, metricNames []string, includeMetrics bool) *TargetScraper {
 	metricSet := make(map[string]struct{})
-	for _, metric := range metricNames {
-		metricSet[metric] = struct{}{}
+	for _, metricName := range metricNames {
+		metricSet[metricName] = struct{}{}
 	}
 	return &TargetScraper{
 		targetProvider: provider,
@@ -49,40 +49,4 @@ func (s *TargetScraper) Scrape() {
 			s.metricUpdater.Update(result.Name, result.Labels, result.Value, result.Timestamp, nil)
 		}
 	}
-}
-
-func NewOpencostTargetScraper(provider target.TargetProvider, updater metric.MetricUpdater) *TargetScraper {
-	return NewTargetScrapper(
-		provider,
-		updater,
-		[]string{
-			KubecostClusterManagementCost,
-			KubecostNetworkZoneEgressCost,
-			KubecostNetworkRegionEgressCost,
-			KubecostNetworkInternetEgressCost,
-			PVHourlyCost,
-			KubecostLoadBalancerCost,
-			NodeTotalHourlyCost,
-			NodeCPUHourlyCost,
-			NodeRAMHourlyCost,
-			NodeGPUHourlyCost,
-			NodeGPUCount,
-			KubecostNodeIsSpot,
-			ContainerCPUAllocation,
-			ContainerMemoryAllocationBytes,
-			ContainerGPUAllocation,
-			PodPVCAllocation,
-		},
-		true)
-}
-
-func NewDCGMTargetScraper(provider target.TargetProvider, updater metric.MetricUpdater) *TargetScraper {
-	return NewTargetScrapper(
-		provider,
-		updater,
-		[]string{
-			DCGMFIPROFGRENGINEACTIVE,
-			DCGMFIDEVDECUTIL,
-		},
-		true)
 }

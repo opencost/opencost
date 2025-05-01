@@ -4,38 +4,83 @@ import (
 	"time"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
 	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
+	"github.com/opencost/opencost/modules/collector-source/pkg/scrape"
+	"github.com/opencost/opencost/modules/collector-source/pkg/util"
+	"k8s.io/client-go/kubernetes"
 )
 
 type collectorDataSource struct {
-	metricsQuerier *CollectorMetricsQuerier
+	metricsQuerier *collectorMetricsQuerier
+	clusterMap     clusters.ClusterMap
+	clusterInfo    clusters.ClusterInfoProvider
+	config         CollectorConfig
 }
 
-func (c collectorDataSource) RegisterEndPoints(router *httprouter.Router) {
+func NewCollectorDataSource(
+	config CollectorConfig,
+	clusterInfoProvider clusters.ClusterInfoProvider,
+	clusterCache clustercache.ClusterCache,
+	k8s kubernetes.Interface,
+	statSummaryClient util.StatSummaryClient,
+) source.OpenCostDataSource {
+
+	var storeFactory metric.MetricStoreFactory
+	storeFactory = NewOpenCostMetricStore
+
+	repo := metric.NewMetricRepository(metric.RepositoryConfig{
+		Resolutions: config.Resolutions,
+	}, storeFactory)
+
+	scrapeController := scrape.NewScrapeController(
+		config.ScrapeInterval,
+		config.ReleaseName,
+		config.NetworkPort,
+		repo,
+		clusterCache,
+		k8s,
+		statSummaryClient,
+	)
+	scrapeController.Start()
+
+	metricQuerier := newCollectorMetricsQuerier(repo, config.Resolutions)
+
+	clusterInfo := clusterInfoProvider
+
+	clusterMap := newCollectorClusterMap(clusterInfo)
+
+	return &collectorDataSource{
+		metricsQuerier: metricQuerier,
+		clusterInfo:    clusterInfo,
+		clusterMap:     clusterMap,
+	}
+}
+
+func (c *collectorDataSource) RegisterEndPoints(router *httprouter.Router) {
 	return
 }
 
-func (c collectorDataSource) Metrics() source.MetricsQuerier {
+func (c *collectorDataSource) Metrics() source.MetricsQuerier {
 	return c.metricsQuerier
 }
 
-func (c collectorDataSource) ClusterMap() clusters.ClusterMap {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorDataSource) ClusterMap() clusters.ClusterMap {
+	return c.clusterMap
 }
 
-func (c collectorDataSource) ClusterInfo() clusters.ClusterInfoProvider {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorDataSource) ClusterInfo() clusters.ClusterInfoProvider {
+	return c.clusterInfo
 }
 
-func (c collectorDataSource) BatchDuration() time.Duration {
-	//TODO implement me
-	panic("implement me")
+// BatchDuration collector data source queries do not need to be broken up
+func (c *collectorDataSource) BatchDuration() time.Duration {
+	var maxDuration time.Duration = 1<<63 - 1
+	return maxDuration
 }
 
-func (c collectorDataSource) Resolution() time.Duration {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorDataSource) Resolution() time.Duration {
+	return c.config.ScrapeInterval
 }

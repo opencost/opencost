@@ -46,7 +46,7 @@ type ClusterCacheScraper struct {
 	updater      metric.MetricUpdater
 }
 
-func NewClusterCacheScraper(clusterCache clustercache.ClusterCache, updater metric.MetricUpdater) Scraper {
+func newClusterCacheScraper(clusterCache clustercache.ClusterCache, updater metric.MetricUpdater) Scraper {
 	return &ClusterCacheScraper{
 		clusterCache: clusterCache,
 		updater:      updater,

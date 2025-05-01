@@ -5,7 +5,8 @@ import (
 	"fmt"
 
 	"github.com/opencost/opencost/core/pkg/log"
-	target2 "github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
+	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -14,6 +15,26 @@ import (
 const (
 	KubecostPodNetworkEgressBytesTotal = "kubecost_pod_network_egress_bytes_total"
 )
+
+func newNetworkScraper(
+	releaseName string,
+	port int,
+	k8s kubernetes.Interface,
+	updater metric.MetricUpdater,
+) Scraper {
+	tp := NewNetworkTargetProvider(releaseName, port, k8s)
+	return newNetworkTargetScraper(tp, updater)
+}
+
+func newNetworkTargetScraper(provider target.TargetProvider, updater metric.MetricUpdater) *TargetScraper {
+	return newTargetScrapper(
+		provider,
+		updater,
+		[]string{
+			KubecostPodNetworkEgressBytesTotal,
+		},
+		true)
+}
 
 type NetworkTargetProvider struct {
 	releaseName   string
@@ -29,7 +50,7 @@ func NewNetworkTargetProvider(releaseName string, port int, k8s kubernetes.Inter
 	}
 }
 
-func (n *NetworkTargetProvider) GetTargets() []target2.ScrapeTarget {
+func (n *NetworkTargetProvider) GetTargets() []target.ScrapeTarget {
 	k8s := n.kubeClientSet
 
 	pods, err := k8s.CoreV1().Pods("").List(context.Background(), metav1.ListOptions{
@@ -40,9 +61,9 @@ func (n *NetworkTargetProvider) GetTargets() []target2.ScrapeTarget {
 		return nil
 	}
 
-	var targets []target2.ScrapeTarget
+	var targets []target.ScrapeTarget
 	for _, pod := range pods.Items {
-		t := target2.NewUrlTarget(fmt.Sprintf("http://%s:%d/metrics", pod.Status.PodIP, n.port))
+		t := target.NewUrlTarget(fmt.Sprintf("http://%s:%d/metrics", pod.Status.PodIP, n.port))
 		targets = append(targets, t)
 	}
 

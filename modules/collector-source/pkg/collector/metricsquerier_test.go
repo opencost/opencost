@@ -68,7 +68,7 @@ func TestCollectorMetricsQuerier_QueryNodeActiveMinutes(t *testing.T) {
 	start1, _ := time.Parse(time.RFC3339, Start1Str)
 	end1, _ := time.Parse(time.RFC3339, End1Str)
 
-	c := CollectorMetricsQuerier{
+	c := collectorMetricsQuerier{
 		collectorProvider: GetMockCollectorProvider(),
 	}
 	resCh := c.QueryNodeActiveMinutes(time.Now(), time.Now())
@@ -102,7 +102,7 @@ func TestCollectorMetricsQuerier_QueryClusterManagementDuration(t *testing.T) {
 	start1, _ := time.Parse(time.RFC3339, Start1Str)
 	end1, _ := time.Parse(time.RFC3339, End1Str)
 
-	c := CollectorMetricsQuerier{
+	c := collectorMetricsQuerier{
 		collectorProvider: GetMockCollectorProvider(),
 	}
 	resCh := c.QueryClusterManagementDuration(start1, end1)
@@ -136,7 +136,7 @@ func TestCollectorMetricsQuerier_QueryGPUsUsageAvg(t *testing.T) {
 	start1, _ := time.Parse(time.RFC3339, Start1Str)
 	end1, _ := time.Parse(time.RFC3339, End1Str)
 
-	c := CollectorMetricsQuerier{
+	c := collectorMetricsQuerier{
 		collectorProvider: GetMockCollectorProvider(),
 	}
 	resCh := c.QueryGPUsUsageAvg(start1, end1)
@@ -166,7 +166,7 @@ func TestCollectorMetricsQuerier_QueryGPUsUsageMax(t *testing.T) {
 	start1, _ := time.Parse(time.RFC3339, Start1Str)
 	end1, _ := time.Parse(time.RFC3339, End1Str)
 
-	c := CollectorMetricsQuerier{
+	c := collectorMetricsQuerier{
 		collectorProvider: GetMockCollectorProvider(),
 	}
 	resCh := c.QueryGPUsUsageMax(start1, end1)
@@ -196,7 +196,7 @@ func TestCollectorMetricsQuerier_QueryGPUInfo(t *testing.T) {
 	start1, _ := time.Parse(time.RFC3339, Start1Str)
 	end1, _ := time.Parse(time.RFC3339, End1Str)
 
-	c := CollectorMetricsQuerier{
+	c := collectorMetricsQuerier{
 		collectorProvider: GetMockCollectorProvider(),
 	}
 	resCh := c.QueryGPUInfo(start1, end1)

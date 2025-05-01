@@ -1,5 +1,10 @@
 package scrape
 
+import (
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
+	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
+)
+
 // Opencost Metrics
 const (
 	KubecostClusterManagementCost     = "kubecost_cluster_management_cost"
@@ -19,3 +24,36 @@ const (
 	ContainerGPUAllocation            = "container_gpu_allocation"
 	PodPVCAllocation                  = "pod_pvc_allocation"
 )
+
+func newOpenCostTargetProvider() target.TargetProvider {
+	return nil
+}
+
+func newOpenCostScraper(updater metric.MetricUpdater) Scraper {
+	return newOpencostTargetScraper(newOpenCostTargetProvider(), updater)
+}
+
+func newOpencostTargetScraper(provider target.TargetProvider, updater metric.MetricUpdater) *TargetScraper {
+	return newTargetScrapper(
+		provider,
+		updater,
+		[]string{
+			KubecostClusterManagementCost,
+			KubecostNetworkZoneEgressCost,
+			KubecostNetworkRegionEgressCost,
+			KubecostNetworkInternetEgressCost,
+			PVHourlyCost,
+			KubecostLoadBalancerCost,
+			NodeTotalHourlyCost,
+			NodeCPUHourlyCost,
+			NodeRAMHourlyCost,
+			NodeGPUHourlyCost,
+			NodeGPUCount,
+			KubecostNodeIsSpot,
+			ContainerCPUAllocation,
+			ContainerMemoryAllocationBytes,
+			ContainerGPUAllocation,
+			PodPVCAllocation,
+		},
+		true)
+}

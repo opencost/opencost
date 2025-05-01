@@ -5,7 +5,8 @@ import (
 	"fmt"
 
 	"github.com/opencost/opencost/core/pkg/log"
-	target2 "github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
+	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -16,18 +17,34 @@ const (
 	DCGMFIDEVDECUTIL         = "DCGM_FI_DEV_DEC_UTIL"
 )
 
-type DCGMTargetProvider struct {
-	kubeClientSet kubernetes.Interface
+func newDCGMScrapper(k8s kubernetes.Interface, updater metric.MetricUpdater) Scraper {
+	tp := newDCGMTargetProvider(k8s)
+	return newDCGMTargetScraper(tp, updater)
 }
 
-func NewDCGMTargetProvider(kubeClientSet kubernetes.Interface) *DCGMTargetProvider {
+func newDCGMTargetScraper(provider target.TargetProvider, updater metric.MetricUpdater) *TargetScraper {
+	return newTargetScrapper(
+		provider,
+		updater,
+		[]string{
+			DCGMFIPROFGRENGINEACTIVE,
+			DCGMFIDEVDECUTIL,
+		},
+		true)
+}
+
+type DCGMTargetProvider struct {
+	k8s kubernetes.Interface
+}
+
+func newDCGMTargetProvider(k8s kubernetes.Interface) *DCGMTargetProvider {
 	return &DCGMTargetProvider{
-		kubeClientSet: kubeClientSet,
+		k8s: k8s,
 	}
 }
 
-func (p *DCGMTargetProvider) GetTargets() []target2.ScrapeTarget {
-	k8s := p.kubeClientSet
+func (p *DCGMTargetProvider) GetTargets() []target.ScrapeTarget {
+	k8s := p.k8s
 
 	// Find service
 	svcs, err := k8s.CoreV1().Services("").List(context.Background(), metav1.ListOptions{
@@ -38,7 +55,7 @@ func (p *DCGMTargetProvider) GetTargets() []target2.ScrapeTarget {
 		return nil
 	}
 
-	var targets []target2.ScrapeTarget
+	var targets []target.ScrapeTarget
 	for _, svc := range svcs.Items {
 		port := 9400
 		for _, prt := range svc.Spec.Ports {
@@ -46,7 +63,7 @@ func (p *DCGMTargetProvider) GetTargets() []target2.ScrapeTarget {
 				port = int(prt.Port)
 			}
 		}
-		t := target2.NewUrlTarget(fmt.Sprintf("http://%s:%d/metrics", svc.Spec.ClusterIP, port))
+		t := target.NewUrlTarget(fmt.Sprintf("http://%s:%d/metrics", svc.Spec.ClusterIP, port))
 		targets = append(targets, t)
 	}
 

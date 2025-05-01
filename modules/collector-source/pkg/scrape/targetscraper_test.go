@@ -121,11 +121,9 @@ func TestTargetScraper_Scrape(t *testing.T) {
 		{
 			name: "Network Scrape",
 			scrapperFactory: func(updater metric.MetricUpdater) *TargetScraper {
-				return NewTargetScrapper(
+				return newNetworkTargetScraper(
 					NewMockTargetProvider(target.NewStringTarget(networkScape)),
 					updater,
-					nil,
-					false,
 				)
 			},
 			expected: []metric.UpdateArgs{
@@ -155,38 +153,12 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value:     335188219,
 					Timestamp: nil,
 				},
-				{
-					MetricName: "kubecost_pod_network_ingress_bytes_total",
-					Labels: map[string]string{
-						"pod_name":    "pod1",
-						"namespace":   "namespace1",
-						"internet":    "true",
-						"same_region": "false",
-						"same_zone":   "false",
-						"service":     "service1",
-					},
-					Value:     17941460,
-					Timestamp: nil,
-				},
-				{
-					MetricName: "kubecost_pod_network_ingress_bytes_total",
-					Labels: map[string]string{
-						"pod_name":    "pod2",
-						"namespace":   "namespace1",
-						"internet":    "false",
-						"same_region": "true",
-						"same_zone":   "false",
-						"service":     "",
-					},
-					Value:     13948766,
-					Timestamp: nil,
-				},
 			},
 		},
 		{
 			name: "Opencost Metric",
 			scrapperFactory: func(updater metric.MetricUpdater) *TargetScraper {
-				return NewOpencostTargetScraper(NewMockTargetProvider(target.NewStringTarget(opencostScrape)),
+				return newOpencostTargetScraper(NewMockTargetProvider(target.NewStringTarget(opencostScrape)),
 					updater,
 				)
 			},
@@ -475,7 +447,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 		{
 			name: "GPU Metric",
 			scrapperFactory: func(updater metric.MetricUpdater) *TargetScraper {
-				return NewDCGMTargetScraper(NewMockTargetProvider(target.NewStringTarget(dcgmScrape)),
+				return newDCGMTargetScraper(NewMockTargetProvider(target.NewStringTarget(dcgmScrape)),
 					updater,
 				)
 			},
