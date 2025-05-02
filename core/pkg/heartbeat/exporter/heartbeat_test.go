@@ -1,4 +1,4 @@
-package heartbeat
+package exporter
 
 import (
 	"encoding/json"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/heartbeat"
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/util/sliceutil"
 )
@@ -59,7 +60,7 @@ func TestHeartbeatExporter(t *testing.T) {
 			t.Fatalf("Failed to read file %s: %v", fpath, err)
 		}
 
-		hb := new(Heartbeat)
+		hb := new(heartbeat.Heartbeat)
 		if err := json.Unmarshal(data, hb); err != nil {
 			t.Fatalf("Failed to unmarshal heartbeat data: %v", err)
 		}

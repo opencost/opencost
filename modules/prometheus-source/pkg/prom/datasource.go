@@ -12,6 +12,7 @@ import (
 	"github.com/opencost/opencost/modules/prometheus-source/pkg/env"
 
 	"github.com/opencost/opencost/core/pkg/clusters"
+	"github.com/opencost/opencost/core/pkg/diagnostics"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/protocol"
 	"github.com/opencost/opencost/core/pkg/source"
@@ -550,6 +551,30 @@ func (pds *PrometheusDataSource) RegisterEndPoints(router *httprouter.Router) {
 	// diagnostics
 	router.GET("/diagnostics/requestQueue", pds.prometheusQueueState)
 	router.GET("/diagnostics/prometheusMetrics", pds.prometheusMetrics)
+}
+
+// RegisterDiagnostics registers any custom data source diagnostics with the `DiagnosticService` that can
+// be used to report externally.
+func (pds *PrometheusDataSource) RegisterDiagnostics(diagService diagnostics.DiagnosticService) {
+	const PrometheusDiagnosticCategory = "prometheus"
+
+	for _, dd := range diagnosticDefinitions {
+		err := diagService.Register(dd.ID, dd.Description, PrometheusDiagnosticCategory, func(ctx context.Context) (map[string]any, error) {
+			promDiag := dd.NewDiagnostic(pds.promConfig.ClusterFilter, "")
+
+			promContext := pds.promContexts.NewNamedContext(DiagnosticContextName)
+			e := promDiag.executePrometheusDiagnosticQuery(promContext)
+			if e != nil {
+				return nil, fmt.Errorf("failed to execute prometheus diagnostic: %s - %w", dd.ID, e)
+			}
+
+			return promDiag.AsMap(), nil
+		})
+
+		if err != nil {
+			log.Warnf("Failed to register prometheus diagnostic %s: %s", dd.ID, err.Error())
+		}
+	}
 }
 
 func (pds *PrometheusDataSource) RefreshInterval() time.Duration {

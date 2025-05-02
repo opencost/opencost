@@ -2,11 +2,13 @@ package worker
 
 import (
 	"fmt"
+	"iter"
 	"runtime"
 	"sync"
 	"sync/atomic"
 
 	"github.com/opencost/opencost/core/pkg/collections"
+	"github.com/opencost/opencost/core/pkg/util/sliceutil"
 )
 
 // Runner is a function type that takes a single input and returns nothing.
@@ -317,6 +319,12 @@ func ConcurrentCollect[T any, U any](workerFunc Worker[T, *U], inputs []T) []*U 
 // ConcurrentCollectWith runs a pool of workers of the specified size which concurrently call the provided worker
 // func on each input to get a result slice of non-nil outputs. Size inputs < 1 will automatically be set to 1.
 func ConcurrentCollectWith[T any, U any](size int, workerFunc Worker[T, *U], inputs []T) []*U {
+	return ConcurrentIterCollect(size, workerFunc, sliceutil.AsSeq(inputs))
+}
+
+// ConcurrentIterCollect runs a pool of workers of the specified size which concurrently call the provided worker
+// func on each input to get a result slice of non-nil outputs. Size inputs < 1 will automatically be set to 1.
+func ConcurrentIterCollect[T any, U any](size int, workerFunc Worker[T, *U], inputs iter.Seq[T]) []*U {
 	if size < 1 {
 		size = 1
 	}
@@ -325,7 +333,7 @@ func ConcurrentCollectWith[T any, U any](size int, workerFunc Worker[T, *U], inp
 	defer workerPool.Shutdown()
 
 	workGroup := NewCollectionGroup(workerPool)
-	for _, input := range inputs {
+	for input := range inputs {
 		workGroup.Push(input)
 	}
 
@@ -342,6 +350,12 @@ func ConcurrentRun[T any](runner Runner[T], inputs []T) {
 // ConcurrentRunWith runs a pool of runners of the specified size which concurrently call the provided runner
 // func on each input. Size inputs < 1 will automatically be set to 1.
 func ConcurrentRunWith[T any](size int, runner Runner[T], inputs []T) {
+	ConcurrentIterRunWith(size, runner, sliceutil.AsSeq(inputs))
+}
+
+// ConcurrentIterRunWith runs a pool of runners of the specified size which concurrently call the provided runner
+// func on each input. Size inputs < 1 will automatically be set to 1.
+func ConcurrentIterRunWith[T any](size int, runner Runner[T], inputs iter.Seq[T]) {
 	if size < 1 {
 		size = 1
 	}
@@ -350,9 +364,10 @@ func ConcurrentRunWith[T any](size int, runner Runner[T], inputs []T) {
 		runner(input)
 		return
 	})
+	defer workerPool.Shutdown()
 
 	workGroup := NewNoResultGroup(workerPool)
-	for _, input := range inputs {
+	for input := range inputs {
 		workGroup.Push(input)
 	}
 

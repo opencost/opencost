@@ -1,6 +1,6 @@
 module github.com/opencost/opencost/core
 
-go 1.23.0
+go 1.24.2
 
 require (
 	cloud.google.com/go/storage v1.36.0
