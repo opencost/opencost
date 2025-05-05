@@ -3,6 +3,7 @@ package protocol
 import (
 	"net/http"
 
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -120,7 +121,9 @@ func (hp HTTPProtocol) WriteJSONData(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	status := http.StatusOK
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		log.Error("Failed to encode JSON response: " + err.Error())
+	}
 }
 
 // WriteRawError uses json content-type and outputs raw error message for backwards compatibility to existing
@@ -135,7 +138,9 @@ func (hp HTTPProtocol) WriteRawError(w http.ResponseWriter, httpStatusCode int, 
 func (hp HTTPProtocol) WriteEncodedError(w http.ResponseWriter, httpStatusCode int, errorResponse interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatusCode)
-	json.NewEncoder(w).Encode(errorResponse)
+	if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
+		log.Error("Failed to encode error response: " + err.Error())
+	}
 }
 
 // WriteData wraps the data payload in an HTTPResponse and writes the resulting response using the
@@ -144,7 +149,9 @@ func (hp HTTPProtocol) WriteData(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	status := http.StatusOK
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		log.Error("Failed to encode response: " + err.Error())
+	}
 }
 
 // WriteDataWithWarning writes the data payload similiar to WriteData except it provides an additional warning message.
@@ -157,7 +164,9 @@ func (hp HTTPProtocol) WriteDataWithWarning(w http.ResponseWriter, data interfac
 		Warning: warning,
 	}
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Error("Failed to encode response with warning: " + err.Error())
+	}
 }
 
 // WriteDataWithMessage writes the data payload similiar to WriteData except it provides an additional string message.
@@ -170,7 +179,9 @@ func (hp HTTPProtocol) WriteDataWithMessage(w http.ResponseWriter, data interfac
 		Message: message,
 	}
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Error("Failed to encode response with message: " + err.Error())
+	}
 }
 
 // WriteProtoWithMessage uses the protojson package to convert proto3 response to json response and
@@ -186,8 +197,11 @@ func (hp HTTPProtocol) WriteProtoWithMessage(w http.ResponseWriter, data proto.M
 	w.WriteHeader(status)
 	b, err := m.Marshal(data)
 	if err != nil {
+		hp.WriteError(w, hp.InternalServerError(err.Error()))
+		log.Error("Failed to marshal proto to json: " + err.Error())
 		return
 	}
+
 	w.Write(b)
 }
 
@@ -202,7 +216,9 @@ func (hp HTTPProtocol) WriteDataWithMessageAndWarning(w http.ResponseWriter, dat
 		Warning: warning,
 	}
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Error("Failed to encode response with message and warning: " + err.Error())
+	}
 }
 
 // WriteError wraps the HTTPError in a HTTPResponse and writes it via http.ResponseWriter
@@ -218,7 +234,9 @@ func (hp HTTPProtocol) WriteError(w http.ResponseWriter, err HTTPError) {
 		Code:    status,
 		Message: err.Body,
 	})
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Error("Failed to encode error response: " + err.Error())
+	}
 }
 
 // WriteResponse writes the provided HTTPResponse instance via http.ResponseWriter
@@ -226,5 +244,7 @@ func (hp HTTPProtocol) WriteResponse(w http.ResponseWriter, r *HTTPResponse) {
 	w.Header().Set("Content-Type", "application/json")
 	status := r.Code
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(r)
+	if err := json.NewEncoder(w).Encode(r); err != nil {
+		log.Error("Failed to encode response: " + err.Error())
+	}
 }
