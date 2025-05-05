@@ -6,6 +6,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
+	"github.com/opencost/opencost/core/pkg/diagnostics"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape"
@@ -60,6 +61,10 @@ func NewCollectorDataSource(
 }
 
 func (c *collectorDataSource) RegisterEndPoints(router *httprouter.Router) {
+	return
+}
+
+func (c *collectorDataSource) RegisterDiagnostics(diagService diagnostics.DiagnosticService) {
 	return
 }
 

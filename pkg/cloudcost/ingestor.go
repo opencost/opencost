@@ -249,7 +249,7 @@ func (ing *ingestor) build(rebuild bool) {
 		e = e.Add(-ing.config.QueryWindow)
 	}
 
-	log.Infof(fmt.Sprintf("CloudCost[%s]: ingestor: build[%s]: completed in %v", ing.key, ing.runID, time.Since(buildStart)))
+	log.Infof("CloudCost[%s]: ingestor: build[%s]: completed in %v", ing.key, ing.runID, time.Since(buildStart))
 
 	// In order to be able to Stop, we have to wait on an exit message
 	// here
