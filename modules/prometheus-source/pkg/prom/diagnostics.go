@@ -302,3 +302,13 @@ func (pd *PrometheusDiagnostic) executePrometheusDiagnosticQuery(ctx *Context) e
 	pd.Passed = len(result) == 0
 	return nil
 }
+
+func (pd *PrometheusDiagnostic) AsMap() map[string]any {
+	return map[string]any{
+		"query":   pd.Query,
+		"label":   pd.Label,
+		"docLink": pd.DocLink,
+		"result":  pd.Result,
+		"passed":  pd.Passed,
+	}
+}

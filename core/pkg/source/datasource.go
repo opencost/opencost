@@ -5,6 +5,7 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/core/pkg/clusters"
+	"github.com/opencost/opencost/core/pkg/diagnostics"
 )
 
 type MetricsQuerier interface {
@@ -121,6 +122,10 @@ type MetricsQuerier interface {
 type OpenCostDataSource interface {
 	// RegisterEndPoints registers any custom endpoints that can be used for diagnostics or debug purposes.
 	RegisterEndPoints(router *httprouter.Router)
+
+	// RegisterDiagnostics registers any custom data source diagnostics with the `DiagnosticService` that can
+	// be used to report externally.
+	RegisterDiagnostics(diagService diagnostics.DiagnosticService)
 
 	// Metrics returns a MetricsQuerier that can be used to query historical metrics data from the data source.
 	Metrics() MetricsQuerier

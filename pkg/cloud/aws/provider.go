@@ -1088,7 +1088,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 					offerTerm := &AWSOfferTerm{}
 					err = dec.Decode(&offerTerm)
 					if err != nil {
-						log.Errorf("Error decoding AWS Offer Term: " + err.Error())
+						log.Errorf("Error decoding AWS Offer Term: %s", err.Error())
 					}
 
 					key, ok := skusToKeys[sku.(string)]

@@ -1,10 +1,11 @@
-package heartbeat
+package exporter
 
 import (
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/opencost/opencost/core/pkg/clusters"
+	"github.com/opencost/opencost/core/pkg/heartbeat"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/version"
 )
@@ -60,7 +61,7 @@ func NewHeartbeatSource(provider HeartbeatMetadataProvider) *HeartbeatSource {
 }
 
 // Make creates a new `Heartbeat` instance with the provided current time.
-func (h *HeartbeatSource) Make(t time.Time) *Heartbeat {
+func (h *HeartbeatSource) Make(t time.Time) *heartbeat.Heartbeat {
 	uid, err := uuid.NewV7()
 	if err != nil {
 		log.Warnf("failed to generate v7 UUID, replacing with UUID v4: %s", err)
@@ -76,9 +77,9 @@ func (h *HeartbeatSource) Make(t time.Time) *Heartbeat {
 		metadata = h.metadataProvider.GetMetadata()
 	}
 
-	return NewHeartbeat(id, t, uptime, v, metadata)
+	return heartbeat.NewHeartbeat(id, t, uptime, v, metadata)
 }
 
 func (h *HeartbeatSource) Name() string {
-	return HeartbeatEventName + "-source"
+	return heartbeat.HeartbeatEventName + "-source"
 }
