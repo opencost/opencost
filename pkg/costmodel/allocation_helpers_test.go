@@ -14,7 +14,8 @@ const Ki = 1024
 const Mi = Ki * 1024
 const Gi = Mi * 1024
 
-const minute = 60.0
+const second = 1.0
+const minute = second * 60.0
 const hour = minute * 60.0
 
 var windowStart = time.Date(2020, 6, 16, 0, 0, 0, 0, time.UTC)
@@ -201,7 +202,6 @@ var pvMap1 = map[pvKey]*pv{
 	},
 }
 
-/* pv/pvc Helpers */
 func TestBuildPVMap(t *testing.T) {
 	pvMap1NoBytes := make(map[pvKey]*pv, len(pvMap1))
 	for thisPVKey, thisPV := range pvMap1 {
@@ -384,8 +384,6 @@ func TestBuildPVMap(t *testing.T) {
 	}
 }
 
-/* Helper Helpers */
-
 func TestGetUnmountedPodForCluster(t *testing.T) {
 	testCases := map[string]struct {
 		window   opencost.Window
@@ -467,15 +465,17 @@ func TestGetUnmountedPodForCluster(t *testing.T) {
 }
 
 func TestCalculateStartAndEnd(t *testing.T) {
-
 	testCases := map[string]struct {
-		resolution    time.Duration
+		resolution    time.Duration   // User defined config when querying Prometheus
+		window        opencost.Window // User defined config when querying Allocations/Assets
 		expectedStart time.Time
 		expectedEnd   time.Time
 		result        *source.QueryResult
 	}{
+		// Example: avg(node_total_hourly_cost{}) by (node, provider_id)[1h:1h]
 		"1 hour resolution, 1 hour window": {
 			resolution:    time.Hour,
+			window:        opencost.NewClosedWindow(windowStart, windowStart.Add(time.Hour)),
 			expectedStart: windowStart,
 			expectedEnd:   windowStart.Add(time.Hour),
 			result: &source.QueryResult{
@@ -489,8 +489,10 @@ func TestCalculateStartAndEnd(t *testing.T) {
 				},
 			},
 		},
+		// Example: avg(node_total_hourly_cost{}) by (node, provider_id)[1h:30m]
 		"30 minute resolution, 1 hour window": {
 			resolution:    time.Minute * 30,
+			window:        opencost.NewClosedWindow(windowStart, windowStart.Add(time.Hour)),
 			expectedStart: windowStart,
 			expectedEnd:   windowStart.Add(time.Hour),
 			result: &source.QueryResult{
@@ -507,8 +509,10 @@ func TestCalculateStartAndEnd(t *testing.T) {
 				},
 			},
 		},
+		// Example: avg(node_total_hourly_cost{}) by (node, provider_id)[45m:15m]
 		"15 minute resolution, 45 minute window": {
 			resolution:    time.Minute * 15,
+			window:        opencost.NewClosedWindow(windowStart, windowStart.Add(time.Minute*45)),
 			expectedStart: windowStart,
 			expectedEnd:   windowStart.Add(time.Minute * 45),
 			result: &source.QueryResult{
@@ -530,6 +534,7 @@ func TestCalculateStartAndEnd(t *testing.T) {
 		},
 		"1 minute resolution, 5 minute window": {
 			resolution:    time.Minute,
+			window:        opencost.NewClosedWindow(windowStart.Add(time.Minute*15), windowStart.Add(time.Minute*20)),
 			expectedStart: windowStart.Add(time.Minute * 15),
 			expectedEnd:   windowStart.Add(time.Minute * 20),
 			result: &source.QueryResult{
@@ -555,8 +560,10 @@ func TestCalculateStartAndEnd(t *testing.T) {
 				},
 			},
 		},
+		// Example: avg(node_total_hourly_cost{}) by (node, provider_id)[1m:1m]
 		"1 minute resolution, 1 minute window": {
 			resolution:    time.Minute,
+			window:        opencost.NewClosedWindow(windowStart.Add(time.Minute*14).Add(time.Second*30), windowStart.Add(time.Minute*15).Add(time.Second*30)),
 			expectedStart: windowStart.Add(time.Minute * 14).Add(time.Second * 30),
 			expectedEnd:   windowStart.Add(time.Minute * 15).Add(time.Second * 30),
 			result: &source.QueryResult{
@@ -567,8 +574,10 @@ func TestCalculateStartAndEnd(t *testing.T) {
 				},
 			},
 		},
+		// Example: avg(node_total_hourly_cost{}) by (node, provider_id)[1m:1m]
 		"1 minute resolution, 1 minute window, at window start": {
 			resolution:    time.Minute,
+			window:        opencost.NewClosedWindow(windowStart, windowStart.Add(time.Second*30)),
 			expectedStart: windowStart,
 			expectedEnd:   windowStart.Add(time.Second * 30),
 			result: &source.QueryResult{

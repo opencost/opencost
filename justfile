@@ -46,7 +46,7 @@ build-binary VERSION=version:
         -o ./costmodel-arm64
 
 # Build and push a multi-arch Docker image
-build IMAGE_TAG RELEASE_VERSION: test (build-binary RELEASE_VERSION)
+build IMAGE_TAG RELEASE_VERSION: (build-binary RELEASE_VERSION)
     docker buildx build \
         --rm \
         --platform "linux/amd64" \
