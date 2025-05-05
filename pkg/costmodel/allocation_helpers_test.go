@@ -8,7 +8,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
-	"github.com/opencost/opencost/pkg/prom"
 )
 
 const Ki = 1024
@@ -212,9 +211,6 @@ func TestBuildPVMap(t *testing.T) {
 		pvMap1NoBytes[thisPVKey] = clonePV
 	}
 
-	// These test cases are mocking behavior from Prometheus v3+
-	prometheusVersion = "3.0.0"
-
 	testCases := map[string]struct {
 		resolution              time.Duration
 		resultsPVCostPerGiBHour []*source.QueryResult
@@ -281,6 +277,9 @@ func TestBuildPVMap(t *testing.T) {
 					},
 					[]*util.Vector{
 						{
+							Timestamp: startFloat,
+						},
+						{
 							Timestamp: startFloat + (hour * 6),
 						},
 						{
@@ -298,6 +297,9 @@ func TestBuildPVMap(t *testing.T) {
 						"persistentvolume": "pv2",
 					},
 					[]*util.Vector{
+						{
+							Timestamp: startFloat,
+						},
 						{
 							Timestamp: startFloat + (hour * 6),
 						},
@@ -320,6 +322,9 @@ func TestBuildPVMap(t *testing.T) {
 					},
 					[]*util.Vector{
 						{
+							Timestamp: startFloat + (hour * 6),
+						},
+						{
 							Timestamp: startFloat + (hour * 12),
 						},
 						{
@@ -334,6 +339,9 @@ func TestBuildPVMap(t *testing.T) {
 						"persistentvolume": "pv4",
 					},
 					[]*util.Vector{
+						{
+							Timestamp: startFloat,
+						},
 						{
 							Timestamp: startFloat + (hour * 6),
 						},
@@ -457,9 +465,6 @@ func TestGetUnmountedPodForCluster(t *testing.T) {
 }
 
 func TestCalculateStartAndEnd(t *testing.T) {
-	// These test cases are mocking behavior from Prometheus v3+
-	prometheusVersion = "3.0.0"
-
 	testCases := map[string]struct {
 		resolution    time.Duration   // User defined config when querying Prometheus
 		window        opencost.Window // User defined config when querying Allocations/Assets
@@ -476,6 +481,9 @@ func TestCalculateStartAndEnd(t *testing.T) {
 			result: &source.QueryResult{
 				Values: []*util.Vector{
 					{
+						Timestamp: startFloat,
+					},
+					{
 						Timestamp: startFloat + (minute * 60),
 					},
 				},
@@ -489,6 +497,9 @@ func TestCalculateStartAndEnd(t *testing.T) {
 			expectedEnd:   windowStart.Add(time.Hour),
 			result: &source.QueryResult{
 				Values: []*util.Vector{
+					{
+						Timestamp: startFloat,
+					},
 					{
 						Timestamp: startFloat + (minute * 30),
 					},
@@ -506,6 +517,9 @@ func TestCalculateStartAndEnd(t *testing.T) {
 			expectedEnd:   windowStart.Add(time.Minute * 45),
 			result: &source.QueryResult{
 				Values: []*util.Vector{
+					{
+						Timestamp: startFloat + (minute * 0),
+					},
 					{
 						Timestamp: startFloat + (minute * 15),
 					},
@@ -526,6 +540,9 @@ func TestCalculateStartAndEnd(t *testing.T) {
 			result: &source.QueryResult{
 				Values: []*util.Vector{
 					{
+						Timestamp: startFloat + (minute * 15),
+					},
+					{
 						Timestamp: startFloat + (minute * 16),
 					},
 					{
@@ -534,23 +551,6 @@ func TestCalculateStartAndEnd(t *testing.T) {
 					{
 						Timestamp: startFloat + (minute * 18),
 					},
-					{
-						Timestamp: startFloat + (minute * 19),
-					},
-					{
-						Timestamp: startFloat + (minute * 20),
-					},
-				},
-			},
-		},
-		// Example: avg(node_total_hourly_cost{}) by (node, provider_id)[5m:1m]
-		"1 minute resolution, 5 minute window, partial data": {
-			resolution:    time.Minute,
-			window:        opencost.NewClosedWindow(windowStart.Add(time.Minute*15), windowStart.Add(time.Minute*20)),
-			expectedStart: windowStart.Add(time.Minute * 18),
-			expectedEnd:   windowStart.Add(time.Minute * 20),
-			result: &prom.QueryResult{
-				Values: []*util.Vector{
 					{
 						Timestamp: startFloat + (minute * 19),
 					},
@@ -569,7 +569,7 @@ func TestCalculateStartAndEnd(t *testing.T) {
 			result: &source.QueryResult{
 				Values: []*util.Vector{
 					{
-						Timestamp: startFloat + (minute * 15) + (second * 30),
+						Timestamp: startFloat + (minute * 15),
 					},
 				},
 			},
@@ -583,7 +583,7 @@ func TestCalculateStartAndEnd(t *testing.T) {
 			result: &source.QueryResult{
 				Values: []*util.Vector{
 					{
-						Timestamp: startFloat + (second * 30),
+						Timestamp: startFloat,
 					},
 				},
 			},

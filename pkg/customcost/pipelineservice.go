@@ -68,9 +68,9 @@ func getRegisteredPlugins(configDir string, execDir string) (map[string]*plugin.
 		file := fmt.Sprintf(execFmt, execDir, name, runtime.GOOS, runtime.GOARCH)
 		log.Debugf("looking for file: %s", file)
 		if _, err := os.Stat(file); err != nil {
-			msg := fmt.Sprintf("error reading executable for %s plugin. Plugin executables must be in %s and have name format <plugin name>.ocplugin.<os>.<opencost binary archtecture (arm64 or amd64)>", name, execDir)
-			log.Errorf(msg)
-			return nil, fmt.Errorf(msg)
+			err := fmt.Errorf("error reading executable for %s plugin. Plugin executables must be in %s and have name format <plugin name>.ocplugin.<os>.<opencost binary archtecture (arm64 or amd64)>", name, execDir)
+			log.Errorf("err: %v", err)
+			return nil, err
 		}
 
 		var handshakeConfig = plugin.HandshakeConfig{

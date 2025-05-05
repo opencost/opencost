@@ -1333,7 +1333,7 @@ func getPodStatefulsets(cache clustercache.ClusterCache, podList []*clustercache
 		}
 		s, err := metav1.LabelSelectorAsSelector(ss.SpecSelector)
 		if err != nil {
-			log.Errorf("Error doing deployment label conversion: " + err.Error())
+			log.Errorf("Error doing deployment label conversion: %s", err.Error())
 		}
 		for _, pod := range podList {
 			labelSet := labels.Set(pod.Labels)

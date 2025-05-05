@@ -299,7 +299,7 @@ func (ing *CustomCostIngestor) build(rebuild bool) {
 		ing.LoadWindow(s, e)
 	}
 
-	log.Infof(fmt.Sprintf("CustomCost[%s]: ingestor: build[%s]: completed in %v", ing.key, ing.runID, time.Since(buildStart)))
+	log.Infof("CustomCost[%s]: ingestor: build[%s]: completed in %v", ing.key, ing.runID, time.Since(buildStart))
 
 	// In order to be able to Stop, we have to wait on an exit message
 	// here
