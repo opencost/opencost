@@ -133,8 +133,6 @@ func (hp HTTPProtocol) WriteJSONData(w http.ResponseWriter, data interface{}) {
 // WriteRawError uses json content-type and outputs raw error message for backwards compatibility to existing
 // frontend expectations.
 func (hp HTTPProtocol) WriteRawError(w http.ResponseWriter, httpStatusCode int, err string) {
-	// I know this isn't json, but its what we've done and don't want to break frontned while we fix CWE
-	w.Header().Set("Content-Type", "application/json")
 	http.Error(w, err, httpStatusCode)
 }
 
@@ -244,12 +242,14 @@ func (hp HTTPProtocol) WriteError(w http.ResponseWriter, err HTTPError) {
 	}
 	w.WriteHeader(status)
 
-	resp, _ := json.Marshal(&HTTPResponse{
+	resp := &HTTPResponse{
 		Code:    status,
 		Message: err.Body,
-	})
+	}
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Error("Failed to encode error response: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(internalServerErrorJSON))
 	}
 }
 

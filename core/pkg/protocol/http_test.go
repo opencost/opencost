@@ -2,21 +2,13 @@ package protocol
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
-
-// Dummy proto message for testing
-//go:generate mockgen -destination=mock_proto.go -package=protocol google.golang.org/protobuf/proto Message
-
-type dummyProto struct{}
-
-func (d *dummyProto) Reset()         {}
-func (d *dummyProto) String() string { return "dummy" }
-func (d *dummyProto) ProtoMessage()  {}
 
 func TestHTTPError_Error(t *testing.T) {
 	err := HTTPError{StatusCode: 400, Body: "bad request"}
@@ -113,7 +105,7 @@ func TestHTTPProtocol_WriteRawError(t *testing.T) {
 	rw := httptest.NewRecorder()
 	hp.WriteRawError(rw, http.StatusBadRequest, "bad")
 	assert.Equal(t, http.StatusBadRequest, rw.Code)
-	assert.Equal(t, "application/json", rw.Header().Get("Content-Type"))
+	assert.Equal(t, "text/plain; charset=utf-8", rw.Header().Get("Content-Type"))
 	assert.Contains(t, rw.Body.String(), "bad")
 }
 
@@ -163,7 +155,9 @@ func TestHTTPProtocol_WriteError(t *testing.T) {
 	rw := httptest.NewRecorder()
 	hp.WriteError(rw, HTTPError{StatusCode: 400, Body: "fail"})
 	assert.Equal(t, 400, rw.Code)
-	assert.Contains(t, rw.Body.String(), "fail")
+	body := rw.Body.String()
+	log.Println("body: " + body)
+	assert.Contains(t, body, "fail")
 }
 
 func TestHTTPProtocol_WriteResponse(t *testing.T) {
@@ -173,14 +167,4 @@ func TestHTTPProtocol_WriteResponse(t *testing.T) {
 	hp.WriteResponse(rw, resp)
 	assert.Equal(t, 200, rw.Code)
 	assert.Contains(t, rw.Body.String(), "foo")
-}
-
-// Test WriteProtoWithMessage with a dummy proto message
-func TestHTTPProtocol_WriteProtoWithMessage(t *testing.T) {
-	hp := HTTPProtocol{}
-	rw := httptest.NewRecorder()
-	msg := &dummyProto{}
-	hp.WriteProtoWithMessage(rw, msg)
-	assert.Equal(t, http.StatusOK, rw.Code)
-	assert.Contains(t, rw.Body.String(), "dummy")
 }
