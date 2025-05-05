@@ -123,6 +123,8 @@ func (hp HTTPProtocol) WriteJSONData(w http.ResponseWriter, data interface{}) {
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		log.Error("Failed to encode JSON response: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"code":500,"message":"Internal Server Error"}`))
 	}
 }
 
@@ -140,6 +142,8 @@ func (hp HTTPProtocol) WriteEncodedError(w http.ResponseWriter, httpStatusCode i
 	w.WriteHeader(httpStatusCode)
 	if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
 		log.Error("Failed to encode error response: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"code":500,"message":"Internal Server Error"}`))
 	}
 }
 
@@ -151,6 +155,8 @@ func (hp HTTPProtocol) WriteData(w http.ResponseWriter, data interface{}) {
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		log.Error("Failed to encode response: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"code":500,"message":"Internal Server Error"}`))
 	}
 }
 
@@ -166,6 +172,8 @@ func (hp HTTPProtocol) WriteDataWithWarning(w http.ResponseWriter, data interfac
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Error("Failed to encode response with warning: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"code":500,"message":"Internal Server Error"}`))
 	}
 }
 
@@ -181,6 +189,8 @@ func (hp HTTPProtocol) WriteDataWithMessage(w http.ResponseWriter, data interfac
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Error("Failed to encode response with message: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"code":500,"message":"Internal Server Error"}`))
 	}
 }
 
@@ -218,6 +228,8 @@ func (hp HTTPProtocol) WriteDataWithMessageAndWarning(w http.ResponseWriter, dat
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Error("Failed to encode response with message and warning: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"code":500,"message":"Internal Server Error"}`))
 	}
 }
 
@@ -246,5 +258,7 @@ func (hp HTTPProtocol) WriteResponse(w http.ResponseWriter, r *HTTPResponse) {
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(r); err != nil {
 		log.Error("Failed to encode response: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"code":500,"message":"Internal Server Error"}`))
 	}
 }
