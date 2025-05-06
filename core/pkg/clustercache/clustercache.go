@@ -63,6 +63,7 @@ type Service struct {
 	SpecSelector map[string]string
 	Type         v1.ServiceType
 	Status       v1.ServiceStatus
+	ClusterIP    string
 }
 
 type DaemonSet struct {
@@ -253,6 +254,7 @@ func TransformService(input *v1.Service) *Service {
 		SpecSelector: input.Spec.Selector,
 		Type:         input.Spec.Type,
 		Status:       input.Status,
+		ClusterIP:    input.Spec.ClusterIP,
 	}
 }
 

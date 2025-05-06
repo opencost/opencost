@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
@@ -34,36 +35,29 @@ func newDCGMTargetScraper(provider target.TargetProvider, updater metric.MetricU
 }
 
 type DCGMTargetProvider struct {
-	k8s kubernetes.Interface
+	clusterCache clustercache.ClusterCache
 }
 
-func newDCGMTargetProvider(k8s kubernetes.Interface) *DCGMTargetProvider {
+func newDCGMTargetProvider(clusterCache clustercache.ClusterCache) *DCGMTargetProvider {
 	return &DCGMTargetProvider{
-		k8s: k8s,
+		clusterCache: clusterCache,
 	}
 }
 
 func (p *DCGMTargetProvider) GetTargets() []target.ScrapeTarget {
-	k8s := p.k8s
-
-	// Find service
-	svcs, err := k8s.CoreV1().Services("").List(context.Background(), metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/component=dcgm-exporter",
-	})
-	if err != nil {
-		log.Errorf("DCGMTargetProvider: failed to retieve Services from kubernetes client: %s", err.Error())
-		return nil
-	}
+	svcs := p.clusterCache.GetAllServices()
 
 	var targets []target.ScrapeTarget
-	for _, svc := range svcs.Items {
-		port := 9400
-		for _, prt := range svc.Spec.Ports {
-			if prt.Name == "metrics" {
-				port = int(prt.Port)
-			}
+	for _, svc := range svcs {
+		if svc.ClusterIP == "" || svc.SpecSelector == nil {
+			continue
 		}
-		t := target.NewUrlTarget(fmt.Sprintf("http://%s:%d/metrics", svc.Spec.ClusterIP, port))
+		if name := svc.SpecSelector["app.kubernetes.io/name"]; name != "dcm-collector" {
+			continue
+		}
+		port := 9400
+
+		t := target.NewUrlTarget(fmt.Sprintf("http://%s:%d/metrics", svc.ClusterIP, port))
 		targets = append(targets, t)
 	}
 
