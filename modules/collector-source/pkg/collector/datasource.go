@@ -21,6 +21,22 @@ type collectorDataSource struct {
 	config         CollectorConfig
 }
 
+func NewDefaultCollectorDataSource(
+	clusterInfoProvider clusters.ClusterInfoProvider,
+	clusterCache clustercache.ClusterCache,
+	k8s kubernetes.Interface,
+	statSummaryClient util.StatSummaryClient,
+) source.OpenCostDataSource {
+	config := NewOpenCostCollectorConfigFromEnv()
+	return NewCollectorDataSource(
+		config,
+		clusterInfoProvider,
+		clusterCache,
+		k8s,
+		statSummaryClient,
+	)
+}
+
 func NewCollectorDataSource(
 	config CollectorConfig,
 	clusterInfoProvider clusters.ClusterInfoProvider,

@@ -99,18 +99,6 @@ DCGM_FI_PROF_GR_ENGINE_ACTIVE{gpu="0",UUID="GPU-1",pci_bus_id="00000000:00:0A.0"
 DCGM_FI_DEV_DEC_UTIL{gpu="0",UUID="GPU-1",pci_bus_id="00000000:00:0A.0",device="nvidia0",modelName="Tesla T4",Hostname="localhost"} 0
 `
 
-type MockTargetProvider struct {
-	targets []target.ScrapeTarget
-}
-
-func NewMockTargetProvider(targets ...target.ScrapeTarget) *MockTargetProvider {
-	return &MockTargetProvider{targets: targets}
-}
-
-func (m *MockTargetProvider) GetTargets() []target.ScrapeTarget {
-	return m.targets
-}
-
 func TestTargetScraper_Scrape(t *testing.T) {
 
 	tests := []struct {
@@ -122,7 +110,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 			name: "Network Scrape",
 			scrapperFactory: func(updater metric.MetricUpdater) *TargetScraper {
 				return newNetworkTargetScraper(
-					NewMockTargetProvider(target.NewStringTarget(networkScape)),
+					target.NewDefaultTargetProvider(target.NewStringTarget(networkScape)),
 					updater,
 				)
 			},
@@ -158,7 +146,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 		{
 			name: "Opencost Metric",
 			scrapperFactory: func(updater metric.MetricUpdater) *TargetScraper {
-				return newOpencostTargetScraper(NewMockTargetProvider(target.NewStringTarget(opencostScrape)),
+				return newOpencostTargetScraper(target.NewDefaultTargetProvider(target.NewStringTarget(opencostScrape)),
 					updater,
 				)
 			},
@@ -447,7 +435,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 		{
 			name: "GPU Metric",
 			scrapperFactory: func(updater metric.MetricUpdater) *TargetScraper {
-				return newDCGMTargetScraper(NewMockTargetProvider(target.NewStringTarget(dcgmScrape)),
+				return newDCGMTargetScraper(target.NewDefaultTargetProvider(target.NewStringTarget(dcgmScrape)),
 					updater,
 				)
 			},

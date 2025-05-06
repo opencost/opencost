@@ -11,3 +11,15 @@ type ScrapeTarget interface {
 type TargetProvider interface {
 	GetTargets() []ScrapeTarget
 }
+
+type DefaultTargetProvider struct {
+	targets []ScrapeTarget
+}
+
+func NewDefaultTargetProvider(targets ...ScrapeTarget) *DefaultTargetProvider {
+	return &DefaultTargetProvider{targets: targets}
+}
+
+func (m *DefaultTargetProvider) GetTargets() []ScrapeTarget {
+	return m.targets
+}

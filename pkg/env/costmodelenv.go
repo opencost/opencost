@@ -39,6 +39,7 @@ const (
 	CSVPathEnvVar                  = "CSV_PATH"
 	ConfigPathEnvVar               = "CONFIG_PATH"
 	CloudProviderAPIKeyEnvVar      = "CLOUD_PROVIDER_API_KEY"
+	PromlessEnvVar                 = "PROMLESS"
 	DisableAggregateCostModelCache = "DISABLE_AGGREGATE_COST_MODEL_CACHE"
 
 	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
@@ -362,6 +363,11 @@ func GetConfigPathWithDefault(defaultValue string) string {
 // the API key provided for the cloud provider.
 func GetCloudProviderAPIKey() string {
 	return env.Get(CloudProviderAPIKeyEnvVar, "")
+}
+
+// GetPromless returns the environment variable which enables a source.OpencostDatasource which uses Prometheus
+func GetPromless() bool {
+	return env.GetBool(PromlessEnvVar, false)
 }
 
 // IsLogCollectionEnabled returns the environment variable value for LogCollectionEnabledEnvVar which represents

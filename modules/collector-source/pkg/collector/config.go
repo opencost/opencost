@@ -3,6 +3,7 @@ package collector
 import (
 	"time"
 
+	"github.com/opencost/opencost/modules/collector-source/pkg/env"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 )
 
@@ -13,22 +14,24 @@ type CollectorConfig struct {
 	NetworkPort    int                            `json:"network_port"`
 }
 
-func DefaultCollectorConfig() CollectorConfig {
+func NewOpenCostCollectorConfigFromEnv() CollectorConfig {
 	return CollectorConfig{
 		Resolutions: []util.ResolutionConfiguration{
 			{
 				Interval:  "10m",
-				Retention: 36,
+				Retention: env.GetCollector10mResolutionRetention(),
 			},
 			{
 				Interval:  "1h",
-				Retention: 24,
+				Retention: env.GetCollector1hResolutionRetention(),
 			},
 			{
 				Interval:  "1d",
-				Retention: 15,
+				Retention: env.GetCollection1dResolutionRetention(),
 			},
 		},
-		ScrapeInterval: time.Second * 30,
+		ScrapeInterval: time.Second * time.Duration(env.GetCollectorScrapeIntervalSeconds()),
+		ReleaseName:    env.GetReleaseName(),
+		NetworkPort:    env.GetNetworkPort(),
 	}
 }

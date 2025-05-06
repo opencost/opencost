@@ -38,11 +38,11 @@ func NewScrapeController(
 	statSummaryScraper := newStatSummaryScraper(statSummaryClient, updater)
 	scrapers = append(scrapers, statSummaryScraper)
 
-	networkScraper := newNetworkScraper(releaseName, networkPort, k8s, updater)
-	scrapers = append(scrapers, networkScraper)
-
-	dcgmScraper := newDCGMScrapper(k8s, updater)
-	scrapers = append(scrapers, dcgmScraper)
+	//networkScraper := newNetworkScraper(releaseName, networkPort, k8s, updater)
+	//scrapers = append(scrapers, networkScraper)
+	//
+	//dcgmScraper := newDCGMScrapper(k8s, updater)
+	//scrapers = append(scrapers, dcgmScraper)
 
 	sc := &ScrapeController{
 		scrapeInterval: scrapeInterval,
@@ -61,16 +61,20 @@ func (sc *ScrapeController) Start() {
 		log.Info("metric already running")
 		return
 	}
-	func() {
+	go func() {
+		ticker := time.NewTicker(sc.scrapeInterval)
 		for {
+			for _, scraper := range sc.scrapers {
+				scraper.Scrape()
+			}
 			select {
 			case <-sc.runState.OnStop():
 				sc.runState.Reset()
+				ticker.Stop()
 				return // exit go routine
-			default:
-
+			case <-ticker.C:
 			}
-			time.Sleep(sc.scrapeInterval)
+
 		}
 
 	}()

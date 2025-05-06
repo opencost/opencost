@@ -26,7 +26,8 @@ const (
 )
 
 func newOpenCostTargetProvider() target.TargetProvider {
-	return nil
+	// localhost is used here because we are hitting an endpoint of this container
+	return target.NewDefaultTargetProvider(target.NewUrlTarget("http://localhost:9003/metrics"))
 }
 
 func newOpenCostScraper(updater metric.MetricUpdater) Scraper {

@@ -6,6 +6,7 @@ go 1.24.2
 
 require (
 	github.com/julienschmidt/httprouter v1.3.0
+	github.com/opencost/opencost v1.114.0
 	github.com/opencost/opencost/core v0.0.0-00010101000000-000000000000
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0
 	k8s.io/api v0.33.0
