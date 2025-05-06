@@ -153,7 +153,12 @@ func (hp HTTPProtocol) WriteData(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	status := http.StatusOK
 	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(data); err != nil {
+
+	resp := &HTTPResponse{
+		Code: status,
+		Data: data,
+	}
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Error("Failed to encode response: " + err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(internalServerErrorJSON))

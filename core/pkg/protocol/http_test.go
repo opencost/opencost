@@ -168,3 +168,19 @@ func TestHTTPProtocol_WriteResponse(t *testing.T) {
 	assert.Equal(t, 200, rw.Code)
 	assert.Contains(t, rw.Body.String(), "foo")
 }
+
+func TestHTTPProtocol_WriteData_Structure(t *testing.T) {
+	hp := HTTPProtocol{}
+	rw := httptest.NewRecorder()
+	data := map[string]string{"foo": "bar"}
+	hp.WriteData(rw, data)
+	assert.Equal(t, http.StatusOK, rw.Code)
+	assert.Equal(t, "application/json", rw.Header().Get("Content-Type"))
+
+	// Check the structure of the JSON response
+	body := rw.Body.String()
+	assert.Contains(t, body, "\"code\":200")
+	assert.Contains(t, body, "\"data\":{\"foo\":\"bar\"}")
+	assert.NotContains(t, body, "message")
+	assert.NotContains(t, body, "warning")
+}
