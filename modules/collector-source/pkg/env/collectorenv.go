@@ -5,6 +5,7 @@ import (
 )
 
 const (
+	ClusterIDEnvVar                 = "CLUSTER_ID"
 	ReleaseNameEnvVar               = "RELEASE_NAME"
 	NetworkPortEnvVar               = "NETWORK_PORT"
 	Collector10mResolutionRetention = "COLLECTOR_10M_RESOLUTION_RETENTION"
@@ -12,6 +13,10 @@ const (
 	Collection1dResolutionRetention = "COLLECTOR_1D_RESOLUTION_RETENTION"
 	CollectorScrapeIntervalSeconds  = "COLLECTOR_SCRAPE_INTERVAL_SECONDS"
 )
+
+func GetClusterID() string {
+	return env.Get(ClusterIDEnvVar, "")
+}
 
 func GetReleaseName() string {
 	return env.Get(ReleaseNameEnvVar, "kubecost")

@@ -515,7 +515,7 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 			},
 			expected: []metric.UpdateArgs{
 				{
-					MetricName: KubePersistenVolumeClaimInfo,
+					MetricName: KubePersistentVolumeClaimInfo,
 					Labels: map[string]string{
 						"name":         "pvc1",
 						"namespace":    "namespace1",

@@ -156,7 +156,7 @@ func (r *resolutionStores) getCollector(t time.Time) (MetricStore, error) {
 
 	collector, ok := r.collectors[key]
 	if !ok {
-		return nil, fmt.Errorf("failed to find metric for interval '%s' for time '%s'", r.resolution.Interval(), t.Format(time.RFC3339))
+		return nil, fmt.Errorf("failed to find MetricCollector for interval '%s' for time '%s'", r.resolution.Interval(), t.Format(time.RFC3339))
 	}
 
 	return collector, nil

@@ -1,15 +1,11 @@
 package scrape
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
-	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 )
 
 // DCGM metrics
@@ -18,8 +14,10 @@ const (
 	DCGMFIDEVDECUTIL         = "DCGM_FI_DEV_DEC_UTIL"
 )
 
-func newDCGMScrapper(k8s kubernetes.Interface, updater metric.MetricUpdater) Scraper {
-	tp := newDCGMTargetProvider(k8s)
+func newDCGMScrapper(clusterCache clustercache.ClusterCache, updater metric.MetricUpdater) Scraper {
+	//tp := newDCGMTargetProvider(clusterCache)
+	tp := target.NewDefaultTargetProvider(
+		target.NewUrlTarget("http://localhost:9400/metrics"))
 	return newDCGMTargetScraper(tp, updater)
 }
 

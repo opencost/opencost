@@ -38,11 +38,11 @@ func NewScrapeController(
 	statSummaryScraper := newStatSummaryScraper(statSummaryClient, updater)
 	scrapers = append(scrapers, statSummaryScraper)
 
-	//networkScraper := newNetworkScraper(releaseName, networkPort, k8s, updater)
-	//scrapers = append(scrapers, networkScraper)
-	//
-	//dcgmScraper := newDCGMScrapper(k8s, updater)
-	//scrapers = append(scrapers, dcgmScraper)
+	networkScraper := newNetworkScraper(releaseName, networkPort, k8s, updater)
+	scrapers = append(scrapers, networkScraper)
+
+	dcgmScraper := newDCGMScrapper(clusterCache, updater)
+	scrapers = append(scrapers, dcgmScraper)
 
 	sc := &ScrapeController{
 		scrapeInterval: scrapeInterval,

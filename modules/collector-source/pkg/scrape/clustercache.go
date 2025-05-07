@@ -29,7 +29,7 @@ const (
 	KubePodOwner                                          = "kube_pod_owner"
 	KubePodContainerStatusRunning                         = "kube_pod_container_status_running"
 	KubePodContainerResourceRequests                      = "kube_pod_container_resource_requests"
-	KubePersistenVolumeClaimInfo                          = "kube_persistentvolumeclaim_info"
+	KubePersistentVolumeClaimInfo                         = "kube_persistentvolumeclaim_info"
 	KubePersistentVolumeClaimResourceRequestsStorageBytes = "kube_persistentvolumeclaim_resource_requests_storage_bytes"
 	KubecostPVInfo                                        = "kubecost_pv_info"
 	KubePersistentVolumeCapacityBytes                     = "kube_persistentvolume_capacity_bytes"
@@ -226,7 +226,7 @@ func (ccs *ClusterCacheScraper) scrapePVCs(pvcs []*clustercache.PersistentVolume
 			"storageclass": getPersistentVolumeClaimClass(pvc),
 		}
 
-		ccs.updater.Update(KubePersistenVolumeClaimInfo, pvcInfo, 0, &timestamp, nil)
+		ccs.updater.Update(KubePersistentVolumeClaimInfo, pvcInfo, 0, &timestamp, nil)
 
 		if storage, ok := pvc.Spec.Resources.Requests[v1.ResourceStorage]; ok {
 			ccs.updater.Update(KubePersistentVolumeClaimResourceRequestsStorageBytes, pvcInfo, float64(storage.Value()), &timestamp, nil)

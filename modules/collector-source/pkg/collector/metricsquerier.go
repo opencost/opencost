@@ -1,7 +1,6 @@
 package collector
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/source"
@@ -22,9 +21,7 @@ func newCollectorMetricsQuerier(repo *metric.MetricRepository, resoluationConfig
 func queryCollector[T any](c *collectorMetricsQuerier, start, end time.Time, id metric.MetricCollectorID, decoder source.ResultDecoder[T]) *source.Future[T] {
 	collector := c.collectorProvider.GetStore(start, end)
 	queryResults := source.NewQueryResults(string(id))
-	if collector == nil {
-		queryResults.Error = fmt.Errorf("collector returned nil")
-	} else {
+	if collector != nil {
 		results, err := collector.Query(id)
 		queryResults.Error = err
 		for _, result := range results {

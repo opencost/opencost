@@ -22,7 +22,20 @@ func newNetworkScraper(
 	k8s kubernetes.Interface,
 	updater metric.MetricUpdater,
 ) Scraper {
-	tp := NewNetworkTargetProvider(releaseName, port, k8s)
+	// TODO revert this
+	//tp := NewNetworkTargetProvider(releaseName, port, k8s)
+	tp := target.NewDefaultTargetProvider(
+		target.NewUrlTarget("http://localhost:9111/metrics"),
+		target.NewUrlTarget("http://localhost:9112/metrics"),
+		target.NewUrlTarget("http://localhost:9113/metrics"),
+		target.NewUrlTarget("http://localhost:9114/metrics"),
+		target.NewUrlTarget("http://localhost:9115/metrics"),
+		target.NewUrlTarget("http://localhost:9116/metrics"),
+		target.NewUrlTarget("http://localhost:9117/metrics"),
+		target.NewUrlTarget("http://localhost:9118/metrics"),
+		target.NewUrlTarget("http://localhost:9119/metrics"),
+		target.NewUrlTarget("http://localhost:9120/metrics"),
+	)
 	return newNetworkTargetScraper(tp, updater)
 }
 

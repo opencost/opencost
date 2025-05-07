@@ -65,6 +65,7 @@ func NewCollectorDataSource(
 
 	metricQuerier := newCollectorMetricsQuerier(repo, config.Resolutions)
 
+	// cluster info provider
 	clusterInfo := clusterInfoProvider
 
 	clusterMap := newCollectorClusterMap(clusterInfo)
