@@ -2,6 +2,7 @@ package costmodel
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -184,6 +185,7 @@ func NewContainerMetricFromPrometheus(metrics map[string]interface{}, defaultClu
 		return nil, NoNamespaceNameErr
 	}
 	node, ok := metrics["node"]
+
 	if !ok {
 		log.Debugf("Prometheus vector does not have node name")
 		node = ""
@@ -191,6 +193,13 @@ func NewContainerMetricFromPrometheus(metrics map[string]interface{}, defaultClu
 	nodeName, ok := node.(string)
 	if !ok {
 		return nil, NoNodeNameErr
+	} else {
+		// sometimes the port is in the node name, we need to remove that
+		// Check if the node name contains a port (format: <anything>:<integer>)
+		if matched, _ := regexp.MatchString(`^.*:\d+$`, nodeName); matched {
+			// Only split if the format matches <anything>:<integer>
+			nodeName = strings.Split(nodeName, ":")[0]
+		}
 	}
 	cid, ok := metrics[env.GetPromClusterLabel()]
 	if !ok {
