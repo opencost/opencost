@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 )
@@ -15,9 +16,7 @@ const (
 )
 
 func newDCGMScrapper(clusterCache clustercache.ClusterCache, updater metric.MetricUpdater) Scraper {
-	//tp := newDCGMTargetProvider(clusterCache)
-	tp := target.NewDefaultTargetProvider(
-		target.NewUrlTarget("http://localhost:9400/metrics"))
+	tp := newDCGMTargetProvider(clusterCache)
 	return newDCGMTargetScraper(tp, updater)
 }
 
@@ -44,18 +43,17 @@ func newDCGMTargetProvider(clusterCache clustercache.ClusterCache) *DCGMTargetPr
 
 func (p *DCGMTargetProvider) GetTargets() []target.ScrapeTarget {
 	svcs := p.clusterCache.GetAllServices()
-
 	var targets []target.ScrapeTarget
 	for _, svc := range svcs {
 		if svc.ClusterIP == "" || svc.SpecSelector == nil {
 			continue
 		}
 		// TODO do something in relation to Thomas' comment https://github.com/opencost/opencost/pull/3110
-		if name := svc.SpecSelector["app.kubernetes.io/name"]; name != "dcm-collector" {
+		if name := svc.SpecSelector["app.kubernetes.io/name"]; name != "dcgm-collector" {
 			continue
 		}
 		port := 9400
-
+		log.Debugf("DCGM: found target: http://%s:%d/metrics", svc.ClusterIP, port)
 		t := target.NewUrlTarget(fmt.Sprintf("http://%s:%d/metrics", svc.ClusterIP, port))
 		targets = append(targets, t)
 	}

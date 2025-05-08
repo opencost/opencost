@@ -38,7 +38,7 @@ func NewScrapeController(
 	statSummaryScraper := newStatSummaryScraper(statSummaryClient, updater)
 	scrapers = append(scrapers, statSummaryScraper)
 
-	networkScraper := newNetworkScraper(releaseName, networkPort, k8s, updater)
+	networkScraper := newNetworkScraper(releaseName, networkPort, clusterCache, updater)
 	scrapers = append(scrapers, networkScraper)
 
 	dcgmScraper := newDCGMScrapper(clusterCache, updater)

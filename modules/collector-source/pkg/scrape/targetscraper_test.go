@@ -141,6 +141,32 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value:     335188219,
 					Timestamp: nil,
 				},
+				{
+					MetricName: KubecostPodNetworkIngressBytesTotal,
+					Labels: map[string]string{
+						"pod_name":    "pod1",
+						"namespace":   "namespace1",
+						"internet":    "true",
+						"same_region": "false",
+						"same_zone":   "false",
+						"service":     "service1",
+					},
+					Value:     17941460,
+					Timestamp: nil,
+				},
+				{
+					MetricName: KubecostPodNetworkIngressBytesTotal,
+					Labels: map[string]string{
+						"pod_name":    "pod2",
+						"namespace":   "namespace1",
+						"internet":    "false",
+						"same_region": "true",
+						"same_zone":   "false",
+						"service":     "",
+					},
+					Value:     13948766,
+					Timestamp: nil,
+				},
 			},
 		},
 		{
