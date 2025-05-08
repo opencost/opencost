@@ -20,15 +20,15 @@ func NewOpenCostCollectorConfigFromEnv() CollectorConfig {
 		Resolutions: []util.ResolutionConfiguration{
 			{
 				Interval:  "10m",
-				Retention: env.GetCollector10mResolutionRetention(),
+				Retention: 2, // TODO UNDO env.GetCollector10mResolutionRetention(),
 			},
 			{
 				Interval:  "1h",
-				Retention: env.GetCollector1hResolutionRetention(),
+				Retention: 1, // TODO UNDO env.GetCollector1hResolutionRetention(),
 			},
 			{
 				Interval:  "1d",
-				Retention: env.GetCollection1dResolutionRetention(),
+				Retention: 1, // TODO UNDO env.GetCollection1dResolutionRetention(),
 			},
 		},
 		ScrapeInterval: time.Second * time.Duration(env.GetCollectorScrapeIntervalSeconds()),

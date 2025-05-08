@@ -8,6 +8,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
@@ -79,8 +80,8 @@ func (ccs *ClusterCacheScraper) Scrape() {
 func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node, timestamp time.Time) {
 	for _, node := range nodes {
 		nodeInfo := map[string]string{
-			"node":        node.Name,
-			"provider_id": node.SpecProviderID,
+			source.NodeLabel:       node.Name,
+			source.ProviderIDLabel: node.SpecProviderID,
 		}
 
 		// Node Capacity
@@ -121,8 +122,8 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node, timestam
 func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.Deployment, timestamp time.Time) {
 	for _, deployment := range deployments {
 		deploymentInfo := map[string]string{
-			"deployment": deployment.Name,
-			"namespace":  deployment.Namespace,
+			source.DeploymentLabel: deployment.Name,
+			source.NamespaceLabel:  deployment.Namespace,
 		}
 
 		// deployment labels
@@ -137,7 +138,7 @@ func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.De
 func (ccs *ClusterCacheScraper) scrapeNamespaces(namespaces []*clustercache.Namespace, timestamp time.Time) {
 	for _, namespace := range namespaces {
 		namespaceInfo := map[string]string{
-			"namespace": namespace.Name,
+			source.NamespaceLabel: namespace.Name,
 		}
 
 		// namespace labels
@@ -155,10 +156,11 @@ func (ccs *ClusterCacheScraper) scrapeNamespaces(namespaces []*clustercache.Name
 func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, timestamp time.Time) {
 	for _, pod := range pods {
 		podInfo := map[string]string{
-			"name":      pod.Name,
-			"namespace": pod.Namespace,
-			"uid":       string(pod.UID),
-			"node":      pod.Spec.NodeName,
+			source.PodLabel:       pod.Name,
+			source.NamespaceLabel: pod.Namespace,
+			source.UIDLabel:       string(pod.UID),
+			source.NodeLabel:      pod.Spec.NodeName,
+			source.InstanceLabel:  pod.Spec.NodeName,
 		}
 
 		// pod labels
@@ -174,9 +176,8 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, timestamp t
 		// Pod owner metric
 		for _, owner := range pod.OwnerReferences {
 			ownerInfo := maps.Clone(podInfo)
-			ownerInfo["owner_kind"] = owner.Kind
-			ownerInfo["owner_name"] = owner.Name
-			ownerInfo["owner_is_controller"] = fmt.Sprintf("%t", owner.Controller != nil)
+			ownerInfo[source.OwnerKindLabel] = owner.Kind
+			ownerInfo[source.OwnerNameLabel] = owner.Name
 			ccs.updater.Update(KubePodOwner, ownerInfo, 0, &timestamp, nil)
 		}
 
@@ -184,14 +185,14 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, timestamp t
 		for _, status := range pod.Status.ContainerStatuses {
 			if status.State.Running != nil {
 				containerInfo := maps.Clone(podInfo)
-				containerInfo["container"] = status.Name
+				containerInfo[source.ContainerLabel] = status.Name
 				ccs.updater.Update(KubePodContainerStatusRunning, containerInfo, 0, &timestamp, nil)
 			}
 		}
 
 		for _, container := range pod.Spec.Containers {
 			containerInfo := maps.Clone(podInfo)
-			containerInfo["container"] = container.Name
+			containerInfo[source.ContainerLabel] = container.Name
 			// Requests
 			if container.Resources.Requests != nil {
 				// sorting keys here for testing purposes
@@ -208,8 +209,8 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, timestamp t
 					}
 
 					resourceRequestInfo := maps.Clone(containerInfo)
-					resourceRequestInfo["resource"] = resource
-					resourceRequestInfo["unit"] = unit
+					resourceRequestInfo[source.ResourceLabel] = resource
+					resourceRequestInfo[source.UnitLabel] = unit
 					ccs.updater.Update(KubePodContainerResourceRequests, resourceRequestInfo, value, &timestamp, nil)
 				}
 			}
@@ -220,10 +221,10 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, timestamp t
 func (ccs *ClusterCacheScraper) scrapePVCs(pvcs []*clustercache.PersistentVolumeClaim, timestamp time.Time) {
 	for _, pvc := range pvcs {
 		pvcInfo := map[string]string{
-			"name":         pvc.Name,
-			"namespace":    pvc.Namespace,
-			"volumename":   pvc.Spec.VolumeName,
-			"storageclass": getPersistentVolumeClaimClass(pvc),
+			source.PVCLabel:          pvc.Name,
+			source.NamespaceLabel:    pvc.Namespace,
+			source.VolumeNameLabel:   pvc.Spec.VolumeName,
+			source.StorageClassLabel: getPersistentVolumeClaimClass(pvc),
 		}
 
 		ccs.updater.Update(KubePersistentVolumeClaimInfo, pvcInfo, 0, &timestamp, nil)
@@ -242,9 +243,9 @@ func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume, 
 			providerID = pv.Spec.CSI.VolumeHandle
 		}
 		pvInfo := map[string]string{
-			"name":         pv.Name,
-			"storageClass": pv.Spec.StorageClassName,
-			"providerID":   providerID,
+			source.PVLabel:           pv.Name,
+			source.StorageClassLabel: pv.Spec.StorageClassName,
+			source.ProviderIDLabel:   providerID,
 		}
 
 		ccs.updater.Update(KubecostPVInfo, pvInfo, 0, &timestamp, nil)
@@ -258,8 +259,8 @@ func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume, 
 func (ccs *ClusterCacheScraper) scrapeServices(services []*clustercache.Service, timestamp time.Time) {
 	for _, service := range services {
 		serviceInfo := map[string]string{
-			"service":   service.Name,
-			"namespace": service.Namespace,
+			source.ServiceLabel:   service.Name,
+			source.NamespaceLabel: service.Namespace,
 		}
 
 		// service labels
@@ -273,8 +274,8 @@ func (ccs *ClusterCacheScraper) scrapeServices(services []*clustercache.Service,
 func (ccs *ClusterCacheScraper) scrapeStatefulSets(statefulSets []*clustercache.StatefulSet, timestamp time.Time) {
 	for _, statefulSet := range statefulSets {
 		statefulSetInfo := map[string]string{
-			"name":      statefulSet.Name,
-			"namespace": statefulSet.Namespace,
+			source.StatefulSetLabel: statefulSet.Name,
+			source.NamespaceLabel:   statefulSet.Namespace,
 		}
 
 		// statefulSet labels
@@ -288,14 +289,14 @@ func (ccs *ClusterCacheScraper) scrapeStatefulSets(statefulSets []*clustercache.
 func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.ReplicaSet, timestamp time.Time) {
 	for _, replicaSet := range replicaSets {
 		replicaSetInfo := map[string]string{
-			"replicaset": replicaSet.Name,
-			"namespace":  replicaSet.Namespace,
+			source.ReplicaSetLabel: replicaSet.Name,
+			source.NamespaceLabel:  replicaSet.Namespace,
 		}
 
 		for _, owner := range replicaSet.OwnerReferences {
 			ownerInfo := maps.Clone(replicaSetInfo)
-			ownerInfo["owner_kind"] = owner.Kind
-			ownerInfo["owner_name"] = owner.Name
+			ownerInfo[source.OwnerKindLabel] = owner.Kind
+			ownerInfo[source.OwnerNameLabel] = owner.Name
 			ccs.updater.Update(KubeReplicasetOwner, ownerInfo, 0, &timestamp, nil)
 		}
 	}

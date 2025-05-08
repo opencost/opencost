@@ -50,6 +50,7 @@ func (p *DCGMTargetProvider) GetTargets() []target.ScrapeTarget {
 		if svc.ClusterIP == "" || svc.SpecSelector == nil {
 			continue
 		}
+		// TODO do something in relation to Thomas' comment https://github.com/opencost/opencost/pull/3110
 		if name := svc.SpecSelector["app.kubernetes.io/name"]; name != "dcm-collector" {
 			continue
 		}

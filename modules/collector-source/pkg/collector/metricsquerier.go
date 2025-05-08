@@ -19,8 +19,8 @@ func newCollectorMetricsQuerier(repo *metric.MetricRepository, resoluationConfig
 }
 
 func queryCollector[T any](c *collectorMetricsQuerier, start, end time.Time, id metric.MetricCollectorID, decoder source.ResultDecoder[T]) *source.Future[T] {
-	collector := c.collectorProvider.GetStore(start, end)
 	queryResults := source.NewQueryResults(string(id))
+	collector := c.collectorProvider.GetStore(start, end)
 	if collector != nil {
 		results, err := collector.Query(id)
 		queryResults.Error = err
@@ -28,12 +28,11 @@ func queryCollector[T any](c *collectorMetricsQuerier, start, end time.Time, id 
 			queryResults.Results = append(queryResults.Results, result.ToQueryResult())
 		}
 	}
+	ch := make(source.QueryResultsChan, 1)
+	ch <- queryResults
+	f := source.NewFuture[T](decoder, ch)
+	return f
 
-	ch := make(source.QueryResultsChan)
-	go func() {
-		ch <- queryResults
-	}()
-	return source.NewFuture[T](decoder, ch)
 }
 
 func (c *collectorMetricsQuerier) QueryPVActiveMinutes(start, end time.Time) *source.Future[source.PVActiveMinutesResult] {
@@ -59,27 +58,22 @@ func (c *collectorMetricsQuerier) QueryLocalStorageCost(start, end time.Time) *s
 
 func (c *collectorMetricsQuerier) QueryLocalStorageUsedCost(start, end time.Time) *source.Future[source.LocalStorageUsedCostResult] {
 	return queryCollector(c, start, end, metric.LocalStorageUsedCostID, source.DecodeLocalStorageUsedCostResult)
-
 }
 
 func (c *collectorMetricsQuerier) QueryLocalStorageUsedAvg(start, end time.Time) *source.Future[source.LocalStorageUsedAvgResult] {
 	return queryCollector(c, start, end, metric.LocalStorageUsedAverageID, source.DecodeLocalStorageUsedAvgResult)
-
 }
 
 func (c *collectorMetricsQuerier) QueryLocalStorageUsedMax(start, end time.Time) *source.Future[source.LocalStorageUsedMaxResult] {
 	return queryCollector(c, start, end, metric.LocalStorageUsedMaxID, source.DecodeLocalStorageUsedMaxResult)
-
 }
 
 func (c *collectorMetricsQuerier) QueryLocalStorageBytes(start, end time.Time) *source.Future[source.LocalStorageBytesResult] {
 	return queryCollector(c, start, end, metric.LocalStorageBytesID, source.DecodeLocalStorageBytesResult)
-
 }
 
 func (c *collectorMetricsQuerier) QueryNodeActiveMinutes(start, end time.Time) *source.Future[source.NodeActiveMinutesResult] {
 	return queryCollector(c, start, end, metric.NodeActiveMinutesID, source.DecodeNodeActiveMinutesResult)
-
 }
 
 func (c *collectorMetricsQuerier) QueryNodeCPUCoresCapacity(start, end time.Time) *source.Future[source.NodeCPUCoresCapacityResult] {
@@ -260,7 +254,6 @@ func (c *collectorMetricsQuerier) QueryNetInternetPricePerGiB(start, end time.Ti
 	return queryCollector(c, start, end, metric.NetInternetPricePerGiBID, source.DecodeNetInternetPricePerGiBResult)
 }
 
-// TODO figure this out
 func (c *collectorMetricsQuerier) QueryNetInternetServiceGiB(start, end time.Time) *source.Future[source.NetInternetServiceGiBResult] {
 	return queryCollector(c, start, end, metric.NetInternetServiceGiBID, source.DecodeNetInternetServiceGiBResult)
 }
@@ -269,22 +262,18 @@ func (c *collectorMetricsQuerier) QueryNetTransferBytes(start, end time.Time) *s
 	return queryCollector(c, start, end, metric.NetTransferBytesID, source.DecodeNetTransferBytesResult)
 }
 
-// TODO figure this out
 func (c *collectorMetricsQuerier) QueryNetZoneIngressGiB(start, end time.Time) *source.Future[source.NetZoneIngressGiBResult] {
 	return queryCollector(c, start, end, metric.NetZoneIngressGiBID, source.DecodeNetZoneIngressGiBResult)
 }
 
-// TODO figure this out
 func (c *collectorMetricsQuerier) QueryNetRegionIngressGiB(start, end time.Time) *source.Future[source.NetRegionIngressGiBResult] {
 	return queryCollector(c, start, end, metric.NetRegionIngressGiBID, source.DecodeNetRegionIngressGiBResult)
 }
 
-// TODO figure this out
 func (c *collectorMetricsQuerier) QueryNetInternetIngressGiB(start, end time.Time) *source.Future[source.NetInternetIngressGiBResult] {
 	return queryCollector(c, start, end, metric.NetInternetIngressGiBID, source.DecodeNetInternetIngressGiBResult)
 }
 
-// TODO figure this out
 func (c *collectorMetricsQuerier) QueryNetInternetServiceIngressGiB(start, end time.Time) *source.Future[source.NetInternetServiceIngressGiBResult] {
 	return queryCollector(c, start, end, metric.NetInternetServiceIngressGiBID, source.DecodeNetInternetServiceIngressGiBResult)
 }

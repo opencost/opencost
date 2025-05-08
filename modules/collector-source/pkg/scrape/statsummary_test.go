@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -192,8 +193,8 @@ func TestStatScraper_Scrape(t *testing.T) {
 				{
 					MetricName: NodeCPUSecondsTotal,
 					Labels: map[string]string{
-						"kubernetes_node": "node1",
-						"mode":            "",
+						source.KubernetesNodeLabel: "node1",
+						source.ModeLabel:           "",
 					},
 					Value:     2,
 					Timestamp: &start1,
@@ -201,8 +202,8 @@ func TestStatScraper_Scrape(t *testing.T) {
 				{
 					MetricName: NodeFSCapacityBytes,
 					Labels: map[string]string{
-						"instance": "node1",
-						"device":   "local",
+						source.InstanceLabel: "node1",
+						source.DeviceLabel:   "local",
 					},
 					Value:     float64(2 * util.GB),
 					Timestamp: &start1,
@@ -210,9 +211,9 @@ func TestStatScraper_Scrape(t *testing.T) {
 				{
 					MetricName: ContainerNetworkReceiveBytesTotal,
 					Labels: map[string]string{
-						"pod":       "uid1",
-						"pod_name":  "pod1",
-						"namespace": "namespace1",
+						source.UIDLabel:       "uid1",
+						source.PodLabel:       "pod1",
+						source.NamespaceLabel: "namespace1",
 					},
 					Value:     float64(1 * util.MB),
 					Timestamp: &start1,
@@ -220,9 +221,9 @@ func TestStatScraper_Scrape(t *testing.T) {
 				{
 					MetricName: ContainerNetworkTransmitBytesTotal,
 					Labels: map[string]string{
-						"pod":       "uid1",
-						"pod_name":  "pod1",
-						"namespace": "namespace1",
+						source.UIDLabel:       "uid1",
+						source.PodLabel:       "pod1",
+						source.NamespaceLabel: "namespace1",
 					},
 					Value:     float64(2 * util.MB),
 					Timestamp: &start1,
@@ -230,8 +231,8 @@ func TestStatScraper_Scrape(t *testing.T) {
 				{
 					MetricName: KubeletVolumeStatsUsedBytes,
 					Labels: map[string]string{
-						"persistentvolumeclaim": "pvc1",
-						"namespace":             "namespace1",
+						source.PVCLabel:       "pvc1",
+						source.NamespaceLabel: "namespace1",
 					},
 					Value:     float64(1 * util.GB),
 					Timestamp: &start1,
@@ -239,12 +240,11 @@ func TestStatScraper_Scrape(t *testing.T) {
 				{
 					MetricName: ContainerCPUUsageSecondsTotal,
 					Labels: map[string]string{
-						"container": "container1",
-						"uid":       "uid1",
-						"pod":       "pod1",
-						"namespace": "namespace1",
-						"node":      "node1",
-						"instance":  "node1",
+						source.ContainerLabel: "container1",
+						source.PodLabel:       "pod1",
+						source.NamespaceLabel: "namespace1",
+						source.NodeLabel:      "node1",
+						source.InstanceLabel:  "node1",
 					},
 					Value:     1,
 					Timestamp: &start1,
@@ -252,12 +252,11 @@ func TestStatScraper_Scrape(t *testing.T) {
 				{
 					MetricName: ContainerMemoryWorkingSetBytes,
 					Labels: map[string]string{
-						"container": "container1",
-						"uid":       "uid1",
-						"pod":       "pod1",
-						"namespace": "namespace1",
-						"node":      "node1",
-						"instance":  "node1",
+						source.ContainerLabel: "container1",
+						source.PodLabel:       "pod1",
+						source.NamespaceLabel: "namespace1",
+						source.NodeLabel:      "node1",
+						source.InstanceLabel:  "node1",
 					},
 					Value:     float64(5 * util.MB),
 					Timestamp: &start1,
@@ -265,8 +264,8 @@ func TestStatScraper_Scrape(t *testing.T) {
 				{
 					MetricName: ContainerFSUsageBytes,
 					Labels: map[string]string{
-						"instance": "node1",
-						"device":   "local",
+						source.InstanceLabel: "node1",
+						source.DeviceLabel:   "local",
 					},
 					Value:     float64(1 * util.GB),
 					Timestamp: &start1,
@@ -327,8 +326,8 @@ func TestStatScraper_Scrape(t *testing.T) {
 				{
 					MetricName: KubeletVolumeStatsUsedBytes,
 					Labels: map[string]string{
-						"persistentvolumeclaim": "pvc1",
-						"namespace":             "namespace1",
+						source.PVCLabel:       "pvc1",
+						source.NamespaceLabel: "namespace1",
 					},
 					Value:     float64(1 * util.GB),
 					Timestamp: &start1,

@@ -13,7 +13,8 @@ import (
 
 // Network Metrics
 const (
-	KubecostPodNetworkEgressBytesTotal = "kubecost_pod_network_egress_bytes_total"
+	KubecostPodNetworkEgressBytesTotal  = "kubecost_pod_network_egress_bytes_total"
+	KubecostPodNetworkIngressBytesTotal = "kubecost_pod_network_ingress_bytes_total"
 )
 
 func newNetworkScraper(
@@ -45,6 +46,7 @@ func newNetworkTargetScraper(provider target.TargetProvider, updater metric.Metr
 		updater,
 		[]string{
 			KubecostPodNetworkEgressBytesTotal,
+			KubecostPodNetworkIngressBytesTotal,
 		},
 		true)
 }

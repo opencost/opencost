@@ -68,7 +68,12 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewNetRegionPricePerGiBMetricCollector())
 	memStore.Register(NewNetInternetGiBMetricCollector())
 	memStore.Register(NewNetInternetPricePerGiBMetricCollector())
+	memStore.Register(NewNetInternetServiceGiBMetricCollector())
 	memStore.Register(NewNetReceiveBytesMetricCollector())
+	memStore.Register(NewNetZoneIngressGiBMetricCollector())
+	memStore.Register(NewNetRegionIngressGiBMetricCollector())
+	memStore.Register(NewNetInternetIngressGiBMetricCollector())
+	memStore.Register(NewNetInternetServiceIngressGiBMetricCollector())
 	memStore.Register(NewNetTransferBytesMetricCollector())
 	memStore.Register(NewNamespaceLabelsMetricCollector())
 	memStore.Register(NewNamespaceAnnotationsMetricCollector())
@@ -98,7 +103,11 @@ func NewPVPricePerGiBHourMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.PVPricePerGiBHourID,
 		scrape.PVHourlyCost,
-		[]string{source.PVLabel, source.VolumeNameLabel, source.ProviderIDLabel},
+		[]string{
+			source.VolumeNameLabel,
+			source.PVLabel,
+			source.ProviderIDLabel,
+		},
 		aggregator.AverageOverTime,
 		nil,
 	)
@@ -116,7 +125,10 @@ func NewPVUsedAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.PVUsedAverageID,
 		scrape.KubeletVolumeStatsUsedBytes,
-		[]string{source.PVCLabel, source.NamespaceLabel},
+		[]string{
+			source.NamespaceLabel,
+			source.PVCLabel,
+		},
 		aggregator.AverageOverTime,
 		nil,
 	)
@@ -134,7 +146,10 @@ func NewPVUsedMaxMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.PVUsedMaxID,
 		scrape.KubeletVolumeStatsUsedBytes,
-		[]string{source.PVCLabel, source.NamespaceLabel},
+		[]string{
+			source.NamespaceLabel,
+			source.PVCLabel,
+		},
 		aggregator.MaxOverTime,
 		nil,
 	)
@@ -151,9 +166,14 @@ func NewPVCInfoMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.PVCInfoID,
 		scrape.KubePersistentVolumeClaimInfo,
-		[]string{source.PVCLabel, source.StorageClassLabel, source.VolumeNameLabel, source.NamespaceLabel},
+		[]string{
+			source.NamespaceLabel,
+			source.VolumeNameLabel,
+			source.PVCLabel,
+			source.StorageClassLabel,
+		},
 		aggregator.Info,
-		nil,
+		nil, // TODO missing filter
 	)
 }
 
@@ -167,7 +187,9 @@ func NewPVActiveMinutesMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.PVActiveMinutesID,
 		scrape.KubePersistentVolumeCapacityBytes,
-		[]string{source.PVLabel},
+		[]string{
+			source.PVLabel,
+		},
 		aggregator.ActiveMinutes,
 		nil,
 	)
@@ -188,7 +210,10 @@ func NewLocalStorageCostMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.LocalStorageCostID,
 		scrape.NodeFSCapacityBytes,
-		[]string{source.InstanceLabel, source.DeviceLabel},
+		[]string{
+			source.InstanceLabel,
+			source.DeviceLabel,
+		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
 			// todo this filter needs a regex
@@ -212,7 +237,10 @@ func NewLocalStorageUsedCostMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.LocalStorageUsedCostID,
 		scrape.ContainerFSUsageBytes,
-		[]string{source.InstanceLabel, source.DeviceLabel},
+		[]string{
+			source.InstanceLabel,
+			source.DeviceLabel,
+		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
 			// todo this filter needs a regex
@@ -237,7 +265,10 @@ func NewLocalStorageUsedAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.LocalStorageUsedAverageID,
 		scrape.ContainerFSUsageBytes,
-		[]string{source.InstanceLabel, source.DeviceLabel},
+		[]string{
+			source.InstanceLabel,
+			source.DeviceLabel,
+		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
 			// todo this filter needs a regex
@@ -263,7 +294,10 @@ func NewLocalStorageUsedMaxMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.LocalStorageUsedMaxID,
 		scrape.ContainerFSUsageBytes,
-		[]string{source.InstanceLabel, source.DeviceLabel},
+		[]string{
+			source.InstanceLabel,
+			source.DeviceLabel,
+		},
 		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
 			// todo this filter needs a regex
@@ -287,7 +321,10 @@ func NewLocalStorageBytesMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.LocalStorageBytesID,
 		scrape.NodeFSCapacityBytes,
-		[]string{source.InstanceLabel, source.DeviceLabel},
+		[]string{
+			source.InstanceLabel,
+			source.DeviceLabel,
+		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
 			// todo this filter needs a regex
@@ -307,7 +344,10 @@ func NewLocalStorageActiveMinutesMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.LocalStorageActiveMinutesID,
 		scrape.NodeTotalHourlyCost,
-		[]string{source.NodeLabel, source.ProviderIDLabel},
+		[]string{
+			source.NodeLabel,
+			source.ProviderIDLabel,
+		},
 		aggregator.ActiveMinutes,
 		nil,
 	)
@@ -326,7 +366,9 @@ func NewNodeCPUCoresCapacityMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NodeCPUCoresCapacityID,
 		scrape.KubeNodeStatusCapacityCPUCores,
-		[]string{source.NodeLabel},
+		[]string{
+			source.NodeLabel,
+		},
 		aggregator.AverageOverTime,
 		nil,
 	)
@@ -344,7 +386,9 @@ func NewNodeCPUCoresAllocatableMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NodeCPUCoresAllocatableID,
 		scrape.KubeNodeStatusAllocatableCPUCores,
-		[]string{source.NodeLabel},
+		[]string{
+			source.NodeLabel,
+		},
 		aggregator.AverageOverTime,
 		nil,
 	)
@@ -362,7 +406,9 @@ func NewNodeRAMBytesCapacityMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NodeRAMBytesCapacityID,
 		scrape.KubeNodeStatusCapacityMemoryBytes,
-		[]string{source.NodeLabel},
+		[]string{
+			source.NodeLabel,
+		},
 		aggregator.AverageOverTime,
 		nil,
 	)
@@ -380,7 +426,9 @@ func NewNodeRAMBytesAllocatableMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NodeRAMBytesAllocatableID,
 		scrape.KubeNodeStatusAllocatableMemoryBytes,
-		[]string{source.NodeLabel},
+		[]string{
+			source.NodeLabel,
+		},
 		aggregator.AverageOverTime,
 		nil,
 	)
@@ -398,7 +446,10 @@ func NewNodeGPUCountMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NodeGPUCountID,
 		scrape.NodeGPUCount,
-		[]string{source.NodeLabel, source.ProviderIDLabel},
+		[]string{
+			source.NodeLabel,
+			source.ProviderIDLabel,
+		},
 		aggregator.AverageOverTime,
 		nil,
 	)
@@ -414,7 +465,9 @@ func NewNodeLabelsMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NodeLabelsID,
 		scrape.KubeNodeLabels,
-		[]string{source.NodeLabel},
+		[]string{
+			source.NodeLabel,
+		},
 		aggregator.Info,
 		nil,
 	)
@@ -430,7 +483,10 @@ func NewNodeActiveMinutesMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NodeActiveMinutesID,
 		scrape.NodeTotalHourlyCost,
-		[]string{source.NodeLabel, source.ProviderIDLabel},
+		[]string{
+			source.NodeLabel,
+			source.ProviderIDLabel,
+		},
 		aggregator.ActiveMinutes,
 		nil,
 	)
@@ -448,7 +504,10 @@ func NewNodeCPUModeTotalMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NodeCPUModeTotalID,
 		scrape.NodeCPUSecondsTotal,
-		[]string{source.KubernetesNodeLabel, source.ModeLabel},
+		[]string{
+			source.KubernetesNodeLabel,
+			source.ModeLabel,
+		},
 		aggregator.Increase,
 		nil,
 	)
@@ -469,7 +528,9 @@ func NewNodeRAMSystemUsageAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NodeRAMSystemUsageAverageID,
 		scrape.ContainerMemoryWorkingSetBytes,
-		[]string{source.InstanceLabel},
+		[]string{
+			source.InstanceLabel,
+		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
 			return labels[source.ContainerLabel] != "POD" && labels[source.ContainerLabel] != "" && labels[source.NamespaceLabel] == "kube-system"
@@ -492,7 +553,9 @@ func NewNodeRAMUserUsageAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NodeRAMUserUsageAverageID,
 		scrape.ContainerMemoryWorkingSetBytes,
-		[]string{source.InstanceLabel},
+		[]string{
+			source.InstanceLabel,
+		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
 			return labels[source.ContainerLabel] != "POD" && labels[source.ContainerLabel] != "" && labels[source.NamespaceLabel] != "kube-system"
@@ -512,7 +575,11 @@ func NewLBPricePerHourMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.LBPricePerHourID,
 		scrape.KubecostLoadBalancerCost,
-		[]string{source.NamespaceLabel, source.ServiceNameLabel, source.IngressIPLabel},
+		[]string{
+			source.NamespaceLabel,
+			source.ServiceNameLabel,
+			source.IngressIPLabel,
+		},
 		aggregator.AverageOverTime,
 		nil,
 	)
@@ -528,7 +595,11 @@ func NewLBActiveMinutesMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.LBActiveMinutesID,
 		scrape.KubecostLoadBalancerCost,
-		[]string{source.NamespaceLabel, source.ServiceNameLabel, source.IngressIPLabel},
+		[]string{
+			source.NamespaceLabel,
+			source.ServiceNameLabel,
+			source.IngressIPLabel,
+		},
 		aggregator.ActiveMinutes,
 		nil,
 	)
@@ -544,7 +615,9 @@ func NewClusterManagementDurationMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.ClusterManagementDurationID,
 		scrape.KubecostClusterManagementCost,
-		[]string{source.ProvisionerNameLabel},
+		[]string{
+			source.ProvisionerNameLabel,
+		},
 		aggregator.ActiveMinutes,
 		nil,
 	)
@@ -562,7 +635,9 @@ func NewClusterManagementPricePerHourMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.ClusterManagementPricePerHourID,
 		scrape.KubecostClusterManagementCost,
-		[]string{source.ProvisionerNameLabel},
+		[]string{
+			source.ProvisionerNameLabel,
+		},
 		aggregator.AverageOverTime,
 		nil,
 	)
@@ -578,7 +653,11 @@ func NewPodActiveMinutesMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.PodActiveMinutesID,
 		scrape.KubePodContainerStatusRunning,
-		[]string{source.PodLabel, source.NamespaceLabel, source.UIDLabel},
+		[]string{
+			source.UIDLabel,
+			source.NamespaceLabel,
+			source.PodLabel,
+		},
 		aggregator.ActiveMinutes,
 		nil,
 	)
@@ -1109,7 +1188,9 @@ func NewPVBytesMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.PVBytesID,
 		scrape.KubePersistentVolumeCapacityBytes,
-		[]string{source.PVLabel},
+		[]string{
+			source.PVLabel,
+		},
 		aggregator.AverageOverTime,
 		nil,
 	)
@@ -1123,7 +1204,6 @@ func NewPVBytesMetricCollector() *metric.MetricCollector {
 //		)
 //	) by (volumename, cluster_id)
 //
-// TODO what is going on here, does not appear to be a qu
 // TODO what is going on here, does not appear to be a query
 func NewPVCostPerGiBHourMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
@@ -1296,6 +1376,31 @@ func NewNetInternetPricePerGiBMetricCollector() *metric.MetricCollector {
 
 //	sum(
 //		increase(
+//			kubecost_pod_network_egress_bytes_total{
+//				internet="true",
+//				<some_custom_filter>
+//			}[%s]
+//		)
+//	) by (pod_name, namespace, service, %s) / 1024 / 1024 / 1024
+
+func NewNetInternetServiceGiBMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NetInternetServiceGiBID,
+		scrape.KubecostNetworkInternetEgressCost,
+		[]string{
+			source.NamespaceLabel,
+			source.PodLabel,
+			source.ServiceLabel,
+		},
+		aggregator.Increase,
+		func(labels map[string]string) bool {
+			return labels[source.InternetLabel] == "true"
+		},
+	)
+}
+
+//	sum(
+//		increase(
 //			container_network_receive_bytes_total{
 //				pod!="",
 //				<some_custom_filter>
@@ -1315,6 +1420,111 @@ func NewNetReceiveBytesMetricCollector() *metric.MetricCollector {
 		aggregator.Increase,
 		func(labels map[string]string) bool {
 			return labels[source.PodLabel] != ""
+		},
+	)
+}
+
+//	sum(
+//		increase(
+//			kubecost_pod_network_ingress_bytes_total{
+//				internet="false",
+//				same_zone="false",
+//				same_region="true",
+//				<some_custom_filter>
+//			}[1h]
+//		)
+//	) by (pod_name, namespace, cluster_id) / 1024 / 1024 / 1024
+
+func NewNetZoneIngressGiBMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NetZoneIngressGiBID,
+		scrape.KubecostPodNetworkIngressBytesTotal,
+		[]string{
+			source.NamespaceLabel,
+			source.PodLabel,
+		},
+		aggregator.Increase,
+		func(labels map[string]string) bool {
+			return labels[source.InternetLabel] != "false" &&
+				labels[source.SameZoneLabel] != "false" &&
+				labels[source.SameRegionLabel] != "true"
+		},
+	)
+}
+
+//	sum(
+//		increase(
+//			kubecost_pod_network_ingress_bytes_total{
+//				internet="false",
+//				same_zone="false",
+//				same_region="false",
+//				<some_custom_filter>
+//			}[1h]
+//		)
+//	) by (pod_name, namespace, cluster_id) / 1024 / 1024 / 1024
+
+func NewNetRegionIngressGiBMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NetRegionIngressGiBID,
+		scrape.KubecostPodNetworkIngressBytesTotal,
+		[]string{
+			source.NamespaceLabel,
+			source.PodLabel,
+		},
+		aggregator.Increase,
+		func(labels map[string]string) bool {
+			return labels[source.InternetLabel] != "false" &&
+				labels[source.SameZoneLabel] != "false" &&
+				labels[source.SameRegionLabel] != "false"
+		},
+	)
+}
+
+//	sum(
+//		increase(
+//			kubecost_pod_network_ingress_bytes_total{
+//				internet="true",
+//				<some_custom_filter>
+//			}[1h]
+//		)
+//	) by (pod_name, namespace, cluster_id) / 1024 / 1024 / 1024
+
+func NewNetInternetIngressGiBMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NetInternetIngressGiBID,
+		scrape.KubecostPodNetworkIngressBytesTotal,
+		[]string{
+			source.NamespaceLabel,
+			source.PodLabel,
+		},
+		aggregator.Increase,
+		func(labels map[string]string) bool {
+			return labels[source.InternetLabel] != "true"
+		},
+	)
+}
+
+//	`sum(
+//		increase(
+//			kubecost_pod_network_ingress_bytes_total{
+//				internet="true",
+//				<some_custom_filter>
+//			}[1h]
+//		)
+//	) by (pod_name, namespace, service, cluster_id) / 1024 / 1024 / 1024
+
+func NewNetInternetServiceIngressGiBMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NetInternetServiceIngressGiBID,
+		scrape.KubecostPodNetworkIngressBytesTotal,
+		[]string{
+			source.NamespaceLabel,
+			source.PodLabel,
+			source.ServiceLabel,
+		},
+		aggregator.Increase,
+		func(labels map[string]string) bool {
+			return labels[source.InternetLabel] != "true"
 		},
 	)
 }
@@ -1509,7 +1719,7 @@ func NewDaemonSetLabelsMetricCollector() *metric.MetricCollector {
 //		)
 //	) by (pod, owner_name, namespace, cluster_id)
 
-func NewJobLabelsMetricJobLabelsMetricCollector() *metric.MetricCollector {
+func NewJobLabelsMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.JobLabelsID,
 		scrape.KubePodOwner,
@@ -1564,7 +1774,10 @@ func NewReplicaSetsWithoutOwnersMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.ReplicaSetsWithoutOwnersID,
 		scrape.KubeReplicasetOwner,
-		[]string{"replicaset", source.NamespaceLabel},
+		[]string{
+			source.NamespaceLabel,
+			source.ReplicaSetLabel,
+		},
 		aggregator.Info,
 		func(labels map[string]string) bool {
 			return labels[source.OwnerKindLabel] == "<none>" && labels[source.OwnerNameLabel] == "<none>"
@@ -1585,7 +1798,12 @@ func NewReplicaSetsWithRolloutMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.ReplicaSetsWithRolloutID,
 		scrape.KubeReplicasetOwner,
-		[]string{"replicaset", source.NamespaceLabel, source.OwnerKindLabel, source.OwnerNameLabel},
+		[]string{
+			source.NamespaceLabel,
+			source.ReplicaSetLabel,
+			source.OwnerNameLabel,
+			source.OwnerKindLabel,
+		},
 		aggregator.Info,
 		func(labels map[string]string) bool {
 			return labels[source.OwnerKindLabel] == "Rollout"

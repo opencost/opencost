@@ -2,6 +2,7 @@ package scrape
 
 import (
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
@@ -47,8 +48,8 @@ func (s *StatSummaryScraper) Scrape() {
 			s.updater.Update(
 				NodeCPUSecondsTotal,
 				map[string]string{
-					"kubernetes_node": nodeName,
-					"mode":            "", //TODO
+					source.KubernetesNodeLabel: nodeName,
+					source.ModeLabel:           "", // TODO
 				},
 				float64(*stat.Node.CPU.UsageCoreNanoSeconds)*1e-9,
 				&stat.Node.CPU.Time.Time,
@@ -60,8 +61,8 @@ func (s *StatSummaryScraper) Scrape() {
 			s.updater.Update(
 				NodeFSCapacityBytes,
 				map[string]string{
-					"instance": nodeName,
-					"device":   "local", // This value has to be populated but isn't important here
+					source.InstanceLabel: nodeName,
+					source.DeviceLabel:   "local", // This value has to be populated but isn't important here
 				},
 				float64(*stat.Node.Fs.CapacityBytes),
 				&stat.Node.Fs.Time.Time,
@@ -79,9 +80,9 @@ func (s *StatSummaryScraper) Scrape() {
 					s.updater.Update(
 						ContainerNetworkReceiveBytesTotal,
 						map[string]string{
-							"pod":       podUID,
-							"pod_name":  podName,
-							"namespace": namespace,
+							source.UIDLabel:       podUID,
+							source.PodLabel:       podName,
+							source.NamespaceLabel: namespace,
 						},
 						float64(*pod.Network.RxBytes),
 						&pod.Network.Time.Time,
@@ -93,9 +94,9 @@ func (s *StatSummaryScraper) Scrape() {
 					s.updater.Update(
 						ContainerNetworkTransmitBytesTotal,
 						map[string]string{
-							"pod":       podUID,
-							"pod_name":  podName,
-							"namespace": namespace,
+							source.UIDLabel:       podUID,
+							source.PodLabel:       podName,
+							source.NamespaceLabel: namespace,
 						},
 						float64(*pod.Network.TxBytes),
 						&pod.Network.Time.Time,
@@ -114,8 +115,8 @@ func (s *StatSummaryScraper) Scrape() {
 				s.updater.Update(
 					KubeletVolumeStatsUsedBytes,
 					map[string]string{
-						"persistentvolumeclaim": volumeStats.PVCRef.Name,
-						"namespace":             volumeStats.PVCRef.Namespace,
+						source.PVCLabel:       volumeStats.PVCRef.Name,
+						source.NamespaceLabel: volumeStats.PVCRef.Namespace,
 					},
 					float64(*volumeStats.UsedBytes),
 					&volumeStats.Time.Time,
@@ -129,12 +130,11 @@ func (s *StatSummaryScraper) Scrape() {
 					s.updater.Update(
 						ContainerCPUUsageSecondsTotal,
 						map[string]string{
-							"container": container.Name,
-							"uid":       podUID,
-							"pod":       podName,
-							"namespace": namespace,
-							"node":      nodeName,
-							"instance":  nodeName,
+							source.ContainerLabel: container.Name,
+							source.PodLabel:       podName,
+							source.NamespaceLabel: namespace,
+							source.NodeLabel:      nodeName,
+							source.InstanceLabel:  nodeName,
 						},
 						float64(*container.CPU.UsageCoreNanoSeconds)*1e-9,
 						&container.CPU.Time.Time,
@@ -145,12 +145,11 @@ func (s *StatSummaryScraper) Scrape() {
 					s.updater.Update(
 						ContainerMemoryWorkingSetBytes,
 						map[string]string{
-							"container": container.Name,
-							"uid":       podUID,
-							"pod":       podName,
-							"namespace": namespace,
-							"node":      nodeName,
-							"instance":  nodeName,
+							source.ContainerLabel: container.Name,
+							source.PodLabel:       podName,
+							source.NamespaceLabel: namespace,
+							source.NodeLabel:      nodeName,
+							source.InstanceLabel:  nodeName,
 						},
 						float64(*container.Memory.WorkingSetBytes),
 						&container.Memory.Time.Time,
@@ -162,8 +161,8 @@ func (s *StatSummaryScraper) Scrape() {
 					s.updater.Update(
 						ContainerFSUsageBytes,
 						map[string]string{
-							"instance": nodeName,
-							"device":   "local",
+							source.InstanceLabel: nodeName,
+							source.DeviceLabel:   "local",
 						},
 						float64(*container.Rootfs.UsedBytes),
 						&container.Rootfs.Time.Time,
