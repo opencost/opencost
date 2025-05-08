@@ -33,6 +33,7 @@ type Pod struct {
 }
 
 type PodStatus struct {
+	PodIP             string
 	Phase             v1.PodPhase
 	ContainerStatuses []v1.ContainerStatus
 }
@@ -195,6 +196,7 @@ func TransformPodContainer(input v1.Container) Container {
 
 func TransformPodStatus(input v1.PodStatus) PodStatus {
 	return PodStatus{
+		PodIP:             input.PodIP,
 		Phase:             input.Phase,
 		ContainerStatuses: input.ContainerStatuses,
 	}
