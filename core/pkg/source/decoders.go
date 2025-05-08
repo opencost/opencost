@@ -4,6 +4,41 @@ import (
 	"github.com/opencost/opencost/core/pkg/util"
 )
 
+const (
+	ClusterIDLabel       = "cluster_id"
+	NamespaceLabel       = "namespace"
+	NodeLabel            = "node"
+	InstanceLabel        = "instance"
+	InstanceTypeLabel    = "instance_type"
+	ContainerLabel       = "container"
+	PodLabel             = "pod"
+	ProviderIDLabel      = "provider_id"
+	DeviceLabel          = "device"
+	PVCLabel             = "persistentvolumeclaim"
+	PVLabel              = "persistentvolume"
+	StorageClassLabel    = "storageclass"
+	VolumeNameLabel      = "volumename"
+	ServiceLabel         = "service"
+	ServiceNameLabel     = "service_name"
+	IngressIPLabel       = "ingress_ip"
+	ProvisionerNameLabel = "provisioner_name"
+	UIDLabel             = "uid"
+	KubernetesNodeLabel  = "kubernetes_node"
+	ModeLabel            = "mode"
+	ModelNameLabel       = "modelName"
+	UUIDLabel            = "UUID"
+	ResourceLabel        = "resource"
+	DeploymentLabel      = "deployment"
+	StatefulSetLabel     = "statefulSet"
+	ReplicaSetLabel      = "replicaset"
+	OwnerNameLabel       = "owner_name"
+	OwnerKindLabel       = "owner_kind"
+	UnitLabel            = "unit"
+	InternetLabel        = "internet"
+	SameZoneLabel        = "same_zone"
+	SameRegionLabel      = "same_region"
+)
+
 type PVResult struct {
 	Cluster          string
 	PersistentVolume string
@@ -20,7 +55,7 @@ type PVUsedAvgResult struct {
 func DecodePVUsedAvgResult(result *QueryResult) *PVUsedAvgResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
-	pvc, _ := result.GetString("persistentvolumeclaim")
+	pvc, _ := result.GetString(PVCLabel)
 
 	return &PVUsedAvgResult{
 		Cluster:               cluster,
@@ -39,7 +74,7 @@ type PVActiveMinutesResult struct {
 
 func DecodePVActiveMinutesResult(result *QueryResult) *PVActiveMinutesResult {
 	cluster, _ := result.GetCluster()
-	pv, _ := result.GetString("persistentvolume")
+	pv, _ := result.GetString(PVLabel)
 
 	return &PVActiveMinutesResult{
 		Cluster:          cluster,
@@ -58,7 +93,7 @@ type PVUsedMaxResult struct {
 func DecodePVUsedMaxResult(result *QueryResult) *PVUsedMaxResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
-	pvc, _ := result.GetString("persistentvolumeclaim")
+	pvc, _ := result.GetString(PVCLabel)
 
 	return &PVUsedMaxResult{
 		Cluster:               cluster,
@@ -289,8 +324,8 @@ type NodeCPUModeTotalResult struct {
 
 func DecodeNodeCPUModeTotalResult(result *QueryResult) *NodeCPUModeTotalResult {
 	cluster, _ := result.GetCluster()
-	node, _ := result.GetString("kubernetes_node")
-	mode, _ := result.GetString("mode")
+	node, _ := result.GetString(KubernetesNodeLabel)
+	mode, _ := result.GetString(ModeLabel)
 
 	return &NodeCPUModeTotalResult{
 		Cluster: cluster,
@@ -355,8 +390,8 @@ type LBActiveMinutesResult struct {
 func DecodeLBActiveMinutesResult(result *QueryResult) *LBActiveMinutesResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
-	service, _ := result.GetString("service_name")
-	ingressIp, _ := result.GetString("ingress_ip")
+	service, _ := result.GetString(ServiceNameLabel)
+	ingressIp, _ := result.GetString(IngressIPLabel)
 
 	return &LBActiveMinutesResult{
 		Cluster:   cluster,
@@ -381,7 +416,7 @@ type ClusterManagementDurationResult struct {
 
 func DecodeClusterManagementDurationResult(result *QueryResult) *ClusterManagementDurationResult {
 	cluster, _ := result.GetCluster()
-	provisioner, _ := result.GetString("provisioner_name")
+	provisioner, _ := result.GetString(ProvisionerNameLabel)
 
 	return &ClusterManagementDurationResult{
 		Cluster:     cluster,
@@ -406,7 +441,7 @@ type PodsResult struct {
 }
 
 func DecodePodsResult(result *QueryResult) *PodsResult {
-	uid, _ := result.GetString("uid")
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
@@ -668,9 +703,9 @@ func DecodeGPUInfoResult(result *QueryResult) *GPUInfoResult {
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
 	container, _ := result.GetContainer()
-	device, _ := result.GetString("device")
-	modelName, _ := result.GetString("modelName")
-	uuid, _ := result.GetString("UUID")
+	device, _ := result.GetString(DeviceLabel)
+	modelName, _ := result.GetString(ModelNameLabel)
+	uuid, _ := result.GetString(UUIDLabel)
 
 	return &GPUInfoResult{
 		Cluster:   cluster,
@@ -698,7 +733,7 @@ func DecodeIsGPUSharedResult(result *QueryResult) *IsGPUSharedResult {
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
 	container, _ := result.GetContainer()
-	resource, _ := result.GetString("resource")
+	resource, _ := result.GetString(ResourceLabel)
 
 	return &IsGPUSharedResult{
 		Cluster:   cluster,
@@ -723,8 +758,8 @@ func DecodePodPVCAllocationResult(result *QueryResult) *PodPVCAllocationResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
-	pv, _ := result.GetString("persistentvolume")
-	pvc, _ := result.GetString("persistentvolumeclaim")
+	pv, _ := result.GetString(PVLabel)
+	pvc, _ := result.GetString(PVCLabel)
 
 	return &PodPVCAllocationResult{
 		Cluster:               cluster,
@@ -747,7 +782,7 @@ type PVCBytesRequestedResult struct {
 func DecodePVCBytesRequestedResult(result *QueryResult) *PVCBytesRequestedResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
-	pvc, _ := result.GetString("persistentvolumeclaim")
+	pvc, _ := result.GetString(PVCLabel)
 
 	return &PVCBytesRequestedResult{
 		Cluster:               cluster,
@@ -770,9 +805,9 @@ type PVCInfoResult struct {
 func DecodePVCInfoResult(result *QueryResult) *PVCInfoResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
-	volumeName, _ := result.GetString("volumename")
-	pvc, _ := result.GetString("persistentvolumeclaim")
-	storageClass, _ := result.GetString("storageclass")
+	volumeName, _ := result.GetString(VolumeNameLabel)
+	pvc, _ := result.GetString(PVCLabel)
+	storageClass, _ := result.GetString(StorageClassLabel)
 
 	return &PVCInfoResult{
 		Cluster:               cluster,
@@ -793,7 +828,7 @@ type PVBytesResult struct {
 
 func DecodePVBytesResult(result *QueryResult) *PVBytesResult {
 	cluster, _ := result.GetCluster()
-	pv, _ := result.GetString("persistentvolume")
+	pv, _ := result.GetString(PVLabel)
 
 	return &PVBytesResult{
 		Cluster:          cluster,
@@ -813,8 +848,8 @@ type PVPricePerGiBHourResult struct {
 
 func DecodePVPricePerGiBHourResult(result *QueryResult) *PVPricePerGiBHourResult {
 	cluster, _ := result.GetCluster()
-	volumeName, _ := result.GetString("volumename")
-	pv, _ := result.GetString("persistentvolume")
+	volumeName, _ := result.GetString(VolumeNameLabel)
+	pv, _ := result.GetString(PVLabel)
 	providerId, _ := result.GetProviderID()
 
 	return &PVPricePerGiBHourResult{
@@ -838,9 +873,9 @@ type PVInfoResult struct {
 
 func DecodePVInfoResult(result *QueryResult) *PVInfoResult {
 	cluster, _ := result.GetCluster()
-	storageClass, _ := result.GetString("storageclass")
+	storageClass, _ := result.GetString(StorageClassLabel)
 	providerId, _ := result.GetProviderID()
-	pv, _ := result.GetString("persistentvolume")
+	pv, _ := result.GetString(PVLabel)
 
 	return &PVInfoResult{
 		Cluster:          cluster,
@@ -865,7 +900,7 @@ func DecodeNetworkGiBResult(result *QueryResult) *NetworkGiBResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
-	service, _ := result.GetString("service")
+	service, _ := result.GetString(ServiceLabel)
 
 	return &NetworkGiBResult{
 		Cluster:   cluster,
@@ -1117,7 +1152,7 @@ type ServiceLabelsResult struct {
 func DecodeServiceLabelsResult(result *QueryResult) *ServiceLabelsResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
-	service, _ := result.GetString("service")
+	service, _ := result.GetString(ServiceLabel)
 	labels := result.GetLabels()
 
 	return &ServiceLabelsResult{
@@ -1140,7 +1175,7 @@ type DeploymentLabelsResult struct {
 func DecodeDeploymentLabelsResult(result *QueryResult) *DeploymentLabelsResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
-	deployment, _ := result.GetString("deployment")
+	deployment, _ := result.GetString(DeploymentLabel)
 	labels := result.GetLabels()
 
 	return &DeploymentLabelsResult{
@@ -1163,7 +1198,7 @@ type StatefulSetLabelsResult struct {
 func DecodeStatefulSetLabelsResult(result *QueryResult) *StatefulSetLabelsResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
-	statefulSet, _ := result.GetString("statefulSet")
+	statefulSet, _ := result.GetString(StatefulSetLabel)
 	labels := result.GetLabels()
 
 	return &StatefulSetLabelsResult{
@@ -1188,7 +1223,7 @@ func DecodeDaemonSetLabelsResult(result *QueryResult) *DaemonSetLabelsResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
-	daemonSet, _ := result.GetString("owner_name")
+	daemonSet, _ := result.GetString(OwnerNameLabel)
 	labels := result.GetLabels()
 
 	return &DaemonSetLabelsResult{
@@ -1214,7 +1249,7 @@ func DecodeJobLabelsResult(result *QueryResult) *JobLabelsResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
-	job, _ := result.GetString("owner_name")
+	job, _ := result.GetString(OwnerNameLabel)
 	labels := result.GetLabels()
 
 	return &JobLabelsResult{
@@ -1239,7 +1274,7 @@ type PodsWithReplicaSetOwnerResult struct {
 func DecodePodsWithReplicaSetOwnerResult(result *QueryResult) *PodsWithReplicaSetOwnerResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
-	replicaSet, _ := result.GetString("owner_name")
+	replicaSet, _ := result.GetString(OwnerNameLabel)
 	pod, _ := result.GetPod()
 
 	return &PodsWithReplicaSetOwnerResult{
@@ -1277,9 +1312,9 @@ type ReplicaSetsWithRolloutResult struct {
 func DecodeReplicaSetsWithRolloutResult(result *QueryResult) *ReplicaSetsWithRolloutResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
-	replicaSet, _ := result.GetString("replicaset")
-	ownerName, _ := result.GetString("owner_name")
-	ownerKind, _ := result.GetString("owner_kind")
+	replicaSet, _ := result.GetString(ReplicaSetLabel)
+	ownerName, _ := result.GetString(OwnerNameLabel)
+	ownerKind, _ := result.GetString(OwnerKindLabel)
 
 	return &ReplicaSetsWithRolloutResult{
 		Cluster:    cluster,

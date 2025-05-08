@@ -52,15 +52,15 @@ type ResultKeys struct {
 // DefaultResultKeys returns a new ResultKeys instance with typical default values.
 func DefaultResultKeys() *ResultKeys {
 	return &ResultKeys{
-		ClusterKey:      "cluster_id",
-		NamespaceKey:    "namespace",
-		NodeKey:         "node",
-		InstanceKey:     "instance",
-		InstanceTypeKey: "instance_type",
-		ContainerKey:    "container",
-		PodKey:          "pod",
-		ProviderIDKey:   "provider_id",
-		DeviceKey:       "device",
+		ClusterKey:      ClusterIDLabel,
+		NamespaceKey:    NamespaceLabel,
+		NodeKey:         NodeLabel,
+		InstanceKey:     InstanceLabel,
+		InstanceTypeKey: InstanceTypeLabel,
+		ContainerKey:    ContainerLabel,
+		PodKey:          PodLabel,
+		ProviderIDKey:   ProviderIDLabel,
+		DeviceKey:       DeviceLabel,
 	}
 }
 

@@ -1,11 +1,17 @@
-package collector
+package util
 
 import (
 	"hash/fnv"
 	"strings"
 )
 
-func hash(s []string) uint64 {
+var (
+	KB = 1024
+	MB = 1024 * KB
+	GB = 1024 * MB
+)
+
+func Hash(s []string) uint64 {
 	h := fnv.New64a()
 	for _, v := range s {
 		h.Write([]byte(v))
@@ -13,7 +19,7 @@ func hash(s []string) uint64 {
 	return h.Sum64()
 }
 
-func metricNameFor(metric string, labels []string, values []string) string {
+func MetricNameFor(metric string, labels []string, values []string) string {
 	var sb strings.Builder
 	sb.WriteString(metric)
 	sb.WriteRune('{')
@@ -31,7 +37,7 @@ func metricNameFor(metric string, labels []string, values []string) string {
 	return sb.String()
 }
 
-func toMap(labels []string, values []string) map[string]string {
+func ToMap(labels []string, values []string) map[string]string {
 	min := len(labels)
 	if len(values) < min {
 		min = len(values)
@@ -44,6 +50,6 @@ func toMap(labels []string, values []string) map[string]string {
 	return m
 }
 
-func ptr[T any](v T) *T {
+func Ptr[T any](v T) *T {
 	return &v
 }

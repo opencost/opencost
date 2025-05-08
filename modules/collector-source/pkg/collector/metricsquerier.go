@@ -4,397 +4,337 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
+	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 )
 
-type CollectorProvider interface {
-	GetCollector(start, end time.Time) MetricsCollector
-}
-type CollectorMetricsQuerier struct {
-	collectorProvider CollectorProvider
+type collectorMetricsQuerier struct {
+	collectorProvider StoreProvider
 }
 
-func (c CollectorMetricsQuerier) QueryPVActiveMinutes(start, end time.Time) *source.Future[source.PVActiveMinutesResult] {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c CollectorMetricsQuerier) QueryPVUsedAverage(start, end time.Time) *source.Future[source.PVUsedAvgResult] {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c CollectorMetricsQuerier) QueryPVUsedMax(start, end time.Time) *source.Future[source.PVUsedMaxResult] {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c CollectorMetricsQuerier) QueryLocalStorageActiveMinutes(start, end time.Time) *source.Future[source.LocalStorageActiveMinutesResult] {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c CollectorMetricsQuerier) QueryLocalStorageCost(start, end time.Time) *source.Future[source.LocalStorageCostResult] {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c CollectorMetricsQuerier) QueryLocalStorageUsedCost(start, end time.Time) *source.Future[source.LocalStorageUsedCostResult] {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c CollectorMetricsQuerier) QueryLocalStorageUsedAvg(start, end time.Time) *source.Future[source.LocalStorageUsedAvgResult] {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c CollectorMetricsQuerier) QueryLocalStorageUsedMax(start, end time.Time) *source.Future[source.LocalStorageUsedMaxResult] {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c CollectorMetricsQuerier) QueryLocalStorageBytes(start, end time.Time) *source.Future[source.LocalStorageBytesResult] {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c CollectorMetricsQuerier) QueryNodeActiveMinutes(start, end time.Time) *source.Future[source.NodeActiveMinutesResult] {
-	collector := c.collectorProvider.GetCollector(start, end)
-	results, err := collector.Query(NodeActiveMinutesID)
-	queryResults := source.NewQueryResults(string(NodeActiveMinutesID))
-	queryResults.Error = err
-	for _, result := range results {
-		queryResults.Results = append(queryResults.Results, result.ToQueryResult())
+func newCollectorMetricsQuerier(repo *metric.MetricRepository, resoluationConfigs []util.ResolutionConfiguration) *collectorMetricsQuerier {
+	return &collectorMetricsQuerier{
+		collectorProvider: newRepoStoreProvider(repo, resoluationConfigs),
 	}
+}
+
+func queryCollector[T any](c *collectorMetricsQuerier, start, end time.Time, id metric.MetricCollectorID, decoder source.ResultDecoder[T]) *source.Future[T] {
+	queryResults := source.NewQueryResults(string(id))
+	collector := c.collectorProvider.GetStore(start, end)
+	if collector != nil {
+		results, err := collector.Query(id)
+		queryResults.Error = err
+		for _, result := range results {
+			queryResults.Results = append(queryResults.Results, result.ToQueryResult())
+		}
+	}
+	ch := make(source.QueryResultsChan, 1)
+	ch <- queryResults
+	f := source.NewFuture[T](decoder, ch)
+	return f
+
+}
+
+func (c *collectorMetricsQuerier) QueryPVActiveMinutes(start, end time.Time) *source.Future[source.PVActiveMinutesResult] {
+	return queryCollector(c, start, end, metric.PVActiveMinutesID, source.DecodePVActiveMinutesResult)
+}
+
+func (c *collectorMetricsQuerier) QueryPVUsedAverage(start, end time.Time) *source.Future[source.PVUsedAvgResult] {
+	return queryCollector(c, start, end, metric.PVUsedAverageID, source.DecodePVUsedAvgResult)
+}
+
+func (c *collectorMetricsQuerier) QueryPVUsedMax(start, end time.Time) *source.Future[source.PVUsedMaxResult] {
+	return queryCollector(c, start, end, metric.PVUsedMaxID, source.DecodePVUsedMaxResult)
+}
+
+func (c *collectorMetricsQuerier) QueryLocalStorageActiveMinutes(start, end time.Time) *source.Future[source.LocalStorageActiveMinutesResult] {
+	return queryCollector(c, start, end, metric.LocalStorageActiveMinutesID, source.DecodeLocalStorageActiveMinutesResult)
+}
 
-	ch := make(source.QueryResultsChan)
-	go func() {
-		ch <- queryResults
-	}()
-	return source.NewFuture[source.NodeActiveMinutesResult](source.DecodeNodeActiveMinutesResult, ch)
+func (c *collectorMetricsQuerier) QueryLocalStorageCost(start, end time.Time) *source.Future[source.LocalStorageCostResult] {
+	return queryCollector(c, start, end, metric.LocalStorageCostID, source.DecodeLocalStorageCostResult)
+
+}
+
+func (c *collectorMetricsQuerier) QueryLocalStorageUsedCost(start, end time.Time) *source.Future[source.LocalStorageUsedCostResult] {
+	return queryCollector(c, start, end, metric.LocalStorageUsedCostID, source.DecodeLocalStorageUsedCostResult)
+}
+
+func (c *collectorMetricsQuerier) QueryLocalStorageUsedAvg(start, end time.Time) *source.Future[source.LocalStorageUsedAvgResult] {
+	return queryCollector(c, start, end, metric.LocalStorageUsedAverageID, source.DecodeLocalStorageUsedAvgResult)
+}
+
+func (c *collectorMetricsQuerier) QueryLocalStorageUsedMax(start, end time.Time) *source.Future[source.LocalStorageUsedMaxResult] {
+	return queryCollector(c, start, end, metric.LocalStorageUsedMaxID, source.DecodeLocalStorageUsedMaxResult)
+}
+
+func (c *collectorMetricsQuerier) QueryLocalStorageBytes(start, end time.Time) *source.Future[source.LocalStorageBytesResult] {
+	return queryCollector(c, start, end, metric.LocalStorageBytesID, source.DecodeLocalStorageBytesResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNodeCPUCoresCapacity(start, end time.Time) *source.Future[source.NodeCPUCoresCapacityResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNodeActiveMinutes(start, end time.Time) *source.Future[source.NodeActiveMinutesResult] {
+	return queryCollector(c, start, end, metric.NodeActiveMinutesID, source.DecodeNodeActiveMinutesResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNodeCPUCoresAllocatable(start, end time.Time) *source.Future[source.NodeCPUCoresAllocatableResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNodeCPUCoresCapacity(start, end time.Time) *source.Future[source.NodeCPUCoresCapacityResult] {
+	return queryCollector(c, start, end, metric.NodeCPUCoresCapacityID, source.DecodeNodeCPUCoresCapacityResult)
+
+}
+
+func (c *collectorMetricsQuerier) QueryNodeCPUCoresAllocatable(start, end time.Time) *source.Future[source.NodeCPUCoresAllocatableResult] {
+	return queryCollector(c, start, end, metric.NodeCPUCoresAllocatableID, source.DecodeNodeCPUCoresAllocatableResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNodeRAMBytesCapacity(start, end time.Time) *source.Future[source.NodeRAMBytesCapacityResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNodeRAMBytesCapacity(start, end time.Time) *source.Future[source.NodeRAMBytesCapacityResult] {
+	return queryCollector(c, start, end, metric.NodeRAMBytesCapacityID, source.DecodeNodeRAMBytesCapacityResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNodeRAMBytesAllocatable(start, end time.Time) *source.Future[source.NodeRAMBytesAllocatableResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNodeRAMBytesAllocatable(start, end time.Time) *source.Future[source.NodeRAMBytesAllocatableResult] {
+	return queryCollector(c, start, end, metric.NodeRAMBytesAllocatableID, source.DecodeNodeRAMBytesAllocatableResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNodeGPUCount(start, end time.Time) *source.Future[source.NodeGPUCountResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNodeGPUCount(start, end time.Time) *source.Future[source.NodeGPUCountResult] {
+	return queryCollector(c, start, end, metric.NodeGPUCountID, source.DecodeNodeGPUCountResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNodeCPUModeTotal(start, end time.Time) *source.Future[source.NodeCPUModeTotalResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNodeCPUModeTotal(start, end time.Time) *source.Future[source.NodeCPUModeTotalResult] {
+	return queryCollector(c, start, end, metric.NodeCPUModeTotalID, source.DecodeNodeCPUModeTotalResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNodeIsSpot(start, end time.Time) *source.Future[source.NodeIsSpotResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNodeIsSpot(start, end time.Time) *source.Future[source.NodeIsSpotResult] {
+	return queryCollector(c, start, end, metric.NodeIsSpotID, source.DecodeNodeIsSpotResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNodeRAMSystemPercent(start, end time.Time) *source.Future[source.NodeRAMSystemPercentResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNodeRAMSystemPercent(start, end time.Time) *source.Future[source.NodeRAMSystemPercentResult] {
+	return queryCollector(c, start, end, metric.NodeRAMSystemUsageAverageID, source.DecodeNodeRAMSystemPercentResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNodeRAMUserPercent(start, end time.Time) *source.Future[source.NodeRAMUserPercentResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNodeRAMUserPercent(start, end time.Time) *source.Future[source.NodeRAMUserPercentResult] {
+	return queryCollector(c, start, end, metric.NodeRAMUserUsageAverageID, source.DecodeNodeRAMUserPercentResult)
 }
 
-func (c CollectorMetricsQuerier) QueryLBActiveMinutes(start, end time.Time) *source.Future[source.LBActiveMinutesResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryLBActiveMinutes(start, end time.Time) *source.Future[source.LBActiveMinutesResult] {
+	return queryCollector(c, start, end, metric.LBActiveMinutesID, source.DecodeLBActiveMinutesResult)
 }
 
-func (c CollectorMetricsQuerier) QueryLBPricePerHr(start, end time.Time) *source.Future[source.LBPricePerHrResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryLBPricePerHr(start, end time.Time) *source.Future[source.LBPricePerHrResult] {
+	return queryCollector(c, start, end, metric.LBPricePerHourID, source.DecodeLBPricePerHrResult)
 }
 
-func (c CollectorMetricsQuerier) QueryClusterManagementDuration(start, end time.Time) *source.Future[source.ClusterManagementDurationResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryClusterManagementDuration(start, end time.Time) *source.Future[source.ClusterManagementDurationResult] {
+	return queryCollector(c, start, end, metric.ClusterManagementDurationID, source.DecodeClusterManagementDurationResult)
 }
 
-func (c CollectorMetricsQuerier) QueryClusterManagementPricePerHr(start, end time.Time) *source.Future[source.ClusterManagementPricePerHrResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryClusterManagementPricePerHr(start, end time.Time) *source.Future[source.ClusterManagementPricePerHrResult] {
+	return queryCollector(c, start, end, metric.ClusterManagementPricePerHourID, source.DecodeClusterManagementPricePerHrResult)
 }
+
+func (c *collectorMetricsQuerier) QueryPods(start, end time.Time) *source.Future[source.PodsResult] {
+	return queryCollector(c, start, end, metric.PodActiveMinutesID, source.DecodePodsResult)
 
-func (c CollectorMetricsQuerier) QueryPods(start, end time.Time) *source.Future[source.PodsResult] {
-	//TODO implement me
-	panic("implement me")
 }
 
-func (c CollectorMetricsQuerier) QueryPodsUID(start, end time.Time) *source.Future[source.PodsResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryPodsUID(start, end time.Time) *source.Future[source.PodsResult] {
+	return queryCollector(c, start, end, metric.PodActiveMinutesID, source.DecodePodsResult)
 }
 
-func (c CollectorMetricsQuerier) QueryRAMBytesAllocated(start, end time.Time) *source.Future[source.RAMBytesAllocatedResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryRAMBytesAllocated(start, end time.Time) *source.Future[source.RAMBytesAllocatedResult] {
+	return queryCollector(c, start, end, metric.RAMBytesAllocatedID, source.DecodeRAMBytesAllocatedResult)
 }
 
-func (c CollectorMetricsQuerier) QueryRAMRequests(start, end time.Time) *source.Future[source.RAMRequestsResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryRAMRequests(start, end time.Time) *source.Future[source.RAMRequestsResult] {
+	return queryCollector(c, start, end, metric.RAMRequestsID, source.DecodeRAMRequestsResult)
 }
 
-func (c CollectorMetricsQuerier) QueryRAMUsageAvg(start, end time.Time) *source.Future[source.RAMUsageAvgResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryRAMUsageAvg(start, end time.Time) *source.Future[source.RAMUsageAvgResult] {
+	return queryCollector(c, start, end, metric.RAMUsageAverageID, source.DecodeRAMUsageAvgResult)
 }
 
-func (c CollectorMetricsQuerier) QueryRAMUsageMax(start, end time.Time) *source.Future[source.RAMUsageMaxResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryRAMUsageMax(start, end time.Time) *source.Future[source.RAMUsageMaxResult] {
+	return queryCollector(c, start, end, metric.RAMUsageMaxID, source.DecodeRAMUsageMaxResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNodeRAMPricePerGiBHr(start, end time.Time) *source.Future[source.NodeRAMPricePerGiBHrResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNodeRAMPricePerGiBHr(start, end time.Time) *source.Future[source.NodeRAMPricePerGiBHrResult] {
+	return queryCollector(c, start, end, metric.NodeRAMPricePerGiBHourID, source.DecodeNodeRAMPricePerGiBHrResult)
 }
 
-func (c CollectorMetricsQuerier) QueryCPUCoresAllocated(start, end time.Time) *source.Future[source.CPUCoresAllocatedResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryCPUCoresAllocated(start, end time.Time) *source.Future[source.CPUCoresAllocatedResult] {
+	return queryCollector(c, start, end, metric.CPUCoresAllocatedID, source.DecodeCPUCoresAllocatedResult)
 }
 
-func (c CollectorMetricsQuerier) QueryCPURequests(start, end time.Time) *source.Future[source.CPURequestsResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryCPURequests(start, end time.Time) *source.Future[source.CPURequestsResult] {
+	return queryCollector(c, start, end, metric.CPURequestsID, source.DecodeCPURequestsResult)
 }
 
-func (c CollectorMetricsQuerier) QueryCPUUsageAvg(start, end time.Time) *source.Future[source.CPUUsageAvgResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryCPUUsageAvg(start, end time.Time) *source.Future[source.CPUUsageAvgResult] {
+	return queryCollector(c, start, end, metric.CPUUsageAverageID, source.DecodeCPUUsageAvgResult)
 }
 
-func (c CollectorMetricsQuerier) QueryCPUUsageMax(start, end time.Time) *source.Future[source.CPUUsageMaxResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryCPUUsageMax(start, end time.Time) *source.Future[source.CPUUsageMaxResult] {
+	return queryCollector(c, start, end, metric.CPUUsageMaxID, source.DecodeCPUUsageMaxResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNodeCPUPricePerHr(start, end time.Time) *source.Future[source.NodeCPUPricePerHrResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNodeCPUPricePerHr(start, end time.Time) *source.Future[source.NodeCPUPricePerHrResult] {
+	return queryCollector(c, start, end, metric.NodeCPUPricePerHourID, source.DecodeNodeCPUPricePerHrResult)
 }
 
-func (c CollectorMetricsQuerier) QueryGPUsAllocated(start, end time.Time) *source.Future[source.GPUsAllocatedResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryGPUsAllocated(start, end time.Time) *source.Future[source.GPUsAllocatedResult] {
+	return queryCollector(c, start, end, metric.GPUsAllocatedID, source.DecodeGPUsAllocatedResult)
 }
 
-func (c CollectorMetricsQuerier) QueryGPUsRequested(start, end time.Time) *source.Future[source.GPUsRequestedResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryGPUsRequested(start, end time.Time) *source.Future[source.GPUsRequestedResult] {
+	return queryCollector(c, start, end, metric.GPUsRequestedID, source.DecodeGPUsRequestedResult)
 }
 
-func (c CollectorMetricsQuerier) QueryGPUsUsageAvg(start, end time.Time) *source.Future[source.GPUsUsageAvgResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryGPUsUsageAvg(start, end time.Time) *source.Future[source.GPUsUsageAvgResult] {
+	return queryCollector(c, start, end, metric.GPUsUsageAverageID, source.DecodeGPUsUsageAvgResult)
 }
 
-func (c CollectorMetricsQuerier) QueryGPUsUsageMax(start, end time.Time) *source.Future[source.GPUsUsageMaxResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryGPUsUsageMax(start, end time.Time) *source.Future[source.GPUsUsageMaxResult] {
+	return queryCollector(c, start, end, metric.GPUsUsageMaxID, source.DecodeGPUsUsageMaxResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNodeGPUPricePerHr(start, end time.Time) *source.Future[source.NodeGPUPricePerHrResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNodeGPUPricePerHr(start, end time.Time) *source.Future[source.NodeGPUPricePerHrResult] {
+	return queryCollector(c, start, end, metric.NodeGPUPricePerHourID, source.DecodeNodeGPUPricePerHrResult)
 }
 
-func (c CollectorMetricsQuerier) QueryGPUInfo(start, end time.Time) *source.Future[source.GPUInfoResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryGPUInfo(start, end time.Time) *source.Future[source.GPUInfoResult] {
+	return queryCollector(c, start, end, metric.GPUInfoID, source.DecodeGPUInfoResult)
 }
 
-func (c CollectorMetricsQuerier) QueryIsGPUShared(start, end time.Time) *source.Future[source.IsGPUSharedResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryIsGPUShared(start, end time.Time) *source.Future[source.IsGPUSharedResult] {
+	return queryCollector(c, start, end, metric.IsGPUSharedID, source.DecodeIsGPUSharedResult)
 }
 
-func (c CollectorMetricsQuerier) QueryPodPVCAllocation(start, end time.Time) *source.Future[source.PodPVCAllocationResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryPodPVCAllocation(start, end time.Time) *source.Future[source.PodPVCAllocationResult] {
+	return queryCollector(c, start, end, metric.PodPVCAllocationID, source.DecodePodPVCAllocationResult)
 }
 
-func (c CollectorMetricsQuerier) QueryPVCBytesRequested(start, end time.Time) *source.Future[source.PVCBytesRequestedResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryPVCBytesRequested(start, end time.Time) *source.Future[source.PVCBytesRequestedResult] {
+	return queryCollector(c, start, end, metric.PVCBytesRequestedID, source.DecodePVCBytesRequestedResult)
 }
 
-func (c CollectorMetricsQuerier) QueryPVCInfo(start, end time.Time) *source.Future[source.PVCInfoResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryPVCInfo(start, end time.Time) *source.Future[source.PVCInfoResult] {
+	return queryCollector(c, start, end, metric.PVCInfoID, source.DecodePVCInfoResult)
 }
 
-func (c CollectorMetricsQuerier) QueryPVBytes(start, end time.Time) *source.Future[source.PVBytesResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryPVBytes(start, end time.Time) *source.Future[source.PVBytesResult] {
+	return queryCollector(c, start, end, metric.PVBytesID, source.DecodePVBytesResult)
 }
 
-func (c CollectorMetricsQuerier) QueryPVPricePerGiBHour(start, end time.Time) *source.Future[source.PVPricePerGiBHourResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryPVPricePerGiBHour(start, end time.Time) *source.Future[source.PVPricePerGiBHourResult] {
+	return queryCollector(c, start, end, metric.PVPricePerGiBHourID, source.DecodePVPricePerGiBHourResult)
 }
 
-func (c CollectorMetricsQuerier) QueryPVInfo(start, end time.Time) *source.Future[source.PVInfoResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryPVInfo(start, end time.Time) *source.Future[source.PVInfoResult] {
+	return queryCollector(c, start, end, metric.PVInfoID, source.DecodePVInfoResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNetZoneGiB(start, end time.Time) *source.Future[source.NetZoneGiBResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNetZoneGiB(start, end time.Time) *source.Future[source.NetZoneGiBResult] {
+	return queryCollector(c, start, end, metric.NetZoneGiBID, source.DecodeNetZoneGiBResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNetZonePricePerGiB(start, end time.Time) *source.Future[source.NetZonePricePerGiBResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNetZonePricePerGiB(start, end time.Time) *source.Future[source.NetZonePricePerGiBResult] {
+	return queryCollector(c, start, end, metric.NetZonePricePerGiBID, source.DecodeNetZonePricePerGiBResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNetRegionGiB(start, end time.Time) *source.Future[source.NetRegionGiBResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNetRegionGiB(start, end time.Time) *source.Future[source.NetRegionGiBResult] {
+	return queryCollector(c, start, end, metric.NetRegionGiBID, source.DecodeNetRegionGiBResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNetRegionPricePerGiB(start, end time.Time) *source.Future[source.NetRegionPricePerGiBResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNetRegionPricePerGiB(start, end time.Time) *source.Future[source.NetRegionPricePerGiBResult] {
+	return queryCollector(c, start, end, metric.NetRegionPricePerGiBID, source.DecodeNetRegionPricePerGiBResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNetInternetGiB(start, end time.Time) *source.Future[source.NetInternetGiBResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNetInternetGiB(start, end time.Time) *source.Future[source.NetInternetGiBResult] {
+	return queryCollector(c, start, end, metric.NetInternetGiBID, source.DecodeNetInternetGiBResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNetInternetPricePerGiB(start, end time.Time) *source.Future[source.NetInternetPricePerGiBResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNetInternetPricePerGiB(start, end time.Time) *source.Future[source.NetInternetPricePerGiBResult] {
+	return queryCollector(c, start, end, metric.NetInternetPricePerGiBID, source.DecodeNetInternetPricePerGiBResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNetInternetServiceGiB(start, end time.Time) *source.Future[source.NetInternetServiceGiBResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNetInternetServiceGiB(start, end time.Time) *source.Future[source.NetInternetServiceGiBResult] {
+	return queryCollector(c, start, end, metric.NetInternetServiceGiBID, source.DecodeNetInternetServiceGiBResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNetTransferBytes(start, end time.Time) *source.Future[source.NetTransferBytesResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNetTransferBytes(start, end time.Time) *source.Future[source.NetTransferBytesResult] {
+	return queryCollector(c, start, end, metric.NetTransferBytesID, source.DecodeNetTransferBytesResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNetZoneIngressGiB(start, end time.Time) *source.Future[source.NetZoneIngressGiBResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNetZoneIngressGiB(start, end time.Time) *source.Future[source.NetZoneIngressGiBResult] {
+	return queryCollector(c, start, end, metric.NetZoneIngressGiBID, source.DecodeNetZoneIngressGiBResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNetRegionIngressGiB(start, end time.Time) *source.Future[source.NetRegionIngressGiBResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNetRegionIngressGiB(start, end time.Time) *source.Future[source.NetRegionIngressGiBResult] {
+	return queryCollector(c, start, end, metric.NetRegionIngressGiBID, source.DecodeNetRegionIngressGiBResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNetInternetIngressGiB(start, end time.Time) *source.Future[source.NetInternetIngressGiBResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNetInternetIngressGiB(start, end time.Time) *source.Future[source.NetInternetIngressGiBResult] {
+	return queryCollector(c, start, end, metric.NetInternetIngressGiBID, source.DecodeNetInternetIngressGiBResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNetInternetServiceIngressGiB(start, end time.Time) *source.Future[source.NetInternetServiceIngressGiBResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNetInternetServiceIngressGiB(start, end time.Time) *source.Future[source.NetInternetServiceIngressGiBResult] {
+	return queryCollector(c, start, end, metric.NetInternetServiceIngressGiBID, source.DecodeNetInternetServiceIngressGiBResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNetReceiveBytes(start, end time.Time) *source.Future[source.NetReceiveBytesResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNetReceiveBytes(start, end time.Time) *source.Future[source.NetReceiveBytesResult] {
+	return queryCollector(c, start, end, metric.NetReceiveBytesID, source.DecodeNetReceiveBytesResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNamespaceAnnotations(start, end time.Time) *source.Future[source.NamespaceAnnotationsResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNamespaceAnnotations(start, end time.Time) *source.Future[source.NamespaceAnnotationsResult] {
+	return queryCollector(c, start, end, metric.NamespaceAnnotationsID, source.DecodeNamespaceAnnotationsResult)
 }
 
-func (c CollectorMetricsQuerier) QueryPodAnnotations(start, end time.Time) *source.Future[source.PodAnnotationsResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryPodAnnotations(start, end time.Time) *source.Future[source.PodAnnotationsResult] {
+	return queryCollector(c, start, end, metric.PodAnnotationsID, source.DecodePodAnnotationsResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNodeLabels(start, end time.Time) *source.Future[source.NodeLabelsResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNodeLabels(start, end time.Time) *source.Future[source.NodeLabelsResult] {
+	return queryCollector(c, start, end, metric.NodeLabelsID, source.DecodeNodeLabelsResult)
 }
 
-func (c CollectorMetricsQuerier) QueryNamespaceLabels(start, end time.Time) *source.Future[source.NamespaceLabelsResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryNamespaceLabels(start, end time.Time) *source.Future[source.NamespaceLabelsResult] {
+	return queryCollector(c, start, end, metric.NamespaceLabelsID, source.DecodeNamespaceLabelsResult)
 }
 
-func (c CollectorMetricsQuerier) QueryPodLabels(start, end time.Time) *source.Future[source.PodLabelsResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryPodLabels(start, end time.Time) *source.Future[source.PodLabelsResult] {
+	return queryCollector(c, start, end, metric.PodLabelsID, source.DecodePodLabelsResult)
 }
 
-func (c CollectorMetricsQuerier) QueryServiceLabels(start, end time.Time) *source.Future[source.ServiceLabelsResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryServiceLabels(start, end time.Time) *source.Future[source.ServiceLabelsResult] {
+	return queryCollector(c, start, end, metric.ServiceLabelsID, source.DecodeServiceLabelsResult)
 }
 
-func (c CollectorMetricsQuerier) QueryDeploymentLabels(start, end time.Time) *source.Future[source.DeploymentLabelsResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryDeploymentLabels(start, end time.Time) *source.Future[source.DeploymentLabelsResult] {
+	return queryCollector(c, start, end, metric.DeploymentLabelsID, source.DecodeDeploymentLabelsResult)
 }
 
-func (c CollectorMetricsQuerier) QueryStatefulSetLabels(start, end time.Time) *source.Future[source.StatefulSetLabelsResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryStatefulSetLabels(start, end time.Time) *source.Future[source.StatefulSetLabelsResult] {
+	return queryCollector(c, start, end, metric.StatefulSetLabelsID, source.DecodeStatefulSetLabelsResult)
 }
 
-func (c CollectorMetricsQuerier) QueryDaemonSetLabels(start, end time.Time) *source.Future[source.DaemonSetLabelsResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryDaemonSetLabels(start, end time.Time) *source.Future[source.DaemonSetLabelsResult] {
+	return queryCollector(c, start, end, metric.DaemonSetLabelsID, source.DecodeDaemonSetLabelsResult)
 }
 
-func (c CollectorMetricsQuerier) QueryJobLabels(start, end time.Time) *source.Future[source.JobLabelsResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryJobLabels(start, end time.Time) *source.Future[source.JobLabelsResult] {
+	return queryCollector(c, start, end, metric.JobLabelsID, source.DecodeJobLabelsResult)
 }
 
-func (c CollectorMetricsQuerier) QueryPodsWithReplicaSetOwner(start, end time.Time) *source.Future[source.PodsWithReplicaSetOwnerResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryPodsWithReplicaSetOwner(start, end time.Time) *source.Future[source.PodsWithReplicaSetOwnerResult] {
+	return queryCollector(c, start, end, metric.PodsWithReplicaSetOwnerID, source.DecodePodsWithReplicaSetOwnerResult)
 }
 
-func (c CollectorMetricsQuerier) QueryReplicaSetsWithoutOwners(start, end time.Time) *source.Future[source.ReplicaSetsWithoutOwnersResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryReplicaSetsWithoutOwners(start, end time.Time) *source.Future[source.ReplicaSetsWithoutOwnersResult] {
+	return queryCollector(c, start, end, metric.ReplicaSetsWithoutOwnersID, source.DecodeReplicaSetsWithoutOwnersResult)
 }
 
-func (c CollectorMetricsQuerier) QueryReplicaSetsWithRollout(start, end time.Time) *source.Future[source.ReplicaSetsWithRolloutResult] {
-	//TODO implement me
-	panic("implement me")
+func (c *collectorMetricsQuerier) QueryReplicaSetsWithRollout(start, end time.Time) *source.Future[source.ReplicaSetsWithRolloutResult] {
+	return queryCollector(c, start, end, metric.ReplicaSetsWithRolloutID, source.DecodeReplicaSetsWithRolloutResult)
 }
 
-func (c CollectorMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {
-	//TODO implement me
+func (c *collectorMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {
+	// TODO immplement me
 	panic("implement me")
 }

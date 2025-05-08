@@ -63,6 +63,7 @@ type Service struct {
 	SpecSelector map[string]string
 	Type         v1.ServiceType
 	Status       v1.ServiceStatus
+	ClusterIP    string
 }
 
 type DaemonSet struct {
@@ -142,10 +143,11 @@ type PodDisruptionBudget struct {
 }
 
 type ReplicaSet struct {
-	Name         string
-	Namespace    string
-	SpecSelector *metav1.LabelSelector
-	Spec         appsv1.ReplicaSetSpec
+	Name            string
+	Namespace       string
+	OwnerReferences []metav1.OwnerReference
+	SpecSelector    *metav1.LabelSelector
+	Spec            appsv1.ReplicaSetSpec
 }
 
 type Volume struct {
@@ -252,6 +254,7 @@ func TransformService(input *v1.Service) *Service {
 		SpecSelector: input.Spec.Selector,
 		Type:         input.Spec.Type,
 		Status:       input.Status,
+		ClusterIP:    input.Spec.ClusterIP,
 	}
 }
 
@@ -348,10 +351,11 @@ func TransformPodDisruptionBudget(input *policyv1.PodDisruptionBudget) *PodDisru
 
 func TransformReplicaSet(input *appsv1.ReplicaSet) *ReplicaSet {
 	return &ReplicaSet{
-		Name:         input.Name,
-		Namespace:    input.Namespace,
-		Spec:         input.Spec,
-		SpecSelector: input.Spec.Selector,
+		Name:            input.Name,
+		Namespace:       input.Namespace,
+		OwnerReferences: input.OwnerReferences,
+		Spec:            input.Spec,
+		SpecSelector:    input.Spec.Selector,
 	}
 }
 
