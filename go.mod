@@ -34,7 +34,7 @@ require (
 	github.com/hashicorp/go-plugin v1.6.0
 	github.com/jszwec/csvutil v1.2.1
 	github.com/julienschmidt/httprouter v1.3.0
-	github.com/kubecost/events v0.0.6
+	github.com/kubecost/events v0.0.8
 	github.com/microcosm-cc/bluemonday v1.0.23
 	github.com/opencost/opencost/core v0.0.0-20241211165149-ee44b80e2fd0
 	github.com/opencost/opencost/modules/prometheus-source v0.0.0-00010101000000-000000000000
