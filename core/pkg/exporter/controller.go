@@ -69,10 +69,16 @@ func (cd *EventExportController[T]) Start(interval time.Duration) bool {
 			case <-time.After(interval):
 			}
 
-			// truncate the time to the minute to ensure broad enough coverage for event exports
+			// truncate the time to the second to ensure broad enough coverage for event exports
 			t := time.Now().UTC().Truncate(time.Second)
 
-			err := cd.exporter.Export(cd.source.Make(t))
+			evt := cd.source.Make(t)
+			if evt == nil {
+				log.Debugf("[%s] No event data to export", cd.typeName)
+				continue
+			}
+
+			err := cd.exporter.Export(evt)
 			if err != nil {
 				log.Warnf("[%s] Error during Write: %s", cd.typeName, err)
 			}

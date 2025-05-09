@@ -24,6 +24,11 @@ func NewDiagnosticSource(diagnosticService diagnostics.DiagnosticService) *Diagn
 func (ds *DiagnosticSource) Make(t time.Time) *diagnostics.DiagnosticsRunReport {
 	ctx := context.Background()
 
+	// returning nil will prevent export -- skip for 0 registered diagnostics
+	if ds.diagnosticService.Total() == 0 {
+		return nil
+	}
+
 	return &diagnostics.DiagnosticsRunReport{
 		StartTime: t,
 		Results:   ds.diagnosticService.Run(ctx),

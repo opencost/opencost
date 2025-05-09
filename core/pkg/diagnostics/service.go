@@ -25,11 +25,13 @@ type runner struct {
 type OpencostDiagnosticService struct {
 	lock    sync.RWMutex
 	runners map[string]map[string]*runner
+	count   int
 }
 
 func NewDiagnosticService() DiagnosticService {
 	return &OpencostDiagnosticService{
 		runners: make(map[string]map[string]*runner),
+		count:   0,
 	}
 }
 
@@ -58,6 +60,8 @@ func (ocds *OpencostDiagnosticService) Register(name string, description string,
 		run: r,
 	}
 
+	ocds.count += 1
+
 	return nil
 }
 
@@ -80,6 +84,8 @@ func (ocds *OpencostDiagnosticService) Unregister(name string, category string) 
 	if len(categoryRunners) == 0 {
 		delete(ocds.runners, category)
 	}
+
+	ocds.count -= 1
 
 	return true
 }
@@ -170,4 +176,12 @@ func (ocds *OpencostDiagnosticService) Diagnostics() []Diagnostic {
 	})
 
 	return slices.Collect(diagnostics)
+}
+
+// Total returns the total number of registered diagnostics.
+func (ocds *OpencostDiagnosticService) Total() int {
+	ocds.lock.RLock()
+	defer ocds.lock.RUnlock()
+
+	return ocds.count
 }

@@ -3,6 +3,7 @@ package exporter
 import (
 	"encoding/json"
 	"fmt"
+	"path"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -13,7 +14,11 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/sliceutil"
 )
 
-const MockClusterId = "mock-cluster-1"
+const (
+	MockClusterId       = "mock-cluster-1"
+	MockApplicationName = "mock-agent"
+	MockVersion         = "1.0.0"
+)
 
 type MockHeartbeatMetadataProvider struct{}
 
@@ -31,7 +36,7 @@ func TestHeartbeatExporter(t *testing.T) {
 	mdp := NewMockHeartbeatMetadataProvider()
 	store := storage.NewMemoryStorage()
 
-	controller := NewHeartbeatExportController(MockClusterId, store, mdp)
+	controller := NewHeartbeatExportController(MockClusterId, MockApplicationName, MockVersion, store, mdp)
 
 	if !controller.Start(time.Second) {
 		t.Fatal("Failed to start controller")
@@ -40,7 +45,7 @@ func TestHeartbeatExporter(t *testing.T) {
 	time.Sleep(10 * time.Second)
 	controller.Stop()
 
-	files, _ := store.List("federated/mock-cluster-1/heartbeat")
+	files, _ := store.List(path.Join("federated", MockClusterId, heartbeat.HeartbeatEventName, MockApplicationName))
 	if len(files) == 0 {
 		t.Fatal("No files found in storage")
 	}
@@ -54,7 +59,7 @@ func TestHeartbeatExporter(t *testing.T) {
 	lastCheck := time.Time{}
 
 	for _, f := range fileNames {
-		fpath := filepath.Join("federated", MockClusterId, "heartbeat", f)
+		fpath := filepath.Join("federated", MockClusterId, "heartbeat", MockApplicationName, f)
 		data, err := store.Read(fpath)
 		if err != nil {
 			t.Fatalf("Failed to read file %s: %v", fpath, err)

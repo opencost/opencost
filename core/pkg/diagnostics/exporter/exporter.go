@@ -9,8 +9,8 @@ import (
 )
 
 // NewDiagnosticExporter creates a new `StorageExporter[DiagnosticsRunReport]` instance for exporting diagnostic run events.
-func NewDiagnosticExporter(clusterId string, storage storage.Storage) *exporter.StorageExporter[diagnostics.DiagnosticsRunReport] {
-	pathing, err := pathing.NewEventStoragePathFormatter("", clusterId, diagnostics.DiagnosticsEventName)
+func NewDiagnosticExporter(clusterId string, applicationName string, storage storage.Storage) *exporter.StorageExporter[diagnostics.DiagnosticsRunReport] {
+	pathing, err := pathing.NewEventStoragePathFormatter("", clusterId, diagnostics.DiagnosticsEventName, applicationName)
 	if err != nil {
 		log.Errorf("failed to create pathing formatter: %v", err)
 		return nil

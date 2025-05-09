@@ -82,4 +82,7 @@ type DiagnosticService interface {
 
 	// Diagnostics returns a list of all registered diagnostics.
 	Diagnostics() []Diagnostic
+
+	// Total returns the total number of registered diagnostics.
+	Total() int
 }

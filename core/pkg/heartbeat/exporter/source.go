@@ -6,8 +6,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/opencost/opencost/core/pkg/clusters"
 	"github.com/opencost/opencost/core/pkg/heartbeat"
-	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/core/pkg/version"
 )
 
 // HeartbeatMetadataProvider is an interface that provides metadata for heartbeat instances. It can be used to inject
@@ -48,36 +46,33 @@ func (c *ClusterInfoMetadataProvider) GetMetadata() map[string]any {
 // leverages a `HeartbeatMetadataProvider` to inject custom metadata.
 type HeartbeatSource struct {
 	startTime        time.Time
+	applicationName  string
+	version          string
 	metadataProvider HeartbeatMetadataProvider
 }
 
 // NewHeartbeatSource creates a new `HeartbeatSource` instance. The `provider` parameter is used to inject custom metadata,
 // but can be set to `nil` if no metadata is needed.
-func NewHeartbeatSource(provider HeartbeatMetadataProvider) *HeartbeatSource {
+func NewHeartbeatSource(applicationName string, version string, provider HeartbeatMetadataProvider) *HeartbeatSource {
 	return &HeartbeatSource{
 		startTime:        time.Now().UTC(),
+		applicationName:  applicationName,
+		version:          version,
 		metadataProvider: provider,
 	}
 }
 
 // Make creates a new `Heartbeat` instance with the provided current time.
 func (h *HeartbeatSource) Make(t time.Time) *heartbeat.Heartbeat {
-	uid, err := uuid.NewV7()
-	if err != nil {
-		log.Warnf("failed to generate v7 UUID, replacing with UUID v4: %s", err)
-		uid = uuid.New()
-	}
-
-	id := uid.String()
+	id := uuid.Must(uuid.NewV7()).String()
 	uptime := uint64(t.Sub(h.startTime).Minutes())
-	v := version.FriendlyVersion()
 
 	var metadata map[string]any
 	if h.metadataProvider != nil {
 		metadata = h.metadataProvider.GetMetadata()
 	}
 
-	return heartbeat.NewHeartbeat(id, t, uptime, v, metadata)
+	return heartbeat.NewHeartbeat(id, t, uptime, h.applicationName, h.version, metadata)
 }
 
 func (h *HeartbeatSource) Name() string {
