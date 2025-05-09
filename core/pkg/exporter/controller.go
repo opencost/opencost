@@ -224,7 +224,7 @@ func (cd *ComputeExportController[T]) export(window opencost.Window) error {
 	}
 
 	log.Debugf("[%s] Exporting data for window: %s - %s", cd.typeName, start.UTC(), end.UTC())
-	err = cd.exporter.Export(opencost.NewClosedWindow(start, end), set)
+	err = cd.exporter.Export(window, set)
 	if err != nil {
 		return fmt.Errorf("write error: %w", err)
 	}
