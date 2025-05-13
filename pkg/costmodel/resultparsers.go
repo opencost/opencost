@@ -3,8 +3,6 @@ package costmodel
 import (
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
@@ -13,23 +11,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/util"
 	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
 )
-
-var (
-	// prometheusVersion stores the Prometheus server version (major.minor.patch).
-	// Defaults to "0.0.0" if version cannot be retrieved
-	prometheusVersion = "0.0.0"
-)
-
-// IsPrometheusVersionGTE3 returns true if the Prometheus server's major version
-// is 3 or higher.
-func IsPrometheusVersionGTE3() bool {
-	if v := strings.Split(prometheusVersion, "."); len(v) > 0 {
-		if major, err := strconv.Atoi(v[0]); err == nil && major >= 3 {
-			return true
-		}
-	}
-	return false
-}
 
 func GetPVInfoLocal(cache clustercache.ClusterCache, defaultClusterID string) (map[string]*PersistentVolumeClaimData, error) {
 	toReturn := make(map[string]*PersistentVolumeClaimData)
