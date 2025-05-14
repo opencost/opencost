@@ -64,8 +64,8 @@ func (n *NetworkTargetProvider) GetTargets() []target.ScrapeTarget {
 	for _, pod := range pods {
 		instance := pod.Labels["app.kubernetes.io/instance"]
 		name := pod.Labels["app.kubernetes.io/name"]
-		if name == "network-costs" && instance == "kubecost" {
-			log.Debugf("Network: found target for %s", name)
+		if name == "network-costs" && instance == "kubecost" && pod.Status.Phase == "Running" {
+			log.Debugf("Network: found target for http://%s:%d/metrics", pod.Status.PodIP, n.port)
 			t := target.NewUrlTarget(fmt.Sprintf("http://%s:%d/metrics", pod.Status.PodIP, n.port))
 			targets = append(targets, t)
 		}

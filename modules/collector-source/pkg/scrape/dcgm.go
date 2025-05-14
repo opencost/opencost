@@ -49,7 +49,7 @@ func (p *DCGMTargetProvider) GetTargets() []target.ScrapeTarget {
 			continue
 		}
 		// TODO do something in relation to Thomas' comment https://github.com/opencost/opencost/pull/3110
-		if name := svc.SpecSelector["app.kubernetes.io/name"]; name != "dcgm-collector" {
+		if name := svc.SpecSelector["app.kubernetes.io/name"]; name != "dcgm-exporter" {
 			continue
 		}
 		port := 9400
