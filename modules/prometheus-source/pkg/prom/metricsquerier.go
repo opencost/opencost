@@ -754,7 +754,7 @@ func (pds *PrometheusMetricsQuerier) QueryGPUsAllocated(start, end time.Time) *s
 }
 
 func (pds *PrometheusMetricsQuerier) QueryIsGPUShared(start, end time.Time) *source.Future[source.IsGPUSharedResult] {
-	const queryFmtIsGPUShared = `avg(avg_over_time(kube_pod_container_resource_requests{container!="", node != "", pod != "", container!= "", unit = "integer",  %s}[%s])) by (container, pod, namespace, node, resource)`
+	const queryFmtIsGPUShared = `avg(avg_over_time(kube_pod_container_resource_requests{container!="", node != "", pod != "", container!= "", unit = "integer",  %s}[%s])) by (container, pod, namespace, node, resource, %s)`
 	// env.GetPromClusterFilter(), durStr
 
 	cfg := pds.promConfig
@@ -764,13 +764,13 @@ func (pds *PrometheusMetricsQuerier) QueryIsGPUShared(start, end time.Time) *sou
 		panic("failed to parse duration string passed to QueryIsGPUShared")
 	}
 
-	queryIsGPUShared := fmt.Sprintf(queryFmtIsGPUShared, cfg.ClusterFilter, durStr)
+	queryIsGPUShared := fmt.Sprintf(queryFmtIsGPUShared, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
 	return source.NewFuture(source.DecodeIsGPUSharedResult, ctx.QueryAtTime(queryIsGPUShared, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryGPUInfo(start, end time.Time) *source.Future[source.GPUInfoResult] {
-	const queryFmtGetGPUInfo = `avg(avg_over_time(DCGM_FI_DEV_DEC_UTIL{container!="",%s}[%s])) by (container, pod, namespace, device, modelName, UUID)`
+	const queryFmtGetGPUInfo = `avg(avg_over_time(DCGM_FI_DEV_DEC_UTIL{container!="",%s}[%s])) by (container, pod, namespace, device, modelName, UUID, %s)`
 	// env.GetPromClusterFilter(), durStr
 
 	cfg := pds.promConfig
@@ -780,7 +780,7 @@ func (pds *PrometheusMetricsQuerier) QueryGPUInfo(start, end time.Time) *source.
 		panic("failed to parse duration string passed to QueryGPUInfo")
 	}
 
-	queryGetGPUInfo := fmt.Sprintf(queryFmtGetGPUInfo, cfg.ClusterFilter, durStr)
+	queryGetGPUInfo := fmt.Sprintf(queryFmtGetGPUInfo, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
 	return source.NewFuture(source.DecodeGPUInfoResult, ctx.QueryAtTime(queryGetGPUInfo, end))
 }
@@ -896,22 +896,6 @@ func (pds *PrometheusMetricsQuerier) QueryPVBytes(start, end time.Time) *source.
 	queryPVBytes := fmt.Sprintf(queryFmtPVBytes, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
 	return source.NewFuture(source.DecodePVBytesResult, ctx.QueryAtTime(queryPVBytes, end))
-}
-
-func (pds *PrometheusMetricsQuerier) QueryPVCostPerGiBHour(start, end time.Time) *source.Future[source.PVPricePerGiBHourResult] {
-	const queryFmtPVCostPerGiBHour = `avg(avg_over_time(pv_hourly_cost{%s}[%s])) by (volumename, %s)`
-	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
-
-	cfg := pds.promConfig
-
-	durStr := timeutil.DurationString(end.Sub(start))
-	if durStr == "" {
-		panic("failed to parse duration string passed to QueryPVCostPerGiBHour")
-	}
-
-	queryPVCostPerGiBHour := fmt.Sprintf(queryFmtPVCostPerGiBHour, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
-	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return source.NewFuture(source.DecodePVPricePerGiBHourResult, ctx.QueryAtTime(queryPVCostPerGiBHour, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryPVInfo(start, end time.Time) *source.Future[source.PVInfoResult] {
@@ -1378,7 +1362,7 @@ func (pds *PrometheusMetricsQuerier) durationStringFor(start, end time.Time, min
 	// time=01:00:00 will return, for a node running the entire time, 12
 	// timestamps where the first is 00:05:00 and the last is 01:00:00.
 	// However, OpenCost expects for there to be 13 timestamps where the first
-	// begins at 00:00:00. To achieve this, we must modify our query to 
+	// begins at 00:00:00. To achieve this, we must modify our query to
 	// avg(node_total_hourly_cost{}) by (node, provider_id)[65m:5m]
 	if pds.promConfig.IsOffsetResolution {
 		// increase the query time by the resolution

@@ -9,7 +9,6 @@ import (
 )
 
 func Test_repoStoreProvider_getStoreKeys(t *testing.T) {
-
 	defaultResConfigs := []util.ResolutionConfiguration{
 		{
 			Interval: "10m",

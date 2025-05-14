@@ -1,42 +1,57 @@
 package aggregator
 
 import (
+	"sync"
 	"time"
 )
 
-type AverageOverTimeAggregator struct {
+// averageOverTimeAggregator is a MetricAggregator which returns the average of values it is aggregating by dividing the
+// total of all values by the count of unique timestamps
+type averageOverTimeAggregator struct {
+	lock        sync.Mutex
 	name        string
 	labelValues []string
 	total       float64
 	count       int
+	currentTime *time.Time
 }
 
 func AverageOverTime(name string, labelValues []string) MetricAggregator {
-	return &AverageOverTimeAggregator{
+	return &averageOverTimeAggregator{
 		name:        name,
 		labelValues: labelValues,
 	}
 }
 
-func (m *AverageOverTimeAggregator) Name() string {
-	return m.name
+func (a *averageOverTimeAggregator) Name() string {
+	return a.name
 }
 
-func (m *AverageOverTimeAggregator) AdditionInfo() map[string]string {
+func (a *averageOverTimeAggregator) AdditionInfo() map[string]string {
 	return nil
 }
 
-func (m *AverageOverTimeAggregator) LabelValues() []string {
-	return m.labelValues
+func (a *averageOverTimeAggregator) LabelValues() []string {
+	return a.labelValues
 }
 
-func (m *AverageOverTimeAggregator) Update(value float64, timestamp *time.Time, additionalInfo map[string]string) {
-	m.total += value
-	m.count++
+func (a *averageOverTimeAggregator) Update(value float64, timestamp time.Time, additionalInfo map[string]string) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.total += value
+	if a.currentTime == nil || !timestamp.Equal(*a.currentTime) {
+		a.currentTime = &timestamp
+		a.count++
+	}
 }
 
-func (m *AverageOverTimeAggregator) Value() []MetricValue {
+func (a *averageOverTimeAggregator) Value() []MetricValue {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if a.count == 0 {
+		return []MetricValue{}
+	}
 	return []MetricValue{
-		{m.total / float64(m.count), nil},
+		{a.total / float64(a.count), nil},
 	}
 }

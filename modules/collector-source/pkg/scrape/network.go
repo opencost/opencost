@@ -52,20 +52,13 @@ func NewNetworkTargetProvider(releaseName string, port int, clusterCache cluster
 
 func (n *NetworkTargetProvider) GetTargets() []target.ScrapeTarget {
 	pods := n.clusterCache.GetAllPods()
-	//pods, err := k8s.CoreV1().Pods("").List(context.Background(), metav1.ListOptions{
-	//	LabelSelector: fmt.Sprintf("app=%s-network-costs", n.releaseName),
-	//})
-	//if err != nil {
-	//	log.Errorf("NetworkTargetProvider: failed to retieve pods from kubernetes client: %s", err.Error())
-	//	return nil
-	//}
 
 	var targets []target.ScrapeTarget
 	for _, pod := range pods {
 		instance := pod.Labels["app.kubernetes.io/instance"]
 		name := pod.Labels["app.kubernetes.io/name"]
-		if name == "network-costs" && instance == "kubecost" {
-			log.Debugf("Network: found target for %s", name)
+		if name == "network-costs" && instance == "kubecost" && pod.Status.Phase == "Running" {
+			log.Debugf("Network: found target for http://%s:%d/metrics", pod.Status.PodIP, n.port)
 			t := target.NewUrlTarget(fmt.Sprintf("http://%s:%d/metrics", pod.Status.PodIP, n.port))
 			targets = append(targets, t)
 		}

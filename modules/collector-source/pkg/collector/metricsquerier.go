@@ -8,6 +8,9 @@ import (
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 )
 
+const GiB = 1024 * 1024 * 1024
+const LocalStorageCostPerGiBHr = 0.04 / 730.0
+
 type collectorMetricsQuerier struct {
 	collectorProvider StoreProvider
 }
@@ -35,6 +38,26 @@ func queryCollector[T any](c *collectorMetricsQuerier, start, end time.Time, id 
 
 }
 
+func queryCollectorGiB[T any](c *collectorMetricsQuerier, start, end time.Time, id metric.MetricCollectorID, decoder source.ResultDecoder[T]) *source.Future[T] {
+	queryResults := source.NewQueryResults(string(id))
+	collector := c.collectorProvider.GetStore(start, end)
+	if collector != nil {
+		results, err := collector.Query(id)
+		queryResults.Error = err
+		for _, result := range results {
+			for i := range result.Values {
+				result.Values[i].Value /= GiB
+			}
+			queryResults.Results = append(queryResults.Results, result.ToQueryResult())
+		}
+	}
+	ch := make(source.QueryResultsChan, 1)
+	ch <- queryResults
+	f := source.NewFuture[T](decoder, ch)
+	return f
+
+}
+
 func (c *collectorMetricsQuerier) QueryPVActiveMinutes(start, end time.Time) *source.Future[source.PVActiveMinutesResult] {
 	return queryCollector(c, start, end, metric.PVActiveMinutesID, source.DecodePVActiveMinutesResult)
 }
@@ -52,12 +75,99 @@ func (c *collectorMetricsQuerier) QueryLocalStorageActiveMinutes(start, end time
 }
 
 func (c *collectorMetricsQuerier) QueryLocalStorageCost(start, end time.Time) *source.Future[source.LocalStorageCostResult] {
-	return queryCollector(c, start, end, metric.LocalStorageCostID, source.DecodeLocalStorageCostResult)
+	queryResults := source.NewQueryResults("LocalStorageCost")
+	collector := c.collectorProvider.GetStore(start, end)
+	if collector != nil {
+		minutesResults, err := collector.Query(metric.LocalStorageActiveMinutesID)
+		if err != nil {
+			queryResults.Error = err
+		}
+		minutesByNode := map[string]float64{}
+		for _, result := range minutesResults {
+			node := result.MetricLabels[source.NodeLabel]
+			if node == "" || len(result.Values) == 0 {
+				continue
+			}
+			nodeStart := result.Values[0].Timestamp
+			nodeEnd := result.Values[len(result.Values)-1].Timestamp
+			if nodeStart == nil || nodeEnd == nil {
+				continue
+			}
+			minutesByNode[node] = nodeEnd.Sub(*nodeStart).Minutes()
 
+		}
+		bytesResults, err := collector.Query(metric.LocalStorageBytesID)
+		if err != nil {
+			queryResults.Error = err
+		}
+		for _, result := range bytesResults {
+			instance := result.MetricLabels[source.InstanceLabel]
+			if instance == "" || len(result.Values) == 0 {
+				continue
+			}
+			mintues, ok := minutesByNode[instance]
+			if !ok {
+				continue
+			}
+			queryResult := result.ToQueryResult()
+			bytes := queryResult.Values[0].Value
+			GiBs := bytes / GiB
+			hours := mintues / 60
+			queryResult.Values[0].Value = GiBs * hours * LocalStorageCostPerGiBHr
+			queryResults.Results = append(queryResults.Results, queryResult)
+		}
+	}
+	ch := make(source.QueryResultsChan, 1)
+	ch <- queryResults
+	return source.NewFuture(source.DecodeLocalStorageCostResult, ch)
 }
 
 func (c *collectorMetricsQuerier) QueryLocalStorageUsedCost(start, end time.Time) *source.Future[source.LocalStorageUsedCostResult] {
-	return queryCollector(c, start, end, metric.LocalStorageUsedCostID, source.DecodeLocalStorageUsedCostResult)
+	queryResults := source.NewQueryResults("LocalStorageUsedCost")
+	collector := c.collectorProvider.GetStore(start, end)
+	if collector != nil {
+		minutesResults, err := collector.Query(metric.LocalStorageUsedActiveMinutesID)
+		if err != nil {
+			queryResults.Error = err
+		}
+		minutesByNode := map[string]float64{}
+		for _, result := range minutesResults {
+			node := result.MetricLabels[source.InstanceLabel]
+			if node == "" || len(result.Values) == 0 {
+				continue
+			}
+			nodeStart := result.Values[0].Timestamp
+			nodeEnd := result.Values[len(result.Values)-1].Timestamp
+			if nodeStart == nil || nodeEnd == nil {
+				continue
+			}
+			minutesByNode[node] = nodeEnd.Sub(*nodeStart).Minutes()
+
+		}
+		bytesResults, err := collector.Query(metric.LocalStorageUsedAverageID)
+		if err != nil {
+			queryResults.Error = err
+		}
+		for _, result := range bytesResults {
+			instance := result.MetricLabels[source.InstanceLabel]
+			if instance == "" || len(result.Values) == 0 {
+				continue
+			}
+			mintues, ok := minutesByNode[instance]
+			if !ok {
+				continue
+			}
+			queryResult := result.ToQueryResult()
+			bytes := queryResult.Values[0].Value
+			GiBs := bytes / GiB
+			hours := mintues / 60
+			queryResult.Values[0].Value = GiBs * hours * LocalStorageCostPerGiBHr
+			queryResults.Results = append(queryResults.Results, queryResult)
+		}
+	}
+	ch := make(source.QueryResultsChan, 1)
+	ch <- queryResults
+	return source.NewFuture(source.DecodeLocalStorageUsedCostResult, ch)
 }
 
 func (c *collectorMetricsQuerier) QueryLocalStorageUsedAvg(start, end time.Time) *source.Future[source.LocalStorageUsedAvgResult] {
@@ -106,11 +216,79 @@ func (c *collectorMetricsQuerier) QueryNodeIsSpot(start, end time.Time) *source.
 }
 
 func (c *collectorMetricsQuerier) QueryNodeRAMSystemPercent(start, end time.Time) *source.Future[source.NodeRAMSystemPercentResult] {
-	return queryCollector(c, start, end, metric.NodeRAMSystemUsageAverageID, source.DecodeNodeRAMSystemPercentResult)
+	queryResults := source.NewQueryResults("NodeRAMSystemPercent")
+	collector := c.collectorProvider.GetStore(start, end)
+	if collector != nil {
+		capacityResult, err := collector.Query(metric.NodeRAMBytesCapacityID)
+		if err != nil {
+			queryResults.Error = err
+		}
+		nodeCapacities := map[string]float64{}
+		for _, result := range capacityResult {
+			node := result.MetricLabels[source.NodeLabel]
+			if node == "" || len(result.Values) == 0 {
+				continue
+			}
+			nodeCapacities[node] = result.Values[0].Value
+		}
+
+		results, err := collector.Query(metric.NodeRAMSystemUsageAverageID)
+		if err != nil {
+			queryResults.Error = err
+		}
+		for _, result := range results {
+			instance := result.MetricLabels[source.InstanceLabel]
+
+			capacity, ok := nodeCapacities[instance]
+			if !ok || len(result.Values) == 0 {
+				continue
+			}
+			result.Values[0].Value /= capacity
+			queryResults.Results = append(queryResults.Results, result.ToQueryResult())
+		}
+	}
+	ch := make(source.QueryResultsChan, 1)
+	ch <- queryResults
+	f := source.NewFuture(source.DecodeNodeRAMSystemPercentResult, ch)
+	return f
 }
 
 func (c *collectorMetricsQuerier) QueryNodeRAMUserPercent(start, end time.Time) *source.Future[source.NodeRAMUserPercentResult] {
-	return queryCollector(c, start, end, metric.NodeRAMUserUsageAverageID, source.DecodeNodeRAMUserPercentResult)
+	queryResults := source.NewQueryResults("NodeRAMUserPercent")
+	collector := c.collectorProvider.GetStore(start, end)
+	if collector != nil {
+		capacityResult, err := collector.Query(metric.NodeRAMBytesCapacityID)
+		if err != nil {
+			queryResults.Error = err
+		}
+		nodeCapacities := map[string]float64{}
+		for _, result := range capacityResult {
+			node := result.MetricLabels[source.NodeLabel]
+			if node == "" || len(result.Values) == 0 {
+				continue
+			}
+			nodeCapacities[node] = result.Values[0].Value
+		}
+
+		results, err := collector.Query(metric.NodeRAMUserUsageAverageID)
+		if err != nil {
+			queryResults.Error = err
+		}
+		for _, result := range results {
+			instance := result.MetricLabels[source.InstanceLabel]
+
+			capacity, ok := nodeCapacities[instance]
+			if !ok || len(result.Values) == 0 {
+				continue
+			}
+			result.Values[0].Value /= capacity
+			queryResults.Results = append(queryResults.Results, result.ToQueryResult())
+		}
+	}
+	ch := make(source.QueryResultsChan, 1)
+	ch <- queryResults
+	f := source.NewFuture(source.DecodeNodeRAMUserPercentResult, ch)
+	return f
 }
 
 func (c *collectorMetricsQuerier) QueryLBActiveMinutes(start, end time.Time) *source.Future[source.LBActiveMinutesResult] {
@@ -231,7 +409,7 @@ func (c *collectorMetricsQuerier) QueryPVInfo(start, end time.Time) *source.Futu
 }
 
 func (c *collectorMetricsQuerier) QueryNetZoneGiB(start, end time.Time) *source.Future[source.NetZoneGiBResult] {
-	return queryCollector(c, start, end, metric.NetZoneGiBID, source.DecodeNetZoneGiBResult)
+	return queryCollectorGiB(c, start, end, metric.NetZoneGiBID, source.DecodeNetZoneGiBResult)
 }
 
 func (c *collectorMetricsQuerier) QueryNetZonePricePerGiB(start, end time.Time) *source.Future[source.NetZonePricePerGiBResult] {
@@ -239,7 +417,7 @@ func (c *collectorMetricsQuerier) QueryNetZonePricePerGiB(start, end time.Time) 
 }
 
 func (c *collectorMetricsQuerier) QueryNetRegionGiB(start, end time.Time) *source.Future[source.NetRegionGiBResult] {
-	return queryCollector(c, start, end, metric.NetRegionGiBID, source.DecodeNetRegionGiBResult)
+	return queryCollectorGiB(c, start, end, metric.NetRegionGiBID, source.DecodeNetRegionGiBResult)
 }
 
 func (c *collectorMetricsQuerier) QueryNetRegionPricePerGiB(start, end time.Time) *source.Future[source.NetRegionPricePerGiBResult] {
@@ -247,7 +425,7 @@ func (c *collectorMetricsQuerier) QueryNetRegionPricePerGiB(start, end time.Time
 }
 
 func (c *collectorMetricsQuerier) QueryNetInternetGiB(start, end time.Time) *source.Future[source.NetInternetGiBResult] {
-	return queryCollector(c, start, end, metric.NetInternetGiBID, source.DecodeNetInternetGiBResult)
+	return queryCollectorGiB(c, start, end, metric.NetInternetGiBID, source.DecodeNetInternetGiBResult)
 }
 
 func (c *collectorMetricsQuerier) QueryNetInternetPricePerGiB(start, end time.Time) *source.Future[source.NetInternetPricePerGiBResult] {
@@ -255,7 +433,7 @@ func (c *collectorMetricsQuerier) QueryNetInternetPricePerGiB(start, end time.Ti
 }
 
 func (c *collectorMetricsQuerier) QueryNetInternetServiceGiB(start, end time.Time) *source.Future[source.NetInternetServiceGiBResult] {
-	return queryCollector(c, start, end, metric.NetInternetServiceGiBID, source.DecodeNetInternetServiceGiBResult)
+	return queryCollectorGiB(c, start, end, metric.NetInternetServiceGiBID, source.DecodeNetInternetServiceGiBResult)
 }
 
 func (c *collectorMetricsQuerier) QueryNetTransferBytes(start, end time.Time) *source.Future[source.NetTransferBytesResult] {
@@ -263,19 +441,19 @@ func (c *collectorMetricsQuerier) QueryNetTransferBytes(start, end time.Time) *s
 }
 
 func (c *collectorMetricsQuerier) QueryNetZoneIngressGiB(start, end time.Time) *source.Future[source.NetZoneIngressGiBResult] {
-	return queryCollector(c, start, end, metric.NetZoneIngressGiBID, source.DecodeNetZoneIngressGiBResult)
+	return queryCollectorGiB(c, start, end, metric.NetZoneIngressGiBID, source.DecodeNetZoneIngressGiBResult)
 }
 
 func (c *collectorMetricsQuerier) QueryNetRegionIngressGiB(start, end time.Time) *source.Future[source.NetRegionIngressGiBResult] {
-	return queryCollector(c, start, end, metric.NetRegionIngressGiBID, source.DecodeNetRegionIngressGiBResult)
+	return queryCollectorGiB(c, start, end, metric.NetRegionIngressGiBID, source.DecodeNetRegionIngressGiBResult)
 }
 
 func (c *collectorMetricsQuerier) QueryNetInternetIngressGiB(start, end time.Time) *source.Future[source.NetInternetIngressGiBResult] {
-	return queryCollector(c, start, end, metric.NetInternetIngressGiBID, source.DecodeNetInternetIngressGiBResult)
+	return queryCollectorGiB(c, start, end, metric.NetInternetIngressGiBID, source.DecodeNetInternetIngressGiBResult)
 }
 
 func (c *collectorMetricsQuerier) QueryNetInternetServiceIngressGiB(start, end time.Time) *source.Future[source.NetInternetServiceIngressGiBResult] {
-	return queryCollector(c, start, end, metric.NetInternetServiceIngressGiBID, source.DecodeNetInternetServiceIngressGiBResult)
+	return queryCollectorGiB(c, start, end, metric.NetInternetServiceIngressGiBID, source.DecodeNetInternetServiceIngressGiBResult)
 }
 
 func (c *collectorMetricsQuerier) QueryNetReceiveBytes(start, end time.Time) *source.Future[source.NetReceiveBytesResult] {
@@ -335,6 +513,5 @@ func (c *collectorMetricsQuerier) QueryReplicaSetsWithRollout(start, end time.Ti
 }
 
 func (c *collectorMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {
-	// TODO immplement me
-	panic("implement me")
+	return c.collectorProvider.GetDailyDataCoverage(limitDays)
 }

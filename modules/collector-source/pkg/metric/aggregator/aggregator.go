@@ -49,7 +49,7 @@ func (mr *MetricResult) ToQueryResult() *source.QueryResult {
 type MetricAggregator interface {
 	Name() string
 	AdditionInfo() map[string]string
-	Update(value float64, timestamp *time.Time, additionalInfo map[string]string)
+	Update(value float64, timestamp time.Time, additionalInfo map[string]string)
 	Value() []MetricValue
 	LabelValues() []string
 }

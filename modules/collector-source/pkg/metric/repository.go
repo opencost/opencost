@@ -56,19 +56,30 @@ func (r *MetricRepository) Update(
 	metricName string,
 	labels map[string]string,
 	value float64,
-	timestamp *time.Time,
+	timestamp time.Time,
 	additionalInformation map[string]string,
 ) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	if timestamp == nil {
-		timestamp = util.Ptr(time.Now().UTC())
-	}
-	t := *timestamp
+
 	// Call update on the collectors for each resolution
 	for _, resCollector := range r.resolutionStores {
-		resCollector.update(metricName, labels, value, t, additionalInformation)
+		resCollector.update(metricName, labels, value, timestamp, additionalInformation)
 	}
+}
+
+func (r *MetricRepository) Coverage() map[string][]time.Time {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	result := make(map[string][]time.Time)
+	for resKey, resCollector := range r.resolutionStores {
+		var windowStarts []time.Time
+		for _, key := range resCollector.getKeys() {
+			windowStarts = append(windowStarts, time.Unix(key, 0).UTC())
+		}
+		result[resKey] = windowStarts
+	}
+	return result
 }
 
 // resolutionStores is a grouping of a resolution and the instances of MetricStore that it is used to manage
@@ -138,7 +149,7 @@ func (r *resolutionStores) update(
 		collector = r.factory()
 		r.collectors[key] = collector
 	}
-	collector.Update(metricName, labels, value, &timestamp, additionalInformation)
+	collector.Update(metricName, labels, value, timestamp, additionalInformation)
 }
 
 func (r *resolutionStores) getCollector(t time.Time) (MetricStore, error) {
@@ -160,4 +171,14 @@ func (r *resolutionStores) getCollector(t time.Time) (MetricStore, error) {
 	}
 
 	return collector, nil
+}
+
+func (r *resolutionStores) getKeys() []int64 {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	var keys []int64
+	for key := range r.collectors {
+		keys = append(keys, key)
+	}
+	return keys
 }
