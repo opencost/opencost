@@ -2,40 +2,46 @@ package aggregator
 
 import (
 	"maps"
+	"sync"
 	"time"
 )
 
-// InfoAggregator is metric aggregator meant to record label values and addition information
-type InfoAggregator struct {
+// infoAggregator is MetricAggregator meant to record label values and addition information
+type infoAggregator struct {
+	lock           sync.RWMutex
 	name           string
 	labelValues    []string
 	additionalInfo map[string]string
 }
 
 func Info(name string, labelValues []string) MetricAggregator {
-	return &InfoAggregator{
+	return &infoAggregator{
 		name:        name,
 		labelValues: labelValues,
 	}
 }
 
-func (m *InfoAggregator) Name() string {
-	return m.name
+func (a *infoAggregator) Name() string {
+	return a.name
 }
 
-func (m *InfoAggregator) AdditionInfo() map[string]string {
-	return m.additionalInfo
+func (a *infoAggregator) AdditionInfo() map[string]string {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	return maps.Clone(a.additionalInfo)
 }
 
-func (m *InfoAggregator) LabelValues() []string {
-	return m.labelValues
+func (a *infoAggregator) LabelValues() []string {
+	return a.labelValues
 }
 
-func (m *InfoAggregator) Update(value float64, timestamp *time.Time, additionalInfo map[string]string) {
-	m.additionalInfo = maps.Clone(additionalInfo)
+func (a *infoAggregator) Update(value float64, timestamp time.Time, additionalInfo map[string]string) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.additionalInfo = maps.Clone(additionalInfo)
 }
 
-func (m *InfoAggregator) Value() []MetricValue {
+func (a *infoAggregator) Value() []MetricValue {
 	return []MetricValue{
 		{Value: 1},
 	}

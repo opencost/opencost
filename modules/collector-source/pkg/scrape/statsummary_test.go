@@ -197,7 +197,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.ModeLabel:           "",
 					},
 					Value:     2,
-					Timestamp: &start1,
+					Timestamp: start1,
 				},
 				{
 					MetricName: NodeFSCapacityBytes,
@@ -206,7 +206,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.DeviceLabel:   "local",
 					},
 					Value:     float64(2 * util.GB),
-					Timestamp: &start1,
+					Timestamp: start1,
 				},
 				{
 					MetricName: ContainerNetworkReceiveBytesTotal,
@@ -216,7 +216,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.NamespaceLabel: "namespace1",
 					},
 					Value:     float64(1 * util.MB),
-					Timestamp: &start1,
+					Timestamp: start1,
 				},
 				{
 					MetricName: ContainerNetworkTransmitBytesTotal,
@@ -226,7 +226,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.NamespaceLabel: "namespace1",
 					},
 					Value:     float64(2 * util.MB),
-					Timestamp: &start1,
+					Timestamp: start1,
 				},
 				{
 					MetricName: KubeletVolumeStatsUsedBytes,
@@ -235,7 +235,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.NamespaceLabel: "namespace1",
 					},
 					Value:     float64(1 * util.GB),
-					Timestamp: &start1,
+					Timestamp: start1,
 				},
 				{
 					MetricName: ContainerCPUUsageSecondsTotal,
@@ -247,7 +247,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.InstanceLabel:  "node1",
 					},
 					Value:     1,
-					Timestamp: &start1,
+					Timestamp: start1,
 				},
 				{
 					MetricName: ContainerMemoryWorkingSetBytes,
@@ -259,7 +259,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.InstanceLabel:  "node1",
 					},
 					Value:     float64(5 * util.MB),
-					Timestamp: &start1,
+					Timestamp: start1,
 				},
 				{
 					MetricName: ContainerFSUsageBytes,
@@ -268,7 +268,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.DeviceLabel:   "local",
 					},
 					Value:     float64(1 * util.GB),
-					Timestamp: &start1,
+					Timestamp: start1,
 				},
 			},
 		},
@@ -330,7 +330,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.NamespaceLabel: "namespace1",
 					},
 					Value:     float64(1 * util.GB),
-					Timestamp: &start1,
+					Timestamp: start1,
 				},
 			},
 		},

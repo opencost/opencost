@@ -2,6 +2,7 @@ package metric
 
 import (
 	"maps"
+	"sort"
 	"time"
 
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric/aggregator"
@@ -20,8 +21,7 @@ const (
 	PVUsedMaxID                     MetricCollectorID = "PVUsedMax"
 	PVCInfoID                       MetricCollectorID = "PVCInfo"
 	PVActiveMinutesID               MetricCollectorID = "PVActiveMinutes"
-	LocalStorageCostID              MetricCollectorID = "LocalStorageCost"
-	LocalStorageUsedCostID          MetricCollectorID = "LocalStorageUsedCost"
+	LocalStorageUsedActiveMinutesID MetricCollectorID = "LocalStorageUsedCost"
 	LocalStorageUsedAverageID       MetricCollectorID = "LocalStorageUsedAverage"
 	LocalStorageUsedMaxID           MetricCollectorID = "LocalStorageUsedMax"
 	LocalStorageBytesID             MetricCollectorID = "LocalStorageBytesID"
@@ -62,7 +62,6 @@ const (
 	PodPVCAllocationID              MetricCollectorID = "PodPVCAllocation"
 	PVCBytesRequestedID             MetricCollectorID = "PVCBytesRequested"
 	PVBytesID                       MetricCollectorID = "PVBytesID"
-	PVCostPerGiBHourID              MetricCollectorID = "PVCostPerGiBHour"
 	PVInfoID                        MetricCollectorID = "PVInfo"
 	NetZoneGiBID                    MetricCollectorID = "NetZoneGiB"
 	NetZonePricePerGiBID            MetricCollectorID = "NetZonePricePerGiB"
@@ -91,7 +90,7 @@ const (
 	ReplicaSetsWithRolloutID        MetricCollectorID = "ReplicaSetsWithRollout"
 )
 
-// MetricCollector is a data structure that represents a specific metric metric instance that contains it's own breakdown
+// MetricCollector is a data structure that represents a specific MetricCollector metric instance that contains its own breakdown
 // of stored metrics by a specific label set.
 type MetricCollector struct {
 	id                MetricCollectorID // ie: RAMUsageAverage
@@ -115,7 +114,7 @@ func NewMetricCollector(id MetricCollectorID, metricName string, labels []string
 	}
 }
 
-func (mi *MetricCollector) Update(labels map[string]string, value float64, timestamp *time.Time, additionalInfo map[string]string) {
+func (mi *MetricCollector) Update(labels map[string]string, value float64, timestamp time.Time, additionalInfo map[string]string) {
 	if mi.filter != nil && !mi.filter(labels) {
 		return
 	}
@@ -147,6 +146,10 @@ func (mi *MetricCollector) Get() []*aggregator.MetricResult {
 		results = append(results, mr)
 	}
 
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Name < results[j].Name
+	})
+	
 	return results
 }
 

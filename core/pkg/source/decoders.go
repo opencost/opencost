@@ -12,6 +12,7 @@ const (
 	InstanceTypeLabel    = "instance_type"
 	ContainerLabel       = "container"
 	PodLabel             = "pod"
+	PodNameLabel         = "pod_name"
 	ProviderIDLabel      = "provider_id"
 	DeviceLabel          = "device"
 	PVCLabel             = "persistentvolumeclaim"
@@ -1036,6 +1037,7 @@ func DecodeNetTransferBytesResult(result *QueryResult) *NetTransferBytesResult {
 }
 
 type NamespaceAnnotationsResult struct {
+	Cluster     string
 	Namespace   string
 	Annotations map[string]string
 
@@ -1043,10 +1045,12 @@ type NamespaceAnnotationsResult struct {
 }
 
 func DecodeNamespaceAnnotationsResult(result *QueryResult) *NamespaceAnnotationsResult {
+	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	annotations := result.GetAnnotations()
 
 	return &NamespaceAnnotationsResult{
+		Cluster:     cluster,
 		Namespace:   namespace,
 		Annotations: annotations,
 		Data:        result.Values,

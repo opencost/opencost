@@ -1,6 +1,8 @@
 package scrape
 
 import (
+	"time"
+
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/parser"
@@ -30,6 +32,7 @@ func newTargetScrapper(provider target.TargetProvider, updater metric.MetricUpda
 func (s *TargetScraper) Scrape() {
 	targets := s.targetProvider.GetTargets()
 	for _, target := range targets {
+		now := time.Now().UTC()
 		f, err := target.Load()
 		if err != nil {
 			log.Errorf("failed to scrape target: %s", err.Error())
@@ -46,7 +49,11 @@ func (s *TargetScraper) Scrape() {
 			if _, ok := s.metricNames[result.Name]; ok != s.includeMetrics {
 				continue
 			}
-			s.metricUpdater.Update(result.Name, result.Labels, result.Value, result.Timestamp, nil)
+			timestamp := now
+			if result.Timestamp != nil {
+				timestamp = *result.Timestamp
+			}
+			s.metricUpdater.Update(result.Name, result.Labels, result.Value, timestamp, nil)
 		}
 	}
 }

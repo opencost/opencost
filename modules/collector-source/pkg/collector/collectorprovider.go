@@ -1,9 +1,11 @@
 package collector
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 )
@@ -12,6 +14,7 @@ import (
 // that was designed to make queries against a continuous datasource with now stores its data in discrete blocks
 type StoreProvider interface {
 	GetStore(start, end time.Time) metric.MetricStore
+	GetDailyDataCoverage(limitDays int) (time.Time, time.Time, error)
 }
 
 // repoStoreProvider is a StoreProvider implementation which uses a Repository and the Intervals of its Resolutions that it is
@@ -68,4 +71,34 @@ func (r *repoStoreProvider) getStoreKeys(start, end time.Time) (string, time.Tim
 		}
 	}
 	return minKey, minStart
+}
+
+// GetDailyDataCoverage this is a bit of a hacky add-on to help fulfill the metricsquerier interface
+func (r *repoStoreProvider) GetDailyDataCoverage(limitDays int) (time.Time, time.Time, error) {
+	coverage := r.repo.Coverage()
+	dailyCoverage, ok := coverage["1d"]
+	if !ok {
+		return time.Time{}, time.Time{}, fmt.Errorf("daily resolution is not configured")
+	}
+	if len(dailyCoverage) == 0 {
+		return time.Time{}, time.Time{}, fmt.Errorf("daily coverage not available")
+	}
+	start := dailyCoverage[0]
+	end := dailyCoverage[0]
+	for _, window := range dailyCoverage {
+		if start.After(window) {
+			start = window
+		}
+		if end.Before(window) {
+			end = window
+		}
+	}
+	limit := time.Now().UTC().Truncate(timeutil.Day).Add(-timeutil.Day * time.Duration(limitDays))
+	if start.Before(limit) {
+		start = limit
+	}
+	// since all times that we have been looking at are window start times,
+	// add a day to end time to create the actual coverage
+	end = end.Add(timeutil.Day)
+	return start, end, nil
 }

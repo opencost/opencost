@@ -2,12 +2,15 @@ package scrape
 
 import (
 	"fmt"
+	"regexp"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 )
+
+var dcgmRegex = regexp.MustCompile("(?i)(.*dcgm-exporter.*)")
 
 // DCGM metrics
 const (
@@ -45,11 +48,7 @@ func (p *DCGMTargetProvider) GetTargets() []target.ScrapeTarget {
 	svcs := p.clusterCache.GetAllServices()
 	var targets []target.ScrapeTarget
 	for _, svc := range svcs {
-		if svc.ClusterIP == "" || svc.SpecSelector == nil {
-			continue
-		}
-		// TODO do something in relation to Thomas' comment https://github.com/opencost/opencost/pull/3110
-		if name := svc.SpecSelector["app.kubernetes.io/name"]; name != "dcgm-exporter" {
+		if svc.ClusterIP == "" || !isDCGM(svc.SpecSelector) {
 			continue
 		}
 		port := 9400
@@ -59,4 +58,22 @@ func (p *DCGMTargetProvider) GetTargets() []target.ScrapeTarget {
 	}
 
 	return targets
+}
+
+func isDCGM(labels map[string]string) bool {
+	keys := []string{
+		"app",
+		"app.kubernetes.io/name",
+		"app.kubernetes.io/component",
+	}
+
+	for _, key := range keys {
+		if value, ok := labels[key]; ok {
+			if dcgmRegex.MatchString(value) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
