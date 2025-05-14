@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -550,7 +551,80 @@ type FakeClusterMap struct {
 }
 
 func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
-	os.Setenv("CONFIG_PATH", "../config")
+	const invalidConfigJson = `{
+		"provider":"base",
+		"description":"Default prices based on GCP us-central1",
+		"CPU":"0.031611",
+		"spotCPU":"0.006655",
+		"RAM":"0.004237",
+		"spotRAM":"0.000892",
+		"GPU":"0.95",
+		"spotGPU":"0.308",
+		"storage":"0.00005479452",
+		"zoneNetworkEgress":"0.01",
+		"regionNetworkEgress":"0.01",
+		"internetNetworkEgress":"0.12",
+		"firstFiveForwardingRulesCost":"",
+		"additionalForwardingRuleCost":"",
+		"LBIngressDataCost":"",
+		"athenaBucketName":"",
+		"athenaRegion":"",
+		"athenaDatabase":"",
+		"athenaTable":"",
+		"athenaWorkgroup":"",
+		"masterPayerARN":"",
+		"customPricesEnabled":"false",
+		"defaultIdle":"",
+		"azureSubscriptionID":"",
+		"azureClientID":"",
+		"azureClientSecret":"",
+		"azureTenantID":"",
+		"azureBillingRegion":"",
+		"azureOfferDurableID":"",
+		"azureStorageSubscriptionID":"",
+		"azureStorageAccount":"",
+		"azureStorageAccessKey":"",
+		"azureStorageContainer":"",
+		"azureContainerPath":"",
+		"azureCloud":"",
+		"currencyCode":"",
+		"discount":"",
+		"negotiatedDiscount":"",
+		"sharedOverhead":"",
+		"clusterName":"",
+		"sharedNamespaces":"",
+		"sharedLabelNames":"",
+		"sharedLabelValues":"",
+		"shareTenancyCosts":"true",
+		"readOnly":"",
+		"editorAccess":"",
+		"kubecostToken":"",
+		"googleAnalyticsTag":"",
+		"excludeProviderID":""
+	}`
+
+	tempPath := t.TempDir()
+	currentPath, err := filepath.Abs(".")
+	if err != nil {
+		t.Skip(fmt.Sprintf("Unable to get absolute path for current dir: '%s' - Error: %s - Skipping test.", currentPath, err))
+		return
+	}
+
+	configPath, err := filepath.Rel(currentPath, tempPath)
+	if err != nil {
+		t.Skip(fmt.Sprintf("Unable to get relative path for temp dir: '%s' - Error: %s - Skipping test.", tempPath, err))
+		return
+	}
+
+	err = os.WriteFile(filepath.Join(configPath, "invalid.json"), []byte(invalidConfigJson), 0644)
+	if err != nil {
+		t.Skip(fmt.Sprintf("Unable to write temporary json config file: '%s' - Error: %s - Skipping test.", filepath.Join(configPath, "invalid.json"), err))
+		return
+	}
+
+	t.Logf("Setting Config Path to: %s", configPath)
+	t.Setenv("CONFIG_PATH", configPath)
+
 	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
 		LocalConfigPath: "./",
 	})
@@ -576,7 +650,7 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 
 	model := costmodel.NewCostModel(nil, c, fc, fm, d)
 
-	_, err := model.GetNodeCost()
+	_, err = model.GetNodeCost()
 	if err != nil {
 		t.Errorf("Error in node pricing: %s", err)
 	}
