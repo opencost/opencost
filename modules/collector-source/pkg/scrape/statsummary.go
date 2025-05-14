@@ -52,7 +52,7 @@ func (s *StatSummaryScraper) Scrape() {
 					source.ModeLabel:           "", // TODO
 				},
 				float64(*stat.Node.CPU.UsageCoreNanoSeconds)*1e-9,
-				&stat.Node.CPU.Time.Time,
+				stat.Node.CPU.Time.Time,
 				nil,
 			)
 		}
@@ -65,7 +65,7 @@ func (s *StatSummaryScraper) Scrape() {
 					source.DeviceLabel:   "local", // This value has to be populated but isn't important here
 				},
 				float64(*stat.Node.Fs.CapacityBytes),
-				&stat.Node.Fs.Time.Time,
+				stat.Node.Fs.Time.Time,
 				nil,
 			)
 		}
@@ -85,7 +85,7 @@ func (s *StatSummaryScraper) Scrape() {
 							source.NamespaceLabel: namespace,
 						},
 						float64(*pod.Network.RxBytes),
-						&pod.Network.Time.Time,
+						pod.Network.Time.Time,
 						nil,
 					)
 				}
@@ -99,7 +99,7 @@ func (s *StatSummaryScraper) Scrape() {
 							source.NamespaceLabel: namespace,
 						},
 						float64(*pod.Network.TxBytes),
-						&pod.Network.Time.Time,
+						pod.Network.Time.Time,
 						nil,
 					)
 				}
@@ -119,7 +119,7 @@ func (s *StatSummaryScraper) Scrape() {
 						source.NamespaceLabel: volumeStats.PVCRef.Namespace,
 					},
 					float64(*volumeStats.UsedBytes),
-					&volumeStats.Time.Time,
+					volumeStats.Time.Time,
 					nil,
 				)
 				seenPVC[*volumeStats.PVCRef] = struct{}{}
@@ -137,7 +137,7 @@ func (s *StatSummaryScraper) Scrape() {
 							source.InstanceLabel:  nodeName,
 						},
 						float64(*container.CPU.UsageCoreNanoSeconds)*1e-9,
-						&container.CPU.Time.Time,
+						container.CPU.Time.Time,
 						nil,
 					)
 				}
@@ -152,7 +152,7 @@ func (s *StatSummaryScraper) Scrape() {
 							source.InstanceLabel:  nodeName,
 						},
 						float64(*container.Memory.WorkingSetBytes),
-						&container.Memory.Time.Time,
+						container.Memory.Time.Time,
 						nil,
 					)
 				}
@@ -165,7 +165,7 @@ func (s *StatSummaryScraper) Scrape() {
 							source.DeviceLabel:   "local",
 						},
 						float64(*container.Rootfs.UsedBytes),
-						&container.Rootfs.Time.Time,
+						container.Rootfs.Time.Time,
 						nil,
 					)
 				}

@@ -88,12 +88,12 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node, timestam
 		if node.Status.Capacity != nil {
 			if quantity, ok := node.Status.Capacity[v1.ResourceCPU]; ok {
 				_, _, value := toResourceUnitValue(v1.ResourceCPU, quantity)
-				ccs.updater.Update(KubeNodeStatusCapacityCPUCores, nodeInfo, value, &timestamp, nil)
+				ccs.updater.Update(KubeNodeStatusCapacityCPUCores, nodeInfo, value, timestamp, nil)
 			}
 
 			if quantity, ok := node.Status.Capacity[v1.ResourceMemory]; ok {
 				_, _, value := toResourceUnitValue(v1.ResourceMemory, quantity)
-				ccs.updater.Update(KubeNodeStatusCapacityMemoryBytes, nodeInfo, value, &timestamp, nil)
+				ccs.updater.Update(KubeNodeStatusCapacityMemoryBytes, nodeInfo, value, timestamp, nil)
 			}
 		}
 
@@ -101,12 +101,12 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node, timestam
 		if node.Status.Allocatable != nil {
 			if quantity, ok := node.Status.Allocatable[v1.ResourceCPU]; ok {
 				_, _, value := toResourceUnitValue(v1.ResourceCPU, quantity)
-				ccs.updater.Update(KubeNodeStatusAllocatableCPUCores, nodeInfo, value, &timestamp, nil)
+				ccs.updater.Update(KubeNodeStatusAllocatableCPUCores, nodeInfo, value, timestamp, nil)
 			}
 
 			if quantity, ok := node.Status.Allocatable[v1.ResourceMemory]; ok {
 				_, _, value := toResourceUnitValue(v1.ResourceMemory, quantity)
-				ccs.updater.Update(KubeNodeStatusAllocatableMemoryBytes, nodeInfo, value, &timestamp, nil)
+				ccs.updater.Update(KubeNodeStatusAllocatableMemoryBytes, nodeInfo, value, timestamp, nil)
 			}
 		}
 
@@ -114,7 +114,7 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node, timestam
 		labelNames, labelValues := promutil.KubeLabelsToLabels(node.Labels)
 		nodeLabels := util.ToMap(labelNames, labelValues)
 
-		ccs.updater.Update(KubeNodeLabels, nodeInfo, 0, &timestamp, nodeLabels)
+		ccs.updater.Update(KubeNodeLabels, nodeInfo, 0, timestamp, nodeLabels)
 
 	}
 }
@@ -130,7 +130,7 @@ func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.De
 		labelNames, labelValues := promutil.KubeLabelsToLabels(deployment.MatchLabels)
 		deploymentLabels := util.ToMap(labelNames, labelValues)
 
-		ccs.updater.Update(DeploymentMatchLabels, deploymentInfo, 0, &timestamp, deploymentLabels)
+		ccs.updater.Update(DeploymentMatchLabels, deploymentInfo, 0, timestamp, deploymentLabels)
 
 	}
 }
@@ -144,12 +144,12 @@ func (ccs *ClusterCacheScraper) scrapeNamespaces(namespaces []*clustercache.Name
 		// namespace labels
 		labelNames, labelValues := promutil.KubeLabelsToLabels(namespace.Labels)
 		namespaceLabels := util.ToMap(labelNames, labelValues)
-		ccs.updater.Update(KubeNamespaceLabels, namespaceInfo, 0, &timestamp, namespaceLabels)
+		ccs.updater.Update(KubeNamespaceLabels, namespaceInfo, 0, timestamp, namespaceLabels)
 
 		// namespace annotations
 		annotationNames, annotationValues := promutil.KubeAnnotationsToLabels(namespace.Annotations)
 		namespaceAnnotations := util.ToMap(annotationNames, annotationValues)
-		ccs.updater.Update(KubeNamespaceAnnotations, namespaceInfo, 0, &timestamp, namespaceAnnotations)
+		ccs.updater.Update(KubeNamespaceAnnotations, namespaceInfo, 0, timestamp, namespaceAnnotations)
 	}
 }
 
@@ -166,19 +166,19 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, timestamp t
 		// pod labels
 		labelNames, labelValues := promutil.KubeLabelsToLabels(pod.Labels)
 		podLabels := util.ToMap(labelNames, labelValues)
-		ccs.updater.Update(KubePodLabels, podInfo, 0, &timestamp, podLabels)
+		ccs.updater.Update(KubePodLabels, podInfo, 0, timestamp, podLabels)
 
 		// pod annotations
 		annotationNames, annotationValues := promutil.KubeAnnotationsToLabels(pod.Annotations)
 		podAnnotations := util.ToMap(annotationNames, annotationValues)
-		ccs.updater.Update(KubePodAnnotations, podInfo, 0, &timestamp, podAnnotations)
+		ccs.updater.Update(KubePodAnnotations, podInfo, 0, timestamp, podAnnotations)
 
 		// Pod owner metric
 		for _, owner := range pod.OwnerReferences {
 			ownerInfo := maps.Clone(podInfo)
 			ownerInfo[source.OwnerKindLabel] = owner.Kind
 			ownerInfo[source.OwnerNameLabel] = owner.Name
-			ccs.updater.Update(KubePodOwner, ownerInfo, 0, &timestamp, nil)
+			ccs.updater.Update(KubePodOwner, ownerInfo, 0, timestamp, nil)
 		}
 
 		// Container Status
@@ -186,7 +186,7 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, timestamp t
 			if status.State.Running != nil {
 				containerInfo := maps.Clone(podInfo)
 				containerInfo[source.ContainerLabel] = status.Name
-				ccs.updater.Update(KubePodContainerStatusRunning, containerInfo, 0, &timestamp, nil)
+				ccs.updater.Update(KubePodContainerStatusRunning, containerInfo, 0, timestamp, nil)
 			}
 		}
 
@@ -211,7 +211,7 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, timestamp t
 					resourceRequestInfo := maps.Clone(containerInfo)
 					resourceRequestInfo[source.ResourceLabel] = resource
 					resourceRequestInfo[source.UnitLabel] = unit
-					ccs.updater.Update(KubePodContainerResourceRequests, resourceRequestInfo, value, &timestamp, nil)
+					ccs.updater.Update(KubePodContainerResourceRequests, resourceRequestInfo, value, timestamp, nil)
 				}
 			}
 		}
@@ -227,10 +227,10 @@ func (ccs *ClusterCacheScraper) scrapePVCs(pvcs []*clustercache.PersistentVolume
 			source.StorageClassLabel: getPersistentVolumeClaimClass(pvc),
 		}
 
-		ccs.updater.Update(KubePersistentVolumeClaimInfo, pvcInfo, 0, &timestamp, nil)
+		ccs.updater.Update(KubePersistentVolumeClaimInfo, pvcInfo, 0, timestamp, nil)
 
 		if storage, ok := pvc.Spec.Resources.Requests[v1.ResourceStorage]; ok {
-			ccs.updater.Update(KubePersistentVolumeClaimResourceRequestsStorageBytes, pvcInfo, float64(storage.Value()), &timestamp, nil)
+			ccs.updater.Update(KubePersistentVolumeClaimResourceRequestsStorageBytes, pvcInfo, float64(storage.Value()), timestamp, nil)
 		}
 	}
 }
@@ -248,10 +248,10 @@ func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume, 
 			source.ProviderIDLabel:   providerID,
 		}
 
-		ccs.updater.Update(KubecostPVInfo, pvInfo, 0, &timestamp, nil)
+		ccs.updater.Update(KubecostPVInfo, pvInfo, 0, timestamp, nil)
 
 		if storage, ok := pv.Spec.Capacity[v1.ResourceStorage]; ok {
-			ccs.updater.Update(KubePersistentVolumeCapacityBytes, pvInfo, float64(storage.Value()), &timestamp, nil)
+			ccs.updater.Update(KubePersistentVolumeCapacityBytes, pvInfo, float64(storage.Value()), timestamp, nil)
 		}
 	}
 }
@@ -266,7 +266,7 @@ func (ccs *ClusterCacheScraper) scrapeServices(services []*clustercache.Service,
 		// service labels
 		labelNames, labelValues := promutil.KubeLabelsToLabels(service.SpecSelector)
 		serviceLabels := util.ToMap(labelNames, labelValues)
-		ccs.updater.Update(ServiceSelectorLabels, serviceInfo, 0, &timestamp, serviceLabels)
+		ccs.updater.Update(ServiceSelectorLabels, serviceInfo, 0, timestamp, serviceLabels)
 
 	}
 }
@@ -281,7 +281,7 @@ func (ccs *ClusterCacheScraper) scrapeStatefulSets(statefulSets []*clustercache.
 		// statefulSet labels
 		labelNames, labelValues := promutil.KubeLabelsToLabels(statefulSet.SpecSelector.MatchLabels)
 		statefulSetLabels := util.ToMap(labelNames, labelValues)
-		ccs.updater.Update(StatefulSetMatchLabels, statefulSetInfo, 0, &timestamp, statefulSetLabels)
+		ccs.updater.Update(StatefulSetMatchLabels, statefulSetInfo, 0, timestamp, statefulSetLabels)
 
 	}
 }
@@ -297,7 +297,7 @@ func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.Re
 			ownerInfo := maps.Clone(replicaSetInfo)
 			ownerInfo[source.OwnerKindLabel] = owner.Kind
 			ownerInfo[source.OwnerNameLabel] = owner.Name
-			ccs.updater.Update(KubeReplicasetOwner, ownerInfo, 0, &timestamp, nil)
+			ccs.updater.Update(KubeReplicasetOwner, ownerInfo, 0, timestamp, nil)
 		}
 	}
 }

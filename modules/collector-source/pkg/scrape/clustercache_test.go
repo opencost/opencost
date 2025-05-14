@@ -63,7 +63,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 						source.ProviderIDLabel: "i-1",
 					},
 					Value:                 2.0,
-					Timestamp:             &start1,
+					Timestamp:             start1,
 					AdditionalInformation: nil,
 				},
 				{
@@ -73,7 +73,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 						source.ProviderIDLabel: "i-1",
 					},
 					Value:                 2048.0,
-					Timestamp:             &start1,
+					Timestamp:             start1,
 					AdditionalInformation: nil,
 				},
 				{
@@ -83,7 +83,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 						source.ProviderIDLabel: "i-1",
 					},
 					Value:                 1.0,
-					Timestamp:             &start1,
+					Timestamp:             start1,
 					AdditionalInformation: nil,
 				},
 				{
@@ -93,7 +93,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 						source.ProviderIDLabel: "i-1",
 					},
 					Value:                 1024.0,
-					Timestamp:             &start1,
+					Timestamp:             start1,
 					AdditionalInformation: nil,
 				},
 				{
@@ -103,7 +103,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 						source.ProviderIDLabel: "i-1",
 					},
 					Value:     0,
-					Timestamp: &start1,
+					Timestamp: start1,
 					AdditionalInformation: map[string]string{
 						"label_test1": "blah",
 						"label_test2": "blah2",
@@ -176,7 +176,7 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 						source.NamespaceLabel:  "namespace1",
 					},
 					Value:     0,
-					Timestamp: &start1,
+					Timestamp: start1,
 					AdditionalInformation: map[string]string{
 						"label_test1": "blah",
 						"label_test2": "blah2",
@@ -250,7 +250,7 @@ func Test_kubernetesScraper_scrapeNamespaces(t *testing.T) {
 						source.NamespaceLabel: "namespace1",
 					},
 					Value:     0,
-					Timestamp: &start1,
+					Timestamp: start1,
 					AdditionalInformation: map[string]string{
 						"label_test1": "blah",
 						"label_test2": "blah2",
@@ -262,7 +262,7 @@ func Test_kubernetesScraper_scrapeNamespaces(t *testing.T) {
 						source.NamespaceLabel: "namespace1",
 					},
 					Value:     0,
-					Timestamp: &start1,
+					Timestamp: start1,
 					AdditionalInformation: map[string]string{
 						"annotation_test3": "blah3",
 						"annotation_test4": "blah4",
@@ -373,7 +373,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 						source.InstanceLabel:  "node1",
 					},
 					Value:     0,
-					Timestamp: &start1,
+					Timestamp: start1,
 					AdditionalInformation: map[string]string{
 						"label_test1": "blah",
 						"label_test2": "blah2",
@@ -389,7 +389,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 						source.InstanceLabel:  "node1",
 					},
 					Value:     0,
-					Timestamp: &start1,
+					Timestamp: start1,
 					AdditionalInformation: map[string]string{
 						"annotation_test3": "blah3",
 						"annotation_test4": "blah4",
@@ -407,7 +407,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 						source.OwnerNameLabel: "deployment1",
 					},
 					Value:                 0,
-					Timestamp:             &start1,
+					Timestamp:             start1,
 					AdditionalInformation: nil,
 				},
 				{
@@ -421,7 +421,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 						source.ContainerLabel: "container1",
 					},
 					Value:                 0,
-					Timestamp:             &start1,
+					Timestamp:             start1,
 					AdditionalInformation: nil,
 				},
 				{
@@ -437,7 +437,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 						source.UnitLabel:      "core",
 					},
 					Value:                 0.5,
-					Timestamp:             &start1,
+					Timestamp:             start1,
 					AdditionalInformation: nil,
 				},
 				{
@@ -453,7 +453,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 						source.UnitLabel:      "byte",
 					},
 					Value:                 512,
-					Timestamp:             &start1,
+					Timestamp:             start1,
 					AdditionalInformation: nil,
 				},
 			},
@@ -529,7 +529,7 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 						source.StorageClassLabel: "storageClass1",
 					},
 					Value:                 0,
-					Timestamp:             &start1,
+					Timestamp:             start1,
 					AdditionalInformation: nil,
 				},
 				{
@@ -541,7 +541,7 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 						source.StorageClassLabel: "storageClass1",
 					},
 					Value:                 4096,
-					Timestamp:             &start1,
+					Timestamp:             start1,
 					AdditionalInformation: nil,
 				},
 			},
@@ -617,7 +617,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 						source.StorageClassLabel: "storageClass1",
 					},
 					Value:                 0,
-					Timestamp:             &start1,
+					Timestamp:             start1,
 					AdditionalInformation: nil,
 				},
 				{
@@ -628,7 +628,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 						source.StorageClassLabel: "storageClass1",
 					},
 					Value:                 4096,
-					Timestamp:             &start1,
+					Timestamp:             start1,
 					AdditionalInformation: nil,
 				},
 			},
@@ -697,7 +697,7 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 						source.NamespaceLabel: "namespace1",
 					},
 					Value:     0,
-					Timestamp: &start1,
+					Timestamp: start1,
 					AdditionalInformation: map[string]string{
 						"label_test1": "blah",
 						"label_test2": "blah2",
@@ -771,7 +771,7 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 						source.NamespaceLabel:   "namespace1",
 					},
 					Value:     0,
-					Timestamp: &start1,
+					Timestamp: start1,
 					AdditionalInformation: map[string]string{
 						"label_test1": "blah",
 						"label_test2": "blah2",
@@ -847,7 +847,7 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 						source.OwnerKindLabel: "Rollout",
 					},
 					Value:     0,
-					Timestamp: &start1,
+					Timestamp: start1,
 				},
 			},
 		},

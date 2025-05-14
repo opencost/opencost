@@ -2,6 +2,7 @@ package scrape
 
 import (
 	"testing"
+	"time"
 
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
@@ -96,11 +97,11 @@ const dcgmScrape = `
 DCGM_FI_PROF_GR_ENGINE_ACTIVE{gpu="0",UUID="GPU-1",pci_bus_id="00000000:00:0A.0",device="nvidia0",modelName="Tesla T4",Hostname="localhost"} 0.999999
 # HELP DCGM_FI_DEV_DEC_UTIL Decoder utilization (in %).
 # TYPE DCGM_FI_DEV_DEC_UTIL gauge
-DCGM_FI_DEV_DEC_UTIL{gpu="0",UUID="GPU-1",pci_bus_id="00000000:00:0A.0",device="nvidia0",modelName="Tesla T4",Hostname="localhost"} 0
+DCGM_FI_DEV_DEC_UTIL{gpu="0",UUID="GPU-1",pci_bus_id="00000000:00:0A.0",device="nvidia0",modelName="Tesla T4",Hostname="localhost"} 0 
 `
 
 func TestTargetScraper_Scrape(t *testing.T) {
-
+	start1, _ := time.Parse(time.RFC3339, Start1Str)
 	tests := []struct {
 		name            string
 		scrapperFactory func(metric.MetricUpdater) *TargetScraper
@@ -126,7 +127,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"service":     "service1",
 					},
 					Value:     3127969647,
-					Timestamp: nil,
+					Timestamp: start1,
 				},
 				{
 					MetricName: KubecostPodNetworkEgressBytesTotal,
@@ -139,7 +140,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"service":     "",
 					},
 					Value:     335188219,
-					Timestamp: nil,
+					Timestamp: start1,
 				},
 				{
 					MetricName: KubecostPodNetworkIngressBytesTotal,
@@ -152,7 +153,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"service":     "service1",
 					},
 					Value:     17941460,
-					Timestamp: nil,
+					Timestamp: start1,
 				},
 				{
 					MetricName: KubecostPodNetworkIngressBytesTotal,
@@ -165,7 +166,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"service":     "",
 					},
 					Value:     13948766,
-					Timestamp: nil,
+					Timestamp: start1,
 				},
 			},
 		},
@@ -505,7 +506,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 
 			for i, expected := range tt.expected {
 				updateArg := updateRecorder.UpdateArgs[i]
-				err := expected.Equals(updateArg)
+				err := expected.ValueEquals(updateArg)
 				if err != nil {
 					t.Errorf("Result did not match expected at index %d: %s", i, err.Error())
 				}

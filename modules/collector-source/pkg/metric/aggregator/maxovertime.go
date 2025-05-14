@@ -1,42 +1,52 @@
 package aggregator
 
 import (
+	"sync"
 	"time"
 )
 
-type MaxOverTimeAggregator struct {
+// maxOverTimeAggregator is a MetricAggregator which returns the max value passed to it through the Update function
+type maxOverTimeAggregator struct {
+	lock        sync.Mutex
 	name        string
 	labelValues []string
 	max         float64
 }
 
 func MaxOverTime(name string, labelValues []string) MetricAggregator {
-	return &MaxOverTimeAggregator{
+	return &maxOverTimeAggregator{
 		name:        name,
 		labelValues: labelValues,
 	}
 }
 
-func (m *MaxOverTimeAggregator) Name() string {
-	return m.name
+func (a *maxOverTimeAggregator) Name() string {
+	return a.name
 }
 
-func (m *MaxOverTimeAggregator) AdditionInfo() map[string]string {
+func (a *maxOverTimeAggregator) AdditionInfo() map[string]string {
 	return nil
 }
 
-func (m *MaxOverTimeAggregator) LabelValues() []string {
-	return m.labelValues
+func (a *maxOverTimeAggregator) LabelValues() []string {
+	return a.labelValues
 }
 
-func (m *MaxOverTimeAggregator) Update(value float64, timestamp *time.Time, additionalInfo map[string]string) {
-	if value > m.max {
-		m.max = value
+func (a *maxOverTimeAggregator) Update(value float64, timestamp time.Time, additionalInfo map[string]string) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if value > a.max {
+		a.max = value
 	}
 }
 
-func (m *MaxOverTimeAggregator) Value() []MetricValue {
+func (a *maxOverTimeAggregator) Value() []MetricValue {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if a.max == 0 {
+		return []MetricValue{}
+	}
 	return []MetricValue{
-		{Value: m.max},
+		{Value: a.max},
 	}
 }

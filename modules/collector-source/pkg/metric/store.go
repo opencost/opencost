@@ -88,7 +88,7 @@ func (m *InMemoryMetricStore) Update(
 	metricName string,
 	labels map[string]string,
 	value float64,
-	timestamp *time.Time,
+	timestamp time.Time,
 	additionalInformation map[string]string,
 ) {
 	m.lock.Lock()
