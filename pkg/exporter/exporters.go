@@ -1,64 +1,57 @@
 package exporter
 
 import (
+	"fmt"
 	"time"
 
 	export "github.com/opencost/opencost/core/pkg/exporter"
 	"github.com/opencost/opencost/core/pkg/exporter/pathing"
 	"github.com/opencost/opencost/core/pkg/exporter/validator"
-	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/pipelines"
 	"github.com/opencost/opencost/core/pkg/storage"
+	"github.com/opencost/opencost/core/pkg/util/typeutil"
 )
 
-func NewAllocationStorageExporter(clusterId string, resolution time.Duration, store storage.Storage) export.ComputeExporter[opencost.AllocationSet] {
-	pathing, err := pathing.NewBingenStoragePathFormatter("", clusterId, pipelines.AllocationPipelineName, &resolution)
+// NewComputePipelineExporter creates a new `ComputeExporter[T]` instance which is used to export computed data
+// by window for a specific pipeline.
+func NewComputePipelineExporter[T any, U export.BinaryMarshalerPtr[T], S validator.SetConstraint[T]](
+	clusterId string,
+	resolution time.Duration,
+	store storage.Storage,
+) (export.ComputeExporter[T], error) {
+	pipelineName := pipelines.NameFor[T]()
+	if pipelineName == "" {
+		return nil, fmt.Errorf("failed to extract pipeline name for type: %s", typeutil.TypeOf[T]())
+	}
+
+	pathing, err := pathing.NewBingenStoragePathFormatter("", clusterId, pipelineName, &resolution)
 	if err != nil {
-		log.Errorf("failed to create pathing formatter: %v", err)
-		return nil
+		return nil, fmt.Errorf("failed to create path formatter: %w", err)
 	}
 
 	return export.NewComputeStorageExporter(
-		pipelines.AllocationPipelineName,
+		pipelineName,
 		resolution,
 		pathing,
-		NewAllocationEncoder(),
+		export.NewBingenEncoder[T, U](),
 		store,
-		validator.NewSetValidator[opencost.AllocationSet](resolution),
-	)
+		validator.NewSetValidator[T, S](resolution),
+	), nil
 }
 
-func NewAssetsStorageExporter(clusterId string, resolution time.Duration, store storage.Storage) export.ComputeExporter[opencost.AssetSet] {
-	pathing, err := pathing.NewBingenStoragePathFormatter("", clusterId, pipelines.AssetsPipelineName, &resolution)
+// NewComputePipelineExportController creates a new `ComputeExportController[T]` instance which is used to export computed data
+// using the provided source, storage, resolution, and source resolution.
+func NewComputePipelineExportController[T any, U export.BinaryMarshalerPtr[T], S validator.SetConstraint[T]](
+	clusterId string,
+	store storage.Storage,
+	source export.ComputeSource[T],
+	resolution time.Duration,
+	sourceResolution time.Duration,
+) (*export.ComputeExportController[T], error) {
+	exporter, err := NewComputePipelineExporter[T, U, S](clusterId, resolution, store)
 	if err != nil {
-		log.Errorf("failed to create pathing formatter: %v", err)
-		return nil
+		return nil, fmt.Errorf("failed to create compute exporter: %w", err)
 	}
 
-	return export.NewComputeStorageExporter(
-		pipelines.AssetsPipelineName,
-		resolution,
-		pathing,
-		NewAssetsEncoder(),
-		store,
-		validator.NewSetValidator[opencost.AssetSet](resolution),
-	)
-}
-
-func NewNetworkInsightStorageExporter(clusterId string, resolution time.Duration, store storage.Storage) export.ComputeExporter[opencost.NetworkInsightSet] {
-	pathing, err := pathing.NewBingenStoragePathFormatter("", clusterId, pipelines.NetworkInsightPipelineName, &resolution)
-	if err != nil {
-		log.Errorf("failed to create pathing formatter: %v", err)
-		return nil
-	}
-
-	return export.NewComputeStorageExporter(
-		pipelines.NetworkInsightPipelineName,
-		resolution,
-		pathing,
-		NewNetworkInsightEncoder(),
-		store,
-		validator.NewSetValidator[opencost.NetworkInsightSet](resolution),
-	)
+	return export.NewComputeExportController(source, exporter, resolution, sourceResolution), nil
 }

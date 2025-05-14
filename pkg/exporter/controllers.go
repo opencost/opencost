@@ -6,12 +6,24 @@ import (
 	export "github.com/opencost/opencost/core/pkg/exporter"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/storage"
-	"github.com/opencost/opencost/pkg/costmodel"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/exporter/allocation"
 	"github.com/opencost/opencost/pkg/exporter/asset"
 	"github.com/opencost/opencost/pkg/exporter/networkinsight"
 )
+
+// ComputePipelineSource is an interface that defines methods for computing all pipeline data.
+// For all intents and purposes, this represents costmodel.CostModel. To interface allows tests to
+// mock the costmodel.CostModel and return a different source for the pipeline.
+type ComputePipelineSource interface {
+	allocation.AllocationSource
+	asset.AssetSource
+	networkinsight.NetworkInsightSource
+
+	GetDataSource() source.OpenCostDataSource
+}
 
 // PipelinesExportConfig is a configuration struct that contains the export resolutions for
 // allocation, assets, and network insights pipelines.
@@ -49,12 +61,12 @@ type PipelineExportControllers struct {
 
 // NewPipelineExportControllers creates a new PipelineExportControllers instance with the given cluster ID, storage implementation, cost model, and configuration.
 // Setting the config to nil will use the default hourly and daily export resolutions for each pipeline.
-func NewPipelineExportControllers(clusterId string, store storage.Storage, cm *costmodel.CostModel, config *PipelinesExportConfig) *PipelineExportControllers {
+func NewPipelineExportControllers(clusterId string, store storage.Storage, cm ComputePipelineSource, config *PipelinesExportConfig) *PipelineExportControllers {
 	if config == nil {
 		config = DefaultPipelinesExportConfig()
 	}
 
-	mins := int(cm.DataSource.Resolution().Minutes())
+	mins := int(cm.GetDataSource().Resolution().Minutes())
 	if mins <= 0 {
 		mins = 1
 	}
@@ -72,8 +84,11 @@ func NewPipelineExportControllers(clusterId string, store storage.Storage, cm *c
 			continue
 		}
 
-		allocExporter := NewAllocationStorageExporter(clusterId, res, store)
-		allocController := export.NewComputeExportController(allocSource, allocExporter, sourceResolution)
+		allocController, err := NewComputePipelineExportController(clusterId, store, allocSource, res, sourceResolution)
+		if err != nil {
+			log.Errorf("Failed to create allocation export controller for resolution: %s - %v", timeutil.DurationString(res), err)
+			continue
+		}
 
 		allocExportControllers = append(allocExportControllers, allocController)
 	}
@@ -87,8 +102,12 @@ func NewPipelineExportControllers(clusterId string, store storage.Storage, cm *c
 			log.Warnf("Configured asset pipeline resolution %dm is less than source resolution %dm. Not configuring the exporter for this resolution.", int64(res.Minutes()), int64(sourceResolution.Minutes()))
 			continue
 		}
-		assetExporter := NewAssetsStorageExporter(clusterId, res, store)
-		assetController := export.NewComputeExportController(assetSource, assetExporter, sourceResolution)
+
+		assetController, err := NewComputePipelineExportController(clusterId, store, assetSource, res, sourceResolution)
+		if err != nil {
+			log.Errorf("Failed to create asset export controller for resolution: %s - %v", timeutil.DurationString(res), err)
+			continue
+		}
 
 		assetExportControllers = append(assetExportControllers, assetController)
 	}
@@ -103,8 +122,11 @@ func NewPipelineExportControllers(clusterId string, store storage.Storage, cm *c
 			continue
 		}
 
-		networkInsightExporter := NewNetworkInsightStorageExporter(clusterId, res, store)
-		networkInsightController := export.NewComputeExportController(networkInsightSource, networkInsightExporter, sourceResolution)
+		networkInsightController, err := NewComputePipelineExportController(clusterId, store, networkInsightSource, res, sourceResolution)
+		if err != nil {
+			log.Errorf("Failed to create network insight export controller for resolution: %s - %v", timeutil.DurationString(res), err)
+			continue
+		}
 
 		networkInsightExportControllers = append(networkInsightExportControllers, networkInsightController)
 	}

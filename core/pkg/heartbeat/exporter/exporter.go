@@ -9,14 +9,14 @@ import (
 )
 
 // NewHeartbeatExporter creates a new `StorageExporter[Heartbeat]` instance for exporting Heartbeat events.
-func NewHeartbeatExporter(clusterId string, applicationName string, storage storage.Storage) *exporter.StorageExporter[heartbeat.Heartbeat] {
+func NewHeartbeatExporter(clusterId string, applicationName string, storage storage.Storage) exporter.EventExporter[heartbeat.Heartbeat] {
 	pathing, err := pathing.NewEventStoragePathFormatter("", clusterId, heartbeat.HeartbeatEventName, applicationName)
 	if err != nil {
 		log.Errorf("failed to create pathing formatter: %v", err)
 		return nil
 	}
 
-	return exporter.NewStorageExporter(
+	return exporter.NewEventStorageExporter(
 		heartbeat.HeartbeatEventName,
 		pathing,
 		NewHeartbeatEncoder(),

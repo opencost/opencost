@@ -6,17 +6,20 @@ import (
 	"github.com/opencost/opencost/core/pkg/exporter"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/pipelines"
-	"github.com/opencost/opencost/pkg/costmodel"
 )
 
+type AssetSource interface {
+	ComputeAssets(start, end time.Time) (*opencost.AssetSet, error)
+}
+
 type AssetsComputeSource struct {
-	cm *costmodel.CostModel
+	src AssetSource
 }
 
 // NewAssetsComputeSource creates an `exporter.ComputeSource[opencost.AssetSet]` implementation
-func NewAssetsComputeSource(cm *costmodel.CostModel) exporter.ComputeSource[opencost.AssetSet] {
+func NewAssetsComputeSource(src AssetSource) exporter.ComputeSource[opencost.AssetSet] {
 	return &AssetsComputeSource{
-		cm: cm,
+		src: src,
 	}
 }
 
@@ -31,7 +34,7 @@ func (acs *AssetsComputeSource) CanCompute(start, end time.Time) bool {
 
 // Compute should compute a single T for the given time range, optionally using the given resolution.
 func (acs *AssetsComputeSource) Compute(start, end time.Time, resolution time.Duration) (*opencost.AssetSet, error) {
-	return acs.cm.ComputeAssets(start, end)
+	return acs.src.ComputeAssets(start, end)
 }
 
 // Name returns the name of the ComputeSource

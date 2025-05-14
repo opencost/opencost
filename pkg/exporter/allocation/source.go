@@ -6,17 +6,20 @@ import (
 	"github.com/opencost/opencost/core/pkg/exporter"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/pipelines"
-	"github.com/opencost/opencost/pkg/costmodel"
 )
 
-type AllocationComputeSource struct {
-	cm *costmodel.CostModel
+type AllocationSource interface {
+	ComputeAllocation(start, end time.Time, resolution time.Duration) (*opencost.AllocationSet, error)
 }
 
-// NewAllocationComputeSource creates an `exporter.ComputeSource[opencost.AssetSet]` implementation
-func NewAllocationComputeSource(cm *costmodel.CostModel) exporter.ComputeSource[opencost.AllocationSet] {
+type AllocationComputeSource struct {
+	src AllocationSource
+}
+
+// NewAllocationComputeSource creates an `exporter.ComputeSource[opencost.AllocationSet]` implementation
+func NewAllocationComputeSource(src AllocationSource) exporter.ComputeSource[opencost.AllocationSet] {
 	return &AllocationComputeSource{
-		cm: cm,
+		src: src,
 	}
 }
 
@@ -31,7 +34,7 @@ func (acs *AllocationComputeSource) CanCompute(start, end time.Time) bool {
 
 // Compute should compute a single T for the given time range, optionally using the given resolution.
 func (acs *AllocationComputeSource) Compute(start, end time.Time, resolution time.Duration) (*opencost.AllocationSet, error) {
-	return acs.cm.ComputeAllocation(start, end, resolution)
+	return acs.src.ComputeAllocation(start, end, resolution)
 }
 
 // Name returns the name of the ComputeSource

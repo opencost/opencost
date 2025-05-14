@@ -12,30 +12,36 @@ import (
 )
 
 // Exporter[T] is a generic interface for exporting T instances to a specific storage destination.
-type Exporter[T any] interface {
+type Exporter[TimeUnit any, T any] interface {
 	// Export performs the export operation for the provided data.
-	Export(data *T) error
+	Export(time TimeUnit, data *T) error
 }
 
-// StorageExporter[T] is an implementation of an Exporter[T] that writes data to a storage backend using
+// EventExporter[T] is an alias type of an Exporter[time.Time, T] that writes data that is timestamped.
+type EventExporter[T any] Exporter[time.Time, T]
+
+// ComputeExporter[T] is an alias type of an Exporter[opencost.Window, T] that writes data for a specific window.
+type ComputeExporter[T any] Exporter[opencost.Window, T]
+
+// EventStorageExporter[T] is an implementation of an Exporter[T] that writes data to a storage backend using
 // the `github.com/opencost/opencost/core/pkg/storage` package, a pathing strategy, and an encoder.
-type StorageExporter[T any] struct {
+type EventStorageExporter[T any] struct {
 	pipeline string
 	paths    pathing.StoragePathFormatter[time.Time]
 	encoder  Encoder[T]
 	storage  storage.Storage
 }
 
-// NewStorageExporter creates a new StorageExporter instance, which is responsible for exporting data to a storage backend.
+// NewEventStorageExporter creates a new StorageExporter instance, which is responsible for exporting data to a storage backend.
 // It uses a pathing strategy to determine the storage location, an encoder to convert the data to binary format, and
 // a storage backend to write the data.
-func NewStorageExporter[T any](
+func NewEventStorageExporter[T any](
 	pipeline string,
 	paths pathing.StoragePathFormatter[time.Time],
 	encoder Encoder[T],
 	storage storage.Storage,
-) *StorageExporter[T] {
-	return &StorageExporter[T]{
+) EventExporter[T] {
+	return &EventStorageExporter[T]{
 		pipeline: pipeline,
 		paths:    paths,
 		encoder:  encoder,
@@ -45,8 +51,7 @@ func NewStorageExporter[T any](
 
 // Export performs the export operation for the provided data. It encodes the data using the encoder and writes it to
 // the storage backend using the pathing strategy.
-func (se *StorageExporter[T]) Export(data *T) error {
-	t := time.Now().UTC()
+func (se *EventStorageExporter[T]) Export(t time.Time, data *T) error {
 	path := se.paths.ToFullPath("", t, se.encoder.FileExt())
 
 	bin, err := se.encoder.Encode(data)
@@ -61,15 +66,6 @@ func (se *StorageExporter[T]) Export(data *T) error {
 	}
 
 	return nil
-}
-
-// ComputeExporter[T] is an interface that exports windowed data of type T using a specific resolution.
-type ComputeExporter[T any] interface {
-	// Export performs the export operation for the provided data.
-	Export(window opencost.Window, data *T) error
-
-	// Resolution contains the resolution of the data being exported
-	Resolution() time.Duration
 }
 
 // ComputeStorageExporter[T] is an implementation of ComputeExporter[T] that writes data to a storage backend using
@@ -94,7 +90,7 @@ func NewComputeStorageExporter[T any](
 	encoder Encoder[T],
 	storage storage.Storage,
 	validator validator.ExportValidator[T],
-) *ComputeStorageExporter[T] {
+) ComputeExporter[T] {
 	return &ComputeStorageExporter[T]{
 		pipeline:   pipeline,
 		resolution: resolution,
@@ -139,9 +135,4 @@ func (se *ComputeStorageExporter[T]) Export(window opencost.Window, data *T) err
 	}
 
 	return nil
-}
-
-// Resolution returns the resolution of the data being exported.
-func (se *ComputeStorageExporter[T]) Resolution() time.Duration {
-	return se.resolution
 }

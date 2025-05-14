@@ -6,17 +6,20 @@ import (
 	"github.com/opencost/opencost/core/pkg/exporter"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/pipelines"
-	"github.com/opencost/opencost/pkg/costmodel"
 )
 
+type NetworkInsightSource interface {
+	ComputeNetworkInsights(start, end time.Time, resolution time.Duration) (*opencost.NetworkInsightSet, error)
+}
+
 type NetworkInsightsComputeSource struct {
-	cm *costmodel.CostModel
+	src NetworkInsightSource
 }
 
 // NewNetworkInsightsComputeSource creates an `exporter.ComputeSource[opencost.NetworkInsightSet]` implementation
-func NewNetworkInsightsComputeSource(cm *costmodel.CostModel) exporter.ComputeSource[opencost.NetworkInsightSet] {
+func NewNetworkInsightsComputeSource(src NetworkInsightSource) exporter.ComputeSource[opencost.NetworkInsightSet] {
 	return &NetworkInsightsComputeSource{
-		cm: cm,
+		src: src,
 	}
 }
 
@@ -31,7 +34,7 @@ func (acs *NetworkInsightsComputeSource) CanCompute(start, end time.Time) bool {
 
 // Compute should compute a single T for the given time range, optionally using the given resolution.
 func (acs *NetworkInsightsComputeSource) Compute(start, end time.Time, resolution time.Duration) (*opencost.NetworkInsightSet, error) {
-	return acs.cm.ComputeNetworkInsights(start, end, resolution)
+	return acs.src.ComputeNetworkInsights(start, end, resolution)
 }
 
 // Name returns the name of the ComputeSource

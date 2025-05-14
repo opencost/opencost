@@ -11,6 +11,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util/atomic"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
+	"github.com/opencost/opencost/core/pkg/util/typeutil"
 )
 
 // ExportController is a controller interface that is responsible for exporting data on a specific interval.
@@ -31,13 +32,13 @@ type ExportController interface {
 type EventExportController[T any] struct {
 	runState atomic.AtomicRunState
 	source   ExportSource[T]
-	exporter Exporter[T]
+	exporter EventExporter[T]
 	typeName string
 }
 
 // NewEventExportController creates a new `EventExportController[T]` instance which is used to export timestamped events of type T
 // on a specific interval.
-func NewEventExportController[T any](source ExportSource[T], exporter Exporter[T]) *EventExportController[T] {
+func NewEventExportController[T any](source ExportSource[T], exporter EventExporter[T]) *EventExportController[T] {
 	return &EventExportController[T]{
 		source:   source,
 		exporter: exporter,
@@ -78,7 +79,7 @@ func (cd *EventExportController[T]) Start(interval time.Duration) bool {
 				continue
 			}
 
-			err := cd.exporter.Export(evt)
+			err := cd.exporter.Export(t, evt)
 			if err != nil {
 				log.Warnf("[%s] Error during Write: %s", cd.typeName, err)
 			}
@@ -109,11 +110,12 @@ type ComputeExportController[T any] struct {
 func NewComputeExportController[T any](
 	source ComputeSource[T],
 	exporter ComputeExporter[T],
+	resolution time.Duration,
 	sourceResolution time.Duration,
 ) *ComputeExportController[T] {
 	return &ComputeExportController[T]{
 		source:           source,
-		resolution:       exporter.Resolution(),
+		resolution:       resolution,
 		sourceResolution: sourceResolution,
 		exporter:         exporter,
 		typeName:         reflect.TypeOf((*T)(nil)).Elem().String(),
@@ -277,11 +279,17 @@ func (g *ComputeExportControllerGroup[T]) Name() string {
 }
 
 func (g *ComputeExportControllerGroup[T]) Start(interval time.Duration) bool {
+	if len(g.controllers) == 0 {
+		log.Warnf("ComputeExportControllerGroup[%s] has no controllers to start", typeutil.TypeOf[T]())
+		return false
+	}
+
 	for _, c := range g.controllers {
 		if !c.Start(interval) {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -289,4 +297,12 @@ func (g *ComputeExportControllerGroup[T]) Stop() {
 	for _, c := range g.controllers {
 		c.Stop()
 	}
+}
+
+func (g *ComputeExportControllerGroup[T]) Resolutions() []time.Duration {
+	resolutions := make([]time.Duration, 0, len(g.controllers))
+	for _, c := range g.controllers {
+		resolutions = append(resolutions, c.resolution)
+	}
+	return resolutions
 }

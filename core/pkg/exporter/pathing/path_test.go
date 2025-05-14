@@ -102,6 +102,7 @@ func TestEventPathFormatter(t *testing.T) {
 		rootPath  string
 		clusterID string
 		event     string
+		subPaths  []string
 		prefix    string
 		fileExt   string
 		expected  string
@@ -113,6 +114,7 @@ func TestEventPathFormatter(t *testing.T) {
 			rootPath:  "/tmp",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
+			subPaths:  []string{},
 			prefix:    "",
 			fileExt:   "json",
 			expected:  "/tmp/federated/cluster-a/heartbeat/20240101124000.json",
@@ -122,15 +124,27 @@ func TestEventPathFormatter(t *testing.T) {
 			rootPath:  "",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
+			subPaths:  []string{},
 			prefix:    "",
 			fileExt:   "json",
 			expected:  "federated/cluster-a/heartbeat/20240101124000.json",
+		},
+		{
+			name:      "with root path with file extension with sub-paths",
+			rootPath:  "/tmp",
+			clusterID: "cluster-a",
+			event:     "heartbeat",
+			subPaths:  []string{"foo", "bar"},
+			prefix:    "",
+			fileExt:   "json",
+			expected:  "/tmp/federated/cluster-a/heartbeat/foo/bar/20240101124000.json",
 		},
 		{
 			name:      "without file extension",
 			rootPath:  "",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
+			subPaths:  []string{},
 			prefix:    "",
 			fileExt:   "",
 			expected:  "federated/cluster-a/heartbeat/20240101124000",
@@ -140,24 +154,46 @@ func TestEventPathFormatter(t *testing.T) {
 			rootPath:  "",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
+			subPaths:  []string{},
 			prefix:    "test",
 			fileExt:   "json",
 			expected:  "federated/cluster-a/heartbeat/test.20240101124000.json",
+		},
+		{
+			name:      "with prefix with file extension with sub-paths",
+			rootPath:  "",
+			clusterID: "cluster-a",
+			event:     "heartbeat",
+			subPaths:  []string{"foo", "bar", "baz"},
+			prefix:    "test",
+			fileExt:   "json",
+			expected:  "federated/cluster-a/heartbeat/foo/bar/baz/test.20240101124000.json",
 		},
 		{
 			name:      "with prefix without file extension",
 			rootPath:  "",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
+			subPaths:  []string{},
 			prefix:    "test",
 			fileExt:   "",
 			expected:  "federated/cluster-a/heartbeat/test.20240101124000",
+		},
+		{
+			name:      "with prefix without file extension with sub-paths",
+			rootPath:  "",
+			clusterID: "cluster-a",
+			event:     "heartbeat",
+			subPaths:  []string{"foo"},
+			prefix:    "test",
+			fileExt:   "",
+			expected:  "federated/cluster-a/heartbeat/foo/test.20240101124000",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			pathing, err := NewEventStoragePathFormatter(tc.rootPath, tc.clusterID, tc.event)
+			pathing, err := NewEventStoragePathFormatter(tc.rootPath, tc.clusterID, tc.event, tc.subPaths...)
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}

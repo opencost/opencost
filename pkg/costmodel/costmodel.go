@@ -1796,3 +1796,7 @@ func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost
 
 	return idleSet, nil
 }
+
+func (cm *CostModel) GetDataSource() source.OpenCostDataSource {
+	return cm.DataSource
+}
