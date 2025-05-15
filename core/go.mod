@@ -23,6 +23,7 @@ require (
 	github.com/prometheus/common v0.63.0
 	github.com/rs/zerolog v1.26.1
 	github.com/spf13/viper v1.8.1
+	github.com/stretchr/testify v1.9.0
 	golang.org/x/exp v0.0.0-20221031165847-c99f073a8326
 	golang.org/x/oauth2 v0.25.0
 	golang.org/x/sync v0.12.0

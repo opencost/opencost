@@ -12,6 +12,8 @@ import (
 // HTTPProtocol is a struct used as a selector for request/response protocol utility methods
 type HTTPProtocol struct{}
 
+const internalServerErrorJSON = `{"code":500,"message":"Internal Server Error"}`
+
 // HTTPError represents an http error response
 type HTTPError struct {
 	StatusCode int
@@ -123,14 +125,14 @@ func (hp HTTPProtocol) WriteJSONData(w http.ResponseWriter, data interface{}) {
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		log.Error("Failed to encode JSON response: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(internalServerErrorJSON))
 	}
 }
 
 // WriteRawError uses json content-type and outputs raw error message for backwards compatibility to existing
 // frontend expectations.
 func (hp HTTPProtocol) WriteRawError(w http.ResponseWriter, httpStatusCode int, err string) {
-	// I know this isn't json, but its what we've done and don't want to break frontned while we fix CWE
-	w.Header().Set("Content-Type", "application/json")
 	http.Error(w, err, httpStatusCode)
 }
 
@@ -140,6 +142,8 @@ func (hp HTTPProtocol) WriteEncodedError(w http.ResponseWriter, httpStatusCode i
 	w.WriteHeader(httpStatusCode)
 	if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
 		log.Error("Failed to encode error response: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(internalServerErrorJSON))
 	}
 }
 
@@ -149,8 +153,15 @@ func (hp HTTPProtocol) WriteData(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	status := http.StatusOK
 	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(data); err != nil {
+
+	resp := &HTTPResponse{
+		Code: status,
+		Data: data,
+	}
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Error("Failed to encode response: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(internalServerErrorJSON))
 	}
 }
 
@@ -166,6 +177,8 @@ func (hp HTTPProtocol) WriteDataWithWarning(w http.ResponseWriter, data interfac
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Error("Failed to encode response with warning: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(internalServerErrorJSON))
 	}
 }
 
@@ -181,6 +194,8 @@ func (hp HTTPProtocol) WriteDataWithMessage(w http.ResponseWriter, data interfac
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Error("Failed to encode response with message: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(internalServerErrorJSON))
 	}
 }
 
@@ -218,6 +233,8 @@ func (hp HTTPProtocol) WriteDataWithMessageAndWarning(w http.ResponseWriter, dat
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Error("Failed to encode response with message and warning: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(internalServerErrorJSON))
 	}
 }
 
@@ -230,12 +247,14 @@ func (hp HTTPProtocol) WriteError(w http.ResponseWriter, err HTTPError) {
 	}
 	w.WriteHeader(status)
 
-	resp, _ := json.Marshal(&HTTPResponse{
+	resp := &HTTPResponse{
 		Code:    status,
 		Message: err.Body,
-	})
+	}
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Error("Failed to encode error response: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(internalServerErrorJSON))
 	}
 }
 
@@ -246,5 +265,7 @@ func (hp HTTPProtocol) WriteResponse(w http.ResponseWriter, r *HTTPResponse) {
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(r); err != nil {
 		log.Error("Failed to encode response: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(internalServerErrorJSON))
 	}
 }
