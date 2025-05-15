@@ -130,7 +130,7 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	resLocalStorageBytes := []*source.LocalStorageBytesResult{}
 	resLocalActiveMins := []*source.LocalStorageActiveMinutesResult{}
 
-	if env.GetAssetIncludeLocalDiskCost() {
+	if env.IsAssetIncludeLocalDiskCost() {
 		resChLocalStorageCost := source.WithGroup(grp, mq.QueryLocalStorageCost(start, end))
 		resChLocalStorageUsedCost := source.WithGroup(grp, mq.QueryLocalStorageUsedCost(start, end))
 		resChLocalStoreageUsedAvg := source.WithGroup(grp, mq.QueryLocalStorageUsedAvg(start, end))
@@ -405,7 +405,7 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 		}
 	}
 
-	if !env.GetAssetIncludeLocalDiskCost() {
+	if !env.IsAssetIncludeLocalDiskCost() {
 		return filterOutLocalPVs(diskMap), nil
 	}
 

@@ -56,8 +56,8 @@ func NewKubernetesClusterCacheV1(client kubernetes.Interface) cc.ClusterCache {
 	batchClient := client.BatchV1().RESTClient()
 	pdbClient := client.PolicyV1().RESTClient()
 
-	kubecostNamespace := env.GetKubecostNamespace()
-	log.Infof("NAMESPACE: %s", kubecostNamespace)
+	installNamespace := env.GetInstallNamespace()
+	log.Infof("NAMESPACE: %s", installNamespace)
 
 	kcc := &KubernetesClusterCache{
 		client:                     client,

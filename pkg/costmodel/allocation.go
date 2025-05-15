@@ -330,7 +330,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	resChNetInternetPricePerGiB := source.WithGroup(grp, ds.QueryNetInternetPricePerGiB(start, end))
 
 	var resChNodeLabels *source.QueryGroupFuture[source.NodeLabelsResult]
-	if env.GetAllocationNodeLabelsEnabled() {
+	if env.IsAllocationNodeLabelsEnabled() {
 		resChNodeLabels = source.WithGroup(grp, ds.QueryNodeLabels(start, end))
 	}
 
@@ -394,7 +394,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	resNetInternetPricePerGiB, _ := resChNetInternetPricePerGiB.Await()
 
 	var resNodeLabels []*source.NodeLabelsResult
-	if env.GetAllocationNodeLabelsEnabled() {
+	if env.IsAllocationNodeLabelsEnabled() {
 		resNodeLabels, _ = resChNodeLabels.Await()
 	}
 	resNamespaceLabels, _ := resChNamespaceLabels.Await()
@@ -453,7 +453,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	// (e.g. applyCPUCoresAllocated, etc.) -- otherwise, node labels will fail
 	// to correctly apply to the pods.
 	var nodeLabels map[nodeKey]map[string]string
-	if env.GetAllocationNodeLabelsEnabled() {
+	if env.IsAllocationNodeLabelsEnabled() {
 		nodeLabels = resToNodeLabels(resNodeLabels)
 	}
 	namespaceLabels := resToNamespaceLabels(resNamespaceLabels)

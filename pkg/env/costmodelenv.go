@@ -24,23 +24,21 @@ const (
 	AzureBillingAccountEnvVar            = "AZURE_BILLING_ACCOUNT"
 	AzureDownloadBillingDataToDiskEnvVar = "AZURE_DOWNLOAD_BILLING_DATA_TO_DISK"
 
-	ReleaseNameEnvVar              = "RELEASE_NAME"
-	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
-	PodNameEnvVar                  = "POD_NAME"
-	ClusterIDEnvVar                = "CLUSTER_ID"
-	ClusterProfileEnvVar           = "CLUSTER_PROFILE"
-	RemoteEnabledEnvVar            = "REMOTE_WRITE_ENABLED"
-	RemotePWEnvVar                 = "REMOTE_WRITE_PASSWORD"
-	SQLAddressEnvVar               = "SQL_ADDRESS"
-	UseCSVProviderEnvVar           = "USE_CSV_PROVIDER"
-	UseCustomProviderEnvVar        = "USE_CUSTOM_PROVIDER"
-	CSVRegionEnvVar                = "CSV_REGION"
-	CSVEndpointEnvVar              = "CSV_ENDPOINT"
-	CSVPathEnvVar                  = "CSV_PATH"
-	ConfigPathEnvVar               = "CONFIG_PATH"
-	CloudProviderAPIKeyEnvVar      = "CLOUD_PROVIDER_API_KEY"
-	PromlessEnvVar                 = "PROMLESS"
-	DisableAggregateCostModelCache = "DISABLE_AGGREGATE_COST_MODEL_CACHE"
+	ReleaseNameEnvVar         = "RELEASE_NAME"
+	PodNameEnvVar             = "POD_NAME"
+	ClusterIDEnvVar           = "CLUSTER_ID"
+	ClusterProfileEnvVar      = "CLUSTER_PROFILE"
+	RemoteEnabledEnvVar       = "REMOTE_WRITE_ENABLED"
+	RemotePWEnvVar            = "REMOTE_WRITE_PASSWORD"
+	SQLAddressEnvVar          = "SQL_ADDRESS"
+	UseCSVProviderEnvVar      = "USE_CSV_PROVIDER"
+	UseCustomProviderEnvVar   = "USE_CUSTOM_PROVIDER"
+	CSVRegionEnvVar           = "CSV_REGION"
+	CSVEndpointEnvVar         = "CSV_ENDPOINT"
+	CSVPathEnvVar             = "CSV_PATH"
+	ConfigPathEnvVar          = "CONFIG_PATH"
+	CloudProviderAPIKeyEnvVar = "CLOUD_PROVIDER_API_KEY"
+	PromlessEnvVar            = "PROMLESS"
 
 	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
 	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
@@ -62,16 +60,12 @@ const (
 
 	UTCOffsetEnvVar = "UTC_OFFSET"
 
-	CacheWarmingEnabledEnvVar    = "CACHE_WARMING_ENABLED"
-	ETLEnabledEnvVar             = "ETL_ENABLED"
-	ETLResolutionSeconds         = "ETL_RESOLUTION_SECONDS"
-	LegacyExternalAPIDisabledVar = "LEGACY_EXTERNAL_API_DISABLED"
+	ETLEnabledEnvVar     = "ETL_ENABLED"
+	ETLResolutionSeconds = "ETL_RESOLUTION_SECONDS"
 
-	PricingConfigmapName  = "PRICING_CONFIGMAP_NAME"
-	MetricsConfigmapName  = "METRICS_CONFIGMAP_NAME"
-	KubecostJobNameEnvVar = "KUBECOST_JOB_NAME"
+	PricingConfigmapName = "PRICING_CONFIGMAP_NAME"
+	MetricsConfigmapName = "METRICS_CONFIGMAP_NAME"
 
-	KubecostConfigBucketEnvVar    = "KUBECOST_CONFIG_BUCKET"
 	ClusterInfoFileEnabledEnvVar  = "CLUSTER_INFO_FILE_ENABLED"
 	ClusterCacheFileEnabledEnvVar = "CLUSTER_CACHE_FILE_ENABLED"
 
@@ -116,6 +110,13 @@ const (
 	CarbonEstimatesEnabledEnvVar = "CARBON_ESTIMATES_ENABLED"
 
 	UseCacheV1 = "USE_CACHE_V1"
+
+	InstallNamespaceEnvVar = "INSTALL_NAMESPACE"
+	ConfigBucketEnvVar     = "CONFIG_BUCKET"
+
+	// Deprecated
+	KubecostNamespaceEnvVar    = "KUBECOST_NAMESPACE"
+	KubecostConfigBucketEnvVar = "KUBECOST_CONFIG_BUCKET"
 )
 
 const DefaultConfigMountPath = "/var/configs"
@@ -150,10 +151,10 @@ func GetAPIPort() int {
 	return env.GetInt(APIPortEnvVar, 9003)
 }
 
-// GetKubecostConfigBucket returns a file location for a mounted bucket configuration which is used to store
-// a subset of kubecost configurations that require sharing via remote storage.
-func GetKubecostConfigBucket() string {
-	return env.Get(KubecostConfigBucketEnvVar, "")
+// GetConfigBucketFile returns a file location for a mounted bucket configuration which is used to store
+// a subset of configurations that require sharing via remote storage.
+func GetConfigBucketFile() string {
+	return env.Get(ConfigBucketEnvVar, env.Get(KubecostConfigBucketEnvVar, ""))
 }
 
 // IsClusterInfoFileEnabled returns true if the cluster info is read from a file or pulled from the local
@@ -265,10 +266,10 @@ func IsAzureDownloadBillingDataToDisk() bool {
 	return env.GetBool(AzureDownloadBillingDataToDiskEnvVar, true)
 }
 
-// GetKubecostNamespace returns the environment variable value for KubecostNamespaceEnvVar which
-// represents the namespace the cost model exists in.
-func GetKubecostNamespace() string {
-	return env.Get(KubecostNamespaceEnvVar, "kubecost")
+// GetInstallNamespace returns the environment variable value that is set for the kubernetes namespace
+// this service is installed in.
+func GetInstallNamespace() string {
+	return env.Get(InstallNamespaceEnvVar, env.Get(KubecostNamespaceEnvVar, "opencost"))
 }
 
 // GetPodName returns the name of the current running pod. If this environment variable is not set,
@@ -291,12 +292,6 @@ func GetClusterID() string {
 
 func IsKubeRbacProxyEnabled() bool {
 	return env.GetBool(KubeRbacProxyEnabled, false)
-}
-
-// IsAggregateCostModelCacheDisabled returns the environment variable value for DisableAggregateCostModelCache which
-// will inform the aggregator on whether to load cached data. Defaults to false
-func IsAggregateCostModelCacheDisabled() bool {
-	return env.GetBool(DisableAggregateCostModelCache, false)
 }
 
 // IsRemoteEnabled returns the environment variable value for RemoteEnabledEnvVar which represents whether
@@ -411,15 +406,6 @@ func GetParsedUTCOffset() time.Duration {
 	return offset
 }
 
-// GetKubecostJobName returns the environment variable value for KubecostJobNameEnvVar
-func GetKubecostJobName() string {
-	return env.Get(KubecostJobNameEnvVar, "kubecost")
-}
-
-func IsCacheWarmingEnabled() bool {
-	return env.GetBool(CacheWarmingEnabledEnvVar, true)
-}
-
 func IsETLEnabled() bool {
 	return env.GetBool(ETLEnabledEnvVar, true)
 }
@@ -434,21 +420,17 @@ func GetETLResolution() time.Duration {
 	return secs * time.Second
 }
 
-func LegacyExternalCostsAPIDisabled() bool {
-	return env.GetBool(LegacyExternalAPIDisabledVar, false)
-}
-
 // IsIngestingPodUID returns the env variable from ingestPodUID, which alters the
 // contents of podKeys in Allocation
 func IsIngestingPodUID() bool {
 	return env.GetBool(IngestPodUIDEnvVar, false)
 }
 
-func GetAllocationNodeLabelsEnabled() bool {
+func IsAllocationNodeLabelsEnabled() bool {
 	return env.GetBool(AllocationNodeLabelsEnabled, true)
 }
 
-func GetAssetIncludeLocalDiskCost() bool {
+func IsAssetIncludeLocalDiskCost() bool {
 	return env.GetBool(AssetIncludeLocalDiskCostEnvVar, true)
 }
 

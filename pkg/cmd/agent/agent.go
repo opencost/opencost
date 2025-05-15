@@ -76,7 +76,7 @@ func Execute(opts *AgentOpts) error {
 
 	// Create ConfigFileManager for synchronization of shared configuration
 	confManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-		BucketStoreConfig: env.GetKubecostConfigBucket(),
+		BucketStoreConfig: env.GetConfigBucketFile(),
 		LocalConfigPath:   "/",
 	})
 
@@ -129,7 +129,7 @@ func Execute(opts *AgentOpts) error {
 	}
 
 	// Append the pricing config watcher
-	kubecostNamespace := env.GetKubecostNamespace()
+	kubecostNamespace := env.GetInstallNamespace()
 	configWatchers := watcher.NewConfigMapWatchers(k8sClient, kubecostNamespace)
 	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
 	configWatchers.Watch()

@@ -85,39 +85,6 @@ type Accesses struct {
 	settingsMutex       sync.Mutex
 }
 
-// FilterFunc is a filter that returns true iff the given CostData should be filtered out, and the environment that was used as the filter criteria, if it was an aggregate
-type FilterFunc func(*CostData) (bool, string)
-
-// FilterCostData allows through only CostData that matches all the given filter functions
-func FilterCostData(data map[string]*CostData, retains []FilterFunc, filters []FilterFunc) (map[string]*CostData, int, map[string]int) {
-	result := make(map[string]*CostData)
-	filteredEnvironments := make(map[string]int)
-	filteredContainers := 0
-DataLoop:
-	for key, datum := range data {
-		for _, rf := range retains {
-			if ok, _ := rf(datum); ok {
-				result[key] = datum
-				// if any retain function passes, the data is retained and move on
-				continue DataLoop
-			}
-		}
-		for _, ff := range filters {
-			if ok, environment := ff(datum); !ok {
-				if environment != "" {
-					filteredEnvironments[environment]++
-				}
-				filteredContainers++
-				// if any filter function check fails, move on to the next datum
-				continue DataLoop
-			}
-		}
-		result[key] = datum
-	}
-
-	return result, filteredContainers, filteredEnvironments
-}
-
 func filterFields(fields string, data map[string]*CostData) map[string]CostData {
 	fs := strings.Split(fields, ",")
 	fmap := make(map[string]bool)
@@ -379,7 +346,7 @@ func (a *Accesses) GetInstallNamespace(w http.ResponseWriter, r *http.Request, _
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	ns := env.GetKubecostNamespace()
+	ns := env.GetInstallNamespace()
 	w.Write([]byte(ns))
 }
 
@@ -427,7 +394,7 @@ func (a *Accesses) GetInstallInfo(w http.ResponseWriter, r *http.Request, _ http
 }
 
 func GetKubecostContainers(kubeClientSet kubernetes.Interface) ([]ContainerInfo, error) {
-	pods, err := kubeClientSet.CoreV1().Pods(env.GetKubecostNamespace()).List(context.Background(), metav1.ListOptions{
+	pods, err := kubeClientSet.CoreV1().Pods(env.GetInstallNamespace()).List(context.Background(), metav1.ListOptions{
 		LabelSelector: "app=cost-analyzer",
 		FieldSelector: "status.phase=Running",
 		Limit:         1,
@@ -505,7 +472,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 
 	// Create ConfigFileManager for synchronization of shared configuration
 	confManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-		BucketStoreConfig: env.GetKubecostConfigBucket(),
+		BucketStoreConfig: env.GetConfigBucketFile(),
 		LocalConfigPath:   "/",
 	})
 
@@ -556,7 +523,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	}
 
 	// Append the pricing config watcher
-	kubecostNamespace := env.GetKubecostNamespace()
+	kubecostNamespace := env.GetInstallNamespace()
 
 	configWatchers := watcher.NewConfigMapWatchers(kubeClientset, kubecostNamespace, additionalConfigWatchers...)
 	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))

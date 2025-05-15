@@ -11,7 +11,7 @@ import (
 )
 
 func (cm *CostModel) ComputeNetworkInsights(start, end time.Time, resolution time.Duration) (*opencost.NetworkInsightSet, error) {
-	log.Debugf("Network Insight compute called on prometheus source for window  %s", opencost.NewClosedWindow(start, end).String())
+	log.Debugf("Network Insight compute called on CostModel for window  %s", opencost.NewClosedWindow(start, end).String())
 
 	// If the duration is short enough, compute the network insight directly
 	if end.Sub(start) <= cm.BatchDuration {
@@ -40,7 +40,7 @@ func (cm *CostModel) ComputeNetworkInsights(start, end time.Time, resolution tim
 		totalNis.Accumulate(nis, []opencost.NetworkInsightProperty{})
 		s = e
 	}
-	return totalNis, fmt.Errorf("unable to query prometheus for large duration")
+	return totalNis, fmt.Errorf("unable to query data source for large duration")
 }
 
 func (cm *CostModel) GetNetworkInsightSet(start, end time.Time) (*opencost.NetworkInsightSet, error) {
