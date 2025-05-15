@@ -33,6 +33,8 @@ func (m *MockHeartbeatMetadataProvider) GetMetadata() map[string]any {
 }
 
 func TestHeartbeatExporter(t *testing.T) {
+	t.Parallel()
+
 	mdp := NewMockHeartbeatMetadataProvider()
 	store := storage.NewMemoryStorage()
 
