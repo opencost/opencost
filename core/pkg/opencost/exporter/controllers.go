@@ -6,12 +6,12 @@ import (
 	export "github.com/opencost/opencost/core/pkg/exporter"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/opencost/exporter/allocation"
+	"github.com/opencost/opencost/core/pkg/opencost/exporter/asset"
+	"github.com/opencost/opencost/core/pkg/opencost/exporter/networkinsight"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
-	"github.com/opencost/opencost/pkg/exporter/allocation"
-	"github.com/opencost/opencost/pkg/exporter/asset"
-	"github.com/opencost/opencost/pkg/exporter/networkinsight"
 )
 
 // ComputePipelineSource is an interface that defines methods for computing all pipeline data.
