@@ -77,6 +77,12 @@ func (pc *ProviderConfig) onConfigFileUpdated(changeType config.ChangeType, data
 		if pc.customPricing.ShareTenancyCosts == "" {
 			pc.customPricing.ShareTenancyCosts = models.DefaultShareTenancyCost
 		}
+
+		// If the sample nil service key name is set, zero it out so that it is not
+		// misinterpreted as a real service key.
+		if pc.customPricing.ServiceKeyName == "AKIXXX" {
+			pc.customPricing.ServiceKeyName = ""
+		}
 	}
 }
 
