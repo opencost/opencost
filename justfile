@@ -11,8 +11,18 @@ test-core:
     {{commonenv}} cd ./core && go test ./... -coverprofile=coverage.out
     {{commonenv}} cd ./core && go vet ./...
 
+# run prometheus-source unit tests 
+test-prometheus-source:
+    {{commonenv}} cd ./modules/prometheus-source && go test ./... -coverprofile=coverage.out
+    {{commonenv}} cd ./modules/prometheus-source && go vet ./...
+
+# run collector-source unit tests
+test-collector-source:
+    {{commonenv}} cd ./modules/collector-source && go test ./... -coverprofile=coverage.out
+    {{commonenv}} cd ./modules/collector-source && go vet ./...
+
 # Run unit tests
-test: test-core
+test: test-core test-prometheus-source test-collector-source
     {{commonenv}} go test ./... -coverprofile=coverage.out
     {{commonenv}} go vet ./...
 

@@ -1,4 +1,4 @@
-package test
+package provider_test
 
 import (
 	"fmt"
@@ -108,9 +108,9 @@ func TestPVPriceFromCSV(t *testing.T) {
 
 	wantPrice := "0.1337"
 	c := &provider.CSVProvider{
-		CSVLocation: "../configs/pricing_schema_pv.csv",
+		CSVLocation: "../../../configs/pricing_schema_pv.csv",
 		CustomProvider: &provider.CustomProvider{
-			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../../../configs/default.json"),
 		},
 	}
 	c.DownloadPricingData()
@@ -142,9 +142,9 @@ func TestPVPriceFromCSVStorageClass(t *testing.T) {
 
 	wantPrice := "0.1338"
 	c := &provider.CSVProvider{
-		CSVLocation: "../configs/pricing_schema_pv_storageclass.csv",
+		CSVLocation: "../../../configs/pricing_schema_pv_storageclass.csv",
 		CustomProvider: &provider.CustomProvider{
-			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../../../configs/default.json"),
 		},
 	}
 	c.DownloadPricingData()
@@ -192,9 +192,9 @@ func TestNodePriceFromCSVWithGPU(t *testing.T) {
 	wantPrice2 := "1.733700"
 
 	c := &provider.CSVProvider{
-		CSVLocation: "../configs/pricing_schema.csv",
+		CSVLocation: "../../../configs/pricing_schema.csv",
 		CustomProvider: &provider.CustomProvider{
-			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../../../configs/default.json"),
 		},
 	}
 
@@ -238,8 +238,32 @@ func TestNodePriceFromCSVWithGPU(t *testing.T) {
 }
 
 func TestNodePriceFromCSVWithGPULabels(t *testing.T) {
+	const defaultConfigJson = `{"provider":"base","description":"Default prices based on GCP us-central1","CPU":"0.021811","spotCPU":"0.006543","RAM":"0.002923","spotRAM":"0.000877","GPU":"0.95","spotGPU":"0.308","storage":"0.00005479452","zoneNetworkEgress":"0.01","regionNetworkEgress":"0.01","internetNetworkEgress":"0.12","firstFiveForwardingRulesCost":"","additionalForwardingRuleCost":"","LBIngressDataCost":"","athenaBucketName":"","athenaRegion":"","athenaDatabase":"","athenaCatalog":"","athenaTable":"","athenaWorkgroup":"","masterPayerARN":"","customPricesEnabled":"false","defaultIdle":"","azureSubscriptionID":"","azureClientID":"","azureClientSecret":"","azureTenantID":"","azureBillingRegion":"","azureBillingAccount":"","azureOfferDurableID":"","azureStorageSubscriptionID":"","azureStorageAccount":"","azureStorageAccessKey":"","azureStorageContainer":"","azureContainerPath":"","azureCloud":"","currencyCode":"","discount":"","negotiatedDiscount":"","sharedOverhead":"","clusterName":"","sharedNamespaces":"","sharedLabelNames":"","sharedLabelValues":"","shareTenancyCosts":"true","readOnly":"","editorAccess":"","kubecostToken":"","googleAnalyticsTag":"","excludeProviderID":"","defaultLBPrice":""}`
+
 	nameWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"
 	wantGPUCost := "0.75"
+
+	tempPath := t.TempDir()
+	currentPath, err := filepath.Abs(".")
+	if err != nil {
+		t.Skip(fmt.Sprintf("Unable to get absolute path for current dir: '%s' - Error: %s - Skipping test.", currentPath, err))
+		return
+	}
+
+	configPath, err := filepath.Rel(currentPath, tempPath)
+	if err != nil {
+		t.Skip(fmt.Sprintf("Unable to get relative path for temp dir: '%s' - Error: %s - Skipping test.", tempPath, err))
+		return
+	}
+
+	err = os.WriteFile(filepath.Join(configPath, "default.json"), []byte(defaultConfigJson), 0644)
+	if err != nil {
+		t.Skip(fmt.Sprintf("Unable to write temporary json config file: '%s' - Error: %s - Skipping test.", filepath.Join(configPath, "default.json"), err))
+		return
+	}
+
+	t.Logf("Setting Config Path to: %s", configPath)
+	t.Setenv("CONFIG_PATH", configPath)
 
 	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
 		LocalConfigPath: "./",
@@ -254,9 +278,9 @@ func TestNodePriceFromCSVWithGPULabels(t *testing.T) {
 	n.Status.Capacity = v1.ResourceList{"nvidia.com/gpu": *resource.NewScaledQuantity(2, 0)}
 
 	c := &provider.CSVProvider{
-		CSVLocation: "../configs/pricing_schema_gpu_labels.csv",
+		CSVLocation: "../../../configs/pricing_schema_gpu_labels.csv",
 		CustomProvider: &provider.CustomProvider{
-			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "default.json"),
 		},
 	}
 
@@ -283,8 +307,32 @@ func TestNodePriceFromCSVWithGPULabels(t *testing.T) {
 }
 
 func TestRKE2NodePriceFromCSVWithGPULabels(t *testing.T) {
+	const defaultConfigJson = `{"provider":"base","description":"Default prices based on GCP us-central1","CPU":"0.021811","spotCPU":"0.006543","RAM":"0.002923","spotRAM":"0.000877","GPU":"0.95","spotGPU":"0.308","storage":"0.00005479452","zoneNetworkEgress":"0.01","regionNetworkEgress":"0.01","internetNetworkEgress":"0.12","firstFiveForwardingRulesCost":"","additionalForwardingRuleCost":"","LBIngressDataCost":"","athenaBucketName":"","athenaRegion":"","athenaDatabase":"","athenaCatalog":"","athenaTable":"","athenaWorkgroup":"","masterPayerARN":"","customPricesEnabled":"false","defaultIdle":"","azureSubscriptionID":"","azureClientID":"","azureClientSecret":"","azureTenantID":"","azureBillingRegion":"","azureBillingAccount":"","azureOfferDurableID":"","azureStorageSubscriptionID":"","azureStorageAccount":"","azureStorageAccessKey":"","azureStorageContainer":"","azureContainerPath":"","azureCloud":"","currencyCode":"","discount":"","negotiatedDiscount":"","sharedOverhead":"","clusterName":"","sharedNamespaces":"","sharedLabelNames":"","sharedLabelValues":"","shareTenancyCosts":"true","readOnly":"","editorAccess":"","kubecostToken":"","googleAnalyticsTag":"","excludeProviderID":"","defaultLBPrice":""}`
+
 	nameWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"
 	wantGPUCost := "0.750000"
+
+	tempPath := t.TempDir()
+	currentPath, err := filepath.Abs(".")
+	if err != nil {
+		t.Skip(fmt.Sprintf("Unable to get absolute path for current dir: '%s' - Error: %s - Skipping test.", currentPath, err))
+		return
+	}
+
+	configPath, err := filepath.Rel(currentPath, tempPath)
+	if err != nil {
+		t.Skip(fmt.Sprintf("Unable to get relative path for temp dir: '%s' - Error: %s - Skipping test.", tempPath, err))
+		return
+	}
+
+	err = os.WriteFile(filepath.Join(configPath, "default.json"), []byte(defaultConfigJson), 0644)
+	if err != nil {
+		t.Skip(fmt.Sprintf("Unable to write temporary json config file: '%s' - Error: %s - Skipping test.", filepath.Join(configPath, "default.json"), err))
+		return
+	}
+
+	t.Logf("Setting Config Path to: %s", configPath)
+	t.Setenv("CONFIG_PATH", configPath)
 
 	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
 		LocalConfigPath: "./",
@@ -300,9 +348,9 @@ func TestRKE2NodePriceFromCSVWithGPULabels(t *testing.T) {
 	n.Status.Capacity = v1.ResourceList{"nvidia.com/gpu": *resource.NewScaledQuantity(2, 0)}
 
 	c := &provider.CSVProvider{
-		CSVLocation: "../configs/pricing_schema_gpu_labels.csv",
+		CSVLocation: "../../../configs/pricing_schema_gpu_labels.csv",
 		CustomProvider: &provider.CustomProvider{
-			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "default.json"),
 		},
 	}
 
@@ -343,9 +391,9 @@ func TestNodePriceFromCSVSpecialChar(t *testing.T) {
 	wantPrice := "0.133700"
 
 	c := &provider.CSVProvider{
-		CSVLocation: "../configs/pricing_schema_special_char.csv",
+		CSVLocation: "../../../configs/pricing_schema_special_char.csv",
 		CustomProvider: &provider.CustomProvider{
-			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../../../configs/default.json"),
 		},
 	}
 	c.DownloadPricingData()
@@ -381,9 +429,9 @@ func TestNodePriceFromCSV(t *testing.T) {
 	wantPrice := "0.133700"
 
 	c := &provider.CSVProvider{
-		CSVLocation: "../configs/pricing_schema.csv",
+		CSVLocation: "../../../configs/pricing_schema.csv",
 		CustomProvider: &provider.CustomProvider{
-			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../../../configs/default.json"),
 		},
 	}
 	c.DownloadPricingData()
@@ -413,9 +461,9 @@ func TestNodePriceFromCSV(t *testing.T) {
 	}
 
 	c2 := &provider.CSVProvider{
-		CSVLocation: "../configs/fake.csv",
+		CSVLocation: "../../../configs/fake.csv",
 		CustomProvider: &provider.CustomProvider{
-			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../../../configs/default.json"),
 		},
 	}
 	k3 := c.GetKey(n.Labels, n)
@@ -459,9 +507,9 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	wantPrice3 := "0.1339"
 
 	c := &provider.CSVProvider{
-		CSVLocation: "../configs/pricing_schema_region.csv",
+		CSVLocation: "../../../configs/pricing_schema_region.csv",
 		CustomProvider: &provider.CustomProvider{
-			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../../../configs/default.json"),
 		},
 	}
 	c.DownloadPricingData()
@@ -515,9 +563,9 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	}
 
 	c2 := &provider.CSVProvider{
-		CSVLocation: "../configs/fake.csv",
+		CSVLocation: "../../../configs/fake.csv",
 		CustomProvider: &provider.CustomProvider{
-			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../../../configs/default.json"),
 		},
 	}
 	k5 := c.GetKey(n.Labels, n)
@@ -630,7 +678,7 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 	})
 
 	c := &provider.CSVProvider{
-		CSVLocation: "../configs/pricing_schema_case.csv",
+		CSVLocation: "../../../configs/pricing_schema_case.csv",
 		CustomProvider: &provider.CustomProvider{
 			Config: provider.NewProviderConfig(confMan, "invalid.json"),
 		},
@@ -657,16 +705,16 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 }
 
 func TestSourceMatchesFromCSV(t *testing.T) {
-	os.Setenv("CONFIG_PATH", "../configs")
+	os.Setenv("CONFIG_PATH", "../../../configs")
 
 	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
 		LocalConfigPath: "./",
 	})
 
 	c := &provider.CSVProvider{
-		CSVLocation: "../configs/pricing_schema_case.csv",
+		CSVLocation: "../../../configs/pricing_schema_case.csv",
 		CustomProvider: &provider.CustomProvider{
-			Config: provider.NewProviderConfig(confMan, "/default.json"),
+			Config: provider.NewProviderConfig(confMan, "default.json"),
 		},
 	}
 	c.DownloadPricingData()
@@ -743,9 +791,9 @@ func TestNodePriceFromCSVWithCase(t *testing.T) {
 	})
 
 	c := &provider.CSVProvider{
-		CSVLocation: "../configs/pricing_schema_case.csv",
+		CSVLocation: "../../../configs/pricing_schema_case.csv",
 		CustomProvider: &provider.CustomProvider{
-			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../../../configs/default.json"),
 		},
 	}
 
@@ -789,9 +837,9 @@ func TestNodePriceFromCSVMixed(t *testing.T) {
 	wantPrice2 := "1.654795"
 
 	c := &provider.CSVProvider{
-		CSVLocation: "../configs/pricing_schema_mixed_gpu_ondemand.csv",
+		CSVLocation: "../../../configs/pricing_schema_mixed_gpu_ondemand.csv",
 		CustomProvider: &provider.CustomProvider{
-			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../../../configs/default.json"),
 		},
 	}
 	c.DownloadPricingData()
@@ -836,9 +884,9 @@ func TestNodePriceFromCSVByClass(t *testing.T) {
 	})
 
 	c := &provider.CSVProvider{
-		CSVLocation: "../configs/pricing_schema_case.csv",
+		CSVLocation: "../../../configs/pricing_schema_case.csv",
 		CustomProvider: &provider.CustomProvider{
-			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../../../configs/default.json"),
 		},
 	}
 
