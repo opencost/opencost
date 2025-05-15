@@ -1,9 +1,10 @@
 name: Build and Publish Develop
 
 on:
-  push:
-    branches:
-      - develop
+  workflow_run:
+    workflows: [Build/Test]
+    types: [completed]
+    branches: [develop]
 
 concurrency:
   group: build-opencost-develop
@@ -16,6 +17,7 @@ env:
 jobs:
   build-and-publish-opencost:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: read
       packages: write
@@ -39,5 +41,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           image_tag: ${{ steps.tags.outputs.IMAGE_TAG }}
           release_version: develop-${{ steps.sha.outputs.OC_SHORTHASH }}
+      
+      - name: Install crane
+        uses: imjasonh/setup-crane@v0.4
+
+      - name: Tag and push latest image
+        run: |
+          # Extract the repository part (everything before the last colon)
+          REPO=$(echo "${{ steps.tags.outputs.IMAGE_TAG }}" | sed 's/:.*$//')
+          # Create the new tag
+          NEW_TAG="${REPO}:develop-latest"
+          echo "Copying ${{ steps.tags.outputs.IMAGE_TAG }} to ${NEW_TAG}"
+          crane copy "${{ steps.tags.outputs.IMAGE_TAG }}" "${NEW_TAG}"
 
 
