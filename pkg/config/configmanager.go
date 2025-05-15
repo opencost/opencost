@@ -46,7 +46,7 @@ func DefaultConfigFileManagerOpts() *ConfigFileManagerOpts {
 // ConfigFileManager is a fascade for a central API used to create and watch
 // config files.
 type ConfigFileManager struct {
-	lock  *sync.Mutex
+	lock  sync.Mutex
 	store storage.Storage
 	files map[string]*ConfigFile
 }
@@ -75,7 +75,6 @@ func NewConfigFileManager(opts *ConfigFileManagerOpts) *ConfigFileManager {
 	}
 
 	return &ConfigFileManager{
-		lock:  new(sync.Mutex),
 		store: configStore,
 		files: make(map[string]*ConfigFile),
 	}
