@@ -172,8 +172,23 @@ jobs:
             namespace: "${{ needs.wait_for_image_ready.outputs.NAMESPACE }}"
             target_branch: "${{ github.event.pull_request.head.ref || 'main' }}"
     
-    teardown-test-stack:
+    hold-on-failure:
         needs: [wait_for_image_ready, run-tests]
+        if: ${{ needs.run-tests.outputs.passed == 'false' }}
+        runs-on: ubuntu-latest
+        permissions: {}
+        steps:
+          - name: Hold stack for investigation
+            env:
+              NAMESPACE: ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}
+            run: |
+              echo "Tests failed. Holding stack up for 1 hour for investigation..."
+              echo "Stack namespace: $NAMESPACE"
+              echo "Stack will be automatically torn down after 1 hour"
+              sleep 3600
+    
+    teardown-test-stack:
+        needs: [wait_for_image_ready, run-tests, hold-on-failure]
         if: ${{ (always() && !cancelled()) && ( github.event.event_name == 'schedule'  || github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request_target'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
         uses: opencost/opencost-infra/.github/workflows/destroy-stack.yaml@main
         secrets: inherit 
