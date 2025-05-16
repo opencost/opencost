@@ -45,13 +45,14 @@ RUN apk add --update --no-cache ca-certificates
 
 COPY --from=build-env /go/bin/app /go/bin/app
 ADD --chmod=600 ./THIRD_PARTY_LICENSES.txt /THIRD_PARTY_LICENSES.txt
-ADD --chmod=600 --chown=1001:1001 ./configs/default.json /models/default.json
-ADD --chmod=600 --chown=1001:1001 ./configs/azure.json /models/azure.json
-ADD --chmod=600 --chown=1001:1001 ./configs/aws.json /models/aws.json
-ADD --chmod=600 --chown=1001:1001 ./configs/gcp.json /models/gcp.json
-ADD --chmod=600 --chown=1001:1001 ./configs/alibaba.json /models/alibaba.json
-ADD --chmod=600 --chown=1001:1001 ./configs/oracle.json /models/oracle.json
-ADD --chmod=600 --chown=1001:1001 ./configs/otc.json /models/otc.json
+ADD --chmod=600 ./configs/default.json /models/default.json
+ADD --chmod=600 ./configs/azure.json /models/azure.json
+ADD --chmod=600 ./configs/aws.json /models/aws.json
+ADD --chmod=600 ./configs/gcp.json /models/gcp.json
+ADD --chmod=600 ./configs/alibaba.json /models/alibaba.json
+ADD --chmod=600 ./configs/oracle.json /models/oracle.json
+ADD --chmod=600 ./configs/otc.json /models/otc.json
+RUN chown -R 1001:1001 /models
 
 USER 1001
 ENTRYPOINT ["/go/bin/app"]
