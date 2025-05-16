@@ -10,6 +10,7 @@ concurrency:
   group: build-opencost-develop
   cancel-in-progress: false
 
+permissions: {}
 jobs:
   prep-image-name:
     runs-on: ubuntu-latest
@@ -26,8 +27,11 @@ jobs:
 
       - name: Set OpenCost Image Tags
         id: tags
+        env:
+          REPO_OWNER: ${{ github.repository_owner }} 
+          OC_SHORTHASH: ${{ steps.sha.outputs.OC_SHORTHASH }}
         run: |
-          echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:develop-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=ghcr.io/$REPO_OWNER/opencost:develop-$OC_SHORTHASH" >> $GITHUB_OUTPUT
  
   install-on-demo:
     needs: [prep-image-name]

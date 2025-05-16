@@ -184,3 +184,4 @@ func TestHTTPProtocol_WriteData_Structure(t *testing.T) {
 	assert.NotContains(t, body, "message")
 	assert.NotContains(t, body, "warning")
 }
+ 
