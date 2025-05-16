@@ -42,6 +42,7 @@ LABEL org.opencontainers.image.title=kubecost-cost-model
 LABEL org.opencontainers.image.url=https://opencost.io
 
 RUN apk add --update --no-cache ca-certificates
+USER 1001
 COPY --from=build-env /go/bin/app /go/bin/app
 ADD --chmod=644 ./THIRD_PARTY_LICENSES.txt /THIRD_PARTY_LICENSES.txt
 ADD --chmod=644 ./configs/default.json /models/default.json
@@ -51,5 +52,5 @@ ADD --chmod=644 ./configs/gcp.json /models/gcp.json
 ADD --chmod=644 ./configs/alibaba.json /models/alibaba.json
 ADD --chmod=644 ./configs/oracle.json /models/oracle.json
 ADD --chmod=644 ./configs/otc.json /models/otc.json
-USER 1001
+
 ENTRYPOINT ["/go/bin/app"]
