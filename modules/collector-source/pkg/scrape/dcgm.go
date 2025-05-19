@@ -6,7 +6,6 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 )
 
@@ -18,15 +17,14 @@ const (
 	DCGMFIDEVDECUTIL         = "DCGM_FI_DEV_DEC_UTIL"
 )
 
-func newDCGMScrapper(clusterCache clustercache.ClusterCache, updater metric.MetricUpdater) Scraper {
+func newDCGMScrapper(clusterCache clustercache.ClusterCache) Scraper {
 	tp := newDCGMTargetProvider(clusterCache)
-	return newDCGMTargetScraper(tp, updater)
+	return newDCGMTargetScraper(tp)
 }
 
-func newDCGMTargetScraper(provider target.TargetProvider, updater metric.MetricUpdater) *TargetScraper {
+func newDCGMTargetScraper(provider target.TargetProvider) *TargetScraper {
 	return newTargetScrapper(
 		provider,
-		updater,
 		[]string{
 			DCGMFIPROFGRENGINEACTIVE,
 			DCGMFIDEVDECUTIL,

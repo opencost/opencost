@@ -1,7 +1,7 @@
 package collector
 
 import (
-	"time"
+	"fmt"
 
 	"github.com/opencost/opencost/modules/collector-source/pkg/env"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
@@ -9,7 +9,7 @@ import (
 
 type CollectorConfig struct {
 	Resolutions    []util.ResolutionConfiguration `json:"resolutions"`
-	ScrapeInterval time.Duration                  `json:"scrape_interval"`
+	ScrapeInterval string                         `json:"scrape_interval"`
 	ClusterID      string                         `json:"cluster_id"`
 	ReleaseName    string                         `json:"release_name"`
 	NetworkPort    int                            `json:"network_port"`
@@ -31,7 +31,7 @@ func NewOpenCostCollectorConfigFromEnv() CollectorConfig {
 				Retention: env.GetCollection1dResolutionRetention(),
 			},
 		},
-		ScrapeInterval: time.Second * time.Duration(env.GetCollectorScrapeIntervalSeconds()),
+		ScrapeInterval: fmt.Sprintf("%ds", env.GetCollectorScrapeIntervalSeconds()),
 		ClusterID:      env.GetClusterID(),
 		ReleaseName:    env.GetReleaseName(),
 		NetworkPort:    env.GetNetworkPort(),

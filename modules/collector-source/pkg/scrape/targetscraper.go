@@ -1,59 +1,66 @@
 package scrape
 
 import (
-	"time"
-
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/parser"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 )
 
 type TargetScraper struct {
 	targetProvider target.TargetProvider
-	metricUpdater  metric.MetricUpdater
 	metricNames    map[string]struct{} // filter for which metrics will be processed
 	includeMetrics bool                // toggle to make metrics an include or exclude list
 }
 
-func newTargetScrapper(provider target.TargetProvider, updater metric.MetricUpdater, metricNames []string, includeMetrics bool) *TargetScraper {
+func newTargetScrapper(provider target.TargetProvider, metricNames []string, includeMetrics bool) *TargetScraper {
 	metricSet := make(map[string]struct{})
 	for _, metricName := range metricNames {
 		metricSet[metricName] = struct{}{}
 	}
 	return &TargetScraper{
 		targetProvider: provider,
-		metricUpdater:  updater,
 		metricNames:    metricSet,
 		includeMetrics: includeMetrics,
 	}
 }
 
-func (s *TargetScraper) Scrape() {
-	targets := s.targetProvider.GetTargets()
-	for _, target := range targets {
-		now := time.Now().UTC()
-		f, err := target.Load()
-		if err != nil {
-			log.Errorf("failed to scrape target: %s", err.Error())
-			continue
-		}
-		results, err := parser.Parse(f)
-		if err != nil {
-			log.Errorf("failed to parse target: %s", err.Error())
-			continue
-		}
+func (s *TargetScraper) Scrape() []ScrapeResult {
+	resultCh := make(chan []ScrapeResult)
+	defer close(resultCh)
 
-		for _, result := range results {
-			// filter metrics to be processed by name
-			if _, ok := s.metricNames[result.Name]; ok != s.includeMetrics {
-				continue
+	targets := s.targetProvider.GetTargets()
+	for i := range targets {
+		target := targets[i]
+		go func() {
+			var scrapeResults []ScrapeResult
+			defer func() { resultCh <- scrapeResults }()
+			f, err := target.Load()
+			if err != nil {
+				log.Errorf("failed to scrape target: %s", err.Error())
+				return
 			}
-			timestamp := now
-			if result.Timestamp != nil {
-				timestamp = *result.Timestamp
+			results, err := parser.Parse(f)
+			if err != nil {
+				log.Errorf("failed to parse target: %s", err.Error())
+				return
 			}
-			s.metricUpdater.Update(result.Name, result.Labels, result.Value, timestamp, nil)
-		}
+			for _, result := range results {
+				// filter metrics to be processed by name
+				if _, ok := s.metricNames[result.Name]; ok != s.includeMetrics {
+					continue
+				}
+				scrapeResults = append(scrapeResults, ScrapeResult{
+					Name:   result.Name,
+					Labels: result.Labels,
+					Value:  result.Value,
+				})
+			}
+		}()
 	}
+	var scrapeResults []ScrapeResult
+	for range targets {
+		targetResults := <-resultCh
+		scrapeResults = append(scrapeResults, targetResults...)
+	}
+	return scrapeResults
 }

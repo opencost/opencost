@@ -1,6 +1,7 @@
 package scrape
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
@@ -8,45 +9,50 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/atomic"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
-	"k8s.io/client-go/kubernetes"
 )
 
 // ScrapeController initializes and holds the scrapers in addition to running the loop that triggers scrapes
 type ScrapeController struct {
-	scrapeInterval time.Duration
+	scrapeInterval util.Interval
 	runState       atomic.AtomicRunState
 	scrapers       []Scraper
+	repo           *metric.MetricRepository
 }
 
 func NewScrapeController(
-	scrapeInterval time.Duration,
+	scrapeInterval string,
 	releaseName string,
 	networkPort int,
-	updater metric.MetricUpdater,
+	repo *metric.MetricRepository,
 	clusterCache clustercache.ClusterCache,
-	k8s kubernetes.Interface,
 	statSummaryClient util.StatSummaryClient,
 ) *ScrapeController {
 	var scrapers []Scraper
 
-	clusterCacheScraper := newClusterCacheScraper(clusterCache, updater)
+	clusterCacheScraper := newClusterCacheScraper(clusterCache)
 	scrapers = append(scrapers, clusterCacheScraper)
 
-	opencostScraper := newOpenCostScraper(updater)
+	opencostScraper := newOpenCostScraper()
 	scrapers = append(scrapers, opencostScraper)
 
-	statSummaryScraper := newStatSummaryScraper(statSummaryClient, updater)
+	statSummaryScraper := newStatSummaryScraper(statSummaryClient)
 	scrapers = append(scrapers, statSummaryScraper)
 
-	networkScraper := newNetworkScraper(releaseName, networkPort, clusterCache, updater)
+	networkScraper := newNetworkScraper(releaseName, networkPort, clusterCache)
 	scrapers = append(scrapers, networkScraper)
 
-	dcgmScraper := newDCGMScrapper(clusterCache, updater)
+	dcgmScraper := newDCGMScrapper(clusterCache)
 	scrapers = append(scrapers, dcgmScraper)
 
+	si, err := util.NewInterval(scrapeInterval)
+	if err != nil {
+		panic(fmt.Errorf("scrapecontroller failed to create scrape interval: %w", err))
+	}
+
 	sc := &ScrapeController{
-		scrapeInterval: scrapeInterval,
+		scrapeInterval: si,
 		scrapers:       scrapers,
+		repo:           repo,
 	}
 	return sc
 }
@@ -62,24 +68,53 @@ func (sc *ScrapeController) Start() {
 		return
 	}
 	go func() {
-		ticker := time.NewTicker(sc.scrapeInterval)
+		nextScrape := time.Now().UTC()
+		timer := time.NewTimer(time.Duration(0))
 		for {
-			for _, scraper := range sc.scrapers {
-				scraper.Scrape()
-			}
 			select {
 			case <-sc.runState.OnStop():
 				sc.runState.Reset()
-				ticker.Stop()
+				timer.Stop()
 				return // exit go routine
-			case <-ticker.C:
+			case <-timer.C:
+				sc.Scrape(nextScrape)
+				nextScrape = sc.scrapeInterval.Add(sc.scrapeInterval.Truncate(time.Now().UTC()), 1)
+				timer.Reset(time.Until(nextScrape))
 			}
-
 		}
-
 	}()
 }
 
 func (sc *ScrapeController) Stop() {
 	sc.runState.Stop()
+}
+
+func (sc *ScrapeController) Scrape(timestamp time.Time) {
+	resultCh := make(chan []ScrapeResult)
+	defer close(resultCh)
+
+	// Run scrapes concurrently to minimize time from call to data collection
+	for i := range sc.scrapers {
+		scraper := sc.scrapers[i]
+		go func() {
+			res := scraper.Scrape()
+			resultCh <- res
+		}()
+	}
+
+	// receive one result per scraper and
+	var scrapeResults []ScrapeResult
+	for range sc.scrapers {
+		res := <-resultCh
+		scrapeResults = append(scrapeResults, res...)
+	}
+
+	// once all results are returned run updates all at once
+	// TODO do some kind of locking batch update here
+	for _, res := range scrapeResults {
+		sc.repo.Update(res.Name, res.Labels, res.Value, timestamp, res.AdditionalInfo)
+	}
+
+	// TODO save WAL
+
 }

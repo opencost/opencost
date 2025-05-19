@@ -23,7 +23,10 @@ type MetricStore interface {
 	// Query accepts a `MetricCollectorID` and returns a slice of `MetricResult` instances for that metric.
 	Query(collectorID MetricCollectorID) ([]*aggregator.MetricResult, error)
 
-	MetricUpdater
+	// Update accepts the name of a metric, the label set and values to update the metric, the updated Value, and a Timestamp.
+	// This method does not accept a `MetricCollectorID` because it provides updates across many potential MetricCollector instances
+	// which utilize the same metric.
+	Update(metricName string, labels map[string]string, value float64, timestamp time.Time, additionalInformation map[string]string)
 }
 
 type MetricStoreFactory func() MetricStore

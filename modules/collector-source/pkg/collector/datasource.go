@@ -11,7 +11,6 @@ import (
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
-	"k8s.io/client-go/kubernetes"
 )
 
 type collectorDataSource struct {
@@ -24,7 +23,6 @@ type collectorDataSource struct {
 func NewDefaultCollectorDataSource(
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
-	k8s kubernetes.Interface,
 	statSummaryClient util.StatSummaryClient,
 ) source.OpenCostDataSource {
 	config := NewOpenCostCollectorConfigFromEnv()
@@ -32,7 +30,6 @@ func NewDefaultCollectorDataSource(
 		config,
 		clusterInfoProvider,
 		clusterCache,
-		k8s,
 		statSummaryClient,
 	)
 }
@@ -41,7 +38,6 @@ func NewCollectorDataSource(
 	config CollectorConfig,
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
-	k8s kubernetes.Interface,
 	statSummaryClient util.StatSummaryClient,
 ) source.OpenCostDataSource {
 
@@ -58,7 +54,6 @@ func NewCollectorDataSource(
 		config.NetworkPort,
 		repo,
 		clusterCache,
-		k8s,
 		statSummaryClient,
 	)
 	scrapeController.Start()
@@ -104,5 +99,8 @@ func (c *collectorDataSource) BatchDuration() time.Duration {
 }
 
 func (c *collectorDataSource) Resolution() time.Duration {
-	return c.config.ScrapeInterval
+	interval, _ := util.NewInterval(c.config.ScrapeInterval)
+	current := interval.Truncate(time.Now().UTC())
+	next := interval.Add(current, 1)
+	return next.Sub(current)
 }

@@ -5,7 +5,6 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 )
 
@@ -19,16 +18,14 @@ func newNetworkScraper(
 	releaseName string,
 	port int,
 	clusterCache clustercache.ClusterCache,
-	updater metric.MetricUpdater,
 ) Scraper {
 	tp := NewNetworkTargetProvider(releaseName, port, clusterCache)
-	return newNetworkTargetScraper(tp, updater)
+	return newNetworkTargetScraper(tp)
 }
 
-func newNetworkTargetScraper(provider target.TargetProvider, updater metric.MetricUpdater) *TargetScraper {
+func newNetworkTargetScraper(provider target.TargetProvider) *TargetScraper {
 	return newTargetScrapper(
 		provider,
-		updater,
 		[]string{
 			KubecostPodNetworkEgressBytesTotal,
 			KubecostPodNetworkIngressBytesTotal,

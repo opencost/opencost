@@ -3,7 +3,6 @@ package scrape
 import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
-	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
@@ -21,22 +20,21 @@ const (
 )
 
 type StatSummaryScraper struct {
-	client  util.StatSummaryClient
-	updater metric.MetricUpdater
+	client util.StatSummaryClient
 }
 
-func newStatSummaryScraper(client util.StatSummaryClient, updater metric.MetricUpdater) Scraper {
+func newStatSummaryScraper(client util.StatSummaryClient) Scraper {
 	return &StatSummaryScraper{
-		client:  client,
-		updater: updater,
+		client: client,
 	}
 }
 
-func (s *StatSummaryScraper) Scrape() {
+func (s *StatSummaryScraper) Scrape() []ScrapeResult {
+	var scrapeResults []ScrapeResult
 	nodeStats, err := s.client.GetNodeData()
 	if err != nil {
 		log.Errorf("error retrieving node stat data: %s", err.Error())
-		return
+		return scrapeResults
 	}
 
 	// track if a pvc has already been seen when updating KubeletVolumeStatsUsedBytes
@@ -45,29 +43,25 @@ func (s *StatSummaryScraper) Scrape() {
 	for _, stat := range nodeStats {
 		nodeName := stat.Node.NodeName
 		if stat.Node.CPU != nil && stat.Node.CPU.UsageCoreNanoSeconds != nil {
-			s.updater.Update(
-				NodeCPUSecondsTotal,
-				map[string]string{
+			scrapeResults = append(scrapeResults, ScrapeResult{
+				Name: NodeCPUSecondsTotal,
+				Labels: map[string]string{
 					source.KubernetesNodeLabel: nodeName,
 					source.ModeLabel:           "", // TODO
 				},
-				float64(*stat.Node.CPU.UsageCoreNanoSeconds)*1e-9,
-				stat.Node.CPU.Time.Time,
-				nil,
-			)
+				Value: float64(*stat.Node.CPU.UsageCoreNanoSeconds) * 1e-9,
+			})
 		}
 
 		if stat.Node.Fs != nil && stat.Node.Fs.CapacityBytes != nil {
-			s.updater.Update(
-				NodeFSCapacityBytes,
-				map[string]string{
+			scrapeResults = append(scrapeResults, ScrapeResult{
+				Name: NodeFSCapacityBytes,
+				Labels: map[string]string{
 					source.InstanceLabel: nodeName,
 					source.DeviceLabel:   "local", // This value has to be populated but isn't important here
 				},
-				float64(*stat.Node.Fs.CapacityBytes),
-				stat.Node.Fs.Time.Time,
-				nil,
-			)
+				Value: float64(*stat.Node.Fs.CapacityBytes),
+			})
 		}
 
 		for _, pod := range stat.Pods {
@@ -77,31 +71,27 @@ func (s *StatSummaryScraper) Scrape() {
 
 			if pod.Network != nil {
 				if pod.Network.RxBytes != nil {
-					s.updater.Update(
-						ContainerNetworkReceiveBytesTotal,
-						map[string]string{
+					scrapeResults = append(scrapeResults, ScrapeResult{
+						Name: ContainerNetworkReceiveBytesTotal,
+						Labels: map[string]string{
 							source.UIDLabel:       podUID,
 							source.PodLabel:       podName,
 							source.NamespaceLabel: namespace,
 						},
-						float64(*pod.Network.RxBytes),
-						pod.Network.Time.Time,
-						nil,
-					)
+						Value: float64(*pod.Network.RxBytes),
+					})
 				}
 
 				if pod.Network.TxBytes != nil {
-					s.updater.Update(
-						ContainerNetworkTransmitBytesTotal,
-						map[string]string{
+					scrapeResults = append(scrapeResults, ScrapeResult{
+						Name: ContainerNetworkTransmitBytesTotal,
+						Labels: map[string]string{
 							source.UIDLabel:       podUID,
 							source.PodLabel:       podName,
 							source.NamespaceLabel: namespace,
 						},
-						float64(*pod.Network.TxBytes),
-						pod.Network.Time.Time,
-						nil,
-					)
+						Value: float64(*pod.Network.TxBytes),
+					})
 				}
 			}
 
@@ -112,64 +102,57 @@ func (s *StatSummaryScraper) Scrape() {
 				if _, ok := seenPVC[*volumeStats.PVCRef]; ok {
 					continue
 				}
-				s.updater.Update(
-					KubeletVolumeStatsUsedBytes,
-					map[string]string{
+				scrapeResults = append(scrapeResults, ScrapeResult{
+					Name: KubeletVolumeStatsUsedBytes,
+					Labels: map[string]string{
 						source.PVCLabel:       volumeStats.PVCRef.Name,
 						source.NamespaceLabel: volumeStats.PVCRef.Namespace,
 					},
-					float64(*volumeStats.UsedBytes),
-					volumeStats.Time.Time,
-					nil,
-				)
+					Value: float64(*volumeStats.UsedBytes),
+				})
 				seenPVC[*volumeStats.PVCRef] = struct{}{}
 			}
 
 			for _, container := range pod.Containers {
 				if container.CPU != nil && container.CPU.UsageCoreNanoSeconds != nil {
-					s.updater.Update(
-						ContainerCPUUsageSecondsTotal,
-						map[string]string{
+					scrapeResults = append(scrapeResults, ScrapeResult{
+						Name: ContainerCPUUsageSecondsTotal,
+						Labels: map[string]string{
 							source.ContainerLabel: container.Name,
 							source.PodLabel:       podName,
 							source.NamespaceLabel: namespace,
 							source.NodeLabel:      nodeName,
 							source.InstanceLabel:  nodeName,
 						},
-						float64(*container.CPU.UsageCoreNanoSeconds)*1e-9,
-						container.CPU.Time.Time,
-						nil,
-					)
+						Value: float64(*container.CPU.UsageCoreNanoSeconds) * 1e-9,
+					})
 				}
 				if container.Memory != nil && container.Memory.WorkingSetBytes != nil {
-					s.updater.Update(
-						ContainerMemoryWorkingSetBytes,
-						map[string]string{
+					scrapeResults = append(scrapeResults, ScrapeResult{
+						Name: ContainerMemoryWorkingSetBytes,
+						Labels: map[string]string{
 							source.ContainerLabel: container.Name,
 							source.PodLabel:       podName,
 							source.NamespaceLabel: namespace,
 							source.NodeLabel:      nodeName,
 							source.InstanceLabel:  nodeName,
 						},
-						float64(*container.Memory.WorkingSetBytes),
-						container.Memory.Time.Time,
-						nil,
-					)
+						Value: float64(*container.Memory.WorkingSetBytes),
+					})
 				}
 
 				if container.Rootfs != nil && container.Rootfs.UsedBytes != nil {
-					s.updater.Update(
-						ContainerFSUsageBytes,
-						map[string]string{
+					scrapeResults = append(scrapeResults, ScrapeResult{
+						Name: ContainerFSUsageBytes,
+						Labels: map[string]string{
 							source.InstanceLabel: nodeName,
 							source.DeviceLabel:   "local",
 						},
-						float64(*container.Rootfs.UsedBytes),
-						container.Rootfs.Time.Time,
-						nil,
-					)
+						Value: float64(*container.Rootfs.UsedBytes),
+					})
 				}
 			}
 		}
 	}
+	return scrapeResults
 }
