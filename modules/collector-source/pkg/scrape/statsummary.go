@@ -3,6 +3,7 @@ package scrape
 import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
@@ -29,8 +30,8 @@ func newStatSummaryScraper(client util.StatSummaryClient) Scraper {
 	}
 }
 
-func (s *StatSummaryScraper) Scrape() []ScrapeResult {
-	var scrapeResults []ScrapeResult
+func (s *StatSummaryScraper) Scrape() []metric.Update {
+	var scrapeResults []metric.Update
 	nodeStats, err := s.client.GetNodeData()
 	if err != nil {
 		log.Errorf("error retrieving node stat data: %s", err.Error())
@@ -43,7 +44,7 @@ func (s *StatSummaryScraper) Scrape() []ScrapeResult {
 	for _, stat := range nodeStats {
 		nodeName := stat.Node.NodeName
 		if stat.Node.CPU != nil && stat.Node.CPU.UsageCoreNanoSeconds != nil {
-			scrapeResults = append(scrapeResults, ScrapeResult{
+			scrapeResults = append(scrapeResults, metric.Update{
 				Name: NodeCPUSecondsTotal,
 				Labels: map[string]string{
 					source.KubernetesNodeLabel: nodeName,
@@ -54,7 +55,7 @@ func (s *StatSummaryScraper) Scrape() []ScrapeResult {
 		}
 
 		if stat.Node.Fs != nil && stat.Node.Fs.CapacityBytes != nil {
-			scrapeResults = append(scrapeResults, ScrapeResult{
+			scrapeResults = append(scrapeResults, metric.Update{
 				Name: NodeFSCapacityBytes,
 				Labels: map[string]string{
 					source.InstanceLabel: nodeName,
@@ -71,7 +72,7 @@ func (s *StatSummaryScraper) Scrape() []ScrapeResult {
 
 			if pod.Network != nil {
 				if pod.Network.RxBytes != nil {
-					scrapeResults = append(scrapeResults, ScrapeResult{
+					scrapeResults = append(scrapeResults, metric.Update{
 						Name: ContainerNetworkReceiveBytesTotal,
 						Labels: map[string]string{
 							source.UIDLabel:       podUID,
@@ -83,7 +84,7 @@ func (s *StatSummaryScraper) Scrape() []ScrapeResult {
 				}
 
 				if pod.Network.TxBytes != nil {
-					scrapeResults = append(scrapeResults, ScrapeResult{
+					scrapeResults = append(scrapeResults, metric.Update{
 						Name: ContainerNetworkTransmitBytesTotal,
 						Labels: map[string]string{
 							source.UIDLabel:       podUID,
@@ -102,7 +103,7 @@ func (s *StatSummaryScraper) Scrape() []ScrapeResult {
 				if _, ok := seenPVC[*volumeStats.PVCRef]; ok {
 					continue
 				}
-				scrapeResults = append(scrapeResults, ScrapeResult{
+				scrapeResults = append(scrapeResults, metric.Update{
 					Name: KubeletVolumeStatsUsedBytes,
 					Labels: map[string]string{
 						source.PVCLabel:       volumeStats.PVCRef.Name,
@@ -115,7 +116,7 @@ func (s *StatSummaryScraper) Scrape() []ScrapeResult {
 
 			for _, container := range pod.Containers {
 				if container.CPU != nil && container.CPU.UsageCoreNanoSeconds != nil {
-					scrapeResults = append(scrapeResults, ScrapeResult{
+					scrapeResults = append(scrapeResults, metric.Update{
 						Name: ContainerCPUUsageSecondsTotal,
 						Labels: map[string]string{
 							source.ContainerLabel: container.Name,
@@ -128,7 +129,7 @@ func (s *StatSummaryScraper) Scrape() []ScrapeResult {
 					})
 				}
 				if container.Memory != nil && container.Memory.WorkingSetBytes != nil {
-					scrapeResults = append(scrapeResults, ScrapeResult{
+					scrapeResults = append(scrapeResults, metric.Update{
 						Name: ContainerMemoryWorkingSetBytes,
 						Labels: map[string]string{
 							source.ContainerLabel: container.Name,
@@ -142,7 +143,7 @@ func (s *StatSummaryScraper) Scrape() []ScrapeResult {
 				}
 
 				if container.Rootfs != nil && container.Rootfs.UsedBytes != nil {
-					scrapeResults = append(scrapeResults, ScrapeResult{
+					scrapeResults = append(scrapeResults, metric.Update{
 						Name: ContainerFSUsageBytes,
 						Labels: map[string]string{
 							source.InstanceLabel: nodeName,

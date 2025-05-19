@@ -2,6 +2,7 @@ package scrape
 
 import (
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/parser"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 )
@@ -24,43 +25,38 @@ func newTargetScrapper(provider target.TargetProvider, metricNames []string, inc
 	}
 }
 
-func (s *TargetScraper) Scrape() []ScrapeResult {
-	resultCh := make(chan []ScrapeResult)
-	defer close(resultCh)
-
+func (s *TargetScraper) Scrape() []metric.Update {
 	targets := s.targetProvider.GetTargets()
+	var scrapeFuncs []ScrapeFunc
 	for i := range targets {
 		target := targets[i]
-		go func() {
-			var scrapeResults []ScrapeResult
-			defer func() { resultCh <- scrapeResults }()
+		fn := func() []metric.Update {
+			var scrapeResults []metric.Update
 			f, err := target.Load()
 			if err != nil {
 				log.Errorf("failed to scrape target: %s", err.Error())
-				return
+				return scrapeResults
 			}
 			results, err := parser.Parse(f)
 			if err != nil {
 				log.Errorf("failed to parse target: %s", err.Error())
-				return
+				return scrapeResults
 			}
 			for _, result := range results {
 				// filter metrics to be processed by name
 				if _, ok := s.metricNames[result.Name]; ok != s.includeMetrics {
 					continue
 				}
-				scrapeResults = append(scrapeResults, ScrapeResult{
+				scrapeResults = append(scrapeResults, metric.Update{
 					Name:   result.Name,
 					Labels: result.Labels,
 					Value:  result.Value,
 				})
 			}
-		}()
+			return scrapeResults
+		}
+		scrapeFuncs = append(scrapeFuncs, fn)
 	}
-	var scrapeResults []ScrapeResult
-	for range targets {
-		targetResults := <-resultCh
-		scrapeResults = append(scrapeResults, targetResults...)
-	}
-	return scrapeResults
+
+	return concurrentScrape(scrapeFuncs...)
 }

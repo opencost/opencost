@@ -90,31 +90,18 @@ func (sc *ScrapeController) Stop() {
 }
 
 func (sc *ScrapeController) Scrape(timestamp time.Time) {
-	resultCh := make(chan []ScrapeResult)
-	defer close(resultCh)
 
 	// Run scrapes concurrently to minimize time from call to data collection
+	var scrapeFuncs []ScrapeFunc
 	for i := range sc.scrapers {
 		scraper := sc.scrapers[i]
-		go func() {
-			res := scraper.Scrape()
-			resultCh <- res
-		}()
+		scrapeFuncs = append(scrapeFuncs, scraper.Scrape)
 	}
+	scrapeResults := concurrentScrape(scrapeFuncs...)
 
-	// receive one result per scraper and
-	var scrapeResults []ScrapeResult
-	for range sc.scrapers {
-		res := <-resultCh
-		scrapeResults = append(scrapeResults, res...)
-	}
-
-	// once all results are returned run updates all at once
-	// TODO do some kind of locking batch update here
-	for _, res := range scrapeResults {
-		sc.repo.Update(res.Name, res.Labels, res.Value, timestamp, res.AdditionalInfo)
-	}
-
+	// once all results are returned run updates all at once with the same timestamp
+	sc.repo.Update(scrapeResults, timestamp)
+	
 	// TODO save WAL
 
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
@@ -23,7 +24,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 	start1, _ := time.Parse(time.RFC3339, Start1Str)
 	tests := map[string]struct {
 		summaries []*stats.Summary
-		expected  []ScrapeResult
+		expected  []metric.Update
 	}{
 		"nil values": {
 			summaries: []*stats.Summary{
@@ -87,7 +88,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					},
 				},
 			},
-			expected: []ScrapeResult{},
+			expected: []metric.Update{},
 		},
 		"nil structs": {
 			summaries: []*stats.Summary{
@@ -118,7 +119,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					},
 				},
 			},
-			expected: []ScrapeResult{},
+			expected: []metric.Update{},
 		},
 		"single node": {
 			summaries: []*stats.Summary{
@@ -189,7 +190,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					},
 				},
 			},
-			expected: []ScrapeResult{
+			expected: []metric.Update{
 				{
 					Name: NodeCPUSecondsTotal,
 					Labels: map[string]string{
@@ -314,7 +315,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					},
 				},
 			},
-			expected: []ScrapeResult{
+			expected: []metric.Update{
 				{
 					Name: KubeletVolumeStatsUsedBytes,
 					Labels: map[string]string{

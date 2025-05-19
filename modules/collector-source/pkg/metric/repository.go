@@ -53,19 +53,25 @@ func (r *MetricRepository) GetCollector(interval string, t time.Time) (MetricSto
 
 // Update calls Update on the collectors for each resolution
 func (r *MetricRepository) Update(
-	metricName string,
-	labels map[string]string,
-	value float64,
+	updates []Update,
 	timestamp time.Time,
-	additionalInformation map[string]string,
 ) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	// Call update on the collectors for each resolution
-	for _, resCollector := range r.resolutionStores {
-		resCollector.update(metricName, labels, value, timestamp, additionalInformation)
+	for _, update := range updates {
+		// Call update on the collectors for each resolution
+		for _, resCollector := range r.resolutionStores {
+			resCollector.update(update.Name, update.Labels, update.Value, timestamp, update.AdditionalInfo)
+		}
 	}
+}
+
+type Update struct {
+	Name           string
+	Labels         map[string]string
+	Value          float64
+	AdditionalInfo map[string]string
 }
 
 func (r *MetricRepository) Coverage() map[string][]time.Time {

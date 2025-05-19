@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 )
 
@@ -104,13 +105,13 @@ func TestTargetScraper_Scrape(t *testing.T) {
 		name                 string
 		scrapeText           string
 		targetScraperFactory func(provider target.TargetProvider) *TargetScraper
-		expected             []ScrapeResult
+		expected             []metric.Update
 	}{
 		{
 			name:                 "Network Scrape",
 			scrapeText:           networkScape,
 			targetScraperFactory: newNetworkTargetScraper,
-			expected: []ScrapeResult{
+			expected: []metric.Update{
 				{
 					Name: KubecostPodNetworkEgressBytesTotal,
 					Labels: map[string]string{
@@ -165,7 +166,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 			name:                 "Opencost Metric",
 			scrapeText:           opencostScrape,
 			targetScraperFactory: newOpencostTargetScraper,
-			expected: []ScrapeResult{
+			expected: []metric.Update{
 				{
 					Name: KubecostClusterManagementCost,
 					Labels: map[string]string{
@@ -448,7 +449,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 			name:                 "GPU Metric",
 			scrapeText:           dcgmScrape,
 			targetScraperFactory: newDCGMTargetScraper,
-			expected: []ScrapeResult{
+			expected: []metric.Update{
 				{
 					Name: DCGMFIPROFGRENGINEACTIVE,
 					Labels: map[string]string{

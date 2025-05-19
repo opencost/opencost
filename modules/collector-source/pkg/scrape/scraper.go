@@ -1,20 +1,17 @@
 package scrape
 
+import (
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
+)
+
 type Scraper interface {
-	Scrape() []ScrapeResult
+	Scrape() []metric.Update
 }
 
-type ScrapeResult struct {
-	Name           string
-	Labels         map[string]string
-	Value          float64
-	AdditionalInfo map[string]string
-}
+type ScrapeFunc func() []metric.Update
 
-type ScrapeFunc func() []ScrapeResult
-
-func concurrentScrape(scrapeFuncs ...ScrapeFunc) []ScrapeResult {
-	resultCh := make(chan []ScrapeResult)
+func concurrentScrape(scrapeFuncs ...ScrapeFunc) []metric.Update {
+	resultCh := make(chan []metric.Update)
 	defer close(resultCh)
 	for _, scrapeFunc := range scrapeFuncs {
 		go func() {
@@ -23,7 +20,7 @@ func concurrentScrape(scrapeFuncs ...ScrapeFunc) []ScrapeResult {
 		}()
 	}
 
-	var scrapeResults []ScrapeResult
+	var scrapeResults []metric.Update
 	for range scrapeFuncs {
 		targetResults := <-resultCh
 		scrapeResults = append(scrapeResults, targetResults...)

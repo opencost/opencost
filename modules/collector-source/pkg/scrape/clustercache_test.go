@@ -7,6 +7,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -26,7 +27,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 	tests := []struct {
 		name     string
 		scrapes  []scrape
-		expected []ScrapeResult
+		expected []metric.Update
 	}{
 		{
 			name: "simple",
@@ -55,7 +56,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
-			expected: []ScrapeResult{
+			expected: []metric.Update{
 				{
 					Name: KubeNodeStatusCapacityCPUCores,
 					Labels: map[string]string{
@@ -110,7 +111,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
-			var scrapeResults []ScrapeResult
+			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
 				res := ks.scrapeNodes(s.Nodes)
 				scrapeResults = append(scrapeResults, res...)
@@ -141,7 +142,7 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 	tests := []struct {
 		name     string
 		scrapes  []scrape
-		expected []ScrapeResult
+		expected []metric.Update
 	}{
 		{
 			name: "simple",
@@ -160,7 +161,7 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
-			expected: []ScrapeResult{
+			expected: []metric.Update{
 
 				{
 					Name: DeploymentMatchLabels,
@@ -180,7 +181,7 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
-			var scrapeResults []ScrapeResult
+			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
 				res := ks.scrapeDeployments(s.Deployments)
 				scrapeResults = append(scrapeResults, res...)
@@ -211,7 +212,7 @@ func Test_kubernetesScraper_scrapeNamespaces(t *testing.T) {
 	tests := []struct {
 		name     string
 		scrapes  []scrape
-		expected []ScrapeResult
+		expected []metric.Update
 	}{
 		{
 			name: "simple",
@@ -233,7 +234,7 @@ func Test_kubernetesScraper_scrapeNamespaces(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
-			expected: []ScrapeResult{
+			expected: []metric.Update{
 				{
 					Name: KubeNamespaceLabels,
 					Labels: map[string]string{
@@ -262,7 +263,7 @@ func Test_kubernetesScraper_scrapeNamespaces(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
-			var scrapeResults []ScrapeResult
+			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
 				res := ks.scrapeNamespaces(s.Namespaces)
 				scrapeResults = append(scrapeResults, res...)
@@ -293,7 +294,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 	tests := []struct {
 		name     string
 		scrapes  []scrape
-		expected []ScrapeResult
+		expected []metric.Update
 	}{
 		{
 			name: "simple",
@@ -348,7 +349,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
-			expected: []ScrapeResult{
+			expected: []metric.Update{
 				{
 					Name: KubePodLabels,
 					Labels: map[string]string{
@@ -442,7 +443,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
-			var scrapeResults []ScrapeResult
+			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
 				res := ks.scrapePods(s.Pods)
 				scrapeResults = append(scrapeResults, res...)
@@ -473,7 +474,7 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 	tests := []struct {
 		name     string
 		scrapes  []scrape
-		expected []ScrapeResult
+		expected []metric.Update
 	}{
 		{
 			name: "simple",
@@ -497,7 +498,7 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
-			expected: []ScrapeResult{
+			expected: []metric.Update{
 				{
 					Name: KubePersistentVolumeClaimInfo,
 					Labels: map[string]string{
@@ -526,7 +527,7 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
-			var scrapeResults []ScrapeResult
+			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
 				res := ks.scrapePVCs(s.PVCs)
 				scrapeResults = append(scrapeResults, res...)
@@ -557,7 +558,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 	tests := []struct {
 		name     string
 		scrapes  []scrape
-		expected []ScrapeResult
+		expected []metric.Update
 	}{
 		{
 			name: "simple",
@@ -582,7 +583,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
-			expected: []ScrapeResult{
+			expected: []metric.Update{
 				{
 					Name: KubecostPVInfo,
 					Labels: map[string]string{
@@ -609,7 +610,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
-			var scrapeResults []ScrapeResult
+			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
 				res := ks.scrapePVs(s.PVs)
 				scrapeResults = append(scrapeResults, res...)
@@ -640,7 +641,7 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 	tests := []struct {
 		name     string
 		scrapes  []scrape
-		expected []ScrapeResult
+		expected []metric.Update
 	}{
 		{
 			name: "simple",
@@ -659,7 +660,7 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
-			expected: []ScrapeResult{
+			expected: []metric.Update{
 				{
 					Name: ServiceSelectorLabels,
 					Labels: map[string]string{
@@ -678,7 +679,7 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
-			var scrapeResults []ScrapeResult
+			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
 				res := ks.scrapeServices(s.Services)
 				scrapeResults = append(scrapeResults, res...)
@@ -709,7 +710,7 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 	tests := []struct {
 		name     string
 		scrapes  []scrape
-		expected []ScrapeResult
+		expected []metric.Update
 	}{
 		{
 			name: "simple",
@@ -730,7 +731,7 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
-			expected: []ScrapeResult{
+			expected: []metric.Update{
 				{
 					Name: StatefulSetMatchLabels,
 					Labels: map[string]string{
@@ -749,7 +750,7 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
-			var scrapeResults []ScrapeResult
+			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
 				res := ks.scrapeStatefulSets(s.StatefulSets)
 				scrapeResults = append(scrapeResults, res...)
@@ -780,7 +781,7 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 	tests := []struct {
 		name     string
 		scrapes  []scrape
-		expected []ScrapeResult
+		expected []metric.Update
 	}{
 		{
 			name: "simple",
@@ -801,7 +802,7 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
-			expected: []ScrapeResult{
+			expected: []metric.Update{
 				{
 					Name: KubeReplicasetOwner,
 					Labels: map[string]string{
@@ -818,7 +819,7 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
-			var scrapeResults []ScrapeResult
+			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
 				res := ks.scrapeReplicaSets(s.ReplicaSets)
 				scrapeResults = append(scrapeResults, res...)
