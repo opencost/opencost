@@ -16,6 +16,7 @@ concurrency:
     group: ${{ github.event.merge_group.head.sha || github.event.pull_request.head.sha || github.ref }}-intg-tests
     cancel-in-progress: false
 
+permissions: {}
 jobs:
     check_actor_permissions:
       runs-on: ubuntu-latest
@@ -32,10 +33,14 @@ jobs:
             organization: opencost
         - name: determine if actor is a maintainer
           id: determine-maintainer
+          env:
+            TEAMS: ${{ join(steps.teamAffiliation.outputs.teams, ',') }}
+            ACTOR: ${{ github.actor }}
+            IS_MAINTAINER: ${{ contains(join(steps.teamAffiliation.outputs.teams, ','), 'OpenCost Maintainers') || github.actor == 'dependabot[bot]' }}
           run: |
-              echo "Actor: ${{ github.actor }}"
-              echo "Is maintainer: ${{ contains(steps.teamAffiliation.outputs.teams, 'OpenCost Maintainers') }}"
-              echo "ismaintainer=${{ contains(steps.teamAffiliation.outputs.teams, 'OpenCost Maintainers') }}" >> $GITHUB_OUTPUT
+              echo "Actor: $ACTOR"
+              echo "Is maintainer: $IS_MAINTAINER"
+              echo "ismaintainer=$IS_MAINTAINER" >> $GITHUB_OUTPUT
   
     noop-tests:
         needs: check_actor_permissions
@@ -71,21 +76,26 @@ jobs:
                  echo "OC_SHORTHASH=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           - name: Set image tags
             id: set_image_tags
+            env:
+              OC_SHORTHASH: ${{ steps.sha.outputs.OC_SHORTHASH }}
+              REPO_OWNER: ${{ github.repository_owner }}
+              EVENT_NAME: ${{ github.event_name }}
+              PR_NUMBER: ${{ github.event.pull_request.number }}
             run: |
-                    echo "github.event_name: ${{ github.event_name }}"
-                    if [[ "${{ github.event_name }}" == "merge_group" ]]; then
-                      echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:test-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
-                      echo "NAMESPACE=merge-queue-oc-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+                    echo "github.event_name: $EVENT_NAME"
+                    if [[ "$EVENT_NAME" == "merge_group" ]]; then
+                      echo "IMAGE_TAG=ghcr.io/$REPO_OWNER/opencost:test-$OC_SHORTHASH" >> $GITHUB_OUTPUT
+                      echo "NAMESPACE=merge-queue-oc-$OC_SHORTHASH" >> $GITHUB_OUTPUT
                       echo "mainbranch=false" >> $GITHUB_OUTPUT
-                    elif [[ "${{ github.event_name }}" == "pull_request_target" ]]; then
+                    elif [[ "$EVENT_NAME" == "pull_request_target" ]]; then
                       echo "building on maintainer pull request branch"
-                      echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:test-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
-                      echo "NAMESPACE=pr-${{ github.event.pull_request.number }}-oc-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+                      echo "IMAGE_TAG=ghcr.io/$REPO_OWNER/opencost:test-$OC_SHORTHASH" >> $GITHUB_OUTPUT
+                      echo "NAMESPACE=pr-$PR_NUMBER-oc-$OC_SHORTHASH" >> $GITHUB_OUTPUT
                       echo "mainbranch=false" >> $GITHUB_OUTPUT
                     else
                       echo "building on develop branch"
-                      echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:develop-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
-                      echo "NAMESPACE=develop-oc-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+                      echo "IMAGE_TAG=ghcr.io/$REPO_OWNER/opencost:develop-$OC_SHORTHASH" >> $GITHUB_OUTPUT
+                      echo "NAMESPACE=develop-oc-$OC_SHORTHASH" >> $GITHUB_OUTPUT
                       echo "mainbranch=true" >> $GITHUB_OUTPUT
                     fi
 
@@ -98,20 +108,22 @@ jobs:
 
           - name: wait for docker image to be ready
             id: wait_for_image_ready
+            env:
+              IMAGE_TAG: ${{ steps.set_image_tags.outputs.IMAGE_TAG }}
             run: |
                 max_attempts=100
                 # Loop until the Docker image can be pulled
-                until docker manifest inspect ${{ steps.set_image_tags.outputs.IMAGE_TAG }}; do
-                    echo "Waiting for Docker image ${{ steps.set_image_tags.outputs.IMAGE_TAG }} to be available, $max_attempts tries remain..."
+                until docker manifest inspect $IMAGE_TAG; do
+                    echo "Waiting for Docker image $IMAGE_TAG to be available, $max_attempts tries remain..."
                     sleep 6
                     max_attempts=$((max_attempts - 1))
                     if [[ $max_attempts -eq 0 ]]; then
-                        echo "Docker image ${{ steps.set_image_tags.outputs.IMAGE_TAG }} is not available after 10 minutes. Exiting..."
+                        echo "Docker image $IMAGE_TAG is not available after 10 minutes. Exiting..."
                         exit 1
                     fi
                 done
 
-                echo "Docker image ${{ steps.set_image_tags.outputs.IMAGE_TAG }} is ready!"
+                echo "Docker image $IMAGE_TAG is ready!"
                 
                 echo "passed=true" >> $GITHUB_OUTPUT
                 
@@ -131,21 +143,24 @@ jobs:
         permissions: {}
         steps:
           - name: Wait for DNS to resolve
+            id: wait-for-dns
+            env:
+              NAMESPACE: ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}
             run: |
-              echo "Waiting for ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}.infra.opencost.io to resolve in DNS..."
+              echo "Waiting for $NAMESPACE.infra.opencost.io to resolve in DNS..."
               
               max_attempts=60
-              until host ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}.infra.opencost.io; do
-                echo "DNS not yet resolved for ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}.infra.opencost.io, $max_attempts tries remain..."
+              until host $NAMESPACE.infra.opencost.io; do
+                echo "DNS not yet resolved for $NAMESPACE.infra.opencost.io, $max_attempts tries remain..."
                 sleep 10
                 max_attempts=$((max_attempts - 1))
                 if [[ $max_attempts -eq 0 ]]; then
-                  echo "DNS resolution failed for ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}.infra.opencost.io after 10 minutes. Exiting..."
+                  echo "DNS resolution failed for $NAMESPACE.infra.opencost.io after 10 minutes. Exiting..."
                   exit 1
                 fi
               done
               
-              echo "DNS resolved successfully for ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}.infra.opencost.io!"
+              echo "DNS resolved successfully for $NAMESPACE.infra.opencost.io!"
 
     run-tests:
         needs: [wait_for_image_ready, build-test-stack, wait-for-dns]
@@ -157,8 +172,23 @@ jobs:
             namespace: "${{ needs.wait_for_image_ready.outputs.NAMESPACE }}"
             target_branch: "${{ github.event.pull_request.head.ref || 'main' }}"
     
-    teardown-test-stack:
+    hold-on-failure:
         needs: [wait_for_image_ready, run-tests]
+        if: ${{ needs.run-tests.outputs.passed == 'false' }}
+        runs-on: ubuntu-latest
+        permissions: {}
+        steps:
+          - name: Hold stack for investigation
+            env:
+              NAMESPACE: ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}
+            run: |
+              echo "Tests failed. Holding stack up for 1 hour for investigation..."
+              echo "Stack namespace: $NAMESPACE"
+              echo "Stack will be automatically torn down after 1 hour"
+              sleep 3600
+    
+    teardown-test-stack:
+        needs: [wait_for_image_ready, run-tests, hold-on-failure]
         if: ${{ (always() && !cancelled()) && ( github.event.event_name == 'schedule'  || github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request_target'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
         uses: opencost/opencost-infra/.github/workflows/destroy-stack.yaml@main
         secrets: inherit 
@@ -173,13 +203,17 @@ jobs:
         if: ${{ always() }}
         steps:
           - name: Check success
+            id: check-success
+            env:
+              IS_NOOP: ${{ needs.noop-tests.outputs.is_noop }}
+              PASSED: ${{ needs.run-tests.outputs.passed }}
             run: |
-              if [[ "${{ needs.noop-tests.outputs.is_noop }}" == "true" ]]; then
+              if [[ "$IS_NOOP" == "true" ]]; then
                 echo "No-op tests, skipping success check"
                 exit 0
               fi
               
-              if [[ "${{ needs.run-tests.outputs.passed }}" != "true" ]]; then
+              if [[ "$PASSED" != "true" ]]; then
                 echo "One or more integration tests failed"
                 exit 1
               fi

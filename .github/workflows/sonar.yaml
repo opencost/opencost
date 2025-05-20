@@ -3,6 +3,9 @@ on:
   workflow_run:
     workflows: ["Build/Test"]
     types: [completed]
+
+permissions: {}
+
 jobs:
   sonar:
     name: Sonar
