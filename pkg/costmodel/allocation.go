@@ -280,7 +280,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 				resultAlloc.RawAllocationOnly.RAMBytesUsageMax = alloc.RawAllocationOnly.RAMBytesUsageMax
 			}
 
-			if alloc.RawAllocationOnly.GPUUsageMax != nil {
+			if alloc.RawAllocationOnly.GPUUsageMax != nil && resultAlloc.RawAllocationOnly.GPUUsageMax != nil {
 				if *alloc.RawAllocationOnly.GPUUsageMax > *resultAlloc.RawAllocationOnly.GPUUsageMax {
 					resultAlloc.RawAllocationOnly.GPUUsageMax = alloc.RawAllocationOnly.GPUUsageMax
 				}
