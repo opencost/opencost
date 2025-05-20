@@ -91,7 +91,7 @@ func ParseUTCOffset(offsetStr string) (time.Duration, error) {
 	if offsetStr != "" {
 		match := utcOffsetRegex.FindStringSubmatch(offsetStr)
 		if match == nil {
-			return offset, fmt.Errorf("Illegal UTC offset format: %s", offsetStr)
+			return offset, fmt.Errorf("illegal UTC offset format: %s", offsetStr)
 		}
 
 		sig := 1
@@ -101,13 +101,13 @@ func ParseUTCOffset(offsetStr string) (time.Duration, error) {
 
 		hrs64, err := strconv.ParseInt(match[2], 10, 64)
 		if err != nil {
-			return offset, fmt.Errorf("Failed to parse UTC offset hours: %w", err)
+			return offset, fmt.Errorf("failed to parse UTC offset hours: %w", err)
 		}
 		hrs := sig * int(hrs64)
 
 		mins64, err := strconv.ParseInt(match[3], 10, 64)
 		if err != nil {
-			return offset, fmt.Errorf("Failed to parse UTC offset mins: %w", err)
+			return offset, fmt.Errorf("failed to parse UTC offset mins: %w", err)
 		}
 		mins := sig * int(mins64)
 
@@ -128,6 +128,8 @@ func FormatStoreResolution(dur time.Duration) string {
 	}
 	if dur >= time.Hour {
 		return fmt.Sprintf("%dh", int(dur.Hours()))
+	} else if dur >= time.Minute {
+		return fmt.Sprintf("%dm", int(dur.Minutes()))
 	}
 	if dur >= 10*time.Minute {
 		return fmt.Sprintf("%dm", int(dur.Minutes()))
