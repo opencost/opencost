@@ -30,8 +30,6 @@ func NewComputePipelineExporter[T any, U export.BinaryMarshalerPtr[T], S validat
 	}
 
 	return export.NewComputeStorageExporter(
-		pipelineName,
-		resolution,
 		pathing,
 		export.NewBingenEncoder[T, U](),
 		store,

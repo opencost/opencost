@@ -13,9 +13,8 @@ import (
 )
 
 const (
-	TestPipelineName = "test-pipeline"
-	TestClusterId    = "test-cluster"
-	TestEventName    = "test-event-path"
+	TestClusterId = "test-cluster"
+	TestEventName = "test-event-path"
 )
 
 type TestData struct {
@@ -31,7 +30,7 @@ func TestStorageExporters(t *testing.T) {
 		}
 
 		encoder := NewJSONEncoder[TestData]()
-		export := NewEventStorageExporter(TestPipelineName, p, encoder, store)
+		export := NewEventStorageExporter(p, encoder, store)
 
 		ts := time.Now().UTC().Truncate(time.Minute)
 
@@ -40,6 +39,7 @@ func TestStorageExporters(t *testing.T) {
 		})
 
 		expectedPath := p.ToFullPath("", ts, "json")
+		t.Logf("expected path: %s", expectedPath)
 
 		data, err := store.Read(expectedPath)
 		if err != nil {
@@ -49,6 +49,8 @@ func TestStorageExporters(t *testing.T) {
 		if len(data) == 0 {
 			t.Fatalf("expected data to be non-empty, got empty")
 		}
+
+		t.Logf("Data: %s", string(data))
 
 		var td *TestData = new(TestData)
 		if err := json.Unmarshal(data, td); err != nil {
@@ -70,8 +72,6 @@ func TestStorageExporters(t *testing.T) {
 
 		encoder := NewBingenEncoder[opencost.AllocationSet]()
 		export := NewComputeStorageExporter[opencost.AllocationSet](
-			pipelines.AllocationPipelineName,
-			24*time.Hour,
 			p,
 			encoder,
 			store,

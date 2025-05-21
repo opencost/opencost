@@ -26,26 +26,23 @@ type ComputeExporter[T any] Exporter[opencost.Window, T]
 // EventStorageExporter[T] is an implementation of an Exporter[T] that writes data to a storage backend using
 // the `github.com/opencost/opencost/core/pkg/storage` package, a pathing strategy, and an encoder.
 type EventStorageExporter[T any] struct {
-	pipeline string
-	paths    pathing.StoragePathFormatter[time.Time]
-	encoder  Encoder[T]
-	storage  storage.Storage
+	paths   pathing.StoragePathFormatter[time.Time]
+	encoder Encoder[T]
+	storage storage.Storage
 }
 
 // NewEventStorageExporter creates a new StorageExporter instance, which is responsible for exporting data to a storage backend.
 // It uses a pathing strategy to determine the storage location, an encoder to convert the data to binary format, and
 // a storage backend to write the data.
 func NewEventStorageExporter[T any](
-	pipeline string,
 	paths pathing.StoragePathFormatter[time.Time],
 	encoder Encoder[T],
 	storage storage.Storage,
 ) EventExporter[T] {
 	return &EventStorageExporter[T]{
-		pipeline: pipeline,
-		paths:    paths,
-		encoder:  encoder,
-		storage:  storage,
+		paths:   paths,
+		encoder: encoder,
+		storage: storage,
 	}
 }
 
@@ -71,7 +68,6 @@ func (se *EventStorageExporter[T]) Export(t time.Time, data *T) error {
 // ComputeStorageExporter[T] is an implementation of ComputeExporter[T] that writes data to a storage backend using
 // `github.com/opencost/opencost/core/pkg/storage`, a pathing strategy, and an encoder.
 type ComputeStorageExporter[T any] struct {
-	pipeline   string
 	resolution time.Duration
 	paths      pathing.StoragePathFormatter[opencost.Window]
 	encoder    Encoder[T]
@@ -84,20 +80,16 @@ type ComputeStorageExporter[T any] struct {
 // an encoder to convert the data to binary format, and a validator to check the data before export. The pipeline
 // name and resolution are also provided to help identify the data being exported.
 func NewComputeStorageExporter[T any](
-	pipeline string,
-	resolution time.Duration,
 	paths pathing.StoragePathFormatter[opencost.Window],
 	encoder Encoder[T],
 	storage storage.Storage,
 	validator validator.ExportValidator[T],
 ) ComputeExporter[T] {
 	return &ComputeStorageExporter[T]{
-		pipeline:   pipeline,
-		resolution: resolution,
-		paths:      paths,
-		encoder:    encoder,
-		storage:    storage,
-		validator:  validator,
+		paths:     paths,
+		encoder:   encoder,
+		storage:   storage,
+		validator: validator,
 	}
 }
 

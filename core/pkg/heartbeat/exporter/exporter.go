@@ -17,7 +17,6 @@ func NewHeartbeatExporter(clusterId string, applicationName string, storage stor
 	}
 
 	return exporter.NewEventStorageExporter(
-		heartbeat.HeartbeatEventName,
 		pathing,
 		NewHeartbeatEncoder(),
 		storage,

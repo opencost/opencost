@@ -17,7 +17,6 @@ func NewDiagnosticExporter(clusterId string, applicationName string, storage sto
 	}
 
 	return exporter.NewEventStorageExporter(
-		diagnostics.DiagnosticsEventName,
 		pathing,
 		NewDiagnosticsEncoder(),
 		storage,
