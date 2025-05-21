@@ -8,7 +8,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/opencost/opencost/core/pkg/filter/allocation"
-	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"github.com/opencost/opencost/pkg/env"
@@ -119,13 +118,13 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 		parser := allocation.NewAllocationFilterParser()
 		filterNode, err := parser.Parse(allocationFilter)
 		if err != nil {
-			WriteError(w, BadRequest(fmt.Sprintf("Invalid filter: %s", err)))
+			proto.WriteError(w, proto.BadRequest(fmt.Sprintf("Invalid filter: %s", err)))
 			return
 		}
 		compiler := opencost.NewAllocationMatchCompiler(nil)
 		matcher, err := compiler.Compile(filterNode)
 		if err != nil {
-			WriteError(w, BadRequest(fmt.Sprintf("Failed to compile filter: %s", err)))
+			proto.WriteError(w, proto.BadRequest(fmt.Sprintf("Failed to compile filter: %s", err)))
 			return
 		}
 		filteredASR := opencost.NewAllocationSetRange()
@@ -252,13 +251,13 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 		parser := allocation.NewAllocationFilterParser()
 		filterNode, err := parser.Parse(allocationFilter)
 		if err != nil {
-			WriteError(w, BadRequest(fmt.Sprintf("Invalid filter: %s", err)))
+			proto.WriteError(w, proto.BadRequest(fmt.Sprintf("Invalid filter: %s", err)))
 			return
 		}
 		compiler := opencost.NewAllocationMatchCompiler(nil)
 		matcher, err := compiler.Compile(filterNode)
 		if err != nil {
-			WriteError(w, BadRequest(fmt.Sprintf("Failed to compile filter: %s", err)))
+			proto.WriteError(w, proto.BadRequest(fmt.Sprintf("Failed to compile filter: %s", err)))
 			return
 		}
 		filteredASR := opencost.NewAllocationSetRange()
@@ -277,51 +276,4 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	WriteData(w, asr, nil)
-}
-
-// The below was transferred from a different package in order to maintain
-// previous behavior. Ultimately, we should clean this up at some point.
-// TODO move to util and/or standardize everything
-
-type Error struct {
-	StatusCode int
-	Body       string
-}
-
-func WriteError(w http.ResponseWriter, err Error) {
-	status := err.StatusCode
-	if status == 0 {
-		status = http.StatusInternalServerError
-	}
-	w.WriteHeader(status)
-
-	resp, _ := json.Marshal(&Response{
-		Code:    status,
-		Message: fmt.Sprintf("Error: %s", err.Body),
-	})
-	w.Write(resp)
-}
-
-func BadRequest(message string) Error {
-	return Error{
-		StatusCode: http.StatusBadRequest,
-		Body:       message,
-	}
-}
-
-func InternalServerError(message string) Error {
-	if message == "" {
-		message = "Internal Server Error"
-	}
-	return Error{
-		StatusCode: http.StatusInternalServerError,
-		Body:       message,
-	}
-}
-
-func NotFound() Error {
-	return Error{
-		StatusCode: http.StatusNotFound,
-		Body:       "Not Found",
-	}
 }
