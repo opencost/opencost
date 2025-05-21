@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	federatedDir   string = "federated"
 	baseStorageDir string = "etl/bingen"
 )
 
@@ -64,7 +63,6 @@ func (bsf *BingenStoragePathFormatter) ToFullPath(prefix string, window opencost
 
 	return path.Join(
 		bsf.rootDir,
-		federatedDir,
 		bsf.clusterId,
 		baseStorageDir,
 		bsf.pipeline,

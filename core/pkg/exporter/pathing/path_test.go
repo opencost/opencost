@@ -21,7 +21,7 @@ func TestBingenPathFormatter(t *testing.T) {
 	testCases := []testCase{
 		{
 			name:       "no resolution",
-			rootPath:   "",
+			rootPath:   "federated",
 			clusterID:  "cluster-a",
 			pipeline:   "allocation",
 			resolution: nil,
@@ -30,7 +30,7 @@ func TestBingenPathFormatter(t *testing.T) {
 		},
 		{
 			name:       "with resolution",
-			rootPath:   "",
+			rootPath:   "federated",
 			clusterID:  "cluster-a",
 			pipeline:   "allocation",
 			resolution: &[]time.Duration{1 * time.Hour}[0],
@@ -39,7 +39,7 @@ func TestBingenPathFormatter(t *testing.T) {
 		},
 		{
 			name:       "no resolution with prefix",
-			rootPath:   "",
+			rootPath:   "federated",
 			clusterID:  "cluster-a",
 			pipeline:   "allocation",
 			resolution: nil,
@@ -48,7 +48,7 @@ func TestBingenPathFormatter(t *testing.T) {
 		},
 		{
 			name:       "with resolution with prefix",
-			rootPath:   "",
+			rootPath:   "federated",
 			clusterID:  "cluster-a",
 			pipeline:   "allocation",
 			resolution: &[]time.Duration{1 * time.Hour}[0],
@@ -57,7 +57,7 @@ func TestBingenPathFormatter(t *testing.T) {
 		},
 		{
 			name:       "daily resolution",
-			rootPath:   "",
+			rootPath:   "federated",
 			clusterID:  "cluster-a",
 			pipeline:   "allocation",
 			resolution: &[]time.Duration{24 * time.Hour}[0],
@@ -66,7 +66,7 @@ func TestBingenPathFormatter(t *testing.T) {
 		},
 		{
 			name:       "weekly resolution",
-			rootPath:   "",
+			rootPath:   "federated",
 			clusterID:  "cluster-a",
 			pipeline:   "allocation",
 			resolution: &[]time.Duration{7 * 24 * time.Hour}[0],
@@ -111,7 +111,7 @@ func TestEventPathFormatter(t *testing.T) {
 	testCases := []testCase{
 		{
 			name:      "with root path with file extension",
-			rootPath:  "/tmp",
+			rootPath:  "/tmp/federated",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
 			subPaths:  []string{},
@@ -121,7 +121,7 @@ func TestEventPathFormatter(t *testing.T) {
 		},
 		{
 			name:      "with file extension",
-			rootPath:  "",
+			rootPath:  "federated",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
 			subPaths:  []string{},
@@ -131,7 +131,7 @@ func TestEventPathFormatter(t *testing.T) {
 		},
 		{
 			name:      "with root path with file extension with sub-paths",
-			rootPath:  "/tmp",
+			rootPath:  "/tmp/federated",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
 			subPaths:  []string{"foo", "bar"},
@@ -141,7 +141,7 @@ func TestEventPathFormatter(t *testing.T) {
 		},
 		{
 			name:      "without file extension",
-			rootPath:  "",
+			rootPath:  "federated",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
 			subPaths:  []string{},
@@ -151,7 +151,7 @@ func TestEventPathFormatter(t *testing.T) {
 		},
 		{
 			name:      "with prefix with file extension",
-			rootPath:  "",
+			rootPath:  "federated",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
 			subPaths:  []string{},
@@ -161,7 +161,7 @@ func TestEventPathFormatter(t *testing.T) {
 		},
 		{
 			name:      "with prefix with file extension with sub-paths",
-			rootPath:  "",
+			rootPath:  "federated",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
 			subPaths:  []string{"foo", "bar", "baz"},
@@ -171,7 +171,7 @@ func TestEventPathFormatter(t *testing.T) {
 		},
 		{
 			name:      "with prefix without file extension",
-			rootPath:  "",
+			rootPath:  "federated",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
 			subPaths:  []string{},
@@ -181,7 +181,7 @@ func TestEventPathFormatter(t *testing.T) {
 		},
 		{
 			name:      "with prefix without file extension with sub-paths",
-			rootPath:  "",
+			rootPath:  "federated",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
 			subPaths:  []string{"foo"},

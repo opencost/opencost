@@ -7,7 +7,12 @@ import (
 )
 
 // NewDiagnosticsExportController creates a new EventExportController for DiagnosticsRunReport events.
-func NewDiagnosticsExportController(clusterId string, applicationName string, store storage.Storage, service diagnostics.DiagnosticService) *exporter.EventExportController[diagnostics.DiagnosticsRunReport] {
+func NewDiagnosticsExportController(
+	clusterId string,
+	applicationName string,
+	store storage.Storage,
+	service diagnostics.DiagnosticService,
+) *exporter.EventExportController[diagnostics.DiagnosticsRunReport] {
 	return exporter.NewEventExportController(
 		NewDiagnosticSource(service),
 		NewDiagnosticExporter(clusterId, applicationName, store),

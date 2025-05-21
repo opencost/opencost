@@ -12,8 +12,8 @@ type DiagnosticSource struct {
 	diagnosticService diagnostics.DiagnosticService
 }
 
-// NewDiagnosticSource creates a new `HeartbeatSource` instance. The `provider` parameter is used to inject custom metadata,
-// but can be set to `nil` if no metadata is needed.
+// NewDiagnosticSource creates a new `DiagnosticSource` instance. It accepts the `DiagnosticService` implementation
+// that will be used to retrieve the diagnostic results.
 func NewDiagnosticSource(diagnosticService diagnostics.DiagnosticService) *DiagnosticSource {
 	return &DiagnosticSource{
 		diagnosticService: diagnosticService,

@@ -61,7 +61,6 @@ func (espf *EventStoragePathFormatter) ToFullPath(prefix string, timestamp time.
 
 	return path.Join(
 		espf.rootDir,
-		federatedDir,
 		espf.clusterId,
 		espf.event,
 		path.Join(espf.subPaths...),
