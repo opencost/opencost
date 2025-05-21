@@ -10,6 +10,8 @@ on:
         description: "Version of the release"
         required: true
 
+permissions: {}
+
 concurrency:
   group: build-opencost
   cancel-in-progress: true
@@ -33,10 +35,12 @@ jobs:
 
       - name: Determine Version Number
         id: version_number
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
         run: |
           if [ -z "${TRIGGERED_TAG}" ];
           then
-            version=${{ inputs.release_version }}
+            version=$RELEASE_VERSION
           else
             version=$TRIGGERED_TAG
           fi
@@ -48,14 +52,17 @@ jobs:
           fi
 
       - name: Show Input Values
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
         run: |
-          echo "release version: ${{ inputs.release_version }}"
+          echo "release version: $RELEASE_VERSION"
 
       - name: Make Branch Name
         id: branch
+        env:
+          RELEASE_VERSION: ${{ steps.version_number.outputs.RELEASE_VERSION }}
         run: |
-          VERSION_NUMBER=${{ steps.version_number.outputs.RELEASE_VERSION }}
-          echo "BRANCH_NAME=v${VERSION_NUMBER%.*}" >> $GITHUB_OUTPUT
+          echo "BRANCH_NAME=v${RELEASE_VERSION%.*}" >> $GITHUB_OUTPUT
 
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -69,10 +76,14 @@ jobs:
 
       - name: Set OpenCost Image Tags
         id: tags
+        env:
+          REPO_OWNER: ${{ github.repository_owner }}
+          RELEASE_VERSION: ${{ steps.version_number.outputs.RELEASE_VERSION }}
+          OC_SHORTHASH: ${{ steps.sha.outputs.OC_SHORTHASH }}
         run: |
-          echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_LATEST=ghcr.io/${{ github.repository_owner }}/opencost:latest" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_VERSION=ghcr.io/${{ github.repository_owner }}/opencost:${{ steps.version_number.outputs.RELEASE_VERSION }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=ghcr.io/$REPO_OWNER/opencost:$OC_SHORTHASH" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG_LATEST=ghcr.io/$REPO_OWNER/opencost:latest" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG_VERSION=ghcr.io/$REPO_OWNER/opencost:$RELEASE_VERSION" >> $GITHUB_OUTPUT
 
       - name: Build and publish container
         uses: ./.github/actions/build-container 
@@ -93,7 +104,11 @@ jobs:
         uses: imjasonh/setup-crane@v0.4
 
       - name: Copy tags
+        env:
+          IMAGE_TAG: ${{ steps.tags.outputs.IMAGE_TAG }}
+          IMAGE_TAG_LATEST: ${{ steps.tags.outputs.IMAGE_TAG_LATEST }}
+          IMAGE_TAG_VERSION: ${{ steps.tags.outputs.IMAGE_TAG_VERSION }}
         run: |
-          crane copy '${{ steps.tags.outputs.IMAGE_TAG }}' '${{ steps.tags.outputs.IMAGE_TAG_LATEST }}'
-          crane copy '${{ steps.tags.outputs.IMAGE_TAG }}' '${{ steps.tags.outputs.IMAGE_TAG_VERSION }}'
+          crane copy '$IMAGE_TAG' '$IMAGE_TAG_LATEST'
+          crane copy '$IMAGE_TAG' '$IMAGE_TAG_VERSION'
 

@@ -7,6 +7,8 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/opencost/opencost/core/pkg/filter/allocation"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"github.com/opencost/opencost/pkg/env"
@@ -91,6 +93,9 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 	// sums each Set in the Range, producing one Set.
 	accumulate := qp.GetBool("accumulate", false)
 
+	// Get allocation filter if provided
+	allocationFilter := qp.Get("filter", "")
+
 	// Query for AllocationSets in increments of the given step duration,
 	// appending each to the AllocationSetRange.
 	asr := opencost.NewAllocationSetRange()
@@ -107,6 +112,35 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 		asr.Append(as)
 
 		stepStart = stepEnd
+	}
+
+	// Apply allocation filter if provided
+	if allocationFilter != "" {
+		parser := allocation.NewAllocationFilterParser()
+		filterNode, err := parser.Parse(allocationFilter)
+		if err != nil {
+			WriteError(w, BadRequest(fmt.Sprintf("Invalid filter: %s", err)))
+			return
+		}
+		compiler := opencost.NewAllocationMatchCompiler(nil)
+		matcher, err := compiler.Compile(filterNode)
+		if err != nil {
+			WriteError(w, BadRequest(fmt.Sprintf("Failed to compile filter: %s", err)))
+			return
+		}
+		filteredASR := opencost.NewAllocationSetRange()
+		for _, as := range asr.Slice() {
+			filteredAS := opencost.NewAllocationSet(as.Start(), as.End())
+			for _, alloc := range as.Allocations {
+				if matcher.Matches(alloc) {
+					filteredAS.Set(alloc)
+				}
+			}
+			if filteredAS.Length() > 0 {
+				filteredASR.Append(filteredAS)
+			}
+		}
+		asr = filteredASR
 	}
 
 	// Aggregate, if requested
@@ -199,6 +233,9 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 
 	shareIdle := qp.GetBool("shareIdle", false)
 
+	// Get allocation filter if provided
+	allocationFilter := qp.Get("filter", "")
+
 	asr, err := a.Model.QueryAllocation(window, resolution, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer, accumulateBy, shareIdle)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "bad request") {
@@ -210,5 +247,81 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Apply allocation filter if provided
+	if allocationFilter != "" {
+		parser := allocation.NewAllocationFilterParser()
+		filterNode, err := parser.Parse(allocationFilter)
+		if err != nil {
+			WriteError(w, BadRequest(fmt.Sprintf("Invalid filter: %s", err)))
+			return
+		}
+		compiler := opencost.NewAllocationMatchCompiler(nil)
+		matcher, err := compiler.Compile(filterNode)
+		if err != nil {
+			WriteError(w, BadRequest(fmt.Sprintf("Failed to compile filter: %s", err)))
+			return
+		}
+		filteredASR := opencost.NewAllocationSetRange()
+		for _, as := range asr.Slice() {
+			filteredAS := opencost.NewAllocationSet(as.Start(), as.End())
+			for _, alloc := range as.Allocations {
+				if matcher.Matches(alloc) {
+					filteredAS.Set(alloc)
+				}
+			}
+			if filteredAS.Length() > 0 {
+				filteredASR.Append(filteredAS)
+			}
+		}
+		asr = filteredASR
+	}
+
 	WriteData(w, asr, nil)
+}
+
+// The below was transferred from a different package in order to maintain
+// previous behavior. Ultimately, we should clean this up at some point.
+// TODO move to util and/or standardize everything
+
+type Error struct {
+	StatusCode int
+	Body       string
+}
+
+func WriteError(w http.ResponseWriter, err Error) {
+	status := err.StatusCode
+	if status == 0 {
+		status = http.StatusInternalServerError
+	}
+	w.WriteHeader(status)
+
+	resp, _ := json.Marshal(&Response{
+		Code:    status,
+		Message: fmt.Sprintf("Error: %s", err.Body),
+	})
+	w.Write(resp)
+}
+
+func BadRequest(message string) Error {
+	return Error{
+		StatusCode: http.StatusBadRequest,
+		Body:       message,
+	}
+}
+
+func InternalServerError(message string) Error {
+	if message == "" {
+		message = "Internal Server Error"
+	}
+	return Error{
+		StatusCode: http.StatusInternalServerError,
+		Body:       message,
+	}
+}
+
+func NotFound() Error {
+	return Error{
+		StatusCode: http.StatusNotFound,
+		Body:       "Not Found",
+	}
 }

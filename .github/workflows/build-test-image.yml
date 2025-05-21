@@ -7,6 +7,7 @@ on:
     branches:
       - develop
 
+permissions: {}
 
 env:
   REGISTRY: ghcr.io
@@ -26,11 +27,15 @@ jobs:
               organization: opencost
           - name: determine if actor is a maintainer
             id: determine-maintainer
+            env:
+              TEAMS: ${{ join(steps.teamAffiliation.outputs.teams, ',') }}
+              ACTOR: ${{ github.actor }}
+              IS_MAINTAINER: ${{ contains(join(steps.teamAffiliation.outputs.teams, ','), 'OpenCost Maintainers') || github.actor == 'dependabot[bot]' }}
             run: |
-                echo "Actor: ${{ github.actor }}"
-                echo "teams: ${{ join(steps.teamAffiliation.outputs.teams, ',') }}"
-                echo "Is maintainer: ${{ contains(steps.teamAffiliation.outputs.teams, 'OpenCost Maintainers') }}"
-                echo "ismaintainer=${{ contains(steps.teamAffiliation.outputs.teams, 'OpenCost Maintainers') }}" >> $GITHUB_OUTPUT
+                echo "Actor: $ACTOR"
+                echo "teams: $TEAMS"
+                echo "Is maintainer: $IS_MAINTAINER"
+                echo "ismaintainer=$IS_MAINTAINER" >> $GITHUB_OUTPUT
       
   build-and-publish-test-image:
     runs-on: ubuntu-latest
@@ -50,8 +55,11 @@ jobs:
           echo "OC_SHORTHASH=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
       - name: Set OpenCost Image Tags
         id: tags
+        env:
+          REPO_OWNER: ${{ github.repository_owner }}
+          OC_SHORTHASH: ${{ steps.sha.outputs.OC_SHORTHASH }}
         run: |
-          echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:test-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=ghcr.io/$REPO_OWNER/opencost:test-$OC_SHORTHASH" >> $GITHUB_OUTPUT
       - name: Build and publish container
         uses: ./.github/actions/build-container
         with:
