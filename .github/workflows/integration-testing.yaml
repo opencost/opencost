@@ -194,7 +194,6 @@ jobs:
     
     run-comparison-tests:
       needs: [wait_for_image_ready, build-test-stack, build-test-stack-promless, wait-for-data-collection]
-      runs-on: ubuntu-latest
       if: ${{ (always() && !cancelled()) && ( github.event.event_name == 'schedule'  || github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request_target'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
       permissions: {}
       uses: opencost/opencost-infra/.github/workflows/test-stack.yaml@main
