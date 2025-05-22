@@ -6,6 +6,8 @@ on:
   issues:
     types: [opened, reopened, closed]
 
+permissions: {}
+
 jobs:
   set-follow-up-label:
     runs-on: ubuntu-latest

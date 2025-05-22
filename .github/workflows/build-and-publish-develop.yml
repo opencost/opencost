@@ -10,6 +10,8 @@ concurrency:
   group: build-opencost-develop
   cancel-in-progress: false
 
+permissions: {}
+
 env:
   # Use docker.io for Docker Hub if empty
   REGISTRY: ghcr.io
@@ -31,8 +33,11 @@ jobs:
 
       - name: Set OpenCost Image Tags
         id: tags
+        env: 
+          REPO: ${{ github.repository_owner }}
+          SHORTHASH: ${{ steps.sha.outputs.OC_SHORTHASH }}
         run: |
-          echo "IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/opencost:develop-${{ steps.sha.outputs.OC_SHORTHASH }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=ghcr.io/$REPO/opencost:develop-$SHORTHASH" >> $GITHUB_OUTPUT
 
       - name: Build and publish container
         uses: ./.github/actions/build-container 
@@ -46,12 +51,15 @@ jobs:
         uses: imjasonh/setup-crane@v0.4
 
       - name: Tag and push latest image
+        env:
+          IMAGE_TAG: ${{ steps.tags.outputs.IMAGE_TAG }}
         run: |
           # Extract the repository part (everything before the last colon)
-          REPO=$(echo "${{ steps.tags.outputs.IMAGE_TAG }}" | sed 's/:.*$//')
+          REPO=$(echo "$IMAGE_TAG" | sed 's/:.*$//')
           # Create the new tag
           NEW_TAG="${REPO}:develop-latest"
-          echo "Copying ${{ steps.tags.outputs.IMAGE_TAG }} to ${NEW_TAG}"
-          crane copy "${{ steps.tags.outputs.IMAGE_TAG }}" "${NEW_TAG}"
+          echo "Copying $IMAGE_TAG to ${NEW_TAG}"
+          crane copy "$IMAGE_TAG" "${NEW_TAG}"
+
 
 

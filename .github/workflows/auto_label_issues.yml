@@ -4,6 +4,8 @@ on:
   issues:
     types: [opened]
 
+permissions: {}
+
 jobs:
   automate-issues-labels:
     runs-on: ubuntu-latest
