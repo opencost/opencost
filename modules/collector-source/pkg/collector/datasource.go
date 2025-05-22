@@ -73,6 +73,7 @@ func NewCollectorDataSource(
 	}
 
 	scrapeController := scrape.NewScrapeController(
+		resolutions,
 		config.ScrapeInterval,
 		config.ClusterID,
 		config.NetworkPort,

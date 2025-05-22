@@ -75,7 +75,6 @@ func NewScrapeController(
 		}
 		encoder := exporter.NewJSONEncoder[metric.UpdateSet]()
 		sc.exporter = exporter.NewEventStorageExporter(
-			ControllerEventName,
 			pathFormatter,
 			encoder,
 			storage,
@@ -118,13 +117,18 @@ func NewScrapeController(
 			b, err := storage.Read(fileName)
 			if err != nil {
 				log.Errorf("failed to load file contents for '%s': %s", fileName, err.Error())
+				continue
 			}
 			updateSet := metric.UpdateSet{}
 			err = json.Unmarshal(b, &updateSet)
 			if err != nil {
-				log.Errorf("failed to unmar")
+				log.Errorf("failed to unmarshal file %s: %s", fileName, err.Error())
+				continue
 			}
-
+			filePrefix := path.Base(fileName)
+			timeString := strings.TrimSuffix(filePrefix, encoder.FileExt())
+			timestamp, err := time.Parse(pathing.EventStorageTimeFormat, timeString)
+			repo.Update(updateSet.Updates, timestamp)
 		}
 
 	}
@@ -182,7 +186,7 @@ func (sc *ScrapeController) Scrape(timestamp time.Time) {
 			Updates: scrapeResults,
 		})
 		if err != nil {
-			log.Errorf("failed to export scrape results: %s", err.Error())
+			log.Errorf("failed to export update results: %s", err.Error())
 		}
 	}
 }
