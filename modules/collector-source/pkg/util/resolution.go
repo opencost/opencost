@@ -24,8 +24,9 @@ func NewResolution(configuration ResolutionConfiguration) (*Resolution, error) {
 		return nil, fmt.Errorf("failed to create resolution: %w", err)
 	}
 	return &Resolution{
-		interval:  interval,
-		retention: configuration.Retention,
+		interval:    interval,
+		intervalDef: configuration.Interval,
+		retention:   configuration.Retention,
 	}, nil
 }
 

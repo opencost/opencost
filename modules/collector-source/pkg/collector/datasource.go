@@ -43,22 +43,6 @@ func NewCollectorDataSource(
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient util.StatSummaryClient,
 ) source.OpenCostDataSource {
-
-	var storeFactory metric.MetricStoreFactory
-	storeFactory = NewOpenCostMetricStore
-
-	resolutions := map[string]*util.Resolution{}
-	for _, resConf := range config.Resolutions {
-		resolution, err := util.NewResolution(resConf)
-		if err != nil {
-			log.Errorf("Error creating resolution for: %s", err.Error())
-			continue
-		}
-		resolutions[resConf.Interval] = resolution
-	}
-
-	repo := metric.NewMetricRepository(resolutions, storeFactory)
-
 	var store storage.Storage
 	if config.BucketConfigFile != "" {
 		bucketConfig, err := os.ReadFile(config.BucketConfigFile)
@@ -72,15 +56,19 @@ func NewCollectorDataSource(
 		}
 	}
 
-	scrapeController := scrape.NewScrapeController(
-		resolutions,
-		config.ScrapeInterval,
+	repo := metric.NewMetricRepository(
 		config.ClusterID,
+		config.Resolutions,
+		store,
+		NewOpenCostMetricStore,
+	)
+
+	scrapeController := scrape.NewScrapeController(
+		config.ScrapeInterval,
 		config.NetworkPort,
 		repo,
 		clusterCache,
 		statSummaryClient,
-		store,
 	)
 	scrapeController.Start()
 
