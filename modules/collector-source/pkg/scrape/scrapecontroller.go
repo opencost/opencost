@@ -1,15 +1,24 @@
 package scrape
 
 import (
+	"encoding/json"
 	"fmt"
+	path "path"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/core/pkg/exporter"
+	"github.com/opencost/opencost/core/pkg/exporter/pathing"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/util/atomic"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 )
+
+const ControllerEventName = "controller"
 
 // ScrapeController initializes and holds the scrapers in addition to running the loop that triggers scrapes
 type ScrapeController struct {
@@ -17,18 +26,21 @@ type ScrapeController struct {
 	runState       atomic.AtomicRunState
 	scrapers       []Scraper
 	repo           *metric.MetricRepository
+	exporter       exporter.EventExporter[metric.UpdateSet]
 }
 
 func NewScrapeController(
+	resolutions map[string]*util.Resolution,
 	scrapeInterval string,
-	releaseName string,
+	clusterID string,
 	networkPort int,
 	repo *metric.MetricRepository,
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient util.StatSummaryClient,
+	storage storage.Storage,
 ) *ScrapeController {
-	var scrapers []Scraper
 
+	var scrapers []Scraper
 	clusterCacheScraper := newClusterCacheScraper(clusterCache)
 	scrapers = append(scrapers, clusterCacheScraper)
 
@@ -38,7 +50,7 @@ func NewScrapeController(
 	statSummaryScraper := newStatSummaryScraper(statSummaryClient)
 	scrapers = append(scrapers, statSummaryScraper)
 
-	networkScraper := newNetworkScraper(releaseName, networkPort, clusterCache)
+	networkScraper := newNetworkScraper(networkPort, clusterCache)
 	scrapers = append(scrapers, networkScraper)
 
 	dcgmScraper := newDCGMScrapper(clusterCache)
@@ -54,6 +66,69 @@ func NewScrapeController(
 		scrapers:       scrapers,
 		repo:           repo,
 	}
+
+	if storage != nil {
+		pathFormatter, err := pathing.NewEventStoragePathFormatter("", clusterID, ControllerEventName)
+		if err != nil {
+			log.Errorf("filed to create path formatter for scrape controller: %s", err.Error())
+			return sc
+		}
+		encoder := exporter.NewJSONEncoder[metric.UpdateSet]()
+		sc.exporter = exporter.NewEventStorageExporter(
+			ControllerEventName,
+			pathFormatter,
+			encoder,
+			storage,
+		)
+		// attempt to restore state from files
+		// get path of saved files
+		dirPath := path.Dir(pathFormatter.ToFullPath("", time.Time{}, ""))
+		files, err := storage.List(dirPath)
+		if err != nil {
+			log.Errorf("failed to list files in scrape controller: %s", err.Error())
+		}
+		// find oldest limit
+		limit := time.Now().UTC()
+		for _, res := range resolutions {
+			if limit.After(res.Limit()) {
+				limit = res.Limit()
+			}
+		}
+
+		// find files that are within limit
+		var filesToRun []string
+		for _, file := range files {
+			fileName := path.Base(file.Name)
+			timeString := strings.TrimSuffix(fileName, encoder.FileExt())
+			timestamp, err := time.Parse(pathing.EventStorageTimeFormat, timeString)
+			if err != nil {
+				log.Errorf("failed to parse fileName %s: %s", fileName, err.Error())
+				continue
+			}
+			if timestamp.After(limit) {
+				filesToRun = append(filesToRun, file.Name)
+			}
+		}
+
+		// sort files
+		sort.Strings(filesToRun)
+
+		// open files and run updates
+		for _, fileName := range filesToRun {
+			b, err := storage.Read(fileName)
+			if err != nil {
+				log.Errorf("failed to load file contents for '%s': %s", fileName, err.Error())
+			}
+			updateSet := metric.UpdateSet{}
+			err = json.Unmarshal(b, &updateSet)
+			if err != nil {
+				log.Errorf("failed to unmar")
+			}
+
+		}
+
+	}
+
 	return sc
 }
 
@@ -101,7 +176,13 @@ func (sc *ScrapeController) Scrape(timestamp time.Time) {
 
 	// once all results are returned run updates all at once with the same timestamp
 	sc.repo.Update(scrapeResults, timestamp)
-	
-	// TODO save WAL
 
+	if sc.exporter != nil {
+		err := sc.exporter.Export(timestamp, &metric.UpdateSet{
+			Updates: scrapeResults,
+		})
+		if err != nil {
+			log.Errorf("failed to export scrape results: %s", err.Error())
+		}
+	}
 }

@@ -1,13 +1,16 @@
 package collector
 
 import (
+	"os"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
 	"github.com/opencost/opencost/core/pkg/diagnostics"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
@@ -44,17 +47,39 @@ func NewCollectorDataSource(
 	var storeFactory metric.MetricStoreFactory
 	storeFactory = NewOpenCostMetricStore
 
-	repo := metric.NewMetricRepository(metric.RepositoryConfig{
-		Resolutions: config.Resolutions,
-	}, storeFactory)
+	resolutions := map[string]*util.Resolution{}
+	for _, resConf := range config.Resolutions {
+		resolution, err := util.NewResolution(resConf)
+		if err != nil {
+			log.Errorf("Error creating resolution for: %s", err.Error())
+			continue
+		}
+		resolutions[resConf.Interval] = resolution
+	}
+
+	repo := metric.NewMetricRepository(resolutions, storeFactory)
+
+	var store storage.Storage
+	if config.BucketConfigFile != "" {
+		bucketConfig, err := os.ReadFile(config.BucketConfigFile)
+		if err != nil {
+			log.Errorf("Failed to initialize bucket output storage, please check your configuration and bucket security settings: %s", err)
+		} else {
+			store, err = storage.NewBucketStorage(bucketConfig)
+			if err != nil {
+				log.Errorf("Failed to create bucket storage, please check your configuration and bucket security settings: %s", err)
+			}
+		}
+	}
 
 	scrapeController := scrape.NewScrapeController(
 		config.ScrapeInterval,
-		config.ReleaseName,
+		config.ClusterID,
 		config.NetworkPort,
 		repo,
 		clusterCache,
 		statSummaryClient,
+		store,
 	)
 	scrapeController.Start()
 

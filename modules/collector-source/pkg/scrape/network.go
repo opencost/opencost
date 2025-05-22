@@ -15,11 +15,10 @@ const (
 )
 
 func newNetworkScraper(
-	releaseName string,
 	port int,
 	clusterCache clustercache.ClusterCache,
 ) Scraper {
-	tp := NewNetworkTargetProvider(releaseName, port, clusterCache)
+	tp := NewNetworkTargetProvider(port, clusterCache)
 	return newNetworkTargetScraper(tp)
 }
 
@@ -34,14 +33,12 @@ func newNetworkTargetScraper(provider target.TargetProvider) *TargetScraper {
 }
 
 type NetworkTargetProvider struct {
-	releaseName  string
 	port         int
 	clusterCache clustercache.ClusterCache
 }
 
-func NewNetworkTargetProvider(releaseName string, port int, clusterCache clustercache.ClusterCache) *NetworkTargetProvider {
+func NewNetworkTargetProvider(port int, clusterCache clustercache.ClusterCache) *NetworkTargetProvider {
 	return &NetworkTargetProvider{
-		releaseName:  releaseName,
 		port:         port,
 		clusterCache: clusterCache,
 	}

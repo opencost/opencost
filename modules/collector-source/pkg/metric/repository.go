@@ -20,16 +20,16 @@ type MetricRepository struct {
 	resolutionStores map[string]*resolutionStores
 }
 
-func NewMetricRepository(config RepositoryConfig, factory MetricStoreFactory) *MetricRepository {
+func NewMetricRepository(resolutions map[string]*util.Resolution, factory MetricStoreFactory) *MetricRepository {
 	resoluationCollectors := make(map[string]*resolutionStores)
 
-	for _, resConf := range config.Resolutions {
-		resCollector, err := newResolutionStores(resConf, factory)
+	for _, resolution := range resolutions {
+		resCollector, err := newResolutionStores(resolution, factory)
 		if err != nil {
 			log.Errorf("NewMetricRepository: failed to init resolution metric: %s", err.Error())
 			continue
 		}
-		resoluationCollectors[resConf.Interval] = resCollector
+		resoluationCollectors[resolution.Interval()] = resCollector
 	}
 
 	repo := &MetricRepository{
@@ -67,11 +67,15 @@ func (r *MetricRepository) Update(
 	}
 }
 
+type UpdateSet struct {
+	Updates []Update `json:"updates"`
+}
+
 type Update struct {
-	Name           string
-	Labels         map[string]string
-	Value          float64
-	AdditionalInfo map[string]string
+	Name           string            `json:"name"`
+	Labels         map[string]string `json:"labels"`
+	Value          float64           `json:"value"`
+	AdditionalInfo map[string]string `json:"additionalInfo"`
 }
 
 func (r *MetricRepository) Coverage() map[string][]time.Time {
@@ -96,12 +100,7 @@ type resolutionStores struct {
 	factory    func() MetricStore
 }
 
-func newResolutionStores(resConf util.ResolutionConfiguration, factory MetricStoreFactory) (*resolutionStores, error) {
-	resolution, err := util.NewResolution(resConf)
-	if err != nil {
-		return nil, fmt.Errorf("NewResolutionCollectors: %w", err)
-	}
-
+func newResolutionStores(resolution *util.Resolution, factory MetricStoreFactory) (*resolutionStores, error) {
 	resCol := &resolutionStores{
 		resolution: resolution,
 		collectors: map[int64]MetricStore{},

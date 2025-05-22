@@ -8,11 +8,11 @@ import (
 )
 
 type CollectorConfig struct {
-	Resolutions    []util.ResolutionConfiguration `json:"resolutions"`
-	ScrapeInterval string                         `json:"scrape_interval"`
-	ClusterID      string                         `json:"cluster_id"`
-	ReleaseName    string                         `json:"release_name"`
-	NetworkPort    int                            `json:"network_port"`
+	Resolutions      []util.ResolutionConfiguration `json:"resolutions"`
+	ScrapeInterval   string                         `json:"scrape_interval"`
+	ClusterID        string                         `json:"cluster_id"`
+	NetworkPort      int                            `json:"network_port"`
+	BucketConfigFile string                         `json:"bucket_config_file"`
 }
 
 func NewOpenCostCollectorConfigFromEnv() CollectorConfig {
@@ -31,9 +31,9 @@ func NewOpenCostCollectorConfigFromEnv() CollectorConfig {
 				Retention: env.GetCollection1dResolutionRetention(),
 			},
 		},
-		ScrapeInterval: fmt.Sprintf("%ds", env.GetCollectorScrapeIntervalSeconds()),
-		ClusterID:      env.GetClusterID(),
-		ReleaseName:    env.GetReleaseName(),
-		NetworkPort:    env.GetNetworkPort(),
+		ScrapeInterval:   fmt.Sprintf("%ds", env.GetCollectorScrapeIntervalSeconds()),
+		ClusterID:        env.GetClusterID(),
+		NetworkPort:      env.GetNetworkPort(),
+		BucketConfigFile: env.GetExportBucketConfigFile(),
 	}
 }

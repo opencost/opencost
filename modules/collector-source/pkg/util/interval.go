@@ -9,7 +9,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
 
-var intervalRegex = regexp.MustCompile(`^(\d+)(m|h|d|w)$`)
+var intervalRegex = regexp.MustCompile(`^(\d+)(s|m|h|d|w)$`)
 
 // Interval is a time period defined by a string with a integer followed by a letter (ex: 5d = 5 days)
 type Interval interface {
@@ -34,6 +34,8 @@ func NewInterval(def string) (Interval, error) {
 	}
 
 	switch match[2] {
+	case "s":
+		return &durationInterval{time.Duration(num) * time.Second}, nil
 	case "m":
 		return &durationInterval{time.Duration(num) * time.Minute}, nil
 	case "h":
