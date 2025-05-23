@@ -1,7 +1,6 @@
 package scrape
 
 import (
-	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 )
 
@@ -30,14 +29,13 @@ func newOpenCostTargetProvider() target.TargetProvider {
 	return target.NewDefaultTargetProvider(target.NewUrlTarget("http://localhost:9003/metrics"))
 }
 
-func newOpenCostScraper(updater metric.MetricUpdater) Scraper {
-	return newOpencostTargetScraper(newOpenCostTargetProvider(), updater)
+func newOpenCostScraper() Scraper {
+	return newOpencostTargetScraper(newOpenCostTargetProvider())
 }
 
-func newOpencostTargetScraper(provider target.TargetProvider, updater metric.MetricUpdater) *TargetScraper {
+func newOpencostTargetScraper(provider target.TargetProvider) *TargetScraper {
 	return newTargetScrapper(
 		provider,
-		updater,
 		[]string{
 			KubecostClusterManagementCost,
 			KubecostNetworkZoneEgressCost,

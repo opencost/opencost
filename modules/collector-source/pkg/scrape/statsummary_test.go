@@ -1,6 +1,7 @@
 package scrape
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -23,7 +24,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 	start1, _ := time.Parse(time.RFC3339, Start1Str)
 	tests := map[string]struct {
 		summaries []*stats.Summary
-		expected  []metric.UpdateArgs
+		expected  []metric.Update
 	}{
 		"nil values": {
 			summaries: []*stats.Summary{
@@ -87,7 +88,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					},
 				},
 			},
-			expected: []metric.UpdateArgs{},
+			expected: []metric.Update{},
 		},
 		"nil structs": {
 			summaries: []*stats.Summary{
@@ -118,7 +119,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					},
 				},
 			},
-			expected: []metric.UpdateArgs{},
+			expected: []metric.Update{},
 		},
 		"single node": {
 			summaries: []*stats.Summary{
@@ -189,56 +190,51 @@ func TestStatScraper_Scrape(t *testing.T) {
 					},
 				},
 			},
-			expected: []metric.UpdateArgs{
+			expected: []metric.Update{
 				{
-					MetricName: NodeCPUSecondsTotal,
+					Name: NodeCPUSecondsTotal,
 					Labels: map[string]string{
 						source.KubernetesNodeLabel: "node1",
 						source.ModeLabel:           "",
 					},
-					Value:     2,
-					Timestamp: start1,
+					Value: 2,
 				},
 				{
-					MetricName: NodeFSCapacityBytes,
+					Name: NodeFSCapacityBytes,
 					Labels: map[string]string{
 						source.InstanceLabel: "node1",
 						source.DeviceLabel:   "local",
 					},
-					Value:     float64(2 * util.GB),
-					Timestamp: start1,
+					Value: float64(2 * util.GB),
 				},
 				{
-					MetricName: ContainerNetworkReceiveBytesTotal,
+					Name: ContainerNetworkReceiveBytesTotal,
 					Labels: map[string]string{
 						source.UIDLabel:       "uid1",
 						source.PodLabel:       "pod1",
 						source.NamespaceLabel: "namespace1",
 					},
-					Value:     float64(1 * util.MB),
-					Timestamp: start1,
+					Value: float64(1 * util.MB),
 				},
 				{
-					MetricName: ContainerNetworkTransmitBytesTotal,
+					Name: ContainerNetworkTransmitBytesTotal,
 					Labels: map[string]string{
 						source.UIDLabel:       "uid1",
 						source.PodLabel:       "pod1",
 						source.NamespaceLabel: "namespace1",
 					},
-					Value:     float64(2 * util.MB),
-					Timestamp: start1,
+					Value: float64(2 * util.MB),
 				},
 				{
-					MetricName: KubeletVolumeStatsUsedBytes,
+					Name: KubeletVolumeStatsUsedBytes,
 					Labels: map[string]string{
 						source.PVCLabel:       "pvc1",
 						source.NamespaceLabel: "namespace1",
 					},
-					Value:     float64(1 * util.GB),
-					Timestamp: start1,
+					Value: float64(1 * util.GB),
 				},
 				{
-					MetricName: ContainerCPUUsageSecondsTotal,
+					Name: ContainerCPUUsageSecondsTotal,
 					Labels: map[string]string{
 						source.ContainerLabel: "container1",
 						source.PodLabel:       "pod1",
@@ -246,11 +242,10 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.NodeLabel:      "node1",
 						source.InstanceLabel:  "node1",
 					},
-					Value:     1,
-					Timestamp: start1,
+					Value: 1,
 				},
 				{
-					MetricName: ContainerMemoryWorkingSetBytes,
+					Name: ContainerMemoryWorkingSetBytes,
 					Labels: map[string]string{
 						source.ContainerLabel: "container1",
 						source.PodLabel:       "pod1",
@@ -258,17 +253,15 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.NodeLabel:      "node1",
 						source.InstanceLabel:  "node1",
 					},
-					Value:     float64(5 * util.MB),
-					Timestamp: start1,
+					Value: float64(5 * util.MB),
 				},
 				{
-					MetricName: ContainerFSUsageBytes,
+					Name: ContainerFSUsageBytes,
 					Labels: map[string]string{
 						source.InstanceLabel: "node1",
 						source.DeviceLabel:   "local",
 					},
-					Value:     float64(1 * util.GB),
-					Timestamp: start1,
+					Value: float64(1 * util.GB),
 				},
 			},
 		},
@@ -322,37 +315,33 @@ func TestStatScraper_Scrape(t *testing.T) {
 					},
 				},
 			},
-			expected: []metric.UpdateArgs{
+			expected: []metric.Update{
 				{
-					MetricName: KubeletVolumeStatsUsedBytes,
+					Name: KubeletVolumeStatsUsedBytes,
 					Labels: map[string]string{
 						source.PVCLabel:       "pvc1",
 						source.NamespaceLabel: "namespace1",
 					},
-					Value:     float64(1 * util.GB),
-					Timestamp: start1,
+					Value: float64(1 * util.GB),
 				},
 			},
 		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			updateRecorder := metric.ArgRecordUpdater{}
 			s := &StatSummaryScraper{
-				client:  &mockStatSummaryClient{results: tt.summaries},
-				updater: &updateRecorder,
+				client: &mockStatSummaryClient{results: tt.summaries},
 			}
-			s.Scrape()
+			scrapeResults := s.Scrape()
 
-			if len(updateRecorder.UpdateArgs) != len(tt.expected) {
-				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(updateRecorder.UpdateArgs))
+			if len(scrapeResults) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
 			}
 
 			for i, expected := range tt.expected {
-				updateArg := updateRecorder.UpdateArgs[i]
-				err := expected.Equals(updateArg)
-				if err != nil {
-					t.Errorf("Result did not match expected at index %d: %s", i, err.Error())
+				got := scrapeResults[i]
+				if !reflect.DeepEqual(expected, got) {
+					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
 				}
 			}
 		})

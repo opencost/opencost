@@ -1,6 +1,7 @@
 package scrape
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -26,7 +27,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 	tests := []struct {
 		name     string
 		scrapes  []scrape
-		expected []metric.UpdateArgs
+		expected []metric.Update
 	}{
 		{
 			name: "simple",
@@ -55,56 +56,51 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
-			expected: []metric.UpdateArgs{
+			expected: []metric.Update{
 				{
-					MetricName: KubeNodeStatusCapacityCPUCores,
+					Name: KubeNodeStatusCapacityCPUCores,
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
 					},
-					Value:                 2.0,
-					Timestamp:             start1,
-					AdditionalInformation: nil,
+					Value:          2.0,
+					AdditionalInfo: nil,
 				},
 				{
-					MetricName: KubeNodeStatusCapacityMemoryBytes,
+					Name: KubeNodeStatusCapacityMemoryBytes,
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
 					},
-					Value:                 2048.0,
-					Timestamp:             start1,
-					AdditionalInformation: nil,
+					Value:          2048.0,
+					AdditionalInfo: nil,
 				},
 				{
-					MetricName: KubeNodeStatusAllocatableCPUCores,
+					Name: KubeNodeStatusAllocatableCPUCores,
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
 					},
-					Value:                 1.0,
-					Timestamp:             start1,
-					AdditionalInformation: nil,
+					Value:          1.0,
+					AdditionalInfo: nil,
 				},
 				{
-					MetricName: KubeNodeStatusAllocatableMemoryBytes,
+					Name: KubeNodeStatusAllocatableMemoryBytes,
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
 					},
-					Value:                 1024.0,
-					Timestamp:             start1,
-					AdditionalInformation: nil,
+					Value:          1024.0,
+					AdditionalInfo: nil,
 				},
 				{
-					MetricName: KubeNodeLabels,
+					Name: KubeNodeLabels,
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
 					},
-					Value:     0,
-					Timestamp: start1,
-					AdditionalInformation: map[string]string{
+					Value: 0,
+					AdditionalInfo: map[string]string{
 						"label_test1": "blah",
 						"label_test2": "blah2",
 					},
@@ -114,23 +110,21 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			updateRecorder := metric.ArgRecordUpdater{}
-			ks := &ClusterCacheScraper{
-				updater: &updateRecorder,
-			}
+			ks := &ClusterCacheScraper{}
+			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				ks.scrapeNodes(s.Nodes, s.Timestamp)
+				res := ks.scrapeNodes(s.Nodes)
+				scrapeResults = append(scrapeResults, res...)
 			}
 
-			if len(updateRecorder.UpdateArgs) != len(tt.expected) {
-				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(updateRecorder.UpdateArgs))
+			if len(scrapeResults) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
 			}
 
 			for i, expected := range tt.expected {
-				updateArg := updateRecorder.UpdateArgs[i]
-				err := expected.Equals(updateArg)
-				if err != nil {
-					t.Errorf("Result did not match expected at index %d: %s", i, err.Error())
+				got := scrapeResults[i]
+				if !reflect.DeepEqual(expected, got) {
+					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
 				}
 			}
 		})
@@ -148,7 +142,7 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 	tests := []struct {
 		name     string
 		scrapes  []scrape
-		expected []metric.UpdateArgs
+		expected []metric.Update
 	}{
 		{
 			name: "simple",
@@ -167,17 +161,16 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
-			expected: []metric.UpdateArgs{
+			expected: []metric.Update{
 
 				{
-					MetricName: DeploymentMatchLabels,
+					Name: DeploymentMatchLabels,
 					Labels: map[string]string{
 						source.DeploymentLabel: "deployment1",
 						source.NamespaceLabel:  "namespace1",
 					},
-					Value:     0,
-					Timestamp: start1,
-					AdditionalInformation: map[string]string{
+					Value: 0,
+					AdditionalInfo: map[string]string{
 						"label_test1": "blah",
 						"label_test2": "blah2",
 					},
@@ -187,23 +180,21 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			updateRecorder := metric.ArgRecordUpdater{}
-			ks := &ClusterCacheScraper{
-				updater: &updateRecorder,
-			}
+			ks := &ClusterCacheScraper{}
+			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				ks.scrapeDeployments(s.Deployments, s.Timestamp)
+				res := ks.scrapeDeployments(s.Deployments)
+				scrapeResults = append(scrapeResults, res...)
 			}
 
-			if len(updateRecorder.UpdateArgs) != len(tt.expected) {
-				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(updateRecorder.UpdateArgs))
+			if len(scrapeResults) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
 			}
 
 			for i, expected := range tt.expected {
-				updateArg := updateRecorder.UpdateArgs[i]
-				err := expected.Equals(updateArg)
-				if err != nil {
-					t.Errorf("Result did not match expected at index %d: %s", i, err.Error())
+				got := scrapeResults[i]
+				if !reflect.DeepEqual(expected, got) {
+					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
 				}
 			}
 		})
@@ -221,7 +212,7 @@ func Test_kubernetesScraper_scrapeNamespaces(t *testing.T) {
 	tests := []struct {
 		name     string
 		scrapes  []scrape
-		expected []metric.UpdateArgs
+		expected []metric.Update
 	}{
 		{
 			name: "simple",
@@ -243,27 +234,25 @@ func Test_kubernetesScraper_scrapeNamespaces(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
-			expected: []metric.UpdateArgs{
+			expected: []metric.Update{
 				{
-					MetricName: KubeNamespaceLabels,
+					Name: KubeNamespaceLabels,
 					Labels: map[string]string{
 						source.NamespaceLabel: "namespace1",
 					},
-					Value:     0,
-					Timestamp: start1,
-					AdditionalInformation: map[string]string{
+					Value: 0,
+					AdditionalInfo: map[string]string{
 						"label_test1": "blah",
 						"label_test2": "blah2",
 					},
 				},
 				{
-					MetricName: KubeNamespaceAnnotations,
+					Name: KubeNamespaceAnnotations,
 					Labels: map[string]string{
 						source.NamespaceLabel: "namespace1",
 					},
-					Value:     0,
-					Timestamp: start1,
-					AdditionalInformation: map[string]string{
+					Value: 0,
+					AdditionalInfo: map[string]string{
 						"annotation_test3": "blah3",
 						"annotation_test4": "blah4",
 					},
@@ -273,23 +262,21 @@ func Test_kubernetesScraper_scrapeNamespaces(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			updateRecorder := metric.ArgRecordUpdater{}
-			ks := &ClusterCacheScraper{
-				updater: &updateRecorder,
-			}
+			ks := &ClusterCacheScraper{}
+			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				ks.scrapeNamespaces(s.Namespaces, s.Timestamp)
+				res := ks.scrapeNamespaces(s.Namespaces)
+				scrapeResults = append(scrapeResults, res...)
 			}
 
-			if len(updateRecorder.UpdateArgs) != len(tt.expected) {
-				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(updateRecorder.UpdateArgs))
+			if len(scrapeResults) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
 			}
 
 			for i, expected := range tt.expected {
-				updateArg := updateRecorder.UpdateArgs[i]
-				err := expected.Equals(updateArg)
-				if err != nil {
-					t.Errorf("Result did not match expected at index %d: %s", i, err.Error())
+				got := scrapeResults[i]
+				if !reflect.DeepEqual(expected, got) {
+					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
 				}
 			}
 		})
@@ -307,7 +294,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 	tests := []struct {
 		name     string
 		scrapes  []scrape
-		expected []metric.UpdateArgs
+		expected []metric.Update
 	}{
 		{
 			name: "simple",
@@ -362,9 +349,9 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
-			expected: []metric.UpdateArgs{
+			expected: []metric.Update{
 				{
-					MetricName: KubePodLabels,
+					Name: KubePodLabels,
 					Labels: map[string]string{
 						source.PodLabel:       "pod1",
 						source.NamespaceLabel: "namespace1",
@@ -372,15 +359,14 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 						source.NodeLabel:      "node1",
 						source.InstanceLabel:  "node1",
 					},
-					Value:     0,
-					Timestamp: start1,
-					AdditionalInformation: map[string]string{
+					Value: 0,
+					AdditionalInfo: map[string]string{
 						"label_test1": "blah",
 						"label_test2": "blah2",
 					},
 				},
 				{
-					MetricName: KubePodAnnotations,
+					Name: KubePodAnnotations,
 					Labels: map[string]string{
 						source.PodLabel:       "pod1",
 						source.NamespaceLabel: "namespace1",
@@ -388,15 +374,14 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 						source.NodeLabel:      "node1",
 						source.InstanceLabel:  "node1",
 					},
-					Value:     0,
-					Timestamp: start1,
-					AdditionalInformation: map[string]string{
+					Value: 0,
+					AdditionalInfo: map[string]string{
 						"annotation_test3": "blah3",
 						"annotation_test4": "blah4",
 					},
 				},
 				{
-					MetricName: KubePodOwner,
+					Name: KubePodOwner,
 					Labels: map[string]string{
 						source.PodLabel:       "pod1",
 						source.NamespaceLabel: "namespace1",
@@ -406,12 +391,11 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 						source.OwnerKindLabel: "deployment",
 						source.OwnerNameLabel: "deployment1",
 					},
-					Value:                 0,
-					Timestamp:             start1,
-					AdditionalInformation: nil,
+					Value:          0,
+					AdditionalInfo: nil,
 				},
 				{
-					MetricName: KubePodContainerStatusRunning,
+					Name: KubePodContainerStatusRunning,
 					Labels: map[string]string{
 						source.PodLabel:       "pod1",
 						source.NamespaceLabel: "namespace1",
@@ -420,12 +404,11 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 						source.InstanceLabel:  "node1",
 						source.ContainerLabel: "container1",
 					},
-					Value:                 0,
-					Timestamp:             start1,
-					AdditionalInformation: nil,
+					Value:          0,
+					AdditionalInfo: nil,
 				},
 				{
-					MetricName: KubePodContainerResourceRequests,
+					Name: KubePodContainerResourceRequests,
 					Labels: map[string]string{
 						source.PodLabel:       "pod1",
 						source.NamespaceLabel: "namespace1",
@@ -436,12 +419,11 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 						source.ResourceLabel:  "cpu",
 						source.UnitLabel:      "core",
 					},
-					Value:                 0.5,
-					Timestamp:             start1,
-					AdditionalInformation: nil,
+					Value:          0.5,
+					AdditionalInfo: nil,
 				},
 				{
-					MetricName: KubePodContainerResourceRequests,
+					Name: KubePodContainerResourceRequests,
 					Labels: map[string]string{
 						source.PodLabel:       "pod1",
 						source.NamespaceLabel: "namespace1",
@@ -452,32 +434,29 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 						source.ResourceLabel:  "memory",
 						source.UnitLabel:      "byte",
 					},
-					Value:                 512,
-					Timestamp:             start1,
-					AdditionalInformation: nil,
+					Value:          512,
+					AdditionalInfo: nil,
 				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			updateRecorder := metric.ArgRecordUpdater{}
-			ks := &ClusterCacheScraper{
-				updater: &updateRecorder,
-			}
+			ks := &ClusterCacheScraper{}
+			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				ks.scrapePods(s.Pods, s.Timestamp)
+				res := ks.scrapePods(s.Pods)
+				scrapeResults = append(scrapeResults, res...)
 			}
 
-			if len(updateRecorder.UpdateArgs) != len(tt.expected) {
-				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(updateRecorder.UpdateArgs))
+			if len(scrapeResults) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
 			}
 
 			for i, expected := range tt.expected {
-				updateArg := updateRecorder.UpdateArgs[i]
-				err := expected.Equals(updateArg)
-				if err != nil {
-					t.Errorf("Result did not match expected at index %d: %s", i, err.Error())
+				got := scrapeResults[i]
+				if !reflect.DeepEqual(expected, got) {
+					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
 				}
 			}
 		})
@@ -495,7 +474,7 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 	tests := []struct {
 		name     string
 		scrapes  []scrape
-		expected []metric.UpdateArgs
+		expected []metric.Update
 	}{
 		{
 			name: "simple",
@@ -519,53 +498,49 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
-			expected: []metric.UpdateArgs{
+			expected: []metric.Update{
 				{
-					MetricName: KubePersistentVolumeClaimInfo,
+					Name: KubePersistentVolumeClaimInfo,
 					Labels: map[string]string{
 						source.PVCLabel:          "pvc1",
 						source.NamespaceLabel:    "namespace1",
 						source.VolumeNameLabel:   "vol1",
 						source.StorageClassLabel: "storageClass1",
 					},
-					Value:                 0,
-					Timestamp:             start1,
-					AdditionalInformation: nil,
+					Value:          0,
+					AdditionalInfo: nil,
 				},
 				{
-					MetricName: KubePersistentVolumeClaimResourceRequestsStorageBytes,
+					Name: KubePersistentVolumeClaimResourceRequestsStorageBytes,
 					Labels: map[string]string{
 						source.PVCLabel:          "pvc1",
 						source.NamespaceLabel:    "namespace1",
 						source.VolumeNameLabel:   "vol1",
 						source.StorageClassLabel: "storageClass1",
 					},
-					Value:                 4096,
-					Timestamp:             start1,
-					AdditionalInformation: nil,
+					Value:          4096,
+					AdditionalInfo: nil,
 				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			updateRecorder := metric.ArgRecordUpdater{}
-			ks := &ClusterCacheScraper{
-				updater: &updateRecorder,
-			}
+			ks := &ClusterCacheScraper{}
+			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				ks.scrapePVCs(s.PVCs, s.Timestamp)
+				res := ks.scrapePVCs(s.PVCs)
+				scrapeResults = append(scrapeResults, res...)
 			}
 
-			if len(updateRecorder.UpdateArgs) != len(tt.expected) {
-				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(updateRecorder.UpdateArgs))
+			if len(scrapeResults) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
 			}
 
 			for i, expected := range tt.expected {
-				updateArg := updateRecorder.UpdateArgs[i]
-				err := expected.Equals(updateArg)
-				if err != nil {
-					t.Errorf("Result did not match expected at index %d: %s", i, err.Error())
+				got := scrapeResults[i]
+				if !reflect.DeepEqual(expected, got) {
+					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
 				}
 			}
 		})
@@ -583,7 +558,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 	tests := []struct {
 		name     string
 		scrapes  []scrape
-		expected []metric.UpdateArgs
+		expected []metric.Update
 	}{
 		{
 			name: "simple",
@@ -608,51 +583,47 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
-			expected: []metric.UpdateArgs{
+			expected: []metric.Update{
 				{
-					MetricName: KubecostPVInfo,
+					Name: KubecostPVInfo,
 					Labels: map[string]string{
 						source.PVLabel:           "pv1",
 						source.ProviderIDLabel:   "vol-1",
 						source.StorageClassLabel: "storageClass1",
 					},
-					Value:                 0,
-					Timestamp:             start1,
-					AdditionalInformation: nil,
+					Value:          0,
+					AdditionalInfo: nil,
 				},
 				{
-					MetricName: KubePersistentVolumeCapacityBytes,
+					Name: KubePersistentVolumeCapacityBytes,
 					Labels: map[string]string{
 						source.PVLabel:           "pv1",
 						source.ProviderIDLabel:   "vol-1",
 						source.StorageClassLabel: "storageClass1",
 					},
-					Value:                 4096,
-					Timestamp:             start1,
-					AdditionalInformation: nil,
+					Value:          4096,
+					AdditionalInfo: nil,
 				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			updateRecorder := metric.ArgRecordUpdater{}
-			ks := &ClusterCacheScraper{
-				updater: &updateRecorder,
-			}
+			ks := &ClusterCacheScraper{}
+			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				ks.scrapePVs(s.PVs, s.Timestamp)
+				res := ks.scrapePVs(s.PVs)
+				scrapeResults = append(scrapeResults, res...)
 			}
 
-			if len(updateRecorder.UpdateArgs) != len(tt.expected) {
-				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(updateRecorder.UpdateArgs))
+			if len(scrapeResults) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
 			}
 
 			for i, expected := range tt.expected {
-				updateArg := updateRecorder.UpdateArgs[i]
-				err := expected.Equals(updateArg)
-				if err != nil {
-					t.Errorf("Result did not match expected at index %d: %s", i, err.Error())
+				got := scrapeResults[i]
+				if !reflect.DeepEqual(expected, got) {
+					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
 				}
 			}
 		})
@@ -670,7 +641,7 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 	tests := []struct {
 		name     string
 		scrapes  []scrape
-		expected []metric.UpdateArgs
+		expected []metric.Update
 	}{
 		{
 			name: "simple",
@@ -689,16 +660,15 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
-			expected: []metric.UpdateArgs{
+			expected: []metric.Update{
 				{
-					MetricName: ServiceSelectorLabels,
+					Name: ServiceSelectorLabels,
 					Labels: map[string]string{
 						"service":             "service1",
 						source.NamespaceLabel: "namespace1",
 					},
-					Value:     0,
-					Timestamp: start1,
-					AdditionalInformation: map[string]string{
+					Value: 0,
+					AdditionalInfo: map[string]string{
 						"label_test1": "blah",
 						"label_test2": "blah2",
 					},
@@ -708,23 +678,21 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			updateRecorder := metric.ArgRecordUpdater{}
-			ks := &ClusterCacheScraper{
-				updater: &updateRecorder,
-			}
+			ks := &ClusterCacheScraper{}
+			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				ks.scrapeServices(s.Services, s.Timestamp)
+				res := ks.scrapeServices(s.Services)
+				scrapeResults = append(scrapeResults, res...)
 			}
 
-			if len(updateRecorder.UpdateArgs) != len(tt.expected) {
-				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(updateRecorder.UpdateArgs))
+			if len(scrapeResults) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
 			}
 
 			for i, expected := range tt.expected {
-				updateArg := updateRecorder.UpdateArgs[i]
-				err := expected.Equals(updateArg)
-				if err != nil {
-					t.Errorf("Result did not match expected at index %d: %s", i, err.Error())
+				got := scrapeResults[i]
+				if !reflect.DeepEqual(expected, got) {
+					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
 				}
 			}
 		})
@@ -742,7 +710,7 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 	tests := []struct {
 		name     string
 		scrapes  []scrape
-		expected []metric.UpdateArgs
+		expected []metric.Update
 	}{
 		{
 			name: "simple",
@@ -763,16 +731,15 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
-			expected: []metric.UpdateArgs{
+			expected: []metric.Update{
 				{
-					MetricName: StatefulSetMatchLabels,
+					Name: StatefulSetMatchLabels,
 					Labels: map[string]string{
 						source.StatefulSetLabel: "statefulSet1",
 						source.NamespaceLabel:   "namespace1",
 					},
-					Value:     0,
-					Timestamp: start1,
-					AdditionalInformation: map[string]string{
+					Value: 0,
+					AdditionalInfo: map[string]string{
 						"label_test1": "blah",
 						"label_test2": "blah2",
 					},
@@ -782,23 +749,21 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			updateRecorder := metric.ArgRecordUpdater{}
-			ks := &ClusterCacheScraper{
-				updater: &updateRecorder,
-			}
+			ks := &ClusterCacheScraper{}
+			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				ks.scrapeStatefulSets(s.StatefulSets, s.Timestamp)
+				res := ks.scrapeStatefulSets(s.StatefulSets)
+				scrapeResults = append(scrapeResults, res...)
 			}
 
-			if len(updateRecorder.UpdateArgs) != len(tt.expected) {
-				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(updateRecorder.UpdateArgs))
+			if len(scrapeResults) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
 			}
 
 			for i, expected := range tt.expected {
-				updateArg := updateRecorder.UpdateArgs[i]
-				err := expected.Equals(updateArg)
-				if err != nil {
-					t.Errorf("Result did not match expected at index %d: %s", i, err.Error())
+				got := scrapeResults[i]
+				if !reflect.DeepEqual(expected, got) {
+					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
 				}
 			}
 		})
@@ -816,7 +781,7 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 	tests := []struct {
 		name     string
 		scrapes  []scrape
-		expected []metric.UpdateArgs
+		expected []metric.Update
 	}{
 		{
 			name: "simple",
@@ -837,40 +802,37 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
-			expected: []metric.UpdateArgs{
+			expected: []metric.Update{
 				{
-					MetricName: KubeReplicasetOwner,
+					Name: KubeReplicasetOwner,
 					Labels: map[string]string{
 						"replicaset":          "replicaSet1",
 						source.NamespaceLabel: "namespace1",
 						source.OwnerNameLabel: "rollout1",
 						source.OwnerKindLabel: "Rollout",
 					},
-					Value:     0,
-					Timestamp: start1,
+					Value: 0,
 				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			updateRecorder := metric.ArgRecordUpdater{}
-			ks := &ClusterCacheScraper{
-				updater: &updateRecorder,
-			}
+			ks := &ClusterCacheScraper{}
+			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				ks.scrapeReplicaSets(s.ReplicaSets, s.Timestamp)
+				res := ks.scrapeReplicaSets(s.ReplicaSets)
+				scrapeResults = append(scrapeResults, res...)
 			}
 
-			if len(updateRecorder.UpdateArgs) != len(tt.expected) {
-				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(updateRecorder.UpdateArgs))
+			if len(scrapeResults) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
 			}
 
 			for i, expected := range tt.expected {
-				updateArg := updateRecorder.UpdateArgs[i]
-				err := expected.Equals(updateArg)
-				if err != nil {
-					t.Errorf("Result did not match expected at index %d: %s", i, err.Error())
+				got := scrapeResults[i]
+				if !reflect.DeepEqual(expected, got) {
+					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
 				}
 			}
 		})

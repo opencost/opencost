@@ -6,20 +6,16 @@ import (
 
 const (
 	ClusterIDEnvVar                 = "CLUSTER_ID"
-	ReleaseNameEnvVar               = "RELEASE_NAME"
 	NetworkPortEnvVar               = "NETWORK_PORT"
 	Collector10mResolutionRetention = "COLLECTOR_10M_RESOLUTION_RETENTION"
 	Collector1hResolutionRetention  = "COLLECTOR_1H_RESOLUTION_RETENTION"
 	Collection1dResolutionRetention = "COLLECTOR_1D_RESOLUTION_RETENTION"
 	CollectorScrapeIntervalSeconds  = "COLLECTOR_SCRAPE_INTERVAL_SECONDS"
+	ExportBucketConfigFileEnvVar    = "EXPORT_BUCKET_CONFIG_FILE"
 )
 
 func GetClusterID() string {
 	return env.Get(ClusterIDEnvVar, "")
-}
-
-func GetReleaseName() string {
-	return env.Get(ReleaseNameEnvVar, "kubecost")
 }
 
 func GetNetworkPort() int {
@@ -40,4 +36,8 @@ func GetCollection1dResolutionRetention() int {
 
 func GetCollectorScrapeIntervalSeconds() int {
 	return env.GetInt(CollectorScrapeIntervalSeconds, 30)
+}
+
+func GetExportBucketConfigFile() string {
+	return env.Get(ExportBucketConfigFileEnvVar, "")
 }

@@ -2,15 +2,23 @@ package metric
 
 import (
 	"fmt"
+	"path"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/exporter"
+	"github.com/opencost/opencost/core/pkg/exporter/pathing"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/storage"
+	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 )
 
+const ControllerEventName = "controller"
+
 type RepositoryConfig struct {
-	Resolutions []util.ResolutionConfiguration
 }
 
 // MetricRepository is an MetricUpdater which applies calls to update to all resolutions being tracked. It holds the
@@ -18,22 +26,96 @@ type RepositoryConfig struct {
 type MetricRepository struct {
 	lock             sync.Mutex
 	resolutionStores map[string]*resolutionStores
+	exporter         exporter.EventExporter[UpdateSet]
 }
 
-func NewMetricRepository(config RepositoryConfig, factory MetricStoreFactory) *MetricRepository {
+func NewMetricRepository(
+	clusterID string,
+	resolutions []util.ResolutionConfiguration,
+	store storage.Storage,
+	storeFactory MetricStoreFactory,
+) *MetricRepository {
 	resoluationCollectors := make(map[string]*resolutionStores)
-
-	for _, resConf := range config.Resolutions {
-		resCollector, err := newResolutionStores(resConf, factory)
+	for _, resconf := range resolutions {
+		resolution, err := util.NewResolution(resconf)
+		if err != nil {
+			log.Errorf("failed to create resolution %s", err.Error())
+		}
+		resCollector, err := newResolutionStores(resolution, storeFactory)
 		if err != nil {
 			log.Errorf("NewMetricRepository: failed to init resolution metric: %s", err.Error())
 			continue
 		}
-		resoluationCollectors[resConf.Interval] = resCollector
+		resoluationCollectors[resolution.Interval()] = resCollector
 	}
 
 	repo := &MetricRepository{
 		resolutionStores: resoluationCollectors,
+	}
+
+	if store != nil {
+		pathFormatter, err := pathing.NewEventStoragePathFormatter("", clusterID, ControllerEventName)
+		if err != nil {
+			log.Errorf("filed to create path formatter for scrape controller: %s", err.Error())
+			return repo
+		}
+		encoder := exporter.NewJSONEncoder[UpdateSet]()
+		repo.exporter = exporter.NewEventStorageExporter(
+			pathFormatter,
+			encoder,
+			store,
+		)
+		// attempt to restore state from files
+		// get path of saved files
+		dirPath := path.Dir(pathFormatter.ToFullPath("", time.Time{}, ""))
+		files, err := store.List(dirPath)
+		if err != nil {
+			log.Errorf("failed to list files in scrape controller: %s", err.Error())
+		}
+		// find oldest limit
+		limit := time.Now().UTC()
+		for _, resStore := range repo.resolutionStores {
+			if limit.After(resStore.resolution.Limit()) {
+				limit = resStore.resolution.Limit()
+			}
+		}
+
+		// find files that are within limit
+		var filesToRun []string
+		for _, file := range files {
+			fileName := path.Base(file.Name)
+			timeString := strings.TrimSuffix(fileName, "."+encoder.FileExt())
+			timestamp, err := time.Parse(pathing.EventStorageTimeFormat, timeString)
+			if err != nil {
+				log.Errorf("failed to parse fileName %s: %s", fileName, err.Error())
+				continue
+			}
+			if timestamp.After(limit) {
+				filesToRun = append(filesToRun, pathFormatter.ToFullPath("", timestamp, encoder.FileExt()))
+			}
+		}
+
+		// sort files
+		sort.Strings(filesToRun)
+
+		// open files and run updates
+		for _, fileName := range filesToRun {
+			b, err := store.Read(fileName)
+			if err != nil {
+				log.Errorf("failed to load file contents for '%s': %s", fileName, err.Error())
+				continue
+			}
+			updateSet := UpdateSet{}
+			err = json.Unmarshal(b, &updateSet)
+			if err != nil {
+				log.Errorf("failed to unmarshal file %s: %s", fileName, err.Error())
+				continue
+			}
+			filePrefix := path.Base(fileName)
+			timeString := strings.TrimSuffix(filePrefix, "."+encoder.FileExt())
+			timestamp, err := time.Parse(pathing.EventStorageTimeFormat, timeString)
+			repo.Update(updateSet.Updates, timestamp)
+		}
 	}
 
 	return repo
@@ -53,19 +135,38 @@ func (r *MetricRepository) GetCollector(interval string, t time.Time) (MetricSto
 
 // Update calls Update on the collectors for each resolution
 func (r *MetricRepository) Update(
-	metricName string,
-	labels map[string]string,
-	value float64,
+	updates []Update,
 	timestamp time.Time,
-	additionalInformation map[string]string,
 ) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	// Call update on the collectors for each resolution
-	for _, resCollector := range r.resolutionStores {
-		resCollector.update(metricName, labels, value, timestamp, additionalInformation)
+	for _, update := range updates {
+		// Call update on the collectors for each resolution
+		for _, resCollector := range r.resolutionStores {
+			resCollector.update(update.Name, update.Labels, update.Value, timestamp, update.AdditionalInfo)
+		}
 	}
+
+	if r.exporter != nil {
+		err := r.exporter.Export(timestamp, &UpdateSet{
+			Updates: updates,
+		})
+		if err != nil {
+			log.Errorf("failed to export update results: %s", err.Error())
+		}
+	}
+}
+
+type UpdateSet struct {
+	Updates []Update `json:"updates"`
+}
+
+type Update struct {
+	Name           string            `json:"name"`
+	Labels         map[string]string `json:"labels"`
+	Value          float64           `json:"value"`
+	AdditionalInfo map[string]string `json:"additionalInfo"`
 }
 
 func (r *MetricRepository) Coverage() map[string][]time.Time {
@@ -90,12 +191,7 @@ type resolutionStores struct {
 	factory    func() MetricStore
 }
 
-func newResolutionStores(resConf util.ResolutionConfiguration, factory MetricStoreFactory) (*resolutionStores, error) {
-	resolution, err := util.NewResolution(resConf)
-	if err != nil {
-		return nil, fmt.Errorf("NewResolutionCollectors: %w", err)
-	}
-
+func newResolutionStores(resolution *util.Resolution, factory MetricStoreFactory) (*resolutionStores, error) {
 	resCol := &resolutionStores{
 		resolution: resolution,
 		collectors: map[int64]MetricStore{},

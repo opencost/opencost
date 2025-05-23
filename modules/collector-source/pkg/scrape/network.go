@@ -5,7 +5,6 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 )
 
@@ -16,19 +15,16 @@ const (
 )
 
 func newNetworkScraper(
-	releaseName string,
 	port int,
 	clusterCache clustercache.ClusterCache,
-	updater metric.MetricUpdater,
 ) Scraper {
-	tp := NewNetworkTargetProvider(releaseName, port, clusterCache)
-	return newNetworkTargetScraper(tp, updater)
+	tp := NewNetworkTargetProvider(port, clusterCache)
+	return newNetworkTargetScraper(tp)
 }
 
-func newNetworkTargetScraper(provider target.TargetProvider, updater metric.MetricUpdater) *TargetScraper {
+func newNetworkTargetScraper(provider target.TargetProvider) *TargetScraper {
 	return newTargetScrapper(
 		provider,
-		updater,
 		[]string{
 			KubecostPodNetworkEgressBytesTotal,
 			KubecostPodNetworkIngressBytesTotal,
@@ -37,14 +33,12 @@ func newNetworkTargetScraper(provider target.TargetProvider, updater metric.Metr
 }
 
 type NetworkTargetProvider struct {
-	releaseName  string
 	port         int
 	clusterCache clustercache.ClusterCache
 }
 
-func NewNetworkTargetProvider(releaseName string, port int, clusterCache clustercache.ClusterCache) *NetworkTargetProvider {
+func NewNetworkTargetProvider(port int, clusterCache clustercache.ClusterCache) *NetworkTargetProvider {
 	return &NetworkTargetProvider{
-		releaseName:  releaseName,
 		port:         port,
 		clusterCache: clusterCache,
 	}

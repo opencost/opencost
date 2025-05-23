@@ -1,17 +1,19 @@
 package collector
 
 import (
+	"os"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
 	"github.com/opencost/opencost/core/pkg/diagnostics"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
-	"k8s.io/client-go/kubernetes"
 )
 
 type collectorDataSource struct {
@@ -24,7 +26,6 @@ type collectorDataSource struct {
 func NewDefaultCollectorDataSource(
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
-	k8s kubernetes.Interface,
 	statSummaryClient util.StatSummaryClient,
 ) source.OpenCostDataSource {
 	config := NewOpenCostCollectorConfigFromEnv()
@@ -32,7 +33,6 @@ func NewDefaultCollectorDataSource(
 		config,
 		clusterInfoProvider,
 		clusterCache,
-		k8s,
 		statSummaryClient,
 	)
 }
@@ -41,24 +41,33 @@ func NewCollectorDataSource(
 	config CollectorConfig,
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
-	k8s kubernetes.Interface,
 	statSummaryClient util.StatSummaryClient,
 ) source.OpenCostDataSource {
+	var store storage.Storage
+	if config.BucketConfigFile != "" {
+		bucketConfig, err := os.ReadFile(config.BucketConfigFile)
+		if err != nil {
+			log.Errorf("Failed to initialize bucket output storage, please check your configuration and bucket security settings: %s", err)
+		} else {
+			store, err = storage.NewBucketStorage(bucketConfig)
+			if err != nil {
+				log.Errorf("Failed to create bucket storage, please check your configuration and bucket security settings: %s", err)
+			}
+		}
+	}
 
-	var storeFactory metric.MetricStoreFactory
-	storeFactory = NewOpenCostMetricStore
-
-	repo := metric.NewMetricRepository(metric.RepositoryConfig{
-		Resolutions: config.Resolutions,
-	}, storeFactory)
+	repo := metric.NewMetricRepository(
+		config.ClusterID,
+		config.Resolutions,
+		store,
+		NewOpenCostMetricStore,
+	)
 
 	scrapeController := scrape.NewScrapeController(
 		config.ScrapeInterval,
-		config.ReleaseName,
 		config.NetworkPort,
 		repo,
 		clusterCache,
-		k8s,
 		statSummaryClient,
 	)
 	scrapeController.Start()
@@ -104,5 +113,8 @@ func (c *collectorDataSource) BatchDuration() time.Duration {
 }
 
 func (c *collectorDataSource) Resolution() time.Duration {
-	return c.config.ScrapeInterval
+	interval, _ := util.NewInterval(c.config.ScrapeInterval)
+	current := interval.Truncate(time.Now().UTC())
+	next := interval.Add(current, 1)
+	return next.Sub(current)
 }
