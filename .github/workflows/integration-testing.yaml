@@ -135,6 +135,16 @@ jobs:
         with:
             oc-container-version: "${{ needs.wait_for_image_ready.outputs.IMAGE_TAG }}"
             namespace: "${{ needs.wait_for_image_ready.outputs.NAMESPACE }}"
+            
+    build-test-stack-promless:
+        needs: wait_for_image_ready
+        if: ${{ (always() && !cancelled()) && ( github.event.event_name == 'schedule'  || github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request_target'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
+        uses: opencost/opencost-infra/.github/workflows/build-stack.yaml@main
+        secrets: inherit
+        with:
+            oc-container-version: "${{ needs.wait_for_image_ready.outputs.IMAGE_TAG }}"
+            namespace: "${{ needs.wait_for_image_ready.outputs.NAMESPACE }}-promless"
+            prometheus: false
 
     wait-for-dns:
         needs: [wait_for_image_ready, build-test-stack]
@@ -171,33 +181,64 @@ jobs:
         with:
             namespace: "${{ needs.wait_for_image_ready.outputs.NAMESPACE }}"
             target_branch: "${{ github.event.pull_request.head.ref || 'main' }}"
+  
+    wait-for-data-collection:
+      needs: [wait_for_image_ready, build-test-stack, build-test-stack-promless]
+      runs-on: ubuntu-latest
+      if: ${{ (always() && !cancelled()) && ( github.event.event_name == 'schedule'  || github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request_target'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
+      permissions: {}
+      steps:
+        - name: Wait 15 minutes for promless data collection
+          run: |
+            sleep 1000
     
+    run-comparison-tests:
+      needs: [wait_for_image_ready, build-test-stack, build-test-stack-promless, wait-for-data-collection]
+      if: ${{ (always() && !cancelled()) && ( github.event.event_name == 'schedule'  || github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request_target'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
+      permissions: {}
+      uses: opencost/opencost-infra/.github/workflows/test-stack.yaml@main
+      secrets: inherit
+      with:
+        namespace: "${{ needs.wait_for_image_ready.outputs.NAMESPACE }}"
+        comparison_namespace: "${{ needs.wait_for_image_ready.outputs.NAMESPACE }}-promless"
+        target_branch: "${{ github.event.pull_request.head.ref || 'main' }}"
+        comparison: true
+           
     hold-on-failure:
-        needs: [wait_for_image_ready, run-tests]
-        if: ${{ needs.run-tests.outputs.passed == 'false' }}
-        runs-on: ubuntu-latest
-        permissions: {}
-        steps:
-          - name: Hold stack for investigation
-            env:
-              NAMESPACE: ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}
-            run: |
-              echo "Tests failed. Holding stack up for 1 hour for investigation..."
-              echo "Stack namespace: $NAMESPACE"
-              echo "Stack will be automatically torn down after 1 hour"
-              sleep 3600
-    
+      needs: [wait_for_image_ready, run-tests, run-comparison-tests]
+      if: ${{ needs.run-tests.outputs.passed == 'false' || needs.run-comparison-tests.outputs.passed == 'false' }}
+      runs-on: ubuntu-latest
+      permissions: {}
+      steps:
+        - name: Hold stack for investigation
+          env:
+            NAMESPACE: ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}
+          run: |
+            echo "Tests failed. Holding stacks up for 1 hour for investigation..."
+            echo "Stack namespace: $NAMESPACE"
+            echo "Stack will be automatically torn down after 1 hour"
+            sleep 3600
+
     teardown-test-stack:
-        needs: [wait_for_image_ready, run-tests, hold-on-failure]
+        needs: [wait_for_image_ready, run-tests, run-comparison-tests, hold-on-failure]
         if: ${{ (always() && !cancelled()) && ( github.event.event_name == 'schedule'  || github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request_target'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
         uses: opencost/opencost-infra/.github/workflows/destroy-stack.yaml@main
         secrets: inherit 
         permissions: {}
         with:
             namespace: "${{ needs.wait_for_image_ready.outputs.NAMESPACE }}"
+    
+    teardown-test-stack-comparison:
+        needs: [wait_for_image_ready, run-comparison-tests, hold-on-failure]
+        if: ${{ (always() && !cancelled()) && ( github.event.event_name == 'schedule'  || github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request_target'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
+        uses: opencost/opencost-infra/.github/workflows/destroy-stack.yaml@main
+        secrets: inherit 
+        permissions: {}
+        with:
+            namespace: "${{ needs.wait_for_image_ready.outputs.NAMESPACE }}-promless"
 
     check-success:
-        needs: [noop-tests, run-tests]
+        needs: [noop-tests, run-tests, run-comparison-tests]
         permissions: {}
         runs-on: ubuntu-latest
         if: ${{ always() }}
@@ -218,11 +259,16 @@ jobs:
                 exit 1
               fi
               
+              if [[ "${{ needs.run-comparison-tests.outputs.passed }}" != "true" ]]; then
+                echo "One or more comparison tests failed"
+                exit 1
+              fi
+              
               echo "All integration tests passed"
               exit 0
 
     set-labels:
-      needs: [wait_for_image_ready, run-tests]
+      needs: [noop-tests, run-tests, run-comparison-tests]
       if: ${{ (always() && !cancelled()) && ( github.event_name == 'pull_request_target' && needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
       runs-on: ubuntu-latest
       permissions: {}
