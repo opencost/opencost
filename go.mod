@@ -66,6 +66,7 @@ require (
 )
 
 require (
+	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/gofrs/flock v0.8.1 // indirect
 	github.com/sony/gobreaker v0.5.0 // indirect
 )
