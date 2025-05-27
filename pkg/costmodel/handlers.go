@@ -3,6 +3,7 @@ package costmodel
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 	assetfilter "github.com/opencost/opencost/core/pkg/filter/asset"
@@ -62,6 +63,18 @@ func (a *Accesses) ComputeAssetsCarbonHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	carbonEstimates, err := carbon.RelateCarbonAssets(assetSet)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error computing carbon estimates: %s", err), http.StatusInternalServerError)
+		return
+	}
+
+	for key, carbonRow := range carbonEstimates {
+		parts := strings.Split(key, "/")
+		if len(parts) == 2 {
+			namespace, pod := parts[0], parts[1]
+			a.MetricsEmitter.EmitCarbonCost(namespace, pod, "", carbonRow.Co2e)
+		}
+	}
 
 	w.Write(WrapData(carbonEstimates, nil))
 }

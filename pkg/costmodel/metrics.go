@@ -134,6 +134,7 @@ var (
 	networkInternetEgressCostG prometheus.Gauge
 	clusterManagementCostGv    *prometheus.GaugeVec
 	lbCostGv                   *prometheus.GaugeVec
+	CarbonCostRecorder         *prometheus.GaugeVec
 )
 
 // initCostModelMetrics uses a sync.Once to ensure that these metrics are only created once
@@ -271,6 +272,17 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		}, []string{"ingress_ip", "namespace", "service_name"}) // assumes one ingress IP per load balancer
 		if _, disabled := disabledMetrics["kubecost_load_balancer_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, lbCostGv)
+		}
+
+		CarbonCostRecorder = prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "opencost_carbon_cost",
+				Help: "Carbon cost associated with resource usage",
+			},
+			[]string{"namespace", "pod", "cluster"},
+		)
+		if _, disabled := disabledMetrics["opencost_carbon_cost"]; !disabled {
+			toRegisterGV = append(toRegisterGV, CarbonCostRecorder)
 		}
 
 		// Register cost-model metrics for emission
@@ -814,4 +826,8 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 // or if the emission is paused.
 func (cmme *CostModelMetricsEmitter) Stop() {
 	cmme.runState.Stop()
+}
+
+func (cmme *CostModelMetricsEmitter) EmitCarbonCost(namespace, pod, cluster string, carbonCost float64) {
+	CarbonCostRecorder.WithLabelValues(namespace, pod, cluster).Set(carbonCost)
 }
