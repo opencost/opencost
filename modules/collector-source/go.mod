@@ -8,9 +8,9 @@ require (
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/opencost/opencost/core v0.0.0-20250521155634-81d2b597d1bc
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0
-	k8s.io/api v0.33.0
-	k8s.io/apimachinery v0.33.0
-	k8s.io/kubelet v0.33.0
+	k8s.io/api v0.33.1
+	k8s.io/apimachinery v0.33.1
+	k8s.io/kubelet v0.33.1
 )
 
 require (
