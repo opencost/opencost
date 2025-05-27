@@ -1,7 +1,6 @@
 package metric
 
 import (
-	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -46,9 +45,7 @@ func TestNewMetricRepository_DisasterRecovery(t *testing.T) {
 	time3 := time.Now().UTC().Truncate(timeutil.Day)
 	time2 := time3.Add(-12 * time.Hour)
 	time1 := time3.Add(-timeutil.Day)
-	dirPath := os.TempDir()
-	defer os.RemoveAll(dirPath)
-	store := storage.NewFileStorage(dirPath)
+	store := storage.NewMemoryStorage()
 	repo := NewMetricRepository(
 		"test",
 		[]util.ResolutionConfiguration{
