@@ -223,6 +223,16 @@ func TestAzure_findCostForDisk(t *testing.T) {
 			730.0,
 			nil,
 		},
+		{
+			"nil sku",
+			&compute.Disk{
+				Location:       nil,
+				Sku:            nil,
+				DiskProperties: nil,
+			},
+			0.0,
+			fmt.Errorf("disk sku is nil"),
+		},
 	}
 
 	for _, tc := range testCases {
