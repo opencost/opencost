@@ -62,6 +62,7 @@ func Execute(opts *CostModelOpts) error {
 	}
 
 	log.Infof("Cloud Costs enabled: %t", env.IsCloudCostEnabled())
+	log.Infof("Carbon estimates enabled: %t", env.IsCarbonEstimatesEnabled())
 	if env.IsCloudCostEnabled() {
 		var providerConfig models.ProviderConfig
 		if cp != nil {
