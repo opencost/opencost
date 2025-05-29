@@ -1,8 +1,6 @@
 package collector
 
 import (
-	"fmt"
-
 	"github.com/opencost/opencost/modules/collector-source/pkg/env"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 )
@@ -30,7 +28,7 @@ func NewOpenCostCollectorConfigFromEnv() CollectorConfig {
 				Retention: env.GetCollection1dResolutionRetention(),
 			},
 		},
-		ScrapeInterval: fmt.Sprintf("%ds", env.GetCollectorScrapeIntervalSeconds()),
+		ScrapeInterval: env.GetCollectorScrapeIntervalSeconds(),
 		ClusterID:      env.GetClusterID(),
 		NetworkPort:    env.GetNetworkPort(),
 	}

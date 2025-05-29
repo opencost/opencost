@@ -514,7 +514,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 
 		return ds, e
 	}
-	if env.IsPromless() {
+	if env.IsCollectorDataSourceEnabled() {
 		fn = func() (source.OpenCostDataSource, error) {
 			store := getStorage()
 			nodeStatConf, err := NewNodeClientConfigFromEnv()
