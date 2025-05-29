@@ -1450,6 +1450,11 @@ func (az *Azure) findCostForDisk(d *compute.Disk) (float64, error) {
 	if d == nil {
 		return 0.0, fmt.Errorf("disk is empty")
 	}
+
+	if d.Sku == nil {
+		return 0.0, fmt.Errorf("disk sku is nil")
+	}
+
 	storageClass := string(d.Sku.Name)
 	if strings.EqualFold(storageClass, "Premium_LRS") {
 		storageClass = AzureDiskPremiumSSDStorageClass
