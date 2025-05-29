@@ -2,9 +2,9 @@ package scrape
 
 import (
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/nodestats"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
-	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
@@ -21,10 +21,10 @@ const (
 )
 
 type StatSummaryScraper struct {
-	client util.StatSummaryClient
+	client nodestats.StatSummaryClient
 }
 
-func newStatSummaryScraper(client util.StatSummaryClient) Scraper {
+func newStatSummaryScraper(client nodestats.StatSummaryClient) Scraper {
 	return &StatSummaryScraper{
 		client: client,
 	}

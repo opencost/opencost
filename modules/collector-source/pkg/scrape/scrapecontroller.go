@@ -6,6 +6,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/nodestats"
 	"github.com/opencost/opencost/core/pkg/util/atomic"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
@@ -24,7 +25,7 @@ func NewScrapeController(
 	networkPort int,
 	repo *metric.MetricRepository,
 	clusterCache clustercache.ClusterCache,
-	statSummaryClient util.StatSummaryClient,
+	statSummaryClient nodestats.StatSummaryClient,
 ) *ScrapeController {
 
 	var scrapers []Scraper

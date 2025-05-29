@@ -39,6 +39,7 @@ const (
 	ConfigPathEnvVar          = "CONFIG_PATH"
 	CloudProviderAPIKeyEnvVar = "CLOUD_PROVIDER_API_KEY"
 	PromlessEnvVar            = "PROMLESS"
+	PVMountPath               = "PV_MOUNT_PATH"
 
 	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
 	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
@@ -367,8 +368,12 @@ func GetCloudProviderAPIKey() string {
 	return env.Get(CloudProviderAPIKeyEnvVar, "")
 }
 
-// GetPromless returns the environment variable which enables a source.OpencostDatasource which uses Prometheus
-func GetPromless() bool {
+func GetPVMountPath() string {
+	return env.Get(PVMountPath, "")
+}
+
+// IsPromless returns the environment variable which enables a source.OpencostDatasource which uses Prometheus
+func IsPromless() bool {
 	return env.GetBool(PromlessEnvVar, false)
 }
 
