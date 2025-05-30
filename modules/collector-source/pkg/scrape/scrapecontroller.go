@@ -17,13 +17,13 @@ type ScrapeController struct {
 	scrapeInterval util.Interval
 	runState       atomic.AtomicRunState
 	scrapers       []Scraper
-	repo           *metric.MetricRepository
+	updater        metric.Updater
 }
 
 func NewScrapeController(
 	scrapeInterval string,
 	networkPort int,
-	repo *metric.MetricRepository,
+	updater metric.Updater,
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient nodestats.StatSummaryClient,
 ) *ScrapeController {
@@ -52,7 +52,7 @@ func NewScrapeController(
 	sc := &ScrapeController{
 		scrapeInterval: si,
 		scrapers:       scrapers,
-		repo:           repo,
+		updater:        updater,
 	}
 
 	return sc
@@ -101,5 +101,5 @@ func (sc *ScrapeController) Scrape(timestamp time.Time) {
 	scrapeResults := concurrentScrape(scrapeFuncs...)
 
 	// once all results are returned run updates all at once with the same timestamp
-	sc.repo.Update(scrapeResults, timestamp)
+	sc.updater.Update(scrapeResults, timestamp)
 }

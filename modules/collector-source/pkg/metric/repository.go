@@ -2,47 +2,27 @@ package metric
 
 import (
 	"fmt"
-	"path"
-	"sort"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/exporter"
-	"github.com/opencost/opencost/core/pkg/exporter/pathing"
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/core/pkg/storage"
-	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 )
-
-const ControllerEventName = "controller"
-
-type RepositoryConfig struct {
-}
 
 // MetricRepository is an MetricUpdater which applies calls to update to all resolutions being tracked. It holds the
 // MetricStore instances for each resolution.
 type MetricRepository struct {
 	lock             sync.Mutex
 	resolutionStores map[string]*resolutionStores
-	exporter         exporter.EventExporter[UpdateSet]
 }
 
 func NewMetricRepository(
-	clusterID string,
-	resolutions []util.ResolutionConfiguration,
-	store storage.Storage,
+	resolutions []*util.Resolution,
 	storeFactory MetricStoreFactory,
 ) *MetricRepository {
 	resoluationCollectors := make(map[string]*resolutionStores)
 	var limitResolution *util.Resolution
-	for _, resconf := range resolutions {
-		resolution, err := util.NewResolution(resconf)
-		if err != nil {
-			log.Errorf("failed to create resolution %s", err.Error())
-			continue
-		}
+	for _, resolution := range resolutions {
 		if limitResolution == nil || resolution.Limit().Before(limitResolution.Limit()) {
 			limitResolution = resolution
 		}
@@ -54,112 +34,9 @@ func NewMetricRepository(
 		resoluationCollectors[resolution.Interval()] = resCollector
 	}
 
-	repo := &MetricRepository{
+	return &MetricRepository{
 		resolutionStores: resoluationCollectors,
 	}
-
-	if store != nil {
-		pathFormatter, err := pathing.NewEventStoragePathFormatter("", clusterID, ControllerEventName)
-		if err != nil {
-			log.Errorf("filed to create path formatter for scrape controller: %s", err.Error())
-			return repo
-		}
-		encoder := exporter.NewJSONEncoder[UpdateSet]()
-		repo.exporter = exporter.NewEventStorageExporter(
-			pathFormatter,
-			encoder,
-			store,
-		)
-
-		type fileInfo struct {
-			name      string
-			timestamp time.Time
-			ext       string
-		}
-
-		getFileInfos := func() ([]fileInfo, error) {
-			dirPath := pathFormatter.Dir()
-			files, err := store.List(dirPath)
-			if err != nil {
-				return nil, fmt.Errorf("failed to list files in scrape controller: %w", err)
-			}
-			var fileInfos []fileInfo
-			for _, file := range files {
-				fileName := path.Base(file.Name)
-				fileNameComponents := strings.Split(fileName, ".")
-				if len(fileNameComponents) != 2 {
-					log.Errorf("file has invalid name: %s", fileName)
-					continue
-				}
-				timeString := fileNameComponents[0]
-				timestamp, err := time.Parse(pathing.EventStorageTimeFormat, timeString)
-				if err != nil {
-					log.Errorf("failed to parse fileName %s: %s", fileName, err.Error())
-					continue
-				}
-				ext := fileNameComponents[1]
-				fileInfos = append(fileInfos, fileInfo{
-					name:      pathFormatter.ToFullPath("", timestamp, ext),
-					timestamp: timestamp,
-					ext:       ext,
-				})
-			}
-			sort.Slice(fileInfos, func(i, j int) bool {
-				return fileInfos[i].timestamp.Before(fileInfos[j].timestamp)
-			})
-			return fileInfos, nil
-		}
-
-		// attempt to restore state from files
-
-		// find files that are within limit
-		fileInfos, err := getFileInfos()
-		if err != nil {
-			log.Errorf("failed to retrieve updates files: %s", err.Error())
-		}
-		limit := limitResolution.Limit()
-		for _, fi := range fileInfos {
-			if fi.timestamp.Before(limit) {
-				continue
-			}
-
-			b, err := store.Read(fi.name)
-			if err != nil {
-				log.Errorf("failed to load file contents for '%s': %s", fi.name, err.Error())
-				continue
-			}
-			updateSet := UpdateSet{}
-			err = json.Unmarshal(b, &updateSet)
-			if err != nil {
-				log.Errorf("failed to unmarshal file %s: %s", fi.name, err.Error())
-				continue
-			}
-			repo.Update(updateSet.Updates, fi.timestamp)
-		}
-
-		// Start cleaning function
-		go func() {
-			time.Sleep(limitResolution.Next().Sub(time.Now().UTC()))
-			fileInfos, err := getFileInfos()
-			if err != nil {
-				log.Errorf("failed to retrieve file info for cleaning: %s", err.Error())
-			}
-			limit := limitResolution.Limit()
-			for _, fi := range fileInfos {
-				if limit.Before(fi.timestamp) {
-					continue
-				}
-				err = store.Remove(fi.name)
-				if err != nil {
-					log.Errorf("failed to remove file '%s': %s", fi.name, err.Error())
-				}
-			}
-
-		}()
-
-	}
-
-	return repo
 }
 
 func (r *MetricRepository) GetCollector(interval string, t time.Time) (MetricStore, error) {
@@ -188,26 +65,6 @@ func (r *MetricRepository) Update(
 			resCollector.update(update.Name, update.Labels, update.Value, timestamp, update.AdditionalInfo)
 		}
 	}
-
-	if r.exporter != nil {
-		err := r.exporter.Export(timestamp, &UpdateSet{
-			Updates: updates,
-		})
-		if err != nil {
-			log.Errorf("failed to export update results: %s", err.Error())
-		}
-	}
-}
-
-type UpdateSet struct {
-	Updates []Update `json:"updates"`
-}
-
-type Update struct {
-	Name           string            `json:"name"`
-	Labels         map[string]string `json:"labels"`
-	Value          float64           `json:"value"`
-	AdditionalInfo map[string]string `json:"additionalInfo"`
 }
 
 func (r *MetricRepository) Coverage() map[string][]time.Time {

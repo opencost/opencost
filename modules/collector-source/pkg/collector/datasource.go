@@ -7,6 +7,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
 	"github.com/opencost/opencost/core/pkg/diagnostics"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/nodestats"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/storage"
@@ -45,17 +46,41 @@ func NewCollectorDataSource(
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient nodestats.StatSummaryClient,
 ) source.OpenCostDataSource {
+	var resolutions []*util.Resolution
+	for _, resconf := range config.Resolutions {
+		resolution, err := util.NewResolution(resconf)
+		if err != nil {
+			log.Errorf("failed to create resolution %s", err.Error())
+			continue
+		}
+		resolutions = append(resolutions, resolution)
+	}
+
 	repo := metric.NewMetricRepository(
-		config.ClusterID,
-		config.Resolutions,
-		store,
+		resolutions,
 		NewOpenCostMetricStore,
 	)
+	var updater metric.Updater
+	updater = repo
+	if store != nil {
+		wal, err := metric.NewWalinator(
+			config.ClusterID,
+			store,
+			resolutions,
+			repo,
+		)
+		if err != nil {
+			log.Errorf("failed to initialize the walinator: %s", err.Error())
+		} else {
+			wal.Start()
+			updater = wal
+		}
+	}
 
 	scrapeController := scrape.NewScrapeController(
 		config.ScrapeInterval,
 		config.NetworkPort,
-		repo,
+		updater,
 		clusterCache,
 		statSummaryClient,
 	)
