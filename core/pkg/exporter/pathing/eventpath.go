@@ -53,6 +53,16 @@ func (espf *EventStoragePathFormatter) RootDir() string {
 	return espf.rootDir
 }
 
+// Dir  returns the director that files will be placed in
+func (espf *EventStoragePathFormatter) Dir() string {
+	return path.Join(
+		espf.rootDir,
+		espf.clusterId,
+		espf.event,
+		path.Join(espf.subPaths...),
+	)
+}
+
 // ToFullPath returns the full path to a file name within the storage directory using the format:
 //
 //	<root>/federated/<cluster>/<event>/YYYYMMDDHHmm.json

@@ -36,10 +36,15 @@ func NewMetricRepository(
 	storeFactory MetricStoreFactory,
 ) *MetricRepository {
 	resoluationCollectors := make(map[string]*resolutionStores)
+	var limitResolution *util.Resolution
 	for _, resconf := range resolutions {
 		resolution, err := util.NewResolution(resconf)
 		if err != nil {
 			log.Errorf("failed to create resolution %s", err.Error())
+			continue
+		}
+		if limitResolution == nil || resolution.Limit().Before(limitResolution.Limit()) {
+			limitResolution = resolution
 		}
 		resCollector, err := newResolutionStores(resolution, storeFactory)
 		if err != nil {
@@ -65,57 +70,93 @@ func NewMetricRepository(
 			encoder,
 			store,
 		)
-		// attempt to restore state from files
-		// get path of saved files
-		dirPath := path.Dir(pathFormatter.ToFullPath("", time.Time{}, ""))
-		files, err := store.List(dirPath)
-		if err != nil {
-			log.Errorf("failed to list files in scrape controller: %s", err.Error())
+
+		type fileInfo struct {
+			name      string
+			timestamp time.Time
+			ext       string
 		}
-		// find oldest limit
-		limit := time.Now().UTC()
-		for _, resStore := range repo.resolutionStores {
-			if limit.After(resStore.resolution.Limit()) {
-				limit = resStore.resolution.Limit()
+
+		getFileInfos := func() ([]fileInfo, error) {
+			dirPath := pathFormatter.Dir()
+			files, err := store.List(dirPath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to list files in scrape controller: %w", err)
 			}
+			var fileInfos []fileInfo
+			for _, file := range files {
+				fileName := path.Base(file.Name)
+				fileNameComponents := strings.Split(fileName, ".")
+				if len(fileNameComponents) != 2 {
+					log.Errorf("file has invalid name: %s", fileName)
+					continue
+				}
+				timeString := fileNameComponents[0]
+				timestamp, err := time.Parse(pathing.EventStorageTimeFormat, timeString)
+				if err != nil {
+					log.Errorf("failed to parse fileName %s: %s", fileName, err.Error())
+					continue
+				}
+				ext := fileNameComponents[1]
+				fileInfos = append(fileInfos, fileInfo{
+					name:      pathFormatter.ToFullPath("", timestamp, ext),
+					timestamp: timestamp,
+					ext:       ext,
+				})
+			}
+			sort.Slice(fileInfos, func(i, j int) bool {
+				return fileInfos[i].timestamp.Before(fileInfos[j].timestamp)
+			})
+			return fileInfos, nil
 		}
+
+		// attempt to restore state from files
 
 		// find files that are within limit
-		var filesToRun []string
-		for _, file := range files {
-			fileName := path.Base(file.Name)
-			timeString := strings.TrimSuffix(fileName, "."+encoder.FileExt())
-			timestamp, err := time.Parse(pathing.EventStorageTimeFormat, timeString)
-			if err != nil {
-				log.Errorf("failed to parse fileName %s: %s", fileName, err.Error())
+		fileInfos, err := getFileInfos()
+		if err != nil {
+			log.Errorf("failed to retrieve updates files: %s", err.Error())
+		}
+		limit := limitResolution.Limit()
+		for _, fi := range fileInfos {
+			if fi.timestamp.Before(limit) {
 				continue
 			}
-			if timestamp.After(limit) {
-				filesToRun = append(filesToRun, pathFormatter.ToFullPath("", timestamp, encoder.FileExt()))
-			}
-		}
 
-		// sort files
-		sort.Strings(filesToRun)
-
-		// open files and run updates
-		for _, fileName := range filesToRun {
-			b, err := store.Read(fileName)
+			b, err := store.Read(fi.name)
 			if err != nil {
-				log.Errorf("failed to load file contents for '%s': %s", fileName, err.Error())
+				log.Errorf("failed to load file contents for '%s': %s", fi.name, err.Error())
 				continue
 			}
 			updateSet := UpdateSet{}
 			err = json.Unmarshal(b, &updateSet)
 			if err != nil {
-				log.Errorf("failed to unmarshal file %s: %s", fileName, err.Error())
+				log.Errorf("failed to unmarshal file %s: %s", fi.name, err.Error())
 				continue
 			}
-			filePrefix := path.Base(fileName)
-			timeString := strings.TrimSuffix(filePrefix, "."+encoder.FileExt())
-			timestamp, err := time.Parse(pathing.EventStorageTimeFormat, timeString)
-			repo.Update(updateSet.Updates, timestamp)
+			repo.Update(updateSet.Updates, fi.timestamp)
 		}
+
+		// Start cleaning function
+		go func() {
+			time.Sleep(limitResolution.Next().Sub(time.Now().UTC()))
+			fileInfos, err := getFileInfos()
+			if err != nil {
+				log.Errorf("failed to retrieve file info for cleaning: %s", err.Error())
+			}
+			limit := limitResolution.Limit()
+			for _, fi := range fileInfos {
+				if limit.Before(fi.timestamp) {
+					continue
+				}
+				err = store.Remove(fi.name)
+				if err != nil {
+					log.Errorf("failed to remove file '%s': %s", fi.name, err.Error())
+				}
+			}
+
+		}()
+
 	}
 
 	return repo
