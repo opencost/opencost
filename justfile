@@ -24,6 +24,7 @@ test-collector-source:
 # run the opencost unit tests 
 test-opencost: 
     {{commonenv}} go test ./... -coverprofile=coverage.out
+    {{commonenv}} go tool cover -html=coverage.out -o coverage.html
     {{commonenv}} go vet ./...
 
 # Run unit tests, merge coverage reports, remove old reports 

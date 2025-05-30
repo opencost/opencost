@@ -24,21 +24,22 @@ const (
 	AzureBillingAccountEnvVar            = "AZURE_BILLING_ACCOUNT"
 	AzureDownloadBillingDataToDiskEnvVar = "AZURE_DOWNLOAD_BILLING_DATA_TO_DISK"
 
-	ReleaseNameEnvVar         = "RELEASE_NAME"
-	PodNameEnvVar             = "POD_NAME"
-	ClusterIDEnvVar           = "CLUSTER_ID"
-	ClusterProfileEnvVar      = "CLUSTER_PROFILE"
-	RemoteEnabledEnvVar       = "REMOTE_WRITE_ENABLED"
-	RemotePWEnvVar            = "REMOTE_WRITE_PASSWORD"
-	SQLAddressEnvVar          = "SQL_ADDRESS"
-	UseCSVProviderEnvVar      = "USE_CSV_PROVIDER"
-	UseCustomProviderEnvVar   = "USE_CUSTOM_PROVIDER"
-	CSVRegionEnvVar           = "CSV_REGION"
-	CSVEndpointEnvVar         = "CSV_ENDPOINT"
-	CSVPathEnvVar             = "CSV_PATH"
-	ConfigPathEnvVar          = "CONFIG_PATH"
-	CloudProviderAPIKeyEnvVar = "CLOUD_PROVIDER_API_KEY"
-	PromlessEnvVar            = "PROMLESS"
+	ReleaseNameEnvVar                = "RELEASE_NAME"
+	PodNameEnvVar                    = "POD_NAME"
+	ClusterIDEnvVar                  = "CLUSTER_ID"
+	ClusterProfileEnvVar             = "CLUSTER_PROFILE"
+	RemoteEnabledEnvVar              = "REMOTE_WRITE_ENABLED"
+	RemotePWEnvVar                   = "REMOTE_WRITE_PASSWORD"
+	SQLAddressEnvVar                 = "SQL_ADDRESS"
+	UseCSVProviderEnvVar             = "USE_CSV_PROVIDER"
+	UseCustomProviderEnvVar          = "USE_CUSTOM_PROVIDER"
+	CSVRegionEnvVar                  = "CSV_REGION"
+	CSVEndpointEnvVar                = "CSV_ENDPOINT"
+	CSVPathEnvVar                    = "CSV_PATH"
+	ConfigPathEnvVar                 = "CONFIG_PATH"
+	CloudProviderAPIKeyEnvVar        = "CLOUD_PROVIDER_API_KEY"
+	CollectorDataSourceEnabledEnvVar = "COLLECTOR_DATA_SOURCE_ENABLED"
+	PVMountPath                      = "PV_MOUNT_PATH"
 
 	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
 	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
@@ -367,9 +368,13 @@ func GetCloudProviderAPIKey() string {
 	return env.Get(CloudProviderAPIKeyEnvVar, "")
 }
 
-// GetPromless returns the environment variable which enables a source.OpencostDatasource which uses Prometheus
-func GetPromless() bool {
-	return env.GetBool(PromlessEnvVar, false)
+func GetPVMountPath() string {
+	return env.Get(PVMountPath, "")
+}
+
+// IsCollectorDataSourceEnabeled returns the environment variable which enables a source.OpencostDatasource which does not use uses Prometheus
+func IsCollectorDataSourceEnabled() bool {
+	return env.GetBool(CollectorDataSourceEnabledEnvVar, false)
 }
 
 // IsLogCollectionEnabled returns the environment variable value for LogCollectionEnabledEnvVar which represents

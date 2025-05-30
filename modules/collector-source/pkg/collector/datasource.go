@@ -1,14 +1,13 @@
 package collector
 
 import (
-	"os"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
 	"github.com/opencost/opencost/core/pkg/diagnostics"
-	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/nodestats"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
@@ -24,13 +23,15 @@ type collectorDataSource struct {
 }
 
 func NewDefaultCollectorDataSource(
+	store storage.Storage,
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
-	statSummaryClient util.StatSummaryClient,
+	statSummaryClient nodestats.StatSummaryClient,
 ) source.OpenCostDataSource {
 	config := NewOpenCostCollectorConfigFromEnv()
 	return NewCollectorDataSource(
 		config,
+		store,
 		clusterInfoProvider,
 		clusterCache,
 		statSummaryClient,
@@ -39,23 +40,11 @@ func NewDefaultCollectorDataSource(
 
 func NewCollectorDataSource(
 	config CollectorConfig,
+	store storage.Storage,
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
-	statSummaryClient util.StatSummaryClient,
+	statSummaryClient nodestats.StatSummaryClient,
 ) source.OpenCostDataSource {
-	var store storage.Storage
-	if config.BucketConfigFile != "" {
-		bucketConfig, err := os.ReadFile(config.BucketConfigFile)
-		if err != nil {
-			log.Errorf("Failed to initialize bucket output storage, please check your configuration and bucket security settings: %s", err)
-		} else {
-			store, err = storage.NewBucketStorage(bucketConfig)
-			if err != nil {
-				log.Errorf("Failed to create bucket storage, please check your configuration and bucket security settings: %s", err)
-			}
-		}
-	}
-
 	repo := metric.NewMetricRepository(
 		config.ClusterID,
 		config.Resolutions,

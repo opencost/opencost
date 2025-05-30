@@ -10,8 +10,7 @@ const (
 	Collector10mResolutionRetention = "COLLECTOR_10M_RESOLUTION_RETENTION"
 	Collector1hResolutionRetention  = "COLLECTOR_1H_RESOLUTION_RETENTION"
 	Collection1dResolutionRetention = "COLLECTOR_1D_RESOLUTION_RETENTION"
-	CollectorScrapeIntervalSeconds  = "COLLECTOR_SCRAPE_INTERVAL_SECONDS"
-	ExportBucketConfigFileEnvVar    = "EXPORT_BUCKET_CONFIG_FILE"
+	CollectorScrapeInterval         = "COLLECTOR_SCRAPE_INTERVAL"
 )
 
 func GetClusterID() string {
@@ -34,10 +33,6 @@ func GetCollection1dResolutionRetention() int {
 	return env.GetInt(Collection1dResolutionRetention, 15)
 }
 
-func GetCollectorScrapeIntervalSeconds() int {
-	return env.GetInt(CollectorScrapeIntervalSeconds, 30)
-}
-
-func GetExportBucketConfigFile() string {
-	return env.Get(ExportBucketConfigFileEnvVar, "")
+func GetCollectorScrapeIntervalSeconds() string {
+	return env.Get(CollectorScrapeInterval, "30s")
 }

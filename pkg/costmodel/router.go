@@ -14,8 +14,10 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/kubeconfig"
+	"github.com/opencost/opencost/core/pkg/nodestats"
 	"github.com/opencost/opencost/core/pkg/protocol"
 	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/util/retry"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/core/pkg/version"
@@ -36,6 +38,7 @@ import (
 	sysenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/opencost/opencost/modules/collector-source/pkg/collector"
 	"github.com/opencost/opencost/modules/prometheus-source/pkg/prom"
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/models"
@@ -499,20 +502,43 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	var fatalErr error
 
 	ctx, cancel := context.WithCancel(context.Background())
+	fn := func() (source.OpenCostDataSource, error) {
+		ds, e := prom.NewDefaultPrometheusDataSource(clusterInfoProvider)
+		if e != nil {
+			if source.IsRetryable(e) {
+				return nil, e
+			}
+			fatalErr = e
+			cancel()
+		}
+
+		return ds, e
+	}
+	if env.IsCollectorDataSourceEnabled() {
+		fn = func() (source.OpenCostDataSource, error) {
+			store := getStorage()
+			nodeStatConf, err := NewNodeClientConfigFromEnv()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get node client config: %w", err)
+			}
+			clusterConfig, err := kubeconfig.LoadKubeconfig("")
+			if err != nil {
+				return nil, fmt.Errorf("failed to load kube config: %w", err)
+			}
+			nodeStatClient := nodestats.NewNodeStatsSummaryClient(k8sCache, nodeStatConf, clusterConfig)
+			ds := collector.NewDefaultCollectorDataSource(
+				store,
+				clusterInfoProvider,
+				k8sCache,
+				nodeStatClient,
+			)
+			return ds, nil
+		}
+	}
+
 	dataSource, _ := retry.Retry(
 		ctx,
-		func() (source.OpenCostDataSource, error) {
-			ds, e := prom.NewDefaultPrometheusDataSource(clusterInfoProvider)
-			if e != nil {
-				if source.IsRetryable(e) {
-					return nil, e
-				}
-				fatalErr = e
-				cancel()
-			}
-
-			return ds, e
-		},
+		fn,
 		maxRetries,
 		retryInterval,
 	)
@@ -581,6 +607,15 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	router.GET("/helmValues", a.GetHelmValues)
 
 	return a
+}
+
+func getStorage() storage.Storage {
+	var store storage.Storage
+	pvMountPath := env.GetPVMountPath()
+	if pvMountPath != "" {
+		store = storage.NewFileStorage(pvMountPath)
+	}
+	return store
 }
 
 // InitializeCloudCost Initializes Cloud Cost pipeline and querier and registers endpoints
