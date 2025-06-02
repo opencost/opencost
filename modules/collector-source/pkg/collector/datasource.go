@@ -94,6 +94,7 @@ func NewCollectorDataSource(
 	clusterMap := newCollectorClusterMap(clusterInfo)
 
 	return &collectorDataSource{
+		config:         config,
 		metricsQuerier: metricQuerier,
 		clusterInfo:    clusterInfo,
 		clusterMap:     clusterMap,
