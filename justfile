@@ -14,6 +14,7 @@ test-core:
 # Run unit tests
 test: test-core
     {{commonenv}} go test ./... -coverprofile=coverage.out
+    {{commonenv}} go tool cover -html=coverage.out -o coverage.html
     {{commonenv}} go vet ./...
 
 # Run unit tests and integration tests
