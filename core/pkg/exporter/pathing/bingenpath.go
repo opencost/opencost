@@ -55,6 +55,17 @@ func (bsf *BingenStoragePathFormatter) RootDir() string {
 	return bsf.rootDir
 }
 
+// Dir returns the director that files will be placed in
+func (bsf *BingenStoragePathFormatter) Dir() string {
+	return path.Join(
+		bsf.rootDir,
+		bsf.clusterId,
+		baseStorageDir,
+		bsf.pipeline,
+		bsf.resolution,
+	)
+}
+
 // ToFullPath returns the full path to a file name within the storage directory using the format:
 //
 //	<root>/federated/<cluster>/etl/bingen/<pipeline>/<resolution>/<prefix>.<start-epoch>-<end-epoch>

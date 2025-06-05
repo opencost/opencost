@@ -43,9 +43,6 @@ func (a *maxOverTimeAggregator) Update(value float64, timestamp time.Time, addit
 func (a *maxOverTimeAggregator) Value() []MetricValue {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	if a.max == 0 {
-		return []MetricValue{}
-	}
 	return []MetricValue{
 		{Value: a.max},
 	}
