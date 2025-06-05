@@ -69,9 +69,6 @@ func (a *iRateMaxAggregator) Update(value float64, timestamp time.Time, addition
 func (a *iRateMaxAggregator) Value() []MetricValue {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	if !a.initialized {
-		return []MetricValue{}
-	}
 	return []MetricValue{
 		{Value: a.max},
 	}

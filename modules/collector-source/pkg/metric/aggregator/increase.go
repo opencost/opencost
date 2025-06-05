@@ -58,9 +58,6 @@ func (a *increaseAggregator) Update(value float64, timestamp time.Time, addition
 func (a *increaseAggregator) Value() []MetricValue {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	if !a.initialized {
-		return []MetricValue{}
-	}
 	return []MetricValue{
 		{Value: a.current - a.initial},
 	}
