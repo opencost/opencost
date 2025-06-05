@@ -12,7 +12,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-func TestNodeSummaryStuff(t *testing.T) {
+func TestNodeSummaryLive(t *testing.T) {
+	// this requires a live kubernetes cluster, and is used to test live functionality
+	// we can comment the skip if we integrate a k8s sim or a mock server in the future
 	t.Skip("Skipping live test for node summary client")
 
 	client, err := kubeconfig.LoadKubeClient("")
