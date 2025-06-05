@@ -237,13 +237,6 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	// totals from measured rate data.
 	podMap := map[podKey]*pod{}
 
-	// clusterStarts and clusterEnds record the earliest start and latest end
-	// times, respectively, on a cluster-basis. These are used for unmounted
-	// PVs and other "virtual" Allocations so that minutes are maximally
-	// accurate during start-up or spin-down of a cluster
-	clusterStart := map[string]time.Time{}
-	clusterEnd := map[string]time.Time{}
-
 	// If ingesting pod UID, we query kube_pod_container_status_running avg
 	// by uid as well as the default values, and all podKeys/pods have their
 	// names changed to "<pod_name> <pod_uid>". Because other metrics need
@@ -262,9 +255,8 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	if ingestPodUID {
 		log.Debugf("CostModel.ComputeAllocation: ingesting UID data from KSM metrics...")
 	}
-
-	// TODO:CLEANUP remove "max batch" idea and clusterStart/End
-	err := cm.buildPodMap(window, cm.BatchDuration, podMap, clusterStart, clusterEnd, ingestPodUID, podUIDKeyMap)
+	
+	err := cm.buildPodMap(window, podMap, ingestPodUID, podUIDKeyMap)
 	if err != nil {
 		log.Errorf("CostModel.ComputeAllocation: failed to build pod map: %s", err.Error())
 	}

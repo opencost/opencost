@@ -91,19 +91,18 @@ func (pds *PrometheusMetricsQuerier) QueryPVUsedMax(start, end time.Time) *sourc
 }
 
 func (pds *PrometheusMetricsQuerier) QueryPVCInfo(start, end time.Time) *source.Future[source.PVCInfoResult] {
-	const queryFmtPVCInfo = `avg(kube_persistentvolumeclaim_info{volumename != "", %s}) by (persistentvolumeclaim, storageclass, volumename, namespace, %s)[%s:%s]`
+	const queryFmtPVCInfo = `avg(kube_persistentvolumeclaim_info{volumename != "", %s}) by (persistentvolumeclaim, storageclass, volumename, namespace, %s)[%s:%dm]`
 	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr)
 
 	cfg := pds.promConfig
-	resolution := cfg.DataResolution
-	resStr := timeutil.DurationString(resolution)
+	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryPVCInfo")
 	}
 
-	queryPVCInfo := fmt.Sprintf(queryFmtPVCInfo, cfg.ClusterFilter, cfg.ClusterLabel, durStr, resStr)
+	queryPVCInfo := fmt.Sprintf(queryFmtPVCInfo, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
 	return source.NewFuture(source.DecodePVCInfoResult, ctx.QueryAtTime(queryPVCInfo, end))
 }
@@ -488,37 +487,35 @@ func (pds *PrometheusMetricsQuerier) QueryClusterManagementPricePerHr(start, end
 // AllocationMetricQuerier
 
 func (pds *PrometheusMetricsQuerier) QueryPods(start, end time.Time) *source.Future[source.PodsResult] {
-	const queryFmtPods = `avg(kube_pod_container_status_running{%s} != 0) by (pod, namespace, %s)[%s:%s]`
+	const queryFmtPods = `avg(kube_pod_container_status_running{%s} != 0) by (pod, namespace, %s)[%s:%dm]`
 	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr)
 
 	cfg := pds.promConfig
-	resolution := cfg.DataResolution
-	resStr := timeutil.DurationString(resolution)
+	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryPods")
 	}
 
-	queryPods := fmt.Sprintf(queryFmtPods, cfg.ClusterFilter, cfg.ClusterLabel, durStr, resStr)
+	queryPods := fmt.Sprintf(queryFmtPods, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
 	return source.NewFuture(source.DecodePodsResult, ctx.QueryAtTime(queryPods, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryPodsUID(start, end time.Time) *source.Future[source.PodsResult] {
-	const queryFmtPodsUID = `avg(kube_pod_container_status_running{%s} != 0) by (pod, namespace, uid, %s)[%s:%s]`
+	const queryFmtPodsUID = `avg(kube_pod_container_status_running{%s} != 0) by (pod, namespace, uid, %s)[%s:%dm]`
 	// env.GetPromClusterFilter(), env.GetPromClusterLabel(), durStr, resStr)
 
 	cfg := pds.promConfig
-	resolution := cfg.DataResolution
-	resStr := timeutil.DurationString(resolution)
+	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryPodsUID")
 	}
 
-	queryPodsUID := fmt.Sprintf(queryFmtPodsUID, cfg.ClusterFilter, cfg.ClusterLabel, durStr, resStr)
+	queryPodsUID := fmt.Sprintf(queryFmtPodsUID, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
 	return source.NewFuture(source.DecodePodsResult, ctx.QueryAtTime(queryPodsUID, end))
 }
@@ -662,7 +659,7 @@ func (pds *PrometheusMetricsQuerier) QueryCPUUsageMax(start, end time.Time) *sou
 	// the resolution, to make sure the irate always has two points to query
 	// in case the Prom scrape duration has been reduced to be equal to the
 	// ETL resolution.
-	const queryFmtCPUUsageMaxSubquery = `max(max_over_time(irate(container_cpu_usage_seconds_total{container!="POD", container!="", %s}[%s])[%s:%s])) by (container, pod_name, pod, namespace, node, instance, %s)`
+	const queryFmtCPUUsageMaxSubquery = `max(max_over_time(irate(container_cpu_usage_seconds_total{container!="POD", container!="", %s}[%dm])[%s:%dm])) by (container, pod_name, pod, namespace, node, instance, %s)`
 	// env.GetPromClusterFilter(), doubleResStr, durStr, resStr, env.GetPromClusterLabel()
 
 	cfg := pds.promConfig
@@ -681,11 +678,14 @@ func (pds *PrometheusMetricsQuerier) QueryCPUUsageMax(start, end time.Time) *sou
 		return wrapResults(queryCPUUsageMaxRecordingRule, source.DecodeCPUUsageMaxResult, resCPUUsageMax)
 	}
 
-	resolution := cfg.DataResolution
-	resStr := timeutil.DurationString(resolution)
-	doubleResStr := timeutil.DurationString(2 * resolution)
+	minsPerResolution := cfg.DataResolutionMinutes
 
-	queryCPUUsageMaxSubquery := fmt.Sprintf(queryFmtCPUUsageMaxSubquery, cfg.ClusterFilter, doubleResStr, durStr, resStr, cfg.ClusterLabel)
+	durStr = pds.durationStringFor(start, end, minsPerResolution)
+	if durStr == "" {
+		panic("failed to parse duration string passed to QueryCPUUsageMax")
+	}
+
+	queryCPUUsageMaxSubquery := fmt.Sprintf(queryFmtCPUUsageMaxSubquery, cfg.ClusterFilter, 2*minsPerResolution, durStr, minsPerResolution, cfg.ClusterLabel)
 	return source.NewFuture(source.DecodeCPUUsageMaxResult, ctx.QueryAtTime(queryCPUUsageMaxSubquery, end))
 }
 
@@ -1319,12 +1319,16 @@ func (pds *PrometheusMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time
 	)
 
 	cfg := pds.promConfig
-	now := time.Now()
-	durStr := fmt.Sprintf("%dd", limitDays)
+	minutesPerDuration := 60
+	dur := time.Duration(limitDays) * timeutil.Day
+	end := time.Now().UTC().Truncate(timeutil.Day).Add(timeutil.Day)
+	start := end.Add(-dur)
+
+	durStr := pds.durationStringFor(start, end, minutesPerDuration)
 
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
 	queryOldest := fmt.Sprintf(queryFmtOldestSample, cfg.ClusterFilter, durStr, "1h")
-	resOldestFut := ctx.QueryAtTime(queryOldest, now)
+	resOldestFut := ctx.QueryAtTime(queryOldest, end)
 
 	resOldest, err := resOldestFut.Await()
 	if err != nil {
@@ -1337,7 +1341,7 @@ func (pds *PrometheusMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time
 	oldest := time.Unix(int64(resOldest[0].Values[0].Value), 0)
 
 	queryNewest := fmt.Sprintf(queryFmtNewestSample, cfg.ClusterFilter, durStr, "1h")
-	resNewestFut := ctx.QueryAtTime(queryNewest, now)
+	resNewestFut := ctx.QueryAtTime(queryNewest, end)
 
 	resNewest, err := resNewestFut.Await()
 	if err != nil {
