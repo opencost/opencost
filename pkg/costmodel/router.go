@@ -408,7 +408,7 @@ func GetKubecostContainers(kubeClientSet kubernetes.Interface) ([]ContainerInfo,
 
 	// If we have zero pods either something is weird with the install since the app selector is not exposed in the helm
 	// chart or more likely we are running locally - in either case Images field will return as null
-	var containers []ContainerInfo
+	containers := make([]ContainerInfo, 0)
 	if len(pods.Items) > 0 {
 		for _, pod := range pods.Items {
 			for _, container := range pod.Spec.Containers {
