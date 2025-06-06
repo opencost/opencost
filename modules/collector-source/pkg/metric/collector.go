@@ -2,7 +2,6 @@ package metric
 
 import (
 	"maps"
-	"sort"
 	"time"
 
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric/aggregator"
@@ -125,8 +124,7 @@ func (mi *MetricCollector) Update(labels map[string]string, value float64, times
 	}
 	key := util.Hash(labelValues)
 	if mi.metrics[key] == nil {
-		mi.metrics[key] = mi.aggregatorFactory(
-			util.MetricNameFor(mi.metricName, mi.labels, labelValues), labelValues)
+		mi.metrics[key] = mi.aggregatorFactory(labelValues)
 	}
 
 	mi.metrics[key].Update(value, timestamp, additionalInfo)
@@ -138,7 +136,6 @@ func (mi *MetricCollector) Get() []*aggregator.MetricResult {
 		labels := util.ToMap(mi.labels, metric.LabelValues())
 		maps.Copy(labels, metric.AdditionInfo())
 		mr := &aggregator.MetricResult{
-			Name:         metric.Name(),
 			MetricLabels: labels,
 			Values:       metric.Value(),
 		}
@@ -146,10 +143,6 @@ func (mi *MetricCollector) Get() []*aggregator.MetricResult {
 		results = append(results, mr)
 	}
 
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Name < results[j].Name
-	})
-	
 	return results
 }
 

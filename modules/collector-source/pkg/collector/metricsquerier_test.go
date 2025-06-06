@@ -1,7 +1,9 @@
 package collector
 
 import (
+	"cmp"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -804,9 +806,15 @@ func Test_collectorMetricsQuerier_QueryNetInternetServiceGiB(t *testing.T) {
 			},
 		},
 	}
+
 	if len(res) != len(expected) {
 		t.Errorf("length of result was not as expected: got = %d, want %d", len(res), len(expected))
 	}
+
+	slices.SortFunc(res, func(a, b *source.NetInternetServiceGiBResult) int {
+		return cmp.Compare(a.Service, b.Service)
+	})
+
 	for i, got := range res {
 		if !reflect.DeepEqual(got, expected[i]) {
 			t.Errorf("result at index %d did not match: got = %v, want %v", i, got, expected[i])
@@ -989,6 +997,11 @@ func Test_collectorMetricsQuerier_QueryNetInternetServiceIngressGiB(t *testing.T
 	if len(res) != len(expected) {
 		t.Errorf("length of result was not as expected: got = %d, want %d", len(res), len(expected))
 	}
+
+	slices.SortFunc(res, func(a, b *source.NetInternetServiceIngressGiBResult) int {
+		return cmp.Compare(a.Service, b.Service)
+	})
+
 	for i, got := range res {
 		if !reflect.DeepEqual(got, expected[i]) {
 			t.Errorf("result at index %d did not match: got = %v, want %v", i, got, expected[i])

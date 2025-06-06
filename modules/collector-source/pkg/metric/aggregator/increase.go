@@ -7,7 +7,6 @@ import (
 
 type increaseAggregator struct {
 	lock        sync.Mutex
-	name        string
 	labelValues []string
 	initialized bool
 	initialTime time.Time
@@ -16,15 +15,10 @@ type increaseAggregator struct {
 	current     float64
 }
 
-func Increase(name string, labelValues []string) MetricAggregator {
+func Increase(labelValues []string) MetricAggregator {
 	return &increaseAggregator{
-		name:        name,
 		labelValues: labelValues,
 	}
-}
-
-func (a *increaseAggregator) Name() string {
-	return a.name
 }
 
 func (a *increaseAggregator) AdditionInfo() map[string]string {

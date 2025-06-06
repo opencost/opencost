@@ -13,30 +13,36 @@ type MetricValue struct {
 	Timestamp *time.Time
 }
 
-// MetricResult contains a resulting metric name, the associated labels and label values, and a slice of
+// ToVector converts the MetricValue into a util.Vector (adapter for source.QueryResults).
+func (mv *MetricValue) ToVector() *util.Vector {
+	timestamp := 0.0
+	if mv.Timestamp != nil {
+		timestamp = float64(mv.Timestamp.Unix())
+	}
+	return &util.Vector{
+		Timestamp: timestamp,
+		Value:     mv.Value,
+	}
+}
+
+// MetricResult contains the metric result labels and label values, and a slice of
 // MetricValues.
 type MetricResult struct {
-	Name         string
 	MetricLabels map[string]string
 	Values       []MetricValue
 }
 
+// ToQueryResult converts the MetricResult into a source.QueryResult, which is the format used by
+// the data source to return query results.
 func (mr *MetricResult) ToQueryResult() *source.QueryResult {
-	metrics := map[string]any{}
+	metrics := make(map[string]any, len(mr.MetricLabels))
 	for key, value := range mr.MetricLabels {
 		metrics[key] = value
 	}
 
 	values := make([]*util.Vector, len(mr.Values))
 	for i, value := range mr.Values {
-		timestamp := 0.0
-		if value.Timestamp != nil {
-			timestamp = float64(value.Timestamp.Unix())
-		}
-		values[i] = &util.Vector{
-			Timestamp: timestamp,
-			Value:     value.Value,
-		}
+		values[i] = value.ToVector()
 	}
 
 	return source.NewQueryResult(metrics, values, nil)
@@ -47,7 +53,6 @@ func (mr *MetricResult) ToQueryResult() *source.QueryResult {
 // In this case, the `AverageOverTime` component is the MetricAggregator. It is the component responsible
 // for routing updates to metric values into their proper condensed form.
 type MetricAggregator interface {
-	Name() string
 	AdditionInfo() map[string]string
 	Update(value float64, timestamp time.Time, additionalInfo map[string]string)
 	Value() []MetricValue
@@ -56,4 +61,4 @@ type MetricAggregator interface {
 
 // MetricAggregatorFactory is a function that accepts a string name and returns a pointer to a MetricAggregator
 // implementation.
-type MetricAggregatorFactory func(name string, labelValues []string) MetricAggregator
+type MetricAggregatorFactory func(labelValues []string) MetricAggregator
