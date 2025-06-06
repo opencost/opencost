@@ -15,6 +15,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/opencost/opencost/core/pkg/util/worker"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 )
 
@@ -86,24 +87,35 @@ func (w *Walinator) restore() {
 		log.Errorf("failed to retrieve updates files: %s", err.Error())
 	}
 	limit := w.limitResolution.Limit()
-	for _, fi := range fileInfos {
+
+	workerFn := func(fi fileInfo) func() {
 		if fi.timestamp.Before(limit) {
-			continue
+			return nil
 		}
 
 		b, err := w.storage.Read(fi.name)
 		if err != nil {
 			log.Errorf("failed to load file contents for '%s': %s", fi.name, err.Error())
-			continue
+			return nil
 		}
 
 		updateSet, err := deserializeUpdateSet(fi.ext, b)
 		if err != nil {
 			log.Errorf("failed to deserialize file contents for '%s': %s", fi.name, err.Error())
-			continue
+			return nil
 		}
 
-		w.repo.Update(updateSet.Updates, fi.timestamp)
+		return func() {
+			w.repo.Update(updateSet.Updates, fi.timestamp)
+		}
+
+	}
+	updateFns := worker.ConcurrentDo(workerFn, fileInfos)
+	for _, fn := range updateFns {
+		if fn == nil {
+			continue
+		}
+		fn()
 	}
 }
 
