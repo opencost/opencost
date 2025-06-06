@@ -73,6 +73,8 @@ func (nssc *NodeStatsSummaryClient) GetNodeData() ([]*stats.Summary, error) {
 			return nil
 		}
 
+		defer resp.Body.Close()
+
 		data, err := nodeResponseToStatSummary(resp)
 		if err != nil {
 			log.Warnf("error converting node data: %s", err)

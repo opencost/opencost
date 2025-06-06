@@ -49,7 +49,11 @@ func (a *averageOverTimeAggregator) Value() []MetricValue {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	if a.count == 0 {
-		return []MetricValue{}
+		return []MetricValue{
+			{
+				Value: 0,
+			},
+		}
 	}
 	return []MetricValue{
 		{a.total / float64(a.count), nil},

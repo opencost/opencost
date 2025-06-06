@@ -60,9 +60,6 @@ func (a *rateAggregator) Update(value float64, timestamp time.Time, additionalIn
 func (a *rateAggregator) Value() []MetricValue {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	if !a.initialized {
-		return []MetricValue{}
-	}
 	seconds := a.currentTime.Sub(a.initialTime).Seconds()
 	if seconds == 0 {
 		return []MetricValue{

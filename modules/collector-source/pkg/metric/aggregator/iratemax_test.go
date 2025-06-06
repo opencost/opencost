@@ -22,7 +22,11 @@ func TestIRateMaxAggregator_Value(t *testing.T) {
 	}{
 		"no update": {
 			updates: []update{},
-			want:    []MetricValue{},
+			want: []MetricValue{
+				{
+					Value: 0,
+				},
+			},
 		},
 		"single update": {
 			updates: []update{
