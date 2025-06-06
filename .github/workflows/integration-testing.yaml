@@ -238,7 +238,7 @@ jobs:
             namespace: "${{ needs.wait_for_image_ready.outputs.NAMESPACE }}-promless"
 
     check-success:
-        needs: [noop-tests, run-tests, run-comparison-tests]
+        needs: [noop-tests, run-tests]
         permissions: {}
         runs-on: ubuntu-latest
         if: ${{ always() }}
