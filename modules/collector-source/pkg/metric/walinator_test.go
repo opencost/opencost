@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/exporter"
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric/aggregator"
@@ -252,5 +253,84 @@ func TestWalinator_clean(t *testing.T) {
 	}
 	if len(files) != 2 {
 		t.Errorf("incorrect number of files after clean: wanted %d, got %d", 2, len(files))
+	}
+}
+
+func Test_deserializeUpdateSet(t *testing.T) {
+
+	inputUpdateSet1 := &UpdateSet{
+		Updates: []Update{
+			{
+				Name: TestMetric,
+				Labels: map[string]string{
+					"test": "test",
+				},
+				Value:          1,
+				AdditionalInfo: nil,
+			},
+		},
+	}
+
+	jsonEncoder := exporter.NewJSONEncoder[UpdateSet]()
+	gZipJsonEncoder := exporter.NewGZipEncoder(exporter.NewJSONEncoder[UpdateSet]())
+
+	invalidBytes := []byte("invalid")
+	jsonBytes1, _ := jsonEncoder.Encode(inputUpdateSet1)
+	gZipJsonBytes1, _ := gZipJsonEncoder.Encode(inputUpdateSet1)
+
+	tests := map[string]struct {
+		ext     string
+		b       []byte
+		want    *UpdateSet
+		wantErr bool
+	}{
+		"json with invalid": {
+			ext:     "json",
+			b:       invalidBytes,
+			want:    nil,
+			wantErr: true,
+		},
+		"json with json": {
+			ext:     "json",
+			b:       jsonBytes1,
+			want:    inputUpdateSet1,
+			wantErr: false,
+		},
+		"json with gzipjson": {
+			ext:     "json",
+			b:       gZipJsonBytes1,
+			want:    nil,
+			wantErr: true,
+		},
+		"json.gz with invalid": {
+			ext:     "json.gz",
+			b:       invalidBytes,
+			want:    nil,
+			wantErr: true,
+		},
+		"json.gz with json": {
+			ext:     "json.gz",
+			b:       jsonBytes1,
+			want:    nil,
+			wantErr: true,
+		},
+		"json.gz with gzipjson": {
+			ext:     "json.gz",
+			b:       gZipJsonBytes1,
+			want:    inputUpdateSet1,
+			wantErr: false,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			got, err := deserializeUpdateSet(tt.ext, tt.b)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("deserializeUpdateSet() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("deserializeUpdateSet() got = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
