@@ -8,20 +8,14 @@ import (
 // maxOverTimeAggregator is a MetricAggregator which returns the max value passed to it through the Update function
 type maxOverTimeAggregator struct {
 	lock        sync.Mutex
-	name        string
 	labelValues []string
 	max         float64
 }
 
-func MaxOverTime(name string, labelValues []string) MetricAggregator {
+func MaxOverTime(labelValues []string) MetricAggregator {
 	return &maxOverTimeAggregator{
-		name:        name,
 		labelValues: labelValues,
 	}
-}
-
-func (a *maxOverTimeAggregator) Name() string {
-	return a.name
 }
 
 func (a *maxOverTimeAggregator) AdditionInfo() map[string]string {

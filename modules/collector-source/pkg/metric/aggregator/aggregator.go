@@ -53,7 +53,6 @@ func (mr *MetricResult) ToQueryResult() *source.QueryResult {
 // In this case, the `AverageOverTime` component is the MetricAggregator. It is the component responsible
 // for routing updates to metric values into their proper condensed form.
 type MetricAggregator interface {
-	Name() string
 	AdditionInfo() map[string]string
 	Update(value float64, timestamp time.Time, additionalInfo map[string]string)
 	Value() []MetricValue
@@ -62,4 +61,4 @@ type MetricAggregator interface {
 
 // MetricAggregatorFactory is a function that accepts a string name and returns a pointer to a MetricAggregator
 // implementation.
-type MetricAggregatorFactory func(name string, labelValues []string) MetricAggregator
+type MetricAggregatorFactory func(labelValues []string) MetricAggregator

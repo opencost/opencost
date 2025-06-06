@@ -9,20 +9,14 @@ import (
 // infoAggregator is MetricAggregator meant to record label values and addition information
 type infoAggregator struct {
 	lock           sync.RWMutex
-	name           string
 	labelValues    []string
 	additionalInfo map[string]string
 }
 
-func Info(name string, labelValues []string) MetricAggregator {
+func Info(labelValues []string) MetricAggregator {
 	return &infoAggregator{
-		name:        name,
 		labelValues: labelValues,
 	}
-}
-
-func (a *infoAggregator) Name() string {
-	return a.name
 }
 
 func (a *infoAggregator) AdditionInfo() map[string]string {

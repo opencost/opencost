@@ -9,7 +9,6 @@ import (
 // to function properly calls to Update must have a timestamp greater than or equal to the last call to update.
 type rateAggregator struct {
 	lock        sync.Mutex
-	name        string
 	labelValues []string
 	initialized bool
 	initialTime time.Time
@@ -18,15 +17,10 @@ type rateAggregator struct {
 	current     float64
 }
 
-func Rate(name string, labelValues []string) MetricAggregator {
+func Rate(labelValues []string) MetricAggregator {
 	return &rateAggregator{
-		name:        name,
 		labelValues: labelValues,
 	}
-}
-
-func (a *rateAggregator) Name() string {
-	return a.name
 }
 
 func (a *rateAggregator) AdditionInfo() map[string]string {

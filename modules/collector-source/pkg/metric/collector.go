@@ -124,7 +124,7 @@ func (mi *MetricCollector) Update(labels map[string]string, value float64, times
 	}
 	key := util.Hash(labelValues)
 	if mi.metrics[key] == nil {
-		mi.metrics[key] = mi.aggregatorFactory(mi.metricName, labelValues)
+		mi.metrics[key] = mi.aggregatorFactory(labelValues)
 	}
 
 	mi.metrics[key].Update(value, timestamp, additionalInfo)

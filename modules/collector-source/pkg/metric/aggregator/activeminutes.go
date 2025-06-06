@@ -8,21 +8,15 @@ import (
 // activateMinutesAggregator is a MetricAggregator which records the first and last timestamp of updates called on it
 type activeMinutesAggregator struct {
 	lock        sync.Mutex
-	name        string
 	labelValues []string
 	start       *time.Time
 	end         *time.Time
 }
 
-func ActiveMinutes(name string, labelValues []string) MetricAggregator {
+func ActiveMinutes(labelValues []string) MetricAggregator {
 	return &activeMinutesAggregator{
-		name:        name,
 		labelValues: labelValues,
 	}
-}
-
-func (a *activeMinutesAggregator) Name() string {
-	return a.name
 }
 
 func (a *activeMinutesAggregator) AdditionInfo() map[string]string {

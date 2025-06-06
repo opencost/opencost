@@ -19,15 +19,10 @@ type iRateMaxAggregator struct {
 	max          float64
 }
 
-func IRateMax(name string, labelValues []string) MetricAggregator {
+func IRateMax(labelValues []string) MetricAggregator {
 	return &iRateMaxAggregator{
-		name:        name,
 		labelValues: labelValues,
 	}
-}
-
-func (a *iRateMaxAggregator) Name() string {
-	return a.name
 }
 
 func (a *iRateMaxAggregator) AdditionInfo() map[string]string {

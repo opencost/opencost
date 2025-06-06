@@ -9,22 +9,16 @@ import (
 // total of all values by the count of unique timestamps
 type averageOverTimeAggregator struct {
 	lock        sync.Mutex
-	name        string
 	labelValues []string
 	total       float64
 	count       int
 	currentTime *time.Time
 }
 
-func AverageOverTime(name string, labelValues []string) MetricAggregator {
+func AverageOverTime(labelValues []string) MetricAggregator {
 	return &averageOverTimeAggregator{
-		name:        name,
 		labelValues: labelValues,
 	}
-}
-
-func (a *averageOverTimeAggregator) Name() string {
-	return a.name
 }
 
 func (a *averageOverTimeAggregator) AdditionInfo() map[string]string {
