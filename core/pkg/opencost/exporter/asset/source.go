@@ -32,8 +32,8 @@ func (acs *AssetsComputeSource) CanCompute(start, end time.Time) bool {
 	return true
 }
 
-// Compute should compute a single T for the given time range, optionally using the given resolution.
-func (acs *AssetsComputeSource) Compute(start, end time.Time, resolution time.Duration) (*opencost.AssetSet, error) {
+// Compute should compute a single T for the given time range.
+func (acs *AssetsComputeSource) Compute(start, end time.Time) (*opencost.AssetSet, error) {
 	return acs.src.ComputeAssets(start, end)
 }
 

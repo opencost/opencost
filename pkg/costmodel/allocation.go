@@ -29,11 +29,11 @@ func (cm *CostModel) Name() string {
 // ComputeAllocation uses the CostModel instance to compute an AllocationSet
 // for the window defined by the given start and end times. The Allocations
 // returned are unaggregated (i.e. down to the container level).
-func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Duration) (*opencost.AllocationSet, error) {
+func (cm *CostModel) ComputeAllocation(start, end time.Time) (*opencost.AllocationSet, error) {
 
 	// If the duration is short enough, compute the AllocationSet directly
 	if end.Sub(start) <= cm.BatchDuration {
-		as, _, err := cm.computeAllocation(start, end, resolution)
+		as, _, err := cm.computeAllocation(start, end)
 		return as, err
 	}
 
@@ -61,7 +61,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 		e = s.Add(duration)
 
 		// Compute the individual AllocationSet for just (s, e)
-		as, _, err := cm.computeAllocation(s, e, resolution)
+		as, _, err := cm.computeAllocation(s, e)
 		if err != nil {
 			return opencost.NewAllocationSet(start, end), fmt.Errorf("error computing allocation for %s: %s", opencost.NewClosedWindow(s, e), err)
 		}
@@ -216,10 +216,11 @@ func (cm *CostModel) DateRange(limitDays int) (time.Time, time.Time, error) {
 	return cm.DataSource.Metrics().QueryDataCoverage(limitDays)
 }
 
-func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Duration) (*opencost.AllocationSet, map[nodeKey]*nodePricing, error) {
+func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.AllocationSet, map[nodeKey]*nodePricing, error) {
 	// 1. Build out Pod map from resolution-tuned, batched Pod start/end query
 	// 2. Run and apply the results of the remaining queries to
 	// 3. Build out AllocationSet from completed Pod map
+	resolution := cm.DataSource.Resolution()
 
 	// Create a window spanning the requested query
 	window := opencost.NewWindow(&start, &end)
@@ -255,7 +256,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	if ingestPodUID {
 		log.Debugf("CostModel.ComputeAllocation: ingesting UID data from KSM metrics...")
 	}
-	
+
 	err := cm.buildPodMap(window, podMap, ingestPodUID, podUIDKeyMap)
 	if err != nil {
 		log.Errorf("CostModel.ComputeAllocation: failed to build pod map: %s", err.Error())

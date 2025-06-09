@@ -84,7 +84,7 @@ func NewPipelineExportControllers(clusterId string, store storage.Storage, cm Co
 			continue
 		}
 
-		allocController, err := NewComputePipelineExportController(clusterId, store, allocSource, res, sourceResolution)
+		allocController, err := NewComputePipelineExportController(clusterId, store, allocSource, res)
 		if err != nil {
 			log.Errorf("Failed to create allocation export controller for resolution: %s - %v", timeutil.DurationString(res), err)
 			continue
@@ -103,7 +103,7 @@ func NewPipelineExportControllers(clusterId string, store storage.Storage, cm Co
 			continue
 		}
 
-		assetController, err := NewComputePipelineExportController(clusterId, store, assetSource, res, sourceResolution)
+		assetController, err := NewComputePipelineExportController(clusterId, store, assetSource, res)
 		if err != nil {
 			log.Errorf("Failed to create asset export controller for resolution: %s - %v", timeutil.DurationString(res), err)
 			continue
@@ -122,7 +122,7 @@ func NewPipelineExportControllers(clusterId string, store storage.Storage, cm Co
 			continue
 		}
 
-		networkInsightController, err := NewComputePipelineExportController(clusterId, store, networkInsightSource, res, sourceResolution)
+		networkInsightController, err := NewComputePipelineExportController(clusterId, store, networkInsightSource, res)
 		if err != nil {
 			log.Errorf("Failed to create network insight export controller for resolution: %s - %v", timeutil.DurationString(res), err)
 			continue

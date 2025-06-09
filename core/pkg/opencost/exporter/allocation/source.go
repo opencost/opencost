@@ -9,7 +9,7 @@ import (
 )
 
 type AllocationSource interface {
-	ComputeAllocation(start, end time.Time, resolution time.Duration) (*opencost.AllocationSet, error)
+	ComputeAllocation(start, end time.Time) (*opencost.AllocationSet, error)
 }
 
 type AllocationComputeSource struct {
@@ -32,9 +32,9 @@ func (acs *AllocationComputeSource) CanCompute(start, end time.Time) bool {
 	return true
 }
 
-// Compute should compute a single T for the given time range, optionally using the given resolution.
-func (acs *AllocationComputeSource) Compute(start, end time.Time, resolution time.Duration) (*opencost.AllocationSet, error) {
-	return acs.src.ComputeAllocation(start, end, resolution)
+// Compute should compute a single T for the given time range.
+func (acs *AllocationComputeSource) Compute(start, end time.Time) (*opencost.AllocationSet, error) {
+	return acs.src.ComputeAllocation(start, end)
 }
 
 // Name returns the name of the ComputeSource

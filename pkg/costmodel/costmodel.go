@@ -1539,7 +1539,7 @@ func measureTime(start time.Time, threshold time.Duration, name string) {
 	}
 }
 
-func (cm *CostModel) QueryAllocation(window opencost.Window, resolution, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer bool, accumulateBy opencost.AccumulateOption, shareIdle bool) (*opencost.AllocationSetRange, error) {
+func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer bool, accumulateBy opencost.AccumulateOption, shareIdle bool) (*opencost.AllocationSetRange, error) {
 	// Validate window is legal
 	if window.IsOpen() || window.IsNegative() {
 		return nil, fmt.Errorf("illegal window: %s", window)
@@ -1563,7 +1563,7 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, resolution, step ti
 	stepEnd := stepStart.Add(step)
 	var isAKS bool
 	for window.End().After(stepStart) {
-		allocSet, err := cm.ComputeAllocation(stepStart, stepEnd, resolution)
+		allocSet, err := cm.ComputeAllocation(stepStart, stepEnd)
 		if err != nil {
 			return nil, fmt.Errorf("error computing allocations for %s: %w", opencost.NewClosedWindow(stepStart, stepEnd), err)
 		}

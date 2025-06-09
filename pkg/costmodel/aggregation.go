@@ -74,10 +74,6 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 	// computed. Defaults to the window size, making one set.
 	step := qp.GetDuration("step", window.Duration())
 
-	// Resolution is an optional parameter, defaulting to the configured ETL
-	// resolution.
-	resolution := qp.GetDuration("resolution", env.GetETLResolution())
-
 	// Aggregation is a required comma-separated list of fields by which to
 	// aggregate results. Some fields allow a sub-field, which is distinguished
 	// with a colon; e.g. "label:app".
@@ -103,7 +99,7 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 		stepEnd := stepStart.Add(step)
 		stepWindow := opencost.NewWindow(&stepStart, &stepEnd)
 
-		as, err := a.Model.ComputeAllocation(*stepWindow.Start(), *stepWindow.End(), resolution)
+		as, err := a.Model.ComputeAllocation(*stepWindow.Start(), *stepWindow.End())
 		if err != nil {
 			proto.WriteError(w, proto.InternalServerError(err.Error()))
 			return
@@ -183,10 +179,6 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 		http.Error(w, fmt.Sprintf("Invalid 'window' parameter: %s", err), http.StatusBadRequest)
 	}
 
-	// Resolution is an optional parameter, defaulting to the configured ETL
-	// resolution.
-	resolution := qp.GetDuration("resolution", env.GetETLResolution())
-
 	// Step is an optional parameter that defines the duration per-set, i.e.
 	// the window for an AllocationSet, of the AllocationSetRange to be
 	// computed. Defaults to the window size, making one set.
@@ -235,7 +227,7 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// Get allocation filter if provided
 	allocationFilter := qp.Get("filter", "")
 
-	asr, err := a.Model.QueryAllocation(window, resolution, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer, accumulateBy, shareIdle)
+	asr, err := a.Model.QueryAllocation(window, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer, accumulateBy, shareIdle)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "bad request") {
 			proto.WriteError(w, proto.BadRequest(err.Error()))

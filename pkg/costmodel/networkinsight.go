@@ -10,7 +10,7 @@ import (
 	"github.com/opencost/opencost/pkg/env"
 )
 
-func (cm *CostModel) ComputeNetworkInsights(start, end time.Time, resolution time.Duration) (*opencost.NetworkInsightSet, error) {
+func (cm *CostModel) ComputeNetworkInsights(start, end time.Time) (*opencost.NetworkInsightSet, error) {
 	log.Debugf("Network Insight compute called on CostModel for window  %s", opencost.NewClosedWindow(start, end).String())
 
 	// If the duration is short enough, compute the network insight directly
