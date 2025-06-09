@@ -18,7 +18,6 @@ import (
 	"github.com/opencost/opencost/pkg/filemanager"
 )
 
-// TODO is this really necessary or could this be a compute set?
 type AllocationModel interface {
 	ComputeAllocation(start, end time.Time) (*opencost.AllocationSet, error)
 	DateRange(limitDays int) (time.Time, time.Time, error)
