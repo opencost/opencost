@@ -101,5 +101,8 @@ func (sc *ScrapeController) Scrape(timestamp time.Time) {
 	scrapeResults := concurrentScrape(scrapeFuncs...)
 
 	// once all results are returned run updates all at once with the same timestamp
-	sc.updater.Update(scrapeResults, timestamp)
+	sc.updater.Update(&metric.UpdateSet{
+		Timestamp: timestamp,
+		Updates:   scrapeResults,
+	})
 }

@@ -1,7 +1,10 @@
 package metric
 
 import (
+	"bytes"
+	"compress/gzip"
 	"fmt"
+	"io"
 	"path"
 	"sort"
 	"strings"
@@ -12,6 +15,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/opencost/opencost/core/pkg/util/worker"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 )
 
@@ -47,7 +51,7 @@ func NewWalinator(
 	if err != nil {
 		return nil, fmt.Errorf("filed to create path formatter for scrape controller: %s", err.Error())
 	}
-	encoder := exporter.NewJSONEncoder[UpdateSet]()
+	encoder := exporter.NewGZipEncoder(exporter.NewJSONEncoder[UpdateSet]())
 	exp := exporter.NewEventStorageExporter(
 		pathFormatter,
 		encoder,
@@ -64,12 +68,15 @@ func NewWalinator(
 }
 
 func (w *Walinator) Start() {
+	w.clean()
 	w.restore()
 
 	// Start cleaning function
 	go func() {
-		time.Sleep(w.limitResolution.Next().Sub(time.Now().UTC()))
-		w.clean()
+		for {
+			time.Sleep(w.limitResolution.Next().Sub(time.Now().UTC()))
+			w.clean()
+		}
 	}()
 }
 
@@ -80,37 +87,78 @@ func (w *Walinator) restore() {
 		log.Errorf("failed to retrieve updates files: %s", err.Error())
 	}
 	limit := w.limitResolution.Limit()
-	for _, fi := range fileInfos {
+
+	workerFn := func(fi fileInfo) *UpdateSet {
 		if fi.timestamp.Before(limit) {
-			continue
+			return nil
 		}
 
 		b, err := w.storage.Read(fi.name)
 		if err != nil {
 			log.Errorf("failed to load file contents for '%s': %s", fi.name, err.Error())
-			continue
+			return nil
 		}
-		updateSet := UpdateSet{}
-		err = json.Unmarshal(b, &updateSet)
+
+		updateSet, err := deserializeUpdateSet(fi.ext, b)
 		if err != nil {
-			log.Errorf("failed to unmarshal file %s: %s", fi.name, err.Error())
-			continue
+			log.Errorf("failed to deserialize file contents for '%s': %s", fi.name, err.Error())
+			return nil
 		}
-		w.repo.Update(updateSet.Updates, fi.timestamp)
+
+		if updateSet.Timestamp.IsZero() {
+			updateSet.Timestamp = fi.timestamp
+		}
+
+		return updateSet
 	}
+
+	processFn := func(updateSet *UpdateSet) {
+		w.repo.Update(updateSet)
+	}
+	worker.ConcurrentOrderedProcessWith(worker.OptimalWorkerCount(), workerFn, fileInfos, processFn)
+}
+
+func deserializeUpdateSet(ext string, b []byte) (*UpdateSet, error) {
+	extSplit := strings.Split(ext, ".")
+	lastElem := extSplit[len(extSplit)-1]
+	switch lastElem {
+	case "json":
+		updateSet := &UpdateSet{}
+		err := json.Unmarshal(b, updateSet)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal json: %w", err)
+		}
+		return updateSet, nil
+	case "gz":
+		buf := bytes.NewBuffer(b)
+		reader, err := gzip.NewReader(buf)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress gzip: %w", err)
+
+		}
+		defer reader.Close()
+		decompressed, err := io.ReadAll(reader)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read decompressed gzip: %w", err)
+		}
+
+		return deserializeUpdateSet(strings.TrimSuffix(ext, ".gz"), decompressed)
+	}
+	return nil, fmt.Errorf("unrecognized extension: '%s'", ext)
 }
 
 // Update calls update on the repo and then exports the update to storage
 func (w *Walinator) Update(
-	updates []Update,
-	timestamp time.Time,
+	updateSet *UpdateSet,
 ) {
-	// run update
-	w.repo.Update(updates, timestamp)
+	if updateSet == nil {
+		return
+	}
 
-	err := w.exporter.Export(timestamp, &UpdateSet{
-		Updates: updates,
-	})
+	// run update
+	w.repo.Update(updateSet)
+
+	err := w.exporter.Export(updateSet.Timestamp, updateSet)
 	if err != nil {
 		log.Errorf("failed to export update results: %s", err.Error())
 	}
@@ -126,7 +174,7 @@ func (w *Walinator) getFileInfos() ([]fileInfo, error) {
 	var fileInfos []fileInfo
 	for _, file := range files {
 		fileName := path.Base(file.Name)
-		fileNameComponents := strings.Split(fileName, ".")
+		fileNameComponents := strings.SplitN(fileName, ".", 2)
 		if len(fileNameComponents) != 2 {
 			log.Errorf("file has invalid name: %s", fileName)
 			continue

@@ -5,7 +5,8 @@ import (
 )
 
 type UpdateSet struct {
-	Updates []Update `json:"updates"`
+	Timestamp time.Time `json:"timestamp"`
+	Updates   []Update  `json:"updates"`
 }
 
 type Update struct {
@@ -16,5 +17,5 @@ type Update struct {
 }
 
 type Updater interface {
-	Update([]Update, time.Time)
+	Update(*UpdateSet)
 }
