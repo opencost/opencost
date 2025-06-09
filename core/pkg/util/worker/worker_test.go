@@ -283,3 +283,34 @@ func TestConcurrentRunWithLessThanOne(t *testing.T) {
 		t.Errorf("Expected to complete in 1.5s, took %dms", time.Since(now).Milliseconds())
 	}
 }
+
+func TestConcurrentOrderedProcess(t *testing.T) {
+	const (
+		tasks   = 10
+		workers = 3
+	)
+
+	workFunc := func(i int) int {
+		t.Logf("Starting Work For: %d\n", i)
+		time.Sleep(time.Duration(rand.Intn(500)+500) * time.Millisecond)
+		t.Logf("Finished Work For: %d\n", i)
+		return i
+	}
+
+	lastProcessed := -1
+	processFunc := func(i int) {
+		if i < lastProcessed {
+			t.Errorf("Expected to process in order, but got %d after %d", i, lastProcessed)
+		}
+		lastProcessed = i
+		t.Logf("Processing Result For: %d\n", i)
+	}
+
+	// create tasks
+	inputs := make([]int, tasks)
+	for i := 0; i < tasks; i++ {
+		inputs[i] = i + 1
+	}
+
+	ConcurrentOrderedProcessWith(workers, workFunc, inputs, processFunc)
+}
