@@ -1,6 +1,6 @@
 {
     "provider": "custom",
-    "description": "Default prices used to compute allocation between RAM and CPU. AWS pricing API data still used for total node cost.",
+    "description": "Default prices used to compute allocation between RAM, CPU and GPU. AWS pricing API data still used for total node cost.",
     "CPU": "0.031611",
     "spotCPU": "0.006655",
     "RAM": "0.004237",
