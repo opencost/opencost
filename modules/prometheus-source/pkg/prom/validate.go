@@ -8,7 +8,7 @@ import (
 
 const UpQuery = "up"
 
-// PrometheusMetadata represents a validation result for prometheus/thanos running
+// PrometheusMetadata represents a validation result for prometheus running
 // opencost.
 type PrometheusMetadata struct {
 	Running            bool `json:"running"`
@@ -17,10 +17,6 @@ type PrometheusMetadata struct {
 
 // Validate tells the model what data prometheus has on it.
 func Validate(cli prometheus.Client, config *OpenCostPrometheusConfig) (*PrometheusMetadata, error) {
-	if IsThanos(cli) {
-		return validate(cli, validationQueryFor(config), config)
-	}
-
 	return validate(cli, validationQueryFor(config), config)
 }
 

@@ -45,6 +45,15 @@ type ClientAuth struct {
 	BearerToken string
 }
 
+// DefaultClientAuth returns a non-nil default ClientAuth instance.
+func DefaultClientAuth() *ClientAuth {
+	return &ClientAuth{
+		Username:    "",
+		Password:    "",
+		BearerToken: "",
+	}
+}
+
 // Apply Applies the authentication data to the request headers
 func (auth *ClientAuth) Apply(req *http.Request) {
 	if auth == nil {
@@ -139,7 +148,8 @@ func NewRateLimitedClient(
 	decorator QueryParamsDecorator,
 	rateLimitRetryOpts *RateLimitRetryOpts,
 	queryLogFile string,
-	headerXScopeOrgId string) (prometheus.Client, error) {
+	headerXScopeOrgId string,
+) (prometheus.Client, error) {
 
 	queue := collections.NewBlockingQueue[*workRequest]()
 
@@ -166,11 +176,7 @@ func NewRateLimitedClient(
 
 	// default authentication
 	if auth == nil {
-		auth = &ClientAuth{
-			Username:    "",
-			Password:    "",
-			BearerToken: "",
-		}
+		auth = DefaultClientAuth()
 	}
 
 	rlpc := &RateLimitedPrometheusClient{

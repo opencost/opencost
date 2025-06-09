@@ -18,27 +18,17 @@ type PrometheusMetricsQuerier struct {
 	promConfig   *OpenCostPrometheusConfig
 	promClient   prometheus.Client
 	promContexts *ContextFactory
-
-	thanosConfig   *OpenCostThanosConfig
-	thanosClient   prometheus.Client
-	thanosContexts *ContextFactory
 }
 
 func newPrometheusMetricsQuerier(
 	promConfig *OpenCostPrometheusConfig,
 	promClient prometheus.Client,
 	promContexts *ContextFactory,
-	thanosConfig *OpenCostThanosConfig,
-	thanosClient prometheus.Client,
-	thanosContexts *ContextFactory,
 ) *PrometheusMetricsQuerier {
 	return &PrometheusMetricsQuerier{
-		promConfig:     promConfig,
-		promClient:     promClient,
-		promContexts:   promContexts,
-		thanosConfig:   thanosConfig,
-		thanosClient:   thanosClient,
-		thanosContexts: thanosContexts,
+		promConfig:   promConfig,
+		promClient:   promClient,
+		promContexts: promContexts,
 	}
 }
 

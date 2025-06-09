@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/modules/prometheus-source/pkg/env"
-	"github.com/opencost/opencost/modules/prometheus-source/pkg/thanos"
 
 	"github.com/opencost/opencost/core/pkg/clusters"
 	"github.com/opencost/opencost/core/pkg/log"
@@ -30,7 +29,7 @@ type PrometheusClusterMap struct {
 	stop           chan struct{}
 }
 
-// newPrometheusClusterMap creates a new ClusterMap implementation using a prometheus or thanos client
+// newPrometheusClusterMap creates a new ClusterMap implementation using prometheus
 func newPrometheusClusterMap(contextFactory *ContextFactory, cip clusters.ClusterInfoProvider, refresh time.Duration) clusters.ClusterMap {
 	stop := make(chan struct{})
 
@@ -70,9 +69,6 @@ func clusterInfoQuery(offset string) string {
 // loadClusters loads all the cluster info to map
 func (pcm *PrometheusClusterMap) loadClusters() (map[string]*clusters.ClusterInfo, error) {
 	var offset string = ""
-	if IsThanos(pcm.contextFactory.client) {
-		offset = thanos.QueryOffset()
-	}
 
 	// Execute Query
 	tryQuery := func() (interface{}, error) {

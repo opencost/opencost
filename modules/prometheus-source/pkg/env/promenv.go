@@ -30,11 +30,6 @@ const (
 	InsecureSkipVerifyEnvVar          = "INSECURE_SKIP_VERIFY"
 	KubeRbacProxyEnabledEnvVar        = "KUBE_RBAC_PROXY_ENABLED"
 
-	ThanosEnabledEnvVar      = "THANOS_ENABLED"
-	ThanosQueryUrlEnvVar     = "THANOS_QUERY_URL"
-	ThanosOffsetEnvVar       = "THANOS_QUERY_OFFSET"
-	ThanosMaxSourceResEnvVar = "THANOS_MAX_SOURCE_RESOLUTION"
-
 	DBBasicAuthUsername = "DB_BASIC_AUTH_USERNAME"
 	DBBasicAuthPassword = "DB_BASIC_AUTH_PW"
 	DBBearerToken       = "DB_BEARER_TOKEN"
@@ -123,43 +118,6 @@ func GetETLResolution() time.Duration {
 	return secs * time.Second
 }
 
-// IsThanosEnabled returns the environment variable value for ThanosEnabledEnvVar which represents whether
-// or not thanos is enabled.
-func IsThanosEnabled() bool {
-	return env.GetBool(ThanosEnabledEnvVar, false)
-}
-
-// GetThanosQueryUrl returns the environment variable value for ThanosQueryUrlEnvVar which represents the
-// target query endpoint for hitting thanos.
-func GetThanosQueryUrl() string {
-	return env.Get(ThanosQueryUrlEnvVar, "")
-}
-
-// GetThanosOffset returns the environment variable value for ThanosOffsetEnvVar which represents the total
-// amount of time to offset all queries made to thanos.
-func GetThanosOffset() string {
-	return env.Get(ThanosOffsetEnvVar, "3h")
-}
-
-// GetThanosMaxSourceResolution returns the environment variable value for ThanosMaxSourceResEnvVar which represents
-// the max source resolution to use when querying thanos.
-func GetThanosMaxSourceResolution() string {
-	res := env.Get(ThanosMaxSourceResEnvVar, "raw")
-
-	switch res {
-	case "raw":
-		return "0s"
-	case "0s":
-		fallthrough
-	case "5m":
-		fallthrough
-	case "1h":
-		return res
-	default:
-		return "0s"
-	}
-}
-
 // GetMaxQueryConcurrency returns the environment variable value for MaxQueryConcurrencyEnvVar
 func GetMaxQueryConcurrency() int {
 	maxQueryConcurrency := env.GetInt(MaxQueryConcurrencyEnvVar, 5)
@@ -180,7 +138,6 @@ func GetDBBasicAuthUsername() string {
 
 func GetDBBasicAuthUserPassword() string {
 	return env.Get(DBBasicAuthPassword, "")
-
 }
 
 func GetDBBearerToken() string {
