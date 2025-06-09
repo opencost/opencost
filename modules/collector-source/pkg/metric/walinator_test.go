@@ -63,20 +63,21 @@ func TestWalinator_Update(t *testing.T) {
 		resolutions,
 		repo,
 	)
-	inputUpdateSet1 := UpdateSet{
-		Updates: []Update{
-			{
-				Name: TestMetric,
-				Labels: map[string]string{
-					"test": "test",
-				},
-				Value:          1,
-				AdditionalInfo: nil,
+	inputUpdates1 := []Update{
+		{
+			Name: TestMetric,
+			Labels: map[string]string{
+				"test": "test",
 			},
+			Value:          1,
+			AdditionalInfo: nil,
 		},
 	}
 
-	wal.Update(inputUpdateSet1.Updates, time1)
+	wal.Update(&UpdateSet{
+		Timestamp: time1,
+		Updates:   inputUpdates1,
+	})
 
 	// check that the repo has a collector
 	if len(repo.resolutionStores["1d"].collectors) != 1 {
@@ -111,48 +112,51 @@ func TestWalinator_restore(t *testing.T) {
 		resolutions,
 		repo,
 	)
-	inputUpdateSet1 := UpdateSet{
-		Updates: []Update{
-			{
-				Name: TestMetric,
-				Labels: map[string]string{
-					"test": "test",
-				},
-				Value:          1,
-				AdditionalInfo: nil,
+	inputUpdates1 := []Update{
+		{
+			Name: TestMetric,
+			Labels: map[string]string{
+				"test": "test",
 			},
+			Value:          1,
+			AdditionalInfo: nil,
 		},
 	}
 
-	inputUpdateSet2 := UpdateSet{
-		Updates: []Update{
-			{
-				Name: TestMetric,
-				Labels: map[string]string{
-					"test": "test",
-				},
-				Value:          2,
-				AdditionalInfo: nil,
+	inputUpdates2 := []Update{
+		{
+			Name: TestMetric,
+			Labels: map[string]string{
+				"test": "test",
 			},
+			Value:          2,
+			AdditionalInfo: nil,
 		},
 	}
 
-	inputUpdateSet3 := UpdateSet{
-		Updates: []Update{
-			{
-				Name: TestMetric,
-				Labels: map[string]string{
-					"test": "test",
-				},
-				Value:          3,
-				AdditionalInfo: nil,
+	inputUpdates3 := []Update{
+		{
+			Name: TestMetric,
+			Labels: map[string]string{
+				"test": "test",
 			},
+			Value:          3,
+			AdditionalInfo: nil,
 		},
 	}
 
-	wal.Update(inputUpdateSet1.Updates, time1)
-	wal.Update(inputUpdateSet2.Updates, time2)
-	wal.Update(inputUpdateSet3.Updates, time3)
+	wal.Update(&UpdateSet{
+		Timestamp: time1,
+		Updates:   inputUpdates1,
+	})
+	wal.Update(&UpdateSet{
+		Timestamp: time2,
+		Updates:   inputUpdates2,
+	})
+	wal.Update(&UpdateSet{
+		Timestamp: time3,
+		Updates:   inputUpdates3,
+	})
 
 	repo2 := NewMetricRepository(
 		resolutions,
@@ -220,22 +224,29 @@ func TestWalinator_clean(t *testing.T) {
 		resolutions,
 		repo,
 	)
-	inputUpdateSet1 := UpdateSet{
-		Updates: []Update{
-			{
-				Name: TestMetric,
-				Labels: map[string]string{
-					"test": "test",
-				},
-				Value:          1,
-				AdditionalInfo: nil,
+	inputUpdates1 := []Update{
+		{
+			Name: TestMetric,
+			Labels: map[string]string{
+				"test": "test",
 			},
+			Value:          1,
+			AdditionalInfo: nil,
 		},
 	}
 
-	wal.Update(inputUpdateSet1.Updates, time1)
-	wal.Update(inputUpdateSet1.Updates, time2)
-	wal.Update(inputUpdateSet1.Updates, time3)
+	wal.Update(&UpdateSet{
+		Timestamp: time1,
+		Updates:   inputUpdates1,
+	})
+	wal.Update(&UpdateSet{
+		Timestamp: time2,
+		Updates:   inputUpdates1,
+	})
+	wal.Update(&UpdateSet{
+		Timestamp: time3,
+		Updates:   inputUpdates1,
+	})
 
 	files, err := wal.getFileInfos()
 	if err != nil {

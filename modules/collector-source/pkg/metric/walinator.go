@@ -88,7 +88,7 @@ func (w *Walinator) restore() {
 	}
 	limit := w.limitResolution.Limit()
 
-	workerFn := func(fi fileInfo) func() {
+	workerFn := func(fi fileInfo) *UpdateSet {
 		if fi.timestamp.Before(limit) {
 			return nil
 		}
@@ -105,18 +105,17 @@ func (w *Walinator) restore() {
 			return nil
 		}
 
-		return func() {
-			w.repo.Update(updateSet.Updates, fi.timestamp)
+		if updateSet.Timestamp.IsZero() {
+			updateSet.Timestamp = fi.timestamp
 		}
 
+		return updateSet
 	}
-	updateFns := worker.ConcurrentDo(workerFn, fileInfos)
-	for _, fn := range updateFns {
-		if fn == nil {
-			continue
-		}
-		fn()
+
+	processFn := func(updateSet *UpdateSet) {
+		w.repo.Update(updateSet)
 	}
+	worker.ConcurrentOrderedProcessWith(worker.OptimalWorkerCount(), workerFn, fileInfos, processFn)
 }
 
 func deserializeUpdateSet(ext string, b []byte) (*UpdateSet, error) {
@@ -150,15 +149,16 @@ func deserializeUpdateSet(ext string, b []byte) (*UpdateSet, error) {
 
 // Update calls update on the repo and then exports the update to storage
 func (w *Walinator) Update(
-	updates []Update,
-	timestamp time.Time,
+	updateSet *UpdateSet,
 ) {
-	// run update
-	w.repo.Update(updates, timestamp)
+	if updateSet == nil {
+		return
+	}
 
-	err := w.exporter.Export(timestamp, &UpdateSet{
-		Updates: updates,
-	})
+	// run update
+	w.repo.Update(updateSet)
+
+	err := w.exporter.Export(updateSet.Timestamp, updateSet)
 	if err != nil {
 		log.Errorf("failed to export update results: %s", err.Error())
 	}

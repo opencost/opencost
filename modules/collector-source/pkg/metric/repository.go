@@ -53,16 +53,18 @@ func (r *MetricRepository) GetCollector(interval string, t time.Time) (MetricSto
 
 // Update calls Update on the collectors for each resolution
 func (r *MetricRepository) Update(
-	updates []Update,
-	timestamp time.Time,
+	updateSet *UpdateSet,
 ) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
+	if updateSet == nil {
+		return
+	}
 
-	for _, update := range updates {
+	for _, update := range updateSet.Updates {
 		// Call update on the collectors for each resolution
 		for _, resCollector := range r.resolutionStores {
-			resCollector.update(update.Name, update.Labels, update.Value, timestamp, update.AdditionalInfo)
+			resCollector.update(update.Name, update.Labels, update.Value, updateSet.Timestamp, update.AdditionalInfo)
 		}
 	}
 }
