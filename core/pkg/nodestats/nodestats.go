@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 
@@ -72,8 +73,6 @@ func (nssc *NodeStatsSummaryClient) GetNodeData() ([]*stats.Summary, error) {
 			log.Warnf("error retrieving node data: %s", err)
 			return nil
 		}
-
-		defer resp.Body.Close()
 
 		data, err := nodeResponseToStatSummary(resp)
 		if err != nil {
@@ -199,13 +198,25 @@ func NodeAddress(node *clustercache.Node) (string, int32, error) {
 }
 
 func nodeResponseToStatSummary(resp *http.Response) (*stats.Summary, error) {
-	data := &stats.Summary{}
-	err := json.NewDecoder(resp.Body).Decode(&data)
-	if err == nil {
-		return data, nil
+	if resp == nil || resp.Body == nil {
+		return nil, fmt.Errorf("response or response body is nil")
 	}
 
-	return nil, err
+	defer resp.Body.Close()
+
+	data := &stats.Summary{}
+
+	bytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("could not read response body: %w", err)
+	}
+
+	err = json.Unmarshal(bytes, data)
+	if err != nil {
+		return nil, fmt.Errorf("could not unmarshal response body: %w", err)
+	}
+
+	return data, nil
 }
 
 // loadBearerToken reads the service account token

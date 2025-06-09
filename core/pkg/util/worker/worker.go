@@ -29,6 +29,13 @@ type WorkerPool[T any, U any] interface {
 	Shutdown()
 }
 
+// WorkProcessor is a group of inputs that leverage a WorkerPool to run inputs through workers and
+// process the job results as they complete.
+type WorkProcessor[T any, U any] interface {
+	// Execute adds all inputs to be run by the worker pool and processed on completion.
+	Execute(inputs []T, process func(U)) error
+}
+
 // WorkGroup is a group of inputs that leverage a WorkerPool to run inputs through workers and
 // collect the results in a single slice.
 type WorkGroup[T any, U any] interface {
@@ -52,15 +59,6 @@ type queuedWorkerPool[T any, U any] struct {
 	work       Worker[T, U]
 	workers    int
 	isShutdown atomic.Bool
-}
-
-// ordered is a WorkGroup implementation which enforces ordering based on when
-// inputs were pushed onto the group.
-type ordered[T any, U any] struct {
-	workPool WorkerPool[T, U]
-	results  []U
-	wg       sync.WaitGroup
-	count    int
 }
 
 // NewWorkerPool creates a new worker pool provided the number of workers to run as well as the worker
@@ -128,6 +126,15 @@ func (wq *queuedWorkerPool[T, U]) worker() {
 	}
 }
 
+// ordered is a WorkGroup implementation which enforces ordering based on when
+// inputs were pushed onto the group.
+type ordered[T any, U any] struct {
+	workPool WorkerPool[T, U]
+	results  []U
+	wg       sync.WaitGroup
+	count    int
+}
+
 // NewGroup creates a new WorkGroup implementation for processing a group of inputs in the order in which
 // they are pushed. Ordered groups do not support concurrent Push() calls.
 func NewOrderedGroup[T any, U any](pool WorkerPool[T, U], size int) WorkGroup[T, U] {
@@ -168,6 +175,53 @@ func (ow *ordered[T, U]) Push(input T) error {
 func (ow *ordered[T, U]) Wait() []U {
 	ow.wg.Wait()
 	return ow.results
+}
+
+// orderedProcessor is a WorkProcessor implementation which processes inputs in batches
+// in the same order as the slice, serially on the same go routine. Note that the process go routine
+// will not be the same as the calling go routine. However, process will be called on the same goroutine.
+type orderedProcessor[T any, U any] struct {
+	workPool WorkerPool[T, U]
+}
+
+// NewOrderedProcessor creates a new ordered work processor for processing an execution result in the
+// order in which the inputs were passed.
+func NewOrderedProcessor[T any, U any](pool WorkerPool[T, U]) WorkProcessor[T, U] {
+	return &orderedProcessor[T, U]{
+		workPool: pool,
+	}
+}
+
+func (obp *orderedProcessor[T, U]) Execute(inputs []T, process func(U)) error {
+	if len(inputs) == 0 {
+		return nil
+	}
+
+	// Run all the inputs in order, creating a channel per input to receive results.
+	channels := make([]chan U, len(inputs))
+	for i, input := range inputs {
+		channels[i] = make(chan U)
+		err := obp.workPool.Run(input, channels[i])
+		if err != nil {
+			return err
+		}
+	}
+
+	// Create a separate goroutine to process to execute all the results serially
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+
+		for _, ch := range channels {
+			result := <-ch
+			process(result)
+
+			close(ch)
+		}
+	}()
+
+	<-done
+	return nil
 }
 
 // noResultGroup is a WorkGroup implementation which arbitrarily pushes inputs to
@@ -372,4 +426,25 @@ func ConcurrentIterRunWith[T any](size int, runner Runner[T], inputs iter.Seq[T]
 	}
 
 	workGroup.Wait()
+}
+
+// ConcurrentOrderedProcess runs a pool of N workers which concurrently call the provided worker func on each input, then
+// calls the process function on each result, as it completes, in the same order as the inputs.
+func ConcurrentOrderedProcess[T any, U any](worker Worker[T, U], inputs []T, process func(U)) {
+	ConcurrentOrderedProcessWith(OptimalWorkerCount(), worker, inputs, process)
+}
+
+// ConcurrentOrderedProcess runs a pool of size workers which concurrently call the provided worker func on each input, then
+// calls the process function on each result, as it completes, in the same order as the inputs.
+func ConcurrentOrderedProcessWith[T any, U any](size int, worker Worker[T, U], inputs []T, process func(U)) {
+	if len(inputs) == 0 {
+		return
+	}
+
+	workerPool := NewWorkerPool(size, worker)
+	defer workerPool.Shutdown()
+
+	// processors block on execute, so no need to explicitly wait
+	workProcessor := NewOrderedProcessor(workerPool)
+	workProcessor.Execute(inputs, process)
 }
