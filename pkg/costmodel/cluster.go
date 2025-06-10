@@ -93,7 +93,7 @@ type DiskIdentifier struct {
 }
 
 func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, start, end time.Time) (map[DiskIdentifier]*Disk, error) {
-	resolution := env.GetETLResolution()
+	resolution := dataSource.Resolution()
 
 	grp := source.NewQueryGroup()
 	mq := dataSource.Metrics()
@@ -501,7 +501,7 @@ func costTimesMinute[T comparable](activeDataMap map[T]activeData, costMap map[T
 
 func ClusterNodes(dataSource source.OpenCostDataSource, cp models.Provider, start, end time.Time) (map[NodeIdentifier]*Node, error) {
 	mq := dataSource.Metrics()
-	resolution := env.GetETLResolution()
+	resolution := dataSource.Resolution()
 
 	requiredGrp := source.NewQueryGroup()
 	optionalGrp := source.NewQueryGroup()
@@ -642,7 +642,7 @@ type LoadBalancer struct {
 }
 
 func ClusterLoadBalancers(dataSource source.OpenCostDataSource, start, end time.Time) (map[LoadBalancerIdentifier]*LoadBalancer, error) {
-	resolution := env.GetETLResolution()
+	resolution := dataSource.Resolution()
 
 	grp := source.NewQueryGroup()
 	mq := dataSource.Metrics()
@@ -697,7 +697,7 @@ func ClusterLoadBalancers(dataSource source.OpenCostDataSource, start, end time.
 }
 
 func ClusterManagement(dataSource source.OpenCostDataSource, start, end time.Time) (map[ClusterManagementIdentifier]*ClusterManagementCost, error) {
-	resolution := env.GetETLResolution()
+	resolution := dataSource.Resolution()
 
 	grp := source.NewQueryGroup()
 	mq := dataSource.Metrics()

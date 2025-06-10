@@ -29,7 +29,7 @@ type MockSource[T any] struct {
 func (ms *MockSource[T]) CanCompute(start, end time.Time) bool {
 	return true
 }
-func (ms *MockSource[T]) Compute(start, end time.Time, resolution time.Duration) (*T, error) {
+func (ms *MockSource[T]) Compute(start, end time.Time) (*T, error) {
 	return ms.generate(start, end), nil
 }
 func (ms *MockSource[T]) Name() string {
@@ -105,14 +105,14 @@ func NewMockPipelineComputeSourceWith(srcResolution time.Duration) *MockPipeline
 	}
 }
 
-func (mpcs *MockPipelineComputeSource) ComputeAllocation(start, end time.Time, resolution time.Duration) (*opencost.AllocationSet, error) {
-	return mpcs.allocSource.Compute(start, end, resolution)
+func (mpcs *MockPipelineComputeSource) ComputeAllocation(start, end time.Time) (*opencost.AllocationSet, error) {
+	return mpcs.allocSource.Compute(start, end)
 }
 func (mpcs *MockPipelineComputeSource) ComputeAssets(start, end time.Time) (*opencost.AssetSet, error) {
-	return mpcs.assetSource.Compute(start, end, TestResolution)
+	return mpcs.assetSource.Compute(start, end)
 }
-func (mpcs *MockPipelineComputeSource) ComputeNetworkInsights(start, end time.Time, resolution time.Duration) (*opencost.NetworkInsightSet, error) {
-	return mpcs.netSource.Compute(start, end, resolution)
+func (mpcs *MockPipelineComputeSource) ComputeNetworkInsights(start, end time.Time) (*opencost.NetworkInsightSet, error) {
+	return mpcs.netSource.Compute(start, end)
 }
 func (mpcs *MockPipelineComputeSource) GetDataSource() source.OpenCostDataSource {
 	return mpcs.ds
@@ -157,7 +157,7 @@ func TestExporters(t *testing.T) {
 		end := time.Now().UTC().Truncate(TestResolution)
 		start := end.Add(-TestResolution)
 
-		data, err := allocSource.Compute(start, end, TestResolution)
+		data, err := allocSource.Compute(start, end)
 		if err != nil {
 			t.Fatalf("failed to compute allocation data: %v", err)
 		}
@@ -186,7 +186,7 @@ func TestExporters(t *testing.T) {
 		end := time.Now().UTC().Truncate(TestResolution)
 		start := end.Add(-TestResolution)
 
-		data, err := assetSource.Compute(start, end, TestResolution)
+		data, err := assetSource.Compute(start, end)
 		if err != nil {
 			t.Fatalf("failed to compute asset data: %v", err)
 		}
@@ -215,7 +215,7 @@ func TestExporters(t *testing.T) {
 		end := time.Now().UTC().Truncate(TestResolution)
 		start := end.Add(-TestResolution)
 
-		data, err := netInsightSource.Compute(start, end, TestResolution)
+		data, err := netInsightSource.Compute(start, end)
 		if err != nil {
 			t.Fatalf("failed to compute net insights data: %v", err)
 		}

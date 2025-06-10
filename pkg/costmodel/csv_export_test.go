@@ -22,7 +22,7 @@ func Test_UpdateCSV(t *testing.T) {
 			DateRangeFunc: func(_ int) (time.Time, time.Time, error) {
 				return time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2021, 1, 2, 0, 0, 0, 0, time.UTC), nil
 			},
-			ComputeAllocationFunc: func(start time.Time, end time.Time, resolution time.Duration) (*opencost.AllocationSet, error) {
+			ComputeAllocationFunc: func(start time.Time, end time.Time) (*opencost.AllocationSet, error) {
 				return &opencost.AllocationSet{
 					Allocations: map[string]*opencost.Allocation{
 						"test": {
@@ -77,7 +77,7 @@ func Test_UpdateCSV(t *testing.T) {
 			DateRangeFunc: func(_ int) (time.Time, time.Time, error) {
 				return time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2021, 1, 2, 0, 0, 0, 0, time.UTC), nil
 			},
-			ComputeAllocationFunc: func(start time.Time, end time.Time, resolution time.Duration) (*opencost.AllocationSet, error) {
+			ComputeAllocationFunc: func(start time.Time, end time.Time) (*opencost.AllocationSet, error) {
 				return &opencost.AllocationSet{
 					Allocations: map[string]*opencost.Allocation{
 						"test": {
@@ -116,7 +116,7 @@ func Test_UpdateCSV(t *testing.T) {
 			DateRangeFunc: func(_ int) (time.Time, time.Time, error) {
 				return time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2021, 1, 3, 0, 0, 0, 0, time.UTC), nil
 			},
-			ComputeAllocationFunc: func(start time.Time, end time.Time, resolution time.Duration) (*opencost.AllocationSet, error) {
+			ComputeAllocationFunc: func(start time.Time, end time.Time) (*opencost.AllocationSet, error) {
 				return &opencost.AllocationSet{
 					Allocations: map[string]*opencost.Allocation{
 						"test": {
@@ -163,7 +163,7 @@ func Test_UpdateCSV(t *testing.T) {
 
 	t.Run("allocation data is empty", func(t *testing.T) {
 		model := &AllocationModelMock{
-			ComputeAllocationFunc: func(start time.Time, end time.Time, resolution time.Duration) (*opencost.AllocationSet, error) {
+			ComputeAllocationFunc: func(start time.Time, end time.Time) (*opencost.AllocationSet, error) {
 				return &opencost.AllocationSet{
 					Allocations: nil,
 				}, nil

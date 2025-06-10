@@ -44,12 +44,11 @@ func NewComputePipelineExportController[T any, U export.BinaryMarshalerPtr[T], S
 	store storage.Storage,
 	source export.ComputeSource[T],
 	resolution time.Duration,
-	sourceResolution time.Duration,
 ) (*export.ComputeExportController[T], error) {
 	exporter, err := NewComputePipelineExporter[T, U, S](clusterId, resolution, store)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compute exporter: %w", err)
 	}
 
-	return export.NewComputeExportController(source, exporter, resolution, sourceResolution), nil
+	return export.NewComputeExportController(source, exporter, resolution), nil
 }

@@ -97,13 +97,12 @@ func (cd *EventExportController[T]) Stop() {
 // ComputeExportController[T] is a controller type which leverages a `ComputeSource[T]` and `Exporter[T]`
 // to regularly compute the data for the current resolution and export it on a specific interval.
 type ComputeExportController[T any] struct {
-	runState         atomic.AtomicRunState
-	source           ComputeSource[T]
-	exporter         ComputeExporter[T]
-	resolution       time.Duration
-	sourceResolution time.Duration
-	lastExport       time.Time
-	typeName         string
+	runState   atomic.AtomicRunState
+	source     ComputeSource[T]
+	exporter   ComputeExporter[T]
+	resolution time.Duration
+	lastExport time.Time
+	typeName   string
 }
 
 // NewComputeExportController creates a new `ComputeExportController[T]` instance.
@@ -111,14 +110,12 @@ func NewComputeExportController[T any](
 	source ComputeSource[T],
 	exporter ComputeExporter[T],
 	resolution time.Duration,
-	sourceResolution time.Duration,
 ) *ComputeExportController[T] {
 	return &ComputeExportController[T]{
-		source:           source,
-		resolution:       resolution,
-		sourceResolution: sourceResolution,
-		exporter:         exporter,
-		typeName:         reflect.TypeOf((*T)(nil)).Elem().String(),
+		source:     source,
+		resolution: resolution,
+		exporter:   exporter,
+		typeName:   reflect.TypeOf((*T)(nil)).Elem().String(),
 	}
 }
 
@@ -225,7 +222,7 @@ func (cd *ComputeExportController[T]) export(window opencost.Window) error {
 		return fmt.Errorf("cannot compute window: [Start: %s, End: %s]", start, end)
 	}
 
-	set, err := cd.source.Compute(start, end, cd.sourceResolution)
+	set, err := cd.source.Compute(start, end)
 	// all errors but NoDataError are considered a halt to the export
 	if err != nil && !source.IsNoDataError(err) {
 		return err

@@ -9,7 +9,7 @@ import (
 )
 
 type NetworkInsightSource interface {
-	ComputeNetworkInsights(start, end time.Time, resolution time.Duration) (*opencost.NetworkInsightSet, error)
+	ComputeNetworkInsights(start, end time.Time) (*opencost.NetworkInsightSet, error)
 }
 
 type NetworkInsightsComputeSource struct {
@@ -33,8 +33,8 @@ func (acs *NetworkInsightsComputeSource) CanCompute(start, end time.Time) bool {
 }
 
 // Compute should compute a single T for the given time range, optionally using the given resolution.
-func (acs *NetworkInsightsComputeSource) Compute(start, end time.Time, resolution time.Duration) (*opencost.NetworkInsightSet, error) {
-	return acs.src.ComputeNetworkInsights(start, end, resolution)
+func (acs *NetworkInsightsComputeSource) Compute(start, end time.Time) (*opencost.NetworkInsightSet, error) {
+	return acs.src.ComputeNetworkInsights(start, end)
 }
 
 // Name returns the name of the ComputeSource

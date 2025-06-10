@@ -19,8 +19,8 @@ type ComputeSource[T any] interface {
 	// cannot compute and allow another Source to handle the computation.
 	CanCompute(start, end time.Time) bool
 
-	// Compute should compute a single T for the given time range, optionally using the given resolution.
-	Compute(start, end time.Time, resolution time.Duration) (*T, error)
+	// Compute should compute a single T for the given time range
+	Compute(start, end time.Time) (*T, error)
 
 	// Name returns the name of the ComputeSource
 	Name() string

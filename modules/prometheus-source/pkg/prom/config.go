@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/modules/prometheus-source/pkg/env"
 
 	restclient "k8s.io/client-go/rest"
@@ -32,12 +31,6 @@ type OpenCostPrometheusConfig struct {
 	ClusterFilter         string
 	DataResolution        time.Duration
 	DataResolutionMinutes int
-}
-
-type OpenCostThanosConfig struct {
-	*OpenCostPrometheusConfig
-
-	MaxSourceResulution string
 }
 
 func (ocpc *OpenCostPrometheusConfig) IsRateLimitRetryEnabled() bool {
@@ -132,80 +125,5 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 		ClusterFilter:         clusterFilter,
 		DataResolution:        dataResolution,
 		DataResolutionMinutes: resolutionMinutes,
-	}, nil
-}
-
-// NewOpenCostPrometheusConfigFromEnv creates a new OpenCostPrometheusConfig from environment variables.
-func NewOpenCostThanosConfigFromEnv() (*OpenCostThanosConfig, error) {
-	serverEndpoint := env.GetThanosQueryUrl()
-	if serverEndpoint == "" {
-		return nil, fmt.Errorf("no address for thanos set in $%s", env.ThanosQueryUrlEnvVar)
-	}
-
-	queryConcurrency := env.GetMaxQueryConcurrency()
-	log.Infof("Thanos Client Max Concurrency set to %d", queryConcurrency)
-
-	timeout := env.GetPrometheusQueryTimeout()
-	keepAlive := env.GetPrometheusKeepAlive()
-	tlsHandshakeTimeout := env.GetPrometheusTLSHandshakeTimeout()
-
-	jobName := env.GetJobName()
-	scrapeInterval := env.GetScrapeInterval()
-
-	maxQueryDuration := env.GetETLMaxPrometheusQueryDuration()
-	clusterLabel := env.GetPromClusterLabel()
-
-	var rateLimitRetryOpts *RateLimitRetryOpts = nil
-	if env.IsPrometheusRetryOnRateLimitResponse() {
-		rateLimitRetryOpts = &RateLimitRetryOpts{
-			MaxRetries:       env.GetPrometheusRetryOnRateLimitMaxRetries(),
-			DefaultRetryWait: env.GetPrometheusRetryOnRateLimitDefaultWait(),
-		}
-	}
-
-	auth := &ClientAuth{
-		Username:    env.GetMultiClusterBasicAuthUsername(),
-		Password:    env.GetMultiClusterBasicAuthPassword(),
-		BearerToken: env.GetMultiClusterBearerToken(),
-	}
-
-	clientConfig := &PrometheusClientConfig{
-		Timeout:               timeout,
-		KeepAlive:             keepAlive,
-		TLSHandshakeTimeout:   tlsHandshakeTimeout,
-		TLSInsecureSkipVerify: env.IsInsecureSkipVerify(),
-		RateLimitRetryOpts:    rateLimitRetryOpts,
-		Auth:                  auth,
-		QueryConcurrency:      queryConcurrency,
-		QueryLogFile:          env.GetQueryLoggingFile(),
-		HeaderXScopeOrgId:     "",
-		RootCAs:               nil,
-	}
-
-	thanosQueryOffset := env.GetThanosOffset()
-	d, err := timeutil.ParseDuration(thanosQueryOffset)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse thanos query offset: %w", err)
-	}
-
-	dataResolution := env.GetETLResolution()
-
-	return &OpenCostThanosConfig{
-		OpenCostPrometheusConfig: &OpenCostPrometheusConfig{
-			ServerEndpoint:     serverEndpoint,
-			Version:            "0.0.0",
-			IsOffsetResolution: false,
-			ClientConfig:       clientConfig,
-			ScrapeInterval:     scrapeInterval,
-			JobName:            jobName,
-			Offset:             thanosQueryOffset,
-			QueryOffset:        d,
-			MaxQueryDuration:   maxQueryDuration,
-			ClusterID:          "", // thanos is multi-cluster
-			ClusterFilter:      "", // thanos is multi-cluster
-			ClusterLabel:       clusterLabel,
-			DataResolution:     dataResolution,
-		},
-		MaxSourceResulution: env.GetThanosMaxSourceResolution(),
 	}, nil
 }

@@ -11,11 +11,6 @@ const (
 	// targets prometheus. This can be used to check a specific client instance
 	// by calling prom.IsClientID(client, prom.PrometheusClientID)
 	PrometheusClientID string = "Prometheus"
-
-	// ThanosClientID is the identifier used when creating the client that
-	// targets thanos. This can be used to check a specific client instance
-	// by calling prom.IsClientID(client, prom.ThanosClientID)
-	ThanosClientID string = "Thanos"
 )
 
 // identityClient provides an interface for extracting an indentifer from the client objects
@@ -39,9 +34,4 @@ func IsClientID(cli prometheus.Client, id string) bool {
 // IsPrometheus returns true if the client provided is used to target prometheus
 func IsPrometheus(cli prometheus.Client) bool {
 	return IsClientID(cli, PrometheusClientID)
-}
-
-// IsThanos returns true if the client provided is used to target thanos
-func IsThanos(cli prometheus.Client) bool {
-	return IsClientID(cli, ThanosClientID)
 }

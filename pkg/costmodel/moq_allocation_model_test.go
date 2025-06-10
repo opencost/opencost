@@ -33,7 +33,7 @@ var _ AllocationModel = &AllocationModelMock{}
 //	}
 type AllocationModelMock struct {
 	// ComputeAllocationFunc mocks the ComputeAllocation method.
-	ComputeAllocationFunc func(start time.Time, end time.Time, resolution time.Duration) (*opencost.AllocationSet, error)
+	ComputeAllocationFunc func(start time.Time, end time.Time) (*opencost.AllocationSet, error)
 
 	// DateRangeFunc mocks the DateRange method.
 	DateRangeFunc func(limitDays int) (time.Time, time.Time, error)
@@ -46,8 +46,6 @@ type AllocationModelMock struct {
 			Start time.Time
 			// End is the end argument value.
 			End time.Time
-			// Resolution is the resolution argument value.
-			Resolution time.Duration
 		}
 		// DateRange holds details about calls to the DateRange method.
 		DateRange []struct {
@@ -60,23 +58,21 @@ type AllocationModelMock struct {
 }
 
 // ComputeAllocation calls ComputeAllocationFunc.
-func (mock *AllocationModelMock) ComputeAllocation(start time.Time, end time.Time, resolution time.Duration) (*opencost.AllocationSet, error) {
+func (mock *AllocationModelMock) ComputeAllocation(start time.Time, end time.Time) (*opencost.AllocationSet, error) {
 	if mock.ComputeAllocationFunc == nil {
 		panic("AllocationModelMock.ComputeAllocationFunc: method is nil but AllocationModel.ComputeAllocation was just called")
 	}
 	callInfo := struct {
 		Start      time.Time
 		End        time.Time
-		Resolution time.Duration
 	}{
 		Start:      start,
 		End:        end,
-		Resolution: resolution,
 	}
 	mock.lockComputeAllocation.Lock()
 	mock.calls.ComputeAllocation = append(mock.calls.ComputeAllocation, callInfo)
 	mock.lockComputeAllocation.Unlock()
-	return mock.ComputeAllocationFunc(start, end, resolution)
+	return mock.ComputeAllocationFunc(start, end)
 }
 
 // ComputeAllocationCalls gets all the calls that were made to ComputeAllocation.
@@ -86,12 +82,10 @@ func (mock *AllocationModelMock) ComputeAllocation(start time.Time, end time.Tim
 func (mock *AllocationModelMock) ComputeAllocationCalls() []struct {
 	Start      time.Time
 	End        time.Time
-	Resolution time.Duration
 } {
 	var calls []struct {
 		Start      time.Time
 		End        time.Time
-		Resolution time.Duration
 	}
 	mock.lockComputeAllocation.RLock()
 	calls = mock.calls.ComputeAllocation

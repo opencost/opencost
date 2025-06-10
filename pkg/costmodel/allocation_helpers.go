@@ -11,7 +11,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
-	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/env"
 	"k8s.io/apimachinery/pkg/labels"
@@ -38,7 +37,7 @@ const (
 
 /* Pod Helpers */
 
-func (cm *CostModel) buildPodMap(window opencost.Window, maxBatchSize time.Duration, podMap map[podKey]*pod, clusterStart, clusterEnd map[string]time.Time, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) error {
+func (cm *CostModel) buildPodMap(window opencost.Window, podMap map[podKey]*pod, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) error {
 	// Assumes that window is positive and closed
 	start, end := *window.Start(), *window.End()
 
@@ -46,91 +45,61 @@ func (cm *CostModel) buildPodMap(window opencost.Window, maxBatchSize time.Durat
 	ds := cm.DataSource.Metrics()
 	resolution := cm.DataSource.Resolution()
 
-	// Query for (start, end) by (pod, namespace, cluster) over the given
-	// window, using the given resolution, and if necessary in batches no
-	// larger than the given maximum batch size. If working in batches, track
-	// overall progress by starting with (window.start, window.start) and
-	// querying in batches no larger than maxBatchSize from start-to-end,
-	// folding each result set into podMap as the results come back.
-	coverage := opencost.NewWindow(&start, &start)
+	var resPods []*source.PodsResult
+	var err error
+	maxTries := 3
+	numTries := 0
+	for resPods == nil && numTries < maxTries {
+		numTries++
 
-	numQuery := 1
-	for coverage.End().Before(end) {
-		// Determine the (start, end) of the current batch
-		batchStart := *coverage.End()
-		batchEnd := coverage.End().Add(maxBatchSize)
-		if batchEnd.After(end) {
-			batchEnd = end
-		}
+		// Submit and profile query
 
-		var resPods []*source.PodsResult
-		var err error
-		maxTries := 3
-		numTries := 0
-		for resPods == nil && numTries < maxTries {
-			numTries++
-
-			// Query for the duration between start and end
-			durStr := timeutil.DurationString(batchEnd.Sub(batchStart))
-			if durStr == "" {
-				// Negative duration, so set empty results and don't query
-				resPods = []*source.PodsResult{}
-				err = nil
-				break
-			}
-
-			// Submit and profile query
-
-			var queryPodsResult *source.QueryGroupFuture[source.PodsResult]
-			if ingestPodUID {
-				queryPodsResult = source.WithGroup(grp, ds.QueryPodsUID(batchStart, batchEnd))
-			} else {
-				queryPodsResult = source.WithGroup(grp, ds.QueryPods(batchStart, batchEnd))
-			}
-
-			queryProfile := time.Now()
-			resPods, err = queryPodsResult.Await()
-			if err != nil {
-				log.Profile(queryProfile, fmt.Sprintf("CostModel.ComputeAllocation: pod query %d try %d failed: %s", numQuery, numTries, err))
-				resPods = nil
-			}
-		}
-
-		if err != nil {
-			return err
-		}
-
-		// queryFmtPodsUID will return both UID-containing results, and non-UID-containing results,
-		// so filter out the non-containing results so we don't duplicate pods. This is due to the
-		// default setup of Kubecost having replicated kube_pod_container_status_running and
-		// included KSM kube_pod_container_status_running. Querying w/ UID will return both.
+		var queryPodsResult *source.QueryGroupFuture[source.PodsResult]
 		if ingestPodUID {
-			var resPodsUID []*source.PodsResult
+			queryPodsResult = source.WithGroup(grp, ds.QueryPodsUID(start, end))
+		} else {
+			queryPodsResult = source.WithGroup(grp, ds.QueryPods(start, end))
+		}
 
-			for _, res := range resPods {
-				uid := res.UID
-				if uid != "" {
-					resPodsUID = append(resPodsUID, res)
-				}
-			}
+		queryProfile := time.Now()
+		resPods, err = queryPodsResult.Await()
+		if err != nil {
+			log.Profile(queryProfile, fmt.Sprintf("CostModel.ComputeAllocation: pod query try %d failed: %s", numTries, err))
+			resPods = nil
+		}
+	}
 
-			if len(resPodsUID) > 0 {
-				resPods = resPodsUID
-			} else {
-				log.DedupedWarningf(5, "CostModel.ComputeAllocation: UID ingestion enabled, but query did not return any results with UID")
+	if err != nil {
+		return err
+	}
+
+	// queryFmtPodsUID will return both UID-containing results, and non-UID-containing results,
+	// so filter out the non-containing results so we don't duplicate pods. This is due to the
+	// default setup of Kubecost having replicated kube_pod_container_status_running and
+	// included KSM kube_pod_container_status_running. Querying w/ UID will return both.
+	if ingestPodUID {
+		var resPodsUID []*source.PodsResult
+
+		for _, res := range resPods {
+			uid := res.UID
+			if uid != "" {
+				resPodsUID = append(resPodsUID, res)
 			}
 		}
 
-		applyPodResults(window, resolution, podMap, clusterStart, clusterEnd, resPods, ingestPodUID, podUIDKeyMap)
-
-		coverage = coverage.ExpandEnd(batchEnd)
-		numQuery++
+		if len(resPodsUID) > 0 {
+			resPods = resPodsUID
+		} else {
+			log.DedupedWarningf(5, "CostModel.ComputeAllocation: UID ingestion enabled, but query did not return any results with UID")
+		}
 	}
+
+	applyPodResults(window, resolution, podMap, resPods, ingestPodUID, podUIDKeyMap)
 
 	return nil
 }
 
-func applyPodResults(window opencost.Window, resolution time.Duration, podMap map[podKey]*pod, clusterStart, clusterEnd map[string]time.Time, resPods []*source.PodsResult, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) {
+func applyPodResults(window opencost.Window, resolution time.Duration, podMap map[podKey]*pod, resPods []*source.PodsResult, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) {
 	for _, res := range resPods {
 		if len(res.Data) == 0 {
 			log.Warnf("CostModel.ComputeAllocation: empty minutes result")
@@ -175,18 +144,6 @@ func applyPodResults(window opencost.Window, resolution time.Duration, podMap ma
 		allocStart, allocEnd := calculateStartAndEnd(res.Data, resolution, window)
 		if allocStart.IsZero() || allocEnd.IsZero() {
 			continue
-		}
-
-		// Set start if unset or this datum's start time is earlier than the
-		// current earliest time.
-		if _, ok := clusterStart[cluster]; !ok || allocStart.Before(clusterStart[cluster]) {
-			clusterStart[cluster] = allocStart
-		}
-
-		// Set end if unset or this datum's end time is later than the
-		// current latest time.
-		if _, ok := clusterEnd[cluster]; !ok || allocEnd.After(clusterEnd[cluster]) {
-			clusterEnd[cluster] = allocEnd
 		}
 
 		if thisPod, ok := podMap[key]; ok {
@@ -2479,6 +2436,11 @@ func calculateStartAndEnd(result []*util.Vector, resolution time.Duration, windo
 	}
 	if e.After(*window.End()) {
 		e = *window.End()
+	}
+	// prevent end times in the future
+	now := time.Now().UTC()
+	if e.After(now) {
+		e = now
 	}
 
 	return s, e

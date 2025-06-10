@@ -19,7 +19,7 @@ import (
 )
 
 type AllocationModel interface {
-	ComputeAllocation(start, end time.Time, resolution time.Duration) (*opencost.AllocationSet, error)
+	ComputeAllocation(start, end time.Time) (*opencost.AllocationSet, error)
 	DateRange(limitDays int) (time.Time, time.Time, error)
 }
 
@@ -328,7 +328,7 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 	for _, date := range dates {
 		start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
 		end := start.AddDate(0, 0, 1)
-		data, err := e.Model.ComputeAllocation(start, end, 5*time.Minute)
+		data, err := e.Model.ComputeAllocation(start, end)
 		if err != nil {
 			return err
 		}

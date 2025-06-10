@@ -61,9 +61,6 @@ const (
 
 	UTCOffsetEnvVar = "UTC_OFFSET"
 
-	ETLEnabledEnvVar     = "ETL_ENABLED"
-	ETLResolutionSeconds = "ETL_RESOLUTION_SECONDS"
-
 	PricingConfigmapName = "PRICING_CONFIGMAP_NAME"
 	MetricsConfigmapName = "METRICS_CONFIGMAP_NAME"
 
@@ -416,20 +413,6 @@ func GetParsedUTCOffset() time.Duration {
 		return time.Duration(0)
 	}
 	return offset
-}
-
-func IsETLEnabled() bool {
-	return env.GetBool(ETLEnabledEnvVar, true)
-}
-
-// GetETLResolution determines the resolution of ETL queries. The smaller the
-// duration, the higher the resolution; the higher the resolution, the more
-// accurate the query results, but the more computationally expensive.
-func GetETLResolution() time.Duration {
-	// Use the configured ETL resolution, or default to
-	// 5m (i.e. 300s)
-	secs := time.Duration(env.GetInt64(ETLResolutionSeconds, 300))
-	return secs * time.Second
 }
 
 // IsIngestingPodUID returns the env variable from ingestPodUID, which alters the
