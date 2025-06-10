@@ -61,12 +61,11 @@ func (r *MetricRepository) Update(
 		return
 	}
 
-	for _, update := range updateSet.Updates {
-		// Call update on the collectors for each resolution
-		for _, resCollector := range r.resolutionStores {
-			resCollector.update(update.Name, update.Labels, update.Value, updateSet.Timestamp, update.AdditionalInfo)
-		}
+	// Call update on the collectors for each resolution
+	for _, resCollector := range r.resolutionStores {
+		resCollector.update(updateSet)
 	}
+
 }
 
 func (r *MetricRepository) Coverage() map[string][]time.Time {
@@ -121,31 +120,29 @@ func (r *resolutionStores) clean() {
 }
 
 func (r *resolutionStores) update(
-	metricName string,
-	labels map[string]string,
-	value float64,
-	timestamp time.Time,
-	additionalInformation map[string]string,
+	updateSet *UpdateSet,
 ) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	limit := r.resolution.Limit()
-	if timestamp.Before(limit) {
+	if updateSet.Timestamp.Before(limit) {
 		log.Debugf(
-			"failed to call update on resolution '%s' because Timestamp '%s' is before the limit '%s",
+			"skipping update on resolution '%s' because Timestamp '%s' is before the limit '%s",
 			r.resolution.Interval(),
-			timestamp.Format(time.RFC3339),
+			updateSet.Timestamp.Format(time.RFC3339),
 			limit.Format(time.RFC3339),
 		)
 		return
 	}
-	key := r.resolution.Get(timestamp).UnixMilli()
+	key := r.resolution.Get(updateSet.Timestamp).UnixMilli()
 	collector, ok := r.collectors[key]
 	if !ok {
 		collector = r.factory()
 		r.collectors[key] = collector
 	}
-	collector.Update(metricName, labels, value, timestamp, additionalInformation)
+	for _, update := range updateSet.Updates {
+		collector.Update(update.Name, update.Labels, update.Value, updateSet.Timestamp, update.AdditionalInfo)
+	}
 }
 
 func (r *resolutionStores) getCollector(t time.Time) (MetricStore, error) {
