@@ -170,7 +170,7 @@ func NewPVCInfoMetricCollector() *metric.MetricCollector {
 			source.PVCLabel,
 			source.StorageClassLabel,
 		},
-		aggregator.Info,
+		aggregator.ActiveMinutes,
 		func(labels map[string]string) bool {
 			return labels[source.VolumeNameLabel] != ""
 		},

@@ -134,14 +134,28 @@ func (r *resolutionStores) update(
 		)
 		return
 	}
-	key := r.resolution.Get(updateSet.Timestamp).UnixMilli()
+
+	resolutionStart := r.resolution.Get(updateSet.Timestamp)
+	key := resolutionStart.UnixMilli()
+
 	collector, ok := r.collectors[key]
 	if !ok {
 		collector = r.factory()
 		r.collectors[key] = collector
 	}
+
 	for _, update := range updateSet.Updates {
 		collector.Update(update.Name, update.Labels, update.Value, updateSet.Timestamp, update.AdditionalInfo)
+	}
+
+	// check if update needs to be applied to previous collector, because some aggregators are inclusive
+	if resolutionStart.Equal(updateSet.Timestamp) {
+		prevKey := r.resolution.Get(updateSet.Timestamp.Add(-1)).UnixMilli()
+		if prevCollector, ok := r.collectors[prevKey]; ok {
+			for _, update := range updateSet.Updates {
+				prevCollector.Update(update.Name, update.Labels, update.Value, updateSet.Timestamp, update.AdditionalInfo)
+			}
+		}
 	}
 }
 

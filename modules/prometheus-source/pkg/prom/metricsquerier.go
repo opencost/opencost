@@ -905,17 +905,18 @@ func (pds *PrometheusMetricsQuerier) QueryPVInfo(start, end time.Time) *source.F
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNetZoneGiB(start, end time.Time) *source.Future[source.NetZoneGiBResult] {
-	const queryFmtNetZoneGiB = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", same_zone="false", same_region="true", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
+	const queryFmtNetZoneGiB = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", same_zone="false", same_region="true", %s}[%s:%dm])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
 	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryNetZoneGiB")
 	}
 
-	queryNetZoneGiB := fmt.Sprintf(queryFmtNetZoneGiB, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	queryNetZoneGiB := fmt.Sprintf(queryFmtNetZoneGiB, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
 	return source.NewFuture(source.DecodeNetZoneGiBResult, ctx.QueryAtTime(queryNetZoneGiB, end))
 }
@@ -937,17 +938,18 @@ func (pds *PrometheusMetricsQuerier) QueryNetZonePricePerGiB(start, end time.Tim
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNetRegionGiB(start, end time.Time) *source.Future[source.NetRegionGiBResult] {
-	const queryFmtNetRegionGiB = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", same_zone="false", same_region="false", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
+	const queryFmtNetRegionGiB = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", same_zone="false", same_region="false", %s}[%s:%dm])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
 	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryNetRegionGiB")
 	}
 
-	queryNetRegionGiB := fmt.Sprintf(queryFmtNetRegionGiB, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	queryNetRegionGiB := fmt.Sprintf(queryFmtNetRegionGiB, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
 	return source.NewFuture(source.DecodeNetRegionGiBResult, ctx.QueryAtTime(queryNetRegionGiB, end))
 }
@@ -969,17 +971,18 @@ func (pds *PrometheusMetricsQuerier) QueryNetRegionPricePerGiB(start, end time.T
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNetInternetGiB(start, end time.Time) *source.Future[source.NetInternetGiBResult] {
-	const queryFmtNetInternetGiB = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
+	const queryFmtNetInternetGiB = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true", %s}[%s:%dm])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
 	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryNetInternetGiB")
 	}
 
-	queryNetInternetGiB := fmt.Sprintf(queryFmtNetInternetGiB, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	queryNetInternetGiB := fmt.Sprintf(queryFmtNetInternetGiB, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
 	return source.NewFuture(source.DecodeNetInternetGiBResult, ctx.QueryAtTime(queryNetInternetGiB, end))
 }
@@ -1001,111 +1004,118 @@ func (pds *PrometheusMetricsQuerier) QueryNetInternetPricePerGiB(start, end time
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNetInternetServiceGiB(start, end time.Time) *source.Future[source.NetInternetServiceGiBResult] {
-	const queryFmtNetInternetGiB = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true", %s}[%s])) by (pod_name, namespace, service, %s) / 1024 / 1024 / 1024`
+	const queryFmtNetInternetGiB = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true", %s}[%s:%dm])) by (pod_name, namespace, service, %s) / 1024 / 1024 / 1024`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
 	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryNetInternetGiB")
 	}
 
-	queryNetInternetGiB := fmt.Sprintf(queryFmtNetInternetGiB, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	queryNetInternetGiB := fmt.Sprintf(queryFmtNetInternetGiB, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(NetworkInsightsContextName)
 	return source.NewFuture(source.DecodeNetInternetServiceGiBResult, ctx.QueryAtTime(queryNetInternetGiB, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNetTransferBytes(start, end time.Time) *source.Future[source.NetTransferBytesResult] {
-	const queryFmtNetTransferBytes = `sum(increase(container_network_transmit_bytes_total{pod!="", %s}[%s])) by (pod_name, pod, namespace, %s)`
+	const queryFmtNetTransferBytes = `sum(increase(container_network_transmit_bytes_total{pod!="", %s}[%s:%dm])) by (pod_name, pod, namespace, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
 	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryNetTransferBytes")
 	}
 
-	queryNetTransferBytes := fmt.Sprintf(queryFmtNetTransferBytes, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	queryNetTransferBytes := fmt.Sprintf(queryFmtNetTransferBytes, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
 	return source.NewFuture(source.DecodeNetTransferBytesResult, ctx.QueryAtTime(queryNetTransferBytes, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNetZoneIngressGiB(start, end time.Time) *source.Future[source.NetZoneIngressGiBResult] {
-	const queryFmtIngNetZoneGiB = `sum(increase(kubecost_pod_network_ingress_bytes_total{internet="false", same_zone="false", same_region="true", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
+	const queryFmtIngNetZoneGiB = `sum(increase(kubecost_pod_network_ingress_bytes_total{internet="false", same_zone="false", same_region="true", %s}[%s:%dm])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
 
 	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryNetZoneIngressGiB")
 	}
 
-	queryNetZoneCostPerGiB := fmt.Sprintf(queryFmtIngNetZoneGiB, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	queryNetZoneCostPerGiB := fmt.Sprintf(queryFmtIngNetZoneGiB, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(NetworkInsightsContextName)
 	return source.NewFuture(source.DecodeNetZoneIngressGiBResult, ctx.QueryAtTime(queryNetZoneCostPerGiB, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNetRegionIngressGiB(start, end time.Time) *source.Future[source.NetRegionIngressGiBResult] {
-	const queryFmtIngNetRegionGiB = `sum(increase(kubecost_pod_network_ingress_bytes_total{internet="false", same_zone="false", same_region="false", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
+	const queryFmtIngNetRegionGiB = `sum(increase(kubecost_pod_network_ingress_bytes_total{internet="false", same_zone="false", same_region="false", %s}[%s:%dm])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
 
 	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryNetRegionIngressGiB")
 	}
 
-	queryNetRegionIngGiB := fmt.Sprintf(queryFmtIngNetRegionGiB, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	queryNetRegionIngGiB := fmt.Sprintf(queryFmtIngNetRegionGiB, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(NetworkInsightsContextName)
 	return source.NewFuture(source.DecodeNetRegionIngressGiBResult, ctx.QueryAtTime(queryNetRegionIngGiB, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNetInternetIngressGiB(start, end time.Time) *source.Future[source.NetInternetIngressGiBResult] {
-	const queryFmtNetIngInternetGiB = `sum(increase(kubecost_pod_network_ingress_bytes_total{internet="true", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
+	const queryFmtNetIngInternetGiB = `sum(increase(kubecost_pod_network_ingress_bytes_total{internet="true", %s}[%s:%dm])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
 	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryNetInternetIngressGiB")
 	}
 
-	queryNetIngInternetGiB := fmt.Sprintf(queryFmtNetIngInternetGiB, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	queryNetIngInternetGiB := fmt.Sprintf(queryFmtNetIngInternetGiB, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(NetworkInsightsContextName)
 	return source.NewFuture(source.DecodeNetInternetIngressGiBResult, ctx.QueryAtTime(queryNetIngInternetGiB, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNetInternetServiceIngressGiB(start, end time.Time) *source.Future[source.NetInternetServiceIngressGiBResult] {
-	const queryFmtIngNetInternetGiB = `sum(increase(kubecost_pod_network_ingress_bytes_total{internet="true", %s}[%s])) by (pod_name, namespace, service, %s) / 1024 / 1024 / 1024`
+	const queryFmtIngNetInternetGiB = `sum(increase(kubecost_pod_network_ingress_bytes_total{internet="true", %s}[%s:%dm])) by (pod_name, namespace, service, %s) / 1024 / 1024 / 1024`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel()
 
 	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryNetInternetServiceIngressGiB")
 	}
 
-	queryNetIngInternetGiB := fmt.Sprintf(queryFmtIngNetInternetGiB, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	queryNetIngInternetGiB := fmt.Sprintf(queryFmtIngNetInternetGiB, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(NetworkInsightsContextName)
 	return source.NewFuture(source.DecodeNetInternetServiceIngressGiBResult, ctx.QueryAtTime(queryNetIngInternetGiB, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNetReceiveBytes(start, end time.Time) *source.Future[source.NetReceiveBytesResult] {
-	const queryFmtNetReceiveBytes = `sum(increase(container_network_receive_bytes_total{pod!="", %s}[%s])) by (pod_name, pod, namespace, %s)`
+	const queryFmtNetReceiveBytes = `sum(increase(container_network_receive_bytes_total{pod!="", %s}[%s:%dm])) by (pod_name, pod, namespace, %s)`
 	// env.GetPromClusterFilter(), durStr, env.GetPromClusterLabel())
 
 	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	durStr := pds.durationStringFor(start, end, minsPerResolution)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryNetReceiveBytes")
 	}
 
-	queryNetReceiveBytes := fmt.Sprintf(queryFmtNetReceiveBytes, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	queryNetReceiveBytes := fmt.Sprintf(queryFmtNetReceiveBytes, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel)
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
 	return source.NewFuture(source.DecodeNetReceiveBytesResult, ctx.QueryAtTime(queryNetReceiveBytes, end))
 }

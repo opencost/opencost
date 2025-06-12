@@ -71,29 +71,21 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 			podUID := pod.PodRef.UID
 
 			if pod.Network != nil {
-				if pod.Network.RxBytes != nil {
-					scrapeResults = append(scrapeResults, metric.Update{
-						Name: ContainerNetworkReceiveBytesTotal,
-						Labels: map[string]string{
-							source.UIDLabel:       podUID,
-							source.PodLabel:       podName,
-							source.NamespaceLabel: namespace,
-						},
-						Value: float64(*pod.Network.RxBytes),
-					})
+				networkLabels := map[string]string{
+					source.UIDLabel:       podUID,
+					source.PodLabel:       podName,
+					source.NamespaceLabel: namespace,
+				}
+				// The network may contain a list of stats or itself be a single stat, if the list is not present
+				// scrape the object itself
+				if pod.Network.Interfaces != nil {
+					for _, networkStat := range pod.Network.Interfaces {
+						scrapeNetworkStats(&scrapeResults, networkLabels, networkStat)
+					}
+				} else {
+					scrapeNetworkStats(&scrapeResults, networkLabels, pod.Network.InterfaceStats)
 				}
 
-				if pod.Network.TxBytes != nil {
-					scrapeResults = append(scrapeResults, metric.Update{
-						Name: ContainerNetworkTransmitBytesTotal,
-						Labels: map[string]string{
-							source.UIDLabel:       podUID,
-							source.PodLabel:       podName,
-							source.NamespaceLabel: namespace,
-						},
-						Value: float64(*pod.Network.TxBytes),
-					})
-				}
 			}
 
 			for _, volumeStats := range pod.VolumeStats {
@@ -156,4 +148,26 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 		}
 	}
 	return scrapeResults
+}
+
+func scrapeNetworkStats(scrapeResults *[]metric.Update, labels map[string]string, networkStats stats.InterfaceStats) {
+	// Skip stats for cni0 which tracks internal cluster traffic
+	if networkStats.Name == "cni0" {
+		return
+	}
+	if networkStats.RxBytes != nil {
+		*scrapeResults = append(*scrapeResults, metric.Update{
+			Name:   ContainerNetworkReceiveBytesTotal,
+			Labels: labels,
+			Value:  float64(*networkStats.RxBytes),
+		})
+	}
+
+	if networkStats.TxBytes != nil {
+		*scrapeResults = append(*scrapeResults, metric.Update{
+			Name:   ContainerNetworkTransmitBytesTotal,
+			Labels: labels,
+			Value:  float64(*networkStats.TxBytes),
+		})
+	}
 }
