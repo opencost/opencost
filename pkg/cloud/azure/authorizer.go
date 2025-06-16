@@ -9,8 +9,10 @@ import (
 	"github.com/opencost/opencost/pkg/cloud"
 )
 
-const DefaultCredentialAuthorizerType = "AzureDefaultCredential"
-const ClientSecretCredentialType = "AzureClientSecretCredential"
+const (
+	DefaultCredentialAuthorizerType = "AzureDefaultCredential"
+	ClientSecretCredentialType      = "AzureClientSecretCredential"
+)
 
 // Authorizer configs provide credentials from azidentity to connect to Azure services.
 type Authorizer interface {
@@ -68,28 +70,28 @@ type ClientSecretCredential struct {
 	ClientSecret string `json:"clientSecret"`
 }
 
-func (c *ClientSecretCredential) Validate() error {
-	if c.TenantID == "" {
+func (csc *ClientSecretCredential) Validate() error {
+	if csc.TenantID == "" {
 		return fmt.Errorf("ClientSecretCredential: missing Tenant ID")
 	}
-	if c.ClientID == "" {
+	if csc.ClientID == "" {
 		return fmt.Errorf("ClientSecretCredential: missing Client ID")
 	}
-	if c.ClientSecret == "" {
+	if csc.ClientSecret == "" {
 		return fmt.Errorf("ClientSecretCredential: missing Client Secret")
 	}
 	return nil
 }
 
-func (c *ClientSecretCredential) Sanitize() cloud.Config {
+func (csc *ClientSecretCredential) Sanitize() cloud.Config {
 	return &ClientSecretCredential{
-		TenantID:     c.TenantID,
-		ClientID:     c.ClientID,
+		TenantID:     csc.TenantID,
+		ClientID:     csc.ClientID,
 		ClientSecret: cloud.Redacted,
 	}
 }
 
-func (c *ClientSecretCredential) Equals(config cloud.Config) bool {
+func (csc *ClientSecretCredential) Equals(config cloud.Config) bool {
 	if config == nil {
 		return false
 	}
@@ -98,29 +100,29 @@ func (c *ClientSecretCredential) Equals(config cloud.Config) bool {
 		return false
 	}
 
-	if c.TenantID != thatConfig.TenantID {
+	if csc.TenantID != thatConfig.TenantID {
 		return false
 	}
-	if c.ClientID != thatConfig.ClientID {
+	if csc.ClientID != thatConfig.ClientID {
 		return false
 	}
-	if c.ClientSecret != thatConfig.ClientSecret {
+	if csc.ClientSecret != thatConfig.ClientSecret {
 		return false
 	}
 	return true
 }
 
-func (c *ClientSecretCredential) MarshalJSON() ([]byte, error) {
+func (csc *ClientSecretCredential) MarshalJSON() ([]byte, error) {
 	fmap := make(map[string]any, 1)
 	fmap[cloud.AuthorizerTypeProperty] = ClientSecretCredentialType
-	fmap["tenantID"] = c.TenantID
-	fmap["clientID"] = c.ClientID
-	fmap["clientSecret"] = c.ClientSecret
+	fmap["tenantID"] = csc.TenantID
+	fmap["clientID"] = csc.ClientID
+	fmap["clientSecret"] = csc.ClientSecret
 	return json.Marshal(fmap)
 }
 
-func (c *ClientSecretCredential) GetCredential() (azcore.TokenCredential, error) {
-	cred, err := azidentity.NewClientSecretCredential(c.TenantID, c.ClientID, c.ClientSecret, nil)
+func (csc *ClientSecretCredential) GetCredential() (azcore.TokenCredential, error) {
+	cred, err := azidentity.NewClientSecretCredential(csc.TenantID, csc.ClientID, csc.ClientSecret, nil)
 	if err != nil {
 		return nil, fmt.Errorf("ClientSecretCredential: failed to retrieve credentials: %w", err)
 	}
