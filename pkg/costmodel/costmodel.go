@@ -1023,8 +1023,68 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 			newCnode.RAMCost = fmt.Sprintf("%f", defaultRAMPrice)
 			newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
-		} else if newCnode.GPUCost == "" {
+		} else if newCnode.GPU != "" && newCnode.GPUCost == "" {
 			// Handle GPU nodes without explicit GPU cost
+			log.Tracef("GPU without cost found for %s, calculating...", cp.GetKey(nodeLabels, n).Features())
+
+			// Check for custom GPU pricing from labels
+			gpuPricing, err := cp.GpuPricing(nodeLabels)
+			if err != nil {
+				log.Errorf("Could not determine custom GPU pricing: %s", err)
+			} else if len(gpuPricing) > 0 {
+				newCnode.GPUCost = gpuPricing
+				log.Infof("Using custom GPU pricing for node \"%s\": %s", name, gpuPricing)
+			}
+
+			if newCnode.GPUCost == "" {
+				// Use direct custom pricing values without ratio-based distribution
+				defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
+				if err != nil {
+					log.Errorf("Could not parse default cpu price")
+					defaultCPU = 0
+				}
+				if math.IsNaN(defaultCPU) {
+					log.Warnf("defaultCPU parsed as NaN. Setting to 0.")
+					defaultCPU = 0
+				}
+
+				defaultRAM, err := strconv.ParseFloat(cfg.RAM, 64)
+				if err != nil {
+					log.Errorf("Could not parse default ram price")
+					defaultRAM = 0
+				}
+				if math.IsNaN(defaultRAM) {
+					log.Warnf("defaultRAM parsed as NaN. Setting to 0.")
+					defaultRAM = 0
+				}
+
+				defaultGPU, err := strconv.ParseFloat(cfg.GPU, 64)
+				if err != nil {
+					log.Errorf("Could not parse default gpu price")
+					defaultGPU = 0
+				}
+				if math.IsNaN(defaultGPU) {
+					log.Warnf("defaultGPU parsed as NaN. Setting to 0.")
+					defaultGPU = 0
+				}
+
+				// Use direct custom pricing values without ratio-based distribution
+				cpuCost := defaultCPU * cpu
+				ramCost := defaultRAM * (ram / 1024 / 1024 / 1024) // Convert bytes to GB
+				gpuCost := defaultGPU * gpuc
+				nodeCost := cpuCost + ramCost + gpuCost
+
+				newCnode.VCPUCost = fmt.Sprintf("%f", defaultCPU)
+				newCnode.RAMCost = fmt.Sprintf("%f", defaultRAM)
+				newCnode.GPUCost = fmt.Sprintf("%f", defaultGPU)
+				newCnode.Cost = fmt.Sprintf("%f", nodeCost)
+				newCnode.RAMBytes = fmt.Sprintf("%f", ram)
+			}
+		} else if newCnode.RAMCost == "" {
+			// Handle nodes without RAM cost
+			log.Tracef("No RAM cost found for %s, calculating...", cp.GetKey(nodeLabels, n).Features())
+
+			// Use direct custom pricing values without ratio-based distribution
 			defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
 			if err != nil {
 				log.Errorf("Could not parse default cpu price")
@@ -1045,25 +1105,13 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 				defaultRAM = 0
 			}
 
-			defaultGPU, err := strconv.ParseFloat(cfg.GPU, 64)
-			if err != nil {
-				log.Errorf("Could not parse default gpu price")
-				defaultGPU = 0
-			}
-			if math.IsNaN(defaultGPU) {
-				log.Warnf("defaultGPU parsed as NaN. Setting to 0.")
-				defaultGPU = 0
-			}
-
 			// Use direct custom pricing values without ratio-based distribution
 			cpuCost := defaultCPU * cpu
 			ramCost := defaultRAM * (ram / 1024 / 1024 / 1024) // Convert bytes to GB
-			gpuCost := defaultGPU * gpuc
-			nodeCost := cpuCost + ramCost + gpuCost
+			nodeCost := cpuCost + ramCost
 
 			newCnode.VCPUCost = fmt.Sprintf("%f", defaultCPU)
 			newCnode.RAMCost = fmt.Sprintf("%f", defaultRAM)
-			newCnode.GPUCost = fmt.Sprintf("%f", defaultGPU)
 			newCnode.Cost = fmt.Sprintf("%f", nodeCost)
 			newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 		}
