@@ -1542,7 +1542,13 @@ func (gcp *gcpKey) Features() string {
 func (gcp *GCP) AllNodePricing() (interface{}, error) {
 	gcp.DownloadPricingDataLock.RLock()
 	defer gcp.DownloadPricingDataLock.RUnlock()
-	return gcp.Pricing, nil
+
+	// Create a deep copy of the pricing map
+	pricingCopy := make(map[string]*GCPPricing)
+	for k, v := range gcp.Pricing {
+		pricingCopy[k] = v
+	}
+	return pricingCopy, nil
 }
 
 func (gcp *GCP) getPricing(key models.Key) (*GCPPricing, bool) {

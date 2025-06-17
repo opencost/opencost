@@ -65,7 +65,16 @@ type customPVKey struct {
 // The summary represents what was _parsed_ from the pricing source, not what
 // was returned from the relevant API.
 func (cp *CustomProvider) PricingSourceSummary() interface{} {
-	return cp.Pricing
+	cp.DownloadPricingDataLock.RLock()
+	defer cp.DownloadPricingDataLock.RUnlock()
+
+	// Create a deep copy of the pricing map
+	pricingCopy := make(map[string]*NodePrice)
+	for k, v := range cp.Pricing {
+		priceCopy := *v
+		pricingCopy[k] = &priceCopy
+	}
+	return pricingCopy
 }
 
 type customProviderKey struct {

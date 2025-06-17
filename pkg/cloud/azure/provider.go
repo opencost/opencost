@@ -415,10 +415,31 @@ type Azure struct {
 }
 
 // PricingSourceSummary returns the pricing source summary for the provider.
-// The summary represents what was _parsed_ from the pricing source, not
-// everything that was _available_ in the pricing source.
+// The summary represents what was _parsed_ from the pricing source, not what
+// was returned from the relevant API.
 func (az *Azure) PricingSourceSummary() interface{} {
-	return az.Pricing
+	az.DownloadPricingDataLock.RLock()
+	defer az.DownloadPricingDataLock.RUnlock()
+
+	// Create a deep copy of the pricing map
+	pricingCopy := make(map[string]*AzurePricing)
+	for k, v := range az.Pricing {
+		pricingCopy[k] = v
+	}
+	return pricingCopy
+}
+
+// AllNodePricing returns the Azure pricing objects stored
+func (az *Azure) AllNodePricing() (interface{}, error) {
+	az.DownloadPricingDataLock.RLock()
+	defer az.DownloadPricingDataLock.RUnlock()
+
+	// Create a deep copy of the pricing map
+	pricingCopy := make(map[string]*AzurePricing)
+	for k, v := range az.Pricing {
+		pricingCopy[k] = v
+	}
+	return pricingCopy, nil
 }
 
 type azureKey struct {
@@ -1092,13 +1113,6 @@ func (az *Azure) addPricing(features string, azurePricing *AzurePricing) {
 		az.Pricing = map[string]*AzurePricing{}
 	}
 	az.Pricing[features] = azurePricing
-}
-
-// AllNodePricing returns the Azure pricing objects stored
-func (az *Azure) AllNodePricing() (interface{}, error) {
-	az.DownloadPricingDataLock.RLock()
-	defer az.DownloadPricingDataLock.RUnlock()
-	return az.Pricing, nil
 }
 
 // NodePricing returns Azure pricing data for a single node

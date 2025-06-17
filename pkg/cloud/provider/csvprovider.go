@@ -463,5 +463,13 @@ func (c *CSVProvider) Regions() []string {
 }
 
 func (c *CSVProvider) PricingSourceSummary() interface{} {
-	return c.Pricing
+	c.DownloadPricingDataLock.RLock()
+	defer c.DownloadPricingDataLock.RUnlock()
+
+	// Create a deep copy of the pricing map
+	pricingCopy := make(map[string]*price)
+	for k, v := range c.Pricing {
+		pricingCopy[k] = v
+	}
+	return pricingCopy
 }

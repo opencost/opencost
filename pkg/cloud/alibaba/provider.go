@@ -491,11 +491,17 @@ func (alibaba *Alibaba) DownloadPricingData() error {
 	return nil
 }
 
-// AllNodePricing returns all the pricing data for all nodes and pvs
+// AllNodePricing returns all the billing data fetched.
 func (alibaba *Alibaba) AllNodePricing() (interface{}, error) {
 	alibaba.DownloadPricingDataLock.RLock()
 	defer alibaba.DownloadPricingDataLock.RUnlock()
-	return alibaba.Pricing, nil
+
+	// Create a deep copy of the pricing map
+	pricingCopy := make(map[string]*AlibabaPricing)
+	for k, v := range alibaba.Pricing {
+		pricingCopy[k] = v
+	}
+	return pricingCopy, nil
 }
 
 // NodePricing gives pricing information of a specific node given by the key
@@ -1408,8 +1414,16 @@ func determinePVRegion(pv *clustercache.PersistentVolume) string {
 }
 
 // PricingSourceSummary returns the pricing source summary for the provider.
-// The summary represents what was _parsed_ from the pricing source, not
-// everything that was _available_ in the pricing source.
+// The summary represents what was _parsed_ from the pricing source, not what
+// was returned from the relevant API.
 func (a *Alibaba) PricingSourceSummary() interface{} {
-	return a.Pricing
+	a.DownloadPricingDataLock.RLock()
+	defer a.DownloadPricingDataLock.RUnlock()
+
+	// Create a deep copy of the pricing map
+	pricingCopy := make(map[string]*AlibabaPricing)
+	for k, v := range a.Pricing {
+		pricingCopy[k] = v
+	}
+	return pricingCopy
 }

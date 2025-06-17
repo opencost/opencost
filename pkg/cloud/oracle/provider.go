@@ -98,7 +98,10 @@ func (o *Oracle) AllNodePricing() (interface{}, error) {
 	}
 	o.DownloadPricingDataLock.RLock()
 	defer o.DownloadPricingDataLock.RUnlock()
-	return o.RateCardStore.Store(), nil
+
+	// Create a deep copy of the rate card store
+	storeCopy := o.RateCardStore.Store()
+	return storeCopy, nil
 }
 
 // DownloadPricingData refreshes the RateCardStore pricing data.

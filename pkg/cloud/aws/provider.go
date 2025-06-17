@@ -1250,7 +1250,14 @@ func (aws *AWS) LoadBalancerPricing() (*models.LoadBalancer, error) {
 func (aws *AWS) AllNodePricing() (interface{}, error) {
 	aws.DownloadPricingDataLock.RLock()
 	defer aws.DownloadPricingDataLock.RUnlock()
-	return aws.Pricing, nil
+
+	// Create a deep copy of the pricing map
+	pricingCopy := make(map[string]*AWSProductTerms)
+	for k, v := range aws.Pricing {
+		termsCopy := *v
+		pricingCopy[k] = &termsCopy
+	}
+	return pricingCopy, nil
 }
 
 func (aws *AWS) spotPricing(instanceID string) (*spotInfo, bool) {
@@ -2458,9 +2465,17 @@ func (aws *AWS) Regions() []string {
 }
 
 // PricingSourceSummary returns the pricing source summary for the provider.
-// The summary represents what was _parsed_ from the pricing source, not
-// everything that was _available_ in the pricing source.
+// The summary represents what was _parsed_ from the pricing source, not what
+// was returned from the relevant API.
 func (aws *AWS) PricingSourceSummary() interface{} {
-	// encode the pricing source summary as a JSON string
-	return aws.Pricing
+	aws.DownloadPricingDataLock.RLock()
+	defer aws.DownloadPricingDataLock.RUnlock()
+
+	// Create a deep copy of the pricing map
+	pricingCopy := make(map[string]*AWSProductTerms)
+	for k, v := range aws.Pricing {
+		termsCopy := *v
+		pricingCopy[k] = &termsCopy
+	}
+	return pricingCopy
 }

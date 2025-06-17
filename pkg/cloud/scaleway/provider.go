@@ -44,8 +44,17 @@ type Scaleway struct {
 // The summary represents what was _parsed_ from the pricing source, not
 // everything that was _available_ in the pricing source.
 func (c *Scaleway) PricingSourceSummary() interface{} {
-	return c.Pricing
+	c.DownloadPricingDataLock.RLock()
+	defer c.DownloadPricingDataLock.RUnlock()
+
+	// Create a deep copy of the pricing map
+	pricingCopy := make(map[string]*ScalewayPricing)
+	for k, v := range c.Pricing {
+		pricingCopy[k] = v
+	}
+	return pricingCopy
 }
+
 func (c *Scaleway) DownloadPricingData() error {
 	c.DownloadPricingDataLock.Lock()
 	defer c.DownloadPricingDataLock.Unlock()
@@ -103,7 +112,13 @@ func (c *Scaleway) DownloadPricingData() error {
 func (c *Scaleway) AllNodePricing() (interface{}, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
-	return c.Pricing, nil
+
+	// Create a deep copy of the pricing map
+	pricingCopy := make(map[string]*ScalewayPricing)
+	for k, v := range c.Pricing {
+		pricingCopy[k] = v
+	}
+	return pricingCopy, nil
 }
 
 type scalewayKey struct {

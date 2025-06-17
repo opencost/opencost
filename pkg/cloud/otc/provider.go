@@ -579,6 +579,13 @@ func (otc *OTC) Regions() []string {
 // The summary represents what was _parsed_ from the pricing source, not what
 // was returned from the relevant API.
 func (otc *OTC) PricingSourceSummary() interface{} {
-	// encode the pricing source summary as a JSON string
-	return otc.Pricing
+	otc.DownloadPricingDataLock.RLock()
+	defer otc.DownloadPricingDataLock.RUnlock()
+
+	// Create a deep copy of the pricing map
+	pricingCopy := make(map[string]*OTCPricing)
+	for k, v := range otc.Pricing {
+		pricingCopy[k] = v
+	}
+	return pricingCopy
 }
