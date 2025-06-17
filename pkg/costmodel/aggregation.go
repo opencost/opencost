@@ -177,6 +177,7 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	window, err := opencost.ParseWindowWithOffset(qp.Get("window", ""), env.GetParsedUTCOffset())
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Invalid 'window' parameter: %s", err), http.StatusBadRequest)
+		return
 	}
 
 	// Step is an optional parameter that defines the duration per-set, i.e.
@@ -192,6 +193,7 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	aggregateBy, err := ParseAggregationProperties(aggregations)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Invalid 'aggregate' parameter: %s", err), http.StatusBadRequest)
+		return
 	}
 
 	// IncludeIdle, if true, uses Asset data to incorporate Idle Allocation
@@ -227,18 +229,34 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// Get allocation filter if provided
 	allocationFilter := qp.Get("filter", "")
 
-	asr, err := a.Model.QueryAllocation(window, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer, accumulateBy, shareIdle)
-	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "bad request") {
-			proto.WriteError(w, proto.BadRequest(err.Error()))
-		} else {
-			proto.WriteError(w, proto.InternalServerError(err.Error()))
-		}
+	// Query for AllocationSets in increments of the given step duration,
+	// appending each to the AllocationSetRange.
+	asr := opencost.NewAllocationSetRange()
+	stepStart := *window.Start()
+	for window.End().After(stepStart) {
+		stepEnd := stepStart.Add(step)
+		stepWindow := opencost.NewWindow(&stepStart, &stepEnd)
 
-		return
+		as, err := a.Model.ComputeAllocation(
+			*stepWindow.Start(),
+			*stepWindow.End(),
+			includeIdle,
+			idleByNode,
+			includeProportionalAssetResourceCosts,
+			includeAggregatedMetadata,
+			sharedLoadBalancer,
+			shareIdle,
+		)
+		if err != nil {
+			proto.WriteError(w, proto.InternalServerError(err.Error()))
+			return
+		}
+		asr.Append(as)
+
+		stepStart = stepEnd
 	}
 
-	// Apply allocation filter if provided
+	// Apply allocation filter if provided (before aggregation!)
 	if allocationFilter != "" {
 		parser := allocation.NewAllocationFilterParser()
 		filterNode, err := parser.Parse(allocationFilter)
@@ -265,6 +283,24 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 			}
 		}
 		asr = filteredASR
+	}
+
+	// Aggregate, if requested
+	if len(aggregateBy) > 0 {
+		err = asr.AggregateBy(aggregateBy, nil)
+		if err != nil {
+			proto.WriteError(w, proto.InternalServerError(err.Error()))
+			return
+		}
+	}
+
+	// Accumulate, if requested
+	if accumulateBy != opencost.AccumulateOptionNone {
+		asr, err = asr.Accumulate(accumulateBy)
+		if err != nil {
+			proto.WriteError(w, proto.InternalServerError(err.Error()))
+			return
+		}
 	}
 
 	WriteData(w, asr, nil)
