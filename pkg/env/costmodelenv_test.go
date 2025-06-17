@@ -3,6 +3,8 @@ package env
 import (
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetAPIPort(t *testing.T) {
@@ -233,4 +235,60 @@ func TestEnvVarsWithBackup(t *testing.T) {
 		}
 	})
 
+}
+
+func TestAzureEnvironmentVariables(t *testing.T) {
+	// Save original env vars
+	origSubID := os.Getenv(AzureSubscriptionIDEnvVar)
+	origClientID := os.Getenv(AzureClientIDEnvVar)
+	origClientSecret := os.Getenv(AzureClientSecretEnvVar)
+	origTenantID := os.Getenv(AzureTenantIDEnvVar)
+
+	// Restore original env vars after test
+	defer func() {
+		os.Setenv(AzureSubscriptionIDEnvVar, origSubID)
+		os.Setenv(AzureClientIDEnvVar, origClientID)
+		os.Setenv(AzureClientSecretEnvVar, origClientSecret)
+		os.Setenv(AzureTenantIDEnvVar, origTenantID)
+	}()
+
+	t.Run("GetAzureSubscriptionID", func(t *testing.T) {
+		// Test with value set
+		os.Setenv(AzureSubscriptionIDEnvVar, "test-sub-id")
+		require.Equal(t, "test-sub-id", GetAzureSubscriptionID())
+
+		// Test with empty value
+		os.Unsetenv(AzureSubscriptionIDEnvVar)
+		require.Equal(t, "", GetAzureSubscriptionID())
+	})
+
+	t.Run("GetAzureClientID", func(t *testing.T) {
+		// Test with value set
+		os.Setenv(AzureClientIDEnvVar, "test-client-id")
+		require.Equal(t, "test-client-id", GetAzureClientID())
+
+		// Test with empty value
+		os.Unsetenv(AzureClientIDEnvVar)
+		require.Equal(t, "", GetAzureClientID())
+	})
+
+	t.Run("GetAzureClientSecret", func(t *testing.T) {
+		// Test with value set
+		os.Setenv(AzureClientSecretEnvVar, "test-client-secret")
+		require.Equal(t, "test-client-secret", GetAzureClientSecret())
+
+		// Test with empty value
+		os.Unsetenv(AzureClientSecretEnvVar)
+		require.Equal(t, "", GetAzureClientSecret())
+	})
+
+	t.Run("GetAzureTenantID", func(t *testing.T) {
+		// Test with value set
+		os.Setenv(AzureTenantIDEnvVar, "test-tenant-id")
+		require.Equal(t, "test-tenant-id", GetAzureTenantID())
+
+		// Test with empty value
+		os.Unsetenv(AzureTenantIDEnvVar)
+		require.Equal(t, "", GetAzureTenantID())
+	})
 }

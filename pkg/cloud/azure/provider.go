@@ -540,7 +540,21 @@ func (ask *AzureServiceKey) IsValid() bool {
 
 // Loads the azure authentication via configuration or a secret set at install time.
 func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *models.CustomPricing) (subscriptionID, clientID, clientSecret, tenantID string) {
-	// 1. Check for secret (secret values will always be used if they are present)
+	// 1. Check environment variables first
+	envSubscriptionID := env.GetAzureSubscriptionID()
+	envClientID := env.GetAzureClientID()
+	envClientSecret := env.GetAzureClientSecret()
+	envTenantID := env.GetAzureTenantID()
+
+	if envSubscriptionID != "" && envClientID != "" && envClientSecret != "" && envTenantID != "" {
+		subscriptionID = envSubscriptionID
+		clientID = envClientID
+		clientSecret = envClientSecret
+		tenantID = envTenantID
+		return
+	}
+
+	// 2. Check for secret (secret values will always be used if they are present)
 	s, _ := az.loadAzureAuthSecret(forceReload)
 	if s != nil && s.IsValid() {
 		subscriptionID = s.SubscriptionID
@@ -549,7 +563,8 @@ func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *models.CustomPricing
 		tenantID = s.ServiceKey.Tenant
 		return
 	}
-	// 2. Check config values (set though endpoint)
+
+	// 3. Check config values (set though endpoint)
 	if cp.AzureSubscriptionID != "" && cp.AzureClientID != "" && cp.AzureClientSecret != "" && cp.AzureTenantID != "" {
 		subscriptionID = cp.AzureSubscriptionID
 		clientID = cp.AzureClientID
@@ -557,15 +572,16 @@ func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *models.CustomPricing
 		tenantID = cp.AzureTenantID
 		return
 	}
-	// 3. Check if AzureSubscriptionID is set in config (set though endpoint)
+
+	// 4. Check if AzureSubscriptionID is set in config (set though endpoint)
 	// MSI credentials will be attempted if the subscription ID is set, but clientID, clientSecret and tenantID are not
 	if cp.AzureSubscriptionID != "" {
 		subscriptionID = cp.AzureSubscriptionID
 		return
 	}
-	// 4. Empty values
-	return "", "", "", ""
 
+	// 5. Empty values
+	return "", "", "", ""
 }
 
 // GetAzureStorageConfig retrieves storage config from secret and sets default values

@@ -23,6 +23,10 @@ const (
 	AzureOfferIDEnvVar                   = "AZURE_OFFER_ID"
 	AzureBillingAccountEnvVar            = "AZURE_BILLING_ACCOUNT"
 	AzureDownloadBillingDataToDiskEnvVar = "AZURE_DOWNLOAD_BILLING_DATA_TO_DISK"
+	AzureSubscriptionIDEnvVar            = "AZURE_SUBSCRIPTION_ID"
+	AzureClientIDEnvVar                  = "AZURE_CLIENT_ID"
+	AzureTenantIDEnvVar                  = "AZURE_TENANT_ID"
+	AzureClientSecretEnvVar              = "AZURE_CLIENT_SECRET"
 
 	ReleaseNameEnvVar                = "RELEASE_NAME"
 	PodNameEnvVar                    = "POD_NAME"
@@ -550,4 +554,28 @@ func GetNodeStatsCertFile() string {
 // GetNodeStatsKeyFile returns the path of the key file
 func GetNodeStatsKeyFile() string {
 	return env.Get(NodeStatsKeyFileEnvVar, "")
+}
+
+// GetAzureSubscriptionID returns the environment variable value for AzureSubscriptionIDEnvVar which represents
+// the Azure subscription ID for authentication
+func GetAzureSubscriptionID() string {
+	return env.Get(AzureSubscriptionIDEnvVar, "")
+}
+
+// GetAzureClientID returns the environment variable value for AzureClientIDEnvVar which represents
+// the Azure client ID for authentication
+func GetAzureClientID() string {
+	return env.Get(AzureClientIDEnvVar, "")
+}
+
+// GetAzureTenantID returns the environment variable value for AzureTenantIDEnvVar which represents
+// the Azure tenant ID for authentication
+func GetAzureTenantID() string {
+	return env.Get(AzureTenantIDEnvVar, "")
+}
+
+// GetAzureClientSecret returns the environment variable value for AzureClientSecretEnvVar which represents
+// the Azure client secret for authentication
+func GetAzureClientSecret() string {
+	return env.Get(AzureClientSecretEnvVar, "")
 }
