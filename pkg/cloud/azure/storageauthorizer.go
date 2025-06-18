@@ -122,3 +122,8 @@ func (ah *AuthorizerHolder) GetBlobClient(serviceURL string) (*azblob.Client, er
 	client, err := azblob.NewClient(serviceURL, cred, nil)
 	return client, err
 }
+
+// UnmarshalJSON passes the contained Authorizer to be unmarshalled into
+func (ah *AuthorizerHolder) UnmarshalJSON(b []byte) error {
+	return json.Unmarshal(b, ah.Authorizer)
+}
