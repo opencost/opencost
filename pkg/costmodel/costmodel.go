@@ -3,6 +3,7 @@ package costmodel
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"regexp"
 	"strconv"
@@ -386,7 +387,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 			ns := pod.Namespace
 
 			nsLabels := namespaceLabelsMapping[ns+","+clusterID]
-			podLabels := pod.Labels
+			podLabels := maps.Clone(pod.Labels)
 			if podLabels == nil {
 				podLabels = make(map[string]string)
 			}
