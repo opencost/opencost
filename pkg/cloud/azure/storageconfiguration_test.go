@@ -480,6 +480,22 @@ func TestStorageConfiguration_JSON(t *testing.T) {
 				},
 			},
 		},
+		"ClientSecretCredential Authorizer": {
+			config: StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer: &AuthorizerHolder{
+					Authorizer: &ClientSecretCredential{
+						TenantID:     "tenantID",
+						ClientID:     "clientID",
+						ClientSecret: "clientSecret",
+					},
+				},
+			},
+		},
 	}
 
 	for name, testCase := range testCases {
