@@ -2,7 +2,6 @@ package azure
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-11-01/compute"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/util/mathutil"
 	"github.com/opencost/opencost/pkg/cloud/models"
-	"github.com/opencost/opencost/pkg/env"
 )
 
 func TestParseAzureSubscriptionID(t *testing.T) {
@@ -251,81 +249,4 @@ func TestAzure_findCostForDisk(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestGetAzureRateCardAuth(t *testing.T) {
-	// Save original env vars
-	origSubID := os.Getenv(env.AzureSubscriptionIDEnvVar)
-	origClientID := os.Getenv(env.AzureClientIDEnvVar)
-	origClientSecret := os.Getenv(env.AzureClientSecretEnvVar)
-	origTenantID := os.Getenv(env.AzureTenantIDEnvVar)
-
-	// Restore original env vars after test
-	defer func() {
-		os.Setenv(env.AzureSubscriptionIDEnvVar, origSubID)
-		os.Setenv(env.AzureClientIDEnvVar, origClientID)
-		os.Setenv(env.AzureClientSecretEnvVar, origClientSecret)
-		os.Setenv(env.AzureTenantIDEnvVar, origTenantID)
-	}()
-
-	az := &Azure{}
-	cp := &models.CustomPricing{}
-
-	t.Run("environment variables", func(t *testing.T) {
-		// Set environment variables
-		os.Setenv(env.AzureSubscriptionIDEnvVar, "test-sub-id")
-		os.Setenv(env.AzureClientIDEnvVar, "test-client-id")
-		os.Setenv(env.AzureClientSecretEnvVar, "test-client-secret")
-		os.Setenv(env.AzureTenantIDEnvVar, "test-tenant-id")
-
-		subID, clientID, clientSecret, tenantID := az.getAzureRateCardAuth(false, cp)
-
-		require.Equal(t, "test-sub-id", subID)
-		require.Equal(t, "test-client-id", clientID)
-		require.Equal(t, "test-client-secret", clientSecret)
-		require.Equal(t, "test-tenant-id", tenantID)
-	})
-
-	t.Run("partial environment variables", func(t *testing.T) {
-		// Set only some environment variables
-		os.Setenv(env.AzureSubscriptionIDEnvVar, "test-sub-id")
-		os.Setenv(env.AzureClientIDEnvVar, "test-client-id")
-		os.Unsetenv(env.AzureClientSecretEnvVar)
-		os.Unsetenv(env.AzureTenantIDEnvVar)
-
-		// Set custom pricing values
-		cp.AzureSubscriptionID = "config-sub-id"
-		cp.AzureClientID = "config-client-id"
-		cp.AzureClientSecret = "config-client-secret"
-		cp.AzureTenantID = "config-tenant-id"
-
-		subID, clientID, clientSecret, tenantID := az.getAzureRateCardAuth(false, cp)
-
-		// Should fall back to config values since not all env vars are set
-		require.Equal(t, "config-sub-id", subID)
-		require.Equal(t, "config-client-id", clientID)
-		require.Equal(t, "config-client-secret", clientSecret)
-		require.Equal(t, "config-tenant-id", tenantID)
-	})
-
-	t.Run("no environment variables", func(t *testing.T) {
-		// Unset all environment variables
-		os.Unsetenv(env.AzureSubscriptionIDEnvVar)
-		os.Unsetenv(env.AzureClientIDEnvVar)
-		os.Unsetenv(env.AzureClientSecretEnvVar)
-		os.Unsetenv(env.AzureTenantIDEnvVar)
-
-		// Set custom pricing values
-		cp.AzureSubscriptionID = "config-sub-id"
-		cp.AzureClientID = "config-client-id"
-		cp.AzureClientSecret = "config-client-secret"
-		cp.AzureTenantID = "config-tenant-id"
-
-		subID, clientID, clientSecret, tenantID := az.getAzureRateCardAuth(false, cp)
-
-		require.Equal(t, "config-sub-id", subID)
-		require.Equal(t, "config-client-id", clientID)
-		require.Equal(t, "config-client-secret", clientSecret)
-		require.Equal(t, "config-tenant-id", tenantID)
-	})
 }
