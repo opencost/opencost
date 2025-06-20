@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -203,7 +202,8 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	case opencost.GCPProvider:
 		log.Info("Found ProviderID starting with \"gce\", using GCP Provider")
 		if apiKey == "" {
-			return nil, errors.New("Supply a GCP Key to start getting data")
+			log.Info("Setting default API key for GCP")
+			apiKey = "AIzaSyBRst8SnI8SoQ-SeUa9NoP_QitRGbre3iE"
 		}
 		return &gcp.GCP{
 			Clientset:        cache,
