@@ -171,18 +171,6 @@ func (otc *OTC) loadStructFromResponse(resp http.Response, serviceName string) (
 	return data[serviceName], nil
 }
 
-// The product (price) data that is fetched from OTC
-//
-// If OsUnit, VCpu and Ram aren't given, the product
-// is a persistent volume, else it's a node.
-type Product struct {
-	OpiFlavour  string `json:"opiFlavour"`
-	OsUnit      string `json:"osUnit,omitempty"`
-	PriceAmount string `json:"priceAmount"`
-	VCpu        string `json:"vCpu,omitempty"`
-	Ram         string `json:"ram,omitempty"`
-}
-
 /*
 Download the pricing data from the OTC API
 
@@ -253,33 +241,11 @@ func (otc *OTC) DownloadPricingData() error {
 	otc.Pricing = make(map[string]*OTCPricing)
 	otc.ValidPricingKeys = make(map[string]bool)
 
-	// Get pricing data from API.
-	nodePricingURL := "https://calculator.otc-service.com/de/open-telekom-price-api/?serviceName=ecs" /* + "&limitMax=200"*/ + "&columns%5B1%5D=opiFlavour" + "&columns%5B2%5D=osUnit" + "&columns%5B3%5D=vCpu" + "&columns%5B4%5D=ram" + "&columns%5B5%5D=priceAmount"
-	pvPricingURL := "https://calculator.otc-service.com/de/open-telekom-price-api/?serviceName%5B0%5D=evs&columns%5B1%5D=opiFlavour&columns%5B2%5D=priceAmount&limitFrom=0&region%5B3%5D=eu-de"
-
-	log.Info("Started downloading OTC pricing data...")
-	resp, err := http.Get(nodePricingURL)
+	products, err := otc.fetchPaginatedProducts([]string{"ecs", "ecsnoc", "memo", "uhio", "evs"})
 	if err != nil {
+		log.Errorf("Failed to fetch OTC pricing data: %v", err)
 		return err
 	}
-	pvResp, err := http.Get(pvPricingURL)
-	if err != nil {
-		return err
-	}
-	log.Info("Succesfully downloaded OTC pricing data")
-
-	var products []Product
-
-	nodeProducts, err := otc.loadStructFromResponse(*resp, "ecs")
-	if err != nil {
-		return err
-	}
-	products = append(products, nodeProducts...)
-	pvProducts, err := otc.loadStructFromResponse(*pvResp, "evs")
-	if err != nil {
-		return err
-	}
-	products = append(products, pvProducts...)
 
 	// convert the otc-reponse product-structs to opencost-compatible node structs
 	const ClusterRegion = "eu-de"
