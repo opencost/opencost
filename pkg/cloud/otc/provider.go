@@ -1,13 +1,10 @@
 package otc
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
@@ -16,41 +13,6 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/env"
 )
-
-// OTC node pricing attributes
-type OTCNodeAttributes struct {
-	Type  string // like s2.large.1
-	OS    string // like windows
-	Price string // (in EUR) like 0.023
-	RAM   string // (in GB) like 2
-	VCPU  string // like 8
-}
-
-type OTCPVAttributes struct {
-	Type  string // like vss.ssd
-	Price string // (in EUR/GB/h) like 0.01
-}
-
-// OTC pricing is either for a node, a persistent volume (or a database, network, cluster, ...)
-type OTCPricing struct {
-	NodeAttributes *OTCNodeAttributes
-	PVAttributes   *OTCPVAttributes
-}
-
-// the main provider struct
-type OTC struct {
-	Clientset               clustercache.ClusterCache
-	Pricing                 map[string]*OTCPricing
-	Config                  models.ProviderConfig
-	ClusterRegion           string
-	projectID               string
-	clusterManagementPrice  float64
-	BaseCPUPrice            string
-	BaseRAMPrice            string
-	BaseGPUPrice            string
-	ValidPricingKeys        map[string]bool
-	DownloadPricingDataLock sync.RWMutex
-}
 
 // Kubernetes to OTC OS conversion
 /* Note:
@@ -140,35 +102,6 @@ func (otc *OTC) GetPVKey(pv *clustercache.PersistentVolume, parameters map[strin
 		RegionID:               defaultRegion,
 		ProviderId:             providerID,
 	}
-}
-
-// Takes a resopnse from the otc api and the respective service name as an input
-// and extracts the resulting data into a product slice.
-func (otc *OTC) loadStructFromResponse(resp http.Response, serviceName string) ([]Product, error) {
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	// Unmarshal the first bit of the response.
-	wrapper := make(map[string]map[string]interface{})
-	err = json.Unmarshal(body, &wrapper)
-	if err != nil {
-		return nil, err
-	}
-
-	// Unmarshal the second, more specific, bit of the response.
-	data := make(map[string][]Product)
-	tmp, err := json.Marshal(wrapper["response"]["result"])
-	if err != nil {
-		return nil, err
-	}
-	err = json.Unmarshal(tmp, &data)
-	if err != nil {
-		return nil, err
-	}
-
-	return data[serviceName], nil
 }
 
 /*
