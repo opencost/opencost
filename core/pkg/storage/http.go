@@ -4,8 +4,74 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
+	"time"
 )
+
+// HTTPConfig configures HTTP client settings that can be used across different storage implementations.
+type HTTPConfig struct {
+	IdleConnTimeout       time.Duration `yaml:"idle_conn_timeout"`
+	ResponseHeaderTimeout time.Duration `yaml:"response_header_timeout"`
+	InsecureSkipVerify    bool          `yaml:"insecure_skip_verify"`
+
+	TLSHandshakeTimeout   time.Duration `yaml:"tls_handshake_timeout"`
+	ExpectContinueTimeout time.Duration `yaml:"expect_continue_timeout"`
+	MaxIdleConns          int           `yaml:"max_idle_conns"`
+	MaxIdleConnsPerHost   int           `yaml:"max_idle_conns_per_host"`
+	MaxConnsPerHost       int           `yaml:"max_conns_per_host"`
+	DisableCompression    bool          `yaml:"disable_compression"`
+
+	// Allow upstream callers to inject a round tripper
+	Transport http.RoundTripper `yaml:"-"`
+
+	TLSConfig TLSConfig `yaml:"tls_config"`
+}
+
+// NewHTTPTransport creates a new http.Transport from the HTTPConfig.
+func (config HTTPConfig) GetHTTPTransport() (http.RoundTripper, error) {
+	// check for injected round tripper
+	if config.Transport != nil {
+		return config.Transport, nil
+	}
+	tlsConfig, err := NewTLSConfig(&config.TLSConfig)
+	if err != nil {
+		return nil, fmt.Errorf("error creating TLS config: %w", err)
+	}
+
+	if config.InsecureSkipVerify {
+		tlsConfig.InsecureSkipVerify = true
+	}
+
+	return &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+		}).DialContext,
+
+		MaxIdleConns:          config.MaxIdleConns,
+		MaxIdleConnsPerHost:   config.MaxIdleConnsPerHost,
+		IdleConnTimeout:       config.IdleConnTimeout,
+		MaxConnsPerHost:       config.MaxConnsPerHost,
+		TLSHandshakeTimeout:   config.TLSHandshakeTimeout,
+		ExpectContinueTimeout: config.ExpectContinueTimeout,
+		// A custom ResponseHeaderTimeout was introduced
+		// to cover cases where the tcp connection works but
+		// the server never answers. Defaults to 2 minutes.
+		ResponseHeaderTimeout: config.ResponseHeaderTimeout,
+		// Set this value so that the underlying transport round-tripper
+		// doesn't try to auto decode the body of objects with
+		// content-encoding set to `gzip`.
+		//
+		// Refer: https://golang.org/src/net/http/transport.go?h=roundTrip#L1843.
+		DisableCompression: config.DisableCompression,
+		// #nosec It's up to the user to decide on TLS configs
+		TLSClientConfig: tlsConfig,
+	}, nil
+}
 
 // NewTLSConfig creates a new tls.Config from the given TLSConfig.
 func NewTLSConfig(cfg *TLSConfig) (*tls.Config, error) {

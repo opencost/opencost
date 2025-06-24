@@ -2,18 +2,30 @@ package storage
 
 import (
 	"bytes"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"gopkg.in/yaml.v2"
 )
 
-var defaultClusterConfig = ClusterConfig{}
+var defaultClusterConfig = ClusterConfig{
+	Host: "localhost",
+	Port: 9006,
+	HTTPConfig: HTTPConfig{
+		IdleConnTimeout:       90 * time.Second,
+		ResponseHeaderTimeout: 2 * time.Minute,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   100,
+		MaxConnsPerHost:       0,
+	},
+}
 
 // ClusterStorage is a Storage implementation which connects to a remote file storage over http
 type ClusterStorage struct {
@@ -23,8 +35,9 @@ type ClusterStorage struct {
 }
 
 type ClusterConfig struct {
-	Host string `yaml:"host"`
-	Port int    `yaml:"port"`
+	Host       string     `yaml:"host"`
+	Port       int        `yaml:"port"`
+	HTTPConfig HTTPConfig `yaml:"http_config"`
 }
 
 // parseConfig unmarshals a buffer into a Config with default HTTPConfig values.
@@ -48,23 +61,15 @@ func NewClusterStorage(conf []byte) (*ClusterStorage, error) {
 
 // NewBucketWithConfig returns a new Bucket using the provided s3 config values.
 func NewClusterStorageWith(config ClusterConfig) (*ClusterStorage, error) {
-	host := "localhost"
-	if config.Host != "" {
-		host = config.Host
+	dt, err := config.HTTPConfig.GetHTTPTransport()
+	if err != nil {
+		return nil, fmt.Errorf("error creating transport: %w", err)
 	}
-	port := 9006
-	if config.Port != 0 {
-		port = config.Port
-	}
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
-		},
-	}
+
 	return &ClusterStorage{
-		client: &http.Client{Transport: transport},
-		host:   host,
-		port:   port,
+		host:   config.Host,
+		port:   config.Port,
+		client: &http.Client{Transport: dt},
 	}, nil
 }
 
@@ -104,6 +109,17 @@ func (c *ClusterStorage) StorageType() StorageType {
 	return StorageTypeCluster
 }
 
+func (c *ClusterStorage) scheme() string {
+	if c.client.Transport != nil {
+		if transport, ok := c.client.Transport.(*http.Transport); ok {
+			if transport.TLSClientConfig != nil && !transport.TLSClientConfig.InsecureSkipVerify {
+				return "https"
+			}
+		}
+	}
+	return "http"
+}
+
 func (c *ClusterStorage) FullPath(path string) string {
 	var jsonResp Response[string]
 	fn := func(resp *http.Response) error {
@@ -116,7 +132,7 @@ func (c *ClusterStorage) FullPath(path string) string {
 
 	err := c.makeRequest(
 		http.MethodGet,
-		fmt.Sprintf("http://%s:%d/clusterStorage/fullPath?path=%s", c.host, c.port, path),
+		fmt.Sprintf("%s://%s:%d/clusterStorage/fullPath?path=%s", c.scheme(), c.host, c.port, path),
 		nil,
 		fn,
 	)
@@ -145,7 +161,7 @@ func (c *ClusterStorage) Stat(path string) (*StorageInfo, error) {
 
 	err := c.makeRequest(
 		http.MethodGet,
-		fmt.Sprintf("http://%s:%d/clusterStorage/stat?path=%s", c.host, c.port, path),
+		fmt.Sprintf("%s://%s:%d/clusterStorage/stat?path=%s", c.scheme(), c.host, c.port, path),
 		nil,
 		fn,
 	)
@@ -168,7 +184,7 @@ func (c *ClusterStorage) Read(path string) ([]byte, error) {
 
 	err := c.makeRequest(
 		http.MethodGet,
-		fmt.Sprintf("http://%s:%d/clusterStorage/read?path=%s", c.host, c.port, path),
+		fmt.Sprintf("%s://%s:%d/clusterStorage/read?path=%s", c.scheme(), c.host, c.port, path),
 		nil,
 		fn,
 	)
@@ -186,7 +202,7 @@ func (c *ClusterStorage) Write(path string, data []byte) error {
 
 	err := c.makeRequest(
 		http.MethodPut,
-		fmt.Sprintf("http://%s:%d/clusterStorage/write?path=%s", c.host, c.port, path),
+		fmt.Sprintf("%s://%s:%d/clusterStorage/write?path=%s", c.scheme(), c.host, c.port, path),
 		bytes.NewReader(data),
 		fn,
 	)
@@ -204,7 +220,7 @@ func (c *ClusterStorage) Remove(path string) error {
 
 	err := c.makeRequest(
 		http.MethodDelete,
-		fmt.Sprintf("http://%s:%d/clusterStorage/remove?path=%s", c.host, c.port, path),
+		fmt.Sprintf("%s://%s:%d/clusterStorage/remove?path=%s", c.scheme(), c.host, c.port, path),
 		nil,
 		fn,
 	)
@@ -227,7 +243,7 @@ func (c *ClusterStorage) Exists(path string) (bool, error) {
 
 	err := c.makeRequest(
 		http.MethodGet,
-		fmt.Sprintf("http://%s:%d/clusterStorage/exists?path=%s", c.host, c.port, path),
+		fmt.Sprintf("%s://%s:%d/clusterStorage/exists?path=%s", c.scheme(), c.host, c.port, path),
 		nil,
 		fn,
 	)
@@ -250,7 +266,7 @@ func (c *ClusterStorage) List(path string) ([]*StorageInfo, error) {
 
 	err := c.makeRequest(
 		http.MethodGet,
-		fmt.Sprintf("http://%s:%d/clusterStorage/list?path=%s", c.host, c.port, path),
+		fmt.Sprintf("%s://%s:%d/clusterStorage/list?path=%s", c.scheme(), c.host, c.port, path),
 		nil,
 		fn,
 	)
@@ -273,7 +289,7 @@ func (c *ClusterStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 
 	err := c.makeRequest(
 		http.MethodGet,
-		fmt.Sprintf("http://%s:%d/clusterStorage/listDirectories?path=%s", c.host, c.port, path),
+		fmt.Sprintf("%s://%s:%d/clusterStorage/listDirectories?path=%s", c.scheme(), c.host, c.port, path),
 		nil,
 		fn,
 	)
