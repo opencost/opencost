@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/opencost/opencost/core/pkg/log"
 )
@@ -22,18 +21,6 @@ type Product struct {
 	PriceAmount string `json:"priceAmount"`
 	VCpu        string `json:"vCpu,omitempty"`
 	Ram         string `json:"ram,omitempty"`
-}
-
-// Builds query string for serviceName[0]=ecs&serviceName[1]=memo&...
-func buildServiceNameQueryParam(serviceNames []string) string {
-	var sb strings.Builder
-	for i, name := range serviceNames {
-		sb.WriteString(fmt.Sprintf("serviceName[%d]=%s", i, name))
-		if i < len(serviceNames)-1 {
-			sb.WriteString("&")
-		}
-	}
-	return sb.String()
 }
 
 // Fetches and flattens all product entries across multiple services with pagination
