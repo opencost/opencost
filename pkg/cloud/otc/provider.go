@@ -185,8 +185,8 @@ func (otc *OTC) DownloadPricingData() error {
 	for _, product := range products {
 		var productPricing *OTCPricing
 		var key string
-		// if os is empty the product must be a persistent volume
-		if product.OsUnit == "" {
+		// if the product is a persistent volume, it has no osUnit and no vCpu
+		if strings.ToLower(strings.TrimSpace(product.ProductIdParameter)) == "evs" {
 			productPricing = &OTCPricing{
 				PVAttributes: &OTCPVAttributes{
 					Type:  product.OpiFlavour,
@@ -216,6 +216,11 @@ func (otc *OTC) DownloadPricingData() error {
 		otc.Pricing[key] = productPricing
 		otc.ValidPricingKeys[key] = true
 	}
+
+	// debug the whole pricing
+	log.Debugf("OTC Pricing Data: %v", otc.Pricing)
+
+	// exit
 
 	return nil
 }
@@ -370,6 +375,7 @@ func (otc *OTC) getClusterName(cfg *models.CustomPricing) string {
 // in the provider's pricing list and return it
 func (otc *OTC) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	pricing, ok := otc.Pricing[pvk.Features()]
+	log.Info("looking for persistent volume pricing for features \"" + pvk.Features() + "\"")
 	if !ok {
 		log.Info("Persistent Volume pricing not found for features \"" + pvk.Features() + "\"")
 		log.Info("continuing with pricing for \"eu-de,vss.ssd\"")

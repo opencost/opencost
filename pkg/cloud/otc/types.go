@@ -14,11 +14,12 @@ type OTCStats struct {
 }
 
 type Product struct {
-	OpiFlavour  string `json:"opiFlavour"`
-	OsUnit      string `json:"osUnit,omitempty"`
-	PriceAmount string `json:"priceAmount"`
-	VCpu        string `json:"vCpu,omitempty"`
-	Ram         string `json:"ram,omitempty"`
+	ProductIdParameter string `json:"productIdParameter"`
+	OpiFlavour         string `json:"opiFlavour"`
+	OsUnit             string `json:"osUnit,omitempty"`
+	PriceAmount        string `json:"priceAmount"`
+	VCpu               string `json:"vCpu,omitempty"`
+	Ram                string `json:"ram,omitempty"`
 }
 
 // OTC node pricing attributes
