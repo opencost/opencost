@@ -35,7 +35,7 @@ func (config HTTPConfig) GetHTTPTransport() (http.RoundTripper, error) {
 	if config.Transport != nil {
 		return config.Transport, nil
 	}
-	tlsConfig, err := NewTLSConfig(&config.TLSConfig)
+	tlsConfig, err := config.TLSConfig.ToConfig()
 	if err != nil {
 		return nil, fmt.Errorf("error creating TLS config: %w", err)
 	}
@@ -74,7 +74,7 @@ func (config HTTPConfig) GetHTTPTransport() (http.RoundTripper, error) {
 }
 
 // NewTLSConfig creates a new tls.Config from the given TLSConfig.
-func NewTLSConfig(cfg *TLSConfig) (*tls.Config, error) {
+func (cfg TLSConfig) ToConfig() (*tls.Config, error) {
 	tlsConfig := &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify}
 
 	// If a CA cert is provided then let's read it in.
@@ -127,7 +127,7 @@ func updateRootCA(cfg *tls.Config, b []byte) bool {
 }
 
 // getClientCertificate reads the pair of client cert and key from disk and returns a tls.Certificate.
-func (c *TLSConfig) getClientCertificate(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+func (c TLSConfig) getClientCertificate(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 	cert, err := tls.LoadX509KeyPair(c.CertFile, c.KeyFile)
 	if err != nil {
 		return nil, fmt.Errorf("unable to use specified client cert (%s) & key (%s): %s", c.CertFile, c.KeyFile, err)
