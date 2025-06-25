@@ -1,0 +1,6 @@
+{
+  "doPricingURL": "https://api.digitalocean.com/v2/billing/pricing",
+  "zoneNetworkEgress": "0.00",
+  "regionNetworkEgress": "0.00",
+  "internetNetworkEgress": "0.01"
+}

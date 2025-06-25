@@ -33,6 +33,7 @@ const (
 	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
 
 	OCIPricingURL = "OCI_PRICING_URL"
+	DOPricingURL  = "DO_PRICING_URL"
 
 	ClusterProfileEnvVar    = "CLUSTER_PROFILE"
 	RemoteEnabledEnvVar     = "REMOTE_WRITE_ENABLED"
@@ -372,4 +373,9 @@ func GetMetricConfigFile() string {
 func GetLocalCollectorDirectory() string {
 	dir := env.Get(LocalCollectorDirectoryEnvVar, DefaultLocalCollectorDir)
 	return env.GetPathFromConfig(dir)
+
+}
+
+func GetDOKSPricingURL() string {
+	return env.Get(DOPricingURL, "https://api.digitalocean.com/v2/billing/pricing")
 }
