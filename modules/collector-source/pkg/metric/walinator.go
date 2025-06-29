@@ -32,14 +32,14 @@ type Walinator struct {
 	paths           pathing.StoragePathFormatter[time.Time]
 	exporter        exporter.EventExporter[UpdateSet]
 	limitResolution *util.Resolution
-	repo            *MetricRepository
+	repo            Updater
 }
 
 func NewWalinator(
 	clusterID string,
 	store storage.Storage,
 	resolutions []*util.Resolution,
-	repo *MetricRepository,
+	repo Updater,
 ) (*Walinator, error) {
 	var limitResolution *util.Resolution
 	for _, resolution := range resolutions {
