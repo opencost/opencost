@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
@@ -21,6 +22,7 @@ type collectorDataSource struct {
 	clusterMap     clusters.ClusterMap
 	clusterInfo    clusters.ClusterInfoProvider
 	config         CollectorConfig
+	diagnosticsModule    *metric.DiagnosticsModule
 }
 
 func NewDefaultCollectorDataSource(
@@ -67,7 +69,7 @@ func NewCollectorDataSource(
 			config.ClusterID,
 			store,
 			resolutions,
-			repo,
+			updater,
 		)
 		if err != nil {
 			log.Errorf("failed to initialize the walinator: %s", err.Error())
@@ -77,6 +79,8 @@ func NewCollectorDataSource(
 		}
 	}
 
+	diagnosticsModule := metric.NewDiagnosticsModule(updater)
+	updater = diagnosticsModule
 	scrapeController := scrape.NewScrapeController(
 		config.ScrapeInterval,
 		config.NetworkPort,
@@ -98,6 +102,7 @@ func NewCollectorDataSource(
 		metricsQuerier: metricQuerier,
 		clusterInfo:    clusterInfo,
 		clusterMap:     clusterMap,
+		diagnosticsModule:    diagnosticsModule,
 	}
 }
 
@@ -106,7 +111,20 @@ func (c *collectorDataSource) RegisterEndPoints(router *httprouter.Router) {
 }
 
 func (c *collectorDataSource) RegisterDiagnostics(diagService diagnostics.DiagnosticService) {
-	return
+	const CollectorDiagnosticCategory = "collector"
+	diagnosticDefinitions := c.diagnosticsModule.DiagnosticsDefinitions()
+	for _, dd := range diagnosticDefinitions {
+		err := diagService.Register(dd.ID, dd.Description, CollectorDiagnosticCategory, func(ctx context.Context) (map[string]any, error) {
+			details, err := c.diagnosticsModule.DiagnosticsDetails(dd.ID)
+			if err != nil {
+				return nil, err
+			}
+			return details, nil
+		})
+		if err != nil {
+			log.Warnf("Failed to register collector diagnostic %s: %s", dd.ID, err.Error())
+		}
+	}
 }
 
 func (c *collectorDataSource) Metrics() source.MetricsQuerier {
