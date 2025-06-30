@@ -9,36 +9,13 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
+	"github.com/opencost/opencost/modules/collector-source/pkg/constants"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/validation"
-)
-
-// Cluster Cache Metrics
-const (
-	KubeNodeStatusCapacityCPUCores                        = "kube_node_status_capacity_cpu_cores"
-	KubeNodeStatusCapacityMemoryBytes                     = "kube_node_status_capacity_memory_bytes"
-	KubeNodeStatusAllocatableCPUCores                     = "kube_node_status_allocatable_cpu_cores"
-	KubeNodeStatusAllocatableMemoryBytes                  = "kube_node_status_allocatable_memory_bytes"
-	KubeNodeLabels                                        = "kube_node_labels"
-	KubePodLabels                                         = "kube_pod_labels"
-	KubePodAnnotations                                    = "kube_pod_annotations"
-	KubePodOwner                                          = "kube_pod_owner"
-	KubePodContainerStatusRunning                         = "kube_pod_container_status_running"
-	KubePodContainerResourceRequests                      = "kube_pod_container_resource_requests"
-	KubePersistentVolumeClaimInfo                         = "kube_persistentvolumeclaim_info"
-	KubePersistentVolumeClaimResourceRequestsStorageBytes = "kube_persistentvolumeclaim_resource_requests_storage_bytes"
-	KubecostPVInfo                                        = "kubecost_pv_info"
-	KubePersistentVolumeCapacityBytes                     = "kube_persistentvolume_capacity_bytes"
-	DeploymentMatchLabels                                 = "deployment_match_labels"
-	KubeNamespaceLabels                                   = "kube_namespace_labels"
-	KubeNamespaceAnnotations                              = "kube_namespace_annotations"
-	ServiceSelectorLabels                                 = "service_selector_labels"
-	StatefulSetMatchLabels                                = "statefulSet_match_labels"
-	KubeReplicasetOwner                                   = "kube_replicaset_owner"
 )
 
 type ClusterCacheScraper struct {
@@ -85,7 +62,7 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 			if quantity, ok := node.Status.Capacity[v1.ResourceCPU]; ok {
 				_, _, value := toResourceUnitValue(v1.ResourceCPU, quantity)
 				scrapeResults = append(scrapeResults, metric.Update{
-					Name:   KubeNodeStatusCapacityCPUCores,
+					Name:   constants.KubeNodeStatusCapacityCPUCores,
 					Labels: nodeInfo,
 					Value:  value,
 				})
@@ -94,7 +71,7 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 			if quantity, ok := node.Status.Capacity[v1.ResourceMemory]; ok {
 				_, _, value := toResourceUnitValue(v1.ResourceMemory, quantity)
 				scrapeResults = append(scrapeResults, metric.Update{
-					Name:   KubeNodeStatusCapacityMemoryBytes,
+					Name:   constants.KubeNodeStatusCapacityMemoryBytes,
 					Labels: nodeInfo,
 					Value:  value,
 				})
@@ -106,7 +83,7 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 			if quantity, ok := node.Status.Allocatable[v1.ResourceCPU]; ok {
 				_, _, value := toResourceUnitValue(v1.ResourceCPU, quantity)
 				scrapeResults = append(scrapeResults, metric.Update{
-					Name:   KubeNodeStatusAllocatableCPUCores,
+					Name:   constants.KubeNodeStatusAllocatableCPUCores,
 					Labels: nodeInfo,
 					Value:  value,
 				})
@@ -115,7 +92,7 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 			if quantity, ok := node.Status.Allocatable[v1.ResourceMemory]; ok {
 				_, _, value := toResourceUnitValue(v1.ResourceMemory, quantity)
 				scrapeResults = append(scrapeResults, metric.Update{
-					Name:   KubeNodeStatusAllocatableMemoryBytes,
+					Name:   constants.KubeNodeStatusAllocatableMemoryBytes,
 					Labels: nodeInfo,
 					Value:  value,
 				})
@@ -127,7 +104,7 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 		nodeLabels := util.ToMap(labelNames, labelValues)
 
 		scrapeResults = append(scrapeResults, metric.Update{
-			Name:           KubeNodeLabels,
+			Name:           constants.KubeNodeLabels,
 			Labels:         nodeInfo,
 			Value:          0,
 			AdditionalInfo: nodeLabels,
@@ -155,7 +132,7 @@ func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.De
 		deploymentLabels := util.ToMap(labelNames, labelValues)
 
 		scrapeResults = append(scrapeResults, metric.Update{
-			Name:           DeploymentMatchLabels,
+			Name:           constants.DeploymentMatchLabels,
 			Labels:         deploymentInfo,
 			Value:          0,
 			AdditionalInfo: deploymentLabels,
@@ -180,7 +157,7 @@ func (ccs *ClusterCacheScraper) scrapeNamespaces(namespaces []*clustercache.Name
 		labelNames, labelValues := promutil.KubeLabelsToLabels(namespace.Labels)
 		namespaceLabels := util.ToMap(labelNames, labelValues)
 		scrapeResults = append(scrapeResults, metric.Update{
-			Name:           KubeNamespaceLabels,
+			Name:           constants.KubeNamespaceLabels,
 			Labels:         namespaceInfo,
 			Value:          0,
 			AdditionalInfo: namespaceLabels,
@@ -190,7 +167,7 @@ func (ccs *ClusterCacheScraper) scrapeNamespaces(namespaces []*clustercache.Name
 		annotationNames, annotationValues := promutil.KubeAnnotationsToLabels(namespace.Annotations)
 		namespaceAnnotations := util.ToMap(annotationNames, annotationValues)
 		scrapeResults = append(scrapeResults, metric.Update{
-			Name:           KubeNamespaceAnnotations,
+			Name:           constants.KubeNamespaceAnnotations,
 			Labels:         namespaceInfo,
 			Value:          0,
 			AdditionalInfo: namespaceAnnotations,
@@ -219,7 +196,7 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod) []metric.Up
 		labelNames, labelValues := promutil.KubeLabelsToLabels(pod.Labels)
 		podLabels := util.ToMap(labelNames, labelValues)
 		scrapeResults = append(scrapeResults, metric.Update{
-			Name:           KubePodLabels,
+			Name:           constants.KubePodLabels,
 			Labels:         podInfo,
 			Value:          0,
 			AdditionalInfo: podLabels,
@@ -229,7 +206,7 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod) []metric.Up
 		annotationNames, annotationValues := promutil.KubeAnnotationsToLabels(pod.Annotations)
 		podAnnotations := util.ToMap(annotationNames, annotationValues)
 		scrapeResults = append(scrapeResults, metric.Update{
-			Name:           KubePodAnnotations,
+			Name:           constants.KubePodAnnotations,
 			Labels:         podInfo,
 			Value:          0,
 			AdditionalInfo: podAnnotations,
@@ -241,7 +218,7 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod) []metric.Up
 			ownerInfo[source.OwnerKindLabel] = owner.Kind
 			ownerInfo[source.OwnerNameLabel] = owner.Name
 			scrapeResults = append(scrapeResults, metric.Update{
-				Name:   KubePodOwner,
+				Name:   constants.KubePodOwner,
 				Labels: ownerInfo,
 				Value:  0,
 			})
@@ -253,7 +230,7 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod) []metric.Up
 				containerInfo := maps.Clone(podInfo)
 				containerInfo[source.ContainerLabel] = status.Name
 				scrapeResults = append(scrapeResults, metric.Update{
-					Name:   KubePodContainerStatusRunning,
+					Name:   constants.KubePodContainerStatusRunning,
 					Labels: containerInfo,
 					Value:  0,
 				})
@@ -282,7 +259,7 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod) []metric.Up
 					resourceRequestInfo[source.ResourceLabel] = resource
 					resourceRequestInfo[source.UnitLabel] = unit
 					scrapeResults = append(scrapeResults, metric.Update{
-						Name:   KubePodContainerResourceRequests,
+						Name:   constants.KubePodContainerResourceRequests,
 						Labels: resourceRequestInfo,
 						Value:  value,
 					})
@@ -309,14 +286,14 @@ func (ccs *ClusterCacheScraper) scrapePVCs(pvcs []*clustercache.PersistentVolume
 		}
 
 		scrapeResults = append(scrapeResults, metric.Update{
-			Name:   KubePersistentVolumeClaimInfo,
+			Name:   constants.KubePersistentVolumeClaimInfo,
 			Labels: pvcInfo,
 			Value:  0,
 		})
 
 		if storage, ok := pvc.Spec.Resources.Requests[v1.ResourceStorage]; ok {
 			scrapeResults = append(scrapeResults, metric.Update{
-				Name:   KubePersistentVolumeClaimResourceRequestsStorageBytes,
+				Name:   constants.KubePersistentVolumeClaimResourceRequestsStorageBytes,
 				Labels: pvcInfo,
 				Value:  float64(storage.Value()),
 			})
@@ -345,14 +322,14 @@ func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume) 
 		}
 
 		scrapeResults = append(scrapeResults, metric.Update{
-			Name:   KubecostPVInfo,
+			Name:   constants.KubecostPVInfo,
 			Labels: pvInfo,
 			Value:  0,
 		})
 
 		if storage, ok := pv.Spec.Capacity[v1.ResourceStorage]; ok {
 			scrapeResults = append(scrapeResults, metric.Update{
-				Name:   KubePersistentVolumeCapacityBytes,
+				Name:   constants.KubePersistentVolumeCapacityBytes,
 				Labels: pvInfo,
 				Value:  float64(storage.Value()),
 			})
@@ -378,7 +355,7 @@ func (ccs *ClusterCacheScraper) scrapeServices(services []*clustercache.Service)
 		labelNames, labelValues := promutil.KubeLabelsToLabels(service.SpecSelector)
 		serviceLabels := util.ToMap(labelNames, labelValues)
 		scrapeResults = append(scrapeResults, metric.Update{
-			Name:           ServiceSelectorLabels,
+			Name:           constants.ServiceSelectorLabels,
 			Labels:         serviceInfo,
 			Value:          0,
 			AdditionalInfo: serviceLabels,
@@ -405,7 +382,7 @@ func (ccs *ClusterCacheScraper) scrapeStatefulSets(statefulSets []*clustercache.
 		labelNames, labelValues := promutil.KubeLabelsToLabels(statefulSet.SpecSelector.MatchLabels)
 		statefulSetLabels := util.ToMap(labelNames, labelValues)
 		scrapeResults = append(scrapeResults, metric.Update{
-			Name:           StatefulSetMatchLabels,
+			Name:           constants.StatefulSetMatchLabels,
 			Labels:         statefulSetInfo,
 			Value:          0,
 			AdditionalInfo: statefulSetLabels,
@@ -432,7 +409,7 @@ func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.Re
 			ownerInfo[source.OwnerKindLabel] = owner.Kind
 			ownerInfo[source.OwnerNameLabel] = owner.Name
 			scrapeResults = append(scrapeResults, metric.Update{
-				Name:   KubeReplicasetOwner,
+				Name:   constants.KubeReplicasetOwner,
 				Labels: ownerInfo,
 				Value:  0,
 			})

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"maps"
 	"sync"
+
+	"github.com/opencost/opencost/modules/collector-source/pkg/constants"
 )
 
 // Collector Metric Diagnostic IDs
@@ -19,14 +21,14 @@ const (
 var diagnosticDefinitions map[string]*diagnosticDefinition = map[string]*diagnosticDefinition{
 	NodesDiagnosticMetricID: {
 		ID:          NodesDiagnosticMetricID,
-		MetricName:  "kube_node_status_capacity_cpu_cores",
+		MetricName:  constants.KubeNodeStatusCapacityCPUCores,
 		Label:       "Node CPU cores capacity is being scraped",
 		Description: "Determine if the node CPU cores capacity is being scraped",
 	},
 
 	KubecostDiagnosticMetricID: {
 		ID:          KubecostDiagnosticMetricID,
-		MetricName:  "node_total_hourly_cost",
+		MetricName:  constants.NodeTotalHourlyCost,
 		Label:       "Kubecost metrics for a node are being scraped",
 		Description: "Determine if kubecost metrics for a node are being scraped",
 	},
@@ -79,29 +81,30 @@ func (d *DiagnosticsModule) Update(updateSet *UpdateSet) {
 	}
 	copy(updateSetCopy.Updates, updateSet.Updates)
 
-	// Run update asynchronously
+	// Process diagnostics asynchronously - independent of updater
 	go func() {
-		d.updater.Update(updateSetCopy)
-	}()
+		d.lock.Lock()
+		defer d.lock.Unlock()
 
-	d.lock.Lock()
-	defer d.lock.Unlock()
-
-	timestamp := updateSet.Timestamp.String()
-	for id, dd := range diagnosticDefinitions {
-		for _, update := range updateSet.Updates {
-			if update.Name == dd.MetricName {
-				if len(diagnosticsResults[id].Result) == 0 {
-					// For the first UpdateSet received for that metric, we default to true. If we later miss the metric for a timestamp, it will be set to false.
-					diagnosticsResults[id].Passed = true
+		timestamp := updateSet.Timestamp.String()
+		for id, dd := range diagnosticDefinitions {
+			for _, update := range updateSet.Updates {
+				if update.Name == dd.MetricName {
+					if len(diagnosticsResults[id].Result) == 0 {
+						// For the first UpdateSet received for that metric, we default to true. If we later miss the metric for a timestamp, it will be set to false.
+						diagnosticsResults[id].Passed = true
+					}
+					diagnosticsResults[id].Result[timestamp] = update.Value
 				}
-				diagnosticsResults[id].Result[timestamp] = update.Value
+			}
+			if diagnosticsResults[id].Result[timestamp] == nil {
+				diagnosticsResults[id].Passed = false
 			}
 		}
-		if diagnosticsResults[id].Result[timestamp] == nil {
-			diagnosticsResults[id].Passed = false
-		}
-	}
+	}()
+
+	// Run updater synchronously
+	d.updater.Update(updateSetCopy)
 }
 
 func (d *DiagnosticsModule) DiagnosticsDefinitions() map[string]*diagnosticDefinition {
@@ -109,8 +112,8 @@ func (d *DiagnosticsModule) DiagnosticsDefinitions() map[string]*diagnosticDefin
 }
 
 func (d *DiagnosticsModule) DiagnosticsDetails(diagnosticsId string) (map[string]any, error) {
-	d.lock.Lock()
-	defer d.lock.Unlock()
+	d.lock.RLock()
+	defer d.lock.RUnlock()
 
 	if _, exists := diagnosticDefinitions[diagnosticsId]; !exists {
 		return nil, fmt.Errorf("diagnostic ID: %s not found", diagnosticsId)

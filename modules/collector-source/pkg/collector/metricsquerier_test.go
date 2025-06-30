@@ -9,8 +9,8 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/modules/collector-source/pkg/constants"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
-	"github.com/opencost/opencost/modules/collector-source/pkg/scrape"
 )
 
 var Start1Str = "2025-01-01T00:00:00Z"
@@ -124,55 +124,55 @@ func GetMockCollectorProvider() StoreProvider {
 		source.ServiceLabel:    "service2",
 	}
 
-	collector.Update(scrape.NodeTotalHourlyCost, node1Info, 0, start, nil)
-	collector.Update(scrape.NodeTotalHourlyCost, node1Info, 0, end, nil)
+	collector.Update(constants.NodeTotalHourlyCost, node1Info, 0, start, nil)
+	collector.Update(constants.NodeTotalHourlyCost, node1Info, 0, end, nil)
 
-	collector.Update(scrape.NodeFSCapacityBytes, localStorage1Info, 2*GiB, start, nil)
-	collector.Update(scrape.ContainerFSUsageBytes, localStorage1Info, 1*GiB, start, nil)
-	collector.Update(scrape.ContainerFSUsageBytes, localStorage1Info, 1*GiB, end, nil)
+	collector.Update(constants.NodeFSCapacityBytes, localStorage1Info, 2*GiB, start, nil)
+	collector.Update(constants.ContainerFSUsageBytes, localStorage1Info, 1*GiB, start, nil)
+	collector.Update(constants.ContainerFSUsageBytes, localStorage1Info, 1*GiB, end, nil)
 
-	collector.Update(scrape.KubeNodeStatusCapacityMemoryBytes, node1Info, 4*GiB, start, nil)
-	collector.Update(scrape.ContainerMemoryWorkingSetBytes, container1Info, 1*GiB, start, nil)
-	collector.Update(scrape.ContainerMemoryWorkingSetBytes, container2Info, 2*GiB, start, nil)
+	collector.Update(constants.KubeNodeStatusCapacityMemoryBytes, node1Info, 4*GiB, start, nil)
+	collector.Update(constants.ContainerMemoryWorkingSetBytes, container1Info, 1*GiB, start, nil)
+	collector.Update(constants.ContainerMemoryWorkingSetBytes, container2Info, 2*GiB, start, nil)
 
-	collector.Update(scrape.ContainerCPUUsageSecondsTotal, container1Info, 0, start, nil)
-	collector.Update(scrape.ContainerCPUUsageSecondsTotal, container1Info, 60*60*4, time1, nil)
-	collector.Update(scrape.ContainerCPUUsageSecondsTotal, container1Info, 60*60*10, end, nil)
+	collector.Update(constants.ContainerCPUUsageSecondsTotal, container1Info, 0, start, nil)
+	collector.Update(constants.ContainerCPUUsageSecondsTotal, container1Info, 60*60*4, time1, nil)
+	collector.Update(constants.ContainerCPUUsageSecondsTotal, container1Info, 60*60*10, end, nil)
 
-	collector.Update(scrape.KubecostClusterManagementCost, cluster1Info, 0.1, start, nil)
-	collector.Update(scrape.KubecostClusterManagementCost, cluster1Info, 0.1, end, nil)
+	collector.Update(constants.KubecostClusterManagementCost, cluster1Info, 0.1, start, nil)
+	collector.Update(constants.KubecostClusterManagementCost, cluster1Info, 0.1, end, nil)
 
-	collector.Update(scrape.DCGMFIDEVDECUTIL, gpu1Info, 0, start, nil)
-	collector.Update(scrape.DCGMFIPROFGRENGINEACTIVE, gpu1Info, 0, start, nil)
-	collector.Update(scrape.DCGMFIPROFGRENGINEACTIVE, gpu1Info, 1, end, nil)
+	collector.Update(constants.DCGMFIDEVDECUTIL, gpu1Info, 0, start, nil)
+	collector.Update(constants.DCGMFIPROFGRENGINEACTIVE, gpu1Info, 0, start, nil)
+	collector.Update(constants.DCGMFIPROFGRENGINEACTIVE, gpu1Info, 1, end, nil)
 
-	collector.Update(scrape.KubecostNetworkZoneEgressCost, nil, 1, start, nil)
-	collector.Update(scrape.KubecostNetworkRegionEgressCost, nil, 2, start, nil)
-	collector.Update(scrape.KubecostNetworkInternetEgressCost, nil, 3, start, nil)
+	collector.Update(constants.KubecostNetworkZoneEgressCost, nil, 1, start, nil)
+	collector.Update(constants.KubecostNetworkRegionEgressCost, nil, 2, start, nil)
+	collector.Update(constants.KubecostNetworkInternetEgressCost, nil, 3, start, nil)
 
-	collector.Update(scrape.ContainerNetworkTransmitBytesTotal, pod1Info, 3*GiB, start, nil)
-	collector.Update(scrape.ContainerNetworkTransmitBytesTotal, pod1Info, 13*GiB, end, nil)
+	collector.Update(constants.ContainerNetworkTransmitBytesTotal, pod1Info, 3*GiB, start, nil)
+	collector.Update(constants.ContainerNetworkTransmitBytesTotal, pod1Info, 13*GiB, end, nil)
 
-	collector.Update(scrape.ContainerNetworkReceiveBytesTotal, pod1Info, 30*GiB, start, nil)
-	collector.Update(scrape.ContainerNetworkReceiveBytesTotal, pod1Info, 130*GiB, end, nil)
+	collector.Update(constants.ContainerNetworkReceiveBytesTotal, pod1Info, 30*GiB, start, nil)
+	collector.Update(constants.ContainerNetworkReceiveBytesTotal, pod1Info, 130*GiB, end, nil)
 
-	collector.Update(scrape.KubecostPodNetworkEgressBytesTotal, networkRegion1Info, 1*GiB, start, nil)
-	collector.Update(scrape.KubecostPodNetworkEgressBytesTotal, networkZone1Info, 0*GiB, start, nil)
-	collector.Update(scrape.KubecostPodNetworkEgressBytesTotal, networkInternet1Info, 1*GiB, start, nil)
-	collector.Update(scrape.KubecostPodNetworkEgressBytesTotal, networkInternet2Info, 1*GiB, start, nil)
-	collector.Update(scrape.KubecostPodNetworkEgressBytesTotal, networkRegion1Info, 2*GiB, end, nil)
-	collector.Update(scrape.KubecostPodNetworkEgressBytesTotal, networkZone1Info, 2*GiB, end, nil)
-	collector.Update(scrape.KubecostPodNetworkEgressBytesTotal, networkInternet1Info, 4*GiB, end, nil)
-	collector.Update(scrape.KubecostPodNetworkEgressBytesTotal, networkInternet2Info, 5*GiB, end, nil)
+	collector.Update(constants.KubecostPodNetworkEgressBytesTotal, networkRegion1Info, 1*GiB, start, nil)
+	collector.Update(constants.KubecostPodNetworkEgressBytesTotal, networkZone1Info, 0*GiB, start, nil)
+	collector.Update(constants.KubecostPodNetworkEgressBytesTotal, networkInternet1Info, 1*GiB, start, nil)
+	collector.Update(constants.KubecostPodNetworkEgressBytesTotal, networkInternet2Info, 1*GiB, start, nil)
+	collector.Update(constants.KubecostPodNetworkEgressBytesTotal, networkRegion1Info, 2*GiB, end, nil)
+	collector.Update(constants.KubecostPodNetworkEgressBytesTotal, networkZone1Info, 2*GiB, end, nil)
+	collector.Update(constants.KubecostPodNetworkEgressBytesTotal, networkInternet1Info, 4*GiB, end, nil)
+	collector.Update(constants.KubecostPodNetworkEgressBytesTotal, networkInternet2Info, 5*GiB, end, nil)
 
-	collector.Update(scrape.KubecostPodNetworkIngressBytesTotal, networkRegion1Info, 10*GiB, start, nil)
-	collector.Update(scrape.KubecostPodNetworkIngressBytesTotal, networkZone1Info, 0*GiB, start, nil)
-	collector.Update(scrape.KubecostPodNetworkIngressBytesTotal, networkInternet1Info, 10*GiB, start, nil)
-	collector.Update(scrape.KubecostPodNetworkIngressBytesTotal, networkInternet2Info, 10*GiB, start, nil)
-	collector.Update(scrape.KubecostPodNetworkIngressBytesTotal, networkRegion1Info, 20*GiB, end, nil)
-	collector.Update(scrape.KubecostPodNetworkIngressBytesTotal, networkZone1Info, 20*GiB, end, nil)
-	collector.Update(scrape.KubecostPodNetworkIngressBytesTotal, networkInternet1Info, 40*GiB, end, nil)
-	collector.Update(scrape.KubecostPodNetworkIngressBytesTotal, networkInternet2Info, 50*GiB, end, nil)
+	collector.Update(constants.KubecostPodNetworkIngressBytesTotal, networkRegion1Info, 10*GiB, start, nil)
+	collector.Update(constants.KubecostPodNetworkIngressBytesTotal, networkZone1Info, 0*GiB, start, nil)
+	collector.Update(constants.KubecostPodNetworkIngressBytesTotal, networkInternet1Info, 10*GiB, start, nil)
+	collector.Update(constants.KubecostPodNetworkIngressBytesTotal, networkInternet2Info, 10*GiB, start, nil)
+	collector.Update(constants.KubecostPodNetworkIngressBytesTotal, networkRegion1Info, 20*GiB, end, nil)
+	collector.Update(constants.KubecostPodNetworkIngressBytesTotal, networkZone1Info, 20*GiB, end, nil)
+	collector.Update(constants.KubecostPodNetworkIngressBytesTotal, networkInternet1Info, 40*GiB, end, nil)
+	collector.Update(constants.KubecostPodNetworkIngressBytesTotal, networkInternet2Info, 50*GiB, end, nil)
 
 	return &MockStoreProvider{
 		metricsCollector: collector,
