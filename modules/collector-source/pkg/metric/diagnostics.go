@@ -81,8 +81,13 @@ func (d *DiagnosticsModule) Update(updateSet *UpdateSet) {
 	}
 	copy(updateSetCopy.Updates, updateSet.Updates)
 
-	// Process diagnostics asynchronously - independent of updater
+	// This is done so that the update func is marked complete when both the updater and diagnostics are done
+	// Otherwise we might face a race condition when calling the diagnostics details func before the diagnostics are done
+	var wg sync.WaitGroup
+	wg.Add(2) // 1 for updater, 1 for diagnostics
+
 	go func() {
+		defer wg.Done()
 		d.lock.Lock()
 		defer d.lock.Unlock()
 
@@ -103,8 +108,14 @@ func (d *DiagnosticsModule) Update(updateSet *UpdateSet) {
 		}
 	}()
 
-	// Run updater synchronously
-	d.updater.Update(updateSetCopy)
+	// We are still maintaining the order in which the updates to the repo are called
+	// as this function gets the new call only when both these go routines are done
+	go func() {
+		defer wg.Done()
+		d.updater.Update(updateSetCopy)
+	}()
+
+	wg.Wait()
 }
 
 func (d *DiagnosticsModule) DiagnosticsDefinitions() map[string]*diagnosticDefinition {
