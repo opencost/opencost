@@ -2,6 +2,8 @@ package heartbeat
 
 import (
 	"time"
+
+	"github.com/opencost/opencost/core/pkg/log"
 )
 
 // HeartbeatEventName is used to represent the name of the heartbeat pipeline event to categorize for storage.
@@ -14,6 +16,7 @@ type Heartbeat struct {
 	Uptime      uint64         `json:"uptime"`
 	Application string         `json:"application"`
 	Version     string         `json:"version"`
+	LogLevel    string         `json:"logLevel"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
@@ -29,6 +32,7 @@ func NewHeartbeat(id string, timestamp time.Time, uptime uint64, application str
 		Uptime:      uptime,
 		Application: application,
 		Version:     version,
+		LogLevel:    log.GetLogLevel(),
 		Metadata:    metadata,
 	}
 }
