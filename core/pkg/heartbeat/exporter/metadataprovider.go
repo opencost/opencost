@@ -4,6 +4,7 @@ import (
 	"maps"
 
 	"github.com/opencost/opencost/core/pkg/clusters"
+	"github.com/opencost/opencost/core/pkg/log"
 )
 
 // HeartbeatMetadataProvider is an interface that provides metadata for heartbeat instances. It can be used to inject
@@ -41,22 +42,17 @@ func (c *ClusterInfoMetadataProvider) GetMetadata() map[string]any {
 }
 
 // LogLevelMetadataProvider is a `HeartbeatMetadataProvider` implementation that provides the log level.
-type LogLevelMetadataProvider struct {
-	logLevel string
-}
+type LogLevelMetadataProvider struct {}
 
 // NewLogLevelMetadataProvider creates a new `LogLevelMetadataProvider` instance.
-func NewLogLevelMetadataProvider(logLevel string) *LogLevelMetadataProvider {
-	return &LogLevelMetadataProvider{
-		logLevel: logLevel,
-	}
+func NewLogLevelMetadataProvider() *LogLevelMetadataProvider {
+	return &LogLevelMetadataProvider{}
 }
 
-// GetMetadata returns the metadata for new heartbeat instances. It uses the `LogLevelMetadataProvider` 
-// to get the log level and injects it into the metadata map.
+// GetMetadata returns the metadata for new heartbeat instances. It uses the log level from the global logger.
 func (l *LogLevelMetadataProvider) GetMetadata() map[string]any {
 	return map[string]any{
-		"logLevel": l.logLevel,
+		"logLevel": log.GetLogLevel(),
 	}
 }
 

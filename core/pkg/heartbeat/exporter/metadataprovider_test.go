@@ -10,7 +10,7 @@ import (
 type MockClusterInfoProvider struct{}
 
 var (
-	logLevel = "debug"
+	logLevel = "trace"
 	ClusterInfo = map[string]string{
 		clusters.ClusterInfoIdKey:       "test-cluster-id",
 		clusters.ClusterInfoNameKey:     "test-cluster-name",
@@ -56,7 +56,7 @@ func TestClusterInfoProvider(t *testing.T) {
 func TestLogLevelMetadataProvider(t *testing.T) {
 	t.Parallel()
 
-	logLevelMetaDataProvider := NewLogLevelMetadataProvider(logLevel)
+	logLevelMetaDataProvider := NewLogLevelMetadataProvider()
 
 	heartbeatSrc := NewHeartbeatSource("test-app", "v0.0.1", logLevelMetaDataProvider)
 
@@ -81,7 +81,7 @@ func TestMultiMetadataProvider(t *testing.T) {
 
 	provider := NewMockClusterInfoProvider()
 	clusterInfoMetaDataProvider := NewClusterInfoMetadataProvider(provider)
-	logLevelMetaDataProvider := NewLogLevelMetadataProvider(logLevel)
+	logLevelMetaDataProvider := NewLogLevelMetadataProvider()
 	multiMetaDataProvider := NewMultiMetadataProvider(clusterInfoMetaDataProvider, logLevelMetaDataProvider)
 
 	heartbeatSrc := NewHeartbeatSource("test-app", "v0.0.1", multiMetaDataProvider)
