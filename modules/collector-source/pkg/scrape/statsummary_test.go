@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/source"
-	"github.com/opencost/opencost/modules/collector-source/pkg/constants"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -193,7 +192,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 			},
 			expected: []metric.Update{
 				{
-					Name: constants.NodeCPUSecondsTotal,
+					Name: metric.NodeCPUSecondsTotal,
 					Labels: map[string]string{
 						source.KubernetesNodeLabel: "node1",
 						source.ModeLabel:           "",
@@ -201,7 +200,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					Value: 2,
 				},
 				{
-					Name: constants.NodeFSCapacityBytes,
+					Name: metric.NodeFSCapacityBytes,
 					Labels: map[string]string{
 						source.InstanceLabel: "node1",
 						source.DeviceLabel:   "local",
@@ -209,7 +208,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					Value: float64(2 * util.GB),
 				},
 				{
-					Name: constants.ContainerNetworkReceiveBytesTotal,
+					Name: metric.ContainerNetworkReceiveBytesTotal,
 					Labels: map[string]string{
 						source.UIDLabel:       "uid1",
 						source.PodLabel:       "pod1",
@@ -218,7 +217,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					Value: float64(1 * util.MB),
 				},
 				{
-					Name: constants.ContainerNetworkTransmitBytesTotal,
+					Name: metric.ContainerNetworkTransmitBytesTotal,
 					Labels: map[string]string{
 						source.UIDLabel:       "uid1",
 						source.PodLabel:       "pod1",
@@ -227,7 +226,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					Value: float64(2 * util.MB),
 				},
 				{
-					Name: constants.KubeletVolumeStatsUsedBytes,
+					Name: metric.KubeletVolumeStatsUsedBytes,
 					Labels: map[string]string{
 						source.PVCLabel:       "pvc1",
 						source.NamespaceLabel: "namespace1",
@@ -235,7 +234,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					Value: float64(1 * util.GB),
 				},
 				{
-					Name: constants.ContainerCPUUsageSecondsTotal,
+					Name: metric.ContainerCPUUsageSecondsTotal,
 					Labels: map[string]string{
 						source.ContainerLabel: "container1",
 						source.PodLabel:       "pod1",
@@ -246,7 +245,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					Value: 1,
 				},
 				{
-					Name: constants.ContainerMemoryWorkingSetBytes,
+					Name: metric.ContainerMemoryWorkingSetBytes,
 					Labels: map[string]string{
 						source.ContainerLabel: "container1",
 						source.PodLabel:       "pod1",
@@ -257,7 +256,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					Value: float64(5 * util.MB),
 				},
 				{
-					Name: constants.ContainerFSUsageBytes,
+					Name: metric.ContainerFSUsageBytes,
 					Labels: map[string]string{
 						source.InstanceLabel: "node1",
 						source.DeviceLabel:   "local",
@@ -318,7 +317,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 			},
 			expected: []metric.Update{
 				{
-					Name: constants.KubeletVolumeStatsUsedBytes,
+					Name: metric.KubeletVolumeStatsUsedBytes,
 					Labels: map[string]string{
 						source.PVCLabel:       "pvc1",
 						source.NamespaceLabel: "namespace1",

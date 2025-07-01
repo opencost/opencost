@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"maps"
 	"sync"
-
-	"github.com/opencost/opencost/modules/collector-source/pkg/constants"
 )
 
 // Collector Metric Diagnostic IDs
@@ -21,14 +19,14 @@ const (
 var diagnosticDefinitions map[string]*diagnosticDefinition = map[string]*diagnosticDefinition{
 	NodesDiagnosticMetricID: {
 		ID:          NodesDiagnosticMetricID,
-		MetricName:  constants.KubeNodeStatusCapacityCPUCores,
+		MetricName:  KubeNodeStatusCapacityCPUCores,
 		Label:       "Node CPU cores capacity is being scraped",
 		Description: "Determine if the node CPU cores capacity is being scraped",
 	},
 
 	KubecostDiagnosticMetricID: {
 		ID:          KubecostDiagnosticMetricID,
-		MetricName:  constants.NodeTotalHourlyCost,
+		MetricName:  NodeTotalHourlyCost,
 		Label:       "Kubecost metrics for a node are being scraped",
 		Description: "Determine if kubecost metrics for a node are being scraped",
 	},

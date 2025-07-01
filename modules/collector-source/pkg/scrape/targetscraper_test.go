@@ -4,7 +4,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/opencost/opencost/modules/collector-source/pkg/constants"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 )
@@ -114,7 +113,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 			targetScraperFactory: newNetworkTargetScraper,
 			expected: []metric.Update{
 				{
-					Name: constants.KubecostPodNetworkEgressBytesTotal,
+					Name: metric.KubecostPodNetworkEgressBytesTotal,
 					Labels: map[string]string{
 						"pod_name":    "pod1",
 						"namespace":   "namespace1",
@@ -126,7 +125,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 3127969647,
 				},
 				{
-					Name: constants.KubecostPodNetworkEgressBytesTotal,
+					Name: metric.KubecostPodNetworkEgressBytesTotal,
 					Labels: map[string]string{
 						"pod_name":    "pod2",
 						"namespace":   "namespace1",
@@ -138,7 +137,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 335188219,
 				},
 				{
-					Name: constants.KubecostPodNetworkIngressBytesTotal,
+					Name: metric.KubecostPodNetworkIngressBytesTotal,
 					Labels: map[string]string{
 						"pod_name":    "pod1",
 						"namespace":   "namespace1",
@@ -150,7 +149,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 17941460,
 				},
 				{
-					Name: constants.KubecostPodNetworkIngressBytesTotal,
+					Name: metric.KubecostPodNetworkIngressBytesTotal,
 					Labels: map[string]string{
 						"pod_name":    "pod2",
 						"namespace":   "namespace1",
@@ -169,26 +168,26 @@ func TestTargetScraper_Scrape(t *testing.T) {
 			targetScraperFactory: newOpencostTargetScraper,
 			expected: []metric.Update{
 				{
-					Name: constants.KubecostClusterManagementCost,
+					Name: metric.KubecostClusterManagementCost,
 					Labels: map[string]string{
 						"provisioner_name": "GKE",
 					},
 					Value: 0.1,
 				},
 				{
-					Name:  constants.KubecostNetworkZoneEgressCost,
+					Name:  metric.KubecostNetworkZoneEgressCost,
 					Value: 0.01,
 				},
 				{
-					Name:  constants.KubecostNetworkRegionEgressCost,
+					Name:  metric.KubecostNetworkRegionEgressCost,
 					Value: 0.01,
 				},
 				{
-					Name:  constants.KubecostNetworkInternetEgressCost,
+					Name:  metric.KubecostNetworkInternetEgressCost,
 					Value: 0.12,
 				},
 				{
-					Name: constants.PVHourlyCost,
+					Name: metric.PVHourlyCost,
 					Labels: map[string]string{
 						"persistentvolume": "pvc-1",
 						"provider_id":      "pvc-1",
@@ -197,7 +196,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 5.479452054794521e-05,
 				},
 				{
-					Name: constants.PVHourlyCost,
+					Name: metric.PVHourlyCost,
 					Labels: map[string]string{
 						"persistentvolume": "pvc-2",
 						"provider_id":      "pvc-2",
@@ -206,7 +205,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 5.479452054794521e-05,
 				},
 				{
-					Name: constants.KubecostLoadBalancerCost,
+					Name: metric.KubecostLoadBalancerCost,
 					Labels: map[string]string{
 						"ingress_ip":   "127.0.0.1",
 						"namespace":    "namespace1",
@@ -215,7 +214,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 0.025,
 				},
 				{
-					Name: constants.NodeTotalHourlyCost,
+					Name: metric.NodeTotalHourlyCost,
 					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node1",
@@ -227,7 +226,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 0.06631302438846588,
 				},
 				{
-					Name: constants.NodeTotalHourlyCost,
+					Name: metric.NodeTotalHourlyCost,
 					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node2",
@@ -239,7 +238,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 0.06631302438846588,
 				},
 				{
-					Name: constants.NodeCPUHourlyCost,
+					Name: metric.NodeCPUHourlyCost,
 					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node1",
@@ -251,7 +250,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 0.021811590000000002,
 				},
 				{
-					Name: constants.NodeCPUHourlyCost,
+					Name: metric.NodeCPUHourlyCost,
 					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node2",
@@ -263,7 +262,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 0.021811590000000002,
 				},
 				{
-					Name: constants.NodeRAMHourlyCost,
+					Name: metric.NodeRAMHourlyCost,
 					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node1",
@@ -275,7 +274,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 0.00292353,
 				},
 				{
-					Name: constants.NodeRAMHourlyCost,
+					Name: metric.NodeRAMHourlyCost,
 					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node2",
@@ -287,7 +286,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 0.00292353,
 				},
 				{
-					Name: constants.NodeGPUHourlyCost,
+					Name: metric.NodeGPUHourlyCost,
 					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node1",
@@ -299,7 +298,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 0,
 				},
 				{
-					Name: constants.NodeGPUHourlyCost,
+					Name: metric.NodeGPUHourlyCost,
 					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node2",
@@ -311,7 +310,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 0,
 				},
 				{
-					Name: constants.NodeGPUCount,
+					Name: metric.NodeGPUCount,
 					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node1",
@@ -323,7 +322,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 0,
 				},
 				{
-					Name: constants.NodeGPUCount,
+					Name: metric.NodeGPUCount,
 					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node2",
@@ -335,7 +334,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 0,
 				},
 				{
-					Name: constants.KubecostNodeIsSpot,
+					Name: metric.KubecostNodeIsSpot,
 					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node1",
@@ -347,7 +346,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 0,
 				},
 				{
-					Name: constants.KubecostNodeIsSpot,
+					Name: metric.KubecostNodeIsSpot,
 					Labels: map[string]string{
 						"arch":          "amd64",
 						"instance":      "node2",
@@ -359,7 +358,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 0,
 				},
 				{
-					Name: constants.ContainerCPUAllocation,
+					Name: metric.ContainerCPUAllocation,
 					Labels: map[string]string{
 						"container": "container1",
 						"instance":  "node1",
@@ -370,7 +369,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 0.02,
 				},
 				{
-					Name: constants.ContainerCPUAllocation,
+					Name: metric.ContainerCPUAllocation,
 					Labels: map[string]string{
 						"container": "container2",
 						"instance":  "node2",
@@ -381,7 +380,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 0.01,
 				},
 				{
-					Name: constants.ContainerMemoryAllocationBytes,
+					Name: metric.ContainerMemoryAllocationBytes,
 					Labels: map[string]string{
 						"container": "container1",
 						"instance":  "node1",
@@ -392,7 +391,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 1.1528192e+07,
 				},
 				{
-					Name: constants.ContainerMemoryAllocationBytes,
+					Name: metric.ContainerMemoryAllocationBytes,
 					Labels: map[string]string{
 						"container": "container2",
 						"instance":  "node2",
@@ -403,7 +402,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 1e+07,
 				},
 				{
-					Name: constants.ContainerGPUAllocation,
+					Name: metric.ContainerGPUAllocation,
 					Labels: map[string]string{
 						"container": "container1",
 						"instance":  "node1",
@@ -414,7 +413,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 0,
 				},
 				{
-					Name: constants.ContainerGPUAllocation,
+					Name: metric.ContainerGPUAllocation,
 					Labels: map[string]string{
 						"container": "container2",
 						"instance":  "node2",
@@ -425,7 +424,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 0,
 				},
 				{
-					Name: constants.PodPVCAllocation,
+					Name: metric.PodPVCAllocation,
 					Labels: map[string]string{
 						"namespace":             "namespace1",
 						"persistentvolume":      "pvc-1",
@@ -435,7 +434,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 3.4359738368e+10,
 				},
 				{
-					Name: constants.PodPVCAllocation,
+					Name: metric.PodPVCAllocation,
 					Labels: map[string]string{
 						"namespace":             "namespace1",
 						"persistentvolume":      "pvc-2",
@@ -452,7 +451,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 			targetScraperFactory: newDCGMTargetScraper,
 			expected: []metric.Update{
 				{
-					Name: constants.DCGMFIPROFGRENGINEACTIVE,
+					Name: metric.DCGMFIPROFGRENGINEACTIVE,
 					Labels: map[string]string{
 						"gpu":        "0",
 						"UUID":       "GPU-1",
@@ -464,7 +463,7 @@ func TestTargetScraper_Scrape(t *testing.T) {
 					Value: 0.999999,
 				},
 				{
-					Name: constants.DCGMFIDEVDECUTIL,
+					Name: metric.DCGMFIDEVDECUTIL,
 					Labels: map[string]string{
 						"gpu":        "0",
 						"UUID":       "GPU-1",

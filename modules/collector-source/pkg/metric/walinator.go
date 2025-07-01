@@ -32,7 +32,7 @@ type Walinator struct {
 	paths           pathing.StoragePathFormatter[time.Time]
 	exporter        exporter.EventExporter[UpdateSet]
 	limitResolution *util.Resolution
-	repo            Updater
+	updater         Updater
 }
 
 func NewWalinator(
@@ -63,7 +63,7 @@ func NewWalinator(
 		paths:           pathFormatter,
 		exporter:        exp,
 		limitResolution: limitResolution,
-		repo:            repo,
+		updater:         repo,
 	}, nil
 }
 
@@ -113,7 +113,7 @@ func (w *Walinator) restore() {
 	}
 
 	processFn := func(updateSet *UpdateSet) {
-		w.repo.Update(updateSet)
+		w.updater.Update(updateSet)
 	}
 	worker.ConcurrentOrderedProcessWith(worker.OptimalWorkerCount(), workerFn, fileInfos, processFn)
 }
@@ -156,7 +156,7 @@ func (w *Walinator) Update(
 	}
 
 	// run update
-	w.repo.Update(updateSet)
+	w.updater.Update(updateSet)
 
 	err := w.exporter.Export(updateSet.Timestamp, updateSet)
 	if err != nil {

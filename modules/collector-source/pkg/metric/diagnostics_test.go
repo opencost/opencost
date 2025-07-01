@@ -3,8 +3,6 @@ package metric
 import (
 	"testing"
 	"time"
-
-	"github.com/opencost/opencost/modules/collector-source/pkg/constants"
 )
 
 // MockUpdater implements the Updater interface for testing
@@ -25,11 +23,11 @@ func TestDiagnosticsModule_Update(t *testing.T) {
 		Timestamp: timestamp,
 		Updates: []Update{
 			{
-				Name:  constants.KubeNodeStatusCapacityCPUCores,
+				Name:  KubeNodeStatusCapacityCPUCores,
 				Value: 4.0,
 			},
 			{
-				Name:  constants.NodeTotalHourlyCost,
+				Name:  NodeTotalHourlyCost,
 				Value: 0.50,
 			},
 		},
@@ -142,7 +140,7 @@ func TestDiagnosticsModule_ConcurrentAccess(t *testing.T) {
 				Timestamp: timestamp,
 				Updates: []Update{
 					{
-						Name:  constants.KubeNodeStatusCapacityCPUCores,
+						Name:  KubeNodeStatusCapacityCPUCores,
 						Value: float64(i),
 					},
 				},
@@ -168,7 +166,7 @@ func TestDiagnosticsModule_ResetAfterDetails(t *testing.T) {
 		Timestamp: timestamp,
 		Updates: []Update{
 			{
-				Name:  constants.KubeNodeStatusCapacityCPUCores,
+				Name:  KubeNodeStatusCapacityCPUCores,
 				Value: 4.0,
 			},
 		},

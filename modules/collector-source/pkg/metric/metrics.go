@@ -1,4 +1,4 @@
-package constants
+package metric
 
 const (
 	// Cluster Cache Metrics

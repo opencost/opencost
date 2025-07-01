@@ -1,7 +1,7 @@
 package scrape
 
 import (
-	"github.com/opencost/opencost/modules/collector-source/pkg/constants"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 )
 
@@ -18,22 +18,22 @@ func newOpencostTargetScraper(provider target.TargetProvider) *TargetScraper {
 	return newTargetScrapper(
 		provider,
 		[]string{
-			constants.KubecostClusterManagementCost,
-			constants.KubecostNetworkZoneEgressCost,
-			constants.KubecostNetworkRegionEgressCost,
-			constants.KubecostNetworkInternetEgressCost,
-			constants.PVHourlyCost,
-			constants.KubecostLoadBalancerCost,
-			constants.NodeTotalHourlyCost,
-			constants.NodeCPUHourlyCost,
-			constants.NodeRAMHourlyCost,
-			constants.NodeGPUHourlyCost,
-			constants.NodeGPUCount,
-			constants.KubecostNodeIsSpot,
-			constants.ContainerCPUAllocation,
-			constants.ContainerMemoryAllocationBytes,
-			constants.ContainerGPUAllocation,
-			constants.PodPVCAllocation,
+			metric.KubecostClusterManagementCost,
+			metric.KubecostNetworkZoneEgressCost,
+			metric.KubecostNetworkRegionEgressCost,
+			metric.KubecostNetworkInternetEgressCost,
+			metric.PVHourlyCost,
+			metric.KubecostLoadBalancerCost,
+			metric.NodeTotalHourlyCost,
+			metric.NodeCPUHourlyCost,
+			metric.NodeRAMHourlyCost,
+			metric.NodeGPUHourlyCost,
+			metric.NodeGPUCount,
+			metric.KubecostNodeIsSpot,
+			metric.ContainerCPUAllocation,
+			metric.ContainerMemoryAllocationBytes,
+			metric.ContainerGPUAllocation,
+			metric.PodPVCAllocation,
 		},
 		true)
 }

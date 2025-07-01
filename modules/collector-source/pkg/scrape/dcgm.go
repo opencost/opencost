@@ -6,7 +6,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/modules/collector-source/pkg/constants"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 )
 
@@ -21,8 +21,8 @@ func newDCGMTargetScraper(provider target.TargetProvider) *TargetScraper {
 	return newTargetScrapper(
 		provider,
 		[]string{
-			constants.DCGMFIPROFGRENGINEACTIVE,
-			constants.DCGMFIDEVDECUTIL,
+			metric.DCGMFIPROFGRENGINEACTIVE,
+			metric.DCGMFIDEVDECUTIL,
 		},
 		true)
 }
