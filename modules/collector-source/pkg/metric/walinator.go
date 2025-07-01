@@ -39,7 +39,7 @@ func NewWalinator(
 	clusterID string,
 	store storage.Storage,
 	resolutions []*util.Resolution,
-	repo Updater,
+	updater Updater,
 ) (*Walinator, error) {
 	var limitResolution *util.Resolution
 	for _, resolution := range resolutions {
@@ -63,7 +63,7 @@ func NewWalinator(
 		paths:           pathFormatter,
 		exporter:        exp,
 		limitResolution: limitResolution,
-		updater:         repo,
+		updater:         updater,
 	}, nil
 }
 
@@ -80,7 +80,7 @@ func (w *Walinator) Start() {
 	}()
 }
 
-// restore applies updates from wal files to restore the state of the repo
+// restore applies updates from wal files to restore the state of the previous updater(repo)
 func (w *Walinator) restore() {
 	fileInfos, err := w.getFileInfos()
 	if err != nil {
@@ -147,7 +147,7 @@ func deserializeUpdateSet(ext string, b []byte) (*UpdateSet, error) {
 	return nil, fmt.Errorf("unrecognized extension: '%s'", ext)
 }
 
-// Update calls update on the repo and then exports the update to storage
+// Update calls update on the previous updater(repo) and then exports the update to storage
 func (w *Walinator) Update(
 	updateSet *UpdateSet,
 ) {
