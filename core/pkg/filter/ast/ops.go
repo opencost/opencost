@@ -49,6 +49,14 @@ const (
 	// FilterOpNotContainsSuffix is the inverse of FilterOpContainsSuffix
 	FilterOpNotContainsSuffix = "notcontainssuffix"
 
+	// FilterOpEmpty supports string fields or slice fields.
+	// For strings, this is eqivalent to empty(), which returns true iff string is length 0
+	// For slices, this is equivalent to empty(), which returns true iff slice is length 0
+	FilterOpEmpty = "empty"
+
+	// FilterOpNotEmpty is the inverse of empty.
+	FilterOpNotEmpty = "notempty"
+
 	// FilterOpVoid is base-depth operator that is used for an empty filter
 	FilterOpVoid = "void"
 
@@ -190,6 +198,18 @@ type ContainsSuffixOp struct {
 // Op returns the FilterOp enumeration value for the operator.
 func (_ *ContainsSuffixOp) Op() FilterOp {
 	return FilterOpContainsSuffix
+}
+
+// EmptyOp is a filter operation that checks to see if a resolvable identifier (Left) is empty
+type EmptyOp struct {
+	// Left contains a resolvable Identifier (property of an input type) which can be
+	// used to query against using the Right value.
+	Left Identifier
+}
+
+// Op returns the FilterOp enumeration value for the operator.
+func (_ *EmptyOp) Op() FilterOp {
+	return FilterOpEmpty
 }
 
 func Not(fn FilterNode) FilterNode {

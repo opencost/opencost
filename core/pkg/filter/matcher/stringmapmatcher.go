@@ -72,6 +72,9 @@ func (smm *StringMapMatcher[T]) Matches(that T) bool {
 		}
 		return false
 
+	case ast.FilterOpEmpty:
+		return len(thatMap[smm.Key]) == 0
+
 	default:
 		log.Errorf("Filter: StringMapMatcher: Unhandled matcher op. This is a filter implementation error and requires immediate patching. Op: %s", smm.Op)
 		return false

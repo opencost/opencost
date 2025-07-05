@@ -82,6 +82,9 @@ func (ssp *StringSliceMatcher[T]) Matches(that T) bool {
 		}
 		return false
 
+	case ast.FilterOpEmpty:
+		return len(thatSlice) == 0
+
 	default:
 		log.Errorf("Filter: StringSliceMatcher: Unhandled filter op. This is a filter implementation error and requires immediate patching. Op: %s", ssp.Op)
 		return false

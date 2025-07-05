@@ -522,6 +522,24 @@ func toFilterNode(field *Field, key string, op FilterOp, value string) (FilterNo
 			},
 		}, nil
 
+	case FilterOpEmpty:
+		return &EmptyOp{
+			Left: Identifier{
+				Field: field,
+				Key:   key,
+			},
+		}, nil
+
+	case FilterOpNotEmpty:
+		return &NotOp{
+			Operand: &EmptyOp{
+				Left: Identifier{
+					Field: field,
+					Key:   key,
+				},
+			},
+		}, nil
+
 	default:
 		return nil, fmt.Errorf("Failed to parse op: %s", op)
 	}

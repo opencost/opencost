@@ -178,6 +178,9 @@ func (p *allocationAliasPass) Exec(filter ast.FilterNode) (ast.FilterNode, error
 			field = concrete.Left.Field
 			filterValue = concrete.Right
 			filterOp = ast.FilterOpContainsSuffix
+		case *ast.EmptyOp:
+			field = concrete.Left.Field
+			filterOp = ast.FilterOpEmpty
 		default:
 			transformErr = fmt.Errorf("unknown op '%s' during alias pass", concrete.Op())
 			return node

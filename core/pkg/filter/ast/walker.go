@@ -176,6 +176,8 @@ func OpStringFor(node FilterNode, traversalState TraversalState, depth int) stri
 		open += fmt.Sprintf("Left: %s, Right: %s }\n", n.Left.String(), n.Right)
 	case *ContainsSuffixOp:
 		open += fmt.Sprintf("Left: %s, Right: %s }\n", n.Left.String(), n.Right)
+	case *EmptyOp:
+		open += fmt.Sprintf("Left: %s }\n", n.Left.String())
 	default:
 		open += "}\n"
 	}
@@ -207,6 +209,8 @@ func ShortOpStringFor(node FilterNode, traversalState TraversalState) string {
 		open += fmt.Sprintf("%s,%s)", condenseIdent(n.Left), n.Right)
 	case *ContainsSuffixOp:
 		open += fmt.Sprintf("%s,%s)", condenseIdent(n.Left), n.Right)
+	case *EmptyOp:
+		open += fmt.Sprintf("%s)", condenseIdent(n.Left))
 	default:
 		open += ")"
 	}
@@ -355,6 +359,24 @@ func Clone(filter FilterNode) FilterNode {
 			} else {
 				currentOps.Top().Add(sm)
 			}
+
+		case *EmptyOp:
+			var field Field
+			if n.Left.Field != nil {
+				field = *n.Left.Field
+			}
+			sm := &EmptyOp{
+				Left: Identifier{
+					Field: &field,
+					Key:   n.Left.Key,
+				},
+			}
+
+			if currentOps.Length() == 0 {
+				result = sm
+			} else {
+				currentOps.Top().Add(sm)
+			}
 		}
 	})
 
@@ -390,6 +412,10 @@ func Fields(filter FilterNode) []Field {
 				fields[*n.Left.Field] = true
 			}
 		case *ContainsSuffixOp:
+			if n.Left.Field != nil {
+				fields[*n.Left.Field] = true
+			}
+		case *EmptyOp:
 			if n.Left.Field != nil {
 				fields[*n.Left.Field] = true
 			}

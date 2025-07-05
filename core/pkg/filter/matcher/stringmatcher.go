@@ -66,6 +66,9 @@ func (sm *StringMatcher[T]) Matches(that T) bool {
 	case ast.FilterOpContainsSuffix:
 		return strings.HasSuffix(thatString, sm.Value)
 
+	case ast.FilterOpEmpty:
+		return len(thatString) == 0
+
 	default:
 		log.Errorf("Filter: StringMatcher: Unhandled filter op. This is a filter implementation error and requires immediate patching. Op: %s", sm.Op)
 		return false

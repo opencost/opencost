@@ -29,6 +29,10 @@ const (
 	tildeEndColon       // '~>:'
 	bangTildeEndColon   // '!~>:'
 
+	// TODO consider adding these as "empty" and "notempty"
+	bangBackslack // '!\'
+	backslash     // '\'
+
 	parenOpen  // '('
 	parenClose // ')'
 

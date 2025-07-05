@@ -232,3 +232,13 @@ func ContainsSuffix[T ~string](field T, value string) ast.FilterNode {
 func NotContainsSuffix[T ~string](field T, value string) ast.FilterNode {
 	return Not(ContainsSuffix(field, value))
 }
+
+func Empty[T ~string](field T) ast.FilterNode {
+	return &ast.EmptyOp{
+		Left: identifier(field),
+	}
+}
+
+func NotEmpty[T ~string](field T) ast.FilterNode {
+	return Not(Empty(field))
+}

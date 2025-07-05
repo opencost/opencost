@@ -176,6 +176,25 @@ func (mc *MatchCompiler[T]) Compile(filter ast.FilterNode) (Matcher[T], error) {
 			} else {
 				currentOps.Top().Add(sm)
 			}
+
+		case *ast.EmptyOp:
+			f := n.Left.Field
+			key := n.Left.Key
+
+			var sm Matcher[T]
+			if f.IsSlice() {
+				sm = mc.sliceMatcher.NewStringSliceMatcher(n.Op(), n.Left, "")
+			} else if f.IsMap() && key == "" {
+				sm = mc.mapMatcher.NewStringMapMatcher(n.Op(), n.Left, "")
+			} else {
+				sm = mc.stringMatcher.NewStringMatcher(n.Op(), n.Left, "")
+			}
+
+			if currentOps.Length() == 0 {
+				result = sm
+			} else {
+				currentOps.Top().Add(sm)
+			}
 		}
 	}
 
