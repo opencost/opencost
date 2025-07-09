@@ -22,6 +22,8 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/core/pkg/version"
 	"github.com/opencost/opencost/pkg/cloud/aws"
+	"github.com/opencost/opencost/pkg/quota"
+
 	cloudconfig "github.com/opencost/opencost/pkg/cloud/config"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/provider"
@@ -606,6 +608,8 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	router.POST("/serviceKey", a.AddServiceKey)
 	router.GET("/helmValues", a.GetHelmValues)
 
+	InitializeQuota(router, kubeClientset)
+
 	return a
 }
 
@@ -616,6 +620,10 @@ func getStorage() storage.Storage {
 		store = storage.NewFileStorage(pvMountPath)
 	}
 	return store
+}
+
+func InitializeQuota(router *httprouter.Router, clientset *kubernetes.Clientset) {
+	router.GET("/resourcequota", quota.GetQuotaMetricsHandler(clientset))
 }
 
 // InitializeCloudCost Initializes Cloud Cost pipeline and querier and registers endpoints
