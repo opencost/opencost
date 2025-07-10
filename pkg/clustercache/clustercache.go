@@ -2,13 +2,10 @@ package clustercache
 
 import (
 	"sync"
-	"time"
 
+	cc "github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/env"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -18,399 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 )
-
-type Namespace struct {
-	Name        string
-	Labels      map[string]string
-	Annotations map[string]string
-}
-
-type Pod struct {
-	UID               types.UID
-	Name              string
-	Namespace         string
-	Labels            map[string]string
-	Annotations       map[string]string
-	OwnerReferences   []metav1.OwnerReference
-	Status            PodStatus
-	Spec              PodSpec
-	DeletionTimestamp *time.Time
-}
-
-type PodStatus struct {
-	Phase             v1.PodPhase
-	ContainerStatuses []v1.ContainerStatus
-}
-
-type PodSpec struct {
-	NodeName      string
-	Containers    []Container
-	Volumes       []v1.Volume
-	RestartPolicy v1.RestartPolicy
-}
-
-type Container struct {
-	Name      string
-	Resources v1.ResourceRequirements
-}
-
-type Node struct {
-	Name           string
-	Labels         map[string]string
-	Annotations    map[string]string
-	Status         v1.NodeStatus
-	SpecProviderID string
-}
-
-type Service struct {
-	Name         string
-	Namespace    string
-	SpecSelector map[string]string
-	Type         v1.ServiceType
-	Status       v1.ServiceStatus
-}
-
-type DaemonSet struct {
-	Name           string
-	Namespace      string
-	Labels         map[string]string
-	SpecContainers []v1.Container
-}
-
-type Deployment struct {
-	Name                    string
-	Namespace               string
-	Labels                  map[string]string
-	Annotations             map[string]string
-	MatchLabels             map[string]string
-	SpecSelector            *metav1.LabelSelector
-	SpecReplicas            *int32
-	SpecStrategy            appsv1.DeploymentStrategy
-	StatusAvailableReplicas int32
-	PodSpec                 PodSpec
-}
-
-type StatefulSet struct {
-	Name         string
-	Namespace    string
-	Labels       map[string]string
-	Annotations  map[string]string
-	SpecSelector *metav1.LabelSelector
-	SpecReplicas *int32
-	PodSpec      PodSpec
-}
-
-type PersistentVolumeClaim struct {
-	Name        string
-	Namespace   string
-	Spec        v1.PersistentVolumeClaimSpec
-	Labels      map[string]string
-	Annotations map[string]string
-}
-
-type StorageClass struct {
-	Name        string
-	Labels      map[string]string
-	Annotations map[string]string
-	Parameters  map[string]string
-	Provisioner string
-	TypeMeta    metav1.TypeMeta
-	Size        int
-}
-
-type Job struct {
-	Name      string
-	Namespace string
-	Status    batchv1.JobStatus
-}
-
-type PersistentVolume struct {
-	Name        string
-	Namespace   string
-	Labels      map[string]string
-	Annotations map[string]string
-	Spec        v1.PersistentVolumeSpec
-	Status      v1.PersistentVolumeStatus
-}
-
-type ReplicationController struct {
-	Name      string
-	Namespace string
-	Spec      v1.ReplicationControllerSpec
-}
-
-type PodDisruptionBudget struct {
-	Name      string
-	Namespace string
-	Spec      policyv1.PodDisruptionBudgetSpec
-	Status    policyv1.PodDisruptionBudgetStatus
-}
-
-type ReplicaSet struct {
-	Name         string
-	Namespace    string
-	SpecSelector *metav1.LabelSelector
-	Spec         appsv1.ReplicaSetSpec
-}
-
-type Volume struct {
-}
-
-// GetControllerOf returns a pointer to a copy of the controllerRef if controllee has a controller
-func GetControllerOf(pod *Pod) *metav1.OwnerReference {
-	ref := GetControllerOfNoCopy(pod)
-	if ref == nil {
-		return nil
-	}
-	cp := *ref
-	cp.Controller = ptr.To(*ref.Controller)
-	if ref.BlockOwnerDeletion != nil {
-		cp.BlockOwnerDeletion = ptr.To(*ref.BlockOwnerDeletion)
-	}
-	return &cp
-}
-
-// GetControllerOfNoCopy returns a pointer to the controllerRef if controllee has a controller
-func GetControllerOfNoCopy(pod *Pod) *metav1.OwnerReference {
-	refs := pod.OwnerReferences
-	for i := range refs {
-		if refs[i].Controller != nil && *refs[i].Controller {
-			return &refs[i]
-		}
-	}
-	return nil
-}
-
-func transformNamespace(input *v1.Namespace) *Namespace {
-	return &Namespace{
-		Name:        input.Name,
-		Annotations: input.Annotations,
-		Labels:      input.Labels,
-	}
-}
-
-func transformPodContainer(input v1.Container) Container {
-	return Container{
-		Name:      input.Name,
-		Resources: input.Resources,
-	}
-}
-
-func transformPodStatus(input v1.PodStatus) PodStatus {
-	return PodStatus{
-		Phase:             input.Phase,
-		ContainerStatuses: input.ContainerStatuses,
-	}
-}
-
-func transformPodSpec(input v1.PodSpec) PodSpec {
-	containers := make([]Container, len(input.Containers))
-	for i, container := range input.Containers {
-		containers[i] = transformPodContainer(container)
-	}
-	return PodSpec{
-		NodeName:      input.NodeName,
-		Containers:    containers,
-		Volumes:       input.Volumes,
-		RestartPolicy: input.RestartPolicy,
-	}
-
-}
-
-func transformTimestamp(input *metav1.Time) *time.Time {
-	if input == nil {
-		return nil
-	}
-
-	t := input.Time
-	return &t
-}
-
-func transformPod(input *v1.Pod) *Pod {
-	return &Pod{
-		UID:               input.UID,
-		Name:              input.Name,
-		Namespace:         input.Namespace,
-		Labels:            input.Labels,
-		Annotations:       input.Annotations,
-		OwnerReferences:   input.OwnerReferences,
-		Spec:              transformPodSpec(input.Spec),
-		Status:            transformPodStatus(input.Status),
-		DeletionTimestamp: transformTimestamp(input.DeletionTimestamp),
-	}
-}
-
-func transformNode(input *v1.Node) *Node {
-	return &Node{
-		Name:           input.Name,
-		Labels:         input.Labels,
-		Annotations:    input.Annotations,
-		Status:         input.Status,
-		SpecProviderID: input.Spec.ProviderID,
-	}
-}
-
-func transformService(input *v1.Service) *Service {
-	return &Service{
-		Name:         input.Name,
-		Namespace:    input.Namespace,
-		SpecSelector: input.Spec.Selector,
-		Type:         input.Spec.Type,
-		Status:       input.Status,
-	}
-}
-
-func transformDaemonSet(input *appsv1.DaemonSet) *DaemonSet {
-	return &DaemonSet{
-		Name:           input.Name,
-		Namespace:      input.Namespace,
-		Labels:         input.Labels,
-		SpecContainers: input.Spec.Template.Spec.Containers,
-	}
-}
-
-func transformDeployment(input *appsv1.Deployment) *Deployment {
-	return &Deployment{
-		Name:                    input.Name,
-		Namespace:               input.Namespace,
-		Labels:                  input.Labels,
-		MatchLabels:             input.Spec.Selector.MatchLabels,
-		SpecReplicas:            input.Spec.Replicas,
-		SpecSelector:            input.Spec.Selector,
-		SpecStrategy:            input.Spec.Strategy,
-		StatusAvailableReplicas: input.Status.AvailableReplicas,
-		PodSpec:                 transformPodSpec(input.Spec.Template.Spec),
-	}
-}
-
-func transformStatefulSet(input *appsv1.StatefulSet) *StatefulSet {
-	return &StatefulSet{
-		Name:         input.Name,
-		Namespace:    input.Namespace,
-		SpecSelector: input.Spec.Selector,
-		SpecReplicas: input.Spec.Replicas,
-		PodSpec:      transformPodSpec(input.Spec.Template.Spec),
-	}
-}
-
-func transformPersistentVolume(input *v1.PersistentVolume) *PersistentVolume {
-	return &PersistentVolume{
-		Name:        input.Name,
-		Namespace:   input.Namespace,
-		Labels:      input.Labels,
-		Annotations: input.Annotations,
-		Spec:        input.Spec,
-		Status:      input.Status,
-	}
-}
-
-func transformPersistentVolumeClaim(input *v1.PersistentVolumeClaim) *PersistentVolumeClaim {
-	return &PersistentVolumeClaim{
-		Name:        input.Name,
-		Namespace:   input.Namespace,
-		Spec:        input.Spec,
-		Labels:      input.Labels,
-		Annotations: input.Annotations,
-	}
-}
-
-func transformStorageClass(input *stv1.StorageClass) *StorageClass {
-	return &StorageClass{
-		Name:        input.Name,
-		Annotations: input.Annotations,
-		Labels:      input.Labels,
-		Parameters:  input.Parameters,
-		Provisioner: input.Provisioner,
-		TypeMeta:    input.TypeMeta,
-		Size:        input.Size(),
-	}
-}
-
-func transformJob(input *batchv1.Job) *Job {
-	return &Job{
-		Name:      input.Name,
-		Namespace: input.Namespace,
-		Status:    input.Status,
-	}
-}
-
-func transformReplicationController(input *v1.ReplicationController) *ReplicationController {
-	return &ReplicationController{
-		Name:      input.Name,
-		Namespace: input.Namespace,
-		Spec:      input.Spec,
-	}
-}
-
-func transformPodDisruptionBudget(input *policyv1.PodDisruptionBudget) *PodDisruptionBudget {
-	return &PodDisruptionBudget{
-		Name:      input.Name,
-		Namespace: input.Namespace,
-		Spec:      input.Spec,
-		Status:    input.Status,
-	}
-}
-
-func transformReplicaSet(input *appsv1.ReplicaSet) *ReplicaSet {
-	return &ReplicaSet{
-		Name:         input.Name,
-		Namespace:    input.Namespace,
-		Spec:         input.Spec,
-		SpecSelector: input.Spec.Selector,
-	}
-}
-
-// ClusterCache defines an contract for an object which caches components within a cluster, ensuring
-// up to date resources using watchers
-type ClusterCache interface {
-	// Run starts the watcher processes
-	Run()
-
-	// Stops the watcher processes
-	Stop()
-
-	// GetAllNamespaces returns all the cached namespaces
-	GetAllNamespaces() []*Namespace
-
-	// GetAllNodes returns all the cached nodes
-	GetAllNodes() []*Node
-
-	// GetAllPods returns all the cached pods
-	GetAllPods() []*Pod
-
-	// GetAllServices returns all the cached services
-	GetAllServices() []*Service
-
-	// GetAllDaemonSets returns all the cached DaemonSets
-	GetAllDaemonSets() []*DaemonSet
-
-	// GetAllDeployments returns all the cached deployments
-	GetAllDeployments() []*Deployment
-
-	// GetAllStatfulSets returns all the cached StatefulSets
-	GetAllStatefulSets() []*StatefulSet
-
-	// GetAllReplicaSets returns all the cached ReplicaSets
-	GetAllReplicaSets() []*ReplicaSet
-
-	// GetAllPersistentVolumes returns all the cached persistent volumes
-	GetAllPersistentVolumes() []*PersistentVolume
-
-	// GetAllPersistentVolumeClaims returns all the cached persistent volume claims
-	GetAllPersistentVolumeClaims() []*PersistentVolumeClaim
-
-	// GetAllStorageClasses returns all the cached storage classes
-	GetAllStorageClasses() []*StorageClass
-
-	// GetAllJobs returns all the cached jobs
-	GetAllJobs() []*Job
-
-	// GetAllPodDisruptionBudgets returns all cached pod disruption budgets
-	GetAllPodDisruptionBudgets() []*PodDisruptionBudget
-
-	// GetAllReplicationControllers returns all cached replication controllers
-	GetAllReplicationControllers() []*ReplicationController
-}
 
 // KubernetesClusterCache is the implementation of ClusterCache
 type KubernetesClusterCache struct {
@@ -438,22 +42,22 @@ func initializeCache(wc WatchController, wg *sync.WaitGroup, cancel chan struct{
 	wc.WarmUp(cancel)
 }
 
-func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
+func NewKubernetesClusterCache(client kubernetes.Interface) cc.ClusterCache {
 	if env.GetUseCacheV1() {
 		return NewKubernetesClusterCacheV1(client)
 	}
 	return NewKubernetesClusterCacheV2(client)
 }
 
-func NewKubernetesClusterCacheV1(client kubernetes.Interface) ClusterCache {
+func NewKubernetesClusterCacheV1(client kubernetes.Interface) cc.ClusterCache {
 	coreRestClient := client.CoreV1().RESTClient()
 	appsRestClient := client.AppsV1().RESTClient()
 	storageRestClient := client.StorageV1().RESTClient()
 	batchClient := client.BatchV1().RESTClient()
 	pdbClient := client.PolicyV1().RESTClient()
 
-	kubecostNamespace := env.GetKubecostNamespace()
-	log.Infof("NAMESPACE: %s", kubecostNamespace)
+	installNamespace := env.GetInstallNamespace()
+	log.Infof("NAMESPACE: %s", installNamespace)
 
 	kcc := &KubernetesClusterCache{
 		client:                     client,
@@ -534,128 +138,128 @@ func (kcc *KubernetesClusterCache) Stop() {
 	kcc.stop = nil
 }
 
-func (kcc *KubernetesClusterCache) GetAllNamespaces() []*Namespace {
-	var namespaces []*Namespace
+func (kcc *KubernetesClusterCache) GetAllNamespaces() []*cc.Namespace {
+	var namespaces []*cc.Namespace
 	items := kcc.namespaceWatch.GetAll()
 	for _, ns := range items {
-		namespaces = append(namespaces, transformNamespace(ns.(*v1.Namespace)))
+		namespaces = append(namespaces, cc.TransformNamespace(ns.(*v1.Namespace)))
 	}
 	return namespaces
 }
 
-func (kcc *KubernetesClusterCache) GetAllNodes() []*Node {
-	var nodes []*Node
+func (kcc *KubernetesClusterCache) GetAllNodes() []*cc.Node {
+	var nodes []*cc.Node
 	items := kcc.nodeWatch.GetAll()
 	for _, node := range items {
-		nodes = append(nodes, transformNode(node.(*v1.Node)))
+		nodes = append(nodes, cc.TransformNode(node.(*v1.Node)))
 	}
 	return nodes
 }
 
-func (kcc *KubernetesClusterCache) GetAllPods() []*Pod {
-	var pods []*Pod
+func (kcc *KubernetesClusterCache) GetAllPods() []*cc.Pod {
+	var pods []*cc.Pod
 	items := kcc.podWatch.GetAll()
 	for _, pod := range items {
-		pods = append(pods, transformPod(pod.(*v1.Pod)))
+		pods = append(pods, cc.TransformPod(pod.(*v1.Pod)))
 	}
 	return pods
 }
 
-func (kcc *KubernetesClusterCache) GetAllServices() []*Service {
-	var services []*Service
+func (kcc *KubernetesClusterCache) GetAllServices() []*cc.Service {
+	var services []*cc.Service
 	items := kcc.serviceWatch.GetAll()
 	for _, service := range items {
-		services = append(services, transformService(service.(*v1.Service)))
+		services = append(services, cc.TransformService(service.(*v1.Service)))
 	}
 	return services
 }
 
-func (kcc *KubernetesClusterCache) GetAllDaemonSets() []*DaemonSet {
-	var daemonsets []*DaemonSet
+func (kcc *KubernetesClusterCache) GetAllDaemonSets() []*cc.DaemonSet {
+	var daemonsets []*cc.DaemonSet
 	items := kcc.daemonsetsWatch.GetAll()
 	for _, daemonset := range items {
-		daemonsets = append(daemonsets, transformDaemonSet(daemonset.(*appsv1.DaemonSet)))
+		daemonsets = append(daemonsets, cc.TransformDaemonSet(daemonset.(*appsv1.DaemonSet)))
 	}
 	return daemonsets
 }
 
-func (kcc *KubernetesClusterCache) GetAllDeployments() []*Deployment {
-	var deployments []*Deployment
+func (kcc *KubernetesClusterCache) GetAllDeployments() []*cc.Deployment {
+	var deployments []*cc.Deployment
 	items := kcc.deploymentsWatch.GetAll()
 	for _, deployment := range items {
-		deployments = append(deployments, transformDeployment(deployment.(*appsv1.Deployment)))
+		deployments = append(deployments, cc.TransformDeployment(deployment.(*appsv1.Deployment)))
 	}
 	return deployments
 }
 
-func (kcc *KubernetesClusterCache) GetAllStatefulSets() []*StatefulSet {
-	var statefulsets []*StatefulSet
+func (kcc *KubernetesClusterCache) GetAllStatefulSets() []*cc.StatefulSet {
+	var statefulsets []*cc.StatefulSet
 	items := kcc.statefulsetWatch.GetAll()
 	for _, statefulset := range items {
-		statefulsets = append(statefulsets, transformStatefulSet(statefulset.(*appsv1.StatefulSet)))
+		statefulsets = append(statefulsets, cc.TransformStatefulSet(statefulset.(*appsv1.StatefulSet)))
 	}
 	return statefulsets
 }
 
-func (kcc *KubernetesClusterCache) GetAllReplicaSets() []*ReplicaSet {
-	var replicasets []*ReplicaSet
+func (kcc *KubernetesClusterCache) GetAllReplicaSets() []*cc.ReplicaSet {
+	var replicasets []*cc.ReplicaSet
 	items := kcc.replicasetWatch.GetAll()
 	for _, replicaset := range items {
-		replicasets = append(replicasets, transformReplicaSet(replicaset.(*appsv1.ReplicaSet)))
+		replicasets = append(replicasets, cc.TransformReplicaSet(replicaset.(*appsv1.ReplicaSet)))
 	}
 	return replicasets
 }
 
-func (kcc *KubernetesClusterCache) GetAllPersistentVolumes() []*PersistentVolume {
-	var pvs []*PersistentVolume
+func (kcc *KubernetesClusterCache) GetAllPersistentVolumes() []*cc.PersistentVolume {
+	var pvs []*cc.PersistentVolume
 	items := kcc.pvWatch.GetAll()
 	for _, pv := range items {
-		pvs = append(pvs, transformPersistentVolume(pv.(*v1.PersistentVolume)))
+		pvs = append(pvs, cc.TransformPersistentVolume(pv.(*v1.PersistentVolume)))
 	}
 	return pvs
 }
 
-func (kcc *KubernetesClusterCache) GetAllPersistentVolumeClaims() []*PersistentVolumeClaim {
-	var pvcs []*PersistentVolumeClaim
+func (kcc *KubernetesClusterCache) GetAllPersistentVolumeClaims() []*cc.PersistentVolumeClaim {
+	var pvcs []*cc.PersistentVolumeClaim
 	items := kcc.pvcWatch.GetAll()
 	for _, pvc := range items {
-		pvcs = append(pvcs, transformPersistentVolumeClaim(pvc.(*v1.PersistentVolumeClaim)))
+		pvcs = append(pvcs, cc.TransformPersistentVolumeClaim(pvc.(*v1.PersistentVolumeClaim)))
 	}
 	return pvcs
 }
 
-func (kcc *KubernetesClusterCache) GetAllStorageClasses() []*StorageClass {
-	var storageClasses []*StorageClass
+func (kcc *KubernetesClusterCache) GetAllStorageClasses() []*cc.StorageClass {
+	var storageClasses []*cc.StorageClass
 	items := kcc.storageClassWatch.GetAll()
 	for _, stc := range items {
-		storageClasses = append(storageClasses, transformStorageClass(stc.(*stv1.StorageClass)))
+		storageClasses = append(storageClasses, cc.TransformStorageClass(stc.(*stv1.StorageClass)))
 	}
 	return storageClasses
 }
 
-func (kcc *KubernetesClusterCache) GetAllJobs() []*Job {
-	var jobs []*Job
+func (kcc *KubernetesClusterCache) GetAllJobs() []*cc.Job {
+	var jobs []*cc.Job
 	items := kcc.jobsWatch.GetAll()
 	for _, job := range items {
-		jobs = append(jobs, transformJob(job.(*batchv1.Job)))
+		jobs = append(jobs, cc.TransformJob(job.(*batchv1.Job)))
 	}
 	return jobs
 }
 
-func (kcc *KubernetesClusterCache) GetAllPodDisruptionBudgets() []*PodDisruptionBudget {
-	var pdbs []*PodDisruptionBudget
+func (kcc *KubernetesClusterCache) GetAllPodDisruptionBudgets() []*cc.PodDisruptionBudget {
+	var pdbs []*cc.PodDisruptionBudget
 	items := kcc.pdbWatch.GetAll()
 	for _, pdb := range items {
-		pdbs = append(pdbs, transformPodDisruptionBudget(pdb.(*policyv1.PodDisruptionBudget)))
+		pdbs = append(pdbs, cc.TransformPodDisruptionBudget(pdb.(*policyv1.PodDisruptionBudget)))
 	}
 	return pdbs
 }
 
-func (kcc *KubernetesClusterCache) GetAllReplicationControllers() []*ReplicationController {
-	var rcs []*ReplicationController
+func (kcc *KubernetesClusterCache) GetAllReplicationControllers() []*cc.ReplicationController {
+	var rcs []*cc.ReplicationController
 	items := kcc.replicationControllerWatch.GetAll()
 	for _, rc := range items {
-		rcs = append(rcs, transformReplicationController(rc.(*v1.ReplicationController)))
+		rcs = append(rcs, cc.TransformReplicationController(rc.(*v1.ReplicationController)))
 	}
 	return rcs
 }

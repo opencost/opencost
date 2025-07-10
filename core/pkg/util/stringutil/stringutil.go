@@ -103,6 +103,15 @@ func RandSeq(n int) string {
 	return string(b)
 }
 
+// RandSeq generates a pseudo-random alphabetic string of the given length
+func RandSeqWith(r *rand.Rand, n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = alpha[r.Intn(len(alpha))] // #nosec No need for a cryptographic strength random here
+	}
+	return string(b)
+}
+
 // FormatBytes takes a number of bytes and formats it as a string
 func FormatBytes(numBytes int64) string {
 	if numBytes > TiB {

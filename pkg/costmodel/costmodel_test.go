@@ -1,73 +1,63 @@
 package costmodel
 
 import (
-	"slices"
+	"math/rand"
 	"testing"
+	"time"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/util"
-	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-func TestPruneDuplicates(t *testing.T) {
-
-	tests := []struct {
-		name     string
-		input    []string
-		expected []string
-	}{
-		{
-			name:     "empty slice",
-			input:    []string{},
-			expected: []string{},
-		},
-		{
-			name:     "single element slice",
-			input:    []string{"test1"},
-			expected: []string{"test1"},
-		},
-		{
-			name:     "basic duplicate",
-			input:    []string{"test1", "test1"},
-			expected: []string{"test1"},
-		},
-		{
-			name:     "compound duplicate",
-			input:    []string{"test1", "test2", "test1", "test2"},
-			expected: []string{"test1", "test2"},
-		},
-		{
-			name:     "mixture of duplicate/ no duplicate",
-			input:    []string{"test1", "test2", "test1", "test2", "test3"},
-			expected: []string{"test1", "test2", "test3"},
-		},
-		{
-			name:     "underscore sanitization",
-			input:    []string{"test_1", "test_2", "test_1", "test_2", "test_3"},
-			expected: []string{"test-1", "test-2", "test-3"},
-		},
-		{
-			name:     "underscore sanitization II",
-			input:    []string{"test-1", "test_2", "test_1", "test_2", "test_3"},
-			expected: []string{"test-1", "test-2", "test-3"},
-		},
+func TestIsValidNodeName(t *testing.T) {
+	tests := []string{
+		"ip-10-1-2-3.ec2.internal",
+		"node-1",
+		"another.test.node",
+		"10-55.23-10",
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := pruneDuplicates(tt.expected)
-			slices.Sort(actual)
-			expected := tt.expected
-			slices.Sort(expected)
-
-			if !slices.Equal(actual, expected) {
-				t.Fatalf("test failuire for case %s. Expected %v, got %v", tt.name, expected, actual)
-			}
-		})
+	for _, test := range tests {
+		if !isValidNodeName(test) {
+			t.Errorf("Expected %s to be a valid node name", test)
+		}
 	}
 
+	chars := "abcdefghijklmnopqrstuvwxyz"
+	longName := ""
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := 0; i < 255; i++ {
+		longName += string(chars[r.Intn(len(chars))])
+	}
+
+	fails := []string{
+		longName,
+		"192.168.1.1:80",
+		"10.0.0.1:443",
+		"127.0.0.1:8080",
+		"172.16.254.1:22",
+		"0.0.0.0:5000",
+		"::1:80",
+		"2001:db8::1:443",
+		"2001:0db8:85a3:0000:0000:8a2e:0370:7334:8080",
+		"fe80::1:22",
+		"10.1.2.3:10240",
+		":::80",
+		"node$-15",
+		"not:valid",
+		".hello-world",
+		"hello-world.",
+		"i--",
+	}
+
+	for _, fail := range fails {
+		if isValidNodeName(fail) {
+			t.Errorf("Expected %s to be an invalid node name", fail)
+		}
+	}
 }
 
 func TestGetGPUCount(t *testing.T) {

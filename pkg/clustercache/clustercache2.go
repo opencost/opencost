@@ -3,6 +3,7 @@ package clustercache
 import (
 	"sync"
 
+	cc "github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -13,39 +14,39 @@ import (
 )
 
 type KubernetesClusterCacheV2 struct {
-	namespaceStore             *GenericStore[*v1.Namespace, *Namespace]
-	nodeStore                  *GenericStore[*v1.Node, *Node]
-	podStore                   *GenericStore[*v1.Pod, *Pod]
-	serviceStore               *GenericStore[*v1.Service, *Service]
-	daemonSetStore             *GenericStore[*appsv1.DaemonSet, *DaemonSet]
-	deploymentStore            *GenericStore[*appsv1.Deployment, *Deployment]
-	statefulSetStore           *GenericStore[*appsv1.StatefulSet, *StatefulSet]
-	persistentVolumeStore      *GenericStore[*v1.PersistentVolume, *PersistentVolume]
-	persistentVolumeClaimStore *GenericStore[*v1.PersistentVolumeClaim, *PersistentVolumeClaim]
-	storageClassStore          *GenericStore[*stv1.StorageClass, *StorageClass]
-	jobStore                   *GenericStore[*batchv1.Job, *Job]
-	replicationControllerStore *GenericStore[*v1.ReplicationController, *ReplicationController]
-	replicaSetStore            *GenericStore[*appsv1.ReplicaSet, *ReplicaSet]
-	pdbStore                   *GenericStore[*policyv1.PodDisruptionBudget, *PodDisruptionBudget]
+	namespaceStore             *GenericStore[*v1.Namespace, *cc.Namespace]
+	nodeStore                  *GenericStore[*v1.Node, *cc.Node]
+	podStore                   *GenericStore[*v1.Pod, *cc.Pod]
+	serviceStore               *GenericStore[*v1.Service, *cc.Service]
+	daemonSetStore             *GenericStore[*appsv1.DaemonSet, *cc.DaemonSet]
+	deploymentStore            *GenericStore[*appsv1.Deployment, *cc.Deployment]
+	statefulSetStore           *GenericStore[*appsv1.StatefulSet, *cc.StatefulSet]
+	persistentVolumeStore      *GenericStore[*v1.PersistentVolume, *cc.PersistentVolume]
+	persistentVolumeClaimStore *GenericStore[*v1.PersistentVolumeClaim, *cc.PersistentVolumeClaim]
+	storageClassStore          *GenericStore[*stv1.StorageClass, *cc.StorageClass]
+	jobStore                   *GenericStore[*batchv1.Job, *cc.Job]
+	replicationControllerStore *GenericStore[*v1.ReplicationController, *cc.ReplicationController]
+	replicaSetStore            *GenericStore[*appsv1.ReplicaSet, *cc.ReplicaSet]
+	pdbStore                   *GenericStore[*policyv1.PodDisruptionBudget, *cc.PodDisruptionBudget]
 	stopCh                     chan struct{}
 }
 
 func NewKubernetesClusterCacheV2(clientset kubernetes.Interface) *KubernetesClusterCacheV2 {
 	return &KubernetesClusterCacheV2{
-		namespaceStore:             CreateStore(clientset.CoreV1().RESTClient(), "namespaces", transformNamespace),
-		nodeStore:                  CreateStore(clientset.CoreV1().RESTClient(), "nodes", transformNode),
-		persistentVolumeClaimStore: CreateStore(clientset.CoreV1().RESTClient(), "persistentvolumeclaims", transformPersistentVolumeClaim),
-		persistentVolumeStore:      CreateStore(clientset.CoreV1().RESTClient(), "persistentvolumes", transformPersistentVolume),
-		podStore:                   CreateStore(clientset.CoreV1().RESTClient(), "pods", transformPod),
-		replicationControllerStore: CreateStore(clientset.CoreV1().RESTClient(), "replicationcontrollers", transformReplicationController),
-		serviceStore:               CreateStore(clientset.CoreV1().RESTClient(), "services", transformService),
-		daemonSetStore:             CreateStore(clientset.AppsV1().RESTClient(), "daemonsets", transformDaemonSet),
-		deploymentStore:            CreateStore(clientset.AppsV1().RESTClient(), "deployments", transformDeployment),
-		replicaSetStore:            CreateStore(clientset.AppsV1().RESTClient(), "replicasets", transformReplicaSet),
-		statefulSetStore:           CreateStore(clientset.AppsV1().RESTClient(), "statefulsets", transformStatefulSet),
-		storageClassStore:          CreateStore(clientset.StorageV1().RESTClient(), "storageclasses", transformStorageClass),
-		jobStore:                   CreateStore(clientset.BatchV1().RESTClient(), "jobs", transformJob),
-		pdbStore:                   CreateStore(clientset.PolicyV1().RESTClient(), "poddisruptionbudgets", transformPodDisruptionBudget),
+		namespaceStore:             CreateStore(clientset.CoreV1().RESTClient(), "namespaces", cc.TransformNamespace),
+		nodeStore:                  CreateStore(clientset.CoreV1().RESTClient(), "nodes", cc.TransformNode),
+		persistentVolumeClaimStore: CreateStore(clientset.CoreV1().RESTClient(), "persistentvolumeclaims", cc.TransformPersistentVolumeClaim),
+		persistentVolumeStore:      CreateStore(clientset.CoreV1().RESTClient(), "persistentvolumes", cc.TransformPersistentVolume),
+		podStore:                   CreateStore(clientset.CoreV1().RESTClient(), "pods", cc.TransformPod),
+		replicationControllerStore: CreateStore(clientset.CoreV1().RESTClient(), "replicationcontrollers", cc.TransformReplicationController),
+		serviceStore:               CreateStore(clientset.CoreV1().RESTClient(), "services", cc.TransformService),
+		daemonSetStore:             CreateStore(clientset.AppsV1().RESTClient(), "daemonsets", cc.TransformDaemonSet),
+		deploymentStore:            CreateStore(clientset.AppsV1().RESTClient(), "deployments", cc.TransformDeployment),
+		replicaSetStore:            CreateStore(clientset.AppsV1().RESTClient(), "replicasets", cc.TransformReplicaSet),
+		statefulSetStore:           CreateStore(clientset.AppsV1().RESTClient(), "statefulsets", cc.TransformStatefulSet),
+		storageClassStore:          CreateStore(clientset.StorageV1().RESTClient(), "storageclasses", cc.TransformStorageClass),
+		jobStore:                   CreateStore(clientset.BatchV1().RESTClient(), "jobs", cc.TransformJob),
+		pdbStore:                   CreateStore(clientset.PolicyV1().RESTClient(), "poddisruptionbudgets", cc.TransformPodDisruptionBudget),
 		stopCh:                     make(chan struct{}),
 	}
 }
@@ -83,58 +84,58 @@ func (kcc *KubernetesClusterCacheV2) Stop() {
 	}
 }
 
-func (kcc *KubernetesClusterCacheV2) GetAllNamespaces() []*Namespace {
+func (kcc *KubernetesClusterCacheV2) GetAllNamespaces() []*cc.Namespace {
 	return kcc.namespaceStore.GetAll()
 }
 
-func (kcc *KubernetesClusterCacheV2) GetAllNodes() []*Node {
+func (kcc *KubernetesClusterCacheV2) GetAllNodes() []*cc.Node {
 	return kcc.nodeStore.GetAll()
 }
 
-func (kcc *KubernetesClusterCacheV2) GetAllPods() []*Pod {
+func (kcc *KubernetesClusterCacheV2) GetAllPods() []*cc.Pod {
 	return kcc.podStore.GetAll()
 }
 
-func (kcc *KubernetesClusterCacheV2) GetAllServices() []*Service {
+func (kcc *KubernetesClusterCacheV2) GetAllServices() []*cc.Service {
 	return kcc.serviceStore.GetAll()
 }
 
-func (kcc *KubernetesClusterCacheV2) GetAllDaemonSets() []*DaemonSet {
+func (kcc *KubernetesClusterCacheV2) GetAllDaemonSets() []*cc.DaemonSet {
 	return kcc.daemonSetStore.GetAll()
 }
 
-func (kcc *KubernetesClusterCacheV2) GetAllDeployments() []*Deployment {
+func (kcc *KubernetesClusterCacheV2) GetAllDeployments() []*cc.Deployment {
 	return kcc.deploymentStore.GetAll()
 }
 
-func (kcc *KubernetesClusterCacheV2) GetAllStatefulSets() []*StatefulSet {
+func (kcc *KubernetesClusterCacheV2) GetAllStatefulSets() []*cc.StatefulSet {
 	return kcc.statefulSetStore.GetAll()
 }
 
-func (kcc *KubernetesClusterCacheV2) GetAllPersistentVolumes() []*PersistentVolume {
+func (kcc *KubernetesClusterCacheV2) GetAllPersistentVolumes() []*cc.PersistentVolume {
 	return kcc.persistentVolumeStore.GetAll()
 }
 
-func (kcc *KubernetesClusterCacheV2) GetAllPersistentVolumeClaims() []*PersistentVolumeClaim {
+func (kcc *KubernetesClusterCacheV2) GetAllPersistentVolumeClaims() []*cc.PersistentVolumeClaim {
 	return kcc.persistentVolumeClaimStore.GetAll()
 }
 
-func (kcc *KubernetesClusterCacheV2) GetAllStorageClasses() []*StorageClass {
+func (kcc *KubernetesClusterCacheV2) GetAllStorageClasses() []*cc.StorageClass {
 	return kcc.storageClassStore.GetAll()
 }
 
-func (kcc *KubernetesClusterCacheV2) GetAllJobs() []*Job {
+func (kcc *KubernetesClusterCacheV2) GetAllJobs() []*cc.Job {
 	return kcc.jobStore.GetAll()
 }
 
-func (kcc *KubernetesClusterCacheV2) GetAllReplicationControllers() []*ReplicationController {
+func (kcc *KubernetesClusterCacheV2) GetAllReplicationControllers() []*cc.ReplicationController {
 	return kcc.replicationControllerStore.GetAll()
 }
 
-func (kcc *KubernetesClusterCacheV2) GetAllReplicaSets() []*ReplicaSet {
+func (kcc *KubernetesClusterCacheV2) GetAllReplicaSets() []*cc.ReplicaSet {
 	return kcc.replicaSetStore.GetAll()
 }
 
-func (kcc *KubernetesClusterCacheV2) GetAllPodDisruptionBudgets() []*PodDisruptionBudget {
+func (kcc *KubernetesClusterCacheV2) GetAllPodDisruptionBudgets() []*cc.PodDisruptionBudget {
 	return kcc.pdbStore.GetAll()
 }

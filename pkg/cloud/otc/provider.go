@@ -8,13 +8,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/pkg/cloud/models"
-	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
 )
 
@@ -535,11 +534,6 @@ func (otc *OTC) UpdateConfigFromConfigMap(configMap map[string]string) (*models.
 // TODO: Implement method
 func (otc *OTC) GetManagementPlatform() (string, error) {
 	return "", nil
-}
-
-// TODO: Implement method
-func (otc *OTC) GetLocalStorageQuery(start, end time.Duration, isPVC, isDeleted bool) string {
-	return ""
 }
 
 // TODO: Implement method

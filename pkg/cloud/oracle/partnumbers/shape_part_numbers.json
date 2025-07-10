@@ -1,7 +1,7 @@
 {
   "": {
     "OCPU": "B88516",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },
@@ -19,55 +19,55 @@
   },
   "BM.DenseIO2.52": {
     "OCPU": "B88515",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },
   "BM.GPU.A10.4": {
-    "OCPU": "",
-    "Memory": "",
+    "OCPU": "B94176",
+    "Memory": "B94177",
     "GPU": "B95909",
     "Disk": ""
   },
   "BM.GPU.A100-v2.8": {
-    "OCPU": "",
-    "Memory": "",
+    "OCPU": "B93113",
+    "Memory": "B93114",
     "GPU": "B95907",
     "Disk": ""
   },
   "BM.GPU.H100.8": {
     "OCPU": "",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "B98415",
     "Disk": ""
   },
   "BM.GPU.L40S.4": {
-    "OCPU": "",
-    "Memory": "",
+    "OCPU": "B96479",
+    "Memory": "B96480",
     "GPU": "B109479",
     "Disk": ""
   },
   "BM.GPU2.2": {
-    "OCPU": "",
-    "Memory": "",
+    "OCPU": "B88513",
+    "Memory": "B94177",
     "GPU": "B88517",
     "Disk": ""
   },
   "BM.GPU3.8": {
-    "OCPU": "",
-    "Memory": "",
+    "OCPU": "B94177",
+    "Memory": "B88513",
     "GPU": "B89734",
     "Disk": ""
   },
   "BM.GPU4.8": {
-    "OCPU": "",
-    "Memory": "",
+    "OCPU": "B92306",
+    "Memory": "B92307",
     "GPU": "B92740",
     "Disk": ""
   },
   "BM.HPC2.36": {
     "OCPU": "B90398",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },
@@ -103,7 +103,7 @@
   },
   "BM.Standard2.52": {
     "OCPU": "B88513",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },
@@ -133,7 +133,7 @@
   },
   "DVH.DenseIO2.52": {
     "OCPU": "B88515",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },
@@ -145,7 +145,7 @@
   },
   "DVH.Standard.E2.64": {
     "OCPU": "B90425",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },
@@ -163,7 +163,7 @@
   },
   "DVH.Standard2.52": {
     "OCPU": "B88513",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },
@@ -283,73 +283,73 @@
   },
   "VM.DenseIO1.16": {
     "OCPU": "B88516",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },
   "VM.DenseIO1.4": {
     "OCPU": "B88516",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },
   "VM.DenseIO1.8": {
     "OCPU": "B88516",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },
   "VM.DenseIO2.16": {
     "OCPU": "B88516",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },
   "VM.DenseIO2.24": {
     "OCPU": "B88516",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },
   "VM.DenseIO2.8": {
     "OCPU": "B88516",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },
   "VM.GPU.A10.1": {
-    "OCPU": "",
-    "Memory": "",
+    "OCPU": "B94176",
+    "Memory": "B94177",
     "GPU": "B95909",
     "Disk": ""
   },
   "VM.GPU.A10.2": {
-    "OCPU": "",
-    "Memory": "",
+    "OCPU": "B94176",
+    "Memory": "B94177",
     "GPU": "B95909",
     "Disk": ""
   },
   "VM.GPU2.1": {
-    "OCPU": "",
-    "Memory": "",
+    "OCPU": "B88513",
+    "Memory": "B94177",
     "GPU": "B88518",
     "Disk": ""
   },
   "VM.GPU3.1": {
-    "OCPU": "",
-    "Memory": "",
+    "OCPU": "B88513",
+    "Memory": "B94177",
     "GPU": "B89734",
     "Disk": ""
   },
   "VM.GPU3.2": {
-    "OCPU": "",
-    "Memory": "",
+    "OCPU": "B88513",
+    "Memory": "B94177",
     "GPU": "B89734",
     "Disk": ""
   },
   "VM.GPU3.4": {
-    "OCPU": "",
-    "Memory": "",
+    "OCPU": "B88513",
+    "Memory": "B94177",
     "GPU": "B89734",
     "Disk": ""
   },
@@ -391,37 +391,37 @@
   },
   "VM.Standard2.1": {
     "OCPU": "B88514",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },
   "VM.Standard2.16": {
     "OCPU": "B88514",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },
   "VM.Standard2.2": {
     "OCPU": "B88514",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },
   "VM.Standard2.24": {
     "OCPU": "B88514",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },
   "VM.Standard2.4": {
     "OCPU": "B88514",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },
   "VM.Standard2.8": {
     "OCPU": "B88514",
-    "Memory": "",
+    "Memory": "B94177",
     "GPU": "",
     "Disk": ""
   },

@@ -43,43 +43,6 @@ func TestGetAPIPort(t *testing.T) {
 
 }
 
-func TestIsCacheDisabled(t *testing.T) {
-	tests := []struct {
-		name string
-		want bool
-		pre  func()
-	}{
-		{
-			name: "Ensure the default value is false",
-			want: false,
-		},
-		{
-			name: "Ensure the value is false when DISABLE_AGGREGATE_COST_MODEL_CACHE is set to false",
-			want: false,
-			pre: func() {
-				os.Setenv("DISABLE_AGGREGATE_COST_MODEL_CACHE", "false")
-			},
-		},
-		{
-			name: "Ensure the value is true when DISABLE_AGGREGATE_COST_MODEL_CACHE is set to true",
-			want: true,
-			pre: func() {
-				os.Setenv("DISABLE_AGGREGATE_COST_MODEL_CACHE", "true")
-			},
-		},
-	}
-	for _, tt := range tests {
-		if tt.pre != nil {
-			tt.pre()
-		}
-		t.Run(tt.name, func(t *testing.T) {
-			if got := IsAggregateCostModelCacheDisabled(); got != tt.want {
-				t.Errorf("IsAggregateCostModelCacheDisabled() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestGetExportCSVMaxDays(t *testing.T) {
 	tests := []struct {
 		name string
@@ -190,5 +153,84 @@ func TestGetCloudCostConfigPath(t *testing.T) {
 			}
 		})
 	}
+
+}
+
+func TestEnvVarsWithBackup(t *testing.T) {
+	t.Run("test install namespace env var", func(t *testing.T) {
+		t.Setenv(InstallNamespaceEnvVar, "test-namespace")
+		t.Setenv(KubecostNamespaceEnvVar, "kubecost-test-namespace")
+
+		ns := GetInstallNamespace()
+		if ns != "test-namespace" {
+			t.Errorf("Expected install namespace to be 'test-namespace', got '%s'", ns)
+		}
+	})
+	t.Run("test kubecost namespace env var", func(t *testing.T) {
+		t.Setenv(KubecostNamespaceEnvVar, "kc-test-namespace")
+
+		ns := GetInstallNamespace()
+
+		if ns != "kc-test-namespace" {
+			t.Errorf("Expected install namespace to be 'kc-test-namespace', got '%s'", ns)
+		}
+	})
+
+	t.Run("test default install namespace", func(t *testing.T) {
+		t.Setenv(InstallNamespaceEnvVar, "test-namespace")
+
+		ns := GetInstallNamespace()
+
+		if ns != "test-namespace" {
+			t.Errorf("Expected default install namespace to be 'test-namespace', got '%s'", ns)
+		}
+	})
+
+	t.Run("test default install namespace", func(t *testing.T) {
+		ns := GetInstallNamespace()
+
+		if ns != "opencost" {
+			t.Errorf("Expected default install namespace to be 'opencost', got '%s'", ns)
+		}
+	})
+
+	t.Run("test config bucket file with both", func(t *testing.T) {
+		t.Setenv(ConfigBucketEnvVar, "test-bucket")
+		t.Setenv(KubecostConfigBucketEnvVar, "kc-test-bucket")
+
+		configBucketFile := GetConfigBucketFile()
+
+		if configBucketFile != "test-bucket" {
+			t.Errorf("Expected config bucket file to be 'test-bucket', got '%s'", configBucketFile)
+		}
+	})
+
+	t.Run("test config bucket file with kc", func(t *testing.T) {
+		t.Setenv(KubecostConfigBucketEnvVar, "kc-test-bucket")
+
+		configBucketFile := GetConfigBucketFile()
+
+		if configBucketFile != "kc-test-bucket" {
+			t.Errorf("Expected config bucket file to be 'kc-test-bucket', got '%s'", configBucketFile)
+		}
+	})
+
+	t.Run("test config bucket file with single", func(t *testing.T) {
+		t.Setenv(ConfigBucketEnvVar, "test-bucket")
+
+		configBucketFile := GetConfigBucketFile()
+
+		if configBucketFile != "test-bucket" {
+			t.Errorf("Expected config bucket file to be 'test-bucket', got '%s'", configBucketFile)
+		}
+	})
+
+	t.Run("test config bucket file with both", func(t *testing.T) {
+		configBucketFile := GetConfigBucketFile()
+
+		if configBucketFile != "" {
+			t.Errorf("Expected config bucket file to be '', got '%s'", configBucketFile)
+		}
+	})
 
 }

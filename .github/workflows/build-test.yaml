@@ -9,6 +9,11 @@ on:
     branches:
       - develop
 
+  merge_group:
+    types: [checks_requested]
+
+permissions: {}
+
 jobs:
   validate-protobuf:
     runs-on: ubuntu-latest

@@ -9,7 +9,6 @@ import (
 	cloudProvider "github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/thanos"
 
 	"k8s.io/client-go/kubernetes"
 )
@@ -33,15 +32,6 @@ func writeReportingFlags(clusterInfo map[string]string) {
 // writeClusterProfile writes the data associated with the cluster profile
 func writeClusterProfile(clusterInfo map[string]string) {
 	clusterInfo[clusters.ClusterInfoProfileKey] = clusterProfile
-}
-
-// writeThanosFlags includes the configured thanos flags on the cluster info
-func writeThanosFlags(clusterInfo map[string]string) {
-	// Include Thanos Offset Duration if Applicable
-	clusterInfo[clusters.ClusterInfoThanosEnabledKey] = fmt.Sprintf("%t", thanos.IsEnabled())
-	if thanos.IsEnabled() {
-		clusterInfo[clusters.ClusterInfoThanosOffsetKey] = thanos.Offset()
-	}
 }
 
 // localClusterInfoProvider gets the local cluster info from the cloud provider and kubernetes
@@ -73,7 +63,6 @@ func (dlcip *localClusterInfoProvider) GetClusterInfo() map[string]string {
 
 	writeClusterProfile(data)
 	writeReportingFlags(data)
-	writeThanosFlags(data)
 
 	return data
 }

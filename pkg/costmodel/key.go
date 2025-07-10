@@ -5,63 +5,22 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/prom"
 )
 
-type containerKey struct {
-	Cluster   string
-	Namespace string
-	Pod       string
-	Container string
-}
-
-func (k containerKey) String() string {
-	return fmt.Sprintf("%s/%s/%s/%s", k.Cluster, k.Namespace, k.Pod, k.Container)
-}
-
-func newContainerKey(cluster, namespace, pod, container string) containerKey {
-	return containerKey{
-		Cluster:   cluster,
-		Namespace: namespace,
-		Pod:       pod,
-		Container: container,
-	}
-}
-
-// resultContainerKey converts a Prometheus query result to a containerKey by
-// looking up values associated with the given label names. For example,
-// passing "cluster_id" for clusterLabel will use the value of the label
-// "cluster_id" as the containerKey's Cluster field. If a given field does not
-// exist on the result, an error is returned. (The only exception to that is
-// clusterLabel, which we expect may not exist, but has a default value.)
-func resultContainerKey(res *prom.QueryResult, clusterLabel, namespaceLabel, podLabel, containerLabel string) (containerKey, error) {
-	key := containerKey{}
-
-	cluster, err := res.GetString(clusterLabel)
-	if err != nil {
+func newResultPodKey(cluster string, namespace string, pod string) (podKey, error) {
+	if cluster == "" {
 		cluster = env.GetClusterID()
 	}
-	key.Cluster = cluster
 
-	namespace, err := res.GetString(namespaceLabel)
-	if err != nil {
-		return key, err
+	if namespace == "" {
+		return podKey{}, fmt.Errorf("namespace is required")
 	}
-	key.Namespace = namespace
 
-	pod, err := res.GetString(podLabel)
-	if err != nil {
-		return key, err
+	if pod == "" {
+		return podKey{}, fmt.Errorf("pod is required")
 	}
-	key.Pod = pod
 
-	container, err := res.GetString(containerLabel)
-	if err != nil {
-		return key, err
-	}
-	key.Container = container
-
-	return key, nil
+	return newPodKey(cluster, namespace, pod), nil
 }
 
 type podKey struct {
@@ -88,39 +47,6 @@ func getUnmountedPodKey(cluster string) podKey {
 	return newPodKey(cluster, opencost.UnmountedSuffix, opencost.UnmountedSuffix)
 }
 
-// resultPodKey converts a Prometheus query result to a podKey by looking
-// up values associated with the given label names. For example, passing
-// "cluster_id" for clusterLabel will use the value of the label "cluster_id"
-// as the podKey's Cluster field. If a given field does not exist on the
-// result, an error is returned. (The only exception to that is clusterLabel,
-// which we expect may not exist, but has a default value.)
-func resultPodKey(res *prom.QueryResult, clusterLabel, namespaceLabel string) (podKey, error) {
-	key := podKey{}
-
-	cluster, err := res.GetString(clusterLabel)
-	if err != nil {
-		cluster = env.GetClusterID()
-	}
-	key.Cluster = cluster
-
-	namespace, err := res.GetString(namespaceLabel)
-	if err != nil {
-		return key, err
-	}
-	key.Namespace = namespace
-
-	pod, err := res.GetString("pod")
-	if pod == "" || err != nil {
-		pod, err = res.GetString("pod_name")
-		if err != nil {
-			return key, err
-		}
-	}
-	key.Pod = pod
-
-	return key, nil
-}
-
 type namespaceKey struct {
 	Cluster   string
 	Namespace string
@@ -137,28 +63,16 @@ func newNamespaceKey(cluster, namespace string) namespaceKey {
 	}
 }
 
-// resultNamespaceKey converts a Prometheus query result to a namespaceKey by
-// looking up values associated with the given label names. For example,
-// passing "cluster_id" for clusterLabel will use the value of the label
-// "cluster_id" as the namespaceKey's Cluster field. If a given field does not
-// exist on the result, an error is returned. (The only exception to that is
-// clusterLabel, which we expect may not exist, but has a default value.)
-func resultNamespaceKey(res *prom.QueryResult, clusterLabel, namespaceLabel string) (namespaceKey, error) {
-	key := namespaceKey{}
-
-	cluster, err := res.GetString(clusterLabel)
-	if err != nil {
+func newResultNamespaceKey(cluster string, namespace string) (namespaceKey, error) {
+	if cluster == "" {
 		cluster = env.GetClusterID()
 	}
-	key.Cluster = cluster
 
-	namespace, err := res.GetString(namespaceLabel)
-	if err != nil {
-		return key, err
+	if namespace == "" {
+		return namespaceKey{}, fmt.Errorf("namespace is required")
 	}
-	key.Namespace = namespace
 
-	return key, nil
+	return newNamespaceKey(cluster, namespace), nil
 }
 
 type controllerKey struct {
@@ -181,72 +95,20 @@ func newControllerKey(cluster, namespace, controllerKind, controller string) con
 	}
 }
 
-// resultControllerKey converts a Prometheus query result to a controllerKey by
-// looking up values associated with the given label names. For example,
-// passing "cluster_id" for clusterLabel will use the value of the label
-// "cluster_id" as the controllerKey's Cluster field. If a given field does not
-// exist on the result, an error is returned. (The only exception to that is
-// clusterLabel, which we expect may not exist, but has a default value.)
-func resultControllerKey(controllerKind string, res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
-	key := controllerKey{}
-
-	cluster, err := res.GetString(clusterLabel)
-	if err != nil {
+func newResultControllerKey(cluster, namespace, controller, controllerKind string) (controllerKey, error) {
+	if cluster == "" {
 		cluster = env.GetClusterID()
 	}
-	key.Cluster = cluster
 
-	namespace, err := res.GetString(namespaceLabel)
-	if err != nil {
-		return key, err
+	if namespace == "" {
+		return controllerKey{}, fmt.Errorf("namespace is required")
 	}
-	key.Namespace = namespace
 
-	controller, err := res.GetString(controllerLabel)
-	if err != nil {
-		return key, err
+	if controller == "" {
+		return controllerKey{}, fmt.Errorf("controller is required")
 	}
-	key.Controller = controller
 
-	key.ControllerKind = controllerKind
-
-	return key, nil
-}
-
-// resultDeploymentKey creates a controllerKey for a Deployment.
-// (See resultControllerKey for more.)
-func resultDeploymentKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
-	return resultControllerKey("deployment", res, clusterLabel, namespaceLabel, controllerLabel)
-}
-
-// resultStatefulSetKey creates a controllerKey for a StatefulSet.
-// (See resultControllerKey for more.)
-func resultStatefulSetKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
-	return resultControllerKey("statefulset", res, clusterLabel, namespaceLabel, controllerLabel)
-}
-
-// resultDaemonSetKey creates a controllerKey for a DaemonSet.
-// (See resultControllerKey for more.)
-func resultDaemonSetKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
-	return resultControllerKey("daemonset", res, clusterLabel, namespaceLabel, controllerLabel)
-}
-
-// resultJobKey creates a controllerKey for a Job.
-// (See resultControllerKey for more.)
-func resultJobKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
-	return resultControllerKey("job", res, clusterLabel, namespaceLabel, controllerLabel)
-}
-
-// resultReplicaSetKey creates a controllerKey for a Job.
-// (See resultControllerKey for more.)
-func resultReplicaSetKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
-	return resultControllerKey("replicaset", res, clusterLabel, namespaceLabel, controllerLabel)
-}
-
-// resultReplicaSetRolloutKey creates a controllerKey for a Job.
-// (See resultControllerKey for more.)
-func resultReplicaSetRolloutKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
-	return resultControllerKey("rollout", res, clusterLabel, namespaceLabel, controllerLabel)
+	return newControllerKey(cluster, namespace, controllerKind, controller), nil
 }
 
 type serviceKey struct {
@@ -267,34 +129,20 @@ func newServiceKey(cluster, namespace, service string) serviceKey {
 	}
 }
 
-// resultServiceKey converts a Prometheus query result to a serviceKey by
-// looking up values associated with the given label names. For example,
-// passing "cluster_id" for clusterLabel will use the value of the label
-// "cluster_id" as the serviceKey's Cluster field. If a given field does not
-// exist on the result, an error is returned. (The only exception to that is
-// clusterLabel, which we expect may not exist, but has a default value.)
-func resultServiceKey(res *prom.QueryResult, clusterLabel, namespaceLabel, serviceLabel string) (serviceKey, error) {
-	key := serviceKey{}
-
-	cluster, err := res.GetString(clusterLabel)
-	if err != nil {
+func newResultServiceKey(cluster, namespace, service string) (serviceKey, error) {
+	if cluster == "" {
 		cluster = env.GetClusterID()
 	}
-	key.Cluster = cluster
 
-	namespace, err := res.GetString(namespaceLabel)
-	if err != nil {
-		return key, err
+	if namespace == "" {
+		return serviceKey{}, fmt.Errorf("namespace is required")
 	}
-	key.Namespace = namespace
 
-	service, err := res.GetString(serviceLabel)
-	if err != nil {
-		return key, err
+	if service == "" {
+		return serviceKey{}, fmt.Errorf("service is required")
 	}
-	key.Service = service
 
-	return key, nil
+	return newServiceKey(cluster, namespace, service), nil
 }
 
 type nodeKey struct {
@@ -313,28 +161,16 @@ func newNodeKey(cluster, node string) nodeKey {
 	}
 }
 
-// resultNodeKey converts a Prometheus query result to a nodeKey by
-// looking up values associated with the given label names. For example,
-// passing "cluster_id" for clusterLabel will use the value of the label
-// "cluster_id" as the nodeKey's Cluster field. If a given field does not
-// exist on the result, an error is returned. (The only exception to that is
-// clusterLabel, which we expect may not exist, but has a default value.)
-func resultNodeKey(res *prom.QueryResult, clusterLabel, nodeLabel string) (nodeKey, error) {
-	key := nodeKey{}
-
-	cluster, err := res.GetString(clusterLabel)
-	if err != nil {
+func newResultNodeKey(cluster string, node string) (nodeKey, error) {
+	if cluster == "" {
 		cluster = env.GetClusterID()
 	}
-	key.Cluster = cluster
 
-	node, err := res.GetString(nodeLabel)
-	if err != nil {
-		return key, err
+	if node == "" {
+		return nodeKey{}, fmt.Errorf("node is required")
 	}
-	key.Node = node
 
-	return key, nil
+	return newNodeKey(cluster, node), nil
 }
 
 type pvcKey struct {
@@ -361,28 +197,20 @@ func newPVCKey(cluster, namespace, persistentVolumeClaim string) pvcKey {
 // "cluster_id" as the pvcKey's Cluster field. If a given field does not
 // exist on the result, an error is returned. (The only exception to that is
 // clusterLabel, which we expect may not exist, but has a default value.)
-func resultPVCKey(res *prom.QueryResult, clusterLabel, namespaceLabel, pvcLabel string) (pvcKey, error) {
-	key := pvcKey{}
-
-	cluster, err := res.GetString(clusterLabel)
-	if err != nil {
+func newResultPVCKey(cluster, namespace, pvc string) (pvcKey, error) {
+	if cluster == "" {
 		cluster = env.GetClusterID()
 	}
-	key.Cluster = cluster
 
-	namespace, err := res.GetString(namespaceLabel)
-	if err != nil {
-		return key, err
+	if namespace == "" {
+		return pvcKey{}, fmt.Errorf("namespace is required")
 	}
-	key.Namespace = namespace
 
-	pvc, err := res.GetString(pvcLabel)
-	if err != nil {
-		return key, err
+	if pvc == "" {
+		return pvcKey{}, fmt.Errorf("persistentvolumeclaim is required")
 	}
-	key.PersistentVolumeClaim = pvc
 
-	return key, nil
+	return newPVCKey(cluster, namespace, pvc), nil
 }
 
 type pvKey struct {
@@ -401,26 +229,13 @@ func newPVKey(cluster, persistentVolume string) pvKey {
 	}
 }
 
-// resultPVKey converts a Prometheus query result to a pvKey by
-// looking up values associated with the given label names. For example,
-// passing "cluster_id" for clusterLabel will use the value of the label
-// "cluster_id" as the pvKey's Cluster field. If a given field does not
-// exist on the result, an error is returned. (The only exception to that is
-// clusterLabel, which we expect may not exist, but has a default value.)
-func resultPVKey(res *prom.QueryResult, clusterLabel, persistentVolumeLabel string) (pvKey, error) {
-	key := pvKey{}
-
-	cluster, err := res.GetString(clusterLabel)
-	if err != nil {
+func newResultPVKey(cluster, pv string) (pvKey, error) {
+	if cluster == "" {
 		cluster = env.GetClusterID()
 	}
-	key.Cluster = cluster
-
-	persistentVolume, err := res.GetString(persistentVolumeLabel)
-	if err != nil {
-		return key, err
+	if pv == "" {
+		return pvKey{}, fmt.Errorf("persistentvolume is required")
 	}
-	key.PersistentVolume = persistentVolume
 
-	return key, nil
+	return newPVKey(cluster, pv), nil
 }

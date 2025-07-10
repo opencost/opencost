@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/opencost/opencost/core/pkg/util/json"
 )
 
 func checkSlice(s1, s2 []string) error {
@@ -95,6 +97,53 @@ func TestKubeLabelsToPromLabels(t *testing.T) {
 	}
 }
 
+func TestKubePrependQualifierToLabelsDuplicates(t *testing.T) {
+	// 7 expected labels/values
+	expectedLabels := []string{
+		"label_app_",
+		"label_chart",
+		"label_control_plane",
+		"label_gatekeeper_sh_operation",
+		"label_heritage",
+		"label_pod_template_hash",
+		"label_release",
+	}
+	expectedValues := []string{
+		"gatekeeper",
+		"gatekeeper",
+		"audit-controller",
+		"audit",
+		"Helm",
+		"5599859cd4",
+		"gatekeeper",
+	}
+
+	// 8 input labels/values, with one duplicate label
+	kubeLabels := map[string]string{
+		// app- will be sanitized to app_
+		"app-":                    "gatekeeper",
+		"app_":                    "gatekeeper",
+		"chart":                   "gatekeeper",
+		"control-plane":           "audit-controller",
+		"gatekeeper.sh/operation": "audit",
+		"heritage":                "Helm",
+		"pod-template-hash":       "5599859cd4",
+		"release":                 "gatekeeper",
+	}
+
+	labels, values := KubePrependQualifierToLabels(kubeLabels, "label_")
+
+	// Check to make sure we get expected labels and values returned
+	err := checkSlice(labels, expectedLabels)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	err = checkSlice(values, expectedValues)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+}
+
 func TestSanitizeLabels(t *testing.T) {
 	type testCase struct {
 		in  map[string]string
@@ -156,5 +205,25 @@ func TestSanitizeLabels(t *testing.T) {
 				t.Errorf("sanitizing labels failed for case %s: %+v != %+v", name, tc.exp, act)
 			}
 		})
+	}
+}
+
+func TestClusterInfoLabels(t *testing.T) {
+	expected := map[string]bool{"clusterprofile": true, "errorreporting": true, "id": true, "logcollection": true, "name": true, "productanalytics": true, "provider": true, "provisioner": true, "remotereadenabled": true, "thanosenabled": true, "valuesreporting": true, "version": true}
+	clusterInfo := `{"clusterProfile":"production","errorReporting":"true","id":"cluster-one","logCollection":"true","name":"bolt-3","productAnalytics":"true","provider":"GCP","provisioner":"GKE","remoteReadEnabled":"false","thanosEnabled":"false","valuesReporting":"true","version":"1.14+"}`
+
+	var m map[string]any
+	err := json.Unmarshal([]byte(clusterInfo), &m)
+	if err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+
+	labels := MapToLabels(m)
+	for k := range expected {
+		if _, ok := labels[k]; !ok {
+			t.Errorf("Failed to locate key: \"%s\" in labels.", k)
+			return
+		}
 	}
 }

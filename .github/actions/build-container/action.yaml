@@ -52,5 +52,8 @@ runs:
 
       - name: Build and push (multiarch) OpenCost
         shell: bash
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
         run: |
-          just build '${{ inputs.image_tag }}' '${{ inputs.release_version }}'
+          just build '$IMAGE_TAG' '$RELEASE_VERSION'

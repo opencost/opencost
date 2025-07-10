@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/pkg/cloud/models"
-	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -332,10 +332,10 @@ func NodeValueFromMapField(m string, n *clustercache.Node, useRegion bool) strin
 		if mf[1] == "name" {
 			return toReturn + n.Name
 		} else if mf[1] == "labels" {
-			lkey := strings.Join(mf[2:len(mf)], ".")
+			lkey := strings.Join(mf[2:], ".")
 			return toReturn + n.Labels[lkey]
 		} else if mf[1] == "annotations" {
-			akey := strings.Join(mf[2:len(mf)], ".")
+			akey := strings.Join(mf[2:], ".")
 			return toReturn + n.Annotations[akey]
 		} else {
 			log.DedupedInfof(10, "Unsupported InstanceIDField %s in CSV For Node", m)
@@ -353,10 +353,10 @@ func PVValueFromMapField(m string, n *clustercache.PersistentVolume) string {
 		if mf[1] == "name" {
 			return n.Name
 		} else if mf[1] == "labels" {
-			lkey := strings.Join(mf[2:len(mf)], "")
+			lkey := strings.Join(mf[2:], "")
 			return n.Labels[lkey]
 		} else if mf[1] == "annotations" {
-			akey := strings.Join(mf[2:len(mf)], "")
+			akey := strings.Join(mf[2:], "")
 			return n.Annotations[akey]
 		} else {
 			log.Errorf("Unsupported InstanceIDField %s in CSV For PV", m)

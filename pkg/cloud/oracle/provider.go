@@ -5,15 +5,14 @@ import (
 	"io"
 	"strconv"
 	"sync"
-	"time"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
-	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
 )
 
@@ -300,10 +299,6 @@ func (o *Oracle) GetDisks() ([]byte, error) {
 
 func (o *Oracle) GetOrphanedResources() ([]models.OrphanedResource, error) {
 	return nil, nil
-}
-
-func (o *Oracle) GetLocalStorageQuery(duration time.Duration, duration2 time.Duration, b bool, b2 bool) string {
-	return ""
 }
 
 func (o *Oracle) ApplyReservedInstancePricing(m map[string]*models.Node) {}

@@ -7,17 +7,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
+	"github.com/opencost/opencost/core/pkg/errors"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/atomic"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/pkg/cloud/models"
-	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/errors"
 	"github.com/opencost/opencost/pkg/metrics"
-	"github.com/opencost/opencost/pkg/prom"
 
 	promclient "github.com/prometheus/client_golang/api"
 	"github.com/prometheus/client_golang/prometheus"
@@ -137,7 +137,7 @@ var (
 )
 
 // initCostModelMetrics uses a sync.Once to ensure that these metrics are only created once
-func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider models.Provider, clusterInfo clusters.ClusterInfoProvider, metricsConfig *metrics.MetricsConfig) {
+func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfig *metrics.MetricsConfig) {
 
 	disabledMetrics := metricsConfig.GetDisabledMetricsMap()
 	var toRegisterGV []*prometheus.GaugeVec
@@ -324,7 +324,7 @@ type CostModelMetricsEmitter struct {
 }
 
 // NewCostModelMetricsEmitter creates a new cost-model metrics emitter. Use Start() to begin metric emission.
-func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clustercache.ClusterCache, provider models.Provider, clusterInfo clusters.ClusterInfoProvider, model *CostModel) *CostModelMetricsEmitter {
+func NewCostModelMetricsEmitter(clusterCache clustercache.ClusterCache, provider models.Provider, clusterInfo clusters.ClusterInfoProvider, model *CostModel) *CostModelMetricsEmitter {
 
 	// Get metric configurations, if any
 	metricsConfig, err := metrics.GetMetricsConfig()
@@ -337,7 +337,7 @@ func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clust
 	}
 
 	// init will only actually execute once to register the custom gauges
-	initCostModelMetrics(clusterCache, provider, clusterInfo, metricsConfig)
+	initCostModelMetrics(clusterInfo, metricsConfig)
 
 	metrics.InitKubeMetrics(clusterCache, metricsConfig, &metrics.KubeMetricsOpts{
 		EmitKubecostControllerMetrics: true,
@@ -351,7 +351,6 @@ func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clust
 	metrics.InitOpencostTelemetry(metricsConfig)
 
 	return &CostModelMetricsEmitter{
-		PrometheusClient:              promClient,
 		KubeClusterCache:              clusterCache,
 		CloudProvider:                 provider,
 		Model:                         model,
@@ -453,25 +452,26 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				cmme.NetworkInternetEgressRecorder.Set(networkCosts.InternetNetworkEgressCost)
 			}
 
-			// TODO: Pass PrometheusClient and CloudProvider into CostModel on instantiation so this isn't so awkward
-			data, err := cmme.Model.ComputeCostData(cmme.PrometheusClient, cmme.CloudProvider, "2m", "", "")
+			end := time.Now()
+			start := end.Add(-time.Minute * 2)
+
+			data, err := cmme.Model.ComputeCostData(start, end)
 			if err != nil {
 				// For an error collection, we'll just log the length of the errors (ComputeCostData already logs the
 				// actual errors)
-				if prom.IsErrorCollection(err) {
-					if ec, ok := err.(prom.QueryErrorCollection); ok {
+				if source.IsErrorCollection(err) {
+					if ec, ok := err.(source.QueryErrorCollection); ok {
 						log.Errorf("Error in price recording: %d errors occurred", len(ec.Errors()))
 					}
 				} else {
-					log.Errorf("Error in price recording: " + err.Error())
+					log.Errorf("Error in price recording: %s", err)
 				}
 
 				// zero the for loop so the time.Sleep will still work
 				data = map[string]*CostData{}
 			}
 
-			// TODO: Pass CloudProvider into CostModel on instantiation so this isn't so awkward
-			nodes, err := cmme.Model.GetNodeCost(cmme.CloudProvider)
+			nodes, err := cmme.Model.GetNodeCost()
 			if err != nil {
 				log.Warnf("Error getting Node cost: %s", err)
 			}
@@ -570,8 +570,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				nodeSeen[labelKey] = true
 			}
 
-			// TODO: Pass CloudProvider into CostModel on instantiation so this isn't so awkward
-			loadBalancers, err := cmme.Model.GetLBCost(cmme.CloudProvider)
+			loadBalancers, err := cmme.Model.GetLBCost()
 			if err != nil {
 				log.Warnf("Error getting LoadBalancer cost: %s", err)
 			}
@@ -680,8 +679,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					Parameters: parameters,
 				}
 
-				// TODO: GetPVCost should be a method in CostModel?
-				GetPVCost(cacPv, pv, cmme.CloudProvider, region)
+				cmme.Model.GetPVCost(cacPv, pv, region)
 				c, _ := strconv.ParseFloat(cacPv.Cost, 64)
 				cmme.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name, cacPv.ProviderID).Set(c)
 				labelKey := getKeyFromLabelStrings(pv.Name, pv.Name, cacPv.ProviderID)

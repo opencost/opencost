@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"math"
 	"math/rand"
+	"runtime"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestBufferReadWrite(t *testing.T) {
@@ -224,6 +227,60 @@ func generateRandomString(ln int) string {
 		b[i] = letters[rand.Intn(len(letters))]
 	}
 	return string(b)
+}
+
+func memMib() float64 {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	return float64(m.Alloc) / 1024.0 / 1024.0
+}
+
+func TestStringBytes(t *testing.T) {
+	baselineMem := memMib()
+
+	b := make([]byte, 10<<20)
+
+	afterMem := memMib()
+	delta := afterMem - baselineMem
+	t.Logf("Allocated %v MiB, Delta: %v MiB", afterMem, delta)
+
+	s := "Hello World!"
+	sl := b[512 : 512+len(s)]
+	copy(sl, stringToBytes(s))
+
+	afterMem = memMib()
+	delta = afterMem - baselineMem
+	t.Logf("Allocated %v MiB, Delta: %v MiB", afterMem, delta)
+
+	// this should pin the large backing array in memory, preventing it from being GC'd
+	newS := bytesToString(sl)
+
+	runtime.GC()
+	time.Sleep(time.Second)
+
+	afterMem = memMib()
+	delta = afterMem - baselineMem
+	t.Logf("S: %s, Allocated %v MiB, Delta: %v MiB", newS, afterMem, delta)
+
+	// copy the string into a new string and clear out pinned string
+	sCopy := strings.Clone(newS)
+	newS = ""
+
+	// Now that we've dropped the reference to the pinned backing array, it should be GC'd
+	runtime.GC()
+	time.Sleep(time.Second)
+
+	afterMem = memMib()
+	delta = afterMem - baselineMem
+	t.Logf("S: %s, Allocated %v MiB, Delta: %v MiB", sCopy, afterMem, delta)
+
+	if sCopy != s {
+		t.Errorf("Expected string to be %v, got %v", s, sCopy)
+	}
+
+	if delta > 0.5 {
+		t.Errorf("Expected memory delta to be less than 0.5 MiB, got %v MiB", delta)
+	}
 }
 
 func TestTooLargeStringTruncate(t *testing.T) {

@@ -11,10 +11,27 @@ test-core:
     {{commonenv}} cd ./core && go test ./... -coverprofile=coverage.out
     {{commonenv}} cd ./core && go vet ./...
 
-# Run unit tests
-test: test-core
+# run prometheus-source unit tests 
+test-prometheus-source:
+    {{commonenv}} cd ./modules/prometheus-source && go test ./... -coverprofile=coverage.out
+    {{commonenv}} cd ./modules/prometheus-source && go vet ./...
+
+# run collector-source unit tests
+test-collector-source:
+    {{commonenv}} cd ./modules/collector-source && go test ./... -coverprofile=coverage.out
+    {{commonenv}} cd ./modules/collector-source && go vet ./...
+
+# run the opencost unit tests 
+test-opencost: 
     {{commonenv}} go test ./... -coverprofile=coverage.out
+    {{commonenv}} go tool cover -html=coverage.out -o coverage.html
     {{commonenv}} go vet ./...
+
+# Run unit tests, merge coverage reports, remove old reports 
+test: test-core test-prometheus-source test-collector-source test-opencost
+    find . -name "coverage.out" -print0 | xargs -0 cat > coverage.new
+    find . -name "coverage.out" -delete
+    mv coverage.new coverage.out
 
 # Run unit tests and integration tests
 test-integration:
@@ -46,7 +63,7 @@ build-binary VERSION=version:
         -o ./costmodel-arm64
 
 # Build and push a multi-arch Docker image
-build IMAGE_TAG RELEASE_VERSION: test (build-binary RELEASE_VERSION)
+build IMAGE_TAG RELEASE_VERSION: (build-binary RELEASE_VERSION)
     docker buildx build \
         --rm \
         --platform "linux/amd64" \

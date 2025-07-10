@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
@@ -9,8 +10,9 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/prom"
 )
 
 // mergeTypeMaps takes two maps of (cluster name, node name) -> node type
@@ -31,14 +33,10 @@ func mergeTypeMaps(clusterAndNameToType1, clusterAndNameToType2 map[nodeIdentifi
 }
 
 func buildCPUCostMap(
-	resNodeCPUCost []*prom.QueryResult,
+	resNodeCPUCost []*source.NodeCPUPricePerHrResult,
 	cp models.Provider,
 	preemptible map[NodeIdentifier]bool,
-) (
-	map[NodeIdentifier]float64,
-	map[nodeIdentifierNoProviderID]string,
-) {
-
+) (map[NodeIdentifier]float64, map[nodeIdentifierNoProviderID]string) {
 	cpuCostMap := make(map[NodeIdentifier]float64)
 	clusterAndNameToType := make(map[nodeIdentifierNoProviderID]string)
 
@@ -49,19 +47,19 @@ func buildCPUCostMap(
 	}
 
 	for _, result := range resNodeCPUCost {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("node")
-		if err != nil {
+		name := result.Node
+		if name == "" {
 			log.Warnf("ClusterNodes: CPU cost data missing node")
 			continue
 		}
 
-		nodeType, _ := result.GetString("instance_type")
-		providerID, _ := result.GetString("provider_id")
+		nodeType := result.InstanceType
+		providerID := result.ProviderID
 
 		key := NodeIdentifier{
 			Cluster:    cluster,
@@ -91,9 +89,7 @@ func buildCPUCostMap(
 			cpuCost = customCPUCost
 
 		} else {
-
-			cpuCost = result.Values[0].Value
-
+			cpuCost = result.Data[0].Value
 		}
 
 		clusterAndNameToType[keyNon] = nodeType
@@ -105,14 +101,10 @@ func buildCPUCostMap(
 }
 
 func buildRAMCostMap(
-	resNodeRAMCost []*prom.QueryResult,
+	resNodeRAMCost []*source.NodeRAMPricePerGiBHrResult,
 	cp models.Provider,
 	preemptible map[NodeIdentifier]bool,
-) (
-	map[NodeIdentifier]float64,
-	map[nodeIdentifierNoProviderID]string,
-) {
-
+) (map[NodeIdentifier]float64, map[nodeIdentifierNoProviderID]string) {
 	ramCostMap := make(map[NodeIdentifier]float64)
 	clusterAndNameToType := make(map[nodeIdentifierNoProviderID]string)
 
@@ -123,19 +115,19 @@ func buildRAMCostMap(
 	}
 
 	for _, result := range resNodeRAMCost {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("node")
-		if err != nil {
+		name := result.Node
+		if name == "" {
 			log.Warnf("ClusterNodes: RAM cost data missing node")
 			continue
 		}
 
-		nodeType, _ := result.GetString("instance_type")
-		providerID, _ := result.GetString("provider_id")
+		nodeType := result.InstanceType
+		providerID := result.ProviderID
 
 		key := NodeIdentifier{
 			Cluster:    cluster,
@@ -162,49 +154,51 @@ func buildRAMCostMap(
 			if err != nil {
 				log.Warnf("ClusterNodes: error parsing custom RAM price: %s", customRAMStr)
 			}
-			ramCost = customRAMCost / 1024 / 1024 / 1024
+			ramCost = customRAMCost
 
 		} else {
-
-			ramCost = result.Values[0].Value
-
+			ramCost = result.Data[0].Value
 		}
 
 		clusterAndNameToType[keyNon] = nodeType
 
-		ramCostMap[key] = ramCost
+		// covert to price per byte/hr
+		ramCostMap[key] = ramCost / 1024.0 / 1024.0 / 1024.0
 	}
 
 	return ramCostMap, clusterAndNameToType
 }
 
 func buildGPUCostMap(
-	resNodeGPUCost []*prom.QueryResult,
+	resNodeGPUCost []*source.NodeGPUPricePerHrResult,
 	gpuCountMap map[NodeIdentifier]float64,
 	cp models.Provider,
 	preemptible map[NodeIdentifier]bool,
-) (
-	map[NodeIdentifier]float64,
-	map[nodeIdentifierNoProviderID]string,
-) {
+) (map[NodeIdentifier]float64, map[nodeIdentifierNoProviderID]string) {
 
 	gpuCostMap := make(map[NodeIdentifier]float64)
 	clusterAndNameToType := make(map[nodeIdentifierNoProviderID]string)
 
+	customPricingEnabled := provider.CustomPricesEnabled(cp)
+	customPricingConfig, err := cp.GetConfig()
+	if err != nil {
+		log.Warnf("ClusterNodes: failed to load custom pricing: %s", err)
+	}
+
 	for _, result := range resNodeGPUCost {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("node")
-		if err != nil {
+		name := result.Node
+		if name == "" {
 			log.Warnf("ClusterNodes: GPU cost data missing node")
 			continue
 		}
 
-		nodeType, _ := result.GetString("instance_type")
-		providerID, _ := result.GetString("provider_id")
+		nodeType := result.InstanceType
+		providerID := result.ProviderID
 
 		key := NodeIdentifier{
 			Cluster:    cluster,
@@ -216,11 +210,31 @@ func buildGPUCostMap(
 			Name:    name,
 		}
 
+		var gpuCost float64
+
+		if customPricingEnabled && customPricingConfig != nil {
+
+			var customGPUStr string
+			if spot, ok := preemptible[key]; ok && spot {
+				customGPUStr = customPricingConfig.SpotGPU
+			} else {
+				customGPUStr = customPricingConfig.GPU
+			}
+
+			customGPUCost, err := strconv.ParseFloat(customGPUStr, 64)
+			if err != nil {
+				log.Warnf("ClusterNodes: error parsing custom GPU price: %s", customGPUStr)
+			}
+			gpuCost = customGPUCost
+
+		} else {
+			gpuCost = result.Data[0].Value
+		}
+
 		clusterAndNameToType[keyNon] = nodeType
 
 		// If gpu count is available use it to multiply gpu cost
 		if value, ok := gpuCountMap[key]; ok {
-			gpuCost := result.Values[0].Value
 			gpuCostMap[key] = gpuCost * value
 		} else {
 			gpuCostMap[key] = 0
@@ -231,26 +245,23 @@ func buildGPUCostMap(
 	return gpuCostMap, clusterAndNameToType
 }
 
-func buildGPUCountMap(
-	resNodeGPUCount []*prom.QueryResult,
-) map[NodeIdentifier]float64 {
-
+func buildGPUCountMap(resNodeGPUCount []*source.NodeGPUCountResult) map[NodeIdentifier]float64 {
 	gpuCountMap := make(map[NodeIdentifier]float64)
 
 	for _, result := range resNodeGPUCount {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("node")
-		if err != nil {
+		name := result.Node
+		if name == "" {
 			log.Warnf("ClusterNodes: GPU count data missing node")
 			continue
 		}
 
-		gpuCount := result.Values[0].Value
-		providerID, _ := result.GetString("provider_id")
+		gpuCount := result.Data[0].Value
+		providerID := result.ProviderID
 
 		key := NodeIdentifier{
 			Cluster:    cluster,
@@ -263,25 +274,22 @@ func buildGPUCountMap(
 	return gpuCountMap
 }
 
-func buildCPUCoresMap(
-	resNodeCPUCores []*prom.QueryResult,
-) map[nodeIdentifierNoProviderID]float64 {
-
+func buildCPUCoresMap(resNodeCPUCores []*source.NodeCPUCoresCapacityResult) map[nodeIdentifierNoProviderID]float64 {
 	m := make(map[nodeIdentifierNoProviderID]float64)
 
 	for _, result := range resNodeCPUCores {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("node")
-		if err != nil {
+		name := result.Node
+		if name == "" {
 			log.Warnf("ClusterNodes: CPU cores data missing node")
 			continue
 		}
 
-		cpuCores := result.Values[0].Value
+		cpuCores := result.Data[0].Value
 
 		key := nodeIdentifierNoProviderID{
 			Cluster: cluster,
@@ -293,23 +301,22 @@ func buildCPUCoresMap(
 	return m
 }
 
-func buildRAMBytesMap(resNodeRAMBytes []*prom.QueryResult) map[nodeIdentifierNoProviderID]float64 {
-
+func buildRAMBytesMap(resNodeRAMBytes []*source.NodeRAMBytesCapacityResult) map[nodeIdentifierNoProviderID]float64 {
 	m := make(map[nodeIdentifierNoProviderID]float64)
 
 	for _, result := range resNodeRAMBytes {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("node")
-		if err != nil {
+		name := result.Node
+		if name == "" {
 			log.Warnf("ClusterNodes: RAM bytes data missing node")
 			continue
 		}
 
-		ramBytes := result.Values[0].Value
+		ramBytes := result.Data[0].Value
 
 		key := nodeIdentifierNoProviderID{
 			Cluster: cluster,
@@ -322,8 +329,7 @@ func buildRAMBytesMap(resNodeRAMBytes []*prom.QueryResult) map[nodeIdentifierNoP
 }
 
 // Mapping of cluster/node=cpu for computing resource efficiency
-func buildCPUBreakdownMap(resNodeCPUModeTotal []*prom.QueryResult) map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown {
-
+func buildCPUBreakdownMap(resNodeCPUModeTotal []*source.NodeCPUModeTotalResult) map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown {
 	cpuBreakdownMap := make(map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown)
 
 	// Mapping of cluster/node=cpu for computing resource efficiency
@@ -334,20 +340,20 @@ func buildCPUBreakdownMap(resNodeCPUModeTotal []*prom.QueryResult) map[nodeIdent
 	// Build intermediate structures for CPU usage by (cluster, node) and by
 	// (cluster, node, mode) for computing resouce efficiency
 	for _, result := range resNodeCPUModeTotal {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		node, err := result.GetString("kubernetes_node")
-		if err != nil {
+		node := result.Node
+		if node == "" {
 			log.DedupedWarningf(5, "ClusterNodes: CPU mode data missing node")
 			continue
 		}
 
-		mode, err := result.GetString("mode")
-		if err != nil {
-			log.Warnf("ClusterNodes: unable to read CPU mode: %s", err)
+		mode := result.Mode
+		if mode == "" {
+			log.Warnf("ClusterNodes: unable to read CPU mode data.")
 			mode = "other"
 		}
 
@@ -356,7 +362,7 @@ func buildCPUBreakdownMap(resNodeCPUModeTotal []*prom.QueryResult) map[nodeIdent
 			Name:    node,
 		}
 
-		total := result.Values[0].Value
+		total := result.Data[0].Value
 
 		// Increment total
 		clusterNodeCPUTotal[key] += total
@@ -436,23 +442,22 @@ func buildOverheadMap(capRam, allocRam, capCPU, allocCPU map[nodeIdentifierNoPro
 	return m
 }
 
-func buildRAMUserPctMap(resNodeRAMUserPct []*prom.QueryResult) map[nodeIdentifierNoProviderID]float64 {
-
+func buildRAMUserPctMap(resNodeRAMUserPct []*source.NodeRAMUserPercentResult) map[nodeIdentifierNoProviderID]float64 {
 	m := make(map[nodeIdentifierNoProviderID]float64)
 
 	for _, result := range resNodeRAMUserPct {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("instance")
-		if err != nil {
+		name := result.Instance
+		if name == "" {
 			log.Warnf("ClusterNodes: RAM user percent missing node")
 			continue
 		}
 
-		pct := result.Values[0].Value
+		pct := result.Data[0].Value
 
 		key := nodeIdentifierNoProviderID{
 			Cluster: cluster,
@@ -465,23 +470,23 @@ func buildRAMUserPctMap(resNodeRAMUserPct []*prom.QueryResult) map[nodeIdentifie
 	return m
 }
 
-func buildRAMSystemPctMap(resNodeRAMSystemPct []*prom.QueryResult) map[nodeIdentifierNoProviderID]float64 {
+func buildRAMSystemPctMap(resNodeRAMSystemPct []*source.NodeRAMSystemPercentResult) map[nodeIdentifierNoProviderID]float64 {
 
 	m := make(map[nodeIdentifierNoProviderID]float64)
 
 	for _, result := range resNodeRAMSystemPct {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("instance")
-		if err != nil {
+		name := result.Instance
+		if name == "" {
 			log.Warnf("ClusterNodes: RAM system percent missing node")
 			continue
 		}
 
-		pct := result.Values[0].Value
+		pct := result.Data[0].Value
 
 		key := nodeIdentifierNoProviderID{
 			Cluster: cluster,
@@ -500,38 +505,107 @@ type activeData struct {
 	minutes float64
 }
 
-func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Duration, window opencost.Window) map[NodeIdentifier]activeData {
+// cluster management key gen
+func clusterManagementKeyGen(result *source.ClusterManagementDurationResult) (ClusterManagementIdentifier, bool) {
+	cluster := result.Cluster
+	if cluster == "" {
+		cluster = env.GetClusterID()
+	}
 
-	m := make(map[NodeIdentifier]activeData)
+	provisionerName := result.Provisioner
 
-	for _, result := range resActiveMins {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
+	return ClusterManagementIdentifier{
+		Cluster:     cluster,
+		Provisioner: provisionerName,
+	}, true
+}
 
-		name, err := result.GetString("node")
-		if err != nil {
-			log.Warnf("ClusterNodes: active mins missing node")
+func clusterManagementValues(result *source.ClusterManagementDurationResult) []*util.Vector {
+	return result.Data
+}
+
+// node key gen
+func nodeKeyGen(result *source.NodeActiveMinutesResult) (NodeIdentifier, bool) {
+	cluster := result.Cluster
+	if cluster == "" {
+		cluster = env.GetClusterID()
+	}
+
+	name := result.Node
+	if name == "" {
+		log.Warnf("ClusterNodes: active mins missing node")
+		return NodeIdentifier{}, false
+	}
+
+	providerID := result.ProviderID
+	return NodeIdentifier{
+		Cluster:    cluster,
+		Name:       name,
+		ProviderID: provider.ParseID(providerID),
+	}, true
+}
+
+func nodeValues(result *source.NodeActiveMinutesResult) []*util.Vector {
+	return result.Data
+}
+
+func loadBalancerKeyGen(result *source.LBActiveMinutesResult) (LoadBalancerIdentifier, bool) {
+	cluster := result.Cluster
+	if cluster == "" {
+		cluster = env.GetClusterID()
+	}
+
+	namespace := result.Namespace
+	if namespace == "" {
+		log.Warnf("ClusterLoadBalancers: LB cost data missing namespace")
+		return LoadBalancerIdentifier{}, false
+	}
+
+	name := result.Service
+	if name == "" {
+		log.Warnf("ClusterLoadBalancers: LB cost data missing service_name")
+		return LoadBalancerIdentifier{}, false
+	}
+
+	ingressIp := result.IngressIP
+	if ingressIp == "" {
+		log.DedupedWarningf(5, "ClusterLoadBalancers: LB cost data missing ingress_ip")
+		// only update asset cost when an actual IP was returned
+		return LoadBalancerIdentifier{}, false
+	}
+
+	return LoadBalancerIdentifier{
+		Cluster:   cluster,
+		Namespace: namespace,
+		Name:      fmt.Sprintf("%s/%s", namespace, name), // TODO:ETL this is kept for backwards-compatibility, but not good,
+		IngressIP: ingressIp,
+	}, true
+}
+
+func lbValues(result *source.LBActiveMinutesResult) []*util.Vector {
+	return result.Data
+}
+
+func buildActiveDataMap[T comparable, U any](
+	results []*U,
+	keyGen func(*U) (T, bool),
+	valuesFunc func(*U) []*util.Vector,
+	resolution time.Duration,
+	window opencost.Window,
+) map[T]activeData {
+	m := make(map[T]activeData)
+
+	for _, result := range results {
+		key, ok := keyGen(result)
+		values := valuesFunc(result)
+
+		if !ok || len(values) == 0 {
 			continue
 		}
 
-		providerID, _ := result.GetString("provider_id")
-
-		key := NodeIdentifier{
-			Cluster:    cluster,
-			Name:       name,
-			ProviderID: provider.ParseID(providerID),
-		}
-
-		if len(result.Values) == 0 {
-			continue
-		}
-
-		s, e := calculateStartAndEnd(result, resolution, window)
+		s, e := calculateStartAndEnd(values, resolution, window)
 		mins := e.Sub(s).Minutes()
 
-		// TODO niko/assets if mins >= threshold, interpolate for missing data?
 		m[key] = activeData{
 			start:   s,
 			end:     e,
@@ -545,32 +619,32 @@ func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Durat
 // Determine preemptibility with node labels
 // node id -> is preemptible?
 func buildPreemptibleMap(
-	resIsSpot []*prom.QueryResult,
+	resIsSpot []*source.NodeIsSpotResult,
 ) map[NodeIdentifier]bool {
 
 	m := make(map[NodeIdentifier]bool)
 
 	for _, result := range resIsSpot {
-		nodeName, err := result.GetString("node")
-		if err != nil {
-			continue
-		}
-
-		// GCP preemptible label
-		pre := result.Values[0].Value
-
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
 
-		providerID, _ := result.GetString("provider_id")
+		name := result.Node
+		if name == "" {
+			log.Warnf("ClusterNodes: active mins missing node")
+			continue
+		}
 
+		providerID := result.ProviderID
 		key := NodeIdentifier{
 			Cluster:    cluster,
-			Name:       nodeName,
+			Name:       name,
 			ProviderID: provider.ParseID(providerID),
 		}
+
+		// GCP preemptible label
+		pre := result.Data[0].Value
 
 		// TODO(michaelmdresser): check this condition at merge time?
 		// if node, ok := nodeMap[key]; pre > 0.0 && ok {
@@ -586,20 +660,67 @@ func buildPreemptibleMap(
 	return m
 }
 
+func buildAssetsPVCMap(resPVCInfo []*source.PVCInfoResult) map[DiskIdentifier]*Disk {
+	diskMap := map[DiskIdentifier]*Disk{}
+
+	for _, result := range resPVCInfo {
+		cluster := result.Cluster
+		if cluster == "" {
+			cluster = env.GetClusterID()
+		}
+
+		volumeName := result.VolumeName
+		if volumeName == "" {
+			log.Debugf("ClusterDisks: pv claim data missing volumename")
+			continue
+		}
+		claimName := result.PersistentVolumeClaim
+		if claimName == "" {
+			log.Debugf("ClusterDisks: pv claim data missing persistentvolumeclaim")
+			continue
+		}
+
+		claimNamespace := result.Namespace
+		if claimNamespace == "" {
+			log.Debugf("ClusterDisks: pv claim data missing namespace")
+			continue
+		}
+
+		key := DiskIdentifier{
+			Cluster: cluster,
+			Name:    volumeName,
+		}
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      volumeName,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+
+		diskMap[key].VolumeName = volumeName
+		diskMap[key].ClaimName = claimName
+		diskMap[key].ClaimNamespace = claimNamespace
+	}
+
+	return diskMap
+}
+
 func buildLabelsMap(
-	resLabels []*prom.QueryResult,
+	resLabels []*source.NodeLabelsResult,
 ) map[nodeIdentifierNoProviderID]map[string]string {
 
 	m := make(map[nodeIdentifierNoProviderID]map[string]string)
 
 	// Copy labels into node
 	for _, result := range resLabels {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
+		cluster := result.Cluster
+		if cluster == "" {
 			cluster = env.GetClusterID()
 		}
-		node, err := result.GetString("node")
-		if err != nil {
+
+		node := result.Node
+		if node == "" {
 			log.DedupedWarningf(5, "ClusterNodes: label data missing node")
 			continue
 		}
@@ -615,7 +736,7 @@ func buildLabelsMap(
 		if _, ok := m[key]; !ok {
 			m[key] = map[string]string{}
 		}
-		for k, l := range result.GetLabels() {
+		for k, l := range result.Labels {
 			m[key][k] = l
 		}
 	}
@@ -718,7 +839,6 @@ func buildNodeMap(
 	preemptibleMap map[NodeIdentifier]bool,
 	labelsMap map[nodeIdentifierNoProviderID]map[string]string,
 	clusterAndNameToType map[nodeIdentifierNoProviderID]string,
-	res time.Duration,
 	overheadMap map[nodeIdentifierNoProviderID]*NodeOverhead,
 ) map[NodeIdentifier]*Node {
 

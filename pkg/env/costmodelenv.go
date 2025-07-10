@@ -1,7 +1,6 @@
 package env
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/env"
@@ -10,7 +9,8 @@ import (
 )
 
 const (
-	APIPortEnvVar = "API_PORT"
+	APIPortEnvVar          = "API_PORT"
+	NetworkCostsPortEnvVar = "NETWORK_COSTS_PORT"
 
 	AWSAccessKeyIDEnvVar     = "AWS_ACCESS_KEY_ID"
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
@@ -24,25 +24,22 @@ const (
 	AzureBillingAccountEnvVar            = "AZURE_BILLING_ACCOUNT"
 	AzureDownloadBillingDataToDiskEnvVar = "AZURE_DOWNLOAD_BILLING_DATA_TO_DISK"
 
-	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
-	KubecostScrapeIntervalEnvVar   = "KUBECOST_SCRAPE_INTERVAL"
-	PodNameEnvVar                  = "POD_NAME"
-	ClusterIDEnvVar                = "CLUSTER_ID"
-	ClusterProfileEnvVar           = "CLUSTER_PROFILE"
-	PrometheusServerEndpointEnvVar = "PROMETHEUS_SERVER_ENDPOINT"
-	MaxQueryConcurrencyEnvVar      = "MAX_QUERY_CONCURRENCY"
-	QueryLoggingFileEnvVar         = "QUERY_LOGGING_FILE"
-	RemoteEnabledEnvVar            = "REMOTE_WRITE_ENABLED"
-	RemotePWEnvVar                 = "REMOTE_WRITE_PASSWORD"
-	SQLAddressEnvVar               = "SQL_ADDRESS"
-	UseCSVProviderEnvVar           = "USE_CSV_PROVIDER"
-	UseCustomProviderEnvVar        = "USE_CUSTOM_PROVIDER"
-	CSVRegionEnvVar                = "CSV_REGION"
-	CSVEndpointEnvVar              = "CSV_ENDPOINT"
-	CSVPathEnvVar                  = "CSV_PATH"
-	ConfigPathEnvVar               = "CONFIG_PATH"
-	CloudProviderAPIKeyEnvVar      = "CLOUD_PROVIDER_API_KEY"
-	DisableAggregateCostModelCache = "DISABLE_AGGREGATE_COST_MODEL_CACHE"
+	ReleaseNameEnvVar                = "RELEASE_NAME"
+	PodNameEnvVar                    = "POD_NAME"
+	ClusterIDEnvVar                  = "CLUSTER_ID"
+	ClusterProfileEnvVar             = "CLUSTER_PROFILE"
+	RemoteEnabledEnvVar              = "REMOTE_WRITE_ENABLED"
+	RemotePWEnvVar                   = "REMOTE_WRITE_PASSWORD"
+	SQLAddressEnvVar                 = "SQL_ADDRESS"
+	UseCSVProviderEnvVar             = "USE_CSV_PROVIDER"
+	UseCustomProviderEnvVar          = "USE_CUSTOM_PROVIDER"
+	CSVRegionEnvVar                  = "CSV_REGION"
+	CSVEndpointEnvVar                = "CSV_ENDPOINT"
+	CSVPathEnvVar                    = "CSV_PATH"
+	ConfigPathEnvVar                 = "CONFIG_PATH"
+	CloudProviderAPIKeyEnvVar        = "CLOUD_PROVIDER_API_KEY"
+	CollectorDataSourceEnabledEnvVar = "COLLECTOR_DATA_SOURCE_ENABLED"
+	PVMountPath                      = "PV_MOUNT_PATH"
 
 	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
 	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
@@ -51,11 +48,6 @@ const (
 	EmitKsmV1MetricsEnvVar = "EMIT_KSM_V1_METRICS"
 	EmitKsmV1MetricsOnly   = "EMIT_KSM_V1_METRICS_ONLY"
 
-	ThanosEnabledEnvVar      = "THANOS_ENABLED"
-	ThanosQueryUrlEnvVar     = "THANOS_QUERY_URL"
-	ThanosOffsetEnvVar       = "THANOS_QUERY_OFFSET"
-	ThanosMaxSourceResEnvVar = "THANOS_MAX_SOURCE_RESOLUTION"
-
 	PProfEnabledEnvVar = "PPROF_ENABLED"
 
 	LogCollectionEnabledEnvVar    = "LOG_COLLECTION_ENABLED"
@@ -63,44 +55,17 @@ const (
 	ErrorReportingEnabledEnvVar   = "ERROR_REPORTING_ENABLED"
 	ValuesReportingEnabledEnvVar  = "VALUES_REPORTING_ENABLED"
 
-	DBBasicAuthUsername = "DB_BASIC_AUTH_USERNAME"
-	DBBasicAuthPassword = "DB_BASIC_AUTH_PW"
-	DBBearerToken       = "DB_BEARER_TOKEN"
-
-	MultiClusterBasicAuthUsername = "MC_BASIC_AUTH_USERNAME"
-	MultiClusterBasicAuthPassword = "MC_BASIC_AUTH_PW"
-	MultiClusterBearerToken       = "MC_BEARER_TOKEN"
-
-	InsecureSkipVerify   = "INSECURE_SKIP_VERIFY"
 	KubeRbacProxyEnabled = "KUBE_RBAC_PROXY_ENABLED"
 
 	KubeConfigPathEnvVar = "KUBECONFIG_PATH"
 
-	UTCOffsetEnvVar                  = "UTC_OFFSET"
-	CurrentClusterIdFilterEnabledVar = "CURRENT_CLUSTER_ID_FILTER_ENABLED"
+	UTCOffsetEnvVar = "UTC_OFFSET"
 
-	CacheWarmingEnabledEnvVar            = "CACHE_WARMING_ENABLED"
-	ETLEnabledEnvVar                     = "ETL_ENABLED"
-	ETLMaxPrometheusQueryDurationMinutes = "ETL_MAX_PROMETHEUS_QUERY_DURATION_MINUTES"
-	ETLResolutionSeconds                 = "ETL_RESOLUTION_SECONDS"
-	LegacyExternalAPIDisabledVar         = "LEGACY_EXTERNAL_API_DISABLED"
+	PricingConfigmapName = "PRICING_CONFIGMAP_NAME"
+	MetricsConfigmapName = "METRICS_CONFIGMAP_NAME"
 
-	PromClusterIDLabelEnvVar = "PROM_CLUSTER_ID_LABEL"
-
-	PricingConfigmapName  = "PRICING_CONFIGMAP_NAME"
-	MetricsConfigmapName  = "METRICS_CONFIGMAP_NAME"
-	KubecostJobNameEnvVar = "KUBECOST_JOB_NAME"
-
-	KubecostConfigBucketEnvVar    = "KUBECOST_CONFIG_BUCKET"
 	ClusterInfoFileEnabledEnvVar  = "CLUSTER_INFO_FILE_ENABLED"
 	ClusterCacheFileEnabledEnvVar = "CLUSTER_CACHE_FILE_ENABLED"
-
-	PrometheusQueryOffsetEnvVar                 = "PROMETHEUS_QUERY_OFFSET"
-	PrometheusRetryOnRateLimitResponseEnvVar    = "PROMETHEUS_RETRY_ON_RATE_LIMIT"
-	PrometheusRetryOnRateLimitMaxRetriesEnvVar  = "PROMETHEUS_RETRY_ON_RATE_LIMIT_MAX_RETRIES"
-	PrometheusRetryOnRateLimitDefaultWaitEnvVar = "PROMETHEUS_RETRY_ON_RATE_LIMIT_DEFAULT_WAIT"
-
-	PrometheusHeaderXScopeOrgIdEnvVar = "PROMETHEUS_HEADER_X_SCOPE_ORGID"
 
 	IngestPodUIDEnvVar = "INGEST_POD_UID"
 
@@ -116,6 +81,8 @@ const (
 	ExportCSVLabelsList = "EXPORT_CSV_LABELS_LIST"
 	ExportCSVLabelsAll  = "EXPORT_CSV_LABELS_ALL"
 	ExportCSVMaxDays    = "EXPORT_CSV_MAX_DAYS"
+
+	ExportBucketConfigFileEnvVar = "EXPORT_BUCKET_CONFIG_FILE"
 
 	DataRetentionDailyResolutionDaysEnvVar   = "DATA_RETENTION_DAILY_RESOLUTION_DAYS"
 	DataRetentionHourlyResolutionHoursEnvVar = "DATA_RETENTION_HOURLY_RESOLUTION_HOURS"
@@ -141,6 +108,20 @@ const (
 	CarbonEstimatesEnabledEnvVar = "CARBON_ESTIMATES_ENABLED"
 
 	UseCacheV1 = "USE_CACHE_V1"
+
+	InstallNamespaceEnvVar = "INSTALL_NAMESPACE"
+	ConfigBucketEnvVar     = "CONFIG_BUCKET"
+
+	// Node Stats Client Configuration
+	NodeStatsForceKubeProxyEnvVar = "NODESTATS_FORCE_KUBE_PROXY"
+	NodeStatsLocalProxyEnvVar     = "NODESTATS_LOCAL_PROXY"
+	NodeStatsInsecureEnvVar       = "NODESTATS_INSECURE"
+	NodeStatsCertFileEnvVar       = "NODESTATS_CERT_FILE"
+	NodeStatsKeyFileEnvVar        = "NODESTATS_KEY_FILE"
+
+	// Deprecated
+	KubecostNamespaceEnvVar    = "KUBECOST_NAMESPACE"
+	KubecostConfigBucketEnvVar = "KUBECOST_CONFIG_BUCKET"
 )
 
 const DefaultConfigMountPath = "/var/configs"
@@ -155,10 +136,6 @@ func GetExportCSVFile() string {
 
 func GetExportCSVLabelsAll() bool {
 	return env.GetBool(ExportCSVLabelsAll, false)
-}
-
-func GetKubecostScrapeInterval() time.Duration {
-	return env.GetDuration(KubecostScrapeIntervalEnvVar, 0)
 }
 
 func GetExportCSVLabelsList() []string {
@@ -179,10 +156,10 @@ func GetAPIPort() int {
 	return env.GetInt(APIPortEnvVar, 9003)
 }
 
-// GetKubecostConfigBucket returns a file location for a mounted bucket configuration which is used to store
-// a subset of kubecost configurations that require sharing via remote storage.
-func GetKubecostConfigBucket() string {
-	return env.Get(KubecostConfigBucketEnvVar, "")
+// GetConfigBucketFile returns a file location for a mounted bucket configuration which is used to store
+// a subset of configurations that require sharing via remote storage.
+func GetConfigBucketFile() string {
+	return env.Get(ConfigBucketEnvVar, env.Get(KubecostConfigBucketEnvVar, ""))
 }
 
 // IsClusterInfoFileEnabled returns true if the cluster info is read from a file or pulled from the local
@@ -195,53 +172,6 @@ func IsClusterInfoFileEnabled() bool {
 // kubernetes API.
 func IsClusterCacheFileEnabled() bool {
 	return env.GetBool(ClusterCacheFileEnabledEnvVar, false)
-}
-
-// IsPrometheusRetryOnRateLimitResponse will attempt to retry if a 429 response is received OR a 400 with a body containing
-// ThrottleException (common in AWS services like AMP)
-func IsPrometheusRetryOnRateLimitResponse() bool {
-	return env.GetBool(PrometheusRetryOnRateLimitResponseEnvVar, true)
-}
-
-// GetPrometheusRetryOnRateLimitMaxRetries returns the maximum number of retries that should be attempted prior to failing.
-// Only used if IsPrometheusRetryOnRateLimitResponse() is true.
-func GetPrometheusRetryOnRateLimitMaxRetries() int {
-	return env.GetInt(PrometheusRetryOnRateLimitMaxRetriesEnvVar, 5)
-}
-
-// GetPrometheusRetryOnRateLimitDefaultWait returns the default wait time for a retriable rate limit response without a
-// Retry-After header.
-func GetPrometheusRetryOnRateLimitDefaultWait() time.Duration {
-	return env.GetDuration(PrometheusRetryOnRateLimitDefaultWaitEnvVar, 100*time.Millisecond)
-}
-
-// GetPrometheusHeaderXScopeOrgId returns the default value for X-Scope-OrgID header used for requests in Mimir/Cortex-Tenant API.
-// To use Mimir(or Cortex-Tenant) instead of Prometheus add variable from cluster settings:
-// "PROMETHEUS_HEADER_X_SCOPE_ORGID": "my-cluster-name"
-// Then set Prometheus URL to prometheus API endpoint:
-// "PROMETHEUS_SERVER_ENDPOINT": "http://mimir-url/prometheus/"
-func GetPrometheusHeaderXScopeOrgId() string {
-	return env.Get(PrometheusHeaderXScopeOrgIdEnvVar, "")
-}
-
-// GetPrometheusQueryOffset returns the time.Duration to offset all prometheus queries by. NOTE: This env var is applied
-// to all non-range queries made via our query context. This should only be applied when there is a significant delay in
-// data arriving in the target prom db. For example, if supplying a thanos or cortex querier for the prometheus server, using
-// a 3h offset will ensure that current time = current time - 3h.
-//
-// This offset is NOT the same as the GetThanosOffset() option, as that is only applied to queries made specifically targeting
-// thanos. This offset is applied globally.
-func GetPrometheusQueryOffset() time.Duration {
-	offset := env.Get(PrometheusQueryOffsetEnvVar, "")
-	if offset == "" {
-		return 0
-	}
-
-	dur, err := timeutil.ParseDuration(offset)
-	if err != nil {
-		return 0
-	}
-	return dur
 }
 
 func GetPricingConfigmapName() string {
@@ -341,10 +271,10 @@ func IsAzureDownloadBillingDataToDisk() bool {
 	return env.GetBool(AzureDownloadBillingDataToDiskEnvVar, true)
 }
 
-// GetKubecostNamespace returns the environment variable value for KubecostNamespaceEnvVar which
-// represents the namespace the cost model exists in.
-func GetKubecostNamespace() string {
-	return env.Get(KubecostNamespaceEnvVar, "kubecost")
+// GetInstallNamespace returns the environment variable value that is set for the kubernetes namespace
+// this service is installed in.
+func GetInstallNamespace() string {
+	return env.Get(InstallNamespaceEnvVar, env.Get(KubecostNamespaceEnvVar, "opencost"))
 }
 
 // GetPodName returns the name of the current running pod. If this environment variable is not set,
@@ -365,33 +295,8 @@ func GetClusterID() string {
 	return env.Get(ClusterIDEnvVar, "")
 }
 
-// GetPromClusterFilter returns environment variable value CurrentClusterIdFilterEnabledVar which
-// represents additional prometheus filter for all metrics for current cluster id
-func GetPromClusterFilter() string {
-	if env.GetBool(CurrentClusterIdFilterEnabledVar, false) {
-		return fmt.Sprintf("%s=\"%s\"", GetPromClusterLabel(), GetClusterID())
-	}
-	return ""
-}
-
-// GetPrometheusServerEndpoint returns the environment variable value for PrometheusServerEndpointEnvVar which
-// represents the prometheus server endpoint used to execute prometheus queries.
-func GetPrometheusServerEndpoint() string {
-	return env.Get(PrometheusServerEndpointEnvVar, "")
-}
-
-func GetInsecureSkipVerify() bool {
-	return env.GetBool(InsecureSkipVerify, false)
-}
-
 func IsKubeRbacProxyEnabled() bool {
 	return env.GetBool(KubeRbacProxyEnabled, false)
-}
-
-// IsAggregateCostModelCacheDisabled returns the environment variable value for DisableAggregateCostModelCache which
-// will inform the aggregator on whether to load cached data. Defaults to false
-func IsAggregateCostModelCacheDisabled() bool {
-	return env.GetBool(DisableAggregateCostModelCache, false)
 }
 
 // IsRemoteEnabled returns the environment variable value for RemoteEnabledEnvVar which represents whether
@@ -460,41 +365,13 @@ func GetCloudProviderAPIKey() string {
 	return env.Get(CloudProviderAPIKeyEnvVar, "")
 }
 
-// IsThanosEnabled returns the environment variable value for ThanosEnabledEnvVar which represents whether
-// or not thanos is enabled.
-func IsThanosEnabled() bool {
-	return env.GetBool(ThanosEnabledEnvVar, false)
+func GetPVMountPath() string {
+	return env.Get(PVMountPath, "")
 }
 
-// GetThanosQueryUrl returns the environment variable value for ThanosQueryUrlEnvVar which represents the
-// target query endpoint for hitting thanos.
-func GetThanosQueryUrl() string {
-	return env.Get(ThanosQueryUrlEnvVar, "")
-}
-
-// GetThanosOffset returns the environment variable value for ThanosOffsetEnvVar which represents the total
-// amount of time to offset all queries made to thanos.
-func GetThanosOffset() string {
-	return env.Get(ThanosOffsetEnvVar, "3h")
-}
-
-// GetThanosMaxSourceResolution returns the environment variable value for ThanosMaxSourceResEnvVar which represents
-// the max source resolution to use when querying thanos.
-func GetThanosMaxSourceResolution() string {
-	res := env.Get(ThanosMaxSourceResEnvVar, "raw")
-
-	switch res {
-	case "raw":
-		return "0s"
-	case "0s":
-		fallthrough
-	case "5m":
-		fallthrough
-	case "1h":
-		return res
-	default:
-		return "0s"
-	}
+// IsCollectorDataSourceEnabeled returns the environment variable which enables a source.OpencostDatasource which does not use uses Prometheus
+func IsCollectorDataSourceEnabled() bool {
+	return env.GetBool(CollectorDataSourceEnabledEnvVar, false)
 }
 
 // IsLogCollectionEnabled returns the environment variable value for LogCollectionEnabledEnvVar which represents
@@ -518,43 +395,6 @@ func IsValuesReportingEnabled() bool {
 	return env.GetBool(ValuesReportingEnabledEnvVar, true)
 }
 
-// GetMaxQueryConcurrency returns the environment variable value for MaxQueryConcurrencyEnvVar
-func GetMaxQueryConcurrency() int {
-	return env.GetInt(MaxQueryConcurrencyEnvVar, 5)
-}
-
-// GetQueryLoggingFile returns a file location if query logging is enabled. Otherwise, empty string
-func GetQueryLoggingFile() string {
-	return env.Get(QueryLoggingFileEnvVar, "")
-}
-
-func GetDBBasicAuthUsername() string {
-	return env.Get(DBBasicAuthUsername, "")
-}
-
-func GetDBBasicAuthUserPassword() string {
-	return env.Get(DBBasicAuthPassword, "")
-
-}
-
-func GetDBBearerToken() string {
-	return env.Get(DBBearerToken, "")
-}
-
-// GetMultiClusterBasicAuthUsername returns the environment variable value for MultiClusterBasicAuthUsername
-func GetMultiClusterBasicAuthUsername() string {
-	return env.Get(MultiClusterBasicAuthUsername, "")
-}
-
-// GetMultiClusterBasicAuthPassword returns the environment variable value for MultiClusterBasicAuthPassword
-func GetMultiClusterBasicAuthPassword() string {
-	return env.Get(MultiClusterBasicAuthPassword, "")
-}
-
-func GetMultiClusterBearerToken() string {
-	return env.Get(MultiClusterBearerToken, "")
-}
-
 // GetKubeConfigPath returns the environment variable value for KubeConfigPathEnvVar
 func GetKubeConfigPath() string {
 	return env.Get(KubeConfigPathEnvVar, "")
@@ -575,55 +415,17 @@ func GetParsedUTCOffset() time.Duration {
 	return offset
 }
 
-// GetKubecostJobName returns the environment variable value for KubecostJobNameEnvVar
-func GetKubecostJobName() string {
-	return env.Get(KubecostJobNameEnvVar, "kubecost")
-}
-
-func IsCacheWarmingEnabled() bool {
-	return env.GetBool(CacheWarmingEnabledEnvVar, true)
-}
-
-func IsETLEnabled() bool {
-	return env.GetBool(ETLEnabledEnvVar, true)
-}
-
-func GetETLMaxPrometheusQueryDuration() time.Duration {
-	dayMins := 60 * 24
-	mins := time.Duration(env.GetInt64(ETLMaxPrometheusQueryDurationMinutes, int64(dayMins)))
-	return mins * time.Minute
-}
-
-// GetETLResolution determines the resolution of ETL queries. The smaller the
-// duration, the higher the resolution; the higher the resolution, the more
-// accurate the query results, but the more computationally expensive.
-func GetETLResolution() time.Duration {
-	// Use the configured ETL resolution, or default to
-	// 5m (i.e. 300s)
-	secs := time.Duration(env.GetInt64(ETLResolutionSeconds, 300))
-	return secs * time.Second
-}
-
-func LegacyExternalCostsAPIDisabled() bool {
-	return env.GetBool(LegacyExternalAPIDisabledVar, false)
-}
-
-// GetPromClusterLabel returns the environment variable value for PromClusterIDLabel
-func GetPromClusterLabel() string {
-	return env.Get(PromClusterIDLabelEnvVar, "cluster_id")
-}
-
 // IsIngestingPodUID returns the env variable from ingestPodUID, which alters the
 // contents of podKeys in Allocation
 func IsIngestingPodUID() bool {
 	return env.GetBool(IngestPodUIDEnvVar, false)
 }
 
-func GetAllocationNodeLabelsEnabled() bool {
+func IsAllocationNodeLabelsEnabled() bool {
 	return env.GetBool(AllocationNodeLabelsEnabled, true)
 }
 
-func GetAssetIncludeLocalDiskCost() bool {
+func IsAssetIncludeLocalDiskCost() bool {
 	return env.GetBool(AssetIncludeLocalDiskCostEnvVar, true)
 }
 
@@ -705,8 +507,47 @@ func IsCarbonEstimatesEnabled() bool {
 	return env.GetBool(CarbonEstimatesEnabledEnvVar, false)
 }
 
+func GetExportBucketConfigFile() string {
+	return env.Get(ExportBucketConfigFileEnvVar, "")
+}
+
 // GetUseCacheV1 is a temporary flag to allow users to opt-in to using the old cache
 // Mainly for comparison purposes
 func GetUseCacheV1() bool {
 	return env.GetBool(UseCacheV1, false)
+}
+
+func GetReleaseName() string {
+	return env.Get(ReleaseNameEnvVar, "kubecost")
+}
+
+func GetNetworkCostsPort() int {
+	return env.GetInt(NetworkCostsPortEnvVar, 3001)
+}
+
+// IsNodeStatsForceKubeProxy returns true if the node stats client should force the kube proxy direct end
+// point formatting
+func IsNodeStatsForceKubeProxy() bool {
+	return env.GetBool(NodeStatsForceKubeProxyEnvVar, false)
+}
+
+// GetNodeStatsLocalProxy returns the fully qualified local proxy endpoint for the node stats client IFF the proxyAPI
+// is selected.
+func GetNodeStatsLocalProxy() string {
+	return env.Get(NodeStatsLocalProxyEnvVar, "")
+}
+
+// IsNodeStatsInsecure returns true if the node stats client should skip TLS verification
+func IsNodeStatsInsecure() bool {
+	return env.GetBool(NodeStatsInsecureEnvVar, false)
+}
+
+// GetNodeStatsCertFile returns the path of the cert file
+func GetNodeStatsCertFile() string {
+	return env.Get(NodeStatsCertFileEnvVar, "")
+}
+
+// GetNodeStatsKeyFile returns the path of the key file
+func GetNodeStatsKeyFile() string {
+	return env.Get(NodeStatsKeyFileEnvVar, "")
 }

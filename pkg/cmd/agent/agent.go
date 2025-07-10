@@ -9,21 +9,21 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clusters"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/core/pkg/util/retry"
 	"github.com/opencost/opencost/pkg/util/watcher"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/core/pkg/kubeconfig"
 	"github.com/opencost/opencost/core/pkg/version"
+	"github.com/opencost/opencost/modules/prometheus-source/pkg/prom"
 	"github.com/opencost/opencost/pkg/cloud/provider"
-	"github.com/opencost/opencost/pkg/clustercache"
+	cluster "github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/costmodel"
-	clustermap "github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/kubeconfig"
 	"github.com/opencost/opencost/pkg/metrics"
-	"github.com/opencost/opencost/pkg/prom"
 
-	prometheus "github.com/prometheus/client_golang/api"
-	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/rs/cors"
@@ -40,7 +40,7 @@ const ClusterExportInterval = 5 * time.Minute
 
 // clusterExporter is used if env.IsExportClusterCacheEnabled() is set to true
 // it will export the kubernetes cluster data to a file on a specific interval
-var clusterExporter *clustercache.ClusterExporter
+var clusterExporter *cluster.ClusterExporter
 
 func Healthz(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(200)
@@ -59,91 +59,14 @@ func newKubernetesClusterCache() (kubernetes.Interface, clustercache.ClusterCach
 	}
 
 	// Create Kubernetes Cluster Cache + Watchers
-	k8sCache := clustercache.NewKubernetesClusterCache(kubeClientset)
+	k8sCache := cluster.NewKubernetesClusterCache(kubeClientset)
 	k8sCache.Run()
 
 	return kubeClientset, k8sCache, nil
 }
 
-func newPrometheusClient() (prometheus.Client, error) {
-	address := env.GetPrometheusServerEndpoint()
-	if address == "" {
-		return nil, fmt.Errorf("No address for prometheus set in $%s. Aborting.", env.PrometheusServerEndpointEnvVar)
-	}
-
-	queryConcurrency := env.GetMaxQueryConcurrency()
-	log.Infof("Prometheus Client Max Concurrency set to %d", queryConcurrency)
-
-	timeout := 120 * time.Second
-	keepAlive := 120 * time.Second
-	tlsHandshakeTimeout := 10 * time.Second
-
-	var rateLimitRetryOpts *prom.RateLimitRetryOpts = nil
-	if env.IsPrometheusRetryOnRateLimitResponse() {
-		rateLimitRetryOpts = &prom.RateLimitRetryOpts{
-			MaxRetries:       env.GetPrometheusRetryOnRateLimitMaxRetries(),
-			DefaultRetryWait: env.GetPrometheusRetryOnRateLimitDefaultWait(),
-		}
-	}
-
-	promCli, err := prom.NewPrometheusClient(address, &prom.PrometheusClientConfig{
-		Timeout:               timeout,
-		KeepAlive:             keepAlive,
-		TLSHandshakeTimeout:   tlsHandshakeTimeout,
-		TLSInsecureSkipVerify: env.GetInsecureSkipVerify(),
-		RateLimitRetryOpts:    rateLimitRetryOpts,
-		Auth: &prom.ClientAuth{
-			Username:    env.GetDBBasicAuthUsername(),
-			Password:    env.GetDBBasicAuthUserPassword(),
-			BearerToken: env.GetDBBearerToken(),
-		},
-		QueryConcurrency: queryConcurrency,
-		QueryLogFile:     "",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("Failed to create prometheus client, Error: %v", err)
-	}
-
-	m, err := prom.Validate(promCli)
-	if err != nil || !m.Running {
-		if err != nil {
-			log.Errorf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prom.PrometheusTroubleshootingURL)
-		} else if !m.Running {
-			log.Errorf("Prometheus at %s is not running. Troubleshooting help available at: %s", address, prom.PrometheusTroubleshootingURL)
-		}
-	} else {
-		log.Infof("Success: retrieved the 'up' query against prometheus at: %s", address)
-	}
-
-	api := prometheusAPI.NewAPI(promCli)
-	_, err = api.Buildinfo(context.Background())
-	if err != nil {
-		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/mimir/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
-	} else {
-		log.Infof("Retrieved a prometheus config file from: %s", address)
-	}
-
-	return promCli, nil
-}
-
 func Execute(opts *AgentOpts) error {
 	log.Infof("Starting Kubecost Agent version %s", version.FriendlyVersion())
-	scrapeInterval := env.GetKubecostScrapeInterval()
-	promCli, err := newPrometheusClient()
-	if err != nil {
-		panic(err.Error())
-	}
-
-	if scrapeInterval == 0 {
-		scrapeInterval = time.Minute
-		// Lookup scrape interval for kubecost job, update if found
-		si, err := prom.ScrapeIntervalFor(promCli, env.GetKubecostJobName())
-		if err == nil {
-			scrapeInterval = si
-		}
-	}
-
-	log.Infof("Using scrape interval of %f", scrapeInterval.Seconds())
 
 	// initialize kubernetes client and cluster cache
 	k8sClient, clusterCache, err := newKubernetesClusterCache()
@@ -153,29 +76,16 @@ func Execute(opts *AgentOpts) error {
 
 	// Create ConfigFileManager for synchronization of shared configuration
 	confManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-		BucketStoreConfig: env.GetKubecostConfigBucket(),
+		BucketStoreConfig: env.GetConfigBucketFile(),
 		LocalConfigPath:   "/",
 	})
+
+	configPrefix := env.GetConfigPathWithDefault(env.DefaultConfigMountPath)
 
 	cloudProviderKey := env.GetCloudProviderAPIKey()
 	cloudProvider, err := provider.NewProvider(clusterCache, cloudProviderKey, confManager)
 	if err != nil {
 		panic(err.Error())
-	}
-
-	// Append the pricing config watcher
-	kubecostNamespace := env.GetKubecostNamespace()
-	configWatchers := watcher.NewConfigMapWatchers(k8sClient, kubecostNamespace)
-	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
-	configWatchers.Watch()
-
-	configPrefix := env.GetConfigPathWithDefault(env.DefaultConfigMountPath)
-
-	// Initialize cluster exporting if it's enabled
-	if env.IsExportClusterCacheEnabled() {
-		cacheLocation := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-cache.json"))
-		clusterExporter = clustercache.NewClusterExporter(clusterCache, cacheLocation, ClusterExportInterval)
-		clusterExporter.Run()
 	}
 
 	// ClusterInfo Provider to provide the cluster map with local and remote cluster data
@@ -189,13 +99,55 @@ func Execute(opts *AgentOpts) error {
 		clusterInfoProvider = localClusterInfo
 	}
 
-	// Initialize ClusterMap for maintaining ClusterInfo by ClusterID
-	clusterMap := clustermap.NewClusterMap(promCli, clusterInfoProvider, 5*time.Minute)
+	const maxRetries = 10
+	const retryInterval = 10 * time.Second
 
-	costModel := costmodel.NewCostModel(promCli, cloudProvider, clusterCache, clusterMap, scrapeInterval)
+	var fatalErr error
+
+	ctx, cancel := context.WithCancel(context.Background())
+	dataSource, err := retry.Retry(
+		ctx,
+		func() (source.OpenCostDataSource, error) {
+			ds, e := prom.NewDefaultPrometheusDataSource(clusterInfoProvider)
+			if e != nil {
+				if source.IsRetryable(e) {
+					return nil, e
+				}
+				fatalErr = e
+				cancel()
+			}
+
+			return ds, e
+		},
+		maxRetries,
+		retryInterval,
+	)
+
+	if fatalErr != nil {
+		log.Fatalf("Failed to create Prometheus data source: %s", fatalErr)
+		panic(fatalErr)
+	}
+
+	// Append the pricing config watcher
+	kubecostNamespace := env.GetInstallNamespace()
+	configWatchers := watcher.NewConfigMapWatchers(k8sClient, kubecostNamespace)
+	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
+	configWatchers.Watch()
+
+	// Initialize cluster exporting if it's enabled
+	if env.IsExportClusterCacheEnabled() {
+		cacheLocation := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-cache.json"))
+		clusterExporter = cluster.NewClusterExporter(clusterCache, cacheLocation, ClusterExportInterval)
+		clusterExporter.Run()
+	}
+
+	// Initialize ClusterMap for maintaining ClusterInfo by ClusterID
+	clusterMap := dataSource.ClusterMap()
+
+	costModel := costmodel.NewCostModel(dataSource, cloudProvider, clusterCache, clusterMap, dataSource.BatchDuration())
 
 	// initialize Kubernetes Metrics Emitter
-	metricsEmitter := costmodel.NewCostModelMetricsEmitter(promCli, clusterCache, cloudProvider, clusterInfoProvider, costModel)
+	metricsEmitter := costmodel.NewCostModelMetricsEmitter(clusterCache, cloudProvider, clusterInfoProvider, costModel)
 
 	// download pricing data
 	err = cloudProvider.DownloadPricingData()

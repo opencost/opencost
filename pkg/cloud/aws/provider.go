@@ -20,16 +20,16 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/env"
+	errs "github.com/opencost/opencost/core/pkg/errors"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/fileutil"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
-	"github.com/opencost/opencost/pkg/clustercache"
 	ocenv "github.com/opencost/opencost/pkg/env"
-	errs "github.com/opencost/opencost/pkg/errors"
 
 	awsSDK "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -353,10 +353,6 @@ var volTypes = map[string]string{
 
 var loadedAWSSecret bool = false
 var awsSecret *AWSAccessKey = nil
-
-func (aws *AWS) GetLocalStorageQuery(window, offset time.Duration, rate bool, used bool) string {
-	return ""
-}
 
 // KubeAttrConversion maps the k8s labels for region to an AWS key
 func (aws *AWS) KubeAttrConversion(region, instanceType, operatingSystem string) string {
@@ -1092,7 +1088,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 					offerTerm := &AWSOfferTerm{}
 					err = dec.Decode(&offerTerm)
 					if err != nil {
-						log.Errorf("Error decoding AWS Offer Term: " + err.Error())
+						log.Errorf("Error decoding AWS Offer Term: %s", err.Error())
 					}
 
 					key, ok := skusToKeys[sku.(string)]

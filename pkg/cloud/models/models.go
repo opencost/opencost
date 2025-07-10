@@ -7,11 +7,10 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/config"
 )
 
@@ -321,7 +320,6 @@ type Provider interface {
 	UpdateConfigFromConfigMap(map[string]string) (*CustomPricing, error)
 	GetConfig() (*CustomPricing, error)
 	GetManagementPlatform() (string, error)
-	GetLocalStorageQuery(time.Duration, time.Duration, bool, bool) string
 	ApplyReservedInstancePricing(map[string]*Node)
 	ServiceAccountStatus() *ServiceAccountStatus
 	PricingSourceStatus() map[string]*PricingSource
