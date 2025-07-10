@@ -52,6 +52,9 @@ func (qt *QuotaTracker) GetAllQuotaMetrics() (map[string]map[string][]QuotaMetri
 			log.Errorf("Warning: failed to get quota metrics for namespace %s: %v\n", ns.Name, err)
 			continue
 		}
+		if allMetrics[env.GetClusterID()] == nil {
+			allMetrics[env.GetClusterID()] = make(map[string][]QuotaMetrics)
+		}
 		allMetrics[env.GetClusterID()][ns.Name] = metrics
 	}
 	return allMetrics, nil
