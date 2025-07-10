@@ -29,6 +29,7 @@ import (
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/customcost"
 	"github.com/opencost/opencost/pkg/metrics"
+	"github.com/opencost/opencost/pkg/resourcequota"
 	"github.com/opencost/opencost/pkg/util/watcher"
 
 	"github.com/julienschmidt/httprouter"
@@ -606,6 +607,8 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	router.POST("/serviceKey", a.AddServiceKey)
 	router.GET("/helmValues", a.GetHelmValues)
 
+	InitializeQuota(router, kubeClientset)
+
 	return a
 }
 
@@ -641,6 +644,10 @@ func InitializeCloudCost(router *httprouter.Router, providerConfig models.Provid
 	router.GET("/cloudCost/status", cloudCostPipelineService.GetCloudCostStatusHandler())
 	router.GET("/cloudCost/rebuild", cloudCostPipelineService.GetCloudCostRebuildHandler())
 	router.GET("/cloudCost/repair", cloudCostPipelineService.GetCloudCostRepairHandler())
+}
+
+func InitializeQuota(router *httprouter.Router, clientset *kubernetes.Clientset) {
+	router.GET("/resourcequota", resourcequota.GetQuotaMetricsHandler(clientset))
 }
 
 func InitializeCustomCost(router *httprouter.Router) *customcost.PipelineService {
