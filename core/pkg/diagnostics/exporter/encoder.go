@@ -7,5 +7,5 @@ import (
 
 // NewDiagnosticsEncoder returns a JSON encoder used to encode DiagnosticsRunReport events.
 func NewDiagnosticsEncoder() exporter.Encoder[diagnostics.DiagnosticsRunReport] {
-	return exporter.NewJSONEncoder[diagnostics.DiagnosticsRunReport]()
+	return exporter.NewGZipEncoder(exporter.NewJSONEncoder[diagnostics.DiagnosticsRunReport]())
 }

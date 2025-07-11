@@ -164,7 +164,7 @@ func TestWalinator_restore(t *testing.T) {
 	)
 
 	// replace the repo in the walinator
-	wal.repo = repo2
+	wal.updater = repo2
 
 	wal.restore()
 

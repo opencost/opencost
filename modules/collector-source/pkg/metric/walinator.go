@@ -32,14 +32,14 @@ type Walinator struct {
 	paths           pathing.StoragePathFormatter[time.Time]
 	exporter        exporter.EventExporter[UpdateSet]
 	limitResolution *util.Resolution
-	repo            *MetricRepository
+	updater         Updater
 }
 
 func NewWalinator(
 	clusterID string,
 	store storage.Storage,
 	resolutions []*util.Resolution,
-	repo *MetricRepository,
+	updater Updater,
 ) (*Walinator, error) {
 	var limitResolution *util.Resolution
 	for _, resolution := range resolutions {
@@ -63,7 +63,7 @@ func NewWalinator(
 		paths:           pathFormatter,
 		exporter:        exp,
 		limitResolution: limitResolution,
-		repo:            repo,
+		updater:         updater,
 	}, nil
 }
 
@@ -80,7 +80,7 @@ func (w *Walinator) Start() {
 	}()
 }
 
-// restore applies updates from wal files to restore the state of the repo
+// restore applies updates from wal files to restore the state of the previous updater(repo)
 func (w *Walinator) restore() {
 	fileInfos, err := w.getFileInfos()
 	if err != nil {
@@ -113,7 +113,7 @@ func (w *Walinator) restore() {
 	}
 
 	processFn := func(updateSet *UpdateSet) {
-		w.repo.Update(updateSet)
+		w.updater.Update(updateSet)
 	}
 	worker.ConcurrentOrderedProcessWith(worker.OptimalWorkerCount(), workerFn, fileInfos, processFn)
 }
@@ -147,7 +147,7 @@ func deserializeUpdateSet(ext string, b []byte) (*UpdateSet, error) {
 	return nil, fmt.Errorf("unrecognized extension: '%s'", ext)
 }
 
-// Update calls update on the repo and then exports the update to storage
+// Update calls update on the previous updater(repo) and then exports the update to storage
 func (w *Walinator) Update(
 	updateSet *UpdateSet,
 ) {
@@ -156,7 +156,7 @@ func (w *Walinator) Update(
 	}
 
 	// run update
-	w.repo.Update(updateSet)
+	w.updater.Update(updateSet)
 
 	err := w.exporter.Export(updateSet.Timestamp, updateSet)
 	if err != nil {

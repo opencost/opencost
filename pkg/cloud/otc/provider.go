@@ -1,13 +1,10 @@
 package otc
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
@@ -16,41 +13,6 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/env"
 )
-
-// OTC node pricing attributes
-type OTCNodeAttributes struct {
-	Type  string // like s2.large.1
-	OS    string // like windows
-	Price string // (in EUR) like 0.023
-	RAM   string // (in GB) like 2
-	VCPU  string // like 8
-}
-
-type OTCPVAttributes struct {
-	Type  string // like vss.ssd
-	Price string // (in EUR/GB/h) like 0.01
-}
-
-// OTC pricing is either for a node, a persistent volume (or a database, network, cluster, ...)
-type OTCPricing struct {
-	NodeAttributes *OTCNodeAttributes
-	PVAttributes   *OTCPVAttributes
-}
-
-// the main provider struct
-type OTC struct {
-	Clientset               clustercache.ClusterCache
-	Pricing                 map[string]*OTCPricing
-	Config                  models.ProviderConfig
-	ClusterRegion           string
-	projectID               string
-	clusterManagementPrice  float64
-	BaseCPUPrice            string
-	BaseRAMPrice            string
-	BaseGPUPrice            string
-	ValidPricingKeys        map[string]bool
-	DownloadPricingDataLock sync.RWMutex
-}
 
 // Kubernetes to OTC OS conversion
 /* Note:
@@ -142,47 +104,6 @@ func (otc *OTC) GetPVKey(pv *clustercache.PersistentVolume, parameters map[strin
 	}
 }
 
-// Takes a resopnse from the otc api and the respective service name as an input
-// and extracts the resulting data into a product slice.
-func (otc *OTC) loadStructFromResponse(resp http.Response, serviceName string) ([]Product, error) {
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	// Unmarshal the first bit of the response.
-	wrapper := make(map[string]map[string]interface{})
-	err = json.Unmarshal(body, &wrapper)
-	if err != nil {
-		return nil, err
-	}
-
-	// Unmarshal the second, more specific, bit of the response.
-	data := make(map[string][]Product)
-	tmp, err := json.Marshal(wrapper["response"]["result"])
-	if err != nil {
-		return nil, err
-	}
-	err = json.Unmarshal(tmp, &data)
-	if err != nil {
-		return nil, err
-	}
-
-	return data[serviceName], nil
-}
-
-// The product (price) data that is fetched from OTC
-//
-// If OsUnit, VCpu and Ram aren't given, the product
-// is a persistent volume, else it's a node.
-type Product struct {
-	OpiFlavour  string `json:"opiFlavour"`
-	OsUnit      string `json:"osUnit,omitempty"`
-	PriceAmount string `json:"priceAmount"`
-	VCpu        string `json:"vCpu,omitempty"`
-	Ram         string `json:"ram,omitempty"`
-}
-
 /*
 Download the pricing data from the OTC API
 
@@ -253,41 +174,19 @@ func (otc *OTC) DownloadPricingData() error {
 	otc.Pricing = make(map[string]*OTCPricing)
 	otc.ValidPricingKeys = make(map[string]bool)
 
-	// Get pricing data from API.
-	nodePricingURL := "https://calculator.otc-service.com/de/open-telekom-price-api/?serviceName=ecs" /* + "&limitMax=200"*/ + "&columns%5B1%5D=opiFlavour" + "&columns%5B2%5D=osUnit" + "&columns%5B3%5D=vCpu" + "&columns%5B4%5D=ram" + "&columns%5B5%5D=priceAmount"
-	pvPricingURL := "https://calculator.otc-service.com/de/open-telekom-price-api/?serviceName%5B0%5D=evs&columns%5B1%5D=opiFlavour&columns%5B2%5D=priceAmount&limitFrom=0&region%5B3%5D=eu-de"
-
-	log.Info("Started downloading OTC pricing data...")
-	resp, err := http.Get(nodePricingURL)
+	products, err := otc.fetchPaginatedProducts([]string{"ecs", "ecsnoc", "memo", "uhio", "evs"})
 	if err != nil {
+		log.Errorf("Failed to fetch OTC pricing data: %v", err)
 		return err
 	}
-	pvResp, err := http.Get(pvPricingURL)
-	if err != nil {
-		return err
-	}
-	log.Info("Succesfully downloaded OTC pricing data")
-
-	var products []Product
-
-	nodeProducts, err := otc.loadStructFromResponse(*resp, "ecs")
-	if err != nil {
-		return err
-	}
-	products = append(products, nodeProducts...)
-	pvProducts, err := otc.loadStructFromResponse(*pvResp, "evs")
-	if err != nil {
-		return err
-	}
-	products = append(products, pvProducts...)
 
 	// convert the otc-reponse product-structs to opencost-compatible node structs
 	const ClusterRegion = "eu-de"
 	for _, product := range products {
 		var productPricing *OTCPricing
 		var key string
-		// if os is empty the product must be a persistent volume
-		if product.OsUnit == "" {
+		// if the product is a persistent volume, it has no osUnit and no vCpu
+		if strings.ToLower(strings.TrimSpace(product.ProductIdParameter)) == "evs" {
 			productPricing = &OTCPricing{
 				PVAttributes: &OTCPVAttributes{
 					Type:  product.OpiFlavour,
@@ -317,6 +216,11 @@ func (otc *OTC) DownloadPricingData() error {
 		otc.Pricing[key] = productPricing
 		otc.ValidPricingKeys[key] = true
 	}
+
+	// debug the whole pricing
+	log.Debugf("OTC Pricing Data: %v", otc.Pricing)
+
+	// exit
 
 	return nil
 }
@@ -471,6 +375,7 @@ func (otc *OTC) getClusterName(cfg *models.CustomPricing) string {
 // in the provider's pricing list and return it
 func (otc *OTC) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	pricing, ok := otc.Pricing[pvk.Features()]
+	log.Info("looking for persistent volume pricing for features \"" + pvk.Features() + "\"")
 	if !ok {
 		log.Info("Persistent Volume pricing not found for features \"" + pvk.Features() + "\"")
 		log.Info("continuing with pricing for \"eu-de,vss.ssd\"")

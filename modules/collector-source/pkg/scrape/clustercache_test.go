@@ -58,7 +58,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 			},
 			expected: []metric.Update{
 				{
-					Name: KubeNodeStatusCapacityCPUCores,
+					Name: metric.KubeNodeStatusCapacityCPUCores,
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
@@ -67,7 +67,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					AdditionalInfo: nil,
 				},
 				{
-					Name: KubeNodeStatusCapacityMemoryBytes,
+					Name: metric.KubeNodeStatusCapacityMemoryBytes,
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
@@ -76,7 +76,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					AdditionalInfo: nil,
 				},
 				{
-					Name: KubeNodeStatusAllocatableCPUCores,
+					Name: metric.KubeNodeStatusAllocatableCPUCores,
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
@@ -85,7 +85,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					AdditionalInfo: nil,
 				},
 				{
-					Name: KubeNodeStatusAllocatableMemoryBytes,
+					Name: metric.KubeNodeStatusAllocatableMemoryBytes,
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
@@ -94,7 +94,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					AdditionalInfo: nil,
 				},
 				{
-					Name: KubeNodeLabels,
+					Name: metric.KubeNodeLabels,
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
@@ -164,7 +164,7 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 			expected: []metric.Update{
 
 				{
-					Name: DeploymentMatchLabels,
+					Name: metric.DeploymentMatchLabels,
 					Labels: map[string]string{
 						source.DeploymentLabel: "deployment1",
 						source.NamespaceLabel:  "namespace1",
@@ -236,7 +236,7 @@ func Test_kubernetesScraper_scrapeNamespaces(t *testing.T) {
 			},
 			expected: []metric.Update{
 				{
-					Name: KubeNamespaceLabels,
+					Name: metric.KubeNamespaceLabels,
 					Labels: map[string]string{
 						source.NamespaceLabel: "namespace1",
 					},
@@ -247,7 +247,7 @@ func Test_kubernetesScraper_scrapeNamespaces(t *testing.T) {
 					},
 				},
 				{
-					Name: KubeNamespaceAnnotations,
+					Name: metric.KubeNamespaceAnnotations,
 					Labels: map[string]string{
 						source.NamespaceLabel: "namespace1",
 					},
@@ -351,7 +351,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 			},
 			expected: []metric.Update{
 				{
-					Name: KubePodLabels,
+					Name: metric.KubePodLabels,
 					Labels: map[string]string{
 						source.PodLabel:       "pod1",
 						source.NamespaceLabel: "namespace1",
@@ -366,7 +366,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 					},
 				},
 				{
-					Name: KubePodAnnotations,
+					Name: metric.KubePodAnnotations,
 					Labels: map[string]string{
 						source.PodLabel:       "pod1",
 						source.NamespaceLabel: "namespace1",
@@ -381,7 +381,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 					},
 				},
 				{
-					Name: KubePodOwner,
+					Name: metric.KubePodOwner,
 					Labels: map[string]string{
 						source.PodLabel:       "pod1",
 						source.NamespaceLabel: "namespace1",
@@ -395,7 +395,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 					AdditionalInfo: nil,
 				},
 				{
-					Name: KubePodContainerStatusRunning,
+					Name: metric.KubePodContainerStatusRunning,
 					Labels: map[string]string{
 						source.PodLabel:       "pod1",
 						source.NamespaceLabel: "namespace1",
@@ -408,7 +408,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 					AdditionalInfo: nil,
 				},
 				{
-					Name: KubePodContainerResourceRequests,
+					Name: metric.KubePodContainerResourceRequests,
 					Labels: map[string]string{
 						source.PodLabel:       "pod1",
 						source.NamespaceLabel: "namespace1",
@@ -423,7 +423,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 					AdditionalInfo: nil,
 				},
 				{
-					Name: KubePodContainerResourceRequests,
+					Name: metric.KubePodContainerResourceRequests,
 					Labels: map[string]string{
 						source.PodLabel:       "pod1",
 						source.NamespaceLabel: "namespace1",
@@ -500,7 +500,7 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 			},
 			expected: []metric.Update{
 				{
-					Name: KubePersistentVolumeClaimInfo,
+					Name: metric.KubePersistentVolumeClaimInfo,
 					Labels: map[string]string{
 						source.PVCLabel:          "pvc1",
 						source.NamespaceLabel:    "namespace1",
@@ -511,7 +511,7 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 					AdditionalInfo: nil,
 				},
 				{
-					Name: KubePersistentVolumeClaimResourceRequestsStorageBytes,
+					Name: metric.KubePersistentVolumeClaimResourceRequestsStorageBytes,
 					Labels: map[string]string{
 						source.PVCLabel:          "pvc1",
 						source.NamespaceLabel:    "namespace1",
@@ -585,7 +585,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 			},
 			expected: []metric.Update{
 				{
-					Name: KubecostPVInfo,
+					Name: metric.KubecostPVInfo,
 					Labels: map[string]string{
 						source.PVLabel:           "pv1",
 						source.ProviderIDLabel:   "vol-1",
@@ -595,7 +595,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 					AdditionalInfo: nil,
 				},
 				{
-					Name: KubePersistentVolumeCapacityBytes,
+					Name: metric.KubePersistentVolumeCapacityBytes,
 					Labels: map[string]string{
 						source.PVLabel:           "pv1",
 						source.ProviderIDLabel:   "vol-1",
@@ -662,7 +662,7 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 			},
 			expected: []metric.Update{
 				{
-					Name: ServiceSelectorLabels,
+					Name: metric.ServiceSelectorLabels,
 					Labels: map[string]string{
 						"service":             "service1",
 						source.NamespaceLabel: "namespace1",
@@ -733,7 +733,7 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 			},
 			expected: []metric.Update{
 				{
-					Name: StatefulSetMatchLabels,
+					Name: metric.StatefulSetMatchLabels,
 					Labels: map[string]string{
 						source.StatefulSetLabel: "statefulSet1",
 						source.NamespaceLabel:   "namespace1",
@@ -804,7 +804,7 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 			},
 			expected: []metric.Update{
 				{
-					Name: KubeReplicasetOwner,
+					Name: metric.KubeReplicasetOwner,
 					Labels: map[string]string{
 						"replicaset":          "replicaSet1",
 						source.NamespaceLabel: "namespace1",
