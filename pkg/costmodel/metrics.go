@@ -12,6 +12,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/atomic"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
+	"github.com/opencost/opencost/pkg/carbon"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
@@ -420,6 +421,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 		loadBalancerSeen := make(map[string]bool)
 		pvSeen := make(map[string]bool)
 		pvcSeen := make(map[string]bool)
+		carbonSeen := make(map[string]bool)
 		nodeCostAverages := make(map[string]NodeCostAverages)
 
 		getKeyFromLabelStrings := func(labels ...string) string {
@@ -463,6 +465,26 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				cmme.NetworkZoneEgressRecorder.Set(networkCosts.ZoneNetworkEgressCost)
 				cmme.NetworkRegionEgressRecorder.Set(networkCosts.RegionNetworkEgressCost)
 				cmme.NetworkInternetEgressRecorder.Set(networkCosts.InternetNetworkEgressCost)
+			}
+
+			assetSet, err := cmme.Model.ComputeAssets(time.Now().Add(-2*time.Minute), time.Now())
+			if err != nil {
+				log.Errorf("Error computing assets for carbon costs: %s", err.Error())
+			} else {
+				carbonEstimates, err := carbon.RelateCarbonAssets(assetSet)
+				if err != nil {
+					log.Errorf("Error computing carbon estimates: %s", err.Error())
+				} else {
+					for key, carbonRow := range carbonEstimates {
+						parts := strings.Split(key, "/")
+						if len(parts) == 2 {
+							namespace, pod := parts[0], parts[1]
+							cmme.EmitCarbonCost(namespace, pod, "", carbonRow.Co2e)
+							labelKey := getKeyFromLabelStrings(namespace, pod, "")
+							carbonSeen[labelKey] = true
+						}
+					}
+				}
 			}
 
 			// TODO: Pass PrometheusClient and CloudProvider into CostModel on instantiation so this isn't so awkward
@@ -807,6 +829,19 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					delete(pvcSeen, labelString)
 				} else {
 					pvcSeen[labelString] = false
+				}
+			}
+
+			for labelString, seen := range carbonSeen {
+				if !seen {
+					labels := getLabelStringsFromKey(labelString)
+					ok := CarbonCostRecorder.DeleteLabelValues(labels...)
+					if !ok {
+						log.Warnf("Failed to remove label set %v from metric opencost_carbon_cost. Failure to remove stale metrics may result in inaccurate data.", labels)
+					}
+					delete(carbonSeen, labelString)
+				} else {
+					carbonSeen[labelString] = false
 				}
 			}
 
