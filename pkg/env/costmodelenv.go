@@ -9,8 +9,7 @@ import (
 )
 
 const (
-	APIPortEnvVar          = "API_PORT"
-	NetworkCostsPortEnvVar = "NETWORK_COSTS_PORT"
+	APIPortEnvVar = "API_PORT"
 
 	AWSAccessKeyIDEnvVar     = "AWS_ACCESS_KEY_ID"
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
@@ -24,8 +23,6 @@ const (
 	AzureBillingAccountEnvVar            = "AZURE_BILLING_ACCOUNT"
 	AzureDownloadBillingDataToDiskEnvVar = "AZURE_DOWNLOAD_BILLING_DATA_TO_DISK"
 
-	ReleaseNameEnvVar                = "RELEASE_NAME"
-	PodNameEnvVar                    = "POD_NAME"
 	ClusterIDEnvVar                  = "CLUSTER_ID"
 	ClusterProfileEnvVar             = "CLUSTER_PROFILE"
 	RemoteEnabledEnvVar              = "REMOTE_WRITE_ENABLED"
@@ -55,21 +52,14 @@ const (
 	ErrorReportingEnabledEnvVar   = "ERROR_REPORTING_ENABLED"
 	ValuesReportingEnabledEnvVar  = "VALUES_REPORTING_ENABLED"
 
-	KubeRbacProxyEnabled = "KUBE_RBAC_PROXY_ENABLED"
-
-	KubeConfigPathEnvVar = "KUBECONFIG_PATH"
-
 	UTCOffsetEnvVar = "UTC_OFFSET"
 
 	PricingConfigmapName = "PRICING_CONFIGMAP_NAME"
 	MetricsConfigmapName = "METRICS_CONFIGMAP_NAME"
 
-	ClusterInfoFileEnabledEnvVar  = "CLUSTER_INFO_FILE_ENABLED"
-	ClusterCacheFileEnabledEnvVar = "CLUSTER_CACHE_FILE_ENABLED"
+	ClusterInfoFileEnabledEnvVar = "CLUSTER_INFO_FILE_ENABLED"
 
 	IngestPodUIDEnvVar = "INGEST_POD_UID"
-
-	ETLReadOnlyMode = "ETL_READ_ONLY"
 
 	AllocationNodeLabelsEnabled = "ALLOCATION_NODE_LABELS_ENABLED"
 
@@ -81,8 +71,6 @@ const (
 	ExportCSVLabelsList = "EXPORT_CSV_LABELS_LIST"
 	ExportCSVLabelsAll  = "EXPORT_CSV_LABELS_ALL"
 	ExportCSVMaxDays    = "EXPORT_CSV_MAX_DAYS"
-
-	ExportBucketConfigFileEnvVar = "EXPORT_BUCKET_CONFIG_FILE"
 
 	DataRetentionDailyResolutionDaysEnvVar   = "DATA_RETENTION_DAILY_RESOLUTION_DAYS"
 	DataRetentionHourlyResolutionHoursEnvVar = "DATA_RETENTION_HOURLY_RESOLUTION_HOURS"
@@ -96,10 +84,9 @@ const (
 	CloudCostQueryWindowDaysEnvVar  = "CLOUD_COST_QUERY_WINDOW_DAYS"
 	CloudCostRunWindowDaysEnvVar    = "CLOUD_COST_RUN_WINDOW_DAYS"
 
-	CustomCostEnabledEnvVar          = "CUSTOM_COST_ENABLED"
-	CustomCostQueryWindowDaysEnvVar  = "CUSTOM_COST_QUERY_WINDOW_DAYS"
-	CustomCostRefreshRateHoursEnvVar = "CUSTOM_COST_REFRESH_RATE_HOURS"
-
+	CustomCostEnabledEnvVar         = "CUSTOM_COST_ENABLED"
+	CustomCostQueryWindowDaysEnvVar = "CUSTOM_COST_QUERY_WINDOW_DAYS"
+	
 	PluginConfigDirEnvVar     = "PLUGIN_CONFIG_DIR"
 	PluginExecutableDirEnvVar = "PLUGIN_EXECUTABLE_DIR"
 
@@ -110,7 +97,6 @@ const (
 	UseCacheV1 = "USE_CACHE_V1"
 
 	InstallNamespaceEnvVar = "INSTALL_NAMESPACE"
-	ConfigBucketEnvVar     = "CONFIG_BUCKET"
 
 	// Node Stats Client Configuration
 	NodeStatsForceKubeProxyEnvVar = "NODESTATS_FORCE_KUBE_PROXY"
@@ -120,15 +106,10 @@ const (
 	NodeStatsKeyFileEnvVar        = "NODESTATS_KEY_FILE"
 
 	// Deprecated
-	KubecostNamespaceEnvVar    = "KUBECOST_NAMESPACE"
-	KubecostConfigBucketEnvVar = "KUBECOST_CONFIG_BUCKET"
+	KubecostNamespaceEnvVar = "KUBECOST_NAMESPACE"
 )
 
 const DefaultConfigMountPath = "/var/configs"
-
-func IsETLReadOnlyMode() bool {
-	return env.GetBool(ETLReadOnlyMode, false)
-}
 
 func GetExportCSVFile() string {
 	return env.Get(ExportCSVFile, "")
@@ -156,22 +137,10 @@ func GetAPIPort() int {
 	return env.GetInt(APIPortEnvVar, 9003)
 }
 
-// GetConfigBucketFile returns a file location for a mounted bucket configuration which is used to store
-// a subset of configurations that require sharing via remote storage.
-func GetConfigBucketFile() string {
-	return env.Get(ConfigBucketEnvVar, env.Get(KubecostConfigBucketEnvVar, ""))
-}
-
 // IsClusterInfoFileEnabled returns true if the cluster info is read from a file or pulled from the local
 // cloud provider and kubernetes.
 func IsClusterInfoFileEnabled() bool {
 	return env.GetBool(ClusterInfoFileEnabledEnvVar, false)
-}
-
-// IsClusterCacheFileEnabled returns true if the kubernetes cluster data is read from a file or pulled from the local
-// kubernetes API.
-func IsClusterCacheFileEnabled() bool {
-	return env.GetBool(ClusterCacheFileEnabledEnvVar, false)
 }
 
 func GetPricingConfigmapName() string {
@@ -277,12 +246,6 @@ func GetInstallNamespace() string {
 	return env.Get(InstallNamespaceEnvVar, env.Get(KubecostNamespaceEnvVar, "opencost"))
 }
 
-// GetPodName returns the name of the current running pod. If this environment variable is not set,
-// empty string is returned.
-func GetPodName() string {
-	return env.Get(PodNameEnvVar, "")
-}
-
 // GetClusterProfile returns the environment variable value for ClusterProfileEnvVar which
 // represents the cluster profile configured for
 func GetClusterProfile() string {
@@ -293,10 +256,6 @@ func GetClusterProfile() string {
 // configurable identifier used for multi-cluster metric emission.
 func GetClusterID() string {
 	return env.Get(ClusterIDEnvVar, "")
-}
-
-func IsKubeRbacProxyEnabled() bool {
-	return env.GetBool(KubeRbacProxyEnabled, false)
 }
 
 // IsRemoteEnabled returns the environment variable value for RemoteEnabledEnvVar which represents whether
@@ -393,11 +352,6 @@ func IsErrorReportingEnabled() bool {
 // IsValuesReportingEnabled returns the environment variable value for ValuesReportingEnabledEnvVar
 func IsValuesReportingEnabled() bool {
 	return env.GetBool(ValuesReportingEnabledEnvVar, true)
-}
-
-// GetKubeConfigPath returns the environment variable value for KubeConfigPathEnvVar
-func GetKubeConfigPath() string {
-	return env.Get(KubeConfigPathEnvVar, "")
 }
 
 // GetUTCOffset returns the environment variable value for UTCOffset
@@ -499,30 +453,14 @@ func GetPluginExecutableDir() string {
 	return env.Get(PluginExecutableDirEnvVar, "/opt/opencost/plugin/bin")
 }
 
-func GetCustomCostRefreshRateHours() string {
-	return env.Get(CustomCostRefreshRateHoursEnvVar, "12h")
-}
-
 func IsCarbonEstimatesEnabled() bool {
 	return env.GetBool(CarbonEstimatesEnabledEnvVar, false)
-}
-
-func GetExportBucketConfigFile() string {
-	return env.Get(ExportBucketConfigFileEnvVar, "")
 }
 
 // GetUseCacheV1 is a temporary flag to allow users to opt-in to using the old cache
 // Mainly for comparison purposes
 func GetUseCacheV1() bool {
 	return env.GetBool(UseCacheV1, false)
-}
-
-func GetReleaseName() string {
-	return env.Get(ReleaseNameEnvVar, "kubecost")
-}
-
-func GetNetworkCostsPort() int {
-	return env.GetInt(NetworkCostsPortEnvVar, 3001)
 }
 
 // IsNodeStatsForceKubeProxy returns true if the node stats client should force the kube proxy direct end

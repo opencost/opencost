@@ -1590,7 +1590,7 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 
 				_, err := opencost.UpdateAssetTotalsStore(totalsStore, assetSet)
 				if err != nil {
-					log.Errorf("ETL: error updating asset resource totals for %s: %s", assetSet.Window, err)
+					log.Errorf("Allocation: error updating asset resource totals for %s: %s", assetSet.Window, err)
 				}
 			}
 
@@ -1649,7 +1649,7 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 
 			_, err = opencost.UpdateAssetTotalsStore(totalsStore, assetSet)
 			if err != nil {
-				log.Errorf("ETL: error updating asset resource totals for %s: %s", opencost.NewClosedWindow(*asr.Window().Start(), *asr.Window().End()), err)
+				log.Errorf("Allocation: error updating asset resource totals for %s: %s", opencost.NewClosedWindow(*asr.Window().Start(), *asr.Window().End()), err)
 			}
 
 		}
@@ -1759,7 +1759,7 @@ func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost
 	for key, assetTotal := range assetTotals {
 		allocTotal, ok := allocTotals[key]
 		if !ok {
-			log.Warnf("ETL: did not find allocations for asset key: %s", key)
+			log.Warnf("Allocation: did not find allocations for asset key: %s", key)
 
 			// Use a zero-value set of totals. This indicates either (1) an
 			// error computing totals, or (2) that no allocations ran on the

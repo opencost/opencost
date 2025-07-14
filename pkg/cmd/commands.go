@@ -16,7 +16,7 @@ const (
 	// commandRoot is the root command used to route to sub-commands
 	commandRoot string = "root"
 
-	// CommandCostModel is the command used to execute the metrics emission and ETL pipeline
+	// CommandCostModel is the command used to execute the metrics emission and cost model querying
 	CommandCostModel string = "cost-model"
 
 	// CommandAgent executes the application in agent mode, which provides only metrics exporting.

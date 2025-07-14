@@ -20,10 +20,10 @@ const (
 	PrometheusTLSHandshakeTimeoutEnvVar = "PROMETHEUS_TLS_HANDSHAKE_TIMEOUT"
 	ScrapeIntervalEnvVar                = "KUBECOST_SCRAPE_INTERVAL"
 
-	ETLMaxPrometheusQueryDurationMinutes = "ETL_MAX_PROMETHEUS_QUERY_DURATION_MINUTES"
+	PrometheusMaxQueryDurationMinutes      = "PROMETHEUS_MAX_QUERY_DURATION_MINUTES"
+	PrometheusQueryResolutionSecondsEnvVar = "PROMETHEUS_QUERY_RESOLUTION_SECONDS"
 
 	MaxQueryConcurrencyEnvVar = "MAX_QUERY_CONCURRENCY"
-	QueryLoggingFileEnvVar    = "QUERY_LOGGING_FILE"
 	PromClusterIDLabelEnvVar  = "PROM_CLUSTER_ID_LABEL"
 
 	PrometheusHeaderXScopeOrgIdEnvVar = "PROMETHEUS_HEADER_X_SCOPE_ORGID"
@@ -34,15 +34,10 @@ const (
 	DBBasicAuthPassword = "DB_BASIC_AUTH_PW"
 	DBBearerToken       = "DB_BEARER_TOKEN"
 
-	MultiClusterBasicAuthUsername = "MC_BASIC_AUTH_USERNAME"
-	MultiClusterBasicAuthPassword = "MC_BASIC_AUTH_PW"
-	MultiClusterBearerToken       = "MC_BEARER_TOKEN"
-
 	CurrentClusterIdFilterEnabledVar = "CURRENT_CLUSTER_ID_FILTER_ENABLED"
 	ClusterIDEnvVar                  = "CLUSTER_ID"
 
-	KubecostJobNameEnvVar      = "KUBECOST_JOB_NAME"
-	ETLResolutionSecondsEnvVar = "ETL_RESOLUTION_SECONDS"
+	KubecostJobNameEnvVar = "KUBECOST_JOB_NAME"
 )
 
 // IsPrometheusRetryOnRateLimitResponse will attempt to retry if a 429 response is received OR a 400 with a body containing
@@ -108,13 +103,13 @@ func IsKubeRbacProxyEnabled() bool {
 	return env.GetBool(KubeRbacProxyEnabledEnvVar, false)
 }
 
-// GetETLResolution determines the resolution of ETL queries. The smaller the
+// GetPrometheusQueryResolution determines the resolution of prom queries. The smaller the
 // duration, the higher the resolution; the higher the resolution, the more
 // accurate the query results, but the more computationally expensive.
-func GetETLResolution() time.Duration {
-	// Use the configured ETL resolution, or default to
+func GetPrometheusQueryResolution() time.Duration {
+	// Use the configured query resolution, or default to
 	// 5m (i.e. 300s)
-	secs := time.Duration(env.GetInt64(ETLResolutionSecondsEnvVar, 300))
+	secs := time.Duration(env.GetInt64(PrometheusQueryResolutionSecondsEnvVar, 300))
 	return secs * time.Second
 }
 
@@ -125,11 +120,6 @@ func GetMaxQueryConcurrency() int {
 		return runtime.GOMAXPROCS(0)
 	}
 	return maxQueryConcurrency
-}
-
-// GetQueryLoggingFile returns a file location if query logging is enabled. Otherwise, empty string
-func GetQueryLoggingFile() string {
-	return env.Get(QueryLoggingFileEnvVar, "")
 }
 
 func GetDBBasicAuthUsername() string {
@@ -144,23 +134,9 @@ func GetDBBearerToken() string {
 	return env.Get(DBBearerToken, "")
 }
 
-// GetMultiClusterBasicAuthUsername returns the environment variable value for MultiClusterBasicAuthUsername
-func GetMultiClusterBasicAuthUsername() string {
-	return env.Get(MultiClusterBasicAuthUsername, "")
-}
-
-// GetMultiClusterBasicAuthPassword returns the environment variable value for MultiClusterBasicAuthPassword
-func GetMultiClusterBasicAuthPassword() string {
-	return env.Get(MultiClusterBasicAuthPassword, "")
-}
-
-func GetMultiClusterBearerToken() string {
-	return env.Get(MultiClusterBearerToken, "")
-}
-
-func GetETLMaxPrometheusQueryDuration() time.Duration {
+func GetPrometheusMaxQueryDuration() time.Duration {
 	dayMins := 60 * 24
-	mins := time.Duration(env.GetInt64(ETLMaxPrometheusQueryDurationMinutes, int64(dayMins)))
+	mins := time.Duration(env.GetInt64(PrometheusMaxQueryDurationMinutes, int64(dayMins)))
 	return mins * time.Minute
 }
 

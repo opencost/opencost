@@ -54,7 +54,7 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 	jobName := env.GetJobName()
 	scrapeInterval := env.GetScrapeInterval()
 
-	maxQueryDuration := env.GetETLMaxPrometheusQueryDuration()
+	maxQueryDuration := env.GetPrometheusMaxQueryDuration()
 
 	clusterId := env.GetClusterID()
 	clusterLabel := env.GetPromClusterLabel()
@@ -89,7 +89,7 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 		}
 	}
 
-	dataResolution := env.GetETLResolution()
+	dataResolution := env.GetPrometheusQueryResolution()
 
 	// Ensuring if data resolution is less than 60s default it to 1m
 	resolutionMinutes := int(dataResolution.Minutes())

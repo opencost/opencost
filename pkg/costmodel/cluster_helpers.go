@@ -577,7 +577,7 @@ func loadBalancerKeyGen(result *source.LBActiveMinutesResult) (LoadBalancerIdent
 	return LoadBalancerIdentifier{
 		Cluster:   cluster,
 		Namespace: namespace,
-		Name:      fmt.Sprintf("%s/%s", namespace, name), // TODO:ETL this is kept for backwards-compatibility, but not good,
+		Name:      fmt.Sprintf("%s/%s", namespace, name), // TODO: this is kept for backwards-compatibility, but not good,
 		IngressIP: ingressIp,
 	}, true
 }

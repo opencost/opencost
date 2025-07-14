@@ -80,23 +80,22 @@ func NewKubernetesClusterCacheV1(client kubernetes.Interface) cc.ClusterCache {
 	// Wait for each caching watcher to initialize
 	cancel := make(chan struct{})
 	var wg sync.WaitGroup
-	if !env.IsETLReadOnlyMode() {
-		wg.Add(14)
-		go initializeCache(kcc.namespaceWatch, &wg, cancel)
-		go initializeCache(kcc.nodeWatch, &wg, cancel)
-		go initializeCache(kcc.podWatch, &wg, cancel)
-		go initializeCache(kcc.serviceWatch, &wg, cancel)
-		go initializeCache(kcc.daemonsetsWatch, &wg, cancel)
-		go initializeCache(kcc.deploymentsWatch, &wg, cancel)
-		go initializeCache(kcc.statefulsetWatch, &wg, cancel)
-		go initializeCache(kcc.replicasetWatch, &wg, cancel)
-		go initializeCache(kcc.pvWatch, &wg, cancel)
-		go initializeCache(kcc.pvcWatch, &wg, cancel)
-		go initializeCache(kcc.storageClassWatch, &wg, cancel)
-		go initializeCache(kcc.jobsWatch, &wg, cancel)
-		go initializeCache(kcc.pdbWatch, &wg, cancel)
-		go initializeCache(kcc.replicationControllerWatch, &wg, cancel)
-	}
+
+	wg.Add(14)
+	go initializeCache(kcc.namespaceWatch, &wg, cancel)
+	go initializeCache(kcc.nodeWatch, &wg, cancel)
+	go initializeCache(kcc.podWatch, &wg, cancel)
+	go initializeCache(kcc.serviceWatch, &wg, cancel)
+	go initializeCache(kcc.daemonsetsWatch, &wg, cancel)
+	go initializeCache(kcc.deploymentsWatch, &wg, cancel)
+	go initializeCache(kcc.statefulsetWatch, &wg, cancel)
+	go initializeCache(kcc.replicasetWatch, &wg, cancel)
+	go initializeCache(kcc.pvWatch, &wg, cancel)
+	go initializeCache(kcc.pvcWatch, &wg, cancel)
+	go initializeCache(kcc.storageClassWatch, &wg, cancel)
+	go initializeCache(kcc.jobsWatch, &wg, cancel)
+	go initializeCache(kcc.pdbWatch, &wg, cancel)
+	go initializeCache(kcc.replicationControllerWatch, &wg, cancel)
 
 	wg.Wait()
 

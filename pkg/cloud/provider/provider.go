@@ -159,13 +159,11 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	}
 
 	var nodes []*clustercache.Node
-	if !env.IsETLReadOnlyMode() {
-		// the error can be ignored because getAllNodesFunc only errors if nodes is empty, a case which we explicitly
-		// handle by checking the length of nodes below
-		nodes, _ = retry.Retry(context.Background(), getAllNodesFunc, 10, time.Second)
-	} else {
-		nodes, _ = getAllNodesFunc()
-	}
+
+	// the error can be ignored because getAllNodesFunc only errors if nodes is empty, a case which we explicitly
+	// handle by checking the length of nodes below
+	nodes, _ = retry.Retry(context.Background(), getAllNodesFunc, 10, time.Second)
+
 	if len(nodes) == 0 {
 		log.Infof("Could not locate any nodes for cluster.")
 		return &CustomProvider{

@@ -193,44 +193,4 @@ func TestEnvVarsWithBackup(t *testing.T) {
 			t.Errorf("Expected default install namespace to be 'opencost', got '%s'", ns)
 		}
 	})
-
-	t.Run("test config bucket file with both", func(t *testing.T) {
-		t.Setenv(ConfigBucketEnvVar, "test-bucket")
-		t.Setenv(KubecostConfigBucketEnvVar, "kc-test-bucket")
-
-		configBucketFile := GetConfigBucketFile()
-
-		if configBucketFile != "test-bucket" {
-			t.Errorf("Expected config bucket file to be 'test-bucket', got '%s'", configBucketFile)
-		}
-	})
-
-	t.Run("test config bucket file with kc", func(t *testing.T) {
-		t.Setenv(KubecostConfigBucketEnvVar, "kc-test-bucket")
-
-		configBucketFile := GetConfigBucketFile()
-
-		if configBucketFile != "kc-test-bucket" {
-			t.Errorf("Expected config bucket file to be 'kc-test-bucket', got '%s'", configBucketFile)
-		}
-	})
-
-	t.Run("test config bucket file with single", func(t *testing.T) {
-		t.Setenv(ConfigBucketEnvVar, "test-bucket")
-
-		configBucketFile := GetConfigBucketFile()
-
-		if configBucketFile != "test-bucket" {
-			t.Errorf("Expected config bucket file to be 'test-bucket', got '%s'", configBucketFile)
-		}
-	})
-
-	t.Run("test config bucket file with both", func(t *testing.T) {
-		configBucketFile := GetConfigBucketFile()
-
-		if configBucketFile != "" {
-			t.Errorf("Expected config bucket file to be '', got '%s'", configBucketFile)
-		}
-	})
-
 }

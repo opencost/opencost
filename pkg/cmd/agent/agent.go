@@ -75,10 +75,7 @@ func Execute(opts *AgentOpts) error {
 	}
 
 	// Create ConfigFileManager for synchronization of shared configuration
-	confManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-		BucketStoreConfig: env.GetConfigBucketFile(),
-		LocalConfigPath:   "/",
-	})
+	confManager := config.NewConfigFileManager(nil)
 
 	configPrefix := env.GetConfigPathWithDefault(env.DefaultConfigMountPath)
 

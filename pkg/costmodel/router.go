@@ -474,10 +474,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	k8sCache.Run()
 
 	// Create ConfigFileManager for synchronization of shared configuration
-	confManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-		BucketStoreConfig: env.GetConfigBucketFile(),
-		LocalConfigPath:   "/",
-	})
+	confManager := config.NewConfigFileManager(nil)
 
 	configPrefix := env.GetConfigPathWithDefault("/var/configs/")
 
