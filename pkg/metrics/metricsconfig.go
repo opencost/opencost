@@ -13,7 +13,7 @@ import (
 
 var (
 	metricsConfigLock = new(sync.Mutex)
-	metricsFilePath   = path.Join(env.GetCostAnalyzerVolumeMountPath(), "metrics.json")
+	metricsFilePath   = path.Join(env.GetConfigPathWithDefault(env.DefaultConfigMountPath), "metrics.json")
 )
 
 type MetricsConfig struct {

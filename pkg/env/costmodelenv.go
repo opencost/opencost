@@ -86,7 +86,7 @@ const (
 
 	CustomCostEnabledEnvVar         = "CUSTOM_COST_ENABLED"
 	CustomCostQueryWindowDaysEnvVar = "CUSTOM_COST_QUERY_WINDOW_DAYS"
-	
+
 	PluginConfigDirEnvVar     = "PLUGIN_CONFIG_DIR"
 	PluginExecutableDirEnvVar = "PLUGIN_EXECUTABLE_DIR"
 
@@ -304,12 +304,6 @@ func GetCSVEndpoint() string {
 // configured for a CSV provider.
 func GetCSVPath() string {
 	return env.Get(CSVPathEnvVar, "")
-}
-
-// GetCostAnalyzerVolumeMountPath is an alias of GetConfigPath, which returns the mount path for the
-// Cost Analyzer volume, which stores configs, persistent data, etc.
-func GetCostAnalyzerVolumeMountPath() string {
-	return GetConfigPathWithDefault(DefaultConfigMountPath)
 }
 
 // GetConfigPath returns the environment variable value for ConfigPathEnvVar which represents the cost
