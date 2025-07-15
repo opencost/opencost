@@ -32,6 +32,7 @@ type QuotaMetrics struct {
 	Percentage   float64           `json:"percentage"`
 	Timestame    time.Time         `json:"timestamp"`
 	Labels       map[string]string `json:"labels"`
+	Recommended  resource.Quantity `json:"recommended"`
 }
 
 func NewQuotaTracker(clientset *kubernetes.Clientset) *QuotaTracker {
@@ -71,9 +72,12 @@ func (qt *QuotaTracker) GetNamespaceQuotaMetrics(namespace string) ([]QuotaMetri
 		for resourceName, hardLimit := range quota.Status.Hard {
 			usedQuantity := quota.Status.Used[resourceName]
 			var percentage float64
+			var recommended float64
 			if hardLimit.Value() > 0 {
 				percentage = usedQuantity.AsApproximateFloat64() / hardLimit.AsApproximateFloat64()
+				recommended = 0.8 * usedQuantity.AsApproximateFloat64()
 			}
+			recommendedQuantity := resource.NewQuantity(int64(recommended), usedQuantity.Format)
 			metric := QuotaMetrics{
 				ClusterID:    env.GetClusterID(),
 				Namespace:    namespace,
@@ -84,6 +88,7 @@ func (qt *QuotaTracker) GetNamespaceQuotaMetrics(namespace string) ([]QuotaMetri
 				Percentage:   percentage,
 				Timestame:    timestamp,
 				Labels:       quota.Labels,
+				Recommended:  *recommendedQuantity,
 			}
 			metrics = append(metrics, metric)
 		}
