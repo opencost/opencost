@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	cc "github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/pkg/env"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
@@ -54,22 +55,22 @@ func (kcc *KubernetesClusterCacheV2) Run() {
 	var wg sync.WaitGroup
 
 	wg.Add(14)
-
-	kcc.namespaceStore.Watch(kcc.stopCh, wg.Done)
-	kcc.nodeStore.Watch(kcc.stopCh, wg.Done)
-	kcc.persistentVolumeClaimStore.Watch(kcc.stopCh, wg.Done)
-	kcc.persistentVolumeStore.Watch(kcc.stopCh, wg.Done)
-	kcc.podStore.Watch(kcc.stopCh, wg.Done)
-	kcc.replicationControllerStore.Watch(kcc.stopCh, wg.Done)
-	kcc.serviceStore.Watch(kcc.stopCh, wg.Done)
-	kcc.daemonSetStore.Watch(kcc.stopCh, wg.Done)
-	kcc.deploymentStore.Watch(kcc.stopCh, wg.Done)
-	kcc.replicaSetStore.Watch(kcc.stopCh, wg.Done)
-	kcc.statefulSetStore.Watch(kcc.stopCh, wg.Done)
-	kcc.storageClassStore.Watch(kcc.stopCh, wg.Done)
-	kcc.jobStore.Watch(kcc.stopCh, wg.Done)
-	kcc.pdbStore.Watch(kcc.stopCh, wg.Done)
-
+	if env.HasKubernetesResourceAccess() {
+		kcc.namespaceStore.Watch(kcc.stopCh, wg.Done)
+		kcc.nodeStore.Watch(kcc.stopCh, wg.Done)
+		kcc.persistentVolumeClaimStore.Watch(kcc.stopCh, wg.Done)
+		kcc.persistentVolumeStore.Watch(kcc.stopCh, wg.Done)
+		kcc.podStore.Watch(kcc.stopCh, wg.Done)
+		kcc.replicationControllerStore.Watch(kcc.stopCh, wg.Done)
+		kcc.serviceStore.Watch(kcc.stopCh, wg.Done)
+		kcc.daemonSetStore.Watch(kcc.stopCh, wg.Done)
+		kcc.deploymentStore.Watch(kcc.stopCh, wg.Done)
+		kcc.replicaSetStore.Watch(kcc.stopCh, wg.Done)
+		kcc.statefulSetStore.Watch(kcc.stopCh, wg.Done)
+		kcc.storageClassStore.Watch(kcc.stopCh, wg.Done)
+		kcc.jobStore.Watch(kcc.stopCh, wg.Done)
+		kcc.pdbStore.Watch(kcc.stopCh, wg.Done)
+	}
 	wg.Wait()
 }
 

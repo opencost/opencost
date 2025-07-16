@@ -94,7 +94,8 @@ const (
 
 	CarbonEstimatesEnabledEnvVar = "CARBON_ESTIMATES_ENABLED"
 
-	UseCacheV1 = "USE_CACHE_V1"
+	KubernetesResourceAccessEnvVar = "KUBERNETES_RESOURCE_ACCESS"
+	UseCacheV1                     = "USE_CACHE_V1"
 
 	InstallNamespaceEnvVar = "INSTALL_NAMESPACE"
 
@@ -450,6 +451,9 @@ func GetPluginExecutableDir() string {
 func IsCarbonEstimatesEnabled() bool {
 	return env.GetBool(CarbonEstimatesEnabledEnvVar, false)
 }
+
+// HasKubernetesResourceAccess can be set to false if Opencost is run without access to the kubernetes resources
+func HasKubernetesResourceAccess() bool { return env.GetBool(KubernetesResourceAccessEnvVar, true) }
 
 // GetUseCacheV1 is a temporary flag to allow users to opt-in to using the old cache
 // Mainly for comparison purposes
