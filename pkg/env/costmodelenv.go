@@ -122,6 +122,9 @@ const (
 	// Deprecated
 	KubecostNamespaceEnvVar    = "KUBECOST_NAMESPACE"
 	KubecostConfigBucketEnvVar = "KUBECOST_CONFIG_BUCKET"
+
+	// Cloud provider override
+	CloudProviderVar = "CLOUD_PROVIDER"
 )
 
 const DefaultConfigMountPath = "/var/configs"
@@ -550,4 +553,9 @@ func GetNodeStatsCertFile() string {
 // GetNodeStatsKeyFile returns the path of the key file
 func GetNodeStatsKeyFile() string {
 	return env.Get(NodeStatsKeyFileEnvVar, "")
+}
+
+// GetCloudProvider returns the explicitly set cloud provider from environment variable
+func GetCloudProvider() string {
+	return env.Get(CloudProviderVar, "")
 }

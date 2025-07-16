@@ -175,6 +175,32 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	}
 
 	cp := getClusterProperties(nodes[0])
+
+	// If provider is DEFAULT, check for explicitly set cloud provider from environment variable
+	envProvider := env.GetCloudProvider()
+	if cp.provider == "DEFAULT" && envProvider != "" {
+		log.Infof("Using cloud provider from environment variable: %s", envProvider)
+		cp.provider = envProvider
+		switch envProvider {
+		case opencost.AWSProvider:
+			cp.configFileName = "aws.json"
+		case opencost.AzureProvider:
+			cp.configFileName = "azure.json"
+		case opencost.GCPProvider:
+			cp.configFileName = "gcp.json"
+		case opencost.AlibabaProvider:
+			cp.configFileName = "alibaba.json"
+		case opencost.OracleProvider:
+			cp.configFileName = "oracle.json"
+		case opencost.ScalewayProvider:
+			cp.configFileName = "scaleway.json"
+		case opencost.OTCProvider:
+			cp.configFileName = "otc.json"
+		case opencost.CSVProvider:
+			cp.configFileName = "default.json"
+		}
+	}
+
 	providerConfig := NewProviderConfig(config, cp.configFileName)
 	// If ClusterAccount is set apply it to the cluster properties
 	if providerConfig.customPricing != nil && providerConfig.customPricing.ClusterAccountID != "" {
