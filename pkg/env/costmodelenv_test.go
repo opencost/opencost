@@ -3,7 +3,151 @@ package env
 import (
 	"os"
 	"testing"
+
+	"github.com/opencost/opencost/core/pkg/env"
+	"github.com/stretchr/testify/require"
 )
+
+func TestEnvGet(t *testing.T) {
+	tests := []struct {
+		name           string
+		envVar         string
+		value          string
+		defaultValue   interface{}
+		expectedResult interface{}
+	}{
+		{
+			name:           "String env var with value",
+			envVar:         "TEST_STRING",
+			value:          "test-value",
+			defaultValue:   "default",
+			expectedResult: "test-value",
+		},
+		{
+			name:           "String env var empty",
+			envVar:         "TEST_STRING_EMPTY",
+			value:          "",
+			defaultValue:   "default",
+			expectedResult: "",
+		},
+		{
+			name:           "String env var not set",
+			envVar:         "TEST_STRING_NOT_SET",
+			value:          "",
+			defaultValue:   "default",
+			expectedResult: "default",
+		},
+		{
+			name:           "Int env var with value",
+			envVar:         "TEST_INT",
+			value:          "42",
+			defaultValue:   0,
+			expectedResult: 42,
+		},
+		{
+			name:           "Int env var invalid",
+			envVar:         "TEST_INT_INVALID",
+			value:          "not-a-number",
+			defaultValue:   0,
+			expectedResult: 0,
+		},
+		{
+			name:           "Bool env var true",
+			envVar:         "TEST_BOOL_TRUE",
+			value:          "true",
+			defaultValue:   false,
+			expectedResult: true,
+		},
+		{
+			name:           "Bool env var false",
+			envVar:         "TEST_BOOL_FALSE",
+			value:          "false",
+			defaultValue:   true,
+			expectedResult: false,
+		},
+		{
+			name:           "Bool env var invalid",
+			envVar:         "TEST_BOOL_INVALID",
+			value:          "not-a-bool",
+			defaultValue:   true,
+			expectedResult: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up environment
+			if tt.value != "" {
+				os.Setenv(tt.envVar, tt.value)
+				defer os.Unsetenv(tt.envVar)
+			}
+
+			// Test based on type
+			switch v := tt.defaultValue.(type) {
+			case string:
+				result := env.Get(tt.envVar, v)
+				require.Equal(t, tt.expectedResult, result)
+			case int:
+				result := env.GetInt(tt.envVar, v)
+				require.Equal(t, tt.expectedResult, result)
+			case bool:
+				result := env.GetBool(tt.envVar, v)
+				require.Equal(t, tt.expectedResult, result)
+			}
+		})
+	}
+}
+
+func TestEnvGetList(t *testing.T) {
+	tests := []struct {
+		name           string
+		envVar         string
+		value          string
+		separator      string
+		expectedResult []string
+	}{
+		{
+			name:           "List with values",
+			envVar:         "TEST_LIST",
+			value:          "a,b,c",
+			separator:      ",",
+			expectedResult: []string{"a", "b", "c"},
+		},
+		{
+			name:           "List with empty values",
+			envVar:         "TEST_LIST_EMPTY",
+			value:          "a,,c",
+			separator:      ",",
+			expectedResult: []string{"a", "", "c"},
+		},
+		{
+			name:           "List with custom separator",
+			envVar:         "TEST_LIST_CUSTOM",
+			value:          "a|b|c",
+			separator:      "|",
+			expectedResult: []string{"a", "b", "c"},
+		},
+		{
+			name:           "Empty list",
+			envVar:         "TEST_LIST_EMPTY_VAR",
+			value:          "",
+			separator:      ",",
+			expectedResult: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.value != "" {
+				os.Setenv(tt.envVar, tt.value)
+				defer os.Unsetenv(tt.envVar)
+			}
+
+			result := env.GetList(tt.envVar, tt.separator)
+			require.Equal(t, tt.expectedResult, result)
+		})
+	}
+}
 
 func TestGetAPIPort(t *testing.T) {
 	tests := []struct {
