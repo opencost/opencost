@@ -83,7 +83,7 @@ func TestIncreaseAggregator_Value(t *testing.T) {
 				},
 			},
 		},
-		"set restart ": {
+		"set restart": {
 			updates: []update{
 				{
 					value:     3,

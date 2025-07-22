@@ -8,19 +8,30 @@ import (
 // rateAggregator is a MetricAggregator which returns the average rate per second change of the samples that it tracks.
 // to function properly calls to Update must have a timestamp greater than or equal to the last call to update.
 type rateAggregator struct {
-	lock        sync.Mutex
-	labelValues []string
-	initialized bool
-	initialTime time.Time
-	currentTime time.Time
-	initial     float64
-	current     float64
+	lock         sync.Mutex
+	labelValues  []string
+	previousTime time.Time
+	previous     float64
+	currentTime  time.Time
+	current      float64
+	increase     float64
+	seconds      float64
 }
 
 func Rate(labelValues []string) MetricAggregator {
 	return &rateAggregator{
 		labelValues: labelValues,
 	}
+}
+func (a *rateAggregator) getIncreaseSeconds() (float64, float64) {
+	increase := a.increase
+	seconds := a.seconds
+	// ignore decreases
+	if a.previous < a.current && a.previous != 0 {
+		increase += a.current - a.previous
+		seconds += a.currentTime.Sub(a.previousTime).Seconds()
+	}
+	return increase, seconds
 }
 
 func (a *rateAggregator) AdditionInfo() map[string]string {
@@ -34,33 +45,25 @@ func (a *rateAggregator) LabelValues() []string {
 func (a *rateAggregator) Update(value float64, timestamp time.Time, additionalInfo map[string]string) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	if !a.initialized {
-		a.initialTime = timestamp
-		a.currentTime = timestamp
-		a.initialized = true
-	}
-	if a.initialTime == timestamp {
-		a.initial += value
-	}
-
-	if a.currentTime.Before(timestamp) {
+	if timestamp.After(a.currentTime) {
+		a.increase, a.seconds = a.getIncreaseSeconds()
+		a.previous = a.current
+		a.previousTime = a.currentTime
 		a.currentTime = timestamp
 		a.current = 0
 	}
-
 	a.current += value
 }
 
 func (a *rateAggregator) Value() []MetricValue {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	seconds := a.currentTime.Sub(a.initialTime).Seconds()
+	increase, seconds := a.getIncreaseSeconds()
 	if seconds == 0 {
 		return []MetricValue{
 			{Value: 0},
 		}
 	}
-	increase := a.current - a.initial
 	return []MetricValue{
 		{Value: increase / seconds},
 	}
