@@ -2039,6 +2039,11 @@ func (aws *AWS) GetSavingsPlanDataFromAthena() error {
 	}
 	if aws.SavingsPlanDataByInstanceID == nil {
 		aws.SavingsPlanDataByInstanceID = make(map[string]*SavingsPlanData)
+	} else {
+		// Always clear the map at the start of the query
+		for k := range aws.SavingsPlanDataByInstanceID {
+			delete(aws.SavingsPlanDataByInstanceID, k)
+		}
 	}
 	tNow := time.Now()
 	tOneDayAgo := tNow.Add(time.Duration(-25) * time.Hour) // Also get files from one day ago to avoid boundary conditions
@@ -2066,7 +2071,7 @@ func (aws *AWS) GetSavingsPlanDataFromAthena() error {
 			return false
 		}
 		aws.SavingsPlanDataLock.Lock()
-		aws.SavingsPlanDataByInstanceID = make(map[string]*SavingsPlanData) // Clean out the old data and only report a savingsplan price if its in the most recent run.
+		// Do NOT clear the map here! Only accumulate results.
 		mostRecentDate := ""
 		iter := op.ResultSet.Rows
 		if page == 0 && len(iter) > 0 {
