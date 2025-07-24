@@ -34,7 +34,7 @@ jobs:
           version: '25.3'
       -
         name: Install just
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v3
 
       - name: install protobuf-go
         run: |
@@ -54,7 +54,7 @@ jobs:
 
       -
         name: Install just
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v3
 
       -
         name: Install Go

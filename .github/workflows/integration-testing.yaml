@@ -188,9 +188,9 @@ jobs:
       if: ${{ (always() && !cancelled()) && ( github.event.event_name == 'schedule'  || github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request_target'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
       permissions: {}
       steps:
-        - name: Wait 15 minutes for promless data collection
+        - name: Wait 22 minutes for promless data collection
           run: |
-            sleep 1000
+            sleep 1320
     
     run-comparison-tests:
       needs: [wait_for_image_ready, build-test-stack, build-test-stack-promless, wait-for-data-collection]

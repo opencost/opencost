@@ -15,6 +15,7 @@ const (
 	FieldServices       string = "services"
 	FieldLabel          string = "label"
 	FieldAnnotation     string = "annotation"
+	FieldNodeLabel      string = "nodeLabel"
 
 	FieldName       string = "name"
 	FieldType       string = "assetType"
@@ -23,6 +24,8 @@ const (
 	FieldProviderID string = "providerID"
 	FieldAccount    string = "account"
 	FieldService    string = "service"
+
+	FieldNodeType string = "nodeType"
 
 	FieldInvoiceEntityID   string = "invoiceEntityID"
 	FieldInvoiceEntityName string = "invoiceEntityName"

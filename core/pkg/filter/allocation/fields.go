@@ -23,6 +23,7 @@ const (
 	FieldServices       AllocationField = AllocationField(fieldstrings.FieldServices)
 	FieldLabel          AllocationField = AllocationField(fieldstrings.FieldLabel)
 	FieldAnnotation     AllocationField = AllocationField(fieldstrings.FieldAnnotation)
+	FieldNodeLabel      AllocationField = AllocationField(fieldstrings.FieldNodeLabel)
 )
 
 // AllocationAlias represents an alias field type for allocations.
