@@ -15,6 +15,8 @@ import (
 )
 
 type Namespace struct {
+	// Add UID
+	UID         types.UID
 	Name        string
 	Labels      map[string]string
 	Annotations map[string]string
@@ -51,6 +53,8 @@ type Container struct {
 }
 
 type Node struct {
+	// Add UID
+	UID            types.UID
 	Name           string
 	Labels         map[string]string
 	Annotations    map[string]string
@@ -181,6 +185,7 @@ func GetControllerOfNoCopy(pod *Pod) *metav1.OwnerReference {
 
 func TransformNamespace(input *v1.Namespace) *Namespace {
 	return &Namespace{
+		UID:         input.UID, // Emit UID
 		Name:        input.Name,
 		Annotations: input.Annotations,
 		Labels:      input.Labels,
@@ -241,6 +246,7 @@ func TransformPod(input *v1.Pod) *Pod {
 
 func TransformNode(input *v1.Node) *Node {
 	return &Node{
+		UID:            input.UID, // Emit UID
 		Name:           input.Name,
 		Labels:         input.Labels,
 		Annotations:    input.Annotations,

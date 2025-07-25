@@ -44,6 +44,48 @@ func DefaultKubeMetricsOpts() *KubeMetricsOpts {
 	}
 }
 
+// Collector to emit UID metrics
+
+type KubeUIDCollector struct {
+	KubeClusterCache clustercache.ClusterCache
+}
+
+func (c KubeUIDCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- prometheus.NewDesc("opencost_kube_pod_uid", "Kubernetes Pod UID", []string{"namespace", "pod", "uid"}, nil)
+	ch <- prometheus.NewDesc("opencost_kube_node_uid", "Kubernetes Node UID", []string{"node", "uid"}, nil)
+	ch <- prometheus.NewDesc("opencost_kube_namespace_uid", "Kubernetes Namespace UID", []string{"namespace", "uid"}, nil)
+}
+
+func (c KubeUIDCollector) Collect(ch chan<- prometheus.Metric) {
+	// Pod UIDs
+	for _, pod := range c.KubeClusterCache.GetAllPods() {
+		ch <- prometheus.MustNewConstMetric(
+			prometheus.NewDesc("opencost_kube_pod_uid", "Kubernetes Pod UID", []string{"namespace", "pod", "uid"}, nil),
+			prometheus.GaugeValue,
+			1,
+			pod.Namespace, pod.Name, string(pod.UID),
+		)
+	}
+	// Node UIDs
+	for _, node := range c.KubeClusterCache.GetAllNodes() {
+		ch <- prometheus.MustNewConstMetric(
+			prometheus.NewDesc("opencost_kube_node_uid", "Kubernetes Node UID", []string{"node", "uid"}, nil),
+			prometheus.GaugeValue,
+			1,
+			node.Name, string(node.UID),
+		)
+	}
+	// Namespace UIDs
+	for _, ns := range c.KubeClusterCache.GetAllNamespaces() {
+		ch <- prometheus.MustNewConstMetric(
+			prometheus.NewDesc("opencost_kube_namespace_uid", "Kubernetes Namespace UID", []string{"namespace", "uid"}, nil),
+			prometheus.GaugeValue,
+			1,
+			ns.Name, string(ns.UID),
+		)
+	}
+}
+
 // InitKubeMetrics initializes kubernetes metric emission using the provided options.
 func InitKubeMetrics(clusterCache clustercache.ClusterCache, metricsConfig *MetricsConfig, opts *KubeMetricsOpts) {
 	if opts == nil {
@@ -152,6 +194,11 @@ func InitKubeMetrics(clusterCache clustercache.ClusterCache, metricsConfig *Metr
 				metricsConfig:    *metricsConfig,
 			})
 		}
+
+		// Register UID collector for pods, nodes & namespaces
+		prometheus.MustRegister(KubeUIDCollector{
+			KubeClusterCache: clusterCache,
+		})
 	})
 }
 
