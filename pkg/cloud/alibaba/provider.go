@@ -1073,6 +1073,10 @@ func processDescribePriceAndCreateAlibabaPricing(client *sdk.Client, i interface
 	pricing = &AlibabaPricing{}
 	var response DescribePriceResponse
 
+	if client == nil {
+		return nil, fmt.Errorf("nil client passed to process the pricing information")
+	}
+
 	if i == nil {
 		return nil, fmt.Errorf("nil component passed to process the pricing information")
 	}
@@ -1206,6 +1210,11 @@ func getSystemDiskInfoOfANode(instanceID, regionID string, client *sdk.Client, s
 	var response DescribeDiskResponse
 	// if instanceID is empty string return an empty k8s
 	if instanceID == "" {
+		return
+	}
+	// if client is nil return an empty disk to not impact default pricing
+	if client == nil {
+		log.Warnf("unable to set the signer for node with providerID %s to retrieve the key skipping SystemDisk Retrieval with err: nil client", instanceID)
 		return
 	}
 	req, err := createDescribeDisksACSRequest(instanceID, regionID, ALIBABA_SYSTEM_DISK_CATEGORY)
