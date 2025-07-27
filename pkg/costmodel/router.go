@@ -286,11 +286,53 @@ func (a *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 
 func (a *Accesses) GetClusterInfoMap(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	data := a.ClusterMap.AsMap()
+	clusterMap := a.Model.ClusterMap()
+	if clusterMap == nil {
+		http.Error(w, "Cluster map not available", http.StatusInternalServerError)
+		return
+	}
 
-	WriteData(w, data, nil)
+	clusterInfoMap := clusterMap.AsMap()
+	WriteData(w, clusterInfoMap, nil)
+}
+
+func (a *Accesses) GetClusterStatus(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+
+	clusterMap := a.Model.ClusterMap()
+	if clusterMap == nil {
+		http.Error(w, "Cluster map not available", http.StatusInternalServerError)
+		return
+	}
+
+	clusterInfoMap := clusterMap.AsMap()
+	clusterIDs := clusterMap.GetClusterIDs()
+	currentClusterID := env.GetClusterID()
+	clusterFilterEnabled := env.GetBool("CURRENT_CLUSTER_ID_FILTER_ENABLED", false)
+	clusterLabel := env.Get("PROM_CLUSTER_ID_LABEL", "cluster_id")
+
+	status := map[string]interface{}{
+		"currentClusterID":        currentClusterID,
+		"clusterFilterEnabled":    clusterFilterEnabled,
+		"clusterLabel":            clusterLabel,
+		"totalClustersDiscovered": len(clusterIDs),
+		"availableClusters":       clusterIDs,
+		"clusterDetails":          clusterInfoMap,
+		"multiClusterCapable":     !clusterFilterEnabled && len(clusterIDs) > 1,
+		"warning":                 "",
+	}
+
+	// Add warning if cluster filtering is enabled but multiple clusters are available
+	if clusterFilterEnabled && len(clusterIDs) > 1 {
+		status["warning"] = "Cluster filtering is enabled, so only data from the current cluster will be shown in allocation reports. Set CURRENT_CLUSTER_ID_FILTER_ENABLED=false to view multi-cluster data."
+	} else if clusterFilterEnabled && len(clusterIDs) <= 1 {
+		status["warning"] = "Cluster filtering is enabled and only one cluster is available. The 'Cluster' breakdown option will only show data from the current cluster."
+	} else if !clusterFilterEnabled && len(clusterIDs) <= 1 {
+		status["warning"] = "Cluster filtering is disabled but only one cluster is available. Ensure your Prometheus/Thanos backend contains data from multiple clusters with proper cluster labels."
+	}
+
+	WriteData(w, status, nil)
 }
 
 func (a *Accesses) GetServiceAccountStatus(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
@@ -596,6 +638,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	router.GET("/managementPlatform", a.ManagementPlatform)
 	router.GET("/clusterInfo", a.ClusterInfo)
 	router.GET("/clusterInfoMap", a.GetClusterInfoMap)
+	router.GET("/clusterStatus", a.GetClusterStatus)
 	router.GET("/serviceAccountStatus", a.GetServiceAccountStatus)
 	router.GET("/pricingSourceStatus", a.GetPricingSourceStatus)
 	router.GET("/pricingSourceSummary", a.GetPricingSourceSummary)
