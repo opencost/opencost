@@ -488,6 +488,16 @@ func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourc
 	}
 }
 
+// ComputePercentages calculates the percentage of node cost attributed to each resource (CPU, RAM, GPU).
+//
+// For Azure nodes, the node's total cost is split between CPU and RAM (and GPU if present) based on their proportions.
+// The per-resource cost split can be calculated using the CalculateResourceCostSplit function in pkg/cloud/azure/provider.go.
+//
+// For example, if a node has 4 CPUs, 16GB RAM, and costs $0.20/hr:
+//   - cpuCostPerCore, ramCostPerGB := CalculateResourceCostSplit(0.20, 4, 16)
+//   - Each pod's CPU and RAM cost is then: pod.CPUReq * cpuCostPerCore, pod.RAMReq * ramCostPerGB
+//
+// This logic ensures that pod-level costs are proportional to their resource requests/usage relative to the node's total resources and cost.
 func ComputePercentages(toInsert *ProportionalAssetResourceCost) {
 	totalNodeCost := toInsert.RAMTotalCost + toInsert.CPUTotalCost + toInsert.GPUTotalCost
 

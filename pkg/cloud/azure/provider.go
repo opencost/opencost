@@ -1712,3 +1712,33 @@ func ParseAzureSubscriptionID(id string) string {
 	// Return empty string if an account could not be parsed from provided string
 	return ""
 }
+
+// CalculateResourceCostSplit calculates the per-CPU and per-GB RAM cost for an Azure VM instance.
+// This function makes explicit how OpenCost splits the total node cost between CPU and RAM resources.
+//
+// For example, if a VM has 4 CPUs, 16GB RAM, and costs $0.20/hr, then:
+//   - CPU cost per core = (cpuRatio * totalCost) / totalCPU
+//   - RAM cost per GB   = (ramRatio * totalCost) / totalRAM
+// Where cpuRatio and ramRatio are the proportions of CPU and RAM relative to the total resources.
+func CalculateResourceCostSplit(totalCost float64, totalCPU float64, totalRAM float64) (cpuCostPerCore float64, ramCostPerGB float64) {
+	if totalCPU <= 0 || totalRAM <= 0 {
+		return 0, 0
+	}
+	resourceSum := totalCPU + totalRAM
+	cpuRatio := totalCPU / resourceSum
+	ramRatio := totalRAM / resourceSum
+
+	cpuCostTotal := totalCost * cpuRatio
+	ramCostTotal := totalCost * ramRatio
+
+	cpuCostPerCore = cpuCostTotal / totalCPU
+	ramCostPerGB = ramCostTotal / totalRAM
+	return
+}
+
+// Example usage (for documentation):
+//   cpuCost, ramCost := CalculateResourceCostSplit(0.20, 4, 16)
+//   // cpuCost = per-core cost, ramCost = per-GB cost
+//
+// This function is used by the cost allocation logic to determine how much of the node's cost
+// should be attributed to CPU and RAM, which is then used to calculate pod-level costs.
