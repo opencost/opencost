@@ -63,6 +63,7 @@ func (nsac KubeNodeCollector) Collect(ch chan<- prometheus.Metric) {
 
 	for _, node := range nodes {
 		nodeName := node.Name
+		nodeUID := string(node.UID)
 
 		// Node Capacity
 		for resourceName, quantity := range node.Status.Capacity {
@@ -78,7 +79,6 @@ func (nsac KubeNodeCollector) Collect(ch chan<- prometheus.Metric) {
 			if _, disabled := disabledMetrics["kube_node_status_capacity_cpu_cores"]; !disabled {
 				if resource == "cpu" {
 					ch <- newKubeNodeStatusCapacityCPUCoresMetric("kube_node_status_capacity_cpu_cores", nodeName, value)
-
 				}
 			}
 			if _, disabled := disabledMetrics["kube_node_status_capacity_memory_bytes"]; !disabled {
@@ -88,7 +88,7 @@ func (nsac KubeNodeCollector) Collect(ch chan<- prometheus.Metric) {
 			}
 
 			if _, disabled := disabledMetrics["kube_node_status_capacity"]; !disabled {
-				ch <- newKubeNodeStatusCapacityMetric("kube_node_status_capacity", nodeName, resource, unit, value)
+				ch <- newKubeNodeStatusCapacityMetric("kube_node_status_capacity", nodeName, nodeUID, resource, unit, value)
 			}
 		}
 
@@ -121,6 +121,9 @@ func (nsac KubeNodeCollector) Collect(ch chan<- prometheus.Metric) {
 		// node labels
 		if _, disabled := disabledMetrics["kube_node_labels"]; !disabled {
 			labelNames, labelValues := promutil.KubePrependQualifierToLabels(promutil.SanitizeLabels(node.Labels), "label_")
+			// Add UID to the labels
+			labelNames = append(labelNames, "uid")
+			labelValues = append(labelValues, nodeUID)
 			ch <- newKubeNodeLabelsMetric(nodeName, "kube_node_labels", labelNames, labelValues)
 		}
 
@@ -149,15 +152,17 @@ type KubeNodeStatusCapacityMetric struct {
 	resource string
 	unit     string
 	node     string
+	uid      string
 	value    float64
 }
 
 // Creates a new KubeNodeStatusCapacityMetric, implementation of prometheus.Metric
-func newKubeNodeStatusCapacityMetric(fqname, node, resource, unit string, value float64) KubeNodeStatusCapacityMetric {
+func newKubeNodeStatusCapacityMetric(fqname, node, uid, resource, unit string, value float64) KubeNodeStatusCapacityMetric {
 	return KubeNodeStatusCapacityMetric{
 		fqName:   fqname,
 		help:     "kube_node_status_capacity node capacity",
 		node:     node,
+		uid:      uid,
 		resource: resource,
 		unit:     unit,
 		value:    value,
@@ -169,6 +174,7 @@ func newKubeNodeStatusCapacityMetric(fqname, node, resource, unit string, value 
 func (kpcrr KubeNodeStatusCapacityMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
 		"node":     kpcrr.node,
+		"uid":      kpcrr.uid,
 		"resource": kpcrr.resource,
 		"unit":     kpcrr.unit,
 	}
@@ -185,6 +191,10 @@ func (kpcrr KubeNodeStatusCapacityMetric) Write(m *dto.Metric) error {
 		{
 			Name:  toStringPtr("node"),
 			Value: &kpcrr.node,
+		},
+		{
+			Name:  toStringPtr("uid"),
+			Value: &kpcrr.uid,
 		},
 		{
 			Name:  toStringPtr("resource"),
