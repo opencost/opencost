@@ -20,8 +20,8 @@ const (
 	PrometheusTLSHandshakeTimeoutEnvVar = "PROMETHEUS_TLS_HANDSHAKE_TIMEOUT"
 	ScrapeIntervalEnvVar                = "KUBECOST_SCRAPE_INTERVAL"
 
-	PrometheusMaxQueryDurationMinutes      = "PROMETHEUS_MAX_QUERY_DURATION_MINUTES"
-	PrometheusQueryResolutionSecondsEnvVar = "PROMETHEUS_QUERY_RESOLUTION_SECONDS"
+	PrometheusMaxQueryDurationMinutesEnvVar = "PROMETHEUS_MAX_QUERY_DURATION_MINUTES"
+	PrometheusQueryResolutionSecondsEnvVar  = "PROMETHEUS_QUERY_RESOLUTION_SECONDS"
 
 	MaxQueryConcurrencyEnvVar = "MAX_QUERY_CONCURRENCY"
 	PromClusterIDLabelEnvVar  = "PROM_CLUSTER_ID_LABEL"
@@ -136,7 +136,7 @@ func GetDBBearerToken() string {
 
 func GetPrometheusMaxQueryDuration() time.Duration {
 	dayMins := 60 * 24
-	mins := time.Duration(env.GetInt64(PrometheusMaxQueryDurationMinutes, int64(dayMins)))
+	mins := time.Duration(env.GetInt64(PrometheusMaxQueryDurationMinutesEnvVar, int64(dayMins)))
 	return mins * time.Minute
 }
 

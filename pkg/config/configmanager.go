@@ -7,27 +7,6 @@ import (
 )
 
 //--------------------------------------------------------------------------
-//  ConfigFileManagerOpts
-//--------------------------------------------------------------------------
-
-// ConfigFileManagerOpts describes how to configure the ConfigFileManager for
-// serving configuration files
-type ConfigFileManagerOpts struct {
-
-	// LocalConfigPath provides a backup location for storing the configuration
-	// files
-	LocalConfigPath string
-}
-
-// DefaultConfigFileManagerOpts returns the default configuration options for the
-// config file manager
-func DefaultConfigFileManagerOpts() *ConfigFileManagerOpts {
-	return &ConfigFileManagerOpts{
-		LocalConfigPath: "/",
-	}
-}
-
-//--------------------------------------------------------------------------
 //  ConfigFileManager
 //--------------------------------------------------------------------------
 
