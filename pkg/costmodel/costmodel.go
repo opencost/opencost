@@ -2054,7 +2054,22 @@ func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost
 	for key, assetTotal := range assetTotals {
 		allocTotal, ok := allocTotals[key]
 		if !ok {
+			// Check if this is a PersistentVolume asset without node allocation.
+			// PV costs are already allocated to pods that use them, so they don't
+			// need idle allocation processing. Only warn about unmatched attached volumes.
+			if assetTotal.PersistentVolumeCost > 0 && assetTotal.AttachedVolumeCost == 0 {
+				log.Debugf("ETL: Skipping idle allocation for PersistentVolume asset key: %s (cost already allocated to pods)", key)
+				continue
+			}
+			
 			log.Warnf("Allocation: did not find allocations for asset key: %s", key)
+			
+			// Debug: Log available allocation keys for troubleshooting
+			availableKeys := make([]string, 0, len(allocTotals))
+			for allocKey := range allocTotals {
+				availableKeys = append(availableKeys, allocKey)
+			}
+			log.Debugf("ETL: Available allocation keys: %v", availableKeys)
 
 			// Use a zero-value set of totals. This indicates either (1) an
 			// error computing totals, or (2) that no allocations ran on the
