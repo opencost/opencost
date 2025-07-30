@@ -197,3 +197,10 @@ func (ci *ClusterImporter) GetAllReplicationControllers() []*cc.ReplicationContr
 
 	return slices.Clone(ci.data.ReplicationControllers)
 }
+
+func (ci *ClusterImporter) GetAllResourceQuotas() []*cc.ResourceQuota {
+	ci.dataLock.Lock()
+	defer ci.dataLock.Unlock()
+
+	return slices.Clone(ci.data.ResourceQuotas)
+}
