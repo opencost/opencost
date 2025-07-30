@@ -290,10 +290,12 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 	spotPrice := ""
 	for _, item := range pricingPayload.Items {
 		if item.Type == "Consumption" && !strings.Contains(item.ProductName, "Windows") {
-			if !strings.Contains(strings.ToLower(item.SkuName), " spot") {
+			if strings.Contains(strings.ToLower(item.SkuName), " spot") {
 				spotPrice = fmt.Sprintf("%f", item.RetailPrice)
+				log.DedupedInfof(10, "Azure pricing: Assigned spot price %f for SKU %s", item.RetailPrice, item.SkuName)
 			} else {
 				retailPrice = fmt.Sprintf("%f", item.RetailPrice)
+				log.DedupedInfof(10, "Azure pricing: Assigned retail price %f for SKU %s", item.RetailPrice, item.SkuName)
 			}
 		}
 	}
