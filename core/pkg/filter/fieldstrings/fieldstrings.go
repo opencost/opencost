@@ -34,6 +34,9 @@ const (
 	FieldRegionID          string = "regionID"
 	FieldAvailabilityZone  string = "availabilityZone"
 
+	FieldAgentVersion string = "agentVersion"
+	FieldRegion       string = "region"
+
 	AliasDepartment  string = "department"
 	AliasEnvironment string = "environment"
 	AliasOwner       string = "owner"
