@@ -36,8 +36,8 @@ type KubeMetricsOpts struct {
 func DefaultKubeMetricsOpts() *KubeMetricsOpts {
 	return &KubeMetricsOpts{
 		EmitKubecostControllerMetrics: true,
-		EmitNamespaceAnnotations:      false,
-		EmitPodAnnotations:            false,
+		EmitNamespaceAnnotations:      true,
+		EmitPodAnnotations:            true,
 		EmitKubeStateMetrics:          true,
 		EmitKubeStateMetricsV1Only:    false,
 		EmitDeprecatedMetrics:         false,
