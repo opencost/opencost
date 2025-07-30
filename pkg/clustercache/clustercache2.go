@@ -28,6 +28,7 @@ type KubernetesClusterCacheV2 struct {
 	replicationControllerStore *GenericStore[*v1.ReplicationController, *cc.ReplicationController]
 	replicaSetStore            *GenericStore[*appsv1.ReplicaSet, *cc.ReplicaSet]
 	pdbStore                   *GenericStore[*policyv1.PodDisruptionBudget, *cc.PodDisruptionBudget]
+	resourceQuotasStore        *GenericStore[*v1.ResourceQuota, *cc.ResourceQuota]
 	stopCh                     chan struct{}
 }
 
@@ -47,6 +48,7 @@ func NewKubernetesClusterCacheV2(clientset kubernetes.Interface) *KubernetesClus
 		storageClassStore:          CreateStore(clientset.StorageV1().RESTClient(), "storageclasses", cc.TransformStorageClass),
 		jobStore:                   CreateStore(clientset.BatchV1().RESTClient(), "jobs", cc.TransformJob),
 		pdbStore:                   CreateStore(clientset.PolicyV1().RESTClient(), "poddisruptionbudgets", cc.TransformPodDisruptionBudget),
+		resourceQuotasStore:        CreateStore(clientset.CoreV1().RESTClient(), "resourcequotas", cc.TransformResourceQuota),
 		stopCh:                     make(chan struct{}),
 	}
 }
@@ -54,8 +56,8 @@ func NewKubernetesClusterCacheV2(clientset kubernetes.Interface) *KubernetesClus
 func (kcc *KubernetesClusterCacheV2) Run() {
 	var wg sync.WaitGroup
 
-	wg.Add(14)
 	if env.HasKubernetesResourceAccess() {
+		wg.Add(15)
 		kcc.namespaceStore.Watch(kcc.stopCh, wg.Done)
 		kcc.nodeStore.Watch(kcc.stopCh, wg.Done)
 		kcc.persistentVolumeClaimStore.Watch(kcc.stopCh, wg.Done)
@@ -70,6 +72,7 @@ func (kcc *KubernetesClusterCacheV2) Run() {
 		kcc.storageClassStore.Watch(kcc.stopCh, wg.Done)
 		kcc.jobStore.Watch(kcc.stopCh, wg.Done)
 		kcc.pdbStore.Watch(kcc.stopCh, wg.Done)
+		kcc.resourceQuotasStore.Watch(kcc.stopCh, wg.Done)
 	}
 	wg.Wait()
 }
@@ -136,4 +139,8 @@ func (kcc *KubernetesClusterCacheV2) GetAllReplicaSets() []*cc.ReplicaSet {
 
 func (kcc *KubernetesClusterCacheV2) GetAllPodDisruptionBudgets() []*cc.PodDisruptionBudget {
 	return kcc.pdbStore.GetAll()
+}
+
+func (kcc *KubernetesClusterCacheV2) GetAllResourceQuotas() []*cc.ResourceQuota {
+	return kcc.resourceQuotasStore.GetAll()
 }
