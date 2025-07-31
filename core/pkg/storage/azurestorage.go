@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -469,8 +470,8 @@ func getContainerClient(conf AzureConfig) (*container.Client, error) {
 		msiOpt.ID = azidentity.ClientID(conf.UserAssignedID)
 		cred, err = azidentity.NewManagedIdentityCredential(msiOpt)
 	} else {
-		// Otherwise use Default Azure Credential
-		cred, err = azidentity.NewDefaultAzureCredential(nil)
+		// Otherwise use custom credential with Workload Identity prioritization
+		cred, err = newAzureCredentialWithWorkloadIdentity()
 	}
 
 	if err != nil {
@@ -483,4 +484,32 @@ func getContainerClient(conf AzureConfig) (*container.Client, error) {
 	}
 
 	return containerClient, nil
+}
+
+// newAzureCredentialWithWorkloadIdentity creates an Azure credential with Workload Identity prioritization
+func newAzureCredentialWithWorkloadIdentity() (azcore.TokenCredential, error) {
+	// Priority 1: Azure Workload Identity
+	if federatedTokenFile := os.Getenv("AZURE_FEDERATED_TOKEN_FILE"); federatedTokenFile != "" {
+		clientID := os.Getenv("AZURE_CLIENT_ID")
+		tenantID := os.Getenv("AZURE_TENANT_ID")
+		
+		if clientID != "" && tenantID != "" {
+			log.Infof("Azure Storage: Using Workload Identity authentication")
+			
+			return azidentity.NewClientAssertionCredential(tenantID, clientID, 
+				func(ctx context.Context) (string, error) {
+					tokenBytes, err := os.ReadFile(federatedTokenFile)
+					if err != nil {
+						return "", fmt.Errorf("failed to read federated token file: %w", err)
+					}
+					return string(tokenBytes), nil
+				}, nil)
+		} else {
+			log.Warnf("Azure Storage: AZURE_FEDERATED_TOKEN_FILE set but missing AZURE_CLIENT_ID or AZURE_TENANT_ID")
+		}
+	}
+	
+	// Priority 2: Fallback to DefaultAzureCredential
+	log.Infof("Azure Storage: Using DefaultAzureCredential authentication")
+	return azidentity.NewDefaultAzureCredential(nil)
 }
