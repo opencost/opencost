@@ -40,11 +40,14 @@ func (sc KubecostStatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
 	for _, statefulset := range ds {
 		statefulsetName := statefulset.Name
 		statefulsetNS := statefulset.Namespace
+		statefulsetUID := string(statefulset.UID)
 
-		labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(statefulset.SpecSelector.MatchLabels))
-		if len(labels) > 0 {
-			m := newStatefulsetMatchLabelsMetric(statefulsetName, statefulsetNS, "statefulSet_match_labels", labels, values)
-			ch <- m
+		if statefulset.SpecSelector != nil {
+			labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(statefulset.SpecSelector.MatchLabels))
+			if len(labels) > 0 {
+				m := newStatefulsetMatchLabelsMetric(statefulsetName, statefulsetNS, "statefulSet_match_labels", labels, values, statefulsetUID)
+				ch <- m
+			}
 		}
 	}
 
@@ -62,10 +65,11 @@ type StatefulsetMatchLabelsMetric struct {
 	labelValues     []string
 	statefulsetName string
 	namespace       string
+	uid             string
 }
 
 // Creates a new StatefulsetMetric, implementation of prometheus.Metric
-func newStatefulsetMatchLabelsMetric(name, namespace, fqname string, labelNames, labelvalues []string) StatefulsetMatchLabelsMetric {
+func newStatefulsetMatchLabelsMetric(name, namespace, fqname string, labelNames, labelvalues []string, uid string) StatefulsetMatchLabelsMetric {
 	return StatefulsetMatchLabelsMetric{
 		fqName:          fqname,
 		labelNames:      labelNames,
@@ -73,6 +77,7 @@ func newStatefulsetMatchLabelsMetric(name, namespace, fqname string, labelNames,
 		help:            "statefulSet_match_labels StatefulSet Match Labels",
 		statefulsetName: name,
 		namespace:       namespace,
+		uid:             uid,
 	}
 }
 
@@ -82,6 +87,7 @@ func (s StatefulsetMatchLabelsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
 		"statefulSet": s.statefulsetName,
 		"namespace":   s.namespace,
+		"uid":         s.uid,
 	}
 	return prometheus.NewDesc(s.fqName, s.help, s.labelNames, l)
 }
@@ -107,6 +113,10 @@ func (s StatefulsetMatchLabelsMetric) Write(m *dto.Metric) error {
 	labels = append(labels, &dto.LabelPair{
 		Name:  toStringPtr("statefulSet"),
 		Value: &s.statefulsetName,
+	})
+	labels = append(labels, &dto.LabelPair{
+		Name:  toStringPtr("uid"),
+		Value: &s.uid,
 	})
 	m.Label = labels
 	return nil
