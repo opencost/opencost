@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"path"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/clusters"
@@ -77,8 +76,6 @@ func Execute(opts *AgentOpts) error {
 	// Create ConfigFileManager for synchronization of shared configuration
 	confManager := config.NewConfigFileManager(nil)
 
-	configPrefix := env.GetConfigPathWithDefault(env.DefaultConfigMountPath)
-
 	cloudProviderKey := env.GetCloudProviderAPIKey()
 	cloudProvider, err := provider.NewProvider(clusterCache, cloudProviderKey, confManager)
 	if err != nil {
@@ -90,7 +87,7 @@ func Execute(opts *AgentOpts) error {
 
 	var clusterInfoProvider clusters.ClusterInfoProvider
 	if env.IsExportClusterInfoEnabled() {
-		clusterInfoConf := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-info.json"))
+		clusterInfoConf := confManager.ConfigFileAt(env.GetClusterInfoFilePath())
 		clusterInfoProvider = costmodel.NewClusterInfoWriteOnRequest(localClusterInfo, clusterInfoConf)
 	} else {
 		clusterInfoProvider = localClusterInfo
@@ -133,7 +130,7 @@ func Execute(opts *AgentOpts) error {
 
 	// Initialize cluster exporting if it's enabled
 	if env.IsExportClusterCacheEnabled() {
-		cacheLocation := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-cache.json"))
+		cacheLocation := confManager.ConfigFileAt(env.GetClusterCacheFilePath())
 		clusterExporter = cluster.NewClusterExporter(clusterCache, cacheLocation, ClusterExportInterval)
 		clusterExporter.Run()
 	}

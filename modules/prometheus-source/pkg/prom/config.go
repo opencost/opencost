@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/modules/prometheus-source/pkg/env"
 
@@ -56,7 +57,7 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 
 	maxQueryDuration := env.GetPrometheusMaxQueryDuration()
 
-	clusterId := env.GetClusterID()
+	clusterId := coreenv.GetClusterID()
 	clusterLabel := env.GetPromClusterLabel()
 	clusterFilter := env.GetPromClusterFilter()
 

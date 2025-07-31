@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path"
 	"reflect"
 	"strconv"
 	"strings"
@@ -433,7 +432,7 @@ func (a *Accesses) AddServiceKey(w http.ResponseWriter, r *http.Request, ps http
 
 	key := r.PostForm.Get("key")
 	k := []byte(key)
-	err := os.WriteFile(path.Join(env.GetConfigPathWithDefault(env.DefaultConfigMountPath), "key.json"), k, 0644)
+	err := os.WriteFile(env.GetGCPAuthSecretFilePath(), k, 0644)
 	if err != nil {
 		fmt.Fprintf(w, "Error writing service key: %s", err)
 	}
@@ -476,8 +475,6 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	// Create ConfigFileManager for synchronization of shared configuration
 	confManager := config.NewConfigFileManager(nil)
 
-	configPrefix := env.GetConfigPathWithDefault("/var/configs/")
-
 	cloudProviderKey := env.GetCloudProviderAPIKey()
 	cloudProvider, err := provider.NewProvider(k8sCache, cloudProviderKey, confManager)
 	if err != nil {
@@ -487,7 +484,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	// ClusterInfo Provider to provide the cluster map with local and remote cluster data
 	var clusterInfoProvider clusters.ClusterInfoProvider
 	if env.IsClusterInfoFileEnabled() {
-		clusterInfoFile := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-info.json"))
+		clusterInfoFile := confManager.ConfigFileAt(env.GetClusterInfoFilePath())
 		clusterInfoProvider = NewConfiguredClusterInfoProvider(clusterInfoFile)
 	} else {
 		clusterInfoProvider = NewLocalClusterInfoProvider(kubeClientset, cloudProvider)
@@ -513,7 +510,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	}
 	if env.IsCollectorDataSourceEnabled() {
 		fn = func() (source.OpenCostDataSource, error) {
-			store := getStorage()
+			store := storage.GetDefaultStorage()
 			nodeStatConf, err := NewNodeClientConfigFromEnv()
 			if err != nil {
 				return nil, fmt.Errorf("failed to get node client config: %w", err)
@@ -604,15 +601,6 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	router.GET("/helmValues", a.GetHelmValues)
 
 	return a
-}
-
-func getStorage() storage.Storage {
-	var store storage.Storage
-	pvMountPath := env.GetPVMountPath()
-	if pvMountPath != "" {
-		store = storage.NewFileStorage(pvMountPath)
-	}
-	return store
 }
 
 // InitializeCloudCost Initializes Cloud Cost pipeline and querier and registers endpoints

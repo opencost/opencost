@@ -1,16 +1,25 @@
 package env
 
 import (
-	"time"
-
 	"github.com/opencost/opencost/core/pkg/env"
-	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
 
+// FilePaths
 const (
-	APIPortEnvVar = "API_PORT"
+	ClusterInfoFile = "cluster-info.json"
+	ClusterCacheFile
+	GCPAuthSecretFile = "key.json"
+	MetricConfigFile  = "metrics.json"
+)
 
+// Env Variables
+const (
+	// Open configs
+
+	// We assume that Kubernetes is enabled if there is a KUBERNETES_PORT environment variable present
+	KubernetesEnabledEnvVar = "KUBERNETES_PORT"
+
+	// Cloud Provider
 	AWSAccessKeyIDEnvVar     = "AWS_ACCESS_KEY_ID"
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
@@ -19,24 +28,23 @@ const (
 	AlibabaAccessKeyIDEnvVar     = "ALIBABA_ACCESS_KEY_ID"
 	AlibabaAccessKeySecretEnvVar = "ALIBABA_SECRET_ACCESS_KEY"
 
-	AzureOfferIDEnvVar                   = "AZURE_OFFER_ID"
-	AzureBillingAccountEnvVar            = "AZURE_BILLING_ACCOUNT"
-	AzureDownloadBillingDataToDiskEnvVar = "AZURE_DOWNLOAD_BILLING_DATA_TO_DISK"
+	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
+	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
 
-	ClusterIDEnvVar                  = "CLUSTER_ID"
-	ClusterProfileEnvVar             = "CLUSTER_PROFILE"
-	RemoteEnabledEnvVar              = "REMOTE_WRITE_ENABLED"
-	RemotePWEnvVar                   = "REMOTE_WRITE_PASSWORD"
-	SQLAddressEnvVar                 = "SQL_ADDRESS"
-	UseCSVProviderEnvVar             = "USE_CSV_PROVIDER"
-	UseCustomProviderEnvVar          = "USE_CUSTOM_PROVIDER"
-	CSVRegionEnvVar                  = "CSV_REGION"
-	CSVEndpointEnvVar                = "CSV_ENDPOINT"
-	CSVPathEnvVar                    = "CSV_PATH"
-	ConfigPathEnvVar                 = "CONFIG_PATH"
+	OCIPricingURL = "OCI_PRICING_URL"
+
+	ClusterProfileEnvVar    = "CLUSTER_PROFILE"
+	RemoteEnabledEnvVar     = "REMOTE_WRITE_ENABLED"
+	RemotePWEnvVar          = "REMOTE_WRITE_PASSWORD"
+	SQLAddressEnvVar        = "SQL_ADDRESS"
+	UseCSVProviderEnvVar    = "USE_CSV_PROVIDER"
+	UseCustomProviderEnvVar = "USE_CUSTOM_PROVIDER"
+	CSVRegionEnvVar         = "CSV_REGION"
+	CSVEndpointEnvVar       = "CSV_ENDPOINT"
+	CSVPathEnvVar           = "CSV_PATH"
+
 	CloudProviderAPIKeyEnvVar        = "CLOUD_PROVIDER_API_KEY"
 	CollectorDataSourceEnabledEnvVar = "COLLECTOR_DATA_SOURCE_ENABLED"
-	PVMountPath                      = "PV_MOUNT_PATH"
 
 	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
 	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
@@ -45,14 +53,10 @@ const (
 	EmitKsmV1MetricsEnvVar = "EMIT_KSM_V1_METRICS"
 	EmitKsmV1MetricsOnly   = "EMIT_KSM_V1_METRICS_ONLY"
 
-	PProfEnabledEnvVar = "PPROF_ENABLED"
-
 	LogCollectionEnabledEnvVar    = "LOG_COLLECTION_ENABLED"
 	ProductAnalyticsEnabledEnvVar = "PRODUCT_ANALYTICS_ENABLED"
 	ErrorReportingEnabledEnvVar   = "ERROR_REPORTING_ENABLED"
 	ValuesReportingEnabledEnvVar  = "VALUES_REPORTING_ENABLED"
-
-	UTCOffsetEnvVar = "UTC_OFFSET"
 
 	PricingConfigmapName = "PRICING_CONFIGMAP_NAME"
 	MetricsConfigmapName = "METRICS_CONFIGMAP_NAME"
@@ -75,23 +79,6 @@ const (
 	DataRetentionDailyResolutionDaysEnvVar   = "DATA_RETENTION_DAILY_RESOLUTION_DAYS"
 	DataRetentionHourlyResolutionHoursEnvVar = "DATA_RETENTION_HOURLY_RESOLUTION_HOURS"
 
-	// We assume that Kubernetes is enabled if there is a KUBERNETES_PORT environment variable present
-	KubernetesEnabledEnvVar         = "KUBERNETES_PORT"
-	CloudCostEnabledEnvVar          = "CLOUD_COST_ENABLED"
-	CloudCostConfigPath             = "CLOUD_COST_CONFIG_PATH"
-	CloudCostMonthToDateIntervalVar = "CLOUD_COST_MONTH_TO_DATE_INTERVAL"
-	CloudCostRefreshRateHoursEnvVar = "CLOUD_COST_REFRESH_RATE_HOURS"
-	CloudCostQueryWindowDaysEnvVar  = "CLOUD_COST_QUERY_WINDOW_DAYS"
-	CloudCostRunWindowDaysEnvVar    = "CLOUD_COST_RUN_WINDOW_DAYS"
-
-	CustomCostEnabledEnvVar         = "CUSTOM_COST_ENABLED"
-	CustomCostQueryWindowDaysEnvVar = "CUSTOM_COST_QUERY_WINDOW_DAYS"
-
-	PluginConfigDirEnvVar     = "PLUGIN_CONFIG_DIR"
-	PluginExecutableDirEnvVar = "PLUGIN_EXECUTABLE_DIR"
-
-	OCIPricingURL = "OCI_PRICING_URL"
-
 	CarbonEstimatesEnabledEnvVar = "CARBON_ESTIMATES_ENABLED"
 
 	KubernetesResourceAccessEnvVar = "KUBERNETES_RESOURCE_ACCESS"
@@ -99,21 +86,13 @@ const (
 
 	InstallNamespaceEnvVar = "INSTALL_NAMESPACE"
 
-	// Node Stats Client Configuration
-	NodeStatsForceKubeProxyEnvVar = "NODESTATS_FORCE_KUBE_PROXY"
-	NodeStatsLocalProxyEnvVar     = "NODESTATS_LOCAL_PROXY"
-	NodeStatsInsecureEnvVar       = "NODESTATS_INSECURE"
-	NodeStatsCertFileEnvVar       = "NODESTATS_CERT_FILE"
-	NodeStatsKeyFileEnvVar        = "NODESTATS_KEY_FILE"
-
-	// Deprecated
-	KubecostNamespaceEnvVar = "KUBECOST_NAMESPACE"
-
 	// Cloud provider override
 	CloudProviderVar = "CLOUD_PROVIDER"
 )
 
-const DefaultConfigMountPath = "/var/configs"
+func GetGCPAuthSecretFilePath() string {
+	return env.GetPathFromRoot(GCPAuthSecretFile)
+}
 
 func GetExportCSVFile() string {
 	return env.Get(ExportCSVFile, "")
@@ -127,24 +106,22 @@ func GetExportCSVLabelsList() []string {
 	return env.GetList(ExportCSVLabelsList, ",")
 }
 
-func IsPProfEnabled() bool {
-	return env.GetBool(PProfEnabledEnvVar, false)
-}
-
 func GetExportCSVMaxDays() int {
 	return env.GetInt(ExportCSVMaxDays, 90)
-}
-
-// GetAPIPort returns the environment variable value for APIPortEnvVar which
-// is the port number the API is available on.
-func GetAPIPort() int {
-	return env.GetInt(APIPortEnvVar, 9003)
 }
 
 // IsClusterInfoFileEnabled returns true if the cluster info is read from a file or pulled from the local
 // cloud provider and kubernetes.
 func IsClusterInfoFileEnabled() bool {
 	return env.GetBool(ClusterInfoFileEnabledEnvVar, false)
+}
+
+func GetClusterInfoFilePath() string {
+	return env.GetPathFromRoot(ClusterInfoFile)
+}
+
+func GetClusterCacheFilePath() string {
+	return env.GetPathFromRoot(ClusterCacheFile)
 }
 
 func GetPricingConfigmapName() string {
@@ -247,19 +224,13 @@ func IsAzureDownloadBillingDataToDisk() bool {
 // GetInstallNamespace returns the environment variable value that is set for the kubernetes namespace
 // this service is installed in.
 func GetInstallNamespace() string {
-	return env.Get(InstallNamespaceEnvVar, env.Get(KubecostNamespaceEnvVar, "opencost"))
+	return env.Get(InstallNamespaceEnvVar, "opencost")
 }
 
 // GetClusterProfile returns the environment variable value for ClusterProfileEnvVar which
 // represents the cluster profile configured for
 func GetClusterProfile() string {
 	return env.Get(ClusterProfileEnvVar, "development")
-}
-
-// GetClusterID returns the environment variable value for ClusterIDEnvVar which represents the
-// configurable identifier used for multi-cluster metric emission.
-func GetClusterID() string {
-	return env.Get(ClusterIDEnvVar, "")
 }
 
 // IsRemoteEnabled returns the environment variable value for RemoteEnabledEnvVar which represents whether
@@ -310,20 +281,10 @@ func GetCSVPath() string {
 	return env.Get(CSVPathEnvVar, "")
 }
 
-// GetConfigPath returns the environment variable value for ConfigPathEnvVar which represents the cost
-// model configuration path
-func GetConfigPathWithDefault(defaultValue string) string {
-	return env.Get(ConfigPathEnvVar, defaultValue)
-}
-
 // GetCloudProviderAPI returns the environment variable value for CloudProviderAPIEnvVar which represents
 // the API key provided for the cloud provider.
 func GetCloudProviderAPIKey() string {
 	return env.Get(CloudProviderAPIKeyEnvVar, "")
-}
-
-func GetPVMountPath() string {
-	return env.Get(PVMountPath, "")
 }
 
 // IsCollectorDataSourceEnabeled returns the environment variable which enables a source.OpencostDatasource which does not use uses Prometheus
@@ -350,21 +311,6 @@ func IsErrorReportingEnabled() bool {
 // IsValuesReportingEnabled returns the environment variable value for ValuesReportingEnabledEnvVar
 func IsValuesReportingEnabled() bool {
 	return env.GetBool(ValuesReportingEnabledEnvVar, true)
-}
-
-// GetUTCOffset returns the environment variable value for UTCOffset
-func GetUTCOffset() string {
-	return env.Get(UTCOffsetEnvVar, "")
-}
-
-// GetParsedUTCOffset returns the duration of the configured UTC offset
-func GetParsedUTCOffset() time.Duration {
-	offset, err := timeutil.ParseUTCOffset(GetUTCOffset())
-	if err != nil {
-		log.Warnf("Failed to parse UTC offset: %s", err)
-		return time.Duration(0)
-	}
-	return offset
 }
 
 // IsIngestingPodUID returns the env variable from ingestPodUID, which alters the
@@ -403,52 +349,8 @@ func IsKubernetesEnabled() bool {
 	return env.Get(KubernetesEnabledEnvVar, "") != ""
 }
 
-func IsCloudCostEnabled() bool {
-	return env.GetBool(CloudCostEnabledEnvVar, false)
-}
-
-func IsCustomCostEnabled() bool {
-	return env.GetBool(CustomCostEnabledEnvVar, false)
-}
-
-func GetCloudCostConfigPath() string {
-	return env.Get(CloudCostConfigPath, "cloud-integration.json")
-}
-
-func GetCloudCostMonthToDateInterval() int {
-	return env.GetInt(CloudCostMonthToDateIntervalVar, 6)
-}
-
-func GetCloudCostRefreshRateHours() int64 {
-	return env.GetInt64(CloudCostRefreshRateHoursEnvVar, 6)
-}
-
-func GetCloudCostQueryWindowDays() int64 {
-	return env.GetInt64(CloudCostQueryWindowDaysEnvVar, 7)
-}
-
-func GetCustomCostQueryWindowHours() int64 {
-	return env.GetInt64(CustomCostQueryWindowDaysEnvVar, 1)
-}
-
-func GetCustomCostQueryWindowDays() int64 {
-	return env.GetInt64(CustomCostQueryWindowDaysEnvVar, 7)
-}
-
-func GetCloudCostRunWindowDays() int64 {
-	return env.GetInt64(CloudCostRunWindowDaysEnvVar, 3)
-}
-
 func GetOCIPricingURL() string {
 	return env.Get(OCIPricingURL, "https://apexapps.oracle.com/pls/apex/cetools/api/v1/products")
-}
-
-func GetPluginConfigDir() string {
-	return env.Get(PluginConfigDirEnvVar, "/opt/opencost/plugin/config")
-}
-
-func GetPluginExecutableDir() string {
-	return env.Get(PluginExecutableDirEnvVar, "/opt/opencost/plugin/bin")
 }
 
 func IsCarbonEstimatesEnabled() bool {
@@ -464,34 +366,11 @@ func GetUseCacheV1() bool {
 	return env.GetBool(UseCacheV1, false)
 }
 
-// IsNodeStatsForceKubeProxy returns true if the node stats client should force the kube proxy direct end
-// point formatting
-func IsNodeStatsForceKubeProxy() bool {
-	return env.GetBool(NodeStatsForceKubeProxyEnvVar, false)
-}
-
-// GetNodeStatsLocalProxy returns the fully qualified local proxy endpoint for the node stats client IFF the proxyAPI
-// is selected.
-func GetNodeStatsLocalProxy() string {
-	return env.Get(NodeStatsLocalProxyEnvVar, "")
-}
-
-// IsNodeStatsInsecure returns true if the node stats client should skip TLS verification
-func IsNodeStatsInsecure() bool {
-	return env.GetBool(NodeStatsInsecureEnvVar, false)
-}
-
-// GetNodeStatsCertFile returns the path of the cert file
-func GetNodeStatsCertFile() string {
-	return env.Get(NodeStatsCertFileEnvVar, "")
-}
-
-// GetNodeStatsKeyFile returns the path of the key file
-func GetNodeStatsKeyFile() string {
-	return env.Get(NodeStatsKeyFileEnvVar, "")
-}
-
 // GetCloudProvider returns the explicitly set cloud provider from environment variable
 func GetCloudProvider() string {
 	return env.Get(CloudProviderVar, "")
+}
+
+func GetMetricConfigFile() string {
+	return env.GetPathFromRoot(MetricConfigFile)
 }

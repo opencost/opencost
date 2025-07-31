@@ -62,7 +62,7 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 
 	if env.IsAzureDownloadBillingDataToDisk() {
 		// clean up old files that have been saved to disk before downloading new ones
-		localPath := filepath.Join(env.GetConfigPathWithDefault(env.DefaultConfigMountPath), "db", "cloudcost")
+		localPath := env.GetAzureDownloadBillingDataPath()
 		if _, err := asbp.deleteFilesOlderThan7d(localPath); err != nil {
 			log.Warnf("CloudCost: Azure: ParseBillingData: failed to remove the following stale files: %v", err)
 		}

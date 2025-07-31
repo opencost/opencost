@@ -96,7 +96,7 @@ func newRootCommand(costModelCmd *cobra.Command, cmds ...*cobra.Command) *cobra.
 
 // default open-source cost-model command
 func newCostModelCommand() *cobra.Command {
-	opts := &costmodel.CostModelOpts{}
+	config := costmodel.DefaultConfig()
 
 	cmCmd := &cobra.Command{
 		Use:   CommandCostModel,
@@ -105,7 +105,7 @@ func newCostModelCommand() *cobra.Command {
 			// Init logging here so cobra/viper has processed the command line args and flags
 			// otherwise only envvars are available during init
 			log.InitLogging(true)
-			return costmodel.Execute(opts)
+			return costmodel.Execute(config)
 		},
 	}
 

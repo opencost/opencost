@@ -35,7 +35,6 @@ const (
 	DBBearerToken       = "DB_BEARER_TOKEN"
 
 	CurrentClusterIdFilterEnabledVar = "CURRENT_CLUSTER_ID_FILTER_ENABLED"
-	ClusterIDEnvVar                  = "CLUSTER_ID"
 
 	KubecostJobNameEnvVar = "KUBECOST_JOB_NAME"
 )
@@ -145,17 +144,11 @@ func GetPromClusterLabel() string {
 	return env.Get(PromClusterIDLabelEnvVar, "cluster_id")
 }
 
-// GetClusterID returns the environment variable value for ClusterIDEnvVar which represents the
-// configurable identifier used for multi-cluster metric emission.
-func GetClusterID() string {
-	return env.Get(ClusterIDEnvVar, "")
-}
-
 // GetPromClusterFilter returns environment variable value CurrentClusterIdFilterEnabledVar which
 // represents additional prometheus filter for all metrics for current cluster id
 func GetPromClusterFilter() string {
 	if env.GetBool(CurrentClusterIdFilterEnabledVar, false) {
-		return fmt.Sprintf("%s=\"%s\"", GetPromClusterLabel(), GetClusterID())
+		return fmt.Sprintf("%s=\"%s\"", GetPromClusterLabel(), env.GetClusterID())
 	}
 	return ""
 }

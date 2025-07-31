@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"golang.org/x/exp/slices"
 
@@ -166,7 +167,7 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	for _, result := range resLocalStorageBytes {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.Instance
@@ -208,7 +209,7 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	for _, result := range resLocalStorageCost {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.Instance
@@ -236,7 +237,7 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	for _, result := range resLocalStorageUsedCost {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.Instance
@@ -263,7 +264,7 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	for _, result := range resLocalStorageUsedAvg {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.Instance
@@ -290,7 +291,7 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	for _, result := range resLocalStorageUsedMax {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.Instance
@@ -317,7 +318,7 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	for _, result := range resLocalActiveMins {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.Node
@@ -365,7 +366,7 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	for _, result := range resPVStorageClass {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.PersistentVolume
@@ -763,7 +764,7 @@ func pvCosts(
 	for _, result := range resActiveMins {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.PersistentVolume
@@ -799,7 +800,7 @@ func pvCosts(
 	for _, result := range resPVSize {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.PersistentVolume
@@ -831,7 +832,7 @@ func pvCosts(
 	for _, result := range resPVCost {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.PersistentVolume
@@ -875,7 +876,7 @@ func pvCosts(
 	for _, result := range resPVUsedAvg {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		claimName := result.PersistentVolumeClaim
@@ -896,7 +897,7 @@ func pvCosts(
 
 			thatCluster := thatRes.Cluster
 			if thatCluster == "" {
-				thatCluster = env.GetClusterID()
+				thatCluster = coreenv.GetClusterID()
 			}
 
 			thatVolumeName := thatRes.VolumeName
@@ -942,7 +943,7 @@ func pvCosts(
 	for _, result := range resPVUsedMax {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		claimName := result.PersistentVolumeClaim
@@ -962,7 +963,7 @@ func pvCosts(
 		for _, thatRes := range resPVCInfo {
 			thatCluster := thatRes.Cluster
 			if thatCluster == "" {
-				thatCluster = env.GetClusterID()
+				thatCluster = coreenv.GetClusterID()
 			}
 
 			thatVolumeName := thatRes.VolumeName
