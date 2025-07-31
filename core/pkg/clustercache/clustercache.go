@@ -61,6 +61,7 @@ type Node struct {
 }
 
 type Service struct {
+	UID          types.UID
 	Name         string
 	Namespace    string
 	SpecSelector map[string]string
@@ -77,6 +78,7 @@ type DaemonSet struct {
 }
 
 type Deployment struct {
+	UID                     types.UID
 	Name                    string
 	Namespace               string
 	Labels                  map[string]string
@@ -90,6 +92,7 @@ type Deployment struct {
 }
 
 type StatefulSet struct {
+	UID          types.UID
 	Name         string
 	Namespace    string
 	Labels       map[string]string
@@ -133,6 +136,7 @@ type PersistentVolume struct {
 }
 
 type ReplicationController struct {
+	UID       types.UID
 	Name      string
 	Namespace string
 	Spec      v1.ReplicationControllerSpec
@@ -146,6 +150,7 @@ type PodDisruptionBudget struct {
 }
 
 type ReplicaSet struct {
+	UID             types.UID
 	Name            string
 	Namespace       string
 	OwnerReferences []metav1.OwnerReference
@@ -255,6 +260,7 @@ func TransformNode(input *v1.Node) *Node {
 
 func TransformService(input *v1.Service) *Service {
 	return &Service{
+		UID:          input.UID,
 		Name:         input.Name,
 		Namespace:    input.Namespace,
 		SpecSelector: input.Spec.Selector,
@@ -284,6 +290,7 @@ func TransformDeployment(input *appsv1.Deployment) *Deployment {
 		SpecStrategy:            input.Spec.Strategy,
 		StatusAvailableReplicas: input.Status.AvailableReplicas,
 		PodSpec:                 TransformPodSpec(input.Spec.Template.Spec),
+		UID:                     input.UID,
 	}
 }
 
@@ -294,6 +301,9 @@ func TransformStatefulSet(input *appsv1.StatefulSet) *StatefulSet {
 		SpecSelector: input.Spec.Selector,
 		SpecReplicas: input.Spec.Replicas,
 		PodSpec:      TransformPodSpec(input.Spec.Template.Spec),
+		Labels:       input.Labels,
+		Annotations:  input.Annotations,
+		UID:          input.UID,
 	}
 }
 
@@ -343,6 +353,7 @@ func TransformReplicationController(input *v1.ReplicationController) *Replicatio
 		Name:      input.Name,
 		Namespace: input.Namespace,
 		Spec:      input.Spec,
+		UID:       input.UID,
 	}
 }
 
@@ -362,6 +373,7 @@ func TransformReplicaSet(input *appsv1.ReplicaSet) *ReplicaSet {
 		OwnerReferences: input.OwnerReferences,
 		Spec:            input.Spec,
 		SpecSelector:    input.Spec.Selector,
+		UID:             input.UID,
 	}
 }
 
