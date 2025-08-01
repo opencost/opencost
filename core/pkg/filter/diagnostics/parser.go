@@ -13,7 +13,7 @@ var diagnosticsFilterFields []*ast.Field = []*ast.Field{
 
 // a slice of all the diagnostics summary field instances the lexer should recognize as
 // valid left-hand comparators
-var diagnosticsSummaryField []*ast.Field = []*ast.Field{
+var diagnosticsSummaryFilterFields []*ast.Field = []*ast.Field{
 	ast.NewField(FieldSummaryClusterID),
 	ast.NewField(FieldSummaryProvider),
 	ast.NewField(FieldSummaryRegion),
@@ -30,8 +30,8 @@ func init() {
 		ff := *f
 		fieldMap[DiagnosticsField(ff.Name)] = &ff
 	}
-	diagnosticsSummaryFieldMap = make(map[DiagnosticsSummaryField]*ast.Field, len(diagnosticsSummaryField))
-	for _, f := range diagnosticsSummaryField {
+	diagnosticsSummaryFieldMap = make(map[DiagnosticsSummaryField]*ast.Field, len(diagnosticsSummaryFilterFields))
+	for _, f := range diagnosticsSummaryFilterFields {
 		ff := *f
 		diagnosticsSummaryFieldMap[DiagnosticsSummaryField(ff.Name)] = &ff
 	}
@@ -62,7 +62,7 @@ func NewDiagnosticsFilterParser() ast.FilterParser {
 }
 
 func NewDiagnosticsSummaryFilterParser() ast.FilterParser {
-	return ast.NewFilterParser(diagnosticsSummaryField)
+	return ast.NewFilterParser(diagnosticsSummaryFilterFields)
 }
 
 // use initialization function to assign field types to the ops package helper for programatically
