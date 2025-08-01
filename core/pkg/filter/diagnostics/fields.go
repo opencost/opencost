@@ -20,5 +20,5 @@ const (
 	FieldSummaryClusterID DiagnosticsSummaryField = DiagnosticsSummaryField(fieldstrings.FieldClusterID)
 	FieldSummaryProvider  DiagnosticsSummaryField = DiagnosticsSummaryField(fieldstrings.FieldProvider)
 	FieldSummaryRegion    DiagnosticsSummaryField = DiagnosticsSummaryField(fieldstrings.FieldRegion)
-	FieldSummaryAgentVersion   DiagnosticsSummaryField = DiagnosticsSummaryField(fieldstrings.FieldAgentVersion)
+	FieldSummaryVersion   DiagnosticsSummaryField = DiagnosticsSummaryField(fieldstrings.FieldVersion)
 )

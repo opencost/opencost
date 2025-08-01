@@ -17,7 +17,7 @@ var diagnosticsSummaryFilterFields []*ast.Field = []*ast.Field{
 	ast.NewField(FieldSummaryClusterID),
 	ast.NewField(FieldSummaryProvider),
 	ast.NewField(FieldSummaryRegion),
-	ast.NewField(FieldSummaryAgentVersion),
+	ast.NewField(FieldSummaryVersion),
 }
 
 // fieldMap is a lazily loaded mapping from DiagnosticsField to ast.Field
