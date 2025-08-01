@@ -35,7 +35,7 @@ func TestGetAPIPort(t *testing.T) {
 			tt.pre()
 		}
 		t.Run(tt.name, func(t *testing.T) {
-			if got := GetAPIPort(); got != tt.want {
+			if got := GetOpencostAPIPort(); got != tt.want {
 				t.Errorf("GetAPIPort() = %v, want %v", got, tt.want)
 			}
 		})

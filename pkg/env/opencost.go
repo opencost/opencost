@@ -10,15 +10,22 @@ import (
 
 // Environment variables specific to the running of opencost
 const (
-	DefaultAPIPort = 9003
+	DefaultAPIPort           = 9003
+	defaultOpencostNamespace = "opencost"
 )
 
 const (
 	UTCOffsetEnvVar = "UTC_OFFSET"
 )
 
-func GetAPIPort() int {
+func GetOpencostAPIPort() int {
 	return env.GetAPIPortWithDefault(DefaultAPIPort)
+}
+
+// GetOpencostNamespace returns the environment variable value that is set for the kubernetes namespace
+// this service is installed in.
+func GetOpencostNamespace() string {
+	return env.GetInstallNamespace(defaultOpencostNamespace)
 }
 
 // GetUTCOffset returns the environment variable value for UTCOffset

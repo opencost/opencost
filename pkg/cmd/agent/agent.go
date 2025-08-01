@@ -123,8 +123,8 @@ func Execute(opts *AgentOpts) error {
 	}
 
 	// Append the pricing config watcher
-	kubecostNamespace := env.GetInstallNamespace()
-	configWatchers := watcher.NewConfigMapWatchers(k8sClient, kubecostNamespace)
+	installNamespace := env.GetOpencostNamespace()
+	configWatchers := watcher.NewConfigMapWatchers(k8sClient, installNamespace)
 	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
 	configWatchers.Watch()
 

@@ -35,7 +35,7 @@ type ProviderConfig struct {
 
 // NewProviderConfig creates a new ConfigFile and returns the ProviderConfig
 func NewProviderConfig(configManager *config.ConfigFileManager, fileName string) *ProviderConfig {
-	configFile := configManager.ConfigFileAt(coreenv.GetPathFromRoot(fileName))
+	configFile := configManager.ConfigFileAt(coreenv.GetPathFromConfig(fileName))
 	pc := &ProviderConfig{
 		lock:          new(sync.Mutex),
 		configManager: configManager,

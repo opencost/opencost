@@ -16,7 +16,7 @@ type Config struct {
 
 func DefaultConfig() *Config {
 	return &Config{
-		Port:                   env.GetAPIPort(),
+		Port:                   env.GetOpencostAPIPort(),
 		KubernetesEnabled:      env.IsKubernetesEnabled(),
 		CarbonEstimatesEnabled: env.IsCarbonEstimatesEnabled(),
 		CloudCostEnabled:       env.IsCloudCostEnabled(),

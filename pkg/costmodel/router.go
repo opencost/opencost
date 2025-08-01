@@ -348,7 +348,7 @@ func (a *Accesses) GetInstallNamespace(w http.ResponseWriter, r *http.Request, _
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	ns := env.GetInstallNamespace()
+	ns := env.GetOpencostNamespace()
 	w.Write([]byte(ns))
 }
 
@@ -396,7 +396,7 @@ func (a *Accesses) GetInstallInfo(w http.ResponseWriter, r *http.Request, _ http
 }
 
 func GetKubecostContainers(kubeClientSet kubernetes.Interface) ([]ContainerInfo, error) {
-	pods, err := kubeClientSet.CoreV1().Pods(env.GetInstallNamespace()).List(context.Background(), metav1.ListOptions{
+	pods, err := kubeClientSet.CoreV1().Pods(env.GetOpencostNamespace()).List(context.Background(), metav1.ListOptions{
 		LabelSelector: "app=cost-analyzer",
 		FieldSelector: "status.phase=Running",
 		Limit:         1,
@@ -543,9 +543,9 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	}
 
 	// Append the pricing config watcher
-	kubecostNamespace := env.GetInstallNamespace()
+	installNamespace := env.GetOpencostNamespace()
 
-	configWatchers := watcher.NewConfigMapWatchers(kubeClientset, kubecostNamespace, additionalConfigWatchers...)
+	configWatchers := watcher.NewConfigMapWatchers(kubeClientset, installNamespace, additionalConfigWatchers...)
 	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
 	configWatchers.AddWatcher(metrics.GetMetricsConfigWatcher())
 	configWatchers.Watch()

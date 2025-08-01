@@ -20,7 +20,7 @@ func TestGetCloudCostConfigPath(t *testing.T) {
 			name: "Ensure the value is 'cloud-integration.json' when CLOUD_COST_CONFIG_PATH is set to ''",
 			want: "/test/cloud-integration.json",
 			pre: func() {
-				env.Set(env.RootPathEnvVar, "/test")
+				env.Set(env.ConfigPathEnvVar, "/test")
 			},
 		},
 	}

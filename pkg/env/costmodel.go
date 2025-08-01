@@ -84,14 +84,12 @@ const (
 	KubernetesResourceAccessEnvVar = "KUBERNETES_RESOURCE_ACCESS"
 	UseCacheV1                     = "USE_CACHE_V1"
 
-	InstallNamespaceEnvVar = "INSTALL_NAMESPACE"
-
 	// Cloud provider override
 	CloudProviderVar = "CLOUD_PROVIDER"
 )
 
 func GetGCPAuthSecretFilePath() string {
-	return env.GetPathFromRoot(GCPAuthSecretFile)
+	return env.GetPathFromConfig(GCPAuthSecretFile)
 }
 
 func GetExportCSVFile() string {
@@ -117,11 +115,11 @@ func IsClusterInfoFileEnabled() bool {
 }
 
 func GetClusterInfoFilePath() string {
-	return env.GetPathFromRoot(ClusterInfoFile)
+	return env.GetPathFromConfig(ClusterInfoFile)
 }
 
 func GetClusterCacheFilePath() string {
-	return env.GetPathFromRoot(ClusterCacheFile)
+	return env.GetPathFromConfig(ClusterCacheFile)
 }
 
 func GetPricingConfigmapName() string {
@@ -219,12 +217,6 @@ func GetAzureBillingAccount() string {
 // Billing Data should be held in memory or written to disk.
 func IsAzureDownloadBillingDataToDisk() bool {
 	return env.GetBool(AzureDownloadBillingDataToDiskEnvVar, true)
-}
-
-// GetInstallNamespace returns the environment variable value that is set for the kubernetes namespace
-// this service is installed in.
-func GetInstallNamespace() string {
-	return env.Get(InstallNamespaceEnvVar, "opencost")
 }
 
 // GetClusterProfile returns the environment variable value for ClusterProfileEnvVar which
@@ -372,5 +364,5 @@ func GetCloudProvider() string {
 }
 
 func GetMetricConfigFile() string {
-	return env.GetPathFromRoot(MetricConfigFile)
+	return env.GetPathFromConfig(MetricConfigFile)
 }

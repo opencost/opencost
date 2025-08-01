@@ -35,7 +35,7 @@ func IsCustomCostEnabled() bool {
 }
 
 func GetCloudCostConfigPath() string {
-	return env.GetPathFromRoot(CloudIntegrationConfigFile)
+	return env.GetPathFromConfig(CloudIntegrationConfigFile)
 }
 
 func GetCloudCostMonthToDateInterval() int {
@@ -71,9 +71,9 @@ func GetPluginExecutableDir() string {
 }
 
 func GetAzureDownloadBillingDataPath() string {
-	return env.GetPathFromRoot(AzureBillingDataDownloadPath)
+	return env.GetPathFromConfig(AzureBillingDataDownloadPath)
 }
 
 func GetCloudCostConfigControllerStateFile() string {
-	return env.GetPathFromRoot(CloudCostConfigControllerStateFile)
+	return env.GetPathFromConfig(CloudCostConfigControllerStateFile)
 }
