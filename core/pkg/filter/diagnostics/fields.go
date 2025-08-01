@@ -5,7 +5,7 @@ import (
 )
 
 // DiagnosticsField and DiagnosticsSummaryField are enums that represent Diagnostics-specific fields that can be
-// filtered on (cluster) and summary (cluster, provider, region, agent version)
+// filtered on (cluster for diagnostics	, cluster, provider, region, agent version for summary)
 type DiagnosticsField string
 type DiagnosticsSummaryField string
 
@@ -20,5 +20,5 @@ const (
 	FieldSummaryClusterID DiagnosticsSummaryField = DiagnosticsSummaryField(fieldstrings.FieldClusterID)
 	FieldSummaryProvider  DiagnosticsSummaryField = DiagnosticsSummaryField(fieldstrings.FieldProvider)
 	FieldSummaryRegion    DiagnosticsSummaryField = DiagnosticsSummaryField(fieldstrings.FieldRegion)
-	FieldSummaryVersion   DiagnosticsSummaryField = DiagnosticsSummaryField(fieldstrings.FieldAgentVersion)
+	FieldSummaryAgentVersion   DiagnosticsSummaryField = DiagnosticsSummaryField(fieldstrings.FieldAgentVersion)
 )
