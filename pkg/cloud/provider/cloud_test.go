@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/clusters"
+	"github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/storage"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
@@ -257,7 +258,7 @@ func TestNodePriceFromCSVWithGPULabels(t *testing.T) {
 	}
 
 	t.Logf("Setting Config Path to: %s", configPath)
-	t.Setenv("CONFIG_PATH", configPath)
+	t.Setenv(env.ConfigPathEnvVar, configPath)
 
 	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
 
@@ -324,7 +325,7 @@ func TestRKE2NodePriceFromCSVWithGPULabels(t *testing.T) {
 	}
 
 	t.Logf("Setting Config Path to: %s", configPath)
-	t.Setenv("CONFIG_PATH", configPath)
+	t.Setenv(env.ConfigPathEnvVar, configPath)
 
 	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
 
@@ -655,7 +656,7 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 	}
 
 	t.Logf("Setting Config Path to: %s", configPath)
-	t.Setenv("CONFIG_PATH", configPath)
+	t.Setenv(env.ConfigPathEnvVar, configPath)
 
 	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
 
@@ -687,7 +688,7 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 }
 
 func TestSourceMatchesFromCSV(t *testing.T) {
-	os.Setenv("CONFIG_PATH", "../../../configs")
+	os.Setenv(env.ConfigPathEnvVar, "../../../configs")
 
 	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
 

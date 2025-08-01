@@ -1,8 +1,11 @@
 package env
 
 import (
+	"fmt"
 	"os"
 	"testing"
+
+	"github.com/opencost/opencost/core/pkg/env"
 )
 
 func TestGetAPIPort(t *testing.T) {
@@ -16,17 +19,17 @@ func TestGetAPIPort(t *testing.T) {
 			want: 9003,
 		},
 		{
-			name: "Ensure the default API port '9003' when API_PORT is set to ''",
+			name: fmt.Sprintf("Ensure the default API port '9003' when %s is set to ''", env.APIPortEnvVar),
 			want: 9003,
 			pre: func() {
-				os.Setenv("API_PORT", "")
+				os.Setenv(env.APIPortEnvVar, "")
 			},
 		},
 		{
-			name: "Ensure the API port '9004' when API_PORT is set to '9004'",
+			name: fmt.Sprintf("Ensure the API port '9004' when %s is set to '9004'", env.APIPortEnvVar),
 			want: 9004,
 			pre: func() {
-				os.Setenv("API_PORT", "9004")
+				os.Setenv(env.APIPortEnvVar, "9004")
 			},
 		},
 	}
