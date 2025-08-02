@@ -1,6 +1,7 @@
 package collector
 
 import (
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/modules/collector-source/pkg/env"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 )
@@ -29,7 +30,7 @@ func NewOpenCostCollectorConfigFromEnv() CollectorConfig {
 			},
 		},
 		ScrapeInterval: env.GetCollectorScrapeIntervalSeconds(),
-		ClusterID:      env.GetClusterID(),
+		ClusterID:      coreenv.GetClusterID(),
 		NetworkPort:    env.GetNetworkPort(),
 	}
 }

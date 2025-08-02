@@ -488,7 +488,7 @@ func ComputeAssetTotals(as *AssetSet, byAsset bool) map[string]*AssetTotals {
 		if isAttached {
 			// Record attached volume data at the cluster and node level, using
 			// name matching to distinguish from PersistentVolumes.
-			// TODO can we make a stronger match at the underlying ETL layer?
+			// TODO can we make a stronger match at the underlying costmodel layer?
 			arts[key].Count++
 			arts[key].AttachedVolumeCost += disk.Cost
 			arts[key].AttachedVolumeCostAdjustment += disk.Adjustment
@@ -573,47 +573,6 @@ type AllocationTotalsStore interface {
 	SetAllocationTotalsByNode(start, end time.Time, rts map[string]*AllocationTotals)
 }
 
-// UpdateAllocationTotalsStore updates an AllocationTotalsStore
-// by totaling the given AllocationSet and saving the totals.
-func UpdateAllocationTotalsStore(arts AllocationTotalsStore, as *AllocationSet) (*AllocationTotalsSet, error) {
-	if arts == nil {
-		return nil, errors.New("cannot update nil AllocationTotalsStore")
-	}
-
-	if as == nil {
-		return nil, errors.New("cannot update AllocationTotalsStore from nil AllocationSet")
-	}
-
-	if as.Window.IsOpen() {
-		return nil, errors.New("cannot update AllocationTotalsStore from AllocationSet with open window")
-	}
-
-	start := *as.Window.Start()
-	end := *as.Window.End()
-
-	artsByCluster := ComputeAllocationTotals(as, AllocationClusterProp)
-	arts.SetAllocationTotalsByCluster(start, end, artsByCluster)
-
-	artsByNode := ComputeAllocationTotals(as, AllocationNodeProp)
-	arts.SetAllocationTotalsByNode(start, end, artsByNode)
-
-	log.Debugf("ETL: Allocation: updated resource totals for %s", as.Window)
-
-	win := NewClosedWindow(start, end)
-
-	abc := map[string]*AllocationTotals{}
-	for key, val := range artsByCluster {
-		abc[key] = val.Clone()
-	}
-
-	abn := map[string]*AllocationTotals{}
-	for key, val := range artsByNode {
-		abn[key] = val.Clone()
-	}
-
-	return NewAllocationTotalsSet(win, abc, abn), nil
-}
-
 // AssetTotalsStore allows for storing (i.e. setting and getting)
 // AssetTotals by cluster and by node.
 type AssetTotalsStore interface {
@@ -647,7 +606,7 @@ func UpdateAssetTotalsStore(arts AssetTotalsStore, as *AssetSet) (*AssetTotalsSe
 	artsByNode := ComputeAssetTotals(as, true)
 	arts.SetAssetTotalsByNode(start, end, artsByNode)
 
-	log.Debugf("ETL: Asset: updated resource totals for %s", as.Window)
+	log.Debugf("Asset: updated resource totals for %s", as.Window)
 
 	win := NewClosedWindow(start, end)
 

@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
@@ -1507,7 +1508,7 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 	m["account"] = az.ClusterAccountID
 	m["region"] = az.ClusterRegion
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
-	m["id"] = env.GetClusterID()
+	m["id"] = coreenv.GetClusterID()
 	return m, nil
 
 }
@@ -1564,7 +1565,7 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*models.CustomPri
 		}
 
 		if env.IsRemoteEnabled() {
-			err := utils.UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
+			err := utils.UpdateClusterMeta(coreenv.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return fmt.Errorf("error updating cluster metadata: %s", err)
 			}

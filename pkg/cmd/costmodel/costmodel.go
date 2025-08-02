@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/http/pprof"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/opencost/opencost/core/pkg/util/apiutil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/customcost"
@@ -24,25 +23,17 @@ import (
 	"github.com/opencost/opencost/pkg/metrics"
 )
 
-// CostModelOpts contain configuration options that can be passed to the Execute() method
-type CostModelOpts struct {
-	// Stubbed for future configuration
-}
-
-func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
-	w.WriteHeader(200)
-	w.Header().Set("Content-Length", "0")
-	w.Header().Set("Content-Type", "text/plain")
-}
-
-func Execute(opts *CostModelOpts) error {
+func Execute(conf *Config) error {
 	log.Infof("Starting cost-model version %s", version.FriendlyVersion())
-	log.Infof("Kubernetes enabled: %t", env.IsKubernetesEnabled())
+	if conf == nil {
+		conf = DefaultConfig()
+	}
+	conf.log()
 
 	router := httprouter.New()
 	var a *costmodel.Accesses
 	var cp models.Provider
-	if env.IsKubernetesEnabled() {
+	if conf.KubernetesEnabled {
 		a = costmodel.Initialize(router)
 		err := StartExportWorker(context.Background(), a.Model)
 		if err != nil {
@@ -53,7 +44,7 @@ func Execute(opts *CostModelOpts) error {
 		router.GET("/allocation", a.ComputeAllocationHandler)
 		router.GET("/allocation/summary", a.ComputeAllocationHandlerSummary)
 		router.GET("/assets", a.ComputeAssetsHandler)
-		if env.IsCarbonEstimatesEnabled() {
+		if conf.CarbonEstimatesEnabled {
 			router.GET("/assets/carbon", a.ComputeAssetsCarbonHandler)
 		}
 
@@ -61,8 +52,7 @@ func Execute(opts *CostModelOpts) error {
 		cp = a.CloudProvider
 	}
 
-	log.Infof("Cloud Costs enabled: %t", env.IsCloudCostEnabled())
-	if env.IsCloudCostEnabled() {
+	if conf.CloudCostEnabled {
 		var providerConfig models.ProviderConfig
 		if cp != nil {
 			providerConfig = provider.ExtractConfigFromProviders(cp)
@@ -70,9 +60,8 @@ func Execute(opts *CostModelOpts) error {
 		costmodel.InitializeCloudCost(router, providerConfig)
 	}
 
-	log.Infof("Custom Costs enabled: %t", env.IsCustomCostEnabled())
 	var customCostPipelineService *customcost.PipelineService
-	if env.IsCustomCostEnabled() {
+	if conf.CloudCostEnabled {
 		customCostPipelineService = costmodel.InitializeCustomCost(router)
 	}
 
@@ -80,20 +69,7 @@ func Execute(opts *CostModelOpts) error {
 	// valid for CustomCostPipelineService to be nil
 	router.GET("/customCost/status", customCostPipelineService.GetCustomCostStatusHandler())
 
-	router.GET("/healthz", Healthz)
-
-	router.GET("/logs/level", GetLogLevel)
-	router.POST("/logs/level", SetLogLevel)
-
-	if env.IsPProfEnabled() {
-		router.HandlerFunc(http.MethodGet, "/debug/pprof/", pprof.Index)
-		router.HandlerFunc(http.MethodGet, "/debug/pprof/cmdline", pprof.Cmdline)
-		router.HandlerFunc(http.MethodGet, "/debug/pprof/profile", pprof.Profile)
-		router.HandlerFunc(http.MethodGet, "/debug/pprof/symbol", pprof.Symbol)
-		router.HandlerFunc(http.MethodGet, "/debug/pprof/trace", pprof.Trace)
-		router.Handler(http.MethodGet, "/debug/pprof/goroutine", pprof.Handler("goroutine"))
-		router.Handler(http.MethodGet, "/debug/pprof/heap", pprof.Handler("heap"))
-	}
+	apiutil.ApplyContainerDiagnosticEndpoints(router)
 
 	rootMux := http.NewServeMux()
 	rootMux.Handle("/", router)
@@ -101,7 +77,7 @@ func Execute(opts *CostModelOpts) error {
 	telemetryHandler := metrics.ResponseMetricMiddleware(rootMux)
 	handler := cors.AllowAll().Handler(telemetryHandler)
 
-	return http.ListenAndServe(fmt.Sprint(":", env.GetAPIPort()), errors.PanicHandlerMiddleware(handler))
+	return http.ListenAndServe(fmt.Sprint(":", conf.Port), errors.PanicHandlerMiddleware(handler))
 }
 
 func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) error {
@@ -137,45 +113,4 @@ func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) err
 		}
 	}()
 	return nil
-}
-
-type LogLevelRequestResponse struct {
-	Level string `json:"level"`
-}
-
-func GetLogLevel(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	level := log.GetLogLevel()
-	llrr := LogLevelRequestResponse{
-		Level: level,
-	}
-
-	body, err := json.Marshal(llrr)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("unable to retrive log level"), http.StatusInternalServerError)
-		return
-	}
-	_, err = w.Write(body)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("unable to write response: %s", body), http.StatusInternalServerError)
-		return
-	}
-}
-
-func SetLogLevel(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	params := LogLevelRequestResponse{}
-	err := json.NewDecoder(r.Body).Decode(&params)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("unable to decode request body, error: %s", err), http.StatusBadRequest)
-		return
-	}
-
-	err = log.SetLogLevel(params.Level)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("level must be a valid log level according to zerolog; level given: %s, error: %s", params.Level, err), http.StatusBadRequest)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
 }

@@ -69,190 +69,6 @@ type Asset interface {
 	fmt.Stringer
 }
 
-// AssetToExternalAllocation converts the given asset to an Allocation, given
-// the Properties to use to aggregate, and the mapping from Allocation property
-// to Asset label. For example, consider this asset:
-//
-// CURRENT: Asset ETL stores its data ALREADY MAPPED from label to k8s concept. This isn't ideal-- see the TODO.
-//
-//	  Cloud {
-//		   TotalCost: 10.00,
-//		   Labels{
-//	      "kubernetes_namespace":"monitoring",
-//		     "env":"prod"
-//		   }
-//	  }
-//
-// Given the following parameters, we expect to return:
-//
-//  1. single-prop full match
-//     aggregateBy = ["namespace"]
-//     => Allocation{Name: "monitoring", ExternalCost: 10.00, TotalCost: 10.00}, nil
-//
-//  2. multi-prop full match
-//     aggregateBy = ["namespace", "label:env"]
-//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//     => Allocation{Name: "monitoring/env=prod", ExternalCost: 10.00, TotalCost: 10.00}, nil
-//
-//  3. multi-prop partial match
-//     aggregateBy = ["namespace", "label:foo"]
-//     => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
-//
-//  4. no match
-//     aggregateBy = ["cluster"]
-//     => nil, err
-//
-// TODO:
-//
-//	  Cloud {
-//		   TotalCost: 10.00,
-//		   Labels{
-//	      "kubernetes_namespace":"monitoring",
-//		     "env":"prod"
-//		   }
-//	  }
-//
-// Given the following parameters, we expect to return:
-//
-//  1. single-prop full match
-//     aggregateBy = ["namespace"]
-//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//     => Allocation{Name: "monitoring", ExternalCost: 10.00, TotalCost: 10.00}, nil
-//
-//  2. multi-prop full match
-//     aggregateBy = ["namespace", "label:env"]
-//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//     => Allocation{Name: "monitoring/env=prod", ExternalCost: 10.00, TotalCost: 10.00}, nil
-//
-//  3. multi-prop partial match
-//     aggregateBy = ["namespace", "label:foo"]
-//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//     => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
-//
-//  4. no match
-//     aggregateBy = ["cluster"]
-//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//     => nil, err
-//
-// (See asset_test.go for assertions of these examples and more.)
-func AssetToExternalAllocation(asset Asset, aggregateBy []string, labelConfig *LabelConfig) (*Allocation, error) {
-	if asset == nil {
-		return nil, fmt.Errorf("asset is nil")
-	}
-
-	// Use default label config if one is not provided.
-	if labelConfig == nil {
-		labelConfig = NewLabelConfig()
-	}
-
-	// names will collect the slash-separated names accrued by iterating over
-	// aggregateBy and checking the relevant labels.
-	names := []string{}
-
-	// match records whether or not a match was found in the Asset labels,
-	// such that is can genuinely be turned into an external Allocation.
-	match := false
-
-	// props records the relevant Properties to set on the resultant Allocation
-	props := AllocationProperties{}
-
-	// For each aggregation parameter, try to find a match in the asset's
-	// labels, using the labelConfig to translate. For an aggregation parameter
-	// defined by a label (e.g. "label:app") this is simple: look for the label
-	// and use it (e.g. if "app" is a defined label on the asset, then use its
-	// value). For an aggregation parameter defined by a non-label property
-	// (e.g. "namespace") this requires using the labelConfig to look up the
-	// label name associated with that property and to use the value under that
-	// label, if set (e.g. if the aggregation property is "namespace" and the
-	// labelConfig is configured with "namespace_external_label" => "kubens"
-	// and the asset has label "kubens":"kubecost", then file the asset as an
-	// external cost under "kubecost").
-	for _, aggBy := range aggregateBy {
-		name := labelConfig.GetExternalAllocationName(asset.GetLabels(), aggBy)
-
-		if name == "" {
-			// No matching label has been defined in the cost-analyzer label config
-			// relating to the given aggregateBy property.
-			names = append(names, UnallocatedSuffix)
-			continue
-		} else {
-			names = append(names, name)
-			match = true
-
-			// Default labels to an empty map, if necessary
-			if props.Labels == nil {
-				props.Labels = map[string]string{}
-			}
-
-			// Set the corresponding property on props
-			switch aggBy {
-			case AllocationClusterProp:
-				props.Cluster = name
-			case AllocationNodeProp:
-				props.Node = name
-			case AllocationNamespaceProp:
-				props.Namespace = name
-			case AllocationControllerKindProp:
-				props.ControllerKind = name
-			case AllocationControllerProp:
-				props.Controller = name
-			case AllocationPodProp:
-				props.Pod = name
-			case AllocationContainerProp:
-				props.Container = name
-			case AllocationServiceProp:
-				props.Services = []string{name}
-			case AllocationDeploymentProp:
-				props.Controller = name
-				props.ControllerKind = "deployment"
-			case AllocationStatefulSetProp:
-				props.Controller = name
-				props.ControllerKind = "statefulset"
-			case AllocationDaemonSetProp:
-				props.Controller = name
-				props.ControllerKind = "daemonset"
-			case AllocationDepartmentProp:
-				props.Labels[labelConfig.DepartmentLabel] = name
-			case AllocationEnvironmentProp:
-				props.Labels[labelConfig.EnvironmentLabel] = name
-			case AllocationOwnerProp:
-				props.Labels[labelConfig.OwnerLabel] = name
-			case AllocationProductProp:
-				props.Labels[labelConfig.ProductLabel] = name
-			case AllocationTeamProp:
-				props.Labels[labelConfig.TeamLabel] = name
-			default:
-				if strings.HasPrefix(aggBy, "label:") {
-					// Set the corresponding label in props
-					labelName := strings.TrimPrefix(aggBy, "label:")
-					labelValue := strings.TrimPrefix(name, labelName+"=")
-					props.Labels[labelName] = labelValue
-				}
-			}
-		}
-	}
-
-	// If not a signle aggregation property generated a matching label property,
-	// then consider the asset ineligible to be treated as an external allocation.
-	if !match {
-		return nil, fmt.Errorf("asset does not qualify as an external allocation")
-	}
-
-	// Use naming to label as an external allocation. See IsExternal() for more.
-	names = append(names, ExternalSuffix)
-
-	// TODO: external allocation: efficiency?
-	// TODO: external allocation: resource totals?
-	return &Allocation{
-		Name:         strings.Join(names, "/"),
-		Properties:   &props,
-		Window:       asset.GetWindow().Clone(),
-		Start:        asset.GetStart(),
-		End:          asset.GetEnd(),
-		ExternalCost: asset.TotalCost(),
-	}, nil
-}
-
 // key is used to determine uniqueness of an Asset, for instance during Insert
 // to determine if two Assets should be combined. Passing `nil` `aggregateBy` indicates
 // that all available `AssetProperty` keys should be used. Passing empty `aggregateBy` indicates that
@@ -1239,7 +1055,7 @@ func (d *Disk) Minutes() float64 {
 	windowMins := d.Window.Minutes()
 
 	if diskMins > windowMins {
-		log.Warnf("Asset ETL: Disk.Minutes exceeds window: %.2f > %.2f", diskMins, windowMins)
+		log.Warnf("Asset: Disk.Minutes exceeds window: %.2f > %.2f", diskMins, windowMins)
 		diskMins = windowMins
 	}
 
@@ -1699,7 +1515,7 @@ func (n *Network) Minutes() float64 {
 	windowMins := n.Window.Minutes()
 
 	if netMins > windowMins {
-		log.Warnf("Asset ETL: Network.Minutes exceeds window: %.2f > %.2f", netMins, windowMins)
+		log.Warnf("Asset: Network.Minutes exceeds window: %.2f > %.2f", netMins, windowMins)
 		netMins = windowMins
 	}
 
@@ -2019,7 +1835,7 @@ func (n *Node) Minutes() float64 {
 	windowMins := n.Window.Minutes()
 
 	if nodeMins > windowMins {
-		log.Warnf("Asset ETL: Node.Minutes exceeds window: %.2f > %.2f", nodeMins, windowMins)
+		log.Warnf("Asset: Node.Minutes exceeds window: %.2f > %.2f", nodeMins, windowMins)
 		nodeMins = windowMins
 	}
 
@@ -3184,107 +3000,6 @@ func (as *AssetSet) FindMatch(query Asset, aggregateBy []string, labelConfig *La
 	}
 
 	return nil, fmt.Errorf("Asset not found to match %s on %v", query, aggregateBy)
-}
-
-// ReconciliationMatch attempts to find an exact match in the AssetSet on
-// (Category, ProviderID). If a match is found, it returns the Asset with the
-// intent to adjust it. If no match exists, it attempts to find one on only
-// (ProviderID). If that match is found, it returns the Asset with the intent
-// to insert the associated Cloud cost.
-func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
-	// Full match means matching on (Category, ProviderID)
-	fullMatchProps := []string{string(AssetCategoryProp), string(AssetProviderIDProp)}
-	fullMatchKey, err := key(query, fullMatchProps, nil)
-
-	// This should never happen because we are using enumerated Properties,
-	// but the check is here in case that changes
-	if err != nil {
-		return nil, false, err
-	}
-
-	// Partial match means matching only on (ProviderID)
-	providerIDMatchProps := []string{string(AssetProviderIDProp)}
-	providerIDMatchKey, err := key(query, providerIDMatchProps, nil)
-
-	// This should never happen because we are using enumerated Properties,
-	// but the check is here in case that changes
-	if err != nil {
-		return nil, false, err
-	}
-
-	var providerIDMatch Asset
-	for _, asset := range as.Assets {
-		// Ignore cloud assets when looking for reconciliation matches
-		if asset.Type() == CloudAssetType {
-			continue
-		}
-		if k, err := key(asset, fullMatchProps, nil); err != nil {
-			return nil, false, err
-		} else if k == fullMatchKey {
-			log.DedupedInfof(10, "Asset ETL: Reconciliation[rcnw]: ReconcileRange Match: %s", fullMatchKey)
-			return asset, true, nil
-		}
-		if k, err := key(asset, providerIDMatchProps, nil); err != nil {
-			return nil, false, err
-		} else if k == providerIDMatchKey {
-			// Found a partial match. Save it until after all other options
-			// have been checked for full matches.
-			providerIDMatch = asset
-		}
-	}
-
-	// No full match was found, so return partial match, if found.
-	if providerIDMatch != nil {
-		return providerIDMatch, false, nil
-	}
-
-	return nil, false, fmt.Errorf("Asset not found to match %s", query)
-}
-
-// ReconciliationMatchMap returns a map of the calling AssetSet's Assets, by provider id and category. This data structure
-// allows for reconciliation matching to be done in constant time and prevents duplicate reconciliation.
-func (as *AssetSet) ReconciliationMatchMap() map[string]map[string]Asset {
-	matchMap := make(map[string]map[string]Asset)
-
-	if as == nil {
-		return matchMap
-	}
-
-	for _, asset := range as.Assets {
-		if asset == nil {
-			continue
-		}
-		props := asset.GetProperties()
-		// Ignore assets that cannot be matched when looking for reconciliation matches
-		if props == nil || props.ProviderID == "" {
-			continue
-		}
-
-		// we can't guarantee case in providerID for Azure provider to have map working for all providers,
-		// lower casing providerID  while creating reconciliation map
-		providerID := strings.ToLower(props.ProviderID)
-		if _, ok := matchMap[providerID]; !ok {
-			matchMap[providerID] = make(map[string]Asset)
-		}
-
-		// Check if a match is already in the map
-		if duplicateAsset, ok := matchMap[providerID][props.Category]; ok {
-			log.DedupedWarningf(5, "duplicate asset found when reconciling for %s", props.ProviderID)
-			// if one asset already has adjustment use that one
-			if duplicateAsset.GetAdjustment() == 0 && asset.GetAdjustment() != 0 {
-				matchMap[providerID][props.Category] = asset
-			} else if duplicateAsset.GetAdjustment() != 0 && asset.GetAdjustment() == 0 {
-				matchMap[providerID][props.Category] = duplicateAsset
-				// otherwise use the one with the higher cost
-			} else if duplicateAsset.TotalCost() < asset.TotalCost() {
-				matchMap[providerID][props.Category] = asset
-			}
-		} else {
-			matchMap[providerID][props.Category] = asset
-		}
-
-	}
-	return matchMap
 }
 
 // Get returns the Asset in the AssetSet at the given key, or nil and false

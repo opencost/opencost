@@ -3,13 +3,13 @@ package costmodel
 import (
 	"fmt"
 
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/opencost"
-	"github.com/opencost/opencost/pkg/env"
 )
 
 func newResultPodKey(cluster string, namespace string, pod string) (podKey, error) {
 	if cluster == "" {
-		cluster = env.GetClusterID()
+		cluster = coreenv.GetClusterID()
 	}
 
 	if namespace == "" {
@@ -65,7 +65,7 @@ func newNamespaceKey(cluster, namespace string) namespaceKey {
 
 func newResultNamespaceKey(cluster string, namespace string) (namespaceKey, error) {
 	if cluster == "" {
-		cluster = env.GetClusterID()
+		cluster = coreenv.GetClusterID()
 	}
 
 	if namespace == "" {
@@ -97,7 +97,7 @@ func newControllerKey(cluster, namespace, controllerKind, controller string) con
 
 func newResultControllerKey(cluster, namespace, controller, controllerKind string) (controllerKey, error) {
 	if cluster == "" {
-		cluster = env.GetClusterID()
+		cluster = coreenv.GetClusterID()
 	}
 
 	if namespace == "" {
@@ -131,7 +131,7 @@ func newServiceKey(cluster, namespace, service string) serviceKey {
 
 func newResultServiceKey(cluster, namespace, service string) (serviceKey, error) {
 	if cluster == "" {
-		cluster = env.GetClusterID()
+		cluster = coreenv.GetClusterID()
 	}
 
 	if namespace == "" {
@@ -163,7 +163,7 @@ func newNodeKey(cluster, node string) nodeKey {
 
 func newResultNodeKey(cluster string, node string) (nodeKey, error) {
 	if cluster == "" {
-		cluster = env.GetClusterID()
+		cluster = coreenv.GetClusterID()
 	}
 
 	if node == "" {
@@ -199,7 +199,7 @@ func newPVCKey(cluster, namespace, persistentVolumeClaim string) pvcKey {
 // clusterLabel, which we expect may not exist, but has a default value.)
 func newResultPVCKey(cluster, namespace, pvc string) (pvcKey, error) {
 	if cluster == "" {
-		cluster = env.GetClusterID()
+		cluster = coreenv.GetClusterID()
 	}
 
 	if namespace == "" {
@@ -231,7 +231,7 @@ func newPVKey(cluster, persistentVolume string) pvKey {
 
 func newResultPVKey(cluster, pv string) (pvKey, error) {
 	if cluster == "" {
-		cluster = env.GetClusterID()
+		cluster = coreenv.GetClusterID()
 	}
 	if pv == "" {
 		return pvKey{}, fmt.Errorf("persistentvolume is required")

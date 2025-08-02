@@ -24,7 +24,7 @@ type TestData struct {
 func TestStorageExporters(t *testing.T) {
 	t.Run("test event storage exporter", func(t *testing.T) {
 		store := storage.NewMemoryStorage()
-		p, err := pathing.NewEventStoragePathFormatter("federated", TestClusterId, TestEventName)
+		p, err := pathing.NewEventStoragePathFormatter("root", TestClusterId, TestEventName)
 		if err != nil {
 			t.Fatalf("failed to create path formatter: %v", err)
 		}
@@ -65,7 +65,7 @@ func TestStorageExporters(t *testing.T) {
 	t.Run("test compute storage exporter", func(t *testing.T) {
 		res := 24 * time.Hour
 		store := storage.NewMemoryStorage()
-		p, err := pathing.NewBingenStoragePathFormatter("federated", TestClusterId, pipelines.AllocationPipelineName, &res)
+		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AllocationPipelineName, &res)
 		if err != nil {
 			t.Fatalf("failed to create path formatter: %v", err)
 		}
