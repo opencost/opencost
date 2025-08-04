@@ -24,7 +24,7 @@ func NewComputePipelineExporter[T any, U export.BinaryMarshalerPtr[T], S validat
 		return nil, fmt.Errorf("failed to extract pipeline name for type: %s", typeutil.TypeOf[T]())
 	}
 
-	pathing, err := pathing.NewBingenStoragePathFormatter("federated", clusterId, pipelineName, &resolution)
+	pathing, err := pathing.NewDefaultStoragePathFormatter(clusterId, pipelineName, &resolution)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create path formatter: %w", err)
 	}

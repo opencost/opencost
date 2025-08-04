@@ -2249,7 +2249,7 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 		if coeffs[a] > 0 && total > 0 {
 			coeffs[a] /= total
 		} else {
-			log.Warnf("ETL: invalid values for shared coefficients: %v, %v", coeffs[a], total)
+			log.Warnf("Allocation: invalid values for shared coefficients: %v, %v", coeffs[a], total)
 			coeffs[a] = 0.0
 		}
 	}

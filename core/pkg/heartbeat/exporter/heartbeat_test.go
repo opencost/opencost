@@ -47,7 +47,7 @@ func TestHeartbeatExporter(t *testing.T) {
 	time.Sleep(10 * time.Second)
 	controller.Stop()
 
-	files, _ := store.List(path.Join("federated", MockClusterId, heartbeat.HeartbeatEventName, MockApplicationName))
+	files, _ := store.List(path.Join(MockApplicationName, MockClusterId, heartbeat.HeartbeatEventName))
 	if len(files) == 0 {
 		t.Fatal("No files found in storage")
 	}
@@ -61,7 +61,7 @@ func TestHeartbeatExporter(t *testing.T) {
 	lastCheck := time.Time{}
 
 	for _, f := range fileNames {
-		fpath := filepath.Join("federated", MockClusterId, "heartbeat", MockApplicationName, f)
+		fpath := filepath.Join(MockApplicationName, MockClusterId, heartbeat.HeartbeatEventName, f)
 		data, err := store.Read(fpath)
 		if err != nil {
 			t.Fatalf("Failed to read file %s: %v", fpath, err)
