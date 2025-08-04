@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"path"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/clusters"
@@ -74,7 +75,12 @@ func Execute(opts *AgentOpts) error {
 	}
 
 	// Create ConfigFileManager for synchronization of shared configuration
-	confManager := config.NewConfigFileManager(nil)
+	confManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		BucketStoreConfig: env.GetConfigBucketFile(),
+		LocalConfigPath:   "/",
+	})
+
+	configPrefix := env.GetConfigPathWithDefault(env.DefaultConfigMountPath)
 
 	cloudProviderKey := env.GetCloudProviderAPIKey()
 	cloudProvider, err := provider.NewProvider(clusterCache, cloudProviderKey, confManager)
@@ -87,7 +93,7 @@ func Execute(opts *AgentOpts) error {
 
 	var clusterInfoProvider clusters.ClusterInfoProvider
 	if env.IsExportClusterInfoEnabled() {
-		clusterInfoConf := confManager.ConfigFileAt(env.GetClusterInfoFilePath())
+		clusterInfoConf := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-info.json"))
 		clusterInfoProvider = costmodel.NewClusterInfoWriteOnRequest(localClusterInfo, clusterInfoConf)
 	} else {
 		clusterInfoProvider = localClusterInfo
@@ -123,14 +129,14 @@ func Execute(opts *AgentOpts) error {
 	}
 
 	// Append the pricing config watcher
-	installNamespace := env.GetOpencostNamespace()
-	configWatchers := watcher.NewConfigMapWatchers(k8sClient, installNamespace)
+	kubecostNamespace := env.GetInstallNamespace()
+	configWatchers := watcher.NewConfigMapWatchers(k8sClient, kubecostNamespace)
 	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
 	configWatchers.Watch()
 
 	// Initialize cluster exporting if it's enabled
 	if env.IsExportClusterCacheEnabled() {
-		cacheLocation := confManager.ConfigFileAt(env.GetClusterCacheFilePath())
+		cacheLocation := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-cache.json"))
 		clusterExporter = cluster.NewClusterExporter(clusterCache, cacheLocation, ClusterExportInterval)
 		clusterExporter.Run()
 	}

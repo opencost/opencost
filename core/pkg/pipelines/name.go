@@ -1,21 +1,16 @@
 package pipelines
 
 import (
-	"github.com/opencost/opencost/core/pkg/diagnostics"
-	"github.com/opencost/opencost/core/pkg/heartbeat"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/typeutil"
 )
 
 const (
-	AllocationPipelineName        string = "allocations"
-	AssetsPipelineName            string = "assets"
-	CloudCostsPipelineName        string = "cloudcosts"
-	NetworkInsightPipelineName    string = "networkinsights"
-	CustomCostsPipelineName       string = "customcosts"
-	TurbonomicActionsPipelineName string = "turbonomicactions"
-	HeartbeatPipelineName         string = "heartbeat"
-	DiagnosticsPipelineName       string = "diagnostics"
+	AllocationPipelineName     string = "allocations"
+	AssetsPipelineName         string = "assets"
+	CloudCostsPipelineName     string = "cloudcosts"
+	NetworkInsightPipelineName string = "networkinsights"
+	CustomCostsPipelineName    string = "customcosts"
 )
 
 var nameByType map[string]string
@@ -34,9 +29,6 @@ func init() {
 	networkInsightSetKey := typeutil.TypeOf[opencost.NetworkInsightSet]()
 	networkInsightKey := typeutil.TypeOf[opencost.NetworkInsight]()
 
-	heartbeatKey := typeutil.TypeOf[heartbeat.Heartbeat]()
-	diagnosticsKey := typeutil.TypeOf[diagnostics.DiagnosticsRunReport]()
-
 	nameByType = map[string]string{
 		allocSetKey:          AllocationPipelineName,
 		allocKey:             AllocationPipelineName,
@@ -46,8 +38,6 @@ func init() {
 		cloudCostKey:         CloudCostsPipelineName,
 		networkInsightSetKey: NetworkInsightPipelineName,
 		networkInsightKey:    NetworkInsightPipelineName,
-		heartbeatKey:         HeartbeatPipelineName,
-		diagnosticsKey:       DiagnosticsPipelineName,
 	}
 }
 
