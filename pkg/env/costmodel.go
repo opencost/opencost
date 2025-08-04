@@ -1,16 +1,21 @@
 package env
 
 import (
+	"fmt"
+	
 	"github.com/opencost/opencost/core/pkg/env"
 )
 
 // FilePaths
 const (
-	ClusterInfoFile = "cluster-info.json"
-	ClusterCacheFile
+	ClusterInfoFile   = "cluster-info.json"
+	ClusterCacheFile  = "cluster-cache.json"
 	GCPAuthSecretFile = "key.json"
 	MetricConfigFile  = "metrics.json"
 )
+
+// DefaultConfigMountPath is the default mount path for the cost analyzer volume
+const DefaultConfigMountPath = "/var/configs"
 
 // Env Variables
 const (
@@ -84,12 +89,49 @@ const (
 	KubernetesResourceAccessEnvVar = "KUBERNETES_RESOURCE_ACCESS"
 	UseCacheV1                     = "USE_CACHE_V1"
 
+	ReleaseNameEnvVar                = "RELEASE_NAME"
+	PodNameEnvVar                    = "POD_NAME"
+	ClusterIDEnvVar                  = "CLUSTER_ID"
+	ConfigPathEnvVar                 = "CONFIG_PATH"
+	PVMountPath                      = "PV_MOUNT_PATH"
+
+	PProfEnabledEnvVar = "PPROF_ENABLED"
+	APIPortEnvVar      = "API_PORT"
+
+	KubeRbacProxyEnabled = "KUBE_RBAC_PROXY_ENABLED"
+
+	KubeConfigPathEnvVar = "KUBECONFIG_PATH"
+
+
+	ClusterCacheFileEnabledEnvVar = "CLUSTER_CACHE_FILE_ENABLED"
+
+	ETLReadOnlyMode = "ETL_READ_ONLY"
+
+	ExportBucketConfigFileEnvVar = "EXPORT_BUCKET_CONFIG_FILE"
+
+	CloudCostConfigPath = "CLOUD_COST_CONFIG_PATH"
+
+	CustomCostRefreshRateHoursEnvVar = "CUSTOM_COST_REFRESH_RATE_HOURS"
+
+	InstallNamespaceEnvVar = "INSTALL_NAMESPACE"
+	ConfigBucketEnvVar     = "CONFIG_BUCKET"
+
+	NetworkCostsPortEnvVar = "NETWORK_COSTS_PORT"
+
+
+	// MCP (Model Context Protocol) Configuration
+	MCPEnabledEnvVar = "MCP_ENABLED"
+
 	// Cloud provider override
 	CloudProviderVar = "CLOUD_PROVIDER"
+
+	// Deprecated
+	KubecostNamespaceEnvVar    = "KUBECOST_NAMESPACE"
+	KubecostConfigBucketEnvVar = "KUBECOST_CONFIG_BUCKET"
 )
 
 func GetGCPAuthSecretFilePath() string {
-	return env.GetPathFromConfig(GCPAuthSecretFile)
+	return GetPathFromConfig(GCPAuthSecretFile)
 }
 
 func GetExportCSVFile() string {
@@ -115,11 +157,11 @@ func IsClusterInfoFileEnabled() bool {
 }
 
 func GetClusterInfoFilePath() string {
-	return env.GetPathFromConfig(ClusterInfoFile)
+	return GetPathFromConfig(ClusterInfoFile)
 }
 
 func GetClusterCacheFilePath() string {
-	return env.GetPathFromConfig(ClusterCacheFile)
+	return GetPathFromConfig(ClusterCacheFile)
 }
 
 func GetPricingConfigmapName() string {
@@ -358,11 +400,105 @@ func GetUseCacheV1() bool {
 	return env.GetBool(UseCacheV1, false)
 }
 
+// IsMCPEnabled returns true if MCP (Model Context Protocol) server should be enabled
+func IsMCPEnabled() bool {
+	return env.GetBool(MCPEnabledEnvVar, false)
+}
+
 // GetCloudProvider returns the explicitly set cloud provider from environment variable
 func GetCloudProvider() string {
 	return env.Get(CloudProviderVar, "")
 }
 
 func GetMetricConfigFile() string {
-	return env.GetPathFromConfig(MetricConfigFile)
+	return GetPathFromConfig(MetricConfigFile)
+}
+
+func IsPProfEnabled() bool {
+	return env.GetBool(PProfEnabledEnvVar, false)
+}
+
+// GetAPIPort returns the environment variable value for APIPortEnvVar which
+// is the port number the API is available on.
+func GetAPIPort() int {
+	return env.GetInt(APIPortEnvVar, 9003)
+}
+
+// GetConfigBucketFile returns a file location for a mounted bucket configuration which is used to store
+// a subset of configurations that require sharing via remote storage.
+func GetConfigBucketFile() string {
+	return env.Get(ConfigBucketEnvVar, env.Get(KubecostConfigBucketEnvVar, ""))
+}
+
+// IsClusterCacheFileEnabled returns true if the kubernetes cluster data is read from a file or pulled from the local
+// kubernetes API.
+func IsClusterCacheFileEnabled() bool {
+	return env.GetBool(ClusterCacheFileEnabledEnvVar, false)
+}
+
+// GetInstallNamespace returns the environment variable value that is set for the kubernetes namespace
+// this service is installed in.
+func GetInstallNamespace() string {
+	return env.Get(InstallNamespaceEnvVar, env.Get(KubecostNamespaceEnvVar, "opencost"))
+}
+
+// GetPodName returns the name of the current running pod. If this environment variable is not set,
+// empty string is returned.
+func GetPodName() string {
+	return env.Get(PodNameEnvVar, "")
+}
+
+// GetClusterID returns the environment variable value for ClusterIDEnvVar which represents the
+// configurable identifier used for multi-cluster metric emission.
+func GetClusterID() string {
+	return env.Get(ClusterIDEnvVar, "")
+}
+
+func IsKubeRbacProxyEnabled() bool {
+	return env.GetBool(KubeRbacProxyEnabled, false)
+}
+
+// GetCostAnalyzerVolumeMountPath is an alias of GetConfigPath, which returns the mount path for the
+// Cost Analyzer volume, which stores configs, persistent data, etc.
+func GetCostAnalyzerVolumeMountPath() string {
+	return GetConfigPathWithDefault(DefaultConfigMountPath)
+}
+
+// GetConfigPath returns the environment variable value for ConfigPathEnvVar which represents the cost
+// model configuration path
+func GetConfigPathWithDefault(defaultValue string) string {
+	return env.Get(ConfigPathEnvVar, defaultValue)
+}
+
+func GetPVMountPath() string {
+	return env.Get(PVMountPath, "")
+}
+
+// GetKubeConfigPath returns the environment variable value for KubeConfigPathEnvVar
+func GetKubeConfigPath() string {
+	return env.Get(KubeConfigPathEnvVar, "")
+}
+
+
+func GetCustomCostRefreshRateHours() string {
+	return env.Get(CustomCostRefreshRateHoursEnvVar, "12h")
+}
+
+func GetExportBucketConfigFile() string {
+	return env.Get(ExportBucketConfigFileEnvVar, "")
+}
+
+func GetReleaseName() string {
+	return env.Get(ReleaseNameEnvVar, "kubecost")
+}
+
+func GetNetworkCostsPort() int {
+	return env.GetInt(NetworkCostsPortEnvVar, 3001)
+}
+
+
+// GetPathFromConfig returns the path for a config file by prepending the config directory
+func GetPathFromConfig(filename string) string {
+	configPath := env.Get("CONFIG_PATH", "/var/configs")
+	return fmt.Sprintf("%s/%s", configPath, filename)
 }
