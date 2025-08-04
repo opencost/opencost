@@ -54,8 +54,9 @@ func NewKubernetesClusterCacheV2(clientset kubernetes.Interface) *KubernetesClus
 func (kcc *KubernetesClusterCacheV2) Run() {
 	var wg sync.WaitGroup
 
-	wg.Add(14)
-	if env.HasKubernetesResourceAccess() {
+	if !env.IsETLReadOnlyMode() {
+		wg.Add(14)
+
 		kcc.namespaceStore.Watch(kcc.stopCh, wg.Done)
 		kcc.nodeStore.Watch(kcc.stopCh, wg.Done)
 		kcc.persistentVolumeClaimStore.Watch(kcc.stopCh, wg.Done)
@@ -71,6 +72,7 @@ func (kcc *KubernetesClusterCacheV2) Run() {
 		kcc.jobStore.Watch(kcc.stopCh, wg.Done)
 		kcc.pdbStore.Watch(kcc.stopCh, wg.Done)
 	}
+
 	wg.Wait()
 }
 

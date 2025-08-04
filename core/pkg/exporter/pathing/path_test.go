@@ -1,7 +1,6 @@
 package pathing
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 func TestBingenPathFormatter(t *testing.T) {
 	type testCase struct {
 		name       string
+		rootPath   string
 		clusterID  string
 		pipeline   string
 		resolution *time.Duration
@@ -21,57 +21,63 @@ func TestBingenPathFormatter(t *testing.T) {
 	testCases := []testCase{
 		{
 			name:       "no resolution",
+			rootPath:   "federated",
 			clusterID:  "cluster-a",
 			pipeline:   "allocation",
 			resolution: nil,
 			prefix:     "",
-			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1704110400-1704114000", defaultRootDir, baseStorageDir),
+			expected:   "federated/cluster-a/etl/bingen/allocation/1704110400-1704114000",
 		},
 		{
 			name:       "with resolution",
+			rootPath:   "federated",
 			clusterID:  "cluster-a",
 			pipeline:   "allocation",
 			resolution: &[]time.Duration{1 * time.Hour}[0],
 			prefix:     "",
-			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1h/1704110400-1704114000", defaultRootDir, baseStorageDir),
+			expected:   "federated/cluster-a/etl/bingen/allocation/1h/1704110400-1704114000",
 		},
 		{
 			name:       "no resolution with prefix",
+			rootPath:   "federated",
 			clusterID:  "cluster-a",
 			pipeline:   "allocation",
 			resolution: nil,
 			prefix:     "test",
-			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/test.1704110400-1704114000", defaultRootDir, baseStorageDir),
+			expected:   "federated/cluster-a/etl/bingen/allocation/test.1704110400-1704114000",
 		},
 		{
 			name:       "with resolution with prefix",
+			rootPath:   "federated",
 			clusterID:  "cluster-a",
 			pipeline:   "allocation",
 			resolution: &[]time.Duration{1 * time.Hour}[0],
 			prefix:     "test",
-			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1h/test.1704110400-1704114000", defaultRootDir, baseStorageDir),
+			expected:   "federated/cluster-a/etl/bingen/allocation/1h/test.1704110400-1704114000",
 		},
 		{
 			name:       "daily resolution",
+			rootPath:   "federated",
 			clusterID:  "cluster-a",
 			pipeline:   "allocation",
 			resolution: &[]time.Duration{24 * time.Hour}[0],
 			prefix:     "",
-			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1d/1704110400-1704196800", defaultRootDir, baseStorageDir),
+			expected:   "federated/cluster-a/etl/bingen/allocation/1d/1704110400-1704196800",
 		},
 		{
 			name:       "weekly resolution",
+			rootPath:   "federated",
 			clusterID:  "cluster-a",
 			pipeline:   "allocation",
 			resolution: &[]time.Duration{7 * 24 * time.Hour}[0],
 			prefix:     "",
-			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1w/1704110400-1704715200", defaultRootDir, baseStorageDir),
+			expected:   "federated/cluster-a/etl/bingen/allocation/1w/1704110400-1704715200",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			pathing, err := NewDefaultStoragePathFormatter(tc.clusterID, tc.pipeline, tc.resolution)
+			pathing, err := NewBingenStoragePathFormatter(tc.rootPath, tc.clusterID, tc.pipeline, tc.resolution)
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
@@ -105,83 +111,83 @@ func TestEventPathFormatter(t *testing.T) {
 	testCases := []testCase{
 		{
 			name:      "with root path with file extension",
-			rootPath:  "/tmp/root",
+			rootPath:  "/tmp/federated",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
 			subPaths:  []string{},
 			prefix:    "",
 			fileExt:   "json",
-			expected:  "/tmp/root/cluster-a/heartbeat/20240101124000.json",
+			expected:  "/tmp/federated/cluster-a/heartbeat/20240101124000.json",
 		},
 		{
 			name:      "with file extension",
-			rootPath:  "root",
+			rootPath:  "federated",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
 			subPaths:  []string{},
 			prefix:    "",
 			fileExt:   "json",
-			expected:  "root/cluster-a/heartbeat/20240101124000.json",
+			expected:  "federated/cluster-a/heartbeat/20240101124000.json",
 		},
 		{
 			name:      "with root path with file extension with sub-paths",
-			rootPath:  "/tmp/root",
+			rootPath:  "/tmp/federated",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
 			subPaths:  []string{"foo", "bar"},
 			prefix:    "",
 			fileExt:   "json",
-			expected:  "/tmp/root/cluster-a/heartbeat/foo/bar/20240101124000.json",
+			expected:  "/tmp/federated/cluster-a/heartbeat/foo/bar/20240101124000.json",
 		},
 		{
 			name:      "without file extension",
-			rootPath:  "root",
+			rootPath:  "federated",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
 			subPaths:  []string{},
 			prefix:    "",
 			fileExt:   "",
-			expected:  "root/cluster-a/heartbeat/20240101124000",
+			expected:  "federated/cluster-a/heartbeat/20240101124000",
 		},
 		{
 			name:      "with prefix with file extension",
-			rootPath:  "root",
+			rootPath:  "federated",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
 			subPaths:  []string{},
 			prefix:    "test",
 			fileExt:   "json",
-			expected:  "root/cluster-a/heartbeat/test.20240101124000.json",
+			expected:  "federated/cluster-a/heartbeat/test.20240101124000.json",
 		},
 		{
 			name:      "with prefix with file extension with sub-paths",
-			rootPath:  "root",
+			rootPath:  "federated",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
 			subPaths:  []string{"foo", "bar", "baz"},
 			prefix:    "test",
 			fileExt:   "json",
-			expected:  "root/cluster-a/heartbeat/foo/bar/baz/test.20240101124000.json",
+			expected:  "federated/cluster-a/heartbeat/foo/bar/baz/test.20240101124000.json",
 		},
 		{
 			name:      "with prefix without file extension",
-			rootPath:  "root",
+			rootPath:  "federated",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
 			subPaths:  []string{},
 			prefix:    "test",
 			fileExt:   "",
-			expected:  "root/cluster-a/heartbeat/test.20240101124000",
+			expected:  "federated/cluster-a/heartbeat/test.20240101124000",
 		},
 		{
 			name:      "with prefix without file extension with sub-paths",
-			rootPath:  "root",
+			rootPath:  "federated",
 			clusterID: "cluster-a",
 			event:     "heartbeat",
 			subPaths:  []string{"foo"},
 			prefix:    "test",
 			fileExt:   "",
-			expected:  "root/cluster-a/heartbeat/foo/test.20240101124000",
+			expected:  "federated/cluster-a/heartbeat/foo/test.20240101124000",
 		},
 	}
 

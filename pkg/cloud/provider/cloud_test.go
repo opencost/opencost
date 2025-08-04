@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/clusters"
-	"github.com/opencost/opencost/core/pkg/env"
-	"github.com/opencost/opencost/core/pkg/storage"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/cloud/provider"
@@ -24,9 +22,10 @@ import (
 )
 
 const (
-	providerIDMap = "spec.providerID"
-	nameMap       = "metadata.name"
-	labelMapFoo   = "metadata.labels.foo"
+	providerIDMap  = "spec.providerID"
+	nameMap        = "metadata.name"
+	labelMapFoo    = "metadata.labels.foo"
+	labelMapFooBar = "metadata.labels.foo.bar"
 )
 
 func TestRegionValueFromMapField(t *testing.T) {
@@ -103,7 +102,9 @@ func TestPVPriceFromCSV(t *testing.T) {
 	pv := &clustercache.PersistentVolume{}
 	pv.Name = nameWant
 
-	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
 
 	wantPrice := "0.1337"
 	c := &provider.CSVProvider{
@@ -135,7 +136,9 @@ func TestPVPriceFromCSVStorageClass(t *testing.T) {
 	pv.Name = nameWant
 	pv.Spec.StorageClassName = storageClassWant
 
-	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
 
 	wantPrice := "0.1338"
 	c := &provider.CSVProvider{
@@ -166,7 +169,9 @@ func TestNodePriceFromCSVWithGPU(t *testing.T) {
 	labelFooWant := "labelfoo"
 	wantGPU := "2"
 
-	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
 
 	n := &clustercache.Node{}
 	n.SpecProviderID = providerIDWant
@@ -258,9 +263,11 @@ func TestNodePriceFromCSVWithGPULabels(t *testing.T) {
 	}
 
 	t.Logf("Setting Config Path to: %s", configPath)
-	t.Setenv(env.ConfigPathEnvVar, configPath)
+	t.Setenv("CONFIG_PATH", configPath)
 
-	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
 
 	n := &clustercache.Node{}
 	n.SpecProviderID = "providerid"
@@ -325,9 +332,11 @@ func TestRKE2NodePriceFromCSVWithGPULabels(t *testing.T) {
 	}
 
 	t.Logf("Setting Config Path to: %s", configPath)
-	t.Setenv(env.ConfigPathEnvVar, configPath)
+	t.Setenv("CONFIG_PATH", configPath)
 
-	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
 
 	n := &clustercache.Node{}
 	n.SpecProviderID = "providerid"
@@ -370,7 +379,9 @@ func TestRKE2NodePriceFromCSVWithGPULabels(t *testing.T) {
 func TestNodePriceFromCSVSpecialChar(t *testing.T) {
 	nameWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"
 
-	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
 
 	n := &clustercache.Node{}
 	n.Name = nameWant
@@ -405,7 +416,9 @@ func TestNodePriceFromCSV(t *testing.T) {
 	nameWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"
 	labelFooWant := "labelfoo"
 
-	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
 
 	n := &clustercache.Node{}
 	n.SpecProviderID = providerIDWant
@@ -465,7 +478,9 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	nameWant := "foo"
 	labelFooWant := "labelfoo"
 
-	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
 
 	n := &clustercache.Node{}
 	n.SpecProviderID = providerIDWant
@@ -656,9 +671,11 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 	}
 
 	t.Logf("Setting Config Path to: %s", configPath)
-	t.Setenv(env.ConfigPathEnvVar, configPath)
+	t.Setenv("CONFIG_PATH", configPath)
 
-	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
 
 	c := &provider.CSVProvider{
 		CSVLocation: "../../../configs/pricing_schema_case.csv",
@@ -688,9 +705,11 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 }
 
 func TestSourceMatchesFromCSV(t *testing.T) {
-	os.Setenv(env.ConfigPathEnvVar, "../../../configs")
+	os.Setenv("CONFIG_PATH", "../../../configs")
 
-	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
 
 	c := &provider.CSVProvider{
 		CSVLocation: "../../../configs/pricing_schema_case.csv",
@@ -767,7 +786,9 @@ func TestNodePriceFromCSVWithCase(t *testing.T) {
 	n.Labels[v1.LabelTopologyRegion] = "eastus2"
 	wantPrice := "0.13370357"
 
-	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
 
 	c := &provider.CSVProvider{
 		CSVLocation: "../../../configs/pricing_schema_case.csv",
@@ -795,7 +816,9 @@ func TestNodePriceFromCSVWithCase(t *testing.T) {
 func TestNodePriceFromCSVMixed(t *testing.T) {
 	labelFooWant := "OnDemand"
 
-	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
 
 	n := &clustercache.Node{}
 	n.Labels = make(map[string]string)
@@ -856,7 +879,9 @@ func TestNodePriceFromCSVByClass(t *testing.T) {
 	wantpricefloat := 0.13370357
 	wantPrice := fmt.Sprintf("%f", (math.Round(wantpricefloat*1000000) / 1000000))
 
-	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
 
 	c := &provider.CSVProvider{
 		CSVLocation: "../../../configs/pricing_schema_case.csv",

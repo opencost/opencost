@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
-	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
@@ -356,7 +355,7 @@ func (otc *OTC) ClusterInfo() (map[string]string, error) {
 	m["account"] = c.ProjectID
 	m["region"] = otc.ClusterRegion
 	m["remoteReadEnabled"] = strconv.FormatBool(env.IsRemoteEnabled())
-	m["id"] = coreenv.GetClusterID()
+	m["id"] = env.GetClusterID()
 	return m, nil
 }
 

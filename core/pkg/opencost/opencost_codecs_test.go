@@ -6,11 +6,11 @@ import (
 )
 
 func TestAllocation_BinaryEncoding(t *testing.T) {
-	// TODO niko
+	// TODO niko/etl
 }
 
 func TestAllocationSet_BinaryEncoding(t *testing.T) {
-	// TODO niko
+	// TODO niko/etl
 }
 
 func BenchmarkAllocationSetRange_BinaryEncoding(b *testing.B) {
@@ -193,11 +193,11 @@ func TestAny_BinaryEncoding(t *testing.T) {
 }
 
 func TestAsset_BinaryEncoding(t *testing.T) {
-	// TODO niko
+	// TODO niko/etl
 }
 
 func TestAssetSet_BinaryEncoding(t *testing.T) {
-	// TODO niko
+	// TODO niko/etl
 }
 
 func TestAssetSetRange_BinaryEncoding(t *testing.T) {
