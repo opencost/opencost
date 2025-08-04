@@ -5,13 +5,8 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
-)
-
-// Network Metrics
-const (
-	KubecostPodNetworkEgressBytesTotal  = "kubecost_pod_network_egress_bytes_total"
-	KubecostPodNetworkIngressBytesTotal = "kubecost_pod_network_ingress_bytes_total"
 )
 
 func newNetworkScraper(
@@ -26,8 +21,8 @@ func newNetworkTargetScraper(provider target.TargetProvider) *TargetScraper {
 	return newTargetScrapper(
 		provider,
 		[]string{
-			KubecostPodNetworkEgressBytesTotal,
-			KubecostPodNetworkIngressBytesTotal,
+			metric.KubecostPodNetworkEgressBytesTotal,
+			metric.KubecostPodNetworkIngressBytesTotal,
 		},
 		true)
 }

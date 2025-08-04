@@ -6,16 +6,11 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 )
 
 var dcgmRegex = regexp.MustCompile("(?i)(.*dcgm-exporter.*)")
-
-// DCGM metrics
-const (
-	DCGMFIPROFGRENGINEACTIVE = "DCGM_FI_PROF_GR_ENGINE_ACTIVE"
-	DCGMFIDEVDECUTIL         = "DCGM_FI_DEV_DEC_UTIL"
-)
 
 func newDCGMScrapper(clusterCache clustercache.ClusterCache) Scraper {
 	tp := newDCGMTargetProvider(clusterCache)
@@ -26,8 +21,8 @@ func newDCGMTargetScraper(provider target.TargetProvider) *TargetScraper {
 	return newTargetScrapper(
 		provider,
 		[]string{
-			DCGMFIPROFGRENGINEACTIVE,
-			DCGMFIDEVDECUTIL,
+			metric.DCGMFIPROFGRENGINEACTIVE,
+			metric.DCGMFIDEVDECUTIL,
 		},
 		true)
 }
