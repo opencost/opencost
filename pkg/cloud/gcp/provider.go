@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
@@ -185,9 +186,7 @@ func (gcp *GCP) GetManagementPlatform() (string, error) {
 
 // Attempts to load a GCP auth secret and copy the contents to the key file.
 func (*GCP) loadGCPAuthSecret() {
-	path := env.GetConfigPathWithDefault("/models/")
-
-	keyPath := path + "key.json"
+	keyPath := env.GetGCPAuthSecretFilePath()
 	keyExists, _ := fileutil.FileExists(keyPath)
 	if keyExists {
 		log.Info("GCP Auth Key already exists, no need to load from secret")
@@ -239,9 +238,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 					return err
 				}
 
-				path := env.GetConfigPathWithDefault("/models/")
-
-				keyPath := path + "key.json"
+				keyPath := env.GetGCPAuthSecretFilePath()
 				err = os.WriteFile(keyPath, j, 0644)
 				if err != nil {
 					return err
@@ -284,7 +281,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 		}
 
 		if env.IsRemoteEnabled() {
-			err := utils.UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
+			err := utils.UpdateClusterMeta(coreenv.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return err
 			}
@@ -323,7 +320,7 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	m["account"] = gcp.ClusterAccountID
 	m["project"] = gcp.ClusterProjectID
 	m["provisioner"] = gcp.clusterProvisioner
-	m["id"] = env.GetClusterID()
+	m["id"] = coreenv.GetClusterID()
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	return m, nil
 }

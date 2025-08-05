@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -14,8 +13,6 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/env"
 )
-
-const configFile = "cloud-configurations.json"
 
 // Controller manages the cloud.Config using config Watcher(s) to track various configuration
 // methods. To do this it has a map of config watchers mapped on configuration source and a list Observers that it updates
@@ -33,7 +30,7 @@ func NewController(providerConfig models.ProviderConfig) *Controller {
 	watchers := GetCloudBillingWatchers(providerConfig)
 
 	storage := &FileControllerStorage{
-		path: filepath.Join(env.GetConfigPathWithDefault(env.DefaultConfigMountPath), configFile),
+		path: env.GetCloudCostConfigControllerStateFile(),
 	}
 
 	ic := &Controller{
