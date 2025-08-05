@@ -12,13 +12,13 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
-	"github.com/opencost/opencost/pkg/env"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -134,7 +134,7 @@ func (cd *CostData) GetController() (name string, kind string, hasController boo
 
 func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData, error) {
 	// Cluster ID is specific to the source cluster
-	clusterID := env.GetClusterID()
+	clusterID := coreenv.GetClusterID()
 	cp := cm.Provider
 	ds := cm.DataSource
 	mq := ds.Metrics()
@@ -1266,7 +1266,7 @@ func (cm *CostModel) GetLBCost() (map[serviceKey]*costAnalyzerCloud.LoadBalancer
 		namespace := service.Namespace
 		name := service.Name
 		key := serviceKey{
-			Cluster:   env.GetClusterID(),
+			Cluster:   coreenv.GetClusterID(),
 			Namespace: namespace,
 			Service:   name,
 		}
@@ -1590,7 +1590,7 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 
 				_, err := opencost.UpdateAssetTotalsStore(totalsStore, assetSet)
 				if err != nil {
-					log.Errorf("ETL: error updating asset resource totals for %s: %s", assetSet.Window, err)
+					log.Errorf("Allocation: error updating asset resource totals for %s: %s", assetSet.Window, err)
 				}
 			}
 
@@ -1649,7 +1649,7 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 
 			_, err = opencost.UpdateAssetTotalsStore(totalsStore, assetSet)
 			if err != nil {
-				log.Errorf("ETL: error updating asset resource totals for %s: %s", opencost.NewClosedWindow(*asr.Window().Start(), *asr.Window().End()), err)
+				log.Errorf("Allocation: error updating asset resource totals for %s: %s", opencost.NewClosedWindow(*asr.Window().Start(), *asr.Window().End()), err)
 			}
 
 		}
@@ -1759,7 +1759,7 @@ func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost
 	for key, assetTotal := range assetTotals {
 		allocTotal, ok := allocTotals[key]
 		if !ok {
-			log.Warnf("ETL: did not find allocations for asset key: %s", key)
+			log.Warnf("Allocation: did not find allocations for asset key: %s", key)
 
 			// Use a zero-value set of totals. This indicates either (1) an
 			// error computing totals, or (2) that no allocations ran on the

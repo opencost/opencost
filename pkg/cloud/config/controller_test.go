@@ -11,6 +11,8 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/gcp"
 )
 
+var configFile = "test.json"
+
 // Baseline valid config
 var validAthenaConf = &aws.AthenaConfiguration{
 	Bucket:     "bucket",

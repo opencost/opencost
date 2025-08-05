@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"sync"
 
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud/alibaba"
@@ -18,7 +19,6 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/otc"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/config"
-	"github.com/opencost/opencost/pkg/env"
 )
 
 const closedSourceConfigMount = "models/"
@@ -35,7 +35,7 @@ type ProviderConfig struct {
 
 // NewProviderConfig creates a new ConfigFile and returns the ProviderConfig
 func NewProviderConfig(configManager *config.ConfigFileManager, fileName string) *ProviderConfig {
-	configFile := configManager.ConfigFileAt(configPathFor(fileName))
+	configFile := configManager.ConfigFileAt(coreenv.GetPathFromConfig(fileName))
 	pc := &ProviderConfig{
 		lock:          new(sync.Mutex),
 		configManager: configManager,
@@ -270,12 +270,6 @@ func DefaultPricing() *models.CustomPricing {
 		CustomPricesEnabled:   "false",
 		ShareTenancyCosts:     "true",
 	}
-}
-
-// Returns the configuration directory concatenated with a specific config file name
-func configPathFor(filename string) string {
-	path := env.GetConfigPathWithDefault("/models/")
-	return gopath.Join(path, filename)
 }
 
 // Gives the config file name in a full qualified file name

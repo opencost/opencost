@@ -5,17 +5,12 @@ import (
 )
 
 const (
-	ClusterIDEnvVar                 = "CLUSTER_ID"
 	NetworkPortEnvVar               = "NETWORK_PORT"
 	Collector10mResolutionRetention = "COLLECTOR_10M_RESOLUTION_RETENTION"
 	Collector1hResolutionRetention  = "COLLECTOR_1H_RESOLUTION_RETENTION"
 	Collection1dResolutionRetention = "COLLECTOR_1D_RESOLUTION_RETENTION"
 	CollectorScrapeInterval         = "COLLECTOR_SCRAPE_INTERVAL"
 )
-
-func GetClusterID() string {
-	return env.Get(ClusterIDEnvVar, "")
-}
 
 func GetNetworkPort() int {
 	return env.GetInt(NetworkPortEnvVar, 3001)

@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
@@ -48,7 +49,7 @@ func (o *Oracle) ClusterInfo() (map[string]string, error) {
 	m["account"] = o.ClusterAccountID
 	m["region"] = o.ClusterRegion
 	m["remoteReadEnabled"] = strconv.FormatBool(env.IsRemoteEnabled())
-	m["id"] = env.GetClusterID()
+	m["id"] = coreenv.GetClusterID()
 	return m, nil
 }
 
@@ -180,7 +181,7 @@ func (o *Oracle) UpdateConfig(r io.Reader, _ string) (*models.CustomPricing, err
 		}
 
 		if env.IsRemoteEnabled() {
-			err := utils.UpdateClusterMeta(env.GetClusterID(), o.getClusterName(pricing))
+			err := utils.UpdateClusterMeta(coreenv.GetClusterID(), o.getClusterName(pricing))
 			if err != nil {
 				return err
 			}
