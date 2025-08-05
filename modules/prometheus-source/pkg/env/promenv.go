@@ -39,6 +39,9 @@ const (
 	KubecostJobNameEnvVar = "KUBECOST_JOB_NAME"
 )
 
+// In sharded Prometheus setups, PROMETHEUS_SERVER_ENDPOINT should point to a global query endpoint (e.g., Thanos Query, Cortex, or Mimir)
+// to ensure OpenCost receives complete data. Pointing to a single Prometheus pod may result in incomplete or intermittent export results.
+
 // IsPrometheusRetryOnRateLimitResponse will attempt to retry if a 429 response is received OR a 400 with a body containing
 // ThrottleException (common in AWS services like AMP)
 func IsPrometheusRetryOnRateLimitResponse() bool {

@@ -33,6 +33,9 @@ You can deploy OpenCost on any Kubernetes 1.20+ cluster in a matter of minutes, 
 
 Visit the full documentation for [recommended installation options](https://www.opencost.io/docs/installation/install).
 
+> **Note for sharded Prometheus users:**
+> If you run Prometheus in a sharded (HA) setup, set `PROMETHEUS_SERVER_ENDPOINT` to a global query endpoint (e.g., Thanos Query, Cortex, or Mimir). Pointing to a single Prometheus pod may result in incomplete or intermittent export results. See the [Prometheus integration docs](https://www.opencost.io/docs/installation/prometheus) for details.
+
 ## Usage
 
 - [Cost APIs](https://www.opencost.io/docs/integrations/api)
