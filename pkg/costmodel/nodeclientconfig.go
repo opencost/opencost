@@ -8,7 +8,6 @@ import (
 	"os"
 	"strings"
 
-	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	nodes "github.com/opencost/opencost/core/pkg/nodestats"
 	"github.com/opencost/opencost/pkg/env"
@@ -20,7 +19,7 @@ const (
 )
 
 func NewNodeClientConfigFromEnv() (*nodes.NodeClientConfig, error) {
-	clusterId := coreenv.GetClusterID()
+	clusterId := env.GetClusterID()
 	concurrentPollers := defaultConcurrentPollers
 	insecure := env.IsNodeStatsInsecure()
 	certFile := env.GetNodeStatsCertFile()

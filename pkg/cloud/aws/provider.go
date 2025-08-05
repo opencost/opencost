@@ -21,7 +21,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/utils"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
-	coreenv "github.com/opencost/opencost/core/pkg/env"
+	"github.com/opencost/opencost/core/pkg/env"
 	errs "github.com/opencost/opencost/core/pkg/errors"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
@@ -29,7 +29,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/fileutil"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
-	"github.com/opencost/opencost/pkg/env"
+	ocenv "github.com/opencost/opencost/pkg/env"
 
 	awsSDK "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -465,10 +465,10 @@ func (aws *AWS) GetAWSAccessKey() (*AWSAccessKey, error) {
 	}
 	//Look for service key values in env if not present in config
 	if config.ServiceKeyName == "" {
-		config.ServiceKeyName = env.GetAWSAccessKeyID()
+		config.ServiceKeyName = ocenv.GetAWSAccessKeyID()
 	}
 	if config.ServiceKeySecret == "" {
-		config.ServiceKeySecret = env.GetAWSAccessKeySecret()
+		config.ServiceKeySecret = ocenv.GetAWSAccessKeySecret()
 	}
 
 	if config.ServiceKeyName == "" && config.ServiceKeySecret == "" {
@@ -581,8 +581,8 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 			}
 		}
 
-		if env.IsRemoteEnabled() {
-			err := utils.UpdateClusterMeta(coreenv.GetClusterID(), c.ClusterName)
+		if ocenv.IsRemoteEnabled() {
+			err := utils.UpdateClusterMeta(ocenv.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return err
 			}
@@ -800,8 +800,8 @@ func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response,
 
 	pricingURL += "index.json"
 
-	if env.GetAWSPricingURL() != "" { // Allow override of pricing URL
-		pricingURL = env.GetAWSPricingURL()
+	if ocenv.GetAWSPricingURL() != "" { // Allow override of pricing URL
+		pricingURL = ocenv.GetAWSPricingURL()
 	}
 
 	log.Infof("starting download of \"%s\", which is quite large ...", pricingURL)
@@ -1457,17 +1457,17 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 	// Determine cluster name
 	clusterName := c.ClusterName
 	if clusterName == "" {
-		awsClusterID := env.GetAWSClusterID()
+		awsClusterID := ocenv.GetAWSClusterID()
 		if awsClusterID != "" {
 			log.Infof("Returning \"%s\" as ClusterName", awsClusterID)
 			clusterName = awsClusterID
-			log.Warnf("Warning - %s will be deprecated in a future release. Use %s instead", env.AWSClusterIDEnvVar, coreenv.ClusterIDEnvVar)
-		} else if clusterName = coreenv.GetClusterID(); clusterName != "" {
-			log.DedupedInfof(5, "Setting cluster name to %s from %s ", clusterName, coreenv.ClusterIDEnvVar)
+			log.Warnf("Warning - %s will be deprecated in a future release. Use %s instead", ocenv.AWSClusterIDEnvVar, ocenv.ClusterIDEnvVar)
+		} else if clusterName = ocenv.GetClusterID(); clusterName != "" {
+			log.DedupedInfof(5, "Setting cluster name to %s from %s ", clusterName, ocenv.ClusterIDEnvVar)
 		} else {
 			clusterName = defaultClusterName
 			log.DedupedWarningf(5, "Unable to detect cluster name - using default of %s", defaultClusterName)
-			log.DedupedWarningf(5, "Please set cluster name through configmap or via %s env var", coreenv.ClusterIDEnvVar)
+			log.DedupedWarningf(5, "Please set cluster name through configmap or via %s env var", ocenv.ClusterIDEnvVar)
 		}
 	}
 
@@ -1483,8 +1483,8 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 	m["provider"] = opencost.AWSProvider
 	m["account"] = clusterAccountID
 	m["region"] = awsProvider.ClusterRegion
-	m["id"] = coreenv.GetClusterID()
-	m["remoteReadEnabled"] = strconv.FormatBool(env.IsRemoteEnabled())
+	m["id"] = ocenv.GetClusterID()
+	m["remoteReadEnabled"] = strconv.FormatBool(ocenv.IsRemoteEnabled())
 	m["provisioner"] = awsProvider.clusterProvisioner
 	return m, nil
 }
@@ -1502,11 +1502,11 @@ func (aws *AWS) ConfigureAuth() error {
 func (aws *AWS) ConfigureAuthWith(config *models.CustomPricing) error {
 	accessKeyID, accessKeySecret := aws.getAWSAuth(false, config)
 	if accessKeyID != "" && accessKeySecret != "" { // credentials may exist on the actual AWS node-- if so, use those. If not, override with the service key
-		err := coreenv.Set(env.AWSAccessKeyIDEnvVar, accessKeyID)
+		err := env.Set(ocenv.AWSAccessKeyIDEnvVar, accessKeyID)
 		if err != nil {
 			return err
 		}
-		err = coreenv.Set(env.AWSAccessKeySecretEnvVar, accessKeySecret)
+		err = env.Set(ocenv.AWSAccessKeySecretEnvVar, accessKeySecret)
 		if err != nil {
 			return err
 		}
@@ -1536,7 +1536,7 @@ func (aws *AWS) getAWSAuth(forceReload bool, cp *models.CustomPricing) (string, 
 	}
 
 	// 3. Fall back to env vars
-	if env.GetAWSAccessKeyID() == "" || env.GetAWSAccessKeySecret() == "" {
+	if ocenv.GetAWSAccessKeyID() == "" || ocenv.GetAWSAccessKeySecret() == "" {
 		aws.ServiceAccountChecks.Set("hasKey", &models.ServiceAccountCheck{
 			Message: "AWS ServiceKey exists",
 			Status:  false,
@@ -1547,7 +1547,7 @@ func (aws *AWS) getAWSAuth(forceReload bool, cp *models.CustomPricing) (string, 
 			Status:  true,
 		})
 	}
-	return env.GetAWSAccessKeyID(), env.GetAWSAccessKeySecret()
+	return ocenv.GetAWSAccessKeyID(), ocenv.GetAWSAccessKeySecret()
 }
 
 // Load once and cache the result (even on failure). This is an install time secret, so
@@ -2452,7 +2452,7 @@ func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool,
 // Regions returns a predefined list of AWS regions
 func (aws *AWS) Regions() []string {
 
-	regionOverrides := env.GetRegionOverrideList()
+	regionOverrides := ocenv.GetRegionOverrideList()
 
 	if len(regionOverrides) > 0 {
 		log.Debugf("Overriding AWS regions with configured region list: %+v", regionOverrides)

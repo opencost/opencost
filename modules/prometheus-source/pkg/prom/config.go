@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/modules/prometheus-source/pkg/env"
 
@@ -55,9 +54,9 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 	jobName := env.GetJobName()
 	scrapeInterval := env.GetScrapeInterval()
 
-	maxQueryDuration := env.GetPrometheusMaxQueryDuration()
+	maxQueryDuration := env.GetETLMaxPrometheusQueryDuration()
 
-	clusterId := coreenv.GetClusterID()
+	clusterId := env.GetClusterID()
 	clusterLabel := env.GetPromClusterLabel()
 	clusterFilter := env.GetPromClusterFilter()
 
@@ -90,7 +89,7 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 		}
 	}
 
-	dataResolution := env.GetPrometheusQueryResolution()
+	dataResolution := env.GetETLResolution()
 
 	// Ensuring if data resolution is less than 60s default it to 1m
 	resolutionMinutes := int(dataResolution.Minutes())

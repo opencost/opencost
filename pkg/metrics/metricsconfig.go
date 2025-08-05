@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"sync"
 
 	"github.com/opencost/opencost/pkg/env"
@@ -12,7 +13,7 @@ import (
 
 var (
 	metricsConfigLock = new(sync.Mutex)
-	metricsFilePath   = env.GetMetricConfigFile()
+	metricsFilePath   = path.Join(env.GetCostAnalyzerVolumeMountPath(), "metrics.json")
 )
 
 type MetricsConfig struct {
