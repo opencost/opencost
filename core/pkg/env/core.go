@@ -5,6 +5,7 @@ import (
 )
 
 const DefaultConfigPath = "/var/configs"
+const DefaultConfigMountPath = "/var/configs"
 const DefaultStorageFile = "federated-store.yaml"
 
 const (
@@ -33,6 +34,15 @@ func GetClusterID() string {
 // model configuration path
 func GetConfigPath() string {
 	return Get(ConfigPathEnvVar, DefaultConfigPath)
+}
+
+// GetConfigPathWithDefault returns the environment variable value for ConfigPathEnvVar if set,
+// otherwise returns the provided default path
+func GetConfigPathWithDefault(defaultPath string) string {
+	if path := Get(ConfigPathEnvVar, ""); path != "" {
+		return path
+	}
+	return defaultPath
 }
 
 func GetPathFromConfig(subPaths ...string) string {

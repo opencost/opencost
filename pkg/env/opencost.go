@@ -12,10 +12,12 @@ import (
 const (
 	DefaultAPIPort           = 9003
 	defaultOpencostNamespace = "opencost"
+	DefaultConfigMountPath   = "/var/configs"
 )
 
 const (
 	UTCOffsetEnvVar = "UTC_OFFSET"
+	ConfigPathEnvVar = "CONFIG_PATH"
 )
 
 func GetOpencostAPIPort() int {
@@ -41,4 +43,21 @@ func GetParsedUTCOffset() time.Duration {
 		return time.Duration(0)
 	}
 	return offset
+}
+
+// GetConfigPathWithDefault returns the environment variable value for ConfigPathEnvVar if set,
+// otherwise returns the provided default path
+func GetConfigPathWithDefault(defaultPath string) string {
+	return env.GetConfigPathWithDefault(defaultPath)
+}
+
+// GetClusterID returns the environment variable value for ClusterIDEnvVar which represents the
+// configurable identifier used for multi-cluster metric emission.
+func GetClusterID() string {
+	return env.GetClusterID()
+}
+
+// GetInstallNamespace returns the environment variable value for InstallNamespaceEnvVar
+func GetInstallNamespace() string {
+	return env.GetInstallNamespace(defaultOpencostNamespace)
 }
