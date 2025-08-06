@@ -7,10 +7,10 @@ import (
 )
 
 func TestIncreaseAggregator_Value(t *testing.T) {
-	time1 := time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
-	time2 := time.Date(1, 1, 1, 0, 15, 0, 0, time.UTC)
-	time3 := time.Date(1, 1, 1, 0, 30, 0, 0, time.UTC)
-	time4 := time.Date(1, 1, 1, 0, 45, 0, 0, time.UTC)
+	time1 := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	time2 := time.Date(2025, 1, 1, 0, 15, 0, 0, time.UTC)
+	time3 := time.Date(2025, 1, 1, 0, 30, 0, 0, time.UTC)
+	time4 := time.Date(2025, 1, 1, 0, 45, 0, 0, time.UTC)
 	type update struct {
 		value                 float64
 		timestamp             time.Time

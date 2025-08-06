@@ -14,7 +14,7 @@ type rateAggregator struct {
 	previous     float64
 	currentTime  time.Time
 	current      float64
-	increase     float64
+	runningAvg   float64
 	seconds      float64
 }
 
@@ -24,14 +24,17 @@ func Rate(labelValues []string) MetricAggregator {
 	}
 }
 func (a *rateAggregator) getIncreaseSeconds() (float64, float64) {
-	increase := a.increase
+	runningAvg := a.runningAvg
 	seconds := a.seconds
 	// ignore decreases
-	if a.previous < a.current && a.previous != 0 {
-		increase += a.current - a.previous
-		seconds += a.currentTime.Sub(a.previousTime).Seconds()
+	if a.previous < a.current && !a.previousTime.IsZero() {
+		currentSeconds := a.currentTime.Sub(a.previousTime).Seconds()
+		weightingRatio := currentSeconds / (currentSeconds + seconds)
+		currentRate := (a.current - a.previous) / currentSeconds
+		runningAvg = (runningAvg * (1 - weightingRatio)) + (currentRate * weightingRatio)
+		seconds += currentSeconds
 	}
-	return increase, seconds
+	return runningAvg, seconds
 }
 
 func (a *rateAggregator) AdditionInfo() map[string]string {
@@ -45,8 +48,9 @@ func (a *rateAggregator) LabelValues() []string {
 func (a *rateAggregator) Update(value float64, timestamp time.Time, additionalInfo map[string]string) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
+	// If samples from a new timestamp finalize current values by moving them to previous
 	if timestamp.After(a.currentTime) {
-		a.increase, a.seconds = a.getIncreaseSeconds()
+		a.runningAvg, a.seconds = a.getIncreaseSeconds()
 		a.previous = a.current
 		a.previousTime = a.currentTime
 		a.currentTime = timestamp
@@ -58,13 +62,13 @@ func (a *rateAggregator) Update(value float64, timestamp time.Time, additionalIn
 func (a *rateAggregator) Value() []MetricValue {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	increase, seconds := a.getIncreaseSeconds()
+	average, seconds := a.getIncreaseSeconds()
 	if seconds == 0 {
 		return []MetricValue{
 			{Value: 0},
 		}
 	}
 	return []MetricValue{
-		{Value: increase / seconds},
+		{Value: average},
 	}
 }

@@ -6,12 +6,13 @@ import (
 )
 
 type increaseAggregator struct {
-	lock        sync.Mutex
-	labelValues []string
-	currentTime time.Time
-	previous    float64
-	current     float64
-	increase    float64
+	lock         sync.Mutex
+	labelValues  []string
+	currentTime  time.Time
+	previousTime time.Time
+	previous     float64
+	current      float64
+	increase     float64
 }
 
 func Increase(labelValues []string) MetricAggregator {
@@ -22,8 +23,8 @@ func Increase(labelValues []string) MetricAggregator {
 
 func (a *increaseAggregator) getIncrease() float64 {
 	increase := a.increase
-	// ignore decreases
-	if a.previous < a.current && a.previous != 0 {
+	// ignore decreases and do not return increase if only one sample has been recorded
+	if a.previous < a.current && !a.previousTime.IsZero() {
 		increase += a.current - a.previous
 	}
 	return increase
@@ -41,8 +42,9 @@ func (a *increaseAggregator) Update(value float64, timestamp time.Time, addition
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	if timestamp.After(a.currentTime) {
-		a.currentTime = timestamp
 		a.increase = a.getIncrease()
+		a.previousTime = a.currentTime
+		a.currentTime = timestamp
 		a.previous = a.current
 		a.current = 0
 	}
