@@ -257,6 +257,23 @@ func (*CustomProvider) QuerySQL(query string) ([]byte, error) {
 }
 
 func (cp *CustomProvider) GpuPricing(nodeLabels map[string]string) (string, error) {
+	// Check if this node has the GPU label configured in custom pricing
+	if cp.GPULabel != "" && cp.GPULabelValue != "" {
+		if labelValue, exists := nodeLabels[cp.GPULabel]; exists && labelValue == cp.GPULabelValue {
+			// Return the GPU pricing from custom pricing configuration
+			cpricing, err := cp.Config.GetCustomPricingData()
+			if err != nil {
+				log.Debugf("Failed to get custom pricing data for GPU pricing: %v", err)
+				return "", err
+			}
+			if cpricing.GPU != "" {
+				log.Debugf("Returning GPU pricing from custom pricing configuration: %s", cpricing.GPU)
+				return cpricing.GPU, nil
+			}
+		}
+	}
+	
+	// No specific GPU pricing found
 	return "", nil
 }
 

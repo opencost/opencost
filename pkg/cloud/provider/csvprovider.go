@@ -279,18 +279,33 @@ func (c *CSVProvider) NodePricing(key models.Key) (*models.Node, models.PricingM
 		count := key.GPUCount()
 		node.GPU = strconv.Itoa(count)
 		hourly := 0.0
+		
+		log.Debugf("CSV Provider: Processing GPU pricing for type %s, count %d", t, count)
 		if p, ok := c.GPUClassPricing[t]; ok {
 			var err error
 			hourly, err = strconv.ParseFloat(p.MarketPriceHourly, 64)
 			if err != nil {
-				log.Errorf("Unable to parse %s as float", p.MarketPriceHourly)
+				log.Errorf("Unable to parse GPU price %s as float for type %s", p.MarketPriceHourly, t)
+			} else {
+				log.Debugf("CSV Provider: Found GPU pricing for type %s: %f per hour", t, hourly)
 			}
+		} else {
+			log.Warnf("CSV Provider: No GPU pricing found for type %s. Available GPU types: %v", t, func() []string {
+				var types []string
+				for gpuType := range c.GPUClassPricing {
+					types = append(types, gpuType)
+				}
+				return types
+			}())
 		}
+		
 		totalCost := hourly * float64(count)
-		node.GPUCost = fmt.Sprintf("%f", hourly)
+		node.GPUCost = fmt.Sprintf("%f", hourly)  // This is per-GPU hourly cost
+		log.Debugf("CSV Provider: Set GPUCost to %s (per GPU), total GPU cost: %f", node.GPUCost, totalCost)
+		
 		nc, err := strconv.ParseFloat(node.Cost, 64)
 		if err != nil {
-			log.Errorf("Unable to parse %s as float", node.Cost)
+			log.Errorf("Unable to parse node cost %s as float", node.Cost)
 		}
 		node.Cost = fmt.Sprintf("%f", nc+totalCost)
 	}
