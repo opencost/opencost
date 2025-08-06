@@ -23,12 +23,15 @@ func Rate(labelValues []string) MetricAggregator {
 		labelValues: labelValues,
 	}
 }
-func (a *rateAggregator) getIncreaseSeconds() (float64, float64) {
+
+// getRunningAvgSeconds returns the running average without updating the state
+func (a *rateAggregator) getRunningAvgSeconds() (float64, float64) {
 	runningAvg := a.runningAvg
 	seconds := a.seconds
-	// ignore decreases
+	// ignore decreases and base case where only one sample has been recorded
 	if a.previous < a.current && !a.previousTime.IsZero() {
 		currentSeconds := a.currentTime.Sub(a.previousTime).Seconds()
+		// ratio used to add the rate since the last recorded timestamp into the running average
 		weightingRatio := currentSeconds / (currentSeconds + seconds)
 		currentRate := (a.current - a.previous) / currentSeconds
 		runningAvg = (runningAvg * (1 - weightingRatio)) + (currentRate * weightingRatio)
@@ -50,7 +53,8 @@ func (a *rateAggregator) Update(value float64, timestamp time.Time, additionalIn
 	defer a.lock.Unlock()
 	// If samples from a new timestamp finalize current values by moving them to previous
 	if timestamp.After(a.currentTime) {
-		a.runningAvg, a.seconds = a.getIncreaseSeconds()
+		// update state and reset current
+		a.runningAvg, a.seconds = a.getRunningAvgSeconds()
 		a.previous = a.current
 		a.previousTime = a.currentTime
 		a.currentTime = timestamp
@@ -62,7 +66,7 @@ func (a *rateAggregator) Update(value float64, timestamp time.Time, additionalIn
 func (a *rateAggregator) Value() []MetricValue {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	average, seconds := a.getIncreaseSeconds()
+	average, seconds := a.getRunningAvgSeconds()
 	if seconds == 0 {
 		return []MetricValue{
 			{Value: 0},

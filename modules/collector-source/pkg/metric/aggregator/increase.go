@@ -21,6 +21,7 @@ func Increase(labelValues []string) MetricAggregator {
 	}
 }
 
+// getIncrease returns the current increase without updating the state
 func (a *increaseAggregator) getIncrease() float64 {
 	increase := a.increase
 	// ignore decreases and do not return increase if only one sample has been recorded
@@ -42,6 +43,7 @@ func (a *increaseAggregator) Update(value float64, timestamp time.Time, addition
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	if timestamp.After(a.currentTime) {
+		// update state and reset current
 		a.increase = a.getIncrease()
 		a.previousTime = a.currentTime
 		a.currentTime = timestamp
