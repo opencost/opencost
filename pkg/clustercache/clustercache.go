@@ -56,7 +56,7 @@ func NewKubernetesClusterCacheV1(client kubernetes.Interface) cc.ClusterCache {
 	batchClient := client.BatchV1().RESTClient()
 	pdbClient := client.PolicyV1().RESTClient()
 
-	installNamespace := env.GetInstallNamespace()
+	installNamespace := env.GetOpencostNamespace()
 	log.Infof("NAMESPACE: %s", installNamespace)
 
 	kcc := &KubernetesClusterCache{
@@ -80,7 +80,7 @@ func NewKubernetesClusterCacheV1(client kubernetes.Interface) cc.ClusterCache {
 	// Wait for each caching watcher to initialize
 	cancel := make(chan struct{})
 	var wg sync.WaitGroup
-	if !env.IsETLReadOnlyMode() {
+	if env.HasKubernetesResourceAccess() {
 		wg.Add(14)
 		go initializeCache(kcc.namespaceWatch, &wg, cancel)
 		go initializeCache(kcc.nodeWatch, &wg, cancel)

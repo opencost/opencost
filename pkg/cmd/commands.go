@@ -16,7 +16,7 @@ const (
 	// commandRoot is the root command used to route to sub-commands
 	commandRoot string = "root"
 
-	// CommandCostModel is the command used to execute the metrics emission and ETL pipeline
+	// CommandCostModel is the command used to execute the metrics emission and cost model querying
 	CommandCostModel string = "cost-model"
 
 	// CommandAgent executes the application in agent mode, which provides only metrics exporting.
@@ -96,7 +96,7 @@ func newRootCommand(costModelCmd *cobra.Command, cmds ...*cobra.Command) *cobra.
 
 // default open-source cost-model command
 func newCostModelCommand() *cobra.Command {
-	opts := &costmodel.CostModelOpts{}
+	config := costmodel.DefaultConfig()
 
 	cmCmd := &cobra.Command{
 		Use:   CommandCostModel,
@@ -105,7 +105,7 @@ func newCostModelCommand() *cobra.Command {
 			// Init logging here so cobra/viper has processed the command line args and flags
 			// otherwise only envvars are available during init
 			log.InitLogging(true)
-			return costmodel.Execute(opts)
+			return costmodel.Execute(config)
 		},
 	}
 

@@ -14,7 +14,7 @@ const EventStorageTimeFormat = "20060102150405"
 // EventStoragePathFormatter is an implementation of the StoragePathFormatter interface for
 // a cluster separated storage path of the format:
 //
-//	<root>/federated/<cluster>/<event>/<sub-paths...>/YYYYMMDDHHmmss
+//	<root>/<cluster>/<event>/<sub-paths...>/YYYYMMDDHHmmss
 type EventStoragePathFormatter struct {
 	rootDir   string
 	clusterId string
@@ -22,7 +22,7 @@ type EventStoragePathFormatter struct {
 	subPaths  []string
 }
 
-// NewBingenStoragePathFormatter creates a StoragePathFormatter for a cluster separated storage path
+// NewEventStoragePathFormatter creates a StoragePathFormatter for a cluster separated storage path
 // with the given root directory, cluster id, pipeline, and resolution. To omit the resolution directory
 // structure, provide a `nil` resolution.
 func NewEventStoragePathFormatter(rootDir, clusterId, event string, subPaths ...string) (StoragePathFormatter[time.Time], error) {
@@ -65,7 +65,7 @@ func (espf *EventStoragePathFormatter) Dir() string {
 
 // ToFullPath returns the full path to a file name within the storage directory using the format:
 //
-//	<root>/federated/<cluster>/<event>/YYYYMMDDHHmm.json
+//	<root>/<cluster>/<event>/YYYYMMDDHHmm.json
 func (espf *EventStoragePathFormatter) ToFullPath(prefix string, timestamp time.Time, fileExt string) string {
 	fileName := toEventFileName(prefix, timestamp, fileExt)
 

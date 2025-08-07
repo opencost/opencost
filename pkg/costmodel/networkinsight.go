@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"time"
 
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
-	"github.com/opencost/opencost/pkg/env"
 )
 
 func (cm *CostModel) ComputeNetworkInsights(start, end time.Time) (*opencost.NetworkInsightSet, error) {
@@ -138,7 +138,7 @@ func applyNetworkCosts(
 
 		cluster := res.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 		namespace := res.Namespace
 		pod := res.Pod

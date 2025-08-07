@@ -75,7 +75,7 @@ func (r *MetricRepository) Coverage() map[string][]time.Time {
 	for resKey, resCollector := range r.resolutionStores {
 		var windowStarts []time.Time
 		for _, key := range resCollector.getKeys() {
-			windowStarts = append(windowStarts, time.Unix(key, 0).UTC())
+			windowStarts = append(windowStarts, time.UnixMilli(key).UTC())
 		}
 		result[resKey] = windowStarts
 	}

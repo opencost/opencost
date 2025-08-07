@@ -1,43 +1,10 @@
 package config
 
 import (
-	"os"
 	"sync"
 
-	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/storage"
 )
-
-//--------------------------------------------------------------------------
-//  ConfigFileManagerOpts
-//--------------------------------------------------------------------------
-
-// ConfigFileManagerOpts describes how to configure the ConfigFileManager for
-// serving configuration files
-type ConfigFileManagerOpts struct {
-	// BucketStoreConfig is the local file location for the configuration used to
-	// write and read configuration data to/from the bucket. The format of this
-	// configuration file should be compatible with storage.NewBucketStorage
-	BucketStoreConfig string
-
-	// LocalConfigPath provides a backup location for storing the configuration
-	// files
-	LocalConfigPath string
-}
-
-// IsBucketStorageEnabled returns true if bucket storage is enabled.
-func (cfmo *ConfigFileManagerOpts) IsBucketStorageEnabled() bool {
-	return cfmo.BucketStoreConfig != ""
-}
-
-// DefaultConfigFileManagerOpts returns the default configuration options for the
-// config file manager
-func DefaultConfigFileManagerOpts() *ConfigFileManagerOpts {
-	return &ConfigFileManagerOpts{
-		BucketStoreConfig: "",
-		LocalConfigPath:   "/",
-	}
-}
 
 //--------------------------------------------------------------------------
 //  ConfigFileManager
@@ -52,26 +19,9 @@ type ConfigFileManager struct {
 }
 
 // NewConfigFileManager creates a new backing storage and configuration file manager
-func NewConfigFileManager(opts *ConfigFileManagerOpts) *ConfigFileManager {
-	if opts == nil {
-		opts = DefaultConfigFileManagerOpts()
-	}
-
-	var configStore storage.Storage
-	if opts.IsBucketStorageEnabled() {
-		bucketConfig, err := os.ReadFile(opts.BucketStoreConfig)
-		if err != nil {
-			log.Warnf("Failed to initialize config bucket storage: %s", err)
-		} else {
-			bucketStore, err := storage.NewBucketStorage(bucketConfig)
-			if err != nil {
-				log.Warnf("Failed to create config bucket storage: %s", err)
-			} else {
-				configStore = bucketStore
-			}
-		}
-	} else {
-		configStore = storage.NewFileStorage(opts.LocalConfigPath)
+func NewConfigFileManager(configStore storage.Storage) *ConfigFileManager {
+	if configStore == nil {
+		configStore = storage.NewFileStorage("/")
 	}
 
 	return &ConfigFileManager{
