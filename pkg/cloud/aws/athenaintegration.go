@@ -329,8 +329,15 @@ func (ai *AthenaIntegration) GetPartitionWhere(start, end time.Time) string {
 	endMonth := time.Date(end.Year(), end.Month(), 1, 0, 0, 0, 0, time.UTC)
 	var disjuncts []string
 	for !month.After(endMonth) {
-		disjuncts = append(disjuncts, fmt.Sprintf("(date_format(line_item_usage_start_date, '%%Y') = '%d' AND date_format(line_item_usage_start_date, '%%m') = '%02d')",
-			month.Year(), month.Month()))
+		// Check CUR version to determine partition format
+		if ai.CURVersion == "1.0" {
+			// CUR 1.0 uses year and month columns for partitioning
+			disjuncts = append(disjuncts, fmt.Sprintf("(year = '%d' AND month = '%d')", month.Year(), month.Month()))
+		} else {
+			// CUR 2.0 (default) uses date_format functions for partitioning
+			disjuncts = append(disjuncts, fmt.Sprintf("(date_format(line_item_usage_start_date, '%%Y') = '%d' AND date_format(line_item_usage_start_date, '%%m') = '%02d')",
+				month.Year(), month.Month()))
+		}
 		month = month.AddDate(0, 1, 0)
 	}
 	str := fmt.Sprintf("(%s)", strings.Join(disjuncts, " OR "))

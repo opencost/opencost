@@ -396,3 +396,106 @@ func stringsToRow(strings []string) types.Row {
 	}
 	return types.Row{Data: data}
 }
+
+func TestAthenaIntegration_GetPartitionWhere(t *testing.T) {
+	testCases := map[string]struct {
+		integration *AthenaIntegration
+		start       time.Time
+		end         time.Time
+		expected    string
+	}{
+		"CUR 1.0 single month": {
+			integration: &AthenaIntegration{
+				AthenaQuerier: AthenaQuerier{
+					AthenaConfiguration: AthenaConfiguration{
+						CURVersion: "1.0",
+					},
+				},
+			},
+			start:    time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+			end:      time.Date(2024, 1, 25, 0, 0, 0, 0, time.UTC),
+			expected: "((year = '2024' AND month = '1'))",
+		},
+		"CUR 2.0 single month": {
+			integration: &AthenaIntegration{
+				AthenaQuerier: AthenaQuerier{
+					AthenaConfiguration: AthenaConfiguration{
+						CURVersion: "2.0",
+					},
+				},
+			},
+			start:    time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+			end:      time.Date(2024, 1, 25, 0, 0, 0, 0, time.UTC),
+			expected: "((date_format(line_item_usage_start_date, '%Y') = '2024' AND date_format(line_item_usage_start_date, '%m') = '01'))",
+		},
+		"CUR 1.0 multiple months": {
+			integration: &AthenaIntegration{
+				AthenaQuerier: AthenaQuerier{
+					AthenaConfiguration: AthenaConfiguration{
+						CURVersion: "1.0",
+					},
+				},
+			},
+			start:    time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+			end:      time.Date(2024, 3, 10, 0, 0, 0, 0, time.UTC),
+			expected: "((year = '2024' AND month = '1') OR (year = '2024' AND month = '2') OR (year = '2024' AND month = '3'))",
+		},
+		"CUR 2.0 multiple months": {
+			integration: &AthenaIntegration{
+				AthenaQuerier: AthenaQuerier{
+					AthenaConfiguration: AthenaConfiguration{
+						CURVersion: "2.0",
+					},
+				},
+			},
+			start:    time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+			end:      time.Date(2024, 3, 10, 0, 0, 0, 0, time.UTC),
+			expected: "((date_format(line_item_usage_start_date, '%Y') = '2024' AND date_format(line_item_usage_start_date, '%m') = '01') OR (date_format(line_item_usage_start_date, '%Y') = '2024' AND date_format(line_item_usage_start_date, '%m') = '02') OR (date_format(line_item_usage_start_date, '%Y') = '2024' AND date_format(line_item_usage_start_date, '%m') = '03'))",
+		},
+		"CUR 2.0 across year boundary": {
+			integration: &AthenaIntegration{
+				AthenaQuerier: AthenaQuerier{
+					AthenaConfiguration: AthenaConfiguration{
+						CURVersion: "2.0",
+					},
+				},
+			},
+			start:    time.Date(2023, 12, 15, 0, 0, 0, 0, time.UTC),
+			end:      time.Date(2024, 2, 10, 0, 0, 0, 0, time.UTC),
+			expected: "((date_format(line_item_usage_start_date, '%Y') = '2023' AND date_format(line_item_usage_start_date, '%m') = '12') OR (date_format(line_item_usage_start_date, '%Y') = '2024' AND date_format(line_item_usage_start_date, '%m') = '01') OR (date_format(line_item_usage_start_date, '%Y') = '2024' AND date_format(line_item_usage_start_date, '%m') = '02'))",
+		},
+		"CUR 1.0 across year boundary": {
+			integration: &AthenaIntegration{
+				AthenaQuerier: AthenaQuerier{
+					AthenaConfiguration: AthenaConfiguration{
+						CURVersion: "1.0",
+					},
+				},
+			},
+			start:    time.Date(2023, 12, 15, 0, 0, 0, 0, time.UTC),
+			end:      time.Date(2024, 2, 10, 0, 0, 0, 0, time.UTC),
+			expected: "((year = '2023' AND month = '12') OR (year = '2024' AND month = '1') OR (year = '2024' AND month = '2'))",
+		},
+		"Default CUR version (empty string defaults to 2.0)": {
+			integration: &AthenaIntegration{
+				AthenaQuerier: AthenaQuerier{
+					AthenaConfiguration: AthenaConfiguration{
+						CURVersion: "",
+					},
+				},
+			},
+			start:    time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+			end:      time.Date(2024, 1, 25, 0, 0, 0, 0, time.UTC),
+			expected: "((date_format(line_item_usage_start_date, '%Y') = '2024' AND date_format(line_item_usage_start_date, '%m') = '01'))",
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			actual := testCase.integration.GetPartitionWhere(testCase.start, testCase.end)
+			if actual != testCase.expected {
+				t.Errorf("GetPartitionWhere() mismatch:\nActual:   %s\nExpected: %s", actual, testCase.expected)
+			}
+		})
+	}
+}
