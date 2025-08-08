@@ -52,6 +52,7 @@ type Container struct {
 
 type Node struct {
 	Name           string
+	UID            types.UID
 	Labels         map[string]string
 	Annotations    map[string]string
 	Status         v1.NodeStatus
@@ -60,6 +61,7 @@ type Node struct {
 
 type Service struct {
 	Name         string
+	UID          types.UID
 	Namespace    string
 	SpecSelector map[string]string
 	Type         v1.ServiceType
@@ -76,6 +78,7 @@ type DaemonSet struct {
 
 type Deployment struct {
 	Name                    string
+	UID                     types.UID
 	Namespace               string
 	Labels                  map[string]string
 	Annotations             map[string]string
@@ -242,6 +245,7 @@ func TransformPod(input *v1.Pod) *Pod {
 func TransformNode(input *v1.Node) *Node {
 	return &Node{
 		Name:           input.Name,
+		UID:            input.UID,
 		Labels:         input.Labels,
 		Annotations:    input.Annotations,
 		Status:         input.Status,
@@ -252,6 +256,7 @@ func TransformNode(input *v1.Node) *Node {
 func TransformService(input *v1.Service) *Service {
 	return &Service{
 		Name:         input.Name,
+		UID:          input.UID,
 		Namespace:    input.Namespace,
 		SpecSelector: input.Spec.Selector,
 		Type:         input.Spec.Type,
@@ -272,6 +277,7 @@ func TransformDaemonSet(input *appsv1.DaemonSet) *DaemonSet {
 func TransformDeployment(input *appsv1.Deployment) *Deployment {
 	return &Deployment{
 		Name:                    input.Name,
+		UID:                     input.UID,
 		Namespace:               input.Namespace,
 		Labels:                  input.Labels,
 		MatchLabels:             input.Spec.Selector.MatchLabels,
