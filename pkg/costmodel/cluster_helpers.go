@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
-	"github.com/opencost/opencost/pkg/env"
 )
 
 // mergeTypeMaps takes two maps of (cluster name, node name) -> node type
@@ -49,7 +49,7 @@ func buildCPUCostMap(
 	for _, result := range resNodeCPUCost {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.Node
@@ -117,7 +117,7 @@ func buildRAMCostMap(
 	for _, result := range resNodeRAMCost {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.Node
@@ -188,7 +188,7 @@ func buildGPUCostMap(
 	for _, result := range resNodeGPUCost {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.Node
@@ -251,7 +251,7 @@ func buildGPUCountMap(resNodeGPUCount []*source.NodeGPUCountResult) map[NodeIden
 	for _, result := range resNodeGPUCount {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.Node
@@ -280,7 +280,7 @@ func buildCPUCoresMap(resNodeCPUCores []*source.NodeCPUCoresCapacityResult) map[
 	for _, result := range resNodeCPUCores {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.Node
@@ -307,7 +307,7 @@ func buildRAMBytesMap(resNodeRAMBytes []*source.NodeRAMBytesCapacityResult) map[
 	for _, result := range resNodeRAMBytes {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.Node
@@ -342,7 +342,7 @@ func buildCPUBreakdownMap(resNodeCPUModeTotal []*source.NodeCPUModeTotalResult) 
 	for _, result := range resNodeCPUModeTotal {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		node := result.Node
@@ -448,7 +448,7 @@ func buildRAMUserPctMap(resNodeRAMUserPct []*source.NodeRAMUserPercentResult) ma
 	for _, result := range resNodeRAMUserPct {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.Instance
@@ -477,7 +477,7 @@ func buildRAMSystemPctMap(resNodeRAMSystemPct []*source.NodeRAMSystemPercentResu
 	for _, result := range resNodeRAMSystemPct {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.Instance
@@ -509,7 +509,7 @@ type activeData struct {
 func clusterManagementKeyGen(result *source.ClusterManagementDurationResult) (ClusterManagementIdentifier, bool) {
 	cluster := result.Cluster
 	if cluster == "" {
-		cluster = env.GetClusterID()
+		cluster = coreenv.GetClusterID()
 	}
 
 	provisionerName := result.Provisioner
@@ -528,7 +528,7 @@ func clusterManagementValues(result *source.ClusterManagementDurationResult) []*
 func nodeKeyGen(result *source.NodeActiveMinutesResult) (NodeIdentifier, bool) {
 	cluster := result.Cluster
 	if cluster == "" {
-		cluster = env.GetClusterID()
+		cluster = coreenv.GetClusterID()
 	}
 
 	name := result.Node
@@ -552,7 +552,7 @@ func nodeValues(result *source.NodeActiveMinutesResult) []*util.Vector {
 func loadBalancerKeyGen(result *source.LBActiveMinutesResult) (LoadBalancerIdentifier, bool) {
 	cluster := result.Cluster
 	if cluster == "" {
-		cluster = env.GetClusterID()
+		cluster = coreenv.GetClusterID()
 	}
 
 	namespace := result.Namespace
@@ -577,7 +577,7 @@ func loadBalancerKeyGen(result *source.LBActiveMinutesResult) (LoadBalancerIdent
 	return LoadBalancerIdentifier{
 		Cluster:   cluster,
 		Namespace: namespace,
-		Name:      fmt.Sprintf("%s/%s", namespace, name), // TODO:ETL this is kept for backwards-compatibility, but not good,
+		Name:      fmt.Sprintf("%s/%s", namespace, name), // TODO: this is kept for backwards-compatibility, but not good,
 		IngressIP: ingressIp,
 	}, true
 }
@@ -627,7 +627,7 @@ func buildPreemptibleMap(
 	for _, result := range resIsSpot {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		name := result.Node
@@ -666,7 +666,7 @@ func buildAssetsPVCMap(resPVCInfo []*source.PVCInfoResult) map[DiskIdentifier]*D
 	for _, result := range resPVCInfo {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		volumeName := result.VolumeName
@@ -716,7 +716,7 @@ func buildLabelsMap(
 	for _, result := range resLabels {
 		cluster := result.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		node := result.Node

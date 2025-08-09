@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/pkg/cloud/provider"
-	"github.com/opencost/opencost/pkg/env"
 	"k8s.io/apimachinery/pkg/labels"
 )
 
@@ -108,7 +108,7 @@ func applyPodResults(window opencost.Window, resolution time.Duration, podMap ma
 
 		cluster := res.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		namespace := res.Namespace
@@ -914,7 +914,7 @@ func applyNetworkAllocation(podMap map[podKey]*pod, resNetworkGiB []*source.Netw
 	for _, res := range resNetworkCostPerGiB {
 		cluster := res.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		costPerGiBByCluster[cluster] = res.Data[0].Value
@@ -1643,7 +1643,7 @@ func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerCPUHr
 	for _, res := range resNodeCostPerCPUHr {
 		cluster := res.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		node := res.Node
@@ -1679,7 +1679,7 @@ func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerRA
 	for _, res := range resNodeCostPerRAMGiBHr {
 		cluster := res.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		node := res.Node
@@ -1715,7 +1715,7 @@ func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerGPUHr
 	for _, res := range resNodeCostPerGPUHr {
 		cluster := res.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		node := res.Node
@@ -1751,7 +1751,7 @@ func applyNodeSpot(nodeMap map[nodeKey]*nodePricing, resNodeIsSpot []*source.Nod
 	for _, res := range resNodeIsSpot {
 		cluster := res.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		node := res.Node
@@ -2050,7 +2050,7 @@ func buildPVCMap(resolution time.Duration, pvcMap map[pvcKey]*pvc, pvMap map[pvK
 	for _, res := range resPVCInfo {
 		cluster := res.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		namespace := res.Namespace
@@ -2110,7 +2110,7 @@ func buildPodPVCMap(podPVCMap map[podKey][]*pvc, pvMap map[pvKey]*pv, pvcMap map
 	for _, res := range resPodPVCAllocation {
 		cluster := res.Cluster
 		if cluster == "" {
-			cluster = env.GetClusterID()
+			cluster = coreenv.GetClusterID()
 		}
 
 		namespace := res.Namespace

@@ -7,9 +7,10 @@ import (
 )
 
 func TestRateAggregator_Value(t *testing.T) {
-	time1 := time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
-	time2 := time.Date(1, 1, 1, 0, 0, 1, 0, time.UTC)
-	time3 := time.Date(1, 1, 1, 0, 0, 2, 0, time.UTC)
+	time1 := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	time2 := time.Date(2025, 1, 1, 0, 0, 1, 0, time.UTC)
+	time3 := time.Date(2025, 1, 1, 0, 0, 2, 0, time.UTC)
+	time4 := time.Date(2025, 1, 1, 0, 0, 3, 0, time.UTC)
 	type update struct {
 		value                 float64
 		timestamp             time.Time
@@ -100,6 +101,31 @@ func TestRateAggregator_Value(t *testing.T) {
 			want: []MetricValue{
 				{
 					Value: 4,
+				},
+			},
+		},
+		"set restart": {
+			updates: []update{
+				{
+					value:     3,
+					timestamp: time1,
+				},
+				{
+					value:     4,
+					timestamp: time2,
+				},
+				{
+					value:     1,
+					timestamp: time3,
+				},
+				{
+					value:     2,
+					timestamp: time4,
+				},
+			},
+			want: []MetricValue{
+				{
+					Value: 1,
 				},
 			},
 		},

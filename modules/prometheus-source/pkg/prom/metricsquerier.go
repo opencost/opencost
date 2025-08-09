@@ -648,7 +648,7 @@ func (pds *PrometheusMetricsQuerier) QueryCPUUsageMax(start, end time.Time) *sou
 	// The parameter after the metric ...{}[<thisone>] should be set to 2x
 	// the resolution, to make sure the irate always has two points to query
 	// in case the Prom scrape duration has been reduced to be equal to the
-	// ETL resolution.
+	// query resolution.
 	const queryFmtCPUUsageMaxSubquery = `max(max_over_time(irate(container_cpu_usage_seconds_total{container!="POD", container!="", %s}[%dm])[%s:%dm])) by (container, pod_name, pod, namespace, node, instance, %s)`
 	// env.GetPromClusterFilter(), doubleResStr, durStr, resStr, env.GetPromClusterLabel()
 

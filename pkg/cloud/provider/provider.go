@@ -34,22 +34,6 @@ import (
 	"github.com/opencost/opencost/pkg/util/watcher"
 )
 
-// ClusterName returns the name defined in cluster info, defaulting to the
-// CLUSTER_ID environment variable
-func ClusterName(p models.Provider) string {
-	info, err := p.ClusterInfo()
-	if err != nil {
-		return env.GetClusterID()
-	}
-
-	name, ok := info["name"]
-	if !ok {
-		return env.GetClusterID()
-	}
-
-	return name
-}
-
 // CustomPricesEnabled returns the boolean equivalent of the cloup provider's custom prices flag,
 // indicating whether or not the cluster is using custom pricing.
 func CustomPricesEnabled(p models.Provider) bool {
@@ -77,77 +61,6 @@ func ConfigWatcherFor(p models.Provider) *watcher.ConfigMapWatcher {
 	}
 }
 
-// AllocateIdleByDefault returns true if the application settings specify to allocate idle by default
-func AllocateIdleByDefault(p models.Provider) bool {
-	config, err := p.GetConfig()
-	if err != nil {
-		return false
-	}
-
-	return config.DefaultIdle == "true"
-}
-
-// SharedNamespace returns a list of names of shared namespaces, as defined in the application settings
-func SharedNamespaces(p models.Provider) []string {
-	namespaces := []string{}
-
-	config, err := p.GetConfig()
-	if err != nil {
-		return namespaces
-	}
-	if config.SharedNamespaces == "" {
-		return namespaces
-	}
-	// trim spaces so that "kube-system, kubecost" is equivalent to "kube-system,kubecost"
-	for _, ns := range strings.Split(config.SharedNamespaces, ",") {
-		namespaces = append(namespaces, strings.Trim(ns, " "))
-	}
-
-	return namespaces
-}
-
-// SharedLabel returns the configured set of shared labels as a parallel tuple of keys to values; e.g.
-// for app:kubecost,type:staging this returns (["app", "type"], ["kubecost", "staging"]) in order to
-// match the signature of the NewSharedResourceInfo
-func SharedLabels(p models.Provider) ([]string, []string) {
-	names := []string{}
-	values := []string{}
-
-	config, err := p.GetConfig()
-	if err != nil {
-		return names, values
-	}
-
-	if config.SharedLabelNames == "" || config.SharedLabelValues == "" {
-		return names, values
-	}
-
-	ks := strings.Split(config.SharedLabelNames, ",")
-	vs := strings.Split(config.SharedLabelValues, ",")
-	if len(ks) != len(vs) {
-		log.Warnf("Shared labels have mis-matched lengths: %d names, %d values", len(ks), len(vs))
-		return names, values
-	}
-
-	for i := range ks {
-		names = append(names, strings.Trim(ks[i], " "))
-		values = append(values, strings.Trim(vs[i], " "))
-	}
-
-	return names, values
-}
-
-// ShareTenancyCosts returns true if the application settings specify to share
-// tenancy costs by default.
-func ShareTenancyCosts(p models.Provider) bool {
-	config, err := p.GetConfig()
-	if err != nil {
-		return false
-	}
-
-	return config.ShareTenancyCosts == "true"
-}
-
 // NewProvider looks at the nodespec or provider metadata server to decide which provider to instantiate.
 func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.ConfigFileManager) (models.Provider, error) {
 	getAllNodesFunc := func() ([]*clustercache.Node, error) {
@@ -159,13 +72,15 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	}
 
 	var nodes []*clustercache.Node
-	if !env.IsETLReadOnlyMode() {
+
+	if env.HasKubernetesResourceAccess() {
 		// the error can be ignored because getAllNodesFunc only errors if nodes is empty, a case which we explicitly
 		// handle by checking the length of nodes below
 		nodes, _ = retry.Retry(context.Background(), getAllNodesFunc, 10, time.Second)
 	} else {
 		nodes, _ = getAllNodesFunc()
 	}
+
 	if len(nodes) == 0 {
 		log.Infof("Could not locate any nodes for cluster.")
 		return &CustomProvider{

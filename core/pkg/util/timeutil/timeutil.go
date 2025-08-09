@@ -117,7 +117,7 @@ func ParseUTCOffset(offsetStr string) (time.Duration, error) {
 	return offset, nil
 }
 
-// FormatStoreResolution provides a clean notation for ETL store resolutions.
+// FormatStoreResolution provides a clean notation for store resolutions.
 // e.g. daily => 1d; hourly => 1h
 func FormatStoreResolution(dur time.Duration) string {
 	if dur >= (7 * 24 * time.Hour) {

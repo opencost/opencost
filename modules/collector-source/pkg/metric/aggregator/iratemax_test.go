@@ -125,6 +125,31 @@ func TestIRateMaxAggregator_Value(t *testing.T) {
 				},
 			},
 		},
+		"set restart": {
+			updates: []update{
+				{
+					value:     3,
+					timestamp: time1,
+				},
+				{
+					value:     4,
+					timestamp: time2,
+				},
+				{
+					value:     1,
+					timestamp: time3,
+				},
+				{
+					value:     2,
+					timestamp: time4,
+				},
+			},
+			want: []MetricValue{
+				{
+					Value: 1,
+				},
+			},
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 
@@ -303,7 +304,7 @@ func (scw *Scaleway) ClusterInfo() (map[string]string, error) {
 	m["region"] = scw.ClusterRegion
 	m["account"] = scw.ClusterAccountID
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
-	m["id"] = env.GetClusterID()
+	m["id"] = coreenv.GetClusterID()
 	return m, nil
 
 }
@@ -335,7 +336,7 @@ func (c *Scaleway) UpdateConfig(r io.Reader, updateType string) (*models.CustomP
 		}
 
 		if env.IsRemoteEnabled() {
-			err := utils.UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
+			err := utils.UpdateClusterMeta(coreenv.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return err
 			}
