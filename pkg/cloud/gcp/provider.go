@@ -966,6 +966,13 @@ func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]mo
 		return nil, err
 	}
 
+	// If no API key is provided, we can't use the public billing API
+	// Fall back to default pricing or skip pricing download
+	if gcp.APIKey == "" {
+		log.Info("No GCP API key provided, skipping GCP Billing API pricing download. Using Workload Identity for compute and storage operations only.")
+		return make(map[string]*GCPPricing), nil
+	}
+
 	url := gcp.getBillingAPIURL(gcp.APIKey, c.CurrencyCode)
 
 	var parsePagesHelper func(string) error
@@ -1534,7 +1541,7 @@ func (gcp *gcpKey) Features() string {
 }
 
 // AllNodePricing returns the GCP pricing objects stored
-func (gcp *GCP) AllNodePricing() (interface{}, error) {
+func (gcp *GCP) AllNodePricing() (any, error) {
 	gcp.DownloadPricingDataLock.RLock()
 	defer gcp.DownloadPricingDataLock.RUnlock()
 	return gcp.Pricing, nil
@@ -1674,6 +1681,6 @@ func getUsageType(labels map[string]string) string {
 // PricingSourceSummary returns the pricing source summary for the provider.
 // The summary represents what was _parsed_ from the pricing source, not
 // everything that was _available_ in the pricing source.
-func (gcp *GCP) PricingSourceSummary() interface{} {
+func (gcp *GCP) PricingSourceSummary() any {
 	return gcp.Pricing
 }

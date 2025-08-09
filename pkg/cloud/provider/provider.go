@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -27,6 +28,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/util"
 
 	"cloud.google.com/go/compute/metadata"
+	"golang.org/x/oauth2/google"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
@@ -140,9 +142,37 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 		}, nil
 	case opencost.GCPProvider:
 		log.Info("Found ProviderID starting with \"gce\", using GCP Provider")
+		
+		// Check for Workload Identity when no API key is provided
 		if apiKey == "" {
-			return nil, errors.New("Supply a GCP Key to start getting data")
+			// Try to detect if we're running in a GKE environment with Workload Identity
+			if canUseWorkloadIdentity() {
+				log.Info("No GCP API key provided, attempting to use Workload Identity authentication")
+				return &gcp.GCP{
+					Clientset:        cache,
+					APIKey:           "", // Empty API key signals Workload Identity usage
+					Config:           NewProviderConfig(config, cp.configFileName),
+					ClusterRegion:    cp.region,
+					ClusterAccountID: cp.accountID,
+					ClusterProjectID: cp.projectID,
+					ServiceKeyProvided: false,
+					MetadataClient: metadata.NewClient(
+						&http.Client{
+							Transport: httputil.NewUserAgentTransport("kubecost", &http.Transport{
+								Dial: (&net.Dialer{
+									Timeout:   2 * time.Second,
+									KeepAlive: 30 * time.Second,
+								}).Dial,
+							}),
+							Timeout: 5 * time.Second,
+						}),
+				}, nil
+			} else {
+				return nil, errors.New("GCP authentication failed: no API key provided and Workload Identity not detected. Please provide a GCP service account key or configure Workload Identity with the annotation 'iam.gke.io/gcp-service-account' on the service account")
+			}
 		}
+		
+		log.Info("Using provided GCP API key for authentication")
 		return &gcp.GCP{
 			Clientset:        cache,
 			APIKey:           apiKey,
@@ -150,6 +180,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			ClusterRegion:    cp.region,
 			ClusterAccountID: cp.accountID,
 			ClusterProjectID: cp.projectID,
+			ServiceKeyProvided: true,
 			MetadataClient: metadata.NewClient(
 				&http.Client{
 					Transport: httputil.NewUserAgentTransport("kubecost", &http.Transport{
@@ -398,9 +429,50 @@ func ParseLocalDiskID(id string) string {
 
 			id = fmt.Sprintf("%s/disks/%s%06s", split[0], vmSplit[0], strconv.FormatInt(vmNum, 32))
 		}
-		id = strings.Replace(id, "/virtualMachines/", "/disks/", -1)
+		id = strings.ReplaceAll(id, "/virtualMachines/", "/disks/")
 		id = strings.ToLower(id)
 		return fmt.Sprintf("%s_osdisk", id)
 	}
 	return id
+}
+
+// canUseWorkloadIdentity detects if Workload Identity is available for GCP authentication
+func canUseWorkloadIdentity() bool {
+	// Check if we're running on GCE (required for Workload Identity)
+	if !metadata.OnGCE() {
+		log.Debug("Workload Identity check: not running on GCE")
+		return false
+	}
+
+	// Check if the Kubernetes service account token is mounted (required for Workload Identity)
+	tokenPath := "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	if _, err := os.Stat(tokenPath); os.IsNotExist(err) {
+		log.Debug("Workload Identity check: Kubernetes service account token not found")
+		return false
+	}
+
+	// Try to get default credentials to verify Workload Identity works
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	
+	creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
+	if err != nil {
+		log.Debugf("Workload Identity check: failed to find default credentials: %v", err)
+		return false
+	}
+
+	// Additional check: see if we can get a token (this validates the full chain)
+	token, err := creds.TokenSource.Token()
+	if err != nil {
+		log.Debugf("Workload Identity check: failed to get token: %v", err)
+		return false
+	}
+
+	if token == nil || token.AccessToken == "" {
+		log.Debug("Workload Identity check: received empty token")
+		return false
+	}
+
+	log.Debug("Workload Identity check: successfully validated Workload Identity authentication")
+	return true
 }
