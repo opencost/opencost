@@ -30,6 +30,11 @@ const (
 
 	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
 	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
+	
+	// Azure rate card filter environment variables
+	AzureLocaleEnvVar     = "AZURE_LOCALE"
+	AzureCurrencyEnvVar   = "AZURE_CURRENCY"
+	AzureRegionInfoEnvVar = "AZURE_REGION_INFO"
 
 	OCIPricingURL = "OCI_PRICING_URL"
 
@@ -210,6 +215,24 @@ func GetAzureOfferID() string {
 // price sheet API.
 func GetAzureBillingAccount() string {
 	return env.Get(AzureBillingAccountEnvVar, "")
+}
+
+// GetAzureLocale returns the environment variable value for AzureLocaleEnvVar which represents
+// the Azure rate card locale filter. Defaults to "en-US" if not specified.
+func GetAzureLocale() string {
+	return env.Get(AzureLocaleEnvVar, "en-US")
+}
+
+// GetAzureCurrency returns the environment variable value for AzureCurrencyEnvVar which represents
+// the Azure rate card currency filter. This overrides the default currency from config if specified.
+func GetAzureCurrency() string {
+	return env.Get(AzureCurrencyEnvVar, "")
+}
+
+// GetAzureRegionInfo returns the environment variable value for AzureRegionInfoEnvVar which represents
+// the Azure rate card region filter. This overrides the default region from config if specified.
+func GetAzureRegionInfo() string {
+	return env.Get(AzureRegionInfoEnvVar, "")
 }
 
 // IsAzureDownloadBillingDataToDisk returns the environment variable value for
