@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package opencost.dm2;
+option go_package = "github.com/opencost/opencost/protos/dm2;dm2pb";
+
+// Keep the model tiny for POC. We'll expand under mentor guidance.
+// Reserve a few field numbers to avoid churn during iteration.
+message Cluster {
+  string cluster_uid = 1;
+  string cluster_name = 2;
+  repeated Namespace namespaces = 10;
+  // reserved 3 to 9;
+}
+
+message Namespace {
+  string uid = 1;
+  string name = 2;
+  repeated Workload workloads = 10;
+}
+
+message Workload {
+  string uid = 1;
+  string name = 2;
+  string kind = 3; // Deployment/StatefulSet/Job/etc.
+  repeated Pod pods = 10;
+}
+
+message Pod {
+  string uid = 1;
+  string name = 2;
+  string node_uid = 3;
+  repeated Container containers = 10;
+}
+
+message Container {
+  string uid = 1;         // if available; else derive stable id: podUID/name
+  string name = 2;
+  string image = 3;
+}
