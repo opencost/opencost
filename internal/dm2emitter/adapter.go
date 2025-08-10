@@ -44,8 +44,17 @@ func (k *kubeInv) ListWorkloadsByNamespace(ctx context.Context, nsUID string) []
 	pods := k.cache.GetAllPods()
 	workloadMap := make(map[string]Workload)
 
+	// Find the namespace name for this UID
+	var namespaceName string
+	for _, ns := range k.cache.GetAllNamespaces() {
+		if string(ns.UID) == nsUID {
+			namespaceName = ns.Name
+			break
+		}
+	}
+
 	for _, pod := range pods {
-		if string(pod.Namespace.UID) != nsUID {
+		if pod.Namespace != namespaceName {
 			continue
 		}
 
@@ -116,13 +125,29 @@ func (k *kubeInv) ListContainersByPod(ctx context.Context, podUID string) []Cont
 		}
 
 		result := make([]Container, 0, len(pod.Spec.Containers))
-		for _, container := range pod.Spec.Containers {
+		for i, container := range pod.Spec.Containers {
 			// Derive a stable container UID as podUID/containerName
 			containerUID := fmt.Sprintf("%s/%s", podUID, container.Name)
+			
+			// Get the image from ContainerStatus if available
+			image := ""
+			if i < len(pod.Status.ContainerStatuses) && 
+			   pod.Status.ContainerStatuses[i].Name == container.Name {
+				image = pod.Status.ContainerStatuses[i].Image
+			} else {
+				// If not found by index, search by name
+				for _, cs := range pod.Status.ContainerStatuses {
+					if cs.Name == container.Name {
+						image = cs.Image
+						break
+					}
+				}
+			}
+			
 			result = append(result, Container{
 				UID:    containerUID,
 				Name:   container.Name,
-				Image:  container.Image,
+				Image:  image,
 				PodUID: podUID,
 			})
 		}

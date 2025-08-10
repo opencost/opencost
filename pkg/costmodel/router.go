@@ -569,6 +569,10 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 		SettingsCache:       settingsCache,
 	}
 
+	// Initialize DM2 emitter if compiled with the dm2emitter build tag
+	// This is a no-op if not compiled with the tag or if the env var is not set
+	initDM2Emitter(context.Background(), a.ClusterCache, a.ClusterInfoProvider)
+
 	// Initialize mechanism for subscribing to settings changes
 	a.InitializeSettingsPubSub()
 	err = a.CloudProvider.DownloadPricingData()

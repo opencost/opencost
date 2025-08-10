@@ -3,8 +3,8 @@ syntax = "proto3";
 package opencost.dm2;
 option go_package = "github.com/opencost/opencost/protos/dm2;dm2pb";
 
-// Keep the model tiny for POC. We'll expand under mentor guidance.
-// Reserve a few field numbers to avoid churn during iteration.
+// Keeping the model tiny for POC. We will expand under mentor guidance.
+// Reserving a few field numbers to avoid churn during iteration.
 message Cluster {
   string cluster_uid = 1;
   string cluster_name = 2;

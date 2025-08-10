@@ -16,7 +16,7 @@ import (
 )
 
 // Inventory is the minimal interface we need from existing caches.
-// Implement a real adapter in adapter.go that pulls from OpenCost's
+// Implemented a real adapter in adapter.go that pulls from OpenCost's
 // current k8s caches/types (namespaces, workloads/controllers, pods, containers).
 type Inventory interface {
 	ListNamespaces(ctx context.Context) []Namespace

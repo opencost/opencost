@@ -1,6 +1,6 @@
 //go:build dm2emitter
 
-package main
+package costmodel
 
 import (
 	"context"
@@ -13,8 +13,8 @@ import (
 	"github.com/opencost/opencost/internal/dm2emitter"
 )
 
-// startDM2Emitter starts the DM2 emitter if enabled via environment variable
-func startDM2Emitter(ctx context.Context, cache clustercache.ClusterCache, clusterInfo clusters.ClusterInfoProvider) {
+// initDM2Emitter starts the DM2 emitter if enabled via environment variable
+func initDM2Emitter(ctx context.Context, cache clustercache.ClusterCache, clusterInfo clusters.ClusterInfoProvider) {
 	if os.Getenv("OPENCOST_DM2_EMITTER") != "on" {
 		log.Infof("DM2 emitter is compiled in but not enabled (set OPENCOST_DM2_EMITTER=on to enable)")
 		return

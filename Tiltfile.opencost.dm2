@@ -31,14 +31,15 @@ def run_opencost(options):
     if options["delve_continue"] == False:
         continue_flag = ''
 
-    # Build and update opencost back end binary when code changes
+    # Build and update opencost back end binary when code changes WITH DM2 EMITTER TAG
     local_resource(
         name='build-costmodel',
         dir='.',
-        cmd='CGO_ENABLED=0 GOOS=linux GOARCH='+go_arch+' go build -o ../opencost/cmd/costmodel/costmodel-tilt ../opencost/cmd/costmodel/main.go',
+        cmd='CGO_ENABLED=0 GOOS=linux GOARCH='+go_arch+' go build -tags dm2emitter -o ../opencost/cmd/costmodel/costmodel-tilt ../opencost/cmd/costmodel/main.go',
         deps=[
             '../opencost/cmd/costmodel/main.go',
             '../opencost/pkg',
+            '../opencost/internal/dm2emitter',  # Add dm2emitter as dependency
         ],
         allow_parallel=True,
     )
@@ -160,9 +161,10 @@ def run_opencost(options):
     local_resource(
         name='costmodel-test',
         dir='../opencost',
-        cmd='go test ./...',
+        cmd='go test -tags dm2emitter ./...',  # Also run tests with dm2emitter tag
         deps=[
             './pkg',
+            './internal/dm2emitter',
         ],
         allow_parallel=True,
         resource_deps=['opencost'],  # run tests after build to speed up deployment
