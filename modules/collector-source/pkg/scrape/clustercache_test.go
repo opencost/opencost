@@ -35,6 +35,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 				{
 					Nodes: []*clustercache.Node{
 						{
+							UID:            "node-uid-123",
 							Name:           "node1",
 							SpecProviderID: "i-1",
 							Status: v1.NodeStatus{
@@ -62,6 +63,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "node-uid-123",
 					},
 					Value:          2.0,
 					AdditionalInfo: nil,
@@ -71,6 +73,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "node-uid-123",
 					},
 					Value:          2048.0,
 					AdditionalInfo: nil,
@@ -80,6 +83,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "node-uid-123",
 					},
 					Value:          1.0,
 					AdditionalInfo: nil,
@@ -89,6 +93,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "node-uid-123",
 					},
 					Value:          1024.0,
 					AdditionalInfo: nil,
@@ -98,6 +103,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "node-uid-123",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -150,6 +156,7 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 				{
 					Deployments: []*clustercache.Deployment{
 						{
+							UID:       "deployment-uid-789",
 							Name:      "deployment1",
 							Namespace: "namespace1",
 							MatchLabels: map[string]string{
@@ -168,6 +175,7 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 					Labels: map[string]string{
 						source.DeploymentLabel: "deployment1",
 						source.NamespaceLabel:  "namespace1",
+						source.UIDLabel:        "deployment-uid-789",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -566,6 +574,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 				{
 					PVs: []*clustercache.PersistentVolume{
 						{
+							UID:  "pv-uid-789",
 							Name: "pv1",
 							Spec: v1.PersistentVolumeSpec{
 								StorageClassName: "storageClass1",
@@ -590,6 +599,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 						source.PVLabel:           "pv1",
 						source.ProviderIDLabel:   "vol-1",
 						source.StorageClassLabel: "storageClass1",
+						source.UIDLabel:          "pv-uid-789",
 					},
 					Value:          0,
 					AdditionalInfo: nil,
@@ -600,6 +610,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 						source.PVLabel:           "pv1",
 						source.ProviderIDLabel:   "vol-1",
 						source.StorageClassLabel: "storageClass1",
+						source.UIDLabel:          "pv-uid-789",
 					},
 					Value:          4096,
 					AdditionalInfo: nil,
@@ -649,12 +660,10 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 				{
 					Services: []*clustercache.Service{
 						{
-							Name:      "service1",
-							Namespace: "namespace1",
-							SpecSelector: map[string]string{
-								"test1": "blah",
-								"test2": "blah2",
-							},
+							UID:          "service-uid-456",
+							Name:         "service1",
+							Namespace:    "namespace1",
+							SpecSelector: map[string]string{"test1": "blah", "test2": "blah2"},
 						},
 					},
 					Timestamp: start1,
@@ -664,8 +673,9 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 				{
 					Name: metric.ServiceSelectorLabels,
 					Labels: map[string]string{
-						"service":             "service1",
+						source.ServiceLabel:   "service1",
 						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "service-uid-456",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{

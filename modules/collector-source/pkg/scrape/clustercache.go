@@ -54,6 +54,7 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 		nodeInfo := map[string]string{
 			source.NodeLabel:       node.Name,
 			source.ProviderIDLabel: node.SpecProviderID,
+			source.UIDLabel:        string(node.UID),
 		}
 
 		// Node Capacity
@@ -124,6 +125,7 @@ func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.De
 		deploymentInfo := map[string]string{
 			source.DeploymentLabel: deployment.Name,
 			source.NamespaceLabel:  deployment.Namespace,
+			source.UIDLabel:        string(deployment.UID),
 		}
 
 		// deployment labels
@@ -318,6 +320,7 @@ func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume) 
 			source.PVLabel:           pv.Name,
 			source.StorageClassLabel: pv.Spec.StorageClassName,
 			source.ProviderIDLabel:   providerID,
+			source.UIDLabel:          string(pv.UID),
 		}
 
 		scrapeResults = append(scrapeResults, metric.Update{
@@ -348,6 +351,7 @@ func (ccs *ClusterCacheScraper) scrapeServices(services []*clustercache.Service)
 		serviceInfo := map[string]string{
 			source.ServiceLabel:   service.Name,
 			source.NamespaceLabel: service.Namespace,
+			source.UIDLabel:       string(service.UID),
 		}
 
 		// service labels

@@ -51,6 +51,7 @@ type Container struct {
 }
 
 type Node struct {
+	UID            types.UID
 	Name           string
 	Labels         map[string]string
 	Annotations    map[string]string
@@ -59,6 +60,7 @@ type Node struct {
 }
 
 type Service struct {
+	UID          types.UID
 	Name         string
 	Namespace    string
 	SpecSelector map[string]string
@@ -75,6 +77,7 @@ type DaemonSet struct {
 }
 
 type Deployment struct {
+	UID                     types.UID
 	Name                    string
 	Namespace               string
 	Labels                  map[string]string
@@ -122,6 +125,7 @@ type Job struct {
 }
 
 type PersistentVolume struct {
+	UID         types.UID
 	Name        string
 	Namespace   string
 	Labels      map[string]string
@@ -241,6 +245,7 @@ func TransformPod(input *v1.Pod) *Pod {
 
 func TransformNode(input *v1.Node) *Node {
 	return &Node{
+		UID:            input.UID,
 		Name:           input.Name,
 		Labels:         input.Labels,
 		Annotations:    input.Annotations,
@@ -251,6 +256,7 @@ func TransformNode(input *v1.Node) *Node {
 
 func TransformService(input *v1.Service) *Service {
 	return &Service{
+		UID:          input.UID,
 		Name:         input.Name,
 		Namespace:    input.Namespace,
 		SpecSelector: input.Spec.Selector,
@@ -271,6 +277,7 @@ func TransformDaemonSet(input *appsv1.DaemonSet) *DaemonSet {
 
 func TransformDeployment(input *appsv1.Deployment) *Deployment {
 	return &Deployment{
+		UID:                     input.UID,
 		Name:                    input.Name,
 		Namespace:               input.Namespace,
 		Labels:                  input.Labels,
@@ -295,6 +302,7 @@ func TransformStatefulSet(input *appsv1.StatefulSet) *StatefulSet {
 
 func TransformPersistentVolume(input *v1.PersistentVolume) *PersistentVolume {
 	return &PersistentVolume{
+		UID:         input.UID,
 		Name:        input.Name,
 		Namespace:   input.Namespace,
 		Labels:      input.Labels,
