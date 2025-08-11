@@ -105,6 +105,29 @@ func (c *ClusterStorage) makeRequest(method, url string, body io.Reader, fn func
 	return nil
 }
 
+func (c *ClusterStorage) check() error {
+	var jsonResp Response[string]
+	fn := func(resp *http.Response) error {
+		err := json.NewDecoder(resp.Body).Decode(&jsonResp)
+		if err != nil {
+			return fmt.Errorf("failed to decode json: %w", err)
+		}
+		return nil
+	}
+
+	err := c.makeRequest(
+		http.MethodGet,
+		fmt.Sprintf("%s://%s:%d/healthz", c.scheme(), c.host, c.port),
+		nil,
+		fn,
+	)
+	if err != nil {
+		log.Errorf("ClusterStorage: failed health check: %s", err.Error())
+	}
+
+	return nil
+}
+
 func (c *ClusterStorage) StorageType() StorageType {
 	return StorageTypeCluster
 }
