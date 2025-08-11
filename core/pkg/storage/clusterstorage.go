@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"gopkg.in/yaml.v2"
 )
@@ -66,11 +67,33 @@ func NewClusterStorageWith(config ClusterConfig) (*ClusterStorage, error) {
 		return nil, fmt.Errorf("error creating transport: %w", err)
 	}
 
-	return &ClusterStorage{
+	cs := &ClusterStorage{
 		host:   config.Host,
 		port:   config.Port,
 		client: &http.Client{Transport: dt},
-	}, nil
+	}
+
+	// Wait on cluster storage to respond before returning
+	defaultWait := time.Second
+	retry := 0
+	maxTries := 5
+	for {
+		err := cs.check()
+		if err == nil {
+			break
+		}
+
+		log.Debugf("ClusterStorage: error connecting to cluster storage: %s", err.Error())
+		if retry >= maxTries {
+			return nil, fmt.Errorf("ClusterStorage: failed to connect to cluster storage after %d trys", maxTries)
+		}
+		waitTime := httputil.ExponentialBackoffWaitFor(defaultWait, retry)
+		log.Infof("ClusterStorage: failed to connecting cluster storage. retry in %s", waitTime.String())
+		time.Sleep(waitTime)
+		retry++
+	}
+
+	return cs, nil
 }
 
 func (c *ClusterStorage) makeRequest(method, url string, body io.Reader, fn func(*http.Response) error) error {
