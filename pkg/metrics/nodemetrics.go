@@ -63,6 +63,7 @@ func (nsac KubeNodeCollector) Collect(ch chan<- prometheus.Metric) {
 
 	for _, node := range nodes {
 		nodeName := node.Name
+		nodeUID := string(node.UID)
 
 		// Node Capacity
 		for resourceName, quantity := range node.Status.Capacity {
@@ -77,18 +78,18 @@ func (nsac KubeNodeCollector) Collect(ch chan<- prometheus.Metric) {
 			// KSM v1 Emission
 			if _, disabled := disabledMetrics["kube_node_status_capacity_cpu_cores"]; !disabled {
 				if resource == "cpu" {
-					ch <- newKubeNodeStatusCapacityCPUCoresMetric("kube_node_status_capacity_cpu_cores", nodeName, value)
+					ch <- newKubeNodeStatusCapacityCPUCoresMetric("kube_node_status_capacity_cpu_cores", nodeName, nodeUID, value)
 
 				}
 			}
 			if _, disabled := disabledMetrics["kube_node_status_capacity_memory_bytes"]; !disabled {
 				if resource == "memory" {
-					ch <- newKubeNodeStatusCapacityMemoryBytesMetric("kube_node_status_capacity_memory_bytes", nodeName, value)
+					ch <- newKubeNodeStatusCapacityMemoryBytesMetric("kube_node_status_capacity_memory_bytes", nodeName, nodeUID, value)
 				}
 			}
 
 			if _, disabled := disabledMetrics["kube_node_status_capacity"]; !disabled {
-				ch <- newKubeNodeStatusCapacityMetric("kube_node_status_capacity", nodeName, resource, unit, value)
+				ch <- newKubeNodeStatusCapacityMetric("kube_node_status_capacity", nodeName, nodeUID, resource, unit, value)
 			}
 		}
 
@@ -105,23 +106,23 @@ func (nsac KubeNodeCollector) Collect(ch chan<- prometheus.Metric) {
 			// KSM v1 Emission
 			if _, disabled := disabledMetrics["kube_node_status_allocatable_cpu_cores"]; !disabled {
 				if resource == "cpu" {
-					ch <- newKubeNodeStatusAllocatableCPUCoresMetric("kube_node_status_allocatable_cpu_cores", nodeName, value)
+					ch <- newKubeNodeStatusAllocatableCPUCoresMetric("kube_node_status_allocatable_cpu_cores", nodeName, nodeUID, value)
 				}
 			}
 			if _, disabled := disabledMetrics["kube_node_status_allocatable_memory_bytes"]; !disabled {
 				if resource == "memory" {
-					ch <- newKubeNodeStatusAllocatableMemoryBytesMetric("kube_node_status_allocatable_memory_bytes", nodeName, value)
+					ch <- newKubeNodeStatusAllocatableMemoryBytesMetric("kube_node_status_allocatable_memory_bytes", nodeName, nodeUID, value)
 				}
 			}
 			if _, disabled := disabledMetrics["kube_node_status_allocatable"]; !disabled {
-				ch <- newKubeNodeStatusAllocatableMetric("kube_node_status_allocatable", nodeName, resource, unit, value)
+				ch <- newKubeNodeStatusAllocatableMetric("kube_node_status_allocatable", nodeName, nodeUID, resource, unit, value)
 			}
 		}
 
 		// node labels
 		if _, disabled := disabledMetrics["kube_node_labels"]; !disabled {
 			labelNames, labelValues := promutil.KubePrependQualifierToLabels(promutil.SanitizeLabels(node.Labels), "label_")
-			ch <- newKubeNodeLabelsMetric(nodeName, "kube_node_labels", labelNames, labelValues)
+			ch <- newKubeNodeLabelsMetric(nodeName, nodeUID, "kube_node_labels", labelNames, labelValues)
 		}
 
 		// kube_node_status_condition
@@ -131,7 +132,7 @@ func (nsac KubeNodeCollector) Collect(ch chan<- prometheus.Metric) {
 				conditions := getConditions(c.Status)
 
 				for _, cond := range conditions {
-					ch <- newKubeNodeStatusConditionMetric(nodeName, "kube_node_status_condition", string(c.Type), cond.status, cond.value)
+					ch <- newKubeNodeStatusConditionMetric(nodeName, nodeUID, "kube_node_status_condition", string(c.Type), cond.status, cond.value)
 				}
 			}
 		}
@@ -149,15 +150,17 @@ type KubeNodeStatusCapacityMetric struct {
 	resource string
 	unit     string
 	node     string
+	uid      string
 	value    float64
 }
 
 // Creates a new KubeNodeStatusCapacityMetric, implementation of prometheus.Metric
-func newKubeNodeStatusCapacityMetric(fqname, node, resource, unit string, value float64) KubeNodeStatusCapacityMetric {
+func newKubeNodeStatusCapacityMetric(fqname, node, uid, resource, unit string, value float64) KubeNodeStatusCapacityMetric {
 	return KubeNodeStatusCapacityMetric{
 		fqName:   fqname,
 		help:     "kube_node_status_capacity node capacity",
 		node:     node,
+		uid:      uid,
 		resource: resource,
 		unit:     unit,
 		value:    value,
@@ -187,6 +190,10 @@ func (kpcrr KubeNodeStatusCapacityMetric) Write(m *dto.Metric) error {
 			Value: &kpcrr.node,
 		},
 		{
+			Name:  toStringPtr("uid"),
+			Value: &kpcrr.uid,
+		},
+		{
 			Name:  toStringPtr("resource"),
 			Value: &kpcrr.resource,
 		},
@@ -210,14 +217,16 @@ type KubeNodeStatusCapacityMemoryBytesMetric struct {
 	help   string
 	bytes  float64
 	node   string
+	uid    string
 }
 
 // Creates a new KubeNodeStatusCapacityMemoryBytesMetric, implementation of prometheus.Metric
-func newKubeNodeStatusCapacityMemoryBytesMetric(fqname string, node string, bytes float64) KubeNodeStatusCapacityMemoryBytesMetric {
+func newKubeNodeStatusCapacityMemoryBytesMetric(fqname string, node string, uid string, bytes float64) KubeNodeStatusCapacityMemoryBytesMetric {
 	return KubeNodeStatusCapacityMemoryBytesMetric{
 		fqName: fqname,
 		help:   "kube_node_status_capacity_memory_bytes Node Capacity Memory Bytes",
 		node:   node,
+		uid:    uid,
 		bytes:  bytes,
 	}
 }
@@ -240,6 +249,10 @@ func (nam KubeNodeStatusCapacityMemoryBytesMetric) Write(m *dto.Metric) error {
 			Name:  toStringPtr("node"),
 			Value: &nam.node,
 		},
+		{
+			Name:  toStringPtr("uid"),
+			Value: &nam.uid,
+		},
 	}
 	return nil
 }
@@ -256,15 +269,17 @@ type KubeNodeStatusCapacityCPUCoresMetric struct {
 	help   string
 	cores  float64
 	node   string
+	uid    string
 }
 
 // Creates a new KubeNodeStatusCapacityCPUCoresMetric, implementation of prometheus.Metric
-func newKubeNodeStatusCapacityCPUCoresMetric(fqname string, node string, cores float64) KubeNodeStatusCapacityCPUCoresMetric {
+func newKubeNodeStatusCapacityCPUCoresMetric(fqname string, node string, uid string, cores float64) KubeNodeStatusCapacityCPUCoresMetric {
 	return KubeNodeStatusCapacityCPUCoresMetric{
 		fqName: fqname,
 		help:   "kube_node_status_capacity_cpu_cores Node Capacity CPU Cores",
 		cores:  cores,
 		node:   node,
+		uid:    uid,
 	}
 }
 
@@ -286,6 +301,10 @@ func (nam KubeNodeStatusCapacityCPUCoresMetric) Write(m *dto.Metric) error {
 			Name:  toStringPtr("node"),
 			Value: &nam.node,
 		},
+		{
+			Name:  toStringPtr("uid"),
+			Value: &nam.uid,
+		},
 	}
 	return nil
 }
@@ -303,16 +322,18 @@ type KubeNodeLabelsMetric struct {
 	labelNames  []string
 	labelValues []string
 	node        string
+	uid         string
 }
 
 // Creates a new KubeNodeLabelsMetric, implementation of prometheus.Metric
-func newKubeNodeLabelsMetric(node string, fqname string, labelNames []string, labelValues []string) KubeNodeLabelsMetric {
+func newKubeNodeLabelsMetric(node string, uid string, fqname string, labelNames []string, labelValues []string) KubeNodeLabelsMetric {
 	return KubeNodeLabelsMetric{
 		fqName:      fqname,
 		labelNames:  labelNames,
 		labelValues: labelValues,
 		help:        "kube_node_labels all labels for each node prefixed with label_",
 		node:        node,
+		uid:         uid,
 	}
 }
 
@@ -343,6 +364,8 @@ func (nam KubeNodeLabelsMetric) Write(m *dto.Metric) error {
 
 	nodeString := "node"
 	labels = append(labels, &dto.LabelPair{Name: &nodeString, Value: &nam.node})
+	uidString := "uid"
+	labels = append(labels, &dto.LabelPair{Name: &uidString, Value: &nam.uid})
 	m.Label = labels
 	return nil
 }
@@ -356,17 +379,19 @@ type KubeNodeStatusConditionMetric struct {
 	fqName    string
 	help      string
 	node      string
+	uid       string
 	condition string
 	status    string
 	value     float64
 }
 
 // Creates a new KubeNodeStatusConditionMetric, implementation of prometheus.Metric
-func newKubeNodeStatusConditionMetric(node, fqname, condition, status string, value float64) KubeNodeStatusConditionMetric {
+func newKubeNodeStatusConditionMetric(node, uid, fqname, condition, status string, value float64) KubeNodeStatusConditionMetric {
 	return KubeNodeStatusConditionMetric{
 		fqName:    fqname,
 		help:      "kube_node_status_condition condition status for nodes",
 		node:      node,
+		uid:       uid,
 		condition: condition,
 		status:    status,
 		value:     value,
@@ -394,6 +419,10 @@ func (nam KubeNodeStatusConditionMetric) Write(m *dto.Metric) error {
 		{
 			Name:  toStringPtr("node"),
 			Value: &nam.node,
+		},
+		{
+			Name:  toStringPtr("uid"),
+			Value: &nam.uid,
 		},
 		{
 			Name:  toStringPtr("condition"),
@@ -438,15 +467,17 @@ type KubeNodeStatusAllocatableMetric struct {
 	resource string
 	unit     string
 	node     string
+	uid      string
 	value    float64
 }
 
 // Creates a new KubeNodeStatusAllocatableMetric, implementation of prometheus.Metric
-func newKubeNodeStatusAllocatableMetric(fqname, node, resource, unit string, value float64) KubeNodeStatusAllocatableMetric {
+func newKubeNodeStatusAllocatableMetric(fqname, node, uid, resource, unit string, value float64) KubeNodeStatusAllocatableMetric {
 	return KubeNodeStatusAllocatableMetric{
 		fqName:   fqname,
 		help:     "kube_node_status_allocatable node allocatable",
 		node:     node,
+		uid:      uid,
 		resource: resource,
 		unit:     unit,
 		value:    value,
@@ -476,6 +507,10 @@ func (kpcrr KubeNodeStatusAllocatableMetric) Write(m *dto.Metric) error {
 			Value: &kpcrr.node,
 		},
 		{
+			Name:  toStringPtr("uid"),
+			Value: &kpcrr.uid,
+		},
+		{
 			Name:  toStringPtr("resource"),
 			Value: &kpcrr.resource,
 		},
@@ -498,15 +533,17 @@ type KubeNodeStatusAllocatableCPUCoresMetric struct {
 	resource string
 	unit     string
 	node     string
+	uid      string
 	value    float64
 }
 
 // Creates a new KubeNodeStatusAllocatableCPUCoresMetric, implementation of prometheus.Metric
-func newKubeNodeStatusAllocatableCPUCoresMetric(fqname, node string, value float64) KubeNodeStatusAllocatableCPUCoresMetric {
+func newKubeNodeStatusAllocatableCPUCoresMetric(fqname, node, uid string, value float64) KubeNodeStatusAllocatableCPUCoresMetric {
 	return KubeNodeStatusAllocatableCPUCoresMetric{
 		fqName: fqname,
 		help:   "kube_node_status_allocatable_cpu_cores node allocatable cpu cores",
 		node:   node,
+		uid:    uid,
 		value:  value,
 	}
 }
@@ -531,6 +568,10 @@ func (kpcrr KubeNodeStatusAllocatableCPUCoresMetric) Write(m *dto.Metric) error 
 			Name:  toStringPtr("node"),
 			Value: &kpcrr.node,
 		},
+		{
+			Name:  toStringPtr("uid"),
+			Value: &kpcrr.uid,
+		},
 	}
 	return nil
 }
@@ -546,15 +587,17 @@ type KubeNodeStatusAllocatableMemoryBytesMetric struct {
 	resource string
 	unit     string
 	node     string
+	uid      string
 	value    float64
 }
 
 // Creates a new KubeNodeStatusAllocatableMemoryBytesMetric, implementation of prometheus.Metric
-func newKubeNodeStatusAllocatableMemoryBytesMetric(fqname, node string, value float64) KubeNodeStatusAllocatableMemoryBytesMetric {
+func newKubeNodeStatusAllocatableMemoryBytesMetric(fqname, node, uid string, value float64) KubeNodeStatusAllocatableMemoryBytesMetric {
 	return KubeNodeStatusAllocatableMemoryBytesMetric{
 		fqName: fqname,
 		help:   "kube_node_status_allocatable_memory_bytes node allocatable memory in bytes",
 		node:   node,
+		uid:    uid,
 		value:  value,
 	}
 }
@@ -578,6 +621,10 @@ func (kpcrr KubeNodeStatusAllocatableMemoryBytesMetric) Write(m *dto.Metric) err
 		{
 			Name:  toStringPtr("node"),
 			Value: &kpcrr.node,
+		},
+		{
+			Name:  toStringPtr("uid"),
+			Value: &kpcrr.uid,
 		},
 	}
 	return nil

@@ -123,6 +123,11 @@ func InitKubeMetrics(clusterCache clustercache.ClusterCache, metricsConfig *Metr
 				KubeClusterCache: clusterCache,
 				metricsConfig:    *metricsConfig,
 			})
+			// ADD THIS LINE - Register the KubeServiceCollector for standard service metrics with UID support
+			prometheus.MustRegister(KubeServiceCollector{
+				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
+			})
 		} else if opts.EmitKubeStateMetricsV1Only {
 			// We still need the kubecost_pv_info metric to look up storageclass on legacy clusters.
 			forceDisabled := []string{"kube_persistentvolume_capacity_bytes", "kube_persistentvolume_status_phase"}
