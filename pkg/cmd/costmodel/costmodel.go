@@ -14,8 +14,7 @@ import (
 	"github.com/opencost/opencost/pkg/customcost"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
-
-	"github.com/opencost/opencost/core/pkg/errors"
+	
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/version"
 	"github.com/opencost/opencost/pkg/costmodel"
@@ -40,6 +39,8 @@ func Execute(opts *CostModelOpts) error {
 	log.Infof("Kubernetes enabled: %t", env.IsKubernetesEnabled())
 
 	router := httprouter.New()
+
+	costmodel.AddMCPRoutes(router, nil)
 	var a *costmodel.Accesses
 	var cp models.Provider
 	if env.IsKubernetesEnabled() {
@@ -101,7 +102,7 @@ func Execute(opts *CostModelOpts) error {
 	telemetryHandler := metrics.ResponseMetricMiddleware(rootMux)
 	handler := cors.AllowAll().Handler(telemetryHandler)
 
-	return http.ListenAndServe(fmt.Sprint(":", env.GetAPIPort()), errors.PanicHandlerMiddleware(handler))
+	return http.ListenAndServe(fmt.Sprint(":", env.GetAPIPort()), handler)
 }
 
 func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) error {
