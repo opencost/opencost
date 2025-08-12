@@ -59,12 +59,14 @@ func NewNodeClientConfigFromEnv() (*nodes.NodeClientConfig, error) {
 			tlsConfig = &tls.Config{
 				Certificates: []tls.Certificate{cert},
 				RootCAs:      caCertPool,
+				MinVersion:   tls.VersionTLS12,
 			}
 
 			transport = &http.Transport{TLSClientConfig: tlsConfig}
 		} else {
 			tlsConfig := &tls.Config{
 				RootCAs: caCertPool,
+				MinVersion:   tls.VersionTLS12,
 			}
 			transport = &http.Transport{TLSClientConfig: tlsConfig}
 		}
