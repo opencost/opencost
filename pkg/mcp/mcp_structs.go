@@ -49,6 +49,19 @@ type AllocationQuery struct {
 	IncludeSharedCost *bool    `json:"includeSharedCost,omitempty"`
 	ShareTenancyCosts *bool    `json:"shareTenancyCosts,omitempty"`
 
+	Accumulate                            *string `json:"accumulate,omitempty"`         // "all", "hour", "day", "week", "month", "quarter"
+	AccumulateBy                          *string `json:"accumulateBy,omitempty"`       // AccumulateOption
+	IdleByNode                            *bool   `json:"idleByNode,omitempty"`         // compute idle at node level
+	SharedLoadBalancer                    *bool   `json:"sharedLoadBalancer,omitempty"` // share load balancer costs
+	IncludeProportionalAssetResourceCosts *bool   `json:"includeProportionalAssetResourceCosts,omitempty"`
+	IncludeAggregatedMetadata             *bool   `json:"includeAggregatedMetadata,omitempty"`
+	ShareIdle                             *bool   `json:"shareIdle,omitempty"`        // share idle costs
+	IncludeExternal                       *bool   `json:"includeExternal,omitempty"`  // include external costs
+	Reconcile                             *bool   `json:"reconcile,omitempty"`        // reconcile costs
+	ReconcileNetwork                      *bool   `json:"reconcileNetwork,omitempty"` // reconcile network costs
+	MergeUnallocated                      *bool   `json:"mergeUnallocated,omitempty"` // merge unallocated costs
+	SplitIdle                             *bool   `json:"splitIdle,omitempty"`        // split idle costs
+
 	BusinessIntent   string     `json:"businessIntent,omitempty"`
 	ExpectedRange    *CostRange `json:"expectedRange,omitempty"`
 	ComparisonPeriod *string    `json:"comparisonPeriod,omitempty"`
@@ -61,6 +74,12 @@ type AssetQuery struct {
 
 	AssetTypes       []string `json:"assetTypes,omitempty"`
 	IncludeBreakdown *bool    `json:"includeBreakdown,omitempty"`
+
+	Accumulate              *bool   `json:"accumulate,omitempty"`
+	Step                    *string `json:"step,omitempty"`
+	IncludeCloud            *bool   `json:"includeCloud,omitempty"` // include cloud assets
+	DisableAdjustments      *bool   `json:"disableAdjustments,omitempty"`
+	DisableAggregatedStores *bool   `json:"disableAggregatedStores,omitempty"`
 
 	OptimizationFocus string   `json:"optimizationFocus,omitempty"`
 	CostThreshold     *float64 `json:"costThreshold,omitempty"`
@@ -75,6 +94,15 @@ type CloudCostQuery struct {
 	Providers    []string `json:"providers,omitempty"`
 	Services     []string `json:"services,omitempty"`
 	IncludeUsage *bool    `json:"includeUsage,omitempty"`
+
+	Accumulate  *string `json:"accumulate,omitempty"`
+	Step        *string `json:"step,omitempty"`
+	CostMetric  *string `json:"costMetric,omitempty"`
+	Limit       *int    `json:"limit,omitempty"`
+	Offset      *int    `json:"offset,omitempty"`
+	SortBy      *string `json:"sortBy,omitempty"`
+	SortByOrder *string `json:"sortByOrder,omitempty"`
+	Format      *string `json:"format,omitempty"`
 
 	BudgetAlert      *float64 `json:"budgetAlert,omitempty"`
 	TrendAnalysis    *bool    `json:"trendAnalysis,omitempty"`
@@ -107,20 +135,20 @@ type ResponseSummary struct {
 
 // ai insights from cost data
 type AIInsight struct {
-	Type        string  `json:"type"` // "optimization", "anomaly", "trend"
+	Type        string  `json:"type"`
 	Title       string  `json:"title"`
 	Description string  `json:"description"`
-	Impact      string  `json:"impact"`           // "high", "medium", "low"
-	Confidence  float64 `json:"confidence"`       // 0.0 to 1.0
-	Action      string  `json:"action,omitempty"` // recommended action
+	Impact      string  `json:"impact"`
+	Confidence  float64 `json:"confidence"`
+	Action      string  `json:"action,omitempty"`
 }
 
 // suggests next queries
 type FollowUpOption struct {
-	Label       string      `json:"label"`       // "Drill down by namespace"
-	QueryType   string      `json:"queryType"`   // "allocations"
-	Parameters  interface{} `json:"parameters"`  // pre-filled query parameters
-	Explanation string      `json:"explanation"` // why this is suggested
+	Label       string      `json:"label"`
+	QueryType   string      `json:"queryType"`
+	Parameters  interface{} `json:"parameters"`
+	Explanation string      `json:"explanation"`
 }
 
 // cost range for anomaly detection
@@ -180,6 +208,67 @@ func NewAllocationTool() Tool {
 					Type:        "string",
 					Description: "OpenCost filter expression",
 				},
+				"step": {
+					Type:        "string",
+					Description: "Step duration for allocation sets",
+				},
+				"resolution": {
+					Type:        "string",
+					Description: "Prometheus query resolution",
+				},
+				"includeIdle": {
+					Type:        "boolean",
+					Description: "Include idle allocation costs",
+				},
+				"accumulate": {
+					Type:        "string",
+					Description: "Accumulation option (all, hour, day, week, month, quarter)",
+					Enum:        []string{"all", "hour", "day", "week", "month", "quarter"},
+				},
+				"accumulateBy": {
+					Type:        "string",
+					Description: "Accumulate by specific option",
+				},
+				"idleByNode": {
+					Type:        "boolean",
+					Description: "Compute idle allocations at node level",
+				},
+				"sharedLoadBalancer": {
+					Type:        "boolean",
+					Description: "Include shared load balancer costs",
+				},
+				"includeProportionalAssetResourceCosts": {
+					Type:        "boolean",
+					Description: "Include proportional asset resource costs",
+				},
+				"includeAggregatedMetadata": {
+					Type:        "boolean",
+					Description: "Include aggregated labels/annotations",
+				},
+				"shareIdle": {
+					Type:        "boolean",
+					Description: "Share idle costs",
+				},
+				"includeExternal": {
+					Type:        "boolean",
+					Description: "Include external costs",
+				},
+				"reconcile": {
+					Type:        "boolean",
+					Description: "Reconcile costs",
+				},
+				"reconcileNetwork": {
+					Type:        "boolean",
+					Description: "Reconcile network costs",
+				},
+				"mergeUnallocated": {
+					Type:        "boolean",
+					Description: "Merge unallocated costs",
+				},
+				"splitIdle": {
+					Type:        "boolean",
+					Description: "Split idle costs",
+				},
 				"businessIntent": {
 					Type:        "string",
 					Description: "AI context: cost_optimization, budget_tracking, etc.",
@@ -202,10 +291,43 @@ func NewAssetTool() Tool {
 					Type:        "string",
 					Description: "Time window for asset cost analysis",
 				},
+				"aggregate": {
+					Type:        "array",
+					Description: "Group by dimensions (cluster, node, etc.)",
+					Items:       &ItemDef{Type: "string"},
+				},
+				"filter": {
+					Type:        "string",
+					Description: "Asset filter expression",
+				},
 				"assetTypes": {
 					Type:        "array",
 					Description: "Asset types to include (Node, Disk, Network)",
 					Items:       &ItemDef{Type: "string"},
+				},
+				"includeBreakdown": {
+					Type:        "boolean",
+					Description: "Include detailed cost breakdown",
+				},
+				"accumulate": {
+					Type:        "boolean",
+					Description: "Accumulate results over time",
+				},
+				"step": {
+					Type:        "string",
+					Description: "Step duration for asset sets",
+				},
+				"includeCloud": {
+					Type:        "boolean",
+					Description: "Include cloud assets",
+				},
+				"disableAdjustments": {
+					Type:        "boolean",
+					Description: "Disable cost adjustments",
+				},
+				"disableAggregatedStores": {
+					Type:        "boolean",
+					Description: "Disable aggregated stores",
 				},
 				"optimizationFocus": {
 					Type:        "string",
@@ -229,10 +351,64 @@ func NewCloudCostTool() Tool {
 					Type:        "string",
 					Description: "Time window for cloud cost analysis",
 				},
+				"aggregate": {
+					Type:        "array",
+					Description: "Group by dimensions (provider, service, etc.)",
+					Items:       &ItemDef{Type: "string"},
+				},
+				"filter": {
+					Type:        "string",
+					Description: "Cloud cost filter expression",
+				},
 				"providers": {
 					Type:        "array",
 					Description: "Cloud providers (AWS, GCP, Azure)",
 					Items:       &ItemDef{Type: "string"},
+				},
+				"services": {
+					Type:        "array",
+					Description: "Cloud services to include",
+					Items:       &ItemDef{Type: "string"},
+				},
+				"includeUsage": {
+					Type:        "boolean",
+					Description: "Include usage data",
+				},
+				"accumulate": {
+					Type:        "string",
+					Description: "Accumulation option (all, hour, day, week, month, quarter)",
+					Enum:        []string{"all", "hour", "day", "week", "month", "quarter"},
+				},
+				"step": {
+					Type:        "string",
+					Description: "Step duration for cloud cost sets",
+				},
+				"costMetric": {
+					Type:        "string",
+					Description: "Cost metric (amortized, list, etc.)",
+					Enum:        []string{"amortized", "list", "net", "blended"},
+				},
+				"limit": {
+					Type:        "integer",
+					Description: "Result limit",
+				},
+				"offset": {
+					Type:        "integer",
+					Description: "Result offset",
+				},
+				"sortBy": {
+					Type:        "string",
+					Description: "Sort field",
+				},
+				"sortByOrder": {
+					Type:        "string",
+					Description: "Sort direction",
+					Enum:        []string{"asc", "desc"},
+				},
+				"format": {
+					Type:        "string",
+					Description: "Output format",
+					Enum:        []string{"json", "csv"},
 				},
 				"budgetAlert": {
 					Type:        "number",
