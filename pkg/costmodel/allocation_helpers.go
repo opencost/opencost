@@ -909,6 +909,17 @@ func applyInternetNetworkAllocation(alloc *opencost.Allocation, networkSubCost f
 }
 
 func applyNetworkAllocation(podMap map[podKey]*pod, resNetworkGiB []*source.NetworkGiBResult, resNetworkCostPerGiB []*source.NetworkPricePerGiBResult, podUIDKeyMap map[podKey][]podKey, applyCostFunc func(*opencost.Allocation, float64)) {
+	// Step 1: Detection & Logging - Check for missing external network metrics
+	// Only log warning once per allocation computation (when we have pods but no network metrics)
+	if len(resNetworkGiB) == 0 && len(podMap) > 0 {
+		// Use a low frequency to avoid spam since this function is called 3x per allocation computation
+		log.DedupedWarningf(1, "Network costs showing as 0 due to missing network-costs component. Deploy network-costs component for detailed network cost tracking. See: https://github.com/opencost/opencost/blob/develop/docs/network-costs.md")
+	}
+
+	if len(resNetworkCostPerGiB) == 0 && len(resNetworkGiB) > 0 {
+		log.DedupedWarningf(1, "Network usage data found but pricing data missing. Network costs may be inaccurate without network-costs component pricing configuration.")
+	}
+
 	costPerGiBByCluster := map[string]float64{}
 
 	for _, res := range resNetworkCostPerGiB {
@@ -948,6 +959,44 @@ func applyNetworkAllocation(podMap map[podKey]*pod, resNetworkGiB []*source.Netw
 			for _, alloc := range thisPod.Allocations {
 				gib := res.Data[0].Value / float64(len(thisPod.Allocations))
 				costPerGiB := costPerGiBByCluster[podKey.Cluster]
+				currentNetworkSubCost := gib * costPerGiB / float64(len(pods))
+				applyCostFunc(alloc, currentNetworkSubCost)
+				alloc.NetworkCost += currentNetworkSubCost
+			}
+		}
+	}
+}
+
+// applyNetworkFallbackAllocation applies network costs using native Kubernetes metrics when external network-costs component is missing
+func applyNetworkFallbackAllocation(podMap map[podKey]*pod, resNetTransferBytes []*source.NetTransferBytesResult, podUIDKeyMap map[podKey][]podKey, costPerGiB float64, applyCostFunc func(*opencost.Allocation, float64)) {
+	for _, res := range resNetTransferBytes {
+		podKey, err := newResultPodKey(res.Cluster, res.Namespace, res.Pod)
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: Network fallback allocation query result missing field: %s", err)
+			continue
+		}
+
+		var pods []*pod
+
+		if thisPod, ok := podMap[podKey]; !ok {
+			if uidKeys, ok := podUIDKeyMap[podKey]; ok {
+				for _, uidKey := range uidKeys {
+					thisPod, ok = podMap[uidKey]
+					if ok {
+						pods = append(pods, thisPod)
+					}
+				}
+			} else {
+				continue
+			}
+		} else {
+			pods = []*pod{thisPod}
+		}
+
+		for _, thisPod := range pods {
+			for _, alloc := range thisPod.Allocations {
+				// Convert bytes to GiB and apply cost
+				gib := res.Data[0].Value / float64(len(thisPod.Allocations)) / (1024 * 1024 * 1024)
 				currentNetworkSubCost := gib * costPerGiB / float64(len(pods))
 				applyCostFunc(alloc, currentNetworkSubCost)
 				alloc.NetworkCost += currentNetworkSubCost

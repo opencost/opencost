@@ -86,6 +86,11 @@ const (
 
 	// Cloud provider override
 	CloudProviderVar = "CLOUD_PROVIDER"
+
+	// Network cost fallback configuration
+	NetworkCostFallbackZoneRateEnvVar     = "NETWORK_COST_FALLBACK_ZONE_RATE"
+	NetworkCostFallbackRegionRateEnvVar   = "NETWORK_COST_FALLBACK_REGION_RATE"
+	NetworkCostFallbackInternetRateEnvVar = "NETWORK_COST_FALLBACK_INTERNET_RATE"
 )
 
 func GetGCPAuthSecretFilePath() string {
@@ -365,4 +370,19 @@ func GetCloudProvider() string {
 
 func GetMetricConfigFile() string {
 	return env.GetPathFromConfig(MetricConfigFile)
+}
+
+// GetNetworkCostFallbackZoneRate returns the fallback rate per GiB for cross-zone network traffic
+func GetNetworkCostFallbackZoneRate() float64 {
+	return env.GetFloat64(NetworkCostFallbackZoneRateEnvVar, 0.01)
+}
+
+// GetNetworkCostFallbackRegionRate returns the fallback rate per GiB for cross-region network traffic
+func GetNetworkCostFallbackRegionRate() float64 {
+	return env.GetFloat64(NetworkCostFallbackRegionRateEnvVar, 0.02)
+}
+
+// GetNetworkCostFallbackInternetRate returns the fallback rate per GiB for internet network traffic
+func GetNetworkCostFallbackInternetRate() float64 {
+	return env.GetFloat64(NetworkCostFallbackInternetRateEnvVar, 0.09)
 }
