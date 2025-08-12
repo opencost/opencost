@@ -49,18 +49,18 @@ type AllocationQuery struct {
 	IncludeSharedCost *bool    `json:"includeSharedCost,omitempty"`
 	ShareTenancyCosts *bool    `json:"shareTenancyCosts,omitempty"`
 
-	Accumulate                            *string `json:"accumulate,omitempty"`         // "all", "hour", "day", "week", "month", "quarter"
-	AccumulateBy                          *string `json:"accumulateBy,omitempty"`       // AccumulateOption
-	IdleByNode                            *bool   `json:"idleByNode,omitempty"`         // compute idle at node level
-	SharedLoadBalancer                    *bool   `json:"sharedLoadBalancer,omitempty"` // share load balancer costs
+	Accumulate                            *string `json:"accumulate,omitempty"`         
+	AccumulateBy                          *string `json:"accumulateBy,omitempty"`       
+	IdleByNode                            *bool   `json:"idleByNode,omitempty"`         
+	SharedLoadBalancer                    *bool   `json:"sharedLoadBalancer,omitempty"` 
 	IncludeProportionalAssetResourceCosts *bool   `json:"includeProportionalAssetResourceCosts,omitempty"`
 	IncludeAggregatedMetadata             *bool   `json:"includeAggregatedMetadata,omitempty"`
-	ShareIdle                             *bool   `json:"shareIdle,omitempty"`        // share idle costs
-	IncludeExternal                       *bool   `json:"includeExternal,omitempty"`  // include external costs
-	Reconcile                             *bool   `json:"reconcile,omitempty"`        // reconcile costs
-	ReconcileNetwork                      *bool   `json:"reconcileNetwork,omitempty"` // reconcile network costs
-	MergeUnallocated                      *bool   `json:"mergeUnallocated,omitempty"` // merge unallocated costs
-	SplitIdle                             *bool   `json:"splitIdle,omitempty"`        // split idle costs
+	ShareIdle                             *bool   `json:"shareIdle,omitempty"`        
+	IncludeExternal                       *bool   `json:"includeExternal,omitempty"`  
+	Reconcile                             *bool   `json:"reconcile,omitempty"`        
+	ReconcileNetwork                      *bool   `json:"reconcileNetwork,omitempty"` 
+	MergeUnallocated                      *bool   `json:"mergeUnallocated,omitempty"` 
+	SplitIdle                             *bool   `json:"splitIdle,omitempty"`        
 
 	BusinessIntent   string     `json:"businessIntent,omitempty"`
 	ExpectedRange    *CostRange `json:"expectedRange,omitempty"`
