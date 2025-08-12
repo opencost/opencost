@@ -968,7 +968,7 @@ func applyNetworkAllocation(podMap map[podKey]*pod, resNetworkGiB []*source.Netw
 }
 
 // applyNetworkFallbackAllocation applies network costs using native Kubernetes metrics when external network-costs component is missing
-func applyNetworkFallbackAllocation(podMap map[podKey]*pod, resNetTransferBytes []*source.NetTransferBytesResult, podUIDKeyMap map[podKey][]podKey, costPerGiB float64, applyCostFunc func(*opencost.Allocation, float64)) {
+func applyNetworkFallbackAllocation(podMap map[podKey]*pod, resNetTransferBytes []*source.NetTransferBytesResult, podUIDKeyMap map[podKey][]podKey, costPerGiB float64, trafficPercentage float64, applyCostFunc func(*opencost.Allocation, float64)) {
 	for _, res := range resNetTransferBytes {
 		podKey, err := newResultPodKey(res.Cluster, res.Namespace, res.Pod)
 		if err != nil {
@@ -995,9 +995,10 @@ func applyNetworkFallbackAllocation(podMap map[podKey]*pod, resNetTransferBytes 
 
 		for _, thisPod := range pods {
 			for _, alloc := range thisPod.Allocations {
-				// Convert bytes to GiB and apply cost
-				gib := res.Data[0].Value / float64(len(thisPod.Allocations)) / (1024 * 1024 * 1024)
-				currentNetworkSubCost := gib * costPerGiB / float64(len(pods))
+				// Convert total bytes to GiB, then apply traffic percentage for this category
+				totalGib := res.Data[0].Value / float64(len(thisPod.Allocations)) / (1024 * 1024 * 1024)
+				categoryGib := totalGib * (trafficPercentage / 100.0)
+				currentNetworkSubCost := categoryGib * costPerGiB / float64(len(pods))
 				applyCostFunc(alloc, currentNetworkSubCost)
 				alloc.NetworkCost += currentNetworkSubCost
 			}

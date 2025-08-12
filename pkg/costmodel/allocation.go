@@ -442,10 +442,15 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	
 	// Apply network allocation costs - use fallback if external network-costs component is missing
 	if useNetworkFallback {
-		// Step 2: Use fallback network cost calculation with configurable rates
-		applyNetworkFallbackAllocation(podMap, resNetTransferBytes, podUIDKeyMap, env.GetNetworkCostFallbackZoneRate(), applyCrossZoneNetworkAllocation)
-		applyNetworkFallbackAllocation(podMap, resNetTransferBytes, podUIDKeyMap, env.GetNetworkCostFallbackRegionRate(), applyCrossRegionNetworkAllocation)
-		applyNetworkFallbackAllocation(podMap, resNetTransferBytes, podUIDKeyMap, env.GetNetworkCostFallbackInternetRate(), applyInternetNetworkAllocation)
+		// Step 2: Validate traffic distribution percentages
+		if valid, message := env.ValidateNetworkCostFallbackPercentages(); !valid {
+			log.Warnf("Network cost fallback configuration issue: %s. Using defaults: 70%% zone, 20%% region, 10%% internet", message)
+		}
+		
+		// Use fallback network cost calculation with traffic distribution
+		applyNetworkFallbackAllocation(podMap, resNetTransferBytes, podUIDKeyMap, env.GetNetworkCostFallbackZoneRate(), env.GetNetworkCostFallbackZonePercentage(), applyCrossZoneNetworkAllocation)
+		applyNetworkFallbackAllocation(podMap, resNetTransferBytes, podUIDKeyMap, env.GetNetworkCostFallbackRegionRate(), env.GetNetworkCostFallbackRegionPercentage(), applyCrossRegionNetworkAllocation)
+		applyNetworkFallbackAllocation(podMap, resNetTransferBytes, podUIDKeyMap, env.GetNetworkCostFallbackInternetRate(), env.GetNetworkCostFallbackInternetPercentage(), applyInternetNetworkAllocation)
 	} else {
 		// Use external network-costs component metrics (existing behavior)
 		applyNetworkAllocation(podMap, resNetZoneGiB, resNetZonePricePerGiB, podUIDKeyMap, applyCrossZoneNetworkAllocation)
