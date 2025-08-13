@@ -36,6 +36,7 @@ require (
 	github.com/jszwec/csvutil v1.2.1
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/kubecost/events v0.0.8
+	github.com/mark3labs/mcp-go v0.37.0
 	github.com/microcosm-cc/bluemonday v1.0.23
 	github.com/opencost/opencost/core v0.0.0-20250521155634-81d2b597d1bc
 	github.com/opencost/opencost/modules/collector-source v0.0.0-00010101000000-000000000000
@@ -63,16 +64,20 @@ require (
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.1 // indirect
+	github.com/bahlo/generic-list-go v0.2.0 // indirect
+	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/gofrs/flock v0.8.1 // indirect
+	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/minio/crc64nvme v1.0.1 // indirect
 	github.com/minio/minio-go/v7 v7.0.88 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/common v0.63.0 // indirect
 	github.com/sony/gobreaker v0.5.0 // indirect
-	github.com/stretchr/objx v0.5.2 // indirect
+	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -170,7 +175,7 @@ require (
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24 // indirect
 	github.com/spf13/afero v1.6.0 // indirect
-	github.com/spf13/cast v1.3.1 // indirect
+	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.2.0 // indirect
@@ -203,4 +208,4 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.6.0 // indirect
 )
 
-go 1.24.2
+go 1.21

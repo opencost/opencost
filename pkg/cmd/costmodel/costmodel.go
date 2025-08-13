@@ -20,6 +20,7 @@ import (
 	"github.com/opencost/opencost/pkg/costmodel"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/filemanager"
+	"github.com/opencost/opencost/pkg/mcp"
 	"github.com/opencost/opencost/pkg/metrics"
 )
 
@@ -33,6 +34,55 @@ func Execute(conf *Config) error {
 	router := httprouter.New()
 	var a *costmodel.Accesses
 	var cp models.Provider
+	var mcpManager *mcp.MCPManager
+
+	if env.IsMCPEnabled() {
+		router.GET("/mcp/status", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+			w.Header().Set("Content-Type", "application/json")
+			if mcpManager != nil {
+				healthCheck := mcp.NewMCPHealthCheck(mcpManager)
+				status := healthCheck.GetStatus()
+
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(fmt.Sprintf(`{
+					"status": "%v",
+					"running": %v,
+					"enabled": %v,
+					"activeSessions": %v
+				}`,
+					status["status"],
+					status["running"],
+					status["enabled"],
+					status["activeSessions"])))
+			} else {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				w.Write([]byte(`{"status": "unavailable", "error": "MCP manager not initialized"}`))
+			}
+		})
+
+		router.GET("/mcp/info", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+			w.Header().Set("Content-Type", "application/json")
+			if mcpManager != nil {
+				info := mcpManager.GetServerInfo()
+
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(fmt.Sprintf(`{
+					"name": "%s",
+					"version": "%s",
+					"protocol": "%s",
+					"status": "%s"
+				}`,
+					info["name"],
+					info["version"],
+					info["protocol"],
+					info["status"])))
+			} else {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				w.Write([]byte(`{"status": "unavailable"}`))
+			}
+		})
+	}
+
 	if conf.KubernetesEnabled {
 		a = costmodel.Initialize(router)
 		err := StartExportWorker(context.Background(), a.Model)
@@ -50,6 +100,19 @@ func Execute(conf *Config) error {
 
 		// set cloud provider for cloud cost
 		cp = a.CloudProvider
+
+		// Initialize MCP server if enabled
+		if env.IsMCPEnabled() {
+			log.Info("MCP server is enabled, starting MCP server...")
+			var err error
+			mcpManager, err = mcp.StartMCPServer(a.Model)
+			if err != nil {
+				log.Errorf("Failed to start MCP server: %v", err)
+				// Don't fail the entire startup if MCP fails
+			} else {
+				log.Info("MCP server started successfully")
+			}
+		}
 	}
 
 	if conf.CloudCostEnabled {
@@ -76,6 +139,13 @@ func Execute(conf *Config) error {
 	rootMux.Handle("/metrics", promhttp.Handler())
 	telemetryHandler := metrics.ResponseMetricMiddleware(rootMux)
 	handler := cors.AllowAll().Handler(telemetryHandler)
+
+	// Set up graceful shutdown for MCP server
+	if mcpManager != nil {
+		mcpManager.RegisterShutdownHook(func() {
+			log.Info("Shutting down MCP server...")
+		})
+	}
 
 	return http.ListenAndServe(fmt.Sprint(":", conf.Port), errors.PanicHandlerMiddleware(handler))
 }
