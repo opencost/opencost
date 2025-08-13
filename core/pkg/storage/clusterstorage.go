@@ -74,7 +74,7 @@ func NewClusterStorageWith(config ClusterConfig) (*ClusterStorage, error) {
 	}
 
 	// Wait on cluster storage to respond before returning
-	defaultWait := time.Second
+	defaultWait := 5 * time.Second
 	retry := 0
 	maxTries := 5
 	for {
@@ -121,31 +121,24 @@ func (c *ClusterStorage) makeRequest(method, url string, body io.Reader, fn func
 		return fmt.Errorf("invalid response %d", resp.StatusCode)
 	}
 
-	err = fn(resp)
-	if err != nil {
-		return fmt.Errorf("failed to handle response: %w", err)
+	if fn != nil {
+		err = fn(resp)
+		if err != nil {
+			return fmt.Errorf("failed to handle response: %w", err)
+		}
 	}
 	return nil
 }
 
 func (c *ClusterStorage) check() error {
-	var jsonResp Response[string]
-	fn := func(resp *http.Response) error {
-		err := json.NewDecoder(resp.Body).Decode(&jsonResp)
-		if err != nil {
-			return fmt.Errorf("failed to decode json: %w", err)
-		}
-		return nil
-	}
-
 	err := c.makeRequest(
 		http.MethodGet,
 		fmt.Sprintf("%s://%s:%d/healthz", c.scheme(), c.host, c.port),
 		nil,
-		fn,
+		nil,
 	)
 	if err != nil {
-		log.Errorf("ClusterStorage: failed health check: %s", err.Error())
+		return fmt.Errorf("ClusterStorage: failed health check: %w", err)
 	}
 
 	return nil
