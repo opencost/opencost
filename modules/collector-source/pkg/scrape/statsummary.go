@@ -35,8 +35,8 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 			scrapeResults = append(scrapeResults, metric.Update{
 				Name: metric.NodeCPUSecondsTotal,
 				Labels: map[string]string{
-					source.KubernetesNodeLabel: nodeName,
-					source.ModeLabel:           "", // TODO
+					source.NodeLabel: nodeName,
+					source.ModeLabel: "", // TODO
 				},
 				Value: float64(*stat.Node.CPU.UsageCoreNanoSeconds) * 1e-9,
 			})
@@ -46,8 +46,8 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 			scrapeResults = append(scrapeResults, metric.Update{
 				Name: metric.NodeFSCapacityBytes,
 				Labels: map[string]string{
-					source.InstanceLabel: nodeName,
-					source.DeviceLabel:   "local", // This value has to be populated but isn't important here
+					source.NodeLabel:   nodeName,
+					source.DeviceLabel: "local", // This value has to be populated but isn't important here
 				},
 				Value: float64(*stat.Node.Fs.CapacityBytes),
 			})
@@ -103,7 +103,6 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 							source.PodLabel:       podName,
 							source.NamespaceLabel: namespace,
 							source.NodeLabel:      nodeName,
-							source.InstanceLabel:  nodeName,
 						},
 						Value: float64(*container.CPU.UsageCoreNanoSeconds) * 1e-9,
 					})
@@ -116,7 +115,6 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 							source.PodLabel:       podName,
 							source.NamespaceLabel: namespace,
 							source.NodeLabel:      nodeName,
-							source.InstanceLabel:  nodeName,
 						},
 						Value: float64(*container.Memory.WorkingSetBytes),
 					})
@@ -126,8 +124,8 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 					scrapeResults = append(scrapeResults, metric.Update{
 						Name: metric.ContainerFSUsageBytes,
 						Labels: map[string]string{
-							source.InstanceLabel: nodeName,
-							source.DeviceLabel:   "local",
+							source.NodeLabel:   nodeName,
+							source.DeviceLabel: "local",
 						},
 						Value: float64(*container.Rootfs.UsedBytes),
 					})

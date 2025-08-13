@@ -287,7 +287,7 @@ func NewLocalStorageBytesMetricCollector() *metric.MetricCollector {
 		metric.LocalStorageBytesID,
 		metric.NodeFSCapacityBytes,
 		[]string{
-			source.InstanceLabel,
+			source.NodeLabel,
 			source.DeviceLabel,
 		},
 		aggregator.AverageOverTime,
@@ -491,7 +491,7 @@ func NewNodeRAMSystemUsageAverageMetricCollector() *metric.MetricCollector {
 		metric.NodeRAMSystemUsageAverageID,
 		metric.ContainerMemoryWorkingSetBytes,
 		[]string{
-			source.InstanceLabel,
+			source.NodeLabel,
 		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
@@ -516,7 +516,7 @@ func NewNodeRAMUserUsageAverageMetricCollector() *metric.MetricCollector {
 		metric.NodeRAMUserUsageAverageID,
 		metric.ContainerMemoryWorkingSetBytes,
 		[]string{
-			source.InstanceLabel,
+			source.NodeLabel,
 		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
@@ -759,7 +759,6 @@ func NewCPUCoresAllocatedMetricCollector() *metric.MetricCollector {
 		metric.ContainerCPUAllocation,
 		[]string{
 			source.NodeLabel,
-			source.InstanceLabel,
 			source.NamespaceLabel,
 			source.PodLabel,
 			source.ContainerLabel,
@@ -790,7 +789,6 @@ func NewCPURequestsMetricCollector() *metric.MetricCollector {
 		metric.KubePodContainerResourceRequests,
 		[]string{
 			source.NodeLabel,
-			source.InstanceLabel,
 			source.NamespaceLabel,
 			source.PodLabel,
 			source.ContainerLabel,

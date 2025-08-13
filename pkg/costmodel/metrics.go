@@ -148,7 +148,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		cpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_cpu_hourly_cost",
 			Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
+		}, []string{"node", "instance_type", "region", "provider_id", "arch"})
 		if _, disabled := disabledMetrics["node_cpu_hourly_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, cpuGv)
 		}
@@ -156,7 +156,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		ramGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_ram_hourly_cost",
 			Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
+		}, []string{"node", "instance_type", "region", "provider_id", "arch"})
 		if _, disabled := disabledMetrics["node_ram_hourly_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, ramGv)
 		}
@@ -164,7 +164,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		gpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_gpu_hourly_cost",
 			Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
+		}, []string{"node", "instance_type", "region", "provider_id", "arch"})
 		if _, disabled := disabledMetrics["node_gpu_hourly_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, gpuGv)
 		}
@@ -172,7 +172,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		gpuCountGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_gpu_count",
 			Help: "node_gpu_count count of gpu on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
+		}, []string{"node", "instance_type", "region", "provider_id", "arch"})
 		if _, disabled := disabledMetrics["node_gpu_count"]; !disabled {
 			toRegisterGV = append(toRegisterGV, gpuCountGv)
 		}
@@ -188,7 +188,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		spotGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "kubecost_node_is_spot",
 			Help: "kubecost_node_is_spot Cloud provider info about node preemptibility",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
+		}, []string{"node", "instance_type", "region", "provider_id", "arch"})
 		if _, disabled := disabledMetrics["kubecost_node_is_spot"]; !disabled {
 			toRegisterGV = append(toRegisterGV, spotGv)
 		}
@@ -196,7 +196,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		totalGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_total_hourly_cost",
 			Help: "node_total_hourly_cost Total node cost per hour",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
+		}, []string{"node", "instance_type", "region", "provider_id", "arch"})
 		if _, disabled := disabledMetrics["node_total_hourly_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, totalGv)
 		}
@@ -204,7 +204,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		ramAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "container_memory_allocation_bytes",
 			Help: "container_memory_allocation_bytes Bytes of RAM used",
-		}, []string{"namespace", "pod", "container", "instance", "node"})
+		}, []string{"namespace", "pod", "container", "node"})
 		if _, disabled := disabledMetrics["container_memory_allocation_bytes"]; !disabled {
 			toRegisterGV = append(toRegisterGV, ramAllocGv)
 		}
@@ -212,7 +212,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		cpuAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "container_cpu_allocation",
 			Help: "container_cpu_allocation Percent of a single CPU used in a minute",
-		}, []string{"namespace", "pod", "container", "instance", "node"})
+		}, []string{"namespace", "pod", "container", "node"})
 		if _, disabled := disabledMetrics["container_cpu_allocation"]; !disabled {
 			toRegisterGV = append(toRegisterGV, cpuAllocGv)
 		}
@@ -220,7 +220,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		gpuAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "container_gpu_allocation",
 			Help: "container_gpu_allocation GPU used",
-		}, []string{"namespace", "pod", "container", "instance", "node"})
+		}, []string{"namespace", "pod", "container", "node"})
 		if _, disabled := disabledMetrics["container_gpu_allocation"]; !disabled {
 			toRegisterGV = append(toRegisterGV, gpuAllocGv)
 		}
@@ -515,7 +515,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
-				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType)
+				labelKey := getKeyFromLabelStrings(nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType)
 
 				avgCosts, ok := nodeCostAverages[labelKey]
 
@@ -530,8 +530,8 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					nodeCostAverages[labelKey] = avgCosts
 				}
 
-				cmme.GPUCountRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(gpu)
-				cmme.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(gpuCost)
+				cmme.GPUCountRecorder.WithLabelValues(nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(gpu)
+				cmme.GPUPriceRecorder.WithLabelValues(nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(gpuCost)
 
 				const outlierFactor float64 = 30
 				// don't record cpuCost, ramCost, or gpuCost in the case of wild outliers
@@ -539,7 +539,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				// https://github.com/opencost/opencost/issues/927
 				cpuOutlierCutoff := outlierFactor * avgCosts.CpuCostAverage
 				if cpuCost < cpuOutlierCutoff {
-					cmme.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(cpuCost)
+					cmme.CPUPriceRecorder.WithLabelValues(nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(cpuCost)
 					avgCosts.CpuCostAverage = (avgCosts.CpuCostAverage*avgCosts.NumCpuDataPoints + cpuCost) / (avgCosts.NumCpuDataPoints + 1)
 					avgCosts.NumCpuDataPoints += 1
 				} else {
@@ -547,7 +547,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				}
 				ramOutlierCutoff := outlierFactor * avgCosts.RamCostAverage
 				if ramCost < ramOutlierCutoff {
-					cmme.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(ramCost)
+					cmme.RAMPriceRecorder.WithLabelValues(nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(ramCost)
 					avgCosts.RamCostAverage = (avgCosts.RamCostAverage*avgCosts.NumRamDataPoints + ramCost) / (avgCosts.NumRamDataPoints + 1)
 					avgCosts.NumRamDataPoints += 1
 				} else {
@@ -555,7 +555,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				}
 				// skip redording totalCost if any constituent costs were outliers
 				if cpuCost < cpuOutlierCutoff && ramCost < ramOutlierCutoff {
-					cmme.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(totalCost)
+					cmme.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(totalCost)
 				} else {
 					log.Debugf("CPU and RAM outlier detected, not recording node %s total cost %f", nodeName, totalCost)
 				}
@@ -563,9 +563,9 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				nodeCostAverages[labelKey] = avgCosts
 
 				if node.IsSpot() {
-					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(1.0)
+					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(1.0)
 				} else {
-					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(0.0)
+					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(0.0)
 				}
 				nodeSeen[labelKey] = true
 			}
