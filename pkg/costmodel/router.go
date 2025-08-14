@@ -550,6 +550,9 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	configWatchers.AddWatcher(metrics.GetMetricsConfigWatcher())
 	configWatchers.Watch()
 
+	// Give the config watcher a moment to process the initial config
+	time.Sleep(100 * time.Millisecond)
+
 	clusterMap := dataSource.ClusterMap()
 	settingsCache := cache.New(cache.NoExpiration, cache.NoExpiration)
 
@@ -571,6 +574,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 
 	// Initialize mechanism for subscribing to settings changes
 	a.InitializeSettingsPubSub()
+
 	err = a.CloudProvider.DownloadPricingData()
 	if err != nil {
 		log.Infof("Failed to download pricing data: %s", err)
