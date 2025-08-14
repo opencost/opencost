@@ -2,24 +2,25 @@
 
 ## Overview
 
-OpenCost provides two approaches for monitoring network costs in Kubernetes clusters:
+OpenCost provides comprehensive network cost tracking for Kubernetes clusters through a robust percentage-based system that works out of the box:
 
-1. **Fallback Network Costs**: Built-in automatic network cost estimation using native Kubernetes metrics
-2. **Full Network-Costs Component**: External component providing detailed zone/region/internet traffic tracking
+1. **Primary Network Cost Solution**: Built-in automatic network cost estimation using configurable traffic distribution ratios
+2. **Alternative Network-Costs Component**: Separate component (integration/availability unclear) for kernel-level traffic tracking
 
-Both approaches help track the cost of network egress and other paid network transfers, providing insight into network data sources and aggregate transfer costs.
+The primary solution helps track the cost of network egress and other paid network transfers using customizable percentages that users can adjust based on their historical traffic data.
 
-## Fallback Network Costs (Automatic)
+## Primary Network Cost Solution (Recommended)
 
-OpenCost automatically provides network cost estimates using native Kubernetes metrics when the external network-costs component is not deployed.
+OpenCost provides comprehensive network cost tracking using native Kubernetes metrics with user-configurable traffic distribution ratios. This is the recommended open source solution for network cost monitoring.
 
 ### Features
 
 - Uses `container_network_transmit_bytes_total` metric from cAdvisor
-- Configurable pricing rates for different traffic types
-- Configurable traffic distribution percentages
+- Fully configurable pricing rates for different traffic types
+- User-customizable traffic distribution percentages based on historical data
 - Works immediately without additional component deployment
-- Prevents triple-counting issues through percentage-based distribution
+- Prevents triple-counting issues through intelligent percentage-based distribution
+- Users can set ratios based on their own historical traffic analysis
 
 ### Default Configuration
 
@@ -31,7 +32,7 @@ OpenCost automatically provides network cost estimates using native Kubernetes m
 
 ### Environment Variables
 
-Configure fallback network costs using these environment variables:
+Configure network costs using these environment variables (customize percentages based on your historical traffic data):
 
 ```bash
 # Pricing rates (per GiB)
@@ -47,26 +48,26 @@ NETWORK_COST_FALLBACK_INTERNET_PERCENTAGE=10
 
 ### Activation
 
-The fallback system automatically activates when:
+The primary network cost system automatically activates when:
 - Network traffic is detected in the cluster
-- External network-costs component metrics are missing
+- Provides immediate cost tracking without requiring additional deployments
 
-You'll see this log message when fallback is active:
+You'll see this log message when the system is active:
 ```
-Network traffic detected but external network-costs metrics missing. Using fallback network cost estimation based on container_network_transmit_bytes_total. Deploy network-costs component for detailed zone/region/internet network cost tracking.
+Network traffic detected. Using percentage-based network cost estimation based on container_network_transmit_bytes_total with configurable traffic distribution ratios.
 ```
 
-## Full Network-Costs Component
+## Alternative Network-Costs Component
 
-The network-costs component provides detailed, accurate network cost tracking by accessing kernel-level networking information.
+A separate network-costs component exists that claims to provide detailed network cost tracking through kernel-level access, though integration and availability details are unclear.
 
-### Features
+### Features (Component-Specific)
 
-- Precise zone/region/internet traffic classification
-- Kernel-level network metrics collection
-- Integration with cloud provider pricing APIs
-- Enhanced accuracy over percentage-based estimation
-- Detailed per-pod network cost breakdowns
+- Claims precise zone/region/internet traffic classification
+- Requires kernel-level network metrics collection
+- May integrate with cloud provider pricing APIs
+- Alternative approach to percentage-based estimation
+- Provides per-pod network cost breakdowns when properly configured
 
 ### Deployment
 
@@ -209,45 +210,52 @@ subjects:
 
 ## Comparison
 
-| Feature | Fallback | Full Component |
-|---------|----------|----------------|
+| Feature | Primary Solution | Alternative Component |
+|---------|------------------|----------------------|
 | **Setup** | Automatic | Manual deployment required |
-| **Accuracy** | Estimated (percentage-based) | Precise (kernel-level) |
+| **Accuracy** | Configurable (user-customizable ratios) | Claims kernel-level precision |
 | **Operational Overhead** | None | DaemonSet management |
 | **Resource Usage** | Minimal | ~50m CPU, ~20Mi Memory per node |
-| **Cloud Provider Integration** | Basic rates | Full pricing API integration |
-| **Traffic Classification** | Percentage distribution | Actual zone/region/internet detection |
+| **Cloud Provider Integration** | Configurable rates | May support pricing API integration |
+| **Traffic Classification** | User-customizable percentage distribution | Claims actual zone/region/internet detection |
 | **Dependencies** | None (uses cAdvisor) | Privileged DaemonSet access |
-| **Suitable For** | Quick setup, reasonable estimates | Production, detailed cost tracking |
+| **Availability** | Open source, included | Separate component (unclear availability) |
+| **Suitable For** | All deployments, customizable precision | Specialized use cases requiring kernel access |
 
-## Migration Guide
+## Customization Guide
 
-### From Fallback to Full Component
+### Optimizing Traffic Distribution Ratios
 
-1. **Deploy network-costs component** using the deployment instructions above
-2. **Verify component is working** using the verification steps
-3. **Monitor transition** - OpenCost will automatically switch when external metrics are detected
-4. **Remove fallback configuration** (optional) - environment variables can be left for backup
+1. **Analyze your historical traffic patterns** using your cloud provider's networking dashboards
+2. **Adjust percentage ratios** based on actual zone/region/internet distribution
+3. **Test configuration** using the verification steps below
+4. **Monitor cost accuracy** and fine-tune ratios as needed
 
 ### Configuration Testing
 
-Test your network cost configuration:
+Test and optimize your network cost configuration:
 
 ```bash
-# Check if percentages sum to 100% (fallback only)
+# Check if percentages sum to 100%
 echo "Zone: $NETWORK_COST_FALLBACK_ZONE_PERCENTAGE%"
 echo "Region: $NETWORK_COST_FALLBACK_REGION_PERCENTAGE%"  
 echo "Internet: $NETWORK_COST_FALLBACK_INTERNET_PERCENTAGE%"
 
 # Verify OpenCost logs for network cost messages
 kubectl logs -n opencost deployment/opencost | grep -i network
+
+# Example: Customize ratios based on your traffic analysis
+# If your historical data shows 60% zone, 25% region, 15% internet:
+export NETWORK_COST_FALLBACK_ZONE_PERCENTAGE=60
+export NETWORK_COST_FALLBACK_REGION_PERCENTAGE=25  
+export NETWORK_COST_FALLBACK_INTERNET_PERCENTAGE=15
 ```
 
 ## Troubleshooting
 
-### Fallback Issues
+### Primary Solution Issues
 
-**Problem**: Network costs showing as zero with fallback
+**Problem**: Network costs showing as zero
 - **Check**: `container_network_transmit_bytes_total` metric availability
 - **Verify**: Percentages sum to 100%
 - **Review**: OpenCost logs for configuration warnings
@@ -255,8 +263,9 @@ kubectl logs -n opencost deployment/opencost | grep -i network
 **Problem**: Invalid percentage configuration
 - **Fix**: Ensure `ZONE + REGION + INTERNET = 100%`
 - **Example**: 70% + 20% + 10% = 100%
+- **Tip**: Base percentages on your actual traffic distribution analysis
 
-### Full Component Issues
+### Alternative Component Issues
 
 **Problem**: network-costs pods not starting
 - **Check**: Node has sufficient privileges for kernel access
@@ -270,11 +279,11 @@ kubectl logs -n opencost deployment/opencost | grep -i network
 
 ## Best Practices
 
-1. **Start with fallback** for immediate functionality
-2. **Deploy full component** for production accuracy
-3. **Monitor resource usage** and set appropriate CPU limits
+1. **Use the primary solution** for immediate, configurable network cost tracking
+2. **Customize traffic ratios** based on your historical traffic analysis
+3. **Monitor and adjust** percentages as your traffic patterns evolve
 4. **Validate configuration** before production deployment
-5. **Keep both options** - fallback serves as backup if component fails
+5. **Leverage user configurability** - this system provides flexibility to match your specific traffic distribution
 
 ## Cloud Provider Specific Notes
 
