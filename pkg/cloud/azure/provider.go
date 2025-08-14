@@ -852,6 +852,7 @@ func (az *Azure) DownloadPricingData() error {
 
 	// create a preparer (the same way rcClient.Get() does) so that we can log the azureRateCard URL
 	log.Infof("Using azureRateCard query %s", rateCardFilter)
+	log.Infof("Azure config - OfferDurableID: %s, CurrencyCode: %s, BillingRegion: %s", config.AzureOfferDurableID, config.CurrencyCode, config.AzureBillingRegion)
 	rcPreparer, err := rcClient.GetPreparer(context.TODO(), rateCardFilter)
 	if err != nil {
 		// this isn't an error that necessitates a return, as we only need the preparer for an informational log
@@ -1514,7 +1515,14 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 }
 
 func (az *Azure) UpdateConfigFromConfigMap(a map[string]string) (*models.CustomPricing, error) {
-	return az.Config.UpdateFromMap(a)
+	log.Infof("Azure provider updating config from configmap with %d entries", len(a))
+	result, err := az.Config.UpdateFromMap(a)
+	if err != nil {
+		log.Errorf("Failed to update Azure config from configmap: %s", err.Error())
+	} else {
+		log.Infof("Successfully updated Azure config from configmap")
+	}
+	return result, err
 }
 
 func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*models.CustomPricing, error) {

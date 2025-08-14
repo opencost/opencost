@@ -128,6 +128,9 @@ func Execute(opts *AgentOpts) error {
 	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
 	configWatchers.Watch()
 
+	// Give the config watcher a moment to process the initial config
+	time.Sleep(100 * time.Millisecond)
+
 	// Initialize cluster exporting if it's enabled
 	if env.IsExportClusterCacheEnabled() {
 		cacheLocation := confManager.ConfigFileAt(env.GetClusterCacheFilePath())
