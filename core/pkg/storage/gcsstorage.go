@@ -111,7 +111,7 @@ func (gs *GCSStorage) Stat(name string) (*StorageInfo, error) {
 
 // isDoesNotExist returns true if the error matches resource not exists errors.
 func (gs *GCSStorage) isDoesNotExist(err error) bool {
-	return strings.HasPrefix(err.Error(), gcs.ErrObjectNotExist.Error())
+	return errors.Is(err, gcs.ErrObjectNotExist)
 }
 
 // Read uses the relative path of the storage combined with the provided path to
