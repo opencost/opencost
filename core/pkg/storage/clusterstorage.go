@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -112,7 +114,7 @@ func (c *ClusterStorage) makeRequest(method, url string, body io.Reader, fn func
 
 	if !(resp.StatusCode >= 200 && resp.StatusCode <= 299) {
 		if resp.Body != nil {
-			var errResp Response[*struct{}]
+			var errResp Response[any]
 			err = json.NewDecoder(resp.Body).Decode(&errResp)
 			if err == nil {
 				return fmt.Errorf("invalid response %d: %s", resp.StatusCode, errResp.Message)
@@ -130,10 +132,28 @@ func (c *ClusterStorage) makeRequest(method, url string, body io.Reader, fn func
 	return nil
 }
 
+func (c *ClusterStorage) getURL(subpath string, args map[string]string) string {
+	pathElems := strings.Split(subpath, "/")
+	u := new(url.URL)
+	u.Scheme = c.scheme()
+	u.Host = net.JoinHostPort(c.host, fmt.Sprintf("%d", c.port))
+	u = u.JoinPath(pathElems...)
+
+	q := make(url.Values)
+	for k, v := range args {
+		q.Set(k, v)
+	}
+
+	rawQuery, _ := url.QueryUnescape(q.Encode())
+	u.RawQuery = rawQuery
+
+	return u.String() // <-- full URL string
+}
+
 func (c *ClusterStorage) check() error {
 	err := c.makeRequest(
 		http.MethodGet,
-		fmt.Sprintf("%s://%s:%d/healthz", c.scheme(), c.host, c.port),
+		c.getURL("healthz", nil),
 		nil,
 		nil,
 	)
@@ -169,9 +189,13 @@ func (c *ClusterStorage) FullPath(path string) string {
 		return nil
 	}
 
+	args := map[string]string{
+		"path": path,
+	}
+
 	err := c.makeRequest(
 		http.MethodGet,
-		fmt.Sprintf("%s://%s:%d/clusterStorage/fullPath?path=%s", c.scheme(), c.host, c.port, path),
+		c.getURL("clusterStorage/fullPath", args),
 		nil,
 		fn,
 	)
@@ -198,9 +222,13 @@ func (c *ClusterStorage) Stat(path string) (*StorageInfo, error) {
 		return nil
 	}
 
+	args := map[string]string{
+		"path": path,
+	}
+
 	err := c.makeRequest(
 		http.MethodGet,
-		fmt.Sprintf("%s://%s:%d/clusterStorage/stat?path=%s", c.scheme(), c.host, c.port, path),
+		c.getURL("clusterStorage/stat", args),
 		nil,
 		fn,
 	)
@@ -221,9 +249,13 @@ func (c *ClusterStorage) Read(path string) ([]byte, error) {
 		return nil
 	}
 
+	args := map[string]string{
+		"path": path,
+	}
+
 	err := c.makeRequest(
 		http.MethodGet,
-		fmt.Sprintf("%s://%s:%d/clusterStorage/read?path=%s", c.scheme(), c.host, c.port, path),
+		c.getURL("clusterStorage/read", args),
 		nil,
 		fn,
 	)
@@ -239,9 +271,13 @@ func (c *ClusterStorage) Write(path string, data []byte) error {
 		return nil
 	}
 
+	args := map[string]string{
+		"path": path,
+	}
+
 	err := c.makeRequest(
 		http.MethodPut,
-		fmt.Sprintf("%s://%s:%d/clusterStorage/write?path=%s", c.scheme(), c.host, c.port, path),
+		c.getURL("clusterStorage/write", args),
 		bytes.NewReader(data),
 		fn,
 	)
@@ -257,9 +293,13 @@ func (c *ClusterStorage) Remove(path string) error {
 		return nil
 	}
 
+	args := map[string]string{
+		"path": path,
+	}
+
 	err := c.makeRequest(
 		http.MethodDelete,
-		fmt.Sprintf("%s://%s:%d/clusterStorage/remove?path=%s", c.scheme(), c.host, c.port, path),
+		c.getURL("clusterStorage/remove", args),
 		nil,
 		fn,
 	)
@@ -280,9 +320,13 @@ func (c *ClusterStorage) Exists(path string) (bool, error) {
 		return nil
 	}
 
+	args := map[string]string{
+		"path": path,
+	}
+
 	err := c.makeRequest(
 		http.MethodGet,
-		fmt.Sprintf("%s://%s:%d/clusterStorage/exists?path=%s", c.scheme(), c.host, c.port, path),
+		c.getURL("clusterStorage/exists", args),
 		nil,
 		fn,
 	)
@@ -303,9 +347,13 @@ func (c *ClusterStorage) List(path string) ([]*StorageInfo, error) {
 		return nil
 	}
 
+	args := map[string]string{
+		"path": path,
+	}
+
 	err := c.makeRequest(
 		http.MethodGet,
-		fmt.Sprintf("%s://%s:%d/clusterStorage/list?path=%s", c.scheme(), c.host, c.port, path),
+		c.getURL("clusterStorage/list", args),
 		nil,
 		fn,
 	)
@@ -326,9 +374,13 @@ func (c *ClusterStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 		return nil
 	}
 
+	args := map[string]string{
+		"path": path,
+	}
+
 	err := c.makeRequest(
 		http.MethodGet,
-		fmt.Sprintf("%s://%s:%d/clusterStorage/listDirectories?path=%s", c.scheme(), c.host, c.port, path),
+		c.getURL("clusterStorage/listDirectories", args),
 		nil,
 		fn,
 	)
