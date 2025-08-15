@@ -669,3 +669,189 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 		})
 	}
 }
+
+func TestAthenaConfiguration_Sanitize(t *testing.T) {
+	testCases := map[string]struct {
+		config   AthenaConfiguration
+		expected AthenaConfiguration
+	}{
+		"sanitize with access key": {
+			config: AthenaConfiguration{
+				Bucket:    "test-bucket",
+				Region:    "us-west-2",
+				Database:  "test-db",
+				Catalog:   "test-catalog",
+				Table:     "test-table",
+				Workgroup: "test-workgroup",
+				Account:   "123456789012",
+				Authorizer: &AccessKey{
+					ID:     "test-id",
+					Secret: "test-secret",
+				},
+			},
+			expected: AthenaConfiguration{
+				Bucket:    "test-bucket",
+				Region:    "us-west-2",
+				Database:  "test-db",
+				Catalog:   "test-catalog",
+				Table:     "test-table",
+				Workgroup: "test-workgroup",
+				Account:   "123456789012",
+				Authorizer: &AccessKey{
+					ID:     "test-id",
+					Secret: "test-secret",
+				},
+			},
+		},
+		"sanitize with service account": {
+			config: AthenaConfiguration{
+				Bucket:     "test-bucket",
+				Region:     "us-east-1",
+				Database:   "test-db",
+				Table:      "test-table",
+				Workgroup:  "test-workgroup",
+				Account:    "123456789012",
+				Authorizer: &ServiceAccount{},
+			},
+			expected: AthenaConfiguration{
+				Bucket:     "test-bucket",
+				Region:     "us-east-1",
+				Database:   "test-db",
+				Table:      "test-table",
+				Workgroup:  "test-workgroup",
+				Account:    "123456789012",
+				Authorizer: &ServiceAccount{},
+			},
+		},
+		"sanitize with assume role": {
+			config: AthenaConfiguration{
+				Bucket:    "test-bucket",
+				Region:    "eu-west-1",
+				Database:  "test-db",
+				Table:     "test-table",
+				Workgroup: "test-workgroup",
+				Account:   "123456789012",
+				Authorizer: &AssumeRole{
+					Authorizer: &ServiceAccount{},
+					RoleARN:    "arn:aws:iam::123456789012:role/test-role",
+				},
+			},
+			expected: AthenaConfiguration{
+				Bucket:    "test-bucket",
+				Region:    "eu-west-1",
+				Database:  "test-db",
+				Table:     "test-table",
+				Workgroup: "test-workgroup",
+				Account:   "123456789012",
+				Authorizer: &AssumeRole{
+					Authorizer: &ServiceAccount{},
+					RoleARN:    "arn:aws:iam::123456789012:role/test-role",
+				},
+			},
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			result := testCase.config.Sanitize()
+			
+			// Type assert the result
+			athenaConfig, ok := result.(*AthenaConfiguration)
+			if !ok {
+				t.Fatalf("expected *AthenaConfiguration, got %T", result)
+			}
+
+			// Compare the sanitized config with expected
+			if athenaConfig.Bucket != testCase.expected.Bucket {
+				t.Errorf("Bucket mismatch: got %s, want %s", athenaConfig.Bucket, testCase.expected.Bucket)
+			}
+			if athenaConfig.Region != testCase.expected.Region {
+				t.Errorf("Region mismatch: got %s, want %s", athenaConfig.Region, testCase.expected.Region)
+			}
+			if athenaConfig.Database != testCase.expected.Database {
+				t.Errorf("Database mismatch: got %s, want %s", athenaConfig.Database, testCase.expected.Database)
+			}
+			if athenaConfig.Catalog != testCase.expected.Catalog {
+				t.Errorf("Catalog mismatch: got %s, want %s", athenaConfig.Catalog, testCase.expected.Catalog)
+			}
+			if athenaConfig.Table != testCase.expected.Table {
+				t.Errorf("Table mismatch: got %s, want %s", athenaConfig.Table, testCase.expected.Table)
+			}
+			if athenaConfig.Workgroup != testCase.expected.Workgroup {
+				t.Errorf("Workgroup mismatch: got %s, want %s", athenaConfig.Workgroup, testCase.expected.Workgroup)
+			}
+			if athenaConfig.Account != testCase.expected.Account {
+				t.Errorf("Account mismatch: got %s, want %s", athenaConfig.Account, testCase.expected.Account)
+			}
+			
+			// Verify that the authorizer was also sanitized
+			if athenaConfig.Authorizer == nil {
+				t.Error("Authorizer should not be nil after sanitization")
+			}
+		})
+	}
+}
+
+func TestAthenaConfiguration_Provider(t *testing.T) {
+	config := AthenaConfiguration{
+		Bucket:     "test-bucket",
+		Region:     "us-west-2",
+		Database:   "test-db",
+		Table:      "test-table",
+		Workgroup:  "test-workgroup",
+		Account:    "123456789012",
+		Authorizer: &ServiceAccount{},
+	}
+
+	provider := config.Provider()
+	expectedProvider := "AWS"
+	
+	if provider != expectedProvider {
+		t.Errorf("Provider() returned %s, expected %s", provider, expectedProvider)
+	}
+}
+
+func TestAthenaConfiguration_Key(t *testing.T) {
+	testCases := map[string]struct {
+		config   AthenaConfiguration
+		expected string
+	}{
+		"standard key": {
+			config: AthenaConfiguration{
+				Account: "123456789012",
+				Bucket:  "test-bucket",
+			},
+			expected: "123456789012/test-bucket",
+		},
+		"empty account": {
+			config: AthenaConfiguration{
+				Account: "",
+				Bucket:  "test-bucket",
+			},
+			expected: "/test-bucket",
+		},
+		"empty bucket": {
+			config: AthenaConfiguration{
+				Account: "123456789012",
+				Bucket:  "",
+			},
+			expected: "123456789012/",
+		},
+		"both empty": {
+			config: AthenaConfiguration{
+				Account: "",
+				Bucket:  "",
+			},
+			expected: "/",
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			result := testCase.config.Key()
+			if result != testCase.expected {
+				t.Errorf("Key() returned %s, expected %s", result, testCase.expected)
+			}
+		})
+	}
+}
