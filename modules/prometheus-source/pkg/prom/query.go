@@ -174,10 +174,7 @@ func (ctx *Context) QuerySync(query string) ([]*source.QueryResult, v1.Warnings,
 		return nil, warnings, err
 	}
 
-	// create result keys from custom cluster label
-	resultKeys := source.ClusterKeyWithDefaults(ctx.config.ClusterLabel)
-
-	results := NewQueryResults(query, raw, resultKeys)
+	results := NewQueryResults(query, raw, ctx.config.LabelMapping)
 	if results.Error != nil {
 		return nil, warnings, results.Error
 	}
@@ -204,9 +201,7 @@ func runQuery(query string, ctx *Context, resCh source.QueryResultsChan, t time.
 	if requestError != nil {
 		results = NewQueryResultError(query, requestError)
 	} else {
-		// create result keys from custom cluster label
-		resultKeys := source.ClusterKeyWithDefaults(ctx.config.ClusterLabel)
-		results = NewQueryResults(query, raw, resultKeys)
+		results = NewQueryResults(query, raw, ctx.config.LabelMapping)
 
 		parseError = results.Error
 	}
@@ -329,9 +324,7 @@ func (ctx *Context) QueryRangeSync(query string, start, end time.Time, step time
 		return nil, warnings, err
 	}
 
-	// create result keys from custom cluster label
-	resultKeys := source.ClusterKeyWithDefaults(ctx.config.ClusterLabel)
-	results := NewQueryResults(query, raw, resultKeys)
+	results := NewQueryResults(query, raw, ctx.config.LabelMapping)
 	if results.Error != nil {
 		return nil, warnings, results.Error
 	}
@@ -358,9 +351,7 @@ func runQueryRange(query string, start, end time.Time, step time.Duration, ctx *
 	if requestError != nil {
 		results = NewQueryResultError(query, requestError)
 	} else {
-		// create result keys from custom cluster label
-		resultKeys := source.ClusterKeyWithDefaults(ctx.config.ClusterLabel)
-		results = NewQueryResults(query, raw, resultKeys)
+		results = NewQueryResults(query, raw, ctx.config.LabelMapping)
 
 		parseError = results.Error
 	}

@@ -3,6 +3,7 @@ package prom
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	prometheus "github.com/prometheus/client_golang/api"
@@ -45,15 +46,15 @@ func ScrapeIntervalFor(client prometheus.Client, jobName string) (time.Duration,
 	}
 
 	for _, sc := range cfg.ScrapeConfigs {
-		if sc.JobName == jobName {
+		if strings.EqualFold(sc.JobName, jobName) {
 			if sc.ScrapeInterval != "" {
 				si := sc.ScrapeInterval
 				sid, err := time.ParseDuration(si)
 				if err != nil {
 					return 0, fmt.Errorf("Error parsing scrape config for %s", sc.JobName)
-				} else {
-					return sid, nil
 				}
+
+				return sid, nil
 			}
 		}
 	}

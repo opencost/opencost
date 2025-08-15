@@ -70,7 +70,7 @@ func NewQueryResultError(query string, err error) *source.QueryResults {
 
 // NewQueryResults accepts the raw prometheus query result and returns an array of
 // QueryResult objects
-func NewQueryResults(query string, queryResult interface{}, resultKeys *source.ResultKeys) *source.QueryResults {
+func NewQueryResults(query string, queryResult interface{}, fieldMapper source.FieldMapper) *source.QueryResults {
 	qrs := source.NewQueryResults(query)
 
 	if queryResult == nil {
@@ -179,7 +179,7 @@ func NewQueryResults(query string, queryResult interface{}, resultKeys *source.R
 			}
 		}
 
-		results = append(results, source.NewQueryResult(metricMap, vectors, resultKeys))
+		results = append(results, source.NewQueryResult(metricMap, vectors, fieldMapper))
 	}
 
 	qrs.Results = results

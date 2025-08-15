@@ -12,7 +12,7 @@ const UpQuery = "up"
 // opencost.
 type PrometheusMetadata struct {
 	Running            bool `json:"running"`
-	KubecostDataExists bool `json:"kubecostDataExists"`
+	OpencostDataExists bool `json:"kubecostDataExists"`
 }
 
 // Validate tells the model what data prometheus has on it.
@@ -36,14 +36,14 @@ func validate(cli prometheus.Client, q string, config *OpenCostPrometheusConfig)
 	if err != nil {
 		return &PrometheusMetadata{
 			Running:            false,
-			KubecostDataExists: false,
+			OpencostDataExists: false,
 		}, err
 	}
 
 	if len(resUp) == 0 {
 		return &PrometheusMetadata{
 			Running:            false,
-			KubecostDataExists: false,
+			OpencostDataExists: false,
 		}, fmt.Errorf("no running jobs on Prometheus at %s", ctx.QueryURL().Path)
 	}
 
@@ -63,7 +63,7 @@ func validate(cli prometheus.Client, q string, config *OpenCostPrometheusConfig)
 		if job == config.JobName {
 			return &PrometheusMetadata{
 				Running:            true,
-				KubecostDataExists: true,
+				OpencostDataExists: true,
 			}, err
 		}
 	}
@@ -71,12 +71,12 @@ func validate(cli prometheus.Client, q string, config *OpenCostPrometheusConfig)
 	if !running {
 		return &PrometheusMetadata{
 			Running:            false,
-			KubecostDataExists: false,
+			OpencostDataExists: false,
 		}, fmt.Errorf("up query does not have job names")
 	}
 
 	return &PrometheusMetadata{
 		Running:            true,
-		KubecostDataExists: false,
+		OpencostDataExists: false,
 	}, nil
 }

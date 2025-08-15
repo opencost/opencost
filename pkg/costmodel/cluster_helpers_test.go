@@ -750,7 +750,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 							Value:     0,
 						},
 					},
-					source.DefaultResultKeys(),
+					source.NewNoOpFieldMapper(),
 				),
 			},
 			countMap: map[NodeIdentifier]float64{
@@ -784,7 +784,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 							Value:     2,
 						},
 					},
-					source.DefaultResultKeys(),
+					source.NewNoOpFieldMapper(),
 				),
 			},
 			countMap: map[NodeIdentifier]float64{
@@ -818,7 +818,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 							Value:     2,
 						},
 					},
-					source.DefaultResultKeys(),
+					source.NewNoOpFieldMapper(),
 				),
 			},
 			countMap: map[NodeIdentifier]float64{},
@@ -858,7 +858,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 							Value:     2,
 						},
 					},
-					source.DefaultResultKeys(),
+					source.NewNoOpFieldMapper(),
 				),
 			},
 			countMap: map[NodeIdentifier]float64{
@@ -915,7 +915,7 @@ func TestAssetCustompricing(t *testing.T) {
 					Value:     0.5,
 				},
 			},
-			source.DefaultResultKeys(),
+			source.NewNoOpFieldMapper(),
 		),
 	}
 
@@ -932,7 +932,7 @@ func TestAssetCustompricing(t *testing.T) {
 					Value:     1.0,
 				},
 			},
-			source.DefaultResultKeys(),
+			source.NewNoOpFieldMapper(),
 		),
 	}
 
@@ -949,7 +949,7 @@ func TestAssetCustompricing(t *testing.T) {
 					Value:     1073741824.0,
 				},
 			},
-			source.DefaultResultKeys(),
+			source.NewNoOpFieldMapper(),
 		),
 	}
 
@@ -970,7 +970,7 @@ func TestAssetCustompricing(t *testing.T) {
 					Value:     1.0,
 				},
 			},
-			source.DefaultResultKeys(),
+			source.NewNoOpFieldMapper(),
 		),
 	}
 
@@ -991,7 +991,7 @@ func TestAssetCustompricing(t *testing.T) {
 					Value:     1.0,
 				},
 			},
-			source.DefaultResultKeys(),
+			source.NewNoOpFieldMapper(),
 		),
 	}
 
@@ -1012,7 +1012,7 @@ func TestAssetCustompricing(t *testing.T) {
 					Value:     1.0,
 				},
 			},
-			source.DefaultResultKeys(),
+			source.NewNoOpFieldMapper(),
 		),
 	}
 
@@ -1030,7 +1030,7 @@ func TestAssetCustompricing(t *testing.T) {
 					Value:     1.0,
 				},
 			},
-			source.DefaultResultKeys(),
+			source.NewNoOpFieldMapper(),
 		),
 	}
 
@@ -1158,7 +1158,7 @@ func TestBuildLabelsMap(t *testing.T) {
 					Value:     0.5,
 				},
 			},
-			source.DefaultResultKeys(),
+			source.NewNoOpFieldMapper(),
 		),
 		source.NewQueryResult(
 			map[string]interface{}{
@@ -1175,7 +1175,7 @@ func TestBuildLabelsMap(t *testing.T) {
 					Value:     0.5,
 				},
 			},
-			source.DefaultResultKeys(),
+			source.NewNoOpFieldMapper(),
 		),
 	}
 

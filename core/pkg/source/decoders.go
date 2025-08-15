@@ -11,6 +11,7 @@ const (
 	InstanceLabel        = "instance"
 	InstanceTypeLabel    = "instance_type"
 	ContainerLabel       = "container"
+	ContainerNameLabel   = "container_name"
 	PodLabel             = "pod"
 	PodNameLabel         = "pod_name"
 	ProviderIDLabel      = "provider_id"

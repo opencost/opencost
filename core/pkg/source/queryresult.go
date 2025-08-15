@@ -24,54 +24,6 @@ func (qrc QueryResultsChan) Await() ([]*QueryResult, error) {
 	return results.Results, nil
 }
 
-// ResultKeys is a "configuration" struct that contains the keys/labels used to resolve labeled query
-// results. ResultKeys can be defined with every QueryResults instance if necessary, and alter the keys
-// used to fetch results when calling the following methods on QueryResults:
-//
-//	GetCluster()
-//	GetNamespace()
-//	GetNode()
-//	GetInstance()
-//	GetInstanceType()
-//	GetContainer()
-//	GetPod()
-//	GetProviderID()
-//	GetDevice()
-type ResultKeys struct {
-	ClusterKey      string
-	NamespaceKey    string
-	NodeKey         string
-	InstanceKey     string
-	InstanceTypeKey string
-	ContainerKey    string
-	PodKey          string
-	ProviderIDKey   string
-	DeviceKey       string
-}
-
-// DefaultResultKeys returns a new ResultKeys instance with typical default values.
-func DefaultResultKeys() *ResultKeys {
-	return &ResultKeys{
-		ClusterKey:      ClusterIDLabel,
-		NamespaceKey:    NamespaceLabel,
-		NodeKey:         NodeLabel,
-		InstanceKey:     InstanceLabel,
-		InstanceTypeKey: InstanceTypeLabel,
-		ContainerKey:    ContainerLabel,
-		PodKey:          PodLabel,
-		ProviderIDKey:   ProviderIDLabel,
-		DeviceKey:       DeviceLabel,
-	}
-}
-
-// ClusterKeyWithDefaults returns a new ResultKeys instance with the provided cluster key and the
-// rest of the keys set to their default values.
-func ClusterKeyWithDefaults(clusterKey string) *ResultKeys {
-	keys := DefaultResultKeys()
-	keys.ClusterKey = clusterKey
-	return keys
-}
-
 // QueryResults contains all of the query results and the source query string.
 type QueryResults struct {
 	Query   string
@@ -91,75 +43,80 @@ type QueryResult struct {
 	Metric map[string]interface{} `json:"metric"`
 	Values []*util.Vector         `json:"values"`
 
-	keys *ResultKeys
+	// field mapper resolves the lookup keys for a specific field
+	fieldMapper FieldMapper
 }
 
-func NewQueryResult(metrics map[string]any, values []*util.Vector, keys *ResultKeys) *QueryResult {
+func NewQueryResult(metrics map[string]any, values []*util.Vector, keys FieldMapper) *QueryResult {
 	if keys == nil {
-		keys = DefaultResultKeys()
+		keys = NewNoOpFieldMapper()
 	}
 
 	return &QueryResult{
-		Metric: metrics,
-		Values: values,
-		keys:   keys,
+		Metric:      metrics,
+		Values:      values,
+		fieldMapper: keys,
 	}
 }
 
 func (qr *QueryResult) GetCluster() (string, error) {
-	return qr.GetString(qr.keys.ClusterKey)
+	labels := qr.fieldMapper.LabelsFor(ClusterIDLabel)
+	return qr.firstOf(labels...)
 }
 
 func (qr *QueryResult) GetNamespace() (string, error) {
-	return qr.GetString(qr.keys.NamespaceKey)
+	labels := qr.fieldMapper.LabelsFor(NamespaceLabel)
+	return qr.firstOf(labels...)
 }
 
 func (qr *QueryResult) GetNode() (string, error) {
-	return qr.GetString(qr.keys.NodeKey)
+	labels := qr.fieldMapper.LabelsFor(NodeLabel)
+	return qr.firstOf(labels...)
 }
 
 func (qr *QueryResult) GetInstance() (string, error) {
-	return qr.GetString(qr.keys.InstanceKey)
+	labels := qr.fieldMapper.LabelsFor(InstanceLabel)
+	return qr.firstOf(labels...)
 }
 
 func (qr *QueryResult) GetInstanceType() (string, error) {
-	return qr.GetString(qr.keys.InstanceTypeKey)
+	labels := qr.fieldMapper.LabelsFor(InstanceTypeLabel)
+	return qr.firstOf(labels...)
 }
 
 func (qr *QueryResult) GetContainer() (string, error) {
-	value, err := qr.GetString(qr.keys.ContainerKey)
-	if value == "" || err != nil {
-		alternate, e := qr.GetString(qr.keys.ContainerKey + "_name")
-		if alternate == "" || e != nil {
-			return "", fmt.Errorf("'%s' and '%s' fields do not exist in data result vector", qr.keys.ContainerKey, qr.keys.ContainerKey+"_name")
-		}
-		return alternate, nil
-	}
-	return value, nil
+	labels := qr.fieldMapper.LabelsFor(ContainerLabel)
+	return qr.firstOf(labels...)
 }
 
 func (qr *QueryResult) GetPod() (string, error) {
-	value, err := qr.GetString(qr.keys.PodKey)
-	if value == "" || err != nil {
-		alternate, e := qr.GetString(qr.keys.PodKey + "_name")
-		if alternate == "" || e != nil {
-			return "", fmt.Errorf("'%s' and '%s' fields do not exist in data result vector", qr.keys.PodKey, qr.keys.PodKey+"_name")
-		}
-		return alternate, nil
-	}
-	return value, nil
+	labels := qr.fieldMapper.LabelsFor(PodLabel)
+	return qr.firstOf(labels...)
 }
 
 func (qr *QueryResult) GetProviderID() (string, error) {
-	return qr.GetString(qr.keys.ProviderIDKey)
+	labels := qr.fieldMapper.LabelsFor(ProviderIDLabel)
+	return qr.firstOf(labels...)
 }
 
 func (qr *QueryResult) GetDevice() (string, error) {
-	return qr.GetString(qr.keys.DeviceKey)
+	labels := qr.fieldMapper.LabelsFor(DeviceLabel)
+	return qr.firstOf(labels...)
 }
 
-// GetString returns the requested field, or an error if it does not exist
-func (qr *QueryResult) GetString(field string) (string, error) {
+// firstOf returns the first non-empty getResolvedString result from the provided list of fields
+func (qr *QueryResult) firstOf(fields ...string) (string, error) {
+	for _, field := range fields {
+		value, err := qr.getResolvedString(field)
+		if value != "" && err == nil {
+			return value, nil
+		}
+	}
+	return "", fmt.Errorf("none of the fields %v exist in data result vector", fields)
+}
+
+// getResolvedString returns the requested field, or an error if it does not exist
+func (qr *QueryResult) getResolvedString(field string) (string, error) {
 	f, ok := qr.Metric[field]
 	if !ok {
 		return "", fmt.Errorf("'%s' field does not exist in data result vector", field)
@@ -173,19 +130,26 @@ func (qr *QueryResult) GetString(field string) (string, error) {
 	return strField, nil
 }
 
+// GetString returns the requested field, or an error if it does not exist
+func (qr *QueryResult) GetString(field string) (string, error) {
+	// attempt to resolve the provided field. if we fail, assume the field is resolved!
+	fields, err := qr.fieldMapper.Resolve(field)
+	if err != nil {
+		return qr.getResolvedString(field)
+	}
+
+	// otherwise, return the first resolved field
+	return qr.firstOf(fields...)
+}
+
 // GetStrings returns the requested fields, or an error if it does not exist
 func (qr *QueryResult) GetStrings(fields ...string) (map[string]string, error) {
 	values := map[string]string{}
 
 	for _, field := range fields {
-		f, ok := qr.Metric[field]
-		if !ok {
-			return nil, fmt.Errorf("'%s' field does not exist in data result vector", field)
-		}
-
-		value, ok := f.(string)
-		if !ok {
-			return nil, fmt.Errorf("'%s' field is improperly formatted and cannot be converted to string", field)
+		value, err := qr.GetString(field)
+		if err != nil {
+			return nil, err
 		}
 
 		values[field] = value

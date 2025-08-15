@@ -7,6 +7,7 @@ import (
 
 	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/modules/prometheus-source/pkg/env"
 
 	restclient "k8s.io/client-go/rest"
@@ -16,6 +17,48 @@ import (
 const (
 	ServiceCA = `/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt`
 )
+
+func NewPrometheusLabelMappingFromEnv() source.FieldMapper {
+	check := func(err error) {
+		if err != nil {
+			panic(fmt.Sprintf("Failed to create PrometheusLabelMapping from environment: %s", err))
+		}
+	}
+
+	rfm := source.NewReverseFieldMapper()
+	check(rfm.Set(source.ClusterIDLabel, env.GetPromClusterLabel()))
+	check(rfm.Set(source.NamespaceLabel, env.GetPromNamespaceLabel()...))
+	check(rfm.Set(source.NodeLabel, env.GetPromNodeLabel()...))
+	check(rfm.Set(source.InstanceLabel, env.GetPromInstanceLabel()...))
+	check(rfm.Set(source.InstanceTypeLabel, env.GetPromInstanceTypeLabel()...))
+	check(rfm.Set(source.ContainerLabel, env.GetPromContainerLabel()...))
+	check(rfm.Set(source.PodLabel, env.GetPromPodLabel()...))
+	check(rfm.Set(source.ProviderIDLabel, env.GetPromProviderIDLabel()...))
+	check(rfm.Set(source.DeviceLabel, env.GetPromDeviceLabel()...))
+	check(rfm.Set(source.PVCLabel, env.GetPromPVCLabel()...))
+	check(rfm.Set(source.PVLabel, env.GetPromPVLabel()...))
+	check(rfm.Set(source.StorageClassLabel, env.GetPromStorageClassLabel()...))
+	check(rfm.Set(source.VolumeNameLabel, env.GetPromVolumeNameLabel()...))
+	check(rfm.Set(source.ServiceLabel, env.GetPromServiceLabel()...))
+	check(rfm.Set(source.IngressIPLabel, env.GetPromIngressIPLabel()...))
+	check(rfm.Set(source.ProvisionerNameLabel, env.GetPromProvisionerNameLabel()...))
+	check(rfm.Set(source.UIDLabel, env.GetPromUIDLabel()...))
+	check(rfm.Set(source.KubernetesNodeLabel, env.GetPromKubernetesNodeLabel()...))
+	check(rfm.Set(source.ModeLabel, env.GetPromModeLabel()...))
+	check(rfm.Set(source.ModelNameLabel, env.GetPromModelNameLabel()...))
+	check(rfm.Set(source.UUIDLabel, env.GetPromUUIDLabel()...))
+	check(rfm.Set(source.ResourceLabel, env.GetPromResourceLabel()...))
+	check(rfm.Set(source.DeploymentLabel, env.GetPromDeploymentLabel()...))
+	check(rfm.Set(source.StatefulSetLabel, env.GetPromStatefulSetLabel()...))
+	check(rfm.Set(source.ReplicaSetLabel, env.GetPromReplicaSetLabel()...))
+	check(rfm.Set(source.OwnerNameLabel, env.GetPromOwnerNameLabel()...))
+	check(rfm.Set(source.OwnerKindLabel, env.GetPromOwnerKindLabel()...))
+	check(rfm.Set(source.UnitLabel, env.GetPromUnitLabel()...))
+	check(rfm.Set(source.InternetLabel, env.GetPromInternetLabel()...))
+	check(rfm.Set(source.SameZoneLabel, env.GetPromSameZoneLabel()...))
+	check(rfm.Set(source.SameRegionLabel, env.GetPromSameRegionLabel()...))
+	return rfm
+}
 
 type OpenCostPrometheusConfig struct {
 	ServerEndpoint        string
@@ -32,6 +75,7 @@ type OpenCostPrometheusConfig struct {
 	ClusterFilter         string
 	DataResolution        time.Duration
 	DataResolutionMinutes int
+	LabelMapping          source.FieldMapper
 }
 
 func (ocpc *OpenCostPrometheusConfig) IsRateLimitRetryEnabled() bool {
@@ -46,7 +90,7 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 	}
 
 	queryConcurrency := env.GetMaxQueryConcurrency()
-	log.Infof("Prometheus Client Max Concurrency set to %d", queryConcurrency)
+	log.Debugf("[Prometheus]: Client Max Concurrency set to: %d", queryConcurrency)
 
 	timeout := env.GetPrometheusQueryTimeout()
 	keepAlive := env.GetPrometheusKeepAlive()
@@ -98,6 +142,8 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 		resolutionMinutes = 1
 	}
 
+	labelMapping := NewPrometheusLabelMappingFromEnv()
+
 	clientConfig := &PrometheusClientConfig{
 		Timeout:               timeout,
 		KeepAlive:             keepAlive,
@@ -126,5 +172,6 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 		ClusterFilter:         clusterFilter,
 		DataResolution:        dataResolution,
 		DataResolutionMinutes: resolutionMinutes,
+		LabelMapping:          labelMapping,
 	}, nil
 }

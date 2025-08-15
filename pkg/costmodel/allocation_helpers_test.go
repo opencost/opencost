@@ -230,7 +230,7 @@ func TestBuildPVMap(t *testing.T) {
 							Value: 0.05,
 						},
 					},
-					source.DefaultResultKeys(),
+					source.NewNoOpFieldMapper(),
 				),
 				source.NewQueryResult(
 					map[string]interface{}{
@@ -242,7 +242,7 @@ func TestBuildPVMap(t *testing.T) {
 							Value: 0.05,
 						},
 					},
-					source.DefaultResultKeys(),
+					source.NewNoOpFieldMapper(),
 				),
 				source.NewQueryResult(
 					map[string]interface{}{
@@ -254,7 +254,7 @@ func TestBuildPVMap(t *testing.T) {
 							Value: 0.03,
 						},
 					},
-					source.DefaultResultKeys(),
+					source.NewNoOpFieldMapper(),
 				),
 				source.NewQueryResult(
 					map[string]interface{}{
@@ -266,7 +266,7 @@ func TestBuildPVMap(t *testing.T) {
 							Value: 0.05,
 						},
 					},
-					source.DefaultResultKeys(),
+					source.NewNoOpFieldMapper(),
 				),
 			},
 			resultsActiveMinutes: []*source.QueryResult{
@@ -289,7 +289,7 @@ func TestBuildPVMap(t *testing.T) {
 							Timestamp: startFloat + (hour * 18),
 						},
 					},
-					source.DefaultResultKeys(),
+					source.NewNoOpFieldMapper(),
 				),
 				source.NewQueryResult(
 					map[string]interface{}{
@@ -313,7 +313,7 @@ func TestBuildPVMap(t *testing.T) {
 							Timestamp: startFloat + (hour * 24),
 						},
 					},
-					source.DefaultResultKeys(),
+					source.NewNoOpFieldMapper(),
 				),
 				source.NewQueryResult(
 					map[string]interface{}{
@@ -331,7 +331,7 @@ func TestBuildPVMap(t *testing.T) {
 							Timestamp: startFloat + (hour * 18),
 						},
 					},
-					source.DefaultResultKeys(),
+					source.NewNoOpFieldMapper(),
 				),
 				source.NewQueryResult(
 					map[string]interface{}{
@@ -352,7 +352,7 @@ func TestBuildPVMap(t *testing.T) {
 							Timestamp: startFloat + (hour * 18),
 						},
 					},
-					source.DefaultResultKeys(),
+					source.NewNoOpFieldMapper(),
 				),
 			},
 			expected: pvMap1NoBytes,

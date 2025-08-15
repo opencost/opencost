@@ -149,7 +149,7 @@ func NewPrometheusDataSource(infoProvider clusters.ClusterInfoProvider, promConf
 		}
 	}
 
-	log.Infof("Using scrape interval of %f", promConfig.ScrapeInterval.Seconds())
+	log.Debugf("[Prometheus]: Resolved Scrape Interval to: %fs", promConfig.ScrapeInterval.Seconds())
 
 	promContexts := NewContextFactory(promClient, promConfig)
 
