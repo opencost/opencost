@@ -22,6 +22,12 @@ const (
 	ServiceSelectorLabels                                 = "service_selector_labels"
 	StatefulSetMatchLabels                                = "statefulSet_match_labels"
 	KubeReplicasetOwner                                   = "kube_replicaset_owner"
+	KubeReplicationControllerInfo                         = "kube_replicationcontroller_info"
+	KubeReplicationControllerSpecReplicas                 = "kube_replicationcontroller_spec_replicas"
+	KubePodDisruptionBudgetInfo                           = "kube_poddisruptionbudget_info"
+	KubePodDisruptionBudgetStatusExpectedPods             = "kube_poddisruptionbudget_status_expected_pods"
+	KubePodDisruptionBudgetStatusCurrentHealthy           = "kube_poddisruptionbudget_status_current_healthy"
+	KubePodDisruptionBudgetStatusDesiredHealthy           = "kube_poddisruptionbudget_status_desired_healthy"
 
 	// DCGM Metrics
 	DCGMFIPROFGRENGINEACTIVE = "DCGM_FI_PROF_GR_ENGINE_ACTIVE"

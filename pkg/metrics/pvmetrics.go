@@ -72,7 +72,8 @@ func (kpvcb KubePVCollector) Collect(ch chan<- prometheus.Metric) {
 			if pv.Spec.CSI != nil && pv.Spec.CSI.VolumeHandle != "" {
 				providerID = pv.Spec.CSI.VolumeHandle
 			}
-			m := newKubecostPVInfoMetric("kubecost_pv_info", pv.Name, storageClass, providerID, float64(1))
+			pvUID := string(pv.UID)
+			m := newKubecostPVInfoMetric("kubecost_pv_info", pv.Name, storageClass, providerID, pvUID, float64(1))
 			ch <- m
 		}
 	}
@@ -192,10 +193,11 @@ type KubecostPVInfoMetric struct {
 	storageClass string
 	value        float64
 	providerId   string
+	uid          string
 }
 
 // Creates a new newKubecostPVInfoMetric, implementation of prometheus.Metric
-func newKubecostPVInfoMetric(fqname, pv, storageClass, providerID string, value float64) KubecostPVInfoMetric {
+func newKubecostPVInfoMetric(fqname, pv, storageClass, providerID, uid string, value float64) KubecostPVInfoMetric {
 	return KubecostPVInfoMetric{
 		fqName:       fqname,
 		help:         "kubecost_pv_info pv info",
@@ -203,6 +205,7 @@ func newKubecostPVInfoMetric(fqname, pv, storageClass, providerID string, value 
 		storageClass: storageClass,
 		value:        value,
 		providerId:   providerID,
+		uid:          uid,
 	}
 }
 
@@ -213,6 +216,7 @@ func (kpvim KubecostPVInfoMetric) Desc() *prometheus.Desc {
 		"persistentvolume": kpvim.pv,
 		"storageclass":     kpvim.storageClass,
 		"provider_id":      kpvim.providerId,
+		"uid":              kpvim.uid,
 	}
 	return prometheus.NewDesc(kpvim.fqName, kpvim.help, []string{}, l)
 }
@@ -236,6 +240,10 @@ func (kpvim KubecostPVInfoMetric) Write(m *dto.Metric) error {
 		{
 			Name:  toStringPtr("provider_id"),
 			Value: &kpvim.providerId,
+		},
+		{
+			Name:  toStringPtr("uid"),
+			Value: &kpvim.uid,
 		},
 	}
 	return nil

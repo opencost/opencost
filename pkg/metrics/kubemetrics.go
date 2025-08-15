@@ -123,6 +123,14 @@ func InitKubeMetrics(clusterCache clustercache.ClusterCache, metricsConfig *Metr
 				KubeClusterCache: clusterCache,
 				metricsConfig:    *metricsConfig,
 			})
+			prometheus.MustRegister(KubeReplicationControllerCollector{
+				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
+			})
+			prometheus.MustRegister(KubePodDisruptionBudgetCollector{
+				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
+			})
 		} else if opts.EmitKubeStateMetricsV1Only {
 			// We still need the kubecost_pv_info metric to look up storageclass on legacy clusters.
 			forceDisabled := []string{"kube_persistentvolume_capacity_bytes", "kube_persistentvolume_status_phase"}

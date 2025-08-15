@@ -59,6 +59,7 @@ type Node struct {
 }
 
 type Service struct {
+	UID          types.UID
 	Name         string
 	Namespace    string
 	SpecSelector map[string]string
@@ -75,6 +76,7 @@ type DaemonSet struct {
 }
 
 type Deployment struct {
+	UID                     types.UID
 	Name                    string
 	Namespace               string
 	Labels                  map[string]string
@@ -122,6 +124,7 @@ type Job struct {
 }
 
 type PersistentVolume struct {
+	UID         types.UID
 	Name        string
 	Namespace   string
 	Labels      map[string]string
@@ -131,12 +134,14 @@ type PersistentVolume struct {
 }
 
 type ReplicationController struct {
+	UID       types.UID
 	Name      string
 	Namespace string
 	Spec      v1.ReplicationControllerSpec
 }
 
 type PodDisruptionBudget struct {
+	UID       types.UID
 	Name      string
 	Namespace string
 	Spec      policyv1.PodDisruptionBudgetSpec
@@ -251,6 +256,7 @@ func TransformNode(input *v1.Node) *Node {
 
 func TransformService(input *v1.Service) *Service {
 	return &Service{
+		UID:          input.UID,
 		Name:         input.Name,
 		Namespace:    input.Namespace,
 		SpecSelector: input.Spec.Selector,
@@ -271,6 +277,7 @@ func TransformDaemonSet(input *appsv1.DaemonSet) *DaemonSet {
 
 func TransformDeployment(input *appsv1.Deployment) *Deployment {
 	return &Deployment{
+		UID:                     input.UID,
 		Name:                    input.Name,
 		Namespace:               input.Namespace,
 		Labels:                  input.Labels,
@@ -295,6 +302,7 @@ func TransformStatefulSet(input *appsv1.StatefulSet) *StatefulSet {
 
 func TransformPersistentVolume(input *v1.PersistentVolume) *PersistentVolume {
 	return &PersistentVolume{
+		UID:         input.UID,
 		Name:        input.Name,
 		Namespace:   input.Namespace,
 		Labels:      input.Labels,
@@ -336,6 +344,7 @@ func TransformJob(input *batchv1.Job) *Job {
 
 func TransformReplicationController(input *v1.ReplicationController) *ReplicationController {
 	return &ReplicationController{
+		UID:       input.UID,
 		Name:      input.Name,
 		Namespace: input.Namespace,
 		Spec:      input.Spec,

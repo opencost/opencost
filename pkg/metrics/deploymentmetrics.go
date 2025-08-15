@@ -23,29 +23,38 @@ type KubecostDeploymentCollector struct {
 // collected by this Collector.
 func (kdc KubecostDeploymentCollector) Describe(ch chan<- *prometheus.Desc) {
 	disabledMetrics := kdc.metricsConfig.GetDisabledMetricsMap()
-	if _, disabled := disabledMetrics["deployment_match_labels"]; disabled {
-		return
+
+	if _, disabled := disabledMetrics["deployment_match_labels"]; !disabled {
+		ch <- prometheus.NewDesc("deployment_match_labels", "deployment match labels", []string{}, nil)
 	}
 
-	ch <- prometheus.NewDesc("deployment_match_labels", "deployment match labels", []string{}, nil)
+	if _, disabled := disabledMetrics["kube_deployment_info"]; !disabled {
+		ch <- prometheus.NewDesc("kube_deployment_info", "Information about deployment including UID", []string{}, nil)
+	}
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (kdc KubecostDeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 	disabledMetrics := kdc.metricsConfig.GetDisabledMetricsMap()
-	if _, disabled := disabledMetrics["deployment_match_labels"]; disabled {
-		return
-	}
 
 	ds := kdc.KubeClusterCache.GetAllDeployments()
 	for _, deployment := range ds {
 		deploymentName := deployment.Name
 		deploymentNS := deployment.Namespace
+		deploymentUID := string(deployment.UID)
 
-		labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(deployment.MatchLabels))
-		if len(labels) > 0 {
-			m := newDeploymentMatchLabelsMetric(deploymentName, deploymentNS, "deployment_match_labels", labels, values)
-			ch <- m
+		// Original deployment match labels metric
+		if _, disabled := disabledMetrics["deployment_match_labels"]; !disabled {
+			labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(deployment.MatchLabels))
+			if len(labels) > 0 {
+				m := newDeploymentMatchLabelsMetric(deploymentName, deploymentNS, "deployment_match_labels", labels, values)
+				ch <- m
+			}
+		}
+
+		// New deployment info metric with UID
+		if _, disabled := disabledMetrics["kube_deployment_info"]; !disabled {
+			ch <- newKubeDeploymentInfoMetric("kube_deployment_info", deploymentName, deploymentNS, deploymentUID)
 		}
 	}
 
@@ -216,6 +225,66 @@ func (kdr KubeDeploymentReplicasMetric) Write(m *dto.Metric) error {
 		{
 			Name:  toStringPtr("deployment"),
 			Value: &kdr.deployment,
+		},
+	}
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  KubeDeploymentInfoMetric
+//--------------------------------------------------------------------------
+
+// KubeDeploymentInfoMetric is a prometheus.Metric used to encode deployment info with UID
+type KubeDeploymentInfoMetric struct {
+	fqName     string
+	help       string
+	deployment string
+	namespace  string
+	uid        string
+}
+
+// Creates a new KubeDeploymentInfoMetric, implementation of prometheus.Metric
+func newKubeDeploymentInfoMetric(fqname, deployment, namespace, uid string) KubeDeploymentInfoMetric {
+	return KubeDeploymentInfoMetric{
+		fqName:     fqname,
+		help:       "Information about deployment including UID",
+		deployment: deployment,
+		namespace:  namespace,
+		uid:        uid,
+	}
+}
+
+// Desc returns the descriptor for the Metric. This method idempotently
+// returns the same descriptor throughout the lifetime of the Metric.
+func (kdi KubeDeploymentInfoMetric) Desc() *prometheus.Desc {
+	l := prometheus.Labels{
+		"deployment": kdi.deployment,
+		"namespace":  kdi.namespace,
+		"uid":        kdi.uid,
+	}
+	return prometheus.NewDesc(kdi.fqName, kdi.help, []string{}, l)
+}
+
+// Write encodes the Metric into a "Metric" Protocol Buffer data
+// transmission object.
+func (kdi KubeDeploymentInfoMetric) Write(m *dto.Metric) error {
+	h := float64(1)
+	m.Gauge = &dto.Gauge{
+		Value: &h,
+	}
+	m.Label = []*dto.LabelPair{
+		{
+			Name:  toStringPtr("namespace"),
+			Value: &kdi.namespace,
+		},
+		{
+			Name:  toStringPtr("deployment"),
+			Value: &kdi.deployment,
+		},
+		{
+			Name:  toStringPtr("uid"),
+			Value: &kdi.uid,
 		},
 	}
 
