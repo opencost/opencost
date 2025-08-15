@@ -43,6 +43,10 @@ func withPrefix(prefix, name string) string {
 	return prefix + DirDelim + name
 }
 
+func (pbs *PrefixedBucketStorage) Name() string {
+	return pbs.storage.Name()
+}
+
 func (pbs *PrefixedBucketStorage) StorageType() StorageType {
 	return pbs.storage.StorageType()
 }

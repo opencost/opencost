@@ -164,6 +164,10 @@ func (c *ClusterStorage) check() error {
 	return nil
 }
 
+func (c *ClusterStorage) Name() string {
+	return fmt.Sprintf("%s:%d", c.host, c.port)
+}
+
 func (c *ClusterStorage) StorageType() StorageType {
 	return StorageTypeCluster
 }
