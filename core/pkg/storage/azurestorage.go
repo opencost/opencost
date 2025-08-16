@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -44,11 +43,11 @@ var defaultAzureConfig = AzureConfig{
 	ReaderConfig: ReaderConfig{
 		MaxRetryRequests: 0,
 	},
-	HTTPConfig: AzureHTTPConfig{
-		IdleConnTimeout:       model.Duration(90 * time.Second),
-		ResponseHeaderTimeout: model.Duration(2 * time.Minute),
-		TLSHandshakeTimeout:   model.Duration(10 * time.Second),
-		ExpectContinueTimeout: model.Duration(1 * time.Second),
+	HTTPConfig: HTTPConfig{
+		IdleConnTimeout:       90 * time.Second,
+		ResponseHeaderTimeout: 2 * time.Minute,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
 		MaxIdleConns:          100,
 		MaxIdleConnsPerHost:   100,
 		MaxConnsPerHost:       0,
@@ -58,17 +57,17 @@ var defaultAzureConfig = AzureConfig{
 
 // AzureConfig Azure storage configuration.
 type AzureConfig struct {
-	StorageAccountName      string          `yaml:"storage_account"`
-	StorageAccountKey       string          `yaml:"storage_account_key"`
-	StorageConnectionString string          `yaml:"storage_connection_string"`
-	ContainerName           string          `yaml:"container"`
-	Endpoint                string          `yaml:"endpoint"`
-	MaxRetries              int             `yaml:"max_retries"`
-	MSIResource             string          `yaml:"msi_resource"`
-	UserAssignedID          string          `yaml:"user_assigned_id"`
-	PipelineConfig          PipelineConfig  `yaml:"pipeline_config"`
-	ReaderConfig            ReaderConfig    `yaml:"reader_config"`
-	HTTPConfig              AzureHTTPConfig `yaml:"http_config"`
+	StorageAccountName      string         `yaml:"storage_account"`
+	StorageAccountKey       string         `yaml:"storage_account_key"`
+	StorageConnectionString string         `yaml:"storage_connection_string"`
+	ContainerName           string         `yaml:"container"`
+	Endpoint                string         `yaml:"endpoint"`
+	MaxRetries              int            `yaml:"max_retries"`
+	MSIResource             string         `yaml:"msi_resource"`
+	UserAssignedID          string         `yaml:"user_assigned_id"`
+	PipelineConfig          PipelineConfig `yaml:"pipeline_config"`
+	ReaderConfig            ReaderConfig   `yaml:"reader_config"`
+	HTTPConfig              HTTPConfig     `yaml:"http_config"`
 }
 
 type ReaderConfig struct {
@@ -80,21 +79,6 @@ type PipelineConfig struct {
 	TryTimeout    model.Duration `yaml:"try_timeout"`
 	RetryDelay    model.Duration `yaml:"retry_delay"`
 	MaxRetryDelay model.Duration `yaml:"max_retry_delay"`
-}
-
-type AzureHTTPConfig struct {
-	IdleConnTimeout       model.Duration `yaml:"idle_conn_timeout"`
-	ResponseHeaderTimeout model.Duration `yaml:"response_header_timeout"`
-	InsecureSkipVerify    bool           `yaml:"insecure_skip_verify"`
-
-	TLSHandshakeTimeout   model.Duration `yaml:"tls_handshake_timeout"`
-	ExpectContinueTimeout model.Duration `yaml:"expect_continue_timeout"`
-	MaxIdleConns          int            `yaml:"max_idle_conns"`
-	MaxIdleConnsPerHost   int            `yaml:"max_idle_conns_per_host"`
-	MaxConnsPerHost       int            `yaml:"max_conns_per_host"`
-	DisableCompression    bool           `yaml:"disable_compression"`
-
-	TLSConfig TLSConfig `yaml:"tls_config"`
 }
 
 // AzureStorage implements the storage.Storage interface against Azure APIs.
@@ -423,40 +407,10 @@ func (b *AzureStorage) IsAccessDeniedErr(err error) bool {
 	return bloberror.HasCode(err, bloberror.AuthorizationPermissionMismatch) || bloberror.HasCode(err, bloberror.InsufficientAccountPermissions)
 }
 
-func DefaultAzureTransport(config AzureConfig) (*http.Transport, error) {
-	tlsConfig, err := NewTLSConfig(&config.HTTPConfig.TLSConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error creating TLS config: %w", err)
-	}
-
-	if config.HTTPConfig.InsecureSkipVerify {
-		tlsConfig.InsecureSkipVerify = true
-	}
-	return &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-			DualStack: true,
-		}).DialContext,
-
-		MaxIdleConns:          config.HTTPConfig.MaxIdleConns,
-		MaxIdleConnsPerHost:   config.HTTPConfig.MaxIdleConnsPerHost,
-		IdleConnTimeout:       time.Duration(config.HTTPConfig.IdleConnTimeout),
-		MaxConnsPerHost:       config.HTTPConfig.MaxConnsPerHost,
-		TLSHandshakeTimeout:   time.Duration(config.HTTPConfig.TLSHandshakeTimeout),
-		ExpectContinueTimeout: time.Duration(config.HTTPConfig.ExpectContinueTimeout),
-
-		ResponseHeaderTimeout: time.Duration(config.HTTPConfig.ResponseHeaderTimeout),
-		DisableCompression:    config.HTTPConfig.DisableCompression,
-		TLSClientConfig:       tlsConfig,
-	}, nil
-}
-
 func getContainerClient(conf AzureConfig) (*container.Client, error) {
-	dt, err := DefaultAzureTransport(conf)
+	dt, err := conf.HTTPConfig.GetHTTPTransport()
 	if err != nil {
-		return nil, fmt.Errorf("error creating default transport: %w", err)
+		return nil, fmt.Errorf("error creating transport: %w", err)
 	}
 	opt := &container.ClientOptions{
 		ClientOptions: azcore.ClientOptions{
