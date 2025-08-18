@@ -220,7 +220,8 @@ jobs:
            
     hold-on-failure:
       needs: [wait_for_image_ready, run-tests, run-comparison-tests]
-      if: ${{ always() && (! needs.run-tests.outputs.passed || ! needs.run-comparison-tests.outputs.passed) }}
+      if: ${{ always() }} 
+      #  && (! needs.run-tests.outputs.passed || ! needs.run-comparison-tests.outputs.passed)
       runs-on: ubuntu-latest
       permissions: {}
       steps:
