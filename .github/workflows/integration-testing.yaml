@@ -17,6 +17,7 @@ concurrency:
     cancel-in-progress: false
 
 permissions: {}
+
 jobs:
     check_actor_permissions:
       runs-on: ubuntu-latest
