@@ -20,6 +20,7 @@ type StorageType string
 const (
 	StorageTypeMemory      StorageType = "memory"
 	StorageTypeFile        StorageType = "file"
+	StorageTypeCluster     StorageType = "cluster"
 	StorageTypeBucketS3    StorageType = "bucket|s3"
 	StorageTypeBucketGCS   StorageType = "bucket|gcs"
 	StorageTypeBucketAzure StorageType = "bucket|azure"

@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -49,14 +48,15 @@ const (
 
 var defaultS3Config = S3Config{
 	PutUserMetadata: map[string]string{},
-	HTTPConfig: S3HTTPConfig{
-		IdleConnTimeout:       time.Duration(90 * time.Second),
-		ResponseHeaderTimeout: time.Duration(2 * time.Minute),
-		TLSHandshakeTimeout:   time.Duration(10 * time.Second),
-		ExpectContinueTimeout: time.Duration(1 * time.Second),
+	HTTPConfig: HTTPConfig{
+		IdleConnTimeout:       90 * time.Second,
+		ResponseHeaderTimeout: 2 * time.Minute,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
 		MaxIdleConns:          100,
 		MaxIdleConnsPerHost:   100,
 		MaxConnsPerHost:       0,
+		DisableCompression:    true,
 	},
 	PartSize: 1024 * 1024 * 64, // 64MB.
 }
@@ -72,7 +72,7 @@ type S3Config struct {
 	SignatureV2        bool              `yaml:"signature_version2"`
 	SecretKey          string            `yaml:"secret_key"`
 	PutUserMetadata    map[string]string `yaml:"put_user_metadata"`
-	HTTPConfig         S3HTTPConfig      `yaml:"http_config"`
+	HTTPConfig         HTTPConfig        `yaml:"http_config"`
 	TraceConfig        TraceConfig       `yaml:"trace"`
 	ListObjectsVersion string            `yaml:"list_objects_version"`
 	// PartSize used for multipart upload. Only used if uploaded object size is known and larger than configured PartSize.
@@ -93,67 +93,6 @@ type SSEConfig struct {
 
 type TraceConfig struct {
 	Enable bool `yaml:"enable"`
-}
-
-// HTTPConfig stores the http.Transport configuration for the s3 minio client.
-type S3HTTPConfig struct {
-	IdleConnTimeout       time.Duration `yaml:"idle_conn_timeout"`
-	ResponseHeaderTimeout time.Duration `yaml:"response_header_timeout"`
-	InsecureSkipVerify    bool          `yaml:"insecure_skip_verify"`
-
-	TLSHandshakeTimeout   time.Duration `yaml:"tls_handshake_timeout"`
-	ExpectContinueTimeout time.Duration `yaml:"expect_continue_timeout"`
-	MaxIdleConns          int           `yaml:"max_idle_conns"`
-	MaxIdleConnsPerHost   int           `yaml:"max_idle_conns_per_host"`
-	MaxConnsPerHost       int           `yaml:"max_conns_per_host"`
-
-	// Allow upstream callers to inject a round tripper
-	Transport http.RoundTripper `yaml:"-"`
-
-	TLSConfig TLSConfig `yaml:"tls_config"`
-}
-
-// DefaultTransport - this default transport is based on the Minio
-// DefaultTransport up until the following commit:
-// https://githus3.com/minio/minio-go/commit/008c7aa71fc17e11bf980c209a4f8c4d687fc884
-// The values have since diverged.
-func DefaultS3Transport(config S3Config) (*http.Transport, error) {
-	tlsConfig, err := NewTLSConfig(&config.HTTPConfig.TLSConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	if config.HTTPConfig.InsecureSkipVerify {
-		tlsConfig.InsecureSkipVerify = true
-	}
-
-	return &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-			DualStack: true,
-		}).DialContext,
-
-		MaxIdleConns:          config.HTTPConfig.MaxIdleConns,
-		MaxIdleConnsPerHost:   config.HTTPConfig.MaxIdleConnsPerHost,
-		IdleConnTimeout:       time.Duration(config.HTTPConfig.IdleConnTimeout),
-		MaxConnsPerHost:       config.HTTPConfig.MaxConnsPerHost,
-		TLSHandshakeTimeout:   time.Duration(config.HTTPConfig.TLSHandshakeTimeout),
-		ExpectContinueTimeout: time.Duration(config.HTTPConfig.ExpectContinueTimeout),
-		// A custom ResponseHeaderTimeout was introduced
-		// to cover cases where the tcp connection works but
-		// the server never answers. Defaults to 2 minutes.
-		ResponseHeaderTimeout: time.Duration(config.HTTPConfig.ResponseHeaderTimeout),
-		// Set this value so that the underlying transport round-tripper
-		// doesn't try to auto decode the body of objects with
-		// content-encoding set to `gzip`.
-		//
-		// Refer: https://golang.org/src/net/http/transport.go?h=roundTrip#L1843.
-		DisableCompression: true,
-		// #nosec It's up to the user to decide on TLS configs
-		TLSClientConfig: tlsConfig,
-	}, nil
 }
 
 // S3Storage provides storage via S3
@@ -226,17 +165,9 @@ func NewS3StorageWith(config S3Config) (*S3Storage, error) {
 		}
 	}
 
-	// Check if a roundtripper has been set in the config
-	// otherwise build the default transport.
-	var rt http.RoundTripper
-	if config.HTTPConfig.Transport != nil {
-		rt = config.HTTPConfig.Transport
-	} else {
-		var err error
-		rt, err = DefaultS3Transport(config)
-		if err != nil {
-			return nil, err
-		}
+	rt, err := config.HTTPConfig.GetHTTPTransport()
+	if err != nil {
+		return nil, err
 	}
 
 	client, err := minio.New(config.Endpoint, &minio.Options{
