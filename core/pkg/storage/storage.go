@@ -24,7 +24,6 @@ type StorageInfo struct {
 
 // Storage provides an API for storing binary data
 type Storage interface {
-	Name() string
 	// StorageType returns a string identifier for the type of storage used by the implementation.
 	StorageType() StorageType
 

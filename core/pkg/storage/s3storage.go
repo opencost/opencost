@@ -230,8 +230,8 @@ func NewS3StorageWith(config S3Config) (*S3Storage, error) {
 	return bkt, nil
 }
 
-// Name returns the bucket name for s3.
-func (s3 *S3Storage) Name() string {
+// String returns the bucket name for s3.
+func (s3 *S3Storage) String() string {
 	return s3.name
 }
 

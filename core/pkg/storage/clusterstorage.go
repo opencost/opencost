@@ -164,7 +164,8 @@ func (c *ClusterStorage) check() error {
 	return nil
 }
 
-func (c *ClusterStorage) Name() string {
+// String returns the host and port for the cluster storage.
+func (c *ClusterStorage) String() string {
 	return fmt.Sprintf("%s:%d", c.host, c.port)
 }
 
