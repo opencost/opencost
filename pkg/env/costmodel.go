@@ -32,8 +32,9 @@ const (
 	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
 	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
 
-	OCIPricingURL = "OCI_PRICING_URL"
-	DOPricingURL  = "DO_PRICING_URL"
+	ProviderPricingURL = "PROVIDER_PRICING_URL"
+	// OCIPricingURL = "OCI_PRICING_URL"
+	// DOPricingURL  = "DO_PRICING_URL"
 
 	ClusterProfileEnvVar    = "CLUSTER_PROFILE"
 	RemoteEnabledEnvVar     = "REMOTE_WRITE_ENABLED"
@@ -345,7 +346,7 @@ func IsKubernetesEnabled() bool {
 }
 
 func GetOCIPricingURL() string {
-	return env.Get(OCIPricingURL, "https://apexapps.oracle.com/pls/apex/cetools/api/v1/products")
+	return env.Get(ProviderPricingURL, "https://apexapps.oracle.com/pls/apex/cetools/api/v1/products")
 }
 
 func IsCarbonEstimatesEnabled() bool {
@@ -377,5 +378,5 @@ func GetLocalCollectorDirectory() string {
 }
 
 func GetDOKSPricingURL() string {
-	return env.Get(DOPricingURL, "https://api.digitalocean.com/v2/billing/pricing")
+	return env.Get(ProviderPricingURL, "https://api.digitalocean.com/v2/billing/pricing")
 }
