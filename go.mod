@@ -27,7 +27,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.149.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.51.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.17
-	github.com/aws/smithy-go v1.22.2
+	github.com/aws/smithy-go v1.22.5
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/google/martian v2.1.0+incompatible
 	github.com/google/uuid v1.6.0
