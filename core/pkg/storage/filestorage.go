@@ -22,6 +22,10 @@ func NewFileStorage(baseDir string) Storage {
 	return &FileStorage{baseDir}
 }
 
+func (fs *FileStorage) Name() string {
+	return fs.baseDir
+}
+
 // StorageType returns a string identifier for the type of storage used by the implementation.
 func (fs *FileStorage) StorageType() StorageType {
 	return StorageTypeFile

@@ -24,6 +24,7 @@ type StorageInfo struct {
 
 // Storage provides an API for storing binary data
 type Storage interface {
+	Name() string
 	// StorageType returns a string identifier for the type of storage used by the implementation.
 	StorageType() StorageType
 
@@ -70,6 +71,12 @@ func Validate(storage Storage) error {
 	_, err := storage.Exists(testPath)
 	if err != nil {
 		return errors.Wrap(err, "Failed to check if path exists")
+	}
+
+	// attempt to list a path
+	_, err = storage.List(testPath)
+	if err != nil {
+		return errors.Wrap(err, "Failed to list path")
 	}
 
 	// attempt to write a path
