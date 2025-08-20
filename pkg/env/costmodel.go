@@ -32,9 +32,8 @@ const (
 	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
 	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
 
+	// Currently being used for OCI and DigitalOcean
 	ProviderPricingURL = "PROVIDER_PRICING_URL"
-	// OCIPricingURL = "OCI_PRICING_URL"
-	// DOPricingURL  = "DO_PRICING_URL"
 
 	ClusterProfileEnvVar    = "CLUSTER_PROFILE"
 	RemoteEnabledEnvVar     = "REMOTE_WRITE_ENABLED"

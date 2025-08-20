@@ -233,13 +233,44 @@ type SlugBase struct {
 	BaseRAMGiB int
 }
 
-// Base slugs and known pricing
-var baseSlugs = map[string]SlugBase{
-	"c": {BaseSlug: "c-4-intel", BaseCost: 0.1622, BaseVCPU: 4, BaseRAMGiB: 8},
-	"s": {BaseSlug: "s-4vcpu-8gb", BaseCost: 0.07143, BaseVCPU: 4, BaseRAMGiB: 8},
-	"m": {BaseSlug: "m-8vcpu-64gb", BaseCost: 0.50, BaseVCPU: 8, BaseRAMGiB: 64},
-	"g": {BaseSlug: "g-4vcpu-16gb-intel", BaseCost: 0.2247, BaseVCPU: 4, BaseRAMGiB: 16},
+type slugSeeds struct {
+	BaseVCPU    int
+	BaseHourly  float64
+	RamPerVCPU  int
+	IntelHourly float64
 }
+
+var slugFamilySeed = map[string]slugSeeds{
+	"c":     {BaseVCPU: 4, BaseHourly: 0.12500, RamPerVCPU: 2, IntelHourly: 0.16220},
+	"c2":    {BaseVCPU: 4, BaseHourly: 0.13988, RamPerVCPU: 2, IntelHourly: 0.18155},
+	"g":     {BaseVCPU: 4, BaseHourly: 0.18750, RamPerVCPU: 4, IntelHourly: 0.22470},
+	"gd":    {BaseVCPU: 4, BaseHourly: 0.20238, RamPerVCPU: 4, IntelHourly: 0.23512},
+	"m":     {BaseVCPU: 8, BaseHourly: 0.50000, RamPerVCPU: 8, IntelHourly: 0.58929},
+	"m3":    {BaseVCPU: 8, BaseHourly: 0.61905, RamPerVCPU: 8, IntelHourly: 0.65476},
+	"m6":    {BaseVCPU: 8, BaseHourly: 0.77976, RamPerVCPU: 8, IntelHourly: 0},
+	"s":     {BaseVCPU: 4, BaseHourly: 0.07143, RamPerVCPU: 2, IntelHourly: 0.08333},
+	"so":    {BaseVCPU: 8, BaseHourly: 0.77976, RamPerVCPU: 8, IntelHourly: 0.77976},
+	"so1_5": {BaseVCPU: 8, BaseHourly: 0.97024, RamPerVCPU: 8, IntelHourly: 0.82738},
+}
+
+// TODO Refine GPU pricing and move to GPU method once GPUs are fully GA
+var gpuHourly = map[string]float64{
+	"gpu-4000adax1-20gb": 0.76,
+	"gpu-6000adax1-48gb": 1.57,
+	"gpu-h100x1-80gb":    3.39,
+	"gpu-h100x8-640gb":   23.92,
+	"gpu-h200x1-141gb":   3.44,
+	"gpu-h200x8-1128gb":  27.52,
+	"gpu-l40sx1-48gb":    1.57,
+	"gpu-mi300x1-192gb":  1.99,
+	"gpu-mi300x8-1536gb": 15.92,
+}
+
+var (
+	reVCpu        = regexp.MustCompile(`(\d+)\s*vcpu`)
+	reRAM         = regexp.MustCompile(`(\d+)\s*gb`)
+	reSimpleCount = regexp.MustCompile(`^[a-z0-9_]+-(\d+)(?:-|$)`)
+)
 
 func extractResources(slug string) (int, int, bool) {
 	parts := strings.Split(slug, "-")
@@ -276,7 +307,7 @@ func extractResources(slug string) (int, int, bool) {
 		}
 	}
 
-	// If vCPU found but not RAM, assume RAM is 2x vCPU for cases like c-8-intel
+	// If vCPU found but not RAM, assume RAM is 2x vCPU, works for all c families
 	if foundVCPU && !foundRAM {
 		ram = 2 * vcpu
 		foundRAM = true
@@ -285,23 +316,75 @@ func extractResources(slug string) (int, int, bool) {
 	return vcpu, ram, foundVCPU && foundRAM
 }
 
-// Estimate cost based on slug pattern and scaling from base
+// Estimate cost based on slug pattern and scale from base slugs which are seeded
 func estimateCostFromSlug(slug string) (float64, int, int, bool) {
-	slugLower := strings.ToLower(slug)
+	s := strings.ToLower(strings.TrimSpace(slug))
 
-	for prefix, base := range baseSlugs {
-		if strings.HasPrefix(slugLower, prefix+"-") {
-			vcpu, ram, ok := extractResources(slugLower)
-			if !ok || base.BaseVCPU == 0 {
-				continue
+	// GPUs are to be handled as a separate case
+	if strings.HasPrefix(s, "gpu-") {
+		if h, ok := gpuHourly[s]; ok {
+			vcpu, ram := extractVCpuRAMGuess(s, "", 0) // we don’t rely on these for pricing
+			return h, vcpu, ram, true
+		}
+		return 0, 0, 0, false
+	}
+
+	dashPosition := strings.IndexByte(s, '-')
+	if dashPosition <= 0 {
+		return 0, 0, 0, false
+	}
+	family := s[:dashPosition]
+	seed, ok := slugFamilySeed[family]
+	if !ok {
+		return 0, 0, 0, false
+	}
+
+	hasIntel := strings.Contains(s, "-intel")
+
+	vcpu, ramGiB := extractVCpuRAMGuess(s, family, seed.RamPerVCPU)
+	if vcpu == 0 {
+		return 0, 0, 0, false
+	}
+	if ramGiB == 0 && seed.RamPerVCPU > 0 {
+		ramGiB = seed.RamPerVCPU * vcpu
+	}
+	scale := float64(vcpu) / float64(seed.BaseVCPU)
+	hourly := seed.BaseHourly * scale
+
+	if hasIntel && seed.IntelHourly > 0 && seed.BaseHourly > 0 {
+		mult := seed.IntelHourly / seed.BaseHourly
+		hourly *= mult
+	}
+
+	return hourly, vcpu, ramGiB, true
+}
+
+// TODO Fix GPU Pricing after GA
+func extractVCpuRAMGuess(slugLower, family string, ramPerVCPU int) (vcpu int, ramGiB int) {
+	// Regex for matching CPU, we try to find CPU first
+	// If RAM not found, we can multiply VCPU by 2 to find it
+	if m := reVCpu.FindStringSubmatch(slugLower); len(m) == 2 {
+		if n, _ := strconv.Atoi(m[1]); n > 0 {
+			vcpu = n
+		}
+	}
+	if m := reRAM.FindStringSubmatch(slugLower); len(m) == 2 {
+		if n, _ := strconv.Atoi(m[1]); n > 0 {
+			ramGiB = n
+		}
+	}
+	if vcpu == 0 {
+		if m := reSimpleCount.FindStringSubmatch(slugLower); len(m) == 2 {
+			if n, _ := strconv.Atoi(m[1]); n > 0 {
+				vcpu = n
 			}
-			scale := float64(vcpu) / float64(base.BaseVCPU)
-			cost := base.BaseCost * scale
-			return cost, vcpu, ram, true
 		}
 	}
 
-	return 0, 0, 0, false
+	if ramGiB == 0 && vcpu > 0 && ramPerVCPU > 0 {
+		ramGiB = vcpu * ramPerVCPU
+	}
+	return
 }
 
 var (
