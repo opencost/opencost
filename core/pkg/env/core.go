@@ -10,6 +10,7 @@ const DefaultStorageFile = "federated-store.yaml"
 const (
 	APIPortEnvVar    = "API_PORT"
 	ClusterIDEnvVar  = "CLUSTER_ID"
+	AppNameEnvVar    = "APP_NAME"
 	ConfigPathEnvVar = "CONFIG_PATH"
 
 	PProfEnabledEnvVar = "PPROF_ENABLED"
@@ -27,6 +28,11 @@ func GetAPIPortWithDefault(def int) int {
 // configurable identifier used for multi-cluster metric emission.
 func GetClusterID() string {
 	return Get(ClusterIDEnvVar, "")
+}
+
+// GetAppName returns the name of the application name running the values
+func GetAppName() string {
+	return Get(AppNameEnvVar, "Opencost")
 }
 
 // GetConfigPath returns the environment variable value for ConfigPathEnvVar which represents the cost
