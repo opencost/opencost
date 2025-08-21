@@ -191,8 +191,8 @@ func NewAzureStorageWith(conf AzureConfig) (*AzureStorage, error) {
 	}, nil
 }
 
-// Name returns the bucket name for azure storage.
-func (as *AzureStorage) Name() string {
+// String returns the bucket name for azure storage.
+func (as *AzureStorage) String() string {
 	return as.name
 }
 
