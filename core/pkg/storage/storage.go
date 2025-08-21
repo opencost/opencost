@@ -72,6 +72,12 @@ func Validate(storage Storage) error {
 		return errors.Wrap(err, "Failed to check if path exists")
 	}
 
+	// attempt to list a path
+	_, err = storage.List(testPath)
+	if err != nil {
+		return errors.Wrap(err, "Failed to list path")
+	}
+
 	// attempt to write a path
 	err = storage.Write(testPath, []byte(testContent))
 	if err != nil {

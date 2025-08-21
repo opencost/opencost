@@ -2,35 +2,21 @@ package opencost
 
 import (
 	"bytes"
-	"fmt"
-	"math"
 
-	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/opencost/opencost/core/pkg/util/jsonutil"
 )
 
-// TODO move everything below to a separate package
-
+// jsonEncodeFloat64 encodes a float64 value to JSON, handling NaN and infinity values
 func jsonEncodeFloat64(buffer *bytes.Buffer, name string, val float64, comma string) {
-	var encoding string
-	if math.IsNaN(val) || math.IsInf(val, 0) {
-		encoding = fmt.Sprintf("\"%s\":null%s", name, comma)
-	} else {
-		encoding = fmt.Sprintf("\"%s\":%f%s", name, val, comma)
-	}
-
-	buffer.WriteString(encoding)
+	jsonutil.EncodeFloat64(buffer, name, val, comma)
 }
 
+// jsonEncodeString encodes a string value to JSON
 func jsonEncodeString(buffer *bytes.Buffer, name, val, comma string) {
-	buffer.WriteString(fmt.Sprintf("\"%s\":\"%s\"%s", name, val, comma))
+	jsonutil.EncodeString(buffer, name, val, comma)
 }
 
+// jsonEncode encodes any object to JSON
 func jsonEncode(buffer *bytes.Buffer, name string, obj interface{}, comma string) {
-	buffer.WriteString(fmt.Sprintf("\"%s\":", name))
-	if bytes, err := json.Marshal(obj); err != nil {
-		buffer.WriteString("null")
-	} else {
-		buffer.Write(bytes)
-	}
-	buffer.WriteString(comma)
+	jsonutil.Encode(buffer, name, obj, comma)
 }
