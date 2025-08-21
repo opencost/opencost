@@ -121,8 +121,6 @@ func (hp HTTPProtocol) WriteRawNoContent(w http.ResponseWriter) {
 // xss CWE as well as backwards compatibility to exisitng FE expectations
 func (hp HTTPProtocol) WriteJSONData(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
-	status := http.StatusOK
-	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		log.Error("Failed to encode JSON response: " + err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
