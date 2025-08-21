@@ -386,6 +386,15 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resNetInternetGiB, _ := resChNetInternetGiB.Await()
 	resNetInternetPricePerGiB, _ := resChNetInternetPricePerGiB.Await()
 
+	// Step 1 & 2: Detection & Fallback - Check for missing external network-costs component metrics
+	hasNetworkTraffic := len(resNetTransferBytes) > 0 || len(resNetReceiveBytes) > 0
+	hasExternalNetworkMetrics := len(resNetZoneGiB) > 0 || len(resNetRegionGiB) > 0 || len(resNetInternetGiB) > 0
+	useNetworkFallback := hasNetworkTraffic && !hasExternalNetworkMetrics
+	
+	if useNetworkFallback {
+		log.DedupedWarningf(1, "Network traffic detected but external network-costs metrics missing. Using fallback network cost estimation based on container_network_transmit_bytes_total. Deploy network-costs component for detailed zone/region/internet network cost tracking. See: https://github.com/opencost/opencost/blob/develop/docs/network-costs.md")
+	}
+
 	var resNodeLabels []*source.NodeLabelsResult
 	if env.IsAllocationNodeLabelsEnabled() {
 		resNodeLabels, _ = resChNodeLabels.Await()
@@ -430,9 +439,24 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	applyGPUInfo(podMap, resGetGPUInfo, podUIDKeyMap)
 	applyGPUsAllocated(podMap, resGPUsRequested, resGPUsAllocated, podUIDKeyMap)
 	applyNetworkTotals(podMap, resNetTransferBytes, resNetReceiveBytes, podUIDKeyMap)
-	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZonePricePerGiB, podUIDKeyMap, applyCrossZoneNetworkAllocation)
-	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionPricePerGiB, podUIDKeyMap, applyCrossRegionNetworkAllocation)
-	applyNetworkAllocation(podMap, resNetInternetGiB, resNetInternetPricePerGiB, podUIDKeyMap, applyInternetNetworkAllocation)
+	
+	// Apply network allocation costs - use fallback if external network-costs component is missing
+	if useNetworkFallback {
+		// Step 2: Validate traffic distribution percentages
+		if valid, message := env.ValidateNetworkCostFallbackPercentages(); !valid {
+			log.Warnf("Network cost fallback configuration issue: %s. Using defaults: 70%% zone, 20%% region, 10%% internet", message)
+		}
+		
+		// Use fallback network cost calculation with traffic distribution
+		applyNetworkFallbackAllocation(podMap, resNetTransferBytes, podUIDKeyMap, env.GetNetworkCostFallbackZoneRate(), env.GetNetworkCostFallbackZonePercentage(), applyCrossZoneNetworkAllocation)
+		applyNetworkFallbackAllocation(podMap, resNetTransferBytes, podUIDKeyMap, env.GetNetworkCostFallbackRegionRate(), env.GetNetworkCostFallbackRegionPercentage(), applyCrossRegionNetworkAllocation)
+		applyNetworkFallbackAllocation(podMap, resNetTransferBytes, podUIDKeyMap, env.GetNetworkCostFallbackInternetRate(), env.GetNetworkCostFallbackInternetPercentage(), applyInternetNetworkAllocation)
+	} else {
+		// Use external network-costs component metrics (existing behavior)
+		applyNetworkAllocation(podMap, resNetZoneGiB, resNetZonePricePerGiB, podUIDKeyMap, applyCrossZoneNetworkAllocation)
+		applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionPricePerGiB, podUIDKeyMap, applyCrossRegionNetworkAllocation)
+		applyNetworkAllocation(podMap, resNetInternetGiB, resNetInternetPricePerGiB, podUIDKeyMap, applyInternetNetworkAllocation)
+	}
 
 	// In the case that a two pods with the same name had different containers,
 	// we will double-count the containers. There is no way to associate each

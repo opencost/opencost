@@ -1,6 +1,8 @@
 package env
 
 import (
+	"fmt"
+	
 	"github.com/opencost/opencost/core/pkg/env"
 )
 
@@ -86,6 +88,14 @@ const (
 
 	// Cloud provider override
 	CloudProviderVar = "CLOUD_PROVIDER"
+
+	// Network cost fallback configuration
+	NetworkCostFallbackZoneRateEnvVar          = "NETWORK_COST_FALLBACK_ZONE_RATE"
+	NetworkCostFallbackRegionRateEnvVar        = "NETWORK_COST_FALLBACK_REGION_RATE"
+	NetworkCostFallbackInternetRateEnvVar      = "NETWORK_COST_FALLBACK_INTERNET_RATE"
+	NetworkCostFallbackZonePercentageEnvVar    = "NETWORK_COST_FALLBACK_ZONE_PERCENTAGE"
+	NetworkCostFallbackRegionPercentageEnvVar  = "NETWORK_COST_FALLBACK_REGION_PERCENTAGE"
+	NetworkCostFallbackInternetPercentageEnvVar = "NETWORK_COST_FALLBACK_INTERNET_PERCENTAGE"
 )
 
 func GetGCPAuthSecretFilePath() string {
@@ -365,4 +375,48 @@ func GetCloudProvider() string {
 
 func GetMetricConfigFile() string {
 	return env.GetPathFromConfig(MetricConfigFile)
+}
+
+// GetNetworkCostFallbackZoneRate returns the fallback rate per GiB for cross-zone network traffic
+func GetNetworkCostFallbackZoneRate() float64 {
+	return env.GetFloat64(NetworkCostFallbackZoneRateEnvVar, 0.01)
+}
+
+// GetNetworkCostFallbackRegionRate returns the fallback rate per GiB for cross-region network traffic
+func GetNetworkCostFallbackRegionRate() float64 {
+	return env.GetFloat64(NetworkCostFallbackRegionRateEnvVar, 0.02)
+}
+
+// GetNetworkCostFallbackInternetRate returns the fallback rate per GiB for internet network traffic
+func GetNetworkCostFallbackInternetRate() float64 {
+	return env.GetFloat64(NetworkCostFallbackInternetRateEnvVar, 0.09)
+}
+
+// GetNetworkCostFallbackZonePercentage returns the percentage of traffic that's cross-zone (default: 70%)
+func GetNetworkCostFallbackZonePercentage() float64 {
+	return env.GetFloat64(NetworkCostFallbackZonePercentageEnvVar, 70.0)
+}
+
+// GetNetworkCostFallbackRegionPercentage returns the percentage of traffic that's cross-region (default: 20%)
+func GetNetworkCostFallbackRegionPercentage() float64 {
+	return env.GetFloat64(NetworkCostFallbackRegionPercentageEnvVar, 20.0)
+}
+
+// GetNetworkCostFallbackInternetPercentage returns the percentage of traffic that's internet (default: 10%)
+func GetNetworkCostFallbackInternetPercentage() float64 {
+	return env.GetFloat64(NetworkCostFallbackInternetPercentageEnvVar, 10.0)
+}
+
+// ValidateNetworkCostFallbackPercentages validates that traffic distribution percentages sum to 100%
+func ValidateNetworkCostFallbackPercentages() (bool, string) {
+	zone := GetNetworkCostFallbackZonePercentage()
+	region := GetNetworkCostFallbackRegionPercentage()
+	internet := GetNetworkCostFallbackInternetPercentage()
+	
+	total := zone + region + internet
+	if total != 100.0 {
+		return false, fmt.Sprintf("Network cost fallback percentages sum to %.1f%%, expected 100.0%% (Zone: %.1f%%, Region: %.1f%%, Internet: %.1f%%)", total, zone, region, internet)
+	}
+	
+	return true, ""
 }
