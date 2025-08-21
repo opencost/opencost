@@ -198,3 +198,10 @@ func SetBool(key string, value bool) error {
 func SetDuration(key string, value time.Duration) error {
 	return envMapper.SetDuration(key, value)
 }
+
+// GetPrefixInt parses an int from the environment variable key parameter. It first checks the env var with the prefix
+// then checks the env var without the prefix If the environment variable is empty or fails to parse, the defaultValue
+// parameter is returned.
+func GetPrefixInt(prefix, key string, defaultValue int) int {
+	return envMapper.GetInt(prefix+key, envMapper.GetInt(key, defaultValue))
+}

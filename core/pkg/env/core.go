@@ -15,6 +15,10 @@ const (
 	PProfEnabledEnvVar = "PPROF_ENABLED"
 
 	InstallNamespaceEnvVar = "INSTALL_NAMESPACE"
+
+	Resolution1dRetentionEnvVar  = "RESOLUTION_1D_RETENTION"  // int: number of days
+	Resolution1hRetentionEnvVar  = "RESOLUTION_1H_RETENTION"  // int: number of hours
+	Resolution10mRetentionEnvVar = "RESOLUTION_10M_RETENTION" // int: number of 10m segments
 )
 
 // GetAPIPort returns the environment variable value for APIPortEnvVar which
