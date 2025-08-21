@@ -22,7 +22,8 @@ func NewFileStorage(baseDir string) Storage {
 	return &FileStorage{baseDir}
 }
 
-func (fs *FileStorage) Name() string {
+// String returns the base directory for the file storage.
+func (fs *FileStorage) String() string {
 	return fs.baseDir
 }
 
