@@ -510,7 +510,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	}
 	if env.IsCollectorDataSourceEnabled() {
 		fn = func() (source.OpenCostDataSource, error) {
-			store := storage.GetDefaultStorage()
+			store := GetDefaultCollectorStorage()
 			nodeStatConf, err := NewNodeClientConfigFromEnv()
 			if err != nil {
 				return nil, fmt.Errorf("failed to get node client config: %w", err)
@@ -601,6 +601,38 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	router.GET("/helmValues", a.GetHelmValues)
 
 	return a
+}
+
+// GetDefaultStorage retrieves the default shared storage which is required for running an opencost collector.
+func GetDefaultCollectorStorage() storage.Storage {
+	const warningMessage = `Failed to create local collector directory '%s' - %s.
+		Did you mean to enable to collector? For persistent storage, it's recommended to use Prometheus, 
+		or set a storage bucket configuration at %s. 
+
+		%s`
+
+	// Try bucket storage if it exists
+	store, err := storage.TryGetDefaultStorage()
+	if err == nil {
+		return store
+	}
+
+	// Fallback to a local storage bucket
+	dir := env.GetLocalCollectorDirectory()
+	err = os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		log.Warnf(
+			warningMessage,
+			dir,
+			err.Error(),
+			sysenv.GetDefaultStorageConfigFilePath(),
+			"Falling back to an in-memory file system for collector, which will lose any persistent storage upon restart.",
+		)
+
+		return storage.NewMemoryStorage()
+	}
+
+	return storage.NewFileStorage(dir)
 }
 
 // InitializeCloudCost Initializes Cloud Cost pipeline and querier and registers endpoints

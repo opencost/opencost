@@ -8,8 +8,9 @@ import (
 const (
 	ClusterInfoFile = "cluster-info.json"
 	ClusterCacheFile
-	GCPAuthSecretFile = "key.json"
-	MetricConfigFile  = "metrics.json"
+	GCPAuthSecretFile        = "key.json"
+	MetricConfigFile         = "metrics.json"
+	DefaultLocalCollectorDir = "collector"
 )
 
 // Env Variables
@@ -45,6 +46,7 @@ const (
 
 	CloudProviderAPIKeyEnvVar        = "CLOUD_PROVIDER_API_KEY"
 	CollectorDataSourceEnabledEnvVar = "COLLECTOR_DATA_SOURCE_ENABLED"
+	LocalCollectorDirectoryEnvVar    = "LOCAL_COLLECTOR_DIRECTORY"
 
 	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
 	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
@@ -365,4 +367,9 @@ func GetCloudProvider() string {
 
 func GetMetricConfigFile() string {
 	return env.GetPathFromConfig(MetricConfigFile)
+}
+
+func GetLocalCollectorDirectory() string {
+	dir := env.Get(LocalCollectorDirectoryEnvVar, DefaultLocalCollectorDir)
+	return env.GetPathFromConfig(dir)
 }
