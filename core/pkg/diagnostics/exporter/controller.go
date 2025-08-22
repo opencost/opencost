@@ -14,7 +14,7 @@ func NewDiagnosticsExportController(
 	service diagnostics.DiagnosticService,
 ) *exporter.EventExportController[diagnostics.DiagnosticsRunReport] {
 	return exporter.NewEventExportController(
-		NewDiagnosticSource(service),
+		NewDiagnosticSource(applicationName, service),
 		NewDiagnosticExporter(clusterId, applicationName, store),
 	)
 }
