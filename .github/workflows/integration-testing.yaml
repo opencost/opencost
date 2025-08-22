@@ -190,7 +190,7 @@ jobs:
       steps:
         - name: Wait 22 minutes for promless data collection
           run: |
-            sleep 100
+            sleep 1320 # 22 minutes
     
     run-comparison-tests:
       needs: [wait_for_image_ready, build-test-stack, build-test-stack-promless, wait-for-data-collection]
