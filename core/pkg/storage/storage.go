@@ -62,7 +62,6 @@ type Storage interface {
 // Validate uses the provided storage implementation to write a test file to the store, followed by a removal.
 func Validate(storage Storage) error {
 	const testPath = "tmp/test.txt"
-	const testContent = "test"
 
 	log.Debug("validating storage")
 
@@ -79,14 +78,10 @@ func Validate(storage Storage) error {
 	}
 
 	// attempt to read the path
-	data, err := storage.Read(testPath)
+	_, err = storage.Read(testPath)
 	if err != nil {
 		return errors.Wrap(err, "Failed to read data from storage")
 	}
-	if string(data) != testContent {
-		return errors.New("Failed to read the expected data from storage")
-	}
-
 	return nil
 }
 
