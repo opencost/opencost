@@ -2,6 +2,7 @@ package storage
 
 import (
 	"os"
+	"strings"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -87,8 +88,10 @@ func Validate(storage Storage, validateWriteDelete bool) error {
 	}
 
 	// attempt to read the path
+	// If we are not validating write and delete, the file won't exist since we never wrote it.
+	// We only want to check read permissions, so ignore errors with "exist" and "404" in the error message to bypass the file not exist error.
 	data, err := storage.Read(testPath)
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "exist") && !strings.Contains(err.Error(), "404") {
 		return errors.Wrap(err, "Failed to read data from storage")
 	}
 
