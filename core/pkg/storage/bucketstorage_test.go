@@ -92,3 +92,28 @@ func TestBucketStorage_Stat(t *testing.T) {
 
 	TestStorageStat(t, store)
 }
+
+// We should be able to call validate function with and without write and delete check without any errors
+func TestBucketStorage_Validate(t *testing.T) {
+	configPath := os.Getenv("TEST_BUCKET_CONFIG")
+	if configPath == "" {
+		t.Skip("skipping integration test, set environment variable TEST_BUCKET_CONFIG")
+	}
+	store, err := createStorage(configPath)
+	if err != nil {
+		t.Errorf("failed to create storage: %s", err.Error())
+		return
+	}
+
+	// Validate BucketStorage with write and delete check
+	err = Validate(store, true)
+	if err != nil {
+		t.Errorf("failed to validate storage: %s", err.Error())
+	}
+
+	// Validate BucketStorage without write and delete check (should not fail)
+	err = Validate(store, false)
+	if err != nil {
+		t.Errorf("failed to validate storage: %s", err.Error())
+	}
+}
