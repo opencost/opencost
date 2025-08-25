@@ -25,6 +25,11 @@ func NewMemoryStorage() *MemoryStorage {
 	}
 }
 
+// String returns the storage type as a string for logging purposes.
+func (ms *MemoryStorage) String() string {
+	return string(ms.StorageType())
+}
+
 // StorageType returns a string identifier for the type of storage used by the implementation.
 func (ms *MemoryStorage) StorageType() StorageType {
 	return StorageTypeMemory

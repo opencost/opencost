@@ -5,6 +5,7 @@ package storage
 // https://github.com/thanos-io/objstore/blob/main/prefixed_bucket.go
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -41,6 +42,14 @@ func conditionalPrefix(prefix, name string) string {
 
 func withPrefix(prefix, name string) string {
 	return prefix + DirDelim + name
+}
+
+// String returns the string representation of the prefixed bucket storage.
+func (pbs *PrefixedBucketStorage) String() string {
+	if stringer, ok := pbs.storage.(fmt.Stringer); ok {
+		return stringer.String()
+	}
+	return ""
 }
 
 func (pbs *PrefixedBucketStorage) StorageType() StorageType {
