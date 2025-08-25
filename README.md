@@ -54,3 +54,4 @@ If you need any support or have any questions on contributing to the project, yo
 ## FAQ
 
 You can view [OpenCost documentation](https://www.opencost.io/docs/FAQ) for a list of commonly asked questions.
+
