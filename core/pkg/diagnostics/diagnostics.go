@@ -37,6 +37,9 @@ type DiagnosticResult struct {
 
 // DiagnosticsRunReport is a struct that contains the start time of the diagnostics run, and all of the results.
 type DiagnosticsRunReport struct {
+	// Application contains the name of the application that the diagnostics run belongs to.
+	Application string `json:"application"`
+
 	// StartTime contains the time when the full diagnostics run started
 	StartTime time.Time `json:"startTime"`
 
