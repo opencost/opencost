@@ -18,11 +18,11 @@ import (
 )
 
 type collectorDataSource struct {
-	metricsQuerier *collectorMetricsQuerier
-	clusterMap     clusters.ClusterMap
-	clusterInfo    clusters.ClusterInfoProvider
-	config         CollectorConfig
-	diagnosticsModule    *metric.DiagnosticsModule
+	metricsQuerier    *collectorMetricsQuerier
+	clusterMap        clusters.ClusterMap
+	clusterInfo       clusters.ClusterInfoProvider
+	config            CollectorConfig
+	diagnosticsModule *metric.DiagnosticsModule
 }
 
 func NewDefaultCollectorDataSource(
@@ -67,6 +67,7 @@ func NewCollectorDataSource(
 	if store != nil {
 		wal, err := metric.NewWalinator(
 			config.ClusterID,
+			config.ApplicationName,
 			store,
 			resolutions,
 			updater,
@@ -98,11 +99,11 @@ func NewCollectorDataSource(
 	clusterMap := newCollectorClusterMap(clusterInfo)
 
 	return &collectorDataSource{
-		config:         config,
-		metricsQuerier: metricQuerier,
-		clusterInfo:    clusterInfo,
-		clusterMap:     clusterMap,
-		diagnosticsModule:    diagnosticsModule,
+		config:            config,
+		metricsQuerier:    metricQuerier,
+		clusterInfo:       clusterInfo,
+		clusterMap:        clusterMap,
+		diagnosticsModule: diagnosticsModule,
 	}
 }
 

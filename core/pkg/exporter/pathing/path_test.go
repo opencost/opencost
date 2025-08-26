@@ -25,7 +25,7 @@ func TestBingenPathFormatter(t *testing.T) {
 			pipeline:   "allocation",
 			resolution: nil,
 			prefix:     "",
-			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1704110400-1704114000", defaultRootDir, baseStorageDir),
+			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1704110400-1704114000", DefaultRootDir, BaseStorageDir),
 		},
 		{
 			name:       "with resolution",
@@ -33,7 +33,7 @@ func TestBingenPathFormatter(t *testing.T) {
 			pipeline:   "allocation",
 			resolution: &[]time.Duration{1 * time.Hour}[0],
 			prefix:     "",
-			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1h/1704110400-1704114000", defaultRootDir, baseStorageDir),
+			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1h/1704110400-1704114000", DefaultRootDir, BaseStorageDir),
 		},
 		{
 			name:       "no resolution with prefix",
@@ -41,7 +41,7 @@ func TestBingenPathFormatter(t *testing.T) {
 			pipeline:   "allocation",
 			resolution: nil,
 			prefix:     "test",
-			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/test.1704110400-1704114000", defaultRootDir, baseStorageDir),
+			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/test.1704110400-1704114000", DefaultRootDir, BaseStorageDir),
 		},
 		{
 			name:       "with resolution with prefix",
@@ -49,7 +49,7 @@ func TestBingenPathFormatter(t *testing.T) {
 			pipeline:   "allocation",
 			resolution: &[]time.Duration{1 * time.Hour}[0],
 			prefix:     "test",
-			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1h/test.1704110400-1704114000", defaultRootDir, baseStorageDir),
+			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1h/test.1704110400-1704114000", DefaultRootDir, BaseStorageDir),
 		},
 		{
 			name:       "daily resolution",
@@ -57,7 +57,7 @@ func TestBingenPathFormatter(t *testing.T) {
 			pipeline:   "allocation",
 			resolution: &[]time.Duration{24 * time.Hour}[0],
 			prefix:     "",
-			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1d/1704110400-1704196800", defaultRootDir, baseStorageDir),
+			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1d/1704110400-1704196800", DefaultRootDir, BaseStorageDir),
 		},
 		{
 			name:       "weekly resolution",
@@ -65,7 +65,7 @@ func TestBingenPathFormatter(t *testing.T) {
 			pipeline:   "allocation",
 			resolution: &[]time.Duration{7 * 24 * time.Hour}[0],
 			prefix:     "",
-			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1w/1704110400-1704715200", defaultRootDir, baseStorageDir),
+			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1w/1704110400-1704715200", DefaultRootDir, BaseStorageDir),
 		},
 	}
 

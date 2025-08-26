@@ -79,9 +79,6 @@ const (
 	ExportCSVLabelsAll  = "EXPORT_CSV_LABELS_ALL"
 	ExportCSVMaxDays    = "EXPORT_CSV_MAX_DAYS"
 
-	DataRetentionDailyResolutionDaysEnvVar   = "DATA_RETENTION_DAILY_RESOLUTION_DAYS"
-	DataRetentionHourlyResolutionHoursEnvVar = "DATA_RETENTION_HOURLY_RESOLUTION_HOURS"
-
 	CarbonEstimatesEnabledEnvVar = "CARBON_ESTIMATES_ENABLED"
 
 	KubernetesResourceAccessEnvVar = "KUBERNETES_RESOURCE_ACCESS"
@@ -330,14 +327,6 @@ func GetRegionOverrideList() []string {
 	}
 
 	return regionList
-}
-
-func GetDataRetentionDailyResolutionDays() int64 {
-	return env.GetInt64(DataRetentionDailyResolutionDaysEnvVar, 30)
-}
-
-func GetDataRetentionHourlyResolutionHours() int64 {
-	return env.GetInt64(DataRetentionHourlyResolutionHoursEnvVar, 49)
 }
 
 func IsKubernetesEnabled() bool {
