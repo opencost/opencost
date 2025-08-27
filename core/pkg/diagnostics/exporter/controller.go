@@ -8,13 +8,13 @@ import (
 
 // NewDiagnosticsExportController creates a new EventExportController for DiagnosticsRunReport events.
 func NewDiagnosticsExportController(
-	clusterId string,
 	applicationName string,
+	clusterId string,
 	store storage.Storage,
 	service diagnostics.DiagnosticService,
 ) *exporter.EventExportController[diagnostics.DiagnosticsRunReport] {
 	return exporter.NewEventExportController(
 		NewDiagnosticSource(applicationName, service),
-		NewDiagnosticExporter(clusterId, applicationName, store),
+		NewDiagnosticExporter(applicationName, clusterId, store),
 	)
 }
