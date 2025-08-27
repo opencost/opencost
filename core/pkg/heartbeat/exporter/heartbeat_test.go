@@ -38,7 +38,7 @@ func TestHeartbeatExporter(t *testing.T) {
 	mdp := NewMockHeartbeatMetadataProvider()
 	store := storage.NewMemoryStorage()
 
-	controller := NewHeartbeatExportController(MockClusterId, MockApplicationName, MockVersion, store, mdp)
+	controller := NewHeartbeatExportController(MockApplicationName, MockClusterId, MockVersion, store, mdp)
 
 	if !controller.Start(time.Second) {
 		t.Fatal("Failed to start controller")

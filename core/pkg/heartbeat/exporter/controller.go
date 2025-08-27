@@ -9,14 +9,14 @@ import (
 // NewHeartbeatExportController creates a new EventExportController for Heartbeat events.
 // A HeartbeatMetadataProvider can optionally be provided to append metadata to the Heartbeat payload.
 func NewHeartbeatExportController(
-	clusterId string,
 	applicationName string,
+	clusterId string,
 	version string,
 	store storage.Storage,
 	provider HeartbeatMetadataProvider,
 ) *exporter.EventExportController[heartbeat.Heartbeat] {
 	return exporter.NewEventExportController(
 		NewHeartbeatSource(applicationName, version, provider),
-		NewHeartbeatExporter(clusterId, applicationName, store),
+		NewHeartbeatExporter(applicationName, clusterId, store),
 	)
 }

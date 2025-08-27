@@ -39,7 +39,7 @@ type IngestorConfig struct {
 func DefaultIngestorConfiguration() IngestorConfig {
 	return IngestorConfig{
 		Resolution:             timeutil.Day,
-		Duration:               timeutil.Day * time.Duration(env.GetDataRetentionDailyResolutionDays()),
+		Duration:               timeutil.Day * time.Duration(env.GetCloudCost1dRetention()),
 		MonthToDateRunInterval: env.GetCloudCostMonthToDateInterval(),
 		RefreshRate:            time.Hour * time.Duration(env.GetCloudCostRefreshRateHours()),
 		QueryWindow:            timeutil.Day * time.Duration(env.GetCloudCostQueryWindowDays()),
