@@ -52,7 +52,7 @@ func TestDiagnosticsModule_Update(t *testing.T) {
 	if err != nil {
 		t.Error("Expected no error for valid diagnostic ID")
 	}
-	if kubecostDetails["passed"] != true {
+	if opencostDetails["passed"] != true {
 		t.Error("Expected kubecost diagnostic to pass")
 	}
 }
