@@ -48,7 +48,7 @@ func TestDiagnosticsModule_Update(t *testing.T) {
 		t.Error("Expected node diagnostic to pass")
 	}
 
-	kubecostDetails, err := module.DiagnosticsDetails(OpencostDiagnosticMetricID)
+	opencostDetails, err := module.DiagnosticsDetails(OpencostDiagnosticMetricID)
 	if err != nil {
 		t.Error("Expected no error for valid diagnostic ID")
 	}
