@@ -151,6 +151,13 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 			}
 		}
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.NodeStatsScraperName,
+		Targets:     len(nodeStats),
+		Errors:      []error{},
+	})
+
 	return scrapeResults
 }
 
