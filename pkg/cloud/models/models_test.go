@@ -68,6 +68,7 @@ func TestSetSetCustomPricingField(t *testing.T) {
 		"InternetNetworkEgress",
 		"NatGatewayEgress",
 		"NatGatewayIngress",
+		"ClusterManagementCost",
 	}
 
 	testCases := []testCase{}
@@ -102,6 +103,7 @@ func TestSetSetCustomPricingField(t *testing.T) {
 				InternetNetworkEgress: defaultValue,
 				NatGatewayEgress:      defaultValue,
 				NatGatewayIngress:     defaultValue,
+				ClusterManagementCost: defaultValue,
 			}
 			err := SetCustomPricingField(cp, tc.fieldName, tc.fieldValue)
 			if err != nil && tc.expError == nil {
@@ -116,6 +118,50 @@ func TestSetSetCustomPricingField(t *testing.T) {
 			actValue := structFieldValue.String()
 			if actValue != tc.expValue {
 				t.Errorf("expected field '%s' to be '%s'; actual value is '%s'", tc.fieldName, tc.expValue, actValue)
+			}
+		})
+	}
+}
+
+func TestCustomPricing_GetClusterManagementCost(t *testing.T) {
+	testCases := map[string]struct {
+		input     string
+		expCost   float64
+		expExists bool
+	}{
+		"empty string returns false": {
+			input:     "",
+			expCost:   0.0,
+			expExists: false,
+		},
+		"valid cost": {
+			input:     "0.10",
+			expCost:   0.10,
+			expExists: true,
+		},
+		"zero cost": {
+			input:     "0",
+			expCost:   0.0,
+			expExists: true,
+		},
+		"invalid string returns false": {
+			input:     "not-a-number",
+			expCost:   0.0,
+			expExists: false,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			cp := &CustomPricing{
+				ClusterManagementCost: tc.input,
+			}
+			cost, exists := cp.GetClusterManagementCost()
+			if cost != tc.expCost {
+				t.Errorf("expected cost %f, got %f", tc.expCost, cost)
+			}
+			if exists != tc.expExists {
+				t.Errorf("expected exists=%v, got %v", tc.expExists, exists)
 			}
 		})
 	}

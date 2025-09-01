@@ -1045,6 +1045,11 @@ func (gcp *GCP) DownloadPricingData() error {
 	gcp.ProjectID = c.ProjectID
 	gcp.BillingDataDataset = c.BillingDataDataset
 
+	clusterManagementCost, hasCustomClusterManagementCost := c.GetClusterManagementCost()
+	if hasCustomClusterManagementCost {
+		gcp.clusterManagementPrice = clusterManagementCost
+	}
+
 	nodeList := gcp.Clientset.GetAllNodes()
 	inputkeys := make(map[string]models.Key)
 
@@ -1052,7 +1057,9 @@ func (gcp *GCP) DownloadPricingData() error {
 	for _, n := range nodeList {
 		labels := n.Labels
 		if _, ok := labels["cloud.google.com/gke-nodepool"]; ok { // The node is part of a GKE nodepool, so you're paying a cluster management cost
-			gcp.clusterManagementPrice = 0.10
+			if !hasCustomClusterManagementCost {
+				gcp.clusterManagementPrice = 0.10 // Default to 0.10 if not set by custom pricing
+			}
 			gcp.clusterProvisioner = "GKE"
 		}
 		r, _ := util.GetRegion(labels)
