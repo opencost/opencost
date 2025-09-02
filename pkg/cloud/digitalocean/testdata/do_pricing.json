@@ -1,0 +1,30 @@
+{
+  "products": [
+    {
+      "sku": "1-KS-K8SWN-00123",
+      "itemType": "K8S_WORKER_NODE",
+      "displayName": "Kubernetes Worker Node, General Purpose Droplets - 1 VCPU 2GB RAM",
+      "category": "IAAS",
+      "prices": [
+        {
+          "unit": "ITEM_PER_SECOND",
+          "rate": "0.00000333",
+          "currency": "USD",
+          "region": "global",
+          "minAmount": "0.01",
+          "maxAmount": "10.00",
+          "minUsage": "60",
+          "maxUsage": "2419200"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "size_id",
+          "value": "184",
+          "unit": "NO_UNIT"
+        }
+      ],
+      "effectiveAt": "2023-09-08T00:00:00Z"
+    }
+  ]
+}
