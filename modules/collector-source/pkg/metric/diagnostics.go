@@ -262,16 +262,14 @@ func (sd *scrapeDiagnostic) Details() map[string]any {
 type DiagnosticsModule struct {
 	lock            sync.RWMutex
 	diagnostics     *collections.IdNameMap[CollectorDiagnostic]
-	updater         Updater
 	scrapeHandlerId events.HandlerID // scrape event handler identifier for removal
 }
 
 // NewDiagnosticsModule creates a new `DiagnosticsModule` instance to be used with a collector data source
-func NewDiagnosticsModule(updater Updater) *DiagnosticsModule {
+func NewDiagnosticsModule() *DiagnosticsModule {
 	diagnostics := collections.NewIdNameMap[CollectorDiagnostic]()
 	dm := &DiagnosticsModule{
 		diagnostics: diagnostics,
-		updater:     updater,
 	}
 
 	scrapeEvents := events.GlobalDispatcherFor[event.ScrapeEvent]()
@@ -296,14 +294,6 @@ func (d *DiagnosticsModule) onScrapeEvent(event event.ScrapeEvent) {
 	}
 
 	d.diagnostics.Insert(newScrapeDiagnostic(event, def))
-}
-
-func (d *DiagnosticsModule) Update(updateSet *UpdateSet) {
-	if updateSet == nil {
-		return
-	}
-
-	d.updater.Update(updateSet)
 }
 
 // DiagnosticDefinitions returns a deterministic mapping of pre-defined diagnostics used with the collector.

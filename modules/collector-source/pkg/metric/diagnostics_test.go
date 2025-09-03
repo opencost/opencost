@@ -9,16 +9,8 @@ import (
 	"github.com/opencost/opencost/modules/collector-source/pkg/event"
 )
 
-// MockUpdater implements the Updater interface for testing
-type MockUpdater struct {
-}
-
-func (m *MockUpdater) Update(updateSet *UpdateSet) {
-}
-
 func TestDiagnosticsModule_ScrapeDiagnostics(t *testing.T) {
-	mockUpdater := &MockUpdater{}
-	module := NewDiagnosticsModule(mockUpdater)
+	module := NewDiagnosticsModule()
 
 	// dispatch some faux scrape events
 	events.Dispatch(event.ScrapeEvent{
