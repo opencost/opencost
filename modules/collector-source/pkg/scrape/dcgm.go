@@ -9,6 +9,7 @@ import (
 	"github.com/opencost/opencost/modules/collector-source/pkg/event"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
+	v1 "k8s.io/api/core/v1"
 )
 
 var dcgmRegex = regexp.MustCompile("(?i)(.*dcgm-exporter.*)")
@@ -31,25 +32,32 @@ func newDCGMTargetScraper(provider target.TargetProvider) *TargetScraper {
 
 type DCGMTargetProvider struct {
 	clusterCache clustercache.ClusterCache
+	port         int
 }
 
 func newDCGMTargetProvider(clusterCache clustercache.ClusterCache) *DCGMTargetProvider {
 	return &DCGMTargetProvider{
 		clusterCache: clusterCache,
+		port:         9400,
 	}
 }
 
 func (p *DCGMTargetProvider) GetTargets() []target.ScrapeTarget {
-	svcs := p.clusterCache.GetAllServices()
+	// NOTE: The proper way to discover these targets is to first identify a Service that
+	// NOTE: matches a specific selector. Then, locate the Endpoints kubernetes resource associated
+	// NOTE: with that Service. This Endpoints resource has a list of all the targetted pods and their
+	// NOTE: addresses. We do _not_ have the Endpoints resource on our cluster cache at the moment,
+	// NOTE: so we'll perform this lookup ourselves.
+	pods := p.clusterCache.GetAllPods()
+
 	var targets []target.ScrapeTarget
-	for _, svc := range svcs {
-		if svc.ClusterIP == "" || !isDCGM(svc.SpecSelector) {
-			continue
+	for _, pod := range pods {
+		if pod.Status.Phase == v1.PodRunning && isDCGM(pod.Labels) {
+			log.Debugf("DCGM: found target: http://%s:%d/metrics", pod.Status.PodIP, p.port)
+
+			t := target.NewUrlTarget(fmt.Sprintf("http://%s:%d/metrics", pod.Status.PodIP, p.port))
+			targets = append(targets, t)
 		}
-		port := 9400
-		log.Debugf("DCGM: found target: http://%s:%d/metrics", svc.ClusterIP, port)
-		t := target.NewUrlTarget(fmt.Sprintf("http://%s:%d/metrics", svc.ClusterIP, port))
-		targets = append(targets, t)
 	}
 
 	return targets
