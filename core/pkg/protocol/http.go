@@ -64,6 +64,7 @@ func (hp HTTPProtocol) NotImplemented(message string) HTTPError {
 		Body:       message,
 	}
 }
+
 func (hp HTTPProtocol) Forbidden(message string) HTTPError {
 	if message == "" {
 		message = "Forbidden"
@@ -84,10 +85,11 @@ func (hp HTTPProtocol) NotFound() HTTPError {
 
 // HTTPResponse represents a data envelope for our HTTP messaging
 type HTTPResponse struct {
-	Code    int         `json:"code"`
-	Data    interface{} `json:"data"`
-	Message string      `json:"message,omitempty"`
-	Warning string      `json:"warning,omitempty"`
+	Code    int                    `json:"code"`
+	Data    interface{}            `json:"data"`
+	Meta    map[string]interface{} `json:"meta,omitempty"`
+	Message string                 `json:"message,omitempty"`
+	Warning string                 `json:"warning,omitempty"`
 }
 
 // ToResponse accepts a data payload and/or error to encode into a new HTTPResponse instance. Responses
@@ -106,6 +108,7 @@ func (hp HTTPProtocol) ToResponse(data interface{}, err error) *HTTPResponse {
 		Data: data,
 	}
 }
+
 func (hp HTTPProtocol) WriteRawOK(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", "0")
@@ -266,4 +269,57 @@ func (hp HTTPProtocol) WriteResponse(w http.ResponseWriter, r *HTTPResponse) {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(internalServerErrorJSON))
 	}
+}
+
+func (hp HTTPProtocol) NewError(statusCode int, err error) *HTTPError {
+	if statusCode == 0 {
+		statusCode = http.StatusInternalServerError
+	}
+
+	var body string
+	if err != nil {
+		body = err.Error()
+	} else {
+		body = "Internal Server Error"
+	}
+
+	return &HTTPError{
+		StatusCode: statusCode,
+		Body:       body,
+	}
+}
+
+func (hp HTTPProtocol) NewResponse(code ...int) *HTTPResponse {
+	hr := &HTTPResponse{Code: http.StatusOK}
+
+	if len(code) == 1 {
+		hr.Code = code[0]
+	}
+
+	return hr
+}
+
+func (hr *HTTPResponse) WithCode(code int) *HTTPResponse {
+	hr.Code = code
+	return hr
+}
+
+func (hr *HTTPResponse) WithData(data interface{}) *HTTPResponse {
+	hr.Data = data
+	return hr
+}
+
+func (hr *HTTPResponse) WithMeta(meta map[string]interface{}) *HTTPResponse {
+	hr.Meta = meta
+	return hr
+}
+
+func (hr *HTTPResponse) WithMessage(message string) *HTTPResponse {
+	hr.Message = message
+	return hr
+}
+
+func (hr *HTTPResponse) WithWarning(warning string) *HTTPResponse {
+	hr.Message = warning
+	return hr
 }
