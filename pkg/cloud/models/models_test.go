@@ -116,3 +116,35 @@ func TestSetSetCustomPricingField(t *testing.T) {
 		})
 	}
 }
+
+func TestCustomPricing_AthenaCURVersion(t *testing.T) {
+	testCases := map[string]struct {
+		curVersion string
+		expected   string
+	}{
+		"CUR version 1.0": {
+			curVersion: "1.0",
+			expected:   "1.0",
+		},
+		"CUR version 2.0": {
+			curVersion: "2.0",
+			expected:   "2.0",
+		},
+		"empty CUR version": {
+			curVersion: "",
+			expected:   "",
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			cp := &CustomPricing{
+				AthenaCURVersion: testCase.curVersion,
+			}
+			
+			if cp.AthenaCURVersion != testCase.expected {
+				t.Errorf("expected AthenaCURVersion to be '%s', got '%s'", testCase.expected, cp.AthenaCURVersion)
+			}
+		})
+	}
+}
