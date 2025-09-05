@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -184,4 +185,111 @@ func TestHTTPProtocol_WriteData_Structure(t *testing.T) {
 	assert.NotContains(t, body, "message")
 	assert.NotContains(t, body, "warning")
 }
- 
+
+func TestHTTPProtocol_HTTPResponse(t *testing.T) {
+	proto := HTTP()
+
+	// Test data, meta, warning, message
+	data := struct {
+		Apples  int
+		Bananas int
+	}{
+		Apples:  12,
+		Bananas: 4,
+	}
+
+	meta := map[string]interface{}{
+		"lastUpdated": time.Date(2025, time.September, 5, 13, 27, 3, 0, time.UTC),
+	}
+
+	warning := "warning"
+
+	message := "message"
+
+	// Test building an HTTPResponse
+
+	var r *HTTPResponse
+
+	r = proto.NewResponse()
+	if r == nil || r.Code != 200 {
+		t.Errorf("expected code %d, received %d", 200, r.Code)
+	}
+
+	r = proto.NewResponse(302).WithMessage("Moved Temporarily")
+	if r == nil || r.Code != 302 || r.Message != "Moved Temporarily" {
+		t.Errorf("expected %d %s, received %d %s", 302, "Moved Temporarily", r.Code, r.Message)
+	}
+
+	r = r.WithCode(200).WithData(data).WithMeta(meta).WithMessage(message).WithWarning(warning)
+	if r == nil {
+		t.Errorf("unexpected nil response")
+	}
+	if r.Code != 200 {
+		t.Errorf("expected code %d, received %d", 200, r.Code)
+	}
+	if r.Data == nil {
+		t.Error("unexpected nil data")
+	}
+	if r.Meta == nil {
+		t.Error("unexpected nil meta")
+	}
+	if r.Message == "" {
+		t.Error("unexpected empty message")
+	}
+	if r.Warning == "" {
+		t.Error("unexpected empty warning")
+	}
+
+	// Test assigning attribtues to nil response
+
+	r = nil
+	r = r.WithCode(413)
+	if r == nil || r.Code != 413 {
+		t.Errorf("expected code %d, received %d", 413, r.Code)
+	}
+
+	r = nil
+	r = r.WithData(data)
+	if r == nil || r.Data == nil {
+		t.Error("expected data, received nil")
+	}
+
+	r = nil
+	r = r.WithMeta(meta)
+	if r == nil || r.Meta == nil {
+		t.Error("expected meta, received nil")
+	}
+
+	r = nil
+	r = r.WithWarning(warning)
+	if r == nil || r.Warning == "" {
+		t.Error("expected warning, received empty string")
+	}
+
+	r = nil
+	r = r.WithMessage(message)
+	if r == nil || r.Message == "" {
+		t.Error("expected message, received empty string")
+	}
+}
+
+func TestHTTPProtocol_NewError(t *testing.T) {
+	proto := HTTP()
+
+	err := errors.New("error")
+
+	httpErr := proto.NewError(err)
+	if httpErr == nil || httpErr.StatusCode != 500 || httpErr.Body != "error" {
+		t.Errorf("expected 500 error, received %d %s", httpErr.StatusCode, httpErr.Body)
+	}
+
+	httpErr = proto.NewError(err, 400)
+	if httpErr == nil || httpErr.StatusCode != 400 || httpErr.Body != "error" {
+		t.Errorf("expected 400 error, received %d %s", httpErr.StatusCode, httpErr.Body)
+	}
+
+	httpErr = proto.NewError(err, 400, 404)
+	if httpErr == nil || httpErr.StatusCode != 400 || httpErr.Body != "error" {
+		t.Errorf("expected 400 error, received %d %s", httpErr.StatusCode, httpErr.Body)
+	}
+}

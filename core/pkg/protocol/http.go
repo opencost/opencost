@@ -64,6 +64,7 @@ func (hp HTTPProtocol) NotImplemented(message string) HTTPError {
 		Body:       message,
 	}
 }
+
 func (hp HTTPProtocol) Forbidden(message string) HTTPError {
 	if message == "" {
 		message = "Forbidden"
@@ -84,10 +85,11 @@ func (hp HTTPProtocol) NotFound() HTTPError {
 
 // HTTPResponse represents a data envelope for our HTTP messaging
 type HTTPResponse struct {
-	Code    int         `json:"code"`
-	Data    interface{} `json:"data"`
-	Message string      `json:"message,omitempty"`
-	Warning string      `json:"warning,omitempty"`
+	Code    int                    `json:"code"`
+	Data    interface{}            `json:"data"`
+	Meta    map[string]interface{} `json:"meta,omitempty"`
+	Message string                 `json:"message,omitempty"`
+	Warning string                 `json:"warning,omitempty"`
 }
 
 // ToResponse accepts a data payload and/or error to encode into a new HTTPResponse instance. Responses
@@ -106,6 +108,7 @@ func (hp HTTPProtocol) ToResponse(data interface{}, err error) *HTTPResponse {
 		Data: data,
 	}
 }
+
 func (hp HTTPProtocol) WriteRawOK(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", "0")
@@ -266,4 +269,83 @@ func (hp HTTPProtocol) WriteResponse(w http.ResponseWriter, r *HTTPResponse) {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(internalServerErrorJSON))
 	}
+}
+
+func (hp HTTPProtocol) NewError(err error, statusCode ...int) *HTTPError {
+	code := http.StatusInternalServerError
+	if len(statusCode) > 0 {
+		code = statusCode[0]
+	}
+
+	var body string
+	if err != nil {
+		body = err.Error()
+	} else {
+		body = "Internal Server Error"
+	}
+
+	return &HTTPError{
+		StatusCode: code,
+		Body:       body,
+	}
+}
+
+func (hp HTTPProtocol) NewResponse(code ...int) *HTTPResponse {
+	r := &HTTPResponse{Code: http.StatusOK}
+
+	if len(code) == 1 {
+		r.Code = code[0]
+	}
+
+	return r
+}
+
+func (r *HTTPResponse) WithCode(code int) *HTTPResponse {
+	if r == nil {
+		r = &HTTPResponse{}
+	}
+
+	r.Code = code
+
+	return r
+}
+
+func (r *HTTPResponse) WithData(data interface{}) *HTTPResponse {
+	if r == nil {
+		r = &HTTPResponse{}
+	}
+
+	r.Data = data
+
+	return r
+}
+
+func (r *HTTPResponse) WithMeta(meta map[string]interface{}) *HTTPResponse {
+	if r == nil {
+		r = &HTTPResponse{}
+	}
+
+	r.Meta = meta
+
+	return r
+}
+
+func (r *HTTPResponse) WithMessage(message string) *HTTPResponse {
+	if r == nil {
+		r = &HTTPResponse{}
+	}
+
+	r.Message = message
+
+	return r
+}
+
+func (r *HTTPResponse) WithWarning(warning string) *HTTPResponse {
+	if r == nil {
+		r = &HTTPResponse{}
+	}
+
+	r.Warning = warning
+
+	return r
 }
