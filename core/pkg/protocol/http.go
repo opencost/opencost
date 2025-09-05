@@ -290,36 +290,61 @@ func (hp HTTPProtocol) NewError(statusCode int, err error) *HTTPError {
 }
 
 func (hp HTTPProtocol) NewResponse(code ...int) *HTTPResponse {
-	hr := &HTTPResponse{Code: http.StatusOK}
+	r := &HTTPResponse{Code: http.StatusOK}
 
 	if len(code) == 1 {
-		hr.Code = code[0]
+		r.Code = code[0]
 	}
 
-	return hr
+	return r
 }
 
-func (hr *HTTPResponse) WithCode(code int) *HTTPResponse {
-	hr.Code = code
-	return hr
+func (r *HTTPResponse) WithCode(code int) *HTTPResponse {
+	if r == nil {
+		r = &HTTPResponse{}
+	}
+
+	r.Code = code
+
+	return r
 }
 
-func (hr *HTTPResponse) WithData(data interface{}) *HTTPResponse {
-	hr.Data = data
-	return hr
+func (r *HTTPResponse) WithData(data interface{}) *HTTPResponse {
+	if r == nil {
+		r = &HTTPResponse{}
+	}
+
+	r.Data = data
+
+	return r
 }
 
-func (hr *HTTPResponse) WithMeta(meta map[string]interface{}) *HTTPResponse {
-	hr.Meta = meta
-	return hr
+func (r *HTTPResponse) WithMeta(meta map[string]interface{}) *HTTPResponse {
+	if r == nil {
+		r = &HTTPResponse{}
+	}
+
+	r.Meta = meta
+
+	return r
 }
 
-func (hr *HTTPResponse) WithMessage(message string) *HTTPResponse {
-	hr.Message = message
-	return hr
+func (r *HTTPResponse) WithMessage(message string) *HTTPResponse {
+	if r == nil {
+		r = &HTTPResponse{}
+	}
+
+	r.Message = message
+
+	return r
 }
 
-func (hr *HTTPResponse) WithWarning(warning string) *HTTPResponse {
-	hr.Message = warning
-	return hr
+func (r *HTTPResponse) WithWarning(warning string) *HTTPResponse {
+	if r == nil {
+		r = &HTTPResponse{}
+	}
+
+	r.Warning = warning
+
+	return r
 }
