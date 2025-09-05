@@ -271,9 +271,10 @@ func (hp HTTPProtocol) WriteResponse(w http.ResponseWriter, r *HTTPResponse) {
 	}
 }
 
-func (hp HTTPProtocol) NewError(statusCode int, err error) *HTTPError {
-	if statusCode == 0 {
-		statusCode = http.StatusInternalServerError
+func (hp HTTPProtocol) NewError(err error, statusCode ...int) *HTTPError {
+	code := http.StatusInternalServerError
+	if len(statusCode) > 0 {
+		code = statusCode[0]
 	}
 
 	var body string
@@ -284,7 +285,7 @@ func (hp HTTPProtocol) NewError(statusCode int, err error) *HTTPError {
 	}
 
 	return &HTTPError{
-		StatusCode: statusCode,
+		StatusCode: code,
 		Body:       body,
 	}
 }

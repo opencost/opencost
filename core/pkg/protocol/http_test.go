@@ -272,3 +272,24 @@ func TestHTTPProtocol_HTTPResponse(t *testing.T) {
 		t.Error("expected message, received empty string")
 	}
 }
+
+func TestHTTPProtocol_NewError(t *testing.T) {
+	proto := HTTP()
+
+	err := errors.New("error")
+
+	httpErr := proto.NewError(err)
+	if httpErr == nil || httpErr.StatusCode != 500 || httpErr.Body != "error" {
+		t.Errorf("expected 500 error, received %d %s", httpErr.StatusCode, httpErr.Body)
+	}
+
+	httpErr = proto.NewError(err, 400)
+	if httpErr == nil || httpErr.StatusCode != 400 || httpErr.Body != "error" {
+		t.Errorf("expected 400 error, received %d %s", httpErr.StatusCode, httpErr.Body)
+	}
+
+	httpErr = proto.NewError(err, 400, 404)
+	if httpErr == nil || httpErr.StatusCode != 400 || httpErr.Body != "error" {
+		t.Errorf("expected 400 error, received %d %s", httpErr.StatusCode, httpErr.Body)
+	}
+}
