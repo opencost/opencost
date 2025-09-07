@@ -54,6 +54,7 @@ const (
 	APIPricingSource              = "Public API"
 	SpotPricingSource             = "Spot Data Feed"
 	ReservedInstancePricingSource = "Savings Plan, Reserved Instance, and Out-Of-Cluster"
+	FargatePricingSource          = "Fargate"
 
 	InUseState    = "in-use"
 	AttachedState = "attached"
@@ -122,6 +123,18 @@ func (aws *AWS) PricingSourceStatus() map[string]*models.PricingSource {
 		rps.Available = true
 	}
 	sources[ReservedInstancePricingSource] = rps
+
+	fs := &models.PricingSource{
+		Name:      FargatePricingSource,
+		Enabled:   true,
+		Available: true,
+	}
+	if aws.FargatePricingError != nil {
+		fs.Error = aws.FargatePricingError.Error()
+		fs.Available = false
+	}
+	sources[FargatePricingSource] = fs
+
 	return sources
 
 }
@@ -174,6 +187,8 @@ type AWS struct {
 	SavingsPlanDataByInstanceID map[string]*SavingsPlanData
 	SavingsPlanDataRunning      bool
 	SavingsPlanDataLock         sync.RWMutex
+	FargatePricing              *FargatePricing
+	FargatePricingError         error
 	ValidPricingKeys            map[string]bool
 	Clientset                   clustercache.ClusterCache
 	BaseCPUPrice                string
@@ -596,6 +611,7 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 }
 
 type awsKey struct {
+	Name           string
 	SpotLabelName  string
 	SpotLabelValue string
 	Labels         map[string]string
@@ -642,6 +658,16 @@ func (k *awsKey) Features() string {
 		return spotKey
 	}
 	return key
+}
+
+const eksComputeTypeLabel = "eks.amazonaws.com/compute-type"
+
+func (k *awsKey) isFargateNode() bool {
+	v := k.Labels[eksComputeTypeLabel]
+	if v == "fargate" {
+		return true
+	}
+	return false
 }
 
 // getUsageType returns the usage type of the instance
@@ -751,6 +777,7 @@ func getStorageClassTypeFrom(provisioner string) string {
 // GetKey maps node labels to information needed to retrieve pricing data
 func (aws *AWS) GetKey(labels map[string]string, n *clustercache.Node) models.Key {
 	return &awsKey{
+		Name:           n.Name,
 		SpotLabelName:  aws.SpotLabelName,
 		SpotLabelValue: aws.SpotLabelValue,
 		Labels:         labels,
@@ -770,10 +797,9 @@ func (aws *AWS) ClusterManagementPricing() (string, float64, error) {
 	return aws.clusterProvisioner, aws.clusterManagementPrice, nil
 }
 
-// Use the pricing data from the current region. Fall back to using all region data if needed.
-func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response, string, error) {
-
-	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/"
+func getPricingListURL(serviceCode string, nodeList []*clustercache.Node) string {
+	// See https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/using-the-aws-price-list-bulk-api-fetching-price-list-files-manually.html
+	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/" + serviceCode + "/current/"
 	region := ""
 	multiregion := false
 	for _, n := range nodeList {
@@ -783,7 +809,7 @@ func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response,
 			currentNodeRegion = r
 			// Switch to Chinese endpoint for regions with the Chinese prefix
 			if strings.HasPrefix(currentNodeRegion, "cn-") {
-				pricingURL = "https://pricing.cn-north-1.amazonaws.com.cn/offers/v1.0/cn/AmazonEC2/current/"
+				pricingURL = "https://pricing.cn-north-1.amazonaws.com.cn/offers/v1.0/cn/" + serviceCode + "/current/"
 			}
 		} else {
 			multiregion = true // We weren't able to detect the node's region, so pull all data.
@@ -801,11 +827,16 @@ func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response,
 	if region != "" && !multiregion {
 		pricingURL += region + "/"
 	}
+	return pricingURL + "index.json"
+}
 
-	pricingURL += "index.json"
-
+// Use the pricing data from the current region. Fall back to using all region data if needed.
+func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response, string, error) {
+	var pricingURL string
 	if env.GetAWSPricingURL() != "" { // Allow override of pricing URL
 		pricingURL = env.GetAWSPricingURL()
+	} else {
+		pricingURL = getPricingListURL("AmazonEC2", nodeList)
 	}
 
 	log.Infof("starting download of \"%s\", which is quite large ...", pricingURL)
@@ -944,6 +975,15 @@ func (aws *AWS) DownloadPricingData() error {
 					}
 				}
 			}()
+		}
+	}
+
+	// Initialize fargate pricing if it's not initialized yet
+	if aws.FargatePricing == nil {
+		aws.FargatePricing = NewFargatePricing()
+		aws.FargatePricingError = aws.FargatePricing.Initialize(nodeList)
+		if aws.FargatePricingError != nil {
+			log.Errorf("Failed to initialize fargate pricing: %s", aws.FargatePricingError.Error())
 		}
 	}
 
@@ -1410,6 +1450,72 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 	}, meta, nil
 }
 
+func (aws *AWS) getFargatePod(awsKey *awsKey) (*clustercache.Pod, bool) {
+	pods := aws.Clientset.GetAllPods()
+	for _, pod := range pods {
+		if pod.Spec.NodeName == awsKey.Name {
+			return pod, true
+		}
+	}
+	return nil, false
+}
+
+const (
+	nodeOSLabel   = "kubernetes.io/os"
+	nodeArchLabel = "kubernetes.io/arch"
+
+	fargatePodCapacityAnnotation = "CapacityProvisioned"
+)
+
+// e.g. "0.25vCPU 0.5GB"
+var fargatePodCapacityRegex = regexp.MustCompile("^([0-9.]+)vCPU ([0-9.]+)GB$")
+
+func (aws *AWS) createFargateNode(awsKey *awsKey, usageType string) (*models.Node, models.PricingMetadata, error) {
+	pod, ok := aws.getFargatePod(awsKey)
+	if !ok {
+		return nil, models.PricingMetadata{}, fmt.Errorf("could not find pod for fargate node %s", awsKey.Name)
+	}
+	capacity := pod.Annotations[fargatePodCapacityAnnotation]
+	match := fargatePodCapacityRegex.FindStringSubmatch(capacity)
+	if len(match) == 0 {
+		return nil, models.PricingMetadata{}, fmt.Errorf("could not parse pod capacity for fargate node %s", awsKey.Name)
+	}
+
+	vCPU, err := strconv.ParseFloat(match[1], 64)
+	if err != nil {
+		return nil, models.PricingMetadata{}, fmt.Errorf("could not parse vCPU capacity for fargate node %s: %v", awsKey.Name, err)
+	}
+	memory, err := strconv.ParseFloat(match[2], 64)
+	if err != nil {
+		return nil, models.PricingMetadata{}, fmt.Errorf("could not parse memory capacity for fargate node %s: %v", awsKey.Name, err)
+	}
+
+	region, ok := util.GetRegion(awsKey.Labels)
+	if !ok {
+		return nil, models.PricingMetadata{}, fmt.Errorf("could not get region for fargate node %s", awsKey.Name)
+	}
+	nodeOS := awsKey.Labels[nodeOSLabel]
+	nodeArch := awsKey.Labels[nodeArchLabel]
+	hourlyCPU, hourlyRAM, err := aws.FargatePricing.GetHourlyPricing(region, nodeOS, nodeArch)
+	if err != nil {
+		return nil, models.PricingMetadata{}, fmt.Errorf("could not get hourly pricing for fargate node %s: %v", awsKey.Name, err)
+	}
+
+	cost := hourlyCPU*vCPU + hourlyRAM*memory
+	return &models.Node{
+		Cost:         strconv.FormatFloat(cost, 'f', -1, 64),
+		VCPU:         strconv.FormatFloat(vCPU, 'f', -1, 64),
+		RAM:          strconv.FormatFloat(memory, 'f', -1, 64),
+		RAMBytes:     strconv.FormatFloat(memory*1024*1024*1024, 'f', -1, 64),
+		VCPUCost:     strconv.FormatFloat(hourlyCPU, 'f', -1, 64),
+		RAMCost:      strconv.FormatFloat(hourlyRAM, 'f', -1, 64),
+		BaseCPUPrice: aws.BaseCPUPrice,
+		BaseRAMPrice: aws.BaseRAMPrice,
+		BaseGPUPrice: aws.BaseGPUPrice,
+		UsageType:    usageType,
+	}, models.PricingMetadata{}, nil
+}
+
 // NodePricing takes in a key from GetKey and returns a Node object for use in building the cost model.
 func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata, error) {
 	aws.DownloadPricingDataLock.RLock()
@@ -1455,6 +1561,9 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 			}, meta, fmt.Errorf("Unable to find any Pricing data for \"%s\"", key)
 		}
 		return aws.createNode(terms, usageType, k)
+	} else if awsKey, ok := k.(*awsKey); ok && awsKey.isFargateNode() {
+		// Since Fargate pricing is listed at AmazonECS and is different from AmazonEC2, we handle it separately here
+		return aws.createFargateNode(awsKey, usageType)
 	} else { // Fall back to base pricing if we can't find the key. Base pricing is handled at the costmodel level.
 		// we seem to have an issue where this error gets thrown during app start.
 		// somehow the ValidPricingKeys map is being accessed before all the pricing data has been downloaded
