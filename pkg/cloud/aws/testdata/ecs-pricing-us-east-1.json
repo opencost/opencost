@@ -1,0 +1,462 @@
+{
+  "formatVersion" : "v1.0",
+  "disclaimer" : "This pricing list is for informational purposes only. All prices are subject to the additional terms included in the pricing pages on http://aws.amazon.com. All Free Tier prices are also subject to the terms included at https://aws.amazon.com/free/",
+  "offerCode" : "AmazonECS",
+  "version" : "20250828172723",
+  "publicationDate" : "2025-08-28T17:27:23Z",
+  "products" : {
+    "74HXSAMY4YHFPXQQ" : {
+      "sku" : "74HXSAMY4YHFPXQQ",
+      "productFamily" : "Compute Metering",
+      "attributes" : {
+        "servicecode" : "AmazonECS",
+        "location" : "US East (N. Virginia)",
+        "locationType" : "AWS Region",
+        "usagetype" : "USE1-ECS-EC2-GB-Hours",
+        "operation" : "",
+        "memorytype" : "perGB",
+        "regionCode" : "us-east-1",
+        "servicename" : "Amazon Elastic Container Service"
+      }
+    },
+    "RF2BUTAD289DREDC" : {
+      "sku" : "RF2BUTAD289DREDC",
+      "productFamily" : "Compute",
+      "attributes" : {
+        "servicecode" : "AmazonECS",
+        "location" : "US East (N. Virginia)",
+        "locationType" : "AWS Region",
+        "tenancy" : "Shared",
+        "operatingSystem" : "Windows",
+        "usagetype" : "USE1-Fargate-Windows-vCPU-Hours:perCPU",
+        "operation" : "",
+        "cputype" : "perCPU",
+        "regionCode" : "us-east-1",
+        "resource" : "per vCPU per hour",
+        "servicename" : "Amazon Elastic Container Service"
+      }
+    },
+    "9D3ZWXRS2VXMZET6" : {
+      "sku" : "9D3ZWXRS2VXMZET6",
+      "productFamily" : "Compute",
+      "attributes" : {
+        "servicecode" : "AmazonECS",
+        "location" : "US East (N. Virginia)",
+        "locationType" : "AWS Region",
+        "tenancy" : "Shared",
+        "operatingSystem" : "Windows",
+        "usagetype" : "USE1-Fargate-Windows-OS-Hours:perCPU",
+        "operation" : "",
+        "cputype" : "perCPU OS License Fee",
+        "regionCode" : "us-east-1",
+        "resource" : "OS License Fee per vCPU per hour",
+        "servicename" : "Amazon Elastic Container Service"
+      }
+    },
+    "WTG8RAG79KP7K3N8" : {
+      "sku" : "WTG8RAG79KP7K3N8",
+      "productFamily" : "Compute",
+      "attributes" : {
+        "servicecode" : "AmazonECS",
+        "location" : "US East (N. Virginia)",
+        "locationType" : "AWS Region",
+        "usagetype" : "USE1-ECS-Anywhere-Instance-hours",
+        "operation" : "AddExternalInstance",
+        "externalInstanceType" : "Default",
+        "regionCode" : "us-east-1",
+        "servicename" : "Amazon Elastic Container Service"
+      }
+    },
+    "7KPDPTDSCT4J3Z64" : {
+      "sku" : "7KPDPTDSCT4J3Z64",
+      "productFamily" : "Compute",
+      "attributes" : {
+        "servicecode" : "AmazonECS",
+        "location" : "US East (N. Virginia)",
+        "locationType" : "AWS Region",
+        "usagetype" : "USE1-Fargate-EphemeralStorage-GB-Hours",
+        "operation" : "",
+        "regionCode" : "us-east-1",
+        "servicename" : "Amazon Elastic Container Service",
+        "storagetype" : "default"
+      }
+    },
+    "UNH9KPQP7W7C66C9" : {
+      "sku" : "UNH9KPQP7W7C66C9",
+      "productFamily" : "Compute",
+      "attributes" : {
+        "servicecode" : "AmazonECS",
+        "location" : "US East (N. Virginia)",
+        "locationType" : "AWS Region",
+        "tenancy" : "Shared",
+        "usagetype" : "USE1-Fargate-ARM-GB-Hours",
+        "operation" : "",
+        "cpuArchitecture" : "ARM",
+        "memorytype" : "perGB",
+        "regionCode" : "us-east-1",
+        "resource" : "per GB per hour",
+        "servicename" : "Amazon Elastic Container Service"
+      }
+    },
+    "8QDMJPGQCM368Z6X" : {
+      "sku" : "8QDMJPGQCM368Z6X",
+      "productFamily" : "Compute",
+      "attributes" : {
+        "servicecode" : "AmazonECS",
+        "location" : "US East (N. Virginia)",
+        "locationType" : "AWS Region",
+        "tenancy" : "Shared",
+        "operatingSystem" : "Windows",
+        "usagetype" : "USE1-Fargate-Windows-GB-Hours",
+        "operation" : "",
+        "memorytype" : "perGB",
+        "regionCode" : "us-east-1",
+        "resource" : "per GB per hour",
+        "servicename" : "Amazon Elastic Container Service"
+      }
+    },
+    "PBZNQUSEXZUC34C9" : {
+      "sku" : "PBZNQUSEXZUC34C9",
+      "productFamily" : "Compute",
+      "attributes" : {
+        "servicecode" : "AmazonECS",
+        "location" : "US East (N. Virginia)",
+        "locationType" : "AWS Region",
+        "tenancy" : "Shared",
+        "usagetype" : "USE1-Fargate-GB-Hours",
+        "operation" : "",
+        "memorytype" : "perGB",
+        "regionCode" : "us-east-1",
+        "servicename" : "Amazon Elastic Container Service"
+      }
+    },
+    "XSZATS4VYMDC9CYN" : {
+      "sku" : "XSZATS4VYMDC9CYN",
+      "productFamily" : "Compute",
+      "attributes" : {
+        "servicecode" : "AmazonECS",
+        "location" : "US East (N. Virginia)",
+        "locationType" : "AWS Region",
+        "tenancy" : "Shared",
+        "usagetype" : "USE1-Fargate-ARM-vCPU-Hours:perCPU",
+        "operation" : "",
+        "cpuArchitecture" : "ARM",
+        "cputype" : "perCPU",
+        "regionCode" : "us-east-1",
+        "resource" : "per vCPU per hour",
+        "servicename" : "Amazon Elastic Container Service"
+      }
+    },
+    "VUZADW4HBG7NT6R7" : {
+      "sku" : "VUZADW4HBG7NT6R7",
+      "productFamily" : "Compute",
+      "attributes" : {
+        "servicecode" : "AmazonECS",
+        "location" : "US East (N. Virginia)",
+        "locationType" : "AWS Region",
+        "usagetype" : "USE1-ECS-Anywhere-Instance-hours-WithFree",
+        "operation" : "AddExternalInstance",
+        "externalInstanceType" : "With Free",
+        "regionCode" : "us-east-1",
+        "servicename" : "Amazon Elastic Container Service"
+      }
+    },
+    "DQ8NT47B7YY2CGC5" : {
+      "sku" : "DQ8NT47B7YY2CGC5",
+      "productFamily" : "Compute Metering",
+      "attributes" : {
+        "servicecode" : "AmazonECS",
+        "location" : "US East (N. Virginia)",
+        "locationType" : "AWS Region",
+        "usagetype" : "USE1-ECS-EC2-vCPU-Hours",
+        "operation" : "",
+        "cputype" : "perCPU",
+        "regionCode" : "us-east-1",
+        "servicename" : "Amazon Elastic Container Service"
+      }
+    },
+    "8CESGAFWKAJ98PME" : {
+      "sku" : "8CESGAFWKAJ98PME",
+      "productFamily" : "Compute",
+      "attributes" : {
+        "servicecode" : "AmazonECS",
+        "location" : "US East (N. Virginia)",
+        "locationType" : "AWS Region",
+        "tenancy" : "Shared",
+        "usagetype" : "USE1-Fargate-vCPU-Hours:perCPU",
+        "operation" : "",
+        "cputype" : "perCPU",
+        "regionCode" : "us-east-1",
+        "servicename" : "Amazon Elastic Container Service"
+      }
+    }
+  },
+  "terms" : {
+    "OnDemand" : {
+      "RF2BUTAD289DREDC" : {
+        "RF2BUTAD289DREDC.JRTCKXETXF" : {
+          "offerTermCode" : "JRTCKXETXF",
+          "sku" : "RF2BUTAD289DREDC",
+          "effectiveDate" : "2025-08-01T00:00:00Z",
+          "priceDimensions" : {
+            "RF2BUTAD289DREDC.JRTCKXETXF.6YS6EN2CT7" : {
+              "rateCode" : "RF2BUTAD289DREDC.JRTCKXETXF.6YS6EN2CT7",
+              "description" : "AWS Fargate - Windows - vCPU - US East (N.Virginia)",
+              "beginRange" : "0",
+              "endRange" : "Inf",
+              "unit" : "hours",
+              "pricePerUnit" : {
+                "USD" : "0.0465520000"
+              },
+              "appliesTo" : [ ]
+            }
+          },
+          "termAttributes" : { }
+        }
+      },
+      "74HXSAMY4YHFPXQQ" : {
+        "74HXSAMY4YHFPXQQ.JRTCKXETXF" : {
+          "offerTermCode" : "JRTCKXETXF",
+          "sku" : "74HXSAMY4YHFPXQQ",
+          "effectiveDate" : "2025-08-01T00:00:00Z",
+          "priceDimensions" : {
+            "74HXSAMY4YHFPXQQ.JRTCKXETXF.6YS6EN2CT7" : {
+              "rateCode" : "74HXSAMY4YHFPXQQ.JRTCKXETXF.6YS6EN2CT7",
+              "description" : "USD 0.0 per GB-Hours for ECS-EC2-GB-Hours in US East (N. Virginia)",
+              "beginRange" : "0",
+              "endRange" : "Inf",
+              "unit" : "GB-Hours",
+              "pricePerUnit" : {
+                "USD" : "0.0000000000"
+              },
+              "appliesTo" : [ ]
+            }
+          },
+          "termAttributes" : { }
+        }
+      },
+      "XSZATS4VYMDC9CYN" : {
+        "XSZATS4VYMDC9CYN.JRTCKXETXF" : {
+          "offerTermCode" : "JRTCKXETXF",
+          "sku" : "XSZATS4VYMDC9CYN",
+          "effectiveDate" : "2025-08-01T00:00:00Z",
+          "priceDimensions" : {
+            "XSZATS4VYMDC9CYN.JRTCKXETXF.6YS6EN2CT7" : {
+              "rateCode" : "XSZATS4VYMDC9CYN.JRTCKXETXF.6YS6EN2CT7",
+              "description" : "AWS Fargate - ARM - vCPU - US East (N. Virginia)",
+              "beginRange" : "0",
+              "endRange" : "Inf",
+              "unit" : "hours",
+              "pricePerUnit" : {
+                "USD" : "0.0323800000"
+              },
+              "appliesTo" : [ ]
+            }
+          },
+          "termAttributes" : { }
+        }
+      },
+      "UNH9KPQP7W7C66C9" : {
+        "UNH9KPQP7W7C66C9.JRTCKXETXF" : {
+          "offerTermCode" : "JRTCKXETXF",
+          "sku" : "UNH9KPQP7W7C66C9",
+          "effectiveDate" : "2025-08-01T00:00:00Z",
+          "priceDimensions" : {
+            "UNH9KPQP7W7C66C9.JRTCKXETXF.6YS6EN2CT7" : {
+              "rateCode" : "UNH9KPQP7W7C66C9.JRTCKXETXF.6YS6EN2CT7",
+              "description" : "AWS Fargate - ARM - Memory - US East (N. Virginia)",
+              "beginRange" : "0",
+              "endRange" : "Inf",
+              "unit" : "hours",
+              "pricePerUnit" : {
+                "USD" : "0.0035600000"
+              },
+              "appliesTo" : [ ]
+            }
+          },
+          "termAttributes" : { }
+        }
+      },
+      "WTG8RAG79KP7K3N8" : {
+        "WTG8RAG79KP7K3N8.JRTCKXETXF" : {
+          "offerTermCode" : "JRTCKXETXF",
+          "sku" : "WTG8RAG79KP7K3N8",
+          "effectiveDate" : "2025-08-01T00:00:00Z",
+          "priceDimensions" : {
+            "WTG8RAG79KP7K3N8.JRTCKXETXF.6YS6EN2CT7" : {
+              "rateCode" : "WTG8RAG79KP7K3N8.JRTCKXETXF.6YS6EN2CT7",
+              "description" : "$0.01025 per hour for ECS-Anywhere-Instance-Hours",
+              "beginRange" : "0",
+              "endRange" : "Inf",
+              "unit" : "hours",
+              "pricePerUnit" : {
+                "USD" : "0.0102500000"
+              },
+              "appliesTo" : [ ]
+            }
+          },
+          "termAttributes" : { }
+        }
+      },
+      "VUZADW4HBG7NT6R7" : {
+        "VUZADW4HBG7NT6R7.JRTCKXETXF" : {
+          "offerTermCode" : "JRTCKXETXF",
+          "sku" : "VUZADW4HBG7NT6R7",
+          "effectiveDate" : "2025-08-01T00:00:00Z",
+          "priceDimensions" : {
+            "VUZADW4HBG7NT6R7.JRTCKXETXF.4TES4JTS8Q" : {
+              "rateCode" : "VUZADW4HBG7NT6R7.JRTCKXETXF.4TES4JTS8Q",
+              "description" : "$0 per hour for ECS-Anywhere-Instance-Hours",
+              "beginRange" : "0",
+              "endRange" : "2200",
+              "unit" : "hours",
+              "pricePerUnit" : {
+                "USD" : "0.0000000000"
+              },
+              "appliesTo" : [ ]
+            },
+            "VUZADW4HBG7NT6R7.JRTCKXETXF.2A2Z7VTUXW" : {
+              "rateCode" : "VUZADW4HBG7NT6R7.JRTCKXETXF.2A2Z7VTUXW",
+              "description" : "$0.01025 per hour for ECS-Anywhere-Instance-Hours",
+              "beginRange" : "2200",
+              "endRange" : "Inf",
+              "unit" : "hours",
+              "pricePerUnit" : {
+                "USD" : "0.0102500000"
+              },
+              "appliesTo" : [ ]
+            }
+          },
+          "termAttributes" : { }
+        }
+      },
+      "9D3ZWXRS2VXMZET6" : {
+        "9D3ZWXRS2VXMZET6.JRTCKXETXF" : {
+          "offerTermCode" : "JRTCKXETXF",
+          "sku" : "9D3ZWXRS2VXMZET6",
+          "effectiveDate" : "2025-08-01T00:00:00Z",
+          "priceDimensions" : {
+            "9D3ZWXRS2VXMZET6.JRTCKXETXF.6YS6EN2CT7" : {
+              "rateCode" : "9D3ZWXRS2VXMZET6.JRTCKXETXF.6YS6EN2CT7",
+              "description" : "AWS Fargate - Windows - OS - US East (N.Virginia)",
+              "beginRange" : "0",
+              "endRange" : "Inf",
+              "unit" : "hours",
+              "pricePerUnit" : {
+                "USD" : "0.0460000000"
+              },
+              "appliesTo" : [ ]
+            }
+          },
+          "termAttributes" : { }
+        }
+      },
+      "DQ8NT47B7YY2CGC5" : {
+        "DQ8NT47B7YY2CGC5.JRTCKXETXF" : {
+          "offerTermCode" : "JRTCKXETXF",
+          "sku" : "DQ8NT47B7YY2CGC5",
+          "effectiveDate" : "2025-08-01T00:00:00Z",
+          "priceDimensions" : {
+            "DQ8NT47B7YY2CGC5.JRTCKXETXF.6YS6EN2CT7" : {
+              "rateCode" : "DQ8NT47B7YY2CGC5.JRTCKXETXF.6YS6EN2CT7",
+              "description" : "USD 0.0 per vCPU-Hours for ECS-EC2-vCPU-Hours in US East (N. Virginia)",
+              "beginRange" : "0",
+              "endRange" : "Inf",
+              "unit" : "vCPU-Hours",
+              "pricePerUnit" : {
+                "USD" : "0.0000000000"
+              },
+              "appliesTo" : [ ]
+            }
+          },
+          "termAttributes" : { }
+        }
+      },
+      "PBZNQUSEXZUC34C9" : {
+        "PBZNQUSEXZUC34C9.JRTCKXETXF" : {
+          "offerTermCode" : "JRTCKXETXF",
+          "sku" : "PBZNQUSEXZUC34C9",
+          "effectiveDate" : "2025-08-01T00:00:00Z",
+          "priceDimensions" : {
+            "PBZNQUSEXZUC34C9.JRTCKXETXF.6YS6EN2CT7" : {
+              "rateCode" : "PBZNQUSEXZUC34C9.JRTCKXETXF.6YS6EN2CT7",
+              "description" : "AWS Fargate - Memory  - US East (N.Virginia)",
+              "beginRange" : "0",
+              "endRange" : "Inf",
+              "unit" : "hours",
+              "pricePerUnit" : {
+                "USD" : "0.0044450000"
+              },
+              "appliesTo" : [ ]
+            }
+          },
+          "termAttributes" : { }
+        }
+      },
+      "7KPDPTDSCT4J3Z64" : {
+        "7KPDPTDSCT4J3Z64.JRTCKXETXF" : {
+          "offerTermCode" : "JRTCKXETXF",
+          "sku" : "7KPDPTDSCT4J3Z64",
+          "effectiveDate" : "2025-08-01T00:00:00Z",
+          "priceDimensions" : {
+            "7KPDPTDSCT4J3Z64.JRTCKXETXF.6YS6EN2CT7" : {
+              "rateCode" : "7KPDPTDSCT4J3Z64.JRTCKXETXF.6YS6EN2CT7",
+              "description" : "AWS Fargate - Ephemeral Storage - US East (N. Virginia)",
+              "beginRange" : "0",
+              "endRange" : "Inf",
+              "unit" : "GB-Hours",
+              "pricePerUnit" : {
+                "USD" : "0.0001110000"
+              },
+              "appliesTo" : [ ]
+            }
+          },
+          "termAttributes" : { }
+        }
+      },
+      "8CESGAFWKAJ98PME" : {
+        "8CESGAFWKAJ98PME.JRTCKXETXF" : {
+          "offerTermCode" : "JRTCKXETXF",
+          "sku" : "8CESGAFWKAJ98PME",
+          "effectiveDate" : "2025-08-01T00:00:00Z",
+          "priceDimensions" : {
+            "8CESGAFWKAJ98PME.JRTCKXETXF.6YS6EN2CT7" : {
+              "rateCode" : "8CESGAFWKAJ98PME.JRTCKXETXF.6YS6EN2CT7",
+              "description" : "AWS Fargate - vCPU - US East (N.Virginia)",
+              "beginRange" : "0",
+              "endRange" : "Inf",
+              "unit" : "hours",
+              "pricePerUnit" : {
+                "USD" : "0.0404800000"
+              },
+              "appliesTo" : [ ]
+            }
+          },
+          "termAttributes" : { }
+        }
+      },
+      "8QDMJPGQCM368Z6X" : {
+        "8QDMJPGQCM368Z6X.JRTCKXETXF" : {
+          "offerTermCode" : "JRTCKXETXF",
+          "sku" : "8QDMJPGQCM368Z6X",
+          "effectiveDate" : "2025-08-01T00:00:00Z",
+          "priceDimensions" : {
+            "8QDMJPGQCM368Z6X.JRTCKXETXF.6YS6EN2CT7" : {
+              "rateCode" : "8QDMJPGQCM368Z6X.JRTCKXETXF.6YS6EN2CT7",
+              "description" : "AWS Fargate - Windows - Memory  - US East (N.Virginia)",
+              "beginRange" : "0",
+              "endRange" : "Inf",
+              "unit" : "hours",
+              "pricePerUnit" : {
+                "USD" : "0.0051117500"
+              },
+              "appliesTo" : [ ]
+            }
+          },
+          "termAttributes" : { }
+        }
+      }
+    }
+  },
+  "attributesList" : { }
+}
