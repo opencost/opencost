@@ -113,7 +113,9 @@ func (c *collectorDataSource) RegisterEndPoints(router *httprouter.Router) {
 
 func (c *collectorDataSource) RegisterDiagnostics(diagService diagnostics.DiagnosticService) {
 	const CollectorDiagnosticCategory = "collector"
+
 	diagnosticDefinitions := c.diagnosticsModule.DiagnosticsDefinitions()
+
 	for _, dd := range diagnosticDefinitions {
 		err := diagService.Register(dd.ID, dd.Description, CollectorDiagnosticCategory, func(ctx context.Context) (map[string]any, error) {
 			details, err := c.diagnosticsModule.DiagnosticsDetails(dd.ID)
