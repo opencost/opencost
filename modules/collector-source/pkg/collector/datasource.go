@@ -80,8 +80,7 @@ func NewCollectorDataSource(
 		}
 	}
 
-	diagnosticsModule := metric.NewDiagnosticsModule(updater)
-	updater = diagnosticsModule
+	diagnosticsModule := metric.NewDiagnosticsModule()
 	scrapeController := scrape.NewScrapeController(
 		config.ScrapeInterval,
 		config.NetworkPort,
