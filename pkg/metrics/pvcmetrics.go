@@ -37,14 +37,15 @@ func (kpvc KubePVCCollector) Collect(ch chan<- prometheus.Metric) {
 	for _, pvc := range pvcs {
 		storageClass := getPersistentVolumeClaimClass(pvc)
 		volume := pvc.Spec.VolumeName
+		pvcUID := string(pvc.UID)
 
 		if _, disabled := disabledMetrics["kube_persistentvolumeclaim_info"]; !disabled {
-			ch <- newKubePVCInfoMetric("kube_persistentvolumeclaim_info", pvc.Name, pvc.Namespace, storageClass, volume)
+			ch <- newKubePVCInfoMetric("kube_persistentvolumeclaim_info", pvc.Name, pvc.Namespace, pvcUID, storageClass, volume)
 		}
 
 		if storage, ok := pvc.Spec.Resources.Requests[v1.ResourceStorage]; ok {
 			if _, disabled := disabledMetrics["kube_persistentvolumeclaim_resource_requests_storage_bytes"]; !disabled {
-				ch <- newKubePVCResourceRequestsStorageBytesMetric("kube_persistentvolumeclaim_resource_requests_storage_bytes", pvc.Name, pvc.Namespace, float64(storage.Value()))
+				ch <- newKubePVCResourceRequestsStorageBytesMetric("kube_persistentvolumeclaim_resource_requests_storage_bytes", pvc.Name, pvc.Namespace, pvcUID, float64(storage.Value()))
 			}
 		}
 	}
@@ -61,16 +62,18 @@ type KubePVCResourceRequestsStorageBytesMetric struct {
 	namespace string
 	pvc       string
 	value     float64
+	uid       string
 }
 
 // Creates a new KubePVCResourceRequestsStorageBytesMetric, implementation of prometheus.Metric
-func newKubePVCResourceRequestsStorageBytesMetric(fqname, pvc, namespace string, value float64) KubePVCResourceRequestsStorageBytesMetric {
+func newKubePVCResourceRequestsStorageBytesMetric(fqname, pvc, namespace, uid string, value float64) KubePVCResourceRequestsStorageBytesMetric {
 	return KubePVCResourceRequestsStorageBytesMetric{
 		fqName:    fqname,
 		help:      "kube_persistentvolumeclaim_resource_requests_storage_bytes pvc storage resource requests in bytes",
 		pvc:       pvc,
 		namespace: namespace,
 		value:     value,
+		uid:       uid,
 	}
 }
 
@@ -80,6 +83,7 @@ func (kpvcrr KubePVCResourceRequestsStorageBytesMetric) Desc() *prometheus.Desc 
 	l := prometheus.Labels{
 		"persistentvolumeclaim": kpvcrr.pvc,
 		"namespace":             kpvcrr.namespace,
+		"uid":                   kpvcrr.uid,
 	}
 	return prometheus.NewDesc(kpvcrr.fqName, kpvcrr.help, []string{}, l)
 }
@@ -100,6 +104,10 @@ func (kpvcrr KubePVCResourceRequestsStorageBytesMetric) Write(m *dto.Metric) err
 			Name:  toStringPtr("namespace"),
 			Value: &kpvcrr.namespace,
 		},
+		{
+			Name:  toStringPtr("uid"),
+			Value: &kpvcrr.uid,
+		},
 	}
 	return nil
 }
@@ -116,10 +124,11 @@ type KubePVCInfoMetric struct {
 	pvc          string
 	storageclass string
 	volume       string
+	uid          string
 }
 
 // Creates a new KubePVCInfoMetric, implementation of prometheus.Metric
-func newKubePVCInfoMetric(fqname, pvc, namespace, storageclass, volume string) KubePVCInfoMetric {
+func newKubePVCInfoMetric(fqname, pvc, namespace, uid, storageclass, volume string) KubePVCInfoMetric {
 	return KubePVCInfoMetric{
 		fqName:       fqname,
 		help:         "kube_persistentvolumeclaim_info pvc storage resource requests in bytes",
@@ -127,6 +136,7 @@ func newKubePVCInfoMetric(fqname, pvc, namespace, storageclass, volume string) K
 		namespace:    namespace,
 		storageclass: storageclass,
 		volume:       volume,
+		uid:          uid,
 	}
 }
 
@@ -138,6 +148,7 @@ func (kpvcrr KubePVCInfoMetric) Desc() *prometheus.Desc {
 		"namespace":             kpvcrr.namespace,
 		"storageclass":          kpvcrr.storageclass,
 		"volumename":            kpvcrr.volume,
+		"uid":                   kpvcrr.uid,
 	}
 	return prometheus.NewDesc(kpvcrr.fqName, kpvcrr.help, []string{}, l)
 }
@@ -166,6 +177,10 @@ func (kpvci KubePVCInfoMetric) Write(m *dto.Metric) error {
 		{
 			Name:  toStringPtr("volumename"),
 			Value: &kpvci.volume,
+		},
+		{
+			Name:  toStringPtr("uid"),
+			Value: &kpvci.uid,
 		},
 	}
 	return nil
