@@ -75,6 +75,7 @@ type DaemonSet struct {
 }
 
 type Deployment struct {
+	UID                     types.UID
 	Name                    string
 	Namespace               string
 	Labels                  map[string]string
@@ -271,6 +272,7 @@ func TransformDaemonSet(input *appsv1.DaemonSet) *DaemonSet {
 
 func TransformDeployment(input *appsv1.Deployment) *Deployment {
 	return &Deployment{
+		UID:                     input.UID,
 		Name:                    input.Name,
 		Namespace:               input.Namespace,
 		Labels:                  input.Labels,
