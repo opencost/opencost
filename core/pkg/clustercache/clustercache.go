@@ -144,6 +144,7 @@ type PodDisruptionBudget struct {
 }
 
 type ReplicaSet struct {
+	UID             types.UID
 	Name            string
 	Namespace       string
 	OwnerReferences []metav1.OwnerReference
@@ -353,6 +354,7 @@ func TransformPodDisruptionBudget(input *policyv1.PodDisruptionBudget) *PodDisru
 
 func TransformReplicaSet(input *appsv1.ReplicaSet) *ReplicaSet {
 	return &ReplicaSet{
+		UID:             input.UID,
 		Name:            input.Name,
 		Namespace:       input.Namespace,
 		OwnerReferences: input.OwnerReferences,
