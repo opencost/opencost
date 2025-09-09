@@ -15,6 +15,7 @@ import (
 )
 
 type Namespace struct {
+	UID         types.UID
 	Name        string
 	Labels      map[string]string
 	Annotations map[string]string
@@ -181,6 +182,7 @@ func GetControllerOfNoCopy(pod *Pod) *metav1.OwnerReference {
 
 func TransformNamespace(input *v1.Namespace) *Namespace {
 	return &Namespace{
+		UID:         input.UID,
 		Name:        input.Name,
 		Annotations: input.Annotations,
 		Labels:      input.Labels,
