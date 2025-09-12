@@ -127,6 +127,7 @@ type Job struct {
 }
 
 type PersistentVolume struct {
+	UID         types.UID
 	Name        string
 	Namespace   string
 	Labels      map[string]string
@@ -308,6 +309,7 @@ func TransformStatefulSet(input *appsv1.StatefulSet) *StatefulSet {
 
 func TransformPersistentVolume(input *v1.PersistentVolume) *PersistentVolume {
 	return &PersistentVolume{
+		UID:         input.UID,
 		Name:        input.Name,
 		Namespace:   input.Namespace,
 		Labels:      input.Labels,
