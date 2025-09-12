@@ -90,6 +90,7 @@ type Deployment struct {
 }
 
 type StatefulSet struct {
+	UID          types.UID
 	Name         string
 	Namespace    string
 	Labels       map[string]string
@@ -294,6 +295,9 @@ func TransformStatefulSet(input *appsv1.StatefulSet) *StatefulSet {
 		SpecSelector: input.Spec.Selector,
 		SpecReplicas: input.Spec.Replicas,
 		PodSpec:      TransformPodSpec(input.Spec.Template.Spec),
+		Labels:       input.Labels,
+		Annotations:  input.Annotations,
+		UID:          input.UID,
 	}
 }
 
