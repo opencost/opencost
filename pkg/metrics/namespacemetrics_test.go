@@ -106,6 +106,18 @@ func TestNamespaceAnnotationsMetric_Write(t *testing.T) {
 	if len(pbMetric.Label) != 3 { // team + namespace + uid
 		t.Errorf("Expected 3 labels, got %d", len(pbMetric.Label))
 	}
+
+	// Verify UID label exists and has correct value
+	foundUID := false
+	for _, label := range pbMetric.Label {
+		if *label.Name == "uid" && *label.Value == "test-uid" {
+			foundUID = true
+			break
+		}
+	}
+	if !foundUID {
+		t.Error("Expected uid label with value 'test-uid' not found")
+	}
 }
 
 func TestKubeNamespaceLabelsMetric_Write(t *testing.T) {
@@ -129,6 +141,18 @@ func TestKubeNamespaceLabelsMetric_Write(t *testing.T) {
 
 	if len(pbMetric.Label) != 3 { // env + namespace + uid
 		t.Errorf("Expected 3 labels, got %d", len(pbMetric.Label))
+	}
+
+	// Verify UID label exists and has correct value
+	foundUID := false
+	for _, label := range pbMetric.Label {
+		if *label.Name == "uid" && *label.Value == "test-uid" {
+			foundUID = true
+			break
+		}
+	}
+	if !foundUID {
+		t.Error("Expected uid label with value 'test-uid' not found")
 	}
 }
 
