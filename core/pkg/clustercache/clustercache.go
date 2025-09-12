@@ -103,6 +103,7 @@ type StatefulSet struct {
 }
 
 type PersistentVolumeClaim struct {
+	UID         types.UID
 	Name        string
 	Namespace   string
 	Spec        v1.PersistentVolumeClaimSpec
@@ -321,6 +322,7 @@ func TransformPersistentVolume(input *v1.PersistentVolume) *PersistentVolume {
 
 func TransformPersistentVolumeClaim(input *v1.PersistentVolumeClaim) *PersistentVolumeClaim {
 	return &PersistentVolumeClaim{
+		UID:         input.UID,
 		Name:        input.Name,
 		Namespace:   input.Namespace,
 		Spec:        input.Spec,
