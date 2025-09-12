@@ -122,6 +122,7 @@ type StorageClass struct {
 }
 
 type Job struct {
+	UID       types.UID
 	Name      string
 	Namespace string
 	Status    batchv1.JobStatus
@@ -345,6 +346,7 @@ func TransformStorageClass(input *stv1.StorageClass) *StorageClass {
 
 func TransformJob(input *batchv1.Job) *Job {
 	return &Job{
+		UID:       input.UID,
 		Name:      input.Name,
 		Namespace: input.Namespace,
 		Status:    input.Status,
