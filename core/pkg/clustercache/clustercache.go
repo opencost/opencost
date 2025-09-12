@@ -51,6 +51,7 @@ type Container struct {
 }
 
 type Node struct {
+	UID            types.UID
 	Name           string
 	Labels         map[string]string
 	Annotations    map[string]string
@@ -241,6 +242,7 @@ func TransformPod(input *v1.Pod) *Pod {
 
 func TransformNode(input *v1.Node) *Node {
 	return &Node{
+		UID:            input.UID,
 		Name:           input.Name,
 		Labels:         input.Labels,
 		Annotations:    input.Annotations,
