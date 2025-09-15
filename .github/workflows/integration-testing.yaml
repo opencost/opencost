@@ -273,10 +273,6 @@ jobs:
                 exit 1
               fi
               
-              if [[ "${{ needs.run-comparison-tests.outputs.passed }}" != "true" ]]; then
-               echo "One or more comparison tests failed"
-              fi
-              
               echo "All integration tests passed"
               exit 0
 
