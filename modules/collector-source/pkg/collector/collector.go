@@ -171,6 +171,7 @@ func NewPVCInfoMetricCollector() *metric.MetricCollector {
 			source.VolumeNameLabel,
 			source.PVCLabel,
 			source.StorageClassLabel,
+			source.UIDLabel,
 		},
 		aggregator.ActiveMinutes,
 		func(labels map[string]string) bool {
@@ -218,6 +219,7 @@ func NewLocalStorageUsedActiveMinutesMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.InstanceLabel,
 			source.DeviceLabel,
+			source.UIDLabel,
 		},
 		aggregator.ActiveMinutes,
 		nil, // filter not required here because only container root file system is being scraped
@@ -243,6 +245,7 @@ func NewLocalStorageUsedAverageMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.InstanceLabel,
 			source.DeviceLabel,
+			source.UIDLabel,
 		},
 		aggregator.AverageOverTime,
 		nil, // filter not required here because only container root file system is being scraped
@@ -269,6 +272,7 @@ func NewLocalStorageUsedMaxMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.InstanceLabel,
 			source.DeviceLabel,
+			source.UIDLabel,
 		},
 		aggregator.MaxOverTime,
 		nil, // filter not required here because only container root file system is being scraped
@@ -293,6 +297,7 @@ func NewLocalStorageBytesMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.InstanceLabel,
 			source.DeviceLabel,
+			source.UIDLabel,
 		},
 		aggregator.AverageOverTime,
 		nil, // filter not required here because only node root file system is being scraped
@@ -481,6 +486,7 @@ func NewNodeCPUModeTotalMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.KubernetesNodeLabel,
 			source.ModeLabel,
+			source.UIDLabel,
 		},
 		aggregator.Rate,
 		nil,
@@ -504,6 +510,7 @@ func NewNodeRAMSystemUsageAverageMetricCollector() *metric.MetricCollector {
 		metric.ContainerMemoryWorkingSetBytes,
 		[]string{
 			source.InstanceLabel,
+			source.UIDLabel,
 		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
@@ -529,6 +536,7 @@ func NewNodeRAMUserUsageAverageMetricCollector() *metric.MetricCollector {
 		metric.ContainerMemoryWorkingSetBytes,
 		[]string{
 			source.InstanceLabel,
+			source.UIDLabel,
 		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
@@ -553,6 +561,7 @@ func NewLBPricePerHourMetricCollector() *metric.MetricCollector {
 			source.NamespaceLabel,
 			source.ServiceNameLabel,
 			source.IngressIPLabel,
+			source.UIDLabel,
 		},
 		aggregator.AverageOverTime,
 		nil,
@@ -573,6 +582,7 @@ func NewLBActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.NamespaceLabel,
 			source.ServiceNameLabel,
 			source.IngressIPLabel,
+			source.UIDLabel,
 		},
 		aggregator.ActiveMinutes,
 		nil,
@@ -1806,6 +1816,7 @@ func NewReplicaSetsWithRolloutMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.NamespaceLabel,
 			source.ReplicaSetLabel,
+			source.UIDLabel,
 			source.OwnerNameLabel,
 			source.OwnerKindLabel,
 		},
