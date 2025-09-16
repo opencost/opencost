@@ -44,28 +44,28 @@ func GetCloudCostMonthToDateInterval() int {
 	return env.GetInt(CloudCostMonthToDateIntervalVar, 6)
 }
 
-func GetCloudCostRefreshRateHours() int64 {
-	return env.GetInt64(CloudCostRefreshRateHoursEnvVar, 6)
+func GetCloudCostRefreshRateHours() int {
+	return env.GetInt(CloudCostRefreshRateHoursEnvVar, 6)
 }
 
-func GetCloudCostQueryWindowDays() int64 {
-	return env.GetInt64(CloudCostQueryWindowDaysEnvVar, 7)
+func GetCloudCostQueryWindowDays() int {
+	return env.GetInt(CloudCostQueryWindowDaysEnvVar, 7)
 }
 
-func GetCloudCostRunWindowDays() int64 {
-	return env.GetInt64(CloudCostRunWindowDaysEnvVar, 3)
+func GetCloudCostRunWindowDays() int {
+	return env.GetInt(CloudCostRunWindowDaysEnvVar, 3)
 }
 
 func GetCloudCost1dRetention() int {
 	return env.GetPrefixInt(CloudCostEnvVarPrefix, env.Resolution1dRetentionEnvVar, 30)
 }
 
-func GetCustomCostQueryWindowHours() int64 {
-	return env.GetInt64(CustomCostQueryWindowDaysEnvVar, 1)
+func GetCustomCostQueryWindowHours() int {
+	return env.GetInt(CustomCostQueryWindowDaysEnvVar, 1)
 }
 
-func GetCustomCostQueryWindowDays() int64 {
-	return env.GetInt64(CustomCostQueryWindowDaysEnvVar, 7)
+func GetCustomCostQueryWindowDays() int {
+	return env.GetInt(CustomCostQueryWindowDaysEnvVar, 7)
 }
 
 func GetCustomCost1dRetention() int {
