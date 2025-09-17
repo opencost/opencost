@@ -751,7 +751,7 @@ func TestKubePodContainerResourceLimitsMemoryBytesMetric(t *testing.T) {
 }
 
 func TestKubePodOwnerMetric(t *testing.T) {
-	metric := newKubePodOwnerMetric("kube_pod_owner", "default", "test-pod", "test-replicaset", "ReplicaSet", true)
+	metric := newKubePodOwnerMetric("kube_pod_owner", "default", "test-pod", "test-uid", "test-replicaset", "ReplicaSet", true)
 
 	var dtoMetric dto.Metric
 	err := metric.Write(&dtoMetric)
@@ -771,6 +771,7 @@ func TestKubePodOwnerMetric(t *testing.T) {
 	expectedLabels := map[string]string{
 		"namespace":           "default",
 		"pod":                 "test-pod",
+		"uid":                 "test-uid",
 		"owner_name":          "test-replicaset",
 		"owner_kind":          "ReplicaSet",
 		"owner_is_controller": "true",

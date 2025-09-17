@@ -143,7 +143,7 @@ func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 		// Owner References
 		if _, disabled := disabledMetrics["kube_pod_owner"]; !disabled {
 			for _, owner := range pod.OwnerReferences {
-				ch <- newKubePodOwnerMetric("kube_pod_owner", podNS, podName, owner.Name, owner.Kind, owner.Controller != nil)
+				ch <- newKubePodOwnerMetric("kube_pod_owner", podNS, podName, podUID, owner.Name, owner.Kind, owner.Controller != nil)
 			}
 		}
 
@@ -1017,18 +1017,20 @@ type KubePodOwnerMetric struct {
 	help              string
 	namespace         string
 	pod               string
+	uid               string
 	ownerIsController bool
 	ownerName         string
 	ownerKind         string
 }
 
 // Creates a new KubePodOwnerMetric, implementation of prometheus.Metric
-func newKubePodOwnerMetric(fqname, namespace, pod, ownerName, ownerKind string, ownerIsController bool) KubePodOwnerMetric {
+func newKubePodOwnerMetric(fqname, namespace, pod, uid, ownerName, ownerKind string, ownerIsController bool) KubePodOwnerMetric {
 	return KubePodOwnerMetric{
 		fqName:            fqname,
 		help:              "kube_pod_owner Information about the Pod's owner",
 		namespace:         namespace,
 		pod:               pod,
+		uid:               uid,
 		ownerName:         ownerName,
 		ownerKind:         ownerKind,
 		ownerIsController: ownerIsController,
@@ -1041,6 +1043,7 @@ func (kpo KubePodOwnerMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
 		"namespace":           kpo.namespace,
 		"pod":                 kpo.pod,
+		"uid":                 kpo.uid,
 		"owner_name":          kpo.ownerName,
 		"owner_kind":          kpo.ownerKind,
 		"owner_is_controller": fmt.Sprintf("%t", kpo.ownerIsController),
@@ -1064,6 +1067,10 @@ func (kpo KubePodOwnerMetric) Write(m *dto.Metric) error {
 		{
 			Name:  toStringPtr("pod"),
 			Value: &kpo.pod,
+		},
+		{
+			Name:  toStringPtr("uid"),
+			Value: &kpo.uid,
 		},
 		{
 			Name:  toStringPtr("owner_name"),
