@@ -263,6 +263,8 @@ jobs:
               IS_NOOP: ${{ needs.noop-tests.outputs.is_noop }}
               PASSED: ${{ needs.run-tests.outputs.passed }}
             run: |
+              echo "IS_NOOP: $IS_NOOP"
+              echo "PASSED: $PASSED"
               if [[ "$IS_NOOP" == "true" ]]; then
                 echo "No-op tests, skipping success check"
                 exit 0
