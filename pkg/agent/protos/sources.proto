@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+import "pkg/agent/protos/common.proto";
+
+package opencost.dm2;
+option go_package = "github.com/opencost/opencost/pkg/agent/protos;protos";
+
+// DataSourceMetadata tracks how data was collected (for Source interface)
+message DataSourceMetadata {
+  // Primary data source type
+  DataSourceType primary_source = 1;
+
+  // Fallback sources used if primary failed
+  repeated DataSourceType fallback_sources = 2;
+
+  // Prometheus query metadata if applicable
+  PrometheusSourceInfo prometheus_info = 3;
+
+  // Kubernetes API metadata if applicable
+  KubernetesAPISourceInfo k8s_api_info = 4;
+
+  // Data collection timestamp
+  google.protobuf.Timestamp collected_at = 5;
+
+  // Collection duration in milliseconds
+  int64 collection_duration_ms = 6;
+
+  // Collection success/failure status
+  bool collection_success = 7;
+
+  // Collection errors if any
+  repeated string collection_errors = 8;
+}
+
+// Prometheus-specific source information
+message PrometheusSourceInfo {
+  // Prometheus server URL used
+  string prometheus_url = 1;
+
+  // Query used to collect this data
+  string query = 2;
+
+  // Query execution time
+  int64 query_duration_ms = 3;
+
+  // Number of samples returned
+  int32 sample_count = 4;
+
+  // Prometheus scrape interval used
+  int32 scrape_interval_seconds = 5;
+}
+
+// Kubernetes API-specific source information
+message KubernetesAPISourceInfo {
+  // K8s API server endpoint
+  string api_server = 1;
+
+  // Resource types queried
+  repeated string resource_types = 2;
+
+  // Namespace scope (empty means cluster-wide)
+  string namespace_scope = 3;
+
+  // API version used
+  string api_version = 4;
+
+  // Field selectors used
+  repeated string field_selectors = 5;
+
+  // Label selectors used
+  repeated string label_selectors = 6;
+}

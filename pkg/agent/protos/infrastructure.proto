@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+import "pkg/agent/protos/common.proto";
+
+package opencost.dm2;
+option go_package = "github.com/opencost/opencost/pkg/agent/protos;protos";
+
+// Cluster represents the top-level container following normalized approach
+message Cluster {
+  // Identification
+  string ID = 1;
+
+  // Properties
+  Provider Provider = 2;
+  string Account = 3;
+  string Project = 4;
+
+  // Window
+  google.protobuf.Timestamp WindowStart = 5;
+  google.protobuf.Timestamp WindowEnd = 6;
+
+  // Data
+  float ManagementFeePerHour = 7;
+  repeated string Errors = 8;
+  repeated string Warnings = 9;
+}

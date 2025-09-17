@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+package opencost.dm2;
+option go_package = "github.com/opencost/opencost/pkg/agent/protos;protos";
+
+// LoadBalancer represents a cloud load balancer (provisioned resource)
+message LoadBalancer {
+  // Identification
+  string ID = 1;
+
+  // Properties
+  string Name = 2;
+  string LBType = 3;
+  bool Internal = 4;
+  string ExternalEndpoint = 5;
+  string ProviderType = 6;
+  map<string, string> Labels = 7;
+  map<string, string> Annotations = 8;
+
+  // Window
+  google.protobuf.Timestamp WindowStart = 9;
+  google.protobuf.Timestamp WindowEnd = 10;
+
+  // Data (timing, resource, default pricing)
+  google.protobuf.Timestamp Start = 11;
+  google.protobuf.Timestamp End = 12;
+  float PricePerHour = 13;
+  float PricePerGBProcessed = 14;
+  int64 BytesProcessed = 15;
+  int32 ActiveConnections = 16;
+  int32 NewConnectionsPerSecond = 17;
+  repeated string Errors = 18;
+  repeated string Warnings = 19;
+}
+
+// ServicePort represents a port exposed by a service
+message ServicePort {
+  string Name = 1;
+  string Protocol = 2;
+  int32 Port = 3;
+  int32 TargetPort = 4;
+  int32 NodePort = 5;
+}
+
+// Service represents a K8s Service (allocated resource) that may refer to LoadBalancer
+message Service {
+  // Identification
+  string ID = 1;
+  string LoadBalancerID = 2;
+  string NamespaceID = 3;
+
+  // Properties
+  string Name = 4;
+  string ServiceType = 5;
+  string ClusterIP = 6;
+  repeated string ExternalIPs = 7;
+  repeated ServicePort Ports = 8;
+  map<string, string> Selector = 9;
+  string SessionAffinity = 10;
+  map<string, string> Labels = 11;
+  map<string, string> Annotations = 12;
+
+  // Window
+  google.protobuf.Timestamp WindowStart = 13;
+  google.protobuf.Timestamp WindowEnd = 14;
+
+  // Data (timing, resource, default pricing)
+  google.protobuf.Timestamp Start = 15;
+  google.protobuf.Timestamp End = 16;
+  float Cost = 17;
+}

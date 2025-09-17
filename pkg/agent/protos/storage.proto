@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+package opencost.dm2;
+option go_package = "github.com/opencost/opencost/pkg/agent/protos;protos";
+
+// Volume represents a persistent volume (provisioned resource)
+message Volume {
+  // Identification
+  string ID = 1;
+
+  // Properties
+  string Name = 2;
+  string StorageClass = 3;
+  repeated string AccessModes = 4;
+  string ReclaimPolicy = 5;
+  string VolumeSource = 6;
+  map<string, string> Labels = 7;
+  map<string, string> Annotations = 8;
+
+  // Window
+  google.protobuf.Timestamp WindowStart = 9;
+  google.protobuf.Timestamp WindowEnd = 10;
+
+  // Data (timing, resource, default pricing)
+  google.protobuf.Timestamp Start = 11;
+  google.protobuf.Timestamp End = 12;
+  int64 CapacityBytes = 13;
+  float PricePerGBHour = 14;
+  float PricePerIOPSHour = 15;
+  int32 IOPS = 16;
+  int32 ThroughputMBPS = 17;
+  repeated string Errors = 18;
+  repeated string Warnings = 19;
+}
+
+// PersistentVolumeClaim represents a PVC (allocated resource) that refers to a Volume
+message PersistentVolumeClaim {
+  // Identification
+  string ID = 1;
+  string VolumeID = 2;
+  string PodID = 3;
+  string NamespaceID = 4;
+
+  // Properties
+  string Name = 5;
+  string StorageClass = 6;
+  repeated string AccessModes = 7;
+  string Status = 8;
+  map<string, string> Labels = 9;
+  map<string, string> Annotations = 10;
+
+  // Window
+  google.protobuf.Timestamp WindowStart = 11;
+  google.protobuf.Timestamp WindowEnd = 12;
+
+  // Data (timing, resource, default pricing)
+  google.protobuf.Timestamp Start = 13;
+  google.protobuf.Timestamp End = 14;
+  int64 RequestedSizeBytes = 15;
+  int64 AllocatedSizeBytes = 16;
+  float ResourceUtilization = 17;
+  float Cost = 18;
+}

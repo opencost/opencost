@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package opencost.dm2;
+option go_package = "github.com/opencost/opencost/pkg/agent/protos;protos";
+
+// Provider represents the cloud provider or infrastructure type
+enum Provider {
+  PROVIDER_AWS = 0;
+  PROVIDER_GCP = 1;
+  PROVIDER_AZURE = 2;
+  PROVIDER_ON_PREMISES = 3;
+  PROVIDER_ALIBABA = 4;
+  PROVIDER_DIGITALOCEAN = 5;
+  PROVIDER_ORACLE = 6;
+}
+
+// Data source types for tracking how data was collected
+enum DataSourceType {
+  DATA_SOURCE_UNSPECIFIED = 0;
+  DATA_SOURCE_PROMETHEUS = 1;
+  DATA_SOURCE_KUBERNETES_API = 2; // "Promless" source
+  DATA_SOURCE_DCGM = 3; // For GPU devices
+  DATA_SOURCE_CLOUD_BILLING = 4; // For external costs
+  DATA_SOURCE_KSM = 5; // Kubernetes State Metrics
+}

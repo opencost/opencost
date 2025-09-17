@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+package opencost.dm2;
+option go_package = "github.com/opencost/opencost/pkg/agent/protos;protos";
+
+// GPUDevice represents a GPU device with DCGM integration (provisioned resource)
+message GPUDevice {
+  // Identification
+  string ID = 1;
+  string NodeID = 2;
+
+  // Properties
+  int32 DeviceNumber = 3;
+  string DeviceName = 4;
+  string ModelName = 5;
+  string UUID = 6;
+  map<string, string> Labels = 7;
+  map<string, string> Annotations = 8;
+
+  // Window
+  google.protobuf.Timestamp WindowStart = 9;
+  google.protobuf.Timestamp WindowEnd = 10;
+
+  // Data (timing, resource, pricing)
+  google.protobuf.Timestamp Start = 11;
+  google.protobuf.Timestamp End = 12;
+  float UsageAvg = 13;
+  float UsageMax = 14;
+  int64 MemoryUsedBytes = 15;
+  int64 MemoryTotalBytes = 16;
+  float PowerWatts = 17;
+  float TemperatureCelsius = 18;
+  float PricePerGPUHour = 19;
+  repeated string Errors = 20;
+  repeated string Warnings = 21;
+}

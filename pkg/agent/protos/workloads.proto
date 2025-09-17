@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+package opencost.dm2;
+option go_package = "github.com/opencost/opencost/pkg/agent/protos;protos";
+
+// Namespace represents a Kubernetes namespace (allocated resource grouping)
+message Namespace {
+  // Identification
+  string ID = 1;
+
+  // Properties
+  string Name = 2;
+  int64 CreatedAt = 3;
+  map<string, string> Labels = 4;
+  map<string, string> Annotations = 5;
+
+  // Window
+  google.protobuf.Timestamp WindowStart = 6;
+  google.protobuf.Timestamp WindowEnd = 7;
+
+  // Data (timing, resource, default pricing)
+  google.protobuf.Timestamp Start = 8;
+  google.protobuf.Timestamp End = 9;
+}
