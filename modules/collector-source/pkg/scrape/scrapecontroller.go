@@ -35,7 +35,7 @@ func NewScrapeController(
 	opencostScraper := newOpenCostScraper()
 	scrapers = append(scrapers, opencostScraper)
 
-	statSummaryScraper := newStatSummaryScraper(statSummaryClient)
+	statSummaryScraper := newStatSummaryScraper(statSummaryClient, clusterCache)
 	scrapers = append(scrapers, statSummaryScraper)
 
 	networkScraper := newNetworkScraper(networkPort, clusterCache)
