@@ -2,7 +2,6 @@ package scrape
 
 import (
 	"github.com/kubecost/events"
-	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/nodestats"
 	"github.com/opencost/opencost/core/pkg/source"
@@ -12,14 +11,12 @@ import (
 )
 
 type StatSummaryScraper struct {
-	client       nodestats.StatSummaryClient
-	clusterCache clustercache.ClusterCache
+	client nodestats.StatSummaryClient
 }
 
-func newStatSummaryScraper(client nodestats.StatSummaryClient, clusterCache clustercache.ClusterCache) Scraper {
+func newStatSummaryScraper(client nodestats.StatSummaryClient) Scraper {
 	return &StatSummaryScraper{
-		client:       client,
-		clusterCache: clusterCache,
+		client: client,
 	}
 }
 
@@ -48,23 +45,14 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 	// track if a pvc has already been seen when updating KubeletVolumeStatsUsedBytes
 	seenPVC := map[stats.PVCReference]struct{}{}
 
-	// Create node UID lookup map from cluster cache
-	nodes := s.clusterCache.GetAllNodes()
-	nodeUIDs := make(map[string]string)
-	for _, node := range nodes {
-		nodeUIDs[node.Name] = string(node.UID)
-	}
-
 	for _, stat := range nodeStats {
 		nodeName := stat.Node.NodeName
-		nodeUID := nodeUIDs[nodeName] // Get real node UID from cluster cache
 		if stat.Node.CPU != nil && stat.Node.CPU.UsageCoreNanoSeconds != nil {
 			scrapeResults = append(scrapeResults, metric.Update{
 				Name: metric.NodeCPUSecondsTotal,
 				Labels: map[string]string{
 					source.KubernetesNodeLabel: nodeName,
 					source.ModeLabel:           "", // TODO
-					source.UIDLabel:            nodeUID, // Using real node UID from cluster cache
 				},
 				Value: float64(*stat.Node.CPU.UsageCoreNanoSeconds) * 1e-9,
 			})
@@ -76,7 +64,6 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 				Labels: map[string]string{
 					source.InstanceLabel: nodeName,
 					source.DeviceLabel:   "local", // This value has to be populated but isn't important here
-					source.UIDLabel:      nodeUID, // Using real node UID from cluster cache
 				},
 				Value: float64(*stat.Node.Fs.CapacityBytes),
 			})
