@@ -86,9 +86,17 @@ func NewGZipEncoder[T any](encoder Encoder[T]) Encoder[T] {
 func (gz *GZipEncoder[T]) Encode(data *T) ([]byte, error) {
 	encoded, err := gz.encoder.Encode(data)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("GZipEncoder: nested encode failure: %w", err)
 	}
 
+	compressed, err := gZipEncode(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("GZipEncoder: failed to compress encoded data: %w", err)
+	}
+	return compressed, nil
+}
+
+func gZipEncode(data []byte) ([]byte, error) {
 	var buf bytes.Buffer
 
 	gzWriter, err := gzip.NewWriterLevel(&buf, gzip.BestCompression)
@@ -96,7 +104,7 @@ func (gz *GZipEncoder[T]) Encode(data *T) ([]byte, error) {
 		return nil, err
 	}
 
-	gzWriter.Write(encoded)
+	gzWriter.Write(data)
 	gzWriter.Close()
 
 	return buf.Bytes(), nil
