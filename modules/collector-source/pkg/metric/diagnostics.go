@@ -222,7 +222,7 @@ func (sd *scrapeDiagnostic) Name() string {
 	if sd.diagnostic != nil {
 		return sd.diagnostic.MetricName
 	}
-	return sd.scraper
+	return scraperIdFor(sd.scraper, sd.scrapeType)
 }
 
 // Details generates an exportable detail map for the specific diagnostic, and resets any of its internal
