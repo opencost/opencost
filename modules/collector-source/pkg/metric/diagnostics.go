@@ -219,7 +219,10 @@ func (sd *scrapeDiagnostic) Id() string {
 
 // Name returns the name of the scraper the event fired from.
 func (sd *scrapeDiagnostic) Name() string {
-	return sd.diagnostic.MetricName
+	if sd.diagnostic != nil {
+		return sd.diagnostic.MetricName
+	}
+	return sd.scraper
 }
 
 // Details generates an exportable detail map for the specific diagnostic, and resets any of its internal
