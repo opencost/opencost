@@ -98,7 +98,7 @@ func (pds *PrometheusMetricsQuerier) QueryPVCInfo(start, end time.Time) *source.
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -117,7 +117,7 @@ func (pds *PrometheusMetricsQuerier) QueryPVActiveMinutes(start, end time.Time) 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -136,7 +136,7 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageCost(start, end time.Time)
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -161,7 +161,7 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageUsedCost(start, end time.T
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -222,7 +222,7 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageBytes(start, end time.Time
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -241,7 +241,7 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageActiveMinutes(start, end t
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -369,7 +369,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeActiveMinutes(start, end time.Time
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -388,7 +388,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeCPUModeTotal(start, end time.Time)
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, true)
 	if durStr == "" {
 		panic("failed to parse duration string passed to QueryNodeCPUModeTotal")
 	}
@@ -406,7 +406,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeRAMSystemPercent(start, end time.T
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -425,7 +425,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeRAMUserPercent(start, end time.Tim
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -462,7 +462,7 @@ func (pds *PrometheusMetricsQuerier) QueryLBActiveMinutes(start, end time.Time) 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -481,7 +481,7 @@ func (pds *PrometheusMetricsQuerier) QueryClusterManagementDuration(start, end t
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -520,7 +520,7 @@ func (pds *PrometheusMetricsQuerier) QueryPods(start, end time.Time) *source.Fut
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -539,7 +539,7 @@ func (pds *PrometheusMetricsQuerier) QueryPodsUID(start, end time.Time) *source.
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -725,7 +725,7 @@ func (pds *PrometheusMetricsQuerier) QueryCPUUsageMax(start, end time.Time) *sou
 
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr = pds.durationStringFor(start, end, minsPerResolution)
+	durStr = pds.durationStringFor(start, end, minsPerResolution, false)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -995,7 +995,7 @@ func (pds *PrometheusMetricsQuerier) QueryNetZoneGiB(start, end time.Time) *sour
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, true)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -1032,7 +1032,7 @@ func (pds *PrometheusMetricsQuerier) QueryNetRegionGiB(start, end time.Time) *so
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, true)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -1069,7 +1069,7 @@ func (pds *PrometheusMetricsQuerier) QueryNetInternetGiB(start, end time.Time) *
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, true)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -1106,7 +1106,7 @@ func (pds *PrometheusMetricsQuerier) QueryNetInternetServiceGiB(start, end time.
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, true)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -1125,7 +1125,7 @@ func (pds *PrometheusMetricsQuerier) QueryNetTransferBytes(start, end time.Time)
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, true)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -1144,7 +1144,7 @@ func (pds *PrometheusMetricsQuerier) QueryNetZoneIngressGiB(start, end time.Time
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, true)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -1163,7 +1163,7 @@ func (pds *PrometheusMetricsQuerier) QueryNetRegionIngressGiB(start, end time.Ti
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, true)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -1182,7 +1182,7 @@ func (pds *PrometheusMetricsQuerier) QueryNetInternetIngressGiB(start, end time.
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, true)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -1201,7 +1201,7 @@ func (pds *PrometheusMetricsQuerier) QueryNetInternetServiceIngressGiB(start, en
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, true)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -1220,7 +1220,7 @@ func (pds *PrometheusMetricsQuerier) QueryNetReceiveBytes(start, end time.Time) 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
 
-	durStr := pds.durationStringFor(start, end, minsPerResolution)
+	durStr := pds.durationStringFor(start, end, minsPerResolution, true)
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
@@ -1461,7 +1461,7 @@ func (pds *PrometheusMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time
 	end := time.Now().UTC().Truncate(timeutil.Day).Add(timeutil.Day)
 	start := end.Add(-dur)
 
-	durStr := pds.durationStringFor(start, end, minutesPerDuration)
+	durStr := pds.durationStringFor(start, end, minutesPerDuration, false)
 
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
 	queryOldest := fmt.Sprintf(queryFmtOldestSample, cfg.ClusterFilter, durStr, "1h")
@@ -1497,7 +1497,11 @@ func (pds *PrometheusMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time
 	return oldest, newest, nil
 }
 
-func (pds *PrometheusMetricsQuerier) durationStringFor(start, end time.Time, minsPerResolution int) string {
+// durationStringFor simplifies the determination of query duration based on the version of prom and if the function
+// in the query needs all data points in the vector it is provided or if it will extrapolate its own. Functions
+// that extrapolate will add on another resolution if given a duration that is one resolution longer than the intended
+// duration.
+func (pds *PrometheusMetricsQuerier) durationStringFor(start, end time.Time, minsPerResolution int, extrapolated bool) string {
 	dur := end.Sub(start)
 
 	// If using a version of Prometheus where the resolution needs duration offset,
@@ -1509,7 +1513,7 @@ func (pds *PrometheusMetricsQuerier) durationStringFor(start, end time.Time, min
 	// However, OpenCost expects for there to be 13 timestamps where the first
 	// begins at 00:00:00. To achieve this, we must modify our query to
 	// avg(node_total_hourly_cost{}) by (node, provider_id)[65m:5m]
-	if pds.promConfig.IsOffsetResolution {
+	if pds.promConfig.IsOffsetResolution && !extrapolated {
 		// increase the query time by the resolution
 		dur = dur + (time.Duration(minsPerResolution) * time.Minute)
 	}

@@ -15,6 +15,7 @@ import (
 )
 
 type Namespace struct {
+	UID         types.UID
 	Name        string
 	Labels      map[string]string
 	Annotations map[string]string
@@ -51,6 +52,7 @@ type Container struct {
 }
 
 type Node struct {
+	UID            types.UID
 	Name           string
 	Labels         map[string]string
 	Annotations    map[string]string
@@ -59,6 +61,7 @@ type Node struct {
 }
 
 type Service struct {
+	UID          types.UID
 	Name         string
 	Namespace    string
 	SpecSelector map[string]string
@@ -75,6 +78,7 @@ type DaemonSet struct {
 }
 
 type Deployment struct {
+	UID                     types.UID
 	Name                    string
 	Namespace               string
 	Labels                  map[string]string
@@ -88,6 +92,7 @@ type Deployment struct {
 }
 
 type StatefulSet struct {
+	UID          types.UID
 	Name         string
 	Namespace    string
 	Labels       map[string]string
@@ -98,6 +103,7 @@ type StatefulSet struct {
 }
 
 type PersistentVolumeClaim struct {
+	UID         types.UID
 	Name        string
 	Namespace   string
 	Spec        v1.PersistentVolumeClaimSpec
@@ -116,12 +122,14 @@ type StorageClass struct {
 }
 
 type Job struct {
+	UID       types.UID
 	Name      string
 	Namespace string
 	Status    batchv1.JobStatus
 }
 
 type PersistentVolume struct {
+	UID         types.UID
 	Name        string
 	Namespace   string
 	Labels      map[string]string
@@ -144,6 +152,7 @@ type PodDisruptionBudget struct {
 }
 
 type ReplicaSet struct {
+	UID             types.UID
 	Name            string
 	Namespace       string
 	OwnerReferences []metav1.OwnerReference
@@ -181,6 +190,7 @@ func GetControllerOfNoCopy(pod *Pod) *metav1.OwnerReference {
 
 func TransformNamespace(input *v1.Namespace) *Namespace {
 	return &Namespace{
+		UID:         input.UID,
 		Name:        input.Name,
 		Annotations: input.Annotations,
 		Labels:      input.Labels,
@@ -241,6 +251,7 @@ func TransformPod(input *v1.Pod) *Pod {
 
 func TransformNode(input *v1.Node) *Node {
 	return &Node{
+		UID:            input.UID,
 		Name:           input.Name,
 		Labels:         input.Labels,
 		Annotations:    input.Annotations,
@@ -251,6 +262,7 @@ func TransformNode(input *v1.Node) *Node {
 
 func TransformService(input *v1.Service) *Service {
 	return &Service{
+		UID:          input.UID,
 		Name:         input.Name,
 		Namespace:    input.Namespace,
 		SpecSelector: input.Spec.Selector,
@@ -271,6 +283,7 @@ func TransformDaemonSet(input *appsv1.DaemonSet) *DaemonSet {
 
 func TransformDeployment(input *appsv1.Deployment) *Deployment {
 	return &Deployment{
+		UID:                     input.UID,
 		Name:                    input.Name,
 		Namespace:               input.Namespace,
 		Labels:                  input.Labels,
@@ -290,11 +303,15 @@ func TransformStatefulSet(input *appsv1.StatefulSet) *StatefulSet {
 		SpecSelector: input.Spec.Selector,
 		SpecReplicas: input.Spec.Replicas,
 		PodSpec:      TransformPodSpec(input.Spec.Template.Spec),
+		Labels:       input.Labels,
+		Annotations:  input.Annotations,
+		UID:          input.UID,
 	}
 }
 
 func TransformPersistentVolume(input *v1.PersistentVolume) *PersistentVolume {
 	return &PersistentVolume{
+		UID:         input.UID,
 		Name:        input.Name,
 		Namespace:   input.Namespace,
 		Labels:      input.Labels,
@@ -306,6 +323,7 @@ func TransformPersistentVolume(input *v1.PersistentVolume) *PersistentVolume {
 
 func TransformPersistentVolumeClaim(input *v1.PersistentVolumeClaim) *PersistentVolumeClaim {
 	return &PersistentVolumeClaim{
+		UID:         input.UID,
 		Name:        input.Name,
 		Namespace:   input.Namespace,
 		Spec:        input.Spec,
@@ -328,6 +346,7 @@ func TransformStorageClass(input *stv1.StorageClass) *StorageClass {
 
 func TransformJob(input *batchv1.Job) *Job {
 	return &Job{
+		UID:       input.UID,
 		Name:      input.Name,
 		Namespace: input.Namespace,
 		Status:    input.Status,
@@ -353,6 +372,7 @@ func TransformPodDisruptionBudget(input *policyv1.PodDisruptionBudget) *PodDisru
 
 func TransformReplicaSet(input *appsv1.ReplicaSet) *ReplicaSet {
 	return &ReplicaSet{
+		UID:             input.UID,
 		Name:            input.Name,
 		Namespace:       input.Namespace,
 		OwnerReferences: input.OwnerReferences,

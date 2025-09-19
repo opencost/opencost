@@ -15,6 +15,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/alibaba"
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/azure"
+	"github.com/opencost/opencost/pkg/cloud/digitalocean"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/oracle"
@@ -215,6 +216,15 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			Config:        NewProviderConfig(config, cp.configFileName),
 			ClusterRegion: cp.region,
 		}, nil
+	case opencost.DigitalOceanProvider:
+		log.Info("Detected DigitalOcean, using DOKS")
+		return &digitalocean.DOKS{
+			Config:                NewProviderConfig(config, cp.configFileName),
+			Cache:                 digitalocean.NewPricingCache(),
+			Products:              make(map[string][]digitalocean.DOProduct),
+			Clientset:             cache,
+			ClusterManagementCost: 0.0,
+		}, nil
 	default:
 		log.Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
@@ -290,6 +300,10 @@ func getClusterProperties(node *clustercache.Node) clusterProperties {
 		log.Debug("using OTC provider")
 		cp.provider = opencost.OTCProvider
 		cp.configFileName = "otc.json"
+	} else if strings.HasPrefix(providerID, "digitalocean") {
+		log.Debug("using DigitalOcean provider")
+		cp.provider = opencost.DigitalOceanProvider
+		cp.configFileName = "digitalocean.json"
 	}
 	// Override provider to CSV if CSVProvider is used and custom provider is not set
 	if env.IsUseCSVProvider() {

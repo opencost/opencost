@@ -41,10 +41,11 @@ func (sc KubecostServiceCollector) Collect(ch chan<- prometheus.Metric) {
 	for _, svc := range svcs {
 		serviceName := svc.Name
 		serviceNS := svc.Namespace
+		serviceUID := string(svc.UID)
 
 		labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(svc.SpecSelector))
 		if len(labels) > 0 {
-			m := newServiceSelectorLabelsMetric(serviceName, serviceNS, "service_selector_labels", labels, values)
+			m := newServiceSelectorLabelsMetric(serviceName, serviceNS, "service_selector_labels", labels, values, serviceUID)
 			ch <- m
 		}
 	}
@@ -63,10 +64,11 @@ type ServiceSelectorLabelsMetric struct {
 	labelValues []string
 	serviceName string
 	namespace   string
+	uid         string
 }
 
 // Creates a new ServiceMetric, implementation of prometheus.Metric
-func newServiceSelectorLabelsMetric(name, namespace, fqname string, labelNames, labelvalues []string) ServiceSelectorLabelsMetric {
+func newServiceSelectorLabelsMetric(name, namespace, fqname string, labelNames, labelvalues []string, uid string) ServiceSelectorLabelsMetric {
 	return ServiceSelectorLabelsMetric{
 		fqName:      fqname,
 		labelNames:  labelNames,
@@ -74,6 +76,7 @@ func newServiceSelectorLabelsMetric(name, namespace, fqname string, labelNames, 
 		help:        "service_selector_labels Service Selector Labels",
 		serviceName: name,
 		namespace:   namespace,
+		uid:         uid,
 	}
 }
 
@@ -83,6 +86,7 @@ func (s ServiceSelectorLabelsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
 		"service":   s.serviceName,
 		"namespace": s.namespace,
+		"uid":       s.uid,
 	}
 	return prometheus.NewDesc(s.fqName, s.help, s.labelNames, l)
 }
@@ -108,6 +112,10 @@ func (s ServiceSelectorLabelsMetric) Write(m *dto.Metric) error {
 	labels = append(labels, &dto.LabelPair{
 		Name:  toStringPtr("service"),
 		Value: &s.serviceName,
+	})
+	labels = append(labels, &dto.LabelPair{
+		Name:  toStringPtr("uid"),
+		Value: &s.uid,
 	})
 	m.Label = labels
 	return nil

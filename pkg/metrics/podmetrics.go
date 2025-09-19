@@ -44,11 +44,12 @@ func (kpmc KubecostPodCollector) Collect(ch chan<- prometheus.Metric) {
 	for _, pod := range pods {
 		podName := pod.Name
 		podNS := pod.Namespace
+		podUID := string(pod.UID)
 
 		// Pod Annotations
 		labels, values := promutil.KubeAnnotationsToLabels(pod.Annotations)
 		if len(labels) > 0 {
-			ch <- newPodAnnotationMetric("kube_pod_annotations", podNS, podName, labels, values)
+			ch <- newPodAnnotationMetric("kube_pod_annotations", podNS, podName, podUID, labels, values)
 		}
 	}
 
@@ -258,17 +259,19 @@ type PodAnnotationsMetric struct {
 	help        string
 	namespace   string
 	pod         string
+	uid         string
 	labelNames  []string
 	labelValues []string
 }
 
 // Creates a new PodAnnotationsMetric, implementation of prometheus.Metric
-func newPodAnnotationMetric(fqname, namespace, pod string, labelNames, labelValues []string) PodAnnotationsMetric {
+func newPodAnnotationMetric(fqname, namespace, pod string, uid string, labelNames, labelValues []string) PodAnnotationsMetric {
 	return PodAnnotationsMetric{
 		fqName:      fqname,
 		help:        "kube_pod_annotations Pod Annotations",
 		namespace:   namespace,
 		pod:         pod,
+		uid:         uid,
 		labelNames:  labelNames,
 		labelValues: labelValues,
 	}
@@ -280,6 +283,7 @@ func (pam PodAnnotationsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
 		"namespace": pam.namespace,
 		"pod":       pam.pod,
+		"uid":       pam.uid,
 	}
 	return prometheus.NewDesc(pam.fqName, pam.help, []string{}, l)
 }
@@ -307,6 +311,10 @@ func (pam PodAnnotationsMetric) Write(m *dto.Metric) error {
 		&dto.LabelPair{
 			Name:  toStringPtr("pod"),
 			Value: &pam.pod,
+		},
+		&dto.LabelPair{
+			Name:  toStringPtr("uid"),
+			Value: &pam.uid,
 		})
 	m.Label = labels
 	return nil

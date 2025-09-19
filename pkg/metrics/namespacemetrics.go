@@ -40,10 +40,11 @@ func (nsac KubecostNamespaceCollector) Collect(ch chan<- prometheus.Metric) {
 	namespaces := nsac.KubeClusterCache.GetAllNamespaces()
 	for _, namespace := range namespaces {
 		nsName := namespace.Name
+		nsUID := string(namespace.UID)
 
 		labels, values := promutil.KubeAnnotationsToLabels(namespace.Annotations)
 		if len(labels) > 0 {
-			m := newNamespaceAnnotationsMetric("kube_namespace_annotations", nsName, labels, values)
+			m := newNamespaceAnnotationsMetric("kube_namespace_annotations", nsName, nsUID, labels, values)
 			ch <- m
 		}
 	}
@@ -59,16 +60,18 @@ type NamespaceAnnotationsMetric struct {
 	fqName      string
 	help        string
 	namespace   string
+	uid         string
 	labelNames  []string
 	labelValues []string
 }
 
 // Creates a new NamespaceAnnotationsMetric, implementation of prometheus.Metric
-func newNamespaceAnnotationsMetric(fqname, namespace string, labelNames []string, labelValues []string) NamespaceAnnotationsMetric {
+func newNamespaceAnnotationsMetric(fqname, namespace string, uid string, labelNames []string, labelValues []string) NamespaceAnnotationsMetric {
 	return NamespaceAnnotationsMetric{
 		fqName:      fqname,
 		help:        "kube_namespace_annotations Namespace Annotations",
 		namespace:   namespace,
+		uid:         uid,
 		labelNames:  labelNames,
 		labelValues: labelValues,
 	}
@@ -79,6 +82,7 @@ func newNamespaceAnnotationsMetric(fqname, namespace string, labelNames []string
 func (nam NamespaceAnnotationsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
 		"namespace": nam.namespace,
+		"uid":       nam.uid,
 	}
 	return prometheus.NewDesc(nam.fqName, nam.help, []string{}, l)
 }
@@ -98,10 +102,15 @@ func (nam NamespaceAnnotationsMetric) Write(m *dto.Metric) error {
 			Value: &nam.labelValues[i],
 		})
 	}
-	labels = append(labels, &dto.LabelPair{
-		Name:  toStringPtr("namespace"),
-		Value: &nam.namespace,
-	})
+	labels = append(labels,
+		&dto.LabelPair{
+			Name:  toStringPtr("namespace"),
+			Value: &nam.namespace,
+		},
+		&dto.LabelPair{
+			Name:  toStringPtr("uid"),
+			Value: &nam.uid,
+		})
 	m.Label = labels
 	return nil
 }
@@ -138,10 +147,11 @@ func (nsac KubeNamespaceCollector) Collect(ch chan<- prometheus.Metric) {
 	namespaces := nsac.KubeClusterCache.GetAllNamespaces()
 	for _, namespace := range namespaces {
 		nsName := namespace.Name
+		nsUID := string(namespace.UID)
 
 		labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(namespace.Labels))
 		if len(labels) > 0 {
-			m := newKubeNamespaceLabelsMetric("kube_namespace_labels", nsName, labels, values)
+			m := newKubeNamespaceLabelsMetric("kube_namespace_labels", nsName, nsUID, labels, values)
 			ch <- m
 		}
 	}
@@ -157,14 +167,16 @@ type KubeNamespaceLabelsMetric struct {
 	fqName      string
 	help        string
 	namespace   string
+	uid         string
 	labelNames  []string
 	labelValues []string
 }
 
 // Creates a new KubeNamespaceLabelsMetric, implementation of prometheus.Metric
-func newKubeNamespaceLabelsMetric(fqname, namespace string, labelNames []string, labelValues []string) KubeNamespaceLabelsMetric {
+func newKubeNamespaceLabelsMetric(fqname, namespace string, uid string, labelNames []string, labelValues []string) KubeNamespaceLabelsMetric {
 	return KubeNamespaceLabelsMetric{
 		namespace:   namespace,
+		uid:         uid,
 		fqName:      fqname,
 		labelNames:  labelNames,
 		labelValues: labelValues,
@@ -195,10 +207,15 @@ func (nam KubeNamespaceLabelsMetric) Write(m *dto.Metric) error {
 			Value: &nam.labelValues[i],
 		})
 	}
-	labels = append(labels, &dto.LabelPair{
-		Name:  toStringPtr("namespace"),
-		Value: &nam.namespace,
-	})
+	labels = append(labels,
+		&dto.LabelPair{
+			Name:  toStringPtr("namespace"),
+			Value: &nam.namespace,
+		},
+		&dto.LabelPair{
+			Name:  toStringPtr("uid"),
+			Value: &nam.uid,
+		})
 	m.Label = labels
 	return nil
 }

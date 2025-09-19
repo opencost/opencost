@@ -32,7 +32,8 @@ const (
 	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
 	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
 
-	OCIPricingURL = "OCI_PRICING_URL"
+	// Currently being used for OCI and DigitalOcean
+	ProviderPricingURL = "PROVIDER_PRICING_URL"
 
 	ClusterProfileEnvVar    = "CLUSTER_PROFILE"
 	RemoteEnabledEnvVar     = "REMOTE_WRITE_ENABLED"
@@ -77,9 +78,6 @@ const (
 	ExportCSVLabelsList = "EXPORT_CSV_LABELS_LIST"
 	ExportCSVLabelsAll  = "EXPORT_CSV_LABELS_ALL"
 	ExportCSVMaxDays    = "EXPORT_CSV_MAX_DAYS"
-
-	DataRetentionDailyResolutionDaysEnvVar   = "DATA_RETENTION_DAILY_RESOLUTION_DAYS"
-	DataRetentionHourlyResolutionHoursEnvVar = "DATA_RETENTION_HOURLY_RESOLUTION_HOURS"
 
 	CarbonEstimatesEnabledEnvVar = "CARBON_ESTIMATES_ENABLED"
 
@@ -331,20 +329,12 @@ func GetRegionOverrideList() []string {
 	return regionList
 }
 
-func GetDataRetentionDailyResolutionDays() int64 {
-	return env.GetInt64(DataRetentionDailyResolutionDaysEnvVar, 30)
-}
-
-func GetDataRetentionHourlyResolutionHours() int64 {
-	return env.GetInt64(DataRetentionHourlyResolutionHoursEnvVar, 49)
-}
-
 func IsKubernetesEnabled() bool {
 	return env.Get(KubernetesEnabledEnvVar, "") != ""
 }
 
 func GetOCIPricingURL() string {
-	return env.Get(OCIPricingURL, "https://apexapps.oracle.com/pls/apex/cetools/api/v1/products")
+	return env.Get(ProviderPricingURL, "https://apexapps.oracle.com/pls/apex/cetools/api/v1/products")
 }
 
 func IsCarbonEstimatesEnabled() bool {
@@ -372,4 +362,8 @@ func GetMetricConfigFile() string {
 func GetLocalCollectorDirectory() string {
 	dir := env.Get(LocalCollectorDirectoryEnvVar, DefaultLocalCollectorDir)
 	return env.GetPathFromConfig(dir)
+}
+
+func GetDOKSPricingURL() string {
+	return env.Get(ProviderPricingURL, "https://api.digitalocean.com/v2/billing/pricing")
 }

@@ -59,6 +59,7 @@ func TestWalinator_Update(t *testing.T) {
 	)
 	wal, _ := NewWalinator(
 		"test",
+		"test",
 		store,
 		resolutions,
 		repo,
@@ -107,6 +108,7 @@ func TestWalinator_restore(t *testing.T) {
 		testMetricCollector,
 	)
 	wal, _ := NewWalinator(
+		"test",
 		"test",
 		store,
 		resolutions,
@@ -219,6 +221,7 @@ func TestWalinator_clean(t *testing.T) {
 		testMetricCollector,
 	)
 	wal, _ := NewWalinator(
+		"test",
 		"test",
 		store,
 		resolutions,
