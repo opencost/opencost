@@ -18,11 +18,11 @@ import (
 )
 
 type collectorDataSource struct {
-	metricsQuerier *collectorMetricsQuerier
-	clusterMap     clusters.ClusterMap
-	clusterInfo    clusters.ClusterInfoProvider
-	config         CollectorConfig
-	diagnosticsModule    *metric.DiagnosticsModule
+	metricsQuerier    *collectorMetricsQuerier
+	clusterMap        clusters.ClusterMap
+	clusterInfo       clusters.ClusterInfoProvider
+	config            CollectorConfig
+	diagnosticsModule *metric.DiagnosticsModule
 }
 
 func NewDefaultCollectorDataSource(
@@ -67,6 +67,7 @@ func NewCollectorDataSource(
 	if store != nil {
 		wal, err := metric.NewWalinator(
 			config.ClusterID,
+			config.ApplicationName,
 			store,
 			resolutions,
 			updater,
@@ -79,8 +80,7 @@ func NewCollectorDataSource(
 		}
 	}
 
-	diagnosticsModule := metric.NewDiagnosticsModule(updater)
-	updater = diagnosticsModule
+	diagnosticsModule := metric.NewDiagnosticsModule()
 	scrapeController := scrape.NewScrapeController(
 		config.ScrapeInterval,
 		config.NetworkPort,
@@ -98,11 +98,11 @@ func NewCollectorDataSource(
 	clusterMap := newCollectorClusterMap(clusterInfo)
 
 	return &collectorDataSource{
-		config:         config,
-		metricsQuerier: metricQuerier,
-		clusterInfo:    clusterInfo,
-		clusterMap:     clusterMap,
-		diagnosticsModule:    diagnosticsModule,
+		config:            config,
+		metricsQuerier:    metricQuerier,
+		clusterInfo:       clusterInfo,
+		clusterMap:        clusterMap,
+		diagnosticsModule: diagnosticsModule,
 	}
 }
 
@@ -112,9 +112,11 @@ func (c *collectorDataSource) RegisterEndPoints(router *httprouter.Router) {
 
 func (c *collectorDataSource) RegisterDiagnostics(diagService diagnostics.DiagnosticService) {
 	const CollectorDiagnosticCategory = "collector"
+
 	diagnosticDefinitions := c.diagnosticsModule.DiagnosticsDefinitions()
+
 	for _, dd := range diagnosticDefinitions {
-		err := diagService.Register(dd.ID, dd.Description, CollectorDiagnosticCategory, func(ctx context.Context) (map[string]any, error) {
+		err := diagService.Register(dd.MetricName, dd.Description, CollectorDiagnosticCategory, func(ctx context.Context) (map[string]any, error) {
 			details, err := c.diagnosticsModule.DiagnosticsDetails(dd.ID)
 			if err != nil {
 				return nil, err

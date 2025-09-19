@@ -328,8 +328,28 @@ func (ai *AthenaIntegration) GetPartitionWhere(start, end time.Time) string {
 	month := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, time.UTC)
 	endMonth := time.Date(end.Year(), end.Month(), 1, 0, 0, 0, 0, time.UTC)
 	var disjuncts []string
+	
+	// For CUR 2.0, check if billing_period partitions actually exist
+	useBillingPeriodPartitions := false
+	if ai.CURVersion != "1.0" {
+		// Check if billing_period partitions exist in the table
+		if hasBillingPeriod, err := ai.HasBillingPeriodPartitions(); err == nil && hasBillingPeriod {
+			useBillingPeriodPartitions = true
+		}
+	}
+	
 	for !month.After(endMonth) {
-		disjuncts = append(disjuncts, fmt.Sprintf("(year = '%d' AND month = '%d')", month.Year(), month.Month()))
+		if ai.CURVersion == "1.0" {
+			// CUR 1.0 uses year and month columns for partitioning
+			disjuncts = append(disjuncts, fmt.Sprintf("(year = '%d' AND month = '%d')", month.Year(), month.Month()))
+		} else if useBillingPeriodPartitions {
+			// CUR 2.0 with billing_period partitions
+			disjuncts = append(disjuncts, fmt.Sprintf("(billing_period = '%d-%02d')", month.Year(), month.Month()))
+		} else {
+			// CUR 2.0 fallback - use date_format functions (less efficient but works without partitions)
+			disjuncts = append(disjuncts, fmt.Sprintf("(date_format(line_item_usage_start_date, '%%Y') = '%d' AND date_format(line_item_usage_start_date, '%%m') = '%02d')",
+				month.Year(), month.Month()))
+		}
 		month = month.AddDate(0, 1, 0)
 	}
 	str := fmt.Sprintf("(%s)", strings.Join(disjuncts, " OR "))

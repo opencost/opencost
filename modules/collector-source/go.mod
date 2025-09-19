@@ -6,6 +6,7 @@ go 1.24.2
 
 require (
 	github.com/julienschmidt/httprouter v1.3.0
+	github.com/kubecost/events v0.0.8
 	github.com/opencost/opencost/core v0.0.0-20250521155634-81d2b597d1bc
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0
 	k8s.io/api v0.33.1
