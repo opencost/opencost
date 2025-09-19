@@ -11,18 +11,23 @@ import (
 )
 
 const (
-	baseStorageDir string = "etl/bingen"
+	DefaultRootDir string = "federated"
+	BaseStorageDir string = "etl/bingen"
 )
 
 // BingenStoragePathFormatter is an implementation of the StoragePathFormatter interface for
 // a cluster separated storage path of the format:
 //
-//	<root>/federated/<cluster>/etl/bingen/<pipeline>/<resolution>/<epoch-start>-<epoch-end>
+//	<root>/<cluster>/etl/bingen/<pipeline>/<resolution>/<epoch-start>-<epoch-end>
 type BingenStoragePathFormatter struct {
 	rootDir    string
 	clusterId  string
 	pipeline   string
 	resolution string
+}
+
+func NewDefaultStoragePathFormatter(clusterId, pipeline string, resolution *time.Duration) (StoragePathFormatter[opencost.Window], error) {
+	return NewBingenStoragePathFormatter(DefaultRootDir, clusterId, pipeline, resolution)
 }
 
 // NewBingenStoragePathFormatter creates a StoragePathFormatter for a cluster separated storage path
@@ -60,7 +65,7 @@ func (bsf *BingenStoragePathFormatter) Dir() string {
 	return path.Join(
 		bsf.rootDir,
 		bsf.clusterId,
-		baseStorageDir,
+		BaseStorageDir,
 		bsf.pipeline,
 		bsf.resolution,
 	)
@@ -68,14 +73,14 @@ func (bsf *BingenStoragePathFormatter) Dir() string {
 
 // ToFullPath returns the full path to a file name within the storage directory using the format:
 //
-//	<root>/federated/<cluster>/etl/bingen/<pipeline>/<resolution>/<prefix>.<start-epoch>-<end-epoch>
+//	<root>/<cluster>/etl/bingen/<pipeline>/<resolution>/<prefix>.<start-epoch>-<end-epoch>
 func (bsf *BingenStoragePathFormatter) ToFullPath(prefix string, window opencost.Window, fileExt string) string {
 	fileName := toBingenFileName(prefix, window, fileExt)
 
 	return path.Join(
 		bsf.rootDir,
 		bsf.clusterId,
-		baseStorageDir,
+		BaseStorageDir,
 		bsf.pipeline,
 		bsf.resolution,
 		fileName,

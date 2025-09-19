@@ -71,8 +71,8 @@ func NewGCSStorageWith(gc GCSConfig) (*GCSStorage, error) {
 	}, nil
 }
 
-// Name returns the bucket name for gcs.
-func (gs *GCSStorage) Name() string {
+// String returns the bucket name for gcs.
+func (gs *GCSStorage) String() string {
 	return gs.name
 }
 
@@ -111,8 +111,7 @@ func (gs *GCSStorage) Stat(name string) (*StorageInfo, error) {
 
 // isDoesNotExist returns true if the error matches resource not exists errors.
 func (gs *GCSStorage) isDoesNotExist(err error) bool {
-	msg := err.Error()
-	return msg == gcs.ErrBucketNotExist.Error() || msg == gcs.ErrObjectNotExist.Error()
+	return errors.Is(err, gcs.ErrObjectNotExist)
 }
 
 // Read uses the relative path of the storage combined with the provided path to

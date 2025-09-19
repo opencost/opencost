@@ -142,7 +142,7 @@ func (s *PipelineService) GetCloudCostRepairHandler() func(w http.ResponseWriter
 
 		var window opencost.Window
 		if windowStr != "" {
-			win, err := opencost.ParseWindowWithOffset(windowStr, env.GetParsedUTCOffset())
+			win, err := opencost.ParseWindowUTC(windowStr)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("Invalid parameter: %s", err), http.StatusBadRequest)
 				return

@@ -5,10 +5,12 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/kubecost/events"
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
+	"github.com/opencost/opencost/modules/collector-source/pkg/event"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 	"golang.org/x/exp/maps"
@@ -110,6 +112,14 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 		})
 
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.NodeScraperType,
+		Targets:     len(nodes),
+		Errors:      nil,
+	})
+
 	return scrapeResults
 }
 
@@ -137,6 +147,14 @@ func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.De
 			AdditionalInfo: deploymentLabels,
 		})
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.DeploymentScraperType,
+		Targets:     len(deployments),
+		Errors:      nil,
+	})
+
 	return scrapeResults
 }
 
@@ -172,6 +190,14 @@ func (ccs *ClusterCacheScraper) scrapeNamespaces(namespaces []*clustercache.Name
 			AdditionalInfo: namespaceAnnotations,
 		})
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.NamespaceScraperType,
+		Targets:     len(namespaces),
+		Errors:      nil,
+	})
+
 	return scrapeResults
 }
 
@@ -266,6 +292,14 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod) []metric.Up
 			}
 		}
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.PodScraperType,
+		Targets:     len(pods),
+		Errors:      nil,
+	})
+
 	return scrapeResults
 }
 
@@ -298,6 +332,14 @@ func (ccs *ClusterCacheScraper) scrapePVCs(pvcs []*clustercache.PersistentVolume
 			})
 		}
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.PvcScraperType,
+		Targets:     len(pvcs),
+		Errors:      nil,
+	})
+
 	return scrapeResults
 }
 
@@ -334,6 +376,14 @@ func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume) 
 			})
 		}
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.PvScraperType,
+		Targets:     len(pvs),
+		Errors:      nil,
+	})
+
 	return scrapeResults
 }
 
@@ -361,6 +411,14 @@ func (ccs *ClusterCacheScraper) scrapeServices(services []*clustercache.Service)
 		})
 
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.ServiceScraperType,
+		Targets:     len(services),
+		Errors:      nil,
+	})
+
 	return scrapeResults
 }
 
@@ -387,6 +445,14 @@ func (ccs *ClusterCacheScraper) scrapeStatefulSets(statefulSets []*clustercache.
 			AdditionalInfo: statefulSetLabels,
 		})
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.StatefulSetScraperType,
+		Targets:     len(statefulSets),
+		Errors:      nil,
+	})
+
 	return scrapeResults
 }
 
@@ -414,6 +480,14 @@ func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.Re
 			})
 		}
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.ReplicaSetScraperType,
+		Targets:     len(replicaSets),
+		Errors:      nil,
+	})
+
 	return scrapeResults
 }
 

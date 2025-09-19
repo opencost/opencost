@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
@@ -185,9 +186,7 @@ func (gcp *GCP) GetManagementPlatform() (string, error) {
 
 // Attempts to load a GCP auth secret and copy the contents to the key file.
 func (*GCP) loadGCPAuthSecret() {
-	path := env.GetConfigPathWithDefault("/models/")
-
-	keyPath := path + "key.json"
+	keyPath := env.GetGCPAuthSecretFilePath()
 	keyExists, _ := fileutil.FileExists(keyPath)
 	if keyExists {
 		log.Info("GCP Auth Key already exists, no need to load from secret")
@@ -239,9 +238,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 					return err
 				}
 
-				path := env.GetConfigPathWithDefault("/models/")
-
-				keyPath := path + "key.json"
+				keyPath := env.GetGCPAuthSecretFilePath()
 				err = os.WriteFile(keyPath, j, 0644)
 				if err != nil {
 					return err
@@ -284,7 +281,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 		}
 
 		if env.IsRemoteEnabled() {
-			err := utils.UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
+			err := utils.UpdateClusterMeta(coreenv.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return err
 			}
@@ -323,7 +320,7 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	m["account"] = gcp.ClusterAccountID
 	m["project"] = gcp.ClusterProjectID
 	m["provisioner"] = gcp.clusterProvisioner
-	m["id"] = env.GetClusterID()
+	m["id"] = coreenv.GetClusterID()
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	return m, nil
 }
@@ -736,6 +733,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					} else {
 						instanceType = "n2standard"
 					}
+				}
+
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N4 INSTANCE") {
+					instanceType = "n4standard"
 				}
 
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "A2 INSTANCE") {
@@ -1504,6 +1505,8 @@ func parseGCPInstanceTypeLabel(it string) string {
 			instanceType = "n1standard" // These are priced the same. TODO: support n1ultrahighmem
 		} else if instanceType == "n2highmem" || instanceType == "n2highcpu" {
 			instanceType = "n2standard"
+		} else if instanceType == "n4highmem" || instanceType == "n4highcpu" {
+			instanceType = "n4standard" // N4 variants are priced the same per vCPU and RAM
 		} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
 			instanceType = "e2standard"
 		} else if instanceType == "n2dhighmem" || instanceType == "n2dhighcpu" {
@@ -1645,7 +1648,7 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 	}
 	discount := defaultDiscount
 	switch class {
-	case "e2", "f1", "g1":
+	case "e2", "f1", "g1", "n4":
 		discount = 0.0
 	case "n2", "n2d":
 		discount = 0.2
