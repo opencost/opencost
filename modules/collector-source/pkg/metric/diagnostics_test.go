@@ -105,3 +105,42 @@ func TestDiagnosticsModule_ScrapeDiagnostics(t *testing.T) {
 		return
 	}
 }
+
+func TestDiagnosticsModule_ScrapeDiagnosticsWithSameScraperName(t *testing.T) {
+	module := NewDiagnosticsModule()
+
+	// dispatch some faux scrape events with same scraper name
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.NodeScraperType,
+		Targets:     8,
+		Errors: []error{
+			fmt.Errorf("failed to scrape node 'foo'"),
+			fmt.Errorf("failed to scrape node 'bar'"),
+		},
+	})
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.PodScraperType,
+		Targets:     8,
+		Errors: []error{
+			fmt.Errorf("failed to scrape node 'foo'"),
+			fmt.Errorf("failed to scrape node 'bar'"),
+		},
+	})
+
+	time.Sleep(500 * time.Millisecond)
+
+	// for both the diagnostics, if they remain unregistered even after an event was dispatched getting the details would raise an error
+	_, err := module.DiagnosticsDetails(KubernetesNodesScraperDiagnosticID)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+		return
+	}
+	_, err = module.DiagnosticsDetails(KubernetesPodsScraperDiagnosticID)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+		return
+	}
+}
