@@ -2,14 +2,13 @@
 // versions:
 // 	protoc-gen-go v1.36.7
 // 	protoc        v3.20.3
-// source: pkg/agent/protos/compute.proto
+// source: compute.proto
 
-package protos
+package pb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -26,37 +25,29 @@ const (
 type GPUDevice struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Identification
-	ID     string `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
+	ID     string `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"` // NVIDIA GPU UUID (hardware identifier)
 	NodeID string `protobuf:"bytes,2,opt,name=NodeID,proto3" json:"NodeID,omitempty"`
 	// Properties
 	DeviceNumber int32             `protobuf:"varint,3,opt,name=DeviceNumber,proto3" json:"DeviceNumber,omitempty"`
-	DeviceName   string            `protobuf:"bytes,4,opt,name=DeviceName,proto3" json:"DeviceName,omitempty"`
-	ModelName    string            `protobuf:"bytes,5,opt,name=ModelName,proto3" json:"ModelName,omitempty"`
-	UUID         string            `protobuf:"bytes,6,opt,name=UUID,proto3" json:"UUID,omitempty"`
-	Labels       map[string]string `protobuf:"bytes,7,rep,name=Labels,proto3" json:"Labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Annotations  map[string]string `protobuf:"bytes,8,rep,name=Annotations,proto3" json:"Annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// Window
-	WindowStart *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=WindowStart,proto3" json:"WindowStart,omitempty"`
-	WindowEnd   *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=WindowEnd,proto3" json:"WindowEnd,omitempty"`
-	// Data (timing, resource, pricing)
-	Start              *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=Start,proto3" json:"Start,omitempty"`
-	End                *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=End,proto3" json:"End,omitempty"`
-	UsageAvg           float32                `protobuf:"fixed32,13,opt,name=UsageAvg,proto3" json:"UsageAvg,omitempty"`
-	UsageMax           float32                `protobuf:"fixed32,14,opt,name=UsageMax,proto3" json:"UsageMax,omitempty"`
-	MemoryUsedBytes    int64                  `protobuf:"varint,15,opt,name=MemoryUsedBytes,proto3" json:"MemoryUsedBytes,omitempty"`
-	MemoryTotalBytes   int64                  `protobuf:"varint,16,opt,name=MemoryTotalBytes,proto3" json:"MemoryTotalBytes,omitempty"`
-	PowerWatts         float32                `protobuf:"fixed32,17,opt,name=PowerWatts,proto3" json:"PowerWatts,omitempty"`
-	TemperatureCelsius float32                `protobuf:"fixed32,18,opt,name=TemperatureCelsius,proto3" json:"TemperatureCelsius,omitempty"`
-	PricePerGPUHour    float32                `protobuf:"fixed32,19,opt,name=PricePerGPUHour,proto3" json:"PricePerGPUHour,omitempty"`
-	Errors             []string               `protobuf:"bytes,20,rep,name=Errors,proto3" json:"Errors,omitempty"`
-	Warnings           []string               `protobuf:"bytes,21,rep,name=Warnings,proto3" json:"Warnings,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	ModelName    string            `protobuf:"bytes,4,opt,name=ModelName,proto3" json:"ModelName,omitempty"`
+	Labels       map[string]string `protobuf:"bytes,5,rep,name=Labels,proto3" json:"Labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Annotations  map[string]string `protobuf:"bytes,6,rep,name=Annotations,proto3" json:"Annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Resource lifecycle (only when different from cluster window)
+	Lifetime *ResourceLifetime `protobuf:"bytes,7,opt,name=lifetime,proto3" json:"lifetime,omitempty"`
+	// Data (usage metrics available from DCGM)
+	UsageAvg float32 `protobuf:"fixed32,8,opt,name=UsageAvg,proto3" json:"UsageAvg,omitempty"`
+	UsageMax float32 `protobuf:"fixed32,9,opt,name=UsageMax,proto3" json:"UsageMax,omitempty"`
+	// GPU cost data (optional - only populated for cost-enabled exports)
+	Cost *AllocationCost `protobuf:"bytes,10,opt,name=cost,proto3" json:"cost,omitempty"`
+	// Cost attribution for this GPU device
+	CostAttribution *CostAttribution `protobuf:"bytes,11,opt,name=cost_attribution,json=costAttribution,proto3" json:"cost_attribution,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *GPUDevice) Reset() {
 	*x = GPUDevice{}
-	mi := &file_pkg_agent_protos_compute_proto_msgTypes[0]
+	mi := &file_compute_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -68,7 +59,7 @@ func (x *GPUDevice) String() string {
 func (*GPUDevice) ProtoMessage() {}
 
 func (x *GPUDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_agent_protos_compute_proto_msgTypes[0]
+	mi := &file_compute_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -81,7 +72,7 @@ func (x *GPUDevice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GPUDevice.ProtoReflect.Descriptor instead.
 func (*GPUDevice) Descriptor() ([]byte, []int) {
-	return file_pkg_agent_protos_compute_proto_rawDescGZIP(), []int{0}
+	return file_compute_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *GPUDevice) GetID() string {
@@ -105,23 +96,9 @@ func (x *GPUDevice) GetDeviceNumber() int32 {
 	return 0
 }
 
-func (x *GPUDevice) GetDeviceName() string {
-	if x != nil {
-		return x.DeviceName
-	}
-	return ""
-}
-
 func (x *GPUDevice) GetModelName() string {
 	if x != nil {
 		return x.ModelName
-	}
-	return ""
-}
-
-func (x *GPUDevice) GetUUID() string {
-	if x != nil {
-		return x.UUID
 	}
 	return ""
 }
@@ -140,30 +117,9 @@ func (x *GPUDevice) GetAnnotations() map[string]string {
 	return nil
 }
 
-func (x *GPUDevice) GetWindowStart() *timestamppb.Timestamp {
+func (x *GPUDevice) GetLifetime() *ResourceLifetime {
 	if x != nil {
-		return x.WindowStart
-	}
-	return nil
-}
-
-func (x *GPUDevice) GetWindowEnd() *timestamppb.Timestamp {
-	if x != nil {
-		return x.WindowEnd
-	}
-	return nil
-}
-
-func (x *GPUDevice) GetStart() *timestamppb.Timestamp {
-	if x != nil {
-		return x.Start
-	}
-	return nil
-}
-
-func (x *GPUDevice) GetEnd() *timestamppb.Timestamp {
-	if x != nil {
-		return x.End
+		return x.Lifetime
 	}
 	return nil
 }
@@ -182,147 +138,101 @@ func (x *GPUDevice) GetUsageMax() float32 {
 	return 0
 }
 
-func (x *GPUDevice) GetMemoryUsedBytes() int64 {
+func (x *GPUDevice) GetCost() *AllocationCost {
 	if x != nil {
-		return x.MemoryUsedBytes
-	}
-	return 0
-}
-
-func (x *GPUDevice) GetMemoryTotalBytes() int64 {
-	if x != nil {
-		return x.MemoryTotalBytes
-	}
-	return 0
-}
-
-func (x *GPUDevice) GetPowerWatts() float32 {
-	if x != nil {
-		return x.PowerWatts
-	}
-	return 0
-}
-
-func (x *GPUDevice) GetTemperatureCelsius() float32 {
-	if x != nil {
-		return x.TemperatureCelsius
-	}
-	return 0
-}
-
-func (x *GPUDevice) GetPricePerGPUHour() float32 {
-	if x != nil {
-		return x.PricePerGPUHour
-	}
-	return 0
-}
-
-func (x *GPUDevice) GetErrors() []string {
-	if x != nil {
-		return x.Errors
+		return x.Cost
 	}
 	return nil
 }
 
-func (x *GPUDevice) GetWarnings() []string {
+func (x *GPUDevice) GetCostAttribution() *CostAttribution {
 	if x != nil {
-		return x.Warnings
+		return x.CostAttribution
 	}
 	return nil
 }
 
-var File_pkg_agent_protos_compute_proto protoreflect.FileDescriptor
+var File_compute_proto protoreflect.FileDescriptor
 
-const file_pkg_agent_protos_compute_proto_rawDesc = "" +
+const file_compute_proto_rawDesc = "" +
 	"\n" +
-	"\x1epkg/agent/protos/compute.proto\x12\fopencost.dm2\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc1\a\n" +
+	"\rcompute.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\xc6\x04\n" +
 	"\tGPUDevice\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x16\n" +
 	"\x06NodeID\x18\x02 \x01(\tR\x06NodeID\x12\"\n" +
-	"\fDeviceNumber\x18\x03 \x01(\x05R\fDeviceNumber\x12\x1e\n" +
-	"\n" +
-	"DeviceName\x18\x04 \x01(\tR\n" +
-	"DeviceName\x12\x1c\n" +
-	"\tModelName\x18\x05 \x01(\tR\tModelName\x12\x12\n" +
-	"\x04UUID\x18\x06 \x01(\tR\x04UUID\x12;\n" +
-	"\x06Labels\x18\a \x03(\v2#.opencost.dm2.GPUDevice.LabelsEntryR\x06Labels\x12J\n" +
-	"\vAnnotations\x18\b \x03(\v2(.opencost.dm2.GPUDevice.AnnotationsEntryR\vAnnotations\x12<\n" +
-	"\vWindowStart\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\vWindowStart\x128\n" +
-	"\tWindowEnd\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tWindowEnd\x120\n" +
-	"\x05Start\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\x05Start\x12,\n" +
-	"\x03End\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\x03End\x12\x1a\n" +
-	"\bUsageAvg\x18\r \x01(\x02R\bUsageAvg\x12\x1a\n" +
-	"\bUsageMax\x18\x0e \x01(\x02R\bUsageMax\x12(\n" +
-	"\x0fMemoryUsedBytes\x18\x0f \x01(\x03R\x0fMemoryUsedBytes\x12*\n" +
-	"\x10MemoryTotalBytes\x18\x10 \x01(\x03R\x10MemoryTotalBytes\x12\x1e\n" +
-	"\n" +
-	"PowerWatts\x18\x11 \x01(\x02R\n" +
-	"PowerWatts\x12.\n" +
-	"\x12TemperatureCelsius\x18\x12 \x01(\x02R\x12TemperatureCelsius\x12(\n" +
-	"\x0fPricePerGPUHour\x18\x13 \x01(\x02R\x0fPricePerGPUHour\x12\x16\n" +
-	"\x06Errors\x18\x14 \x03(\tR\x06Errors\x12\x1a\n" +
-	"\bWarnings\x18\x15 \x03(\tR\bWarnings\x1a9\n" +
+	"\fDeviceNumber\x18\x03 \x01(\x05R\fDeviceNumber\x12\x1c\n" +
+	"\tModelName\x18\x04 \x01(\tR\tModelName\x124\n" +
+	"\x06Labels\x18\x05 \x03(\v2\x1c.agent.GPUDevice.LabelsEntryR\x06Labels\x12C\n" +
+	"\vAnnotations\x18\x06 \x03(\v2!.agent.GPUDevice.AnnotationsEntryR\vAnnotations\x123\n" +
+	"\blifetime\x18\a \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12\x1a\n" +
+	"\bUsageAvg\x18\b \x01(\x02R\bUsageAvg\x12\x1a\n" +
+	"\bUsageMax\x18\t \x01(\x02R\bUsageMax\x12)\n" +
+	"\x04cost\x18\n" +
+	" \x01(\v2\x15.agent.AllocationCostR\x04cost\x12A\n" +
+	"\x10cost_attribution\x18\v \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B6Z4github.com/opencost/opencost/pkg/agent/protos;protosb\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
 
 var (
-	file_pkg_agent_protos_compute_proto_rawDescOnce sync.Once
-	file_pkg_agent_protos_compute_proto_rawDescData []byte
+	file_compute_proto_rawDescOnce sync.Once
+	file_compute_proto_rawDescData []byte
 )
 
-func file_pkg_agent_protos_compute_proto_rawDescGZIP() []byte {
-	file_pkg_agent_protos_compute_proto_rawDescOnce.Do(func() {
-		file_pkg_agent_protos_compute_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_pkg_agent_protos_compute_proto_rawDesc), len(file_pkg_agent_protos_compute_proto_rawDesc)))
+func file_compute_proto_rawDescGZIP() []byte {
+	file_compute_proto_rawDescOnce.Do(func() {
+		file_compute_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_compute_proto_rawDesc), len(file_compute_proto_rawDesc)))
 	})
-	return file_pkg_agent_protos_compute_proto_rawDescData
+	return file_compute_proto_rawDescData
 }
 
-var file_pkg_agent_protos_compute_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_pkg_agent_protos_compute_proto_goTypes = []any{
-	(*GPUDevice)(nil),             // 0: opencost.dm2.GPUDevice
-	nil,                           // 1: opencost.dm2.GPUDevice.LabelsEntry
-	nil,                           // 2: opencost.dm2.GPUDevice.AnnotationsEntry
-	(*timestamppb.Timestamp)(nil), // 3: google.protobuf.Timestamp
+var file_compute_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_compute_proto_goTypes = []any{
+	(*GPUDevice)(nil),        // 0: agent.GPUDevice
+	nil,                      // 1: agent.GPUDevice.LabelsEntry
+	nil,                      // 2: agent.GPUDevice.AnnotationsEntry
+	(*ResourceLifetime)(nil), // 3: agent.ResourceLifetime
+	(*AllocationCost)(nil),   // 4: agent.AllocationCost
+	(*CostAttribution)(nil),  // 5: agent.CostAttribution
 }
-var file_pkg_agent_protos_compute_proto_depIdxs = []int32{
-	1, // 0: opencost.dm2.GPUDevice.Labels:type_name -> opencost.dm2.GPUDevice.LabelsEntry
-	2, // 1: opencost.dm2.GPUDevice.Annotations:type_name -> opencost.dm2.GPUDevice.AnnotationsEntry
-	3, // 2: opencost.dm2.GPUDevice.WindowStart:type_name -> google.protobuf.Timestamp
-	3, // 3: opencost.dm2.GPUDevice.WindowEnd:type_name -> google.protobuf.Timestamp
-	3, // 4: opencost.dm2.GPUDevice.Start:type_name -> google.protobuf.Timestamp
-	3, // 5: opencost.dm2.GPUDevice.End:type_name -> google.protobuf.Timestamp
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+var file_compute_proto_depIdxs = []int32{
+	1, // 0: agent.GPUDevice.Labels:type_name -> agent.GPUDevice.LabelsEntry
+	2, // 1: agent.GPUDevice.Annotations:type_name -> agent.GPUDevice.AnnotationsEntry
+	3, // 2: agent.GPUDevice.lifetime:type_name -> agent.ResourceLifetime
+	4, // 3: agent.GPUDevice.cost:type_name -> agent.AllocationCost
+	5, // 4: agent.GPUDevice.cost_attribution:type_name -> agent.CostAttribution
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
-func init() { file_pkg_agent_protos_compute_proto_init() }
-func file_pkg_agent_protos_compute_proto_init() {
-	if File_pkg_agent_protos_compute_proto != nil {
+func init() { file_compute_proto_init() }
+func file_compute_proto_init() {
+	if File_compute_proto != nil {
 		return
 	}
+	file_common_proto_init()
+	file_costs_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pkg_agent_protos_compute_proto_rawDesc), len(file_pkg_agent_protos_compute_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_compute_proto_rawDesc), len(file_compute_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_pkg_agent_protos_compute_proto_goTypes,
-		DependencyIndexes: file_pkg_agent_protos_compute_proto_depIdxs,
-		MessageInfos:      file_pkg_agent_protos_compute_proto_msgTypes,
+		GoTypes:           file_compute_proto_goTypes,
+		DependencyIndexes: file_compute_proto_depIdxs,
+		MessageInfos:      file_compute_proto_msgTypes,
 	}.Build()
-	File_pkg_agent_protos_compute_proto = out.File
-	file_pkg_agent_protos_compute_proto_goTypes = nil
-	file_pkg_agent_protos_compute_proto_depIdxs = nil
+	File_compute_proto = out.File
+	file_compute_proto_goTypes = nil
+	file_compute_proto_depIdxs = nil
 }

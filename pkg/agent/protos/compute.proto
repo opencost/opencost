@@ -1,38 +1,33 @@
 syntax = "proto3";
 
-import "google/protobuf/timestamp.proto";
+import "common.proto";
+import "costs.proto";
 
-package opencost.dm2;
-option go_package = "github.com/opencost/opencost/pkg/agent/protos;protos";
+package agent;
+option go_package = "github.com/opencost/opencost/pkg/agent/model/pb;pb";
 
 // GPUDevice represents a GPU device with DCGM integration (provisioned resource)
 message GPUDevice {
   // Identification
-  string ID = 1;
+  string ID = 1;          // NVIDIA GPU UUID (hardware identifier)
   string NodeID = 2;
 
   // Properties
   int32 DeviceNumber = 3;
-  string DeviceName = 4;
-  string ModelName = 5;
-  string UUID = 6;
-  map<string, string> Labels = 7;
-  map<string, string> Annotations = 8;
+  string ModelName = 4;
+  map<string, string> Labels = 5;
+  map<string, string> Annotations = 6;
 
-  // Window
-  google.protobuf.Timestamp WindowStart = 9;
-  google.protobuf.Timestamp WindowEnd = 10;
+  // Resource lifecycle (only when different from cluster window)
+  ResourceLifetime lifetime = 7;
 
-  // Data (timing, resource, pricing)
-  google.protobuf.Timestamp Start = 11;
-  google.protobuf.Timestamp End = 12;
-  float UsageAvg = 13;
-  float UsageMax = 14;
-  int64 MemoryUsedBytes = 15;
-  int64 MemoryTotalBytes = 16;
-  float PowerWatts = 17;
-  float TemperatureCelsius = 18;
-  float PricePerGPUHour = 19;
-  repeated string Errors = 20;
-  repeated string Warnings = 21;
+  // Data (usage metrics available from DCGM)
+  float UsageAvg = 8;
+  float UsageMax = 9;
+
+  // GPU cost data (optional - only populated for cost-enabled exports)
+  AllocationCost cost = 10;
+
+  // Cost attribution for this GPU device
+  CostAttribution cost_attribution = 11;
 }

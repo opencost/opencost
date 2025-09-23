@@ -1,9 +1,10 @@
 syntax = "proto3";
 
-import "google/protobuf/timestamp.proto";
+import "common.proto";
+import "costs.proto";
 
-package opencost.dm2;
-option go_package = "github.com/opencost/opencost/pkg/agent/protos;protos";
+package agent;
+option go_package = "github.com/opencost/opencost/pkg/agent/model/pb;pb";
 
 // Node represents a Kubernetes worker node (provisioned resource)
 message Node {
@@ -13,26 +14,15 @@ message Node {
 
   // Properties
   string Name = 3;
-  string InstanceType = 4;
-  bool Preemptible = 5;
-  map<string, string> Labels = 6;
-  map<string, string> Annotations = 7;
+  map<string, string> Labels = 4;
+  map<string, string> Annotations = 5;
 
-  // Window
-  google.protobuf.Timestamp WindowStart = 8;
-  google.protobuf.Timestamp WindowEnd = 9;
+  // Resource lifecycle (only when different from cluster window)
+  ResourceLifetime lifetime = 6;
 
-  // Data (timing, resource, default pricing)
-  google.protobuf.Timestamp Start = 10;
-  google.protobuf.Timestamp End = 11;
-  float CPUCores = 12;
-  float RAMBytes = 13;
-  float GPUs = 14;
-  float DiskBytes = 15;
-  float PricePerCPUHour = 16;
-  float PricePerRAMByteHour = 17;
-  float PricePerGPUHour = 18;
-  float PricePerDiskByte = 19;
-  float CPUOverheadFraction = 20;
-  float RAMOverheadFraction = 21;
+  // Infrastructure cost data (optional - only populated for cost-enabled exports)
+  AllocationCost cost = 7;
+
+  // Cost attribution for this node
+  CostAttribution cost_attribution = 8;
 }

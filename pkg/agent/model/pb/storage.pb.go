@@ -2,14 +2,13 @@
 // versions:
 // 	protoc-gen-go v1.36.7
 // 	protoc        v3.20.3
-// source: pkg/agent/protos/storage.proto
+// source: storage.proto
 
-package protos
+package pb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -28,33 +27,23 @@ type Volume struct {
 	// Identification
 	ID string `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
 	// Properties
-	Name          string            `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`
-	StorageClass  string            `protobuf:"bytes,3,opt,name=StorageClass,proto3" json:"StorageClass,omitempty"`
-	AccessModes   []string          `protobuf:"bytes,4,rep,name=AccessModes,proto3" json:"AccessModes,omitempty"`
-	ReclaimPolicy string            `protobuf:"bytes,5,opt,name=ReclaimPolicy,proto3" json:"ReclaimPolicy,omitempty"`
-	VolumeSource  string            `protobuf:"bytes,6,opt,name=VolumeSource,proto3" json:"VolumeSource,omitempty"`
-	Labels        map[string]string `protobuf:"bytes,7,rep,name=Labels,proto3" json:"Labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Annotations   map[string]string `protobuf:"bytes,8,rep,name=Annotations,proto3" json:"Annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// Window
-	WindowStart *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=WindowStart,proto3" json:"WindowStart,omitempty"`
-	WindowEnd   *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=WindowEnd,proto3" json:"WindowEnd,omitempty"`
-	// Data (timing, resource, default pricing)
-	Start            *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=Start,proto3" json:"Start,omitempty"`
-	End              *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=End,proto3" json:"End,omitempty"`
-	CapacityBytes    int64                  `protobuf:"varint,13,opt,name=CapacityBytes,proto3" json:"CapacityBytes,omitempty"`
-	PricePerGBHour   float32                `protobuf:"fixed32,14,opt,name=PricePerGBHour,proto3" json:"PricePerGBHour,omitempty"`
-	PricePerIOPSHour float32                `protobuf:"fixed32,15,opt,name=PricePerIOPSHour,proto3" json:"PricePerIOPSHour,omitempty"`
-	IOPS             int32                  `protobuf:"varint,16,opt,name=IOPS,proto3" json:"IOPS,omitempty"`
-	ThroughputMBPS   int32                  `protobuf:"varint,17,opt,name=ThroughputMBPS,proto3" json:"ThroughputMBPS,omitempty"`
-	Errors           []string               `protobuf:"bytes,18,rep,name=Errors,proto3" json:"Errors,omitempty"`
-	Warnings         []string               `protobuf:"bytes,19,rep,name=Warnings,proto3" json:"Warnings,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	Name         string            `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`
+	StorageClass string            `protobuf:"bytes,3,opt,name=StorageClass,proto3" json:"StorageClass,omitempty"`
+	Labels       map[string]string `protobuf:"bytes,4,rep,name=Labels,proto3" json:"Labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Annotations  map[string]string `protobuf:"bytes,5,rep,name=Annotations,proto3" json:"Annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Resource lifecycle (only when different from cluster window)
+	Lifetime *ResourceLifetime `protobuf:"bytes,6,opt,name=lifetime,proto3" json:"lifetime,omitempty"`
+	// Storage cost data (optional - only populated for cost-enabled exports)
+	Cost *AllocationCost `protobuf:"bytes,7,opt,name=cost,proto3" json:"cost,omitempty"`
+	// Cost attribution for this volume
+	CostAttribution *CostAttribution `protobuf:"bytes,8,opt,name=cost_attribution,json=costAttribution,proto3" json:"cost_attribution,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Volume) Reset() {
 	*x = Volume{}
-	mi := &file_pkg_agent_protos_storage_proto_msgTypes[0]
+	mi := &file_storage_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66,7 +55,7 @@ func (x *Volume) String() string {
 func (*Volume) ProtoMessage() {}
 
 func (x *Volume) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_agent_protos_storage_proto_msgTypes[0]
+	mi := &file_storage_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -79,7 +68,7 @@ func (x *Volume) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Volume.ProtoReflect.Descriptor instead.
 func (*Volume) Descriptor() ([]byte, []int) {
-	return file_pkg_agent_protos_storage_proto_rawDescGZIP(), []int{0}
+	return file_storage_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Volume) GetID() string {
@@ -103,27 +92,6 @@ func (x *Volume) GetStorageClass() string {
 	return ""
 }
 
-func (x *Volume) GetAccessModes() []string {
-	if x != nil {
-		return x.AccessModes
-	}
-	return nil
-}
-
-func (x *Volume) GetReclaimPolicy() string {
-	if x != nil {
-		return x.ReclaimPolicy
-	}
-	return ""
-}
-
-func (x *Volume) GetVolumeSource() string {
-	if x != nil {
-		return x.VolumeSource
-	}
-	return ""
-}
-
 func (x *Volume) GetLabels() map[string]string {
 	if x != nil {
 		return x.Labels
@@ -138,79 +106,23 @@ func (x *Volume) GetAnnotations() map[string]string {
 	return nil
 }
 
-func (x *Volume) GetWindowStart() *timestamppb.Timestamp {
+func (x *Volume) GetLifetime() *ResourceLifetime {
 	if x != nil {
-		return x.WindowStart
+		return x.Lifetime
 	}
 	return nil
 }
 
-func (x *Volume) GetWindowEnd() *timestamppb.Timestamp {
+func (x *Volume) GetCost() *AllocationCost {
 	if x != nil {
-		return x.WindowEnd
+		return x.Cost
 	}
 	return nil
 }
 
-func (x *Volume) GetStart() *timestamppb.Timestamp {
+func (x *Volume) GetCostAttribution() *CostAttribution {
 	if x != nil {
-		return x.Start
-	}
-	return nil
-}
-
-func (x *Volume) GetEnd() *timestamppb.Timestamp {
-	if x != nil {
-		return x.End
-	}
-	return nil
-}
-
-func (x *Volume) GetCapacityBytes() int64 {
-	if x != nil {
-		return x.CapacityBytes
-	}
-	return 0
-}
-
-func (x *Volume) GetPricePerGBHour() float32 {
-	if x != nil {
-		return x.PricePerGBHour
-	}
-	return 0
-}
-
-func (x *Volume) GetPricePerIOPSHour() float32 {
-	if x != nil {
-		return x.PricePerIOPSHour
-	}
-	return 0
-}
-
-func (x *Volume) GetIOPS() int32 {
-	if x != nil {
-		return x.IOPS
-	}
-	return 0
-}
-
-func (x *Volume) GetThroughputMBPS() int32 {
-	if x != nil {
-		return x.ThroughputMBPS
-	}
-	return 0
-}
-
-func (x *Volume) GetErrors() []string {
-	if x != nil {
-		return x.Errors
-	}
-	return nil
-}
-
-func (x *Volume) GetWarnings() []string {
-	if x != nil {
-		return x.Warnings
+		return x.CostAttribution
 	}
 	return nil
 }
@@ -226,27 +138,21 @@ type PersistentVolumeClaim struct {
 	// Properties
 	Name         string            `protobuf:"bytes,5,opt,name=Name,proto3" json:"Name,omitempty"`
 	StorageClass string            `protobuf:"bytes,6,opt,name=StorageClass,proto3" json:"StorageClass,omitempty"`
-	AccessModes  []string          `protobuf:"bytes,7,rep,name=AccessModes,proto3" json:"AccessModes,omitempty"`
-	Status       string            `protobuf:"bytes,8,opt,name=Status,proto3" json:"Status,omitempty"`
-	Labels       map[string]string `protobuf:"bytes,9,rep,name=Labels,proto3" json:"Labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Annotations  map[string]string `protobuf:"bytes,10,rep,name=Annotations,proto3" json:"Annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// Window
-	WindowStart *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=WindowStart,proto3" json:"WindowStart,omitempty"`
-	WindowEnd   *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=WindowEnd,proto3" json:"WindowEnd,omitempty"`
-	// Data (timing, resource, default pricing)
-	Start               *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=Start,proto3" json:"Start,omitempty"`
-	End                 *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=End,proto3" json:"End,omitempty"`
-	RequestedSizeBytes  int64                  `protobuf:"varint,15,opt,name=RequestedSizeBytes,proto3" json:"RequestedSizeBytes,omitempty"`
-	AllocatedSizeBytes  int64                  `protobuf:"varint,16,opt,name=AllocatedSizeBytes,proto3" json:"AllocatedSizeBytes,omitempty"`
-	ResourceUtilization float32                `protobuf:"fixed32,17,opt,name=ResourceUtilization,proto3" json:"ResourceUtilization,omitempty"`
-	Cost                float32                `protobuf:"fixed32,18,opt,name=Cost,proto3" json:"Cost,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	Labels       map[string]string `protobuf:"bytes,7,rep,name=Labels,proto3" json:"Labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Annotations  map[string]string `protobuf:"bytes,8,rep,name=Annotations,proto3" json:"Annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Resource lifecycle (only when different from cluster window)
+	Lifetime *ResourceLifetime `protobuf:"bytes,9,opt,name=lifetime,proto3" json:"lifetime,omitempty"`
+	// Storage allocation cost data (optional - only populated for cost-enabled exports)
+	Cost *AllocationCost `protobuf:"bytes,10,opt,name=cost,proto3" json:"cost,omitempty"`
+	// Cost attribution for this PVC
+	CostAttribution *CostAttribution `protobuf:"bytes,11,opt,name=cost_attribution,json=costAttribution,proto3" json:"cost_attribution,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *PersistentVolumeClaim) Reset() {
 	*x = PersistentVolumeClaim{}
-	mi := &file_pkg_agent_protos_storage_proto_msgTypes[1]
+	mi := &file_storage_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -258,7 +164,7 @@ func (x *PersistentVolumeClaim) String() string {
 func (*PersistentVolumeClaim) ProtoMessage() {}
 
 func (x *PersistentVolumeClaim) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_agent_protos_storage_proto_msgTypes[1]
+	mi := &file_storage_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -271,7 +177,7 @@ func (x *PersistentVolumeClaim) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PersistentVolumeClaim.ProtoReflect.Descriptor instead.
 func (*PersistentVolumeClaim) Descriptor() ([]byte, []int) {
-	return file_pkg_agent_protos_storage_proto_rawDescGZIP(), []int{1}
+	return file_storage_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *PersistentVolumeClaim) GetID() string {
@@ -316,20 +222,6 @@ func (x *PersistentVolumeClaim) GetStorageClass() string {
 	return ""
 }
 
-func (x *PersistentVolumeClaim) GetAccessModes() []string {
-	if x != nil {
-		return x.AccessModes
-	}
-	return nil
-}
-
-func (x *PersistentVolumeClaim) GetStatus() string {
-	if x != nil {
-		return x.Status
-	}
-	return ""
-}
-
 func (x *PersistentVolumeClaim) GetLabels() map[string]string {
 	if x != nil {
 		return x.Labels
@@ -344,183 +236,131 @@ func (x *PersistentVolumeClaim) GetAnnotations() map[string]string {
 	return nil
 }
 
-func (x *PersistentVolumeClaim) GetWindowStart() *timestamppb.Timestamp {
+func (x *PersistentVolumeClaim) GetLifetime() *ResourceLifetime {
 	if x != nil {
-		return x.WindowStart
+		return x.Lifetime
 	}
 	return nil
 }
 
-func (x *PersistentVolumeClaim) GetWindowEnd() *timestamppb.Timestamp {
-	if x != nil {
-		return x.WindowEnd
-	}
-	return nil
-}
-
-func (x *PersistentVolumeClaim) GetStart() *timestamppb.Timestamp {
-	if x != nil {
-		return x.Start
-	}
-	return nil
-}
-
-func (x *PersistentVolumeClaim) GetEnd() *timestamppb.Timestamp {
-	if x != nil {
-		return x.End
-	}
-	return nil
-}
-
-func (x *PersistentVolumeClaim) GetRequestedSizeBytes() int64 {
-	if x != nil {
-		return x.RequestedSizeBytes
-	}
-	return 0
-}
-
-func (x *PersistentVolumeClaim) GetAllocatedSizeBytes() int64 {
-	if x != nil {
-		return x.AllocatedSizeBytes
-	}
-	return 0
-}
-
-func (x *PersistentVolumeClaim) GetResourceUtilization() float32 {
-	if x != nil {
-		return x.ResourceUtilization
-	}
-	return 0
-}
-
-func (x *PersistentVolumeClaim) GetCost() float32 {
+func (x *PersistentVolumeClaim) GetCost() *AllocationCost {
 	if x != nil {
 		return x.Cost
 	}
-	return 0
+	return nil
 }
 
-var File_pkg_agent_protos_storage_proto protoreflect.FileDescriptor
+func (x *PersistentVolumeClaim) GetCostAttribution() *CostAttribution {
+	if x != nil {
+		return x.CostAttribution
+	}
+	return nil
+}
 
-const file_pkg_agent_protos_storage_proto_rawDesc = "" +
+var File_storage_proto protoreflect.FileDescriptor
+
+const file_storage_proto_rawDesc = "" +
 	"\n" +
-	"\x1epkg/agent/protos/storage.proto\x12\fopencost.dm2\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfc\x06\n" +
+	"\rstorage.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\xe3\x03\n" +
 	"\x06Volume\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x12\n" +
 	"\x04Name\x18\x02 \x01(\tR\x04Name\x12\"\n" +
-	"\fStorageClass\x18\x03 \x01(\tR\fStorageClass\x12 \n" +
-	"\vAccessModes\x18\x04 \x03(\tR\vAccessModes\x12$\n" +
-	"\rReclaimPolicy\x18\x05 \x01(\tR\rReclaimPolicy\x12\"\n" +
-	"\fVolumeSource\x18\x06 \x01(\tR\fVolumeSource\x128\n" +
-	"\x06Labels\x18\a \x03(\v2 .opencost.dm2.Volume.LabelsEntryR\x06Labels\x12G\n" +
-	"\vAnnotations\x18\b \x03(\v2%.opencost.dm2.Volume.AnnotationsEntryR\vAnnotations\x12<\n" +
-	"\vWindowStart\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\vWindowStart\x128\n" +
-	"\tWindowEnd\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tWindowEnd\x120\n" +
-	"\x05Start\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\x05Start\x12,\n" +
-	"\x03End\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\x03End\x12$\n" +
-	"\rCapacityBytes\x18\r \x01(\x03R\rCapacityBytes\x12&\n" +
-	"\x0ePricePerGBHour\x18\x0e \x01(\x02R\x0ePricePerGBHour\x12*\n" +
-	"\x10PricePerIOPSHour\x18\x0f \x01(\x02R\x10PricePerIOPSHour\x12\x12\n" +
-	"\x04IOPS\x18\x10 \x01(\x05R\x04IOPS\x12&\n" +
-	"\x0eThroughputMBPS\x18\x11 \x01(\x05R\x0eThroughputMBPS\x12\x16\n" +
-	"\x06Errors\x18\x12 \x03(\tR\x06Errors\x12\x1a\n" +
-	"\bWarnings\x18\x13 \x03(\tR\bWarnings\x1a9\n" +
+	"\fStorageClass\x18\x03 \x01(\tR\fStorageClass\x121\n" +
+	"\x06Labels\x18\x04 \x03(\v2\x19.agent.Volume.LabelsEntryR\x06Labels\x12@\n" +
+	"\vAnnotations\x18\x05 \x03(\v2\x1e.agent.Volume.AnnotationsEntryR\vAnnotations\x123\n" +
+	"\blifetime\x18\x06 \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12)\n" +
+	"\x04cost\x18\a \x01(\v2\x15.agent.AllocationCostR\x04cost\x12A\n" +
+	"\x10cost_attribution\x18\b \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x87\a\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe4\x04\n" +
 	"\x15PersistentVolumeClaim\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x1a\n" +
 	"\bVolumeID\x18\x02 \x01(\tR\bVolumeID\x12\x14\n" +
 	"\x05PodID\x18\x03 \x01(\tR\x05PodID\x12 \n" +
 	"\vNamespaceID\x18\x04 \x01(\tR\vNamespaceID\x12\x12\n" +
 	"\x04Name\x18\x05 \x01(\tR\x04Name\x12\"\n" +
-	"\fStorageClass\x18\x06 \x01(\tR\fStorageClass\x12 \n" +
-	"\vAccessModes\x18\a \x03(\tR\vAccessModes\x12\x16\n" +
-	"\x06Status\x18\b \x01(\tR\x06Status\x12G\n" +
-	"\x06Labels\x18\t \x03(\v2/.opencost.dm2.PersistentVolumeClaim.LabelsEntryR\x06Labels\x12V\n" +
-	"\vAnnotations\x18\n" +
-	" \x03(\v24.opencost.dm2.PersistentVolumeClaim.AnnotationsEntryR\vAnnotations\x12<\n" +
-	"\vWindowStart\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\vWindowStart\x128\n" +
-	"\tWindowEnd\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tWindowEnd\x120\n" +
-	"\x05Start\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\x05Start\x12,\n" +
-	"\x03End\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampR\x03End\x12.\n" +
-	"\x12RequestedSizeBytes\x18\x0f \x01(\x03R\x12RequestedSizeBytes\x12.\n" +
-	"\x12AllocatedSizeBytes\x18\x10 \x01(\x03R\x12AllocatedSizeBytes\x120\n" +
-	"\x13ResourceUtilization\x18\x11 \x01(\x02R\x13ResourceUtilization\x12\x12\n" +
-	"\x04Cost\x18\x12 \x01(\x02R\x04Cost\x1a9\n" +
+	"\fStorageClass\x18\x06 \x01(\tR\fStorageClass\x12@\n" +
+	"\x06Labels\x18\a \x03(\v2(.agent.PersistentVolumeClaim.LabelsEntryR\x06Labels\x12O\n" +
+	"\vAnnotations\x18\b \x03(\v2-.agent.PersistentVolumeClaim.AnnotationsEntryR\vAnnotations\x123\n" +
+	"\blifetime\x18\t \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12)\n" +
+	"\x04cost\x18\n" +
+	" \x01(\v2\x15.agent.AllocationCostR\x04cost\x12A\n" +
+	"\x10cost_attribution\x18\v \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B6Z4github.com/opencost/opencost/pkg/agent/protos;protosb\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
 
 var (
-	file_pkg_agent_protos_storage_proto_rawDescOnce sync.Once
-	file_pkg_agent_protos_storage_proto_rawDescData []byte
+	file_storage_proto_rawDescOnce sync.Once
+	file_storage_proto_rawDescData []byte
 )
 
-func file_pkg_agent_protos_storage_proto_rawDescGZIP() []byte {
-	file_pkg_agent_protos_storage_proto_rawDescOnce.Do(func() {
-		file_pkg_agent_protos_storage_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_pkg_agent_protos_storage_proto_rawDesc), len(file_pkg_agent_protos_storage_proto_rawDesc)))
+func file_storage_proto_rawDescGZIP() []byte {
+	file_storage_proto_rawDescOnce.Do(func() {
+		file_storage_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_storage_proto_rawDesc), len(file_storage_proto_rawDesc)))
 	})
-	return file_pkg_agent_protos_storage_proto_rawDescData
+	return file_storage_proto_rawDescData
 }
 
-var file_pkg_agent_protos_storage_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
-var file_pkg_agent_protos_storage_proto_goTypes = []any{
-	(*Volume)(nil),                // 0: opencost.dm2.Volume
-	(*PersistentVolumeClaim)(nil), // 1: opencost.dm2.PersistentVolumeClaim
-	nil,                           // 2: opencost.dm2.Volume.LabelsEntry
-	nil,                           // 3: opencost.dm2.Volume.AnnotationsEntry
-	nil,                           // 4: opencost.dm2.PersistentVolumeClaim.LabelsEntry
-	nil,                           // 5: opencost.dm2.PersistentVolumeClaim.AnnotationsEntry
-	(*timestamppb.Timestamp)(nil), // 6: google.protobuf.Timestamp
+var file_storage_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_storage_proto_goTypes = []any{
+	(*Volume)(nil),                // 0: agent.Volume
+	(*PersistentVolumeClaim)(nil), // 1: agent.PersistentVolumeClaim
+	nil,                           // 2: agent.Volume.LabelsEntry
+	nil,                           // 3: agent.Volume.AnnotationsEntry
+	nil,                           // 4: agent.PersistentVolumeClaim.LabelsEntry
+	nil,                           // 5: agent.PersistentVolumeClaim.AnnotationsEntry
+	(*ResourceLifetime)(nil),      // 6: agent.ResourceLifetime
+	(*AllocationCost)(nil),        // 7: agent.AllocationCost
+	(*CostAttribution)(nil),       // 8: agent.CostAttribution
 }
-var file_pkg_agent_protos_storage_proto_depIdxs = []int32{
-	2,  // 0: opencost.dm2.Volume.Labels:type_name -> opencost.dm2.Volume.LabelsEntry
-	3,  // 1: opencost.dm2.Volume.Annotations:type_name -> opencost.dm2.Volume.AnnotationsEntry
-	6,  // 2: opencost.dm2.Volume.WindowStart:type_name -> google.protobuf.Timestamp
-	6,  // 3: opencost.dm2.Volume.WindowEnd:type_name -> google.protobuf.Timestamp
-	6,  // 4: opencost.dm2.Volume.Start:type_name -> google.protobuf.Timestamp
-	6,  // 5: opencost.dm2.Volume.End:type_name -> google.protobuf.Timestamp
-	4,  // 6: opencost.dm2.PersistentVolumeClaim.Labels:type_name -> opencost.dm2.PersistentVolumeClaim.LabelsEntry
-	5,  // 7: opencost.dm2.PersistentVolumeClaim.Annotations:type_name -> opencost.dm2.PersistentVolumeClaim.AnnotationsEntry
-	6,  // 8: opencost.dm2.PersistentVolumeClaim.WindowStart:type_name -> google.protobuf.Timestamp
-	6,  // 9: opencost.dm2.PersistentVolumeClaim.WindowEnd:type_name -> google.protobuf.Timestamp
-	6,  // 10: opencost.dm2.PersistentVolumeClaim.Start:type_name -> google.protobuf.Timestamp
-	6,  // 11: opencost.dm2.PersistentVolumeClaim.End:type_name -> google.protobuf.Timestamp
-	12, // [12:12] is the sub-list for method output_type
-	12, // [12:12] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+var file_storage_proto_depIdxs = []int32{
+	2,  // 0: agent.Volume.Labels:type_name -> agent.Volume.LabelsEntry
+	3,  // 1: agent.Volume.Annotations:type_name -> agent.Volume.AnnotationsEntry
+	6,  // 2: agent.Volume.lifetime:type_name -> agent.ResourceLifetime
+	7,  // 3: agent.Volume.cost:type_name -> agent.AllocationCost
+	8,  // 4: agent.Volume.cost_attribution:type_name -> agent.CostAttribution
+	4,  // 5: agent.PersistentVolumeClaim.Labels:type_name -> agent.PersistentVolumeClaim.LabelsEntry
+	5,  // 6: agent.PersistentVolumeClaim.Annotations:type_name -> agent.PersistentVolumeClaim.AnnotationsEntry
+	6,  // 7: agent.PersistentVolumeClaim.lifetime:type_name -> agent.ResourceLifetime
+	7,  // 8: agent.PersistentVolumeClaim.cost:type_name -> agent.AllocationCost
+	8,  // 9: agent.PersistentVolumeClaim.cost_attribution:type_name -> agent.CostAttribution
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
-func init() { file_pkg_agent_protos_storage_proto_init() }
-func file_pkg_agent_protos_storage_proto_init() {
-	if File_pkg_agent_protos_storage_proto != nil {
+func init() { file_storage_proto_init() }
+func file_storage_proto_init() {
+	if File_storage_proto != nil {
 		return
 	}
+	file_common_proto_init()
+	file_costs_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pkg_agent_protos_storage_proto_rawDesc), len(file_pkg_agent_protos_storage_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_storage_proto_rawDesc), len(file_storage_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_pkg_agent_protos_storage_proto_goTypes,
-		DependencyIndexes: file_pkg_agent_protos_storage_proto_depIdxs,
-		MessageInfos:      file_pkg_agent_protos_storage_proto_msgTypes,
+		GoTypes:           file_storage_proto_goTypes,
+		DependencyIndexes: file_storage_proto_depIdxs,
+		MessageInfos:      file_storage_proto_msgTypes,
 	}.Build()
-	File_pkg_agent_protos_storage_proto = out.File
-	file_pkg_agent_protos_storage_proto_goTypes = nil
-	file_pkg_agent_protos_storage_proto_depIdxs = nil
+	File_storage_proto = out.File
+	file_storage_proto_goTypes = nil
+	file_storage_proto_depIdxs = nil
 }

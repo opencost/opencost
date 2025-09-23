@@ -1,17 +1,41 @@
 syntax = "proto3";
 
-package opencost.dm2;
-option go_package = "github.com/opencost/opencost/pkg/agent/protos;protos";
+import "google/protobuf/timestamp.proto";
+
+package agent;
+option go_package = "github.com/opencost/opencost/pkg/agent/model/pb;pb";
+
+// TimeWindow represents a time range with resolution for cost data aggregation
+// End time is derived from start + resolution (no redundant end field)
+message TimeWindow {
+  // Start of the time window
+  google.protobuf.Timestamp start = 1;
+
+  // Resolution/granularity of data in this window ("1h", "1d", "10m", etc.)
+  // End time = start + parse_duration(resolution)
+  string resolution = 2;
+}
+
+// ResourceLifetime represents the actual lifecycle of a Kubernetes resource
+// Separate from data collection windows - tracks when resource was created/deleted
+message ResourceLifetime {
+  // When the resource was created
+  google.protobuf.Timestamp created_at = 1;
+
+  // When the resource was deleted (optional - empty for running resources)
+  google.protobuf.Timestamp deleted_at = 2;
+}
 
 // Provider represents the cloud provider or infrastructure type
 enum Provider {
-  PROVIDER_AWS = 0;
-  PROVIDER_GCP = 1;
-  PROVIDER_AZURE = 2;
-  PROVIDER_ON_PREMISES = 3;
-  PROVIDER_ALIBABA = 4;
-  PROVIDER_DIGITALOCEAN = 5;
-  PROVIDER_ORACLE = 6;
+  PROVIDER_UNSPECIFIED = 0;
+  PROVIDER_AWS = 1;
+  PROVIDER_GCP = 2;
+  PROVIDER_AZURE = 3;
+  PROVIDER_ON_PREMISES = 4;
+  PROVIDER_ALIBABA = 5;
+  PROVIDER_DIGITALOCEAN = 6;
+  PROVIDER_ORACLE = 7;
 }
 
 // Data source types for tracking how data was collected
@@ -22,4 +46,91 @@ enum DataSourceType {
   DATA_SOURCE_DCGM = 3; // For GPU devices
   DATA_SOURCE_CLOUD_BILLING = 4; // For external costs
   DATA_SOURCE_KSM = 5; // Kubernetes State Metrics
+}
+
+// LabelsSet is a grouping of LabelSets for a specific window for a type of label grouped by their source.
+// The name LabelsSet is used to connotate the idea of a Set commonly used in Opencost for data structures that
+// contain data of a particular window, but is meant to distinguish from a single set of labels for an individual item
+// which is represented by the LabelSet message
+message LabelsSet {
+  // The type of the labels in the set (e.g. "pod_labels", "node_labels", "namespace_labels","account_labels", etc)
+  string type = 1;
+
+  // type dependent identifier for the grouping of labels most likely the cluster id or the configuration key
+  // used as part of the export path
+  string group_identifier = 2;
+
+  // Window definition for this label set
+  TimeWindow window = 3;
+
+  // Mapping of labelSets for individual items by unique identifier
+  map<string, LabelSet> label_sets = 4;
+}
+
+// LabelSet (abbreviated here) is an internal message meant to enable nesting maps
+message LabelSet {
+  map<string, string> labels = 1;
+}
+
+// AnnotationsSet is a grouping of AnnotationSets for a specific window for a type of annotation grouped by their source.
+// The name AnnotationsSet is used to connotate the idea of a Set commonly used in Opencost for data structures that
+// contain data of a particular window, but is meant to distinguish from a single set of annotations for an individual item
+// which is represented by the AnnotationSet message
+message AnnotationsSet {
+  // The type of the annotations in the set (e.g. "pod_annotations", "node_annotations", "namespace_annotations", etc)
+  string type = 1;
+
+  // type dependent identifier for the grouping of annotations most likely the cluster id or the configuration key
+  // used as part of the export path
+  string group_identifier = 2;
+
+  // Window definition for this annotation set
+  TimeWindow window = 3;
+
+  // Mapping of annotationSets for individual items by unique identifier
+  map<string, AnnotationSet> annotation_sets = 4;
+}
+
+// AnnotationSet (abbreviated here) is an internal message meant to enable nesting maps
+message AnnotationSet {
+  map<string, string> annotations = 1;
+}
+
+// DiagnosticResult represents the result of a diagnostic run
+// This matches the JSON structure from core/pkg/diagnostics/diagnostics.go
+message DiagnosticResult {
+  // Unique Identifier for the diagnostic run result
+  string id = 1;
+
+  // Name of the diagnostic that ran
+  string name = 2;
+
+  // Description of the diagnostic run, human readable description
+  string description = 3;
+
+  // Category of the diagnostic run, used to group similar diagnostics
+  string category = 4;
+
+  // Timestamp when the diagnostic run was executed
+  google.protobuf.Timestamp timestamp = 5;
+
+  // Error message if the diagnostic run failed (optional)
+  string error = 6;
+
+  // Additional custom information about the diagnostic run
+  // Using string values to match map[string]any from JSON
+  map<string, string> details = 7;
+}
+
+// DiagnosticsRunReport contains the start time and all diagnostic results
+// This matches the JSON structure from core/pkg/diagnostics/diagnostics.go
+message DiagnosticsRunReport {
+  // Application name that the diagnostics run belongs to
+  string application = 1;
+
+  // Time when the full diagnostics run started
+  google.protobuf.Timestamp start_time = 2;
+
+  // All results of the diagnostics run
+  repeated DiagnosticResult results = 3;
 }

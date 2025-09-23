@@ -1,9 +1,10 @@
 syntax = "proto3";
 
-import "google/protobuf/timestamp.proto";
+import "common.proto";
+import "costs.proto";
 
-package opencost.dm2;
-option go_package = "github.com/opencost/opencost/pkg/agent/protos;protos";
+package agent;
+option go_package = "github.com/opencost/opencost/pkg/agent/model/pb;pb";
 
 // Pod represents a Kubernetes pod (allocated resource grouping)
 message Pod {
@@ -14,44 +15,34 @@ message Pod {
 
   // Properties
   string Name = 4;
-  string Phase = 5;
-  string QOSClass = 6;
-  string RestartPolicy = 7;
-  string PriorityClass = 8;
-  int64 CreatedAt = 9;
-  int64 StartedAt = 10;
-  map<string, string> Labels = 11;
-  map<string, string> Annotations = 12;
+  map<string, string> Labels = 5;
+  map<string, string> Annotations = 6;
 
-  // Window
-  google.protobuf.Timestamp WindowStart = 13;
-  google.protobuf.Timestamp WindowEnd = 14;
+  // Resource lifecycle (only when different from cluster window)
+  ResourceLifetime lifetime = 7;
 
-  // Data (timing, resource, default pricing)
-  google.protobuf.Timestamp Start = 15;
-  google.protobuf.Timestamp End = 16;
+  // Cost allocation data (optional - only populated for cost-enabled exports)
+  AllocationCost cost = 8;
+
+  // Cost attribution for this pod
+  CostAttribution cost_attribution = 9;
 }
 
 // Container represents a container within a pod (allocated resource)
 message Container {
   // Identification
-  string ID = 1;
+  string ID = 1; //{pod-uid}/{container-name}
   string PodID = 2;
 
   // Properties
   string Name = 3;
-  string Image = 4;
-  string State = 5;
-  int32 RestartCount = 6;
-  int64 CreatedAt = 7;
-  int64 StartedAt = 8;
 
-  // Window
-  google.protobuf.Timestamp WindowStart = 9;
-  google.protobuf.Timestamp WindowEnd = 10;
+  // Resource lifecycle (only when different from cluster window)
+  ResourceLifetime lifetime = 4;
 
-  // Data (timing, resource, default pricing)
-  google.protobuf.Timestamp Start = 11;
-  google.protobuf.Timestamp End = 12;
-  float ResourceUtilization = 13;
+  // Cost allocation data (optional - only populated for cost-enabled exports)
+  AllocationCost cost = 5;
+
+  // Cost attribution for this container
+  CostAttribution cost_attribution = 6;
 }

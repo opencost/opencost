@@ -1,9 +1,10 @@
 syntax = "proto3";
 
-import "google/protobuf/timestamp.proto";
+import "common.proto";
+import "costs.proto";
 
-package opencost.dm2;
-option go_package = "github.com/opencost/opencost/pkg/agent/protos;protos";
+package agent;
+option go_package = "github.com/opencost/opencost/pkg/agent/model/pb;pb";
 
 // Namespace represents a Kubernetes namespace (allocated resource grouping)
 message Namespace {
@@ -12,15 +13,15 @@ message Namespace {
 
   // Properties
   string Name = 2;
-  int64 CreatedAt = 3;
-  map<string, string> Labels = 4;
-  map<string, string> Annotations = 5;
+  map<string, string> Labels = 3;
+  map<string, string> Annotations = 4;
 
-  // Window
-  google.protobuf.Timestamp WindowStart = 6;
-  google.protobuf.Timestamp WindowEnd = 7;
+  // Resource lifecycle (only when different from cluster window)
+  ResourceLifetime lifetime = 5;
 
-  // Data (timing, resource, default pricing)
-  google.protobuf.Timestamp Start = 8;
-  google.protobuf.Timestamp End = 9;
+  // Namespace-level aggregated cost data (optional - only populated for cost-enabled exports)
+  AllocationCost cost = 6;
+
+  // Cost attribution for this namespace
+  CostAttribution cost_attribution = 7;
 }

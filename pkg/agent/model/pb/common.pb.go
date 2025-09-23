@@ -2,13 +2,14 @@
 // versions:
 // 	protoc-gen-go v1.36.7
 // 	protoc        v3.20.3
-// source: pkg/agent/protos/common.proto
+// source: common.proto
 
-package protos
+package pb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -25,34 +26,37 @@ const (
 type Provider int32
 
 const (
-	Provider_PROVIDER_AWS          Provider = 0
-	Provider_PROVIDER_GCP          Provider = 1
-	Provider_PROVIDER_AZURE        Provider = 2
-	Provider_PROVIDER_ON_PREMISES  Provider = 3
-	Provider_PROVIDER_ALIBABA      Provider = 4
-	Provider_PROVIDER_DIGITALOCEAN Provider = 5
-	Provider_PROVIDER_ORACLE       Provider = 6
+	Provider_PROVIDER_UNSPECIFIED  Provider = 0
+	Provider_PROVIDER_AWS          Provider = 1
+	Provider_PROVIDER_GCP          Provider = 2
+	Provider_PROVIDER_AZURE        Provider = 3
+	Provider_PROVIDER_ON_PREMISES  Provider = 4
+	Provider_PROVIDER_ALIBABA      Provider = 5
+	Provider_PROVIDER_DIGITALOCEAN Provider = 6
+	Provider_PROVIDER_ORACLE       Provider = 7
 )
 
 // Enum value maps for Provider.
 var (
 	Provider_name = map[int32]string{
-		0: "PROVIDER_AWS",
-		1: "PROVIDER_GCP",
-		2: "PROVIDER_AZURE",
-		3: "PROVIDER_ON_PREMISES",
-		4: "PROVIDER_ALIBABA",
-		5: "PROVIDER_DIGITALOCEAN",
-		6: "PROVIDER_ORACLE",
+		0: "PROVIDER_UNSPECIFIED",
+		1: "PROVIDER_AWS",
+		2: "PROVIDER_GCP",
+		3: "PROVIDER_AZURE",
+		4: "PROVIDER_ON_PREMISES",
+		5: "PROVIDER_ALIBABA",
+		6: "PROVIDER_DIGITALOCEAN",
+		7: "PROVIDER_ORACLE",
 	}
 	Provider_value = map[string]int32{
-		"PROVIDER_AWS":          0,
-		"PROVIDER_GCP":          1,
-		"PROVIDER_AZURE":        2,
-		"PROVIDER_ON_PREMISES":  3,
-		"PROVIDER_ALIBABA":      4,
-		"PROVIDER_DIGITALOCEAN": 5,
-		"PROVIDER_ORACLE":       6,
+		"PROVIDER_UNSPECIFIED":  0,
+		"PROVIDER_AWS":          1,
+		"PROVIDER_GCP":          2,
+		"PROVIDER_AZURE":        3,
+		"PROVIDER_ON_PREMISES":  4,
+		"PROVIDER_ALIBABA":      5,
+		"PROVIDER_DIGITALOCEAN": 6,
+		"PROVIDER_ORACLE":       7,
 	}
 )
 
@@ -67,11 +71,11 @@ func (x Provider) String() string {
 }
 
 func (Provider) Descriptor() protoreflect.EnumDescriptor {
-	return file_pkg_agent_protos_common_proto_enumTypes[0].Descriptor()
+	return file_common_proto_enumTypes[0].Descriptor()
 }
 
 func (Provider) Type() protoreflect.EnumType {
-	return &file_pkg_agent_protos_common_proto_enumTypes[0]
+	return &file_common_proto_enumTypes[0]
 }
 
 func (x Provider) Number() protoreflect.EnumNumber {
@@ -80,7 +84,7 @@ func (x Provider) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Provider.Descriptor instead.
 func (Provider) EnumDescriptor() ([]byte, []int) {
-	return file_pkg_agent_protos_common_proto_rawDescGZIP(), []int{0}
+	return file_common_proto_rawDescGZIP(), []int{0}
 }
 
 // Data source types for tracking how data was collected
@@ -126,11 +130,11 @@ func (x DataSourceType) String() string {
 }
 
 func (DataSourceType) Descriptor() protoreflect.EnumDescriptor {
-	return file_pkg_agent_protos_common_proto_enumTypes[1].Descriptor()
+	return file_common_proto_enumTypes[1].Descriptor()
 }
 
 func (DataSourceType) Type() protoreflect.EnumType {
-	return &file_pkg_agent_protos_common_proto_enumTypes[1]
+	return &file_common_proto_enumTypes[1]
 }
 
 func (x DataSourceType) Number() protoreflect.EnumNumber {
@@ -139,75 +143,685 @@ func (x DataSourceType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DataSourceType.Descriptor instead.
 func (DataSourceType) EnumDescriptor() ([]byte, []int) {
-	return file_pkg_agent_protos_common_proto_rawDescGZIP(), []int{1}
+	return file_common_proto_rawDescGZIP(), []int{1}
 }
 
-var File_pkg_agent_protos_common_proto protoreflect.FileDescriptor
+// TimeWindow represents a time range with resolution for cost data aggregation
+// End time is derived from start + resolution (no redundant end field)
+type TimeWindow struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Start of the time window
+	Start *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start,proto3" json:"start,omitempty"`
+	// Resolution/granularity of data in this window ("1h", "1d", "10m", etc.)
+	// End time = start + parse_duration(resolution)
+	Resolution    string `protobuf:"bytes,2,opt,name=resolution,proto3" json:"resolution,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
 
-const file_pkg_agent_protos_common_proto_rawDesc = "" +
+func (x *TimeWindow) Reset() {
+	*x = TimeWindow{}
+	mi := &file_common_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TimeWindow) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TimeWindow) ProtoMessage() {}
+
+func (x *TimeWindow) ProtoReflect() protoreflect.Message {
+	mi := &file_common_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TimeWindow.ProtoReflect.Descriptor instead.
+func (*TimeWindow) Descriptor() ([]byte, []int) {
+	return file_common_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *TimeWindow) GetStart() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Start
+	}
+	return nil
+}
+
+func (x *TimeWindow) GetResolution() string {
+	if x != nil {
+		return x.Resolution
+	}
+	return ""
+}
+
+// ResourceLifetime represents the actual lifecycle of a Kubernetes resource
+// Separate from data collection windows - tracks when resource was created/deleted
+type ResourceLifetime struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// When the resource was created
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// When the resource was deleted (optional - empty for running resources)
+	DeletedAt     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=deleted_at,json=deletedAt,proto3" json:"deleted_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResourceLifetime) Reset() {
+	*x = ResourceLifetime{}
+	mi := &file_common_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResourceLifetime) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResourceLifetime) ProtoMessage() {}
+
+func (x *ResourceLifetime) ProtoReflect() protoreflect.Message {
+	mi := &file_common_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResourceLifetime.ProtoReflect.Descriptor instead.
+func (*ResourceLifetime) Descriptor() ([]byte, []int) {
+	return file_common_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ResourceLifetime) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *ResourceLifetime) GetDeletedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.DeletedAt
+	}
+	return nil
+}
+
+// LabelsSet is a grouping of LabelSets for a specific window for a type of label grouped by their source.
+// The name LabelsSet is used to connotate the idea of a Set commonly used in Opencost for data structures that
+// contain data of a particular window, but is meant to distinguish from a single set of labels for an individual item
+// which is represented by the LabelSet message
+type LabelsSet struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The type of the labels in the set (e.g. "pod_labels", "node_labels", "namespace_labels","account_labels", etc)
+	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	// type dependent identifier for the grouping of labels most likely the cluster id or the configuration key
+	// used as part of the export path
+	GroupIdentifier string `protobuf:"bytes,2,opt,name=group_identifier,json=groupIdentifier,proto3" json:"group_identifier,omitempty"`
+	// Window definition for this label set
+	Window *TimeWindow `protobuf:"bytes,3,opt,name=window,proto3" json:"window,omitempty"`
+	// Mapping of labelSets for individual items by unique identifier
+	LabelSets     map[string]*LabelSet `protobuf:"bytes,4,rep,name=label_sets,json=labelSets,proto3" json:"label_sets,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LabelsSet) Reset() {
+	*x = LabelsSet{}
+	mi := &file_common_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LabelsSet) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LabelsSet) ProtoMessage() {}
+
+func (x *LabelsSet) ProtoReflect() protoreflect.Message {
+	mi := &file_common_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LabelsSet.ProtoReflect.Descriptor instead.
+func (*LabelsSet) Descriptor() ([]byte, []int) {
+	return file_common_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *LabelsSet) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *LabelsSet) GetGroupIdentifier() string {
+	if x != nil {
+		return x.GroupIdentifier
+	}
+	return ""
+}
+
+func (x *LabelsSet) GetWindow() *TimeWindow {
+	if x != nil {
+		return x.Window
+	}
+	return nil
+}
+
+func (x *LabelsSet) GetLabelSets() map[string]*LabelSet {
+	if x != nil {
+		return x.LabelSets
+	}
+	return nil
+}
+
+// LabelSet (abbreviated here) is an internal message meant to enable nesting maps
+type LabelSet struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Labels        map[string]string      `protobuf:"bytes,1,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LabelSet) Reset() {
+	*x = LabelSet{}
+	mi := &file_common_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LabelSet) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LabelSet) ProtoMessage() {}
+
+func (x *LabelSet) ProtoReflect() protoreflect.Message {
+	mi := &file_common_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LabelSet.ProtoReflect.Descriptor instead.
+func (*LabelSet) Descriptor() ([]byte, []int) {
+	return file_common_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *LabelSet) GetLabels() map[string]string {
+	if x != nil {
+		return x.Labels
+	}
+	return nil
+}
+
+// AnnotationsSet is a grouping of AnnotationSets for a specific window for a type of annotation grouped by their source.
+// The name AnnotationsSet is used to connotate the idea of a Set commonly used in Opencost for data structures that
+// contain data of a particular window, but is meant to distinguish from a single set of annotations for an individual item
+// which is represented by the AnnotationSet message
+type AnnotationsSet struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The type of the annotations in the set (e.g. "pod_annotations", "node_annotations", "namespace_annotations", etc)
+	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	// type dependent identifier for the grouping of annotations most likely the cluster id or the configuration key
+	// used as part of the export path
+	GroupIdentifier string `protobuf:"bytes,2,opt,name=group_identifier,json=groupIdentifier,proto3" json:"group_identifier,omitempty"`
+	// Window definition for this annotation set
+	Window *TimeWindow `protobuf:"bytes,3,opt,name=window,proto3" json:"window,omitempty"`
+	// Mapping of annotationSets for individual items by unique identifier
+	AnnotationSets map[string]*AnnotationSet `protobuf:"bytes,4,rep,name=annotation_sets,json=annotationSets,proto3" json:"annotation_sets,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AnnotationsSet) Reset() {
+	*x = AnnotationsSet{}
+	mi := &file_common_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AnnotationsSet) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AnnotationsSet) ProtoMessage() {}
+
+func (x *AnnotationsSet) ProtoReflect() protoreflect.Message {
+	mi := &file_common_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AnnotationsSet.ProtoReflect.Descriptor instead.
+func (*AnnotationsSet) Descriptor() ([]byte, []int) {
+	return file_common_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *AnnotationsSet) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *AnnotationsSet) GetGroupIdentifier() string {
+	if x != nil {
+		return x.GroupIdentifier
+	}
+	return ""
+}
+
+func (x *AnnotationsSet) GetWindow() *TimeWindow {
+	if x != nil {
+		return x.Window
+	}
+	return nil
+}
+
+func (x *AnnotationsSet) GetAnnotationSets() map[string]*AnnotationSet {
+	if x != nil {
+		return x.AnnotationSets
+	}
+	return nil
+}
+
+// AnnotationSet (abbreviated here) is an internal message meant to enable nesting maps
+type AnnotationSet struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Annotations   map[string]string      `protobuf:"bytes,1,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AnnotationSet) Reset() {
+	*x = AnnotationSet{}
+	mi := &file_common_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AnnotationSet) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AnnotationSet) ProtoMessage() {}
+
+func (x *AnnotationSet) ProtoReflect() protoreflect.Message {
+	mi := &file_common_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AnnotationSet.ProtoReflect.Descriptor instead.
+func (*AnnotationSet) Descriptor() ([]byte, []int) {
+	return file_common_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *AnnotationSet) GetAnnotations() map[string]string {
+	if x != nil {
+		return x.Annotations
+	}
+	return nil
+}
+
+// DiagnosticResult represents the result of a diagnostic run
+// This matches the JSON structure from core/pkg/diagnostics/diagnostics.go
+type DiagnosticResult struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Unique Identifier for the diagnostic run result
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Name of the diagnostic that ran
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// Description of the diagnostic run, human readable description
+	Description string `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	// Category of the diagnostic run, used to group similar diagnostics
+	Category string `protobuf:"bytes,4,opt,name=category,proto3" json:"category,omitempty"`
+	// Timestamp when the diagnostic run was executed
+	Timestamp *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	// Error message if the diagnostic run failed (optional)
+	Error string `protobuf:"bytes,6,opt,name=error,proto3" json:"error,omitempty"`
+	// Additional custom information about the diagnostic run
+	// Using string values to match map[string]any from JSON
+	Details       map[string]string `protobuf:"bytes,7,rep,name=details,proto3" json:"details,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DiagnosticResult) Reset() {
+	*x = DiagnosticResult{}
+	mi := &file_common_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DiagnosticResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DiagnosticResult) ProtoMessage() {}
+
+func (x *DiagnosticResult) ProtoReflect() protoreflect.Message {
+	mi := &file_common_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DiagnosticResult.ProtoReflect.Descriptor instead.
+func (*DiagnosticResult) Descriptor() ([]byte, []int) {
+	return file_common_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *DiagnosticResult) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *DiagnosticResult) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *DiagnosticResult) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *DiagnosticResult) GetCategory() string {
+	if x != nil {
+		return x.Category
+	}
+	return ""
+}
+
+func (x *DiagnosticResult) GetTimestamp() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Timestamp
+	}
+	return nil
+}
+
+func (x *DiagnosticResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *DiagnosticResult) GetDetails() map[string]string {
+	if x != nil {
+		return x.Details
+	}
+	return nil
+}
+
+// DiagnosticsRunReport contains the start time and all diagnostic results
+// This matches the JSON structure from core/pkg/diagnostics/diagnostics.go
+type DiagnosticsRunReport struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Application name that the diagnostics run belongs to
+	Application string `protobuf:"bytes,1,opt,name=application,proto3" json:"application,omitempty"`
+	// Time when the full diagnostics run started
+	StartTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
+	// All results of the diagnostics run
+	Results       []*DiagnosticResult `protobuf:"bytes,3,rep,name=results,proto3" json:"results,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DiagnosticsRunReport) Reset() {
+	*x = DiagnosticsRunReport{}
+	mi := &file_common_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DiagnosticsRunReport) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DiagnosticsRunReport) ProtoMessage() {}
+
+func (x *DiagnosticsRunReport) ProtoReflect() protoreflect.Message {
+	mi := &file_common_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DiagnosticsRunReport.ProtoReflect.Descriptor instead.
+func (*DiagnosticsRunReport) Descriptor() ([]byte, []int) {
+	return file_common_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *DiagnosticsRunReport) GetApplication() string {
+	if x != nil {
+		return x.Application
+	}
+	return ""
+}
+
+func (x *DiagnosticsRunReport) GetStartTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartTime
+	}
+	return nil
+}
+
+func (x *DiagnosticsRunReport) GetResults() []*DiagnosticResult {
+	if x != nil {
+		return x.Results
+	}
+	return nil
+}
+
+var File_common_proto protoreflect.FileDescriptor
+
+const file_common_proto_rawDesc = "" +
 	"\n" +
-	"\x1dpkg/agent/protos/common.proto\x12\fopencost.dm2*\xa2\x01\n" +
-	"\bProvider\x12\x10\n" +
-	"\fPROVIDER_AWS\x10\x00\x12\x10\n" +
-	"\fPROVIDER_GCP\x10\x01\x12\x12\n" +
-	"\x0ePROVIDER_AZURE\x10\x02\x12\x18\n" +
-	"\x14PROVIDER_ON_PREMISES\x10\x03\x12\x14\n" +
-	"\x10PROVIDER_ALIBABA\x10\x04\x12\x19\n" +
-	"\x15PROVIDER_DIGITALOCEAN\x10\x05\x12\x13\n" +
-	"\x0fPROVIDER_ORACLE\x10\x06*\xb3\x01\n" +
+	"\fcommon.proto\x12\x05agent\x1a\x1fgoogle/protobuf/timestamp.proto\"^\n" +
+	"\n" +
+	"TimeWindow\x120\n" +
+	"\x05start\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x05start\x12\x1e\n" +
+	"\n" +
+	"resolution\x18\x02 \x01(\tR\n" +
+	"resolution\"\x88\x01\n" +
+	"\x10ResourceLifetime\x129\n" +
+	"\n" +
+	"created_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"deleted_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tdeletedAt\"\x84\x02\n" +
+	"\tLabelsSet\x12\x12\n" +
+	"\x04type\x18\x01 \x01(\tR\x04type\x12)\n" +
+	"\x10group_identifier\x18\x02 \x01(\tR\x0fgroupIdentifier\x12)\n" +
+	"\x06window\x18\x03 \x01(\v2\x11.agent.TimeWindowR\x06window\x12>\n" +
+	"\n" +
+	"label_sets\x18\x04 \x03(\v2\x1f.agent.LabelsSet.LabelSetsEntryR\tlabelSets\x1aM\n" +
+	"\x0eLabelSetsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12%\n" +
+	"\x05value\x18\x02 \x01(\v2\x0f.agent.LabelSetR\x05value:\x028\x01\"z\n" +
+	"\bLabelSet\x123\n" +
+	"\x06labels\x18\x01 \x03(\v2\x1b.agent.LabelSet.LabelsEntryR\x06labels\x1a9\n" +
+	"\vLabelsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa7\x02\n" +
+	"\x0eAnnotationsSet\x12\x12\n" +
+	"\x04type\x18\x01 \x01(\tR\x04type\x12)\n" +
+	"\x10group_identifier\x18\x02 \x01(\tR\x0fgroupIdentifier\x12)\n" +
+	"\x06window\x18\x03 \x01(\v2\x11.agent.TimeWindowR\x06window\x12R\n" +
+	"\x0fannotation_sets\x18\x04 \x03(\v2).agent.AnnotationsSet.AnnotationSetsEntryR\x0eannotationSets\x1aW\n" +
+	"\x13AnnotationSetsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12*\n" +
+	"\x05value\x18\x02 \x01(\v2\x14.agent.AnnotationSetR\x05value:\x028\x01\"\x98\x01\n" +
+	"\rAnnotationSet\x12G\n" +
+	"\vannotations\x18\x01 \x03(\v2%.agent.AnnotationSet.AnnotationsEntryR\vannotations\x1a>\n" +
+	"\x10AnnotationsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc0\x02\n" +
+	"\x10DiagnosticResult\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x1a\n" +
+	"\bcategory\x18\x04 \x01(\tR\bcategory\x128\n" +
+	"\ttimestamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x14\n" +
+	"\x05error\x18\x06 \x01(\tR\x05error\x12>\n" +
+	"\adetails\x18\a \x03(\v2$.agent.DiagnosticResult.DetailsEntryR\adetails\x1a:\n" +
+	"\fDetailsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa6\x01\n" +
+	"\x14DiagnosticsRunReport\x12 \n" +
+	"\vapplication\x18\x01 \x01(\tR\vapplication\x129\n" +
+	"\n" +
+	"start_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x121\n" +
+	"\aresults\x18\x03 \x03(\v2\x17.agent.DiagnosticResultR\aresults*\xbc\x01\n" +
+	"\bProvider\x12\x18\n" +
+	"\x14PROVIDER_UNSPECIFIED\x10\x00\x12\x10\n" +
+	"\fPROVIDER_AWS\x10\x01\x12\x10\n" +
+	"\fPROVIDER_GCP\x10\x02\x12\x12\n" +
+	"\x0ePROVIDER_AZURE\x10\x03\x12\x18\n" +
+	"\x14PROVIDER_ON_PREMISES\x10\x04\x12\x14\n" +
+	"\x10PROVIDER_ALIBABA\x10\x05\x12\x19\n" +
+	"\x15PROVIDER_DIGITALOCEAN\x10\x06\x12\x13\n" +
+	"\x0fPROVIDER_ORACLE\x10\a*\xb3\x01\n" +
 	"\x0eDataSourceType\x12\x1b\n" +
 	"\x17DATA_SOURCE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16DATA_SOURCE_PROMETHEUS\x10\x01\x12\x1e\n" +
 	"\x1aDATA_SOURCE_KUBERNETES_API\x10\x02\x12\x14\n" +
 	"\x10DATA_SOURCE_DCGM\x10\x03\x12\x1d\n" +
 	"\x19DATA_SOURCE_CLOUD_BILLING\x10\x04\x12\x13\n" +
-	"\x0fDATA_SOURCE_KSM\x10\x05B6Z4github.com/opencost/opencost/pkg/agent/protos;protosb\x06proto3"
+	"\x0fDATA_SOURCE_KSM\x10\x05B4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
 
 var (
-	file_pkg_agent_protos_common_proto_rawDescOnce sync.Once
-	file_pkg_agent_protos_common_proto_rawDescData []byte
+	file_common_proto_rawDescOnce sync.Once
+	file_common_proto_rawDescData []byte
 )
 
-func file_pkg_agent_protos_common_proto_rawDescGZIP() []byte {
-	file_pkg_agent_protos_common_proto_rawDescOnce.Do(func() {
-		file_pkg_agent_protos_common_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_pkg_agent_protos_common_proto_rawDesc), len(file_pkg_agent_protos_common_proto_rawDesc)))
+func file_common_proto_rawDescGZIP() []byte {
+	file_common_proto_rawDescOnce.Do(func() {
+		file_common_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_common_proto_rawDesc), len(file_common_proto_rawDesc)))
 	})
-	return file_pkg_agent_protos_common_proto_rawDescData
+	return file_common_proto_rawDescData
 }
 
-var file_pkg_agent_protos_common_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_pkg_agent_protos_common_proto_goTypes = []any{
-	(Provider)(0),       // 0: opencost.dm2.Provider
-	(DataSourceType)(0), // 1: opencost.dm2.DataSourceType
+var file_common_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_common_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_common_proto_goTypes = []any{
+	(Provider)(0),                 // 0: agent.Provider
+	(DataSourceType)(0),           // 1: agent.DataSourceType
+	(*TimeWindow)(nil),            // 2: agent.TimeWindow
+	(*ResourceLifetime)(nil),      // 3: agent.ResourceLifetime
+	(*LabelsSet)(nil),             // 4: agent.LabelsSet
+	(*LabelSet)(nil),              // 5: agent.LabelSet
+	(*AnnotationsSet)(nil),        // 6: agent.AnnotationsSet
+	(*AnnotationSet)(nil),         // 7: agent.AnnotationSet
+	(*DiagnosticResult)(nil),      // 8: agent.DiagnosticResult
+	(*DiagnosticsRunReport)(nil),  // 9: agent.DiagnosticsRunReport
+	nil,                           // 10: agent.LabelsSet.LabelSetsEntry
+	nil,                           // 11: agent.LabelSet.LabelsEntry
+	nil,                           // 12: agent.AnnotationsSet.AnnotationSetsEntry
+	nil,                           // 13: agent.AnnotationSet.AnnotationsEntry
+	nil,                           // 14: agent.DiagnosticResult.DetailsEntry
+	(*timestamppb.Timestamp)(nil), // 15: google.protobuf.Timestamp
 }
-var file_pkg_agent_protos_common_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+var file_common_proto_depIdxs = []int32{
+	15, // 0: agent.TimeWindow.start:type_name -> google.protobuf.Timestamp
+	15, // 1: agent.ResourceLifetime.created_at:type_name -> google.protobuf.Timestamp
+	15, // 2: agent.ResourceLifetime.deleted_at:type_name -> google.protobuf.Timestamp
+	2,  // 3: agent.LabelsSet.window:type_name -> agent.TimeWindow
+	10, // 4: agent.LabelsSet.label_sets:type_name -> agent.LabelsSet.LabelSetsEntry
+	11, // 5: agent.LabelSet.labels:type_name -> agent.LabelSet.LabelsEntry
+	2,  // 6: agent.AnnotationsSet.window:type_name -> agent.TimeWindow
+	12, // 7: agent.AnnotationsSet.annotation_sets:type_name -> agent.AnnotationsSet.AnnotationSetsEntry
+	13, // 8: agent.AnnotationSet.annotations:type_name -> agent.AnnotationSet.AnnotationsEntry
+	15, // 9: agent.DiagnosticResult.timestamp:type_name -> google.protobuf.Timestamp
+	14, // 10: agent.DiagnosticResult.details:type_name -> agent.DiagnosticResult.DetailsEntry
+	15, // 11: agent.DiagnosticsRunReport.start_time:type_name -> google.protobuf.Timestamp
+	8,  // 12: agent.DiagnosticsRunReport.results:type_name -> agent.DiagnosticResult
+	5,  // 13: agent.LabelsSet.LabelSetsEntry.value:type_name -> agent.LabelSet
+	7,  // 14: agent.AnnotationsSet.AnnotationSetsEntry.value:type_name -> agent.AnnotationSet
+	15, // [15:15] is the sub-list for method output_type
+	15, // [15:15] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
-func init() { file_pkg_agent_protos_common_proto_init() }
-func file_pkg_agent_protos_common_proto_init() {
-	if File_pkg_agent_protos_common_proto != nil {
+func init() { file_common_proto_init() }
+func file_common_proto_init() {
+	if File_common_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pkg_agent_protos_common_proto_rawDesc), len(file_pkg_agent_protos_common_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_common_proto_rawDesc), len(file_common_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   0,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_pkg_agent_protos_common_proto_goTypes,
-		DependencyIndexes: file_pkg_agent_protos_common_proto_depIdxs,
-		EnumInfos:         file_pkg_agent_protos_common_proto_enumTypes,
+		GoTypes:           file_common_proto_goTypes,
+		DependencyIndexes: file_common_proto_depIdxs,
+		EnumInfos:         file_common_proto_enumTypes,
+		MessageInfos:      file_common_proto_msgTypes,
 	}.Build()
-	File_pkg_agent_protos_common_proto = out.File
-	file_pkg_agent_protos_common_proto_goTypes = nil
-	file_pkg_agent_protos_common_proto_depIdxs = nil
+	File_common_proto = out.File
+	file_common_proto_goTypes = nil
+	file_common_proto_depIdxs = nil
 }

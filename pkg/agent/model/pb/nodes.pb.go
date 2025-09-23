@@ -2,14 +2,13 @@
 // versions:
 // 	protoc-gen-go v1.36.7
 // 	protoc        v3.20.3
-// source: pkg/agent/protos/nodes.proto
+// source: nodes.proto
 
-package protos
+package pb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -29,34 +28,22 @@ type Node struct {
 	ID                 string `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
 	ProviderResourceID string `protobuf:"bytes,2,opt,name=ProviderResourceID,proto3" json:"ProviderResourceID,omitempty"`
 	// Properties
-	Name         string            `protobuf:"bytes,3,opt,name=Name,proto3" json:"Name,omitempty"`
-	InstanceType string            `protobuf:"bytes,4,opt,name=InstanceType,proto3" json:"InstanceType,omitempty"`
-	Preemptible  bool              `protobuf:"varint,5,opt,name=Preemptible,proto3" json:"Preemptible,omitempty"`
-	Labels       map[string]string `protobuf:"bytes,6,rep,name=Labels,proto3" json:"Labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Annotations  map[string]string `protobuf:"bytes,7,rep,name=Annotations,proto3" json:"Annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// Window
-	WindowStart *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=WindowStart,proto3" json:"WindowStart,omitempty"`
-	WindowEnd   *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=WindowEnd,proto3" json:"WindowEnd,omitempty"`
-	// Data (timing, resource, default pricing)
-	Start               *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=Start,proto3" json:"Start,omitempty"`
-	End                 *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=End,proto3" json:"End,omitempty"`
-	CPUCores            float32                `protobuf:"fixed32,12,opt,name=CPUCores,proto3" json:"CPUCores,omitempty"`
-	RAMBytes            float32                `protobuf:"fixed32,13,opt,name=RAMBytes,proto3" json:"RAMBytes,omitempty"`
-	GPUs                float32                `protobuf:"fixed32,14,opt,name=GPUs,proto3" json:"GPUs,omitempty"`
-	DiskBytes           float32                `protobuf:"fixed32,15,opt,name=DiskBytes,proto3" json:"DiskBytes,omitempty"`
-	PricePerCPUHour     float32                `protobuf:"fixed32,16,opt,name=PricePerCPUHour,proto3" json:"PricePerCPUHour,omitempty"`
-	PricePerRAMByteHour float32                `protobuf:"fixed32,17,opt,name=PricePerRAMByteHour,proto3" json:"PricePerRAMByteHour,omitempty"`
-	PricePerGPUHour     float32                `protobuf:"fixed32,18,opt,name=PricePerGPUHour,proto3" json:"PricePerGPUHour,omitempty"`
-	PricePerDiskByte    float32                `protobuf:"fixed32,19,opt,name=PricePerDiskByte,proto3" json:"PricePerDiskByte,omitempty"`
-	CPUOverheadFraction float32                `protobuf:"fixed32,20,opt,name=CPUOverheadFraction,proto3" json:"CPUOverheadFraction,omitempty"`
-	RAMOverheadFraction float32                `protobuf:"fixed32,21,opt,name=RAMOverheadFraction,proto3" json:"RAMOverheadFraction,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	Name        string            `protobuf:"bytes,3,opt,name=Name,proto3" json:"Name,omitempty"`
+	Labels      map[string]string `protobuf:"bytes,4,rep,name=Labels,proto3" json:"Labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Annotations map[string]string `protobuf:"bytes,5,rep,name=Annotations,proto3" json:"Annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Resource lifecycle (only when different from cluster window)
+	Lifetime *ResourceLifetime `protobuf:"bytes,6,opt,name=lifetime,proto3" json:"lifetime,omitempty"`
+	// Infrastructure cost data (optional - only populated for cost-enabled exports)
+	Cost *AllocationCost `protobuf:"bytes,7,opt,name=cost,proto3" json:"cost,omitempty"`
+	// Cost attribution for this node
+	CostAttribution *CostAttribution `protobuf:"bytes,8,opt,name=cost_attribution,json=costAttribution,proto3" json:"cost_attribution,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Node) Reset() {
 	*x = Node{}
-	mi := &file_pkg_agent_protos_nodes_proto_msgTypes[0]
+	mi := &file_nodes_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -68,7 +55,7 @@ func (x *Node) String() string {
 func (*Node) ProtoMessage() {}
 
 func (x *Node) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_agent_protos_nodes_proto_msgTypes[0]
+	mi := &file_nodes_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -81,7 +68,7 @@ func (x *Node) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Node.ProtoReflect.Descriptor instead.
 func (*Node) Descriptor() ([]byte, []int) {
-	return file_pkg_agent_protos_nodes_proto_rawDescGZIP(), []int{0}
+	return file_nodes_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Node) GetID() string {
@@ -105,20 +92,6 @@ func (x *Node) GetName() string {
 	return ""
 }
 
-func (x *Node) GetInstanceType() string {
-	if x != nil {
-		return x.InstanceType
-	}
-	return ""
-}
-
-func (x *Node) GetPreemptible() bool {
-	if x != nil {
-		return x.Preemptible
-	}
-	return false
-}
-
 func (x *Node) GetLabels() map[string]string {
 	if x != nil {
 		return x.Labels
@@ -133,192 +106,104 @@ func (x *Node) GetAnnotations() map[string]string {
 	return nil
 }
 
-func (x *Node) GetWindowStart() *timestamppb.Timestamp {
+func (x *Node) GetLifetime() *ResourceLifetime {
 	if x != nil {
-		return x.WindowStart
+		return x.Lifetime
 	}
 	return nil
 }
 
-func (x *Node) GetWindowEnd() *timestamppb.Timestamp {
+func (x *Node) GetCost() *AllocationCost {
 	if x != nil {
-		return x.WindowEnd
+		return x.Cost
 	}
 	return nil
 }
 
-func (x *Node) GetStart() *timestamppb.Timestamp {
+func (x *Node) GetCostAttribution() *CostAttribution {
 	if x != nil {
-		return x.Start
+		return x.CostAttribution
 	}
 	return nil
 }
 
-func (x *Node) GetEnd() *timestamppb.Timestamp {
-	if x != nil {
-		return x.End
-	}
-	return nil
-}
+var File_nodes_proto protoreflect.FileDescriptor
 
-func (x *Node) GetCPUCores() float32 {
-	if x != nil {
-		return x.CPUCores
-	}
-	return 0
-}
-
-func (x *Node) GetRAMBytes() float32 {
-	if x != nil {
-		return x.RAMBytes
-	}
-	return 0
-}
-
-func (x *Node) GetGPUs() float32 {
-	if x != nil {
-		return x.GPUs
-	}
-	return 0
-}
-
-func (x *Node) GetDiskBytes() float32 {
-	if x != nil {
-		return x.DiskBytes
-	}
-	return 0
-}
-
-func (x *Node) GetPricePerCPUHour() float32 {
-	if x != nil {
-		return x.PricePerCPUHour
-	}
-	return 0
-}
-
-func (x *Node) GetPricePerRAMByteHour() float32 {
-	if x != nil {
-		return x.PricePerRAMByteHour
-	}
-	return 0
-}
-
-func (x *Node) GetPricePerGPUHour() float32 {
-	if x != nil {
-		return x.PricePerGPUHour
-	}
-	return 0
-}
-
-func (x *Node) GetPricePerDiskByte() float32 {
-	if x != nil {
-		return x.PricePerDiskByte
-	}
-	return 0
-}
-
-func (x *Node) GetCPUOverheadFraction() float32 {
-	if x != nil {
-		return x.CPUOverheadFraction
-	}
-	return 0
-}
-
-func (x *Node) GetRAMOverheadFraction() float32 {
-	if x != nil {
-		return x.RAMOverheadFraction
-	}
-	return 0
-}
-
-var File_pkg_agent_protos_nodes_proto protoreflect.FileDescriptor
-
-const file_pkg_agent_protos_nodes_proto_rawDesc = "" +
+const file_nodes_proto_rawDesc = "" +
 	"\n" +
-	"\x1cpkg/agent/protos/nodes.proto\x12\fopencost.dm2\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf2\a\n" +
+	"\vnodes.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\xe9\x03\n" +
 	"\x04Node\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12.\n" +
 	"\x12ProviderResourceID\x18\x02 \x01(\tR\x12ProviderResourceID\x12\x12\n" +
-	"\x04Name\x18\x03 \x01(\tR\x04Name\x12\"\n" +
-	"\fInstanceType\x18\x04 \x01(\tR\fInstanceType\x12 \n" +
-	"\vPreemptible\x18\x05 \x01(\bR\vPreemptible\x126\n" +
-	"\x06Labels\x18\x06 \x03(\v2\x1e.opencost.dm2.Node.LabelsEntryR\x06Labels\x12E\n" +
-	"\vAnnotations\x18\a \x03(\v2#.opencost.dm2.Node.AnnotationsEntryR\vAnnotations\x12<\n" +
-	"\vWindowStart\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\vWindowStart\x128\n" +
-	"\tWindowEnd\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tWindowEnd\x120\n" +
-	"\x05Start\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\x05Start\x12,\n" +
-	"\x03End\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\x03End\x12\x1a\n" +
-	"\bCPUCores\x18\f \x01(\x02R\bCPUCores\x12\x1a\n" +
-	"\bRAMBytes\x18\r \x01(\x02R\bRAMBytes\x12\x12\n" +
-	"\x04GPUs\x18\x0e \x01(\x02R\x04GPUs\x12\x1c\n" +
-	"\tDiskBytes\x18\x0f \x01(\x02R\tDiskBytes\x12(\n" +
-	"\x0fPricePerCPUHour\x18\x10 \x01(\x02R\x0fPricePerCPUHour\x120\n" +
-	"\x13PricePerRAMByteHour\x18\x11 \x01(\x02R\x13PricePerRAMByteHour\x12(\n" +
-	"\x0fPricePerGPUHour\x18\x12 \x01(\x02R\x0fPricePerGPUHour\x12*\n" +
-	"\x10PricePerDiskByte\x18\x13 \x01(\x02R\x10PricePerDiskByte\x120\n" +
-	"\x13CPUOverheadFraction\x18\x14 \x01(\x02R\x13CPUOverheadFraction\x120\n" +
-	"\x13RAMOverheadFraction\x18\x15 \x01(\x02R\x13RAMOverheadFraction\x1a9\n" +
+	"\x04Name\x18\x03 \x01(\tR\x04Name\x12/\n" +
+	"\x06Labels\x18\x04 \x03(\v2\x17.agent.Node.LabelsEntryR\x06Labels\x12>\n" +
+	"\vAnnotations\x18\x05 \x03(\v2\x1c.agent.Node.AnnotationsEntryR\vAnnotations\x123\n" +
+	"\blifetime\x18\x06 \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12)\n" +
+	"\x04cost\x18\a \x01(\v2\x15.agent.AllocationCostR\x04cost\x12A\n" +
+	"\x10cost_attribution\x18\b \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B6Z4github.com/opencost/opencost/pkg/agent/protos;protosb\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
 
 var (
-	file_pkg_agent_protos_nodes_proto_rawDescOnce sync.Once
-	file_pkg_agent_protos_nodes_proto_rawDescData []byte
+	file_nodes_proto_rawDescOnce sync.Once
+	file_nodes_proto_rawDescData []byte
 )
 
-func file_pkg_agent_protos_nodes_proto_rawDescGZIP() []byte {
-	file_pkg_agent_protos_nodes_proto_rawDescOnce.Do(func() {
-		file_pkg_agent_protos_nodes_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_pkg_agent_protos_nodes_proto_rawDesc), len(file_pkg_agent_protos_nodes_proto_rawDesc)))
+func file_nodes_proto_rawDescGZIP() []byte {
+	file_nodes_proto_rawDescOnce.Do(func() {
+		file_nodes_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_nodes_proto_rawDesc), len(file_nodes_proto_rawDesc)))
 	})
-	return file_pkg_agent_protos_nodes_proto_rawDescData
+	return file_nodes_proto_rawDescData
 }
 
-var file_pkg_agent_protos_nodes_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_pkg_agent_protos_nodes_proto_goTypes = []any{
-	(*Node)(nil),                  // 0: opencost.dm2.Node
-	nil,                           // 1: opencost.dm2.Node.LabelsEntry
-	nil,                           // 2: opencost.dm2.Node.AnnotationsEntry
-	(*timestamppb.Timestamp)(nil), // 3: google.protobuf.Timestamp
+var file_nodes_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_nodes_proto_goTypes = []any{
+	(*Node)(nil),             // 0: agent.Node
+	nil,                      // 1: agent.Node.LabelsEntry
+	nil,                      // 2: agent.Node.AnnotationsEntry
+	(*ResourceLifetime)(nil), // 3: agent.ResourceLifetime
+	(*AllocationCost)(nil),   // 4: agent.AllocationCost
+	(*CostAttribution)(nil),  // 5: agent.CostAttribution
 }
-var file_pkg_agent_protos_nodes_proto_depIdxs = []int32{
-	1, // 0: opencost.dm2.Node.Labels:type_name -> opencost.dm2.Node.LabelsEntry
-	2, // 1: opencost.dm2.Node.Annotations:type_name -> opencost.dm2.Node.AnnotationsEntry
-	3, // 2: opencost.dm2.Node.WindowStart:type_name -> google.protobuf.Timestamp
-	3, // 3: opencost.dm2.Node.WindowEnd:type_name -> google.protobuf.Timestamp
-	3, // 4: opencost.dm2.Node.Start:type_name -> google.protobuf.Timestamp
-	3, // 5: opencost.dm2.Node.End:type_name -> google.protobuf.Timestamp
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+var file_nodes_proto_depIdxs = []int32{
+	1, // 0: agent.Node.Labels:type_name -> agent.Node.LabelsEntry
+	2, // 1: agent.Node.Annotations:type_name -> agent.Node.AnnotationsEntry
+	3, // 2: agent.Node.lifetime:type_name -> agent.ResourceLifetime
+	4, // 3: agent.Node.cost:type_name -> agent.AllocationCost
+	5, // 4: agent.Node.cost_attribution:type_name -> agent.CostAttribution
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
-func init() { file_pkg_agent_protos_nodes_proto_init() }
-func file_pkg_agent_protos_nodes_proto_init() {
-	if File_pkg_agent_protos_nodes_proto != nil {
+func init() { file_nodes_proto_init() }
+func file_nodes_proto_init() {
+	if File_nodes_proto != nil {
 		return
 	}
+	file_common_proto_init()
+	file_costs_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pkg_agent_protos_nodes_proto_rawDesc), len(file_pkg_agent_protos_nodes_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_nodes_proto_rawDesc), len(file_nodes_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_pkg_agent_protos_nodes_proto_goTypes,
-		DependencyIndexes: file_pkg_agent_protos_nodes_proto_depIdxs,
-		MessageInfos:      file_pkg_agent_protos_nodes_proto_msgTypes,
+		GoTypes:           file_nodes_proto_goTypes,
+		DependencyIndexes: file_nodes_proto_depIdxs,
+		MessageInfos:      file_nodes_proto_msgTypes,
 	}.Build()
-	File_pkg_agent_protos_nodes_proto = out.File
-	file_pkg_agent_protos_nodes_proto_goTypes = nil
-	file_pkg_agent_protos_nodes_proto_depIdxs = nil
+	File_nodes_proto = out.File
+	file_nodes_proto_goTypes = nil
+	file_nodes_proto_depIdxs = nil
 }

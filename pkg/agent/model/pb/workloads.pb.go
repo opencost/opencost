@@ -2,14 +2,13 @@
 // versions:
 // 	protoc-gen-go v1.36.7
 // 	protoc        v3.20.3
-// source: pkg/agent/protos/workloads.proto
+// source: workloads.proto
 
-package protos
+package pb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -29,22 +28,21 @@ type Namespace struct {
 	ID string `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
 	// Properties
 	Name        string            `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`
-	CreatedAt   int64             `protobuf:"varint,3,opt,name=CreatedAt,proto3" json:"CreatedAt,omitempty"`
-	Labels      map[string]string `protobuf:"bytes,4,rep,name=Labels,proto3" json:"Labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Annotations map[string]string `protobuf:"bytes,5,rep,name=Annotations,proto3" json:"Annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// Window
-	WindowStart *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=WindowStart,proto3" json:"WindowStart,omitempty"`
-	WindowEnd   *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=WindowEnd,proto3" json:"WindowEnd,omitempty"`
-	// Data (timing, resource, default pricing)
-	Start         *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=Start,proto3" json:"Start,omitempty"`
-	End           *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=End,proto3" json:"End,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Labels      map[string]string `protobuf:"bytes,3,rep,name=Labels,proto3" json:"Labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Annotations map[string]string `protobuf:"bytes,4,rep,name=Annotations,proto3" json:"Annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Resource lifecycle (only when different from cluster window)
+	Lifetime *ResourceLifetime `protobuf:"bytes,5,opt,name=lifetime,proto3" json:"lifetime,omitempty"`
+	// Namespace-level aggregated cost data (optional - only populated for cost-enabled exports)
+	Cost *AllocationCost `protobuf:"bytes,6,opt,name=cost,proto3" json:"cost,omitempty"`
+	// Cost attribution for this namespace
+	CostAttribution *CostAttribution `protobuf:"bytes,7,opt,name=cost_attribution,json=costAttribution,proto3" json:"cost_attribution,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Namespace) Reset() {
 	*x = Namespace{}
-	mi := &file_pkg_agent_protos_workloads_proto_msgTypes[0]
+	mi := &file_workloads_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56,7 +54,7 @@ func (x *Namespace) String() string {
 func (*Namespace) ProtoMessage() {}
 
 func (x *Namespace) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_agent_protos_workloads_proto_msgTypes[0]
+	mi := &file_workloads_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -69,7 +67,7 @@ func (x *Namespace) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Namespace.ProtoReflect.Descriptor instead.
 func (*Namespace) Descriptor() ([]byte, []int) {
-	return file_pkg_agent_protos_workloads_proto_rawDescGZIP(), []int{0}
+	return file_workloads_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Namespace) GetID() string {
@@ -86,13 +84,6 @@ func (x *Namespace) GetName() string {
 	return ""
 }
 
-func (x *Namespace) GetCreatedAt() int64 {
-	if x != nil {
-		return x.CreatedAt
-	}
-	return 0
-}
-
 func (x *Namespace) GetLabels() map[string]string {
 	if x != nil {
 		return x.Labels
@@ -107,109 +98,103 @@ func (x *Namespace) GetAnnotations() map[string]string {
 	return nil
 }
 
-func (x *Namespace) GetWindowStart() *timestamppb.Timestamp {
+func (x *Namespace) GetLifetime() *ResourceLifetime {
 	if x != nil {
-		return x.WindowStart
+		return x.Lifetime
 	}
 	return nil
 }
 
-func (x *Namespace) GetWindowEnd() *timestamppb.Timestamp {
+func (x *Namespace) GetCost() *AllocationCost {
 	if x != nil {
-		return x.WindowEnd
+		return x.Cost
 	}
 	return nil
 }
 
-func (x *Namespace) GetStart() *timestamppb.Timestamp {
+func (x *Namespace) GetCostAttribution() *CostAttribution {
 	if x != nil {
-		return x.Start
+		return x.CostAttribution
 	}
 	return nil
 }
 
-func (x *Namespace) GetEnd() *timestamppb.Timestamp {
-	if x != nil {
-		return x.End
-	}
-	return nil
-}
+var File_workloads_proto protoreflect.FileDescriptor
 
-var File_pkg_agent_protos_workloads_proto protoreflect.FileDescriptor
-
-const file_pkg_agent_protos_workloads_proto_rawDesc = "" +
+const file_workloads_proto_rawDesc = "" +
 	"\n" +
-	" pkg/agent/protos/workloads.proto\x12\fopencost.dm2\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa9\x04\n" +
+	"\x0fworkloads.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\xc8\x03\n" +
 	"\tNamespace\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x12\n" +
-	"\x04Name\x18\x02 \x01(\tR\x04Name\x12\x1c\n" +
-	"\tCreatedAt\x18\x03 \x01(\x03R\tCreatedAt\x12;\n" +
-	"\x06Labels\x18\x04 \x03(\v2#.opencost.dm2.Namespace.LabelsEntryR\x06Labels\x12J\n" +
-	"\vAnnotations\x18\x05 \x03(\v2(.opencost.dm2.Namespace.AnnotationsEntryR\vAnnotations\x12<\n" +
-	"\vWindowStart\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\vWindowStart\x128\n" +
-	"\tWindowEnd\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tWindowEnd\x120\n" +
-	"\x05Start\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x05Start\x12,\n" +
-	"\x03End\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x03End\x1a9\n" +
+	"\x04Name\x18\x02 \x01(\tR\x04Name\x124\n" +
+	"\x06Labels\x18\x03 \x03(\v2\x1c.agent.Namespace.LabelsEntryR\x06Labels\x12C\n" +
+	"\vAnnotations\x18\x04 \x03(\v2!.agent.Namespace.AnnotationsEntryR\vAnnotations\x123\n" +
+	"\blifetime\x18\x05 \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12)\n" +
+	"\x04cost\x18\x06 \x01(\v2\x15.agent.AllocationCostR\x04cost\x12A\n" +
+	"\x10cost_attribution\x18\a \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B6Z4github.com/opencost/opencost/pkg/agent/protos;protosb\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
 
 var (
-	file_pkg_agent_protos_workloads_proto_rawDescOnce sync.Once
-	file_pkg_agent_protos_workloads_proto_rawDescData []byte
+	file_workloads_proto_rawDescOnce sync.Once
+	file_workloads_proto_rawDescData []byte
 )
 
-func file_pkg_agent_protos_workloads_proto_rawDescGZIP() []byte {
-	file_pkg_agent_protos_workloads_proto_rawDescOnce.Do(func() {
-		file_pkg_agent_protos_workloads_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_pkg_agent_protos_workloads_proto_rawDesc), len(file_pkg_agent_protos_workloads_proto_rawDesc)))
+func file_workloads_proto_rawDescGZIP() []byte {
+	file_workloads_proto_rawDescOnce.Do(func() {
+		file_workloads_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_workloads_proto_rawDesc), len(file_workloads_proto_rawDesc)))
 	})
-	return file_pkg_agent_protos_workloads_proto_rawDescData
+	return file_workloads_proto_rawDescData
 }
 
-var file_pkg_agent_protos_workloads_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_pkg_agent_protos_workloads_proto_goTypes = []any{
-	(*Namespace)(nil),             // 0: opencost.dm2.Namespace
-	nil,                           // 1: opencost.dm2.Namespace.LabelsEntry
-	nil,                           // 2: opencost.dm2.Namespace.AnnotationsEntry
-	(*timestamppb.Timestamp)(nil), // 3: google.protobuf.Timestamp
+var file_workloads_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_workloads_proto_goTypes = []any{
+	(*Namespace)(nil),        // 0: agent.Namespace
+	nil,                      // 1: agent.Namespace.LabelsEntry
+	nil,                      // 2: agent.Namespace.AnnotationsEntry
+	(*ResourceLifetime)(nil), // 3: agent.ResourceLifetime
+	(*AllocationCost)(nil),   // 4: agent.AllocationCost
+	(*CostAttribution)(nil),  // 5: agent.CostAttribution
 }
-var file_pkg_agent_protos_workloads_proto_depIdxs = []int32{
-	1, // 0: opencost.dm2.Namespace.Labels:type_name -> opencost.dm2.Namespace.LabelsEntry
-	2, // 1: opencost.dm2.Namespace.Annotations:type_name -> opencost.dm2.Namespace.AnnotationsEntry
-	3, // 2: opencost.dm2.Namespace.WindowStart:type_name -> google.protobuf.Timestamp
-	3, // 3: opencost.dm2.Namespace.WindowEnd:type_name -> google.protobuf.Timestamp
-	3, // 4: opencost.dm2.Namespace.Start:type_name -> google.protobuf.Timestamp
-	3, // 5: opencost.dm2.Namespace.End:type_name -> google.protobuf.Timestamp
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+var file_workloads_proto_depIdxs = []int32{
+	1, // 0: agent.Namespace.Labels:type_name -> agent.Namespace.LabelsEntry
+	2, // 1: agent.Namespace.Annotations:type_name -> agent.Namespace.AnnotationsEntry
+	3, // 2: agent.Namespace.lifetime:type_name -> agent.ResourceLifetime
+	4, // 3: agent.Namespace.cost:type_name -> agent.AllocationCost
+	5, // 4: agent.Namespace.cost_attribution:type_name -> agent.CostAttribution
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
-func init() { file_pkg_agent_protos_workloads_proto_init() }
-func file_pkg_agent_protos_workloads_proto_init() {
-	if File_pkg_agent_protos_workloads_proto != nil {
+func init() { file_workloads_proto_init() }
+func file_workloads_proto_init() {
+	if File_workloads_proto != nil {
 		return
 	}
+	file_common_proto_init()
+	file_costs_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pkg_agent_protos_workloads_proto_rawDesc), len(file_pkg_agent_protos_workloads_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_workloads_proto_rawDesc), len(file_workloads_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_pkg_agent_protos_workloads_proto_goTypes,
-		DependencyIndexes: file_pkg_agent_protos_workloads_proto_depIdxs,
-		MessageInfos:      file_pkg_agent_protos_workloads_proto_msgTypes,
+		GoTypes:           file_workloads_proto_goTypes,
+		DependencyIndexes: file_workloads_proto_depIdxs,
+		MessageInfos:      file_workloads_proto_msgTypes,
 	}.Build()
-	File_pkg_agent_protos_workloads_proto = out.File
-	file_pkg_agent_protos_workloads_proto_goTypes = nil
-	file_pkg_agent_protos_workloads_proto_depIdxs = nil
+	File_workloads_proto = out.File
+	file_workloads_proto_goTypes = nil
+	file_workloads_proto_depIdxs = nil
 }

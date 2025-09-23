@@ -1,10 +1,10 @@
 syntax = "proto3";
 
 import "google/protobuf/timestamp.proto";
-import "pkg/agent/protos/common.proto";
+import "common.proto";
 
-package opencost.dm2;
-option go_package = "github.com/opencost/opencost/pkg/agent/protos;protos";
+package agent;
+option go_package = "github.com/opencost/opencost/pkg/agent/model/pb;pb";
 
 // DataSourceMetadata tracks how data was collected (for Source interface)
 message DataSourceMetadata {

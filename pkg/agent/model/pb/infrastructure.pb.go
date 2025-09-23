@@ -2,14 +2,13 @@
 // versions:
 // 	protoc-gen-go v1.36.7
 // 	protoc        v3.20.3
-// source: pkg/agent/protos/infrastructure.proto
+// source: infrastructure.proto
 
-package protos
+package pb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -23,28 +22,48 @@ const (
 )
 
 // Cluster represents the top-level container following normalized approach
+// To serve as a wrapper for all resource collections
 type Cluster struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Identification
 	ID string `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
 	// Properties
-	Provider Provider `protobuf:"varint,2,opt,name=Provider,proto3,enum=opencost.dm2.Provider" json:"Provider,omitempty"`
+	Provider Provider `protobuf:"varint,2,opt,name=Provider,proto3,enum=agent.Provider" json:"Provider,omitempty"`
 	Account  string   `protobuf:"bytes,3,opt,name=Account,proto3" json:"Account,omitempty"`
 	Project  string   `protobuf:"bytes,4,opt,name=Project,proto3" json:"Project,omitempty"`
-	// Window
-	WindowStart *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=WindowStart,proto3" json:"WindowStart,omitempty"`
-	WindowEnd   *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=WindowEnd,proto3" json:"WindowEnd,omitempty"`
+	Region   string   `protobuf:"bytes,5,opt,name=Region,proto3" json:"Region,omitempty"`
+	Name     string   `protobuf:"bytes,6,opt,name=Name,proto3" json:"Name,omitempty"`
+	// Centralized window definition for entire cluster
+	// All resources inherit this window unless they specify resource_window override
+	Window *TimeWindow `protobuf:"bytes,7,opt,name=window,proto3" json:"window,omitempty"`
 	// Data
-	ManagementFeePerHour float32  `protobuf:"fixed32,7,opt,name=ManagementFeePerHour,proto3" json:"ManagementFeePerHour,omitempty"`
-	Errors               []string `protobuf:"bytes,8,rep,name=Errors,proto3" json:"Errors,omitempty"`
-	Warnings             []string `protobuf:"bytes,9,rep,name=Warnings,proto3" json:"Warnings,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	ManagementFeePerHour float32 `protobuf:"fixed32,8,opt,name=ManagementFeePerHour,proto3" json:"ManagementFeePerHour,omitempty"`
+	// Collection wrapper: All resource types contained within this cluster
+	Nodes         []*Node                  `protobuf:"bytes,9,rep,name=Nodes,proto3" json:"Nodes,omitempty"`
+	GPUDevices    []*GPUDevice             `protobuf:"bytes,10,rep,name=GPUDevices,proto3" json:"GPUDevices,omitempty"`
+	Volumes       []*Volume                `protobuf:"bytes,11,rep,name=Volumes,proto3" json:"Volumes,omitempty"`
+	LoadBalancers []*LoadBalancer          `protobuf:"bytes,12,rep,name=LoadBalancers,proto3" json:"LoadBalancers,omitempty"`
+	Services      []*Service               `protobuf:"bytes,13,rep,name=Services,proto3" json:"Services,omitempty"`
+	PVCs          []*PersistentVolumeClaim `protobuf:"bytes,14,rep,name=PVCs,proto3" json:"PVCs,omitempty"`
+	Namespaces    []*Namespace             `protobuf:"bytes,15,rep,name=Namespaces,proto3" json:"Namespaces,omitempty"`
+	Pods          []*Pod                   `protobuf:"bytes,16,rep,name=Pods,proto3" json:"Pods,omitempty"`
+	Containers    []*Container             `protobuf:"bytes,17,rep,name=Containers,proto3" json:"Containers,omitempty"`
+	// Cost data collections (optional - only populated for cost-enabled exports)
+	// Shared costs that need distribution across multiple resources
+	SharedCosts []*SharedCostAllocation `protobuf:"bytes,18,rep,name=shared_costs,json=sharedCosts,proto3" json:"shared_costs,omitempty"`
+	// External cloud service costs not directly tied to K8s resources
+	ExternalCosts []*ExternalCostAllocation `protobuf:"bytes,19,rep,name=external_costs,json=externalCosts,proto3" json:"external_costs,omitempty"`
+	// Cluster-level aggregated cost data (sum of all resource costs + shared + external)
+	TotalCost *AllocationCost `protobuf:"bytes,20,opt,name=total_cost,json=totalCost,proto3" json:"total_cost,omitempty"`
+	// Cost attribution for this cluster
+	CostAttribution *CostAttribution `protobuf:"bytes,21,opt,name=cost_attribution,json=costAttribution,proto3" json:"cost_attribution,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Cluster) Reset() {
 	*x = Cluster{}
-	mi := &file_pkg_agent_protos_infrastructure_proto_msgTypes[0]
+	mi := &file_infrastructure_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56,7 +75,7 @@ func (x *Cluster) String() string {
 func (*Cluster) ProtoMessage() {}
 
 func (x *Cluster) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_agent_protos_infrastructure_proto_msgTypes[0]
+	mi := &file_infrastructure_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -69,7 +88,7 @@ func (x *Cluster) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Cluster.ProtoReflect.Descriptor instead.
 func (*Cluster) Descriptor() ([]byte, []int) {
-	return file_pkg_agent_protos_infrastructure_proto_rawDescGZIP(), []int{0}
+	return file_infrastructure_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Cluster) GetID() string {
@@ -83,7 +102,7 @@ func (x *Cluster) GetProvider() Provider {
 	if x != nil {
 		return x.Provider
 	}
-	return Provider_PROVIDER_AWS
+	return Provider_PROVIDER_UNSPECIFIED
 }
 
 func (x *Cluster) GetAccount() string {
@@ -100,16 +119,23 @@ func (x *Cluster) GetProject() string {
 	return ""
 }
 
-func (x *Cluster) GetWindowStart() *timestamppb.Timestamp {
+func (x *Cluster) GetRegion() string {
 	if x != nil {
-		return x.WindowStart
+		return x.Region
 	}
-	return nil
+	return ""
 }
 
-func (x *Cluster) GetWindowEnd() *timestamppb.Timestamp {
+func (x *Cluster) GetName() string {
 	if x != nil {
-		return x.WindowEnd
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Cluster) GetWindow() *TimeWindow {
+	if x != nil {
+		return x.Window
 	}
 	return nil
 }
@@ -121,86 +147,217 @@ func (x *Cluster) GetManagementFeePerHour() float32 {
 	return 0
 }
 
-func (x *Cluster) GetErrors() []string {
+func (x *Cluster) GetNodes() []*Node {
 	if x != nil {
-		return x.Errors
+		return x.Nodes
 	}
 	return nil
 }
 
-func (x *Cluster) GetWarnings() []string {
+func (x *Cluster) GetGPUDevices() []*GPUDevice {
 	if x != nil {
-		return x.Warnings
+		return x.GPUDevices
 	}
 	return nil
 }
 
-var File_pkg_agent_protos_infrastructure_proto protoreflect.FileDescriptor
+func (x *Cluster) GetVolumes() []*Volume {
+	if x != nil {
+		return x.Volumes
+	}
+	return nil
+}
 
-const file_pkg_agent_protos_infrastructure_proto_rawDesc = "" +
+func (x *Cluster) GetLoadBalancers() []*LoadBalancer {
+	if x != nil {
+		return x.LoadBalancers
+	}
+	return nil
+}
+
+func (x *Cluster) GetServices() []*Service {
+	if x != nil {
+		return x.Services
+	}
+	return nil
+}
+
+func (x *Cluster) GetPVCs() []*PersistentVolumeClaim {
+	if x != nil {
+		return x.PVCs
+	}
+	return nil
+}
+
+func (x *Cluster) GetNamespaces() []*Namespace {
+	if x != nil {
+		return x.Namespaces
+	}
+	return nil
+}
+
+func (x *Cluster) GetPods() []*Pod {
+	if x != nil {
+		return x.Pods
+	}
+	return nil
+}
+
+func (x *Cluster) GetContainers() []*Container {
+	if x != nil {
+		return x.Containers
+	}
+	return nil
+}
+
+func (x *Cluster) GetSharedCosts() []*SharedCostAllocation {
+	if x != nil {
+		return x.SharedCosts
+	}
+	return nil
+}
+
+func (x *Cluster) GetExternalCosts() []*ExternalCostAllocation {
+	if x != nil {
+		return x.ExternalCosts
+	}
+	return nil
+}
+
+func (x *Cluster) GetTotalCost() *AllocationCost {
+	if x != nil {
+		return x.TotalCost
+	}
+	return nil
+}
+
+func (x *Cluster) GetCostAttribution() *CostAttribution {
+	if x != nil {
+		return x.CostAttribution
+	}
+	return nil
+}
+
+var File_infrastructure_proto protoreflect.FileDescriptor
+
+const file_infrastructure_proto_rawDesc = "" +
 	"\n" +
-	"%pkg/agent/protos/infrastructure.proto\x12\fopencost.dm2\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dpkg/agent/protos/common.proto\"\xe1\x02\n" +
+	"\x14infrastructure.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\x1a\vnodes.proto\x1a\rcompute.proto\x1a\rstorage.proto\x1a\x10networking.proto\x1a\n" +
+	"pods.proto\x1a\x0fworkloads.proto\"\x9f\a\n" +
 	"\aCluster\x12\x0e\n" +
-	"\x02ID\x18\x01 \x01(\tR\x02ID\x122\n" +
-	"\bProvider\x18\x02 \x01(\x0e2\x16.opencost.dm2.ProviderR\bProvider\x12\x18\n" +
+	"\x02ID\x18\x01 \x01(\tR\x02ID\x12+\n" +
+	"\bProvider\x18\x02 \x01(\x0e2\x0f.agent.ProviderR\bProvider\x12\x18\n" +
 	"\aAccount\x18\x03 \x01(\tR\aAccount\x12\x18\n" +
-	"\aProject\x18\x04 \x01(\tR\aProject\x12<\n" +
-	"\vWindowStart\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vWindowStart\x128\n" +
-	"\tWindowEnd\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tWindowEnd\x122\n" +
-	"\x14ManagementFeePerHour\x18\a \x01(\x02R\x14ManagementFeePerHour\x12\x16\n" +
-	"\x06Errors\x18\b \x03(\tR\x06Errors\x12\x1a\n" +
-	"\bWarnings\x18\t \x03(\tR\bWarningsB6Z4github.com/opencost/opencost/pkg/agent/protos;protosb\x06proto3"
+	"\aProject\x18\x04 \x01(\tR\aProject\x12\x16\n" +
+	"\x06Region\x18\x05 \x01(\tR\x06Region\x12\x12\n" +
+	"\x04Name\x18\x06 \x01(\tR\x04Name\x12)\n" +
+	"\x06window\x18\a \x01(\v2\x11.agent.TimeWindowR\x06window\x122\n" +
+	"\x14ManagementFeePerHour\x18\b \x01(\x02R\x14ManagementFeePerHour\x12!\n" +
+	"\x05Nodes\x18\t \x03(\v2\v.agent.NodeR\x05Nodes\x120\n" +
+	"\n" +
+	"GPUDevices\x18\n" +
+	" \x03(\v2\x10.agent.GPUDeviceR\n" +
+	"GPUDevices\x12'\n" +
+	"\aVolumes\x18\v \x03(\v2\r.agent.VolumeR\aVolumes\x129\n" +
+	"\rLoadBalancers\x18\f \x03(\v2\x13.agent.LoadBalancerR\rLoadBalancers\x12*\n" +
+	"\bServices\x18\r \x03(\v2\x0e.agent.ServiceR\bServices\x120\n" +
+	"\x04PVCs\x18\x0e \x03(\v2\x1c.agent.PersistentVolumeClaimR\x04PVCs\x120\n" +
+	"\n" +
+	"Namespaces\x18\x0f \x03(\v2\x10.agent.NamespaceR\n" +
+	"Namespaces\x12\x1e\n" +
+	"\x04Pods\x18\x10 \x03(\v2\n" +
+	".agent.PodR\x04Pods\x120\n" +
+	"\n" +
+	"Containers\x18\x11 \x03(\v2\x10.agent.ContainerR\n" +
+	"Containers\x12>\n" +
+	"\fshared_costs\x18\x12 \x03(\v2\x1b.agent.SharedCostAllocationR\vsharedCosts\x12D\n" +
+	"\x0eexternal_costs\x18\x13 \x03(\v2\x1d.agent.ExternalCostAllocationR\rexternalCosts\x124\n" +
+	"\n" +
+	"total_cost\x18\x14 \x01(\v2\x15.agent.AllocationCostR\ttotalCost\x12A\n" +
+	"\x10cost_attribution\x18\x15 \x01(\v2\x16.agent.CostAttributionR\x0fcostAttributionB4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
 
 var (
-	file_pkg_agent_protos_infrastructure_proto_rawDescOnce sync.Once
-	file_pkg_agent_protos_infrastructure_proto_rawDescData []byte
+	file_infrastructure_proto_rawDescOnce sync.Once
+	file_infrastructure_proto_rawDescData []byte
 )
 
-func file_pkg_agent_protos_infrastructure_proto_rawDescGZIP() []byte {
-	file_pkg_agent_protos_infrastructure_proto_rawDescOnce.Do(func() {
-		file_pkg_agent_protos_infrastructure_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_pkg_agent_protos_infrastructure_proto_rawDesc), len(file_pkg_agent_protos_infrastructure_proto_rawDesc)))
+func file_infrastructure_proto_rawDescGZIP() []byte {
+	file_infrastructure_proto_rawDescOnce.Do(func() {
+		file_infrastructure_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_infrastructure_proto_rawDesc), len(file_infrastructure_proto_rawDesc)))
 	})
-	return file_pkg_agent_protos_infrastructure_proto_rawDescData
+	return file_infrastructure_proto_rawDescData
 }
 
-var file_pkg_agent_protos_infrastructure_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-var file_pkg_agent_protos_infrastructure_proto_goTypes = []any{
-	(*Cluster)(nil),               // 0: opencost.dm2.Cluster
-	(Provider)(0),                 // 1: opencost.dm2.Provider
-	(*timestamppb.Timestamp)(nil), // 2: google.protobuf.Timestamp
+var file_infrastructure_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_infrastructure_proto_goTypes = []any{
+	(*Cluster)(nil),                // 0: agent.Cluster
+	(Provider)(0),                  // 1: agent.Provider
+	(*TimeWindow)(nil),             // 2: agent.TimeWindow
+	(*Node)(nil),                   // 3: agent.Node
+	(*GPUDevice)(nil),              // 4: agent.GPUDevice
+	(*Volume)(nil),                 // 5: agent.Volume
+	(*LoadBalancer)(nil),           // 6: agent.LoadBalancer
+	(*Service)(nil),                // 7: agent.Service
+	(*PersistentVolumeClaim)(nil),  // 8: agent.PersistentVolumeClaim
+	(*Namespace)(nil),              // 9: agent.Namespace
+	(*Pod)(nil),                    // 10: agent.Pod
+	(*Container)(nil),              // 11: agent.Container
+	(*SharedCostAllocation)(nil),   // 12: agent.SharedCostAllocation
+	(*ExternalCostAllocation)(nil), // 13: agent.ExternalCostAllocation
+	(*AllocationCost)(nil),         // 14: agent.AllocationCost
+	(*CostAttribution)(nil),        // 15: agent.CostAttribution
 }
-var file_pkg_agent_protos_infrastructure_proto_depIdxs = []int32{
-	1, // 0: opencost.dm2.Cluster.Provider:type_name -> opencost.dm2.Provider
-	2, // 1: opencost.dm2.Cluster.WindowStart:type_name -> google.protobuf.Timestamp
-	2, // 2: opencost.dm2.Cluster.WindowEnd:type_name -> google.protobuf.Timestamp
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+var file_infrastructure_proto_depIdxs = []int32{
+	1,  // 0: agent.Cluster.Provider:type_name -> agent.Provider
+	2,  // 1: agent.Cluster.window:type_name -> agent.TimeWindow
+	3,  // 2: agent.Cluster.Nodes:type_name -> agent.Node
+	4,  // 3: agent.Cluster.GPUDevices:type_name -> agent.GPUDevice
+	5,  // 4: agent.Cluster.Volumes:type_name -> agent.Volume
+	6,  // 5: agent.Cluster.LoadBalancers:type_name -> agent.LoadBalancer
+	7,  // 6: agent.Cluster.Services:type_name -> agent.Service
+	8,  // 7: agent.Cluster.PVCs:type_name -> agent.PersistentVolumeClaim
+	9,  // 8: agent.Cluster.Namespaces:type_name -> agent.Namespace
+	10, // 9: agent.Cluster.Pods:type_name -> agent.Pod
+	11, // 10: agent.Cluster.Containers:type_name -> agent.Container
+	12, // 11: agent.Cluster.shared_costs:type_name -> agent.SharedCostAllocation
+	13, // 12: agent.Cluster.external_costs:type_name -> agent.ExternalCostAllocation
+	14, // 13: agent.Cluster.total_cost:type_name -> agent.AllocationCost
+	15, // 14: agent.Cluster.cost_attribution:type_name -> agent.CostAttribution
+	15, // [15:15] is the sub-list for method output_type
+	15, // [15:15] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
-func init() { file_pkg_agent_protos_infrastructure_proto_init() }
-func file_pkg_agent_protos_infrastructure_proto_init() {
-	if File_pkg_agent_protos_infrastructure_proto != nil {
+func init() { file_infrastructure_proto_init() }
+func file_infrastructure_proto_init() {
+	if File_infrastructure_proto != nil {
 		return
 	}
-	file_pkg_agent_protos_common_proto_init()
+	file_common_proto_init()
+	file_costs_proto_init()
+	file_nodes_proto_init()
+	file_compute_proto_init()
+	file_storage_proto_init()
+	file_networking_proto_init()
+	file_pods_proto_init()
+	file_workloads_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pkg_agent_protos_infrastructure_proto_rawDesc), len(file_pkg_agent_protos_infrastructure_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_infrastructure_proto_rawDesc), len(file_infrastructure_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_pkg_agent_protos_infrastructure_proto_goTypes,
-		DependencyIndexes: file_pkg_agent_protos_infrastructure_proto_depIdxs,
-		MessageInfos:      file_pkg_agent_protos_infrastructure_proto_msgTypes,
+		GoTypes:           file_infrastructure_proto_goTypes,
+		DependencyIndexes: file_infrastructure_proto_depIdxs,
+		MessageInfos:      file_infrastructure_proto_msgTypes,
 	}.Build()
-	File_pkg_agent_protos_infrastructure_proto = out.File
-	file_pkg_agent_protos_infrastructure_proto_goTypes = nil
-	file_pkg_agent_protos_infrastructure_proto_depIdxs = nil
+	File_infrastructure_proto = out.File
+	file_infrastructure_proto_goTypes = nil
+	file_infrastructure_proto_depIdxs = nil
 }

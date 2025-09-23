@@ -1,0 +1,232 @@
+syntax = "proto3";
+
+import "common.proto";
+
+package agent;
+option go_package = "github.com/opencost/opencost/pkg/agent/model/pb;pb";
+
+// CostMetrics represents different cost accounting methods
+// Mirrors OpenCost's multiple cost calculation approaches
+message CostMetrics {
+  // List cost (raw cost without discounts)
+  float list_cost = 1;
+
+  // Net cost (list cost minus discounts)
+  float net_cost = 2;
+
+  // Amortized net cost (includes reserved instance amortization)
+  float amortized_net_cost = 3;
+
+  // Invoiced cost (actual billed amount)
+  float invoiced_cost = 4;
+
+  // Amortized cost (list cost with RI amortization)
+  float amortized_cost = 5;
+
+  // Percentage of cost attributed to Kubernetes workloads
+  float kubernetes_percent = 6;
+}
+
+// ResourceCost represents cost for a specific resource type
+// Follows OpenCost's base cost + adjustment pattern
+message ResourceCost {
+  // Base cost for this resource
+  CostMetrics base = 1;
+
+  // Cost adjustments (reconciliation, manual adjustments)
+  CostMetrics adjustment = 2;
+
+  // Resource usage hours (e.g., CPUCoreHours, RAMByteHours)
+  float usage_hours = 3;
+
+  // Requested resource average (for over/under-provisioning analysis)
+  float request_average = 4;
+
+  // Actual usage average (for utilization analysis)
+  float usage_average = 5;
+
+  // Idle cost portion (when resource is provisioned but unused)
+  CostMetrics idle = 6;
+}
+
+// DetailedNetworkCost breaks down network costs by traffic type
+// Maps to OpenCost's granular network cost tracking
+message DetailedNetworkCost {
+  // Cross-zone network transfer costs
+  CostMetrics cross_zone = 1;
+
+  // Cross-region network transfer costs
+  CostMetrics cross_region = 2;
+
+  // Internet egress costs
+  CostMetrics internet = 3;
+
+  // Network transfer bytes sent
+  float transfer_bytes = 4;
+
+  // Network bytes received
+  float receive_bytes = 5;
+}
+
+// GPUCostDetail represents GPU-specific cost information
+// Maps to OpenCost's detailed GPU allocation tracking
+message GPUCostDetail {
+  // Base GPU cost
+  ResourceCost resource = 1;
+
+  // GPU device information for attribution
+  string device_id = 2;
+  string device_model = 3;
+  int32 device_number = 4;
+
+  // GPU sharing information (if applicable)
+  bool is_shared = 5;
+  float share_percentage = 6;
+}
+
+// StorageCostDetail represents persistent volume cost information
+message StorageCostDetail {
+  // Volume identifier
+  string volume_id = 1;
+
+  // Storage class
+  string storage_class = 2;
+
+  // Provider resource ID (for cloud storage)
+  string provider_resource_id = 3;
+
+  // Storage cost
+  CostMetrics cost = 4;
+
+  // Storage usage in byte-hours
+  float byte_hours = 5;
+}
+
+// LoadBalancerCostDetail represents load balancer cost information
+message LoadBalancerCostDetail {
+  // Load balancer identifier
+  string load_balancer_id = 1;
+
+  // Associated service name
+  string service_name = 2;
+
+  // Load balancer IP address
+  string ip_address = 3;
+
+  // Whether this is a private load balancer
+  bool is_private = 4;
+
+  // Load balancer cost
+  CostMetrics cost = 5;
+
+  // Hours the load balancer was active
+  float hours = 6;
+}
+
+// AllocationCost represents complete cost breakdown for a resource allocation
+// This is the main cost container that gets embedded in resource messages
+message AllocationCost {
+  // Window for this cost calculation (inherits from cluster window if not specified)
+  TimeWindow window = 1;
+
+  // Resource-specific costs
+  ResourceCost cpu = 2;
+  ResourceCost ram = 3;
+
+  // GPU costs (can have multiple GPUs)
+  repeated GPUCostDetail gpu = 4;
+
+  // Storage costs (persistent volumes)
+  repeated StorageCostDetail storage = 5;
+
+  // Network costs with detailed breakdown
+  DetailedNetworkCost network = 6;
+
+  // Load balancer costs
+  repeated LoadBalancerCostDetail load_balancers = 7;
+
+  // Shared costs allocated to this resource
+  CostMetrics shared = 8;
+
+  // External cloud costs allocated to this resource
+  CostMetrics external = 9;
+
+  // Pre-computed total cost for performance (sum of all above)
+  CostMetrics total = 10;
+}
+
+// CostAttribution represents hierarchical cost attribution information
+// Maps to OpenCost's AllocationProperties for cost attribution
+message CostAttribution {
+  // Cluster-level attribution
+  string cluster = 1;
+  string provider_id = 2;
+
+  // Node-level attribution
+  string node = 3;
+
+  // Namespace-level attribution
+  string namespace = 4;
+  map<string, string> namespace_labels = 5;
+  map<string, string> namespace_annotations = 6;
+
+  // Workload-level attribution
+  string controller = 7;
+  string controller_kind = 8; // deployment, statefulset, daemonset, job
+
+  // Pod-level attribution
+  string pod = 9;
+
+  // Container-level attribution
+  string container = 10;
+
+  // Service-level attribution
+  repeated string services = 11;
+
+  // Custom attribution
+  map<string, string> labels = 12;
+  map<string, string> annotations = 13;
+}
+
+// SharedCostAllocation represents shared/overhead costs
+// For costs that need to be distributed across multiple resources
+message SharedCostAllocation {
+  // Identifier for the shared cost pool
+  string cost_pool_id = 1;
+
+  // Name/description of the shared cost
+  string name = 2;
+
+  // Total shared cost metrics
+  CostMetrics total_cost = 3;
+
+  // Sharing algorithm used (weighted, even, proportional)
+  string sharing_method = 4;
+
+  // Window for this shared cost
+  TimeWindow window = 5;
+
+  // Cost attribution for this shared cost
+  CostAttribution attribution = 6;
+}
+
+// ExternalCostAllocation represents external cloud service costs
+// For costs from cloud billing APIs not directly tied to K8s resources
+message ExternalCostAllocation {
+  // Provider and service information
+  Provider provider = 1;
+  string service_name = 2;
+  string service_category = 3;
+
+  // External cost metrics
+  CostMetrics cost = 4;
+
+  // Window for this external cost
+  TimeWindow window = 5;
+
+  // Attribution information (may be partial)
+  CostAttribution attribution = 6;
+
+  // Provider-specific metadata
+  map<string, string> provider_metadata = 7;
+}
