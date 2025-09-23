@@ -23,5 +23,5 @@ message Namespace {
   AllocationCost cost = 6;
 
   // Cost attribution for this namespace
-  CostAttribution cost_attribution = 7;
+  CostAttribution costAttribution = 7;
 }

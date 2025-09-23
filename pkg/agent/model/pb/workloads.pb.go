@@ -35,7 +35,7 @@ type Namespace struct {
 	// Namespace-level aggregated cost data (optional - only populated for cost-enabled exports)
 	Cost *AllocationCost `protobuf:"bytes,6,opt,name=cost,proto3" json:"cost,omitempty"`
 	// Cost attribution for this namespace
-	CostAttribution *CostAttribution `protobuf:"bytes,7,opt,name=cost_attribution,json=costAttribution,proto3" json:"cost_attribution,omitempty"`
+	CostAttribution *CostAttribution `protobuf:"bytes,7,opt,name=costAttribution,proto3" json:"costAttribution,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -123,15 +123,15 @@ var File_workloads_proto protoreflect.FileDescriptor
 
 const file_workloads_proto_rawDesc = "" +
 	"\n" +
-	"\x0fworkloads.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\xc8\x03\n" +
+	"\x0fworkloads.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\xc7\x03\n" +
 	"\tNamespace\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x12\n" +
 	"\x04Name\x18\x02 \x01(\tR\x04Name\x124\n" +
 	"\x06Labels\x18\x03 \x03(\v2\x1c.agent.Namespace.LabelsEntryR\x06Labels\x12C\n" +
 	"\vAnnotations\x18\x04 \x03(\v2!.agent.Namespace.AnnotationsEntryR\vAnnotations\x123\n" +
 	"\blifetime\x18\x05 \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12)\n" +
-	"\x04cost\x18\x06 \x01(\v2\x15.agent.AllocationCostR\x04cost\x12A\n" +
-	"\x10cost_attribution\x18\a \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
+	"\x04cost\x18\x06 \x01(\v2\x15.agent.AllocationCostR\x04cost\x12@\n" +
+	"\x0fcostAttribution\x18\a \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
@@ -165,7 +165,7 @@ var file_workloads_proto_depIdxs = []int32{
 	2, // 1: agent.Namespace.Annotations:type_name -> agent.Namespace.AnnotationsEntry
 	3, // 2: agent.Namespace.lifetime:type_name -> agent.ResourceLifetime
 	4, // 3: agent.Namespace.cost:type_name -> agent.AllocationCost
-	5, // 4: agent.Namespace.cost_attribution:type_name -> agent.CostAttribution
+	5, // 4: agent.Namespace.costAttribution:type_name -> agent.CostAttribution
 	5, // [5:5] is the sub-list for method output_type
 	5, // [5:5] is the sub-list for method input_type
 	5, // [5:5] is the sub-list for extension type_name

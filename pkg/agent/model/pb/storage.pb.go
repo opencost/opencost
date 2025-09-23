@@ -36,7 +36,7 @@ type Volume struct {
 	// Storage cost data (optional - only populated for cost-enabled exports)
 	Cost *AllocationCost `protobuf:"bytes,7,opt,name=cost,proto3" json:"cost,omitempty"`
 	// Cost attribution for this volume
-	CostAttribution *CostAttribution `protobuf:"bytes,8,opt,name=cost_attribution,json=costAttribution,proto3" json:"cost_attribution,omitempty"`
+	CostAttribution *CostAttribution `protobuf:"bytes,8,opt,name=costAttribution,proto3" json:"costAttribution,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -145,7 +145,7 @@ type PersistentVolumeClaim struct {
 	// Storage allocation cost data (optional - only populated for cost-enabled exports)
 	Cost *AllocationCost `protobuf:"bytes,10,opt,name=cost,proto3" json:"cost,omitempty"`
 	// Cost attribution for this PVC
-	CostAttribution *CostAttribution `protobuf:"bytes,11,opt,name=cost_attribution,json=costAttribution,proto3" json:"cost_attribution,omitempty"`
+	CostAttribution *CostAttribution `protobuf:"bytes,11,opt,name=costAttribution,proto3" json:"costAttribution,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -261,7 +261,7 @@ var File_storage_proto protoreflect.FileDescriptor
 
 const file_storage_proto_rawDesc = "" +
 	"\n" +
-	"\rstorage.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\xe3\x03\n" +
+	"\rstorage.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\xe2\x03\n" +
 	"\x06Volume\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x12\n" +
 	"\x04Name\x18\x02 \x01(\tR\x04Name\x12\"\n" +
@@ -269,14 +269,14 @@ const file_storage_proto_rawDesc = "" +
 	"\x06Labels\x18\x04 \x03(\v2\x19.agent.Volume.LabelsEntryR\x06Labels\x12@\n" +
 	"\vAnnotations\x18\x05 \x03(\v2\x1e.agent.Volume.AnnotationsEntryR\vAnnotations\x123\n" +
 	"\blifetime\x18\x06 \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12)\n" +
-	"\x04cost\x18\a \x01(\v2\x15.agent.AllocationCostR\x04cost\x12A\n" +
-	"\x10cost_attribution\x18\b \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
+	"\x04cost\x18\a \x01(\v2\x15.agent.AllocationCostR\x04cost\x12@\n" +
+	"\x0fcostAttribution\x18\b \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe4\x04\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe3\x04\n" +
 	"\x15PersistentVolumeClaim\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x1a\n" +
 	"\bVolumeID\x18\x02 \x01(\tR\bVolumeID\x12\x14\n" +
@@ -288,8 +288,8 @@ const file_storage_proto_rawDesc = "" +
 	"\vAnnotations\x18\b \x03(\v2-.agent.PersistentVolumeClaim.AnnotationsEntryR\vAnnotations\x123\n" +
 	"\blifetime\x18\t \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12)\n" +
 	"\x04cost\x18\n" +
-	" \x01(\v2\x15.agent.AllocationCostR\x04cost\x12A\n" +
-	"\x10cost_attribution\x18\v \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
+	" \x01(\v2\x15.agent.AllocationCostR\x04cost\x12@\n" +
+	"\x0fcostAttribution\x18\v \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
@@ -326,12 +326,12 @@ var file_storage_proto_depIdxs = []int32{
 	3,  // 1: agent.Volume.Annotations:type_name -> agent.Volume.AnnotationsEntry
 	6,  // 2: agent.Volume.lifetime:type_name -> agent.ResourceLifetime
 	7,  // 3: agent.Volume.cost:type_name -> agent.AllocationCost
-	8,  // 4: agent.Volume.cost_attribution:type_name -> agent.CostAttribution
+	8,  // 4: agent.Volume.costAttribution:type_name -> agent.CostAttribution
 	4,  // 5: agent.PersistentVolumeClaim.Labels:type_name -> agent.PersistentVolumeClaim.LabelsEntry
 	5,  // 6: agent.PersistentVolumeClaim.Annotations:type_name -> agent.PersistentVolumeClaim.AnnotationsEntry
 	6,  // 7: agent.PersistentVolumeClaim.lifetime:type_name -> agent.ResourceLifetime
 	7,  // 8: agent.PersistentVolumeClaim.cost:type_name -> agent.AllocationCost
-	8,  // 9: agent.PersistentVolumeClaim.cost_attribution:type_name -> agent.CostAttribution
+	8,  // 9: agent.PersistentVolumeClaim.costAttribution:type_name -> agent.CostAttribution
 	10, // [10:10] is the sub-list for method output_type
 	10, // [10:10] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name

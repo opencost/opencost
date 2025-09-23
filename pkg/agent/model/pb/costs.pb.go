@@ -26,17 +26,17 @@ const (
 type CostMetrics struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// List cost (raw cost without discounts)
-	ListCost float32 `protobuf:"fixed32,1,opt,name=list_cost,json=listCost,proto3" json:"list_cost,omitempty"`
+	ListCost float32 `protobuf:"fixed32,1,opt,name=listCost,proto3" json:"listCost,omitempty"`
 	// Net cost (list cost minus discounts)
-	NetCost float32 `protobuf:"fixed32,2,opt,name=net_cost,json=netCost,proto3" json:"net_cost,omitempty"`
+	NetCost float32 `protobuf:"fixed32,2,opt,name=netCost,proto3" json:"netCost,omitempty"`
 	// Amortized net cost (includes reserved instance amortization)
-	AmortizedNetCost float32 `protobuf:"fixed32,3,opt,name=amortized_net_cost,json=amortizedNetCost,proto3" json:"amortized_net_cost,omitempty"`
+	AmortizedNetCost float32 `protobuf:"fixed32,3,opt,name=amortizedNetCost,proto3" json:"amortizedNetCost,omitempty"`
 	// Invoiced cost (actual billed amount)
-	InvoicedCost float32 `protobuf:"fixed32,4,opt,name=invoiced_cost,json=invoicedCost,proto3" json:"invoiced_cost,omitempty"`
+	InvoicedCost float32 `protobuf:"fixed32,4,opt,name=invoicedCost,proto3" json:"invoicedCost,omitempty"`
 	// Amortized cost (list cost with RI amortization)
-	AmortizedCost float32 `protobuf:"fixed32,5,opt,name=amortized_cost,json=amortizedCost,proto3" json:"amortized_cost,omitempty"`
+	AmortizedCost float32 `protobuf:"fixed32,5,opt,name=amortizedCost,proto3" json:"amortizedCost,omitempty"`
 	// Percentage of cost attributed to Kubernetes workloads
-	KubernetesPercent float32 `protobuf:"fixed32,6,opt,name=kubernetes_percent,json=kubernetesPercent,proto3" json:"kubernetes_percent,omitempty"`
+	KubernetesPercent float32 `protobuf:"fixed32,6,opt,name=kubernetesPercent,proto3" json:"kubernetesPercent,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -122,11 +122,11 @@ type ResourceCost struct {
 	// Cost adjustments (reconciliation, manual adjustments)
 	Adjustment *CostMetrics `protobuf:"bytes,2,opt,name=adjustment,proto3" json:"adjustment,omitempty"`
 	// Resource usage hours (e.g., CPUCoreHours, RAMByteHours)
-	UsageHours float32 `protobuf:"fixed32,3,opt,name=usage_hours,json=usageHours,proto3" json:"usage_hours,omitempty"`
+	UsageHours float32 `protobuf:"fixed32,3,opt,name=usageHours,proto3" json:"usageHours,omitempty"`
 	// Requested resource average (for over/under-provisioning analysis)
-	RequestAverage float32 `protobuf:"fixed32,4,opt,name=request_average,json=requestAverage,proto3" json:"request_average,omitempty"`
+	RequestAverage float32 `protobuf:"fixed32,4,opt,name=requestAverage,proto3" json:"requestAverage,omitempty"`
 	// Actual usage average (for utilization analysis)
-	UsageAverage float32 `protobuf:"fixed32,5,opt,name=usage_average,json=usageAverage,proto3" json:"usage_average,omitempty"`
+	UsageAverage float32 `protobuf:"fixed32,5,opt,name=usageAverage,proto3" json:"usageAverage,omitempty"`
 	// Idle cost portion (when resource is provisioned but unused)
 	Idle          *CostMetrics `protobuf:"bytes,6,opt,name=idle,proto3" json:"idle,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -210,15 +210,15 @@ func (x *ResourceCost) GetIdle() *CostMetrics {
 type DetailedNetworkCost struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Cross-zone network transfer costs
-	CrossZone *CostMetrics `protobuf:"bytes,1,opt,name=cross_zone,json=crossZone,proto3" json:"cross_zone,omitempty"`
+	CrossZone *CostMetrics `protobuf:"bytes,1,opt,name=crossZone,proto3" json:"crossZone,omitempty"`
 	// Cross-region network transfer costs
-	CrossRegion *CostMetrics `protobuf:"bytes,2,opt,name=cross_region,json=crossRegion,proto3" json:"cross_region,omitempty"`
+	CrossRegion *CostMetrics `protobuf:"bytes,2,opt,name=crossRegion,proto3" json:"crossRegion,omitempty"`
 	// Internet egress costs
 	Internet *CostMetrics `protobuf:"bytes,3,opt,name=internet,proto3" json:"internet,omitempty"`
 	// Network transfer bytes sent
-	TransferBytes float32 `protobuf:"fixed32,4,opt,name=transfer_bytes,json=transferBytes,proto3" json:"transfer_bytes,omitempty"`
+	TransferBytes float32 `protobuf:"fixed32,4,opt,name=transferBytes,proto3" json:"transferBytes,omitempty"`
 	// Network bytes received
-	ReceiveBytes  float32 `protobuf:"fixed32,5,opt,name=receive_bytes,json=receiveBytes,proto3" json:"receive_bytes,omitempty"`
+	ReceiveBytes  float32 `protobuf:"fixed32,5,opt,name=receiveBytes,proto3" json:"receiveBytes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -294,15 +294,18 @@ type GPUCostDetail struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Base GPU cost
 	Resource *ResourceCost `protobuf:"bytes,1,opt,name=resource,proto3" json:"resource,omitempty"`
-	// GPU device information for attribution
-	DeviceId     string `protobuf:"bytes,2,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
-	DeviceModel  string `protobuf:"bytes,3,opt,name=device_model,json=deviceModel,proto3" json:"device_model,omitempty"`
-	DeviceNumber int32  `protobuf:"varint,4,opt,name=device_number,json=deviceNumber,proto3" json:"device_number,omitempty"`
+	// GPU device information for attribution (matches GPUDevice fields)
+	ID           string `protobuf:"bytes,2,opt,name=ID,proto3" json:"ID,omitempty"`                      // References GPUDevice.ID
+	ModelName    string `protobuf:"bytes,3,opt,name=ModelName,proto3" json:"ModelName,omitempty"`        // References GPUDevice.ModelName
+	DeviceNumber int32  `protobuf:"varint,4,opt,name=DeviceNumber,proto3" json:"DeviceNumber,omitempty"` // References GPUDevice.DeviceNumber
 	// GPU sharing information (if applicable)
-	IsShared        bool    `protobuf:"varint,5,opt,name=is_shared,json=isShared,proto3" json:"is_shared,omitempty"`
-	SharePercentage float32 `protobuf:"fixed32,6,opt,name=share_percentage,json=sharePercentage,proto3" json:"share_percentage,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	IsShared        bool    `protobuf:"varint,5,opt,name=isShared,proto3" json:"isShared,omitempty"`
+	SharePercentage float32 `protobuf:"fixed32,6,opt,name=sharePercentage,proto3" json:"sharePercentage,omitempty"`
+	// Usage metrics for cost correlation (from DCGM)
+	UsageAvg      float32 `protobuf:"fixed32,7,opt,name=usageAvg,proto3" json:"usageAvg,omitempty"`
+	UsageMax      float32 `protobuf:"fixed32,8,opt,name=usageMax,proto3" json:"usageMax,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GPUCostDetail) Reset() {
@@ -342,16 +345,16 @@ func (x *GPUCostDetail) GetResource() *ResourceCost {
 	return nil
 }
 
-func (x *GPUCostDetail) GetDeviceId() string {
+func (x *GPUCostDetail) GetID() string {
 	if x != nil {
-		return x.DeviceId
+		return x.ID
 	}
 	return ""
 }
 
-func (x *GPUCostDetail) GetDeviceModel() string {
+func (x *GPUCostDetail) GetModelName() string {
 	if x != nil {
-		return x.DeviceModel
+		return x.ModelName
 	}
 	return ""
 }
@@ -377,19 +380,33 @@ func (x *GPUCostDetail) GetSharePercentage() float32 {
 	return 0
 }
 
+func (x *GPUCostDetail) GetUsageAvg() float32 {
+	if x != nil {
+		return x.UsageAvg
+	}
+	return 0
+}
+
+func (x *GPUCostDetail) GetUsageMax() float32 {
+	if x != nil {
+		return x.UsageMax
+	}
+	return 0
+}
+
 // StorageCostDetail represents persistent volume cost information
 type StorageCostDetail struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Volume identifier
-	VolumeId string `protobuf:"bytes,1,opt,name=volume_id,json=volumeId,proto3" json:"volume_id,omitempty"`
+	VolumeId string `protobuf:"bytes,1,opt,name=volumeId,proto3" json:"volumeId,omitempty"`
 	// Storage class
-	StorageClass string `protobuf:"bytes,2,opt,name=storage_class,json=storageClass,proto3" json:"storage_class,omitempty"`
+	StorageClass string `protobuf:"bytes,2,opt,name=storageClass,proto3" json:"storageClass,omitempty"`
 	// Provider resource ID (for cloud storage)
-	ProviderResourceId string `protobuf:"bytes,3,opt,name=provider_resource_id,json=providerResourceId,proto3" json:"provider_resource_id,omitempty"`
+	ProviderResourceId string `protobuf:"bytes,3,opt,name=providerResourceId,proto3" json:"providerResourceId,omitempty"`
 	// Storage cost
 	Cost *CostMetrics `protobuf:"bytes,4,opt,name=cost,proto3" json:"cost,omitempty"`
 	// Storage usage in byte-hours
-	ByteHours     float32 `protobuf:"fixed32,5,opt,name=byte_hours,json=byteHours,proto3" json:"byte_hours,omitempty"`
+	ByteHours     float32 `protobuf:"fixed32,5,opt,name=byteHours,proto3" json:"byteHours,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -463,13 +480,13 @@ func (x *StorageCostDetail) GetByteHours() float32 {
 type LoadBalancerCostDetail struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Load balancer identifier
-	LoadBalancerId string `protobuf:"bytes,1,opt,name=load_balancer_id,json=loadBalancerId,proto3" json:"load_balancer_id,omitempty"`
+	LoadBalancerId string `protobuf:"bytes,1,opt,name=loadBalancerId,proto3" json:"loadBalancerId,omitempty"`
 	// Associated service name
-	ServiceName string `protobuf:"bytes,2,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
+	ServiceName string `protobuf:"bytes,2,opt,name=serviceName,proto3" json:"serviceName,omitempty"`
 	// Load balancer IP address
-	IpAddress string `protobuf:"bytes,3,opt,name=ip_address,json=ipAddress,proto3" json:"ip_address,omitempty"`
+	IpAddress string `protobuf:"bytes,3,opt,name=ipAddress,proto3" json:"ipAddress,omitempty"`
 	// Whether this is a private load balancer
-	IsPrivate bool `protobuf:"varint,4,opt,name=is_private,json=isPrivate,proto3" json:"is_private,omitempty"`
+	IsPrivate bool `protobuf:"varint,4,opt,name=isPrivate,proto3" json:"isPrivate,omitempty"`
 	// Load balancer cost
 	Cost *CostMetrics `protobuf:"bytes,5,opt,name=cost,proto3" json:"cost,omitempty"`
 	// Hours the load balancer was active
@@ -566,7 +583,7 @@ type AllocationCost struct {
 	// Network costs with detailed breakdown
 	Network *DetailedNetworkCost `protobuf:"bytes,6,opt,name=network,proto3" json:"network,omitempty"`
 	// Load balancer costs
-	LoadBalancers []*LoadBalancerCostDetail `protobuf:"bytes,7,rep,name=load_balancers,json=loadBalancers,proto3" json:"load_balancers,omitempty"`
+	LoadBalancers []*LoadBalancerCostDetail `protobuf:"bytes,7,rep,name=loadBalancers,proto3" json:"loadBalancers,omitempty"`
 	// Shared costs allocated to this resource
 	Shared *CostMetrics `protobuf:"bytes,8,opt,name=shared,proto3" json:"shared,omitempty"`
 	// External cloud costs allocated to this resource
@@ -683,16 +700,16 @@ type CostAttribution struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Cluster-level attribution
 	Cluster    string `protobuf:"bytes,1,opt,name=cluster,proto3" json:"cluster,omitempty"`
-	ProviderId string `protobuf:"bytes,2,opt,name=provider_id,json=providerId,proto3" json:"provider_id,omitempty"`
+	ProviderId string `protobuf:"bytes,2,opt,name=providerId,proto3" json:"providerId,omitempty"`
 	// Node-level attribution
 	Node string `protobuf:"bytes,3,opt,name=node,proto3" json:"node,omitempty"`
 	// Namespace-level attribution
 	Namespace            string            `protobuf:"bytes,4,opt,name=namespace,proto3" json:"namespace,omitempty"`
-	NamespaceLabels      map[string]string `protobuf:"bytes,5,rep,name=namespace_labels,json=namespaceLabels,proto3" json:"namespace_labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	NamespaceAnnotations map[string]string `protobuf:"bytes,6,rep,name=namespace_annotations,json=namespaceAnnotations,proto3" json:"namespace_annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	NamespaceLabels      map[string]string `protobuf:"bytes,5,rep,name=namespaceLabels,proto3" json:"namespaceLabels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	NamespaceAnnotations map[string]string `protobuf:"bytes,6,rep,name=namespaceAnnotations,proto3" json:"namespaceAnnotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Workload-level attribution
 	Controller     string `protobuf:"bytes,7,opt,name=controller,proto3" json:"controller,omitempty"`
-	ControllerKind string `protobuf:"bytes,8,opt,name=controller_kind,json=controllerKind,proto3" json:"controller_kind,omitempty"` // deployment, statefulset, daemonset, job
+	ControllerKind string `protobuf:"bytes,8,opt,name=controllerKind,proto3" json:"controllerKind,omitempty"` // deployment, statefulset, daemonset, job
 	// Pod-level attribution
 	Pod string `protobuf:"bytes,9,opt,name=pod,proto3" json:"pod,omitempty"`
 	// Container-level attribution
@@ -832,13 +849,13 @@ func (x *CostAttribution) GetAnnotations() map[string]string {
 type SharedCostAllocation struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Identifier for the shared cost pool
-	CostPoolId string `protobuf:"bytes,1,opt,name=cost_pool_id,json=costPoolId,proto3" json:"cost_pool_id,omitempty"`
+	CostPoolId string `protobuf:"bytes,1,opt,name=costPoolId,proto3" json:"costPoolId,omitempty"`
 	// Name/description of the shared cost
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// Total shared cost metrics
-	TotalCost *CostMetrics `protobuf:"bytes,3,opt,name=total_cost,json=totalCost,proto3" json:"total_cost,omitempty"`
+	TotalCost *CostMetrics `protobuf:"bytes,3,opt,name=totalCost,proto3" json:"totalCost,omitempty"`
 	// Sharing algorithm used (weighted, even, proportional)
-	SharingMethod string `protobuf:"bytes,4,opt,name=sharing_method,json=sharingMethod,proto3" json:"sharing_method,omitempty"`
+	SharingMethod string `protobuf:"bytes,4,opt,name=sharingMethod,proto3" json:"sharingMethod,omitempty"`
 	// Window for this shared cost
 	Window *TimeWindow `protobuf:"bytes,5,opt,name=window,proto3" json:"window,omitempty"`
 	// Cost attribution for this shared cost
@@ -925,8 +942,8 @@ type ExternalCostAllocation struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Provider and service information
 	Provider        Provider `protobuf:"varint,1,opt,name=provider,proto3,enum=agent.Provider" json:"provider,omitempty"`
-	ServiceName     string   `protobuf:"bytes,2,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
-	ServiceCategory string   `protobuf:"bytes,3,opt,name=service_category,json=serviceCategory,proto3" json:"service_category,omitempty"`
+	ServiceName     string   `protobuf:"bytes,2,opt,name=serviceName,proto3" json:"serviceName,omitempty"`
+	ServiceCategory string   `protobuf:"bytes,3,opt,name=serviceCategory,proto3" json:"serviceCategory,omitempty"`
 	// External cost metrics
 	Cost *CostMetrics `protobuf:"bytes,4,opt,name=cost,proto3" json:"cost,omitempty"`
 	// Window for this external cost
@@ -934,7 +951,7 @@ type ExternalCostAllocation struct {
 	// Attribution information (may be partial)
 	Attribution *CostAttribution `protobuf:"bytes,6,opt,name=attribution,proto3" json:"attribution,omitempty"`
 	// Provider-specific metadata
-	ProviderMetadata map[string]string `protobuf:"bytes,7,rep,name=provider_metadata,json=providerMetadata,proto3" json:"provider_metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ProviderMetadata map[string]string `protobuf:"bytes,7,rep,name=providerMetadata,proto3" json:"providerMetadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -1022,78 +1039,78 @@ var File_costs_proto protoreflect.FileDescriptor
 
 const file_costs_proto_rawDesc = "" +
 	"\n" +
-	"\vcosts.proto\x12\x05agent\x1a\fcommon.proto\"\xee\x01\n" +
-	"\vCostMetrics\x12\x1b\n" +
-	"\tlist_cost\x18\x01 \x01(\x02R\blistCost\x12\x19\n" +
-	"\bnet_cost\x18\x02 \x01(\x02R\anetCost\x12,\n" +
-	"\x12amortized_net_cost\x18\x03 \x01(\x02R\x10amortizedNetCost\x12#\n" +
-	"\rinvoiced_cost\x18\x04 \x01(\x02R\finvoicedCost\x12%\n" +
-	"\x0eamortized_cost\x18\x05 \x01(\x02R\ramortizedCost\x12-\n" +
-	"\x12kubernetes_percent\x18\x06 \x01(\x02R\x11kubernetesPercent\"\x81\x02\n" +
+	"\vcosts.proto\x12\x05agent\x1a\fcommon.proto\"\xe7\x01\n" +
+	"\vCostMetrics\x12\x1a\n" +
+	"\blistCost\x18\x01 \x01(\x02R\blistCost\x12\x18\n" +
+	"\anetCost\x18\x02 \x01(\x02R\anetCost\x12*\n" +
+	"\x10amortizedNetCost\x18\x03 \x01(\x02R\x10amortizedNetCost\x12\"\n" +
+	"\finvoicedCost\x18\x04 \x01(\x02R\finvoicedCost\x12$\n" +
+	"\ramortizedCost\x18\x05 \x01(\x02R\ramortizedCost\x12,\n" +
+	"\x11kubernetesPercent\x18\x06 \x01(\x02R\x11kubernetesPercent\"\xfe\x01\n" +
 	"\fResourceCost\x12&\n" +
 	"\x04base\x18\x01 \x01(\v2\x12.agent.CostMetricsR\x04base\x122\n" +
 	"\n" +
 	"adjustment\x18\x02 \x01(\v2\x12.agent.CostMetricsR\n" +
-	"adjustment\x12\x1f\n" +
-	"\vusage_hours\x18\x03 \x01(\x02R\n" +
-	"usageHours\x12'\n" +
-	"\x0frequest_average\x18\x04 \x01(\x02R\x0erequestAverage\x12#\n" +
-	"\rusage_average\x18\x05 \x01(\x02R\fusageAverage\x12&\n" +
-	"\x04idle\x18\x06 \x01(\v2\x12.agent.CostMetricsR\x04idle\"\xfb\x01\n" +
-	"\x13DetailedNetworkCost\x121\n" +
+	"adjustment\x12\x1e\n" +
 	"\n" +
-	"cross_zone\x18\x01 \x01(\v2\x12.agent.CostMetricsR\tcrossZone\x125\n" +
-	"\fcross_region\x18\x02 \x01(\v2\x12.agent.CostMetricsR\vcrossRegion\x12.\n" +
-	"\binternet\x18\x03 \x01(\v2\x12.agent.CostMetricsR\binternet\x12%\n" +
-	"\x0etransfer_bytes\x18\x04 \x01(\x02R\rtransferBytes\x12#\n" +
-	"\rreceive_bytes\x18\x05 \x01(\x02R\freceiveBytes\"\xed\x01\n" +
+	"usageHours\x18\x03 \x01(\x02R\n" +
+	"usageHours\x12&\n" +
+	"\x0erequestAverage\x18\x04 \x01(\x02R\x0erequestAverage\x12\"\n" +
+	"\fusageAverage\x18\x05 \x01(\x02R\fusageAverage\x12&\n" +
+	"\x04idle\x18\x06 \x01(\v2\x12.agent.CostMetricsR\x04idle\"\xf7\x01\n" +
+	"\x13DetailedNetworkCost\x120\n" +
+	"\tcrossZone\x18\x01 \x01(\v2\x12.agent.CostMetricsR\tcrossZone\x124\n" +
+	"\vcrossRegion\x18\x02 \x01(\v2\x12.agent.CostMetricsR\vcrossRegion\x12.\n" +
+	"\binternet\x18\x03 \x01(\v2\x12.agent.CostMetricsR\binternet\x12$\n" +
+	"\rtransferBytes\x18\x04 \x01(\x02R\rtransferBytes\x12\"\n" +
+	"\freceiveBytes\x18\x05 \x01(\x02R\freceiveBytes\"\x90\x02\n" +
 	"\rGPUCostDetail\x12/\n" +
-	"\bresource\x18\x01 \x01(\v2\x13.agent.ResourceCostR\bresource\x12\x1b\n" +
-	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12!\n" +
-	"\fdevice_model\x18\x03 \x01(\tR\vdeviceModel\x12#\n" +
-	"\rdevice_number\x18\x04 \x01(\x05R\fdeviceNumber\x12\x1b\n" +
-	"\tis_shared\x18\x05 \x01(\bR\bisShared\x12)\n" +
-	"\x10share_percentage\x18\x06 \x01(\x02R\x0fsharePercentage\"\xce\x01\n" +
-	"\x11StorageCostDetail\x12\x1b\n" +
-	"\tvolume_id\x18\x01 \x01(\tR\bvolumeId\x12#\n" +
-	"\rstorage_class\x18\x02 \x01(\tR\fstorageClass\x120\n" +
-	"\x14provider_resource_id\x18\x03 \x01(\tR\x12providerResourceId\x12&\n" +
-	"\x04cost\x18\x04 \x01(\v2\x12.agent.CostMetricsR\x04cost\x12\x1d\n" +
-	"\n" +
-	"byte_hours\x18\x05 \x01(\x02R\tbyteHours\"\xe1\x01\n" +
-	"\x16LoadBalancerCostDetail\x12(\n" +
-	"\x10load_balancer_id\x18\x01 \x01(\tR\x0eloadBalancerId\x12!\n" +
-	"\fservice_name\x18\x02 \x01(\tR\vserviceName\x12\x1d\n" +
-	"\n" +
-	"ip_address\x18\x03 \x01(\tR\tipAddress\x12\x1d\n" +
-	"\n" +
-	"is_private\x18\x04 \x01(\bR\tisPrivate\x12&\n" +
+	"\bresource\x18\x01 \x01(\v2\x13.agent.ResourceCostR\bresource\x12\x0e\n" +
+	"\x02ID\x18\x02 \x01(\tR\x02ID\x12\x1c\n" +
+	"\tModelName\x18\x03 \x01(\tR\tModelName\x12\"\n" +
+	"\fDeviceNumber\x18\x04 \x01(\x05R\fDeviceNumber\x12\x1a\n" +
+	"\bisShared\x18\x05 \x01(\bR\bisShared\x12(\n" +
+	"\x0fsharePercentage\x18\x06 \x01(\x02R\x0fsharePercentage\x12\x1a\n" +
+	"\busageAvg\x18\a \x01(\x02R\busageAvg\x12\x1a\n" +
+	"\busageMax\x18\b \x01(\x02R\busageMax\"\xc9\x01\n" +
+	"\x11StorageCostDetail\x12\x1a\n" +
+	"\bvolumeId\x18\x01 \x01(\tR\bvolumeId\x12\"\n" +
+	"\fstorageClass\x18\x02 \x01(\tR\fstorageClass\x12.\n" +
+	"\x12providerResourceId\x18\x03 \x01(\tR\x12providerResourceId\x12&\n" +
+	"\x04cost\x18\x04 \x01(\v2\x12.agent.CostMetricsR\x04cost\x12\x1c\n" +
+	"\tbyteHours\x18\x05 \x01(\x02R\tbyteHours\"\xdc\x01\n" +
+	"\x16LoadBalancerCostDetail\x12&\n" +
+	"\x0eloadBalancerId\x18\x01 \x01(\tR\x0eloadBalancerId\x12 \n" +
+	"\vserviceName\x18\x02 \x01(\tR\vserviceName\x12\x1c\n" +
+	"\tipAddress\x18\x03 \x01(\tR\tipAddress\x12\x1c\n" +
+	"\tisPrivate\x18\x04 \x01(\bR\tisPrivate\x12&\n" +
 	"\x04cost\x18\x05 \x01(\v2\x12.agent.CostMetricsR\x04cost\x12\x14\n" +
-	"\x05hours\x18\x06 \x01(\x02R\x05hours\"\xe7\x03\n" +
+	"\x05hours\x18\x06 \x01(\x02R\x05hours\"\xe6\x03\n" +
 	"\x0eAllocationCost\x12)\n" +
 	"\x06window\x18\x01 \x01(\v2\x11.agent.TimeWindowR\x06window\x12%\n" +
 	"\x03cpu\x18\x02 \x01(\v2\x13.agent.ResourceCostR\x03cpu\x12%\n" +
 	"\x03ram\x18\x03 \x01(\v2\x13.agent.ResourceCostR\x03ram\x12&\n" +
 	"\x03gpu\x18\x04 \x03(\v2\x14.agent.GPUCostDetailR\x03gpu\x122\n" +
 	"\astorage\x18\x05 \x03(\v2\x18.agent.StorageCostDetailR\astorage\x124\n" +
-	"\anetwork\x18\x06 \x01(\v2\x1a.agent.DetailedNetworkCostR\anetwork\x12D\n" +
-	"\x0eload_balancers\x18\a \x03(\v2\x1d.agent.LoadBalancerCostDetailR\rloadBalancers\x12*\n" +
+	"\anetwork\x18\x06 \x01(\v2\x1a.agent.DetailedNetworkCostR\anetwork\x12C\n" +
+	"\rloadBalancers\x18\a \x03(\v2\x1d.agent.LoadBalancerCostDetailR\rloadBalancers\x12*\n" +
 	"\x06shared\x18\b \x01(\v2\x12.agent.CostMetricsR\x06shared\x12.\n" +
 	"\bexternal\x18\t \x01(\v2\x12.agent.CostMetricsR\bexternal\x12(\n" +
 	"\x05total\x18\n" +
-	" \x01(\v2\x12.agent.CostMetricsR\x05total\"\xe1\x06\n" +
+	" \x01(\v2\x12.agent.CostMetricsR\x05total\"\xdd\x06\n" +
 	"\x0fCostAttribution\x12\x18\n" +
-	"\acluster\x18\x01 \x01(\tR\acluster\x12\x1f\n" +
-	"\vprovider_id\x18\x02 \x01(\tR\n" +
+	"\acluster\x18\x01 \x01(\tR\acluster\x12\x1e\n" +
+	"\n" +
+	"providerId\x18\x02 \x01(\tR\n" +
 	"providerId\x12\x12\n" +
 	"\x04node\x18\x03 \x01(\tR\x04node\x12\x1c\n" +
-	"\tnamespace\x18\x04 \x01(\tR\tnamespace\x12V\n" +
-	"\x10namespace_labels\x18\x05 \x03(\v2+.agent.CostAttribution.NamespaceLabelsEntryR\x0fnamespaceLabels\x12e\n" +
-	"\x15namespace_annotations\x18\x06 \x03(\v20.agent.CostAttribution.NamespaceAnnotationsEntryR\x14namespaceAnnotations\x12\x1e\n" +
+	"\tnamespace\x18\x04 \x01(\tR\tnamespace\x12U\n" +
+	"\x0fnamespaceLabels\x18\x05 \x03(\v2+.agent.CostAttribution.NamespaceLabelsEntryR\x0fnamespaceLabels\x12d\n" +
+	"\x14namespaceAnnotations\x18\x06 \x03(\v20.agent.CostAttribution.NamespaceAnnotationsEntryR\x14namespaceAnnotations\x12\x1e\n" +
 	"\n" +
 	"controller\x18\a \x01(\tR\n" +
-	"controller\x12'\n" +
-	"\x0fcontroller_kind\x18\b \x01(\tR\x0econtrollerKind\x12\x10\n" +
+	"controller\x12&\n" +
+	"\x0econtrollerKind\x18\b \x01(\tR\x0econtrollerKind\x12\x10\n" +
 	"\x03pod\x18\t \x01(\tR\x03pod\x12\x1c\n" +
 	"\tcontainer\x18\n" +
 	" \x01(\tR\tcontainer\x12\x1a\n" +
@@ -1111,24 +1128,24 @@ const file_costs_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8b\x02\n" +
-	"\x14SharedCostAllocation\x12 \n" +
-	"\fcost_pool_id\x18\x01 \x01(\tR\n" +
-	"costPoolId\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x121\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x87\x02\n" +
+	"\x14SharedCostAllocation\x12\x1e\n" +
 	"\n" +
-	"total_cost\x18\x03 \x01(\v2\x12.agent.CostMetricsR\ttotalCost\x12%\n" +
-	"\x0esharing_method\x18\x04 \x01(\tR\rsharingMethod\x12)\n" +
+	"costPoolId\x18\x01 \x01(\tR\n" +
+	"costPoolId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x120\n" +
+	"\ttotalCost\x18\x03 \x01(\v2\x12.agent.CostMetricsR\ttotalCost\x12$\n" +
+	"\rsharingMethod\x18\x04 \x01(\tR\rsharingMethod\x12)\n" +
 	"\x06window\x18\x05 \x01(\v2\x11.agent.TimeWindowR\x06window\x128\n" +
-	"\vattribution\x18\x06 \x01(\v2\x16.agent.CostAttributionR\vattribution\"\xc7\x03\n" +
+	"\vattribution\x18\x06 \x01(\v2\x16.agent.CostAttributionR\vattribution\"\xc4\x03\n" +
 	"\x16ExternalCostAllocation\x12+\n" +
-	"\bprovider\x18\x01 \x01(\x0e2\x0f.agent.ProviderR\bprovider\x12!\n" +
-	"\fservice_name\x18\x02 \x01(\tR\vserviceName\x12)\n" +
-	"\x10service_category\x18\x03 \x01(\tR\x0fserviceCategory\x12&\n" +
+	"\bprovider\x18\x01 \x01(\x0e2\x0f.agent.ProviderR\bprovider\x12 \n" +
+	"\vserviceName\x18\x02 \x01(\tR\vserviceName\x12(\n" +
+	"\x0fserviceCategory\x18\x03 \x01(\tR\x0fserviceCategory\x12&\n" +
 	"\x04cost\x18\x04 \x01(\v2\x12.agent.CostMetricsR\x04cost\x12)\n" +
 	"\x06window\x18\x05 \x01(\v2\x11.agent.TimeWindowR\x06window\x128\n" +
-	"\vattribution\x18\x06 \x01(\v2\x16.agent.CostAttributionR\vattribution\x12`\n" +
-	"\x11provider_metadata\x18\a \x03(\v23.agent.ExternalCostAllocation.ProviderMetadataEntryR\x10providerMetadata\x1aC\n" +
+	"\vattribution\x18\x06 \x01(\v2\x16.agent.CostAttributionR\vattribution\x12_\n" +
+	"\x10providerMetadata\x18\a \x03(\v23.agent.ExternalCostAllocation.ProviderMetadataEntryR\x10providerMetadata\x1aC\n" +
 	"\x15ProviderMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
@@ -1169,8 +1186,8 @@ var file_costs_proto_depIdxs = []int32{
 	0,  // 0: agent.ResourceCost.base:type_name -> agent.CostMetrics
 	0,  // 1: agent.ResourceCost.adjustment:type_name -> agent.CostMetrics
 	0,  // 2: agent.ResourceCost.idle:type_name -> agent.CostMetrics
-	0,  // 3: agent.DetailedNetworkCost.cross_zone:type_name -> agent.CostMetrics
-	0,  // 4: agent.DetailedNetworkCost.cross_region:type_name -> agent.CostMetrics
+	0,  // 3: agent.DetailedNetworkCost.crossZone:type_name -> agent.CostMetrics
+	0,  // 4: agent.DetailedNetworkCost.crossRegion:type_name -> agent.CostMetrics
 	0,  // 5: agent.DetailedNetworkCost.internet:type_name -> agent.CostMetrics
 	1,  // 6: agent.GPUCostDetail.resource:type_name -> agent.ResourceCost
 	0,  // 7: agent.StorageCostDetail.cost:type_name -> agent.CostMetrics
@@ -1181,22 +1198,22 @@ var file_costs_proto_depIdxs = []int32{
 	3,  // 12: agent.AllocationCost.gpu:type_name -> agent.GPUCostDetail
 	4,  // 13: agent.AllocationCost.storage:type_name -> agent.StorageCostDetail
 	2,  // 14: agent.AllocationCost.network:type_name -> agent.DetailedNetworkCost
-	5,  // 15: agent.AllocationCost.load_balancers:type_name -> agent.LoadBalancerCostDetail
+	5,  // 15: agent.AllocationCost.loadBalancers:type_name -> agent.LoadBalancerCostDetail
 	0,  // 16: agent.AllocationCost.shared:type_name -> agent.CostMetrics
 	0,  // 17: agent.AllocationCost.external:type_name -> agent.CostMetrics
 	0,  // 18: agent.AllocationCost.total:type_name -> agent.CostMetrics
-	10, // 19: agent.CostAttribution.namespace_labels:type_name -> agent.CostAttribution.NamespaceLabelsEntry
-	11, // 20: agent.CostAttribution.namespace_annotations:type_name -> agent.CostAttribution.NamespaceAnnotationsEntry
+	10, // 19: agent.CostAttribution.namespaceLabels:type_name -> agent.CostAttribution.NamespaceLabelsEntry
+	11, // 20: agent.CostAttribution.namespaceAnnotations:type_name -> agent.CostAttribution.NamespaceAnnotationsEntry
 	12, // 21: agent.CostAttribution.labels:type_name -> agent.CostAttribution.LabelsEntry
 	13, // 22: agent.CostAttribution.annotations:type_name -> agent.CostAttribution.AnnotationsEntry
-	0,  // 23: agent.SharedCostAllocation.total_cost:type_name -> agent.CostMetrics
+	0,  // 23: agent.SharedCostAllocation.totalCost:type_name -> agent.CostMetrics
 	15, // 24: agent.SharedCostAllocation.window:type_name -> agent.TimeWindow
 	7,  // 25: agent.SharedCostAllocation.attribution:type_name -> agent.CostAttribution
 	16, // 26: agent.ExternalCostAllocation.provider:type_name -> agent.Provider
 	0,  // 27: agent.ExternalCostAllocation.cost:type_name -> agent.CostMetrics
 	15, // 28: agent.ExternalCostAllocation.window:type_name -> agent.TimeWindow
 	7,  // 29: agent.ExternalCostAllocation.attribution:type_name -> agent.CostAttribution
-	14, // 30: agent.ExternalCostAllocation.provider_metadata:type_name -> agent.ExternalCostAllocation.ProviderMetadataEntry
+	14, // 30: agent.ExternalCostAllocation.providerMetadata:type_name -> agent.ExternalCostAllocation.ProviderMetadataEntry
 	31, // [31:31] is the sub-list for method output_type
 	31, // [31:31] is the sub-list for method input_type
 	31, // [31:31] is the sub-list for extension type_name

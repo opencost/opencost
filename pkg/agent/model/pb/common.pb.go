@@ -208,9 +208,9 @@ func (x *TimeWindow) GetResolution() string {
 type ResourceLifetime struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// When the resource was created
-	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=createdAt,proto3" json:"createdAt,omitempty"`
 	// When the resource was deleted (optional - empty for running resources)
-	DeletedAt     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=deleted_at,json=deletedAt,proto3" json:"deleted_at,omitempty"`
+	DeletedAt     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=deletedAt,proto3" json:"deletedAt,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -269,11 +269,11 @@ type LabelsSet struct {
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	// type dependent identifier for the grouping of labels most likely the cluster id or the configuration key
 	// used as part of the export path
-	GroupIdentifier string `protobuf:"bytes,2,opt,name=group_identifier,json=groupIdentifier,proto3" json:"group_identifier,omitempty"`
+	GroupIdentifier string `protobuf:"bytes,2,opt,name=groupIdentifier,proto3" json:"groupIdentifier,omitempty"`
 	// Window definition for this label set
 	Window *TimeWindow `protobuf:"bytes,3,opt,name=window,proto3" json:"window,omitempty"`
 	// Mapping of labelSets for individual items by unique identifier
-	LabelSets     map[string]*LabelSet `protobuf:"bytes,4,rep,name=label_sets,json=labelSets,proto3" json:"label_sets,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	LabelSets     map[string]*LabelSet `protobuf:"bytes,4,rep,name=labelSets,proto3" json:"labelSets,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -391,11 +391,11 @@ type AnnotationsSet struct {
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	// type dependent identifier for the grouping of annotations most likely the cluster id or the configuration key
 	// used as part of the export path
-	GroupIdentifier string `protobuf:"bytes,2,opt,name=group_identifier,json=groupIdentifier,proto3" json:"group_identifier,omitempty"`
+	GroupIdentifier string `protobuf:"bytes,2,opt,name=groupIdentifier,proto3" json:"groupIdentifier,omitempty"`
 	// Window definition for this annotation set
 	Window *TimeWindow `protobuf:"bytes,3,opt,name=window,proto3" json:"window,omitempty"`
 	// Mapping of annotationSets for individual items by unique identifier
-	AnnotationSets map[string]*AnnotationSet `protobuf:"bytes,4,rep,name=annotation_sets,json=annotationSets,proto3" json:"annotation_sets,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	AnnotationSets map[string]*AnnotationSet `protobuf:"bytes,4,rep,name=annotationSets,proto3" json:"annotationSets,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -612,7 +612,7 @@ type DiagnosticsRunReport struct {
 	// Application name that the diagnostics run belongs to
 	Application string `protobuf:"bytes,1,opt,name=application,proto3" json:"application,omitempty"`
 	// Time when the full diagnostics run started
-	StartTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
+	StartTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=startTime,proto3" json:"startTime,omitempty"`
 	// All results of the diagnostics run
 	Results       []*DiagnosticResult `protobuf:"bytes,3,rep,name=results,proto3" json:"results,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -680,18 +680,15 @@ const file_common_proto_rawDesc = "" +
 	"\x05start\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x05start\x12\x1e\n" +
 	"\n" +
 	"resolution\x18\x02 \x01(\tR\n" +
-	"resolution\"\x88\x01\n" +
-	"\x10ResourceLifetime\x129\n" +
-	"\n" +
-	"created_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
-	"\n" +
-	"deleted_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tdeletedAt\"\x84\x02\n" +
+	"resolution\"\x86\x01\n" +
+	"\x10ResourceLifetime\x128\n" +
+	"\tcreatedAt\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x128\n" +
+	"\tdeletedAt\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tdeletedAt\"\x82\x02\n" +
 	"\tLabelsSet\x12\x12\n" +
-	"\x04type\x18\x01 \x01(\tR\x04type\x12)\n" +
-	"\x10group_identifier\x18\x02 \x01(\tR\x0fgroupIdentifier\x12)\n" +
-	"\x06window\x18\x03 \x01(\v2\x11.agent.TimeWindowR\x06window\x12>\n" +
-	"\n" +
-	"label_sets\x18\x04 \x03(\v2\x1f.agent.LabelsSet.LabelSetsEntryR\tlabelSets\x1aM\n" +
+	"\x04type\x18\x01 \x01(\tR\x04type\x12(\n" +
+	"\x0fgroupIdentifier\x18\x02 \x01(\tR\x0fgroupIdentifier\x12)\n" +
+	"\x06window\x18\x03 \x01(\v2\x11.agent.TimeWindowR\x06window\x12=\n" +
+	"\tlabelSets\x18\x04 \x03(\v2\x1f.agent.LabelsSet.LabelSetsEntryR\tlabelSets\x1aM\n" +
 	"\x0eLabelSetsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12%\n" +
 	"\x05value\x18\x02 \x01(\v2\x0f.agent.LabelSetR\x05value:\x028\x01\"z\n" +
@@ -699,12 +696,12 @@ const file_common_proto_rawDesc = "" +
 	"\x06labels\x18\x01 \x03(\v2\x1b.agent.LabelSet.LabelsEntryR\x06labels\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa7\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa5\x02\n" +
 	"\x0eAnnotationsSet\x12\x12\n" +
-	"\x04type\x18\x01 \x01(\tR\x04type\x12)\n" +
-	"\x10group_identifier\x18\x02 \x01(\tR\x0fgroupIdentifier\x12)\n" +
-	"\x06window\x18\x03 \x01(\v2\x11.agent.TimeWindowR\x06window\x12R\n" +
-	"\x0fannotation_sets\x18\x04 \x03(\v2).agent.AnnotationsSet.AnnotationSetsEntryR\x0eannotationSets\x1aW\n" +
+	"\x04type\x18\x01 \x01(\tR\x04type\x12(\n" +
+	"\x0fgroupIdentifier\x18\x02 \x01(\tR\x0fgroupIdentifier\x12)\n" +
+	"\x06window\x18\x03 \x01(\v2\x11.agent.TimeWindowR\x06window\x12Q\n" +
+	"\x0eannotationSets\x18\x04 \x03(\v2).agent.AnnotationsSet.AnnotationSetsEntryR\x0eannotationSets\x1aW\n" +
 	"\x13AnnotationSetsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12*\n" +
 	"\x05value\x18\x02 \x01(\v2\x14.agent.AnnotationSetR\x05value:\x028\x01\"\x98\x01\n" +
@@ -723,11 +720,10 @@ const file_common_proto_rawDesc = "" +
 	"\adetails\x18\a \x03(\v2$.agent.DiagnosticResult.DetailsEntryR\adetails\x1a:\n" +
 	"\fDetailsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa6\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa5\x01\n" +
 	"\x14DiagnosticsRunReport\x12 \n" +
-	"\vapplication\x18\x01 \x01(\tR\vapplication\x129\n" +
-	"\n" +
-	"start_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x121\n" +
+	"\vapplication\x18\x01 \x01(\tR\vapplication\x128\n" +
+	"\tstartTime\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x121\n" +
 	"\aresults\x18\x03 \x03(\v2\x17.agent.DiagnosticResultR\aresults*\xbc\x01\n" +
 	"\bProvider\x12\x18\n" +
 	"\x14PROVIDER_UNSPECIFIED\x10\x00\x12\x10\n" +
@@ -780,17 +776,17 @@ var file_common_proto_goTypes = []any{
 }
 var file_common_proto_depIdxs = []int32{
 	15, // 0: agent.TimeWindow.start:type_name -> google.protobuf.Timestamp
-	15, // 1: agent.ResourceLifetime.created_at:type_name -> google.protobuf.Timestamp
-	15, // 2: agent.ResourceLifetime.deleted_at:type_name -> google.protobuf.Timestamp
+	15, // 1: agent.ResourceLifetime.createdAt:type_name -> google.protobuf.Timestamp
+	15, // 2: agent.ResourceLifetime.deletedAt:type_name -> google.protobuf.Timestamp
 	2,  // 3: agent.LabelsSet.window:type_name -> agent.TimeWindow
-	10, // 4: agent.LabelsSet.label_sets:type_name -> agent.LabelsSet.LabelSetsEntry
+	10, // 4: agent.LabelsSet.labelSets:type_name -> agent.LabelsSet.LabelSetsEntry
 	11, // 5: agent.LabelSet.labels:type_name -> agent.LabelSet.LabelsEntry
 	2,  // 6: agent.AnnotationsSet.window:type_name -> agent.TimeWindow
-	12, // 7: agent.AnnotationsSet.annotation_sets:type_name -> agent.AnnotationsSet.AnnotationSetsEntry
+	12, // 7: agent.AnnotationsSet.annotationSets:type_name -> agent.AnnotationsSet.AnnotationSetsEntry
 	13, // 8: agent.AnnotationSet.annotations:type_name -> agent.AnnotationSet.AnnotationsEntry
 	15, // 9: agent.DiagnosticResult.timestamp:type_name -> google.protobuf.Timestamp
 	14, // 10: agent.DiagnosticResult.details:type_name -> agent.DiagnosticResult.DetailsEntry
-	15, // 11: agent.DiagnosticsRunReport.start_time:type_name -> google.protobuf.Timestamp
+	15, // 11: agent.DiagnosticsRunReport.startTime:type_name -> google.protobuf.Timestamp
 	8,  // 12: agent.DiagnosticsRunReport.results:type_name -> agent.DiagnosticResult
 	5,  // 13: agent.LabelsSet.LabelSetsEntry.value:type_name -> agent.LabelSet
 	7,  // 14: agent.AnnotationsSet.AnnotationSetsEntry.value:type_name -> agent.AnnotationSet

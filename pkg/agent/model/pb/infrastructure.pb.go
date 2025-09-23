@@ -50,13 +50,13 @@ type Cluster struct {
 	Containers    []*Container             `protobuf:"bytes,17,rep,name=Containers,proto3" json:"Containers,omitempty"`
 	// Cost data collections (optional - only populated for cost-enabled exports)
 	// Shared costs that need distribution across multiple resources
-	SharedCosts []*SharedCostAllocation `protobuf:"bytes,18,rep,name=shared_costs,json=sharedCosts,proto3" json:"shared_costs,omitempty"`
+	SharedCosts []*SharedCostAllocation `protobuf:"bytes,18,rep,name=sharedCosts,proto3" json:"sharedCosts,omitempty"`
 	// External cloud service costs not directly tied to K8s resources
-	ExternalCosts []*ExternalCostAllocation `protobuf:"bytes,19,rep,name=external_costs,json=externalCosts,proto3" json:"external_costs,omitempty"`
+	ExternalCosts []*ExternalCostAllocation `protobuf:"bytes,19,rep,name=externalCosts,proto3" json:"externalCosts,omitempty"`
 	// Cluster-level aggregated cost data (sum of all resource costs + shared + external)
-	TotalCost *AllocationCost `protobuf:"bytes,20,opt,name=total_cost,json=totalCost,proto3" json:"total_cost,omitempty"`
+	TotalCost *AllocationCost `protobuf:"bytes,20,opt,name=totalCost,proto3" json:"totalCost,omitempty"`
 	// Cost attribution for this cluster
-	CostAttribution *CostAttribution `protobuf:"bytes,21,opt,name=cost_attribution,json=costAttribution,proto3" json:"cost_attribution,omitempty"`
+	CostAttribution *CostAttribution `protobuf:"bytes,21,opt,name=costAttribution,proto3" json:"costAttribution,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -243,7 +243,7 @@ var File_infrastructure_proto protoreflect.FileDescriptor
 const file_infrastructure_proto_rawDesc = "" +
 	"\n" +
 	"\x14infrastructure.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\x1a\vnodes.proto\x1a\rcompute.proto\x1a\rstorage.proto\x1a\x10networking.proto\x1a\n" +
-	"pods.proto\x1a\x0fworkloads.proto\"\x9f\a\n" +
+	"pods.proto\x1a\x0fworkloads.proto\"\x9b\a\n" +
 	"\aCluster\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12+\n" +
 	"\bProvider\x18\x02 \x01(\x0e2\x0f.agent.ProviderR\bProvider\x12\x18\n" +
@@ -269,12 +269,11 @@ const file_infrastructure_proto_rawDesc = "" +
 	".agent.PodR\x04Pods\x120\n" +
 	"\n" +
 	"Containers\x18\x11 \x03(\v2\x10.agent.ContainerR\n" +
-	"Containers\x12>\n" +
-	"\fshared_costs\x18\x12 \x03(\v2\x1b.agent.SharedCostAllocationR\vsharedCosts\x12D\n" +
-	"\x0eexternal_costs\x18\x13 \x03(\v2\x1d.agent.ExternalCostAllocationR\rexternalCosts\x124\n" +
-	"\n" +
-	"total_cost\x18\x14 \x01(\v2\x15.agent.AllocationCostR\ttotalCost\x12A\n" +
-	"\x10cost_attribution\x18\x15 \x01(\v2\x16.agent.CostAttributionR\x0fcostAttributionB4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
+	"Containers\x12=\n" +
+	"\vsharedCosts\x18\x12 \x03(\v2\x1b.agent.SharedCostAllocationR\vsharedCosts\x12C\n" +
+	"\rexternalCosts\x18\x13 \x03(\v2\x1d.agent.ExternalCostAllocationR\rexternalCosts\x123\n" +
+	"\ttotalCost\x18\x14 \x01(\v2\x15.agent.AllocationCostR\ttotalCost\x12@\n" +
+	"\x0fcostAttribution\x18\x15 \x01(\v2\x16.agent.CostAttributionR\x0fcostAttributionB4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
 
 var (
 	file_infrastructure_proto_rawDescOnce sync.Once
@@ -319,10 +318,10 @@ var file_infrastructure_proto_depIdxs = []int32{
 	9,  // 8: agent.Cluster.Namespaces:type_name -> agent.Namespace
 	10, // 9: agent.Cluster.Pods:type_name -> agent.Pod
 	11, // 10: agent.Cluster.Containers:type_name -> agent.Container
-	12, // 11: agent.Cluster.shared_costs:type_name -> agent.SharedCostAllocation
-	13, // 12: agent.Cluster.external_costs:type_name -> agent.ExternalCostAllocation
-	14, // 13: agent.Cluster.total_cost:type_name -> agent.AllocationCost
-	15, // 14: agent.Cluster.cost_attribution:type_name -> agent.CostAttribution
+	12, // 11: agent.Cluster.sharedCosts:type_name -> agent.SharedCostAllocation
+	13, // 12: agent.Cluster.externalCosts:type_name -> agent.ExternalCostAllocation
+	14, // 13: agent.Cluster.totalCost:type_name -> agent.AllocationCost
+	15, // 14: agent.Cluster.costAttribution:type_name -> agent.CostAttribution
 	15, // [15:15] is the sub-list for method output_type
 	15, // [15:15] is the sub-list for method input_type
 	15, // [15:15] is the sub-list for extension type_name

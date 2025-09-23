@@ -25,7 +25,7 @@ message Pod {
   AllocationCost cost = 8;
 
   // Cost attribution for this pod
-  CostAttribution cost_attribution = 9;
+  CostAttribution costAttribution = 9;
 }
 
 // Container represents a container within a pod (allocated resource)
@@ -44,5 +44,5 @@ message Container {
   AllocationCost cost = 5;
 
   // Cost attribution for this container
-  CostAttribution cost_attribution = 6;
+  CostAttribution costAttribution = 6;
 }

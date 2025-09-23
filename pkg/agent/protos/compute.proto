@@ -25,9 +25,13 @@ message GPUDevice {
   float UsageAvg = 8;
   float UsageMax = 9;
 
+  // GPU sharing information (needed for cost allocation)
+  bool isShared = 12;
+  float sharePercentage = 13;
+
   // GPU cost data (optional - only populated for cost-enabled exports)
   AllocationCost cost = 10;
 
   // Cost attribution for this GPU device
-  CostAttribution cost_attribution = 11;
+  CostAttribution costAttribution = 11;
 }

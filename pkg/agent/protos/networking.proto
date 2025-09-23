@@ -24,7 +24,7 @@ message LoadBalancer {
   AllocationCost cost = 7;
 
   // Cost attribution for this load balancer
-  CostAttribution cost_attribution = 8;
+  CostAttribution costAttribution = 8;
 }
 
 // ServicePort represents a port exposed by a service
@@ -55,5 +55,5 @@ message Service {
   AllocationCost cost = 8;
 
   // Cost attribution for this service
-  CostAttribution cost_attribution = 9;
+  CostAttribution costAttribution = 9;
 }

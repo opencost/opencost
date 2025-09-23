@@ -20,10 +20,10 @@ message TimeWindow {
 // Separate from data collection windows - tracks when resource was created/deleted
 message ResourceLifetime {
   // When the resource was created
-  google.protobuf.Timestamp created_at = 1;
+  google.protobuf.Timestamp createdAt = 1;
 
   // When the resource was deleted (optional - empty for running resources)
-  google.protobuf.Timestamp deleted_at = 2;
+  google.protobuf.Timestamp deletedAt = 2;
 }
 
 // Provider represents the cloud provider or infrastructure type
@@ -58,13 +58,13 @@ message LabelsSet {
 
   // type dependent identifier for the grouping of labels most likely the cluster id or the configuration key
   // used as part of the export path
-  string group_identifier = 2;
+  string groupIdentifier = 2;
 
   // Window definition for this label set
   TimeWindow window = 3;
 
   // Mapping of labelSets for individual items by unique identifier
-  map<string, LabelSet> label_sets = 4;
+  map<string, LabelSet> labelSets = 4;
 }
 
 // LabelSet (abbreviated here) is an internal message meant to enable nesting maps
@@ -82,13 +82,13 @@ message AnnotationsSet {
 
   // type dependent identifier for the grouping of annotations most likely the cluster id or the configuration key
   // used as part of the export path
-  string group_identifier = 2;
+  string groupIdentifier = 2;
 
   // Window definition for this annotation set
   TimeWindow window = 3;
 
   // Mapping of annotationSets for individual items by unique identifier
-  map<string, AnnotationSet> annotation_sets = 4;
+  map<string, AnnotationSet> annotationSets = 4;
 }
 
 // AnnotationSet (abbreviated here) is an internal message meant to enable nesting maps
@@ -129,7 +129,7 @@ message DiagnosticsRunReport {
   string application = 1;
 
   // Time when the full diagnostics run started
-  google.protobuf.Timestamp start_time = 2;
+  google.protobuf.Timestamp startTime = 2;
 
   // All results of the diagnostics run
   repeated DiagnosticResult results = 3;

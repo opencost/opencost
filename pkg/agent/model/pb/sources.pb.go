@@ -26,21 +26,21 @@ const (
 type DataSourceMetadata struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Primary data source type
-	PrimarySource DataSourceType `protobuf:"varint,1,opt,name=primary_source,json=primarySource,proto3,enum=agent.DataSourceType" json:"primary_source,omitempty"`
+	PrimarySource DataSourceType `protobuf:"varint,1,opt,name=primarySource,proto3,enum=agent.DataSourceType" json:"primarySource,omitempty"`
 	// Fallback sources used if primary failed
-	FallbackSources []DataSourceType `protobuf:"varint,2,rep,packed,name=fallback_sources,json=fallbackSources,proto3,enum=agent.DataSourceType" json:"fallback_sources,omitempty"`
+	FallbackSources []DataSourceType `protobuf:"varint,2,rep,packed,name=fallbackSources,proto3,enum=agent.DataSourceType" json:"fallbackSources,omitempty"`
 	// Prometheus query metadata if applicable
-	PrometheusInfo *PrometheusSourceInfo `protobuf:"bytes,3,opt,name=prometheus_info,json=prometheusInfo,proto3" json:"prometheus_info,omitempty"`
+	PrometheusInfo *PrometheusSourceInfo `protobuf:"bytes,3,opt,name=prometheusInfo,proto3" json:"prometheusInfo,omitempty"`
 	// Kubernetes API metadata if applicable
-	K8SApiInfo *KubernetesAPISourceInfo `protobuf:"bytes,4,opt,name=k8s_api_info,json=k8sApiInfo,proto3" json:"k8s_api_info,omitempty"`
+	K8SApiInfo *KubernetesAPISourceInfo `protobuf:"bytes,4,opt,name=k8sApiInfo,proto3" json:"k8sApiInfo,omitempty"`
 	// Data collection timestamp
-	CollectedAt *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=collected_at,json=collectedAt,proto3" json:"collected_at,omitempty"`
+	CollectedAt *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=collectedAt,proto3" json:"collectedAt,omitempty"`
 	// Collection duration in milliseconds
-	CollectionDurationMs int64 `protobuf:"varint,6,opt,name=collection_duration_ms,json=collectionDurationMs,proto3" json:"collection_duration_ms,omitempty"`
+	CollectionDurationMs int64 `protobuf:"varint,6,opt,name=collectionDurationMs,proto3" json:"collectionDurationMs,omitempty"`
 	// Collection success/failure status
-	CollectionSuccess bool `protobuf:"varint,7,opt,name=collection_success,json=collectionSuccess,proto3" json:"collection_success,omitempty"`
+	CollectionSuccess bool `protobuf:"varint,7,opt,name=collectionSuccess,proto3" json:"collectionSuccess,omitempty"`
 	// Collection errors if any
-	CollectionErrors []string `protobuf:"bytes,8,rep,name=collection_errors,json=collectionErrors,proto3" json:"collection_errors,omitempty"`
+	CollectionErrors []string `protobuf:"bytes,8,rep,name=collectionErrors,proto3" json:"collectionErrors,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -135,15 +135,15 @@ func (x *DataSourceMetadata) GetCollectionErrors() []string {
 type PrometheusSourceInfo struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Prometheus server URL used
-	PrometheusUrl string `protobuf:"bytes,1,opt,name=prometheus_url,json=prometheusUrl,proto3" json:"prometheus_url,omitempty"`
+	PrometheusUrl string `protobuf:"bytes,1,opt,name=prometheusUrl,proto3" json:"prometheusUrl,omitempty"`
 	// Query used to collect this data
 	Query string `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
 	// Query execution time
-	QueryDurationMs int64 `protobuf:"varint,3,opt,name=query_duration_ms,json=queryDurationMs,proto3" json:"query_duration_ms,omitempty"`
+	QueryDurationMs int64 `protobuf:"varint,3,opt,name=queryDurationMs,proto3" json:"queryDurationMs,omitempty"`
 	// Number of samples returned
-	SampleCount int32 `protobuf:"varint,4,opt,name=sample_count,json=sampleCount,proto3" json:"sample_count,omitempty"`
+	SampleCount int32 `protobuf:"varint,4,opt,name=sampleCount,proto3" json:"sampleCount,omitempty"`
 	// Prometheus scrape interval used
-	ScrapeIntervalSeconds int32 `protobuf:"varint,5,opt,name=scrape_interval_seconds,json=scrapeIntervalSeconds,proto3" json:"scrape_interval_seconds,omitempty"`
+	ScrapeIntervalSeconds int32 `protobuf:"varint,5,opt,name=scrapeIntervalSeconds,proto3" json:"scrapeIntervalSeconds,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -217,17 +217,17 @@ func (x *PrometheusSourceInfo) GetScrapeIntervalSeconds() int32 {
 type KubernetesAPISourceInfo struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// K8s API server endpoint
-	ApiServer string `protobuf:"bytes,1,opt,name=api_server,json=apiServer,proto3" json:"api_server,omitempty"`
+	ApiServer string `protobuf:"bytes,1,opt,name=apiServer,proto3" json:"apiServer,omitempty"`
 	// Resource types queried
-	ResourceTypes []string `protobuf:"bytes,2,rep,name=resource_types,json=resourceTypes,proto3" json:"resource_types,omitempty"`
+	ResourceTypes []string `protobuf:"bytes,2,rep,name=resourceTypes,proto3" json:"resourceTypes,omitempty"`
 	// Namespace scope (empty means cluster-wide)
-	NamespaceScope string `protobuf:"bytes,3,opt,name=namespace_scope,json=namespaceScope,proto3" json:"namespace_scope,omitempty"`
+	NamespaceScope string `protobuf:"bytes,3,opt,name=namespaceScope,proto3" json:"namespaceScope,omitempty"`
 	// API version used
-	ApiVersion string `protobuf:"bytes,4,opt,name=api_version,json=apiVersion,proto3" json:"api_version,omitempty"`
+	ApiVersion string `protobuf:"bytes,4,opt,name=apiVersion,proto3" json:"apiVersion,omitempty"`
 	// Field selectors used
-	FieldSelectors []string `protobuf:"bytes,5,rep,name=field_selectors,json=fieldSelectors,proto3" json:"field_selectors,omitempty"`
+	FieldSelectors []string `protobuf:"bytes,5,rep,name=fieldSelectors,proto3" json:"fieldSelectors,omitempty"`
 	// Label selectors used
-	LabelSelectors []string `protobuf:"bytes,6,rep,name=label_selectors,json=labelSelectors,proto3" json:"label_selectors,omitempty"`
+	LabelSelectors []string `protobuf:"bytes,6,rep,name=labelSelectors,proto3" json:"labelSelectors,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -308,32 +308,33 @@ var File_sources_proto protoreflect.FileDescriptor
 
 const file_sources_proto_rawDesc = "" +
 	"\n" +
-	"\rsources.proto\x12\x05agent\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\fcommon.proto\"\xed\x03\n" +
-	"\x12DataSourceMetadata\x12<\n" +
-	"\x0eprimary_source\x18\x01 \x01(\x0e2\x15.agent.DataSourceTypeR\rprimarySource\x12@\n" +
-	"\x10fallback_sources\x18\x02 \x03(\x0e2\x15.agent.DataSourceTypeR\x0ffallbackSources\x12D\n" +
-	"\x0fprometheus_info\x18\x03 \x01(\v2\x1b.agent.PrometheusSourceInfoR\x0eprometheusInfo\x12@\n" +
-	"\fk8s_api_info\x18\x04 \x01(\v2\x1e.agent.KubernetesAPISourceInfoR\n" +
-	"k8sApiInfo\x12=\n" +
-	"\fcollected_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vcollectedAt\x124\n" +
-	"\x16collection_duration_ms\x18\x06 \x01(\x03R\x14collectionDurationMs\x12-\n" +
-	"\x12collection_success\x18\a \x01(\bR\x11collectionSuccess\x12+\n" +
-	"\x11collection_errors\x18\b \x03(\tR\x10collectionErrors\"\xda\x01\n" +
-	"\x14PrometheusSourceInfo\x12%\n" +
-	"\x0eprometheus_url\x18\x01 \x01(\tR\rprometheusUrl\x12\x14\n" +
-	"\x05query\x18\x02 \x01(\tR\x05query\x12*\n" +
-	"\x11query_duration_ms\x18\x03 \x01(\x03R\x0fqueryDurationMs\x12!\n" +
-	"\fsample_count\x18\x04 \x01(\x05R\vsampleCount\x126\n" +
-	"\x17scrape_interval_seconds\x18\x05 \x01(\x05R\x15scrapeIntervalSeconds\"\xfb\x01\n" +
-	"\x17KubernetesAPISourceInfo\x12\x1d\n" +
+	"\rsources.proto\x12\x05agent\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\fcommon.proto\"\xe3\x03\n" +
+	"\x12DataSourceMetadata\x12;\n" +
+	"\rprimarySource\x18\x01 \x01(\x0e2\x15.agent.DataSourceTypeR\rprimarySource\x12?\n" +
+	"\x0ffallbackSources\x18\x02 \x03(\x0e2\x15.agent.DataSourceTypeR\x0ffallbackSources\x12C\n" +
+	"\x0eprometheusInfo\x18\x03 \x01(\v2\x1b.agent.PrometheusSourceInfoR\x0eprometheusInfo\x12>\n" +
 	"\n" +
-	"api_server\x18\x01 \x01(\tR\tapiServer\x12%\n" +
-	"\x0eresource_types\x18\x02 \x03(\tR\rresourceTypes\x12'\n" +
-	"\x0fnamespace_scope\x18\x03 \x01(\tR\x0enamespaceScope\x12\x1f\n" +
-	"\vapi_version\x18\x04 \x01(\tR\n" +
-	"apiVersion\x12'\n" +
-	"\x0ffield_selectors\x18\x05 \x03(\tR\x0efieldSelectors\x12'\n" +
-	"\x0flabel_selectors\x18\x06 \x03(\tR\x0elabelSelectorsB4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
+	"k8sApiInfo\x18\x04 \x01(\v2\x1e.agent.KubernetesAPISourceInfoR\n" +
+	"k8sApiInfo\x12<\n" +
+	"\vcollectedAt\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vcollectedAt\x122\n" +
+	"\x14collectionDurationMs\x18\x06 \x01(\x03R\x14collectionDurationMs\x12,\n" +
+	"\x11collectionSuccess\x18\a \x01(\bR\x11collectionSuccess\x12*\n" +
+	"\x10collectionErrors\x18\b \x03(\tR\x10collectionErrors\"\xd4\x01\n" +
+	"\x14PrometheusSourceInfo\x12$\n" +
+	"\rprometheusUrl\x18\x01 \x01(\tR\rprometheusUrl\x12\x14\n" +
+	"\x05query\x18\x02 \x01(\tR\x05query\x12(\n" +
+	"\x0fqueryDurationMs\x18\x03 \x01(\x03R\x0fqueryDurationMs\x12 \n" +
+	"\vsampleCount\x18\x04 \x01(\x05R\vsampleCount\x124\n" +
+	"\x15scrapeIntervalSeconds\x18\x05 \x01(\x05R\x15scrapeIntervalSeconds\"\xf5\x01\n" +
+	"\x17KubernetesAPISourceInfo\x12\x1c\n" +
+	"\tapiServer\x18\x01 \x01(\tR\tapiServer\x12$\n" +
+	"\rresourceTypes\x18\x02 \x03(\tR\rresourceTypes\x12&\n" +
+	"\x0enamespaceScope\x18\x03 \x01(\tR\x0enamespaceScope\x12\x1e\n" +
+	"\n" +
+	"apiVersion\x18\x04 \x01(\tR\n" +
+	"apiVersion\x12&\n" +
+	"\x0efieldSelectors\x18\x05 \x03(\tR\x0efieldSelectors\x12&\n" +
+	"\x0elabelSelectors\x18\x06 \x03(\tR\x0elabelSelectorsB4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
 
 var (
 	file_sources_proto_rawDescOnce sync.Once
@@ -356,11 +357,11 @@ var file_sources_proto_goTypes = []any{
 	(*timestamppb.Timestamp)(nil),   // 4: google.protobuf.Timestamp
 }
 var file_sources_proto_depIdxs = []int32{
-	3, // 0: agent.DataSourceMetadata.primary_source:type_name -> agent.DataSourceType
-	3, // 1: agent.DataSourceMetadata.fallback_sources:type_name -> agent.DataSourceType
-	1, // 2: agent.DataSourceMetadata.prometheus_info:type_name -> agent.PrometheusSourceInfo
-	2, // 3: agent.DataSourceMetadata.k8s_api_info:type_name -> agent.KubernetesAPISourceInfo
-	4, // 4: agent.DataSourceMetadata.collected_at:type_name -> google.protobuf.Timestamp
+	3, // 0: agent.DataSourceMetadata.primarySource:type_name -> agent.DataSourceType
+	3, // 1: agent.DataSourceMetadata.fallbackSources:type_name -> agent.DataSourceType
+	1, // 2: agent.DataSourceMetadata.prometheusInfo:type_name -> agent.PrometheusSourceInfo
+	2, // 3: agent.DataSourceMetadata.k8sApiInfo:type_name -> agent.KubernetesAPISourceInfo
+	4, // 4: agent.DataSourceMetadata.collectedAt:type_name -> google.protobuf.Timestamp
 	5, // [5:5] is the sub-list for method output_type
 	5, // [5:5] is the sub-list for method input_type
 	5, // [5:5] is the sub-list for extension type_name

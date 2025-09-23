@@ -45,14 +45,14 @@ message Cluster {
 
   // Cost data collections (optional - only populated for cost-enabled exports)
   // Shared costs that need distribution across multiple resources
-  repeated SharedCostAllocation shared_costs = 18;
+  repeated SharedCostAllocation sharedCosts = 18;
 
   // External cloud service costs not directly tied to K8s resources
-  repeated ExternalCostAllocation external_costs = 19;
+  repeated ExternalCostAllocation externalCosts = 19;
 
   // Cluster-level aggregated cost data (sum of all resource costs + shared + external)
-  AllocationCost total_cost = 20;
+  AllocationCost totalCost = 20;
 
   // Cost attribution for this cluster
-  CostAttribution cost_attribution = 21;
+  CostAttribution costAttribution = 21;
 }

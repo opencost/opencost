@@ -36,7 +36,7 @@ type LoadBalancer struct {
 	// Load balancer cost data (optional - only populated for cost-enabled exports)
 	Cost *AllocationCost `protobuf:"bytes,7,opt,name=cost,proto3" json:"cost,omitempty"`
 	// Cost attribution for this load balancer
-	CostAttribution *CostAttribution `protobuf:"bytes,8,opt,name=cost_attribution,json=costAttribution,proto3" json:"cost_attribution,omitempty"`
+	CostAttribution *CostAttribution `protobuf:"bytes,8,opt,name=costAttribution,proto3" json:"costAttribution,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -220,7 +220,7 @@ type Service struct {
 	// Service-level aggregated cost data (optional - only populated for cost-enabled exports)
 	Cost *AllocationCost `protobuf:"bytes,8,opt,name=cost,proto3" json:"cost,omitempty"`
 	// Cost attribution for this service
-	CostAttribution *CostAttribution `protobuf:"bytes,9,opt,name=cost_attribution,json=costAttribution,proto3" json:"cost_attribution,omitempty"`
+	CostAttribution *CostAttribution `protobuf:"bytes,9,opt,name=costAttribution,proto3" json:"costAttribution,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -322,7 +322,7 @@ var File_networking_proto protoreflect.FileDescriptor
 
 const file_networking_proto_rawDesc = "" +
 	"\n" +
-	"\x10networking.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\xef\x03\n" +
+	"\x10networking.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\xee\x03\n" +
 	"\fLoadBalancer\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x1c\n" +
 	"\tServiceID\x18\x02 \x01(\tR\tServiceID\x12\x12\n" +
@@ -330,8 +330,8 @@ const file_networking_proto_rawDesc = "" +
 	"\x06Labels\x18\x04 \x03(\v2\x1f.agent.LoadBalancer.LabelsEntryR\x06Labels\x12F\n" +
 	"\vAnnotations\x18\x05 \x03(\v2$.agent.LoadBalancer.AnnotationsEntryR\vAnnotations\x123\n" +
 	"\blifetime\x18\x06 \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12)\n" +
-	"\x04cost\x18\a \x01(\v2\x15.agent.AllocationCostR\x04cost\x12A\n" +
-	"\x10cost_attribution\x18\b \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
+	"\x04cost\x18\a \x01(\v2\x15.agent.AllocationCostR\x04cost\x12@\n" +
+	"\x0fcostAttribution\x18\b \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
@@ -345,7 +345,7 @@ const file_networking_proto_rawDesc = "" +
 	"\n" +
 	"TargetPort\x18\x04 \x01(\x05R\n" +
 	"TargetPort\x12\x1a\n" +
-	"\bNodePort\x18\x05 \x01(\x05R\bNodePort\"\x86\x04\n" +
+	"\bNodePort\x18\x05 \x01(\x05R\bNodePort\"\x85\x04\n" +
 	"\aService\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12 \n" +
 	"\vNamespaceID\x18\x02 \x01(\tR\vNamespaceID\x12\x12\n" +
@@ -354,8 +354,8 @@ const file_networking_proto_rawDesc = "" +
 	"\x06Labels\x18\x05 \x03(\v2\x1a.agent.Service.LabelsEntryR\x06Labels\x12A\n" +
 	"\vAnnotations\x18\x06 \x03(\v2\x1f.agent.Service.AnnotationsEntryR\vAnnotations\x123\n" +
 	"\blifetime\x18\a \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12)\n" +
-	"\x04cost\x18\b \x01(\v2\x15.agent.AllocationCostR\x04cost\x12A\n" +
-	"\x10cost_attribution\x18\t \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
+	"\x04cost\x18\b \x01(\v2\x15.agent.AllocationCostR\x04cost\x12@\n" +
+	"\x0fcostAttribution\x18\t \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
@@ -393,12 +393,12 @@ var file_networking_proto_depIdxs = []int32{
 	4,  // 1: agent.LoadBalancer.Annotations:type_name -> agent.LoadBalancer.AnnotationsEntry
 	7,  // 2: agent.LoadBalancer.lifetime:type_name -> agent.ResourceLifetime
 	8,  // 3: agent.LoadBalancer.cost:type_name -> agent.AllocationCost
-	9,  // 4: agent.LoadBalancer.cost_attribution:type_name -> agent.CostAttribution
+	9,  // 4: agent.LoadBalancer.costAttribution:type_name -> agent.CostAttribution
 	5,  // 5: agent.Service.Labels:type_name -> agent.Service.LabelsEntry
 	6,  // 6: agent.Service.Annotations:type_name -> agent.Service.AnnotationsEntry
 	7,  // 7: agent.Service.lifetime:type_name -> agent.ResourceLifetime
 	8,  // 8: agent.Service.cost:type_name -> agent.AllocationCost
-	9,  // 9: agent.Service.cost_attribution:type_name -> agent.CostAttribution
+	9,  // 9: agent.Service.costAttribution:type_name -> agent.CostAttribution
 	10, // [10:10] is the sub-list for method output_type
 	10, // [10:10] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name

@@ -9,22 +9,22 @@ option go_package = "github.com/opencost/opencost/pkg/agent/model/pb;pb";
 // Mirrors OpenCost's multiple cost calculation approaches
 message CostMetrics {
   // List cost (raw cost without discounts)
-  float list_cost = 1;
+  float listCost = 1;
 
   // Net cost (list cost minus discounts)
-  float net_cost = 2;
+  float netCost = 2;
 
   // Amortized net cost (includes reserved instance amortization)
-  float amortized_net_cost = 3;
+  float amortizedNetCost = 3;
 
   // Invoiced cost (actual billed amount)
-  float invoiced_cost = 4;
+  float invoicedCost = 4;
 
   // Amortized cost (list cost with RI amortization)
-  float amortized_cost = 5;
+  float amortizedCost = 5;
 
   // Percentage of cost attributed to Kubernetes workloads
-  float kubernetes_percent = 6;
+  float kubernetesPercent = 6;
 }
 
 // ResourceCost represents cost for a specific resource type
@@ -37,13 +37,13 @@ message ResourceCost {
   CostMetrics adjustment = 2;
 
   // Resource usage hours (e.g., CPUCoreHours, RAMByteHours)
-  float usage_hours = 3;
+  float usageHours = 3;
 
   // Requested resource average (for over/under-provisioning analysis)
-  float request_average = 4;
+  float requestAverage = 4;
 
   // Actual usage average (for utilization analysis)
-  float usage_average = 5;
+  float usageAverage = 5;
 
   // Idle cost portion (when resource is provisioned but unused)
   CostMetrics idle = 6;
@@ -53,19 +53,19 @@ message ResourceCost {
 // Maps to OpenCost's granular network cost tracking
 message DetailedNetworkCost {
   // Cross-zone network transfer costs
-  CostMetrics cross_zone = 1;
+  CostMetrics crossZone = 1;
 
   // Cross-region network transfer costs
-  CostMetrics cross_region = 2;
+  CostMetrics crossRegion = 2;
 
   // Internet egress costs
   CostMetrics internet = 3;
 
   // Network transfer bytes sent
-  float transfer_bytes = 4;
+  float transferBytes = 4;
 
   // Network bytes received
-  float receive_bytes = 5;
+  float receiveBytes = 5;
 }
 
 // GPUCostDetail represents GPU-specific cost information
@@ -74,47 +74,51 @@ message GPUCostDetail {
   // Base GPU cost
   ResourceCost resource = 1;
 
-  // GPU device information for attribution
-  string device_id = 2;
-  string device_model = 3;
-  int32 device_number = 4;
+  // GPU device information for attribution (matches GPUDevice fields)
+  string ID = 2;              // References GPUDevice.ID
+  string ModelName = 3;       // References GPUDevice.ModelName
+  int32 DeviceNumber = 4;     // References GPUDevice.DeviceNumber
 
   // GPU sharing information (if applicable)
-  bool is_shared = 5;
-  float share_percentage = 6;
+  bool isShared = 5;
+  float sharePercentage = 6;
+
+  // Usage metrics for cost correlation (from DCGM)
+  float usageAvg = 7;
+  float usageMax = 8;
 }
 
 // StorageCostDetail represents persistent volume cost information
 message StorageCostDetail {
   // Volume identifier
-  string volume_id = 1;
+  string volumeId = 1;
 
   // Storage class
-  string storage_class = 2;
+  string storageClass = 2;
 
   // Provider resource ID (for cloud storage)
-  string provider_resource_id = 3;
+  string providerResourceId = 3;
 
   // Storage cost
   CostMetrics cost = 4;
 
   // Storage usage in byte-hours
-  float byte_hours = 5;
+  float byteHours = 5;
 }
 
 // LoadBalancerCostDetail represents load balancer cost information
 message LoadBalancerCostDetail {
   // Load balancer identifier
-  string load_balancer_id = 1;
+  string loadBalancerId = 1;
 
   // Associated service name
-  string service_name = 2;
+  string serviceName = 2;
 
   // Load balancer IP address
-  string ip_address = 3;
+  string ipAddress = 3;
 
   // Whether this is a private load balancer
-  bool is_private = 4;
+  bool isPrivate = 4;
 
   // Load balancer cost
   CostMetrics cost = 5;
@@ -143,7 +147,7 @@ message AllocationCost {
   DetailedNetworkCost network = 6;
 
   // Load balancer costs
-  repeated LoadBalancerCostDetail load_balancers = 7;
+  repeated LoadBalancerCostDetail loadBalancers = 7;
 
   // Shared costs allocated to this resource
   CostMetrics shared = 8;
@@ -160,19 +164,19 @@ message AllocationCost {
 message CostAttribution {
   // Cluster-level attribution
   string cluster = 1;
-  string provider_id = 2;
+  string providerId = 2;
 
   // Node-level attribution
   string node = 3;
 
   // Namespace-level attribution
   string namespace = 4;
-  map<string, string> namespace_labels = 5;
-  map<string, string> namespace_annotations = 6;
+  map<string, string> namespaceLabels = 5;
+  map<string, string> namespaceAnnotations = 6;
 
   // Workload-level attribution
   string controller = 7;
-  string controller_kind = 8; // deployment, statefulset, daemonset, job
+  string controllerKind = 8; // deployment, statefulset, daemonset, job
 
   // Pod-level attribution
   string pod = 9;
@@ -192,16 +196,16 @@ message CostAttribution {
 // For costs that need to be distributed across multiple resources
 message SharedCostAllocation {
   // Identifier for the shared cost pool
-  string cost_pool_id = 1;
+  string costPoolId = 1;
 
   // Name/description of the shared cost
   string name = 2;
 
   // Total shared cost metrics
-  CostMetrics total_cost = 3;
+  CostMetrics totalCost = 3;
 
   // Sharing algorithm used (weighted, even, proportional)
-  string sharing_method = 4;
+  string sharingMethod = 4;
 
   // Window for this shared cost
   TimeWindow window = 5;
@@ -215,8 +219,8 @@ message SharedCostAllocation {
 message ExternalCostAllocation {
   // Provider and service information
   Provider provider = 1;
-  string service_name = 2;
-  string service_category = 3;
+  string serviceName = 2;
+  string serviceCategory = 3;
 
   // External cost metrics
   CostMetrics cost = 4;
@@ -228,5 +232,5 @@ message ExternalCostAllocation {
   CostAttribution attribution = 6;
 
   // Provider-specific metadata
-  map<string, string> provider_metadata = 7;
+  map<string, string> providerMetadata = 7;
 }

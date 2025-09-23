@@ -24,7 +24,7 @@ message Volume {
   AllocationCost cost = 7;
 
   // Cost attribution for this volume
-  CostAttribution cost_attribution = 8;
+  CostAttribution costAttribution = 8;
 }
 
 // PersistentVolumeClaim represents a PVC (allocated resource) that refers to a Volume
@@ -48,5 +48,5 @@ message PersistentVolumeClaim {
   AllocationCost cost = 10;
 
   // Cost attribution for this PVC
-  CostAttribution cost_attribution = 11;
+  CostAttribution costAttribution = 11;
 }

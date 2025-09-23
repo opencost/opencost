@@ -37,10 +37,13 @@ type GPUDevice struct {
 	// Data (usage metrics available from DCGM)
 	UsageAvg float32 `protobuf:"fixed32,8,opt,name=UsageAvg,proto3" json:"UsageAvg,omitempty"`
 	UsageMax float32 `protobuf:"fixed32,9,opt,name=UsageMax,proto3" json:"UsageMax,omitempty"`
+	// GPU sharing information (needed for cost allocation)
+	IsShared        bool    `protobuf:"varint,12,opt,name=isShared,proto3" json:"isShared,omitempty"`
+	SharePercentage float32 `protobuf:"fixed32,13,opt,name=sharePercentage,proto3" json:"sharePercentage,omitempty"`
 	// GPU cost data (optional - only populated for cost-enabled exports)
 	Cost *AllocationCost `protobuf:"bytes,10,opt,name=cost,proto3" json:"cost,omitempty"`
 	// Cost attribution for this GPU device
-	CostAttribution *CostAttribution `protobuf:"bytes,11,opt,name=cost_attribution,json=costAttribution,proto3" json:"cost_attribution,omitempty"`
+	CostAttribution *CostAttribution `protobuf:"bytes,11,opt,name=costAttribution,proto3" json:"costAttribution,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -138,6 +141,20 @@ func (x *GPUDevice) GetUsageMax() float32 {
 	return 0
 }
 
+func (x *GPUDevice) GetIsShared() bool {
+	if x != nil {
+		return x.IsShared
+	}
+	return false
+}
+
+func (x *GPUDevice) GetSharePercentage() float32 {
+	if x != nil {
+		return x.SharePercentage
+	}
+	return 0
+}
+
 func (x *GPUDevice) GetCost() *AllocationCost {
 	if x != nil {
 		return x.Cost
@@ -156,7 +173,7 @@ var File_compute_proto protoreflect.FileDescriptor
 
 const file_compute_proto_rawDesc = "" +
 	"\n" +
-	"\rcompute.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\xc6\x04\n" +
+	"\rcompute.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\x8b\x05\n" +
 	"\tGPUDevice\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x16\n" +
 	"\x06NodeID\x18\x02 \x01(\tR\x06NodeID\x12\"\n" +
@@ -166,10 +183,12 @@ const file_compute_proto_rawDesc = "" +
 	"\vAnnotations\x18\x06 \x03(\v2!.agent.GPUDevice.AnnotationsEntryR\vAnnotations\x123\n" +
 	"\blifetime\x18\a \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12\x1a\n" +
 	"\bUsageAvg\x18\b \x01(\x02R\bUsageAvg\x12\x1a\n" +
-	"\bUsageMax\x18\t \x01(\x02R\bUsageMax\x12)\n" +
+	"\bUsageMax\x18\t \x01(\x02R\bUsageMax\x12\x1a\n" +
+	"\bisShared\x18\f \x01(\bR\bisShared\x12(\n" +
+	"\x0fsharePercentage\x18\r \x01(\x02R\x0fsharePercentage\x12)\n" +
 	"\x04cost\x18\n" +
-	" \x01(\v2\x15.agent.AllocationCostR\x04cost\x12A\n" +
-	"\x10cost_attribution\x18\v \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
+	" \x01(\v2\x15.agent.AllocationCostR\x04cost\x12@\n" +
+	"\x0fcostAttribution\x18\v \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
@@ -203,7 +222,7 @@ var file_compute_proto_depIdxs = []int32{
 	2, // 1: agent.GPUDevice.Annotations:type_name -> agent.GPUDevice.AnnotationsEntry
 	3, // 2: agent.GPUDevice.lifetime:type_name -> agent.ResourceLifetime
 	4, // 3: agent.GPUDevice.cost:type_name -> agent.AllocationCost
-	5, // 4: agent.GPUDevice.cost_attribution:type_name -> agent.CostAttribution
+	5, // 4: agent.GPUDevice.costAttribution:type_name -> agent.CostAttribution
 	5, // [5:5] is the sub-list for method output_type
 	5, // [5:5] is the sub-list for method input_type
 	5, // [5:5] is the sub-list for extension type_name

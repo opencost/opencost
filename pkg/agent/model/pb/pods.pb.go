@@ -37,7 +37,7 @@ type Pod struct {
 	// Cost allocation data (optional - only populated for cost-enabled exports)
 	Cost *AllocationCost `protobuf:"bytes,8,opt,name=cost,proto3" json:"cost,omitempty"`
 	// Cost attribution for this pod
-	CostAttribution *CostAttribution `protobuf:"bytes,9,opt,name=cost_attribution,json=costAttribution,proto3" json:"cost_attribution,omitempty"`
+	CostAttribution *CostAttribution `protobuf:"bytes,9,opt,name=costAttribution,proto3" json:"costAttribution,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -148,7 +148,7 @@ type Container struct {
 	// Cost allocation data (optional - only populated for cost-enabled exports)
 	Cost *AllocationCost `protobuf:"bytes,5,opt,name=cost,proto3" json:"cost,omitempty"`
 	// Cost attribution for this container
-	CostAttribution *CostAttribution `protobuf:"bytes,6,opt,name=cost_attribution,json=costAttribution,proto3" json:"cost_attribution,omitempty"`
+	CostAttribution *CostAttribution `protobuf:"bytes,6,opt,name=costAttribution,proto3" json:"costAttribution,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -230,7 +230,7 @@ var File_pods_proto protoreflect.FileDescriptor
 const file_pods_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"pods.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\xf0\x03\n" +
+	"pods.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\xef\x03\n" +
 	"\x03Pod\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x16\n" +
 	"\x06NodeID\x18\x02 \x01(\tR\x06NodeID\x12 \n" +
@@ -239,21 +239,21 @@ const file_pods_proto_rawDesc = "" +
 	"\x06Labels\x18\x05 \x03(\v2\x16.agent.Pod.LabelsEntryR\x06Labels\x12=\n" +
 	"\vAnnotations\x18\x06 \x03(\v2\x1b.agent.Pod.AnnotationsEntryR\vAnnotations\x123\n" +
 	"\blifetime\x18\a \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12)\n" +
-	"\x04cost\x18\b \x01(\v2\x15.agent.AllocationCostR\x04cost\x12A\n" +
-	"\x10cost_attribution\x18\t \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
+	"\x04cost\x18\b \x01(\v2\x15.agent.AllocationCostR\x04cost\x12@\n" +
+	"\x0fcostAttribution\x18\t \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe8\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe7\x01\n" +
 	"\tContainer\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x14\n" +
 	"\x05PodID\x18\x02 \x01(\tR\x05PodID\x12\x12\n" +
 	"\x04Name\x18\x03 \x01(\tR\x04Name\x123\n" +
 	"\blifetime\x18\x04 \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12)\n" +
-	"\x04cost\x18\x05 \x01(\v2\x15.agent.AllocationCostR\x04cost\x12A\n" +
-	"\x10cost_attribution\x18\x06 \x01(\v2\x16.agent.CostAttributionR\x0fcostAttributionB4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
+	"\x04cost\x18\x05 \x01(\v2\x15.agent.AllocationCostR\x04cost\x12@\n" +
+	"\x0fcostAttribution\x18\x06 \x01(\v2\x16.agent.CostAttributionR\x0fcostAttributionB4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
 
 var (
 	file_pods_proto_rawDescOnce sync.Once
@@ -282,10 +282,10 @@ var file_pods_proto_depIdxs = []int32{
 	3, // 1: agent.Pod.Annotations:type_name -> agent.Pod.AnnotationsEntry
 	4, // 2: agent.Pod.lifetime:type_name -> agent.ResourceLifetime
 	5, // 3: agent.Pod.cost:type_name -> agent.AllocationCost
-	6, // 4: agent.Pod.cost_attribution:type_name -> agent.CostAttribution
+	6, // 4: agent.Pod.costAttribution:type_name -> agent.CostAttribution
 	4, // 5: agent.Container.lifetime:type_name -> agent.ResourceLifetime
 	5, // 6: agent.Container.cost:type_name -> agent.AllocationCost
-	6, // 7: agent.Container.cost_attribution:type_name -> agent.CostAttribution
+	6, // 7: agent.Container.costAttribution:type_name -> agent.CostAttribution
 	8, // [8:8] is the sub-list for method output_type
 	8, // [8:8] is the sub-list for method input_type
 	8, // [8:8] is the sub-list for extension type_name

@@ -36,7 +36,7 @@ type Node struct {
 	// Infrastructure cost data (optional - only populated for cost-enabled exports)
 	Cost *AllocationCost `protobuf:"bytes,7,opt,name=cost,proto3" json:"cost,omitempty"`
 	// Cost attribution for this node
-	CostAttribution *CostAttribution `protobuf:"bytes,8,opt,name=cost_attribution,json=costAttribution,proto3" json:"cost_attribution,omitempty"`
+	CostAttribution *CostAttribution `protobuf:"bytes,8,opt,name=costAttribution,proto3" json:"costAttribution,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -131,7 +131,7 @@ var File_nodes_proto protoreflect.FileDescriptor
 
 const file_nodes_proto_rawDesc = "" +
 	"\n" +
-	"\vnodes.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\xe9\x03\n" +
+	"\vnodes.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\xe8\x03\n" +
 	"\x04Node\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12.\n" +
 	"\x12ProviderResourceID\x18\x02 \x01(\tR\x12ProviderResourceID\x12\x12\n" +
@@ -139,8 +139,8 @@ const file_nodes_proto_rawDesc = "" +
 	"\x06Labels\x18\x04 \x03(\v2\x17.agent.Node.LabelsEntryR\x06Labels\x12>\n" +
 	"\vAnnotations\x18\x05 \x03(\v2\x1c.agent.Node.AnnotationsEntryR\vAnnotations\x123\n" +
 	"\blifetime\x18\x06 \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12)\n" +
-	"\x04cost\x18\a \x01(\v2\x15.agent.AllocationCostR\x04cost\x12A\n" +
-	"\x10cost_attribution\x18\b \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
+	"\x04cost\x18\a \x01(\v2\x15.agent.AllocationCostR\x04cost\x12@\n" +
+	"\x0fcostAttribution\x18\b \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
@@ -174,7 +174,7 @@ var file_nodes_proto_depIdxs = []int32{
 	2, // 1: agent.Node.Annotations:type_name -> agent.Node.AnnotationsEntry
 	3, // 2: agent.Node.lifetime:type_name -> agent.ResourceLifetime
 	4, // 3: agent.Node.cost:type_name -> agent.AllocationCost
-	5, // 4: agent.Node.cost_attribution:type_name -> agent.CostAttribution
+	5, // 4: agent.Node.costAttribution:type_name -> agent.CostAttribution
 	5, // [5:5] is the sub-list for method output_type
 	5, // [5:5] is the sub-list for method input_type
 	5, // [5:5] is the sub-list for extension type_name
