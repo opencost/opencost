@@ -6,6 +6,7 @@ import (
 
 	"github.com/kubecost/events"
 	"github.com/opencost/opencost/core/pkg/collections"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/sliceutil"
 	"github.com/opencost/opencost/modules/collector-source/pkg/event"
 )
@@ -34,6 +35,21 @@ const (
 	KubernetesPodsScraperDiagnosticID         = event.KubernetesClusterScraperName + "-" + event.PodScraperType
 	KubernetesPvsScraperDiagnosticID          = event.KubernetesClusterScraperName + "-" + event.PvScraperType
 	KubernetesPvcsScraperDiagnosticID         = event.KubernetesClusterScraperName + "-" + event.PvcScraperType
+
+	// Metric Names for the diagnostics (used in the UI)
+	DGGMScraperDiagnosticMetricName                   = "DCGM Metrics"
+	OpenCostScraperDiagnosticMetricName               = "Opencost Metrics"
+	NodeStatsScraperDiagnosticMetricName              = "Node Stats Metrics"
+	NetworkCostsScraperDiagnosticMetricName           = "Network Costs Metrics"
+	KubernetesNodesScraperDiagnosticMetricName        = "Kubernetes Nodes Metrics"
+	KubernetesNamespacesScraperDiagnosticMetricName   = "Kubernetes Namespaces Metrics"
+	KubernetesReplicaSetsScraperDiagnosticMetricName  = "Kubernetes Replica Sets Metrics"
+	KubernetesDeploymentsScraperDiagnosticMetricName  = "Kubernetes Deployments Metrics"
+	KubernetesStatefulSetsScraperDiagnosticMetricName = "Kubernetes Stateful Sets Metrics"
+	KubernetesServicesScraperDiagnosticMetricName     = "Kubernetes Services Metrics"
+	KubernetesPodsScraperDiagnosticMetricName         = "Kubernetes Pods Metrics"
+	KubernetesPvsScraperDiagnosticMetricName          = "Kubernetes PVs Metrics"
+	KubernetesPvcsScraperDiagnosticMetricName         = "Kubernetes PVCs Metrics"
 )
 
 // diagnostic defintion is the type used to define a deterministic list of specific diagnostics we _expect_ to collect
@@ -49,91 +65,91 @@ type diagnosticDefinition struct {
 var diagnosticDefinitions map[string]*diagnosticDefinition = map[string]*diagnosticDefinition{
 	DcgmScraperDiagnosticID: {
 		ID:          DcgmScraperDiagnosticID,
-		MetricName:  event.DCGMScraperName,
+		MetricName:  DGGMScraperDiagnosticMetricName,
 		Label:       "DCGM scraper is available and is being scraped.",
 		Description: scraperDiagnosticDescriptionFor(event.DCGMScraperName, ""),
 	},
 
 	OpenCostScraperDiagnosticID: {
 		ID:          OpenCostScraperDiagnosticID,
-		MetricName:  event.OpenCostScraperName,
+		MetricName:  OpenCostScraperDiagnosticMetricName,
 		Label:       "Opencost metrics scraper is available and is being scraped.",
 		Description: scraperDiagnosticDescriptionFor(event.OpenCostScraperName, ""),
 	},
 
 	NodeStatsScraperDiagnosticID: {
 		ID:          NodeStatsScraperDiagnosticID,
-		MetricName:  event.NodeStatsScraperName,
+		MetricName:  NodeStatsScraperDiagnosticMetricName,
 		Label:       "Node stats summary scraper is available and is being scraped.",
 		Description: scraperDiagnosticDescriptionFor(event.NodeStatsScraperName, ""),
 	},
 
 	NetworkCostsScraperDiagnosticID: {
 		ID:          NetworkCostsScraperDiagnosticID,
-		MetricName:  event.NetworkCostsScraperName,
+		MetricName:  NetworkCostsScraperDiagnosticMetricName,
 		Label:       "Network costs daemonset metrics scrapers are available and being scraped.",
 		Description: scraperDiagnosticDescriptionFor(event.NetworkCostsScraperName, ""),
 	},
 
 	KubernetesNodesScraperDiagnosticID: {
 		ID:          KubernetesNodesScraperDiagnosticID,
-		MetricName:  KubernetesNodesScraperDiagnosticID,
+		MetricName:  KubernetesNodesScraperDiagnosticMetricName,
 		Label:       fmt.Sprintf("Kubernetes cluster resources: %s are available and being scraped", event.NodeScraperType),
 		Description: scraperDiagnosticDescriptionFor(event.KubernetesClusterScraperName, event.NodeScraperType),
 	},
 
 	KubernetesNamespacesScraperDiagnosticID: {
 		ID:          KubernetesNamespacesScraperDiagnosticID,
-		MetricName:  KubernetesNamespacesScraperDiagnosticID,
+		MetricName:  KubernetesNamespacesScraperDiagnosticMetricName,
 		Label:       fmt.Sprintf("Kubernetes cluster resources: %s are available and being scraped", event.NamespaceScraperType),
 		Description: scraperDiagnosticDescriptionFor(event.KubernetesClusterScraperName, event.NamespaceScraperType),
 	},
 
 	KubernetesReplicaSetsScraperDiagnosticID: {
 		ID:          KubernetesReplicaSetsScraperDiagnosticID,
-		MetricName:  KubernetesReplicaSetsScraperDiagnosticID,
+		MetricName:  KubernetesReplicaSetsScraperDiagnosticMetricName,
 		Label:       fmt.Sprintf("Kubernetes cluster resources: %s are available and being scraped", event.ReplicaSetScraperType),
 		Description: scraperDiagnosticDescriptionFor(event.KubernetesClusterScraperName, event.ReplicaSetScraperType),
 	},
 
 	KubernetesDeploymentsScraperDiagnosticID: {
 		ID:          KubernetesDeploymentsScraperDiagnosticID,
-		MetricName:  KubernetesDeploymentsScraperDiagnosticID,
+		MetricName:  KubernetesDeploymentsScraperDiagnosticMetricName,
 		Label:       fmt.Sprintf("Kubernetes cluster resources: %s are available and being scraped", event.DeploymentScraperType),
 		Description: scraperDiagnosticDescriptionFor(event.KubernetesClusterScraperName, event.DeploymentScraperType),
 	},
 
 	KubernetesStatefulSetsScraperDiagnosticID: {
 		ID:          KubernetesStatefulSetsScraperDiagnosticID,
-		MetricName:  KubernetesStatefulSetsScraperDiagnosticID,
+		MetricName:  KubernetesStatefulSetsScraperDiagnosticMetricName,
 		Label:       fmt.Sprintf("Kubernetes cluster resources: %s are available and being scraped", event.StatefulSetScraperType),
 		Description: scraperDiagnosticDescriptionFor(event.KubernetesClusterScraperName, event.StatefulSetScraperType),
 	},
 
 	KubernetesServicesScraperDiagnosticID: {
 		ID:          KubernetesServicesScraperDiagnosticID,
-		MetricName:  KubernetesServicesScraperDiagnosticID,
+		MetricName:  KubernetesServicesScraperDiagnosticMetricName,
 		Label:       fmt.Sprintf("Kubernetes cluster resources: %s are available and being scraped", event.ServiceScraperType),
 		Description: scraperDiagnosticDescriptionFor(event.KubernetesClusterScraperName, event.ServiceScraperType),
 	},
 
 	KubernetesPodsScraperDiagnosticID: {
 		ID:          KubernetesPodsScraperDiagnosticID,
-		MetricName:  KubernetesPodsScraperDiagnosticID,
+		MetricName:  KubernetesPodsScraperDiagnosticMetricName,
 		Label:       fmt.Sprintf("Kubernetes cluster resources: %s are available and being scraped", event.PodScraperType),
 		Description: scraperDiagnosticDescriptionFor(event.KubernetesClusterScraperName, event.PodScraperType),
 	},
 
 	KubernetesPvsScraperDiagnosticID: {
 		ID:          KubernetesPvsScraperDiagnosticID,
-		MetricName:  KubernetesPvsScraperDiagnosticID,
+		MetricName:  KubernetesPvsScraperDiagnosticMetricName,
 		Label:       fmt.Sprintf("Kubernetes cluster resources: %s are available and being scraped", event.PvScraperType),
 		Description: scraperDiagnosticDescriptionFor(event.KubernetesClusterScraperName, event.PvScraperType),
 	},
 
 	KubernetesPvcsScraperDiagnosticID: {
 		ID:          KubernetesPvcsScraperDiagnosticID,
-		MetricName:  KubernetesPvcsScraperDiagnosticID,
+		MetricName:  KubernetesPvcsScraperDiagnosticMetricName,
 		Label:       fmt.Sprintf("Kubernetes cluster resources: %s are available and being scraped", event.PvcScraperType),
 		Description: scraperDiagnosticDescriptionFor(event.KubernetesClusterScraperName, event.PvcScraperType),
 	},
@@ -203,7 +219,10 @@ func (sd *scrapeDiagnostic) Id() string {
 
 // Name returns the name of the scraper the event fired from.
 func (sd *scrapeDiagnostic) Name() string {
-	return sd.scraper
+	if sd.diagnostic != nil {
+		return sd.diagnostic.MetricName
+	}
+	return scraperIdFor(sd.scraper, sd.scrapeType)
 }
 
 // Details generates an exportable detail map for the specific diagnostic, and resets any of its internal
@@ -293,7 +312,10 @@ func (d *DiagnosticsModule) onScrapeEvent(event event.ScrapeEvent) {
 		return
 	}
 
-	d.diagnostics.Insert(newScrapeDiagnostic(event, def))
+	err := d.diagnostics.Insert(newScrapeDiagnostic(event, def))
+	if err != nil {
+		log.Errorf("failed to insert scrape diagnostic: %s", err)
+	}
 }
 
 // DiagnosticDefinitions returns a deterministic mapping of pre-defined diagnostics used with the collector.
