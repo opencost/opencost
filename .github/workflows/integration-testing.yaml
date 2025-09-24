@@ -190,7 +190,7 @@ jobs:
       steps:
         - name: Wait 22 minutes for promless data collection
           run: |
-            sleep 1320
+            sleep 1320 # 22 minutes
     
     run-comparison-tests:
       needs: [wait_for_image_ready, build-test-stack, build-test-stack-promless, wait-for-data-collection]
@@ -203,10 +203,24 @@ jobs:
         comparison_namespace: "${{ needs.wait_for_image_ready.outputs.NAMESPACE }}-promless"
         target_branch: "${{ github.event.pull_request.head.ref || 'main' }}"
         comparison: true
+    
+    print-outputs:
+      needs: [run-comparison-tests, run-tests]
+      if: ${{ (always() && !cancelled()) && ( github.event.event_name == 'schedule'  || github.event_name == 'push' || github.event_name == 'merge_group' || (github.event_name == 'pull_request_target'  && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
+      runs-on: ubuntu-latest
+      permissions: {}
+      steps:
+        - name: Print outputs
+          run: |
+            echo "NAMESPACE: ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}"
+            echo "COMPARISON_NAMESPACE: ${{ needs.wait_for_image_ready.outputs.NAMESPACE }}-promless"
+            echo "TARGET_BRANCH: ${{ github.event.pull_request.head.ref || 'main' }}"
+            echo "PASSED COMPARISON: ${{ needs.run-comparison-tests.outputs.passed }}"
+            echo "PASSED INTEGRATION: ${{ needs.run-tests.outputs.passed }}"
            
     hold-on-failure:
       needs: [wait_for_image_ready, run-tests, run-comparison-tests]
-      if: ${{ needs.run-tests.outputs.passed == 'false' || needs.run-comparison-tests.outputs.passed == 'false' }}
+      if: ${{ always() && (needs.run-tests.outputs.passed == 'false' || needs.run-comparison-tests.outputs.passed == 'false')}} 
       runs-on: ubuntu-latest
       permissions: {}
       steps:
@@ -238,7 +252,7 @@ jobs:
             namespace: "${{ needs.wait_for_image_ready.outputs.NAMESPACE }}-promless"
 
     check-success:
-        needs: [noop-tests, run-tests]
+        needs: [noop-tests, run-tests, run-comparison-tests]
         permissions: {}
         runs-on: ubuntu-latest
         if: ${{ always() }}
@@ -249,6 +263,8 @@ jobs:
               IS_NOOP: ${{ needs.noop-tests.outputs.is_noop }}
               PASSED: ${{ needs.run-tests.outputs.passed }}
             run: |
+              echo "IS_NOOP: $IS_NOOP"
+              echo "PASSED: $PASSED"
               if [[ "$IS_NOOP" == "true" ]]; then
                 echo "No-op tests, skipping success check"
                 exit 0
@@ -258,11 +274,6 @@ jobs:
                 echo "One or more integration tests failed"
                 exit 1
               fi
-              
-#              if [[ "${{ needs.run-comparison-tests.outputs.passed }}" != "true" ]]; then
-#                echo "One or more comparison tests failed"
-#                exit 1
-#              fi
               
               echo "All integration tests passed"
               exit 0
