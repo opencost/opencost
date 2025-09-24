@@ -20,7 +20,7 @@ permissions: {}
 jobs:
     check_actor_permissions:
       runs-on: ubuntu-latest
-      if: ${{ github.event_name == 'pull_request' }}
+      if: ${{ github.event_name == 'pull_request_target' }}
       outputs:
           ismaintainer: ${{ steps.determine-maintainer.outputs.ismaintainer }}
       steps:
