@@ -60,3 +60,24 @@ func GenerateMockCustomCostSet(start, end time.Time) *pb.CustomCostResponse {
 		Costs:      costs,
 	}
 }
+
+func GenerateMockLabelResponse(start time.Time, res string) *pb.LabelsResponse {
+	return &pb.LabelsResponse{
+		Type:    "account-labels",
+		GroupId: "billing_account_xzy",
+		Window: &pb.Window{
+			Resolution: res,
+			Start:      timestamppb.New(start),
+		},
+		LabelSets: map[string]*pb.LabelSet{
+			"account1": {Labels: map[string]string{
+				"account": "account1",
+				"test":    "test1",
+			}},
+			"account2": {Labels: map[string]string{
+				"account": "account2",
+				"test":    "test2",
+			}},
+		},
+	}
+}

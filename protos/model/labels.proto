@@ -13,7 +13,7 @@ message LabelsResponse {
   string type = 1;
   // type dependent identifier for the grouping of labels most likely the cluster id or the configuration key, used
   // as part of the export path
-  string group_identifier = 2;
+  string group_id = 2;
 
   // The window for the label sets
   model.Window window = 3;

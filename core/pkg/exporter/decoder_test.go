@@ -264,6 +264,29 @@ func TestProtobufDecoder(t *testing.T) {
 	}
 
 	testProtoBufDecoder(t, ProtobufDecoder, customCostTests)
+
+	labelsResponse := model.GenerateMockLabelResponse(start, "1d")
+	labelsResponseRaw, err := proto.Marshal(labelsResponse)
+	if err != nil {
+		t.Errorf("failed to marshal custom cost set: %s", err.Error())
+	}
+
+	labelsResponseTests := []decoderTestCase[pb.LabelsResponse]{
+		{
+			name:    "labels response valid",
+			data:    labelsResponseRaw,
+			want:    labelsResponse,
+			wantErr: false,
+		},
+		{
+			name:    "labels response invalid",
+			data:    badBytes,
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	testProtoBufDecoder(t, ProtobufDecoder, labelsResponseTests)
 }
 
 func testProtoBufDecoder[T any, U ProtoMessagePtr[T]](t *testing.T, decoder Decoder[T], testCases []decoderTestCase[T]) {

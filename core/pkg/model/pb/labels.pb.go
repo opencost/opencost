@@ -28,7 +28,7 @@ type LabelsResponse struct {
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	// type dependent identifier for the grouping of labels most likely the cluster id or the configuration key, used
 	// as part of the export path
-	GroupIdentifier string `protobuf:"bytes,2,opt,name=group_identifier,json=groupIdentifier,proto3" json:"group_identifier,omitempty"`
+	GroupId string `protobuf:"bytes,2,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	// The window for the label sets
 	Window *Window `protobuf:"bytes,3,opt,name=window,proto3" json:"window,omitempty"`
 	// Mapping of LabelSets for individual items by a unique identifier
@@ -74,9 +74,9 @@ func (x *LabelsResponse) GetType() string {
 	return ""
 }
 
-func (x *LabelsResponse) GetGroupIdentifier() string {
+func (x *LabelsResponse) GetGroupId() string {
 	if x != nil {
-		return x.GroupIdentifier
+		return x.GroupId
 	}
 	return ""
 }
@@ -144,10 +144,10 @@ var File_labels_proto protoreflect.FileDescriptor
 
 const file_labels_proto_rawDesc = "" +
 	"\n" +
-	"\flabels.proto\x12\x05model\x1a\fwindow.proto\"\x8a\x02\n" +
+	"\flabels.proto\x12\x05model\x1a\fwindow.proto\"\xfa\x01\n" +
 	"\x0eLabelsResponse\x12\x12\n" +
-	"\x04type\x18\x01 \x01(\tR\x04type\x12)\n" +
-	"\x10group_identifier\x18\x02 \x01(\tR\x0fgroupIdentifier\x12%\n" +
+	"\x04type\x18\x01 \x01(\tR\x04type\x12\x19\n" +
+	"\bgroup_id\x18\x02 \x01(\tR\agroupId\x12%\n" +
 	"\x06window\x18\x03 \x01(\v2\r.model.WindowR\x06window\x12C\n" +
 	"\n" +
 	"label_sets\x18\x04 \x03(\v2$.model.LabelsResponse.LabelSetsEntryR\tlabelSets\x1aM\n" +
