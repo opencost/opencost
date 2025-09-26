@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package model;
 
-import "protos/model/window.proto";
+import "model/window.proto";
 
 // Sets the golang package for the protobuf generated code
 option go_package = "github.com/opencost/opencost/core/pkg/model/pb";
