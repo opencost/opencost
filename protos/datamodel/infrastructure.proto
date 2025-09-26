@@ -1,16 +1,16 @@
 syntax = "proto3";
 
-import "common.proto";
-import "costs.proto";
-import "nodes.proto";
-import "compute.proto";
-import "storage.proto";
-import "networking.proto";
-import "pods.proto";
-import "workloads.proto";
+import "datamodel/common.proto";
+import "datamodel/costs.proto";
+import "datamodel/nodes.proto";
+import "datamodel/compute.proto";
+import "datamodel/storage.proto";
+import "datamodel/networking.proto";
+import "datamodel/pods.proto";
+import "datamodel/workloads.proto";
 
-package agent;
-option go_package = "github.com/opencost/opencost/pkg/agent/model/pb;pb";
+package datamodel.v2;
+option go_package = "github.com/opencost/opencost/core/pkg/model/pb;pb";
 
 // Cluster represents the top-level container following normalized approach
 // To serve as a wrapper for all resource collections

@@ -1,10 +1,10 @@
 syntax = "proto3";
 
-import "common.proto";
-import "costs.proto";
+import "datamodel/common.proto";
+import "datamodel/costs.proto";
 
-package agent;
-option go_package = "github.com/opencost/opencost/pkg/agent/model/pb;pb";
+package datamodel.v2;
+option go_package = "github.com/opencost/opencost/core/pkg/model/pb;pb";
 
 // Namespace represents a Kubernetes namespace (allocated resource grouping)
 message Namespace {

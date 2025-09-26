@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v4.25.3
-// source: storage.proto
+// source: datamodel/storage.proto
 
 package pb
 
@@ -43,7 +43,7 @@ type Volume struct {
 
 func (x *Volume) Reset() {
 	*x = Volume{}
-	mi := &file_storage_proto_msgTypes[0]
+	mi := &file_datamodel_storage_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55,7 +55,7 @@ func (x *Volume) String() string {
 func (*Volume) ProtoMessage() {}
 
 func (x *Volume) ProtoReflect() protoreflect.Message {
-	mi := &file_storage_proto_msgTypes[0]
+	mi := &file_datamodel_storage_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -68,7 +68,7 @@ func (x *Volume) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Volume.ProtoReflect.Descriptor instead.
 func (*Volume) Descriptor() ([]byte, []int) {
-	return file_storage_proto_rawDescGZIP(), []int{0}
+	return file_datamodel_storage_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Volume) GetID() string {
@@ -152,7 +152,7 @@ type PersistentVolumeClaim struct {
 
 func (x *PersistentVolumeClaim) Reset() {
 	*x = PersistentVolumeClaim{}
-	mi := &file_storage_proto_msgTypes[1]
+	mi := &file_datamodel_storage_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -164,7 +164,7 @@ func (x *PersistentVolumeClaim) String() string {
 func (*PersistentVolumeClaim) ProtoMessage() {}
 
 func (x *PersistentVolumeClaim) ProtoReflect() protoreflect.Message {
-	mi := &file_storage_proto_msgTypes[1]
+	mi := &file_datamodel_storage_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -177,7 +177,7 @@ func (x *PersistentVolumeClaim) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PersistentVolumeClaim.ProtoReflect.Descriptor instead.
 func (*PersistentVolumeClaim) Descriptor() ([]byte, []int) {
-	return file_storage_proto_rawDescGZIP(), []int{1}
+	return file_datamodel_storage_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *PersistentVolumeClaim) GetID() string {
@@ -257,81 +257,81 @@ func (x *PersistentVolumeClaim) GetCostAttribution() *CostAttribution {
 	return nil
 }
 
-var File_storage_proto protoreflect.FileDescriptor
+var File_datamodel_storage_proto protoreflect.FileDescriptor
 
-const file_storage_proto_rawDesc = "" +
+const file_datamodel_storage_proto_rawDesc = "" +
 	"\n" +
-	"\rstorage.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\xe2\x03\n" +
+	"\x17datamodel/storage.proto\x12\fdatamodel.v2\x1a\x16datamodel/common.proto\x1a\x15datamodel/costs.proto\"\x85\x04\n" +
 	"\x06Volume\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x12\n" +
 	"\x04Name\x18\x02 \x01(\tR\x04Name\x12\"\n" +
-	"\fStorageClass\x18\x03 \x01(\tR\fStorageClass\x121\n" +
-	"\x06Labels\x18\x04 \x03(\v2\x19.agent.Volume.LabelsEntryR\x06Labels\x12@\n" +
-	"\vAnnotations\x18\x05 \x03(\v2\x1e.agent.Volume.AnnotationsEntryR\vAnnotations\x123\n" +
-	"\blifetime\x18\x06 \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12)\n" +
-	"\x04cost\x18\a \x01(\v2\x15.agent.AllocationCostR\x04cost\x12@\n" +
-	"\x0fcostAttribution\x18\b \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
+	"\fStorageClass\x18\x03 \x01(\tR\fStorageClass\x128\n" +
+	"\x06Labels\x18\x04 \x03(\v2 .datamodel.v2.Volume.LabelsEntryR\x06Labels\x12G\n" +
+	"\vAnnotations\x18\x05 \x03(\v2%.datamodel.v2.Volume.AnnotationsEntryR\vAnnotations\x12:\n" +
+	"\blifetime\x18\x06 \x01(\v2\x1e.datamodel.v2.ResourceLifetimeR\blifetime\x120\n" +
+	"\x04cost\x18\a \x01(\v2\x1c.datamodel.v2.AllocationCostR\x04cost\x12G\n" +
+	"\x0fcostAttribution\x18\b \x01(\v2\x1d.datamodel.v2.CostAttributionR\x0fcostAttribution\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe3\x04\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x86\x05\n" +
 	"\x15PersistentVolumeClaim\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x1a\n" +
 	"\bVolumeID\x18\x02 \x01(\tR\bVolumeID\x12\x14\n" +
 	"\x05PodID\x18\x03 \x01(\tR\x05PodID\x12 \n" +
 	"\vNamespaceID\x18\x04 \x01(\tR\vNamespaceID\x12\x12\n" +
 	"\x04Name\x18\x05 \x01(\tR\x04Name\x12\"\n" +
-	"\fStorageClass\x18\x06 \x01(\tR\fStorageClass\x12@\n" +
-	"\x06Labels\x18\a \x03(\v2(.agent.PersistentVolumeClaim.LabelsEntryR\x06Labels\x12O\n" +
-	"\vAnnotations\x18\b \x03(\v2-.agent.PersistentVolumeClaim.AnnotationsEntryR\vAnnotations\x123\n" +
-	"\blifetime\x18\t \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12)\n" +
+	"\fStorageClass\x18\x06 \x01(\tR\fStorageClass\x12G\n" +
+	"\x06Labels\x18\a \x03(\v2/.datamodel.v2.PersistentVolumeClaim.LabelsEntryR\x06Labels\x12V\n" +
+	"\vAnnotations\x18\b \x03(\v24.datamodel.v2.PersistentVolumeClaim.AnnotationsEntryR\vAnnotations\x12:\n" +
+	"\blifetime\x18\t \x01(\v2\x1e.datamodel.v2.ResourceLifetimeR\blifetime\x120\n" +
 	"\x04cost\x18\n" +
-	" \x01(\v2\x15.agent.AllocationCostR\x04cost\x12@\n" +
-	"\x0fcostAttribution\x18\v \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
+	" \x01(\v2\x1c.datamodel.v2.AllocationCostR\x04cost\x12G\n" +
+	"\x0fcostAttribution\x18\v \x01(\v2\x1d.datamodel.v2.CostAttributionR\x0fcostAttribution\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B3Z1github.com/opencost/opencost/core/pkg/model/pb;pbb\x06proto3"
 
 var (
-	file_storage_proto_rawDescOnce sync.Once
-	file_storage_proto_rawDescData []byte
+	file_datamodel_storage_proto_rawDescOnce sync.Once
+	file_datamodel_storage_proto_rawDescData []byte
 )
 
-func file_storage_proto_rawDescGZIP() []byte {
-	file_storage_proto_rawDescOnce.Do(func() {
-		file_storage_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_storage_proto_rawDesc), len(file_storage_proto_rawDesc)))
+func file_datamodel_storage_proto_rawDescGZIP() []byte {
+	file_datamodel_storage_proto_rawDescOnce.Do(func() {
+		file_datamodel_storage_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_datamodel_storage_proto_rawDesc), len(file_datamodel_storage_proto_rawDesc)))
 	})
-	return file_storage_proto_rawDescData
+	return file_datamodel_storage_proto_rawDescData
 }
 
-var file_storage_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
-var file_storage_proto_goTypes = []any{
-	(*Volume)(nil),                // 0: agent.Volume
-	(*PersistentVolumeClaim)(nil), // 1: agent.PersistentVolumeClaim
-	nil,                           // 2: agent.Volume.LabelsEntry
-	nil,                           // 3: agent.Volume.AnnotationsEntry
-	nil,                           // 4: agent.PersistentVolumeClaim.LabelsEntry
-	nil,                           // 5: agent.PersistentVolumeClaim.AnnotationsEntry
-	(*ResourceLifetime)(nil),      // 6: agent.ResourceLifetime
-	(*AllocationCost)(nil),        // 7: agent.AllocationCost
-	(*CostAttribution)(nil),       // 8: agent.CostAttribution
+var file_datamodel_storage_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_datamodel_storage_proto_goTypes = []any{
+	(*Volume)(nil),                // 0: datamodel.v2.Volume
+	(*PersistentVolumeClaim)(nil), // 1: datamodel.v2.PersistentVolumeClaim
+	nil,                           // 2: datamodel.v2.Volume.LabelsEntry
+	nil,                           // 3: datamodel.v2.Volume.AnnotationsEntry
+	nil,                           // 4: datamodel.v2.PersistentVolumeClaim.LabelsEntry
+	nil,                           // 5: datamodel.v2.PersistentVolumeClaim.AnnotationsEntry
+	(*ResourceLifetime)(nil),      // 6: datamodel.v2.ResourceLifetime
+	(*AllocationCost)(nil),        // 7: datamodel.v2.AllocationCost
+	(*CostAttribution)(nil),       // 8: datamodel.v2.CostAttribution
 }
-var file_storage_proto_depIdxs = []int32{
-	2,  // 0: agent.Volume.Labels:type_name -> agent.Volume.LabelsEntry
-	3,  // 1: agent.Volume.Annotations:type_name -> agent.Volume.AnnotationsEntry
-	6,  // 2: agent.Volume.lifetime:type_name -> agent.ResourceLifetime
-	7,  // 3: agent.Volume.cost:type_name -> agent.AllocationCost
-	8,  // 4: agent.Volume.costAttribution:type_name -> agent.CostAttribution
-	4,  // 5: agent.PersistentVolumeClaim.Labels:type_name -> agent.PersistentVolumeClaim.LabelsEntry
-	5,  // 6: agent.PersistentVolumeClaim.Annotations:type_name -> agent.PersistentVolumeClaim.AnnotationsEntry
-	6,  // 7: agent.PersistentVolumeClaim.lifetime:type_name -> agent.ResourceLifetime
-	7,  // 8: agent.PersistentVolumeClaim.cost:type_name -> agent.AllocationCost
-	8,  // 9: agent.PersistentVolumeClaim.costAttribution:type_name -> agent.CostAttribution
+var file_datamodel_storage_proto_depIdxs = []int32{
+	2,  // 0: datamodel.v2.Volume.Labels:type_name -> datamodel.v2.Volume.LabelsEntry
+	3,  // 1: datamodel.v2.Volume.Annotations:type_name -> datamodel.v2.Volume.AnnotationsEntry
+	6,  // 2: datamodel.v2.Volume.lifetime:type_name -> datamodel.v2.ResourceLifetime
+	7,  // 3: datamodel.v2.Volume.cost:type_name -> datamodel.v2.AllocationCost
+	8,  // 4: datamodel.v2.Volume.costAttribution:type_name -> datamodel.v2.CostAttribution
+	4,  // 5: datamodel.v2.PersistentVolumeClaim.Labels:type_name -> datamodel.v2.PersistentVolumeClaim.LabelsEntry
+	5,  // 6: datamodel.v2.PersistentVolumeClaim.Annotations:type_name -> datamodel.v2.PersistentVolumeClaim.AnnotationsEntry
+	6,  // 7: datamodel.v2.PersistentVolumeClaim.lifetime:type_name -> datamodel.v2.ResourceLifetime
+	7,  // 8: datamodel.v2.PersistentVolumeClaim.cost:type_name -> datamodel.v2.AllocationCost
+	8,  // 9: datamodel.v2.PersistentVolumeClaim.costAttribution:type_name -> datamodel.v2.CostAttribution
 	10, // [10:10] is the sub-list for method output_type
 	10, // [10:10] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name
@@ -339,28 +339,28 @@ var file_storage_proto_depIdxs = []int32{
 	0,  // [0:10] is the sub-list for field type_name
 }
 
-func init() { file_storage_proto_init() }
-func file_storage_proto_init() {
-	if File_storage_proto != nil {
+func init() { file_datamodel_storage_proto_init() }
+func file_datamodel_storage_proto_init() {
+	if File_datamodel_storage_proto != nil {
 		return
 	}
-	file_common_proto_init()
-	file_costs_proto_init()
+	file_datamodel_common_proto_init()
+	file_datamodel_costs_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_storage_proto_rawDesc), len(file_storage_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datamodel_storage_proto_rawDesc), len(file_datamodel_storage_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_storage_proto_goTypes,
-		DependencyIndexes: file_storage_proto_depIdxs,
-		MessageInfos:      file_storage_proto_msgTypes,
+		GoTypes:           file_datamodel_storage_proto_goTypes,
+		DependencyIndexes: file_datamodel_storage_proto_depIdxs,
+		MessageInfos:      file_datamodel_storage_proto_msgTypes,
 	}.Build()
-	File_storage_proto = out.File
-	file_storage_proto_goTypes = nil
-	file_storage_proto_depIdxs = nil
+	File_datamodel_storage_proto = out.File
+	file_datamodel_storage_proto_goTypes = nil
+	file_datamodel_storage_proto_depIdxs = nil
 }

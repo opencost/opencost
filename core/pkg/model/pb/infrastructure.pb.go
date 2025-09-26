@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v4.25.3
-// source: infrastructure.proto
+// source: datamodel/infrastructure.proto
 
 package pb
 
@@ -28,7 +28,7 @@ type Cluster struct {
 	// Identification
 	ID string `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
 	// Properties
-	Provider Provider `protobuf:"varint,2,opt,name=Provider,proto3,enum=agent.Provider" json:"Provider,omitempty"`
+	Provider Provider `protobuf:"varint,2,opt,name=Provider,proto3,enum=datamodel.v2.Provider" json:"Provider,omitempty"`
 	Account  string   `protobuf:"bytes,3,opt,name=Account,proto3" json:"Account,omitempty"`
 	Project  string   `protobuf:"bytes,4,opt,name=Project,proto3" json:"Project,omitempty"`
 	Region   string   `protobuf:"bytes,5,opt,name=Region,proto3" json:"Region,omitempty"`
@@ -63,7 +63,7 @@ type Cluster struct {
 
 func (x *Cluster) Reset() {
 	*x = Cluster{}
-	mi := &file_infrastructure_proto_msgTypes[0]
+	mi := &file_datamodel_infrastructure_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -75,7 +75,7 @@ func (x *Cluster) String() string {
 func (*Cluster) ProtoMessage() {}
 
 func (x *Cluster) ProtoReflect() protoreflect.Message {
-	mi := &file_infrastructure_proto_msgTypes[0]
+	mi := &file_datamodel_infrastructure_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -88,7 +88,7 @@ func (x *Cluster) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Cluster.ProtoReflect.Descriptor instead.
 func (*Cluster) Descriptor() ([]byte, []int) {
-	return file_infrastructure_proto_rawDescGZIP(), []int{0}
+	return file_datamodel_infrastructure_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Cluster) GetID() string {
@@ -238,90 +238,88 @@ func (x *Cluster) GetCostAttribution() *CostAttribution {
 	return nil
 }
 
-var File_infrastructure_proto protoreflect.FileDescriptor
+var File_datamodel_infrastructure_proto protoreflect.FileDescriptor
 
-const file_infrastructure_proto_rawDesc = "" +
+const file_datamodel_infrastructure_proto_rawDesc = "" +
 	"\n" +
-	"\x14infrastructure.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\x1a\vnodes.proto\x1a\rcompute.proto\x1a\rstorage.proto\x1a\x10networking.proto\x1a\n" +
-	"pods.proto\x1a\x0fworkloads.proto\"\x9b\a\n" +
+	"\x1edatamodel/infrastructure.proto\x12\fdatamodel.v2\x1a\x16datamodel/common.proto\x1a\x15datamodel/costs.proto\x1a\x15datamodel/nodes.proto\x1a\x17datamodel/compute.proto\x1a\x17datamodel/storage.proto\x1a\x1adatamodel/networking.proto\x1a\x14datamodel/pods.proto\x1a\x19datamodel/workloads.proto\"\x84\b\n" +
 	"\aCluster\x12\x0e\n" +
-	"\x02ID\x18\x01 \x01(\tR\x02ID\x12+\n" +
-	"\bProvider\x18\x02 \x01(\x0e2\x0f.agent.ProviderR\bProvider\x12\x18\n" +
+	"\x02ID\x18\x01 \x01(\tR\x02ID\x122\n" +
+	"\bProvider\x18\x02 \x01(\x0e2\x16.datamodel.v2.ProviderR\bProvider\x12\x18\n" +
 	"\aAccount\x18\x03 \x01(\tR\aAccount\x12\x18\n" +
 	"\aProject\x18\x04 \x01(\tR\aProject\x12\x16\n" +
 	"\x06Region\x18\x05 \x01(\tR\x06Region\x12\x12\n" +
-	"\x04Name\x18\x06 \x01(\tR\x04Name\x12)\n" +
-	"\x06window\x18\a \x01(\v2\x11.agent.TimeWindowR\x06window\x122\n" +
-	"\x14ManagementFeePerHour\x18\b \x01(\x02R\x14ManagementFeePerHour\x12!\n" +
-	"\x05Nodes\x18\t \x03(\v2\v.agent.NodeR\x05Nodes\x120\n" +
+	"\x04Name\x18\x06 \x01(\tR\x04Name\x120\n" +
+	"\x06window\x18\a \x01(\v2\x18.datamodel.v2.TimeWindowR\x06window\x122\n" +
+	"\x14ManagementFeePerHour\x18\b \x01(\x02R\x14ManagementFeePerHour\x12(\n" +
+	"\x05Nodes\x18\t \x03(\v2\x12.datamodel.v2.NodeR\x05Nodes\x127\n" +
 	"\n" +
 	"GPUDevices\x18\n" +
-	" \x03(\v2\x10.agent.GPUDeviceR\n" +
-	"GPUDevices\x12'\n" +
-	"\aVolumes\x18\v \x03(\v2\r.agent.VolumeR\aVolumes\x129\n" +
-	"\rLoadBalancers\x18\f \x03(\v2\x13.agent.LoadBalancerR\rLoadBalancers\x12*\n" +
-	"\bServices\x18\r \x03(\v2\x0e.agent.ServiceR\bServices\x120\n" +
-	"\x04PVCs\x18\x0e \x03(\v2\x1c.agent.PersistentVolumeClaimR\x04PVCs\x120\n" +
+	" \x03(\v2\x17.datamodel.v2.GPUDeviceR\n" +
+	"GPUDevices\x12.\n" +
+	"\aVolumes\x18\v \x03(\v2\x14.datamodel.v2.VolumeR\aVolumes\x12@\n" +
+	"\rLoadBalancers\x18\f \x03(\v2\x1a.datamodel.v2.LoadBalancerR\rLoadBalancers\x121\n" +
+	"\bServices\x18\r \x03(\v2\x15.datamodel.v2.ServiceR\bServices\x127\n" +
+	"\x04PVCs\x18\x0e \x03(\v2#.datamodel.v2.PersistentVolumeClaimR\x04PVCs\x127\n" +
 	"\n" +
-	"Namespaces\x18\x0f \x03(\v2\x10.agent.NamespaceR\n" +
-	"Namespaces\x12\x1e\n" +
-	"\x04Pods\x18\x10 \x03(\v2\n" +
-	".agent.PodR\x04Pods\x120\n" +
+	"Namespaces\x18\x0f \x03(\v2\x17.datamodel.v2.NamespaceR\n" +
+	"Namespaces\x12%\n" +
+	"\x04Pods\x18\x10 \x03(\v2\x11.datamodel.v2.PodR\x04Pods\x127\n" +
 	"\n" +
-	"Containers\x18\x11 \x03(\v2\x10.agent.ContainerR\n" +
-	"Containers\x12=\n" +
-	"\vsharedCosts\x18\x12 \x03(\v2\x1b.agent.SharedCostAllocationR\vsharedCosts\x12C\n" +
-	"\rexternalCosts\x18\x13 \x03(\v2\x1d.agent.ExternalCostAllocationR\rexternalCosts\x123\n" +
-	"\ttotalCost\x18\x14 \x01(\v2\x15.agent.AllocationCostR\ttotalCost\x12@\n" +
-	"\x0fcostAttribution\x18\x15 \x01(\v2\x16.agent.CostAttributionR\x0fcostAttributionB4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
+	"Containers\x18\x11 \x03(\v2\x17.datamodel.v2.ContainerR\n" +
+	"Containers\x12D\n" +
+	"\vsharedCosts\x18\x12 \x03(\v2\".datamodel.v2.SharedCostAllocationR\vsharedCosts\x12J\n" +
+	"\rexternalCosts\x18\x13 \x03(\v2$.datamodel.v2.ExternalCostAllocationR\rexternalCosts\x12:\n" +
+	"\ttotalCost\x18\x14 \x01(\v2\x1c.datamodel.v2.AllocationCostR\ttotalCost\x12G\n" +
+	"\x0fcostAttribution\x18\x15 \x01(\v2\x1d.datamodel.v2.CostAttributionR\x0fcostAttributionB3Z1github.com/opencost/opencost/core/pkg/model/pb;pbb\x06proto3"
 
 var (
-	file_infrastructure_proto_rawDescOnce sync.Once
-	file_infrastructure_proto_rawDescData []byte
+	file_datamodel_infrastructure_proto_rawDescOnce sync.Once
+	file_datamodel_infrastructure_proto_rawDescData []byte
 )
 
-func file_infrastructure_proto_rawDescGZIP() []byte {
-	file_infrastructure_proto_rawDescOnce.Do(func() {
-		file_infrastructure_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_infrastructure_proto_rawDesc), len(file_infrastructure_proto_rawDesc)))
+func file_datamodel_infrastructure_proto_rawDescGZIP() []byte {
+	file_datamodel_infrastructure_proto_rawDescOnce.Do(func() {
+		file_datamodel_infrastructure_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_datamodel_infrastructure_proto_rawDesc), len(file_datamodel_infrastructure_proto_rawDesc)))
 	})
-	return file_infrastructure_proto_rawDescData
+	return file_datamodel_infrastructure_proto_rawDescData
 }
 
-var file_infrastructure_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-var file_infrastructure_proto_goTypes = []any{
-	(*Cluster)(nil),                // 0: agent.Cluster
-	(Provider)(0),                  // 1: agent.Provider
-	(*TimeWindow)(nil),             // 2: agent.TimeWindow
-	(*Node)(nil),                   // 3: agent.Node
-	(*GPUDevice)(nil),              // 4: agent.GPUDevice
-	(*Volume)(nil),                 // 5: agent.Volume
-	(*LoadBalancer)(nil),           // 6: agent.LoadBalancer
-	(*Service)(nil),                // 7: agent.Service
-	(*PersistentVolumeClaim)(nil),  // 8: agent.PersistentVolumeClaim
-	(*Namespace)(nil),              // 9: agent.Namespace
-	(*Pod)(nil),                    // 10: agent.Pod
-	(*Container)(nil),              // 11: agent.Container
-	(*SharedCostAllocation)(nil),   // 12: agent.SharedCostAllocation
-	(*ExternalCostAllocation)(nil), // 13: agent.ExternalCostAllocation
-	(*AllocationCost)(nil),         // 14: agent.AllocationCost
-	(*CostAttribution)(nil),        // 15: agent.CostAttribution
+var file_datamodel_infrastructure_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_datamodel_infrastructure_proto_goTypes = []any{
+	(*Cluster)(nil),                // 0: datamodel.v2.Cluster
+	(Provider)(0),                  // 1: datamodel.v2.Provider
+	(*TimeWindow)(nil),             // 2: datamodel.v2.TimeWindow
+	(*Node)(nil),                   // 3: datamodel.v2.Node
+	(*GPUDevice)(nil),              // 4: datamodel.v2.GPUDevice
+	(*Volume)(nil),                 // 5: datamodel.v2.Volume
+	(*LoadBalancer)(nil),           // 6: datamodel.v2.LoadBalancer
+	(*Service)(nil),                // 7: datamodel.v2.Service
+	(*PersistentVolumeClaim)(nil),  // 8: datamodel.v2.PersistentVolumeClaim
+	(*Namespace)(nil),              // 9: datamodel.v2.Namespace
+	(*Pod)(nil),                    // 10: datamodel.v2.Pod
+	(*Container)(nil),              // 11: datamodel.v2.Container
+	(*SharedCostAllocation)(nil),   // 12: datamodel.v2.SharedCostAllocation
+	(*ExternalCostAllocation)(nil), // 13: datamodel.v2.ExternalCostAllocation
+	(*AllocationCost)(nil),         // 14: datamodel.v2.AllocationCost
+	(*CostAttribution)(nil),        // 15: datamodel.v2.CostAttribution
 }
-var file_infrastructure_proto_depIdxs = []int32{
-	1,  // 0: agent.Cluster.Provider:type_name -> agent.Provider
-	2,  // 1: agent.Cluster.window:type_name -> agent.TimeWindow
-	3,  // 2: agent.Cluster.Nodes:type_name -> agent.Node
-	4,  // 3: agent.Cluster.GPUDevices:type_name -> agent.GPUDevice
-	5,  // 4: agent.Cluster.Volumes:type_name -> agent.Volume
-	6,  // 5: agent.Cluster.LoadBalancers:type_name -> agent.LoadBalancer
-	7,  // 6: agent.Cluster.Services:type_name -> agent.Service
-	8,  // 7: agent.Cluster.PVCs:type_name -> agent.PersistentVolumeClaim
-	9,  // 8: agent.Cluster.Namespaces:type_name -> agent.Namespace
-	10, // 9: agent.Cluster.Pods:type_name -> agent.Pod
-	11, // 10: agent.Cluster.Containers:type_name -> agent.Container
-	12, // 11: agent.Cluster.sharedCosts:type_name -> agent.SharedCostAllocation
-	13, // 12: agent.Cluster.externalCosts:type_name -> agent.ExternalCostAllocation
-	14, // 13: agent.Cluster.totalCost:type_name -> agent.AllocationCost
-	15, // 14: agent.Cluster.costAttribution:type_name -> agent.CostAttribution
+var file_datamodel_infrastructure_proto_depIdxs = []int32{
+	1,  // 0: datamodel.v2.Cluster.Provider:type_name -> datamodel.v2.Provider
+	2,  // 1: datamodel.v2.Cluster.window:type_name -> datamodel.v2.TimeWindow
+	3,  // 2: datamodel.v2.Cluster.Nodes:type_name -> datamodel.v2.Node
+	4,  // 3: datamodel.v2.Cluster.GPUDevices:type_name -> datamodel.v2.GPUDevice
+	5,  // 4: datamodel.v2.Cluster.Volumes:type_name -> datamodel.v2.Volume
+	6,  // 5: datamodel.v2.Cluster.LoadBalancers:type_name -> datamodel.v2.LoadBalancer
+	7,  // 6: datamodel.v2.Cluster.Services:type_name -> datamodel.v2.Service
+	8,  // 7: datamodel.v2.Cluster.PVCs:type_name -> datamodel.v2.PersistentVolumeClaim
+	9,  // 8: datamodel.v2.Cluster.Namespaces:type_name -> datamodel.v2.Namespace
+	10, // 9: datamodel.v2.Cluster.Pods:type_name -> datamodel.v2.Pod
+	11, // 10: datamodel.v2.Cluster.Containers:type_name -> datamodel.v2.Container
+	12, // 11: datamodel.v2.Cluster.sharedCosts:type_name -> datamodel.v2.SharedCostAllocation
+	13, // 12: datamodel.v2.Cluster.externalCosts:type_name -> datamodel.v2.ExternalCostAllocation
+	14, // 13: datamodel.v2.Cluster.totalCost:type_name -> datamodel.v2.AllocationCost
+	15, // 14: datamodel.v2.Cluster.costAttribution:type_name -> datamodel.v2.CostAttribution
 	15, // [15:15] is the sub-list for method output_type
 	15, // [15:15] is the sub-list for method input_type
 	15, // [15:15] is the sub-list for extension type_name
@@ -329,34 +327,34 @@ var file_infrastructure_proto_depIdxs = []int32{
 	0,  // [0:15] is the sub-list for field type_name
 }
 
-func init() { file_infrastructure_proto_init() }
-func file_infrastructure_proto_init() {
-	if File_infrastructure_proto != nil {
+func init() { file_datamodel_infrastructure_proto_init() }
+func file_datamodel_infrastructure_proto_init() {
+	if File_datamodel_infrastructure_proto != nil {
 		return
 	}
-	file_common_proto_init()
-	file_costs_proto_init()
-	file_nodes_proto_init()
-	file_compute_proto_init()
-	file_storage_proto_init()
-	file_networking_proto_init()
-	file_pods_proto_init()
-	file_workloads_proto_init()
+	file_datamodel_common_proto_init()
+	file_datamodel_costs_proto_init()
+	file_datamodel_nodes_proto_init()
+	file_datamodel_compute_proto_init()
+	file_datamodel_storage_proto_init()
+	file_datamodel_networking_proto_init()
+	file_datamodel_pods_proto_init()
+	file_datamodel_workloads_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_infrastructure_proto_rawDesc), len(file_infrastructure_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datamodel_infrastructure_proto_rawDesc), len(file_datamodel_infrastructure_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_infrastructure_proto_goTypes,
-		DependencyIndexes: file_infrastructure_proto_depIdxs,
-		MessageInfos:      file_infrastructure_proto_msgTypes,
+		GoTypes:           file_datamodel_infrastructure_proto_goTypes,
+		DependencyIndexes: file_datamodel_infrastructure_proto_depIdxs,
+		MessageInfos:      file_datamodel_infrastructure_proto_msgTypes,
 	}.Build()
-	File_infrastructure_proto = out.File
-	file_infrastructure_proto_goTypes = nil
-	file_infrastructure_proto_depIdxs = nil
+	File_datamodel_infrastructure_proto = out.File
+	file_datamodel_infrastructure_proto_goTypes = nil
+	file_datamodel_infrastructure_proto_depIdxs = nil
 }

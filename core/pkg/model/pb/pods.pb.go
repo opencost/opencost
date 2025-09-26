@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v4.25.3
-// source: pods.proto
+// source: datamodel/pods.proto
 
 package pb
 
@@ -44,7 +44,7 @@ type Pod struct {
 
 func (x *Pod) Reset() {
 	*x = Pod{}
-	mi := &file_pods_proto_msgTypes[0]
+	mi := &file_datamodel_pods_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56,7 +56,7 @@ func (x *Pod) String() string {
 func (*Pod) ProtoMessage() {}
 
 func (x *Pod) ProtoReflect() protoreflect.Message {
-	mi := &file_pods_proto_msgTypes[0]
+	mi := &file_datamodel_pods_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -69,7 +69,7 @@ func (x *Pod) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Pod.ProtoReflect.Descriptor instead.
 func (*Pod) Descriptor() ([]byte, []int) {
-	return file_pods_proto_rawDescGZIP(), []int{0}
+	return file_datamodel_pods_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Pod) GetID() string {
@@ -155,7 +155,7 @@ type Container struct {
 
 func (x *Container) Reset() {
 	*x = Container{}
-	mi := &file_pods_proto_msgTypes[1]
+	mi := &file_datamodel_pods_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -167,7 +167,7 @@ func (x *Container) String() string {
 func (*Container) ProtoMessage() {}
 
 func (x *Container) ProtoReflect() protoreflect.Message {
-	mi := &file_pods_proto_msgTypes[1]
+	mi := &file_datamodel_pods_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -180,7 +180,7 @@ func (x *Container) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Container.ProtoReflect.Descriptor instead.
 func (*Container) Descriptor() ([]byte, []int) {
-	return file_pods_proto_rawDescGZIP(), []int{1}
+	return file_datamodel_pods_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *Container) GetID() string {
@@ -225,67 +225,66 @@ func (x *Container) GetCostAttribution() *CostAttribution {
 	return nil
 }
 
-var File_pods_proto protoreflect.FileDescriptor
+var File_datamodel_pods_proto protoreflect.FileDescriptor
 
-const file_pods_proto_rawDesc = "" +
+const file_datamodel_pods_proto_rawDesc = "" +
 	"\n" +
-	"\n" +
-	"pods.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\xef\x03\n" +
+	"\x14datamodel/pods.proto\x12\fdatamodel.v2\x1a\x16datamodel/common.proto\x1a\x15datamodel/costs.proto\"\x92\x04\n" +
 	"\x03Pod\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x16\n" +
 	"\x06NodeID\x18\x02 \x01(\tR\x06NodeID\x12 \n" +
 	"\vNamespaceID\x18\x03 \x01(\tR\vNamespaceID\x12\x12\n" +
-	"\x04Name\x18\x04 \x01(\tR\x04Name\x12.\n" +
-	"\x06Labels\x18\x05 \x03(\v2\x16.agent.Pod.LabelsEntryR\x06Labels\x12=\n" +
-	"\vAnnotations\x18\x06 \x03(\v2\x1b.agent.Pod.AnnotationsEntryR\vAnnotations\x123\n" +
-	"\blifetime\x18\a \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12)\n" +
-	"\x04cost\x18\b \x01(\v2\x15.agent.AllocationCostR\x04cost\x12@\n" +
-	"\x0fcostAttribution\x18\t \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
+	"\x04Name\x18\x04 \x01(\tR\x04Name\x125\n" +
+	"\x06Labels\x18\x05 \x03(\v2\x1d.datamodel.v2.Pod.LabelsEntryR\x06Labels\x12D\n" +
+	"\vAnnotations\x18\x06 \x03(\v2\".datamodel.v2.Pod.AnnotationsEntryR\vAnnotations\x12:\n" +
+	"\blifetime\x18\a \x01(\v2\x1e.datamodel.v2.ResourceLifetimeR\blifetime\x120\n" +
+	"\x04cost\x18\b \x01(\v2\x1c.datamodel.v2.AllocationCostR\x04cost\x12G\n" +
+	"\x0fcostAttribution\x18\t \x01(\v2\x1d.datamodel.v2.CostAttributionR\x0fcostAttribution\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe7\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xfc\x01\n" +
 	"\tContainer\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x14\n" +
 	"\x05PodID\x18\x02 \x01(\tR\x05PodID\x12\x12\n" +
-	"\x04Name\x18\x03 \x01(\tR\x04Name\x123\n" +
-	"\blifetime\x18\x04 \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12)\n" +
-	"\x04cost\x18\x05 \x01(\v2\x15.agent.AllocationCostR\x04cost\x12@\n" +
-	"\x0fcostAttribution\x18\x06 \x01(\v2\x16.agent.CostAttributionR\x0fcostAttributionB4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
+	"\x04Name\x18\x03 \x01(\tR\x04Name\x12:\n" +
+	"\blifetime\x18\x04 \x01(\v2\x1e.datamodel.v2.ResourceLifetimeR\blifetime\x120\n" +
+	"\x04cost\x18\x05 \x01(\v2\x1c.datamodel.v2.AllocationCostR\x04cost\x12G\n" +
+	"\x0fcostAttribution\x18\x06 \x01(\v2\x1d.datamodel.v2.CostAttributionR\x0fcostAttributionB3Z1github.com/opencost/opencost/core/pkg/model/pb;pbb\x06proto3"
 
 var (
-	file_pods_proto_rawDescOnce sync.Once
-	file_pods_proto_rawDescData []byte
+	file_datamodel_pods_proto_rawDescOnce sync.Once
+	file_datamodel_pods_proto_rawDescData []byte
 )
 
-func file_pods_proto_rawDescGZIP() []byte {
-	file_pods_proto_rawDescOnce.Do(func() {
-		file_pods_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_pods_proto_rawDesc), len(file_pods_proto_rawDesc)))
+func file_datamodel_pods_proto_rawDescGZIP() []byte {
+	file_datamodel_pods_proto_rawDescOnce.Do(func() {
+		file_datamodel_pods_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_datamodel_pods_proto_rawDesc), len(file_datamodel_pods_proto_rawDesc)))
 	})
-	return file_pods_proto_rawDescData
+	return file_datamodel_pods_proto_rawDescData
 }
 
-var file_pods_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
-var file_pods_proto_goTypes = []any{
-	(*Pod)(nil),              // 0: agent.Pod
-	(*Container)(nil),        // 1: agent.Container
-	nil,                      // 2: agent.Pod.LabelsEntry
-	nil,                      // 3: agent.Pod.AnnotationsEntry
-	(*ResourceLifetime)(nil), // 4: agent.ResourceLifetime
-	(*AllocationCost)(nil),   // 5: agent.AllocationCost
-	(*CostAttribution)(nil),  // 6: agent.CostAttribution
+var file_datamodel_pods_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_datamodel_pods_proto_goTypes = []any{
+	(*Pod)(nil),              // 0: datamodel.v2.Pod
+	(*Container)(nil),        // 1: datamodel.v2.Container
+	nil,                      // 2: datamodel.v2.Pod.LabelsEntry
+	nil,                      // 3: datamodel.v2.Pod.AnnotationsEntry
+	(*ResourceLifetime)(nil), // 4: datamodel.v2.ResourceLifetime
+	(*AllocationCost)(nil),   // 5: datamodel.v2.AllocationCost
+	(*CostAttribution)(nil),  // 6: datamodel.v2.CostAttribution
 }
-var file_pods_proto_depIdxs = []int32{
-	2, // 0: agent.Pod.Labels:type_name -> agent.Pod.LabelsEntry
-	3, // 1: agent.Pod.Annotations:type_name -> agent.Pod.AnnotationsEntry
-	4, // 2: agent.Pod.lifetime:type_name -> agent.ResourceLifetime
-	5, // 3: agent.Pod.cost:type_name -> agent.AllocationCost
-	6, // 4: agent.Pod.costAttribution:type_name -> agent.CostAttribution
-	4, // 5: agent.Container.lifetime:type_name -> agent.ResourceLifetime
-	5, // 6: agent.Container.cost:type_name -> agent.AllocationCost
-	6, // 7: agent.Container.costAttribution:type_name -> agent.CostAttribution
+var file_datamodel_pods_proto_depIdxs = []int32{
+	2, // 0: datamodel.v2.Pod.Labels:type_name -> datamodel.v2.Pod.LabelsEntry
+	3, // 1: datamodel.v2.Pod.Annotations:type_name -> datamodel.v2.Pod.AnnotationsEntry
+	4, // 2: datamodel.v2.Pod.lifetime:type_name -> datamodel.v2.ResourceLifetime
+	5, // 3: datamodel.v2.Pod.cost:type_name -> datamodel.v2.AllocationCost
+	6, // 4: datamodel.v2.Pod.costAttribution:type_name -> datamodel.v2.CostAttribution
+	4, // 5: datamodel.v2.Container.lifetime:type_name -> datamodel.v2.ResourceLifetime
+	5, // 6: datamodel.v2.Container.cost:type_name -> datamodel.v2.AllocationCost
+	6, // 7: datamodel.v2.Container.costAttribution:type_name -> datamodel.v2.CostAttribution
 	8, // [8:8] is the sub-list for method output_type
 	8, // [8:8] is the sub-list for method input_type
 	8, // [8:8] is the sub-list for extension type_name
@@ -293,28 +292,28 @@ var file_pods_proto_depIdxs = []int32{
 	0, // [0:8] is the sub-list for field type_name
 }
 
-func init() { file_pods_proto_init() }
-func file_pods_proto_init() {
-	if File_pods_proto != nil {
+func init() { file_datamodel_pods_proto_init() }
+func file_datamodel_pods_proto_init() {
+	if File_datamodel_pods_proto != nil {
 		return
 	}
-	file_common_proto_init()
-	file_costs_proto_init()
+	file_datamodel_common_proto_init()
+	file_datamodel_costs_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pods_proto_rawDesc), len(file_pods_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datamodel_pods_proto_rawDesc), len(file_datamodel_pods_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_pods_proto_goTypes,
-		DependencyIndexes: file_pods_proto_depIdxs,
-		MessageInfos:      file_pods_proto_msgTypes,
+		GoTypes:           file_datamodel_pods_proto_goTypes,
+		DependencyIndexes: file_datamodel_pods_proto_depIdxs,
+		MessageInfos:      file_datamodel_pods_proto_msgTypes,
 	}.Build()
-	File_pods_proto = out.File
-	file_pods_proto_goTypes = nil
-	file_pods_proto_depIdxs = nil
+	File_datamodel_pods_proto = out.File
+	file_datamodel_pods_proto_goTypes = nil
+	file_datamodel_pods_proto_depIdxs = nil
 }

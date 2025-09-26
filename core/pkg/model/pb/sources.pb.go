@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v4.25.3
-// source: sources.proto
+// source: datamodel/sources.proto
 
 package pb
 
@@ -26,9 +26,9 @@ const (
 type DataSourceMetadata struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Primary data source type
-	PrimarySource DataSourceType `protobuf:"varint,1,opt,name=primarySource,proto3,enum=agent.DataSourceType" json:"primarySource,omitempty"`
+	PrimarySource DataSourceType `protobuf:"varint,1,opt,name=primarySource,proto3,enum=datamodel.v2.DataSourceType" json:"primarySource,omitempty"`
 	// Fallback sources used if primary failed
-	FallbackSources []DataSourceType `protobuf:"varint,2,rep,packed,name=fallbackSources,proto3,enum=agent.DataSourceType" json:"fallbackSources,omitempty"`
+	FallbackSources []DataSourceType `protobuf:"varint,2,rep,packed,name=fallbackSources,proto3,enum=datamodel.v2.DataSourceType" json:"fallbackSources,omitempty"`
 	// Prometheus query metadata if applicable
 	PrometheusInfo *PrometheusSourceInfo `protobuf:"bytes,3,opt,name=prometheusInfo,proto3" json:"prometheusInfo,omitempty"`
 	// Kubernetes API metadata if applicable
@@ -47,7 +47,7 @@ type DataSourceMetadata struct {
 
 func (x *DataSourceMetadata) Reset() {
 	*x = DataSourceMetadata{}
-	mi := &file_sources_proto_msgTypes[0]
+	mi := &file_datamodel_sources_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59,7 +59,7 @@ func (x *DataSourceMetadata) String() string {
 func (*DataSourceMetadata) ProtoMessage() {}
 
 func (x *DataSourceMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_sources_proto_msgTypes[0]
+	mi := &file_datamodel_sources_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -72,7 +72,7 @@ func (x *DataSourceMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataSourceMetadata.ProtoReflect.Descriptor instead.
 func (*DataSourceMetadata) Descriptor() ([]byte, []int) {
-	return file_sources_proto_rawDescGZIP(), []int{0}
+	return file_datamodel_sources_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *DataSourceMetadata) GetPrimarySource() DataSourceType {
@@ -150,7 +150,7 @@ type PrometheusSourceInfo struct {
 
 func (x *PrometheusSourceInfo) Reset() {
 	*x = PrometheusSourceInfo{}
-	mi := &file_sources_proto_msgTypes[1]
+	mi := &file_datamodel_sources_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -162,7 +162,7 @@ func (x *PrometheusSourceInfo) String() string {
 func (*PrometheusSourceInfo) ProtoMessage() {}
 
 func (x *PrometheusSourceInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_sources_proto_msgTypes[1]
+	mi := &file_datamodel_sources_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -175,7 +175,7 @@ func (x *PrometheusSourceInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PrometheusSourceInfo.ProtoReflect.Descriptor instead.
 func (*PrometheusSourceInfo) Descriptor() ([]byte, []int) {
-	return file_sources_proto_rawDescGZIP(), []int{1}
+	return file_datamodel_sources_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *PrometheusSourceInfo) GetPrometheusUrl() string {
@@ -234,7 +234,7 @@ type KubernetesAPISourceInfo struct {
 
 func (x *KubernetesAPISourceInfo) Reset() {
 	*x = KubernetesAPISourceInfo{}
-	mi := &file_sources_proto_msgTypes[2]
+	mi := &file_datamodel_sources_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -246,7 +246,7 @@ func (x *KubernetesAPISourceInfo) String() string {
 func (*KubernetesAPISourceInfo) ProtoMessage() {}
 
 func (x *KubernetesAPISourceInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_sources_proto_msgTypes[2]
+	mi := &file_datamodel_sources_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -259,7 +259,7 @@ func (x *KubernetesAPISourceInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KubernetesAPISourceInfo.ProtoReflect.Descriptor instead.
 func (*KubernetesAPISourceInfo) Descriptor() ([]byte, []int) {
-	return file_sources_proto_rawDescGZIP(), []int{2}
+	return file_datamodel_sources_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *KubernetesAPISourceInfo) GetApiServer() string {
@@ -304,17 +304,17 @@ func (x *KubernetesAPISourceInfo) GetLabelSelectors() []string {
 	return nil
 }
 
-var File_sources_proto protoreflect.FileDescriptor
+var File_datamodel_sources_proto protoreflect.FileDescriptor
 
-const file_sources_proto_rawDesc = "" +
+const file_datamodel_sources_proto_rawDesc = "" +
 	"\n" +
-	"\rsources.proto\x12\x05agent\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\fcommon.proto\"\xe3\x03\n" +
-	"\x12DataSourceMetadata\x12;\n" +
-	"\rprimarySource\x18\x01 \x01(\x0e2\x15.agent.DataSourceTypeR\rprimarySource\x12?\n" +
-	"\x0ffallbackSources\x18\x02 \x03(\x0e2\x15.agent.DataSourceTypeR\x0ffallbackSources\x12C\n" +
-	"\x0eprometheusInfo\x18\x03 \x01(\v2\x1b.agent.PrometheusSourceInfoR\x0eprometheusInfo\x12>\n" +
+	"\x17datamodel/sources.proto\x12\fdatamodel.v2\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x16datamodel/common.proto\"\xff\x03\n" +
+	"\x12DataSourceMetadata\x12B\n" +
+	"\rprimarySource\x18\x01 \x01(\x0e2\x1c.datamodel.v2.DataSourceTypeR\rprimarySource\x12F\n" +
+	"\x0ffallbackSources\x18\x02 \x03(\x0e2\x1c.datamodel.v2.DataSourceTypeR\x0ffallbackSources\x12J\n" +
+	"\x0eprometheusInfo\x18\x03 \x01(\v2\".datamodel.v2.PrometheusSourceInfoR\x0eprometheusInfo\x12E\n" +
 	"\n" +
-	"k8sApiInfo\x18\x04 \x01(\v2\x1e.agent.KubernetesAPISourceInfoR\n" +
+	"k8sApiInfo\x18\x04 \x01(\v2%.datamodel.v2.KubernetesAPISourceInfoR\n" +
 	"k8sApiInfo\x12<\n" +
 	"\vcollectedAt\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vcollectedAt\x122\n" +
 	"\x14collectionDurationMs\x18\x06 \x01(\x03R\x14collectionDurationMs\x12,\n" +
@@ -334,34 +334,34 @@ const file_sources_proto_rawDesc = "" +
 	"apiVersion\x18\x04 \x01(\tR\n" +
 	"apiVersion\x12&\n" +
 	"\x0efieldSelectors\x18\x05 \x03(\tR\x0efieldSelectors\x12&\n" +
-	"\x0elabelSelectors\x18\x06 \x03(\tR\x0elabelSelectorsB4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
+	"\x0elabelSelectors\x18\x06 \x03(\tR\x0elabelSelectorsB3Z1github.com/opencost/opencost/core/pkg/model/pb;pbb\x06proto3"
 
 var (
-	file_sources_proto_rawDescOnce sync.Once
-	file_sources_proto_rawDescData []byte
+	file_datamodel_sources_proto_rawDescOnce sync.Once
+	file_datamodel_sources_proto_rawDescData []byte
 )
 
-func file_sources_proto_rawDescGZIP() []byte {
-	file_sources_proto_rawDescOnce.Do(func() {
-		file_sources_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_sources_proto_rawDesc), len(file_sources_proto_rawDesc)))
+func file_datamodel_sources_proto_rawDescGZIP() []byte {
+	file_datamodel_sources_proto_rawDescOnce.Do(func() {
+		file_datamodel_sources_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_datamodel_sources_proto_rawDesc), len(file_datamodel_sources_proto_rawDesc)))
 	})
-	return file_sources_proto_rawDescData
+	return file_datamodel_sources_proto_rawDescData
 }
 
-var file_sources_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_sources_proto_goTypes = []any{
-	(*DataSourceMetadata)(nil),      // 0: agent.DataSourceMetadata
-	(*PrometheusSourceInfo)(nil),    // 1: agent.PrometheusSourceInfo
-	(*KubernetesAPISourceInfo)(nil), // 2: agent.KubernetesAPISourceInfo
-	(DataSourceType)(0),             // 3: agent.DataSourceType
+var file_datamodel_sources_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_datamodel_sources_proto_goTypes = []any{
+	(*DataSourceMetadata)(nil),      // 0: datamodel.v2.DataSourceMetadata
+	(*PrometheusSourceInfo)(nil),    // 1: datamodel.v2.PrometheusSourceInfo
+	(*KubernetesAPISourceInfo)(nil), // 2: datamodel.v2.KubernetesAPISourceInfo
+	(DataSourceType)(0),             // 3: datamodel.v2.DataSourceType
 	(*timestamppb.Timestamp)(nil),   // 4: google.protobuf.Timestamp
 }
-var file_sources_proto_depIdxs = []int32{
-	3, // 0: agent.DataSourceMetadata.primarySource:type_name -> agent.DataSourceType
-	3, // 1: agent.DataSourceMetadata.fallbackSources:type_name -> agent.DataSourceType
-	1, // 2: agent.DataSourceMetadata.prometheusInfo:type_name -> agent.PrometheusSourceInfo
-	2, // 3: agent.DataSourceMetadata.k8sApiInfo:type_name -> agent.KubernetesAPISourceInfo
-	4, // 4: agent.DataSourceMetadata.collectedAt:type_name -> google.protobuf.Timestamp
+var file_datamodel_sources_proto_depIdxs = []int32{
+	3, // 0: datamodel.v2.DataSourceMetadata.primarySource:type_name -> datamodel.v2.DataSourceType
+	3, // 1: datamodel.v2.DataSourceMetadata.fallbackSources:type_name -> datamodel.v2.DataSourceType
+	1, // 2: datamodel.v2.DataSourceMetadata.prometheusInfo:type_name -> datamodel.v2.PrometheusSourceInfo
+	2, // 3: datamodel.v2.DataSourceMetadata.k8sApiInfo:type_name -> datamodel.v2.KubernetesAPISourceInfo
+	4, // 4: datamodel.v2.DataSourceMetadata.collectedAt:type_name -> google.protobuf.Timestamp
 	5, // [5:5] is the sub-list for method output_type
 	5, // [5:5] is the sub-list for method input_type
 	5, // [5:5] is the sub-list for extension type_name
@@ -369,27 +369,27 @@ var file_sources_proto_depIdxs = []int32{
 	0, // [0:5] is the sub-list for field type_name
 }
 
-func init() { file_sources_proto_init() }
-func file_sources_proto_init() {
-	if File_sources_proto != nil {
+func init() { file_datamodel_sources_proto_init() }
+func file_datamodel_sources_proto_init() {
+	if File_datamodel_sources_proto != nil {
 		return
 	}
-	file_common_proto_init()
+	file_datamodel_common_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_sources_proto_rawDesc), len(file_sources_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datamodel_sources_proto_rawDesc), len(file_datamodel_sources_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_sources_proto_goTypes,
-		DependencyIndexes: file_sources_proto_depIdxs,
-		MessageInfos:      file_sources_proto_msgTypes,
+		GoTypes:           file_datamodel_sources_proto_goTypes,
+		DependencyIndexes: file_datamodel_sources_proto_depIdxs,
+		MessageInfos:      file_datamodel_sources_proto_msgTypes,
 	}.Build()
-	File_sources_proto = out.File
-	file_sources_proto_goTypes = nil
-	file_sources_proto_depIdxs = nil
+	File_datamodel_sources_proto = out.File
+	file_datamodel_sources_proto_goTypes = nil
+	file_datamodel_sources_proto_depIdxs = nil
 }

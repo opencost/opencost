@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v4.25.3
-// source: common.proto
+// source: datamodel/common.proto
 
 package pb
 
@@ -71,11 +71,11 @@ func (x Provider) String() string {
 }
 
 func (Provider) Descriptor() protoreflect.EnumDescriptor {
-	return file_common_proto_enumTypes[0].Descriptor()
+	return file_datamodel_common_proto_enumTypes[0].Descriptor()
 }
 
 func (Provider) Type() protoreflect.EnumType {
-	return &file_common_proto_enumTypes[0]
+	return &file_datamodel_common_proto_enumTypes[0]
 }
 
 func (x Provider) Number() protoreflect.EnumNumber {
@@ -84,7 +84,7 @@ func (x Provider) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Provider.Descriptor instead.
 func (Provider) EnumDescriptor() ([]byte, []int) {
-	return file_common_proto_rawDescGZIP(), []int{0}
+	return file_datamodel_common_proto_rawDescGZIP(), []int{0}
 }
 
 // Data source types for tracking how data was collected
@@ -130,11 +130,11 @@ func (x DataSourceType) String() string {
 }
 
 func (DataSourceType) Descriptor() protoreflect.EnumDescriptor {
-	return file_common_proto_enumTypes[1].Descriptor()
+	return file_datamodel_common_proto_enumTypes[1].Descriptor()
 }
 
 func (DataSourceType) Type() protoreflect.EnumType {
-	return &file_common_proto_enumTypes[1]
+	return &file_datamodel_common_proto_enumTypes[1]
 }
 
 func (x DataSourceType) Number() protoreflect.EnumNumber {
@@ -143,7 +143,7 @@ func (x DataSourceType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DataSourceType.Descriptor instead.
 func (DataSourceType) EnumDescriptor() ([]byte, []int) {
-	return file_common_proto_rawDescGZIP(), []int{1}
+	return file_datamodel_common_proto_rawDescGZIP(), []int{1}
 }
 
 // TimeWindow represents a time range with resolution for cost data aggregation
@@ -161,7 +161,7 @@ type TimeWindow struct {
 
 func (x *TimeWindow) Reset() {
 	*x = TimeWindow{}
-	mi := &file_common_proto_msgTypes[0]
+	mi := &file_datamodel_common_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -173,7 +173,7 @@ func (x *TimeWindow) String() string {
 func (*TimeWindow) ProtoMessage() {}
 
 func (x *TimeWindow) ProtoReflect() protoreflect.Message {
-	mi := &file_common_proto_msgTypes[0]
+	mi := &file_datamodel_common_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -186,7 +186,7 @@ func (x *TimeWindow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TimeWindow.ProtoReflect.Descriptor instead.
 func (*TimeWindow) Descriptor() ([]byte, []int) {
-	return file_common_proto_rawDescGZIP(), []int{0}
+	return file_datamodel_common_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *TimeWindow) GetStart() *timestamppb.Timestamp {
@@ -217,7 +217,7 @@ type ResourceLifetime struct {
 
 func (x *ResourceLifetime) Reset() {
 	*x = ResourceLifetime{}
-	mi := &file_common_proto_msgTypes[1]
+	mi := &file_datamodel_common_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -229,7 +229,7 @@ func (x *ResourceLifetime) String() string {
 func (*ResourceLifetime) ProtoMessage() {}
 
 func (x *ResourceLifetime) ProtoReflect() protoreflect.Message {
-	mi := &file_common_proto_msgTypes[1]
+	mi := &file_datamodel_common_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -242,7 +242,7 @@ func (x *ResourceLifetime) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceLifetime.ProtoReflect.Descriptor instead.
 func (*ResourceLifetime) Descriptor() ([]byte, []int) {
-	return file_common_proto_rawDescGZIP(), []int{1}
+	return file_datamodel_common_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ResourceLifetime) GetCreatedAt() *timestamppb.Timestamp {
@@ -280,7 +280,7 @@ type LabelsSet struct {
 
 func (x *LabelsSet) Reset() {
 	*x = LabelsSet{}
-	mi := &file_common_proto_msgTypes[2]
+	mi := &file_datamodel_common_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -292,7 +292,7 @@ func (x *LabelsSet) String() string {
 func (*LabelsSet) ProtoMessage() {}
 
 func (x *LabelsSet) ProtoReflect() protoreflect.Message {
-	mi := &file_common_proto_msgTypes[2]
+	mi := &file_datamodel_common_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -305,7 +305,7 @@ func (x *LabelsSet) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LabelsSet.ProtoReflect.Descriptor instead.
 func (*LabelsSet) Descriptor() ([]byte, []int) {
-	return file_common_proto_rawDescGZIP(), []int{2}
+	return file_datamodel_common_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *LabelsSet) GetType() string {
@@ -346,7 +346,7 @@ type LabelSet struct {
 
 func (x *LabelSet) Reset() {
 	*x = LabelSet{}
-	mi := &file_common_proto_msgTypes[3]
+	mi := &file_datamodel_common_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -358,7 +358,7 @@ func (x *LabelSet) String() string {
 func (*LabelSet) ProtoMessage() {}
 
 func (x *LabelSet) ProtoReflect() protoreflect.Message {
-	mi := &file_common_proto_msgTypes[3]
+	mi := &file_datamodel_common_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -371,7 +371,7 @@ func (x *LabelSet) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LabelSet.ProtoReflect.Descriptor instead.
 func (*LabelSet) Descriptor() ([]byte, []int) {
-	return file_common_proto_rawDescGZIP(), []int{3}
+	return file_datamodel_common_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *LabelSet) GetLabels() map[string]string {
@@ -402,7 +402,7 @@ type AnnotationsSet struct {
 
 func (x *AnnotationsSet) Reset() {
 	*x = AnnotationsSet{}
-	mi := &file_common_proto_msgTypes[4]
+	mi := &file_datamodel_common_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -414,7 +414,7 @@ func (x *AnnotationsSet) String() string {
 func (*AnnotationsSet) ProtoMessage() {}
 
 func (x *AnnotationsSet) ProtoReflect() protoreflect.Message {
-	mi := &file_common_proto_msgTypes[4]
+	mi := &file_datamodel_common_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -427,7 +427,7 @@ func (x *AnnotationsSet) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AnnotationsSet.ProtoReflect.Descriptor instead.
 func (*AnnotationsSet) Descriptor() ([]byte, []int) {
-	return file_common_proto_rawDescGZIP(), []int{4}
+	return file_datamodel_common_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *AnnotationsSet) GetType() string {
@@ -468,7 +468,7 @@ type AnnotationSet struct {
 
 func (x *AnnotationSet) Reset() {
 	*x = AnnotationSet{}
-	mi := &file_common_proto_msgTypes[5]
+	mi := &file_datamodel_common_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -480,7 +480,7 @@ func (x *AnnotationSet) String() string {
 func (*AnnotationSet) ProtoMessage() {}
 
 func (x *AnnotationSet) ProtoReflect() protoreflect.Message {
-	mi := &file_common_proto_msgTypes[5]
+	mi := &file_datamodel_common_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -493,7 +493,7 @@ func (x *AnnotationSet) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AnnotationSet.ProtoReflect.Descriptor instead.
 func (*AnnotationSet) Descriptor() ([]byte, []int) {
-	return file_common_proto_rawDescGZIP(), []int{5}
+	return file_datamodel_common_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *AnnotationSet) GetAnnotations() map[string]string {
@@ -528,7 +528,7 @@ type DiagnosticResult struct {
 
 func (x *DiagnosticResult) Reset() {
 	*x = DiagnosticResult{}
-	mi := &file_common_proto_msgTypes[6]
+	mi := &file_datamodel_common_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -540,7 +540,7 @@ func (x *DiagnosticResult) String() string {
 func (*DiagnosticResult) ProtoMessage() {}
 
 func (x *DiagnosticResult) ProtoReflect() protoreflect.Message {
-	mi := &file_common_proto_msgTypes[6]
+	mi := &file_datamodel_common_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -553,7 +553,7 @@ func (x *DiagnosticResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiagnosticResult.ProtoReflect.Descriptor instead.
 func (*DiagnosticResult) Descriptor() ([]byte, []int) {
-	return file_common_proto_rawDescGZIP(), []int{6}
+	return file_datamodel_common_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *DiagnosticResult) GetId() string {
@@ -621,7 +621,7 @@ type DiagnosticsRunReport struct {
 
 func (x *DiagnosticsRunReport) Reset() {
 	*x = DiagnosticsRunReport{}
-	mi := &file_common_proto_msgTypes[7]
+	mi := &file_datamodel_common_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -633,7 +633,7 @@ func (x *DiagnosticsRunReport) String() string {
 func (*DiagnosticsRunReport) ProtoMessage() {}
 
 func (x *DiagnosticsRunReport) ProtoReflect() protoreflect.Message {
-	mi := &file_common_proto_msgTypes[7]
+	mi := &file_datamodel_common_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -646,7 +646,7 @@ func (x *DiagnosticsRunReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiagnosticsRunReport.ProtoReflect.Descriptor instead.
 func (*DiagnosticsRunReport) Descriptor() ([]byte, []int) {
-	return file_common_proto_rawDescGZIP(), []int{7}
+	return file_datamodel_common_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *DiagnosticsRunReport) GetApplication() string {
@@ -670,11 +670,11 @@ func (x *DiagnosticsRunReport) GetResults() []*DiagnosticResult {
 	return nil
 }
 
-var File_common_proto protoreflect.FileDescriptor
+var File_datamodel_common_proto protoreflect.FileDescriptor
 
-const file_common_proto_rawDesc = "" +
+const file_datamodel_common_proto_rawDesc = "" +
 	"\n" +
-	"\fcommon.proto\x12\x05agent\x1a\x1fgoogle/protobuf/timestamp.proto\"^\n" +
+	"\x16datamodel/common.proto\x12\fdatamodel.v2\x1a\x1fgoogle/protobuf/timestamp.proto\"^\n" +
 	"\n" +
 	"TimeWindow\x120\n" +
 	"\x05start\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x05start\x12\x1e\n" +
@@ -683,48 +683,48 @@ const file_common_proto_rawDesc = "" +
 	"resolution\"\x86\x01\n" +
 	"\x10ResourceLifetime\x128\n" +
 	"\tcreatedAt\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x128\n" +
-	"\tdeletedAt\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tdeletedAt\"\x82\x02\n" +
+	"\tdeletedAt\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tdeletedAt\"\x97\x02\n" +
 	"\tLabelsSet\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12(\n" +
-	"\x0fgroupIdentifier\x18\x02 \x01(\tR\x0fgroupIdentifier\x12)\n" +
-	"\x06window\x18\x03 \x01(\v2\x11.agent.TimeWindowR\x06window\x12=\n" +
-	"\tlabelSets\x18\x04 \x03(\v2\x1f.agent.LabelsSet.LabelSetsEntryR\tlabelSets\x1aM\n" +
+	"\x0fgroupIdentifier\x18\x02 \x01(\tR\x0fgroupIdentifier\x120\n" +
+	"\x06window\x18\x03 \x01(\v2\x18.datamodel.v2.TimeWindowR\x06window\x12D\n" +
+	"\tlabelSets\x18\x04 \x03(\v2&.datamodel.v2.LabelsSet.LabelSetsEntryR\tlabelSets\x1aT\n" +
 	"\x0eLabelSetsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12%\n" +
-	"\x05value\x18\x02 \x01(\v2\x0f.agent.LabelSetR\x05value:\x028\x01\"z\n" +
-	"\bLabelSet\x123\n" +
-	"\x06labels\x18\x01 \x03(\v2\x1b.agent.LabelSet.LabelsEntryR\x06labels\x1a9\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12,\n" +
+	"\x05value\x18\x02 \x01(\v2\x16.datamodel.v2.LabelSetR\x05value:\x028\x01\"\x81\x01\n" +
+	"\bLabelSet\x12:\n" +
+	"\x06labels\x18\x01 \x03(\v2\".datamodel.v2.LabelSet.LabelsEntryR\x06labels\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa5\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xba\x02\n" +
 	"\x0eAnnotationsSet\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12(\n" +
-	"\x0fgroupIdentifier\x18\x02 \x01(\tR\x0fgroupIdentifier\x12)\n" +
-	"\x06window\x18\x03 \x01(\v2\x11.agent.TimeWindowR\x06window\x12Q\n" +
-	"\x0eannotationSets\x18\x04 \x03(\v2).agent.AnnotationsSet.AnnotationSetsEntryR\x0eannotationSets\x1aW\n" +
+	"\x0fgroupIdentifier\x18\x02 \x01(\tR\x0fgroupIdentifier\x120\n" +
+	"\x06window\x18\x03 \x01(\v2\x18.datamodel.v2.TimeWindowR\x06window\x12X\n" +
+	"\x0eannotationSets\x18\x04 \x03(\v20.datamodel.v2.AnnotationsSet.AnnotationSetsEntryR\x0eannotationSets\x1a^\n" +
 	"\x13AnnotationSetsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12*\n" +
-	"\x05value\x18\x02 \x01(\v2\x14.agent.AnnotationSetR\x05value:\x028\x01\"\x98\x01\n" +
-	"\rAnnotationSet\x12G\n" +
-	"\vannotations\x18\x01 \x03(\v2%.agent.AnnotationSet.AnnotationsEntryR\vannotations\x1a>\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x121\n" +
+	"\x05value\x18\x02 \x01(\v2\x1b.datamodel.v2.AnnotationSetR\x05value:\x028\x01\"\x9f\x01\n" +
+	"\rAnnotationSet\x12N\n" +
+	"\vannotations\x18\x01 \x03(\v2,.datamodel.v2.AnnotationSet.AnnotationsEntryR\vannotations\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc0\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc7\x02\n" +
 	"\x10DiagnosticResult\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x1a\n" +
 	"\bcategory\x18\x04 \x01(\tR\bcategory\x128\n" +
 	"\ttimestamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x14\n" +
-	"\x05error\x18\x06 \x01(\tR\x05error\x12>\n" +
-	"\adetails\x18\a \x03(\v2$.agent.DiagnosticResult.DetailsEntryR\adetails\x1a:\n" +
+	"\x05error\x18\x06 \x01(\tR\x05error\x12E\n" +
+	"\adetails\x18\a \x03(\v2+.datamodel.v2.DiagnosticResult.DetailsEntryR\adetails\x1a:\n" +
 	"\fDetailsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa5\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xac\x01\n" +
 	"\x14DiagnosticsRunReport\x12 \n" +
 	"\vapplication\x18\x01 \x01(\tR\vapplication\x128\n" +
-	"\tstartTime\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x121\n" +
-	"\aresults\x18\x03 \x03(\v2\x17.agent.DiagnosticResultR\aresults*\xbc\x01\n" +
+	"\tstartTime\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x128\n" +
+	"\aresults\x18\x03 \x03(\v2\x1e.datamodel.v2.DiagnosticResultR\aresults*\xbc\x01\n" +
 	"\bProvider\x12\x18\n" +
 	"\x14PROVIDER_UNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fPROVIDER_AWS\x10\x01\x12\x10\n" +
@@ -740,56 +740,56 @@ const file_common_proto_rawDesc = "" +
 	"\x1aDATA_SOURCE_KUBERNETES_API\x10\x02\x12\x14\n" +
 	"\x10DATA_SOURCE_DCGM\x10\x03\x12\x1d\n" +
 	"\x19DATA_SOURCE_CLOUD_BILLING\x10\x04\x12\x13\n" +
-	"\x0fDATA_SOURCE_KSM\x10\x05B4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
+	"\x0fDATA_SOURCE_KSM\x10\x05B3Z1github.com/opencost/opencost/core/pkg/model/pb;pbb\x06proto3"
 
 var (
-	file_common_proto_rawDescOnce sync.Once
-	file_common_proto_rawDescData []byte
+	file_datamodel_common_proto_rawDescOnce sync.Once
+	file_datamodel_common_proto_rawDescData []byte
 )
 
-func file_common_proto_rawDescGZIP() []byte {
-	file_common_proto_rawDescOnce.Do(func() {
-		file_common_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_common_proto_rawDesc), len(file_common_proto_rawDesc)))
+func file_datamodel_common_proto_rawDescGZIP() []byte {
+	file_datamodel_common_proto_rawDescOnce.Do(func() {
+		file_datamodel_common_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_datamodel_common_proto_rawDesc), len(file_datamodel_common_proto_rawDesc)))
 	})
-	return file_common_proto_rawDescData
+	return file_datamodel_common_proto_rawDescData
 }
 
-var file_common_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_common_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
-var file_common_proto_goTypes = []any{
-	(Provider)(0),                 // 0: agent.Provider
-	(DataSourceType)(0),           // 1: agent.DataSourceType
-	(*TimeWindow)(nil),            // 2: agent.TimeWindow
-	(*ResourceLifetime)(nil),      // 3: agent.ResourceLifetime
-	(*LabelsSet)(nil),             // 4: agent.LabelsSet
-	(*LabelSet)(nil),              // 5: agent.LabelSet
-	(*AnnotationsSet)(nil),        // 6: agent.AnnotationsSet
-	(*AnnotationSet)(nil),         // 7: agent.AnnotationSet
-	(*DiagnosticResult)(nil),      // 8: agent.DiagnosticResult
-	(*DiagnosticsRunReport)(nil),  // 9: agent.DiagnosticsRunReport
-	nil,                           // 10: agent.LabelsSet.LabelSetsEntry
-	nil,                           // 11: agent.LabelSet.LabelsEntry
-	nil,                           // 12: agent.AnnotationsSet.AnnotationSetsEntry
-	nil,                           // 13: agent.AnnotationSet.AnnotationsEntry
-	nil,                           // 14: agent.DiagnosticResult.DetailsEntry
+var file_datamodel_common_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_datamodel_common_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_datamodel_common_proto_goTypes = []any{
+	(Provider)(0),                 // 0: datamodel.v2.Provider
+	(DataSourceType)(0),           // 1: datamodel.v2.DataSourceType
+	(*TimeWindow)(nil),            // 2: datamodel.v2.TimeWindow
+	(*ResourceLifetime)(nil),      // 3: datamodel.v2.ResourceLifetime
+	(*LabelsSet)(nil),             // 4: datamodel.v2.LabelsSet
+	(*LabelSet)(nil),              // 5: datamodel.v2.LabelSet
+	(*AnnotationsSet)(nil),        // 6: datamodel.v2.AnnotationsSet
+	(*AnnotationSet)(nil),         // 7: datamodel.v2.AnnotationSet
+	(*DiagnosticResult)(nil),      // 8: datamodel.v2.DiagnosticResult
+	(*DiagnosticsRunReport)(nil),  // 9: datamodel.v2.DiagnosticsRunReport
+	nil,                           // 10: datamodel.v2.LabelsSet.LabelSetsEntry
+	nil,                           // 11: datamodel.v2.LabelSet.LabelsEntry
+	nil,                           // 12: datamodel.v2.AnnotationsSet.AnnotationSetsEntry
+	nil,                           // 13: datamodel.v2.AnnotationSet.AnnotationsEntry
+	nil,                           // 14: datamodel.v2.DiagnosticResult.DetailsEntry
 	(*timestamppb.Timestamp)(nil), // 15: google.protobuf.Timestamp
 }
-var file_common_proto_depIdxs = []int32{
-	15, // 0: agent.TimeWindow.start:type_name -> google.protobuf.Timestamp
-	15, // 1: agent.ResourceLifetime.createdAt:type_name -> google.protobuf.Timestamp
-	15, // 2: agent.ResourceLifetime.deletedAt:type_name -> google.protobuf.Timestamp
-	2,  // 3: agent.LabelsSet.window:type_name -> agent.TimeWindow
-	10, // 4: agent.LabelsSet.labelSets:type_name -> agent.LabelsSet.LabelSetsEntry
-	11, // 5: agent.LabelSet.labels:type_name -> agent.LabelSet.LabelsEntry
-	2,  // 6: agent.AnnotationsSet.window:type_name -> agent.TimeWindow
-	12, // 7: agent.AnnotationsSet.annotationSets:type_name -> agent.AnnotationsSet.AnnotationSetsEntry
-	13, // 8: agent.AnnotationSet.annotations:type_name -> agent.AnnotationSet.AnnotationsEntry
-	15, // 9: agent.DiagnosticResult.timestamp:type_name -> google.protobuf.Timestamp
-	14, // 10: agent.DiagnosticResult.details:type_name -> agent.DiagnosticResult.DetailsEntry
-	15, // 11: agent.DiagnosticsRunReport.startTime:type_name -> google.protobuf.Timestamp
-	8,  // 12: agent.DiagnosticsRunReport.results:type_name -> agent.DiagnosticResult
-	5,  // 13: agent.LabelsSet.LabelSetsEntry.value:type_name -> agent.LabelSet
-	7,  // 14: agent.AnnotationsSet.AnnotationSetsEntry.value:type_name -> agent.AnnotationSet
+var file_datamodel_common_proto_depIdxs = []int32{
+	15, // 0: datamodel.v2.TimeWindow.start:type_name -> google.protobuf.Timestamp
+	15, // 1: datamodel.v2.ResourceLifetime.createdAt:type_name -> google.protobuf.Timestamp
+	15, // 2: datamodel.v2.ResourceLifetime.deletedAt:type_name -> google.protobuf.Timestamp
+	2,  // 3: datamodel.v2.LabelsSet.window:type_name -> datamodel.v2.TimeWindow
+	10, // 4: datamodel.v2.LabelsSet.labelSets:type_name -> datamodel.v2.LabelsSet.LabelSetsEntry
+	11, // 5: datamodel.v2.LabelSet.labels:type_name -> datamodel.v2.LabelSet.LabelsEntry
+	2,  // 6: datamodel.v2.AnnotationsSet.window:type_name -> datamodel.v2.TimeWindow
+	12, // 7: datamodel.v2.AnnotationsSet.annotationSets:type_name -> datamodel.v2.AnnotationsSet.AnnotationSetsEntry
+	13, // 8: datamodel.v2.AnnotationSet.annotations:type_name -> datamodel.v2.AnnotationSet.AnnotationsEntry
+	15, // 9: datamodel.v2.DiagnosticResult.timestamp:type_name -> google.protobuf.Timestamp
+	14, // 10: datamodel.v2.DiagnosticResult.details:type_name -> datamodel.v2.DiagnosticResult.DetailsEntry
+	15, // 11: datamodel.v2.DiagnosticsRunReport.startTime:type_name -> google.protobuf.Timestamp
+	8,  // 12: datamodel.v2.DiagnosticsRunReport.results:type_name -> datamodel.v2.DiagnosticResult
+	5,  // 13: datamodel.v2.LabelsSet.LabelSetsEntry.value:type_name -> datamodel.v2.LabelSet
+	7,  // 14: datamodel.v2.AnnotationsSet.AnnotationSetsEntry.value:type_name -> datamodel.v2.AnnotationSet
 	15, // [15:15] is the sub-list for method output_type
 	15, // [15:15] is the sub-list for method input_type
 	15, // [15:15] is the sub-list for extension type_name
@@ -797,27 +797,27 @@ var file_common_proto_depIdxs = []int32{
 	0,  // [0:15] is the sub-list for field type_name
 }
 
-func init() { file_common_proto_init() }
-func file_common_proto_init() {
-	if File_common_proto != nil {
+func init() { file_datamodel_common_proto_init() }
+func file_datamodel_common_proto_init() {
+	if File_datamodel_common_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_common_proto_rawDesc), len(file_common_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datamodel_common_proto_rawDesc), len(file_datamodel_common_proto_rawDesc)),
 			NumEnums:      2,
 			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_common_proto_goTypes,
-		DependencyIndexes: file_common_proto_depIdxs,
-		EnumInfos:         file_common_proto_enumTypes,
-		MessageInfos:      file_common_proto_msgTypes,
+		GoTypes:           file_datamodel_common_proto_goTypes,
+		DependencyIndexes: file_datamodel_common_proto_depIdxs,
+		EnumInfos:         file_datamodel_common_proto_enumTypes,
+		MessageInfos:      file_datamodel_common_proto_msgTypes,
 	}.Build()
-	File_common_proto = out.File
-	file_common_proto_goTypes = nil
-	file_common_proto_depIdxs = nil
+	File_datamodel_common_proto = out.File
+	file_datamodel_common_proto_goTypes = nil
+	file_datamodel_common_proto_depIdxs = nil
 }

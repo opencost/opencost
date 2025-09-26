@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v4.25.3
-// source: costs.proto
+// source: datamodel/costs.proto
 
 package pb
 
@@ -43,7 +43,7 @@ type CostMetrics struct {
 
 func (x *CostMetrics) Reset() {
 	*x = CostMetrics{}
-	mi := &file_costs_proto_msgTypes[0]
+	mi := &file_datamodel_costs_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55,7 +55,7 @@ func (x *CostMetrics) String() string {
 func (*CostMetrics) ProtoMessage() {}
 
 func (x *CostMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_costs_proto_msgTypes[0]
+	mi := &file_datamodel_costs_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -68,7 +68,7 @@ func (x *CostMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CostMetrics.ProtoReflect.Descriptor instead.
 func (*CostMetrics) Descriptor() ([]byte, []int) {
-	return file_costs_proto_rawDescGZIP(), []int{0}
+	return file_datamodel_costs_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *CostMetrics) GetListCost() float32 {
@@ -135,7 +135,7 @@ type ResourceCost struct {
 
 func (x *ResourceCost) Reset() {
 	*x = ResourceCost{}
-	mi := &file_costs_proto_msgTypes[1]
+	mi := &file_datamodel_costs_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -147,7 +147,7 @@ func (x *ResourceCost) String() string {
 func (*ResourceCost) ProtoMessage() {}
 
 func (x *ResourceCost) ProtoReflect() protoreflect.Message {
-	mi := &file_costs_proto_msgTypes[1]
+	mi := &file_datamodel_costs_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -160,7 +160,7 @@ func (x *ResourceCost) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceCost.ProtoReflect.Descriptor instead.
 func (*ResourceCost) Descriptor() ([]byte, []int) {
-	return file_costs_proto_rawDescGZIP(), []int{1}
+	return file_datamodel_costs_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ResourceCost) GetBase() *CostMetrics {
@@ -225,7 +225,7 @@ type DetailedNetworkCost struct {
 
 func (x *DetailedNetworkCost) Reset() {
 	*x = DetailedNetworkCost{}
-	mi := &file_costs_proto_msgTypes[2]
+	mi := &file_datamodel_costs_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -237,7 +237,7 @@ func (x *DetailedNetworkCost) String() string {
 func (*DetailedNetworkCost) ProtoMessage() {}
 
 func (x *DetailedNetworkCost) ProtoReflect() protoreflect.Message {
-	mi := &file_costs_proto_msgTypes[2]
+	mi := &file_datamodel_costs_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -250,7 +250,7 @@ func (x *DetailedNetworkCost) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DetailedNetworkCost.ProtoReflect.Descriptor instead.
 func (*DetailedNetworkCost) Descriptor() ([]byte, []int) {
-	return file_costs_proto_rawDescGZIP(), []int{2}
+	return file_datamodel_costs_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *DetailedNetworkCost) GetCrossZone() *CostMetrics {
@@ -310,7 +310,7 @@ type GPUCostDetail struct {
 
 func (x *GPUCostDetail) Reset() {
 	*x = GPUCostDetail{}
-	mi := &file_costs_proto_msgTypes[3]
+	mi := &file_datamodel_costs_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -322,7 +322,7 @@ func (x *GPUCostDetail) String() string {
 func (*GPUCostDetail) ProtoMessage() {}
 
 func (x *GPUCostDetail) ProtoReflect() protoreflect.Message {
-	mi := &file_costs_proto_msgTypes[3]
+	mi := &file_datamodel_costs_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -335,7 +335,7 @@ func (x *GPUCostDetail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GPUCostDetail.ProtoReflect.Descriptor instead.
 func (*GPUCostDetail) Descriptor() ([]byte, []int) {
-	return file_costs_proto_rawDescGZIP(), []int{3}
+	return file_datamodel_costs_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *GPUCostDetail) GetResource() *ResourceCost {
@@ -413,7 +413,7 @@ type StorageCostDetail struct {
 
 func (x *StorageCostDetail) Reset() {
 	*x = StorageCostDetail{}
-	mi := &file_costs_proto_msgTypes[4]
+	mi := &file_datamodel_costs_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -425,7 +425,7 @@ func (x *StorageCostDetail) String() string {
 func (*StorageCostDetail) ProtoMessage() {}
 
 func (x *StorageCostDetail) ProtoReflect() protoreflect.Message {
-	mi := &file_costs_proto_msgTypes[4]
+	mi := &file_datamodel_costs_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -438,7 +438,7 @@ func (x *StorageCostDetail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StorageCostDetail.ProtoReflect.Descriptor instead.
 func (*StorageCostDetail) Descriptor() ([]byte, []int) {
-	return file_costs_proto_rawDescGZIP(), []int{4}
+	return file_datamodel_costs_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *StorageCostDetail) GetVolumeId() string {
@@ -497,7 +497,7 @@ type LoadBalancerCostDetail struct {
 
 func (x *LoadBalancerCostDetail) Reset() {
 	*x = LoadBalancerCostDetail{}
-	mi := &file_costs_proto_msgTypes[5]
+	mi := &file_datamodel_costs_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -509,7 +509,7 @@ func (x *LoadBalancerCostDetail) String() string {
 func (*LoadBalancerCostDetail) ProtoMessage() {}
 
 func (x *LoadBalancerCostDetail) ProtoReflect() protoreflect.Message {
-	mi := &file_costs_proto_msgTypes[5]
+	mi := &file_datamodel_costs_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -522,7 +522,7 @@ func (x *LoadBalancerCostDetail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadBalancerCostDetail.ProtoReflect.Descriptor instead.
 func (*LoadBalancerCostDetail) Descriptor() ([]byte, []int) {
-	return file_costs_proto_rawDescGZIP(), []int{5}
+	return file_datamodel_costs_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *LoadBalancerCostDetail) GetLoadBalancerId() string {
@@ -596,7 +596,7 @@ type AllocationCost struct {
 
 func (x *AllocationCost) Reset() {
 	*x = AllocationCost{}
-	mi := &file_costs_proto_msgTypes[6]
+	mi := &file_datamodel_costs_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -608,7 +608,7 @@ func (x *AllocationCost) String() string {
 func (*AllocationCost) ProtoMessage() {}
 
 func (x *AllocationCost) ProtoReflect() protoreflect.Message {
-	mi := &file_costs_proto_msgTypes[6]
+	mi := &file_datamodel_costs_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -621,7 +621,7 @@ func (x *AllocationCost) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocationCost.ProtoReflect.Descriptor instead.
 func (*AllocationCost) Descriptor() ([]byte, []int) {
-	return file_costs_proto_rawDescGZIP(), []int{6}
+	return file_datamodel_costs_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *AllocationCost) GetWindow() *TimeWindow {
@@ -725,7 +725,7 @@ type CostAttribution struct {
 
 func (x *CostAttribution) Reset() {
 	*x = CostAttribution{}
-	mi := &file_costs_proto_msgTypes[7]
+	mi := &file_datamodel_costs_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -737,7 +737,7 @@ func (x *CostAttribution) String() string {
 func (*CostAttribution) ProtoMessage() {}
 
 func (x *CostAttribution) ProtoReflect() protoreflect.Message {
-	mi := &file_costs_proto_msgTypes[7]
+	mi := &file_datamodel_costs_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -750,7 +750,7 @@ func (x *CostAttribution) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CostAttribution.ProtoReflect.Descriptor instead.
 func (*CostAttribution) Descriptor() ([]byte, []int) {
-	return file_costs_proto_rawDescGZIP(), []int{7}
+	return file_datamodel_costs_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CostAttribution) GetCluster() string {
@@ -866,7 +866,7 @@ type SharedCostAllocation struct {
 
 func (x *SharedCostAllocation) Reset() {
 	*x = SharedCostAllocation{}
-	mi := &file_costs_proto_msgTypes[8]
+	mi := &file_datamodel_costs_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -878,7 +878,7 @@ func (x *SharedCostAllocation) String() string {
 func (*SharedCostAllocation) ProtoMessage() {}
 
 func (x *SharedCostAllocation) ProtoReflect() protoreflect.Message {
-	mi := &file_costs_proto_msgTypes[8]
+	mi := &file_datamodel_costs_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -891,7 +891,7 @@ func (x *SharedCostAllocation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedCostAllocation.ProtoReflect.Descriptor instead.
 func (*SharedCostAllocation) Descriptor() ([]byte, []int) {
-	return file_costs_proto_rawDescGZIP(), []int{8}
+	return file_datamodel_costs_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *SharedCostAllocation) GetCostPoolId() string {
@@ -941,7 +941,7 @@ func (x *SharedCostAllocation) GetAttribution() *CostAttribution {
 type ExternalCostAllocation struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Provider and service information
-	Provider        Provider `protobuf:"varint,1,opt,name=provider,proto3,enum=agent.Provider" json:"provider,omitempty"`
+	Provider        Provider `protobuf:"varint,1,opt,name=provider,proto3,enum=datamodel.v2.Provider" json:"provider,omitempty"`
 	ServiceName     string   `protobuf:"bytes,2,opt,name=serviceName,proto3" json:"serviceName,omitempty"`
 	ServiceCategory string   `protobuf:"bytes,3,opt,name=serviceCategory,proto3" json:"serviceCategory,omitempty"`
 	// External cost metrics
@@ -958,7 +958,7 @@ type ExternalCostAllocation struct {
 
 func (x *ExternalCostAllocation) Reset() {
 	*x = ExternalCostAllocation{}
-	mi := &file_costs_proto_msgTypes[9]
+	mi := &file_datamodel_costs_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -970,7 +970,7 @@ func (x *ExternalCostAllocation) String() string {
 func (*ExternalCostAllocation) ProtoMessage() {}
 
 func (x *ExternalCostAllocation) ProtoReflect() protoreflect.Message {
-	mi := &file_costs_proto_msgTypes[9]
+	mi := &file_datamodel_costs_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -983,7 +983,7 @@ func (x *ExternalCostAllocation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExternalCostAllocation.ProtoReflect.Descriptor instead.
 func (*ExternalCostAllocation) Descriptor() ([]byte, []int) {
-	return file_costs_proto_rawDescGZIP(), []int{9}
+	return file_datamodel_costs_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ExternalCostAllocation) GetProvider() Provider {
@@ -1035,78 +1035,78 @@ func (x *ExternalCostAllocation) GetProviderMetadata() map[string]string {
 	return nil
 }
 
-var File_costs_proto protoreflect.FileDescriptor
+var File_datamodel_costs_proto protoreflect.FileDescriptor
 
-const file_costs_proto_rawDesc = "" +
+const file_datamodel_costs_proto_rawDesc = "" +
 	"\n" +
-	"\vcosts.proto\x12\x05agent\x1a\fcommon.proto\"\xe7\x01\n" +
+	"\x15datamodel/costs.proto\x12\fdatamodel.v2\x1a\x16datamodel/common.proto\"\xe7\x01\n" +
 	"\vCostMetrics\x12\x1a\n" +
 	"\blistCost\x18\x01 \x01(\x02R\blistCost\x12\x18\n" +
 	"\anetCost\x18\x02 \x01(\x02R\anetCost\x12*\n" +
 	"\x10amortizedNetCost\x18\x03 \x01(\x02R\x10amortizedNetCost\x12\"\n" +
 	"\finvoicedCost\x18\x04 \x01(\x02R\finvoicedCost\x12$\n" +
 	"\ramortizedCost\x18\x05 \x01(\x02R\ramortizedCost\x12,\n" +
-	"\x11kubernetesPercent\x18\x06 \x01(\x02R\x11kubernetesPercent\"\xfe\x01\n" +
-	"\fResourceCost\x12&\n" +
-	"\x04base\x18\x01 \x01(\v2\x12.agent.CostMetricsR\x04base\x122\n" +
+	"\x11kubernetesPercent\x18\x06 \x01(\x02R\x11kubernetesPercent\"\x93\x02\n" +
+	"\fResourceCost\x12-\n" +
+	"\x04base\x18\x01 \x01(\v2\x19.datamodel.v2.CostMetricsR\x04base\x129\n" +
 	"\n" +
-	"adjustment\x18\x02 \x01(\v2\x12.agent.CostMetricsR\n" +
+	"adjustment\x18\x02 \x01(\v2\x19.datamodel.v2.CostMetricsR\n" +
 	"adjustment\x12\x1e\n" +
 	"\n" +
 	"usageHours\x18\x03 \x01(\x02R\n" +
 	"usageHours\x12&\n" +
 	"\x0erequestAverage\x18\x04 \x01(\x02R\x0erequestAverage\x12\"\n" +
-	"\fusageAverage\x18\x05 \x01(\x02R\fusageAverage\x12&\n" +
-	"\x04idle\x18\x06 \x01(\v2\x12.agent.CostMetricsR\x04idle\"\xf7\x01\n" +
-	"\x13DetailedNetworkCost\x120\n" +
-	"\tcrossZone\x18\x01 \x01(\v2\x12.agent.CostMetricsR\tcrossZone\x124\n" +
-	"\vcrossRegion\x18\x02 \x01(\v2\x12.agent.CostMetricsR\vcrossRegion\x12.\n" +
-	"\binternet\x18\x03 \x01(\v2\x12.agent.CostMetricsR\binternet\x12$\n" +
+	"\fusageAverage\x18\x05 \x01(\x02R\fusageAverage\x12-\n" +
+	"\x04idle\x18\x06 \x01(\v2\x19.datamodel.v2.CostMetricsR\x04idle\"\x8c\x02\n" +
+	"\x13DetailedNetworkCost\x127\n" +
+	"\tcrossZone\x18\x01 \x01(\v2\x19.datamodel.v2.CostMetricsR\tcrossZone\x12;\n" +
+	"\vcrossRegion\x18\x02 \x01(\v2\x19.datamodel.v2.CostMetricsR\vcrossRegion\x125\n" +
+	"\binternet\x18\x03 \x01(\v2\x19.datamodel.v2.CostMetricsR\binternet\x12$\n" +
 	"\rtransferBytes\x18\x04 \x01(\x02R\rtransferBytes\x12\"\n" +
-	"\freceiveBytes\x18\x05 \x01(\x02R\freceiveBytes\"\x90\x02\n" +
-	"\rGPUCostDetail\x12/\n" +
-	"\bresource\x18\x01 \x01(\v2\x13.agent.ResourceCostR\bresource\x12\x0e\n" +
+	"\freceiveBytes\x18\x05 \x01(\x02R\freceiveBytes\"\x97\x02\n" +
+	"\rGPUCostDetail\x126\n" +
+	"\bresource\x18\x01 \x01(\v2\x1a.datamodel.v2.ResourceCostR\bresource\x12\x0e\n" +
 	"\x02ID\x18\x02 \x01(\tR\x02ID\x12\x1c\n" +
 	"\tModelName\x18\x03 \x01(\tR\tModelName\x12\"\n" +
 	"\fDeviceNumber\x18\x04 \x01(\x05R\fDeviceNumber\x12\x1a\n" +
 	"\bisShared\x18\x05 \x01(\bR\bisShared\x12(\n" +
 	"\x0fsharePercentage\x18\x06 \x01(\x02R\x0fsharePercentage\x12\x1a\n" +
 	"\busageAvg\x18\a \x01(\x02R\busageAvg\x12\x1a\n" +
-	"\busageMax\x18\b \x01(\x02R\busageMax\"\xc9\x01\n" +
+	"\busageMax\x18\b \x01(\x02R\busageMax\"\xd0\x01\n" +
 	"\x11StorageCostDetail\x12\x1a\n" +
 	"\bvolumeId\x18\x01 \x01(\tR\bvolumeId\x12\"\n" +
 	"\fstorageClass\x18\x02 \x01(\tR\fstorageClass\x12.\n" +
-	"\x12providerResourceId\x18\x03 \x01(\tR\x12providerResourceId\x12&\n" +
-	"\x04cost\x18\x04 \x01(\v2\x12.agent.CostMetricsR\x04cost\x12\x1c\n" +
-	"\tbyteHours\x18\x05 \x01(\x02R\tbyteHours\"\xdc\x01\n" +
+	"\x12providerResourceId\x18\x03 \x01(\tR\x12providerResourceId\x12-\n" +
+	"\x04cost\x18\x04 \x01(\v2\x19.datamodel.v2.CostMetricsR\x04cost\x12\x1c\n" +
+	"\tbyteHours\x18\x05 \x01(\x02R\tbyteHours\"\xe3\x01\n" +
 	"\x16LoadBalancerCostDetail\x12&\n" +
 	"\x0eloadBalancerId\x18\x01 \x01(\tR\x0eloadBalancerId\x12 \n" +
 	"\vserviceName\x18\x02 \x01(\tR\vserviceName\x12\x1c\n" +
 	"\tipAddress\x18\x03 \x01(\tR\tipAddress\x12\x1c\n" +
-	"\tisPrivate\x18\x04 \x01(\bR\tisPrivate\x12&\n" +
-	"\x04cost\x18\x05 \x01(\v2\x12.agent.CostMetricsR\x04cost\x12\x14\n" +
-	"\x05hours\x18\x06 \x01(\x02R\x05hours\"\xe6\x03\n" +
-	"\x0eAllocationCost\x12)\n" +
-	"\x06window\x18\x01 \x01(\v2\x11.agent.TimeWindowR\x06window\x12%\n" +
-	"\x03cpu\x18\x02 \x01(\v2\x13.agent.ResourceCostR\x03cpu\x12%\n" +
-	"\x03ram\x18\x03 \x01(\v2\x13.agent.ResourceCostR\x03ram\x12&\n" +
-	"\x03gpu\x18\x04 \x03(\v2\x14.agent.GPUCostDetailR\x03gpu\x122\n" +
-	"\astorage\x18\x05 \x03(\v2\x18.agent.StorageCostDetailR\astorage\x124\n" +
-	"\anetwork\x18\x06 \x01(\v2\x1a.agent.DetailedNetworkCostR\anetwork\x12C\n" +
-	"\rloadBalancers\x18\a \x03(\v2\x1d.agent.LoadBalancerCostDetailR\rloadBalancers\x12*\n" +
-	"\x06shared\x18\b \x01(\v2\x12.agent.CostMetricsR\x06shared\x12.\n" +
-	"\bexternal\x18\t \x01(\v2\x12.agent.CostMetricsR\bexternal\x12(\n" +
+	"\tisPrivate\x18\x04 \x01(\bR\tisPrivate\x12-\n" +
+	"\x04cost\x18\x05 \x01(\v2\x19.datamodel.v2.CostMetricsR\x04cost\x12\x14\n" +
+	"\x05hours\x18\x06 \x01(\x02R\x05hours\"\xac\x04\n" +
+	"\x0eAllocationCost\x120\n" +
+	"\x06window\x18\x01 \x01(\v2\x18.datamodel.v2.TimeWindowR\x06window\x12,\n" +
+	"\x03cpu\x18\x02 \x01(\v2\x1a.datamodel.v2.ResourceCostR\x03cpu\x12,\n" +
+	"\x03ram\x18\x03 \x01(\v2\x1a.datamodel.v2.ResourceCostR\x03ram\x12-\n" +
+	"\x03gpu\x18\x04 \x03(\v2\x1b.datamodel.v2.GPUCostDetailR\x03gpu\x129\n" +
+	"\astorage\x18\x05 \x03(\v2\x1f.datamodel.v2.StorageCostDetailR\astorage\x12;\n" +
+	"\anetwork\x18\x06 \x01(\v2!.datamodel.v2.DetailedNetworkCostR\anetwork\x12J\n" +
+	"\rloadBalancers\x18\a \x03(\v2$.datamodel.v2.LoadBalancerCostDetailR\rloadBalancers\x121\n" +
+	"\x06shared\x18\b \x01(\v2\x19.datamodel.v2.CostMetricsR\x06shared\x125\n" +
+	"\bexternal\x18\t \x01(\v2\x19.datamodel.v2.CostMetricsR\bexternal\x12/\n" +
 	"\x05total\x18\n" +
-	" \x01(\v2\x12.agent.CostMetricsR\x05total\"\xdd\x06\n" +
+	" \x01(\v2\x19.datamodel.v2.CostMetricsR\x05total\"\xf9\x06\n" +
 	"\x0fCostAttribution\x12\x18\n" +
 	"\acluster\x18\x01 \x01(\tR\acluster\x12\x1e\n" +
 	"\n" +
 	"providerId\x18\x02 \x01(\tR\n" +
 	"providerId\x12\x12\n" +
 	"\x04node\x18\x03 \x01(\tR\x04node\x12\x1c\n" +
-	"\tnamespace\x18\x04 \x01(\tR\tnamespace\x12U\n" +
-	"\x0fnamespaceLabels\x18\x05 \x03(\v2+.agent.CostAttribution.NamespaceLabelsEntryR\x0fnamespaceLabels\x12d\n" +
-	"\x14namespaceAnnotations\x18\x06 \x03(\v20.agent.CostAttribution.NamespaceAnnotationsEntryR\x14namespaceAnnotations\x12\x1e\n" +
+	"\tnamespace\x18\x04 \x01(\tR\tnamespace\x12\\\n" +
+	"\x0fnamespaceLabels\x18\x05 \x03(\v22.datamodel.v2.CostAttribution.NamespaceLabelsEntryR\x0fnamespaceLabels\x12k\n" +
+	"\x14namespaceAnnotations\x18\x06 \x03(\v27.datamodel.v2.CostAttribution.NamespaceAnnotationsEntryR\x14namespaceAnnotations\x12\x1e\n" +
 	"\n" +
 	"controller\x18\a \x01(\tR\n" +
 	"controller\x12&\n" +
@@ -1114,9 +1114,9 @@ const file_costs_proto_rawDesc = "" +
 	"\x03pod\x18\t \x01(\tR\x03pod\x12\x1c\n" +
 	"\tcontainer\x18\n" +
 	" \x01(\tR\tcontainer\x12\x1a\n" +
-	"\bservices\x18\v \x03(\tR\bservices\x12:\n" +
-	"\x06labels\x18\f \x03(\v2\".agent.CostAttribution.LabelsEntryR\x06labels\x12I\n" +
-	"\vannotations\x18\r \x03(\v2'.agent.CostAttribution.AnnotationsEntryR\vannotations\x1aB\n" +
+	"\bservices\x18\v \x03(\tR\bservices\x12A\n" +
+	"\x06labels\x18\f \x03(\v2).datamodel.v2.CostAttribution.LabelsEntryR\x06labels\x12P\n" +
+	"\vannotations\x18\r \x03(\v2..datamodel.v2.CostAttribution.AnnotationsEntryR\vannotations\x1aB\n" +
 	"\x14NamespaceLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aG\n" +
@@ -1128,92 +1128,92 @@ const file_costs_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x87\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x9c\x02\n" +
 	"\x14SharedCostAllocation\x12\x1e\n" +
 	"\n" +
 	"costPoolId\x18\x01 \x01(\tR\n" +
 	"costPoolId\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x120\n" +
-	"\ttotalCost\x18\x03 \x01(\v2\x12.agent.CostMetricsR\ttotalCost\x12$\n" +
-	"\rsharingMethod\x18\x04 \x01(\tR\rsharingMethod\x12)\n" +
-	"\x06window\x18\x05 \x01(\v2\x11.agent.TimeWindowR\x06window\x128\n" +
-	"\vattribution\x18\x06 \x01(\v2\x16.agent.CostAttributionR\vattribution\"\xc4\x03\n" +
-	"\x16ExternalCostAllocation\x12+\n" +
-	"\bprovider\x18\x01 \x01(\x0e2\x0f.agent.ProviderR\bprovider\x12 \n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x127\n" +
+	"\ttotalCost\x18\x03 \x01(\v2\x19.datamodel.v2.CostMetricsR\ttotalCost\x12$\n" +
+	"\rsharingMethod\x18\x04 \x01(\tR\rsharingMethod\x120\n" +
+	"\x06window\x18\x05 \x01(\v2\x18.datamodel.v2.TimeWindowR\x06window\x12?\n" +
+	"\vattribution\x18\x06 \x01(\v2\x1d.datamodel.v2.CostAttributionR\vattribution\"\xe7\x03\n" +
+	"\x16ExternalCostAllocation\x122\n" +
+	"\bprovider\x18\x01 \x01(\x0e2\x16.datamodel.v2.ProviderR\bprovider\x12 \n" +
 	"\vserviceName\x18\x02 \x01(\tR\vserviceName\x12(\n" +
-	"\x0fserviceCategory\x18\x03 \x01(\tR\x0fserviceCategory\x12&\n" +
-	"\x04cost\x18\x04 \x01(\v2\x12.agent.CostMetricsR\x04cost\x12)\n" +
-	"\x06window\x18\x05 \x01(\v2\x11.agent.TimeWindowR\x06window\x128\n" +
-	"\vattribution\x18\x06 \x01(\v2\x16.agent.CostAttributionR\vattribution\x12_\n" +
-	"\x10providerMetadata\x18\a \x03(\v23.agent.ExternalCostAllocation.ProviderMetadataEntryR\x10providerMetadata\x1aC\n" +
+	"\x0fserviceCategory\x18\x03 \x01(\tR\x0fserviceCategory\x12-\n" +
+	"\x04cost\x18\x04 \x01(\v2\x19.datamodel.v2.CostMetricsR\x04cost\x120\n" +
+	"\x06window\x18\x05 \x01(\v2\x18.datamodel.v2.TimeWindowR\x06window\x12?\n" +
+	"\vattribution\x18\x06 \x01(\v2\x1d.datamodel.v2.CostAttributionR\vattribution\x12f\n" +
+	"\x10providerMetadata\x18\a \x03(\v2:.datamodel.v2.ExternalCostAllocation.ProviderMetadataEntryR\x10providerMetadata\x1aC\n" +
 	"\x15ProviderMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B3Z1github.com/opencost/opencost/core/pkg/model/pb;pbb\x06proto3"
 
 var (
-	file_costs_proto_rawDescOnce sync.Once
-	file_costs_proto_rawDescData []byte
+	file_datamodel_costs_proto_rawDescOnce sync.Once
+	file_datamodel_costs_proto_rawDescData []byte
 )
 
-func file_costs_proto_rawDescGZIP() []byte {
-	file_costs_proto_rawDescOnce.Do(func() {
-		file_costs_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_costs_proto_rawDesc), len(file_costs_proto_rawDesc)))
+func file_datamodel_costs_proto_rawDescGZIP() []byte {
+	file_datamodel_costs_proto_rawDescOnce.Do(func() {
+		file_datamodel_costs_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_datamodel_costs_proto_rawDesc), len(file_datamodel_costs_proto_rawDesc)))
 	})
-	return file_costs_proto_rawDescData
+	return file_datamodel_costs_proto_rawDescData
 }
 
-var file_costs_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
-var file_costs_proto_goTypes = []any{
-	(*CostMetrics)(nil),            // 0: agent.CostMetrics
-	(*ResourceCost)(nil),           // 1: agent.ResourceCost
-	(*DetailedNetworkCost)(nil),    // 2: agent.DetailedNetworkCost
-	(*GPUCostDetail)(nil),          // 3: agent.GPUCostDetail
-	(*StorageCostDetail)(nil),      // 4: agent.StorageCostDetail
-	(*LoadBalancerCostDetail)(nil), // 5: agent.LoadBalancerCostDetail
-	(*AllocationCost)(nil),         // 6: agent.AllocationCost
-	(*CostAttribution)(nil),        // 7: agent.CostAttribution
-	(*SharedCostAllocation)(nil),   // 8: agent.SharedCostAllocation
-	(*ExternalCostAllocation)(nil), // 9: agent.ExternalCostAllocation
-	nil,                            // 10: agent.CostAttribution.NamespaceLabelsEntry
-	nil,                            // 11: agent.CostAttribution.NamespaceAnnotationsEntry
-	nil,                            // 12: agent.CostAttribution.LabelsEntry
-	nil,                            // 13: agent.CostAttribution.AnnotationsEntry
-	nil,                            // 14: agent.ExternalCostAllocation.ProviderMetadataEntry
-	(*TimeWindow)(nil),             // 15: agent.TimeWindow
-	(Provider)(0),                  // 16: agent.Provider
+var file_datamodel_costs_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_datamodel_costs_proto_goTypes = []any{
+	(*CostMetrics)(nil),            // 0: datamodel.v2.CostMetrics
+	(*ResourceCost)(nil),           // 1: datamodel.v2.ResourceCost
+	(*DetailedNetworkCost)(nil),    // 2: datamodel.v2.DetailedNetworkCost
+	(*GPUCostDetail)(nil),          // 3: datamodel.v2.GPUCostDetail
+	(*StorageCostDetail)(nil),      // 4: datamodel.v2.StorageCostDetail
+	(*LoadBalancerCostDetail)(nil), // 5: datamodel.v2.LoadBalancerCostDetail
+	(*AllocationCost)(nil),         // 6: datamodel.v2.AllocationCost
+	(*CostAttribution)(nil),        // 7: datamodel.v2.CostAttribution
+	(*SharedCostAllocation)(nil),   // 8: datamodel.v2.SharedCostAllocation
+	(*ExternalCostAllocation)(nil), // 9: datamodel.v2.ExternalCostAllocation
+	nil,                            // 10: datamodel.v2.CostAttribution.NamespaceLabelsEntry
+	nil,                            // 11: datamodel.v2.CostAttribution.NamespaceAnnotationsEntry
+	nil,                            // 12: datamodel.v2.CostAttribution.LabelsEntry
+	nil,                            // 13: datamodel.v2.CostAttribution.AnnotationsEntry
+	nil,                            // 14: datamodel.v2.ExternalCostAllocation.ProviderMetadataEntry
+	(*TimeWindow)(nil),             // 15: datamodel.v2.TimeWindow
+	(Provider)(0),                  // 16: datamodel.v2.Provider
 }
-var file_costs_proto_depIdxs = []int32{
-	0,  // 0: agent.ResourceCost.base:type_name -> agent.CostMetrics
-	0,  // 1: agent.ResourceCost.adjustment:type_name -> agent.CostMetrics
-	0,  // 2: agent.ResourceCost.idle:type_name -> agent.CostMetrics
-	0,  // 3: agent.DetailedNetworkCost.crossZone:type_name -> agent.CostMetrics
-	0,  // 4: agent.DetailedNetworkCost.crossRegion:type_name -> agent.CostMetrics
-	0,  // 5: agent.DetailedNetworkCost.internet:type_name -> agent.CostMetrics
-	1,  // 6: agent.GPUCostDetail.resource:type_name -> agent.ResourceCost
-	0,  // 7: agent.StorageCostDetail.cost:type_name -> agent.CostMetrics
-	0,  // 8: agent.LoadBalancerCostDetail.cost:type_name -> agent.CostMetrics
-	15, // 9: agent.AllocationCost.window:type_name -> agent.TimeWindow
-	1,  // 10: agent.AllocationCost.cpu:type_name -> agent.ResourceCost
-	1,  // 11: agent.AllocationCost.ram:type_name -> agent.ResourceCost
-	3,  // 12: agent.AllocationCost.gpu:type_name -> agent.GPUCostDetail
-	4,  // 13: agent.AllocationCost.storage:type_name -> agent.StorageCostDetail
-	2,  // 14: agent.AllocationCost.network:type_name -> agent.DetailedNetworkCost
-	5,  // 15: agent.AllocationCost.loadBalancers:type_name -> agent.LoadBalancerCostDetail
-	0,  // 16: agent.AllocationCost.shared:type_name -> agent.CostMetrics
-	0,  // 17: agent.AllocationCost.external:type_name -> agent.CostMetrics
-	0,  // 18: agent.AllocationCost.total:type_name -> agent.CostMetrics
-	10, // 19: agent.CostAttribution.namespaceLabels:type_name -> agent.CostAttribution.NamespaceLabelsEntry
-	11, // 20: agent.CostAttribution.namespaceAnnotations:type_name -> agent.CostAttribution.NamespaceAnnotationsEntry
-	12, // 21: agent.CostAttribution.labels:type_name -> agent.CostAttribution.LabelsEntry
-	13, // 22: agent.CostAttribution.annotations:type_name -> agent.CostAttribution.AnnotationsEntry
-	0,  // 23: agent.SharedCostAllocation.totalCost:type_name -> agent.CostMetrics
-	15, // 24: agent.SharedCostAllocation.window:type_name -> agent.TimeWindow
-	7,  // 25: agent.SharedCostAllocation.attribution:type_name -> agent.CostAttribution
-	16, // 26: agent.ExternalCostAllocation.provider:type_name -> agent.Provider
-	0,  // 27: agent.ExternalCostAllocation.cost:type_name -> agent.CostMetrics
-	15, // 28: agent.ExternalCostAllocation.window:type_name -> agent.TimeWindow
-	7,  // 29: agent.ExternalCostAllocation.attribution:type_name -> agent.CostAttribution
-	14, // 30: agent.ExternalCostAllocation.providerMetadata:type_name -> agent.ExternalCostAllocation.ProviderMetadataEntry
+var file_datamodel_costs_proto_depIdxs = []int32{
+	0,  // 0: datamodel.v2.ResourceCost.base:type_name -> datamodel.v2.CostMetrics
+	0,  // 1: datamodel.v2.ResourceCost.adjustment:type_name -> datamodel.v2.CostMetrics
+	0,  // 2: datamodel.v2.ResourceCost.idle:type_name -> datamodel.v2.CostMetrics
+	0,  // 3: datamodel.v2.DetailedNetworkCost.crossZone:type_name -> datamodel.v2.CostMetrics
+	0,  // 4: datamodel.v2.DetailedNetworkCost.crossRegion:type_name -> datamodel.v2.CostMetrics
+	0,  // 5: datamodel.v2.DetailedNetworkCost.internet:type_name -> datamodel.v2.CostMetrics
+	1,  // 6: datamodel.v2.GPUCostDetail.resource:type_name -> datamodel.v2.ResourceCost
+	0,  // 7: datamodel.v2.StorageCostDetail.cost:type_name -> datamodel.v2.CostMetrics
+	0,  // 8: datamodel.v2.LoadBalancerCostDetail.cost:type_name -> datamodel.v2.CostMetrics
+	15, // 9: datamodel.v2.AllocationCost.window:type_name -> datamodel.v2.TimeWindow
+	1,  // 10: datamodel.v2.AllocationCost.cpu:type_name -> datamodel.v2.ResourceCost
+	1,  // 11: datamodel.v2.AllocationCost.ram:type_name -> datamodel.v2.ResourceCost
+	3,  // 12: datamodel.v2.AllocationCost.gpu:type_name -> datamodel.v2.GPUCostDetail
+	4,  // 13: datamodel.v2.AllocationCost.storage:type_name -> datamodel.v2.StorageCostDetail
+	2,  // 14: datamodel.v2.AllocationCost.network:type_name -> datamodel.v2.DetailedNetworkCost
+	5,  // 15: datamodel.v2.AllocationCost.loadBalancers:type_name -> datamodel.v2.LoadBalancerCostDetail
+	0,  // 16: datamodel.v2.AllocationCost.shared:type_name -> datamodel.v2.CostMetrics
+	0,  // 17: datamodel.v2.AllocationCost.external:type_name -> datamodel.v2.CostMetrics
+	0,  // 18: datamodel.v2.AllocationCost.total:type_name -> datamodel.v2.CostMetrics
+	10, // 19: datamodel.v2.CostAttribution.namespaceLabels:type_name -> datamodel.v2.CostAttribution.NamespaceLabelsEntry
+	11, // 20: datamodel.v2.CostAttribution.namespaceAnnotations:type_name -> datamodel.v2.CostAttribution.NamespaceAnnotationsEntry
+	12, // 21: datamodel.v2.CostAttribution.labels:type_name -> datamodel.v2.CostAttribution.LabelsEntry
+	13, // 22: datamodel.v2.CostAttribution.annotations:type_name -> datamodel.v2.CostAttribution.AnnotationsEntry
+	0,  // 23: datamodel.v2.SharedCostAllocation.totalCost:type_name -> datamodel.v2.CostMetrics
+	15, // 24: datamodel.v2.SharedCostAllocation.window:type_name -> datamodel.v2.TimeWindow
+	7,  // 25: datamodel.v2.SharedCostAllocation.attribution:type_name -> datamodel.v2.CostAttribution
+	16, // 26: datamodel.v2.ExternalCostAllocation.provider:type_name -> datamodel.v2.Provider
+	0,  // 27: datamodel.v2.ExternalCostAllocation.cost:type_name -> datamodel.v2.CostMetrics
+	15, // 28: datamodel.v2.ExternalCostAllocation.window:type_name -> datamodel.v2.TimeWindow
+	7,  // 29: datamodel.v2.ExternalCostAllocation.attribution:type_name -> datamodel.v2.CostAttribution
+	14, // 30: datamodel.v2.ExternalCostAllocation.providerMetadata:type_name -> datamodel.v2.ExternalCostAllocation.ProviderMetadataEntry
 	31, // [31:31] is the sub-list for method output_type
 	31, // [31:31] is the sub-list for method input_type
 	31, // [31:31] is the sub-list for extension type_name
@@ -1221,27 +1221,27 @@ var file_costs_proto_depIdxs = []int32{
 	0,  // [0:31] is the sub-list for field type_name
 }
 
-func init() { file_costs_proto_init() }
-func file_costs_proto_init() {
-	if File_costs_proto != nil {
+func init() { file_datamodel_costs_proto_init() }
+func file_datamodel_costs_proto_init() {
+	if File_datamodel_costs_proto != nil {
 		return
 	}
-	file_common_proto_init()
+	file_datamodel_common_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_costs_proto_rawDesc), len(file_costs_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datamodel_costs_proto_rawDesc), len(file_datamodel_costs_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_costs_proto_goTypes,
-		DependencyIndexes: file_costs_proto_depIdxs,
-		MessageInfos:      file_costs_proto_msgTypes,
+		GoTypes:           file_datamodel_costs_proto_goTypes,
+		DependencyIndexes: file_datamodel_costs_proto_depIdxs,
+		MessageInfos:      file_datamodel_costs_proto_msgTypes,
 	}.Build()
-	File_costs_proto = out.File
-	file_costs_proto_goTypes = nil
-	file_costs_proto_depIdxs = nil
+	File_datamodel_costs_proto = out.File
+	file_datamodel_costs_proto_goTypes = nil
+	file_datamodel_costs_proto_depIdxs = nil
 }

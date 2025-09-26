@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v4.25.3
-// source: compute.proto
+// source: datamodel/compute.proto
 
 package pb
 
@@ -50,7 +50,7 @@ type GPUDevice struct {
 
 func (x *GPUDevice) Reset() {
 	*x = GPUDevice{}
-	mi := &file_compute_proto_msgTypes[0]
+	mi := &file_datamodel_compute_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62,7 +62,7 @@ func (x *GPUDevice) String() string {
 func (*GPUDevice) ProtoMessage() {}
 
 func (x *GPUDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_compute_proto_msgTypes[0]
+	mi := &file_datamodel_compute_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -75,7 +75,7 @@ func (x *GPUDevice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GPUDevice.ProtoReflect.Descriptor instead.
 func (*GPUDevice) Descriptor() ([]byte, []int) {
-	return file_compute_proto_rawDescGZIP(), []int{0}
+	return file_datamodel_compute_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *GPUDevice) GetID() string {
@@ -169,60 +169,60 @@ func (x *GPUDevice) GetCostAttribution() *CostAttribution {
 	return nil
 }
 
-var File_compute_proto protoreflect.FileDescriptor
+var File_datamodel_compute_proto protoreflect.FileDescriptor
 
-const file_compute_proto_rawDesc = "" +
+const file_datamodel_compute_proto_rawDesc = "" +
 	"\n" +
-	"\rcompute.proto\x12\x05agent\x1a\fcommon.proto\x1a\vcosts.proto\"\x8b\x05\n" +
+	"\x17datamodel/compute.proto\x12\fdatamodel.v2\x1a\x16datamodel/common.proto\x1a\x15datamodel/costs.proto\"\xae\x05\n" +
 	"\tGPUDevice\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x16\n" +
 	"\x06NodeID\x18\x02 \x01(\tR\x06NodeID\x12\"\n" +
 	"\fDeviceNumber\x18\x03 \x01(\x05R\fDeviceNumber\x12\x1c\n" +
-	"\tModelName\x18\x04 \x01(\tR\tModelName\x124\n" +
-	"\x06Labels\x18\x05 \x03(\v2\x1c.agent.GPUDevice.LabelsEntryR\x06Labels\x12C\n" +
-	"\vAnnotations\x18\x06 \x03(\v2!.agent.GPUDevice.AnnotationsEntryR\vAnnotations\x123\n" +
-	"\blifetime\x18\a \x01(\v2\x17.agent.ResourceLifetimeR\blifetime\x12\x1a\n" +
+	"\tModelName\x18\x04 \x01(\tR\tModelName\x12;\n" +
+	"\x06Labels\x18\x05 \x03(\v2#.datamodel.v2.GPUDevice.LabelsEntryR\x06Labels\x12J\n" +
+	"\vAnnotations\x18\x06 \x03(\v2(.datamodel.v2.GPUDevice.AnnotationsEntryR\vAnnotations\x12:\n" +
+	"\blifetime\x18\a \x01(\v2\x1e.datamodel.v2.ResourceLifetimeR\blifetime\x12\x1a\n" +
 	"\bUsageAvg\x18\b \x01(\x02R\bUsageAvg\x12\x1a\n" +
 	"\bUsageMax\x18\t \x01(\x02R\bUsageMax\x12\x1a\n" +
 	"\bisShared\x18\f \x01(\bR\bisShared\x12(\n" +
-	"\x0fsharePercentage\x18\r \x01(\x02R\x0fsharePercentage\x12)\n" +
+	"\x0fsharePercentage\x18\r \x01(\x02R\x0fsharePercentage\x120\n" +
 	"\x04cost\x18\n" +
-	" \x01(\v2\x15.agent.AllocationCostR\x04cost\x12@\n" +
-	"\x0fcostAttribution\x18\v \x01(\v2\x16.agent.CostAttributionR\x0fcostAttribution\x1a9\n" +
+	" \x01(\v2\x1c.datamodel.v2.AllocationCostR\x04cost\x12G\n" +
+	"\x0fcostAttribution\x18\v \x01(\v2\x1d.datamodel.v2.CostAttributionR\x0fcostAttribution\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B4Z2github.com/opencost/opencost/pkg/agent/model/pb;pbb\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B3Z1github.com/opencost/opencost/core/pkg/model/pb;pbb\x06proto3"
 
 var (
-	file_compute_proto_rawDescOnce sync.Once
-	file_compute_proto_rawDescData []byte
+	file_datamodel_compute_proto_rawDescOnce sync.Once
+	file_datamodel_compute_proto_rawDescData []byte
 )
 
-func file_compute_proto_rawDescGZIP() []byte {
-	file_compute_proto_rawDescOnce.Do(func() {
-		file_compute_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_compute_proto_rawDesc), len(file_compute_proto_rawDesc)))
+func file_datamodel_compute_proto_rawDescGZIP() []byte {
+	file_datamodel_compute_proto_rawDescOnce.Do(func() {
+		file_datamodel_compute_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_datamodel_compute_proto_rawDesc), len(file_datamodel_compute_proto_rawDesc)))
 	})
-	return file_compute_proto_rawDescData
+	return file_datamodel_compute_proto_rawDescData
 }
 
-var file_compute_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_compute_proto_goTypes = []any{
-	(*GPUDevice)(nil),        // 0: agent.GPUDevice
-	nil,                      // 1: agent.GPUDevice.LabelsEntry
-	nil,                      // 2: agent.GPUDevice.AnnotationsEntry
-	(*ResourceLifetime)(nil), // 3: agent.ResourceLifetime
-	(*AllocationCost)(nil),   // 4: agent.AllocationCost
-	(*CostAttribution)(nil),  // 5: agent.CostAttribution
+var file_datamodel_compute_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_datamodel_compute_proto_goTypes = []any{
+	(*GPUDevice)(nil),        // 0: datamodel.v2.GPUDevice
+	nil,                      // 1: datamodel.v2.GPUDevice.LabelsEntry
+	nil,                      // 2: datamodel.v2.GPUDevice.AnnotationsEntry
+	(*ResourceLifetime)(nil), // 3: datamodel.v2.ResourceLifetime
+	(*AllocationCost)(nil),   // 4: datamodel.v2.AllocationCost
+	(*CostAttribution)(nil),  // 5: datamodel.v2.CostAttribution
 }
-var file_compute_proto_depIdxs = []int32{
-	1, // 0: agent.GPUDevice.Labels:type_name -> agent.GPUDevice.LabelsEntry
-	2, // 1: agent.GPUDevice.Annotations:type_name -> agent.GPUDevice.AnnotationsEntry
-	3, // 2: agent.GPUDevice.lifetime:type_name -> agent.ResourceLifetime
-	4, // 3: agent.GPUDevice.cost:type_name -> agent.AllocationCost
-	5, // 4: agent.GPUDevice.costAttribution:type_name -> agent.CostAttribution
+var file_datamodel_compute_proto_depIdxs = []int32{
+	1, // 0: datamodel.v2.GPUDevice.Labels:type_name -> datamodel.v2.GPUDevice.LabelsEntry
+	2, // 1: datamodel.v2.GPUDevice.Annotations:type_name -> datamodel.v2.GPUDevice.AnnotationsEntry
+	3, // 2: datamodel.v2.GPUDevice.lifetime:type_name -> datamodel.v2.ResourceLifetime
+	4, // 3: datamodel.v2.GPUDevice.cost:type_name -> datamodel.v2.AllocationCost
+	5, // 4: datamodel.v2.GPUDevice.costAttribution:type_name -> datamodel.v2.CostAttribution
 	5, // [5:5] is the sub-list for method output_type
 	5, // [5:5] is the sub-list for method input_type
 	5, // [5:5] is the sub-list for extension type_name
@@ -230,28 +230,28 @@ var file_compute_proto_depIdxs = []int32{
 	0, // [0:5] is the sub-list for field type_name
 }
 
-func init() { file_compute_proto_init() }
-func file_compute_proto_init() {
-	if File_compute_proto != nil {
+func init() { file_datamodel_compute_proto_init() }
+func file_datamodel_compute_proto_init() {
+	if File_datamodel_compute_proto != nil {
 		return
 	}
-	file_common_proto_init()
-	file_costs_proto_init()
+	file_datamodel_common_proto_init()
+	file_datamodel_costs_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_compute_proto_rawDesc), len(file_compute_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datamodel_compute_proto_rawDesc), len(file_datamodel_compute_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_compute_proto_goTypes,
-		DependencyIndexes: file_compute_proto_depIdxs,
-		MessageInfos:      file_compute_proto_msgTypes,
+		GoTypes:           file_datamodel_compute_proto_goTypes,
+		DependencyIndexes: file_datamodel_compute_proto_depIdxs,
+		MessageInfos:      file_datamodel_compute_proto_msgTypes,
 	}.Build()
-	File_compute_proto = out.File
-	file_compute_proto_goTypes = nil
-	file_compute_proto_depIdxs = nil
+	File_datamodel_compute_proto = out.File
+	file_datamodel_compute_proto_goTypes = nil
+	file_datamodel_compute_proto_depIdxs = nil
 }
