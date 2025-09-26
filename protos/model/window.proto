@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package model;
+
+import "google/protobuf/timestamp.proto";
+
+// Sets the golang package for the protobuf generated code
+option go_package = "github.com/opencost/opencost/core/pkg/model/pb";
+
+// Window defines a unit of time by a resolution and a start time
+message Window {
+  // resolution in "1h" or "1d" format
+  string resolution = 1;
+  // the start time of the window described
+  google.protobuf.Timestamp start = 2;
+}
