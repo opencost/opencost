@@ -220,7 +220,7 @@ jobs:
            
     hold-on-failure:
       needs: [wait_for_image_ready, run-tests, run-comparison-tests]
-      if: ${{ always() && (needs.run-tests.outputs.passed == 'false' || needs.run-comparison-tests.outputs.passed == 'false')}} 
+      if: ${{ always() && (needs.run-tests.outputs.passed == 'false' || needs.run-comparison-tests.outputs.passed == 'false') && github.event_name != 'merge_group'}} 
       runs-on: ubuntu-latest
       permissions: {}
       steps:
