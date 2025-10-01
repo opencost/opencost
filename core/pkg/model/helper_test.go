@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/model/pb"
+	commonpb "github.com/opencost/opencost/core/pkg/common/pb"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -18,7 +18,7 @@ func TestConvertWindow(t *testing.T) {
 	invalidTime := timeTenMinute.Add(time.Second)
 	tests := []struct {
 		name    string
-		window  *pb.Window
+		window  *commonpb.Window
 		want    opencost.Window
 		wantErr bool
 	}{
@@ -30,8 +30,8 @@ func TestConvertWindow(t *testing.T) {
 		},
 		{
 			name: "invalid resolution",
-			window: &pb.Window{
-				Resolution: "invalid",
+			window: &commonpb.Window{
+				Resolution: commonpb.Resolution_RESOLUTION_UNSPECIFIED,
 				Start:      timestamppb.New(timeDay),
 			},
 			want:    opencost.Window{},
@@ -39,8 +39,8 @@ func TestConvertWindow(t *testing.T) {
 		},
 		{
 			name: "invalid time",
-			window: &pb.Window{
-				Resolution: "1d",
+			window: &commonpb.Window{
+				Resolution: commonpb.Resolution_RESOLUTION_1D,
 				Start:      timestamppb.New(invalidTime),
 			},
 			want:    opencost.Window{},
@@ -48,8 +48,8 @@ func TestConvertWindow(t *testing.T) {
 		},
 		{
 			name: "valid 1d",
-			window: &pb.Window{
-				Resolution: "1d",
+			window: &commonpb.Window{
+				Resolution: commonpb.Resolution_RESOLUTION_1D,
 				Start:      timestamppb.New(timeDay),
 			},
 			want:    opencost.NewClosedWindow(timeDay, timeDay.Add(timeutil.Day)),
@@ -57,8 +57,8 @@ func TestConvertWindow(t *testing.T) {
 		},
 		{
 			name: "valid 1h",
-			window: &pb.Window{
-				Resolution: "1h",
+			window: &commonpb.Window{
+				Resolution: commonpb.Resolution_RESOLUTION_1H,
 				Start:      timestamppb.New(timeHour),
 			},
 			want:    opencost.NewClosedWindow(timeHour, timeHour.Add(time.Hour)),
@@ -66,8 +66,8 @@ func TestConvertWindow(t *testing.T) {
 		},
 		{
 			name: "valid 10m",
-			window: &pb.Window{
-				Resolution: "10m",
+			window: &commonpb.Window{
+				Resolution: commonpb.Resolution_RESOLUTION_10M,
 				Start:      timestamppb.New(timeTenMinute),
 			},
 			want:    opencost.NewClosedWindow(timeTenMinute, timeTenMinute.Add(10*time.Minute)),

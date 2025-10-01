@@ -5,18 +5,19 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/model/pb"
+	commonpb "github.com/opencost/opencost/core/pkg/common/pb"
+	custompb "github.com/opencost/opencost/core/pkg/customcost/pb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func createCustomCost(postfix string) *pb.CustomCost {
+func createCustomCost(postfix string) *custompb.CustomCost {
 	n := func(a string) string {
 		return fmt.Sprintf("%s_%s", a, postfix)
 	}
 
 	cost := rand.Float32() * 250.0
 
-	return &pb.CustomCost{
+	return &custompb.CustomCost{
 		Metadata: map[string]string{
 			n("custom_cost"): n("metadata"),
 		},
@@ -39,14 +40,14 @@ func createCustomCost(postfix string) *pb.CustomCost {
 	}
 }
 
-func GenerateMockCustomCostSet(start, end time.Time) *pb.CustomCostResponse {
-	costs := []*pb.CustomCost{}
+func GenerateMockCustomCostSet(start, end time.Time) *custompb.CustomCostResponse {
+	costs := []*custompb.CustomCost{}
 
 	for i := 0; i < 50; i++ {
 		costs = append(costs, createCustomCost(fmt.Sprintf("%d", i)))
 	}
 
-	return &pb.CustomCostResponse{
+	return &custompb.CustomCostResponse{
 		Metadata: map[string]string{
 			"key1": "value1",
 			"test": "1, 2, 3",
@@ -61,15 +62,15 @@ func GenerateMockCustomCostSet(start, end time.Time) *pb.CustomCostResponse {
 	}
 }
 
-func GenerateMockLabelResponse(start time.Time, res string) *pb.LabelsResponse {
-	return &pb.LabelsResponse{
+func GenerateMockLabelResponse(start time.Time, res commonpb.Resolution) *commonpb.LabelsResponse {
+	return &commonpb.LabelsResponse{
 		Type:    "account-labels",
 		GroupId: "billing_account_xzy",
-		Window: &pb.Window{
+		Window: &commonpb.Window{
 			Resolution: res,
 			Start:      timestamppb.New(start),
 		},
-		LabelSets: map[string]*pb.LabelSet{
+		LabelSets: map[string]*commonpb.LabelSet{
 			"account1": {Labels: map[string]string{
 				"account": "account1",
 				"test":    "test1",

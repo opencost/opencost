@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/model/pb"
+	custompb "github.com/opencost/opencost/core/pkg/customcost/pb"
 	"golang.org/x/exp/maps"
 	"google.golang.org/protobuf/proto"
 )
@@ -36,21 +36,21 @@ func (m *MemoryRepository) Has(startTime time.Time, domain string) (bool, error)
 	return ook, nil
 }
 
-func (m *MemoryRepository) Get(startTime time.Time, domain string) (*pb.CustomCostResponse, error) {
+func (m *MemoryRepository) Get(startTime time.Time, domain string) (*custompb.CustomCostResponse, error) {
 	m.rwLock.RLock()
 	defer m.rwLock.RUnlock()
 
 	domainData, ok := m.data[domain]
 	if !ok {
-		return &pb.CustomCostResponse{}, nil
+		return &custompb.CustomCostResponse{}, nil
 	}
 
 	b, ook := domainData[startTime.UTC()]
 	if !ook {
-		return &pb.CustomCostResponse{}, nil
+		return &custompb.CustomCostResponse{}, nil
 	}
 
-	ccr := &pb.CustomCostResponse{}
+	ccr := &custompb.CustomCostResponse{}
 	err := proto.Unmarshal(b, ccr)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling data: %w", err)
@@ -66,7 +66,7 @@ func (m *MemoryRepository) Keys() ([]string, error) {
 	return keys, nil
 }
 
-func (m *MemoryRepository) Put(ccr *pb.CustomCostResponse) error {
+func (m *MemoryRepository) Put(ccr *custompb.CustomCostResponse) error {
 	m.rwLock.Lock()
 	defer m.rwLock.Unlock()
 

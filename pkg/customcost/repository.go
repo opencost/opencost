@@ -3,14 +3,14 @@ package customcost
 import (
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/model/pb"
+	custompb "github.com/opencost/opencost/core/pkg/customcost/pb"
 )
 
 // Repository is an interface for storing and retrieving CustomCost data
 type Repository interface {
 	Has(time.Time, string) (bool, error)
-	Get(time.Time, string) (*pb.CustomCostResponse, error)
+	Get(time.Time, string) (*custompb.CustomCostResponse, error)
 	Keys() ([]string, error)
-	Put(*pb.CustomCostResponse) error
+	Put(*custompb.CustomCostResponse) error
 	Expire(time.Time) error
 }

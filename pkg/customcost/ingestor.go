@@ -13,7 +13,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/errors"
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/core/pkg/model/pb"
+	custompb "github.com/opencost/opencost/core/pkg/customcost/pb"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	ocplugin "github.com/opencost/opencost/core/pkg/plugin"
 	"github.com/opencost/opencost/core/pkg/util/stringutil"
@@ -158,7 +158,7 @@ func (ing *CustomCostIngestor) BuildWindow(start, end time.Time) {
 }
 
 func (ing *CustomCostIngestor) buildSingleDomain(start, end time.Time, domain string) {
-	req := &pb.CustomCostRequest{
+	req := &custompb.CustomCostRequest{
 		Start:      timestamppb.New(start),
 		End:        timestamppb.New(end),
 		Resolution: durationpb.New(ing.resolution),
