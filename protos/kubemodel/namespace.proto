@@ -4,7 +4,7 @@ import "kubemodel/diagnostic.proto";
 import "google/protobuf/timestamp.proto";
 
 package kubemodel;
-option go_package = "github.com/opencost/opencost/core/pkg/kubemodel/pb";
+option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
 
 // Namespace represents a Kubernetes namespace (allocated resource grouping)
 message Namespace {

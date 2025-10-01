@@ -5,8 +5,8 @@ import (
 	"math/rand"
 	"time"
 
-	commonpb "github.com/opencost/opencost/core/pkg/common/pb"
-	custompb "github.com/opencost/opencost/core/pkg/customcost/pb"
+	commonpb "github.com/opencost/opencost/core/pkg/model/pb/common"
+	custompb "github.com/opencost/opencost/core/pkg/model/pb/customcost"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 

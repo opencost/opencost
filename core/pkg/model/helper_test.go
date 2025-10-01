@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	commonpb "github.com/opencost/opencost/core/pkg/common/pb"
+	commonpb "github.com/opencost/opencost/core/pkg/model/pb/common"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -31,7 +31,7 @@ func TestConvertWindow(t *testing.T) {
 		{
 			name: "invalid resolution",
 			window: &commonpb.Window{
-				Resolution: commonpb.Resolution_RESOLUTION_UNSPECIFIED,
+				Resolution: commonpb.Resolution(999),
 				Start:      timestamppb.New(timeDay),
 			},
 			want:    opencost.Window{},

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	commonpb "github.com/opencost/opencost/core/pkg/common/pb"
+	commonpb "github.com/opencost/opencost/core/pkg/model/pb/common"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
