@@ -4,10 +4,10 @@
 // 	protoc        v6.32.1
 // source: kubemodel/cluster.proto
 
-package pb
+package kubemodel
 
 import (
-	pb "github.com/opencost/opencost/core/pkg/common/pb"
+	common "github.com/opencost/opencost/core/pkg/model/pb/common"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -100,7 +100,7 @@ type Cluster struct {
 	Name     string   `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
 	// Centralized window definition for entire cluster
 	// All resources inherit this window unless they specify their own duration
-	Window        *pb.Window `protobuf:"bytes,5,opt,name=window,proto3" json:"window,omitempty"`
+	Window        *common.Window `protobuf:"bytes,5,opt,name=window,proto3" json:"window,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -163,7 +163,7 @@ func (x *Cluster) GetName() string {
 	return ""
 }
 
-func (x *Cluster) GetWindow() *pb.Window {
+func (x *Cluster) GetWindow() *common.Window {
 	if x != nil {
 		return x.Window
 	}
@@ -189,7 +189,7 @@ const file_kubemodel_cluster_proto_rawDesc = "" +
 	"\x14PROVIDER_ON_PREMISES\x10\x04\x12\x14\n" +
 	"\x10PROVIDER_ALIBABA\x10\x05\x12\x19\n" +
 	"\x15PROVIDER_DIGITALOCEAN\x10\x06\x12\x13\n" +
-	"\x0fPROVIDER_ORACLE\x10\aB4Z2github.com/opencost/opencost/core/pkg/kubemodel/pbb\x06proto3"
+	"\x0fPROVIDER_ORACLE\x10\aB:Z8github.com/opencost/opencost/core/pkg/model/pb/kubemodelb\x06proto3"
 
 var (
 	file_kubemodel_cluster_proto_rawDescOnce sync.Once
@@ -206,9 +206,9 @@ func file_kubemodel_cluster_proto_rawDescGZIP() []byte {
 var file_kubemodel_cluster_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_kubemodel_cluster_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_kubemodel_cluster_proto_goTypes = []any{
-	(Provider)(0),     // 0: kubemodel.Provider
-	(*Cluster)(nil),   // 1: kubemodel.Cluster
-	(*pb.Window)(nil), // 2: common.Window
+	(Provider)(0),         // 0: kubemodel.Provider
+	(*Cluster)(nil),       // 1: kubemodel.Cluster
+	(*common.Window)(nil), // 2: common.Window
 }
 var file_kubemodel_cluster_proto_depIdxs = []int32{
 	0, // 0: kubemodel.Cluster.provider:type_name -> kubemodel.Provider

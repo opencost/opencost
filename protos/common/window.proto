@@ -5,14 +5,13 @@ package common;
 import "google/protobuf/timestamp.proto";
 
 // Sets the golang package for the protobuf generated code
-option go_package = "github.com/opencost/opencost/core/pkg/common/pb";
+option go_package = "github.com/opencost/opencost/core/pkg/model/pb/common";
 
 // Resolution represents the time granularity for data aggregation
 enum Resolution {
-  RESOLUTION_UNSPECIFIED = 0;
-  RESOLUTION_10M = 1;  // 10 minutes
-  RESOLUTION_1H = 2;   // 1 hour
-  RESOLUTION_1D = 3;   // 1 day
+  RESOLUTION_10M = 0;  // 10 minutes
+  RESOLUTION_1H = 1;   // 1 hour
+  RESOLUTION_1D = 2;   // 1 day
 }
 
 // Window defines a unit of time by a resolution and a start time

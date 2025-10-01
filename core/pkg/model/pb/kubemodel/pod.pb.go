@@ -4,7 +4,7 @@
 // 	protoc        v6.32.1
 // source: kubemodel/pod.proto
 
-package pb
+package kubemodel
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -495,7 +495,7 @@ const file_kubemodel_pod_proto_rawDesc = "" +
 	"diagnostic\x88\x01\x01B\x0f\n" +
 	"\r_creationTimeB\x0f\n" +
 	"\r_deletionTimeB\r\n" +
-	"\v_diagnosticB4Z2github.com/opencost/opencost/core/pkg/kubemodel/pbb\x06proto3"
+	"\v_diagnosticB:Z8github.com/opencost/opencost/core/pkg/model/pb/kubemodelb\x06proto3"
 
 var (
 	file_kubemodel_pod_proto_rawDescOnce sync.Once

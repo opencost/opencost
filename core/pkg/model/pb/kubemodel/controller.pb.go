@@ -4,7 +4,7 @@
 // 	protoc        v6.32.1
 // source: kubemodel/controller.proto
 
-package pb
+package kubemodel
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -232,7 +232,7 @@ const file_kubemodel_controller_proto_rawDesc = "" +
 	"\x03JOB\x10\x04\x12\v\n" +
 	"\aCRONJOB\x10\x05\x12\x0e\n" +
 	"\n" +
-	"REPLICASET\x10\x06B4Z2github.com/opencost/opencost/core/pkg/kubemodel/pbb\x06proto3"
+	"REPLICASET\x10\x06B:Z8github.com/opencost/opencost/core/pkg/model/pb/kubemodelb\x06proto3"
 
 var (
 	file_kubemodel_controller_proto_rawDescOnce sync.Once

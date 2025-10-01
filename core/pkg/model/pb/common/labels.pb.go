@@ -4,7 +4,7 @@
 // 	protoc        v6.32.1
 // source: common/labels.proto
 
-package pb
+package common
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -158,7 +158,7 @@ const file_common_labels_proto_rawDesc = "" +
 	"\x06labels\x18\x01 \x03(\v2\x1c.common.LabelSet.LabelsEntryR\x06labels\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B1Z/github.com/opencost/opencost/core/pkg/common/pbb\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B7Z5github.com/opencost/opencost/core/pkg/model/pb/commonb\x06proto3"
 
 var (
 	file_common_labels_proto_rawDescOnce sync.Once

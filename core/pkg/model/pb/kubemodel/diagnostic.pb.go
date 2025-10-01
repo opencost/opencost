@@ -4,7 +4,7 @@
 // 	protoc        v6.32.1
 // source: kubemodel/diagnostic.proto
 
-package pb
+package kubemodel
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -208,7 +208,7 @@ const file_kubemodel_diagnostic_proto_rawDesc = "" +
 	"\x14DiagnosticsRunReport\x12 \n" +
 	"\vapplication\x18\x01 \x01(\tR\vapplication\x128\n" +
 	"\tstartTime\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
-	"\aresults\x18\x03 \x03(\v2\x1b.kubemodel.DiagnosticResultR\aresultsB4Z2github.com/opencost/opencost/core/pkg/kubemodel/pbb\x06proto3"
+	"\aresults\x18\x03 \x03(\v2\x1b.kubemodel.DiagnosticResultR\aresultsB:Z8github.com/opencost/opencost/core/pkg/model/pb/kubemodelb\x06proto3"
 
 var (
 	file_kubemodel_diagnostic_proto_rawDescOnce sync.Once

@@ -4,7 +4,7 @@
 // 	protoc        v6.32.1
 // source: common/window.proto
 
-package pb
+package common
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -26,25 +26,22 @@ const (
 type Resolution int32
 
 const (
-	Resolution_RESOLUTION_UNSPECIFIED Resolution = 0
-	Resolution_RESOLUTION_10M         Resolution = 1 // 10 minutes
-	Resolution_RESOLUTION_1H          Resolution = 2 // 1 hour
-	Resolution_RESOLUTION_1D          Resolution = 3 // 1 day
+	Resolution_RESOLUTION_10M Resolution = 0 // 10 minutes
+	Resolution_RESOLUTION_1H  Resolution = 1 // 1 hour
+	Resolution_RESOLUTION_1D  Resolution = 2 // 1 day
 )
 
 // Enum value maps for Resolution.
 var (
 	Resolution_name = map[int32]string{
-		0: "RESOLUTION_UNSPECIFIED",
-		1: "RESOLUTION_10M",
-		2: "RESOLUTION_1H",
-		3: "RESOLUTION_1D",
+		0: "RESOLUTION_10M",
+		1: "RESOLUTION_1H",
+		2: "RESOLUTION_1D",
 	}
 	Resolution_value = map[string]int32{
-		"RESOLUTION_UNSPECIFIED": 0,
-		"RESOLUTION_10M":         1,
-		"RESOLUTION_1H":          2,
-		"RESOLUTION_1D":          3,
+		"RESOLUTION_10M": 0,
+		"RESOLUTION_1H":  1,
+		"RESOLUTION_1D":  2,
 	}
 )
 
@@ -120,7 +117,7 @@ func (x *Window) GetResolution() Resolution {
 	if x != nil {
 		return x.Resolution
 	}
-	return Resolution_RESOLUTION_UNSPECIFIED
+	return Resolution_RESOLUTION_10M
 }
 
 func (x *Window) GetStart() *timestamppb.Timestamp {
@@ -139,13 +136,12 @@ const file_common_window_proto_rawDesc = "" +
 	"\n" +
 	"resolution\x18\x01 \x01(\x0e2\x12.common.ResolutionR\n" +
 	"resolution\x120\n" +
-	"\x05start\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x05start*b\n" +
+	"\x05start\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x05start*F\n" +
 	"\n" +
-	"Resolution\x12\x1a\n" +
-	"\x16RESOLUTION_UNSPECIFIED\x10\x00\x12\x12\n" +
-	"\x0eRESOLUTION_10M\x10\x01\x12\x11\n" +
-	"\rRESOLUTION_1H\x10\x02\x12\x11\n" +
-	"\rRESOLUTION_1D\x10\x03B1Z/github.com/opencost/opencost/core/pkg/common/pbb\x06proto3"
+	"Resolution\x12\x12\n" +
+	"\x0eRESOLUTION_10M\x10\x00\x12\x11\n" +
+	"\rRESOLUTION_1H\x10\x01\x12\x11\n" +
+	"\rRESOLUTION_1D\x10\x02B7Z5github.com/opencost/opencost/core/pkg/model/pb/commonb\x06proto3"
 
 var (
 	file_common_window_proto_rawDescOnce sync.Once
