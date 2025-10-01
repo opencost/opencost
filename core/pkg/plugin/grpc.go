@@ -3,11 +3,13 @@ package plugin
 import (
 	"context"
 
-	custompb "github.com/opencost/opencost/core/pkg/customcost/pb"
+	custompb "github.com/opencost/opencost/core/pkg/model/pb/customcost"
 )
 
 // GRPCClient is an implementation of CustomCostsSource that talks over RPC.
-type GRPCClient struct{ client custompb.CustomCostsSourceClient }
+type GRPCClient struct {
+	client custompb.CustomCostsSourceClient
+}
 
 func (m *GRPCClient) GetCustomCosts(req *custompb.CustomCostRequest) []*custompb.CustomCostResponse {
 	resp, err := m.client.GetCustomCosts(context.Background(), req)

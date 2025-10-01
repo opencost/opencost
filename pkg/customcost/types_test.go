@@ -3,7 +3,7 @@ package customcost
 import (
 	"testing"
 
-	custompb "github.com/opencost/opencost/core/pkg/customcost/pb"
+	custompb "github.com/opencost/opencost/core/pkg/model/pb/customcost"
 )
 
 func TestSortByCostAsc(t *testing.T) {

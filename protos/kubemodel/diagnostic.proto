@@ -3,7 +3,7 @@ syntax = "proto3";
 import "google/protobuf/timestamp.proto";
 
 package kubemodel;
-option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
+option go_package = "github.com/opencost/opencost/core/pkg/kubemodel/pb";
 
 
 // DiagnosticResult represents the result of a diagnostic run

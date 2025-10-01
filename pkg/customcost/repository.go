@@ -3,7 +3,7 @@ package customcost
 import (
 	"time"
 
-	custompb "github.com/opencost/opencost/core/pkg/customcost/pb"
+	custompb "github.com/opencost/opencost/core/pkg/model/pb/customcost"
 )
 
 // Repository is an interface for storing and retrieving CustomCost data

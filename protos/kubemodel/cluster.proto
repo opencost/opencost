@@ -3,7 +3,7 @@ syntax = "proto3";
 import "common/window.proto";
 
 package kubemodel;
-option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
+option go_package = "github.com/opencost/opencost/core/pkg/kubemodel/pb";
 
 // Provider represents the cloud provider or infrastructure type
 enum Provider {

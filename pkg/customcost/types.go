@@ -8,7 +8,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/filter"
 	"github.com/opencost/opencost/core/pkg/log"
-	custompb "github.com/opencost/opencost/core/pkg/customcost/pb"
+	custompb "github.com/opencost/opencost/core/pkg/model/pb/customcost"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
 

@@ -13,7 +13,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/errors"
 	"github.com/opencost/opencost/core/pkg/log"
-	custompb "github.com/opencost/opencost/core/pkg/customcost/pb"
+	custompb "github.com/opencost/opencost/core/pkg/model/pb/customcost"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	ocplugin "github.com/opencost/opencost/core/pkg/plugin"
 	"github.com/opencost/opencost/core/pkg/util/stringutil"

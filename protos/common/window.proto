@@ -5,7 +5,7 @@ package common;
 import "google/protobuf/timestamp.proto";
 
 // Sets the golang package for the protobuf generated code
-option go_package = "github.com/opencost/opencost/core/pkg/model/pb/common";
+option go_package = "github.com/opencost/opencost/core/pkg/common/pb";
 
 // Resolution represents the time granularity for data aggregation
 enum Resolution {

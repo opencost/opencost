@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	custompb "github.com/opencost/opencost/core/pkg/customcost/pb"
+	custompb "github.com/opencost/opencost/core/pkg/model/pb/customcost"
 	"golang.org/x/exp/maps"
 	"google.golang.org/protobuf/proto"
 )
