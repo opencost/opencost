@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+import "kubemodel/diagnostic.proto";
+import "google/protobuf/timestamp.proto";
+
+package kubemodel;
+option go_package = "github.com/opencost/opencost/core/pkg/kubemodel/pb";
+
+// Pod represents a Kubernetes pod (allocated resource grouping)
+message Pod {
+  // Identification
+  string ID = 1;
+  string namespaceID = 2;
+  string controllerID = 3;
+  string nodeID = 4;
+
+  // Properties
+  string name = 5;
+  map<string, string> labels = 6;
+  map<string, string> annotations = 7;
+
+  // Resource lifecycle (only when different from cluster window)
+  optional google.protobuf.Timestamp creationTime = 8;
+  optional google.protobuf.Timestamp deletionTime = 9;
+
+  // Usage metrics
+  // CPU usage in core-hours
+  float cpuCoreHours = 10;
+
+  // CPU request average in cores
+  float cpuCoreRequestAverage = 11;
+
+  // CPU usage average in cores
+  float cpuCoreUsageAverage = 12;
+
+  // CPU usage max in cores
+  float cpuCoreUsageMax = 13;
+
+  // RAM usage in byte-hours
+  int64 ramByteHours = 14;
+
+  // RAM request average in bytes
+  int64 ramBytesRequestAverage = 15;
+
+  // RAM usage average in bytes
+  int64 ramBytesUsageAverage = 16;
+
+  // RAM usage max in bytes
+  int64 ramBytesUsageMax = 17;
+
+  // GPU usage in device-hours
+  float gpuHours = 18;
+
+  // GPU usage max percentage (0-100)
+  float gpuUsageMax = 19;
+
+  // Storage usage in byte-hours
+  int64 storageByteHours = 20;
+
+  // Network transfer bytes sent
+  int64 networkTransferBytes = 21;
+
+  // Network bytes received
+  int64 networkReceiveBytes = 22;
+
+  // Diagnostic information about this resource
+  optional DiagnosticResult diagnostic = 99;
+}
+
+// Container represents a container within a pod (allocated resource)
+message Container {
+  // Identification
+  string podID = 1;
+
+  // Properties
+  string name = 2;
+
+  // Resource lifecycle (only when different from cluster window)
+  optional google.protobuf.Timestamp creationTime = 3;
+  optional google.protobuf.Timestamp deletionTime = 4;
+
+  // Usage metrics
+  // CPU usage in core-hours
+  float cpuCoreHours = 5;
+
+  // CPU request average in cores
+  float cpuCoreRequestAverage = 6;
+
+  // CPU usage average in cores
+  float cpuCoreUsageAverage = 7;
+
+  // CPU usage max in cores
+  float cpuCoreUsageMax = 8;
+
+  // RAM usage in byte-hours
+  int64 ramByteHours = 9;
+
+  // RAM request average in bytes
+  int64 ramBytesRequestAverage = 10;
+
+  // RAM usage average in bytes
+  int64 ramBytesUsageAverage = 11;
+
+  // RAM usage max in bytes
+  int64 ramBytesUsageMax = 12;
+
+  // GPU usage in device-hours (if container has GPU access)
+  float gpuHours = 13;
+
+  // GPU usage max percentage (0-100)
+  float gpuUsageMax = 14;
+
+  // Diagnostic information about this resource
+  optional DiagnosticResult diagnostic = 99;
+}

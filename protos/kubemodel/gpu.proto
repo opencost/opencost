@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+import "kubemodel/diagnostic.proto";
+
+package kubemodel;
+option go_package = "github.com/opencost/opencost/core/pkg/kubemodel/pb";
+
+// GPUDevice represents a GPU device with DCGM integration (provisioned resource)
+message GPUDevice {
+  // Identification
+  string ID = 1;          // GPU UUID (hardware identifier)
+  string nodeID = 2;
+
+  // Properties
+  int32 deviceNumber = 3;
+  string modelName = 4;
+
+  // GPU sharing information
+  bool isShared = 6;
+  float sharePercentage = 9;
+
+  // Usage metrics
+  // GPU usage in device-hours
+  float gpuHours = 10;
+
+  // GPU request average percentage (0-100)
+  float gpuRequestAverage = 11;
+
+  // GPU usage average percentage (0-100)
+  float gpuUsageAverage = 12;
+
+  // GPU usage max percentage (0-100)
+  float gpuUsageMax = 13;
+
+  // GPU memory usage in bytes
+  int64 memoryBytes = 14;
+
+  // Diagnostic information about this resource
+  optional DiagnosticResult diagnostic = 99;
+}

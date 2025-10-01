@@ -5,7 +5,7 @@ package customcost.messages;
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
 // Sets the golang package for the protobuf generated code
-option go_package = "github.com/opencost/opencost/core/pkg/model/pb";
+option go_package = "github.com/opencost/opencost/core/pkg/customcost/pb";
 
 // see design at https://link.excalidraw.com/l/ABLQ24dkKai/CBEQtjH6Mr
 // for additional details on how these objects work in the context of
