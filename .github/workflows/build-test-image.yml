@@ -31,7 +31,7 @@ jobs:
             env:
               TEAMS: ${{ join(steps.teamAffiliation.outputs.teams, ',') }}
               ACTOR: ${{ github.actor }}
-              IS_MAINTAINER: ${{ contains(join(steps.teamAffiliation.outputs.teams, ','), 'OpenCost Maintainers') }}
+              IS_MAINTAINER: ${{ contains(join(steps.teamAffiliation.outputs.teams, ','), 'OpenCost Maintainers') || github.actor == 'dependabot[bot]' }}
             run: |
                 echo "Actor: $ACTOR"
                 echo "teams: $TEAMS"
