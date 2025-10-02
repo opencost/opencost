@@ -48,20 +48,14 @@ message Pod {
   // RAM usage max in bytes
   int64 ramBytesUsageMax = 17;
 
-  // GPU usage in device-hours
-  float gpuHours = 18;
-
-  // GPU usage max percentage (0-100)
-  float gpuUsageMax = 19;
-
   // Storage usage in byte-hours
-  int64 storageByteHours = 20;
+  int64 storageByteHours = 18;
 
   // Network transfer bytes sent
-  int64 networkTransferBytes = 21;
+  int64 networkTransferBytes = 19;
 
   // Network bytes received
-  int64 networkReceiveBytes = 22;
+  int64 networkReceiveBytes = 20;
 
   // Diagnostic information about this resource
   optional DiagnosticResult diagnostic = 99;
@@ -103,12 +97,6 @@ message Container {
 
   // RAM usage max in bytes
   int64 ramBytesUsageMax = 12;
-
-  // GPU usage in device-hours (if container has GPU access)
-  float gpuHours = 13;
-
-  // GPU usage max percentage (0-100)
-  float gpuUsageMax = 14;
 
   // Diagnostic information about this resource
   optional DiagnosticResult diagnostic = 99;

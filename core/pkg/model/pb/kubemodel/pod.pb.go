@@ -54,16 +54,12 @@ type Pod struct {
 	RamBytesUsageAverage int64 `protobuf:"varint,16,opt,name=ramBytesUsageAverage,proto3" json:"ramBytesUsageAverage,omitempty"`
 	// RAM usage max in bytes
 	RamBytesUsageMax int64 `protobuf:"varint,17,opt,name=ramBytesUsageMax,proto3" json:"ramBytesUsageMax,omitempty"`
-	// GPU usage in device-hours
-	GpuHours float32 `protobuf:"fixed32,18,opt,name=gpuHours,proto3" json:"gpuHours,omitempty"`
-	// GPU usage max percentage (0-100)
-	GpuUsageMax float32 `protobuf:"fixed32,19,opt,name=gpuUsageMax,proto3" json:"gpuUsageMax,omitempty"`
 	// Storage usage in byte-hours
-	StorageByteHours int64 `protobuf:"varint,20,opt,name=storageByteHours,proto3" json:"storageByteHours,omitempty"`
+	StorageByteHours int64 `protobuf:"varint,18,opt,name=storageByteHours,proto3" json:"storageByteHours,omitempty"`
 	// Network transfer bytes sent
-	NetworkTransferBytes int64 `protobuf:"varint,21,opt,name=networkTransferBytes,proto3" json:"networkTransferBytes,omitempty"`
+	NetworkTransferBytes int64 `protobuf:"varint,19,opt,name=networkTransferBytes,proto3" json:"networkTransferBytes,omitempty"`
 	// Network bytes received
-	NetworkReceiveBytes int64 `protobuf:"varint,22,opt,name=networkReceiveBytes,proto3" json:"networkReceiveBytes,omitempty"`
+	NetworkReceiveBytes int64 `protobuf:"varint,20,opt,name=networkReceiveBytes,proto3" json:"networkReceiveBytes,omitempty"`
 	// Diagnostic information about this resource
 	Diagnostic    *DiagnosticResult `protobuf:"bytes,99,opt,name=diagnostic,proto3,oneof" json:"diagnostic,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -219,20 +215,6 @@ func (x *Pod) GetRamBytesUsageMax() int64 {
 	return 0
 }
 
-func (x *Pod) GetGpuHours() float32 {
-	if x != nil {
-		return x.GpuHours
-	}
-	return 0
-}
-
-func (x *Pod) GetGpuUsageMax() float32 {
-	if x != nil {
-		return x.GpuUsageMax
-	}
-	return 0
-}
-
 func (x *Pod) GetStorageByteHours() int64 {
 	if x != nil {
 		return x.StorageByteHours
@@ -288,10 +270,6 @@ type Container struct {
 	RamBytesUsageAverage int64 `protobuf:"varint,11,opt,name=ramBytesUsageAverage,proto3" json:"ramBytesUsageAverage,omitempty"`
 	// RAM usage max in bytes
 	RamBytesUsageMax int64 `protobuf:"varint,12,opt,name=ramBytesUsageMax,proto3" json:"ramBytesUsageMax,omitempty"`
-	// GPU usage in device-hours (if container has GPU access)
-	GpuHours float32 `protobuf:"fixed32,13,opt,name=gpuHours,proto3" json:"gpuHours,omitempty"`
-	// GPU usage max percentage (0-100)
-	GpuUsageMax float32 `protobuf:"fixed32,14,opt,name=gpuUsageMax,proto3" json:"gpuUsageMax,omitempty"`
 	// Diagnostic information about this resource
 	Diagnostic    *DiagnosticResult `protobuf:"bytes,99,opt,name=diagnostic,proto3,oneof" json:"diagnostic,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -412,20 +390,6 @@ func (x *Container) GetRamBytesUsageMax() int64 {
 	return 0
 }
 
-func (x *Container) GetGpuHours() float32 {
-	if x != nil {
-		return x.GpuHours
-	}
-	return 0
-}
-
-func (x *Container) GetGpuUsageMax() float32 {
-	if x != nil {
-		return x.GpuUsageMax
-	}
-	return 0
-}
-
 func (x *Container) GetDiagnostic() *DiagnosticResult {
 	if x != nil {
 		return x.Diagnostic
@@ -437,7 +401,7 @@ var File_kubemodel_pod_proto protoreflect.FileDescriptor
 
 const file_kubemodel_pod_proto_rawDesc = "" +
 	"\n" +
-	"\x13kubemodel/pod.proto\x12\tkubemodel\x1a\x1akubemodel/diagnostic.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb8\t\n" +
+	"\x13kubemodel/pod.proto\x12\tkubemodel\x1a\x1akubemodel/diagnostic.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfa\b\n" +
 	"\x03Pod\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12 \n" +
 	"\vnamespaceID\x18\x02 \x01(\tR\vnamespaceID\x12\"\n" +
@@ -456,12 +420,10 @@ const file_kubemodel_pod_proto_rawDesc = "" +
 	"\framByteHours\x18\x0e \x01(\x03R\framByteHours\x126\n" +
 	"\x16ramBytesRequestAverage\x18\x0f \x01(\x03R\x16ramBytesRequestAverage\x122\n" +
 	"\x14ramBytesUsageAverage\x18\x10 \x01(\x03R\x14ramBytesUsageAverage\x12*\n" +
-	"\x10ramBytesUsageMax\x18\x11 \x01(\x03R\x10ramBytesUsageMax\x12\x1a\n" +
-	"\bgpuHours\x18\x12 \x01(\x02R\bgpuHours\x12 \n" +
-	"\vgpuUsageMax\x18\x13 \x01(\x02R\vgpuUsageMax\x12*\n" +
-	"\x10storageByteHours\x18\x14 \x01(\x03R\x10storageByteHours\x122\n" +
-	"\x14networkTransferBytes\x18\x15 \x01(\x03R\x14networkTransferBytes\x120\n" +
-	"\x13networkReceiveBytes\x18\x16 \x01(\x03R\x13networkReceiveBytes\x12@\n" +
+	"\x10ramBytesUsageMax\x18\x11 \x01(\x03R\x10ramBytesUsageMax\x12*\n" +
+	"\x10storageByteHours\x18\x12 \x01(\x03R\x10storageByteHours\x122\n" +
+	"\x14networkTransferBytes\x18\x13 \x01(\x03R\x14networkTransferBytes\x120\n" +
+	"\x13networkReceiveBytes\x18\x14 \x01(\x03R\x13networkReceiveBytes\x12@\n" +
 	"\n" +
 	"diagnostic\x18c \x01(\v2\x1b.kubemodel.DiagnosticResultH\x02R\n" +
 	"diagnostic\x88\x01\x01\x1a9\n" +
@@ -473,7 +435,7 @@ const file_kubemodel_pod_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x0f\n" +
 	"\r_creationTimeB\x0f\n" +
 	"\r_deletionTimeB\r\n" +
-	"\v_diagnostic\"\xe2\x05\n" +
+	"\v_diagnostic\"\xa4\x05\n" +
 	"\tContainer\x12\x14\n" +
 	"\x05podID\x18\x01 \x01(\tR\x05podID\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12C\n" +
@@ -487,9 +449,7 @@ const file_kubemodel_pod_proto_rawDesc = "" +
 	"\x16ramBytesRequestAverage\x18\n" +
 	" \x01(\x03R\x16ramBytesRequestAverage\x122\n" +
 	"\x14ramBytesUsageAverage\x18\v \x01(\x03R\x14ramBytesUsageAverage\x12*\n" +
-	"\x10ramBytesUsageMax\x18\f \x01(\x03R\x10ramBytesUsageMax\x12\x1a\n" +
-	"\bgpuHours\x18\r \x01(\x02R\bgpuHours\x12 \n" +
-	"\vgpuUsageMax\x18\x0e \x01(\x02R\vgpuUsageMax\x12@\n" +
+	"\x10ramBytesUsageMax\x18\f \x01(\x03R\x10ramBytesUsageMax\x12@\n" +
 	"\n" +
 	"diagnostic\x18c \x01(\v2\x1b.kubemodel.DiagnosticResultH\x02R\n" +
 	"diagnostic\x88\x01\x01B\x0f\n" +
