@@ -20,6 +20,7 @@ jobs:
         steps:
           - name: Check team membership
             uses: tspascoal/get-user-teams-membership@v3
+            if: ${{ github.actor != 'dependabot[bot]' }}
             id: teamAffiliation
             with:
               GITHUB_TOKEN: ${{ secrets.ORG_READER_PAT }}
@@ -30,7 +31,7 @@ jobs:
             env:
               TEAMS: ${{ join(steps.teamAffiliation.outputs.teams, ',') }}
               ACTOR: ${{ github.actor }}
-              IS_MAINTAINER: ${{ contains(join(steps.teamAffiliation.outputs.teams, ','), 'OpenCost Maintainers') || github.actor == 'dependabot[bot]' }}
+              IS_MAINTAINER: ${{ contains(join(steps.teamAffiliation.outputs.teams, ','), 'OpenCost Maintainers') }}
             run: |
                 echo "Actor: $ACTOR"
                 echo "teams: $TEAMS"
