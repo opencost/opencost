@@ -52,6 +52,7 @@ func GetMockCollectorProvider() StoreProvider {
 	gpu1Info := map[string]string{
 		source.NamespaceLabel: "namespace1",
 		source.PodLabel:       "pod1",
+		source.UIDLabel:       "pod-uuid1",
 		"container":           "container1",
 		"gpu":                 "0",
 		"UUID":                "GPU-1",
@@ -299,6 +300,7 @@ func TestCollectorMetricsQuerier_QueryNodeRAMSystemPercent(t *testing.T) {
 	}
 	expected := []*source.NodeRAMSystemPercentResult{
 		{
+			UID:      "pod-uuid2",
 			Cluster:  "",
 			Instance: "node1",
 			Data: []*util.Vector{
@@ -332,6 +334,7 @@ func TestCollectorMetricsQuerier_QueryNodeRAMUserPercent(t *testing.T) {
 	}
 	expected := []*source.NodeRAMUserPercentResult{
 		{
+			UID:      "pod-uuid1",
 			Cluster:  "",
 			Instance: "node1",
 			Data: []*util.Vector{
@@ -403,6 +406,7 @@ func Test_collectorMetricsQuerier_QueryCPUUsageAvg(t *testing.T) {
 	}
 	expected := []*source.CPUUsageAvgResult{
 		{
+			UID:       "pod-uuid1",
 			Cluster:   "",
 			Namespace: "namespace1",
 			Node:      "node1",
@@ -440,6 +444,7 @@ func Test_collectorMetricsQuerier_QueryCPUUsageMax(t *testing.T) {
 	}
 	expected := []*source.CPUUsageMaxResult{
 		{
+			UID:       "pod-uuid1",
 			Cluster:   "",
 			Namespace: "namespace1",
 			Node:      "node1",
@@ -477,6 +482,7 @@ func TestCollectorMetricsQuerier_QueryGPUsUsageAvg(t *testing.T) {
 	}
 	expected := []*source.GPUsUsageAvgResult{
 		{
+			UID:       "pod-uuid1",
 			Cluster:   "",
 			Namespace: "namespace1",
 			Pod:       "pod1",
@@ -512,6 +518,7 @@ func TestCollectorMetricsQuerier_QueryGPUsUsageMax(t *testing.T) {
 	}
 	expected := []*source.GPUsUsageMaxResult{
 		{
+			UID:       "pod-uuid1",
 			Cluster:   "",
 			Namespace: "namespace1",
 			Pod:       "pod1",
@@ -547,6 +554,7 @@ func TestCollectorMetricsQuerier_QueryGPUInfo(t *testing.T) {
 	}
 	expected := []*source.GPUInfoResult{
 		{
+			UID:       "pod-uuid1",
 			Cluster:   "",
 			Namespace: "namespace1",
 			Pod:       "pod1",
@@ -835,6 +843,7 @@ func Test_collectorMetricsQuerier_QueryNetTransferBytes(t *testing.T) {
 	}
 	expected := []*source.NetTransferBytesResult{
 		{
+			UID:       "pod-uuid1",
 			Cluster:   "",
 			Namespace: "namespace1",
 			Pod:       "pod1",
@@ -1022,6 +1031,7 @@ func Test_collectorMetricsQuerier_QueryNetReceiveBytes(t *testing.T) {
 	}
 	expected := []*source.NetReceiveBytesResult{
 		{
+			UID:       "pod-uuid1",
 			Cluster:   "",
 			Namespace: "namespace1",
 			Pod:       "pod1",

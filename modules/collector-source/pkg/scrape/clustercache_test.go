@@ -823,6 +823,7 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 						{
 							Name:            "pureReplicaSet",
 							Namespace:       "namespace1",
+							UID:             "uuid2",
 							OwnerReferences: []metav1.OwnerReference{},
 						},
 					},
@@ -846,6 +847,7 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 					Labels: map[string]string{
 						"replicaset":          "pureReplicaSet",
 						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid2",
 						source.OwnerNameLabel: source.NoneLabelValue,
 						source.OwnerKindLabel: source.NoneLabelValue,
 					},

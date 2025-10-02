@@ -769,6 +769,7 @@ func DecodeNodeGPUPricePerHrResult(result *QueryResult) *NodeGPUPricePerHrResult
 }
 
 type GPUInfoResult struct {
+	UID       string
 	Cluster   string
 	Namespace string
 	Pod       string
@@ -780,6 +781,7 @@ type GPUInfoResult struct {
 }
 
 func DecodeGPUInfoResult(result *QueryResult) *GPUInfoResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
@@ -789,6 +791,7 @@ func DecodeGPUInfoResult(result *QueryResult) *GPUInfoResult {
 	uuid, _ := result.GetString(UUIDLabel)
 
 	return &GPUInfoResult{
+		UID:       uid,
 		Cluster:   cluster,
 		Namespace: namespace,
 		Pod:       pod,
