@@ -4,7 +4,7 @@
 // 	protoc        v6.32.1
 // source: customcost/messages.proto
 
-package customcost
+package pb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -785,7 +785,7 @@ const file_customcost_messages_proto_rawDesc = "" +
 	"\r_pricing_unitB\x13\n" +
 	"\x11_pricing_category2y\n" +
 	"\x11CustomCostsSource\x12d\n" +
-	"\x0eGetCustomCosts\x12&.customcost.messages.CustomCostRequest\x1a*.customcost.messages.CustomCostResponseSetB;Z9github.com/opencost/opencost/core/pkg/model/pb/customcostb\x06proto3"
+	"\x0eGetCustomCosts\x12&.customcost.messages.CustomCostRequest\x1a*.customcost.messages.CustomCostResponseSetB0Z.github.com/opencost/opencost/core/pkg/model/pbb\x06proto3"
 
 var (
 	file_customcost_messages_proto_rawDescOnce sync.Once

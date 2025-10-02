@@ -3,7 +3,7 @@ package customcost
 import (
 	"testing"
 
-	custompb "github.com/opencost/opencost/core/pkg/model/pb/customcost"
+	"github.com/opencost/opencost/core/pkg/model/pb"
 )
 
 func TestSortByCostAsc(t *testing.T) {
@@ -123,14 +123,14 @@ func TestSortByCostTypeDesc(t *testing.T) {
 func TestParseCustomCostResponse(t *testing.T) {
 	tests := []struct {
 		name       string
-		ccResponse *custompb.CustomCostResponse
+		ccResponse *pb.CustomCostResponse
 		costType   CostType
 		expected   []*CustomCost
 	}{
 		{
 			name: "BlendedCost",
-			ccResponse: &custompb.CustomCostResponse{
-				Costs: []*custompb.CustomCost{
+			ccResponse: &pb.CustomCostResponse{
+				Costs: []*pb.CustomCost{
 					{
 						Id:             "1",
 						Zone:           "us-east-1a",
@@ -173,8 +173,8 @@ func TestParseCustomCostResponse(t *testing.T) {
 		},
 		{
 			name: "ListCost",
-			ccResponse: &custompb.CustomCostResponse{
-				Costs: []*custompb.CustomCost{
+			ccResponse: &pb.CustomCostResponse{
+				Costs: []*pb.CustomCost{
 					{
 						Id:             "2",
 						Zone:           "us-west-2b",
@@ -217,8 +217,8 @@ func TestParseCustomCostResponse(t *testing.T) {
 		},
 		{
 			name: "ZeroCost",
-			ccResponse: &custompb.CustomCostResponse{
-				Costs: []*custompb.CustomCost{
+			ccResponse: &pb.CustomCostResponse{
+				Costs: []*pb.CustomCost{
 					{
 						Id:             "3",
 						Zone:           "us-central-1c",
@@ -243,8 +243,8 @@ func TestParseCustomCostResponse(t *testing.T) {
 		},
 		{
 			name: "Non Matching cost",
-			ccResponse: &custompb.CustomCostResponse{
-				Costs: []*custompb.CustomCost{
+			ccResponse: &pb.CustomCostResponse{
+				Costs: []*pb.CustomCost{
 					{
 						Id:             "3",
 						Zone:           "us-central-1c",

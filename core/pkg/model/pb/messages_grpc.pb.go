@@ -4,7 +4,7 @@
 // - protoc             v6.32.1
 // source: customcost/messages.proto
 
-package customcost
+package pb
 
 import (
 	context "context"

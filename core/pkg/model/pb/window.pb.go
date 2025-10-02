@@ -4,7 +4,7 @@
 // 	protoc        v6.32.1
 // source: common/window.proto
 
-package common
+package pb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -141,7 +141,7 @@ const file_common_window_proto_rawDesc = "" +
 	"Resolution\x12\x12\n" +
 	"\x0eRESOLUTION_10M\x10\x00\x12\x11\n" +
 	"\rRESOLUTION_1H\x10\x01\x12\x11\n" +
-	"\rRESOLUTION_1D\x10\x02B7Z5github.com/opencost/opencost/core/pkg/model/pb/commonb\x06proto3"
+	"\rRESOLUTION_1D\x10\x02B0Z.github.com/opencost/opencost/core/pkg/model/pbb\x06proto3"
 
 var (
 	file_common_window_proto_rawDescOnce sync.Once

@@ -5,7 +5,7 @@ package common;
 import "common/window.proto";
 
 // Sets the golang package for the protobuf generated code
-option go_package = "github.com/opencost/opencost/core/pkg/model/pb/common";
+option go_package = "github.com/opencost/opencost/core/pkg/model/pb";
 
 // LabelsResponse is a grouping of LabelSets for a specific window for a type of label grouped by their source.
 message LabelsResponse {

@@ -8,8 +8,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/diagnostics"
 	"github.com/opencost/opencost/core/pkg/heartbeat"
 	"github.com/opencost/opencost/core/pkg/model"
-	commonpb "github.com/opencost/opencost/core/pkg/model/pb/common"
-	custompb "github.com/opencost/opencost/core/pkg/model/pb/customcost"
+	"github.com/opencost/opencost/core/pkg/model/pb"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/json"
@@ -249,7 +248,7 @@ func TestProtobufDecoder(t *testing.T) {
 		t.Errorf("failed to marshal custom cost set: %s", err.Error())
 	}
 
-	customCostTests := []decoderTestCase[custompb.CustomCostResponse]{
+	customCostTests := []decoderTestCase[pb.CustomCostResponse]{
 		{
 			name:    "custom cost valid",
 			data:    customCostSetRaw,
@@ -266,13 +265,13 @@ func TestProtobufDecoder(t *testing.T) {
 
 	testProtoBufDecoder(t, ProtobufDecoder, customCostTests)
 
-	labelsResponse := model.GenerateMockLabelResponse(start, commonpb.Resolution_RESOLUTION_1D)
+	labelsResponse := model.GenerateMockLabelResponse(start, "1d")
 	labelsResponseRaw, err := proto.Marshal(labelsResponse)
 	if err != nil {
 		t.Errorf("failed to marshal custom cost set: %s", err.Error())
 	}
 
-	labelsResponseTests := []decoderTestCase[commonpb.LabelsResponse]{
+	labelsResponseTests := []decoderTestCase[pb.LabelsResponse]{
 		{
 			name:    "labels response valid",
 			data:    labelsResponseRaw,

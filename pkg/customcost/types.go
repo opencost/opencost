@@ -8,7 +8,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/filter"
 	"github.com/opencost/opencost/core/pkg/log"
-	custompb "github.com/opencost/opencost/core/pkg/model/pb/customcost"
+	"github.com/opencost/opencost/core/pkg/model/pb"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
 
@@ -110,7 +110,7 @@ func ParseCostType(costTypeStr string) (CostType, error) {
 	}
 }
 
-func ParseCustomCostResponse(ccResponse *custompb.CustomCostResponse, costType CostType) []*CustomCost {
+func ParseCustomCostResponse(ccResponse *pb.CustomCostResponse, costType CostType) []*CustomCost {
 	costs := ccResponse.GetCosts()
 
 	customCosts := []*CustomCost{}
@@ -142,7 +142,7 @@ func ParseCustomCostResponse(ccResponse *custompb.CustomCostResponse, costType C
 	return customCosts
 }
 
-func determineCost(cc *custompb.CustomCost, costType CostType) (float32, CostType) {
+func determineCost(cc *pb.CustomCost, costType CostType) (float32, CostType) {
 	switch costType {
 	// if the cost type is blended, first check if the billed cost is non-zero
 	// if it is, return the billed cost

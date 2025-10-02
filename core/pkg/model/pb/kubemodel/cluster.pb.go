@@ -7,7 +7,7 @@
 package kubemodel
 
 import (
-	common "github.com/opencost/opencost/core/pkg/model/pb/common"
+	pb "github.com/opencost/opencost/core/pkg/model/pb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -100,7 +100,7 @@ type Cluster struct {
 	Name     string   `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
 	// Centralized window definition for entire cluster
 	// All resources inherit this window unless they specify their own duration
-	Window        *common.Window `protobuf:"bytes,5,opt,name=window,proto3" json:"window,omitempty"`
+	Window        *pb.Window `protobuf:"bytes,5,opt,name=window,proto3" json:"window,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -163,7 +163,7 @@ func (x *Cluster) GetName() string {
 	return ""
 }
 
-func (x *Cluster) GetWindow() *common.Window {
+func (x *Cluster) GetWindow() *pb.Window {
 	if x != nil {
 		return x.Window
 	}
@@ -206,9 +206,9 @@ func file_kubemodel_cluster_proto_rawDescGZIP() []byte {
 var file_kubemodel_cluster_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_kubemodel_cluster_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_kubemodel_cluster_proto_goTypes = []any{
-	(Provider)(0),         // 0: kubemodel.Provider
-	(*Cluster)(nil),       // 1: kubemodel.Cluster
-	(*common.Window)(nil), // 2: common.Window
+	(Provider)(0),     // 0: kubemodel.Provider
+	(*Cluster)(nil),   // 1: kubemodel.Cluster
+	(*pb.Window)(nil), // 2: common.Window
 }
 var file_kubemodel_cluster_proto_depIdxs = []int32{
 	0, // 0: kubemodel.Cluster.provider:type_name -> kubemodel.Provider

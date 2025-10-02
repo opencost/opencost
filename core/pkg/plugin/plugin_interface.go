@@ -4,13 +4,13 @@ import (
 	"context"
 
 	"github.com/hashicorp/go-plugin"
-	custompb "github.com/opencost/opencost/core/pkg/model/pb/customcost"
+	"github.com/opencost/opencost/core/pkg/model/pb"
 	grpc "google.golang.org/grpc"
 )
 
 // plugin interface
 type CustomCostSource interface {
-	GetCustomCosts(req *custompb.CustomCostRequest) []*custompb.CustomCostResponse
+	GetCustomCosts(req *pb.CustomCostRequest) []*pb.CustomCostResponse
 }
 
 type CustomCostPlugin struct {
@@ -23,7 +23,7 @@ type CustomCostPlugin struct {
 // see https://github.com/hashicorp/go-plugin/blob/main/examples/basic/shared/greeter_interface.go#L59
 // for context and details
 func (p *CustomCostPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
-	custompb.RegisterCustomCostsSourceServer(s, &GRPCServer{Impl: p.Impl})
+	pb.RegisterCustomCostsSourceServer(s, &GRPCServer{Impl: p.Impl})
 	return nil
 }
 
@@ -31,5 +31,5 @@ func (p *CustomCostPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server)
 // see https://github.com/hashicorp/go-plugin/blob/main/examples/basic/shared/greeter_interface.go#L63
 // for context and details
 func (CustomCostPlugin) GRPCClient(context context.Context, b *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: custompb.NewCustomCostsSourceClient(c)}, nil
+	return &GRPCClient{client: pb.NewCustomCostsSourceClient(c)}, nil
 }
