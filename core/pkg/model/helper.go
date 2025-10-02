@@ -16,14 +16,14 @@ func ConvertWindow(window *pb.Window) (opencost.Window, error) {
 	}
 	var res time.Duration
 	switch window.Resolution {
-	case "1d":
+	case pb.Resolution_RESOLUTION_1D:
 		res = timeutil.Day
-	case "1h":
+	case pb.Resolution_RESOLUTION_1H:
 		res = time.Hour
-	case "10m":
+	case pb.Resolution_RESOLUTION_10M:
 		res = time.Minute * 10
 	default:
-		return opencost.Window{}, fmt.Errorf("invalid window resolution %s", window.Resolution)
+		return opencost.Window{}, fmt.Errorf("invalid window resolution %v", window.Resolution)
 	}
 
 	start := window.Start.AsTime().UTC()
