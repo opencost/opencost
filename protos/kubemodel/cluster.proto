@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-import "common/window.proto";
+import "model/window.proto";
 
 package kubemodel;
 option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
@@ -31,6 +31,6 @@ message Cluster {
 
   // Centralized window definition for entire cluster
   // All resources inherit this window unless they specify their own duration
-  common.Window window = 5;
+  model.Window window = 5;
 
 }

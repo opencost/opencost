@@ -174,13 +174,13 @@ var File_kubemodel_cluster_proto protoreflect.FileDescriptor
 
 const file_kubemodel_cluster_proto_rawDesc = "" +
 	"\n" +
-	"\x17kubemodel/cluster.proto\x12\tkubemodel\x1a\x13common/window.proto\"\xa0\x01\n" +
+	"\x17kubemodel/cluster.proto\x12\tkubemodel\x1a\x12model/window.proto\"\x9f\x01\n" +
 	"\aCluster\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12/\n" +
 	"\bprovider\x18\x02 \x01(\x0e2\x13.kubemodel.ProviderR\bprovider\x12\x18\n" +
 	"\aaccount\x18\x03 \x01(\tR\aaccount\x12\x12\n" +
-	"\x04name\x18\x04 \x01(\tR\x04name\x12&\n" +
-	"\x06window\x18\x05 \x01(\v2\x0e.common.WindowR\x06window*\xbc\x01\n" +
+	"\x04name\x18\x04 \x01(\tR\x04name\x12%\n" +
+	"\x06window\x18\x05 \x01(\v2\r.model.WindowR\x06window*\xbc\x01\n" +
 	"\bProvider\x12\x18\n" +
 	"\x14PROVIDER_UNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fPROVIDER_AWS\x10\x01\x12\x10\n" +
@@ -208,11 +208,11 @@ var file_kubemodel_cluster_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_kubemodel_cluster_proto_goTypes = []any{
 	(Provider)(0),     // 0: kubemodel.Provider
 	(*Cluster)(nil),   // 1: kubemodel.Cluster
-	(*pb.Window)(nil), // 2: common.Window
+	(*pb.Window)(nil), // 2: model.Window
 }
 var file_kubemodel_cluster_proto_depIdxs = []int32{
 	0, // 0: kubemodel.Cluster.provider:type_name -> kubemodel.Provider
-	2, // 1: kubemodel.Cluster.window:type_name -> common.Window
+	2, // 1: kubemodel.Cluster.window:type_name -> model.Window
 	2, // [2:2] is the sub-list for method output_type
 	2, // [2:2] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name

@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v6.32.1
-// source: common/window.proto
+// source: model/window.proto
 
 package pb
 
@@ -56,11 +56,11 @@ func (x Resolution) String() string {
 }
 
 func (Resolution) Descriptor() protoreflect.EnumDescriptor {
-	return file_common_window_proto_enumTypes[0].Descriptor()
+	return file_model_window_proto_enumTypes[0].Descriptor()
 }
 
 func (Resolution) Type() protoreflect.EnumType {
-	return &file_common_window_proto_enumTypes[0]
+	return &file_model_window_proto_enumTypes[0]
 }
 
 func (x Resolution) Number() protoreflect.EnumNumber {
@@ -69,14 +69,14 @@ func (x Resolution) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Resolution.Descriptor instead.
 func (Resolution) EnumDescriptor() ([]byte, []int) {
-	return file_common_window_proto_rawDescGZIP(), []int{0}
+	return file_model_window_proto_rawDescGZIP(), []int{0}
 }
 
 // Window defines a unit of time by a resolution and a start time
 type Window struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// resolution defines the time granularity
-	Resolution Resolution `protobuf:"varint,1,opt,name=resolution,proto3,enum=common.Resolution" json:"resolution,omitempty"`
+	Resolution Resolution `protobuf:"varint,1,opt,name=resolution,proto3,enum=model.Resolution" json:"resolution,omitempty"`
 	// the start time of the window described
 	Start         *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=start,proto3" json:"start,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -85,7 +85,7 @@ type Window struct {
 
 func (x *Window) Reset() {
 	*x = Window{}
-	mi := &file_common_window_proto_msgTypes[0]
+	mi := &file_model_window_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -97,7 +97,7 @@ func (x *Window) String() string {
 func (*Window) ProtoMessage() {}
 
 func (x *Window) ProtoReflect() protoreflect.Message {
-	mi := &file_common_window_proto_msgTypes[0]
+	mi := &file_model_window_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -110,7 +110,7 @@ func (x *Window) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Window.ProtoReflect.Descriptor instead.
 func (*Window) Descriptor() ([]byte, []int) {
-	return file_common_window_proto_rawDescGZIP(), []int{0}
+	return file_model_window_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Window) GetResolution() Resolution {
@@ -127,14 +127,14 @@ func (x *Window) GetStart() *timestamppb.Timestamp {
 	return nil
 }
 
-var File_common_window_proto protoreflect.FileDescriptor
+var File_model_window_proto protoreflect.FileDescriptor
 
-const file_common_window_proto_rawDesc = "" +
+const file_model_window_proto_rawDesc = "" +
 	"\n" +
-	"\x13common/window.proto\x12\x06common\x1a\x1fgoogle/protobuf/timestamp.proto\"n\n" +
-	"\x06Window\x122\n" +
+	"\x12model/window.proto\x12\x05model\x1a\x1fgoogle/protobuf/timestamp.proto\"m\n" +
+	"\x06Window\x121\n" +
 	"\n" +
-	"resolution\x18\x01 \x01(\x0e2\x12.common.ResolutionR\n" +
+	"resolution\x18\x01 \x01(\x0e2\x11.model.ResolutionR\n" +
 	"resolution\x120\n" +
 	"\x05start\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x05start*F\n" +
 	"\n" +
@@ -144,27 +144,27 @@ const file_common_window_proto_rawDesc = "" +
 	"\rRESOLUTION_1D\x10\x02B0Z.github.com/opencost/opencost/core/pkg/model/pbb\x06proto3"
 
 var (
-	file_common_window_proto_rawDescOnce sync.Once
-	file_common_window_proto_rawDescData []byte
+	file_model_window_proto_rawDescOnce sync.Once
+	file_model_window_proto_rawDescData []byte
 )
 
-func file_common_window_proto_rawDescGZIP() []byte {
-	file_common_window_proto_rawDescOnce.Do(func() {
-		file_common_window_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_common_window_proto_rawDesc), len(file_common_window_proto_rawDesc)))
+func file_model_window_proto_rawDescGZIP() []byte {
+	file_model_window_proto_rawDescOnce.Do(func() {
+		file_model_window_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_model_window_proto_rawDesc), len(file_model_window_proto_rawDesc)))
 	})
-	return file_common_window_proto_rawDescData
+	return file_model_window_proto_rawDescData
 }
 
-var file_common_window_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_common_window_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-var file_common_window_proto_goTypes = []any{
-	(Resolution)(0),               // 0: common.Resolution
-	(*Window)(nil),                // 1: common.Window
+var file_model_window_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_model_window_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_model_window_proto_goTypes = []any{
+	(Resolution)(0),               // 0: model.Resolution
+	(*Window)(nil),                // 1: model.Window
 	(*timestamppb.Timestamp)(nil), // 2: google.protobuf.Timestamp
 }
-var file_common_window_proto_depIdxs = []int32{
-	0, // 0: common.Window.resolution:type_name -> common.Resolution
-	2, // 1: common.Window.start:type_name -> google.protobuf.Timestamp
+var file_model_window_proto_depIdxs = []int32{
+	0, // 0: model.Window.resolution:type_name -> model.Resolution
+	2, // 1: model.Window.start:type_name -> google.protobuf.Timestamp
 	2, // [2:2] is the sub-list for method output_type
 	2, // [2:2] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name
@@ -172,27 +172,27 @@ var file_common_window_proto_depIdxs = []int32{
 	0, // [0:2] is the sub-list for field type_name
 }
 
-func init() { file_common_window_proto_init() }
-func file_common_window_proto_init() {
-	if File_common_window_proto != nil {
+func init() { file_model_window_proto_init() }
+func file_model_window_proto_init() {
+	if File_model_window_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_common_window_proto_rawDesc), len(file_common_window_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_model_window_proto_rawDesc), len(file_model_window_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_common_window_proto_goTypes,
-		DependencyIndexes: file_common_window_proto_depIdxs,
-		EnumInfos:         file_common_window_proto_enumTypes,
-		MessageInfos:      file_common_window_proto_msgTypes,
+		GoTypes:           file_model_window_proto_goTypes,
+		DependencyIndexes: file_model_window_proto_depIdxs,
+		EnumInfos:         file_model_window_proto_enumTypes,
+		MessageInfos:      file_model_window_proto_msgTypes,
 	}.Build()
-	File_common_window_proto = out.File
-	file_common_window_proto_goTypes = nil
-	file_common_window_proto_depIdxs = nil
+	File_model_window_proto = out.File
+	file_model_window_proto_goTypes = nil
+	file_model_window_proto_depIdxs = nil
 }

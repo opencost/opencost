@@ -243,160 +243,6 @@ func (x *Pod) GetDiagnostic() *DiagnosticResult {
 	return nil
 }
 
-// Container represents a container within a pod (allocated resource)
-type Container struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Identification
-	PodID string `protobuf:"bytes,1,opt,name=podID,proto3" json:"podID,omitempty"`
-	// Properties
-	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	// Resource lifecycle (only when different from cluster window)
-	CreationTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=creationTime,proto3,oneof" json:"creationTime,omitempty"`
-	DeletionTime *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=deletionTime,proto3,oneof" json:"deletionTime,omitempty"`
-	// Usage metrics
-	// CPU usage in core-hours
-	CpuCoreHours float32 `protobuf:"fixed32,5,opt,name=cpuCoreHours,proto3" json:"cpuCoreHours,omitempty"`
-	// CPU request average in cores
-	CpuCoreRequestAverage float32 `protobuf:"fixed32,6,opt,name=cpuCoreRequestAverage,proto3" json:"cpuCoreRequestAverage,omitempty"`
-	// CPU usage average in cores
-	CpuCoreUsageAverage float32 `protobuf:"fixed32,7,opt,name=cpuCoreUsageAverage,proto3" json:"cpuCoreUsageAverage,omitempty"`
-	// CPU usage max in cores
-	CpuCoreUsageMax float32 `protobuf:"fixed32,8,opt,name=cpuCoreUsageMax,proto3" json:"cpuCoreUsageMax,omitempty"`
-	// RAM usage in byte-hours
-	RamByteHours int64 `protobuf:"varint,9,opt,name=ramByteHours,proto3" json:"ramByteHours,omitempty"`
-	// RAM request average in bytes
-	RamBytesRequestAverage int64 `protobuf:"varint,10,opt,name=ramBytesRequestAverage,proto3" json:"ramBytesRequestAverage,omitempty"`
-	// RAM usage average in bytes
-	RamBytesUsageAverage int64 `protobuf:"varint,11,opt,name=ramBytesUsageAverage,proto3" json:"ramBytesUsageAverage,omitempty"`
-	// RAM usage max in bytes
-	RamBytesUsageMax int64 `protobuf:"varint,12,opt,name=ramBytesUsageMax,proto3" json:"ramBytesUsageMax,omitempty"`
-	// Diagnostic information about this resource
-	Diagnostic    *DiagnosticResult `protobuf:"bytes,99,opt,name=diagnostic,proto3,oneof" json:"diagnostic,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Container) Reset() {
-	*x = Container{}
-	mi := &file_kubemodel_pod_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Container) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Container) ProtoMessage() {}
-
-func (x *Container) ProtoReflect() protoreflect.Message {
-	mi := &file_kubemodel_pod_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Container.ProtoReflect.Descriptor instead.
-func (*Container) Descriptor() ([]byte, []int) {
-	return file_kubemodel_pod_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *Container) GetPodID() string {
-	if x != nil {
-		return x.PodID
-	}
-	return ""
-}
-
-func (x *Container) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *Container) GetCreationTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.CreationTime
-	}
-	return nil
-}
-
-func (x *Container) GetDeletionTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.DeletionTime
-	}
-	return nil
-}
-
-func (x *Container) GetCpuCoreHours() float32 {
-	if x != nil {
-		return x.CpuCoreHours
-	}
-	return 0
-}
-
-func (x *Container) GetCpuCoreRequestAverage() float32 {
-	if x != nil {
-		return x.CpuCoreRequestAverage
-	}
-	return 0
-}
-
-func (x *Container) GetCpuCoreUsageAverage() float32 {
-	if x != nil {
-		return x.CpuCoreUsageAverage
-	}
-	return 0
-}
-
-func (x *Container) GetCpuCoreUsageMax() float32 {
-	if x != nil {
-		return x.CpuCoreUsageMax
-	}
-	return 0
-}
-
-func (x *Container) GetRamByteHours() int64 {
-	if x != nil {
-		return x.RamByteHours
-	}
-	return 0
-}
-
-func (x *Container) GetRamBytesRequestAverage() int64 {
-	if x != nil {
-		return x.RamBytesRequestAverage
-	}
-	return 0
-}
-
-func (x *Container) GetRamBytesUsageAverage() int64 {
-	if x != nil {
-		return x.RamBytesUsageAverage
-	}
-	return 0
-}
-
-func (x *Container) GetRamBytesUsageMax() int64 {
-	if x != nil {
-		return x.RamBytesUsageMax
-	}
-	return 0
-}
-
-func (x *Container) GetDiagnostic() *DiagnosticResult {
-	if x != nil {
-		return x.Diagnostic
-	}
-	return nil
-}
-
 var File_kubemodel_pod_proto protoreflect.FileDescriptor
 
 const file_kubemodel_pod_proto_rawDesc = "" +
@@ -435,26 +281,6 @@ const file_kubemodel_pod_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x0f\n" +
 	"\r_creationTimeB\x0f\n" +
 	"\r_deletionTimeB\r\n" +
-	"\v_diagnostic\"\xa4\x05\n" +
-	"\tContainer\x12\x14\n" +
-	"\x05podID\x18\x01 \x01(\tR\x05podID\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12C\n" +
-	"\fcreationTime\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampH\x00R\fcreationTime\x88\x01\x01\x12C\n" +
-	"\fdeletionTime\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampH\x01R\fdeletionTime\x88\x01\x01\x12\"\n" +
-	"\fcpuCoreHours\x18\x05 \x01(\x02R\fcpuCoreHours\x124\n" +
-	"\x15cpuCoreRequestAverage\x18\x06 \x01(\x02R\x15cpuCoreRequestAverage\x120\n" +
-	"\x13cpuCoreUsageAverage\x18\a \x01(\x02R\x13cpuCoreUsageAverage\x12(\n" +
-	"\x0fcpuCoreUsageMax\x18\b \x01(\x02R\x0fcpuCoreUsageMax\x12\"\n" +
-	"\framByteHours\x18\t \x01(\x03R\framByteHours\x126\n" +
-	"\x16ramBytesRequestAverage\x18\n" +
-	" \x01(\x03R\x16ramBytesRequestAverage\x122\n" +
-	"\x14ramBytesUsageAverage\x18\v \x01(\x03R\x14ramBytesUsageAverage\x12*\n" +
-	"\x10ramBytesUsageMax\x18\f \x01(\x03R\x10ramBytesUsageMax\x12@\n" +
-	"\n" +
-	"diagnostic\x18c \x01(\v2\x1b.kubemodel.DiagnosticResultH\x02R\n" +
-	"diagnostic\x88\x01\x01B\x0f\n" +
-	"\r_creationTimeB\x0f\n" +
-	"\r_deletionTimeB\r\n" +
 	"\v_diagnosticB:Z8github.com/opencost/opencost/core/pkg/model/pb/kubemodelb\x06proto3"
 
 var (
@@ -469,29 +295,25 @@ func file_kubemodel_pod_proto_rawDescGZIP() []byte {
 	return file_kubemodel_pod_proto_rawDescData
 }
 
-var file_kubemodel_pod_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_kubemodel_pod_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_kubemodel_pod_proto_goTypes = []any{
 	(*Pod)(nil),                   // 0: kubemodel.Pod
-	(*Container)(nil),             // 1: kubemodel.Container
-	nil,                           // 2: kubemodel.Pod.LabelsEntry
-	nil,                           // 3: kubemodel.Pod.AnnotationsEntry
-	(*timestamppb.Timestamp)(nil), // 4: google.protobuf.Timestamp
-	(*DiagnosticResult)(nil),      // 5: kubemodel.DiagnosticResult
+	nil,                           // 1: kubemodel.Pod.LabelsEntry
+	nil,                           // 2: kubemodel.Pod.AnnotationsEntry
+	(*timestamppb.Timestamp)(nil), // 3: google.protobuf.Timestamp
+	(*DiagnosticResult)(nil),      // 4: kubemodel.DiagnosticResult
 }
 var file_kubemodel_pod_proto_depIdxs = []int32{
-	2, // 0: kubemodel.Pod.labels:type_name -> kubemodel.Pod.LabelsEntry
-	3, // 1: kubemodel.Pod.annotations:type_name -> kubemodel.Pod.AnnotationsEntry
-	4, // 2: kubemodel.Pod.creationTime:type_name -> google.protobuf.Timestamp
-	4, // 3: kubemodel.Pod.deletionTime:type_name -> google.protobuf.Timestamp
-	5, // 4: kubemodel.Pod.diagnostic:type_name -> kubemodel.DiagnosticResult
-	4, // 5: kubemodel.Container.creationTime:type_name -> google.protobuf.Timestamp
-	4, // 6: kubemodel.Container.deletionTime:type_name -> google.protobuf.Timestamp
-	5, // 7: kubemodel.Container.diagnostic:type_name -> kubemodel.DiagnosticResult
-	8, // [8:8] is the sub-list for method output_type
-	8, // [8:8] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	1, // 0: kubemodel.Pod.labels:type_name -> kubemodel.Pod.LabelsEntry
+	2, // 1: kubemodel.Pod.annotations:type_name -> kubemodel.Pod.AnnotationsEntry
+	3, // 2: kubemodel.Pod.creationTime:type_name -> google.protobuf.Timestamp
+	3, // 3: kubemodel.Pod.deletionTime:type_name -> google.protobuf.Timestamp
+	4, // 4: kubemodel.Pod.diagnostic:type_name -> kubemodel.DiagnosticResult
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_kubemodel_pod_proto_init() }
@@ -501,14 +323,13 @@ func file_kubemodel_pod_proto_init() {
 	}
 	file_kubemodel_diagnostic_proto_init()
 	file_kubemodel_pod_proto_msgTypes[0].OneofWrappers = []any{}
-	file_kubemodel_pod_proto_msgTypes[1].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kubemodel_pod_proto_rawDesc), len(file_kubemodel_pod_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
