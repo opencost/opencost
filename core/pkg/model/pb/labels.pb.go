@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v6.32.1
-// source: protos/model/labels.proto
+// source: model/labels.proto
 
 package pb
 
@@ -39,7 +39,7 @@ type LabelsResponse struct {
 
 func (x *LabelsResponse) Reset() {
 	*x = LabelsResponse{}
-	mi := &file_protos_model_labels_proto_msgTypes[0]
+	mi := &file_model_labels_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -51,7 +51,7 @@ func (x *LabelsResponse) String() string {
 func (*LabelsResponse) ProtoMessage() {}
 
 func (x *LabelsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_protos_model_labels_proto_msgTypes[0]
+	mi := &file_model_labels_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64,7 +64,7 @@ func (x *LabelsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LabelsResponse.ProtoReflect.Descriptor instead.
 func (*LabelsResponse) Descriptor() ([]byte, []int) {
-	return file_protos_model_labels_proto_rawDescGZIP(), []int{0}
+	return file_model_labels_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *LabelsResponse) GetType() string {
@@ -105,7 +105,7 @@ type LabelSet struct {
 
 func (x *LabelSet) Reset() {
 	*x = LabelSet{}
-	mi := &file_protos_model_labels_proto_msgTypes[1]
+	mi := &file_model_labels_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -117,7 +117,7 @@ func (x *LabelSet) String() string {
 func (*LabelSet) ProtoMessage() {}
 
 func (x *LabelSet) ProtoReflect() protoreflect.Message {
-	mi := &file_protos_model_labels_proto_msgTypes[1]
+	mi := &file_model_labels_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -130,7 +130,7 @@ func (x *LabelSet) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LabelSet.ProtoReflect.Descriptor instead.
 func (*LabelSet) Descriptor() ([]byte, []int) {
-	return file_protos_model_labels_proto_rawDescGZIP(), []int{1}
+	return file_model_labels_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *LabelSet) GetLabels() map[string]string {
@@ -140,11 +140,11 @@ func (x *LabelSet) GetLabels() map[string]string {
 	return nil
 }
 
-var File_protos_model_labels_proto protoreflect.FileDescriptor
+var File_model_labels_proto protoreflect.FileDescriptor
 
-const file_protos_model_labels_proto_rawDesc = "" +
+const file_model_labels_proto_rawDesc = "" +
 	"\n" +
-	"\x19protos/model/labels.proto\x12\x05model\x1a\x19protos/model/window.proto\"\xfa\x01\n" +
+	"\x12model/labels.proto\x12\x05model\x1a\x12model/window.proto\"\xfa\x01\n" +
 	"\x0eLabelsResponse\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x19\n" +
 	"\bgroup_id\x18\x02 \x01(\tR\agroupId\x12%\n" +
@@ -161,26 +161,26 @@ const file_protos_model_labels_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B0Z.github.com/opencost/opencost/core/pkg/model/pbb\x06proto3"
 
 var (
-	file_protos_model_labels_proto_rawDescOnce sync.Once
-	file_protos_model_labels_proto_rawDescData []byte
+	file_model_labels_proto_rawDescOnce sync.Once
+	file_model_labels_proto_rawDescData []byte
 )
 
-func file_protos_model_labels_proto_rawDescGZIP() []byte {
-	file_protos_model_labels_proto_rawDescOnce.Do(func() {
-		file_protos_model_labels_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_protos_model_labels_proto_rawDesc), len(file_protos_model_labels_proto_rawDesc)))
+func file_model_labels_proto_rawDescGZIP() []byte {
+	file_model_labels_proto_rawDescOnce.Do(func() {
+		file_model_labels_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_model_labels_proto_rawDesc), len(file_model_labels_proto_rawDesc)))
 	})
-	return file_protos_model_labels_proto_rawDescData
+	return file_model_labels_proto_rawDescData
 }
 
-var file_protos_model_labels_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
-var file_protos_model_labels_proto_goTypes = []any{
+var file_model_labels_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_model_labels_proto_goTypes = []any{
 	(*LabelsResponse)(nil), // 0: model.LabelsResponse
 	(*LabelSet)(nil),       // 1: model.LabelSet
 	nil,                    // 2: model.LabelsResponse.LabelSetsEntry
 	nil,                    // 3: model.LabelSet.LabelsEntry
 	(*Window)(nil),         // 4: model.Window
 }
-var file_protos_model_labels_proto_depIdxs = []int32{
+var file_model_labels_proto_depIdxs = []int32{
 	4, // 0: model.LabelsResponse.window:type_name -> model.Window
 	2, // 1: model.LabelsResponse.label_sets:type_name -> model.LabelsResponse.LabelSetsEntry
 	3, // 2: model.LabelSet.labels:type_name -> model.LabelSet.LabelsEntry
@@ -192,27 +192,27 @@ var file_protos_model_labels_proto_depIdxs = []int32{
 	0, // [0:4] is the sub-list for field type_name
 }
 
-func init() { file_protos_model_labels_proto_init() }
-func file_protos_model_labels_proto_init() {
-	if File_protos_model_labels_proto != nil {
+func init() { file_model_labels_proto_init() }
+func file_model_labels_proto_init() {
+	if File_model_labels_proto != nil {
 		return
 	}
-	file_protos_model_window_proto_init()
+	file_model_window_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_protos_model_labels_proto_rawDesc), len(file_protos_model_labels_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_model_labels_proto_rawDesc), len(file_model_labels_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_protos_model_labels_proto_goTypes,
-		DependencyIndexes: file_protos_model_labels_proto_depIdxs,
-		MessageInfos:      file_protos_model_labels_proto_msgTypes,
+		GoTypes:           file_model_labels_proto_goTypes,
+		DependencyIndexes: file_model_labels_proto_depIdxs,
+		MessageInfos:      file_model_labels_proto_msgTypes,
 	}.Build()
-	File_protos_model_labels_proto = out.File
-	file_protos_model_labels_proto_goTypes = nil
-	file_protos_model_labels_proto_depIdxs = nil
+	File_model_labels_proto = out.File
+	file_model_labels_proto_goTypes = nil
+	file_model_labels_proto_depIdxs = nil
 }

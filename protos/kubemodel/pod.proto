@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-import "protos/kubemodel/diagnostic.proto";
+import "kubemodel/diagnostic.proto";
 import "google/protobuf/timestamp.proto";
 
 package kubemodel;

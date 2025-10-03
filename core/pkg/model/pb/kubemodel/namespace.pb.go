@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v6.32.1
-// source: protos/kubemodel/namespace.proto
+// source: kubemodel/namespace.proto
 
 package kubemodel
 
@@ -43,7 +43,7 @@ type Namespace struct {
 
 func (x *Namespace) Reset() {
 	*x = Namespace{}
-	mi := &file_protos_kubemodel_namespace_proto_msgTypes[0]
+	mi := &file_kubemodel_namespace_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55,7 +55,7 @@ func (x *Namespace) String() string {
 func (*Namespace) ProtoMessage() {}
 
 func (x *Namespace) ProtoReflect() protoreflect.Message {
-	mi := &file_protos_kubemodel_namespace_proto_msgTypes[0]
+	mi := &file_kubemodel_namespace_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -68,7 +68,7 @@ func (x *Namespace) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Namespace.ProtoReflect.Descriptor instead.
 func (*Namespace) Descriptor() ([]byte, []int) {
-	return file_protos_kubemodel_namespace_proto_rawDescGZIP(), []int{0}
+	return file_kubemodel_namespace_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Namespace) GetID() string {
@@ -127,11 +127,11 @@ func (x *Namespace) GetDiagnostic() *DiagnosticResult {
 	return nil
 }
 
-var File_protos_kubemodel_namespace_proto protoreflect.FileDescriptor
+var File_kubemodel_namespace_proto protoreflect.FileDescriptor
 
-const file_protos_kubemodel_namespace_proto_rawDesc = "" +
+const file_kubemodel_namespace_proto_rawDesc = "" +
 	"\n" +
-	" protos/kubemodel/namespace.proto\x12\tkubemodel\x1a!protos/kubemodel/diagnostic.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc8\x04\n" +
+	"\x19kubemodel/namespace.proto\x12\tkubemodel\x1a\x1akubemodel/diagnostic.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc8\x04\n" +
 	"\tNamespace\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x1c\n" +
 	"\tclusterID\x18\x02 \x01(\tR\tclusterID\x12\x12\n" +
@@ -154,26 +154,26 @@ const file_protos_kubemodel_namespace_proto_rawDesc = "" +
 	"\v_diagnosticB:Z8github.com/opencost/opencost/core/pkg/model/pb/kubemodelb\x06proto3"
 
 var (
-	file_protos_kubemodel_namespace_proto_rawDescOnce sync.Once
-	file_protos_kubemodel_namespace_proto_rawDescData []byte
+	file_kubemodel_namespace_proto_rawDescOnce sync.Once
+	file_kubemodel_namespace_proto_rawDescData []byte
 )
 
-func file_protos_kubemodel_namespace_proto_rawDescGZIP() []byte {
-	file_protos_kubemodel_namespace_proto_rawDescOnce.Do(func() {
-		file_protos_kubemodel_namespace_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_protos_kubemodel_namespace_proto_rawDesc), len(file_protos_kubemodel_namespace_proto_rawDesc)))
+func file_kubemodel_namespace_proto_rawDescGZIP() []byte {
+	file_kubemodel_namespace_proto_rawDescOnce.Do(func() {
+		file_kubemodel_namespace_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_kubemodel_namespace_proto_rawDesc), len(file_kubemodel_namespace_proto_rawDesc)))
 	})
-	return file_protos_kubemodel_namespace_proto_rawDescData
+	return file_kubemodel_namespace_proto_rawDescData
 }
 
-var file_protos_kubemodel_namespace_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_protos_kubemodel_namespace_proto_goTypes = []any{
+var file_kubemodel_namespace_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_kubemodel_namespace_proto_goTypes = []any{
 	(*Namespace)(nil),             // 0: kubemodel.Namespace
 	nil,                           // 1: kubemodel.Namespace.LabelsEntry
 	nil,                           // 2: kubemodel.Namespace.AnnotationsEntry
 	(*timestamppb.Timestamp)(nil), // 3: google.protobuf.Timestamp
 	(*DiagnosticResult)(nil),      // 4: kubemodel.DiagnosticResult
 }
-var file_protos_kubemodel_namespace_proto_depIdxs = []int32{
+var file_kubemodel_namespace_proto_depIdxs = []int32{
 	1, // 0: kubemodel.Namespace.labels:type_name -> kubemodel.Namespace.LabelsEntry
 	2, // 1: kubemodel.Namespace.annotations:type_name -> kubemodel.Namespace.AnnotationsEntry
 	3, // 2: kubemodel.Namespace.creationTime:type_name -> google.protobuf.Timestamp
@@ -186,28 +186,28 @@ var file_protos_kubemodel_namespace_proto_depIdxs = []int32{
 	0, // [0:5] is the sub-list for field type_name
 }
 
-func init() { file_protos_kubemodel_namespace_proto_init() }
-func file_protos_kubemodel_namespace_proto_init() {
-	if File_protos_kubemodel_namespace_proto != nil {
+func init() { file_kubemodel_namespace_proto_init() }
+func file_kubemodel_namespace_proto_init() {
+	if File_kubemodel_namespace_proto != nil {
 		return
 	}
-	file_protos_kubemodel_diagnostic_proto_init()
-	file_protos_kubemodel_namespace_proto_msgTypes[0].OneofWrappers = []any{}
+	file_kubemodel_diagnostic_proto_init()
+	file_kubemodel_namespace_proto_msgTypes[0].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_protos_kubemodel_namespace_proto_rawDesc), len(file_protos_kubemodel_namespace_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kubemodel_namespace_proto_rawDesc), len(file_kubemodel_namespace_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_protos_kubemodel_namespace_proto_goTypes,
-		DependencyIndexes: file_protos_kubemodel_namespace_proto_depIdxs,
-		MessageInfos:      file_protos_kubemodel_namespace_proto_msgTypes,
+		GoTypes:           file_kubemodel_namespace_proto_goTypes,
+		DependencyIndexes: file_kubemodel_namespace_proto_depIdxs,
+		MessageInfos:      file_kubemodel_namespace_proto_msgTypes,
 	}.Build()
-	File_protos_kubemodel_namespace_proto = out.File
-	file_protos_kubemodel_namespace_proto_goTypes = nil
-	file_protos_kubemodel_namespace_proto_depIdxs = nil
+	File_kubemodel_namespace_proto = out.File
+	file_kubemodel_namespace_proto_goTypes = nil
+	file_kubemodel_namespace_proto_depIdxs = nil
 }

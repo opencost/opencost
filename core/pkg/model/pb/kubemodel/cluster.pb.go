@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v6.32.1
-// source: protos/kubemodel/cluster.proto
+// source: kubemodel/cluster.proto
 
 package kubemodel
 
@@ -71,11 +71,11 @@ func (x Provider) String() string {
 }
 
 func (Provider) Descriptor() protoreflect.EnumDescriptor {
-	return file_protos_kubemodel_cluster_proto_enumTypes[0].Descriptor()
+	return file_kubemodel_cluster_proto_enumTypes[0].Descriptor()
 }
 
 func (Provider) Type() protoreflect.EnumType {
-	return &file_protos_kubemodel_cluster_proto_enumTypes[0]
+	return &file_kubemodel_cluster_proto_enumTypes[0]
 }
 
 func (x Provider) Number() protoreflect.EnumNumber {
@@ -84,7 +84,7 @@ func (x Provider) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Provider.Descriptor instead.
 func (Provider) EnumDescriptor() ([]byte, []int) {
-	return file_protos_kubemodel_cluster_proto_rawDescGZIP(), []int{0}
+	return file_kubemodel_cluster_proto_rawDescGZIP(), []int{0}
 }
 
 // Cluster represents the top-level Kubernetes cluster
@@ -107,7 +107,7 @@ type Cluster struct {
 
 func (x *Cluster) Reset() {
 	*x = Cluster{}
-	mi := &file_protos_kubemodel_cluster_proto_msgTypes[0]
+	mi := &file_kubemodel_cluster_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -119,7 +119,7 @@ func (x *Cluster) String() string {
 func (*Cluster) ProtoMessage() {}
 
 func (x *Cluster) ProtoReflect() protoreflect.Message {
-	mi := &file_protos_kubemodel_cluster_proto_msgTypes[0]
+	mi := &file_kubemodel_cluster_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -132,7 +132,7 @@ func (x *Cluster) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Cluster.ProtoReflect.Descriptor instead.
 func (*Cluster) Descriptor() ([]byte, []int) {
-	return file_protos_kubemodel_cluster_proto_rawDescGZIP(), []int{0}
+	return file_kubemodel_cluster_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Cluster) GetID() string {
@@ -170,11 +170,11 @@ func (x *Cluster) GetWindow() *pb.Window {
 	return nil
 }
 
-var File_protos_kubemodel_cluster_proto protoreflect.FileDescriptor
+var File_kubemodel_cluster_proto protoreflect.FileDescriptor
 
-const file_protos_kubemodel_cluster_proto_rawDesc = "" +
+const file_kubemodel_cluster_proto_rawDesc = "" +
 	"\n" +
-	"\x1eprotos/kubemodel/cluster.proto\x12\tkubemodel\x1a\x19protos/model/window.proto\"\x9f\x01\n" +
+	"\x17kubemodel/cluster.proto\x12\tkubemodel\x1a\x12model/window.proto\"\x9f\x01\n" +
 	"\aCluster\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12/\n" +
 	"\bprovider\x18\x02 \x01(\x0e2\x13.kubemodel.ProviderR\bprovider\x12\x18\n" +
@@ -192,25 +192,25 @@ const file_protos_kubemodel_cluster_proto_rawDesc = "" +
 	"\x0fPROVIDER_ORACLE\x10\aB:Z8github.com/opencost/opencost/core/pkg/model/pb/kubemodelb\x06proto3"
 
 var (
-	file_protos_kubemodel_cluster_proto_rawDescOnce sync.Once
-	file_protos_kubemodel_cluster_proto_rawDescData []byte
+	file_kubemodel_cluster_proto_rawDescOnce sync.Once
+	file_kubemodel_cluster_proto_rawDescData []byte
 )
 
-func file_protos_kubemodel_cluster_proto_rawDescGZIP() []byte {
-	file_protos_kubemodel_cluster_proto_rawDescOnce.Do(func() {
-		file_protos_kubemodel_cluster_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_protos_kubemodel_cluster_proto_rawDesc), len(file_protos_kubemodel_cluster_proto_rawDesc)))
+func file_kubemodel_cluster_proto_rawDescGZIP() []byte {
+	file_kubemodel_cluster_proto_rawDescOnce.Do(func() {
+		file_kubemodel_cluster_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_kubemodel_cluster_proto_rawDesc), len(file_kubemodel_cluster_proto_rawDesc)))
 	})
-	return file_protos_kubemodel_cluster_proto_rawDescData
+	return file_kubemodel_cluster_proto_rawDescData
 }
 
-var file_protos_kubemodel_cluster_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_protos_kubemodel_cluster_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-var file_protos_kubemodel_cluster_proto_goTypes = []any{
+var file_kubemodel_cluster_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_kubemodel_cluster_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_kubemodel_cluster_proto_goTypes = []any{
 	(Provider)(0),     // 0: kubemodel.Provider
 	(*Cluster)(nil),   // 1: kubemodel.Cluster
 	(*pb.Window)(nil), // 2: model.Window
 }
-var file_protos_kubemodel_cluster_proto_depIdxs = []int32{
+var file_kubemodel_cluster_proto_depIdxs = []int32{
 	0, // 0: kubemodel.Cluster.provider:type_name -> kubemodel.Provider
 	2, // 1: kubemodel.Cluster.window:type_name -> model.Window
 	2, // [2:2] is the sub-list for method output_type
@@ -220,27 +220,27 @@ var file_protos_kubemodel_cluster_proto_depIdxs = []int32{
 	0, // [0:2] is the sub-list for field type_name
 }
 
-func init() { file_protos_kubemodel_cluster_proto_init() }
-func file_protos_kubemodel_cluster_proto_init() {
-	if File_protos_kubemodel_cluster_proto != nil {
+func init() { file_kubemodel_cluster_proto_init() }
+func file_kubemodel_cluster_proto_init() {
+	if File_kubemodel_cluster_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_protos_kubemodel_cluster_proto_rawDesc), len(file_protos_kubemodel_cluster_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kubemodel_cluster_proto_rawDesc), len(file_kubemodel_cluster_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_protos_kubemodel_cluster_proto_goTypes,
-		DependencyIndexes: file_protos_kubemodel_cluster_proto_depIdxs,
-		EnumInfos:         file_protos_kubemodel_cluster_proto_enumTypes,
-		MessageInfos:      file_protos_kubemodel_cluster_proto_msgTypes,
+		GoTypes:           file_kubemodel_cluster_proto_goTypes,
+		DependencyIndexes: file_kubemodel_cluster_proto_depIdxs,
+		EnumInfos:         file_kubemodel_cluster_proto_enumTypes,
+		MessageInfos:      file_kubemodel_cluster_proto_msgTypes,
 	}.Build()
-	File_protos_kubemodel_cluster_proto = out.File
-	file_protos_kubemodel_cluster_proto_goTypes = nil
-	file_protos_kubemodel_cluster_proto_depIdxs = nil
+	File_kubemodel_cluster_proto = out.File
+	file_kubemodel_cluster_proto_goTypes = nil
+	file_kubemodel_cluster_proto_depIdxs = nil
 }

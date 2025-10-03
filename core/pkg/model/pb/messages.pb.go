@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v6.32.1
-// source: protos/customcost/messages.proto
+// source: customcost/messages.proto
 
 package pb
 
@@ -36,7 +36,7 @@ type CustomCostRequest struct {
 
 func (x *CustomCostRequest) Reset() {
 	*x = CustomCostRequest{}
-	mi := &file_protos_customcost_messages_proto_msgTypes[0]
+	mi := &file_customcost_messages_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -48,7 +48,7 @@ func (x *CustomCostRequest) String() string {
 func (*CustomCostRequest) ProtoMessage() {}
 
 func (x *CustomCostRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_protos_customcost_messages_proto_msgTypes[0]
+	mi := &file_customcost_messages_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61,7 +61,7 @@ func (x *CustomCostRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CustomCostRequest.ProtoReflect.Descriptor instead.
 func (*CustomCostRequest) Descriptor() ([]byte, []int) {
-	return file_protos_customcost_messages_proto_rawDescGZIP(), []int{0}
+	return file_customcost_messages_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *CustomCostRequest) GetStart() *timestamppb.Timestamp {
@@ -94,7 +94,7 @@ type CustomCostResponseSet struct {
 
 func (x *CustomCostResponseSet) Reset() {
 	*x = CustomCostResponseSet{}
-	mi := &file_protos_customcost_messages_proto_msgTypes[1]
+	mi := &file_customcost_messages_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -106,7 +106,7 @@ func (x *CustomCostResponseSet) String() string {
 func (*CustomCostResponseSet) ProtoMessage() {}
 
 func (x *CustomCostResponseSet) ProtoReflect() protoreflect.Message {
-	mi := &file_protos_customcost_messages_proto_msgTypes[1]
+	mi := &file_customcost_messages_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -119,7 +119,7 @@ func (x *CustomCostResponseSet) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CustomCostResponseSet.ProtoReflect.Descriptor instead.
 func (*CustomCostResponseSet) Descriptor() ([]byte, []int) {
-	return file_protos_customcost_messages_proto_rawDescGZIP(), []int{1}
+	return file_customcost_messages_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *CustomCostResponseSet) GetResps() []*CustomCostResponse {
@@ -161,7 +161,7 @@ type CustomCostResponse struct {
 
 func (x *CustomCostResponse) Reset() {
 	*x = CustomCostResponse{}
-	mi := &file_protos_customcost_messages_proto_msgTypes[2]
+	mi := &file_customcost_messages_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -173,7 +173,7 @@ func (x *CustomCostResponse) String() string {
 func (*CustomCostResponse) ProtoMessage() {}
 
 func (x *CustomCostResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_protos_customcost_messages_proto_msgTypes[2]
+	mi := &file_customcost_messages_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -186,7 +186,7 @@ func (x *CustomCostResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CustomCostResponse.ProtoReflect.Descriptor instead.
 func (*CustomCostResponse) Descriptor() ([]byte, []int) {
-	return file_protos_customcost_messages_proto_rawDescGZIP(), []int{2}
+	return file_customcost_messages_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *CustomCostResponse) GetMetadata() map[string]string {
@@ -300,7 +300,7 @@ type CustomCost struct {
 
 func (x *CustomCost) Reset() {
 	*x = CustomCost{}
-	mi := &file_protos_customcost_messages_proto_msgTypes[3]
+	mi := &file_customcost_messages_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -312,7 +312,7 @@ func (x *CustomCost) String() string {
 func (*CustomCost) ProtoMessage() {}
 
 func (x *CustomCost) ProtoReflect() protoreflect.Message {
-	mi := &file_protos_customcost_messages_proto_msgTypes[3]
+	mi := &file_customcost_messages_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -325,7 +325,7 @@ func (x *CustomCost) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CustomCost.ProtoReflect.Descriptor instead.
 func (*CustomCost) Descriptor() ([]byte, []int) {
-	return file_protos_customcost_messages_proto_rawDescGZIP(), []int{3}
+	return file_customcost_messages_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *CustomCost) GetMetadata() map[string]string {
@@ -496,7 +496,7 @@ type CustomCostExtendedAttributes struct {
 
 func (x *CustomCostExtendedAttributes) Reset() {
 	*x = CustomCostExtendedAttributes{}
-	mi := &file_protos_customcost_messages_proto_msgTypes[4]
+	mi := &file_customcost_messages_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -508,7 +508,7 @@ func (x *CustomCostExtendedAttributes) String() string {
 func (*CustomCostExtendedAttributes) ProtoMessage() {}
 
 func (x *CustomCostExtendedAttributes) ProtoReflect() protoreflect.Message {
-	mi := &file_protos_customcost_messages_proto_msgTypes[4]
+	mi := &file_customcost_messages_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -521,7 +521,7 @@ func (x *CustomCostExtendedAttributes) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CustomCostExtendedAttributes.ProtoReflect.Descriptor instead.
 func (*CustomCostExtendedAttributes) Descriptor() ([]byte, []int) {
-	return file_protos_customcost_messages_proto_rawDescGZIP(), []int{4}
+	return file_customcost_messages_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *CustomCostExtendedAttributes) GetBillingPeriodStart() *timestamppb.Timestamp {
@@ -678,11 +678,11 @@ func (x *CustomCostExtendedAttributes) GetPricingCategory() string {
 	return ""
 }
 
-var File_protos_customcost_messages_proto protoreflect.FileDescriptor
+var File_customcost_messages_proto protoreflect.FileDescriptor
 
-const file_protos_customcost_messages_proto_rawDesc = "" +
+const file_customcost_messages_proto_rawDesc = "" +
 	"\n" +
-	" protos/customcost/messages.proto\x12\x13customcost.messages\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/duration.proto\"\xae\x01\n" +
+	"\x19customcost/messages.proto\x12\x13customcost.messages\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/duration.proto\"\xae\x01\n" +
 	"\x11CustomCostRequest\x120\n" +
 	"\x05start\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x05start\x12,\n" +
 	"\x03end\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x03end\x129\n" +
@@ -788,19 +788,19 @@ const file_protos_customcost_messages_proto_rawDesc = "" +
 	"\x0eGetCustomCosts\x12&.customcost.messages.CustomCostRequest\x1a*.customcost.messages.CustomCostResponseSetB0Z.github.com/opencost/opencost/core/pkg/model/pbb\x06proto3"
 
 var (
-	file_protos_customcost_messages_proto_rawDescOnce sync.Once
-	file_protos_customcost_messages_proto_rawDescData []byte
+	file_customcost_messages_proto_rawDescOnce sync.Once
+	file_customcost_messages_proto_rawDescData []byte
 )
 
-func file_protos_customcost_messages_proto_rawDescGZIP() []byte {
-	file_protos_customcost_messages_proto_rawDescOnce.Do(func() {
-		file_protos_customcost_messages_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_protos_customcost_messages_proto_rawDesc), len(file_protos_customcost_messages_proto_rawDesc)))
+func file_customcost_messages_proto_rawDescGZIP() []byte {
+	file_customcost_messages_proto_rawDescOnce.Do(func() {
+		file_customcost_messages_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_customcost_messages_proto_rawDesc), len(file_customcost_messages_proto_rawDesc)))
 	})
-	return file_protos_customcost_messages_proto_rawDescData
+	return file_customcost_messages_proto_rawDescData
 }
 
-var file_protos_customcost_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
-var file_protos_customcost_messages_proto_goTypes = []any{
+var file_customcost_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_customcost_messages_proto_goTypes = []any{
 	(*CustomCostRequest)(nil),            // 0: customcost.messages.CustomCostRequest
 	(*CustomCostResponseSet)(nil),        // 1: customcost.messages.CustomCostResponseSet
 	(*CustomCostResponse)(nil),           // 2: customcost.messages.CustomCostResponse
@@ -812,7 +812,7 @@ var file_protos_customcost_messages_proto_goTypes = []any{
 	(*timestamppb.Timestamp)(nil),        // 8: google.protobuf.Timestamp
 	(*durationpb.Duration)(nil),          // 9: google.protobuf.Duration
 }
-var file_protos_customcost_messages_proto_depIdxs = []int32{
+var file_customcost_messages_proto_depIdxs = []int32{
 	8,  // 0: customcost.messages.CustomCostRequest.start:type_name -> google.protobuf.Timestamp
 	8,  // 1: customcost.messages.CustomCostRequest.end:type_name -> google.protobuf.Timestamp
 	9,  // 2: customcost.messages.CustomCostRequest.resolution:type_name -> google.protobuf.Duration
@@ -835,28 +835,28 @@ var file_protos_customcost_messages_proto_depIdxs = []int32{
 	0,  // [0:13] is the sub-list for field type_name
 }
 
-func init() { file_protos_customcost_messages_proto_init() }
-func file_protos_customcost_messages_proto_init() {
-	if File_protos_customcost_messages_proto != nil {
+func init() { file_customcost_messages_proto_init() }
+func file_customcost_messages_proto_init() {
+	if File_customcost_messages_proto != nil {
 		return
 	}
-	file_protos_customcost_messages_proto_msgTypes[3].OneofWrappers = []any{}
-	file_protos_customcost_messages_proto_msgTypes[4].OneofWrappers = []any{}
+	file_customcost_messages_proto_msgTypes[3].OneofWrappers = []any{}
+	file_customcost_messages_proto_msgTypes[4].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_protos_customcost_messages_proto_rawDesc), len(file_protos_customcost_messages_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_customcost_messages_proto_rawDesc), len(file_customcost_messages_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_protos_customcost_messages_proto_goTypes,
-		DependencyIndexes: file_protos_customcost_messages_proto_depIdxs,
-		MessageInfos:      file_protos_customcost_messages_proto_msgTypes,
+		GoTypes:           file_customcost_messages_proto_goTypes,
+		DependencyIndexes: file_customcost_messages_proto_depIdxs,
+		MessageInfos:      file_customcost_messages_proto_msgTypes,
 	}.Build()
-	File_protos_customcost_messages_proto = out.File
-	file_protos_customcost_messages_proto_goTypes = nil
-	file_protos_customcost_messages_proto_depIdxs = nil
+	File_customcost_messages_proto = out.File
+	file_customcost_messages_proto_goTypes = nil
+	file_customcost_messages_proto_depIdxs = nil
 }

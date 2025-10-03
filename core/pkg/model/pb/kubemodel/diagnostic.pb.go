@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v6.32.1
-// source: protos/kubemodel/diagnostic.proto
+// source: kubemodel/diagnostic.proto
 
 package kubemodel
 
@@ -47,7 +47,7 @@ type DiagnosticResult struct {
 
 func (x *DiagnosticResult) Reset() {
 	*x = DiagnosticResult{}
-	mi := &file_protos_kubemodel_diagnostic_proto_msgTypes[0]
+	mi := &file_kubemodel_diagnostic_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59,7 +59,7 @@ func (x *DiagnosticResult) String() string {
 func (*DiagnosticResult) ProtoMessage() {}
 
 func (x *DiagnosticResult) ProtoReflect() protoreflect.Message {
-	mi := &file_protos_kubemodel_diagnostic_proto_msgTypes[0]
+	mi := &file_kubemodel_diagnostic_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -72,7 +72,7 @@ func (x *DiagnosticResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiagnosticResult.ProtoReflect.Descriptor instead.
 func (*DiagnosticResult) Descriptor() ([]byte, []int) {
-	return file_protos_kubemodel_diagnostic_proto_rawDescGZIP(), []int{0}
+	return file_kubemodel_diagnostic_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *DiagnosticResult) GetId() string {
@@ -140,7 +140,7 @@ type DiagnosticsRunReport struct {
 
 func (x *DiagnosticsRunReport) Reset() {
 	*x = DiagnosticsRunReport{}
-	mi := &file_protos_kubemodel_diagnostic_proto_msgTypes[1]
+	mi := &file_kubemodel_diagnostic_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -152,7 +152,7 @@ func (x *DiagnosticsRunReport) String() string {
 func (*DiagnosticsRunReport) ProtoMessage() {}
 
 func (x *DiagnosticsRunReport) ProtoReflect() protoreflect.Message {
-	mi := &file_protos_kubemodel_diagnostic_proto_msgTypes[1]
+	mi := &file_kubemodel_diagnostic_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -165,7 +165,7 @@ func (x *DiagnosticsRunReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiagnosticsRunReport.ProtoReflect.Descriptor instead.
 func (*DiagnosticsRunReport) Descriptor() ([]byte, []int) {
-	return file_protos_kubemodel_diagnostic_proto_rawDescGZIP(), []int{1}
+	return file_kubemodel_diagnostic_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *DiagnosticsRunReport) GetApplication() string {
@@ -189,11 +189,11 @@ func (x *DiagnosticsRunReport) GetResults() []*DiagnosticResult {
 	return nil
 }
 
-var File_protos_kubemodel_diagnostic_proto protoreflect.FileDescriptor
+var File_kubemodel_diagnostic_proto protoreflect.FileDescriptor
 
-const file_protos_kubemodel_diagnostic_proto_rawDesc = "" +
+const file_kubemodel_diagnostic_proto_rawDesc = "" +
 	"\n" +
-	"!protos/kubemodel/diagnostic.proto\x12\tkubemodel\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc4\x02\n" +
+	"\x1akubemodel/diagnostic.proto\x12\tkubemodel\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc4\x02\n" +
 	"\x10DiagnosticResult\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
@@ -211,25 +211,25 @@ const file_protos_kubemodel_diagnostic_proto_rawDesc = "" +
 	"\aresults\x18\x03 \x03(\v2\x1b.kubemodel.DiagnosticResultR\aresultsB:Z8github.com/opencost/opencost/core/pkg/model/pb/kubemodelb\x06proto3"
 
 var (
-	file_protos_kubemodel_diagnostic_proto_rawDescOnce sync.Once
-	file_protos_kubemodel_diagnostic_proto_rawDescData []byte
+	file_kubemodel_diagnostic_proto_rawDescOnce sync.Once
+	file_kubemodel_diagnostic_proto_rawDescData []byte
 )
 
-func file_protos_kubemodel_diagnostic_proto_rawDescGZIP() []byte {
-	file_protos_kubemodel_diagnostic_proto_rawDescOnce.Do(func() {
-		file_protos_kubemodel_diagnostic_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_protos_kubemodel_diagnostic_proto_rawDesc), len(file_protos_kubemodel_diagnostic_proto_rawDesc)))
+func file_kubemodel_diagnostic_proto_rawDescGZIP() []byte {
+	file_kubemodel_diagnostic_proto_rawDescOnce.Do(func() {
+		file_kubemodel_diagnostic_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_kubemodel_diagnostic_proto_rawDesc), len(file_kubemodel_diagnostic_proto_rawDesc)))
 	})
-	return file_protos_kubemodel_diagnostic_proto_rawDescData
+	return file_kubemodel_diagnostic_proto_rawDescData
 }
 
-var file_protos_kubemodel_diagnostic_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_protos_kubemodel_diagnostic_proto_goTypes = []any{
+var file_kubemodel_diagnostic_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_kubemodel_diagnostic_proto_goTypes = []any{
 	(*DiagnosticResult)(nil),      // 0: kubemodel.DiagnosticResult
 	(*DiagnosticsRunReport)(nil),  // 1: kubemodel.DiagnosticsRunReport
 	nil,                           // 2: kubemodel.DiagnosticResult.DetailsEntry
 	(*timestamppb.Timestamp)(nil), // 3: google.protobuf.Timestamp
 }
-var file_protos_kubemodel_diagnostic_proto_depIdxs = []int32{
+var file_kubemodel_diagnostic_proto_depIdxs = []int32{
 	3, // 0: kubemodel.DiagnosticResult.timestamp:type_name -> google.protobuf.Timestamp
 	2, // 1: kubemodel.DiagnosticResult.details:type_name -> kubemodel.DiagnosticResult.DetailsEntry
 	3, // 2: kubemodel.DiagnosticsRunReport.startTime:type_name -> google.protobuf.Timestamp
@@ -241,26 +241,26 @@ var file_protos_kubemodel_diagnostic_proto_depIdxs = []int32{
 	0, // [0:4] is the sub-list for field type_name
 }
 
-func init() { file_protos_kubemodel_diagnostic_proto_init() }
-func file_protos_kubemodel_diagnostic_proto_init() {
-	if File_protos_kubemodel_diagnostic_proto != nil {
+func init() { file_kubemodel_diagnostic_proto_init() }
+func file_kubemodel_diagnostic_proto_init() {
+	if File_kubemodel_diagnostic_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_protos_kubemodel_diagnostic_proto_rawDesc), len(file_protos_kubemodel_diagnostic_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kubemodel_diagnostic_proto_rawDesc), len(file_kubemodel_diagnostic_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_protos_kubemodel_diagnostic_proto_goTypes,
-		DependencyIndexes: file_protos_kubemodel_diagnostic_proto_depIdxs,
-		MessageInfos:      file_protos_kubemodel_diagnostic_proto_msgTypes,
+		GoTypes:           file_kubemodel_diagnostic_proto_goTypes,
+		DependencyIndexes: file_kubemodel_diagnostic_proto_depIdxs,
+		MessageInfos:      file_kubemodel_diagnostic_proto_msgTypes,
 	}.Build()
-	File_protos_kubemodel_diagnostic_proto = out.File
-	file_protos_kubemodel_diagnostic_proto_goTypes = nil
-	file_protos_kubemodel_diagnostic_proto_depIdxs = nil
+	File_kubemodel_diagnostic_proto = out.File
+	file_kubemodel_diagnostic_proto_goTypes = nil
+	file_kubemodel_diagnostic_proto_depIdxs = nil
 }
