@@ -22,19 +22,20 @@ const (
 )
 
 // GPUDevice represents a GPU device with DCGM integration (provisioned resource)
+// This tracks available GPU capacity on a node
 type GPUDevice struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Identification
-	ID     string `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"` // GPU UUID (hardware identifier)
-	NodeID string `protobuf:"bytes,2,opt,name=nodeID,proto3" json:"nodeID,omitempty"`
+	ID     string `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`         // GPU UUID (hardware identifier)
+	NodeID string `protobuf:"bytes,2,opt,name=nodeID,proto3" json:"nodeID,omitempty"` // Node hosting this GPU device
 	// Properties
 	DeviceNumber int32  `protobuf:"varint,3,opt,name=deviceNumber,proto3" json:"deviceNumber,omitempty"`
 	ModelName    string `protobuf:"bytes,4,opt,name=modelName,proto3" json:"modelName,omitempty"`
 	// GPU sharing information
 	IsShared        bool    `protobuf:"varint,6,opt,name=isShared,proto3" json:"isShared,omitempty"`
 	SharePercentage float32 `protobuf:"fixed32,9,opt,name=sharePercentage,proto3" json:"sharePercentage,omitempty"`
-	// Usage metrics
-	// GPU usage in device-hours
+	// Capacity metrics
+	// GPU hours available
 	GpuHours float32 `protobuf:"fixed32,10,opt,name=gpuHours,proto3" json:"gpuHours,omitempty"`
 	// GPU request average percentage (0-100)
 	GpuRequestAverage float32 `protobuf:"fixed32,11,opt,name=gpuRequestAverage,proto3" json:"gpuRequestAverage,omitempty"`
@@ -42,7 +43,7 @@ type GPUDevice struct {
 	GpuUsageAverage float32 `protobuf:"fixed32,12,opt,name=gpuUsageAverage,proto3" json:"gpuUsageAverage,omitempty"`
 	// GPU usage max percentage (0-100)
 	GpuUsageMax float32 `protobuf:"fixed32,13,opt,name=gpuUsageMax,proto3" json:"gpuUsageMax,omitempty"`
-	// GPU memory usage in bytes
+	// GPU memory capacity in bytes
 	MemoryBytes int64 `protobuf:"varint,14,opt,name=memoryBytes,proto3" json:"memoryBytes,omitempty"`
 	// Diagnostic information about this resource
 	Diagnostic    *DiagnosticResult `protobuf:"bytes,99,opt,name=diagnostic,proto3,oneof" json:"diagnostic,omitempty"`
@@ -164,6 +165,116 @@ func (x *GPUDevice) GetDiagnostic() *DiagnosticResult {
 	return nil
 }
 
+// GPUUsage represents GPU resources consumed by a container (allocated resource)
+// This tracks actual GPU usage by containers for cost analysis
+type GPUUsage struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Identification
+	ContainerID string `protobuf:"bytes,1,opt,name=containerID,proto3" json:"containerID,omitempty"` // Container consuming GPU resources
+	GpuDeviceID string `protobuf:"bytes,2,opt,name=gpuDeviceID,proto3" json:"gpuDeviceID,omitempty"` // Reference to the GPU device being used
+	// Usage metrics
+	// GPU usage in device-hours consumed
+	GpuHours float32 `protobuf:"fixed32,3,opt,name=gpuHours,proto3" json:"gpuHours,omitempty"`
+	// GPU request in percentage (0-100)
+	GpuRequestPercentage float32 `protobuf:"fixed32,4,opt,name=gpuRequestPercentage,proto3" json:"gpuRequestPercentage,omitempty"`
+	// GPU usage average percentage (0-100)
+	GpuUsageAverage float32 `protobuf:"fixed32,5,opt,name=gpuUsageAverage,proto3" json:"gpuUsageAverage,omitempty"`
+	// GPU usage max percentage (0-100)
+	GpuUsageMax float32 `protobuf:"fixed32,6,opt,name=gpuUsageMax,proto3" json:"gpuUsageMax,omitempty"`
+	// GPU memory usage in bytes
+	MemoryBytesUsed int64 `protobuf:"varint,7,opt,name=memoryBytesUsed,proto3" json:"memoryBytesUsed,omitempty"`
+	// Diagnostic information about this resource
+	Diagnostic    *DiagnosticResult `protobuf:"bytes,99,opt,name=diagnostic,proto3,oneof" json:"diagnostic,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GPUUsage) Reset() {
+	*x = GPUUsage{}
+	mi := &file_kubemodel_gpu_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GPUUsage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GPUUsage) ProtoMessage() {}
+
+func (x *GPUUsage) ProtoReflect() protoreflect.Message {
+	mi := &file_kubemodel_gpu_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GPUUsage.ProtoReflect.Descriptor instead.
+func (*GPUUsage) Descriptor() ([]byte, []int) {
+	return file_kubemodel_gpu_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *GPUUsage) GetContainerID() string {
+	if x != nil {
+		return x.ContainerID
+	}
+	return ""
+}
+
+func (x *GPUUsage) GetGpuDeviceID() string {
+	if x != nil {
+		return x.GpuDeviceID
+	}
+	return ""
+}
+
+func (x *GPUUsage) GetGpuHours() float32 {
+	if x != nil {
+		return x.GpuHours
+	}
+	return 0
+}
+
+func (x *GPUUsage) GetGpuRequestPercentage() float32 {
+	if x != nil {
+		return x.GpuRequestPercentage
+	}
+	return 0
+}
+
+func (x *GPUUsage) GetGpuUsageAverage() float32 {
+	if x != nil {
+		return x.GpuUsageAverage
+	}
+	return 0
+}
+
+func (x *GPUUsage) GetGpuUsageMax() float32 {
+	if x != nil {
+		return x.GpuUsageMax
+	}
+	return 0
+}
+
+func (x *GPUUsage) GetMemoryBytesUsed() int64 {
+	if x != nil {
+		return x.MemoryBytesUsed
+	}
+	return 0
+}
+
+func (x *GPUUsage) GetDiagnostic() *DiagnosticResult {
+	if x != nil {
+		return x.Diagnostic
+	}
+	return nil
+}
+
 var File_kubemodel_gpu_proto protoreflect.FileDescriptor
 
 const file_kubemodel_gpu_proto_rawDesc = "" +
@@ -185,6 +296,18 @@ const file_kubemodel_gpu_proto_rawDesc = "" +
 	"\n" +
 	"diagnostic\x18c \x01(\v2\x1b.kubemodel.DiagnosticResultH\x00R\n" +
 	"diagnostic\x88\x01\x01B\r\n" +
+	"\v_diagnostic\"\xe5\x02\n" +
+	"\bGPUUsage\x12 \n" +
+	"\vcontainerID\x18\x01 \x01(\tR\vcontainerID\x12 \n" +
+	"\vgpuDeviceID\x18\x02 \x01(\tR\vgpuDeviceID\x12\x1a\n" +
+	"\bgpuHours\x18\x03 \x01(\x02R\bgpuHours\x122\n" +
+	"\x14gpuRequestPercentage\x18\x04 \x01(\x02R\x14gpuRequestPercentage\x12(\n" +
+	"\x0fgpuUsageAverage\x18\x05 \x01(\x02R\x0fgpuUsageAverage\x12 \n" +
+	"\vgpuUsageMax\x18\x06 \x01(\x02R\vgpuUsageMax\x12(\n" +
+	"\x0fmemoryBytesUsed\x18\a \x01(\x03R\x0fmemoryBytesUsed\x12@\n" +
+	"\n" +
+	"diagnostic\x18c \x01(\v2\x1b.kubemodel.DiagnosticResultH\x00R\n" +
+	"diagnostic\x88\x01\x01B\r\n" +
 	"\v_diagnosticB:Z8github.com/opencost/opencost/core/pkg/model/pb/kubemodelb\x06proto3"
 
 var (
@@ -199,18 +322,20 @@ func file_kubemodel_gpu_proto_rawDescGZIP() []byte {
 	return file_kubemodel_gpu_proto_rawDescData
 }
 
-var file_kubemodel_gpu_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_kubemodel_gpu_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_kubemodel_gpu_proto_goTypes = []any{
 	(*GPUDevice)(nil),        // 0: kubemodel.GPUDevice
-	(*DiagnosticResult)(nil), // 1: kubemodel.DiagnosticResult
+	(*GPUUsage)(nil),         // 1: kubemodel.GPUUsage
+	(*DiagnosticResult)(nil), // 2: kubemodel.DiagnosticResult
 }
 var file_kubemodel_gpu_proto_depIdxs = []int32{
-	1, // 0: kubemodel.GPUDevice.diagnostic:type_name -> kubemodel.DiagnosticResult
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	2, // 0: kubemodel.GPUDevice.diagnostic:type_name -> kubemodel.DiagnosticResult
+	2, // 1: kubemodel.GPUUsage.diagnostic:type_name -> kubemodel.DiagnosticResult
+	2, // [2:2] is the sub-list for method output_type
+	2, // [2:2] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_kubemodel_gpu_proto_init() }
@@ -220,13 +345,14 @@ func file_kubemodel_gpu_proto_init() {
 	}
 	file_kubemodel_diagnostic_proto_init()
 	file_kubemodel_gpu_proto_msgTypes[0].OneofWrappers = []any{}
+	file_kubemodel_gpu_proto_msgTypes[1].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kubemodel_gpu_proto_rawDesc), len(file_kubemodel_gpu_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
