@@ -1,14 +1,13 @@
 package model
 
 import (
-	"reflect"
-	"testing"
-	"time"
-
 	"github.com/opencost/opencost/core/pkg/model/pb"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"reflect"
+	"testing"
+	"time"
 )
 
 func TestConvertWindow(t *testing.T) {
