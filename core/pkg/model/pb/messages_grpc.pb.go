@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v6.32.1
-// source: customcost/messages.proto
+// source: protos/customcost/messages.proto
 
 package pb
 
@@ -117,5 +117,5 @@ var CustomCostsSource_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "customcost/messages.proto",
+	Metadata: "protos/customcost/messages.proto",
 }

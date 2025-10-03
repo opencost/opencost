@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v6.32.1
-// source: kubemodel/controller.proto
+// source: protos/kubemodel/controller.proto
 
 package kubemodel
 
@@ -67,11 +67,11 @@ func (x ControllerKind) String() string {
 }
 
 func (ControllerKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_kubemodel_controller_proto_enumTypes[0].Descriptor()
+	return file_protos_kubemodel_controller_proto_enumTypes[0].Descriptor()
 }
 
 func (ControllerKind) Type() protoreflect.EnumType {
-	return &file_kubemodel_controller_proto_enumTypes[0]
+	return &file_protos_kubemodel_controller_proto_enumTypes[0]
 }
 
 func (x ControllerKind) Number() protoreflect.EnumNumber {
@@ -80,7 +80,7 @@ func (x ControllerKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ControllerKind.Descriptor instead.
 func (ControllerKind) EnumDescriptor() ([]byte, []int) {
-	return file_kubemodel_controller_proto_rawDescGZIP(), []int{0}
+	return file_protos_kubemodel_controller_proto_rawDescGZIP(), []int{0}
 }
 
 // Controller represents a Kubernetes workload controller
@@ -105,7 +105,7 @@ type Controller struct {
 
 func (x *Controller) Reset() {
 	*x = Controller{}
-	mi := &file_kubemodel_controller_proto_msgTypes[0]
+	mi := &file_protos_kubemodel_controller_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -117,7 +117,7 @@ func (x *Controller) String() string {
 func (*Controller) ProtoMessage() {}
 
 func (x *Controller) ProtoReflect() protoreflect.Message {
-	mi := &file_kubemodel_controller_proto_msgTypes[0]
+	mi := &file_protos_kubemodel_controller_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -130,7 +130,7 @@ func (x *Controller) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Controller.ProtoReflect.Descriptor instead.
 func (*Controller) Descriptor() ([]byte, []int) {
-	return file_kubemodel_controller_proto_rawDescGZIP(), []int{0}
+	return file_protos_kubemodel_controller_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Controller) GetID() string {
@@ -196,11 +196,11 @@ func (x *Controller) GetDiagnostic() *DiagnosticResult {
 	return nil
 }
 
-var File_kubemodel_controller_proto protoreflect.FileDescriptor
+var File_protos_kubemodel_controller_proto protoreflect.FileDescriptor
 
-const file_kubemodel_controller_proto_rawDesc = "" +
+const file_protos_kubemodel_controller_proto_rawDesc = "" +
 	"\n" +
-	"\x1akubemodel/controller.proto\x12\tkubemodel\x1a\x1akubemodel/diagnostic.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfe\x04\n" +
+	"!protos/kubemodel/controller.proto\x12\tkubemodel\x1a!protos/kubemodel/diagnostic.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfe\x04\n" +
 	"\n" +
 	"Controller\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12 \n" +
@@ -235,20 +235,20 @@ const file_kubemodel_controller_proto_rawDesc = "" +
 	"REPLICASET\x10\x06B:Z8github.com/opencost/opencost/core/pkg/model/pb/kubemodelb\x06proto3"
 
 var (
-	file_kubemodel_controller_proto_rawDescOnce sync.Once
-	file_kubemodel_controller_proto_rawDescData []byte
+	file_protos_kubemodel_controller_proto_rawDescOnce sync.Once
+	file_protos_kubemodel_controller_proto_rawDescData []byte
 )
 
-func file_kubemodel_controller_proto_rawDescGZIP() []byte {
-	file_kubemodel_controller_proto_rawDescOnce.Do(func() {
-		file_kubemodel_controller_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_kubemodel_controller_proto_rawDesc), len(file_kubemodel_controller_proto_rawDesc)))
+func file_protos_kubemodel_controller_proto_rawDescGZIP() []byte {
+	file_protos_kubemodel_controller_proto_rawDescOnce.Do(func() {
+		file_protos_kubemodel_controller_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_protos_kubemodel_controller_proto_rawDesc), len(file_protos_kubemodel_controller_proto_rawDesc)))
 	})
-	return file_kubemodel_controller_proto_rawDescData
+	return file_protos_kubemodel_controller_proto_rawDescData
 }
 
-var file_kubemodel_controller_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_kubemodel_controller_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_kubemodel_controller_proto_goTypes = []any{
+var file_protos_kubemodel_controller_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_protos_kubemodel_controller_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_protos_kubemodel_controller_proto_goTypes = []any{
 	(ControllerKind)(0),           // 0: kubemodel.ControllerKind
 	(*Controller)(nil),            // 1: kubemodel.Controller
 	nil,                           // 2: kubemodel.Controller.LabelsEntry
@@ -256,7 +256,7 @@ var file_kubemodel_controller_proto_goTypes = []any{
 	(*timestamppb.Timestamp)(nil), // 4: google.protobuf.Timestamp
 	(*DiagnosticResult)(nil),      // 5: kubemodel.DiagnosticResult
 }
-var file_kubemodel_controller_proto_depIdxs = []int32{
+var file_protos_kubemodel_controller_proto_depIdxs = []int32{
 	0, // 0: kubemodel.Controller.kind:type_name -> kubemodel.ControllerKind
 	2, // 1: kubemodel.Controller.labels:type_name -> kubemodel.Controller.LabelsEntry
 	3, // 2: kubemodel.Controller.annotations:type_name -> kubemodel.Controller.AnnotationsEntry
@@ -270,29 +270,29 @@ var file_kubemodel_controller_proto_depIdxs = []int32{
 	0, // [0:6] is the sub-list for field type_name
 }
 
-func init() { file_kubemodel_controller_proto_init() }
-func file_kubemodel_controller_proto_init() {
-	if File_kubemodel_controller_proto != nil {
+func init() { file_protos_kubemodel_controller_proto_init() }
+func file_protos_kubemodel_controller_proto_init() {
+	if File_protos_kubemodel_controller_proto != nil {
 		return
 	}
-	file_kubemodel_diagnostic_proto_init()
-	file_kubemodel_controller_proto_msgTypes[0].OneofWrappers = []any{}
+	file_protos_kubemodel_diagnostic_proto_init()
+	file_protos_kubemodel_controller_proto_msgTypes[0].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kubemodel_controller_proto_rawDesc), len(file_kubemodel_controller_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_protos_kubemodel_controller_proto_rawDesc), len(file_protos_kubemodel_controller_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_kubemodel_controller_proto_goTypes,
-		DependencyIndexes: file_kubemodel_controller_proto_depIdxs,
-		EnumInfos:         file_kubemodel_controller_proto_enumTypes,
-		MessageInfos:      file_kubemodel_controller_proto_msgTypes,
+		GoTypes:           file_protos_kubemodel_controller_proto_goTypes,
+		DependencyIndexes: file_protos_kubemodel_controller_proto_depIdxs,
+		EnumInfos:         file_protos_kubemodel_controller_proto_enumTypes,
+		MessageInfos:      file_protos_kubemodel_controller_proto_msgTypes,
 	}.Build()
-	File_kubemodel_controller_proto = out.File
-	file_kubemodel_controller_proto_goTypes = nil
-	file_kubemodel_controller_proto_depIdxs = nil
+	File_protos_kubemodel_controller_proto = out.File
+	file_protos_kubemodel_controller_proto_goTypes = nil
+	file_protos_kubemodel_controller_proto_depIdxs = nil
 }

@@ -265,7 +265,7 @@ func TestProtobufDecoder(t *testing.T) {
 
 	testProtoBufDecoder(t, ProtobufDecoder, customCostTests)
 
-	labelsResponse := model.GenerateMockLabelResponse(start, pb.Resolution_RESOLUTION_1D)
+	labelsResponse := model.GenerateMockLabelResponse(start, "1d")
 	labelsResponseRaw, err := proto.Marshal(labelsResponse)
 	if err != nil {
 		t.Errorf("failed to marshal custom cost set: %s", err.Error())

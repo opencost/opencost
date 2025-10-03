@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v6.32.1
-// source: kubemodel/gpu.proto
+// source: protos/kubemodel/gpu.proto
 
 package kubemodel
 
@@ -53,7 +53,7 @@ type GPUDevice struct {
 
 func (x *GPUDevice) Reset() {
 	*x = GPUDevice{}
-	mi := &file_kubemodel_gpu_proto_msgTypes[0]
+	mi := &file_protos_kubemodel_gpu_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65,7 +65,7 @@ func (x *GPUDevice) String() string {
 func (*GPUDevice) ProtoMessage() {}
 
 func (x *GPUDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_kubemodel_gpu_proto_msgTypes[0]
+	mi := &file_protos_kubemodel_gpu_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -78,7 +78,7 @@ func (x *GPUDevice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GPUDevice.ProtoReflect.Descriptor instead.
 func (*GPUDevice) Descriptor() ([]byte, []int) {
-	return file_kubemodel_gpu_proto_rawDescGZIP(), []int{0}
+	return file_protos_kubemodel_gpu_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *GPUDevice) GetID() string {
@@ -191,7 +191,7 @@ type GPUUsage struct {
 
 func (x *GPUUsage) Reset() {
 	*x = GPUUsage{}
-	mi := &file_kubemodel_gpu_proto_msgTypes[1]
+	mi := &file_protos_kubemodel_gpu_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -203,7 +203,7 @@ func (x *GPUUsage) String() string {
 func (*GPUUsage) ProtoMessage() {}
 
 func (x *GPUUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_kubemodel_gpu_proto_msgTypes[1]
+	mi := &file_protos_kubemodel_gpu_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -216,7 +216,7 @@ func (x *GPUUsage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GPUUsage.ProtoReflect.Descriptor instead.
 func (*GPUUsage) Descriptor() ([]byte, []int) {
-	return file_kubemodel_gpu_proto_rawDescGZIP(), []int{1}
+	return file_protos_kubemodel_gpu_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *GPUUsage) GetContainerID() string {
@@ -275,11 +275,11 @@ func (x *GPUUsage) GetDiagnostic() *DiagnosticResult {
 	return nil
 }
 
-var File_kubemodel_gpu_proto protoreflect.FileDescriptor
+var File_protos_kubemodel_gpu_proto protoreflect.FileDescriptor
 
-const file_kubemodel_gpu_proto_rawDesc = "" +
+const file_protos_kubemodel_gpu_proto_rawDesc = "" +
 	"\n" +
-	"\x13kubemodel/gpu.proto\x12\tkubemodel\x1a\x1akubemodel/diagnostic.proto\"\xc4\x03\n" +
+	"\x1aprotos/kubemodel/gpu.proto\x12\tkubemodel\x1a!protos/kubemodel/diagnostic.proto\"\xc4\x03\n" +
 	"\tGPUDevice\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x16\n" +
 	"\x06nodeID\x18\x02 \x01(\tR\x06nodeID\x12\"\n" +
@@ -311,24 +311,24 @@ const file_kubemodel_gpu_proto_rawDesc = "" +
 	"\v_diagnosticB:Z8github.com/opencost/opencost/core/pkg/model/pb/kubemodelb\x06proto3"
 
 var (
-	file_kubemodel_gpu_proto_rawDescOnce sync.Once
-	file_kubemodel_gpu_proto_rawDescData []byte
+	file_protos_kubemodel_gpu_proto_rawDescOnce sync.Once
+	file_protos_kubemodel_gpu_proto_rawDescData []byte
 )
 
-func file_kubemodel_gpu_proto_rawDescGZIP() []byte {
-	file_kubemodel_gpu_proto_rawDescOnce.Do(func() {
-		file_kubemodel_gpu_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_kubemodel_gpu_proto_rawDesc), len(file_kubemodel_gpu_proto_rawDesc)))
+func file_protos_kubemodel_gpu_proto_rawDescGZIP() []byte {
+	file_protos_kubemodel_gpu_proto_rawDescOnce.Do(func() {
+		file_protos_kubemodel_gpu_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_protos_kubemodel_gpu_proto_rawDesc), len(file_protos_kubemodel_gpu_proto_rawDesc)))
 	})
-	return file_kubemodel_gpu_proto_rawDescData
+	return file_protos_kubemodel_gpu_proto_rawDescData
 }
 
-var file_kubemodel_gpu_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_kubemodel_gpu_proto_goTypes = []any{
+var file_protos_kubemodel_gpu_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_protos_kubemodel_gpu_proto_goTypes = []any{
 	(*GPUDevice)(nil),        // 0: kubemodel.GPUDevice
 	(*GPUUsage)(nil),         // 1: kubemodel.GPUUsage
 	(*DiagnosticResult)(nil), // 2: kubemodel.DiagnosticResult
 }
-var file_kubemodel_gpu_proto_depIdxs = []int32{
+var file_protos_kubemodel_gpu_proto_depIdxs = []int32{
 	2, // 0: kubemodel.GPUDevice.diagnostic:type_name -> kubemodel.DiagnosticResult
 	2, // 1: kubemodel.GPUUsage.diagnostic:type_name -> kubemodel.DiagnosticResult
 	2, // [2:2] is the sub-list for method output_type
@@ -338,29 +338,29 @@ var file_kubemodel_gpu_proto_depIdxs = []int32{
 	0, // [0:2] is the sub-list for field type_name
 }
 
-func init() { file_kubemodel_gpu_proto_init() }
-func file_kubemodel_gpu_proto_init() {
-	if File_kubemodel_gpu_proto != nil {
+func init() { file_protos_kubemodel_gpu_proto_init() }
+func file_protos_kubemodel_gpu_proto_init() {
+	if File_protos_kubemodel_gpu_proto != nil {
 		return
 	}
-	file_kubemodel_diagnostic_proto_init()
-	file_kubemodel_gpu_proto_msgTypes[0].OneofWrappers = []any{}
-	file_kubemodel_gpu_proto_msgTypes[1].OneofWrappers = []any{}
+	file_protos_kubemodel_diagnostic_proto_init()
+	file_protos_kubemodel_gpu_proto_msgTypes[0].OneofWrappers = []any{}
+	file_protos_kubemodel_gpu_proto_msgTypes[1].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kubemodel_gpu_proto_rawDesc), len(file_kubemodel_gpu_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_protos_kubemodel_gpu_proto_rawDesc), len(file_protos_kubemodel_gpu_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_kubemodel_gpu_proto_goTypes,
-		DependencyIndexes: file_kubemodel_gpu_proto_depIdxs,
-		MessageInfos:      file_kubemodel_gpu_proto_msgTypes,
+		GoTypes:           file_protos_kubemodel_gpu_proto_goTypes,
+		DependencyIndexes: file_protos_kubemodel_gpu_proto_depIdxs,
+		MessageInfos:      file_protos_kubemodel_gpu_proto_msgTypes,
 	}.Build()
-	File_kubemodel_gpu_proto = out.File
-	file_kubemodel_gpu_proto_goTypes = nil
-	file_kubemodel_gpu_proto_depIdxs = nil
+	File_protos_kubemodel_gpu_proto = out.File
+	file_protos_kubemodel_gpu_proto_goTypes = nil
+	file_protos_kubemodel_gpu_proto_depIdxs = nil
 }

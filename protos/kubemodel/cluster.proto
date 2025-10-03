@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-import "model/window.proto";
+import "protos/model/window.proto";
 
 package kubemodel;
 option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
