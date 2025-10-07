@@ -1,14 +1,13 @@
 package model
 
 import (
-	"reflect"
-	"testing"
-	"time"
-
 	"github.com/opencost/opencost/core/pkg/model/pb"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"reflect"
+	"testing"
+	"time"
 )
 
 func TestConvertWindow(t *testing.T) {
@@ -31,7 +30,7 @@ func TestConvertWindow(t *testing.T) {
 		{
 			name: "invalid resolution",
 			window: &pb.Window{
-				Resolution: "invalid",
+				Resolution: 999,
 				Start:      timestamppb.New(timeDay),
 			},
 			want:    opencost.Window{},
@@ -40,7 +39,7 @@ func TestConvertWindow(t *testing.T) {
 		{
 			name: "invalid time",
 			window: &pb.Window{
-				Resolution: "1d",
+				Resolution: pb.Resolution_RESOLUTION_1D,
 				Start:      timestamppb.New(invalidTime),
 			},
 			want:    opencost.Window{},
@@ -49,7 +48,7 @@ func TestConvertWindow(t *testing.T) {
 		{
 			name: "valid 1d",
 			window: &pb.Window{
-				Resolution: "1d",
+				Resolution: pb.Resolution_RESOLUTION_1D,
 				Start:      timestamppb.New(timeDay),
 			},
 			want:    opencost.NewClosedWindow(timeDay, timeDay.Add(timeutil.Day)),
@@ -58,7 +57,7 @@ func TestConvertWindow(t *testing.T) {
 		{
 			name: "valid 1h",
 			window: &pb.Window{
-				Resolution: "1h",
+				Resolution: pb.Resolution_RESOLUTION_1H,
 				Start:      timestamppb.New(timeHour),
 			},
 			want:    opencost.NewClosedWindow(timeHour, timeHour.Add(time.Hour)),
@@ -67,7 +66,7 @@ func TestConvertWindow(t *testing.T) {
 		{
 			name: "valid 10m",
 			window: &pb.Window{
-				Resolution: "10m",
+				Resolution: pb.Resolution_RESOLUTION_10M,
 				Start:      timestamppb.New(timeTenMinute),
 			},
 			want:    opencost.NewClosedWindow(timeTenMinute, timeTenMinute.Add(10*time.Minute)),

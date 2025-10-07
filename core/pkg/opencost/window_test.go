@@ -252,7 +252,31 @@ func TestParseWindowUTC(t *testing.T) {
 		t.Fatalf(`expect: window "month" to end before now; actual: %s ends after %s`, month, time.Now().UTC())
 	}
 
-	// TODO lastweek
+	lastweek, err := ParseWindowUTC("lastweek")
+	if err != nil {
+		t.Fatalf(`unexpected error parsing "lastweek": %s`, err)
+	}
+	
+	// Verify lastweek window spans exactly 7 days
+	if lastweek.Duration().Hours() != 7*24 {
+		t.Fatalf(`expect: window "lastweek" to have duration 7 days; actual: %f hours`, lastweek.Duration().Hours())
+	}
+	
+	// Verify lastweek starts on a Sunday (weekday 0)
+	if lastweek.Start().Weekday() != time.Sunday {
+		t.Fatalf(`expect: window "lastweek" to start on Sunday; actual: %s starts on %s`, lastweek, lastweek.Start().Weekday())
+	}
+	
+	// Verify lastweek ends on a Saturday (should be 7 days after start)
+	expectedEnd := lastweek.Start().Add(7 * 24 * time.Hour)
+	if !lastweek.End().Equal(expectedEnd) {
+		t.Fatalf(`expect: window "lastweek" to end 7 days after start; actual: start %s, end %s`, lastweek.Start(), lastweek.End())
+	}
+	
+	// Verify lastweek ends before now
+	if !lastweek.End().Before(time.Now().UTC()) {
+		t.Fatalf(`expect: window "lastweek" to end before now; actual: %s ends after %s`, lastweek, time.Now().UTC())
+	}
 
 	lastmonth, err := ParseWindowUTC("lastmonth")
 	monthMinHours := float64(24 * 28)
@@ -739,26 +763,244 @@ func TestWindow_Duration(t *testing.T) {
 
 }
 
-// TODO
-// func TestWindow_Overlaps(t *testing.T) {}
+func TestWindow_Overlaps(t *testing.T) {
+	t1 := time.Now().Round(time.Hour)
+	t2 := t1.Add(time.Hour)
+	t3 := t1.Add(30 * time.Minute)
+	t4 := t1.Add(90 * time.Minute)
+	t5 := t1.Add(2 * time.Hour)
 
-// TODO
-// func TestWindow_Contains(t *testing.T) {}
+	cases := []struct {
+		window1  Window
+		window2  Window
+		expected bool
+	}{
+		{
+			window1:  NewClosedWindow(t1, t2),
+			window2:  NewClosedWindow(t3, t4),
+			expected: true, // Overlapping windows
+		},
+		{
+			window1:  NewClosedWindow(t1, t2),
+			window2:  NewClosedWindow(t4, t5),
+			expected: false, // Non-overlapping windows
+		},
+		{
+			window1:  NewClosedWindow(t1, t5),
+			window2:  NewClosedWindow(t2, t4),
+			expected: true, // One window completely inside another
+		},
+		{
+			window1:  NewWindow(nil, &t2),
+			window2:  NewClosedWindow(t3, t4),
+			expected: true, // Open window overlapping with closed window
+		},
+		{
+			window1:  NewWindow(&t1, nil),
+			window2:  NewClosedWindow(t2, t3),
+			expected: true, // Open window overlapping with closed window
+		},
+		{
+			window1:  NewWindow(nil, nil),
+			window2:  NewClosedWindow(t1, t2),
+			expected: true, // Completely open window overlaps any window
+		},
+	}
 
-// TODO
-// func TestWindow_Duration(t *testing.T) {}
+	for _, c := range cases {
+		result := c.window1.Overlaps(c.window2)
+		if result != c.expected {
+			t.Errorf("Overlaps %s with %s, expected %v but got %v", c.window1, c.window2, c.expected, result)
+		}
+	}
+}
 
-// TODO
-// func TestWindow_End(t *testing.T) {}
+func TestWindow_Contains(t *testing.T) {
+	t1 := time.Now().Round(time.Hour)
+	t2 := t1.Add(time.Hour)
+	t3 := t1.Add(30 * time.Minute)
+	t4 := t1.Add(2 * time.Hour)
 
-// TODO
-// func TestWindow_Equal(t *testing.T) {}
+	cases := []struct {
+		window   Window
+		time     time.Time
+		expected bool
+	}{
+		{
+			window:   NewClosedWindow(t1, t2),
+			time:     t3,
+			expected: true, // Time inside window
+		},
+		{
+			window:   NewClosedWindow(t1, t2),
+			time:     t4,
+			expected: false, // Time after window
+		},
+		{
+			window:   NewClosedWindow(t1, t2),
+			time:     t1,
+			expected: true, // Time at start of window
+		},
+		{
+			window:   NewClosedWindow(t1, t2),
+			time:     t2,
+			expected: false, // Time at end of window (exclusive)
+		},
+		{
+			window:   NewWindow(nil, &t2),
+			time:     t1,
+			expected: true, // Time in open-start window
+		},
+		{
+			window:   NewWindow(&t1, nil),
+			time:     t4,
+			expected: true, // Time in open-end window
+		},
+	}
 
-// TODO
-// func TestWindow_ExpandStart(t *testing.T) {}
+	for _, c := range cases {
+		result := c.window.Contains(c.time)
+		if result != c.expected {
+			t.Errorf("Contains %s with %s, expected %v but got %v", c.window, c.time, c.expected, result)
+		}
+	}
+}
 
-// TODO
-// func TestWindow_ExpandEnd(t *testing.T) {}
+func TestWindow_End(t *testing.T) {
+	t1 := time.Now().Round(time.Hour)
+	t2 := t1.Add(time.Hour)
+
+	// Test closed window
+	closedWindow := NewClosedWindow(t1, t2)
+	end := closedWindow.End()
+	if end == nil {
+		t.Fatalf("Expected end time, got nil")
+	}
+	if !end.Equal(t2) {
+		t.Errorf("Expected end time %s, got %s", t2, *end)
+	}
+
+	// Test open-end window
+	openEndWindow := NewWindow(&t1, nil)
+	end = openEndWindow.End()
+	if end != nil {
+		t.Errorf("Expected nil end time, got %s", *end)
+	}
+}
+
+func TestWindow_Equal(t *testing.T) {
+	t1 := time.Now().Round(time.Hour)
+	t2 := t1.Add(time.Hour)
+
+	cases := []struct {
+		window1  Window
+		window2  Window
+		expected bool
+	}{
+		{
+			window1:  NewClosedWindow(t1, t2),
+			window2:  NewClosedWindow(t1, t2),
+			expected: true, // Identical windows
+		},
+		{
+			window1:  NewClosedWindow(t1, t2),
+			window2:  NewClosedWindow(t1, t1.Add(30*time.Minute)),
+			expected: false, // Different end times
+		},
+		{
+			window1:  NewWindow(&t1, nil),
+			window2:  NewWindow(&t1, nil),
+			expected: true, // Identical open-end windows
+		},
+		{
+			window1:  NewWindow(nil, &t2),
+			window2:  NewWindow(&t1, &t2),
+			expected: false, // Different start times (nil vs specific)
+		},
+		{
+			window1:  NewWindow(nil, nil),
+			window2:  NewWindow(nil, nil),
+			expected: true, // Identical fully open windows
+		},
+	}
+
+	for _, c := range cases {
+		result := c.window1.Equal(c.window2)
+		if result != c.expected {
+			t.Errorf("Equal %s with %s, expected %v but got %v", c.window1, c.window2, c.expected, result)
+		}
+	}
+}
+
+func TestWindow_ExpandStart(t *testing.T) {
+	t1 := time.Now().Round(time.Hour)
+	t2 := t1.Add(time.Hour)
+	t3 := t1.Add(-30 * time.Minute)
+
+	cases := []struct {
+		window   Window
+		newStart time.Time
+		expected Window
+	}{
+		{
+			window:   NewClosedWindow(t1, t2),
+			newStart: t3,
+			expected: NewClosedWindow(t3, t2), // Earlier start time
+		},
+		{
+			window:   NewClosedWindow(t1, t2),
+			newStart: t1.Add(30 * time.Minute),
+			expected: NewClosedWindow(t1, t2), // Later start time, should not change
+		},
+		{
+			window:   NewWindow(nil, &t2),
+			newStart: t3,
+			expected: NewClosedWindow(t3, t2), // Set start time for open window
+		},
+	}
+
+	for _, c := range cases {
+		result := c.window.ExpandStart(c.newStart)
+		if !result.Equal(c.expected) {
+			t.Errorf("ExpandStart %s with %s, expected %s but got %s", c.window, c.newStart, c.expected, result)
+		}
+	}
+}
+
+func TestWindow_ExpandEnd(t *testing.T) {
+	t1 := time.Now().Round(time.Hour)
+	t2 := t1.Add(time.Hour)
+	t3 := t1.Add(2 * time.Hour)
+
+	cases := []struct {
+		window Window
+		newEnd time.Time
+		expected Window
+	}{
+		{
+			window:   NewClosedWindow(t1, t2),
+			newEnd:   t3,
+			expected: NewClosedWindow(t1, t3), // Later end time
+		},
+		{
+			window:   NewClosedWindow(t1, t2),
+			newEnd:   t1.Add(30 * time.Minute),
+			expected: NewClosedWindow(t1, t2), // Earlier end time, should not change
+		},
+		{
+			window:   NewWindow(&t1, nil),
+			newEnd:   t3,
+			expected: NewClosedWindow(t1, t3), // Set end time for open window
+		},
+	}
+
+	for _, c := range cases {
+		result := c.window.ExpandEnd(c.newEnd)
+		if !result.Equal(c.expected) {
+			t.Errorf("ExpandEnd %s with %s, expected %s but got %s", c.window, c.newEnd, c.expected, result)
+		}
+	}
+}
 
 func TestWindow_Expand(t *testing.T) {
 
@@ -825,11 +1067,73 @@ func TestWindow_Expand(t *testing.T) {
 	}
 }
 
-// TODO
-// func TestWindow_Start(t *testing.T) {}
+func TestWindow_Start(t *testing.T) {
+	t1 := time.Now().Round(time.Hour)
+	t2 := t1.Add(time.Hour)
 
-// TODO
-// func TestWindow_String(t *testing.T) {}
+	// Test closed window
+	closedWindow := NewClosedWindow(t1, t2)
+	if closedWindow.Start() == nil {
+		t.Errorf("Start() should not return nil for closed window")
+	}
+	if !closedWindow.Start().Equal(t1) {
+		t.Errorf("Start() = %s, expected %s", closedWindow.Start(), t1)
+	}
+
+	// Test open-start window
+	openStartWindow := NewWindow(nil, &t2)
+	if openStartWindow.Start() != nil {
+		t.Errorf("Start() should return nil for open-start window, got %s", openStartWindow.Start())
+	}
+
+	// Test open-end window
+	openEndWindow := NewWindow(&t1, nil)
+	if openEndWindow.Start() == nil {
+		t.Errorf("Start() should not return nil for open-end window")
+	}
+	if !openEndWindow.Start().Equal(t1) {
+		t.Errorf("Start() = %s, expected %s", openEndWindow.Start(), t1)
+	}
+
+	// Test fully open window
+	fullyOpenWindow := NewWindow(nil, nil)
+	if fullyOpenWindow.Start() != nil {
+		t.Errorf("Start() should return nil for fully open window, got %s", fullyOpenWindow.Start())
+	}
+}
+
+func TestWindow_String(t *testing.T) {
+	t1 := time.Date(2023, 1, 1, 12, 30, 45, 0, time.UTC)
+	t2 := t1.Add(time.Hour)
+
+	// Test closed window
+	closedWindow := NewClosedWindow(t1, t2)
+	expected := "[2023-01-01T12:30:45+0000, 2023-01-01T13:30:45+0000)"
+	if closedWindow.String() != expected {
+		t.Errorf("String() = %s, expected %s", closedWindow.String(), expected)
+	}
+
+	// Test open-start window
+	openStartWindow := NewWindow(nil, &t2)
+	expected = "[nil, 2023-01-01T13:30:45+0000)"
+	if openStartWindow.String() != expected {
+		t.Errorf("String() = %s, expected %s", openStartWindow.String(), expected)
+	}
+
+	// Test open-end window
+	openEndWindow := NewWindow(&t1, nil)
+	expected = "[2023-01-01T12:30:45+0000, nil)"
+	if openEndWindow.String() != expected {
+		t.Errorf("String() = %s, expected %s", openEndWindow.String(), expected)
+	}
+
+	// Test fully open window
+	fullyOpenWindow := NewWindow(nil, nil)
+	expected = "[nil, nil)"
+	if fullyOpenWindow.String() != expected {
+		t.Errorf("String() = %s, expected %s", fullyOpenWindow.String(), expected)
+	}
+}
 
 func TestWindow_GetPercentInWindow(t *testing.T) {
 	dayStart := time.Date(2022, 12, 6, 0, 0, 0, 0, time.UTC)

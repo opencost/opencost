@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package model;
 
-import "protos/model/window.proto";
+import "model/window.proto";
 
 // Sets the golang package for the protobuf generated code
 option go_package = "github.com/opencost/opencost/core/pkg/model/pb";
@@ -16,7 +16,7 @@ message LabelsResponse {
   string group_id = 2;
 
   // The window for the label sets
-  model.Window window = 3;
+  Window window = 3;
 
   // Mapping of LabelSets for individual items by a unique identifier
   map<string, LabelSet> label_sets = 4;
