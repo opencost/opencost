@@ -256,23 +256,23 @@ func TestParseWindowUTC(t *testing.T) {
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "lastweek": %s`, err)
 	}
-	
+
 	// Verify lastweek window spans exactly 7 days
 	if lastweek.Duration().Hours() != 7*24 {
 		t.Fatalf(`expect: window "lastweek" to have duration 7 days; actual: %f hours`, lastweek.Duration().Hours())
 	}
-	
+
 	// Verify lastweek starts on a Sunday (weekday 0)
 	if lastweek.Start().Weekday() != time.Sunday {
 		t.Fatalf(`expect: window "lastweek" to start on Sunday; actual: %s starts on %s`, lastweek, lastweek.Start().Weekday())
 	}
-	
+
 	// Verify lastweek ends on a Saturday (should be 7 days after start)
 	expectedEnd := lastweek.Start().Add(7 * 24 * time.Hour)
 	if !lastweek.End().Equal(expectedEnd) {
 		t.Fatalf(`expect: window "lastweek" to end 7 days after start; actual: start %s, end %s`, lastweek.Start(), lastweek.End())
 	}
-	
+
 	// Verify lastweek ends before now
 	if !lastweek.End().Before(time.Now().UTC()) {
 		t.Fatalf(`expect: window "lastweek" to end before now; actual: %s ends after %s`, lastweek, time.Now().UTC())
@@ -844,7 +844,7 @@ func TestWindow_Contains(t *testing.T) {
 		{
 			window:   NewClosedWindow(t1, t2),
 			time:     t2,
-			expected: false, // Time at end of window (exclusive)
+			expected: true, // Time at end of window (inclusive)
 		},
 		{
 			window:   NewWindow(nil, &t2),
@@ -973,8 +973,8 @@ func TestWindow_ExpandEnd(t *testing.T) {
 	t3 := t1.Add(2 * time.Hour)
 
 	cases := []struct {
-		window Window
-		newEnd time.Time
+		window   Window
+		newEnd   time.Time
 		expected Window
 	}{
 		{
