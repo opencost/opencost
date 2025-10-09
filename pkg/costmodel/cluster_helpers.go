@@ -77,25 +77,8 @@ func buildCPUCostMap(
 		// Start with the value from the data source (e.g., collector or Prometheus)
 		cpuCost = result.Data[0].Value
 
-		// If custom pricing is enabled, use it instead
-		if customPricingEnabled && customPricingConfig != nil {
-
-			var customCPUStr string
-			if spot, ok := preemptible[key]; ok && spot {
-				customCPUStr = customPricingConfig.SpotCPU
-			} else {
-				customCPUStr = customPricingConfig.CPU
-			}
-
-			customCPUCost, err := strconv.ParseFloat(customCPUStr, 64)
-			if err != nil {
-				log.Warnf("ClusterNodes: error parsing custom CPU price: %s", customCPUStr)
-			}
-			cpuCost = customCPUCost
-
-		} else if cpuCost == 0 || math.IsNaN(cpuCost) {
-			// Fallback: If the data source value is 0 or NaN (e.g., collector hasn't
-			// scraped pricing metrics yet in promless mode), use custom pricing as default
+		// If custom pricing is enabled or the data source value is invalid, use custom pricing
+		if (customPricingEnabled && customPricingConfig != nil) || cpuCost == 0 || math.IsNaN(cpuCost) {
 			if customPricingConfig != nil {
 				var customCPUStr string
 				if spot, ok := preemptible[key]; ok && spot {
@@ -108,8 +91,15 @@ func buildCPUCostMap(
 				if err != nil {
 					log.Warnf("ClusterNodes: error parsing custom CPU price: %s", customCPUStr)
 				} else {
+					// Log the reason for using custom pricing
+					if cpuCost == 0 {
+						log.DedupedInfof(10, "ClusterNodes: node %s has invalid CPU cost (0) from data source; falling back to custom pricing: %f", name, customCPUCost)
+					} else if math.IsNaN(cpuCost) {
+						log.DedupedInfof(10, "ClusterNodes: node %s has invalid CPU cost (NaN) from data source; falling back to custom pricing: %f", name, customCPUCost)
+					} else {
+						log.DedupedInfof(10, "ClusterNodes: node %s using custom pricing: %f", name, customCPUCost)
+					}
 					cpuCost = customCPUCost
-					log.Debugf("ClusterNodes: node %s has 0/NaN CPU cost from data source; using custom pricing fallback: %f", name, cpuCost)
 				}
 			}
 		}
@@ -166,25 +156,8 @@ func buildRAMCostMap(
 		// Start with the value from the data source (e.g., collector or Prometheus)
 		ramCost = result.Data[0].Value
 
-		// If custom pricing is enabled, use it instead
-		if customPricingEnabled && customPricingConfig != nil {
-
-			var customRAMStr string
-			if spot, ok := preemptible[key]; ok && spot {
-				customRAMStr = customPricingConfig.SpotRAM
-			} else {
-				customRAMStr = customPricingConfig.RAM
-			}
-
-			customRAMCost, err := strconv.ParseFloat(customRAMStr, 64)
-			if err != nil {
-				log.Warnf("ClusterNodes: error parsing custom RAM price: %s", customRAMStr)
-			}
-			ramCost = customRAMCost
-
-		} else if ramCost == 0 || math.IsNaN(ramCost) {
-			// Fallback: If the data source value is 0 or NaN (e.g., collector hasn't
-			// scraped pricing metrics yet in promless mode), use custom pricing as default
+		// If custom pricing is enabled or the data source value is invalid, use custom pricing
+		if (customPricingEnabled && customPricingConfig != nil) || ramCost == 0 || math.IsNaN(ramCost) {
 			if customPricingConfig != nil {
 				var customRAMStr string
 				if spot, ok := preemptible[key]; ok && spot {
@@ -197,8 +170,15 @@ func buildRAMCostMap(
 				if err != nil {
 					log.Warnf("ClusterNodes: error parsing custom RAM price: %s", customRAMStr)
 				} else {
+					// Log the reason for using custom pricing
+					if ramCost == 0 {
+						log.DedupedInfof(10, "ClusterNodes: node %s has invalid RAM cost (0) from data source; falling back to custom pricing: %f", name, customRAMCost)
+					} else if math.IsNaN(ramCost) {
+						log.DedupedInfof(10, "ClusterNodes: node %s has invalid RAM cost (NaN) from data source; falling back to custom pricing: %f", name, customRAMCost)
+					} else {
+						log.DedupedInfof(10, "ClusterNodes: node %s using custom pricing: %f", name, customRAMCost)
+					}
 					ramCost = customRAMCost
-					log.Debugf("ClusterNodes: node %s has 0/NaN RAM cost from data source; using custom pricing fallback: %f", name, ramCost)
 				}
 			}
 		}
