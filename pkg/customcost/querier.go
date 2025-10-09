@@ -41,7 +41,7 @@ func getCustomCostAccumulateOption(window opencost.Window, from []opencost.Accum
 		from = allSteppedAccumulateOptions
 	}
 
-	hourlyStoreHours := env.GetDataRetentionHourlyResolutionHours()
+	hourlyStoreHours := env.GetCustomCost1hRetention()
 	hourlySteps := time.Duration(hourlyStoreHours) * time.Hour
 	oldestHourly := time.Now().Add(-1 * hourlySteps)
 
@@ -53,7 +53,7 @@ func getCustomCostAccumulateOption(window opencost.Window, from []opencost.Accum
 		return opencost.AccumulateOptionHour, nil
 	}
 
-	dailyStoreDays := env.GetDataRetentionDailyResolutionDays()
+	dailyStoreDays := env.GetCloudCost1dRetention()
 	dailySteps := time.Duration(dailyStoreDays) * timeutil.Day
 	oldestDaily := time.Now().Add(-1 * dailySteps)
 	// Use daily if...

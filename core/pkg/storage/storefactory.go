@@ -7,13 +7,24 @@ import (
 	"github.com/opencost/opencost/core/pkg/env"
 )
 
-// GetDefaultStorage initializes the default shared storage which is required for kubecost
+// GetDefaultStorage initializes the default shared storage which is required for kubecost. Panics
+// if the storage cannot be initialized.
 func GetDefaultStorage() Storage {
 	store, err := InitializeStorage(env.GetDefaultStorageConfigFilePath())
 	if err != nil {
 		panic(fmt.Sprintf("failed to initialize default storage: %s", err.Error()))
 	}
 	return store
+}
+
+// TryGetDefaultStorage will attempt to load the default bucket configuration, but will not panic
+// if the config file does not exist.
+func TryGetDefaultStorage() (Storage, error) {
+	store, err := InitializeStorage(env.GetDefaultStorageConfigFilePath())
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize default storage: %w", err)
+	}
+	return store, nil
 }
 
 // InitializeStorage creates a storage from the config file at the given path

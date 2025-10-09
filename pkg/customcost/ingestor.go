@@ -42,8 +42,8 @@ type CustomCostIngestorConfig struct {
 // DefaultIngestorConfiguration retrieves an CustomCostIngestorConfig from env variables
 func DefaultIngestorConfiguration() CustomCostIngestorConfig {
 	return CustomCostIngestorConfig{
-		DailyDuration:       timeutil.Day * time.Duration(env.GetDataRetentionDailyResolutionDays()),
-		HourlyDuration:      time.Hour * time.Duration(env.GetDataRetentionHourlyResolutionHours()),
+		DailyDuration:       timeutil.Day * time.Duration(env.GetCustomCost1dRetention()),
+		HourlyDuration:      time.Hour * time.Duration(env.GetCustomCost1hRetention()),
 		DailyQueryWindow:    timeutil.Day * time.Duration(env.GetCustomCostQueryWindowDays()),
 		HourlyQueryWindow:   time.Hour * time.Duration(env.GetCustomCostQueryWindowHours()),
 		PluginConfigDir:     env.GetPluginConfigDir(),

@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+import "kubemodel/diagnostic.proto";
+import "google/protobuf/timestamp.proto";
+
+package kubemodel;
+option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
+
+// Pod represents a Kubernetes pod (allocated resource grouping)
+message Pod {
+  // Identification
+  string ID = 1;
+  string namespaceID = 2;
+  string controllerID = 3;
+  string nodeID = 4;
+
+  // Properties
+  string name = 5;
+  map<string, string> labels = 6;
+  map<string, string> annotations = 7;
+
+  // Resource lifecycle (only when different from cluster window)
+  optional google.protobuf.Timestamp creationTime = 8;
+  optional google.protobuf.Timestamp deletionTime = 9;
+
+  // Usage metrics
+  // CPU usage in core-hours
+  float cpuCoreHours = 10;
+
+  // CPU request average in cores
+  float cpuCoreRequestAverage = 11;
+
+  // CPU usage average in cores
+  float cpuCoreUsageAverage = 12;
+
+  // CPU usage max in cores
+  float cpuCoreUsageMax = 13;
+
+  // RAM usage in byte-hours
+  int64 ramByteHours = 14;
+
+  // RAM request average in bytes
+  int64 ramBytesRequestAverage = 15;
+
+  // RAM usage average in bytes
+  int64 ramBytesUsageAverage = 16;
+
+  // RAM usage max in bytes
+  int64 ramBytesUsageMax = 17;
+
+  // Storage usage in byte-hours
+  int64 storageByteHours = 18;
+
+  // Network transfer bytes sent
+  int64 networkTransferBytes = 19;
+
+  // Network bytes received
+  int64 networkReceiveBytes = 20;
+
+  // Diagnostic information about this resource
+  optional DiagnosticResult diagnostic = 99;
+}

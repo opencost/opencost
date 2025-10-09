@@ -798,6 +798,11 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 								},
 							},
 						},
+						{
+							Name:            "pureReplicaSet",
+							Namespace:       "namespace1",
+							OwnerReferences: []metav1.OwnerReference{},
+						},
 					},
 					Timestamp: start1,
 				},
@@ -810,6 +815,16 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 						source.NamespaceLabel: "namespace1",
 						source.OwnerNameLabel: "rollout1",
 						source.OwnerKindLabel: "Rollout",
+					},
+					Value: 0,
+				},
+				{
+					Name: metric.KubeReplicasetOwner,
+					Labels: map[string]string{
+						"replicaset":          "pureReplicaSet",
+						source.NamespaceLabel: "namespace1",
+						source.OwnerNameLabel: source.NoneLabelValue,
+						source.OwnerKindLabel: source.NoneLabelValue,
 					},
 					Value: 0,
 				},

@@ -1,9 +1,11 @@
 package scrape
 
 import (
+	"github.com/kubecost/events"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/nodestats"
 	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/modules/collector-source/pkg/event"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
@@ -21,7 +23,21 @@ func newStatSummaryScraper(client nodestats.StatSummaryClient) Scraper {
 func (s *StatSummaryScraper) Scrape() []metric.Update {
 	var scrapeResults []metric.Update
 	nodeStats, err := s.client.GetNodeData()
+
 	if err != nil {
+		var errs []error
+		if multiErr, ok := err.(interface{ Unwrap() []error }); ok {
+			errs = multiErr.Unwrap()
+		} else {
+			errs = []error{err}
+		}
+
+		events.Dispatch(event.ScrapeEvent{
+			ScraperName: event.NodeStatsScraperName,
+			Targets:     len(nodeStats) + len(errs),
+			Errors:      errs,
+		})
+
 		log.Errorf("error retrieving node stat data: %s", err.Error())
 		return scrapeResults
 	}
@@ -135,6 +151,13 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 			}
 		}
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.NodeStatsScraperName,
+		Targets:     len(nodeStats),
+		Errors:      []error{},
+	})
+
 	return scrapeResults
 }
 
