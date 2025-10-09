@@ -43,9 +43,10 @@ func (kjc KubeJobCollector) Collect(ch chan<- prometheus.Metric) {
 	for _, job := range jobs {
 		jobName := job.Name
 		jobNS := job.Namespace
+		jobUID := string(job.UID)
 
 		if job.Status.Failed == 0 {
-			ch <- newKubeJobStatusFailedMetric(jobName, jobNS, "kube_job_status_failed", "", 0)
+			ch <- newKubeJobStatusFailedMetric(jobName, jobNS, jobUID, "kube_job_status_failed", "", 0)
 		} else {
 			for _, condition := range job.Status.Conditions {
 				if condition.Type == batchv1.JobFailed {
@@ -53,12 +54,12 @@ func (kjc KubeJobCollector) Collect(ch chan<- prometheus.Metric) {
 					for _, reason := range jobFailureReasons {
 						reasonKnown = reasonKnown || failureReason(&condition, reason)
 
-						ch <- newKubeJobStatusFailedMetric(jobName, jobNS, "kube_job_status_failed", reason, boolFloat64(failureReason(&condition, reason)))
+						ch <- newKubeJobStatusFailedMetric(jobName, jobNS, jobUID, "kube_job_status_failed", reason, boolFloat64(failureReason(&condition, reason)))
 					}
 
 					// for unknown reasons
 					if !reasonKnown {
-						ch <- newKubeJobStatusFailedMetric(jobName, jobNS, "kube_job_status_failed", "", float64(job.Status.Failed))
+						ch <- newKubeJobStatusFailedMetric(jobName, jobNS, jobUID, "kube_job_status_failed", "", float64(job.Status.Failed))
 					}
 				}
 			}
@@ -77,17 +78,19 @@ type KubeJobStatusFailedMetric struct {
 	help      string
 	job       string
 	namespace string
+	uid       string
 	reason    string
 	value     float64
 }
 
 // Creates a new KubeJobStatusFailedMetric, implementation of prometheus.Metric
-func newKubeJobStatusFailedMetric(job, namespace, fqName, reason string, value float64) KubeJobStatusFailedMetric {
+func newKubeJobStatusFailedMetric(job, namespace, uid, fqName, reason string, value float64) KubeJobStatusFailedMetric {
 	return KubeJobStatusFailedMetric{
 		fqName:    fqName,
 		help:      "kube_job_status_failed Failed job",
 		job:       job,
 		namespace: namespace,
+		uid:       uid,
 		reason:    reason,
 		value:     value,
 	}
@@ -99,6 +102,7 @@ func (kjsf KubeJobStatusFailedMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
 		"job_name":  kjsf.job,
 		"namespace": kjsf.namespace,
+		"uid":       kjsf.uid,
 		"reason":    kjsf.reason,
 	}
 	return prometheus.NewDesc(kjsf.fqName, kjsf.help, []string{}, l)
@@ -118,6 +122,10 @@ func (kjsf KubeJobStatusFailedMetric) Write(m *dto.Metric) error {
 		{
 			Name:  toStringPtr("namespace"),
 			Value: &kjsf.namespace,
+		},
+		{
+			Name:  toStringPtr("uid"),
+			Value: &kjsf.uid,
 		},
 		{
 			Name:  toStringPtr("reason"),

@@ -469,15 +469,28 @@ func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.Re
 			source.NamespaceLabel:  replicaSet.Namespace,
 		}
 
-		for _, owner := range replicaSet.OwnerReferences {
+		// this specific metric exports a special <none> value for name and kind
+		// if there are no owners
+		if len(replicaSet.OwnerReferences) == 0 {
 			ownerInfo := maps.Clone(replicaSetInfo)
-			ownerInfo[source.OwnerKindLabel] = owner.Kind
-			ownerInfo[source.OwnerNameLabel] = owner.Name
+			ownerInfo[source.OwnerKindLabel] = source.NoneLabelValue
+			ownerInfo[source.OwnerNameLabel] = source.NoneLabelValue
 			scrapeResults = append(scrapeResults, metric.Update{
 				Name:   metric.KubeReplicasetOwner,
 				Labels: ownerInfo,
 				Value:  0,
 			})
+		} else {
+			for _, owner := range replicaSet.OwnerReferences {
+				ownerInfo := maps.Clone(replicaSetInfo)
+				ownerInfo[source.OwnerKindLabel] = owner.Kind
+				ownerInfo[source.OwnerNameLabel] = owner.Name
+				scrapeResults = append(scrapeResults, metric.Update{
+					Name:   metric.KubeReplicasetOwner,
+					Labels: ownerInfo,
+					Value:  0,
+				})
+			}
 		}
 	}
 

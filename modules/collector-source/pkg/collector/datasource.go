@@ -116,7 +116,7 @@ func (c *collectorDataSource) RegisterDiagnostics(diagService diagnostics.Diagno
 	diagnosticDefinitions := c.diagnosticsModule.DiagnosticsDefinitions()
 
 	for _, dd := range diagnosticDefinitions {
-		err := diagService.Register(dd.ID, dd.Description, CollectorDiagnosticCategory, func(ctx context.Context) (map[string]any, error) {
+		err := diagService.Register(dd.MetricName, dd.Description, CollectorDiagnosticCategory, func(ctx context.Context) (map[string]any, error) {
 			details, err := c.diagnosticsModule.DiagnosticsDetails(dd.ID)
 			if err != nil {
 				return nil, err
