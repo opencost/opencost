@@ -101,6 +101,11 @@ func buildCPUCostMap(
 					}
 					cpuCost = customCPUCost
 				}
+			} else {
+				// custom pricing config is nil, but we needed it because cpuCost was invalid
+				if cpuCost == 0 || math.IsNaN(cpuCost) {
+					log.Warnf("ClusterNodes: node %s has invalid CPU cost (0 or NaN), but was unable to fall back to custom pricing because it was nil", name)
+				}
 			}
 		}
 
