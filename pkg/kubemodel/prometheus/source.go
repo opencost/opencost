@@ -73,6 +73,12 @@ func NewSource(cfg Config) (*Source, error) {
 	if cfg.Metrics == nil {
 		return nil, fmt.Errorf("prometheus: metrics client must be provided")
 	}
+	if cfg.ClusterID == "" {
+		return nil, fmt.Errorf("prometheus: cluster ID must be provided")
+	}
+	if cfg.ClusterName == "" {
+		return nil, fmt.Errorf("prometheus: cluster name must be provided")
+	}
 
 	return &Source{
 		metrics:     cfg.Metrics,
@@ -93,7 +99,7 @@ func (s *Source) ComputeModel(ctx context.Context, window *modelpb.Window) (*kub
 		return nil, fmt.Errorf("prometheus: window start must be provided")
 	}
 
-	duration, err := resolutionToDuration(window.GetResolution())
+	duration, err := kubemodel.ResolutionToDuration(window.GetResolution())
 	if err != nil {
 		return nil, err
 	}
@@ -165,12 +171,12 @@ func (s *Source) populateNamespaces(model *kubemodel.Model, results []*source.Na
 	index := make(map[string]string)
 
 	for _, res := range results {
-		id := nonEmpty(res.UID, namespaceKey(res.Cluster, res.Namespace))
+		cluster := nonEmpty(res.Cluster, s.clusterID)
+		id := nonEmpty(res.UID, namespaceKey(cluster, res.Namespace))
 		if id == "" {
 			continue
 		}
 
-		cluster := nonEmpty(res.Cluster, s.clusterID)
 		model.Namespaces[id] = &kubepb.Namespace{
 			ID:        id,
 			ClusterID: cluster,
@@ -230,7 +236,18 @@ func (s *Source) populatePods(model *kubemodel.Model, namespaces map[string]stri
 
 	for id, rec := range pods {
 		cluster := nonEmpty(rec.cluster, s.clusterID)
-		nsID := namespaces[namespaceKey(cluster, rec.namespace)]
+		nsKey := namespaceKey(cluster, rec.namespace)
+		nsID, ok := namespaces[nsKey]
+		if !ok {
+			nsID = nsKey
+			if _, exists := model.Namespaces[nsID]; !exists {
+				model.Namespaces[nsID] = &kubepb.Namespace{
+					ID:        nsID,
+					ClusterID: cluster,
+					Name:      rec.namespace,
+				}
+			}
+		}
 
 		model.Pods[id] = &kubepb.Pod{
 			ID:          rec.uid,
@@ -239,19 +256,6 @@ func (s *Source) populatePods(model *kubemodel.Model, namespaces map[string]stri
 			Labels:      copyStringMap(rec.labels),
 			Annotations: copyStringMap(rec.annotations),
 		}
-	}
-}
-
-func resolutionToDuration(res modelpb.Resolution) (time.Duration, error) {
-	switch res {
-	case modelpb.Resolution_RESOLUTION_10M:
-		return 10 * time.Minute, nil
-	case modelpb.Resolution_RESOLUTION_1H:
-		return time.Hour, nil
-	case modelpb.Resolution_RESOLUTION_1D:
-		return 24 * time.Hour, nil
-	default:
-		return 0, fmt.Errorf("prometheus: unsupported window resolution %v", res)
 	}
 }
 

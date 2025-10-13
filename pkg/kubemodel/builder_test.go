@@ -145,12 +145,33 @@ func TestDurationToResolution(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		got, err := durationToResolution(tc.duration)
+		got, err := DurationToResolution(tc.duration)
 		if err != nil {
 			t.Fatalf("unexpected err for %v: %v", tc.duration, err)
 		}
 		if got != tc.resolution {
 			t.Fatalf("for %v expected %v, got %v", tc.duration, tc.resolution, got)
+		}
+	}
+}
+
+func TestResolutionToDuration(t *testing.T) {
+	cases := []struct {
+		resolution pb.Resolution
+		duration   time.Duration
+	}{
+		{pb.Resolution_RESOLUTION_10M, 10 * time.Minute},
+		{pb.Resolution_RESOLUTION_1H, time.Hour},
+		{pb.Resolution_RESOLUTION_1D, 24 * time.Hour},
+	}
+
+	for _, tc := range cases {
+		got, err := ResolutionToDuration(tc.resolution)
+		if err != nil {
+			t.Fatalf("unexpected err for %v: %v", tc.resolution, err)
+		}
+		if got != tc.duration {
+			t.Fatalf("for %v expected %v, got %v", tc.resolution, tc.duration, got)
 		}
 	}
 }
