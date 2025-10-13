@@ -17,6 +17,12 @@ func TestNewSourceValidation(t *testing.T) {
 	if _, err := NewSource(Config{}); err == nil {
 		t.Fatalf("expected error when metrics client is nil")
 	}
+
+	if _, err := NewSource(Config{
+		Metrics: &fakeMetrics{},
+	}); err == nil {
+		t.Fatalf("expected error when cluster identifiers are missing")
+	}
 }
 
 func TestSourceComputeModel(t *testing.T) {

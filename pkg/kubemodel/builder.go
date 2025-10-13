@@ -56,7 +56,7 @@ func (b *Builder) ComputeModel(ctx context.Context, start, end time.Time) (*Mode
 	start = start.UTC()
 	end = end.UTC()
 
-	resolution, err := durationToResolution(end.Sub(start))
+	resolution, err := DurationToResolution(end.Sub(start))
 	if err != nil {
 		return nil, err
 	}
@@ -78,17 +78,4 @@ func (b *Builder) ComputeModel(ctx context.Context, start, end time.Time) (*Mode
 	}
 
 	return result, nil
-}
-
-func durationToResolution(d time.Duration) (pb.Resolution, error) {
-	switch d {
-	case 10 * time.Minute:
-		return pb.Resolution_RESOLUTION_10M, nil
-	case time.Hour:
-		return pb.Resolution_RESOLUTION_1H, nil
-	case 24 * time.Hour:
-		return pb.Resolution_RESOLUTION_1D, nil
-	default:
-		return pb.Resolution_RESOLUTION_10M, fmt.Errorf("kubemodel: unsupported window duration %s", d)
-	}
 }
