@@ -185,6 +185,10 @@ func buildRAMCostMap(
 					}
 					ramCost = customRAMCost
 				}
+			} else {
+				if ramCost == 0 || math.IsNaN(ramCost) {
+					log.Warnf("ClusterNodes: node %s has invalid RAM cost (0 or NaN), but was unable to fall back to custom pricing because it was nil", name)
+				}
 			}
 		}
 
