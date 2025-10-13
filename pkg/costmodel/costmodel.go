@@ -1608,7 +1608,7 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 				}
 			}
 
-			idleSet, err := computeIdleAllocations(allocSet, assetSet, true)
+			idleSet, err := computeIdleAllocations(allocSet, assetSet, idleByNode)
 			if err != nil {
 				return nil, fmt.Errorf("error computing idle allocations for %s: %w", opencost.NewClosedWindow(stepStart, stepEnd), err)
 			}
