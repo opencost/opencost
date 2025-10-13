@@ -1445,8 +1445,9 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 		}
 		return aws.createNode(terms, usageType, k)
 	} else { // Fall back to base pricing if we can't find the key. Base pricing is handled at the costmodel level.
+		// we seem to have an issue where this error gets thrown during app start.
+		// somehow the ValidPricingKeys map is being accessed before all the pricing data has been downloaded
 		return nil, meta, fmt.Errorf("Invalid Pricing Key \"%s\"", key)
-
 	}
 }
 
