@@ -886,7 +886,8 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 
 		cnode, _, err := cp.NodePricing(cp.GetKey(nodeLabels, n))
 		if err != nil {
-			log.Infof("Error getting node pricing. Error: %s", err.Error())
+			log.Infof("Could not get node pricing for node %s. Falling back to default pricing", name)
+			log.Debugf("Error getting node pricing: %s", err.Error())
 			if cnode != nil {
 				nodes[name] = cnode
 				continue
@@ -1607,7 +1608,7 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 				}
 			}
 
-			idleSet, err := computeIdleAllocations(allocSet, assetSet, true)
+			idleSet, err := computeIdleAllocations(allocSet, assetSet, idleByNode)
 			if err != nil {
 				return nil, fmt.Errorf("error computing idle allocations for %s: %w", opencost.NewClosedWindow(stepStart, stepEnd), err)
 			}
