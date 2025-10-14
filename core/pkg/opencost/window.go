@@ -383,7 +383,7 @@ func (w Window) Contains(t time.Time) bool {
 		return false
 	}
 
-	if w.end != nil && !t.Before(*w.end) {
+	if w.end != nil && t.After(*w.end) {
 		return false
 	}
 
