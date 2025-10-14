@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 import "kubemodel/diagnostic.proto";
+import "kubemodel/resource.proto";
 import "google/protobuf/timestamp.proto";
 
 package kubemodel;
@@ -39,6 +40,9 @@ message Service {
 
   // Network bytes received through this service
   int64 networkReceiveBytes = 11;
+
+  // Resource pricing (e.g., for LoadBalancer services)
+  repeated ResourcePrice prices = 12;
 
   // Diagnostic information about this resource
   optional DiagnosticResult diagnostic = 99;

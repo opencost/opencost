@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 import "kubemodel/diagnostic.proto";
+import "kubemodel/resource.proto";
 import "google/protobuf/timestamp.proto";
 
 package kubemodel;
@@ -21,6 +22,12 @@ message Node {
   // Resource lifecycle (only when different from cluster window)
   optional google.protobuf.Timestamp creationTime = 7;
   optional google.protobuf.Timestamp deletionTime = 8;
+
+  // Resource quantities
+  repeated ResourceQuantity resources = 9;
+
+  // Resource pricing
+  repeated ResourcePrice prices = 10;
 
   // Diagnostic information about this resource
   optional DiagnosticResult diagnostic = 99;

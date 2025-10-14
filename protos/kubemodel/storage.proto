@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 import "kubemodel/diagnostic.proto";
+import "kubemodel/resource.proto";
 import "google/protobuf/timestamp.proto";
 
 package kubemodel;
@@ -25,6 +26,9 @@ message Volume {
   // Usage metrics
   // Storage capacity in bytes
   int64 capacityBytes = 9;
+
+  // Resource pricing
+  repeated ResourcePrice prices = 10;
 
   // Diagnostic information about this resource
   optional DiagnosticResult diagnostic = 99;

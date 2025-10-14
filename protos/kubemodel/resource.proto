@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package kubemodel;
+option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
+
+// Unit represents the unit of measurement for resources
+enum Unit {
+  UNIT_CPU_CORES = 0;      // CPU in cores
+  UNIT_RAM_BYTES = 1;      // RAM in bytes
+  UNIT_GPU = 2;            // GPU count
+  UNIT_STORAGE_BYTES = 3;  // Storage in bytes
+}
+
+// ResourceQuantity represents a quantity of a specific resource
+message ResourceQuantity {
+  Unit unit = 1;
+  double quantity = 2;
+}
+
+// ResourcePrice represents the price per unit of a specific resource
+message ResourcePrice {
+  Unit unit = 1;
+  double pricePerUnit = 2;
+}
