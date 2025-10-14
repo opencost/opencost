@@ -119,6 +119,8 @@ type Service struct {
 	NetworkTransferBytes int64 `protobuf:"varint,10,opt,name=networkTransferBytes,proto3" json:"networkTransferBytes,omitempty"`
 	// Network bytes received through this service
 	NetworkReceiveBytes int64 `protobuf:"varint,11,opt,name=networkReceiveBytes,proto3" json:"networkReceiveBytes,omitempty"`
+	// Resource pricing (e.g., for LoadBalancer services)
+	Prices []*ResourcePrice `protobuf:"bytes,12,rep,name=prices,proto3" json:"prices,omitempty"`
 	// Diagnostic information about this resource
 	Diagnostic    *DiagnosticResult `protobuf:"bytes,99,opt,name=diagnostic,proto3,oneof" json:"diagnostic,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -232,6 +234,13 @@ func (x *Service) GetNetworkReceiveBytes() int64 {
 	return 0
 }
 
+func (x *Service) GetPrices() []*ResourcePrice {
+	if x != nil {
+		return x.Prices
+	}
+	return nil
+}
+
 func (x *Service) GetDiagnostic() *DiagnosticResult {
 	if x != nil {
 		return x.Diagnostic
@@ -243,7 +252,7 @@ var File_kubemodel_network_proto protoreflect.FileDescriptor
 
 const file_kubemodel_network_proto_rawDesc = "" +
 	"\n" +
-	"\x17kubemodel/network.proto\x12\tkubemodel\x1a\x1akubemodel/diagnostic.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8d\x01\n" +
+	"\x17kubemodel/network.proto\x12\tkubemodel\x1a\x1akubemodel/diagnostic.proto\x1a\x18kubemodel/resource.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8d\x01\n" +
 	"\vServicePort\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
 	"\bprotocol\x18\x02 \x01(\tR\bprotocol\x12\x12\n" +
@@ -251,7 +260,7 @@ const file_kubemodel_network_proto_rawDesc = "" +
 	"\n" +
 	"targetPort\x18\x04 \x01(\x05R\n" +
 	"targetPort\x12\x1a\n" +
-	"\bnodePort\x18\x05 \x01(\x05R\bnodePort\"\xf8\x05\n" +
+	"\bnodePort\x18\x05 \x01(\x05R\bnodePort\"\xaa\x06\n" +
 	"\aService\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x1c\n" +
 	"\tclusterID\x18\x02 \x01(\tR\tclusterID\x12\x12\n" +
@@ -264,7 +273,8 @@ const file_kubemodel_network_proto_rawDesc = "" +
 	"\fdeletionTime\x18\t \x01(\v2\x1a.google.protobuf.TimestampH\x01R\fdeletionTime\x88\x01\x01\x122\n" +
 	"\x14networkTransferBytes\x18\n" +
 	" \x01(\x03R\x14networkTransferBytes\x120\n" +
-	"\x13networkReceiveBytes\x18\v \x01(\x03R\x13networkReceiveBytes\x12@\n" +
+	"\x13networkReceiveBytes\x18\v \x01(\x03R\x13networkReceiveBytes\x120\n" +
+	"\x06prices\x18\f \x03(\v2\x18.kubemodel.ResourcePriceR\x06prices\x12@\n" +
 	"\n" +
 	"diagnostic\x18c \x01(\v2\x1b.kubemodel.DiagnosticResultH\x02R\n" +
 	"diagnostic\x88\x01\x01\x1a9\n" +
@@ -297,7 +307,8 @@ var file_kubemodel_network_proto_goTypes = []any{
 	nil,                           // 2: kubemodel.Service.LabelsEntry
 	nil,                           // 3: kubemodel.Service.AnnotationsEntry
 	(*timestamppb.Timestamp)(nil), // 4: google.protobuf.Timestamp
-	(*DiagnosticResult)(nil),      // 5: kubemodel.DiagnosticResult
+	(*ResourcePrice)(nil),         // 5: kubemodel.ResourcePrice
+	(*DiagnosticResult)(nil),      // 6: kubemodel.DiagnosticResult
 }
 var file_kubemodel_network_proto_depIdxs = []int32{
 	0, // 0: kubemodel.Service.ports:type_name -> kubemodel.ServicePort
@@ -305,12 +316,13 @@ var file_kubemodel_network_proto_depIdxs = []int32{
 	3, // 2: kubemodel.Service.annotations:type_name -> kubemodel.Service.AnnotationsEntry
 	4, // 3: kubemodel.Service.creationTime:type_name -> google.protobuf.Timestamp
 	4, // 4: kubemodel.Service.deletionTime:type_name -> google.protobuf.Timestamp
-	5, // 5: kubemodel.Service.diagnostic:type_name -> kubemodel.DiagnosticResult
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	5, // 5: kubemodel.Service.prices:type_name -> kubemodel.ResourcePrice
+	6, // 6: kubemodel.Service.diagnostic:type_name -> kubemodel.DiagnosticResult
+	7, // [7:7] is the sub-list for method output_type
+	7, // [7:7] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_kubemodel_network_proto_init() }
@@ -319,6 +331,7 @@ func file_kubemodel_network_proto_init() {
 		return
 	}
 	file_kubemodel_diagnostic_proto_init()
+	file_kubemodel_resource_proto_init()
 	file_kubemodel_network_proto_msgTypes[1].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

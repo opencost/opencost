@@ -39,6 +39,8 @@ type Volume struct {
 	// Usage metrics
 	// Storage capacity in bytes
 	CapacityBytes int64 `protobuf:"varint,9,opt,name=capacityBytes,proto3" json:"capacityBytes,omitempty"`
+	// Resource pricing
+	Prices []*ResourcePrice `protobuf:"bytes,10,rep,name=prices,proto3" json:"prices,omitempty"`
 	// Diagnostic information about this resource
 	Diagnostic    *DiagnosticResult `protobuf:"bytes,99,opt,name=diagnostic,proto3,oneof" json:"diagnostic,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -136,6 +138,13 @@ func (x *Volume) GetCapacityBytes() int64 {
 		return x.CapacityBytes
 	}
 	return 0
+}
+
+func (x *Volume) GetPrices() []*ResourcePrice {
+	if x != nil {
+		return x.Prices
+	}
+	return nil
 }
 
 func (x *Volume) GetDiagnostic() *DiagnosticResult {
@@ -297,7 +306,7 @@ var File_kubemodel_storage_proto protoreflect.FileDescriptor
 
 const file_kubemodel_storage_proto_rawDesc = "" +
 	"\n" +
-	"\x17kubemodel/storage.proto\x12\tkubemodel\x1a\x1akubemodel/diagnostic.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x89\x05\n" +
+	"\x17kubemodel/storage.proto\x12\tkubemodel\x1a\x1akubemodel/diagnostic.proto\x1a\x18kubemodel/resource.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xbb\x05\n" +
 	"\x06Volume\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x1c\n" +
 	"\tclusterID\x18\x02 \x01(\tR\tclusterID\x12\x12\n" +
@@ -307,7 +316,9 @@ const file_kubemodel_storage_proto_rawDesc = "" +
 	"\vannotations\x18\x06 \x03(\v2\".kubemodel.Volume.AnnotationsEntryR\vannotations\x12C\n" +
 	"\fcreationTime\x18\a \x01(\v2\x1a.google.protobuf.TimestampH\x00R\fcreationTime\x88\x01\x01\x12C\n" +
 	"\fdeletionTime\x18\b \x01(\v2\x1a.google.protobuf.TimestampH\x01R\fdeletionTime\x88\x01\x01\x12$\n" +
-	"\rcapacityBytes\x18\t \x01(\x03R\rcapacityBytes\x12@\n" +
+	"\rcapacityBytes\x18\t \x01(\x03R\rcapacityBytes\x120\n" +
+	"\x06prices\x18\n" +
+	" \x03(\v2\x18.kubemodel.ResourcePriceR\x06prices\x12@\n" +
 	"\n" +
 	"diagnostic\x18c \x01(\v2\x1b.kubemodel.DiagnosticResultH\x02R\n" +
 	"diagnostic\x88\x01\x01\x1a9\n" +
@@ -370,24 +381,26 @@ var file_kubemodel_storage_proto_goTypes = []any{
 	nil,                           // 4: kubemodel.PersistentVolumeClaim.LabelsEntry
 	nil,                           // 5: kubemodel.PersistentVolumeClaim.AnnotationsEntry
 	(*timestamppb.Timestamp)(nil), // 6: google.protobuf.Timestamp
-	(*DiagnosticResult)(nil),      // 7: kubemodel.DiagnosticResult
+	(*ResourcePrice)(nil),         // 7: kubemodel.ResourcePrice
+	(*DiagnosticResult)(nil),      // 8: kubemodel.DiagnosticResult
 }
 var file_kubemodel_storage_proto_depIdxs = []int32{
 	2,  // 0: kubemodel.Volume.labels:type_name -> kubemodel.Volume.LabelsEntry
 	3,  // 1: kubemodel.Volume.annotations:type_name -> kubemodel.Volume.AnnotationsEntry
 	6,  // 2: kubemodel.Volume.creationTime:type_name -> google.protobuf.Timestamp
 	6,  // 3: kubemodel.Volume.deletionTime:type_name -> google.protobuf.Timestamp
-	7,  // 4: kubemodel.Volume.diagnostic:type_name -> kubemodel.DiagnosticResult
-	4,  // 5: kubemodel.PersistentVolumeClaim.labels:type_name -> kubemodel.PersistentVolumeClaim.LabelsEntry
-	5,  // 6: kubemodel.PersistentVolumeClaim.annotations:type_name -> kubemodel.PersistentVolumeClaim.AnnotationsEntry
-	6,  // 7: kubemodel.PersistentVolumeClaim.creationTime:type_name -> google.protobuf.Timestamp
-	6,  // 8: kubemodel.PersistentVolumeClaim.deletionTime:type_name -> google.protobuf.Timestamp
-	7,  // 9: kubemodel.PersistentVolumeClaim.diagnostic:type_name -> kubemodel.DiagnosticResult
-	10, // [10:10] is the sub-list for method output_type
-	10, // [10:10] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	7,  // 4: kubemodel.Volume.prices:type_name -> kubemodel.ResourcePrice
+	8,  // 5: kubemodel.Volume.diagnostic:type_name -> kubemodel.DiagnosticResult
+	4,  // 6: kubemodel.PersistentVolumeClaim.labels:type_name -> kubemodel.PersistentVolumeClaim.LabelsEntry
+	5,  // 7: kubemodel.PersistentVolumeClaim.annotations:type_name -> kubemodel.PersistentVolumeClaim.AnnotationsEntry
+	6,  // 8: kubemodel.PersistentVolumeClaim.creationTime:type_name -> google.protobuf.Timestamp
+	6,  // 9: kubemodel.PersistentVolumeClaim.deletionTime:type_name -> google.protobuf.Timestamp
+	8,  // 10: kubemodel.PersistentVolumeClaim.diagnostic:type_name -> kubemodel.DiagnosticResult
+	11, // [11:11] is the sub-list for method output_type
+	11, // [11:11] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_kubemodel_storage_proto_init() }
@@ -396,6 +409,7 @@ func file_kubemodel_storage_proto_init() {
 		return
 	}
 	file_kubemodel_diagnostic_proto_init()
+	file_kubemodel_resource_proto_init()
 	file_kubemodel_storage_proto_msgTypes[0].OneofWrappers = []any{}
 	file_kubemodel_storage_proto_msgTypes[1].OneofWrappers = []any{}
 	type x struct{}

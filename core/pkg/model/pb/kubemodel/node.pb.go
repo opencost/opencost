@@ -36,6 +36,10 @@ type Node struct {
 	// Resource lifecycle (only when different from cluster window)
 	CreationTime *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=creationTime,proto3,oneof" json:"creationTime,omitempty"`
 	DeletionTime *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=deletionTime,proto3,oneof" json:"deletionTime,omitempty"`
+	// Resource quantities
+	Resources []*ResourceQuantity `protobuf:"bytes,9,rep,name=resources,proto3" json:"resources,omitempty"`
+	// Resource pricing
+	Prices []*ResourcePrice `protobuf:"bytes,10,rep,name=prices,proto3" json:"prices,omitempty"`
 	// Diagnostic information about this resource
 	Diagnostic    *DiagnosticResult `protobuf:"bytes,99,opt,name=diagnostic,proto3,oneof" json:"diagnostic,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -128,6 +132,20 @@ func (x *Node) GetDeletionTime() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Node) GetResources() []*ResourceQuantity {
+	if x != nil {
+		return x.Resources
+	}
+	return nil
+}
+
+func (x *Node) GetPrices() []*ResourcePrice {
+	if x != nil {
+		return x.Prices
+	}
+	return nil
+}
+
 func (x *Node) GetDiagnostic() *DiagnosticResult {
 	if x != nil {
 		return x.Diagnostic
@@ -139,7 +157,7 @@ var File_kubemodel_node_proto protoreflect.FileDescriptor
 
 const file_kubemodel_node_proto_rawDesc = "" +
 	"\n" +
-	"\x14kubemodel/node.proto\x12\tkubemodel\x1a\x1akubemodel/diagnostic.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe9\x04\n" +
+	"\x14kubemodel/node.proto\x12\tkubemodel\x1a\x1akubemodel/diagnostic.proto\x1a\x18kubemodel/resource.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd6\x05\n" +
 	"\x04Node\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x1c\n" +
 	"\tclusterID\x18\x02 \x01(\tR\tclusterID\x12.\n" +
@@ -148,7 +166,10 @@ const file_kubemodel_node_proto_rawDesc = "" +
 	"\x06labels\x18\x05 \x03(\v2\x1b.kubemodel.Node.LabelsEntryR\x06labels\x12B\n" +
 	"\vannotations\x18\x06 \x03(\v2 .kubemodel.Node.AnnotationsEntryR\vannotations\x12C\n" +
 	"\fcreationTime\x18\a \x01(\v2\x1a.google.protobuf.TimestampH\x00R\fcreationTime\x88\x01\x01\x12C\n" +
-	"\fdeletionTime\x18\b \x01(\v2\x1a.google.protobuf.TimestampH\x01R\fdeletionTime\x88\x01\x01\x12@\n" +
+	"\fdeletionTime\x18\b \x01(\v2\x1a.google.protobuf.TimestampH\x01R\fdeletionTime\x88\x01\x01\x129\n" +
+	"\tresources\x18\t \x03(\v2\x1b.kubemodel.ResourceQuantityR\tresources\x120\n" +
+	"\x06prices\x18\n" +
+	" \x03(\v2\x18.kubemodel.ResourcePriceR\x06prices\x12@\n" +
 	"\n" +
 	"diagnostic\x18c \x01(\v2\x1b.kubemodel.DiagnosticResultH\x02R\n" +
 	"diagnostic\x88\x01\x01\x1a9\n" +
@@ -180,19 +201,23 @@ var file_kubemodel_node_proto_goTypes = []any{
 	nil,                           // 1: kubemodel.Node.LabelsEntry
 	nil,                           // 2: kubemodel.Node.AnnotationsEntry
 	(*timestamppb.Timestamp)(nil), // 3: google.protobuf.Timestamp
-	(*DiagnosticResult)(nil),      // 4: kubemodel.DiagnosticResult
+	(*ResourceQuantity)(nil),      // 4: kubemodel.ResourceQuantity
+	(*ResourcePrice)(nil),         // 5: kubemodel.ResourcePrice
+	(*DiagnosticResult)(nil),      // 6: kubemodel.DiagnosticResult
 }
 var file_kubemodel_node_proto_depIdxs = []int32{
 	1, // 0: kubemodel.Node.labels:type_name -> kubemodel.Node.LabelsEntry
 	2, // 1: kubemodel.Node.annotations:type_name -> kubemodel.Node.AnnotationsEntry
 	3, // 2: kubemodel.Node.creationTime:type_name -> google.protobuf.Timestamp
 	3, // 3: kubemodel.Node.deletionTime:type_name -> google.protobuf.Timestamp
-	4, // 4: kubemodel.Node.diagnostic:type_name -> kubemodel.DiagnosticResult
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	4, // 4: kubemodel.Node.resources:type_name -> kubemodel.ResourceQuantity
+	5, // 5: kubemodel.Node.prices:type_name -> kubemodel.ResourcePrice
+	6, // 6: kubemodel.Node.diagnostic:type_name -> kubemodel.DiagnosticResult
+	7, // [7:7] is the sub-list for method output_type
+	7, // [7:7] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_kubemodel_node_proto_init() }
@@ -201,6 +226,7 @@ func file_kubemodel_node_proto_init() {
 		return
 	}
 	file_kubemodel_diagnostic_proto_init()
+	file_kubemodel_resource_proto_init()
 	file_kubemodel_node_proto_msgTypes[0].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
