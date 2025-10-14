@@ -5,6 +5,7 @@ import (
 )
 
 type Scraper interface {
+	// Scrape performs the metrics scrape and returns a slice of `Update` instances to apply.
 	Scrape() []metric.Update
 }
 

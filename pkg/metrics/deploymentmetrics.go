@@ -41,10 +41,11 @@ func (kdc KubecostDeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 	for _, deployment := range ds {
 		deploymentName := deployment.Name
 		deploymentNS := deployment.Namespace
+		deploymentUID := string(deployment.UID)
 
 		labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(deployment.MatchLabels))
 		if len(labels) > 0 {
-			m := newDeploymentMatchLabelsMetric(deploymentName, deploymentNS, "deployment_match_labels", labels, values)
+			m := newDeploymentMatchLabelsMetric(deploymentName, deploymentNS, "deployment_match_labels", labels, values, deploymentUID)
 			ch <- m
 		}
 	}
@@ -63,10 +64,11 @@ type DeploymentMatchLabelsMetric struct {
 	labelValues    []string
 	deploymentName string
 	namespace      string
+	uid            string
 }
 
 // Creates a new DeploymentMatchLabelsMetric, implementation of prometheus.Metric
-func newDeploymentMatchLabelsMetric(name, namespace, fqname string, labelNames, labelvalues []string) DeploymentMatchLabelsMetric {
+func newDeploymentMatchLabelsMetric(name, namespace, fqname string, labelNames, labelvalues []string, uid string) DeploymentMatchLabelsMetric {
 	return DeploymentMatchLabelsMetric{
 		fqName:         fqname,
 		labelNames:     labelNames,
@@ -74,6 +76,7 @@ func newDeploymentMatchLabelsMetric(name, namespace, fqname string, labelNames, 
 		help:           "deployment_match_labels Deployment Match Labels",
 		deploymentName: name,
 		namespace:      namespace,
+		uid:            uid,
 	}
 }
 
@@ -83,6 +86,7 @@ func (dmlm DeploymentMatchLabelsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
 		"deployment": dmlm.deploymentName,
 		"namespace":  dmlm.namespace,
+		"uid":        dmlm.uid,
 	}
 	return prometheus.NewDesc(dmlm.fqName, dmlm.help, dmlm.labelNames, l)
 }
@@ -108,6 +112,10 @@ func (dmlm DeploymentMatchLabelsMetric) Write(m *dto.Metric) error {
 	labels = append(labels, &dto.LabelPair{
 		Name:  toStringPtr("deployment"),
 		Value: &dmlm.deploymentName,
+	})
+	labels = append(labels, &dto.LabelPair{
+		Name:  toStringPtr("uid"),
+		Value: &dmlm.uid,
 	})
 	m.Label = labels
 	return nil
@@ -145,6 +153,7 @@ func (kdc KubeDeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 	for _, deployment := range deployments {
 		deploymentName := deployment.Name
 		deploymentNS := deployment.Namespace
+		deploymentUID := string(deployment.UID)
 
 		// Replicas Defined
 		var replicas int32
@@ -155,7 +164,7 @@ func (kdc KubeDeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 
 		if _, disabled := disabledMetrics["kube_deployment_spec_replicas"]; !disabled {
-			ch <- newKubeDeploymentReplicasMetric("kube_deployment_spec_replicas", deploymentName, deploymentNS, replicas)
+			ch <- newKubeDeploymentReplicasMetric("kube_deployment_spec_replicas", deploymentName, deploymentNS, replicas, deploymentUID)
 		}
 		if _, disabled := disabledMetrics["kube_deployment_status_replicas_available"]; !disabled {
 			// Replicas Available
@@ -163,7 +172,8 @@ func (kdc KubeDeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 				"kube_deployment_status_replicas_available",
 				deploymentName,
 				deploymentNS,
-				deployment.StatusAvailableReplicas)
+				deployment.StatusAvailableReplicas,
+				deploymentUID)
 		}
 	}
 }
@@ -179,16 +189,18 @@ type KubeDeploymentReplicasMetric struct {
 	deployment string
 	namespace  string
 	replicas   float64
+	uid        string
 }
 
 // Creates a new DeploymentMatchLabelsMetric, implementation of prometheus.Metric
-func newKubeDeploymentReplicasMetric(fqname, deployment, namespace string, replicas int32) KubeDeploymentReplicasMetric {
+func newKubeDeploymentReplicasMetric(fqname, deployment, namespace string, replicas int32, uid string) KubeDeploymentReplicasMetric {
 	return KubeDeploymentReplicasMetric{
 		fqName:     fqname,
 		help:       "kube_deployment_spec_replicas Number of desired pods for a deployment.",
 		deployment: deployment,
 		namespace:  namespace,
 		replicas:   float64(replicas),
+		uid:        uid,
 	}
 }
 
@@ -198,6 +210,7 @@ func (kdr KubeDeploymentReplicasMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
 		"deployment": kdr.deployment,
 		"namespace":  kdr.namespace,
+		"uid":        kdr.uid,
 	}
 	return prometheus.NewDesc(kdr.fqName, kdr.help, []string{}, l)
 }
@@ -217,6 +230,10 @@ func (kdr KubeDeploymentReplicasMetric) Write(m *dto.Metric) error {
 			Name:  toStringPtr("deployment"),
 			Value: &kdr.deployment,
 		},
+		{
+			Name:  toStringPtr("uid"),
+			Value: &kdr.uid,
+		},
 	}
 
 	return nil
@@ -233,16 +250,18 @@ type KubeDeploymentStatusAvailableReplicasMetric struct {
 	deployment        string
 	namespace         string
 	replicasAvailable float64
+	uid               string
 }
 
 // Creates a new DeploymentMatchLabelsMetric, implementation of prometheus.Metric
-func newKubeDeploymentStatusAvailableReplicasMetric(fqname, deployment, namespace string, replicasAvailable int32) KubeDeploymentStatusAvailableReplicasMetric {
+func newKubeDeploymentStatusAvailableReplicasMetric(fqname, deployment, namespace string, replicasAvailable int32, uid string) KubeDeploymentStatusAvailableReplicasMetric {
 	return KubeDeploymentStatusAvailableReplicasMetric{
 		fqName:            fqname,
 		help:              "kube_deployment_status_replicas_available The number of available replicas per deployment.",
 		deployment:        deployment,
 		namespace:         namespace,
 		replicasAvailable: float64(replicasAvailable),
+		uid:               uid,
 	}
 }
 
@@ -252,6 +271,7 @@ func (kdr KubeDeploymentStatusAvailableReplicasMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
 		"deployment": kdr.deployment,
 		"namespace":  kdr.namespace,
+		"uid":        kdr.uid,
 	}
 	return prometheus.NewDesc(kdr.fqName, kdr.help, []string{}, l)
 }
@@ -270,6 +290,10 @@ func (kdr KubeDeploymentStatusAvailableReplicasMetric) Write(m *dto.Metric) erro
 		{
 			Name:  toStringPtr("deployment"),
 			Value: &kdr.deployment,
+		},
+		{
+			Name:  toStringPtr("uid"),
+			Value: &kdr.uid,
 		},
 	}
 

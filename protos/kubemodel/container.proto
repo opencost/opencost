@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+import "kubemodel/diagnostic.proto";
+import "google/protobuf/timestamp.proto";
+
+package kubemodel;
+option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
+
+// Container represents a container within a pod (allocated resource)
+message Container {
+  // Identification
+  string podID = 1;
+
+  // Properties
+  string name = 2;
+
+  // Resource lifecycle (only when different from cluster window)
+  optional google.protobuf.Timestamp creationTime = 3;
+  optional google.protobuf.Timestamp deletionTime = 4;
+
+  // Usage metrics
+  // CPU usage in core-hours
+  float cpuCoreHours = 5;
+
+  // CPU request average in cores
+  float cpuCoreRequestAverage = 6;
+
+  // CPU usage average in cores
+  float cpuCoreUsageAverage = 7;
+
+  // CPU usage max in cores
+  float cpuCoreUsageMax = 8;
+
+  // RAM usage in byte-hours
+  int64 ramByteHours = 9;
+
+  // RAM request average in bytes
+  int64 ramBytesRequestAverage = 10;
+
+  // RAM usage average in bytes
+  int64 ramBytesUsageAverage = 11;
+
+  // RAM usage max in bytes
+  int64 ramBytesUsageMax = 12;
+
+  // Diagnostic information about this resource
+  optional DiagnosticResult diagnostic = 99;
+}
