@@ -227,7 +227,11 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// Get allocation filter if provided
 	allocationFilter := qp.Get("filter", "")
 
-	asr, err := a.Model.QueryAllocation(window, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer, accumulateBy, shareIdle)
+	// Query allocations with filtering, aggregation, and accumulation.
+	// Filtering is done BEFORE aggregation inside QueryAllocation to ensure
+	// filters can match on all allocation properties (like cluster, node, etc.)
+	// before they are potentially lost or merged during aggregation.
+	asr, err := a.Model.QueryAllocation(window, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer, accumulateBy, shareIdle, allocationFilter)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "bad request") {
 			proto.WriteError(w, proto.BadRequest(err.Error()))
@@ -236,35 +240,6 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 		}
 
 		return
-	}
-
-	// Apply allocation filter if provided
-	if allocationFilter != "" {
-		parser := allocation.NewAllocationFilterParser()
-		filterNode, err := parser.Parse(allocationFilter)
-		if err != nil {
-			proto.WriteError(w, proto.BadRequest(fmt.Sprintf("Invalid filter: %s", err)))
-			return
-		}
-		compiler := opencost.NewAllocationMatchCompiler(nil)
-		matcher, err := compiler.Compile(filterNode)
-		if err != nil {
-			proto.WriteError(w, proto.BadRequest(fmt.Sprintf("Failed to compile filter: %s", err)))
-			return
-		}
-		filteredASR := opencost.NewAllocationSetRange()
-		for _, as := range asr.Slice() {
-			filteredAS := opencost.NewAllocationSet(as.Start(), as.End())
-			for _, alloc := range as.Allocations {
-				if matcher.Matches(alloc) {
-					filteredAS.Set(alloc)
-				}
-			}
-			if filteredAS.Length() > 0 {
-				filteredASR.Append(filteredAS)
-			}
-		}
-		asr = filteredASR
 	}
 
 	WriteData(w, asr, nil)

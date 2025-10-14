@@ -40,6 +40,10 @@ const (
 	SameRegionLabel      = "same_region"
 )
 
+const (
+	NoneLabelValue = "<none>"
+)
+
 type PVResult struct {
 	Cluster          string
 	PersistentVolume string

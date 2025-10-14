@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	nodes "github.com/opencost/opencost/core/pkg/nodestats"
 	"github.com/opencost/opencost/pkg/env"
@@ -19,7 +20,7 @@ const (
 )
 
 func NewNodeClientConfigFromEnv() (*nodes.NodeClientConfig, error) {
-	clusterId := env.GetClusterID()
+	clusterId := coreenv.GetClusterID()
 	concurrentPollers := defaultConcurrentPollers
 	insecure := env.IsNodeStatsInsecure()
 	certFile := env.GetNodeStatsCertFile()
@@ -36,6 +37,7 @@ func NewNodeClientConfigFromEnv() (*nodes.NodeClientConfig, error) {
 		transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
+				MinVersion:         tls.VersionTLS12,
 			},
 		}
 	} else {
@@ -59,12 +61,14 @@ func NewNodeClientConfigFromEnv() (*nodes.NodeClientConfig, error) {
 			tlsConfig = &tls.Config{
 				Certificates: []tls.Certificate{cert},
 				RootCAs:      caCertPool,
+				MinVersion:   tls.VersionTLS12,
 			}
 
 			transport = &http.Transport{TLSClientConfig: tlsConfig}
 		} else {
 			tlsConfig := &tls.Config{
-				RootCAs: caCertPool,
+				RootCAs:    caCertPool,
+				MinVersion: tls.VersionTLS12,
 			}
 			transport = &http.Transport{TLSClientConfig: tlsConfig}
 		}

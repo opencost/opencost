@@ -12,13 +12,14 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
+	coreenv "github.com/opencost/opencost/core/pkg/env"
+	"github.com/opencost/opencost/core/pkg/filter/allocation"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
-	"github.com/opencost/opencost/pkg/env"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -134,19 +135,12 @@ func (cd *CostData) GetController() (name string, kind string, hasController boo
 
 func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData, error) {
 	// Cluster ID is specific to the source cluster
-	clusterID := env.GetClusterID()
+	clusterID := coreenv.GetClusterID()
 	cp := cm.Provider
 	ds := cm.DataSource
 	mq := ds.Metrics()
 
-	grp := source.NewQueryGroup()
-
-	resChRAMUsage := source.WithGroup(grp, mq.QueryRAMUsageAvg(start, end))
-	resChCPUUsage := source.WithGroup(grp, mq.QueryCPUUsageAvg(start, end))
-	resChNetZoneRequests := source.WithGroup(grp, mq.QueryNetZoneGiB(start, end))
-	resChNetRegionRequests := source.WithGroup(grp, mq.QueryNetRegionGiB(start, end))
-	resChNetInternetRequests := source.WithGroup(grp, mq.QueryNetInternetGiB(start, end))
-
+	// Get Kubernetes data
 	// Pull pod information from k8s API
 	podlist := cm.Cache.GetAllPods()
 
@@ -170,30 +164,10 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 		return nil, err
 	}
 
-	// Process Prometheus query results. Handle errors using ctx.Errors.
-	resRAMUsage, _ := resChRAMUsage.Await()
-	resCPUUsage, _ := resChCPUUsage.Await()
-	resNetZoneRequests, _ := resChNetZoneRequests.Await()
-	resNetRegionRequests, _ := resChNetRegionRequests.Await()
-	resNetInternetRequests, _ := resChNetInternetRequests.Await()
-
-	// NOTE: The way we currently handle errors and warnings only early returns if there is an error. Warnings
-	// NOTE: will not propagate unless coupled with errors.
-	if grp.HasErrors() {
-		// To keep the context of where the errors are occurring, we log the errors here and pass them the error
-		// back to the caller. The caller should handle the specific case where error is an ErrorCollection
-		for _, queryErr := range grp.Errors() {
-			if queryErr.Error != nil {
-				log.Errorf("ComputeCostData: Request Error: %s", queryErr.Error)
-			}
-			if queryErr.ParseError != nil {
-				log.Errorf("ComputeCostData: Parsing Error: %s", queryErr.ParseError)
-			}
-		}
-
-		// ErrorCollection is an collection of errors wrapped in a single error implementation
-		// We opt to not return an error for the sake of running as a pure exporter.
-		log.Warnf("ComputeCostData: continuing despite prometheus errors: %s", grp.Error())
+	// Get metrics data
+	resRAMUsage, resCPUUsage, resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, err := queryMetrics(mq, start, end)
+	if err != nil {
+		log.Warnf("ComputeCostData: continuing despite metrics errors: %s", err)
 	}
 
 	defer measureTime(time.Now(), profileThreshold, "ComputeCostData: Processing Query Data")
@@ -254,7 +228,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 			return nil, err
 		}
 		for _, c := range cs {
-			containers[c.Key()] = true // captures any containers that existed for a time < a prometheus scrape interval. We currently charge 0 for this but should charge something.
+			containers[c.Key()] = true // captures any containers that existed for a time < a metrics scrape interval. We currently charge 0 for this but should charge something.
 			currentContainers[c.Key()] = *pod
 		}
 	}
@@ -268,6 +242,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 		// deleted so we have usage information but not request information. In that case,
 		// we return partial data for CPU and RAM: only usage and not requests.
 		if pod, ok := currentContainers[key]; ok {
+
 			podName := pod.Name
 			ns := pod.Namespace
 
@@ -361,7 +336,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 				ramRequestBytes := container.Resources.Requests.Memory().Value()
 
 				// Because information on container RAM & CPU requests isn't
-				// coming from Prometheus, it won't have a timestamp associated
+				// coming from metrics, it won't have a timestamp associated
 				// with it. We need to provide a timestamp.
 				RAMReqV := []*util.Vector{
 					{
@@ -461,7 +436,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 				containerNameCost[newKey] = costs
 			}
 		} else {
-			// The container has been deleted. Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
+			// The container has been deleted. Not all information is sent to metrics via ksm, so fill out what we can without k8s api
 			log.Debug("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
 			c, err := NewContainerMetricFromKey(key)
 			if err != nil {
@@ -543,6 +518,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 			missingContainers[key] = costs
 		}
 	}
+
 	// Use unmounted pvs to create a mapping of "Unmounted-<Namespace>" containers
 	// to pass along the cost data
 	unmounted := findUnmountedPVCostData(cm.ClusterMap, unmountedPVs, namespaceLabelsMapping, namespaceAnnotationsMapping)
@@ -562,6 +538,44 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 		log.Errorf("Error fetching historical pod data: %s", err.Error())
 	}
 	return containerNameCost, err
+}
+
+func queryMetrics(mq source.MetricsQuerier, start, end time.Time) ([]*source.ContainerMetricResult, []*source.ContainerMetricResult, []*source.NetZoneGiBResult, []*source.NetRegionGiBResult, []*source.NetInternetGiBResult, error) {
+	grp := source.NewQueryGroup()
+
+	resChRAMUsage := source.WithGroup(grp, mq.QueryRAMUsageAvg(start, end))
+	resChCPUUsage := source.WithGroup(grp, mq.QueryCPUUsageAvg(start, end))
+	resChNetZoneRequests := source.WithGroup(grp, mq.QueryNetZoneGiB(start, end))
+	resChNetRegionRequests := source.WithGroup(grp, mq.QueryNetRegionGiB(start, end))
+	resChNetInternetRequests := source.WithGroup(grp, mq.QueryNetInternetGiB(start, end))
+
+	// Process metrics query results. Handle errors using ctx.Errors.
+	resRAMUsage, _ := resChRAMUsage.Await()
+	resCPUUsage, _ := resChCPUUsage.Await()
+	resNetZoneRequests, _ := resChNetZoneRequests.Await()
+	resNetRegionRequests, _ := resChNetRegionRequests.Await()
+	resNetInternetRequests, _ := resChNetInternetRequests.Await()
+
+	// NOTE: The way we currently handle errors and warnings only early returns if there is an error. Warnings
+	// NOTE: will not propagate unless coupled with errors.
+	if grp.HasErrors() {
+		// To keep the context of where the errors are occurring, we log the errors here and pass them the error
+		// back to the caller. The caller should handle the specific case where error is an ErrorCollection
+		for _, queryErr := range grp.Errors() {
+			if queryErr.Error != nil {
+				log.Errorf("ComputeCostData: Request Error: %s", queryErr.Error)
+			}
+			if queryErr.ParseError != nil {
+				log.Errorf("ComputeCostData: Parsing Error: %s", queryErr.ParseError)
+			}
+		}
+
+		// ErrorCollection is an collection of errors wrapped in a single error implementation
+		// We opt to not return an error for the sake of running as a pure exporter.
+		return resRAMUsage, resCPUUsage, resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, grp.Error()
+	}
+
+	return resRAMUsage, resCPUUsage, resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, nil
 }
 
 func findUnmountedPVCostData(clusterMap clusters.ClusterMap, unmountedPVs map[string][]*PersistentVolumeClaimData, namespaceLabelsMapping map[string]map[string]string, namespaceAnnotationsMapping map[string]map[string]string) map[string]*CostData {
@@ -673,14 +687,14 @@ func findDeletedNodeInfo(dataSource source.OpenCostDataSource, missingNodes map[
 		}
 
 		if len(cpuCosts) == 0 {
-			log.Infof("Kubecost prometheus metrics not currently available. Ingest this server's /metrics endpoint to get that data.")
+			log.Infof("Opencost metrics not currently available. Ingest this server's /metrics endpoint to get that data.")
 		}
 
 		for node, costv := range cpuCosts {
 			if _, ok := missingNodes[node]; ok {
 				missingNodes[node].VCPUCost = fmt.Sprintf("%f", costv[0].Value)
 			} else {
-				log.DedupedWarningf(5, "Node `%s` in prometheus but not k8s api", node)
+				log.DedupedWarningf(5, "Node `%s` in metrics but not k8s api", node)
 			}
 		}
 		for node, costv := range ramCosts {
@@ -873,7 +887,8 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 
 		cnode, _, err := cp.NodePricing(cp.GetKey(nodeLabels, n))
 		if err != nil {
-			log.Infof("Error getting node pricing. Error: %s", err.Error())
+			log.Infof("Could not get node pricing for node %s. Falling back to default pricing", name)
+			log.Debugf("Error getting node pricing: %s", err.Error())
 			if cnode != nil {
 				nodes[name] = cnode
 				continue
@@ -1266,7 +1281,7 @@ func (cm *CostModel) GetLBCost() (map[serviceKey]*costAnalyzerCloud.LoadBalancer
 		namespace := service.Namespace
 		name := service.Name
 		key := serviceKey{
-			Cluster:   env.GetClusterID(),
+			Cluster:   coreenv.GetClusterID(),
 			Namespace: namespace,
 			Service:   name,
 		}
@@ -1540,7 +1555,7 @@ func measureTime(start time.Time, threshold time.Duration, name string) {
 	}
 }
 
-func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer bool, accumulateBy opencost.AccumulateOption, shareIdle bool) (*opencost.AllocationSetRange, error) {
+func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer bool, accumulateBy opencost.AccumulateOption, shareIdle bool, filterString string) (*opencost.AllocationSetRange, error) {
 	// Validate window is legal
 	if window.IsOpen() || window.IsNegative() {
 		return nil, fmt.Errorf("illegal window: %s", window)
@@ -1590,11 +1605,11 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 
 				_, err := opencost.UpdateAssetTotalsStore(totalsStore, assetSet)
 				if err != nil {
-					log.Errorf("ETL: error updating asset resource totals for %s: %s", assetSet.Window, err)
+					log.Errorf("Allocation: error updating asset resource totals for %s: %s", assetSet.Window, err)
 				}
 			}
 
-			idleSet, err := computeIdleAllocations(allocSet, assetSet, true)
+			idleSet, err := computeIdleAllocations(allocSet, assetSet, idleByNode)
 			if err != nil {
 				return nil, fmt.Errorf("error computing idle allocations for %s: %w", opencost.NewClosedWindow(stepStart, stepEnd), err)
 			}
@@ -1608,6 +1623,33 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 
 		stepStart = stepEnd
 		stepEnd = stepStart.Add(step)
+	}
+
+	// Apply allocation filter BEFORE aggregation if provided
+	if filterString != "" {
+		parser := allocation.NewAllocationFilterParser()
+		filterNode, err := parser.Parse(filterString)
+		if err != nil {
+			return nil, fmt.Errorf("invalid filter: %w", err)
+		}
+		compiler := opencost.NewAllocationMatchCompiler(nil)
+		matcher, err := compiler.Compile(filterNode)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compile filter: %w", err)
+		}
+		filteredASR := opencost.NewAllocationSetRange()
+		for _, as := range asr.Slice() {
+			filteredAS := opencost.NewAllocationSet(as.Start(), as.End())
+			for _, alloc := range as.Allocations {
+				if matcher.Matches(alloc) {
+					filteredAS.Set(alloc)
+				}
+			}
+			if filteredAS.Length() > 0 {
+				filteredASR.Append(filteredAS)
+			}
+		}
+		asr = filteredASR
 	}
 
 	// Set aggregation options and aggregate
@@ -1649,7 +1691,7 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 
 			_, err = opencost.UpdateAssetTotalsStore(totalsStore, assetSet)
 			if err != nil {
-				log.Errorf("ETL: error updating asset resource totals for %s: %s", opencost.NewClosedWindow(*asr.Window().Start(), *asr.Window().End()), err)
+				log.Errorf("Allocation: error updating asset resource totals for %s: %s", opencost.NewClosedWindow(*asr.Window().Start(), *asr.Window().End()), err)
 			}
 
 		}
@@ -1759,7 +1801,7 @@ func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost
 	for key, assetTotal := range assetTotals {
 		allocTotal, ok := allocTotals[key]
 		if !ok {
-			log.Warnf("ETL: did not find allocations for asset key: %s", key)
+			log.Warnf("Allocation: did not find allocations for asset key: %s", key)
 
 			// Use a zero-value set of totals. This indicates either (1) an
 			// error computing totals, or (2) that no allocations ran on the

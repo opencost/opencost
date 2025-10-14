@@ -47,14 +47,18 @@ func validate(cli prometheus.Client, q string, config *OpenCostPrometheusConfig)
 		}, fmt.Errorf("no running jobs on Prometheus at %s", ctx.QueryURL().Path)
 	}
 
+	running := false
+
 	for _, result := range resUp {
 		job, err := result.GetString("job")
 		if err != nil {
-			return &PrometheusMetadata{
-				Running:            false,
-				KubecostDataExists: false,
-			}, fmt.Errorf("up query does not have job names")
+			// Stop evaluating result if it does not have a job label (continue to next result)
+			// We don't error here because not every result from `up` will necessarily have a job label.
+			continue
 		}
+
+		// At least one job is running, so we can set running to true
+		running = true
 
 		if job == config.JobName {
 			return &PrometheusMetadata{
@@ -62,6 +66,13 @@ func validate(cli prometheus.Client, q string, config *OpenCostPrometheusConfig)
 				KubecostDataExists: true,
 			}, err
 		}
+	}
+
+	if !running {
+		return &PrometheusMetadata{
+			Running:            false,
+			KubecostDataExists: false,
+		}, fmt.Errorf("up query does not have job names")
 	}
 
 	return &PrometheusMetadata{

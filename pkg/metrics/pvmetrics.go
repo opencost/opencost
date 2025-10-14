@@ -39,6 +39,8 @@ func (kpvcb KubePVCollector) Collect(ch chan<- prometheus.Metric) {
 	disabledMetrics := kpvcb.metricsConfig.GetDisabledMetricsMap()
 
 	for _, pv := range pvs {
+		pvUID := string(pv.UID)
+
 		if _, disabled := disabledMetrics["kube_persistentvolume_status_phase"]; !disabled {
 			phase := pv.Status.Phase
 			if phase != "" {
@@ -54,14 +56,14 @@ func (kpvcb KubePVCollector) Collect(ch chan<- prometheus.Metric) {
 				}
 
 				for _, p := range phases {
-					ch <- newKubePVStatusPhaseMetric("kube_persistentvolume_status_phase", pv.Name, p.n, boolFloat64(p.v))
+					ch <- newKubePVStatusPhaseMetric("kube_persistentvolume_status_phase", pv.Name, pvUID, p.n, boolFloat64(p.v))
 				}
 			}
 		}
 
 		if _, disabled := disabledMetrics["kube_persistentvolume_capacity_bytes"]; !disabled {
 			storage := pv.Spec.Capacity[v1.ResourceStorage]
-			m := newKubePVCapacityBytesMetric("kube_persistentvolume_capacity_bytes", pv.Name, float64(storage.Value()))
+			m := newKubePVCapacityBytesMetric("kube_persistentvolume_capacity_bytes", pv.Name, pvUID, float64(storage.Value()))
 			ch <- m
 		}
 
@@ -72,7 +74,7 @@ func (kpvcb KubePVCollector) Collect(ch chan<- prometheus.Metric) {
 			if pv.Spec.CSI != nil && pv.Spec.CSI.VolumeHandle != "" {
 				providerID = pv.Spec.CSI.VolumeHandle
 			}
-			m := newKubecostPVInfoMetric("kubecost_pv_info", pv.Name, storageClass, providerID, float64(1))
+			m := newKubecostPVInfoMetric("kubecost_pv_info", pv.Name, pvUID, storageClass, providerID, float64(1))
 			ch <- m
 		}
 	}
@@ -88,15 +90,17 @@ type KubePVCapacityBytesMetric struct {
 	help   string
 	pv     string
 	value  float64
+	uid    string
 }
 
 // Creates a new KubePVCapacityBytesMetric, implementation of prometheus.Metric
-func newKubePVCapacityBytesMetric(fqname, pv string, value float64) KubePVCapacityBytesMetric {
+func newKubePVCapacityBytesMetric(fqname, pv, uid string, value float64) KubePVCapacityBytesMetric {
 	return KubePVCapacityBytesMetric{
 		fqName: fqname,
 		help:   "kube_persistentvolume_capacity_bytes pv storage capacity in bytes",
 		pv:     pv,
 		value:  value,
+		uid:    uid,
 	}
 }
 
@@ -105,6 +109,7 @@ func newKubePVCapacityBytesMetric(fqname, pv string, value float64) KubePVCapaci
 func (kpcrr KubePVCapacityBytesMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
 		"persistentvolume": kpcrr.pv,
+		"uid":              kpcrr.uid,
 	}
 	return prometheus.NewDesc(kpcrr.fqName, kpcrr.help, []string{}, l)
 }
@@ -121,6 +126,10 @@ func (kpcrr KubePVCapacityBytesMetric) Write(m *dto.Metric) error {
 			Name:  toStringPtr("persistentvolume"),
 			Value: &kpcrr.pv,
 		},
+		{
+			Name:  toStringPtr("uid"),
+			Value: &kpcrr.uid,
+		},
 	}
 	return nil
 }
@@ -136,16 +145,18 @@ type KubePVStatusPhaseMetric struct {
 	pv     string
 	phase  string
 	value  float64
+	uid    string
 }
 
-// Creates a new KubePVCapacityBytesMetric, implementation of prometheus.Metric
-func newKubePVStatusPhaseMetric(fqname, pv, phase string, value float64) KubePVStatusPhaseMetric {
+// Creates a new KubePVStatusPhaseMetric, implementation of prometheus.Metric
+func newKubePVStatusPhaseMetric(fqname, pv, uid, phase string, value float64) KubePVStatusPhaseMetric {
 	return KubePVStatusPhaseMetric{
 		fqName: fqname,
 		help:   "kube_persistentvolume_status_phase pv status phase",
 		pv:     pv,
 		phase:  phase,
 		value:  value,
+		uid:    uid,
 	}
 }
 
@@ -155,6 +166,7 @@ func (kpcrr KubePVStatusPhaseMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
 		"persistentvolume": kpcrr.pv,
 		"phase":            kpcrr.phase,
+		"uid":              kpcrr.uid,
 	}
 	return prometheus.NewDesc(kpcrr.fqName, kpcrr.help, []string{}, l)
 }
@@ -175,6 +187,10 @@ func (kpcrr KubePVStatusPhaseMetric) Write(m *dto.Metric) error {
 			Name:  toStringPtr("phase"),
 			Value: &kpcrr.phase,
 		},
+		{
+			Name:  toStringPtr("uid"),
+			Value: &kpcrr.uid,
+		},
 	}
 	return nil
 }
@@ -192,10 +208,11 @@ type KubecostPVInfoMetric struct {
 	storageClass string
 	value        float64
 	providerId   string
+	uid          string
 }
 
 // Creates a new newKubecostPVInfoMetric, implementation of prometheus.Metric
-func newKubecostPVInfoMetric(fqname, pv, storageClass, providerID string, value float64) KubecostPVInfoMetric {
+func newKubecostPVInfoMetric(fqname, pv, uid, storageClass, providerID string, value float64) KubecostPVInfoMetric {
 	return KubecostPVInfoMetric{
 		fqName:       fqname,
 		help:         "kubecost_pv_info pv info",
@@ -203,6 +220,7 @@ func newKubecostPVInfoMetric(fqname, pv, storageClass, providerID string, value 
 		storageClass: storageClass,
 		value:        value,
 		providerId:   providerID,
+		uid:          uid,
 	}
 }
 
@@ -213,6 +231,7 @@ func (kpvim KubecostPVInfoMetric) Desc() *prometheus.Desc {
 		"persistentvolume": kpvim.pv,
 		"storageclass":     kpvim.storageClass,
 		"provider_id":      kpvim.providerId,
+		"uid":              kpvim.uid,
 	}
 	return prometheus.NewDesc(kpvim.fqName, kpvim.help, []string{}, l)
 }
@@ -236,6 +255,10 @@ func (kpvim KubecostPVInfoMetric) Write(m *dto.Metric) error {
 		{
 			Name:  toStringPtr("provider_id"),
 			Value: &kpvim.providerId,
+		},
+		{
+			Name:  toStringPtr("uid"),
+			Value: &kpvim.uid,
 		},
 	}
 	return nil

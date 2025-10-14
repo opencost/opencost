@@ -736,6 +736,89 @@ func Test_AllocationFilterAnd_Matches(t *testing.T) {
 	}
 }
 
+// Test_AllocationFilterAnd_OrderIndependence tests that AND filters work correctly
+// regardless of filter order and that all allocation properties are available for
+// matching before aggregation. This ensures filters like "namespace+cluster" produce
+// the same result as "cluster+namespace" and that filtering on properties like cluster
+// works even when results will later be aggregated by namespace.
+// Addresses: https://github.com/opencost/opencost/issues/3371
+func Test_AllocationFilterAnd_OrderIndependence(t *testing.T) {
+	cases := []struct {
+		name         string
+		a            *Allocation
+		filterString string
+		expected     bool
+	}{
+		{
+			name: "namespace matches, cluster does not -> should be false",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Namespace: "ns1",
+					Cluster:   "cluster-one",
+				},
+			},
+			filterString: `namespace:"ns1"+cluster:"non-existent-uuid"`,
+			expected:     false,
+		},
+		{
+			name: "cluster first, namespace second (reversed order) -> should be false",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Namespace: "ns1",
+					Cluster:   "cluster-one",
+				},
+			},
+			filterString: `cluster:"non-existent-uuid"+namespace:"ns1"`,
+			expected:     false,
+		},
+		{
+			name: "both namespace and cluster match -> should be true",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Namespace: "ns1",
+					Cluster:   "cluster-one",
+				},
+			},
+			filterString: `namespace:"ns1"+cluster:"cluster-one"`,
+			expected:     true,
+		},
+		{
+			name: "namespace only filter -> should match",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Namespace: "ns1",
+					Cluster:   "cluster-one",
+				},
+			},
+			filterString: `namespace:"ns1"`,
+			expected:     true,
+		},
+	}
+
+	parser := afilter.NewAllocationFilterParser()
+	compiler := NewAllocationMatchCompiler(nil)
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			filterNode, err := parser.Parse(c.filterString)
+			if err != nil {
+				t.Fatalf("Failed to parse filter '%s': %s", c.filterString, err)
+			}
+
+			matcher, err := compiler.Compile(filterNode)
+			if err != nil {
+				t.Fatalf("Failed to compile filter '%s': %s", c.filterString, err)
+			}
+
+			result := matcher.Matches(c.a)
+			if result != c.expected {
+				t.Errorf("Filter '%s' expected %t, got %t. AST: %s",
+					c.filterString, c.expected, result, ast.ToPreOrderShortString(filterNode))
+			}
+		})
+	}
+}
+
 func Test_AllocationFilterOr_Matches(t *testing.T) {
 	cases := []struct {
 		name   string
