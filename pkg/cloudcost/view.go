@@ -32,6 +32,8 @@ func (vtrs ViewTableRows) Equal(that ViewTableRows) bool {
 
 type ViewTableRow struct {
 	Name              string            `json:"name"`
+	Names             []string          `json:"names,omitempty"`
+	Token             string            `json:"token,omitempty"`
 	Labels            map[string]string `json:"labels"`
 	KubernetesPercent float64           `json:"kubernetesPercent"`
 	Cost              float64           `json:"cost"`
