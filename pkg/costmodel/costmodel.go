@@ -13,6 +13,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
 	coreenv "github.com/opencost/opencost/core/pkg/env"
+	"github.com/opencost/opencost/core/pkg/filter/allocation"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
@@ -886,7 +887,8 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 
 		cnode, _, err := cp.NodePricing(cp.GetKey(nodeLabels, n))
 		if err != nil {
-			log.Infof("Error getting node pricing. Error: %s", err.Error())
+			log.Infof("Could not get node pricing for node %s. Falling back to default pricing", name)
+			log.Debugf("Error getting node pricing: %s", err.Error())
 			if cnode != nil {
 				nodes[name] = cnode
 				continue
@@ -1553,7 +1555,7 @@ func measureTime(start time.Time, threshold time.Duration, name string) {
 	}
 }
 
-func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer bool, accumulateBy opencost.AccumulateOption, shareIdle bool) (*opencost.AllocationSetRange, error) {
+func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer bool, accumulateBy opencost.AccumulateOption, shareIdle bool, filterString string) (*opencost.AllocationSetRange, error) {
 	// Validate window is legal
 	if window.IsOpen() || window.IsNegative() {
 		return nil, fmt.Errorf("illegal window: %s", window)
@@ -1607,7 +1609,7 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 				}
 			}
 
-			idleSet, err := computeIdleAllocations(allocSet, assetSet, true)
+			idleSet, err := computeIdleAllocations(allocSet, assetSet, idleByNode)
 			if err != nil {
 				return nil, fmt.Errorf("error computing idle allocations for %s: %w", opencost.NewClosedWindow(stepStart, stepEnd), err)
 			}
@@ -1621,6 +1623,33 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 
 		stepStart = stepEnd
 		stepEnd = stepStart.Add(step)
+	}
+
+	// Apply allocation filter BEFORE aggregation if provided
+	if filterString != "" {
+		parser := allocation.NewAllocationFilterParser()
+		filterNode, err := parser.Parse(filterString)
+		if err != nil {
+			return nil, fmt.Errorf("invalid filter: %w", err)
+		}
+		compiler := opencost.NewAllocationMatchCompiler(nil)
+		matcher, err := compiler.Compile(filterNode)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compile filter: %w", err)
+		}
+		filteredASR := opencost.NewAllocationSetRange()
+		for _, as := range asr.Slice() {
+			filteredAS := opencost.NewAllocationSet(as.Start(), as.End())
+			for _, alloc := range as.Allocations {
+				if matcher.Matches(alloc) {
+					filteredAS.Set(alloc)
+				}
+			}
+			if filteredAS.Length() > 0 {
+				filteredASR.Append(filteredAS)
+			}
+		}
+		asr = filteredASR
 	}
 
 	// Set aggregation options and aggregate
