@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/opencost/opencost/core/pkg/model/pb"
-	kubepb "github.com/opencost/opencost/core/pkg/model/pb/kubemodel"
+	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/core/pkg/clusters"
 	"github.com/opencost/opencost/core/pkg/diagnostics"
+	"github.com/opencost/opencost/core/pkg/model/pb"
+	kubepb "github.com/opencost/opencost/core/pkg/model/pb/kubemodel"
 	"github.com/opencost/opencost/core/pkg/source"
-	"github.com/julienschmidt/httprouter"
 )
 
 // fakeClusterInfo implements clusters.ClusterInfoProvider
@@ -45,15 +45,273 @@ func (f *fakeClusterMap) NameIDFor(clusterID string) string {
 }
 
 // fakeDataSource implements source.OpenCostDataSource
-type fakeDataSource struct{}
+type fakeDataSource struct {
+	metricsQuerier source.MetricsQuerier
+}
 
-func (f *fakeDataSource) RegisterEndPoints(router *httprouter.Router)           {}
+func (f *fakeDataSource) RegisterEndPoints(router *httprouter.Router)                   {}
 func (f *fakeDataSource) RegisterDiagnostics(diagService diagnostics.DiagnosticService) {}
-func (f *fakeDataSource) Metrics() source.MetricsQuerier                        { return nil }
-func (f *fakeDataSource) ClusterMap() clusters.ClusterMap                       { return &fakeClusterMap{} }
-func (f *fakeDataSource) ClusterInfo() clusters.ClusterInfoProvider             { return &fakeClusterInfo{} }
-func (f *fakeDataSource) BatchDuration() time.Duration                          { return time.Hour }
-func (f *fakeDataSource) Resolution() time.Duration                             { return time.Minute }
+func (f *fakeDataSource) Metrics() source.MetricsQuerier {
+	if f.metricsQuerier != nil {
+		return f.metricsQuerier
+	}
+	return nil
+}
+func (f *fakeDataSource) ClusterMap() clusters.ClusterMap           { return &fakeClusterMap{} }
+func (f *fakeDataSource) ClusterInfo() clusters.ClusterInfoProvider { return &fakeClusterInfo{} }
+func (f *fakeDataSource) BatchDuration() time.Duration              { return time.Hour }
+func (f *fakeDataSource) Resolution() time.Duration                 { return time.Minute }
+
+// fakeMetricsQuerier implements source.MetricsQuerier with only the methods we need
+type fakeMetricsQuerier struct {
+	namespaceLabelsResult []*source.NamespaceLabelsResult
+	namespaceLabelsError  error
+}
+
+func (f *fakeMetricsQuerier) QueryNamespaceLabels(start, end time.Time) *source.Future[source.NamespaceLabelsResult] {
+	if f.namespaceLabelsError != nil {
+		// For error cases, we can't use NewFutureFrom, so return an empty result
+		return source.NewFutureFrom([]*source.NamespaceLabelsResult{})
+	}
+	return source.NewFutureFrom(f.namespaceLabelsResult)
+}
+
+// Stub implementations for all other required methods
+func (f *fakeMetricsQuerier) QueryPVActiveMinutes(start, end time.Time) *source.Future[source.PVActiveMinutesResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryPVUsedAverage(start, end time.Time) *source.Future[source.PVUsedAvgResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryPVUsedMax(start, end time.Time) *source.Future[source.PVUsedMaxResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryLocalStorageActiveMinutes(start, end time.Time) *source.Future[source.LocalStorageActiveMinutesResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryLocalStorageCost(start, end time.Time) *source.Future[source.LocalStorageCostResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryLocalStorageUsedCost(start, end time.Time) *source.Future[source.LocalStorageUsedCostResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryLocalStorageUsedAvg(start, end time.Time) *source.Future[source.LocalStorageUsedAvgResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryLocalStorageUsedMax(start, end time.Time) *source.Future[source.LocalStorageUsedMaxResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryLocalStorageBytes(start, end time.Time) *source.Future[source.LocalStorageBytesResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNodeActiveMinutes(start, end time.Time) *source.Future[source.NodeActiveMinutesResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNodeCPUCoresCapacity(start, end time.Time) *source.Future[source.NodeCPUCoresCapacityResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNodeCPUCoresAllocatable(start, end time.Time) *source.Future[source.NodeCPUCoresAllocatableResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNodeRAMBytesCapacity(start, end time.Time) *source.Future[source.NodeRAMBytesCapacityResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNodeRAMBytesAllocatable(start, end time.Time) *source.Future[source.NodeRAMBytesAllocatableResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNodeGPUCount(start, end time.Time) *source.Future[source.NodeGPUCountResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNodeCPUModeTotal(start, end time.Time) *source.Future[source.NodeCPUModeTotalResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNodeIsSpot(start, end time.Time) *source.Future[source.NodeIsSpotResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNodeRAMSystemPercent(start, end time.Time) *source.Future[source.NodeRAMSystemPercentResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNodeRAMUserPercent(start, end time.Time) *source.Future[source.NodeRAMUserPercentResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryLBActiveMinutes(start, end time.Time) *source.Future[source.LBActiveMinutesResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryLBPricePerHr(start, end time.Time) *source.Future[source.LBPricePerHrResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryClusterManagementDuration(start, end time.Time) *source.Future[source.ClusterManagementDurationResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryClusterManagementPricePerHr(start, end time.Time) *source.Future[source.ClusterManagementPricePerHrResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryPods(start, end time.Time) *source.Future[source.PodsResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryPodsUID(start, end time.Time) *source.Future[source.PodsResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryRAMBytesAllocated(start, end time.Time) *source.Future[source.RAMBytesAllocatedResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryRAMRequests(start, end time.Time) *source.Future[source.RAMRequestsResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryRAMUsageAvg(start, end time.Time) *source.Future[source.RAMUsageAvgResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryRAMUsageMax(start, end time.Time) *source.Future[source.RAMUsageMaxResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNodeRAMPricePerGiBHr(start, end time.Time) *source.Future[source.NodeRAMPricePerGiBHrResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryCPUCoresAllocated(start, end time.Time) *source.Future[source.CPUCoresAllocatedResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryCPURequests(start, end time.Time) *source.Future[source.CPURequestsResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryCPUUsageAvg(start, end time.Time) *source.Future[source.CPUUsageAvgResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryCPUUsageMax(start, end time.Time) *source.Future[source.CPUUsageMaxResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNodeCPUPricePerHr(start, end time.Time) *source.Future[source.NodeCPUPricePerHrResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryGPUsAllocated(start, end time.Time) *source.Future[source.GPUsAllocatedResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryGPUsRequested(start, end time.Time) *source.Future[source.GPUsRequestedResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryGPUsUsageAvg(start, end time.Time) *source.Future[source.GPUsUsageAvgResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryGPUsUsageMax(start, end time.Time) *source.Future[source.GPUsUsageMaxResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNodeGPUPricePerHr(start, end time.Time) *source.Future[source.NodeGPUPricePerHrResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryGPUInfo(start, end time.Time) *source.Future[source.GPUInfoResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryIsGPUShared(start, end time.Time) *source.Future[source.IsGPUSharedResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryPodPVCAllocation(start, end time.Time) *source.Future[source.PodPVCAllocationResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryPVCBytesRequested(start, end time.Time) *source.Future[source.PVCBytesRequestedResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryPVCInfo(start, end time.Time) *source.Future[source.PVCInfoResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryPVBytes(start, end time.Time) *source.Future[source.PVBytesResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryPVPricePerGiBHour(start, end time.Time) *source.Future[source.PVPricePerGiBHourResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryPVInfo(start, end time.Time) *source.Future[source.PVInfoResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNetZoneGiB(start, end time.Time) *source.Future[source.NetZoneGiBResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNetZonePricePerGiB(start, end time.Time) *source.Future[source.NetZonePricePerGiBResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNetRegionGiB(start, end time.Time) *source.Future[source.NetRegionGiBResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNetRegionPricePerGiB(start, end time.Time) *source.Future[source.NetRegionPricePerGiBResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNetInternetGiB(start, end time.Time) *source.Future[source.NetInternetGiBResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNetInternetPricePerGiB(start, end time.Time) *source.Future[source.NetInternetPricePerGiBResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNetInternetServiceGiB(start, end time.Time) *source.Future[source.NetInternetServiceGiBResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNetTransferBytes(start, end time.Time) *source.Future[source.NetTransferBytesResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNetZoneIngressGiB(start, end time.Time) *source.Future[source.NetZoneIngressGiBResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNetRegionIngressGiB(start, end time.Time) *source.Future[source.NetRegionIngressGiBResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNetInternetIngressGiB(start, end time.Time) *source.Future[source.NetInternetIngressGiBResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNetInternetServiceIngressGiB(start, end time.Time) *source.Future[source.NetInternetServiceIngressGiBResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNetReceiveBytes(start, end time.Time) *source.Future[source.NetReceiveBytesResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNamespaceAnnotations(start, end time.Time) *source.Future[source.NamespaceAnnotationsResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryPodAnnotations(start, end time.Time) *source.Future[source.PodAnnotationsResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryNodeLabels(start, end time.Time) *source.Future[source.NodeLabelsResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryPodLabels(start, end time.Time) *source.Future[source.PodLabelsResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryServiceLabels(start, end time.Time) *source.Future[source.ServiceLabelsResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryDeploymentLabels(start, end time.Time) *source.Future[source.DeploymentLabelsResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryStatefulSetLabels(start, end time.Time) *source.Future[source.StatefulSetLabelsResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryDaemonSetLabels(start, end time.Time) *source.Future[source.DaemonSetLabelsResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryJobLabels(start, end time.Time) *source.Future[source.JobLabelsResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryPodsWithReplicaSetOwner(start, end time.Time) *source.Future[source.PodsWithReplicaSetOwnerResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryReplicaSetsWithoutOwners(start, end time.Time) *source.Future[source.ReplicaSetsWithoutOwnersResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryReplicaSetsWithRollout(start, end time.Time) *source.Future[source.ReplicaSetsWithRolloutResult] {
+	return nil
+}
+func (f *fakeMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {
+	return time.Time{}, time.Time{}, nil
+}
+
+// Helper function to check if a string contains a substring
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+		func() bool {
+			for i := 0; i <= len(s)-len(substr); i++ {
+				if s[i:i+len(substr)] == substr {
+					return true
+				}
+			}
+			return false
+		}())
+}
 
 func TestNewBuilderValidation(t *testing.T) {
 	t.Run("no datasource", func(t *testing.T) {
@@ -76,13 +334,50 @@ func TestNewBuilderValidation(t *testing.T) {
 		return nil
 	}
 
-	t.Run("no cluster ID", func(t *testing.T) {
+	t.Run("no cluster ID and no kube-system namespace", func(t *testing.T) {
+		// When ClusterID is not provided and kube-system namespace can't be found,
+		// NewBuilder should fail with an appropriate error
+		ds := &fakeDataSource{
+			metricsQuerier: &fakeMetricsQuerier{
+				namespaceLabelsResult: []*source.NamespaceLabelsResult{},
+				namespaceLabelsError:  nil,
+			},
+		}
 		_, err := NewBuilder(Config{
-			DataSource: &fakeDataSource{},
-			Hydrators:  []ModelHydrator{noopHydrator},
+			DataSource:  ds,
+			Hydrators:   []ModelHydrator{noopHydrator},
+			ClusterName: "test-cluster",
 		})
-		if err == nil || err.Error() != "kubemodel: cluster ID must be provided" {
-			t.Fatalf("expected cluster ID error, got %v", err)
+		if err == nil {
+			t.Fatal("expected error when cluster ID not provided and kube-system not found")
+		}
+		if !contains(err.Error(), "kube-system namespace UID not found") {
+			t.Fatalf("expected kube-system error, got %v", err)
+		}
+	})
+
+	t.Run("cluster ID defaults to kube-system UID", func(t *testing.T) {
+		// When ClusterID is not provided, it should default to kube-system namespace UID
+		kubeSystemUID := "abc-123-def-456"
+		ds := &fakeDataSource{
+			metricsQuerier: &fakeMetricsQuerier{
+				namespaceLabelsResult: []*source.NamespaceLabelsResult{
+					{Namespace: "default", UID: "other-uid"},
+					{Namespace: "kube-system", UID: kubeSystemUID},
+				},
+				namespaceLabelsError: nil,
+			},
+		}
+		builder, err := NewBuilder(Config{
+			DataSource:  ds,
+			Hydrators:   []ModelHydrator{noopHydrator},
+			ClusterName: "test-cluster",
+		})
+		if err != nil {
+			t.Fatalf("unexpected err: %v", err)
+		}
+		if builder.clusterID != kubeSystemUID {
+			t.Fatalf("expected cluster ID to be kube-system UID %q, got %q", kubeSystemUID, builder.clusterID)
 		}
 	})
 

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/opencost/opencost/core/pkg/model/pb"
+	"github.com/opencost/opencost/core/pkg/model/pb"
 	kubepb "github.com/opencost/opencost/core/pkg/model/pb/kubemodel"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

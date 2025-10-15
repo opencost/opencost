@@ -46,6 +46,8 @@ type Config struct {
 }
 
 // NewBuilder creates a new Builder with the given configuration.
+// If ClusterID is not provided, it will attempt to fetch the kube-system namespace UID
+// as a default, which is unique per cluster and stable across its lifetime.
 func NewBuilder(cfg Config) (*Builder, error) {
 	if cfg.DataSource == nil {
 		return nil, ErrNoDataSource
@@ -53,9 +55,17 @@ func NewBuilder(cfg Config) (*Builder, error) {
 	if len(cfg.Hydrators) == 0 {
 		return nil, ErrNoHydrators
 	}
-	if cfg.ClusterID == "" {
-		return nil, fmt.Errorf("kubemodel: cluster ID must be provided")
+
+	// If ClusterID not provided, fetch kube-system namespace UID as default
+	clusterID := cfg.ClusterID
+	if clusterID == "" {
+		uid, err := getKubeSystemNamespaceUID(cfg.DataSource)
+		if err != nil {
+			return nil, fmt.Errorf("kubemodel: cluster ID not provided and failed to get kube-system namespace UID: %w", err)
+		}
+		clusterID = uid
 	}
+
 	if cfg.ClusterName == "" {
 		return nil, fmt.Errorf("kubemodel: cluster name must be provided")
 	}
@@ -63,11 +73,36 @@ func NewBuilder(cfg Config) (*Builder, error) {
 	return &Builder{
 		datasource:  cfg.DataSource,
 		hydrators:   cfg.Hydrators,
-		clusterID:   cfg.ClusterID,
+		clusterID:   clusterID,
 		clusterName: cfg.ClusterName,
 		account:     cfg.Account,
 		provider:    cfg.Provider,
 	}, nil
+}
+
+// getKubeSystemNamespaceUID fetches the UID of the kube-system namespace from the datasource.
+// This UID is unique per cluster and stable across its lifetime, making it a good default cluster ID.
+func getKubeSystemNamespaceUID(ds source.OpenCostDataSource) (string, error) {
+	metrics := ds.Metrics()
+
+	// Query namespace labels from the last hour to find kube-system
+	end := time.Now()
+	start := end.Add(-1 * time.Hour)
+
+	future := metrics.QueryNamespaceLabels(start, end)
+	results, err := future.Await()
+	if err != nil {
+		return "", fmt.Errorf("failed to query namespace labels: %w", err)
+	}
+
+	// Find kube-system namespace and return its UID
+	for _, ns := range results {
+		if ns.Namespace == "kube-system" && ns.UID != "" {
+			return ns.UID, nil
+		}
+	}
+
+	return "", fmt.Errorf("kube-system namespace UID not found in metrics")
 }
 
 // ComputeModel builds a model for the supplied time window using the datasource and hydrators.

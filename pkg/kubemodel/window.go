@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	pb "github.com/opencost/opencost/core/pkg/model/pb"
+	"github.com/opencost/opencost/core/pkg/model/pb"
 )
 
 func DurationToResolution(d time.Duration) (pb.Resolution, error) {
