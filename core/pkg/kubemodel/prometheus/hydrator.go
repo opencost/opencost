@@ -7,7 +7,7 @@ import (
 
 	kubepb "github.com/opencost/opencost/core/pkg/model/pb/kubemodel"
 	"github.com/opencost/opencost/core/pkg/source"
-	"github.com/opencost/opencost/pkg/kubemodel"
+	"github.com/opencost/opencost/core/pkg/kubemodel"
 )
 
 // ============================================================================

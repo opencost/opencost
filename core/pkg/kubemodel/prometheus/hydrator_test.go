@@ -9,7 +9,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/clusters"
 	"github.com/opencost/opencost/core/pkg/diagnostics"
 	"github.com/opencost/opencost/core/pkg/source"
-	"github.com/opencost/opencost/pkg/kubemodel"
+	"github.com/opencost/opencost/core/pkg/kubemodel"
 	"github.com/julienschmidt/httprouter"
 )
 
