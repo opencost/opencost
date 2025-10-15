@@ -209,6 +209,7 @@ type AssetTotals struct {
 	End                             time.Time `json:"end"`
 	Cluster                         string    `json:"cluster"`
 	Node                            string    `json:"node"`
+	ProviderID                      string    `json:"providerID,omitempty"`
 	Count                           int       `json:"count"`
 	AttachedVolumeCost              float64   `json:"attachedVolumeCost"`
 	AttachedVolumeCostAdjustment    float64   `json:"attachedVolumeCostAdjustment"`
@@ -245,6 +246,7 @@ func (art *AssetTotals) Clone() *AssetTotals {
 		End:                             art.End,
 		Cluster:                         art.Cluster,
 		Node:                            art.Node,
+		ProviderID:                      art.ProviderID,
 		Count:                           art.Count,
 		AttachedVolumeCost:              art.AttachedVolumeCost,
 		AttachedVolumeCostAdjustment:    art.AttachedVolumeCostAdjustment,
@@ -378,12 +380,18 @@ func ComputeAssetTotals(as *AssetSet, byAsset bool) map[string]*AssetTotals {
 		adjustedGPUCost := node.GPUCost * adjustmentRate
 		gpuCostAdjustment := adjustedGPUCost - node.GPUCost
 
+		var providerID string
+		if byAsset && node.Properties.ProviderID != "" {
+			providerID = node.Properties.ProviderID
+		}
+
 		if _, ok := arts[key]; !ok {
 			arts[key] = &AssetTotals{
-				Start:   node.Start,
-				End:     node.End,
-				Cluster: node.Properties.Cluster,
-				Node:    node.Properties.Name,
+				Start:      node.Start,
+				End:        node.End,
+				Cluster:    node.Properties.Cluster,
+				Node:       node.Properties.Name,
+				ProviderID: providerID,
 			}
 		}
 
