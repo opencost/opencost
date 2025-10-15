@@ -893,3 +893,49 @@ func TestNodePriceFromCSVByClass(t *testing.T) {
 	}
 
 }
+
+func TestPVPricing_CaseInsensitive(t *testing.T) {
+	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
+	wantPrice := "0.1337"
+
+	c := &provider.CSVProvider{
+		CSVLocation: "../../../configs/pricing_schema_pv.csv",
+		PVMapField:  "metadata.name",
+		CustomProvider: &provider.CustomProvider{
+			Config: provider.NewProviderConfig(confMan, "../../../configs/default.json"),
+		},
+	}
+	c.DownloadPricingData()
+
+	t.Run("UppercaseInput", func(t *testing.T) {
+		pv := &clustercache.PersistentVolume{}
+		pv.Name = "PVC-08e1f205-d7a9-4430-90fc-7b3965a18c4D"
+
+		key := c.GetPVKey(pv, make(map[string]string), "")
+		resPV, err := c.PVPricing(key)
+		if err != nil {
+			t.Errorf("Error in PVPricing: %s", err.Error())
+		} else {
+			gotPrice := resPV.Cost
+			if gotPrice != wantPrice {
+				t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+			}
+		}
+	})
+
+	t.Run("LowercaseInput", func(t *testing.T) {
+		pv := &clustercache.PersistentVolume{}
+		pv.Name = "pvc-08e1f205-d7a9-4430-90fc-7b3965a18c4d"
+
+		key := c.GetPVKey(pv, make(map[string]string), "")
+		resPV, err := c.PVPricing(key)
+		if err != nil {
+			t.Errorf("Error in PVPricing: %s", err.Error())
+		} else {
+			gotPrice := resPV.Cost
+			if gotPrice != wantPrice {
+				t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+			}
+		}
+	})
+}
