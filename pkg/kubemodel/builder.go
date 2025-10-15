@@ -6,39 +6,71 @@ import (
 	"fmt"
 	"time"
 
-	pb "github.com/opencost/opencost/core/pkg/model/pb"
+	"github.com/opencost/opencost/core/pkg/model/pb"
+	kubepb "github.com/opencost/opencost/core/pkg/model/pb/kubemodel"
+	"github.com/opencost/opencost/core/pkg/source"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// ModelHydrator is a function that hydrates a model using data from an OpenCostDataSource.
+// It takes the model, datasource, start time, and end time, and populates the model's resources.
+type ModelHydrator func(ctx context.Context, model *Model, ds source.OpenCostDataSource, start, end time.Time) error
+
 var (
-	ErrNoSources = errors.New("kubemodel: no sources configured")
+	ErrNoDataSource = errors.New("kubemodel: no datasource configured")
+	ErrNoHydrators  = errors.New("kubemodel: no hydrators configured")
 )
 
-// Builder coordinates one or more Sources to assemble a complete model.
+// Builder uses an OpenCostDataSource and hydrators to assemble a complete model.
 type Builder struct {
-	sources []Source
+	datasource source.OpenCostDataSource
+	hydrators  []ModelHydrator
+
+	// Cluster metadata
+	clusterID   string
+	clusterName string
+	account     string
+	provider    kubepb.Provider
 }
 
-// NewBuilder wires the provided sources together. At least one source is
-// required; each nil entry is ignored so callers can conditionally append.
-func NewBuilder(sources ...Source) (*Builder, error) {
-	filtered := make([]Source, 0, len(sources))
-	for _, src := range sources {
-		if src != nil {
-			filtered = append(filtered, src)
-		}
+// Config contains the configuration for creating a Builder.
+type Config struct {
+	DataSource source.OpenCostDataSource
+	Hydrators  []ModelHydrator
+
+	ClusterID   string
+	ClusterName string
+	Account     string
+	Provider    kubepb.Provider
+}
+
+// NewBuilder creates a new Builder with the given configuration.
+func NewBuilder(cfg Config) (*Builder, error) {
+	if cfg.DataSource == nil {
+		return nil, ErrNoDataSource
 	}
-	if len(filtered) == 0 {
-		return nil, ErrNoSources
+	if len(cfg.Hydrators) == 0 {
+		return nil, ErrNoHydrators
 	}
+	if cfg.ClusterID == "" {
+		return nil, fmt.Errorf("kubemodel: cluster ID must be provided")
+	}
+	if cfg.ClusterName == "" {
+		return nil, fmt.Errorf("kubemodel: cluster name must be provided")
+	}
+
 	return &Builder{
-		sources: filtered,
+		datasource:  cfg.DataSource,
+		hydrators:   cfg.Hydrators,
+		clusterID:   cfg.ClusterID,
+		clusterName: cfg.ClusterName,
+		account:     cfg.Account,
+		provider:    cfg.Provider,
 	}, nil
 }
 
-// ComputeModel requests each source to compute a model for the supplied window,
-// merging the results into a single snapshot.
+// ComputeModel builds a model for the supplied time window using the datasource and hydrators.
 func (b *Builder) ComputeModel(ctx context.Context, start, end time.Time) (*Model, error) {
 	if b == nil {
 		return nil, fmt.Errorf("kubemodel: builder is nil")
@@ -66,16 +98,22 @@ func (b *Builder) ComputeModel(ctx context.Context, start, end time.Time) (*Mode
 		Start:      timestamppb.New(start),
 	}
 
-	result := NewModel()
-	result.Window = proto.Clone(window).(*pb.Window)
-	for _, src := range b.sources {
-		sourceWindow := proto.Clone(window).(*pb.Window)
-		model, err := src.ComputeModel(ctx, sourceWindow)
-		if err != nil {
-			return nil, fmt.Errorf("kubemodel: source compute failed: %w", err)
-		}
-		result.Merge(model)
+	model := NewModel()
+	model.Window = proto.Clone(window).(*pb.Window)
+	model.Cluster = &kubepb.Cluster{
+		ID:       b.clusterID,
+		Provider: b.provider,
+		Account:  b.account,
+		Name:     b.clusterName,
+		Window:   proto.Clone(window).(*pb.Window),
 	}
 
-	return result, nil
+	// Run all hydrators to populate the model
+	for _, hydrator := range b.hydrators {
+		if err := hydrator(ctx, model, b.datasource, start, end); err != nil {
+			return nil, fmt.Errorf("kubemodel: hydrator failed: %w", err)
+		}
+	}
+
+	return model, nil
 }
