@@ -8,7 +8,6 @@ Official list of [OpenCost Maintainers](https://github.com/orgs/opencost/teams/o
 | Ajay Tripathy | @AjayTripathy | IBM | <ajay.tripathy@ibm.com> |
 | Alex Meijer | @ameijer | IBM | <alexander.meijer@ibm.com> |
 | Artur Khantimirov | @r2k1 | Microsoft | <akhantimirov@microsoft.com> |
-| Cliff Colvin | @cliffcolvin | IBM | <clifford.colvin@ibm.com> |
 | Matt Bolt | @​mbolt35 | IBM | <matthew.bolt@ibm.com> |
 | Niko Kovacevic | @nikovacevic | IBM | <Nicholas.Kovacevic@ibm.com> |
 | Sean Holcomb | @Sean-Holcomb | IBM | <sean.holcomb@ibm.com> |
@@ -18,6 +17,7 @@ We would like to acknowledge previous committers and their huge contributions to
 
 | Maintainer | GitHub ID | Affiliation | Email |
 | --------------- | --------- | ----------- | ----------- |
+| Cliff Colvin | @cliffcolvin | IBM | <clifford.colvin@ibm.com> |
 | Michael Dresser | @michaelmdresser | Kubecost (former) | <michaelmdresser@gmail.com> |
 | Matt Ray | @mattray | Kubecost (former) | <mattray@kubecost.com> |
 | Thomas Evans | @teevans | Kubecost (former) | <thomas@kubecost.com> |
