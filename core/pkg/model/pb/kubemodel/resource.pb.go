@@ -25,25 +25,40 @@ const (
 type Unit int32
 
 const (
-	Unit_UNIT_CPU_CORES     Unit = 0 // CPU in cores
-	Unit_UNIT_RAM_BYTES     Unit = 1 // RAM in bytes
-	Unit_UNIT_GPU           Unit = 2 // GPU count
-	Unit_UNIT_STORAGE_BYTES Unit = 3 // Storage in bytes
+	Unit_UNIT_M     Unit = 0 // Unit of CPU ("millicore")
+	Unit_UNIT_MI    Unit = 1 // Unit of RAM ("mebibyte")
+	Unit_UNIT_GPU   Unit = 2 // Unit of GPU ("GPU")
+	Unit_UNIT_GB    Unit = 3 // Unit of storage size ("gigabyte")
+	Unit_UNIT_B     Unit = 4 // Unit of network transfer ("byte")
+	Unit_UNIT_M_HR  Unit = 5 // Unit of CPU-hours ("millicore-hour")
+	Unit_UNIT_MI_HR Unit = 6 // Unit of RAM-hours ("mebibyte-hour")
+	Unit_UNIT_GB_HR Unit = 7 // Unit of storage size-hours ("gigabyte-hour")
+	Unit_UNIT_HR    Unit = 8 // Unit of time ("hour")
 )
 
 // Enum value maps for Unit.
 var (
 	Unit_name = map[int32]string{
-		0: "UNIT_CPU_CORES",
-		1: "UNIT_RAM_BYTES",
+		0: "UNIT_M",
+		1: "UNIT_MI",
 		2: "UNIT_GPU",
-		3: "UNIT_STORAGE_BYTES",
+		3: "UNIT_GB",
+		4: "UNIT_B",
+		5: "UNIT_M_HR",
+		6: "UNIT_MI_HR",
+		7: "UNIT_GB_HR",
+		8: "UNIT_HR",
 	}
 	Unit_value = map[string]int32{
-		"UNIT_CPU_CORES":     0,
-		"UNIT_RAM_BYTES":     1,
-		"UNIT_GPU":           2,
-		"UNIT_STORAGE_BYTES": 3,
+		"UNIT_M":     0,
+		"UNIT_MI":    1,
+		"UNIT_GPU":   2,
+		"UNIT_GB":    3,
+		"UNIT_B":     4,
+		"UNIT_M_HR":  5,
+		"UNIT_MI_HR": 6,
+		"UNIT_GB_HR": 7,
+		"UNIT_HR":    8,
 	}
 )
 
@@ -117,7 +132,7 @@ func (x *ResourceQuantity) GetUnit() Unit {
 	if x != nil {
 		return x.Unit
 	}
-	return Unit_UNIT_CPU_CORES
+	return Unit_UNIT_M
 }
 
 func (x *ResourceQuantity) GetQuantity() float64 {
@@ -170,7 +185,7 @@ func (x *ResourcePrice) GetUnit() Unit {
 	if x != nil {
 		return x.Unit
 	}
-	return Unit_UNIT_CPU_CORES
+	return Unit_UNIT_M
 }
 
 func (x *ResourcePrice) GetPricePerUnit() float64 {
@@ -190,12 +205,21 @@ const file_kubemodel_resource_proto_rawDesc = "" +
 	"\bquantity\x18\x02 \x01(\x01R\bquantity\"X\n" +
 	"\rResourcePrice\x12#\n" +
 	"\x04unit\x18\x01 \x01(\x0e2\x0f.kubemodel.UnitR\x04unit\x12\"\n" +
-	"\fpricePerUnit\x18\x02 \x01(\x01R\fpricePerUnit*T\n" +
-	"\x04Unit\x12\x12\n" +
-	"\x0eUNIT_CPU_CORES\x10\x00\x12\x12\n" +
-	"\x0eUNIT_RAM_BYTES\x10\x01\x12\f\n" +
-	"\bUNIT_GPU\x10\x02\x12\x16\n" +
-	"\x12UNIT_STORAGE_BYTES\x10\x03B:Z8github.com/opencost/opencost/core/pkg/model/pb/kubemodelb\x06proto3"
+	"\fpricePerUnit\x18\x02 \x01(\x01R\fpricePerUnit*\x82\x01\n" +
+	"\x04Unit\x12\n" +
+	"\n" +
+	"\x06UNIT_M\x10\x00\x12\v\n" +
+	"\aUNIT_MI\x10\x01\x12\f\n" +
+	"\bUNIT_GPU\x10\x02\x12\v\n" +
+	"\aUNIT_GB\x10\x03\x12\n" +
+	"\n" +
+	"\x06UNIT_B\x10\x04\x12\r\n" +
+	"\tUNIT_M_HR\x10\x05\x12\x0e\n" +
+	"\n" +
+	"UNIT_MI_HR\x10\x06\x12\x0e\n" +
+	"\n" +
+	"UNIT_GB_HR\x10\a\x12\v\n" +
+	"\aUNIT_HR\x10\bB:Z8github.com/opencost/opencost/core/pkg/model/pb/kubemodelb\x06proto3"
 
 var (
 	file_kubemodel_resource_proto_rawDescOnce sync.Once

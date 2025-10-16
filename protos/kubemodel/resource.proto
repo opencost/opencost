@@ -5,10 +5,15 @@ option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
 
 // Unit represents the unit of measurement for resources
 enum Unit {
-  UNIT_CPU_CORES = 0;      // CPU in cores
-  UNIT_RAM_BYTES = 1;      // RAM in bytes
-  UNIT_GPU = 2;            // GPU count
-  UNIT_STORAGE_BYTES = 3;  // Storage in bytes
+  UNIT_M = 0; // Unit of CPU ("millicore")
+  UNIT_MI = 1; // Unit of RAM ("mebibyte")
+  UNIT_GPU = 2; // Unit of GPU ("GPU")
+  UNIT_GB = 3; // Unit of storage size ("gigabyte")
+  UNIT_B = 4; // Unit of network transfer ("byte")
+  UNIT_M_HR = 5; // Unit of CPU-hours ("millicore-hour")
+  UNIT_MI_HR = 6; // Unit of RAM-hours ("mebibyte-hour")
+  UNIT_GB_HR = 7; // Unit of storage size-hours ("gigabyte-hour")
+  UNIT_HR = 8; // Unit of time ("hour")
 }
 
 // ResourceQuantity represents a quantity of a specific resource
