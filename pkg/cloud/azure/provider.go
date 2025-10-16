@@ -288,15 +288,18 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 
 	retailPrice := ""
 	spotPrice := ""
-	for _, item := range pricingPayload.Items {
-		if item.Type == "Consumption" && !strings.Contains(item.ProductName, "Windows") {
-			if !strings.Contains(strings.ToLower(item.SkuName), " spot") {
-				spotPrice = fmt.Sprintf("%f", item.RetailPrice)
-			} else {
-				retailPrice = fmt.Sprintf("%f", item.RetailPrice)
-			}
-		}
-	}
+	// THIS IS THE CORRECTED CODE
+for _, item := range pricingPayload.Items {
+    if item.Type == "Consumption" && !strings.Contains(item.ProductName, "Windows") {
+        // If the name does NOT contain "spot", it's a standard retail price.
+        if !strings.Contains(strings.ToLower(item.SkuName), " spot") {
+            retailPrice = fmt.Sprintf("%f", item.RetailPrice) 
+        } else {
+            // Otherwise, it's a spot instance price.
+            spotPrice = fmt.Sprintf("%f", item.RetailPrice)
+        }
+    }
+}
 
 	log.DedupedInfof(5, "done parsing retail price payload from \"%s\"\n", pricingURL)
 
