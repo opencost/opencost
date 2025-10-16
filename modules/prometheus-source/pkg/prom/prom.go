@@ -395,6 +395,7 @@ func NewPrometheusClient(address string, config *PrometheusClientConfig) (promet
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: config.TLSInsecureSkipVerify,
 			RootCAs:            config.RootCAs,
+			MinVersion:         tls.VersionTLS12,
 		},
 	})
 	pc := prometheus.Config{
