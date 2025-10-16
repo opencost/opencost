@@ -31,6 +31,7 @@ type ClusterInfo struct {
 	Project     string `json:"project"`
 	Region      string `json:"region"`
 	Provisioner string `json:"provisioner"`
+	Version     string `json:"version"`
 }
 
 // Clone creates a copy of ClusterInfo and returns it
@@ -48,6 +49,7 @@ func (ci *ClusterInfo) Clone() *ClusterInfo {
 		Project:     ci.Project,
 		Region:      ci.Region,
 		Provisioner: ci.Provisioner,
+		Version:     ci.Version,
 	}
 }
 
