@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+import "kubemodel/diagnostic.proto";
+import "google/protobuf/timestamp.proto";
+
+package kubemodel;
+option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
+
+// Namespace represents a Kubernetes namespace (allocated resource grouping)
+message Namespace {
+  // Identification
+  string ID = 1;
+  string clusterID = 2;
+
+  // Properties
+  string name = 3;
+  map<string, string> labels = 4;
+  map<string, string> annotations = 5;
+
+  // Resource lifecycle (only when different from cluster window)
+  optional google.protobuf.Timestamp creationTime = 7;
+  optional google.protobuf.Timestamp deletionTime = 8;
+
+  // Diagnostic information about this resource
+  optional DiagnosticResult diagnostic = 99;
+}

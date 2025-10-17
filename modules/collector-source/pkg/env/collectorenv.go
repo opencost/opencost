@@ -5,27 +5,25 @@ import (
 )
 
 const (
-	NetworkPortEnvVar               = "NETWORK_PORT"
-	Collector10mResolutionRetention = "COLLECTOR_10M_RESOLUTION_RETENTION"
-	Collector1hResolutionRetention  = "COLLECTOR_1H_RESOLUTION_RETENTION"
-	Collection1dResolutionRetention = "COLLECTOR_1D_RESOLUTION_RETENTION"
-	CollectorScrapeInterval         = "COLLECTOR_SCRAPE_INTERVAL"
+	CollectorEnvVarPrefix   = "COLLECTOR_"
+	CollectorScrapeInterval = "COLLECTOR_SCRAPE_INTERVAL"
+	NetworkPortEnvVar       = "NETWORK_PORT"
 )
 
 func GetNetworkPort() int {
 	return env.GetInt(NetworkPortEnvVar, 3001)
 }
 
-func GetCollector10mResolutionRetention() int {
-	return env.GetInt(Collector10mResolutionRetention, 36)
+func GetCollectorResolution10mRetention() int {
+	return env.GetPrefixInt(CollectorEnvVarPrefix, env.Resolution10mRetentionEnvVar, 36)
 }
 
-func GetCollector1hResolutionRetention() int {
-	return env.GetInt(Collector1hResolutionRetention, 49)
+func GetCollectorResolution1hRetention() int {
+	return env.GetPrefixInt(CollectorEnvVarPrefix, env.Resolution1hRetentionEnvVar, 49)
 }
 
-func GetCollection1dResolutionRetention() int {
-	return env.GetInt(Collection1dResolutionRetention, 15)
+func GetCollectionResolution1dRetention() int {
+	return env.GetPrefixInt(CollectorEnvVarPrefix, env.Resolution1dRetentionEnvVar, 15)
 }
 
 func GetCollectorScrapeIntervalSeconds() string {

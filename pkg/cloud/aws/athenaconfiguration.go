@@ -18,6 +18,7 @@ type AthenaConfiguration struct {
 	Workgroup  string     `json:"workgroup"`
 	Account    string     `json:"account"`
 	Authorizer Authorizer `json:"authorizer"`
+	CURVersion string     `json:"curVersion,omitempty"` // "1.0" or "2.0", defaults to "2.0" if not specified
 }
 
 func (ac *AthenaConfiguration) Validate() error {
@@ -51,6 +52,11 @@ func (ac *AthenaConfiguration) Validate() error {
 
 	if ac.Account == "" {
 		return fmt.Errorf("AthenaConfiguration: missing account")
+	}
+
+	// Validate CURVersion if specified
+	if ac.CURVersion != "" && ac.CURVersion != "1.0" && ac.CURVersion != "2.0" {
+		return fmt.Errorf("AthenaConfiguration: invalid CURVersion '%s', must be '1.0' or '2.0'", ac.CURVersion)
 	}
 
 	return nil
@@ -103,6 +109,10 @@ func (ac *AthenaConfiguration) Equals(config cloud.Config) bool {
 		return false
 	}
 
+	if ac.CURVersion != thatConfig.CURVersion {
+		return false
+	}
+
 	return true
 }
 
@@ -116,6 +126,7 @@ func (ac *AthenaConfiguration) Sanitize() cloud.Config {
 		Workgroup:  ac.Workgroup,
 		Account:    ac.Account,
 		Authorizer: ac.Authorizer.Sanitize().(Authorizer),
+		CURVersion: ac.CURVersion,
 	}
 }
 
@@ -190,6 +201,18 @@ func (ac *AthenaConfiguration) UnmarshalJSON(b []byte) error {
 	}
 	ac.Authorizer = authorizer
 
+	// Parse CURVersion if present (optional field)
+	if _, ok := fmap["curVersion"]; ok {
+		curVersion, err := cloud.GetInterfaceValue[string](fmap, "curVersion")
+		if err != nil {
+			return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
+		}
+		ac.CURVersion = curVersion
+	} else {
+		// Default to 2.0 if not specified
+		ac.CURVersion = "2.0"
+	}
+
 	return nil
 }
 
@@ -220,6 +243,11 @@ func ConvertAwsAthenaInfoToConfig(aai AwsAthenaInfo) cloud.KeyedConfig {
 
 	var config cloud.KeyedConfig
 	if aai.AthenaTable != "" || aai.AthenaDatabase != "" {
+		// Use CURVersion from config if specified, otherwise default to 2.0
+		curVersion := aai.CURVersion
+		if curVersion == "" {
+			curVersion = "2.0"
+		}
 		config = &AthenaConfiguration{
 			Bucket:     aai.AthenaBucketName,
 			Region:     aai.AthenaRegion,
@@ -229,6 +257,7 @@ func ConvertAwsAthenaInfoToConfig(aai AwsAthenaInfo) cloud.KeyedConfig {
 			Workgroup:  aai.AthenaWorkgroup,
 			Account:    aai.AccountID,
 			Authorizer: authorizer,
+			CURVersion: curVersion,
 		}
 	} else {
 		config = &S3Configuration{

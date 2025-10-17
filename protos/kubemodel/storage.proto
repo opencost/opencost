@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+import "kubemodel/diagnostic.proto";
+import "google/protobuf/timestamp.proto";
+
+package kubemodel;
+option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
+
+// Volume represents a persistent volume (provisioned resource)
+message Volume {
+  // Identification
+  string ID = 1;
+  string clusterID = 2;
+
+  // Properties
+  string name = 3;
+  string storageClass = 4;
+  map<string, string> labels = 5;
+  map<string, string> annotations = 6;
+
+ // Resource lifecycle (only when different from cluster window)
+  optional google.protobuf.Timestamp creationTime = 7;
+  optional google.protobuf.Timestamp deletionTime = 8;
+
+  // Usage metrics
+  // Storage capacity in bytes
+  int64 capacityBytes = 9;
+
+  // Diagnostic information about this resource
+  optional DiagnosticResult diagnostic = 99;
+}
+
+// PersistentVolumeClaim represents a PVC (allocated resource) that refers to a Volume
+message PersistentVolumeClaim {
+  // Identification
+  string ID = 1;
+  string namespaceID = 2;
+  optional string volumeID = 3;
+  optional string podID = 4;
+
+  // Properties
+  string name = 5;
+  string storageClass = 6;
+  map<string, string> labels = 7;
+  map<string, string> annotations = 8;
+
+  // Resource lifecycle (only when different from cluster window)
+  optional google.protobuf.Timestamp creationTime = 9;
+  optional google.protobuf.Timestamp deletionTime = 10;
+
+  // Usage metrics
+  // Storage usage in byte-hours
+  int64 storageByteHours = 11;
+
+  // Requested storage capacity in bytes
+  int64 requestedBytes = 12;
+
+  // Diagnostic information about this resource
+  optional DiagnosticResult diagnostic = 99;
+}

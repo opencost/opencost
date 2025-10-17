@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	defaultRootDir string = "federated"
-	baseStorageDir string = "etl/bingen"
+	DefaultRootDir string = "federated"
+	BaseStorageDir string = "etl/bingen"
 )
 
 // BingenStoragePathFormatter is an implementation of the StoragePathFormatter interface for
@@ -27,7 +27,7 @@ type BingenStoragePathFormatter struct {
 }
 
 func NewDefaultStoragePathFormatter(clusterId, pipeline string, resolution *time.Duration) (StoragePathFormatter[opencost.Window], error) {
-	return NewBingenStoragePathFormatter(defaultRootDir, clusterId, pipeline, resolution)
+	return NewBingenStoragePathFormatter(DefaultRootDir, clusterId, pipeline, resolution)
 }
 
 // NewBingenStoragePathFormatter creates a StoragePathFormatter for a cluster separated storage path
@@ -65,7 +65,7 @@ func (bsf *BingenStoragePathFormatter) Dir() string {
 	return path.Join(
 		bsf.rootDir,
 		bsf.clusterId,
-		baseStorageDir,
+		BaseStorageDir,
 		bsf.pipeline,
 		bsf.resolution,
 	)
@@ -80,7 +80,7 @@ func (bsf *BingenStoragePathFormatter) ToFullPath(prefix string, window opencost
 	return path.Join(
 		bsf.rootDir,
 		bsf.clusterId,
-		baseStorageDir,
+		BaseStorageDir,
 		bsf.pipeline,
 		bsf.resolution,
 		fileName,

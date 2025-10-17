@@ -63,6 +63,32 @@ func (aq *AthenaQuerier) GetColumns() (map[string]bool, error) {
 	return columnSet, nil
 }
 
+// HasBillingPeriodPartitions checks if the table uses billing_period partitioning
+// by querying SHOW PARTITIONS and looking for billing_period partition keys
+func (aq *AthenaQuerier) HasBillingPeriodPartitions() (bool, error) {
+	// Use SHOW PARTITIONS to check if billing_period partitions exist
+	query := fmt.Sprintf("SHOW PARTITIONS \"%s\"", aq.Table)
+	hasBillingPeriodPartition := false
+	
+	athenaErr := aq.Query(context.TODO(), query, GetAthenaQueryFunc(func(row types.Row) {
+		if len(row.Data) > 0 && row.Data[0].VarCharValue != nil {
+			partitionValue := *row.Data[0].VarCharValue
+			// Check if partition follows billing_period=YYYY-MM format
+			if strings.HasPrefix(partitionValue, "billing_period=") {
+				hasBillingPeriodPartition = true
+			}
+		}
+	}))
+
+	if athenaErr != nil {
+		// If SHOW PARTITIONS fails, assume no billing_period partitions
+		log.Debugf("AthenaQuerier[%s]: SHOW PARTITIONS failed: %s", aq.Key(), athenaErr.Error())
+		return false, athenaErr
+	}
+
+	return hasBillingPeriodPartition, nil
+}
+
 func (aq *AthenaQuerier) Query(ctx context.Context, query string, fn func(*athena.GetQueryResultsOutput) bool) error {
 	err := aq.Validate()
 	if err != nil {
