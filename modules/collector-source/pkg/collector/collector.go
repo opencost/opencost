@@ -601,6 +601,7 @@ func NewClusterManagementDurationMetricCollector() *metric.MetricCollector {
 		metric.KubecostClusterManagementCost,
 		[]string{
 			source.ProvisionerNameLabel,
+			source.UIDLabel,
 		},
 		aggregator.ActiveMinutes,
 		nil,
@@ -621,6 +622,7 @@ func NewClusterManagementPricePerHourMetricCollector() *metric.MetricCollector {
 		metric.KubecostClusterManagementCost,
 		[]string{
 			source.ProvisionerNameLabel,
+			source.UIDLabel,
 		},
 		aggregator.AverageOverTime,
 		nil,
@@ -1279,7 +1281,9 @@ func NewNetZonePricePerGiBMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NetZonePricePerGiBID,
 		metric.KubecostNetworkZoneEgressCost,
-		[]string{},
+		[]string{
+			source.UIDLabel,
+		},
 		aggregator.AverageOverTime,
 		nil,
 	)
@@ -1324,7 +1328,9 @@ func NewNetRegionPricePerGiBMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NetRegionPricePerGiBID,
 		metric.KubecostNetworkRegionEgressCost,
-		[]string{},
+		[]string{
+			source.UIDLabel,
+		},
 		aggregator.AverageOverTime,
 		nil,
 	)
@@ -1367,7 +1373,9 @@ func NewNetInternetPricePerGiBMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NetInternetPricePerGiBID,
 		metric.KubecostNetworkInternetEgressCost,
-		[]string{},
+		[]string{
+			source.UIDLabel,
+		},
 		aggregator.AverageOverTime,
 		nil,
 	)

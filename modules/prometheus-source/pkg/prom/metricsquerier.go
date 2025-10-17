@@ -39,7 +39,7 @@ func newPrometheusMetricsQuerier(
 
 func (pds *PrometheusMetricsQuerier) QueryPVPricePerGiBHour(start, end time.Time) *source.Future[source.PVPricePerGiBHourResult] {
 	const queryName = "QueryPVPricePerGiBHour"
-	const pvCostQuery = `avg(avg_over_time(pv_hourly_cost{%s}[%s])) by (%s, persistentvolume, volumename, provider_id)`
+	const pvCostQuery = `avg(avg_over_time(pv_hourly_cost{%s}[%s])) by (%s, persistentvolume, volumename, uid, provider_id)`
 
 	cfg := pds.promConfig
 
@@ -57,7 +57,7 @@ func (pds *PrometheusMetricsQuerier) QueryPVPricePerGiBHour(start, end time.Time
 
 func (pds *PrometheusMetricsQuerier) QueryPVUsedAverage(start, end time.Time) *source.Future[source.PVUsedAvgResult] {
 	const queryName = "QueryPVUsedAverage"
-	const pvUsedAverageQuery = `avg(avg_over_time(kubelet_volume_stats_used_bytes{%s}[%s])) by (%s, persistentvolumeclaim, namespace)`
+	const pvUsedAverageQuery = `avg(avg_over_time(kubelet_volume_stats_used_bytes{%s}[%s])) by (%s, persistentvolumeclaim, namespace, uid)`
 
 	cfg := pds.promConfig
 
@@ -75,7 +75,7 @@ func (pds *PrometheusMetricsQuerier) QueryPVUsedAverage(start, end time.Time) *s
 
 func (pds *PrometheusMetricsQuerier) QueryPVUsedMax(start, end time.Time) *source.Future[source.PVUsedMaxResult] {
 	const queryName = "QueryPVUsedMax"
-	const pvUsedMaxQuery = `max(max_over_time(kubelet_volume_stats_used_bytes{%s}[%s])) by (%s, persistentvolumeclaim, namespace)`
+	const pvUsedMaxQuery = `max(max_over_time(kubelet_volume_stats_used_bytes{%s}[%s])) by (%s, persistentvolumeclaim, namespace, uid)`
 
 	cfg := pds.promConfig
 
@@ -93,7 +93,7 @@ func (pds *PrometheusMetricsQuerier) QueryPVUsedMax(start, end time.Time) *sourc
 
 func (pds *PrometheusMetricsQuerier) QueryPVCInfo(start, end time.Time) *source.Future[source.PVCInfoResult] {
 	const queryName = "QueryPVCInfo"
-	const queryFmtPVCInfo = `avg(kube_persistentvolumeclaim_info{volumename != "", %s}) by (persistentvolumeclaim, storageclass, volumename, namespace, %s)[%s:%dm]`
+	const queryFmtPVCInfo = `avg(kube_persistentvolumeclaim_info{volumename != "", %s}) by (persistentvolumeclaim, storageclass, volumename, namespace, uid, %s)[%s:%dm]`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -112,7 +112,7 @@ func (pds *PrometheusMetricsQuerier) QueryPVCInfo(start, end time.Time) *source.
 
 func (pds *PrometheusMetricsQuerier) QueryPVActiveMinutes(start, end time.Time) *source.Future[source.PVActiveMinutesResult] {
 	const queryName = "QueryPVActiveMinutes"
-	const pvActiveMinsQuery = `avg(kube_persistentvolume_capacity_bytes{%s}) by (%s, persistentvolume)[%s:%dm]`
+	const pvActiveMinsQuery = `avg(kube_persistentvolume_capacity_bytes{%s}) by (%s, persistentvolume, uid)[%s:%dm]`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -131,7 +131,7 @@ func (pds *PrometheusMetricsQuerier) QueryPVActiveMinutes(start, end time.Time) 
 
 func (pds *PrometheusMetricsQuerier) QueryLocalStorageCost(start, end time.Time) *source.Future[source.LocalStorageCostResult] {
 	const queryName = "QueryLocalStorageCost"
-	const localStorageCostQuery = `sum_over_time(sum(container_fs_limit_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}) by (instance, device, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`
+	const localStorageCostQuery = `sum_over_time(sum(container_fs_limit_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}) by (instance, device, uid, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -156,7 +156,7 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageCost(start, end time.Time)
 
 func (pds *PrometheusMetricsQuerier) QueryLocalStorageUsedCost(start, end time.Time) *source.Future[source.LocalStorageUsedCostResult] {
 	const queryName = "QueryLocalStorageUsedCost"
-	const localStorageUsedCostQuery = `sum_over_time(sum(container_fs_usage_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}) by (instance, device, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`
+	const localStorageUsedCostQuery = `sum_over_time(sum(container_fs_usage_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}) by (instance, device, uid, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -181,7 +181,7 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageUsedCost(start, end time.T
 
 func (pds *PrometheusMetricsQuerier) QueryLocalStorageUsedAvg(start, end time.Time) *source.Future[source.LocalStorageUsedAvgResult] {
 	const queryName = "QueryLocalStorageUsedAvg"
-	const localStorageUsedAvgQuery = `avg(sum(avg_over_time(container_fs_usage_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}[%s])) by (instance, device, %s, job)) by (instance, device, %s)`
+	const localStorageUsedAvgQuery = `avg(sum(avg_over_time(container_fs_usage_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}[%s])) by (instance, device, uid, %s, job)) by (instance, device, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -199,7 +199,7 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageUsedAvg(start, end time.Ti
 
 func (pds *PrometheusMetricsQuerier) QueryLocalStorageUsedMax(start, end time.Time) *source.Future[source.LocalStorageUsedMaxResult] {
 	const queryName = "QueryLocalStorageUsedMax"
-	const localStorageUsedMaxQuery = `max(sum(max_over_time(container_fs_usage_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}[%s])) by (instance, device, %s, job)) by (instance, device, %s)`
+	const localStorageUsedMaxQuery = `max(sum(max_over_time(container_fs_usage_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}[%s])) by (instance, device, uid, %s, job)) by (instance, device, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -217,7 +217,7 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageUsedMax(start, end time.Ti
 
 func (pds *PrometheusMetricsQuerier) QueryLocalStorageBytes(start, end time.Time) *source.Future[source.LocalStorageBytesResult] {
 	const queryName = "QueryLocalStorageBytes"
-	const localStorageBytesQuery = `avg_over_time(sum(container_fs_limit_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}) by (instance, device, %s)[%s:%dm])`
+	const localStorageBytesQuery = `avg_over_time(sum(container_fs_limit_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}) by (instance, device, uid, %s)[%s:%dm])`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -236,7 +236,7 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageBytes(start, end time.Time
 
 func (pds *PrometheusMetricsQuerier) QueryLocalStorageActiveMinutes(start, end time.Time) *source.Future[source.LocalStorageActiveMinutesResult] {
 	const queryName = "QueryLocalStorageActiveMinutes"
-	const localStorageActiveMinutesQuery = `count(node_total_hourly_cost{%s}) by (%s, node, instance, provider_id)[%s:%dm]`
+	const localStorageActiveMinutesQuery = `count(node_total_hourly_cost{%s}) by (%s, node, uid, instance, provider_id)[%s:%dm]`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -255,7 +255,7 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageActiveMinutes(start, end t
 
 func (pds *PrometheusMetricsQuerier) QueryNodeCPUCoresCapacity(start, end time.Time) *source.Future[source.NodeCPUCoresCapacityResult] {
 	const queryName = "QueryNodeCPUCoresCapacity"
-	const nodeCPUCoresCapacityQuery = `avg(avg_over_time(kube_node_status_capacity_cpu_cores{%s}[%s])) by (%s, node)`
+	const nodeCPUCoresCapacityQuery = `avg(avg_over_time(kube_node_status_capacity_cpu_cores{%s}[%s])) by (%s, node, uid)`
 
 	cfg := pds.promConfig
 
@@ -273,7 +273,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeCPUCoresCapacity(start, end time.T
 
 func (pds *PrometheusMetricsQuerier) QueryNodeCPUCoresAllocatable(start, end time.Time) *source.Future[source.NodeCPUCoresAllocatableResult] {
 	const queryName = "QueryNodeCPUCoresAllocatable"
-	const nodeCPUCoresAllocatableQuery = `avg(avg_over_time(kube_node_status_allocatable_cpu_cores{%s}[%s])) by (%s, node)`
+	const nodeCPUCoresAllocatableQuery = `avg(avg_over_time(kube_node_status_allocatable_cpu_cores{%s}[%s])) by (%s, node, uid)`
 	// `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
 
 	cfg := pds.promConfig
@@ -292,7 +292,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeCPUCoresAllocatable(start, end tim
 
 func (pds *PrometheusMetricsQuerier) QueryNodeRAMBytesCapacity(start, end time.Time) *source.Future[source.NodeRAMBytesCapacityResult] {
 	const queryName = "QueryNodeRAMBytesCapacity"
-	const nodeRAMBytesCapacityQuery = `avg(avg_over_time(kube_node_status_capacity_memory_bytes{%s}[%s])) by (%s, node)`
+	const nodeRAMBytesCapacityQuery = `avg(avg_over_time(kube_node_status_capacity_memory_bytes{%s}[%s])) by (%s, node, uid)`
 
 	cfg := pds.promConfig
 
@@ -310,7 +310,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeRAMBytesCapacity(start, end time.T
 
 func (pds *PrometheusMetricsQuerier) QueryNodeRAMBytesAllocatable(start, end time.Time) *source.Future[source.NodeRAMBytesAllocatableResult] {
 	const queryName = "QueryNodeRAMBytesAllocatable"
-	const nodeRAMBytesAllocatableQuery = `avg(avg_over_time(kube_node_status_allocatable_memory_bytes{%s}[%s])) by (%s, node)`
+	const nodeRAMBytesAllocatableQuery = `avg(avg_over_time(kube_node_status_allocatable_memory_bytes{%s}[%s])) by (%s, node, uid)`
 
 	cfg := pds.promConfig
 
@@ -328,7 +328,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeRAMBytesAllocatable(start, end tim
 
 func (pds *PrometheusMetricsQuerier) QueryNodeGPUCount(start, end time.Time) *source.Future[source.NodeGPUCountResult] {
 	const queryName = "QueryNodeGPUCount"
-	const nodeGPUCountQuery = `avg(avg_over_time(node_gpu_count{%s}[%s])) by (%s, node, provider_id)`
+	const nodeGPUCountQuery = `avg(avg_over_time(node_gpu_count{%s}[%s])) by (%s, node, uid, provider_id)`
 
 	cfg := pds.promConfig
 
@@ -364,7 +364,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeLabels(start, end time.Time) *sour
 
 func (pds *PrometheusMetricsQuerier) QueryNodeActiveMinutes(start, end time.Time) *source.Future[source.NodeActiveMinutesResult] {
 	const queryName = "QueryNodeActiveMinutes"
-	const activeMinsQuery = `avg(node_total_hourly_cost{%s}) by (node, %s, provider_id)[%s:%dm]`
+	const activeMinsQuery = `avg(node_total_hourly_cost{%s}) by (node, uid, %s, provider_id)[%s:%dm]`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -383,7 +383,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeActiveMinutes(start, end time.Time
 
 func (pds *PrometheusMetricsQuerier) QueryNodeCPUModeTotal(start, end time.Time) *source.Future[source.NodeCPUModeTotalResult] {
 	const queryName = "QueryNodeCPUModeTotal"
-	const nodeCPUModeTotalQuery = `sum(rate(node_cpu_seconds_total{%s}[%s:%dm])) by (kubernetes_node, %s, mode)`
+	const nodeCPUModeTotalQuery = `sum(rate(node_cpu_seconds_total{%s}[%s:%dm])) by (kubernetes_node, uid, %s, mode)`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -401,7 +401,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeCPUModeTotal(start, end time.Time)
 }
 func (pds *PrometheusMetricsQuerier) QueryNodeRAMSystemPercent(start, end time.Time) *source.Future[source.NodeRAMSystemPercentResult] {
 	const queryName = "QueryNodeRAMSystemPercent"
-	const nodeRAMSystemPctQuery = `sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace="kube-system", %s}[%s:%dm])) by (instance, %s) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes{%s}[%s:%dm])) by (node, %s), "instance", "$1", "node", "(.*)")) by (instance, %s)`
+	const nodeRAMSystemPctQuery = `sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace="kube-system", %s}[%s:%dm])) by (instance, uid, %s) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes{%s}[%s:%dm])) by (node, uid, %s), "instance", "$1", "node", "(.*)")) by (instance, uid, %s)`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -420,7 +420,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeRAMSystemPercent(start, end time.T
 
 func (pds *PrometheusMetricsQuerier) QueryNodeRAMUserPercent(start, end time.Time) *source.Future[source.NodeRAMUserPercentResult] {
 	const queryName = "QueryNodeRAMUserPercent"
-	const nodeRAMUserPctQuery = `sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace!="kube-system", %s}[%s:%dm])) by (instance, %s) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes{%s}[%s:%dm])) by (node, %s), "instance", "$1", "node", "(.*)")) by (instance, %s)`
+	const nodeRAMUserPctQuery = `sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace!="kube-system", %s}[%s:%dm])) by (instance, uid, %s) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes{%s}[%s:%dm])) by (node, uid, %s), "instance", "$1", "node", "(.*)")) by (instance, uid, %s)`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -439,7 +439,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeRAMUserPercent(start, end time.Tim
 
 func (pds *PrometheusMetricsQuerier) QueryLBPricePerHr(start, end time.Time) *source.Future[source.LBPricePerHrResult] {
 	const queryName = "QueryLBPricePerHr"
-	const queryFmtLBCostPerHr = `avg(avg_over_time(kubecost_load_balancer_cost{%s}[%s])) by (namespace, service_name, ingress_ip, %s)`
+	const queryFmtLBCostPerHr = `avg(avg_over_time(kubecost_load_balancer_cost{%s}[%s])) by (namespace, service_name, ingress_ip, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -457,7 +457,7 @@ func (pds *PrometheusMetricsQuerier) QueryLBPricePerHr(start, end time.Time) *so
 
 func (pds *PrometheusMetricsQuerier) QueryLBActiveMinutes(start, end time.Time) *source.Future[source.LBActiveMinutesResult] {
 	const queryName = "QueryLBActiveMinutes"
-	const lbActiveMinutesQuery = `avg(kubecost_load_balancer_cost{%s}) by (namespace, service_name, %s, ingress_ip)[%s:%dm]`
+	const lbActiveMinutesQuery = `avg(kubecost_load_balancer_cost{%s}) by (namespace, service_name, uid, %s, ingress_ip)[%s:%dm]`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -846,7 +846,7 @@ func (pds *PrometheusMetricsQuerier) QueryGPUInfo(start, end time.Time) *source.
 
 func (pds *PrometheusMetricsQuerier) QueryNodeCPUPricePerHr(start, end time.Time) *source.Future[source.NodeCPUPricePerHrResult] {
 	const queryName = "QueryNodeCPUPricePerHr"
-	const queryFmtNodeCostPerCPUHr = `avg(avg_over_time(node_cpu_hourly_cost{%s}[%s])) by (node, %s, instance_type, provider_id)`
+	const queryFmtNodeCostPerCPUHr = `avg(avg_over_time(node_cpu_hourly_cost{%s}[%s])) by (node, uid, %s, instance_type, provider_id)`
 
 	cfg := pds.promConfig
 
@@ -864,7 +864,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeCPUPricePerHr(start, end time.Time
 
 func (pds *PrometheusMetricsQuerier) QueryNodeRAMPricePerGiBHr(start, end time.Time) *source.Future[source.NodeRAMPricePerGiBHrResult] {
 	const queryName = "QueryNodeRAMPricePerGiBHr"
-	const queryFmtNodeCostPerRAMGiBHr = `avg(avg_over_time(node_ram_hourly_cost{%s}[%s])) by (node, %s, instance_type, provider_id)`
+	const queryFmtNodeCostPerRAMGiBHr = `avg(avg_over_time(node_ram_hourly_cost{%s}[%s])) by (node, uid, %s, instance_type, provider_id)`
 
 	cfg := pds.promConfig
 
@@ -882,7 +882,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeRAMPricePerGiBHr(start, end time.T
 
 func (pds *PrometheusMetricsQuerier) QueryNodeGPUPricePerHr(start, end time.Time) *source.Future[source.NodeGPUPricePerHrResult] {
 	const queryName = "QueryNodeGPUPricePerHr"
-	const queryFmtNodeCostPerGPUHr = `avg(avg_over_time(node_gpu_hourly_cost{%s}[%s])) by (node, %s, instance_type, provider_id)`
+	const queryFmtNodeCostPerGPUHr = `avg(avg_over_time(node_gpu_hourly_cost{%s}[%s])) by (node, uid, %s, instance_type, provider_id)`
 
 	cfg := pds.promConfig
 
@@ -936,7 +936,7 @@ func (pds *PrometheusMetricsQuerier) QueryPodPVCAllocation(start, end time.Time)
 
 func (pds *PrometheusMetricsQuerier) QueryPVCBytesRequested(start, end time.Time) *source.Future[source.PVCBytesRequestedResult] {
 	const queryName = "QueryPVCBytesRequested"
-	const queryFmtPVCBytesRequested = `avg(avg_over_time(kube_persistentvolumeclaim_resource_requests_storage_bytes{%s}[%s])) by (persistentvolumeclaim, namespace, %s)`
+	const queryFmtPVCBytesRequested = `avg(avg_over_time(kube_persistentvolumeclaim_resource_requests_storage_bytes{%s}[%s])) by (persistentvolumeclaim, namespace, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -954,7 +954,7 @@ func (pds *PrometheusMetricsQuerier) QueryPVCBytesRequested(start, end time.Time
 
 func (pds *PrometheusMetricsQuerier) QueryPVBytes(start, end time.Time) *source.Future[source.PVBytesResult] {
 	const queryName = "QueryPVBytes"
-	const queryFmtPVBytes = `avg(avg_over_time(kube_persistentvolume_capacity_bytes{%s}[%s])) by (persistentvolume, %s)`
+	const queryFmtPVBytes = `avg(avg_over_time(kube_persistentvolume_capacity_bytes{%s}[%s])) by (persistentvolume, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -972,7 +972,7 @@ func (pds *PrometheusMetricsQuerier) QueryPVBytes(start, end time.Time) *source.
 
 func (pds *PrometheusMetricsQuerier) QueryPVInfo(start, end time.Time) *source.Future[source.PVInfoResult] {
 	const queryName = "QueryPVInfo"
-	const queryFmtPVMeta = `avg(avg_over_time(kubecost_pv_info{%s}[%s])) by (%s, storageclass, persistentvolume, provider_id)`
+	const queryFmtPVMeta = `avg(avg_over_time(kubecost_pv_info{%s}[%s])) by (%s, storageclass, persistentvolume, uid, provider_id)`
 
 	cfg := pds.promConfig
 
@@ -1414,7 +1414,7 @@ func (pds *PrometheusMetricsQuerier) QueryPodsWithReplicaSetOwner(start, end tim
 
 func (pds *PrometheusMetricsQuerier) QueryReplicaSetsWithoutOwners(start, end time.Time) *source.Future[source.ReplicaSetsWithoutOwnersResult] {
 	const queryName = "QueryReplicaSetsWithoutOwners"
-	const queryFmtReplicaSetsWithoutOwners = `avg(avg_over_time(kube_replicaset_owner{owner_kind="<none>", owner_name="<none>", %s}[%s])) by (replicaset, namespace, %s)`
+	const queryFmtReplicaSetsWithoutOwners = `avg(avg_over_time(kube_replicaset_owner{owner_kind="<none>", owner_name="<none>", %s}[%s])) by (replicaset, namespace, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -1432,7 +1432,7 @@ func (pds *PrometheusMetricsQuerier) QueryReplicaSetsWithoutOwners(start, end ti
 
 func (pds *PrometheusMetricsQuerier) QueryReplicaSetsWithRollout(start, end time.Time) *source.Future[source.ReplicaSetsWithRolloutResult] {
 	const queryName = "QueryReplicaSetsWithRollout"
-	const queryFmtReplicaSetsWithRolloutOwner = `avg(avg_over_time(kube_replicaset_owner{owner_kind="Rollout", %s}[%s])) by (replicaset, namespace, owner_kind, owner_name, %s)`
+	const queryFmtReplicaSetsWithRolloutOwner = `avg(avg_over_time(kube_replicaset_owner{owner_kind="Rollout", %s}[%s])) by (replicaset, namespace, owner_kind, owner_name, uid, %s)`
 
 	cfg := pds.promConfig
 
