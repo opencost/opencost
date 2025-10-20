@@ -43,6 +43,29 @@ Visit the full documentation for [recommended installation options](https://www.
 - [Prometheus Metrics](https://www.opencost.io/docs/integrations/prometheus)
 - [User Interface](https://www.opencost.io/docs/installation/ui)
 
+## GCP Multi-Project Setup and Troubleshooting
+
+If your GKE cluster, service account, and billing dataset are in different GCP projects, set the `GCP_CLOUD_COST_PROJECT_ID` environment variable to the project ID that should be used for cloud cost API calls. This ensures OpenCost can access billing and commitment data correctly.
+
+Example (Helm values.yaml):
+
+```yaml
+opencost:
+  exporter:
+    env:
+      - name: GCP_CLOUD_COST_PROJECT_ID
+        value: "your-billing-project-id"
+```
+
+If not set, OpenCost will attempt to infer the project ID, but this may fail in multi-project setups.
+
+### Troubleshooting
+- Ensure your service account has access to the billing dataset and required APIs in the target project.
+- Increase memory requests/limits for the OpenCost pod (e.g., 4GiB or more).
+- For GCP Managed Prometheus, check for relabeling issues (namespace label may be renamed to `exported_namespace`).
+- Check OpenCost logs for errors like `RESOURCE_PROJECT_INVALID` or "No Cloud Cost integrations currently configured."
+- Try a longer time window (e.g., 1d or more) if you see zeroed-out values.
+
 ## Contributing
 
 We :heart: pull requests! See [`CONTRIBUTING.md`](CONTRIBUTING.md) for information on building the project from source and contributing changes.

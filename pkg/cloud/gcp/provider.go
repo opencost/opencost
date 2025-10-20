@@ -1060,7 +1060,14 @@ func (gcp *GCP) DownloadPricingData() error {
 	gcp.loadGCPAuthSecret()
 
 	gcp.BaseCPUPrice = c.CPU
-	gcp.ProjectID = c.ProjectID
+	// --- PATCH: allow explicit override of ProjectID for cloud cost API calls ---
+	explicitProjectID := os.Getenv("GCP_CLOUD_COST_PROJECT_ID")
+	if explicitProjectID != "" {
+		log.Infof("Using explicit GCP_CLOUD_COST_PROJECT_ID for cloud cost API calls: %s", explicitProjectID)
+		gcp.ProjectID = explicitProjectID
+	} else {
+		gcp.ProjectID = c.ProjectID
+	}
 	gcp.BillingDataDataset = c.BillingDataDataset
 
 	nodeList := gcp.Clientset.GetAllNodes()
@@ -1346,8 +1353,12 @@ func (gcp *GCP) getReservedInstances() ([]*GCPReservedInstance, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	commitments, err := computeService.RegionCommitments.AggregatedList(gcp.ProjectID).Do()
+	// --- PATCH: use explicit ProjectID if set ---
+	projectID := gcp.ProjectID
+	if projectID == "" {
+		log.Warn("GCP ProjectID is empty for reserved instance lookup. Set GCP_CLOUD_COST_PROJECT_ID or check your config.")
+	}
+	commitments, err := computeService.RegionCommitments.AggregatedList(projectID).Do()
 	if err != nil {
 		return nil, err
 	}
