@@ -34,7 +34,7 @@ var ClusterSizes = map[string]ClusterSize{
 	"xsm": {
 		Name:                   "Extra Small",
 		Nodes:                  3,
-		Namespaces:             5,
+		Namespaces:             3,
 		Pods:                   10,
 		Containers:             15,
 		Services:               5,
@@ -47,129 +47,129 @@ var ClusterSizes = map[string]ClusterSize{
 	},
 	"sm": {
 		Name:                   "Small",
-		Nodes:                  5,
-		Namespaces:             10,
-		Pods:                   25,
-		Containers:             50,
-		Services:               15,
-		Controllers:            10,
-		Volumes:                20,
-		PersistentVolumeClaims: 15,
-		GpuDevices:             2,
-		GpuUsages:              4,
+		Nodes:                  10,
+		Namespaces:             20,
+		Pods:                   50,
+		Containers:             100,
+		Services:               25,
+		Controllers:            20,
+		Volumes:                40,
+		PersistentVolumeClaims: 30,
+		GpuDevices:             5,
+		GpuUsages:              10,
 		LabelCount:             5,
 	},
 	"md": {
 		Name:                   "Medium",
-		Nodes:                  10,
-		Namespaces:             20,
-		Pods:                   100,
-		Containers:             250,
-		Services:               50,
-		Controllers:            25,
-		Volumes:                75,
-		PersistentVolumeClaims: 50,
-		GpuDevices:             5,
-		GpuUsages:              15,
-		LabelCount:             8,
+		Nodes:                  50,
+		Namespaces:             100,
+		Pods:                   500,
+		Containers:             1000,
+		Services:               250,
+		Controllers:            100,
+		Volumes:                400,
+		PersistentVolumeClaims: 300,
+		GpuDevices:             50,
+		GpuUsages:              100,
+		LabelCount:             10,
 	},
 	"lg": {
 		Name:                   "Large",
-		Nodes:                  25,
-		Namespaces:             50,
-		Pods:                   500,
-		Containers:             1250,
-		Services:               150,
-		Controllers:            75,
-		Volumes:                300,
-		PersistentVolumeClaims: 200,
-		GpuDevices:             15,
-		GpuUsages:              75,
-		LabelCount:             12,
+		Nodes:                  200,
+		Namespaces:             500,
+		Pods:                   2000,
+		Containers:             5000,
+		Services:               1000,
+		Controllers:            500,
+		Volumes:                1500,
+		PersistentVolumeClaims: 1000,
+		GpuDevices:             200,
+		GpuUsages:              500,
+		LabelCount:             15,
 	},
 	"xlg": {
 		Name:                   "Extra Large",
-		Nodes:                  50,
-		Namespaces:             100,
-		Pods:                   2000,
-		Containers:             5000,
-		Services:               500,
-		Controllers:            200,
-		Volumes:                1000,
-		PersistentVolumeClaims: 750,
-		GpuDevices:             50,
-		GpuUsages:              250,
-		LabelCount:             15,
+		Nodes:                  1000,
+		Namespaces:             1000,
+		Pods:                   5000,
+		Containers:             10000,
+		Services:               2500,
+		Controllers:            1000,
+		Volumes:                3000,
+		PersistentVolumeClaims: 2000,
+		GpuDevices:             1000,
+		GpuUsages:              2000,
+		LabelCount:             20,
 	},
 	"2xlg": {
 		Name:                   "2X Large",
-		Nodes:                  100,
-		Namespaces:             200,
-		Pods:                   5000,
-		Containers:             12500,
-		Services:               1500,
-		Controllers:            500,
-		Volumes:                3000,
-		PersistentVolumeClaims: 2000,
-		GpuDevices:             100,
-		GpuUsages:              500,
-		LabelCount:             20,
+		Nodes:                  5000,
+		Namespaces:             2000,
+		Pods:                   15000,
+		Containers:             30000,
+		Services:               7500,
+		Controllers:            3000,
+		Volumes:                10000,
+		PersistentVolumeClaims: 7500,
+		GpuDevices:             5000,
+		GpuUsages:              10000,
+		LabelCount:             30,
 	},
 	"3xlg": {
 		Name:                   "3X Large",
-		Nodes:                  200,
-		Namespaces:             500,
-		Pods:                   10000,
-		Containers:             25000,
-		Services:               3000,
-		Controllers:            1000,
-		Volumes:                6000,
-		PersistentVolumeClaims: 4000,
-		GpuDevices:             200,
-		GpuUsages:              1000,
-		LabelCount:             25,
+		Nodes:                  10000,
+		Namespaces:             3000,
+		Pods:                   30000,
+		Containers:             60000,
+		Services:               15000,
+		Controllers:            6000,
+		Volumes:                20000,
+		PersistentVolumeClaims: 15000,
+		GpuDevices:             10000,
+		GpuUsages:              20000,
+		LabelCount:             40,
 	},
 	"4xlg": {
 		Name:                   "4X Large",
-		Nodes:                  500,
-		Namespaces:             1000,
-		Pods:                   25000,
-		Containers:             62500,
-		Services:               7500,
-		Controllers:            2500,
-		Volumes:                15000,
-		PersistentVolumeClaims: 10000,
-		GpuDevices:             500,
-		GpuUsages:              2500,
-		LabelCount:             30,
+		Nodes:                  25000,
+		Namespaces:             5000,
+		Pods:                   60000,
+		Containers:             120000,
+		Services:               30000,
+		Controllers:            12000,
+		Volumes:                40000,
+		PersistentVolumeClaims: 30000,
+		GpuDevices:             25000,
+		GpuUsages:              50000,
+		LabelCount:             60,
 	},
 	"5xlg": {
 		Name:                   "5X Large",
-		Nodes:                  1000,
-		Namespaces:             2000,
-		Pods:                   50000,
-		Containers:             125000,
-		Services:               15000,
-		Controllers:            5000,
-		Volumes:                30000,
-		PersistentVolumeClaims: 20000,
-		GpuDevices:             1000,
-		GpuUsages:              5000,
-		LabelCount:             35,
+		Nodes:                  50000,
+		Namespaces:             7500,
+		Pods:                   100000,
+		Containers:             200000,
+		Services:               50000,
+		Controllers:            20000,
+		Volumes:                60000,
+		PersistentVolumeClaims: 50000,
+		GpuDevices:             50000,
+		GpuUsages:              75000,
+		LabelCount:             80,
 	},
 	"10xlg": {
 		Name:                   "10X Large",
-		Nodes:                  2000,
-		Namespaces:             5000,
-		Pods:                   100000,
-		Containers:             250000,
-		Services:               30000,
-		Controllers:            10000,
-		Volumes:                60000,
-		PersistentVolumeClaims: 40000,
-		GpuDevices:             2000,
-		GpuUsages:              10000,
-		LabelCount:             40,
+		Nodes:                  100000,
+		Namespaces:             10000,
+		Pods:                   150000,
+		Containers:             300000,
+		Services:               100000,
+		Controllers:            100000,
+		Volumes:                100000,
+		PersistentVolumeClaims: 100000,
+		GpuDevices:             100000,
+		GpuUsages:              100000,
+		LabelCount:             100,
 	},
 }
 
@@ -204,7 +204,7 @@ func generateGoCluster(size ClusterSize) *Cluster {
 			ProviderResourceID:   fmt.Sprintf("i-%s", randomString(8)),
 			Name:                 fmt.Sprintf("node-%d", i),
 			Labels:               randomLabels(size.LabelCount),
-			Annotations:          randomAnnotations(size.LabelCount),
+			Annotations:          randomLabels(size.LabelCount),
 			CreationTime:         &now,
 			CpuCores:             int32(rand.Intn(16) + 2),
 			RamBytes:             int64(rand.Intn(32)*1024*1024*1024 + 4*1024*1024*1024),
@@ -224,7 +224,7 @@ func generateGoCluster(size ClusterSize) *Cluster {
 			ClusterID:    cluster.ID,
 			Name:         fmt.Sprintf("namespace-%d", i),
 			Labels:       randomLabels(size.LabelCount),
-			Annotations:  randomAnnotations(size.LabelCount),
+			Annotations:  randomLabels(size.LabelCount),
 			CreationTime: &now,
 		})
 	}
@@ -237,7 +237,7 @@ func generateGoCluster(size ClusterSize) *Cluster {
 			Name:         fmt.Sprintf("controller-%d", i),
 			Kind:         ControllerKindDeployment,
 			Labels:       randomLabels(size.LabelCount),
-			Annotations:  randomAnnotations(size.LabelCount),
+			Annotations:  randomLabels(size.LabelCount),
 			CreationTime: &now,
 		})
 	}
@@ -251,7 +251,7 @@ func generateGoCluster(size ClusterSize) *Cluster {
 			NodeID:                 fmt.Sprintf("node-%d", rand.Intn(size.Nodes)),
 			Name:                   fmt.Sprintf("pod-%d", i),
 			Labels:                 randomLabels(size.LabelCount),
-			Annotations:            randomAnnotations(size.LabelCount),
+			Annotations:            randomLabels(size.LabelCount),
 			CreationTime:           &now,
 			CpuCoreHours:           rand.Float32() * 10,
 			CpuCoreRequestAverage:  rand.Float32() * 2,
@@ -293,7 +293,7 @@ func generateGoCluster(size ClusterSize) *Cluster {
 			Name:        fmt.Sprintf("service-%d", i),
 			Type:        "ClusterIP",
 			Labels:      randomLabels(size.LabelCount),
-			Annotations: randomAnnotations(size.LabelCount),
+			Annotations: randomLabels(size.LabelCount),
 			Ports: []ServicePort{
 				{
 					Name:       "http",
@@ -314,10 +314,10 @@ func generateGoCluster(size ClusterSize) *Cluster {
 			Name:         fmt.Sprintf("volume-%d", i),
 			Namespace:    fmt.Sprintf("namespace-%d", rand.Intn(size.Namespaces)),
 			Labels:       randomLabels(size.LabelCount),
-			Annotations:  randomAnnotations(size.LabelCount),
+			Annotations:  randomLabels(size.LabelCount),
 			CreationTime: &now,
 			StorageClass: "gp2",
-			Size:         int64(rand.Intn(100) + 10) * 1024 * 1024 * 1024,
+			Size:         int64(rand.Intn(100)+10) * 1024 * 1024 * 1024,
 			Cost:         rand.Float32() * 50,
 		})
 	}
@@ -329,10 +329,10 @@ func generateGoCluster(size ClusterSize) *Cluster {
 			NamespaceID:  fmt.Sprintf("ns-%d", rand.Intn(size.Namespaces)),
 			Name:         fmt.Sprintf("pvc-%d", i),
 			Labels:       randomLabels(size.LabelCount),
-			Annotations:  randomAnnotations(size.LabelCount),
+			Annotations:  randomLabels(size.LabelCount),
 			CreationTime: &now,
 			StorageClass: "gp2",
-			Size:         int64(rand.Intn(100) + 10) * 1024 * 1024 * 1024,
+			Size:         int64(rand.Intn(100)+10) * 1024 * 1024 * 1024,
 			VolumeName:   fmt.Sprintf("vol-%d", rand.Intn(size.Volumes)),
 		})
 	}
@@ -381,13 +381,13 @@ func generateProtoCluster(size ClusterSize) *kubemodel.Cluster {
 	// Generate nodes
 	for i := 0; i < size.Nodes; i++ {
 		cluster.Nodes = append(cluster.Nodes, &kubemodel.Node{
-			ID:                   fmt.Sprintf("node-%d", i),
-			ClusterID:            cluster.ID,
-			ProviderResourceID:   fmt.Sprintf("i-%s", randomString(8)),
-			Name:                 fmt.Sprintf("node-%d", i),
-			Labels:               randomLabels(size.LabelCount),
-			Annotations:          randomAnnotations(size.LabelCount),
-			CreationTime:         now,
+			ID:                 fmt.Sprintf("node-%d", i),
+			ClusterID:          cluster.ID,
+			ProviderResourceID: fmt.Sprintf("i-%s", randomString(8)),
+			Name:               fmt.Sprintf("node-%d", i),
+			Labels:             randomLabels(size.LabelCount),
+			Annotations:        randomLabels(size.LabelCount),
+			CreationTime:       now,
 		})
 	}
 
@@ -398,7 +398,7 @@ func generateProtoCluster(size ClusterSize) *kubemodel.Cluster {
 			ClusterID:    cluster.ID,
 			Name:         fmt.Sprintf("namespace-%d", i),
 			Labels:       randomLabels(size.LabelCount),
-			Annotations:  randomAnnotations(size.LabelCount),
+			Annotations:  randomLabels(size.LabelCount),
 			CreationTime: now,
 		})
 	}
@@ -411,7 +411,7 @@ func generateProtoCluster(size ClusterSize) *kubemodel.Cluster {
 			Name:         fmt.Sprintf("controller-%d", i),
 			Kind:         kubemodel.ControllerKind_DEPLOYMENT,
 			Labels:       randomLabels(size.LabelCount),
-			Annotations:  randomAnnotations(size.LabelCount),
+			Annotations:  randomLabels(size.LabelCount),
 			CreationTime: now,
 		})
 	}
@@ -425,7 +425,7 @@ func generateProtoCluster(size ClusterSize) *kubemodel.Cluster {
 			NodeID:       fmt.Sprintf("node-%d", rand.Intn(size.Nodes)),
 			Name:         fmt.Sprintf("pod-%d", i),
 			Labels:       randomLabels(size.LabelCount),
-			Annotations:  randomAnnotations(size.LabelCount),
+			Annotations:  randomLabels(size.LabelCount),
 			CreationTime: now,
 		})
 	}
@@ -447,7 +447,7 @@ func generateProtoCluster(size ClusterSize) *kubemodel.Cluster {
 			Name:        fmt.Sprintf("service-%d", i),
 			ServiceType: "ClusterIP",
 			Labels:      randomLabels(size.LabelCount),
-			Annotations: randomAnnotations(size.LabelCount),
+			Annotations: randomLabels(size.LabelCount),
 			Ports: []*kubemodel.ServicePort{
 				{
 					Name:       "http",
@@ -467,7 +467,7 @@ func generateProtoCluster(size ClusterSize) *kubemodel.Cluster {
 			ClusterID:    cluster.ID,
 			Name:         fmt.Sprintf("volume-%d", i),
 			Labels:       randomLabels(size.LabelCount),
-			Annotations:  randomAnnotations(size.LabelCount),
+			Annotations:  randomLabels(size.LabelCount),
 			CreationTime: now,
 		})
 	}
@@ -479,7 +479,7 @@ func generateProtoCluster(size ClusterSize) *kubemodel.Cluster {
 			NamespaceID:  fmt.Sprintf("ns-%d", rand.Intn(size.Namespaces)),
 			Name:         fmt.Sprintf("pvc-%d", i),
 			Labels:       randomLabels(size.LabelCount),
-			Annotations:  randomAnnotations(size.LabelCount),
+			Annotations:  randomLabels(size.LabelCount),
 			CreationTime: now,
 		})
 	}
@@ -517,82 +517,13 @@ func randomString(length int) string {
 }
 
 func randomLabels(count int) map[string]string {
-	labels := make(map[string]string)
-
-	labelKeys := []string{
-		"app", "version", "component", "managed-by", "tier", "environment",
-		"team", "service", "owner", "release", "stage", "region", "zone",
-		"cluster", "namespace", "workload", "project", "cost-center", "department", "purpose",
+	labels := make(map[string]string, count)
+	for range count {
+		key := randomString(12)
+		value := randomString(12)
+		labels[key] = value
 	}
-
-	for i := 0; i < count && i < len(labelKeys); i++ {
-		key := labelKeys[i]
-		switch key {
-		case "version":
-			labels[key] = fmt.Sprintf("v%d.%d.%d", rand.Intn(3)+1, rand.Intn(10), rand.Intn(20))
-		case "environment":
-			envs := []string{"production", "staging", "development", "test"}
-			labels[key] = envs[rand.Intn(len(envs))]
-		case "tier":
-			tiers := []string{"frontend", "backend", "database", "cache"}
-			labels[key] = tiers[rand.Intn(len(tiers))]
-		case "managed-by":
-			labels[key] = "opencost"
-		default:
-			labels[key] = randomString(8)
-		}
-	}
-
 	return labels
-}
-
-func randomAnnotations(count int) map[string]string {
-	annotations := make(map[string]string)
-
-	annotationKeys := []string{
-		"deployment.kubernetes.io/revision",
-		"kubectl.kubernetes.io/last-applied-configuration",
-		"prometheus.io/scrape",
-		"prometheus.io/port",
-		"prometheus.io/path",
-		"fluentd.org/exclude",
-		"sidecar.istio.io/inject",
-		"linkerd.io/inject",
-		"kubernetes.io/ingress.class",
-		"cert-manager.io/cluster-issuer",
-		"nginx.ingress.kubernetes.io/rewrite-target",
-		"datadog.ad.check_names",
-		"vault.hashicorp.com/agent-inject",
-		"backup.velero.io/backup-volumes",
-		"cluster-autoscaler.kubernetes.io/safe-to-evict",
-		"scheduler.alpha.kubernetes.io/node-selector",
-	}
-
-	for i := 0; i < count && i < len(annotationKeys); i++ {
-		key := annotationKeys[i]
-		switch key {
-		case "deployment.kubernetes.io/revision":
-			annotations[key] = fmt.Sprintf("%d", rand.Intn(10)+1)
-		case "kubectl.kubernetes.io/last-applied-configuration":
-			annotations[key] = `{"apiVersion":"v1","kind":"Pod"}`
-		case "prometheus.io/scrape":
-			annotations[key] = "true"
-		case "prometheus.io/port":
-			annotations[key] = "8080"
-		case "prometheus.io/path":
-			annotations[key] = "/metrics"
-		case "sidecar.istio.io/inject":
-			annotations[key] = "true"
-		case "linkerd.io/inject":
-			annotations[key] = "enabled"
-		case "kubernetes.io/ingress.class":
-			annotations[key] = "nginx"
-		default:
-			annotations[key] = randomString(12)
-		}
-	}
-
-	return annotations
 }
 
 func maxInt(a, b int) int {
