@@ -65,11 +65,6 @@ func (nssc *NodeStatsSummaryClient) GetNodeData() ([]*stats.Summary, error) {
 	var errs []error
 
 	work := func(n *clustercache.Node) *stats.Summary {
-		if n.SpecProviderID == "" {
-			log.Warnf("node ProviderID not set, skipping for %s", n.Name)
-			return nil
-		}
-
 		connections := nssc.connectionOptions(n)
 
 		resp, err := requestNodeData(connections, nssc.endpoint, bearerToken)
