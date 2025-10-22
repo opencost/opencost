@@ -1,6 +1,14 @@
 syntax = "proto3";
 
 import "model/window.proto";
+import "kubemodel/container.proto";
+import "kubemodel/controller.proto";
+import "kubemodel/gpu.proto";
+import "kubemodel/namespace.proto";
+import "kubemodel/network.proto";
+import "kubemodel/node.proto";
+import "kubemodel/pod.proto";
+import "kubemodel/storage.proto";
 
 package kubemodel;
 option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
@@ -33,4 +41,15 @@ message Cluster {
   // All resources inherit this window unless they specify their own duration
   model.Window window = 5;
 
+  // Resources within the cluster
+  repeated kubemodel.Container containers = 6;
+  repeated kubemodel.Controller controllers = 7;
+  repeated kubemodel.GPUDevice gpu_devices = 9;
+  repeated kubemodel.GPUUsage gpu_usage = 10;
+  repeated kubemodel.Namespace namespaces = 11;
+  repeated kubemodel.Service services = 12;
+  repeated kubemodel.Node nodes = 13;
+  repeated kubemodel.Pod pods = 14;
+  repeated kubemodel.Volume volumes = 15;
+  repeated kubemodel.PersistentVolumeClaim persistent_volume_claims = 16;
 }
