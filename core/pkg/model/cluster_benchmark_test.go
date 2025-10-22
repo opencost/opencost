@@ -1,15 +1,16 @@
 package model
 
 import (
-	"encoding/json"
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"math/rand"
 	"testing"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/exporter"
 	"github.com/opencost/opencost/core/pkg/model/pb"
 	"github.com/opencost/opencost/core/pkg/model/pb/kubemodel"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -115,67 +116,66 @@ var ClusterSizes = map[string]ClusterSize{
 		GpuUsages:              10000,
 		LabelCount:             30,
 	},
-	"3xlg": {
-		Name:                   "3X Large",
-		Nodes:                  10000,
-		Namespaces:             3000,
-		Pods:                   30000,
-		Containers:             60000,
-		Services:               15000,
-		Controllers:            6000,
-		Volumes:                20000,
-		PersistentVolumeClaims: 15000,
-		GpuDevices:             10000,
-		GpuUsages:              20000,
-		LabelCount:             40,
-	},
-	"4xlg": {
-		Name:                   "4X Large",
-		Nodes:                  25000,
-		Namespaces:             5000,
-		Pods:                   60000,
-		Containers:             120000,
-		Services:               30000,
-		Controllers:            12000,
-		Volumes:                40000,
-		PersistentVolumeClaims: 30000,
-		GpuDevices:             25000,
-		GpuUsages:              50000,
-		LabelCount:             60,
-	},
-	"5xlg": {
-		Name:                   "5X Large",
-		Nodes:                  50000,
-		Namespaces:             7500,
-		Pods:                   100000,
-		Containers:             200000,
-		Services:               50000,
-		Controllers:            20000,
-		Volumes:                60000,
-		PersistentVolumeClaims: 50000,
-		GpuDevices:             50000,
-		GpuUsages:              75000,
-		LabelCount:             80,
-	},
-	"10xlg": {
-		Name:                   "10X Large",
-		Nodes:                  100000,
-		Namespaces:             10000,
-		Pods:                   150000,
-		Containers:             300000,
-		Services:               100000,
-		Controllers:            100000,
-		Volumes:                100000,
-		PersistentVolumeClaims: 100000,
-		GpuDevices:             100000,
-		GpuUsages:              100000,
-		LabelCount:             100,
-	},
+	//"3xlg": {
+	//	Name:                   "3X Large",
+	//	Nodes:                  10000,
+	//	Namespaces:             3000,
+	//	Pods:                   30000,
+	//	Containers:             60000,
+	//	Services:               15000,
+	//	Controllers:            6000,
+	//	Volumes:                20000,
+	//	PersistentVolumeClaims: 15000,
+	//	GpuDevices:             10000,
+	//	GpuUsages:              20000,
+	//	LabelCount:             40,
+	//},
+	//"4xlg": {
+	//	Name:                   "4X Large",
+	//	Nodes:                  25000,
+	//	Namespaces:             5000,
+	//	Pods:                   60000,
+	//	Containers:             120000,
+	//	Services:               30000,
+	//	Controllers:            12000,
+	//	Volumes:                40000,
+	//	PersistentVolumeClaims: 30000,
+	//	GpuDevices:             25000,
+	//	GpuUsages:              50000,
+	//	LabelCount:             60,
+	//},
+	//"5xlg": {
+	//	Name:                   "5X Large",
+	//	Nodes:                  50000,
+	//	Namespaces:             7500,
+	//	Pods:                   100000,
+	//	Containers:             200000,
+	//	Services:               50000,
+	//	Controllers:            20000,
+	//	Volumes:                60000,
+	//	PersistentVolumeClaims: 50000,
+	//	GpuDevices:             50000,
+	//	GpuUsages:              75000,
+	//	LabelCount:             80,
+	//},
+	//"10xlg": {
+	//	Name:                   "10X Large",
+	//	Nodes:                  100000,
+	//	Namespaces:             10000,
+	//	Pods:                   150000,
+	//	Containers:             300000,
+	//	Services:               100000,
+	//	Controllers:            100000,
+	//	Volumes:                100000,
+	//	PersistentVolumeClaims: 100000,
+	//	GpuDevices:             100000,
+	//	GpuUsages:              100000,
+	//	LabelCount:             100,
+	//},
 }
 
 // BenchmarkResult stores the results of a benchmark run
 type BenchmarkResult struct {
-	Size              string
 	SerializationType string
 	SerializedSize    int
 	SerializeTime     time.Duration
@@ -533,146 +533,125 @@ func maxInt(a, b int) int {
 	return b
 }
 
-// Benchmark functions
-func benchmarkSerialization(b *testing.B, sizeName string, size ClusterSize) {
-	goCluster := generateGoCluster(size)
-	protoCluster := generateProtoCluster(size)
+// GobSerializer implements Go's gob serialization
+type GobSerializer struct{}
 
-	b.Run(fmt.Sprintf("%s/JSON", sizeName), func(b *testing.B) {
-		var serializedSize int
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			data, err := json.Marshal(goCluster)
-			if err != nil {
-				b.Fatal(err)
-			}
-			serializedSize = len(data)
-		}
-		b.ReportMetric(float64(serializedSize), "bytes")
-	})
-
-	b.Run(fmt.Sprintf("%s/Protobuf", sizeName), func(b *testing.B) {
-		var serializedSize int
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			data, err := proto.Marshal(protoCluster)
-			if err != nil {
-				b.Fatal(err)
-			}
-			serializedSize = len(data)
-		}
-		b.ReportMetric(float64(serializedSize), "bytes")
-	})
+func (g GobSerializer) Name() string {
+	return "Gob"
 }
 
-func benchmarkDeserialization(b *testing.B, sizeName string, size ClusterSize) {
-	goCluster := generateGoCluster(size)
-	protoCluster := generateProtoCluster(size)
-
-	jsonData, _ := json.Marshal(goCluster)
-	protoData, _ := proto.Marshal(protoCluster)
-
-	b.Run(fmt.Sprintf("%s/JSON", sizeName), func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			var cluster Cluster
-			err := json.Unmarshal(jsonData, &cluster)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-
-	b.Run(fmt.Sprintf("%s/Protobuf", sizeName), func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			var cluster kubemodel.Cluster
-			err := proto.Unmarshal(protoData, &cluster)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
+func (g GobSerializer) Serialize(data interface{}) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	err := enc.Encode(data)
+	return buf.Bytes(), err
 }
 
-// Benchmark tests for serialization
-func BenchmarkSerialization(b *testing.B) {
-	for sizeName, size := range ClusterSizes {
-		benchmarkSerialization(b, sizeName, size)
+func (g GobSerializer) Deserialize(data []byte, target interface{}) error {
+	buf := bytes.NewBuffer(data)
+	dec := gob.NewDecoder(buf)
+	return dec.Decode(target)
+}
+
+type SerializationTester[T any] struct {
+	Name    string
+	Decoder exporter.Decoder[T]
+	Encoder exporter.Encoder[T]
+}
+
+func (s *SerializationTester[T]) Run(data *T) (*BenchmarkResult, error) {
+
+	// Test serialization
+	start := time.Now()
+	serializedData, err := s.Encoder.Encode(data)
+	if err != nil {
+		return nil, fmt.Errorf("serializer %s failed to encode data: %w", s.Name, err)
 	}
-}
+	serializeTime := time.Since(start)
 
-// Benchmark tests for deserialization
-func BenchmarkDeserialization(b *testing.B) {
-	for sizeName, size := range ClusterSizes {
-		benchmarkDeserialization(b, sizeName, size)
+	// Test deserialization
+	start = time.Now()
+
+	_, err = s.Decoder(serializedData)
+
+	if err != nil {
+		return nil, fmt.Errorf("serializer %s failed to decode data: %w", s.Name, err)
 	}
+	deserializeTime := time.Since(start)
+
+	result := &BenchmarkResult{
+		SerializationType: s.Name,
+		SerializedSize:    len(serializedData),
+		SerializeTime:     serializeTime,
+		DeserializeTime:   deserializeTime,
+	}
+
+	return result, nil
 }
 
-// Test function that generates comparison tables
-func TestSerializationComparison(t *testing.T) {
+// TestMultiSerializationComparison generates comparison tables for multiple serialization types
+func TestMultiSerializationComparison(t *testing.T) {
 	results := make(map[string][]BenchmarkResult)
 
+	serializationTesters := []*SerializationTester[Cluster]{
+		{
+			Name:    "JSON",
+			Decoder: exporter.JSONDecoder[Cluster],
+			Encoder: exporter.NewJSONEncoder[Cluster](),
+		},
+		{
+			Name:    "JSON GZIP",
+			Decoder: exporter.GetGzipDecoder(exporter.JSONDecoder[Cluster]),
+			Encoder: exporter.NewGZipEncoder(exporter.NewJSONEncoder[Cluster]()),
+		},
+	}
+
+	protoSerializationTesters := []*SerializationTester[kubemodel.Cluster]{
+		{
+			Name:    "Protobuf",
+			Decoder: exporter.ProtobufDecoder[kubemodel.Cluster],
+			Encoder: exporter.NewProtobufEncoder[kubemodel.Cluster](),
+		},
+		{
+			Name:    "Protobuf GZIP",
+			Decoder: exporter.GetGzipDecoder(exporter.ProtobufDecoder[kubemodel.Cluster]),
+			Encoder: exporter.NewGZipEncoder(exporter.NewProtobufEncoder[kubemodel.Cluster]()),
+		},
+	}
+
 	for sizeName, size := range ClusterSizes {
+
+		var sizeResults []BenchmarkResult
+
 		goCluster := generateGoCluster(size)
+		for _, st := range serializationTesters {
+			result, err := st.Run(goCluster)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			sizeResults = append(sizeResults, *result)
+		}
+
 		protoCluster := generateProtoCluster(size)
+		for _, st := range protoSerializationTesters {
+			result, err := st.Run(protoCluster)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		// Test JSON serialization
-		start := time.Now()
-		jsonData, err := json.Marshal(goCluster)
-		if err != nil {
-			t.Fatal(err)
+			sizeResults = append(sizeResults, *result)
 		}
-		jsonSerializeTime := time.Since(start)
 
-		start = time.Now()
-		var jsonCluster Cluster
-		err = json.Unmarshal(jsonData, &jsonCluster)
-		if err != nil {
-			t.Fatal(err)
-		}
-		jsonDeserializeTime := time.Since(start)
-
-		// Test Protobuf serialization
-		start = time.Now()
-		protoData, err := proto.Marshal(protoCluster)
-		if err != nil {
-			t.Fatal(err)
-		}
-		protoSerializeTime := time.Since(start)
-
-		start = time.Now()
-		var protoClusterResult kubemodel.Cluster
-		err = proto.Unmarshal(protoData, &protoClusterResult)
-		if err != nil {
-			t.Fatal(err)
-		}
-		protoDeserializeTime := time.Since(start)
-
-		results[sizeName] = []BenchmarkResult{
-			{
-				Size:              sizeName,
-				SerializationType: "JSON",
-				SerializedSize:    len(jsonData),
-				SerializeTime:     jsonSerializeTime,
-				DeserializeTime:   jsonDeserializeTime,
-			},
-			{
-				Size:              sizeName,
-				SerializationType: "Protobuf",
-				SerializedSize:    len(protoData),
-				SerializeTime:     protoSerializeTime,
-				DeserializeTime:   protoDeserializeTime,
-			},
-		}
+		results[sizeName] = sizeResults
 	}
 
 	// Print results table
-	printComparisonTable(results)
+	printMultiSerializationTable(results)
 }
 
-func printComparisonTable(results map[string][]BenchmarkResult) {
-	fmt.Printf("\n=== Serialization Performance Comparison ===\n\n")
+func printMultiSerializationTable(results map[string][]BenchmarkResult) {
+	fmt.Printf("\n=== Multi-Type Serialization Performance Comparison ===\n\n")
 
 	// Size comparison table
 	fmt.Printf("%-8s | %-12s | %-15s | %-15s | %-18s | %-18s\n",
@@ -680,44 +659,81 @@ func printComparisonTable(results map[string][]BenchmarkResult) {
 	fmt.Printf("---------|--------------|-----------------|-----------------|--------------------|-----------------\n")
 
 	sizeOrder := []string{"xsm", "sm", "md", "lg", "xlg", "2xlg", "3xlg", "4xlg", "5xlg", "10xlg"}
+
 	for _, sizeName := range sizeOrder {
 		if sizeResults, ok := results[sizeName]; ok {
-			jsonResult := sizeResults[0]
-			protoResult := sizeResults[1]
+			// Find JSON result as baseline
+			var jsonResult *BenchmarkResult
+			for _, result := range sizeResults {
+				if result.SerializationType == "JSON" {
+					jsonResult = &result
+					break
+				}
+			}
 
-			sizeRatio := float64(protoResult.SerializedSize) / float64(jsonResult.SerializedSize)
+			if jsonResult == nil {
+				continue
+			}
 
-			fmt.Printf("%-8s | %-12s | %13d B | %13s | %16s | %16s\n",
-				sizeName, jsonResult.SerializationType,
-				jsonResult.SerializedSize, "-",
-				jsonResult.SerializeTime.String(),
-				jsonResult.DeserializeTime.String())
+			// Print all results for this size
+			for i, result := range sizeResults {
+				sizeRatio := "-"
+				if result.SerializationType != "JSON" {
+					sizeRatio = fmt.Sprintf("%.2fx", float64(result.SerializedSize)/float64(jsonResult.SerializedSize))
+				}
 
-			fmt.Printf("%-8s | %-12s | %13d B | %13.2fx | %16s | %16s\n",
-				"", protoResult.SerializationType,
-				protoResult.SerializedSize, sizeRatio,
-				protoResult.SerializeTime.String(),
-				protoResult.DeserializeTime.String())
+				fmt.Printf("%-8s | %-12s | %13d B | %13s | %16s | %16s\n",
+					func() string {
+						if i == 0 {
+							return sizeName
+						}
+						return ""
+					}(),
+					result.SerializationType,
+					result.SerializedSize, sizeRatio,
+					result.SerializeTime.String(),
+					result.DeserializeTime.String())
+			}
 			fmt.Printf("---------|--------------|-----------------|-----------------|--------------------|-----------------\n")
 		}
 	}
 
-	// Summary table
-	fmt.Printf("\n=== Performance Summary ===\n\n")
-	fmt.Printf("%-8s | %-20s | %-20s | %-20s\n", "Size", "JSON vs Proto Size", "JSON vs Proto Ser", "JSON vs Proto Deser")
-	fmt.Printf("---------|----------------------|----------------------|---------------------\n")
+	// Summary table comparing all formats to JSON
+	fmt.Printf("\n=== Performance Summary (Relative to JSON) ===\n\n")
+	fmt.Printf("%-8s | %-12s | %-15s | %-15s | %-15s\n", "Size", "Format", "Size Ratio", "Ser Ratio", "Deser Ratio")
+	fmt.Printf("---------|--------------|-----------------|-----------------|----------------\n")
 
 	for _, sizeName := range sizeOrder {
 		if sizeResults, ok := results[sizeName]; ok {
-			jsonResult := sizeResults[0]
-			protoResult := sizeResults[1]
+			// Find JSON result as baseline
+			var jsonResult *BenchmarkResult
+			for _, result := range sizeResults {
+				if result.SerializationType == "JSON" {
+					jsonResult = &result
+					break
+				}
+			}
 
-			sizeRatio := float64(protoResult.SerializedSize) / float64(jsonResult.SerializedSize)
-			serRatio := float64(protoResult.SerializeTime.Nanoseconds()) / float64(jsonResult.SerializeTime.Nanoseconds())
-			deserRatio := float64(protoResult.DeserializeTime.Nanoseconds()) / float64(jsonResult.DeserializeTime.Nanoseconds())
+			if jsonResult == nil {
+				continue
+			}
 
-			fmt.Printf("%-8s | %18.2fx | %18.2fx | %18.2fx\n",
-				sizeName, sizeRatio, serRatio, deserRatio)
+			// Print ratios for all formats
+			for i, result := range sizeResults {
+				sizeRatio := float64(result.SerializedSize) / float64(jsonResult.SerializedSize)
+				serRatio := float64(result.SerializeTime.Nanoseconds()) / float64(jsonResult.SerializeTime.Nanoseconds())
+				deserRatio := float64(result.DeserializeTime.Nanoseconds()) / float64(jsonResult.DeserializeTime.Nanoseconds())
+
+				fmt.Printf("%-8s | %-12s | %13.2fx | %13.2fx | %13.2fx\n",
+					func() string {
+						if i == 0 {
+							return sizeName
+						}
+						return ""
+					}(),
+					result.SerializationType,
+					sizeRatio, serRatio, deserRatio)
+			}
 		}
 	}
 }
