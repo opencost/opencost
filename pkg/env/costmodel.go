@@ -86,6 +86,10 @@ const (
 
 	// Cloud provider override
 	CloudProviderVar = "CLOUD_PROVIDER"
+
+	// MCP Server
+	MCPServerEnabledEnvVar = "MCP_SERVER_ENABLED"
+	MCPHTTPPortEnvVar      = "MCP_HTTP_PORT"
 )
 
 func GetGCPAuthSecretFilePath() string {
@@ -367,4 +371,16 @@ func GetLocalCollectorDirectory() string {
 
 func GetDOKSPricingURL() string {
 	return env.Get(ProviderPricingURL, "https://api.digitalocean.com/v2/billing/pricing")
+}
+
+// IsMCPServerEnabled returns the environment variable value for MCPServerEnabledEnvVar which represents
+// whether or not the MCP server is enabled.
+func IsMCPServerEnabled() bool {
+	return env.GetBool(MCPServerEnabledEnvVar, true)
+}
+
+// GetMCPHTTPPort returns the environment variable value for MCPHTTPPortEnvVar which represents
+// the HTTP port for the MCP server.
+func GetMCPHTTPPort() int {
+	return env.GetInt(MCPHTTPPortEnvVar, 8081)
 }
