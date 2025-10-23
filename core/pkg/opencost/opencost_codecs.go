@@ -13,12 +13,11 @@ package opencost
 
 import (
 	"fmt"
+	util "github.com/opencost/opencost/core/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
-
-	util "github.com/opencost/opencost/core/pkg/util"
 )
 
 const (
@@ -34,9 +33,6 @@ const (
 )
 
 const (
-	// NetworkInsightCodecVersion is used for any resources listed in the NetworkInsight version set
-	NetworkInsightCodecVersion uint8 = 1
-
 	// DefaultCodecVersion is used for any resources listed in the Default version set
 	DefaultCodecVersion uint8 = 18
 
@@ -44,10 +40,13 @@ const (
 	AssetsCodecVersion uint8 = 21
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
-	AllocationCodecVersion uint8 = 23
+	AllocationCodecVersion uint8 = 24
 
 	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
 	CloudCostCodecVersion uint8 = 3
+
+	// NetworkInsightCodecVersion is used for any resources listed in the NetworkInsight version set
+	NetworkInsightCodecVersion uint8 = 1
 )
 
 //--------------------------------------------------------------------------
@@ -478,6 +477,8 @@ func (target *Allocation) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 		// --- [end][write][struct](GPUAllocation) ---
 
 	}
+	buff.WriteFloat64(target.CPUCoreLimitAverage)  // write float64
+	buff.WriteFloat64(target.RAMBytesLimitAverage) // write float64
 	return nil
 }
 
@@ -827,6 +828,24 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 	} else {
 		target.GPUAllocation = nil
 
+	}
+
+	// field version check
+	if uint8(24) <= version {
+		kkk := buff.ReadFloat64() // read float64
+		target.CPUCoreLimitAverage = kkk
+
+	} else {
+		target.CPUCoreLimitAverage = float64(0) // default
+	}
+
+	// field version check
+	if uint8(24) <= version {
+		lll := buff.ReadFloat64() // read float64
+		target.RAMBytesLimitAverage = lll
+
+	} else {
+		target.RAMBytesLimitAverage = float64(0) // default
 	}
 
 	// execute migration func if version delta detected
