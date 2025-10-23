@@ -1843,3 +1843,11 @@ func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost
 func (cm *CostModel) GetDataSource() source.OpenCostDataSource {
 	return cm.DataSource
 }
+
+func normalizeNodeName(nodeName string, idMap map[string]string) string {
+	if canonical, ok := idMap[nodeName]; ok {
+		return canonical
+	}
+	log.Warnf("Node identity normalization: could not map identifier '%s' to canonical node name", nodeName)
+	return nodeName
+}

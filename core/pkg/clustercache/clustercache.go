@@ -381,6 +381,26 @@ func TransformReplicaSet(input *appsv1.ReplicaSet) *ReplicaSet {
 	}
 }
 
+// NodeIdentityMap builds a mapping from all known node identifiers (hostname, internal IP, external IP, ip:port) to the canonical node name.
+func NodeIdentityMap(nodes []*Node) map[string]string {
+	idMap := make(map[string]string)
+	for _, node := range nodes {
+		canonical := node.Name
+		idMap[canonical] = canonical
+		for _, addr := range node.Status.Addresses {
+			switch addr.Type {
+			case v1.NodeHostName:
+				idMap[addr.Address] = canonical
+			case v1.NodeInternalIP, v1.NodeExternalIP:
+				idMap[addr.Address] = canonical
+				// Add common kubelet scrape port (10250) as ip:port
+				idMap[addr.Address+":10250"] = canonical
+			}
+		}
+	}
+	return idMap
+}
+
 // ClusterCache defines an contract for an object which caches components within a cluster, ensuring
 // up to date resources using watchers
 type ClusterCache interface {
