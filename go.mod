@@ -77,6 +77,7 @@ require (
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.0.5 // indirect
 	github.com/gofrs/flock v0.8.1 // indirect
+	github.com/kubecost/bingen v0.0.11 // indirect
 	github.com/minio/crc64nvme v1.0.1 // indirect
 	github.com/minio/minio-go/v7 v7.0.88 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

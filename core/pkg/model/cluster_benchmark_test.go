@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/exporter"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/model/pb"
 	"github.com/opencost/opencost/core/pkg/model/pb/kubemodel"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -116,62 +117,62 @@ var ClusterSizes = map[string]ClusterSize{
 		GpuUsages:              10000,
 		LabelCount:             30,
 	},
-	//"3xlg": {
-	//	Name:                   "3X Large",
-	//	Nodes:                  10000,
-	//	Namespaces:             3000,
-	//	Pods:                   30000,
-	//	Containers:             60000,
-	//	Services:               15000,
-	//	Controllers:            6000,
-	//	Volumes:                20000,
-	//	PersistentVolumeClaims: 15000,
-	//	GpuDevices:             10000,
-	//	GpuUsages:              20000,
-	//	LabelCount:             40,
-	//},
-	//"4xlg": {
-	//	Name:                   "4X Large",
-	//	Nodes:                  25000,
-	//	Namespaces:             5000,
-	//	Pods:                   60000,
-	//	Containers:             120000,
-	//	Services:               30000,
-	//	Controllers:            12000,
-	//	Volumes:                40000,
-	//	PersistentVolumeClaims: 30000,
-	//	GpuDevices:             25000,
-	//	GpuUsages:              50000,
-	//	LabelCount:             60,
-	//},
-	//"5xlg": {
-	//	Name:                   "5X Large",
-	//	Nodes:                  50000,
-	//	Namespaces:             7500,
-	//	Pods:                   100000,
-	//	Containers:             200000,
-	//	Services:               50000,
-	//	Controllers:            20000,
-	//	Volumes:                60000,
-	//	PersistentVolumeClaims: 50000,
-	//	GpuDevices:             50000,
-	//	GpuUsages:              75000,
-	//	LabelCount:             80,
-	//},
-	//"10xlg": {
-	//	Name:                   "10X Large",
-	//	Nodes:                  100000,
-	//	Namespaces:             10000,
-	//	Pods:                   150000,
-	//	Containers:             300000,
-	//	Services:               100000,
-	//	Controllers:            100000,
-	//	Volumes:                100000,
-	//	PersistentVolumeClaims: 100000,
-	//	GpuDevices:             100000,
-	//	GpuUsages:              100000,
-	//	LabelCount:             100,
-	//},
+	"3xlg": {
+		Name:                   "3X Large",
+		Nodes:                  10000,
+		Namespaces:             3000,
+		Pods:                   30000,
+		Containers:             60000,
+		Services:               15000,
+		Controllers:            6000,
+		Volumes:                20000,
+		PersistentVolumeClaims: 15000,
+		GpuDevices:             10000,
+		GpuUsages:              20000,
+		LabelCount:             40,
+	},
+	"4xlg": {
+		Name:                   "4X Large",
+		Nodes:                  25000,
+		Namespaces:             5000,
+		Pods:                   60000,
+		Containers:             120000,
+		Services:               30000,
+		Controllers:            12000,
+		Volumes:                40000,
+		PersistentVolumeClaims: 30000,
+		GpuDevices:             25000,
+		GpuUsages:              50000,
+		LabelCount:             60,
+	},
+	"5xlg": {
+		Name:                   "5X Large",
+		Nodes:                  50000,
+		Namespaces:             7500,
+		Pods:                   100000,
+		Containers:             200000,
+		Services:               50000,
+		Controllers:            20000,
+		Volumes:                60000,
+		PersistentVolumeClaims: 50000,
+		GpuDevices:             50000,
+		GpuUsages:              75000,
+		LabelCount:             80,
+	},
+	"10xlg": {
+		Name:                   "10X Large",
+		Nodes:                  100000,
+		Namespaces:             10000,
+		Pods:                   150000,
+		Containers:             300000,
+		Services:               100000,
+		Controllers:            100000,
+		Volumes:                100000,
+		PersistentVolumeClaims: 100000,
+		GpuDevices:             100000,
+		GpuUsages:              100000,
+		LabelCount:             100,
+	},
 }
 
 // BenchmarkResult stores the results of a benchmark run
@@ -534,23 +535,34 @@ func maxInt(a, b int) int {
 }
 
 // GobSerializer implements Go's gob serialization
-type GobSerializer struct{}
 
-func (g GobSerializer) Name() string {
-	return "Gob"
+func GobDecoder[T any](data []byte) (*T, error) {
+	var target *T = new(T)
+
+	buf := bytes.NewBuffer(data)
+	dec := gob.NewDecoder(buf)
+	err := dec.Decode(target)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode with GOB: %w", err)
+	}
+	return target, nil
 }
 
-func (g GobSerializer) Serialize(data interface{}) ([]byte, error) {
+type GobEncoder[T any] struct{}
+
+func NewGobEncoder[T any]() exporter.Encoder[T] {
+	return new(GobEncoder[T])
+}
+
+func (g *GobEncoder[T]) FileExt() string {
+	return "gob"
+}
+
+func (g *GobEncoder[T]) Encode(data *T) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	err := enc.Encode(data)
 	return buf.Bytes(), err
-}
-
-func (g GobSerializer) Deserialize(data []byte, target interface{}) error {
-	buf := bytes.NewBuffer(data)
-	dec := gob.NewDecoder(buf)
-	return dec.Decode(target)
 }
 
 type SerializationTester[T any] struct {
@@ -604,6 +616,26 @@ func TestMultiSerializationComparison(t *testing.T) {
 			Decoder: exporter.GetGzipDecoder(exporter.JSONDecoder[Cluster]),
 			Encoder: exporter.NewGZipEncoder(exporter.NewJSONEncoder[Cluster]()),
 		},
+		{
+			Name:    "Bingen",
+			Decoder: exporter.BingenDecoder[Cluster],
+			Encoder: exporter.NewBingenEncoder[Cluster](),
+		},
+		{
+			Name:    "Bingen GZIP",
+			Decoder: exporter.GetGzipDecoder(exporter.BingenDecoder[Cluster]),
+			Encoder: exporter.NewGZipEncoder(exporter.NewBingenEncoder[Cluster]()),
+		},
+		{
+			Name:    "GOB",
+			Decoder: GobDecoder[Cluster],
+			Encoder: NewGobEncoder[Cluster](),
+		},
+		{
+			Name:    "GOB GZIP",
+			Decoder: exporter.GetGzipDecoder(GobDecoder[Cluster]),
+			Encoder: exporter.NewGZipEncoder(NewGobEncoder[Cluster]()),
+		},
 	}
 
 	protoSerializationTesters := []*SerializationTester[kubemodel.Cluster]{
@@ -620,11 +652,12 @@ func TestMultiSerializationComparison(t *testing.T) {
 	}
 
 	for sizeName, size := range ClusterSizes {
-
+		log.Infof("Running benchmarks for size %s", sizeName)
 		var sizeResults []BenchmarkResult
 
 		goCluster := generateGoCluster(size)
 		for _, st := range serializationTesters {
+			log.Infof("Running benchmarks for %s", st.Name)
 			result, err := st.Run(goCluster)
 			if err != nil {
 				t.Fatal(err)
@@ -635,6 +668,7 @@ func TestMultiSerializationComparison(t *testing.T) {
 
 		protoCluster := generateProtoCluster(size)
 		for _, st := range protoSerializationTesters {
+			log.Infof("Running benchmarks for %s", st.Name)
 			result, err := st.Run(protoCluster)
 			if err != nil {
 				t.Fatal(err)
