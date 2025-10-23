@@ -74,7 +74,6 @@ func buildCPUCostMap(
 		var cpuCost float64
 
 		if customPricingEnabled && customPricingConfig != nil {
-
 			var customCPUStr string
 			if spot, ok := preemptible[key]; ok && spot {
 				customCPUStr = customPricingConfig.SpotCPU
@@ -85,15 +84,14 @@ func buildCPUCostMap(
 			customCPUCost, err := strconv.ParseFloat(customCPUStr, 64)
 			if err != nil {
 				log.Warnf("ClusterNodes: error parsing custom CPU price: %s", customCPUStr)
+				customCPUCost = 0
 			}
 			cpuCost = customCPUCost
-
 		} else {
 			cpuCost = result.Data[0].Value
 		}
 
 		clusterAndNameToType[keyNon] = nodeType
-
 		cpuCostMap[key] = cpuCost
 	}
 
@@ -142,7 +140,6 @@ func buildRAMCostMap(
 		var ramCost float64
 
 		if customPricingEnabled && customPricingConfig != nil {
-
 			var customRAMStr string
 			if spot, ok := preemptible[key]; ok && spot {
 				customRAMStr = customPricingConfig.SpotRAM
@@ -153,16 +150,14 @@ func buildRAMCostMap(
 			customRAMCost, err := strconv.ParseFloat(customRAMStr, 64)
 			if err != nil {
 				log.Warnf("ClusterNodes: error parsing custom RAM price: %s", customRAMStr)
+				customRAMCost = 0
 			}
 			ramCost = customRAMCost
-
 		} else {
 			ramCost = result.Data[0].Value
 		}
 
 		clusterAndNameToType[keyNon] = nodeType
-
-		// covert to price per byte/hr
 		ramCostMap[key] = ramCost / 1024.0 / 1024.0 / 1024.0
 	}
 
@@ -213,7 +208,6 @@ func buildGPUCostMap(
 		var gpuCost float64
 
 		if customPricingEnabled && customPricingConfig != nil {
-
 			var customGPUStr string
 			if spot, ok := preemptible[key]; ok && spot {
 				customGPUStr = customPricingConfig.SpotGPU
@@ -224,9 +218,9 @@ func buildGPUCostMap(
 			customGPUCost, err := strconv.ParseFloat(customGPUStr, 64)
 			if err != nil {
 				log.Warnf("ClusterNodes: error parsing custom GPU price: %s", customGPUStr)
+				customGPUCost = 0
 			}
 			gpuCost = customGPUCost
-
 		} else {
 			gpuCost = result.Data[0].Value
 		}
@@ -239,7 +233,6 @@ func buildGPUCostMap(
 		} else {
 			gpuCostMap[key] = 0
 		}
-
 	}
 
 	return gpuCostMap, clusterAndNameToType
