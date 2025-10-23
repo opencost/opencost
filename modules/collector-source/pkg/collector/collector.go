@@ -39,10 +39,12 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewPodActiveMinutesMetricCollector())
 	memStore.Register(NewRAMBytesAllocatedMetricCollector())
 	memStore.Register(NewRAMRequestsMetricCollector())
+	memStore.Register(NewRAMLimitsMetricCollector())
 	memStore.Register(NewRAMUsageAverageMetricCollector())
 	memStore.Register(NewRAMUsageMaxMetricCollector())
 	memStore.Register(NewCPUCoresAllocatedMetricCollector())
 	memStore.Register(NewCPURequestsMetricCollector())
+	memStore.Register(NewCPULimitsMetricCollector())
 	memStore.Register(NewCPUUsageAverageMetricCollector())
 	memStore.Register(NewCPUUsageMaxMetricCollector())
 	memStore.Register(NewGPUsRequestedMetricCollector())
@@ -686,6 +688,37 @@ func NewRAMRequestsMetricCollector() *metric.MetricCollector {
 }
 
 // avg(
+//	avg_over_time(
+//		kube_pod_container_resource_limits{
+//			resource="memory",
+//			unit="byte",
+//			container!="",
+//			container!="POD",
+//			node!="",
+//			<some_custom_filter>
+//		}[1h]
+//	)
+//) by (container, pod, namespace, node, cluster_id)
+
+func NewRAMLimitsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.RAMLimitsID,
+		metric.KubePodContainerResourceLimits,
+		[]string{
+			source.NodeLabel,
+			source.InstanceLabel,
+			source.NamespaceLabel,
+			source.PodLabel,
+			source.ContainerLabel,
+		},
+		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.ResourceLabel] == "memory" && labels[source.UnitLabel] == "byte" && labels[source.ContainerLabel] != "POD" && labels[source.ContainerLabel] != "" && labels[source.NodeLabel] != ""
+		},
+	)
+}
+
+// avg(
 // 		avg_over_time(
 // 			container_memory_working_set_bytes{
 // 				container!="",
@@ -788,6 +821,37 @@ func NewCPURequestsMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.CPURequestsID,
 		metric.KubePodContainerResourceRequests,
+		[]string{
+			source.NodeLabel,
+			source.InstanceLabel,
+			source.NamespaceLabel,
+			source.PodLabel,
+			source.ContainerLabel,
+		},
+		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.ResourceLabel] == "cpu" && labels[source.UnitLabel] == "core" && labels[source.ContainerLabel] != "POD" && labels[source.ContainerLabel] != "" && labels[source.NodeLabel] != ""
+		},
+	)
+}
+
+//	avg(
+//		avg_over_time(
+//			kube_pod_container_resource_limits{
+//				resource="cpu",
+//				unit="core",
+//				container!="",
+//				container!="POD",
+//				node!="",
+//				<some_custom_filter>
+//			}[1h]
+//		)
+//	) by (container, pod, namespace, node, cluster_id)
+
+func NewCPULimitsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.CPULimitsID,
+		metric.KubePodContainerResourceLimits,
 		[]string{
 			source.NodeLabel,
 			source.InstanceLabel,
