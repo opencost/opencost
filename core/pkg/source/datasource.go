@@ -49,6 +49,7 @@ type MetricsQuerier interface {
 	// RAM
 	QueryRAMBytesAllocated(start, end time.Time) *Future[RAMBytesAllocatedResult]
 	QueryRAMRequests(start, end time.Time) *Future[RAMRequestsResult]
+	QueryRAMLimits(start, end time.Time) *Future[RAMLimitsResult]
 	QueryRAMUsageAvg(start, end time.Time) *Future[RAMUsageAvgResult]
 	QueryRAMUsageMax(start, end time.Time) *Future[RAMUsageMaxResult]
 	QueryNodeRAMPricePerGiBHr(start, end time.Time) *Future[NodeRAMPricePerGiBHrResult]
@@ -56,6 +57,7 @@ type MetricsQuerier interface {
 	// CPU
 	QueryCPUCoresAllocated(start, end time.Time) *Future[CPUCoresAllocatedResult]
 	QueryCPURequests(start, end time.Time) *Future[CPURequestsResult]
+	QueryCPULimits(start, end time.Time) *Future[CPULimitsResult]
 	QueryCPUUsageAvg(start, end time.Time) *Future[CPUUsageAvgResult]
 	QueryCPUUsageMax(start, end time.Time) *Future[CPUUsageMaxResult]
 	QueryNodeCPUPricePerHr(start, end time.Time) *Future[NodeCPUPricePerHrResult]

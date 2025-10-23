@@ -324,6 +324,10 @@ func (c *collectorMetricsQuerier) QueryRAMRequests(start, end time.Time) *source
 	return queryCollector(c, start, end, metric.RAMRequestsID, source.DecodeRAMRequestsResult)
 }
 
+func (c *collectorMetricsQuerier) QueryRAMLimits(start, end time.Time) *source.Future[source.RAMLimitsResult] {
+	return queryCollector(c, start, end, metric.RAMLimitsID, source.DecodeRAMLimitsResult)
+}
+
 func (c *collectorMetricsQuerier) QueryRAMUsageAvg(start, end time.Time) *source.Future[source.RAMUsageAvgResult] {
 	return queryCollector(c, start, end, metric.RAMUsageAverageID, source.DecodeRAMUsageAvgResult)
 }
@@ -342,6 +346,10 @@ func (c *collectorMetricsQuerier) QueryCPUCoresAllocated(start, end time.Time) *
 
 func (c *collectorMetricsQuerier) QueryCPURequests(start, end time.Time) *source.Future[source.CPURequestsResult] {
 	return queryCollector(c, start, end, metric.CPURequestsID, source.DecodeCPURequestsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryCPULimits(start, end time.Time) *source.Future[source.CPULimitsResult] {
+	return queryCollector(c, start, end, metric.CPULimitsID, source.DecodeCPULimitsResult)
 }
 
 func (c *collectorMetricsQuerier) QueryCPUUsageAvg(start, end time.Time) *source.Future[source.CPUUsageAvgResult] {

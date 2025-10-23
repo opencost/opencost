@@ -510,6 +510,12 @@ func DecodeRAMRequestsResult(result *QueryResult) *RAMRequestsResult {
 	return DecodeContainerMetricResult(result)
 }
 
+type RAMLimitsResult = ContainerMetricResult
+
+func DecodeRAMLimitsResult(result *QueryResult) *RAMLimitsResult {
+	return DecodeContainerMetricResult(result)
+}
+
 type RAMUsageAvgResult = ContainerMetricResult
 
 func DecodeRAMUsageAvgResult(result *QueryResult) *RAMUsageAvgResult {
@@ -554,6 +560,12 @@ func DecodeCPUCoresAllocatedResult(result *QueryResult) *CPUCoresAllocatedResult
 type CPURequestsResult = ContainerMetricResult
 
 func DecodeCPURequestsResult(result *QueryResult) *CPURequestsResult {
+	return DecodeContainerMetricResult(result)
+}
+
+type CPULimitsResult = ContainerMetricResult
+
+func DecodeCPULimitsResult(result *QueryResult) *CPULimitsResult {
 	return DecodeContainerMetricResult(result)
 }
 
