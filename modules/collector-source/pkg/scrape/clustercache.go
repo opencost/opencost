@@ -290,6 +290,32 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod) []metric.Up
 					})
 				}
 			}
+
+			// Limits
+			if container.Resources.Limits != nil {
+				// sorting keys here for testing purposes
+				keys := maps.Keys(container.Resources.Limits)
+				slices.Sort(keys)
+				for _, resourceName := range keys {
+					quantity := container.Resources.Limits[resourceName]
+					resource, unit, value := toResourceUnitValue(resourceName, quantity)
+
+					// failed to parse the resource type
+					if resource == "" {
+						log.DedupedWarningf(5, "Failed to parse resource units and quantity for resource: %s", resourceName)
+						continue
+					}
+
+					resourceLimitInfo := maps.Clone(containerInfo)
+					resourceLimitInfo[source.ResourceLabel] = resource
+					resourceLimitInfo[source.UnitLabel] = unit
+					scrapeResults = append(scrapeResults, metric.Update{
+						Name:   metric.KubePodContainerResourceLimits,
+						Labels: resourceLimitInfo,
+						Value:  value,
+					})
+				}
+			}
 		}
 	}
 

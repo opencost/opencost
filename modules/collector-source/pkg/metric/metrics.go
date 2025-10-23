@@ -12,6 +12,7 @@ const (
 	KubePodOwner                                          = "kube_pod_owner"
 	KubePodContainerStatusRunning                         = "kube_pod_container_status_running"
 	KubePodContainerResourceRequests                      = "kube_pod_container_resource_requests"
+	KubePodContainerResourceLimits                        = "kube_pod_container_resource_limits"
 	KubePersistentVolumeClaimInfo                         = "kube_persistentvolumeclaim_info"
 	KubePersistentVolumeClaimResourceRequestsStorageBytes = "kube_persistentvolumeclaim_resource_requests_storage_bytes"
 	KubecostPVInfo                                        = "kubecost_pv_info"
