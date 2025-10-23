@@ -1281,9 +1281,7 @@ func NewNetZonePricePerGiBMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NetZonePricePerGiBID,
 		metric.KubecostNetworkZoneEgressCost,
-		[]string{
-			source.UIDLabel,
-		},
+		[]string{},
 		aggregator.AverageOverTime,
 		nil,
 	)
@@ -1328,9 +1326,7 @@ func NewNetRegionPricePerGiBMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NetRegionPricePerGiBID,
 		metric.KubecostNetworkRegionEgressCost,
-		[]string{
-			source.UIDLabel,
-		},
+		[]string{},
 		aggregator.AverageOverTime,
 		nil,
 	)
@@ -1373,9 +1369,7 @@ func NewNetInternetPricePerGiBMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NetInternetPricePerGiBID,
 		metric.KubecostNetworkInternetEgressCost,
-		[]string{
-			source.UIDLabel,
-		},
+		[]string{},
 		aggregator.AverageOverTime,
 		nil,
 	)
