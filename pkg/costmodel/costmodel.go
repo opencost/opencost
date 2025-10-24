@@ -1817,7 +1817,32 @@ func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost
 		// Insert one idle allocation for each key (whether by node or
 		// by cluster), defined as the difference between the total
 		// asset cost and the allocated cost per-resource.
+		// Idle costs are clamped to zero to prevent negative values that can occur
+		// when asset costs are zero (e.g., in promless mode without custom pricing)
+		// but negative adjustments are applied from cloud providers.
 		name := fmt.Sprintf("%s/%s", key, opencost.IdleSuffix)
+
+		cpuIdleCost := assetTotal.TotalCPUCost() - allocTotal.TotalCPUCost()
+		gpuIdleCost := assetTotal.TotalGPUCost() - allocTotal.TotalGPUCost()
+		ramIdleCost := assetTotal.TotalRAMCost() - allocTotal.TotalRAMCost()
+
+		// Clamp idle costs to zero to prevent negative idle allocations
+		if cpuIdleCost < 0 {
+			log.DedupedWarningf(5, "Allocation: clamping negative CPU idle cost to 0 for %s (assetTotal: %.4f, allocTotal: %.4f)",
+				key, assetTotal.TotalCPUCost(), allocTotal.TotalCPUCost())
+			cpuIdleCost = 0
+		}
+		if gpuIdleCost < 0 {
+			log.DedupedWarningf(5, "Allocation: clamping negative GPU idle cost to 0 for %s (assetTotal: %.4f, allocTotal: %.4f)",
+				key, assetTotal.TotalGPUCost(), allocTotal.TotalGPUCost())
+			gpuIdleCost = 0
+		}
+		if ramIdleCost < 0 {
+			log.DedupedWarningf(5, "Allocation: clamping negative RAM idle cost to 0 for %s (assetTotal: %.4f, allocTotal: %.4f)",
+				key, assetTotal.TotalRAMCost(), allocTotal.TotalRAMCost())
+			ramIdleCost = 0
+		}
+
 		err := idleSet.Insert(&opencost.Allocation{
 			Name:   name,
 			Window: idleSet.Window.Clone(),
@@ -1828,9 +1853,9 @@ func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost
 			},
 			Start:   assetTotal.Start,
 			End:     assetTotal.End,
-			CPUCost: assetTotal.TotalCPUCost() - allocTotal.TotalCPUCost(),
-			GPUCost: assetTotal.TotalGPUCost() - allocTotal.TotalGPUCost(),
-			RAMCost: assetTotal.TotalRAMCost() - allocTotal.TotalRAMCost(),
+			CPUCost: cpuIdleCost,
+			GPUCost: gpuIdleCost,
+			RAMCost: ramIdleCost,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to insert idle allocation %s: %w", name, err)
