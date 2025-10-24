@@ -173,6 +173,14 @@ func (s *PipelineService) GetCloudCostRepairHandler() func(w http.ResponseWriter
 	}
 }
 
+// GetCloudCostQuerier returns a querier that can query data from all cloud providers
+func (s *PipelineService) GetCloudCostQuerier() Querier {
+	if s.store == nil {
+		return nil
+	}
+	return NewRepositoryQuerier(s.store)
+}
+
 // GetCloudCostStatusHandler creates a handler from a http request which returns a list of the billing integration status
 func (s *PipelineService) GetCloudCostStatusHandler() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	// If Reporting Service is nil, always return 501
