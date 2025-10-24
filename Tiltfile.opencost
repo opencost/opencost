@@ -147,6 +147,7 @@ def run_opencost(options):
         options['port_costmodel']+':9003',
         options['port_ui']+':9090',
         options['port_debug']+':40000',
+        '8081:8081',  # MCP server port
     ]
     k8s_resource(workload='opencost', port_forwards=port_forwards)
 
