@@ -1818,8 +1818,11 @@ func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost
 		// by cluster), defined as the difference between the total
 		// asset cost and the allocated cost per-resource.
 		// Idle costs are clamped to zero to prevent negative values that can occur
-		// when asset costs are zero (e.g., in promless mode without custom pricing)
-		// but negative adjustments are applied from cloud providers.
+		// when asset total costs are less than allocated costs. This can happen when:
+		// - Pricing data is unavailable (promless mode, API failures, missing price data)
+		// - Custom pricing is misconfigured or returns zero values
+		// - Cloud billing adjustments reduce asset costs below allocation costs
+		// - Allocation calculations exceed asset costs due to timing or rounding
 		name := fmt.Sprintf("%s/%s", key, opencost.IdleSuffix)
 
 		cpuIdleCost := assetTotal.TotalCPUCost() - allocTotal.TotalCPUCost()
