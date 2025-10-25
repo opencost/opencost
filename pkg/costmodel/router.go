@@ -653,7 +653,7 @@ func InitializeCloudCost(router *httprouter.Router, providerConfig models.Provid
 	router.GET("/cloudCost", cloudCostQueryService.GetCloudCostHandler())
 	router.GET("/cloudCost/view/graph", cloudCostQueryService.GetCloudCostViewGraphHandler())
 	router.GET("/cloudCost/view/totals", cloudCostQueryService.GetCloudCostViewTotalsHandler())
-	router.GET("/cloudCost/view/table", cloudCostQueryService.GetCloudCostViewTableHandler())
+	router.GET("/cloudCost/view/table", cloudCostQueryService.GetCloudCostViewTableHandler(nil))
 
 	router.GET("/cloudCost/status", cloudCostPipelineService.GetCloudCostStatusHandler())
 	router.GET("/cloudCost/rebuild", cloudCostPipelineService.GetCloudCostRebuildHandler())
