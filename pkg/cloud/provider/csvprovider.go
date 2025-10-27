@@ -423,7 +423,7 @@ func (c *CSVProvider) GetPVKey(pv *clustercache.PersistentVolume, parameters map
 	id := PVValueFromMapField(c.PVMapField, pv)
 	return &csvPVKey{
 		Labels:                 pv.Labels,
-		ProviderID:             id,
+		ProviderID:             strings.ToLower(id),
 		StorageClassName:       pv.Spec.StorageClassName,
 		StorageClassParameters: parameters,
 		Name:                   pv.Name,

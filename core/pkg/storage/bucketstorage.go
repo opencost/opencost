@@ -12,9 +12,10 @@ import (
 type StorageProvider string
 
 const (
-	S3    StorageProvider = "S3"
-	GCS   StorageProvider = "GCS"
-	AZURE StorageProvider = "AZURE"
+	S3      StorageProvider = "S3"
+	GCS     StorageProvider = "GCS"
+	AZURE   StorageProvider = "AZURE"
+	CLUSTER StorageProvider = "CLUSTER"
 )
 
 // StorageConfig is the configuration type used as the "parent" configuration. It contains a type, which will
@@ -48,6 +49,8 @@ func NewBucketStorage(config []byte) (Storage, error) {
 		storage, err = NewGCSStorage(config)
 	case string(AZURE):
 		storage, err = NewAzureStorage(config)
+	case string(CLUSTER):
+		storage, err = NewClusterStorage(config)
 	default:
 		return nil, errors.Errorf("storage with type %s is not supported", storageConfig.Type)
 	}

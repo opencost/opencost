@@ -5,10 +5,12 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/kubecost/events"
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
+	"github.com/opencost/opencost/modules/collector-source/pkg/event"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 	"golang.org/x/exp/maps"
@@ -54,6 +56,7 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 		nodeInfo := map[string]string{
 			source.NodeLabel:       node.Name,
 			source.ProviderIDLabel: node.SpecProviderID,
+			source.UIDLabel:        string(node.UID),
 		}
 
 		// Node Capacity
@@ -110,6 +113,14 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 		})
 
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.NodeScraperType,
+		Targets:     len(nodes),
+		Errors:      nil,
+	})
+
 	return scrapeResults
 }
 
@@ -124,6 +135,7 @@ func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.De
 		deploymentInfo := map[string]string{
 			source.DeploymentLabel: deployment.Name,
 			source.NamespaceLabel:  deployment.Namespace,
+			source.UIDLabel:        string(deployment.UID),
 		}
 
 		// deployment labels
@@ -137,6 +149,14 @@ func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.De
 			AdditionalInfo: deploymentLabels,
 		})
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.DeploymentScraperType,
+		Targets:     len(deployments),
+		Errors:      nil,
+	})
+
 	return scrapeResults
 }
 
@@ -150,6 +170,7 @@ func (ccs *ClusterCacheScraper) scrapeNamespaces(namespaces []*clustercache.Name
 	for _, namespace := range namespaces {
 		namespaceInfo := map[string]string{
 			source.NamespaceLabel: namespace.Name,
+			source.UIDLabel:       string(namespace.UID),
 		}
 
 		// namespace labels
@@ -172,6 +193,14 @@ func (ccs *ClusterCacheScraper) scrapeNamespaces(namespaces []*clustercache.Name
 			AdditionalInfo: namespaceAnnotations,
 		})
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.NamespaceScraperType,
+		Targets:     len(namespaces),
+		Errors:      nil,
+	})
+
 	return scrapeResults
 }
 
@@ -266,6 +295,14 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod) []metric.Up
 			}
 		}
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.PodScraperType,
+		Targets:     len(pods),
+		Errors:      nil,
+	})
+
 	return scrapeResults
 }
 
@@ -280,6 +317,7 @@ func (ccs *ClusterCacheScraper) scrapePVCs(pvcs []*clustercache.PersistentVolume
 		pvcInfo := map[string]string{
 			source.PVCLabel:          pvc.Name,
 			source.NamespaceLabel:    pvc.Namespace,
+			source.UIDLabel:          string(pvc.UID),
 			source.VolumeNameLabel:   pvc.Spec.VolumeName,
 			source.StorageClassLabel: getPersistentVolumeClaimClass(pvc),
 		}
@@ -298,6 +336,14 @@ func (ccs *ClusterCacheScraper) scrapePVCs(pvcs []*clustercache.PersistentVolume
 			})
 		}
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.PvcScraperType,
+		Targets:     len(pvcs),
+		Errors:      nil,
+	})
+
 	return scrapeResults
 }
 
@@ -316,6 +362,7 @@ func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume) 
 		}
 		pvInfo := map[string]string{
 			source.PVLabel:           pv.Name,
+			source.UIDLabel:          string(pv.UID),
 			source.StorageClassLabel: pv.Spec.StorageClassName,
 			source.ProviderIDLabel:   providerID,
 		}
@@ -334,6 +381,14 @@ func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume) 
 			})
 		}
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.PvScraperType,
+		Targets:     len(pvs),
+		Errors:      nil,
+	})
+
 	return scrapeResults
 }
 
@@ -348,6 +403,7 @@ func (ccs *ClusterCacheScraper) scrapeServices(services []*clustercache.Service)
 		serviceInfo := map[string]string{
 			source.ServiceLabel:   service.Name,
 			source.NamespaceLabel: service.Namespace,
+			source.UIDLabel:       string(service.UID),
 		}
 
 		// service labels
@@ -361,6 +417,14 @@ func (ccs *ClusterCacheScraper) scrapeServices(services []*clustercache.Service)
 		})
 
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.ServiceScraperType,
+		Targets:     len(services),
+		Errors:      nil,
+	})
+
 	return scrapeResults
 }
 
@@ -375,6 +439,7 @@ func (ccs *ClusterCacheScraper) scrapeStatefulSets(statefulSets []*clustercache.
 		statefulSetInfo := map[string]string{
 			source.StatefulSetLabel: statefulSet.Name,
 			source.NamespaceLabel:   statefulSet.Namespace,
+			source.UIDLabel:         string(statefulSet.UID),
 		}
 
 		// statefulSet labels
@@ -387,6 +452,14 @@ func (ccs *ClusterCacheScraper) scrapeStatefulSets(statefulSets []*clustercache.
 			AdditionalInfo: statefulSetLabels,
 		})
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.StatefulSetScraperType,
+		Targets:     len(statefulSets),
+		Errors:      nil,
+	})
+
 	return scrapeResults
 }
 
@@ -401,19 +474,41 @@ func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.Re
 		replicaSetInfo := map[string]string{
 			source.ReplicaSetLabel: replicaSet.Name,
 			source.NamespaceLabel:  replicaSet.Namespace,
+			source.UIDLabel:        string(replicaSet.UID),
 		}
 
-		for _, owner := range replicaSet.OwnerReferences {
+		// this specific metric exports a special <none> value for name and kind
+		// if there are no owners
+		if len(replicaSet.OwnerReferences) == 0 {
 			ownerInfo := maps.Clone(replicaSetInfo)
-			ownerInfo[source.OwnerKindLabel] = owner.Kind
-			ownerInfo[source.OwnerNameLabel] = owner.Name
+			ownerInfo[source.OwnerKindLabel] = source.NoneLabelValue
+			ownerInfo[source.OwnerNameLabel] = source.NoneLabelValue
 			scrapeResults = append(scrapeResults, metric.Update{
 				Name:   metric.KubeReplicasetOwner,
 				Labels: ownerInfo,
 				Value:  0,
 			})
+		} else {
+			for _, owner := range replicaSet.OwnerReferences {
+				ownerInfo := maps.Clone(replicaSetInfo)
+				ownerInfo[source.OwnerKindLabel] = owner.Kind
+				ownerInfo[source.OwnerNameLabel] = owner.Name
+				scrapeResults = append(scrapeResults, metric.Update{
+					Name:   metric.KubeReplicasetOwner,
+					Labels: ownerInfo,
+					Value:  0,
+				})
+			}
 		}
 	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.ReplicaSetScraperType,
+		Targets:     len(replicaSets),
+		Errors:      nil,
+	})
+
 	return scrapeResults
 }
 

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud"
 )
@@ -285,5 +286,81 @@ func TestBOAConfiguration_JSON(t *testing.T) {
 				t.Error("config does not equal unmarshalled config")
 			}
 		})
+	}
+}
+
+func TestBOAConfiguration_Sanitize(t *testing.T) {
+	cfg := BOAConfiguration{
+		Account: "account",
+		Region:  "region",
+		Authorizer: &AccessKey{
+			AccessKeyID:     "id",
+			AccessKeySecret: "secret",
+		},
+	}
+	sanitized := cfg.Sanitize()
+	sanitizedCfg, ok := sanitized.(*BOAConfiguration)
+	if !ok {
+		t.Fatal("Sanitize did not return *BOAConfiguration")
+	}
+	if sanitizedCfg.Authorizer != nil {
+		if ak, ok := sanitizedCfg.Authorizer.(*AccessKey); ok {
+			if ak.AccessKeyID != "id" {
+				t.Errorf("Sanitize should not change AccessKeyID: got %q, want %q", ak.AccessKeyID, "id")
+			}
+			if ak.AccessKeySecret != "REDACTED" {
+				t.Errorf("Sanitize should redact AccessKeySecret: got %q, want %q", ak.AccessKeySecret, "REDACTED")
+			}
+		}
+	}
+}
+
+func TestBOAConfiguration_Key(t *testing.T) {
+	cfg := BOAConfiguration{
+		Account: "acc",
+		Region:  "reg",
+	}
+	key := cfg.Key()
+	if key == "" {
+		t.Error("Key() returned empty string")
+	}
+}
+
+func TestBOAConfiguration_Provider(t *testing.T) {
+	cfg := BOAConfiguration{}
+	provider := cfg.Provider()
+	if provider != opencost.AlibabaProvider {
+		t.Errorf("Provider() = %v, want %v", provider, opencost.AlibabaProvider)
+	}
+}
+
+func TestBOAConfiguration_UnmarshalJSON_ExtraCases(t *testing.T) {
+	// Already tested in TestBOAConfiguration_JSON, but let's add a negative test
+	badJSON := []byte(`{"Region": "r", "Account": "a", "Authorizer": {"Type": "Unknown"}}`)
+	var cfg BOAConfiguration
+	err := cfg.UnmarshalJSON(badJSON)
+	if err == nil {
+		t.Error("UnmarshalJSON should fail for unknown authorizer type")
+	}
+}
+
+func TestConvertAlibabaInfoToConfig(t *testing.T) {
+	info := AlibabaInfo{
+		AlibabaAccountID:        "acc",
+		AlibabaClusterRegion:    "reg",
+		AlibabaServiceKeyName:   "id",
+		AlibabaServiceKeySecret: "secret",
+	}
+	cfg := ConvertAlibabaInfoToConfig(info)
+	boaCfg, ok := cfg.(*BOAConfiguration)
+	if !ok {
+		t.Fatal("ConvertAlibabaInfoToConfig did not return *BOAConfiguration")
+	}
+	if boaCfg.Account != info.AlibabaAccountID || boaCfg.Region != info.AlibabaClusterRegion {
+		t.Errorf("ConvertAlibabaInfoToConfig did not copy fields correctly")
+	}
+	ak, ok := boaCfg.Authorizer.(*AccessKey)
+	if !ok || ak.AccessKeyID != info.AlibabaServiceKeyName || ak.AccessKeySecret != info.AlibabaServiceKeySecret {
+		t.Errorf("ConvertAlibabaInfoToConfig did not set AccessKey correctly")
 	}
 }

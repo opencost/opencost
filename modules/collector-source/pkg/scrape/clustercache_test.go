@@ -36,6 +36,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Nodes: []*clustercache.Node{
 						{
 							Name:           "node1",
+							UID:            "uuid1",
 							SpecProviderID: "i-1",
 							Status: v1.NodeStatus{
 								Capacity: v1.ResourceList{
@@ -62,6 +63,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
 					},
 					Value:          2.0,
 					AdditionalInfo: nil,
@@ -71,6 +73,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
 					},
 					Value:          2048.0,
 					AdditionalInfo: nil,
@@ -80,6 +83,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
 					},
 					Value:          1.0,
 					AdditionalInfo: nil,
@@ -89,6 +93,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
 					},
 					Value:          1024.0,
 					AdditionalInfo: nil,
@@ -98,6 +103,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -152,6 +158,7 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 						{
 							Name:      "deployment1",
 							Namespace: "namespace1",
+							UID:       "uuid1",
 							MatchLabels: map[string]string{
 								"test1": "blah",
 								"test2": "blah2",
@@ -168,6 +175,7 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 					Labels: map[string]string{
 						source.DeploymentLabel: "deployment1",
 						source.NamespaceLabel:  "namespace1",
+						source.UIDLabel:        "uuid1",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -221,6 +229,7 @@ func Test_kubernetesScraper_scrapeNamespaces(t *testing.T) {
 					Namespaces: []*clustercache.Namespace{
 						{
 							Name: "namespace1",
+							UID:  "uuid1",
 							Labels: map[string]string{
 								"test1": "blah",
 								"test2": "blah2",
@@ -239,6 +248,7 @@ func Test_kubernetesScraper_scrapeNamespaces(t *testing.T) {
 					Name: metric.KubeNamespaceLabels,
 					Labels: map[string]string{
 						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid1",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -250,6 +260,7 @@ func Test_kubernetesScraper_scrapeNamespaces(t *testing.T) {
 					Name: metric.KubeNamespaceAnnotations,
 					Labels: map[string]string{
 						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid1",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -484,6 +495,7 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 						{
 							Name:      "pvc1",
 							Namespace: "namespace1",
+							UID:       "uuid1",
 							Spec: v1.PersistentVolumeClaimSpec{
 								VolumeName:       "vol1",
 								StorageClassName: util.Ptr("storageClass1"),
@@ -504,6 +516,7 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 					Labels: map[string]string{
 						source.PVCLabel:          "pvc1",
 						source.NamespaceLabel:    "namespace1",
+						source.UIDLabel:          "uuid1",
 						source.VolumeNameLabel:   "vol1",
 						source.StorageClassLabel: "storageClass1",
 					},
@@ -515,6 +528,7 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 					Labels: map[string]string{
 						source.PVCLabel:          "pvc1",
 						source.NamespaceLabel:    "namespace1",
+						source.UIDLabel:          "uuid1",
 						source.VolumeNameLabel:   "vol1",
 						source.StorageClassLabel: "storageClass1",
 					},
@@ -567,6 +581,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 					PVs: []*clustercache.PersistentVolume{
 						{
 							Name: "pv1",
+							UID:  "uuid1",
 							Spec: v1.PersistentVolumeSpec{
 								StorageClassName: "storageClass1",
 								PersistentVolumeSource: v1.PersistentVolumeSource{
@@ -590,6 +605,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 						source.PVLabel:           "pv1",
 						source.ProviderIDLabel:   "vol-1",
 						source.StorageClassLabel: "storageClass1",
+						source.UIDLabel:          "uuid1",
 					},
 					Value:          0,
 					AdditionalInfo: nil,
@@ -600,6 +616,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 						source.PVLabel:           "pv1",
 						source.ProviderIDLabel:   "vol-1",
 						source.StorageClassLabel: "storageClass1",
+						source.UIDLabel:          "uuid1",
 					},
 					Value:          4096,
 					AdditionalInfo: nil,
@@ -651,6 +668,7 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 						{
 							Name:      "service1",
 							Namespace: "namespace1",
+							UID:       "uuid1",
 							SpecSelector: map[string]string{
 								"test1": "blah",
 								"test2": "blah2",
@@ -666,6 +684,7 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 					Labels: map[string]string{
 						"service":             "service1",
 						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid1",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -720,6 +739,7 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 						{
 							Name:      "statefulSet1",
 							Namespace: "namespace1",
+							UID:       "uuid1",
 							SpecSelector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{
 									"test1": "blah",
@@ -737,6 +757,7 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 					Labels: map[string]string{
 						source.StatefulSetLabel: "statefulSet1",
 						source.NamespaceLabel:   "namespace1",
+						source.UIDLabel:         "uuid1",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -791,12 +812,19 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 						{
 							Name:      "replicaSet1",
 							Namespace: "namespace1",
+							UID:       "uuid1",
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									Name: "rollout1",
 									Kind: "Rollout",
 								},
 							},
+						},
+						{
+							Name:            "pureReplicaSet",
+							Namespace:       "namespace1",
+							UID:             "uuid2",
+							OwnerReferences: []metav1.OwnerReference{},
 						},
 					},
 					Timestamp: start1,
@@ -808,8 +836,20 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 					Labels: map[string]string{
 						"replicaset":          "replicaSet1",
 						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid1",
 						source.OwnerNameLabel: "rollout1",
 						source.OwnerKindLabel: "Rollout",
+					},
+					Value: 0,
+				},
+				{
+					Name: metric.KubeReplicasetOwner,
+					Labels: map[string]string{
+						"replicaset":          "pureReplicaSet",
+						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid2",
+						source.OwnerNameLabel: source.NoneLabelValue,
+						source.OwnerKindLabel: source.NoneLabelValue,
 					},
 					Value: 0,
 				},

@@ -12,10 +12,11 @@ import (
 )
 
 type BigQueryConfiguration struct {
-	ProjectID  string     `json:"projectID"`
-	Dataset    string     `json:"dataset"`
-	Table      string     `json:"table"`
-	Authorizer Authorizer `json:"authorizer"`
+	ProjectID            string     `json:"projectID"`
+	Dataset              string     `json:"dataset"`
+	Table                string     `json:"table"`
+	ExcludePartitionTime bool       `json:"excludePartitionTime"`
+	Authorizer           Authorizer `json:"authorizer"`
 }
 
 func (bqc *BigQueryConfiguration) Validate() error {

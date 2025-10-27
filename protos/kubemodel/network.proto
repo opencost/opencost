@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+import "kubemodel/diagnostic.proto";
+import "google/protobuf/timestamp.proto";
+
+package kubemodel;
+option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
+
+
+// ServicePort represents a port exposed by a service
+message ServicePort {
+  string name = 1;
+  string protocol = 2;
+  int32 port = 3;
+  int32 targetPort = 4;
+  int32 nodePort = 5;
+}
+
+// Service represents a K8s Service (allocated resource)
+message Service {
+  // Identification
+  string ID = 1;
+  string clusterID = 2;
+
+  // Properties
+  string name = 3;
+  string serviceType = 4;
+  repeated ServicePort ports = 5;
+  map<string, string> labels = 6;
+  map<string, string> annotations = 7;
+
+  // Resource lifecycle (only when different from cluster window)
+  optional google.protobuf.Timestamp creationTime = 8;
+  optional google.protobuf.Timestamp deletionTime = 9;
+
+  // Usage metrics
+  // Network transfer bytes sent through this service
+  int64 networkTransferBytes = 10;
+
+  // Network bytes received through this service
+  int64 networkReceiveBytes = 11;
+
+  // Diagnostic information about this resource
+  optional DiagnosticResult diagnostic = 99;
+}

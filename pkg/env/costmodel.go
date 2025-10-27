@@ -8,8 +8,9 @@ import (
 const (
 	ClusterInfoFile = "cluster-info.json"
 	ClusterCacheFile
-	GCPAuthSecretFile = "key.json"
-	MetricConfigFile  = "metrics.json"
+	GCPAuthSecretFile        = "key.json"
+	MetricConfigFile         = "metrics.json"
+	DefaultLocalCollectorDir = "collector"
 )
 
 // Env Variables
@@ -31,7 +32,8 @@ const (
 	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
 	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
 
-	OCIPricingURL = "OCI_PRICING_URL"
+	// Currently being used for OCI and DigitalOcean
+	ProviderPricingURL = "PROVIDER_PRICING_URL"
 
 	ClusterProfileEnvVar    = "CLUSTER_PROFILE"
 	RemoteEnabledEnvVar     = "REMOTE_WRITE_ENABLED"
@@ -45,6 +47,7 @@ const (
 
 	CloudProviderAPIKeyEnvVar        = "CLOUD_PROVIDER_API_KEY"
 	CollectorDataSourceEnabledEnvVar = "COLLECTOR_DATA_SOURCE_ENABLED"
+	LocalCollectorDirectoryEnvVar    = "LOCAL_COLLECTOR_DIRECTORY"
 
 	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
 	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
@@ -76,9 +79,6 @@ const (
 	ExportCSVLabelsAll  = "EXPORT_CSV_LABELS_ALL"
 	ExportCSVMaxDays    = "EXPORT_CSV_MAX_DAYS"
 
-	DataRetentionDailyResolutionDaysEnvVar   = "DATA_RETENTION_DAILY_RESOLUTION_DAYS"
-	DataRetentionHourlyResolutionHoursEnvVar = "DATA_RETENTION_HOURLY_RESOLUTION_HOURS"
-
 	CarbonEstimatesEnabledEnvVar = "CARBON_ESTIMATES_ENABLED"
 
 	KubernetesResourceAccessEnvVar = "KUBERNETES_RESOURCE_ACCESS"
@@ -86,6 +86,10 @@ const (
 
 	// Cloud provider override
 	CloudProviderVar = "CLOUD_PROVIDER"
+
+	// MCP Server
+	MCPServerEnabledEnvVar = "MCP_SERVER_ENABLED"
+	MCPHTTPPortEnvVar      = "MCP_HTTP_PORT"
 )
 
 func GetGCPAuthSecretFilePath() string {
@@ -329,20 +333,12 @@ func GetRegionOverrideList() []string {
 	return regionList
 }
 
-func GetDataRetentionDailyResolutionDays() int64 {
-	return env.GetInt64(DataRetentionDailyResolutionDaysEnvVar, 30)
-}
-
-func GetDataRetentionHourlyResolutionHours() int64 {
-	return env.GetInt64(DataRetentionHourlyResolutionHoursEnvVar, 49)
-}
-
 func IsKubernetesEnabled() bool {
 	return env.Get(KubernetesEnabledEnvVar, "") != ""
 }
 
 func GetOCIPricingURL() string {
-	return env.Get(OCIPricingURL, "https://apexapps.oracle.com/pls/apex/cetools/api/v1/products")
+	return env.Get(ProviderPricingURL, "https://apexapps.oracle.com/pls/apex/cetools/api/v1/products")
 }
 
 func IsCarbonEstimatesEnabled() bool {
@@ -365,4 +361,26 @@ func GetCloudProvider() string {
 
 func GetMetricConfigFile() string {
 	return env.GetPathFromConfig(MetricConfigFile)
+}
+
+func GetLocalCollectorDirectory() string {
+	dir := env.Get(LocalCollectorDirectoryEnvVar, DefaultLocalCollectorDir)
+	return env.GetPathFromConfig(dir)
+
+}
+
+func GetDOKSPricingURL() string {
+	return env.Get(ProviderPricingURL, "https://api.digitalocean.com/v2/billing/pricing")
+}
+
+// IsMCPServerEnabled returns the environment variable value for MCPServerEnabledEnvVar which represents
+// whether or not the MCP server is enabled.
+func IsMCPServerEnabled() bool {
+	return env.GetBool(MCPServerEnabledEnvVar, true)
+}
+
+// GetMCPHTTPPort returns the environment variable value for MCPHTTPPortEnvVar which represents
+// the HTTP port for the MCP server.
+func GetMCPHTTPPort() int {
+	return env.GetInt(MCPHTTPPortEnvVar, 8081)
 }

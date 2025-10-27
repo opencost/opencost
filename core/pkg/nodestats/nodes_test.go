@@ -32,6 +32,7 @@ func TestNodeSummaryLive(t *testing.T) {
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: true,
+			MinVersion:         tls.VersionTLS12,
 		},
 	}
 

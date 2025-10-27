@@ -510,7 +510,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	}
 	if env.IsCollectorDataSourceEnabled() {
 		fn = func() (source.OpenCostDataSource, error) {
-			store := storage.GetDefaultStorage()
+			store := GetDefaultCollectorStorage()
 			nodeStatConf, err := NewNodeClientConfigFromEnv()
 			if err != nil {
 				return nil, fmt.Errorf("failed to get node client config: %w", err)
@@ -603,8 +603,40 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	return a
 }
 
+// GetDefaultStorage retrieves the default shared storage which is required for running an opencost collector.
+func GetDefaultCollectorStorage() storage.Storage {
+	const warningMessage = `Failed to create local collector directory '%s' - %s.
+		Did you mean to enable to collector? For persistent storage, it's recommended to use Prometheus, 
+		or set a storage bucket configuration at %s. 
+
+		%s`
+
+	// Try bucket storage if it exists
+	store, err := storage.TryGetDefaultStorage()
+	if err == nil {
+		return store
+	}
+
+	// Fallback to a local storage bucket
+	dir := env.GetLocalCollectorDirectory()
+	err = os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		log.Warnf(
+			warningMessage,
+			dir,
+			err.Error(),
+			sysenv.GetDefaultStorageConfigFilePath(),
+			"Falling back to an in-memory file system for collector, which will lose any persistent storage upon restart.",
+		)
+
+		return storage.NewMemoryStorage()
+	}
+
+	return storage.NewFileStorage(dir)
+}
+
 // InitializeCloudCost Initializes Cloud Cost pipeline and querier and registers endpoints
-func InitializeCloudCost(router *httprouter.Router, providerConfig models.ProviderConfig) {
+func InitializeCloudCost(router *httprouter.Router, providerConfig models.ProviderConfig) *cloudcost.PipelineService {
 	log.Debugf("Cloud Cost config path: %s", env.GetCloudCostConfigPath())
 	cloudConfigController := cloudconfig.NewMemoryController(providerConfig)
 
@@ -621,11 +653,13 @@ func InitializeCloudCost(router *httprouter.Router, providerConfig models.Provid
 	router.GET("/cloudCost", cloudCostQueryService.GetCloudCostHandler())
 	router.GET("/cloudCost/view/graph", cloudCostQueryService.GetCloudCostViewGraphHandler())
 	router.GET("/cloudCost/view/totals", cloudCostQueryService.GetCloudCostViewTotalsHandler())
-	router.GET("/cloudCost/view/table", cloudCostQueryService.GetCloudCostViewTableHandler())
+	router.GET("/cloudCost/view/table", cloudCostQueryService.GetCloudCostViewTableHandler(nil))
 
 	router.GET("/cloudCost/status", cloudCostPipelineService.GetCloudCostStatusHandler())
 	router.GET("/cloudCost/rebuild", cloudCostPipelineService.GetCloudCostRebuildHandler())
 	router.GET("/cloudCost/repair", cloudCostPipelineService.GetCloudCostRepairHandler())
+
+	return cloudCostPipelineService
 }
 
 func InitializeCustomCost(router *httprouter.Router) *customcost.PipelineService {

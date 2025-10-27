@@ -930,3 +930,86 @@ func GenerateMockNetworkInsightSet(start time.Time, end time.Time) *NetworkInsig
 
 	return nis
 }
+
+func GenerateMockCloudCostSet(start, end time.Time, provider, integration string) *CloudCostSet {
+	ccs := NewCloudCostSet(start, end)
+
+	ccs.Integration = integration
+
+	ccs.Insert(&CloudCost{
+		Window: ccs.Window,
+		Properties: &CloudCostProperties{
+			Provider:        provider,
+			AccountID:       "account1",
+			InvoiceEntityID: "invoiceEntity1",
+			Service:         provider + "-storage",
+			Category:        StorageCategory,
+			Labels: CloudCostLabels{
+				"label1": "value1",
+				"label2": "value2",
+				"label3": "value3",
+			},
+			ProviderID: "id1",
+		},
+		ListCost: CostMetric{
+			Cost:              100,
+			KubernetesPercent: 0,
+		},
+		NetCost: CostMetric{
+			Cost:              100,
+			KubernetesPercent: 0,
+		},
+	})
+
+	ccs.Insert(&CloudCost{
+		Window: ccs.Window,
+		Properties: &CloudCostProperties{
+			Provider:        provider,
+			AccountID:       "account1",
+			InvoiceEntityID: "invoiceEntity1",
+			Service:         provider + "-compute",
+			Category:        ComputeCategory,
+			Labels: CloudCostLabels{
+				"label1": "value1",
+				"label2": "value2",
+				"label3": "value3",
+			},
+			ProviderID: "id2",
+		},
+		ListCost: CostMetric{
+			Cost:              2000,
+			KubernetesPercent: 1,
+		},
+		NetCost: CostMetric{
+			Cost:              1800,
+			KubernetesPercent: 1,
+		},
+	})
+
+	ccs.Insert(&CloudCost{
+		Window: ccs.Window,
+		Properties: &CloudCostProperties{
+			Provider:        provider,
+			AccountID:       "account2",
+			InvoiceEntityID: "invoiceEntity2",
+			Service:         provider + "-compute",
+			Category:        ComputeCategory,
+			Labels: CloudCostLabels{
+				"label1": "value1",
+				"label2": "value2",
+				"label3": "value3",
+			},
+			ProviderID: "id3",
+		},
+		ListCost: CostMetric{
+			Cost:              8000,
+			KubernetesPercent: 1,
+		},
+		NetCost: CostMetric{
+			Cost:              8000,
+			KubernetesPercent: 1,
+		},
+	})
+
+	return ccs
+}

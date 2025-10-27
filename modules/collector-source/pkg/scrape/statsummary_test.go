@@ -230,6 +230,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					Labels: map[string]string{
 						source.PVCLabel:       "pvc1",
 						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uid1",
 					},
 					Value: float64(1 * util.GB),
 				},
@@ -241,6 +242,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.NamespaceLabel: "namespace1",
 						source.NodeLabel:      "node1",
 						source.InstanceLabel:  "node1",
+						source.UIDLabel:       "uid1",
 					},
 					Value: 1,
 				},
@@ -252,6 +254,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.NamespaceLabel: "namespace1",
 						source.NodeLabel:      "node1",
 						source.InstanceLabel:  "node1",
+						source.UIDLabel:       "uid1",
 					},
 					Value: float64(5 * util.MB),
 				},
@@ -260,6 +263,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					Labels: map[string]string{
 						source.InstanceLabel: "node1",
 						source.DeviceLabel:   "local",
+						source.UIDLabel:      "uid1",
 					},
 					Value: float64(1 * util.GB),
 				},
@@ -321,6 +325,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					Labels: map[string]string{
 						source.PVCLabel:       "pvc1",
 						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uid1",
 					},
 					Value: float64(1 * util.GB),
 				},

@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+import "kubemodel/diagnostic.proto";
+import "google/protobuf/timestamp.proto";
+
+package kubemodel;
+option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
+
+// Node represents a Kubernetes worker node (provisioned resource)
+message Node {
+  // Identification
+  string ID = 1;
+  string clusterID = 2;
+
+  // Properties
+  string providerResourceID = 3;
+  string name = 4;
+  map<string, string> labels = 5;
+  map<string, string> annotations = 6;
+
+  // Resource lifecycle (only when different from cluster window)
+  optional google.protobuf.Timestamp creationTime = 7;
+  optional google.protobuf.Timestamp deletionTime = 8;
+
+  // Diagnostic information about this resource
+  optional DiagnosticResult diagnostic = 99;
+}

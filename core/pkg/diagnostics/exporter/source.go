@@ -9,13 +9,15 @@ import (
 
 // DiagnosticSource is an `export.ExportSource` implementation that provides the basic data for a `DiagnosticResult` payload.
 type DiagnosticSource struct {
+	applicationName string
 	diagnosticService diagnostics.DiagnosticService
 }
 
 // NewDiagnosticSource creates a new `DiagnosticSource` instance. It accepts the `DiagnosticService` implementation
 // that will be used to retrieve the diagnostic results.
-func NewDiagnosticSource(diagnosticService diagnostics.DiagnosticService) *DiagnosticSource {
+func NewDiagnosticSource(applicationName string, diagnosticService diagnostics.DiagnosticService) *DiagnosticSource {
 	return &DiagnosticSource{
+		applicationName: applicationName,
 		diagnosticService: diagnosticService,
 	}
 }
@@ -31,6 +33,7 @@ func (ds *DiagnosticSource) Make(t time.Time) *diagnostics.DiagnosticsRunReport 
 
 	return &diagnostics.DiagnosticsRunReport{
 		StartTime: t,
+		Application: ds.applicationName,
 		Results:   ds.diagnosticService.Run(ctx),
 	}
 }
