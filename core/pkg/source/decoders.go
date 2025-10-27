@@ -32,6 +32,7 @@ const (
 	DeploymentLabel      = "deployment"
 	StatefulSetLabel     = "statefulSet"
 	ReplicaSetLabel      = "replicaset"
+	ResourceQuotaLabel   = "resourcequota"
 	OwnerNameLabel       = "owner_name"
 	OwnerKindLabel       = "owner_kind"
 	UnitLabel            = "unit"
