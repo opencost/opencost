@@ -27,6 +27,7 @@ type SummaryAllocation struct {
 	Start                  time.Time             `json:"start"`
 	End                    time.Time             `json:"end"`
 	CPUCoreRequestAverage  float64               `json:"cpuCoreRequestAverage"`
+	CPUCoreLimitAverage    float64               `json:"cpuCoreLimitAverage"`
 	CPUCoreUsageAverage    float64               `json:"cpuCoreUsageAverage"`
 	CPUCost                float64               `json:"cpuCost"`
 	CPUCostIdle            float64               `json:"cpuCostIdle"`
@@ -38,6 +39,7 @@ type SummaryAllocation struct {
 	LoadBalancerCost       float64               `json:"loadBalancerCost"`
 	PVCost                 float64               `json:"pvCost"`
 	RAMBytesRequestAverage float64               `json:"ramByteRequestAverage"`
+	RAMBytesLimitAverage   float64               `json:"ramByteLimitAverage"`
 	RAMBytesUsageAverage   float64               `json:"ramByteUsageAverage"`
 	RAMCost                float64               `json:"ramCost"`
 	RAMCostIdle            float64               `json:"ramCostIdle"`
@@ -69,6 +71,7 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 		Start:                  alloc.Start,
 		End:                    alloc.End,
 		CPUCoreRequestAverage:  alloc.CPUCoreRequestAverage,
+		CPUCoreLimitAverage:    alloc.CPUCoreLimitAverage,
 		CPUCoreUsageAverage:    alloc.CPUCoreUsageAverage,
 		CPUCost:                alloc.CPUCost + alloc.CPUCostAdjustment,
 		CPUCostIdle:            alloc.CPUCostIdle,
@@ -80,6 +83,7 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 		LoadBalancerCost:       alloc.LoadBalancerCost + alloc.LoadBalancerCostAdjustment,
 		PVCost:                 alloc.PVCost() + alloc.PVCostAdjustment,
 		RAMBytesRequestAverage: alloc.RAMBytesRequestAverage,
+		RAMBytesLimitAverage:   alloc.RAMBytesRequestAverage,
 		RAMBytesUsageAverage:   alloc.RAMBytesUsageAverage,
 		RAMCost:                alloc.RAMCost + alloc.RAMCostAdjustment,
 		RAMCostIdle:            alloc.RAMCostIdle,
@@ -128,11 +132,17 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 	cpuReqCoreMins := sa.CPUCoreRequestAverage * sa.Minutes()
 	cpuReqCoreMins += that.CPUCoreRequestAverage * that.Minutes()
 
+	cpuLimCoreMins := sa.CPUCoreLimitAverage * sa.Minutes()
+	cpuLimCoreMins += that.CPUCoreLimitAverage * that.Minutes()
+
 	cpuUseCoreMins := sa.CPUCoreUsageAverage * sa.Minutes()
 	cpuUseCoreMins += that.CPUCoreUsageAverage * that.Minutes()
 
 	ramReqByteMins := sa.RAMBytesRequestAverage * sa.Minutes()
 	ramReqByteMins += that.RAMBytesRequestAverage * that.Minutes()
+
+	ramLimByteMins := sa.RAMBytesLimitAverage * sa.Minutes()
+	ramLimByteMins += that.RAMBytesLimitAverage * that.Minutes()
 
 	ramUseByteMins := sa.RAMBytesUsageAverage * sa.Minutes()
 	ramUseByteMins += that.RAMBytesUsageAverage * that.Minutes()
@@ -180,8 +190,10 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 	// Convert cumulative request and usage back into rates
 	if sa.Minutes() > 0 {
 		sa.CPUCoreRequestAverage = cpuReqCoreMins / sa.Minutes()
+		sa.CPUCoreLimitAverage = cpuLimCoreMins / sa.Minutes()
 		sa.CPUCoreUsageAverage = cpuUseCoreMins / sa.Minutes()
 		sa.RAMBytesRequestAverage = ramReqByteMins / sa.Minutes()
+		sa.RAMBytesLimitAverage = ramLimByteMins / sa.Minutes()
 		sa.RAMBytesUsageAverage = ramUseByteMins / sa.Minutes()
 
 		var gpuReqAvgVal, gpuUsageAvgVal *float64
@@ -199,8 +211,10 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 		sa.GPUUsageAverage = gpuUsageAvgVal
 	} else {
 		sa.CPUCoreRequestAverage = 0.0
+		sa.CPUCoreLimitAverage = 0.0
 		sa.CPUCoreUsageAverage = 0.0
 		sa.RAMBytesRequestAverage = 0.0
+		sa.RAMBytesLimitAverage = 0.0
 		sa.RAMBytesUsageAverage = 0.0
 		sa.GPURequestAverage = nil
 		sa.GPUUsageAverage = nil
@@ -228,6 +242,7 @@ func (sa *SummaryAllocation) Clone() *SummaryAllocation {
 		Start:                  sa.Start,
 		End:                    sa.End,
 		CPUCoreRequestAverage:  sa.CPUCoreRequestAverage,
+		CPUCoreLimitAverage:    sa.CPUCoreLimitAverage,
 		CPUCoreUsageAverage:    sa.CPUCoreUsageAverage,
 		CPUCost:                sa.CPUCost,
 		GPURequestAverage:      sa.GPURequestAverage,
@@ -237,6 +252,7 @@ func (sa *SummaryAllocation) Clone() *SummaryAllocation {
 		LoadBalancerCost:       sa.LoadBalancerCost,
 		PVCost:                 sa.PVCost,
 		RAMBytesRequestAverage: sa.RAMBytesRequestAverage,
+		RAMBytesLimitAverage:   sa.RAMBytesLimitAverage,
 		RAMBytesUsageAverage:   sa.RAMBytesUsageAverage,
 		RAMCost:                sa.RAMCost,
 		SharedCost:             sa.SharedCost,
@@ -285,6 +301,10 @@ func (sa *SummaryAllocation) Equal(that *SummaryAllocation) bool {
 		return false
 	}
 
+	if sa.CPUCoreLimitAverage != that.CPUCoreLimitAverage {
+		return false
+	}
+
 	if sa.CPUCoreUsageAverage != that.CPUCoreUsageAverage {
 		return false
 	}
@@ -318,6 +338,10 @@ func (sa *SummaryAllocation) Equal(that *SummaryAllocation) bool {
 	}
 
 	if sa.RAMBytesRequestAverage != that.RAMBytesRequestAverage {
+		return false
+	}
+
+	if sa.RAMBytesLimitAverage != that.RAMBytesLimitAverage {
 		return false
 	}
 
