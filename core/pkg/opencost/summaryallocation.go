@@ -83,7 +83,7 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 		LoadBalancerCost:       alloc.LoadBalancerCost + alloc.LoadBalancerCostAdjustment,
 		PVCost:                 alloc.PVCost() + alloc.PVCostAdjustment,
 		RAMBytesRequestAverage: alloc.RAMBytesRequestAverage,
-		RAMBytesLimitAverage:   alloc.RAMBytesRequestAverage,
+		RAMBytesLimitAverage:   alloc.RAMBytesLimitAverage,
 		RAMBytesUsageAverage:   alloc.RAMBytesUsageAverage,
 		RAMCost:                alloc.RAMCost + alloc.RAMCostAdjustment,
 		RAMCostIdle:            alloc.RAMCostIdle,
