@@ -520,6 +520,38 @@ func (c *collectorMetricsQuerier) QueryReplicaSetsWithRollout(start, end time.Ti
 	return queryCollector(c, start, end, metric.ReplicaSetsWithRolloutID, source.DecodeReplicaSetsWithRolloutResult)
 }
 
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecCPURequests(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPURequestResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecCPURequestsID, source.DecodeResourceQuotaSpecCPURequestResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecRAMRequests(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMRequestResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecRAMRequestsID, source.DecodeResourceQuotaSpecRAMRequestResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecCPULimits(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPULimitResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecCPULimitsID, source.DecodeResourceQuotaSpecCPULimitResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecRAMLimits(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMLimitResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecRAMLimitsID, source.DecodeResourceQuotaSpecRAMLimitResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedCPURequests(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPURequestResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedCPURequestsID, source.DecodeResourceQuotaStatusUsedCPURequestResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedRAMRequests(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMRequestResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedRAMRequestsID, source.DecodeResourceQuotaStatusUsedRAMRequestResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedCPULimits(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPULimitResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedCPULimitsID, source.DecodeResourceQuotaStatusUsedCPULimitResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimits(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMLimitResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedRAMLimitsID, source.DecodeResourceQuotaStatusUsedRAMLimitResult)
+}
+
 func (c *collectorMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {
 	return c.collectorProvider.GetDailyDataCoverage(limitDays)
 }

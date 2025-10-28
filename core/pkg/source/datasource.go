@@ -117,6 +117,16 @@ type MetricsQuerier interface {
 	QueryReplicaSetsWithoutOwners(start, end time.Time) *Future[ReplicaSetsWithoutOwnersResult]
 	QueryReplicaSetsWithRollout(start, end time.Time) *Future[ReplicaSetsWithRolloutResult]
 
+	// ResourceQuotas
+	QueryResourceQuotaSpecCPURequests(start, end time.Time) *Future[ResourceQuotaSpecCPURequestResult]
+	QueryResourceQuotaSpecRAMRequests(start, end time.Time) *Future[ResourceQuotaSpecRAMRequestResult]
+	QueryResourceQuotaSpecCPULimits(start, end time.Time) *Future[ResourceQuotaSpecCPULimitResult]
+	QueryResourceQuotaSpecRAMLimits(start, end time.Time) *Future[ResourceQuotaSpecRAMLimitResult]
+	QueryResourceQuotaStatusUsedCPURequests(start, end time.Time) *Future[ResourceQuotaStatusUsedCPURequestResult]
+	QueryResourceQuotaStatusUsedRAMRequests(start, end time.Time) *Future[ResourceQuotaStatusUsedRAMRequestResult]
+	QueryResourceQuotaStatusUsedCPULimits(start, end time.Time) *Future[ResourceQuotaStatusUsedCPULimitResult]
+	QueryResourceQuotaStatusUsedRAMLimits(start, end time.Time) *Future[ResourceQuotaStatusUsedRAMLimitResult]
+
 	// Data Coverage Query
 	QueryDataCoverage(limitDays int) (time.Time, time.Time, error)
 }

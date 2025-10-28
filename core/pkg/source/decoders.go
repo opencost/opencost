@@ -1498,6 +1498,77 @@ func DecodeReplicaSetsWithRolloutResult(result *QueryResult) *ReplicaSetsWithRol
 	}
 }
 
+type ResourceQuotaMetricResult struct {
+	Namespace     string
+	ResourceQuota string
+	Resource      string
+	Unit          string
+	Data          []*util.Vector
+}
+
+func DecodeResourceQuotaMetricResult(result *QueryResult) *ResourceQuotaMetricResult {
+	namespace, _ := result.GetNamespace()
+	resourceQuota, _ := result.GetString(ResourceQuotaLabel)
+	resource, _ := result.GetString(ResourceLabel)
+	unit, _ := result.GetString(UnitLabel)
+
+	return &ResourceQuotaMetricResult{
+		Namespace:     namespace,
+		ResourceQuota: resourceQuota,
+		Resource:      resource,
+		Unit:          unit,
+		Data:          result.Values,
+	}
+}
+
+type ResourceQuotaSpecCPURequestResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecCPURequestResult(result *QueryResult) *ResourceQuotaSpecCPURequestResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaSpecRAMRequestResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecRAMRequestResult(result *QueryResult) *ResourceQuotaSpecRAMRequestResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaSpecCPULimitResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecCPULimitResult(result *QueryResult) *ResourceQuotaSpecCPULimitResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaSpecRAMLimitResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecRAMLimitResult(result *QueryResult) *ResourceQuotaSpecRAMLimitResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedCPURequestResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedCPURequestResult(result *QueryResult) *ResourceQuotaStatusUsedCPURequestResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedRAMRequestResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedRAMRequestResult(result *QueryResult) *ResourceQuotaStatusUsedRAMRequestResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedCPULimitResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedCPULimitResult(result *QueryResult) *ResourceQuotaStatusUsedCPULimitResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedRAMLimitResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedRAMLimitResult(result *QueryResult) *ResourceQuotaStatusUsedRAMLimitResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
 func DecodeAll[T any](results []*QueryResult, decode ResultDecoder[T]) []*T {
 	decoded := make([]*T, 0, len(results))
 	for _, result := range results {
