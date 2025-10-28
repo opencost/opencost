@@ -1484,8 +1484,8 @@ func (pds *PrometheusMetricsQuerier) QueryReplicaSetsWithRollout(start, end time
 	return source.NewFuture(source.DecodeReplicaSetsWithRolloutResult, ctx.QueryAtTime(queryReplicaSetsWithRolloutOwner, end))
 }
 
-func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecCPURequests(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPURequestResult] {
-	const queryName = "QueryResourceQuotaSpecCPURequests"
+func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecCPURequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPURequestAvgResult] {
+	const queryName = "QueryResourceQuotaSpecCPURequestAverage"
 	const queryFmtResourceQuotaSpecCPURequests = `avg(avg_over_time(kube_resource_quota_spec_resource_requests{resource="cpu",unit="core", %s}[%s])) by (resourcequota, namespace, %s)`
 
 	cfg := pds.promConfig
@@ -1499,11 +1499,29 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecCPURequests(start, en
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryResourceQuotaSpecCPURequests)
 
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return source.NewFuture(source.DecodeResourceQuotaSpecCPURequestResult, ctx.QueryAtTime(queryResourceQuotaSpecCPURequests, end))
+	return source.NewFuture(source.DecodeResourceQuotaSpecCPURequestAvgResult, ctx.QueryAtTime(queryResourceQuotaSpecCPURequests, end))
 }
 
-func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecRAMRequests(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMRequestResult] {
-	const queryName = "QueryResourceQuotaSpecRAMRequests"
+func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecCPURequestMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPURequestMaxResult] {
+	const queryName = "QueryResourceQuotaSpecCPURequestMax"
+	const queryFmtResourceQuotaSpecCPURequests = `max(max_over_time(kube_resource_quota_spec_resource_requests{resource="cpu",unit="core", %s}[%s])) by (resourcequota, namespace, %s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryResourceQuotaSpecCPURequests := fmt.Sprintf(queryFmtResourceQuotaSpecCPURequests, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryResourceQuotaSpecCPURequests)
+
+	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
+	return source.NewFuture(source.DecodeResourceQuotaSpecCPURequestMaxResult, ctx.QueryAtTime(queryResourceQuotaSpecCPURequests, end))
+}
+
+func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecRAMRequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMRequestAvgResult] {
+	const queryName = "QueryResourceQuotaSpecRAMRequestAverage"
 	const queryFmtResourceQuotaSpecRAMRequests = `avg(avg_over_time(kube_resource_quota_spec_resource_requests{resource="memory",unit="byte", %s}[%s])) by (resourcequota, namespace, %s)`
 
 	cfg := pds.promConfig
@@ -1517,11 +1535,29 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecRAMRequests(start, en
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryResourceQuotaSpecRAMRequests)
 
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return source.NewFuture(source.DecodeResourceQuotaSpecRAMRequestResult, ctx.QueryAtTime(queryResourceQuotaSpecRAMRequests, end))
+	return source.NewFuture(source.DecodeResourceQuotaSpecRAMRequestAvgResult, ctx.QueryAtTime(queryResourceQuotaSpecRAMRequests, end))
 }
 
-func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecCPULimits(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPULimitResult] {
-	const queryName = "QueryResourceQuotaSpecCPULimits"
+func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecRAMRequestMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMRequestMaxResult] {
+	const queryName = "QueryResourceQuotaSpecRAMRequestMax"
+	const queryFmtResourceQuotaSpecRAMRequests = `max(max_over_time(kube_resource_quota_spec_resource_requests{resource="memory",unit="byte", %s}[%s])) by (resourcequota, namespace, %s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryResourceQuotaSpecRAMRequests := fmt.Sprintf(queryFmtResourceQuotaSpecRAMRequests, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryResourceQuotaSpecRAMRequests)
+
+	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
+	return source.NewFuture(source.DecodeResourceQuotaSpecRAMRequestMaxResult, ctx.QueryAtTime(queryResourceQuotaSpecRAMRequests, end))
+}
+
+func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecCPULimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPULimitAvgResult] {
+	const queryName = "QueryResourceQuotaSpecCPULimitAverage"
 	const queryFmtResourceQuotaSpecCPULimits = `avg(avg_over_time(kube_resource_quota_spec_resource_limits{resource="cpu",unit="core", %s}[%s])) by (resourcequota, namespace, %s)`
 
 	cfg := pds.promConfig
@@ -1535,11 +1571,29 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecCPULimits(start, end 
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryResourceQuotaSpecCPULimits)
 
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return source.NewFuture(source.DecodeResourceQuotaSpecCPULimitResult, ctx.QueryAtTime(queryResourceQuotaSpecCPULimits, end))
+	return source.NewFuture(source.DecodeResourceQuotaSpecCPULimitAvgResult, ctx.QueryAtTime(queryResourceQuotaSpecCPULimits, end))
 }
 
-func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecRAMLimits(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMLimitResult] {
-	const queryName = "QueryResourceQuotaSpecRAMLimits"
+func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecCPULimitMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPULimitMaxResult] {
+	const queryName = "QueryResourceQuotaSpecCPULimitMax"
+	const queryFmtResourceQuotaSpecCPULimits = `max(max_over_time(kube_resource_quota_spec_resource_limits{resource="cpu",unit="core", %s}[%s])) by (resourcequota, namespace, %s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryResourceQuotaSpecCPULimits := fmt.Sprintf(queryFmtResourceQuotaSpecCPULimits, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryResourceQuotaSpecCPULimits)
+
+	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
+	return source.NewFuture(source.DecodeResourceQuotaSpecCPULimitMaxResult, ctx.QueryAtTime(queryResourceQuotaSpecCPULimits, end))
+}
+
+func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecRAMLimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMLimitAvgResult] {
+	const queryName = "QueryResourceQuotaSpecRAMLimitAverage"
 	const queryFmtResourceQuotaSpecRAMLimits = `avg(avg_over_time(kube_resource_quota_spec_resource_limits{resource="memory",unit="byte", %s}[%s])) by (resourcequota, namespace, %s)`
 
 	cfg := pds.promConfig
@@ -1553,11 +1607,29 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecRAMLimits(start, end 
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryResourceQuotaSpecRAMLimits)
 
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return source.NewFuture(source.DecodeResourceQuotaSpecRAMLimitResult, ctx.QueryAtTime(queryResourceQuotaSpecRAMLimits, end))
+	return source.NewFuture(source.DecodeResourceQuotaSpecRAMLimitAvgResult, ctx.QueryAtTime(queryResourceQuotaSpecRAMLimits, end))
 }
 
-func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedCPURequests(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPURequestResult] {
-	const queryName = "QueryResourceQuotaStatusUsedCPURequests"
+func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecRAMLimitMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMLimitMaxResult] {
+	const queryName = "QueryResourceQuotaSpecRAMLimitMax"
+	const queryFmtResourceQuotaSpecRAMLimits = `max(max_over_time(kube_resource_quota_spec_resource_limits{resource="memory",unit="byte", %s}[%s])) by (resourcequota, namespace, %s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryResourceQuotaSpecRAMLimits := fmt.Sprintf(queryFmtResourceQuotaSpecRAMLimits, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryResourceQuotaSpecRAMLimits)
+
+	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
+	return source.NewFuture(source.DecodeResourceQuotaSpecRAMLimitMaxResult, ctx.QueryAtTime(queryResourceQuotaSpecRAMLimits, end))
+}
+
+func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedCPURequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPURequestAvgResult] {
+	const queryName = "QueryResourceQuotaStatusUsedCPURequestAverage"
 	const queryFmtResourceQuotaStatusUsedCPURequests = `avg(avg_over_time(kube_resource_quota_status_used_resource_requests{resource="cpu",unit="core", %s}[%s])) by (resourcequota, namespace, %s)`
 
 	cfg := pds.promConfig
@@ -1571,11 +1643,29 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedCPURequests(sta
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryResourceQuotaStatusUsedCPURequests)
 
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return source.NewFuture(source.DecodeResourceQuotaStatusUsedCPURequestResult, ctx.QueryAtTime(queryResourceQuotaStatusUsedCPURequests, end))
+	return source.NewFuture(source.DecodeResourceQuotaStatusUsedCPURequestAvgResult, ctx.QueryAtTime(queryResourceQuotaStatusUsedCPURequests, end))
 }
 
-func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedRAMRequests(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMRequestResult] {
-	const queryName = "QueryResourceQuotaStatusUsedRAMRequests"
+func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedCPURequestMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPURequestMaxResult] {
+	const queryName = "QueryResourceQuotaStatusUsedCPURequestMax"
+	const queryFmtResourceQuotaStatusUsedCPURequests = `max(max_over_time(kube_resource_quota_status_used_resource_requests{resource="cpu",unit="core", %s}[%s])) by (resourcequota, namespace, %s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryResourceQuotaStatusUsedCPURequests := fmt.Sprintf(queryFmtResourceQuotaStatusUsedCPURequests, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryResourceQuotaStatusUsedCPURequests)
+
+	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
+	return source.NewFuture(source.DecodeResourceQuotaStatusUsedCPURequestMaxResult, ctx.QueryAtTime(queryResourceQuotaStatusUsedCPURequests, end))
+}
+
+func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedRAMRequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMRequestAvgResult] {
+	const queryName = "QueryResourceQuotaStatusUsedRAMRequestAverage"
 	const queryFmtResourceQuotaStatusUsedRAMRequests = `avg(avg_over_time(kube_resource_quota_status_used_resource_requests{resource="memory",unit="byte", %s}[%s])) by (resourcequota, namespace, %s)`
 
 	cfg := pds.promConfig
@@ -1589,11 +1679,29 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedRAMRequests(sta
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryResourceQuotaStatusUsedRAMRequests)
 
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return source.NewFuture(source.DecodeResourceQuotaStatusUsedRAMRequestResult, ctx.QueryAtTime(queryResourceQuotaStatusUsedRAMRequests, end))
+	return source.NewFuture(source.DecodeResourceQuotaStatusUsedRAMRequestAvgResult, ctx.QueryAtTime(queryResourceQuotaStatusUsedRAMRequests, end))
 }
 
-func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedCPULimits(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPULimitResult] {
-	const queryName = "QueryResourceQuotaStatusUsedCPULimits"
+func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedRAMRequestMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMRequestMaxResult] {
+	const queryName = "QueryResourceQuotaStatusUsedRAMRequestMax"
+	const queryFmtResourceQuotaStatusUsedRAMRequests = `max(max_over_time(kube_resource_quota_status_used_resource_requests{resource="memory",unit="byte", %s}[%s])) by (resourcequota, namespace, %s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryResourceQuotaStatusUsedRAMRequests := fmt.Sprintf(queryFmtResourceQuotaStatusUsedRAMRequests, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryResourceQuotaStatusUsedRAMRequests)
+
+	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
+	return source.NewFuture(source.DecodeResourceQuotaStatusUsedRAMRequestMaxResult, ctx.QueryAtTime(queryResourceQuotaStatusUsedRAMRequests, end))
+}
+
+func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedCPULimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPULimitAvgResult] {
+	const queryName = "QueryResourceQuotaStatusUsedCPULimitAverage"
 	const queryFmtResourceQuotaStatusUsedCPULimits = `avg(avg_over_time(kube_resource_quota_status_used_resource_limits{resource="cpu",unit="core", %s}[%s])) by (resourcequota, namespace, %s)`
 
 	cfg := pds.promConfig
@@ -1607,11 +1715,29 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedCPULimits(start
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryResourceQuotaStatusUsedCPULimits)
 
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return source.NewFuture(source.DecodeResourceQuotaStatusUsedCPULimitResult, ctx.QueryAtTime(queryResourceQuotaStatusUsedCPULimits, end))
+	return source.NewFuture(source.DecodeResourceQuotaStatusUsedCPULimitAvgResult, ctx.QueryAtTime(queryResourceQuotaStatusUsedCPULimits, end))
 }
 
-func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimits(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMLimitResult] {
-	const queryName = "QueryResourceQuotaStatusUsedRAMLimits"
+func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedCPULimitMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPULimitMaxResult] {
+	const queryName = "QueryResourceQuotaStatusUsedCPULimitMax"
+	const queryFmtResourceQuotaStatusUsedCPULimits = `max(max_over_time(kube_resource_quota_status_used_resource_limits{resource="cpu",unit="core", %s}[%s])) by (resourcequota, namespace, %s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryResourceQuotaStatusUsedCPULimits := fmt.Sprintf(queryFmtResourceQuotaStatusUsedCPULimits, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryResourceQuotaStatusUsedCPULimits)
+
+	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
+	return source.NewFuture(source.DecodeResourceQuotaStatusUsedCPULimitMaxResult, ctx.QueryAtTime(queryResourceQuotaStatusUsedCPULimits, end))
+}
+
+func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMLimitAvgResult] {
+	const queryName = "QueryResourceQuotaStatusUsedRAMLimitAverage"
 	const queryFmtResourceQuotaStatusUsedRAMLimits = `avg(avg_over_time(kube_resource_quota_status_used_resource_limits{resource="memory",unit="byte", %s}[%s])) by (resourcequota, namespace, %s)`
 
 	cfg := pds.promConfig
@@ -1625,7 +1751,25 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimits(start
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryResourceQuotaStatusUsedRAMLimits)
 
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return source.NewFuture(source.DecodeResourceQuotaStatusUsedRAMLimitResult, ctx.QueryAtTime(queryResourceQuotaStatusUsedRAMLimits, end))
+	return source.NewFuture(source.DecodeResourceQuotaStatusUsedRAMLimitAvgResult, ctx.QueryAtTime(queryResourceQuotaStatusUsedRAMLimits, end))
+}
+
+func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimitMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMLimitMaxResult] {
+	const queryName = "QueryResourceQuotaStatusUsedRAMLimitMax"
+	const queryFmtResourceQuotaStatusUsedRAMLimits = `max(max_over_time(kube_resource_quota_status_used_resource_limits{resource="memory",unit="byte", %s}[%s])) by (resourcequota, namespace, %s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryResourceQuotaStatusUsedRAMLimits := fmt.Sprintf(queryFmtResourceQuotaStatusUsedRAMLimits, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryResourceQuotaStatusUsedRAMLimits)
+
+	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
+	return source.NewFuture(source.DecodeResourceQuotaStatusUsedRAMLimitMaxResult, ctx.QueryAtTime(queryResourceQuotaStatusUsedRAMLimits, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {

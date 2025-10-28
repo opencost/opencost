@@ -86,14 +86,22 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewPodsWithReplicaSetOwnerMetricCollector())
 	memStore.Register(NewReplicaSetsWithoutOwnersMetricCollector())
 	memStore.Register(NewReplicaSetsWithRolloutMetricCollector())
-	memStore.Register(NewResourceQuotaSpecCPURequestsMetricCollector())
-	memStore.Register(NewResourceQuotaSpecRAMRequestsMetricCollector())
-	memStore.Register(NewResourceQuotaSpecCPULimitsMetricCollector())
-	memStore.Register(NewResourceQuotaSpecRAMLimitsMetricCollector())
-	memStore.Register(NewResourceQuotaStatusUsedCPURequestsMetricCollector())
-	memStore.Register(NewResourceQuotaStatusUsedRAMRequestsMetricCollector())
-	memStore.Register(NewResourceQuotaStatusUsedCPULimitsMetricCollector())
-	memStore.Register(NewResourceQuotaStatusUsedRAMLimitsMetricCollector())
+	memStore.Register(NewResourceQuotaSpecCPURequestAverageMetricCollector())
+	memStore.Register(NewResourceQuotaSpecCPURequestMaxMetricCollector())
+	memStore.Register(NewResourceQuotaSpecRAMRequestAverageMetricCollector())
+	memStore.Register(NewResourceQuotaSpecRAMRequestMaxMetricCollector())
+	memStore.Register(NewResourceQuotaSpecCPULimitAverageMetricCollector())
+	memStore.Register(NewResourceQuotaSpecCPULimitMaxMetricCollector())
+	memStore.Register(NewResourceQuotaSpecRAMLimitAverageMetricCollector())
+	memStore.Register(NewResourceQuotaSpecRAMLimitMaxMetricCollector())
+	memStore.Register(NewResourceQuotaStatusUsedCPURequestAverageMetricCollector())
+	memStore.Register(NewResourceQuotaStatusUsedCPURequestMaxMetricCollector())
+	memStore.Register(NewResourceQuotaStatusUsedRAMRequestAverageMetricCollector())
+	memStore.Register(NewResourceQuotaStatusUsedRAMRequestMaxMetricCollector())
+	memStore.Register(NewResourceQuotaStatusUsedCPULimitAverageMetricCollector())
+	memStore.Register(NewResourceQuotaStatusUsedCPULimitMaxMetricCollector())
+	memStore.Register(NewResourceQuotaStatusUsedRAMLimitAverageMetricCollector())
+	memStore.Register(NewResourceQuotaStatusUsedRAMLimitMaxMetricCollector())
 
 	return memStore
 }
@@ -1911,15 +1919,40 @@ func NewReplicaSetsWithRolloutMetricCollector() *metric.MetricCollector {
 //	)
 //) by (resourcequota, namespace, cluster_id)
 
-func NewResourceQuotaSpecCPURequestsMetricCollector() *metric.MetricCollector {
+func NewResourceQuotaSpecCPURequestAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
-		metric.ResourceQuotaSpecCPURequestsID,
+		metric.ResourceQuotaSpecCPURequestAverageID,
 		metric.KubeResourceQuotaSpecResourceRequests,
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
 		},
 		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.ResourceLabel] == "cpu" && labels[source.UnitLabel] == "core"
+		},
+	)
+}
+
+// max(
+//	max_over_time(
+//		kube_resource_quota_spec_resource_requests{
+//			resource="cpu",
+//			unit="core",
+//			<some_custom_filter>
+//		}[1h]
+//	)
+//) by (resourcequota, namespace, cluster_id)
+
+func NewResourceQuotaSpecCPURequestMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ResourceQuotaSpecCPURequestMaxID,
+		metric.KubeResourceQuotaSpecResourceRequests,
+		[]string{
+			source.NamespaceLabel,
+			source.ResourceQuotaLabel,
+		},
+		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
 			return labels[source.ResourceLabel] == "cpu" && labels[source.UnitLabel] == "core"
 		},
@@ -1936,9 +1969,9 @@ func NewResourceQuotaSpecCPURequestsMetricCollector() *metric.MetricCollector {
 //	)
 //) by (resourcequota, namespace, cluster_id)
 
-func NewResourceQuotaSpecRAMRequestsMetricCollector() *metric.MetricCollector {
+func NewResourceQuotaSpecRAMRequestAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
-		metric.ResourceQuotaSpecRAMRequestsID,
+		metric.ResourceQuotaSpecRAMRequestAverageID,
 		metric.KubeResourceQuotaSpecResourceRequests,
 		[]string{
 			source.NamespaceLabel,
@@ -1951,6 +1984,31 @@ func NewResourceQuotaSpecRAMRequestsMetricCollector() *metric.MetricCollector {
 	)
 }
 
+// max(
+//	max_over_time(
+//		kube_resource_quota_spec_resource_requests{
+//			resource="memory",
+//			unit="byte",
+//			<some_custom_filter>
+//		}[1h]
+//	)
+//) by (resourcequota, namespace, cluster_id)
+
+func NewResourceQuotaSpecRAMRequestMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ResourceQuotaSpecRAMRequestMaxID,
+		metric.KubeResourceQuotaSpecResourceRequests,
+		[]string{
+			source.NamespaceLabel,
+			source.ResourceQuotaLabel,
+		},
+		aggregator.MaxOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.ResourceLabel] == "memory" && labels[source.UnitLabel] == "byte"
+		},
+	)
+}
+
 // avg(
 //	avg_over_time(
 //		kube_resource_quota_spec_resource_limits{
@@ -1961,15 +2019,40 @@ func NewResourceQuotaSpecRAMRequestsMetricCollector() *metric.MetricCollector {
 //	)
 //) by (resourcequota, namespace, cluster_id)
 
-func NewResourceQuotaSpecCPULimitsMetricCollector() *metric.MetricCollector {
+func NewResourceQuotaSpecCPULimitAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
-		metric.ResourceQuotaSpecCPULimitsID,
+		metric.ResourceQuotaSpecCPULimitAverageID,
 		metric.KubeResourceQuotaSpecResourceLimits,
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
 		},
 		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.ResourceLabel] == "cpu" && labels[source.UnitLabel] == "core"
+		},
+	)
+}
+
+// max(
+//	max_over_time(
+//		kube_resource_quota_spec_resource_limits{
+//			resource="cpu",
+//			unit="core",
+//			<some_custom_filter>
+//		}[1h]
+//	)
+//) by (resourcequota, namespace, cluster_id)
+
+func NewResourceQuotaSpecCPULimitMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ResourceQuotaSpecCPULimitMaxID,
+		metric.KubeResourceQuotaSpecResourceLimits,
+		[]string{
+			source.NamespaceLabel,
+			source.ResourceQuotaLabel,
+		},
+		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
 			return labels[source.ResourceLabel] == "cpu" && labels[source.UnitLabel] == "core"
 		},
@@ -1986,15 +2069,40 @@ func NewResourceQuotaSpecCPULimitsMetricCollector() *metric.MetricCollector {
 //	)
 //) by (resourcequota, namespace, cluster_id)
 
-func NewResourceQuotaSpecRAMLimitsMetricCollector() *metric.MetricCollector {
+func NewResourceQuotaSpecRAMLimitAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
-		metric.ResourceQuotaSpecRAMLimitsID,
+		metric.ResourceQuotaSpecRAMLimitAverageID,
 		metric.KubeResourceQuotaSpecResourceLimits,
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
 		},
 		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.ResourceLabel] == "memory" && labels[source.UnitLabel] == "byte"
+		},
+	)
+}
+
+// max(
+//	max_over_time(
+//		kube_resource_quota_spec_resource_limits{
+//			resource="memory",
+//			unit="byte",
+//			<some_custom_filter>
+//		}[1h]
+//	)
+//) by (resourcequota, namespace, cluster_id)
+
+func NewResourceQuotaSpecRAMLimitMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ResourceQuotaSpecRAMLimitMaxID,
+		metric.KubeResourceQuotaSpecResourceLimits,
+		[]string{
+			source.NamespaceLabel,
+			source.ResourceQuotaLabel,
+		},
+		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
 			return labels[source.ResourceLabel] == "memory" && labels[source.UnitLabel] == "byte"
 		},
@@ -2011,15 +2119,40 @@ func NewResourceQuotaSpecRAMLimitsMetricCollector() *metric.MetricCollector {
 //	)
 //) by (resourcequota, namespace, cluster_id)
 
-func NewResourceQuotaStatusUsedCPURequestsMetricCollector() *metric.MetricCollector {
+func NewResourceQuotaStatusUsedCPURequestAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
-		metric.ResourceQuotaStatusUsedCPURequestsID,
+		metric.ResourceQuotaStatusUsedCPURequestAverageID,
 		metric.KubeResourceQuotaStatusUsedResourceRequests,
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
 		},
 		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.ResourceLabel] == "cpu" && labels[source.UnitLabel] == "core"
+		},
+	)
+}
+
+// max(
+//	max_over_time(
+//		kube_resource_quota_status_used_resource_requests{
+//			resource="cpu",
+//			unit="core",
+//			<some_custom_filter>
+//		}[1h]
+//	)
+//) by (resourcequota, namespace, cluster_id)
+
+func NewResourceQuotaStatusUsedCPURequestMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ResourceQuotaStatusUsedCPURequestMaxID,
+		metric.KubeResourceQuotaStatusUsedResourceRequests,
+		[]string{
+			source.NamespaceLabel,
+			source.ResourceQuotaLabel,
+		},
+		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
 			return labels[source.ResourceLabel] == "cpu" && labels[source.UnitLabel] == "core"
 		},
@@ -2036,15 +2169,40 @@ func NewResourceQuotaStatusUsedCPURequestsMetricCollector() *metric.MetricCollec
 //	)
 //) by (resourcequota, namespace, cluster_id)
 
-func NewResourceQuotaStatusUsedRAMRequestsMetricCollector() *metric.MetricCollector {
+func NewResourceQuotaStatusUsedRAMRequestAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
-		metric.ResourceQuotaStatusUsedRAMRequestsID,
+		metric.ResourceQuotaStatusUsedRAMRequestAverageID,
 		metric.KubeResourceQuotaStatusUsedResourceRequests,
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
 		},
 		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.ResourceLabel] == "memory" && labels[source.UnitLabel] == "byte"
+		},
+	)
+}
+
+// max(
+//	max_over_time(
+//		kube_resource_quota_status_used_resource_requests{
+//			resource="memory",
+//			unit="byte",
+//			<some_custom_filter>
+//		}[1h]
+//	)
+//) by (resourcequota, namespace, cluster_id)
+
+func NewResourceQuotaStatusUsedRAMRequestMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ResourceQuotaStatusUsedRAMRequestMaxID,
+		metric.KubeResourceQuotaStatusUsedResourceRequests,
+		[]string{
+			source.NamespaceLabel,
+			source.ResourceQuotaLabel,
+		},
+		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
 			return labels[source.ResourceLabel] == "memory" && labels[source.UnitLabel] == "byte"
 		},
@@ -2061,15 +2219,40 @@ func NewResourceQuotaStatusUsedRAMRequestsMetricCollector() *metric.MetricCollec
 //	)
 //) by (resourcequota, namespace, cluster_id)
 
-func NewResourceQuotaStatusUsedCPULimitsMetricCollector() *metric.MetricCollector {
+func NewResourceQuotaStatusUsedCPULimitAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
-		metric.ResourceQuotaStatusUsedCPULimitsID,
+		metric.ResourceQuotaStatusUsedCPULimitAverageID,
 		metric.KubeResourceQuotaStatusUsedResourceLimits,
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
 		},
 		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.ResourceLabel] == "cpu" && labels[source.UnitLabel] == "core"
+		},
+	)
+}
+
+// max(
+//	max_over_time(
+//		kube_resource_quota_status_used_resource_limits{
+//			resource="cpu",
+//			unit="core",
+//			<some_custom_filter>
+//		}[1h]
+//	)
+//) by (resourcequota, namespace, cluster_id)
+
+func NewResourceQuotaStatusUsedCPULimitMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ResourceQuotaStatusUsedCPULimitMaxID,
+		metric.KubeResourceQuotaStatusUsedResourceLimits,
+		[]string{
+			source.NamespaceLabel,
+			source.ResourceQuotaLabel,
+		},
+		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
 			return labels[source.ResourceLabel] == "cpu" && labels[source.UnitLabel] == "core"
 		},
@@ -2086,15 +2269,40 @@ func NewResourceQuotaStatusUsedCPULimitsMetricCollector() *metric.MetricCollecto
 //	)
 //) by (resourcequota, namespace, cluster_id)
 
-func NewResourceQuotaStatusUsedRAMLimitsMetricCollector() *metric.MetricCollector {
+func NewResourceQuotaStatusUsedRAMLimitAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
-		metric.ResourceQuotaStatusUsedRAMLimitsID,
+		metric.ResourceQuotaStatusUsedRAMLimitAverageID,
 		metric.KubeResourceQuotaStatusUsedResourceLimits,
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
 		},
 		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.ResourceLabel] == "memory" && labels[source.UnitLabel] == "byte"
+		},
+	)
+}
+
+// max(
+//	max_over_time(
+//		kube_resource_quota_status_used_resource_limits{
+//			resource="memory",
+//			unit="byte",
+//			<some_custom_filter>
+//		}[1h]
+//	)
+//) by (resourcequota, namespace, cluster_id)
+
+func NewResourceQuotaStatusUsedRAMLimitMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ResourceQuotaStatusUsedRAMLimitMaxID,
+		metric.KubeResourceQuotaStatusUsedResourceLimits,
+		[]string{
+			source.NamespaceLabel,
+			source.ResourceQuotaLabel,
+		},
+		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
 			return labels[source.ResourceLabel] == "memory" && labels[source.UnitLabel] == "byte"
 		},
