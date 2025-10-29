@@ -39,7 +39,7 @@ func SelectStorageAuthorizerByType(typeStr string) (StorageAuthorizer, error) {
 	case SharedKeyAuthorizerType:
 		return &SharedKeyCredential{}, nil
 	case StorageConnectionStringAuthorizerType:
-		return &StorageConnectionStringHolder{}, nil
+		return &StorageConnectionStringCredential{}, nil
 	default:
 		authorizer, err := SelectAuthorizerByType(typeStr)
 		if err != nil {
@@ -146,12 +146,12 @@ func (ah *AuthorizerHolder) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, ah.Authorizer)
 }
 
-type StorageConnectionStringHolder struct {
+type StorageConnectionStringCredential struct {
 	StorageConnectionString string             `json:"storageConnectionString"`
 	HTTPConfig              storage.HTTPConfig `json:"httpConfig"`
 }
 
-func (s *StorageConnectionStringHolder) MarshalJSON() ([]byte, error) {
+func (s *StorageConnectionStringCredential) MarshalJSON() ([]byte, error) {
 	fmap := make(map[string]any, 3)
 	fmap[cloud.AuthorizerTypeProperty] = StorageConnectionStringAuthorizerType
 	fmap["storageConnectionString"] = s.StorageConnectionString
@@ -159,31 +159,31 @@ func (s *StorageConnectionStringHolder) MarshalJSON() ([]byte, error) {
 	return json.Marshal(fmap)
 }
 
-func (s *StorageConnectionStringHolder) UnmarshalJSON(b []byte) error {
+func (s *StorageConnectionStringCredential) UnmarshalJSON(b []byte) error {
 	// Used alias to avoid unmarshalling StorageConnectionStringHolder into itself, But want to set the default HTTPConfig
-	type alias StorageConnectionStringHolder
+	type alias StorageConnectionStringCredential
 	aux := alias(*s)
 	aux.HTTPConfig = defaultHTTPConfig
 	if err := json.Unmarshal(b, &aux); err != nil {
 		return err
 	}
-	*s = StorageConnectionStringHolder(aux)
+	*s = StorageConnectionStringCredential(aux)
 	return nil
 }
 
-func (s *StorageConnectionStringHolder) Validate() error {
+func (s *StorageConnectionStringCredential) Validate() error {
 	if s.StorageConnectionString == "" {
 		return fmt.Errorf("StorageConnectionStringHolder: missing storage connection string")
 	}
 	return nil
 }
 
-func (s *StorageConnectionStringHolder) Equals(config cloud.Config) bool {
+func (s *StorageConnectionStringCredential) Equals(config cloud.Config) bool {
 	if config == nil {
 		return false
 	}
 
-	thatConfig, ok := config.(*StorageConnectionStringHolder)
+	thatConfig, ok := config.(*StorageConnectionStringCredential)
 	if !ok {
 		return false
 	}
@@ -199,11 +199,14 @@ func (s *StorageConnectionStringHolder) Equals(config cloud.Config) bool {
 	return true
 }
 
-func (s *StorageConnectionStringHolder) Sanitize() cloud.Config {
-	return &StorageConnectionStringHolder{StorageConnectionString: s.StorageConnectionString, HTTPConfig: s.HTTPConfig}
+func (s *StorageConnectionStringCredential) Sanitize() cloud.Config {
+	return &StorageConnectionStringCredential{
+		StorageConnectionString: cloud.Redacted,
+		HTTPConfig:              s.HTTPConfig,
+	}
 }
 
-func (s *StorageConnectionStringHolder) GetBlobClient(serviceURL string) (*azblob.Client, error) {
+func (s *StorageConnectionStringCredential) GetBlobClient(serviceURL string) (*azblob.Client, error) {
 	dt, err := s.HTTPConfig.GetHTTPTransport()
 	if err != nil {
 		return nil, fmt.Errorf("error creating transport: %w", err)
