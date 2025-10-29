@@ -1911,7 +1911,7 @@ func NewReplicaSetsWithRolloutMetricCollector() *metric.MetricCollector {
 
 // avg(
 //	avg_over_time(
-//		kube_resource_quota_spec_resource_requests{
+//		kube_resourcequota_spec_resource_requests{
 //			resource="cpu",
 //			unit="core",
 //			<some_custom_filter>
@@ -1936,7 +1936,7 @@ func NewResourceQuotaSpecCPURequestAverageMetricCollector() *metric.MetricCollec
 
 // max(
 //	max_over_time(
-//		kube_resource_quota_spec_resource_requests{
+//		kube_resourcequota_spec_resource_requests{
 //			resource="cpu",
 //			unit="core",
 //			<some_custom_filter>
@@ -1961,7 +1961,7 @@ func NewResourceQuotaSpecCPURequestMaxMetricCollector() *metric.MetricCollector 
 
 // avg(
 //	avg_over_time(
-//		kube_resource_quota_spec_resource_requests{
+//		kube_resourcequota_spec_resource_requests{
 //			resource="memory",
 //			unit="byte",
 //			<some_custom_filter>
@@ -1986,7 +1986,7 @@ func NewResourceQuotaSpecRAMRequestAverageMetricCollector() *metric.MetricCollec
 
 // max(
 //	max_over_time(
-//		kube_resource_quota_spec_resource_requests{
+//		kube_resourcequota_spec_resource_requests{
 //			resource="memory",
 //			unit="byte",
 //			<some_custom_filter>
@@ -2011,7 +2011,7 @@ func NewResourceQuotaSpecRAMRequestMaxMetricCollector() *metric.MetricCollector 
 
 // avg(
 //	avg_over_time(
-//		kube_resource_quota_spec_resource_limits{
+//		kube_resourcequota_spec_resource_limits{
 //			resource="cpu",
 //			unit="core",
 //			<some_custom_filter>
@@ -2036,7 +2036,7 @@ func NewResourceQuotaSpecCPULimitAverageMetricCollector() *metric.MetricCollecto
 
 // max(
 //	max_over_time(
-//		kube_resource_quota_spec_resource_limits{
+//		kube_resourcequota_spec_resource_limits{
 //			resource="cpu",
 //			unit="core",
 //			<some_custom_filter>
@@ -2061,7 +2061,7 @@ func NewResourceQuotaSpecCPULimitMaxMetricCollector() *metric.MetricCollector {
 
 // avg(
 //	avg_over_time(
-//		kube_resource_quota_spec_resource_limits{
+//		kube_resourcequota_spec_resource_limits{
 //			resource="memory",
 //			unit="byte",
 //			<some_custom_filter>
@@ -2086,7 +2086,7 @@ func NewResourceQuotaSpecRAMLimitAverageMetricCollector() *metric.MetricCollecto
 
 // max(
 //	max_over_time(
-//		kube_resource_quota_spec_resource_limits{
+//		kube_resourcequota_spec_resource_limits{
 //			resource="memory",
 //			unit="byte",
 //			<some_custom_filter>
@@ -2111,7 +2111,7 @@ func NewResourceQuotaSpecRAMLimitMaxMetricCollector() *metric.MetricCollector {
 
 // avg(
 //	avg_over_time(
-//		kube_resource_quota_status_used_resource_requests{
+//		kube_resourcequota_status_used_resource_requests{
 //			resource="cpu",
 //			unit="core",
 //			<some_custom_filter>
@@ -2136,7 +2136,7 @@ func NewResourceQuotaStatusUsedCPURequestAverageMetricCollector() *metric.Metric
 
 // max(
 //	max_over_time(
-//		kube_resource_quota_status_used_resource_requests{
+//		kube_resourcequota_status_used_resource_requests{
 //			resource="cpu",
 //			unit="core",
 //			<some_custom_filter>
@@ -2161,7 +2161,7 @@ func NewResourceQuotaStatusUsedCPURequestMaxMetricCollector() *metric.MetricColl
 
 // avg(
 //	avg_over_time(
-//		kube_resource_quota_status_used_resource_requests{
+//		kube_resourcequota_status_used_resource_requests{
 //			resource="memory",
 //			unit="byte",
 //			<some_custom_filter>
@@ -2186,7 +2186,7 @@ func NewResourceQuotaStatusUsedRAMRequestAverageMetricCollector() *metric.Metric
 
 // max(
 //	max_over_time(
-//		kube_resource_quota_status_used_resource_requests{
+//		kube_resourcequota_status_used_resource_requests{
 //			resource="memory",
 //			unit="byte",
 //			<some_custom_filter>
@@ -2211,7 +2211,7 @@ func NewResourceQuotaStatusUsedRAMRequestMaxMetricCollector() *metric.MetricColl
 
 // avg(
 //	avg_over_time(
-//		kube_resource_quota_status_used_resource_limits{
+//		kube_resourcequota_status_used_resource_limits{
 //			resource="cpu",
 //			unit="core",
 //			<some_custom_filter>
@@ -2236,7 +2236,7 @@ func NewResourceQuotaStatusUsedCPULimitAverageMetricCollector() *metric.MetricCo
 
 // max(
 //	max_over_time(
-//		kube_resource_quota_status_used_resource_limits{
+//		kube_resourcequota_status_used_resource_limits{
 //			resource="cpu",
 //			unit="core",
 //			<some_custom_filter>
@@ -2261,7 +2261,7 @@ func NewResourceQuotaStatusUsedCPULimitMaxMetricCollector() *metric.MetricCollec
 
 // avg(
 //	avg_over_time(
-//		kube_resource_quota_status_used_resource_limits{
+//		kube_resourcequota_status_used_resource_limits{
 //			resource="memory",
 //			unit="byte",
 //			<some_custom_filter>
@@ -2286,7 +2286,7 @@ func NewResourceQuotaStatusUsedRAMLimitAverageMetricCollector() *metric.MetricCo
 
 // max(
 //	max_over_time(
-//		kube_resource_quota_status_used_resource_limits{
+//		kube_resourcequota_status_used_resource_limits{
 //			resource="memory",
 //			unit="byte",
 //			<some_custom_filter>
