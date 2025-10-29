@@ -568,6 +568,9 @@ func (ccs *ClusterCacheScraper) scrapeResourceQuotas(resourceQuotas []*clusterca
 		}
 
 		if resourceQuota.Spec.Hard != nil {
+			// CPU/memory requests can also be aliased as "cpu" and "memory". For now, however, only scrape the complete names
+			// https://kubernetes.io/docs/concepts/policy/resource-quotas/#compute-resource-quota
+
 			if quantity, ok := resourceQuota.Spec.Hard[v1.ResourceRequestsCPU]; ok {
 				scrapeResults = append(scrapeResults, processResource(resourceQuotaInfo, v1.ResourceCPU, quantity, metric.KubeResourceQuotaSpecResourceRequests))
 			}
