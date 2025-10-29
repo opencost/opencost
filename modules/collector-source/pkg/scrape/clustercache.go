@@ -540,8 +540,8 @@ func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.Re
 }
 
 func (ccs *ClusterCacheScraper) ScrapeResourceQuotas() []metric.Update {
-	nodes := ccs.clusterCache.GetAllResourceQuotas()
-	return ccs.scrapeResourceQuotas(nodes)
+	resourceQuotas := ccs.clusterCache.GetAllResourceQuotas()
+	return ccs.scrapeResourceQuotas(resourceQuotas)
 }
 
 func (ccs *ClusterCacheScraper) scrapeResourceQuotas(resourceQuotas []*clustercache.ResourceQuota) []metric.Update {
