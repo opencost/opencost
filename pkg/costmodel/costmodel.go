@@ -1779,10 +1779,235 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 	return asr, nil
 }
 
+// debugAssetAllocationMismatch analyzes and logs discrepancies between asset and allocation data
+// This helps diagnose pricing issues and negative idle costs
+func debugAssetAllocationMismatch(allocSet *opencost.AllocationSet, assetSet *opencost.AssetSet) {
+	log.Debugf("=== Asset-Allocation Debug Analysis for window %s ===", allocSet.Window)
+
+	// Build maps for efficient lookup
+	assetsByProviderID := make(map[string]*opencost.Node)
+	assetsByNode := make(map[string]*opencost.Node)
+	for _, asset := range assetSet.Nodes {
+		if asset.Properties != nil && asset.Properties.ProviderID != "" {
+			assetsByProviderID[asset.Properties.ProviderID] = asset
+		}
+		if asset.Properties != nil && asset.Properties.Name != "" {
+			assetsByNode[asset.Properties.Name] = asset
+		}
+	}
+
+	// 1) Find allocations without matching assets (by ProviderID)
+	allocsWithoutAssets := make([]*opencost.Allocation, 0)
+	for _, alloc := range allocSet.Allocations {
+		if alloc.Properties == nil {
+			continue
+		}
+		providerID := alloc.Properties.ProviderID
+		if providerID == "" {
+			continue
+		}
+		if _, found := assetsByProviderID[providerID]; !found {
+			allocsWithoutAssets = append(allocsWithoutAssets, alloc)
+		}
+	}
+
+	if len(allocsWithoutAssets) > 0 {
+		log.Debugf("Found %d allocations without matching assets:", len(allocsWithoutAssets))
+		for _, alloc := range allocsWithoutAssets {
+			log.Debugf("  - Allocation: %s, Node: %s, ProviderID: %s, TotalCost: %.4f",
+				alloc.Name,
+				alloc.Properties.Node,
+				alloc.Properties.ProviderID,
+				alloc.TotalCost())
+		}
+	}
+
+	// 2) Sum allocations per node and compare to node asset costs
+	allocTotalsByNode := make(map[string]*struct {
+		CPUCost      float64
+		GPUCost      float64
+		RAMCost      float64
+		TotalCost    float64
+		CPUCoreHours float64
+		GPUHours     float64
+		RAMByteHours float64
+		Count        int
+	})
+
+	for _, alloc := range allocSet.Allocations {
+		if alloc.Properties == nil || alloc.Properties.Node == "" {
+			continue
+		}
+		node := alloc.Properties.Node
+
+		if _, exists := allocTotalsByNode[node]; !exists {
+			allocTotalsByNode[node] = &struct {
+				CPUCost      float64
+				GPUCost      float64
+				RAMCost      float64
+				TotalCost    float64
+				CPUCoreHours float64
+				GPUHours     float64
+				RAMByteHours float64
+				Count        int
+			}{}
+		}
+
+		allocTotalsByNode[node].CPUCost += alloc.CPUCost
+		allocTotalsByNode[node].GPUCost += alloc.GPUCost
+		allocTotalsByNode[node].RAMCost += alloc.RAMCost
+		allocTotalsByNode[node].TotalCost += alloc.TotalCost()
+		allocTotalsByNode[node].CPUCoreHours += alloc.CPUCoreHours
+		allocTotalsByNode[node].GPUHours += alloc.GPUHours
+		allocTotalsByNode[node].RAMByteHours += alloc.RAMByteHours
+		allocTotalsByNode[node].Count++
+	}
+
+	log.Debugf("Per-Node Asset vs Allocation Comparison:")
+	for node, allocTotals := range allocTotalsByNode {
+		asset, hasAsset := assetsByNode[node]
+		if !hasAsset {
+			log.Debugf("  Node %s: Has allocations but NO ASSET (allocations: %d, total cost: %.4f)",
+				node, allocTotals.Count, allocTotals.TotalCost)
+			continue
+		}
+
+		assetCPU := asset.CPUCost
+		assetGPU := asset.GPUCost
+		assetRAM := asset.RAMCost
+		assetTotal := asset.TotalCost()
+
+		cpuDiff := assetCPU - allocTotals.CPUCost
+		gpuDiff := assetGPU - allocTotals.GPUCost
+		ramDiff := assetRAM - allocTotals.RAMCost
+		totalDiff := assetTotal - allocTotals.TotalCost
+
+		status := "OK"
+		if cpuDiff < 0 || gpuDiff < 0 || ramDiff < 0 {
+			status = "NEGATIVE_IDLE"
+		}
+
+		log.Debugf("  Node %s [%s]:", node, status)
+		log.Debugf("    Asset:      CPU=%.4f, GPU=%.4f, RAM=%.4f, Total=%.4f",
+			assetCPU, assetGPU, assetRAM, assetTotal)
+		log.Debugf("    Allocation: CPU=%.4f, GPU=%.4f, RAM=%.4f, Total=%.4f (%d allocs)",
+			allocTotals.CPUCost, allocTotals.GPUCost, allocTotals.RAMCost, allocTotals.TotalCost, allocTotals.Count)
+		log.Debugf("    Difference: CPU=%.4f, GPU=%.4f, RAM=%.4f, Total=%.4f",
+			cpuDiff, gpuDiff, ramDiff, totalDiff)
+
+		if asset.Adjustment != 0 {
+			log.Debugf("    Adjustment: %.4f", asset.Adjustment)
+		}
+
+		// Compare resource amounts vs costs: higher resources should have higher costs
+		assetCPUHours := asset.CPUCoreHours
+		assetGPUHours := asset.GPUHours
+		assetRAMBytes := asset.RAMByteHours
+
+		allocCPUHours := allocTotals.CPUCoreHours
+		allocGPUHours := allocTotals.GPUHours
+		allocRAMBytes := allocTotals.RAMByteHours
+
+		// Warn if resource amounts and costs are inverted (higher resources but lower costs)
+		if assetCPUHours > 0 && allocCPUHours > 0 {
+			if assetCPUHours > allocCPUHours && assetCPU < allocTotals.CPUCost {
+				log.Warnf("Resource-cost inversion for %s CPU: asset has MORE hours (%.2f) but LESS cost (%.4f) than allocations (hours: %.2f, cost: %.4f)",
+					node, assetCPUHours, assetCPU, allocCPUHours, allocTotals.CPUCost)
+			} else if assetCPUHours < allocCPUHours && assetCPU > allocTotals.CPUCost {
+				log.Warnf("Resource-cost inversion for %s CPU: asset has LESS hours (%.2f) but MORE cost (%.4f) than allocations (hours: %.2f, cost: %.4f)",
+					node, assetCPUHours, assetCPU, allocCPUHours, allocTotals.CPUCost)
+			}
+		}
+
+		if assetGPUHours > 0 && allocGPUHours > 0 {
+			if assetGPUHours > allocGPUHours && assetGPU < allocTotals.GPUCost {
+				log.Warnf("Resource-cost inversion for %s GPU: asset has MORE hours (%.2f) but LESS cost (%.4f) than allocations (hours: %.2f, cost: %.4f)",
+					node, assetGPUHours, assetGPU, allocGPUHours, allocTotals.GPUCost)
+			} else if assetGPUHours < allocGPUHours && assetGPU > allocTotals.GPUCost {
+				log.Warnf("Resource-cost inversion for %s GPU: asset has LESS hours (%.2f) but MORE cost (%.4f) than allocations (hours: %.2f, cost: %.4f)",
+					node, assetGPUHours, assetGPU, allocGPUHours, allocTotals.GPUCost)
+			}
+		}
+
+		if assetRAMBytes > 0 && allocRAMBytes > 0 {
+			if assetRAMBytes > allocRAMBytes && assetRAM < allocTotals.RAMCost {
+				log.Warnf("Resource-cost inversion for %s RAM: asset has MORE byte-hours (%.2f) but LESS cost (%.4f) than allocations (byte-hours: %.2f, cost: %.4f)",
+					node, assetRAMBytes, assetRAM, allocRAMBytes, allocTotals.RAMCost)
+			} else if assetRAMBytes < allocRAMBytes && assetRAM > allocTotals.RAMCost {
+				log.Warnf("Resource-cost inversion for %s RAM: asset has LESS byte-hours (%.2f) but MORE cost (%.4f) than allocations (byte-hours: %.2f, cost: %.4f)",
+					node, assetRAMBytes, assetRAM, allocRAMBytes, allocTotals.RAMCost)
+			}
+		}
+
+		// Log resource amounts for debugging
+		log.Debugf("    Resource Hours:")
+		log.Debugf("      Asset:      CPU=%.2f hours, GPU=%.2f hours, RAM=%.2f byte-hours",
+			assetCPUHours, assetGPUHours, assetRAMBytes)
+		log.Debugf("      Allocation: CPU=%.2f hours, GPU=%.2f hours, RAM=%.2f byte-hours",
+			allocCPUHours, allocGPUHours, allocRAMBytes)
+	}
+
+	// 3) Sum total of all node costs
+	totalNodeCPU := 0.0
+	totalNodeGPU := 0.0
+	totalNodeRAM := 0.0
+	totalNodeCost := 0.0
+	nodeCount := 0
+
+	for _, asset := range assetSet.Nodes {
+		totalNodeCPU += asset.CPUCost
+		totalNodeGPU += asset.GPUCost
+		totalNodeRAM += asset.RAMCost
+		totalNodeCost += asset.TotalCost()
+		nodeCount++
+	}
+
+	log.Debugf("Total Node Asset Costs:")
+	log.Debugf("  Nodes: %d", nodeCount)
+	log.Debugf("  CPU:   %.4f", totalNodeCPU)
+	log.Debugf("  GPU:   %.4f", totalNodeGPU)
+	log.Debugf("  RAM:   %.4f", totalNodeRAM)
+	log.Debugf("  Total: %.4f", totalNodeCost)
+
+	// 4) Sum total of all allocation costs
+	totalAllocCPU := 0.0
+	totalAllocGPU := 0.0
+	totalAllocRAM := 0.0
+	totalAllocCost := 0.0
+	allocCount := 0
+
+	for _, alloc := range allocSet.Allocations {
+		totalAllocCPU += alloc.CPUCost
+		totalAllocGPU += alloc.GPUCost
+		totalAllocRAM += alloc.RAMCost
+		totalAllocCost += alloc.TotalCost()
+		allocCount++
+	}
+
+	log.Debugf("Total Allocation Costs:")
+	log.Debugf("  Allocations: %d", allocCount)
+	log.Debugf("  CPU:         %.4f", totalAllocCPU)
+	log.Debugf("  GPU:         %.4f", totalAllocGPU)
+	log.Debugf("  RAM:         %.4f", totalAllocRAM)
+	log.Debugf("  Total:       %.4f", totalAllocCost)
+
+	// Overall comparison
+	log.Debugf("Overall Asset vs Allocation:")
+	log.Debugf("  CPU Difference:   %.4f (Asset - Allocation)", totalNodeCPU-totalAllocCPU)
+	log.Debugf("  GPU Difference:   %.4f (Asset - Allocation)", totalNodeGPU-totalAllocGPU)
+	log.Debugf("  RAM Difference:   %.4f (Asset - Allocation)", totalNodeRAM-totalAllocRAM)
+	log.Debugf("  Total Difference: %.4f (Asset - Allocation)", totalNodeCost-totalAllocCost)
+
+	log.Debugf("=== End Asset-Allocation Debug Analysis ===")
+}
+
 func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost.AssetSet, idleByNode bool) (*opencost.AllocationSet, error) {
 	if !allocSet.Window.Equal(assetSet.Window) {
 		return nil, fmt.Errorf("cannot compute idle allocations for mismatched sets: %s does not equal %s", allocSet.Window, assetSet.Window)
 	}
+
+	// Run debug analysis when log level is debug
+	debugAssetAllocationMismatch(allocSet, assetSet)
 
 	var allocTotals map[string]*opencost.AllocationTotals
 	var assetTotals map[string]*opencost.AssetTotals
@@ -1831,17 +2056,17 @@ func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost
 
 		// Clamp idle costs to zero to prevent negative idle allocations
 		if cpuIdleCost < 0 {
-			log.DedupedWarningf(5, "Allocation: clamping negative CPU idle cost to 0 for %s (assetTotal: %.4f, allocTotal: %.4f)",
+			log.Warnf("Negative CPU idle cost detected for %s: asset total (%.4f) < allocation total (%.4f), clamping to 0",
 				key, assetTotal.TotalCPUCost(), allocTotal.TotalCPUCost())
 			cpuIdleCost = 0
 		}
 		if gpuIdleCost < 0 {
-			log.DedupedWarningf(5, "Allocation: clamping negative GPU idle cost to 0 for %s (assetTotal: %.4f, allocTotal: %.4f)",
+			log.Warnf("Negative GPU idle cost detected for %s: asset total (%.4f) < allocation total (%.4f), clamping to 0",
 				key, assetTotal.TotalGPUCost(), allocTotal.TotalGPUCost())
 			gpuIdleCost = 0
 		}
 		if ramIdleCost < 0 {
-			log.DedupedWarningf(5, "Allocation: clamping negative RAM idle cost to 0 for %s (assetTotal: %.4f, allocTotal: %.4f)",
+			log.Warnf("Negative RAM idle cost detected for %s: asset total (%.4f) < allocation total (%.4f), clamping to 0",
 				key, assetTotal.TotalRAMCost(), allocTotal.TotalRAMCost())
 			ramIdleCost = 0
 		}
