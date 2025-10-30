@@ -11,8 +11,8 @@ type ResourceQuota struct {
 	NamespaceID string
 	Name        string
 	Kind        ResourceQuotaKind
-	Spec        ResourceQuotaSpec
-	Status      ResourceQuotaStatus
+	Spec        *ResourceQuotaSpec
+	Status      *ResourceQuotaStatus
 }
 
 type ResourceQuotaSpec struct {
