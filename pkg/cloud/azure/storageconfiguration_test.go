@@ -538,13 +538,19 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 
 func TestStorageConfiguration_JSON(t *testing.T) {
 	testCases := map[string]struct {
-		config StorageConfiguration
+		input          map[string]interface{}
+		afterUnmarshal StorageConfiguration
 	}{
-		"Empty Config": {
-			config: StorageConfiguration{},
-		},
 		"Nil Authorizer": {
-			config: StorageConfiguration{
+			input: map[string]interface{}{
+				"subscriptionID": "subscriptionID",
+				"account":        "account",
+				"container":      "container",
+				"path":           "path",
+				"cloud":          "cloud",
+				"authorizer":     nil,
+			},
+			afterUnmarshal: StorageConfiguration{
 				SubscriptionID: "subscriptionID",
 				Account:        "account",
 				Container:      "container",
@@ -554,7 +560,19 @@ func TestStorageConfiguration_JSON(t *testing.T) {
 			},
 		},
 		"SharedKeyCredential Authorizer": {
-			config: StorageConfiguration{
+			input: map[string]interface{}{
+				"subscriptionID": "subscriptionID",
+				"account":        "account",
+				"container":      "container",
+				"path":           "path",
+				"cloud":          "cloud",
+				"authorizer": map[string]interface{}{
+					"authorizerType": "AzureAccessKey",
+					"accessKey":      "accessKey",
+					"account":        "account",
+				},
+			},
+			afterUnmarshal: StorageConfiguration{
 				SubscriptionID: "subscriptionID",
 				Account:        "account",
 				Container:      "container",
@@ -567,7 +585,17 @@ func TestStorageConfiguration_JSON(t *testing.T) {
 			},
 		},
 		"Default AuthorizerHolder Authorizer": {
-			config: StorageConfiguration{
+			input: map[string]interface{}{
+				"subscriptionID": "subscriptionID",
+				"account":        "account",
+				"container":      "container",
+				"path":           "path",
+				"cloud":          "cloud",
+				"authorizer": map[string]interface{}{
+					"authorizerType": "AzureDefaultCredential",
+				},
+			},
+			afterUnmarshal: StorageConfiguration{
 				SubscriptionID: "subscriptionID",
 				Account:        "account",
 				Container:      "container",
@@ -579,7 +607,20 @@ func TestStorageConfiguration_JSON(t *testing.T) {
 			},
 		},
 		"ClientSecretCredential Authorizer": {
-			config: StorageConfiguration{
+			input: map[string]interface{}{
+				"subscriptionID": "subscriptionID",
+				"account":        "account",
+				"container":      "container",
+				"path":           "path",
+				"cloud":          "cloud",
+				"authorizer": map[string]interface{}{
+					"authorizerType": "AzureClientSecretCredential",
+					"tenantID":       "tenantID",
+					"clientID":       "clientID",
+					"clientSecret":   "clientSecret",
+				},
+			},
+			afterUnmarshal: StorageConfiguration{
 				SubscriptionID: "subscriptionID",
 				Account:        "account",
 				Container:      "container",
@@ -595,7 +636,21 @@ func TestStorageConfiguration_JSON(t *testing.T) {
 			},
 		},
 		"StorageConnectionStringCredential Authorizer": {
-			config: StorageConfiguration{
+			input: map[string]interface{}{
+				"subscriptionID": "subscriptionID",
+				"account":        "account",
+				"container":      "container",
+				"path":           "path",
+				"cloud":          "cloud",
+				"authorizer": map[string]interface{}{
+					"authorizerType":          "AzureStorageConnectionString",
+					"storageConnectionString": "storageConnectionString",
+					"httpConfig": map[string]interface{}{
+						"insecureSkipVerify": true,
+					},
+				},
+			},
+			afterUnmarshal: StorageConfiguration{
 				SubscriptionID: "subscriptionID",
 				Account:        "account",
 				Container:      "container",
@@ -603,6 +658,11 @@ func TestStorageConfiguration_JSON(t *testing.T) {
 				Cloud:          "cloud",
 				Authorizer: &StorageConnectionStringCredential{
 					StorageConnectionString: "storageConnectionString",
+					HTTPConfig: func() storage.HTTPConfig {
+						cfg := defaultHTTPConfig
+						cfg.InsecureSkipVerify = true
+						return cfg
+					}(),
 				},
 			},
 		},
@@ -611,7 +671,7 @@ func TestStorageConfiguration_JSON(t *testing.T) {
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
 			// test JSON Marshalling
-			configJSON, err := json.Marshal(testCase.config)
+			configJSON, err := json.Marshal(testCase.input)
 			if err != nil {
 				t.Errorf("failed to marshal configuration: %s", err.Error())
 			}
@@ -622,7 +682,7 @@ func TestStorageConfiguration_JSON(t *testing.T) {
 				t.Errorf("failed to unmarshal configuration: %s", err.Error())
 			}
 
-			if !testCase.config.Equals(unmarshalledConfig) {
+			if !testCase.afterUnmarshal.Equals(unmarshalledConfig) {
 				t.Error("config does not equal unmarshalled config")
 			}
 		})
