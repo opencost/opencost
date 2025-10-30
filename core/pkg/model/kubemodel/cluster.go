@@ -5,5 +5,4 @@ type Cluster struct {
 	Provider Provider
 	Account  string
 	Name     string
-	Window   Window
 }

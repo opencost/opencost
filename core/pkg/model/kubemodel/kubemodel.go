@@ -5,6 +5,7 @@ import "time"
 type KubeModel struct {
 	Metadata KubeModelMetadata
 	Cluster  Cluster
+	Window   Window
 }
 
 type KubeModelMetadata struct {
