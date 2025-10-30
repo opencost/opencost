@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud"
 )
@@ -121,6 +122,30 @@ func TestStorageConfiguration_Validate(t *testing.T) {
 				},
 			},
 			expected: nil,
+		},
+		"valid config StorageConnectionStringCredential": {
+			config: StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer: &StorageConnectionStringCredential{
+					StorageConnectionString: "storageConnectionString",
+				},
+			},
+			expected: nil,
+		},
+		"missing storage connection string": {
+			config: StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer:     &StorageConnectionStringCredential{},
+			},
+			expected: fmt.Errorf("StorageConnectionStringCredential: missing storage connection string"),
 		},
 	}
 
@@ -426,6 +451,79 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 			},
 			expected: false,
 		},
+		"matching config StorageConnectionStringCredential": {
+			left: StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer: &StorageConnectionStringCredential{
+					StorageConnectionString: "storageConnectionString",
+				},
+			},
+			right: &StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer: &StorageConnectionStringCredential{
+					StorageConnectionString: "storageConnectionString",
+				},
+			},
+			expected: true,
+		},
+		"different StorageConnectionString in StorageConnectionStringCredential": {
+			left: StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer: &StorageConnectionStringCredential{
+					StorageConnectionString: "storageConnectionString1",
+				},
+			},
+			right: &StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer: &StorageConnectionStringCredential{
+					StorageConnectionString: "storageConnectionString2",
+				},
+			},
+			expected: false,
+		},
+		"different HTTPConfig in StorageConnectionStringCredential": {
+			left: StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer: &StorageConnectionStringCredential{
+					StorageConnectionString: "storageConnectionString",
+					HTTPConfig:              defaultHTTPConfig,
+				},
+			},
+			right: &StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer: &StorageConnectionStringCredential{
+					StorageConnectionString: "storageConnectionString",
+					HTTPConfig: storage.HTTPConfig{
+						InsecureSkipVerify: true,
+					},
+				},
+			},
+			expected: false,
+		},
 	}
 
 	for name, testCase := range testCases {
@@ -496,6 +594,18 @@ func TestStorageConfiguration_JSON(t *testing.T) {
 				},
 			},
 		},
+		"StorageConnectionStringCredential Authorizer": {
+			config: StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer: &StorageConnectionStringCredential{
+					StorageConnectionString: "storageConnectionString",
+				},
+			},
+		},
 	}
 
 	for name, testCase := range testCases {
@@ -514,6 +624,72 @@ func TestStorageConfiguration_JSON(t *testing.T) {
 
 			if !testCase.config.Equals(unmarshalledConfig) {
 				t.Error("config does not equal unmarshalled config")
+			}
+		})
+	}
+}
+
+func TestStorageConfiguration_Sanitize(t *testing.T) {
+	testCases := map[string]struct {
+		config   StorageConfiguration
+		expected StorageConfiguration
+	}{
+		"Sanitize StorageConnectionStringCredential": {
+			config: StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer: &StorageConnectionStringCredential{
+					StorageConnectionString: "storageConnectionString",
+					HTTPConfig:              defaultHTTPConfig,
+				},
+			},
+			expected: StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer: &StorageConnectionStringCredential{
+					StorageConnectionString: cloud.Redacted,
+					HTTPConfig:              defaultHTTPConfig,
+				},
+			},
+		},
+		"Sanitize SharedKeyCredential": {
+			config: StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer: &SharedKeyCredential{
+					AccessKey: "accessKey",
+					Account:   "account",
+				},
+			},
+			expected: StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "path",
+				Cloud:          "cloud",
+				Authorizer: &SharedKeyCredential{
+					AccessKey: cloud.Redacted,
+					Account:   "account",
+				},
+			},
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			actual := testCase.config.Sanitize()
+
+			if !testCase.expected.Equals(actual) {
+				t.Errorf("incorrect result: got %#v, want %#v", actual, testCase.expected)
 			}
 		})
 	}

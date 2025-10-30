@@ -163,7 +163,7 @@ func (s *StorageConnectionStringCredential) MarshalJSON() ([]byte, error) {
 
 func (s *StorageConnectionStringCredential) Validate() error {
 	if s.StorageConnectionString == "" {
-		return fmt.Errorf("StorageConnectionStringHolder: missing storage connection string")
+		return fmt.Errorf("StorageConnectionStringCredential: missing storage connection string")
 	}
 	return nil
 }
