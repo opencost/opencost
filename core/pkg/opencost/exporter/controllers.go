@@ -23,6 +23,7 @@ type ComputePipelineSource interface {
 	allocation.AllocationSource
 	asset.AssetSource
 	networkinsight.NetworkInsightSource
+	exporterkubemodel.KubeModelSource
 
 	GetDataSource() source.OpenCostDataSource
 }
@@ -136,7 +137,7 @@ func NewPipelineExportControllers(clusterId string, store storage.Storage, cm Co
 	}
 
 	// KubeModel sources and exporters
-	kubeModelSource := exporterkubemodel.NewKubeModelComputeSource(nil) // TODO: CREATE AN IMPLEMENTATION OF ComputeSource[kubemodel.KubeModelSet]
+	kubeModelSource := exporterkubemodel.NewKubeModelComputeSource(cm) // TODO: CREATE AN IMPLEMENTATION OF ComputeSource[kubemodel.KubeModelSet]
 	kubeModelExportControllers := []*export.ComputeExportController[kubemodel.KubeModelSet]{}
 
 	for _, res := range config.KubeModelPipelineResolutions {

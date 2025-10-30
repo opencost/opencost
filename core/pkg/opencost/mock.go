@@ -3,6 +3,8 @@ package opencost
 import (
 	"fmt"
 	"time"
+
+	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 )
 
 const gb = 1024 * 1024 * 1024
@@ -1012,4 +1014,11 @@ func GenerateMockCloudCostSet(start, end time.Time, provider, integration string
 	})
 
 	return ccs
+}
+
+// GenerateMockKubeModelSet creates generic allocation set without idle allocations
+func GenerateMockKubeModelSet(start time.Time) *kubemodel.KubeModelSet {
+	// TODO: fill out mocks
+
+	return &kubemodel.KubeModelSet{}
 }
