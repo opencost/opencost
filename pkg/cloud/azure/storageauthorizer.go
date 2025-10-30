@@ -39,7 +39,9 @@ func SelectStorageAuthorizerByType(typeStr string) (StorageAuthorizer, error) {
 	case SharedKeyAuthorizerType:
 		return &SharedKeyCredential{}, nil
 	case StorageConnectionStringAuthorizerType:
-		return &StorageConnectionStringCredential{}, nil
+		return &StorageConnectionStringCredential{
+			HTTPConfig: defaultHTTPConfig,
+		}, nil
 	default:
 		authorizer, err := SelectAuthorizerByType(typeStr)
 		if err != nil {
@@ -157,18 +159,6 @@ func (s *StorageConnectionStringCredential) MarshalJSON() ([]byte, error) {
 	fmap["storageConnectionString"] = s.StorageConnectionString
 	fmap["httpConfig"] = s.HTTPConfig
 	return json.Marshal(fmap)
-}
-
-func (s *StorageConnectionStringCredential) UnmarshalJSON(b []byte) error {
-	// Used alias to avoid unmarshalling StorageConnectionStringHolder into itself, But want to set the default HTTPConfig
-	type alias StorageConnectionStringCredential
-	aux := alias(*s)
-	aux.HTTPConfig = defaultHTTPConfig
-	if err := json.Unmarshal(b, &aux); err != nil {
-		return err
-	}
-	*s = StorageConnectionStringCredential(aux)
-	return nil
 }
 
 func (s *StorageConnectionStringCredential) Validate() error {

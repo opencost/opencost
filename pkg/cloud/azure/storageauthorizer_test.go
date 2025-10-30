@@ -5,13 +5,12 @@ import (
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/storage"
-	// "github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud"
 )
 
 func TestStorageConnectionStringCredential_Validate(t *testing.T) {
 	tests := map[string]struct {
-		input     *StorageConnectionStringCredential
+		input   *StorageConnectionStringCredential
 		wantErr bool
 	}{
 		"missing StorageConnectionString": {
@@ -39,8 +38,8 @@ func TestStorageConnectionStringCredential_Validate(t *testing.T) {
 func TestStorageConnectionStringCredential_Sanitize(t *testing.T) {
 
 	tests := map[string]struct {
-		input  *StorageConnectionStringCredential
-		want cloud.Config
+		input *StorageConnectionStringCredential
+		want  cloud.Config
 	}{
 		"Plain integration": {
 			input: &StorageConnectionStringCredential{
@@ -64,7 +63,7 @@ func TestStorageConnectionStringCredential_Sanitize(t *testing.T) {
 
 func TestStorageConnectionStringCredential_Equals(t *testing.T) {
 	tests := map[string]struct {
-		input    *StorageConnectionStringCredential
+		input  *StorageConnectionStringCredential
 		config cloud.Config
 		want   bool
 	}{
@@ -128,44 +127,3 @@ func TestStorageConnectionStringCredential_Equals(t *testing.T) {
 		})
 	}
 }
-
-// func TestStorageConnectionStringCredential_UnmarshalJSON(t *testing.T) {
-// 	tests := map[string]struct {
-// 		input  *StorageConnectionStringCredential
-// 		want *StorageConnectionStringCredential
-// 	}{
-// 		"default HTTPConfig is set": {
-// 			input: &StorageConnectionStringCredential{
-// 				StorageConnectionString: "StorageConnectionString",
-// 				HTTPConfig: storage.HTTPConfig{
-// 					DisableCompression: true,
-// 				},
-// 			},
-// 			want: &StorageConnectionStringCredential{
-// 				StorageConnectionString: "StorageConnectionString",
-// 				HTTPConfig: func() storage.HTTPConfig {
-// 					cfg := defaultHTTPConfig
-// 					cfg.DisableCompression = true
-// 					return cfg
-// 				}(),
-// 			},
-// 		},
-// 	}
-// 	for name, tt := range tests {
-// 		t.Run(name, func(t *testing.T) {
-// 			configJSON, err := json.Marshal(&tt.input)
-// 			if err != nil {
-// 				t.Errorf("failed to marshal configuration: %s", err.Error())
-// 			}
-// 			unmarshalledConfig := &StorageConnectionStringCredential{}
-// 			if err := json.Unmarshal(configJSON, unmarshalledConfig); err != nil {
-// 				t.Errorf("UnmarshalJSON() error = %v", err)
-// 			}
-// 			t.Logf("Unmarshalled config: %+v", unmarshalledConfig)
-// 			t.Logf("Want config: %+v", tt.want)
-// 			if !reflect.DeepEqual(unmarshalledConfig, tt.want) {
-// 				t.Errorf("UnmarshalJSON() = %v, want %v", unmarshalledConfig, tt.want)
-// 			}
-// 		})
-// 	}
-// }
