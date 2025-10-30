@@ -50,15 +50,20 @@ type Container struct {
 	Name                   string            `json:"name"`
 	CreationTime           *time.Time        `json:"creationTime,omitempty"`
 	DeletionTime           *time.Time        `json:"deletionTime,omitempty"`
-	CpuCoreHours           float32           `json:"cpuCoreHours"`
-	CpuCoreRequestAverage  float32           `json:"cpuCoreRequestAverage"`
-	CpuCoreUsageAverage    float32           `json:"cpuCoreUsageAverage"`
-	CpuCoreUsageMax        float32           `json:"cpuCoreUsageMax"`
-	RamByteHours           int64             `json:"ramByteHours"`
-	RamBytesRequestAverage int64             `json:"ramBytesRequestAverage"`
-	RamBytesUsageAverage   int64             `json:"ramBytesUsageAverage"`
-	RamBytesUsageMax       int64             `json:"ramBytesUsageMax"`
-	Diagnostic             *DiagnosticResult `json:"diagnostic,omitempty"`
+	CpuCoreHours           float64           `json:"cpuCoreHours"`
+	CpuCoreRequestAverage  float64           `json:"cpuCoreRequestAverage"`
+	CpuCoreUsageAverage    float64           `json:"cpuCoreUsageAverage"`
+	CpuCoreUsageMax        float64           `json:"cpuCoreUsageMax"`
+	RamByteHours              uint64            `json:"ramByteHours"`
+	RamBytesRequestAverage    uint64            `json:"ramBytesRequestAverage"`
+	RamBytesUsageAverage      uint64            `json:"ramBytesUsageAverage"`
+	RamBytesUsageMax          uint64            `json:"ramBytesUsageMax"`
+	StorageByteHours          uint64            `json:"storageByteHours"`
+	StorageBytesRequestAverage uint64           `json:"storageBytesRequestAverage"`
+	StorageBytesUsageAverage  uint64            `json:"storageBytesUsageAverage"`
+	StorageBytesUsageMax      uint64            `json:"storageBytesUsageMax"`
+	GpuUsages                 []GPUUsage        `json:"gpuUsages,omitempty"`
+	Diagnostic                *DiagnosticResult `json:"diagnostic,omitempty"`
 }
 
 // Controller represents a Kubernetes workload controller
@@ -102,27 +107,26 @@ type DiagnosticResult struct {
 type GPUDevice struct {
 	ID                string            `json:"id"`
 	NodeID            string            `json:"nodeId"`
-	DeviceNumber      int32             `json:"deviceNumber"`
+	DeviceNumber      uint64            `json:"deviceNumber"`
 	ModelName         string            `json:"modelName"`
 	IsShared          bool              `json:"isShared"`
-	SharePercentage   float32           `json:"sharePercentage"`
-	GpuHours          float32           `json:"gpuHours"`
-	GpuRequestAverage float32           `json:"gpuRequestAverage"`
-	GpuUsageAverage   float32           `json:"gpuUsageAverage"`
-	GpuUsageMax       float32           `json:"gpuUsageMax"`
-	MemoryBytes       int64             `json:"memoryBytes"`
+	SharePercentage   float64           `json:"sharePercentage"`
+	GpuHours          float64           `json:"gpuHours"`
+	GpuRequestAverage float64           `json:"gpuRequestAverage"`
+	GpuUsageAverage   float64           `json:"gpuUsageAverage"`
+	GpuUsageMax       float64           `json:"gpuUsageMax"`
+	MemoryBytes       uint64            `json:"memoryBytes"`
 	Diagnostic        *DiagnosticResult `json:"diagnostic,omitempty"`
 }
 
-// GPUUsage represents GPU usage metrics
+// GPUUsage represents GPU usage metrics for a container
 type GPUUsage struct {
-	ContainerID          string            `json:"containerId"`
 	GpuDeviceID          string            `json:"gpuDeviceId"`
-	GpuHours             float32           `json:"gpuHours"`
-	GpuRequestPercentage float32           `json:"gpuRequestPercentage"`
-	GpuUsageAverage      float32           `json:"gpuUsageAverage"`
-	GpuUsageMax          float32           `json:"gpuUsageMax"`
-	MemoryBytesUsed      int64             `json:"memoryBytesUsed"`
+	GpuHours             float64           `json:"gpuHours"`
+	GpuRequestPercentage float64           `json:"gpuRequestPercentage"`
+	GpuUsageAverage      float64           `json:"gpuUsageAverage"`
+	GpuUsageMax          float64           `json:"gpuUsageMax"`
+	MemoryBytesUsed      uint64            `json:"memoryBytesUsed"`
 	Diagnostic           *DiagnosticResult `json:"diagnostic,omitempty"`
 }
 
@@ -141,9 +145,9 @@ type Namespace struct {
 // ServicePort represents a service port
 type ServicePort struct {
 	Name       string `json:"name"`
-	Port       int32  `json:"port"`
-	TargetPort int32  `json:"targetPort"`
-	NodePort   int32  `json:"nodePort"`
+	Port       uint16 `json:"port"`
+	TargetPort uint16 `json:"targetPort"`
+	NodePort   uint16 `json:"nodePort"`
 	Protocol   string `json:"protocol"`
 }
 
@@ -159,8 +163,8 @@ type Service struct {
 	Ports                []ServicePort     `json:"ports,omitempty"`
 	CreationTime         *time.Time        `json:"creationTime,omitempty"`
 	DeletionTime         *time.Time        `json:"deletionTime,omitempty"`
-	NetworkTransferBytes int64             `json:"networkTransferBytes"`
-	NetworkReceiveBytes  int64             `json:"networkReceiveBytes"`
+	NetworkTransferBytes uint64            `json:"networkTransferBytes"`
+	NetworkReceiveBytes  uint64            `json:"networkReceiveBytes"`
 	Diagnostic           *DiagnosticResult `json:"diagnostic,omitempty"`
 }
 
@@ -174,15 +178,15 @@ type Node struct {
 	Annotations          map[string]string `json:"annotations,omitempty"`
 	CreationTime         *time.Time        `json:"creationTime,omitempty"`
 	DeletionTime         *time.Time        `json:"deletionTime,omitempty"`
-	CpuCores             int32             `json:"cpuCores"`
-	RamBytes             int64             `json:"ramBytes"`
-	CpuCost              float32           `json:"cpuCost"`
-	RamCost              float32           `json:"ramCost"`
-	GpuCost              float32           `json:"gpuCost"`
-	CpuCoreUsageAverage  float32           `json:"cpuCoreUsageAverage"`
-	CpuCoreUsageMax      float32           `json:"cpuCoreUsageMax"`
-	RamBytesUsageAverage int64             `json:"ramBytesUsageAverage"`
-	RamBytesUsageMax     int64             `json:"ramBytesUsageMax"`
+	CpuCores             uint64            `json:"cpuCores"`
+	RamBytes             uint64            `json:"ramBytes"`
+	CpuCost              float64           `json:"cpuCost"`
+	RamCost              float64           `json:"ramCost"`
+	GpuCost              float64           `json:"gpuCost"`
+	CpuCoreUsageAverage  float64           `json:"cpuCoreUsageAverage"`
+	CpuCoreUsageMax      float64           `json:"cpuCoreUsageMax"`
+	RamBytesUsageAverage uint64            `json:"ramBytesUsageAverage"`
+	RamBytesUsageMax     uint64            `json:"ramBytesUsageMax"`
 	Diagnostic           *DiagnosticResult `json:"diagnostic,omitempty"`
 }
 
@@ -197,17 +201,17 @@ type Pod struct {
 	Annotations            map[string]string `json:"annotations,omitempty"`
 	CreationTime           *time.Time        `json:"creationTime,omitempty"`
 	DeletionTime           *time.Time        `json:"deletionTime,omitempty"`
-	CpuCoreHours           float32           `json:"cpuCoreHours"`
-	CpuCoreRequestAverage  float32           `json:"cpuCoreRequestAverage"`
-	CpuCoreUsageAverage    float32           `json:"cpuCoreUsageAverage"`
-	CpuCoreUsageMax        float32           `json:"cpuCoreUsageMax"`
-	RamByteHours           int64             `json:"ramByteHours"`
-	RamBytesRequestAverage int64             `json:"ramBytesRequestAverage"`
-	RamBytesUsageAverage   int64             `json:"ramBytesUsageAverage"`
-	RamBytesUsageMax       int64             `json:"ramBytesUsageMax"`
-	StorageByteHours       int64             `json:"storageByteHours"`
-	NetworkTransferBytes   int64             `json:"networkTransferBytes"`
-	NetworkReceiveBytes    int64             `json:"networkReceiveBytes"`
+	CpuCoreHours           float64           `json:"cpuCoreHours"`
+	CpuCoreRequestAverage  float64           `json:"cpuCoreRequestAverage"`
+	CpuCoreUsageAverage    float64           `json:"cpuCoreUsageAverage"`
+	CpuCoreUsageMax        float64           `json:"cpuCoreUsageMax"`
+	RamByteHours           uint64            `json:"ramByteHours"`
+	RamBytesRequestAverage uint64            `json:"ramBytesRequestAverage"`
+	RamBytesUsageAverage   uint64            `json:"ramBytesUsageAverage"`
+	RamBytesUsageMax       uint64            `json:"ramBytesUsageMax"`
+	StorageByteHours       uint64            `json:"storageByteHours"`
+	NetworkTransferBytes   uint64            `json:"networkTransferBytes"`
+	NetworkReceiveBytes    uint64            `json:"networkReceiveBytes"`
 	Diagnostic             *DiagnosticResult `json:"diagnostic,omitempty"`
 }
 
@@ -222,8 +226,8 @@ type Volume struct {
 	CreationTime *time.Time        `json:"creationTime,omitempty"`
 	DeletionTime *time.Time        `json:"deletionTime,omitempty"`
 	StorageClass string            `json:"storageClass"`
-	Size         int64             `json:"size"`
-	Cost         float32           `json:"cost"`
+	Size         uint64            `json:"size"`
+	Cost         float64           `json:"cost"`
 	Diagnostic   *DiagnosticResult `json:"diagnostic,omitempty"`
 }
 
@@ -239,9 +243,9 @@ type PersistentVolumeClaim struct {
 	CreationTime     *time.Time        `json:"creationTime,omitempty"`
 	DeletionTime     *time.Time        `json:"deletionTime,omitempty"`
 	StorageClass     string            `json:"storageClass"`
-	StorageByteHours int64             `json:"storageByteHours"`
-	RequestedBytes   int64             `json:"requestedBytes"`
-	Size             int64             `json:"size"`
+	StorageByteHours uint64            `json:"storageByteHours"`
+	RequestedBytes   uint64            `json:"requestedBytes"`
+	Size             uint64            `json:"size"`
 	VolumeName       string            `json:"volumeName"`
 	Diagnostic       *DiagnosticResult `json:"diagnostic,omitempty"`
 }
@@ -258,7 +262,6 @@ type Cluster struct {
 	Containers             []Container             `json:"containers,omitempty"`
 	Controllers            []Controller            `json:"controllers,omitempty"`
 	GpuDevices             []GPUDevice             `json:"gpuDevices,omitempty"`
-	GpuUsage               []GPUUsage              `json:"gpuUsage,omitempty"`
 	Namespaces             []Namespace             `json:"namespaces,omitempty"`
 	Services               []Service               `json:"services,omitempty"`
 	Nodes                  []Node                  `json:"nodes,omitempty"`
