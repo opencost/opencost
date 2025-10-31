@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -26,6 +27,14 @@ const (
 	AllocationQueryType QueryType = "allocation"
 	AssetQueryType      QueryType = "asset"
 	CloudCostQueryType  QueryType = "cloudcost"
+	EfficiencyQueryType QueryType = "efficiency"
+)
+
+// Efficiency calculation constants
+const (
+	efficiencyBufferMultiplier = 1.2         // 20% headroom for stability
+	efficiencyMinCPU           = 0.001       // minimum CPU cores
+	efficiencyMinRAM           = 1024 * 1024 // 1 MB minimum RAM
 )
 
 // MCPRequest represents a single turn in a conversation with the OpenCost MCP server.
@@ -49,13 +58,14 @@ type QueryMetadata struct {
 
 // OpenCostQueryRequest provides a unified interface for all OpenCost query types.
 type OpenCostQueryRequest struct {
-	QueryType QueryType `json:"queryType" validate:"required,oneof=allocation asset cloudcost"`
+	QueryType QueryType `json:"queryType" validate:"required,oneof=allocation asset cloudcost efficiency"`
 
 	Window string `json:"window" validate:"required"`
 
 	AllocationParams *AllocationQuery `json:"allocationParams,omitempty"`
 	AssetParams      *AssetQuery      `json:"assetParams,omitempty"`
 	CloudCostParams  *CloudCostQuery  `json:"cloudCostParams,omitempty"`
+	EfficiencyParams *EfficiencyQuery `json:"efficiencyParams,omitempty"`
 }
 
 // AllocationQuery contains the parameters for an allocation query.
@@ -91,6 +101,13 @@ type CloudCostQuery struct {
 	InvoiceEntityID string            `json:"invoiceEntityID,omitempty"` // Invoice entity ID filter
 	ProviderID      string            `json:"providerID,omitempty"`      // Cloud provider resource ID filter
 	Labels          map[string]string `json:"labels,omitempty"`          // Label filters (key->value)
+}
+
+// EfficiencyQuery contains the parameters for an efficiency query.
+type EfficiencyQuery struct {
+	Aggregate                  string   `json:"aggregate,omitempty"`                  // Aggregation properties (e.g., "pod", "namespace", "controller")
+	Filter                     string   `json:"filter,omitempty"`                     // Filter expression for allocations (same as AllocationQuery)
+	EfficiencyBufferMultiplier *float64 `json:"efficiencyBufferMultiplier,omitempty"` // Buffer multiplier for recommendations (default: 1.2 for 20% headroom)
 }
 
 // AllocationResponse represents the allocation data returned to the AI agent.
@@ -301,6 +318,47 @@ type CostMetric struct {
 	KubernetesPercent float64 `json:"kubernetesPercent"`
 }
 
+// EfficiencyResponse represents the efficiency data returned to the AI agent.
+type EfficiencyResponse struct {
+	Efficiencies []*EfficiencyMetric `json:"efficiencies"`
+}
+
+// EfficiencyMetric represents efficiency data for a single pod/workload.
+type EfficiencyMetric struct {
+	Name string `json:"name"` // Pod/namespace/controller name based on aggregation
+
+	// Current state
+	CPUEfficiency    float64 `json:"cpuEfficiency"`    // Usage / Request ratio (0-1+)
+	MemoryEfficiency float64 `json:"memoryEfficiency"` // Usage / Request ratio (0-1+)
+
+	// Current requests and usage
+	CPUCoresRequested float64 `json:"cpuCoresRequested"`
+	CPUCoresUsed      float64 `json:"cpuCoresUsed"`
+	RAMBytesRequested float64 `json:"ramBytesRequested"`
+	RAMBytesUsed      float64 `json:"ramBytesUsed"`
+
+	// Recommendations (based on actual usage with buffer)
+	RecommendedCPURequest float64 `json:"recommendedCpuRequest"` // Recommended CPU cores
+	RecommendedRAMRequest float64 `json:"recommendedRamRequest"` // Recommended RAM bytes
+
+	// Resulting efficiency after applying recommendations
+	ResultingCPUEfficiency    float64 `json:"resultingCpuEfficiency"`
+	ResultingMemoryEfficiency float64 `json:"resultingMemoryEfficiency"`
+
+	// Cost analysis
+	CurrentTotalCost   float64 `json:"currentTotalCost"`   // Current total cost
+	RecommendedCost    float64 `json:"recommendedCost"`    // Estimated cost with recommendations
+	CostSavings        float64 `json:"costSavings"`        // Potential savings
+	CostSavingsPercent float64 `json:"costSavingsPercent"` // Savings as percentage
+
+	// Buffer multiplier used for recommendations
+	EfficiencyBufferMultiplier float64 `json:"efficiencyBufferMultiplier"` // Buffer multiplier applied (e.g., 1.2 for 20% headroom)
+
+	// Time window
+	Start time.Time `json:"start"`
+	End   time.Time `json:"end"`
+}
+
 // MCPServer holds the dependencies for the MCP API server.
 type MCPServer struct {
 	costModel    *costmodel.CostModel
@@ -338,6 +396,8 @@ func (s *MCPServer) ProcessMCPRequest(request *MCPRequest) (*MCPResponse, error)
 		data, err = s.QueryAssets(request.Query)
 	case CloudCostQueryType:
 		data, err = s.QueryCloudCosts(request.Query)
+	case EfficiencyQueryType:
+		data, err = s.QueryEfficiency(request.Query)
 	default:
 		return nil, fmt.Errorf("unsupported query type: %s", request.Query.QueryType)
 	}
@@ -916,5 +976,213 @@ func transformCloudCostSetRange(ccsr *opencost.CloudCostSetRange) *CloudCostResp
 	return &CloudCostResponse{
 		CloudCosts: mcpCloudCosts,
 		Summary:    summary,
+	}
+}
+
+// QueryEfficiency queries allocation data and computes efficiency metrics with recommendations.
+func (s *MCPServer) QueryEfficiency(query *OpenCostQueryRequest) (*EfficiencyResponse, error) {
+	// 1. Parse Window
+	window, err := opencost.ParseWindowWithOffset(query.Window, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse window '%s': %w", query.Window, err)
+	}
+
+	// 2. Set default parameters
+	var aggregateBy []string
+	var filterString string
+	var bufferMultiplier float64 = efficiencyBufferMultiplier // Default to 1.2 (20% headroom)
+
+	// 3. Parse efficiency parameters if provided
+	if query.EfficiencyParams != nil {
+		// Parse aggregation properties (default to pod if not specified)
+		if query.EfficiencyParams.Aggregate != "" {
+			aggregateBy = strings.Split(query.EfficiencyParams.Aggregate, ",")
+		} else {
+			aggregateBy = []string{"pod"}
+		}
+
+		// Set filter string
+		filterString = query.EfficiencyParams.Filter
+
+		// Validate filter string if provided
+		if filterString != "" {
+			parser := allocation.NewAllocationFilterParser()
+			_, err := parser.Parse(filterString)
+			if err != nil {
+				return nil, fmt.Errorf("invalid allocation filter '%s': %w", filterString, err)
+			}
+		}
+
+		// Set buffer multiplier if provided, otherwise use default
+		if query.EfficiencyParams.EfficiencyBufferMultiplier != nil {
+			bufferMultiplier = *query.EfficiencyParams.EfficiencyBufferMultiplier
+		}
+	} else {
+		// Default to pod-level aggregation
+		aggregateBy = []string{"pod"}
+		filterString = ""
+	}
+
+	// 4. Query allocations with the specified parameters
+	// Use the entire window as step to get aggregated data
+	step := window.Duration()
+	asr, err := s.costModel.QueryAllocation(
+		window,
+		step,
+		aggregateBy,
+		false, // includeIdle
+		false, // idleByNode
+		false, // includeProportionalAssetResourceCosts
+		false, // includeAggregatedMetadata
+		false, // sharedLoadBalancer
+		opencost.AccumulateOptionNone,
+		false, // shareIdle
+		filterString,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query allocations: %w", err)
+	}
+
+	// 5. Handle empty results
+	if asr == nil || len(asr.Allocations) == 0 {
+		return &EfficiencyResponse{
+			Efficiencies: []*EfficiencyMetric{},
+		}, nil
+	}
+
+	// 6. Compute efficiency metrics from allocations using concurrent processing
+	var (
+		mu           sync.Mutex
+		wg           sync.WaitGroup
+		efficiencies = make([]*EfficiencyMetric, 0)
+	)
+
+	// Process each allocation set (typically one per time window) concurrently
+	for _, allocSet := range asr.Allocations {
+		if allocSet == nil {
+			continue
+		}
+
+		// Process this allocation set in a goroutine
+		wg.Add(1)
+		go func(allocSet *opencost.AllocationSet) {
+			defer wg.Done()
+
+			// Compute metrics for all allocations in this set
+			localMetrics := make([]*EfficiencyMetric, 0, len(allocSet.Allocations))
+			for _, alloc := range allocSet.Allocations {
+				if metric := computeEfficiencyMetric(alloc, bufferMultiplier); metric != nil {
+					localMetrics = append(localMetrics, metric)
+				}
+			}
+
+			// Append results to shared slice (thread-safe)
+			if len(localMetrics) > 0 {
+				mu.Lock()
+				efficiencies = append(efficiencies, localMetrics...)
+				mu.Unlock()
+			}
+		}(allocSet)
+	}
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+
+	return &EfficiencyResponse{
+		Efficiencies: efficiencies,
+	}, nil
+}
+
+// safeDiv performs division and returns 0 if denominator is 0.
+func safeDiv(numerator, denominator float64) float64 {
+	if denominator == 0 {
+		return 0
+	}
+	return numerator / denominator
+}
+
+// computeEfficiencyMetric calculates efficiency metrics for a single allocation.
+func computeEfficiencyMetric(alloc *opencost.Allocation, bufferMultiplier float64) *EfficiencyMetric {
+	if alloc == nil {
+		return nil
+	}
+
+	// Calculate time duration in hours
+	hours := alloc.Minutes() / 60.0
+	if hours <= 0 {
+		return nil
+	}
+
+	// Get current usage (average over the period)
+	cpuCoresUsed := alloc.CPUCoreHours / hours
+	ramBytesUsed := alloc.RAMByteHours / hours
+
+	// Get requested amounts
+	cpuCoresRequested := alloc.CPUCoreRequestAverage
+	ramBytesRequested := alloc.RAMBytesRequestAverage
+
+	// Calculate current efficiency (will be 0 if no requests are set)
+	cpuEfficiency := safeDiv(cpuCoresUsed, cpuCoresRequested)
+	memoryEfficiency := safeDiv(ramBytesUsed, ramBytesRequested)
+
+	// Calculate recommendations with buffer for headroom
+	recommendedCPU := cpuCoresUsed * bufferMultiplier
+	recommendedRAM := ramBytesUsed * bufferMultiplier
+
+	// Ensure recommendations meet minimum thresholds
+	if recommendedCPU < efficiencyMinCPU {
+		recommendedCPU = efficiencyMinCPU
+	}
+	if recommendedRAM < efficiencyMinRAM {
+		recommendedRAM = efficiencyMinRAM
+	}
+
+	// Calculate resulting efficiency after applying recommendations
+	resultingCPUEff := safeDiv(cpuCoresUsed, recommendedCPU)
+	resultingMemEff := safeDiv(ramBytesUsed, recommendedRAM)
+
+	// Calculate cost per unit based on REQUESTED amounts (not used amounts)
+	// This gives us the cost per core-hour or byte-hour that the cluster charges
+	cpuCostPerCoreHour := safeDiv(alloc.CPUCost, cpuCoresRequested*hours)
+	ramCostPerByteHour := safeDiv(alloc.RAMCost, ramBytesRequested*hours)
+
+	// Current total cost
+	currentTotalCost := alloc.TotalCost()
+
+	// Estimate recommended cost based on recommended requests
+	recommendedCPUCost := recommendedCPU * hours * cpuCostPerCoreHour
+	recommendedRAMCost := recommendedRAM * hours * ramCostPerByteHour
+	// Keep other costs the same (PV, network, shared, external, GPU)
+	otherCosts := alloc.PVCost() + alloc.NetworkCost + alloc.SharedCost + alloc.ExternalCost + alloc.GPUCost
+	recommendedTotalCost := recommendedCPUCost + recommendedRAMCost + otherCosts
+
+	// Clamp recommended cost to avoid rounding issues making it higher than current
+	if recommendedTotalCost > currentTotalCost && (recommendedTotalCost-currentTotalCost) < 0.0001 {
+		recommendedTotalCost = currentTotalCost
+	}
+
+	// Calculate savings
+	costSavings := currentTotalCost - recommendedTotalCost
+	costSavingsPercent := safeDiv(costSavings, currentTotalCost) * 100
+
+	return &EfficiencyMetric{
+		Name:                       alloc.Name,
+		CPUEfficiency:              cpuEfficiency,
+		MemoryEfficiency:           memoryEfficiency,
+		CPUCoresRequested:          cpuCoresRequested,
+		CPUCoresUsed:               cpuCoresUsed,
+		RAMBytesRequested:          ramBytesRequested,
+		RAMBytesUsed:               ramBytesUsed,
+		RecommendedCPURequest:      recommendedCPU,
+		RecommendedRAMRequest:      recommendedRAM,
+		ResultingCPUEfficiency:     resultingCPUEff,
+		ResultingMemoryEfficiency:  resultingMemEff,
+		CurrentTotalCost:           currentTotalCost,
+		RecommendedCost:            recommendedTotalCost,
+		CostSavings:                costSavings,
+		CostSavingsPercent:         costSavingsPercent,
+		EfficiencyBufferMultiplier: bufferMultiplier,
+		Start:                      alloc.Start,
+		End:                        alloc.End,
 	}
 }

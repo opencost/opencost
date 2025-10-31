@@ -161,6 +161,7 @@ type ReplicaSet struct {
 }
 
 type ResourceQuota struct {
+	UID       types.UID
 	Name      string
 	Namespace string
 	Spec      v1.ResourceQuotaSpec
@@ -390,6 +391,7 @@ func TransformReplicaSet(input *appsv1.ReplicaSet) *ReplicaSet {
 
 func TransformResourceQuota(input *v1.ResourceQuota) *ResourceQuota {
 	return &ResourceQuota{
+		UID:       input.UID,
 		Name:      input.Name,
 		Namespace: input.Namespace,
 		Spec:      input.Spec,
