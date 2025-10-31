@@ -6,16 +6,30 @@ import (
 )
 
 type KubeModelSet struct {
+	Metadata       *KubeModelSetMetadata
 	Window         Window
 	Cluster        *Cluster
-	Namespaces     []*Namespace
-	ResourceQuotas []*ResourceQuota
-	Metadata       *KubeModelSetMetadata
+	Namespaces     map[string]*Namespace
+	ResourceQuotas map[string]*ResourceQuota
+}
+
+func NewKubeModelSet(start, end time.Time) *KubeModelSet {
+	return &KubeModelSet{
+		Metadata: &KubeModelSetMetadata{
+			CreatedAt: time.Now().UTC(),
+		},
+		Window: Window{
+			Start: start,
+			End:   end,
+		},
+		Namespaces:     map[string]*Namespace{},
+		ResourceQuotas: map[string]*ResourceQuota{},
+	}
 }
 
 // TODO: determine what "IsEmpty()" should mean here
 func (kms *KubeModelSet) IsEmpty() bool {
-	return kms == nil
+	return kms == nil || kms.Cluster == nil
 }
 
 // TODO: generate bingen codec
@@ -24,8 +38,8 @@ func (kms *KubeModelSet) MarshalBinary() ([]byte, error) {
 }
 
 type KubeModelSetMetadata struct {
-	CreatedAt  time.Time
-	DataSource string
-	Warnings   []string
-	Errors     []error
+	CreatedAt   time.Time
+	ObjectCount int
+	Errors      []error
+	Warnings    []string
 }

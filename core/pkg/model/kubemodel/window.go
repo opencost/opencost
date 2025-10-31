@@ -3,6 +3,6 @@ package kubemodel
 import "time"
 
 type Window struct {
-	Start      time.Time
-	Resolution time.Duration
+	Start time.Time
+	End   time.Time
 }
