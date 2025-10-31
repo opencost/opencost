@@ -3,11 +3,11 @@ package kubemodel
 type ResourceQuotaKind string
 
 type ResourceQuota struct {
-	ID          string
-	NamespaceID string
-	Name        string
-	Spec        *ResourceQuotaSpec
-	Status      *ResourceQuotaStatus
+	UID          string
+	NamespaceUID string
+	Name         string
+	Spec         *ResourceQuotaSpec
+	Status       *ResourceQuotaStatus
 }
 
 type ResourceQuotaSpec struct {

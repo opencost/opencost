@@ -6,6 +6,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/model/kubemodel"
+	"github.com/opencost/opencost/core/pkg/source"
 )
 
 const logTimeFmt string = "2006-01-02T15:04:05"
@@ -20,20 +21,19 @@ func (cm *CostModel) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeMode
 	// Query CostModel for each set of objects
 	var err error
 
-	kms.Cluster, err = cm.kmComputeCluster(start, end)
+	err = cm.kmComputeCluster(kms, start, end)
 	if err != nil {
 		kms.Metadata.Errors = append(kms.Metadata.Errors, err)
 		return kms, fmt.Errorf("error computing kubemodel.Cluster for (%s, %s): %w", start.Format(logTimeFmt), end.Format(logTimeFmt), err)
 	}
-	kms.Metadata.ObjectCount += 1
 
-	kms.Namespaces, err = cm.kmComputeNamespaces(start, end)
+	err = cm.kmComputeNamespaces(kms, start, end)
 	if err != nil {
 		kms.Metadata.Errors = append(kms.Metadata.Errors, err)
 	}
 	kms.Metadata.ObjectCount += len(kms.Namespaces)
 
-	kms.ResourceQuotas, err = cm.kmComputeResourceQuotas(start, end)
+	err = cm.kmComputeResourceQuotas(kms, start, end)
 	if err != nil {
 		kms.Metadata.Errors = append(kms.Metadata.Errors, err)
 	}
@@ -42,33 +42,61 @@ func (cm *CostModel) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeMode
 	return kms, nil
 }
 
-func (cm *CostModel) kmComputeCluster(start, end time.Time) (*kubemodel.Cluster, error) {
+func (cm *CostModel) kmComputeCluster(kms *kubemodel.KubeModelSet, start, end time.Time) error {
 
 	// TODO: determine where Cluster data comes from
 	//  - Should it come from direct queries?
 	//  - Or should it come from pre-processed data from other objects?
 
-	return &kubemodel.Cluster{
-		ID:   env.GetClusterID(), // TODO: should we instead grab these from Metrics()?
+	kms.Cluster = &kubemodel.Cluster{
+		UID:  env.GetClusterID(), // TODO: should we instead grab these from Metrics()?
 		Name: env.GetClusterID(), // TODO: do we still want to use this env var for Name?
-	}, nil
+	}
+
+	kms.Metadata.ObjectCount += 1
+
+	return nil
 }
 
-func (cm *CostModel) kmComputeNamespaces(start, end time.Time) (map[string]*kubemodel.Namespace, error) {
+func (cm *CostModel) kmComputeNamespaces(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+	grp := source.NewQueryGroup()
+	ds := cm.DataSource.Metrics()
 
-	// TODO: determine where Namespace data comes from
-	//  - Should it come from direct queries?
-	//  - Or should it come from pre-processed data from other objects?
+	nsLabelsResultFuture := source.WithGroup(grp, ds.QueryNamespaceLabels(start, end))
+	nsAnnosResultFuture := source.WithGroup(grp, ds.QueryNamespaceAnnotations(start, end))
 
-	nsMap := map[string]*kubemodel.Namespace{}
+	nsLabelsResult, _ := nsLabelsResultFuture.Await()
+	nsAnnosResult, _ := nsAnnosResultFuture.Await()
 
-	return nsMap, nil
+	for _, res := range nsLabelsResult {
+		kms.RegisterNamespace(res.UID)
+		kms.Namespaces[res.UID].Labels = res.Labels
+	}
+
+	for _, res := range nsAnnosResult {
+		kms.RegisterNamespace(res.UID)
+		kms.Namespaces[res.UID].Annotations = res.Annotations
+	}
+
+	return nil
 }
 
-func (cm *CostModel) kmComputeResourceQuotas(start, end time.Time) (map[string]*kubemodel.ResourceQuota, error) {
-	rqMap := map[string]*kubemodel.ResourceQuota{}
+func (cm *CostModel) kmComputeResourceQuotas(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+	grp := source.NewQueryGroup()
+	ds := cm.DataSource.Metrics()
 
-	// TODO: make ResourceQuota queries when they are available in OpenCost
+	rqSpecCPURequestAverageResultFuture := source.WithGroup(grp, ds.QueryResourceQuotaSpecCPURequestAverage(start, end))
 
-	return rqMap, nil
+	rqSpecCPURequestAverageResult, _ := rqSpecCPURequestAverageResultFuture.Await()
+
+	for _, res := range rqSpecCPURequestAverageResult {
+		kms.RegisterResourceQuota(res.UID)
+		kms.ResourceQuotas[res.UID].Spec.Hard.Requests = append(kms.ResourceQuotas[res.UID].Spec.Hard.Requests, kubemodel.ResourceQuantity{
+			Resource: kubemodel.ResourceCPU,
+			Unit:     kubemodel.UnitCPUm,
+			Quantity: res.Data[0].Value * 1000.0,
+		})
+	}
+
+	return nil
 }

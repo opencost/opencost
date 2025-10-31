@@ -1,7 +1,7 @@
 package kubemodel
 
 type Cluster struct {
-	ID       string
+	UID      string
 	Provider Provider
 	Account  string
 	Name     string
