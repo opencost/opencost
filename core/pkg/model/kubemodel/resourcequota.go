@@ -2,15 +2,10 @@ package kubemodel
 
 type ResourceQuotaKind string
 
-const (
-	ResourceQuotaKindCompute = "compute"
-)
-
 type ResourceQuota struct {
 	ID          string
 	NamespaceID string
 	Name        string
-	Kind        ResourceQuotaKind
 	Spec        *ResourceQuotaSpec
 	Status      *ResourceQuotaStatus
 }
