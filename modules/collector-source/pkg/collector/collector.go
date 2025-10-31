@@ -1917,7 +1917,7 @@ func NewReplicaSetsWithRolloutMetricCollector() *metric.MetricCollector {
 //			<some_custom_filter>
 //		}[1h]
 //	)
-//) by (resourcequota, namespace, cluster_id)
+//) by (resourcequota, namespace, uid, cluster_id)
 
 func NewResourceQuotaSpecCPURequestAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
@@ -1926,6 +1926,7 @@ func NewResourceQuotaSpecCPURequestAverageMetricCollector() *metric.MetricCollec
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
+			source.UIDLabel,
 		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
@@ -1942,7 +1943,7 @@ func NewResourceQuotaSpecCPURequestAverageMetricCollector() *metric.MetricCollec
 //			<some_custom_filter>
 //		}[1h]
 //	)
-//) by (resourcequota, namespace, cluster_id)
+//) by (resourcequota, namespace, uid, cluster_id)
 
 func NewResourceQuotaSpecCPURequestMaxMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
@@ -1951,6 +1952,7 @@ func NewResourceQuotaSpecCPURequestMaxMetricCollector() *metric.MetricCollector 
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
+			source.UIDLabel,
 		},
 		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
@@ -1967,7 +1969,7 @@ func NewResourceQuotaSpecCPURequestMaxMetricCollector() *metric.MetricCollector 
 //			<some_custom_filter>
 //		}[1h]
 //	)
-//) by (resourcequota, namespace, cluster_id)
+//) by (resourcequota, namespace, uid, cluster_id)
 
 func NewResourceQuotaSpecRAMRequestAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
@@ -1976,6 +1978,7 @@ func NewResourceQuotaSpecRAMRequestAverageMetricCollector() *metric.MetricCollec
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
+			source.UIDLabel,
 		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
@@ -1992,7 +1995,7 @@ func NewResourceQuotaSpecRAMRequestAverageMetricCollector() *metric.MetricCollec
 //			<some_custom_filter>
 //		}[1h]
 //	)
-//) by (resourcequota, namespace, cluster_id)
+//) by (resourcequota, namespace, uid, cluster_id)
 
 func NewResourceQuotaSpecRAMRequestMaxMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
@@ -2001,6 +2004,7 @@ func NewResourceQuotaSpecRAMRequestMaxMetricCollector() *metric.MetricCollector 
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
+			source.UIDLabel,
 		},
 		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
@@ -2017,7 +2021,7 @@ func NewResourceQuotaSpecRAMRequestMaxMetricCollector() *metric.MetricCollector 
 //			<some_custom_filter>
 //		}[1h]
 //	)
-//) by (resourcequota, namespace, cluster_id)
+//) by (resourcequota, namespace, uid, cluster_id)
 
 func NewResourceQuotaSpecCPULimitAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
@@ -2026,6 +2030,7 @@ func NewResourceQuotaSpecCPULimitAverageMetricCollector() *metric.MetricCollecto
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
+			source.UIDLabel,
 		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
@@ -2042,7 +2047,7 @@ func NewResourceQuotaSpecCPULimitAverageMetricCollector() *metric.MetricCollecto
 //			<some_custom_filter>
 //		}[1h]
 //	)
-//) by (resourcequota, namespace, cluster_id)
+//) by (resourcequota, namespace, uid, cluster_id)
 
 func NewResourceQuotaSpecCPULimitMaxMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
@@ -2051,6 +2056,7 @@ func NewResourceQuotaSpecCPULimitMaxMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
+			source.UIDLabel,
 		},
 		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
@@ -2067,7 +2073,7 @@ func NewResourceQuotaSpecCPULimitMaxMetricCollector() *metric.MetricCollector {
 //			<some_custom_filter>
 //		}[1h]
 //	)
-//) by (resourcequota, namespace, cluster_id)
+//) by (resourcequota, namespace, uid, cluster_id)
 
 func NewResourceQuotaSpecRAMLimitAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
@@ -2076,6 +2082,7 @@ func NewResourceQuotaSpecRAMLimitAverageMetricCollector() *metric.MetricCollecto
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
+			source.UIDLabel,
 		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
@@ -2092,7 +2099,7 @@ func NewResourceQuotaSpecRAMLimitAverageMetricCollector() *metric.MetricCollecto
 //			<some_custom_filter>
 //		}[1h]
 //	)
-//) by (resourcequota, namespace, cluster_id)
+//) by (resourcequota, namespace, uid, cluster_id)
 
 func NewResourceQuotaSpecRAMLimitMaxMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
@@ -2101,6 +2108,7 @@ func NewResourceQuotaSpecRAMLimitMaxMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
+			source.UIDLabel,
 		},
 		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
@@ -2117,7 +2125,7 @@ func NewResourceQuotaSpecRAMLimitMaxMetricCollector() *metric.MetricCollector {
 //			<some_custom_filter>
 //		}[1h]
 //	)
-//) by (resourcequota, namespace, cluster_id)
+//) by (resourcequota, namespace, uid, cluster_id)
 
 func NewResourceQuotaStatusUsedCPURequestAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
@@ -2126,6 +2134,7 @@ func NewResourceQuotaStatusUsedCPURequestAverageMetricCollector() *metric.Metric
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
+			source.UIDLabel,
 		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
@@ -2142,7 +2151,7 @@ func NewResourceQuotaStatusUsedCPURequestAverageMetricCollector() *metric.Metric
 //			<some_custom_filter>
 //		}[1h]
 //	)
-//) by (resourcequota, namespace, cluster_id)
+//) by (resourcequota, namespace, uid, cluster_id)
 
 func NewResourceQuotaStatusUsedCPURequestMaxMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
@@ -2151,6 +2160,7 @@ func NewResourceQuotaStatusUsedCPURequestMaxMetricCollector() *metric.MetricColl
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
+			source.UIDLabel,
 		},
 		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
@@ -2167,7 +2177,7 @@ func NewResourceQuotaStatusUsedCPURequestMaxMetricCollector() *metric.MetricColl
 //			<some_custom_filter>
 //		}[1h]
 //	)
-//) by (resourcequota, namespace, cluster_id)
+//) by (resourcequota, namespace, uid, cluster_id)
 
 func NewResourceQuotaStatusUsedRAMRequestAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
@@ -2176,6 +2186,7 @@ func NewResourceQuotaStatusUsedRAMRequestAverageMetricCollector() *metric.Metric
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
+			source.UIDLabel,
 		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
@@ -2192,7 +2203,7 @@ func NewResourceQuotaStatusUsedRAMRequestAverageMetricCollector() *metric.Metric
 //			<some_custom_filter>
 //		}[1h]
 //	)
-//) by (resourcequota, namespace, cluster_id)
+//) by (resourcequota, namespace, uid, cluster_id)
 
 func NewResourceQuotaStatusUsedRAMRequestMaxMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
@@ -2201,6 +2212,7 @@ func NewResourceQuotaStatusUsedRAMRequestMaxMetricCollector() *metric.MetricColl
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
+			source.UIDLabel,
 		},
 		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
@@ -2217,7 +2229,7 @@ func NewResourceQuotaStatusUsedRAMRequestMaxMetricCollector() *metric.MetricColl
 //			<some_custom_filter>
 //		}[1h]
 //	)
-//) by (resourcequota, namespace, cluster_id)
+//) by (resourcequota, namespace, uid, cluster_id)
 
 func NewResourceQuotaStatusUsedCPULimitAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
@@ -2226,6 +2238,7 @@ func NewResourceQuotaStatusUsedCPULimitAverageMetricCollector() *metric.MetricCo
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
+			source.UIDLabel,
 		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
@@ -2242,7 +2255,7 @@ func NewResourceQuotaStatusUsedCPULimitAverageMetricCollector() *metric.MetricCo
 //			<some_custom_filter>
 //		}[1h]
 //	)
-//) by (resourcequota, namespace, cluster_id)
+//) by (resourcequota, namespace, uid, cluster_id)
 
 func NewResourceQuotaStatusUsedCPULimitMaxMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
@@ -2251,6 +2264,7 @@ func NewResourceQuotaStatusUsedCPULimitMaxMetricCollector() *metric.MetricCollec
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
+			source.UIDLabel,
 		},
 		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
@@ -2267,7 +2281,7 @@ func NewResourceQuotaStatusUsedCPULimitMaxMetricCollector() *metric.MetricCollec
 //			<some_custom_filter>
 //		}[1h]
 //	)
-//) by (resourcequota, namespace, cluster_id)
+//) by (resourcequota, namespace, uid, cluster_id)
 
 func NewResourceQuotaStatusUsedRAMLimitAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
@@ -2276,6 +2290,7 @@ func NewResourceQuotaStatusUsedRAMLimitAverageMetricCollector() *metric.MetricCo
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
+			source.UIDLabel,
 		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
@@ -2292,7 +2307,7 @@ func NewResourceQuotaStatusUsedRAMLimitAverageMetricCollector() *metric.MetricCo
 //			<some_custom_filter>
 //		}[1h]
 //	)
-//) by (resourcequota, namespace, cluster_id)
+//) by (resourcequota, namespace, uid, cluster_id)
 
 func NewResourceQuotaStatusUsedRAMLimitMaxMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
@@ -2301,6 +2316,7 @@ func NewResourceQuotaStatusUsedRAMLimitMaxMetricCollector() *metric.MetricCollec
 		[]string{
 			source.NamespaceLabel,
 			source.ResourceQuotaLabel,
+			source.UIDLabel,
 		},
 		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {

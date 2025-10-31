@@ -933,6 +933,7 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 						{
 							Name:      "resourceQuota1",
 							Namespace: "namespace1",
+							UID:       "uuid1",
 							Spec: v1.ResourceQuotaSpec{
 								Hard: v1.ResourceList{
 									v1.ResourceRequestsCPU:    resource.MustParse("1"),
@@ -960,6 +961,7 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 					Labels: map[string]string{
 						source.ResourceQuotaLabel: "resourceQuota1",
 						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
 						source.ResourceLabel:      "cpu",
 						source.UnitLabel:          "core",
 					},
@@ -971,6 +973,7 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 					Labels: map[string]string{
 						source.ResourceQuotaLabel: "resourceQuota1",
 						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
 						source.ResourceLabel:      "memory",
 						source.UnitLabel:          "byte",
 					},
@@ -982,6 +985,7 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 					Labels: map[string]string{
 						source.ResourceQuotaLabel: "resourceQuota1",
 						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
 						source.ResourceLabel:      "cpu",
 						source.UnitLabel:          "core",
 					},
@@ -993,6 +997,7 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 					Labels: map[string]string{
 						source.ResourceQuotaLabel: "resourceQuota1",
 						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
 						source.ResourceLabel:      "memory",
 						source.UnitLabel:          "byte",
 					},
@@ -1004,6 +1009,7 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 					Labels: map[string]string{
 						source.ResourceQuotaLabel: "resourceQuota1",
 						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
 						source.ResourceLabel:      "cpu",
 						source.UnitLabel:          "core",
 					},
@@ -1015,6 +1021,7 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 					Labels: map[string]string{
 						source.ResourceQuotaLabel: "resourceQuota1",
 						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
 						source.ResourceLabel:      "memory",
 						source.UnitLabel:          "byte",
 					},
@@ -1026,6 +1033,7 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 					Labels: map[string]string{
 						source.ResourceQuotaLabel: "resourceQuota1",
 						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
 						source.ResourceLabel:      "cpu",
 						source.UnitLabel:          "core",
 					},
@@ -1037,6 +1045,7 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 					Labels: map[string]string{
 						source.ResourceQuotaLabel: "resourceQuota1",
 						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
 						source.ResourceLabel:      "memory",
 						source.UnitLabel:          "byte",
 					},

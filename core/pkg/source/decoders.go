@@ -1499,6 +1499,7 @@ func DecodeReplicaSetsWithRolloutResult(result *QueryResult) *ReplicaSetsWithRol
 }
 
 type ResourceQuotaMetricResult struct {
+	UID           string
 	Namespace     string
 	ResourceQuota string
 	Resource      string
@@ -1507,12 +1508,14 @@ type ResourceQuotaMetricResult struct {
 }
 
 func DecodeResourceQuotaMetricResult(result *QueryResult) *ResourceQuotaMetricResult {
+	uid, _ := result.GetString(UIDLabel)
 	namespace, _ := result.GetNamespace()
 	resourceQuota, _ := result.GetString(ResourceQuotaLabel)
 	resource, _ := result.GetString(ResourceLabel)
 	unit, _ := result.GetString(UnitLabel)
 
 	return &ResourceQuotaMetricResult{
+		UID:           uid,
 		Namespace:     namespace,
 		ResourceQuota: resourceQuota,
 		Resource:      resource,

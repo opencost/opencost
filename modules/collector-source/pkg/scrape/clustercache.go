@@ -565,6 +565,7 @@ func (ccs *ClusterCacheScraper) scrapeResourceQuotas(resourceQuotas []*clusterca
 		resourceQuotaInfo := map[string]string{
 			source.ResourceQuotaLabel: resourceQuota.Name,
 			source.NamespaceLabel:     resourceQuota.Namespace,
+			source.UIDLabel:           string(resourceQuota.UID),
 		}
 
 		if resourceQuota.Spec.Hard != nil {
