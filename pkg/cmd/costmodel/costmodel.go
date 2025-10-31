@@ -236,6 +236,29 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 		return nil, mcpResp, nil
 	}
 
+	handleEfficiency := func(ctx context.Context, req *mcp_sdk.CallToolRequest, args EfficiencyArgs) (*mcp_sdk.CallToolResult, interface{}, error) {
+		queryRequest := &opencost_mcp.OpenCostQueryRequest{
+			QueryType: opencost_mcp.EfficiencyQueryType,
+			Window:    args.Window,
+			EfficiencyParams: &opencost_mcp.EfficiencyQuery{
+				Aggregate:                  args.Aggregate,
+				Filter:                     args.Filter,
+				EfficiencyBufferMultiplier: args.BufferMultiplier,
+			},
+		}
+
+		mcpReq := &opencost_mcp.MCPRequest{
+			Query: queryRequest,
+		}
+
+		mcpResp, err := mcpServer.ProcessMCPRequest(mcpReq)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to process efficiency request: %w", err)
+		}
+
+		return nil, mcpResp, nil
+	}
+
 	// Register tools
 	mcp_sdk.AddTool(sdkServer, &mcp_sdk.Tool{
 		Name:        "get_allocation_costs",
@@ -251,6 +274,11 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 		Name:        "get_cloud_costs",
 		Description: "Retrieves cloud cost data.",
 	}, handleCloudCosts)
+
+	mcp_sdk.AddTool(sdkServer, &mcp_sdk.Tool{
+		Name:        "get_efficiency",
+		Description: "Retrieves resource efficiency metrics with rightsizing recommendations and cost savings analysis. Computes CPU and memory efficiency (usage/request ratio), provides recommended resource requests, and calculates potential cost savings. Optional buffer_multiplier parameter (default: 1.2 for 20% headroom) can be set to values like 1.4 for 40% headroom.",
+	}, handleEfficiency)
 
 	// Create HTTP handler
 	handler := mcp_sdk.NewStreamableHTTPHandler(func(r *http.Request) *mcp_sdk.Server {
@@ -319,4 +347,11 @@ type CloudCostArgs struct {
 	Category   string `json:"category,omitempty"`
 	Region     string `json:"region,omitempty"`
 	Account    string `json:"account,omitempty"`
+}
+
+type EfficiencyArgs struct {
+	Window           string   `json:"window"`                      // Time window (e.g., "today", "yesterday", "7d", "lastweek")
+	Aggregate        string   `json:"aggregate,omitempty"`         // Aggregation level (e.g., "pod", "namespace", "controller")
+	Filter           string   `json:"filter,omitempty"`            // Filter expression (same as allocation filters)
+	BufferMultiplier *float64 `json:"buffer_multiplier,omitempty"` // Buffer multiplier for recommendations (default: 1.2 for 20% headroom, e.g., 1.4 for 40%)
 }
