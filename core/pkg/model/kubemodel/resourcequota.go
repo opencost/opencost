@@ -16,6 +16,10 @@ type ResourceQuota struct {
 }
 
 type ResourceQuotaSpec struct {
+	Hard ResourceQuotaSpecHard
+}
+
+type ResourceQuotaSpecHard struct {
 	Requests []ResourceQuantity
 	Limits   []ResourceQuantity
 }
