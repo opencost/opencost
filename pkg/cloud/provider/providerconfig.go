@@ -214,9 +214,23 @@ func (pc *ProviderConfig) Update(updateFunc func(*models.CustomPricing) error) (
 
 // ThreadSafe update of the config using a string map
 func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*models.CustomPricing, error) {
+
+	configFileName := filenameInConfigPath(pc.configFile.Path())
+
+	data, ok := a[configFileName]
+	if !ok {
+		return nil, fmt.Errorf("error finding custom pricing data for config file %s", configFileName)
+	}
+
+	pricingData := map[string]string{}
+	err := json.Unmarshal([]byte(data), &pricingData)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling custom pricing data for config file %s: %w", configFileName, err)
+	}
+
 	// Run our Update() method using SetCustomPricingField logic
 	return pc.Update(func(c *models.CustomPricing) error {
-		for k, v := range a {
+		for k, v := range pricingData {
 			// Just so we consistently supply / receive the same values, uppercase the first letter.
 			kUpper := utils.ToTitle.String(k)
 			if kUpper == "CPU" || kUpper == "SpotCPU" || kUpper == "RAM" || kUpper == "SpotRAM" || kUpper == "GPU" || kUpper == "Storage" {
