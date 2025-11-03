@@ -22,14 +22,14 @@ type KubeModelSet struct {
 	idx                    *kubeModelSetIndexes
 }
 
-func NewKubeModelSet(start time.Time, resolution Resolution) *KubeModelSet {
+func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
 	return &KubeModelSet{
 		Metadata: &KubeModelSetMetadata{
 			CreatedAt: time.Now().UTC(),
 		},
 		Window: Window{
-			Start:      start,
-			Resolution: resolution,
+			Start: start,
+			End:   end,
 		},
 		Containers:             map[string]*Container{},
 		Controllers:            map[string]*Controller{},

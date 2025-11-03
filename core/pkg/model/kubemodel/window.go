@@ -2,8 +2,8 @@ package kubemodel
 
 import "time"
 
-// Window defines a unit of time by a resolution and a start time
+// Window defines a period of time with a start and an end
 type Window struct {
-	Resolution Resolution `json:"resolution"`
-	Start      time.Time  `json:"start"`
+	Start time.Time `json:"start"`
+	End   time.Time `json:"end"`
 }
