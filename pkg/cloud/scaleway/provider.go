@@ -566,33 +566,35 @@ func (c *Scaleway) AllNodePricing() (interface{}, error) {
 	return c.Pricing, nil
 }
 
-func (p *ScalewayPricing) loadBalancerCost(preferredClass string) float64 {
+func (p *ScalewayPricing) loadBalancerCost(preferredClass string) (float64, string) {
 	if p == nil {
-		return 0
+		return 0, ""
 	}
 
 	if preferredClass != "" {
 		if cost, ok := p.LoadBalancerNodeCosts[preferredClass]; ok && cost > 0 {
-			return cost + p.LoadBalancerIPCost
+			return cost + p.LoadBalancerIPCost, preferredClass
 		}
 	}
 
 	if len(p.LoadBalancerNodeCosts) == 0 {
-		return p.LoadBalancerIPCost
+		return p.LoadBalancerIPCost, ""
 	}
 
 	min := math.MaxFloat64
-	for _, cost := range p.LoadBalancerNodeCosts {
+	minClass := ""
+	for class, cost := range p.LoadBalancerNodeCosts {
 		if cost > 0 && cost < min {
 			min = cost
+			minClass = class
 		}
 	}
 
 	if min == math.MaxFloat64 {
-		return p.LoadBalancerIPCost
+		return p.LoadBalancerIPCost, ""
 	}
 
-	return min + p.LoadBalancerIPCost
+	return min + p.LoadBalancerIPCost, minClass
 }
 
 type scalewayKey struct {
@@ -657,6 +659,8 @@ func (c *Scaleway) NodePricing(key models.Key) (*models.Node, models.PricingMeta
 		region = pricing.Zone
 	}
 
+	log.Debugf("Scaleway: node pricing resolved zone=%s instance=%s cost=%.6f vcpu=%s ramBytes=%s", region, instanceType, info.HourlyPrice, vcpu, ram)
+
 	return &models.Node{
 		Cost:         fmt.Sprintf("%f", info.HourlyPrice),
 		PricingType:  models.DefaultPrices,
@@ -691,9 +695,12 @@ func (c *Scaleway) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
 
-	cost := c.findLoadBalancerCost(defaultLoadBalancerNodeClass)
+	cost, class, zone := c.findLoadBalancerCost(defaultLoadBalancerNodeClass)
 	if cost == 0 {
+		log.Debugf("Scaleway: load balancer pricing not found in catalog, using default fallback %.6f", defaultLoadBalancerFallback)
 		cost = defaultLoadBalancerFallback
+	} else {
+		log.Debugf("Scaleway: load balancer pricing resolved cost=%.6f class=%s zone=%s", cost, class, zone)
 	}
 
 	return &models.LoadBalancer{
@@ -701,33 +708,46 @@ func (c *Scaleway) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	}, nil
 }
 
-func (c *Scaleway) findLoadBalancerCost(preferredClass string) float64 {
+func (c *Scaleway) findLoadBalancerCost(preferredClass string) (float64, string, string) {
 	if len(c.Pricing) == 0 {
-		return 0
+		return 0, "", ""
 	}
 
-	if pricing, _ := c.lookupZonePricing("", c.ClusterRegion); pricing != nil {
-		if cost := pricing.loadBalancerCost(preferredClass); cost > 0 {
-			return cost
+	if pricing, key := c.lookupZonePricing("", c.ClusterRegion); pricing != nil {
+		if cost, class := pricing.loadBalancerCost(preferredClass); cost > 0 {
+			zone := pricing.Zone
+			if zone == "" {
+				zone = key
+			}
+			return cost, class, zone
 		}
 	}
 
 	min := math.MaxFloat64
-	for _, zonePricing := range c.Pricing {
+	bestClass := ""
+	bestZone := ""
+
+	for key, zonePricing := range c.Pricing {
 		if zonePricing == nil {
 			continue
 		}
 
-		if cost := zonePricing.loadBalancerCost(preferredClass); cost > 0 && cost < min {
+		if cost, class := zonePricing.loadBalancerCost(preferredClass); cost > 0 && cost < min {
 			min = cost
+			bestClass = class
+			zone := zonePricing.Zone
+			if zone == "" {
+				zone = key
+			}
+			bestZone = zone
 		}
 	}
 
 	if min == math.MaxFloat64 {
-		return 0
+		return 0, "", ""
 	}
 
-	return min
+	return min, bestClass, bestZone
 }
 
 func (c *Scaleway) NetworkPricing() (*models.Network, error) {
@@ -837,6 +857,8 @@ func (c *Scaleway) PVPricing(pvk models.PVKey) (*models.PV, error) {
 			result.Region = matchedKey
 		}
 	}
+
+	log.Debugf("Scaleway: PV pricing resolved class=%s zone=%s region=%s matchedKey=%s cost=%s", result.Class, zone, region, matchedKey, result.Cost)
 
 	return result, nil
 }
