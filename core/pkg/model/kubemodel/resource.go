@@ -5,9 +5,10 @@ import "github.com/opencost/opencost/core/pkg/stats"
 type Resource string
 
 const (
-	ResourceCPU    Resource = "cpu"
-	ResourceMemory Resource = "memory"
-	ResourceGPU    Resource = "gpu"
+	ResourceCPU     Resource = "cpu"
+	ResourceMemory  Resource = "memory"
+	ResourceGPU     Resource = "gpu"
+	ResourceStorage Resource = "storage"
 )
 
 type Unit string

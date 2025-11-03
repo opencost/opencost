@@ -10,7 +10,10 @@ type KubeModelSet struct {
 	Metadata       *KubeModelSetMetadata
 	Window         Window
 	Cluster        *Cluster
+	Containers     map[string]*Container
 	Namespaces     map[string]*Namespace
+	Nodes          map[string]*Node
+	Pods           map[string]*Pod
 	ResourceQuotas map[string]*ResourceQuota
 	indexes        *kubeModelSetIndexes
 }
@@ -82,6 +85,7 @@ func (kms *KubeModelSet) MarshalBinary() ([]byte, error) {
 
 type KubeModelSetMetadata struct {
 	CreatedAt   time.Time
+	CompletedAt time.Time
 	ObjectCount int
 	Errors      []error
 	Warnings    []string

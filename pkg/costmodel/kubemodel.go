@@ -16,29 +16,35 @@ const logTimeFmt string = "2006-01-02T15:04:05"
 // for the window defined by the given start and end times. The KubeModels
 // returned are unaggregated (i.e. down to the container level).
 func (cm *CostModel) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeModelSet, error) {
-	// Initialize new KubeModelSet for requested Window
+	// 1. Initialize new KubeModelSet for requested Window
 	kms := kubemodel.NewKubeModelSet(start, end)
 
-	// Query CostModel for each set of objects
+	// 2. Query CostModel for each set of objects
 	var err error
 
+	// 2.1 Compute Cluster
 	err = cm.kmComputeCluster(kms, start, end)
 	if err != nil {
 		kms.Metadata.Errors = append(kms.Metadata.Errors, err)
 		return kms, fmt.Errorf("error computing kubemodel.Cluster for (%s, %s): %w", start.Format(logTimeFmt), end.Format(logTimeFmt), err)
 	}
 
+	// 2.2 Compute Namespaces
 	err = cm.kmComputeNamespaces(kms, start, end)
 	if err != nil {
 		kms.Metadata.Errors = append(kms.Metadata.Errors, err)
 	}
 	kms.Metadata.ObjectCount += len(kms.Namespaces)
 
+	// 2.3 Compute ResourceQuotas
 	err = cm.kmComputeResourceQuotas(kms, start, end)
 	if err != nil {
 		kms.Metadata.Errors = append(kms.Metadata.Errors, err)
 	}
 	kms.Metadata.ObjectCount += len(kms.ResourceQuotas)
+
+	// 3. Mark KubeModelSet as completed
+	kms.Metadata.CompletedAt = time.Now().UTC()
 
 	return kms, nil
 }
