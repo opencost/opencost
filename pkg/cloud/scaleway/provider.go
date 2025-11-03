@@ -1,12 +1,15 @@
 package scaleway
 
 import (
+	stdjson "encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/pkg/cloud/models"
@@ -19,17 +22,121 @@ import (
 	"github.com/opencost/opencost/pkg/env"
 
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/scaleway/scaleway-sdk-go/api/instance/v1"
 	"github.com/scaleway/scaleway-sdk-go/scw"
 )
 
 const (
-	InstanceAPIPricing = "Instance API Pricing"
+	productCatalogAPIURL     = "https://api.scaleway.com/product-catalog/v2alpha1/public-catalog/products?page_size=10000"
+	ProductCatalogAPIPricing = "Product Catalog API Pricing"
 )
 
+var scalewayHTTPClient = &http.Client{
+	Timeout: 30 * time.Second,
+}
+
 type ScalewayPricing struct {
-	NodesInfos map[string]*instance.ServerType
+	NodesInfos map[string]*ScalewayNode
 	PVCost     float64
+}
+
+type ScalewayNode struct {
+	HourlyPrice       float64
+	VCPUCount         int64
+	RAMBytes          int64
+	LocalStorageBytes int64
+	GPUCount          int64
+}
+
+type scalewayProductCatalog struct {
+	Products []*scalewayProduct `json:"products"`
+}
+
+type scalewayProduct struct {
+	SKU             string                 `json:"sku"`
+	ServiceCategory string                 `json:"service_category"`
+	ProductCategory string                 `json:"product_category"`
+	Product         string                 `json:"product"`
+	Variant         string                 `json:"variant"`
+	Description     string                 `json:"description"`
+	Locality        *scalewayLocality      `json:"locality"`
+	Price           *scalewayPrice         `json:"price"`
+	UnitOfMeasure   *scalewayUnitOfMeasure `json:"unit_of_measure"`
+	Properties      *scalewayProperties    `json:"properties"`
+	Status          string                 `json:"status"`
+}
+
+type scalewayLocality struct {
+	Zone   string `json:"zone"`
+	Region string `json:"region"`
+	Global bool   `json:"global"`
+}
+
+type scalewayPrice struct {
+	RetailPrice *scalewayRetailPrice `json:"retail_price"`
+}
+
+type scalewayRetailPrice struct {
+	CurrencyCode string `json:"currency_code"`
+	Units        int64  `json:"units"`
+	Nanos        int64  `json:"nanos"`
+}
+
+type scalewayUnitOfMeasure struct {
+	Unit string `json:"unit"`
+	Size int64  `json:"size"`
+}
+
+type scalewayProperties struct {
+	Hardware     *scalewayHardware            `json:"hardware"`
+	Instance     *scalewayInstanceProperties  `json:"instance"`
+	BlockStorage *scalewayBlockStorageDetails `json:"block_storage"`
+}
+
+type scalewayHardware struct {
+	CPU     *scalewayHardwareCPU     `json:"cpu"`
+	RAM     *scalewayHardwareRAM     `json:"ram"`
+	Storage *scalewayHardwareStorage `json:"storage"`
+	GPU     *scalewayHardwareGPU     `json:"gpu"`
+}
+
+type scalewayHardwareCPU struct {
+	Description string                      `json:"description"`
+	Arch        string                      `json:"arch"`
+	Type        string                      `json:"type"`
+	Virtual     *scalewayHardwareCPUVirtual `json:"virtual"`
+	Threads     int64                       `json:"threads"`
+}
+
+type scalewayHardwareCPUVirtual struct {
+	Count int64 `json:"count"`
+}
+
+type scalewayHardwareRAM struct {
+	Description string `json:"description"`
+	Size        int64  `json:"size"`
+	Type        string `json:"type"`
+}
+
+type scalewayHardwareStorage struct {
+	Description string `json:"description"`
+	Total       int64  `json:"total"`
+}
+
+type scalewayHardwareGPU struct {
+	Description string `json:"description"`
+	Count       int64  `json:"count"`
+	Type        string `json:"type"`
+}
+
+type scalewayInstanceProperties struct {
+	Range                        string   `json:"range"`
+	OfferID                      string   `json:"offer_id"`
+	RecommendedReplacementOffers []string `json:"recommended_replacement_offer_ids"`
+}
+
+type scalewayBlockStorageDetails struct {
+	MinVolumeSize int64 `json:"min_volume_size"`
+	MaxVolumeSize int64 `json:"max_volume_size"`
 }
 
 type Scaleway struct {
@@ -51,54 +158,239 @@ func (c *Scaleway) DownloadPricingData() error {
 	c.DownloadPricingDataLock.Lock()
 	defer c.DownloadPricingDataLock.Unlock()
 
-	// TODO wait for an official Pricing API from Scaleway
-	// Let's use a static map and an old API
-
 	if len(c.Pricing) != 0 {
 		// Already initialized
 		return nil
 	}
 
-	// PV pricing per AZ
-	pvPrice := map[string]float64{
-		"fr-par-1": 0.00011,
-		"fr-par-2": 0.00011,
-		"fr-par-3": 0.00032,
-		"nl-ams-1": 0.00008,
-		"nl-ams-2": 0.00008,
-		"nl-ams-3": 0.00008,
-		"pl-waw-1": 0.00011,
-		"pl-waw-2": 0.00011,
-		"pl-waw-3": 0.00011,
-	}
-
-	c.Pricing = make(map[string]*ScalewayPricing)
-
-	// The endpoint we are trying to hit does not have authentication
-	client, err := scw.NewClient(scw.WithoutAuth())
+	products, err := fetchScalewayProductCatalog()
 	if err != nil {
 		return err
 	}
 
-	instanceAPI := instance.NewAPI(client)
+	pricingByZone := make(map[string]*ScalewayPricing)
 
-	for _, zone := range scw.AllZones {
-		resp, err := instanceAPI.ListServersTypes(&instance.ListServersTypesRequest{Zone: zone})
-		if err != nil {
-			log.Errorf("Could not get Scaleway pricing data from instance API in zone %s: %+v", zone, err)
+	for _, product := range products {
+		if product == nil {
 			continue
 		}
-		c.Pricing[zone.String()] = &ScalewayPricing{
-			PVCost:     pvPrice[zone.String()],
-			NodesInfos: map[string]*instance.ServerType{},
+
+		zone := product.zone()
+		if zone == "" {
+			continue
 		}
 
-		for name, infos := range resp.Servers {
-			c.Pricing[zone.String()].NodesInfos[name] = infos
+		switch {
+		case product.isInstanceProduct():
+			instanceType := product.instanceType()
+			if instanceType == "" {
+				log.Debugf("Scaleway product %s missing instance identifier", product.SKU)
+				continue
+			}
+
+			nodeInfo, err := product.toScalewayNode()
+			if err != nil {
+				log.Debugf("Skipping Scaleway product %s: %v", product.SKU, err)
+				continue
+			}
+
+			zonePricing := ensureScalewayPricingForZone(pricingByZone, zone)
+			zonePricing.NodesInfos[instanceType] = nodeInfo
+
+		case product.isBlockStorageProduct():
+			price := product.priceValue()
+			if price == 0 {
+				continue
+			}
+
+			zonePricing := ensureScalewayPricingForZone(pricingByZone, zone)
+			if product.prefersOverwritePVCost() || zonePricing.PVCost == 0 {
+				zonePricing.PVCost = price
+			}
 		}
 	}
 
+	c.Pricing = pricingByZone
+
 	return nil
+}
+
+func fetchScalewayProductCatalog() ([]*scalewayProduct, error) {
+	req, err := http.NewRequest(http.MethodGet, productCatalogAPIURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating Scaleway product catalog request: %w", err)
+	}
+
+	resp, err := scalewayHTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("requesting Scaleway product catalog: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return nil, fmt.Errorf("scaleway product catalog request failed: status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var catalog scalewayProductCatalog
+	if err := stdjson.NewDecoder(resp.Body).Decode(&catalog); err != nil {
+		return nil, fmt.Errorf("decoding Scaleway product catalog: %w", err)
+	}
+
+	return catalog.Products, nil
+}
+
+func ensureScalewayPricingForZone(pricing map[string]*ScalewayPricing, zone string) *ScalewayPricing {
+	if pricing == nil {
+		pricing = make(map[string]*ScalewayPricing)
+	}
+
+	zonePricing, ok := pricing[zone]
+	if !ok {
+		zonePricing = &ScalewayPricing{
+			NodesInfos: make(map[string]*ScalewayNode),
+		}
+		pricing[zone] = zonePricing
+	} else if zonePricing.NodesInfos == nil {
+		zonePricing.NodesInfos = make(map[string]*ScalewayNode)
+	}
+
+	return zonePricing
+}
+
+func (p *scalewayProduct) zone() string {
+	if p == nil || p.Locality == nil {
+		return ""
+	}
+	return p.Locality.Zone
+}
+
+func (p *scalewayProduct) isInstanceProduct() bool {
+	if p == nil {
+		return false
+	}
+	if !strings.EqualFold(p.ServiceCategory, "Compute") {
+		return false
+	}
+	if !strings.EqualFold(p.ProductCategory, "Instance") {
+		return false
+	}
+	return p.Properties != nil && p.Properties.Instance != nil
+}
+
+func (p *scalewayProduct) instanceType() string {
+	if p == nil {
+		return ""
+	}
+
+	if p.Properties != nil && p.Properties.Instance != nil && p.Properties.Instance.OfferID != "" {
+		return p.Properties.Instance.OfferID
+	}
+
+	productName := strings.TrimSpace(p.Product)
+	if productName == "" {
+		return ""
+	}
+
+	fields := strings.Fields(productName)
+	if len(fields) == 0 {
+		return ""
+	}
+
+	return strings.TrimSuffix(fields[0], ",")
+}
+
+func (p *scalewayProduct) toScalewayNode() (*ScalewayNode, error) {
+	if p == nil {
+		return nil, errors.New("nil product")
+	}
+
+	price := p.priceValue()
+	if price == 0 {
+		return nil, fmt.Errorf("missing retail price for product %s", p.SKU)
+	}
+
+	if p.Properties == nil || p.Properties.Hardware == nil {
+		return nil, fmt.Errorf("missing hardware information for product %s", p.SKU)
+	}
+
+	hardware := p.Properties.Hardware
+
+	var vcpu int64
+	if hardware.CPU != nil {
+		if hardware.CPU.Virtual != nil && hardware.CPU.Virtual.Count > 0 {
+			vcpu = hardware.CPU.Virtual.Count
+		} else if hardware.CPU.Threads > 0 {
+			vcpu = hardware.CPU.Threads
+		}
+	}
+
+	var ramBytes int64
+	if hardware.RAM != nil {
+		ramBytes = hardware.RAM.Size
+	}
+
+	var storageBytes int64
+	if hardware.Storage != nil {
+		storageBytes = hardware.Storage.Total
+	}
+
+	var gpuCount int64
+	if hardware.GPU != nil {
+		gpuCount = hardware.GPU.Count
+	}
+
+	return &ScalewayNode{
+		HourlyPrice:       price,
+		VCPUCount:         vcpu,
+		RAMBytes:          ramBytes,
+		LocalStorageBytes: storageBytes,
+		GPUCount:          gpuCount,
+	}, nil
+}
+
+func (p *scalewayProduct) isBlockStorageProduct() bool {
+	if p == nil {
+		return false
+	}
+
+	if !strings.EqualFold(p.ServiceCategory, "Storage") {
+		return false
+	}
+
+	if !strings.EqualFold(p.ProductCategory, "Block Storage") {
+		return false
+	}
+
+	switch p.Product {
+	case "Block Storage Volume SSD", "Block Storage Volume Low Latency":
+		return true
+	default:
+		return false
+	}
+}
+
+func (p *scalewayProduct) prefersOverwritePVCost() bool {
+	if p == nil {
+		return false
+	}
+	return p.Product == "Block Storage Volume SSD"
+}
+
+func (p *scalewayProduct) priceValue() float64 {
+	if p == nil || p.Price == nil || p.Price.RetailPrice == nil {
+		return 0
+	}
+	return p.Price.RetailPrice.asFloat64()
+}
+
+func (rp *scalewayRetailPrice) asFloat64() float64 {
+	if rp == nil {
+		return 0
+	}
+	value := float64(rp.Units)
+	value += float64(rp.Nanos) / 1e9
+	return value
 }
 
 func (c *Scaleway) AllNodePricing() (interface{}, error) {
@@ -140,26 +432,41 @@ func (c *Scaleway) NodePricing(key models.Key) (*models.Node, models.PricingMeta
 	meta := models.PricingMetadata{}
 
 	// There is only the zone and the instance ID in the providerID, hence we must use the features
-	split := strings.Split(key.Features(), ",")
-	if pricing, ok := c.Pricing[split[0]]; ok {
-		if info, ok := pricing.NodesInfos[split[1]]; ok {
-			return &models.Node{
-				Cost:        fmt.Sprintf("%f", info.HourlyPrice),
-				PricingType: models.DefaultPrices,
-				VCPU:        fmt.Sprintf("%d", info.Ncpus),
-				RAM:         fmt.Sprintf("%d", info.RAM),
-				// This is tricky, as instances can have local volumes or not
-				Storage:      fmt.Sprintf("%d", info.PerVolumeConstraint.LSSD.MinSize),
-				GPU:          fmt.Sprintf("%d", *info.Gpu),
-				InstanceType: split[1],
-				Region:       split[0],
-				GPUName:      key.GPUType(),
-			}, meta, nil
-
-		}
-
+	features := strings.Split(key.Features(), ",")
+	if len(features) < 2 {
+		return nil, meta, fmt.Errorf("invalid feature format for Scaleway node pricing: `%s`", key.Features())
 	}
-	return nil, meta, fmt.Errorf("Unable to find node pricing matching thes features `%s`", key.Features())
+
+	zone := features[0]
+	instanceType := features[1]
+
+	pricing, ok := c.Pricing[zone]
+	if !ok {
+		return nil, meta, fmt.Errorf("unable to find node pricing matching the features `%s`", key.Features())
+	}
+
+	info, ok := pricing.NodesInfos[instanceType]
+	if !ok {
+		return nil, meta, fmt.Errorf("unable to find node pricing matching the features `%s`", key.Features())
+	}
+
+	vcpu := strconv.FormatInt(info.VCPUCount, 10)
+	ram := strconv.FormatInt(info.RAMBytes, 10)
+	storage := strconv.FormatInt(info.LocalStorageBytes, 10)
+	gpu := strconv.FormatInt(info.GPUCount, 10)
+
+	return &models.Node{
+		Cost:         fmt.Sprintf("%f", info.HourlyPrice),
+		PricingType:  models.DefaultPrices,
+		VCPU:         vcpu,
+		RAM:          ram,
+		RAMBytes:     ram,
+		Storage:      storage,
+		GPU:          gpu,
+		InstanceType: instanceType,
+		Region:       zone,
+		GPUName:      key.GPUType(),
+	}, meta, nil
 }
 
 func (c *Scaleway) LoadBalancerPricing() (*models.LoadBalancer, error) {
@@ -378,11 +685,16 @@ func (scw *Scaleway) GetManagementPlatform() (string, error) {
 }
 
 func (c *Scaleway) PricingSourceStatus() map[string]*models.PricingSource {
+	c.DownloadPricingDataLock.RLock()
+	defer c.DownloadPricingDataLock.RUnlock()
+
+	available := len(c.Pricing) > 0
+
 	return map[string]*models.PricingSource{
-		InstanceAPIPricing: {
-			Name:      InstanceAPIPricing,
+		ProductCatalogAPIPricing: {
+			Name:      ProductCatalogAPIPricing,
 			Enabled:   true,
-			Available: true,
+			Available: available,
 		},
 	}
 }
