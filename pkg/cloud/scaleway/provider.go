@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -26,8 +27,11 @@ import (
 )
 
 const (
-	productCatalogAPIURL     = "https://api.scaleway.com/product-catalog/v2alpha1/public-catalog/products?page_size=10000"
-	ProductCatalogAPIPricing = "Product Catalog API Pricing"
+	productCatalogAPIURL         = "https://api.scaleway.com/product-catalog/v2alpha1/public-catalog/products?page_size=10000"
+	ProductCatalogAPIPricing     = "Product Catalog API Pricing"
+	globalPricingKey             = "__global__"
+	defaultLoadBalancerNodeClass = "GP-S"
+	defaultLoadBalancerFallback  = 0.02
 )
 
 var scalewayHTTPClient = &http.Client{
@@ -35,8 +39,11 @@ var scalewayHTTPClient = &http.Client{
 }
 
 type ScalewayPricing struct {
-	NodesInfos map[string]*ScalewayNode
-	PVCost     float64
+	Zone                  string
+	NodesInfos            map[string]*ScalewayNode
+	PVCost                float64
+	LoadBalancerNodeCosts map[string]float64
+	LoadBalancerIPCost    float64
 }
 
 type ScalewayNode struct {
@@ -176,12 +183,12 @@ func (c *Scaleway) DownloadPricingData() error {
 		}
 
 		zone := product.zone()
-		if zone == "" {
-			continue
-		}
 
 		switch {
 		case product.isInstanceProduct():
+			if zone == "" {
+				continue
+			}
 			instanceType := product.instanceType()
 			if instanceType == "" {
 				log.Debugf("Scaleway product %s missing instance identifier", product.SKU)
@@ -207,6 +214,38 @@ func (c *Scaleway) DownloadPricingData() error {
 			if product.prefersOverwritePVCost() || zonePricing.PVCost == 0 {
 				zonePricing.PVCost = price
 			}
+		case product.isLoadBalancerNodeProduct():
+			if zone == "" {
+				continue
+			}
+
+			lbClass := product.loadBalancerNodeClass()
+			if lbClass == "" {
+				continue
+			}
+
+			price := product.priceValue()
+			if price == 0 {
+				continue
+			}
+
+			zonePricing := ensureScalewayPricingForZone(pricingByZone, zone)
+			if zonePricing.LoadBalancerNodeCosts == nil {
+				zonePricing.LoadBalancerNodeCosts = make(map[string]float64)
+			}
+			zonePricing.LoadBalancerNodeCosts[lbClass] = price
+		case product.isLoadBalancerIPProduct():
+			if zone == "" {
+				continue
+			}
+
+			price := product.priceValue()
+			if price == 0 {
+				continue
+			}
+
+			zonePricing := ensureScalewayPricingForZone(pricingByZone, zone)
+			zonePricing.LoadBalancerIPCost = price
 		}
 	}
 
@@ -240,22 +279,104 @@ func fetchScalewayProductCatalog() ([]*scalewayProduct, error) {
 	return catalog.Products, nil
 }
 
+func pricingZoneKey(zone string) string {
+	key := strings.ToLower(strings.TrimSpace(zone))
+	if key == "" {
+		return globalPricingKey
+	}
+	return key
+}
+
 func ensureScalewayPricingForZone(pricing map[string]*ScalewayPricing, zone string) *ScalewayPricing {
 	if pricing == nil {
-		pricing = make(map[string]*ScalewayPricing)
+		return nil
 	}
 
-	zonePricing, ok := pricing[zone]
+	key := pricingZoneKey(zone)
+
+	zonePricing, ok := pricing[key]
 	if !ok {
 		zonePricing = &ScalewayPricing{
-			NodesInfos: make(map[string]*ScalewayNode),
+			Zone:                  strings.TrimSpace(zone),
+			NodesInfos:            make(map[string]*ScalewayNode),
+			LoadBalancerNodeCosts: make(map[string]float64),
 		}
-		pricing[zone] = zonePricing
-	} else if zonePricing.NodesInfos == nil {
+		pricing[key] = zonePricing
+		return zonePricing
+	}
+
+	if zonePricing.NodesInfos == nil {
 		zonePricing.NodesInfos = make(map[string]*ScalewayNode)
+	}
+	if zonePricing.LoadBalancerNodeCosts == nil {
+		zonePricing.LoadBalancerNodeCosts = make(map[string]float64)
+	}
+	if zonePricing.Zone == "" && zone != "" {
+		zonePricing.Zone = strings.TrimSpace(zone)
 	}
 
 	return zonePricing
+}
+
+func (c *Scaleway) lookupZonePricing(zone, region string) (*ScalewayPricing, string) {
+	if len(c.Pricing) == 0 {
+		return nil, ""
+	}
+
+	var candidates []string
+
+	if strings.TrimSpace(zone) != "" {
+		candidates = append(candidates, zone)
+	}
+
+	if strings.TrimSpace(region) != "" {
+		candidates = append(candidates, region)
+		candidates = append(candidates, c.zoneKeysWithPrefix(region)...)
+	}
+
+	if strings.TrimSpace(c.ClusterRegion) != "" {
+		candidates = append(candidates, c.ClusterRegion)
+		candidates = append(candidates, c.zoneKeysWithPrefix(c.ClusterRegion)...)
+	}
+
+	// Fallback to any zone we already know about.
+	for key := range c.Pricing {
+		candidates = append(candidates, key)
+	}
+
+	// Ensure global fallback is last.
+	candidates = append(candidates, globalPricingKey)
+
+	seen := make(map[string]struct{}, len(candidates))
+
+	for _, candidate := range candidates {
+		key := pricingZoneKey(candidate)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+
+		if pricing, ok := c.Pricing[key]; ok && pricing != nil {
+			return pricing, key
+		}
+	}
+
+	return nil, ""
+}
+
+func (c *Scaleway) zoneKeysWithPrefix(prefix string) []string {
+	normPrefix := strings.ToLower(strings.TrimSpace(prefix))
+	if normPrefix == "" || len(c.Pricing) == 0 {
+		return nil
+	}
+
+	keys := make([]string, 0)
+	for key := range c.Pricing {
+		if strings.HasPrefix(key, normPrefix) {
+			keys = append(keys, key)
+		}
+	}
+	return keys
 }
 
 func (p *scalewayProduct) zone() string {
@@ -349,6 +470,52 @@ func (p *scalewayProduct) toScalewayNode() (*ScalewayNode, error) {
 	}, nil
 }
 
+func (p *scalewayProduct) isLoadBalancerNodeProduct() bool {
+	if p == nil {
+		return false
+	}
+
+	if !strings.EqualFold(p.ServiceCategory, "Network") {
+		return false
+	}
+
+	if !strings.EqualFold(p.ProductCategory, "Loadbalancer") {
+		return false
+	}
+
+	return strings.Contains(strings.ToLower(p.Product), "node")
+}
+
+func (p *scalewayProduct) isLoadBalancerIPProduct() bool {
+	if p == nil {
+		return false
+	}
+
+	if !strings.EqualFold(p.ServiceCategory, "Network") {
+		return false
+	}
+
+	if !strings.EqualFold(p.ProductCategory, "Loadbalancer") {
+		return false
+	}
+
+	return strings.Contains(strings.ToLower(p.Product), "ip")
+}
+
+func (p *scalewayProduct) loadBalancerNodeClass() string {
+	if p == nil {
+		return ""
+	}
+
+	fields := strings.Fields(p.Product)
+	if len(fields) == 0 {
+		return ""
+	}
+
+	class := fields[len(fields)-1]
+	return strings.ToUpper(strings.TrimSpace(class))
+}
+
 func (p *scalewayProduct) isBlockStorageProduct() bool {
 	if p == nil {
 		return false
@@ -399,6 +566,35 @@ func (c *Scaleway) AllNodePricing() (interface{}, error) {
 	return c.Pricing, nil
 }
 
+func (p *ScalewayPricing) loadBalancerCost(preferredClass string) float64 {
+	if p == nil {
+		return 0
+	}
+
+	if preferredClass != "" {
+		if cost, ok := p.LoadBalancerNodeCosts[preferredClass]; ok && cost > 0 {
+			return cost + p.LoadBalancerIPCost
+		}
+	}
+
+	if len(p.LoadBalancerNodeCosts) == 0 {
+		return p.LoadBalancerIPCost
+	}
+
+	min := math.MaxFloat64
+	for _, cost := range p.LoadBalancerNodeCosts {
+		if cost > 0 && cost < min {
+			min = cost
+		}
+	}
+
+	if min == math.MaxFloat64 {
+		return p.LoadBalancerIPCost
+	}
+
+	return min + p.LoadBalancerIPCost
+}
+
 type scalewayKey struct {
 	Labels map[string]string
 }
@@ -440,7 +636,8 @@ func (c *Scaleway) NodePricing(key models.Key) (*models.Node, models.PricingMeta
 	zone := features[0]
 	instanceType := features[1]
 
-	pricing, ok := c.Pricing[zone]
+	zoneKey := pricingZoneKey(zone)
+	pricing, ok := c.Pricing[zoneKey]
 	if !ok {
 		return nil, meta, fmt.Errorf("unable to find node pricing matching the features `%s`", key.Features())
 	}
@@ -455,6 +652,11 @@ func (c *Scaleway) NodePricing(key models.Key) (*models.Node, models.PricingMeta
 	storage := strconv.FormatInt(info.LocalStorageBytes, 10)
 	gpu := strconv.FormatInt(info.GPUCount, 10)
 
+	region := zone
+	if pricing.Zone != "" {
+		region = pricing.Zone
+	}
+
 	return &models.Node{
 		Cost:         fmt.Sprintf("%f", info.HourlyPrice),
 		PricingType:  models.DefaultPrices,
@@ -464,17 +666,68 @@ func (c *Scaleway) NodePricing(key models.Key) (*models.Node, models.PricingMeta
 		Storage:      storage,
 		GPU:          gpu,
 		InstanceType: instanceType,
-		Region:       zone,
+		Region:       region,
 		GPUName:      key.GPUType(),
 	}, meta, nil
 }
 
 func (c *Scaleway) LoadBalancerPricing() (*models.LoadBalancer, error) {
-	// Different LB types, lets take the cheaper for now, we can't get the type
-	// without a service specifying the type in the annotations
+	cpricing, err := c.Config.GetCustomPricingData()
+	if err != nil {
+		return nil, err
+	}
+
+	if strings.TrimSpace(cpricing.DefaultLBPrice) != "" {
+		override, parseErr := strconv.ParseFloat(cpricing.DefaultLBPrice, 64)
+		if parseErr == nil {
+			return &models.LoadBalancer{
+				Cost: override,
+			}, nil
+		}
+
+		log.Warnf("Scaleway: unable to parse defaultLBPrice %q: %v", cpricing.DefaultLBPrice, parseErr)
+	}
+
+	c.DownloadPricingDataLock.RLock()
+	defer c.DownloadPricingDataLock.RUnlock()
+
+	cost := c.findLoadBalancerCost(defaultLoadBalancerNodeClass)
+	if cost == 0 {
+		cost = defaultLoadBalancerFallback
+	}
+
 	return &models.LoadBalancer{
-		Cost: 0.014,
+		Cost: cost,
 	}, nil
+}
+
+func (c *Scaleway) findLoadBalancerCost(preferredClass string) float64 {
+	if len(c.Pricing) == 0 {
+		return 0
+	}
+
+	if pricing, _ := c.lookupZonePricing("", c.ClusterRegion); pricing != nil {
+		if cost := pricing.loadBalancerCost(preferredClass); cost > 0 {
+			return cost
+		}
+	}
+
+	min := math.MaxFloat64
+	for _, zonePricing := range c.Pricing {
+		if zonePricing == nil {
+			continue
+		}
+
+		if cost := zonePricing.loadBalancerCost(preferredClass); cost > 0 && cost < min {
+			min = cost
+		}
+	}
+
+	if min == math.MaxFloat64 {
+		return 0
+	}
+
+	return min
 }
 
 func (c *Scaleway) NetworkPricing() (*models.Network, error) {
@@ -498,6 +751,7 @@ type scalewayPVKey struct {
 	StorageClassParameters map[string]string
 	Name                   string
 	Zone                   string
+	Region                 string
 }
 
 func (key *scalewayPVKey) ID() string {
@@ -510,7 +764,10 @@ func (key *scalewayPVKey) GetStorageClass() string {
 
 func (key *scalewayPVKey) Features() string {
 	// Only 1 type of PV for now
-	return key.Zone
+	if strings.TrimSpace(key.Zone) != "" {
+		return key.Zone
+	}
+	return key.Region
 }
 
 func (c *Scaleway) GetPVKey(pv *clustercache.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
@@ -522,12 +779,24 @@ func (c *Scaleway) GetPVKey(pv *clustercache.PersistentVolume, parameters map[st
 			zone = zoneVolID[0]
 		}
 	}
+	if zone == "" {
+		if z, ok := util.GetZone(pv.Labels); ok {
+			zone = z
+		}
+	}
+
+	region := strings.TrimSpace(defaultRegion)
+	if r, ok := util.GetRegion(pv.Labels); ok && strings.TrimSpace(r) != "" {
+		region = r
+	}
+
 	return &scalewayPVKey{
 		Labels:                 pv.Labels,
 		StorageClassName:       pv.Spec.StorageClassName,
 		StorageClassParameters: parameters,
 		Name:                   pv.Name,
 		Zone:                   zone,
+		Region:                 region,
 	}
 }
 
@@ -539,15 +808,37 @@ func (c *Scaleway) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
 
-	pricing, ok := c.Pricing[pvk.Features()]
-	if !ok {
-		log.Debugf("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
+	var zone, region string
+	if key, ok := pvk.(*scalewayPVKey); ok && key != nil {
+		zone = key.Zone
+		region = key.Region
+	} else {
+		zone = pvk.Features()
+	}
+
+	pricing, matchedKey := c.lookupZonePricing(zone, region)
+	if pricing == nil || pricing.PVCost == 0 {
+		log.Debugf("Persistent Volume pricing not found for %s: zone=%q region=%q", pvk.GetStorageClass(), zone, region)
 		return &models.PV{}, nil
 	}
-	return &models.PV{
+
+	result := &models.PV{
 		Cost:  fmt.Sprintf("%f", pricing.PVCost),
 		Class: pvk.GetStorageClass(),
-	}, nil
+	}
+
+	if key, ok := pvk.(*scalewayPVKey); ok && key != nil && len(key.StorageClassParameters) > 0 {
+		result.Parameters = key.StorageClassParameters
+	}
+
+	if matchedKey != "" && matchedKey != globalPricingKey {
+		result.Region = pricing.Zone
+		if result.Region == "" {
+			result.Region = matchedKey
+		}
+	}
+
+	return result, nil
 }
 
 func (c *Scaleway) ServiceAccountStatus() *models.ServiceAccountStatus {
