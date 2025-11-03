@@ -11,19 +11,19 @@ type ResourceQuota struct {
 }
 
 type ResourceQuotaSpec struct {
-	Hard ResourceQuotaSpecHard
+	Hard *ResourceQuotaSpecHard
 }
 
 type ResourceQuotaSpecHard struct {
-	Requests []ResourceQuantity
-	Limits   []ResourceQuantity
+	Requests ResourceQuantities
+	Limits   ResourceQuantities
 }
 
 type ResourceQuotaStatus struct {
-	Used ResourceQuotaStatusUsed
+	Used *ResourceQuotaStatusUsed
 }
 
 type ResourceQuotaStatusUsed struct {
-	Requests []ResourceQuantity
-	Limits   []ResourceQuantity
+	Requests ResourceQuantities
+	Limits   ResourceQuantities
 }

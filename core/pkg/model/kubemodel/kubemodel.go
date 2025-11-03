@@ -2,6 +2,7 @@ package kubemodel
 
 import (
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -11,10 +12,14 @@ type KubeModelSet struct {
 	Cluster        *Cluster
 	Namespaces     map[string]*Namespace
 	ResourceQuotas map[string]*ResourceQuota
-	idx            *kubeModelSetIndexes
+	indexes        *kubeModelSetIndexes
 }
 
 func NewKubeModelSet(start, end time.Time) *KubeModelSet {
+	indexes := &kubeModelSetIndexes{
+		namespaceToNamespaceUID: map[string]string{},
+	}
+
 	return &KubeModelSet{
 		Metadata: &KubeModelSetMetadata{
 			CreatedAt: time.Now().UTC(),
@@ -25,10 +30,11 @@ func NewKubeModelSet(start, end time.Time) *KubeModelSet {
 		},
 		Namespaces:     map[string]*Namespace{},
 		ResourceQuotas: map[string]*ResourceQuota{},
+		indexes:        indexes,
 	}
 }
 
-func (kms *KubeModelSet) RegisterNamespace(uid string) error {
+func (kms *KubeModelSet) RegisterNamespace(uid, name string) error {
 	if _, ok := kms.Namespaces[uid]; !ok {
 		if kms.Cluster == nil {
 			return errors.New("KubeModelSet missing Cluster")
@@ -37,23 +43,27 @@ func (kms *KubeModelSet) RegisterNamespace(uid string) error {
 		kms.Namespaces[uid] = &Namespace{
 			UID:        uid,
 			ClusterUID: kms.Cluster.UID,
+			Name:       name,
 		}
 
-		// TODO: index namespace name-to-UID
+		kms.indexes.namespaceToNamespaceUID[name] = uid
 	}
 
 	return nil
 }
 
-func (kms *KubeModelSet) RegisterResourceQuota(uid string) error {
+func (kms *KubeModelSet) RegisterResourceQuota(uid, name, namespace string) error {
 	if _, ok := kms.ResourceQuotas[uid]; !ok {
-		if kms.Cluster != nil {
-			return errors.New("KubeModelSet missing Cluster")
+		if _, ok := kms.indexes.namespaceToNamespaceUID[namespace]; !ok {
+			return fmt.Errorf("KubeModelSet missing NamespaceUID for namespace=%s", namespace)
 		}
 
 		kms.ResourceQuotas[uid] = &ResourceQuota{
 			UID:          uid,
-			NamespaceUID: kms.Cluster.UID,
+			Name:         name,
+			NamespaceUID: kms.indexes.namespaceToNamespaceUID[namespace],
+			Spec:         &ResourceQuotaSpec{Hard: &ResourceQuotaSpecHard{}},
+			Status:       &ResourceQuotaStatus{Used: &ResourceQuotaStatusUsed{}},
 		}
 	}
 
