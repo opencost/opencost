@@ -873,7 +873,6 @@ func TestQueryAllocations_InvalidWindow(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to parse window")
 }
 
-
 func TestProcessMCPRequest_ResponseMetadata(t *testing.T) {
 	dq := &dummyQuerier{}
 	s := &MCPServer{cloudQuerier: dq}
@@ -909,4 +908,454 @@ func TestCloudCostQuery_NewFields(t *testing.T) {
 	assert.Equal(t, "provider-456", query.ProviderID)
 	assert.Equal(t, "prod", query.Labels["environment"])
 	assert.Equal(t, "platform", query.Labels["team"])
+}
+
+// ---- Tests for Efficiency Tool ----
+
+func TestEfficiencyQueryStruct(t *testing.T) {
+	bufferMultiplier := 1.4
+	query := EfficiencyQuery{
+		Aggregate:                  "pod",
+		Filter:                     "namespace:production",
+		EfficiencyBufferMultiplier: &bufferMultiplier,
+	}
+
+	assert.Equal(t, "pod", query.Aggregate)
+	assert.Equal(t, "namespace:production", query.Filter)
+	assert.NotNil(t, query.EfficiencyBufferMultiplier)
+	assert.Equal(t, 1.4, *query.EfficiencyBufferMultiplier)
+}
+
+func TestEfficiencyQueryDefaultValues(t *testing.T) {
+	query := EfficiencyQuery{}
+
+	assert.Empty(t, query.Aggregate)
+	assert.Empty(t, query.Filter)
+	assert.Nil(t, query.EfficiencyBufferMultiplier)
+}
+
+func TestEfficiencyMetricStruct(t *testing.T) {
+	now := time.Now()
+	metric := EfficiencyMetric{
+		Name:                       "test-pod",
+		CPUEfficiency:              0.5,
+		MemoryEfficiency:           0.6,
+		CPUCoresRequested:          2.0,
+		CPUCoresUsed:               1.0,
+		RAMBytesRequested:          2147483648, // 2GB
+		RAMBytesUsed:               1288490188, // ~1.2GB
+		RecommendedCPURequest:      1.2,
+		RecommendedRAMRequest:      1546188226, // ~1.44GB
+		ResultingCPUEfficiency:     0.833,
+		ResultingMemoryEfficiency:  0.833,
+		CurrentTotalCost:           10.0,
+		RecommendedCost:            6.0,
+		CostSavings:                4.0,
+		CostSavingsPercent:         40.0,
+		EfficiencyBufferMultiplier: 1.2,
+		Start:                      now.Add(-24 * time.Hour),
+		End:                        now,
+	}
+
+	assert.Equal(t, "test-pod", metric.Name)
+	assert.Equal(t, 0.5, metric.CPUEfficiency)
+	assert.Equal(t, 0.6, metric.MemoryEfficiency)
+	assert.Equal(t, 2.0, metric.CPUCoresRequested)
+	assert.Equal(t, 1.0, metric.CPUCoresUsed)
+	assert.Equal(t, 2147483648.0, metric.RAMBytesRequested)
+	assert.Equal(t, 1288490188.0, metric.RAMBytesUsed)
+	assert.Equal(t, 1.2, metric.RecommendedCPURequest)
+	assert.Equal(t, 1546188226.0, metric.RecommendedRAMRequest)
+	assert.Equal(t, 0.833, metric.ResultingCPUEfficiency)
+	assert.Equal(t, 0.833, metric.ResultingMemoryEfficiency)
+	assert.Equal(t, 10.0, metric.CurrentTotalCost)
+	assert.Equal(t, 6.0, metric.RecommendedCost)
+	assert.Equal(t, 4.0, metric.CostSavings)
+	assert.Equal(t, 40.0, metric.CostSavingsPercent)
+	assert.Equal(t, 1.2, metric.EfficiencyBufferMultiplier)
+	assert.True(t, metric.Start.Before(metric.End))
+}
+
+func TestEfficiencyResponseStruct(t *testing.T) {
+	now := time.Now()
+	metric1 := &EfficiencyMetric{
+		Name:             "pod-1",
+		CPUEfficiency:    0.5,
+		MemoryEfficiency: 0.6,
+		Start:            now.Add(-24 * time.Hour),
+		End:              now,
+	}
+	metric2 := &EfficiencyMetric{
+		Name:             "pod-2",
+		CPUEfficiency:    0.7,
+		MemoryEfficiency: 0.8,
+		Start:            now.Add(-24 * time.Hour),
+		End:              now,
+	}
+
+	response := EfficiencyResponse{
+		Efficiencies: []*EfficiencyMetric{metric1, metric2},
+	}
+
+	require.NotNil(t, response.Efficiencies)
+	assert.Len(t, response.Efficiencies, 2)
+	assert.Equal(t, "pod-1", response.Efficiencies[0].Name)
+	assert.Equal(t, "pod-2", response.Efficiencies[1].Name)
+}
+
+func TestSafeDiv(t *testing.T) {
+	tests := []struct {
+		name        string
+		numerator   float64
+		denominator float64
+		expected    float64
+	}{
+		{"normal division", 10.0, 2.0, 5.0},
+		{"zero denominator", 10.0, 0.0, 0.0},
+		{"zero numerator", 0.0, 2.0, 0.0},
+		{"both zero", 0.0, 0.0, 0.0},
+		{"negative values", -10.0, 2.0, -5.0},
+		{"fractional result", 5.0, 2.0, 2.5},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := safeDiv(tt.numerator, tt.denominator)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestComputeEfficiencyMetric_NilAllocation(t *testing.T) {
+	result := computeEfficiencyMetric(nil, 1.2)
+	assert.Nil(t, result)
+}
+
+func TestComputeEfficiencyMetric_ZeroMinutes(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:  "test-pod",
+		Start: now,
+		End:   now, // Same time, so 0 minutes
+	}
+
+	result := computeEfficiencyMetric(alloc, 1.2)
+	assert.Nil(t, result)
+}
+
+func TestComputeEfficiencyMetric_ValidAllocation(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:  "test-pod",
+		Start: now.Add(-24 * time.Hour),
+		End:   now,
+		// 24 hours = 1440 minutes
+		CPUCoreHours:           24.0,   // 1 core for 24 hours
+		RAMByteHours:           24.0e9, // ~1GB for 24 hours
+		CPUCoreRequestAverage:  2.0,    // Requested 2 cores
+		RAMBytesRequestAverage: 2.0e9,  // Requested 2GB
+		CPUCost:                10.0,
+		RAMCost:                5.0,
+	}
+
+	result := computeEfficiencyMetric(alloc, 1.2)
+
+	require.NotNil(t, result)
+	assert.Equal(t, "test-pod", result.Name)
+	assert.Equal(t, 2.0, result.CPUCoresRequested)
+	assert.Equal(t, 2.0e9, result.RAMBytesRequested)
+	assert.Equal(t, 1.0, result.CPUCoresUsed)            // 24 core-hours / 24 hours = 1 core
+	assert.Equal(t, 1.0e9, result.RAMBytesUsed)          // 24GB-hours / 24 hours = 1GB
+	assert.Equal(t, 0.5, result.CPUEfficiency)           // 1 / 2 = 0.5
+	assert.Equal(t, 0.5, result.MemoryEfficiency)        // 1GB / 2GB = 0.5
+	assert.Equal(t, 1.2, result.RecommendedCPURequest)   // 1 * 1.2 = 1.2
+	assert.Equal(t, 1.2e9, result.RecommendedRAMRequest) // 1GB * 1.2 = 1.2GB
+	assert.Equal(t, 1.2, result.EfficiencyBufferMultiplier)
+	assert.Greater(t, result.CostSavings, 0.0)
+}
+
+func TestComputeEfficiencyMetric_CustomBufferMultiplier(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:                   "test-pod",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           24.0,
+		RAMByteHours:           24.0e9,
+		CPUCoreRequestAverage:  2.0,
+		RAMBytesRequestAverage: 2.0e9,
+		CPUCost:                10.0,
+		RAMCost:                5.0,
+	}
+
+	// Test with 1.4 buffer multiplier (40% headroom)
+	result := computeEfficiencyMetric(alloc, 1.4)
+
+	require.NotNil(t, result)
+	assert.Equal(t, 1.4, result.RecommendedCPURequest)   // 1 * 1.4 = 1.4
+	assert.Equal(t, 1.4e9, result.RecommendedRAMRequest) // 1GB * 1.4 = 1.4GB
+	assert.Equal(t, 1.4, result.EfficiencyBufferMultiplier)
+
+	// Resulting efficiency should be usage / recommended
+	expectedCPUEff := 1.0 / 1.4
+	expectedMemEff := 1.0e9 / 1.4e9
+	assert.InDelta(t, expectedCPUEff, result.ResultingCPUEfficiency, 0.001)
+	assert.InDelta(t, expectedMemEff, result.ResultingMemoryEfficiency, 0.001)
+}
+
+func TestComputeEfficiencyMetric_MinimumThresholds(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:  "test-pod",
+		Start: now.Add(-24 * time.Hour),
+		End:   now,
+		// Very small usage
+		CPUCoreHours:           0.00001, // 0.000000417 cores average
+		RAMByteHours:           100,     // ~4 bytes average
+		CPUCoreRequestAverage:  0.1,
+		RAMBytesRequestAverage: 1000,
+		CPUCost:                0.001,
+		RAMCost:                0.001,
+	}
+
+	result := computeEfficiencyMetric(alloc, 1.2)
+
+	require.NotNil(t, result)
+	// Should enforce minimum CPU (0.001 cores)
+	assert.Equal(t, efficiencyMinCPU, result.RecommendedCPURequest)
+	// Should enforce minimum RAM (1MB)
+	assert.Equal(t, float64(efficiencyMinRAM), result.RecommendedRAMRequest)
+}
+
+func TestComputeEfficiencyMetric_NoRequests(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:                   "test-pod",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           24.0,
+		RAMByteHours:           24.0e9,
+		CPUCoreRequestAverage:  0.0, // No requests set
+		RAMBytesRequestAverage: 0.0, // No requests set
+		CPUCost:                10.0,
+		RAMCost:                5.0,
+	}
+
+	result := computeEfficiencyMetric(alloc, 1.2)
+
+	require.NotNil(t, result)
+	// Efficiency should be 0 when no requests are set
+	assert.Equal(t, 0.0, result.CPUEfficiency)
+	assert.Equal(t, 0.0, result.MemoryEfficiency)
+	// Recommendations should still be calculated based on usage
+	assert.Equal(t, 1.2, result.RecommendedCPURequest)
+	assert.Equal(t, 1.2e9, result.RecommendedRAMRequest)
+}
+
+func TestComputeEfficiencyMetric_OverProvisioned(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:                   "test-pod",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           12.0,   // 0.5 cores average
+		RAMByteHours:           12.0e9, // 0.5GB average
+		CPUCoreRequestAverage:  4.0,    // Requested 4 cores (over-provisioned)
+		RAMBytesRequestAverage: 8.0e9,  // Requested 8GB (over-provisioned)
+		CPUCost:                40.0,
+		RAMCost:                20.0,
+	}
+
+	result := computeEfficiencyMetric(alloc, 1.2)
+
+	require.NotNil(t, result)
+	// Low efficiency due to over-provisioning
+	assert.Equal(t, 0.125, result.CPUEfficiency)     // 0.5 / 4 = 0.125
+	assert.Equal(t, 0.0625, result.MemoryEfficiency) // 0.5GB / 8GB = 0.0625
+	// Recommendations should be much lower
+	assert.Equal(t, 0.6, result.RecommendedCPURequest)   // 0.5 * 1.2 = 0.6
+	assert.Equal(t, 0.6e9, result.RecommendedRAMRequest) // 0.5GB * 1.2 = 0.6GB
+	// Should have significant cost savings
+	assert.Greater(t, result.CostSavings, 0.0)
+	assert.Greater(t, result.CostSavingsPercent, 50.0)
+}
+
+func TestComputeEfficiencyMetric_UnderProvisioned(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:                   "test-pod",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           48.0,   // 2 cores average
+		RAMByteHours:           48.0e9, // 2GB average
+		CPUCoreRequestAverage:  1.0,    // Requested 1 core (under-provisioned)
+		RAMBytesRequestAverage: 1.0e9,  // Requested 1GB (under-provisioned)
+		CPUCost:                10.0,
+		RAMCost:                5.0,
+	}
+
+	result := computeEfficiencyMetric(alloc, 1.2)
+
+	require.NotNil(t, result)
+	// High efficiency (>100%) due to under-provisioning
+	assert.Equal(t, 2.0, result.CPUEfficiency)    // 2 / 1 = 2.0
+	assert.Equal(t, 2.0, result.MemoryEfficiency) // 2GB / 1GB = 2.0
+	// Recommendations should be higher than current requests
+	assert.Equal(t, 2.4, result.RecommendedCPURequest)   // 2 * 1.2 = 2.4
+	assert.Equal(t, 2.4e9, result.RecommendedRAMRequest) // 2GB * 1.2 = 2.4GB
+}
+
+func TestComputeEfficiencyMetric_CostCalculations(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:                   "test-pod",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           24.0,
+		RAMByteHours:           24.0e9,
+		CPUCoreRequestAverage:  2.0,
+		RAMBytesRequestAverage: 2.0e9,
+		CPUCost:                10.0, // $10 for CPU
+		RAMCost:                5.0,  // $5 for RAM
+		NetworkCost:            1.0,  // $1 for network
+		SharedCost:             0.5,  // $0.5 shared
+		ExternalCost:           0.5,  // $0.5 external
+		GPUCost:                1.0,  // $1 for GPU
+	}
+
+	result := computeEfficiencyMetric(alloc, 1.2)
+
+	require.NotNil(t, result)
+
+	// Current total cost should include all costs
+	expectedCurrentCost := 10.0 + 5.0 + 1.0 + 0.5 + 0.5 + 1.0 // = 18.0
+	assert.Equal(t, expectedCurrentCost, result.CurrentTotalCost)
+
+	// Recommended cost should be lower due to right-sizing
+	assert.Less(t, result.RecommendedCost, result.CurrentTotalCost)
+
+	// Cost savings should be positive
+	assert.Greater(t, result.CostSavings, 0.0)
+	assert.Equal(t, result.CurrentTotalCost-result.RecommendedCost, result.CostSavings)
+
+	// Cost savings percent should be calculated correctly
+	expectedPercent := (result.CostSavings / result.CurrentTotalCost) * 100
+	assert.InDelta(t, expectedPercent, result.CostSavingsPercent, 0.001)
+}
+
+func TestComputeEfficiencyMetric_OtherCostsPreserved(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:                   "test-pod",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           24.0,
+		RAMByteHours:           24.0e9,
+		CPUCoreRequestAverage:  2.0,
+		RAMBytesRequestAverage: 2.0e9,
+		CPUCost:                10.0,
+		RAMCost:                5.0,
+		NetworkCost:            2.0, // Fixed cost
+		SharedCost:             1.0, // Fixed cost
+		ExternalCost:           1.0, // Fixed cost
+		GPUCost:                0.0,
+	}
+
+	result := computeEfficiencyMetric(alloc, 1.2)
+
+	require.NotNil(t, result)
+
+	// The "other costs" (Network, Shared, External, GPU) should be preserved
+	// in the recommended cost calculation
+	otherCosts := 2.0 + 1.0 + 1.0 + 0.0 // = 4.0
+
+	// CPU and RAM costs should be reduced based on right-sizing
+	// Original: 10.0 + 5.0 = 15.0
+	// Usage: 1 core + 1GB
+	// Recommended: 1.2 cores + 1.2GB
+	// Cost is calculated based on REQUESTED amounts (2 cores, 2GB)
+	cpuCostPerCoreHour := 10.0 / (2.0 * 24.0)  // CPU cost / (requested cores * hours)
+	ramCostPerByteHour := 5.0 / (2.0e9 * 24.0) // RAM cost / (requested bytes * hours)
+	expectedRecommendedCPUCost := 1.2 * 24.0 * cpuCostPerCoreHour
+	expectedRecommendedRAMCost := 1.2e9 * 24.0 * ramCostPerByteHour
+	expectedRecommendedTotal := expectedRecommendedCPUCost + expectedRecommendedRAMCost + otherCosts
+
+	assert.InDelta(t, expectedRecommendedTotal, result.RecommendedCost, 0.01)
+}
+
+func TestQueryEfficiency_InvalidWindow(t *testing.T) {
+	s := &MCPServer{}
+
+	req := &OpenCostQueryRequest{
+		QueryType: EfficiencyQueryType,
+		Window:    "invalid-window",
+	}
+
+	_, err := s.QueryEfficiency(req)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to parse window")
+}
+
+func TestQueryEfficiency_DefaultBufferMultiplier(t *testing.T) {
+	// Test that default buffer multiplier is 1.2 when not specified
+	req := &OpenCostQueryRequest{
+		QueryType:        EfficiencyQueryType,
+		Window:           "24h",
+		EfficiencyParams: &EfficiencyQuery{
+			// EfficiencyBufferMultiplier not set - should default to 1.2
+		},
+	}
+
+	assert.Nil(t, req.EfficiencyParams.EfficiencyBufferMultiplier)
+}
+
+func TestQueryEfficiency_CustomBufferMultiplier(t *testing.T) {
+	bufferMultiplier := 1.4
+	req := &OpenCostQueryRequest{
+		QueryType: EfficiencyQueryType,
+		Window:    "24h",
+		EfficiencyParams: &EfficiencyQuery{
+			EfficiencyBufferMultiplier: &bufferMultiplier,
+		},
+	}
+
+	assert.NotNil(t, req.EfficiencyParams.EfficiencyBufferMultiplier)
+	assert.Equal(t, 1.4, *req.EfficiencyParams.EfficiencyBufferMultiplier)
+}
+
+func TestQueryEfficiency_WithFilter(t *testing.T) {
+	req := &OpenCostQueryRequest{
+		QueryType: EfficiencyQueryType,
+		Window:    "7d",
+		EfficiencyParams: &EfficiencyQuery{
+			Aggregate: "pod",
+			Filter:    "namespace:production",
+		},
+	}
+
+	assert.Equal(t, "pod", req.EfficiencyParams.Aggregate)
+	assert.Equal(t, "namespace:production", req.EfficiencyParams.Filter)
+}
+
+func TestQueryEfficiency_WithAggregation(t *testing.T) {
+	req := &OpenCostQueryRequest{
+		QueryType: EfficiencyQueryType,
+		Window:    "7d",
+		EfficiencyParams: &EfficiencyQuery{
+			Aggregate: "namespace,controller",
+		},
+	}
+
+	assert.Equal(t, "namespace,controller", req.EfficiencyParams.Aggregate)
+}
+
+func TestEfficiencyConstants(t *testing.T) {
+	// Test that efficiency constants are defined correctly
+	assert.Equal(t, 1.2, efficiencyBufferMultiplier)
+	assert.Equal(t, 0.001, efficiencyMinCPU)
+	assert.Equal(t, 1024*1024, efficiencyMinRAM)
+}
+
+func TestEfficiencyQueryType(t *testing.T) {
+	assert.Equal(t, QueryType("efficiency"), EfficiencyQueryType)
 }

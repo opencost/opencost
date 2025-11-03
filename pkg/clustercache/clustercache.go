@@ -34,6 +34,7 @@ type KubernetesClusterCache struct {
 	jobsWatch                  WatchController
 	pdbWatch                   WatchController
 	replicationControllerWatch WatchController
+	resourceQuotasWatch        WatchController
 	stop                       chan struct{}
 }
 
@@ -75,13 +76,14 @@ func NewKubernetesClusterCacheV1(client kubernetes.Interface) cc.ClusterCache {
 		jobsWatch:                  NewCachingWatcher(batchClient, "jobs", &batchv1.Job{}, "", fields.Everything()),
 		pdbWatch:                   NewCachingWatcher(pdbClient, "poddisruptionbudgets", &policyv1.PodDisruptionBudget{}, "", fields.Everything()),
 		replicationControllerWatch: NewCachingWatcher(coreRestClient, "replicationcontrollers", &v1.ReplicationController{}, "", fields.Everything()),
+		resourceQuotasWatch:        NewCachingWatcher(coreRestClient, "resourcequotas", &v1.ResourceQuota{}, "", fields.Everything()),
 	}
 
 	// Wait for each caching watcher to initialize
 	cancel := make(chan struct{})
 	var wg sync.WaitGroup
 	if env.HasKubernetesResourceAccess() {
-		wg.Add(14)
+		wg.Add(15)
 		go initializeCache(kcc.namespaceWatch, &wg, cancel)
 		go initializeCache(kcc.nodeWatch, &wg, cancel)
 		go initializeCache(kcc.podWatch, &wg, cancel)
@@ -96,6 +98,7 @@ func NewKubernetesClusterCacheV1(client kubernetes.Interface) cc.ClusterCache {
 		go initializeCache(kcc.jobsWatch, &wg, cancel)
 		go initializeCache(kcc.pdbWatch, &wg, cancel)
 		go initializeCache(kcc.replicationControllerWatch, &wg, cancel)
+		go initializeCache(kcc.resourceQuotasWatch, &wg, cancel)
 	}
 
 	wg.Wait()
@@ -125,6 +128,7 @@ func (kcc *KubernetesClusterCache) Run() {
 	go kcc.jobsWatch.Run(1, stopCh)
 	go kcc.pdbWatch.Run(1, stopCh)
 	go kcc.replicationControllerWatch.Run(1, stopCh)
+	go kcc.resourceQuotasWatch.Run(1, stopCh)
 
 	kcc.stop = stopCh
 }
@@ -262,4 +266,14 @@ func (kcc *KubernetesClusterCache) GetAllReplicationControllers() []*cc.Replicat
 		rcs = append(rcs, cc.TransformReplicationController(rc.(*v1.ReplicationController)))
 	}
 	return rcs
+}
+
+// GetAllResourceQuotas returns all cached resource quotas
+func (kcc *KubernetesClusterCache) GetAllResourceQuotas() []*cc.ResourceQuota {
+	var rqs []*cc.ResourceQuota
+	items := kcc.resourceQuotasWatch.GetAll()
+	for _, rq := range items {
+		rqs = append(rqs, cc.TransformResourceQuota(rq.(*v1.ResourceQuota)))
+	}
+	return rqs
 }

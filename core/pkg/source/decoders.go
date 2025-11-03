@@ -32,6 +32,7 @@ const (
 	DeploymentLabel      = "deployment"
 	StatefulSetLabel     = "statefulSet"
 	ReplicaSetLabel      = "replicaset"
+	ResourceQuotaLabel   = "resourcequota"
 	OwnerNameLabel       = "owner_name"
 	OwnerKindLabel       = "owner_kind"
 	UnitLabel            = "unit"
@@ -45,11 +46,13 @@ const (
 )
 
 type PVResult struct {
+	UID              string
 	Cluster          string
 	PersistentVolume string
 }
 
 type PVUsedAvgResult struct {
+	UID                   string
 	Cluster               string
 	Namespace             string
 	PersistentVolumeClaim string
@@ -58,11 +61,13 @@ type PVUsedAvgResult struct {
 }
 
 func DecodePVUsedAvgResult(result *QueryResult) *PVUsedAvgResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pvc, _ := result.GetString(PVCLabel)
 
 	return &PVUsedAvgResult{
+		UID:                   uid,
 		Cluster:               cluster,
 		Namespace:             namespace,
 		PersistentVolumeClaim: pvc,
@@ -71,6 +76,7 @@ func DecodePVUsedAvgResult(result *QueryResult) *PVUsedAvgResult {
 }
 
 type PVActiveMinutesResult struct {
+	UID              string
 	Cluster          string
 	PersistentVolume string
 
@@ -78,10 +84,12 @@ type PVActiveMinutesResult struct {
 }
 
 func DecodePVActiveMinutesResult(result *QueryResult) *PVActiveMinutesResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	pv, _ := result.GetString(PVLabel)
 
 	return &PVActiveMinutesResult{
+		UID:              uid,
 		Cluster:          cluster,
 		PersistentVolume: pv,
 		Data:             result.Values,
@@ -89,6 +97,7 @@ func DecodePVActiveMinutesResult(result *QueryResult) *PVActiveMinutesResult {
 }
 
 type PVUsedMaxResult struct {
+	UID                   string
 	Cluster               string
 	Namespace             string
 	PersistentVolumeClaim string
@@ -96,11 +105,13 @@ type PVUsedMaxResult struct {
 }
 
 func DecodePVUsedMaxResult(result *QueryResult) *PVUsedMaxResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pvc, _ := result.GetString(PVCLabel)
 
 	return &PVUsedMaxResult{
+		UID:                   uid,
 		Cluster:               cluster,
 		Namespace:             namespace,
 		PersistentVolumeClaim: pvc,
@@ -109,6 +120,7 @@ func DecodePVUsedMaxResult(result *QueryResult) *PVUsedMaxResult {
 }
 
 type LocalStorageActiveMinutesResult struct {
+	UID        string
 	Cluster    string
 	Node       string
 	ProviderID string
@@ -117,6 +129,7 @@ type LocalStorageActiveMinutesResult struct {
 }
 
 func DecodeLocalStorageActiveMinutesResult(result *QueryResult) *LocalStorageActiveMinutesResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	node, _ := result.GetNode()
 	if node == "" {
@@ -125,6 +138,7 @@ func DecodeLocalStorageActiveMinutesResult(result *QueryResult) *LocalStorageAct
 	providerId, _ := result.GetProviderID()
 
 	return &LocalStorageActiveMinutesResult{
+		UID:        uid,
 		Cluster:    cluster,
 		Node:       node,
 		ProviderID: providerId,
@@ -133,6 +147,7 @@ func DecodeLocalStorageActiveMinutesResult(result *QueryResult) *LocalStorageAct
 }
 
 type LocalStorageCostResult struct {
+	UID      string
 	Cluster  string
 	Instance string
 	Device   string
@@ -141,11 +156,13 @@ type LocalStorageCostResult struct {
 }
 
 func DecodeLocalStorageCostResult(result *QueryResult) *LocalStorageCostResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	instance, _ := result.GetInstance()
 	device, _ := result.GetDevice()
 
 	return &LocalStorageCostResult{
+		UID:      uid,
 		Cluster:  cluster,
 		Instance: instance,
 		Device:   device,
@@ -154,6 +171,7 @@ func DecodeLocalStorageCostResult(result *QueryResult) *LocalStorageCostResult {
 }
 
 type LocalStorageUsedCostResult struct {
+	UID      string
 	Cluster  string
 	Instance string
 	Device   string
@@ -161,11 +179,13 @@ type LocalStorageUsedCostResult struct {
 }
 
 func DecodeLocalStorageUsedCostResult(result *QueryResult) *LocalStorageUsedCostResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	instance, _ := result.GetInstance()
 	device, _ := result.GetDevice()
 
 	return &LocalStorageUsedCostResult{
+		UID:      uid,
 		Cluster:  cluster,
 		Instance: instance,
 		Device:   device,
@@ -174,6 +194,7 @@ func DecodeLocalStorageUsedCostResult(result *QueryResult) *LocalStorageUsedCost
 }
 
 type LocalStorageUsedAvgResult struct {
+	UID      string
 	Cluster  string
 	Instance string
 	Device   string
@@ -181,11 +202,13 @@ type LocalStorageUsedAvgResult struct {
 }
 
 func DecodeLocalStorageUsedAvgResult(result *QueryResult) *LocalStorageUsedAvgResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	instance, _ := result.GetInstance()
 	device, _ := result.GetDevice()
 
 	return &LocalStorageUsedAvgResult{
+		UID:      uid,
 		Cluster:  cluster,
 		Instance: instance,
 		Device:   device,
@@ -194,6 +217,7 @@ func DecodeLocalStorageUsedAvgResult(result *QueryResult) *LocalStorageUsedAvgRe
 }
 
 type LocalStorageUsedMaxResult struct {
+	UID      string
 	Cluster  string
 	Instance string
 	Device   string
@@ -201,11 +225,13 @@ type LocalStorageUsedMaxResult struct {
 }
 
 func DecodeLocalStorageUsedMaxResult(result *QueryResult) *LocalStorageUsedMaxResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	instance, _ := result.GetInstance()
 	device, _ := result.GetDevice()
 
 	return &LocalStorageUsedMaxResult{
+		UID:      uid,
 		Cluster:  cluster,
 		Instance: instance,
 		Device:   device,
@@ -214,6 +240,7 @@ func DecodeLocalStorageUsedMaxResult(result *QueryResult) *LocalStorageUsedMaxRe
 }
 
 type LocalStorageBytesResult struct {
+	UID      string
 	Cluster  string
 	Instance string
 	Device   string
@@ -221,11 +248,13 @@ type LocalStorageBytesResult struct {
 }
 
 func DecodeLocalStorageBytesResult(result *QueryResult) *LocalStorageBytesResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	instance, _ := result.GetInstance()
 	device, _ := result.GetDevice()
 
 	return &LocalStorageBytesResult{
+		UID:      uid,
 		Cluster:  cluster,
 		Instance: instance,
 		Device:   device,
@@ -234,6 +263,7 @@ func DecodeLocalStorageBytesResult(result *QueryResult) *LocalStorageBytesResult
 }
 
 type NodeActiveMinutesResult struct {
+	UID        string
 	Cluster    string
 	Node       string
 	ProviderID string
@@ -241,11 +271,13 @@ type NodeActiveMinutesResult struct {
 }
 
 func DecodeNodeActiveMinutesResult(result *QueryResult) *NodeActiveMinutesResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	node, _ := result.GetNode()
 	providerId, _ := result.GetProviderID()
 
 	return &NodeActiveMinutesResult{
+		UID:        uid,
 		Cluster:    cluster,
 		Node:       node,
 		ProviderID: providerId,
@@ -254,16 +286,19 @@ func DecodeNodeActiveMinutesResult(result *QueryResult) *NodeActiveMinutesResult
 }
 
 type NodeCPUCoresCapacityResult struct {
+	UID     string
 	Cluster string
 	Node    string
 	Data    []*util.Vector
 }
 
 func DecodeNodeCPUCoresCapacityResult(result *QueryResult) *NodeCPUCoresCapacityResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	node, _ := result.GetNode()
 
 	return &NodeCPUCoresCapacityResult{
+		UID:     uid,
 		Cluster: cluster,
 		Node:    node,
 		Data:    result.Values,
@@ -277,16 +312,19 @@ func DecodeNodeCPUCoresAllocatableResult(result *QueryResult) *NodeCPUCoresAlloc
 }
 
 type NodeRAMBytesCapacityResult struct {
+	UID     string
 	Cluster string
 	Node    string
 	Data    []*util.Vector
 }
 
 func DecodeNodeRAMBytesCapacityResult(result *QueryResult) *NodeRAMBytesCapacityResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	node, _ := result.GetNode()
 
 	return &NodeRAMBytesCapacityResult{
+		UID:     uid,
 		Cluster: cluster,
 		Node:    node,
 		Data:    result.Values,
@@ -300,6 +338,7 @@ func DecodeNodeRAMBytesAllocatableResult(result *QueryResult) *NodeRAMBytesAlloc
 }
 
 type NodeGPUCountResult struct {
+	UID        string
 	Cluster    string
 	Node       string
 	ProviderID string
@@ -308,11 +347,13 @@ type NodeGPUCountResult struct {
 }
 
 func DecodeNodeGPUCountResult(result *QueryResult) *NodeGPUCountResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	node, _ := result.GetNode()
 	providerId, _ := result.GetProviderID()
 
 	return &NodeGPUCountResult{
+		UID:        uid,
 		Cluster:    cluster,
 		Node:       node,
 		ProviderID: providerId,
@@ -321,6 +362,7 @@ func DecodeNodeGPUCountResult(result *QueryResult) *NodeGPUCountResult {
 }
 
 type NodeCPUModeTotalResult struct {
+	UID     string
 	Cluster string
 	Node    string
 	Mode    string
@@ -328,11 +370,13 @@ type NodeCPUModeTotalResult struct {
 }
 
 func DecodeNodeCPUModeTotalResult(result *QueryResult) *NodeCPUModeTotalResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	node, _ := result.GetString(KubernetesNodeLabel)
 	mode, _ := result.GetString(ModeLabel)
 
 	return &NodeCPUModeTotalResult{
+		UID:     uid,
 		Cluster: cluster,
 		Node:    node,
 		Mode:    mode,
@@ -341,6 +385,7 @@ func DecodeNodeCPUModeTotalResult(result *QueryResult) *NodeCPUModeTotalResult {
 }
 
 type NodeIsSpotResult struct {
+	UID        string
 	Cluster    string
 	Node       string
 	ProviderID string
@@ -348,11 +393,13 @@ type NodeIsSpotResult struct {
 }
 
 func DecodeNodeIsSpotResult(result *QueryResult) *NodeIsSpotResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	node, _ := result.GetNode()
 	providerId, _ := result.GetProviderID()
 
 	return &NodeIsSpotResult{
+		UID:        uid,
 		Cluster:    cluster,
 		Node:       node,
 		ProviderID: providerId,
@@ -361,16 +408,19 @@ func DecodeNodeIsSpotResult(result *QueryResult) *NodeIsSpotResult {
 }
 
 type NodeRAMSystemPercentResult struct {
+	UID      string
 	Cluster  string
 	Instance string
 	Data     []*util.Vector
 }
 
 func DecodeNodeRAMSystemPercentResult(result *QueryResult) *NodeRAMSystemPercentResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	instance, _ := result.GetInstance()
 
 	return &NodeRAMSystemPercentResult{
+		UID:      uid,
 		Cluster:  cluster,
 		Instance: instance,
 		Data:     result.Values,
@@ -384,6 +434,7 @@ func DecodeNodeRAMUserPercentResult(result *QueryResult) *NodeRAMUserPercentResu
 }
 
 type LBActiveMinutesResult struct {
+	UID       string
 	Cluster   string
 	Namespace string
 	Service   string
@@ -393,12 +444,14 @@ type LBActiveMinutesResult struct {
 }
 
 func DecodeLBActiveMinutesResult(result *QueryResult) *LBActiveMinutesResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	service, _ := result.GetString(ServiceNameLabel)
 	ingressIp, _ := result.GetString(IngressIPLabel)
 
 	return &LBActiveMinutesResult{
+		UID:       uid,
 		Cluster:   cluster,
 		Namespace: namespace,
 		Service:   service,
@@ -414,16 +467,19 @@ func DecodeLBPricePerHrResult(result *QueryResult) *LBPricePerHrResult {
 }
 
 type ClusterManagementDurationResult struct {
+	UID         string
 	Cluster     string
 	Provisioner string
 	Data        []*util.Vector
 }
 
 func DecodeClusterManagementDurationResult(result *QueryResult) *ClusterManagementDurationResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	provisioner, _ := result.GetString(ProvisionerNameLabel)
 
 	return &ClusterManagementDurationResult{
+		UID:         uid,
 		Cluster:     cluster,
 		Provisioner: provisioner,
 		Data:        result.Values,
@@ -461,6 +517,7 @@ func DecodePodsResult(result *QueryResult) *PodsResult {
 }
 
 type ContainerMetricResult struct {
+	UID       string
 	Cluster   string
 	Node      string
 	Instance  string
@@ -472,6 +529,7 @@ type ContainerMetricResult struct {
 }
 
 func DecodeContainerMetricResult(result *QueryResult) *ContainerMetricResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 
 	node, _ := result.GetNode()
@@ -488,6 +546,7 @@ func DecodeContainerMetricResult(result *QueryResult) *ContainerMetricResult {
 	container, _ := result.GetContainer()
 
 	return &ContainerMetricResult{
+		UID:       uid,
 		Cluster:   cluster,
 		Node:      node,
 		Instance:  instance,
@@ -510,6 +569,12 @@ func DecodeRAMRequestsResult(result *QueryResult) *RAMRequestsResult {
 	return DecodeContainerMetricResult(result)
 }
 
+type RAMLimitsResult = ContainerMetricResult
+
+func DecodeRAMLimitsResult(result *QueryResult) *RAMLimitsResult {
+	return DecodeContainerMetricResult(result)
+}
+
 type RAMUsageAvgResult = ContainerMetricResult
 
 func DecodeRAMUsageAvgResult(result *QueryResult) *RAMUsageAvgResult {
@@ -523,6 +588,7 @@ func DecodeRAMUsageMaxResult(result *QueryResult) *RAMUsageMaxResult {
 }
 
 type NodeRAMPricePerGiBHrResult struct {
+	UID          string
 	Cluster      string
 	Node         string
 	InstanceType string
@@ -531,12 +597,14 @@ type NodeRAMPricePerGiBHrResult struct {
 }
 
 func DecodeNodeRAMPricePerGiBHrResult(result *QueryResult) *NodeRAMPricePerGiBHrResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	node, _ := result.GetNode()
 	instanceType, _ := result.GetInstanceType()
 	providerId, _ := result.GetProviderID()
 
 	return &NodeRAMPricePerGiBHrResult{
+		UID:          uid,
 		Cluster:      cluster,
 		Node:         node,
 		InstanceType: instanceType,
@@ -557,6 +625,12 @@ func DecodeCPURequestsResult(result *QueryResult) *CPURequestsResult {
 	return DecodeContainerMetricResult(result)
 }
 
+type CPULimitsResult = ContainerMetricResult
+
+func DecodeCPULimitsResult(result *QueryResult) *CPULimitsResult {
+	return DecodeContainerMetricResult(result)
+}
+
 type CPUUsageAvgResult = ContainerMetricResult
 
 func DecodeCPUUsageAvgResult(result *QueryResult) *CPUUsageAvgResult {
@@ -570,6 +644,7 @@ func DecodeCPUUsageMaxResult(result *QueryResult) *CPUUsageMaxResult {
 }
 
 type NodeCPUPricePerHrResult struct {
+	UID          string
 	Cluster      string
 	Node         string
 	InstanceType string
@@ -578,12 +653,14 @@ type NodeCPUPricePerHrResult struct {
 }
 
 func DecodeNodeCPUPricePerHrResult(result *QueryResult) *NodeCPUPricePerHrResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	node, _ := result.GetNode()
 	instanceType, _ := result.GetInstanceType()
 	providerId, _ := result.GetProviderID()
 
 	return &NodeCPUPricePerHrResult{
+		UID:          uid,
 		Cluster:      cluster,
 		Node:         node,
 		InstanceType: instanceType,
@@ -600,6 +677,7 @@ func DecodeGPUsRequestedResult(result *QueryResult) *GPUsRequestedResult {
 }
 
 type GPUsAllocatedResult struct {
+	UID       string
 	Cluster   string
 	Namespace string
 	Pod       string
@@ -608,12 +686,14 @@ type GPUsAllocatedResult struct {
 }
 
 func DecodeGPUsAllocatedResult(result *QueryResult) *GPUsAllocatedResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
 	container, _ := result.GetContainer()
 
 	return &GPUsAllocatedResult{
+		UID:       uid,
 		Cluster:   cluster,
 		Namespace: namespace,
 		Pod:       pod,
@@ -623,6 +703,7 @@ func DecodeGPUsAllocatedResult(result *QueryResult) *GPUsAllocatedResult {
 }
 
 type GPUsUsageAvgResult struct {
+	UID       string
 	Cluster   string
 	Namespace string
 	Pod       string
@@ -632,12 +713,14 @@ type GPUsUsageAvgResult struct {
 }
 
 func DecodeGPUsUsageAvgResult(result *QueryResult) *GPUsUsageAvgResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
 	container, _ := result.GetContainer()
 
 	return &GPUsUsageAvgResult{
+		UID:       uid,
 		Cluster:   cluster,
 		Namespace: namespace,
 		Pod:       pod,
@@ -647,6 +730,7 @@ func DecodeGPUsUsageAvgResult(result *QueryResult) *GPUsUsageAvgResult {
 }
 
 type GPUsUsageMaxResult struct {
+	UID       string
 	Cluster   string
 	Namespace string
 	Pod       string
@@ -655,12 +739,14 @@ type GPUsUsageMaxResult struct {
 }
 
 func DecodeGPUsUsageMaxResult(result *QueryResult) *GPUsUsageMaxResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
 	container, _ := result.GetContainer()
 
 	return &GPUsUsageMaxResult{
+		UID:       uid,
 		Cluster:   cluster,
 		Namespace: namespace,
 		Pod:       pod,
@@ -670,6 +756,7 @@ func DecodeGPUsUsageMaxResult(result *QueryResult) *GPUsUsageMaxResult {
 }
 
 type NodeGPUPricePerHrResult struct {
+	UID          string
 	Cluster      string
 	Node         string
 	InstanceType string
@@ -678,12 +765,14 @@ type NodeGPUPricePerHrResult struct {
 }
 
 func DecodeNodeGPUPricePerHrResult(result *QueryResult) *NodeGPUPricePerHrResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	node, _ := result.GetNode()
 	instanceType, _ := result.GetInstanceType()
 	providerId, _ := result.GetProviderID()
 
 	return &NodeGPUPricePerHrResult{
+		UID:          uid,
 		Cluster:      cluster,
 		Node:         node,
 		InstanceType: instanceType,
@@ -693,6 +782,7 @@ func DecodeNodeGPUPricePerHrResult(result *QueryResult) *NodeGPUPricePerHrResult
 }
 
 type GPUInfoResult struct {
+	UID       string
 	Cluster   string
 	Namespace string
 	Pod       string
@@ -704,6 +794,7 @@ type GPUInfoResult struct {
 }
 
 func DecodeGPUInfoResult(result *QueryResult) *GPUInfoResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
@@ -713,6 +804,7 @@ func DecodeGPUInfoResult(result *QueryResult) *GPUInfoResult {
 	uuid, _ := result.GetString(UUIDLabel)
 
 	return &GPUInfoResult{
+		UID:       uid,
 		Cluster:   cluster,
 		Namespace: namespace,
 		Pod:       pod,
@@ -725,6 +817,7 @@ func DecodeGPUInfoResult(result *QueryResult) *GPUInfoResult {
 }
 
 type IsGPUSharedResult struct {
+	UID       string
 	Cluster   string
 	Namespace string
 	Pod       string
@@ -734,6 +827,7 @@ type IsGPUSharedResult struct {
 }
 
 func DecodeIsGPUSharedResult(result *QueryResult) *IsGPUSharedResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
@@ -741,6 +835,7 @@ func DecodeIsGPUSharedResult(result *QueryResult) *IsGPUSharedResult {
 	resource, _ := result.GetString(ResourceLabel)
 
 	return &IsGPUSharedResult{
+		UID:       uid,
 		Cluster:   cluster,
 		Namespace: namespace,
 		Pod:       pod,
@@ -751,6 +846,7 @@ func DecodeIsGPUSharedResult(result *QueryResult) *IsGPUSharedResult {
 }
 
 type PodPVCAllocationResult struct {
+	UID                   string
 	Cluster               string
 	Namespace             string
 	Pod                   string
@@ -760,6 +856,7 @@ type PodPVCAllocationResult struct {
 }
 
 func DecodePodPVCAllocationResult(result *QueryResult) *PodPVCAllocationResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
@@ -767,6 +864,7 @@ func DecodePodPVCAllocationResult(result *QueryResult) *PodPVCAllocationResult {
 	pvc, _ := result.GetString(PVCLabel)
 
 	return &PodPVCAllocationResult{
+		UID:                   uid,
 		Cluster:               cluster,
 		Namespace:             namespace,
 		Pod:                   pod,
@@ -777,6 +875,7 @@ func DecodePodPVCAllocationResult(result *QueryResult) *PodPVCAllocationResult {
 }
 
 type PVCBytesRequestedResult struct {
+	UID                   string
 	Cluster               string
 	Namespace             string
 	PersistentVolumeClaim string
@@ -785,11 +884,13 @@ type PVCBytesRequestedResult struct {
 }
 
 func DecodePVCBytesRequestedResult(result *QueryResult) *PVCBytesRequestedResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pvc, _ := result.GetString(PVCLabel)
 
 	return &PVCBytesRequestedResult{
+		UID:                   uid,
 		Cluster:               cluster,
 		Namespace:             namespace,
 		PersistentVolumeClaim: pvc,
@@ -798,6 +899,7 @@ func DecodePVCBytesRequestedResult(result *QueryResult) *PVCBytesRequestedResult
 }
 
 type PVCInfoResult struct {
+	UID                   string
 	Cluster               string
 	Namespace             string
 	VolumeName            string
@@ -808,6 +910,7 @@ type PVCInfoResult struct {
 }
 
 func DecodePVCInfoResult(result *QueryResult) *PVCInfoResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	volumeName, _ := result.GetString(VolumeNameLabel)
@@ -815,6 +918,7 @@ func DecodePVCInfoResult(result *QueryResult) *PVCInfoResult {
 	storageClass, _ := result.GetString(StorageClassLabel)
 
 	return &PVCInfoResult{
+		UID:                   uid,
 		Cluster:               cluster,
 		Namespace:             namespace,
 		VolumeName:            volumeName,
@@ -825,6 +929,7 @@ func DecodePVCInfoResult(result *QueryResult) *PVCInfoResult {
 }
 
 type PVBytesResult struct {
+	UID              string
 	Cluster          string
 	PersistentVolume string
 
@@ -832,10 +937,12 @@ type PVBytesResult struct {
 }
 
 func DecodePVBytesResult(result *QueryResult) *PVBytesResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	pv, _ := result.GetString(PVLabel)
 
 	return &PVBytesResult{
+		UID:              uid,
 		Cluster:          cluster,
 		PersistentVolume: pv,
 		Data:             result.Values,
@@ -843,6 +950,7 @@ func DecodePVBytesResult(result *QueryResult) *PVBytesResult {
 }
 
 type PVPricePerGiBHourResult struct {
+	UID              string
 	Cluster          string
 	VolumeName       string
 	PersistentVolume string
@@ -852,12 +960,14 @@ type PVPricePerGiBHourResult struct {
 }
 
 func DecodePVPricePerGiBHourResult(result *QueryResult) *PVPricePerGiBHourResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	volumeName, _ := result.GetString(VolumeNameLabel)
 	pv, _ := result.GetString(PVLabel)
 	providerId, _ := result.GetProviderID()
 
 	return &PVPricePerGiBHourResult{
+		UID:              uid,
 		Cluster:          cluster,
 		VolumeName:       volumeName,
 		PersistentVolume: pv,
@@ -868,6 +978,7 @@ func DecodePVPricePerGiBHourResult(result *QueryResult) *PVPricePerGiBHourResult
 }
 
 type PVInfoResult struct {
+	UID              string
 	Cluster          string
 	PersistentVolume string
 	StorageClass     string
@@ -877,12 +988,14 @@ type PVInfoResult struct {
 }
 
 func DecodePVInfoResult(result *QueryResult) *PVInfoResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	storageClass, _ := result.GetString(StorageClassLabel)
 	providerId, _ := result.GetProviderID()
 	pv, _ := result.GetString(PVLabel)
 
 	return &PVInfoResult{
+		UID:              uid,
 		Cluster:          cluster,
 		PersistentVolume: pv,
 		StorageClass:     storageClass,
@@ -893,6 +1006,7 @@ func DecodePVInfoResult(result *QueryResult) *PVInfoResult {
 
 // Base type for network usage results
 type NetworkGiBResult struct {
+	UID       string
 	Cluster   string
 	Namespace string
 	Pod       string
@@ -902,12 +1016,14 @@ type NetworkGiBResult struct {
 }
 
 func DecodeNetworkGiBResult(result *QueryResult) *NetworkGiBResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
 	service, _ := result.GetString(ServiceLabel)
 
 	return &NetworkGiBResult{
+		UID:       uid,
 		Cluster:   cluster,
 		Namespace: namespace,
 		Pod:       pod,
@@ -918,15 +1034,18 @@ func DecodeNetworkGiBResult(result *QueryResult) *NetworkGiBResult {
 
 // Base type for network price results
 type NetworkPricePerGiBResult struct {
+	UID     string
 	Cluster string
 
 	Data []*util.Vector
 }
 
 func DecodeNetworkPricePerGiBResult(result *QueryResult) *NetworkPricePerGiBResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 
 	return &NetworkPricePerGiBResult{
+		UID:     uid,
 		Cluster: cluster,
 		Data:    result.Values,
 	}
@@ -994,6 +1113,7 @@ func DecodeNetInternetServiceIngressGiBResult(result *QueryResult) *NetInternetS
 }
 
 type NetReceiveBytesResult struct {
+	UID       string
 	Cluster   string
 	Namespace string
 	Pod       string
@@ -1002,12 +1122,14 @@ type NetReceiveBytesResult struct {
 }
 
 func DecodeNetReceiveBytesResult(result *QueryResult) *NetReceiveBytesResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
 	container, _ := result.GetContainer()
 
 	return &NetReceiveBytesResult{
+		UID:       uid,
 		Cluster:   cluster,
 		Namespace: namespace,
 		Pod:       pod,
@@ -1017,6 +1139,7 @@ func DecodeNetReceiveBytesResult(result *QueryResult) *NetReceiveBytesResult {
 }
 
 type NetTransferBytesResult struct {
+	UID       string
 	Cluster   string
 	Namespace string
 	Pod       string
@@ -1026,12 +1149,14 @@ type NetTransferBytesResult struct {
 }
 
 func DecodeNetTransferBytesResult(result *QueryResult) *NetTransferBytesResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
 	container, _ := result.GetContainer()
 
 	return &NetTransferBytesResult{
+		UID:       uid,
 		Cluster:   cluster,
 		Namespace: namespace,
 		Pod:       pod,
@@ -1041,6 +1166,7 @@ func DecodeNetTransferBytesResult(result *QueryResult) *NetTransferBytesResult {
 }
 
 type NamespaceAnnotationsResult struct {
+	UID         string
 	Cluster     string
 	Namespace   string
 	Annotations map[string]string
@@ -1049,11 +1175,13 @@ type NamespaceAnnotationsResult struct {
 }
 
 func DecodeNamespaceAnnotationsResult(result *QueryResult) *NamespaceAnnotationsResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	annotations := result.GetAnnotations()
 
 	return &NamespaceAnnotationsResult{
+		UID:         uid,
 		Cluster:     cluster,
 		Namespace:   namespace,
 		Annotations: annotations,
@@ -1062,6 +1190,7 @@ func DecodeNamespaceAnnotationsResult(result *QueryResult) *NamespaceAnnotations
 }
 
 type PodAnnotationsResult struct {
+	UID         string
 	Cluster     string
 	Namespace   string
 	Pod         string
@@ -1071,12 +1200,14 @@ type PodAnnotationsResult struct {
 }
 
 func DecodePodAnnotationsResult(result *QueryResult) *PodAnnotationsResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
 	annotations := result.GetAnnotations()
 
 	return &PodAnnotationsResult{
+		UID:         uid,
 		Cluster:     cluster,
 		Namespace:   namespace,
 		Pod:         pod,
@@ -1086,6 +1217,7 @@ func DecodePodAnnotationsResult(result *QueryResult) *PodAnnotationsResult {
 }
 
 type NodeLabelsResult struct {
+	UID     string
 	Cluster string
 	Node    string
 	Labels  map[string]string
@@ -1093,11 +1225,13 @@ type NodeLabelsResult struct {
 }
 
 func DecodeNodeLabelsResult(result *QueryResult) *NodeLabelsResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	node, _ := result.GetNode()
 	labels := result.GetLabels()
 
 	return &NodeLabelsResult{
+		UID:     uid,
 		Cluster: cluster,
 		Node:    node,
 		Labels:  labels,
@@ -1106,6 +1240,7 @@ func DecodeNodeLabelsResult(result *QueryResult) *NodeLabelsResult {
 }
 
 type NamespaceLabelsResult struct {
+	UID       string
 	Cluster   string
 	Namespace string
 	Labels    map[string]string
@@ -1113,11 +1248,13 @@ type NamespaceLabelsResult struct {
 }
 
 func DecodeNamespaceLabelsResult(result *QueryResult) *NamespaceLabelsResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	labels := result.GetLabels()
 
 	return &NamespaceLabelsResult{
+		UID:       uid,
 		Cluster:   cluster,
 		Namespace: namespace,
 		Labels:    labels,
@@ -1126,6 +1263,7 @@ func DecodeNamespaceLabelsResult(result *QueryResult) *NamespaceLabelsResult {
 }
 
 type PodLabelsResult struct {
+	UID       string
 	Cluster   string
 	Namespace string
 	Pod       string
@@ -1134,12 +1272,14 @@ type PodLabelsResult struct {
 }
 
 func DecodePodLabelsResult(result *QueryResult) *PodLabelsResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
 	labels := result.GetLabels()
 
 	return &PodLabelsResult{
+		UID:       uid,
 		Cluster:   cluster,
 		Namespace: namespace,
 		Pod:       pod,
@@ -1149,6 +1289,7 @@ func DecodePodLabelsResult(result *QueryResult) *PodLabelsResult {
 }
 
 type ServiceLabelsResult struct {
+	UID       string
 	Cluster   string
 	Namespace string
 	Service   string
@@ -1158,12 +1299,14 @@ type ServiceLabelsResult struct {
 }
 
 func DecodeServiceLabelsResult(result *QueryResult) *ServiceLabelsResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	service, _ := result.GetString(ServiceLabel)
 	labels := result.GetLabels()
 
 	return &ServiceLabelsResult{
+		UID:       uid,
 		Cluster:   cluster,
 		Namespace: namespace,
 		Service:   service,
@@ -1173,6 +1316,7 @@ func DecodeServiceLabelsResult(result *QueryResult) *ServiceLabelsResult {
 }
 
 type DeploymentLabelsResult struct {
+	UID        string
 	Cluster    string
 	Namespace  string
 	Deployment string
@@ -1181,12 +1325,14 @@ type DeploymentLabelsResult struct {
 }
 
 func DecodeDeploymentLabelsResult(result *QueryResult) *DeploymentLabelsResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	deployment, _ := result.GetString(DeploymentLabel)
 	labels := result.GetLabels()
 
 	return &DeploymentLabelsResult{
+		UID:        uid,
 		Cluster:    cluster,
 		Namespace:  namespace,
 		Deployment: deployment,
@@ -1196,6 +1342,7 @@ func DecodeDeploymentLabelsResult(result *QueryResult) *DeploymentLabelsResult {
 }
 
 type StatefulSetLabelsResult struct {
+	UID         string
 	Cluster     string
 	Namespace   string
 	StatefulSet string
@@ -1204,12 +1351,14 @@ type StatefulSetLabelsResult struct {
 }
 
 func DecodeStatefulSetLabelsResult(result *QueryResult) *StatefulSetLabelsResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	statefulSet, _ := result.GetString(StatefulSetLabel)
 	labels := result.GetLabels()
 
 	return &StatefulSetLabelsResult{
+		UID:         uid,
 		Cluster:     cluster,
 		Namespace:   namespace,
 		StatefulSet: statefulSet,
@@ -1219,6 +1368,7 @@ func DecodeStatefulSetLabelsResult(result *QueryResult) *StatefulSetLabelsResult
 }
 
 type DaemonSetLabelsResult struct {
+	UID       string
 	Cluster   string
 	Namespace string
 	Pod       string
@@ -1228,6 +1378,7 @@ type DaemonSetLabelsResult struct {
 }
 
 func DecodeDaemonSetLabelsResult(result *QueryResult) *DaemonSetLabelsResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
@@ -1235,6 +1386,7 @@ func DecodeDaemonSetLabelsResult(result *QueryResult) *DaemonSetLabelsResult {
 	labels := result.GetLabels()
 
 	return &DaemonSetLabelsResult{
+		UID:       uid,
 		Cluster:   cluster,
 		Namespace: namespace,
 		Pod:       pod,
@@ -1245,6 +1397,7 @@ func DecodeDaemonSetLabelsResult(result *QueryResult) *DaemonSetLabelsResult {
 }
 
 type JobLabelsResult struct {
+	UID       string
 	Cluster   string
 	Namespace string
 	Pod       string
@@ -1254,6 +1407,7 @@ type JobLabelsResult struct {
 }
 
 func DecodeJobLabelsResult(result *QueryResult) *JobLabelsResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
@@ -1261,6 +1415,7 @@ func DecodeJobLabelsResult(result *QueryResult) *JobLabelsResult {
 	labels := result.GetLabels()
 
 	return &JobLabelsResult{
+		UID:       uid,
 		Cluster:   cluster,
 		Namespace: namespace,
 		Pod:       pod,
@@ -1271,6 +1426,7 @@ func DecodeJobLabelsResult(result *QueryResult) *JobLabelsResult {
 }
 
 type PodsWithReplicaSetOwnerResult struct {
+	UID        string
 	Cluster    string
 	Namespace  string
 	Pod        string
@@ -1280,12 +1436,14 @@ type PodsWithReplicaSetOwnerResult struct {
 }
 
 func DecodePodsWithReplicaSetOwnerResult(result *QueryResult) *PodsWithReplicaSetOwnerResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	replicaSet, _ := result.GetString(OwnerNameLabel)
 	pod, _ := result.GetPod()
 
 	return &PodsWithReplicaSetOwnerResult{
+		UID:        uid,
 		Cluster:    cluster,
 		Namespace:  namespace,
 		Pod:        pod,
@@ -1295,6 +1453,7 @@ func DecodePodsWithReplicaSetOwnerResult(result *QueryResult) *PodsWithReplicaSe
 }
 
 type ReplicaSetsWithoutOwnersResult struct {
+	UID        string
 	Cluster    string
 	Namespace  string
 	ReplicaSet string
@@ -1303,12 +1462,15 @@ type ReplicaSetsWithoutOwnersResult struct {
 }
 
 func DecodeReplicaSetsWithoutOwnersResult(result *QueryResult) *ReplicaSetsWithoutOwnersResult {
+	uid, _ := result.GetString(UIDLabel)
 	return &ReplicaSetsWithoutOwnersResult{
+		UID:  uid,
 		Data: result.Values,
 	}
 }
 
 type ReplicaSetsWithRolloutResult struct {
+	UID        string
 	Cluster    string
 	Namespace  string
 	ReplicaSet string
@@ -1318,6 +1480,7 @@ type ReplicaSetsWithRolloutResult struct {
 }
 
 func DecodeReplicaSetsWithRolloutResult(result *QueryResult) *ReplicaSetsWithRolloutResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	replicaSet, _ := result.GetString(ReplicaSetLabel)
@@ -1325,6 +1488,7 @@ func DecodeReplicaSetsWithRolloutResult(result *QueryResult) *ReplicaSetsWithRol
 	ownerKind, _ := result.GetString(OwnerKindLabel)
 
 	return &ReplicaSetsWithRolloutResult{
+		UID:        uid,
 		Cluster:    cluster,
 		Namespace:  namespace,
 		ReplicaSet: replicaSet,
@@ -1332,6 +1496,128 @@ func DecodeReplicaSetsWithRolloutResult(result *QueryResult) *ReplicaSetsWithRol
 		OwnerKind:  ownerKind,
 		Data:       result.Values,
 	}
+}
+
+type ResourceQuotaMetricResult struct {
+	UID           string
+	Namespace     string
+	ResourceQuota string
+	Resource      string
+	Unit          string
+	Data          []*util.Vector
+}
+
+func DecodeResourceQuotaMetricResult(result *QueryResult) *ResourceQuotaMetricResult {
+	uid, _ := result.GetString(UIDLabel)
+	namespace, _ := result.GetNamespace()
+	resourceQuota, _ := result.GetString(ResourceQuotaLabel)
+	resource, _ := result.GetString(ResourceLabel)
+	unit, _ := result.GetString(UnitLabel)
+
+	return &ResourceQuotaMetricResult{
+		UID:           uid,
+		Namespace:     namespace,
+		ResourceQuota: resourceQuota,
+		Resource:      resource,
+		Unit:          unit,
+		Data:          result.Values,
+	}
+}
+
+type ResourceQuotaSpecCPURequestAvgResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecCPURequestAvgResult(result *QueryResult) *ResourceQuotaSpecCPURequestAvgResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaSpecCPURequestMaxResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecCPURequestMaxResult(result *QueryResult) *ResourceQuotaSpecCPURequestMaxResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaSpecRAMRequestAvgResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecRAMRequestAvgResult(result *QueryResult) *ResourceQuotaSpecRAMRequestAvgResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaSpecRAMRequestMaxResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecRAMRequestMaxResult(result *QueryResult) *ResourceQuotaSpecRAMRequestMaxResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaSpecCPULimitAvgResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecCPULimitAvgResult(result *QueryResult) *ResourceQuotaSpecCPULimitAvgResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaSpecCPULimitMaxResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecCPULimitMaxResult(result *QueryResult) *ResourceQuotaSpecCPULimitMaxResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaSpecRAMLimitAvgResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecRAMLimitAvgResult(result *QueryResult) *ResourceQuotaSpecRAMLimitAvgResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaSpecRAMLimitMaxResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecRAMLimitMaxResult(result *QueryResult) *ResourceQuotaSpecRAMLimitMaxResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedCPURequestAvgResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedCPURequestAvgResult(result *QueryResult) *ResourceQuotaStatusUsedCPURequestAvgResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedCPURequestMaxResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedCPURequestMaxResult(result *QueryResult) *ResourceQuotaStatusUsedCPURequestMaxResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedRAMRequestAvgResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedRAMRequestAvgResult(result *QueryResult) *ResourceQuotaStatusUsedRAMRequestAvgResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedRAMRequestMaxResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedRAMRequestMaxResult(result *QueryResult) *ResourceQuotaStatusUsedRAMRequestMaxResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedCPULimitAvgResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedCPULimitAvgResult(result *QueryResult) *ResourceQuotaStatusUsedCPULimitAvgResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedCPULimitMaxResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedCPULimitMaxResult(result *QueryResult) *ResourceQuotaStatusUsedCPULimitMaxResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedRAMLimitAvgResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedRAMLimitAvgResult(result *QueryResult) *ResourceQuotaStatusUsedRAMLimitAvgResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedRAMLimitMaxResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedRAMLimitMaxResult(result *QueryResult) *ResourceQuotaStatusUsedRAMLimitMaxResult {
+	return DecodeResourceQuotaMetricResult(result)
 }
 
 func DecodeAll[T any](results []*QueryResult, decode ResultDecoder[T]) []*T {

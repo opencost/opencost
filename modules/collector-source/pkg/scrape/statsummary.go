@@ -104,6 +104,7 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 					Labels: map[string]string{
 						source.PVCLabel:       volumeStats.PVCRef.Name,
 						source.NamespaceLabel: volumeStats.PVCRef.Namespace,
+						source.UIDLabel:       podUID,
 					},
 					Value: float64(*volumeStats.UsedBytes),
 				})
@@ -120,6 +121,7 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 							source.NamespaceLabel: namespace,
 							source.NodeLabel:      nodeName,
 							source.InstanceLabel:  nodeName,
+							source.UIDLabel:       podUID,
 						},
 						Value: float64(*container.CPU.UsageCoreNanoSeconds) * 1e-9,
 					})
@@ -133,6 +135,7 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 							source.NamespaceLabel: namespace,
 							source.NodeLabel:      nodeName,
 							source.InstanceLabel:  nodeName,
+							source.UIDLabel:       podUID,
 						},
 						Value: float64(*container.Memory.WorkingSetBytes),
 					})
@@ -144,6 +147,7 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 						Labels: map[string]string{
 							source.InstanceLabel: nodeName,
 							source.DeviceLabel:   "local",
+							source.UIDLabel:      podUID,
 						},
 						Value: float64(*container.Rootfs.UsedBytes),
 					})
