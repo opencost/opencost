@@ -43,11 +43,11 @@ func flatAlgorithm(kms *KubeModelSet, pm PricingModel, out chan map[string]*Cont
 		nodePricing := pm.GetNodePricing(node)
 
 		// O(1)
-		cc.CPUCost = container.Resources[ResourceCPU].Values[stats.Val] * nodePricing[ResourceCPU].Price
-		cc.RAMCost = container.Resources[ResourceMemory].Values[stats.Val] * nodePricing[ResourceMemory].Price
+		cc.CPUCost = float64(container.CPUAllocationMillicoreSeconds) * nodePricing[ResourceCPU].Price
+		cc.RAMCost = float64(container.RAMAllocationByteSeconds) * nodePricing[ResourceMemory].Price
 
 		// O(PVC)
-		for pvcUID, storage := range container.VolumeMounts {
+		for pvcUID, mountedVolume := range container.PVCMounts {
 			// O(1)
 			pvc := kms.PersistentVolumeClaims[pvcUID]
 
@@ -58,7 +58,7 @@ func flatAlgorithm(kms *KubeModelSet, pm PricingModel, out chan map[string]*Cont
 			pvPricing := pm.GetPersistentVolumePricing(pv)
 
 			// O(1)
-			cc.StorageCost += storage.Values[stats.Val] * pvPricing[ResourceStorage].Price
+			cc.StorageCost += float64(mountedVolume.StorageCapacityBytes) * pvPricing[ResourceStorage].Price
 		}
 
 		// O(1)

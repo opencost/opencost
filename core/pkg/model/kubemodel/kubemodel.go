@@ -17,12 +17,12 @@ type KubeModelSet struct {
 	PersistentVolumeClaims map[string]*PersistentVolumeClaim
 	Pods                   map[string]*Pod
 	ResourceQuotas         map[string]*ResourceQuota
-	indexes                *kubeModelSetIndexes
+	Indices                *Indices
 }
 
 func NewKubeModelSet(start, end time.Time) *KubeModelSet {
-	indexes := &kubeModelSetIndexes{
-		namespaceToNamespaceUID: map[string]string{},
+	indices := &Indices{
+		NamespaceNameToUID: map[string]string{},
 	}
 
 	return &KubeModelSet{
@@ -35,7 +35,7 @@ func NewKubeModelSet(start, end time.Time) *KubeModelSet {
 		},
 		Namespaces:     map[string]*Namespace{},
 		ResourceQuotas: map[string]*ResourceQuota{},
-		indexes:        indexes,
+		Indices:        indices,
 	}
 }
 
@@ -51,7 +51,7 @@ func (kms *KubeModelSet) RegisterNamespace(uid, name string) error {
 			Name:       name,
 		}
 
-		kms.indexes.namespaceToNamespaceUID[name] = uid
+		kms.Indices.NamespaceNameToUID[name] = uid
 	}
 
 	return nil
@@ -59,14 +59,14 @@ func (kms *KubeModelSet) RegisterNamespace(uid, name string) error {
 
 func (kms *KubeModelSet) RegisterResourceQuota(uid, name, namespace string) error {
 	if _, ok := kms.ResourceQuotas[uid]; !ok {
-		if _, ok := kms.indexes.namespaceToNamespaceUID[namespace]; !ok {
+		if _, ok := kms.Indices.NamespaceNameToUID[namespace]; !ok {
 			return fmt.Errorf("KubeModelSet missing NamespaceUID for namespace=%s", namespace)
 		}
 
 		kms.ResourceQuotas[uid] = &ResourceQuota{
 			UID:          uid,
 			Name:         name,
-			NamespaceUID: kms.indexes.namespaceToNamespaceUID[namespace],
+			NamespaceUID: kms.Indices.NamespaceNameToUID[namespace],
 			Spec:         &ResourceQuotaSpec{Hard: &ResourceQuotaSpecHard{}},
 			Status:       &ResourceQuotaStatus{Used: &ResourceQuotaStatusUsed{}},
 		}
@@ -93,6 +93,6 @@ type KubeModelSetMetadata struct {
 	Warnings    []string
 }
 
-type kubeModelSetIndexes struct {
-	namespaceToNamespaceUID map[string]string
+type Indices struct {
+	NamespaceNameToUID map[string]string
 }
