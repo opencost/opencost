@@ -10,7 +10,8 @@ type ContainerCosts struct {
 }
 
 // ApplyContainerCosts is a simplified example of a consumer of the
-// KubeModelSet data structure.
+// KubeModelSet data structure, which applies Node and PersistentVolume
+// pricing to container resources to assign container costs.
 func ApplyContainerCosts(kms *KubeModelSet, pm PricingModel, out chan map[string]*ContainerCosts) {
 	// 1. Option that uses the flat structure
 	flatAlgorithm(kms, pm, out)
@@ -93,7 +94,7 @@ func hierarchyAlgorithm(kms *KubeModelSet, pm PricingModel, out chan map[string]
 				cc.RAMCost = container.Resources[ResourceMemory].Values[stats.Val] * nodePricing[ResourceMemory].Price
 
 				// O(PVC) -- going to need to use the same access pattern as the
-				// flat data structure, anyways, unless somehow PVCs / PVs will'
+				// flat data structure, anyways, unless somehow PVCs / PVs will
 				// be nested within Containers (e.g. under VolumeMounts?)
 				for pvcUID, storage := range container.VolumeMounts {
 					// O(1)
