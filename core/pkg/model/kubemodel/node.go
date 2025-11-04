@@ -6,4 +6,7 @@ type Node struct {
 	ClusterUID string
 	Name       string
 	Resources  ResourceQuantities
+
+	// NOTE: Alternate hierarchical structure
+	Pods map[string]*Pod
 }

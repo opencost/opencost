@@ -8,4 +8,8 @@ type Pod struct {
 	OwnerUID                  string
 	PersistentVolumeClaimUIDs []string
 	Name                      string
+
+	// NOTE: Alternate hierarchical structure
+	Containers             map[string]*Container
+	PersistentVolumeClaims map[string]*PersistentVolumeClaim
 }

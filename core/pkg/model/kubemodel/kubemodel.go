@@ -7,15 +7,17 @@ import (
 )
 
 type KubeModelSet struct {
-	Metadata       *KubeModelSetMetadata
-	Window         Window
-	Cluster        *Cluster
-	Containers     map[string]*Container
-	Namespaces     map[string]*Namespace
-	Nodes          map[string]*Node
-	Pods           map[string]*Pod
-	ResourceQuotas map[string]*ResourceQuota
-	indexes        *kubeModelSetIndexes
+	Metadata               *KubeModelSetMetadata
+	Window                 Window
+	Cluster                *Cluster
+	Containers             map[string]*Container
+	Nodes                  map[string]*Node
+	Namespaces             map[string]*Namespace
+	PersistentVolumes      map[string]*PersistentVolume
+	PersistentVolumeClaims map[string]*PersistentVolumeClaim
+	Pods                   map[string]*Pod
+	ResourceQuotas         map[string]*ResourceQuota
+	indexes                *kubeModelSetIndexes
 }
 
 func NewKubeModelSet(start, end time.Time) *KubeModelSet {
