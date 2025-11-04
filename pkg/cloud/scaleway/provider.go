@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,6 +36,26 @@ const (
 	defaultLoadBalancerFallback  = 0.02
 	bytesPerGiB                  = 1024 * 1024 * 1024
 )
+
+var (
+	scalewayLoadBalancerTypeAnnotationKeys = []string{
+		"service.beta.kubernetes.io/scw-loadbalancer-type",
+		"service.beta.kubernetes.io/scw-load-balancer-type",
+		"service.beta.kubernetes.io/scaleway-loadbalancer-type",
+		"service.beta.kubernetes.io/scaleway-load-balancer-type",
+		"k8s.scaleway.com/loadbalancer-type",
+		"k8s.scaleway.com/load-balancer-type",
+		"loadbalancer.scaleway.com/type",
+	}
+	scalewayLoadBalancerZoneAnnotationKeys = []string{
+		"service.beta.kubernetes.io/scw-loadbalancer-zone",
+		"service.beta.kubernetes.io/scw-load-balancer-zone",
+		"k8s.scaleway.com/loadbalancer-zone",
+		"k8s.scaleway.com/load-balancer-zone",
+	}
+)
+
+const scalewayLoadBalancerIDAnnotation = "service.beta.kubernetes.io/scw-loadbalancer-id"
 
 var scalewayHTTPClient = &http.Client{
 	Timeout: 30 * time.Second,
@@ -817,13 +838,14 @@ func (c *Scaleway) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
 
-	preferredClasses := c.detectLoadBalancerClasses()
-	if len(preferredClasses) > 0 {
-		log.Debugf("Scaleway: detected load balancer class annotations %v", preferredClasses)
+	zoneOverrides, defaultClasses := c.loadBalancerOverridePreferences()
+	if len(zoneOverrides) > 0 || len(defaultClasses) > 0 {
+		log.Debugf("Scaleway: load balancer class overrides zone=%v default=%v", zoneOverrides, defaultClasses)
 	}
-	preferredClasses = append(preferredClasses, defaultLoadBalancerNodeClass)
 
-	cost, class, zone := c.findLoadBalancerCost(preferredClasses)
+	defaultClasses = append(defaultClasses, defaultLoadBalancerNodeClass)
+
+	cost, class, zone := c.findLoadBalancerCost(zoneOverrides, defaultClasses)
 	if cost == 0 {
 		log.Debugf("Scaleway: load balancer pricing not found in catalog, using default fallback %.6f", defaultLoadBalancerFallback)
 		cost = defaultLoadBalancerFallback
@@ -836,40 +858,26 @@ func (c *Scaleway) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	}, nil
 }
 
-func (c *Scaleway) findLoadBalancerCost(preferredClasses []string) (float64, string, string) {
+func (c *Scaleway) findLoadBalancerCost(zoneOverrides map[string][]string, defaultClasses []string) (float64, string, string) {
 	if len(c.Pricing) == 0 {
 		return 0, "", ""
 	}
 
-	normalized := make([]string, 0, len(preferredClasses))
-	seen := make(map[string]struct{})
-	for _, class := range preferredClasses {
-		norm := normalizeScalewayLoadBalancerClass(class)
-		if norm == "" {
-			continue
-		}
-		if _, exists := seen[norm]; exists {
-			continue
-		}
-		seen[norm] = struct{}{}
-		normalized = append(normalized, norm)
-	}
-
 	zoneOrder := c.zonePriority("", c.ClusterRegion)
 
-	for _, class := range normalized {
-		for _, zoneKey := range zoneOrder {
-			pricing, ok := c.Pricing[zoneKey]
-			if !ok || pricing == nil {
+	defaultClasses = uniqueStrings(defaultClasses)
+
+	for _, zoneKey := range zoneOrder {
+		candidates := append([]string{}, zoneOverrides[zoneKey]...)
+		candidates = append(candidates, defaultClasses...)
+		candidates = uniqueStrings(candidates)
+
+		for _, class := range candidates {
+			if class == "" {
 				continue
 			}
-			cost, matchedClass := pricing.loadBalancerCost(class)
-			if cost > 0 && strings.EqualFold(matchedClass, class) {
-				zone := pricing.Zone
-				if zone == "" {
-					zone = zoneKey
-				}
-				return cost, matchedClass, zone
+			if cost, matchedClass, resolvedZone := c.lookupLoadBalancerPrice(zoneKey, class); cost > 0 {
+				return cost, matchedClass, resolvedZone
 			}
 		}
 	}
@@ -879,35 +887,18 @@ func (c *Scaleway) findLoadBalancerCost(preferredClasses []string) (float64, str
 	bestZone := ""
 
 	for _, zoneKey := range zoneOrder {
-		zonePricing, ok := c.Pricing[zoneKey]
-		if !ok || zonePricing == nil {
-			continue
-		}
-		cost, matchedClass := zonePricing.loadBalancerCost("")
-		if cost > 0 && cost < min {
+		if cost, matchedClass, zone := c.lookupLoadBalancerPrice(zoneKey, ""); cost > 0 && cost < min {
 			min = cost
 			bestClass = matchedClass
-			zone := zonePricing.Zone
-			if zone == "" {
-				zone = zoneKey
-			}
 			bestZone = zone
 		}
 	}
 
 	if min == math.MaxFloat64 {
-		for zoneKey, zonePricing := range c.Pricing {
-			if zonePricing == nil {
-				continue
-			}
-			cost, matchedClass := zonePricing.loadBalancerCost("")
-			if cost > 0 && cost < min {
+		for zoneKey := range c.Pricing {
+			if cost, matchedClass, zone := c.lookupLoadBalancerPrice(zoneKey, ""); cost > 0 && cost < min {
 				min = cost
 				bestClass = matchedClass
-				zone := zonePricing.Zone
-				if zone == "" {
-					zone = zoneKey
-				}
 				bestZone = zone
 			}
 		}
@@ -920,19 +911,27 @@ func (c *Scaleway) findLoadBalancerCost(preferredClasses []string) (float64, str
 	return min, bestClass, bestZone
 }
 
-func (c *Scaleway) detectLoadBalancerClasses() []string {
-	override := coreenv.Get("SCW_LOAD_BALANCER_CLASS", "")
-	if override == "" {
-		return nil
+func (c *Scaleway) lookupLoadBalancerPrice(zoneKey, class string) (float64, string, string) {
+	pricing, ok := c.Pricing[zoneKey]
+	if !ok || pricing == nil {
+		return 0, "", ""
 	}
 
-	class := normalizeScalewayLoadBalancerClass(override)
-	if class == "" {
-		log.Warnf("Scaleway: unrecognized load balancer class override %q", override)
-		return nil
+	cost, matchedClass := pricing.loadBalancerCost(class)
+	if cost <= 0 {
+		return 0, "", ""
 	}
 
-	return []string{class}
+	if class != "" && !strings.EqualFold(matchedClass, class) {
+		return 0, "", ""
+	}
+
+	zone := pricing.Zone
+	if zone == "" {
+		zone = zoneKey
+	}
+
+	return cost, matchedClass, zone
 }
 
 func normalizeScalewayLoadBalancerClass(value string) string {
@@ -961,6 +960,118 @@ func normalizeScalewayLoadBalancerClass(value string) string {
 	}
 
 	return ""
+}
+
+func (c *Scaleway) loadBalancerOverridePreferences() (map[string][]string, []string) {
+	services := c.Clientset.GetAllServices()
+	if len(services) == 0 {
+		return nil, nil
+	}
+
+	zoneCounts := make(map[string]map[string]int)
+	globalCounts := make(map[string]int)
+
+	for _, svc := range services {
+		if svc == nil || svc.Type != v1.ServiceTypeLoadBalancer {
+			continue
+		}
+		classValue := normalizeScalewayLoadBalancerClass(extractAnnotationValue(svc.Annotations, scalewayLoadBalancerTypeAnnotationKeys))
+		if classValue == "" {
+			continue
+		}
+
+		zoneValue := pricingZoneKey(extractAnnotationValue(svc.Annotations, scalewayLoadBalancerZoneAnnotationKeys))
+		if zoneValue == globalPricingKey {
+			if id, ok := svc.Annotations[scalewayLoadBalancerIDAnnotation]; ok {
+				if parsedZone := parseScalewayZoneFromID(id); parsedZone != "" {
+					zoneValue = pricingZoneKey(parsedZone)
+				}
+			}
+		}
+
+		if zoneValue != globalPricingKey {
+			if _, ok := zoneCounts[zoneValue]; !ok {
+				zoneCounts[zoneValue] = make(map[string]int)
+			}
+			zoneCounts[zoneValue][classValue]++
+		}
+
+		globalCounts[classValue]++
+	}
+
+	if len(globalCounts) == 0 {
+		return nil, nil
+	}
+
+	zoneOverrides := make(map[string][]string, len(zoneCounts))
+	for zoneKey, counts := range zoneCounts {
+		zoneOverrides[zoneKey] = sortClassesByCount(counts)
+	}
+
+	defaultClasses := sortClassesByCount(globalCounts)
+	return zoneOverrides, defaultClasses
+}
+
+func sortClassesByCount(counts map[string]int) []string {
+	if len(counts) == 0 {
+		return nil
+	}
+
+	type entry struct {
+		class string
+		count int
+	}
+
+	entries := make([]entry, 0, len(counts))
+	for class, count := range counts {
+		if count <= 0 {
+			continue
+		}
+		entries = append(entries, entry{class: class, count: count})
+	}
+
+	if len(entries) == 0 {
+		return nil
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].count == entries[j].count {
+			return entries[i].class < entries[j].class
+		}
+		return entries[i].count > entries[j].count
+	})
+
+	result := make([]string, len(entries))
+	for i, entry := range entries {
+		result[i] = entry.class
+	}
+
+	return result
+}
+
+func extractAnnotationValue(annotations map[string]string, keys []string) string {
+	if len(annotations) == 0 {
+		return ""
+	}
+	for _, key := range keys {
+		if value, ok := annotations[key]; ok {
+			return value
+		}
+	}
+	return ""
+}
+
+func parseScalewayZoneFromID(id string) string {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return ""
+	}
+	parts := strings.Split(id, "/")
+	if len(parts) == 0 {
+		return ""
+	}
+	zone := strings.TrimSpace(parts[0])
+	return zone
 }
 
 func (c *Scaleway) NetworkPricing() (*models.Network, error) {
@@ -1072,7 +1183,7 @@ func uniqueStrings(values []string) []string {
 			continue
 		}
 		seen[key] = struct{}{}
-		ordered = append(ordered, key)
+		ordered = append(ordered, strings.ToUpper(strings.TrimSpace(value)))
 	}
 	return ordered
 }

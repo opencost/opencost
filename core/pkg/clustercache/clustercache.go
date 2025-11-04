@@ -64,6 +64,8 @@ type Service struct {
 	UID          types.UID
 	Name         string
 	Namespace    string
+	Labels       map[string]string
+	Annotations  map[string]string
 	SpecSelector map[string]string
 	Type         v1.ServiceType
 	Status       v1.ServiceStatus
@@ -273,6 +275,8 @@ func TransformService(input *v1.Service) *Service {
 		UID:          input.UID,
 		Name:         input.Name,
 		Namespace:    input.Namespace,
+		Labels:       input.Labels,
+		Annotations:  input.Annotations,
 		SpecSelector: input.Spec.Selector,
 		Type:         input.Spec.Type,
 		Status:       input.Status,
