@@ -24,6 +24,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/scaleway/scaleway-sdk-go/scw"
+	v1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -32,6 +33,7 @@ const (
 	globalPricingKey             = "__global__"
 	defaultLoadBalancerNodeClass = "GP-S"
 	defaultLoadBalancerFallback  = 0.02
+	bytesPerGiB                  = 1024 * 1024 * 1024
 )
 
 var scalewayHTTPClient = &http.Client{
@@ -41,7 +43,7 @@ var scalewayHTTPClient = &http.Client{
 type ScalewayPricing struct {
 	Zone                  string
 	NodesInfos            map[string]*ScalewayNode
-	PVCost                float64
+	PVCosts               map[string]float64
 	LoadBalancerNodeCosts map[string]float64
 	LoadBalancerIPCost    float64
 }
@@ -210,9 +212,20 @@ func (c *Scaleway) DownloadPricingData() error {
 				continue
 			}
 
+			classKey := product.blockStorageKey()
+			if classKey == "" {
+				log.Debugf("Scaleway block storage product %s missing storage key", product.SKU)
+				continue
+			}
+
 			zonePricing := ensureScalewayPricingForZone(pricingByZone, zone)
-			if product.prefersOverwritePVCost() || zonePricing.PVCost == 0 {
-				zonePricing.PVCost = price
+			overwrite := product.prefersOverwritePVCost()
+			zonePricing.setPVCost(classKey, price, overwrite)
+			// Keep a default fallback price if we do not already have one
+			if _, hasDefault := zonePricing.PVCosts[globalPricingKey]; !hasDefault {
+				zonePricing.setPVCost(globalPricingKey, price, false)
+			} else if overwrite {
+				zonePricing.setPVCost(globalPricingKey, price, true)
 			}
 		case product.isLoadBalancerNodeProduct():
 			if zone == "" {
@@ -299,6 +312,7 @@ func ensureScalewayPricingForZone(pricing map[string]*ScalewayPricing, zone stri
 		zonePricing = &ScalewayPricing{
 			Zone:                  strings.TrimSpace(zone),
 			NodesInfos:            make(map[string]*ScalewayNode),
+			PVCosts:               make(map[string]float64),
 			LoadBalancerNodeCosts: make(map[string]float64),
 		}
 		pricing[key] = zonePricing
@@ -307,6 +321,9 @@ func ensureScalewayPricingForZone(pricing map[string]*ScalewayPricing, zone stri
 
 	if zonePricing.NodesInfos == nil {
 		zonePricing.NodesInfos = make(map[string]*ScalewayNode)
+	}
+	if zonePricing.PVCosts == nil {
+		zonePricing.PVCosts = make(map[string]float64)
 	}
 	if zonePricing.LoadBalancerNodeCosts == nil {
 		zonePricing.LoadBalancerNodeCosts = make(map[string]float64)
@@ -318,11 +335,20 @@ func ensureScalewayPricingForZone(pricing map[string]*ScalewayPricing, zone stri
 	return zonePricing
 }
 
-func (c *Scaleway) lookupZonePricing(zone, region string) (*ScalewayPricing, string) {
-	if len(c.Pricing) == 0 {
-		return nil, ""
+func (sp *ScalewayPricing) setPVCost(classKey string, price float64, overwrite bool) {
+	if sp == nil || classKey == "" || price <= 0 {
+		return
 	}
+	if sp.PVCosts == nil {
+		sp.PVCosts = make(map[string]float64)
+	}
+	if _, exists := sp.PVCosts[classKey]; exists && !overwrite {
+		return
+	}
+	sp.PVCosts[classKey] = price
+}
 
+func (c *Scaleway) zonePriority(zone, region string) []string {
 	var candidates []string
 
 	if strings.TrimSpace(zone) != "" {
@@ -339,15 +365,12 @@ func (c *Scaleway) lookupZonePricing(zone, region string) (*ScalewayPricing, str
 		candidates = append(candidates, c.zoneKeysWithPrefix(c.ClusterRegion)...)
 	}
 
-	// Fallback to any zone we already know about.
 	for key := range c.Pricing {
 		candidates = append(candidates, key)
 	}
 
-	// Ensure global fallback is last.
-	candidates = append(candidates, globalPricingKey)
-
 	seen := make(map[string]struct{}, len(candidates))
+	ordered := make([]string, 0, len(candidates))
 
 	for _, candidate := range candidates {
 		key := pricingZoneKey(candidate)
@@ -355,13 +378,85 @@ func (c *Scaleway) lookupZonePricing(zone, region string) (*ScalewayPricing, str
 			continue
 		}
 		seen[key] = struct{}{}
+		ordered = append(ordered, key)
+	}
 
-		if pricing, ok := c.Pricing[key]; ok && pricing != nil {
-			return pricing, key
+	return ordered
+}
+
+func (sp *ScalewayPricing) pvRateForClass(candidates []string) (float64, string) {
+	if sp == nil || len(sp.PVCosts) == 0 {
+		return 0, ""
+	}
+
+	seen := make(map[string]struct{})
+	for _, candidate := range candidates {
+		key := strings.ToLower(strings.TrimSpace(candidate))
+		if key == "" {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+
+		if cost, ok := sp.PVCosts[key]; ok && cost > 0 {
+			return cost, key
+		}
+	}
+
+	if cost, ok := sp.PVCosts[globalPricingKey]; ok && cost > 0 {
+		return cost, globalPricingKey
+	}
+
+	min := math.MaxFloat64
+	minKey := ""
+	for key, cost := range sp.PVCosts {
+		if cost > 0 && cost < min {
+			min = cost
+			minKey = key
+		}
+	}
+
+	if min == math.MaxFloat64 {
+		return 0, ""
+	}
+
+	return min, minKey
+}
+
+func (c *Scaleway) lookupZonePricing(zone, region string) (*ScalewayPricing, string) {
+	if len(c.Pricing) == 0 {
+		return nil, ""
+	}
+
+	for _, candidate := range c.zonePriority(zone, region) {
+		if pricing, ok := c.Pricing[candidate]; ok && pricing != nil {
+			return pricing, candidate
 		}
 	}
 
 	return nil, ""
+}
+
+func (c *Scaleway) lookupPVCost(zone, region string, classCandidates []string) (*ScalewayPricing, string, float64, string) {
+	for _, zoneKey := range c.zonePriority(zone, region) {
+		pricing, ok := c.Pricing[zoneKey]
+		if !ok || pricing == nil {
+			continue
+		}
+
+		rate, classKey := pricing.pvRateForClass(classCandidates)
+		if rate > 0 && classKey != "" {
+			actualZone := pricing.Zone
+			if actualZone == "" {
+				actualZone = zoneKey
+			}
+			return pricing, actualZone, rate, classKey
+		}
+	}
+
+	return nil, "", 0, ""
 }
 
 func (c *Scaleway) zoneKeysWithPrefix(prefix string) []string {
@@ -537,6 +632,29 @@ func (p *scalewayProduct) isBlockStorageProduct() bool {
 	}
 }
 
+func (p *scalewayProduct) blockStorageKey() string {
+	if p == nil || p.SKU == "" {
+		return ""
+	}
+
+	sku := strings.Trim(p.SKU, "/")
+	parts := strings.Split(sku, "/")
+	for _, part := range parts {
+		part = strings.ToLower(strings.TrimSpace(part))
+		if strings.HasPrefix(part, "volume") {
+			return part
+		}
+	}
+
+	product := strings.ToLower(strings.TrimSpace(p.Product))
+	if product != "" {
+		product = strings.ReplaceAll(product, " ", "-")
+		return product
+	}
+
+	return ""
+}
+
 func (p *scalewayProduct) prefersOverwritePVCost() bool {
 	if p == nil {
 		return false
@@ -548,7 +666,11 @@ func (p *scalewayProduct) priceValue() float64 {
 	if p == nil || p.Price == nil || p.Price.RetailPrice == nil {
 		return 0
 	}
-	return p.Price.RetailPrice.asFloat64()
+	value := p.Price.RetailPrice.asFloat64()
+	if p.UnitOfMeasure != nil && p.UnitOfMeasure.Size > 0 {
+		return value / float64(p.UnitOfMeasure.Size)
+	}
+	return value
 }
 
 func (rp *scalewayRetailPrice) asFloat64() float64 {
@@ -695,7 +817,13 @@ func (c *Scaleway) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
 
-	cost, class, zone := c.findLoadBalancerCost(defaultLoadBalancerNodeClass)
+	preferredClasses := c.detectLoadBalancerClasses()
+	if len(preferredClasses) > 0 {
+		log.Debugf("Scaleway: detected load balancer class annotations %v", preferredClasses)
+	}
+	preferredClasses = append(preferredClasses, defaultLoadBalancerNodeClass)
+
+	cost, class, zone := c.findLoadBalancerCost(preferredClasses)
 	if cost == 0 {
 		log.Debugf("Scaleway: load balancer pricing not found in catalog, using default fallback %.6f", defaultLoadBalancerFallback)
 		cost = defaultLoadBalancerFallback
@@ -708,18 +836,41 @@ func (c *Scaleway) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	}, nil
 }
 
-func (c *Scaleway) findLoadBalancerCost(preferredClass string) (float64, string, string) {
+func (c *Scaleway) findLoadBalancerCost(preferredClasses []string) (float64, string, string) {
 	if len(c.Pricing) == 0 {
 		return 0, "", ""
 	}
 
-	if pricing, key := c.lookupZonePricing("", c.ClusterRegion); pricing != nil {
-		if cost, class := pricing.loadBalancerCost(preferredClass); cost > 0 {
-			zone := pricing.Zone
-			if zone == "" {
-				zone = key
+	normalized := make([]string, 0, len(preferredClasses))
+	seen := make(map[string]struct{})
+	for _, class := range preferredClasses {
+		norm := normalizeScalewayLoadBalancerClass(class)
+		if norm == "" {
+			continue
+		}
+		if _, exists := seen[norm]; exists {
+			continue
+		}
+		seen[norm] = struct{}{}
+		normalized = append(normalized, norm)
+	}
+
+	zoneOrder := c.zonePriority("", c.ClusterRegion)
+
+	for _, class := range normalized {
+		for _, zoneKey := range zoneOrder {
+			pricing, ok := c.Pricing[zoneKey]
+			if !ok || pricing == nil {
+				continue
 			}
-			return cost, class, zone
+			cost, matchedClass := pricing.loadBalancerCost(class)
+			if cost > 0 && strings.EqualFold(matchedClass, class) {
+				zone := pricing.Zone
+				if zone == "" {
+					zone = zoneKey
+				}
+				return cost, matchedClass, zone
+			}
 		}
 	}
 
@@ -727,19 +878,38 @@ func (c *Scaleway) findLoadBalancerCost(preferredClass string) (float64, string,
 	bestClass := ""
 	bestZone := ""
 
-	for key, zonePricing := range c.Pricing {
-		if zonePricing == nil {
+	for _, zoneKey := range zoneOrder {
+		zonePricing, ok := c.Pricing[zoneKey]
+		if !ok || zonePricing == nil {
 			continue
 		}
-
-		if cost, class := zonePricing.loadBalancerCost(preferredClass); cost > 0 && cost < min {
+		cost, matchedClass := zonePricing.loadBalancerCost("")
+		if cost > 0 && cost < min {
 			min = cost
-			bestClass = class
+			bestClass = matchedClass
 			zone := zonePricing.Zone
 			if zone == "" {
-				zone = key
+				zone = zoneKey
 			}
 			bestZone = zone
+		}
+	}
+
+	if min == math.MaxFloat64 {
+		for zoneKey, zonePricing := range c.Pricing {
+			if zonePricing == nil {
+				continue
+			}
+			cost, matchedClass := zonePricing.loadBalancerCost("")
+			if cost > 0 && cost < min {
+				min = cost
+				bestClass = matchedClass
+				zone := zonePricing.Zone
+				if zone == "" {
+					zone = zoneKey
+				}
+				bestZone = zone
+			}
 		}
 	}
 
@@ -748,6 +918,49 @@ func (c *Scaleway) findLoadBalancerCost(preferredClass string) (float64, string,
 	}
 
 	return min, bestClass, bestZone
+}
+
+func (c *Scaleway) detectLoadBalancerClasses() []string {
+	override := coreenv.Get("SCW_LOAD_BALANCER_CLASS", "")
+	if override == "" {
+		return nil
+	}
+
+	class := normalizeScalewayLoadBalancerClass(override)
+	if class == "" {
+		log.Warnf("Scaleway: unrecognized load balancer class override %q", override)
+		return nil
+	}
+
+	return []string{class}
+}
+
+func normalizeScalewayLoadBalancerClass(value string) string {
+	if value == "" {
+		return ""
+	}
+	v := strings.ToUpper(strings.TrimSpace(value))
+	v = strings.ReplaceAll(v, "_", "-")
+	if strings.HasPrefix(v, "LB-") {
+		v = strings.TrimPrefix(v, "LB-")
+	}
+
+	switch v {
+	case "GP-S", "S", "SMALL", "STARTER":
+		return "GP-S"
+	case "GP-M", "M", "MEDIUM":
+		return "GP-M"
+	case "GP-L", "L", "LARGE":
+		return "GP-L"
+	case "GP-XL", "XL", "EXTRA-LARGE", "EXTRA-L":
+		return "GP-XL"
+	default:
+		if strings.HasPrefix(v, "GP-") {
+			return v
+		}
+	}
+
+	return ""
 }
 
 func (c *Scaleway) NetworkPricing() (*models.Network, error) {
@@ -772,6 +985,96 @@ type scalewayPVKey struct {
 	Name                   string
 	Zone                   string
 	Region                 string
+	SizeBytes              int64
+}
+
+func (key *scalewayPVKey) storageClassCandidates() []string {
+	if key == nil {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	ordered := make([]string, 0)
+
+	add := func(value string) {
+		for _, candidate := range scalewayBlockStorageCandidates(value) {
+			if candidate == "" {
+				continue
+			}
+			if _, exists := seen[candidate]; exists {
+				continue
+			}
+			seen[candidate] = struct{}{}
+			ordered = append(ordered, candidate)
+		}
+	}
+
+	add(key.StorageClassName)
+
+	for paramKey, paramValue := range key.StorageClassParameters {
+		add(paramKey)
+		add(paramValue)
+	}
+
+	return ordered
+}
+
+func scalewayBlockStorageCandidates(identifier string) []string {
+	id := strings.ToLower(strings.TrimSpace(identifier))
+	if id == "" {
+		return nil
+	}
+
+	id = strings.ReplaceAll(id, "_", "-")
+	id = strings.ReplaceAll(id, " ", "-")
+	id = strings.ReplaceAll(id, "/", "-")
+
+	var candidates []string
+
+	if strings.HasPrefix(id, "volume-") {
+		candidates = append(candidates, id)
+	}
+	if strings.Contains(id, "15k") {
+		candidates = append(candidates, "volume-low-latency-15k")
+	}
+	if strings.Contains(id, "5k") {
+		candidates = append(candidates, "volume-low-latency-5k")
+	}
+	if strings.Contains(id, "low-latency-15k") {
+		candidates = append(candidates, "volume-low-latency-15k")
+	}
+	if strings.Contains(id, "low-latency-5k") {
+		candidates = append(candidates, "volume-low-latency-5k")
+	}
+
+	if strings.Contains(id, "bssd") || strings.Contains(id, "balanced-ssd") || strings.Contains(id, "b-ssd") {
+		candidates = append(candidates, "volume-bssd")
+	}
+	if strings.Contains(id, "volume-bssd") {
+		candidates = append(candidates, "volume-bssd")
+	}
+
+	// Fallback candidate to ensure a price is returned if no specific match is found.
+	candidates = append(candidates, globalPricingKey)
+
+	return uniqueStrings(candidates)
+}
+
+func uniqueStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	ordered := make([]string, 0, len(values))
+	for _, value := range values {
+		key := strings.ToLower(strings.TrimSpace(value))
+		if key == "" {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		ordered = append(ordered, key)
+	}
+	return ordered
 }
 
 func (key *scalewayPVKey) ID() string {
@@ -810,6 +1113,11 @@ func (c *Scaleway) GetPVKey(pv *clustercache.PersistentVolume, parameters map[st
 		region = r
 	}
 
+	var sizeBytes int64
+	if qty, ok := pv.Spec.Capacity[v1.ResourceStorage]; ok {
+		sizeBytes = qty.Value()
+	}
+
 	return &scalewayPVKey{
 		Labels:                 pv.Labels,
 		StorageClassName:       pv.Spec.StorageClassName,
@@ -817,6 +1125,7 @@ func (c *Scaleway) GetPVKey(pv *clustercache.PersistentVolume, parameters map[st
 		Name:                   pv.Name,
 		Zone:                   zone,
 		Region:                 region,
+		SizeBytes:              sizeBytes,
 	}
 }
 
@@ -829,36 +1138,46 @@ func (c *Scaleway) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	defer c.DownloadPricingDataLock.RUnlock()
 
 	var zone, region string
+	classCandidates := []string{}
 	if key, ok := pvk.(*scalewayPVKey); ok && key != nil {
 		zone = key.Zone
 		region = key.Region
+		classCandidates = key.storageClassCandidates()
 	} else {
 		zone = pvk.Features()
 	}
 
-	pricing, matchedKey := c.lookupZonePricing(zone, region)
-	if pricing == nil || pricing.PVCost == 0 {
-		log.Debugf("Persistent Volume pricing not found for %s: zone=%q region=%q", pvk.GetStorageClass(), zone, region)
+	_, resolvedZone, ratePerGiBHour, matchedKey := c.lookupPVCost(zone, region, classCandidates)
+	if ratePerGiBHour == 0 {
+		log.Debugf("Scaleway: persistent volume pricing not found for %s: zone=%q region=%q candidates=%v", pvk.GetStorageClass(), zone, region, classCandidates)
 		return &models.PV{}, nil
 	}
 
 	result := &models.PV{
-		Cost:  fmt.Sprintf("%f", pricing.PVCost),
-		Class: pvk.GetStorageClass(),
+		Cost:       fmt.Sprintf("%.6f", ratePerGiBHour),
+		CostPerIO:  "0",
+		Class:      pvk.GetStorageClass(),
+		ProviderID: pvk.ID(),
 	}
 
-	if key, ok := pvk.(*scalewayPVKey); ok && key != nil && len(key.StorageClassParameters) > 0 {
-		result.Parameters = key.StorageClassParameters
-	}
-
-	if matchedKey != "" && matchedKey != globalPricingKey {
-		result.Region = pricing.Zone
-		if result.Region == "" {
-			result.Region = matchedKey
+	if key, ok := pvk.(*scalewayPVKey); ok && key != nil {
+		if len(key.StorageClassParameters) > 0 {
+			result.Parameters = key.StorageClassParameters
+		}
+		if key.SizeBytes > 0 {
+			sizeGiB := (key.SizeBytes + bytesPerGiB - 1) / bytesPerGiB
+			result.Size = strconv.FormatInt(sizeGiB, 10)
 		}
 	}
 
-	log.Debugf("Scaleway: PV pricing resolved class=%s zone=%s region=%s matchedKey=%s cost=%s", result.Class, zone, region, matchedKey, result.Cost)
+	if matchedKey != "" && matchedKey != globalPricingKey {
+		result.Region = resolvedZone
+	}
+	if result.Region == "" {
+		result.Region = resolvedZone
+	}
+
+	log.Debugf("Scaleway: PV pricing resolved class=%s storageKey=%s requestedZone=%s resolvedZone=%s region=%s ratePerGiBHour=%s sizeGiB=%s", result.Class, matchedKey, zone, resolvedZone, region, result.Cost, result.Size)
 
 	return result, nil
 }
