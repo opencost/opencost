@@ -1,7 +1,5 @@
 package kubemodel
 
-import "github.com/opencost/opencost/core/pkg/stats"
-
 type Resource string
 
 const (
@@ -30,19 +28,19 @@ const (
 )
 
 type ResourceQuantity struct {
-	Resource Resource
-	Unit     Unit
-	Values   stats.Stats
+	Resource Resource `json:"resource"` // @bingen:field[version=1]
+	Unit     Unit     `json:"unit"`     // @bingen:field[version=1]
+	Values   Stats    `json:"values"`   // @bingen:field[version=1]
 }
 
 type ResourceQuantities map[Resource]ResourceQuantity
 
-func (rqs ResourceQuantities) Set(resource Resource, unit Unit, statType stats.StatType, value float64) {
+func (rqs ResourceQuantities) Set(resource Resource, unit Unit, statType StatType, value float64) {
 	if _, ok := rqs[resource]; !ok {
 		rqs[resource] = ResourceQuantity{
 			Resource: resource,
 			Unit:     unit,
-			Values:   stats.NewStats(),
+			Values:   NewStats(),
 		}
 	}
 

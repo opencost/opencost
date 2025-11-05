@@ -7,26 +7,21 @@ import (
 )
 
 type KubeModelSet struct {
-	Metadata               *KubeModelSetMetadata
-	Window                 Window
-	Cluster                *Cluster
-	Containers             map[string]*Container
-	Nodes                  map[string]*Node
-	Namespaces             map[string]*Namespace
-	PersistentVolumes      map[string]*PersistentVolume
-	PersistentVolumeClaims map[string]*PersistentVolumeClaim
-	Pods                   map[string]*Pod
-	ResourceQuotas         map[string]*ResourceQuota
-	Indices                *Indices
+	Metadata       *Metadata                 `json:"meta"`           // @bingen:field[version=1]
+	Window         Window                    `json:"window"`         // @bingen:field[version=1]
+	Cluster        *Cluster                  `json:"cluster"`        // @bingen:field[version=1]
+	Namespaces     map[string]*Namespace     `json:"namespaces"`     // @bingen:field[version=1]
+	ResourceQuotas map[string]*ResourceQuota `json:"resourceQuotas"` // @bingen:field[version=1]
+	idx            *index                    // @bingen:field[ignore]
 }
 
 func NewKubeModelSet(start, end time.Time) *KubeModelSet {
-	indices := &Indices{
-		NamespaceNameToUID: map[string]string{},
+	index := &index{
+		namespaceByName: map[string]*Namespace{},
 	}
 
 	return &KubeModelSet{
-		Metadata: &KubeModelSetMetadata{
+		Metadata: &Metadata{
 			CreatedAt: time.Now().UTC(),
 		},
 		Window: Window{
@@ -35,7 +30,7 @@ func NewKubeModelSet(start, end time.Time) *KubeModelSet {
 		},
 		Namespaces:     map[string]*Namespace{},
 		ResourceQuotas: map[string]*ResourceQuota{},
-		Indices:        indices,
+		idx:            index,
 	}
 }
 
@@ -51,7 +46,9 @@ func (kms *KubeModelSet) RegisterNamespace(uid, name string) error {
 			Name:       name,
 		}
 
-		kms.Indices.NamespaceNameToUID[name] = uid
+		kms.idx.namespaceByName[name] = kms.Namespaces[uid]
+
+		kms.Metadata.ObjectCount++
 	}
 
 	return nil
@@ -59,40 +56,28 @@ func (kms *KubeModelSet) RegisterNamespace(uid, name string) error {
 
 func (kms *KubeModelSet) RegisterResourceQuota(uid, name, namespace string) error {
 	if _, ok := kms.ResourceQuotas[uid]; !ok {
-		if _, ok := kms.Indices.NamespaceNameToUID[namespace]; !ok {
-			return fmt.Errorf("KubeModelSet missing NamespaceUID for namespace=%s", namespace)
+		if _, ok := kms.idx.namespaceByName[namespace]; !ok {
+			return fmt.Errorf("KubeModelSet missing namespace '%s'", namespace)
 		}
 
 		kms.ResourceQuotas[uid] = &ResourceQuota{
 			UID:          uid,
 			Name:         name,
-			NamespaceUID: kms.Indices.NamespaceNameToUID[namespace],
+			NamespaceUID: kms.idx.namespaceByName[namespace].UID,
 			Spec:         &ResourceQuotaSpec{Hard: &ResourceQuotaSpecHard{}},
 			Status:       &ResourceQuotaStatus{Used: &ResourceQuotaStatusUsed{}},
 		}
+
+		kms.Metadata.ObjectCount++
 	}
 
 	return nil
 }
 
-// TODO: determine what "IsEmpty()" should mean here
 func (kms *KubeModelSet) IsEmpty() bool {
-	return kms == nil || kms.Cluster == nil
+	return kms == nil || kms.Cluster == nil || kms.Metadata.ObjectCount == 0
 }
 
-// TODO: generate bingen codec
-func (kms *KubeModelSet) MarshalBinary() ([]byte, error) {
-	return nil, errors.New("not implemented")
-}
-
-type KubeModelSetMetadata struct {
-	CreatedAt   time.Time
-	CompletedAt time.Time
-	ObjectCount int
-	Errors      []error
-	Warnings    []string
-}
-
-type Indices struct {
-	NamespaceNameToUID map[string]string
+type index struct {
+	namespaceByName map[string]*Namespace
 }

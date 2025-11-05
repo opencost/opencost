@@ -1,4 +1,4 @@
-package stats
+package kubemodel
 
 import (
 	"errors"
@@ -9,7 +9,6 @@ import (
 type StatType string
 
 const (
-	Val StatType = ""
 	Avg StatType = "avg"
 	Max StatType = "max"
 	Min StatType = "min"
@@ -26,16 +25,6 @@ func NewStats(capacity ...int) Stats {
 	}
 
 	return map[StatType]float64{}
-}
-
-func (s Stats) Value() (float64, bool) {
-	if s == nil {
-		return 0.0, false
-	}
-
-	val, ok := s[Val]
-
-	return val, ok
 }
 
 func (s Stats) Avg() (float64, bool) {

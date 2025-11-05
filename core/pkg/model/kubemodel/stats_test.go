@@ -1,4 +1,4 @@
-package stats
+package kubemodel
 
 import (
 	"errors"
@@ -19,12 +19,6 @@ func TestStats_Sanitize(t *testing.T) {
 		},
 		{
 			Stats{},
-			nil,
-		},
-		{
-			Stats{
-				Val: 1.0,
-			},
 			nil,
 		},
 		{

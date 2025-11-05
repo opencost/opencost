@@ -3,10 +3,10 @@ package kubemodel
 import "time"
 
 type Cluster struct {
-	UID      string
-	Provider Provider
-	Account  string
-	Name     string
-	Start    time.Time
-	End      time.Time
+	UID      string    `json:"uid"`      // @bingen:field[version=1]
+	Provider Provider  `json:"provider"` // @bingen:field[version=1]
+	Account  string    `json:"account"`  // @bingen:field[version=1]
+	Name     string    `json:"name"`     // @bingen:field[version=1]
+	Start    time.Time `json:"start"`    // @bingen:field[version=1]
+	End      time.Time `json:"end"`      // @bingen:field[version=1]
 }
