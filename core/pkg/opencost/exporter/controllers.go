@@ -137,7 +137,7 @@ func NewPipelineExportControllers(clusterId string, store storage.Storage, cm Co
 	}
 
 	// KubeModel sources and exporters
-	kubeModelSource := exporterkubemodel.NewKubeModelComputeSource(cm) // TODO: CREATE AN IMPLEMENTATION OF ComputeSource[kubemodel.KubeModelSet]
+	kubeModelSource := exporterkubemodel.NewKubeModelComputeSource(cm)
 	kubeModelExportControllers := []*export.ComputeExportController[kubemodel.KubeModelSet]{}
 
 	for _, res := range config.KubeModelPipelineResolutions {
