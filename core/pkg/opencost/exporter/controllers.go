@@ -5,9 +5,11 @@ import (
 
 	export "github.com/opencost/opencost/core/pkg/exporter"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/opencost/exporter/allocation"
 	"github.com/opencost/opencost/core/pkg/opencost/exporter/asset"
+	exporterkubemodel "github.com/opencost/opencost/core/pkg/opencost/exporter/kubemodel"
 	"github.com/opencost/opencost/core/pkg/opencost/exporter/networkinsight"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/storage"
@@ -21,6 +23,7 @@ type ComputePipelineSource interface {
 	allocation.AllocationSource
 	asset.AssetSource
 	networkinsight.NetworkInsightSource
+	exporterkubemodel.KubeModelSource
 
 	GetDataSource() source.OpenCostDataSource
 }
@@ -31,6 +34,7 @@ type PipelinesExportConfig struct {
 	AllocationPiplineResolutions      []time.Duration
 	AssetPipelineResolutons           []time.Duration
 	NetworkInsightPipelineResolutions []time.Duration
+	KubeModelPipelineResolutions      []time.Duration
 }
 
 // defaultPipelineExportResolutions returns the default export configuration for the pipeline
@@ -49,6 +53,7 @@ func DefaultPipelinesExportConfig() *PipelinesExportConfig {
 		AllocationPiplineResolutions:      defaultPipelineExportResolutions(),
 		AssetPipelineResolutons:           defaultPipelineExportResolutions(),
 		NetworkInsightPipelineResolutions: defaultPipelineExportResolutions(),
+		KubeModelPipelineResolutions:      defaultPipelineExportResolutions(),
 	}
 }
 
@@ -57,6 +62,7 @@ type PipelineExportControllers struct {
 	AllocationExportController     *export.ComputeExportControllerGroup[opencost.AllocationSet]
 	AssetExportController          *export.ComputeExportControllerGroup[opencost.AssetSet]
 	NetworkInsightExportController *export.ComputeExportControllerGroup[opencost.NetworkInsightSet]
+	KubeModelExportController      *export.ComputeExportControllerGroup[kubemodel.KubeModelSet]
 }
 
 // NewPipelineExportControllers creates a new PipelineExportControllers instance with the given cluster ID, storage implementation, cost model, and configuration.
@@ -131,10 +137,30 @@ func NewPipelineExportControllers(clusterId string, store storage.Storage, cm Co
 		networkInsightExportControllers = append(networkInsightExportControllers, networkInsightController)
 	}
 
+	// KubeModel sources and exporters
+	kubeModelSource := exporterkubemodel.NewKubeModelComputeSource(cm)
+	kubeModelExportControllers := []*export.ComputeExportController[kubemodel.KubeModelSet]{}
+
+	for _, res := range config.KubeModelPipelineResolutions {
+		if res < sourceResolution {
+			log.Warnf("Configured KubeModel pipeline resolution %dm is less than source resolution %dm. Not configuring the exporter for this resolution.", int64(res.Minutes()), int64(sourceResolution.Minutes()))
+			continue
+		}
+
+		kubeModelController, err := NewComputePipelineExportController(clusterId, store, kubeModelSource, res)
+		if err != nil {
+			log.Errorf("Failed to create KubeModel export controller for resolution: %s - %v", timeutil.DurationString(res), err)
+			continue
+		}
+
+		kubeModelExportControllers = append(kubeModelExportControllers, kubeModelController)
+	}
+
 	return &PipelineExportControllers{
 		AllocationExportController:     export.NewComputeExportControllerGroup(allocExportControllers...),
 		AssetExportController:          export.NewComputeExportControllerGroup(assetExportControllers...),
 		NetworkInsightExportController: export.NewComputeExportControllerGroup(networkInsightExportControllers...),
+		KubeModelExportController:      export.NewComputeExportControllerGroup(kubeModelExportControllers...),
 	}
 }
 
@@ -142,10 +168,12 @@ func (pec *PipelineExportControllers) Start(interval time.Duration) {
 	pec.AllocationExportController.Start(interval)
 	pec.AssetExportController.Start(interval)
 	pec.NetworkInsightExportController.Start(interval)
+	pec.KubeModelExportController.Start(interval)
 }
 
 func (pec *PipelineExportControllers) Stop() {
 	pec.AllocationExportController.Stop()
 	pec.AssetExportController.Stop()
 	pec.NetworkInsightExportController.Stop()
+	pec.KubeModelExportController.Stop()
 }

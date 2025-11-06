@@ -9,6 +9,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/diagnostics"
 	"github.com/opencost/opencost/core/pkg/exporter"
 	"github.com/opencost/opencost/core/pkg/exporter/pathing"
+	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/pipelines"
 	"github.com/opencost/opencost/core/pkg/source"
@@ -58,7 +59,13 @@ func NewMockNetworkInsightSource() exporter.ComputeSource[opencost.NetworkInsigh
 	}
 }
 
-type MockDataSource struct {
+func NewMockKubeModelSource() exporter.ComputeSource[kubemodel.KubeModelSet] {
+	return &MockSource[kubemodel.KubeModelSet]{
+		generate: func(start, end time.Time) *kubemodel.KubeModelSet { return opencost.GenerateMockKubeModelSet(start) },
+	}
+}
+
+type MockDataSource struct{
 	resolution time.Duration
 }
 
@@ -81,27 +88,30 @@ func (mds *MockDataSource) BatchDuration() time.Duration                        
 func (mds *MockDataSource) Resolution() time.Duration                                     { return mds.resolution }
 
 type MockPipelineComputeSource struct {
-	allocSource exporter.ComputeSource[opencost.AllocationSet]
-	assetSource exporter.ComputeSource[opencost.AssetSet]
-	netSource   exporter.ComputeSource[opencost.NetworkInsightSet]
-	ds          *MockDataSource
+	allocSource     exporter.ComputeSource[opencost.AllocationSet]
+	assetSource     exporter.ComputeSource[opencost.AssetSet]
+	netSource       exporter.ComputeSource[opencost.NetworkInsightSet]
+	kubeModelSource exporter.ComputeSource[kubemodel.KubeModelSet]
+	ds              *MockDataSource
 }
 
 func NewMockPipelineComputeSource() *MockPipelineComputeSource {
 	return &MockPipelineComputeSource{
-		allocSource: NewMockAllocationSource(),
-		assetSource: NewMockAssetSource(),
-		netSource:   NewMockNetworkInsightSource(),
-		ds:          NewMockDataSource(),
+		allocSource:     NewMockAllocationSource(),
+		assetSource:     NewMockAssetSource(),
+		netSource:       NewMockNetworkInsightSource(),
+		kubeModelSource: NewMockKubeModelSource(),
+		ds:              NewMockDataSource(),
 	}
 }
 
 func NewMockPipelineComputeSourceWith(srcResolution time.Duration) *MockPipelineComputeSource {
 	return &MockPipelineComputeSource{
-		allocSource: NewMockAllocationSource(),
-		assetSource: NewMockAssetSource(),
-		netSource:   NewMockNetworkInsightSource(),
-		ds:          NewMockDataSourceWith(srcResolution),
+		allocSource:     NewMockAllocationSource(),
+		assetSource:     NewMockAssetSource(),
+		netSource:       NewMockNetworkInsightSource(),
+		kubeModelSource: NewMockKubeModelSource(),
+		ds:              NewMockDataSourceWith(srcResolution),
 	}
 }
 
@@ -113,6 +123,9 @@ func (mpcs *MockPipelineComputeSource) ComputeAssets(start, end time.Time) (*ope
 }
 func (mpcs *MockPipelineComputeSource) ComputeNetworkInsights(start, end time.Time) (*opencost.NetworkInsightSet, error) {
 	return mpcs.netSource.Compute(start, end)
+}
+func (mpcs *MockPipelineComputeSource) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeModelSet, error) {
+	return mpcs.kubeModelSource.Compute(start, end)
 }
 func (mpcs *MockPipelineComputeSource) GetDataSource() source.OpenCostDataSource {
 	return mpcs.ds
