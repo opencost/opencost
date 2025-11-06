@@ -6,16 +6,16 @@ import (
 
 // Volume represents a Kubernetes volume
 type Volume struct {
-	ID           string            `json:"id"`
-	ClusterID    string            `json:"clusterId"`
-	Name         string            `json:"name"`
-	Namespace    string            `json:"namespace"`
-	Labels       map[string]string `json:"labels,omitempty"`
-	Annotations  map[string]string `json:"annotations,omitempty"`
-	Start        time.Time         `json:"start"`
-	End          time.Time         `json:"end"`
-	StorageClass string            `json:"storageClass"`
-	Size         uint64            `json:"size"`
-	Cost         float64           `json:"cost"`
-	Diagnostic   *DiagnosticResult `json:"diagnostic,omitempty"`
+	ID           string            `json:"id"`                     // @bingen:field[version=1]
+	ClusterID    string            `json:"clusterId"`              // @bingen:field[version=1]
+	Name         string            `json:"name"`                   // @bingen:field[version=1]
+	Namespace    string            `json:"namespace"`              // @bingen:field[version=1]
+	Labels       map[string]string `json:"labels,omitempty"`       // @bingen:field[version=1]
+	Annotations  map[string]string `json:"annotations,omitempty"`  // @bingen:field[version=1]
+	Start        time.Time         `json:"start"`                  // @bingen:field[version=1]
+	End          time.Time         `json:"end"`                    // @bingen:field[version=1]
+	StorageClass string            `json:"storageClass"`           // @bingen:field[version=1]
+	Size         uint64            `json:"size"`                   // @bingen:field[version=1]
+	Cost         float64           `json:"cost"`                   // @bingen:field[version=1]
+	Diagnostic   *DiagnosticResult `json:"diagnostic,omitempty"`   // @bingen:field[version=1]
 }

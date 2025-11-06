@@ -8,25 +8,25 @@ import (
 // DeviceUsage represents device usage metrics for a container
 type DeviceUsage struct {
 	// Device identification
-	DeviceID   string     `json:"deviceId"`   // References Device.ID
-	DeviceType DeviceType `json:"deviceType"` // Type of device (gpu, tpu, etc.)
+	DeviceID   string     `json:"deviceId"`   // @bingen:field[version=1]
+	DeviceType DeviceType `json:"deviceType"` // @bingen:field[version=1]
 
 	// Time-based accumulation (consistent units across all resources)
-	DeviceSeconds uint64 `json:"deviceSeconds"` // Device allocation time in seconds
+	DeviceSeconds uint64 `json:"deviceSeconds"` // @bingen:field[version=1]
 
 	// Usage metrics (device-agnostic, percentages 0-100)
-	RequestPercent float64 `json:"requestPercent"` // Percentage of device requested
-	UsageAverage   float64 `json:"usageAverage"`   // Average utilization (0-100%)
-	UsageMax       float64 `json:"usageMax"`       // Peak utilization (0-100%)
+	RequestPercent float64 `json:"requestPercent"` // @bingen:field[version=1]
+	UsageAverage   float64 `json:"usageAverage"`   // @bingen:field[version=1]
+	UsageMax       float64 `json:"usageMax"`       // @bingen:field[version=1]
 
 	// Memory metrics (if applicable)
-	MemoryBytes uint64 `json:"memoryBytes,omitempty"` // Device memory used
+	MemoryBytes uint64 `json:"memoryBytes,omitempty"` // @bingen:field[version=1]
 
 	// Device-specific metrics (extensible)
-	Metrics map[string]any `json:"metrics,omitempty"`
+	Metrics map[string]any `json:"metrics,omitempty"` // @bingen:field[version=1]
 
 	// Diagnostics
-	Diagnostic *DiagnosticResult `json:"diagnostic,omitempty"`
+	Diagnostic *DiagnosticResult `json:"diagnostic,omitempty"` // @bingen:field[version=1]
 }
 
 // Validate validates the DeviceUsage fields

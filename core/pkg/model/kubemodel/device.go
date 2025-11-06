@@ -8,36 +8,36 @@ import (
 // Device represents a physical or logical attached device on a node
 type Device struct {
 	// Device identification
-	ID           string     `json:"id"`           // Unique device identifier
-	NodeID       string     `json:"nodeId"`       // Parent node
-	DeviceType   DeviceType `json:"deviceType"`   // Type of device
-	DeviceNumber uint64     `json:"deviceNumber"` // Device index on node (0, 1, 2...)
+	ID           string     `json:"id"`           // @bingen:field[version=1]
+	NodeID       string     `json:"nodeId"`       // @bingen:field[version=1]
+	DeviceType   DeviceType `json:"deviceType"`   // @bingen:field[version=1]
+	DeviceNumber uint64     `json:"deviceNumber"` // @bingen:field[version=1]
 
 	// Hardware identification
-	ModelName string `json:"modelName"`      // e.g., "NVIDIA A100-SXM4-40GB"
-	Vendor    string `json:"vendor"`         // e.g., "NVIDIA", "Google", "Intel"
-	UUID      string `json:"uuid,omitempty"` // Hardware UUID if available
+	ModelName string `json:"modelName"`      // @bingen:field[version=1]
+	Vendor    string `json:"vendor"`         // @bingen:field[version=1]
+	UUID      string `json:"uuid,omitempty"` // @bingen:field[version=1]
 
 	// Sharing configuration
-	IsShared     bool    `json:"isShared"`     // Can be shared by multiple containers
-	SharePercent float64 `json:"sharePercent"` // Allocation percentage (0-100)
+	IsShared     bool    `json:"isShared"`     // @bingen:field[version=1]
+	SharePercent float64 `json:"sharePercent"` // @bingen:field[version=1]
 
 	// Time-based metrics
-	DeviceSeconds uint64 `json:"deviceSeconds"` // Total allocated seconds
+	DeviceSeconds uint64 `json:"deviceSeconds"` // @bingen:field[version=1]
 
 	// Usage metrics (device-agnostic)
-	RequestAverage float64 `json:"requestAverage"` // Average request utilization %
-	UsageAverage   float64 `json:"usageAverage"`   // Average actual utilization %
-	UsageMax       float64 `json:"usageMax"`       // Peak utilization %
+	RequestAverage float64 `json:"requestAverage"` // @bingen:field[version=1]
+	UsageAverage   float64 `json:"usageAverage"`   // @bingen:field[version=1]
+	UsageMax       float64 `json:"usageMax"`       // @bingen:field[version=1]
 
 	// Memory
-	MemoryBytes uint64 `json:"memoryBytes,omitempty"` // Total device memory in bytes
+	MemoryBytes uint64 `json:"memoryBytes,omitempty"` // @bingen:field[version=1]
 
 	// Device-specific attributes (extensible)
-	Attributes map[string]any `json:"attributes,omitempty"`
+	Attributes map[string]any `json:"attributes,omitempty"` // @bingen:field[version=1]
 
 	// Diagnostics
-	Diagnostic *DiagnosticResult `json:"diagnostic,omitempty"`
+	Diagnostic *DiagnosticResult `json:"diagnostic,omitempty"` // @bingen:field[version=1]
 }
 
 // Validate validates the Device fields
