@@ -11,7 +11,7 @@ type KubeModelSet struct {
 	Cluster                *Cluster
 	Containers             map[string]*Container
 	Controllers            map[string]*Controller
-	GpuDevices             map[string]*GPUDevice
+	Devices                map[string]*Device
 	Namespaces             map[string]*Namespace
 	Nodes                  map[string]*Node
 	Pods                   map[string]*Pod
@@ -33,7 +33,7 @@ func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
 		},
 		Containers:             map[string]*Container{},
 		Controllers:            map[string]*Controller{},
-		GpuDevices:             map[string]*GPUDevice{},
+		Devices:                map[string]*Device{},
 		Namespaces:             map[string]*Namespace{},
 		Nodes:                  map[string]*Node{},
 		Pods:                   map[string]*Pod{},
@@ -107,7 +107,7 @@ func (kms *KubeModelSet) IsEmpty() bool {
 	// Check if all resource maps are empty
 	return len(kms.Containers) == 0 &&
 		len(kms.Controllers) == 0 &&
-		len(kms.GpuDevices) == 0 &&
+		len(kms.Devices) == 0 &&
 		len(kms.Namespaces) == 0 &&
 		len(kms.Nodes) == 0 &&
 		len(kms.Pods) == 0 &&
@@ -125,8 +125,7 @@ func (kms *KubeModelSet) MarshalBinary() ([]byte, error) {
 type KubeModelSetMetadata struct {
 	CreatedAt   time.Time
 	ObjectCount int
-	Errors      []error
-	Warnings    []string
+	Diagnostics []*DiagnosticResult
 }
 
 type kubeModelSetIndexes struct {
