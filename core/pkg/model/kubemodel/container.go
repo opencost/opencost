@@ -22,6 +22,7 @@ type Container struct {
 	StorageBytesRequestAverage uint64                  `json:"storageBytesRequestAverage"`
 	StorageBytesUsageAverage   uint64                  `json:"storageBytesUsageAverage"`
 	StorageBytesUsageMax       uint64                  `json:"storageBytesUsageMax"`
+	Volumes                    map[string]*Volume      `json:"volumes,omitempty"`
 	Devices                    map[string]*DeviceUsage `json:"devices,omitempty"`
 	Diagnostic                 *DiagnosticResult       `json:"diagnostic,omitempty"`
 }
