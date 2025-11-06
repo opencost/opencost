@@ -379,6 +379,7 @@ type PrometheusClientConfig struct {
 	QueryLogFile          string
 	HeaderXScopeOrgId     string
 	RootCAs               *x509.CertPool
+	ClientCertificates    []tls.Certificate
 }
 
 // NewPrometheusClient creates a new rate limited client which limits by outbound concurrent requests.
@@ -395,6 +396,7 @@ func NewPrometheusClient(address string, config *PrometheusClientConfig) (promet
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: config.TLSInsecureSkipVerify,
 			RootCAs:            config.RootCAs,
+			Certificates:       config.ClientCertificates,
 			MinVersion:         tls.VersionTLS12,
 		},
 	})
