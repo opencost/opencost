@@ -12,8 +12,8 @@ type Volume struct {
 	Namespace    string            `json:"namespace"`
 	Labels       map[string]string `json:"labels,omitempty"`
 	Annotations  map[string]string `json:"annotations,omitempty"`
-	CreationTime *time.Time        `json:"creationTime,omitempty"`
-	DeletionTime *time.Time        `json:"deletionTime,omitempty"`
+	Start        time.Time         `json:"start"`
+	End          time.Time         `json:"end"`
 	StorageClass string            `json:"storageClass"`
 	Size         uint64            `json:"size"`
 	Cost         float64           `json:"cost"`

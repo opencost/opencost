@@ -6,20 +6,10 @@ import (
 )
 
 type KubeModelSet struct {
-	Metadata               *KubeModelSetMetadata
-	Window                 Window
-	Cluster                *Cluster
-	Containers             map[string]*Container
-	Controllers            map[string]*Controller
-	Devices                map[string]*Device
-	Namespaces             map[string]*Namespace
-	Nodes                  map[string]*Node
-	Pods                   map[string]*Pod
-	PersistentVolumeClaims map[string]*PersistentVolumeClaim
-	ResourceQuotas         map[string]*ResourceQuota
-	Services               map[string]*Service
-	Volumes                map[string]*Volume
-	idx                    *kubeModelSetIndexes
+	Metadata *KubeModelSetMetadata
+	Window   Window
+	Cluster  *Cluster
+	idx      *kubeModelSetIndexes
 }
 
 func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
@@ -31,38 +21,42 @@ func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
 			Start: start,
 			End:   end,
 		},
-		Containers:             map[string]*Container{},
-		Controllers:            map[string]*Controller{},
-		Devices:                map[string]*Device{},
-		Namespaces:             map[string]*Namespace{},
-		Nodes:                  map[string]*Node{},
-		Pods:                   map[string]*Pod{},
-		PersistentVolumeClaims: map[string]*PersistentVolumeClaim{},
-		ResourceQuotas:         map[string]*ResourceQuota{},
-		Services:               map[string]*Service{},
-		Volumes:                map[string]*Volume{},
 		idx: &kubeModelSetIndexes{
-			namespaceNameToID: map[string]string{},
+			namespaceNameToID:  map[string]string{},
+			nodeNameToID:       map[string]string{},
+			controllerNameToID: map[string]string{},
+			podNameToID:        map[string]string{},
+			serviceNameToID:    map[string]string{},
+			pvcNameToID:        map[string]string{},
 		},
 	}
 }
 
+// RegisterNamespace registers a namespace in the cluster
 func (kms *KubeModelSet) RegisterNamespace(id string, name string) error {
-	if _, ok := kms.Namespaces[id]; !ok {
-		if kms.Cluster == nil {
-			return errors.New("KubeModelSet missing Cluster")
-		}
+	if kms.Cluster == nil {
+		return errors.New("KubeModelSet missing Cluster")
+	}
 
-		kms.Namespaces[id] = &Namespace{
-			ID:        id,
-			ClusterID: kms.Cluster.ID,
-			Name:      name,
+	if kms.Cluster.Namespaces == nil {
+		kms.Cluster.Namespaces = map[string]*Namespace{}
+	}
+
+	if _, ok := kms.Cluster.Namespaces[id]; !ok {
+		kms.Cluster.Namespaces[id] = &Namespace{
+			ID:             id,
+			ClusterID:      kms.Cluster.ID,
+			Name:           name,
+			Controllers:    map[string]*Controller{},
+			ResourceQuotas: map[string]*ResourceQuota{},
 		}
 
 		// Index namespace name-to-ID for fast lookup
 		if name != "" {
 			kms.idx.namespaceNameToID[name] = id
 		}
+
+		kms.Metadata.ObjectCount++
 	}
 
 	return nil
@@ -70,7 +64,7 @@ func (kms *KubeModelSet) RegisterNamespace(id string, name string) error {
 
 // GetNamespaceByName retrieves a namespace by its name using the index
 func (kms *KubeModelSet) GetNamespaceByName(name string) (*Namespace, bool) {
-	if kms.idx == nil {
+	if kms.idx == nil || kms.Cluster == nil {
 		return nil, false
 	}
 
@@ -79,23 +73,53 @@ func (kms *KubeModelSet) GetNamespaceByName(name string) (*Namespace, bool) {
 		return nil, false
 	}
 
-	ns, ok := kms.Namespaces[id]
+	ns, ok := kms.Cluster.Namespaces[id]
 	return ns, ok
 }
 
-func (kms *KubeModelSet) RegisterResourceQuota(uid string, namespaceUID string) error {
-	if _, ok := kms.ResourceQuotas[uid]; !ok {
-		if kms.Cluster == nil {
-			return errors.New("KubeModelSet missing Cluster")
+// RegisterNode registers a node in the cluster
+func (kms *KubeModelSet) RegisterNode(id string, name string) error {
+	if kms.Cluster == nil {
+		return errors.New("KubeModelSet missing Cluster")
+	}
+
+	if kms.Cluster.Nodes == nil {
+		kms.Cluster.Nodes = map[string]*Node{}
+	}
+
+	if _, ok := kms.Cluster.Nodes[id]; !ok {
+		kms.Cluster.Nodes[id] = &Node{
+			ID:               id,
+			ClusterID:        kms.Cluster.ID,
+			Name:             name,
+			Pods:             map[string]*Pod{},
+			EphemeralVolumes: map[string]*Volume{},
 		}
 
-		kms.ResourceQuotas[uid] = &ResourceQuota{
-			UID:          uid,
-			NamespaceUID: namespaceUID,
+		// Index node name-to-ID for fast lookup
+		if name != "" {
+			kms.idx.nodeNameToID[name] = id
 		}
+
+		kms.Metadata.ObjectCount++
 	}
 
 	return nil
+}
+
+// GetNodeByName retrieves a node by its name using the index
+func (kms *KubeModelSet) GetNodeByName(name string) (*Node, bool) {
+	if kms.idx == nil || kms.Cluster == nil {
+		return nil, false
+	}
+
+	id, ok := kms.idx.nodeNameToID[name]
+	if !ok {
+		return nil, false
+	}
+
+	node, ok := kms.Cluster.Nodes[id]
+	return node, ok
 }
 
 // IsEmpty returns true if the KubeModelSet is nil, has no cluster, or contains no resources
@@ -104,17 +128,11 @@ func (kms *KubeModelSet) IsEmpty() bool {
 		return true
 	}
 
-	// Check if all resource maps are empty
-	return len(kms.Containers) == 0 &&
-		len(kms.Controllers) == 0 &&
-		len(kms.Devices) == 0 &&
-		len(kms.Namespaces) == 0 &&
-		len(kms.Nodes) == 0 &&
-		len(kms.Pods) == 0 &&
-		len(kms.PersistentVolumeClaims) == 0 &&
-		len(kms.ResourceQuotas) == 0 &&
-		len(kms.Services) == 0 &&
-		len(kms.Volumes) == 0
+	// Check if all resource maps at cluster level are empty
+	return len(kms.Cluster.Nodes) == 0 &&
+		len(kms.Cluster.Namespaces) == 0 &&
+		len(kms.Cluster.PersistentVolumes) == 0 &&
+		len(kms.Cluster.LoadBalancers) == 0
 }
 
 // TODO: generate bingen codec
@@ -124,10 +142,16 @@ func (kms *KubeModelSet) MarshalBinary() ([]byte, error) {
 
 type KubeModelSetMetadata struct {
 	CreatedAt   time.Time
+	CompletedAt time.Time
 	ObjectCount int
 	Diagnostics []*DiagnosticResult
 }
 
 type kubeModelSetIndexes struct {
-	namespaceNameToID map[string]string
+	namespaceNameToID  map[string]string
+	nodeNameToID       map[string]string
+	controllerNameToID map[string]string // keyed by namespace/name
+	podNameToID        map[string]string // keyed by namespace/name
+	serviceNameToID    map[string]string // keyed by namespace/name
+	pvcNameToID        map[string]string // keyed by namespace/name
 }

@@ -18,13 +18,13 @@ const (
 
 // Controller represents a Kubernetes workload controller
 type Controller struct {
-	ID           string            `json:"id"`
-	NamespaceID  string            `json:"namespaceId"`
-	Name         string            `json:"name"`
-	Kind         ControllerKind    `json:"kind"`
-	Labels       map[string]string `json:"labels,omitempty"`
-	Annotations  map[string]string `json:"annotations,omitempty"`
-	CreationTime *time.Time        `json:"creationTime,omitempty"`
-	DeletionTime *time.Time        `json:"deletionTime,omitempty"`
-	Diagnostic   *DiagnosticResult `json:"diagnostic,omitempty"`
+	ID          string            `json:"id"`
+	NamespaceID string            `json:"namespaceId"`
+	Name        string            `json:"name"`
+	Kind        ControllerKind    `json:"kind"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+	Start       time.Time         `json:"start"`
+	End         time.Time         `json:"end"`
+	Diagnostic  *DiagnosticResult `json:"diagnostic,omitempty"`
 }
