@@ -1,5 +1,6 @@
 package kubemodel
 
+// @bingen:generate:Provider
 type Provider string
 
 const (

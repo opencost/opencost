@@ -63,11 +63,6 @@ func NewBingenStoragePathFormatter(rootDir, clusterId, pipeline, resolution stri
 	}, nil
 }
 
-// RootDir returns the root directory of the storage path formatter.
-func (bsf *BingenStoragePathFormatter) RootDir() string {
-	return bsf.rootDir
-}
-
 // Dir returns the director that files will be placed in
 func (bsf *BingenStoragePathFormatter) Dir() string {
 	return path.Join(

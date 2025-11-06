@@ -23,22 +23,22 @@ func TestStats_Sanitize(t *testing.T) {
 		},
 		{
 			Stats{
-				Avg: 0.1,
-				Max: 1.0,
+				StatAvg: 0.1,
+				StatMax: 1.0,
 			},
 			nil,
 		},
 		{
 			Stats{
-				Avg: math.Inf(0),
-				Max: 1.0,
+				StatAvg: math.Inf(0),
+				StatMax: 1.0,
 			},
 			errors.New("1 errors: [avg is Inf]"),
 		},
 		{
 			Stats{
-				Avg: math.Inf(0),
-				Max: math.NaN(),
+				StatAvg: math.Inf(0),
+				StatMax: math.NaN(),
 			},
 			errors.New("2 errors: [avg is Inf] [max is NaN]"),
 		},

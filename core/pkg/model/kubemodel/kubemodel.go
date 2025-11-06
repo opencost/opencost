@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// @bingen:generate[stringtable]:KubeModelSet
 type KubeModelSet struct {
 	Metadata       *Metadata                 `json:"meta"`           // @bingen:field[version=1]
 	Window         Window                    `json:"window"`         // @bingen:field[version=1]

@@ -20,25 +20,4 @@ package kubemodel
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-// Kubemodel Version Set: Includes Kubemodel pipeline specific resources
-// @bingen:set[name=KubeModel,version=1]
-// @bingen:generate[stringtable]:KubeModelSet
-// @bingen:generate:Cluster
-// @bingen:generate:Metadata
-// @bingen:generate:Namespace
-// @bingen:generate:Provider
-// @bingen:generate:Resource
-// @bingen:generate:ResourceQuantity
-// @bingen:generate:ResourceQuantities
-// @bingen:generate:ResourceQuota
-// @bingen:generate:ResourceQuotaSpec
-// @bingen:generate:ResourceQuotaSpecHard
-// @bingen:generate:ResourceQuotaStatus
-// @bingen:generate:ResourceQuotaStatusUsed
-// @bingen:generate:Stats
-// @bingen:generate:StatType
-// @bingen:generate:Unit
-// @bingen:generate:Window
-// @bingen:end
-
 //go:generate bingen -package=kubemodel -version=1 -buffer=github.com/opencost/opencost/core/pkg/util

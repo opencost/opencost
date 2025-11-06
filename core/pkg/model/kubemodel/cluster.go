@@ -2,6 +2,7 @@ package kubemodel
 
 import "time"
 
+// @bingen:generate:Cluster
 type Cluster struct {
 	UID      string    `json:"uid"`      // @bingen:field[version=1]
 	Provider Provider  `json:"provider"` // @bingen:field[version=1]

@@ -1,8 +1,10 @@
 package kubemodel
 
-import "time"
+import (
+	"time"
+)
 
-// TODO can bingen support marshaling type `error`?
+// @bingen:generate:Metadata
 type Metadata struct {
 	CreatedAt   time.Time `json:"createdAt"`   // @bingen:field[version=1]
 	CompletedAt time.Time `json:"completedAt"` // @bingen:field[version=1]

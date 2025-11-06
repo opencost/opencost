@@ -6,16 +6,18 @@ import (
 	"math"
 )
 
+// @bingen:generate:StatType
 type StatType string
 
 const (
-	Avg StatType = "avg"
-	Max StatType = "max"
-	Min StatType = "min"
-	P95 StatType = "p95"
-	P85 StatType = "p85"
+	StatAvg StatType = "avg"
+	StatMax StatType = "max"
+	StatMin StatType = "min"
+	StatP95 StatType = "p95"
+	StatP85 StatType = "p85"
 )
 
+// @bingen:generate:Stats
 type Stats map[StatType]float64
 
 func NewStats(capacity ...int) Stats {
@@ -32,7 +34,7 @@ func (s Stats) Avg() (float64, bool) {
 		return 0.0, false
 	}
 
-	val, ok := s[Avg]
+	val, ok := s[StatAvg]
 
 	return val, ok
 }
@@ -42,7 +44,7 @@ func (s Stats) Max() (float64, bool) {
 		return 0.0, false
 	}
 
-	val, ok := s[Max]
+	val, ok := s[StatMax]
 
 	return val, ok
 }
@@ -52,7 +54,7 @@ func (s Stats) Min() (float64, bool) {
 		return 0.0, false
 	}
 
-	val, ok := s[Min]
+	val, ok := s[StatMin]
 
 	return val, ok
 }
@@ -62,7 +64,7 @@ func (s Stats) P95() (float64, bool) {
 		return 0.0, false
 	}
 
-	val, ok := s[P95]
+	val, ok := s[StatP95]
 
 	return val, ok
 }
@@ -72,7 +74,7 @@ func (s Stats) P85() (float64, bool) {
 		return 0.0, false
 	}
 
-	val, ok := s[P85]
+	val, ok := s[StatP85]
 
 	return val, ok
 }

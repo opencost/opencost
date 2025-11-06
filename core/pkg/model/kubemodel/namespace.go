@@ -2,6 +2,7 @@ package kubemodel
 
 import "time"
 
+// @bingen:generate:Namespace
 type Namespace struct {
 	UID         string            `json:"uid"`         // @bingen:field[version=1]
 	ClusterUID  string            `json:"clusterUID"`  // @bingen:field[version=1]

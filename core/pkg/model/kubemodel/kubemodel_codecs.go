@@ -33,8 +33,8 @@ const (
 )
 
 const (
-	// KubeModelCodecVersion is used for any resources listed in the KubeModel version set
-	KubeModelCodecVersion uint8 = 1
+	// DefaultCodecVersion is used for any resources listed in the Default version set
+	DefaultCodecVersion uint8 = 1
 )
 
 //--------------------------------------------------------------------------
@@ -270,7 +270,7 @@ func (target *Cluster) MarshalBinaryWithContext(ctx *EncodingContext) (err error
 	}()
 
 	buff := ctx.Buffer
-	buff.WriteUInt8(KubeModelCodecVersion) // version
+	buff.WriteUInt8(DefaultCodecVersion) // version
 
 	if ctx.IsStringTable() {
 		a := ctx.Table.AddOrGet(target.UID)
@@ -370,8 +370,8 @@ func (target *Cluster) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 	buff := ctx.Buffer
 	version := buff.ReadUInt8()
 
-	if version > KubeModelCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling Cluster. Expected %d or less, got %d", KubeModelCodecVersion, version)
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling Cluster. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
 	// field version check
@@ -517,7 +517,7 @@ func (target *KubeModelSet) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 	}()
 
 	buff := ctx.Buffer
-	buff.WriteUInt8(KubeModelCodecVersion) // version
+	buff.WriteUInt8(DefaultCodecVersion) // version
 
 	if target.Metadata == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
@@ -672,8 +672,8 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 	buff := ctx.Buffer
 	version := buff.ReadUInt8()
 
-	if version > KubeModelCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling KubeModelSet. Expected %d or less, got %d", KubeModelCodecVersion, version)
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling KubeModelSet. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
 	// field version check
@@ -866,7 +866,7 @@ func (target *Metadata) MarshalBinaryWithContext(ctx *EncodingContext) (err erro
 	}()
 
 	buff := ctx.Buffer
-	buff.WriteUInt8(KubeModelCodecVersion) // version
+	buff.WriteUInt8(DefaultCodecVersion) // version
 
 	// --- [begin][write][reference](time.Time) ---
 	a, errA := target.CreatedAt.MarshalBinary()
@@ -976,8 +976,8 @@ func (target *Metadata) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 	buff := ctx.Buffer
 	version := buff.ReadUInt8()
 
-	if version > KubeModelCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling Metadata. Expected %d or less, got %d", KubeModelCodecVersion, version)
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling Metadata. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
 	// field version check
@@ -1124,7 +1124,7 @@ func (target *Namespace) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 	}()
 
 	buff := ctx.Buffer
-	buff.WriteUInt8(KubeModelCodecVersion) // version
+	buff.WriteUInt8(DefaultCodecVersion) // version
 
 	if ctx.IsStringTable() {
 		a := ctx.Table.AddOrGet(target.UID)
@@ -1263,8 +1263,8 @@ func (target *Namespace) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 	buff := ctx.Buffer
 	version := buff.ReadUInt8()
 
-	if version > KubeModelCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling Namespace. Expected %d or less, got %d", KubeModelCodecVersion, version)
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling Namespace. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
 	// field version check
@@ -1472,7 +1472,7 @@ func (target *ResourceQuantity) MarshalBinaryWithContext(ctx *EncodingContext) (
 	}()
 
 	buff := ctx.Buffer
-	buff.WriteUInt8(KubeModelCodecVersion) // version
+	buff.WriteUInt8(DefaultCodecVersion) // version
 
 	// --- [begin][write][alias](Resource) ---
 	if ctx.IsStringTable() {
@@ -1570,8 +1570,8 @@ func (target *ResourceQuantity) UnmarshalBinaryWithContext(ctx *DecodingContext)
 	buff := ctx.Buffer
 	version := buff.ReadUInt8()
 
-	if version > KubeModelCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling ResourceQuantity. Expected %d or less, got %d", KubeModelCodecVersion, version)
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling ResourceQuantity. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
 	// field version check
@@ -1697,7 +1697,7 @@ func (target *ResourceQuota) MarshalBinaryWithContext(ctx *EncodingContext) (err
 	}()
 
 	buff := ctx.Buffer
-	buff.WriteUInt8(KubeModelCodecVersion) // version
+	buff.WriteUInt8(DefaultCodecVersion) // version
 
 	if ctx.IsStringTable() {
 		a := ctx.Table.AddOrGet(target.UID)
@@ -1798,8 +1798,8 @@ func (target *ResourceQuota) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	buff := ctx.Buffer
 	version := buff.ReadUInt8()
 
-	if version > KubeModelCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling ResourceQuota. Expected %d or less, got %d", KubeModelCodecVersion, version)
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling ResourceQuota. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
 	// field version check
@@ -1933,7 +1933,7 @@ func (target *ResourceQuotaSpec) MarshalBinaryWithContext(ctx *EncodingContext) 
 	}()
 
 	buff := ctx.Buffer
-	buff.WriteUInt8(KubeModelCodecVersion) // version
+	buff.WriteUInt8(DefaultCodecVersion) // version
 
 	if target.Hard == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
@@ -2002,8 +2002,8 @@ func (target *ResourceQuotaSpec) UnmarshalBinaryWithContext(ctx *DecodingContext
 	buff := ctx.Buffer
 	version := buff.ReadUInt8()
 
-	if version > KubeModelCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling ResourceQuotaSpec. Expected %d or less, got %d", KubeModelCodecVersion, version)
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling ResourceQuotaSpec. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
 	// field version check
@@ -2068,7 +2068,7 @@ func (target *ResourceQuotaSpecHard) MarshalBinaryWithContext(ctx *EncodingConte
 	}()
 
 	buff := ctx.Buffer
-	buff.WriteUInt8(KubeModelCodecVersion) // version
+	buff.WriteUInt8(DefaultCodecVersion) // version
 
 	// --- [begin][write][alias](ResourceQuantities) ---
 	if map[Resource]ResourceQuantity(target.Requests) == nil {
@@ -2187,8 +2187,8 @@ func (target *ResourceQuotaSpecHard) UnmarshalBinaryWithContext(ctx *DecodingCon
 	buff := ctx.Buffer
 	version := buff.ReadUInt8()
 
-	if version > KubeModelCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling ResourceQuotaSpecHard. Expected %d or less, got %d", KubeModelCodecVersion, version)
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling ResourceQuotaSpecHard. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
 	// field version check
@@ -2328,7 +2328,7 @@ func (target *ResourceQuotaStatus) MarshalBinaryWithContext(ctx *EncodingContext
 	}()
 
 	buff := ctx.Buffer
-	buff.WriteUInt8(KubeModelCodecVersion) // version
+	buff.WriteUInt8(DefaultCodecVersion) // version
 
 	if target.Used == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
@@ -2397,8 +2397,8 @@ func (target *ResourceQuotaStatus) UnmarshalBinaryWithContext(ctx *DecodingConte
 	buff := ctx.Buffer
 	version := buff.ReadUInt8()
 
-	if version > KubeModelCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling ResourceQuotaStatus. Expected %d or less, got %d", KubeModelCodecVersion, version)
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling ResourceQuotaStatus. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
 	// field version check
@@ -2463,7 +2463,7 @@ func (target *ResourceQuotaStatusUsed) MarshalBinaryWithContext(ctx *EncodingCon
 	}()
 
 	buff := ctx.Buffer
-	buff.WriteUInt8(KubeModelCodecVersion) // version
+	buff.WriteUInt8(DefaultCodecVersion) // version
 
 	// --- [begin][write][alias](ResourceQuantities) ---
 	if map[Resource]ResourceQuantity(target.Requests) == nil {
@@ -2582,8 +2582,8 @@ func (target *ResourceQuotaStatusUsed) UnmarshalBinaryWithContext(ctx *DecodingC
 	buff := ctx.Buffer
 	version := buff.ReadUInt8()
 
-	if version > KubeModelCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling ResourceQuotaStatusUsed. Expected %d or less, got %d", KubeModelCodecVersion, version)
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling ResourceQuotaStatusUsed. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
 	// field version check
@@ -2723,7 +2723,7 @@ func (target *Window) MarshalBinaryWithContext(ctx *EncodingContext) (err error)
 	}()
 
 	buff := ctx.Buffer
-	buff.WriteUInt8(KubeModelCodecVersion) // version
+	buff.WriteUInt8(DefaultCodecVersion) // version
 
 	// --- [begin][write][reference](time.Time) ---
 	a, errA := target.Start.MarshalBinary()
@@ -2796,8 +2796,8 @@ func (target *Window) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 	buff := ctx.Buffer
 	version := buff.ReadUInt8()
 
-	if version > KubeModelCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling Window. Expected %d or less, got %d", KubeModelCodecVersion, version)
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling Window. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
 	// field version check

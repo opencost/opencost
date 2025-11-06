@@ -1,5 +1,6 @@
 package kubemodel
 
+// @bingen:generate:Resource
 type Resource string
 
 const (
@@ -9,30 +10,14 @@ const (
 	ResourceStorage Resource = "storage"
 )
 
-type Unit string
-
-const (
-	UnitMillicore     = "mCPU"
-	UnitByte          = "B"
-	UnitMi            = "Mi"
-	UnitGB            = "GB"
-	UnitGPU           = "GPU"
-	UnitSecond        = "s"
-	UnitMinute        = "m"
-	UnitHour          = "h"
-	UnitMillicoreHour = "m-h"
-	UnitByteHour      = "B-h"
-	UnitMiHour        = "Mi-h"
-	UnitGBHour        = "GB-h"
-	UnitGPUHour       = "GPU-h"
-)
-
+// @bingen:generate:ResourceQuantity
 type ResourceQuantity struct {
 	Resource Resource `json:"resource"` // @bingen:field[version=1]
 	Unit     Unit     `json:"unit"`     // @bingen:field[version=1]
 	Values   Stats    `json:"values"`   // @bingen:field[version=1]
 }
 
+// @bingen:generate:ResourceQuantities
 type ResourceQuantities map[Resource]ResourceQuantity
 
 func (rqs ResourceQuantities) Set(resource Resource, unit Unit, statType StatType, value float64) {
