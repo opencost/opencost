@@ -44,11 +44,15 @@ type ResourceQuantity struct {
 // ResourceQuantities is a map of resource types to their quantities
 type ResourceQuantities map[Resource]ResourceQuantity // @bingen:generate[type=map]
 
-// Set creates or updates a resource quantity with the given unit and stat values
-func (rq ResourceQuantities) Set(resource Resource, unit Unit, stats Stats) {
-	rq[resource] = ResourceQuantity{
-		Resource: resource,
-		Unit:     unit,
-		Values:   stats,
+// Set creates or updates a resource quantity with the given unit and stat type value
+func (rqs ResourceQuantities) Set(resource Resource, unit Unit, statType StatType, value float64) {
+	if _, ok := rqs[resource]; !ok {
+		rqs[resource] = ResourceQuantity{
+			Resource: resource,
+			Unit:     unit,
+			Values:   NewStats(),
+		}
 	}
+
+	rqs[resource].Values[statType] = value
 }
