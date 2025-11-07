@@ -1,17 +1,17 @@
 package kubemodel
 
-import (
-	"time"
-)
+import "time"
 
-// Namespace represents a Kubernetes namespace
+// @bingen:generate:Namespace
 type Namespace struct {
-	ID           string            `json:"id"`
-	ClusterID    string            `json:"clusterId"`
-	Name         string            `json:"name"`
-	Labels       map[string]string `json:"labels,omitempty"`
-	Annotations  map[string]string `json:"annotations,omitempty"`
-	Start        *time.Time        `json:"start,omitempty"`
-	End          *time.Time        `json:"end,omitempty"`
-	Diagnostic   *DiagnosticResult `json:"diagnostic,omitempty"`
+	UID             string                    `json:"uid"`                      // @bingen:field[version=1]
+	ClusterUID      string                    `json:"clusterUID"`               // @bingen:field[version=1]
+	Name            string                    `json:"name"`                     // @bingen:field[version=1]
+	Labels          map[string]string         `json:"labels"`                   // @bingen:field[version=1]
+	Annotations     map[string]string         `json:"annotations"`              // @bingen:field[version=1]
+	Start           time.Time                 `json:"start"`                    // @bingen:field[version=1]
+	End             time.Time                 `json:"end"`                      // @bingen:field[version=1]
+	Controllers     map[string]*Controller    `json:"controllers,omitempty"`    // @bingen:field[ignore]
+	ResourceQuotas  map[string]*ResourceQuota `json:"resourceQuotas,omitempty"` // @bingen:field[ignore]
+	Diagnostic      *DiagnosticResult         `json:"diagnostic,omitempty"`     // @bingen:field[ignore]
 }

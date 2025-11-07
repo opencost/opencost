@@ -1,6 +1,6 @@
 package kubemodel
 
-// DeviceType represents the category of attached device
+// @bingen:generate:DeviceType
 type DeviceType string
 
 const (

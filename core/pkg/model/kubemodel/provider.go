@@ -1,6 +1,6 @@
 package kubemodel
 
-// Provider represents the cloud provider or infrastructure type
+// @bingen:generate:Provider
 type Provider string
 
 const (

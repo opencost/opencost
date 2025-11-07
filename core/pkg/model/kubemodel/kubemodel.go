@@ -2,29 +2,31 @@ package kubemodel
 
 import (
 	"errors"
+	"fmt"
 	"time"
 )
 
+// @bingen:generate[stringtable]:KubeModelSet
 type KubeModelSet struct {
-	Metadata               *KubeModelSetMetadata
-	Window                 Window
-	Cluster                *Cluster
-	Containers             map[string]*Container
-	Controllers            map[string]*Controller
-	Devices                map[string]*Device
-	Namespaces             map[string]*Namespace
-	Nodes                  map[string]*Node
-	Pods                   map[string]*Pod
-	PersistentVolumeClaims map[string]*PersistentVolumeClaim
-	ResourceQuotas         map[string]*ResourceQuota
-	Services               map[string]*Service
-	Volumes                map[string]*Volume
-	idx                    *kubeModelSetIndexes
+	Metadata               *Metadata                         `json:"meta"`                 // @bingen:field[version=1]
+	Window                 Window                            `json:"window"`               // @bingen:field[version=1]
+	Cluster                *Cluster                          `json:"cluster"`              // @bingen:field[version=1]
+	Namespaces             map[string]*Namespace             `json:"namespaces"`           // @bingen:field[version=1]
+	ResourceQuotas         map[string]*ResourceQuota         `json:"resourceQuotas"`       // @bingen:field[version=1]
+	Containers             map[string]*Container             `json:"containers,omitempty"` // @bingen:field[version=1]
+	Controllers            map[string]*Controller            `json:"controllers,omitempty"` // @bingen:field[version=1]
+	Devices                map[string]*Device                `json:"devices,omitempty"`    // @bingen:field[version=1]
+	Nodes                  map[string]*Node                  `json:"nodes,omitempty"`      // @bingen:field[version=1]
+	Pods                   map[string]*Pod                   `json:"pods,omitempty"`       // @bingen:field[version=1]
+	PersistentVolumeClaims map[string]*PersistentVolumeClaim `json:"pvcs,omitempty"`       // @bingen:field[version=1]
+	Services               map[string]*Service               `json:"services,omitempty"`   // @bingen:field[version=1]
+	Volumes                map[string]*Volume                `json:"volumes,omitempty"`    // @bingen:field[version=1]
+	idx                    *kubeModelSetIndexes              // @bingen:field[ignore]
 }
 
 func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
 	return &KubeModelSet{
-		Metadata: &KubeModelSetMetadata{
+		Metadata: &Metadata{
 			CreatedAt: time.Now().UTC(),
 		},
 		Window: Window{
@@ -54,9 +56,9 @@ func (kms *KubeModelSet) RegisterNamespace(id string, name string) error {
 		}
 
 		kms.Namespaces[id] = &Namespace{
-			ID:        id,
-			ClusterID: kms.Cluster.ID,
-			Name:      name,
+			UID:        id,
+			ClusterUID: kms.Cluster.UID,
+			Name:       name,
 		}
 
 		// Index namespace name-to-ID for fast lookup
@@ -83,21 +85,6 @@ func (kms *KubeModelSet) GetNamespaceByName(name string) (*Namespace, bool) {
 	return ns, ok
 }
 
-func (kms *KubeModelSet) RegisterResourceQuota(uid string, namespaceUID string) error {
-	if _, ok := kms.ResourceQuotas[uid]; !ok {
-		if kms.Cluster == nil {
-			return errors.New("KubeModelSet missing Cluster")
-		}
-
-		kms.ResourceQuotas[uid] = &ResourceQuota{
-			UID:          uid,
-			NamespaceUID: namespaceUID,
-		}
-	}
-
-	return nil
-}
-
 // IsEmpty returns true if the KubeModelSet is nil, has no cluster, or contains no resources
 func (kms *KubeModelSet) IsEmpty() bool {
 	if kms == nil || kms.Cluster == nil {
@@ -117,15 +104,28 @@ func (kms *KubeModelSet) IsEmpty() bool {
 		len(kms.Volumes) == 0
 }
 
-// TODO: generate bingen codec
-func (kms *KubeModelSet) MarshalBinary() ([]byte, error) {
-	return nil, errors.New("not implemented")
+func (kms *KubeModelSet) RegisterResourceQuota(uid, name, namespace string) error {
+	if _, ok := kms.ResourceQuotas[uid]; !ok {
+		if _, ok := kms.idx.namespaceNameToID[namespace]; !ok {
+			return fmt.Errorf("KubeModelSet missing namespace '%s'", namespace)
+		}
+
+		kms.ResourceQuotas[uid] = &ResourceQuota{
+			UID:          uid,
+			Name:         name,
+			NamespaceUID: kms.idx.namespaceNameToID[namespace],
+			Spec:         &ResourceQuotaSpec{Hard: &ResourceQuotaSpecHard{}},
+			Status:       &ResourceQuotaStatus{Used: &ResourceQuotaStatusUsed{}},
+		}
+
+		kms.Metadata.ObjectCount++
+	}
+
+	return nil
 }
 
-type KubeModelSetMetadata struct {
-	CreatedAt   time.Time
-	ObjectCount int
-	Diagnostics []*DiagnosticResult
+type index struct {
+	namespaceByName map[string]*Namespace
 }
 
 type kubeModelSetIndexes struct {

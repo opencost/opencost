@@ -1,30 +1,33 @@
 package kubemodel
 
+// @bingen:generate:Resource
 type Resource string
 
 const (
-	ResourceCPU    = "cpu"
-	ResourceMemory = "memory"
-	ResourceGPU    = "gpu"
+	ResourceCPU     Resource = "cpu"
+	ResourceMemory  Resource = "memory"
+	ResourceGPU     Resource = "gpu"
+	ResourceStorage Resource = "storage"
 )
 
-type Unit string
-
-const (
-	UnitCPUm       = "m"
-	UnitMemoryMi   = "Mi"
-	UnitGPU        = "GPU"
-	UnitByte       = "B"
-	UnitGB         = "GB"
-	UnitTimeHr     = "hr"
-	UnitCPUmHr     = "m-hr"
-	UnitMemoryMiHr = "Mi-hr"
-	UnitGPUHr      = "GPU-hr"
-	UnitGBHr       = "GB-hr"
-)
-
+// @bingen:generate:ResourceQuantity
 type ResourceQuantity struct {
-	Resource Resource
-	Unit     Unit
-	Quantity float64
+	Resource Resource `json:"resource"` // @bingen:field[version=1]
+	Unit     Unit     `json:"unit"`     // @bingen:field[version=1]
+	Values   Stats    `json:"values"`   // @bingen:field[version=1]
+}
+
+// @bingen:generate:ResourceQuantities
+type ResourceQuantities map[Resource]ResourceQuantity
+
+func (rqs ResourceQuantities) Set(resource Resource, unit Unit, statType StatType, value float64) {
+	if _, ok := rqs[resource]; !ok {
+		rqs[resource] = ResourceQuantity{
+			Resource: resource,
+			Unit:     unit,
+			Values:   NewStats(),
+		}
+	}
+
+	rqs[resource].Values[statType] = value
 }

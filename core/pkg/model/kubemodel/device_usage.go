@@ -5,28 +5,17 @@ import (
 	"fmt"
 )
 
-// DeviceUsage represents device usage metrics for a container
+// @bingen:generate:DeviceUsage
 type DeviceUsage struct {
-	// Device identification
-	DeviceID   string     `json:"deviceId"`   // References Device.ID
-	DeviceType DeviceType `json:"deviceType"` // Type of device (gpu, tpu, etc.)
-
-	// Time-based accumulation (consistent units across all resources)
-	DeviceSeconds uint64 `json:"deviceSeconds"` // Device allocation time in seconds
-
-	// Usage metrics (device-agnostic, percentages 0-100)
-	RequestPercent float64 `json:"requestPercent"` // Percentage of device requested
-	UsageAverage   float64 `json:"usageAverage"`   // Average utilization (0-100%)
-	UsageMax       float64 `json:"usageMax"`       // Peak utilization (0-100%)
-
-	// Memory metrics (if applicable)
-	MemoryBytes uint64 `json:"memoryBytes,omitempty"` // Device memory used
-
-	// Device-specific metrics (extensible)
-	Metrics map[string]any `json:"metrics,omitempty"`
-
-	// Diagnostics
-	Diagnostic *DiagnosticResult `json:"diagnostic,omitempty"`
+	DeviceID       string            `json:"deviceId"`              // @bingen:field[version=1]
+	DeviceType     DeviceType        `json:"deviceType"`            // @bingen:field[version=1]
+	DeviceSeconds  uint64            `json:"deviceSeconds"`         // @bingen:field[version=1]
+	RequestPercent float64           `json:"requestPercent"`        // @bingen:field[version=1]
+	UsageAverage   float64           `json:"usageAverage"`          // @bingen:field[version=1]
+	UsageMax       float64           `json:"usageMax"`              // @bingen:field[version=1]
+	MemoryBytes    uint64            `json:"memoryBytes,omitempty"` // @bingen:field[version=1]
+	Metrics        map[string]string `json:"metrics,omitempty"`     // @bingen:field[version=1]
+	Diagnostic     *DiagnosticResult `json:"diagnostic,omitempty"`  // @bingen:field[version=1]
 }
 
 // Validate validates the DeviceUsage fields
@@ -74,7 +63,7 @@ func (u *DeviceUsage) Clone() *DeviceUsage {
 
 	// Deep copy Metrics map
 	if u.Metrics != nil {
-		cloned.Metrics = make(map[string]any, len(u.Metrics))
+		cloned.Metrics = make(map[string]string, len(u.Metrics))
 		for k, v := range u.Metrics {
 			cloned.Metrics[k] = v
 		}

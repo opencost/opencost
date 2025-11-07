@@ -2,8 +2,8 @@ package kubemodel
 
 import "time"
 
-// Window defines a period of time with a start and an end
+// @bingen:generate:Window
 type Window struct {
-	Start time.Time `json:"start"`
-	End   time.Time `json:"end"`
+	Start time.Time `json:"start"` // @bingen:field[version=1]
+	End   time.Time `json:"end"`   // @bingen:field[version=1]
 }
