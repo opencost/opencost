@@ -7,12 +7,14 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/exporter/pathing/pathutils"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/pipelines"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
 
 const (
-	DefaultRootDir string = "federated"
-	BaseStorageDir string = "etl/bingen"
+	DefaultRootDir   string = "federated"
+	BaseStorageDir   string = "etl/bingen"
+	FinOpsAgentAppID string = "finops-agent"
 )
 
 // BingenStoragePathFormatter is an implementation of the StoragePathFormatter interface for
@@ -27,18 +29,24 @@ type BingenStoragePathFormatter struct {
 }
 
 func NewDefaultStoragePathFormatter(clusterId, pipeline string, resolution *time.Duration) (StoragePathFormatter[opencost.Window], error) {
-	return NewBingenStoragePathFormatter(DefaultRootDir, clusterId, pipeline, resolution)
-}
-
-// NewBingenStoragePathFormatter creates a StoragePathFormatter for a cluster separated storage path
-// with the given root directory, cluster id, pipeline, and resolution. To omit the resolution directory
-// structure, provide a `nil` resolution.
-func NewBingenStoragePathFormatter(rootDir, clusterId, pipeline string, resolution *time.Duration) (StoragePathFormatter[opencost.Window], error) {
 	res := "."
 	if resolution != nil {
 		res = timeutil.FormatStoreResolution(*resolution)
 	}
 
+	// KubeModel uses a distinct pathing pattern which breaks with the original
+	// Allocations and Assets bingen pathing.
+	if pipeline == pipelines.KubeModelPipelineName {
+		return NewKubeModelStoragePathFormatter(FinOpsAgentAppID, clusterId, res)
+	}
+
+	return NewBingenStoragePathFormatter(DefaultRootDir, clusterId, pipeline, res)
+}
+
+// NewBingenStoragePathFormatter creates a StoragePathFormatter for a cluster separated storage path
+// with the given root directory, cluster id, pipeline, and resolution. To omit the resolution directory
+// structure, provide a `nil` resolution.
+func NewBingenStoragePathFormatter(rootDir, clusterId, pipeline, resolution string) (StoragePathFormatter[opencost.Window], error) {
 	if clusterId == "" {
 		return nil, fmt.Errorf("cluster id cannot be empty")
 	}
@@ -51,13 +59,8 @@ func NewBingenStoragePathFormatter(rootDir, clusterId, pipeline string, resoluti
 		rootDir:    rootDir,
 		clusterId:  clusterId,
 		pipeline:   pipeline,
-		resolution: res,
+		resolution: resolution,
 	}, nil
-}
-
-// RootDir returns the root directory of the storage path formatter.
-func (bsf *BingenStoragePathFormatter) RootDir() string {
-	return bsf.rootDir
 }
 
 // Dir returns the director that files will be placed in
