@@ -32,6 +32,7 @@ const (
 	DeploymentLabel      = "deployment"
 	StatefulSetLabel     = "statefulSet"
 	ReplicaSetLabel      = "replicaset"
+	ResourceQuotaLabel   = "resourcequota"
 	OwnerNameLabel       = "owner_name"
 	OwnerKindLabel       = "owner_kind"
 	UnitLabel            = "unit"
@@ -1495,6 +1496,128 @@ func DecodeReplicaSetsWithRolloutResult(result *QueryResult) *ReplicaSetsWithRol
 		OwnerKind:  ownerKind,
 		Data:       result.Values,
 	}
+}
+
+type ResourceQuotaMetricResult struct {
+	UID           string
+	Namespace     string
+	ResourceQuota string
+	Resource      string
+	Unit          string
+	Data          []*util.Vector
+}
+
+func DecodeResourceQuotaMetricResult(result *QueryResult) *ResourceQuotaMetricResult {
+	uid, _ := result.GetString(UIDLabel)
+	namespace, _ := result.GetNamespace()
+	resourceQuota, _ := result.GetString(ResourceQuotaLabel)
+	resource, _ := result.GetString(ResourceLabel)
+	unit, _ := result.GetString(UnitLabel)
+
+	return &ResourceQuotaMetricResult{
+		UID:           uid,
+		Namespace:     namespace,
+		ResourceQuota: resourceQuota,
+		Resource:      resource,
+		Unit:          unit,
+		Data:          result.Values,
+	}
+}
+
+type ResourceQuotaSpecCPURequestAvgResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecCPURequestAvgResult(result *QueryResult) *ResourceQuotaSpecCPURequestAvgResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaSpecCPURequestMaxResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecCPURequestMaxResult(result *QueryResult) *ResourceQuotaSpecCPURequestMaxResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaSpecRAMRequestAvgResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecRAMRequestAvgResult(result *QueryResult) *ResourceQuotaSpecRAMRequestAvgResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaSpecRAMRequestMaxResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecRAMRequestMaxResult(result *QueryResult) *ResourceQuotaSpecRAMRequestMaxResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaSpecCPULimitAvgResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecCPULimitAvgResult(result *QueryResult) *ResourceQuotaSpecCPULimitAvgResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaSpecCPULimitMaxResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecCPULimitMaxResult(result *QueryResult) *ResourceQuotaSpecCPULimitMaxResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaSpecRAMLimitAvgResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecRAMLimitAvgResult(result *QueryResult) *ResourceQuotaSpecRAMLimitAvgResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaSpecRAMLimitMaxResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaSpecRAMLimitMaxResult(result *QueryResult) *ResourceQuotaSpecRAMLimitMaxResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedCPURequestAvgResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedCPURequestAvgResult(result *QueryResult) *ResourceQuotaStatusUsedCPURequestAvgResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedCPURequestMaxResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedCPURequestMaxResult(result *QueryResult) *ResourceQuotaStatusUsedCPURequestMaxResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedRAMRequestAvgResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedRAMRequestAvgResult(result *QueryResult) *ResourceQuotaStatusUsedRAMRequestAvgResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedRAMRequestMaxResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedRAMRequestMaxResult(result *QueryResult) *ResourceQuotaStatusUsedRAMRequestMaxResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedCPULimitAvgResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedCPULimitAvgResult(result *QueryResult) *ResourceQuotaStatusUsedCPULimitAvgResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedCPULimitMaxResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedCPULimitMaxResult(result *QueryResult) *ResourceQuotaStatusUsedCPULimitMaxResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedRAMLimitAvgResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedRAMLimitAvgResult(result *QueryResult) *ResourceQuotaStatusUsedRAMLimitAvgResult {
+	return DecodeResourceQuotaMetricResult(result)
+}
+
+type ResourceQuotaStatusUsedRAMLimitMaxResult = ResourceQuotaMetricResult
+
+func DecodeResourceQuotaStatusUsedRAMLimitMaxResult(result *QueryResult) *ResourceQuotaStatusUsedRAMLimitMaxResult {
+	return DecodeResourceQuotaMetricResult(result)
 }
 
 func DecodeAll[T any](results []*QueryResult, decode ResultDecoder[T]) []*T {

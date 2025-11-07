@@ -23,6 +23,10 @@ const (
 	ServiceSelectorLabels                                 = "service_selector_labels"
 	StatefulSetMatchLabels                                = "statefulSet_match_labels"
 	KubeReplicasetOwner                                   = "kube_replicaset_owner"
+	KubeResourceQuotaSpecResourceRequests                 = "resourcequota_spec_resource_requests"
+	KubeResourceQuotaSpecResourceLimits                   = "resourcequota_spec_resource_limits"
+	KubeResourceQuotaStatusUsedResourceRequests           = "resourcequota_status_used_resource_requests"
+	KubeResourceQuotaStatusUsedResourceLimits             = "resourcequota_status_used_resource_limits"
 
 	// DCGM Metrics
 	DCGMFIPROFGRENGINEACTIVE = "DCGM_FI_PROF_GR_ENGINE_ACTIVE"

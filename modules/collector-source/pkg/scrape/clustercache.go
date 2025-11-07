@@ -40,6 +40,7 @@ func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 		ccs.ScrapeServices,
 		ccs.ScrapeStatefulSets,
 		ccs.ScrapeReplicaSets,
+		ccs.ScrapeResourceQuotas,
 	}
 	return concurrentScrape(scrapeFuncs...)
 }
@@ -532,6 +533,85 @@ func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.Re
 		ScraperName: event.KubernetesClusterScraperName,
 		ScrapeType:  event.ReplicaSetScraperType,
 		Targets:     len(replicaSets),
+		Errors:      nil,
+	})
+
+	return scrapeResults
+}
+
+func (ccs *ClusterCacheScraper) ScrapeResourceQuotas() []metric.Update {
+	resourceQuotas := ccs.clusterCache.GetAllResourceQuotas()
+	return ccs.scrapeResourceQuotas(resourceQuotas)
+}
+
+func (ccs *ClusterCacheScraper) scrapeResourceQuotas(resourceQuotas []*clustercache.ResourceQuota) []metric.Update {
+	var scrapeResults []metric.Update
+
+	processResource := func(baseLabels map[string]string, name v1.ResourceName, quantity resource.Quantity, metricName string) metric.Update {
+		resource, unit, value := toResourceUnitValue(name, quantity)
+
+		labels := maps.Clone(baseLabels)
+		labels[source.ResourceLabel] = resource
+		labels[source.UnitLabel] = unit
+
+		return metric.Update{
+			Name:   metricName,
+			Labels: labels,
+			Value:  value,
+		}
+	}
+
+	for _, resourceQuota := range resourceQuotas {
+		resourceQuotaInfo := map[string]string{
+			source.ResourceQuotaLabel: resourceQuota.Name,
+			source.NamespaceLabel:     resourceQuota.Namespace,
+			source.UIDLabel:           string(resourceQuota.UID),
+		}
+
+		if resourceQuota.Spec.Hard != nil {
+			// CPU/memory requests can also be aliased as "cpu" and "memory". For now, however, only scrape the complete names
+			// https://kubernetes.io/docs/concepts/policy/resource-quotas/#compute-resource-quota
+
+			if quantity, ok := resourceQuota.Spec.Hard[v1.ResourceRequestsCPU]; ok {
+				scrapeResults = append(scrapeResults, processResource(resourceQuotaInfo, v1.ResourceCPU, quantity, metric.KubeResourceQuotaSpecResourceRequests))
+			}
+
+			if quantity, ok := resourceQuota.Spec.Hard[v1.ResourceRequestsMemory]; ok {
+				scrapeResults = append(scrapeResults, processResource(resourceQuotaInfo, v1.ResourceMemory, quantity, metric.KubeResourceQuotaSpecResourceRequests))
+			}
+
+			if quantity, ok := resourceQuota.Spec.Hard[v1.ResourceLimitsCPU]; ok {
+				scrapeResults = append(scrapeResults, processResource(resourceQuotaInfo, v1.ResourceCPU, quantity, metric.KubeResourceQuotaSpecResourceLimits))
+			}
+
+			if quantity, ok := resourceQuota.Spec.Hard[v1.ResourceLimitsMemory]; ok {
+				scrapeResults = append(scrapeResults, processResource(resourceQuotaInfo, v1.ResourceMemory, quantity, metric.KubeResourceQuotaSpecResourceLimits))
+			}
+		}
+
+		if resourceQuota.Status.Used != nil {
+			if quantity, ok := resourceQuota.Status.Used[v1.ResourceRequestsCPU]; ok {
+				scrapeResults = append(scrapeResults, processResource(resourceQuotaInfo, v1.ResourceCPU, quantity, metric.KubeResourceQuotaStatusUsedResourceRequests))
+			}
+
+			if quantity, ok := resourceQuota.Status.Used[v1.ResourceRequestsMemory]; ok {
+				scrapeResults = append(scrapeResults, processResource(resourceQuotaInfo, v1.ResourceMemory, quantity, metric.KubeResourceQuotaStatusUsedResourceRequests))
+			}
+
+			if quantity, ok := resourceQuota.Status.Used[v1.ResourceLimitsCPU]; ok {
+				scrapeResults = append(scrapeResults, processResource(resourceQuotaInfo, v1.ResourceCPU, quantity, metric.KubeResourceQuotaStatusUsedResourceLimits))
+			}
+
+			if quantity, ok := resourceQuota.Status.Used[v1.ResourceLimitsMemory]; ok {
+				scrapeResults = append(scrapeResults, processResource(resourceQuotaInfo, v1.ResourceMemory, quantity, metric.KubeResourceQuotaStatusUsedResourceLimits))
+			}
+		}
+	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.ResourceQuotaScraperType,
+		Targets:     len(resourceQuotas),
 		Errors:      nil,
 	})
 

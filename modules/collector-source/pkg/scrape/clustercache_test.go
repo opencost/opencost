@@ -912,3 +912,169 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 		})
 	}
 }
+
+func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
+	start1, _ := time.Parse(time.RFC3339, Start1Str)
+
+	type scrape struct {
+		ResourceQuotas []*clustercache.ResourceQuota
+		Timestamp      time.Time
+	}
+	tests := []struct {
+		name     string
+		scrapes  []scrape
+		expected []metric.Update
+	}{
+		{
+			name: "simple",
+			scrapes: []scrape{
+				{
+					ResourceQuotas: []*clustercache.ResourceQuota{
+						{
+							Name:      "resourceQuota1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+							Spec: v1.ResourceQuotaSpec{
+								Hard: v1.ResourceList{
+									v1.ResourceRequestsCPU:    resource.MustParse("1"),
+									v1.ResourceRequestsMemory: resource.MustParse("1024"),
+									v1.ResourceLimitsCPU:      resource.MustParse("2"),
+									v1.ResourceLimitsMemory:   resource.MustParse("2048"),
+								},
+							},
+							Status: v1.ResourceQuotaStatus{
+								Used: v1.ResourceList{
+									v1.ResourceRequestsCPU:    resource.MustParse("0.5"),
+									v1.ResourceRequestsMemory: resource.MustParse("512"),
+									v1.ResourceLimitsCPU:      resource.MustParse("1"),
+									v1.ResourceLimitsMemory:   resource.MustParse("1024"),
+								},
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.KubeResourceQuotaSpecResourceRequests,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+						source.ResourceLabel:      "cpu",
+						source.UnitLabel:          "core",
+					},
+					Value:          1,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeResourceQuotaSpecResourceRequests,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+						source.ResourceLabel:      "memory",
+						source.UnitLabel:          "byte",
+					},
+					Value:          1024,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeResourceQuotaSpecResourceLimits,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+						source.ResourceLabel:      "cpu",
+						source.UnitLabel:          "core",
+					},
+					Value:          2,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeResourceQuotaSpecResourceLimits,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+						source.ResourceLabel:      "memory",
+						source.UnitLabel:          "byte",
+					},
+					Value:          2048,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeResourceQuotaStatusUsedResourceRequests,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+						source.ResourceLabel:      "cpu",
+						source.UnitLabel:          "core",
+					},
+					Value:          0.5,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeResourceQuotaStatusUsedResourceRequests,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+						source.ResourceLabel:      "memory",
+						source.UnitLabel:          "byte",
+					},
+					Value:          512,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeResourceQuotaStatusUsedResourceLimits,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+						source.ResourceLabel:      "cpu",
+						source.UnitLabel:          "core",
+					},
+					Value:          1,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeResourceQuotaStatusUsedResourceLimits,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+						source.ResourceLabel:      "memory",
+						source.UnitLabel:          "byte",
+					},
+					Value:          1024,
+					AdditionalInfo: nil,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ks := &ClusterCacheScraper{}
+			var scrapeResults []metric.Update
+			for _, s := range tt.scrapes {
+				res := ks.scrapeResourceQuotas(s.ResourceQuotas)
+				scrapeResults = append(scrapeResults, res...)
+			}
+
+			if len(scrapeResults) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
+			}
+
+			for i, expected := range tt.expected {
+				got := scrapeResults[i]
+				if !reflect.DeepEqual(expected, got) {
+					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
+				}
+			}
+		})
+	}
+}

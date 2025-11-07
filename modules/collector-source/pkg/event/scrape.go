@@ -9,15 +9,16 @@ const (
 )
 
 const (
-	NodeScraperType        = "nodes"
-	NamespaceScraperType   = "namespaces"
-	ReplicaSetScraperType  = "replicasets"
-	DeploymentScraperType  = "deployments"
-	StatefulSetScraperType = "statefulsets"
-	ServiceScraperType     = "services"
-	PodScraperType         = "pods"
-	PvScraperType          = "pvs"
-	PvcScraperType         = "pvcs"
+	NodeScraperType          = "nodes"
+	NamespaceScraperType     = "namespaces"
+	ReplicaSetScraperType    = "replicasets"
+	DeploymentScraperType    = "deployments"
+	StatefulSetScraperType   = "statefulsets"
+	ServiceScraperType       = "services"
+	PodScraperType           = "pods"
+	PvScraperType            = "pvs"
+	PvcScraperType           = "pvcs"
+	ResourceQuotaScraperType = "resourcequotas"
 )
 
 // ScrapeEvent is dispatched when a scrape is performed over a set of targets. It contains the name
