@@ -61,7 +61,9 @@ func NewMockNetworkInsightSource() exporter.ComputeSource[opencost.NetworkInsigh
 
 func NewMockKubeModelSource() exporter.ComputeSource[kubemodel.KubeModelSet] {
 	return &MockSource[kubemodel.KubeModelSet]{
-		generate: func(start, end time.Time) *kubemodel.KubeModelSet { return opencost.GenerateMockKubeModelSet(start) },
+		generate: func(start, end time.Time) *kubemodel.KubeModelSet {
+			return opencost.GenerateMockKubeModelSet(start, end)
+		},
 	}
 }
 
@@ -124,7 +126,7 @@ func (mpcs *MockPipelineComputeSource) ComputeAssets(start, end time.Time) (*ope
 func (mpcs *MockPipelineComputeSource) ComputeNetworkInsights(start, end time.Time) (*opencost.NetworkInsightSet, error) {
 	return mpcs.netSource.Compute(start, end)
 }
-func (mpcs *MockPipelineComputeSource) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeModelSet, error) {
+func (mpcs *MockPipelineComputeSource) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeModelSet, error) {
 	return mpcs.kubeModelSource.Compute(start, end)
 }
 func (mpcs *MockPipelineComputeSource) GetDataSource() source.OpenCostDataSource {
@@ -239,6 +241,35 @@ func TestExporters(t *testing.T) {
 		}
 
 		validateFileCreation[opencost.NetworkInsightSet](t, memStore, p, start, end)
+	})
+
+	t.Run("KubeModel exporter", func(t *testing.T) {
+		kubeModelSource := NewMockKubeModelSource()
+		memStore := storage.NewMemoryStorage()
+		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.KubeModelPipelineName, ptr(TestResolution))
+		if err != nil {
+			t.Fatalf("failed to create path formatter: %v", err)
+		}
+
+		kubeModelExporter, err := NewComputePipelineExporter[kubemodel.KubeModelSet](TestClusterId, TestResolution, memStore)
+		if err != nil {
+			t.Fatalf("failed to create KubeModel exporter: %v", err)
+		}
+
+		end := time.Now().UTC().Truncate(TestResolution)
+		start := end.Add(-TestResolution)
+
+		data, err := kubeModelSource.Compute(start, end)
+		if err != nil {
+			t.Fatalf("failed to compute KubeModel data: %v", err)
+		}
+
+		err = kubeModelExporter.Export(opencost.NewClosedWindow(start, end), data)
+		if err != nil {
+			t.Fatalf("failed to export KubeModel data: %v", err)
+		}
+
+		validateFileCreation[kubemodel.KubeModelSet](t, memStore, p, start, end)
 	})
 
 	t.Run("unknown exporter", func(t *testing.T) {

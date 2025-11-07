@@ -9,7 +9,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/opencost/exporter/allocation"
 	"github.com/opencost/opencost/core/pkg/opencost/exporter/asset"
-	exporterkubemodel "github.com/opencost/opencost/core/pkg/opencost/exporter/kubemodel"
+	km "github.com/opencost/opencost/core/pkg/opencost/exporter/kubemodel"
 	"github.com/opencost/opencost/core/pkg/opencost/exporter/networkinsight"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/storage"
@@ -23,7 +23,7 @@ type ComputePipelineSource interface {
 	allocation.AllocationSource
 	asset.AssetSource
 	networkinsight.NetworkInsightSource
-	exporterkubemodel.KubeModelSource
+	km.KubeModelSource
 
 	GetDataSource() source.OpenCostDataSource
 }
@@ -137,7 +137,7 @@ func NewPipelineExportControllers(clusterId string, store storage.Storage, cm Co
 	}
 
 	// KubeModel sources and exporters
-	kubeModelSource := exporterkubemodel.NewKubeModelComputeSource(cm)
+	kubeModelSource := km.NewKubeModelComputeSource(cm)
 	kubeModelExportControllers := []*export.ComputeExportController[kubemodel.KubeModelSet]{}
 
 	for _, res := range config.KubeModelPipelineResolutions {

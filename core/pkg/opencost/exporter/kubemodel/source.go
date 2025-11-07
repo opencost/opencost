@@ -9,7 +9,7 @@ import (
 )
 
 type KubeModelSource interface {
-	ComputeKubeModel(start, end time.Time) (*kubemodel.KubeModelSet, error)
+	ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeModelSet, error)
 }
 
 type KubeModelComputeSource struct {
@@ -34,7 +34,7 @@ func (acs *KubeModelComputeSource) CanCompute(start, end time.Time) bool {
 
 // Compute should compute a single T for the given time range.
 func (acs *KubeModelComputeSource) Compute(start, end time.Time) (*kubemodel.KubeModelSet, error) {
-	return acs.src.ComputeKubeModel(start, end)
+	return acs.src.ComputeKubeModelSet(start, end)
 }
 
 // Name returns the name of the ComputeSource

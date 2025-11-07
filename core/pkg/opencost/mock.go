@@ -1016,9 +1016,23 @@ func GenerateMockCloudCostSet(start, end time.Time, provider, integration string
 	return ccs
 }
 
-// GenerateMockKubeModelSet creates generic allocation set without idle allocations
-func GenerateMockKubeModelSet(start time.Time) *kubemodel.KubeModelSet {
-	// TODO: fill out mocks
+// GenerateMockKubeModelSet creates generic KubeModel set
+// TODO: does this require actual numeric data?
+func GenerateMockKubeModelSet(start, end time.Time) *kubemodel.KubeModelSet {
+	kms := kubemodel.NewKubeModelSet(start, end)
 
-	return &kubemodel.KubeModelSet{}
+	kms.Cluster = &kubemodel.Cluster{
+		UID:  "clusterUID",
+		Name: "cluster",
+	}
+
+	kms.RegisterNamespace("namespace-1", "namespace-1")
+	kms.RegisterNamespace("namespace-2", "namespace-2")
+
+	kms.RegisterResourceQuota("resourcequota-1", "resourcequota-1", "namespace-1")
+	kms.RegisterResourceQuota("resourcequota-2", "resourcequota-2", "namespace-1")
+	kms.RegisterResourceQuota("resourcequota-3", "resourcequota-3", "namespace-2")
+	kms.RegisterResourceQuota("resourcequota-4", "resourcequota-4", "namespace-2")
+
+	return kms
 }

@@ -1,20 +1,44 @@
-package costmodel
+package kubemodel
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/env"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/source"
 )
 
 const logTimeFmt string = "2006-01-02T15:04:05"
 
+type KubeModel struct {
+	ds         source.OpenCostDataSource
+	clusterUID string
+}
+
+func NewKubeModel(dataSource source.OpenCostDataSource) (*KubeModel, error) {
+	if dataSource == nil {
+		return nil, errors.New("OpenCostDataSource cannot be nil")
+	}
+
+	km := &KubeModel{ds: dataSource}
+
+	clusterUID, err := km.computeClusterUID(time.Now().UTC())
+	if err != nil {
+		return nil, fmt.Errorf("error computing cluster UID: %w", err)
+	}
+
+	km.clusterUID = clusterUID
+
+	return km, nil
+}
+
 // ComputeKubeModel uses the CostModel instance to compute an KubeModelSet
 // for the window defined by the given start and end times. The KubeModels
 // returned are unaggregated (i.e. down to the container level).
-func (cm *CostModel) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeModelSet, error) {
+func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeModelSet, error) {
 	// 1. Initialize new KubeModelSet for requested Window
 	kms := kubemodel.NewKubeModelSet(start, end)
 
@@ -22,20 +46,20 @@ func (cm *CostModel) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeMode
 	var err error
 
 	// 2.1 Compute Cluster
-	err = cm.kmComputeCluster(kms, start, end)
+	err = km.computeCluster(kms)
 	if err != nil {
 		kms.Metadata.Errors = append(kms.Metadata.Errors, err.Error())
 		return kms, fmt.Errorf("error computing kubemodel.Cluster for (%s, %s): %w", start.Format(logTimeFmt), end.Format(logTimeFmt), err)
 	}
 
 	// 2.2 Compute Namespaces
-	err = cm.kmComputeNamespaces(kms, start, end)
+	err = km.computeNamespaces(kms, start, end)
 	if err != nil {
 		kms.Metadata.Errors = append(kms.Metadata.Errors, err.Error())
 	}
 
 	// 2.3 Compute ResourceQuotas
-	err = cm.kmComputeResourceQuotas(kms, start, end)
+	err = km.computeResourceQuotas(kms, start, end)
 	if err != nil {
 		kms.Metadata.Errors = append(kms.Metadata.Errors, err.Error())
 	}
@@ -46,26 +70,47 @@ func (cm *CostModel) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeMode
 	return kms, nil
 }
 
-func (cm *CostModel) kmComputeCluster(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+// TODO: come up with a better way to pull kube-system namespace UID from Metrics()?
+func (km *KubeModel) computeClusterUID(start time.Time) (string, error) {
+	// TODO: what (start, end) here? will this always work? or will it fail,
+	// e.g. right after a clean install?
+	start = start.Truncate(km.ds.Resolution())
+	end := start.Add(km.ds.Resolution())
 
-	// TODO: determine where Cluster data comes from
-	//  - Should it come from direct queries?
-	//  - Or should it come from pre-processed data from other objects?
+	nsLabelsResult, _ := km.ds.Metrics().QueryNamespaceLabels(start, end).Await()
+	for _, res := range nsLabelsResult {
+		if res.Namespace == "kube-system" {
+			log.Infof("KubeModel: detected cluster UID from kube-system: %s", res.UID)
+			return res.UID, nil
+		}
+	}
 
+	clusterUID := env.GetClusterID()
+	if clusterUID != "" {
+		log.Warnf("KubeModel: failed to infer cluster UID from kube-system: using env var: %s", clusterUID)
+		return clusterUID, nil
+	}
+
+	return "", errors.New("failed to detect cluster UID")
+}
+
+// TODO: should we periodically check the ClusterUID?
+// TODO: where do we get the additional information? km.ds.ClusterInfo().GetClusterInfo() is a map[string]string...
+func (km *KubeModel) computeCluster(kms *kubemodel.KubeModelSet) error {
 	kms.Cluster = &kubemodel.Cluster{
-		UID:  env.GetClusterID(), // TODO: should we instead grab these from Metrics()?
+		UID:  km.clusterUID,
 		Name: env.GetClusterID(), // TODO: do we still want to use this env var for Name?
 	}
 
 	return nil
 }
 
-func (cm *CostModel) kmComputeNamespaces(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+func (km *KubeModel) computeNamespaces(kms *kubemodel.KubeModelSet, start, end time.Time) error {
 	grp := source.NewQueryGroup()
-	ds := cm.DataSource.Metrics()
+	metrics := km.ds.Metrics()
 
-	nsLabelsResultFuture := source.WithGroup(grp, ds.QueryNamespaceLabels(start, end))
-	nsAnnosResultFuture := source.WithGroup(grp, ds.QueryNamespaceAnnotations(start, end))
+	nsLabelsResultFuture := source.WithGroup(grp, metrics.QueryNamespaceLabels(start, end))
+	nsAnnosResultFuture := source.WithGroup(grp, metrics.QueryNamespaceAnnotations(start, end))
 
 	nsLabelsResult, _ := nsLabelsResultFuture.Await()
 	nsAnnosResult, _ := nsAnnosResultFuture.Await()
@@ -83,33 +128,33 @@ func (cm *CostModel) kmComputeNamespaces(kms *kubemodel.KubeModelSet, start, end
 	return nil
 }
 
-func (cm *CostModel) kmComputeResourceQuotas(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, end time.Time) error {
 	grp := source.NewQueryGroup()
-	ds := cm.DataSource.Metrics()
+	metrics := km.ds.Metrics()
 
 	// spec.hard.requests
-	rqSpecCPURequestAverageResultFuture := source.WithGroup(grp, ds.QueryResourceQuotaSpecCPURequestAverage(start, end))
-	rqSpecCPURequestMaxResultFuture := source.WithGroup(grp, ds.QueryResourceQuotaSpecCPURequestMax(start, end))
-	rqSpecRAMRequestAverageResultFuture := source.WithGroup(grp, ds.QueryResourceQuotaSpecRAMRequestAverage(start, end))
-	rqSpecRAMRequestMaxResultFuture := source.WithGroup(grp, ds.QueryResourceQuotaSpecRAMRequestMax(start, end))
+	rqSpecCPURequestAverageResultFuture := source.WithGroup(grp, metrics.QueryResourceQuotaSpecCPURequestAverage(start, end))
+	rqSpecCPURequestMaxResultFuture := source.WithGroup(grp, metrics.QueryResourceQuotaSpecCPURequestMax(start, end))
+	rqSpecRAMRequestAverageResultFuture := source.WithGroup(grp, metrics.QueryResourceQuotaSpecRAMRequestAverage(start, end))
+	rqSpecRAMRequestMaxResultFuture := source.WithGroup(grp, metrics.QueryResourceQuotaSpecRAMRequestMax(start, end))
 
 	// spec.hard.limits
-	rqSpecCPULimitAverageResultFuture := source.WithGroup(grp, ds.QueryResourceQuotaSpecCPULimitAverage(start, end))
-	rqSpecCPULimitMaxResultFuture := source.WithGroup(grp, ds.QueryResourceQuotaSpecCPULimitMax(start, end))
-	rqSpecRAMLimitAverageResultFuture := source.WithGroup(grp, ds.QueryResourceQuotaSpecRAMLimitAverage(start, end))
-	rqSpecRAMLimitMaxResultFuture := source.WithGroup(grp, ds.QueryResourceQuotaSpecRAMLimitMax(start, end))
+	rqSpecCPULimitAverageResultFuture := source.WithGroup(grp, metrics.QueryResourceQuotaSpecCPULimitAverage(start, end))
+	rqSpecCPULimitMaxResultFuture := source.WithGroup(grp, metrics.QueryResourceQuotaSpecCPULimitMax(start, end))
+	rqSpecRAMLimitAverageResultFuture := source.WithGroup(grp, metrics.QueryResourceQuotaSpecRAMLimitAverage(start, end))
+	rqSpecRAMLimitMaxResultFuture := source.WithGroup(grp, metrics.QueryResourceQuotaSpecRAMLimitMax(start, end))
 
 	// status.used.requests
-	rqStatusUsedCPURequestAverageResultFuture := source.WithGroup(grp, ds.QueryResourceQuotaStatusUsedCPURequestAverage(start, end))
-	rqStatusUsedCPURequestMaxResultFuture := source.WithGroup(grp, ds.QueryResourceQuotaStatusUsedCPURequestMax(start, end))
-	rqStatusUsedRAMRequestAverageResultFuture := source.WithGroup(grp, ds.QueryResourceQuotaStatusUsedRAMRequestAverage(start, end))
-	rqStatusUsedRAMRequestMaxResultFuture := source.WithGroup(grp, ds.QueryResourceQuotaStatusUsedRAMRequestMax(start, end))
+	rqStatusUsedCPURequestAverageResultFuture := source.WithGroup(grp, metrics.QueryResourceQuotaStatusUsedCPURequestAverage(start, end))
+	rqStatusUsedCPURequestMaxResultFuture := source.WithGroup(grp, metrics.QueryResourceQuotaStatusUsedCPURequestMax(start, end))
+	rqStatusUsedRAMRequestAverageResultFuture := source.WithGroup(grp, metrics.QueryResourceQuotaStatusUsedRAMRequestAverage(start, end))
+	rqStatusUsedRAMRequestMaxResultFuture := source.WithGroup(grp, metrics.QueryResourceQuotaStatusUsedRAMRequestMax(start, end))
 
 	// status.used.limits
-	rqStatusUsedCPULimitAverageResultFuture := source.WithGroup(grp, ds.QueryResourceQuotaStatusUsedCPULimitAverage(start, end))
-	rqStatusUsedCPULimitMaxResultFuture := source.WithGroup(grp, ds.QueryResourceQuotaStatusUsedCPULimitMax(start, end))
-	rqStatusUsedRAMLimitAverageResultFuture := source.WithGroup(grp, ds.QueryResourceQuotaStatusUsedRAMLimitAverage(start, end))
-	rqStatusUsedRAMLimitMaxResultFuture := source.WithGroup(grp, ds.QueryResourceQuotaStatusUsedRAMLimitMax(start, end))
+	rqStatusUsedCPULimitAverageResultFuture := source.WithGroup(grp, metrics.QueryResourceQuotaStatusUsedCPULimitAverage(start, end))
+	rqStatusUsedCPULimitMaxResultFuture := source.WithGroup(grp, metrics.QueryResourceQuotaStatusUsedCPULimitMax(start, end))
+	rqStatusUsedRAMLimitAverageResultFuture := source.WithGroup(grp, metrics.QueryResourceQuotaStatusUsedRAMLimitAverage(start, end))
+	rqStatusUsedRAMLimitMaxResultFuture := source.WithGroup(grp, metrics.QueryResourceQuotaStatusUsedRAMLimitMax(start, end))
 
 	rqSpecCPURequestAverageResult, _ := rqSpecCPURequestAverageResultFuture.Await()
 	for _, res := range rqSpecCPURequestAverageResult {

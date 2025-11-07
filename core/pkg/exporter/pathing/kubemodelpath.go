@@ -24,6 +24,8 @@ type KubeModelStoragePathFormatter struct {
 	dir string
 }
 
+// TODO: we need to figure out how to get the proper clusterId here, if we're
+// going to use the kube-system namespace UID as the real cluster ID.
 func NewKubeModelStoragePathFormatter(rootDir, clusterId, resolution string) (StoragePathFormatter[opencost.Window], error) {
 	if clusterId == "" {
 		return nil, fmt.Errorf("cluster id cannot be empty")
