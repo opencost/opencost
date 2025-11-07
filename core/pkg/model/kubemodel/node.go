@@ -12,8 +12,8 @@ type Node struct {
 	Name                 string            `json:"name"`
 	Labels               map[string]string `json:"labels,omitempty"`
 	Annotations          map[string]string `json:"annotations,omitempty"`
-	CreationTime         *time.Time        `json:"creationTime,omitempty"`
-	DeletionTime         *time.Time        `json:"deletionTime,omitempty"`
+	Start                *time.Time        `json:"start,omitempty"`
+	End                  *time.Time        `json:"end,omitempty"`
 	CpuCores             uint64            `json:"cpuCores"`
 	RamBytes             uint64            `json:"ramBytes"`
 	CpuCost              float64           `json:"cpuCost"`

@@ -11,7 +11,7 @@ type Namespace struct {
 	Name         string            `json:"name"`
 	Labels       map[string]string `json:"labels,omitempty"`
 	Annotations  map[string]string `json:"annotations,omitempty"`
-	CreationTime *time.Time        `json:"creationTime,omitempty"`
-	DeletionTime *time.Time        `json:"deletionTime,omitempty"`
+	Start        *time.Time        `json:"start,omitempty"`
+	End          *time.Time        `json:"end,omitempty"`
 	Diagnostic   *DiagnosticResult `json:"diagnostic,omitempty"`
 }

@@ -23,8 +23,8 @@ type Service struct {
 	Labels               map[string]string `json:"labels,omitempty"`
 	Annotations          map[string]string `json:"annotations,omitempty"`
 	Ports                []ServicePort     `json:"ports,omitempty"`
-	CreationTime         *time.Time        `json:"creationTime,omitempty"`
-	DeletionTime         *time.Time        `json:"deletionTime,omitempty"`
+	Start                *time.Time        `json:"start,omitempty"`
+	End                  *time.Time        `json:"end,omitempty"`
 	NetworkTransferBytes uint64            `json:"networkTransferBytes"`
 	NetworkReceiveBytes  uint64            `json:"networkReceiveBytes"`
 	Diagnostic           *DiagnosticResult `json:"diagnostic,omitempty"`

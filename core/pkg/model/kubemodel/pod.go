@@ -13,8 +13,8 @@ type Pod struct {
 	Name                       string            `json:"name"`
 	Labels                     map[string]string `json:"labels,omitempty"`
 	Annotations                map[string]string `json:"annotations,omitempty"`
-	CreationTime               *time.Time        `json:"creationTime,omitempty"`
-	DeletionTime               *time.Time        `json:"deletionTime,omitempty"`
+	Start                      *time.Time        `json:"start,omitempty"`
+	End                        *time.Time        `json:"end,omitempty"`
 	CpuMillicoreSeconds        uint64            `json:"cpuMillicoreSeconds"`
 	CpuMillicoreRequestAverage uint64            `json:"cpuMillicoreRequestAverage"`
 	CpuMillicoreUsageAverage   uint64            `json:"cpuMillicoreUsageAverage"`

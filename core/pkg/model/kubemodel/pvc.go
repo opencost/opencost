@@ -13,8 +13,8 @@ type PersistentVolumeClaim struct {
 	Name             string            `json:"name"`
 	Labels           map[string]string `json:"labels,omitempty"`
 	Annotations      map[string]string `json:"annotations,omitempty"`
-	CreationTime     *time.Time        `json:"creationTime,omitempty"`
-	DeletionTime     *time.Time        `json:"deletionTime,omitempty"`
+	Start            *time.Time        `json:"start,omitempty"`
+	End              *time.Time        `json:"end,omitempty"`
 	StorageClass     string            `json:"storageClass"`
 	StorageByteHours uint64            `json:"storageByteHours"`
 	RequestedBytes   uint64            `json:"requestedBytes"`
