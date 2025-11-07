@@ -124,8 +124,149 @@ func (kms *KubeModelSet) RegisterResourceQuota(uid, name, namespace string) erro
 	return nil
 }
 
-type index struct {
-	namespaceByName map[string]*Namespace
+func (kms *KubeModelSet) RegisterPod(id, name, namespace string) error {
+	if _, ok := kms.Pods[id]; !ok {
+		nsID, ok := kms.idx.namespaceNameToID[namespace]
+		if !ok {
+			return fmt.Errorf("KubeModelSet missing namespace '%s'", namespace)
+		}
+
+		kms.Pods[id] = &Pod{
+			ID:          id,
+			Name:        name,
+			NamespaceID: nsID,
+		}
+
+		kms.Metadata.ObjectCount++
+	}
+
+	return nil
+}
+
+func (kms *KubeModelSet) RegisterNode(id, name string) error {
+	if _, ok := kms.Nodes[id]; !ok {
+		if kms.Cluster == nil {
+			return errors.New("KubeModelSet missing Cluster")
+		}
+
+		kms.Nodes[id] = &Node{
+			ID:        id,
+			ClusterID: kms.Cluster.UID,
+			Name:      name,
+		}
+
+		kms.Metadata.ObjectCount++
+	}
+
+	return nil
+}
+
+func (kms *KubeModelSet) RegisterController(id, name, namespace, kind string) error {
+	if _, ok := kms.Controllers[id]; !ok {
+		nsID, ok := kms.idx.namespaceNameToID[namespace]
+		if !ok {
+			return fmt.Errorf("KubeModelSet missing namespace '%s'", namespace)
+		}
+
+		kms.Controllers[id] = &Controller{
+			ID:          id,
+			Name:        name,
+			NamespaceID: nsID,
+			Kind:        ControllerKind(kind),
+		}
+
+		kms.Metadata.ObjectCount++
+	}
+
+	return nil
+}
+
+func (kms *KubeModelSet) RegisterService(id, name, namespace string) error {
+	if _, ok := kms.Services[id]; !ok {
+		if kms.Cluster == nil {
+			return errors.New("KubeModelSet missing Cluster")
+		}
+
+		nsID, ok := kms.idx.namespaceNameToID[namespace]
+		if !ok {
+			return fmt.Errorf("KubeModelSet missing namespace '%s'", namespace)
+		}
+
+		kms.Services[id] = &Service{
+			ID:          id,
+			ClusterID:   kms.Cluster.UID,
+			NamespaceID: nsID,
+			Name:        name,
+		}
+
+		kms.Metadata.ObjectCount++
+	}
+
+	return nil
+}
+
+func (kms *KubeModelSet) RegisterPVC(id, name, namespace string) error {
+	if _, ok := kms.PersistentVolumeClaims[id]; !ok {
+		nsID, ok := kms.idx.namespaceNameToID[namespace]
+		if !ok {
+			return fmt.Errorf("KubeModelSet missing namespace '%s'", namespace)
+		}
+
+		kms.PersistentVolumeClaims[id] = &PersistentVolumeClaim{
+			ID:          id,
+			Name:        name,
+			NamespaceID: nsID,
+		}
+
+		kms.Metadata.ObjectCount++
+	}
+
+	return nil
+}
+
+func (kms *KubeModelSet) RegisterVolume(id, name string) error {
+	if _, ok := kms.Volumes[id]; !ok {
+		if kms.Cluster == nil {
+			return errors.New("KubeModelSet missing Cluster")
+		}
+
+		kms.Volumes[id] = &Volume{
+			ID:        id,
+			ClusterID: kms.Cluster.UID,
+			Name:      name,
+		}
+
+		kms.Metadata.ObjectCount++
+	}
+
+	return nil
+}
+
+func (kms *KubeModelSet) RegisterContainer(id, name, podID string) error {
+	if _, ok := kms.Containers[id]; !ok {
+		kms.Containers[id] = &Container{
+			PodID: podID,
+			Name:  name,
+		}
+
+		kms.Metadata.ObjectCount++
+	}
+
+	return nil
+}
+
+func (kms *KubeModelSet) RegisterDevice(id, nodeID string, deviceType DeviceType) error {
+	if _, ok := kms.Devices[id]; !ok {
+		kms.Devices[id] = &Device{
+			ID:         id,
+			NodeID:     nodeID,
+			DeviceType: deviceType,
+		}
+
+		kms.Metadata.ObjectCount++
+	}
+
+	return nil
 }
 
 type kubeModelSetIndexes struct {
