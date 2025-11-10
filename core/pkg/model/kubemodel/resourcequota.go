@@ -1,5 +1,7 @@
 package kubemodel
 
+import "fmt"
+
 // @bingen:generate:ResourceQuota
 type ResourceQuota struct {
 	UID          string               `json:"uid"`          // @bingen:field[version=1]
@@ -29,4 +31,31 @@ type ResourceQuotaStatus struct {
 type ResourceQuotaStatusUsed struct {
 	Requests ResourceQuantities `json:"requests"` // @bingen:field[version=1]
 	Limits   ResourceQuantities `json:"limits"`   // @bingen:field[version=1]
+}
+
+func (kms *KubeModelSet) RegisterResourceQuota(uid, name, namespace string) {
+	if uid == "" {
+		kms.RegisterError(fmt.Sprintf("RegisterResourceQuota: uid is nil for ResourceQuota '%s'", name))
+		return
+	}
+
+	if _, ok := kms.ResourceQuotas[uid]; !ok {
+		namespaceUID := ""
+
+		if _, ok := kms.idx.namespaceByName[namespace]; !ok {
+			kms.RegisterError(fmt.Sprintf("RegisterResourceQuota(%s, %s, %s): missing namespace", uid, name, namespace))
+		} else {
+			namespaceUID = kms.idx.namespaceByName[namespace].UID
+		}
+
+		kms.ResourceQuotas[uid] = &ResourceQuota{
+			UID:          uid,
+			Name:         name,
+			NamespaceUID: namespaceUID,
+			Spec:         &ResourceQuotaSpec{Hard: &ResourceQuotaSpecHard{}},
+			Status:       &ResourceQuotaStatus{Used: &ResourceQuotaStatusUsed{}},
+		}
+
+		kms.Metadata.ObjectCount++
+	}
 }

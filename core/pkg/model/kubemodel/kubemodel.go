@@ -1,10 +1,10 @@
 package kubemodel
 
 import (
-	"errors"
-	"fmt"
 	"time"
 )
+
+// TODO: should we add a lock so that we can safely modify KubeModelSet in parallel?
 
 // @bingen:generate[stringtable]:KubeModelSet
 type KubeModelSet struct {
@@ -35,44 +35,8 @@ func NewKubeModelSet(start, end time.Time) *KubeModelSet {
 	}
 }
 
-func (kms *KubeModelSet) RegisterNamespace(uid, name string) error {
-	if _, ok := kms.Namespaces[uid]; !ok {
-		if kms.Cluster == nil {
-			return errors.New("KubeModelSet missing Cluster")
-		}
-
-		kms.Namespaces[uid] = &Namespace{
-			UID:        uid,
-			ClusterUID: kms.Cluster.UID,
-			Name:       name,
-		}
-
-		kms.idx.namespaceByName[name] = kms.Namespaces[uid]
-
-		kms.Metadata.ObjectCount++
-	}
-
-	return nil
-}
-
-func (kms *KubeModelSet) RegisterResourceQuota(uid, name, namespace string) error {
-	if _, ok := kms.ResourceQuotas[uid]; !ok {
-		if _, ok := kms.idx.namespaceByName[namespace]; !ok {
-			return fmt.Errorf("KubeModelSet missing namespace '%s'", namespace)
-		}
-
-		kms.ResourceQuotas[uid] = &ResourceQuota{
-			UID:          uid,
-			Name:         name,
-			NamespaceUID: kms.idx.namespaceByName[namespace].UID,
-			Spec:         &ResourceQuotaSpec{Hard: &ResourceQuotaSpecHard{}},
-			Status:       &ResourceQuotaStatus{Used: &ResourceQuotaStatusUsed{}},
-		}
-
-		kms.Metadata.ObjectCount++
-	}
-
-	return nil
+func (kms *KubeModelSet) RegisterError(str string) {
+	kms.Metadata.Errors = append(kms.Metadata.Errors, str)
 }
 
 func (kms *KubeModelSet) IsEmpty() bool {

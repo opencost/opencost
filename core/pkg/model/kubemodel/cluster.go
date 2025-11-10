@@ -1,6 +1,10 @@
 package kubemodel
 
-import "time"
+import (
+	"time"
+)
+
+// TODO: do we need (start, end) for Cluster?
 
 // @bingen:generate:Cluster
 type Cluster struct {
@@ -10,4 +14,15 @@ type Cluster struct {
 	Name     string    `json:"name"`     // @bingen:field[version=1]
 	Start    time.Time `json:"start"`    // @bingen:field[version=1]
 	End      time.Time `json:"end"`      // @bingen:field[version=1]
+}
+
+func (kms *KubeModelSet) RegisterCluster(uid string) {
+	if uid == "" {
+		kms.RegisterError("RegisterCluster: uid is nil for Cluster")
+		return
+	}
+
+	if kms.Cluster == nil {
+		kms.Cluster = &Cluster{UID: uid}
+	}
 }
