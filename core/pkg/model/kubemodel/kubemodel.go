@@ -8,20 +8,25 @@ import (
 
 // @bingen:generate[stringtable]:KubeModelSet
 type KubeModelSet struct {
-	Metadata               *Metadata                         `json:"meta"`                 // @bingen:field[version=1]
-	Window                 Window                            `json:"window"`               // @bingen:field[version=1]
-	Cluster                *Cluster                          `json:"cluster"`              // @bingen:field[version=1]
-	Namespaces             map[string]*Namespace             `json:"namespaces"`           // @bingen:field[version=1]
-	ResourceQuotas         map[string]*ResourceQuota         `json:"resourceQuotas"`       // @bingen:field[version=1]
-	Containers             map[string]*Container             `json:"containers,omitempty"` // @bingen:field[version=1]
+	Metadata               *Metadata                         `json:"meta"`                  // @bingen:field[version=1]
+	Window                 Window                            `json:"window"`                // @bingen:field[version=1]
+	Cluster                *Cluster                          `json:"cluster"`               // @bingen:field[version=1]
+	Namespaces             map[string]*Namespace             `json:"namespaces"`            // @bingen:field[version=1]
+	ResourceQuotas         map[string]*ResourceQuota         `json:"resourceQuotas"`        // @bingen:field[version=1]
+	Containers             map[string]*Container             `json:"containers,omitempty"`  // @bingen:field[version=1]
 	Controllers            map[string]*Controller            `json:"controllers,omitempty"` // @bingen:field[version=1]
-	Devices                map[string]*Device                `json:"devices,omitempty"`    // @bingen:field[version=1]
-	Nodes                  map[string]*Node                  `json:"nodes,omitempty"`      // @bingen:field[version=1]
-	Pods                   map[string]*Pod                   `json:"pods,omitempty"`       // @bingen:field[version=1]
-	PersistentVolumeClaims map[string]*PersistentVolumeClaim `json:"pvcs,omitempty"`       // @bingen:field[version=1]
-	Services               map[string]*Service               `json:"services,omitempty"`   // @bingen:field[version=1]
-	Volumes                map[string]*Volume                `json:"volumes,omitempty"`    // @bingen:field[version=1]
+	Devices                map[string]*Device                `json:"devices,omitempty"`     // @bingen:field[version=1]
+	Nodes                  map[string]*Node                  `json:"nodes,omitempty"`       // @bingen:field[version=1]
+	Pods                   map[string]*Pod                   `json:"pods,omitempty"`        // @bingen:field[version=1]
+	PersistentVolumeClaims map[string]*PersistentVolumeClaim `json:"pvcs,omitempty"`        // @bingen:field[version=1]
+	Services               map[string]*Service               `json:"services,omitempty"`    // @bingen:field[version=1]
+	Volumes                map[string]*Volume                `json:"volumes,omitempty"`     // @bingen:field[version=1]
 	idx                    *kubeModelSetIndexes              // @bingen:field[ignore]
+}
+
+func (kms *KubeModelSet) MarshalBinary() (data []byte, err error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {

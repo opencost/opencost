@@ -9,56 +9,50 @@ import (
 	"github.com/opencost/opencost/core/pkg/pipelines"
 )
 
-const KubeModelStorageTimeFormat = "20060102150405"
+const (
+	KubeModelDateDirTimeFormat = "2006/01/02"
+	KubeModelStorageTimeFormat = "20060102150405"
+)
 
 // KubeModelStoragePathFormatter is an implementation of the StoragePathFormatter interface for
 // a cluster separated storage path of the format:
 //
-//	<root>/<clusterid>/kubemodel/<resolution>/<YYYYMMDDHHiiSS>
+//	<root>/<clusterid>/kubemodel/<resolution>/<YYYY>/<MM>/<DD>/<YYYYMMDDHHiiSS>
 //
 // where <root> is, e.g., s3://<bucket>/<appid>
 type KubeModelStoragePathFormatter struct {
-	rootDir    string
-	clusterId  string
-	resolution string
+	dir string
 }
 
+// TODO: we need to figure out how to get the proper clusterId here, if we're
+// going to use the kube-system namespace UID as the real cluster ID.
 func NewKubeModelStoragePathFormatter(rootDir, clusterId, resolution string) (StoragePathFormatter[opencost.Window], error) {
 	if clusterId == "" {
 		return nil, fmt.Errorf("cluster id cannot be empty")
 	}
 
 	return &KubeModelStoragePathFormatter{
-		rootDir:    rootDir,
-		clusterId:  clusterId,
-		resolution: resolution,
+		dir: path.Join(
+			rootDir,
+			clusterId,
+			pipelines.KubeModelPipelineName,
+			resolution,
+		),
 	}, nil
-}
-
-// RootDir returns the root directory of the storage path formatter.
-func (kmspf *KubeModelStoragePathFormatter) RootDir() string {
-	return kmspf.rootDir
 }
 
 // Dir returns the director that files will be placed in
 func (kmspf *KubeModelStoragePathFormatter) Dir() string {
-	return path.Join(
-		kmspf.rootDir,
-		kmspf.clusterId,
-		pipelines.KubeModelPipelineName,
-		kmspf.resolution,
-	)
+	return kmspf.dir
 }
 
 // ToFullPath returns the full path to a file name within the storage directory using the format:
 //
-//	<root>/<clusterid>/kubemodel/<resolution>/<prefix>.<YYYYMMDDHHiiSS>.<fileExt>
+//	<root>/<clusterid>/kubemodel/<resolution>/<YYYY>/<MM>/<DD>/<prefix>.<YYYYMMDDHHiiSS>.<fileExt>
 func (kmspf *KubeModelStoragePathFormatter) ToFullPath(prefix string, window opencost.Window, fileExt string) string {
 	return path.Join(
-		kmspf.rootDir,
-		kmspf.clusterId,
-		pipelines.KubeModelPipelineName,
-		kmspf.resolution,
+		kmspf.dir,
+		window.Start().Format(KubeModelDateDirTimeFormat),
 		toKubeModelFileName(prefix, window.Start(), fileExt),
 	)
 }
