@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"time"
 
@@ -223,9 +224,17 @@ func runQuery(query string, ctx *Context, resCh source.QueryResultsChan, t time.
 
 // RawQuery is a direct query to the prometheus client and returns the body of the response
 func (ctx *Context) RawQuery(query string, t time.Time) ([]byte, error) {
-	u := ctx.Client.URL(epQuery, nil)
-	q := u.Query()
-	q.Set("query", query)
+
+       // Inject cluster label filter if OPENCOST_CLUSTER_FILTER is set
+       clusterFilter := ""
+       if val := os.Getenv("OPENCOST_CLUSTER_FILTER"); val != "" {
+	       clusterFilter = val
+       }
+       filteredQuery := injectClusterLabelFilter(query, clusterFilter)
+
+       u := ctx.Client.URL(epQuery, nil)
+       q := u.Query()
+       q.Set("query", filteredQuery)
 
 	if t.IsZero() {
 		t = time.Now()
@@ -244,7 +253,7 @@ func (ctx *Context) RawQuery(query string, t time.Time) ([]byte, error) {
 	if ctx.name != "" {
 		req = httputil.SetName(req, ctx.name)
 	}
-	req = httputil.SetQuery(req, query)
+	req = httputil.SetQuery(req, filteredQuery)
 
 	// Note that the warnings return value from client.Do() is always nil using this
 	// version of the prometheus client library. We parse the warnings out of the response
@@ -377,9 +386,16 @@ func runQueryRange(query string, start, end time.Time, step time.Duration, ctx *
 
 // RawQuery is a direct query to the prometheus client and returns the body of the response
 func (ctx *Context) RawQueryRange(query string, start, end time.Time, step time.Duration) ([]byte, error) {
-	u := ctx.Client.URL(epQueryRange, nil)
-	q := u.Query()
-	q.Set("query", query)
+       // Inject cluster label filter if OPENCOST_CLUSTER_FILTER is set
+       clusterFilter := ""
+       if val := os.Getenv("OPENCOST_CLUSTER_FILTER"); val != "" {
+	       clusterFilter = val
+       }
+       filteredQuery := injectClusterLabelFilter(query, clusterFilter)
+
+       u := ctx.Client.URL(epQueryRange, nil)
+       q := u.Query()
+       q.Set("query", filteredQuery)
 	q.Set("start", start.Format(time.RFC3339Nano))
 	q.Set("end", end.Format(time.RFC3339Nano))
 	q.Set("step", strconv.FormatFloat(step.Seconds(), 'f', 3, 64))
@@ -394,8 +410,7 @@ func (ctx *Context) RawQueryRange(query string, start, end time.Time, step time.
 	if ctx.name != "" {
 		req = httputil.SetName(req, ctx.name)
 	}
-	req = httputil.SetQuery(req, query)
-
+       req = httputil.SetQuery(req, filteredQuery)
 	// Note that the warnings return value from client.Do() is always nil using this
 	// version of the prometheus client library. We parse the warnings out of the response
 	// body after json decodidng completes.
@@ -418,6 +433,35 @@ func (ctx *Context) RawQueryRange(query string, start, end time.Time, step time.
 	return body, err
 }
 
+// injectClusterLabelFilter adds {cluster="..."} to all metric queries if not already present
+func injectClusterLabelFilter(query, cluster string) string {
+	if cluster == "" {
+		return query
+	}
+	// Simple heuristic: inject into first {...} or add {...} if none
+	inBraces := false
+	out := ""
+	for _, c := range query {
+		if c == '{' && !inBraces {
+			inBraces = true
+			out += string(c)
+			out += "cluster=\"" + cluster + "\"," // inject at start of label matchers
+		} else {
+			out += string(c)
+		}
+	}
+	if !inBraces {
+		// No braces found, add {cluster="..."}
+		for idx, c := range query {
+			if c == '(' || c == '[' {
+				return query[:idx] + "{cluster=\"" + cluster + "\"}" + query[idx:]
+			}
+		}
+		// Otherwise, just append
+		return query + "{cluster=\"" + cluster + "\"}"
+	}
+	return out
+}
 func (ctx *Context) queryRange(query string, start, end time.Time, step time.Duration) (interface{}, v1.Warnings, error) {
 	body, err := ctx.RawQueryRange(query, start, end, step)
 
@@ -470,3 +514,4 @@ func warningsFrom(result interface{}) v1.Warnings {
 
 	return warnings
 }
+
