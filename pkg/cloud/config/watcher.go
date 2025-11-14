@@ -248,16 +248,26 @@ func (mcw *MultiCloudWatcher) GetConfigs() []cloud.KeyedConfig {
 
 	// If config does not exist implies that this configuration method was not used
 	if !exists {
-		// check the original location of secret mount
-		multiConfigPath = path.Join("/var", cloudIntegrationSecretPath)
+		// check if secret was mounted as a subdirectory under config path (fixes #3450)
+		// this handles the case where the secret is mounted at /var/configs/cloud-integration/cloud-integration.json
+		multiConfigPath = path.Join(env.GetConfigPath(), "cloud-integration", "cloud-integration.json")
 		exists, err = fileutil.FileExists(multiConfigPath)
 		if err != nil {
 			log.Errorf("MultiCloudWatcher:  error checking file at '%s': %s", multiConfigPath, err.Error())
 		}
 
-		// If config does not exist implies that this configuration method was not used
 		if !exists {
-			return nil
+			// check the original location of secret mount
+			multiConfigPath = path.Join("/var", cloudIntegrationSecretPath)
+			exists, err = fileutil.FileExists(multiConfigPath)
+			if err != nil {
+				log.Errorf("MultiCloudWatcher:  error checking file at '%s': %s", multiConfigPath, err.Error())
+			}
+
+			// If config does not exist implies that this configuration method was not used
+			if !exists {
+				return nil
+			}
 		}
 	}
 

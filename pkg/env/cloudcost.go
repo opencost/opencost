@@ -36,6 +36,10 @@ func IsCustomCostEnabled() bool {
 	return env.GetBool(CustomCostEnabledEnvVar, false)
 }
 
+func GetConfigPath() string {
+	return env.GetConfigPath()
+}
+
 func GetCloudCostConfigPath() string {
 	return env.GetPathFromConfig(CloudIntegrationConfigFile)
 }
