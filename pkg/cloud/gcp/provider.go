@@ -762,55 +762,11 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					instanceType = "t2astandard"
 				}
 
-				// --- BEGIN: GPU parsing block ---
-				var gpuType string
-				descLower := strings.ToLower(product.Description)
-							
-				// Try "Nvidia Tesla ..."
-				for matchnum, group := range nvidiaTeslaGPURegex.FindStringSubmatch(product.Description) {
-				    if matchnum == 1 {
-				        gpuType = strings.ToLower(strings.Join(strings.Split(group, " "), "-"))
-				        log.Debugf("GCP Billing API: GPU type found: '%s'", gpuType)
-				    }
-				}
-				
-				// If a 'Nvidia Tesla' is not found, try 'Nvidia'
-				if gpuType == "" {
-				    for matchnum, group := range nvidiaGPURegex.FindStringSubmatch(product.Description) {
-				        if matchnum == 1 {
-				            gpuType = strings.ToLower(strings.Join(strings.Split(group, " "), "-"))
-				            log.Debugf("GCP Billing API: GPU type found: '%s'", gpuType)
-				        }
-				    }
-				}
-				
-				// Normalize to GKE/OpenCost-friendly forms
+				gpuType := NormalizeGPULabel(product.Description)
 				if gpuType != "" {
-				    // drop packaging variants like SXM4
-				    gpuType = strings.ReplaceAll(gpuType, "-sxm4", "")
-				
-				    // canonical NVIDIA prefix; drop "tesla-" if present
-				    gpuType = strings.TrimPrefix(gpuType, "nvidia-tesla-")
-				    gpuType = strings.TrimPrefix(gpuType, "tesla-")
-				    if !strings.HasPrefix(gpuType, "nvidia-") {
-				        gpuType = "nvidia-" + gpuType
-				    }
-				
-				    // Generic A100 handling (covers both highgpu and ultragpu):
-				    // - If the SKU explicitly says 80GB -> nvidia-a100-80gb (A2-Ultra)
-				    // - Else if it says 40GB OR just "A100" -> normalize to legacy label "nvidia-tesla-a100" (A2-HighGPU)
-				    if strings.Contains(descLower, "a100") {
-				        if strings.Contains(descLower, "80gb") {
-				            gpuType = "nvidia-a100-80gb"
-				        } else if strings.Contains(descLower, "40gb") || !strings.Contains(descLower, "gb") {
-				            // a2-highgpu nodes often use cloud.google.com/gke-accelerator=nvidia-tesla-a100
-				            gpuType = "nvidia-tesla-a100"
-				        }
-				    }
-				
-				    log.Debugf("GCP Billing API: normalized GPU type: '%s'", gpuType)
+				    log.Debugf("GCP Billing API: normalized GPU type: %q", gpuType)
 				}
-				// --- END: GPU parsing block -
+
 
 				candidateKeys := []string{}
 				if gcp.ValidPricingKeys == nil {
