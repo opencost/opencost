@@ -11,6 +11,7 @@ Official list of [OpenCost Maintainers](https://github.com/orgs/opencost/teams/o
 | Matt Bolt | @​mbolt35 | IBM | <matthew.bolt@ibm.com> |
 | Niko Kovacevic | @nikovacevic | IBM | <Nicholas.Kovacevic@ibm.com> |
 | Sean Holcomb | @Sean-Holcomb | IBM | <sean.holcomb@ibm.com> |
+| Warwick Peatey | @peatey | IBM | <warwick.peatey@ibm.com> |
 
 ## Opencost Emeritus Committers
 We would like to acknowledge previous committers and their huge contributions to our collective success:
