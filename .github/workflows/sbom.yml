@@ -110,6 +110,29 @@ jobs:
           output-file: opencost-source-sbom.cyclonedx.json
           format: cyclonedx-json
 
+      # Display SBOM contents on PRs for review
+      - name: Display SBOM Contents
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "## SBOM Contents (SPDX Format)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Package Count" >> $GITHUB_STEP_SUMMARY
+          PACKAGE_COUNT=$(jq '.packages | length' opencost-source-sbom.spdx.json)
+          echo "Total packages: $PACKAGE_COUNT" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Top-level Packages" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          jq -r '.packages[] | select(.name != null) | "\(.name) - \(.versionInfo // "unknown")"' opencost-source-sbom.spdx.json | head -50 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<details>" >> $GITHUB_STEP_SUMMARY
+          echo "<summary>Full SPDX SBOM (click to expand)</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          cat opencost-source-sbom.spdx.json >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+
       - name: Generate CycloneDX SBOM for Container Image
         if: github.event_name != 'pull_request'
         uses: anchore/sbom-action@v0
