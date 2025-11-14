@@ -88,14 +88,6 @@ jobs:
           format: spdx-json
 
       # Generate SBOM for container image
-      - name: Log into registry ${{ env.REGISTRY }}
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Generate SBOM for Container Image
         if: github.event_name != 'pull_request'
         uses: anchore/sbom-action@v0
@@ -104,8 +96,6 @@ jobs:
           artifact-name: opencost-container-sbom.spdx.json
           output-file: opencost-container-sbom.spdx.json
           format: spdx-json
-          registry-username: ${{ github.actor }}
-          registry-password: ${{ secrets.GITHUB_TOKEN }}
 
       # Generate CycloneDX format as well for broader compatibility
       - name: Generate CycloneDX SBOM for Source Code
@@ -124,8 +114,6 @@ jobs:
           artifact-name: opencost-container-sbom.cyclonedx.json
           output-file: opencost-container-sbom.cyclonedx.json
           format: cyclonedx-json
-          registry-username: ${{ github.actor }}
-          registry-password: ${{ secrets.GITHUB_TOKEN }}
 
       # Publish SBOMs to GitHub release (only for tagged releases)
       - name: Attach SBOMs to GitHub Release
