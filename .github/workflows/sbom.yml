@@ -14,9 +14,7 @@ on:
     branches:
       - develop
 
-permissions:
-  contents: write
-  actions: read
+permissions: read-all
 
 concurrency:
   group: sbom-${{ github.ref }}
@@ -30,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     permissions:
-      contents: write
+      contents: ${{ github.event_name == 'pull_request' && 'read' || 'write' }}
       actions: read
       packages: read
     steps:
@@ -71,7 +69,7 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.head_ref || steps.branch.outputs.BRANCH_NAME }}
+          ref: ${{ github.event_name != 'pull_request' && steps.branch.outputs.BRANCH_NAME || '' }}
 
       - name: Set OpenCost Image Tag
         id: image_tag
