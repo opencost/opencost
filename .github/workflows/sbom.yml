@@ -1,9 +1,10 @@
 name: Generate SBOM
 
 on:
-  push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_run:
+    workflows: ["Build and Publish Release"]
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       release_version:
@@ -27,6 +28,7 @@ env:
 jobs:
   generate-sbom:
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     permissions:
       contents: write
       actions: read
@@ -34,9 +36,11 @@ jobs:
     steps:
       - name: Get Version From Tag
         id: tag
-        if: github.event_name == 'push'
+        if: github.event_name == 'workflow_run'
         run: |
-          echo "TRIGGERED_TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          echo "TRIGGERED_TAG=${GITHUB_EVENT_WORKFLOW_RUN_HEAD_BRANCH#refs/*/}" >> $GITHUB_ENV
+        env:
+          GITHUB_EVENT_WORKFLOW_RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
 
       - name: Determine Version Number
         id: version_number
@@ -115,9 +119,9 @@ jobs:
           output-file: opencost-container-sbom.cyclonedx.json
           format: cyclonedx-json
 
-      # Publish SBOMs to GitHub release (only for tagged releases)
+      # Publish SBOMs to GitHub release (only for releases, not PRs)
       - name: Attach SBOMs to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.event_name != 'pull_request'
         uses: anchore/sbom-action/publish-sbom@v0
         with:
           sbom-artifact-match: ".*\\.spdx\\.json$|.*\\.cyclonedx\\.json$"
@@ -137,6 +141,6 @@ jobs:
             echo "- Container Image SBOM (CycloneDX)" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]; then
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "📦 SBOMs have been attached to the GitHub release" >> $GITHUB_STEP_SUMMARY
           fi
