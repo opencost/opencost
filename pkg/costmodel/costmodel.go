@@ -1322,7 +1322,12 @@ func getPodServices(cache clustercache.ClusterCache, podList []*clustercache.Pod
 			s = labels.Set(service.SpecSelector).AsSelectorPreValidated()
 		}
 		for _, pod := range podList {
-			labelSet := labels.Set(pod.Labels)
+			// SECURITY FIX for issue #3388 and #2910: Create a defensive copy of pod.Labels
+			// to prevent concurrent map access panics when the cache is modified by other goroutines.
+			// The labels.Set type is just map[string]string, and Matches() iterates over it,
+			// so we must ensure we're not reading from a map that another goroutine might be writing to.
+			podLabelsCopy := promutil.CopyStringMap(pod.Labels)
+			labelSet := labels.Set(podLabelsCopy)
 			if s.Matches(labelSet) && pod.Namespace == namespace {
 				services, ok := podServicesMapping[key][pod.Name]
 				if ok {
@@ -1352,7 +1357,9 @@ func getPodStatefulsets(cache clustercache.ClusterCache, podList []*clustercache
 			log.Errorf("Error doing deployment label conversion: %s", err.Error())
 		}
 		for _, pod := range podList {
-			labelSet := labels.Set(pod.Labels)
+			// SECURITY FIX for issue #3388 and #2910: Create defensive copy to prevent concurrent map access
+			podLabelsCopy := promutil.CopyStringMap(pod.Labels)
+			labelSet := labels.Set(podLabelsCopy)
 			if s.Matches(labelSet) && pod.Namespace == namespace {
 				sss, ok := podSSMapping[key][pod.Name]
 				if ok {
@@ -1383,7 +1390,9 @@ func getPodDeployments(cache clustercache.ClusterCache, podList []*clustercache.
 			log.Errorf("Error doing deployment label conversion: %s", err)
 		}
 		for _, pod := range podList {
-			labelSet := labels.Set(pod.Labels)
+			// SECURITY FIX for issue #3388 and #2910: Create defensive copy to prevent concurrent map access
+			podLabelsCopy := promutil.CopyStringMap(pod.Labels)
+			labelSet := labels.Set(podLabelsCopy)
 			if s.Matches(labelSet) && pod.Namespace == namespace {
 				deployments, ok := podDeploymentsMapping[key][pod.Name]
 				if ok {

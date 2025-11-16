@@ -115,7 +115,16 @@ func SanitizeLabelName(s string) string {
 // collisions, which is intentional as collisions that are not caught prior to
 // attempted emission will cause fatal errors. In the case of a collision, the
 // last value seen will be set, and all previous values will be overwritten.
+//
+// SECURITY: To prevent concurrent map access panics (issue #3388), callers should
+// ensure the input map is not modified by other goroutines during this call, or
+// pass a copy of the map. This function creates a new map and does not modify
+// the input.
 func SanitizeLabels(labels map[string]string) map[string]string {
+	if labels == nil {
+		return nil
+	}
+
 	response := make(map[string]string, len(labels))
 
 	for k, v := range labels {
@@ -123,4 +132,21 @@ func SanitizeLabels(labels map[string]string) map[string]string {
 	}
 
 	return response
+}
+
+// CopyStringMap creates a defensive copy of a string map to prevent concurrent
+// access issues. This is useful when passing maps from shared data structures
+// (like Kubernetes objects from cache) to functions that iterate over them.
+//
+// Returns nil if the input is nil, otherwise returns a new map with copied entries.
+func CopyStringMap(m map[string]string) map[string]string {
+	if m == nil {
+		return nil
+	}
+
+	result := make(map[string]string, len(m))
+	for k, v := range m {
+		result[k] = v
+	}
+	return result
 }
