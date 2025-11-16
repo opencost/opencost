@@ -2054,6 +2054,11 @@ func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost
 		gpuIdleCost := assetTotal.TotalGPUCost() - allocTotal.TotalGPUCost()
 		ramIdleCost := assetTotal.TotalRAMCost() - allocTotal.TotalRAMCost()
 
+		// Calculate idle resource hours
+		cpuIdleCoreHours := assetTotal.CPUCoreHours - allocTotal.CPUCoreHours
+		gpuIdleHours := assetTotal.GPUHours - allocTotal.GPUHours
+		ramIdleByteHours := assetTotal.RAMByteHours - allocTotal.RAMByteHours
+
 		// Clamp idle costs to zero to prevent negative idle allocations
 		if cpuIdleCost < 0 {
 			log.Warnf("Negative CPU idle cost detected for %s: asset total (%.4f) < allocation total (%.4f), clamping to 0",
@@ -2071,6 +2076,23 @@ func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost
 			ramIdleCost = 0
 		}
 
+		// Clamp idle resource hours to zero to prevent negative values
+		if cpuIdleCoreHours < 0 {
+			log.Warnf("Negative CPU idle core hours detected for %s: asset total (%.4f) < allocation total (%.4f), clamping to 0",
+				key, assetTotal.CPUCoreHours, allocTotal.CPUCoreHours)
+			cpuIdleCoreHours = 0
+		}
+		if gpuIdleHours < 0 {
+			log.Warnf("Negative GPU idle hours detected for %s: asset total (%.4f) < allocation total (%.4f), clamping to 0",
+				key, assetTotal.GPUHours, allocTotal.GPUHours)
+			gpuIdleHours = 0
+		}
+		if ramIdleByteHours < 0 {
+			log.Warnf("Negative RAM idle byte hours detected for %s: asset total (%.4f) < allocation total (%.4f), clamping to 0",
+				key, assetTotal.RAMByteHours, allocTotal.RAMByteHours)
+			ramIdleByteHours = 0
+		}
+
 		err := idleSet.Insert(&opencost.Allocation{
 			Name:   name,
 			Window: idleSet.Window.Clone(),
@@ -2079,11 +2101,14 @@ func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost
 				Node:       assetTotal.Node,
 				ProviderID: assetTotal.ProviderID,
 			},
-			Start:   assetTotal.Start,
-			End:     assetTotal.End,
-			CPUCost: cpuIdleCost,
-			GPUCost: gpuIdleCost,
-			RAMCost: ramIdleCost,
+			Start:        assetTotal.Start,
+			End:          assetTotal.End,
+			CPUCost:      cpuIdleCost,
+			GPUCost:      gpuIdleCost,
+			RAMCost:      ramIdleCost,
+			CPUCoreHours: cpuIdleCoreHours,
+			GPUHours:     gpuIdleHours,
+			RAMByteHours: ramIdleByteHours,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to insert idle allocation %s: %w", name, err)
