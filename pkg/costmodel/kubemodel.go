@@ -443,14 +443,15 @@ func (cm *CostModel) kmComputeNodes(kms *kubemodel.KubeModelSet, start, end time
 	// Process CPU capacity
 	for _, res := range nodeCPUCoresCapacityResult {
 		if node, ok := kms.Nodes[res.Node]; ok && len(res.Data) > 0 {
-			node.CpuCores = uint64(res.Data[0].Value)
+			// Convert cores to millicores
+			node.CpuMillicores = uint64(res.Data[0].Value * 1000)
 		}
 	}
 
 	// Process RAM capacity
 	for _, res := range nodeRAMBytesCapacityResult {
 		if node, ok := kms.Nodes[res.Node]; ok && len(res.Data) > 0 {
-			node.RamBytes = uint64(res.Data[0].Value)
+			node.RAMBytes = uint64(res.Data[0].Value)
 		}
 	}
 
@@ -543,21 +544,21 @@ func (cm *CostModel) kmComputePods(kms *kubemodel.KubeModelSet, start, end time.
 	// Process RAM requests
 	for _, res := range ramRequestsResult {
 		if pod, ok := kms.Pods[res.UID]; ok && len(res.Data) > 0 {
-			pod.RamBytesRequestAverage += uint64(res.Data[0].Value)
+			pod.RAMBytesRequestAverage += uint64(res.Data[0].Value)
 		}
 	}
 
 	// Process RAM usage average
 	for _, res := range ramUsageAvgResult {
 		if pod, ok := kms.Pods[res.UID]; ok && len(res.Data) > 0 {
-			pod.RamBytesUsageAverage += uint64(res.Data[0].Value)
+			pod.RAMBytesUsageAverage += uint64(res.Data[0].Value)
 		}
 	}
 
 	// Process RAM usage max
 	for _, res := range ramUsageMaxResult {
 		if pod, ok := kms.Pods[res.UID]; ok && len(res.Data) > 0 {
-			pod.RamBytesUsageMax += uint64(res.Data[0].Value)
+			pod.RAMBytesUsageMax += uint64(res.Data[0].Value)
 		}
 	}
 
@@ -639,21 +640,21 @@ func (cm *CostModel) kmComputeContainers(kms *kubemodel.KubeModelSet, start, end
 	// Process RAM requests
 	for _, res := range ramRequestsResult {
 		if container := getOrCreateContainer(res.UID, res.Container); container != nil && len(res.Data) > 0 {
-			container.RamBytesRequestAverage = uint64(res.Data[0].Value)
+			container.RAMBytesRequestAverage = uint64(res.Data[0].Value)
 		}
 	}
 
 	// Process RAM usage average
 	for _, res := range ramUsageAvgResult {
 		if container := getOrCreateContainer(res.UID, res.Container); container != nil && len(res.Data) > 0 {
-			container.RamBytesUsageAverage = uint64(res.Data[0].Value)
+			container.RAMBytesUsageAverage = uint64(res.Data[0].Value)
 		}
 	}
 
 	// Process RAM usage max
 	for _, res := range ramUsageMaxResult {
 		if container := getOrCreateContainer(res.UID, res.Container); container != nil && len(res.Data) > 0 {
-			container.RamBytesUsageMax = uint64(res.Data[0].Value)
+			container.RAMBytesUsageMax = uint64(res.Data[0].Value)
 		}
 	}
 
