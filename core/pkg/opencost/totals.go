@@ -35,8 +35,10 @@ type AllocationTotals struct {
 	Count                          int       `json:"count"`
 	CPUCost                        float64   `json:"cpuCost"`
 	CPUCostAdjustment              float64   `json:"cpuCostAdjustment"`
+	CPUCoreHours                   float64   `json:"cpuCoreHours"`
 	GPUCost                        float64   `json:"gpuCost"`
 	GPUCostAdjustment              float64   `json:"gpuCostAdjustment"`
+	GPUHours                       float64   `json:"gpuHours"`
 	LoadBalancerCost               float64   `json:"loadBalancerCost"`
 	LoadBalancerCostAdjustment     float64   `json:"loadBalancerCostAdjustment"`
 	NetworkCost                    float64   `json:"networkCost"`
@@ -45,6 +47,7 @@ type AllocationTotals struct {
 	PersistentVolumeCostAdjustment float64   `json:"persistentVolumeCostAdjustment"`
 	RAMCost                        float64   `json:"ramCost"`
 	RAMCostAdjustment              float64   `json:"ramCostAdjustment"`
+	RAMByteHours                   float64   `json:"ramByteHours"`
 	// UnmountedPVCost is used to track how much of the cost in
 	// PersistentVolumeCost is for an unmounted PV. It is not additive of that
 	// field, and need not be sent in API responses.
@@ -71,8 +74,10 @@ func (art *AllocationTotals) Clone() *AllocationTotals {
 		Count:                          art.Count,
 		CPUCost:                        art.CPUCost,
 		CPUCostAdjustment:              art.CPUCostAdjustment,
+		CPUCoreHours:                   art.CPUCoreHours,
 		GPUCost:                        art.GPUCost,
 		GPUCostAdjustment:              art.GPUCostAdjustment,
+		GPUHours:                       art.GPUHours,
 		LoadBalancerCost:               art.LoadBalancerCost,
 		LoadBalancerCostAdjustment:     art.LoadBalancerCostAdjustment,
 		NetworkCost:                    art.NetworkCost,
@@ -81,6 +86,7 @@ func (art *AllocationTotals) Clone() *AllocationTotals {
 		PersistentVolumeCostAdjustment: art.PersistentVolumeCostAdjustment,
 		RAMCost:                        art.RAMCost,
 		RAMCostAdjustment:              art.RAMCostAdjustment,
+		RAMByteHours:                   art.RAMByteHours,
 	}
 }
 
@@ -162,9 +168,11 @@ func ComputeAllocationTotals(as *AllocationSet, prop string) map[string]*Allocat
 
 		arts[key].CPUCost += alloc.CPUCost
 		arts[key].CPUCostAdjustment += alloc.CPUCostAdjustment
+		arts[key].CPUCoreHours += alloc.CPUCoreHours
 
 		arts[key].GPUCost += alloc.GPUCost
 		arts[key].GPUCostAdjustment += alloc.GPUCostAdjustment
+		arts[key].GPUHours += alloc.GPUHours
 
 		arts[key].LoadBalancerCost += alloc.LoadBalancerCost
 		arts[key].LoadBalancerCostAdjustment += alloc.LoadBalancerCostAdjustment
@@ -177,6 +185,7 @@ func ComputeAllocationTotals(as *AllocationSet, prop string) map[string]*Allocat
 
 		arts[key].RAMCost += alloc.RAMCost
 		arts[key].RAMCostAdjustment += alloc.RAMCostAdjustment
+		arts[key].RAMByteHours += alloc.RAMByteHours
 	}
 
 	return arts
@@ -217,14 +226,17 @@ type AssetTotals struct {
 	ClusterManagementCostAdjustment float64   `json:"clusterManagementCostAdjustment"`
 	CPUCost                         float64   `json:"cpuCost"`
 	CPUCostAdjustment               float64   `json:"cpuCostAdjustment"`
+	CPUCoreHours                    float64   `json:"cpuCoreHours"`
 	GPUCost                         float64   `json:"gpuCost"`
 	GPUCostAdjustment               float64   `json:"gpuCostAdjustment"`
+	GPUHours                        float64   `json:"gpuHours"`
 	LoadBalancerCost                float64   `json:"loadBalancerCost"`
 	LoadBalancerCostAdjustment      float64   `json:"loadBalancerCostAdjustment"`
 	PersistentVolumeCost            float64   `json:"persistentVolumeCost"`
 	PersistentVolumeCostAdjustment  float64   `json:"persistentVolumeCostAdjustment"`
 	RAMCost                         float64   `json:"ramCost"`
 	RAMCostAdjustment               float64   `json:"ramCostAdjustment"`
+	RAMByteHours                    float64   `json:"ramByteHours"`
 	PrivateLoadBalancer             bool      `json:"privateLoadBalancer"`
 }
 
@@ -254,14 +266,17 @@ func (art *AssetTotals) Clone() *AssetTotals {
 		ClusterManagementCostAdjustment: art.ClusterManagementCostAdjustment,
 		CPUCost:                         art.CPUCost,
 		CPUCostAdjustment:               art.CPUCostAdjustment,
+		CPUCoreHours:                    art.CPUCoreHours,
 		GPUCost:                         art.GPUCost,
 		GPUCostAdjustment:               art.GPUCostAdjustment,
+		GPUHours:                        art.GPUHours,
 		LoadBalancerCost:                art.LoadBalancerCost,
 		LoadBalancerCostAdjustment:      art.LoadBalancerCostAdjustment,
 		PersistentVolumeCost:            art.PersistentVolumeCost,
 		PersistentVolumeCostAdjustment:  art.PersistentVolumeCostAdjustment,
 		RAMCost:                         art.RAMCost,
 		RAMCostAdjustment:               art.RAMCostAdjustment,
+		RAMByteHours:                    art.RAMByteHours,
 		PrivateLoadBalancer:             art.PrivateLoadBalancer,
 	}
 }
@@ -411,14 +426,17 @@ func ComputeAssetTotals(as *AssetSet, byAsset bool) map[string]*AssetTotals {
 		// TotalCPUCost will be discounted cost + adjustment
 		arts[key].CPUCost += discountedCPUCost
 		arts[key].CPUCostAdjustment += cpuCostAdjustment
+		arts[key].CPUCoreHours += node.CPUCoreHours
 
 		// TotalRAMCost will be discounted cost + adjustment
 		arts[key].RAMCost += discountedRAMCost
 		arts[key].RAMCostAdjustment += ramCostAdjustment
+		arts[key].RAMByteHours += node.RAMByteHours
 
 		// TotalGPUCost will be discounted cost + adjustment
 		arts[key].GPUCost += node.GPUCost
 		arts[key].GPUCostAdjustment += gpuCostAdjustment
+		arts[key].GPUHours += node.GPUHours
 	}
 
 	for _, lb := range as.LoadBalancers {

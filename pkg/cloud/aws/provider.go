@@ -70,6 +70,8 @@ var (
 	versionRx     = regexp.MustCompile(`^#Version: (\\d+)\\.\\d+$`)
 	regionRx      = regexp.MustCompile("([a-z]+-[a-z]+-[0-9])")
 
+	ErrNoAthenaBucket = errors.New("No Athena Bucket configured")
+
 	// StorageClassProvisionerDefaults specifies the default storage class types depending upon the provisioner
 	StorageClassProvisionerDefaults = map[string]string{
 		"kubernetes.io/aws-ebs": "gp2",
@@ -896,10 +898,18 @@ func (aws *AWS) DownloadPricingData() error {
 
 	// RIDataRunning establishes the existence of the goroutine. Since it's possible we
 	// run multiple downloads, we don't want to create multiple go routines if one already exists
+	//
+	// If athenaBucketName is unconfigured, the ReservedInstanceData and SavingsPlanData watchers
+	// are skipped. Note: These watchers are less commonly used. It is recommended to use the full
+	// CloudCosts feature via athenaintegration.go.
 	if !aws.RIDataRunning {
 		err = aws.GetReservationDataFromAthena() // Block until one run has completed.
 		if err != nil {
-			log.Errorf("Failed to lookup reserved instance data: %s", err.Error())
+			if errors.Is(err, ErrNoAthenaBucket) {
+				log.Debugf("No \"athenaBucketName\" configured, ReservedInstanceData watcher will not run")
+			} else {
+				log.Errorf("Failed to lookup reserved instance data: %s", err.Error())
+			}
 		} else { // If we make one successful run, check on new reservation data every hour
 			go func() {
 				defer errs.HandlePanic()
@@ -919,7 +929,11 @@ func (aws *AWS) DownloadPricingData() error {
 	if !aws.SavingsPlanDataRunning {
 		err = aws.GetSavingsPlanDataFromAthena()
 		if err != nil {
-			log.Errorf("Failed to lookup savings plan data: %s", err.Error())
+			if errors.Is(err, ErrNoAthenaBucket) {
+				log.Debugf("No \"athenaBucketName\" configured, SavingsPlanData watcher will not run")
+			} else {
+				log.Errorf("Failed to lookup savings plan data: %s", err.Error())
+			}
 		} else {
 			go func() {
 				defer errs.HandlePanic()
@@ -2039,7 +2053,7 @@ func (aws *AWS) GetSavingsPlanDataFromAthena() error {
 		return err
 	}
 	if cfg.AthenaBucketName == "" {
-		err = fmt.Errorf("No Athena Bucket configured")
+		err = ErrNoAthenaBucket
 		aws.RIPricingError = err
 		return err
 	}
@@ -2136,7 +2150,7 @@ func (aws *AWS) GetReservationDataFromAthena() error {
 		return err
 	}
 	if cfg.AthenaBucketName == "" {
-		err = fmt.Errorf("No Athena Bucket configured")
+		err = ErrNoAthenaBucket
 		aws.RIPricingError = err
 		return err
 	}

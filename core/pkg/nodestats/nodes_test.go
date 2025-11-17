@@ -133,3 +133,7 @@ func (tcc *NodesOnlyClusterCache) GetAllPodDisruptionBudgets() []*clustercache.P
 func (tcc *NodesOnlyClusterCache) GetAllReplicationControllers() []*clustercache.ReplicationController {
 	return nil
 }
+
+func (tcc *NodesOnlyClusterCache) GetAllResourceQuotas() []*clustercache.ResourceQuota {
+	return nil
+}

@@ -901,24 +901,6 @@ func TestAssetCustompricing(t *testing.T) {
 
 	startTimestamp := float64(windowStart.Unix())
 
-	nodePromResult := []*source.QueryResult{
-		source.NewQueryResult(
-			map[string]interface{}{
-				"cluster_id":    "cluster1",
-				"node":          "node1",
-				"instance_type": "type1",
-				"provider_id":   "provider1",
-			},
-			[]*util.Vector{
-				{
-					Timestamp: startTimestamp,
-					Value:     0.5,
-				},
-			},
-			source.DefaultResultKeys(),
-		),
-	}
-
 	pvCostPromResult := []*source.QueryResult{
 		source.NewQueryResult(
 			map[string]interface{}{
@@ -1052,6 +1034,7 @@ func TestAssetCustompricing(t *testing.T) {
 		name             string
 		customPricingMap map[string]string
 		expectedPricing  map[string]float64
+		zeroCollector    bool // If true, simulate collector returning 0 (promless mode)
 	}{
 		{
 			name:             "No custom pricing",
@@ -1062,6 +1045,7 @@ func TestAssetCustompricing(t *testing.T) {
 				"GPU":     1.0,
 				"Storage": 1.0,
 			},
+			zeroCollector: false,
 		},
 		{
 			name: "Custom pricing enabled",
@@ -1078,6 +1062,25 @@ func TestAssetCustompricing(t *testing.T) {
 				"GPU":     1.369864,              // 500.0 / 730 * 2
 				"Storage": 0.000137,              // 0.1 / 730 * (1073741824.0 / 1024 / 1024 / 1024) * (60 / 60) => 0.1 / 730 * 1 * 1
 			},
+			zeroCollector: false,
+		},
+		{
+			name: "Collector returns 0, fallback to custom pricing",
+			customPricingMap: map[string]string{
+				"CPU":     "20.0",
+				"RAM":     "4.0",
+				"GPU":     "500.0",
+				"Storage": "0.1",
+				// NOTE: customPricesEnabled is NOT set to "true"
+				// This tests the fallback behavior when collector returns 0
+			},
+			expectedPricing: map[string]float64{
+				"CPU":     0.027397,              // 20.0 / 730 (fallback from 0)
+				"RAM":     5.102716386318207e-12, // 4.0 / 730 / 1024^3 (fallback from 0)
+				"GPU":     0.0,                   // GPU doesn't have fallback logic
+				"Storage": 1.0,                   // Storage uses separate PV pricing (pvCostPromResult), not affected by node pricing
+			},
+			zeroCollector: true,
 		},
 	}
 
@@ -1088,10 +1091,34 @@ func TestAssetCustompricing(t *testing.T) {
 			}
 			testProvider.UpdateConfigFromConfigMap(testCase.customPricingMap)
 
+			// Create test data - if zeroCollector is true, simulate collector returning 0
+			testValue := 0.5
+			if testCase.zeroCollector {
+				testValue = 0.0
+			}
+
+			zeroCollectorPromResult := []*source.QueryResult{
+				source.NewQueryResult(
+					map[string]interface{}{
+						"cluster_id":    "cluster1",
+						"node":          "node1",
+						"instance_type": "type1",
+						"provider_id":   "provider1",
+					},
+					[]*util.Vector{
+						{
+							Timestamp: startTimestamp,
+							Value:     testValue,
+						},
+					},
+					source.DefaultResultKeys(),
+				),
+			}
+
 			testPreemptible := make(map[NodeIdentifier]bool)
-			nodeCpuResult := source.DecodeAll(nodePromResult, source.DecodeNodeCPUPricePerHrResult)
-			nodeRamResult := source.DecodeAll(nodePromResult, source.DecodeNodeRAMPricePerGiBHrResult)
-			nodeGpuResult := source.DecodeAll(nodePromResult, source.DecodeNodeGPUPricePerHrResult)
+			nodeCpuResult := source.DecodeAll(zeroCollectorPromResult, source.DecodeNodeCPUPricePerHrResult)
+			nodeRamResult := source.DecodeAll(zeroCollectorPromResult, source.DecodeNodeRAMPricePerGiBHrResult)
+			nodeGpuResult := source.DecodeAll(zeroCollectorPromResult, source.DecodeNodeGPUPricePerHrResult)
 
 			cpuMap, _ := buildCPUCostMap(nodeCpuResult, testProvider, testPreemptible)
 			ramMap, _ := buildRAMCostMap(nodeRamResult, testProvider, testPreemptible)

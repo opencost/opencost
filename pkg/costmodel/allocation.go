@@ -274,11 +274,13 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 
 	resChRAMBytesAllocated := source.WithGroup(grp, ds.QueryRAMBytesAllocated(start, end))
 	resChRAMRequests := source.WithGroup(grp, ds.QueryRAMRequests(start, end))
+	resChRAMLimits := source.WithGroup(grp, ds.QueryRAMLimits(start, end))
 	resChRAMUsageAvg := source.WithGroup(grp, ds.QueryRAMUsageAvg(start, end))
 	resChRAMUsageMax := source.WithGroup(grp, ds.QueryRAMUsageMax(start, end))
 
 	resChCPUCoresAllocated := source.WithGroup(grp, ds.QueryCPUCoresAllocated(start, end))
 	resChCPURequests := source.WithGroup(grp, ds.QueryCPURequests(start, end))
+	resChCPULimits := source.WithGroup(grp, ds.QueryCPULimits(start, end))
 	resChCPUUsageAvg := source.WithGroup(grp, ds.QueryCPUUsageAvg(start, end))
 	resChCPUUsageMax := source.WithGroup(grp, ds.QueryCPUUsageMax(start, end))
 	resCPUUsageMax, _ := resChCPUUsageMax.Await()
@@ -349,9 +351,11 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 
 	resCPUCoresAllocated, _ := resChCPUCoresAllocated.Await()
 	resCPURequests, _ := resChCPURequests.Await()
+	resCPULimits, _ := resChCPULimits.Await()
 	resCPUUsageAvg, _ := resChCPUUsageAvg.Await()
 	resRAMBytesAllocated, _ := resChRAMBytesAllocated.Await()
 	resRAMRequests, _ := resChRAMRequests.Await()
+	resRAMLimits, _ := resChRAMLimits.Await()
 	resRAMUsageAvg, _ := resChRAMUsageAvg.Await()
 	resRAMUsageMax, _ := resChRAMUsageMax.Await()
 	resGPUsRequested, _ := resChGPUsRequested.Await()
@@ -418,10 +422,12 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	// or equal to request.
 	applyCPUCoresAllocated(podMap, resCPUCoresAllocated, podUIDKeyMap)
 	applyCPUCoresRequested(podMap, resCPURequests, podUIDKeyMap)
+	applyCPUCoresLimits(podMap, resCPULimits, podUIDKeyMap)
 	applyCPUCoresUsedAvg(podMap, resCPUUsageAvg, podUIDKeyMap)
 	applyCPUCoresUsedMax(podMap, resCPUUsageMax, podUIDKeyMap)
 	applyRAMBytesAllocated(podMap, resRAMBytesAllocated, podUIDKeyMap)
 	applyRAMBytesRequested(podMap, resRAMRequests, podUIDKeyMap)
+	applyRAMBytesLimits(podMap, resRAMLimits, podUIDKeyMap)
 	applyRAMBytesUsedAvg(podMap, resRAMUsageAvg, podUIDKeyMap)
 	applyRAMBytesUsedMax(podMap, resRAMUsageMax, podUIDKeyMap)
 	applyGPUUsageAvg(podMap, resGPUsUsageAvg, podUIDKeyMap)

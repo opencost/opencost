@@ -12,6 +12,7 @@ const (
 	KubePodOwner                                          = "kube_pod_owner"
 	KubePodContainerStatusRunning                         = "kube_pod_container_status_running"
 	KubePodContainerResourceRequests                      = "kube_pod_container_resource_requests"
+	KubePodContainerResourceLimits                        = "kube_pod_container_resource_limits"
 	KubePersistentVolumeClaimInfo                         = "kube_persistentvolumeclaim_info"
 	KubePersistentVolumeClaimResourceRequestsStorageBytes = "kube_persistentvolumeclaim_resource_requests_storage_bytes"
 	KubecostPVInfo                                        = "kubecost_pv_info"
@@ -22,6 +23,10 @@ const (
 	ServiceSelectorLabels                                 = "service_selector_labels"
 	StatefulSetMatchLabels                                = "statefulSet_match_labels"
 	KubeReplicasetOwner                                   = "kube_replicaset_owner"
+	KubeResourceQuotaSpecResourceRequests                 = "resourcequota_spec_resource_requests"
+	KubeResourceQuotaSpecResourceLimits                   = "resourcequota_spec_resource_limits"
+	KubeResourceQuotaStatusUsedResourceRequests           = "resourcequota_status_used_resource_requests"
+	KubeResourceQuotaStatusUsedResourceLimits             = "resourcequota_status_used_resource_limits"
 
 	// DCGM Metrics
 	DCGMFIPROFGRENGINEACTIVE = "DCGM_FI_PROF_GR_ENGINE_ACTIVE"

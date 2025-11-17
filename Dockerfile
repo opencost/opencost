@@ -1,9 +1,6 @@
-FROM golang:1.24-alpine3.20 as build-env
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine3.20 AS build-env
 
-RUN mkdir /app
 WORKDIR /app
-COPY go.mod .
-COPY go.sum .
 
 # This ensures that CGO is disabled for go test running AND for the build
 # step. This prevents a build failure when building an ARM64 image with
@@ -11,20 +8,27 @@ COPY go.sum .
 # golang:latest image does not contain GCC, while the AMD64 version does.
 ARG CGO_ENABLED=0
 
+# Get dependencies - will also be cached if we won't change mod/sum
+COPY go.* .
+COPY core/go.* core/
+COPY modules/collector-source/go.* modules/collector-source/
+COPY modules/prometheus-source/go.* modules/prometheus-source/
+RUN go mod download
+
 ARG version=dev
 ARG	commit=HEAD
+
+ARG TARGETOS
+ARG TARGETARCH
+ENV GOOS=$TARGETOS
+ENV GOARCH=$TARGETARCH
 
 # COPY the source code as the last step
 COPY . .
 
-# Get dependencies - will also be cached if we won't change mod/sum
-RUN go mod download
-
 # Build the binary
 RUN set -e ;\
-    go test ./...;\
     cd cmd/costmodel;\
-    GOOS=linux \
     go build -a -installsuffix cgo \
     -ldflags \
     "-X github.com/opencost/opencost/core/pkg/version.Version=${version} \

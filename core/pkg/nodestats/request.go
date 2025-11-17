@@ -56,7 +56,7 @@ func (c *NodeHttpClient) makeRequest(method string, URL string, bearerToken stri
 	}
 
 	if bearerToken != "" {
-		request.Header.Add("Authorization", "bearer "+bearerToken)
+		request.Header.Add("Authorization", "Bearer "+bearerToken)
 	}
 
 	resp, err := c.client.Do(request)

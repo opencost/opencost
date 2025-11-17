@@ -259,10 +259,14 @@ func (ccp *CloudCostProperties) Intersection(that *CloudCostProperties) *CloudCo
 // GenerateKey takes a list of properties and creates a "/" seperated key based on the values of the requested properties.
 // Invalid values are ignored with a warning. A nil input returns the default key, while an empty slice  returns the empty string
 func (ccp *CloudCostProperties) GenerateKey(props []string) string {
+	return strings.Join(ccp.GenerateKeys(props), "/")
+}
+
+func (ccp *CloudCostProperties) GenerateKeys(props []string) []string {
 
 	// nil props replaced with default property list
 	if props == nil {
-		return ccp.hashKey()
+		return []string{ccp.hashKey()}
 	}
 
 	values := make([]string, len(props))
@@ -329,7 +333,7 @@ func (ccp *CloudCostProperties) GenerateKey(props []string) string {
 		values[i] = propVal
 	}
 
-	return strings.Join(values, "/")
+	return values
 }
 
 // HashKey creates a key on the entire property set including labels of a uniform length.
