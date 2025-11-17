@@ -25,7 +25,7 @@ type Pod struct {
 	NetworkTransferBytes       uint64                            `json:"networkTransferBytes"`             // @bingen:field[version=1]
 	NetworkReceiveBytes        uint64                            `json:"networkReceiveBytes"`              // @bingen:field[version=1]
 	Containers                 map[string]*Container             `json:"containers"`                       // @bingen:field[version=1]
-	AttachedDevices            map[string]*Device                `json:"attachedDevices,omitempty"`        // @bingen:field[version=1]
+	AttachedGPUDevices         map[string]*GPUDevice             `json:"attachedGpuDevices,omitempty"`     // @bingen:field[version=1]
 	PersistentVolumeClaims     map[string]*PersistentVolumeClaim `json:"persistentVolumeClaims,omitempty"` // @bingen:field[version=1]
 	Diagnostic                 *DiagnosticResult                 `json:"diagnostic,omitempty"`             // @bingen:field[version=1]
 }

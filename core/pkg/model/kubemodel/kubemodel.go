@@ -15,7 +15,8 @@ type KubeModelSet struct {
 	ResourceQuotas         map[string]*ResourceQuota         `json:"resourceQuotas"`        // @bingen:field[version=1]
 	Containers             map[string]*Container             `json:"containers,omitempty"`  // @bingen:field[version=1]
 	Controllers            map[string]*Controller            `json:"controllers,omitempty"` // @bingen:field[version=1]
-	Devices                map[string]*Device                `json:"devices,omitempty"`     // @bingen:field[version=1]
+	GPUDevices             map[string]*GPUDevice             `json:"gpuDevices,omitempty"`  // @bingen:field[version=1]
+	GPUUsages              map[string]*GPUUsage              `json:"gpuUsages,omitempty"`   // @bingen:field[version=1]
 	Nodes                  map[string]*Node                  `json:"nodes,omitempty"`       // @bingen:field[version=1]
 	Pods                   map[string]*Pod                   `json:"pods,omitempty"`        // @bingen:field[version=1]
 	PersistentVolumeClaims map[string]*PersistentVolumeClaim `json:"pvcs,omitempty"`        // @bingen:field[version=1]
@@ -40,7 +41,8 @@ func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
 		},
 		Containers:             map[string]*Container{},
 		Controllers:            map[string]*Controller{},
-		Devices:                map[string]*Device{},
+		GPUDevices:             map[string]*GPUDevice{},
+		GPUUsages:              map[string]*GPUUsage{},
 		Namespaces:             map[string]*Namespace{},
 		Nodes:                  map[string]*Node{},
 		Pods:                   map[string]*Pod{},
@@ -99,7 +101,8 @@ func (kms *KubeModelSet) IsEmpty() bool {
 	// Check if all resource maps are empty
 	return len(kms.Containers) == 0 &&
 		len(kms.Controllers) == 0 &&
-		len(kms.Devices) == 0 &&
+		len(kms.GPUDevices) == 0 &&
+		len(kms.GPUUsages) == 0 &&
 		len(kms.Namespaces) == 0 &&
 		len(kms.Nodes) == 0 &&
 		len(kms.Pods) == 0 &&
@@ -260,12 +263,24 @@ func (kms *KubeModelSet) RegisterContainer(id, name, podID string) error {
 	return nil
 }
 
-func (kms *KubeModelSet) RegisterDevice(id, nodeID string, deviceType DeviceType) error {
-	if _, ok := kms.Devices[id]; !ok {
-		kms.Devices[id] = &Device{
-			ID:         id,
-			NodeID:     nodeID,
-			DeviceType: deviceType,
+func (kms *KubeModelSet) RegisterGPUDevice(id, nodeID string) error {
+	if _, ok := kms.GPUDevices[id]; !ok {
+		kms.GPUDevices[id] = &GPUDevice{
+			ID:     id,
+			NodeID: nodeID,
+		}
+
+		kms.Metadata.ObjectCount++
+	}
+
+	return nil
+}
+
+func (kms *KubeModelSet) RegisterGPUUsage(id, containerID, gpuDeviceID string) error {
+	if _, ok := kms.GPUUsages[id]; !ok {
+		kms.GPUUsages[id] = &GPUUsage{
+			ContainerID: containerID,
+			GpuDeviceID: gpuDeviceID,
 		}
 
 		kms.Metadata.ObjectCount++
