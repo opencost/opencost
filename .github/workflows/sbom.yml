@@ -32,24 +32,36 @@ jobs:
       actions: read
       packages: read
     steps:
-      - name: Get Version From Tag
+      - name: Checkout Repo (for version detection)
+        if: github.event_name == 'workflow_run'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get Version From Workflow Run
         id: tag
         if: github.event_name == 'workflow_run'
         run: |
-          echo "TRIGGERED_TAG=${GITHUB_EVENT_WORKFLOW_RUN_HEAD_BRANCH#refs/*/}" >> $GITHUB_ENV
-        env:
-          GITHUB_EVENT_WORKFLOW_RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          # Get the SHA from the workflow run
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          # Find the tag pointing to this SHA
+          TAG=$(git tag --points-at $SHA | grep '^v[0-9]' | head -1)
+          if [ -z "$TAG" ]; then
+            echo "Error: No version tag found for SHA $SHA"
+            exit 1
+          fi
+          echo "TRIGGERED_TAG=$TAG" >> $GITHUB_ENV
+          echo "Found tag: $TAG"
 
       - name: Determine Version Number
         id: version_number
-        env:
-          RELEASE_VERSION: ${{ inputs.release_version }}
         run: |
-          if [ -z "${TRIGGERED_TAG}" ];
-          then
-            version=$RELEASE_VERSION
-          else
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
             version=$TRIGGERED_TAG
+          elif [ -n "${{ inputs.release_version }}" ]; then
+            version=${{ inputs.release_version }}
+          else
+            version=""
           fi
           if [[ ${version:0:1} == "v" ]];
           then
@@ -67,6 +79,7 @@ jobs:
           echo "BRANCH_NAME=v${RELEASE_VERSION%.*}" >> $GITHUB_OUTPUT
 
       - name: Checkout Repo
+        if: github.event_name != 'workflow_run'
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name != 'pull_request' && steps.branch.outputs.BRANCH_NAME || '' }}
