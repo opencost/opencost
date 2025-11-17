@@ -9,8 +9,8 @@ import (
 // GPUDevice represents a GPU device with DCGM integration (provisioned resource)
 // This tracks available GPU capacity on a node
 type GPUDevice struct {
-	ID                 string            `json:"id"`                       // @bingen:field[version=1] GPU UUID (hardware identifier)
-	NodeID             string            `json:"nodeId"`                   // @bingen:field[version=1] Node hosting this GPU device
+	UID                string            `json:"uid"`                      // @bingen:field[version=1] GPU UUID (hardware identifier)
+	NodeUID            string            `json:"nodeUid"`                  // @bingen:field[version=1] Node hosting this GPU device
 	DeviceNumber       int32             `json:"deviceNumber"`             // @bingen:field[version=1]
 	ModelName          string            `json:"modelName"`                // @bingen:field[version=1]
 	IsShared           bool              `json:"isShared"`                 // @bingen:field[version=1] GPU sharing information
@@ -25,11 +25,11 @@ type GPUDevice struct {
 
 // Validate validates the GPUDevice fields
 func (d *GPUDevice) Validate() error {
-	if d.ID == "" {
-		return errors.New("ID is required")
+	if d.UID == "" {
+		return errors.New("UID is required")
 	}
-	if d.NodeID == "" {
-		return errors.New("NodeID is required")
+	if d.NodeUID == "" {
+		return errors.New("NodeUID is required")
 	}
 	if d.SharePercentage < 0 || d.SharePercentage > 100 {
 		return fmt.Errorf("SharePercentage must be 0-100, got %.2f", d.SharePercentage)
@@ -59,8 +59,8 @@ func (d *GPUDevice) Clone() *GPUDevice {
 	}
 
 	cloned := &GPUDevice{
-		ID:                d.ID,
-		NodeID:            d.NodeID,
+		UID:               d.UID,
+		NodeUID:           d.NodeUID,
 		DeviceNumber:      d.DeviceNumber,
 		ModelName:         d.ModelName,
 		IsShared:          d.IsShared,

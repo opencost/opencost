@@ -4,7 +4,7 @@ import "time"
 
 // @bingen:generate:Container
 type Container struct {
-	PodID                      string                     `json:"podId"`                      // @bingen:field[version=1]
+	PodUID                     string                     `json:"podUid"`                     // @bingen:field[version=1]
 	Name                       string                     `json:"name"`                       // @bingen:field[version=1]
 	Start                      time.Time                  `json:"start"`                      // @bingen:field[version=1]
 	End                        time.Time                  `json:"end"`                        // @bingen:field[version=1]

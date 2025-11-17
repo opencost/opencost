@@ -4,10 +4,10 @@ import "time"
 
 // @bingen:generate:Pod
 type Pod struct {
-	ID                         string                            `json:"id"`                               // @bingen:field[version=1]
-	NamespaceID                string                            `json:"namespaceId"`                      // @bingen:field[version=1]
-	ControllerID               string                            `json:"controllerId"`                     // @bingen:field[version=1]
-	NodeID                     string                            `json:"nodeId"`                           // @bingen:field[version=1]
+	UID                        string                            `json:"uid"`                              // @bingen:field[version=1]
+	NamespaceUID               string                            `json:"namespaceUid"`                     // @bingen:field[version=1]
+	ControllerUID              string                            `json:"controllerUid"`                    // @bingen:field[version=1]
+	NodeUID                    string                            `json:"nodeUid"`                          // @bingen:field[version=1]
 	Name                       string                            `json:"name"`                             // @bingen:field[version=1]
 	Labels                     map[string]string                 `json:"labels,omitempty"`                 // @bingen:field[version=1]
 	Annotations                map[string]string                 `json:"annotations,omitempty"`            // @bingen:field[version=1]

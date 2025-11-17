@@ -13,9 +13,9 @@ type ServicePort struct {
 
 // @bingen:generate:Service
 type Service struct {
-	ID                   string            `json:"id"`                   // @bingen:field[version=1]
-	ClusterID            string            `json:"clusterId"`            // @bingen:field[version=1]
-	NamespaceID          string            `json:"namespaceId"`          // @bingen:field[version=1]
+	UID                  string            `json:"uid"`                  // @bingen:field[version=1]
+	ClusterUID           string            `json:"clusterUid"`           // @bingen:field[version=1]
+	NamespaceUID         string            `json:"namespaceUid"`         // @bingen:field[version=1]
 	Name                 string            `json:"name"`                 // @bingen:field[version=1]
 	Type                 string            `json:"type"`                 // @bingen:field[version=1]
 	Labels               map[string]string `json:"labels,omitempty"`     // @bingen:field[version=1]

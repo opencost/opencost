@@ -4,9 +4,9 @@ import "time"
 
 // @bingen:generate:Node
 type Node struct {
-	ID                   string             `json:"id"`                         // @bingen:field[version=1]
-	ClusterID            string             `json:"clusterId"`                  // @bingen:field[version=1]
-	ProviderResourceID   string             `json:"providerResourceId"`         // @bingen:field[version=1]
+	UID                  string             `json:"uid"`                        // @bingen:field[version=1]
+	ClusterUID           string             `json:"clusterUid"`                 // @bingen:field[version=1]
+	ProviderResourceUID  string             `json:"providerResourceUid"`        // @bingen:field[version=1]
 	Name                 string             `json:"name"`                       // @bingen:field[version=1]
 	Labels               map[string]string  `json:"labels,omitempty"`           // @bingen:field[version=1]
 	Annotations          map[string]string  `json:"annotations,omitempty"`      // @bingen:field[version=1]

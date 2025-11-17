@@ -72,6 +72,8 @@ func (kms *KubeModelSet) RegisterNamespace(id string, name string) error {
 		if name != "" {
 			kms.idx.namespaceNameToID[name] = id
 		}
+
+		kms.Metadata.ObjectCount++
 	}
 
 	return nil
@@ -140,9 +142,9 @@ func (kms *KubeModelSet) RegisterPod(id, name, namespace string) error {
 		}
 
 		kms.Pods[id] = &Pod{
-			ID:          id,
-			Name:        name,
-			NamespaceID: nsID,
+			UID:          id,
+			Name:         name,
+			NamespaceUID: nsID,
 		}
 
 		kms.Metadata.ObjectCount++
@@ -158,9 +160,9 @@ func (kms *KubeModelSet) RegisterNode(id, name string) error {
 		}
 
 		kms.Nodes[id] = &Node{
-			ID:        id,
-			ClusterID: kms.Cluster.UID,
-			Name:      name,
+			UID:        id,
+			ClusterUID: kms.Cluster.UID,
+			Name:       name,
 		}
 
 		kms.Metadata.ObjectCount++
@@ -177,10 +179,10 @@ func (kms *KubeModelSet) RegisterController(id, name, namespace, kind string) er
 		}
 
 		kms.Controllers[id] = &Controller{
-			ID:          id,
-			Name:        name,
-			NamespaceID: nsID,
-			Kind:        ControllerKind(kind),
+			UID:          id,
+			Name:         name,
+			NamespaceUID: nsID,
+			Kind:         ControllerKind(kind),
 		}
 
 		kms.Metadata.ObjectCount++
@@ -201,10 +203,10 @@ func (kms *KubeModelSet) RegisterService(id, name, namespace string) error {
 		}
 
 		kms.Services[id] = &Service{
-			ID:          id,
-			ClusterID:   kms.Cluster.UID,
-			NamespaceID: nsID,
-			Name:        name,
+			UID:          id,
+			ClusterUID:   kms.Cluster.UID,
+			NamespaceUID: nsID,
+			Name:         name,
 		}
 
 		kms.Metadata.ObjectCount++
@@ -221,9 +223,9 @@ func (kms *KubeModelSet) RegisterPVC(id, name, namespace string) error {
 		}
 
 		kms.PersistentVolumeClaims[id] = &PersistentVolumeClaim{
-			ID:          id,
-			Name:        name,
-			NamespaceID: nsID,
+			UID:          id,
+			Name:         name,
+			NamespaceUID: nsID,
 		}
 
 		kms.Metadata.ObjectCount++
@@ -239,9 +241,9 @@ func (kms *KubeModelSet) RegisterVolume(id, name string) error {
 		}
 
 		kms.Volumes[id] = &Volume{
-			ID:        id,
-			ClusterID: kms.Cluster.UID,
-			Name:      name,
+			UID:        id,
+			ClusterUID: kms.Cluster.UID,
+			Name:       name,
 		}
 
 		kms.Metadata.ObjectCount++
@@ -253,8 +255,8 @@ func (kms *KubeModelSet) RegisterVolume(id, name string) error {
 func (kms *KubeModelSet) RegisterContainer(id, name, podID string) error {
 	if _, ok := kms.Containers[id]; !ok {
 		kms.Containers[id] = &Container{
-			PodID: podID,
-			Name:  name,
+			PodUID: podID,
+			Name:   name,
 		}
 
 		kms.Metadata.ObjectCount++
@@ -266,8 +268,8 @@ func (kms *KubeModelSet) RegisterContainer(id, name, podID string) error {
 func (kms *KubeModelSet) RegisterGPUDevice(id, nodeID string) error {
 	if _, ok := kms.GPUDevices[id]; !ok {
 		kms.GPUDevices[id] = &GPUDevice{
-			ID:     id,
-			NodeID: nodeID,
+			UID:     id,
+			NodeUID: nodeID,
 		}
 
 		kms.Metadata.ObjectCount++
@@ -279,8 +281,8 @@ func (kms *KubeModelSet) RegisterGPUDevice(id, nodeID string) error {
 func (kms *KubeModelSet) RegisterGPUUsage(id, containerID, gpuDeviceID string) error {
 	if _, ok := kms.GPUUsages[id]; !ok {
 		kms.GPUUsages[id] = &GPUUsage{
-			ContainerID: containerID,
-			GpuDeviceID: gpuDeviceID,
+			ContainerUID: containerID,
+			GpuDeviceUID: gpuDeviceID,
 		}
 
 		kms.Metadata.ObjectCount++

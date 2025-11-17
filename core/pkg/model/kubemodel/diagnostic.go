@@ -4,7 +4,7 @@ import "time"
 
 // @bingen:generate:DiagnosticResult
 type DiagnosticResult struct {
-	ID          string            `json:"id"`                // @bingen:field[version=1]
+	UID         string            `json:"uid"`               // @bingen:field[version=1]
 	Name        string            `json:"name"`              // @bingen:field[version=1]
 	Description string            `json:"description"`       // @bingen:field[version=1]
 	Category    string            `json:"category"`          // @bingen:field[version=1]
