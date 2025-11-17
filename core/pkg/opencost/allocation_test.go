@@ -231,8 +231,10 @@ func TestAllocation_Add(t *testing.T) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", 1.279690, act.TotalEfficiency())
 	}
 
-	if act.RawAllocationOnly != nil {
-		t.Errorf("Allocation.Add: Raw only data must be nil after an add")
+	// RawAllocationOnly should be preserved (taking max of max values) after Add
+	// since both a1 and a2 have RawAllocationOnly data
+	if act.RawAllocationOnly == nil {
+		t.Errorf("Allocation.Add: RawAllocationOnly should be preserved when both allocations have it")
 	}
 }
 
