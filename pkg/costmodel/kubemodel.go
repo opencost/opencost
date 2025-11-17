@@ -25,7 +25,7 @@ func (cm *CostModel) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeMode
 	err = cm.kmComputeCluster(kms, start, end)
 	if err != nil {
 		diagnostic := &kubemodel.DiagnosticResult{
-			ID:          fmt.Sprintf("cluster-compute-%d", time.Now().Unix()),
+			UID:         fmt.Sprintf("cluster-compute-%d", time.Now().Unix()),
 			Name:        "ClusterCompute",
 			Description: "Failed to compute cluster data",
 			Category:    "cluster",
@@ -40,7 +40,7 @@ func (cm *CostModel) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeMode
 	err = cm.kmComputeNamespaces(kms, start, end)
 	if err != nil {
 		diagnostic := &kubemodel.DiagnosticResult{
-			ID:          fmt.Sprintf("namespace-compute-%d", time.Now().Unix()),
+			UID:         fmt.Sprintf("namespace-compute-%d", time.Now().Unix()),
 			Name:        "NamespaceCompute",
 			Description: "Failed to compute namespace data",
 			Category:    "namespace",
@@ -54,7 +54,7 @@ func (cm *CostModel) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeMode
 	err = cm.kmComputeResourceQuotas(kms, start, end)
 	if err != nil {
 		diagnostic := &kubemodel.DiagnosticResult{
-			ID:          fmt.Sprintf("resourcequota-compute-%d", time.Now().Unix()),
+			UID:         fmt.Sprintf("resourcequota-compute-%d", time.Now().Unix()),
 			Name:        "ResourceQuotaCompute",
 			Description: "Failed to compute resource quota data",
 			Category:    "resourcequota",
@@ -68,7 +68,7 @@ func (cm *CostModel) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeMode
 	err = cm.kmComputeNodes(kms, start, end)
 	if err != nil {
 		diagnostic := &kubemodel.DiagnosticResult{
-			ID:          fmt.Sprintf("node-compute-%d", time.Now().Unix()),
+			UID:         fmt.Sprintf("node-compute-%d", time.Now().Unix()),
 			Name:        "NodeCompute",
 			Description: "Failed to compute node data",
 			Category:    "node",
@@ -82,7 +82,7 @@ func (cm *CostModel) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeMode
 	err = cm.kmComputePods(kms, start, end)
 	if err != nil {
 		diagnostic := &kubemodel.DiagnosticResult{
-			ID:          fmt.Sprintf("pod-compute-%d", time.Now().Unix()),
+			UID:         fmt.Sprintf("pod-compute-%d", time.Now().Unix()),
 			Name:        "PodCompute",
 			Description: "Failed to compute pod data",
 			Category:    "pod",
@@ -96,7 +96,7 @@ func (cm *CostModel) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeMode
 	err = cm.kmComputeContainers(kms, start, end)
 	if err != nil {
 		diagnostic := &kubemodel.DiagnosticResult{
-			ID:          fmt.Sprintf("container-compute-%d", time.Now().Unix()),
+			UID:         fmt.Sprintf("container-compute-%d", time.Now().Unix()),
 			Name:        "ContainerCompute",
 			Description: "Failed to compute container data",
 			Category:    "container",
@@ -110,7 +110,7 @@ func (cm *CostModel) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeMode
 	err = cm.kmComputeControllers(kms, start, end)
 	if err != nil {
 		diagnostic := &kubemodel.DiagnosticResult{
-			ID:          fmt.Sprintf("controller-compute-%d", time.Now().Unix()),
+			UID:         fmt.Sprintf("controller-compute-%d", time.Now().Unix()),
 			Name:        "ControllerCompute",
 			Description: "Failed to compute controller data",
 			Category:    "controller",
@@ -124,7 +124,7 @@ func (cm *CostModel) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeMode
 	err = cm.kmComputeServices(kms, start, end)
 	if err != nil {
 		diagnostic := &kubemodel.DiagnosticResult{
-			ID:          fmt.Sprintf("service-compute-%d", time.Now().Unix()),
+			UID:         fmt.Sprintf("service-compute-%d", time.Now().Unix()),
 			Name:        "ServiceCompute",
 			Description: "Failed to compute service data",
 			Category:    "service",
@@ -138,7 +138,7 @@ func (cm *CostModel) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeMode
 	err = cm.kmComputePVCs(kms, start, end)
 	if err != nil {
 		diagnostic := &kubemodel.DiagnosticResult{
-			ID:          fmt.Sprintf("pvc-compute-%d", time.Now().Unix()),
+			UID:         fmt.Sprintf("pvc-compute-%d", time.Now().Unix()),
 			Name:        "PVCCompute",
 			Description: "Failed to compute PVC data",
 			Category:    "pvc",
@@ -152,7 +152,7 @@ func (cm *CostModel) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeMode
 	err = cm.kmComputeVolumes(kms, start, end)
 	if err != nil {
 		diagnostic := &kubemodel.DiagnosticResult{
-			ID:          fmt.Sprintf("volume-compute-%d", time.Now().Unix()),
+			UID:         fmt.Sprintf("volume-compute-%d", time.Now().Unix()),
 			Name:        "VolumeCompute",
 			Description: "Failed to compute volume data",
 			Category:    "volume",
@@ -176,27 +176,27 @@ func (cm *CostModel) kmComputeCluster(kms *kubemodel.KubeModelSet, start, end ti
 	kubeSystemLabelsFuture := ds.QueryNamespaceLabels(start, end)
 	kubeSystemLabelsResult, _ := kubeSystemLabelsFuture.Await()
 
-	var clusterID string
+	var clusterUID string
 	var clusterName string
 
 	// Find kube-system namespace
 	for _, res := range kubeSystemLabelsResult {
 		if res.Namespace == "kube-system" {
-			clusterID = res.UID
+			clusterUID = res.UID
 			break
 		}
 	}
 
 	// Fallback to environment variable if kube-system not found
-	if clusterID == "" {
-		clusterID = env.GetClusterID()
+	if clusterUID == "" {
+		clusterUID = env.GetClusterID()
 	}
 
 	// Use env var for cluster name (can be overridden with a label in the future)
 	clusterName = env.GetClusterID()
 
 	kms.Cluster = &kubemodel.Cluster{
-		UID:   clusterID,
+		UID:   clusterUID,
 		Name:  clusterName,
 		Start: start,
 		End:   end,
@@ -518,8 +518,8 @@ func (cm *CostModel) kmComputePods(kms *kubemodel.KubeModelSet, start, end time.
 	for _, res := range cpuRequestsResult {
 		if pod, ok := kms.Pods[res.UID]; ok && len(res.Data) > 0 {
 			// Set node ID from container metrics (ContainerMetricResult has Node field)
-			if pod.NodeID == "" {
-				pod.NodeID = res.Node
+			if pod.NodeUID == "" {
+				pod.NodeUID = res.Node
 			}
 			// Convert cores to millicores and sum
 			pod.CpuMillicoreRequestAverage += uint64(res.Data[0].Value * 1000)
@@ -799,7 +799,7 @@ func (cm *CostModel) kmComputePVCs(kms *kubemodel.KubeModelSet, start, end time.
 		if pvc, ok := kms.PersistentVolumeClaims[res.UID]; ok {
 			// Link PVC to pod - look up pod UID by name
 			podID := res.UID
-			pvc.PodID = &podID
+			pvc.PodUID = &podID
 		}
 	}
 
