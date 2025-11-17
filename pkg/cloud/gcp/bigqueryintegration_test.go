@@ -31,7 +31,7 @@ func TestBigQueryIntegration_GetWhereConjuncts(t *testing.T) {
 	end := time.Now()
 
 	// Test the GetWhereConjuncts function
-	result := GetWhereConjuncts(start, end)
+	result := GetWhereConjuncts(start, end, true)
 	assert.NotEmpty(t, result)
 	assert.Len(t, result, 2)
 	assert.Contains(t, result[0], "DATE(_PARTITIONTIME)")

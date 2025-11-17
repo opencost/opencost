@@ -1318,6 +1318,10 @@ func (m *mockClusterCache) GetAllReplicationControllers() []*clustercache.Replic
 	return nil
 }
 
+func (m *mockClusterCache) GetAllResourceQuotas() []*clustercache.ResourceQuota {
+	return nil
+}
+
 type mockMetadataClient struct{}
 
 func (m *mockMetadataClient) InstanceAttributeValue(attr string) (string, error) {
