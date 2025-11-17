@@ -480,6 +480,12 @@ func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourc
 			GPUProportionalCost:          curr.GPUProportionalCost + parc.GPUProportionalCost,
 			PVProportionalCost:           curr.PVProportionalCost + parc.PVProportionalCost,
 			LoadBalancerProportionalCost: curr.LoadBalancerProportionalCost + parc.LoadBalancerProportionalCost,
+			// Preserve total costs during aggregation to prevent NaN values in ComputePercentages
+			CPUTotalCost:          curr.CPUTotalCost + parc.CPUTotalCost,
+			RAMTotalCost:          curr.RAMTotalCost + parc.RAMTotalCost,
+			GPUTotalCost:          curr.GPUTotalCost + parc.GPUTotalCost,
+			PVTotalCost:           curr.PVTotalCost + parc.PVTotalCost,
+			LoadBalancerTotalCost: curr.LoadBalancerTotalCost + parc.LoadBalancerTotalCost,
 		}
 
 		ComputePercentages(&toInsert)
