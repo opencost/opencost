@@ -15,7 +15,7 @@ type Status struct {
 	Valid            bool               `json:"valid"`
 	LastRun          time.Time          `json:"lastRun"`
 	NextRun          time.Time          `json:"nextRun"`
-	RefreshRate      string             `json:"RefreshRate"`
+	RefreshRate      string             `json:"refreshRate"`
 	Created          time.Time          `json:"created"`
 	Runs             int                `json:"runs"`
 	Coverage         string             `json:"coverage"`
