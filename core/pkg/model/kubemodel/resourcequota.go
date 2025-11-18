@@ -2,6 +2,8 @@ package kubemodel
 
 import "fmt"
 
+// TODO: Do we need (Start, End) for these?
+
 // @bingen:generate:ResourceQuota
 type ResourceQuota struct {
 	UID          string               `json:"uid"`          // @bingen:field[version=1]

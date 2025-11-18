@@ -20,7 +20,7 @@ type ResourceQuantity struct {
 // @bingen:generate:ResourceQuantities
 type ResourceQuantities map[Resource]ResourceQuantity
 
-func (rqs ResourceQuantities) Set(resource Resource, unit Unit, statType StatType, value float64) {
+func (rqs ResourceQuantities) Set(resource Resource, unit Unit, statType StatType, value uint64) {
 	if _, ok := rqs[resource]; !ok {
 		rqs[resource] = ResourceQuantity{
 			Resource: resource,

@@ -4,8 +4,6 @@ import (
 	"time"
 )
 
-// TODO: do we need (start, end) for Cluster?
-
 // @bingen:generate:Cluster
 type Cluster struct {
 	UID      string    `json:"uid"`      // @bingen:field[version=1]

@@ -63,11 +63,10 @@ func NewCostModel(
 	// request grouping to prevent over-requesting the same data prior to caching
 	requestGroup := new(singleflight.Group)
 
-	// TODO: is this too contrived??
 	kubeModel, err := km.NewKubeModel(dataSource)
 	if err != nil {
-		// TODO: what to do here?
-		panic(err)
+		// KubeModel is required. Log a fatal error if we fail to init.
+		log.Fatalf("error initializing KubeModel: %s", err)
 	}
 
 	return &CostModel{
