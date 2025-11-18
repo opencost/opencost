@@ -14,6 +14,5 @@ type Volume struct {
 	End          time.Time         `json:"end"`                  // @bingen:field[version=1]
 	StorageClass string            `json:"storageClass"`         // @bingen:field[version=1]
 	Size         uint64            `json:"size"`                 // @bingen:field[version=1]
-	Cost         float64           `json:"cost"`                 // @bingen:field[version=1]
 	Diagnostic   *DiagnosticResult `json:"diagnostic,omitempty"` // @bingen:field[version=1]
 }
