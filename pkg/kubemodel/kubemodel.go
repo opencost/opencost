@@ -112,6 +112,12 @@ func (km *KubeModel) computeNamespaces(kms *kubemodel.KubeModelSet, start, end t
 		kms.Namespaces[res.UID].Annotations = res.Annotations
 	}
 
+	// TODO: query for (Start, End)
+	for _, ns := range kms.Namespaces {
+		ns.Start = start
+		ns.End = end
+	}
+
 	return nil
 }
 
@@ -245,6 +251,12 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 	for _, res := range rqStatusUsedRAMLimitMaxResult {
 		kms.RegisterResourceQuota(res.UID, res.ResourceQuota, res.Namespace)
 		kms.ResourceQuotas[res.UID].Status.Used.Limits.Set(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatMax, uint64(res.Data[0].Value))
+	}
+
+	// TODO: query for (Start, End)
+	for _, rq := range kms.ResourceQuotas {
+		rq.Start = start
+		rq.End = end
 	}
 
 	return nil

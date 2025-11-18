@@ -1,6 +1,9 @@
 package kubemodel
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // TODO: Do we need (Start, End) for these?
 
@@ -11,6 +14,8 @@ type ResourceQuota struct {
 	Name         string               `json:"name"`         // @bingen:field[version=1]
 	Spec         *ResourceQuotaSpec   `json:"spec"`         // @bingen:field[version=1]
 	Status       *ResourceQuotaStatus `json:"status"`       // @bingen:field[version=1]
+	Start        time.Time            `json:"start"`        // @bingen:field[version=1]
+	End          time.Time            `json:"end"`          // @bingen:field[version=1]
 }
 
 // @bingen:generate:ResourceQuotaSpec
