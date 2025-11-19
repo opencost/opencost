@@ -34,9 +34,9 @@ const (
 	DBBasicAuthPassword = "DB_BASIC_AUTH_PW"
 	DBBearerToken       = "DB_BEARER_TOKEN"
 
-	DBmTLSAuthCAFile  = "DB_MTLS_AUTH_CA_FILE"
-	DBmTLSAuthCrtFile = "DB_MTLS_AUTH_CRT_FILE"
-	DBmTLSAuthKeyFile = "DB_MTLS_AUTH_KEY_FILE"
+	PromMtlsAuthCAFile  = "PROM_MTLS_AUTH_CA_FILE"
+	PromMtlsAuthCrtFile = "PROM_MTLS_AUTH_CRT_FILE"
+	PromMtlsAuthKeyFile = "PROM_MTLS_AUTH_KEY_FILE"
 
 	CurrentClusterIdFilterEnabledVar = "CURRENT_CLUSTER_ID_FILTER_ENABLED"
 
@@ -140,29 +140,29 @@ func GetDBBearerToken() string {
 	return env.Get(DBBearerToken, "")
 }
 
-func IsDBmTLSAuthEnabled() bool {
-	if GetDBmTLSAuthCAFile() == "" {
+func IsPromMtlsAuthEnabled() bool {
+	if GetPromMtlsAuthCAFile() == "" {
 		return false
 	}
-	if GetDBmTLSAuthCrtFile() == "" {
+	if GetPromMtlsAuthCrtFile() == "" {
 		return false
 	}
-	if GetDBmTLSAuthKeyFile() == "" {
+	if GetPromMtlsAuthKeyFile() == "" {
 		return false
 	}
 	return true
 }
 
-func GetDBmTLSAuthCAFile() string {
-	return env.Get(DBmTLSAuthCAFile, "")
+func GetPromMtlsAuthCAFile() string {
+	return env.Get(PromMtlsAuthCAFile, "")
 }
 
-func GetDBmTLSAuthCrtFile() string {
-	return env.Get(DBmTLSAuthCrtFile, "")
+func GetPromMtlsAuthCrtFile() string {
+	return env.Get(PromMtlsAuthCrtFile, "")
 }
 
-func GetDBmTLSAuthKeyFile() string {
-	return env.Get(DBmTLSAuthKeyFile, "")
+func GetPromMtlsAuthKeyFile() string {
+	return env.Get(PromMtlsAuthKeyFile, "")
 }
 
 func GetPrometheusMaxQueryDuration() time.Duration {

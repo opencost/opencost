@@ -91,7 +91,7 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 		if err != nil {
 			log.Errorf("%s was set to true but failed to load service-ca.crt: %s", env.KubeRbacProxyEnabledEnvVar, err)
 		}
-	} else if env.IsDBmTLSAuthEnabled() {
+	} else if env.IsPromMtlsAuthEnabled() {
 		tlsCaCert = x509.NewCertPool()
 		// The /etc/ssl/cert.pem location is correct for Alpine Linux, the container base used here
 		systemCa, err := os.ReadFile("/etc/ssl/cert.pem")
@@ -100,13 +100,13 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 		} else {
 			tlsCaCert.AppendCertsFromPEM(systemCa)
 		}
-		mTlsCa, err := os.ReadFile(env.GetDBmTLSAuthCAFile())
+		mTlsCa, err := os.ReadFile(env.GetPromMtlsAuthCAFile())
 		if err != nil {
 			log.Errorf("mTLS options were set but failed to load DB_MTLS_AUTH_CA_FILE: %s", err)
 		} else {
 			tlsCaCert.AppendCertsFromPEM(mTlsCa)
 		}
-		mTlsKeyPair, err := tls.LoadX509KeyPair(env.GetDBmTLSAuthCrtFile(), env.GetDBmTLSAuthKeyFile())
+		mTlsKeyPair, err := tls.LoadX509KeyPair(env.GetPromMtlsAuthCrtFile(), env.GetPromMtlsAuthKeyFile())
 		if err != nil {
 			log.Errorf("mTLS options were set but failed to load DB_MTLS_AUTH_CRT_FILE or DB_MTLS_AUTH_KEY_FILE: %s", err)
 		} else {
