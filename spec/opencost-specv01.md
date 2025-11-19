@@ -146,7 +146,7 @@ Below are example inputs when measuring asset costs over a designated time windo
         * price = average $ per forwarding rule
 * Overhead Costs
     * **Cluster management fees:** Provider fees typically charged on an hourly basis
-    * **Operator fees:** potential DevOps team costs allocated to cluster operations
+    * **Operator fees:** Potential DevOps team costs allocated to cluster operations
 
 ## Workload Costs
 
