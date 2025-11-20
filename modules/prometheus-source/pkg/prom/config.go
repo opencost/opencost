@@ -102,13 +102,13 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 		}
 		mTlsCa, err := os.ReadFile(env.GetPromMtlsAuthCAFile())
 		if err != nil {
-			log.Errorf("mTLS options were set but failed to load DB_MTLS_AUTH_CA_FILE: %s", err)
+			log.Errorf("mTLS options were set but failed to load PROM_MTLS_AUTH_CA_FILE: %s", err)
 		} else {
 			tlsCaCert.AppendCertsFromPEM(mTlsCa)
 		}
 		mTlsKeyPair, err := tls.LoadX509KeyPair(env.GetPromMtlsAuthCrtFile(), env.GetPromMtlsAuthKeyFile())
 		if err != nil {
-			log.Errorf("mTLS options were set but failed to load DB_MTLS_AUTH_CRT_FILE or DB_MTLS_AUTH_KEY_FILE: %s", err)
+			log.Errorf("mTLS options were set but failed to load PROM_MTLS_AUTH_CRT_FILE or PROM_MTLS_AUTH_KEY_FILE: %s", err)
 		} else {
 			tlsClientCertificates = []tls.Certificate{mTlsKeyPair}
 		}
