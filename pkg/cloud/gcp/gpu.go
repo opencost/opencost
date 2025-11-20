@@ -1,11 +1,25 @@
 package gcp
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
-// gpuSKUToGpuLabel defines minimal, explicit mappings for common non-A100 SKUs.
-// A100 is handled separately to avoid ambiguous substring matches.
+// ---- Original OpenCost regex fallback ----
+var (
+	nvidiaTeslaGPURegex = regexp.MustCompile(`(?i)nvidia[\s-]*tesla[\s-]*([a-z0-9]+)`)
+	nvidiaGPURegex      = regexp.MustCompile(`(?i)nvidia[\s-]*([a-z0-9]+)`)
+)
+
+// Explicit substring → canonical GPU label
 var gpuSKUToGpuLabel = map[string]string{
-	// L4 (G2)
+	// A100
+	"nvidia tesla a100 80gb": "nvidia-a100-80gb",
+	"nvidia a100 80gb":       "nvidia-a100-80gb",
+	"nvidia tesla a100":      "nvidia-tesla-a100",
+	"nvidia a100":            "nvidia-tesla-a100",
+
+	// L4
 	"nvidia l4": "nvidia-l4",
 
 	// T4
@@ -16,41 +30,43 @@ var gpuSKUToGpuLabel = map[string]string{
 	"tesla v100":  "nvidia-tesla-v100",
 	"nvidia v100": "nvidia-tesla-v100",
 
-	// P100 (reviewer example)
+	// P100 (reviewer case)
 	"tesla p100":  "nvidia-tesla-p100",
 	"nvidia p100": "nvidia-tesla-p100",
 }
 
-// NormalizeGPULabel converts a billing SKU description into the GKE/OpenCost GPU label.
+// ---- Main Normalizer ----
 func NormalizeGPULabel(desc string) string {
 	d := strings.ToLower(desc)
 
-	// ---- 1) Special-case A100 80GB vs 40GB / generic A100 ----
-	// We do this *before* using the map to avoid flaky behavior due to
-	// overlapping substrings ("nvidia a100" vs "nvidia a100 80gb").
+	// --- Step 1: A100 detection first ---
 	if strings.Contains(d, "a100") {
 		has80 := strings.Contains(d, "80gb") || strings.Contains(d, "80 gb")
 		has40 := strings.Contains(d, "40gb") || strings.Contains(d, "40 gb")
 
 		if has80 {
-			// A2-Ultra → nvidia-a100-80gb
 			return "nvidia-a100-80gb"
 		}
 		if has40 {
-			// A2-HighGPU 40GB → legacy label nvidia-tesla-a100
 			return "nvidia-tesla-a100"
 		}
-		// Generic A100 → treat as legacy A2-HighGPU
-		return "nvidia-tesla-a100"
+		return "nvidia-tesla-a100" // generic A100 → legacy
 	}
 
-	// ---- 2) Other GPUs via explicit substring map ----
+	// --- Step 2: explicit substring mapping ---
 	for key, model := range gpuSKUToGpuLabel {
 		if strings.Contains(d, key) {
 			return model
 		}
 	}
 
-	// ---- 3) No known GPU found ----
+	// --- Step 3: regex fallback (original OpenCost behavior) ---
+	if match := nvidiaTeslaGPURegex.FindStringSubmatch(desc); len(match) == 2 {
+		return "nvidia-tesla-" + strings.ToLower(match[1])
+	}
+	if match := nvidiaGPURegex.FindStringSubmatch(desc); len(match) == 2 {
+		return "nvidia-" + strings.ToLower(match[1])
+	}
+
 	return ""
 }
