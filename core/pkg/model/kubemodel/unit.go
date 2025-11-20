@@ -4,17 +4,9 @@ package kubemodel
 type Unit string
 
 const (
-	UnitMillicore     = "mCPU"
-	UnitByte          = "B"
-	UnitMi            = "Mi"
-	UnitGB            = "GB"
-	UnitGPU           = "GPU"
-	UnitSecond        = "s"
-	UnitMinute        = "m"
-	UnitHour          = "h"
-	UnitMillicoreHour = "m-h"
-	UnitByteHour      = "B-h"
-	UnitMiHour        = "Mi-h"
-	UnitGBHour        = "GB-h"
-	UnitGPUHour       = "GPU-h"
+	UnitMillicore       = "mCPU"
+	UnitByte            = "B"
+	UnitSecond          = "s"
+	UnitMillicoreSecond = "m-s"
+	UnitByteSecond      = "B-s"
 )

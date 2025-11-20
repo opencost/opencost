@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/source"
@@ -452,6 +453,26 @@ func (cm *CostModel) kmComputeNodes(kms *kubemodel.KubeModelSet, start, end time
 	for _, res := range nodeRAMBytesCapacityResult {
 		if node, ok := kms.Nodes[res.Node]; ok && len(res.Data) > 0 {
 			node.RAMByteSeconds = uint64(res.Data[0].Value)
+		}
+	}
+
+	// Process public IPs from cluster cache
+	// Get all nodes from cluster cache to extract public IP information
+	clusterNodes := cm.Cache.GetAllNodes()
+	nodeMap := make(map[string]*clustercache.Node)
+	for _, ccNode := range clusterNodes {
+		nodeMap[ccNode.Name] = ccNode
+	}
+
+	// Calculate duration in seconds for the window
+	duration := end.Sub(start).Seconds()
+
+	// Populate PublicIPSeconds for each node
+	for nodeName, node := range kms.Nodes {
+		if ccNode, ok := nodeMap[nodeName]; ok {
+			publicIPCount := ccNode.GetPublicIPCount()
+			// PublicIPSeconds = number of public IPs × duration in seconds
+			node.PublicIPSeconds = uint64(float64(publicIPCount) * duration)
 		}
 	}
 

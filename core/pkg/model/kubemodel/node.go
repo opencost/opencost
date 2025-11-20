@@ -14,6 +14,10 @@ type Node struct {
 	End                      time.Time         `json:"end"`                      // @bingen:field[version=1]
 	CpuMillicoreSeconds      uint64            `json:"cpuMillicoreSeconds"`      // @bingen:field[version=1]
 	RAMByteSeconds           uint64            `json:"ramByteSeconds"`           // @bingen:field[version=1]
+	// PublicIPSeconds represents the cumulative public IP allocation (count × seconds) for this node.
+	// Calculated as: number of ExternalIP addresses from Kubernetes node Status.Addresses × window duration in seconds.
+	// Used for cost attribution of public IP addresses associated with the node.
+	PublicIPSeconds          uint64            `json:"publicIpSeconds"`          // @bingen:field[version=1]
 	CpuMillicoreUsageAverage uint64            `json:"cpuMillicoreUsageAverage"` // @bingen:field[version=1]
 	CpuMillicoreUsageMax     uint64            `json:"cpuMillicoreUsageMax"`     // @bingen:field[version=1]
 	RAMByteUsageAverage      uint64            `json:"ramByteUsageAverage"`      // @bingen:field[version=1]
