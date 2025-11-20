@@ -24,5 +24,4 @@ type Pod struct {
 	StorageByteSeconds         uint64            `json:"storageByteSeconds"`         // @bingen:field[version=1]
 	NetworkTransferBytes       uint64            `json:"networkTransferBytes"`       // @bingen:field[version=1]
 	NetworkReceiveBytes        uint64            `json:"networkReceiveBytes"`        // @bingen:field[version=1]
-	Diagnostic                 *DiagnosticResult `json:"diagnostic,omitempty"`       // @bingen:field[version=1]
 }

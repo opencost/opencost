@@ -202,20 +202,12 @@ func TestGPUDevice(t *testing.T) {
 				GpuUsagePercentageAverage:   85.0,
 				GpuUsagePercentageMax:       98.0,
 				MemoryByteSeconds:           85899345920,
-				Diagnostic: &DiagnosticResult{
-					UID:         "diag-1",
-					Name:        "GPU Error",
-					Description: "Test GPU error",
-					Category:    "gpu",
-					Error:       "Test error",
-				},
 			}
 
 			cloned := device.Clone()
 			require.NotNil(t, cloned)
 			require.NotSame(t, device, cloned)
 			require.Equal(t, device.UID, cloned.UID)
-			require.NotNil(t, cloned.Diagnostic)
 		})
 	})
 }
@@ -396,20 +388,12 @@ func TestGPUUsage(t *testing.T) {
 				GpuUsagePercentageAverage:   45.0,
 				GpuUsagePercentageMax:       75.0,
 				MemoryByteSecondsUsed:       17179869184,
-				Diagnostic: &DiagnosticResult{
-					UID:         "diag-2",
-					Name:        "GPU Warning",
-					Description: "Test GPU warning",
-					Category:    "gpu",
-					Error:       "Test warning",
-				},
 			}
 
 			cloned := usage.Clone()
 			require.NotNil(t, cloned)
 			require.NotSame(t, usage, cloned)
 			require.Equal(t, usage.ContainerUID, cloned.ContainerUID)
-			require.NotNil(t, cloned.Diagnostic)
 		})
 	})
 }

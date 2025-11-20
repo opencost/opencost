@@ -24,5 +24,4 @@ type Controller struct {
 	Annotations  map[string]string `json:"annotations,omitempty"` // @bingen:field[version=1]
 	Start        time.Time         `json:"start"`                 // @bingen:field[version=1]
 	End          time.Time         `json:"end"`                   // @bingen:field[version=1]
-	Diagnostic   *DiagnosticResult `json:"diagnostic,omitempty"`  // @bingen:field[version=1]
 }

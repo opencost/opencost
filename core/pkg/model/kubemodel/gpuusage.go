@@ -17,17 +17,16 @@ import (
 // 3. Add power metric queries to modules/prometheus-source/pkg/prom/metricsquerier.go
 // 4. Implement power metric hydration in the collector/source data pipeline
 type GPUUsage struct {
-	ContainerUID                string            `json:"containerUid"`                // @bingen:field[version=1] Container consuming GPU resources
-	GpuDeviceUID                string            `json:"gpuDeviceUid"`                // @bingen:field[version=1] Reference to the GPU device being used
-	GpuSeconds                  float64           `json:"gpuSeconds"`                  // @bingen:field[version=1] GPU compute usage in device-seconds consumed
-	GpuRequestPercentageAverage float64           `json:"gpuRequestPercentageAverage"` // @bingen:field[version=1] GPU compute request in percentage (0-100)
-	GpuUsagePercentageAverage   float64           `json:"gpuUsagePercentageAverage"`   // @bingen:field[version=1] GPU compute usage average percentage (0-100)
-	GpuUsagePercentageMax       float64           `json:"gpuUsagePercentageMax"`       // @bingen:field[version=1] GPU compute usage max percentage (0-100)
-	MemoryByteSecondsUsed       uint64            `json:"memoryByteSecondsUsed"`       // @bingen:field[version=1] GPU memory usage in byte-seconds
-	PowerWattSeconds            float64           `json:"powerWattSeconds"`            // @bingen:field[version=1] GPU power consumption in watt-seconds (Joules)
-	PowerWattAverage            float64           `json:"powerWattAverage"`            // @bingen:field[version=1] GPU average power consumption in watts
-	PowerWattMax                float64           `json:"powerWattMax"`                // @bingen:field[version=1] GPU max power consumption in watts
-	Diagnostic                  *DiagnosticResult `json:"diagnostic,omitempty"`        // @bingen:field[version=1]
+	ContainerUID                string  `json:"containerUid"`                // @bingen:field[version=1] Container consuming GPU resources
+	GpuDeviceUID                string  `json:"gpuDeviceUid"`                // @bingen:field[version=1] Reference to the GPU device being used
+	GpuSeconds                  float64 `json:"gpuSeconds"`                  // @bingen:field[version=1] GPU compute usage in device-seconds consumed
+	GpuRequestPercentageAverage float64 `json:"gpuRequestPercentageAverage"` // @bingen:field[version=1] GPU compute request in percentage (0-100)
+	GpuUsagePercentageAverage   float64 `json:"gpuUsagePercentageAverage"`   // @bingen:field[version=1] GPU compute usage average percentage (0-100)
+	GpuUsagePercentageMax       float64 `json:"gpuUsagePercentageMax"`       // @bingen:field[version=1] GPU compute usage max percentage (0-100)
+	MemoryByteSecondsUsed       uint64  `json:"memoryByteSecondsUsed"`       // @bingen:field[version=1] GPU memory usage in byte-seconds
+	PowerWattSeconds            float64 `json:"powerWattSeconds"`            // @bingen:field[version=1] GPU power consumption in watt-seconds (Joules)
+	PowerWattAverage            float64 `json:"powerWattAverage"`            // @bingen:field[version=1] GPU average power consumption in watts
+	PowerWattMax                float64 `json:"powerWattMax"`                // @bingen:field[version=1] GPU max power consumption in watts
 }
 
 // Validate validates the GPUUsage fields
@@ -85,7 +84,6 @@ func (u *GPUUsage) Clone() *GPUUsage {
 		PowerWattSeconds:            u.PowerWattSeconds,
 		PowerWattAverage:            u.PowerWattAverage,
 		PowerWattMax:                u.PowerWattMax,
-		Diagnostic:                  u.Diagnostic,
 	}
 
 	return cloned
