@@ -87,7 +87,7 @@ func (a *Accesses) customPricingHasChanged() bool {
 	// pricing settings have changed
 	encodeCustomPricing := func(cp *models.CustomPricing) string {
 		return fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%s:%s", cp.CustomPricesEnabled, cp.CPU, cp.SpotCPU,
-			cp.RAM, cp.SpotRAM, cp.GPU, cp.Storage, cp.CurrencyCode, cp.SharedOverhead)
+			cp.RAM, cp.SpotRAM, cp.GPU, cp.Storage, cp.CurrencyCode)
 	}
 
 	// compare cached custom pricing parameters with current values
