@@ -20,7 +20,6 @@ var (
 const (
 	AuthSecretPath                 = "/var/secrets/service-key.json"
 	StorageConfigSecretPath        = "/var/azure-storage-config/azure-storage-config.json"
-	DefaultShareTenancyCost        = "true"
 	KarpenterCapacityTypeLabel     = "karpenter.sh/capacity-type"
 	KarpenterCapacitySpotTypeValue = "spot"
 )
@@ -183,7 +182,6 @@ type CustomPricing struct {
 	NegotiatedDiscount           string `json:"negotiatedDiscount"`
 	ClusterName                  string `json:"clusterName"`
 	ClusterAccountID             string `json:"clusterAccount,omitempty"`
-	ShareTenancyCosts            string `json:"shareTenancyCosts"` // TODO clean up configuration so we can use a type other that string (this should be a bool, but the app panics if it's not a string)
 	DefaultLBPrice               string `json:"defaultLBPrice"`
 }
 
