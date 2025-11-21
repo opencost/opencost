@@ -96,8 +96,6 @@ var gcpRegions = []string{
 }
 
 var (
-	nvidiaTeslaGPURegex = regexp.MustCompile("(Nvidia Tesla [^ ]+) ")
-	nvidiaGPURegex      = regexp.MustCompile("(Nvidia [^ ]+) ")
 	// gce://guestbook-12345/...
 	//  => guestbook-12345
 	gceRegex = regexp.MustCompile("gce://([^/]*)/*")
@@ -762,23 +760,11 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					instanceType = "t2astandard"
 				}
 
-				var gpuType string
-				for matchnum, group := range nvidiaTeslaGPURegex.FindStringSubmatch(product.Description) {
-					if matchnum == 1 {
-						gpuType = strings.ToLower(strings.Join(strings.Split(group, " "), "-"))
-						log.Debugf("GCP Billing API: GPU type found: '%s'", gpuType)
-					}
+				gpuType := NormalizeGPULabel(product.Description)
+				if gpuType != "" {
+				    log.Debugf("GCP Billing API: normalized GPU type: %q", gpuType)
 				}
 
-				// If a 'Nvidia Tesla' is not found, try 'Nvidia'
-				if gpuType == "" {
-					for matchnum, group := range nvidiaGPURegex.FindStringSubmatch(product.Description) {
-						if matchnum == 1 {
-							gpuType = strings.ToLower(strings.Join(strings.Split(group, " "), "-"))
-							log.Debugf("GCP Billing API: GPU type found: '%s'", gpuType)
-						}
-					}
-				}
 
 				candidateKeys := []string{}
 				if gcp.ValidPricingKeys == nil {
