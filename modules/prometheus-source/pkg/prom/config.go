@@ -1,8 +1,10 @@
 package prom
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"os"
 	"time"
 
 	coreenv "github.com/opencost/opencost/core/pkg/env"
@@ -78,6 +80,7 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 	// We will use the service account token and service-ca.crt to authenticate with the Prometheus server via kube-rbac-proxy.
 	// We need to ensure that the service account has the necessary permissions to access the Prometheus server by binding it to the appropriate role.
 	var tlsCaCert *x509.CertPool
+	var tlsClientCertificates []tls.Certificate
 	if env.IsKubeRbacProxyEnabled() {
 		restConfig, err := restclient.InClusterConfig()
 		if err != nil {
@@ -87,6 +90,27 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 		tlsCaCert, err = certutil.NewPool(ServiceCA)
 		if err != nil {
 			log.Errorf("%s was set to true but failed to load service-ca.crt: %s", env.KubeRbacProxyEnabledEnvVar, err)
+		}
+	} else if env.IsPromMtlsAuthEnabled() {
+		tlsCaCert = x509.NewCertPool()
+		// The /etc/ssl/cert.pem location is correct for Alpine Linux, the container base used here
+		systemCa, err := os.ReadFile("/etc/ssl/cert.pem")
+		if err != nil {
+			log.Errorf("mTLS options were set but failed to load system CAs: %s", err)
+		} else {
+			tlsCaCert.AppendCertsFromPEM(systemCa)
+		}
+		mTlsCa, err := os.ReadFile(env.GetPromMtlsAuthCAFile())
+		if err != nil {
+			log.Errorf("mTLS options were set but failed to load PROM_MTLS_AUTH_CA_FILE: %s", err)
+		} else {
+			tlsCaCert.AppendCertsFromPEM(mTlsCa)
+		}
+		mTlsKeyPair, err := tls.LoadX509KeyPair(env.GetPromMtlsAuthCrtFile(), env.GetPromMtlsAuthKeyFile())
+		if err != nil {
+			log.Errorf("mTLS options were set but failed to load PROM_MTLS_AUTH_CRT_FILE or PROM_MTLS_AUTH_KEY_FILE: %s", err)
+		} else {
+			tlsClientCertificates = []tls.Certificate{mTlsKeyPair}
 		}
 	}
 
@@ -104,6 +128,7 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 		TLSHandshakeTimeout:   tlsHandshakeTimeout,
 		TLSInsecureSkipVerify: env.IsInsecureSkipVerify(),
 		RootCAs:               tlsCaCert,
+		ClientCertificates:    tlsClientCertificates,
 		RateLimitRetryOpts:    rateLimitRetryOpts,
 		Auth:                  auth,
 		QueryConcurrency:      queryConcurrency,
