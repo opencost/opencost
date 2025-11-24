@@ -2,6 +2,16 @@ package kubemodel
 
 import "time"
 
+// @bingen:generate:ServiceType
+type ServiceType string
+
+const (
+	ServiceTypeClusterIP    ServiceType = "ClusterIP"
+	ServiceTypeNodePort     ServiceType = "NodePort"
+	ServiceTypeLoadBalancer ServiceType = "LoadBalancer"
+	ServiceTypeExternalName ServiceType = "ExternalName"
+)
+
 // @bingen:generate:ServicePort
 type ServicePort struct {
 	Name       string `json:"name"`       // @bingen:field[version=1]
@@ -17,7 +27,8 @@ type Service struct {
 	ClusterUID           string            `json:"clusterUid"`            // @bingen:field[version=1]
 	NamespaceUID         string            `json:"namespaceUid"`          // @bingen:field[version=1]
 	Name                 string            `json:"name"`                  // @bingen:field[version=1]
-	Type                 string            `json:"type"`                  // @bingen:field[version=1]
+	Type                 ServiceType       `json:"type"`                  // @bingen:field[version=1]
+	Hostname             string            `json:"hostname,omitempty"`    // @bingen:field[version=1]
 	Labels               map[string]string `json:"labels,omitempty"`      // @bingen:field[version=1]
 	Annotations          map[string]string `json:"annotations,omitempty"` // @bingen:field[version=1]
 	Ports                []ServicePort     `json:"ports,omitempty"`       // @bingen:field[version=1]
