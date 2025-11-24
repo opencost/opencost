@@ -488,7 +488,9 @@ func (cm *CostModel) kmComputePods(kms *kubemodel.KubeModelSet, start, end time.
 	podLabelsResultFuture := source.WithGroup(grp, ds.QueryPodLabels(start, end))
 	podAnnosResultFuture := source.WithGroup(grp, ds.QueryPodAnnotations(start, end))
 
-	// Query pod-level metrics (network only - CPU/RAM aggregated from containers)
+	// Query pod-level metrics (max values cannot be aggregated from containers)
+	cpuUsageMaxResultFuture := source.WithGroup(grp, ds.QueryCPUUsageMax(start, end))
+	ramUsageMaxResultFuture := source.WithGroup(grp, ds.QueryRAMUsageMax(start, end))
 	netTransferResultFuture := source.WithGroup(grp, ds.QueryNetTransferBytes(start, end))
 	netReceiveResultFuture := source.WithGroup(grp, ds.QueryNetReceiveBytes(start, end))
 
@@ -496,6 +498,8 @@ func (cm *CostModel) kmComputePods(kms *kubemodel.KubeModelSet, start, end time.
 	podsUIDResult, _ := podsUIDResultFuture.Await()
 	podLabelsResult, _ := podLabelsResultFuture.Await()
 	podAnnosResult, _ := podAnnosResultFuture.Await()
+	cpuUsageMaxResult, _ := cpuUsageMaxResultFuture.Await()
+	ramUsageMaxResult, _ := ramUsageMaxResultFuture.Await()
 	netTransferResult, _ := netTransferResultFuture.Await()
 	netReceiveResult, _ := netReceiveResultFuture.Await()
 
@@ -521,6 +525,20 @@ func (cm *CostModel) kmComputePods(kms *kubemodel.KubeModelSet, start, end time.
 		kms.RegisterPod(res.UID, res.Pod, res.Namespace)
 		if pod, ok := kms.Pods[res.UID]; ok {
 			pod.Annotations = res.Annotations
+		}
+	}
+
+	// Process CPU usage max
+	for _, res := range cpuUsageMaxResult {
+		if pod, ok := kms.Pods[res.UID]; ok && len(res.Data) > 0 {
+			pod.CpuMillicoreUsageMax = uint64(res.Data[0].Value * 1000)
+		}
+	}
+
+	// Process RAM usage max
+	for _, res := range ramUsageMaxResult {
+		if pod, ok := kms.Pods[res.UID]; ok && len(res.Data) > 0 {
+			pod.RAMByteUsageMax = uint64(res.Data[0].Value)
 		}
 	}
 
