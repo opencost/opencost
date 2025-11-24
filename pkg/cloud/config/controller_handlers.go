@@ -29,7 +29,7 @@ func (c *Controller) cloudCostChecks() func(w http.ResponseWriter, r *http.Reque
 	return nil
 }
 
-// GetEnableConfigHandler creates a handler from a http request which enables an integration via the integrationController
+// GetExportConfigHandler creates a handler from a http request which exports an integration via the integrationController
 func (c *Controller) GetExportConfigHandler() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	// perform basic checks to ensure that the pipeline can be accessed
 	fn := c.cloudCostChecks()
@@ -52,7 +52,7 @@ func (c *Controller) GetExportConfigHandler() func(w http.ResponseWriter, r *htt
 	}
 }
 
-// GetEnableConfigHandler creates a handler from a http request which enables an integration via the integrationController
+// GetAddConfigHandler creates a handler from a http request which adds an integration via the integrationController
 func (c *Controller) GetAddConfigHandler() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	// perform basic checks to ensure that the pipeline can be accessed
 	fn := c.cloudCostChecks()
@@ -66,7 +66,7 @@ func (c *Controller) GetAddConfigHandler() func(w http.ResponseWriter, r *http.R
 
 		configType := r.URL.Query().Get("type")
 
-		config, err := parseConfig(configType, r.Body)
+		config, err := ParseConfig(configType, r.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -82,7 +82,7 @@ func (c *Controller) GetAddConfigHandler() func(w http.ResponseWriter, r *http.R
 	}
 }
 
-func parseConfig(configType string, body io.Reader) (cloud.KeyedConfig, error) {
+func ParseConfig(configType string, body io.Reader) (cloud.KeyedConfig, error) {
 	buf := new(bytes.Buffer)
 	_, err := buf.ReadFrom(body)
 	if err != nil {
