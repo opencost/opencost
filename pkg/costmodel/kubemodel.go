@@ -488,13 +488,7 @@ func (cm *CostModel) kmComputePods(kms *kubemodel.KubeModelSet, start, end time.
 	podLabelsResultFuture := source.WithGroup(grp, ds.QueryPodLabels(start, end))
 	podAnnosResultFuture := source.WithGroup(grp, ds.QueryPodAnnotations(start, end))
 
-	// Query pod metrics
-	cpuRequestsResultFuture := source.WithGroup(grp, ds.QueryCPURequests(start, end))
-	cpuUsageAvgResultFuture := source.WithGroup(grp, ds.QueryCPUUsageAvg(start, end))
-	cpuUsageMaxResultFuture := source.WithGroup(grp, ds.QueryCPUUsageMax(start, end))
-	ramRequestsResultFuture := source.WithGroup(grp, ds.QueryRAMRequests(start, end))
-	ramUsageAvgResultFuture := source.WithGroup(grp, ds.QueryRAMUsageAvg(start, end))
-	ramUsageMaxResultFuture := source.WithGroup(grp, ds.QueryRAMUsageMax(start, end))
+	// Query pod-level metrics (network only - CPU/RAM aggregated from containers)
 	netTransferResultFuture := source.WithGroup(grp, ds.QueryNetTransferBytes(start, end))
 	netReceiveResultFuture := source.WithGroup(grp, ds.QueryNetReceiveBytes(start, end))
 
@@ -502,12 +496,6 @@ func (cm *CostModel) kmComputePods(kms *kubemodel.KubeModelSet, start, end time.
 	podsUIDResult, _ := podsUIDResultFuture.Await()
 	podLabelsResult, _ := podLabelsResultFuture.Await()
 	podAnnosResult, _ := podAnnosResultFuture.Await()
-	cpuRequestsResult, _ := cpuRequestsResultFuture.Await()
-	cpuUsageAvgResult, _ := cpuUsageAvgResultFuture.Await()
-	cpuUsageMaxResult, _ := cpuUsageMaxResultFuture.Await()
-	ramRequestsResult, _ := ramRequestsResultFuture.Await()
-	ramUsageAvgResult, _ := ramUsageAvgResultFuture.Await()
-	ramUsageMaxResult, _ := ramUsageMaxResultFuture.Await()
 	netTransferResult, _ := netTransferResultFuture.Await()
 	netReceiveResult, _ := netReceiveResultFuture.Await()
 
@@ -536,54 +524,7 @@ func (cm *CostModel) kmComputePods(kms *kubemodel.KubeModelSet, start, end time.
 		}
 	}
 
-	// Process CPU requests (aggregate container-level data to pod)
-	for _, res := range cpuRequestsResult {
-		if pod, ok := kms.Pods[res.UID]; ok && len(res.Data) > 0 {
-			// Set node ID from container metrics (ContainerMetricResult has Node field)
-			if pod.NodeUID == "" {
-				pod.NodeUID = res.Node
-			}
-			// Convert cores to millicores and sum
-			pod.CpuMillicoreRequestAverage += uint64(res.Data[0].Value * 1000)
-		}
-	}
-
-	// Process CPU usage average
-	for _, res := range cpuUsageAvgResult {
-		if pod, ok := kms.Pods[res.UID]; ok && len(res.Data) > 0 {
-			pod.CpuMillicoreUsageAverage += uint64(res.Data[0].Value * 1000)
-		}
-	}
-
-	// Process CPU usage max
-	for _, res := range cpuUsageMaxResult {
-		if pod, ok := kms.Pods[res.UID]; ok && len(res.Data) > 0 {
-			pod.CpuMillicoreUsageMax += uint64(res.Data[0].Value * 1000)
-		}
-	}
-
-	// Process RAM requests
-	for _, res := range ramRequestsResult {
-		if pod, ok := kms.Pods[res.UID]; ok && len(res.Data) > 0 {
-			pod.RAMByteRequestAverage += uint64(res.Data[0].Value)
-		}
-	}
-
-	// Process RAM usage average
-	for _, res := range ramUsageAvgResult {
-		if pod, ok := kms.Pods[res.UID]; ok && len(res.Data) > 0 {
-			pod.RAMByteUsageAverage += uint64(res.Data[0].Value)
-		}
-	}
-
-	// Process RAM usage max
-	for _, res := range ramUsageMaxResult {
-		if pod, ok := kms.Pods[res.UID]; ok && len(res.Data) > 0 {
-			pod.RAMByteUsageMax += uint64(res.Data[0].Value)
-		}
-	}
-
-	// Process network transfer bytes
+	// Process network transfer bytes (pod-level only)
 	for _, res := range netTransferResult {
 		if pod, ok := kms.Pods[res.UID]; ok && len(res.Data) > 0 {
 			pod.NetworkTransferBytes += uint64(res.Data[0].Value)

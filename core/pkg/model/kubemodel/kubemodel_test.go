@@ -11,17 +11,17 @@ func TestGPUDevice(t *testing.T) {
 	t.Run("Validate", func(t *testing.T) {
 		t.Run("valid GPU device", func(t *testing.T) {
 			device := &GPUDevice{
-				UID:                         "gpu-1",
-				NodeUID:                     "node-1",
-				DeviceNumber:                0,
-				ModelName:                   "NVIDIA A100",
-				IsShared:                    false,
-				SharePercentage:             100.0,
-				GpuSeconds:                  1.0,
-				GpuRequestPercentageAverage: 50.0,
-				GpuUsagePercentageAverage:   45.0,
-				GpuUsagePercentageMax:       90.0,
-				MemoryByteSeconds:           42949672960,
+				UID:              "gpu-1",
+				NodeUID:          "node-1",
+				DeviceNumber:     0,
+				ModelName:        "NVIDIA A100",
+				IsShared:         false,
+				SharePercentage:  100.0,
+				GpuSeconds:       1.0,
+				MemoryByteSeconds: 42949672960,
+				PowerWattSeconds: 500.0,
+				PowerWattAverage: 250.0,
+				PowerWattMax:     400.0,
 			}
 
 			err := device.Validate()
@@ -30,17 +30,17 @@ func TestGPUDevice(t *testing.T) {
 
 		t.Run("shared GPU with MIG", func(t *testing.T) {
 			device := &GPUDevice{
-				UID:                         "gpu-1-mig-0",
-				NodeUID:                     "node-1",
-				DeviceNumber:                0,
-				ModelName:                   "NVIDIA A100-MIG-1g.5gb",
-				IsShared:                    true,
-				SharePercentage:             14.3,
-				GpuSeconds:                  0.5,
-				GpuRequestPercentageAverage: 100.0,
-				GpuUsagePercentageAverage:   75.0,
-				GpuUsagePercentageMax:       92.0,
-				MemoryByteSeconds:           5368709120,
+				UID:              "gpu-1-mig-0",
+				NodeUID:          "node-1",
+				DeviceNumber:     0,
+				ModelName:        "NVIDIA A100-MIG-1g.5gb",
+				IsShared:         true,
+				SharePercentage:  14.3,
+				GpuSeconds:       0.5,
+				MemoryByteSeconds: 5368709120,
+				PowerWattSeconds: 100.0,
+				PowerWattAverage: 50.0,
+				PowerWattMax:     75.0,
 			}
 
 			err := device.Validate()
@@ -49,8 +49,7 @@ func TestGPUDevice(t *testing.T) {
 
 		t.Run("missing ID", func(t *testing.T) {
 			device := &GPUDevice{
-				NodeUID:                   "node-1",
-				GpuUsagePercentageAverage: 50.0,
+				NodeUID: "node-1",
 			}
 
 			err := device.Validate()
@@ -60,8 +59,7 @@ func TestGPUDevice(t *testing.T) {
 
 		t.Run("missing NodeID", func(t *testing.T) {
 			device := &GPUDevice{
-				UID:                       "gpu-1",
-				GpuUsagePercentageAverage: 50.0,
+				UID: "gpu-1",
 			}
 
 			err := device.Validate()
@@ -95,59 +93,42 @@ func TestGPUDevice(t *testing.T) {
 			})
 		})
 
-		t.Run("invalid GpuRequestAverage", func(t *testing.T) {
+		t.Run("negative GpuSeconds", func(t *testing.T) {
 			device := &GPUDevice{
-				UID:                         "gpu-1",
-				NodeUID:                     "node-1",
-				SharePercentage:             50.0,
-				GpuRequestPercentageAverage: -5.0,
-			}
-
-			err := device.Validate()
-			require.Error(t, err)
-			require.Contains(t, err.Error(), "GpuRequestPercentageAverage must be 0-100")
-		})
-
-		t.Run("invalid GpuUsageAverage", func(t *testing.T) {
-			device := &GPUDevice{
-				UID:                       "gpu-1",
-				NodeUID:                   "node-1",
-				SharePercentage:           50.0,
-				GpuUsagePercentageAverage: 105.0,
-			}
-
-			err := device.Validate()
-			require.Error(t, err)
-			require.Contains(t, err.Error(), "GpuUsagePercentageAverage must be 0-100")
-		})
-
-		t.Run("GpuUsageMax less than average", func(t *testing.T) {
-			device := &GPUDevice{
-				UID:                       "gpu-1",
-				NodeUID:                   "node-1",
-				SharePercentage:           50.0,
-				GpuUsagePercentageAverage: 80.0,
-				GpuUsagePercentageMax:     70.0,
-			}
-
-			err := device.Validate()
-			require.Error(t, err)
-			require.Contains(t, err.Error(), "GpuUsagePercentageMax cannot be less than GpuUsagePercentageAverage")
-		})
-
-		t.Run("negative GpuHours", func(t *testing.T) {
-			device := &GPUDevice{
-				UID:                       "gpu-1",
-				NodeUID:                   "node-1",
-				SharePercentage:           50.0,
-				GpuUsagePercentageAverage: 50.0,
-				GpuUsagePercentageMax:     80.0,
-				GpuSeconds:                -1.0,
+				UID:             "gpu-1",
+				NodeUID:         "node-1",
+				SharePercentage: 50.0,
+				GpuSeconds:      -1.0,
 			}
 
 			err := device.Validate()
 			require.Error(t, err)
 			require.Contains(t, err.Error(), "GpuSeconds cannot be negative")
+		})
+
+		t.Run("negative PowerWattSeconds", func(t *testing.T) {
+			device := &GPUDevice{
+				UID:              "gpu-1",
+				NodeUID:          "node-1",
+				PowerWattSeconds: -100.0,
+			}
+
+			err := device.Validate()
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "PowerWattSeconds cannot be negative")
+		})
+
+		t.Run("PowerWattMax less than average", func(t *testing.T) {
+			device := &GPUDevice{
+				UID:              "gpu-1",
+				NodeUID:          "node-1",
+				PowerWattAverage: 300.0,
+				PowerWattMax:     200.0,
+			}
+
+			err := device.Validate()
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "PowerWattMax cannot be less than PowerWattAverage")
 		})
 	})
 
@@ -160,17 +141,17 @@ func TestGPUDevice(t *testing.T) {
 
 		t.Run("basic device", func(t *testing.T) {
 			device := &GPUDevice{
-				UID:                         "gpu-1",
-				NodeUID:                     "node-1",
-				DeviceNumber:                0,
-				ModelName:                   "NVIDIA A100",
-				IsShared:                    false,
-				SharePercentage:             100.0,
-				GpuSeconds:                  2.5,
-				GpuRequestPercentageAverage: 80.0,
-				GpuUsagePercentageAverage:   75.0,
-				GpuUsagePercentageMax:       95.0,
-				MemoryByteSeconds:           42949672960,
+				UID:              "gpu-1",
+				NodeUID:          "node-1",
+				DeviceNumber:     0,
+				ModelName:        "NVIDIA A100",
+				IsShared:         false,
+				SharePercentage:  100.0,
+				GpuSeconds:       2.5,
+				MemoryByteSeconds: 42949672960,
+				PowerWattSeconds: 1000.0,
+				PowerWattAverage: 400.0,
+				PowerWattMax:     500.0,
 			}
 
 			cloned := device.Clone()
@@ -183,31 +164,34 @@ func TestGPUDevice(t *testing.T) {
 			require.Equal(t, device.IsShared, cloned.IsShared)
 			require.Equal(t, device.SharePercentage, cloned.SharePercentage)
 			require.Equal(t, device.GpuSeconds, cloned.GpuSeconds)
-			require.Equal(t, device.GpuRequestPercentageAverage, cloned.GpuRequestPercentageAverage)
-			require.Equal(t, device.GpuUsagePercentageAverage, cloned.GpuUsagePercentageAverage)
-			require.Equal(t, device.GpuUsagePercentageMax, cloned.GpuUsagePercentageMax)
 			require.Equal(t, device.MemoryByteSeconds, cloned.MemoryByteSeconds)
+			require.Equal(t, device.PowerWattSeconds, cloned.PowerWattSeconds)
+			require.Equal(t, device.PowerWattAverage, cloned.PowerWattAverage)
+			require.Equal(t, device.PowerWattMax, cloned.PowerWattMax)
 		})
 
-		t.Run("device with diagnostic", func(t *testing.T) {
+		t.Run("device with power metrics", func(t *testing.T) {
 			device := &GPUDevice{
-				UID:                         "gpu-2",
-				NodeUID:                     "node-2",
-				DeviceNumber:                1,
-				ModelName:                   "NVIDIA H100",
-				IsShared:                    true,
-				SharePercentage:             50.0,
-				GpuSeconds:                  1.0,
-				GpuRequestPercentageAverage: 90.0,
-				GpuUsagePercentageAverage:   85.0,
-				GpuUsagePercentageMax:       98.0,
-				MemoryByteSeconds:           85899345920,
+				UID:              "gpu-2",
+				NodeUID:          "node-2",
+				DeviceNumber:     1,
+				ModelName:        "NVIDIA H100",
+				IsShared:         true,
+				SharePercentage:  50.0,
+				GpuSeconds:       1.0,
+				MemoryByteSeconds: 85899345920,
+				PowerWattSeconds: 2000.0,
+				PowerWattAverage: 700.0,
+				PowerWattMax:     850.0,
 			}
 
 			cloned := device.Clone()
 			require.NotNil(t, cloned)
 			require.NotSame(t, device, cloned)
 			require.Equal(t, device.UID, cloned.UID)
+			require.Equal(t, device.PowerWattSeconds, cloned.PowerWattSeconds)
+			require.Equal(t, device.PowerWattAverage, cloned.PowerWattAverage)
+			require.Equal(t, device.PowerWattMax, cloned.PowerWattMax)
 		})
 	})
 }
