@@ -142,16 +142,10 @@ func NewPipelineExportControllers(clusterId string, store storage.Storage, cm Co
 	kubeModelExportControllers := []*export.ComputeExportController[kubemodel.KubeModelSet]{}
 
 	for _, res := range config.KubeModelPipelineResolutions {
-		// TODO remove
-		log.Infof("[KM] pipeline: res: %s", res)
-
 		if res < sourceResolution {
 			log.Warnf("Configured KubeModel pipeline resolution %dm is less than source resolution %dm. Not configuring the exporter for this resolution.", int64(res.Minutes()), int64(sourceResolution.Minutes()))
 			continue
 		}
-
-		// TODO remove
-		log.Infof("[KM] NewComputePipelineExportController(%s, _, _ %s)", clusterId, res)
 
 		kubeModelController, err := NewComputePipelineExportController(clusterId, store, kubeModelSource, res)
 		if err != nil {

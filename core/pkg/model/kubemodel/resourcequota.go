@@ -25,8 +25,8 @@ type ResourceQuotaSpec struct {
 
 // @bingen:generate:ResourceQuotaSpecHard
 type ResourceQuotaSpecHard struct {
-	Requests ResourceQuantities `json:"requests"` // @bingen:field[version=1]
-	Limits   ResourceQuantities `json:"limits"`   // @bingen:field[version=1]
+	Requests ResourceQuantities `json:"requests,omitempty"` // @bingen:field[version=1]
+	Limits   ResourceQuantities `json:"limits,omitempty"`   // @bingen:field[version=1]
 }
 
 func (spec *ResourceQuotaSpecHard) SetRequest(resource Resource, unit Unit, statType StatType, value uint64) {
@@ -52,8 +52,8 @@ type ResourceQuotaStatus struct {
 
 // @bingen:generate:ResourceQuotaStatusUsed
 type ResourceQuotaStatusUsed struct {
-	Requests ResourceQuantities `json:"requests"` // @bingen:field[version=1]
-	Limits   ResourceQuantities `json:"limits"`   // @bingen:field[version=1]
+	Requests ResourceQuantities `json:"requests,omitempty"` // @bingen:field[version=1]
+	Limits   ResourceQuantities `json:"limits,omitempty"`   // @bingen:field[version=1]
 }
 
 func (stat *ResourceQuotaStatusUsed) SetRequest(resource Resource, unit Unit, statType StatType, value uint64) {

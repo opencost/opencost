@@ -5,7 +5,6 @@ import (
 	"path"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/pipelines"
 )
@@ -26,15 +25,9 @@ type KubeModelStoragePathFormatter struct {
 }
 
 func NewKubeModelStoragePathFormatter(rootDir, clusterId, resolution string) (StoragePathFormatter[opencost.Window], error) {
-	// TODO remove
-	log.Infof("[KM] NewKubeModelStoragePathFormatter(%s, %s, %s)", rootDir, clusterId, resolution)
-
 	if clusterId == "" {
 		return nil, fmt.Errorf("cluster id cannot be empty")
 	}
-
-	// TODO remove
-	log.Infof("[KM] pathing: dir: %s", path.Join(rootDir, clusterId, pipelines.KubeModelPipelineName, resolution))
 
 	return &KubeModelStoragePathFormatter{
 		dir: path.Join(
@@ -55,10 +48,6 @@ func (kmspf *KubeModelStoragePathFormatter) Dir() string {
 //
 //	<root>/<clusterid>/kubemodel/<resolution>/<YYYY>/<MM>/<DD>/<prefix>.<YYYYMMDDHHiiSS>.<fileExt>
 func (kmspf *KubeModelStoragePathFormatter) ToFullPath(prefix string, window opencost.Window, fileExt string) string {
-
-	// TODO remove
-	log.Infof("[KM] pathing: full path (%s): %s", window.String(), path.Join(kmspf.dir, window.Start().Format(KubeModelDateDirTimeFormat), toKubeModelFileName(prefix, window.Start(), fileExt)))
-
 	return path.Join(
 		kmspf.dir,
 		window.Start().Format(KubeModelDateDirTimeFormat),
