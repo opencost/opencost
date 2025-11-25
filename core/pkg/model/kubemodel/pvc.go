@@ -14,8 +14,8 @@ type PersistentVolumeClaim struct {
 	Start              time.Time         `json:"start"`                 // @bingen:field[version=1]
 	End                time.Time         `json:"end"`                   // @bingen:field[version=1]
 	StorageClass       string            `json:"storageClass"`          // @bingen:field[version=1]
-	StorageByteSeconds uint64            `json:"storageByteSeconds"`    // @bingen:field[version=1]
-	RequestedBytes     uint64            `json:"requestedBytes"`        // @bingen:field[version=1]
+	StorageByteSecondsAllocated uint64            `json:"storageByteSecondsAllocated"`    // @bingen:field[version=1]
+	RequestedBytesAllocated     uint64            `json:"requestedBytesAllocated"`        // @bingen:field[version=1]
 	Size               uint64            `json:"size"`                  // @bingen:field[version=1]
 	VolumeName         string            `json:"volumeName"`            // @bingen:field[version=1]
 }

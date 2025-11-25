@@ -22,8 +22,8 @@ type GPUDevice struct {
 	ModelName        string  `json:"modelName"`        // @bingen:field[version=1]
 	IsShared         bool    `json:"isShared"`         // @bingen:field[version=1] GPU sharing information
 	SharePercentage  float64 `json:"sharePercentage"`  // @bingen:field[version=1]
-	GpuSeconds       float64 `json:"gpuSeconds"`       // @bingen:field[version=1] GPU seconds available
-	MemoryByteSeconds uint64 `json:"memoryByteSeconds"` // @bingen:field[version=1] GPU memory capacity in byte-seconds
+	GpuSecondsAllocated       float64 `json:"gpuSecondsAllocated"`       // @bingen:field[version=1] GPU seconds available
+	MemoryByteSecondsAllocated uint64 `json:"memoryByteSecondsAllocated"` // @bingen:field[version=1] GPU memory capacity in byte-seconds
 	PowerWattSeconds float64 `json:"powerWattSeconds"` // @bingen:field[version=1] GPU device power consumption in watt-seconds (Joules)
 	PowerWattAverage float64 `json:"powerWattAverage"` // @bingen:field[version=1] GPU device average power consumption in watts
 	PowerWattMax     float64 `json:"powerWattMax"`     // @bingen:field[version=1] GPU device max power consumption in watts
@@ -40,8 +40,8 @@ func (d *GPUDevice) Validate() error {
 	if d.SharePercentage < 0 || d.SharePercentage > 100 {
 		return fmt.Errorf("SharePercentage must be 0-100, got %.2f", d.SharePercentage)
 	}
-	if d.GpuSeconds < 0 {
-		return fmt.Errorf("GpuSeconds cannot be negative, got %.2f", d.GpuSeconds)
+	if d.GpuSecondsAllocated < 0 {
+		return fmt.Errorf("GpuSecondsAllocated cannot be negative, got %.2f", d.GpuSecondsAllocated)
 	}
 	if d.PowerWattSeconds < 0 {
 		return fmt.Errorf("PowerWattSeconds cannot be negative, got %.2f", d.PowerWattSeconds)
@@ -71,8 +71,8 @@ func (d *GPUDevice) Clone() *GPUDevice {
 		ModelName:        d.ModelName,
 		IsShared:         d.IsShared,
 		SharePercentage:  d.SharePercentage,
-		GpuSeconds:       d.GpuSeconds,
-		MemoryByteSeconds: d.MemoryByteSeconds,
+		GpuSecondsAllocated:       d.GpuSecondsAllocated,
+		MemoryByteSecondsAllocated: d.MemoryByteSecondsAllocated,
 		PowerWattSeconds: d.PowerWattSeconds,
 		PowerWattAverage: d.PowerWattAverage,
 		PowerWattMax:     d.PowerWattMax,

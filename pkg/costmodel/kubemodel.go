@@ -445,14 +445,14 @@ func (cm *CostModel) kmComputeNodes(kms *kubemodel.KubeModelSet, start, end time
 	for _, res := range nodeCPUCoresCapacityResult {
 		if node, ok := kms.Nodes[res.Node]; ok && len(res.Data) > 0 {
 			// Convert cores to millicores
-			node.CpuMillicoreSeconds = uint64(res.Data[0].Value * 1000)
+			node.CpuMillicoreSecondsAllocated = uint64(res.Data[0].Value * 1000)
 		}
 	}
 
 	// Process RAM capacity
 	for _, res := range nodeRAMBytesCapacityResult {
 		if node, ok := kms.Nodes[res.Node]; ok && len(res.Data) > 0 {
-			node.RAMByteSeconds = uint64(res.Data[0].Value)
+			node.RAMByteSecondsAllocated = uint64(res.Data[0].Value)
 		}
 	}
 
@@ -472,7 +472,7 @@ func (cm *CostModel) kmComputeNodes(kms *kubemodel.KubeModelSet, start, end time
 		if ccNode, ok := nodeMap[nodeName]; ok {
 			publicIPCount := ccNode.GetPublicIPCount()
 			// PublicIPSeconds = number of public IPs × duration in seconds
-			node.PublicIPSeconds = uint64(float64(publicIPCount) * duration)
+			node.PublicIPSecondsAllocated = uint64(float64(publicIPCount) * duration)
 		}
 	}
 
@@ -599,7 +599,7 @@ func (cm *CostModel) kmComputeContainers(kms *kubemodel.KubeModelSet, start, end
 	// Process CPU requests
 	for _, res := range cpuRequestsResult {
 		if container := getOrCreateContainer(res.UID, res.Container); container != nil && len(res.Data) > 0 {
-			container.CpuMillicoreRequestAverage = uint64(res.Data[0].Value * 1000)
+			container.CpuMillicoreRequestAverageAllocated = uint64(res.Data[0].Value * 1000)
 		}
 	}
 
@@ -620,7 +620,7 @@ func (cm *CostModel) kmComputeContainers(kms *kubemodel.KubeModelSet, start, end
 	// Process RAM requests
 	for _, res := range ramRequestsResult {
 		if container := getOrCreateContainer(res.UID, res.Container); container != nil && len(res.Data) > 0 {
-			container.RAMByteRequestAverage = uint64(res.Data[0].Value)
+			container.RAMByteRequestAverageAllocated = uint64(res.Data[0].Value)
 		}
 	}
 
@@ -771,7 +771,7 @@ func (cm *CostModel) kmComputePVCs(kms *kubemodel.KubeModelSet, start, end time.
 	// Process PVC bytes requested
 	for _, res := range pvcBytesRequestedResult {
 		if pvc, ok := kms.PersistentVolumeClaims[res.UID]; ok && len(res.Data) > 0 {
-			pvc.RequestedBytes = uint64(res.Data[0].Value)
+			pvc.RequestedBytesAllocated = uint64(res.Data[0].Value)
 		}
 	}
 

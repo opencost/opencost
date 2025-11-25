@@ -17,8 +17,8 @@ func TestGPUDevice(t *testing.T) {
 				ModelName:        "NVIDIA A100",
 				IsShared:         false,
 				SharePercentage:  100.0,
-				GpuSeconds:       1.0,
-				MemoryByteSeconds: 42949672960,
+				GpuSecondsAllocated:       1.0,
+				MemoryByteSecondsAllocated: 42949672960,
 				PowerWattSeconds: 500.0,
 				PowerWattAverage: 250.0,
 				PowerWattMax:     400.0,
@@ -36,8 +36,8 @@ func TestGPUDevice(t *testing.T) {
 				ModelName:        "NVIDIA A100-MIG-1g.5gb",
 				IsShared:         true,
 				SharePercentage:  14.3,
-				GpuSeconds:       0.5,
-				MemoryByteSeconds: 5368709120,
+				GpuSecondsAllocated:       0.5,
+				MemoryByteSecondsAllocated: 5368709120,
 				PowerWattSeconds: 100.0,
 				PowerWattAverage: 50.0,
 				PowerWattMax:     75.0,
@@ -93,17 +93,17 @@ func TestGPUDevice(t *testing.T) {
 			})
 		})
 
-		t.Run("negative GpuSeconds", func(t *testing.T) {
+		t.Run("negative GpuSecondsAllocated", func(t *testing.T) {
 			device := &GPUDevice{
 				UID:             "gpu-1",
 				NodeUID:         "node-1",
 				SharePercentage: 50.0,
-				GpuSeconds:      -1.0,
+				GpuSecondsAllocated:      -1.0,
 			}
 
 			err := device.Validate()
 			require.Error(t, err)
-			require.Contains(t, err.Error(), "GpuSeconds cannot be negative")
+			require.Contains(t, err.Error(), "GpuSecondsAllocated cannot be negative")
 		})
 
 		t.Run("negative PowerWattSeconds", func(t *testing.T) {
@@ -147,8 +147,8 @@ func TestGPUDevice(t *testing.T) {
 				ModelName:        "NVIDIA A100",
 				IsShared:         false,
 				SharePercentage:  100.0,
-				GpuSeconds:       2.5,
-				MemoryByteSeconds: 42949672960,
+				GpuSecondsAllocated:       2.5,
+				MemoryByteSecondsAllocated: 42949672960,
 				PowerWattSeconds: 1000.0,
 				PowerWattAverage: 400.0,
 				PowerWattMax:     500.0,
@@ -163,8 +163,8 @@ func TestGPUDevice(t *testing.T) {
 			require.Equal(t, device.ModelName, cloned.ModelName)
 			require.Equal(t, device.IsShared, cloned.IsShared)
 			require.Equal(t, device.SharePercentage, cloned.SharePercentage)
-			require.Equal(t, device.GpuSeconds, cloned.GpuSeconds)
-			require.Equal(t, device.MemoryByteSeconds, cloned.MemoryByteSeconds)
+			require.Equal(t, device.GpuSecondsAllocated, cloned.GpuSecondsAllocated)
+			require.Equal(t, device.MemoryByteSecondsAllocated, cloned.MemoryByteSecondsAllocated)
 			require.Equal(t, device.PowerWattSeconds, cloned.PowerWattSeconds)
 			require.Equal(t, device.PowerWattAverage, cloned.PowerWattAverage)
 			require.Equal(t, device.PowerWattMax, cloned.PowerWattMax)
@@ -178,8 +178,8 @@ func TestGPUDevice(t *testing.T) {
 				ModelName:        "NVIDIA H100",
 				IsShared:         true,
 				SharePercentage:  50.0,
-				GpuSeconds:       1.0,
-				MemoryByteSeconds: 85899345920,
+				GpuSecondsAllocated:       1.0,
+				MemoryByteSecondsAllocated: 85899345920,
 				PowerWattSeconds: 2000.0,
 				PowerWattAverage: 700.0,
 				PowerWattMax:     850.0,
@@ -203,7 +203,7 @@ func TestGPUUsage(t *testing.T) {
 				ContainerUID:                "container-1",
 				GpuDeviceUID:                "gpu-1",
 				GpuSeconds:                  1.0,
-				GpuRequestPercentageAverage: 100.0,
+				GpuRequestPercentageAverageAllocated: 100.0,
 				GpuUsagePercentageAverage:   75.0,
 				GpuUsagePercentageMax:       95.0,
 				MemoryByteSecondsUsed:       34359738368,
@@ -218,7 +218,7 @@ func TestGPUUsage(t *testing.T) {
 				ContainerUID:                "container-2",
 				GpuDeviceUID:                "gpu-1-mig-0",
 				GpuSeconds:                  0.5,
-				GpuRequestPercentageAverage: 100.0,
+				GpuRequestPercentageAverageAllocated: 100.0,
 				GpuUsagePercentageAverage:   75.0,
 				GpuUsagePercentageMax:       92.0,
 				MemoryByteSecondsUsed:       4294967296,
@@ -255,24 +255,24 @@ func TestGPUUsage(t *testing.T) {
 				usage := &GPUUsage{
 					ContainerUID:                "container-1",
 					GpuDeviceUID:                "gpu-1",
-					GpuRequestPercentageAverage: -10.0,
+					GpuRequestPercentageAverageAllocated: -10.0,
 				}
 
 				err := usage.Validate()
 				require.Error(t, err)
-				require.Contains(t, err.Error(), "GpuRequestPercentageAverage must be 0-100")
+				require.Contains(t, err.Error(), "GpuRequestPercentageAverageAllocated must be 0-100")
 			})
 
 			t.Run("over 100", func(t *testing.T) {
 				usage := &GPUUsage{
 					ContainerUID:                "container-1",
 					GpuDeviceUID:                "gpu-1",
-					GpuRequestPercentageAverage: 150.0,
+					GpuRequestPercentageAverageAllocated: 150.0,
 				}
 
 				err := usage.Validate()
 				require.Error(t, err)
-				require.Contains(t, err.Error(), "GpuRequestPercentageAverage must be 0-100")
+				require.Contains(t, err.Error(), "GpuRequestPercentageAverageAllocated must be 0-100")
 			})
 		})
 
@@ -280,7 +280,7 @@ func TestGPUUsage(t *testing.T) {
 			usage := &GPUUsage{
 				ContainerUID:                "container-1",
 				GpuDeviceUID:                "gpu-1",
-				GpuRequestPercentageAverage: 50.0,
+				GpuRequestPercentageAverageAllocated: 50.0,
 				GpuUsagePercentageAverage:   -5.0,
 			}
 
@@ -293,7 +293,7 @@ func TestGPUUsage(t *testing.T) {
 			usage := &GPUUsage{
 				ContainerUID:                "container-1",
 				GpuDeviceUID:                "gpu-1",
-				GpuRequestPercentageAverage: 50.0,
+				GpuRequestPercentageAverageAllocated: 50.0,
 				GpuUsagePercentageAverage:   50.0,
 				GpuUsagePercentageMax:       105.0,
 			}
@@ -307,7 +307,7 @@ func TestGPUUsage(t *testing.T) {
 			usage := &GPUUsage{
 				ContainerUID:                "container-1",
 				GpuDeviceUID:                "gpu-1",
-				GpuRequestPercentageAverage: 50.0,
+				GpuRequestPercentageAverageAllocated: 50.0,
 				GpuUsagePercentageAverage:   80.0,
 				GpuUsagePercentageMax:       70.0,
 			}
@@ -321,7 +321,7 @@ func TestGPUUsage(t *testing.T) {
 			usage := &GPUUsage{
 				ContainerUID:                "container-1",
 				GpuDeviceUID:                "gpu-1",
-				GpuRequestPercentageAverage: 50.0,
+				GpuRequestPercentageAverageAllocated: 50.0,
 				GpuUsagePercentageAverage:   50.0,
 				GpuUsagePercentageMax:       80.0,
 				GpuSeconds:                  -1.0,
@@ -345,7 +345,7 @@ func TestGPUUsage(t *testing.T) {
 				ContainerUID:                "container-1",
 				GpuDeviceUID:                "gpu-1",
 				GpuSeconds:                  2.5,
-				GpuRequestPercentageAverage: 100.0,
+				GpuRequestPercentageAverageAllocated: 100.0,
 				GpuUsagePercentageAverage:   80.0,
 				GpuUsagePercentageMax:       95.0,
 				MemoryByteSecondsUsed:       34359738368,
@@ -357,7 +357,7 @@ func TestGPUUsage(t *testing.T) {
 			require.Equal(t, usage.ContainerUID, cloned.ContainerUID)
 			require.Equal(t, usage.GpuDeviceUID, cloned.GpuDeviceUID)
 			require.Equal(t, usage.GpuSeconds, cloned.GpuSeconds)
-			require.Equal(t, usage.GpuRequestPercentageAverage, cloned.GpuRequestPercentageAverage)
+			require.Equal(t, usage.GpuRequestPercentageAverageAllocated, cloned.GpuRequestPercentageAverageAllocated)
 			require.Equal(t, usage.GpuUsagePercentageAverage, cloned.GpuUsagePercentageAverage)
 			require.Equal(t, usage.GpuUsagePercentageMax, cloned.GpuUsagePercentageMax)
 			require.Equal(t, usage.MemoryByteSecondsUsed, cloned.MemoryByteSecondsUsed)
@@ -368,7 +368,7 @@ func TestGPUUsage(t *testing.T) {
 				ContainerUID:                "container-2",
 				GpuDeviceUID:                "gpu-2",
 				GpuSeconds:                  1.0,
-				GpuRequestPercentageAverage: 50.0,
+				GpuRequestPercentageAverageAllocated: 50.0,
 				GpuUsagePercentageAverage:   45.0,
 				GpuUsagePercentageMax:       75.0,
 				MemoryByteSecondsUsed:       17179869184,
