@@ -8,21 +8,16 @@ import (
 
 // @bingen:generate[stringtable]:KubeModelSet
 type KubeModelSet struct {
-	Metadata               *Metadata                         `json:"meta"`                  // @bingen:field[version=1]
-	Window                 Window                            `json:"window"`                // @bingen:field[version=1]
-	Cluster                *Cluster                          `json:"cluster"`               // @bingen:field[version=1]
-	Namespaces             map[string]*Namespace             `json:"namespaces"`            // @bingen:field[version=1]
-	ResourceQuotas         map[string]*ResourceQuota         `json:"resourceQuotas"`        // @bingen:field[version=1]
-	Containers             map[string]*Container             `json:"containers,omitempty"`  // @bingen:field[version=1]
-	Owners                 map[string]*Owner                 `json:"owners,omitempty"`      // @bingen:field[version=1]
-	GPUDevices             map[string]*GPUDevice             `json:"gpuDevices,omitempty"`  // @bingen:field[version=1]
-	GPUUsages              map[string]*GPUUsage              `json:"gpuUsages,omitempty"`   // @bingen:field[version=1]
-	Nodes                  map[string]*Node                  `json:"nodes,omitempty"`       // @bingen:field[version=1]
-	Pods                   map[string]*Pod                   `json:"pods,omitempty"`        // @bingen:field[version=1]
-	PersistentVolumeClaims map[string]*PersistentVolumeClaim `json:"pvcs,omitempty"`        // @bingen:field[version=1]
-	Services               map[string]*Service               `json:"services,omitempty"`    // @bingen:field[version=1]
-	Volumes                map[string]*Volume                `json:"volumes,omitempty"`     // @bingen:field[version=1]
-	idx                    *kubeModelSetIndexes              // @bingen:field[ignore]
+	Metadata   *Metadata             `json:"meta"`                 // @bingen:field[version=1]
+	Window     Window                `json:"window"`               // @bingen:field[version=1]
+	Cluster    *Cluster              `json:"cluster"`              // @bingen:field[version=1]
+	Namespaces map[string]*Namespace `json:"namespaces"`           // @bingen:field[version=1]
+	Containers map[string]*Container `json:"containers,omitempty"` // @bingen:field[version=1]
+	Owners     map[string]*Owner     `json:"owners,omitempty"`     // @bingen:field[version=1]
+	Nodes      map[string]*Node      `json:"nodes,omitempty"`      // @bingen:field[version=1]
+	Pods       map[string]*Pod       `json:"pods,omitempty"`       // @bingen:field[version=1]
+	Services   map[string]*Service   `json:"services,omitempty"`   // @bingen:field[version=1]
+	idx        *kubeModelSetIndexes  // @bingen:field[ignore]
 }
 
 func (kms *KubeModelSet) MarshalBinary() (data []byte, err error) {
@@ -39,17 +34,12 @@ func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
 			Start: start,
 			End:   end,
 		},
-		Containers:             map[string]*Container{},
-		Owners:                 map[string]*Owner{},
-		GPUDevices:             map[string]*GPUDevice{},
-		GPUUsages:              map[string]*GPUUsage{},
-		Namespaces:             map[string]*Namespace{},
-		Nodes:                  map[string]*Node{},
-		Pods:                   map[string]*Pod{},
-		PersistentVolumeClaims: map[string]*PersistentVolumeClaim{},
-		ResourceQuotas:         map[string]*ResourceQuota{},
-		Services:               map[string]*Service{},
-		Volumes:                map[string]*Volume{},
+		Containers: map[string]*Container{},
+		Owners:     map[string]*Owner{},
+		Namespaces: map[string]*Namespace{},
+		Nodes:      map[string]*Node{},
+		Pods:       map[string]*Pod{},
+		Services:   map[string]*Service{},
 		idx: &kubeModelSetIndexes{
 			namespaceNameToID: map[string]string{},
 		},
@@ -103,35 +93,10 @@ func (kms *KubeModelSet) IsEmpty() bool {
 	// Check if all resource maps are empty
 	return len(kms.Containers) == 0 &&
 		len(kms.Owners) == 0 &&
-		len(kms.GPUDevices) == 0 &&
-		len(kms.GPUUsages) == 0 &&
 		len(kms.Namespaces) == 0 &&
 		len(kms.Nodes) == 0 &&
 		len(kms.Pods) == 0 &&
-		len(kms.PersistentVolumeClaims) == 0 &&
-		len(kms.ResourceQuotas) == 0 &&
-		len(kms.Services) == 0 &&
-		len(kms.Volumes) == 0
-}
-
-func (kms *KubeModelSet) RegisterResourceQuota(uid, name, namespace string) error {
-	if _, ok := kms.ResourceQuotas[uid]; !ok {
-		if _, ok := kms.idx.namespaceNameToID[namespace]; !ok {
-			return fmt.Errorf("KubeModelSet missing namespace '%s'", namespace)
-		}
-
-		kms.ResourceQuotas[uid] = &ResourceQuota{
-			UID:          uid,
-			Name:         name,
-			NamespaceUID: kms.idx.namespaceNameToID[namespace],
-			Spec:         &ResourceQuotaSpec{Hard: &ResourceQuotaSpecHard{}},
-			Status:       &ResourceQuotaStatus{Used: &ResourceQuotaStatusUsed{}},
-		}
-
-		kms.Metadata.ObjectCount++
-	}
-
-	return nil
+		len(kms.Services) == 0
 }
 
 func (kms *KubeModelSet) RegisterPod(id, name, namespace string) error {
@@ -216,74 +181,11 @@ func (kms *KubeModelSet) RegisterService(id, name, namespace string) error {
 	return nil
 }
 
-func (kms *KubeModelSet) RegisterPVC(id, name, namespace string) error {
-	if _, ok := kms.PersistentVolumeClaims[id]; !ok {
-		nsID, ok := kms.idx.namespaceNameToID[namespace]
-		if !ok {
-			return fmt.Errorf("KubeModelSet missing namespace '%s'", namespace)
-		}
-
-		kms.PersistentVolumeClaims[id] = &PersistentVolumeClaim{
-			UID:          id,
-			Name:         name,
-			NamespaceUID: nsID,
-		}
-
-		kms.Metadata.ObjectCount++
-	}
-
-	return nil
-}
-
-func (kms *KubeModelSet) RegisterVolume(id, name string) error {
-	if _, ok := kms.Volumes[id]; !ok {
-		if kms.Cluster == nil {
-			return errors.New("KubeModelSet missing Cluster")
-		}
-
-		kms.Volumes[id] = &Volume{
-			UID:        id,
-			ClusterUID: kms.Cluster.UID,
-			Name:       name,
-		}
-
-		kms.Metadata.ObjectCount++
-	}
-
-	return nil
-}
-
 func (kms *KubeModelSet) RegisterContainer(id, name, podID string) error {
 	if _, ok := kms.Containers[id]; !ok {
 		kms.Containers[id] = &Container{
 			PodUID: podID,
 			Name:   name,
-		}
-
-		kms.Metadata.ObjectCount++
-	}
-
-	return nil
-}
-
-func (kms *KubeModelSet) RegisterGPUDevice(id, nodeID string) error {
-	if _, ok := kms.GPUDevices[id]; !ok {
-		kms.GPUDevices[id] = &GPUDevice{
-			UID:     id,
-			NodeUID: nodeID,
-		}
-
-		kms.Metadata.ObjectCount++
-	}
-
-	return nil
-}
-
-func (kms *KubeModelSet) RegisterGPUUsage(id, containerID, gpuDeviceID string) error {
-	if _, ok := kms.GPUUsages[id]; !ok {
-		kms.GPUUsages[id] = &GPUUsage{
-			ContainerUID: containerID,
-			GpuDeviceUID: gpuDeviceID,
 		}
 
 		kms.Metadata.ObjectCount++
