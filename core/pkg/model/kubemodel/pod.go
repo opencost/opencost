@@ -6,7 +6,7 @@ import "time"
 type Pod struct {
 	UID                        string            `json:"uid"`                        // @bingen:field[version=1]
 	NamespaceUID               string            `json:"namespaceUid"`               // @bingen:field[version=1]
-	ControllerUID              string            `json:"controllerUid"`              // @bingen:field[version=1]
+	OwnerUID                   string            `json:"ownerUid"`                   // @bingen:field[version=1]
 	NodeUID                    string            `json:"nodeUid"`                    // @bingen:field[version=1]
 	Name                       string            `json:"name"`                       // @bingen:field[version=1]
 	Labels                     map[string]string `json:"labels,omitempty"`           // @bingen:field[version=1]

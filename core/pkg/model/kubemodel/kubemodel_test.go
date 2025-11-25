@@ -525,35 +525,36 @@ func TestKubeModel(t *testing.T) {
 		})
 	})
 
-	t.Run("RegisterController", func(t *testing.T) {
-		t.Run("register new controller", func(t *testing.T) {
+	t.Run("RegisterOwner", func(t *testing.T) {
+		t.Run("register new owner", func(t *testing.T) {
 			kms := NewKubeModelSet(start, end)
 			kms.Cluster = &Cluster{UID: "cluster-1"}
 			kms.RegisterNamespace("ns-1", "default")
 
-			err := kms.RegisterController("ctrl-1", "nginx-deployment", "default", "Deployment")
+			err := kms.RegisterOwner("ctrl-1", "nginx-deployment", "default", "Deployment", true)
 			require.NoError(t, err)
 
-			require.Len(t, kms.Controllers, 1)
-			ctrl, ok := kms.Controllers["ctrl-1"]
+			require.Len(t, kms.Owners, 1)
+			owner, ok := kms.Owners["ctrl-1"]
 			require.True(t, ok)
-			require.NotNil(t, ctrl)
-			require.Equal(t, "ctrl-1", ctrl.UID)
-			require.Equal(t, "nginx-deployment", ctrl.Name)
-			require.Equal(t, ControllerKind("Deployment"), ctrl.Kind)
+			require.NotNil(t, owner)
+			require.Equal(t, "ctrl-1", owner.UID)
+			require.Equal(t, "nginx-deployment", owner.Name)
+			require.Equal(t, OwnerKind("Deployment"), owner.Kind)
+			require.True(t, owner.Controller)
 		})
 
-		t.Run("register duplicate controller", func(t *testing.T) {
+		t.Run("register duplicate owner", func(t *testing.T) {
 			kms := NewKubeModelSet(start, end)
 			kms.Cluster = &Cluster{UID: "cluster-1"}
 			kms.RegisterNamespace("ns-1", "default")
 
-			err := kms.RegisterController("ctrl-1", "nginx-deployment", "default", "Deployment")
+			err := kms.RegisterOwner("ctrl-1", "nginx-deployment", "default", "Deployment", true)
 			require.NoError(t, err)
 
-			err = kms.RegisterController("ctrl-1", "nginx-deployment", "default", "Deployment")
+			err = kms.RegisterOwner("ctrl-1", "nginx-deployment", "default", "Deployment", true)
 			require.NoError(t, err)
-			require.Len(t, kms.Controllers, 1)
+			require.Len(t, kms.Owners, 1)
 		})
 	})
 

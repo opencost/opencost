@@ -16,17 +16,17 @@ import (
 // 3. Add power metric queries to modules/prometheus-source/pkg/prom/metricsquerier.go (e.g., QueryGPUPowerUsageAvg, QueryGPUPowerUsageMax)
 // 4. Implement power metric hydration in pkg/costmodel/kubemodel.go to populate PowerWattSeconds/PowerWattAverage/PowerWattMax fields
 type GPUDevice struct {
-	UID              string  `json:"uid"`              // @bingen:field[version=1] GPU UUID (hardware identifier)
-	NodeUID          string  `json:"nodeUid"`          // @bingen:field[version=1] Node hosting this GPU device
-	DeviceNumber     int32   `json:"deviceNumber"`     // @bingen:field[version=1]
-	ModelName        string  `json:"modelName"`        // @bingen:field[version=1]
-	IsShared         bool    `json:"isShared"`         // @bingen:field[version=1] GPU sharing information
-	SharePercentage  float64 `json:"sharePercentage"`  // @bingen:field[version=1]
-	GpuSecondsAllocated       float64 `json:"gpuSecondsAllocated"`       // @bingen:field[version=1] GPU seconds available
-	MemoryByteSecondsAllocated uint64 `json:"memoryByteSecondsAllocated"` // @bingen:field[version=1] GPU memory capacity in byte-seconds
-	PowerWattSeconds float64 `json:"powerWattSeconds"` // @bingen:field[version=1] GPU device power consumption in watt-seconds (Joules)
-	PowerWattAverage float64 `json:"powerWattAverage"` // @bingen:field[version=1] GPU device average power consumption in watts
-	PowerWattMax     float64 `json:"powerWattMax"`     // @bingen:field[version=1] GPU device max power consumption in watts
+	UID                        string  `json:"uid"`                        // @bingen:field[version=1] GPU UUID (hardware identifier)
+	NodeUID                    string  `json:"nodeUid"`                    // @bingen:field[version=1] Node hosting this GPU device
+	DeviceNumber               int32   `json:"deviceNumber"`               // @bingen:field[version=1]
+	ModelName                  string  `json:"modelName"`                  // @bingen:field[version=1]
+	IsShared                   bool    `json:"isShared"`                   // @bingen:field[version=1] GPU sharing information
+	SharePercentage            float64 `json:"sharePercentage"`            // @bingen:field[version=1]
+	GpuSecondsAllocated        float64 `json:"gpuSecondsAllocated"`        // @bingen:field[version=1] GPU seconds available
+	MemoryByteSecondsAllocated uint64  `json:"memoryByteSecondsAllocated"` // @bingen:field[version=1] GPU memory capacity in byte-seconds
+	PowerWattSeconds           float64 `json:"powerWattSeconds"`           // @bingen:field[version=1] GPU device power consumption in watt-seconds (Joules)
+	PowerWattAverage           float64 `json:"powerWattAverage"`           // @bingen:field[version=1] GPU device average power consumption in watts
+	PowerWattMax               float64 `json:"powerWattMax"`               // @bingen:field[version=1] GPU device max power consumption in watts
 }
 
 // Validate validates the GPUDevice fields

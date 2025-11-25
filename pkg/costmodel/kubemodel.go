@@ -107,14 +107,14 @@ func (cm *CostModel) ComputeKubeModel(start, end time.Time) (*kubemodel.KubeMode
 		kms.Metadata.Diagnostics = append(kms.Metadata.Diagnostics, diagnostic)
 	}
 
-	// 2.7 Compute Controllers
-	err = cm.kmComputeControllers(kms, start, end)
+	// 2.7 Compute Owners
+	err = cm.kmComputeOwners(kms, start, end)
 	if err != nil {
 		diagnostic := &kubemodel.DiagnosticResult{
-			UID:         fmt.Sprintf("controller-compute-%d", time.Now().Unix()),
-			Name:        "ControllerCompute",
-			Description: "Failed to compute controller data",
-			Category:    "controller",
+			UID:         fmt.Sprintf("owner-compute-%d", time.Now().Unix()),
+			Name:        "OwnerCompute",
+			Description: "Failed to compute owner data",
+			Category:    "owner",
 			Timestamp:   time.Now().UTC(),
 			Error:       err.Error(),
 		}
@@ -641,11 +641,11 @@ func (cm *CostModel) kmComputeContainers(kms *kubemodel.KubeModelSet, start, end
 	return nil
 }
 
-func (cm *CostModel) kmComputeControllers(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+func (cm *CostModel) kmComputeOwners(kms *kubemodel.KubeModelSet, start, end time.Time) error {
 	grp := source.NewQueryGroup()
 	ds := cm.DataSource.Metrics()
 
-	// Query controller labels
+	// Query owner labels
 	deploymentLabelsResultFuture := source.WithGroup(grp, ds.QueryDeploymentLabels(start, end))
 	statefulSetLabelsResultFuture := source.WithGroup(grp, ds.QueryStatefulSetLabels(start, end))
 	daemonSetLabelsResultFuture := source.WithGroup(grp, ds.QueryDaemonSetLabels(start, end))
@@ -661,48 +661,48 @@ func (cm *CostModel) kmComputeControllers(kms *kubemodel.KubeModelSet, start, en
 
 	// Process deployments
 	for _, res := range deploymentLabelsResult {
-		kms.RegisterController(res.UID, res.Deployment, res.Namespace, string(kubemodel.ControllerKindDeployment))
-		if controller, ok := kms.Controllers[res.UID]; ok {
-			controller.Labels = res.Labels
-			controller.Start = start
-			controller.End = end
+		kms.RegisterOwner(res.UID, res.Deployment, res.Namespace, string(kubemodel.OwnerKindDeployment), true)
+		if owner, ok := kms.Owners[res.UID]; ok {
+			owner.Labels = res.Labels
+			owner.Start = start
+			owner.End = end
 		}
 	}
 
 	// Process statefulsets
 	for _, res := range statefulSetLabelsResult {
-		kms.RegisterController(res.UID, res.StatefulSet, res.Namespace, string(kubemodel.ControllerKindStatefulSet))
-		if controller, ok := kms.Controllers[res.UID]; ok {
-			controller.Labels = res.Labels
-			controller.Start = start
-			controller.End = end
+		kms.RegisterOwner(res.UID, res.StatefulSet, res.Namespace, string(kubemodel.OwnerKindStatefulSet), true)
+		if owner, ok := kms.Owners[res.UID]; ok {
+			owner.Labels = res.Labels
+			owner.Start = start
+			owner.End = end
 		}
 	}
 
 	// Process daemonsets
 	for _, res := range daemonSetLabelsResult {
-		kms.RegisterController(res.UID, res.DaemonSet, res.Namespace, string(kubemodel.ControllerKindDaemonSet))
-		if controller, ok := kms.Controllers[res.UID]; ok {
-			controller.Labels = res.Labels
-			controller.Start = start
-			controller.End = end
+		kms.RegisterOwner(res.UID, res.DaemonSet, res.Namespace, string(kubemodel.OwnerKindDaemonSet), true)
+		if owner, ok := kms.Owners[res.UID]; ok {
+			owner.Labels = res.Labels
+			owner.Start = start
+			owner.End = end
 		}
 	}
 
 	// Process jobs
 	for _, res := range jobLabelsResult {
-		kms.RegisterController(res.UID, res.Job, res.Namespace, string(kubemodel.ControllerKindJob))
-		if controller, ok := kms.Controllers[res.UID]; ok {
-			controller.Labels = res.Labels
-			controller.Start = start
-			controller.End = end
+		kms.RegisterOwner(res.UID, res.Job, res.Namespace, string(kubemodel.OwnerKindJob), true)
+		if owner, ok := kms.Owners[res.UID]; ok {
+			owner.Labels = res.Labels
+			owner.Start = start
+			owner.End = end
 		}
 	}
 
-	// Process pod-controller relationships
-	// TODO: Implement proper pod-to-controller mapping through ReplicaSets
+	// Process pod-owner relationships
+	// TODO: Implement proper pod-to-owner mapping through ReplicaSets
 	// PodsWithReplicaSetOwnerResult only provides pod-to-ReplicaSet mapping
-	// Need additional query (QueryReplicaSetsWithRollout) to map ReplicaSets to Controllers
+	// Need additional query (QueryReplicaSetsWithRollout) to map ReplicaSets to Owners
 	for _, res := range podsWithRSOwnerResult {
 		_ = res // Placeholder for future implementation
 	}

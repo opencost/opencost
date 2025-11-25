@@ -14,7 +14,7 @@ type KubeModelSet struct {
 	Namespaces             map[string]*Namespace             `json:"namespaces"`            // @bingen:field[version=1]
 	ResourceQuotas         map[string]*ResourceQuota         `json:"resourceQuotas"`        // @bingen:field[version=1]
 	Containers             map[string]*Container             `json:"containers,omitempty"`  // @bingen:field[version=1]
-	Controllers            map[string]*Controller            `json:"controllers,omitempty"` // @bingen:field[version=1]
+	Owners                 map[string]*Owner                 `json:"owners,omitempty"`      // @bingen:field[version=1]
 	GPUDevices             map[string]*GPUDevice             `json:"gpuDevices,omitempty"`  // @bingen:field[version=1]
 	GPUUsages              map[string]*GPUUsage              `json:"gpuUsages,omitempty"`   // @bingen:field[version=1]
 	Nodes                  map[string]*Node                  `json:"nodes,omitempty"`       // @bingen:field[version=1]
@@ -40,7 +40,7 @@ func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
 			End:   end,
 		},
 		Containers:             map[string]*Container{},
-		Controllers:            map[string]*Controller{},
+		Owners:                 map[string]*Owner{},
 		GPUDevices:             map[string]*GPUDevice{},
 		GPUUsages:              map[string]*GPUUsage{},
 		Namespaces:             map[string]*Namespace{},
@@ -102,7 +102,7 @@ func (kms *KubeModelSet) IsEmpty() bool {
 
 	// Check if all resource maps are empty
 	return len(kms.Containers) == 0 &&
-		len(kms.Controllers) == 0 &&
+		len(kms.Owners) == 0 &&
 		len(kms.GPUDevices) == 0 &&
 		len(kms.GPUUsages) == 0 &&
 		len(kms.Namespaces) == 0 &&
@@ -171,18 +171,19 @@ func (kms *KubeModelSet) RegisterNode(id, name string) error {
 	return nil
 }
 
-func (kms *KubeModelSet) RegisterController(id, name, namespace, kind string) error {
-	if _, ok := kms.Controllers[id]; !ok {
+func (kms *KubeModelSet) RegisterOwner(id, name, namespace, kind string, isController bool) error {
+	if _, ok := kms.Owners[id]; !ok {
 		nsID, ok := kms.idx.namespaceNameToID[namespace]
 		if !ok {
 			return fmt.Errorf("KubeModelSet missing namespace '%s'", namespace)
 		}
 
-		kms.Controllers[id] = &Controller{
-			UID:          id,
-			Name:         name,
-			NamespaceUID: nsID,
-			Kind:         ControllerKind(kind),
+		kms.Owners[id] = &Owner{
+			UID:        id,
+			Name:       name,
+			OwnerUID:   nsID,
+			Kind:       OwnerKind(kind),
+			Controller: isController,
 		}
 
 		kms.Metadata.ObjectCount++
