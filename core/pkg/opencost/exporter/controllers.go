@@ -53,6 +53,7 @@ func DefaultPipelinesExportConfig() *PipelinesExportConfig {
 		AllocationPiplineResolutions:      defaultPipelineExportResolutions(),
 		AssetPipelineResolutons:           defaultPipelineExportResolutions(),
 		NetworkInsightPipelineResolutions: defaultPipelineExportResolutions(),
+		KubeModelPipelineResolutions:      defaultPipelineExportResolutions(),
 	}
 }
 
