@@ -157,7 +157,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 	for _, res := range rqSpecCPURequestAverageResult {
 		kms.RegisterResourceQuota(res.UID, res.ResourceQuota, res.Namespace)
 		mcpu := uint64(res.Data[0].Value * 1000)
-		kms.ResourceQuotas[res.UID].Spec.Hard.Requests.Set(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatAvg, mcpu)
+		kms.ResourceQuotas[res.UID].Spec.Hard.SetRequest(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatAvg, mcpu)
 
 		// TODO remove
 		log.Infof("[KM] ComputeKubeModelSet(%s, %s): ResourceQuotas[%s].SpecCPURequestAvg: %d", start, end, res.UID, mcpu)
@@ -167,7 +167,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 	for _, res := range rqSpecCPURequestMaxResult {
 		kms.RegisterResourceQuota(res.UID, res.ResourceQuota, res.Namespace)
 		mcpu := uint64(res.Data[0].Value * 1000)
-		kms.ResourceQuotas[res.UID].Spec.Hard.Requests.Set(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatMax, mcpu)
+		kms.ResourceQuotas[res.UID].Spec.Hard.SetRequest(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatMax, mcpu)
 
 		// TODO remove
 		log.Infof("[KM] ComputeKubeModelSet(%s, %s): ResourceQuotas[%s].SpecCPURequestMax: %d", start, end, res.UID, mcpu)
@@ -176,7 +176,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 	rqSpecRAMRequestAverageResult, _ := rqSpecRAMRequestAverageResultFuture.Await()
 	for _, res := range rqSpecRAMRequestAverageResult {
 		kms.RegisterResourceQuota(res.UID, res.ResourceQuota, res.Namespace)
-		kms.ResourceQuotas[res.UID].Spec.Hard.Requests.Set(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatAvg, uint64(res.Data[0].Value))
+		kms.ResourceQuotas[res.UID].Spec.Hard.SetRequest(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatAvg, uint64(res.Data[0].Value))
 
 		// TODO remove
 		log.Infof("[KM] ComputeKubeModelSet(%s, %s): ResourceQuotas[%s].SpecRAMRequestAvg: %d", start, end, res.UID, uint64(res.Data[0].Value))
@@ -185,7 +185,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 	rqSpecRAMRequestMaxResult, _ := rqSpecRAMRequestMaxResultFuture.Await()
 	for _, res := range rqSpecRAMRequestMaxResult {
 		kms.RegisterResourceQuota(res.UID, res.ResourceQuota, res.Namespace)
-		kms.ResourceQuotas[res.UID].Spec.Hard.Requests.Set(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatMax, uint64(res.Data[0].Value))
+		kms.ResourceQuotas[res.UID].Spec.Hard.SetRequest(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatMax, uint64(res.Data[0].Value))
 
 		// TODO remove
 		log.Infof("[KM] ComputeKubeModelSet(%s, %s): ResourceQuotas[%s].SpecRAMRequestMax: %d", start, end, res.UID, uint64(res.Data[0].Value))
@@ -195,7 +195,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 	for _, res := range rqSpecCPULimitAverageResult {
 		kms.RegisterResourceQuota(res.UID, res.ResourceQuota, res.Namespace)
 		mcpu := uint64(res.Data[0].Value * 1000)
-		kms.ResourceQuotas[res.UID].Spec.Hard.Limits.Set(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatAvg, mcpu)
+		kms.ResourceQuotas[res.UID].Spec.Hard.SetLimit(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatAvg, mcpu)
 
 		// TODO remove
 		log.Infof("[KM] ComputeKubeModelSet(%s, %s): ResourceQuotas[%s].SpecCPULimitAvg: %d", start, end, res.UID, mcpu)
@@ -205,7 +205,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 	for _, res := range rqSpecCPULimitMaxResult {
 		kms.RegisterResourceQuota(res.UID, res.ResourceQuota, res.Namespace)
 		mcpu := uint64(res.Data[0].Value * 1000)
-		kms.ResourceQuotas[res.UID].Spec.Hard.Limits.Set(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatMax, mcpu)
+		kms.ResourceQuotas[res.UID].Spec.Hard.SetLimit(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatMax, mcpu)
 
 		// TODO remove
 		log.Infof("[KM] ComputeKubeModelSet(%s, %s): ResourceQuotas[%s].SpecCPULimitMax: %d", start, end, res.UID, mcpu)
@@ -214,7 +214,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 	rqSpecRAMLimitAverageResult, _ := rqSpecRAMLimitAverageResultFuture.Await()
 	for _, res := range rqSpecRAMLimitAverageResult {
 		kms.RegisterResourceQuota(res.UID, res.ResourceQuota, res.Namespace)
-		kms.ResourceQuotas[res.UID].Spec.Hard.Limits.Set(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatAvg, uint64(res.Data[0].Value))
+		kms.ResourceQuotas[res.UID].Spec.Hard.SetLimit(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatAvg, uint64(res.Data[0].Value))
 
 		// TODO remove
 		log.Infof("[KM] ComputeKubeModelSet(%s, %s): ResourceQuotas[%s].SpecRAMLimitAvg: %d", start, end, res.UID, uint64(res.Data[0].Value))
@@ -223,7 +223,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 	rqSpecRAMLimitMaxResult, _ := rqSpecRAMLimitMaxResultFuture.Await()
 	for _, res := range rqSpecRAMLimitMaxResult {
 		kms.RegisterResourceQuota(res.UID, res.ResourceQuota, res.Namespace)
-		kms.ResourceQuotas[res.UID].Spec.Hard.Limits.Set(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatMax, uint64(res.Data[0].Value))
+		kms.ResourceQuotas[res.UID].Spec.Hard.SetLimit(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatMax, uint64(res.Data[0].Value))
 
 		// TODO remove
 		log.Infof("[KM] ComputeKubeModelSet(%s, %s): ResourceQuotas[%s].SpecRAMLimitMax: %d", start, end, res.UID, uint64(res.Data[0].Value))
@@ -233,7 +233,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 	for _, res := range rqStatusUsedCPURequestAverageResult {
 		kms.RegisterResourceQuota(res.UID, res.ResourceQuota, res.Namespace)
 		mcpu := uint64(res.Data[0].Value * 1000)
-		kms.ResourceQuotas[res.UID].Status.Used.Requests.Set(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatAvg, mcpu)
+		kms.ResourceQuotas[res.UID].Status.Used.SetRequest(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatAvg, mcpu)
 
 		// TODO remove
 		log.Infof("[KM] ComputeKubeModelSet(%s, %s): ResourceQuotas[%s].StatusUsedCPURequestAvg: %d", start, end, res.UID, mcpu)
@@ -243,7 +243,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 	for _, res := range rqStatusUsedCPURequestMaxResult {
 		kms.RegisterResourceQuota(res.UID, res.ResourceQuota, res.Namespace)
 		mcpu := uint64(res.Data[0].Value * 1000)
-		kms.ResourceQuotas[res.UID].Status.Used.Requests.Set(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatMax, mcpu)
+		kms.ResourceQuotas[res.UID].Status.Used.SetRequest(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatMax, mcpu)
 
 		// TODO remove
 		log.Infof("[KM] ComputeKubeModelSet(%s, %s): ResourceQuotas[%s].StatusUsedCPURequestMax: %d", start, end, res.UID, mcpu)
@@ -252,7 +252,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 	rqStatusUsedRAMRequestAverageResult, _ := rqStatusUsedRAMRequestAverageResultFuture.Await()
 	for _, res := range rqStatusUsedRAMRequestAverageResult {
 		kms.RegisterResourceQuota(res.UID, res.ResourceQuota, res.Namespace)
-		kms.ResourceQuotas[res.UID].Status.Used.Requests.Set(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatAvg, uint64(res.Data[0].Value))
+		kms.ResourceQuotas[res.UID].Status.Used.SetRequest(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatAvg, uint64(res.Data[0].Value))
 
 		// TODO remove
 		log.Infof("[KM] ComputeKubeModelSet(%s, %s): ResourceQuotas[%s].StatusUsedRAMRequestAvg: %d", start, end, res.UID, uint64(res.Data[0].Value))
@@ -261,7 +261,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 	rqStatusUsedRAMRequestMaxResult, _ := rqStatusUsedRAMRequestMaxResultFuture.Await()
 	for _, res := range rqStatusUsedRAMRequestMaxResult {
 		kms.RegisterResourceQuota(res.UID, res.ResourceQuota, res.Namespace)
-		kms.ResourceQuotas[res.UID].Status.Used.Requests.Set(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatMax, uint64(res.Data[0].Value))
+		kms.ResourceQuotas[res.UID].Status.Used.SetRequest(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatMax, uint64(res.Data[0].Value))
 
 		// TODO remove
 		log.Infof("[KM] ComputeKubeModelSet(%s, %s): ResourceQuotas[%s].StatusUsedRAMRequestMax: %d", start, end, res.UID, uint64(res.Data[0].Value))
@@ -271,7 +271,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 	for _, res := range rqStatusUsedCPULimitAverageResult {
 		kms.RegisterResourceQuota(res.UID, res.ResourceQuota, res.Namespace)
 		mcpu := uint64(res.Data[0].Value * 1000)
-		kms.ResourceQuotas[res.UID].Status.Used.Limits.Set(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatAvg, mcpu)
+		kms.ResourceQuotas[res.UID].Status.Used.SetLimit(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatAvg, mcpu)
 
 		// TODO remove
 		log.Infof("[KM] ComputeKubeModelSet(%s, %s): ResourceQuotas[%s].StatusUsedCPULimitAvg: %d", start, end, res.UID, mcpu)
@@ -281,7 +281,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 	for _, res := range rqStatusUsedCPULimitMaxResult {
 		kms.RegisterResourceQuota(res.UID, res.ResourceQuota, res.Namespace)
 		mcpu := uint64(res.Data[0].Value * 1000)
-		kms.ResourceQuotas[res.UID].Status.Used.Limits.Set(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatMax, mcpu)
+		kms.ResourceQuotas[res.UID].Status.Used.SetLimit(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatMax, mcpu)
 
 		// TODO remove
 		log.Infof("[KM] ComputeKubeModelSet(%s, %s): ResourceQuotas[%s].StatusUsedCPULimitMax: %d", start, end, res.UID, mcpu)
@@ -290,7 +290,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 	rqStatusUsedRAMLimitAverageResult, _ := rqStatusUsedRAMLimitAverageResultFuture.Await()
 	for _, res := range rqStatusUsedRAMLimitAverageResult {
 		kms.RegisterResourceQuota(res.UID, res.ResourceQuota, res.Namespace)
-		kms.ResourceQuotas[res.UID].Status.Used.Limits.Set(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatAvg, uint64(res.Data[0].Value))
+		kms.ResourceQuotas[res.UID].Status.Used.SetLimit(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatAvg, uint64(res.Data[0].Value))
 
 		// TODO remove
 		log.Infof("[KM] ComputeKubeModelSet(%s, %s): ResourceQuotas[%s].StatusUsedRAMLimitAvg: %d", start, end, res.UID, uint64(res.Data[0].Value))
@@ -299,7 +299,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 	rqStatusUsedRAMLimitMaxResult, _ := rqStatusUsedRAMLimitMaxResultFuture.Await()
 	for _, res := range rqStatusUsedRAMLimitMaxResult {
 		kms.RegisterResourceQuota(res.UID, res.ResourceQuota, res.Namespace)
-		kms.ResourceQuotas[res.UID].Status.Used.Limits.Set(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatMax, uint64(res.Data[0].Value))
+		kms.ResourceQuotas[res.UID].Status.Used.SetLimit(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatMax, uint64(res.Data[0].Value))
 
 		// TODO remove
 		log.Infof("[KM] ComputeKubeModelSet(%s, %s): ResourceQuotas[%s].StatusUsedRAMLimitMax: %d", start, end, res.UID, uint64(res.Data[0].Value))

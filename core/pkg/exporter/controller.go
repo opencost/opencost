@@ -128,6 +128,9 @@ func (cd *ComputeExportController[T]) Name() string {
 // on the provided interval. This function will return `true` if the loop was started successfully, and `false` if it was
 // already running.
 func (cd *ComputeExportController[T]) Start(interval time.Duration) bool {
+	// TODO remove
+	log.Infof("[KM] ComputeExportController.Start(%s)", interval)
+
 	// Before we attempt to start, we must ensure we are not in a stopping state
 	cd.runState.WaitForReset()
 
@@ -137,10 +140,16 @@ func (cd *ComputeExportController[T]) Start(interval time.Duration) bool {
 		return false
 	}
 
+	// TODO remove
+	log.Infof("[KM] ComputeExportController.Start(%s): running", interval)
+
 	// our run state is advanced, let's execute our action on the interval
 	// spawn a new goroutine which will loop and wait the interval each iteration
 	go func() {
 		for {
+			// TODO remove
+			log.Infof("[KM] ComputeExportController.Start(%s): looping", interval)
+
 			// use a select statement to receive whichever channel receives data first
 			select {
 			// if our stop channel receives data, it means we have explicitly called
@@ -155,6 +164,12 @@ func (cd *ComputeExportController[T]) Start(interval time.Duration) bool {
 
 			now := time.Now().UTC()
 			windows := cd.exportWindowsFor(now)
+
+			// TODO remove
+			log.Infof("[KM] ComputeExportController.Start(%s): %d windows", interval, len(windows))
+			for _, win := range windows {
+				log.Infof("[KM] ComputeExportController.Start(%s): %d windows: %s", interval, len(windows), win)
+			}
 
 			for _, window := range windows {
 				err := cd.export(window)

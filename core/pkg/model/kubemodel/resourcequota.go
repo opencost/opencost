@@ -29,6 +29,22 @@ type ResourceQuotaSpecHard struct {
 	Limits   ResourceQuantities `json:"limits"`   // @bingen:field[version=1]
 }
 
+func (spec *ResourceQuotaSpecHard) SetRequest(resource Resource, unit Unit, statType StatType, value uint64) {
+	if spec.Requests == nil {
+		spec.Requests = ResourceQuantities{}
+	}
+
+	spec.Requests.Set(resource, unit, statType, value)
+}
+
+func (spec *ResourceQuotaSpecHard) SetLimit(resource Resource, unit Unit, statType StatType, value uint64) {
+	if spec.Limits == nil {
+		spec.Limits = ResourceQuantities{}
+	}
+
+	spec.Limits.Set(resource, unit, statType, value)
+}
+
 // @bingen:generate:ResourceQuotaStatus
 type ResourceQuotaStatus struct {
 	Used *ResourceQuotaStatusUsed `json:"used"` // @bingen:field[version=1]
@@ -38,6 +54,22 @@ type ResourceQuotaStatus struct {
 type ResourceQuotaStatusUsed struct {
 	Requests ResourceQuantities `json:"requests"` // @bingen:field[version=1]
 	Limits   ResourceQuantities `json:"limits"`   // @bingen:field[version=1]
+}
+
+func (stat *ResourceQuotaStatusUsed) SetRequest(resource Resource, unit Unit, statType StatType, value uint64) {
+	if stat.Requests == nil {
+		stat.Requests = ResourceQuantities{}
+	}
+
+	stat.Requests.Set(resource, unit, statType, value)
+}
+
+func (stat *ResourceQuotaStatusUsed) SetLimit(resource Resource, unit Unit, statType StatType, value uint64) {
+	if stat.Limits == nil {
+		stat.Limits = ResourceQuantities{}
+	}
+
+	stat.Limits.Set(resource, unit, statType, value)
 }
 
 func (kms *KubeModelSet) RegisterResourceQuota(uid, name, namespace string) {
