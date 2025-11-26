@@ -3,6 +3,8 @@ package kubemodel
 import (
 	"fmt"
 	"time"
+
+	"github.com/opencost/opencost/core/pkg/log"
 )
 
 // TODO: Do we need (Start, End) for these?
@@ -72,10 +74,11 @@ func (stat *ResourceQuotaStatusUsed) SetLimit(resource Resource, unit Unit, stat
 	stat.Limits.Set(resource, unit, statType, value)
 }
 
-func (kms *KubeModelSet) RegisterResourceQuota(uid, name, namespace string) {
+func (kms *KubeModelSet) RegisterResourceQuota(uid, name, namespace string) error {
 	if uid == "" {
-		kms.RegisterError(fmt.Sprintf("RegisterResourceQuota: uid is nil for ResourceQuota '%s'", name))
-		return
+		err := fmt.Errorf("UID is nil for ResourceQuota '%s'", name)
+		kms.RegisterError(err.Error())
+		return err
 	}
 
 	if _, ok := kms.ResourceQuotas[uid]; !ok {
@@ -96,5 +99,10 @@ func (kms *KubeModelSet) RegisterResourceQuota(uid, name, namespace string) {
 		}
 
 		kms.Metadata.ObjectCount++
+
+		// TODO remove or reduce log level
+		log.Infof("[KM] registered resource quota (%s, %s, %s)", uid, name, namespace)
 	}
+
+	return nil
 }

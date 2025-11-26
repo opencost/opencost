@@ -3,6 +3,8 @@ package kubemodel
 import (
 	"fmt"
 	"time"
+
+	"github.com/opencost/opencost/core/pkg/log"
 )
 
 // @bingen:generate:Namespace
@@ -16,10 +18,11 @@ type Namespace struct {
 	End         time.Time         `json:"end"`         // @bingen:field[version=1]
 }
 
-func (kms *KubeModelSet) RegisterNamespace(uid, name string) {
+func (kms *KubeModelSet) RegisterNamespace(uid, name string) error {
 	if uid == "" {
-		kms.RegisterError(fmt.Sprintf("RegisterNamespace: uid is nil for Namespace '%s'", name))
-		return
+		err := fmt.Errorf("UID is nil for Namespace '%s'", name)
+		kms.RegisterError(err.Error())
+		return err
 	}
 
 	if _, ok := kms.Namespaces[uid]; !ok {
@@ -40,5 +43,10 @@ func (kms *KubeModelSet) RegisterNamespace(uid, name string) {
 		kms.idx.namespaceByName[name] = kms.Namespaces[uid]
 
 		kms.Metadata.ObjectCount++
+
+		// TODO remove or reduce log level
+		log.Infof("[KM] registered namespace (%s, %s)", uid, name)
 	}
+
+	return nil
 }
