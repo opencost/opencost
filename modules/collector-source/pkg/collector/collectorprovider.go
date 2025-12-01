@@ -81,7 +81,15 @@ func (r *repoStoreProvider) GetDailyDataCoverage(limitDays int) (time.Time, time
 		return time.Time{}, time.Time{}, fmt.Errorf("daily resolution is not configured")
 	}
 	if len(dailyCoverage) == 0 {
-		return time.Time{}, time.Time{}, fmt.Errorf("daily coverage not available")
+		// If daily coverage is not available, fallback to a reasonable time range
+		// This prevents CSV export from failing when the metric doesn't exist yet
+		log.Warnf("GetDailyDataCoverage: daily coverage not available, using fallback time range")
+
+		// Use a reasonable fallback: start from 1 day ago to account for metric collection delay
+		fallbackEnd := time.Now().UTC().Truncate(timeutil.Day)
+		fallbackStart := fallbackEnd.AddDate(0, 0, -1) // 1 day ago
+
+		return fallbackStart, fallbackEnd, nil
 	}
 	start := dailyCoverage[0]
 	end := dailyCoverage[0]
