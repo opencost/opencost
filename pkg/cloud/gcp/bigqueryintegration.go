@@ -75,7 +75,7 @@ func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*o
 		ResourceGlobalNameColumnName,
 	}
 
-	whereConjuncts := GetWhereConjuncts(start, end, bqi.ExcludePartitionTime)
+	whereConjuncts := GetWhereConjuncts(start, end, !bqi.ExcludePartitionTime)
 
 	columnStr := strings.Join(selectColumns, ", ")
 	table := fmt.Sprintf(" `%s` bd ", bqi.GetBillingDataDataset())
@@ -128,14 +128,16 @@ func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*o
 
 // GetWhereConjuncts creates a list of Where filter statements that filter for usage start date and partition time
 // additional filters can be added before combining into the final where clause
-func GetWhereConjuncts(start time.Time, end time.Time, excludePartitions bool) []string {
-	var conjuncts []string
-	if !excludePartitions {
-		partitionStart := start
-		partitionEnd := end.AddDate(0, 0, 2)
+func GetWhereConjuncts(start time.Time, end time.Time, includePartition bool) []string {
+	partitionStart := start
+	partitionEnd := end.AddDate(0, 0, 2)
+	conjuncts := []string{}
+
+	if includePartition {
 		wherePartition := fmt.Sprintf(BiqQueryWherePartitionFmt, partitionStart.Format("2006-01-02"), partitionEnd.Format("2006-01-02"))
 		conjuncts = append(conjuncts, wherePartition)
 	}
+
 	whereDate := fmt.Sprintf(BiqQueryWhereDateFmt, start.Format("2006-01-02"), end.Format("2006-01-02"))
 	conjuncts = append(conjuncts, whereDate)
 	return conjuncts
@@ -200,7 +202,7 @@ func (bqi *BigQueryIntegration) queryFlexibleCUDTotalCosts(start time.Time, end 
 	`
 
 	table := fmt.Sprintf(" `%s` bd ", bqi.GetBillingDataDataset())
-	whereConjuncts := GetWhereConjuncts(start, end, bqi.ExcludePartitionTime)
+	whereConjuncts := GetWhereConjuncts(start, end, !bqi.ExcludePartitionTime)
 	whereConjuncts = append(whereConjuncts, "sku.description like 'Commitment - dollar based v1:%'")
 	whereClause := strings.Join(whereConjuncts, " AND ")
 	query := fmt.Sprintf(queryFmt, table, whereClause)
@@ -233,7 +235,7 @@ func (bqi *BigQueryIntegration) queryFlexibleCUDTotalCredits(start time.Time, en
 	`
 
 	table := fmt.Sprintf(" `%s` bd ", bqi.GetBillingDataDataset())
-	whereConjuncts := GetWhereConjuncts(start, end, bqi.ExcludePartitionTime)
+	whereConjuncts := GetWhereConjuncts(start, end, !bqi.ExcludePartitionTime)
 	whereConjuncts = append(whereConjuncts, "credits.type = 'COMMITTED_USAGE_DISCOUNT_DOLLAR_BASE'")
 	whereClause := strings.Join(whereConjuncts, " AND ")
 	query := fmt.Sprintf(queryFmt, table, whereClause)

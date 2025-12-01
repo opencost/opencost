@@ -122,20 +122,20 @@ Below are example inputs when measuring asset costs over a designated time windo
     * CPU allocation costs
         * cores = avg_over_time(cpu) by (node) [cores]
         * duration = end running- start running [hrs]
-        * price = provider defined or custom pricing sheet [$/core-hr] (see Appendix A for more details)
+        * price = provider-defined or custom pricing sheet [$/core-hr] (see Appendix A for more details)
         * total cost = cores * duration * price [$]
     * RAM allocation costs
         * ram bytes = avg_over_time(GB) by (node) [ram GBs]
         * duration = end running- start running [hrs]
-        * price = provider defined or custom pricing sheet [$/GB-hr] (see Appendix A for more details)
+        * price = provider-defined or custom pricing sheet [$/GB-hr] (see Appendix A for more details)
         * total cost = ram bytes * duration * price [$]
 * **Persistent Volumes**
     * Disk Size = avg_over_time(GB) by (pv) [disk GBs]
-    * Price = provider defined or custom pricing sheet [$/GB-hr] (see Appendix A for more details) typically a function of disk class, IOPS, backup size
+    * Price = provider-defined or custom pricing sheet [$/GB-hr] (see Appendix A for more details) typically a function of disk class, IOPS, backup size
     * Persistent storage attached to the pod-level
 * **Attached disks**
     * Disk Size = avg_over_time(GB) by (pv) [disk GBs]
-    * Price = provider defined or custom pricing sheet [$/GB-hr] (see Appendix A for more details) typically a function of disk class, IOPS, backup size
+    * Price = provider-defined or custom pricing sheet [$/GB-hr] (see Appendix A for more details) typically a function of disk class, IOPS, backup size
     * Ephemeral storage used per pod on node
 * **Load balancers**
     * Usage costs
@@ -145,8 +145,8 @@ Below are example inputs when measuring asset costs over a designated time windo
         * rules = # of forwarding rules defined
         * price = average $ per forwarding rule
 * Overhead Costs
-    * **Cluster management fees:** provider fees typically charged on an hourly basis
-    * **Operator fees:** potential DevOps team costs allocated to cluster operations
+    * **Cluster management fees:** Provider fees typically charged on an hourly basis
+    * **Operator fees:** Potential DevOps team costs allocated to cluster operations
 
 ## Workload Costs
 
@@ -259,7 +259,6 @@ Idle Costs can be calculated at both the Asset/Resource level as well as the Wor
   </tr>
 </table>
 
-##
 The following chart shows these relationships:
 ![image3](https://user-images.githubusercontent.com/453512/171579570-055bebe8-cc97-4129-9238-c4bcda8e123c.png)
 
