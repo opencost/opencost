@@ -1,8 +1,10 @@
 package kubeconfig
 
 import (
+	"context"
 	"fmt"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
@@ -32,10 +34,31 @@ func LoadKubeconfig(path string) (*rest.Config, error) {
 }
 
 // LoadKubeClient accepts a path to a kubeconfig to load and returns the clientset
-func LoadKubeClient(path string) (*kubernetes.Clientset, error) {
+func LoadKubeClient(path string) (*kubernetes.Clientset, string, error) {
 	config, err := LoadKubeconfig(path)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return kubernetes.NewForConfig(config)
+	client, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to initialize kubernetes client: %w", err)
+	}
+	clusterUID, err := getClusterUID(client)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get cluster UID: %w", err)
+	}
+
+	return client, clusterUID, nil
+}
+
+func getClusterUID(client *kubernetes.Clientset) (string, error) {
+	ns, err := client.CoreV1().Namespaces().Get(context.Background(), "kube-system", metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("error getting 'kube-system' namespace: %w", err)
+	}
+	uid := string(ns.ObjectMeta.UID)
+	if uid == "" {
+		return "", fmt.Errorf("uid field in 'kube-system' namespace is empty")
+	}
+	return uid, nil
 }
