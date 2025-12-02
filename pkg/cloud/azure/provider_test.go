@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-11-01/compute"
-	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/commerce/armcommerce"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/stretchr/testify/require"
 
 	"github.com/opencost/opencost/core/pkg/util/mathutil"
@@ -52,13 +53,13 @@ func TestConvertMeterToPricings(t *testing.T) {
 	}
 	baseCPUPrice := "0.30000"
 
-	meterInfo := func(category, subcategory, name, region string, rate float64) commerce.MeterInfo {
-		return commerce.MeterInfo{
+	meterInfo := func(category, subcategory, name, region string, rate float32) armcommerce.MeterInfo {
+		return armcommerce.MeterInfo{
 			MeterCategory:    &category,
 			MeterSubCategory: &subcategory,
 			MeterName:        &name,
 			MeterRegion:      &region,
-			MeterRates:       map[string]*float64{"0": &rate},
+			MeterRates:       map[string]*float32{"0": &rate},
 		}
 	}
 
@@ -119,7 +120,7 @@ func TestAzure_findCostForDisk(t *testing.T) {
 
 	testCases := []struct {
 		name   string
-		disk   *compute.Disk
+		disk   *armcompute.Disk
 		exp    float64
 		expErr error
 	}{
@@ -131,12 +132,12 @@ func TestAzure_findCostForDisk(t *testing.T) {
 		},
 		{
 			"nil location",
-			&compute.Disk{
+			&armcompute.Disk{
 				Location: nil,
-				Sku: &compute.DiskSku{
-					Name: "ssd",
+				SKU: &armcompute.DiskSKU{
+					Name: to.Ptr(armcompute.DiskStorageAccountTypes("ssd")),
 				},
-				DiskProperties: &compute.DiskProperties{
+				Properties: &armcompute.DiskProperties{
 					DiskSizeGB: &size,
 				},
 			},
@@ -145,24 +146,24 @@ func TestAzure_findCostForDisk(t *testing.T) {
 		},
 		{
 			"nil disk properties",
-			&compute.Disk{
+			&armcompute.Disk{
 				Location: &loc,
-				Sku: &compute.DiskSku{
-					Name: "ssd",
+				SKU: &armcompute.DiskSKU{
+					Name: to.Ptr(armcompute.DiskStorageAccountTypes("ssd")),
 				},
-				DiskProperties: nil,
+				Properties: nil,
 			},
 			0.0,
 			fmt.Errorf("disk properties are nil"),
 		},
 		{
 			"nil disk size",
-			&compute.Disk{
+			&armcompute.Disk{
 				Location: &loc,
-				Sku: &compute.DiskSku{
-					Name: "ssd",
+				SKU: &armcompute.DiskSKU{
+					Name: to.Ptr(armcompute.DiskStorageAccountTypes("ssd")),
 				},
-				DiskProperties: &compute.DiskProperties{
+				Properties: &armcompute.DiskProperties{
 					DiskSizeGB: nil,
 				},
 			},
@@ -171,12 +172,12 @@ func TestAzure_findCostForDisk(t *testing.T) {
 		},
 		{
 			"sku does not exist",
-			&compute.Disk{
+			&armcompute.Disk{
 				Location: &loc,
-				Sku: &compute.DiskSku{
-					Name: "doesnotexist",
+				SKU: &armcompute.DiskSKU{
+					Name: to.Ptr(armcompute.DiskStorageAccountTypes("doesnotexist")),
 				},
-				DiskProperties: &compute.DiskProperties{
+				Properties: &armcompute.DiskProperties{
 					DiskSizeGB: &size,
 				},
 			},
@@ -185,11 +186,11 @@ func TestAzure_findCostForDisk(t *testing.T) {
 		},
 		{
 			"pricing is nil",
-			&compute.Disk{
-				Sku: &compute.DiskSku{
-					Name: "nil",
+			&armcompute.Disk{
+				SKU: &armcompute.DiskSKU{
+					Name: to.Ptr(armcompute.DiskStorageAccountTypes("nil")),
 				},
-				DiskProperties: &compute.DiskProperties{
+				Properties: &armcompute.DiskProperties{
 					DiskSizeGB: &size,
 				},
 			},
@@ -198,11 +199,11 @@ func TestAzure_findCostForDisk(t *testing.T) {
 		},
 		{
 			"pricing.PV is nil",
-			&compute.Disk{
-				Sku: &compute.DiskSku{
-					Name: "nilpv",
+			&armcompute.Disk{
+				SKU: &armcompute.DiskSKU{
+					Name: to.Ptr(armcompute.DiskStorageAccountTypes("nilpv")),
 				},
-				DiskProperties: &compute.DiskProperties{
+				Properties: &armcompute.DiskProperties{
 					DiskSizeGB: &size,
 				},
 			},
@@ -211,12 +212,12 @@ func TestAzure_findCostForDisk(t *testing.T) {
 		},
 		{
 			"valid (ssd)",
-			&compute.Disk{
+			&armcompute.Disk{
 				Location: &loc,
-				Sku: &compute.DiskSku{
-					Name: "ssd",
+				SKU: &armcompute.DiskSKU{
+					Name: to.Ptr(armcompute.DiskStorageAccountTypes("ssd")),
 				},
-				DiskProperties: &compute.DiskProperties{
+				Properties: &armcompute.DiskProperties{
 					DiskSizeGB: &size,
 				},
 			},
@@ -225,10 +226,10 @@ func TestAzure_findCostForDisk(t *testing.T) {
 		},
 		{
 			"nil sku",
-			&compute.Disk{
-				Location:       nil,
-				Sku:            nil,
-				DiskProperties: nil,
+			&armcompute.Disk{
+				Location:   nil,
+				SKU:        nil,
+				Properties: nil,
 			},
 			0.0,
 			fmt.Errorf("disk sku is nil"),

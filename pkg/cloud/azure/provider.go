@@ -13,16 +13,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-11-01/compute"
-	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
-	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2016-06-01/subscriptions"
-	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2018-05-01/resources"
-	"github.com/Azure/go-autorest/autorest"
-	"github.com/Azure/go-autorest/autorest/azure"
-	"github.com/Azure/go-autorest/autorest/azure/auth"
-	coreenv "github.com/opencost/opencost/core/pkg/env"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/commerce/armcommerce"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
@@ -175,19 +176,22 @@ func (r regionParts) String() string {
 	return result
 }
 
-func getRegions(service string, subscriptionsClient subscriptions.Client, providersClient resources.ProvidersClient, subscriptionID string) (map[string]string, error) {
+func getRegions(service string, subscriptionsClient *armsubscriptions.Client, providersClient *armresources.ProvidersClient, subscriptionID string) (map[string]string, error) {
 
 	allLocations := make(map[string]string)
 	supLocations := make(map[string]string)
 
 	// retrieve all locations for the subscription id (some of them may not be supported by the required provider)
-	if locations, err := subscriptionsClient.ListLocations(context.TODO(), subscriptionID); err == nil {
-		// fill up the map: DisplayName - > Name
-		for _, loc := range *locations.Value {
+	pager := subscriptionsClient.NewListLocationsPager(subscriptionID, nil)
+	for pager.More() {
+		locations, err := pager.NextPage(context.TODO())
+		if err != nil {
+			return nil, err
+		}
+
+		for _, loc := range locations.Value {
 			allLocations[*loc.DisplayName] = *loc.Name
 		}
-	} else {
-		return nil, err
 	}
 
 	// identify supported locations for the namespace and resource type
@@ -200,14 +204,14 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 
 	switch service {
 	case "aks":
-		if providers, err := providersClient.Get(context.TODO(), providerNamespaceForAks, ""); err == nil {
-			for _, pr := range *providers.ResourceTypes {
+		if providers, err := providersClient.Get(context.TODO(), providerNamespaceForAks, nil); err == nil {
+			for _, pr := range providers.ResourceTypes {
 				if *pr.ResourceType == resourceTypeForAks {
-					for _, displName := range *pr.Locations {
-						if loc, ok := allLocations[displName]; ok {
-							supLocations[loc] = displName
+					for _, displName := range pr.Locations {
+						if loc, ok := allLocations[*displName]; ok {
+							supLocations[loc] = *displName
 						} else {
-							log.Warnf("unsupported cloud region %q", displName)
+							log.Warnf("unsupported cloud region %q", *displName)
 						}
 					}
 					break
@@ -218,14 +222,14 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 		}
 		return supLocations, nil
 	default:
-		if providers, err := providersClient.Get(context.TODO(), providerNamespaceForCompute, ""); err == nil {
-			for _, pr := range *providers.ResourceTypes {
+		if providers, err := providersClient.Get(context.TODO(), providerNamespaceForCompute, nil); err == nil {
+			for _, pr := range providers.ResourceTypes {
 				if *pr.ResourceType == resourceTypeForCompute {
-					for _, displName := range *pr.Locations {
-						if loc, ok := allLocations[displName]; ok {
-							supLocations[loc] = displName
+					for _, displName := range pr.Locations {
+						if loc, ok := allLocations[*displName]; ok {
+							supLocations[loc] = *displName
 						} else {
-							log.Warnf("unsupported cloud region %q", displName)
+							log.Warnf("unsupported cloud region %q", *displName)
 						}
 					}
 					break
@@ -812,13 +816,18 @@ func (az *Azure) DownloadPricingData() error {
 	config.AzureClientSecret = clientSecret
 	config.AzureTenantID = tenantID
 
-	var authorizer autorest.Authorizer
+	var authorizer azcore.TokenCredential
 
 	azureEnv := determineCloudByRegion(az.ClusterRegion)
 
+	azureClientOptions := &arm.ClientOptions{
+		ClientOptions: azcore.ClientOptions{
+			Cloud: azureEnv,
+		},
+	}
+
 	if config.AzureClientID != "" && config.AzureClientSecret != "" && config.AzureTenantID != "" {
-		credentialsConfig := NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID, azureEnv)
-		a, err := credentialsConfig.Authorizer()
+		a, err := azidentity.NewClientSecretCredential(config.AzureTenantID, config.AzureClientID, config.AzureClientSecret, nil)
 		if err != nil {
 			az.rateCardPricingError = err
 			return err
@@ -827,10 +836,10 @@ func (az *Azure) DownloadPricingData() error {
 	}
 
 	if authorizer == nil {
-		a, err := auth.NewAuthorizerFromEnvironment()
+		a, err := azidentity.NewEnvironmentCredential(nil)
 		authorizer = a
 		if err != nil {
-			a, err := auth.NewAuthorizerFromFile(azureEnv.ResourceManagerEndpoint)
+			a, err := azidentity.NewDefaultAzureCredential(nil)
 			if err != nil {
 				az.rateCardPricingError = err
 				return err
@@ -839,33 +848,33 @@ func (az *Azure) DownloadPricingData() error {
 		}
 	}
 
-	sClient := subscriptions.NewClientWithBaseURI(azureEnv.ResourceManagerEndpoint)
-	sClient.Authorizer = authorizer
+	sClient, err := armsubscriptions.NewClient(authorizer, azureClientOptions)
+	if err != nil {
+		az.rateCardPricingError = err
+		return err
+	}
 
-	rcClient := commerce.NewRateCardClientWithBaseURI(azureEnv.ResourceManagerEndpoint, config.AzureSubscriptionID)
-	rcClient.Authorizer = authorizer
+	rcClient, err := armcommerce.NewRateCardClient(config.AzureSubscriptionID, authorizer, azureClientOptions)
+	if err != nil {
+		az.rateCardPricingError = err
+		return err
+	}
 
-	providersClient := resources.NewProvidersClientWithBaseURI(azureEnv.ResourceManagerEndpoint, config.AzureSubscriptionID)
-	providersClient.Authorizer = authorizer
+	providersClient, err := armresources.NewProvidersClient(config.AzureSubscriptionID, authorizer, azureClientOptions)
+	if err != nil {
+		az.rateCardPricingError = err
+		return err
+	}
 
 	rateCardFilter := fmt.Sprintf("OfferDurableId eq '%s' and Currency eq '%s' and Locale eq 'en-US' and RegionInfo eq '%s'", config.AzureOfferDurableID, config.CurrencyCode, config.AzureBillingRegion)
-
-	// create a preparer (the same way rcClient.Get() does) so that we can log the azureRateCard URL
-	log.Infof("Using azureRateCard query %s", rateCardFilter)
-	rcPreparer, err := rcClient.GetPreparer(context.TODO(), rateCardFilter)
-	if err != nil {
-		// this isn't an error that necessitates a return, as we only need the preparer for an informational log
-		log.Infof("Failed to get azureRateCard URL: %s", err)
-	} else {
-		log.Infof("Using azureRateCard URL %s", rcPreparer.URL.String())
-	}
 
 	// rate-card client is old, it can hang indefinitely in some cases
 	// this happens on the main thread, so it may block the whole app
 	// there is can be a better way to set timeout for the client
 	ctx, cancel := context.WithTimeout(context.TODO(), 300*time.Second)
 	defer cancel()
-	result, err := rcClient.Get(ctx, rateCardFilter)
+	log.Infof("Using ratecard query %s", rateCardFilter)
+	result, err := rcClient.Get(ctx, rateCardFilter, nil)
 	if err != nil {
 		log.Warnf("Error in pricing download query from API")
 		az.rateCardPricingError = err
@@ -882,8 +891,8 @@ func (az *Azure) DownloadPricingData() error {
 	baseCPUPrice := config.CPU
 	allPrices := make(map[string]*AzurePricing)
 
-	for _, v := range *result.Meters {
-		pricings, err := convertMeterToPricings(v, regions, baseCPUPrice)
+	for _, v := range result.Meters {
+		pricings, err := convertMeterToPricings(*v, regions, baseCPUPrice)
 		if err != nil {
 			log.Warnf("converting meter to pricings: %s", err.Error())
 			continue
@@ -901,12 +910,10 @@ func (az *Azure) DownloadPricingData() error {
 	// If we've got a billing account set, kick off downloading the custom pricing data.
 	if config.AzureBillingAccount != "" {
 		downloader := PriceSheetDownloader{
-			TenantID:       config.AzureTenantID,
-			ClientID:       config.AzureClientID,
-			ClientSecret:   config.AzureClientSecret,
+			Credential:     authorizer,
 			BillingAccount: config.AzureBillingAccount,
 			OfferID:        config.AzureOfferDurableID,
-			ConvertMeterInfo: func(meterInfo commerce.MeterInfo) (map[string]*AzurePricing, error) {
+			ConvertMeterInfo: func(meterInfo armcommerce.MeterInfo) (map[string]*AzurePricing, error) {
 				return convertMeterToPricings(meterInfo, regions, baseCPUPrice)
 			},
 		}
@@ -933,7 +940,7 @@ func (az *Azure) DownloadPricingData() error {
 	return nil
 }
 
-func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, baseCPUPrice string) (map[string]*AzurePricing, error) {
+func convertMeterToPricings(info armcommerce.MeterInfo, regions map[string]string, baseCPUPrice string) (map[string]*AzurePricing, error) {
 	meterName := *info.MeterName
 	meterRegion := *info.MeterRegion
 	meterCategory := *info.MeterCategory
@@ -969,7 +976,7 @@ func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, 
 			}
 
 			if storageClass != "" {
-				var priceInUsd float64
+				var priceInUsd float32
 
 				if len(info.MeterRates) < 1 {
 					return nil, fmt.Errorf("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *info.MeterSubCategory, "region": region})
@@ -1021,7 +1028,7 @@ func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, 
 		instanceTypes = []string{}
 	}
 
-	var priceInUsd float64
+	var priceInUsd float32
 
 	if len(info.MeterRates) < 1 {
 		return nil, fmt.Errorf("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *info.MeterSubCategory, "region": region})
@@ -1065,27 +1072,16 @@ func addAzureFilePricing(prices map[string]*AzurePricing, regions map[string]str
 }
 
 // determineCloudByRegion uses region name to pick the correct Cloud Environment for the azure provider to use
-func determineCloudByRegion(region string) azure.Environment {
+func determineCloudByRegion(region string) cloud.Configuration {
 	lcRegion := strings.ToLower(region)
 	if strings.Contains(lcRegion, "china") {
-		return azure.ChinaCloud
+		return cloud.AzureChina
 	}
 	if strings.Contains(lcRegion, "gov") || strings.Contains(lcRegion, "dod") {
-		return azure.USGovernmentCloud
+		return cloud.AzureGovernment
 	}
 	// Default to public cloud
-	return azure.PublicCloud
-}
-
-// NewClientCredentialsConfig creates an AuthorizerConfig object configured to obtain an Authorizer through Client Credentials.
-func NewClientCredentialsConfig(clientID string, clientSecret string, tenantID string, env azure.Environment) auth.ClientCredentialsConfig {
-	return auth.ClientCredentialsConfig{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		TenantID:     tenantID,
-		Resource:     env.ResourceManagerEndpoint,
-		AADEndpoint:  env.ActiveDirectoryEndpoint,
-	}
+	return cloud.AzurePublic
 }
 
 func (az *Azure) addPricing(features string, azurePricing *AzurePricing) {
@@ -1323,7 +1319,7 @@ func (az *Azure) GetDisks() ([]byte, error) {
 	return json.Marshal(disks)
 }
 
-func (az *Azure) getDisks() ([]*compute.Disk, error) {
+func (az *Azure) getDisks() ([]*armcompute.Disk, error) {
 	config, err := az.GetConfig()
 	if err != nil {
 		return nil, err
@@ -1336,13 +1332,18 @@ func (az *Azure) getDisks() ([]*compute.Disk, error) {
 	config.AzureClientSecret = clientSecret
 	config.AzureTenantID = tenantID
 
-	var authorizer autorest.Authorizer
+	var authorizer azcore.TokenCredential
 
 	azureEnv := determineCloudByRegion(az.ClusterRegion)
 
+	azureClientOptions := &arm.ClientOptions{
+		ClientOptions: azcore.ClientOptions{
+			Cloud: azureEnv,
+		},
+	}
+
 	if config.AzureClientID != "" && config.AzureClientSecret != "" && config.AzureTenantID != "" {
-		credentialsConfig := NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID, azureEnv)
-		a, err := credentialsConfig.Authorizer()
+		a, err := azidentity.NewClientSecretCredential(config.AzureTenantID, config.AzureClientID, config.AzureClientSecret, nil)
 		if err != nil {
 			az.rateCardPricingError = err
 			return nil, err
@@ -1351,10 +1352,10 @@ func (az *Azure) getDisks() ([]*compute.Disk, error) {
 	}
 
 	if authorizer == nil {
-		a, err := auth.NewAuthorizerFromEnvironment()
+		a, err := azidentity.NewEnvironmentCredential(nil)
 		authorizer = a
 		if err != nil {
-			a, err := auth.NewAuthorizerFromFile(azureEnv.ResourceManagerEndpoint)
+			a, err := azidentity.NewDefaultAzureCredential(nil)
 			if err != nil {
 				az.rateCardPricingError = err
 				return nil, err
@@ -1362,35 +1363,41 @@ func (az *Azure) getDisks() ([]*compute.Disk, error) {
 			authorizer = a
 		}
 	}
-	client := compute.NewDisksClient(config.AzureSubscriptionID)
-	client.Authorizer = authorizer
+
+	client, err := armcompute.NewDisksClient(config.AzureSubscriptionID, authorizer, azureClientOptions)
+	if err != nil {
+		az.rateCardPricingError = err
+		return nil, err
+	}
 
 	ctx := context.TODO()
 
-	var disks []*compute.Disk
+	var disks []*armcompute.Disk
 
-	diskPage, err := client.List(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("error getting disks: %v", err)
-	}
-
-	for diskPage.NotDone() {
-		for _, d := range diskPage.Values() {
-			d := d
-			disks = append(disks, &d)
-		}
-		err := diskPage.NextWithContext(context.Background())
+	diskPager := client.NewListPager(nil)
+	for diskPager.More() {
+		disksPage, err := diskPager.NextPage(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("error getting next page: %v", err)
+		}
+
+		for _, d := range disksPage.Value {
+			disks = append(disks, d)
 		}
 	}
 
 	return disks, nil
 }
 
-func (az *Azure) isDiskOrphaned(disk *compute.Disk) bool {
+func (az *Azure) isDiskOrphaned(disk *armcompute.Disk) bool {
 	//TODO: needs better algorithm
-	return disk.DiskState == "Unattached" || disk.DiskState == "Reserved"
+	if disk.Properties == nil {
+		return false
+	}
+	if disk.Properties.DiskState == nil {
+		return false
+	}
+	return *disk.Properties.DiskState == "Unattached" || *disk.Properties.DiskState == "Reserved"
 }
 
 func (az *Azure) GetOrphanedResources() ([]models.OrphanedResource, error) {
@@ -1419,8 +1426,8 @@ func (az *Azure) GetOrphanedResources() ([]models.OrphanedResource, error) {
 			}
 
 			var diskSize int64
-			if d.DiskSizeGB != nil {
-				diskSize = int64(*d.DiskSizeGB)
+			if d.Properties != nil && d.Properties.DiskSizeGB != nil {
+				diskSize = int64(*d.Properties.DiskSizeGB)
 			}
 
 			desc := map[string]string{}
@@ -1447,16 +1454,16 @@ func (az *Azure) GetOrphanedResources() ([]models.OrphanedResource, error) {
 	return orphanedResources, nil
 }
 
-func (az *Azure) findCostForDisk(d *compute.Disk) (float64, error) {
+func (az *Azure) findCostForDisk(d *armcompute.Disk) (float64, error) {
 	if d == nil {
 		return 0.0, fmt.Errorf("disk is empty")
 	}
 
-	if d.Sku == nil {
+	if d.SKU == nil {
 		return 0.0, fmt.Errorf("disk sku is nil")
 	}
 
-	storageClass := string(d.Sku.Name)
+	storageClass := string(*d.SKU.Name)
 	if strings.EqualFold(storageClass, "Premium_LRS") {
 		storageClass = AzureDiskPremiumSSDStorageClass
 	} else if strings.EqualFold(storageClass, "StandardSSD_LRS") {
@@ -1481,13 +1488,13 @@ func (az *Azure) findCostForDisk(d *compute.Disk) (float64, error) {
 	if err != nil {
 		return 0.0, fmt.Errorf("error converting to float: %s", err)
 	}
-	if d.DiskProperties == nil {
+	if d.Properties == nil {
 		return 0.0, fmt.Errorf("disk properties are nil")
 	}
-	if d.DiskSizeGB == nil {
+	if d.Properties.DiskSizeGB == nil {
 		return 0.0, fmt.Errorf("disk size is nil")
 	}
-	cost := diskPricePerGBHour * timeutil.HoursPerMonth * float64(*d.DiskSizeGB)
+	cost := diskPricePerGBHour * timeutil.HoursPerMonth * float64(*d.Properties.DiskSizeGB)
 
 	return cost, nil
 }

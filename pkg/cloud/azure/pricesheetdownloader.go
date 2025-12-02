@@ -13,20 +13,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/profiles/2020-09-01/commerce/mgmt/commerce"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/commerce/armcommerce"
 
 	"github.com/opencost/opencost/core/pkg/log"
 )
 
 type PriceSheetDownloader struct {
-	TenantID         string
-	ClientID         string
-	ClientSecret     string
+	Credential       azcore.TokenCredential
 	BillingAccount   string
 	OfferID          string
-	ConvertMeterInfo func(info commerce.MeterInfo) (map[string]*AzurePricing, error)
+	ConvertMeterInfo func(info armcommerce.MeterInfo) (map[string]*AzurePricing, error)
 }
 
 func (d *PriceSheetDownloader) GetPricing(ctx context.Context) (map[string]*AzurePricing, error) {
@@ -51,11 +49,7 @@ func (d *PriceSheetDownloader) GetPricing(ctx context.Context) (map[string]*Azur
 }
 
 func (d *PriceSheetDownloader) getDownloadURL(ctx context.Context) (string, error) {
-	cred, err := azidentity.NewClientSecretCredential(d.TenantID, d.ClientID, d.ClientSecret, nil)
-	if err != nil {
-		return "", fmt.Errorf("creating credential: %w", err)
-	}
-	client, err := NewPriceSheetClient(d.BillingAccount, cred, nil)
+	client, err := NewPriceSheetClient(d.BillingAccount, d.Credential, nil)
 	if err != nil {
 		return "", fmt.Errorf("creating pricesheet client: %w", err)
 	}
@@ -214,19 +208,19 @@ func checkPricesheetHeader(header []string) error {
 	return nil
 }
 
-func makeMeterInfo(row []string) (commerce.MeterInfo, error) {
+func makeMeterInfo(row []string) (armcommerce.MeterInfo, error) {
 	price, err := strconv.ParseFloat(row[pricesheetUnitPrice], 64)
 	if err != nil {
-		return commerce.MeterInfo{}, fmt.Errorf("parsing unit price: %w", err)
+		return armcommerce.MeterInfo{}, fmt.Errorf("parsing unit price: %w", err)
 	}
 	newPrice, unit := normalisePrice(price, row[pricesheetUnit])
-	return commerce.MeterInfo{
+	return armcommerce.MeterInfo{
 		MeterName:        ptr(row[pricesheetMeterName]),
 		MeterCategory:    ptr(row[pricesheetMeterCategory]),
 		MeterSubCategory: ptr(row[pricesheetMeterSubCategory]),
 		Unit:             &unit,
 		MeterRegion:      ptr(row[pricesheetMeterRegion]),
-		MeterRates:       map[string]*float64{"0": &newPrice},
+		MeterRates:       map[string]*float32{"0": &newPrice},
 	}, nil
 }
 
@@ -291,10 +285,10 @@ var conversions = map[string]struct {
 	"10000000 /Hour": {divisor: 10_000_000, unit: "1 /Hour"},
 }
 
-func normalisePrice(price float64, unit string) (float64, string) {
+func normalisePrice(price float64, unit string) (float32, string) {
 	if conv, ok := conversions[unit]; ok {
-		return price / conv.divisor, conv.unit
+		return float32(price / conv.divisor), conv.unit
 	}
 
-	return price, unit
+	return float32(price), unit
 }

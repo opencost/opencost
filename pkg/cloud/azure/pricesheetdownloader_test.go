@@ -6,16 +6,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/profiles/2020-09-01/commerce/mgmt/commerce"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/commerce/armcommerce"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDownloader(t *testing.T) {
 	d := PriceSheetDownloader{
-		TenantID:         "test-tenant-id",
-		ClientID:         "test-client-id",
-		ClientSecret:     "test-client-secret",
+		Credential:       nil,
 		BillingAccount:   "test-billing-account",
 		OfferID:          "my-offer-id",
 		ConvertMeterInfo: convertMeter,
@@ -50,12 +48,10 @@ func TestDownloader(t *testing.T) {
 
 	t.Run("no matching prices", func(t *testing.T) {
 		d := PriceSheetDownloader{
-			TenantID:       "test-tenant-id",
-			ClientID:       "test-client-id",
-			ClientSecret:   "test-client-secret",
+			Credential:     nil,
 			BillingAccount: "test-billing-account",
 			OfferID:        "my-offer-id",
-			ConvertMeterInfo: func(commerce.MeterInfo) (map[string]*AzurePricing, error) {
+			ConvertMeterInfo: func(armcommerce.MeterInfo) (map[string]*AzurePricing, error) {
 				return nil, nil
 			},
 		}
@@ -64,7 +60,7 @@ func TestDownloader(t *testing.T) {
 	})
 }
 
-func convertMeter(info commerce.MeterInfo) (map[string]*AzurePricing, error) {
+func convertMeter(info armcommerce.MeterInfo) (map[string]*AzurePricing, error) {
 	switch *info.MeterName {
 	case "skip-this":
 		return nil, nil
