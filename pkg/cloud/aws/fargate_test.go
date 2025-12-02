@@ -2,8 +2,12 @@ package aws
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
+
+	"github.com/opencost/opencost/core/pkg/clustercache"
 )
 
 var testRegionPricing = FargateRegionPricing{
@@ -263,6 +267,217 @@ func TestFargateRegionPricing_Validate(t *testing.T) {
 			}
 			if !tt.wantErr && err != nil {
 				t.Errorf("Validate() unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestFargatePricing_Initialize(t *testing.T) {
+	// Load test data
+	testDataPath := "testdata/ecs-pricing-us-east-1.json"
+	data, err := os.ReadFile(testDataPath)
+	if err != nil {
+		t.Fatalf("Failed to read test data: %v", err)
+	}
+
+	// Create a test HTTP server that serves the pricing data
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(data)
+	}))
+	defer server.Close()
+
+	// Set up test environment variable to use our test server
+	t.Setenv("AWS_ECS_PRICING_URL", server.URL)
+
+	tests := []struct {
+		name     string
+		nodeList []*clustercache.Node
+		wantErr  bool
+	}{
+		{
+			name: "successful initialization",
+			nodeList: []*clustercache.Node{
+				{
+					Name: "test-node",
+					Labels: map[string]string{
+						"topology.kubernetes.io/region": "us-east-1",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:     "empty node list",
+			nodeList: []*clustercache.Node{},
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := NewFargatePricing()
+			err := f.Initialize(tt.nodeList)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("Initialize() expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Initialize() unexpected error: %v", err)
+				return
+			}
+
+			// Verify that regions were populated
+			if len(f.regions) == 0 {
+				t.Error("Initialize() did not populate any regions")
+				return
+			}
+
+			// Check that us-east-1 pricing was populated (from test data)
+			usEast1, ok := f.regions["us-east-1"]
+			if !ok {
+				t.Error("Initialize() did not populate us-east-1 region")
+				return
+			}
+
+			// Verify all required usage types are present
+			for _, usageType := range fargateUsageTypes {
+				if price, ok := usEast1[usageType]; !ok {
+					t.Errorf("Initialize() missing usage type %s", usageType)
+				} else if price <= 0 {
+					t.Errorf("Initialize() invalid price %f for usage type %s", price, usageType)
+				}
+			}
+		})
+	}
+}
+
+func TestFargatePricing_Initialize_HTTPError(t *testing.T) {
+	// Create a test HTTP server that returns an error
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	// Set up test environment variable to use our test server
+	t.Setenv("AWS_ECS_PRICING_URL", server.URL)
+
+	f := NewFargatePricing()
+	nodeList := []*clustercache.Node{
+		{
+			Name: "test-node",
+			Labels: map[string]string{
+				"topology.kubernetes.io/region": "us-east-1",
+			},
+		},
+	}
+
+	err := f.Initialize(nodeList)
+	if err == nil {
+		t.Error("Initialize() expected error for HTTP 500, got nil")
+	}
+}
+
+func TestFargatePricing_Initialize_InvalidJSON(t *testing.T) {
+	// Create a test HTTP server that returns invalid JSON
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("invalid json"))
+	}))
+	defer server.Close()
+
+	// Set up test environment variable to use our test server
+	t.Setenv("AWS_ECS_PRICING_URL", server.URL)
+
+	f := NewFargatePricing()
+	nodeList := []*clustercache.Node{
+		{
+			Name: "test-node",
+			Labels: map[string]string{
+				"topology.kubernetes.io/region": "us-east-1",
+			},
+		},
+	}
+
+	err := f.Initialize(nodeList)
+	if err == nil {
+		t.Error("Initialize() expected error for invalid JSON, got nil")
+	}
+}
+
+func TestFargatePricing_getPricingURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		nodeList []*clustercache.Node
+		envVar   string
+		expected string
+	}{
+		{
+			name: "with environment variable override",
+			nodeList: []*clustercache.Node{
+				{
+					Name: "test-node",
+					Labels: map[string]string{
+						"topology.kubernetes.io/region": "us-east-1",
+					},
+				},
+			},
+			envVar:   "https://custom-pricing-url.com",
+			expected: "https://custom-pricing-url.com",
+		},
+		{
+			name: "without environment variable - single region",
+			nodeList: []*clustercache.Node{
+				{
+					Name: "test-node",
+					Labels: map[string]string{
+						"topology.kubernetes.io/region": "us-west-2",
+					},
+				},
+			},
+			envVar:   "",
+			expected: "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonECS/current/us-west-2/index.json",
+		},
+		{
+			name: "without environment variable - Chinese region",
+			nodeList: []*clustercache.Node{
+				{
+					Name: "test-node",
+					Labels: map[string]string{
+						"topology.kubernetes.io/region": "cn-north-1",
+					},
+				},
+			},
+			envVar:   "",
+			expected: "https://pricing.cn-north-1.amazonaws.com.cn/offers/v1.0/cn/AmazonECS/current/cn-north-1/index.json",
+		},
+		{
+			name:     "without environment variable - empty node list",
+			nodeList: []*clustercache.Node{},
+			envVar:   "",
+			expected: "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonECS/current/index.json",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envVar != "" {
+				t.Setenv("AWS_ECS_PRICING_URL", tt.envVar)
+			} else {
+				t.Setenv("AWS_ECS_PRICING_URL", "")
+			}
+
+			f := NewFargatePricing()
+			result := f.getPricingURL(tt.nodeList)
+
+			if result != tt.expected {
+				t.Errorf("getPricingURL() = %v, expected %v", result, tt.expected)
 			}
 		})
 	}
