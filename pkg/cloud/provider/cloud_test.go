@@ -565,6 +565,10 @@ type FakeCache struct {
 	clustercache.ClusterCache
 }
 
+func (f FakeCache) GetClusterUID() string {
+	return "fakeClusterUID"
+}
+
 func (f FakeCache) GetAllNodes() []*clustercache.Node {
 	return f.nodes
 }
