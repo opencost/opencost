@@ -463,7 +463,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	var err error
 
 	// Kubernetes API setup
-	kubeClientset, clusterUID, err := kubeconfig.LoadKubeClient("")
+	kubeClientset, err := kubeconfig.LoadKubeClient("")
 	if err != nil {
 		log.Fatalf("Failed to build Kubernetes client: %s", err.Error())
 	}
@@ -553,7 +553,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	clusterMap := dataSource.ClusterMap()
 	settingsCache := cache.New(cache.NoExpiration, cache.NoExpiration)
 
-	costModel := NewCostModel(clusterUID, dataSource, cloudProvider, k8sCache, clusterMap, dataSource.BatchDuration())
+	costModel := NewCostModel(dataSource, cloudProvider, k8sCache, clusterMap, dataSource.BatchDuration())
 	metricsEmitter := NewCostModelMetricsEmitter(k8sCache, cloudProvider, clusterInfoProvider, costModel)
 
 	a := &Accesses{

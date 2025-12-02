@@ -1,11 +1,14 @@
 package clustercache
 
 import (
+	"context"
+	"fmt"
 	"sync"
 
 	cc "github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/env"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -18,8 +21,8 @@ import (
 
 // KubernetesClusterCache is the implementation of ClusterCache
 type KubernetesClusterCache struct {
-	client kubernetes.Interface
-
+	client                     kubernetes.Interface
+	clusterUID                 string
 	namespaceWatch             WatchController
 	nodeWatch                  WatchController
 	podWatch                   WatchController
@@ -51,6 +54,10 @@ func NewKubernetesClusterCache(client kubernetes.Interface) cc.ClusterCache {
 }
 
 func NewKubernetesClusterCacheV1(client kubernetes.Interface) cc.ClusterCache {
+	clusterUID, err := getClusterUID(client)
+	if err != nil {
+		log.Fatalf("failed to get cluster uid: %s", err.Error())
+	}
 	coreRestClient := client.CoreV1().RESTClient()
 	appsRestClient := client.AppsV1().RESTClient()
 	storageRestClient := client.StorageV1().RESTClient()
@@ -62,6 +69,7 @@ func NewKubernetesClusterCacheV1(client kubernetes.Interface) cc.ClusterCache {
 
 	kcc := &KubernetesClusterCache{
 		client:                     client,
+		clusterUID:                 clusterUID,
 		namespaceWatch:             NewCachingWatcher(coreRestClient, "namespaces", &v1.Namespace{}, "", fields.Everything()),
 		nodeWatch:                  NewCachingWatcher(coreRestClient, "nodes", &v1.Node{}, "", fields.Everything()),
 		podWatch:                   NewCachingWatcher(coreRestClient, "pods", &v1.Pod{}, "", fields.Everything()),
@@ -140,6 +148,10 @@ func (kcc *KubernetesClusterCache) Stop() {
 
 	close(kcc.stop)
 	kcc.stop = nil
+}
+
+func (kcc *KubernetesClusterCache) GetClusterUID() string {
+	return kcc.clusterUID
 }
 
 func (kcc *KubernetesClusterCache) GetAllNamespaces() []*cc.Namespace {
@@ -276,4 +288,16 @@ func (kcc *KubernetesClusterCache) GetAllResourceQuotas() []*cc.ResourceQuota {
 		rqs = append(rqs, cc.TransformResourceQuota(rq.(*v1.ResourceQuota)))
 	}
 	return rqs
+}
+
+func getClusterUID(client kubernetes.Interface) (string, error) {
+	ns, err := client.CoreV1().Namespaces().Get(context.Background(), "kube-system", metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("error getting 'kube-system' namespace: %w", err)
+	}
+	uid := string(ns.ObjectMeta.UID)
+	if uid == "" {
+		return "", fmt.Errorf("uid field in 'kube-system' namespace is empty")
+	}
+	return uid, nil
 }

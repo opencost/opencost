@@ -48,27 +48,27 @@ func Healthz(w http.ResponseWriter, _ *http.Request) {
 }
 
 // initializes the kubernetes client cache
-func newKubernetesClusterCache() (kubernetes.Interface, clustercache.ClusterCache, string, error) {
+func newKubernetesClusterCache() (kubernetes.Interface, clustercache.ClusterCache, error) {
 	var err error
 
 	// Kubernetes API setup
-	kubeClientset, clusterUID, err := kubeconfig.LoadKubeClient("")
+	kubeClientset, err := kubeconfig.LoadKubeClient("")
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, err
 	}
 
 	// Create Kubernetes Cluster Cache + Watchers
 	k8sCache := cluster.NewKubernetesClusterCache(kubeClientset)
 	k8sCache.Run()
 
-	return kubeClientset, k8sCache, clusterUID, nil
+	return kubeClientset, k8sCache, nil
 }
 
 func Execute(opts *AgentOpts) error {
 	log.Infof("Starting Kubecost Agent version %s", version.FriendlyVersion())
 
 	// initialize kubernetes client and cluster cache
-	k8sClient, clusterCache, clusterUID, err := newKubernetesClusterCache()
+	k8sClient, clusterCache, err := newKubernetesClusterCache()
 	if err != nil {
 		panic(err.Error())
 	}
@@ -138,7 +138,7 @@ func Execute(opts *AgentOpts) error {
 	// Initialize ClusterMap for maintaining ClusterInfo by ClusterID
 	clusterMap := dataSource.ClusterMap()
 
-	costModel := costmodel.NewCostModel(clusterUID, dataSource, cloudProvider, clusterCache, clusterMap, dataSource.BatchDuration())
+	costModel := costmodel.NewCostModel(dataSource, cloudProvider, clusterCache, clusterMap, dataSource.BatchDuration())
 
 	// initialize Kubernetes Metrics Emitter
 	metricsEmitter := costmodel.NewCostModelMetricsEmitter(clusterCache, cloudProvider, clusterInfoProvider, costModel)
