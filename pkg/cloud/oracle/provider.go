@@ -20,6 +20,7 @@ import (
 const nodePoolIdAnnotation = "oci.oraclecloud.com/node-pool-id"
 const virtualPoolIdAnnotation = "oci.oraclecloud.com/virtual-node-pool-id"
 const virtualNodeLabel = "node-role.kubernetes.io/virtual-node"
+const preemptibleLabel = "oci.oraclecloud.com/oke-is-preemptible"
 const managementPlatformOKE = "oke"
 const currencyCodeUSD = "USD"
 
@@ -59,7 +60,17 @@ func (o *Oracle) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 	}
 	o.DownloadPricingDataLock.RLock()
 	defer o.DownloadPricingDataLock.RUnlock()
-	return o.RateCardStore.ForKey(key, o.DefaultPricing)
+	node, metadata, err := o.RateCardStore.ForKey(key, o.DefaultPricing)
+	if err != nil {
+		return node, metadata, err
+	}
+	// Check if the node is preemptible based on the label
+	if oracleKey, ok := key.(*oracleKey); ok {
+		if val, exists := oracleKey.labels[preemptibleLabel]; exists && val == "true" {
+			node.UsageType = "preemptible"
+		}
+	}
+	return node, metadata, nil
 }
 
 func (o *Oracle) GpuPricing(nodeLabels map[string]string) (string, error) {
