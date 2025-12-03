@@ -27,6 +27,10 @@ func TestParse(t *testing.T) {
 			input: `namespace: "kubecost"`,
 		},
 		{
+			name:  "Single: namespace label",
+			input: `namespaceLabel[app]:"kubecost"`,
+		},
+		{
 			name:  "Single Group",
 			input: `(namespace: "kubecost")`,
 		},
