@@ -10,8 +10,7 @@ type ResourceQuotaField string
 // Asset value does not enforce exhaustive pattern matching on "enum" types.
 const (
 	FieldClusterID      ResourceQuotaField = ResourceQuotaField(fieldstrings.FieldClusterID)
-	FieldLabel          ResourceQuotaField = ResourceQuotaField(fieldstrings.FieldLabel)
-	FieldName           ResourceQuotaField = ResourceQuotaField(fieldstrings.FieldName)
+	FieldResourceQuota  ResourceQuotaField = ResourceQuotaField(fieldstrings.FieldResourceQuota)
 	FieldNamespace      ResourceQuotaField = ResourceQuotaField(fieldstrings.FieldNamespace)
 	FieldNamespaceLabel ResourceQuotaField = ResourceQuotaField(fieldstrings.FieldNamespaceLabel)
 	FieldUID            ResourceQuotaField = ResourceQuotaField(fieldstrings.FieldUID)

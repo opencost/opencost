@@ -10,22 +10,16 @@ func TestDefaultFieldByName(t *testing.T) {
 	var rqField ResourceQuotaField
 	var astf *ast.Field
 
-	rqField = FieldName
+	rqField = FieldResourceQuota
 	astf = DefaultFieldByName(rqField)
-	if astf.Name != "name" {
-		t.Errorf("expected %s; received %s", "name", astf.Name)
+	if astf.Name != "resourcequota" {
+		t.Errorf("expected %s; received %s", "resourcequota", astf.Name)
 	}
 
 	rqField = FieldClusterID
 	astf = DefaultFieldByName(rqField)
 	if astf.Name != "cluster" {
 		t.Errorf("expected %s; received %s", "cluster", astf.Name)
-	}
-
-	rqField = FieldLabel
-	astf = DefaultFieldByName(rqField)
-	if astf.Name != "label" {
-		t.Errorf("expected %s; received %s", "label", astf.Name)
 	}
 
 	rqField = FieldNamespace

@@ -4,8 +4,7 @@ import "github.com/opencost/opencost/core/pkg/filter/ast"
 
 var resourceQuotaFilterFields []*ast.Field = []*ast.Field{
 	ast.NewField(FieldClusterID),
-	ast.NewMapField(FieldLabel),
-	ast.NewField(FieldName),
+	ast.NewField(FieldResourceQuota),
 	ast.NewField(FieldNamespace),
 	ast.NewMapField(FieldNamespaceLabel),
 	ast.NewField(FieldUID),

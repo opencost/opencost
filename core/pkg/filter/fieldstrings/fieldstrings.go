@@ -3,6 +3,7 @@ package fieldstrings
 // These strings are the central source of filter fields across all types of
 // filters. Many filter types share fields; defining common consts means that
 // there should be no drift between types.
+// filter=uid:"1234-5678"
 const (
 	FieldUID string = "uid"
 
@@ -19,6 +20,8 @@ const (
 	FieldAnnotation     string = "annotation"
 	FieldNodeLabel      string = "nodeLabel"
 	FieldNamespaceLabel string = "namespaceLabel"
+
+	FieldResourceQuota string = "resourcequota"
 
 	FieldName       string = "name"
 	FieldType       string = "assetType"
