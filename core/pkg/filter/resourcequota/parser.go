@@ -3,7 +3,6 @@ package resourcequota
 import "github.com/opencost/opencost/core/pkg/filter/ast"
 
 var resourceQuotaFilterFields []*ast.Field = []*ast.Field{
-	ast.NewField(FieldClusterName),
 	ast.NewField(FieldClusterUID),
 	ast.NewMapField(FieldLabel),
 	ast.NewField(FieldName),

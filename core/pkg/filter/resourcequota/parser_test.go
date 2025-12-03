@@ -16,12 +16,6 @@ func TestDefaultFieldByName(t *testing.T) {
 		t.Errorf("expected %s; received %s", "name", astf.Name)
 	}
 
-	rqField = FieldClusterName
-	astf = DefaultFieldByName(rqField)
-	if astf.Name != "clusterName" {
-		t.Errorf("expected %s; received %s", "clusterName", astf.Name)
-	}
-
 	rqField = FieldClusterUID
 	astf = DefaultFieldByName(rqField)
 	if astf.Name != "clusterUID" {

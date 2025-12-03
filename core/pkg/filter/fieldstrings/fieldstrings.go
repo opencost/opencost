@@ -6,8 +6,7 @@ package fieldstrings
 const (
 	FieldUID string = "uid"
 
-	FieldClusterUID  string = "clusterUID"
-	FieldClusterName string = "clusterName"
+	FieldClusterUID string = "clusterUID"
 
 	FieldClusterID      string = "cluster"
 	FieldNode           string = "node"

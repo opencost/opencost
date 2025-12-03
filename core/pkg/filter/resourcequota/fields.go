@@ -9,7 +9,7 @@ type ResourceQuotaField string
 // If you add a ResourceQuotaField, make sure to update field maps to return the correct
 // Asset value does not enforce exhaustive pattern matching on "enum" types.
 const (
-	FieldClusterName    ResourceQuotaField = ResourceQuotaField(fieldstrings.FieldClusterName)
+	// TODO do we need ClusterName? How would that work?
 	FieldClusterUID     ResourceQuotaField = ResourceQuotaField(fieldstrings.FieldClusterUID)
 	FieldLabel          ResourceQuotaField = ResourceQuotaField(fieldstrings.FieldLabel)
 	FieldName           ResourceQuotaField = ResourceQuotaField(fieldstrings.FieldName)
