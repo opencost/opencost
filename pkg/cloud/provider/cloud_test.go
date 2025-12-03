@@ -233,7 +233,7 @@ func TestNodePriceFromCSVWithGPU(t *testing.T) {
 }
 
 func TestNodePriceFromCSVWithGPULabels(t *testing.T) {
-	const defaultConfigJson = `{"provider":"base","description":"Default prices based on GCP us-central1","CPU":"0.021811","spotCPU":"0.006543","RAM":"0.002923","spotRAM":"0.000877","GPU":"0.95","spotGPU":"0.308","storage":"0.00005479452","zoneNetworkEgress":"0.01","regionNetworkEgress":"0.01","internetNetworkEgress":"0.12","firstFiveForwardingRulesCost":"","additionalForwardingRuleCost":"","LBIngressDataCost":"","athenaBucketName":"","athenaRegion":"","athenaDatabase":"","athenaCatalog":"","athenaTable":"","athenaWorkgroup":"","masterPayerARN":"","customPricesEnabled":"false","defaultIdle":"","azureSubscriptionID":"","azureClientID":"","azureClientSecret":"","azureTenantID":"","azureBillingRegion":"","azureBillingAccount":"","azureOfferDurableID":"","azureStorageSubscriptionID":"","azureStorageAccount":"","azureStorageAccessKey":"","azureStorageContainer":"","azureContainerPath":"","azureCloud":"","currencyCode":"","discount":"","negotiatedDiscount":"","sharedOverhead":"","clusterName":"","sharedNamespaces":"","sharedLabelNames":"","sharedLabelValues":"","shareTenancyCosts":"true","readOnly":"","editorAccess":"","kubecostToken":"","googleAnalyticsTag":"","excludeProviderID":"","defaultLBPrice":""}`
+	const defaultConfigJson = `{"provider":"base","description":"Default prices based on GCP us-central1","CPU":"0.021811","spotCPU":"0.006543","RAM":"0.002923","spotRAM":"0.000877","GPU":"0.95","spotGPU":"0.308","storage":"0.00005479452","zoneNetworkEgress":"0.01","regionNetworkEgress":"0.01","internetNetworkEgress":"0.12","firstFiveForwardingRulesCost":"","additionalForwardingRuleCost":"","LBIngressDataCost":"","athenaBucketName":"","athenaRegion":"","athenaDatabase":"","athenaCatalog":"","athenaTable":"","athenaWorkgroup":"","masterPayerARN":"","customPricesEnabled":"false","azureSubscriptionID":"","azureClientID":"","azureClientSecret":"","azureTenantID":"","azureBillingRegion":"","azureBillingAccount":"","azureOfferDurableID":"","azureStorageSubscriptionID":"","azureStorageAccount":"","azureStorageAccessKey":"","azureStorageContainer":"","azureContainerPath":"","azureCloud":"","currencyCode":"","discount":"","negotiatedDiscount":"","clusterName":"","defaultLBPrice":""}`
 
 	nameWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"
 	wantGPUCost := "0.75"
@@ -300,7 +300,7 @@ func TestNodePriceFromCSVWithGPULabels(t *testing.T) {
 }
 
 func TestRKE2NodePriceFromCSVWithGPULabels(t *testing.T) {
-	const defaultConfigJson = `{"provider":"base","description":"Default prices based on GCP us-central1","CPU":"0.021811","spotCPU":"0.006543","RAM":"0.002923","spotRAM":"0.000877","GPU":"0.95","spotGPU":"0.308","storage":"0.00005479452","zoneNetworkEgress":"0.01","regionNetworkEgress":"0.01","internetNetworkEgress":"0.12","firstFiveForwardingRulesCost":"","additionalForwardingRuleCost":"","LBIngressDataCost":"","athenaBucketName":"","athenaRegion":"","athenaDatabase":"","athenaCatalog":"","athenaTable":"","athenaWorkgroup":"","masterPayerARN":"","customPricesEnabled":"false","defaultIdle":"","azureSubscriptionID":"","azureClientID":"","azureClientSecret":"","azureTenantID":"","azureBillingRegion":"","azureBillingAccount":"","azureOfferDurableID":"","azureStorageSubscriptionID":"","azureStorageAccount":"","azureStorageAccessKey":"","azureStorageContainer":"","azureContainerPath":"","azureCloud":"","currencyCode":"","discount":"","negotiatedDiscount":"","sharedOverhead":"","clusterName":"","sharedNamespaces":"","sharedLabelNames":"","sharedLabelValues":"","shareTenancyCosts":"true","readOnly":"","editorAccess":"","kubecostToken":"","googleAnalyticsTag":"","excludeProviderID":"","defaultLBPrice":""}`
+	const defaultConfigJson = `{"provider":"base","description":"Default prices based on GCP us-central1","CPU":"0.021811","spotCPU":"0.006543","RAM":"0.002923","spotRAM":"0.000877","GPU":"0.95","spotGPU":"0.308","storage":"0.00005479452","zoneNetworkEgress":"0.01","regionNetworkEgress":"0.01","internetNetworkEgress":"0.12","firstFiveForwardingRulesCost":"","additionalForwardingRuleCost":"","LBIngressDataCost":"","athenaBucketName":"","athenaRegion":"","athenaDatabase":"","athenaCatalog":"","athenaTable":"","athenaWorkgroup":"","masterPayerARN":"","customPricesEnabled":"false","azureSubscriptionID":"","azureClientID":"","azureClientSecret":"","azureTenantID":"","azureBillingRegion":"","azureBillingAccount":"","azureOfferDurableID":"","azureStorageSubscriptionID":"","azureStorageAccount":"","azureStorageAccessKey":"","azureStorageContainer":"","azureContainerPath":"","azureCloud":"","currencyCode":"","discount":"","negotiatedDiscount":"","clusterName":"","defaultLBPrice":""}`
 
 	nameWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"
 	wantGPUCost := "0.750000"
@@ -607,7 +607,6 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 		"athenaWorkgroup":"",
 		"masterPayerARN":"",
 		"customPricesEnabled":"false",
-		"defaultIdle":"",
 		"azureSubscriptionID":"",
 		"azureClientID":"",
 		"azureClientSecret":"",
@@ -623,17 +622,7 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 		"currencyCode":"",
 		"discount":"",
 		"negotiatedDiscount":"",
-		"sharedOverhead":"",
-		"clusterName":"",
-		"sharedNamespaces":"",
-		"sharedLabelNames":"",
-		"sharedLabelValues":"",
-		"shareTenancyCosts":"true",
-		"readOnly":"",
-		"editorAccess":"",
-		"kubecostToken":"",
-		"googleAnalyticsTag":"",
-		"excludeProviderID":""
+		"clusterName":""
 	}`
 
 	tempPath := t.TempDir()

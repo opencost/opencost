@@ -149,9 +149,6 @@ func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 	if c.CurrencyCode == "" {
 		c.CurrencyCode = "USD"
 	}
-	if c.ShareTenancyCosts == "" {
-		c.ShareTenancyCosts = models.DefaultShareTenancyCost
-	}
 	return c, nil
 }
 

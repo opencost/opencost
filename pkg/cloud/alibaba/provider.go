@@ -605,9 +605,6 @@ func (alibaba *Alibaba) GetConfig() (*models.CustomPricing, error) {
 	if c.NegotiatedDiscount == "" {
 		c.NegotiatedDiscount = "0%"
 	}
-	if c.ShareTenancyCosts == "" {
-		c.ShareTenancyCosts = models.DefaultShareTenancyCost
-	}
 
 	return c, nil
 }
