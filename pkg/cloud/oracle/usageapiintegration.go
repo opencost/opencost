@@ -158,6 +158,11 @@ func (uai *UsageApiIntegration) GetStatus() cloud.ConnectionStatus {
 	return uai.ConnectionStatus
 }
 
+func (uai *UsageApiIntegration) RefreshStatus() cloud.ConnectionStatus {
+	// this function is not implemented for the oracle provider
+	return uai.ConnectionStatus
+}
+
 func SelectOCICategory(service string) string {
 	if service == "Compute" {
 		return opencost.ComputeCategory

@@ -7,7 +7,6 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
-	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/config"
 )
@@ -213,24 +212,11 @@ func (im *IngestionManager) createIngestor(config cloud.KeyedConfig) error {
 		return fmt.Errorf("IngestionManager: createIngestor: %w", err)
 	}
 
-	populateConnectionStatus(ing)
+	ing.RefreshStatus()
 
 	ing.Start(false)
 
 	im.ingestors[config.Key()] = ing
 
 	return nil
-}
-
-// populateConnectionStatus attempts to pull the past 7 days worth of data for a given key's ingestor, which will cause
-// the ingestor to populate the ingestor's connection status
-func populateConnectionStatus(ing *ingestor) {
-	// Calculate a window for the past 7 days
-	end := time.Now().UTC()
-	end = end.Truncate(timeutil.Day)
-	start := end.Add(-7 * timeutil.Day)
-	end = start.Add(timeutil.Day)
-
-	// Attempt to ingest data from the specified cloud integration from the past 7 days
-	ing.BuildWindow(start, end)
 }
