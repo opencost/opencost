@@ -2,6 +2,7 @@ package metric
 
 const (
 	// Cluster Cache Metrics
+	ClusterInfo                                           = "cluster_info"
 	KubeNodeStatusCapacityCPUCores                        = "kube_node_status_capacity_cpu_cores"
 	KubeNodeStatusCapacityMemoryBytes                     = "kube_node_status_capacity_memory_bytes"
 	KubeNodeStatusAllocatableCPUCores                     = "kube_node_status_allocatable_cpu_cores"
@@ -18,11 +19,13 @@ const (
 	KubecostPVInfo                                        = "kubecost_pv_info"
 	KubePersistentVolumeCapacityBytes                     = "kube_persistentvolume_capacity_bytes"
 	DeploymentMatchLabels                                 = "deployment_match_labels"
+	NamespaceInfo                                         = "namespace_info"
 	KubeNamespaceLabels                                   = "kube_namespace_labels"
 	KubeNamespaceAnnotations                              = "kube_namespace_annotations"
 	ServiceSelectorLabels                                 = "service_selector_labels"
 	StatefulSetMatchLabels                                = "statefulSet_match_labels"
 	KubeReplicasetOwner                                   = "kube_replicaset_owner"
+	ResourceQuotaInfo                                     = "resourcequota_info"
 	KubeResourceQuotaSpecResourceRequests                 = "resourcequota_spec_resource_requests"
 	KubeResourceQuotaSpecResourceLimits                   = "resourcequota_spec_resource_limits"
 	KubeResourceQuotaStatusUsedResourceRequests           = "resourcequota_status_used_resource_requests"

@@ -34,6 +34,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewNodeRAMUserUsageAverageMetricCollector())
 	memStore.Register(NewLBPricePerHourMetricCollector())
 	memStore.Register(NewLBActiveMinutesMetricCollector())
+	memStore.Register(NewClusterActiveMinutesMetricCollector())
 	memStore.Register(NewClusterManagementDurationMetricCollector())
 	memStore.Register(NewClusterManagementPricePerHourMetricCollector())
 	memStore.Register(NewPodActiveMinutesMetricCollector())
@@ -74,6 +75,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewNetInternetIngressGiBMetricCollector())
 	memStore.Register(NewNetInternetServiceIngressGiBMetricCollector())
 	memStore.Register(NewNetTransferBytesMetricCollector())
+	memStore.Register(NewNamespaceActiveMinutesMetricCollector())
 	memStore.Register(NewNamespaceLabelsMetricCollector())
 	memStore.Register(NewNamespaceAnnotationsMetricCollector())
 	memStore.Register(NewPodLabelsMetricCollector())
@@ -86,6 +88,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewPodsWithReplicaSetOwnerMetricCollector())
 	memStore.Register(NewReplicaSetsWithoutOwnersMetricCollector())
 	memStore.Register(NewReplicaSetsWithRolloutMetricCollector())
+	memStore.Register(NewResourceQuotaActiveMinutesMetricCollector())
 	memStore.Register(NewResourceQuotaSpecCPURequestAverageMetricCollector())
 	memStore.Register(NewResourceQuotaSpecCPURequestMaxMetricCollector())
 	memStore.Register(NewResourceQuotaSpecRAMRequestAverageMetricCollector())
@@ -600,6 +603,24 @@ func NewLBActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.NamespaceLabel,
 			source.ServiceNameLabel,
 			source.IngressIPLabel,
+			source.UIDLabel,
+		},
+		aggregator.ActiveMinutes,
+		nil,
+	)
+}
+
+//	avg(
+//		cluster_info{
+//			<some_custom_filter>
+//		}
+//	) by (uid)[%s:%dm]
+
+func NewClusterActiveMinutesMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ClusterActiveMinutesID,
+		metric.ClusterInfo,
+		[]string{
 			source.UIDLabel,
 		},
 		aggregator.ActiveMinutes,
@@ -1640,6 +1661,24 @@ func NewNetTransferBytesMetricCollector() *metric.MetricCollector {
 	)
 }
 
+//	avg(
+//		namespace_info{
+//			<some_custom_filter>
+//		}
+//	) by (uid)[%s:%dm]
+
+func NewNamespaceActiveMinutesMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NamespaceActiveMinutesID,
+		metric.NamespaceInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.ActiveMinutes,
+		nil,
+	)
+}
+
 //	avg_over_time(
 //		kube_namespace_labels{
 //			<some_custom_filter>
@@ -1909,15 +1948,23 @@ func NewReplicaSetsWithRolloutMetricCollector() *metric.MetricCollector {
 	)
 }
 
-// avg(
-//	avg_over_time(
-//		resourcequota_spec_resource_requests{
-//			resource="cpu",
-//			unit="core",
+//	avg(
+//		resourcequota_info{
 //			<some_custom_filter>
-//		}[1h]
-//	)
-//) by (resourcequota, namespace, uid, cluster_id)
+//		}
+//	) by (uid)[%s:%dm]
+
+func NewResourceQuotaActiveMinutesMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NamespaceActiveMinutesID,
+		metric.NamespaceInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.ActiveMinutes,
+		nil,
+	)
+}
 
 func NewResourceQuotaSpecCPURequestAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(

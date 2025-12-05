@@ -31,6 +31,7 @@ func newClusterCacheScraper(clusterCache clustercache.ClusterCache) Scraper {
 
 func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 	scrapeFuncs := []ScrapeFunc{
+		ccs.ScrapeCluster,
 		ccs.ScrapeNodes,
 		ccs.ScrapeDeployments,
 		ccs.ScrapeNamespaces,
@@ -43,6 +44,19 @@ func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 		ccs.ScrapeResourceQuotas,
 	}
 	return concurrentScrape(scrapeFuncs...)
+}
+
+func (ccs *ClusterCacheScraper) ScrapeCluster() []metric.Update {
+	var scrapeResults []metric.Update
+	clusterInfo := map[string]string{
+		source.UIDLabel: ccs.clusterCache.GetClusterUID(),
+	}
+	scrapeResults = append(scrapeResults, metric.Update{
+		Name:   metric.ClusterInfo,
+		Labels: clusterInfo,
+		Value:  0,
+	})
+	return scrapeResults
 }
 
 func (ccs *ClusterCacheScraper) ScrapeNodes() []metric.Update {
@@ -173,6 +187,12 @@ func (ccs *ClusterCacheScraper) scrapeNamespaces(namespaces []*clustercache.Name
 			source.NamespaceLabel: namespace.Name,
 			source.UIDLabel:       string(namespace.UID),
 		}
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:   metric.NamespaceInfo,
+			Labels: namespaceInfo,
+			Value:  0,
+		})
 
 		// namespace labels
 		labelNames, labelValues := promutil.KubeLabelsToLabels(namespace.Labels)
@@ -567,6 +587,12 @@ func (ccs *ClusterCacheScraper) scrapeResourceQuotas(resourceQuotas []*clusterca
 			source.NamespaceLabel:     resourceQuota.Namespace,
 			source.UIDLabel:           string(resourceQuota.UID),
 		}
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:   metric.ResourceQuotaInfo,
+			Labels: resourceQuotaInfo,
+			Value:  0,
+		})
 
 		if resourceQuota.Spec.Hard != nil {
 			// CPU/memory requests can also be aliased as "cpu" and "memory". For now, however, only scrape the complete names

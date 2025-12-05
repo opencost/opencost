@@ -31,4 +31,7 @@ const (
 
 	// NetworkInsightsContextName is the name we assign the network insights query context [metadata]
 	NetworkInsightsContextName = "networkinsight"
+
+	// KubeModelContextName is the name we assign the kubemodel query context [metadata]
+	KubeModelContextName = "kube-model"
 )

@@ -45,6 +45,21 @@ const (
 	NoneLabelValue = "<none>"
 )
 
+type UpTimeResult struct {
+	UID string
+
+	Data []*util.Vector
+}
+
+func DecodeUpTimeResult(result *QueryResult) *UpTimeResult {
+	uid, _ := result.GetString(UIDLabel)
+
+	return &UpTimeResult{
+		UID:  uid,
+		Data: result.Values,
+	}
+}
+
 type PVResult struct {
 	UID              string
 	Cluster          string
