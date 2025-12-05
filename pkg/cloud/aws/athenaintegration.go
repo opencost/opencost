@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/athena/types"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloud"
 )
 
@@ -68,6 +69,24 @@ type AthenaIntegration struct {
 
 // Query Athena for CUR data and build a new CloudCostSetRange containing the info
 func (ai *AthenaIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCostSetRange, error) {
+	return ai.getCloudCost(start, end, 0)
+}
+
+func (ai *AthenaIntegration) RefreshStatus() cloud.ConnectionStatus {
+	end := time.Now().UTC().Truncate(timeutil.Day)
+	start := end.Add(-7 * timeutil.Day)
+
+	// getCloudCost already sets ConnectionStatus in the event there is no error, so we don't need to handle the positive
+	// case here
+	_, err := ai.getCloudCost(start, end, 1)
+	if err != nil {
+		ai.ConnectionStatus = cloud.FailedConnection
+	}
+
+	return ai.ConnectionStatus
+}
+
+func (ai *AthenaIntegration) getCloudCost(start, end time.Time, limit int) (*opencost.CloudCostSetRange, error) {
 	log.Infof("AthenaIntegration[%s]: GetCloudCost: %s", ai.Key(), opencost.NewWindow(&start, &end).String())
 	// Query for all column names
 	allColumns, err := ai.GetColumns()
@@ -161,6 +180,9 @@ func (ai *AthenaIntegration) GetCloudCost(start, end time.Time) (*opencost.Cloud
 		WHERE %s
 		GROUP BY %s
 	`
+	if limit > 0 {
+		queryStr = fmt.Sprintf("%s LIMIT %d", queryStr, limit)
+	}
 	aqi.Query = fmt.Sprintf(queryStr, columnStr, ai.Table, whereClause, groupByStr)
 
 	ccsr, err := opencost.NewCloudCostSetRange(start, end, opencost.AccumulateOptionDay, ai.Key())
@@ -328,7 +350,7 @@ func (ai *AthenaIntegration) GetPartitionWhere(start, end time.Time) string {
 	month := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, time.UTC)
 	endMonth := time.Date(end.Year(), end.Month(), 1, 0, 0, 0, 0, time.UTC)
 	var disjuncts []string
-	
+
 	// For CUR 2.0, check if billing_period partitions actually exist
 	useBillingPeriodPartitions := false
 	if ai.CURVersion != "1.0" {
@@ -337,7 +359,7 @@ func (ai *AthenaIntegration) GetPartitionWhere(start, end time.Time) string {
 			useBillingPeriodPartitions = true
 		}
 	}
-	
+
 	for !month.After(endMonth) {
 		if ai.CURVersion == "1.0" {
 			// CUR 1.0 uses year and month columns for partitioning
