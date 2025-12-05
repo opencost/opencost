@@ -194,7 +194,7 @@ func NewPVCInfoMetricCollector() *metric.MetricCollector {
 			source.StorageClassLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		func(labels map[string]string) bool {
 			return labels[source.VolumeNameLabel] != ""
 		},
@@ -215,7 +215,7 @@ func NewPVActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.PVLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -242,7 +242,7 @@ func NewLocalStorageUsedActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.DeviceLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil, // filter not required here because only container root file system is being scraped
 	)
 }
@@ -341,7 +341,7 @@ func NewLocalStorageActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.ProviderIDLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -487,7 +487,7 @@ func NewNodeActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.ProviderIDLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -605,7 +605,7 @@ func NewLBActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.IngressIPLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -623,7 +623,7 @@ func NewClusterActiveMinutesMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -642,7 +642,7 @@ func NewClusterManagementDurationMetricCollector() *metric.MetricCollector {
 			source.ProvisionerNameLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -683,7 +683,7 @@ func NewPodActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.NamespaceLabel,
 			source.PodLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -1674,7 +1674,7 @@ func NewNamespaceActiveMinutesMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -1961,7 +1961,7 @@ func NewResourceQuotaActiveMinutesMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
