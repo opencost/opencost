@@ -76,6 +76,8 @@ func (ai *AthenaIntegration) RefreshStatus() cloud.ConnectionStatus {
 	end := time.Now().UTC().Truncate(timeutil.Day)
 	start := end.Add(-7 * timeutil.Day)
 
+	// getCloudCost already sets ConnectionStatus in the event there is no error, so we don't need to handle the positive
+	// case here
 	_, err := ai.getCloudCost(start, end, 1)
 	if err != nil {
 		ai.ConnectionStatus = cloud.FailedConnection

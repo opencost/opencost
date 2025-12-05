@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/oracle/oci-go-sdk/v65/common"
@@ -159,7 +160,7 @@ func (uai *UsageApiIntegration) GetStatus() cloud.ConnectionStatus {
 }
 
 func (uai *UsageApiIntegration) RefreshStatus() cloud.ConnectionStatus {
-	// this function is not implemented for the oracle provider
+	log.Warn("status refresh is not supported for the Oracle provider")
 	return uai.ConnectionStatus
 }
 
