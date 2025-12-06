@@ -50,7 +50,7 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 	var err error
 
 	// 2.1 Compute Cluster
-	err = km.computeCluster(kms)
+	err = km.computeCluster(kms, start, end)
 	if err != nil {
 		kms.Error(err)
 		return kms, fmt.Errorf("error computing kubemodel.Cluster for (%s, %s): %w", start.Format(logTimeFmt), end.Format(logTimeFmt), err)
@@ -74,13 +74,29 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 	return kms, nil
 }
 
-// TODO: How do we pull kube-system namespace UID for Cluster?
-// TODO: How do we populate (Start, End) for Cluster? A new cluster_info metric?
-// TODO: Where do we get the additional information? km.ds.ClusterInfo().GetClusterInfo()?
-func (km *KubeModel) computeCluster(kms *kubemodel.KubeModelSet) error {
+func (km *KubeModel) computeCluster(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+
 	kms.Cluster = &kubemodel.Cluster{
 		UID:  km.clusterUID,
 		Name: env.GetClusterID(), // TODO: do we still want to use this env var for Name?
+	}
+
+	grp := source.NewQueryGroup()
+	metrics := km.ds.Metrics()
+	clusterUptimeResultFuture := source.WithGroup(grp, metrics.QueryClusterUptime(start, end))
+
+	clusterUptimeResult, _ := clusterUptimeResultFuture.Await()
+
+	if len(clusterUptimeResult) != 1 {
+		log.Errorf("%d clusters returning from cluster uptime query", len(clusterUptimeResult))
+	}
+
+	for _, res := range clusterUptimeResult {
+		if res.UID == km.clusterUID {
+			s, e := res.GetStartEnd(start, end, km.ds.Resolution())
+			kms.Cluster.Start = s
+			kms.Cluster.End = e
+		}
 	}
 
 	return nil
@@ -90,9 +106,11 @@ func (km *KubeModel) computeNamespaces(kms *kubemodel.KubeModelSet, start, end t
 	grp := source.NewQueryGroup()
 	metrics := km.ds.Metrics()
 
+	nsUptimeResultFuture := source.WithGroup(grp, metrics.QueryNamespaceUptime(start, end))
 	nsLabelsResultFuture := source.WithGroup(grp, metrics.QueryNamespaceLabels(start, end))
 	nsAnnosResultFuture := source.WithGroup(grp, metrics.QueryNamespaceAnnotations(start, end))
 
+	nsUptimeResult, _ := nsUptimeResultFuture.Await()
 	nsLabelsResult, _ := nsLabelsResultFuture.Await()
 	nsAnnosResult, _ := nsAnnosResultFuture.Await()
 
@@ -114,10 +132,14 @@ func (km *KubeModel) computeNamespaces(kms *kubemodel.KubeModelSet, start, end t
 		kms.Namespaces[res.UID].Annotations = res.Annotations
 	}
 
-	// TODO: query for (Start, End)
-	for _, ns := range kms.Namespaces {
-		ns.Start = start
-		ns.End = end
+	for _, res := range nsUptimeResult {
+		if _, ok := kms.Namespaces[res.UID]; !ok {
+			log.Warnf("could not find ns with uid '%s'", res.UID)
+			continue
+		}
+		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
+		kms.Namespaces[res.UID].Start = s
+		kms.Namespaces[res.UID].End = e
 	}
 
 	return nil
@@ -126,6 +148,8 @@ func (km *KubeModel) computeNamespaces(kms *kubemodel.KubeModelSet, start, end t
 func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, end time.Time) error {
 	grp := source.NewQueryGroup()
 	metrics := km.ds.Metrics()
+
+	rqUptimeResultFuture := source.WithGroup(grp, metrics.QueryResourceQuotaUptime(start, end))
 
 	// spec.hard.requests
 	rqSpecCPURequestAverageResultFuture := source.WithGroup(grp, metrics.QueryResourceQuotaSpecCPURequestAverage(start, end))
@@ -335,10 +359,15 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 		kms.ResourceQuotas[res.UID].Status.Used.SetLimit(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatMax, uint64(res.Data[0].Value))
 	}
 
-	// TODO: query for (Start, End)
-	for _, rq := range kms.ResourceQuotas {
-		rq.Start = start
-		rq.End = end
+	rqUptimeResult, _ := rqUptimeResultFuture.Await()
+	for _, res := range rqUptimeResult {
+		if _, ok := kms.ResourceQuotas[res.UID]; !ok {
+			log.Warnf("could not find rq with uid '%s'", res.UID)
+			continue
+		}
+		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
+		kms.ResourceQuotas[res.UID].Start = s
+		kms.ResourceQuotas[res.UID].End = e
 	}
 
 	return nil
