@@ -340,3 +340,7 @@ func (ing *ingestor) expandCoverage(window opencost.Window) {
 
 	ing.coverage = coverage
 }
+
+func (ing *ingestor) RefreshStatus() cloud.ConnectionStatus {
+	return ing.integration.RefreshStatus()
+}

@@ -212,6 +212,8 @@ func (im *IngestionManager) createIngestor(config cloud.KeyedConfig) error {
 		return fmt.Errorf("IngestionManager: createIngestor: %w", err)
 	}
 
+	ing.RefreshStatus()
+
 	ing.Start(false)
 
 	im.ingestors[config.Key()] = ing

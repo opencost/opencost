@@ -1596,9 +1596,6 @@ func (az *Azure) GetConfig() (*models.CustomPricing, error) {
 	if c.AzureOfferDurableID == "" {
 		c.AzureOfferDurableID = "MS-AZR-0003p"
 	}
-	if c.ShareTenancyCosts == "" {
-		c.ShareTenancyCosts = models.DefaultShareTenancyCost
-	}
 	if c.SpotLabel == "" {
 		c.SpotLabel = defaultSpotLabel
 	}

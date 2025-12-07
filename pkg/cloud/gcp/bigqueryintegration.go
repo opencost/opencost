@@ -9,6 +9,8 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
+	"github.com/opencost/opencost/pkg/cloud"
 	"google.golang.org/api/iterator"
 )
 
@@ -38,6 +40,24 @@ const BiqQueryWherePartitionFmt = `DATE(_PARTITIONTIME) >= "%s" AND DATE(_PARTIT
 const BiqQueryWhereDateFmt = `usage_start_time >= "%s" AND usage_start_time < "%s"`
 
 func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*opencost.CloudCostSetRange, error) {
+	return bqi.getCloudCost(start, end, 0)
+}
+
+func (bqi *BigQueryIntegration) RefreshStatus() cloud.ConnectionStatus {
+	end := time.Now().UTC().Truncate(timeutil.Day)
+	start := end.Add(-7 * timeutil.Day)
+
+	// the call to Query within getCloudCost already sets ConnectionStatus in the event there is no error, so we don't
+	// need to handle the positive case here
+	_, err := bqi.getCloudCost(start, end, 1)
+	if err != nil {
+		bqi.ConnectionStatus = cloud.FailedConnection
+	}
+
+	return bqi.ConnectionStatus
+}
+
+func (bqi *BigQueryIntegration) getCloudCost(start time.Time, end time.Time, limit int) (*opencost.CloudCostSetRange, error) {
 	cudRates, err := bqi.GetFlexibleCUDRates(start, end)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving CUD rates: %w", err)
@@ -75,7 +95,7 @@ func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*o
 		ResourceGlobalNameColumnName,
 	}
 
-	whereConjuncts := GetWhereConjuncts(start, end, bqi.ExcludePartitionTime)
+	whereConjuncts := GetWhereConjuncts(start, end, !bqi.ExcludePartitionTime)
 
 	columnStr := strings.Join(selectColumns, ", ")
 	table := fmt.Sprintf(" `%s` bd ", bqi.GetBillingDataDataset())
@@ -87,6 +107,9 @@ func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*o
 		WHERE %s
 		GROUP BY %s
 	`
+	if limit > 0 {
+		queryStr = fmt.Sprintf("%s LIMIT %d", queryStr, limit)
+	}
 
 	querystr := fmt.Sprintf(queryStr, columnStr, table, whereClause, groupByStr)
 
@@ -128,14 +151,16 @@ func (bqi *BigQueryIntegration) GetCloudCost(start time.Time, end time.Time) (*o
 
 // GetWhereConjuncts creates a list of Where filter statements that filter for usage start date and partition time
 // additional filters can be added before combining into the final where clause
-func GetWhereConjuncts(start time.Time, end time.Time, excludePartitions bool) []string {
-	var conjuncts []string
-	if !excludePartitions {
-		partitionStart := start
-		partitionEnd := end.AddDate(0, 0, 2)
+func GetWhereConjuncts(start time.Time, end time.Time, includePartition bool) []string {
+	partitionStart := start
+	partitionEnd := end.AddDate(0, 0, 2)
+	conjuncts := []string{}
+
+	if includePartition {
 		wherePartition := fmt.Sprintf(BiqQueryWherePartitionFmt, partitionStart.Format("2006-01-02"), partitionEnd.Format("2006-01-02"))
 		conjuncts = append(conjuncts, wherePartition)
 	}
+
 	whereDate := fmt.Sprintf(BiqQueryWhereDateFmt, start.Format("2006-01-02"), end.Format("2006-01-02"))
 	conjuncts = append(conjuncts, whereDate)
 	return conjuncts
@@ -200,7 +225,7 @@ func (bqi *BigQueryIntegration) queryFlexibleCUDTotalCosts(start time.Time, end 
 	`
 
 	table := fmt.Sprintf(" `%s` bd ", bqi.GetBillingDataDataset())
-	whereConjuncts := GetWhereConjuncts(start, end, bqi.ExcludePartitionTime)
+	whereConjuncts := GetWhereConjuncts(start, end, !bqi.ExcludePartitionTime)
 	whereConjuncts = append(whereConjuncts, "sku.description like 'Commitment - dollar based v1:%'")
 	whereClause := strings.Join(whereConjuncts, " AND ")
 	query := fmt.Sprintf(queryFmt, table, whereClause)
@@ -233,7 +258,7 @@ func (bqi *BigQueryIntegration) queryFlexibleCUDTotalCredits(start time.Time, en
 	`
 
 	table := fmt.Sprintf(" `%s` bd ", bqi.GetBillingDataDataset())
-	whereConjuncts := GetWhereConjuncts(start, end, bqi.ExcludePartitionTime)
+	whereConjuncts := GetWhereConjuncts(start, end, !bqi.ExcludePartitionTime)
 	whereConjuncts = append(whereConjuncts, "credits.type = 'COMMITTED_USAGE_DISCOUNT_DOLLAR_BASE'")
 	whereClause := strings.Join(whereConjuncts, " AND ")
 	query := fmt.Sprintf(queryFmt, table, whereClause)

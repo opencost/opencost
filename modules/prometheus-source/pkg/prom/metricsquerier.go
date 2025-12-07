@@ -1800,7 +1800,15 @@ func (pds *PrometheusMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time
 		return time.Time{}, time.Time{}, fmt.Errorf("querying oldest sample: %w", err)
 	}
 	if len(resOldest) == 0 || len(resOldest[0].Values) == 0 {
-		return time.Time{}, time.Time{}, fmt.Errorf("querying oldest sample: %w", err)
+		// If node_cpu_hourly_cost metric is not available, fallback to a reasonable time range
+		// This prevents CSV export from failing when the metric doesn't exist yet
+		log.Warnf("QueryDataCoverage: node_cpu_hourly_cost metric not available, using fallback time range")
+		
+		// Use a reasonable fallback: start from 1 day ago to account for metric collection delay
+		fallbackEnd := time.Now().UTC().Truncate(timeutil.Day)
+		fallbackStart := fallbackEnd.AddDate(0, 0, -1) // 1 day ago
+		
+		return fallbackStart, fallbackEnd, nil
 	}
 
 	oldest := time.Unix(int64(resOldest[0].Values[0].Value), 0)
@@ -1815,7 +1823,10 @@ func (pds *PrometheusMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time
 		return time.Time{}, time.Time{}, fmt.Errorf("querying newest sample: %w", err)
 	}
 	if len(resNewest) == 0 || len(resNewest[0].Values) == 0 {
-		return time.Time{}, time.Time{}, fmt.Errorf("querying newest sample: %w", err)
+		// If newest query fails but oldest succeeded, use oldest as both start and end
+		// This allows CSV export to proceed with at least some time range
+		log.Warnf("QueryDataCoverage: newest sample query returned no results, using oldest timestamp")
+		return oldest, oldest, nil
 	}
 
 	newest := time.Unix(int64(resNewest[0].Values[0].Value), 0)
