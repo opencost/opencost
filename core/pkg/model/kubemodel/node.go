@@ -1,6 +1,9 @@
 package kubemodel
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // @bingen:generate:Node
 type Node struct {
@@ -22,4 +25,32 @@ type Node struct {
 	CpuMillicoreUsageMax     uint64 `json:"cpuMillicoreUsageMax"`     // @bingen:field[version=1]
 	RAMByteUsageAverage      uint64 `json:"ramByteUsageAverage"`      // @bingen:field[version=1]
 	RAMByteUsageMax          uint64 `json:"ramByteUsageMax"`          // @bingen:field[version=1]
+}
+
+func (kms *KubeModelSet) RegisterNode(uid, name string) error {
+	if uid == "" {
+		err := fmt.Errorf("UID is nil for Node '%s'", name)
+		kms.Error(err)
+		return err
+	}
+
+	if _, ok := kms.Nodes[uid]; !ok {
+		clusterUID := ""
+
+		if kms.Cluster == nil {
+			kms.Warnf("RegisterNode(%s, %s): Cluster is nil", uid, name)
+		} else {
+			clusterUID = kms.Cluster.UID
+		}
+
+		kms.Nodes[uid] = &Node{
+			UID:        uid,
+			ClusterUID: clusterUID,
+			Name:       name,
+		}
+
+		kms.Metadata.ObjectCount++
+	}
+
+	return nil
 }
