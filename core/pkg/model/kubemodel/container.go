@@ -1,6 +1,9 @@
 package kubemodel
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // @bingen:generate:Container
 type Container struct {
@@ -20,4 +23,23 @@ type Container struct {
 	StorageByteRequestAverageAllocated  uint64    `json:"storageByteRequestAverageAllocated"`  // @bingen:field[version=1]
 	StorageByteUsageAverage             uint64    `json:"storageByteUsageAverage"`             // @bingen:field[version=1]
 	StorageByteUsageMax                 uint64    `json:"storageByteUsageMax"`                 // @bingen:field[version=1]
+}
+
+func (kms *KubeModelSet) RegisterContainer(uid, name, podUID string) error {
+	if uid == "" {
+		err := fmt.Errorf("UID is nil for Container '%s'", name)
+		kms.Error(err)
+		return err
+	}
+
+	if _, ok := kms.Containers[uid]; !ok {
+		kms.Containers[uid] = &Container{
+			PodUID: podUID,
+			Name:   name,
+		}
+
+		kms.Metadata.ObjectCount++
+	}
+
+	return nil
 }

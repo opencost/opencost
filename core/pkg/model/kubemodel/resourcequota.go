@@ -3,11 +3,7 @@ package kubemodel
 import (
 	"fmt"
 	"time"
-
-	"github.com/opencost/opencost/core/pkg/log"
 )
-
-// TODO: Do we need (Start, End) for these?
 
 // @bingen:generate:ResourceQuota
 type ResourceQuota struct {
@@ -77,7 +73,7 @@ func (stat *ResourceQuotaStatusUsed) SetLimit(resource Resource, unit Unit, stat
 func (kms *KubeModelSet) RegisterResourceQuota(uid, name, namespace string) error {
 	if uid == "" {
 		err := fmt.Errorf("UID is nil for ResourceQuota '%s'", name)
-		kms.RegisterError(err.Error())
+		kms.Error(err)
 		return err
 	}
 
@@ -85,7 +81,7 @@ func (kms *KubeModelSet) RegisterResourceQuota(uid, name, namespace string) erro
 		namespaceUID := ""
 
 		if _, ok := kms.idx.namespaceByName[namespace]; !ok {
-			kms.RegisterError(fmt.Sprintf("RegisterResourceQuota(%s, %s, %s): missing namespace", uid, name, namespace))
+			kms.Warnf("RegisterResourceQuota(%s, %s, %s): missing namespace", uid, name, namespace)
 		} else {
 			namespaceUID = kms.idx.namespaceByName[namespace].UID
 		}
@@ -99,9 +95,6 @@ func (kms *KubeModelSet) RegisterResourceQuota(uid, name, namespace string) erro
 		}
 
 		kms.Metadata.ObjectCount++
-
-		// TODO remove or reduce log level
-		log.Infof("[KM] registered resource quota (%s, %s, %s)", uid, name, namespace)
 	}
 
 	return nil

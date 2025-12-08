@@ -8,11 +8,15 @@ import (
 
 // @bingen:generate[stringtable]:KubeModelSet
 type KubeModelSet struct {
-	Metadata       *Metadata                 `json:"meta"`           // @bingen:field[version=1]
-	Window         Window                    `json:"window"`         // @bingen:field[version=1]
-	Cluster        *Cluster                  `json:"cluster"`        // @bingen:field[version=1]
-	Namespaces     map[string]*Namespace     `json:"namespaces"`     // @bingen:field[version=1]
-	ResourceQuotas map[string]*ResourceQuota `json:"resourceQuotas"` // @bingen:field[version=1]
+	Metadata       *Metadata                 `json:"meta"`                 // @bingen:field[version=1]
+	Window         Window                    `json:"window"`               // @bingen:field[version=1]
+	Cluster        *Cluster                  `json:"cluster"`              // @bingen:field[version=1]
+	Containers     map[string]*Container     `json:"containers,omitempty"` // @bingen:field[version=1]
+	Owners         map[string]*Owner         `json:"owners,omitempty"`     // @bingen:field[version=1]
+	Namespaces     map[string]*Namespace     `json:"namespaces"`           // @bingen:field[version=1]
+	Nodes          map[string]*Node          `json:"nodes,omitempty"`      // @bingen:field[version=1]
+	Pods           map[string]*Pod           `json:"pods,omitempty"`       // @bingen:field[version=1]
+	ResourceQuotas map[string]*ResourceQuota `json:"resourceQuotas"`       // @bingen:field[version=1]
 	idx            *index                    // @bingen:field[ignore]
 }
 
@@ -23,20 +27,21 @@ func NewKubeModelSet(start, end time.Time) *KubeModelSet {
 
 	return &KubeModelSet{
 		Metadata: &Metadata{
-			CreatedAt: time.Now().UTC(),
+			CreatedAt:       time.Now().UTC(),
+			DiagnosticLevel: DefaultDiagnosticLevel,
 		},
 		Window: Window{
 			Start: start,
 			End:   end,
 		},
+		Containers:     map[string]*Container{},
+		Owners:         map[string]*Owner{},
 		Namespaces:     map[string]*Namespace{},
+		Nodes:          map[string]*Node{},
+		Pods:           map[string]*Pod{},
 		ResourceQuotas: map[string]*ResourceQuota{},
 		idx:            index,
 	}
-}
-
-func (kms *KubeModelSet) RegisterError(str string) {
-	kms.Metadata.Errors = append(kms.Metadata.Errors, str)
 }
 
 func (kms *KubeModelSet) IsEmpty() bool {

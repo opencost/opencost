@@ -1,6 +1,9 @@
 package kubemodel
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // @bingen:generate:OwnerKind
 type OwnerKind string
@@ -26,4 +29,34 @@ type Owner struct {
 	Annotations map[string]string `json:"annotations,omitempty"` // @bingen:field[version=1]
 	Start       time.Time         `json:"start"`                 // @bingen:field[version=1]
 	End         time.Time         `json:"end"`                   // @bingen:field[version=1]
+}
+
+func (kms *KubeModelSet) RegisterOwner(uid, name, namespace, kind string, isController bool) error {
+	if uid == "" {
+		err := fmt.Errorf("UID is nil for Owner '%s'", name)
+		kms.Error(err)
+		return err
+	}
+
+	if _, ok := kms.Owners[uid]; !ok {
+		namespaceUID := ""
+
+		if ns, ok := kms.idx.namespaceByName[namespace]; !ok {
+			kms.Warnf("RegisterOwner(%s, %s, %s, %s, %t): missing namespace '%s'", uid, name, namespace, kind, isController, namespace)
+		} else {
+			namespaceUID = ns.UID
+		}
+
+		kms.Owners[uid] = &Owner{
+			UID:        uid,
+			Name:       name,
+			OwnerUID:   namespaceUID,
+			Kind:       OwnerKind(kind),
+			Controller: isController,
+		}
+
+		kms.Metadata.ObjectCount++
+	}
+
+	return nil
 }
