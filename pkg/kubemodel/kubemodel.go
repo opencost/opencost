@@ -52,20 +52,20 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 	// 2.1 Compute Cluster
 	err = km.computeCluster(kms)
 	if err != nil {
-		kms.Metadata.Errors = append(kms.Metadata.Errors, err.Error())
+		kms.Error(err)
 		return kms, fmt.Errorf("error computing kubemodel.Cluster for (%s, %s): %w", start.Format(logTimeFmt), end.Format(logTimeFmt), err)
 	}
 
 	// 2.2 Compute Namespaces
 	err = km.computeNamespaces(kms, start, end)
 	if err != nil {
-		kms.Metadata.Errors = append(kms.Metadata.Errors, err.Error())
+		kms.Error(err)
 	}
 
 	// 2.3 Compute ResourceQuotas
 	err = km.computeResourceQuotas(kms, start, end)
 	if err != nil {
-		kms.Metadata.Errors = append(kms.Metadata.Errors, err.Error())
+		kms.Error(err)
 	}
 
 	// 3. Mark KubeModelSet as completed
