@@ -18,16 +18,14 @@ type KubeModel struct {
 	clusterUID string
 }
 
-func NewKubeModel(dataSource source.OpenCostDataSource) (*KubeModel, error) {
+func NewKubeModel(clusterUID string, dataSource source.OpenCostDataSource) (*KubeModel, error) {
 	if dataSource == nil {
 		return nil, errors.New("OpenCostDataSource cannot be nil")
 	}
 
-	km := &KubeModel{ds: dataSource}
-
-	clusterUID, err := km.computeClusterUID()
-	if err != nil {
-		return nil, fmt.Errorf("error determining cluster UID: %w", err)
+	km := &KubeModel{
+		ds:         dataSource,
+		clusterUID: clusterUID,
 	}
 
 	km.clusterUID = clusterUID
@@ -74,17 +72,6 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 	kms.Metadata.CompletedAt = time.Now().UTC()
 
 	return kms, nil
-}
-
-func (km *KubeModel) computeClusterUID() (string, error) {
-	// TODO: Replace with kube-system namespace UID when we have a reliable way
-	// to query for it.
-	clusterUID := env.GetClusterID()
-	if clusterUID == "" {
-		return "", errors.New("failed to detect cluster UID")
-	}
-
-	return clusterUID, nil
 }
 
 // TODO: How do we pull kube-system namespace UID for Cluster?

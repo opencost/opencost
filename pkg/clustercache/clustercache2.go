@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	cc "github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/env"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -14,6 +15,7 @@ import (
 )
 
 type KubernetesClusterCacheV2 struct {
+	clusterUID                 string
 	namespaceStore             *GenericStore[*v1.Namespace, *cc.Namespace]
 	nodeStore                  *GenericStore[*v1.Node, *cc.Node]
 	podStore                   *GenericStore[*v1.Pod, *cc.Pod]
@@ -33,7 +35,12 @@ type KubernetesClusterCacheV2 struct {
 }
 
 func NewKubernetesClusterCacheV2(clientset kubernetes.Interface) *KubernetesClusterCacheV2 {
+	clusterUID, err := getClusterUID(clientset)
+	if err != nil {
+		log.Fatalf("failed to get cluster uid: %s", err.Error())
+	}
 	return &KubernetesClusterCacheV2{
+		clusterUID:                 clusterUID,
 		namespaceStore:             CreateStore(clientset.CoreV1().RESTClient(), "namespaces", cc.TransformNamespace),
 		nodeStore:                  CreateStore(clientset.CoreV1().RESTClient(), "nodes", cc.TransformNode),
 		persistentVolumeClaimStore: CreateStore(clientset.CoreV1().RESTClient(), "persistentvolumeclaims", cc.TransformPersistentVolumeClaim),
@@ -83,6 +90,10 @@ func (kcc *KubernetesClusterCacheV2) Stop() {
 
 		kcc.stopCh = nil
 	}
+}
+
+func (kcc *KubernetesClusterCacheV2) GetClusterUID() string {
+	return kcc.clusterUID
 }
 
 func (kcc *KubernetesClusterCacheV2) GetAllNamespaces() []*cc.Namespace {
