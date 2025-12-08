@@ -58,7 +58,8 @@ func TestNodeSummaryLive(t *testing.T) {
 }
 
 type NodesOnlyClusterCache struct {
-	k8sClient kubernetes.Interface
+	clusterUID string
+	k8sClient  kubernetes.Interface
 }
 
 func NewTestClusterCache(k8sClient kubernetes.Interface) *NodesOnlyClusterCache {
@@ -72,6 +73,8 @@ func (tcc *NodesOnlyClusterCache) Run() {}
 
 // Stops the watcher processes
 func (tcc *NodesOnlyClusterCache) Stop() {}
+
+func (tcc *NodesOnlyClusterCache) GetClusterUID() string { return tcc.clusterUID }
 
 // GetAllNamespaces returns all the cached namespaces
 func (tcc *NodesOnlyClusterCache) GetAllNamespaces() []*clustercache.Namespace { return nil }
