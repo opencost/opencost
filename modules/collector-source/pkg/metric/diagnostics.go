@@ -26,30 +26,32 @@ const (
 	NetworkCostsScraperDiagnosticID = event.NetworkCostsScraperName
 
 	// Kubernetes scrapers contains the identifiers for all the specific KubernetesCluster scrapers.
-	KubernetesNodesScraperDiagnosticID        = event.KubernetesClusterScraperName + "-" + event.NodeScraperType
-	KubernetesNamespacesScraperDiagnosticID   = event.KubernetesClusterScraperName + "-" + event.NamespaceScraperType
-	KubernetesReplicaSetsScraperDiagnosticID  = event.KubernetesClusterScraperName + "-" + event.ReplicaSetScraperType
-	KubernetesDeploymentsScraperDiagnosticID  = event.KubernetesClusterScraperName + "-" + event.DeploymentScraperType
-	KubernetesStatefulSetsScraperDiagnosticID = event.KubernetesClusterScraperName + "-" + event.StatefulSetScraperType
-	KubernetesServicesScraperDiagnosticID     = event.KubernetesClusterScraperName + "-" + event.ServiceScraperType
-	KubernetesPodsScraperDiagnosticID         = event.KubernetesClusterScraperName + "-" + event.PodScraperType
-	KubernetesPvsScraperDiagnosticID          = event.KubernetesClusterScraperName + "-" + event.PvScraperType
-	KubernetesPvcsScraperDiagnosticID         = event.KubernetesClusterScraperName + "-" + event.PvcScraperType
+	KubernetesNodesScraperDiagnosticID          = event.KubernetesClusterScraperName + "-" + event.NodeScraperType
+	KubernetesNamespacesScraperDiagnosticID     = event.KubernetesClusterScraperName + "-" + event.NamespaceScraperType
+	KubernetesReplicaSetsScraperDiagnosticID    = event.KubernetesClusterScraperName + "-" + event.ReplicaSetScraperType
+	KubernetesDeploymentsScraperDiagnosticID    = event.KubernetesClusterScraperName + "-" + event.DeploymentScraperType
+	KubernetesStatefulSetsScraperDiagnosticID   = event.KubernetesClusterScraperName + "-" + event.StatefulSetScraperType
+	KubernetesServicesScraperDiagnosticID       = event.KubernetesClusterScraperName + "-" + event.ServiceScraperType
+	KubernetesPodsScraperDiagnosticID           = event.KubernetesClusterScraperName + "-" + event.PodScraperType
+	KubernetesPvsScraperDiagnosticID            = event.KubernetesClusterScraperName + "-" + event.PvScraperType
+	KubernetesPvcsScraperDiagnosticID           = event.KubernetesClusterScraperName + "-" + event.PvcScraperType
+	KubernetesResourceQuotasScraperDiagnosticID = event.KubernetesClusterScraperName + "-" + event.ResourceQuotaScraperType
 
 	// Metric Names for the diagnostics (used in the UI)
-	DGGMScraperDiagnosticMetricName                   = "DCGM Metrics"
-	OpenCostScraperDiagnosticMetricName               = "Opencost Metrics"
-	NodeStatsScraperDiagnosticMetricName              = "Node Stats Metrics"
-	NetworkCostsScraperDiagnosticMetricName           = "Network Costs Metrics"
-	KubernetesNodesScraperDiagnosticMetricName        = "Kubernetes Nodes Metrics"
-	KubernetesNamespacesScraperDiagnosticMetricName   = "Kubernetes Namespaces Metrics"
-	KubernetesReplicaSetsScraperDiagnosticMetricName  = "Kubernetes Replica Sets Metrics"
-	KubernetesDeploymentsScraperDiagnosticMetricName  = "Kubernetes Deployments Metrics"
-	KubernetesStatefulSetsScraperDiagnosticMetricName = "Kubernetes Stateful Sets Metrics"
-	KubernetesServicesScraperDiagnosticMetricName     = "Kubernetes Services Metrics"
-	KubernetesPodsScraperDiagnosticMetricName         = "Kubernetes Pods Metrics"
-	KubernetesPvsScraperDiagnosticMetricName          = "Kubernetes PVs Metrics"
-	KubernetesPvcsScraperDiagnosticMetricName         = "Kubernetes PVCs Metrics"
+	DGGMScraperDiagnosticMetricName                     = "DCGM Metrics"
+	OpenCostScraperDiagnosticMetricName                 = "Opencost Metrics"
+	NodeStatsScraperDiagnosticMetricName                = "Node Stats Metrics"
+	NetworkCostsScraperDiagnosticMetricName             = "Network Costs Metrics"
+	KubernetesNodesScraperDiagnosticMetricName          = "Kubernetes Nodes Metrics"
+	KubernetesNamespacesScraperDiagnosticMetricName     = "Kubernetes Namespaces Metrics"
+	KubernetesReplicaSetsScraperDiagnosticMetricName    = "Kubernetes Replica Sets Metrics"
+	KubernetesDeploymentsScraperDiagnosticMetricName    = "Kubernetes Deployments Metrics"
+	KubernetesStatefulSetsScraperDiagnosticMetricName   = "Kubernetes Stateful Sets Metrics"
+	KubernetesServicesScraperDiagnosticMetricName       = "Kubernetes Services Metrics"
+	KubernetesPodsScraperDiagnosticMetricName           = "Kubernetes Pods Metrics"
+	KubernetesPvsScraperDiagnosticMetricName            = "Kubernetes PVs Metrics"
+	KubernetesPvcsScraperDiagnosticMetricName           = "Kubernetes PVCs Metrics"
+	KubernetesResourceQuotasScraperDiagnosticMetricName = "Kubernetes Resource Quotas Metrics"
 )
 
 // diagnostic defintion is the type used to define a deterministic list of specific diagnostics we _expect_ to collect
@@ -152,6 +154,13 @@ var diagnosticDefinitions map[string]*diagnosticDefinition = map[string]*diagnos
 		MetricName:  KubernetesPvcsScraperDiagnosticMetricName,
 		Label:       fmt.Sprintf("Kubernetes cluster resources: %s are available and being scraped", event.PvcScraperType),
 		Description: scraperDiagnosticDescriptionFor(event.KubernetesClusterScraperName, event.PvcScraperType),
+	},
+
+	KubernetesResourceQuotasScraperDiagnosticID: {
+		ID:          KubernetesResourceQuotasScraperDiagnosticID,
+		MetricName:  KubernetesResourceQuotasScraperDiagnosticMetricName,
+		Label:       fmt.Sprintf("Kubernetes cluster resources: %s are available and being scraped", event.ResourceQuotaScraperType),
+		Description: scraperDiagnosticDescriptionFor(event.KubernetesClusterScraperName, event.ResourceQuotaScraperType),
 	},
 }
 
