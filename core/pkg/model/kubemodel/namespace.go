@@ -1,15 +1,11 @@
 package kubemodel
 
-<<<<<<< HEAD
 import (
 	"fmt"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
 )
-=======
-import "time"
->>>>>>> 92af4761 (Introduce kubemodel with core Kubernetes resources (Cluster, Namespace, Node, Pod, Container, Owner, Service) (#3472))
 
 // @bingen:generate:Namespace
 type Namespace struct {
@@ -21,7 +17,6 @@ type Namespace struct {
 	Start       time.Time         `json:"start"`       // @bingen:field[version=1]
 	End         time.Time         `json:"end"`         // @bingen:field[version=1]
 }
-<<<<<<< HEAD
 
 func (kms *KubeModelSet) RegisterNamespace(uid, name string) error {
 	if uid == "" {
@@ -55,5 +50,3 @@ func (kms *KubeModelSet) RegisterNamespace(uid, name string) error {
 
 	return nil
 }
-=======
->>>>>>> 92af4761 (Introduce kubemodel with core Kubernetes resources (Cluster, Namespace, Node, Pod, Container, Owner, Service) (#3472))
