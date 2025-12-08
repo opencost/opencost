@@ -171,6 +171,28 @@ type ResourceQuota struct {
 type Volume struct {
 }
 
+// GetPublicIPAddresses returns all external IP addresses associated with the node
+func (n *Node) GetPublicIPAddresses() []string {
+	var publicIPs []string
+	for _, addr := range n.Status.Addresses {
+		if addr.Type == v1.NodeExternalIP {
+			publicIPs = append(publicIPs, addr.Address)
+		}
+	}
+	return publicIPs
+}
+
+// GetPublicIPCount returns the count of external IP addresses associated with the node
+func (n *Node) GetPublicIPCount() int {
+	count := 0
+	for _, addr := range n.Status.Addresses {
+		if addr.Type == v1.NodeExternalIP {
+			count++
+		}
+	}
+	return count
+}
+
 // GetControllerOf returns a pointer to a copy of the controllerRef if controllee has a controller
 func GetControllerOf(pod *Pod) *metav1.OwnerReference {
 	ref := GetControllerOfNoCopy(pod)
