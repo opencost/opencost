@@ -277,19 +277,9 @@ OpenCost auto-detects the cloud provider from:
 2. Run `./generate.sh` to regenerate Go code
 3. Run `just validate-protobuf` to verify
 
-## Design Documents
+## Cost Model Concepts
 
-These in-repo documents provide essential context for understanding OpenCost's architecture:
-
-| Document | Description |
-|----------|-------------|
-| [spec/opencost-specv01.md](spec/opencost-specv01.md) | **OpenCost Specification** - Vendor-neutral spec defining cost allocation methodology, asset costs, workload costs, and idle cost calculations. Essential reading for understanding the cost model. |
-| [docs/modular-opencost.md](docs/modular-opencost.md) | **Modular Architecture Proposal** - Describes the `DataSource` abstraction that decouples OpenCost from Prometheus, enabling alternative metric sources like the Collector. |
-| [docs/testing/AUTOMATED_TESTING.md](docs/testing/AUTOMATED_TESTING.md) | **Testing Architecture** - Documents the unit and integration test pipeline, including how tests run for maintainers vs. third-party contributors. |
-| [modules/prometheus-source/README.md](modules/prometheus-source/README.md) | **Prometheus Data Source** - Implementation details for Prometheus integration, including sharded Prometheus best practices. |
-| [modules/collector-source/README.md](modules/collector-source/README.md) | **Collector Data Source** - Alternative to Prometheus for metric collection with lower resource footprint. |
-
-### Key Concepts from the Specification
+Core formulas from the OpenCost Specification (`spec/opencost-specv01.md`):
 
 - **Total Cluster Costs** = Cluster Asset Costs + Cluster Overhead Costs
 - **Cluster Asset Costs** = Resource Allocation Costs + Resource Usage Costs
