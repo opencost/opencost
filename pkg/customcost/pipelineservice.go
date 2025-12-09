@@ -37,6 +37,7 @@ func getRegisteredPlugins(configDir string, execDir string) (map[string]*plugin.
 	configFiles, err := os.ReadDir(configDir)
 	if err != nil {
 		log.Errorf("error reading files in directory %s: %v", configDir, err)
+		return nil, fmt.Errorf("failed to read plugin config directory: %w", err)
 	}
 
 	// list of plugins that we must run are the strings before _
