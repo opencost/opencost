@@ -190,10 +190,15 @@ Main API runs on port 9003 by default:
 
 ### Go Style
 
-- Run `go fmt` before committing
 - Use structured logging via `github.com/opencost/opencost/core/pkg/log`
 - Environment variables accessed through `pkg/env` or `core/pkg/env`
 - Errors should be wrapped with context
+
+**Before committing, always run:**
+```bash
+go fmt ./...
+go vet ./...
+```
 
 ### Module Structure
 
