@@ -264,11 +264,6 @@ func (gs *GCSStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 			return nil, errors.Wrap(err, "list gcs objects")
 		}
 
-		// ignore the root path directory
-		if attrs.Name == path {
-			continue
-		}
-
 		// We filter directories using DirDelim, so a nameless entry is a dir
 		// See gcs.ObjectAttrs Prefix property
 		if attrs.Name == "" {
