@@ -272,6 +272,7 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 				IncludeOversized: args.IncludeOversized,
 				IncludeRightsize: args.IncludeRightsize,
 				TopN:             args.TopN,
+				Compact:          args.Compact,
 			},
 		}
 
@@ -310,7 +311,7 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 
 	mcp_sdk.AddTool(sdkServer, &mcp_sdk.Tool{
 		Name:        "get_cost_recommendations",
-		Description: "Generates actionable cost optimization recommendations. Identifies idle resources (very low utilization), oversized resources (low efficiency), and rightsizing opportunities. Returns prioritized recommendations sorted by potential savings. Supports filtering by namespace, aggregation level, and minimum savings threshold. Each recommendation includes current vs recommended resource requests, estimated savings, and specific actions to take.",
+		Description: "Generates actionable cost optimization recommendations. Identifies idle resources (very low utilization), oversized resources (low efficiency), and rightsizing opportunities. Returns prioritized recommendations sorted by potential savings. Supports filtering by namespace, aggregation level, and minimum savings threshold. Set compact=true to reduce response size by ~40% (omits verbose description/action text and timestamps, rounds floats).",
 	}, handleRecommendations)
 
 	// Create HTTP handler
@@ -399,4 +400,5 @@ type RecommendationsArgs struct {
 	IncludeOversized bool     `json:"include_oversized,omitempty"` // Include oversized resource detection
 	IncludeRightsize bool     `json:"include_rightsize,omitempty"` // Include rightsizing recommendations
 	TopN             *int     `json:"top_n,omitempty"`             // Limit to top N recommendations by savings
+	Compact          bool     `json:"compact,omitempty"`           // Omit verbose fields to reduce token usage (~40% reduction)
 }

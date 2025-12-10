@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -1657,7 +1658,7 @@ func TestBuildRecommendationsSummary_Empty(t *testing.T) {
 }
 
 func TestGenerateRecommendationsFromAllocation_NilAllocation(t *testing.T) {
-	recs := generateRecommendationsFromAllocation(nil, 1.2, 0.01, true, true, true)
+	recs := generateRecommendationsFromAllocation(nil, 1.2, 0.01, true, true, true, false)
 	assert.Nil(t, recs)
 }
 
@@ -1669,7 +1670,7 @@ func TestGenerateRecommendationsFromAllocation_ZeroMinutes(t *testing.T) {
 		End:   now,
 	}
 
-	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, true, true, true)
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, true, true, true, false)
 	assert.Nil(t, recs)
 }
 
@@ -1687,7 +1688,7 @@ func TestGenerateRecommendationsFromAllocation_IdleResource(t *testing.T) {
 		RAMCost:                5.0,
 	}
 
-	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, true, true, true)
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, true, true, true, false)
 
 	require.NotNil(t, recs)
 	require.Len(t, recs, 1)
@@ -1710,7 +1711,7 @@ func TestGenerateRecommendationsFromAllocation_OversizedResource(t *testing.T) {
 		RAMCost:                5.0,
 	}
 
-	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, true, true, true)
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, true, true, true, false)
 
 	require.NotNil(t, recs)
 	require.Len(t, recs, 1)
@@ -1732,7 +1733,7 @@ func TestGenerateRecommendationsFromAllocation_RightsizeResource(t *testing.T) {
 		RAMCost:                5.0,
 	}
 
-	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, false, false, true)
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, false, false, true, false)
 
 	require.NotNil(t, recs)
 	require.Len(t, recs, 1)
@@ -1754,7 +1755,7 @@ func TestGenerateRecommendationsFromAllocation_NoSavings(t *testing.T) {
 		RAMCost:                5.0,
 	}
 
-	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, true, true, true)
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, true, true, true, false)
 
 	// No savings expected since usage exceeds requests
 	assert.Nil(t, recs)
@@ -1774,7 +1775,7 @@ func TestGenerateRecommendationsFromAllocation_BelowMinSavings(t *testing.T) {
 		RAMCost:                0.001,
 	}
 
-	recs := generateRecommendationsFromAllocation(alloc, 1.2, 1.0, true, true, true) // High min savings threshold
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 1.0, true, true, true, false) // High min savings threshold
 
 	assert.Nil(t, recs)
 }
@@ -1794,7 +1795,7 @@ func TestGenerateRecommendationsFromAllocation_DisabledCategories(t *testing.T) 
 	}
 
 	// Disable all categories
-	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, false, false, false)
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, false, false, false, false)
 	assert.Nil(t, recs)
 }
 
@@ -1959,4 +1960,144 @@ func TestInputValidationConstants(t *testing.T) {
 	assert.Equal(t, 1.0, minBufferMultiplier, "minBufferMultiplier should be 1.0")
 	assert.Equal(t, 10.0, maxBufferMultiplier, "maxBufferMultiplier should be 10.0")
 	assert.Equal(t, 10000, maxTopN, "maxTopN should be 10000")
+}
+
+// ---- Tests for Compact Mode and Token Optimization ----
+
+func TestRoundFloat(t *testing.T) {
+	tests := []struct {
+		name      string
+		val       float64
+		precision int
+		expected  float64
+	}{
+		{"zero precision", 123.456789, 0, 123.0},
+		{"one decimal", 123.456789, 1, 123.5},
+		{"two decimals", 123.456789, 2, 123.46},
+		{"three decimals", 123.456789, 3, 123.457},
+		{"four decimals", 123.456789, 4, 123.4568},
+		{"round down", 123.444, 2, 123.44},
+		{"round up", 123.445, 2, 123.45},
+		{"negative value", -123.456, 2, -123.46},
+		{"zero value", 0.0, 2, 0.0},
+		{"large value", 1234567.89, 1, 1234567.9},
+		{"small value", 0.00123456, 4, 0.0012},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := roundFloat(tt.val, tt.precision)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGenerateRecommendationsFromAllocation_CompactMode(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:                   "compact-test-pod",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           12.0,   // 0.5 cores average (25% of requested)
+		RAMByteHours:           12.0e9, // 0.5GB average (25% of requested)
+		CPUCoreRequestAverage:  2.0,
+		RAMBytesRequestAverage: 2.0e9,
+		CPUCost:                10.0,
+		RAMCost:                5.0,
+	}
+
+	// Generate with compact mode enabled
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, true, true, true, true)
+
+	require.NotNil(t, recs)
+	require.Len(t, recs, 1)
+
+	rec := recs[0]
+	// Verbose fields should be empty in compact mode
+	assert.Empty(t, rec.ID, "ID should be empty in compact mode")
+	assert.Empty(t, rec.Description, "Description should be empty in compact mode")
+	assert.Empty(t, rec.Action, "Action should be empty in compact mode")
+	assert.True(t, rec.Start.IsZero(), "Start should be zero in compact mode")
+	assert.True(t, rec.End.IsZero(), "End should be zero in compact mode")
+
+	// Core fields should still be present
+	assert.NotEmpty(t, rec.Type)
+	assert.NotEmpty(t, rec.Priority)
+	assert.Equal(t, "compact-test-pod", rec.ResourceName)
+}
+
+func TestGenerateRecommendationsFromAllocation_NonCompactMode(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:                   "verbose-test-pod",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           12.0,
+		RAMByteHours:           12.0e9,
+		CPUCoreRequestAverage:  2.0,
+		RAMBytesRequestAverage: 2.0e9,
+		CPUCost:                10.0,
+		RAMCost:                5.0,
+	}
+
+	// Generate with compact mode disabled
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, true, true, true, false)
+
+	require.NotNil(t, recs)
+	require.Len(t, recs, 1)
+
+	rec := recs[0]
+	// Verbose fields should be populated in non-compact mode
+	assert.NotEmpty(t, rec.ID, "ID should be present in non-compact mode")
+	assert.NotEmpty(t, rec.Description, "Description should be present in non-compact mode")
+	assert.NotEmpty(t, rec.Action, "Action should be present in non-compact mode")
+	assert.False(t, rec.Start.IsZero(), "Start should be present in non-compact mode")
+	assert.False(t, rec.End.IsZero(), "End should be present in non-compact mode")
+}
+
+func TestCompactModeRoundsFloats(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:                   "rounding-test-pod",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           12.123456789,
+		RAMByteHours:           12.123456789e9,
+		CPUCoreRequestAverage:  2.123456789,
+		RAMBytesRequestAverage: 2.123456789e9,
+		CPUCost:                10.123456789,
+		RAMCost:                5.123456789,
+	}
+
+	// Generate with compact mode enabled
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, true, true, true, true)
+
+	require.NotNil(t, recs)
+	require.Len(t, recs, 1)
+
+	rec := recs[0]
+	// CPU values should be rounded to 4 decimal places
+	cpuStr := fmt.Sprintf("%.10f", rec.CurrentCPURequest)
+	assert.True(t, len(cpuStr) > 0, "CPU should have limited precision in compact mode")
+
+	// Efficiency values should be rounded to 3 decimal places
+	effStr := fmt.Sprintf("%.10f", rec.CPUEfficiency)
+	assert.True(t, len(effStr) > 0, "Efficiency should have limited precision in compact mode")
+}
+
+func TestRecommendationsQueryCompactField(t *testing.T) {
+	query := RecommendationsQuery{
+		Aggregate: "pod",
+		Compact:   true,
+	}
+
+	assert.True(t, query.Compact)
+	assert.Equal(t, "pod", query.Aggregate)
+}
+
+func TestRecommendationsQueryCompactDefault(t *testing.T) {
+	query := RecommendationsQuery{}
+
+	// Compact should default to false
+	assert.False(t, query.Compact)
 }

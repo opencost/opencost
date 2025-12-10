@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -169,6 +170,7 @@ type RecommendationsQuery struct {
 	IncludeOversized bool     `json:"includeOversized,omitempty"` // Include oversized resource detection (default: true)
 	IncludeRightsize bool     `json:"includeRightsize,omitempty"` // Include rightsizing recommendations (default: true)
 	TopN             *int     `json:"topN,omitempty"`             // Limit to top N recommendations by savings (default: no limit)
+	Compact          bool     `json:"compact,omitempty"`          // Omit verbose fields (description, action, timestamps) to reduce token usage
 }
 
 // AllocationResponse represents the allocation data returned to the AI agent.
@@ -440,36 +442,36 @@ type RecommendationsSummary struct {
 
 // Recommendation represents a single cost optimization recommendation.
 type Recommendation struct {
-	ID          string                 `json:"id"`          // Unique identifier for the recommendation
-	Type        RecommendationType     `json:"type"`        // Type of recommendation (idle, oversized, rightsize)
-	Priority    RecommendationPriority `json:"priority"`    // Priority level (high, medium, low)
-	ResourceName string                `json:"resourceName"` // Name of the resource (pod, namespace, etc.)
-	Description string                 `json:"description"` // Human-readable description of the recommendation
-	Action      string                 `json:"action"`      // Recommended action to take
+	Type         RecommendationType     `json:"type"`                   // Type of recommendation (idle, oversized, rightsize)
+	Priority     RecommendationPriority `json:"priority"`               // Priority level (high, medium, low)
+	ResourceName string                 `json:"resourceName"`           // Name of the resource (pod, namespace, etc.)
+	ID           string                 `json:"id,omitempty"`           // Unique identifier (omitted in compact mode)
+	Description  string                 `json:"description,omitempty"`  // Human-readable description (omitted in compact mode)
+	Action       string                 `json:"action,omitempty"`       // Recommended action (omitted in compact mode)
 
 	// Current state
-	CurrentCPURequest float64 `json:"currentCpuRequest"` // Current CPU request in cores
-	CurrentRAMRequest float64 `json:"currentRamRequest"` // Current RAM request in bytes
-	CurrentCPUUsage   float64 `json:"currentCpuUsage"`   // Current CPU usage in cores
-	CurrentRAMUsage   float64 `json:"currentRamUsage"`   // Current RAM usage in bytes
-	CurrentCost       float64 `json:"currentCost"`       // Current cost
+	CurrentCPURequest float64 `json:"cpuReq"`  // Current CPU request in cores
+	CurrentRAMRequest float64 `json:"ramReq"`  // Current RAM request in bytes
+	CurrentCPUUsage   float64 `json:"cpuUse"`  // Current CPU usage in cores
+	CurrentRAMUsage   float64 `json:"ramUse"`  // Current RAM usage in bytes
+	CurrentCost       float64 `json:"cost"`    // Current cost
 
 	// Efficiency metrics
-	CPUEfficiency    float64 `json:"cpuEfficiency"`    // Current CPU efficiency (0-1+)
-	MemoryEfficiency float64 `json:"memoryEfficiency"` // Current memory efficiency (0-1+)
+	CPUEfficiency    float64 `json:"cpuEff"`  // Current CPU efficiency (0-1+)
+	MemoryEfficiency float64 `json:"ramEff"`  // Current memory efficiency (0-1+)
 
 	// Recommendation details
-	RecommendedCPURequest float64 `json:"recommendedCpuRequest"` // Recommended CPU request
-	RecommendedRAMRequest float64 `json:"recommendedRamRequest"` // Recommended RAM request
-	RecommendedCost       float64 `json:"recommendedCost"`       // Estimated cost after optimization
+	RecommendedCPURequest float64 `json:"recCpuReq"` // Recommended CPU request
+	RecommendedRAMRequest float64 `json:"recRamReq"` // Recommended RAM request
+	RecommendedCost       float64 `json:"recCost"`   // Estimated cost after optimization
 
 	// Savings analysis
-	EstimatedSavings       float64 `json:"estimatedSavings"`       // Estimated cost savings
-	EstimatedSavingsPercent float64 `json:"estimatedSavingsPercent"` // Savings as percentage
+	EstimatedSavings        float64 `json:"savings"`        // Estimated cost savings
+	EstimatedSavingsPercent float64 `json:"savingsPct"`     // Savings as percentage
 
-	// Time window
-	Start time.Time `json:"start"`
-	End   time.Time `json:"end"`
+	// Time window (omitted in compact mode - use response-level Window)
+	Start time.Time `json:"start,omitempty"`
+	End   time.Time `json:"end,omitempty"`
 }
 
 // MCPServer holds the dependencies for the MCP API server.
@@ -1216,6 +1218,13 @@ func safeDiv(numerator, denominator float64) float64 {
 	return numerator / denominator
 }
 
+// roundFloat rounds a float64 to the specified number of decimal places.
+// Used to reduce token usage in JSON responses.
+func roundFloat(val float64, precision int) float64 {
+	ratio := math.Pow(10, float64(precision))
+	return math.Round(val*ratio) / ratio
+}
+
 // computeEfficiencyMetric calculates efficiency metrics for a single allocation.
 func computeEfficiencyMetric(alloc *opencost.Allocation, bufferMultiplier float64) *EfficiencyMetric {
 	if alloc == nil {
@@ -1324,6 +1333,7 @@ func (s *MCPServer) QueryRecommendations(query *OpenCostQueryRequest) (*Recommen
 	includeOversized := true
 	includeRightsize := true
 	var topNValue int
+	compact := false
 
 	// 3. Parse recommendations parameters if provided
 	if query.RecommendationsParams != nil {
@@ -1383,6 +1393,9 @@ func (s *MCPServer) QueryRecommendations(query *OpenCostQueryRequest) (*Recommen
 				topNValue = maxTopN
 			}
 		}
+
+		// Set compact mode
+		compact = query.RecommendationsParams.Compact
 	} else {
 		aggregateBy = []string{"pod"}
 	}
@@ -1425,7 +1438,7 @@ func (s *MCPServer) QueryRecommendations(query *OpenCostQueryRequest) (*Recommen
 			continue
 		}
 		for _, alloc := range allocSet.Allocations {
-			recs := generateRecommendationsFromAllocation(alloc, bufferMultiplier, minSavings, includeIdle, includeOversized, includeRightsize)
+			recs := generateRecommendationsFromAllocation(alloc, bufferMultiplier, minSavings, includeIdle, includeOversized, includeRightsize, compact)
 			recommendations = append(recommendations, recs...)
 		}
 	}
@@ -1452,7 +1465,9 @@ func (s *MCPServer) QueryRecommendations(query *OpenCostQueryRequest) (*Recommen
 }
 
 // generateRecommendationsFromAllocation creates recommendations for a single allocation.
-func generateRecommendationsFromAllocation(alloc *opencost.Allocation, bufferMultiplier, minSavings float64, includeIdle, includeOversized, includeRightsize bool) []*Recommendation {
+// When compact is true, verbose fields (ID, Description, Action, timestamps) are omitted
+// and floats are rounded to reduce token usage.
+func generateRecommendationsFromAllocation(alloc *opencost.Allocation, bufferMultiplier, minSavings float64, includeIdle, includeOversized, includeRightsize, compact bool) []*Recommendation {
 	if alloc == nil {
 		return nil
 	}
@@ -1506,15 +1521,28 @@ func generateRecommendationsFromAllocation(alloc *opencost.Allocation, bufferMul
 		return nil
 	}
 
-	// Check for idle resources
-	if includeIdle && cpuEfficiency < idleCPUThreshold && memoryEfficiency < idleMemoryThreshold && cpuCoresRequested > 0 && ramBytesRequested > 0 {
+	// Apply rounding for compact mode to reduce token usage
+	if compact {
+		cpuCoresRequested = roundFloat(cpuCoresRequested, 4)
+		cpuCoresUsed = roundFloat(cpuCoresUsed, 4)
+		recommendedCPU = roundFloat(recommendedCPU, 4)
+		ramBytesRequested = roundFloat(ramBytesRequested, 0)
+		ramBytesUsed = roundFloat(ramBytesUsed, 0)
+		recommendedRAM = roundFloat(recommendedRAM, 0)
+		cpuEfficiency = roundFloat(cpuEfficiency, 3)
+		memoryEfficiency = roundFloat(memoryEfficiency, 3)
+		currentTotalCost = roundFloat(currentTotalCost, 2)
+		recommendedTotalCost = roundFloat(recommendedTotalCost, 2)
+		savings = roundFloat(savings, 2)
+		savingsPercent = roundFloat(savingsPercent, 1)
+	}
+
+	// Helper to build recommendation with optional verbose fields
+	buildRec := func(recType RecommendationType, priority RecommendationPriority, desc, action string) *Recommendation {
 		rec := &Recommendation{
-			ID:                      generateRecommendationID(),
-			Type:                    RecommendationTypeIdle,
-			Priority:                RecommendationPriorityHigh,
-			ResourceName:           alloc.Name,
-			Description:            fmt.Sprintf("Resource '%s' appears to be idle with <%.0f%% CPU and <%.0f%% memory utilization", alloc.Name, idleCPUThreshold*100, idleMemoryThreshold*100),
-			Action:                  "Consider removing or scaling down this resource. Verify it's not needed before deletion.",
+			Type:                    recType,
+			Priority:                priority,
+			ResourceName:            alloc.Name,
 			CurrentCPURequest:       cpuCoresRequested,
 			CurrentRAMRequest:       ramBytesRequested,
 			CurrentCPUUsage:         cpuCoresUsed,
@@ -1527,9 +1555,26 @@ func generateRecommendationsFromAllocation(alloc *opencost.Allocation, bufferMul
 			RecommendedCost:         recommendedTotalCost,
 			EstimatedSavings:        savings,
 			EstimatedSavingsPercent: savingsPercent,
-			Start:                   alloc.Start,
-			End:                     alloc.End,
 		}
+		// Add verbose fields only in non-compact mode
+		if !compact {
+			rec.ID = generateRecommendationID()
+			rec.Description = desc
+			rec.Action = action
+			rec.Start = alloc.Start
+			rec.End = alloc.End
+		}
+		return rec
+	}
+
+	// Check for idle resources
+	if includeIdle && cpuEfficiency < idleCPUThreshold && memoryEfficiency < idleMemoryThreshold && cpuCoresRequested > 0 && ramBytesRequested > 0 {
+		rec := buildRec(
+			RecommendationTypeIdle,
+			RecommendationPriorityHigh,
+			fmt.Sprintf("Resource '%s' appears to be idle with <%.0f%% CPU and <%.0f%% memory utilization", alloc.Name, idleCPUThreshold*100, idleMemoryThreshold*100),
+			"Consider removing or scaling down this resource. Verify it's not needed before deletion.",
+		)
 		recommendations = append(recommendations, rec)
 		return recommendations // Return early, idle is the most critical
 	}
@@ -1541,28 +1586,12 @@ func generateRecommendationsFromAllocation(alloc *opencost.Allocation, bufferMul
 			priority = RecommendationPriorityHigh
 		}
 
-		rec := &Recommendation{
-			ID:                      generateRecommendationID(),
-			Type:                    RecommendationTypeOversized,
-			Priority:                priority,
-			ResourceName:           alloc.Name,
-			Description:            fmt.Sprintf("Resource '%s' is significantly oversized with %.1f%% CPU and %.1f%% memory efficiency", alloc.Name, cpuEfficiency*100, memoryEfficiency*100),
-			Action:                  fmt.Sprintf("Reduce CPU request from %.3f to %.3f cores and RAM request from %.0f to %.0f bytes", cpuCoresRequested, recommendedCPU, ramBytesRequested, recommendedRAM),
-			CurrentCPURequest:       cpuCoresRequested,
-			CurrentRAMRequest:       ramBytesRequested,
-			CurrentCPUUsage:         cpuCoresUsed,
-			CurrentRAMUsage:         ramBytesUsed,
-			CurrentCost:             currentTotalCost,
-			CPUEfficiency:           cpuEfficiency,
-			MemoryEfficiency:        memoryEfficiency,
-			RecommendedCPURequest:   recommendedCPU,
-			RecommendedRAMRequest:   recommendedRAM,
-			RecommendedCost:         recommendedTotalCost,
-			EstimatedSavings:        savings,
-			EstimatedSavingsPercent: savingsPercent,
-			Start:                   alloc.Start,
-			End:                     alloc.End,
-		}
+		rec := buildRec(
+			RecommendationTypeOversized,
+			priority,
+			fmt.Sprintf("Resource '%s' is significantly oversized with %.1f%% CPU and %.1f%% memory efficiency", alloc.Name, cpuEfficiency*100, memoryEfficiency*100),
+			fmt.Sprintf("Reduce CPU request from %.3f to %.3f cores and RAM request from %.0f to %.0f bytes", cpuCoresRequested, recommendedCPU, ramBytesRequested, recommendedRAM),
+		)
 		recommendations = append(recommendations, rec)
 		return recommendations
 	}
@@ -1577,28 +1606,12 @@ func generateRecommendationsFromAllocation(alloc *opencost.Allocation, bufferMul
 			priority = RecommendationPriorityHigh
 		}
 
-		rec := &Recommendation{
-			ID:                      generateRecommendationID(),
-			Type:                    RecommendationTypeRightsize,
-			Priority:                priority,
-			ResourceName:           alloc.Name,
-			Description:            fmt.Sprintf("Resource '%s' can be rightsized for %.1f%% cost savings", alloc.Name, savingsPercent),
-			Action:                  fmt.Sprintf("Adjust CPU request to %.3f cores (from %.3f) and RAM request to %.0f bytes (from %.0f)", recommendedCPU, cpuCoresRequested, recommendedRAM, ramBytesRequested),
-			CurrentCPURequest:       cpuCoresRequested,
-			CurrentRAMRequest:       ramBytesRequested,
-			CurrentCPUUsage:         cpuCoresUsed,
-			CurrentRAMUsage:         ramBytesUsed,
-			CurrentCost:             currentTotalCost,
-			CPUEfficiency:           cpuEfficiency,
-			MemoryEfficiency:        memoryEfficiency,
-			RecommendedCPURequest:   recommendedCPU,
-			RecommendedRAMRequest:   recommendedRAM,
-			RecommendedCost:         recommendedTotalCost,
-			EstimatedSavings:        savings,
-			EstimatedSavingsPercent: savingsPercent,
-			Start:                   alloc.Start,
-			End:                     alloc.End,
-		}
+		rec := buildRec(
+			RecommendationTypeRightsize,
+			priority,
+			fmt.Sprintf("Resource '%s' can be rightsized for %.1f%% cost savings", alloc.Name, savingsPercent),
+			fmt.Sprintf("Adjust CPU request to %.3f cores (from %.3f) and RAM request to %.0f bytes (from %.0f)", recommendedCPU, cpuCoresRequested, recommendedRAM, ramBytesRequested),
+		)
 		recommendations = append(recommendations, rec)
 	}
 
