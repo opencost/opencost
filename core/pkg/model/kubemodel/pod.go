@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// @bingen:generate:Pod
 type Pod struct {
 	UID                  string            `json:"uid"`                   // @bingen:field[version=1]
 	NamespaceUID         string            `json:"namespaceUid"`          // @bingen:field[version=1]

@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     permissions:
-      contents: ${{ github.event_name == 'pull_request' && 'read' || 'write' }}
+      contents: write
       actions: read
       packages: read
     steps:
@@ -93,33 +93,41 @@ jobs:
         run: |
           echo "IMAGE_TAG=ghcr.io/$REPO_OWNER/opencost:$RELEASE_VERSION" >> $GITHUB_OUTPUT
 
-      # Generate SBOM for source code
-      - name: Generate SBOM for Source Code
-        uses: anchore/sbom-action@v0
+      # Generate SBOM for source code using Trivy
+      - name: Run Trivy SBOM for Source Code (SPDX)
+        uses: aquasecurity/trivy-action@master
         with:
-          path: .
-          artifact-name: opencost-source-sbom.spdx.json
-          output-file: opencost-source-sbom.spdx.json
-          format: spdx-json
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'spdx-json'
+          output: 'opencost-source-sbom.spdx.json'
 
-      # Generate SBOM for container image
-      - name: Generate SBOM for Container Image
+      - name: Run Trivy SBOM for Source Code (CycloneDX)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'cyclonedx'
+          output: 'opencost-source-sbom.cyclonedx.json'
+
+      # Generate SBOM for container image using Trivy
+      - name: Run Trivy SBOM for Container Image (SPDX)
         if: github.event_name != 'pull_request'
-        uses: anchore/sbom-action@v0
+        uses: aquasecurity/trivy-action@master
         with:
-          image: ${{ steps.image_tag.outputs.IMAGE_TAG }}
-          artifact-name: opencost-container-sbom.spdx.json
-          output-file: opencost-container-sbom.spdx.json
-          format: spdx-json
+          scan-type: 'image'
+          image-ref: ${{ steps.image_tag.outputs.IMAGE_TAG }}
+          format: 'spdx-json'
+          output: 'opencost-container-sbom.spdx.json'
 
-      # Generate CycloneDX format as well for broader compatibility
-      - name: Generate CycloneDX SBOM for Source Code
-        uses: anchore/sbom-action@v0
+      - name: Run Trivy SBOM for Container Image (CycloneDX)
+        if: github.event_name != 'pull_request'
+        uses: aquasecurity/trivy-action@master
         with:
-          path: .
-          artifact-name: opencost-source-sbom.cyclonedx.json
-          output-file: opencost-source-sbom.cyclonedx.json
-          format: cyclonedx-json
+          scan-type: 'image'
+          image-ref: ${{ steps.image_tag.outputs.IMAGE_TAG }}
+          format: 'cyclonedx'
+          output: 'opencost-container-sbom.cyclonedx.json'
 
       # Display SBOM contents on PRs for review
       - name: Display SBOM Contents
@@ -144,21 +152,30 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "</details>" >> $GITHUB_STEP_SUMMARY
 
-      - name: Generate CycloneDX SBOM for Container Image
-        if: github.event_name != 'pull_request'
-        uses: anchore/sbom-action@v0
+      # Upload SBOMs as artifacts
+      - name: Upload SBOM Artifacts
+        uses: actions/upload-artifact@v4
         with:
-          image: ${{ steps.image_tag.outputs.IMAGE_TAG }}
-          artifact-name: opencost-container-sbom.cyclonedx.json
-          output-file: opencost-container-sbom.cyclonedx.json
-          format: cyclonedx-json
+          name: sbom-files
+          path: |
+            opencost-source-sbom.spdx.json
+            opencost-source-sbom.cyclonedx.json
+            opencost-container-sbom.spdx.json
+            opencost-container-sbom.cyclonedx.json
+          if-no-files-found: ignore
 
-      # Publish SBOMs to GitHub release (only for releases, not PRs)
+      # Attach SBOMs to GitHub release (only for releases, not PRs)
       - name: Attach SBOMs to GitHub Release
         if: github.event_name != 'pull_request'
-        uses: anchore/sbom-action/publish-sbom@v0
+        uses: softprops/action-gh-release@v1
         with:
-          sbom-artifact-match: ".*\\.spdx\\.json$|.*\\.cyclonedx\\.json$"
+          tag_name: v${{ steps.version_number.outputs.RELEASE_VERSION }}
+          files: |
+            opencost-source-sbom.spdx.json
+            opencost-source-sbom.cyclonedx.json
+            opencost-container-sbom.spdx.json
+            opencost-container-sbom.cyclonedx.json
+          fail_on_unmatched_files: false
 
       # Create a summary of the SBOM generation
       - name: Generate Summary
