@@ -7,6 +7,10 @@ import (
 )
 
 const (
+	ProviderLabel        = "provider"
+	AccountIDLabel       = "account_id"
+	ClusterNameLabel     = "cluster_name"
+	RegionLabel          = "region"
 	ClusterIDLabel       = "cluster_id"
 	NamespaceLabel       = "namespace"
 	NodeLabel            = "node"

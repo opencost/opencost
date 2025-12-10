@@ -20,6 +20,7 @@ func newOpencostTargetScraper(provider target.TargetProvider) *TargetScraper {
 		event.OpenCostScraperName,
 		provider,
 		[]string{
+			metric.ClusterInfo,
 			metric.KubecostClusterManagementCost,
 			metric.KubecostNetworkZoneEgressCost,
 			metric.KubecostNetworkRegionEgressCost,

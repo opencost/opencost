@@ -26,12 +26,13 @@ type collectorDataSource struct {
 }
 
 func NewDefaultCollectorDataSource(
+	clusterUID string,
 	store storage.Storage,
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient nodestats.StatSummaryClient,
 ) source.OpenCostDataSource {
-	config := NewOpenCostCollectorConfigFromEnv()
+	config := NewOpenCostCollectorConfigFromEnv(clusterUID)
 	return NewCollectorDataSource(
 		config,
 		store,
@@ -66,7 +67,7 @@ func NewCollectorDataSource(
 	updater = repo
 	if store != nil {
 		wal, err := metric.NewWalinator(
-			config.ClusterID,
+			config.ClusterName,
 			config.ApplicationName,
 			store,
 			resolutions,
@@ -82,9 +83,11 @@ func NewCollectorDataSource(
 
 	diagnosticsModule := metric.NewDiagnosticsModule()
 	scrapeController := scrape.NewScrapeController(
+		config.ClusterUID,
 		config.ScrapeInterval,
 		config.NetworkPort,
 		updater,
+		clusterInfoProvider,
 		clusterCache,
 		statSummaryClient,
 	)

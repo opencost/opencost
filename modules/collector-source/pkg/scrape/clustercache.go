@@ -31,7 +31,6 @@ func newClusterCacheScraper(clusterCache clustercache.ClusterCache) Scraper {
 
 func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 	scrapeFuncs := []ScrapeFunc{
-		ccs.ScrapeCluster,
 		ccs.ScrapeNodes,
 		ccs.ScrapeDeployments,
 		ccs.ScrapeNamespaces,
@@ -44,19 +43,6 @@ func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 		ccs.ScrapeResourceQuotas,
 	}
 	return concurrentScrape(scrapeFuncs...)
-}
-
-func (ccs *ClusterCacheScraper) ScrapeCluster() []metric.Update {
-	var scrapeResults []metric.Update
-	clusterInfo := map[string]string{
-		source.UIDLabel: ccs.clusterCache.GetClusterUID(),
-	}
-	scrapeResults = append(scrapeResults, metric.Update{
-		Name:   metric.ClusterInfo,
-		Labels: clusterInfo,
-		Value:  0,
-	})
-	return scrapeResults
 }
 
 func (ccs *ClusterCacheScraper) ScrapeNodes() []metric.Update {
