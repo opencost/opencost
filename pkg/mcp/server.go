@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -49,12 +50,20 @@ const (
 	oversizedCPUThreshold    = 0.3 // <30% CPU efficiency is oversized
 	oversizedMemoryThreshold = 0.3 // <30% memory efficiency is oversized
 
+	// Severely oversized threshold (for high priority)
+	severelyOversizedThreshold = 0.1 // <10% efficiency is severely oversized
+
 	// Underprovisioned detection thresholds
 	underprovisionedCPUThreshold    = 0.9 // >90% CPU efficiency may be underprovisioned
 	underprovisionedMemoryThreshold = 0.9 // >90% memory efficiency may be underprovisioned
 
 	// Minimum savings threshold for recommendations
 	minSavingsThreshold = 0.01 // Minimum $0.01 savings to generate recommendation
+
+	// Input validation bounds
+	minBufferMultiplier = 1.0  // Minimum buffer multiplier (no buffer below 1.0)
+	maxBufferMultiplier = 10.0 // Maximum buffer multiplier to prevent unrealistic recommendations
+	maxTopN             = 10000 // Maximum number of recommendations to return
 )
 
 // RecommendationType defines the type of cost recommendation
@@ -1295,10 +1304,15 @@ func computeEfficiencyMetric(alloc *opencost.Allocation, bufferMultiplier float6
 
 // QueryRecommendations generates cost optimization recommendations based on allocation data.
 func (s *MCPServer) QueryRecommendations(query *OpenCostQueryRequest) (*RecommendationsResponse, error) {
+	// 0. Validate server dependencies
+	if s.costModel == nil {
+		return nil, fmt.Errorf("cost model not initialized")
+	}
+
 	// 1. Parse Window
 	window, err := opencost.ParseWindowWithOffset(query.Window, 0)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse window '%s': %w", query.Window, err)
+		return nil, fmt.Errorf("failed to parse window: %w", err)
 	}
 
 	// 2. Set default parameters
@@ -1309,7 +1323,7 @@ func (s *MCPServer) QueryRecommendations(query *OpenCostQueryRequest) (*Recommen
 	includeIdle := true
 	includeOversized := true
 	includeRightsize := true
-	var topN *int
+	var topNValue int
 
 	// 3. Parse recommendations parameters if provided
 	if query.RecommendationsParams != nil {
@@ -1324,21 +1338,51 @@ func (s *MCPServer) QueryRecommendations(query *OpenCostQueryRequest) (*Recommen
 			parser := allocation.NewAllocationFilterParser()
 			_, err := parser.Parse(filterString)
 			if err != nil {
-				return nil, fmt.Errorf("invalid allocation filter '%s': %w", filterString, err)
+				return nil, fmt.Errorf("invalid allocation filter: %w", err)
 			}
 		}
 
+		// Validate and apply buffer multiplier
 		if query.RecommendationsParams.BufferMultiplier != nil {
 			bufferMultiplier = *query.RecommendationsParams.BufferMultiplier
+			if bufferMultiplier < minBufferMultiplier {
+				bufferMultiplier = minBufferMultiplier
+			} else if bufferMultiplier > maxBufferMultiplier {
+				bufferMultiplier = maxBufferMultiplier
+			}
 		}
+
+		// Validate and apply minimum savings threshold
 		if query.RecommendationsParams.MinSavings != nil {
 			minSavings = *query.RecommendationsParams.MinSavings
+			if minSavings < 0 {
+				minSavings = 0
+			}
 		}
-		// Use explicit booleans (default to true if not specified via empty params)
-		includeIdle = query.RecommendationsParams.IncludeIdle || (!query.RecommendationsParams.IncludeIdle && !query.RecommendationsParams.IncludeOversized && !query.RecommendationsParams.IncludeRightsize)
-		includeOversized = query.RecommendationsParams.IncludeOversized || (!query.RecommendationsParams.IncludeIdle && !query.RecommendationsParams.IncludeOversized && !query.RecommendationsParams.IncludeRightsize)
-		includeRightsize = query.RecommendationsParams.IncludeRightsize || (!query.RecommendationsParams.IncludeIdle && !query.RecommendationsParams.IncludeOversized && !query.RecommendationsParams.IncludeRightsize)
-		topN = query.RecommendationsParams.TopN
+
+		// Handle include flags: if none are explicitly set, default all to true
+		noneSet := !query.RecommendationsParams.IncludeIdle &&
+			!query.RecommendationsParams.IncludeOversized &&
+			!query.RecommendationsParams.IncludeRightsize
+		if noneSet {
+			includeIdle = true
+			includeOversized = true
+			includeRightsize = true
+		} else {
+			includeIdle = query.RecommendationsParams.IncludeIdle
+			includeOversized = query.RecommendationsParams.IncludeOversized
+			includeRightsize = query.RecommendationsParams.IncludeRightsize
+		}
+
+		// Validate and apply topN
+		if query.RecommendationsParams.TopN != nil {
+			topNValue = *query.RecommendationsParams.TopN
+			if topNValue < 0 {
+				topNValue = 0
+			} else if topNValue > maxTopN {
+				topNValue = maxTopN
+			}
+		}
 	} else {
 		aggregateBy = []string{"pod"}
 	}
@@ -1390,8 +1434,8 @@ func (s *MCPServer) QueryRecommendations(query *OpenCostQueryRequest) (*Recommen
 	sortRecommendationsBySavings(recommendations)
 
 	// 8. Apply topN limit if specified
-	if topN != nil && *topN > 0 && len(recommendations) > *topN {
-		recommendations = recommendations[:*topN]
+	if topNValue > 0 && len(recommendations) > topNValue {
+		recommendations = recommendations[:topNValue]
 	}
 
 	// 9. Build summary
@@ -1493,7 +1537,7 @@ func generateRecommendationsFromAllocation(alloc *opencost.Allocation, bufferMul
 	// Check for oversized resources
 	if includeOversized && (cpuEfficiency < oversizedCPUThreshold || memoryEfficiency < oversizedMemoryThreshold) && cpuCoresRequested > 0 && ramBytesRequested > 0 {
 		priority := RecommendationPriorityMedium
-		if cpuEfficiency < 0.1 || memoryEfficiency < 0.1 {
+		if cpuEfficiency < severelyOversizedThreshold || memoryEfficiency < severelyOversizedThreshold {
 			priority = RecommendationPriorityHigh
 		}
 
@@ -1561,6 +1605,13 @@ func generateRecommendationsFromAllocation(alloc *opencost.Allocation, bufferMul
 	return recommendations
 }
 
+// sortRecommendationsBySavings sorts recommendations by estimated savings in descending order.
+func sortRecommendationsBySavings(recs []*Recommendation) {
+	sort.Slice(recs, func(i, j int) bool {
+		return recs[i].EstimatedSavings > recs[j].EstimatedSavings
+	})
+}
+
 // generateRecommendationID creates a unique ID for a recommendation.
 func generateRecommendationID() string {
 	bytes := make([]byte, 8)
@@ -1568,17 +1619,6 @@ func generateRecommendationID() string {
 		return fmt.Sprintf("rec-%d", time.Now().UnixNano())
 	}
 	return fmt.Sprintf("rec-%s", hex.EncodeToString(bytes))
-}
-
-// sortRecommendationsBySavings sorts recommendations by estimated savings in descending order.
-func sortRecommendationsBySavings(recommendations []*Recommendation) {
-	for i := 0; i < len(recommendations); i++ {
-		for j := i + 1; j < len(recommendations); j++ {
-			if recommendations[j].EstimatedSavings > recommendations[i].EstimatedSavings {
-				recommendations[i], recommendations[j] = recommendations[j], recommendations[i]
-			}
-		}
-	}
 }
 
 // createEmptyRecommendationsSummary creates an empty summary for when there are no recommendations.
