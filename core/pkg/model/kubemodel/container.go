@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// @bingen:generate:Container
 type Container struct {
 	PodUID                              string    `json:"podUid"`                              // @bingen:field[version=1]
 	Name                                string    `json:"name"`                                // @bingen:field[version=1]

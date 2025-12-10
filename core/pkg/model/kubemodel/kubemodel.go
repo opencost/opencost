@@ -11,10 +11,10 @@ type KubeModelSet struct {
 	Metadata       *Metadata                 `json:"meta"`                     // @bingen:field[version=1]
 	Window         Window                    `json:"window"`                   // @bingen:field[version=1]
 	Cluster        *Cluster                  `json:"cluster"`                  // @bingen:field[version=1]
-	Namespaces     map[string]*Namespace     `json:"namespaces"`               // @bingen:field[version=1]
 	Containers     map[string]*Container     `json:"containers,omitempty"`     // @bingen:field[ignore]
-	Owners         map[string]*Owner         `json:"owners,omitempty"`         // @bingen:field[ignore]
+	Namespaces     map[string]*Namespace     `json:"namespaces"`               // @bingen:field[version=1]
 	Nodes          map[string]*Node          `json:"nodes,omitempty"`          // @bingen:field[ignore]
+	Owners         map[string]*Owner         `json:"owners,omitempty"`         // @bingen:field[ignore]
 	Pods           map[string]*Pod           `json:"pods,omitempty"`           // @bingen:field[ignore]
 	ResourceQuotas map[string]*ResourceQuota `json:"resourceQuotas,omitempty"` // @bingen:field[version=1]
 	Services       map[string]*Service       `json:"services,omitempty"`       // @bingen:field[ignore]
@@ -36,11 +36,12 @@ func NewKubeModelSet(start, end time.Time) *KubeModelSet {
 			End:   end,
 		},
 		Containers:     map[string]*Container{},
-		Owners:         map[string]*Owner{},
 		Namespaces:     map[string]*Namespace{},
 		Nodes:          map[string]*Node{},
+		Owners:         map[string]*Owner{},
 		Pods:           map[string]*Pod{},
 		ResourceQuotas: map[string]*ResourceQuota{},
+		Services:       map[string]*Service{},
 		idx:            index,
 	}
 }
