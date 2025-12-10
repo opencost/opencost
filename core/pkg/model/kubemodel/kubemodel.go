@@ -12,11 +12,11 @@ type KubeModelSet struct {
 	Window     Window                `json:"window"`               // @bingen:field[version=1]
 	Cluster    *Cluster              `json:"cluster"`              // @bingen:field[version=1]
 	Namespaces map[string]*Namespace `json:"namespaces"`           // @bingen:field[version=1]
-	Containers map[string]*Container `json:"containers,omitempty"` // @bingen:field[version=1]
-	Owners     map[string]*Owner     `json:"owners,omitempty"`     // @bingen:field[version=1]
-	Nodes      map[string]*Node      `json:"nodes,omitempty"`      // @bingen:field[version=1]
-	Pods       map[string]*Pod       `json:"pods,omitempty"`       // @bingen:field[version=1]
-	Services   map[string]*Service   `json:"services,omitempty"`   // @bingen:field[version=1]
+	Containers map[string]*Container `json:"containers,omitempty"` // @bingen:field[ignore]
+	Owners     map[string]*Owner     `json:"owners,omitempty"`     // @bingen:field[ignore]
+	Nodes      map[string]*Node      `json:"nodes,omitempty"`      // @bingen:field[ignore]
+	Pods       map[string]*Pod       `json:"pods,omitempty"`       // @bingen:field[ignore]
+	Services   map[string]*Service   `json:"services,omitempty"`   // @bingen:field[ignore]
 	idx        *kubeModelSetIndexes  // @bingen:field[ignore]
 }
 
