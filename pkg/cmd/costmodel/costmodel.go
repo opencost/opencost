@@ -309,6 +309,19 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 		}
 	}()
 
+	// Graceful shutdown goroutine
+	go func() {
+		<-ctx.Done()
+		log.Info("Shutting down MCP server...")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Errorf("MCP server shutdown error: %v", err)
+		} else {
+			log.Info("MCP server shut down successfully")
+		}
+	}()
+
 	log.Info("MCP server started successfully")
 	return nil
 }
