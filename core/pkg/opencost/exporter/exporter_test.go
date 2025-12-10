@@ -294,7 +294,7 @@ func TestPipelineExportControllers(t *testing.T) {
 		pipelineComputeSource := NewMockPipelineComputeSource()
 		memStore := storage.NewMemoryStorage()
 
-		exportControllers := NewPipelineExportControllers(TestClusterId, memStore, pipelineComputeSource, &PipelinesExportConfig{
+		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, PipelinesExportConfig{
 			AllocationPiplineResolutions:      []time.Duration{TestResolution},
 			AssetPipelineResolutons:           []time.Duration{TestResolution},
 			NetworkInsightPipelineResolutions: []time.Duration{TestResolution},
@@ -330,7 +330,7 @@ func TestPipelineExportControllers(t *testing.T) {
 		pipelineComputeSource := NewMockPipelineComputeSourceWith(30 * time.Second)
 		memStore := storage.NewMemoryStorage()
 
-		exportControllers := NewPipelineExportControllers(TestClusterId, memStore, pipelineComputeSource, &PipelinesExportConfig{
+		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, PipelinesExportConfig{
 			AllocationPiplineResolutions:      []time.Duration{TestResolution},
 			AssetPipelineResolutons:           []time.Duration{TestResolution},
 			NetworkInsightPipelineResolutions: []time.Duration{TestResolution},
@@ -366,7 +366,7 @@ func TestPipelineExportControllers(t *testing.T) {
 		pipelineComputeSource := NewMockPipelineComputeSource()
 		memStore := storage.NewMemoryStorage()
 
-		exportControllers := NewPipelineExportControllers(TestClusterId, memStore, pipelineComputeSource, nil)
+		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, NewPipelinesExportConfig(TestClusterId, TestClusterId))
 
 		if len(exportControllers.AllocationExportController.Resolutions()) != 2 {
 			t.Fatalf("expected 2 allocation resolutions, got %d", len(exportControllers.AllocationExportController.Resolutions()))
@@ -384,7 +384,7 @@ func TestPipelineExportControllers(t *testing.T) {
 		pipelineComputeSource := NewMockPipelineComputeSourceWith(48 * time.Hour)
 		memStore := storage.NewMemoryStorage()
 
-		exportControllers := NewPipelineExportControllers(TestClusterId, memStore, pipelineComputeSource, nil)
+		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, NewPipelinesExportConfig(TestClusterId, TestClusterId))
 
 		if len(exportControllers.AllocationExportController.Resolutions()) != 0 {
 			t.Fatalf("expected 0 allocation resolutions, got %d", len(exportControllers.AllocationExportController.Resolutions()))
@@ -401,7 +401,7 @@ func TestPipelineExportControllers(t *testing.T) {
 		pipelineComputeSource := NewMockPipelineComputeSource()
 		memStore := storage.NewMemoryStorage()
 
-		exportControllers := NewPipelineExportControllers("", memStore, pipelineComputeSource, nil)
+		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, NewPipelinesExportConfig("", ""))
 
 		if len(exportControllers.AllocationExportController.Resolutions()) != 0 {
 			t.Fatalf("expected 0 allocation resolutions, got %d", len(exportControllers.AllocationExportController.Resolutions()))

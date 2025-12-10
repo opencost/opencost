@@ -138,7 +138,7 @@ func Execute(opts *AgentOpts) error {
 	// Initialize ClusterMap for maintaining ClusterInfo by ClusterID
 	clusterMap := dataSource.ClusterMap()
 
-	costModel := costmodel.NewCostModel(dataSource, cloudProvider, clusterCache, clusterMap, dataSource.BatchDuration())
+	costModel := costmodel.NewCostModel("", dataSource, cloudProvider, clusterCache, clusterMap, dataSource.BatchDuration())
 
 	// initialize Kubernetes Metrics Emitter
 	metricsEmitter := costmodel.NewCostModelMetricsEmitter(clusterCache, cloudProvider, clusterInfoProvider, costModel)
