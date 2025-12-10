@@ -25,10 +25,11 @@ import (
 type QueryType string
 
 const (
-	AllocationQueryType QueryType = "allocation"
-	AssetQueryType      QueryType = "asset"
-	CloudCostQueryType  QueryType = "cloudcost"
-	EfficiencyQueryType QueryType = "efficiency"
+	AllocationQueryType      QueryType = "allocation"
+	AssetQueryType           QueryType = "asset"
+	CloudCostQueryType       QueryType = "cloudcost"
+	EfficiencyQueryType      QueryType = "efficiency"
+	RecommendationsQueryType QueryType = "recommendations"
 )
 
 // Efficiency calculation constants
@@ -36,6 +37,43 @@ const (
 	efficiencyBufferMultiplier = 1.2         // 20% headroom for stability
 	efficiencyMinCPU           = 0.001       // minimum CPU cores
 	efficiencyMinRAM           = 1024 * 1024 // 1 MB minimum RAM
+)
+
+// Recommendation thresholds
+const (
+	// Idle detection thresholds
+	idleCPUThreshold    = 0.05 // <5% CPU usage considered idle
+	idleMemoryThreshold = 0.05 // <5% memory usage considered idle
+
+	// Oversized detection thresholds
+	oversizedCPUThreshold    = 0.3 // <30% CPU efficiency is oversized
+	oversizedMemoryThreshold = 0.3 // <30% memory efficiency is oversized
+
+	// Underprovisioned detection thresholds
+	underprovisionedCPUThreshold    = 0.9 // >90% CPU efficiency may be underprovisioned
+	underprovisionedMemoryThreshold = 0.9 // >90% memory efficiency may be underprovisioned
+
+	// Minimum savings threshold for recommendations
+	minSavingsThreshold = 0.01 // Minimum $0.01 savings to generate recommendation
+)
+
+// RecommendationType defines the type of cost recommendation
+type RecommendationType string
+
+const (
+	RecommendationTypeIdle             RecommendationType = "idle"
+	RecommendationTypeOversized        RecommendationType = "oversized"
+	RecommendationTypeRightsize        RecommendationType = "rightsize"
+	RecommendationTypeUnderprovisioned RecommendationType = "underprovisioned"
+)
+
+// RecommendationPriority defines the priority level of a recommendation
+type RecommendationPriority string
+
+const (
+	RecommendationPriorityHigh   RecommendationPriority = "high"
+	RecommendationPriorityMedium RecommendationPriority = "medium"
+	RecommendationPriorityLow    RecommendationPriority = "low"
 )
 
 // MCPRequest represents a single turn in a conversation with the OpenCost MCP server.
@@ -59,14 +97,15 @@ type QueryMetadata struct {
 
 // OpenCostQueryRequest provides a unified interface for all OpenCost query types.
 type OpenCostQueryRequest struct {
-	QueryType QueryType `json:"queryType" validate:"required,oneof=allocation asset cloudcost efficiency"`
+	QueryType QueryType `json:"queryType" validate:"required,oneof=allocation asset cloudcost efficiency recommendations"`
 
 	Window string `json:"window" validate:"required"`
 
-	AllocationParams *AllocationQuery `json:"allocationParams,omitempty"`
-	AssetParams      *AssetQuery      `json:"assetParams,omitempty"`
-	CloudCostParams  *CloudCostQuery  `json:"cloudCostParams,omitempty"`
-	EfficiencyParams *EfficiencyQuery `json:"efficiencyParams,omitempty"`
+	AllocationParams      *AllocationQuery      `json:"allocationParams,omitempty"`
+	AssetParams           *AssetQuery           `json:"assetParams,omitempty"`
+	CloudCostParams       *CloudCostQuery       `json:"cloudCostParams,omitempty"`
+	EfficiencyParams      *EfficiencyQuery      `json:"efficiencyParams,omitempty"`
+	RecommendationsParams *RecommendationsQuery `json:"recommendationsParams,omitempty"`
 }
 
 // AllocationQuery contains the parameters for an allocation query.
@@ -109,6 +148,18 @@ type EfficiencyQuery struct {
 	Aggregate                  string   `json:"aggregate,omitempty"`                  // Aggregation properties (e.g., "pod", "namespace", "controller")
 	Filter                     string   `json:"filter,omitempty"`                     // Filter expression for allocations (same as AllocationQuery)
 	EfficiencyBufferMultiplier *float64 `json:"efficiencyBufferMultiplier,omitempty"` // Buffer multiplier for recommendations (default: 1.2 for 20% headroom)
+}
+
+// RecommendationsQuery contains the parameters for a cost recommendations query.
+type RecommendationsQuery struct {
+	Aggregate        string   `json:"aggregate,omitempty"`        // Aggregation level (e.g., "pod", "namespace", "controller")
+	Filter           string   `json:"filter,omitempty"`           // Filter expression for allocations
+	BufferMultiplier *float64 `json:"bufferMultiplier,omitempty"` // Buffer multiplier for sizing recommendations (default: 1.2)
+	MinSavings       *float64 `json:"minSavings,omitempty"`       // Minimum savings threshold to include recommendation (default: 0.01)
+	IncludeIdle      bool     `json:"includeIdle,omitempty"`      // Include idle resource detection (default: true)
+	IncludeOversized bool     `json:"includeOversized,omitempty"` // Include oversized resource detection (default: true)
+	IncludeRightsize bool     `json:"includeRightsize,omitempty"` // Include rightsizing recommendations (default: true)
+	TopN             *int     `json:"topN,omitempty"`             // Limit to top N recommendations by savings (default: no limit)
 }
 
 // AllocationResponse represents the allocation data returned to the AI agent.
@@ -360,6 +411,58 @@ type EfficiencyMetric struct {
 	End   time.Time `json:"end"`
 }
 
+// RecommendationsResponse represents cost optimization recommendations returned to the AI agent.
+type RecommendationsResponse struct {
+	Recommendations []*Recommendation        `json:"recommendations"` // List of recommendations sorted by savings
+	Summary         *RecommendationsSummary  `json:"summary"`         // Summary of all recommendations
+	Window          *TimeWindow              `json:"window"`          // Time window analyzed
+}
+
+// RecommendationsSummary provides summary statistics for recommendations.
+type RecommendationsSummary struct {
+	TotalRecommendations int     `json:"totalRecommendations"` // Total number of recommendations
+	TotalPotentialSavings float64 `json:"totalPotentialSavings"` // Sum of all potential savings
+	ByType               map[string]int     `json:"byType"`               // Count by recommendation type
+	ByPriority           map[string]int     `json:"byPriority"`           // Count by priority level
+	IdleResourceCount    int     `json:"idleResourceCount"`    // Number of idle resources identified
+	OversizedCount       int     `json:"oversizedCount"`       // Number of oversized resources
+	RightsizeCount       int     `json:"rightsizeCount"`       // Number of rightsizing opportunities
+}
+
+// Recommendation represents a single cost optimization recommendation.
+type Recommendation struct {
+	ID          string                 `json:"id"`          // Unique identifier for the recommendation
+	Type        RecommendationType     `json:"type"`        // Type of recommendation (idle, oversized, rightsize)
+	Priority    RecommendationPriority `json:"priority"`    // Priority level (high, medium, low)
+	ResourceName string                `json:"resourceName"` // Name of the resource (pod, namespace, etc.)
+	Description string                 `json:"description"` // Human-readable description of the recommendation
+	Action      string                 `json:"action"`      // Recommended action to take
+
+	// Current state
+	CurrentCPURequest float64 `json:"currentCpuRequest"` // Current CPU request in cores
+	CurrentRAMRequest float64 `json:"currentRamRequest"` // Current RAM request in bytes
+	CurrentCPUUsage   float64 `json:"currentCpuUsage"`   // Current CPU usage in cores
+	CurrentRAMUsage   float64 `json:"currentRamUsage"`   // Current RAM usage in bytes
+	CurrentCost       float64 `json:"currentCost"`       // Current cost
+
+	// Efficiency metrics
+	CPUEfficiency    float64 `json:"cpuEfficiency"`    // Current CPU efficiency (0-1+)
+	MemoryEfficiency float64 `json:"memoryEfficiency"` // Current memory efficiency (0-1+)
+
+	// Recommendation details
+	RecommendedCPURequest float64 `json:"recommendedCpuRequest"` // Recommended CPU request
+	RecommendedRAMRequest float64 `json:"recommendedRamRequest"` // Recommended RAM request
+	RecommendedCost       float64 `json:"recommendedCost"`       // Estimated cost after optimization
+
+	// Savings analysis
+	EstimatedSavings       float64 `json:"estimatedSavings"`       // Estimated cost savings
+	EstimatedSavingsPercent float64 `json:"estimatedSavingsPercent"` // Savings as percentage
+
+	// Time window
+	Start time.Time `json:"start"`
+	End   time.Time `json:"end"`
+}
+
 // MCPServer holds the dependencies for the MCP API server.
 type MCPServer struct {
 	costModel    *costmodel.CostModel
@@ -399,6 +502,8 @@ func (s *MCPServer) ProcessMCPRequest(request *MCPRequest) (*MCPResponse, error)
 		data, err = s.QueryCloudCosts(request.Query)
 	case EfficiencyQueryType:
 		data, err = s.QueryEfficiency(request.Query)
+	case RecommendationsQueryType:
+		data, err = s.QueryRecommendations(request.Query)
 	default:
 		return nil, fmt.Errorf("unsupported query type: %s", request.Query.QueryType)
 	}
@@ -1186,4 +1291,331 @@ func computeEfficiencyMetric(alloc *opencost.Allocation, bufferMultiplier float6
 		Start:                      alloc.Start,
 		End:                        alloc.End,
 	}
+}
+
+// QueryRecommendations generates cost optimization recommendations based on allocation data.
+func (s *MCPServer) QueryRecommendations(query *OpenCostQueryRequest) (*RecommendationsResponse, error) {
+	// 1. Parse Window
+	window, err := opencost.ParseWindowWithOffset(query.Window, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse window '%s': %w", query.Window, err)
+	}
+
+	// 2. Set default parameters
+	var aggregateBy []string
+	var filterString string
+	var bufferMultiplier float64 = efficiencyBufferMultiplier
+	var minSavings float64 = minSavingsThreshold
+	includeIdle := true
+	includeOversized := true
+	includeRightsize := true
+	var topN *int
+
+	// 3. Parse recommendations parameters if provided
+	if query.RecommendationsParams != nil {
+		if query.RecommendationsParams.Aggregate != "" {
+			aggregateBy = strings.Split(query.RecommendationsParams.Aggregate, ",")
+		} else {
+			aggregateBy = []string{"pod"}
+		}
+
+		filterString = query.RecommendationsParams.Filter
+		if filterString != "" {
+			parser := allocation.NewAllocationFilterParser()
+			_, err := parser.Parse(filterString)
+			if err != nil {
+				return nil, fmt.Errorf("invalid allocation filter '%s': %w", filterString, err)
+			}
+		}
+
+		if query.RecommendationsParams.BufferMultiplier != nil {
+			bufferMultiplier = *query.RecommendationsParams.BufferMultiplier
+		}
+		if query.RecommendationsParams.MinSavings != nil {
+			minSavings = *query.RecommendationsParams.MinSavings
+		}
+		// Use explicit booleans (default to true if not specified via empty params)
+		includeIdle = query.RecommendationsParams.IncludeIdle || (!query.RecommendationsParams.IncludeIdle && !query.RecommendationsParams.IncludeOversized && !query.RecommendationsParams.IncludeRightsize)
+		includeOversized = query.RecommendationsParams.IncludeOversized || (!query.RecommendationsParams.IncludeIdle && !query.RecommendationsParams.IncludeOversized && !query.RecommendationsParams.IncludeRightsize)
+		includeRightsize = query.RecommendationsParams.IncludeRightsize || (!query.RecommendationsParams.IncludeIdle && !query.RecommendationsParams.IncludeOversized && !query.RecommendationsParams.IncludeRightsize)
+		topN = query.RecommendationsParams.TopN
+	} else {
+		aggregateBy = []string{"pod"}
+	}
+
+	// 4. Query allocations
+	step := window.Duration()
+	asr, err := s.costModel.QueryAllocation(
+		window,
+		step,
+		aggregateBy,
+		false, // includeIdle
+		false, // idleByNode
+		false, // includeProportionalAssetResourceCosts
+		false, // includeAggregatedMetadata
+		false, // sharedLoadBalancer
+		opencost.AccumulateOptionNone,
+		false, // shareIdle
+		filterString,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query allocations: %w", err)
+	}
+
+	// 5. Handle empty results
+	if asr == nil || len(asr.Allocations) == 0 {
+		return &RecommendationsResponse{
+			Recommendations: []*Recommendation{},
+			Summary:         createEmptyRecommendationsSummary(),
+			Window: &TimeWindow{
+				Start: *window.Start(),
+				End:   *window.End(),
+			},
+		}, nil
+	}
+
+	// 6. Generate recommendations from allocations
+	var recommendations []*Recommendation
+	for _, allocSet := range asr.Allocations {
+		if allocSet == nil {
+			continue
+		}
+		for _, alloc := range allocSet.Allocations {
+			recs := generateRecommendationsFromAllocation(alloc, bufferMultiplier, minSavings, includeIdle, includeOversized, includeRightsize)
+			recommendations = append(recommendations, recs...)
+		}
+	}
+
+	// 7. Sort recommendations by estimated savings (highest first)
+	sortRecommendationsBySavings(recommendations)
+
+	// 8. Apply topN limit if specified
+	if topN != nil && *topN > 0 && len(recommendations) > *topN {
+		recommendations = recommendations[:*topN]
+	}
+
+	// 9. Build summary
+	summary := buildRecommendationsSummary(recommendations)
+
+	return &RecommendationsResponse{
+		Recommendations: recommendations,
+		Summary:         summary,
+		Window: &TimeWindow{
+			Start: *window.Start(),
+			End:   *window.End(),
+		},
+	}, nil
+}
+
+// generateRecommendationsFromAllocation creates recommendations for a single allocation.
+func generateRecommendationsFromAllocation(alloc *opencost.Allocation, bufferMultiplier, minSavings float64, includeIdle, includeOversized, includeRightsize bool) []*Recommendation {
+	if alloc == nil {
+		return nil
+	}
+
+	hours := alloc.Minutes() / 60.0
+	if hours <= 0 {
+		return nil
+	}
+
+	var recommendations []*Recommendation
+
+	// Calculate usage metrics
+	cpuCoresUsed := alloc.CPUCoreHours / hours
+	ramBytesUsed := alloc.RAMByteHours / hours
+	cpuCoresRequested := alloc.CPUCoreRequestAverage
+	ramBytesRequested := alloc.RAMBytesRequestAverage
+
+	// Calculate efficiency
+	cpuEfficiency := safeDiv(cpuCoresUsed, cpuCoresRequested)
+	memoryEfficiency := safeDiv(ramBytesUsed, ramBytesRequested)
+
+	// Calculate recommended values
+	recommendedCPU := cpuCoresUsed * bufferMultiplier
+	recommendedRAM := ramBytesUsed * bufferMultiplier
+	if recommendedCPU < efficiencyMinCPU {
+		recommendedCPU = efficiencyMinCPU
+	}
+	if recommendedRAM < efficiencyMinRAM {
+		recommendedRAM = efficiencyMinRAM
+	}
+
+	// Calculate costs
+	cpuCostPerCoreHour := safeDiv(alloc.CPUCost, cpuCoresRequested*hours)
+	ramCostPerByteHour := safeDiv(alloc.RAMCost, ramBytesRequested*hours)
+	currentTotalCost := alloc.TotalCost()
+
+	recommendedCPUCost := recommendedCPU * hours * cpuCostPerCoreHour
+	recommendedRAMCost := recommendedRAM * hours * ramCostPerByteHour
+	otherCosts := alloc.PVCost() + alloc.NetworkCost + alloc.SharedCost + alloc.ExternalCost + alloc.GPUCost
+	recommendedTotalCost := recommendedCPUCost + recommendedRAMCost + otherCosts
+
+	if recommendedTotalCost > currentTotalCost && (recommendedTotalCost-currentTotalCost) < 0.0001 {
+		recommendedTotalCost = currentTotalCost
+	}
+
+	savings := currentTotalCost - recommendedTotalCost
+	savingsPercent := safeDiv(savings, currentTotalCost) * 100
+
+	// Skip if savings are below threshold
+	if savings < minSavings {
+		return nil
+	}
+
+	// Check for idle resources
+	if includeIdle && cpuEfficiency < idleCPUThreshold && memoryEfficiency < idleMemoryThreshold && cpuCoresRequested > 0 && ramBytesRequested > 0 {
+		rec := &Recommendation{
+			ID:                      generateRecommendationID(),
+			Type:                    RecommendationTypeIdle,
+			Priority:                RecommendationPriorityHigh,
+			ResourceName:           alloc.Name,
+			Description:            fmt.Sprintf("Resource '%s' appears to be idle with <%.0f%% CPU and <%.0f%% memory utilization", alloc.Name, idleCPUThreshold*100, idleMemoryThreshold*100),
+			Action:                  "Consider removing or scaling down this resource. Verify it's not needed before deletion.",
+			CurrentCPURequest:       cpuCoresRequested,
+			CurrentRAMRequest:       ramBytesRequested,
+			CurrentCPUUsage:         cpuCoresUsed,
+			CurrentRAMUsage:         ramBytesUsed,
+			CurrentCost:             currentTotalCost,
+			CPUEfficiency:           cpuEfficiency,
+			MemoryEfficiency:        memoryEfficiency,
+			RecommendedCPURequest:   recommendedCPU,
+			RecommendedRAMRequest:   recommendedRAM,
+			RecommendedCost:         recommendedTotalCost,
+			EstimatedSavings:        savings,
+			EstimatedSavingsPercent: savingsPercent,
+			Start:                   alloc.Start,
+			End:                     alloc.End,
+		}
+		recommendations = append(recommendations, rec)
+		return recommendations // Return early, idle is the most critical
+	}
+
+	// Check for oversized resources
+	if includeOversized && (cpuEfficiency < oversizedCPUThreshold || memoryEfficiency < oversizedMemoryThreshold) && cpuCoresRequested > 0 && ramBytesRequested > 0 {
+		priority := RecommendationPriorityMedium
+		if cpuEfficiency < 0.1 || memoryEfficiency < 0.1 {
+			priority = RecommendationPriorityHigh
+		}
+
+		rec := &Recommendation{
+			ID:                      generateRecommendationID(),
+			Type:                    RecommendationTypeOversized,
+			Priority:                priority,
+			ResourceName:           alloc.Name,
+			Description:            fmt.Sprintf("Resource '%s' is significantly oversized with %.1f%% CPU and %.1f%% memory efficiency", alloc.Name, cpuEfficiency*100, memoryEfficiency*100),
+			Action:                  fmt.Sprintf("Reduce CPU request from %.3f to %.3f cores and RAM request from %.0f to %.0f bytes", cpuCoresRequested, recommendedCPU, ramBytesRequested, recommendedRAM),
+			CurrentCPURequest:       cpuCoresRequested,
+			CurrentRAMRequest:       ramBytesRequested,
+			CurrentCPUUsage:         cpuCoresUsed,
+			CurrentRAMUsage:         ramBytesUsed,
+			CurrentCost:             currentTotalCost,
+			CPUEfficiency:           cpuEfficiency,
+			MemoryEfficiency:        memoryEfficiency,
+			RecommendedCPURequest:   recommendedCPU,
+			RecommendedRAMRequest:   recommendedRAM,
+			RecommendedCost:         recommendedTotalCost,
+			EstimatedSavings:        savings,
+			EstimatedSavingsPercent: savingsPercent,
+			Start:                   alloc.Start,
+			End:                     alloc.End,
+		}
+		recommendations = append(recommendations, rec)
+		return recommendations
+	}
+
+	// General rightsizing recommendation
+	if includeRightsize && savings >= minSavings {
+		priority := RecommendationPriorityLow
+		if savingsPercent >= 30 {
+			priority = RecommendationPriorityMedium
+		}
+		if savingsPercent >= 50 {
+			priority = RecommendationPriorityHigh
+		}
+
+		rec := &Recommendation{
+			ID:                      generateRecommendationID(),
+			Type:                    RecommendationTypeRightsize,
+			Priority:                priority,
+			ResourceName:           alloc.Name,
+			Description:            fmt.Sprintf("Resource '%s' can be rightsized for %.1f%% cost savings", alloc.Name, savingsPercent),
+			Action:                  fmt.Sprintf("Adjust CPU request to %.3f cores (from %.3f) and RAM request to %.0f bytes (from %.0f)", recommendedCPU, cpuCoresRequested, recommendedRAM, ramBytesRequested),
+			CurrentCPURequest:       cpuCoresRequested,
+			CurrentRAMRequest:       ramBytesRequested,
+			CurrentCPUUsage:         cpuCoresUsed,
+			CurrentRAMUsage:         ramBytesUsed,
+			CurrentCost:             currentTotalCost,
+			CPUEfficiency:           cpuEfficiency,
+			MemoryEfficiency:        memoryEfficiency,
+			RecommendedCPURequest:   recommendedCPU,
+			RecommendedRAMRequest:   recommendedRAM,
+			RecommendedCost:         recommendedTotalCost,
+			EstimatedSavings:        savings,
+			EstimatedSavingsPercent: savingsPercent,
+			Start:                   alloc.Start,
+			End:                     alloc.End,
+		}
+		recommendations = append(recommendations, rec)
+	}
+
+	return recommendations
+}
+
+// generateRecommendationID creates a unique ID for a recommendation.
+func generateRecommendationID() string {
+	bytes := make([]byte, 8)
+	if _, err := rand.Read(bytes); err != nil {
+		return fmt.Sprintf("rec-%d", time.Now().UnixNano())
+	}
+	return fmt.Sprintf("rec-%s", hex.EncodeToString(bytes))
+}
+
+// sortRecommendationsBySavings sorts recommendations by estimated savings in descending order.
+func sortRecommendationsBySavings(recommendations []*Recommendation) {
+	for i := 0; i < len(recommendations); i++ {
+		for j := i + 1; j < len(recommendations); j++ {
+			if recommendations[j].EstimatedSavings > recommendations[i].EstimatedSavings {
+				recommendations[i], recommendations[j] = recommendations[j], recommendations[i]
+			}
+		}
+	}
+}
+
+// createEmptyRecommendationsSummary creates an empty summary for when there are no recommendations.
+func createEmptyRecommendationsSummary() *RecommendationsSummary {
+	return &RecommendationsSummary{
+		TotalRecommendations:  0,
+		TotalPotentialSavings: 0,
+		ByType:                make(map[string]int),
+		ByPriority:            make(map[string]int),
+		IdleResourceCount:     0,
+		OversizedCount:        0,
+		RightsizeCount:        0,
+	}
+}
+
+// buildRecommendationsSummary creates a summary from a list of recommendations.
+func buildRecommendationsSummary(recommendations []*Recommendation) *RecommendationsSummary {
+	summary := &RecommendationsSummary{
+		TotalRecommendations: len(recommendations),
+		ByType:               make(map[string]int),
+		ByPriority:           make(map[string]int),
+	}
+
+	for _, rec := range recommendations {
+		summary.TotalPotentialSavings += rec.EstimatedSavings
+		summary.ByType[string(rec.Type)]++
+		summary.ByPriority[string(rec.Priority)]++
+
+		switch rec.Type {
+		case RecommendationTypeIdle:
+			summary.IdleResourceCount++
+		case RecommendationTypeOversized:
+			summary.OversizedCount++
+		case RecommendationTypeRightsize:
+			summary.RightsizeCount++
+		}
+	}
+
+	return summary
 }
