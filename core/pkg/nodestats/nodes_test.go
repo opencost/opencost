@@ -74,8 +74,6 @@ func (tcc *NodesOnlyClusterCache) Run() {}
 // Stops the watcher processes
 func (tcc *NodesOnlyClusterCache) Stop() {}
 
-func (tcc *NodesOnlyClusterCache) GetClusterUID() string { return tcc.clusterUID }
-
 // GetAllNamespaces returns all the cached namespaces
 func (tcc *NodesOnlyClusterCache) GetAllNamespaces() []*clustercache.Namespace { return nil }
 

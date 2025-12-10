@@ -430,9 +430,6 @@ type ClusterCache interface {
 	// Stops the watcher processes
 	Stop()
 
-	// GetClusterUID returns the UID for the cluster which is the UID of the 'kube-system' namespace
-	GetClusterUID() string
-
 	// GetAllNamespaces returns all the cached namespaces
 	GetAllNamespaces() []*Namespace
 

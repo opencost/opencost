@@ -1285,10 +1285,6 @@ type mockClusterCache struct {
 	scs        []*clustercache.StorageClass
 }
 
-func (m *mockClusterCache) GetClusterUID() string {
-	return m.clusterUID
-}
-
 func (m *mockClusterCache) GetAllNodes() []*clustercache.Node {
 	return m.nodes
 }
