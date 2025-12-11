@@ -83,7 +83,6 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/gofrs/flock v0.8.1 // indirect
 	github.com/google/jsonschema-go v0.3.0 // indirect
-	github.com/google/martian/v3 v3.3.3 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/minio/crc64nvme v1.0.1 // indirect
 	github.com/minio/minio-go/v7 v7.0.88 // indirect
