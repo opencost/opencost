@@ -475,7 +475,7 @@ func (pds *PrometheusMetricsQuerier) QueryLBActiveMinutes(start, end time.Time) 
 }
 
 // Note: cluster_info is not currently emitted
-func (pds *PrometheusMetricsQuerier) QueryClusterUptime(start, end time.Time) *source.Future[source.UpTimeResult] {
+func (pds *PrometheusMetricsQuerier) QueryClusterUptime(start, end time.Time) *source.Future[source.UptimeResult] {
 	const queryName = "QueryClusterUptime"
 	const queryFmtClusterUptime = `avg(cluster_info{%s}) by (%s, uid)[%s:%dm]`
 
@@ -488,11 +488,11 @@ func (pds *PrometheusMetricsQuerier) QueryClusterUptime(start, end time.Time) *s
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
 
-	queryClusterUpTime := fmt.Sprintf(queryFmtClusterUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
+	queryClusterUptime := fmt.Sprintf(queryFmtClusterUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryFmtClusterUptime)
 
 	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
-	return source.NewFuture(source.DecodeUpTimeResult, ctx.QueryAtTime(queryClusterUpTime, end))
+	return source.NewFuture(source.DecodeUptimeResult, ctx.QueryAtTime(queryClusterUptime, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryClusterManagementDuration(start, end time.Time) *source.Future[source.ClusterManagementDurationResult] {
@@ -1290,7 +1290,7 @@ func (pds *PrometheusMetricsQuerier) QueryNetReceiveBytes(start, end time.Time) 
 }
 
 // Note: namespace_info is not currently emitted
-func (pds *PrometheusMetricsQuerier) QueryNamespaceUptime(start, end time.Time) *source.Future[source.UpTimeResult] {
+func (pds *PrometheusMetricsQuerier) QueryNamespaceUptime(start, end time.Time) *source.Future[source.UptimeResult] {
 	const queryName = "QueryNamespaceUptime"
 	const queryFmtNamespaceUptime = `avg(namespace_info{%s}) by (%s, uid)[%s:%dm]`
 
@@ -1303,11 +1303,11 @@ func (pds *PrometheusMetricsQuerier) QueryNamespaceUptime(start, end time.Time) 
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
 
-	queryNamespaceUpTime := fmt.Sprintf(queryFmtNamespaceUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
+	queryNamespaceUptime := fmt.Sprintf(queryFmtNamespaceUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryFmtNamespaceUptime)
 
 	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
-	return source.NewFuture(source.DecodeUpTimeResult, ctx.QueryAtTime(queryNamespaceUpTime, end))
+	return source.NewFuture(source.DecodeUptimeResult, ctx.QueryAtTime(queryNamespaceUptime, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNamespaceLabels(start, end time.Time) *source.Future[source.NamespaceLabelsResult] {
@@ -1528,7 +1528,7 @@ func (pds *PrometheusMetricsQuerier) QueryReplicaSetsWithRollout(start, end time
 
 // Note: The ResourceQuota metrics are _not_ emitted at the moment. Leaving the query implementations here in case we add metric emission later on.
 
-func (pds *PrometheusMetricsQuerier) QueryResourceQuotaUptime(start, end time.Time) *source.Future[source.UpTimeResult] {
+func (pds *PrometheusMetricsQuerier) QueryResourceQuotaUptime(start, end time.Time) *source.Future[source.UptimeResult] {
 	const queryName = "QueryResourceQuotaUptime"
 	const queryFmtResourceQuotaUptime = `avg(resourcequota_info{%s}) by (%s, uid)[%s:%dm]`
 
@@ -1541,11 +1541,11 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaUptime(start, end time.Ti
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
 
-	queryResourceQuotaUpTime := fmt.Sprintf(queryFmtResourceQuotaUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
+	queryResourceQuotaUptime := fmt.Sprintf(queryFmtResourceQuotaUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryFmtResourceQuotaUptime)
 
 	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
-	return source.NewFuture(source.DecodeUpTimeResult, ctx.QueryAtTime(queryResourceQuotaUpTime, end))
+	return source.NewFuture(source.DecodeUptimeResult, ctx.QueryAtTime(queryResourceQuotaUptime, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecCPURequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPURequestAvgResult] {
@@ -1865,11 +1865,11 @@ func (pds *PrometheusMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time
 		// If node_cpu_hourly_cost metric is not available, fallback to a reasonable time range
 		// This prevents CSV export from failing when the metric doesn't exist yet
 		log.Warnf("QueryDataCoverage: node_cpu_hourly_cost metric not available, using fallback time range")
-		
+
 		// Use a reasonable fallback: start from 1 day ago to account for metric collection delay
 		fallbackEnd := time.Now().UTC().Truncate(timeutil.Day)
 		fallbackStart := fallbackEnd.AddDate(0, 0, -1) // 1 day ago
-		
+
 		return fallbackStart, fallbackEnd, nil
 	}
 

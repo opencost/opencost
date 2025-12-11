@@ -34,7 +34,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewNodeRAMUserUsageAverageMetricCollector())
 	memStore.Register(NewLBPricePerHourMetricCollector())
 	memStore.Register(NewLBActiveMinutesMetricCollector())
-	memStore.Register(NewClusterActiveMinutesMetricCollector())
+	memStore.Register(NewClusterUptimeMetricCollector())
 	memStore.Register(NewClusterManagementDurationMetricCollector())
 	memStore.Register(NewClusterManagementPricePerHourMetricCollector())
 	memStore.Register(NewPodActiveMinutesMetricCollector())
@@ -75,7 +75,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewNetInternetIngressGiBMetricCollector())
 	memStore.Register(NewNetInternetServiceIngressGiBMetricCollector())
 	memStore.Register(NewNetTransferBytesMetricCollector())
-	memStore.Register(NewNamespaceActiveMinutesMetricCollector())
+	memStore.Register(NewNamespaceUptimeMetricCollector())
 	memStore.Register(NewNamespaceLabelsMetricCollector())
 	memStore.Register(NewNamespaceAnnotationsMetricCollector())
 	memStore.Register(NewPodLabelsMetricCollector())
@@ -88,7 +88,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewPodsWithReplicaSetOwnerMetricCollector())
 	memStore.Register(NewReplicaSetsWithoutOwnersMetricCollector())
 	memStore.Register(NewReplicaSetsWithRolloutMetricCollector())
-	memStore.Register(NewResourceQuotaActiveMinutesMetricCollector())
+	memStore.Register(NewResourceQuotaUptimeMetricCollector())
 	memStore.Register(NewResourceQuotaSpecCPURequestAverageMetricCollector())
 	memStore.Register(NewResourceQuotaSpecCPURequestMaxMetricCollector())
 	memStore.Register(NewResourceQuotaSpecRAMRequestAverageMetricCollector())
@@ -616,9 +616,9 @@ func NewLBActiveMinutesMetricCollector() *metric.MetricCollector {
 //		}
 //	) by (uid)[%s:%dm]
 
-func NewClusterActiveMinutesMetricCollector() *metric.MetricCollector {
+func NewClusterUptimeMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
-		metric.ClusterActiveMinutesID,
+		metric.ClusterUptimeID,
 		metric.ClusterInfo,
 		[]string{
 			source.UIDLabel,
@@ -1667,9 +1667,9 @@ func NewNetTransferBytesMetricCollector() *metric.MetricCollector {
 //		}
 //	) by (uid)[%s:%dm]
 
-func NewNamespaceActiveMinutesMetricCollector() *metric.MetricCollector {
+func NewNamespaceUptimeMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
-		metric.NamespaceActiveMinutesID,
+		metric.NamespaceUptimeID,
 		metric.NamespaceInfo,
 		[]string{
 			source.UIDLabel,
@@ -1954,10 +1954,10 @@ func NewReplicaSetsWithRolloutMetricCollector() *metric.MetricCollector {
 //		}
 //	) by (uid)[%s:%dm]
 
-func NewResourceQuotaActiveMinutesMetricCollector() *metric.MetricCollector {
+func NewResourceQuotaUptimeMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
-		metric.NamespaceActiveMinutesID,
-		metric.NamespaceInfo,
+		metric.ResourceQuotaUptimeID,
+		metric.ResourceQuotaInfo,
 		[]string{
 			source.UIDLabel,
 		},

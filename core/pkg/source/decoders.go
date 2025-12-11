@@ -51,14 +51,14 @@ const (
 	NoneLabelValue = "<none>"
 )
 
-// UpTimeResult represents the first and last recorded sample timestamp within the query window
-type UpTimeResult struct {
+// UptimeResult represents the first and last recorded sample timestamp within the query window
+type UptimeResult struct {
 	UID   string
 	First time.Time
 	Last  time.Time
 }
 
-func (res *UpTimeResult) GetStartEnd(windowStart, windowEnd time.Time, resolution time.Duration) (time.Time, time.Time) {
+func (res *UptimeResult) GetStartEnd(windowStart, windowEnd time.Time, resolution time.Duration) (time.Time, time.Time) {
 	first := res.First
 	last := res.Last
 	// The only corner-case here is what to do if you only get one timestamp.
@@ -85,12 +85,12 @@ func (res *UpTimeResult) GetStartEnd(windowStart, windowEnd time.Time, resolutio
 	return first, last
 }
 
-func DecodeUpTimeResult(result *QueryResult) *UpTimeResult {
+func DecodeUptimeResult(result *QueryResult) *UptimeResult {
 	uid, _ := result.GetString(UIDLabel)
 	first := time.Unix(int64(result.Values[0].Timestamp), 0).UTC()
 	last := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).UTC()
 
-	return &UpTimeResult{
+	return &UptimeResult{
 		UID:   uid,
 		First: first,
 		Last:  last,

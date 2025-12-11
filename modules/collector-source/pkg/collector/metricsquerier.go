@@ -299,8 +299,8 @@ func (c *collectorMetricsQuerier) QueryLBPricePerHr(start, end time.Time) *sourc
 	return queryCollector(c, start, end, metric.LBPricePerHourID, source.DecodeLBPricePerHrResult)
 }
 
-func (c *collectorMetricsQuerier) QueryClusterUptime(start, end time.Time) *source.Future[source.UpTimeResult] {
-	return queryCollector(c, start, end, metric.ClusterActiveMinutesID, source.DecodeUpTimeResult)
+func (c *collectorMetricsQuerier) QueryClusterUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.ClusterUptimeID, source.DecodeUptimeResult)
 }
 
 func (c *collectorMetricsQuerier) QueryClusterManagementDuration(start, end time.Time) *source.Future[source.ClusterManagementDurationResult] {
@@ -420,8 +420,8 @@ func (c *collectorMetricsQuerier) QueryPVInfo(start, end time.Time) *source.Futu
 	return queryCollector(c, start, end, metric.PVInfoID, source.DecodePVInfoResult)
 }
 
-func (c *collectorMetricsQuerier) QueryNamespaceUptime(start, end time.Time) *source.Future[source.UpTimeResult] {
-	return queryCollector(c, start, end, metric.NamespaceActiveMinutesID, source.DecodeUpTimeResult)
+func (c *collectorMetricsQuerier) QueryNamespaceUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.NamespaceUptimeID, source.DecodeUptimeResult)
 }
 
 func (c *collectorMetricsQuerier) QueryNetZoneGiB(start, end time.Time) *source.Future[source.NetZoneGiBResult] {
@@ -528,8 +528,8 @@ func (c *collectorMetricsQuerier) QueryReplicaSetsWithRollout(start, end time.Ti
 	return queryCollector(c, start, end, metric.ReplicaSetsWithRolloutID, source.DecodeReplicaSetsWithRolloutResult)
 }
 
-func (c *collectorMetricsQuerier) QueryResourceQuotaUptime(start, end time.Time) *source.Future[source.UpTimeResult] {
-	return queryCollector(c, start, end, metric.ResourceQuotaInfo, source.DecodeUpTimeResult)
+func (c *collectorMetricsQuerier) QueryResourceQuotaUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaUptimeID, source.DecodeUptimeResult)
 }
 
 func (c *collectorMetricsQuerier) QueryResourceQuotaSpecCPURequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPURequestAvgResult] {
