@@ -295,6 +295,8 @@ func TestPipelineExportControllers(t *testing.T) {
 		memStore := storage.NewMemoryStorage()
 
 		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, PipelinesExportConfig{
+			ClusterUID:                        TestClusterId,
+			ClusterName:                       TestClusterId,
 			AllocationPiplineResolutions:      []time.Duration{TestResolution},
 			AssetPipelineResolutons:           []time.Duration{TestResolution},
 			NetworkInsightPipelineResolutions: []time.Duration{TestResolution},
@@ -331,6 +333,8 @@ func TestPipelineExportControllers(t *testing.T) {
 		memStore := storage.NewMemoryStorage()
 
 		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, PipelinesExportConfig{
+			ClusterUID:                        TestClusterId,
+			ClusterName:                       TestClusterId,
 			AllocationPiplineResolutions:      []time.Duration{TestResolution},
 			AssetPipelineResolutons:           []time.Duration{TestResolution},
 			NetworkInsightPipelineResolutions: []time.Duration{TestResolution},

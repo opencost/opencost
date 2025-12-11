@@ -25,7 +25,7 @@ func testMetricCollector() MetricStore {
 		[]string{
 			"test",
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	))
 

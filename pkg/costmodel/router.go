@@ -464,6 +464,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 			}
 			nodeStatClient := nodestats.NewNodeStatsSummaryClient(k8sCache, nodeStatConf, clusterConfig)
 			ds := collector.NewDefaultCollectorDataSource(
+				clusterUID,
 				store,
 				clusterInfoProvider,
 				k8sCache,
