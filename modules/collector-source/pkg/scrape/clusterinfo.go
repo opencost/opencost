@@ -46,9 +46,10 @@ func (cis *ClusterInfoScrapper) Scrape() []metric.Update {
 	}
 
 	scrapeResults = append(scrapeResults, metric.Update{
-		Name:   metric.ClusterInfo,
-		Labels: clusterInfo,
-		Value:  0,
+		Name:           metric.ClusterInfo,
+		Labels:         clusterInfo,
+		AdditionalInfo: clusterInfo,
+		Value:          0,
 	})
 	return scrapeResults
 

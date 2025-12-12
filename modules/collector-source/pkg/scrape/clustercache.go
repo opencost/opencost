@@ -175,9 +175,10 @@ func (ccs *ClusterCacheScraper) scrapeNamespaces(namespaces []*clustercache.Name
 		}
 
 		scrapeResults = append(scrapeResults, metric.Update{
-			Name:   metric.NamespaceInfo,
-			Labels: namespaceInfo,
-			Value:  0,
+			Name:           metric.NamespaceInfo,
+			Labels:         namespaceInfo,
+			AdditionalInfo: namespaceInfo,
+			Value:          0,
 		})
 
 		// namespace labels
@@ -575,9 +576,10 @@ func (ccs *ClusterCacheScraper) scrapeResourceQuotas(resourceQuotas []*clusterca
 		}
 
 		scrapeResults = append(scrapeResults, metric.Update{
-			Name:   metric.ResourceQuotaInfo,
-			Labels: resourceQuotaInfo,
-			Value:  0,
+			Name:           metric.ResourceQuotaInfo,
+			Labels:         resourceQuotaInfo,
+			AdditionalInfo: resourceQuotaInfo,
+			Value:          0,
 		})
 
 		if resourceQuota.Spec.Hard != nil {
