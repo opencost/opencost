@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
@@ -32,6 +35,10 @@ func Execute(conf *Config) error {
 		conf = DefaultConfig()
 	}
 	conf.log()
+
+	// Create cancellable context for graceful shutdown
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 
 	router := httprouter.New()
 	var a *costmodel.Accesses
@@ -81,7 +88,7 @@ func Execute(conf *Config) error {
 			cloudCostQuerier = cloudCostPipelineService.GetCloudCostQuerier()
 		}
 
-		err := StartMCPServer(context.Background(), a, cloudCostQuerier)
+		err := StartMCPServer(ctx, a, cloudCostQuerier)
 		if err != nil {
 			log.Errorf("Failed to start MCP server: %v", err)
 		}
