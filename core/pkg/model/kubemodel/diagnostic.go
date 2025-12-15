@@ -66,7 +66,7 @@ func (kms *KubeModelSet) Warnf(msg string, a ...any) {
 	kms.Warn(fmt.Sprintf(msg, a...))
 }
 
-func (kms *KubeModelSet) Warn(msg string, a ...any) {
+func (kms *KubeModelSet) Warn(msg string) {
 	if kms.Metadata.DiagnosticLevel > DiagnosticLevelWarning {
 		return
 	}

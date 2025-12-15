@@ -1,6 +1,7 @@
 package kubemodel
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -449,6 +450,12 @@ func TestKubeModelMarshalBinary(t *testing.T) {
 			},
 		},
 	}
+
+	kms.Error(errors.New("test error"))
+	kms.Warn("test warning")
+	kms.Info("test info")
+	kms.Debug("test debug")
+	kms.Trace("test trace")
 
 	kms.Metadata.CompletedAt = time.Now().UTC()
 
