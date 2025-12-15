@@ -871,6 +871,12 @@ func transformCloudCostSetRange(ccsr *opencost.CloudCostSetRange) *CloudCostResp
 			continue
 		}
 
+		// Skip cloud cost sets with invalid windows to prevent nil pointer dereference
+		if ccSet.Window.Start() == nil || ccSet.Window.End() == nil {
+			log.Warnf("Skipping cloud cost set %d with invalid window", i)
+			continue
+		}
+
 		setName := fmt.Sprintf("cloudcosts_%d", i)
 		mcpSet := &CloudCostSet{
 			Name:                  setName,
@@ -885,6 +891,12 @@ func transformCloudCostSetRange(ccsr *opencost.CloudCostSetRange) *CloudCostResp
 		// Convert each cloud cost item
 		for _, item := range ccSet.CloudCosts {
 			if item == nil {
+				continue
+			}
+
+			// Skip items with invalid windows to prevent nil pointer dereference
+			if item.Window.Start() == nil || item.Window.End() == nil {
+				log.Warnf("Skipping cloud cost item with invalid window in set %d", i)
 				continue
 			}
 
@@ -947,6 +959,9 @@ func transformCloudCostSetRange(ccsr *opencost.CloudCostSetRange) *CloudCostResp
 	var avgKubernetesPercent float64
 	var numerator, denominator float64
 	for _, ccSet := range ccsr.CloudCostSets {
+		if ccSet == nil {
+			continue
+		}
 		for _, item := range ccSet.CloudCosts {
 			if item == nil {
 				continue

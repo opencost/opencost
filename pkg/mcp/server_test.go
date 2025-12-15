@@ -1359,3 +1359,324 @@ func TestEfficiencyConstants(t *testing.T) {
 func TestEfficiencyQueryType(t *testing.T) {
 	assert.Equal(t, QueryType("efficiency"), EfficiencyQueryType)
 }
+
+// Tests for nil pointer dereference fix in transformCloudCostSetRange
+
+func TestTransformCloudCostSetRange_NilInput(t *testing.T) {
+	result := transformCloudCostSetRange(nil)
+
+	require.NotNil(t, result)
+	assert.NotNil(t, result.CloudCosts)
+	assert.Len(t, result.CloudCosts, 0)
+	require.NotNil(t, result.Summary)
+	assert.Equal(t, 0.0, result.Summary.TotalNetCost)
+}
+
+func TestTransformCloudCostSetRange_EmptyInput(t *testing.T) {
+	ccsr := &opencost.CloudCostSetRange{
+		CloudCostSets: []*opencost.CloudCostSet{},
+	}
+
+	result := transformCloudCostSetRange(ccsr)
+
+	require.NotNil(t, result)
+	assert.NotNil(t, result.CloudCosts)
+	assert.Len(t, result.CloudCosts, 0)
+}
+
+func TestTransformCloudCostSetRange_NilCloudCostSet(t *testing.T) {
+	ccsr := &opencost.CloudCostSetRange{
+		CloudCostSets: []*opencost.CloudCostSet{nil, nil},
+	}
+
+	// Should not panic
+	result := transformCloudCostSetRange(ccsr)
+
+	require.NotNil(t, result)
+	assert.NotNil(t, result.CloudCosts)
+	assert.Len(t, result.CloudCosts, 0)
+}
+
+func TestTransformCloudCostSetRange_NilWindowStart(t *testing.T) {
+	now := time.Now()
+	// Create a window with nil start
+	window := opencost.NewWindow(nil, &now)
+
+	ccSet := &opencost.CloudCostSet{
+		CloudCosts: map[string]*opencost.CloudCost{},
+		Window:     window,
+	}
+	ccsr := &opencost.CloudCostSetRange{
+		CloudCostSets: []*opencost.CloudCostSet{ccSet},
+	}
+
+	// Should not panic, should skip the set with invalid window
+	result := transformCloudCostSetRange(ccsr)
+
+	require.NotNil(t, result)
+	assert.NotNil(t, result.CloudCosts)
+	assert.Len(t, result.CloudCosts, 0) // Set should be skipped
+}
+
+func TestTransformCloudCostSetRange_NilWindowEnd(t *testing.T) {
+	now := time.Now()
+	// Create a window with nil end
+	window := opencost.NewWindow(&now, nil)
+
+	ccSet := &opencost.CloudCostSet{
+		CloudCosts: map[string]*opencost.CloudCost{},
+		Window:     window,
+	}
+	ccsr := &opencost.CloudCostSetRange{
+		CloudCostSets: []*opencost.CloudCostSet{ccSet},
+	}
+
+	// Should not panic, should skip the set with invalid window
+	result := transformCloudCostSetRange(ccsr)
+
+	require.NotNil(t, result)
+	assert.NotNil(t, result.CloudCosts)
+	assert.Len(t, result.CloudCosts, 0) // Set should be skipped
+}
+
+func TestTransformCloudCostSetRange_NilWindowBoth(t *testing.T) {
+	// Create a window with both nil
+	window := opencost.NewWindow(nil, nil)
+
+	ccSet := &opencost.CloudCostSet{
+		CloudCosts: map[string]*opencost.CloudCost{},
+		Window:     window,
+	}
+	ccsr := &opencost.CloudCostSetRange{
+		CloudCostSets: []*opencost.CloudCostSet{ccSet},
+	}
+
+	// Should not panic, should skip the set with invalid window
+	result := transformCloudCostSetRange(ccsr)
+
+	require.NotNil(t, result)
+	assert.NotNil(t, result.CloudCosts)
+	assert.Len(t, result.CloudCosts, 0) // Set should be skipped
+}
+
+func TestTransformCloudCostSetRange_CloudCostItemNilWindowStart(t *testing.T) {
+	now := time.Now()
+	yesterday := now.Add(-24 * time.Hour)
+
+	// Create a valid window for the set
+	setWindow := opencost.NewWindow(&yesterday, &now)
+
+	// Create a cloud cost item with nil window start
+	itemWindow := opencost.NewWindow(nil, &now)
+	ccItem := &opencost.CloudCost{
+		Properties: opencost.CloudCostProperties{
+			Provider: "aws",
+			Service:  "ec2",
+		},
+		Window: itemWindow,
+	}
+
+	ccSet := &opencost.CloudCostSet{
+		CloudCosts: map[string]*opencost.CloudCost{
+			"test-item": ccItem,
+		},
+		Window: setWindow,
+	}
+	ccsr := &opencost.CloudCostSetRange{
+		CloudCostSets: []*opencost.CloudCostSet{ccSet},
+	}
+
+	// Should not panic, should skip the item with invalid window
+	result := transformCloudCostSetRange(ccsr)
+
+	require.NotNil(t, result)
+	assert.NotNil(t, result.CloudCosts)
+	// Set should exist but item should be skipped
+	assert.Len(t, result.CloudCosts, 1)
+	assert.Len(t, result.CloudCosts["cloudcosts_0"].CloudCosts, 0)
+}
+
+func TestTransformCloudCostSetRange_CloudCostItemNilWindowEnd(t *testing.T) {
+	now := time.Now()
+	yesterday := now.Add(-24 * time.Hour)
+
+	// Create a valid window for the set
+	setWindow := opencost.NewWindow(&yesterday, &now)
+
+	// Create a cloud cost item with nil window end
+	itemWindow := opencost.NewWindow(&yesterday, nil)
+	ccItem := &opencost.CloudCost{
+		Properties: opencost.CloudCostProperties{
+			Provider: "aws",
+			Service:  "ec2",
+		},
+		Window: itemWindow,
+	}
+
+	ccSet := &opencost.CloudCostSet{
+		CloudCosts: map[string]*opencost.CloudCost{
+			"test-item": ccItem,
+		},
+		Window: setWindow,
+	}
+	ccsr := &opencost.CloudCostSetRange{
+		CloudCostSets: []*opencost.CloudCostSet{ccSet},
+	}
+
+	// Should not panic, should skip the item with invalid window
+	result := transformCloudCostSetRange(ccsr)
+
+	require.NotNil(t, result)
+	assert.NotNil(t, result.CloudCosts)
+	// Set should exist but item should be skipped
+	assert.Len(t, result.CloudCosts, 1)
+	assert.Len(t, result.CloudCosts["cloudcosts_0"].CloudCosts, 0)
+}
+
+func TestTransformCloudCostSetRange_MixedValidAndInvalidWindows(t *testing.T) {
+	now := time.Now()
+	yesterday := now.Add(-24 * time.Hour)
+
+	// Create valid windows
+	validSetWindow := opencost.NewWindow(&yesterday, &now)
+	validItemWindow := opencost.NewWindow(&yesterday, &now)
+
+	// Create invalid windows
+	invalidSetWindow := opencost.NewWindow(nil, &now)
+	invalidItemWindow := opencost.NewWindow(&yesterday, nil)
+
+	// Valid cloud cost item
+	validItem := &opencost.CloudCost{
+		Properties: opencost.CloudCostProperties{
+			Provider: "aws",
+			Service:  "ec2",
+		},
+		Window: validItemWindow,
+		NetCost: opencost.CostMetric{
+			Cost:              100.0,
+			KubernetesPercent: 80.0,
+		},
+	}
+
+	// Invalid cloud cost item (nil window end)
+	invalidItem := &opencost.CloudCost{
+		Properties: opencost.CloudCostProperties{
+			Provider: "gcp",
+			Service:  "compute",
+		},
+		Window: invalidItemWindow,
+	}
+
+	// Valid set with both valid and invalid items
+	validSet := &opencost.CloudCostSet{
+		CloudCosts: map[string]*opencost.CloudCost{
+			"valid-item":   validItem,
+			"invalid-item": invalidItem,
+		},
+		Window: validSetWindow,
+	}
+
+	// Invalid set (nil window start)
+	invalidSet := &opencost.CloudCostSet{
+		CloudCosts: map[string]*opencost.CloudCost{
+			"some-item": validItem,
+		},
+		Window: invalidSetWindow,
+	}
+
+	ccsr := &opencost.CloudCostSetRange{
+		CloudCostSets: []*opencost.CloudCostSet{validSet, invalidSet},
+	}
+
+	// Should not panic, should process valid data and skip invalid
+	result := transformCloudCostSetRange(ccsr)
+
+	require.NotNil(t, result)
+	assert.NotNil(t, result.CloudCosts)
+	// Only the valid set should be processed
+	assert.Len(t, result.CloudCosts, 1)
+	// Only the valid item should be included
+	assert.Len(t, result.CloudCosts["cloudcosts_0"].CloudCosts, 1)
+	// Verify the valid item was processed correctly
+	assert.Equal(t, "aws", result.CloudCosts["cloudcosts_0"].CloudCosts[0].Properties.Provider)
+}
+
+func TestTransformCloudCostSetRange_ValidInput(t *testing.T) {
+	now := time.Now()
+	yesterday := now.Add(-24 * time.Hour)
+
+	// Create a valid cloud cost set
+	setWindow := opencost.NewWindow(&yesterday, &now)
+	itemWindow := opencost.NewWindow(&yesterday, &now)
+
+	ccItem := &opencost.CloudCost{
+		Properties: opencost.CloudCostProperties{
+			Provider:    "aws",
+			Service:     "ec2",
+			AccountID:   "123456789",
+			AccountName: "test-account",
+			RegionID:    "us-east-1",
+			Category:    "compute",
+		},
+		Window: itemWindow,
+		ListCost: opencost.CostMetric{
+			Cost:              100.0,
+			KubernetesPercent: 80.0,
+		},
+		NetCost: opencost.CostMetric{
+			Cost:              95.0,
+			KubernetesPercent: 80.0,
+		},
+		AmortizedNetCost: opencost.CostMetric{
+			Cost:              90.0,
+			KubernetesPercent: 80.0,
+		},
+		InvoicedCost: opencost.CostMetric{
+			Cost:              100.0,
+			KubernetesPercent: 80.0,
+		},
+		AmortizedCost: opencost.CostMetric{
+			Cost:              92.0,
+			KubernetesPercent: 80.0,
+		},
+	}
+
+	ccSet := &opencost.CloudCostSet{
+		CloudCosts:            map[string]*opencost.CloudCost{"test-item": ccItem},
+		Window:                setWindow,
+		AggregationProperties: []string{"provider", "service"},
+	}
+
+	ccsr := &opencost.CloudCostSetRange{
+		CloudCostSets: []*opencost.CloudCostSet{ccSet},
+	}
+
+	result := transformCloudCostSetRange(ccsr)
+
+	require.NotNil(t, result)
+	assert.NotNil(t, result.CloudCosts)
+	assert.Len(t, result.CloudCosts, 1)
+
+	// Verify the cloud cost set was transformed correctly
+	mcpSet := result.CloudCosts["cloudcosts_0"]
+	require.NotNil(t, mcpSet)
+	assert.Equal(t, "cloudcosts_0", mcpSet.Name)
+	assert.Equal(t, []string{"provider", "service"}, mcpSet.AggregationProperties)
+	require.NotNil(t, mcpSet.Window)
+	assert.Equal(t, yesterday.Unix(), mcpSet.Window.Start.Unix())
+	assert.Equal(t, now.Unix(), mcpSet.Window.End.Unix())
+
+	// Verify the cloud cost item was transformed correctly
+	assert.Len(t, mcpSet.CloudCosts, 1)
+	mcpItem := mcpSet.CloudCosts[0]
+	assert.Equal(t, "aws", mcpItem.Properties.Provider)
+	assert.Equal(t, "ec2", mcpItem.Properties.Service)
+	assert.Equal(t, 100.0, mcpItem.ListCost.Cost)
+	assert.Equal(t, 95.0, mcpItem.NetCost.Cost)
+
+	// Verify the summary was calculated correctly
+	require.NotNil(t, result.Summary)
+	assert.Equal(t, 95.0, result.Summary.TotalNetCost)
+	assert.Equal(t, 90.0, result.Summary.TotalAmortizedCost)
+	assert.Equal(t, 100.0, result.Summary.TotalInvoicedCost)
+}
