@@ -64,10 +64,14 @@ func NewCostModel(
 	// request grouping to prevent over-requesting the same data prior to caching
 	requestGroup := new(singleflight.Group)
 
-	kubeModel, err := km.NewKubeModel(clusterUID, dataSource)
-	if err != nil {
-		// KubeModel is required. Log a fatal error if we fail to init.
-		log.Fatalf("error initializing KubeModel: %s", err)
+	var kubeModel *km.KubeModel
+	var err error
+	if dataSource != nil {
+		kubeModel, err = km.NewKubeModel(clusterUID, dataSource)
+		if err != nil {
+			// KubeModel is required. Log a fatal error if we fail to init.
+			log.Fatalf("error initializing KubeModel: %s", err)
+		}
 	}
 
 	return &CostModel{
@@ -82,6 +86,10 @@ func NewCostModel(
 }
 
 func (cm *CostModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeModelSet, error) {
+	if cm.KubeModel == nil {
+		return nil, fmt.Errorf("KubeModel not initialized")
+	}
+
 	return cm.KubeModel.ComputeKubeModelSet(start, end)
 }
 
