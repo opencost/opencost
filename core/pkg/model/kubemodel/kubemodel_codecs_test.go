@@ -31,13 +31,426 @@ func TestKubeModelMarshalBinary(t *testing.T) {
 	// Test non-empty KubeModelSet
 
 	kms = NewKubeModelSet(s, e)
+
+	kms.Metadata.CreatedAt = time.Now().UTC()
+
 	kms.RegisterCluster("cluster")
+	kms.Cluster.Start = s
+	kms.Cluster.End = e
+
 	kms.RegisterNamespace("ns1", "ns1")
+	kms.Namespaces["ns1"].Start = s
+	kms.Namespaces["ns1"].End = e
+	kms.Namespaces["ns1"].Labels = map[string]string{"label1": "label1"}
+	kms.Namespaces["ns1"].Annotations = map[string]string{"anno1": "anno1"}
+
 	kms.RegisterNamespace("ns2", "ns2")
+	kms.Namespaces["ns2"].Start = s
+	kms.Namespaces["ns2"].End = e
+	kms.Namespaces["ns2"].Labels = map[string]string{"label2": "label2"}
+	kms.Namespaces["ns2"].Annotations = map[string]string{"anno2": "anno2"}
+
 	kms.RegisterResourceQuota("rq1", "rq1", "ns1")
+	kms.ResourceQuotas["rq1"].Start = s
+	kms.ResourceQuotas["rq1"].End = e
+	kms.ResourceQuotas["rq1"].Spec = &ResourceQuotaSpec{
+		Hard: &ResourceQuotaSpecHard{
+			Requests: ResourceQuantities{
+				ResourceCPU: ResourceQuantity{
+					Resource: ResourceCPU,
+					Unit:     UnitMillicore,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+				ResourceMemory: ResourceQuantity{
+					Resource: ResourceMemory,
+					Unit:     UnitByte,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+			},
+			Limits: ResourceQuantities{
+				ResourceCPU: ResourceQuantity{
+					Resource: ResourceCPU,
+					Unit:     UnitMillicore,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+				ResourceMemory: ResourceQuantity{
+					Resource: ResourceMemory,
+					Unit:     UnitByte,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+			},
+		},
+	}
+	kms.ResourceQuotas["rq1"].Status = &ResourceQuotaStatus{
+		Used: &ResourceQuotaStatusUsed{
+			Requests: ResourceQuantities{
+				ResourceCPU: ResourceQuantity{
+					Resource: ResourceCPU,
+					Unit:     UnitMillicore,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+				ResourceMemory: ResourceQuantity{
+					Resource: ResourceMemory,
+					Unit:     UnitByte,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+			},
+			Limits: ResourceQuantities{
+				ResourceCPU: ResourceQuantity{
+					Resource: ResourceCPU,
+					Unit:     UnitMillicore,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+				ResourceMemory: ResourceQuantity{
+					Resource: ResourceMemory,
+					Unit:     UnitByte,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+			},
+		},
+	}
+
 	kms.RegisterResourceQuota("rq2", "rq2", "ns1")
+	kms.ResourceQuotas["rq2"].Start = s
+	kms.ResourceQuotas["rq2"].End = e
+	kms.ResourceQuotas["rq2"].Spec = &ResourceQuotaSpec{
+		Hard: &ResourceQuotaSpecHard{
+			Requests: ResourceQuantities{
+				ResourceCPU: ResourceQuantity{
+					Resource: ResourceCPU,
+					Unit:     UnitMillicore,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+				ResourceMemory: ResourceQuantity{
+					Resource: ResourceMemory,
+					Unit:     UnitByte,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+			},
+			Limits: ResourceQuantities{
+				ResourceCPU: ResourceQuantity{
+					Resource: ResourceCPU,
+					Unit:     UnitMillicore,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+				ResourceMemory: ResourceQuantity{
+					Resource: ResourceMemory,
+					Unit:     UnitByte,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+			},
+		},
+	}
+	kms.ResourceQuotas["rq2"].Status = &ResourceQuotaStatus{
+		Used: &ResourceQuotaStatusUsed{
+			Requests: ResourceQuantities{
+				ResourceCPU: ResourceQuantity{
+					Resource: ResourceCPU,
+					Unit:     UnitMillicore,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+				ResourceMemory: ResourceQuantity{
+					Resource: ResourceMemory,
+					Unit:     UnitByte,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+			},
+			Limits: ResourceQuantities{
+				ResourceCPU: ResourceQuantity{
+					Resource: ResourceCPU,
+					Unit:     UnitMillicore,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+				ResourceMemory: ResourceQuantity{
+					Resource: ResourceMemory,
+					Unit:     UnitByte,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+			},
+		},
+	}
+
 	kms.RegisterResourceQuota("rq3", "rq3", "ns2")
+	kms.ResourceQuotas["rq3"].Start = s
+	kms.ResourceQuotas["rq3"].End = e
+	kms.ResourceQuotas["rq3"].Spec = &ResourceQuotaSpec{
+		Hard: &ResourceQuotaSpecHard{
+			Requests: ResourceQuantities{
+				ResourceCPU: ResourceQuantity{
+					Resource: ResourceCPU,
+					Unit:     UnitMillicore,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+				ResourceMemory: ResourceQuantity{
+					Resource: ResourceMemory,
+					Unit:     UnitByte,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+			},
+			Limits: ResourceQuantities{
+				ResourceCPU: ResourceQuantity{
+					Resource: ResourceCPU,
+					Unit:     UnitMillicore,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+				ResourceMemory: ResourceQuantity{
+					Resource: ResourceMemory,
+					Unit:     UnitByte,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+			},
+		},
+	}
+	kms.ResourceQuotas["rq3"].Status = &ResourceQuotaStatus{
+		Used: &ResourceQuotaStatusUsed{
+			Requests: ResourceQuantities{
+				ResourceCPU: ResourceQuantity{
+					Resource: ResourceCPU,
+					Unit:     UnitMillicore,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+				ResourceMemory: ResourceQuantity{
+					Resource: ResourceMemory,
+					Unit:     UnitByte,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+			},
+			Limits: ResourceQuantities{
+				ResourceCPU: ResourceQuantity{
+					Resource: ResourceCPU,
+					Unit:     UnitMillicore,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+				ResourceMemory: ResourceQuantity{
+					Resource: ResourceMemory,
+					Unit:     UnitByte,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+			},
+		},
+	}
+
 	kms.RegisterResourceQuota("rq4", "rq4", "ns2")
+	kms.ResourceQuotas["rq4"].Start = s
+	kms.ResourceQuotas["rq4"].End = e
+	kms.ResourceQuotas["rq4"].Spec = &ResourceQuotaSpec{
+		Hard: &ResourceQuotaSpecHard{
+			Requests: ResourceQuantities{
+				ResourceCPU: ResourceQuantity{
+					Resource: ResourceCPU,
+					Unit:     UnitMillicore,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+				ResourceMemory: ResourceQuantity{
+					Resource: ResourceMemory,
+					Unit:     UnitByte,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+			},
+			Limits: ResourceQuantities{
+				ResourceCPU: ResourceQuantity{
+					Resource: ResourceCPU,
+					Unit:     UnitMillicore,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+				ResourceMemory: ResourceQuantity{
+					Resource: ResourceMemory,
+					Unit:     UnitByte,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+			},
+		},
+	}
+	kms.ResourceQuotas["rq4"].Status = &ResourceQuotaStatus{
+		Used: &ResourceQuotaStatusUsed{
+			Requests: ResourceQuantities{
+				ResourceCPU: ResourceQuantity{
+					Resource: ResourceCPU,
+					Unit:     UnitMillicore,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+				ResourceMemory: ResourceQuantity{
+					Resource: ResourceMemory,
+					Unit:     UnitByte,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+			},
+			Limits: ResourceQuantities{
+				ResourceCPU: ResourceQuantity{
+					Resource: ResourceCPU,
+					Unit:     UnitMillicore,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+				ResourceMemory: ResourceQuantity{
+					Resource: ResourceMemory,
+					Unit:     UnitByte,
+					Values: Stats{
+						StatAvg: 1,
+						StatMax: 1,
+						StatP85: 1,
+						StatP95: 1,
+					},
+				},
+			},
+		},
+	}
+
+	kms.Metadata.CompletedAt = time.Now().UTC()
 
 	b, err = kms.MarshalBinary()
 	require.NoError(t, err)
