@@ -1017,7 +1017,6 @@ func GenerateMockCloudCostSet(start, end time.Time, provider, integration string
 }
 
 // GenerateMockKubeModelSet creates generic KubeModel set
-// TODO: does this require actual numeric data?
 func GenerateMockKubeModelSet(start, end time.Time) *kubemodel.KubeModelSet {
 	kms := kubemodel.NewKubeModelSet(start, end)
 
