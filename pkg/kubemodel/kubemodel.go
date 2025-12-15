@@ -30,8 +30,7 @@ func NewKubeModel(clusterUID string, dataSource source.OpenCostDataSource) (*Kub
 
 	km.clusterUID = clusterUID
 
-	// TODO reduce log level
-	log.Infof("[KM] NewKubeModel(%s)", km.clusterUID)
+	log.Debugf("NewKubeModel(%s)", km.clusterUID)
 
 	return km, nil
 }
