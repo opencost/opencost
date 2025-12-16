@@ -27,7 +27,7 @@ type ResourceQuotaSpecHard struct {
 	Limits   ResourceQuantities `json:"limits,omitempty"`   // @bingen:field[version=1]
 }
 
-func (spec *ResourceQuotaSpecHard) SetRequest(resource Resource, unit Unit, statType StatType, value uint64) {
+func (spec *ResourceQuotaSpecHard) SetRequest(resource Resource, unit Unit, statType StatType, value float64) {
 	if spec.Requests == nil {
 		spec.Requests = ResourceQuantities{}
 	}
@@ -35,7 +35,7 @@ func (spec *ResourceQuotaSpecHard) SetRequest(resource Resource, unit Unit, stat
 	spec.Requests.Set(resource, unit, statType, value)
 }
 
-func (spec *ResourceQuotaSpecHard) SetLimit(resource Resource, unit Unit, statType StatType, value uint64) {
+func (spec *ResourceQuotaSpecHard) SetLimit(resource Resource, unit Unit, statType StatType, value float64) {
 	if spec.Limits == nil {
 		spec.Limits = ResourceQuantities{}
 	}
@@ -54,7 +54,7 @@ type ResourceQuotaStatusUsed struct {
 	Limits   ResourceQuantities `json:"limits,omitempty"`   // @bingen:field[version=1]
 }
 
-func (stat *ResourceQuotaStatusUsed) SetRequest(resource Resource, unit Unit, statType StatType, value uint64) {
+func (stat *ResourceQuotaStatusUsed) SetRequest(resource Resource, unit Unit, statType StatType, value float64) {
 	if stat.Requests == nil {
 		stat.Requests = ResourceQuantities{}
 	}
@@ -62,7 +62,7 @@ func (stat *ResourceQuotaStatusUsed) SetRequest(resource Resource, unit Unit, st
 	stat.Requests.Set(resource, unit, statType, value)
 }
 
-func (stat *ResourceQuotaStatusUsed) SetLimit(resource Resource, unit Unit, statType StatType, value uint64) {
+func (stat *ResourceQuotaStatusUsed) SetLimit(resource Resource, unit Unit, statType StatType, value float64) {
 	if stat.Limits == nil {
 		stat.Limits = ResourceQuantities{}
 	}

@@ -1279,10 +1279,9 @@ func (m *mockConfig) ConfigFileManager() *config.ConfigFileManager {
 }
 
 type mockClusterCache struct {
-	clusterUID string
-	nodes      []*clustercache.Node
-	pvs        []*clustercache.PersistentVolume
-	scs        []*clustercache.StorageClass
+	nodes []*clustercache.Node
+	pvs   []*clustercache.PersistentVolume
+	scs   []*clustercache.StorageClass
 }
 
 func (m *mockClusterCache) GetAllNodes() []*clustercache.Node {

@@ -39,9 +39,6 @@ func NewKubeModel(clusterUID string, dataSource source.OpenCostDataSource) (*Kub
 // for the window defined by the given start and end times. The KubeModels
 // returned are unaggregated (i.e. down to the container level).
 func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeModelSet, error) {
-	// TODO reduce log level
-	log.Infof("[KM] ComputeKubeModel(%s, %s)", start.Format("2006-01-02 15:04:05"), end.Format("2006-01-02 15:04:05"))
-
 	// 1. Initialize new KubeModelSet for requested Window
 	kms := kubemodel.NewKubeModelSet(start, end)
 
@@ -74,10 +71,9 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 }
 
 func (km *KubeModel) computeCluster(kms *kubemodel.KubeModelSet, start, end time.Time) error {
-
 	kms.Cluster = &kubemodel.Cluster{
 		UID:  km.clusterUID,
-		Name: env.GetClusterID(), // TODO: do we still want to use this env var for Name?
+		Name: env.GetClusterID(),
 	}
 
 	grp := source.NewQueryGroup()
@@ -182,7 +178,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 			continue
 		}
 
-		mcpu := uint64(res.Data[0].Value * 1000)
+		mcpu := res.Data[0].Value * 1000
 		kms.ResourceQuotas[res.UID].Spec.Hard.SetRequest(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatAvg, mcpu)
 	}
 
@@ -194,7 +190,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 			continue
 		}
 
-		mcpu := uint64(res.Data[0].Value * 1000)
+		mcpu := res.Data[0].Value * 1000
 		kms.ResourceQuotas[res.UID].Spec.Hard.SetRequest(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatMax, mcpu)
 	}
 
@@ -206,7 +202,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 			continue
 		}
 
-		kms.ResourceQuotas[res.UID].Spec.Hard.SetRequest(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatAvg, uint64(res.Data[0].Value))
+		kms.ResourceQuotas[res.UID].Spec.Hard.SetRequest(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatAvg, res.Data[0].Value)
 	}
 
 	rqSpecRAMRequestMaxResult, _ := rqSpecRAMRequestMaxResultFuture.Await()
@@ -217,7 +213,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 			continue
 		}
 
-		kms.ResourceQuotas[res.UID].Spec.Hard.SetRequest(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatMax, uint64(res.Data[0].Value))
+		kms.ResourceQuotas[res.UID].Spec.Hard.SetRequest(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatMax, res.Data[0].Value)
 	}
 
 	rqSpecCPULimitAverageResult, _ := rqSpecCPULimitAverageResultFuture.Await()
@@ -228,7 +224,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 			continue
 		}
 
-		mcpu := uint64(res.Data[0].Value * 1000)
+		mcpu := res.Data[0].Value * 1000
 		kms.ResourceQuotas[res.UID].Spec.Hard.SetLimit(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatAvg, mcpu)
 	}
 
@@ -240,7 +236,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 			continue
 		}
 
-		mcpu := uint64(res.Data[0].Value * 1000)
+		mcpu := res.Data[0].Value * 1000
 		kms.ResourceQuotas[res.UID].Spec.Hard.SetLimit(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatMax, mcpu)
 	}
 
@@ -252,7 +248,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 			continue
 		}
 
-		kms.ResourceQuotas[res.UID].Spec.Hard.SetLimit(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatAvg, uint64(res.Data[0].Value))
+		kms.ResourceQuotas[res.UID].Spec.Hard.SetLimit(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatAvg, res.Data[0].Value)
 	}
 
 	rqSpecRAMLimitMaxResult, _ := rqSpecRAMLimitMaxResultFuture.Await()
@@ -263,7 +259,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 			continue
 		}
 
-		kms.ResourceQuotas[res.UID].Spec.Hard.SetLimit(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatMax, uint64(res.Data[0].Value))
+		kms.ResourceQuotas[res.UID].Spec.Hard.SetLimit(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatMax, res.Data[0].Value)
 	}
 
 	rqStatusUsedCPURequestAverageResult, _ := rqStatusUsedCPURequestAverageResultFuture.Await()
@@ -274,7 +270,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 			continue
 		}
 
-		mcpu := uint64(res.Data[0].Value * 1000)
+		mcpu := res.Data[0].Value * 1000
 		kms.ResourceQuotas[res.UID].Status.Used.SetRequest(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatAvg, mcpu)
 	}
 
@@ -286,7 +282,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 			continue
 		}
 
-		mcpu := uint64(res.Data[0].Value * 1000)
+		mcpu := res.Data[0].Value * 1000
 		kms.ResourceQuotas[res.UID].Status.Used.SetRequest(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatMax, mcpu)
 	}
 
@@ -298,7 +294,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 			continue
 		}
 
-		kms.ResourceQuotas[res.UID].Status.Used.SetRequest(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatAvg, uint64(res.Data[0].Value))
+		kms.ResourceQuotas[res.UID].Status.Used.SetRequest(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatAvg, res.Data[0].Value)
 	}
 
 	rqStatusUsedRAMRequestMaxResult, _ := rqStatusUsedRAMRequestMaxResultFuture.Await()
@@ -309,7 +305,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 			continue
 		}
 
-		kms.ResourceQuotas[res.UID].Status.Used.SetRequest(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatMax, uint64(res.Data[0].Value))
+		kms.ResourceQuotas[res.UID].Status.Used.SetRequest(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatMax, res.Data[0].Value)
 	}
 
 	rqStatusUsedCPULimitAverageResult, _ := rqStatusUsedCPULimitAverageResultFuture.Await()
@@ -320,7 +316,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 			continue
 		}
 
-		mcpu := uint64(res.Data[0].Value * 1000)
+		mcpu := res.Data[0].Value * 1000
 		kms.ResourceQuotas[res.UID].Status.Used.SetLimit(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatAvg, mcpu)
 	}
 
@@ -332,7 +328,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 			continue
 		}
 
-		mcpu := uint64(res.Data[0].Value * 1000)
+		mcpu := res.Data[0].Value * 1000
 		kms.ResourceQuotas[res.UID].Status.Used.SetLimit(kubemodel.ResourceCPU, kubemodel.UnitMillicore, kubemodel.StatMax, mcpu)
 	}
 
@@ -344,7 +340,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 			continue
 		}
 
-		kms.ResourceQuotas[res.UID].Status.Used.SetLimit(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatAvg, uint64(res.Data[0].Value))
+		kms.ResourceQuotas[res.UID].Status.Used.SetLimit(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatAvg, res.Data[0].Value)
 	}
 
 	rqStatusUsedRAMLimitMaxResult, _ := rqStatusUsedRAMLimitMaxResultFuture.Await()
@@ -355,7 +351,7 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 			continue
 		}
 
-		kms.ResourceQuotas[res.UID].Status.Used.SetLimit(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatMax, uint64(res.Data[0].Value))
+		kms.ResourceQuotas[res.UID].Status.Used.SetLimit(kubemodel.ResourceMemory, kubemodel.UnitByte, kubemodel.StatMax, res.Data[0].Value)
 	}
 
 	rqUptimeResult, _ := rqUptimeResultFuture.Await()

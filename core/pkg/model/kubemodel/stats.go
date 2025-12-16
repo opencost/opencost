@@ -12,18 +12,18 @@ const (
 )
 
 // @bingen:generate:Stats
-type Stats map[StatType]uint64
+type Stats map[StatType]float64
 
 func NewStats(capacity ...int) Stats {
 	if len(capacity) == 1 {
-		s := make(map[StatType]uint64, capacity[0])
+		s := make(map[StatType]float64, capacity[0])
 		return s
 	}
 
-	return map[StatType]uint64{}
+	return map[StatType]float64{}
 }
 
-func (s Stats) Avg() (uint64, bool) {
+func (s Stats) Avg() (float64, bool) {
 	if s == nil {
 		return 0, false
 	}
@@ -33,7 +33,7 @@ func (s Stats) Avg() (uint64, bool) {
 	return val, ok
 }
 
-func (s Stats) Max() (uint64, bool) {
+func (s Stats) Max() (float64, bool) {
 	if s == nil {
 		return 0, false
 	}
@@ -43,7 +43,7 @@ func (s Stats) Max() (uint64, bool) {
 	return val, ok
 }
 
-func (s Stats) Min() (uint64, bool) {
+func (s Stats) Min() (float64, bool) {
 	if s == nil {
 		return 0, false
 	}
@@ -53,7 +53,7 @@ func (s Stats) Min() (uint64, bool) {
 	return val, ok
 }
 
-func (s Stats) P95() (uint64, bool) {
+func (s Stats) P95() (float64, bool) {
 	if s == nil {
 		return 0, false
 	}
@@ -63,7 +63,7 @@ func (s Stats) P95() (uint64, bool) {
 	return val, ok
 }
 
-func (s Stats) P85() (uint64, bool) {
+func (s Stats) P85() (float64, bool) {
 	if s == nil {
 		return 0, false
 	}

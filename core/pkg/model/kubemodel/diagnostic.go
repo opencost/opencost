@@ -3,6 +3,8 @@ package kubemodel
 import (
 	"fmt"
 	"time"
+
+	"github.com/opencost/opencost/core/pkg/log"
 )
 
 // @bingen:generate:DiagnosticLevel
@@ -42,7 +44,17 @@ func (kms *KubeModelSet) GetErrors() []Diagnostic {
 	return ds
 }
 
+func (kms *KubeModelSet) Errorf(msg string, a ...any) {
+	kms.Error(fmt.Errorf(msg, a...))
+}
+
 func (kms *KubeModelSet) Error(err error) {
+	if err == nil {
+		return
+	}
+
+	log.Error(fmt.Sprintf("KubeModel: %s", err))
+
 	kms.RegisterDiagnostic(Diagnostic{
 		Timestamp: time.Now().UTC(),
 		Level:     DiagnosticLevelError,
@@ -70,6 +82,8 @@ func (kms *KubeModelSet) Warn(msg string) {
 	if kms.Metadata.DiagnosticLevel > DiagnosticLevelWarning {
 		return
 	}
+
+	log.Warn(fmt.Sprintf("KubeModel: %s", msg))
 
 	kms.RegisterDiagnostic(Diagnostic{
 		Timestamp: time.Now().UTC(),
@@ -99,6 +113,8 @@ func (kms *KubeModelSet) Info(msg string) {
 		return
 	}
 
+	log.Info(fmt.Sprintf("KubeModel: %s", msg))
+
 	kms.RegisterDiagnostic(Diagnostic{
 		Timestamp: time.Now().UTC(),
 		Level:     DiagnosticLevelInfo,
@@ -127,6 +143,8 @@ func (kms *KubeModelSet) Debug(msg string) {
 		return
 	}
 
+	log.Debug(fmt.Sprintf("KubeModel: %s", msg))
+
 	kms.RegisterDiagnostic(Diagnostic{
 		Timestamp: time.Now().UTC(),
 		Level:     DiagnosticLevelDebug,
@@ -154,6 +172,8 @@ func (kms *KubeModelSet) Trace(msg string) {
 	if kms.Metadata.DiagnosticLevel > DiagnosticLevelTrace {
 		return
 	}
+
+	log.Trace(fmt.Sprintf("KubeModel: %s", msg))
 
 	kms.RegisterDiagnostic(Diagnostic{
 		Timestamp: time.Now().UTC(),

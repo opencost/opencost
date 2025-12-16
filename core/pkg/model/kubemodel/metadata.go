@@ -10,5 +10,5 @@ type Metadata struct {
 	CompletedAt     time.Time       `json:"completedAt"`           // @bingen:field[version=1]
 	ObjectCount     int             `json:"objectCount"`           // @bingen:field[version=1]
 	Diagnostics     []Diagnostic    `json:"diagnostics,omitempty"` // @bingen:field[version=1]
-	DiagnosticLevel DiagnosticLevel `json:"level"`                 // @bingen:field[version=1]
+	DiagnosticLevel DiagnosticLevel `json:"diagnosticLevel"`       // @bingen:field[version=1]
 }

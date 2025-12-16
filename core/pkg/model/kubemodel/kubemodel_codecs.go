@@ -1693,14 +1693,14 @@ func (target *ResourceQuantity) MarshalBinaryWithContext(ctx *EncodingContext) (
 	// --- [end][write][alias](Unit) ---
 
 	// --- [begin][write][alias](Stats) ---
-	if map[StatType]uint64(target.Values) == nil {
+	if map[StatType]float64(target.Values) == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
 
-		// --- [begin][write][map](map[StatType]uint64) ---
-		buff.WriteInt(len(map[StatType]uint64(target.Values))) // map length
-		for v, z := range map[StatType]uint64(target.Values) {
+		// --- [begin][write][map](map[StatType]float64) ---
+		buff.WriteInt(len(map[StatType]float64(target.Values))) // map length
+		for v, z := range map[StatType]float64(target.Values) {
 			// --- [begin][write][alias](StatType) ---
 			if ctx.IsStringTable() {
 				c := ctx.Table.AddOrGet(string(v))
@@ -1710,9 +1710,9 @@ func (target *ResourceQuantity) MarshalBinaryWithContext(ctx *EncodingContext) (
 			}
 			// --- [end][write][alias](StatType) ---
 
-			buff.WriteUInt64(z) // write uint64
+			buff.WriteFloat64(z) // write float64
 		}
-		// --- [end][write][map](map[StatType]uint64) ---
+		// --- [end][write][map](map[StatType]float64) ---
 
 	}
 	// --- [end][write][alias](Stats) ---
@@ -1817,13 +1817,13 @@ func (target *ResourceQuantity) UnmarshalBinaryWithContext(ctx *DecodingContext)
 	// field version check
 	if uint8(1) <= version {
 		// --- [begin][read][alias](Stats) ---
-		var k map[StatType]uint64
+		var k map[StatType]float64
 		if buff.ReadUInt8() == uint8(0) {
 			k = nil
 		} else {
-			// --- [begin][read][map](map[StatType]uint64) ---
+			// --- [begin][read][map](map[StatType]float64) ---
 			m := buff.ReadInt() // map len
-			l := make(map[StatType]uint64, m)
+			l := make(map[StatType]float64, m)
 			for i := 0; i < m; i++ {
 				// --- [begin][read][alias](StatType) ---
 				var n string
@@ -1840,14 +1840,14 @@ func (target *ResourceQuantity) UnmarshalBinaryWithContext(ctx *DecodingContext)
 				v := StatType(n)
 				// --- [end][read][alias](StatType) ---
 
-				var z uint64
-				r := buff.ReadUInt64() // read uint64
+				var z float64
+				r := buff.ReadFloat64() // read float64
 				z = r
 
 				l[v] = z
 			}
 			k = l
-			// --- [end][read][map](map[StatType]uint64) ---
+			// --- [end][read][map](map[StatType]float64) ---
 
 		}
 		target.Values = Stats(k)
