@@ -83,7 +83,7 @@ func (km *KubeModel) computeCluster(kms *kubemodel.KubeModelSet, start, end time
 	clusterUptimeResult, _ := clusterUptimeResultFuture.Await()
 
 	if len(clusterUptimeResult) != 1 {
-		log.Errorf("%d clusters returning from cluster uptime query", len(clusterUptimeResult))
+		kms.Errorf("%d clusters returning from cluster uptime query", len(clusterUptimeResult))
 	}
 
 	for _, res := range clusterUptimeResult {
