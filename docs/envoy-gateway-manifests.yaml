@@ -1,0 +1,455 @@
+# Envoy Gateway Kubernetes Manifests for OpenCost
+# ==================================================
+#
+# This file contains all the Kubernetes resources needed to deploy
+# Envoy Gateway for OpenCost. Apply these resources AFTER installing
+# Envoy Gateway controller and Gateway API CRDs.
+#
+# Prerequisites:
+#   kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+#   helm install eg oci://docker.io/envoyproxy/gateway-helm --version v1.2.0 -n envoy-gateway-system --create-namespace
+#
+# Usage:
+#   kubectl apply -f envoy-gateway-manifests.yaml
+#
+# ==================================================
+
+---
+# GatewayClass - Defines the Envoy Gateway controller
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: opencost-gateway-class
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+  description: "Envoy Gateway for OpenCost services"
+
+---
+# Gateway - Main entry point for traffic
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: opencost-gateway
+  namespace: opencost
+  annotations:
+    # Customize the service type if needed
+    # gateway.envoyproxy.io/service-type: LoadBalancer
+spec:
+  gatewayClassName: opencost-gateway-class
+  listeners:
+    # HTTP listener for main API (development/internal use)
+    - name: http-api
+      protocol: HTTP
+      port: 80
+      hostname: "*.opencost.local"  # Customize for your domain
+      allowedRoutes:
+        namespaces:
+          from: Same
+        kinds:
+          - kind: HTTPRoute
+
+    # HTTPS listener for main API (production)
+    # Uncomment and configure TLS certificate when ready
+    # - name: https-api
+    #   protocol: HTTPS
+    #   port: 443
+    #   hostname: "opencost.example.com"
+    #   tls:
+    #     mode: Terminate
+    #     certificateRefs:
+    #       - name: opencost-tls-cert
+    #         kind: Secret
+    #   allowedRoutes:
+    #     namespaces:
+    #       from: Same
+    #     kinds:
+    #       - kind: HTTPRoute
+
+    # MCP Server listener (separate port)
+    - name: mcp
+      protocol: HTTP
+      port: 8081
+      allowedRoutes:
+        namespaces:
+          from: Same
+        kinds:
+          - kind: HTTPRoute
+
+---
+# HTTPRoute - Main API routing
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: opencost-api-route
+  namespace: opencost
+  labels:
+    app: opencost
+    route-type: api
+spec:
+  parentRefs:
+    - name: opencost-gateway
+      namespace: opencost
+      sectionName: http-api
+  rules:
+    # Health check endpoint - highest priority, no auth
+    - matches:
+        - path:
+            type: Exact
+            value: /healthz
+      backendRefs:
+        - name: opencost
+          port: 9003
+          weight: 1
+
+    # Prometheus metrics endpoint - no auth for scraping
+    - matches:
+        - path:
+            type: Exact
+            value: /metrics
+      backendRefs:
+        - name: opencost
+          port: 9003
+          weight: 1
+
+    # Cost Allocation APIs
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /allocation
+      backendRefs:
+        - name: opencost
+          port: 9003
+          weight: 1
+
+    # Asset APIs
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /assets
+      backendRefs:
+        - name: opencost
+          port: 9003
+          weight: 1
+
+    # Cloud Cost APIs
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /cloudCost
+      backendRefs:
+        - name: opencost
+          port: 9003
+          weight: 1
+
+    # Custom Cost APIs
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /customCost
+      backendRefs:
+        - name: opencost
+          port: 9003
+          weight: 1
+
+    # Cloud Config APIs
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /cloud/config
+      backendRefs:
+        - name: opencost
+          port: 9003
+          weight: 1
+
+    # Cluster information APIs
+    - matches:
+        - path:
+            type: Exact
+            value: /clusterInfo
+        - path:
+            type: Exact
+            value: /clusterInfoMap
+      backendRefs:
+        - name: opencost
+          port: 9003
+          weight: 1
+
+    # Pricing and cost model APIs
+    - matches:
+        - path:
+            type: Exact
+            value: /costDataModel
+        - path:
+            type: Exact
+            value: /allNodePricing
+        - path:
+            type: Exact
+            value: /refreshPricing
+        - path:
+            type: PathPrefix
+            value: /pricingSource
+      backendRefs:
+        - name: opencost
+          port: 9003
+          weight: 1
+
+    # System information APIs
+    - matches:
+        - path:
+            type: Exact
+            value: /installNamespace
+        - path:
+            type: Exact
+            value: /installInfo
+        - path:
+            type: Exact
+            value: /helmValues
+        - path:
+            type: Exact
+            value: /managementPlatform
+        - path:
+            type: Exact
+            value: /serviceAccountStatus
+        - path:
+            type: Exact
+            value: /orphanedPods
+      backendRefs:
+        - name: opencost
+          port: 9003
+          weight: 1
+
+    # Log level control (admin)
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /logs
+      backendRefs:
+        - name: opencost
+          port: 9003
+          weight: 1
+
+    # Debug endpoints (optional - consider restricting in production)
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /debug
+      backendRefs:
+        - name: opencost
+          port: 9003
+          weight: 1
+
+    # Catch-all for any remaining endpoints
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: opencost
+          port: 9003
+          weight: 1
+
+---
+# HTTPRoute - MCP Server routing
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: opencost-mcp-route
+  namespace: opencost
+  labels:
+    app: opencost
+    route-type: mcp
+spec:
+  parentRefs:
+    - name: opencost-gateway
+      namespace: opencost
+      sectionName: mcp
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: opencost-mcp
+          port: 8081
+          weight: 1
+
+---
+# BackendTrafficPolicy - Rate limiting for API protection
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: opencost-api-ratelimit
+  namespace: opencost
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: opencost-api-route
+  rateLimit:
+    type: Global
+    global:
+      rules:
+        # General rate limit: 100 requests per second
+        - limit:
+            requests: 100
+            unit: Second
+
+---
+# BackendTrafficPolicy - Rate limiting for MCP server
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: opencost-mcp-ratelimit
+  namespace: opencost
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: opencost-mcp-route
+  rateLimit:
+    type: Global
+    global:
+      rules:
+        # MCP rate limit: 50 requests per second (AI agents are typically slower)
+        - limit:
+            requests: 50
+            unit: Second
+
+---
+# SecurityPolicy - CORS configuration
+# IMPORTANT: Customize allowOrigins for your environment
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: opencost-cors-policy
+  namespace: opencost
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: opencost-api-route
+  cors:
+    allowOrigins:
+      # Add your allowed origins here
+      - type: Exact
+        value: "http://localhost:3000"
+      - type: Exact
+        value: "http://localhost:9090"
+      # Example for production:
+      # - type: Exact
+      #   value: "https://your-dashboard.example.com"
+      # - type: RegularExpression
+      #   value: "https://.*\\.yourdomain\\.com"
+    allowMethods:
+      - GET
+      - POST
+      - OPTIONS
+    allowHeaders:
+      - Content-Type
+      - Authorization
+      - X-Requested-With
+    exposeHeaders:
+      - X-Request-Id
+      - X-OpenCost-Version
+    maxAge: "86400s"  # 24 hours
+
+---
+# Updated OpenCost Service (ClusterIP - Gateway handles external access)
+# This replaces the existing OpenCost service
+apiVersion: v1
+kind: Service
+metadata:
+  name: opencost
+  namespace: opencost
+  labels:
+    app: opencost
+    app.kubernetes.io/name: opencost
+spec:
+  type: ClusterIP
+  ports:
+    - name: http-api
+      port: 9003
+      targetPort: 9003
+      protocol: TCP
+  selector:
+    app: opencost
+
+---
+# Separate service for MCP (if not already defined)
+apiVersion: v1
+kind: Service
+metadata:
+  name: opencost-mcp
+  namespace: opencost
+  labels:
+    app: opencost
+    app.kubernetes.io/name: opencost
+    service-type: mcp
+spec:
+  type: ClusterIP
+  ports:
+    - name: http-mcp
+      port: 8081
+      targetPort: 8081
+      protocol: TCP
+  selector:
+    app: opencost
+
+---
+# Optional: ClientTrafficPolicy for additional client-side controls
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: opencost-client-policy
+  namespace: opencost
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: opencost-gateway
+  # Enable HTTP/2 for better performance
+  http2:
+    enabled: true
+  # Connection timeouts
+  timeout:
+    http:
+      requestTimeout: "60s"
+  # Enable client IP detection from X-Forwarded-For
+  clientIPDetection:
+    xForwardedFor:
+      numTrustedHops: 1
+
+---
+# Optional: TLS Certificate Secret (template)
+# Replace with your actual certificate or use cert-manager
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: opencost-tls-cert
+#   namespace: opencost
+# type: kubernetes.io/tls
+# data:
+#   tls.crt: <base64-encoded-certificate>
+#   tls.key: <base64-encoded-private-key>
+
+---
+# Optional: JWT Authentication Policy
+# Uncomment and configure for production use
+# apiVersion: gateway.envoyproxy.io/v1alpha1
+# kind: SecurityPolicy
+# metadata:
+#   name: opencost-jwt-auth
+#   namespace: opencost
+# spec:
+#   targetRefs:
+#     - group: gateway.networking.k8s.io
+#       kind: HTTPRoute
+#       name: opencost-api-route
+#   jwt:
+#     providers:
+#       - name: your-auth-provider
+#         issuer: "https://your-auth-provider.example.com/"
+#         audiences:
+#           - "opencost-api"
+#         remoteJWKS:
+#           uri: "https://your-auth-provider.example.com/.well-known/jwks.json"
