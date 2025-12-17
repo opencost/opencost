@@ -11,7 +11,6 @@ const (
 	ServiceTypeExternalName ServiceType = "ExternalName"
 )
 
-// @bingen:generate:ServicePort
 type ServicePort struct {
 	Name       string `json:"name"`
 	Port       uint16 `json:"port"`
@@ -20,7 +19,6 @@ type ServicePort struct {
 	Protocol   string `json:"protocol"`
 }
 
-// @bingen:generate:Service
 type Service struct {
 	UID                  string            `json:"uid"`
 	ClusterUID           string            `json:"clusterUid"`

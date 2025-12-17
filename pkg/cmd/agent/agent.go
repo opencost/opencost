@@ -73,6 +73,11 @@ func Execute(opts *AgentOpts) error {
 		panic(err.Error())
 	}
 
+	clusterUID, err := kubeconfig.GetClusterUID(k8sClient)
+	if err != nil {
+		return fmt.Errorf("error getting cluster UID: %w", err)
+	}
+
 	// Create ConfigFileManager for synchronization of shared configuration
 	confManager := config.NewConfigFileManager(nil)
 
@@ -138,7 +143,7 @@ func Execute(opts *AgentOpts) error {
 	// Initialize ClusterMap for maintaining ClusterInfo by ClusterID
 	clusterMap := dataSource.ClusterMap()
 
-	costModel := costmodel.NewCostModel(dataSource, cloudProvider, clusterCache, clusterMap, dataSource.BatchDuration())
+	costModel := costmodel.NewCostModel(clusterUID, dataSource, cloudProvider, clusterCache, clusterMap, dataSource.BatchDuration())
 
 	// initialize Kubernetes Metrics Emitter
 	metricsEmitter := costmodel.NewCostModelMetricsEmitter(clusterCache, cloudProvider, clusterInfoProvider, costModel)

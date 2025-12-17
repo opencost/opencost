@@ -15,11 +15,13 @@ import (
 	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/filter/allocation"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
+	km "github.com/opencost/opencost/pkg/kubemodel"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -47,10 +49,12 @@ type CostModel struct {
 	RequestGroup    *singleflight.Group
 	DataSource      source.OpenCostDataSource
 	Provider        costAnalyzerCloud.Provider
+	KubeModel       *km.KubeModel
 	pricingMetadata *costAnalyzerCloud.PricingMatchMetadata
 }
 
 func NewCostModel(
+	clusterUID string,
 	dataSource source.OpenCostDataSource,
 	provider costAnalyzerCloud.Provider,
 	cache clustercache.ClusterCache,
@@ -60,6 +64,16 @@ func NewCostModel(
 	// request grouping to prevent over-requesting the same data prior to caching
 	requestGroup := new(singleflight.Group)
 
+	var kubeModel *km.KubeModel
+	var err error
+	if dataSource != nil {
+		kubeModel, err = km.NewKubeModel(clusterUID, dataSource)
+		if err != nil {
+			// KubeModel is required. Log a fatal error if we fail to init.
+			log.Fatalf("error initializing KubeModel: %s", err)
+		}
+	}
+
 	return &CostModel{
 		Cache:         cache,
 		ClusterMap:    clusterMap,
@@ -67,7 +81,16 @@ func NewCostModel(
 		DataSource:    dataSource,
 		Provider:      provider,
 		RequestGroup:  requestGroup,
+		KubeModel:     kubeModel,
 	}
+}
+
+func (cm *CostModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeModelSet, error) {
+	if cm.KubeModel == nil {
+		return nil, fmt.Errorf("KubeModel not initialized")
+	}
+
+	return cm.KubeModel.ComputeKubeModelSet(start, end)
 }
 
 type CostData struct {

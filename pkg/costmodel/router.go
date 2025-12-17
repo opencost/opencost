@@ -406,6 +406,11 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 		log.Fatalf("Failed to build Kubernetes client: %s", err.Error())
 	}
 
+	clusterUID, err := kubeconfig.GetClusterUID(kubeClientset)
+	if err != nil {
+		log.Fatalf("Failed to determine cluster UID: %s", err)
+	}
+
 	// Create Kubernetes Cluster Cache + Watchers
 	k8sCache := clusterc.NewKubernetesClusterCache(kubeClientset)
 	k8sCache.Run()
@@ -459,6 +464,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 			}
 			nodeStatClient := nodestats.NewNodeStatsSummaryClient(k8sCache, nodeStatConf, clusterConfig)
 			ds := collector.NewDefaultCollectorDataSource(
+				clusterUID,
 				store,
 				clusterInfoProvider,
 				k8sCache,
@@ -491,7 +497,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	clusterMap := dataSource.ClusterMap()
 	settingsCache := cache.New(cache.NoExpiration, cache.NoExpiration)
 
-	costModel := NewCostModel(dataSource, cloudProvider, k8sCache, clusterMap, dataSource.BatchDuration())
+	costModel := NewCostModel(clusterUID, dataSource, cloudProvider, k8sCache, clusterMap, dataSource.BatchDuration())
 	metricsEmitter := NewCostModelMetricsEmitter(k8sCache, cloudProvider, clusterInfoProvider, costModel)
 
 	a := &Accesses{

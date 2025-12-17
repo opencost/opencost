@@ -2,10 +2,7 @@ package pathing
 
 // StoragePathFormatter is an interface used to format storage paths for exporting data types.
 type StoragePathFormatter[T any] interface {
-	// RootDir returns the root directory for the storage path.
-	RootDir() string
-
-	// Dir returns the director where files are placed
+	// Dir returns the directory where files are placed
 	Dir() string
 
 	// ToFullPath returns the full path to a file name within the storage

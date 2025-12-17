@@ -48,11 +48,6 @@ func NewEventStoragePathFormatter(rootDir, clusterId, event string, subPaths ...
 	}, nil
 }
 
-// RootDir returns the root directory of the storage path formatter.
-func (espf *EventStoragePathFormatter) RootDir() string {
-	return espf.rootDir
-}
-
 // Dir  returns the director that files will be placed in
 func (espf *EventStoragePathFormatter) Dir() string {
 	return path.Join(

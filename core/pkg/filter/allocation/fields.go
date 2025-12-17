@@ -15,6 +15,7 @@ const (
 	FieldClusterID      AllocationField = AllocationField(fieldstrings.FieldClusterID)
 	FieldNode           AllocationField = AllocationField(fieldstrings.FieldNode)
 	FieldNamespace      AllocationField = AllocationField(fieldstrings.FieldNamespace)
+	FieldNamespaceLabel AllocationField = AllocationField(fieldstrings.FieldNamespaceLabel)
 	FieldControllerKind AllocationField = AllocationField(fieldstrings.FieldControllerKind)
 	FieldControllerName AllocationField = AllocationField(fieldstrings.FieldControllerName)
 	FieldPod            AllocationField = AllocationField(fieldstrings.FieldPod)

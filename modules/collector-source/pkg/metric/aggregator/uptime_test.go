@@ -106,7 +106,7 @@ func TestActiveMinutesAggregator_Value(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			agg := activeMinutesAggregator{}
+			agg := uptimeAggregator{}
 			for _, u := range tt.updates {
 				agg.Update(u.value, u.timestamp, u.additionalInformation)
 			}

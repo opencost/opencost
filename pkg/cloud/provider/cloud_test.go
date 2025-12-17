@@ -283,7 +283,7 @@ func TestNodePriceFromCSVWithGPULabels(t *testing.T) {
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 
-	model := costmodel.NewCostModel(nil, c, fc, fm, d)
+	model := costmodel.NewCostModel("cluster-uid", nil, c, fc, fm, d)
 
 	nodeMap, err := model.GetNodeCost()
 	if err != nil {
@@ -351,7 +351,7 @@ func TestRKE2NodePriceFromCSVWithGPULabels(t *testing.T) {
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 
-	model := costmodel.NewCostModel(nil, c, fc, fm, d)
+	model := costmodel.NewCostModel("cluster-uid", nil, c, fc, fm, d)
 
 	nodeMap, err := model.GetNodeCost()
 	if err != nil {
@@ -668,7 +668,7 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 
-	model := costmodel.NewCostModel(nil, c, fc, fm, d)
+	model := costmodel.NewCostModel("cluster-uid", nil, c, fc, fm, d)
 
 	_, err = model.GetNodeCost()
 	if err != nil {
@@ -725,7 +725,7 @@ func TestSourceMatchesFromCSV(t *testing.T) {
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 
-	model := costmodel.NewCostModel(nil, c, fc, fm, d)
+	model := costmodel.NewCostModel("cluster-uid", nil, c, fc, fm, d)
 
 	_, err = model.GetNodeCost()
 	if err != nil {

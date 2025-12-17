@@ -18,8 +18,7 @@ import (
 
 // KubernetesClusterCache is the implementation of ClusterCache
 type KubernetesClusterCache struct {
-	client kubernetes.Interface
-
+	client                     kubernetes.Interface
 	namespaceWatch             WatchController
 	nodeWatch                  WatchController
 	podWatch                   WatchController

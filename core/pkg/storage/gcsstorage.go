@@ -239,7 +239,7 @@ func (gs *GCSStorage) List(path string) ([]*StorageInfo, error) {
 func (gs *GCSStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 	path = trimLeading(path)
 
-	log.Debugf("GCSStorage::List(%s)", path)
+	log.Debugf("GCSStorage::ListDirectories(%s)", path)
 	ctx := context.Background()
 
 	// Ensure the object name actually ends with a dir suffix. Otherwise we'll just iterate the
@@ -261,17 +261,12 @@ func (gs *GCSStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 			break
 		}
 		if err != nil {
-			return nil, errors.Wrap(err, "list gcs objects")
+			return nil, errors.Wrap(err, "list gcs prefixes")
 		}
 
-		// ignore the root path directory
-		if attrs.Name == path {
-			continue
-		}
-
-		// We filter directories using DirDelim, so a nameless entry is a dir
+		// We filter directories using DirDelim, so a non empty prefix entry is a prefix(directory)
 		// See gcs.ObjectAttrs Prefix property
-		if attrs.Name == "" {
+		if attrs.Prefix != "" {
 			stats = append(stats, &StorageInfo{
 				Name:    attrs.Prefix,
 				Size:    attrs.Size,
