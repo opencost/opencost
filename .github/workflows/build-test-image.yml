@@ -15,6 +15,7 @@ env:
 jobs:
   check_actor_permissions:
         runs-on: ubuntu-latest
+        if: ${{ github.event_name == 'pull_request_target' || github.event_name == 'merge_group' }}
         outputs:
             ismaintainer: ${{ steps.determine-maintainer.outputs.ismaintainer }}
         steps:
@@ -41,7 +42,7 @@ jobs:
   build-and-publish-test-image:
     runs-on: ubuntu-latest
     needs: check_actor_permissions
-    if: ${{ (always() && !cancelled()) && ( github.event_name == 'merge_group' || needs.check_actor_permissions.outputs.ismaintainer == 'true') }}
+    if: ${{ (always() && !cancelled()) && ( github.event_name == 'merge_group' || (github.event_name == 'pull_request_target' && needs.check_actor_permissions.outputs.ismaintainer == 'true')) }}
     permissions:
       contents: read
       packages: write
