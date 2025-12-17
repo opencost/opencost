@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBingenPathFormatter(t *testing.T) {
@@ -198,6 +199,86 @@ func TestEventPathFormatter(t *testing.T) {
 			if result != tc.expected {
 				t.Errorf("Expected %s, got %s", tc.expected, result)
 			}
+		})
+	}
+}
+
+func TestKubeModelPathFormatter(t *testing.T) {
+	type testCase struct {
+		name       string
+		start      time.Time
+		rootDir    string
+		clusterID  string
+		resolution string
+		prefix     string
+		exp        string
+	}
+
+	rootDir := "/path/to/root"
+
+	testCases := []testCase{
+		{
+			name:       "10m no prefix",
+			start:      time.Date(2025, time.December, 15, 12, 0, 0, 0, time.UTC),
+			rootDir:    rootDir,
+			clusterID:  "96d1c1d0-2183-416c-b8f7-754f42fd461a",
+			resolution: "10m",
+			prefix:     "",
+			exp:        fmt.Sprintf("%s/96d1c1d0-2183-416c-b8f7-754f42fd461a/kubemodel/%s/%s/%s", rootDir, "10m", "2025/12/15", "20251215120000"),
+		},
+		{
+			name:       "1h no prefix",
+			start:      time.Date(2025, time.December, 15, 12, 0, 0, 0, time.UTC),
+			rootDir:    rootDir,
+			clusterID:  "96d1c1d0-2183-416c-b8f7-754f42fd461a",
+			resolution: "1h",
+			prefix:     "",
+			exp:        fmt.Sprintf("%s/96d1c1d0-2183-416c-b8f7-754f42fd461a/kubemodel/%s/%s/%s", rootDir, "1h", "2025/12/15", "20251215120000"),
+		},
+		{
+			name:       "1d no prefix",
+			start:      time.Date(2025, time.December, 15, 12, 0, 0, 0, time.UTC),
+			rootDir:    rootDir,
+			clusterID:  "96d1c1d0-2183-416c-b8f7-754f42fd461a",
+			resolution: "1d",
+			prefix:     "",
+			exp:        fmt.Sprintf("%s/96d1c1d0-2183-416c-b8f7-754f42fd461a/kubemodel/%s/%s/%s", rootDir, "1d", "2025/12/15", "20251215120000"),
+		},
+		{
+			name:       "1d prefix",
+			start:      time.Date(2025, time.December, 15, 12, 0, 0, 0, time.UTC),
+			rootDir:    rootDir,
+			clusterID:  "96d1c1d0-2183-416c-b8f7-754f42fd461a",
+			resolution: "1d",
+			prefix:     "pre",
+			exp:        fmt.Sprintf("%s/96d1c1d0-2183-416c-b8f7-754f42fd461a/kubemodel/%s/%s/%s", rootDir, "1d", "2025/12/15", "pre.20251215120000"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			pathing, err := NewKubeModelStoragePathFormatter(tc.rootDir, tc.clusterID, tc.resolution)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			var dur time.Duration
+			switch tc.resolution {
+			case "10m":
+				dur = 10 * time.Minute
+			case "1h":
+				dur = time.Hour
+			case "1d":
+				dur = 24 * time.Hour
+			default:
+				t.Errorf("unexpected resolution: %s", tc.resolution)
+			}
+			end := tc.start.Add(dur)
+
+			// dir := pathing.Dir()
+
+			act := pathing.ToFullPath(tc.prefix, opencost.NewClosedWindow(tc.start, end), "")
+			require.Equal(t, tc.exp, act)
 		})
 	}
 }

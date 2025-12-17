@@ -58,7 +58,8 @@ func TestNodeSummaryLive(t *testing.T) {
 }
 
 type NodesOnlyClusterCache struct {
-	k8sClient kubernetes.Interface
+	clusterUID string
+	k8sClient  kubernetes.Interface
 }
 
 func NewTestClusterCache(k8sClient kubernetes.Interface) *NodesOnlyClusterCache {

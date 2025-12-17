@@ -3,6 +3,7 @@ package storage
 import (
 	"fmt"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/util/json"
@@ -166,6 +167,13 @@ func TestStorageListDirectories(t *testing.T, store Storage) {
 		expected  []string
 		expectErr bool
 	}{
+		"root dir dir": {
+			path: "",
+			expected: []string{
+				strings.Split(testpath, "/")[0] + "/",
+			},
+			expectErr: false,
+		},
 		"base dir dir": {
 			path: path.Join(testpath, testName),
 			expected: []string{

@@ -24,6 +24,7 @@ To see the full functionality of OpenCost you can view [OpenCost features](https
 - Allocation for in-cluster K8s resources like CPU, GPU, memory, and persistent volumes
 - Easily export pricing data to Prometheus with /metrics endpoint ([learn more](https://www.opencost.io/docs/installation/prometheus))
 - Carbon costs for cloud resources
+- MCP support
 - Support for external costs like Datadog through [OpenCost Plugins](https://github.com/opencost/opencost-plugins)
 - Free and open source distribution ([Apache2 license](LICENSE))
 
