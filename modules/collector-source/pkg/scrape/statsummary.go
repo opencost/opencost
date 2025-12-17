@@ -24,22 +24,16 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 	var scrapeResults []metric.Update
 	nodeStats, err := s.client.GetNodeData()
 
+	// record errors but process successfully retrieved nodes
+	errs := make([]error, 0)
 	if err != nil {
-		var errs []error
 		if multiErr, ok := err.(interface{ Unwrap() []error }); ok {
 			errs = multiErr.Unwrap()
 		} else {
 			errs = []error{err}
 		}
 
-		events.Dispatch(event.ScrapeEvent{
-			ScraperName: event.NodeStatsScraperName,
-			Targets:     len(nodeStats) + len(errs),
-			Errors:      errs,
-		})
-
 		log.Errorf("error retrieving node stat data: %s", err.Error())
-		return scrapeResults
 	}
 
 	// track if a pvc has already been seen when updating KubeletVolumeStatsUsedBytes
@@ -158,8 +152,8 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 
 	events.Dispatch(event.ScrapeEvent{
 		ScraperName: event.NodeStatsScraperName,
-		Targets:     len(nodeStats),
-		Errors:      []error{},
+		Targets:     len(nodeStats) + len(errs),
+		Errors:      errs,
 	})
 
 	return scrapeResults
