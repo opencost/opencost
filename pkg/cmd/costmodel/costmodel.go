@@ -72,7 +72,7 @@ func Execute(conf *Config) error {
 	}
 
 	var customCostPipelineService *customcost.PipelineService
-	if conf.CloudCostEnabled {
+	if conf.CustomCostEnabled {
 		customCostPipelineService = costmodel.InitializeCustomCost(router)
 	}
 

@@ -32,4 +32,5 @@ func (c *Config) log() {
 	log.Infof("Cloud Costs enabled: %t", c.CloudCostEnabled)
 	log.Infof("Custom Costs enabled: %t", c.CustomCostEnabled)
 	log.Infof("MCP Server enabled: %t", c.MCPServerEnabled)
+	log.Infof("Custom Costs enabled: %t", c.CustomCostEnabled)
 }
