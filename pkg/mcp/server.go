@@ -874,7 +874,7 @@ func transformCloudCostSetRange(ccsr *opencost.CloudCostSetRange) *CloudCostResp
 
 		// Check for nil Window or nil Start/End pointers before dereferencing
 		if ccSet.Window.Start() == nil || ccSet.Window.End() == nil {
-			log.Warnf("transformCloudCostSetRange: skipping CloudCostSet at index %d with invalid window (nil start or end)", i)
+			log.Warnf("transformCloudCostSetRange: skipping CloudCostSet at index %d with invalid window (start=%v, end=%v)", i, ccSet.Window.Start(), ccSet.Window.End())
 			continue
 		}
 
@@ -898,7 +898,7 @@ func transformCloudCostSetRange(ccsr *opencost.CloudCostSetRange) *CloudCostResp
 
 			// Check for nil Window or nil Start/End pointers on the item
 			if item.Window.Start() == nil || item.Window.End() == nil {
-				log.Warnf("transformCloudCostSetRange: skipping CloudCost item with invalid window (nil start or end) in set %s", setName)
+				log.Warnf("transformCloudCostSetRange: skipping CloudCost item with invalid window (start=%v, end=%v) in set %s", item.Window.Start(), item.Window.End(), setName)
 				continue
 			}
 
@@ -962,18 +962,22 @@ func transformCloudCostSetRange(ccsr *opencost.CloudCostSetRange) *CloudCostResp
 	var numerator, denominator float64
 	for _, ccSet := range ccsr.CloudCostSets {
 		if ccSet == nil {
+			log.Warnf("transformCloudCostSetRange: skipping nil CloudCostSet in Kubernetes percent calculation")
 			continue
 		}
 		// Skip sets with invalid windows (consistent with first loop)
 		if ccSet.Window.Start() == nil || ccSet.Window.End() == nil {
+			log.Warnf("transformCloudCostSetRange: skipping CloudCostSet with invalid window (start=%v, end=%v) in Kubernetes percent calculation", ccSet.Window.Start(), ccSet.Window.End())
 			continue
 		}
 		for _, item := range ccSet.CloudCosts {
 			if item == nil {
+				log.Warnf("transformCloudCostSetRange: skipping nil CloudCost item in Kubernetes percent calculation")
 				continue
 			}
 			// Skip items with invalid windows (consistent with first loop)
 			if item.Window.Start() == nil || item.Window.End() == nil {
+				log.Warnf("transformCloudCostSetRange: skipping CloudCost item with invalid window (start=%v, end=%v) in Kubernetes percent calculation", item.Window.Start(), item.Window.End())
 				continue
 			}
 			cost := item.NetCost.Cost
