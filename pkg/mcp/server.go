@@ -868,6 +868,13 @@ func transformCloudCostSetRange(ccsr *opencost.CloudCostSetRange) *CloudCostResp
 	// Process each cloud cost set in the range
 	for i, ccSet := range ccsr.CloudCostSets {
 		if ccSet == nil {
+			log.Warnf("transformCloudCostSetRange: skipping nil CloudCostSet at index %d", i)
+			continue
+		}
+
+		// Check for nil Window or nil Start/End pointers before dereferencing
+		if ccSet.Window.Start() == nil || ccSet.Window.End() == nil {
+			log.Warnf("transformCloudCostSetRange: skipping CloudCostSet at index %d with invalid window (nil start or end)", i)
 			continue
 		}
 
@@ -885,6 +892,13 @@ func transformCloudCostSetRange(ccsr *opencost.CloudCostSetRange) *CloudCostResp
 		// Convert each cloud cost item
 		for _, item := range ccSet.CloudCosts {
 			if item == nil {
+				log.Warnf("transformCloudCostSetRange: skipping nil CloudCost item in set %s", setName)
+				continue
+			}
+
+			// Check for nil Window or nil Start/End pointers on the item
+			if item.Window.Start() == nil || item.Window.End() == nil {
+				log.Warnf("transformCloudCostSetRange: skipping CloudCost item with invalid window (nil start or end) in set %s", setName)
 				continue
 			}
 
@@ -947,6 +961,9 @@ func transformCloudCostSetRange(ccsr *opencost.CloudCostSetRange) *CloudCostResp
 	var avgKubernetesPercent float64
 	var numerator, denominator float64
 	for _, ccSet := range ccsr.CloudCostSets {
+		if ccSet == nil {
+			continue
+		}
 		for _, item := range ccSet.CloudCosts {
 			if item == nil {
 				continue
