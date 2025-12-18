@@ -964,8 +964,16 @@ func transformCloudCostSetRange(ccsr *opencost.CloudCostSetRange) *CloudCostResp
 		if ccSet == nil {
 			continue
 		}
+		// Skip sets with invalid windows (consistent with first loop)
+		if ccSet.Window.Start() == nil || ccSet.Window.End() == nil {
+			continue
+		}
 		for _, item := range ccSet.CloudCosts {
 			if item == nil {
+				continue
+			}
+			// Skip items with invalid windows (consistent with first loop)
+			if item.Window.Start() == nil || item.Window.End() == nil {
 				continue
 			}
 			cost := item.NetCost.Cost
