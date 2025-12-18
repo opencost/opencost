@@ -19,7 +19,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.3
 	github.com/Azure/go-autorest/autorest v0.11.28
 	github.com/Azure/go-autorest/autorest/azure/auth v0.5.11
-	github.com/aliyun/alibaba-cloud-sdk-go v1.62.107 // Todo: Upgrade to V2 SDK as V1 is now archived
+	github.com/aliyun/alibaba-cloud-sdk-go v1.63.107 // Todo: Upgrade to V2 SDK as V1 is now archived
 	github.com/aws/aws-sdk-go v1.50.8
 	github.com/aws/aws-sdk-go-v2 v1.39.6
 	github.com/aws/aws-sdk-go-v2/config v1.29.10
