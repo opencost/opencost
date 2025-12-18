@@ -22,6 +22,7 @@ func DefaultConfig() *Config {
 		CarbonEstimatesEnabled: env.IsCarbonEstimatesEnabled(),
 		CloudCostEnabled:       env.IsCloudCostEnabled(),
 		MCPServerEnabled:       env.IsMCPServerEnabled(),
+		CustomCostEnabled:      env.IsCustomCostEnabled(),
 	}
 }
 
