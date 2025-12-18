@@ -98,8 +98,8 @@ jobs:
           args: >
             -Dsonar.scm.revision=${{ github.event.workflow_run.head_sha }}
             -Dsonar.pullrequest.key=${{ steps.set-vars.outputs.SONAR_PR_NUM }}
-            -Dsonar.pullrequest.branch="${{ steps.set-vars.outputs.SONAR_HEAD }}"
-            -Dsonar.pullrequest.base="${{ steps.set-vars.outputs.SONAR_BASE }}"
+            -Dsonar.pullrequest.branch=${{ steps.set-vars.outputs.SONAR_HEAD }}
+            -Dsonar.pullrequest.base=${{ steps.set-vars.outputs.SONAR_BASE }}
             -Dsonar.projectKey=opencost_opencost
             -Dsonar.organization=opencost
       - name: SonarQube Quality Gate check
