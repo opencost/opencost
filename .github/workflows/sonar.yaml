@@ -26,11 +26,16 @@ jobs:
           description: 'Quality Gate check in progress...'
           sha: ${{ github.event.workflow_run.head_sha }}
           target_url: 'https://sonarcloud.io/dashboard?id=opencost_opencost'
-      - uses: actions/checkout@v4
+      - name: Checkout upstream repository
+        uses: actions/checkout@v4
         with:
-          repository: ${{ github.event.workflow_run.head_repository.full_name }}
-          ref: ${{ github.event.workflow_run.head_branch }}
+          repository: opencost/opencost
           fetch-depth: 0
+      - name: Fetch PR branch from fork
+        run: |
+          git remote add fork https://github.com/${{ github.event.workflow_run.head_repository.full_name }}.git
+          git fetch fork ${{ github.event.workflow_run.head_branch }}:${{ github.event.workflow_run.head_branch }}
+          git checkout ${{ github.event.workflow_run.head_branch }}
       - name: Download coverage artifacts
         uses: actions/download-artifact@v4
         with:
