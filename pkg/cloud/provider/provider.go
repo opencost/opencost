@@ -35,6 +35,34 @@ import (
 	"github.com/opencost/opencost/pkg/util/watcher"
 )
 
+// normalizeProviderName normalizes provider name variations to standard constants
+// Handles cases like "CSVProvider" -> "CSV", case-insensitive matching, etc.
+func normalizeProviderName(provider string) string {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "csvprovider", "csv":
+		return opencost.CSVProvider
+	case "custom", "customprovider":
+		return opencost.CustomProvider
+	case "aws", "awsprovider":
+		return opencost.AWSProvider
+	case "gcp", "gcpprovider", "google":
+		return opencost.GCPProvider
+	case "azure", "azureprovider":
+		return opencost.AzureProvider
+	case "alibaba", "alibabaprovider":
+		return opencost.AlibabaProvider
+	case "oracle", "oracleprovider":
+		return opencost.OracleProvider
+	case "scaleway", "scalewayprovider":
+		return opencost.ScalewayProvider
+	case "otc", "otcprovider":
+		return opencost.OTCProvider
+	default:
+		// Return original if no match, let caller handle unknown providers
+		return provider
+	}
+}
+
 // CustomPricesEnabled returns the boolean equivalent of the cloup provider's custom prices flag,
 // indicating whether or not the cluster is using custom pricing.
 func CustomPricesEnabled(p models.Provider) bool {
@@ -96,8 +124,11 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	envProvider := env.GetCloudProvider()
 	if cp.provider == "DEFAULT" && envProvider != "" {
 		log.Infof("Using cloud provider from environment variable: %s", envProvider)
-		cp.provider = envProvider
-		switch envProvider {
+		// Normalize provider name to handle variations (e.g., "CSVProvider" -> "CSV")
+		normalizedProvider := normalizeProviderName(envProvider)
+		log.Debugf("Normalized provider name from %s to %s", envProvider, normalizedProvider)
+		cp.provider = normalizedProvider
+		switch normalizedProvider {
 		case opencost.AWSProvider:
 			cp.configFileName = "aws.json"
 		case opencost.AzureProvider:
@@ -114,6 +145,10 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			cp.configFileName = "otc.json"
 		case opencost.CSVProvider:
 			cp.configFileName = "default.json"
+		case opencost.CustomProvider:
+			cp.configFileName = "default.json"
+		default:
+			log.Warnf("Unrecognized provider from environment variable: %s (normalized: %s), falling back to default", envProvider, normalizedProvider)
 		}
 	}
 
@@ -121,6 +156,44 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	// If ClusterAccount is set apply it to the cluster properties
 	if providerConfig.customPricing != nil && providerConfig.customPricing.ClusterAccountID != "" {
 		cp.accountID = providerConfig.customPricing.ClusterAccountID
+	}
+
+	// Check if custom pricing configuration specifies a provider override
+	// This handles cases where Helm configuration sets customPricing.provider: CSVProvider
+	if providerConfig.customPricing != nil && providerConfig.customPricing.Provider != "" && cp.provider == "DEFAULT" {
+		customProvider := providerConfig.customPricing.Provider
+		log.Infof("Using cloud provider from custom pricing configuration: %s", customProvider)
+		// Normalize provider name to handle variations (e.g., "CSVProvider" -> "CSV")
+		normalizedCustomProvider := normalizeProviderName(customProvider)
+		log.Debugf("Normalized custom provider name from %s to %s", customProvider, normalizedCustomProvider)
+		cp.provider = normalizedCustomProvider
+		switch normalizedCustomProvider {
+		case opencost.AWSProvider:
+			cp.configFileName = "aws.json"
+		case opencost.AzureProvider:
+			cp.configFileName = "azure.json"
+		case opencost.GCPProvider:
+			cp.configFileName = "gcp.json"
+		case opencost.AlibabaProvider:
+			cp.configFileName = "alibaba.json"
+		case opencost.OracleProvider:
+			cp.configFileName = "oracle.json"
+		case opencost.ScalewayProvider:
+			cp.configFileName = "scaleway.json"
+		case opencost.OTCProvider:
+			cp.configFileName = "otc.json"
+		case opencost.CSVProvider:
+			cp.configFileName = "default.json"
+		case opencost.CustomProvider:
+			cp.configFileName = "default.json"
+		default:
+			log.Warnf("Unrecognized provider from custom pricing configuration: %s (normalized: %s), falling back to default", customProvider, normalizedCustomProvider)
+		}
+		// Reload provider config with potentially updated config file name
+		providerConfig = NewProviderConfig(config, cp.configFileName)
+		if providerConfig.customPricing != nil && providerConfig.customPricing.ClusterAccountID != "" {
+			cp.accountID = providerConfig.customPricing.ClusterAccountID
+		}
 	}
 
 	providerConfig.Update(func(cp *models.CustomPricing) error {
@@ -132,16 +205,30 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 
 	switch cp.provider {
 	case opencost.CSVProvider:
-		log.Infof("Using CSV Provider with CSV at %s", env.GetCSVPath())
-		return &CSVProvider{
-			CSVLocation: env.GetCSVPath(),
+		csvPath := env.GetCSVPath()
+		log.Infof("Using CSV Provider with CSV at %s", csvPath)
+		log.Debugf("CSV Provider configuration: region=%s, accountID=%s, configFile=%s", cp.region, cp.accountID, cp.configFileName)
+		
+		// Create CSV provider and trigger initial data download
+		csvProvider := &CSVProvider{
+			CSVLocation: csvPath,
 			CustomProvider: &CustomProvider{
 				Clientset:        cache,
 				ClusterRegion:    cp.region,
 				ClusterAccountID: cp.accountID,
 				Config:           NewProviderConfig(config, cp.configFileName),
 			},
-		}, nil
+		}
+		
+		// Download pricing data immediately to ensure CSV is loaded
+		if err := csvProvider.DownloadPricingData(); err != nil {
+			log.Warnf("Failed to download CSV pricing data on initialization: %v", err)
+		} else {
+			log.Infof("Successfully loaded CSV pricing data with %d node entries, %d GPU entries, %d GPU label entries", 
+				len(csvProvider.Pricing), len(csvProvider.GPUClassPricing), len(csvProvider.GPULabelPricing))
+		}
+		
+		return csvProvider, nil
 	case opencost.GCPProvider:
 		log.Info("Found ProviderID starting with \"gce\", using GCP Provider")
 		if apiKey == "" {
@@ -226,13 +313,32 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			ClusterManagementCost: 0.0,
 		}, nil
 	default:
-		log.Info("Unsupported provider, falling back to default")
-		return &CustomProvider{
+		log.Infof("Unsupported provider '%s', falling back to default CustomProvider", cp.provider)
+		log.Debugf("Provider detection summary - envProvider: %s, customPricingProvider: %s, final: %s", 
+			env.GetCloudProvider(), 
+			func() string {
+				if providerConfig.customPricing != nil {
+					return providerConfig.customPricing.Provider
+				}
+				return "none"
+			}(), 
+			cp.provider)
+		
+		customProvider := &CustomProvider{
 			Clientset:        cache,
 			ClusterRegion:    cp.region,
 			ClusterAccountID: cp.accountID,
 			Config:           NewProviderConfig(config, cp.configFileName),
-		}, nil
+		}
+		
+		// Download pricing data for custom provider to ensure configuration is loaded
+		if err := customProvider.DownloadPricingData(); err != nil {
+			log.Warnf("Failed to download custom pricing data on initialization: %v", err)
+		} else {
+			log.Debugf("Successfully loaded custom pricing configuration")
+		}
+		
+		return customProvider, nil
 	}
 }
 
@@ -324,7 +430,7 @@ var (
 	// Capture "vol-0fc54c5e83b8d2b76" from "aws://us-east-2a/vol-0fc54c5e83b8d2b76"
 	persistentVolumeAWSRegex = regexp.MustCompile("aws:/[^/]*/[^/]*/([^/]+)")
 	// Capture "ad9d88195b52a47c89b5055120f28c58" from "ad9d88195b52a47c89b5055120f28c58-1037804914.us-east-2.elb.amazonaws.com"
-	loadBalancerAWSRegex = regexp.MustCompile("^([^-]+)-.+amazonaws\\.com$")
+	loadBalancerAWSRegex = regexp.MustCompile(`^([^-]+)-.+amazonaws\.com$`)
 )
 
 // ParseID attempts to parse a ProviderId from a string based on formats from the various providers and
