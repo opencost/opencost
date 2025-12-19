@@ -1,4 +1,4 @@
-FROM alpine:latest
+FROM alpine:3.22
 
 ARG version=dev
 ARG	commit=HEAD

@@ -19,3 +19,7 @@ pkg/cloud/oracle/cloud-integration.json
 
 # tilt
 tilt_config.json
+
+# Test reports
+coverage.html
+coverage.out

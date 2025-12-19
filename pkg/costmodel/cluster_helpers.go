@@ -2,6 +2,7 @@ package costmodel
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -73,23 +74,39 @@ func buildCPUCostMap(
 
 		var cpuCost float64
 
-		if customPricingEnabled && customPricingConfig != nil {
+		// Start with the value from the data source (e.g., collector or Prometheus)
+		cpuCost = result.Data[0].Value
 
-			var customCPUStr string
-			if spot, ok := preemptible[key]; ok && spot {
-				customCPUStr = customPricingConfig.SpotCPU
+		// If custom pricing is enabled or the data source value is invalid, use custom pricing
+		if (customPricingEnabled && customPricingConfig != nil) || cpuCost == 0 || math.IsNaN(cpuCost) {
+			if customPricingConfig != nil {
+				var customCPUStr string
+				if spot, ok := preemptible[key]; ok && spot {
+					customCPUStr = customPricingConfig.SpotCPU
+				} else {
+					customCPUStr = customPricingConfig.CPU
+				}
+
+				customCPUCost, err := strconv.ParseFloat(customCPUStr, 64)
+				if err != nil {
+					log.Warnf("ClusterNodes: error parsing custom CPU price: %s", customCPUStr)
+				} else {
+					// Log the reason for using custom pricing
+					if cpuCost == 0 {
+						log.DedupedInfof(10, "ClusterNodes: node %s has invalid CPU cost (0) from data source; falling back to custom pricing: %f", name, customCPUCost)
+					} else if math.IsNaN(cpuCost) {
+						log.DedupedInfof(10, "ClusterNodes: node %s has invalid CPU cost (NaN) from data source; falling back to custom pricing: %f", name, customCPUCost)
+					} else {
+						log.DedupedInfof(10, "ClusterNodes: node %s using custom pricing: %f", name, customCPUCost)
+					}
+					cpuCost = customCPUCost
+				}
 			} else {
-				customCPUStr = customPricingConfig.CPU
+				// custom pricing config is nil, but we needed it because cpuCost was invalid
+				if cpuCost == 0 || math.IsNaN(cpuCost) {
+					log.Warnf("ClusterNodes: node %s has invalid CPU cost (0 or NaN), but was unable to fall back to custom pricing because it was nil", name)
+				}
 			}
-
-			customCPUCost, err := strconv.ParseFloat(customCPUStr, 64)
-			if err != nil {
-				log.Warnf("ClusterNodes: error parsing custom CPU price: %s", customCPUStr)
-			}
-			cpuCost = customCPUCost
-
-		} else {
-			cpuCost = result.Data[0].Value
 		}
 
 		clusterAndNameToType[keyNon] = nodeType
@@ -141,23 +158,38 @@ func buildRAMCostMap(
 
 		var ramCost float64
 
-		if customPricingEnabled && customPricingConfig != nil {
+		// Start with the value from the data source (e.g., collector or Prometheus)
+		ramCost = result.Data[0].Value
 
-			var customRAMStr string
-			if spot, ok := preemptible[key]; ok && spot {
-				customRAMStr = customPricingConfig.SpotRAM
+		// If custom pricing is enabled or the data source value is invalid, use custom pricing
+		if (customPricingEnabled && customPricingConfig != nil) || ramCost == 0 || math.IsNaN(ramCost) {
+			if customPricingConfig != nil {
+				var customRAMStr string
+				if spot, ok := preemptible[key]; ok && spot {
+					customRAMStr = customPricingConfig.SpotRAM
+				} else {
+					customRAMStr = customPricingConfig.RAM
+				}
+
+				customRAMCost, err := strconv.ParseFloat(customRAMStr, 64)
+				if err != nil {
+					log.Warnf("ClusterNodes: error parsing custom RAM price: %s", customRAMStr)
+				} else {
+					// Log the reason for using custom pricing
+					if ramCost == 0 {
+						log.DedupedInfof(10, "ClusterNodes: node %s has invalid RAM cost (0) from data source; falling back to custom pricing: %f", name, customRAMCost)
+					} else if math.IsNaN(ramCost) {
+						log.DedupedInfof(10, "ClusterNodes: node %s has invalid RAM cost (NaN) from data source; falling back to custom pricing: %f", name, customRAMCost)
+					} else {
+						log.DedupedInfof(10, "ClusterNodes: node %s using custom pricing: %f", name, customRAMCost)
+					}
+					ramCost = customRAMCost
+				}
 			} else {
-				customRAMStr = customPricingConfig.RAM
+				if ramCost == 0 || math.IsNaN(ramCost) {
+					log.Warnf("ClusterNodes: node %s has invalid RAM cost (0 or NaN), but was unable to fall back to custom pricing because it was nil", name)
+				}
 			}
-
-			customRAMCost, err := strconv.ParseFloat(customRAMStr, 64)
-			if err != nil {
-				log.Warnf("ClusterNodes: error parsing custom RAM price: %s", customRAMStr)
-			}
-			ramCost = customRAMCost
-
-		} else {
-			ramCost = result.Data[0].Value
 		}
 
 		clusterAndNameToType[keyNon] = nodeType

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/core/pkg/clusters"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/nodestats"
 	"github.com/opencost/opencost/core/pkg/util/atomic"
@@ -21,14 +22,19 @@ type ScrapeController struct {
 }
 
 func NewScrapeController(
+	clusterUID string,
 	scrapeInterval string,
 	networkPort int,
 	updater metric.Updater,
+	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient nodestats.StatSummaryClient,
 ) *ScrapeController {
 
 	var scrapers []Scraper
+	clusterInfoScrapper := newClusterInfoScrapper(clusterUID, clusterInfoProvider)
+	scrapers = append(scrapers, clusterInfoScrapper)
+
 	clusterCacheScraper := newClusterCacheScraper(clusterCache)
 	scrapers = append(scrapers, clusterCacheScraper)
 

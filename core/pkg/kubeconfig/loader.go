@@ -1,8 +1,10 @@
 package kubeconfig
 
 import (
+	"context"
 	"fmt"
 
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
@@ -38,4 +40,16 @@ func LoadKubeClient(path string) (*kubernetes.Clientset, error) {
 		return nil, err
 	}
 	return kubernetes.NewForConfig(config)
+}
+
+func GetClusterUID(client kubernetes.Interface) (string, error) {
+	ns, err := client.CoreV1().Namespaces().Get(context.Background(), "kube-system", v1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("error getting 'kube-system' namespace: %w", err)
+	}
+	uid := string(ns.ObjectMeta.UID)
+	if uid == "" {
+		return "", fmt.Errorf("uid field in 'kube-system' namespace is empty")
+	}
+	return uid, nil
 }

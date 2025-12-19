@@ -245,6 +245,18 @@ func Test_kubernetesScraper_scrapeNamespaces(t *testing.T) {
 			},
 			expected: []metric.Update{
 				{
+					Name: metric.NamespaceInfo,
+					Labels: map[string]string{
+						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid1",
+					},
+				},
+				{
 					Name: metric.KubeNamespaceLabels,
 					Labels: map[string]string{
 						source.NamespaceLabel: "namespace1",
@@ -956,6 +968,20 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 				},
 			},
 			expected: []metric.Update{
+				{
+					Name: metric.ResourceQuotaInfo,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+					},
+				},
 				{
 					Name: metric.KubeResourceQuotaSpecResourceRequests,
 					Labels: map[string]string{

@@ -34,6 +34,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewNodeRAMUserUsageAverageMetricCollector())
 	memStore.Register(NewLBPricePerHourMetricCollector())
 	memStore.Register(NewLBActiveMinutesMetricCollector())
+	memStore.Register(NewClusterUptimeMetricCollector())
 	memStore.Register(NewClusterManagementDurationMetricCollector())
 	memStore.Register(NewClusterManagementPricePerHourMetricCollector())
 	memStore.Register(NewPodActiveMinutesMetricCollector())
@@ -74,6 +75,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewNetInternetIngressGiBMetricCollector())
 	memStore.Register(NewNetInternetServiceIngressGiBMetricCollector())
 	memStore.Register(NewNetTransferBytesMetricCollector())
+	memStore.Register(NewNamespaceUptimeMetricCollector())
 	memStore.Register(NewNamespaceLabelsMetricCollector())
 	memStore.Register(NewNamespaceAnnotationsMetricCollector())
 	memStore.Register(NewPodLabelsMetricCollector())
@@ -86,6 +88,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewPodsWithReplicaSetOwnerMetricCollector())
 	memStore.Register(NewReplicaSetsWithoutOwnersMetricCollector())
 	memStore.Register(NewReplicaSetsWithRolloutMetricCollector())
+	memStore.Register(NewResourceQuotaUptimeMetricCollector())
 	memStore.Register(NewResourceQuotaSpecCPURequestAverageMetricCollector())
 	memStore.Register(NewResourceQuotaSpecCPURequestMaxMetricCollector())
 	memStore.Register(NewResourceQuotaSpecRAMRequestAverageMetricCollector())
@@ -191,7 +194,7 @@ func NewPVCInfoMetricCollector() *metric.MetricCollector {
 			source.StorageClassLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		func(labels map[string]string) bool {
 			return labels[source.VolumeNameLabel] != ""
 		},
@@ -212,7 +215,7 @@ func NewPVActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.PVLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -239,7 +242,7 @@ func NewLocalStorageUsedActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.DeviceLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil, // filter not required here because only container root file system is being scraped
 	)
 }
@@ -338,7 +341,7 @@ func NewLocalStorageActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.ProviderIDLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -484,7 +487,7 @@ func NewNodeActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.ProviderIDLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -602,7 +605,25 @@ func NewLBActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.IngressIPLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+//	avg(
+//		cluster_info{
+//			<some_custom_filter>
+//		}
+//	) by (uid)[%s:%dm]
+
+func NewClusterUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ClusterUptimeID,
+		metric.ClusterInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -621,7 +642,7 @@ func NewClusterManagementDurationMetricCollector() *metric.MetricCollector {
 			source.ProvisionerNameLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -662,7 +683,7 @@ func NewPodActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.NamespaceLabel,
 			source.PodLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -1640,6 +1661,24 @@ func NewNetTransferBytesMetricCollector() *metric.MetricCollector {
 	)
 }
 
+//	avg(
+//		namespace_info{
+//			<some_custom_filter>
+//		}
+//	) by (uid)[%s:%dm]
+
+func NewNamespaceUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NamespaceUptimeID,
+		metric.NamespaceInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
 //	avg_over_time(
 //		kube_namespace_labels{
 //			<some_custom_filter>
@@ -1909,15 +1948,23 @@ func NewReplicaSetsWithRolloutMetricCollector() *metric.MetricCollector {
 	)
 }
 
-// avg(
-//	avg_over_time(
-//		resourcequota_spec_resource_requests{
-//			resource="cpu",
-//			unit="core",
+//	avg(
+//		resourcequota_info{
 //			<some_custom_filter>
-//		}[1h]
-//	)
-//) by (resourcequota, namespace, uid, cluster_id)
+//		}
+//	) by (uid)[%s:%dm]
+
+func NewResourceQuotaUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ResourceQuotaUptimeID,
+		metric.ResourceQuotaInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
 
 func NewResourceQuotaSpecCPURequestAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(

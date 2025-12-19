@@ -39,6 +39,7 @@ type MetricsQuerier interface {
 	QueryLBPricePerHr(start, end time.Time) *Future[LBPricePerHrResult]
 
 	// Cluster Management
+	QueryClusterUptime(start, end time.Time) *Future[UptimeResult]
 	QueryClusterManagementDuration(start, end time.Time) *Future[ClusterManagementDurationResult]
 	QueryClusterManagementPricePerHr(start, end time.Time) *Future[ClusterManagementPricePerHrResult]
 
@@ -81,6 +82,9 @@ type MetricsQuerier interface {
 	QueryPVPricePerGiBHour(start, end time.Time) *Future[PVPricePerGiBHourResult]
 	QueryPVInfo(start, end time.Time) *Future[PVInfoResult]
 
+	// Namespace
+	QueryNamespaceUptime(start, end time.Time) *Future[UptimeResult]
+
 	// Network Egress
 	QueryNetZoneGiB(start, end time.Time) *Future[NetZoneGiBResult]
 	QueryNetZonePricePerGiB(start, end time.Time) *Future[NetZonePricePerGiBResult]
@@ -118,6 +122,7 @@ type MetricsQuerier interface {
 	QueryReplicaSetsWithRollout(start, end time.Time) *Future[ReplicaSetsWithRolloutResult]
 
 	// ResourceQuotas
+	QueryResourceQuotaUptime(start, end time.Time) *Future[UptimeResult]
 	QueryResourceQuotaSpecCPURequestAverage(start, end time.Time) *Future[ResourceQuotaSpecCPURequestAvgResult]
 	QueryResourceQuotaSpecCPURequestMax(start, end time.Time) *Future[ResourceQuotaSpecCPURequestMaxResult]
 	QueryResourceQuotaSpecRAMRequestAverage(start, end time.Time) *Future[ResourceQuotaSpecRAMRequestAvgResult]

@@ -20,9 +20,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/retry"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/core/pkg/version"
-	"github.com/opencost/opencost/pkg/cloud/aws"
 	cloudconfig "github.com/opencost/opencost/pkg/cloud/config"
-	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/config"
@@ -39,7 +37,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/modules/collector-source/pkg/collector"
 	"github.com/opencost/opencost/modules/prometheus-source/pkg/prom"
-	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	clusterc "github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
@@ -52,10 +49,6 @@ import (
 
 const (
 	RFC3339Milli         = "2006-01-02T15:04:05.000Z"
-	maxCacheMinutes1d    = 11
-	maxCacheMinutes2d    = 17
-	maxCacheMinutes7d    = 37
-	maxCacheMinutes30d   = 137
 	CustomPricingSetting = "CustomPricing"
 	DiscountSetting      = "Discount"
 )
@@ -208,61 +201,6 @@ func (a *Accesses) GetAllNodePricing(w http.ResponseWriter, r *http.Request, ps 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	data, err := a.CloudProvider.AllNodePricing()
-	WriteData(w, data, err)
-}
-
-func (a *Accesses) GetConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	data, err := a.CloudProvider.GetConfig()
-	WriteData(w, data, err)
-}
-
-func (a *Accesses) UpdateSpotInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	data, err := a.CloudProvider.UpdateConfig(r.Body, aws.SpotInfoUpdateType)
-	WriteData(w, data, err)
-
-	err = a.CloudProvider.DownloadPricingData()
-	if err != nil {
-		log.Errorf("Error redownloading data on config update: %s", err.Error())
-	}
-}
-
-func (a *Accesses) UpdateAthenaInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	data, err := a.CloudProvider.UpdateConfig(r.Body, aws.AthenaInfoUpdateType)
-	WriteData(w, data, err)
-}
-
-func (a *Accesses) UpdateBigQueryInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	data, err := a.CloudProvider.UpdateConfig(r.Body, gcp.BigqueryUpdateType)
-	WriteData(w, data, err)
-}
-
-func (a *Accesses) UpdateAzureStorageConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := a.CloudProvider.UpdateConfig(r.Body, azure.AzureStorageUpdateType)
-	if err != nil {
-		WriteData(w, nil, err)
-		return
-	}
-	WriteData(w, data, err)
-}
-
-func (a *Accesses) UpdateConfigByKey(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := a.CloudProvider.UpdateConfig(r.Body, "")
 	WriteData(w, data, err)
 }
 
@@ -468,6 +406,11 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 		log.Fatalf("Failed to build Kubernetes client: %s", err.Error())
 	}
 
+	clusterUID, err := kubeconfig.GetClusterUID(kubeClientset)
+	if err != nil {
+		log.Fatalf("Failed to determine cluster UID: %s", err)
+	}
+
 	// Create Kubernetes Cluster Cache + Watchers
 	k8sCache := clusterc.NewKubernetesClusterCache(kubeClientset)
 	k8sCache.Run()
@@ -521,6 +464,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 			}
 			nodeStatClient := nodestats.NewNodeStatsSummaryClient(k8sCache, nodeStatConf, clusterConfig)
 			ds := collector.NewDefaultCollectorDataSource(
+				clusterUID,
 				store,
 				clusterInfoProvider,
 				k8sCache,
@@ -553,7 +497,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	clusterMap := dataSource.ClusterMap()
 	settingsCache := cache.New(cache.NoExpiration, cache.NoExpiration)
 
-	costModel := NewCostModel(dataSource, cloudProvider, k8sCache, clusterMap, dataSource.BatchDuration())
+	costModel := NewCostModel(clusterUID, dataSource, cloudProvider, k8sCache, clusterMap, dataSource.BatchDuration())
 	metricsEmitter := NewCostModelMetricsEmitter(k8sCache, cloudProvider, clusterInfoProvider, costModel)
 
 	a := &Accesses{

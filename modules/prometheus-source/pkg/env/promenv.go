@@ -34,6 +34,10 @@ const (
 	DBBasicAuthPassword = "DB_BASIC_AUTH_PW"
 	DBBearerToken       = "DB_BEARER_TOKEN"
 
+	PromMtlsAuthCAFile  = "PROM_MTLS_AUTH_CA_FILE"
+	PromMtlsAuthCrtFile = "PROM_MTLS_AUTH_CRT_FILE"
+	PromMtlsAuthKeyFile = "PROM_MTLS_AUTH_KEY_FILE"
+
 	CurrentClusterIdFilterEnabledVar = "CURRENT_CLUSTER_ID_FILTER_ENABLED"
 
 	KubecostJobNameEnvVar = "KUBECOST_JOB_NAME"
@@ -134,6 +138,31 @@ func GetDBBasicAuthUserPassword() string {
 
 func GetDBBearerToken() string {
 	return env.Get(DBBearerToken, "")
+}
+
+func IsPromMtlsAuthEnabled() bool {
+	if GetPromMtlsAuthCAFile() == "" {
+		return false
+	}
+	if GetPromMtlsAuthCrtFile() == "" {
+		return false
+	}
+	if GetPromMtlsAuthKeyFile() == "" {
+		return false
+	}
+	return true
+}
+
+func GetPromMtlsAuthCAFile() string {
+	return env.Get(PromMtlsAuthCAFile, "")
+}
+
+func GetPromMtlsAuthCrtFile() string {
+	return env.Get(PromMtlsAuthCrtFile, "")
+}
+
+func GetPromMtlsAuthKeyFile() string {
+	return env.Get(PromMtlsAuthKeyFile, "")
 }
 
 func GetPrometheusMaxQueryDuration() time.Duration {

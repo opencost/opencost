@@ -299,6 +299,10 @@ func (c *collectorMetricsQuerier) QueryLBPricePerHr(start, end time.Time) *sourc
 	return queryCollector(c, start, end, metric.LBPricePerHourID, source.DecodeLBPricePerHrResult)
 }
 
+func (c *collectorMetricsQuerier) QueryClusterUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.ClusterUptimeID, source.DecodeUptimeResult)
+}
+
 func (c *collectorMetricsQuerier) QueryClusterManagementDuration(start, end time.Time) *source.Future[source.ClusterManagementDurationResult] {
 	return queryCollector(c, start, end, metric.ClusterManagementDurationID, source.DecodeClusterManagementDurationResult)
 }
@@ -416,6 +420,10 @@ func (c *collectorMetricsQuerier) QueryPVInfo(start, end time.Time) *source.Futu
 	return queryCollector(c, start, end, metric.PVInfoID, source.DecodePVInfoResult)
 }
 
+func (c *collectorMetricsQuerier) QueryNamespaceUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.NamespaceUptimeID, source.DecodeUptimeResult)
+}
+
 func (c *collectorMetricsQuerier) QueryNetZoneGiB(start, end time.Time) *source.Future[source.NetZoneGiBResult] {
 	return queryCollectorGiB(c, start, end, metric.NetZoneGiBID, source.DecodeNetZoneGiBResult)
 }
@@ -518,6 +526,10 @@ func (c *collectorMetricsQuerier) QueryReplicaSetsWithoutOwners(start, end time.
 
 func (c *collectorMetricsQuerier) QueryReplicaSetsWithRollout(start, end time.Time) *source.Future[source.ReplicaSetsWithRolloutResult] {
 	return queryCollector(c, start, end, metric.ReplicaSetsWithRolloutID, source.DecodeReplicaSetsWithRolloutResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaUptimeID, source.DecodeUptimeResult)
 }
 
 func (c *collectorMetricsQuerier) QueryResourceQuotaSpecCPURequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPURequestAvgResult] {

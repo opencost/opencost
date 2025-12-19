@@ -14,6 +14,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/filter"
 	"github.com/opencost/opencost/core/pkg/filter/allocation"
 	cloudcostfilter "github.com/opencost/opencost/core/pkg/filter/cloudcost"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	models "github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloudcost"
@@ -770,7 +771,7 @@ func (s *MCPServer) buildCloudCostQueryRequest(request cloudcost.QueryRequest, p
 		filter, err = parser.Parse(params.Filter)
 		if err != nil {
 			// Log error but continue without filter rather than failing the entire request
-			fmt.Printf("Warning: failed to parse filter string '%s': %v\n", params.Filter, err)
+			log.Warnf("failed to parse filter string '%s': %v", params.Filter, err)
 		}
 	} else {
 		// Build filter from individual parameters
@@ -840,7 +841,7 @@ func (s *MCPServer) buildFilterFromParams(params *CloudCostQuery) filter.Filter 
 	filter, err := parser.Parse(filterString)
 	if err != nil {
 		// Log error but return nil rather than failing
-		fmt.Printf("Warning: failed to parse combined filter '%s': %v\n", filterString, err)
+		log.Warnf("failed to parse combined filter '%s': %v", filterString, err)
 		return nil
 	}
 

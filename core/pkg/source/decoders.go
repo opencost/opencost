@@ -1,10 +1,16 @@
 package source
 
 import (
+	"time"
+
 	"github.com/opencost/opencost/core/pkg/util"
 )
 
 const (
+	ProviderLabel        = "provider"
+	AccountIDLabel       = "account_id"
+	ClusterNameLabel     = "cluster_name"
+	RegionLabel          = "region"
 	ClusterIDLabel       = "cluster_id"
 	NamespaceLabel       = "namespace"
 	NodeLabel            = "node"
@@ -44,6 +50,52 @@ const (
 const (
 	NoneLabelValue = "<none>"
 )
+
+// UptimeResult represents the first and last recorded sample timestamp within the query window
+type UptimeResult struct {
+	UID   string
+	First time.Time
+	Last  time.Time
+}
+
+func (res *UptimeResult) GetStartEnd(windowStart, windowEnd time.Time, resolution time.Duration) (time.Time, time.Time) {
+	first := res.First
+	last := res.Last
+	// The only corner-case here is what to do if you only get one timestamp.
+	// This dilemma still requires the use of the resolution, and can be
+	// clamped using the window. In this case, we want to honor the existence
+	// of the pod by giving "one resolution" worth of duration, half on each
+	// side of the given timestamp.
+	if first.Equal(last) {
+		first = first.Add(-1 * resolution / time.Duration(2))
+		last = last.Add(resolution / time.Duration(2))
+	}
+	if first.Before(windowStart) {
+		first = windowStart
+	}
+	if last.After(windowEnd) {
+		last = windowEnd
+	}
+	// prevent end times in the future
+	now := time.Now().UTC()
+	if last.After(now) {
+		last = now
+	}
+
+	return first, last
+}
+
+func DecodeUptimeResult(result *QueryResult) *UptimeResult {
+	uid, _ := result.GetString(UIDLabel)
+	first := time.Unix(int64(result.Values[0].Timestamp), 0).UTC()
+	last := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).UTC()
+
+	return &UptimeResult{
+		UID:   uid,
+		First: first,
+		Last:  last,
+	}
+}
 
 type PVResult struct {
 	UID              string

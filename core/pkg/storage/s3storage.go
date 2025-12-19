@@ -419,7 +419,7 @@ func (s3 *S3Storage) List(path string) ([]*StorageInfo, error) {
 func (s3 *S3Storage) ListDirectories(path string) ([]*StorageInfo, error) {
 	path = trimLeading(path)
 
-	log.Tracef("S3Storage::List(%s)", path)
+	log.Tracef("S3Storage::ListDirectories(%s)", path)
 	ctx := context.Background()
 
 	if path != "" {

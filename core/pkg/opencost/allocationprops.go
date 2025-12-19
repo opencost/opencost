@@ -85,6 +85,7 @@ const (
 	AllocationServiceProp                           = "service"
 	AllocationLabelProp                             = "label"
 	AllocationAnnotationProp                        = "annotation"
+	AllocationNamespaceLabelProp                    = "namespaceLabel"
 	AllocationDeploymentProp                        = "deployment"
 	AllocationStatefulSetProp                       = "statefulset"
 	AllocationDaemonSetProp                         = "daemonset"
