@@ -1050,13 +1050,11 @@ func TestAssetCustompricing(t *testing.T) {
 		{
 			name: "Custom pricing enabled",
 			customPricingMap: map[string]string{
-				"default.json": `{
-					"CPU": "20.0",
-					"RAM": "4.0",
-					"GPU": "500.0",
-					"Storage": "0.1",
-					"customPricesEnabled": "true"
-				}`,
+				"CPU": "20.0",
+				"RAM": "4.0",
+				"GPU": "500.0",
+				"Storage": "0.1",
+				"customPricesEnabled": "true",
 			},
 			expectedPricing: map[string]float64{
 				"CPU":     0.027397,              // 20.0 / 730
@@ -1089,7 +1087,7 @@ func TestAssetCustompricing(t *testing.T) {
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			testProvider := &provider.CustomProvider{
-				Config: provider.NewProviderConfig(config.NewConfigFileManager(nil), "default.json"),
+				Config: provider.NewProviderConfig(config.NewConfigFileManager(nil), ""),
 			}
 			testProvider.UpdateConfigFromConfigMap(testCase.customPricingMap)
 
