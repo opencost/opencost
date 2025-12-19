@@ -424,6 +424,13 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 		panic(err.Error())
 	}
 
+	// Append the pricing config watcher
+	installNamespace := env.GetOpencostNamespace()
+	configWatchers := watcher.NewConfigMapWatchers(kubeClientset, installNamespace, additionalConfigWatchers...)
+	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
+	configWatchers.AddWatcher(metrics.GetMetricsConfigWatcher())
+	configWatchers.Watch()
+
 	// ClusterInfo Provider to provide the cluster map with local and remote cluster data
 	var clusterInfoProvider clusters.ClusterInfoProvider
 	if env.IsClusterInfoFileEnabled() {
@@ -485,14 +492,6 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 		log.Fatalf("Failed to create Prometheus data source: %s", fatalErr)
 		panic(fatalErr)
 	}
-
-	// Append the pricing config watcher
-	installNamespace := env.GetOpencostNamespace()
-
-	configWatchers := watcher.NewConfigMapWatchers(kubeClientset, installNamespace, additionalConfigWatchers...)
-	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
-	configWatchers.AddWatcher(metrics.GetMetricsConfigWatcher())
-	configWatchers.Watch()
 
 	clusterMap := dataSource.ClusterMap()
 	settingsCache := cache.New(cache.NoExpiration, cache.NoExpiration)

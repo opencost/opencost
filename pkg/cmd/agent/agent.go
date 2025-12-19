@@ -89,6 +89,12 @@ func Execute(opts *AgentOpts) error {
 		panic(err.Error())
 	}
 
+	// Append the pricing config watcher
+	installNamespace := env.GetOpencostNamespace()
+	configWatchers := watcher.NewConfigMapWatchers(k8sClient, installNamespace)
+	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
+	configWatchers.Watch()
+
 	// ClusterInfo Provider to provide the cluster map with local and remote cluster data
 	localClusterInfo := costmodel.NewLocalClusterInfoProvider(k8sClient, cloudProvider)
 
@@ -128,12 +134,6 @@ func Execute(opts *AgentOpts) error {
 		log.Fatalf("Failed to create Prometheus data source: %s", fatalErr)
 		panic(fatalErr)
 	}
-
-	// Append the pricing config watcher
-	installNamespace := env.GetOpencostNamespace()
-	configWatchers := watcher.NewConfigMapWatchers(k8sClient, installNamespace)
-	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
-	configWatchers.Watch()
 
 	// Initialize cluster exporting if it's enabled
 	if env.IsExportClusterCacheEnabled() {
