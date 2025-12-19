@@ -1359,3 +1359,106 @@ func TestEfficiencyConstants(t *testing.T) {
 func TestEfficiencyQueryType(t *testing.T) {
 	assert.Equal(t, QueryType("efficiency"), EfficiencyQueryType)
 }
+
+// TestTransformCloudCostSetRange_NilPointerHandling verifies that nil pointer dereferences
+// are prevented in transformCloudCostSetRange for issue #3502
+func TestTransformCloudCostSetRange_NilPointerHandling(t *testing.T) {
+	now := time.Now().UTC()
+	start := now.Add(-24 * time.Hour)
+	end := now
+
+	tests := []struct {
+		name              string
+		ccsr              *opencost.CloudCostSetRange
+		expectedCostCount int
+		expectEmpty       bool
+	}{
+		{
+			name:        "nil CloudCostSetRange",
+			ccsr:        nil,
+			expectEmpty: true,
+		},
+		{
+			name:        "nil CloudCostSet in slice",
+			ccsr:        &opencost.CloudCostSetRange{CloudCostSets: []*opencost.CloudCostSet{nil}},
+			expectEmpty: true,
+		},
+		{
+			name: "CloudCostSet with nil Window.Start",
+			ccsr: &opencost.CloudCostSetRange{
+				CloudCostSets: []*opencost.CloudCostSet{
+					{CloudCosts: map[string]*opencost.CloudCost{}, Window: opencost.NewWindow(nil, &end)},
+				},
+			},
+			expectEmpty: true,
+		},
+		{
+			name: "CloudCostSet with nil Window.End",
+			ccsr: &opencost.CloudCostSetRange{
+				CloudCostSets: []*opencost.CloudCostSet{
+					{CloudCosts: map[string]*opencost.CloudCost{}, Window: opencost.NewWindow(&start, nil)},
+				},
+			},
+			expectEmpty: true,
+		},
+		{
+			name: "CloudCost item with nil Window.Start",
+			ccsr: &opencost.CloudCostSetRange{
+				CloudCostSets: []*opencost.CloudCostSet{
+					{
+						CloudCosts: map[string]*opencost.CloudCost{
+							"cost1": {
+								Properties: &opencost.CloudCostProperties{Provider: "aws"},
+								Window:     opencost.NewWindow(nil, &end),
+								NetCost:    opencost.CostMetric{Cost: 100.0},
+							},
+						},
+						Window: opencost.NewClosedWindow(start, end),
+					},
+				},
+			},
+			expectedCostCount: 0,
+		},
+		{
+			name: "Mixed valid and invalid items",
+			ccsr: &opencost.CloudCostSetRange{
+				CloudCostSets: []*opencost.CloudCostSet{
+					{
+						CloudCosts: map[string]*opencost.CloudCost{
+							"invalid": nil,
+							"valid": {
+								Properties: &opencost.CloudCostProperties{Provider: "gcp"},
+								Window:     opencost.NewClosedWindow(start, end),
+								NetCost:    opencost.CostMetric{Cost: 200.0, KubernetesPercent: 0.5},
+							},
+						},
+						Window: opencost.NewClosedWindow(start, end),
+					},
+				},
+			},
+			expectedCostCount: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Should not panic
+			result := transformCloudCostSetRange(tt.ccsr)
+
+			require.NotNil(t, result)
+			require.NotNil(t, result.CloudCosts)
+			require.NotNil(t, result.Summary)
+
+			if tt.expectEmpty {
+				assert.Empty(t, result.CloudCosts)
+				assert.Equal(t, 0.0, result.Summary.TotalNetCost)
+			} else {
+				totalCosts := 0
+				for _, set := range result.CloudCosts {
+					totalCosts += len(set.CloudCosts)
+				}
+				assert.Equal(t, tt.expectedCostCount, totalCosts)
+			}
+		})
+	}
+}
