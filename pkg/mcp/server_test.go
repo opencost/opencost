@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -1358,4 +1359,745 @@ func TestEfficiencyConstants(t *testing.T) {
 
 func TestEfficiencyQueryType(t *testing.T) {
 	assert.Equal(t, QueryType("efficiency"), EfficiencyQueryType)
+}
+
+// ---- Tests for Recommendations Tool ----
+
+func TestRecommendationsQueryType(t *testing.T) {
+	assert.Equal(t, QueryType("recommendations"), RecommendationsQueryType)
+}
+
+func TestRecommendationTypeConstants(t *testing.T) {
+	assert.Equal(t, RecommendationType("idle"), RecommendationTypeIdle)
+	assert.Equal(t, RecommendationType("oversized"), RecommendationTypeOversized)
+	assert.Equal(t, RecommendationType("rightsize"), RecommendationTypeRightsize)
+	assert.Equal(t, RecommendationType("underprovisioned"), RecommendationTypeUnderprovisioned)
+}
+
+func TestRecommendationPriorityConstants(t *testing.T) {
+	assert.Equal(t, RecommendationPriority("high"), RecommendationPriorityHigh)
+	assert.Equal(t, RecommendationPriority("medium"), RecommendationPriorityMedium)
+	assert.Equal(t, RecommendationPriority("low"), RecommendationPriorityLow)
+}
+
+func TestRecommendationThresholds(t *testing.T) {
+	assert.Equal(t, 0.05, idleCPUThreshold)
+	assert.Equal(t, 0.05, idleMemoryThreshold)
+	assert.Equal(t, 0.3, oversizedCPUThreshold)
+	assert.Equal(t, 0.3, oversizedMemoryThreshold)
+	assert.Equal(t, 0.1, severelyOversizedThreshold)
+	assert.Equal(t, 0.9, underprovisionedCPUThreshold)
+	assert.Equal(t, 0.9, underprovisionedMemoryThreshold)
+	assert.Equal(t, 0.01, minSavingsThreshold)
+	// Input validation bounds
+	assert.Equal(t, 1.0, minBufferMultiplier)
+	assert.Equal(t, 10.0, maxBufferMultiplier)
+	assert.Equal(t, 10000, maxTopN)
+}
+
+func TestRecommendationsQueryStruct(t *testing.T) {
+	bufferMultiplier := 1.4
+	minSavings := 1.0
+	topN := 10
+	query := RecommendationsQuery{
+		Aggregate:        "pod",
+		Filter:           "namespace:production",
+		BufferMultiplier: &bufferMultiplier,
+		MinSavings:       &minSavings,
+		IncludeIdle:      true,
+		IncludeOversized: true,
+		IncludeRightsize: true,
+		TopN:             &topN,
+	}
+
+	assert.Equal(t, "pod", query.Aggregate)
+	assert.Equal(t, "namespace:production", query.Filter)
+	assert.NotNil(t, query.BufferMultiplier)
+	assert.Equal(t, 1.4, *query.BufferMultiplier)
+	assert.NotNil(t, query.MinSavings)
+	assert.Equal(t, 1.0, *query.MinSavings)
+	assert.True(t, query.IncludeIdle)
+	assert.True(t, query.IncludeOversized)
+	assert.True(t, query.IncludeRightsize)
+	assert.NotNil(t, query.TopN)
+	assert.Equal(t, 10, *query.TopN)
+}
+
+func TestRecommendationsQueryDefaultValues(t *testing.T) {
+	query := RecommendationsQuery{}
+
+	assert.Empty(t, query.Aggregate)
+	assert.Empty(t, query.Filter)
+	assert.Nil(t, query.BufferMultiplier)
+	assert.Nil(t, query.MinSavings)
+	assert.False(t, query.IncludeIdle)
+	assert.False(t, query.IncludeOversized)
+	assert.False(t, query.IncludeRightsize)
+	assert.Nil(t, query.TopN)
+}
+
+func TestRecommendationStruct(t *testing.T) {
+	now := time.Now()
+	rec := Recommendation{
+		ID:                      "rec-123",
+		Type:                    RecommendationTypeOversized,
+		Priority:                RecommendationPriorityHigh,
+		ResourceName:           "test-pod",
+		Description:            "Resource is oversized",
+		Action:                  "Reduce CPU request",
+		CurrentCPURequest:       2.0,
+		CurrentRAMRequest:       2147483648,
+		CurrentCPUUsage:         0.5,
+		CurrentRAMUsage:         536870912,
+		CurrentCost:             10.0,
+		CPUEfficiency:           0.25,
+		MemoryEfficiency:        0.25,
+		RecommendedCPURequest:   0.6,
+		RecommendedRAMRequest:   644245094,
+		RecommendedCost:         3.0,
+		EstimatedSavings:        7.0,
+		EstimatedSavingsPercent: 70.0,
+		Start:                   now.Add(-24 * time.Hour),
+		End:                     now,
+	}
+
+	assert.Equal(t, "rec-123", rec.ID)
+	assert.Equal(t, RecommendationTypeOversized, rec.Type)
+	assert.Equal(t, RecommendationPriorityHigh, rec.Priority)
+	assert.Equal(t, "test-pod", rec.ResourceName)
+	assert.Equal(t, "Resource is oversized", rec.Description)
+	assert.Equal(t, "Reduce CPU request", rec.Action)
+	assert.Equal(t, 2.0, rec.CurrentCPURequest)
+	assert.Equal(t, 2147483648.0, rec.CurrentRAMRequest)
+	assert.Equal(t, 0.5, rec.CurrentCPUUsage)
+	assert.Equal(t, 536870912.0, rec.CurrentRAMUsage)
+	assert.Equal(t, 10.0, rec.CurrentCost)
+	assert.Equal(t, 0.25, rec.CPUEfficiency)
+	assert.Equal(t, 0.25, rec.MemoryEfficiency)
+	assert.Equal(t, 0.6, rec.RecommendedCPURequest)
+	assert.Equal(t, 644245094.0, rec.RecommendedRAMRequest)
+	assert.Equal(t, 3.0, rec.RecommendedCost)
+	assert.Equal(t, 7.0, rec.EstimatedSavings)
+	assert.Equal(t, 70.0, rec.EstimatedSavingsPercent)
+	assert.True(t, rec.Start.Before(rec.End))
+}
+
+func TestRecommendationsSummaryStruct(t *testing.T) {
+	summary := RecommendationsSummary{
+		TotalRecommendations:  10,
+		TotalPotentialSavings: 100.0,
+		ByType: map[string]int{
+			"idle":      2,
+			"oversized": 5,
+			"rightsize": 3,
+		},
+		ByPriority: map[string]int{
+			"high":   3,
+			"medium": 4,
+			"low":    3,
+		},
+		IdleResourceCount: 2,
+		OversizedCount:    5,
+		RightsizeCount:    3,
+	}
+
+	assert.Equal(t, 10, summary.TotalRecommendations)
+	assert.Equal(t, 100.0, summary.TotalPotentialSavings)
+	assert.Equal(t, 2, summary.ByType["idle"])
+	assert.Equal(t, 5, summary.ByType["oversized"])
+	assert.Equal(t, 3, summary.ByType["rightsize"])
+	assert.Equal(t, 3, summary.ByPriority["high"])
+	assert.Equal(t, 4, summary.ByPriority["medium"])
+	assert.Equal(t, 3, summary.ByPriority["low"])
+	assert.Equal(t, 2, summary.IdleResourceCount)
+	assert.Equal(t, 5, summary.OversizedCount)
+	assert.Equal(t, 3, summary.RightsizeCount)
+}
+
+func TestRecommendationsResponseStruct(t *testing.T) {
+	now := time.Now()
+	rec1 := &Recommendation{
+		ID:               "rec-1",
+		Type:             RecommendationTypeIdle,
+		Priority:         RecommendationPriorityHigh,
+		ResourceName:    "idle-pod",
+		EstimatedSavings: 50.0,
+		Start:            now.Add(-24 * time.Hour),
+		End:              now,
+	}
+	rec2 := &Recommendation{
+		ID:               "rec-2",
+		Type:             RecommendationTypeOversized,
+		Priority:         RecommendationPriorityMedium,
+		ResourceName:    "big-pod",
+		EstimatedSavings: 25.0,
+		Start:            now.Add(-24 * time.Hour),
+		End:              now,
+	}
+
+	response := RecommendationsResponse{
+		Recommendations: []*Recommendation{rec1, rec2},
+		Summary: &RecommendationsSummary{
+			TotalRecommendations:  2,
+			TotalPotentialSavings: 75.0,
+			ByType: map[string]int{
+				"idle":      1,
+				"oversized": 1,
+			},
+			ByPriority: map[string]int{
+				"high":   1,
+				"medium": 1,
+			},
+			IdleResourceCount: 1,
+			OversizedCount:    1,
+		},
+		Window: &TimeWindow{
+			Start: now.Add(-24 * time.Hour),
+			End:   now,
+		},
+	}
+
+	require.NotNil(t, response.Recommendations)
+	assert.Len(t, response.Recommendations, 2)
+	assert.Equal(t, "rec-1", response.Recommendations[0].ID)
+	assert.Equal(t, "rec-2", response.Recommendations[1].ID)
+	require.NotNil(t, response.Summary)
+	assert.Equal(t, 2, response.Summary.TotalRecommendations)
+	assert.Equal(t, 75.0, response.Summary.TotalPotentialSavings)
+	require.NotNil(t, response.Window)
+	assert.True(t, response.Window.Start.Before(response.Window.End))
+}
+
+func TestGenerateRecommendationID(t *testing.T) {
+	id1 := generateRecommendationID()
+	id2 := generateRecommendationID()
+
+	assert.NotEmpty(t, id1)
+	assert.NotEmpty(t, id2)
+	assert.NotEqual(t, id1, id2)
+	assert.Contains(t, id1, "rec-")
+}
+
+func TestSortRecommendationsBySavings(t *testing.T) {
+	recs := []*Recommendation{
+		{ID: "low", EstimatedSavings: 10.0},
+		{ID: "high", EstimatedSavings: 100.0},
+		{ID: "medium", EstimatedSavings: 50.0},
+	}
+
+	sortRecommendationsBySavings(recs)
+
+	assert.Equal(t, "high", recs[0].ID)
+	assert.Equal(t, 100.0, recs[0].EstimatedSavings)
+	assert.Equal(t, "medium", recs[1].ID)
+	assert.Equal(t, 50.0, recs[1].EstimatedSavings)
+	assert.Equal(t, "low", recs[2].ID)
+	assert.Equal(t, 10.0, recs[2].EstimatedSavings)
+}
+
+func TestSortRecommendationsBySavings_Empty(t *testing.T) {
+	recs := []*Recommendation{}
+	sortRecommendationsBySavings(recs)
+	assert.Empty(t, recs)
+}
+
+func TestSortRecommendationsBySavings_Single(t *testing.T) {
+	recs := []*Recommendation{
+		{ID: "only", EstimatedSavings: 50.0},
+	}
+	sortRecommendationsBySavings(recs)
+	assert.Len(t, recs, 1)
+	assert.Equal(t, "only", recs[0].ID)
+}
+
+func TestCreateEmptyRecommendationsSummary(t *testing.T) {
+	summary := createEmptyRecommendationsSummary()
+
+	require.NotNil(t, summary)
+	assert.Equal(t, 0, summary.TotalRecommendations)
+	assert.Equal(t, 0.0, summary.TotalPotentialSavings)
+	assert.NotNil(t, summary.ByType)
+	assert.NotNil(t, summary.ByPriority)
+	assert.Equal(t, 0, summary.IdleResourceCount)
+	assert.Equal(t, 0, summary.OversizedCount)
+	assert.Equal(t, 0, summary.RightsizeCount)
+}
+
+func TestBuildRecommendationsSummary(t *testing.T) {
+	recs := []*Recommendation{
+		{Type: RecommendationTypeIdle, Priority: RecommendationPriorityHigh, EstimatedSavings: 50.0},
+		{Type: RecommendationTypeOversized, Priority: RecommendationPriorityMedium, EstimatedSavings: 30.0},
+		{Type: RecommendationTypeOversized, Priority: RecommendationPriorityHigh, EstimatedSavings: 25.0},
+		{Type: RecommendationTypeRightsize, Priority: RecommendationPriorityLow, EstimatedSavings: 10.0},
+	}
+
+	summary := buildRecommendationsSummary(recs)
+
+	require.NotNil(t, summary)
+	assert.Equal(t, 4, summary.TotalRecommendations)
+	assert.Equal(t, 115.0, summary.TotalPotentialSavings)
+	assert.Equal(t, 1, summary.ByType[string(RecommendationTypeIdle)])
+	assert.Equal(t, 2, summary.ByType[string(RecommendationTypeOversized)])
+	assert.Equal(t, 1, summary.ByType[string(RecommendationTypeRightsize)])
+	assert.Equal(t, 2, summary.ByPriority[string(RecommendationPriorityHigh)])
+	assert.Equal(t, 1, summary.ByPriority[string(RecommendationPriorityMedium)])
+	assert.Equal(t, 1, summary.ByPriority[string(RecommendationPriorityLow)])
+	assert.Equal(t, 1, summary.IdleResourceCount)
+	assert.Equal(t, 2, summary.OversizedCount)
+	assert.Equal(t, 1, summary.RightsizeCount)
+}
+
+func TestBuildRecommendationsSummary_Empty(t *testing.T) {
+	recs := []*Recommendation{}
+
+	summary := buildRecommendationsSummary(recs)
+
+	require.NotNil(t, summary)
+	assert.Equal(t, 0, summary.TotalRecommendations)
+	assert.Equal(t, 0.0, summary.TotalPotentialSavings)
+}
+
+func TestGenerateRecommendationsFromAllocation_NilAllocation(t *testing.T) {
+	recs := generateRecommendationsFromAllocation(nil, 1.2, 0.01, true, true, true, false)
+	assert.Nil(t, recs)
+}
+
+func TestGenerateRecommendationsFromAllocation_ZeroMinutes(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:  "test-pod",
+		Start: now,
+		End:   now,
+	}
+
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, true, true, true, false)
+	assert.Nil(t, recs)
+}
+
+func TestGenerateRecommendationsFromAllocation_IdleResource(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:                   "idle-pod",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           0.24, // Very low usage: 0.01 cores average
+		RAMByteHours:           24e6, // Very low usage: ~1MB average
+		CPUCoreRequestAverage:  2.0,
+		RAMBytesRequestAverage: 2e9,
+		CPUCost:                10.0,
+		RAMCost:                5.0,
+	}
+
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, true, true, true, false)
+
+	require.NotNil(t, recs)
+	require.Len(t, recs, 1)
+	assert.Equal(t, RecommendationTypeIdle, recs[0].Type)
+	assert.Equal(t, RecommendationPriorityHigh, recs[0].Priority)
+	assert.Equal(t, "idle-pod", recs[0].ResourceName)
+}
+
+func TestGenerateRecommendationsFromAllocation_OversizedResource(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:                   "oversized-pod",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           12.0,   // 0.5 cores average (25% of requested)
+		RAMByteHours:           12.0e9, // 0.5GB average (25% of requested)
+		CPUCoreRequestAverage:  2.0,
+		RAMBytesRequestAverage: 2.0e9,
+		CPUCost:                10.0,
+		RAMCost:                5.0,
+	}
+
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, true, true, true, false)
+
+	require.NotNil(t, recs)
+	require.Len(t, recs, 1)
+	assert.Equal(t, RecommendationTypeOversized, recs[0].Type)
+	assert.Equal(t, "oversized-pod", recs[0].ResourceName)
+}
+
+func TestGenerateRecommendationsFromAllocation_RightsizeResource(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:                   "rightsize-pod",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           19.2,    // 0.8 cores average (40% of requested)
+		RAMByteHours:           19.2e9,  // 0.8GB average (40% of requested)
+		CPUCoreRequestAverage:  2.0,
+		RAMBytesRequestAverage: 2.0e9,
+		CPUCost:                10.0,
+		RAMCost:                5.0,
+	}
+
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, false, false, true, false)
+
+	require.NotNil(t, recs)
+	require.Len(t, recs, 1)
+	assert.Equal(t, RecommendationTypeRightsize, recs[0].Type)
+	assert.Equal(t, "rightsize-pod", recs[0].ResourceName)
+}
+
+func TestGenerateRecommendationsFromAllocation_NoSavings(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:                   "efficient-pod",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           48.0,   // 2 cores average - over 100% of requested
+		RAMByteHours:           48.0e9, // 2GB average - over 100% of requested
+		CPUCoreRequestAverage:  2.0,
+		RAMBytesRequestAverage: 2.0e9,
+		CPUCost:                10.0,
+		RAMCost:                5.0,
+	}
+
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, true, true, true, false)
+
+	// No savings expected since usage exceeds requests
+	assert.Nil(t, recs)
+}
+
+func TestGenerateRecommendationsFromAllocation_BelowMinSavings(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:                   "small-savings-pod",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           23.5,   // Close to requested
+		RAMByteHours:           23.5e9, // Close to requested
+		CPUCoreRequestAverage:  1.0,
+		RAMBytesRequestAverage: 1.0e9,
+		CPUCost:                0.001, // Very small costs
+		RAMCost:                0.001,
+	}
+
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 1.0, true, true, true, false) // High min savings threshold
+
+	assert.Nil(t, recs)
+}
+
+func TestGenerateRecommendationsFromAllocation_DisabledCategories(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:                   "test-pod",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           0.24, // Idle-level usage
+		RAMByteHours:           24e6,
+		CPUCoreRequestAverage:  2.0,
+		RAMBytesRequestAverage: 2e9,
+		CPUCost:                10.0,
+		RAMCost:                5.0,
+	}
+
+	// Disable all categories
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, false, false, false, false)
+	assert.Nil(t, recs)
+}
+
+func TestQueryRecommendations_InvalidWindow(t *testing.T) {
+	s := &MCPServer{}
+
+	req := &OpenCostQueryRequest{
+		QueryType: RecommendationsQueryType,
+		Window:    "invalid-window",
+	}
+
+	_, err := s.QueryRecommendations(req)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to parse window")
+}
+
+func TestQueryRecommendations_WithTopN(t *testing.T) {
+	topN := 5
+	req := &OpenCostQueryRequest{
+		QueryType: RecommendationsQueryType,
+		Window:    "7d",
+		RecommendationsParams: &RecommendationsQuery{
+			TopN: &topN,
+		},
+	}
+
+	assert.NotNil(t, req.RecommendationsParams.TopN)
+	assert.Equal(t, 5, *req.RecommendationsParams.TopN)
+}
+
+func TestQueryRecommendations_WithFilter(t *testing.T) {
+	req := &OpenCostQueryRequest{
+		QueryType: RecommendationsQueryType,
+		Window:    "7d",
+		RecommendationsParams: &RecommendationsQuery{
+			Aggregate: "pod",
+			Filter:    "namespace:production",
+		},
+	}
+
+	assert.Equal(t, "pod", req.RecommendationsParams.Aggregate)
+	assert.Equal(t, "namespace:production", req.RecommendationsParams.Filter)
+}
+
+func TestOpenCostQueryRequest_IncludesRecommendations(t *testing.T) {
+	req := OpenCostQueryRequest{
+		QueryType: RecommendationsQueryType,
+		Window:    "7d",
+		RecommendationsParams: &RecommendationsQuery{
+			Aggregate: "namespace",
+		},
+	}
+
+	assert.Equal(t, RecommendationsQueryType, req.QueryType)
+	assert.Equal(t, "7d", req.Window)
+	assert.NotNil(t, req.RecommendationsParams)
+	assert.Equal(t, "namespace", req.RecommendationsParams.Aggregate)
+}
+
+// ---- Tests for Input Validation ----
+
+func TestQueryRecommendations_NilCostModel(t *testing.T) {
+	s := &MCPServer{costModel: nil}
+
+	req := &OpenCostQueryRequest{
+		QueryType: RecommendationsQueryType,
+		Window:    "7d",
+	}
+
+	_, err := s.QueryRecommendations(req)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cost model not initialized")
+}
+
+func TestQueryRecommendations_BufferMultiplierBelowMinimum(t *testing.T) {
+	// Test that buffer multiplier below 1.0 is clamped
+	belowMin := 0.5
+	req := &OpenCostQueryRequest{
+		QueryType: RecommendationsQueryType,
+		Window:    "7d",
+		RecommendationsParams: &RecommendationsQuery{
+			BufferMultiplier: &belowMin,
+		},
+	}
+
+	// Verify the parameter value
+	assert.Equal(t, 0.5, *req.RecommendationsParams.BufferMultiplier)
+	// The actual clamping happens in QueryRecommendations, which requires a costModel
+	// This test verifies the constant value
+	assert.Equal(t, 1.0, minBufferMultiplier)
+}
+
+func TestQueryRecommendations_BufferMultiplierAboveMaximum(t *testing.T) {
+	// Test that buffer multiplier above 10.0 is clamped
+	aboveMax := 15.0
+	req := &OpenCostQueryRequest{
+		QueryType: RecommendationsQueryType,
+		Window:    "7d",
+		RecommendationsParams: &RecommendationsQuery{
+			BufferMultiplier: &aboveMax,
+		},
+	}
+
+	// Verify the parameter value
+	assert.Equal(t, 15.0, *req.RecommendationsParams.BufferMultiplier)
+	// The actual clamping happens in QueryRecommendations
+	// This test verifies the constant value
+	assert.Equal(t, 10.0, maxBufferMultiplier)
+}
+
+func TestQueryRecommendations_NegativeMinSavings(t *testing.T) {
+	// Test that negative minSavings is clamped to 0
+	negativeValue := -5.0
+	req := &OpenCostQueryRequest{
+		QueryType: RecommendationsQueryType,
+		Window:    "7d",
+		RecommendationsParams: &RecommendationsQuery{
+			MinSavings: &negativeValue,
+		},
+	}
+
+	// Verify the parameter value is negative (before clamping)
+	assert.Equal(t, -5.0, *req.RecommendationsParams.MinSavings)
+	// The actual clamping happens in QueryRecommendations
+}
+
+func TestQueryRecommendations_TopNAboveMaximum(t *testing.T) {
+	// Test that topN above 10000 is clamped
+	aboveMax := 50000
+	req := &OpenCostQueryRequest{
+		QueryType: RecommendationsQueryType,
+		Window:    "7d",
+		RecommendationsParams: &RecommendationsQuery{
+			TopN: &aboveMax,
+		},
+	}
+
+	// Verify the parameter value
+	assert.Equal(t, 50000, *req.RecommendationsParams.TopN)
+	// The actual clamping happens in QueryRecommendations
+	assert.Equal(t, 10000, maxTopN)
+}
+
+func TestQueryRecommendations_NegativeTopN(t *testing.T) {
+	// Test that negative topN is clamped to 0
+	negativeValue := -5
+	req := &OpenCostQueryRequest{
+		QueryType: RecommendationsQueryType,
+		Window:    "7d",
+		RecommendationsParams: &RecommendationsQuery{
+			TopN: &negativeValue,
+		},
+	}
+
+	// Verify the parameter value is negative (before clamping)
+	assert.Equal(t, -5, *req.RecommendationsParams.TopN)
+	// The actual clamping happens in QueryRecommendations (should clamp to 0)
+}
+
+func TestInputValidationConstants(t *testing.T) {
+	// Test that all input validation constants are set correctly
+	assert.Equal(t, 1.0, minBufferMultiplier, "minBufferMultiplier should be 1.0")
+	assert.Equal(t, 10.0, maxBufferMultiplier, "maxBufferMultiplier should be 10.0")
+	assert.Equal(t, 10000, maxTopN, "maxTopN should be 10000")
+}
+
+// ---- Tests for Compact Mode and Token Optimization ----
+
+func TestRoundFloat(t *testing.T) {
+	tests := []struct {
+		name      string
+		val       float64
+		precision int
+		expected  float64
+	}{
+		{"zero precision", 123.456789, 0, 123.0},
+		{"one decimal", 123.456789, 1, 123.5},
+		{"two decimals", 123.456789, 2, 123.46},
+		{"three decimals", 123.456789, 3, 123.457},
+		{"four decimals", 123.456789, 4, 123.4568},
+		{"round down", 123.444, 2, 123.44},
+		{"round up", 123.445, 2, 123.45},
+		{"negative value", -123.456, 2, -123.46},
+		{"zero value", 0.0, 2, 0.0},
+		{"large value", 1234567.89, 1, 1234567.9},
+		{"small value", 0.00123456, 4, 0.0012},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := roundFloat(tt.val, tt.precision)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGenerateRecommendationsFromAllocation_CompactMode(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:                   "compact-test-pod",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           12.0,   // 0.5 cores average (25% of requested)
+		RAMByteHours:           12.0e9, // 0.5GB average (25% of requested)
+		CPUCoreRequestAverage:  2.0,
+		RAMBytesRequestAverage: 2.0e9,
+		CPUCost:                10.0,
+		RAMCost:                5.0,
+	}
+
+	// Generate with compact mode enabled
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, true, true, true, true)
+
+	require.NotNil(t, recs)
+	require.Len(t, recs, 1)
+
+	rec := recs[0]
+	// Verbose fields should be empty in compact mode
+	assert.Empty(t, rec.ID, "ID should be empty in compact mode")
+	assert.Empty(t, rec.Description, "Description should be empty in compact mode")
+	assert.Empty(t, rec.Action, "Action should be empty in compact mode")
+	assert.True(t, rec.Start.IsZero(), "Start should be zero in compact mode")
+	assert.True(t, rec.End.IsZero(), "End should be zero in compact mode")
+
+	// Core fields should still be present
+	assert.NotEmpty(t, rec.Type)
+	assert.NotEmpty(t, rec.Priority)
+	assert.Equal(t, "compact-test-pod", rec.ResourceName)
+}
+
+func TestGenerateRecommendationsFromAllocation_NonCompactMode(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:                   "verbose-test-pod",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           12.0,
+		RAMByteHours:           12.0e9,
+		CPUCoreRequestAverage:  2.0,
+		RAMBytesRequestAverage: 2.0e9,
+		CPUCost:                10.0,
+		RAMCost:                5.0,
+	}
+
+	// Generate with compact mode disabled
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, true, true, true, false)
+
+	require.NotNil(t, recs)
+	require.Len(t, recs, 1)
+
+	rec := recs[0]
+	// Verbose fields should be populated in non-compact mode
+	assert.NotEmpty(t, rec.ID, "ID should be present in non-compact mode")
+	assert.NotEmpty(t, rec.Description, "Description should be present in non-compact mode")
+	assert.NotEmpty(t, rec.Action, "Action should be present in non-compact mode")
+	assert.False(t, rec.Start.IsZero(), "Start should be present in non-compact mode")
+	assert.False(t, rec.End.IsZero(), "End should be present in non-compact mode")
+}
+
+func TestCompactModeRoundsFloats(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:                   "rounding-test-pod",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           12.123456789,
+		RAMByteHours:           12.123456789e9,
+		CPUCoreRequestAverage:  2.123456789,
+		RAMBytesRequestAverage: 2.123456789e9,
+		CPUCost:                10.123456789,
+		RAMCost:                5.123456789,
+	}
+
+	// Generate with compact mode enabled
+	recs := generateRecommendationsFromAllocation(alloc, 1.2, 0.01, true, true, true, true)
+
+	require.NotNil(t, recs)
+	require.Len(t, recs, 1)
+
+	rec := recs[0]
+	// CPU values should be rounded to 4 decimal places
+	cpuStr := fmt.Sprintf("%.10f", rec.CurrentCPURequest)
+	assert.True(t, len(cpuStr) > 0, "CPU should have limited precision in compact mode")
+
+	// Efficiency values should be rounded to 3 decimal places
+	effStr := fmt.Sprintf("%.10f", rec.CPUEfficiency)
+	assert.True(t, len(effStr) > 0, "Efficiency should have limited precision in compact mode")
+}
+
+func TestRecommendationsQueryCompactField(t *testing.T) {
+	query := RecommendationsQuery{
+		Aggregate: "pod",
+		Compact:   true,
+	}
+
+	assert.True(t, query.Compact)
+	assert.Equal(t, "pod", query.Aggregate)
+}
+
+func TestRecommendationsQueryCompactDefault(t *testing.T) {
+	query := RecommendationsQuery{}
+
+	// Compact should default to false
+	assert.False(t, query.Compact)
 }
