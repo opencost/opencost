@@ -173,6 +173,7 @@ func (c *ClusterStorage) StorageType() StorageType {
 	return StorageTypeCluster
 }
 
+// scheme returns the protocol scheme (http or https) based on TLS configuration
 func (c *ClusterStorage) scheme() string {
 	if c.client.Transport != nil {
 		if transport, ok := c.client.Transport.(*http.Transport); ok {
@@ -218,6 +219,8 @@ type Response[T any] struct {
 }
 
 func (c *ClusterStorage) Stat(path string) (*StorageInfo, error) {
+	log.Debugf("ClusterStorage::Stat::%s(%s)", strings.ToUpper(c.scheme()), path)
+
 	var jsonResp Response[*StorageInfo]
 	fn := func(resp *http.Response) error {
 		err := json.NewDecoder(resp.Body).Decode(&jsonResp)
@@ -245,6 +248,8 @@ func (c *ClusterStorage) Stat(path string) (*StorageInfo, error) {
 }
 
 func (c *ClusterStorage) Read(path string) ([]byte, error) {
+	log.Debugf("ClusterStorage::Read::%s(%s)", strings.ToUpper(c.scheme()), path)
+
 	var jsonResp Response[[]byte]
 	fn := func(resp *http.Response) error {
 		err := json.NewDecoder(resp.Body).Decode(&jsonResp)
@@ -272,6 +277,8 @@ func (c *ClusterStorage) Read(path string) ([]byte, error) {
 }
 
 func (c *ClusterStorage) Write(path string, data []byte) error {
+	log.Debugf("ClusterStorage::Write::%s(%s)", strings.ToUpper(c.scheme()), path)
+
 	fn := func(resp *http.Response) error {
 		return nil
 	}
@@ -294,6 +301,8 @@ func (c *ClusterStorage) Write(path string, data []byte) error {
 }
 
 func (c *ClusterStorage) Remove(path string) error {
+	log.Debugf("ClusterStorage::Remove::%s(%s)", strings.ToUpper(c.scheme()), path)
+
 	fn := func(resp *http.Response) error {
 		return nil
 	}
@@ -316,6 +325,8 @@ func (c *ClusterStorage) Remove(path string) error {
 }
 
 func (c *ClusterStorage) Exists(path string) (bool, error) {
+	log.Debugf("ClusterStorage::Exists::%s(%s)", strings.ToUpper(c.scheme()), path)
+
 	var jsonResp Response[bool]
 	fn := func(resp *http.Response) error {
 		err := json.NewDecoder(resp.Body).Decode(&jsonResp)
@@ -343,6 +354,8 @@ func (c *ClusterStorage) Exists(path string) (bool, error) {
 }
 
 func (c *ClusterStorage) List(path string) ([]*StorageInfo, error) {
+	log.Debugf("ClusterStorage::List::%s(%s)", strings.ToUpper(c.scheme()), path)
+
 	var jsonResp Response[[]*StorageInfo]
 	fn := func(resp *http.Response) error {
 		err := json.NewDecoder(resp.Body).Decode(&jsonResp)
@@ -370,6 +383,8 @@ func (c *ClusterStorage) List(path string) ([]*StorageInfo, error) {
 }
 
 func (c *ClusterStorage) ListDirectories(path string) ([]*StorageInfo, error) {
+	log.Debugf("ClusterStorage::ListDirectories::%s(%s)", strings.ToUpper(c.scheme()), path)
+
 	var jsonResp Response[[]*StorageInfo]
 	fn := func(resp *http.Response) error {
 		err := json.NewDecoder(resp.Body).Decode(&jsonResp)
