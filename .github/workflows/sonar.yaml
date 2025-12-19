@@ -34,10 +34,13 @@ jobs:
           fetch-depth: 0
       - name: Fetch PR branch from fork
         if: github.event.workflow_run.head_branch != 'develop'
+        env:
+          HEAD_REPO_FULL_NAME: ${{ github.event.workflow_run.head_repository.full_name }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
-          git remote add fork https://github.com/${{ github.event.workflow_run.head_repository.full_name }}.git
-          git fetch fork ${{ github.event.workflow_run.head_branch }}:${{ github.event.workflow_run.head_branch }}
-          git checkout ${{ github.event.workflow_run.head_branch }}
+          git remote add fork "https://github.com/$HEAD_REPO_FULL_NAME.git"
+          git fetch fork "$HEAD_BRANCH:$HEAD_BRANCH"
+          git checkout "$HEAD_BRANCH"
       - name: Checkout develop branch at specific SHA
         if: github.event.workflow_run.head_branch == 'develop'
         run: |
