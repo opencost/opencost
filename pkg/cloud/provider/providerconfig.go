@@ -206,7 +206,6 @@ func (pc *ProviderConfig) Update(updateFunc func(*models.CustomPricing) error) (
 
 // ThreadSafe update of the config using a string map
 func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*models.CustomPricing, error) {
-
 	// Run our Update() method using SetCustomPricingField logic
 	return pc.Update(func(c *models.CustomPricing) error {
 		for k, v := range a {

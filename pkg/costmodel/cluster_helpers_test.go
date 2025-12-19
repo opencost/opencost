@@ -1050,10 +1050,10 @@ func TestAssetCustompricing(t *testing.T) {
 		{
 			name: "Custom pricing enabled",
 			customPricingMap: map[string]string{
-				"CPU": "20.0",
-				"RAM": "4.0",
-				"GPU": "500.0",
-				"Storage": "0.1",
+				"CPU":                 "20.0",
+				"RAM":                 "4.0",
+				"GPU":                 "500.0",
+				"Storage":             "0.1",
 				"customPricesEnabled": "true",
 			},
 			expectedPricing: map[string]float64{
