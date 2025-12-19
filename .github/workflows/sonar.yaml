@@ -32,10 +32,13 @@ jobs:
           repository: opencost/opencost
           fetch-depth: 0
       - name: Fetch PR branch from fork
+        env:
+          HEAD_REPO_FULL_NAME: ${{ github.event.workflow_run.head_repository.full_name }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
-          git remote add fork https://github.com/${{ github.event.workflow_run.head_repository.full_name }}.git
-          git fetch fork ${{ github.event.workflow_run.head_branch }}:${{ github.event.workflow_run.head_branch }}
-          git checkout ${{ github.event.workflow_run.head_branch }}
+          git remote add fork "https://github.com/$HEAD_REPO_FULL_NAME.git"
+          git fetch fork "$HEAD_BRANCH:$HEAD_BRANCH"
+          git checkout "$HEAD_BRANCH"
       - name: Download coverage artifacts
         uses: actions/download-artifact@v4
         with:
