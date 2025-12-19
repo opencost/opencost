@@ -518,12 +518,6 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 				return err
 			}
 
-			// If the sample nil service key name is set, zero it out so that it is not
-			// misinterpreted as a real service key.
-			if asfi.ServiceKeyName == "AKIXXX" {
-				asfi.ServiceKeyName = ""
-			}
-
 			c.ServiceKeyName = asfi.ServiceKeyName
 			if asfi.ServiceKeySecret != "" {
 				c.ServiceKeySecret = asfi.ServiceKeySecret
@@ -540,12 +534,6 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 			err := json.NewDecoder(r).Decode(&aai)
 			if err != nil {
 				return err
-			}
-
-			// If the sample nil service key name is set, zero it out so that it is not
-			// misinterpreted as a real service key.
-			if aai.ServiceKeyName == "AKIXXX" {
-				aai.ServiceKeyName = ""
 			}
 
 			c.AthenaBucketName = aai.AthenaBucketName
@@ -1590,12 +1578,6 @@ func (aws *AWS) loadAWSAuthSecret(force bool) (*AWSAccessKey, error) {
 	err = json.Unmarshal(result, &ak)
 	if err != nil {
 		return nil, err
-	}
-
-	// If the sample nil service key name is set, zero it out so that it is not
-	// misinterpreted as a real service key.
-	if ak.AccessKeyID == "AKIXXX" {
-		ak.AccessKeyID = ""
 	}
 
 	awsSecret = &ak

@@ -123,13 +123,6 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 		cp.accountID = providerConfig.customPricing.ClusterAccountID
 	}
 
-	providerConfig.Update(func(cp *models.CustomPricing) error {
-		if cp.ServiceKeyName == "AKIXXX" {
-			cp.ServiceKeyName = ""
-		}
-		return nil
-	})
-
 	switch cp.provider {
 	case opencost.CSVProvider:
 		log.Infof("Using CSV Provider with CSV at %s", env.GetCSVPath())

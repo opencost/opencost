@@ -163,13 +163,7 @@ func IsEmitDeprecatedMetrics() bool {
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
 // the AWS access key for authentication
 func GetAWSAccessKeyID() string {
-	awsAccessKeyID := env.Get(AWSAccessKeyIDEnvVar, "")
-	// If the sample nil service key name is set, zero it out so that it is not
-	// misinterpreted as a real service key.
-	if awsAccessKeyID == "AKIXXX" {
-		awsAccessKeyID = ""
-	}
-	return awsAccessKeyID
+	return env.Get(AWSAccessKeyIDEnvVar, "")
 }
 
 // GetAWSAccessKeySecret returns the environment variable value for AWSAccessKeySecretEnvVar which represents
