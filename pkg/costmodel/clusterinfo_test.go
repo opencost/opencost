@@ -1,12 +1,10 @@
-package test
-
+package costmodel
 import (
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/clusters"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
-	"github.com/opencost/opencost/pkg/costmodel"
 )
 
 func TestClusterInfoLabels(t *testing.T) {
@@ -31,7 +29,7 @@ func TestClusterInfoLabels(t *testing.T) {
 
 func TestWriteReportingFlags(t *testing.T) {
 	clusterInfo := make(map[string]string)
-	costmodel.WriteReportingFlags(clusterInfo)
+	writeReportingFlags(clusterInfo)
 
 	expectedKeys := []string{
 		clusters.ClusterInfoLogCollectionKey,
@@ -49,7 +47,7 @@ func TestWriteReportingFlags(t *testing.T) {
 
 func TestWriteClusterProfile(t *testing.T) {
 	clusterInfo := make(map[string]string)
-	costmodel.WriteClusterProfile(clusterInfo)
+	writeClusterProfile(clusterInfo)
 
 	if _, ok := clusterInfo[clusters.ClusterInfoProfileKey]; !ok {
 		t.Errorf("Expected profile key %s to be present", clusters.ClusterInfoProfileKey)
@@ -58,7 +56,7 @@ func TestWriteClusterProfile(t *testing.T) {
 
 func TestWriteThanosFlags(t *testing.T) {
 	clusterInfo := make(map[string]string)
-	costmodel.WriteThanosFlags(clusterInfo)
+	writeThanosFlags(clusterInfo)
 
 	expectedKeys := []string{
 		"thanosEnabled",

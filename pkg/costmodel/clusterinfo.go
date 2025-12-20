@@ -23,7 +23,7 @@ var (
 )
 
 // writeReportingFlags writes the reporting flags to the cluster info map
-func WriteReportingFlags(clusterInfo map[string]string) {
+func writeReportingFlags(clusterInfo map[string]string) {
 	clusterInfo[clusters.ClusterInfoLogCollectionKey] = fmt.Sprintf("%t", logCollectionEnabled)
 	clusterInfo[clusters.ClusterInfoProductAnalyticsKey] = fmt.Sprintf("%t", productAnalyticsEnabled)
 	clusterInfo[clusters.ClusterInfoErrorReportingKey] = fmt.Sprintf("%t", errorReportingEnabled)
@@ -31,12 +31,12 @@ func WriteReportingFlags(clusterInfo map[string]string) {
 }
 
 // writeClusterProfile writes the data associated with the cluster profile
-func WriteClusterProfile(clusterInfo map[string]string) {
+func writeClusterProfile(clusterInfo map[string]string) {
 	clusterInfo[clusters.ClusterInfoProfileKey] = clusterProfile
 }
 
 // writeThanosFlags includes the configured thanos flags on the cluster info
-func WriteThanosFlags(clusterInfo map[string]string) {
+func writeThanosFlags(clusterInfo map[string]string) {
 	// Include Thanos Offset Duration if Applicable
 	clusterInfo[clusters.ClusterInfoThanosEnabledKey] = fmt.Sprintf("%t", thanos.IsEnabled())
 	if thanos.IsEnabled() {
@@ -47,13 +47,13 @@ func WriteThanosFlags(clusterInfo map[string]string) {
 }
 
 // localClusterInfoProvider gets the local cluster info from the cloud provider and kubernetes
-type LocalClusterInfoProvider struct {
+type localClusterInfoProvider struct {
 	k8s      kubernetes.Interface
 	provider cloudProvider.Provider
 }
 
 // GetClusterInfo returns a string map containing the local cluster info
-func (dlcip *LocalClusterInfoProvider) GetClusterInfo() map[string]string {
+func (dlcip *localClusterInfoProvider) GetClusterInfo() map[string]string {
 	data, err := dlcip.provider.ClusterInfo()
 
 	// Ensure we create the info object if it doesn't exist
@@ -73,17 +73,13 @@ func (dlcip *LocalClusterInfoProvider) GetClusterInfo() map[string]string {
 		log.Infof("Could not get k8s version info: %s", err.Error())
 	}
 
-	WriteClusterProfile(data)
-	WriteReportingFlags(data)
-	WriteThanosFlags(data)
-
 	return data
 }
 
 // NewLocalClusterInfoProvider creates a new clusters.LocalClusterInfoProvider implementation for providing local
 // cluster information
 func NewLocalClusterInfoProvider(k8s kubernetes.Interface, cloud cloudProvider.Provider) clusters.ClusterInfoProvider {
-	return &LocalClusterInfoProvider{
+	return &localClusterInfoProvider{
 		k8s:      k8s,
 		provider: cloud,
 	}
