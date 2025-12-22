@@ -78,13 +78,23 @@ func TestGetMCPQueryTimeout_InvalidValue(t *testing.T) {
 }
 
 func TestGetMCPQueryTimeout_ZeroValue(t *testing.T) {
-	// Set zero value
+	// Set zero value - should fall back to minimum of 1 second
 	err := os.Setenv(MCPQueryTimeoutSecondsEnvVar, "0")
 	require.NoError(t, err)
 	defer os.Unsetenv(MCPQueryTimeoutSecondsEnvVar)
 
 	timeout := GetMCPQueryTimeout()
-	assert.Equal(t, 0*time.Second, timeout, "Zero value should be respected")
+	assert.Equal(t, 1*time.Second, timeout, "Zero value should use minimum of 1 second")
+}
+
+func TestGetMCPQueryTimeout_NegativeValue(t *testing.T) {
+	// Set negative value - should fall back to minimum of 1 second
+	err := os.Setenv(MCPQueryTimeoutSecondsEnvVar, "-10")
+	require.NoError(t, err)
+	defer os.Unsetenv(MCPQueryTimeoutSecondsEnvVar)
+
+	timeout := GetMCPQueryTimeout()
+	assert.Equal(t, 1*time.Second, timeout, "Negative value should use minimum of 1 second")
 }
 
 func TestGetMCPQueryTimeout_LargeValue(t *testing.T) {

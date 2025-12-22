@@ -715,6 +715,7 @@ func transformAssetSet(assetSet *opencost.AssetSet) *AssetResponse {
 }
 
 // QueryCloudCosts translates an MCP query into a CloudCost repository query and transforms the result.
+// The ctx parameter is used for timeout and cancellation handling of the cloud cost query.
 func (s *MCPServer) QueryCloudCosts(ctx context.Context, query *OpenCostQueryRequest) (*CloudCostResponse, error) {
 	// 1. Check if cloud cost querier is available
 	if s.cloudQuerier == nil {

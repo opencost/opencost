@@ -1463,27 +1463,45 @@ func TestTransformCloudCostSetRange_NilPointerHandling(t *testing.T) {
 	}
 }
 
+// contextAwareQuerier is a mock querier that checks for context cancellation
+type contextAwareQuerier struct {
+	contextWasCancelled bool
+}
+
+func (caq *contextAwareQuerier) Query(ctx context.Context, req cloudcost.QueryRequest) (*opencost.CloudCostSetRange, error) {
+	// Check if context is already cancelled
+	select {
+	case <-ctx.Done():
+		caq.contextWasCancelled = true
+		return nil, ctx.Err()
+	default:
+		// Return empty set range
+		ccsr, _ := opencost.NewCloudCostSetRange(time.Now().Add(-24*time.Hour), time.Now(), opencost.AccumulateOptionDay, "")
+		return ccsr, nil
+	}
+}
+
 func TestQueryCloudCosts_ContextCancellation(t *testing.T) {
 	// Create a context that is already cancelled
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	// Create a mock querier that would detect context cancellation
-	dq := &dummyQuerier{}
-	s := &MCPServer{cloudQuerier: dq}
+	// Create a context-aware mock querier
+	caq := &contextAwareQuerier{}
+	s := &MCPServer{cloudQuerier: caq}
 
 	req := &OpenCostQueryRequest{
 		QueryType: CloudCostQueryType,
 		Window:    "1d",
 	}
 
-	// This should fail or handle the cancelled context
-	// The actual behavior depends on the querier implementation
+	// Query should fail with context cancelled error
 	_, err := s.QueryCloudCosts(ctx, req)
-	// We expect that either the query fails due to cancelled context
-	// or it completes successfully (depending on querier implementation)
-	// This test ensures context is propagated correctly
-	_ = err // Context propagation is what matters here
+	
+	// Verify context cancellation was detected
+	assert.Error(t, err)
+	assert.True(t, caq.contextWasCancelled, "Context cancellation should be detected by querier")
+	assert.ErrorIs(t, err, context.Canceled, "Error should be context.Canceled")
 }
 
 func TestProcessMCPRequest_ContextPropagation(t *testing.T) {

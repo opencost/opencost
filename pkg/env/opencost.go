@@ -46,7 +46,11 @@ func GetParsedUTCOffset() time.Duration {
 
 // GetMCPQueryTimeout returns the configured timeout for MCP query operations.
 // Default is 60 seconds, but can be configured via MCP_QUERY_TIMEOUT_SECONDS environment variable.
+// Minimum timeout is 1 second to prevent immediate timeouts.
 func GetMCPQueryTimeout() time.Duration {
 	seconds := env.GetInt(MCPQueryTimeoutSecondsEnvVar, 60)
+	if seconds <= 0 {
+		seconds = 1
+	}
 	return time.Duration(seconds) * time.Second
 }
