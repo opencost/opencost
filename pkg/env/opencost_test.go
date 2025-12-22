@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/opencost/opencost/core/pkg/env"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetAPIPort(t *testing.T) {
@@ -44,4 +47,52 @@ func TestGetAPIPort(t *testing.T) {
 		})
 	}
 
+}
+
+func TestGetMCPQueryTimeout_Default(t *testing.T) {
+	// Ensure env var is not set
+	os.Unsetenv(MCPQueryTimeoutSecondsEnvVar)
+
+	timeout := GetMCPQueryTimeout()
+	assert.Equal(t, 60*time.Second, timeout, "Default timeout should be 60 seconds")
+}
+
+func TestGetMCPQueryTimeout_CustomValue(t *testing.T) {
+	// Set custom timeout
+	err := os.Setenv(MCPQueryTimeoutSecondsEnvVar, "120")
+	require.NoError(t, err)
+	defer os.Unsetenv(MCPQueryTimeoutSecondsEnvVar)
+
+	timeout := GetMCPQueryTimeout()
+	assert.Equal(t, 120*time.Second, timeout, "Custom timeout should be 120 seconds")
+}
+
+func TestGetMCPQueryTimeout_InvalidValue(t *testing.T) {
+	// Set invalid value (should fall back to default)
+	err := os.Setenv(MCPQueryTimeoutSecondsEnvVar, "invalid")
+	require.NoError(t, err)
+	defer os.Unsetenv(MCPQueryTimeoutSecondsEnvVar)
+
+	timeout := GetMCPQueryTimeout()
+	assert.Equal(t, 60*time.Second, timeout, "Invalid value should fall back to default 60 seconds")
+}
+
+func TestGetMCPQueryTimeout_ZeroValue(t *testing.T) {
+	// Set zero value
+	err := os.Setenv(MCPQueryTimeoutSecondsEnvVar, "0")
+	require.NoError(t, err)
+	defer os.Unsetenv(MCPQueryTimeoutSecondsEnvVar)
+
+	timeout := GetMCPQueryTimeout()
+	assert.Equal(t, 0*time.Second, timeout, "Zero value should be respected")
+}
+
+func TestGetMCPQueryTimeout_LargeValue(t *testing.T) {
+	// Set large timeout value
+	err := os.Setenv(MCPQueryTimeoutSecondsEnvVar, "3600")
+	require.NoError(t, err)
+	defer os.Unsetenv(MCPQueryTimeoutSecondsEnvVar)
+
+	timeout := GetMCPQueryTimeout()
+	assert.Equal(t, 3600*time.Second, timeout, "Large timeout should be accepted (1 hour)")
 }

@@ -15,7 +15,8 @@ const (
 )
 
 const (
-	UTCOffsetEnvVar = "UTC_OFFSET"
+	UTCOffsetEnvVar              = "UTC_OFFSET"
+	MCPQueryTimeoutSecondsEnvVar = "MCP_QUERY_TIMEOUT_SECONDS"
 )
 
 func GetOpencostAPIPort() int {
@@ -41,4 +42,11 @@ func GetParsedUTCOffset() time.Duration {
 		return time.Duration(0)
 	}
 	return offset
+}
+
+// GetMCPQueryTimeout returns the configured timeout for MCP query operations.
+// Default is 60 seconds, but can be configured via MCP_QUERY_TIMEOUT_SECONDS environment variable.
+func GetMCPQueryTimeout() time.Duration {
+	seconds := env.GetInt(MCPQueryTimeoutSecondsEnvVar, 60)
+	return time.Duration(seconds) * time.Second
 }
