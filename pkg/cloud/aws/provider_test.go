@@ -713,6 +713,10 @@ func (m *mockClusterCache) GetAllReplicationControllers() []*clustercache.Replic
 	return nil
 }
 
+func (m *mockClusterCache) GetAllResourceQuotas() []*clustercache.ResourceQuota {
+	return nil
+}
+
 func TestAWS_getFargatePod(t *testing.T) {
 	tests := []struct {
 		name     string

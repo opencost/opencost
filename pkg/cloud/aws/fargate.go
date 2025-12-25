@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
@@ -57,15 +58,24 @@ func (f *FargatePricing) Initialize(nodeList []*clustercache.Node) error {
 	url := f.getPricingURL(nodeList)
 
 	log.Infof("Downloading Fargate pricing data from %s", url)
-	resp, err := http.Get(url)
+
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	resp, err := client.Get(url)
 	if err != nil {
-		return fmt.Errorf("downloading pricing data: %s", err)
+		return fmt.Errorf("downloading pricing data: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("pricing download failed: status=%d", resp.StatusCode)
 	}
 
 	var pricing AWSPricing
-	err = json.NewDecoder(resp.Body).Decode(&pricing)
-	if err != nil {
-		return fmt.Errorf("parsing pricing data: %s", err)
+	if err := json.NewDecoder(resp.Body).Decode(&pricing); err != nil {
+		return fmt.Errorf("parsing pricing data: %w", err)
 	}
 
 	return f.populatePricing(&pricing)
@@ -73,7 +83,7 @@ func (f *FargatePricing) Initialize(nodeList []*clustercache.Node) error {
 
 func (f *FargatePricing) getPricingURL(nodeList []*clustercache.Node) string {
 	// Allow override of pricing URL for air-gapped environments
-	if override := env.GetAWSECSPricingURL(); override != "" {
+	if override := env.GetAWSECSPricingURLOverride(); override != "" {
 		return override
 	}
 	return getPricingListURL("AmazonECS", nodeList)
