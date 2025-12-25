@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 )
@@ -482,3 +483,51 @@ func TestFargatePricing_getPricingURL(t *testing.T) {
 		})
 	}
 }
+
+// TestFargatePricing_ValidateAWSPricingFormat validates that the actual AWS pricing API
+// returns data in the expected format. This test is skipped by default and only runs
+// when INTEGRATION=true to avoid hitting AWS APIs in regular CI runs.
+func TestFargatePricing_ValidateAWSPricingFormat(t *testing.T) {
+	if os.Getenv("INTEGRATION") != "true" {
+		t.Skip("Skipping integration test. Set INTEGRATION=true to run.")
+	}
+
+	nodes := []*clustercache.Node{
+		{
+			Labels: map[string]string{
+				"topology.kubernetes.io/region": "us-east-1",
+			},
+		},
+	}
+
+	url := getPricingListURL("AmazonECS", nodes)
+	t.Logf("Testing AWS pricing URL: %s", url)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		t.Fatalf("Failed to fetch pricing data: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Unexpected status code: %d", resp.StatusCode)
+	}
+
+	var pricing AWSPricing
+	if err := json.NewDecoder(resp.Body).Decode(&pricing); err != nil {
+		t.Fatalf("Failed to decode pricing data - AWS format may have changed: %v", err)
+	}
+
+	if len(pricing.Products) == 0 {
+		t.Fatal("Expected products in pricing data, got none - AWS format may have changed")
+	}
+
+	if len(pricing.Terms.OnDemand) == 0 {
+		t.Fatal("Expected OnDemand terms in pricing data, got none - AWS format may have changed")
+	}
+
+	t.Logf("✓ AWS pricing format validated: %d products, %d OnDemand terms", 
+		len(pricing.Products), len(pricing.Terms.OnDemand))
+}
+
