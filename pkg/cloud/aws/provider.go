@@ -62,6 +62,13 @@ const (
 	AWSHourlyPublicIPCost    = 0.005
 	EKSCapacityTypeLabel     = "eks.amazonaws.com/capacityType"
 	EKSCapacitySpotTypeValue = "SPOT"
+
+	// relevant to pricing url
+	awsPricingBaseURL      = "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/"
+	awsChinaPricingBaseURL = "https://pricing.cn-north-1.amazonaws.com.cn/offers/v1.0/cn/"
+	pricingCurrentPath     = "/current/"
+	pricingIndexFile       = "index.json"
+	chinaRegionPrefix      = "cn-"
 )
 
 var (
@@ -82,7 +89,6 @@ var (
 )
 
 func (aws *AWS) PricingSourceStatus() map[string]*models.PricingSource {
-
 	sources := make(map[string]*models.PricingSource)
 
 	sps := &models.PricingSource{
@@ -136,7 +142,6 @@ func (aws *AWS) PricingSourceStatus() map[string]*models.PricingSource {
 	sources[FargatePricingSource] = fs
 
 	return sources
-
 }
 
 // SpotRefreshDuration represents how much time must pass before we refresh
@@ -344,8 +349,10 @@ var OnDemandRateCodesCn = map[string]struct{}{
 }
 
 // HourlyRateCode is appended to a node sku
-const HourlyRateCode = "6YS6EN2CT7"
-const HourlyRateCodeCn = "Q7UJUT2CE6"
+const (
+	HourlyRateCode   = "6YS6EN2CT7"
+	HourlyRateCodeCn = "Q7UJUT2CE6"
+)
 
 // volTypes are used to map between AWS UsageTypes and
 // EBS volume types, as they would appear in K8s storage class
@@ -368,8 +375,10 @@ var volTypes = map[string]string{
 	"io2":                    "EBS:VolumeUsage.io2",
 }
 
-var loadedAWSSecret bool = false
-var awsSecret *AWSAccessKey = nil
+var (
+	loadedAWSSecret bool          = false
+	awsSecret       *AWSAccessKey = nil
+)
 
 // KubeAttrConversion maps the k8s labels for region to an AWS key
 func (aws *AWS) KubeAttrConversion(region, instanceType, operatingSystem string) string {
@@ -478,7 +487,7 @@ func (aws *AWS) GetAWSAccessKey() (*AWSAccessKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error configuring Cloud Provider %s", err)
 	}
-	//Look for service key values in env if not present in config
+	// Look for service key values in env if not present in config
 	if config.ServiceKeyName == "" {
 		config.ServiceKeyName = env.GetAWSAccessKeyID()
 	}
@@ -640,7 +649,6 @@ func (k *awsKey) ID() string {
 // If the node has a spot label, it will be included in the list
 // Otherwise, the list include instance type, operating system, and the region
 func (k *awsKey) Features() string {
-
 	instanceType, _ := util.GetInstanceType(k.Labels)
 	operatingSystem, _ := util.GetOperatingSystem(k.Labels)
 	region, _ := util.GetRegion(k.Labels)
@@ -799,35 +807,39 @@ func (aws *AWS) ClusterManagementPricing() (string, float64, error) {
 
 func getPricingListURL(serviceCode string, nodeList []*clustercache.Node) string {
 	// See https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/using-the-aws-price-list-bulk-api-fetching-price-list-files-manually.html
-	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/" + serviceCode + "/current/"
 	region := ""
 	multiregion := false
+	isChina := false
+
 	for _, n := range nodeList {
-		labels := n.Labels
-		currentNodeRegion := ""
-		if r, ok := util.GetRegion(labels); ok {
-			currentNodeRegion = r
-			// Switch to Chinese endpoint for regions with the Chinese prefix
-			if strings.HasPrefix(currentNodeRegion, "cn-") {
-				pricingURL = "https://pricing.cn-north-1.amazonaws.com.cn/offers/v1.0/cn/" + serviceCode + "/current/"
-			}
-		} else {
-			multiregion = true // We weren't able to detect the node's region, so pull all data.
+		r, ok := util.GetRegion(n.Labels)
+		if !ok {
+			multiregion = true
 			break
 		}
-		if region == "" { // We haven't set a region yet
-			region = currentNodeRegion
-		} else if region != "" && currentNodeRegion != region { // If two nodes have different regions here, we'll need to fetch all pricing data.
+		if strings.HasPrefix(r, chinaRegionPrefix) {
+			isChina = true
+		}
+
+		if region == "" {
+			region = r
+		} else if r != region {
 			multiregion = true
 			break
 		}
 	}
 
-	// Chinese multiregion endpoint only contains data for Chinese regions and Chinese regions are excluded from other endpoint
-	if region != "" && !multiregion {
-		pricingURL += region + "/"
+	baseURL := awsPricingBaseURL + serviceCode + pricingCurrentPath
+	if isChina {
+		// Chinese regions are isolated and use a different pricing endpoint
+		baseURL = awsChinaPricingBaseURL + serviceCode + pricingCurrentPath
 	}
-	return pricingURL + "index.json"
+
+	if region != "" && !multiregion {
+		baseURL += region + "/"
+	}
+
+	return baseURL + pricingIndexFile
 }
 
 // Use the pricing data from the current region. Fall back to using all region data if needed.
@@ -1471,6 +1483,9 @@ const (
 var fargatePodCapacityRegex = regexp.MustCompile("^([0-9.]+)vCPU ([0-9.]+)GB$")
 
 func (aws *AWS) createFargateNode(awsKey *awsKey, usageType string) (*models.Node, models.PricingMetadata, error) {
+	if aws.FargatePricing == nil {
+		return nil, models.PricingMetadata{}, fmt.Errorf("fargate pricing not initialized")
+	}
 	pod, ok := aws.getFargatePod(awsKey)
 	if !ok {
 		return nil, models.PricingMetadata{}, fmt.Errorf("could not find pod for fargate node %s", awsKey.Name)
@@ -1573,7 +1588,6 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 
 // ClusterInfo returns an object that represents the cluster. TODO: actually return the name of the cluster. Blocked on cluster federation.
 func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
-
 	c, err := awsProvider.GetConfig()
 	if err != nil {
 		return nil, err
@@ -1782,7 +1796,6 @@ func (aws *AWS) getAllAddresses() ([]*ec2Types.Address, error) {
 			a := add // duplicate to avoid pointer to iterator
 			addresses = append(addresses, &a)
 		}
-
 	}
 
 	var errs []error
@@ -2048,7 +2061,7 @@ func (aws *AWS) GetOrphanedResources() ([]models.OrphanedResource, error) {
 }
 
 func (aws *AWS) findCostForDisk(disk *ec2Types.Volume) (*float64, error) {
-	//todo: use AWS pricing from all regions
+	// todo: use AWS pricing from all regions
 	if disk.AvailabilityZone == nil {
 		return nil, fmt.Errorf("nil region")
 	}
@@ -2401,7 +2414,6 @@ type spotInfo struct {
 }
 
 func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, region string) (map[string]*spotInfo, error) {
-
 	aws.ConfigureAuth() // configure aws api authentication by setting env vars
 
 	s3Prefix := projectID
@@ -2564,7 +2576,6 @@ func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, re
 
 // ApplyReservedInstancePricing TODO
 func (aws *AWS) ApplyReservedInstancePricing(nodes map[string]*models.Node) {
-
 }
 
 func (aws *AWS) ServiceAccountStatus() *models.ServiceAccountStatus {
@@ -2577,7 +2588,6 @@ func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool,
 
 // Regions returns a predefined list of AWS regions
 func (aws *AWS) Regions() []string {
-
 	regionOverrides := env.GetRegionOverrideList()
 
 	if len(regionOverrides) > 0 {

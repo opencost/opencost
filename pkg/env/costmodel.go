@@ -25,7 +25,7 @@ const (
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
 	AWSPricingURL            = "AWS_PRICING_URL"
-	AWSECSPricingURL         = "AWS_ECS_PRICING_URL"
+	AWSECSPricingURLOverride = "AWS_ECS_PRICING_URL"
 
 	AlibabaAccessKeyIDEnvVar     = "ALIBABA_ACCESS_KEY_ID"
 	AlibabaAccessKeySecretEnvVar = "ALIBABA_SECRET_ACCESS_KEY"
@@ -190,9 +190,9 @@ func GetAWSPricingURL() string {
 	return env.Get(AWSPricingURL, "")
 }
 
-// GetAWSECSPricingURL returns an optional alternative URL to fetch AmazonECS pricing data from; for use in airgapped environments
-func GetAWSECSPricingURL() string {
-	return env.Get(AWSECSPricingURL, "")
+// GetAWSECSPricingURLOverride returns an optional alternative URL to fetch AmazonECS pricing data from; for use in airgapped environments
+func GetAWSECSPricingURLOverride() string {
+	return env.Get(AWSECSPricingURLOverride, "")
 }
 
 // GetAlibabaAccessKeyID returns the environment variable value for AlibabaAccessKeyIDEnvVar which represents
@@ -372,7 +372,6 @@ func GetMetricConfigFile() string {
 func GetLocalCollectorDirectory() string {
 	dir := env.Get(LocalCollectorDirectoryEnvVar, DefaultLocalCollectorDir)
 	return env.GetPathFromConfig(dir)
-
 }
 
 func GetDOKSPricingURL() string {
