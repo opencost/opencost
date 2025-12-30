@@ -37,7 +37,7 @@ jobs:
           env:
             TEAMS: ${{ join(steps.teamAffiliation.outputs.teams, ',') }}
             ACTOR: ${{ github.actor }}
-            IS_MAINTAINER: ${{ contains(join(steps.teamAffiliation.outputs.teams, ','), 'OpenCost Maintainers') || github.actor == 'dependabot[bot]' }}
+            IS_MAINTAINER: ${{ contains(join(steps.teamAffiliation.outputs.teams, ','), 'OpenCost Maintainers') || (github.actor == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == 'opencost/opencost') }}
           run: |
               echo "Actor: $ACTOR"
               echo "Is maintainer: $IS_MAINTAINER"
