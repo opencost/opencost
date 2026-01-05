@@ -53,12 +53,3 @@ func TestWriteClusterProfile(t *testing.T) {
 		t.Errorf("Expected profile key %s to be present", clusters.ClusterInfoProfileKey)
 	}
 }
-
-func TestWriteThanosFlags(t *testing.T) {
-	clusterInfo := make(map[string]string)
-	writeThanosFlags(clusterInfo)
-
-	if _, ok := clusterInfo[clusters.ClusterInfoThanosEnabledKey]; !ok {
-		t.Errorf("Missing key: %s", clusters.ClusterInfoThanosEnabledKey)
-	}
-}
