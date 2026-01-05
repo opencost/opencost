@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/config"
-	"github.com/opencost/opencost/pkg/prom"
 
 	"github.com/davecgh/go-spew/spew"
 )
@@ -712,7 +712,6 @@ func TestBuildNodeMap(t *testing.T) {
 				testCase.preemptibleMap,
 				testCase.labelsMap,
 				testCase.clusterAndNameToType,
-				time.Minute,
 				testCase.overheadMap,
 			)
 
@@ -731,27 +730,28 @@ func TestBuildNodeMap(t *testing.T) {
 func TestBuildGPUCostMap(t *testing.T) {
 	cases := []struct {
 		name       string
-		promResult []*prom.QueryResult
+		promResult []*source.QueryResult
 		countMap   map[NodeIdentifier]float64
 		expected   map[NodeIdentifier]float64
 	}{
 		{
 			name: "All Zeros",
-			promResult: []*prom.QueryResult{
-				{
-					Metric: map[string]interface{}{
+			promResult: []*source.QueryResult{
+				source.NewQueryResult(
+					map[string]interface{}{
 						"cluster_id":    "cluster1",
 						"node":          "node1",
 						"instance_type": "type1",
 						"provider_id":   "provider1",
 					},
-					Values: []*util.Vector{
+					[]*util.Vector{
 						{
 							Timestamp: 0,
 							Value:     0,
 						},
 					},
-				},
+					source.DefaultResultKeys(),
+				),
 			},
 			countMap: map[NodeIdentifier]float64{
 				{
@@ -770,21 +770,22 @@ func TestBuildGPUCostMap(t *testing.T) {
 		},
 		{
 			name: "Zero Node Count",
-			promResult: []*prom.QueryResult{
-				{
-					Metric: map[string]interface{}{
+			promResult: []*source.QueryResult{
+				source.NewQueryResult(
+					map[string]interface{}{
 						"cluster_id":    "cluster1",
 						"node":          "node1",
 						"instance_type": "type1",
 						"provider_id":   "provider1",
 					},
-					Values: []*util.Vector{
+					[]*util.Vector{
 						{
 							Timestamp: 0,
 							Value:     2,
 						},
 					},
-				},
+					source.DefaultResultKeys(),
+				),
 			},
 			countMap: map[NodeIdentifier]float64{
 				{
@@ -803,21 +804,22 @@ func TestBuildGPUCostMap(t *testing.T) {
 		},
 		{
 			name: "Missing Node Count",
-			promResult: []*prom.QueryResult{
-				{
-					Metric: map[string]interface{}{
+			promResult: []*source.QueryResult{
+				source.NewQueryResult(
+					map[string]interface{}{
 						"cluster_id":    "cluster1",
 						"node":          "node1",
 						"instance_type": "type1",
 						"provider_id":   "provider1",
 					},
-					Values: []*util.Vector{
+					[]*util.Vector{
 						{
 							Timestamp: 0,
 							Value:     2,
 						},
 					},
-				},
+					source.DefaultResultKeys(),
+				),
 			},
 			countMap: map[NodeIdentifier]float64{},
 			expected: map[NodeIdentifier]float64{
@@ -829,10 +831,8 @@ func TestBuildGPUCostMap(t *testing.T) {
 			},
 		},
 		{
-			name: "missing cost data",
-			promResult: []*prom.QueryResult{
-				{},
-			},
+			name:       "missing cost data",
+			promResult: []*source.QueryResult{},
 			countMap: map[NodeIdentifier]float64{
 				{
 					Cluster:    "cluster1",
@@ -844,21 +844,22 @@ func TestBuildGPUCostMap(t *testing.T) {
 		},
 		{
 			name: "All values present",
-			promResult: []*prom.QueryResult{
-				{
-					Metric: map[string]interface{}{
+			promResult: []*source.QueryResult{
+				source.NewQueryResult(
+					map[string]interface{}{
 						"cluster_id":    "cluster1",
 						"node":          "node1",
 						"instance_type": "type1",
 						"provider_id":   "provider1",
 					},
-					Values: []*util.Vector{
+					[]*util.Vector{
 						{
 							Timestamp: 0,
 							Value:     2,
 						},
 					},
-				},
+					source.DefaultResultKeys(),
+				),
 			},
 			countMap: map[NodeIdentifier]float64{
 				{
@@ -883,7 +884,8 @@ func TestBuildGPUCostMap(t *testing.T) {
 				Config: provider.NewProviderConfig(config.NewConfigFileManager(nil), "fakeFile"),
 			}
 			testPreemptible := make(map[NodeIdentifier]bool)
-			result, _ := buildGPUCostMap(testCase.promResult, testCase.countMap, testProvider, testPreemptible)
+			gpuPrices := source.DecodeAll(testCase.promResult, source.DecodeNodeGPUPricePerHrResult)
+			result, _ := buildGPUCostMap(gpuPrices, testCase.countMap, testProvider, testPreemptible)
 			if !reflect.DeepEqual(result, testCase.expected) {
 				t.Errorf("buildGPUCostMap case %s failed. Got %+v but expected %+v", testCase.name, result, testCase.expected)
 			}
@@ -899,63 +901,48 @@ func TestAssetCustompricing(t *testing.T) {
 
 	startTimestamp := float64(windowStart.Unix())
 
-	nodePromResult := []*prom.QueryResult{
-		{
-			Metric: map[string]interface{}{
-				"cluster_id":    "cluster1",
-				"node":          "node1",
-				"instance_type": "type1",
-				"provider_id":   "provider1",
-			},
-			Values: []*util.Vector{
-				{
-					Timestamp: startTimestamp,
-					Value:     0.5,
-				},
-			},
-		},
-	}
-
-	pvCostPromResult := []*prom.QueryResult{
-		{
-			Metric: map[string]interface{}{
+	pvCostPromResult := []*source.QueryResult{
+		source.NewQueryResult(
+			map[string]interface{}{
 				"cluster_id":       "cluster1",
 				"persistentvolume": "pvc1",
 				"provider_id":      "provider1",
 			},
-			Values: []*util.Vector{
+			[]*util.Vector{
 				{
 					Timestamp: startTimestamp,
 					Value:     1.0,
 				},
 			},
-		},
+			source.DefaultResultKeys(),
+		),
 	}
 
-	pvSizePromResult := []*prom.QueryResult{
-		{
-			Metric: map[string]interface{}{
+	pvSizePromResult := []*source.QueryResult{
+		source.NewQueryResult(
+			map[string]interface{}{
 				"cluster_id":       "cluster1",
 				"persistentvolume": "pvc1",
 				"provider_id":      "provider1",
 			},
-			Values: []*util.Vector{
+			[]*util.Vector{
 				{
 					Timestamp: startTimestamp,
 					Value:     1073741824.0,
 				},
 			},
-		},
+			source.DefaultResultKeys(),
+		),
 	}
 
-	pvMinsPromResult := []*prom.QueryResult{
-		{
-			Metric: map[string]interface{}{
+	pvMinsPromResult := []*source.QueryResult{
+		source.NewQueryResult(
+			map[string]interface{}{
 				"cluster_id":       "cluster1",
 				"persistentvolume": "pvc1",
 				"provider_id":      "provider1",
 			},
-			Values: []*util.Vector{
+			[]*util.Vector{
 				{
 					Timestamp: startTimestamp,
 					Value:     1.0,
@@ -965,17 +952,18 @@ func TestAssetCustompricing(t *testing.T) {
 					Value:     1.0,
 				},
 			},
-		},
+			source.DefaultResultKeys(),
+		),
 	}
 
-	pvAvgUsagePromResult := []*prom.QueryResult{
-		{
-			Metric: map[string]interface{}{
+	pvAvgUsagePromResult := []*source.QueryResult{
+		source.NewQueryResult(
+			map[string]interface{}{
 				"cluster_id":            "cluster1",
 				"persistentvolumeclaim": "pv-claim1",
 				"namespace":             "ns1",
 			},
-			Values: []*util.Vector{
+			[]*util.Vector{
 				{
 					Timestamp: startTimestamp,
 					Value:     1.0,
@@ -985,17 +973,18 @@ func TestAssetCustompricing(t *testing.T) {
 					Value:     1.0,
 				},
 			},
-		},
+			source.DefaultResultKeys(),
+		),
 	}
 
-	pvMaxUsagePromResult := []*prom.QueryResult{
-		{
-			Metric: map[string]interface{}{
+	pvMaxUsagePromResult := []*source.QueryResult{
+		source.NewQueryResult(
+			map[string]interface{}{
 				"cluster_id":            "cluster1",
 				"persistentvolumeclaim": "pv-claim1",
 				"namespace":             "ns1",
 			},
-			Values: []*util.Vector{
+			[]*util.Vector{
 				{
 					Timestamp: startTimestamp,
 					Value:     1.0,
@@ -1005,24 +994,26 @@ func TestAssetCustompricing(t *testing.T) {
 					Value:     1.0,
 				},
 			},
-		},
+			source.DefaultResultKeys(),
+		),
 	}
 
-	pvInfoPromResult := []*prom.QueryResult{
-		{
-			Metric: map[string]interface{}{
+	pvInfoPromResult := []*source.QueryResult{
+		source.NewQueryResult(
+			map[string]interface{}{
 				"cluster_id":            "cluster1",
 				"persistentvolumeclaim": "pv-claim1",
 				"volumename":            "pvc1",
 				"namespace":             "ns1",
 			},
-			Values: []*util.Vector{
+			[]*util.Vector{
 				{
 					Timestamp: startTimestamp,
 					Value:     1.0,
 				},
 			},
-		},
+			source.DefaultResultKeys(),
+		),
 	}
 
 	gpuCountMap := map[NodeIdentifier]float64{
@@ -1043,16 +1034,18 @@ func TestAssetCustompricing(t *testing.T) {
 		name             string
 		customPricingMap map[string]string
 		expectedPricing  map[string]float64
+		zeroCollector    bool // If true, simulate collector returning 0 (promless mode)
 	}{
 		{
 			name:             "No custom pricing",
 			customPricingMap: map[string]string{},
 			expectedPricing: map[string]float64{
 				"CPU":     0.5,
-				"RAM":     0.5,
+				"RAM":     0.5 / 1024.0 / 1024.0 / 1024.0,
 				"GPU":     1.0,
 				"Storage": 1.0,
 			},
+			zeroCollector: false,
 		},
 		{
 			name: "Custom pricing enabled",
@@ -1066,9 +1059,28 @@ func TestAssetCustompricing(t *testing.T) {
 			expectedPricing: map[string]float64{
 				"CPU":     0.027397,              // 20.0 / 730
 				"RAM":     5.102716386318207e-12, // 4.0 / 730 / 1024^3
-				"GPU":     1.0,                   // gpu costs cannot be set by a custom provider
+				"GPU":     1.369864,              // 500.0 / 730 * 2
 				"Storage": 0.000137,              // 0.1 / 730 * (1073741824.0 / 1024 / 1024 / 1024) * (60 / 60) => 0.1 / 730 * 1 * 1
 			},
+			zeroCollector: false,
+		},
+		{
+			name: "Collector returns 0, fallback to custom pricing",
+			customPricingMap: map[string]string{
+				"CPU":     "20.0",
+				"RAM":     "4.0",
+				"GPU":     "500.0",
+				"Storage": "0.1",
+				// NOTE: customPricesEnabled is NOT set to "true"
+				// This tests the fallback behavior when collector returns 0
+			},
+			expectedPricing: map[string]float64{
+				"CPU":     0.027397,              // 20.0 / 730 (fallback from 0)
+				"RAM":     5.102716386318207e-12, // 4.0 / 730 / 1024^3 (fallback from 0)
+				"GPU":     0.0,                   // GPU doesn't have fallback logic
+				"Storage": 1.0,                   // Storage uses separate PV pricing (pvCostPromResult), not affected by node pricing
+			},
+			zeroCollector: true,
 		},
 	}
 
@@ -1079,17 +1091,52 @@ func TestAssetCustompricing(t *testing.T) {
 			}
 			testProvider.UpdateConfigFromConfigMap(testCase.customPricingMap)
 
+			// Create test data - if zeroCollector is true, simulate collector returning 0
+			testValue := 0.5
+			if testCase.zeroCollector {
+				testValue = 0.0
+			}
+
+			zeroCollectorPromResult := []*source.QueryResult{
+				source.NewQueryResult(
+					map[string]interface{}{
+						"cluster_id":    "cluster1",
+						"node":          "node1",
+						"instance_type": "type1",
+						"provider_id":   "provider1",
+					},
+					[]*util.Vector{
+						{
+							Timestamp: startTimestamp,
+							Value:     testValue,
+						},
+					},
+					source.DefaultResultKeys(),
+				),
+			}
+
 			testPreemptible := make(map[NodeIdentifier]bool)
-			cpuMap, _ := buildCPUCostMap(nodePromResult, testProvider, testPreemptible)
-			ramMap, _ := buildRAMCostMap(nodePromResult, testProvider, testPreemptible)
-			gpuMap, _ := buildGPUCostMap(nodePromResult, gpuCountMap, testProvider, testPreemptible)
+			nodeCpuResult := source.DecodeAll(zeroCollectorPromResult, source.DecodeNodeCPUPricePerHrResult)
+			nodeRamResult := source.DecodeAll(zeroCollectorPromResult, source.DecodeNodeRAMPricePerGiBHrResult)
+			nodeGpuResult := source.DecodeAll(zeroCollectorPromResult, source.DecodeNodeGPUPricePerHrResult)
+
+			cpuMap, _ := buildCPUCostMap(nodeCpuResult, testProvider, testPreemptible)
+			ramMap, _ := buildRAMCostMap(nodeRamResult, testProvider, testPreemptible)
+			gpuMap, _ := buildGPUCostMap(nodeGpuResult, gpuCountMap, testProvider, testPreemptible)
 
 			cpuResult := cpuMap[nodeKey]
 			ramResult := ramMap[nodeKey]
 			gpuResult := gpuMap[nodeKey]
 
 			diskMap := map[DiskIdentifier]*Disk{}
-			pvCosts(diskMap, time.Hour, pvMinsPromResult, pvSizePromResult, pvCostPromResult, pvAvgUsagePromResult, pvMaxUsagePromResult, pvInfoPromResult, testProvider, window)
+			pvMinsResult := source.DecodeAll(pvMinsPromResult, source.DecodePVActiveMinutesResult)
+			pvSizeResult := source.DecodeAll(pvSizePromResult, source.DecodePVBytesResult)
+			pvCostResult := source.DecodeAll(pvCostPromResult, source.DecodePVPricePerGiBHourResult)
+			pvUsedAvgResult := source.DecodeAll(pvAvgUsagePromResult, source.DecodePVUsedAvgResult)
+			pvMaxUsageResult := source.DecodeAll(pvMaxUsagePromResult, source.DecodePVUsedMaxResult)
+			pvcInfoResult := source.DecodeAll(pvInfoPromResult, source.DecodePVCInfoResult)
+
+			pvCosts(diskMap, time.Hour, pvMinsResult, pvSizeResult, pvCostResult, pvUsedAvgResult, pvMaxUsageResult, pvcInfoResult, testProvider, window)
 
 			diskResult := diskMap[DiskIdentifier{"cluster1", "pvc1"}].Cost
 
@@ -1122,9 +1169,9 @@ func TestBuildLabelsMap(t *testing.T) {
 
 	startTimestamp := float64(windowStart.Unix())
 
-	nodePromResult := []*prom.QueryResult{
-		{
-			Metric: map[string]interface{}{
+	nodePromResult := []*source.QueryResult{
+		source.NewQueryResult(
+			map[string]interface{}{
 				"cluster_id":             "cluster1",
 				"node":                   "node1",
 				"instance_type":          "type1",
@@ -1132,15 +1179,16 @@ func TestBuildLabelsMap(t *testing.T) {
 				"label_testlabelkey1":    "testlabel1-value",
 				"label_test-label-key-2": "testlabel2.value",
 			},
-			Values: []*util.Vector{
+			[]*util.Vector{
 				{
 					Timestamp: startTimestamp,
 					Value:     0.5,
 				},
 			},
-		},
-		{
-			Metric: map[string]interface{}{
+			source.DefaultResultKeys(),
+		),
+		source.NewQueryResult(
+			map[string]interface{}{
 				"cluster_id":             "cluster1",
 				"node":                   "node2",
 				"instance_type":          "type1",
@@ -1148,16 +1196,18 @@ func TestBuildLabelsMap(t *testing.T) {
 				"label_testlabelkey1":    "testlabel1-value",
 				"label_test-label-key-2": "testlabel2.value",
 			},
-			Values: []*util.Vector{
+			[]*util.Vector{
 				{
 					Timestamp: startTimestamp,
 					Value:     0.5,
 				},
 			},
-		},
+			source.DefaultResultKeys(),
+		),
 	}
 
-	nodeLabelMap := buildLabelsMap(nodePromResult)
+	nodeLabelsResult := source.DecodeAll(nodePromResult, source.DecodeNodeLabelsResult)
+	nodeLabelMap := buildLabelsMap(nodeLabelsResult)
 	// Test that for all nodes and all label keys in the map there isn't a key with the label_ prefix.
 	for _, labelMap := range nodeLabelMap {
 		for key, value := range labelMap {

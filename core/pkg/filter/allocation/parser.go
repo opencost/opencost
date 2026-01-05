@@ -21,6 +21,8 @@ var allocationFilterFields []*ast.Field = []*ast.Field{
 	ast.NewSliceField(FieldServices),
 	ast.NewMapField(FieldLabel),
 	ast.NewMapField(FieldAnnotation),
+	ast.NewMapField(FieldNodeLabel),
+	ast.NewMapField(FieldNamespaceLabel),
 }
 
 // fieldMap is a lazily loaded mapping from AllocationField to ast.Field

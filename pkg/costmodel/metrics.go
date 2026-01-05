@@ -7,17 +7,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
+	"github.com/opencost/opencost/core/pkg/errors"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/atomic"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/pkg/cloud/models"
-	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/errors"
 	"github.com/opencost/opencost/pkg/metrics"
-	"github.com/opencost/opencost/pkg/prom"
 
 	promclient "github.com/prometheus/client_golang/api"
 	"github.com/prometheus/client_golang/prometheus"
@@ -137,7 +137,7 @@ var (
 )
 
 // initCostModelMetrics uses a sync.Once to ensure that these metrics are only created once
-func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider models.Provider, clusterInfo clusters.ClusterInfoProvider, metricsConfig *metrics.MetricsConfig) {
+func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfig *metrics.MetricsConfig) {
 
 	disabledMetrics := metricsConfig.GetDisabledMetricsMap()
 	var toRegisterGV []*prometheus.GaugeVec
@@ -148,7 +148,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		cpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_cpu_hourly_cost",
 			Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch", "uid"})
 		if _, disabled := disabledMetrics["node_cpu_hourly_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, cpuGv)
 		}
@@ -156,7 +156,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		ramGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_ram_hourly_cost",
 			Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch", "uid"})
 		if _, disabled := disabledMetrics["node_ram_hourly_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, ramGv)
 		}
@@ -164,7 +164,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		gpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_gpu_hourly_cost",
 			Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch", "uid"})
 		if _, disabled := disabledMetrics["node_gpu_hourly_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, gpuGv)
 		}
@@ -172,7 +172,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		gpuCountGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_gpu_count",
 			Help: "node_gpu_count count of gpu on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch", "uid"})
 		if _, disabled := disabledMetrics["node_gpu_count"]; !disabled {
 			toRegisterGV = append(toRegisterGV, gpuCountGv)
 		}
@@ -180,7 +180,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		pvGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "pv_hourly_cost",
 			Help: "pv_hourly_cost Cost per GB per hour on a persistent disk",
-		}, []string{"volumename", "persistentvolume", "provider_id"})
+		}, []string{"volumename", "persistentvolume", "provider_id", "uid"})
 		if _, disabled := disabledMetrics["pv_hourly_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, pvGv)
 		}
@@ -188,7 +188,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		spotGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "kubecost_node_is_spot",
 			Help: "kubecost_node_is_spot Cloud provider info about node preemptibility",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch", "uid"})
 		if _, disabled := disabledMetrics["kubecost_node_is_spot"]; !disabled {
 			toRegisterGV = append(toRegisterGV, spotGv)
 		}
@@ -196,7 +196,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		totalGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_total_hourly_cost",
 			Help: "node_total_hourly_cost Total node cost per hour",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch", "uid"})
 		if _, disabled := disabledMetrics["node_total_hourly_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, totalGv)
 		}
@@ -204,7 +204,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		ramAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "container_memory_allocation_bytes",
 			Help: "container_memory_allocation_bytes Bytes of RAM used",
-		}, []string{"namespace", "pod", "container", "instance", "node"})
+		}, []string{"namespace", "pod", "container", "instance", "node", "uid"})
 		if _, disabled := disabledMetrics["container_memory_allocation_bytes"]; !disabled {
 			toRegisterGV = append(toRegisterGV, ramAllocGv)
 		}
@@ -212,7 +212,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		cpuAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "container_cpu_allocation",
 			Help: "container_cpu_allocation Percent of a single CPU used in a minute",
-		}, []string{"namespace", "pod", "container", "instance", "node"})
+		}, []string{"namespace", "pod", "container", "instance", "node", "uid"})
 		if _, disabled := disabledMetrics["container_cpu_allocation"]; !disabled {
 			toRegisterGV = append(toRegisterGV, cpuAllocGv)
 		}
@@ -220,7 +220,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		gpuAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "container_gpu_allocation",
 			Help: "container_gpu_allocation GPU used",
-		}, []string{"namespace", "pod", "container", "instance", "node"})
+		}, []string{"namespace", "pod", "container", "instance", "node", "uid"})
 		if _, disabled := disabledMetrics["container_gpu_allocation"]; !disabled {
 			toRegisterGV = append(toRegisterGV, gpuAllocGv)
 		}
@@ -228,7 +228,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		pvAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "pod_pvc_allocation",
 			Help: "pod_pvc_allocation Bytes used by a PVC attached to a pod",
-		}, []string{"namespace", "pod", "persistentvolumeclaim", "persistentvolume"})
+		}, []string{"namespace", "pod", "persistentvolumeclaim", "persistentvolume", "uid"})
 		if _, disabled := disabledMetrics["pod_pvc_allocation"]; !disabled {
 			toRegisterGV = append(toRegisterGV, pvAllocGv)
 		}
@@ -268,7 +268,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		lbCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{ // no differentiation between ELB and ALB right now
 			Name: "kubecost_load_balancer_cost",
 			Help: "kubecost_load_balancer_cost Hourly cost of load balancer",
-		}, []string{"ingress_ip", "namespace", "service_name"}) // assumes one ingress IP per load balancer
+		}, []string{"ingress_ip", "namespace", "service_name", "uid"}) // assumes one ingress IP per load balancer
 		if _, disabled := disabledMetrics["kubecost_load_balancer_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, lbCostGv)
 		}
@@ -324,7 +324,7 @@ type CostModelMetricsEmitter struct {
 }
 
 // NewCostModelMetricsEmitter creates a new cost-model metrics emitter. Use Start() to begin metric emission.
-func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clustercache.ClusterCache, provider models.Provider, clusterInfo clusters.ClusterInfoProvider, model *CostModel) *CostModelMetricsEmitter {
+func NewCostModelMetricsEmitter(clusterCache clustercache.ClusterCache, provider models.Provider, clusterInfo clusters.ClusterInfoProvider, model *CostModel) *CostModelMetricsEmitter {
 
 	// Get metric configurations, if any
 	metricsConfig, err := metrics.GetMetricsConfig()
@@ -337,7 +337,7 @@ func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clust
 	}
 
 	// init will only actually execute once to register the custom gauges
-	initCostModelMetrics(clusterCache, provider, clusterInfo, metricsConfig)
+	initCostModelMetrics(clusterInfo, metricsConfig)
 
 	metrics.InitKubeMetrics(clusterCache, metricsConfig, &metrics.KubeMetricsOpts{
 		EmitKubecostControllerMetrics: true,
@@ -351,7 +351,6 @@ func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clust
 	metrics.InitOpencostTelemetry(metricsConfig)
 
 	return &CostModelMetricsEmitter{
-		PrometheusClient:              promClient,
 		KubeClusterCache:              clusterCache,
 		CloudProvider:                 provider,
 		Model:                         model,
@@ -431,8 +430,32 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			log.Debugf("Recording prices...")
 			podlist := cmme.KubeClusterCache.GetAllPods()
 			podStatus := make(map[string]v1.PodPhase)
+			podUIDs := make(map[string]string)
 			for _, pod := range podlist {
 				podStatus[pod.Name] = pod.Status.Phase
+				podUIDs[pod.Name] = string(pod.UID)
+			}
+
+			// Create node UID lookup map
+			nodeList := cmme.KubeClusterCache.GetAllNodes()
+			nodeUIDs := make(map[string]string)
+			for _, node := range nodeList {
+				nodeUIDs[node.Name] = string(node.UID)
+			}
+
+			// Create PV UID lookup map
+			pvList := cmme.KubeClusterCache.GetAllPersistentVolumes()
+			pvUIDs := make(map[string]string)
+			for _, pv := range pvList {
+				pvUIDs[pv.Name] = string(pv.UID)
+			}
+
+			// Create service UID lookup map
+			serviceList := cmme.KubeClusterCache.GetAllServices()
+			serviceUIDs := make(map[string]string)
+			for _, service := range serviceList {
+				serviceKey := service.Namespace + "/" + service.Name
+				serviceUIDs[serviceKey] = string(service.UID)
 			}
 
 			cfg, _ := cmme.CloudProvider.GetConfig()
@@ -453,29 +476,33 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				cmme.NetworkInternetEgressRecorder.Set(networkCosts.InternetNetworkEgressCost)
 			}
 
-			// TODO: Pass PrometheusClient and CloudProvider into CostModel on instantiation so this isn't so awkward
-			data, err := cmme.Model.ComputeCostData(cmme.PrometheusClient, cmme.CloudProvider, "2m", "", "")
+			end := time.Now()
+			start := end.Add(-time.Minute * 2)
+
+			data, err := cmme.Model.ComputeCostData(start, end)
 			if err != nil {
 				// For an error collection, we'll just log the length of the errors (ComputeCostData already logs the
 				// actual errors)
-				if prom.IsErrorCollection(err) {
-					if ec, ok := err.(prom.QueryErrorCollection); ok {
+				if source.IsErrorCollection(err) {
+					if ec, ok := err.(source.QueryErrorCollection); ok {
 						log.Errorf("Error in price recording: %d errors occurred", len(ec.Errors()))
 					}
 				} else {
-					log.Errorf("Error in price recording: " + err.Error())
+					log.Errorf("Error in price recording: %s", err)
 				}
 
 				// zero the for loop so the time.Sleep will still work
 				data = map[string]*CostData{}
 			}
 
-			// TODO: Pass CloudProvider into CostModel on instantiation so this isn't so awkward
-			nodes, err := cmme.Model.GetNodeCost(cmme.CloudProvider)
+			nodes, err := cmme.Model.GetNodeCost()
 			if err != nil {
 				log.Warnf("Error getting Node cost: %s", err)
 			}
 			for nodeName, node := range nodes {
+				// Get node UID first
+				nodeUID := nodeUIDs[nodeName]
+
 				// Emit costs, guarding against NaN inputs for custom pricing.
 				cpuCost, _ := strconv.ParseFloat(node.VCPUCost, 64)
 				if math.IsNaN(cpuCost) || math.IsInf(cpuCost, 0) {
@@ -515,7 +542,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
-				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType)
+				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType, nodeUID)
 
 				avgCosts, ok := nodeCostAverages[labelKey]
 
@@ -530,8 +557,8 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					nodeCostAverages[labelKey] = avgCosts
 				}
 
-				cmme.GPUCountRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(gpu)
-				cmme.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(gpuCost)
+				cmme.GPUCountRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType, nodeUID).Set(gpu)
+				cmme.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType, nodeUID).Set(gpuCost)
 
 				const outlierFactor float64 = 30
 				// don't record cpuCost, ramCost, or gpuCost in the case of wild outliers
@@ -539,7 +566,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				// https://github.com/opencost/opencost/issues/927
 				cpuOutlierCutoff := outlierFactor * avgCosts.CpuCostAverage
 				if cpuCost < cpuOutlierCutoff {
-					cmme.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(cpuCost)
+					cmme.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType, nodeUID).Set(cpuCost)
 					avgCosts.CpuCostAverage = (avgCosts.CpuCostAverage*avgCosts.NumCpuDataPoints + cpuCost) / (avgCosts.NumCpuDataPoints + 1)
 					avgCosts.NumCpuDataPoints += 1
 				} else {
@@ -547,7 +574,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				}
 				ramOutlierCutoff := outlierFactor * avgCosts.RamCostAverage
 				if ramCost < ramOutlierCutoff {
-					cmme.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(ramCost)
+					cmme.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType, nodeUID).Set(ramCost)
 					avgCosts.RamCostAverage = (avgCosts.RamCostAverage*avgCosts.NumRamDataPoints + ramCost) / (avgCosts.NumRamDataPoints + 1)
 					avgCosts.NumRamDataPoints += 1
 				} else {
@@ -555,7 +582,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				}
 				// skip redording totalCost if any constituent costs were outliers
 				if cpuCost < cpuOutlierCutoff && ramCost < ramOutlierCutoff {
-					cmme.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(totalCost)
+					cmme.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType, nodeUID).Set(totalCost)
 				} else {
 					log.Debugf("CPU and RAM outlier detected, not recording node %s total cost %f", nodeName, totalCost)
 				}
@@ -563,15 +590,14 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				nodeCostAverages[labelKey] = avgCosts
 
 				if node.IsSpot() {
-					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(1.0)
+					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType, nodeUID).Set(1.0)
 				} else {
-					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(0.0)
+					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType, nodeUID).Set(0.0)
 				}
 				nodeSeen[labelKey] = true
 			}
 
-			// TODO: Pass CloudProvider into CostModel on instantiation so this isn't so awkward
-			loadBalancers, err := cmme.Model.GetLBCost(cmme.CloudProvider)
+			loadBalancers, err := cmme.Model.GetLBCost()
 			if err != nil {
 				log.Warnf("Error getting LoadBalancer cost: %s", err)
 			}
@@ -584,9 +610,11 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				if len(lb.IngressIPAddresses) > 0 {
 					ingressIP = lb.IngressIPAddresses[0] // assumes one ingress IP per load balancer
 				}
-				cmme.LBCostRecorder.WithLabelValues(ingressIP, namespace, serviceName).Set(lb.Cost)
+				serviceKey := namespace + "/" + serviceName
+				serviceUID := serviceUIDs[serviceKey]
+				cmme.LBCostRecorder.WithLabelValues(ingressIP, namespace, serviceName, serviceUID).Set(lb.Cost)
 
-				labelKey := getKeyFromLabelStrings(ingressIP, namespace, serviceName)
+				labelKey := getKeyFromLabelStrings(ingressIP, namespace, serviceName, serviceUID)
 				loadBalancerSeen[labelKey] = true
 			}
 
@@ -604,18 +632,21 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 							if timesClaimed == 0 {
 								timesClaimed = 1 // unallocated PVs are unclaimed but have a full allocation
 							}
-							cmme.PVAllocationRecorder.WithLabelValues(namespace, podName, pvc.Claim, pvc.VolumeName).Set(pvc.Values[0].Value / float64(timesClaimed))
-							labelKey := getKeyFromLabelStrings(namespace, podName, pvc.Claim, pvc.VolumeName)
+							podUID := podUIDs[podName]
+							cmme.PVAllocationRecorder.WithLabelValues(namespace, podName, pvc.Claim, pvc.VolumeName, podUID).Set(pvc.Values[0].Value / float64(timesClaimed))
+							labelKey := getKeyFromLabelStrings(namespace, podName, pvc.Claim, pvc.VolumeName, podUID)
 							pvcSeen[labelKey] = true
 						}
 					}
 				}
 
 				if len(costs.RAMAllocation) > 0 {
-					cmme.RAMAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.RAMAllocation[0].Value)
+					podUID := podUIDs[podName]
+					cmme.RAMAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName, podUID).Set(costs.RAMAllocation[0].Value)
 				}
 				if len(costs.CPUAllocation) > 0 {
-					cmme.CPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.CPUAllocation[0].Value)
+					podUID := podUIDs[podName]
+					cmme.CPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName, podUID).Set(costs.CPUAllocation[0].Value)
 				}
 				if len(costs.GPUReq) > 0 {
 					// allocation here is set to the request because shared GPU usage not yet supported.
@@ -636,9 +667,11 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 						gpualloc = gpualloc * (gpu / vgpu)
 					}
 
-					cmme.GPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(gpualloc)
+					podUID := podUIDs[podName]
+					cmme.GPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName, podUID).Set(gpualloc)
 				}
-				labelKey := getKeyFromLabelStrings(namespace, podName, containerName, nodeName, nodeName)
+				podUID := podUIDs[podName]
+				labelKey := getKeyFromLabelStrings(namespace, podName, containerName, nodeName, nodeName, podUID)
 				if podStatus[podName] == v1.PodRunning { // Only report data for current pods
 					containerSeen[labelKey] = true
 				} else {
@@ -680,11 +713,11 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					Parameters: parameters,
 				}
 
-				// TODO: GetPVCost should be a method in CostModel?
-				GetPVCost(cacPv, pv, cmme.CloudProvider, region)
+				cmme.Model.GetPVCost(cacPv, pv, region)
 				c, _ := strconv.ParseFloat(cacPv.Cost, 64)
-				cmme.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name, cacPv.ProviderID).Set(c)
-				labelKey := getKeyFromLabelStrings(pv.Name, pv.Name, cacPv.ProviderID)
+				pvUID := pvUIDs[pv.Name]
+				cmme.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name, cacPv.ProviderID, pvUID).Set(c)
+				labelKey := getKeyFromLabelStrings(pv.Name, pv.Name, cacPv.ProviderID, pvUID)
 				pvSeen[labelKey] = true
 			}
 

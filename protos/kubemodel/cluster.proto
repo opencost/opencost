@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+import "model/window.proto";
+
+package kubemodel;
+option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
+
+// Provider represents the cloud provider or infrastructure type
+enum Provider {
+  PROVIDER_UNSPECIFIED = 0;
+  PROVIDER_AWS = 1;
+  PROVIDER_GCP = 2;
+  PROVIDER_AZURE = 3;
+  PROVIDER_ON_PREMISES = 4;
+  PROVIDER_ALIBABA = 5;
+  PROVIDER_DIGITALOCEAN = 6;
+  PROVIDER_ORACLE = 7;
+}
+
+// Cluster represents the top-level Kubernetes cluster
+message Cluster {
+  // Identification
+  // User-configured cluster identifier, defaults to kube-system namespace UID
+  // The kube-system namespace UID is unique per cluster and stable across its lifetime
+  string ID = 1;
+
+  // Properties
+  Provider provider = 2;
+  string account = 3;
+  string name = 4;
+
+  // Centralized window definition for entire cluster
+  // All resources inherit this window unless they specify their own duration
+  model.Window window = 5;
+
+}

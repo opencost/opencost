@@ -2,11 +2,13 @@ package worker
 
 import (
 	"fmt"
+	"iter"
 	"runtime"
 	"sync"
 	"sync/atomic"
 
 	"github.com/opencost/opencost/core/pkg/collections"
+	"github.com/opencost/opencost/core/pkg/util/sliceutil"
 )
 
 // Runner is a function type that takes a single input and returns nothing.
@@ -25,6 +27,13 @@ type WorkerPool[T any, U any] interface {
 
 	// Shutdown stops all of the workers (if running).
 	Shutdown()
+}
+
+// WorkProcessor is a group of inputs that leverage a WorkerPool to run inputs through workers and
+// process the job results as they complete.
+type WorkProcessor[T any, U any] interface {
+	// Execute adds all inputs to be run by the worker pool and processed on completion.
+	Execute(inputs []T, process func(U)) error
 }
 
 // WorkGroup is a group of inputs that leverage a WorkerPool to run inputs through workers and
@@ -50,15 +59,6 @@ type queuedWorkerPool[T any, U any] struct {
 	work       Worker[T, U]
 	workers    int
 	isShutdown atomic.Bool
-}
-
-// ordered is a WorkGroup implementation which enforces ordering based on when
-// inputs were pushed onto the group.
-type ordered[T any, U any] struct {
-	workPool WorkerPool[T, U]
-	results  []U
-	wg       sync.WaitGroup
-	count    int
 }
 
 // NewWorkerPool creates a new worker pool provided the number of workers to run as well as the worker
@@ -126,6 +126,15 @@ func (wq *queuedWorkerPool[T, U]) worker() {
 	}
 }
 
+// ordered is a WorkGroup implementation which enforces ordering based on when
+// inputs were pushed onto the group.
+type ordered[T any, U any] struct {
+	workPool WorkerPool[T, U]
+	results  []U
+	wg       sync.WaitGroup
+	count    int
+}
+
 // NewGroup creates a new WorkGroup implementation for processing a group of inputs in the order in which
 // they are pushed. Ordered groups do not support concurrent Push() calls.
 func NewOrderedGroup[T any, U any](pool WorkerPool[T, U], size int) WorkGroup[T, U] {
@@ -166,6 +175,53 @@ func (ow *ordered[T, U]) Push(input T) error {
 func (ow *ordered[T, U]) Wait() []U {
 	ow.wg.Wait()
 	return ow.results
+}
+
+// orderedProcessor is a WorkProcessor implementation which processes inputs in batches
+// in the same order as the slice, serially on the same go routine. Note that the process go routine
+// will not be the same as the calling go routine. However, process will be called on the same goroutine.
+type orderedProcessor[T any, U any] struct {
+	workPool WorkerPool[T, U]
+}
+
+// NewOrderedProcessor creates a new ordered work processor for processing an execution result in the
+// order in which the inputs were passed.
+func NewOrderedProcessor[T any, U any](pool WorkerPool[T, U]) WorkProcessor[T, U] {
+	return &orderedProcessor[T, U]{
+		workPool: pool,
+	}
+}
+
+func (obp *orderedProcessor[T, U]) Execute(inputs []T, process func(U)) error {
+	if len(inputs) == 0 {
+		return nil
+	}
+
+	// Run all the inputs in order, creating a channel per input to receive results.
+	channels := make([]chan U, len(inputs))
+	for i, input := range inputs {
+		channels[i] = make(chan U)
+		err := obp.workPool.Run(input, channels[i])
+		if err != nil {
+			return err
+		}
+	}
+
+	// Create a separate goroutine to process to execute all the results serially
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+
+		for _, ch := range channels {
+			result := <-ch
+			process(result)
+
+			close(ch)
+		}
+	}()
+
+	<-done
+	return nil
 }
 
 // noResultGroup is a WorkGroup implementation which arbitrarily pushes inputs to
@@ -317,6 +373,12 @@ func ConcurrentCollect[T any, U any](workerFunc Worker[T, *U], inputs []T) []*U 
 // ConcurrentCollectWith runs a pool of workers of the specified size which concurrently call the provided worker
 // func on each input to get a result slice of non-nil outputs. Size inputs < 1 will automatically be set to 1.
 func ConcurrentCollectWith[T any, U any](size int, workerFunc Worker[T, *U], inputs []T) []*U {
+	return ConcurrentIterCollect(size, workerFunc, sliceutil.AsSeq(inputs))
+}
+
+// ConcurrentIterCollect runs a pool of workers of the specified size which concurrently call the provided worker
+// func on each input to get a result slice of non-nil outputs. Size inputs < 1 will automatically be set to 1.
+func ConcurrentIterCollect[T any, U any](size int, workerFunc Worker[T, *U], inputs iter.Seq[T]) []*U {
 	if size < 1 {
 		size = 1
 	}
@@ -325,7 +387,7 @@ func ConcurrentCollectWith[T any, U any](size int, workerFunc Worker[T, *U], inp
 	defer workerPool.Shutdown()
 
 	workGroup := NewCollectionGroup(workerPool)
-	for _, input := range inputs {
+	for input := range inputs {
 		workGroup.Push(input)
 	}
 
@@ -342,6 +404,12 @@ func ConcurrentRun[T any](runner Runner[T], inputs []T) {
 // ConcurrentRunWith runs a pool of runners of the specified size which concurrently call the provided runner
 // func on each input. Size inputs < 1 will automatically be set to 1.
 func ConcurrentRunWith[T any](size int, runner Runner[T], inputs []T) {
+	ConcurrentIterRunWith(size, runner, sliceutil.AsSeq(inputs))
+}
+
+// ConcurrentIterRunWith runs a pool of runners of the specified size which concurrently call the provided runner
+// func on each input. Size inputs < 1 will automatically be set to 1.
+func ConcurrentIterRunWith[T any](size int, runner Runner[T], inputs iter.Seq[T]) {
 	if size < 1 {
 		size = 1
 	}
@@ -350,11 +418,33 @@ func ConcurrentRunWith[T any](size int, runner Runner[T], inputs []T) {
 		runner(input)
 		return
 	})
+	defer workerPool.Shutdown()
 
 	workGroup := NewNoResultGroup(workerPool)
-	for _, input := range inputs {
+	for input := range inputs {
 		workGroup.Push(input)
 	}
 
 	workGroup.Wait()
+}
+
+// ConcurrentOrderedProcess runs a pool of N workers which concurrently call the provided worker func on each input, then
+// calls the process function on each result, as it completes, in the same order as the inputs.
+func ConcurrentOrderedProcess[T any, U any](worker Worker[T, U], inputs []T, process func(U)) {
+	ConcurrentOrderedProcessWith(OptimalWorkerCount(), worker, inputs, process)
+}
+
+// ConcurrentOrderedProcess runs a pool of size workers which concurrently call the provided worker func on each input, then
+// calls the process function on each result, as it completes, in the same order as the inputs.
+func ConcurrentOrderedProcessWith[T any, U any](size int, worker Worker[T, U], inputs []T, process func(U)) {
+	if len(inputs) == 0 {
+		return
+	}
+
+	workerPool := NewWorkerPool(size, worker)
+	defer workerPool.Shutdown()
+
+	// processors block on execute, so no need to explicitly wait
+	workProcessor := NewOrderedProcessor(workerPool)
+	workProcessor.Execute(inputs, process)
 }

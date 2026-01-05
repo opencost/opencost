@@ -2,29 +2,36 @@ package costmodel
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/pkg/clustercache"
-	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/core/pkg/source"
 )
 
 var (
 	// Static KeyTuple Errors
-	NewKeyTupleErr = errors.New("NewKeyTuple() Provided key not containing exactly 3 components.")
+	ErrNewKeyTuple = errors.New("new-key-tuple: key not containing exactly 3 components")
 
 	// Static Errors for ContainerMetric creation
-	InvalidKeyErr      error = errors.New("Not a valid key")
-	NoContainerErr     error = errors.New("Prometheus vector does not have container name")
-	NoContainerNameErr error = errors.New("Prometheus vector does not have string container name")
-	NoPodErr           error = errors.New("Prometheus vector does not have pod name")
-	NoPodNameErr       error = errors.New("Prometheus vector does not have string pod name")
-	NoNamespaceErr     error = errors.New("Prometheus vector does not have namespace")
-	NoNamespaceNameErr error = errors.New("Prometheus vector does not have string namespace")
-	NoNodeNameErr      error = errors.New("Prometheus vector does not have string node")
-	NoClusterIDErr     error = errors.New("Prometheus vector does not have string cluster id")
+	ErrInvalidKey      error = errors.New("not a valid key")
+	ErrNoContainer     error = errors.New("vector does not have container name")
+	ErrNoContainerName error = errors.New("vector does not have string container name")
+	ErrNoPod           error = errors.New("vector does not have pod name")
+	ErrNoPodName       error = errors.New("vector does not have string pod name")
+	ErrNoNamespace     error = errors.New("vector does not have namespace")
+	ErrNoNamespaceName error = errors.New("vector does not have string namespace")
+	ErrNoNodeName      error = errors.New("vector does not have string node")
+	ErrNoClusterID     error = errors.New("vector does not have string cluster id")
 )
+
+const invalidNodeNameErrFmt = `invalid node name: %s was likely set from "instance" label. cAdvisor scrape configs require the following:
+relabel_configs:
+- action: labelmap
+  regex: __meta_kubernetes_node_name
+  replacement: node`
 
 //--------------------------------------------------------------------------
 //  KeyTuple
@@ -58,18 +65,18 @@ func (kt *KeyTuple) ClusterID() string {
 func NewKeyTuple(key string) (*KeyTuple, error) {
 	kIndex := strings.IndexRune(key, ',')
 	if kIndex < 0 {
-		return nil, NewKeyTupleErr
+		return nil, ErrNewKeyTuple
 	}
 	kIndex += 1
 
 	subIndex := strings.IndexRune(key[kIndex:], ',')
 	if subIndex < 0 {
-		return nil, NewKeyTupleErr
+		return nil, ErrNewKeyTuple
 	}
 	cIndex := kIndex + subIndex + 1
 
 	if strings.ContainsRune(key[cIndex:], ',') {
-		return nil, NewKeyTupleErr
+		return nil, ErrNewKeyTuple
 	}
 
 	return &KeyTuple{
@@ -119,7 +126,7 @@ func NewContainerMetricFromKey(key string) (*ContainerMetric, error) {
 			key:           key,
 		}, nil
 	}
-	return nil, InvalidKeyErr
+	return nil, ErrInvalidKey
 }
 
 // NewContainerMetricFromValues creates a new ContainerMetric instance using the provided string parameters.
@@ -156,59 +163,34 @@ func NewContainerMetricsFromPod(pod *clustercache.Pod, clusterID string) ([]*Con
 	return cs, nil
 }
 
-// NewContainerMetricFromPrometheus accepts the metrics map from a QueryResult and returns a new ContainerMetric
+// NewContainerMetricFromResult accepts the metrics map from a QueryResult and returns a new ContainerMetric
 // instance
-func NewContainerMetricFromPrometheus(metrics map[string]interface{}, defaultClusterID string) (*ContainerMetric, error) {
-	// TODO: Can we use *prom.QueryResult.GetString() here?
-	cName, ok := metrics["container_name"]
-	if !ok {
-		return nil, NoContainerErr
+func NewContainerMetricFromResult(result *source.QueryResult, defaultClusterID string) (*ContainerMetric, error) {
+	containerName, err := result.GetContainer()
+	if err != nil {
+		return nil, ErrNoContainer
 	}
-	containerName, ok := cName.(string)
-	if !ok {
-		return nil, NoContainerNameErr
-	}
-	pName, ok := metrics["pod_name"]
-	if !ok {
-		return nil, NoPodErr
-	}
-	podName, ok := pName.(string)
-	if !ok {
-		return nil, NoPodNameErr
-	}
-	ns, ok := metrics["namespace"]
-	if !ok {
-		return nil, NoNamespaceErr
-	}
-	namespace, ok := ns.(string)
-	if !ok {
-		return nil, NoNamespaceNameErr
-	}
-	node, ok := metrics["node"]
 
-	if !ok {
+	podName, err := result.GetPod()
+	if err != nil {
+		return nil, ErrNoPodName
+	}
+
+	namespace, err := result.GetNamespace()
+	if err != nil {
+		return nil, ErrNoNamespaceName
+	}
+
+	nodeName, err := result.GetNode()
+	if err != nil {
 		log.Debugf("Prometheus vector does not have node name")
-		node = ""
+		nodeName = ""
 	}
-	nodeName, ok := node.(string)
-	if !ok {
-		return nil, NoNodeNameErr
-	} else {
-		// sometimes the port is in the node name, we need to remove that
-		// Check if the node name contains a port (format: <anything>:<integer>)
-		if matched, _ := regexp.MatchString(`^.*:\d+$`, nodeName); matched {
-			// Only split if the format matches <anything>:<integer>
-			nodeName = strings.Split(nodeName, ":")[0]
-		}
-	}
-	cid, ok := metrics[env.GetPromClusterLabel()]
-	if !ok {
+
+	clusterID, err := result.GetCluster()
+	if err != nil {
 		log.Debugf("Prometheus vector does not have cluster id")
-		cid = defaultClusterID
-	}
-	clusterID, ok := cid.(string)
-	if !ok {
-		return nil, NoClusterIDErr
+		clusterID = defaultClusterID
 	}
 
 	return &ContainerMetric{
@@ -219,4 +201,63 @@ func NewContainerMetricFromPrometheus(metrics map[string]interface{}, defaultClu
 		ClusterID:     clusterID,
 		key:           containerMetricKey(namespace, podName, containerName, nodeName, clusterID),
 	}, nil
+}
+
+func NewContainerMetricFrom(result *source.ContainerMetricResult, defaultClusterID string) (*ContainerMetric, error) {
+	containerName := result.Container
+	if containerName == "" {
+		return nil, ErrNoContainer
+	}
+
+	podName := result.Pod
+	if podName == "" {
+		return nil, ErrNoPodName
+	}
+
+	namespace := result.Namespace
+	if namespace == "" {
+		return nil, ErrNoNamespaceName
+	}
+
+	nodeName := result.Node
+	if !isValidNodeName(nodeName) {
+		return nil, fmt.Errorf(invalidNodeNameErrFmt, nodeName)
+	}
+
+	if nodeName == "" {
+		log.Debugf("metric vector does not have node name")
+		nodeName = ""
+	}
+
+	clusterID := result.Cluster
+	if clusterID == "" {
+		clusterID = defaultClusterID
+	}
+
+	return &ContainerMetric{
+		ContainerName: containerName,
+		PodName:       podName,
+		Namespace:     namespace,
+		NodeName:      nodeName,
+		ClusterID:     clusterID,
+		key:           containerMetricKey(namespace, podName, containerName, nodeName, clusterID),
+	}, nil
+}
+
+/*
+- contain no more than 253 characters
+- contain only lowercase alphanumeric characters, '-' or '.'
+- start with an alphanumeric character
+- end with an alphanumeric character
+*/
+var nodeNameRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9\-\.]+[a-z0-9]$`)
+
+// isValidNodeName determines if the nodeName provided is valid according to DNS subdomain
+// specifications: RFC 1123
+func isValidNodeName(nodeName string) bool {
+	if len(nodeName) > 253 {
+		return false
+	}
+
+	return nodeNameRegex.Match([]byte(nodeName))
 }

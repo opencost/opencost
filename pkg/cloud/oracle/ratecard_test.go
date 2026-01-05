@@ -23,7 +23,7 @@ func TestRCSForKey(t *testing.T) {
 			false,
 		},
 		"BM.GPU3.8": {
-			"2.950000",
+			"3.01455",
 			false,
 		},
 		"Pod.Standard.A1.Flex": {

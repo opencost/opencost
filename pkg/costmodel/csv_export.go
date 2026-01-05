@@ -14,12 +14,13 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/filemanager"
 )
 
 type AllocationModel interface {
-	ComputeAllocation(start, end time.Time, resolution time.Duration) (*opencost.AllocationSet, error)
-	DateRange() (time.Time, time.Time, error)
+	ComputeAllocation(start, end time.Time) (*opencost.AllocationSet, error)
+	DateRange(limitDays int) (time.Time, time.Time, error)
 }
 
 var errNoData = errors.New("no data")
@@ -134,7 +135,7 @@ func (e *csvExporter) updateExportCSV(ctx context.Context, previousExportTmp *os
 }
 
 func (e *csvExporter) availableAllocationDates() (map[time.Time]struct{}, error) {
-	start, end, err := e.Model.DateRange()
+	start, end, err := e.Model.DateRange(env.GetExportCSVMaxDays())
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +305,7 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 		csvDef = append(csvDef, columnDef{
 			column: "Label_" + label,
 			value: func(data rowData) string {
-				value, _ := data.alloc.Properties.Labels[label]
+				value := data.alloc.Properties.Labels[label]
 				return value
 			},
 		})
@@ -327,9 +328,10 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 	for _, date := range dates {
 		start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
 		end := start.AddDate(0, 0, 1)
-		data, err := e.Model.ComputeAllocation(start, end, 5*time.Minute)
+		data, err := e.Model.ComputeAllocation(start, end)
 		if err != nil {
-			return err
+			log.Warnf("Failed to compute allocation for %s: %v - skipping this date", date.Format("2006-01-02"), err)
+			continue // Skip this date instead of failing the entire export
 		}
 		log.Infof("fetched %d records for %s", len(data.Allocations), date.Format("2006-01-02"))
 		for _, alloc := range data.Allocations {
@@ -350,6 +352,7 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 	}
 
 	if lines == 0 {
+		log.Warnf("CSV export completed but no allocation data was found for the requested date range")
 		return errNoData
 	}
 

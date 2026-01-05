@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/env"
 )
@@ -40,16 +41,10 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 		return err
 	}
 
-	serviceURL := fmt.Sprintf(asbp.StorageConnection.getBlobURLTemplate(), asbp.Account, "")
-	client, err := asbp.Authorizer.GetBlobClient(serviceURL)
-	if err != nil {
-		asbp.ConnectionStatus = cloud.FailedConnection
-		return err
-	}
-	ctx := context.Background()
 	// most recent blob list contains information on blob including name and lastMod time
 	// Example blobNames: [ export/myExport/20240101-20240131/myExport_758a42af-0731-4edb-b498-1e523bb40f12.csv ]
-	blobInfos, err := asbp.getMostRecentBlobs(start, end, client, ctx)
+	ctx := context.Background()
+	blobInfos, err := asbp.getBlobInfos(ctx, start, end)
 	if err != nil {
 		asbp.ConnectionStatus = cloud.FailedConnection
 		return err
@@ -60,9 +55,15 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 		return nil
 	}
 
+	client, err := asbp.getClient()
+	if err != nil {
+		asbp.ConnectionStatus = cloud.FailedConnection
+		return err
+	}
+
 	if env.IsAzureDownloadBillingDataToDisk() {
 		// clean up old files that have been saved to disk before downloading new ones
-		localPath := filepath.Join(env.GetConfigPathWithDefault(env.DefaultConfigMountPath), "db", "cloudcost")
+		localPath := env.GetAzureDownloadBillingDataPath()
 		if _, err := asbp.deleteFilesOlderThan7d(localPath); err != nil {
 			log.Warnf("CloudCost: Azure: ParseBillingData: failed to remove the following stale files: %v", err)
 		}
@@ -110,6 +111,44 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 
 	asbp.ConnectionStatus = cloud.SuccessfulConnection
 	return nil
+}
+
+func (asbp *AzureStorageBillingParser) getClient() (*azblob.Client, error) {
+	serviceURL := fmt.Sprintf(asbp.StorageConnection.getBlobURLTemplate(), asbp.Account, "")
+	client, err := asbp.Authorizer.GetBlobClient(serviceURL)
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
+}
+
+func (asbp *AzureStorageBillingParser) getBlobInfos(ctx context.Context, start, end time.Time) ([]container.BlobItem, error) {
+	client, err := asbp.getClient()
+	if err != nil {
+		return nil, err
+	}
+	blobInfos, err := asbp.getMostRecentBlobs(start, end, client, ctx)
+	if err != nil {
+		return nil, err
+	}
+	return blobInfos, nil
+}
+
+func (asbp *AzureStorageBillingParser) RefreshStatus() cloud.ConnectionStatus {
+	end := time.Now().UTC().Truncate(timeutil.Day)
+	start := end.Add(-7 * timeutil.Day)
+
+	ctx := context.Background()
+	blobInfos, err := asbp.getBlobInfos(ctx, start, end)
+	if err != nil {
+		asbp.ConnectionStatus = cloud.FailedConnection
+	} else if len(blobInfos) == 0 {
+		asbp.ConnectionStatus = cloud.MissingData
+	} else {
+		asbp.ConnectionStatus = cloud.SuccessfulConnection
+	}
+
+	return asbp.ConnectionStatus
 }
 
 func (asbp *AzureStorageBillingParser) parseCSV(start, end time.Time, reader *csv.Reader, resultFn AzureBillingResultFunc) error {

@@ -3,9 +3,9 @@ package metrics
 import (
 	"fmt"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
-	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	v1 "k8s.io/api/core/v1"
@@ -44,11 +44,12 @@ func (kpmc KubecostPodCollector) Collect(ch chan<- prometheus.Metric) {
 	for _, pod := range pods {
 		podName := pod.Name
 		podNS := pod.Namespace
+		podUID := string(pod.UID)
 
 		// Pod Annotations
 		labels, values := promutil.KubeAnnotationsToLabels(pod.Annotations)
 		if len(labels) > 0 {
-			ch <- newPodAnnotationMetric("kube_pod_annotations", podNS, podName, labels, values)
+			ch <- newPodAnnotationMetric("kube_pod_annotations", podNS, podName, podUID, labels, values)
 		}
 	}
 
@@ -142,7 +143,7 @@ func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 		// Owner References
 		if _, disabled := disabledMetrics["kube_pod_owner"]; !disabled {
 			for _, owner := range pod.OwnerReferences {
-				ch <- newKubePodOwnerMetric("kube_pod_owner", podNS, podName, owner.Name, owner.Kind, owner.Controller != nil)
+				ch <- newKubePodOwnerMetric("kube_pod_owner", podNS, podName, podUID, owner.Name, owner.Kind, owner.Controller != nil)
 			}
 		}
 
@@ -258,17 +259,19 @@ type PodAnnotationsMetric struct {
 	help        string
 	namespace   string
 	pod         string
+	uid         string
 	labelNames  []string
 	labelValues []string
 }
 
 // Creates a new PodAnnotationsMetric, implementation of prometheus.Metric
-func newPodAnnotationMetric(fqname, namespace, pod string, labelNames, labelValues []string) PodAnnotationsMetric {
+func newPodAnnotationMetric(fqname, namespace, pod string, uid string, labelNames, labelValues []string) PodAnnotationsMetric {
 	return PodAnnotationsMetric{
 		fqName:      fqname,
 		help:        "kube_pod_annotations Pod Annotations",
 		namespace:   namespace,
 		pod:         pod,
+		uid:         uid,
 		labelNames:  labelNames,
 		labelValues: labelValues,
 	}
@@ -280,6 +283,7 @@ func (pam PodAnnotationsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
 		"namespace": pam.namespace,
 		"pod":       pam.pod,
+		"uid":       pam.uid,
 	}
 	return prometheus.NewDesc(pam.fqName, pam.help, []string{}, l)
 }
@@ -307,6 +311,10 @@ func (pam PodAnnotationsMetric) Write(m *dto.Metric) error {
 		&dto.LabelPair{
 			Name:  toStringPtr("pod"),
 			Value: &pam.pod,
+		},
+		&dto.LabelPair{
+			Name:  toStringPtr("uid"),
+			Value: &pam.uid,
 		})
 	m.Label = labels
 	return nil
@@ -1009,18 +1017,20 @@ type KubePodOwnerMetric struct {
 	help              string
 	namespace         string
 	pod               string
+	uid               string
 	ownerIsController bool
 	ownerName         string
 	ownerKind         string
 }
 
 // Creates a new KubePodOwnerMetric, implementation of prometheus.Metric
-func newKubePodOwnerMetric(fqname, namespace, pod, ownerName, ownerKind string, ownerIsController bool) KubePodOwnerMetric {
+func newKubePodOwnerMetric(fqname, namespace, pod, uid, ownerName, ownerKind string, ownerIsController bool) KubePodOwnerMetric {
 	return KubePodOwnerMetric{
 		fqName:            fqname,
 		help:              "kube_pod_owner Information about the Pod's owner",
 		namespace:         namespace,
 		pod:               pod,
+		uid:               uid,
 		ownerName:         ownerName,
 		ownerKind:         ownerKind,
 		ownerIsController: ownerIsController,
@@ -1033,6 +1043,7 @@ func (kpo KubePodOwnerMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
 		"namespace":           kpo.namespace,
 		"pod":                 kpo.pod,
+		"uid":                 kpo.uid,
 		"owner_name":          kpo.ownerName,
 		"owner_kind":          kpo.ownerKind,
 		"owner_is_controller": fmt.Sprintf("%t", kpo.ownerIsController),
@@ -1056,6 +1067,10 @@ func (kpo KubePodOwnerMetric) Write(m *dto.Metric) error {
 		{
 			Name:  toStringPtr("pod"),
 			Value: &kpo.pod,
+		},
+		{
+			Name:  toStringPtr("uid"),
+			Value: &kpo.uid,
 		},
 		{
 			Name:  toStringPtr("owner_name"),

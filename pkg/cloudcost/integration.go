@@ -16,6 +16,7 @@ import (
 type CloudCostIntegration interface {
 	GetCloudCost(time.Time, time.Time) (*opencost.CloudCostSetRange, error)
 	GetStatus() cloud.ConnectionStatus
+	RefreshStatus() cloud.ConnectionStatus
 }
 
 // GetIntegrationFromConfig coverts any valid KeyedConfig into the appropriate BillingIntegration if possible

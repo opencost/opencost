@@ -1,11 +1,11 @@
 package costmodel
 
 import (
-	"github.com/opencost/opencost/core/pkg/log"
+	"fmt"
+
+	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
 	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
-	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/prom"
 )
 
 // NetworkUsageVNetworkUsageDataector contains the network usage values for egress network traffic
@@ -28,7 +28,7 @@ type NetworkUsageVector struct {
 
 // GetNetworkUsageData performs a join of the the results of zone, region, and internet usage queries to return a single
 // map containing network costs for each namespace+pod
-func GetNetworkUsageData(zr []*prom.QueryResult, rr []*prom.QueryResult, ir []*prom.QueryResult, defaultClusterID string) (map[string]*NetworkUsageData, error) {
+func GetNetworkUsageData(zr []*source.NetZoneGiBResult, rr []*source.NetRegionGiBResult, ir []*source.NetInternetGiBResult, defaultClusterID string) (map[string]*NetworkUsageData, error) {
 	zoneNetworkMap, err := getNetworkUsage(zr, defaultClusterID)
 	if err != nil {
 		return nil, err
@@ -138,23 +138,22 @@ func GetNetworkCost(usage *NetworkUsageData, cloud costAnalyzerCloud.Provider) (
 	return results, nil
 }
 
-func getNetworkUsage(qrs []*prom.QueryResult, defaultClusterID string) (map[string]*NetworkUsageVector, error) {
+func getNetworkUsage(qrs []*source.NetworkGiBResult, defaultClusterID string) (map[string]*NetworkUsageVector, error) {
 	ncdmap := make(map[string]*NetworkUsageVector)
 
 	for _, val := range qrs {
-		podName, err := val.GetString("pod_name")
-		if err != nil {
-			return nil, err
+		podName := val.Pod
+		if podName == "" {
+			return nil, fmt.Errorf("network vector does not contain 'pod' or 'pod_name' field")
 		}
 
-		namespace, err := val.GetString("namespace")
-		if err != nil {
-			return nil, err
+		namespace := val.Namespace
+		if namespace == "" {
+			return nil, fmt.Errorf("network vector does not contain 'namespace' field")
 		}
 
-		clusterID, err := val.GetString(env.GetPromClusterLabel())
+		clusterID := val.Cluster
 		if clusterID == "" {
-			log.Debugf("Prometheus vector does not have cluster id")
 			clusterID = defaultClusterID
 		}
 
@@ -163,7 +162,7 @@ func getNetworkUsage(qrs []*prom.QueryResult, defaultClusterID string) (map[stri
 			ClusterID: clusterID,
 			Namespace: namespace,
 			PodName:   podName,
-			Values:    val.Values,
+			Values:    val.Data,
 		}
 	}
 	return ncdmap, nil

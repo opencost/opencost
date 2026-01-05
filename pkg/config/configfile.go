@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/util/atomic"
-	"github.com/opencost/opencost/pkg/storage"
 )
 
 // HandlerID is a unique identifier assigned to a provided ConfigChangedHandler. This is used to remove a handler
@@ -55,9 +55,9 @@ var NoBackingStore error = errors.New("Backing storage does not exist.")
 type ConfigFile struct {
 	store      storage.Storage
 	file       string
-	dataLock   *sync.Mutex
+	dataLock   sync.Mutex
 	data       []byte
-	watchLock  *sync.Mutex
+	watchLock  sync.Mutex
 	watchers   []*pHandler
 	runState   atomic.AtomicRunState
 	lastChange time.Time
@@ -67,11 +67,9 @@ type ConfigFile struct {
 // to the storage.
 func NewConfigFile(store storage.Storage, file string) *ConfigFile {
 	return &ConfigFile{
-		store:     store,
-		file:      file,
-		dataLock:  new(sync.Mutex),
-		data:      nil,
-		watchLock: new(sync.Mutex),
+		store: store,
+		file:  file,
+		data:  nil,
 	}
 }
 

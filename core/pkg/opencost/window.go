@@ -15,12 +15,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
 
-const (
-	minutesPerDay  = 60 * 24
-	minutesPerHour = 60
-	hoursPerDay    = 24
-)
-
 var (
 	durationRegex       = regexp.MustCompile(`^(\d+)(m|h|d|w)$`)
 	durationOffsetRegex = regexp.MustCompile(`^(\d+)(m|h|d|w) offset (\d+)(m|h|d|w)$`)
@@ -29,39 +23,9 @@ var (
 	rfcRegex            = regexp.MustCompile(fmt.Sprintf(`(%s),(%s)`, rfc3339, rfc3339))
 	timestampPairRegex  = regexp.MustCompile(`^(\d+)[,|-](\d+)$`)
 
-	tOffsetLock sync.Mutex
-	tOffset     *time.Duration
-
 	utcOffsetLock sync.Mutex
 	utcOffsetDur  *time.Duration
 )
-
-// get and cache the thanos offset duration.
-// TODO: Due to dependencies here, we have to drag a non-core config option into
-// TOOD: core scope. Any solution here would be a one-off until we can generalize
-// TODO: global configuration options.
-func thanosOffset() time.Duration {
-	tOffsetLock.Lock()
-	defer tOffsetLock.Unlock()
-
-	if tOffset == nil {
-		d, err := time.ParseDuration(env.Get("THANOS_QUERY_OFFSET", "3h"))
-		if err != nil {
-			d = 0
-		}
-
-		tOffset = &d
-	}
-
-	return *tOffset
-}
-
-// returns true if thanos is enabled
-// TODO: Same note as thanosOffset above - temporary work-around until more
-// TODO: generalized global configuration.
-func isThanosEnabled() bool {
-	return env.GetBool("THANOS_ENABLED", false)
-}
 
 // returns the configured utc offset as a duration
 // TODO: Same as the above options -- we should provide a one-time initialization configuration
@@ -620,83 +584,109 @@ func (w Window) Minutes() float64 {
 
 // Overlaps returns true iff the two given Windows share an amount of temporal
 // coverage.
-// TODO complete (with unit tests!) and then implement in AllocationSet.accumulate
-// TODO:CLEANUP
-// func (w Window) Overlaps(x Window) bool {
-// 	if (w.start == nil && w.end == nil) || (x.start == nil && x.end == nil) {
-// 		// one window is completely open, so overlap is guaranteed
-// 		// <---------->
-// 		//   ?------?
-// 		return true
-// 	}
+func (w Window) Overlaps(x Window) bool {
+	if (w.start == nil && w.end == nil) || (x.start == nil && x.end == nil) {
+		// one window is completely open, so overlap is guaranteed
+		// <---------->
+		//   ?------?
+		return true
+	}
 
-// 	// Neither window is completely open (nil, nil), but one or the other might
-// 	// still be future- or past-open.
+	// Neither window is completely open (nil, nil), but one or the other might
+	// still be future- or past-open.
 
-// 	if w.start == nil {
-// 		// w is past-open, future-closed
-// 		// <------]
+	if w.start == nil {
+		// w is past-open, future-closed
+		// <------]
 
-// 		if x.start != nil && !x.start.Before(*w.end) {
-// 			// x starts after w ends (or eq)
-// 			// <------]
-// 			//          [------?
-// 			return false
-// 		}
+		if x.start != nil && !x.start.Before(*w.end) {
+			// x starts after w ends (or eq)
+			// <------]
+			//          [------?
+			return false
+		}
 
-// 		// <-----]
-// 		//    ?-----?
-// 		return true
-// 	}
+		// <-----]
+		//    ?-----?
+		return true
+	}
 
-// 	if w.end == nil {
-// 		// w is future-open, past-closed
-// 		// [------>
+	if w.end == nil {
+		// w is future-open, past-closed
+		// [------>
 
-// 		if x.end != nil && !x.end.After(*w.end) {
-// 			// x ends before w begins (or eq)
-// 			//          [------>
-// 			// ?------]
-// 			return false
-// 		}
+		if x.end != nil && !x.end.After(*w.start) {
+			// x ends before w begins (or eq)
+			//          [------>
+			// ?------]
+			return false
+		}
 
-// 		//    [------>
-// 		// ?------?
-// 		return true
-// 	}
+		//    [------>
+		// ?------?
+		return true
+	}
 
-// 	// Now we know w is closed, but we don't know about x
-// 	//  [------]
-// 	//     ?------?
-// 	if x.start == nil {
-// 		// TODO
-// 	}
+	// Now we know w is closed, but we don't know about x
+	//  [------]
+	//     ?------?
+	if x.start == nil {
+		// x is past-open, future-closed
+		// <------]
+		//    [------]
 
-// 	if x.end == nil {
-// 		// TODO
-// 	}
+		if !x.end.Before(*w.start) {
+			// x ends after w starts (or eq)
+			// <------]
+			//    [------]
+			return true
+		}
 
-// 	// Both are closed.
+		// x ends before w starts
+		// <------]
+		//          [------]
+		return false
+	}
 
-// 	if !x.start.Before(*w.end) && !x.end.Before(*w.end) {
-// 		// x starts and ends after w ends
-// 		// [------]
-// 		//          [------]
-// 		return false
-// 	}
+	if x.end == nil {
+		// x is future-open, past-closed
+		//    [------>
+		// [------]
 
-// 	if !x.start.After(*w.start) && !x.end.After(*w.start) {
-// 		// x starts and ends before w starts
-// 		//          [------]
-// 		// [------]
-// 		return false
-// 	}
+		if !x.start.After(*w.end) {
+			// x starts before w ends (or eq)
+			//    [------>
+			// [------]
+			return true
+		}
 
-// 	// w and x must overlap
-// 	//    [------]
-// 	// [------]
-// 	return true
-// }
+		// x starts after w ends
+		//          [------>
+		// [------]
+		return false
+	}
+
+	// Both are closed.
+
+	if !x.start.Before(*w.end) && !x.end.Before(*w.end) {
+		// x starts and ends after w ends
+		// [------]
+		//          [------]
+		return false
+	}
+
+	if !x.start.After(*w.start) && !x.end.After(*w.start) {
+		// x starts and ends before w starts
+		//          [------]
+		// [------]
+		return false
+	}
+
+	// w and x must overlap
+	//    [------]
+	// [------]
+	return true
+}
 
 func (w *Window) Set(start, end *time.Time) {
 	w.start = start

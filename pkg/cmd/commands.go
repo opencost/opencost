@@ -8,6 +8,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/cmd/agent"
 	"github.com/opencost/opencost/pkg/cmd/costmodel"
+	"github.com/opencost/opencost/pkg/env"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -16,7 +17,7 @@ const (
 	// commandRoot is the root command used to route to sub-commands
 	commandRoot string = "root"
 
-	// CommandCostModel is the command used to execute the metrics emission and ETL pipeline
+	// CommandCostModel is the command used to execute the metrics emission and cost model querying
 	CommandCostModel string = "cost-model"
 
 	// CommandAgent executes the application in agent mode, which provides only metrics exporting.
@@ -96,7 +97,7 @@ func newRootCommand(costModelCmd *cobra.Command, cmds ...*cobra.Command) *cobra.
 
 // default open-source cost-model command
 func newCostModelCommand() *cobra.Command {
-	opts := &costmodel.CostModelOpts{}
+	config := costmodel.DefaultConfig()
 
 	cmCmd := &cobra.Command{
 		Use:   CommandCostModel,
@@ -105,13 +106,39 @@ func newCostModelCommand() *cobra.Command {
 			// Init logging here so cobra/viper has processed the command line args and flags
 			// otherwise only envvars are available during init
 			log.InitLogging(true)
-			return costmodel.Execute(opts)
+			
+			// Update config with command-line flag values if they were explicitly set
+			if cmd.Flags().Changed("port") {
+				port, _ := cmd.Flags().GetInt("port")
+				config.Port = port
+			}
+			if cmd.Flags().Changed("kubernetes-enabled") {
+				kubernetesEnabled, _ := cmd.Flags().GetBool("kubernetes-enabled")
+				config.KubernetesEnabled = kubernetesEnabled
+			}
+			if cmd.Flags().Changed("carbon-estimates-enabled") {
+				carbonEstimatesEnabled, _ := cmd.Flags().GetBool("carbon-estimates-enabled")
+				config.CarbonEstimatesEnabled = carbonEstimatesEnabled
+			}
+			if cmd.Flags().Changed("cloud-cost-enabled") {
+				cloudCostEnabled, _ := cmd.Flags().GetBool("cloud-cost-enabled")
+				config.CloudCostEnabled = cloudCostEnabled
+			}
+			if cmd.Flags().Changed("custom-cost-enabled") {
+				customCostEnabled, _ := cmd.Flags().GetBool("custom-cost-enabled")
+				config.CustomCostEnabled = customCostEnabled
+			}
+			
+			return costmodel.Execute(config)
 		},
 	}
 
-	// TODO: We could introduce a way of mapping input command-line parameters to a configuration
-	// TODO: object, and pass that object to the agent Execute()
-	// cmCmd.Flags().<Type>VarP(&opts.<Property>, "<flag>", "<short>", <default>, "<usage>")
+	// Add command-line flags for cost-model configuration
+	cmCmd.Flags().Int("port", config.Port, "Port to bind to")
+	cmCmd.Flags().Bool("kubernetes-enabled", config.KubernetesEnabled, "Enable Kubernetes metrics")
+	cmCmd.Flags().Bool("carbon-estimates-enabled", config.CarbonEstimatesEnabled, "Enable Carbon Estimates")
+	cmCmd.Flags().Bool("cloud-cost-enabled", config.CloudCostEnabled, "Enable Cloud Costs")
+	cmCmd.Flags().Bool("custom-cost-enabled", config.CustomCostEnabled, "Enable Custom Costs")
 
 	return cmCmd
 }
@@ -126,13 +153,19 @@ func newAgentCommand() *cobra.Command {
 			// Init logging here so cobra/viper has processed the command line args and flags
 			// otherwise only envvars are available during init
 			log.InitLogging(true)
+			
+			// Update opts with command-line flag values if they were explicitly set
+			if cmd.Flags().Changed("port") {
+				port, _ := cmd.Flags().GetInt("port")
+				opts.Port = port
+			}
+			
 			return agent.Execute(opts)
 		},
 	}
 
-	// TODO: We could introduce a way of mapping input command-line parameters to a configuration
-	// TODO: object, and pass that object to the agent Execute()
-	// agentCmd.Flags().<Type>VarP(&opts.<Property>, "<flag>", "<short>", <default>, "<usage>")
+	// Add command-line flags for agent configuration
+	agentCmd.Flags().Int("port", env.GetKubecostMetricsPort(), "Port to bind to")
 
 	return agentCmd
 }

@@ -15,6 +15,7 @@ const (
 	FieldClusterID      AllocationField = AllocationField(fieldstrings.FieldClusterID)
 	FieldNode           AllocationField = AllocationField(fieldstrings.FieldNode)
 	FieldNamespace      AllocationField = AllocationField(fieldstrings.FieldNamespace)
+	FieldNamespaceLabel AllocationField = AllocationField(fieldstrings.FieldNamespaceLabel)
 	FieldControllerKind AllocationField = AllocationField(fieldstrings.FieldControllerKind)
 	FieldControllerName AllocationField = AllocationField(fieldstrings.FieldControllerName)
 	FieldPod            AllocationField = AllocationField(fieldstrings.FieldPod)
@@ -23,6 +24,7 @@ const (
 	FieldServices       AllocationField = AllocationField(fieldstrings.FieldServices)
 	FieldLabel          AllocationField = AllocationField(fieldstrings.FieldLabel)
 	FieldAnnotation     AllocationField = AllocationField(fieldstrings.FieldAnnotation)
+	FieldNodeLabel      AllocationField = AllocationField(fieldstrings.FieldNodeLabel)
 )
 
 // AllocationAlias represents an alias field type for allocations.

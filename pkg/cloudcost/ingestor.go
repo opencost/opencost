@@ -6,13 +6,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/errors"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/stringutil"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/errors"
 )
 
 // IngestorStatus includes diagnostic values for a given Ingestor
@@ -39,7 +39,7 @@ type IngestorConfig struct {
 func DefaultIngestorConfiguration() IngestorConfig {
 	return IngestorConfig{
 		Resolution:             timeutil.Day,
-		Duration:               timeutil.Day * time.Duration(env.GetDataRetentionDailyResolutionDays()),
+		Duration:               timeutil.Day * time.Duration(env.GetCloudCost1dRetention()),
 		MonthToDateRunInterval: env.GetCloudCostMonthToDateInterval(),
 		RefreshRate:            time.Hour * time.Duration(env.GetCloudCostRefreshRateHours()),
 		QueryWindow:            timeutil.Day * time.Duration(env.GetCloudCostQueryWindowDays()),
@@ -249,7 +249,7 @@ func (ing *ingestor) build(rebuild bool) {
 		e = e.Add(-ing.config.QueryWindow)
 	}
 
-	log.Infof(fmt.Sprintf("CloudCost[%s]: ingestor: build[%s]: completed in %v", ing.key, ing.runID, time.Since(buildStart)))
+	log.Infof("CloudCost[%s]: ingestor: build[%s]: completed in %v", ing.key, ing.runID, time.Since(buildStart))
 
 	// In order to be able to Stop, we have to wait on an exit message
 	// here
@@ -339,4 +339,8 @@ func (ing *ingestor) expandCoverage(window opencost.Window) {
 	coverage = coverage.ExpandEnd(*window.End())
 
 	ing.coverage = coverage
+}
+
+func (ing *ingestor) RefreshStatus() cloud.ConnectionStatus {
+	return ing.integration.RefreshStatus()
 }

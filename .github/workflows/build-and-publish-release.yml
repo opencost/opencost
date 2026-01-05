@@ -109,6 +109,5 @@ jobs:
           IMAGE_TAG_LATEST: ${{ steps.tags.outputs.IMAGE_TAG_LATEST }}
           IMAGE_TAG_VERSION: ${{ steps.tags.outputs.IMAGE_TAG_VERSION }}
         run: |
-          crane copy '$IMAGE_TAG' '$IMAGE_TAG_LATEST'
-          crane copy '$IMAGE_TAG' '$IMAGE_TAG_VERSION'
-
+          crane copy "$IMAGE_TAG" "$IMAGE_TAG_LATEST"
+          crane copy "$IMAGE_TAG" "$IMAGE_TAG_VERSION"

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"sync"
 
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud/alibaba"
@@ -18,7 +19,6 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/otc"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/config"
-	"github.com/opencost/opencost/pkg/env"
 )
 
 const closedSourceConfigMount = "models/"
@@ -35,7 +35,7 @@ type ProviderConfig struct {
 
 // NewProviderConfig creates a new ConfigFile and returns the ProviderConfig
 func NewProviderConfig(configManager *config.ConfigFileManager, fileName string) *ProviderConfig {
-	configFile := configManager.ConfigFileAt(configPathFor(fileName))
+	configFile := configManager.ConfigFileAt(coreenv.GetPathFromConfig(fileName))
 	pc := &ProviderConfig{
 		lock:          new(sync.Mutex),
 		configManager: configManager,
@@ -74,8 +74,10 @@ func (pc *ProviderConfig) onConfigFileUpdated(changeType config.ChangeType, data
 			pc.customPricing.SpotGPU = DefaultPricing().SpotGPU // Migration for users without this value set by default.
 		}
 
-		if pc.customPricing.ShareTenancyCosts == "" {
-			pc.customPricing.ShareTenancyCosts = models.DefaultShareTenancyCost
+		// If the sample nil service key name is set, zero it out so that it is not
+		// misinterpreted as a real service key.
+		if pc.customPricing.ServiceKeyName == "AKIXXX" {
+			pc.customPricing.ServiceKeyName = ""
 		}
 	}
 }
@@ -143,10 +145,6 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*models.CustomPrici
 	pc.customPricing = &customPricing
 	if pc.customPricing.SpotGPU == "" {
 		pc.customPricing.SpotGPU = DefaultPricing().SpotGPU // Migration for users without this value set by default.
-	}
-
-	if pc.customPricing.ShareTenancyCosts == "" {
-		pc.customPricing.ShareTenancyCosts = models.DefaultShareTenancyCost
 	}
 
 	// If the sample nil service key name is set, zero it out so that it is not
@@ -262,14 +260,7 @@ func DefaultPricing() *models.CustomPricing {
 		RegionNetworkEgress:   "0.01",
 		InternetNetworkEgress: "0.12",
 		CustomPricesEnabled:   "false",
-		ShareTenancyCosts:     "true",
 	}
-}
-
-// Returns the configuration directory concatenated with a specific config file name
-func configPathFor(filename string) string {
-	path := env.GetConfigPathWithDefault("/models/")
-	return gopath.Join(path, filename)
 }
 
 // Gives the config file name in a full qualified file name

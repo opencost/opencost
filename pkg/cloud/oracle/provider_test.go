@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/opencost/opencost/pkg/clustercache"
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -77,6 +77,63 @@ func TestGetPVKey(t *testing.T) {
 func TestRegions(t *testing.T) {
 	regions := (&Oracle{}).Regions()
 	assert.Len(t, regions, 39)
+}
+
+func TestNodePricing_Preemptible(t *testing.T) {
+	oracle := &Oracle{
+		RateCardStore: NewRateCardStore("", "USD"),
+		DefaultPricing: DefaultPricing{
+			OCPU:    "0.2",
+			Memory:  "0.1",
+			GPU:     "0.3",
+			Storage: "0.25",
+		},
+	}
+
+	testCases := []struct {
+		name        string
+		labels      map[string]string
+		expectUsage string
+	}{
+		{
+			name: "preemptible node",
+			labels: map[string]string{
+				v1.LabelInstanceTypeStable: "VM.Standard.E4.Flex",
+				preemptibleLabel:           "true",
+			},
+			expectUsage: "preemptible",
+		},
+		{
+			name: "non-preemptible node",
+			labels: map[string]string{
+				v1.LabelInstanceTypeStable: "VM.Standard.E4.Flex",
+			},
+			expectUsage: "",
+		},
+		{
+			name: "preemptible label false",
+			labels: map[string]string{
+				v1.LabelInstanceTypeStable: "VM.Standard.E4.Flex",
+				preemptibleLabel:           "false",
+			},
+			expectUsage: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			key := &oracleKey{
+				instanceType: "VM.Standard.E4.Flex",
+				labels:       tc.labels,
+				providerID:   "ocid.test",
+			}
+
+			node, _, err := oracle.NodePricing(key)
+			assert.NoError(t, err)
+			assert.NotNil(t, node)
+			assert.Equal(t, tc.expectUsage, node.UsageType)
+		})
+	}
 }
 
 func testNode(gpus int) *clustercache.Node {

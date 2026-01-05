@@ -11,6 +11,9 @@ type AtomicRunState struct {
 	stopping bool
 	stop     chan struct{}
 	reset    chan struct{}
+
+	// buffer contains channels that are returned before Start() is called.
+	stopBuffer []chan struct{}
 }
 
 // Start checks for an existing run state and returns false if the run state has already started. If
@@ -24,6 +27,18 @@ func (ars *AtomicRunState) Start() bool {
 	}
 
 	ars.stop = make(chan struct{})
+
+	// if there are any channels in the buffer, assign them a wait routine on
+	// the stop channel.
+	for _, ch := range ars.stopBuffer {
+		go func(ch chan struct{}) {
+			defer close(ch)
+
+			<-ars.stop
+		}(ch)
+	}
+	ars.stopBuffer = nil
+
 	return true
 }
 
@@ -33,6 +48,12 @@ func (ars *AtomicRunState) Start() bool {
 func (ars *AtomicRunState) OnStop() <-chan struct{} {
 	ars.lock.Lock()
 	defer ars.lock.Unlock()
+
+	if ars.stop == nil {
+		ch := make(chan struct{})
+		ars.stopBuffer = append(ars.stopBuffer, ch)
+		return ch
+	}
 
 	return ars.stop
 }

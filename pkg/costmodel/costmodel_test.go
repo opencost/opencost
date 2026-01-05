@@ -1,73 +1,65 @@
 package costmodel
 
 import (
-	"slices"
+	"math"
+	"math/rand"
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/util"
-	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-func TestPruneDuplicates(t *testing.T) {
-
-	tests := []struct {
-		name     string
-		input    []string
-		expected []string
-	}{
-		{
-			name:     "empty slice",
-			input:    []string{},
-			expected: []string{},
-		},
-		{
-			name:     "single element slice",
-			input:    []string{"test1"},
-			expected: []string{"test1"},
-		},
-		{
-			name:     "basic duplicate",
-			input:    []string{"test1", "test1"},
-			expected: []string{"test1"},
-		},
-		{
-			name:     "compound duplicate",
-			input:    []string{"test1", "test2", "test1", "test2"},
-			expected: []string{"test1", "test2"},
-		},
-		{
-			name:     "mixture of duplicate/ no duplicate",
-			input:    []string{"test1", "test2", "test1", "test2", "test3"},
-			expected: []string{"test1", "test2", "test3"},
-		},
-		{
-			name:     "underscore sanitization",
-			input:    []string{"test_1", "test_2", "test_1", "test_2", "test_3"},
-			expected: []string{"test-1", "test-2", "test-3"},
-		},
-		{
-			name:     "underscore sanitization II",
-			input:    []string{"test-1", "test_2", "test_1", "test_2", "test_3"},
-			expected: []string{"test-1", "test-2", "test-3"},
-		},
+func TestIsValidNodeName(t *testing.T) {
+	tests := []string{
+		"ip-10-1-2-3.ec2.internal",
+		"node-1",
+		"another.test.node",
+		"10-55.23-10",
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := pruneDuplicates(tt.expected)
-			slices.Sort(actual)
-			expected := tt.expected
-			slices.Sort(expected)
-
-			if !slices.Equal(actual, expected) {
-				t.Fatalf("test failuire for case %s. Expected %v, got %v", tt.name, expected, actual)
-			}
-		})
+	for _, test := range tests {
+		if !isValidNodeName(test) {
+			t.Errorf("Expected %s to be a valid node name", test)
+		}
 	}
 
+	chars := "abcdefghijklmnopqrstuvwxyz"
+	longName := ""
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := 0; i < 255; i++ {
+		longName += string(chars[r.Intn(len(chars))])
+	}
+
+	fails := []string{
+		longName,
+		"192.168.1.1:80",
+		"10.0.0.1:443",
+		"127.0.0.1:8080",
+		"172.16.254.1:22",
+		"0.0.0.0:5000",
+		"::1:80",
+		"2001:db8::1:443",
+		"2001:0db8:85a3:0000:0000:8a2e:0370:7334:8080",
+		"fe80::1:22",
+		"10.1.2.3:10240",
+		":::80",
+		"node$-15",
+		"not:valid",
+		".hello-world",
+		"hello-world.",
+		"i--",
+	}
+
+	for _, fail := range fails {
+		if isValidNodeName(fail) {
+			t.Errorf("Expected %s to be an invalid node name", fail)
+		}
+	}
 }
 
 func TestGetGPUCount(t *testing.T) {
@@ -211,149 +203,146 @@ func Test_CostData_GetController_CronJob(t *testing.T) {
 	}
 }
 
-func Test_getContainerAllocation(t *testing.T) {
+func TestGetContainerAllocation(t *testing.T) {
 	cases := []struct {
-		name string
-		cd   CostData
-
-		expectedCPUAllocation []*util.Vector
-		expectedRAMAllocation []*util.Vector
+		name           string
+		req            *util.Vector
+		used           *util.Vector
+		allocationType string
+		expected       []*util.Vector
 	}{
 		{
-			name: "Requests greater than usage",
-			cd: CostData{
-				CPUReq:  []*util.Vector{{Value: 1.0, Timestamp: 1686929350}},
-				CPUUsed: []*util.Vector{{Value: .01, Timestamp: 1686929350}},
-				RAMReq:  []*util.Vector{{Value: 10000000, Timestamp: 1686929350}},
-				RAMUsed: []*util.Vector{{Value: 5500000, Timestamp: 1686929350}},
+			name: "request > usage",
+			req: &util.Vector{
+				Value:     100,
+				Timestamp: 1672531200,
 			},
-
-			expectedCPUAllocation: []*util.Vector{{Value: 1.0, Timestamp: 1686929350}},
-			expectedRAMAllocation: []*util.Vector{{Value: 10000000, Timestamp: 1686929350}},
+			used: &util.Vector{
+				Value:     50,
+				Timestamp: 1672531200,
+			},
+			allocationType: "RAM",
+			expected: []*util.Vector{
+				{
+					Value:     100,
+					Timestamp: 1672531200,
+				},
+			},
 		},
 		{
-			name: "Requests less than usage",
-			cd: CostData{
-				CPUReq:  []*util.Vector{{Value: 1.0, Timestamp: 1686929350}},
-				CPUUsed: []*util.Vector{{Value: 2.2, Timestamp: 1686929350}},
-				RAMReq:  []*util.Vector{{Value: 10000000, Timestamp: 1686929350}},
-				RAMUsed: []*util.Vector{{Value: 75000000, Timestamp: 1686929350}},
+			name: "usage > request",
+			req: &util.Vector{
+				Value:     50,
+				Timestamp: 1672531200,
 			},
-
-			expectedCPUAllocation: []*util.Vector{{Value: 2.2, Timestamp: 1686929350}},
-			expectedRAMAllocation: []*util.Vector{{Value: 75000000, Timestamp: 1686929350}},
+			used: &util.Vector{
+				Value:     100,
+				Timestamp: 1672531200,
+			},
+			allocationType: "RAM",
+			expected: []*util.Vector{
+				{
+					Value:     100,
+					Timestamp: 1672531200,
+				},
+			},
 		},
 		{
-			// Expected behavior for getContainerAllocation is to always use the
-			// highest Timestamp value. The significance of 10 seconds comes
-			// from the current default in ApplyVectorOp() in
-			// pkg/util/vector.go.
-			name: "Mismatched timestamps less than 10 seconds apart",
-			cd: CostData{
-				CPUReq:  []*util.Vector{{Value: 1.0, Timestamp: 1686929354}},
-				CPUUsed: []*util.Vector{{Value: .01, Timestamp: 1686929350}},
-				RAMReq:  []*util.Vector{{Value: 10000000, Timestamp: 1686929354}},
-				RAMUsed: []*util.Vector{{Value: 5500000, Timestamp: 1686929350}},
+			name: "only request is non-nil",
+			req: &util.Vector{
+				Value:     100,
+				Timestamp: 1672531200,
 			},
-
-			expectedCPUAllocation: []*util.Vector{{Value: 1.0, Timestamp: 1686929354}},
-			expectedRAMAllocation: []*util.Vector{{Value: 10000000, Timestamp: 1686929354}},
+			used:           nil,
+			allocationType: "CPU",
+			expected: []*util.Vector{
+				{
+					Value:     100,
+					Timestamp: 1672531200,
+				},
+			},
 		},
 		{
-			// Expected behavior for getContainerAllocation is to always use the
-			// hightest Timestamp value. The significance of 10 seconds comes
-			// from the current default in ApplyVectorOp() in
-			// pkg/util/vector.go.
-			name: "Mismatched timestamps greater than 10 seconds apart",
-			cd: CostData{
-				CPUReq:  []*util.Vector{{Value: 1.0, Timestamp: 1686929399}},
-				CPUUsed: []*util.Vector{{Value: .01, Timestamp: 1686929350}},
-				RAMReq:  []*util.Vector{{Value: 10000000, Timestamp: 1686929399}},
-				RAMUsed: []*util.Vector{{Value: 5500000, Timestamp: 1686929350}},
+			name: "only used is non-nil",
+			req:  nil,
+			used: &util.Vector{
+				Value:     100,
+				Timestamp: 1672531200,
 			},
-
-			expectedCPUAllocation: []*util.Vector{{Value: 1.0, Timestamp: 1686929399}},
-			expectedRAMAllocation: []*util.Vector{{Value: 10000000, Timestamp: 1686929399}},
+			allocationType: "CPU",
+			expected: []*util.Vector{
+				{
+					Value:     100,
+					Timestamp: 1672531200,
+				},
+			},
 		},
 		{
-			name: "Requests has no values",
-			cd: CostData{
-				CPUReq:  []*util.Vector{{Value: 0, Timestamp: 0}},
-				CPUUsed: []*util.Vector{{Value: .01, Timestamp: 1686929350}},
-				RAMReq:  []*util.Vector{{Value: 0, Timestamp: 0}},
-				RAMUsed: []*util.Vector{{Value: 5500000, Timestamp: 1686929350}},
+			name:           "both req and used are nil",
+			req:            nil,
+			used:           nil,
+			allocationType: "GPU",
+			expected: []*util.Vector{
+				{
+					Value:     0,
+					Timestamp: float64(time.Now().UTC().Unix()),
+				},
 			},
-
-			expectedCPUAllocation: []*util.Vector{{Value: .01, Timestamp: 1686929350}},
-			expectedRAMAllocation: []*util.Vector{{Value: 5500000, Timestamp: 1686929350}},
 		},
 		{
-			name: "Usage has no values",
-			cd: CostData{
-				CPUReq:  []*util.Vector{{Value: 1.0, Timestamp: 1686929350}},
-				CPUUsed: []*util.Vector{{Value: 0, Timestamp: 0}},
-				RAMReq:  []*util.Vector{{Value: 10000000, Timestamp: 1686929350}},
-				RAMUsed: []*util.Vector{{Value: 0, Timestamp: 0}},
+			name: "NaN in request value",
+			req: &util.Vector{
+				Value:     math.NaN(),
+				Timestamp: 1672531200,
 			},
-
-			expectedCPUAllocation: []*util.Vector{{Value: 1.0, Timestamp: 1686929350}},
-			expectedRAMAllocation: []*util.Vector{{Value: 10000000, Timestamp: 1686929350}},
+			used: &util.Vector{
+				Value:     50,
+				Timestamp: 1672531200,
+			},
+			allocationType: "RAM",
+			expected: []*util.Vector{
+				{
+					Value:     50,
+					Timestamp: 1672531200,
+				},
+			},
 		},
 		{
-			// WRN Log should be thrown
-			name: "Both have no values",
-			cd: CostData{
-				CPUReq:  []*util.Vector{{Value: 0, Timestamp: 0}},
-				CPUUsed: []*util.Vector{{Value: 0, Timestamp: 0}},
-				RAMReq:  []*util.Vector{{Value: 0, Timestamp: 0}},
-				RAMUsed: []*util.Vector{{Value: 0, Timestamp: 0}},
+			name: "NaN in used value",
+			req: &util.Vector{
+				Value:     100,
+				Timestamp: 1672531200,
 			},
-
-			expectedCPUAllocation: []*util.Vector{{Value: 0, Timestamp: 0}},
-			expectedRAMAllocation: []*util.Vector{{Value: 0, Timestamp: 0}},
-		},
-		{
-			name: "Requests is Nil",
-			cd: CostData{
-				CPUReq:  []*util.Vector{nil},
-				CPUUsed: []*util.Vector{{Value: .01, Timestamp: 1686929350}},
-				RAMReq:  []*util.Vector{nil},
-				RAMUsed: []*util.Vector{{Value: 5500000, Timestamp: 1686929350}},
+			used: &util.Vector{
+				Value:     math.NaN(),
+				Timestamp: 1672531200,
 			},
-
-			expectedCPUAllocation: []*util.Vector{{Value: .01, Timestamp: 1686929350}},
-			expectedRAMAllocation: []*util.Vector{{Value: 5500000, Timestamp: 1686929350}},
-		},
-		{
-			name: "Usage is nil",
-			cd: CostData{
-				CPUReq:  []*util.Vector{{Value: 1.0, Timestamp: 1686929350}},
-				CPUUsed: []*util.Vector{nil},
-				RAMReq:  []*util.Vector{{Value: 10000000, Timestamp: 1686929350}},
-				RAMUsed: []*util.Vector{nil},
+			allocationType: "CPU",
+			expected: []*util.Vector{
+				{
+					Value:     100,
+					Timestamp: 1672531200,
+				},
 			},
-
-			expectedCPUAllocation: []*util.Vector{{Value: 1.0, Timestamp: 1686929350}},
-			expectedRAMAllocation: []*util.Vector{{Value: 10000000, Timestamp: 1686929350}},
 		},
 	}
 
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			cpuAllocation := getContainerAllocation(c.cd.CPUReq[0], c.cd.CPUUsed[0], "CPU")
-			ramAllocation := getContainerAllocation(c.cd.RAMReq[0], c.cd.RAMUsed[0], "RAM")
-
-			if cpuAllocation[0].Value != c.expectedCPUAllocation[0].Value {
-				t.Errorf("CPU Allocation mismatch. Expected Value: %f. Got: %f", cpuAllocation[0].Value, c.expectedCPUAllocation[0].Value)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// For the nil case, the timestamp is dynamic, so we need to handle it separately
+			if tc.name == "both req and used are nil" {
+				result := getContainerAllocation(tc.req, tc.used, tc.allocationType)
+				if result[0].Value != 0 {
+					t.Errorf("Expected value to be 0, but got %f", result[0].Value)
+				}
+				if time.Now().UTC().Unix()-int64(result[0].Timestamp) > 5 {
+					t.Errorf("Expected timestamp to be recent, but it was not")
+				}
+				return
 			}
-			if cpuAllocation[0].Timestamp != c.expectedCPUAllocation[0].Timestamp {
-				t.Errorf("CPU Allocation mismatch. Expected Timestamp: %f. Got: %f", cpuAllocation[0].Timestamp, c.expectedCPUAllocation[0].Timestamp)
-			}
-			if ramAllocation[0].Value != c.expectedRAMAllocation[0].Value {
-				t.Errorf("RAM Allocation mismatch. Expected Value: %f. Got: %f", ramAllocation[0].Value, c.expectedRAMAllocation[0].Value)
-			}
-			if ramAllocation[0].Timestamp != c.expectedRAMAllocation[0].Timestamp {
-				t.Errorf("RAM Allocation mismatch. Expected Timestamp: %f. Got: %f", ramAllocation[0].Timestamp, c.expectedRAMAllocation[0].Timestamp)
+			result := getContainerAllocation(tc.req, tc.used, tc.allocationType)
+			if diff := cmp.Diff(tc.expected, result); diff != "" {
+				t.Errorf("getContainerAllocation() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

@@ -1,5 +1,7 @@
 package clusters
 
+import "maps"
+
 // The following constants are used as keys into the cluster info map data structure
 const (
 	ClusterInfoIdKey               = "id"
@@ -29,6 +31,7 @@ type ClusterInfo struct {
 	Project     string `json:"project"`
 	Region      string `json:"region"`
 	Provisioner string `json:"provisioner"`
+	Version     string `json:"version"`
 }
 
 // Clone creates a copy of ClusterInfo and returns it
@@ -46,6 +49,7 @@ func (ci *ClusterInfo) Clone() *ClusterInfo {
 		Project:     ci.Project,
 		Region:      ci.Region,
 		Provisioner: ci.Provisioner,
+		Version:     ci.Version,
 	}
 }
 
@@ -72,4 +76,26 @@ type ClusterMap interface {
 type ClusterInfoProvider interface {
 	// GetClusterInfo returns a string map containing the local/remote connected cluster info
 	GetClusterInfo() map[string]string
+}
+
+// ClusterInfoDecorator is a ClusterInfoProvider that decorates another ClusterInfoProvider with additional info.
+type ClusterInfoDecorator struct {
+	provider       ClusterInfoProvider
+	additionalInfo map[string]string
+}
+
+// NewClusterInfoDecorator creates a new ClusterInfoDecorator which will append additional info to the cluster info
+// returned by the provider.
+func NewClusterInfoDecorator(provider ClusterInfoProvider, additionalInfo map[string]string) ClusterInfoProvider {
+	return &ClusterInfoDecorator{
+		provider:       provider,
+		additionalInfo: additionalInfo,
+	}
+}
+
+// GetClusterInfo returns a string map containing the local/remote connected cluster info
+func (cid *ClusterInfoDecorator) GetClusterInfo() map[string]string {
+	info := cid.provider.GetClusterInfo()
+	maps.Copy(info, cid.additionalInfo)
+	return info
 }

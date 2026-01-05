@@ -52,8 +52,6 @@ func (a *Accesses) InitializeSettingsPubSub() {
 		for {
 			msg := <-costDataCacheCh
 			log.Infof("Flushing cost data caches: %s", msg)
-			a.AggregateCache.Flush()
-			a.CostDataCache.Flush()
 		}
 	}(a)
 }
@@ -88,8 +86,8 @@ func (a *Accesses) customPricingHasChanged() bool {
 	// describe parameters by which we determine whether or not custom
 	// pricing settings have changed
 	encodeCustomPricing := func(cp *models.CustomPricing) string {
-		return fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%s:%s", cp.CustomPricesEnabled, cp.CPU, cp.SpotCPU,
-			cp.RAM, cp.SpotRAM, cp.GPU, cp.Storage, cp.CurrencyCode, cp.SharedOverhead)
+		return fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%s", cp.CustomPricesEnabled, cp.CPU, cp.SpotCPU,
+			cp.RAM, cp.SpotRAM, cp.GPU, cp.Storage, cp.CurrencyCode)
 	}
 
 	// compare cached custom pricing parameters with current values

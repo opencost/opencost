@@ -20,16 +20,16 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 
-	"github.com/opencost/opencost/core/pkg/env"
+	"github.com/opencost/opencost/core/pkg/clustercache"
+	coreenv "github.com/opencost/opencost/core/pkg/env"
+	errs "github.com/opencost/opencost/core/pkg/errors"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/fileutil"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
-	"github.com/opencost/opencost/pkg/clustercache"
-	ocenv "github.com/opencost/opencost/pkg/env"
-	errs "github.com/opencost/opencost/pkg/errors"
+	"github.com/opencost/opencost/pkg/env"
 
 	awsSDK "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -69,6 +69,8 @@ var (
 	usageTypeRegx = regexp.MustCompile(".*(-|^)(EBS.+)")
 	versionRx     = regexp.MustCompile(`^#Version: (\\d+)\\.\\d+$`)
 	regionRx      = regexp.MustCompile("([a-z]+-[a-z]+-[0-9])")
+
+	ErrNoAthenaBucket = errors.New("No Athena Bucket configured")
 
 	// StorageClassProvisionerDefaults specifies the default storage class types depending upon the provisioner
 	StorageClassProvisionerDefaults = map[string]string{
@@ -354,10 +356,6 @@ var volTypes = map[string]string{
 var loadedAWSSecret bool = false
 var awsSecret *AWSAccessKey = nil
 
-func (aws *AWS) GetLocalStorageQuery(window, offset time.Duration, rate bool, used bool) string {
-	return ""
-}
-
 // KubeAttrConversion maps the k8s labels for region to an AWS key
 func (aws *AWS) KubeAttrConversion(region, instanceType, operatingSystem string) string {
 	operatingSystem = strings.ToLower(operatingSystem)
@@ -390,6 +388,7 @@ type AwsAthenaInfo struct {
 	ServiceKeySecret string `json:"serviceKeySecret"`
 	AccountID        string `json:"projectID"`
 	MasterPayerARN   string `json:"masterPayerARN"`
+	CURVersion       string `json:"curVersion"` // "1.0" or "2.0", defaults to "2.0" if not specified
 }
 
 // IsEmpty returns true if all fields in config are empty, false if not.
@@ -450,9 +449,6 @@ func (aws *AWS) GetConfig() (*models.CustomPricing, error) {
 	if c.NegotiatedDiscount == "" {
 		c.NegotiatedDiscount = "0%"
 	}
-	if c.ShareTenancyCosts == "" {
-		c.ShareTenancyCosts = models.DefaultShareTenancyCost
-	}
 
 	return c, nil
 }
@@ -469,10 +465,10 @@ func (aws *AWS) GetAWSAccessKey() (*AWSAccessKey, error) {
 	}
 	//Look for service key values in env if not present in config
 	if config.ServiceKeyName == "" {
-		config.ServiceKeyName = ocenv.GetAWSAccessKeyID()
+		config.ServiceKeyName = env.GetAWSAccessKeyID()
 	}
 	if config.ServiceKeySecret == "" {
-		config.ServiceKeySecret = ocenv.GetAWSAccessKeySecret()
+		config.ServiceKeySecret = env.GetAWSAccessKeySecret()
 	}
 
 	if config.ServiceKeyName == "" && config.ServiceKeySecret == "" {
@@ -505,6 +501,7 @@ func (aws *AWS) GetAWSAthenaInfo() (*AwsAthenaInfo, error) {
 		ServiceKeySecret: aak.SecretAccessKey,
 		AccountID:        config.AthenaProjectID,
 		MasterPayerARN:   config.MasterPayerARN,
+		CURVersion:       config.AthenaCURVersion,
 	}, nil
 }
 
@@ -565,6 +562,9 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 				c.MasterPayerARN = aai.MasterPayerARN
 			}
 			c.AthenaProjectID = aai.AccountID
+			if aai.CURVersion != "" {
+				c.AthenaCURVersion = aai.CURVersion
+			}
 		} else {
 			a := make(map[string]interface{})
 			err := json.NewDecoder(r).Decode(&a)
@@ -585,8 +585,8 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 			}
 		}
 
-		if ocenv.IsRemoteEnabled() {
-			err := utils.UpdateClusterMeta(ocenv.GetClusterID(), c.ClusterName)
+		if env.IsRemoteEnabled() {
+			err := utils.UpdateClusterMeta(coreenv.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return err
 			}
@@ -804,8 +804,8 @@ func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response,
 
 	pricingURL += "index.json"
 
-	if ocenv.GetAWSPricingURL() != "" { // Allow override of pricing URL
-		pricingURL = ocenv.GetAWSPricingURL()
+	if env.GetAWSPricingURL() != "" { // Allow override of pricing URL
+		pricingURL = env.GetAWSPricingURL()
 	}
 
 	log.Infof("starting download of \"%s\", which is quite large ...", pricingURL)
@@ -895,10 +895,18 @@ func (aws *AWS) DownloadPricingData() error {
 
 	// RIDataRunning establishes the existence of the goroutine. Since it's possible we
 	// run multiple downloads, we don't want to create multiple go routines if one already exists
+	//
+	// If athenaBucketName is unconfigured, the ReservedInstanceData and SavingsPlanData watchers
+	// are skipped. Note: These watchers are less commonly used. It is recommended to use the full
+	// CloudCosts feature via athenaintegration.go.
 	if !aws.RIDataRunning {
 		err = aws.GetReservationDataFromAthena() // Block until one run has completed.
 		if err != nil {
-			log.Errorf("Failed to lookup reserved instance data: %s", err.Error())
+			if errors.Is(err, ErrNoAthenaBucket) {
+				log.Debugf("No \"athenaBucketName\" configured, ReservedInstanceData watcher will not run")
+			} else {
+				log.Errorf("Failed to lookup reserved instance data: %s", err.Error())
+			}
 		} else { // If we make one successful run, check on new reservation data every hour
 			go func() {
 				defer errs.HandlePanic()
@@ -918,7 +926,11 @@ func (aws *AWS) DownloadPricingData() error {
 	if !aws.SavingsPlanDataRunning {
 		err = aws.GetSavingsPlanDataFromAthena()
 		if err != nil {
-			log.Errorf("Failed to lookup savings plan data: %s", err.Error())
+			if errors.Is(err, ErrNoAthenaBucket) {
+				log.Debugf("No \"athenaBucketName\" configured, SavingsPlanData watcher will not run")
+			} else {
+				log.Errorf("Failed to lookup savings plan data: %s", err.Error())
+			}
 		} else {
 			go func() {
 				defer errs.HandlePanic()
@@ -1092,7 +1104,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 					offerTerm := &AWSOfferTerm{}
 					err = dec.Decode(&offerTerm)
 					if err != nil {
-						log.Errorf("Error decoding AWS Offer Term: " + err.Error())
+						log.Errorf("Error decoding AWS Offer Term: %s", err.Error())
 					}
 
 					key, ok := skusToKeys[sku.(string)]
@@ -1444,8 +1456,9 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 		}
 		return aws.createNode(terms, usageType, k)
 	} else { // Fall back to base pricing if we can't find the key. Base pricing is handled at the costmodel level.
+		// we seem to have an issue where this error gets thrown during app start.
+		// somehow the ValidPricingKeys map is being accessed before all the pricing data has been downloaded
 		return nil, meta, fmt.Errorf("Invalid Pricing Key \"%s\"", key)
-
 	}
 }
 
@@ -1461,17 +1474,17 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 	// Determine cluster name
 	clusterName := c.ClusterName
 	if clusterName == "" {
-		awsClusterID := ocenv.GetAWSClusterID()
+		awsClusterID := env.GetAWSClusterID()
 		if awsClusterID != "" {
 			log.Infof("Returning \"%s\" as ClusterName", awsClusterID)
 			clusterName = awsClusterID
-			log.Warnf("Warning - %s will be deprecated in a future release. Use %s instead", ocenv.AWSClusterIDEnvVar, ocenv.ClusterIDEnvVar)
-		} else if clusterName = ocenv.GetClusterID(); clusterName != "" {
-			log.DedupedInfof(5, "Setting cluster name to %s from %s ", clusterName, ocenv.ClusterIDEnvVar)
+			log.Warnf("Warning - %s will be deprecated in a future release. Use %s instead", env.AWSClusterIDEnvVar, coreenv.ClusterIDEnvVar)
+		} else if clusterName = coreenv.GetClusterID(); clusterName != "" {
+			log.DedupedInfof(5, "Setting cluster name to %s from %s ", clusterName, coreenv.ClusterIDEnvVar)
 		} else {
 			clusterName = defaultClusterName
 			log.DedupedWarningf(5, "Unable to detect cluster name - using default of %s", defaultClusterName)
-			log.DedupedWarningf(5, "Please set cluster name through configmap or via %s env var", ocenv.ClusterIDEnvVar)
+			log.DedupedWarningf(5, "Please set cluster name through configmap or via %s env var", coreenv.ClusterIDEnvVar)
 		}
 	}
 
@@ -1487,8 +1500,8 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 	m["provider"] = opencost.AWSProvider
 	m["account"] = clusterAccountID
 	m["region"] = awsProvider.ClusterRegion
-	m["id"] = ocenv.GetClusterID()
-	m["remoteReadEnabled"] = strconv.FormatBool(ocenv.IsRemoteEnabled())
+	m["id"] = coreenv.GetClusterID()
+	m["remoteReadEnabled"] = strconv.FormatBool(env.IsRemoteEnabled())
 	m["provisioner"] = awsProvider.clusterProvisioner
 	return m, nil
 }
@@ -1506,11 +1519,11 @@ func (aws *AWS) ConfigureAuth() error {
 func (aws *AWS) ConfigureAuthWith(config *models.CustomPricing) error {
 	accessKeyID, accessKeySecret := aws.getAWSAuth(false, config)
 	if accessKeyID != "" && accessKeySecret != "" { // credentials may exist on the actual AWS node-- if so, use those. If not, override with the service key
-		err := env.Set(ocenv.AWSAccessKeyIDEnvVar, accessKeyID)
+		err := coreenv.Set(env.AWSAccessKeyIDEnvVar, accessKeyID)
 		if err != nil {
 			return err
 		}
-		err = env.Set(ocenv.AWSAccessKeySecretEnvVar, accessKeySecret)
+		err = coreenv.Set(env.AWSAccessKeySecretEnvVar, accessKeySecret)
 		if err != nil {
 			return err
 		}
@@ -1540,7 +1553,7 @@ func (aws *AWS) getAWSAuth(forceReload bool, cp *models.CustomPricing) (string, 
 	}
 
 	// 3. Fall back to env vars
-	if ocenv.GetAWSAccessKeyID() == "" || ocenv.GetAWSAccessKeySecret() == "" {
+	if env.GetAWSAccessKeyID() == "" || env.GetAWSAccessKeySecret() == "" {
 		aws.ServiceAccountChecks.Set("hasKey", &models.ServiceAccountCheck{
 			Message: "AWS ServiceKey exists",
 			Status:  false,
@@ -1551,7 +1564,7 @@ func (aws *AWS) getAWSAuth(forceReload bool, cp *models.CustomPricing) (string, 
 			Status:  true,
 		})
 	}
-	return ocenv.GetAWSAccessKeyID(), ocenv.GetAWSAccessKeySecret()
+	return env.GetAWSAccessKeyID(), env.GetAWSAccessKeySecret()
 }
 
 // Load once and cache the result (even on failure). This is an install time secret, so
@@ -2037,7 +2050,7 @@ func (aws *AWS) GetSavingsPlanDataFromAthena() error {
 		return err
 	}
 	if cfg.AthenaBucketName == "" {
-		err = fmt.Errorf("No Athena Bucket configured")
+		err = ErrNoAthenaBucket
 		aws.RIPricingError = err
 		return err
 	}
@@ -2061,6 +2074,7 @@ func (aws *AWS) GetSavingsPlanDataFromAthena() error {
 	line_item_usage_start_date DESC`
 
 	page := 0
+	mostRecentDate := ""
 	processResults := func(op *athena.GetQueryResultsOutput) bool {
 		if op == nil {
 			log.Errorf("GetSavingsPlanDataFromAthena: Athena page is nil")
@@ -2070,8 +2084,11 @@ func (aws *AWS) GetSavingsPlanDataFromAthena() error {
 			return false
 		}
 		aws.SavingsPlanDataLock.Lock()
-		aws.SavingsPlanDataByInstanceID = make(map[string]*SavingsPlanData) // Clean out the old data and only report a savingsplan price if its in the most recent run.
-		mostRecentDate := ""
+		defer aws.SavingsPlanDataLock.Unlock()
+		if page == 0 {
+			aws.SavingsPlanDataByInstanceID = make(map[string]*SavingsPlanData) // Clean out the old data and only report a savingsplan price if its in the most recent run.
+		}
+
 		iter := op.ResultSet.Rows
 		if page == 0 && len(iter) > 0 {
 			iter = op.ResultSet.Rows[1:len(op.ResultSet.Rows)]
@@ -2100,7 +2117,6 @@ func (aws *AWS) GetSavingsPlanDataFromAthena() error {
 		for k, r := range aws.SavingsPlanDataByInstanceID {
 			log.DedupedInfof(5, "Savings Plan Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
 		}
-		aws.SavingsPlanDataLock.Unlock()
 		return true
 	}
 
@@ -2131,7 +2147,7 @@ func (aws *AWS) GetReservationDataFromAthena() error {
 		return err
 	}
 	if cfg.AthenaBucketName == "" {
-		err = fmt.Errorf("No Athena Bucket configured")
+		err = ErrNoAthenaBucket
 		aws.RIPricingError = err
 		return err
 	}
@@ -2163,6 +2179,7 @@ func (aws *AWS) GetReservationDataFromAthena() error {
 	line_item_usage_start_date DESC`
 
 	page := 0
+	mostRecentDate := ""
 	processResults := func(op *athena.GetQueryResultsOutput) bool {
 		if op == nil {
 			log.Errorf("GetReservationDataFromAthena: Athena page is nil")
@@ -2172,8 +2189,10 @@ func (aws *AWS) GetReservationDataFromAthena() error {
 			return false
 		}
 		aws.RIDataLock.Lock()
-		aws.RIPricingByInstanceID = make(map[string]*RIData) // Clean out the old data and only report a RI price if its in the most recent run.
-		mostRecentDate := ""
+		defer aws.RIDataLock.Unlock()
+		if page == 0 {
+			aws.RIPricingByInstanceID = make(map[string]*RIData) // Clean out the old data and only report a RI price if its in the most recent run.
+		}
 		iter := op.ResultSet.Rows
 		if page == 0 && len(iter) > 0 {
 			iter = op.ResultSet.Rows[1:len(op.ResultSet.Rows)]
@@ -2202,7 +2221,6 @@ func (aws *AWS) GetReservationDataFromAthena() error {
 		for k, r := range aws.RIPricingByInstanceID {
 			log.DedupedInfof(5, "Reserved Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
 		}
-		aws.RIDataLock.Unlock()
 		return true
 	}
 
@@ -2451,7 +2469,7 @@ func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool,
 // Regions returns a predefined list of AWS regions
 func (aws *AWS) Regions() []string {
 
-	regionOverrides := ocenv.GetRegionOverrideList()
+	regionOverrides := env.GetRegionOverrideList()
 
 	if len(regionOverrides) > 0 {
 		log.Debugf("Overriding AWS regions with configured region list: %+v", regionOverrides)

@@ -20,7 +20,9 @@ import (
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
@@ -29,7 +31,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
-	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
 )
 
@@ -289,9 +290,9 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 	spotPrice := ""
 	for _, item := range pricingPayload.Items {
 		if item.Type == "Consumption" && !strings.Contains(item.ProductName, "Windows") {
-			if !strings.Contains(strings.ToLower(item.SkuName), " spot") {
+			if strings.Contains(strings.ToLower(item.SkuName), " spot") {
 				spotPrice = fmt.Sprintf("%f", item.RetailPrice)
-			} else {
+			} else if !(strings.Contains(strings.ToLower(item.SkuName), "low priority") || strings.Contains(strings.ToLower(item.ProductName), "cloud services") || strings.Contains(strings.ToLower(item.ProductName), "cloudservices")) {
 				retailPrice = fmt.Sprintf("%f", item.RetailPrice)
 			}
 		}
@@ -1450,6 +1451,11 @@ func (az *Azure) findCostForDisk(d *compute.Disk) (float64, error) {
 	if d == nil {
 		return 0.0, fmt.Errorf("disk is empty")
 	}
+
+	if d.Sku == nil {
+		return 0.0, fmt.Errorf("disk sku is nil")
+	}
+
 	storageClass := string(d.Sku.Name)
 	if strings.EqualFold(storageClass, "Premium_LRS") {
 		storageClass = AzureDiskPremiumSSDStorageClass
@@ -1502,7 +1508,7 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 	m["account"] = az.ClusterAccountID
 	m["region"] = az.ClusterRegion
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
-	m["id"] = env.GetClusterID()
+	m["id"] = coreenv.GetClusterID()
 	return m, nil
 
 }
@@ -1559,7 +1565,7 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*models.CustomPri
 		}
 
 		if env.IsRemoteEnabled() {
-			err := utils.UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
+			err := utils.UpdateClusterMeta(coreenv.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return fmt.Errorf("error updating cluster metadata: %s", err)
 			}
@@ -1590,9 +1596,6 @@ func (az *Azure) GetConfig() (*models.CustomPricing, error) {
 	if c.AzureOfferDurableID == "" {
 		c.AzureOfferDurableID = "MS-AZR-0003p"
 	}
-	if c.ShareTenancyCosts == "" {
-		c.ShareTenancyCosts = models.DefaultShareTenancyCost
-	}
 	if c.SpotLabel == "" {
 		c.SpotLabel = defaultSpotLabel
 	}
@@ -1620,10 +1623,6 @@ func (az *Azure) PVPricing(pvk models.PVKey) (*models.PV, error) {
 		return &models.PV{}, nil
 	}
 	return pricing.PV, nil
-}
-
-func (az *Azure) GetLocalStorageQuery(window, offset time.Duration, rate bool, used bool) string {
-	return ""
 }
 
 func (az *Azure) ServiceAccountStatus() *models.ServiceAccountStatus {

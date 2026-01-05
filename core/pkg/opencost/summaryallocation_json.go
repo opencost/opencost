@@ -13,6 +13,7 @@ type SummaryAllocationResponse struct {
 	Start                  time.Time `json:"start"`
 	End                    time.Time `json:"end"`
 	CPUCoreRequestAverage  *float64  `json:"cpuCoreRequestAverage"`
+	CPUCoreLimitAverage    *float64  `json:"cpuCoreLimitAverage"`
 	CPUCoreUsageAverage    *float64  `json:"cpuCoreUsageAverage"`
 	CPUCost                *float64  `json:"cpuCost"`
 	CPUCostIdle            *float64  `json:"cpuCostIdle"`
@@ -24,6 +25,7 @@ type SummaryAllocationResponse struct {
 	LoadBalancerCost       *float64  `json:"loadBalancerCost"`
 	PVCost                 *float64  `json:"pvCost"`
 	RAMBytesRequestAverage *float64  `json:"ramByteRequestAverage"`
+	RAMBytesLimitAverage   *float64  `json:"ramBytesLimitAverage"`
 	RAMBytesUsageAverage   *float64  `json:"ramByteUsageAverage"`
 	RAMCost                *float64  `json:"ramCost"`
 	RAMCostIdle            *float64  `json:"ramCostIdle"`
@@ -55,6 +57,7 @@ func (sa *SummaryAllocation) ToResponse() *SummaryAllocationResponse {
 		Start:                  sa.Start,
 		End:                    sa.End,
 		CPUCoreRequestAverage:  formatutil.Float64ToResponse(sa.CPUCoreRequestAverage),
+		CPUCoreLimitAverage:    formatutil.Float64ToResponse(sa.CPUCoreLimitAverage),
 		CPUCoreUsageAverage:    formatutil.Float64ToResponse(sa.CPUCoreUsageAverage),
 		CPUCost:                formatutil.Float64ToResponse(sa.CPUCost),
 		CPUCostIdle:            formatutil.Float64ToResponse(sa.CPUCostIdle),
@@ -66,6 +69,7 @@ func (sa *SummaryAllocation) ToResponse() *SummaryAllocationResponse {
 		LoadBalancerCost:       formatutil.Float64ToResponse(sa.LoadBalancerCost),
 		PVCost:                 formatutil.Float64ToResponse(sa.PVCost),
 		RAMBytesRequestAverage: formatutil.Float64ToResponse(sa.RAMBytesRequestAverage),
+		RAMBytesLimitAverage:   formatutil.Float64ToResponse(sa.RAMBytesLimitAverage),
 		RAMBytesUsageAverage:   formatutil.Float64ToResponse(sa.RAMBytesUsageAverage),
 		RAMCost:                formatutil.Float64ToResponse(sa.RAMCost),
 		RAMCostIdle:            formatutil.Float64ToResponse(sa.RAMCostIdle),

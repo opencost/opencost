@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+import "kubemodel/diagnostic.proto";
+import "google/protobuf/timestamp.proto";
+
+package kubemodel;
+option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
+
+enum ControllerKind {
+  KIND_UNSPECIFIED = 0;
+  DEPLOYMENT = 1;
+  STATEFULSET = 2;
+  DAEMONSET = 3;
+  JOB = 4;
+  CRONJOB = 5;
+  REPLICASET = 6;
+}
+
+// Controller represents a Kubernetes workload controller
+message Controller {
+  // Identification
+  string ID = 1;
+  string namespaceID = 2;
+
+  // Properties
+  string name = 3;
+  ControllerKind kind = 4;
+  map<string, string> labels = 5;
+  map<string, string> annotations = 6;
+
+  // Resource lifecycle (only when different from cluster window)
+  optional google.protobuf.Timestamp creationTime = 7;
+  optional google.protobuf.Timestamp deletionTime = 8;
+
+  // Diagnostic information about this resource
+  optional DiagnosticResult diagnostic = 99;
+}

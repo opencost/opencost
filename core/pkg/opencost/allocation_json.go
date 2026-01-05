@@ -19,6 +19,7 @@ type AllocationJSON struct {
 	Minutes                        *float64                        `json:"minutes"`
 	CPUCores                       *float64                        `json:"cpuCores"`
 	CPUCoreRequestAverage          *float64                        `json:"cpuCoreRequestAverage"`
+	CPUCoreLimitAverage            *float64                        `json:"cpuCoreLimitAverage"`
 	CPUCoreUsageAverage            *float64                        `json:"cpuCoreUsageAverage"`
 	CPUCoreHours                   *float64                        `json:"cpuCoreHours"`
 	CPUCost                        *float64                        `json:"cpuCost"`
@@ -49,6 +50,7 @@ type AllocationJSON struct {
 	PVCostAdjustment               *float64                        `json:"pvCostAdjustment"`
 	RAMBytes                       *float64                        `json:"ramBytes"`
 	RAMByteRequestAverage          *float64                        `json:"ramByteRequestAverage"`
+	RAMByteLimitAverage            *float64                        `json:"ramByteLimitAverage"`
 	RAMByteUsageAverage            *float64                        `json:"ramByteUsageAverage"`
 	RAMByteHours                   *float64                        `json:"ramByteHours"`
 	RAMCost                        *float64                        `json:"ramCost"`
@@ -78,6 +80,7 @@ func (aj *AllocationJSON) BuildFromAllocation(a *Allocation) {
 	aj.Minutes = formatFloat64ForResponse(a.Minutes())
 	aj.CPUCores = formatFloat64ForResponse(a.CPUCores())
 	aj.CPUCoreRequestAverage = formatFloat64ForResponse(a.CPUCoreRequestAverage)
+	aj.CPUCoreLimitAverage = formatFloat64ForResponse(a.CPUCoreLimitAverage)
 	aj.CPUCoreUsageAverage = formatFloat64ForResponse(a.CPUCoreUsageAverage)
 	aj.CPUCoreHours = formatFloat64ForResponse(a.CPUCoreHours)
 	aj.CPUCost = formatFloat64ForResponse(a.CPUCost)
@@ -106,6 +109,7 @@ func (aj *AllocationJSON) BuildFromAllocation(a *Allocation) {
 	aj.PVCostAdjustment = formatFloat64ForResponse(a.PVCostAdjustment)
 	aj.RAMBytes = formatFloat64ForResponse(a.RAMBytes())
 	aj.RAMByteRequestAverage = formatFloat64ForResponse(a.RAMBytesRequestAverage)
+	aj.RAMByteLimitAverage = formatFloat64ForResponse(a.RAMBytesLimitAverage)
 	aj.RAMByteUsageAverage = formatFloat64ForResponse(a.RAMBytesUsageAverage)
 	aj.RAMByteHours = formatFloat64ForResponse(a.RAMByteHours)
 	aj.RAMCost = formatFloat64ForResponse(a.RAMCost)

@@ -5,21 +5,22 @@ import (
 	"io"
 	"strconv"
 	"sync"
-	"time"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
-	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
 )
 
 const nodePoolIdAnnotation = "oci.oraclecloud.com/node-pool-id"
 const virtualPoolIdAnnotation = "oci.oraclecloud.com/virtual-node-pool-id"
 const virtualNodeLabel = "node-role.kubernetes.io/virtual-node"
+const preemptibleLabel = "oci.oraclecloud.com/oke-is-preemptible"
 const managementPlatformOKE = "oke"
 const currencyCodeUSD = "USD"
 
@@ -49,7 +50,7 @@ func (o *Oracle) ClusterInfo() (map[string]string, error) {
 	m["account"] = o.ClusterAccountID
 	m["region"] = o.ClusterRegion
 	m["remoteReadEnabled"] = strconv.FormatBool(env.IsRemoteEnabled())
-	m["id"] = env.GetClusterID()
+	m["id"] = coreenv.GetClusterID()
 	return m, nil
 }
 
@@ -59,7 +60,17 @@ func (o *Oracle) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 	}
 	o.DownloadPricingDataLock.RLock()
 	defer o.DownloadPricingDataLock.RUnlock()
-	return o.RateCardStore.ForKey(key, o.DefaultPricing)
+	node, metadata, err := o.RateCardStore.ForKey(key, o.DefaultPricing)
+	if err != nil {
+		return node, metadata, err
+	}
+	// Check if the node is preemptible based on the label
+	if oracleKey, ok := key.(*oracleKey); ok {
+		if val, exists := oracleKey.labels[preemptibleLabel]; exists && val == "true" {
+			node.UsageType = "preemptible"
+		}
+	}
+	return node, metadata, nil
 }
 
 func (o *Oracle) GpuPricing(nodeLabels map[string]string) (string, error) {
@@ -181,7 +192,7 @@ func (o *Oracle) UpdateConfig(r io.Reader, _ string) (*models.CustomPricing, err
 		}
 
 		if env.IsRemoteEnabled() {
-			err := utils.UpdateClusterMeta(env.GetClusterID(), o.getClusterName(pricing))
+			err := utils.UpdateClusterMeta(coreenv.GetClusterID(), o.getClusterName(pricing))
 			if err != nil {
 				return err
 			}
@@ -300,10 +311,6 @@ func (o *Oracle) GetDisks() ([]byte, error) {
 
 func (o *Oracle) GetOrphanedResources() ([]models.OrphanedResource, error) {
 	return nil, nil
-}
-
-func (o *Oracle) GetLocalStorageQuery(duration time.Duration, duration2 time.Duration, b bool, b2 bool) string {
-	return ""
 }
 
 func (o *Oracle) ApplyReservedInstancePricing(m map[string]*models.Node) {}

@@ -142,7 +142,7 @@ func (s *PipelineService) GetCloudCostRepairHandler() func(w http.ResponseWriter
 
 		var window opencost.Window
 		if windowStr != "" {
-			win, err := opencost.ParseWindowWithOffset(windowStr, env.GetParsedUTCOffset())
+			win, err := opencost.ParseWindowUTC(windowStr)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("Invalid parameter: %s", err), http.StatusBadRequest)
 				return
@@ -171,6 +171,14 @@ func (s *PipelineService) GetCloudCostRepairHandler() func(w http.ResponseWriter
 			return
 		}
 	}
+}
+
+// GetCloudCostQuerier returns a querier that can query data from all cloud providers
+func (s *PipelineService) GetCloudCostQuerier() Querier {
+	if s.store == nil {
+		return nil
+	}
+	return NewRepositoryQuerier(s.store)
 }
 
 // GetCloudCostStatusHandler creates a handler from a http request which returns a list of the billing integration status

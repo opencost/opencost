@@ -527,7 +527,7 @@ func TestAllocationSet_generateKey(t *testing.T) {
 }
 
 func TestNewAllocationSet(t *testing.T) {
-	// TODO niko/etl
+	// TODO niko
 }
 
 func assertAllocationSetTotals(t *testing.T, as *AllocationSet, msg string, err error, length int, totalCost float64) {
@@ -662,7 +662,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 3  Share idle
 	// 3a AggregationProperties=(Namespace) ShareIdle=ShareWeighted
-	// 3b AggregationProperties=(Namespace) ShareIdle=ShareEven (TODO niko/etl)
+	// 3b AggregationProperties=(Namespace) ShareIdle=ShareEven (TODO niko)
 
 	// 4  Share resources
 	// 4a Share namespace ShareEven
@@ -2032,19 +2032,19 @@ func TestAllocationSet_AggregateBy_SharedCostBreakdown(t *testing.T) {
 	}
 }
 
-// TODO niko/etl
+// TODO niko
 //func TestAllocationSet_Clone(t *testing.T) {}
 
-// TODO niko/etl
+// TODO niko
 //func TestAllocationSet_Delete(t *testing.T) {}
 
-// TODO niko/etl
+// TODO niko
 //func TestAllocationSet_End(t *testing.T) {}
 
-// TODO niko/etl
+// TODO niko
 //func TestAllocationSet_IdleAllocations(t *testing.T) {}
 
-// TODO niko/etl
+// TODO niko
 //func TestAllocationSet_Insert(t *testing.T) {}
 
 // Asserts that all Allocations within an AllocationSet have a Window that
@@ -2297,34 +2297,34 @@ func TestParcInsert(t *testing.T) {
 	}
 }
 
-// TODO niko/etl
+// TODO niko
 //func TestAllocationSet_IsEmpty(t *testing.T) {}
 
-// TODO niko/etl
+// TODO niko
 //func TestAllocationSet_Length(t *testing.T) {}
 
-// TODO niko/etl
+// TODO niko
 //func TestAllocationSet_Map(t *testing.T) {}
 
-// TODO niko/etl
+// TODO niko
 //func TestAllocationSet_MarshalJSON(t *testing.T) {}
 
-// TODO niko/etl
+// TODO niko
 //func TestAllocationSet_Resolution(t *testing.T) {}
 
-// TODO niko/etl
+// TODO niko
 //func TestAllocationSet_Seconds(t *testing.T) {}
 
-// TODO niko/etl
+// TODO niko
 //func TestAllocationSet_Set(t *testing.T) {}
 
-// TODO niko/etl
+// TODO niko
 //func TestAllocationSet_Start(t *testing.T) {}
 
-// TODO niko/etl
+// TODO niko
 //func TestAllocationSet_TotalCost(t *testing.T) {}
 
-// TODO niko/etl
+// TODO niko
 //func TestNewAllocationSetRange(t *testing.T) {}
 
 func TestAllocationSetRange_AccumulateRepeat(t *testing.T) {
@@ -2779,16 +2779,16 @@ func TestAllocationSetRange_AccumulateBy_Month(t *testing.T) {
 	}
 }
 
-// TODO niko/etl
+// TODO niko
 // func TestAllocationSetRange_AggregateBy(t *testing.T) {}
 
-// TODO niko/etl
+// TODO niko
 // func TestAllocationSetRange_Append(t *testing.T) {}
 
-// TODO niko/etl
+// TODO niko
 // func TestAllocationSetRange_Each(t *testing.T) {}
 
-// TODO niko/etl
+// TODO niko
 // func TestAllocationSetRange_Get(t *testing.T) {}
 
 func TestAllocationSetRange_InsertRange(t *testing.T) {
@@ -2958,7 +2958,7 @@ func TestAllocationSetRange_InsertRange(t *testing.T) {
 	}
 }
 
-// TODO niko/etl
+// TODO niko
 // func TestAllocationSetRange_Length(t *testing.T) {}
 
 func TestAllocationSetRange_MarshalJSON(t *testing.T) {
@@ -3016,10 +3016,10 @@ func TestAllocationSetRange_MarshalJSON(t *testing.T) {
 	}
 }
 
-// TODO niko/etl
+// TODO niko
 // func TestAllocationSetRange_Slice(t *testing.T) {}
 
-// TODO niko/etl
+// TODO niko
 // func TestAllocationSetRange_Window(t *testing.T) {}
 
 func TestAllocationSetRange_Start(t *testing.T) {
@@ -3469,7 +3469,7 @@ func Test_DetermineSharingName(t *testing.T) {
 	name, err = alloc.determineSharingName(nil)
 	if err != nil {
 		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
-	} else if err != nil || name != "unknown" {
+	} else if name != "unknown" {
 		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
 	}
 
@@ -3478,7 +3478,7 @@ func Test_DetermineSharingName(t *testing.T) {
 	name, err = alloc.determineSharingName(options)
 	if err != nil {
 		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
-	} else if err != nil || name != "unknown" {
+	} else if name != "unknown" {
 		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
 	}
 
@@ -3487,7 +3487,7 @@ func Test_DetermineSharingName(t *testing.T) {
 	name, err = alloc.determineSharingName(options)
 	if err != nil {
 		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
-	} else if err != nil || name != "namespace1" {
+	} else if name != "namespace1" {
 		t.Fatalf("determineSharingName: expected \"namespace1\"; actual \"%s\"", name)
 	}
 
@@ -3496,7 +3496,7 @@ func Test_DetermineSharingName(t *testing.T) {
 	name, err = alloc.determineSharingName(options)
 	if err != nil {
 		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
-	} else if err != nil || name != "unknown" {
+	} else if name != "unknown" {
 		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
 	}
 
@@ -3508,7 +3508,7 @@ func Test_DetermineSharingName(t *testing.T) {
 	name, err = alloc.determineSharingName(options)
 	if err != nil {
 		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
-	} else if err != nil || name != "app1" {
+	} else if name != "app1" {
 		t.Fatalf("determineSharingName: expected \"app1\"; actual \"%s\"", name)
 	}
 
@@ -3519,7 +3519,7 @@ func Test_DetermineSharingName(t *testing.T) {
 	name, err = alloc.determineSharingName(options)
 	if err != nil {
 		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
-	} else if err != nil || name != "app1" {
+	} else if name != "app1" {
 		t.Fatalf("determineSharingName: expected \"app1\"; actual \"%s\"", name)
 	}
 
@@ -3530,7 +3530,7 @@ func Test_DetermineSharingName(t *testing.T) {
 	name, err = alloc.determineSharingName(options)
 	if err != nil {
 		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
-	} else if err != nil || name != "unknown" {
+	} else if name != "unknown" {
 		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
 	}
 
@@ -3542,7 +3542,7 @@ func Test_DetermineSharingName(t *testing.T) {
 	name, err = alloc.determineSharingName(options)
 	if err != nil {
 		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
-	} else if err != nil || name != "app1" {
+	} else if name != "app1" {
 		t.Fatalf("determineSharingName: expected \"app1\"; actual \"%s\"", name)
 	}
 
@@ -3554,7 +3554,7 @@ func Test_DetermineSharingName(t *testing.T) {
 	name, err = alloc.determineSharingName(options)
 	if err != nil {
 		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
-	} else if err != nil || name != "app1" {
+	} else if name != "app1" {
 		t.Fatalf("determineSharingName: expected \"app1\"; actual \"%s\"", name)
 	}
 
@@ -3566,7 +3566,7 @@ func Test_DetermineSharingName(t *testing.T) {
 	name, err = alloc.determineSharingName(options)
 	if err != nil {
 		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
-	} else if err != nil || name != "unknown" {
+	} else if name != "unknown" {
 		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
 	}
 
@@ -3583,7 +3583,7 @@ func Test_DetermineSharingName(t *testing.T) {
 	name, err = alloc.determineSharingName(options)
 	if err != nil {
 		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
-	} else if err != nil || name != "app1" {
+	} else if name != "app1" {
 		t.Fatalf("determineSharingName: expected \"app1\"; actual \"%s\"", name)
 	}
 
@@ -3600,7 +3600,7 @@ func Test_DetermineSharingName(t *testing.T) {
 	name, err = alloc.determineSharingName(options)
 	if err != nil {
 		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
-	} else if err != nil || name != "env1" {
+	} else if name != "env1" {
 		t.Fatalf("determineSharingName: expected \"env1\"; actual \"%s\"", name)
 	}
 
@@ -3611,7 +3611,7 @@ func Test_DetermineSharingName(t *testing.T) {
 	name, err = alloc.determineSharingName(options)
 	if err != nil {
 		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
-	} else if err != nil || name != "namespace1" {
+	} else if name != "namespace1" {
 		t.Fatalf("determineSharingName: expected \"namespace1\"; actual \"%s\"", name)
 	}
 
@@ -3622,7 +3622,7 @@ func Test_DetermineSharingName(t *testing.T) {
 	name, err = alloc.determineSharingName(options)
 	if err != nil {
 		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
-	} else if err != nil || name != "namespace2" {
+	} else if name != "namespace2" {
 		t.Fatalf("determineSharingName: expected \"namespace2\"; actual \"%s\"", name)
 	}
 
@@ -3632,7 +3632,7 @@ func Test_DetermineSharingName(t *testing.T) {
 	name, err = alloc.determineSharingName(options)
 	if err != nil {
 		t.Fatalf("determineSharingName: expected no error; actual \"%s\"", err)
-	} else if err != nil || name != "unknown" {
+	} else if name != "unknown" {
 		t.Fatalf("determineSharingName: expected \"unknown\"; actual \"%s\"", name)
 	}
 }

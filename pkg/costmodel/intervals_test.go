@@ -362,7 +362,7 @@ func TestGetPVCCostCoefficients(t *testing.T) {
 				return
 			}
 
-			if err == nil && testCase.expError != nil {
+			if testCase.expError != nil {
 				t.Errorf("getPVCCostCoefficients failed: did not get expected error: %v", testCase.expError)
 			}
 

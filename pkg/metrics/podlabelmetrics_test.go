@@ -3,7 +3,7 @@ package metrics
 import (
 	"testing"
 
-	"github.com/opencost/opencost/pkg/clustercache"
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

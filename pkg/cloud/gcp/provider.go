@@ -14,17 +14,18 @@ import (
 	"sync"
 	"time"
 
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/fileutil"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
-	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/rs/zerolog"
 
@@ -95,8 +96,6 @@ var gcpRegions = []string{
 }
 
 var (
-	nvidiaTeslaGPURegex = regexp.MustCompile("(Nvidia Tesla [^ ]+) ")
-	nvidiaGPURegex      = regexp.MustCompile("(Nvidia [^ ]+) ")
 	// gce://guestbook-12345/...
 	//  => guestbook-12345
 	gceRegex = regexp.MustCompile("gce://([^/]*)/*")
@@ -136,37 +135,6 @@ type multiKeyGCPAllocation struct {
 	Cost    float64
 }
 
-// GetLocalStorageQuery returns the cost of local storage for the given window. Setting rate=true
-// returns hourly spend. Setting used=true only tracks used storage, not total.
-func (gcp *GCP) GetLocalStorageQuery(window, offset time.Duration, rate bool, used bool) string {
-	// TODO Set to the price for the appropriate storage class. It's not trivial to determine the local storage disk type
-	// See https://cloud.google.com/compute/disks-image-pricing#persistentdisk
-	localStorageCost := 0.04
-
-	baseMetric := "container_fs_limit_bytes"
-	if used {
-		baseMetric = "container_fs_usage_bytes"
-	}
-
-	fmtOffset := timeutil.DurationToPromOffsetString(offset)
-
-	fmtCumulativeQuery := `sum(
-		sum_over_time(%s{device!="tmpfs", id="/", %s}[%s:1m]%s)
-	) by (%s) / 60 / 730 / 1024 / 1024 / 1024 * %f`
-
-	fmtMonthlyQuery := `sum(
-		avg_over_time(%s{device!="tmpfs", id="/", %s}[%s:1m]%s)
-	) by (%s) / 1024 / 1024 / 1024 * %f`
-
-	fmtQuery := fmtCumulativeQuery
-	if rate {
-		fmtQuery = fmtMonthlyQuery
-	}
-	fmtWindow := timeutil.DurationString(window)
-
-	return fmt.Sprintf(fmtQuery, baseMetric, env.GetPromClusterFilter(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), localStorageCost)
-}
-
 func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 	c, err := gcp.Config.GetCustomPricingData()
 	if err != nil {
@@ -180,9 +148,6 @@ func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 	}
 	if c.CurrencyCode == "" {
 		c.CurrencyCode = "USD"
-	}
-	if c.ShareTenancyCosts == "" {
-		c.ShareTenancyCosts = models.DefaultShareTenancyCost
 	}
 	return c, nil
 }
@@ -216,9 +181,7 @@ func (gcp *GCP) GetManagementPlatform() (string, error) {
 
 // Attempts to load a GCP auth secret and copy the contents to the key file.
 func (*GCP) loadGCPAuthSecret() {
-	path := env.GetConfigPathWithDefault("/models/")
-
-	keyPath := path + "key.json"
+	keyPath := env.GetGCPAuthSecretFilePath()
 	keyExists, _ := fileutil.FileExists(keyPath)
 	if keyExists {
 		log.Info("GCP Auth Key already exists, no need to load from secret")
@@ -270,9 +233,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 					return err
 				}
 
-				path := env.GetConfigPathWithDefault("/models/")
-
-				keyPath := path + "key.json"
+				keyPath := env.GetGCPAuthSecretFilePath()
 				err = os.WriteFile(keyPath, j, 0644)
 				if err != nil {
 					return err
@@ -315,7 +276,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 		}
 
 		if env.IsRemoteEnabled() {
-			err := utils.UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
+			err := utils.UpdateClusterMeta(coreenv.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return err
 			}
@@ -354,7 +315,7 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	m["account"] = gcp.ClusterAccountID
 	m["project"] = gcp.ClusterProjectID
 	m["provisioner"] = gcp.clusterProvisioner
-	m["id"] = env.GetClusterID()
+	m["id"] = coreenv.GetClusterID()
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	return m, nil
 }
@@ -769,6 +730,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					}
 				}
 
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N4 INSTANCE") {
+					instanceType = "n4standard"
+				}
+
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "A2 INSTANCE") {
 					instanceType = "a2"
 				}
@@ -792,23 +757,11 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					instanceType = "t2astandard"
 				}
 
-				var gpuType string
-				for matchnum, group := range nvidiaTeslaGPURegex.FindStringSubmatch(product.Description) {
-					if matchnum == 1 {
-						gpuType = strings.ToLower(strings.Join(strings.Split(group, " "), "-"))
-						log.Debugf("GCP Billing API: GPU type found: '%s'", gpuType)
-					}
+				gpuType := NormalizeGPULabel(product.Description)
+				if gpuType != "" {
+				    log.Debugf("GCP Billing API: normalized GPU type: %q", gpuType)
 				}
 
-				// If a 'Nvidia Tesla' is not found, try 'Nvidia'
-				if gpuType == "" {
-					for matchnum, group := range nvidiaGPURegex.FindStringSubmatch(product.Description) {
-						if matchnum == 1 {
-							gpuType = strings.ToLower(strings.Join(strings.Split(group, " "), "-"))
-							log.Debugf("GCP Billing API: GPU type found: '%s'", gpuType)
-						}
-					}
-				}
 
 				candidateKeys := []string{}
 				if gcp.ValidPricingKeys == nil {
@@ -990,7 +943,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 		if t == "nextPageToken" {
 			pageToken, err := dec.Token()
 			if err != nil {
-				log.Errorf("Error parsing nextpage token: " + err.Error())
+				log.Errorf("Error parsing nextpage token: %s", err)
 				return nil, "", err
 			}
 			if pageToken.(string) != "" {
@@ -1535,6 +1488,8 @@ func parseGCPInstanceTypeLabel(it string) string {
 			instanceType = "n1standard" // These are priced the same. TODO: support n1ultrahighmem
 		} else if instanceType == "n2highmem" || instanceType == "n2highcpu" {
 			instanceType = "n2standard"
+		} else if instanceType == "n4highmem" || instanceType == "n4highcpu" {
+			instanceType = "n4standard" // N4 variants are priced the same per vCPU and RAM
 		} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
 			instanceType = "e2standard"
 		} else if instanceType == "n2dhighmem" || instanceType == "n2dhighcpu" {
@@ -1676,7 +1631,7 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 	}
 	discount := defaultDiscount
 	switch class {
-	case "e2", "f1", "g1":
+	case "e2", "f1", "g1", "n4":
 		discount = 0.0
 	case "n2", "n2d":
 		discount = 0.2
