@@ -42,8 +42,6 @@ func writeThanosFlags(clusterInfo map[string]string) {
 	if thanos.IsEnabled() {
 		clusterInfo[clusters.ClusterInfoThanosOffsetKey] = thanos.Offset()
 	}
-	clusterInfo["remoteReadEnabled"] = "true" // or some logic here
-
 }
 
 // localClusterInfoProvider gets the local cluster info from the cloud provider and kubernetes
@@ -73,8 +71,13 @@ func (dlcip *localClusterInfoProvider) GetClusterInfo() map[string]string {
 		log.Infof("Could not get k8s version info: %s", err.Error())
 	}
 
+	writeClusterProfile(data)
+	writeReportingFlags(data)
+	writeThanosFlags(data)
+
 	return data
 }
+	
 
 // NewLocalClusterInfoProvider creates a new clusters.LocalClusterInfoProvider implementation for providing local
 // cluster information

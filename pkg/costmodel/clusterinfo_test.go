@@ -58,14 +58,7 @@ func TestWriteThanosFlags(t *testing.T) {
 	clusterInfo := make(map[string]string)
 	writeThanosFlags(clusterInfo)
 
-	expectedKeys := []string{
-		"thanosEnabled",
-		"remoteReadEnabled",
-	}
-
-	for _, key := range expectedKeys {
-		if _, ok := clusterInfo[key]; !ok {
-			t.Errorf("Missing key: %s", key)
-		}
+	if _, ok := clusterInfo[clusters.ClusterInfoThanosEnabledKey]; !ok {
+		t.Errorf("Missing key: %s", clusters.ClusterInfoThanosEnabledKey)
 	}
 }
