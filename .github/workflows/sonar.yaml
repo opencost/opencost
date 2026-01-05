@@ -12,22 +12,47 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.workflow_run.conclusion == 'success'
     permissions:
-      checks: write
+      statuses: write
       contents: read
       actions: read
     steps:
-      - uses: LouisBrunner/checks-action@v2.0.0
+      - name: Set Quality Gate status (pending)
         if: always()
+        uses: guibranco/github-status-action-v2@v1.1.14
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          name: Quality Gate
-          status: in_progress
+          authToken: ${{ secrets.GITHUB_TOKEN }}
+          state: 'pending'
+          context: 'Quality Gate'
+          description: 'Quality Gate check in progress...'
           sha: ${{ github.event.workflow_run.head_sha }}
-      - uses: actions/checkout@v4
+          target_url: 'https://sonarcloud.io/dashboard?id=opencost_opencost'
+      - name: Checkout upstream repository
+        uses: actions/checkout@v4
         with:
-          repository: ${{ github.event.workflow_run.head_repository.full_name }}
-          ref: ${{ github.event.workflow_run.head_branch }}
+          repository: opencost/opencost
+          ref: develop
           fetch-depth: 0
+      - name: Fetch PR branch from fork
+        if: github.event.workflow_run.head_branch != 'develop' || github.event.workflow_run.head_repository.full_name != 'opencost/opencost'
+        env:
+          HEAD_REPO_FULL_NAME: ${{ github.event.workflow_run.head_repository.full_name }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          git remote add fork "https://github.com/$HEAD_REPO_FULL_NAME.git"
+          if [ "$HEAD_BRANCH" = "develop" ]; then
+            # For fork's develop branch, fetch and checkout by SHA to avoid refspec conflict
+            git fetch fork "$HEAD_BRANCH"
+            git checkout "$HEAD_SHA"
+          else
+            # For feature branches, fetch and checkout normally
+            git fetch fork "$HEAD_BRANCH:$HEAD_BRANCH"
+            git checkout "$HEAD_BRANCH"
+          fi
+      - name: Checkout develop branch at specific SHA
+        if: github.event.workflow_run.head_branch == 'develop' && github.event.workflow_run.head_repository.full_name == 'opencost/opencost'
+        run: |
+          git checkout ${{ github.event.workflow_run.head_sha }}
       - name: Download coverage artifacts
         uses: actions/download-artifact@v4
         with:
@@ -98,8 +123,8 @@ jobs:
           args: >
             -Dsonar.scm.revision=${{ github.event.workflow_run.head_sha }}
             -Dsonar.pullrequest.key=${{ steps.set-vars.outputs.SONAR_PR_NUM }}
-            -Dsonar.pullrequest.branch="${{ steps.set-vars.outputs.SONAR_HEAD }}"
-            -Dsonar.pullrequest.base="${{ steps.set-vars.outputs.SONAR_BASE }}"
+            -Dsonar.pullrequest.branch=${{ steps.set-vars.outputs.SONAR_HEAD }}
+            -Dsonar.pullrequest.base=${{ steps.set-vars.outputs.SONAR_BASE }}
             -Dsonar.projectKey=opencost_opencost
             -Dsonar.organization=opencost
       - name: SonarQube Quality Gate check
@@ -111,25 +136,47 @@ jobs:
         env:
              SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
              SONAR_HOST_URL: "https://sonarcloud.io"
-      - uses: LouisBrunner/checks-action@v2.0.0
-        id: fail-quality-gate
-        if: steps.sonarqube-quality-gate-check.outputs.quality-gate-status != 'PASSED'
+      - name: Set Quality Gate status (failed - PR)
+        id: fail-quality-gate-pr
+        if: steps.sonarqube-quality-gate-check.outputs.quality-gate-status != 'PASSED' && steps.set-vars.outputs.SONAR_PR_NUM != ''
+        uses: guibranco/github-status-action-v2@v1.1.14
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          name: Quality Gate
-          status: completed
-          conclusion: failure
+          authToken: ${{ secrets.GITHUB_TOKEN }}
+          state: 'failure'
+          context: 'Quality Gate'
+          description: 'Quality Gate failed. Check the SonarCloud Dashboard for PR #${{ steps.set-vars.outputs.SONAR_PR_NUM }}'
           sha: ${{ github.event.workflow_run.head_sha }}
-          output: |
-            {"summary":"Failed - see https://sonarcloud.io/summary/new_code?id=opencost_opencostl&pullRequest=${{ steps.set-vars.outputs.SONAR_PR_NUM }}","text_description":"Quality Gate failed. Check the [SonarCloud Dashboard](https://sonarcloud.io/dashboard?id=opencost_opencost&pullRequest=${{ steps.set-vars.outputs.SONAR_PR_NUM }}) for more details."}
-      - uses: LouisBrunner/checks-action@v2.0.0
-        id: pass-quality-gate
-        if: steps.sonarqube-quality-gate-check.outputs.quality-gate-status == 'PASSED'
+          target_url: 'https://sonarcloud.io/dashboard?id=opencost_opencost&pullRequest=${{ steps.set-vars.outputs.SONAR_PR_NUM }}'
+      - name: Set Quality Gate status (failed - develop)
+        id: fail-quality-gate-develop
+        if: steps.sonarqube-quality-gate-check.outputs.quality-gate-status != 'PASSED' && steps.set-vars.outputs.SONAR_PR_NUM == ''
+        uses: guibranco/github-status-action-v2@v1.1.14
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          name: Quality Gate
-          status: completed
-          conclusion: success
+          authToken: ${{ secrets.GITHUB_TOKEN }}
+          state: 'failure'
+          context: 'Quality Gate'
+          description: 'Quality Gate failed. Check the SonarCloud Dashboard for more details.'
           sha: ${{ github.event.workflow_run.head_sha }}
-          output: |
-            {"summary":"Passed","text_description":"Quality Gate passed. Check the [SonarCloud Dashboard](https://sonarcloud.io/dashboard?id=opencost_opencost&pullRequest=${{ steps.set-vars.outputs.SONAR_PR_NUM }}) for more details."} 
+          target_url: 'https://sonarcloud.io/dashboard?id=opencost_opencost'
+      - name: Set Quality Gate status (passed - PR)
+        id: pass-quality-gate-pr
+        if: steps.sonarqube-quality-gate-check.outputs.quality-gate-status == 'PASSED' && steps.set-vars.outputs.SONAR_PR_NUM != ''
+        uses: guibranco/github-status-action-v2@v1.1.14
+        with:
+          authToken: ${{ secrets.GITHUB_TOKEN }}
+          state: 'success'
+          context: 'Quality Gate'
+          description: 'Quality Gate passed. Check the SonarCloud Dashboard for PR #${{ steps.set-vars.outputs.SONAR_PR_NUM }}'
+          sha: ${{ github.event.workflow_run.head_sha }}
+          target_url: 'https://sonarcloud.io/dashboard?id=opencost_opencost&pullRequest=${{ steps.set-vars.outputs.SONAR_PR_NUM }}'
+      - name: Set Quality Gate status (passed - develop)
+        id: pass-quality-gate-develop
+        if: steps.sonarqube-quality-gate-check.outputs.quality-gate-status == 'PASSED' && steps.set-vars.outputs.SONAR_PR_NUM == ''
+        uses: guibranco/github-status-action-v2@v1.1.14
+        with:
+          authToken: ${{ secrets.GITHUB_TOKEN }}
+          state: 'success'
+          context: 'Quality Gate'
+          description: 'Quality Gate passed. Check the SonarCloud Dashboard for more details.'
+          sha: ${{ github.event.workflow_run.head_sha }}
+          target_url: 'https://sonarcloud.io/dashboard?id=opencost_opencost' 

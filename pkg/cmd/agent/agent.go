@@ -31,6 +31,8 @@ import (
 
 // AgentOpts contain configuration options that can be passed to the Execute() method
 type AgentOpts struct {
+	// Port is the port the agent will bind to
+	Port int
 	// Stubbed for future configuration
 }
 
@@ -163,5 +165,11 @@ func Execute(opts *AgentOpts) error {
 	telemetryHandler := metrics.ResponseMetricMiddleware(rootMux)
 	handler := cors.AllowAll().Handler(telemetryHandler)
 
-	return http.ListenAndServe(fmt.Sprintf(":%d", env.GetKubecostMetricsPort()), handler)
+	// Use the port from AgentOpts, or default to the environment variable value
+	port := opts.Port
+	if port == 0 {
+		port = env.GetKubecostMetricsPort()
+	}
+	
+	return http.ListenAndServe(fmt.Sprintf(":%d", port), handler)
 }
