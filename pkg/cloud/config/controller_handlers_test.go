@@ -2,6 +2,8 @@ package config
 
 import (
 	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
@@ -131,5 +133,54 @@ func Test_ParseConfig_Azure(t *testing.T) {
 
 	if !reflect.DeepEqual(config, parsedConfig) {
 		t.Fatalf("parsed config does not match original config:\n%+v\n%+v", parsedConfig, config)
+	}
+}
+
+func Test_GetAddConfigHandler(t *testing.T) {
+	controller := &Controller{
+		storage: &MemoryControllerStorage{},
+	}
+
+	handler := controller.GetAddConfigHandler()
+	if handler == nil {
+		t.Fatalf("expected handler, got nil")
+	}
+
+	// Test no type param
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	handler(w, req, nil)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 status code, got %v: %v", w.Code, w.Body.String())
+	}
+
+	// Test no config body
+	req = httptest.NewRequest("GET", "/?type="+S3ConfigType, nil)
+	w = httptest.NewRecorder()
+	handler(w, req, nil)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 status code, got %v: %v", w.Code, w.Body.String())
+	}
+
+	// Test with config body
+	mockConfig := aws.S3Configuration{
+		Bucket:  "bucket",
+		Region:  "region",
+		Account: "account",
+		Authorizer: &aws.AccessKey{
+			ID:     "id",
+			Secret: "secret",
+		},
+	}
+	configBytes, err := json.Marshal(mockConfig)
+	if err != nil {
+		t.Fatalf("failed to marshal config: %v", err)
+	}
+
+	req = httptest.NewRequest("GET", "/?type="+S3ConfigType, bytes.NewReader(configBytes))
+	w = httptest.NewRecorder()
+	handler(w, req, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 status code, got %v: %v", w.Code, w.Body.String())
 	}
 }
