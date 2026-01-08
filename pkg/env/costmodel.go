@@ -25,6 +25,7 @@ const (
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
 	AWSPricingURL            = "AWS_PRICING_URL"
+	AWSECSPricingURLOverride = "AWS_ECS_PRICING_URL"
 
 	AlibabaAccessKeyIDEnvVar     = "ALIBABA_ACCESS_KEY_ID"
 	AlibabaAccessKeySecretEnvVar = "ALIBABA_SECRET_ACCESS_KEY"
@@ -163,13 +164,7 @@ func IsEmitDeprecatedMetrics() bool {
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
 // the AWS access key for authentication
 func GetAWSAccessKeyID() string {
-	awsAccessKeyID := env.Get(AWSAccessKeyIDEnvVar, "")
-	// If the sample nil service key name is set, zero it out so that it is not
-	// misinterpreted as a real service key.
-	if awsAccessKeyID == "AKIXXX" {
-		awsAccessKeyID = ""
-	}
-	return awsAccessKeyID
+	return env.Get(AWSAccessKeyIDEnvVar, "")
 }
 
 // GetAWSAccessKeySecret returns the environment variable value for AWSAccessKeySecretEnvVar which represents
@@ -187,6 +182,11 @@ func GetAWSClusterID() string {
 // GetAWSPricingURL returns an optional alternative URL to fetch AWS pricing data from; for use in airgapped environments
 func GetAWSPricingURL() string {
 	return env.Get(AWSPricingURL, "")
+}
+
+// GetAWSECSPricingURLOverride returns an optional alternative URL to fetch AmazonECS pricing data from; for use in airgapped environments
+func GetAWSECSPricingURLOverride() string {
+	return env.Get(AWSECSPricingURLOverride, "")
 }
 
 // GetAlibabaAccessKeyID returns the environment variable value for AlibabaAccessKeyIDEnvVar which represents
@@ -366,7 +366,6 @@ func GetMetricConfigFile() string {
 func GetLocalCollectorDirectory() string {
 	dir := env.Get(LocalCollectorDirectoryEnvVar, DefaultLocalCollectorDir)
 	return env.GetPathFromConfig(dir)
-
 }
 
 func GetDOKSPricingURL() string {

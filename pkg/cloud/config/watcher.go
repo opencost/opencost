@@ -207,12 +207,6 @@ func (cfw *ConfigFileWatcher) GetConfigs() []cloud.KeyedConfig {
 			aai.AccountID = customPricing.ProjectID
 		}
 
-		// If the sample nil service key name is set, zero it out so that it is not
-		// misinterpreted as a real service key.
-		if aai.ServiceKeyName == "AKIXXX" {
-			aai.ServiceKeyName = ""
-		}
-
 		kc := aws.ConvertAwsAthenaInfoToConfig(aai)
 		configs = append(configs, kc)
 		return configs

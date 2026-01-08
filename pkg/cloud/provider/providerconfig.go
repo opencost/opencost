@@ -73,12 +73,6 @@ func (pc *ProviderConfig) onConfigFileUpdated(changeType config.ChangeType, data
 		if pc.customPricing.SpotGPU == "" {
 			pc.customPricing.SpotGPU = DefaultPricing().SpotGPU // Migration for users without this value set by default.
 		}
-
-		// If the sample nil service key name is set, zero it out so that it is not
-		// misinterpreted as a real service key.
-		if pc.customPricing.ServiceKeyName == "AKIXXX" {
-			pc.customPricing.ServiceKeyName = ""
-		}
 	}
 }
 
@@ -145,12 +139,6 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*models.CustomPrici
 	pc.customPricing = &customPricing
 	if pc.customPricing.SpotGPU == "" {
 		pc.customPricing.SpotGPU = DefaultPricing().SpotGPU // Migration for users without this value set by default.
-	}
-
-	// If the sample nil service key name is set, zero it out so that it is not
-	// misinterpreted as a real service key.
-	if pc.customPricing.ServiceKeyName == "AKIXXX" {
-		pc.customPricing.ServiceKeyName = ""
 	}
 
 	return pc.customPricing, nil
