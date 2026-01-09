@@ -231,6 +231,7 @@ func NewS3StorageWith(config S3Config) (*S3Storage, error) {
 		listObjectsV1:   config.ListObjectsVersion == "v1",
 		insecure:        config.Insecure,
 	}
+	log.Debugf("S3Storage: New S3 client initialized with '%s://%s/%s'", bkt.protocol(), config.Endpoint, config.Bucket)
 	return bkt, nil
 }
 

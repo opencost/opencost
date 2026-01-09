@@ -67,6 +67,7 @@ func NewGCSStorageWith(gc GCSConfig) (*GCSStorage, error) {
 		return nil, err
 	}
 
+	log.Debugf("GCSStorage: New GCS client initialized with 'https://storage.googleapis.com/%s'", gc.Bucket)
 	return &GCSStorage{
 		name:   gc.Bucket,
 		bucket: gcsClient.Bucket(gc.Bucket),

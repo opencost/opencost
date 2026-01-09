@@ -433,6 +433,7 @@ func getContainerClient(conf AzureConfig) (*container.Client, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error creating client from connection string: %w", err)
 		}
+		log.Debugf("AzureStorage: New Azure client initialized for container '%s' using connection string", conf.ContainerName)
 		return containerClient, nil
 	}
 
@@ -444,6 +445,7 @@ func getContainerClient(conf AzureConfig) (*container.Client, error) {
 	// The containerURL is explicitly constructed with "https://" scheme.
 	// All Azure blob operations (read, write, delete, list) use this HTTPS URL.
 	containerURL := fmt.Sprintf("https://%s.%s/%s", conf.StorageAccountName, conf.Endpoint, conf.ContainerName)
+	log.Debugf("AzureStorage: New Azure client initialized with '%s'", containerURL)
 
 	// Use shared keys if set
 	if conf.StorageAccountKey != "" {

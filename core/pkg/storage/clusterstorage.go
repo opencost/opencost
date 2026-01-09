@@ -95,6 +95,8 @@ func NewClusterStorageWith(config ClusterConfig) (*ClusterStorage, error) {
 		retry++
 	}
 
+	log.Debugf("ClusterStorage: New cluster storage client initialized with '%s://%s:%d'", cs.scheme(), config.Host, config.Port)
+
 	return cs, nil
 }
 
