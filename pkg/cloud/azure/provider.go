@@ -258,16 +258,23 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 		filterParams = append(filterParams, skuNameParam)
 	}
 
-	if len(filterParams) > 0 {
-		filterParamsEscaped := url.QueryEscape(strings.Join(filterParams[:], " and "))
-		pricingURL += fmt.Sprintf("&$filter=%s", filterParamsEscaped)
-	}
+	// Make sure only service name with Virtual Machines are parsed with skuName
+	filterParams = append(filterParams, "serviceFamily eq 'Compute'")
+
+	// Add type eq 'Consumption' to the filter to avoid reservation cost
+	filterParams = append(filterParams, "type eq 'Consumption'")
+
+	// Exclude Low Priority instances[Azure has special computes that let you run workloads on spare capacity at a deeply discounted price in exchange for no SLA and the possibility of being evicted]
+	filterParams = append(filterParams, "contains(meterName,'Low Priority') eq false")
+
+	filterParamsEscaped := url.QueryEscape(strings.Join(filterParams[:], " and "))
+	pricingURL += fmt.Sprintf("&$filter=%s", filterParamsEscaped)
 
 	log.Infof("starting download retail price payload from \"%s\"", pricingURL)
-	resp, err := http.Get(pricingURL)
 
+	resp, err := http.Get(pricingURL)
 	if err != nil {
-		return "", fmt.Errorf("bogus fetch of \"%s\": %v", pricingURL, err)
+		return "", fmt.Errorf("failed to fetch retail price with URL \"%s\": %v", pricingURL, err)
 	}
 
 	if resp.StatusCode < 200 && resp.StatusCode > 299 {
@@ -289,7 +296,9 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 	retailPrice := ""
 	spotPrice := ""
 	for _, item := range pricingPayload.Items {
-		if item.Type == "Consumption" && !strings.Contains(item.ProductName, "Windows") {
+		// note: Windows OS ondemand price will be equal to Linux, Adoption of Windows based
+		// computes are increasing in Azure we might want to enhance this in future.
+		if !strings.Contains(item.ProductName, "Windows") {
 			if strings.Contains(strings.ToLower(item.SkuName), " spot") {
 				spotPrice = fmt.Sprintf("%f", item.RetailPrice)
 			} else if !(strings.Contains(strings.ToLower(item.SkuName), "low priority") || strings.Contains(strings.ToLower(item.ProductName), "cloud services") || strings.Contains(strings.ToLower(item.ProductName), "cloudservices")) {
