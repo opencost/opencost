@@ -26,11 +26,33 @@ jobs:
           description: 'Quality Gate check in progress...'
           sha: ${{ github.event.workflow_run.head_sha }}
           target_url: 'https://sonarcloud.io/dashboard?id=opencost_opencost'
-      - uses: actions/checkout@v4
+      - name: Checkout upstream repository
+        uses: actions/checkout@v4
         with:
-          repository: ${{ github.event.workflow_run.head_repository.full_name }}
-          ref: ${{ github.event.workflow_run.head_branch }}
+          repository: opencost/opencost
+          ref: develop
           fetch-depth: 0
+      - name: Fetch PR branch from fork
+        if: github.event.workflow_run.head_branch != 'develop' || github.event.workflow_run.head_repository.full_name != 'opencost/opencost'
+        env:
+          HEAD_REPO_FULL_NAME: ${{ github.event.workflow_run.head_repository.full_name }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          git remote add fork "https://github.com/$HEAD_REPO_FULL_NAME.git"
+          if [ "$HEAD_BRANCH" = "develop" ]; then
+            # For fork's develop branch, fetch and checkout by SHA to avoid refspec conflict
+            git fetch fork "$HEAD_BRANCH"
+            git checkout "$HEAD_SHA"
+          else
+            # For feature branches, fetch and checkout normally
+            git fetch fork "$HEAD_BRANCH:$HEAD_BRANCH"
+            git checkout "$HEAD_BRANCH"
+          fi
+      - name: Checkout develop branch at specific SHA
+        if: github.event.workflow_run.head_branch == 'develop' && github.event.workflow_run.head_repository.full_name == 'opencost/opencost'
+        run: |
+          git checkout ${{ github.event.workflow_run.head_sha }}
       - name: Download coverage artifacts
         uses: actions/download-artifact@v4
         with:

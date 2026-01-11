@@ -957,17 +957,17 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 			cpu = 0
 		}
 
-		var ram float64
 		if newCnode.RAM == "" {
 			newCnode.RAM = n.Status.Capacity.Memory().String()
 		}
-		ram = float64(n.Status.Capacity.Memory().Value())
+		if newCnode.RAMBytes == "" {
+			newCnode.RAMBytes = fmt.Sprintf("%v", n.Status.Capacity.Memory().Value())
+		}
+		ram, _ := strconv.ParseFloat(newCnode.RAMBytes, 64)
 		if math.IsNaN(ram) {
 			log.Warnf("ram parsed as NaN. Setting to 0.")
 			ram = 0
 		}
-
-		newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
 		gpuc, err := strconv.ParseFloat(newCnode.GPU, 64)
 		if err != nil {
