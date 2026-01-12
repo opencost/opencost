@@ -44,6 +44,7 @@ const (
 	KubecostNetworkZoneEgressCost     = "kubecost_network_zone_egress_cost"
 	KubecostNetworkRegionEgressCost   = "kubecost_network_region_egress_cost"
 	KubecostNetworkInternetEgressCost = "kubecost_network_internet_egress_cost"
+	KubecostNetworkNatGatewayCost     = "kubecost_network_nat_gateway_cost"
 	PVHourlyCost                      = "pv_hourly_cost"
 	KubecostLoadBalancerCost          = "kubecost_load_balancer_cost"
 	NodeTotalHourlyCost               = "node_total_hourly_cost"
