@@ -3,6 +3,7 @@ package pipelines
 import (
 	"github.com/opencost/opencost/core/pkg/diagnostics"
 	"github.com/opencost/opencost/core/pkg/heartbeat"
+	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/typeutil"
 )
@@ -16,6 +17,7 @@ const (
 	TurbonomicActionsPipelineName string = "turbonomicactions"
 	HeartbeatPipelineName         string = "heartbeat"
 	DiagnosticsPipelineName       string = "diagnostics"
+	KubeModelPipelineName         string = "kubemodel"
 )
 
 var nameByType map[string]string
@@ -37,6 +39,8 @@ func init() {
 	heartbeatKey := typeutil.TypeOf[heartbeat.Heartbeat]()
 	diagnosticsKey := typeutil.TypeOf[diagnostics.DiagnosticsRunReport]()
 
+	kubeModelSetKey := typeutil.TypeOf[kubemodel.KubeModelSet]()
+
 	nameByType = map[string]string{
 		allocSetKey:          AllocationPipelineName,
 		allocKey:             AllocationPipelineName,
@@ -48,6 +52,7 @@ func init() {
 		networkInsightKey:    NetworkInsightPipelineName,
 		heartbeatKey:         HeartbeatPipelineName,
 		diagnosticsKey:       DiagnosticsPipelineName,
+		kubeModelSetKey:      KubeModelPipelineName,
 	}
 }
 

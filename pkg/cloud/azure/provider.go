@@ -290,9 +290,9 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 	spotPrice := ""
 	for _, item := range pricingPayload.Items {
 		if item.Type == "Consumption" && !strings.Contains(item.ProductName, "Windows") {
-			if !strings.Contains(strings.ToLower(item.SkuName), " spot") {
+			if strings.Contains(strings.ToLower(item.SkuName), " spot") {
 				spotPrice = fmt.Sprintf("%f", item.RetailPrice)
-			} else {
+			} else if !(strings.Contains(strings.ToLower(item.SkuName), "low priority") || strings.Contains(strings.ToLower(item.ProductName), "cloud services") || strings.Contains(strings.ToLower(item.ProductName), "cloudservices")) {
 				retailPrice = fmt.Sprintf("%f", item.RetailPrice)
 			}
 		}
@@ -1595,9 +1595,6 @@ func (az *Azure) GetConfig() (*models.CustomPricing, error) {
 	// Default to pay-as-you-go Durable offer id
 	if c.AzureOfferDurableID == "" {
 		c.AzureOfferDurableID = "MS-AZR-0003p"
-	}
-	if c.ShareTenancyCosts == "" {
-		c.ShareTenancyCosts = models.DefaultShareTenancyCost
 	}
 	if c.SpotLabel == "" {
 		c.SpotLabel = defaultSpotLabel

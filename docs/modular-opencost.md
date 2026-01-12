@@ -16,7 +16,7 @@ There are three driving data components of the OpenCost project:
 * Cloud Provider: More simply, a Provider is an abstraction that provides specific cost data for a given resource. This data is used to calculate the cost of a given resource. 
 * Kubernetes API: The Kubernetes API is used as the glue between the raw metric data queried from Prometheus and the cost data gathered from the Provider. 
 
-The interactions between these components are what drive the cost calculation process. However, the current implementation of OpenCost does not provide a clear separation of concerns between these components. Nor does it allow for substitution of these components without significant refactoring.
+The interactions between these components drive the cost calculation process. However, the current implementation of OpenCost does not provide a clear separation of concerns between these components, nor does it allow substitution of these components without significant refactoring.
 
 ![](image-1.png)
 

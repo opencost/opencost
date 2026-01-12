@@ -2,6 +2,8 @@ package ast
 
 import (
 	"fmt"
+	"unicode"
+	"unicode/utf8"
 
 	multierror "github.com/hashicorp/go-multierror"
 )
@@ -128,25 +130,28 @@ func (s scanner) atEnd() bool {
 	return s.nextByte >= len(s.source)
 }
 
-// advance returns a byte because we only accept ASCII, which has to fit in a
-// byte
-//
-// TODO: If we add unicode support, advance() will probably have to return a
-// rune.
-func (s *scanner) advance() byte {
-	b := s.source[s.nextByte]
-	s.nextByte += 1
-	return b
+// advance returns a rune to support Unicode characters
+func (s *scanner) advance() rune {
+	if s.atEnd() {
+		return 0
+	}
+	
+	r, size := utf8.DecodeRuneInString(s.source[s.nextByte:])
+	s.nextByte += size
+	return r
 }
 
-func (s *scanner) match(expected byte) bool {
+func (s *scanner) match(expected rune) bool {
 	if s.atEnd() {
 		return false
 	}
-	if s.source[s.nextByte] != expected {
+	
+	// Get the rune at the current position
+	r, size := utf8.DecodeRuneInString(s.source[s.nextByte:])
+	if r != expected {
 		return false
 	}
-	s.nextByte += 1
+	s.nextByte += size
 	return true
 }
 
@@ -164,11 +169,14 @@ func (s *scanner) addToken(kind tokenKind) {
 	})
 }
 
-func (s *scanner) peek() byte {
+func (s *scanner) peek() rune {
 	if s.atEnd() {
 		return 0
 	}
-	return s.source[s.nextByte]
+	
+	// Get the rune at the current position
+	r, _ := utf8.DecodeRuneInString(s.source[s.nextByte:])
+	return r
 }
 
 func (s *scanner) scanToken() {
@@ -246,6 +254,12 @@ func (s *scanner) scanToken() {
 	case ' ', '\t', '\n', '\r':
 		break
 	default:
+		// Check for invalid UTF-8 sequences
+		if c == utf8.RuneError {
+			s.errors = append(s.errors, fmt.Errorf("invalid UTF-8 character at position %d", s.nextByte-1))
+			break
+		}
+		
 		// identifiers
 		//
 		// We can keep it simple and not _force_ the first character to be a
@@ -258,10 +272,12 @@ func (s *scanner) scanToken() {
 			break
 		}
 
-		// TODO: We could return a more exact error message for Unicode chars if
-		// we added extra handling:
-		// https://stackoverflow.com/questions/53069040/checking-a-string-contains-only-ascii-characters
-		s.errors = append(s.errors, fmt.Errorf("unexpected character/byte at position %d. Please avoid Unicode.", s.nextByte-1))
+		// Check if the character is a Unicode character for a more precise error message
+		if c > 127 {
+			s.errors = append(s.errors, fmt.Errorf("unexpected Unicode character '%c' (U+%04X) at position %d", c, c, s.nextByte-1))
+		} else {
+			s.errors = append(s.errors, fmt.Errorf("unexpected character '%c' at position %d", c, s.nextByte-1))
+		}
 	}
 }
 
@@ -269,14 +285,10 @@ func (s *scanner) scanToken() {
 //
 // https://kubernetes.io/docs/concepts/overview/working-with-objects/names/
 //
-// TODO: This may not match all characters we support for cluster IDs (it may be
-// the case that cluster IDs can contain UTF-8 characters).
-func isIdentifierChar(b byte) bool {
-	return (b >= '0' && b <= '9') || // 0-9
-		(b >= 'A' && b <= 'Z') || // A-Z
-		(b >= 'a' && b <= 'z') || // a-z
-		b == '-' || // hyphens are allowed according to K8s spec
-		b == '_' // underscores are allowed because of Prometheus sanitization
+// This has been updated to support UTF-8 characters for cluster IDs.
+func isIdentifierChar(r rune) bool {
+	// Allow letters, digits, hyphens, and underscores.
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' || r == '_'
 }
 
 func (s *scanner) string() {

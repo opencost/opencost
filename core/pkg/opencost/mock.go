@@ -3,6 +3,8 @@ package opencost
 import (
 	"fmt"
 	"time"
+
+	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 )
 
 const gb = 1024 * 1024 * 1024
@@ -929,4 +931,107 @@ func GenerateMockNetworkInsightSet(start time.Time, end time.Time) *NetworkInsig
 	nis.Insert(ni3, []NetworkInsightProperty{NetworkInsightsPod})
 
 	return nis
+}
+
+func GenerateMockCloudCostSet(start, end time.Time, provider, integration string) *CloudCostSet {
+	ccs := NewCloudCostSet(start, end)
+
+	ccs.Integration = integration
+
+	ccs.Insert(&CloudCost{
+		Window: ccs.Window,
+		Properties: &CloudCostProperties{
+			Provider:        provider,
+			AccountID:       "account1",
+			InvoiceEntityID: "invoiceEntity1",
+			Service:         provider + "-storage",
+			Category:        StorageCategory,
+			Labels: CloudCostLabels{
+				"label1": "value1",
+				"label2": "value2",
+				"label3": "value3",
+			},
+			ProviderID: "id1",
+		},
+		ListCost: CostMetric{
+			Cost:              100,
+			KubernetesPercent: 0,
+		},
+		NetCost: CostMetric{
+			Cost:              100,
+			KubernetesPercent: 0,
+		},
+	})
+
+	ccs.Insert(&CloudCost{
+		Window: ccs.Window,
+		Properties: &CloudCostProperties{
+			Provider:        provider,
+			AccountID:       "account1",
+			InvoiceEntityID: "invoiceEntity1",
+			Service:         provider + "-compute",
+			Category:        ComputeCategory,
+			Labels: CloudCostLabels{
+				"label1": "value1",
+				"label2": "value2",
+				"label3": "value3",
+			},
+			ProviderID: "id2",
+		},
+		ListCost: CostMetric{
+			Cost:              2000,
+			KubernetesPercent: 1,
+		},
+		NetCost: CostMetric{
+			Cost:              1800,
+			KubernetesPercent: 1,
+		},
+	})
+
+	ccs.Insert(&CloudCost{
+		Window: ccs.Window,
+		Properties: &CloudCostProperties{
+			Provider:        provider,
+			AccountID:       "account2",
+			InvoiceEntityID: "invoiceEntity2",
+			Service:         provider + "-compute",
+			Category:        ComputeCategory,
+			Labels: CloudCostLabels{
+				"label1": "value1",
+				"label2": "value2",
+				"label3": "value3",
+			},
+			ProviderID: "id3",
+		},
+		ListCost: CostMetric{
+			Cost:              8000,
+			KubernetesPercent: 1,
+		},
+		NetCost: CostMetric{
+			Cost:              8000,
+			KubernetesPercent: 1,
+		},
+	})
+
+	return ccs
+}
+
+// GenerateMockKubeModelSet creates generic KubeModel set
+func GenerateMockKubeModelSet(start, end time.Time) *kubemodel.KubeModelSet {
+	kms := kubemodel.NewKubeModelSet(start, end)
+
+	kms.Cluster = &kubemodel.Cluster{
+		UID:  "clusterUID",
+		Name: "cluster",
+	}
+
+	kms.RegisterNamespace("namespace-1", "namespace-1")
+	kms.RegisterNamespace("namespace-2", "namespace-2")
+
+	kms.RegisterResourceQuota("resourcequota-1", "resourcequota-1", "namespace-1")
+	kms.RegisterResourceQuota("resourcequota-2", "resourcequota-2", "namespace-1")
+	kms.RegisterResourceQuota("resourcequota-3", "resourcequota-3", "namespace-2")
+	kms.RegisterResourceQuota("resourcequota-4", "resourcequota-4", "namespace-2")
+
+	return kms
 }

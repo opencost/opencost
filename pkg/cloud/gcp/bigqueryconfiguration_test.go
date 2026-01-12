@@ -7,6 +7,8 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBigQueryConfiguration_Validate(t *testing.T) {
@@ -385,4 +387,261 @@ func TestBigQueryConfiguration_JSON(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBigQueryConfiguration_Key(t *testing.T) {
+	bqc := &BigQueryConfiguration{
+		ProjectID: "test-project",
+		Dataset:   "test-dataset",
+		Table:     "test-table",
+	}
+
+	key := bqc.Key()
+	expected := "test-project/test-dataset.test-table"
+	assert.Equal(t, expected, key)
+}
+
+func TestBigQueryConfiguration_Provider(t *testing.T) {
+	bqc := &BigQueryConfiguration{}
+	provider := bqc.Provider()
+	assert.Equal(t, "GCP", provider)
+}
+
+func TestBigQueryConfiguration_GetBillingDataDataset(t *testing.T) {
+	bqc := &BigQueryConfiguration{
+		Dataset: "test-dataset",
+		Table:   "test-table",
+	}
+
+	dataset := bqc.GetBillingDataDataset()
+	expected := "test-dataset.test-table"
+	assert.Equal(t, expected, dataset)
+}
+
+func TestBigQueryConfiguration_Sanitize(t *testing.T) {
+	bqc := &BigQueryConfiguration{
+		ProjectID: "test-project",
+		Dataset:   "test-dataset",
+		Table:     "test-table",
+		Authorizer: &ServiceAccountKey{
+			Key: map[string]string{
+				"type": "service_account",
+				"private_key": "secret-key",
+			},
+		},
+	}
+
+	sanitized := bqc.Sanitize()
+	require.NotNil(t, sanitized)
+
+	sanitizedBQC, ok := sanitized.(*BigQueryConfiguration)
+	require.True(t, ok)
+
+	assert.Equal(t, "test-project", sanitizedBQC.ProjectID)
+	assert.Equal(t, "test-dataset", sanitizedBQC.Dataset)
+	assert.Equal(t, "test-table", sanitizedBQC.Table)
+	assert.NotNil(t, sanitizedBQC.Authorizer)
+
+	// Check that the authorizer is also sanitized
+	saKey, ok := sanitizedBQC.Authorizer.(*ServiceAccountKey)
+	require.True(t, ok)
+	for _, value := range saKey.Key {
+		assert.Equal(t, cloud.Redacted, value)
+	}
+}
+
+func TestConvertBigQueryConfigToConfig(t *testing.T) {
+	tests := []struct {
+		name     string
+		bqc      BigQueryConfig
+		expected cloud.KeyedConfig
+	}{
+		{
+			name: "Empty config",
+			bqc:  BigQueryConfig{},
+			expected: nil,
+		},
+		{
+			name: "Config with service account key",
+			bqc: BigQueryConfig{
+				ProjectID:          "test-project",
+				BillingDataDataset: "test-dataset.test-table",
+				Key: map[string]string{
+					"type": "service_account",
+				},
+			},
+			expected: &BigQueryConfiguration{
+				ProjectID: "test-project",
+				Dataset:   "test-dataset",
+				Table:     "test-table",
+				Authorizer: &ServiceAccountKey{
+					Key: map[string]string{
+						"type": "service_account",
+					},
+				},
+			},
+		},
+		{
+			name: "Config without service account key",
+			bqc: BigQueryConfig{
+				ProjectID:          "test-project",
+				BillingDataDataset: "test-dataset.test-table",
+				Key:                map[string]string{},
+			},
+			expected: &BigQueryConfiguration{
+				ProjectID:  "test-project",
+				Dataset:    "test-dataset",
+				Table:      "test-table",
+				Authorizer: &WorkloadIdentity{},
+			},
+		},
+		{
+			name: "Config with single part dataset",
+			bqc: BigQueryConfig{
+				ProjectID:          "test-project",
+				BillingDataDataset: "test-dataset",
+				Key:                map[string]string{},
+			},
+			expected: &BigQueryConfiguration{
+				ProjectID:  "test-project",
+				Dataset:    "test-dataset",
+				Table:      "",
+				Authorizer: &WorkloadIdentity{},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ConvertBigQueryConfigToConfig(tt.bqc)
+			
+			if tt.expected == nil {
+				assert.Nil(t, result)
+			} else {
+				assert.NotNil(t, result)
+				expectedBQC := tt.expected.(*BigQueryConfiguration)
+				resultBQC := result.(*BigQueryConfiguration)
+				
+				assert.Equal(t, expectedBQC.ProjectID, resultBQC.ProjectID)
+				assert.Equal(t, expectedBQC.Dataset, resultBQC.Dataset)
+				assert.Equal(t, expectedBQC.Table, resultBQC.Table)
+				assert.NotNil(t, resultBQC.Authorizer)
+			}
+		})
+	}
+}
+
+func TestBigQueryConfiguration_UnmarshalJSON_Valid(t *testing.T) {
+	jsonData := `{
+		"projectID": "test-project",
+		"dataset": "test-dataset",
+		"table": "test-table",
+		"authorizer": {
+			"authorizerType": "GCPServiceAccountKey",
+			"key": {
+				"type": "service_account"
+			}
+		}
+	}`
+
+	var bqc BigQueryConfiguration
+	err := json.Unmarshal([]byte(jsonData), &bqc)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "test-project", bqc.ProjectID)
+	assert.Equal(t, "test-dataset", bqc.Dataset)
+	assert.Equal(t, "test-table", bqc.Table)
+	assert.NotNil(t, bqc.Authorizer)
+
+	saKey, ok := bqc.Authorizer.(*ServiceAccountKey)
+	assert.True(t, ok)
+	assert.Equal(t, "service_account", saKey.Key["type"])
+}
+
+func TestBigQueryConfiguration_UnmarshalJSON_InvalidProjectID(t *testing.T) {
+	jsonData := `{
+		"dataset": "test-dataset",
+		"table": "test-table",
+		"authorizer": {
+			"authorizerType": "GCPServiceAccountKey",
+			"key": {
+				"type": "service_account"
+			}
+		}
+	}`
+
+	var bqc BigQueryConfiguration
+	err := json.Unmarshal([]byte(jsonData), &bqc)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "projectID")
+}
+
+func TestBigQueryConfiguration_UnmarshalJSON_InvalidDataset(t *testing.T) {
+	jsonData := `{
+		"projectID": "test-project",
+		"table": "test-table",
+		"authorizer": {
+			"authorizerType": "GCPServiceAccountKey",
+			"key": {
+				"type": "service_account"
+			}
+		}
+	}`
+
+	var bqc BigQueryConfiguration
+	err := json.Unmarshal([]byte(jsonData), &bqc)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "dataset")
+}
+
+func TestBigQueryConfiguration_UnmarshalJSON_InvalidTable(t *testing.T) {
+	jsonData := `{
+		"projectID": "test-project",
+		"dataset": "test-dataset",
+		"authorizer": {
+			"authorizerType": "GCPServiceAccountKey",
+			"key": {
+				"type": "service_account"
+			}
+		}
+	}`
+
+	var bqc BigQueryConfiguration
+	err := json.Unmarshal([]byte(jsonData), &bqc)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "table")
+}
+
+func TestBigQueryConfiguration_UnmarshalJSON_MissingAuthorizer(t *testing.T) {
+	jsonData := `{
+		"projectID": "test-project",
+		"dataset": "test-dataset",
+		"table": "test-table"
+	}`
+
+	var bqc BigQueryConfiguration
+	err := json.Unmarshal([]byte(jsonData), &bqc)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "missing authorizer")
+}
+
+func TestBigQueryConfiguration_UnmarshalJSON_InvalidAuthorizer(t *testing.T) {
+	jsonData := `{
+		"projectID": "test-project",
+		"dataset": "test-dataset",
+		"table": "test-table",
+		"authorizer": {
+			"authorizerType": "InvalidType"
+		}
+	}`
+
+	var bqc BigQueryConfiguration
+	err := json.Unmarshal([]byte(jsonData), &bqc)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "InvalidType")
 }

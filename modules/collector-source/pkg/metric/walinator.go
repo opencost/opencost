@@ -19,7 +19,7 @@ import (
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 )
 
-const ControllerEventName = "controller"
+const CollectorEventName = "collector"
 
 type fileInfo struct {
 	name      string
@@ -37,6 +37,7 @@ type Walinator struct {
 
 func NewWalinator(
 	clusterID string,
+	applicationName string,
 	store storage.Storage,
 	resolutions []*util.Resolution,
 	updater Updater,
@@ -47,7 +48,7 @@ func NewWalinator(
 			limitResolution = resolution
 		}
 	}
-	pathFormatter, err := pathing.NewEventStoragePathFormatter("", clusterID, ControllerEventName)
+	pathFormatter, err := pathing.NewEventStoragePathFormatter(applicationName, clusterID, CollectorEventName)
 	if err != nil {
 		return nil, fmt.Errorf("filed to create path formatter for scrape controller: %s", err.Error())
 	}

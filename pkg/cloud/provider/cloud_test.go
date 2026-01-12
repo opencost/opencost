@@ -233,7 +233,7 @@ func TestNodePriceFromCSVWithGPU(t *testing.T) {
 }
 
 func TestNodePriceFromCSVWithGPULabels(t *testing.T) {
-	const defaultConfigJson = `{"provider":"base","description":"Default prices based on GCP us-central1","CPU":"0.021811","spotCPU":"0.006543","RAM":"0.002923","spotRAM":"0.000877","GPU":"0.95","spotGPU":"0.308","storage":"0.00005479452","zoneNetworkEgress":"0.01","regionNetworkEgress":"0.01","internetNetworkEgress":"0.12","firstFiveForwardingRulesCost":"","additionalForwardingRuleCost":"","LBIngressDataCost":"","athenaBucketName":"","athenaRegion":"","athenaDatabase":"","athenaCatalog":"","athenaTable":"","athenaWorkgroup":"","masterPayerARN":"","customPricesEnabled":"false","defaultIdle":"","azureSubscriptionID":"","azureClientID":"","azureClientSecret":"","azureTenantID":"","azureBillingRegion":"","azureBillingAccount":"","azureOfferDurableID":"","azureStorageSubscriptionID":"","azureStorageAccount":"","azureStorageAccessKey":"","azureStorageContainer":"","azureContainerPath":"","azureCloud":"","currencyCode":"","discount":"","negotiatedDiscount":"","sharedOverhead":"","clusterName":"","sharedNamespaces":"","sharedLabelNames":"","sharedLabelValues":"","shareTenancyCosts":"true","readOnly":"","editorAccess":"","kubecostToken":"","googleAnalyticsTag":"","excludeProviderID":"","defaultLBPrice":""}`
+	const defaultConfigJson = `{"provider":"base","description":"Default prices based on GCP us-central1","CPU":"0.021811","spotCPU":"0.006543","RAM":"0.002923","spotRAM":"0.000877","GPU":"0.95","spotGPU":"0.308","storage":"0.00005479452","zoneNetworkEgress":"0.01","regionNetworkEgress":"0.01","internetNetworkEgress":"0.12","firstFiveForwardingRulesCost":"","additionalForwardingRuleCost":"","LBIngressDataCost":"","athenaBucketName":"","athenaRegion":"","athenaDatabase":"","athenaCatalog":"","athenaTable":"","athenaWorkgroup":"","masterPayerARN":"","customPricesEnabled":"false","azureSubscriptionID":"","azureClientID":"","azureClientSecret":"","azureTenantID":"","azureBillingRegion":"","azureBillingAccount":"","azureOfferDurableID":"","azureStorageSubscriptionID":"","azureStorageAccount":"","azureStorageAccessKey":"","azureStorageContainer":"","azureContainerPath":"","azureCloud":"","currencyCode":"","discount":"","negotiatedDiscount":"","clusterName":"","defaultLBPrice":""}`
 
 	nameWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"
 	wantGPUCost := "0.75"
@@ -283,7 +283,7 @@ func TestNodePriceFromCSVWithGPULabels(t *testing.T) {
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 
-	model := costmodel.NewCostModel(nil, c, fc, fm, d)
+	model := costmodel.NewCostModel("cluster-uid", nil, c, fc, fm, d)
 
 	nodeMap, err := model.GetNodeCost()
 	if err != nil {
@@ -300,7 +300,7 @@ func TestNodePriceFromCSVWithGPULabels(t *testing.T) {
 }
 
 func TestRKE2NodePriceFromCSVWithGPULabels(t *testing.T) {
-	const defaultConfigJson = `{"provider":"base","description":"Default prices based on GCP us-central1","CPU":"0.021811","spotCPU":"0.006543","RAM":"0.002923","spotRAM":"0.000877","GPU":"0.95","spotGPU":"0.308","storage":"0.00005479452","zoneNetworkEgress":"0.01","regionNetworkEgress":"0.01","internetNetworkEgress":"0.12","firstFiveForwardingRulesCost":"","additionalForwardingRuleCost":"","LBIngressDataCost":"","athenaBucketName":"","athenaRegion":"","athenaDatabase":"","athenaCatalog":"","athenaTable":"","athenaWorkgroup":"","masterPayerARN":"","customPricesEnabled":"false","defaultIdle":"","azureSubscriptionID":"","azureClientID":"","azureClientSecret":"","azureTenantID":"","azureBillingRegion":"","azureBillingAccount":"","azureOfferDurableID":"","azureStorageSubscriptionID":"","azureStorageAccount":"","azureStorageAccessKey":"","azureStorageContainer":"","azureContainerPath":"","azureCloud":"","currencyCode":"","discount":"","negotiatedDiscount":"","sharedOverhead":"","clusterName":"","sharedNamespaces":"","sharedLabelNames":"","sharedLabelValues":"","shareTenancyCosts":"true","readOnly":"","editorAccess":"","kubecostToken":"","googleAnalyticsTag":"","excludeProviderID":"","defaultLBPrice":""}`
+	const defaultConfigJson = `{"provider":"base","description":"Default prices based on GCP us-central1","CPU":"0.021811","spotCPU":"0.006543","RAM":"0.002923","spotRAM":"0.000877","GPU":"0.95","spotGPU":"0.308","storage":"0.00005479452","zoneNetworkEgress":"0.01","regionNetworkEgress":"0.01","internetNetworkEgress":"0.12","firstFiveForwardingRulesCost":"","additionalForwardingRuleCost":"","LBIngressDataCost":"","athenaBucketName":"","athenaRegion":"","athenaDatabase":"","athenaCatalog":"","athenaTable":"","athenaWorkgroup":"","masterPayerARN":"","customPricesEnabled":"false","azureSubscriptionID":"","azureClientID":"","azureClientSecret":"","azureTenantID":"","azureBillingRegion":"","azureBillingAccount":"","azureOfferDurableID":"","azureStorageSubscriptionID":"","azureStorageAccount":"","azureStorageAccessKey":"","azureStorageContainer":"","azureContainerPath":"","azureCloud":"","currencyCode":"","discount":"","negotiatedDiscount":"","clusterName":"","defaultLBPrice":""}`
 
 	nameWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"
 	wantGPUCost := "0.750000"
@@ -351,7 +351,7 @@ func TestRKE2NodePriceFromCSVWithGPULabels(t *testing.T) {
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 
-	model := costmodel.NewCostModel(nil, c, fc, fm, d)
+	model := costmodel.NewCostModel("cluster-uid", nil, c, fc, fm, d)
 
 	nodeMap, err := model.GetNodeCost()
 	if err != nil {
@@ -607,7 +607,6 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 		"athenaWorkgroup":"",
 		"masterPayerARN":"",
 		"customPricesEnabled":"false",
-		"defaultIdle":"",
 		"azureSubscriptionID":"",
 		"azureClientID":"",
 		"azureClientSecret":"",
@@ -623,17 +622,7 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 		"currencyCode":"",
 		"discount":"",
 		"negotiatedDiscount":"",
-		"sharedOverhead":"",
-		"clusterName":"",
-		"sharedNamespaces":"",
-		"sharedLabelNames":"",
-		"sharedLabelValues":"",
-		"shareTenancyCosts":"true",
-		"readOnly":"",
-		"editorAccess":"",
-		"kubecostToken":"",
-		"googleAnalyticsTag":"",
-		"excludeProviderID":""
+		"clusterName":""
 	}`
 
 	tempPath := t.TempDir()
@@ -679,7 +668,7 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 
-	model := costmodel.NewCostModel(nil, c, fc, fm, d)
+	model := costmodel.NewCostModel("cluster-uid", nil, c, fc, fm, d)
 
 	_, err = model.GetNodeCost()
 	if err != nil {
@@ -736,7 +725,7 @@ func TestSourceMatchesFromCSV(t *testing.T) {
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 
-	model := costmodel.NewCostModel(nil, c, fc, fm, d)
+	model := costmodel.NewCostModel("cluster-uid", nil, c, fc, fm, d)
 
 	_, err = model.GetNodeCost()
 	if err != nil {
@@ -892,4 +881,50 @@ func TestNodePriceFromCSVByClass(t *testing.T) {
 		t.Errorf("CSV provider should return nil on missing node, instead returned %+v", resN2)
 	}
 
+}
+
+func TestPVPricing_CaseInsensitive(t *testing.T) {
+	confMan := config.NewConfigFileManager(storage.NewFileStorage("./"))
+	wantPrice := "0.1337"
+
+	c := &provider.CSVProvider{
+		CSVLocation: "../../../configs/pricing_schema_pv.csv",
+		PVMapField:  "metadata.name",
+		CustomProvider: &provider.CustomProvider{
+			Config: provider.NewProviderConfig(confMan, "../../../configs/default.json"),
+		},
+	}
+	c.DownloadPricingData()
+
+	t.Run("UppercaseInput", func(t *testing.T) {
+		pv := &clustercache.PersistentVolume{}
+		pv.Name = "PVC-08e1f205-d7a9-4430-90fc-7b3965a18c4D"
+
+		key := c.GetPVKey(pv, make(map[string]string), "")
+		resPV, err := c.PVPricing(key)
+		if err != nil {
+			t.Errorf("Error in PVPricing: %s", err.Error())
+		} else {
+			gotPrice := resPV.Cost
+			if gotPrice != wantPrice {
+				t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+			}
+		}
+	})
+
+	t.Run("LowercaseInput", func(t *testing.T) {
+		pv := &clustercache.PersistentVolume{}
+		pv.Name = "pvc-08e1f205-d7a9-4430-90fc-7b3965a18c4d"
+
+		key := c.GetPVKey(pv, make(map[string]string), "")
+		resPV, err := c.PVPricing(key)
+		if err != nil {
+			t.Errorf("Error in PVPricing: %s", err.Error())
+		} else {
+			gotPrice := resPV.Cost
+			if gotPrice != wantPrice {
+				t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+			}
+		}
+	})
 }
