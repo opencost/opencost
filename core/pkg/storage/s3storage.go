@@ -103,6 +103,7 @@ type S3Storage struct {
 	putUserMetadata map[string]string
 	partSize        uint64
 	listObjectsV1   bool
+	insecure        bool
 }
 
 // parseConfig unmarshals a buffer into a Config with default HTTPConfig values.
@@ -170,6 +171,8 @@ func NewS3StorageWith(config S3Config) (*S3Storage, error) {
 		return nil, err
 	}
 
+	// HTTPS Protocol Configuration: The 'Secure' option controls whether HTTPS is used.
+	// By default, config.Insecure is false if not set, so Secure=true.
 	client, err := minio.New(config.Endpoint, &minio.Options{
 		Creds:     credentials.NewChainCredentials(chain),
 		Secure:    !config.Insecure,
@@ -226,7 +229,9 @@ func NewS3StorageWith(config S3Config) (*S3Storage, error) {
 		putUserMetadata: config.PutUserMetadata,
 		partSize:        config.PartSize,
 		listObjectsV1:   config.ListObjectsVersion == "v1",
+		insecure:        config.Insecure,
 	}
+	log.Debugf("S3Storage: New S3 client initialized with '%s://%s/%s'", bkt.protocol(), config.Endpoint, config.Bucket)
 	return bkt, nil
 }
 
@@ -238,6 +243,14 @@ func (s3 *S3Storage) String() string {
 // StorageType returns a string identifier for the type of storage used by the implementation.
 func (s3 *S3Storage) StorageType() StorageType {
 	return StorageTypeBucketS3
+}
+
+// protocol returns the protocol string (HTTP or HTTPS) based on configuration
+func (s3 *S3Storage) protocol() string {
+	if s3.insecure {
+		return "HTTP"
+	}
+	return "HTTPS"
 }
 
 // validate checks to see the config options are set.
@@ -278,7 +291,7 @@ func (s3 *S3Storage) FullPath(name string) string {
 func (s3 *S3Storage) Read(name string) ([]byte, error) {
 	name = trimLeading(name)
 
-	log.Tracef("S3Storage::Read(%s)", name)
+	log.Debugf("S3Storage::Read::%s(%s)", s3.protocol(), name)
 	ctx := context.Background()
 
 	return s3.getRange(ctx, name, 0, -1)
@@ -288,7 +301,7 @@ func (s3 *S3Storage) Read(name string) ([]byte, error) {
 // Exists checks if the given object exists.
 func (s3 *S3Storage) Exists(name string) (bool, error) {
 	name = trimLeading(name)
-	log.Tracef("S3Storage::Exists(%s)", name)
+	log.Debugf("S3Storage::Exists::%s(%s)", s3.protocol(), name)
 
 	ctx := context.Background()
 
@@ -307,7 +320,7 @@ func (s3 *S3Storage) Exists(name string) (bool, error) {
 func (s3 *S3Storage) Write(name string, data []byte) error {
 	name = trimLeading(name)
 
-	log.Tracef("S3Storage::Write(%s)", name)
+	log.Debugf("S3Storage::Write::%s(%s)", s3.protocol(), name)
 
 	ctx := context.Background()
 	sse, err := s3.getServerSideEncryption(ctx)
@@ -341,7 +354,7 @@ func (s3 *S3Storage) Write(name string, data []byte) error {
 func (s3 *S3Storage) Stat(name string) (*StorageInfo, error) {
 	name = trimLeading(name)
 
-	log.Tracef("S3Storage::Stat(%s)", name)
+	log.Debugf("S3Storage::Stat::%s(%s)", s3.protocol(), name)
 	ctx := context.Background()
 
 	objInfo, err := s3.client.StatObject(ctx, s3.name, name, minio.StatObjectOptions{})
@@ -363,7 +376,7 @@ func (s3 *S3Storage) Stat(name string) (*StorageInfo, error) {
 func (s3 *S3Storage) Remove(name string) error {
 	name = trimLeading(name)
 
-	log.Tracef("S3Storage::Remove(%s)", name)
+	log.Debugf("S3Storage::Remove::%s(%s)", s3.protocol(), name)
 	ctx := context.Background()
 
 	return s3.client.RemoveObject(ctx, s3.name, name, minio.RemoveObjectOptions{})
@@ -372,7 +385,7 @@ func (s3 *S3Storage) Remove(name string) error {
 func (s3 *S3Storage) List(path string) ([]*StorageInfo, error) {
 	path = trimLeading(path)
 
-	log.Tracef("S3Storage::List(%s)", path)
+	log.Debugf("S3Storage::List::%s(%s)", s3.protocol(), path)
 	ctx := context.Background()
 
 	// Ensure the object name actually ends with a dir suffix. Otherwise we'll just iterate the
@@ -419,7 +432,7 @@ func (s3 *S3Storage) List(path string) ([]*StorageInfo, error) {
 func (s3 *S3Storage) ListDirectories(path string) ([]*StorageInfo, error) {
 	path = trimLeading(path)
 
-	log.Tracef("S3Storage::ListDirectories(%s)", path)
+	log.Debugf("S3Storage::ListDirectories::%s(%s)", s3.protocol(), path)
 	ctx := context.Background()
 
 	if path != "" {

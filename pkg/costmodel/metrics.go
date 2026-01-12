@@ -477,7 +477,8 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			}
 
 			end := time.Now()
-			start := end.Add(-time.Minute * 2)
+			queryWindow := env.GetMetricsEmitterQueryWindow()
+			start := end.Add(-queryWindow)
 
 			data, err := cmme.Model.ComputeCostData(start, end)
 			if err != nil {
