@@ -231,7 +231,7 @@ func (b *AzureStorage) Read(name string) ([]byte, error) {
 	name = trimLeading(name)
 	ctx := context.Background()
 
-	log.Debugf("AzureStorage::Read(%s)", name)
+	log.Debugf("AzureStorage::Read::HTTPS(%s)", name)
 
 	downloadResponse, err := b.containerClient.NewBlobClient(name).DownloadStream(ctx, nil)
 	if err != nil {
@@ -260,7 +260,7 @@ func (b *AzureStorage) Write(name string, data []byte) error {
 	name = trimLeading(name)
 	ctx := context.Background()
 
-	log.Debugf("AzureStorage::Write(%s)", name)
+	log.Debugf("AzureStorage::Write::HTTPS(%s)", name)
 
 	r := bytes.NewReader(data)
 	blobClient := b.containerClient.NewBlockBlobClient(name)
@@ -279,7 +279,7 @@ func (b *AzureStorage) Write(name string, data []byte) error {
 func (b *AzureStorage) Remove(name string) error {
 	name = trimLeading(name)
 
-	log.Debugf("AzureStorage::Remove(%s)", name)
+	log.Debugf("AzureStorage::Remove::HTTPS(%s)", name)
 	ctx := context.Background()
 
 	blobClient := b.containerClient.NewBlobClient(name)
@@ -312,7 +312,7 @@ func (b *AzureStorage) Exists(name string) (bool, error) {
 func (b *AzureStorage) List(path string) ([]*StorageInfo, error) {
 	path = trimLeading(path)
 
-	log.Debugf("AzureStorage::List(%s)", path)
+	log.Debugf("AzureStorage::List::HTTPS(%s)", path)
 	ctx := context.Background()
 
 	// Ensure the object name actually ends with a dir suffix. Otherwise we'll just iterate the
@@ -355,7 +355,7 @@ func (b *AzureStorage) List(path string) ([]*StorageInfo, error) {
 func (b *AzureStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 	path = trimLeading(path)
 
-	log.Debugf("AzureStorage::ListDirectories(%s)", path)
+	log.Debugf("AzureStorage::ListDirectories::HTTPS(%s)", path)
 	ctx := context.Background()
 
 	// Ensure the object name actually ends with a dir suffix. Otherwise we'll just iterate the
@@ -433,6 +433,7 @@ func getContainerClient(conf AzureConfig) (*container.Client, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error creating client from connection string: %w", err)
 		}
+		log.Debugf("AzureStorage: New Azure client initialized for container '%s' using connection string", conf.ContainerName)
 		return containerClient, nil
 	}
 
@@ -440,7 +441,11 @@ func getContainerClient(conf AzureConfig) (*container.Client, error) {
 		conf.Endpoint = "blob.core.windows.net"
 	}
 
+	// HTTPS Protocol Configuration: Azure Storage always uses HTTPS protocol.
+	// The containerURL is explicitly constructed with "https://" scheme.
+	// All Azure blob operations (read, write, delete, list) use this HTTPS URL.
 	containerURL := fmt.Sprintf("https://%s.%s/%s", conf.StorageAccountName, conf.Endpoint, conf.ContainerName)
+	log.Debugf("AzureStorage: New Azure client initialized with '%s'", containerURL)
 
 	// Use shared keys if set
 	if conf.StorageAccountKey != "" {
