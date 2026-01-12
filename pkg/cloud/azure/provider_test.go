@@ -1,7 +1,10 @@
 package azure
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"net/http"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-11-01/compute"
@@ -529,7 +532,13 @@ func Test_extractAzureVMRetailAndSpotPrices(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			retailPrice, spotPrice, err := extractAzureVMRetailAndSpotPrices([]byte(tc.jsonResponse))
+			// Create a mock http.Response with the JSON response as the body
+			resp := &http.Response{
+				StatusCode: 200,
+				Body:       io.NopCloser(bytes.NewBufferString(tc.jsonResponse)),
+			}
+
+			retailPrice, spotPrice, err := extractAzureVMRetailAndSpotPrices(resp)
 
 			if tc.expectedError {
 				require.Error(t, err)

@@ -273,9 +273,14 @@ func buildAzureRetailPricesURL(region string, skuName string, currencyCode strin
 	return pricingURL
 }
 
-func extractAzureVMRetailAndSpotPrices(resp []byte) (retailPrice string, spotPrice string, err error) {
+func extractAzureVMRetailAndSpotPrices(resp *http.Response) (retailPrice string, spotPrice string, err error) {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", fmt.Errorf("Error getting response: %v", err)
+	}
+
 	pricingPayload := AzureRetailPricing{}
-	jsonErr := json.Unmarshal(resp, &pricingPayload)
+	jsonErr := json.Unmarshal(body, &pricingPayload)
 	if jsonErr != nil {
 		return "", "", fmt.Errorf("error unmarshalling data: %v", jsonErr)
 	}
@@ -306,12 +311,7 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 		return "", fmt.Errorf("retail price responded with error status code %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("Error getting response: %v", err)
-	}
-
-	retailPrice, spotPrice, err := extractAzureVMRetailAndSpotPrices(body)
+	retailPrice, spotPrice, err := extractAzureVMRetailAndSpotPrices(resp)
 	if err != nil {
 		return "", fmt.Errorf("failed to extract azure prices: %v", err)
 	}
