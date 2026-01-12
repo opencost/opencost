@@ -1,6 +1,8 @@
 package env
 
 import (
+	"time"
+
 	"github.com/opencost/opencost/core/pkg/env"
 )
 
@@ -91,6 +93,9 @@ const (
 	// MCP Server
 	MCPServerEnabledEnvVar = "MCP_SERVER_ENABLED"
 	MCPHTTPPortEnvVar      = "MCP_HTTP_PORT"
+
+	// Metrics Emitter
+	MetricsEmitterQueryWindowEnvVar = "METRICS_EMITTER_QUERY_WINDOW"
 )
 
 func GetGCPAuthSecretFilePath() string {
@@ -382,4 +387,11 @@ func IsMCPServerEnabled() bool {
 // the HTTP port for the MCP server.
 func GetMCPHTTPPort() int {
 	return env.GetInt(MCPHTTPPortEnvVar, 8081)
+}
+
+// GetMetricsEmitterQueryWindow returns the time window for the metrics emitter
+// to query historical data. This controls the time range used in ComputeCostData queries.
+// Default is 2m.
+func GetMetricsEmitterQueryWindow() time.Duration {
+	return env.GetDuration(MetricsEmitterQueryWindowEnvVar, 2*time.Minute)
 }

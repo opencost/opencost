@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path"
 
 	"github.com/opencost/opencost/pkg/cloud"
@@ -41,7 +41,7 @@ func (hw *HelmWatcher) GetConfigs() []cloud.KeyedConfig {
 
 	// If file does not exist implies that this configuration method was not used
 	if exists {
-		result, err2 := ioutil.ReadFile(storageConfigSecretPath)
+		result, err2 := os.ReadFile(storageConfigSecretPath)
 		if err2 != nil {
 			log.Errorf("HelmWatcher: AzureStorage: Error reading file: %s", err2.Error())
 			return nil
@@ -53,7 +53,7 @@ func (hw *HelmWatcher) GetConfigs() []cloud.KeyedConfig {
 			log.Errorf("HelmWatcher: AzureStorage: Error reading json: %s", err2.Error())
 			return nil
 		}
-		if asc != nil && !asc.IsEmpty() {
+		if !asc.IsEmpty() {
 			// If subscription id is not set it may be present in the rate card API
 			if asc.SubscriptionId == "" {
 				ask := &azure.AzureServiceKey{}
@@ -61,9 +61,7 @@ func (hw *HelmWatcher) GetConfigs() []cloud.KeyedConfig {
 				if err3 != nil {
 					log.Errorf("HelmWatcher: AzureStorage: AzureRateCard: %s", err3)
 				}
-				if ask != nil {
-					asc.SubscriptionId = ask.SubscriptionID
-				}
+				asc.SubscriptionId = ask.SubscriptionID
 			}
 			// If SubscriptionID is still empty check the customPricing
 			if asc.SubscriptionId == "" {
@@ -96,7 +94,7 @@ func (hw *HelmWatcher) GetConfigs() []cloud.KeyedConfig {
 			if err2 != nil {
 				log.Errorf("HelmWatcher: GCP: %s", err2)
 			}
-			if key != nil && len(key) != 0 {
+			if len(key) != 0 {
 				bqc.Key = key
 			}
 
@@ -179,7 +177,7 @@ func (cfw *ConfigFileWatcher) GetConfigs() []cloud.KeyedConfig {
 		if err2 != nil {
 			log.Errorf("ConfigFileWatcher: GCP: %s", err2)
 		}
-		if key != nil && len(key) != 0 {
+		if len(key) != 0 {
 			bqc.Key = key
 		}
 
@@ -249,6 +247,15 @@ func (mcw *MultiCloudWatcher) GetConfigs() []cloud.KeyedConfig {
 			log.Errorf("MultiCloudWatcher:  error checking file at '%s': %s", multiConfigPath, err.Error())
 		}
 
+		// If still not found, check the Kubernetes secret mount path
+		if !exists {
+			multiConfigPath = "/var/configs/cloud-integration/cloud-integration.json"
+			exists, err = fileutil.FileExists(multiConfigPath)
+			if err != nil {
+				log.Errorf("MultiCloudWatcher:  error checking file at '%s': %s", multiConfigPath, err.Error())
+			}
+		}
+
 		// If config does not exist implies that this configuration method was not used
 		if !exists {
 			return nil
@@ -291,7 +298,7 @@ func loadFile[T any](path string, content T) error {
 		return nil
 	}
 
-	result, err := ioutil.ReadFile(path)
+	result, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("loadFile: Error reading file: %s", err.Error())
 	}

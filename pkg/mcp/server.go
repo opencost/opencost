@@ -19,6 +19,7 @@ import (
 	models "github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/costmodel"
+	"github.com/opencost/opencost/pkg/env"
 )
 
 // QueryType defines the type of query to be executed.
@@ -377,8 +378,8 @@ func NewMCPServer(costModel *costmodel.CostModel, provider models.Provider, clou
 }
 
 // ProcessMCPRequest processes an MCP request and returns an MCP response.
-
-func (s *MCPServer) ProcessMCPRequest(request *MCPRequest) (*MCPResponse, error) {
+// It accepts a context for proper timeout handling and cancellation.
+func (s *MCPServer) ProcessMCPRequest(ctx context.Context, request *MCPRequest) (*MCPResponse, error) {
 	// 1. Validate Request
 	if err := validate.Struct(request); err != nil {
 		return nil, fmt.Errorf("validation failed: %w", err)
@@ -396,7 +397,7 @@ func (s *MCPServer) ProcessMCPRequest(request *MCPRequest) (*MCPResponse, error)
 	case AssetQueryType:
 		data, err = s.QueryAssets(request.Query)
 	case CloudCostQueryType:
-		data, err = s.QueryCloudCosts(request.Query)
+		data, err = s.QueryCloudCosts(ctx, request.Query)
 	case EfficiencyQueryType:
 		data, err = s.QueryEfficiency(request.Query)
 	default:
@@ -714,7 +715,8 @@ func transformAssetSet(assetSet *opencost.AssetSet) *AssetResponse {
 }
 
 // QueryCloudCosts translates an MCP query into a CloudCost repository query and transforms the result.
-func (s *MCPServer) QueryCloudCosts(query *OpenCostQueryRequest) (*CloudCostResponse, error) {
+// The ctx parameter is used for timeout and cancellation handling of the cloud cost query.
+func (s *MCPServer) QueryCloudCosts(ctx context.Context, query *OpenCostQueryRequest) (*CloudCostResponse, error) {
 	// 1. Check if cloud cost querier is available
 	if s.cloudQuerier == nil {
 		return nil, fmt.Errorf("cloud cost querier not configured - check cloud-integration.json file")
@@ -738,13 +740,18 @@ func (s *MCPServer) QueryCloudCosts(query *OpenCostQueryRequest) (*CloudCostResp
 		request = s.buildCloudCostQueryRequest(request, query.CloudCostParams)
 	}
 
-	// 5. Query the repository (this handles multiple cloud providers automatically)
-	ccsr, err := s.cloudQuerier.Query(context.TODO(), request)
+	// 5. Create a timeout context for the query with configured timeout
+	queryTimeout := env.GetMCPQueryTimeout()
+	queryCtx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+
+	// 6. Query the repository (this handles multiple cloud providers automatically)
+	ccsr, err := s.cloudQuerier.Query(queryCtx, request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query cloud costs: %w", err)
 	}
 
-	// 6. Transform Response
+	// 7. Transform Response
 	return transformCloudCostSetRange(ccsr), nil
 }
 

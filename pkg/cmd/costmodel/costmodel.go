@@ -188,7 +188,7 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 			Query: queryRequest,
 		}
 
-		mcpResp, err := mcpServer.ProcessMCPRequest(mcpReq)
+		mcpResp, err := mcpServer.ProcessMCPRequest(ctx, mcpReq)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to process allocation request: %w", err)
 		}
@@ -207,7 +207,7 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 			Query: queryRequest,
 		}
 
-		mcpResp, err := mcpServer.ProcessMCPRequest(mcpReq)
+		mcpResp, err := mcpServer.ProcessMCPRequest(ctx, mcpReq)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to process asset request: %w", err)
 		}
@@ -235,7 +235,7 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 			Query: queryRequest,
 		}
 
-		mcpResp, err := mcpServer.ProcessMCPRequest(mcpReq)
+		mcpResp, err := mcpServer.ProcessMCPRequest(ctx, mcpReq)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to process cloud cost request: %w", err)
 		}
@@ -258,7 +258,7 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 			Query: queryRequest,
 		}
 
-		mcpResp, err := mcpServer.ProcessMCPRequest(mcpReq)
+		mcpResp, err := mcpServer.ProcessMCPRequest(ctx, mcpReq)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to process efficiency request: %w", err)
 		}

@@ -1,7 +1,10 @@
 package azure
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"net/http"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-11-01/compute"
@@ -246,6 +249,306 @@ func TestAzure_findCostForDisk(t *testing.T) {
 			}
 			if !mathutil.Approximately(tc.exp, act) {
 				t.Fatalf("expected value %f; got %f", tc.exp, act)
+			}
+		})
+	}
+}
+
+func Test_buildAzureRetailPricesURL(t *testing.T) {
+	testCases := []struct {
+		name         string
+		region       string
+		skuName      string
+		currencyCode string
+		expected     string
+	}{
+		{
+			name:         "all parameters provided",
+			region:       "eastus",
+			skuName:      "Standard_D8ds_v5",
+			currencyCode: "USD",
+			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&currencyCode='USD'&$filter=armRegionName+eq+%27eastus%27+and+armSkuName+eq+%27Standard_D8ds_v5%27+and+serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
+		},
+		{
+			name:         "no currency code",
+			region:       "westus",
+			skuName:      "Standard_D4s_v3",
+			currencyCode: "",
+			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&$filter=armRegionName+eq+%27westus%27+and+armSkuName+eq+%27Standard_D4s_v3%27+and+serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
+		},
+		{
+			name:         "no region",
+			region:       "",
+			skuName:      "Standard_D8s_v3",
+			currencyCode: "EUR",
+			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&currencyCode='EUR'&$filter=armSkuName+eq+%27Standard_D8s_v3%27+and+serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
+		},
+		{
+			name:         "no sku name",
+			region:       "northeurope",
+			skuName:      "",
+			currencyCode: "GBP",
+			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&currencyCode='GBP'&$filter=armRegionName+eq+%27northeurope%27+and+serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
+		},
+		{
+			name:         "only currency code",
+			region:       "",
+			skuName:      "",
+			currencyCode: "JPY",
+			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&currencyCode='JPY'&$filter=serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
+		},
+		{
+			name:         "no parameters",
+			region:       "",
+			skuName:      "",
+			currencyCode: "",
+			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&$filter=serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
+		},
+		{
+			name:         "region with special characters",
+			region:       "south-central-us",
+			skuName:      "Standard_B2s",
+			currencyCode: "USD",
+			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&currencyCode='USD'&$filter=armRegionName+eq+%27south-central-us%27+and+armSkuName+eq+%27Standard_B2s%27+and+serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
+		},
+		{
+			name:         "sku name with underscores",
+			region:       "eastus2",
+			skuName:      "Standard_E16_v3",
+			currencyCode: "CAD",
+			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&currencyCode='CAD'&$filter=armRegionName+eq+%27eastus2%27+and+armSkuName+eq+%27Standard_E16_v3%27+and+serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := buildAzureRetailPricesURL(tc.region, tc.skuName, tc.currencyCode)
+			require.Equal(t, tc.expected, result, "URL mismatch for test case: %s", tc.name)
+		})
+	}
+}
+
+func Test_extractAzureVMRetailAndSpotPrices(t *testing.T) {
+	testCases := []struct {
+		name             string
+		jsonResponse     string
+		expectedRetail   string
+		expectedSpot     string
+		expectedError    bool
+		expectedErrorMsg string
+	}{
+		{
+			name: "valid response with retail and spot prices",
+			jsonResponse: `{
+				"BillingCurrency": "USD",
+				"CustomerEntityId": "Default",
+				"CustomerEntityType": "Retail",
+				"Items": [
+					{
+						"currencyCode": "USD",
+						"tierMinimumUnits": 0,
+						"retailPrice": 0.384,
+						"unitPrice": 0.384,
+						"armRegionName": "eastus2",
+						"location": "US East 2",
+						"effectiveStartDate": "2023-01-01T00:00:00Z",
+						"meterId": "abc-123",
+						"meterName": "D8ds v5",
+						"productId": "DZH318Z0BQ4B",
+						"skuId": "DZH318Z0BQ4B/00G1",
+						"productName": "Virtual Machines Ddsv5 Series",
+						"skuName": "D8ds v5",
+						"serviceName": "Virtual Machines",
+						"serviceId": "DZH313Z7MMC8",
+						"serviceFamily": "Compute",
+						"unitOfMeasure": "1 Hour",
+						"type": "Consumption",
+						"isPrimaryMeterRegion": true,
+						"armSkuName": "Standard_D8ds_v5"
+					},
+					{
+						"currencyCode": "USD",
+						"tierMinimumUnits": 0,
+						"retailPrice": 0.0768,
+						"unitPrice": 0.0768,
+						"armRegionName": "eastus2",
+						"location": "US East 2",
+						"effectiveStartDate": "2023-01-01T00:00:00Z",
+						"meterId": "def-456",
+						"meterName": "D8ds v5 Spot",
+						"productId": "DZH318Z0BQ4B",
+						"skuId": "DZH318Z0BQ4B/00G2",
+						"productName": "Virtual Machines Ddsv5 Series",
+						"skuName": "D8ds v5 Spot",
+						"serviceName": "Virtual Machines",
+						"serviceId": "DZH313Z7MMC8",
+						"serviceFamily": "Compute",
+						"unitOfMeasure": "1 Hour",
+						"type": "Consumption",
+						"isPrimaryMeterRegion": true,
+						"armSkuName": "Standard_D8ds_v5"
+					}
+				],
+				"NextPageLink": "",
+				"Count": 2
+			}`,
+			expectedRetail: "0.384000",
+			expectedSpot:   "0.076800",
+			expectedError:  false,
+		},
+		{
+			name: "only retail price available",
+			jsonResponse: `{
+				"BillingCurrency": "USD",
+				"CustomerEntityId": "Default",
+				"CustomerEntityType": "Retail",
+				"Items": [
+					{
+						"currencyCode": "USD",
+						"retailPrice": 0.192,
+						"armRegionName": "westus",
+						"productName": "Virtual Machines Dsv3 Series",
+						"skuName": "D4s v3",
+						"armSkuName": "Standard_D4s_v3"
+					}
+				],
+				"Count": 1
+			}`,
+			expectedRetail: "0.192000",
+			expectedSpot:   "",
+			expectedError:  false,
+		},
+		{
+			name: "only spot price available",
+			jsonResponse: `{
+				"BillingCurrency": "USD",
+				"CustomerEntityId": "Default",
+				"CustomerEntityType": "Retail",
+				"Items": [
+					{
+						"currencyCode": "USD",
+						"retailPrice": 0.0384,
+						"armRegionName": "eastus",
+						"productName": "Virtual Machines Dsv3 Series",
+						"skuName": "D4s v3 Spot",
+						"armSkuName": "Standard_D4s_v3"
+					}
+				],
+				"Count": 1
+			}`,
+			expectedRetail: "",
+			expectedSpot:   "0.038400",
+			expectedError:  false,
+		},
+		{
+			name: "filters out Windows instances",
+			jsonResponse: `{
+				"BillingCurrency": "USD",
+				"CustomerEntityId": "Default",
+				"CustomerEntityType": "Retail",
+				"Items": [
+					{
+						"currencyCode": "USD",
+						"retailPrice": 0.5,
+						"armRegionName": "eastus",
+						"productName": "Virtual Machines Dsv3 Series Windows",
+						"skuName": "D4s v3",
+						"armSkuName": "Standard_D4s_v3"
+					},
+					{
+						"currencyCode": "USD",
+						"retailPrice": 0.192,
+						"armRegionName": "eastus",
+						"productName": "Virtual Machines Dsv3 Series",
+						"skuName": "D4s v3",
+						"armSkuName": "Standard_D4s_v3"
+					}
+				],
+				"Count": 2
+			}`,
+			expectedRetail: "0.192000",
+			expectedSpot:   "",
+			expectedError:  false,
+		},
+		{
+			name: "filters out low priority instances",
+			jsonResponse: `{
+				"BillingCurrency": "USD",
+				"CustomerEntityId": "Default",
+				"CustomerEntityType": "Retail",
+				"Items": [
+					{
+						"currencyCode": "USD",
+						"retailPrice": 0.05,
+						"armRegionName": "eastus",
+						"productName": "Virtual Machines Dsv3 Series",
+						"skuName": "D4s v3 Low Priority",
+						"armSkuName": "Standard_D4s_v3"
+					},
+					{
+						"currencyCode": "USD",
+						"retailPrice": 0.192,
+						"armRegionName": "eastus",
+						"productName": "Virtual Machines Dsv3 Series",
+						"skuName": "D4s v3",
+						"armSkuName": "Standard_D4s_v3"
+					}
+				],
+				"Count": 2
+			}`,
+			expectedRetail: "0.192000",
+			expectedSpot:   "",
+			expectedError:  false,
+		},
+		{
+			name: "empty items array",
+			jsonResponse: `{
+				"BillingCurrency": "USD",
+				"CustomerEntityId": "Default",
+				"CustomerEntityType": "Retail",
+				"Items": [],
+				"Count": 0
+			}`,
+			expectedRetail: "",
+			expectedSpot:   "",
+			expectedError:  false,
+		},
+		{
+			name: "invalid JSON",
+			jsonResponse: `{
+				"BillingCurrency": "USD",
+				"Items": [
+					{
+						"retailPrice": "invalid"
+					}
+				]
+			`,
+			expectedRetail:   "",
+			expectedSpot:     "",
+			expectedError:    true,
+			expectedErrorMsg: "error unmarshalling data",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a mock http.Response with the JSON response as the body
+			resp := &http.Response{
+				StatusCode: 200,
+				Body:       io.NopCloser(bytes.NewBufferString(tc.jsonResponse)),
+			}
+
+			retailPrice, spotPrice, err := extractAzureVMRetailAndSpotPrices(resp)
+
+			if tc.expectedError {
+				require.Error(t, err)
+				if tc.expectedErrorMsg != "" {
+					require.Contains(t, err.Error(), tc.expectedErrorMsg)
+				}
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedRetail, retailPrice, "Retail price mismatch")
+				require.Equal(t, tc.expectedSpot, spotPrice, "Spot price mismatch")
 			}
 		})
 	}
