@@ -868,7 +868,7 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 		name := n.Name
 		nodeLabels := n.Labels
 		if nodeLabels == nil {
-			log.Debugf("GetNodeCost: Found node '%s' with no labels", name)
+			log.Warnf("GetNodeCost: Found node '%s' with no labels", name)
 			nodeLabels = make(map[string]string)
 		}
 
