@@ -904,6 +904,11 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 	for _, n := range nodeList {
 		name := n.Name
 		nodeLabels := n.Labels
+		if nodeLabels == nil {
+			log.Warnf("GetNodeCost: Found node '%s' with no labels", name)
+			nodeLabels = make(map[string]string)
+		}
+
 		nodeLabels["providerID"] = n.SpecProviderID
 
 		pmd.TotalNodes++
