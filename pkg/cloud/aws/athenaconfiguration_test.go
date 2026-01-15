@@ -827,3 +827,331 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 		})
 	}
 }
+
+func TestConvertAwsAthenaInfoToConfig(t *testing.T) {
+	testCases := map[string]struct {
+		input          AwsAthenaInfo
+		expectNil      bool
+		expectType     string
+		expectAuthType string
+	}{
+		"empty config returns nil": {
+			input:     AwsAthenaInfo{},
+			expectNil: true,
+		},
+		"athena config with access key": {
+			input: AwsAthenaInfo{
+				AthenaBucketName: "test-bucket",
+				AthenaRegion:     "us-east-1",
+				AthenaDatabase:   "test-db",
+				AthenaTable:      "test-table",
+				AccountID:        "123456789012",
+				ServiceKeyName:   "access-key-id",
+				ServiceKeySecret: "secret-key",
+			},
+			expectNil:      false,
+			expectType:     "AthenaConfiguration",
+			expectAuthType: "AccessKey",
+		},
+		"athena config with service account (IRSA) - empty credentials": {
+			input: AwsAthenaInfo{
+				AthenaBucketName: "test-bucket",
+				AthenaRegion:     "us-east-1",
+				AthenaDatabase:   "test-db",
+				AthenaTable:      "test-table",
+				AccountID:        "123456789012",
+				ServiceKeyName:   "",
+				ServiceKeySecret: "",
+			},
+			expectNil:      false,
+			expectType:     "AthenaConfiguration",
+			expectAuthType: "ServiceAccount",
+		},
+		"athena config with assume role wrapping access key": {
+			input: AwsAthenaInfo{
+				AthenaBucketName: "test-bucket",
+				AthenaRegion:     "us-east-1",
+				AthenaDatabase:   "test-db",
+				AthenaTable:      "test-table",
+				AccountID:        "123456789012",
+				ServiceKeyName:   "access-key-id",
+				ServiceKeySecret: "secret-key",
+				MasterPayerARN:   "arn:aws:iam::987654321098:role/cross-account-role",
+			},
+			expectNil:      false,
+			expectType:     "AthenaConfiguration",
+			expectAuthType: "AssumeRole",
+		},
+		"athena config with assume role wrapping service account (IRSA)": {
+			input: AwsAthenaInfo{
+				AthenaBucketName: "test-bucket",
+				AthenaRegion:     "us-east-1",
+				AthenaDatabase:   "test-db",
+				AthenaTable:      "test-table",
+				AccountID:        "123456789012",
+				ServiceKeyName:   "",
+				ServiceKeySecret: "",
+				MasterPayerARN:   "arn:aws:iam::987654321098:role/cross-account-role",
+			},
+			expectNil:      false,
+			expectType:     "AthenaConfiguration",
+			expectAuthType: "AssumeRole",
+		},
+		"s3 config (no table/database) with access key": {
+			input: AwsAthenaInfo{
+				AthenaBucketName: "test-bucket",
+				AthenaRegion:     "us-east-1",
+				AccountID:        "123456789012",
+				ServiceKeyName:   "access-key-id",
+				ServiceKeySecret: "secret-key",
+			},
+			expectNil:      false,
+			expectType:     "S3Configuration",
+			expectAuthType: "AccessKey",
+		},
+		"s3 config with service account (IRSA)": {
+			input: AwsAthenaInfo{
+				AthenaBucketName: "test-bucket",
+				AthenaRegion:     "us-east-1",
+				AccountID:        "123456789012",
+				ServiceKeyName:   "",
+				ServiceKeySecret: "",
+			},
+			expectNil:      false,
+			expectType:     "S3Configuration",
+			expectAuthType: "ServiceAccount",
+		},
+		"athena config with workgroup and catalog": {
+			input: AwsAthenaInfo{
+				AthenaBucketName: "test-bucket",
+				AthenaRegion:     "us-east-1",
+				AthenaDatabase:   "test-db",
+				AthenaTable:      "test-table",
+				AthenaCatalog:    "test-catalog",
+				AthenaWorkgroup:  "test-workgroup",
+				AccountID:        "123456789012",
+				ServiceKeyName:   "",
+				ServiceKeySecret: "",
+			},
+			expectNil:      false,
+			expectType:     "AthenaConfiguration",
+			expectAuthType: "ServiceAccount",
+		},
+		"athena config with CUR version 1.0": {
+			input: AwsAthenaInfo{
+				AthenaBucketName: "test-bucket",
+				AthenaRegion:     "us-east-1",
+				AthenaDatabase:   "test-db",
+				AthenaTable:      "test-table",
+				AccountID:        "123456789012",
+				ServiceKeyName:   "",
+				ServiceKeySecret: "",
+				CURVersion:       "1.0",
+			},
+			expectNil:      false,
+			expectType:     "AthenaConfiguration",
+			expectAuthType: "ServiceAccount",
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			result := ConvertAwsAthenaInfoToConfig(tc.input)
+
+			if tc.expectNil {
+				if result != nil {
+					t.Errorf("expected nil result, got %T", result)
+				}
+				return
+			}
+
+			if result == nil {
+				t.Fatal("expected non-nil result, got nil")
+			}
+
+			switch tc.expectType {
+			case "AthenaConfiguration":
+				ac, ok := result.(*AthenaConfiguration)
+				if !ok {
+					t.Errorf("expected *AthenaConfiguration, got %T", result)
+					return
+				}
+
+				// Verify fields were copied correctly
+				if ac.Bucket != tc.input.AthenaBucketName {
+					t.Errorf("bucket mismatch: expected %s, got %s", tc.input.AthenaBucketName, ac.Bucket)
+				}
+				if ac.Region != tc.input.AthenaRegion {
+					t.Errorf("region mismatch: expected %s, got %s", tc.input.AthenaRegion, ac.Region)
+				}
+				if ac.Database != tc.input.AthenaDatabase {
+					t.Errorf("database mismatch: expected %s, got %s", tc.input.AthenaDatabase, ac.Database)
+				}
+				if ac.Table != tc.input.AthenaTable {
+					t.Errorf("table mismatch: expected %s, got %s", tc.input.AthenaTable, ac.Table)
+				}
+				if ac.Catalog != tc.input.AthenaCatalog {
+					t.Errorf("catalog mismatch: expected %s, got %s", tc.input.AthenaCatalog, ac.Catalog)
+				}
+				if ac.Workgroup != tc.input.AthenaWorkgroup {
+					t.Errorf("workgroup mismatch: expected %s, got %s", tc.input.AthenaWorkgroup, ac.Workgroup)
+				}
+				if ac.Account != tc.input.AccountID {
+					t.Errorf("account mismatch: expected %s, got %s", tc.input.AccountID, ac.Account)
+				}
+
+				// Check CUR version
+				expectedCURVersion := tc.input.CURVersion
+				if expectedCURVersion == "" {
+					expectedCURVersion = "2.0"
+				}
+				if ac.CURVersion != expectedCURVersion {
+					t.Errorf("CURVersion mismatch: expected %s, got %s", expectedCURVersion, ac.CURVersion)
+				}
+
+				// Verify authorizer type
+				verifyAuthorizerType(t, ac.Authorizer, tc.expectAuthType, tc.input)
+
+			case "S3Configuration":
+				sc, ok := result.(*S3Configuration)
+				if !ok {
+					t.Errorf("expected *S3Configuration, got %T", result)
+					return
+				}
+
+				// Verify fields were copied correctly
+				if sc.Bucket != tc.input.AthenaBucketName {
+					t.Errorf("bucket mismatch: expected %s, got %s", tc.input.AthenaBucketName, sc.Bucket)
+				}
+				if sc.Region != tc.input.AthenaRegion {
+					t.Errorf("region mismatch: expected %s, got %s", tc.input.AthenaRegion, sc.Region)
+				}
+				if sc.Account != tc.input.AccountID {
+					t.Errorf("account mismatch: expected %s, got %s", tc.input.AccountID, sc.Account)
+				}
+
+				// Verify authorizer type
+				verifyAuthorizerType(t, sc.Authorizer, tc.expectAuthType, tc.input)
+
+			default:
+				t.Errorf("unexpected type: %s", tc.expectType)
+			}
+		})
+	}
+}
+
+func verifyAuthorizerType(t *testing.T, auth Authorizer, expectType string, input AwsAthenaInfo) {
+	t.Helper()
+
+	switch expectType {
+	case "AccessKey":
+		ak, ok := auth.(*AccessKey)
+		if !ok {
+			t.Errorf("expected *AccessKey authorizer, got %T", auth)
+			return
+		}
+		if ak.ID != input.ServiceKeyName {
+			t.Errorf("access key ID mismatch: expected %s, got %s", input.ServiceKeyName, ak.ID)
+		}
+		if ak.Secret != input.ServiceKeySecret {
+			t.Errorf("access key secret mismatch: expected %s, got %s", input.ServiceKeySecret, ak.Secret)
+		}
+
+	case "ServiceAccount":
+		_, ok := auth.(*ServiceAccount)
+		if !ok {
+			t.Errorf("expected *ServiceAccount authorizer, got %T", auth)
+		}
+
+	case "AssumeRole":
+		ar, ok := auth.(*AssumeRole)
+		if !ok {
+			t.Errorf("expected *AssumeRole authorizer, got %T", auth)
+			return
+		}
+		if ar.RoleARN != input.MasterPayerARN {
+			t.Errorf("role ARN mismatch: expected %s, got %s", input.MasterPayerARN, ar.RoleARN)
+		}
+
+		// Check the wrapped authorizer
+		if input.ServiceKeyName == "" && input.ServiceKeySecret == "" {
+			if _, ok := ar.Authorizer.(*ServiceAccount); !ok {
+				t.Errorf("expected wrapped *ServiceAccount authorizer in AssumeRole, got %T", ar.Authorizer)
+			}
+		} else {
+			if _, ok := ar.Authorizer.(*AccessKey); !ok {
+				t.Errorf("expected wrapped *AccessKey authorizer in AssumeRole, got %T", ar.Authorizer)
+			}
+		}
+
+	default:
+		t.Errorf("unexpected authorizer type: %s", expectType)
+	}
+}
+
+func TestConvertAwsAthenaInfoToConfig_AuthorizerCreateAWSConfig(t *testing.T) {
+	// Test that the converted config's authorizer can create AWS configs
+	testCases := map[string]struct {
+		input       AwsAthenaInfo
+		expectError bool
+	}{
+		"access key authorizer creates config": {
+			input: AwsAthenaInfo{
+				AthenaBucketName: "test-bucket",
+				AthenaRegion:     "us-east-1",
+				AthenaDatabase:   "test-db",
+				AthenaTable:      "test-table",
+				AccountID:        "123456789012",
+				ServiceKeyName:   "AKIAIOSFODNN7EXAMPLE",
+				ServiceKeySecret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+			},
+			expectError: false,
+		},
+		"service account authorizer creates config": {
+			input: AwsAthenaInfo{
+				AthenaBucketName: "test-bucket",
+				AthenaRegion:     "us-east-1",
+				AthenaDatabase:   "test-db",
+				AthenaTable:      "test-table",
+				AccountID:        "123456789012",
+				ServiceKeyName:   "",
+				ServiceKeySecret: "",
+			},
+			expectError: false,
+		},
+		"invalid access key fails validation": {
+			input: AwsAthenaInfo{
+				AthenaBucketName: "test-bucket",
+				AthenaRegion:     "us-east-1",
+				AthenaDatabase:   "test-db",
+				AthenaTable:      "test-table",
+				AccountID:        "123456789012",
+				ServiceKeyName:   "only-id-no-secret",
+				ServiceKeySecret: "",
+			},
+			expectError: true,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			result := ConvertAwsAthenaInfoToConfig(tc.input)
+			if result == nil {
+				t.Fatal("expected non-nil result")
+			}
+
+			ac, ok := result.(*AthenaConfiguration)
+			if !ok {
+				t.Fatalf("expected *AthenaConfiguration, got %T", result)
+			}
+
+			_, err := ac.Authorizer.CreateAWSConfig(tc.input.AthenaRegion)
+			if tc.expectError && err == nil {
+				t.Error("expected error but got nil")
+			}
+			if !tc.expectError && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
