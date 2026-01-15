@@ -106,6 +106,9 @@ type Allocation struct {
 	GPUAllocation               *GPUAllocation `json:"GPUAllocation"`       //@bingen:field[version=23]
 	CPUCoreLimitAverage         float64        `json:"cpuCoreLimitAverage"` //@bingen:field[version=24]
 	RAMBytesLimitAverage        float64        `json:"ramByteLimitAverage"` //@bingen:field[version=24]
+	// NAT Gateway Costs
+	NetworkNatGatewayEgressCost  float64 `json:"networkNatGatewayEgressCost"`  //@bingen:field[version=25]
+	NetworkNatGatewayIngressCost float64 `json:"networkNatGatewayIngressCost"` //@bingen:field[version=25]
 }
 
 type GPUAllocation struct {
