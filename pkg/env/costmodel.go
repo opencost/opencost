@@ -35,6 +35,8 @@ const (
 	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
 	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
 
+	DigitalOceanAccessTokenEnvVar = "DIGITALOCEAN_ACCESS_TOKEN"
+
 	// Currently being used for OCI and DigitalOcean
 	ProviderPricingURL = "PROVIDER_PRICING_URL"
 
@@ -374,7 +376,16 @@ func GetLocalCollectorDirectory() string {
 }
 
 func GetDOKSPricingURL() string {
-	return env.Get(ProviderPricingURL, "https://api.digitalocean.com/v2/billing/pricing")
+	return env.Get(ProviderPricingURL, "https://api.digitalocean.com/v2/sizes")
+}
+
+func GetDigitalOceanAccessToken() string {
+	// Try DIGITALOCEAN_ACCESS_TOKEN first, then fall back to CLOUD_PROVIDER_API_KEY
+	token := env.Get(DigitalOceanAccessTokenEnvVar, "")
+	if token == "" {
+		token = env.Get(CloudProviderAPIKeyEnvVar, "")
+	}
+	return token
 }
 
 // IsMCPServerEnabled returns the environment variable value for MCPServerEnabledEnvVar which represents

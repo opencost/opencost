@@ -1,30 +1,6616 @@
 {
-  "products": [
-    {
-      "sku": "1-KS-K8SWN-00123",
-      "itemType": "K8S_WORKER_NODE",
-      "displayName": "Kubernetes Worker Node, General Purpose Droplets - 1 VCPU 2GB RAM",
-      "category": "IAAS",
-      "prices": [
+    "sizes": [
         {
-          "unit": "ITEM_PER_SECOND",
-          "rate": "0.00000333",
-          "currency": "USD",
-          "region": "global",
-          "minAmount": "0.01",
-          "maxAmount": "10.00",
-          "minUsage": "60",
-          "maxUsage": "2419200"
-        }
-      ],
-      "attributes": [
+            "slug": "s-1vcpu-512mb-10gb",
+            "memory": 512,
+            "vcpus": 1,
+            "disk": 10,
+            "transfer": 0.5,
+            "price_monthly": 4,
+            "price_hourly": 0.00595,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 10,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
         {
-          "name": "size_id",
-          "value": "184",
-          "unit": "NO_UNIT"
+            "slug": "s-1vcpu-1gb",
+            "memory": 1024,
+            "vcpus": 1,
+            "disk": 25,
+            "transfer": 1.0,
+            "price_monthly": 6,
+            "price_hourly": 0.00893,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 25,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "512mb",
+            "memory": 512,
+            "vcpus": 1,
+            "disk": 20,
+            "transfer": 1.0,
+            "price_monthly": 6,
+            "price_hourly": 0.00893,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 20,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-1vcpu-1gb-amd",
+            "memory": 1024,
+            "vcpus": 1,
+            "disk": 25,
+            "transfer": 1.0,
+            "price_monthly": 7,
+            "price_hourly": 0.01042,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic AMD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 25,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-1vcpu-1gb-intel",
+            "memory": 1024,
+            "vcpus": 1,
+            "disk": 25,
+            "transfer": 1.0,
+            "price_monthly": 7,
+            "price_hourly": 0.01042,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic Intel",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 25,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-1vcpu-1gb-35gb-intel",
+            "memory": 1024,
+            "vcpus": 1,
+            "disk": 35,
+            "transfer": 1.0,
+            "price_monthly": 8,
+            "price_hourly": 0.0119,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic Intel",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 35,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-1vcpu-2gb",
+            "memory": 2048,
+            "vcpus": 1,
+            "disk": 50,
+            "transfer": 2.0,
+            "price_monthly": 12,
+            "price_hourly": 0.01786,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 50,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "1gb",
+            "memory": 1024,
+            "vcpus": 1,
+            "disk": 30,
+            "transfer": 2.0,
+            "price_monthly": 12,
+            "price_hourly": 0.01786,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 30,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-1vcpu-2gb-amd",
+            "memory": 2048,
+            "vcpus": 1,
+            "disk": 50,
+            "transfer": 2.0,
+            "price_monthly": 14,
+            "price_hourly": 0.02083,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic AMD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 50,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-1vcpu-2gb-intel",
+            "memory": 2048,
+            "vcpus": 1,
+            "disk": 50,
+            "transfer": 2.0,
+            "price_monthly": 14,
+            "price_hourly": 0.02083,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic Intel",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 50,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-1vcpu-2gb-70gb-intel",
+            "memory": 2048,
+            "vcpus": 1,
+            "disk": 70,
+            "transfer": 2.0,
+            "price_monthly": 16,
+            "price_hourly": 0.02381,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic Intel",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 70,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-3vcpu-1gb",
+            "memory": 1024,
+            "vcpus": 3,
+            "disk": 60,
+            "transfer": 3.0,
+            "price_monthly": 18,
+            "price_hourly": 0.02679,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 60,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-2vcpu-2gb",
+            "memory": 2048,
+            "vcpus": 2,
+            "disk": 60,
+            "transfer": 3.0,
+            "price_monthly": 18,
+            "price_hourly": 0.02679,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 60,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-1vcpu-3gb",
+            "memory": 3072,
+            "vcpus": 1,
+            "disk": 60,
+            "transfer": 3.0,
+            "price_monthly": 18,
+            "price_hourly": 0.02679,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 60,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-2vcpu-2gb-amd",
+            "memory": 2048,
+            "vcpus": 2,
+            "disk": 60,
+            "transfer": 3.0,
+            "price_monthly": 21,
+            "price_hourly": 0.03125,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic AMD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 60,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-2vcpu-2gb-intel",
+            "memory": 2048,
+            "vcpus": 2,
+            "disk": 60,
+            "transfer": 3.0,
+            "price_monthly": 21,
+            "price_hourly": 0.03125,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic Intel",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 60,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-2vcpu-2gb-90gb-intel",
+            "memory": 2048,
+            "vcpus": 2,
+            "disk": 90,
+            "transfer": 3.0,
+            "price_monthly": 24,
+            "price_hourly": 0.03571,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic Intel",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 90,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-2vcpu-4gb",
+            "memory": 4096,
+            "vcpus": 2,
+            "disk": 80,
+            "transfer": 4.0,
+            "price_monthly": 24,
+            "price_hourly": 0.03571,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 80,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "2gb",
+            "memory": 2048,
+            "vcpus": 2,
+            "disk": 40,
+            "transfer": 3.0,
+            "price_monthly": 24,
+            "price_hourly": 0.03571,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 40,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-2vcpu-4gb-amd",
+            "memory": 4096,
+            "vcpus": 2,
+            "disk": 80,
+            "transfer": 4.0,
+            "price_monthly": 28,
+            "price_hourly": 0.04167,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic AMD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 80,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-2vcpu-4gb-intel",
+            "memory": 4096,
+            "vcpus": 2,
+            "disk": 80,
+            "transfer": 4.0,
+            "price_monthly": 28,
+            "price_hourly": 0.04167,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic Intel",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 80,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-2vcpu-4gb-120gb-intel",
+            "memory": 4096,
+            "vcpus": 2,
+            "disk": 120,
+            "transfer": 4.0,
+            "price_monthly": 32,
+            "price_hourly": 0.04762,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic Intel",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 120,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-2vcpu-8gb-amd",
+            "memory": 8192,
+            "vcpus": 2,
+            "disk": 100,
+            "transfer": 5.0,
+            "price_monthly": 42,
+            "price_hourly": 0.0625,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic AMD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 100,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-1vcpu-8gb",
+            "memory": 8192,
+            "vcpus": 1,
+            "disk": 40,
+            "transfer": 5.0,
+            "price_monthly": 42,
+            "price_hourly": 0.0625,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Memory-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 40,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c-2",
+            "memory": 4096,
+            "vcpus": 2,
+            "disk": 25,
+            "transfer": 4.0,
+            "price_monthly": 42,
+            "price_hourly": 0.0625,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "CPU-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 25,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c2-2vcpu-4gb",
+            "memory": 4096,
+            "vcpus": 2,
+            "disk": 50,
+            "transfer": 4.0,
+            "price_monthly": 47,
+            "price_hourly": 0.06994,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "CPU-Optimized 2x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 50,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-2vcpu-8gb-160gb-intel",
+            "memory": 8192,
+            "vcpus": 2,
+            "disk": 160,
+            "transfer": 5.0,
+            "price_monthly": 48,
+            "price_hourly": 0.07143,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic Intel",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 160,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-4vcpu-8gb",
+            "memory": 8192,
+            "vcpus": 4,
+            "disk": 160,
+            "transfer": 5.0,
+            "price_monthly": 48,
+            "price_hourly": 0.07143,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 160,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "4gb",
+            "memory": 4096,
+            "vcpus": 2,
+            "disk": 60,
+            "transfer": 4.0,
+            "price_monthly": 48,
+            "price_hourly": 0.07143,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 60,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-4vcpu-8gb-amd",
+            "memory": 8192,
+            "vcpus": 4,
+            "disk": 160,
+            "transfer": 5.0,
+            "price_monthly": 56,
+            "price_hourly": 0.08333,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic AMD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 160,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-4vcpu-8gb-intel",
+            "memory": 8192,
+            "vcpus": 4,
+            "disk": 160,
+            "transfer": 5.0,
+            "price_monthly": 56,
+            "price_hourly": 0.08333,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic Intel",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 160,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c5-2vcpu-4gb",
+            "memory": 4096,
+            "vcpus": 2,
+            "disk": 125,
+            "transfer": 4.0,
+            "price_monthly": 62,
+            "price_hourly": 0.09226,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "CPU Intensive 5x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 125,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g-2vcpu-8gb",
+            "memory": 8192,
+            "vcpus": 2,
+            "disk": 25,
+            "transfer": 4.0,
+            "price_monthly": 63,
+            "price_hourly": 0.09375,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "General Purpose",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 25,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-4vcpu-8gb-240gb-intel",
+            "memory": 8192,
+            "vcpus": 4,
+            "disk": 240,
+            "transfer": 6.0,
+            "price_monthly": 64,
+            "price_hourly": 0.09524,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic Intel",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 240,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gd-2vcpu-8gb",
+            "memory": 8192,
+            "vcpus": 2,
+            "disk": 50,
+            "transfer": 4.0,
+            "price_monthly": 68,
+            "price_hourly": 0.10119,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "General Purpose 2x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 50,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g-2vcpu-8gb-intel",
+            "memory": 8192,
+            "vcpus": 2,
+            "disk": 30,
+            "transfer": 4.0,
+            "price_monthly": 76,
+            "price_hourly": 0.1131,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose — Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 30,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-16gb",
+            "memory": 16384,
+            "vcpus": 2,
+            "disk": 60,
+            "transfer": 5.0,
+            "price_monthly": 78,
+            "price_hourly": 0.11607,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Memory-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 60,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gd-2vcpu-8gb-intel",
+            "memory": 8192,
+            "vcpus": 2,
+            "disk": 60,
+            "transfer": 4.0,
+            "price_monthly": 79,
+            "price_hourly": 0.11756,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose — Premium Intel 2x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 60,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-4vcpu-16gb-amd",
+            "memory": 16384,
+            "vcpus": 4,
+            "disk": 200,
+            "transfer": 8.0,
+            "price_monthly": 84,
+            "price_hourly": 0.125,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo3",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic AMD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-2vcpu-16gb",
+            "memory": 16384,
+            "vcpus": 2,
+            "disk": 50,
+            "transfer": 4.0,
+            "price_monthly": 84,
+            "price_hourly": 0.125,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Memory-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 50,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c-4",
+            "memory": 8192,
+            "vcpus": 4,
+            "disk": 50,
+            "transfer": 5.0,
+            "price_monthly": 84,
+            "price_hourly": 0.125,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "CPU-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 50,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g6_5-2vcpu-8gb",
+            "memory": 8192,
+            "vcpus": 2,
+            "disk": 163,
+            "transfer": 4.0,
+            "price_monthly": 90.6,
+            "price_hourly": 0.13482,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "General Purpose 6.5x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 163,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g5_5-2vcpu-8gb-intel",
+            "memory": 8192,
+            "vcpus": 2,
+            "disk": 165,
+            "transfer": 4.0,
+            "price_monthly": 92.2,
+            "price_hourly": 0.1372,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose - Premium Intel 5.5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 165,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c2-4vcpu-8gb",
+            "memory": 8192,
+            "vcpus": 4,
+            "disk": 100,
+            "transfer": 5.0,
+            "price_monthly": 94,
+            "price_hourly": 0.13988,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "CPU-Optimized 2x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 100,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-4vcpu-16gb-320gb-intel",
+            "memory": 16384,
+            "vcpus": 4,
+            "disk": 320,
+            "transfer": 8.0,
+            "price_monthly": 96,
+            "price_hourly": 0.14286,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic Intel",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 320,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-8vcpu-16gb",
+            "memory": 16384,
+            "vcpus": 8,
+            "disk": 320,
+            "transfer": 6.0,
+            "price_monthly": 96,
+            "price_hourly": 0.14286,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 320,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-6vcpu-16gb",
+            "memory": 16384,
+            "vcpus": 6,
+            "disk": 320,
+            "transfer": 6.0,
+            "price_monthly": 96,
+            "price_hourly": 0.14286,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 320,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "8gb",
+            "memory": 8192,
+            "vcpus": 4,
+            "disk": 80,
+            "transfer": 5.0,
+            "price_monthly": 96,
+            "price_hourly": 0.14286,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 80,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-2vcpu-16gb-intel",
+            "memory": 16384,
+            "vcpus": 2,
+            "disk": 50,
+            "transfer": 4.0,
+            "price_monthly": 99,
+            "price_hourly": 0.14732,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Memory-Optimized",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 50,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m3-2vcpu-16gb",
+            "memory": 16384,
+            "vcpus": 2,
+            "disk": 150,
+            "transfer": 4.0,
+            "price_monthly": 104,
+            "price_hourly": 0.15476,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Memory-Optimized 3x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 150,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c-4-intel",
+            "memory": 8192,
+            "vcpus": 4,
+            "disk": 50,
+            "transfer": 5.0,
+            "price_monthly": 109,
+            "price_hourly": 0.1622,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 50,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m3-2vcpu-16gb-intel",
+            "memory": 16384,
+            "vcpus": 2,
+            "disk": 150,
+            "transfer": 4.0,
+            "price_monthly": 110,
+            "price_hourly": 0.16369,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Memory-Optimized 3x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 150,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-8vcpu-16gb-amd",
+            "memory": 16384,
+            "vcpus": 8,
+            "disk": 320,
+            "transfer": 6.0,
+            "price_monthly": 112,
+            "price_hourly": 0.16667,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo3",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic AMD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 320,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-8vcpu-16gb-intel",
+            "memory": 16384,
+            "vcpus": 8,
+            "disk": 320,
+            "transfer": 6.0,
+            "price_monthly": 112,
+            "price_hourly": 0.16667,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic Intel",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 320,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c2-4vcpu-8gb-intel",
+            "memory": 8192,
+            "vcpus": 4,
+            "disk": 100,
+            "transfer": 5.0,
+            "price_monthly": 122,
+            "price_hourly": 0.18155,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 100,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c5-4vcpu-8gb",
+            "memory": 8192,
+            "vcpus": 4,
+            "disk": 250,
+            "transfer": 5.0,
+            "price_monthly": 124,
+            "price_hourly": 0.18452,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "CPU Intensive 5x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 250,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g-4vcpu-16gb",
+            "memory": 16384,
+            "vcpus": 4,
+            "disk": 50,
+            "transfer": 5.0,
+            "price_monthly": 126,
+            "price_hourly": 0.1875,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "General Purpose",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 50,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-8vcpu-16gb-480gb-intel",
+            "memory": 16384,
+            "vcpus": 8,
+            "disk": 480,
+            "transfer": 9.0,
+            "price_monthly": 128,
+            "price_hourly": 0.19048,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic Intel",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 480,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so-2vcpu-16gb-intel",
+            "memory": 16384,
+            "vcpus": 2,
+            "disk": 300,
+            "transfer": 4.0,
+            "price_monthly": 131,
+            "price_hourly": 0.19494,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Storage-Optimized",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 300,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so-2vcpu-16gb",
+            "memory": 16384,
+            "vcpus": 2,
+            "disk": 300,
+            "transfer": 4.0,
+            "price_monthly": 131,
+            "price_hourly": 0.19494,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Storage-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 300,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m6-2vcpu-16gb",
+            "memory": 16384,
+            "vcpus": 2,
+            "disk": 300,
+            "transfer": 4.0,
+            "price_monthly": 131,
+            "price_hourly": 0.19494,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Memory-Optimized 6x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 300,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gd-4vcpu-16gb",
+            "memory": 16384,
+            "vcpus": 4,
+            "disk": 100,
+            "transfer": 5.0,
+            "price_monthly": 136,
+            "price_hourly": 0.20238,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "General Purpose 2x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 100,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so1_5-2vcpu-16gb-intel",
+            "memory": 16384,
+            "vcpus": 2,
+            "disk": 450,
+            "transfer": 4.0,
+            "price_monthly": 139,
+            "price_hourly": 0.20685,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Storage-Optimized 1.5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 450,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g-4vcpu-16gb-intel",
+            "memory": 16384,
+            "vcpus": 4,
+            "disk": 60,
+            "transfer": 5.0,
+            "price_monthly": 151,
+            "price_hourly": 0.2247,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose — Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 60,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-32gb",
+            "memory": 32768,
+            "vcpus": 4,
+            "disk": 90,
+            "transfer": 5.0,
+            "price_monthly": 156,
+            "price_hourly": 0.23214,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Memory-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 90,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gd-4vcpu-16gb-intel",
+            "memory": 16384,
+            "vcpus": 4,
+            "disk": 120,
+            "transfer": 5.0,
+            "price_monthly": 158,
+            "price_hourly": 0.23512,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose — Premium Intel 2x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 120,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c5-4vcpu-8gb-intel",
+            "memory": 8192,
+            "vcpus": 4,
+            "disk": 250,
+            "transfer": 5.0,
+            "price_monthly": 161,
+            "price_hourly": 0.23958,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "CPU Optimized - Premium Intel 5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 250,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so1_5-2vcpu-16gb",
+            "memory": 16384,
+            "vcpus": 2,
+            "disk": 450,
+            "transfer": 4.0,
+            "price_monthly": 163,
+            "price_hourly": 0.24256,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Storage-Optimized 1.5x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 450,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-8vcpu-32gb-amd",
+            "memory": 32768,
+            "vcpus": 8,
+            "disk": 400,
+            "transfer": 10.0,
+            "price_monthly": 168,
+            "price_hourly": 0.25,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo3",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic AMD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 400,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-4vcpu-32gb",
+            "memory": 32768,
+            "vcpus": 4,
+            "disk": 100,
+            "transfer": 6.0,
+            "price_monthly": 168,
+            "price_hourly": 0.25,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Memory-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 100,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c-8",
+            "memory": 16384,
+            "vcpus": 8,
+            "disk": 100,
+            "transfer": 6.0,
+            "price_monthly": 168,
+            "price_hourly": 0.25,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "CPU-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 100,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g6_5-4vcpu-16gb",
+            "memory": 16384,
+            "vcpus": 4,
+            "disk": 325,
+            "transfer": 5.0,
+            "price_monthly": 181,
+            "price_hourly": 0.26935,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "General Purpose 6.5x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 325,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g5_5-4vcpu-16gb-intel",
+            "memory": 16384,
+            "vcpus": 4,
+            "disk": 330,
+            "transfer": 5.0,
+            "price_monthly": 183.4,
+            "price_hourly": 0.27292,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose - Premium Intel 5.5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 330,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c2-8vcpu-16gb",
+            "memory": 16384,
+            "vcpus": 8,
+            "disk": 200,
+            "transfer": 6.0,
+            "price_monthly": 188,
+            "price_hourly": 0.27976,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "CPU-Optimized 2x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-8vcpu-32gb-640gb-intel",
+            "memory": 32768,
+            "vcpus": 8,
+            "disk": 640,
+            "transfer": 10.0,
+            "price_monthly": 192,
+            "price_hourly": 0.28571,
+            "regions": [
+                "ams3",
+                "atl1",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic Intel",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 640,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-8vcpu-32gb",
+            "memory": 32768,
+            "vcpus": 8,
+            "disk": 640,
+            "transfer": 7.0,
+            "price_monthly": 192,
+            "price_hourly": 0.28571,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 640,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "16gb",
+            "memory": 16384,
+            "vcpus": 8,
+            "disk": 160,
+            "transfer": 6.0,
+            "price_monthly": 192,
+            "price_hourly": 0.28571,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 160,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-4vcpu-32gb-intel",
+            "memory": 32768,
+            "vcpus": 4,
+            "disk": 100,
+            "transfer": 6.0,
+            "price_monthly": 198,
+            "price_hourly": 0.29464,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Memory-Optimized",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 100,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m3-4vcpu-32gb",
+            "memory": 32768,
+            "vcpus": 4,
+            "disk": 300,
+            "transfer": 6.0,
+            "price_monthly": 208,
+            "price_hourly": 0.30952,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Memory-Optimized 3x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 300,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c-8-intel",
+            "memory": 16384,
+            "vcpus": 8,
+            "disk": 100,
+            "transfer": 6.0,
+            "price_monthly": 218,
+            "price_hourly": 0.3244,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 100,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m3-4vcpu-32gb-intel",
+            "memory": 32768,
+            "vcpus": 4,
+            "disk": 300,
+            "transfer": 6.0,
+            "price_monthly": 220,
+            "price_hourly": 0.32738,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Memory-Optimized 3x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 300,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c2-8vcpu-16gb-intel",
+            "memory": 16384,
+            "vcpus": 8,
+            "disk": 200,
+            "transfer": 6.0,
+            "price_monthly": 244,
+            "price_hourly": 0.3631,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c5-8vcpu-16gb",
+            "memory": 16384,
+            "vcpus": 8,
+            "disk": 500,
+            "transfer": 6.0,
+            "price_monthly": 248,
+            "price_hourly": 0.36905,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "CPU Intensive 5x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 500,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g-8vcpu-32gb",
+            "memory": 32768,
+            "vcpus": 8,
+            "disk": 100,
+            "transfer": 6.0,
+            "price_monthly": 252,
+            "price_hourly": 0.375,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "General Purpose",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 100,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so-4vcpu-32gb-intel",
+            "memory": 32768,
+            "vcpus": 4,
+            "disk": 600,
+            "transfer": 6.0,
+            "price_monthly": 262,
+            "price_hourly": 0.38988,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Storage-Optimized",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 600,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so-4vcpu-32gb",
+            "memory": 32768,
+            "vcpus": 4,
+            "disk": 600,
+            "transfer": 6.0,
+            "price_monthly": 262,
+            "price_hourly": 0.38988,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Storage-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 600,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m6-4vcpu-32gb",
+            "memory": 32768,
+            "vcpus": 4,
+            "disk": 600,
+            "transfer": 6.0,
+            "price_monthly": 262,
+            "price_hourly": 0.38988,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Memory-Optimized 6x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 600,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gd-8vcpu-32gb",
+            "memory": 32768,
+            "vcpus": 8,
+            "disk": 200,
+            "transfer": 6.0,
+            "price_monthly": 272,
+            "price_hourly": 0.40476,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "General Purpose 2x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so1_5-4vcpu-32gb-intel",
+            "memory": 32768,
+            "vcpus": 4,
+            "disk": 900,
+            "transfer": 6.0,
+            "price_monthly": 278,
+            "price_hourly": 0.41369,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Storage-Optimized 1.5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 900,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-12vcpu-48gb",
+            "memory": 49152,
+            "vcpus": 12,
+            "disk": 960,
+            "transfer": 8.0,
+            "price_monthly": 288,
+            "price_hourly": 0.42857,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 960,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g-8vcpu-32gb-intel",
+            "memory": 32768,
+            "vcpus": 8,
+            "disk": 120,
+            "transfer": 6.0,
+            "price_monthly": 302,
+            "price_hourly": 0.4494,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose — Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 120,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-64gb",
+            "memory": 65536,
+            "vcpus": 8,
+            "disk": 200,
+            "transfer": 5.0,
+            "price_monthly": 312,
+            "price_hourly": 0.46429,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Memory-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gd-8vcpu-32gb-intel",
+            "memory": 32768,
+            "vcpus": 8,
+            "disk": 240,
+            "transfer": 6.0,
+            "price_monthly": 317,
+            "price_hourly": 0.47173,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose — Premium Intel 2x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 240,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c5-8vcpu-16gb-intel",
+            "memory": 16384,
+            "vcpus": 8,
+            "disk": 500,
+            "transfer": 6.0,
+            "price_monthly": 322,
+            "price_hourly": 0.47917,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "CPU Optimized - Premium Intel 5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 500,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so1_5-4vcpu-32gb",
+            "memory": 32768,
+            "vcpus": 4,
+            "disk": 900,
+            "transfer": 6.0,
+            "price_monthly": 326,
+            "price_hourly": 0.48512,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Storage-Optimized 1.5x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 900,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-8vcpu-64gb",
+            "memory": 65536,
+            "vcpus": 8,
+            "disk": 200,
+            "transfer": 7.0,
+            "price_monthly": 336,
+            "price_hourly": 0.5,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Memory-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c-16",
+            "memory": 32768,
+            "vcpus": 16,
+            "disk": 200,
+            "transfer": 7.0,
+            "price_monthly": 336,
+            "price_hourly": 0.5,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "CPU-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g6_5-8vcpu-32gb",
+            "memory": 32768,
+            "vcpus": 8,
+            "disk": 650,
+            "transfer": 6.0,
+            "price_monthly": 362,
+            "price_hourly": 0.53869,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "General Purpose 6.5x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 650,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g5_5-8vcpu-32gb-intel",
+            "memory": 32768,
+            "vcpus": 8,
+            "disk": 660,
+            "transfer": 6.0,
+            "price_monthly": 366.8,
+            "price_hourly": 0.54583,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose - Premium Intel 5.5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 660,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c2-16vcpu-32gb",
+            "memory": 32768,
+            "vcpus": 16,
+            "disk": 400,
+            "transfer": 7.0,
+            "price_monthly": 376,
+            "price_hourly": 0.55952,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "CPU-Optimized 2x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 400,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-16vcpu-64gb",
+            "memory": 65536,
+            "vcpus": 16,
+            "disk": 1280,
+            "transfer": 9.0,
+            "price_monthly": 384,
+            "price_hourly": 0.57143,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1280,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "32gb",
+            "memory": 32768,
+            "vcpus": 12,
+            "disk": 320,
+            "transfer": 7.0,
+            "price_monthly": 384,
+            "price_hourly": 0.57143,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 320,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-8vcpu-64gb-intel",
+            "memory": 65536,
+            "vcpus": 8,
+            "disk": 200,
+            "transfer": 7.0,
+            "price_monthly": 396,
+            "price_hourly": 0.58929,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Memory-Optimized",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m3-8vcpu-64gb",
+            "memory": 65536,
+            "vcpus": 8,
+            "disk": 600,
+            "transfer": 7.0,
+            "price_monthly": 416,
+            "price_hourly": 0.61905,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Memory-Optimized 3x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 600,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c-16-intel",
+            "memory": 32768,
+            "vcpus": 16,
+            "disk": 200,
+            "transfer": 7.0,
+            "price_monthly": 437,
+            "price_hourly": 0.6503,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m3-8vcpu-64gb-intel",
+            "memory": 65536,
+            "vcpus": 8,
+            "disk": 600,
+            "transfer": 7.0,
+            "price_monthly": 440,
+            "price_hourly": 0.65476,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Memory-Optimized 3x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 600,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c2-16vcpu-32gb-intel",
+            "memory": 32768,
+            "vcpus": 16,
+            "disk": 400,
+            "transfer": 7.0,
+            "price_monthly": 489,
+            "price_hourly": 0.72768,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 400,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c5-16vcpu-32gb",
+            "memory": 32768,
+            "vcpus": 16,
+            "disk": 1000,
+            "transfer": 7.0,
+            "price_monthly": 496,
+            "price_hourly": 0.7381,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "CPU Intensive 5x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1000,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g-16vcpu-64gb",
+            "memory": 65536,
+            "vcpus": 16,
+            "disk": 200,
+            "transfer": 7.0,
+            "price_monthly": 504,
+            "price_hourly": 0.75,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "General Purpose",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so-8vcpu-64gb-intel",
+            "memory": 65536,
+            "vcpus": 8,
+            "disk": 1200,
+            "transfer": 7.0,
+            "price_monthly": 524,
+            "price_hourly": 0.77976,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Storage-Optimized",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so-8vcpu-64gb",
+            "memory": 65536,
+            "vcpus": 8,
+            "disk": 1200,
+            "transfer": 7.0,
+            "price_monthly": 524,
+            "price_hourly": 0.77976,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Storage-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m6-8vcpu-64gb",
+            "memory": 65536,
+            "vcpus": 8,
+            "disk": 1200,
+            "transfer": 7.0,
+            "price_monthly": 524,
+            "price_hourly": 0.77976,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Memory-Optimized 6x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gd-16vcpu-64gb",
+            "memory": 65536,
+            "vcpus": 16,
+            "disk": 400,
+            "transfer": 7.0,
+            "price_monthly": 544,
+            "price_hourly": 0.80952,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "General Purpose 2x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 400,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so1_5-8vcpu-64gb-intel",
+            "memory": 65536,
+            "vcpus": 8,
+            "disk": 1800,
+            "transfer": 7.0,
+            "price_monthly": 556,
+            "price_hourly": 0.82738,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Storage-Optimized 1.5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1800,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gpu-4000adax1-20gb",
+            "memory": 32768,
+            "vcpus": 8,
+            "disk": 500,
+            "transfer": 10.0,
+            "price_monthly": 565.44,
+            "price_hourly": 0.76,
+            "regions": [],
+            "available": true,
+            "description": "RTX 4000 Ada GPU Droplet - 1X",
+            "networking_throughput": 10000,
+            "gpu_info": {
+                "count": 1,
+                "vram": {
+                    "amount": 20,
+                    "unit": "gib"
+                },
+                "model": "nvidia_rtx4000_ada"
+            },
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 500,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-20vcpu-96gb",
+            "memory": 98304,
+            "vcpus": 20,
+            "disk": 1920,
+            "transfer": 10.0,
+            "price_monthly": 576,
+            "price_hourly": 0.85714,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1920,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "48gb",
+            "memory": 49152,
+            "vcpus": 16,
+            "disk": 480,
+            "transfer": 8.0,
+            "price_monthly": 576,
+            "price_hourly": 0.85714,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 480,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g-16vcpu-64gb-intel",
+            "memory": 65536,
+            "vcpus": 16,
+            "disk": 240,
+            "transfer": 7.0,
+            "price_monthly": 605,
+            "price_hourly": 0.9003,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose — Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 240,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-128gb",
+            "memory": 131072,
+            "vcpus": 16,
+            "disk": 340,
+            "transfer": 5.0,
+            "price_monthly": 624,
+            "price_hourly": 0.92857,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Memory-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 340,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gd-16vcpu-64gb-intel",
+            "memory": 65536,
+            "vcpus": 16,
+            "disk": 480,
+            "transfer": 7.0,
+            "price_monthly": 634,
+            "price_hourly": 0.94345,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose — Premium Intel 2x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 480,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c5-16vcpu-32gb-intel",
+            "memory": 32768,
+            "vcpus": 16,
+            "disk": 1000,
+            "transfer": 7.0,
+            "price_monthly": 645,
+            "price_hourly": 0.95982,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "CPU Optimized - Premium Intel 5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1000,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so1_5-8vcpu-64gb",
+            "memory": 65536,
+            "vcpus": 8,
+            "disk": 1800,
+            "transfer": 7.0,
+            "price_monthly": 652,
+            "price_hourly": 0.97024,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Storage-Optimized 1.5x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1800,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-16vcpu-128gb",
+            "memory": 131072,
+            "vcpus": 16,
+            "disk": 400,
+            "transfer": 8.0,
+            "price_monthly": 672,
+            "price_hourly": 1,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Memory-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 400,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c-32",
+            "memory": 65536,
+            "vcpus": 32,
+            "disk": 400,
+            "transfer": 9.0,
+            "price_monthly": 672,
+            "price_hourly": 1,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "CPU-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 400,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g6_5-16vcpu-64gb",
+            "memory": 65536,
+            "vcpus": 16,
+            "disk": 1300,
+            "transfer": 7.0,
+            "price_monthly": 724,
+            "price_hourly": 1.07738,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "General Purpose 6.5x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1300,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g5_5-16vcpu-64gb-intel",
+            "memory": 65536,
+            "vcpus": 16,
+            "disk": 1320,
+            "transfer": 7.0,
+            "price_monthly": 734.6,
+            "price_hourly": 1.09315,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose - Premium Intel 5.5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1320,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c2-32vcpu-64gb",
+            "memory": 65536,
+            "vcpus": 32,
+            "disk": 800,
+            "transfer": 9.0,
+            "price_monthly": 752,
+            "price_hourly": 1.11905,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "CPU-Optimized 2x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 800,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-24vcpu-128gb",
+            "memory": 131072,
+            "vcpus": 24,
+            "disk": 2560,
+            "transfer": 11.0,
+            "price_monthly": 768,
+            "price_hourly": 1.14286,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 2560,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "64gb",
+            "memory": 65536,
+            "vcpus": 20,
+            "disk": 640,
+            "transfer": 9.0,
+            "price_monthly": 768,
+            "price_hourly": 1.14286,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 640,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-16vcpu-128gb-intel",
+            "memory": 131072,
+            "vcpus": 16,
+            "disk": 400,
+            "transfer": 8.0,
+            "price_monthly": 792,
+            "price_hourly": 1.17857,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Memory-Optimized",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 400,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m3-16vcpu-128gb",
+            "memory": 131072,
+            "vcpus": 16,
+            "disk": 1200,
+            "transfer": 8.0,
+            "price_monthly": 832,
+            "price_hourly": 1.2381,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Memory-Optimized 3x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c-32-intel",
+            "memory": 65536,
+            "vcpus": 32,
+            "disk": 400,
+            "transfer": 9.0,
+            "price_monthly": 874,
+            "price_hourly": 1.3006,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 400,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m3-16vcpu-128gb-intel",
+            "memory": 131072,
+            "vcpus": 16,
+            "disk": 1200,
+            "transfer": 8.0,
+            "price_monthly": 880,
+            "price_hourly": 1.30952,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Memory-Optimized 3x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c2-32vcpu-64gb-intel",
+            "memory": 65536,
+            "vcpus": 32,
+            "disk": 800,
+            "transfer": 9.0,
+            "price_monthly": 978,
+            "price_hourly": 1.45536,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 800,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c5-32vcpu-64gb",
+            "memory": 65536,
+            "vcpus": 32,
+            "disk": 2000,
+            "transfer": 9.0,
+            "price_monthly": 992,
+            "price_hourly": 1.47619,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "CPU Intensive 5x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 2000,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c-48",
+            "memory": 98304,
+            "vcpus": 48,
+            "disk": 600,
+            "transfer": 11.0,
+            "price_monthly": 1008,
+            "price_hourly": 1.5,
+            "regions": [
+                "ams3",
+                "blr1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "CPU-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 600,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-24vcpu-192gb",
+            "memory": 196608,
+            "vcpus": 24,
+            "disk": 600,
+            "transfer": 9.0,
+            "price_monthly": 1008,
+            "price_hourly": 1.5,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Memory-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 600,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g-32vcpu-128gb",
+            "memory": 131072,
+            "vcpus": 32,
+            "disk": 400,
+            "transfer": 8.0,
+            "price_monthly": 1008,
+            "price_hourly": 1.5,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "General Purpose",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 400,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so-16vcpu-128gb-intel",
+            "memory": 131072,
+            "vcpus": 16,
+            "disk": 2400,
+            "transfer": 8.0,
+            "price_monthly": 1048,
+            "price_hourly": 1.55952,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Storage-Optimized",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 2400,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so-16vcpu-128gb",
+            "memory": 131072,
+            "vcpus": 16,
+            "disk": 2400,
+            "transfer": 8.0,
+            "price_monthly": 1048,
+            "price_hourly": 1.55952,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Storage-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 2400,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m6-16vcpu-128gb",
+            "memory": 131072,
+            "vcpus": 16,
+            "disk": 2400,
+            "transfer": 8.0,
+            "price_monthly": 1048,
+            "price_hourly": 1.55952,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Memory-Optimized 6x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 2400,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gd-32vcpu-128gb",
+            "memory": 131072,
+            "vcpus": 32,
+            "disk": 800,
+            "transfer": 8.0,
+            "price_monthly": 1088,
+            "price_hourly": 1.61905,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "General Purpose 2x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 800,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so1_5-16vcpu-128gb-intel",
+            "memory": 131072,
+            "vcpus": 16,
+            "disk": 3600,
+            "transfer": 8.0,
+            "price_monthly": 1112,
+            "price_hourly": 1.65476,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Storage-Optimized 1.5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 3600,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c2-48vcpu-96gb",
+            "memory": 98304,
+            "vcpus": 48,
+            "disk": 1200,
+            "transfer": 11.0,
+            "price_monthly": 1128,
+            "price_hourly": 1.67857,
+            "regions": [
+                "ams3",
+                "blr1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "CPU-Optimized 2x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-224gb",
+            "memory": 229376,
+            "vcpus": 32,
+            "disk": 500,
+            "transfer": 5.0,
+            "price_monthly": 1144,
+            "price_hourly": 1.70238,
+            "regions": [
+                "ams2",
+                "ams3",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Memory-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 500,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "s-32vcpu-192gb",
+            "memory": 196608,
+            "vcpus": 32,
+            "disk": 3840,
+            "transfer": 12.0,
+            "price_monthly": 1152,
+            "price_hourly": 1.71429,
+            "regions": [
+                "ams2",
+                "ams3",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Legacy Basic",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 3840,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gpu-l40sx1-48gb",
+            "memory": 65536,
+            "vcpus": 8,
+            "disk": 500,
+            "transfer": 10.0,
+            "price_monthly": 1168.08,
+            "price_hourly": 1.57,
+            "regions": [
+                "tor1"
+            ],
+            "available": true,
+            "description": "L40S GPU Droplet - 1X",
+            "networking_throughput": 10000,
+            "gpu_info": {
+                "count": 1,
+                "vram": {
+                    "amount": 48,
+                    "unit": "gib"
+                },
+                "model": "nvidia_l40s"
+            },
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 500,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gpu-6000adax1-48gb",
+            "memory": 65536,
+            "vcpus": 8,
+            "disk": 500,
+            "transfer": 10.0,
+            "price_monthly": 1168.08,
+            "price_hourly": 1.57,
+            "regions": [
+                "tor1"
+            ],
+            "available": true,
+            "description": "RTX 6000 Ada GPU Droplet - 1X",
+            "networking_throughput": 10000,
+            "gpu_info": {
+                "count": 1,
+                "vram": {
+                    "amount": 48,
+                    "unit": "gib"
+                },
+                "model": "nvidia_rtx6000_ada"
+            },
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 500,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-24vcpu-192gb-intel",
+            "memory": 196608,
+            "vcpus": 24,
+            "disk": 600,
+            "transfer": 9.0,
+            "price_monthly": 1188,
+            "price_hourly": 1.76786,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Memory-Optimized",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 600,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g-32vcpu-128gb-intel",
+            "memory": 131072,
+            "vcpus": 32,
+            "disk": 480,
+            "transfer": 8.0,
+            "price_monthly": 1210,
+            "price_hourly": 1.8006,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose — Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 480,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m3-24vcpu-192gb",
+            "memory": 196608,
+            "vcpus": 24,
+            "disk": 1800,
+            "transfer": 9.0,
+            "price_monthly": 1248,
+            "price_hourly": 1.85714,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Memory-Optimized 3x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1800,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g-40vcpu-160gb",
+            "memory": 163840,
+            "vcpus": 40,
+            "disk": 500,
+            "transfer": 9.0,
+            "price_monthly": 1260,
+            "price_hourly": 1.875,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "General Purpose",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 500,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gd-32vcpu-128gb-intel",
+            "memory": 131072,
+            "vcpus": 32,
+            "disk": 960,
+            "transfer": 8.0,
+            "price_monthly": 1268,
+            "price_hourly": 1.8869,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose — Premium Intel 2x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 960,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c5-32vcpu-64gb-intel",
+            "memory": 65536,
+            "vcpus": 32,
+            "disk": 2000,
+            "transfer": 9.0,
+            "price_monthly": 1290,
+            "price_hourly": 1.91964,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "CPU Optimized - Premium Intel 5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 2000,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so1_5-16vcpu-128gb",
+            "memory": 131072,
+            "vcpus": 16,
+            "disk": 3600,
+            "transfer": 8.0,
+            "price_monthly": 1304,
+            "price_hourly": 1.94048,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Storage-Optimized 1.5x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 3600,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c-48-intel",
+            "memory": 98304,
+            "vcpus": 48,
+            "disk": 600,
+            "transfer": 11.0,
+            "price_monthly": 1310,
+            "price_hourly": 1.9494,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 600,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m3-24vcpu-192gb-intel",
+            "memory": 196608,
+            "vcpus": 24,
+            "disk": 1800,
+            "transfer": 9.0,
+            "price_monthly": 1320,
+            "price_hourly": 1.96429,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Memory-Optimized 3x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1800,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-32vcpu-256gb",
+            "memory": 262144,
+            "vcpus": 32,
+            "disk": 800,
+            "transfer": 10.0,
+            "price_monthly": 1344,
+            "price_hourly": 2,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Memory-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 800,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gd-40vcpu-160gb",
+            "memory": 163840,
+            "vcpus": 40,
+            "disk": 1000,
+            "transfer": 9.0,
+            "price_monthly": 1360,
+            "price_hourly": 2.02381,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "General Purpose 2x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1000,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g6_5-32vcpu-128gb",
+            "memory": 131072,
+            "vcpus": 32,
+            "disk": 2600,
+            "transfer": 8.0,
+            "price_monthly": 1448,
+            "price_hourly": 2.15476,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "General Purpose 6.5x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 2600,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c2-48vcpu-96gb-intel",
+            "memory": 98304,
+            "vcpus": 48,
+            "disk": 1200,
+            "transfer": 11.0,
+            "price_monthly": 1466,
+            "price_hourly": 2.18155,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g5_5-32vcpu-128gb-intel",
+            "memory": 131072,
+            "vcpus": 32,
+            "disk": 2640,
+            "transfer": 8.0,
+            "price_monthly": 1469.2,
+            "price_hourly": 2.18631,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose - Premium Intel 5.5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 2640,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gpu-mi300x1-192gb",
+            "memory": 245760,
+            "vcpus": 20,
+            "disk": 720,
+            "transfer": 15.0,
+            "price_monthly": 1480.56,
+            "price_hourly": 1.99,
+            "regions": [],
+            "available": true,
+            "description": "AMD MI300X - 1X",
+            "networking_throughput": 10000,
+            "gpu_info": {
+                "count": 1,
+                "vram": {
+                    "amount": 192,
+                    "unit": "gib"
+                },
+                "model": "amd_mi300x"
+            },
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 720,
+                        "unit": "gib"
+                    }
+                },
+                {
+                    "type": "scratch",
+                    "size": {
+                        "amount": 5120,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c5-48vcpu-96gb",
+            "memory": 98304,
+            "vcpus": 48,
+            "disk": 3000,
+            "transfer": 11.0,
+            "price_monthly": 1488,
+            "price_hourly": 2.21429,
+            "regions": [
+                "blr1",
+                "lon1",
+                "sfo3",
+                "syd1"
+            ],
+            "available": true,
+            "description": "CPU Intensive 5x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 3000,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so-24vcpu-192gb-intel",
+            "memory": 196608,
+            "vcpus": 24,
+            "disk": 3600,
+            "transfer": 9.0,
+            "price_monthly": 1572,
+            "price_hourly": 2.33929,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Storage-Optimized",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 3600,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so-24vcpu-192gb",
+            "memory": 196608,
+            "vcpus": 24,
+            "disk": 3600,
+            "transfer": 9.0,
+            "price_monthly": 1572,
+            "price_hourly": 2.33929,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Storage-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 3600,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m6-24vcpu-192gb",
+            "memory": 196608,
+            "vcpus": 24,
+            "disk": 3600,
+            "transfer": 9.0,
+            "price_monthly": 1572,
+            "price_hourly": 2.33929,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Memory-Optimized 6x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 3600,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-32vcpu-256gb-intel",
+            "memory": 262144,
+            "vcpus": 32,
+            "disk": 800,
+            "transfer": 10.0,
+            "price_monthly": 1584,
+            "price_hourly": 2.35714,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Memory-Optimized",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 800,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c-60-intel",
+            "memory": 122880,
+            "vcpus": 60,
+            "disk": 750,
+            "transfer": 12.0,
+            "price_monthly": 1639,
+            "price_hourly": 2.43899,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 750,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m3-32vcpu-256gb",
+            "memory": 262144,
+            "vcpus": 32,
+            "disk": 2400,
+            "transfer": 10.0,
+            "price_monthly": 1664,
+            "price_hourly": 2.47619,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Memory-Optimized 3x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 2400,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so1_5-24vcpu-192gb-intel",
+            "memory": 196608,
+            "vcpus": 24,
+            "disk": 5400,
+            "transfer": 9.0,
+            "price_monthly": 1668,
+            "price_hourly": 2.48214,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Storage-Optimized 1.5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 5400,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m3-32vcpu-256gb-intel",
+            "memory": 262144,
+            "vcpus": 32,
+            "disk": 2400,
+            "transfer": 10.0,
+            "price_monthly": 1760,
+            "price_hourly": 2.61905,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Memory-Optimized 3x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 2400,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g6_5-40vcpu-160gb",
+            "memory": 163840,
+            "vcpus": 40,
+            "disk": 3250,
+            "transfer": 9.0,
+            "price_monthly": 1810,
+            "price_hourly": 2.69345,
+            "regions": [
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "syd1"
+            ],
+            "available": true,
+            "description": "General Purpose 6.5x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 3250,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g-48vcpu-192gb-intel",
+            "memory": 196608,
+            "vcpus": 48,
+            "disk": 720,
+            "transfer": 9.0,
+            "price_monthly": 1814,
+            "price_hourly": 2.6994,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose — Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 720,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c2-60vcpu-120gb-intel",
+            "memory": 122880,
+            "vcpus": 60,
+            "disk": 1500,
+            "transfer": 12.0,
+            "price_monthly": 1834,
+            "price_hourly": 2.72917,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1500,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gd-48vcpu-192gb-intel",
+            "memory": 196608,
+            "vcpus": 48,
+            "disk": 1440,
+            "transfer": 11.0,
+            "price_monthly": 1901,
+            "price_hourly": 2.82887,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose — Premium Intel 2x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1440,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c5-48vcpu-96gb-intel",
+            "memory": 98304,
+            "vcpus": 48,
+            "disk": 3000,
+            "transfer": 11.0,
+            "price_monthly": 1934,
+            "price_hourly": 2.87798,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "CPU Optimized - Premium Intel 5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 3000,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so1_5-24vcpu-192gb",
+            "memory": 196608,
+            "vcpus": 24,
+            "disk": 5400,
+            "transfer": 9.0,
+            "price_monthly": 1956,
+            "price_hourly": 2.91071,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Storage-Optimized 1.5x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 5400,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so-32vcpu-256gb-intel",
+            "memory": 262144,
+            "vcpus": 32,
+            "disk": 4800,
+            "transfer": 10.0,
+            "price_monthly": 2096,
+            "price_hourly": 3.11905,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Storage-Optimized",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 4800,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so-32vcpu-256gb",
+            "memory": 262144,
+            "vcpus": 32,
+            "disk": 4800,
+            "transfer": 10.0,
+            "price_monthly": 2096,
+            "price_hourly": 3.11905,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Storage-Optimized",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 4800,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m6-32vcpu-256gb",
+            "memory": 262144,
+            "vcpus": 32,
+            "disk": 4800,
+            "transfer": 10.0,
+            "price_monthly": 2096,
+            "price_hourly": 3.11905,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Memory-Optimized 6x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 4800,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g5_5-48vcpu-192gb-intel",
+            "memory": 196608,
+            "vcpus": 48,
+            "disk": 3960,
+            "transfer": 9.0,
+            "price_monthly": 2202.8,
+            "price_hourly": 3.27798,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose - Premium Intel 5.5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 3960,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so1_5-32vcpu-256gb-intel",
+            "memory": 262144,
+            "vcpus": 32,
+            "disk": 7200,
+            "transfer": 10.0,
+            "price_monthly": 2224,
+            "price_hourly": 3.30952,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Storage-Optimized 1.5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 7200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g-60vcpu-240gb-intel",
+            "memory": 245760,
+            "vcpus": 60,
+            "disk": 900,
+            "transfer": 10.0,
+            "price_monthly": 2269,
+            "price_hourly": 3.37649,
+            "regions": [
+                "ams3",
+                "fra1",
+                "lon1",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose — Premium Intel",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 900,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m-48vcpu-384gb-intel",
+            "memory": 393216,
+            "vcpus": 48,
+            "disk": 1200,
+            "transfer": 11.0,
+            "price_monthly": 2376,
+            "price_hourly": 3.53571,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Memory-Optimized",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gd-60vcpu-240gb-intel",
+            "memory": 245760,
+            "vcpus": 60,
+            "disk": 1800,
+            "transfer": 10.0,
+            "price_monthly": 2378,
+            "price_hourly": 3.53869,
+            "regions": [
+                "ams3",
+                "fra1",
+                "lon1",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose — Premium Intel 2x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 1800,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "c5-60vcpu-120gb-intel",
+            "memory": 122880,
+            "vcpus": 60,
+            "disk": 3750,
+            "transfer": 12.0,
+            "price_monthly": 2419,
+            "price_hourly": 3.5997,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "CPU Optimized - Premium Intel 5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 3750,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gpu-h100x1-80gb",
+            "memory": 245760,
+            "vcpus": 20,
+            "disk": 720,
+            "transfer": 15.0,
+            "price_monthly": 2522.16,
+            "price_hourly": 3.39,
+            "regions": [
+                "ams3",
+                "nyc2",
+                "tor1"
+            ],
+            "available": true,
+            "description": "H100 GPU - 1X",
+            "networking_throughput": 10000,
+            "gpu_info": {
+                "count": 1,
+                "vram": {
+                    "amount": 80,
+                    "unit": "gib"
+                },
+                "model": "nvidia_h100"
+            },
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 720,
+                        "unit": "gib"
+                    }
+                },
+                {
+                    "type": "scratch",
+                    "size": {
+                        "amount": 5120,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gpu-h200x1-141gb",
+            "memory": 245760,
+            "vcpus": 24,
+            "disk": 720,
+            "transfer": 15.0,
+            "price_monthly": 2559.36,
+            "price_hourly": 3.44,
+            "regions": [
+                "atl1",
+                "nyc2"
+            ],
+            "available": true,
+            "description": "Nvidia H200 - 1X",
+            "networking_throughput": 10000,
+            "gpu_info": {
+                "count": 1,
+                "vram": {
+                    "amount": 141,
+                    "unit": "gib"
+                },
+                "model": "nvidia_h200"
+            },
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 720,
+                        "unit": "gib"
+                    }
+                },
+                {
+                    "type": "scratch",
+                    "size": {
+                        "amount": 5120,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so1_5-32vcpu-256gb",
+            "memory": 262144,
+            "vcpus": 32,
+            "disk": 7200,
+            "transfer": 10.0,
+            "price_monthly": 2608,
+            "price_hourly": 3.88095,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "syd1"
+            ],
+            "available": true,
+            "description": "Storage-Optimized 1.5x SSD",
+            "networking_throughput": 2000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 7200,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "m3-48vcpu-384gb-intel",
+            "memory": 393216,
+            "vcpus": 48,
+            "disk": 3600,
+            "transfer": 11.0,
+            "price_monthly": 2640,
+            "price_hourly": 3.92857,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Memory-Optimized 3x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 3600,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "g5_5-60vcpu-240gb-intel",
+            "memory": 245760,
+            "vcpus": 60,
+            "disk": 4950,
+            "transfer": 10.0,
+            "price_monthly": 2755,
+            "price_hourly": 4.0997,
+            "regions": [
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "General Purpose - Premium Intel 5.5x SSD",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 4950,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "so-48vcpu-384gb-intel",
+            "memory": 393216,
+            "vcpus": 48,
+            "disk": 7000,
+            "transfer": 11.0,
+            "price_monthly": 3144,
+            "price_hourly": 4.67857,
+            "regions": [
+                "ams3",
+                "fra1",
+                "lon1",
+                "sfo2",
+                "sfo3",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Premium Storage-Optimized",
+            "networking_throughput": 10000,
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 7000,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gpu-mi300x8-1536gb",
+            "memory": 1966080,
+            "vcpus": 160,
+            "disk": 2046,
+            "transfer": 60.0,
+            "price_monthly": 11844.48,
+            "price_hourly": 15.92,
+            "regions": [],
+            "available": true,
+            "description": "AMD MI300X - 8X",
+            "networking_throughput": 10000,
+            "gpu_info": {
+                "count": 8,
+                "vram": {
+                    "amount": 1536,
+                    "unit": "gib"
+                },
+                "model": "amd_mi300x"
+            },
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 2046,
+                        "unit": "gib"
+                    }
+                },
+                {
+                    "type": "scratch",
+                    "size": {
+                        "amount": 40960,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gpu-h100x8-640gb",
+            "memory": 1966080,
+            "vcpus": 160,
+            "disk": 2046,
+            "transfer": 60.0,
+            "price_monthly": 17796.48,
+            "price_hourly": 23.92,
+            "regions": [
+                "ams3"
+            ],
+            "available": true,
+            "description": "H100 GPU - 8X",
+            "networking_throughput": 10000,
+            "gpu_info": {
+                "count": 8,
+                "vram": {
+                    "amount": 640,
+                    "unit": "gib"
+                },
+                "model": "nvidia_h100"
+            },
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 2046,
+                        "unit": "gib"
+                    }
+                },
+                {
+                    "type": "scratch",
+                    "size": {
+                        "amount": 40960,
+                        "unit": "gib"
+                    }
+                }
+            ]
+        },
+        {
+            "slug": "gpu-h200x8-1128gb",
+            "memory": 1966080,
+            "vcpus": 192,
+            "disk": 2046,
+            "transfer": 60.0,
+            "price_monthly": 20474.88,
+            "price_hourly": 27.52,
+            "regions": [],
+            "available": true,
+            "description": "Nvidia H200 - 8X",
+            "networking_throughput": 10000,
+            "gpu_info": {
+                "count": 8,
+                "vram": {
+                    "amount": 1128,
+                    "unit": "gib"
+                },
+                "model": "nvidia_h200"
+            },
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 2046,
+                        "unit": "gib"
+                    }
+                },
+                {
+                    "type": "scratch",
+                    "size": {
+                        "amount": 40960,
+                        "unit": "gib"
+                    }
+                }
+            ]
         }
-      ],
-      "effectiveAt": "2023-09-08T00:00:00Z"
+    ],
+    "links": {},
+    "meta": {
+        "total": 196
     }
-  ]
 }
