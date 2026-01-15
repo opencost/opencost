@@ -271,7 +271,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 			Name: "kubecost_network_nat_gateway_ingress_cost",
 			Help: "kubecost_network_nat_gateway_ingress_cost Total cost per GB of nat gateway ingress.",
 		})
-		if _, disabled := disabledMetrics["kubecost_network_internet_egress_cost"]; !disabled {
+		if _, disabled := disabledMetrics["kubecost_network_nat_gateway_ingress_cost"]; !disabled {
 			toRegisterGauge = append(toRegisterGauge, networkNatGatewayIngressCostG)
 		}
 
