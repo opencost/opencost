@@ -580,14 +580,18 @@ func parseArch(features string) string {
 func (do *DOKS) sizeToNode(size *DOSize, arch string) (*models.Node, models.PricingMetadata) {
 	hourlyCost := size.PriceHourly
 	vcpu := size.VCPUs
-	ramGiB := size.Memory / 1024 // Convert MB to GiB
+	ramGiB := float64(size.Memory) / 1024.0 // Convert MB to GiB (float division)
 
 	// Distribute cost proportionally between CPU and RAM
-	totalUnits := float64(vcpu + ramGiB)
+	// Since OpenCost will multiply these by the actual vCPU count and RAM GiB,
+	// we need to calculate the per-unit costs correctly.
+	// We distribute the total cost 50/50 between CPU and RAM, then divide by the resource count.
 	var vcpuCost, ramCost float64
-	if totalUnits > 0 {
-		vcpuCost = hourlyCost * float64(vcpu) / totalUnits
-		ramCost = hourlyCost * float64(ramGiB) / totalUnits
+	if vcpu > 0 && ramGiB > 0 {
+		cpuPortion := hourlyCost / 2.0
+		ramPortion := hourlyCost / 2.0
+		vcpuCost = cpuPortion / float64(vcpu)  // Cost per vCPU core
+		ramCost = ramPortion / ramGiB           // Cost per GiB of RAM
 	}
 
 	if arch == "" {
@@ -600,12 +604,16 @@ func (do *DOKS) sizeToNode(size *DOSize, arch string) (*models.Node, models.Pric
 		region = size.Regions[0]
 	}
 
+	// Convert RAM from GiB to bytes for RAMBytes field
+	ramBytes := int64(ramGiB * 1024 * 1024 * 1024)
+
 	node := &models.Node{
-		Cost:         fmt.Sprintf("%.5f", hourlyCost),
+		// Don't set Cost field - let OpenCost calculate it from VCPUCost and RAMCost
 		VCPUCost:     fmt.Sprintf("%.5f", vcpuCost),
 		RAMCost:      fmt.Sprintf("%.5f", ramCost),
 		VCPU:         strconv.Itoa(vcpu),
-		RAM:          fmt.Sprintf("%dGiB", ramGiB),
+		RAM:          fmt.Sprintf("%.2fGiB", ramGiB),
+		RAMBytes:     fmt.Sprintf("%d", ramBytes),
 		InstanceType: size.Slug,
 		Region:       region,
 		UsageType:    "droplet",
@@ -639,12 +647,15 @@ func fallbackNode(slug string) (*models.Node, models.PricingMetadata, error) {
 
 		log.Infof("FallbackNode (estimated): %s , hourly=%.5f, vcpuUnit=%.5f, ramUnit=%.5f", slug, cost, unitCost, unitCost)
 
+		ramBytes := int64(ram) * 1024 * 1024 * 1024
+
 		return &models.Node{
-				Cost:         fmt.Sprintf("%.5f", cost),
+				// Don't set Cost field - let OpenCost calculate it from VCPUCost and RAMCost
 				VCPUCost:     fmt.Sprintf("%.5f", unitCost),
 				RAMCost:      fmt.Sprintf("%.5f", unitCost),
 				VCPU:         strconv.Itoa(vcpu),
 				RAM:          fmt.Sprintf("%dGiB", ram),
+				RAMBytes:     fmt.Sprintf("%d", ramBytes),
 				InstanceType: slug,
 				Region:       "global",
 				UsageType:    "static-fallback",
