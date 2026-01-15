@@ -73,6 +73,7 @@ const (
 	NetInternetPricePerGiBID                   MetricCollectorID = "NetInternetPricePerGiB"
 	NetInternetServiceGiBID                    MetricCollectorID = "NetInternetServiceGiB"
 	NetNatGatewayPricePerGiBID                 MetricCollectorID = "NetNatGatewayPricePerGiB"
+	NetNatGatewayIngressPricePerGiBID          MetricCollectorID = "NetNatGatewayIngressPricePerGiB"
 	NetNatGatewayGiBID                         MetricCollectorID = "NetNatGatewayGiB"
 	NetTransferBytesID                         MetricCollectorID = "NetTransferBytes"
 	NetZoneIngressGiBID                        MetricCollectorID = "NetZoneIngressGiB"

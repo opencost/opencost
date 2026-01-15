@@ -76,6 +76,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewNetRegionIngressGiBMetricCollector())
 	memStore.Register(NewNetInternetIngressGiBMetricCollector())
 	memStore.Register(NewNetInternetServiceIngressGiBMetricCollector())
+	memStore.Register(NewNetNatGatewayIngressPricePerGiBMetricCollector())
 	memStore.Register(NewNetNatGatewayIngressGiBMetricCollector())
 	memStore.Register(NewNetTransferBytesMetricCollector())
 	memStore.Register(NewNamespaceUptimeMetricCollector())
@@ -1534,7 +1535,7 @@ func NewNetNatGatewayGiBMetricCollector() *metric.MetricCollector {
 
 // avg(
 //      avg_over_time(
-// 			kubecost_network_nat_gateway_cost{
+// 			kubecost_network_nat_gateway_egress_cost{
 // 				<some_custom_filter>
 //			}[1h]
 //		)
@@ -1543,7 +1544,7 @@ func NewNetNatGatewayGiBMetricCollector() *metric.MetricCollector {
 func NewNetNatGatewayPricePerGiBMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NetNatGatewayPricePerGiBID,
-		metric.KubecostNetworkNatGatewayCost,
+		metric.KubecostNetworkNatGatewayEgressCost,
 		[]string{},
 		aggregator.AverageOverTime,
 		nil,
@@ -1681,6 +1682,24 @@ func NewNetInternetServiceIngressGiBMetricCollector() *metric.MetricCollector {
 		func(labels map[string]string) bool {
 			return labels[source.InternetLabel] == "true"
 		},
+	)
+}
+
+// avg(
+//      avg_over_time(
+// 			kubecost_network_nat_gateway_ingress_cost{
+// 				<some_custom_filter>
+//			}[1h]
+//		)
+// ) by (cluster_id)
+
+func NewNetNatGatewayIngressPricePerGiBMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NetNatGatewayIngressPricePerGiBID,
+		metric.KubecostNetworkNatGatewayIngressCost,
+		[]string{},
+		aggregator.AverageOverTime,
+		nil,
 	)
 }
 

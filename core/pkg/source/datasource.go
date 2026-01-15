@@ -102,6 +102,7 @@ type MetricsQuerier interface {
 	QueryNetRegionIngressGiB(start, end time.Time) *Future[NetRegionIngressGiBResult]
 	QueryNetInternetIngressGiB(start, end time.Time) *Future[NetInternetIngressGiBResult]
 	QueryNetInternetServiceIngressGiB(start, end time.Time) *Future[NetInternetServiceIngressGiBResult]
+	QueryNetNatGatewayIngressPricePerGiB(start, end time.Time) *Future[NetNatGatewayPricePerGiBResult]
 	QueryNetNatGatewayIngressGiB(start, end time.Time) *Future[NetNatGatewayIngressGiBResult]
 	QueryNetReceiveBytes(start, end time.Time) *Future[NetReceiveBytesResult]
 
