@@ -188,7 +188,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 	}
 
 	// Get metrics data
-	resRAMUsage, resCPUUsage, resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, err := queryMetrics(mq, start, end)
+	resRAMUsage, resCPUUsage, resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, resNetNatGatewayRequests, resNetNatGatewayIngressRequests, err := queryMetrics(mq, start, end)
 	if err != nil {
 		log.Warnf("ComputeCostData: continuing despite metrics errors: %s", err)
 	}
@@ -218,7 +218,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 		}
 	}
 
-	networkUsageMap, err := GetNetworkUsageData(resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, clusterID)
+	networkUsageMap, err := GetNetworkUsageData(resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, resNetNatGatewayRequests, resNetNatGatewayIngressRequests, clusterID)
 	if err != nil {
 		log.Warnf("Unable to get Network Cost Data: %s", err.Error())
 		networkUsageMap = make(map[string]*NetworkUsageData)
@@ -563,7 +563,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 	return containerNameCost, err
 }
 
-func queryMetrics(mq source.MetricsQuerier, start, end time.Time) ([]*source.ContainerMetricResult, []*source.ContainerMetricResult, []*source.NetZoneGiBResult, []*source.NetRegionGiBResult, []*source.NetInternetGiBResult, error) {
+func queryMetrics(mq source.MetricsQuerier, start, end time.Time) ([]*source.ContainerMetricResult, []*source.ContainerMetricResult, []*source.NetZoneGiBResult, []*source.NetRegionGiBResult, []*source.NetInternetGiBResult, []*source.NetNatGatewayGiBResult, []*source.NetNatGatewayIngressGiBResult, error) {
 	grp := source.NewQueryGroup()
 
 	resChRAMUsage := source.WithGroup(grp, mq.QueryRAMUsageAvg(start, end))
@@ -571,6 +571,8 @@ func queryMetrics(mq source.MetricsQuerier, start, end time.Time) ([]*source.Con
 	resChNetZoneRequests := source.WithGroup(grp, mq.QueryNetZoneGiB(start, end))
 	resChNetRegionRequests := source.WithGroup(grp, mq.QueryNetRegionGiB(start, end))
 	resChNetInternetRequests := source.WithGroup(grp, mq.QueryNetInternetGiB(start, end))
+	resChNetNatGatewayEgressRequests := source.WithGroup(grp, mq.QueryNetNatGatewayGiB(start, end))
+	resChNetNatGatewayIngressRequests := source.WithGroup(grp, mq.QueryNetNatGatewayIngressGiB(start, end))
 
 	// Process metrics query results. Handle errors using ctx.Errors.
 	resRAMUsage, _ := resChRAMUsage.Await()
@@ -578,6 +580,8 @@ func queryMetrics(mq source.MetricsQuerier, start, end time.Time) ([]*source.Con
 	resNetZoneRequests, _ := resChNetZoneRequests.Await()
 	resNetRegionRequests, _ := resChNetRegionRequests.Await()
 	resNetInternetRequests, _ := resChNetInternetRequests.Await()
+	resNetNatGatewayEgressRequests, _ := resChNetNatGatewayEgressRequests.Await()
+	resNetNatGatewayIngressRequests, _ := resChNetNatGatewayIngressRequests.Await()
 
 	// NOTE: The way we currently handle errors and warnings only early returns if there is an error. Warnings
 	// NOTE: will not propagate unless coupled with errors.
@@ -595,10 +599,10 @@ func queryMetrics(mq source.MetricsQuerier, start, end time.Time) ([]*source.Con
 
 		// ErrorCollection is an collection of errors wrapped in a single error implementation
 		// We opt to not return an error for the sake of running as a pure exporter.
-		return resRAMUsage, resCPUUsage, resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, grp.Error()
+		return resRAMUsage, resCPUUsage, resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, resNetNatGatewayEgressRequests, resNetNatGatewayIngressRequests, grp.Error()
 	}
 
-	return resRAMUsage, resCPUUsage, resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, nil
+	return resRAMUsage, resCPUUsage, resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, resNetNatGatewayEgressRequests, resNetNatGatewayIngressRequests, nil
 }
 
 func findUnmountedPVCostData(clusterMap clusters.ClusterMap, unmountedPVs map[string][]*PersistentVolumeClaimData, namespaceLabelsMapping map[string]map[string]string, namespaceAnnotationsMapping map[string]map[string]string) map[string]*CostData {
