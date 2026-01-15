@@ -1260,6 +1260,9 @@ func (az *Azure) NetworkPricing() (*models.Network, error) {
 		return nil, err
 	}
 	ngi, err := strconv.ParseFloat(cpricing.NatGatewayIngress, 64)
+	if err != nil {
+		return nil, err
+	}
 
 	return &models.Network{
 		ZoneNetworkEgressCost:     znec,
