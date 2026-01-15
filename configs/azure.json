@@ -10,6 +10,8 @@
     "zoneNetworkEgress": "0.01",
     "regionNetworkEgress": "0.01",
     "internetNetworkEgress": "0.0725",
+    "natGatewayEgress": "0.045",
+    "natGatewayIngress": "0.045",
     "spotLabel": "kubernetes.azure.com/scalesetpriority",
     "spotLabelValue": "spot",
     "azureSubscriptionID": "",

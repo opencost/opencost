@@ -759,9 +759,8 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 
 				gpuType := NormalizeGPULabel(product.Description)
 				if gpuType != "" {
-				    log.Debugf("GCP Billing API: normalized GPU type: %q", gpuType)
+					log.Debugf("GCP Billing API: normalized GPU type: %q", gpuType)
 				}
-
 
 				candidateKeys := []string{}
 				if gcp.ValidPricingKeys == nil {
@@ -1143,11 +1142,18 @@ func (gcp *GCP) NetworkPricing() (*models.Network, error) {
 	if err != nil {
 		return nil, err
 	}
+	nge, err := strconv.ParseFloat(cpricing.NatGatewayEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+	ngi, err := strconv.ParseFloat(cpricing.NatGatewayIngress, 64)
 
 	return &models.Network{
 		ZoneNetworkEgressCost:     znec,
 		RegionNetworkEgressCost:   rnec,
 		InternetNetworkEgressCost: inec,
+		NatGatewayEgressCost:      nge,
+		NatGatewayIngressCost:     ngi,
 	}, nil
 }
 

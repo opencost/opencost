@@ -1367,10 +1367,7 @@ func NewNetZoneGiBMetricCollector() *metric.MetricCollector {
 		},
 		aggregator.Increase,
 		func(labels map[string]string) bool {
-			natLabel, labelExists := labels[source.NatGatewayLabel]
-			natGateway := labelExists && natLabel == "true"
-
-			return !natGateway && labels[source.InternetLabel] == "false" && labels[source.SameZoneLabel] == "false" && labels[source.SameRegionLabel] == "true"
+			return labels[source.InternetLabel] == "false" && labels[source.SameZoneLabel] == "false" && labels[source.SameRegionLabel] == "true"
 		},
 	)
 }
@@ -1416,10 +1413,7 @@ func NewNetRegionGiBMetricCollector() *metric.MetricCollector {
 		},
 		aggregator.Increase,
 		func(labels map[string]string) bool {
-			natLabel, labelExists := labels[source.NatGatewayLabel]
-			natGateway := labelExists && natLabel == "true"
-
-			return !natGateway && labels[source.InternetLabel] == "false" && labels[source.SameZoneLabel] == "false" && labels[source.SameRegionLabel] == "false"
+			return labels[source.InternetLabel] == "false" && labels[source.SameZoneLabel] == "false" && labels[source.SameRegionLabel] == "false"
 		},
 	)
 }
@@ -1462,10 +1456,7 @@ func NewNetInternetGiBMetricCollector() *metric.MetricCollector {
 		},
 		aggregator.Increase,
 		func(labels map[string]string) bool {
-			natLabel, labelExists := labels[source.NatGatewayLabel]
-			natGateway := labelExists && natLabel == "true"
-
-			return !natGateway && labels[source.InternetLabel] == "true"
+			return labels[source.InternetLabel] == "true"
 		},
 	)
 }
@@ -1606,11 +1597,7 @@ func NewNetZoneIngressGiBMetricCollector() *metric.MetricCollector {
 		},
 		aggregator.Increase,
 		func(labels map[string]string) bool {
-			natLabel, labelExists := labels[source.NatGatewayLabel]
-			natGateway := labelExists && natLabel == "true"
-
-			return !natGateway &&
-				labels[source.InternetLabel] == "false" &&
+			return labels[source.InternetLabel] == "false" &&
 				labels[source.SameZoneLabel] == "false" &&
 				labels[source.SameRegionLabel] == "true"
 		},
@@ -1639,11 +1626,7 @@ func NewNetRegionIngressGiBMetricCollector() *metric.MetricCollector {
 		},
 		aggregator.Increase,
 		func(labels map[string]string) bool {
-			natLabel, labelExists := labels[source.NatGatewayLabel]
-			natGateway := labelExists && natLabel == "true"
-
-			return !natGateway &&
-				labels[source.InternetLabel] == "false" &&
+			return labels[source.InternetLabel] == "false" &&
 				labels[source.SameZoneLabel] == "false" &&
 				labels[source.SameRegionLabel] == "false"
 		},
@@ -1670,10 +1653,7 @@ func NewNetInternetIngressGiBMetricCollector() *metric.MetricCollector {
 		},
 		aggregator.Increase,
 		func(labels map[string]string) bool {
-			natLabel, labelExists := labels[source.NatGatewayLabel]
-			natGateway := labelExists && natLabel == "true"
-
-			return !natGateway && labels[source.InternetLabel] == "true"
+			return labels[source.InternetLabel] == "true"
 		},
 	)
 }
