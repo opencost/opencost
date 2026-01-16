@@ -147,6 +147,29 @@ func NewPipelineService(hourlyrepo, dailyrepo Repository, ingConf CustomCostInge
 	}, nil
 }
 
+// Stop gracefully shuts down the pipeline service by stopping both hourly and daily ingestors.
+// Each ingestor will terminate its goroutines and kill plugin processes. Since both ingestors
+// share the same plugin references, plugin.Client.Kill() will be called multiple times per
+// plugin, but this is safe as per go-plugin documentation.
+func (ps *PipelineService) Stop() {
+	if ps == nil {
+		return
+	}
+	log.Infof("Shutting down CustomCost Pipeline Service")
+
+	// Stop hourly ingestor (this will kill plugins)
+	if ps.hourlyIngestor != nil {
+		ps.hourlyIngestor.Stop()
+	}
+
+	// Stop daily ingestor (will also kill plugins, but this is safe)
+	if ps.dailyIngestor != nil {
+		ps.dailyIngestor.Stop()
+	}
+
+	log.Infof("CustomCost Pipeline Service stopped successfully")
+}
+
 // Status gives a combined view of the state of configs and the ingestor status
 func (dp *PipelineService) Status() Status {
 
