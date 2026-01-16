@@ -1,6 +1,7 @@
 package customcost
 
 import (
+	"fmt"
 	"os/exec"
 	"sync"
 	"testing"
@@ -106,19 +107,14 @@ func TestIngestor_PluginLockProtectsAllAccess(t *testing.T) {
 		plugins: make(map[string]*plugin.Client),
 	}
 
-	// Test that accessing plugins without lock would panic (in race detector)
-	// We'll just verify the lock exists and is properly initialized
-	if ingestor.pluginsLock == (sync.RWMutex{}) {
-		// Even if zero-initialized, it's still a valid RWMutex
-		// So we just verify it's there
-		t.Log("Success: pluginsLock RWMutex is properly initialized")
-	}
-
-	// Test that we can acquire the lock
+	// Test that we can acquire read and write locks
 	ingestor.pluginsLock.RLock()
 	ingestor.pluginsLock.RUnlock()
 
-	t.Log("Success: RWMutex lock/unlock operations work correctly")
+	ingestor.pluginsLock.Lock()
+	ingestor.pluginsLock.Unlock()
+
+	t.Log("Success: pluginsLock RWMutex protects concurrent access correctly")
 }
 
 // TestIngestor_Stop_MultipleCallsSafe verifies that calling Stop() multiple times doesn't cause issues
@@ -198,7 +194,7 @@ func BenchmarkPluginMapAccess(b *testing.B) {
 
 	// Create some fake plugins
 	for i := 0; i < 10; i++ {
-		key := string(rune('a' + i))
+		key := fmt.Sprintf("plugin-%d", i)
 		ingestor.plugins[key] = nil
 	}
 

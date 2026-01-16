@@ -29,6 +29,8 @@ import (
 	"github.com/opencost/opencost/pkg/metrics"
 )
 
+const shutdownTimeout = 30 * time.Second
+
 func Execute(conf *Config) error {
 	log.Infof("Starting cost-model version %s", version.FriendlyVersion())
 	if conf == nil {
@@ -135,7 +137,7 @@ func Execute(conf *Config) error {
 		}
 
 		// Shutdown HTTP server with timeout
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer shutdownCancel()
 
 		if err := server.Shutdown(shutdownCtx); err != nil {

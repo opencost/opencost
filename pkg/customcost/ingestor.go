@@ -272,15 +272,15 @@ func (ing *CustomCostIngestor) Stop() {
 	wg.Wait()
 
 	// Kill all plugin client processes
-	// Use read lock to protect concurrent map access
-	ing.pluginsLock.RLock()
+	// Use exclusive lock to prevent any concurrent access during shutdown
+	ing.pluginsLock.Lock()
 	for name, client := range ing.plugins {
 		if client != nil {
 			log.Debugf("CustomCost[%s]: ingestor: killing plugin process: %s", ing.key, name)
 			client.Kill()
 		}
 	}
-	ing.pluginsLock.RUnlock()
+	ing.pluginsLock.Unlock()
 
 	// Declare that the store is officially no longer running. This allows
 	// Start to be called again, restarting the store from scratch.
