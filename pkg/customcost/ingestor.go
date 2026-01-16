@@ -271,8 +271,7 @@ func (ing *CustomCostIngestor) Stop() {
 
 	wg.Wait()
 
-	// Kill all plugin client processes
-	// Use exclusive lock to prevent any concurrent access during shutdown
+	// Kill all plugin client processes before returning
 	ing.pluginsLock.Lock()
 	for name, client := range ing.plugins {
 		if client != nil {
@@ -282,8 +281,7 @@ func (ing *CustomCostIngestor) Stop() {
 	}
 	ing.pluginsLock.Unlock()
 
-	// Declare that the store is officially no longer running. This allows
-	// Start to be called again, restarting the store from scratch.
+	// Mark as no longer running so Start() can be called again if needed
 	ing.isRunning.Store(false)
 	ing.isStopping.Store(false)
 }

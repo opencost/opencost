@@ -106,37 +106,30 @@ func Execute(conf *Config) error {
 	telemetryHandler := metrics.ResponseMetricMiddleware(rootMux)
 	handler := cors.AllowAll().Handler(telemetryHandler)
 
-	// Create HTTP server
 	server := &http.Server{
 		Addr:    fmt.Sprint(":", conf.Port),
 		Handler: errors.PanicHandlerMiddleware(handler),
 	}
 
-	// Start server in a separate goroutine
 	serverErrors := make(chan error, 1)
 	go func() {
 		log.Infof("HTTP server starting on port %d", conf.Port)
 		serverErrors <- server.ListenAndServe()
 	}()
 
-	// Wait for context cancellation (graceful shutdown signal)
 	select {
 	case err := <-serverErrors:
-		// Server error occurred
 		if err != nil && err != http.ErrServerClosed {
 			return err
 		}
 		return nil
 	case <-ctx.Done():
-		// Graceful shutdown initiated
 		log.Infof("Shutdown signal received, starting graceful shutdown...")
 
-		// Stop custom cost pipeline and plugins
 		if customCostPipelineService != nil {
 			customCostPipelineService.Stop()
 		}
 
-		// Shutdown HTTP server with timeout
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer shutdownCancel()
 
