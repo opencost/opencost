@@ -917,6 +917,7 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 		if err != nil {
 			log.Infof("Could not get node pricing for node %s. Falling back to default pricing", name)
 			log.Debugf("Error getting node pricing: %s", err.Error())
+			RecordNodePricingLookup("fallback")
 			if cnode != nil {
 				nodes[name] = cnode
 				continue
@@ -926,6 +927,8 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 					RAMCost:  cfg.RAM,
 				}
 			}
+		} else {
+			RecordNodePricingLookup("success")
 		}
 
 		pmd.PricingTypeCounts[cnode.PricingType]++
