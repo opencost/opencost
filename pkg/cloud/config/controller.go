@@ -201,12 +201,12 @@ func (c *Controller) CreateConfig(conf cloud.KeyedConfig) error {
 
 	_, ok := statuses.Get(key, source)
 	if ok {
-		return fmt.Errorf("config with key %s from source %s already exist", key, source.String())
+		return fmt.Errorf("config with key %s from source %s already exists", key, source.String())
 	}
 
 	configType, err := ConfigTypeFromConfig(conf)
 	if err != nil {
-		return fmt.Errorf("config did not have recoginzed config: %w", err)
+		return fmt.Errorf("provided config did not have recoginzed config type: %w", err)
 	}
 
 	statuses.Insert(&Status{
@@ -233,6 +233,50 @@ func (c *Controller) CreateConfig(conf cloud.KeyedConfig) error {
 	}
 
 	c.broadcastAddConfig(conf)
+	err = c.storage.save(statuses)
+	if err != nil {
+		return fmt.Errorf("failed to save statues: %w", err)
+	}
+	return nil
+}
+
+// UpdateConfig updates an existing config in status with a source of ConfigControllerSource
+// It fails if the provided config does not already exist and if the config to be updated was not created by the config controller
+func (c *Controller) UpdateConfig(conf cloud.KeyedConfig) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	err := conf.Validate()
+	if err != nil {
+		return fmt.Errorf("provided configuration was invalid: %w", err)
+	}
+
+	statuses, err := c.storage.load()
+	if err != nil {
+		return fmt.Errorf("failed to load statuses")
+	}
+	source := ConfigControllerSource
+	key := conf.Key()
+
+	_, ok := statuses.Get(key, source)
+	if !ok {
+		return fmt.Errorf("unable to find existing config with key %s and source %s", key, source.String())
+	}
+
+	configType, err := ConfigTypeFromConfig(conf)
+	if err != nil {
+		return fmt.Errorf("config did not have recoginzed config: %w", err)
+	}
+
+	statuses.Insert(&Status{
+		Key:        key,
+		Source:     source,
+		Valid:      true,
+		Active:     true,
+		ConfigType: configType,
+		Config:     conf,
+	})
+
 	err = c.storage.save(statuses)
 	if err != nil {
 		return fmt.Errorf("failed to save statues: %w", err)
