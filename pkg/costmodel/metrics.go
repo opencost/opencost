@@ -134,6 +134,7 @@ var (
 	networkInternetEgressCostG prometheus.Gauge
 	clusterManagementCostGv    *prometheus.GaugeVec
 	lbCostGv                   *prometheus.GaugeVec
+	nodePricingLookupTotal     *prometheus.CounterVec
 )
 
 // initCostModelMetrics uses a sync.Once to ensure that these metrics are only created once
@@ -273,6 +274,14 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 			toRegisterGV = append(toRegisterGV, lbCostGv)
 		}
 
+		nodePricingLookupTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "opencost_node_pricing_lookup_total",
+			Help: "opencost_node_pricing_lookup_total Total node pricing lookups by status",
+		}, []string{"status"})
+		if _, disabled := disabledMetrics["opencost_node_pricing_lookup_total"]; !disabled {
+			prometheus.MustRegister(nodePricingLookupTotal)
+		}
+
 		// Register cost-model metrics for emission
 		for _, gv := range toRegisterGV {
 			prometheus.MustRegister(gv)
@@ -287,6 +296,14 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 			metricsConfig: *metricsConfig,
 		})
 	})
+}
+
+// RecordNodePricingLookup safely records a node pricing lookup result.
+// Status should be "success" or "fallback".
+func RecordNodePricingLookup(status string) {
+	if nodePricingLookupTotal != nil {
+		nodePricingLookupTotal.WithLabelValues(status).Inc()
+	}
 }
 
 //--------------------------------------------------------------------------
