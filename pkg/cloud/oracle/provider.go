@@ -56,12 +56,14 @@ func (o *Oracle) ClusterInfo() (map[string]string, error) {
 
 func (o *Oracle) NodePricing(key models.Key) (*models.Node, models.PricingMetadata, error) {
 	if err := o.ensurePricingData(); err != nil {
+		log.DedupedInfof(10, "Oracle NodePricing: failed to ensure pricing data for key %q: %v", key.Features(), err)
 		return nil, models.PricingMetadata{}, err
 	}
 	o.DownloadPricingDataLock.RLock()
 	defer o.DownloadPricingDataLock.RUnlock()
 	node, metadata, err := o.RateCardStore.ForKey(key, o.DefaultPricing)
 	if err != nil {
+		log.DedupedInfof(10, "Oracle NodePricing: rate card lookup failed for key %q: %v", key.Features(), err)
 		return node, metadata, err
 	}
 	// Check if the node is preemptible based on the label

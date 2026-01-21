@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/cloud/models"
 )
 
@@ -128,8 +129,10 @@ func (rcs *RateCardStore) ForKey(key models.Key, defaultPricing DefaultPricing) 
 	var node *models.Node
 	// Use the default pricing if the instance product is unknown
 	if product.isEmpty() {
+		log.DedupedInfof(10, "Oracle NodePricing: unknown instance type %q, using default pricing", features[0])
 		totalCost, err := defaultPricing.TotalInstanceCost()
 		if err != nil {
+			log.DedupedInfof(10, "Oracle NodePricing: failed to parse default pricing for key %q: %v", key.Features(), err)
 			return nil, models.PricingMetadata{}, fmt.Errorf("failed to parse default Oracle pricing: %w", err)
 		}
 		vcpuCost := defaultPricing.OCPU

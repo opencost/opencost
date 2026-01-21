@@ -1154,14 +1154,14 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 			}
 			return n.Node, meta, nil
 		} else {
-			log.Debugf("Could not find pricing for node %s from key %s", azKey, azKey.Features())
+			log.DedupedInfof(10, "Azure NodePricing: key %q not found in cache, attempting retail API lookup", featureString)
 		}
 	}
 
 	cost, err := getRetailPrice(region, instance, config.CurrencyCode, isSpot)
 
 	if err != nil {
-		log.DedupedWarningf(5, "failed to retrieve retail pricing: %s", err)
+		log.DedupedInfof(10, "Azure NodePricing: retail API lookup failed for key %q (region=%s, instance=%s): %v", featureString, region, instance, err)
 	} else {
 		gpu := ""
 		if azKey.isValidGPUNode() {
@@ -1187,7 +1187,7 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 		return node, meta, nil
 	}
 
-	log.DedupedWarningf(5, "No pricing data found for node %s from key %s", azKey, azKey.Features())
+	log.DedupedInfof(10, "Azure NodePricing: no pricing data found for key %q, using default base pricing", featureString)
 
 	c, err := az.GetConfig()
 	if err != nil {

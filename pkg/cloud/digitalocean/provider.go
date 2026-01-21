@@ -447,7 +447,7 @@ func (do *DOKS) NodePricing(key models.Key) (*models.Node, models.PricingMetadat
 	// Try fetching catalog; fallback is okay
 	_, err := do.fetchPricingData()
 	if err != nil {
-		log.Warnf("Failed to fetch catalog: %v. Will try estimation or fallback.", err)
+		log.DedupedInfof(10, "DigitalOcean NodePricing: failed to fetch pricing catalog for key %q: %v", key.Features(), err)
 	}
 
 	arch := parseArch(key.Features())
@@ -456,7 +456,7 @@ func (do *DOKS) NodePricing(key models.Key) (*models.Node, models.PricingMetadat
 	// Try parsing vCPU/RAM from labels
 	vcpu, ram, err := parseResources(key.Features())
 	if err != nil || vcpu == 0 || ram == 0 {
-		log.Infof("Failed to extract CPU/RAM from features. Trying slug: %s", slug)
+		log.DedupedInfof(10, "DigitalOcean NodePricing: could not extract CPU/RAM from features for key %q, trying slug %q", key.Features(), slug)
 
 		var ok bool
 		// Try getting from slug (e.g., "s-2vcpu-4gb")
@@ -465,9 +465,9 @@ func (do *DOKS) NodePricing(key models.Key) (*models.Node, models.PricingMetadat
 			// Fallback: RAM = 2x CPU if CPU is known, cases like c-2
 			if vcpu > 0 {
 				ram = vcpu * 2
-				log.Warnf("Only CPU found. Assuming RAM = 2 * CPU → %dGiB", ram)
+				log.DedupedInfof(10, "DigitalOcean NodePricing: only CPU found for slug %q, assuming RAM = 2 * CPU → %dGiB", slug, ram)
 			} else {
-				log.Warnf("Could not extract vCPU/RAM from features or slug. Returning fallback.")
+				log.DedupedInfof(10, "DigitalOcean NodePricing: unknown instance type, could not extract vCPU/RAM from key %q or slug %q, using fallback pricing", key.Features(), slug)
 				return fallbackNode(slug)
 			}
 		}
@@ -496,7 +496,7 @@ func (do *DOKS) NodePricing(key models.Key) (*models.Node, models.PricingMetadat
 		}
 	}
 
-	log.Warnf("No matching product found for slug %s (vCPU: %d, RAM: %d), falling back", slug, vcpu, ram)
+	log.DedupedInfof(10, "DigitalOcean NodePricing: no matching product found in catalog for slug %q (vCPU: %d, RAM: %d), using fallback pricing", slug, vcpu, ram)
 	return fallbackNode(slug)
 }
 

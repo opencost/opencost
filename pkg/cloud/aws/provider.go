@@ -1539,10 +1539,12 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 	if ok {
 		return aws.createNode(terms, usageType, k)
 	} else if _, ok := aws.ValidPricingKeys[key]; ok {
+		log.DedupedInfof(10, "AWS NodePricing: key %q is valid but pricing data not loaded, attempting download", key)
 		aws.DownloadPricingDataLock.RUnlock()
 		err := aws.DownloadPricingData()
 		aws.DownloadPricingDataLock.RLock()
 		if err != nil {
+			log.DedupedInfof(10, "AWS NodePricing: failed to download pricing data for key %q: %v", key, err)
 			return &models.Node{
 				Cost:             aws.BaseCPUPrice,
 				BaseCPUPrice:     aws.BaseCPUPrice,
@@ -1554,6 +1556,7 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 		}
 		terms, termsOk := aws.Pricing[key]
 		if !termsOk {
+			log.DedupedInfof(10, "AWS NodePricing: pricing data still not found for key %q after successful download", key)
 			return &models.Node{
 				Cost:             aws.BaseCPUPrice,
 				BaseCPUPrice:     aws.BaseCPUPrice,
@@ -1568,8 +1571,7 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 		// Since Fargate pricing is listed at AmazonECS and is different from AmazonEC2, we handle it separately here
 		return aws.createFargateNode(awsKey, usageType)
 	} else { // Fall back to base pricing if we can't find the key. Base pricing is handled at the costmodel level.
-		// we seem to have an issue where this error gets thrown during app start.
-		// somehow the ValidPricingKeys map is being accessed before all the pricing data has been downloaded
+		log.DedupedInfof(10, "AWS NodePricing: unknown instance type, key %q not found in valid pricing keys", key)
 		return nil, meta, fmt.Errorf("Invalid Pricing Key \"%s\"", key)
 	}
 }

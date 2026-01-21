@@ -141,8 +141,14 @@ func (c *Scaleway) NodePricing(key models.Key) (*models.Node, models.PricingMeta
 
 	// There is only the zone and the instance ID in the providerID, hence we must use the features
 	split := strings.Split(key.Features(), ",")
-	if pricing, ok := c.Pricing[split[0]]; ok {
-		if info, ok := pricing.NodesInfos[split[1]]; ok {
+	zone := split[0]
+	instanceType := ""
+	if len(split) > 1 {
+		instanceType = split[1]
+	}
+
+	if pricing, ok := c.Pricing[zone]; ok {
+		if info, ok := pricing.NodesInfos[instanceType]; ok {
 			return &models.Node{
 				Cost:        fmt.Sprintf("%f", info.HourlyPrice),
 				PricingType: models.DefaultPrices,
@@ -151,13 +157,14 @@ func (c *Scaleway) NodePricing(key models.Key) (*models.Node, models.PricingMeta
 				// This is tricky, as instances can have local volumes or not
 				Storage:      fmt.Sprintf("%d", info.PerVolumeConstraint.LSSD.MinSize),
 				GPU:          fmt.Sprintf("%d", *info.Gpu),
-				InstanceType: split[1],
-				Region:       split[0],
+				InstanceType: instanceType,
+				Region:       zone,
 				GPUName:      key.GPUType(),
 			}, meta, nil
-
 		}
-
+		log.DedupedInfof(10, "Scaleway NodePricing: unknown instance type %q in zone %q, %d instance types available for zone", instanceType, zone, len(pricing.NodesInfos))
+	} else {
+		log.DedupedInfof(10, "Scaleway NodePricing: unknown zone %q for key %q, %d zones available in pricing data", zone, key.Features(), len(c.Pricing))
 	}
 	return nil, meta, fmt.Errorf("Unable to find node pricing matching thes features `%s`", key.Features())
 }

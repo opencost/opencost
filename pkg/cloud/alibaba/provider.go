@@ -510,17 +510,16 @@ func (alibaba *Alibaba) NodePricing(key models.Key) (*models.Node, models.Pricin
 
 	pricing, ok := alibaba.Pricing[keyFeature]
 	if !ok {
-		keys := make([]string, 0, len(alibaba.Pricing))
-		for k := range alibaba.Pricing {
-			keys = append(keys, k)
-		}
+		log.DedupedInfof(10, "Alibaba NodePricing: key %q not found in pricing data, attempting fallback lookup without disk info", keyFeature)
 		kf := key.(*AlibabaNodeKey)
 		// Try to look up pricing with no disk attached
-		pricing, ok = alibaba.Pricing[kf.FeaturesWithOtherDisk("")]
+		fallbackKey := kf.FeaturesWithOtherDisk("")
+		pricing, ok = alibaba.Pricing[fallbackKey]
 		if !ok {
-			log.Errorf("Node pricing information not found for node with feature: %s . Existing keys are: %+v", keyFeature, keys)
+			log.DedupedInfof(10, "Alibaba NodePricing: unknown instance type, key %q (fallback key %q) not found in %d available pricing keys", keyFeature, fallbackKey, len(alibaba.Pricing))
 			return nil, meta, fmt.Errorf("Node pricing information not found for node with feature: %s letting it use default values", keyFeature)
 		}
+		log.DedupedInfof(10, "Alibaba NodePricing: found pricing using fallback key %q for original key %q", fallbackKey, keyFeature)
 	}
 
 	log.Debugf("returning the node price for the node with feature: %s", keyFeature)

@@ -261,21 +261,22 @@ func (otc *OTC) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 	key := k.Features()
 	meta := models.PricingMetadata{}
 
-	log.Info("looking for pricing data of node with key features " + key)
+	log.Debugf("OTC NodePricing: looking for pricing data with key %q", key)
 	pricing, ok := otc.Pricing[key]
 	if ok {
 		// The pricing key was found in the pricing list of the otc provider.
 		// Now create a pricing node from that data and return it.
-		log.Info("pricing data found")
+		log.Debugf("OTC NodePricing: pricing data found for key %q", key)
 		return otc.createNode(pricing, k)
 	} else if _, ok := otc.ValidPricingKeys[key]; ok {
 		// The pricing key is actually valid, but somehow it could not be found.
 		// Try re-downloading the pricing data to check for changes.
-		log.Info("key is valid, but no associated pricing data could be found; trying to re-download pricing data")
+		log.DedupedInfof(10, "OTC NodePricing: key %q is valid but pricing data not loaded, attempting download", key)
 		otc.DownloadPricingDataLock.RUnlock()
 		err := otc.DownloadPricingData()
 		otc.DownloadPricingDataLock.RLock()
 		if err != nil {
+			log.DedupedInfof(10, "OTC NodePricing: failed to download pricing data for key %q: %v", key, err)
 			return &models.Node{
 				Cost:             otc.BaseCPUPrice,
 				BaseCPUPrice:     otc.BaseCPUPrice,
@@ -287,6 +288,7 @@ func (otc *OTC) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 		pricing, ok = otc.Pricing[key]
 		if !ok {
 			// The given key does not exist in OTC or locally, return a default pricing node.
+			log.DedupedInfof(10, "OTC NodePricing: pricing data still not found for key %q after successful download", key)
 			return &models.Node{
 				Cost:             otc.BaseCPUPrice,
 				BaseCPUPrice:     otc.BaseCPUPrice,
@@ -296,11 +298,11 @@ func (otc *OTC) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 			}, meta, fmt.Errorf("unable to find any Pricing data for \"%s\"", key)
 		}
 		// The local pricing date was just outdated.
-		log.Info("pricing data found after re-download")
+		log.Debugf("OTC NodePricing: pricing data found for key %q after re-download", key)
 		return otc.createNode(pricing, k)
 	} else {
 		// The given key is not valid, fall back to base pricing (handled by the costmodel)?
-		log.Info("given key \"" + key + "\" is invalid; falling back to default pricing")
+		log.DedupedInfof(10, "OTC NodePricing: unknown instance type, key %q not found in valid pricing keys", key)
 		return nil, meta, fmt.Errorf("invalid Pricing Key \"%s\"", key)
 	}
 }
