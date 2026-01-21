@@ -327,7 +327,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resChNetNatGatewayGiB := source.WithGroup(grp, ds.QueryNetNatGatewayGiB(start, end))
 	resChNetNatGatewayEgressPricePerGiB := source.WithGroup(grp, ds.QueryNetNatGatewayPricePerGiB(start, end))
 
-	resChNetNatGatewayIngressGiB := source.WithGroup(grp, ds.QueryNetNatGatewayGiB(start, end))
+	resChNetNatGatewayIngressGiB := source.WithGroup(grp, ds.QueryNetNatGatewayIngressGiB(start, end))
 	resChNetNatGatewayIngressPricePerGiB := source.WithGroup(grp, ds.QueryNetNatGatewayIngressPricePerGiB(start, end))
 
 	var resChNodeLabels *source.QueryGroupFuture[source.NodeLabelsResult]

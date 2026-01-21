@@ -8,7 +8,7 @@ import (
 	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
 )
 
-// NetworkUsageVNetworkUsageDataector contains the network usage values for egress network traffic
+// NetworkUsageData contains the network usage values for egress network traffic and nat gateway
 type NetworkUsageData struct {
 	ClusterID                string
 	PodName                  string
@@ -184,10 +184,12 @@ func GetNetworkCost(usage *NetworkUsageData, cloud costAnalyzerCloud.Provider) (
 
 		if i < ngelen {
 			cost += usage.NetworkNatGatewayEgress[i].Value * natGatewayEgressCost
+			timestamp = usage.NetworkNatGatewayEgress[i].Timestamp
 		}
 
 		if i < ngilen {
 			cost += usage.NetworkNatGatewayIngress[i].Value * natGatewayIngressCost
+			timestamp = usage.NetworkNatGatewayIngress[i].Timestamp
 		}
 
 		results = append(results, &util.Vector{

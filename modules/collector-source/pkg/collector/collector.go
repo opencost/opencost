@@ -1705,7 +1705,7 @@ func NewNetNatGatewayIngressPricePerGiBMetricCollector() *metric.MetricCollector
 
 //	sum(
 //		increase(
-//			kubecost_pod_network_egress_bytes_total{
+//			kubecost_pod_network_ingress_bytes_total{
 //				nat_gateway="true",
 //				<some_custom_filter>
 //			}[1h]

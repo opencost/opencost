@@ -116,19 +116,19 @@ func TestGetNetworkUsageData(t *testing.T) {
 	defaultClusterID := "default-cluster"
 
 	testCases := []struct {
-		name                   string
-		zoneResults            []*source.NetZoneGiBResult
-		regionResults          []*source.NetRegionGiBResult
-		internetResults        []*source.NetInternetGiBResult
-		natGatewayEgressResults []*source.NetNatGatewayGiBResult
+		name                     string
+		zoneResults              []*source.NetZoneGiBResult
+		regionResults            []*source.NetRegionGiBResult
+		internetResults          []*source.NetInternetGiBResult
+		natGatewayEgressResults  []*source.NetNatGatewayGiBResult
 		natGatewayIngressResults []*source.NetNatGatewayIngressGiBResult
-		expectedKeys           []string
-		validateFunc           func(t *testing.T, result map[string]*NetworkUsageData)
+		expectedKeys             []string
+		validateFunc             func(t *testing.T, result map[string]*NetworkUsageData)
 	}{
 		{
-			name: "NAT Gateway egress only",
-			zoneResults: nil,
-			regionResults: nil,
+			name:            "NAT Gateway egress only",
+			zoneResults:     nil,
+			regionResults:   nil,
 			internetResults: nil,
 			natGatewayEgressResults: []*source.NetNatGatewayGiBResult{
 				{
@@ -142,7 +142,7 @@ func TestGetNetworkUsageData(t *testing.T) {
 				},
 			},
 			natGatewayIngressResults: nil,
-			expectedKeys: []string{"ns1,pod1,cluster1"},
+			expectedKeys:             []string{"ns1,pod1,cluster1"},
 			validateFunc: func(t *testing.T, result map[string]*NetworkUsageData) {
 				key := "ns1,pod1,cluster1"
 				if data, ok := result[key]; ok {
@@ -161,10 +161,10 @@ func TestGetNetworkUsageData(t *testing.T) {
 			},
 		},
 		{
-			name: "NAT Gateway ingress only",
-			zoneResults: nil,
-			regionResults: nil,
-			internetResults: nil,
+			name:                    "NAT Gateway ingress only",
+			zoneResults:             nil,
+			regionResults:           nil,
+			internetResults:         nil,
 			natGatewayEgressResults: nil,
 			natGatewayIngressResults: []*source.NetNatGatewayIngressGiBResult{
 				{
@@ -195,9 +195,9 @@ func TestGetNetworkUsageData(t *testing.T) {
 			},
 		},
 		{
-			name: "NAT Gateway egress and ingress for same pod",
-			zoneResults: nil,
-			regionResults: nil,
+			name:            "NAT Gateway egress and ingress for same pod",
+			zoneResults:     nil,
+			regionResults:   nil,
 			internetResults: nil,
 			natGatewayEgressResults: []*source.NetNatGatewayGiBResult{
 				{
@@ -326,9 +326,9 @@ func TestGetNetworkUsageData(t *testing.T) {
 			},
 		},
 		{
-			name: "Default cluster ID fallback for NAT Gateway",
-			zoneResults: nil,
-			regionResults: nil,
+			name:            "Default cluster ID fallback for NAT Gateway",
+			zoneResults:     nil,
+			regionResults:   nil,
 			internetResults: nil,
 			natGatewayEgressResults: []*source.NetNatGatewayGiBResult{
 				{
@@ -341,7 +341,7 @@ func TestGetNetworkUsageData(t *testing.T) {
 				},
 			},
 			natGatewayIngressResults: nil,
-			expectedKeys: []string{"ns5,pod5,default-cluster"},
+			expectedKeys:             []string{"ns5,pod5,default-cluster"},
 			validateFunc: func(t *testing.T, result map[string]*NetworkUsageData) {
 				key := "ns5,pod5,default-cluster"
 				if data, ok := result[key]; ok {
@@ -399,9 +399,9 @@ func TestGetNetworkCost(t *testing.T) {
 		{
 			name: "NAT Gateway egress cost only",
 			usage: &NetworkUsageData{
-				ClusterID:               "cluster1",
-				PodName:                 "pod1",
-				Namespace:               "ns1",
+				ClusterID: "cluster1",
+				PodName:   "pod1",
+				Namespace: "ns1",
 				NetworkNatGatewayEgress: []*util.Vector{
 					{Value: 10.0, Timestamp: 1000}, // 10 GiB
 				},
@@ -415,9 +415,9 @@ func TestGetNetworkCost(t *testing.T) {
 		{
 			name: "NAT Gateway ingress cost only",
 			usage: &NetworkUsageData{
-				ClusterID:                "cluster1",
-				PodName:                  "pod1",
-				Namespace:                "ns1",
+				ClusterID: "cluster1",
+				PodName:   "pod1",
+				Namespace: "ns1",
 				NetworkNatGatewayIngress: []*util.Vector{
 					{Value: 20.0, Timestamp: 1000}, // 20 GiB
 				},
@@ -477,7 +477,7 @@ func TestGetNetworkCost(t *testing.T) {
 				NatGatewayEgressCost:      0.05,
 				NatGatewayIngressCost:     0.02,
 			},
-			expectedCost: 2.03, // (5*0.01) + (8*0.02) + (12*0.09) + (15*0.05) + (10*0.02) = 0.05 + 0.16 + 1.08 + 0.75 + 0.20 = 2.24
+			expectedCost:   2.24, // (5*0.01) + (8*0.02) + (12*0.09) + (15*0.05) + (10*0.02) = 0.05 + 0.16 + 1.08 + 0.75 + 0.20 = 2.24
 			expectedLength: 1,
 		},
 		{
@@ -546,14 +546,7 @@ func TestGetNetworkCost(t *testing.T) {
 					totalCost += v.Value
 				}
 
-				// Use approximate comparison for floating point
-				if tc.name == "Mixed network costs with NAT Gateway" {
-					// For this specific test, let's calculate the expected value correctly
-					expectedTotal := (5.0 * 0.01) + (8.0 * 0.02) + (12.0 * 0.09) + (15.0 * 0.05) + (10.0 * 0.02)
-					if diff := totalCost - expectedTotal; diff > 0.001 || diff < -0.001 {
-						t.Errorf("expected total cost %f, got %f", expectedTotal, totalCost)
-					}
-				} else if tc.expectedCost > 0 {
+				if tc.expectedCost > 0 {
 					if diff := totalCost - tc.expectedCost; diff > 0.001 || diff < -0.001 {
 						t.Errorf("expected total cost %f, got %f", tc.expectedCost, totalCost)
 					}
@@ -584,9 +577,9 @@ func TestGetNetworkCost_NATGatewayMisalignedVectors(t *testing.T) {
 	}
 
 	pricing := &models.Network{
-		ZoneNetworkEgressCost:     0.01,
-		NatGatewayEgressCost:      0.05,
-		NatGatewayIngressCost:     0.02,
+		ZoneNetworkEgressCost: 0.01,
+		NatGatewayEgressCost:  0.05,
+		NatGatewayIngressCost: 0.02,
 	}
 
 	provider := &mockProvider{
