@@ -1140,6 +1140,40 @@ func TestNodePricing_Error(t *testing.T) {
 	}
 }
 
+func TestNodePricing_FallbackSuccess(t *testing.T) {
+	// Test the case where the primary key (with disk info) is not found,
+	// but the fallback key (without disk info) is found
+	fallbackKey := "r::i::os"
+	a := &Alibaba{
+		Pricing: map[string]*AlibabaPricing{
+			fallbackKey: {
+				Node: &models.Node{
+					Cost: "0.05",
+					VCPU: "2",
+				},
+			},
+		},
+	}
+	// Key with disk info that won't match, but fallback without disk will match
+	dummyKey := &AlibabaNodeKey{
+		ProviderID:         "foo",
+		RegionID:           "r",
+		InstanceType:       "i",
+		OSType:             "os",
+		SystemDiskCategory: "cloud_ssd", // This makes the primary key different
+	}
+	node, _, err := a.NodePricing(dummyKey)
+	if err != nil {
+		t.Fatalf("NodePricing should succeed with fallback key, got error: %v", err)
+	}
+	if node == nil {
+		t.Fatalf("NodePricing should return node")
+	}
+	if node.Cost != "0.05" {
+		t.Fatalf("Expected cost 0.05, got %s", node.Cost)
+	}
+}
+
 func TestGpuPricing(t *testing.T) {
 	a := &Alibaba{}
 	v, err := a.GpuPricing(nil)

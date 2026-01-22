@@ -797,3 +797,65 @@ func TestAWS_getFargatePod(t *testing.T) {
 		})
 	}
 }
+
+func TestNodePricing_Success(t *testing.T) {
+	aws := &AWS{
+		Pricing: map[string]*AWSProductTerms{
+			"us-east-1,m5.large,linux": {
+				OnDemand: &AWSOfferTerm{
+					PriceDimensions: map[string]*AWSRateCode{
+						"test": {
+							PricePerUnit: AWSCurrencyCode{USD: "0.096"},
+						},
+					},
+				},
+			},
+		},
+		ValidPricingKeys: map[string]bool{"us-east-1,m5.large,linux": true},
+		BaseCPUPrice:     "0.01",
+		BaseRAMPrice:     "0.001",
+		BaseGPUPrice:     "0.1",
+	}
+
+	key := &awsKey{
+		Labels: map[string]string{
+			v1.LabelTopologyRegion:     "us-east-1",
+			v1.LabelInstanceTypeStable: "m5.large",
+			v1.LabelOSStable:           "linux",
+		},
+	}
+
+	node, _, err := aws.NodePricing(key)
+	if err != nil {
+		t.Fatalf("NodePricing should succeed, got error: %v", err)
+	}
+	if node == nil {
+		t.Fatalf("NodePricing should return node")
+	}
+}
+
+func TestNodePricing_InvalidKey(t *testing.T) {
+	aws := &AWS{
+		Pricing:          map[string]*AWSProductTerms{},
+		ValidPricingKeys: map[string]bool{},
+		BaseCPUPrice:     "0.01",
+		BaseRAMPrice:     "0.001",
+		BaseGPUPrice:     "0.1",
+	}
+
+	key := &awsKey{
+		Labels: map[string]string{
+			v1.LabelTopologyRegion:     "unknown-region",
+			v1.LabelInstanceTypeStable: "unknown.type",
+			v1.LabelOSStable:           "linux",
+		},
+	}
+
+	node, _, err := aws.NodePricing(key)
+	if err == nil {
+		t.Fatalf("NodePricing should return error for invalid key")
+	}
+	if node != nil {
+		t.Fatalf("NodePricing should return nil node for invalid key")
+	}
+}
