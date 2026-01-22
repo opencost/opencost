@@ -915,8 +915,7 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 
 		cnode, _, err := cp.NodePricing(cp.GetKey(nodeLabels, n))
 		if err != nil {
-			log.Infof("Could not get node pricing for node %s. Falling back to default pricing", name)
-			log.Debugf("Error getting node pricing: %s", err.Error())
+			log.DedupedInfof(10, "Could not get node pricing for node %s: %s. Falling back to default pricing.", name, err.Error())
 			if cnode != nil {
 				nodes[name] = cnode
 				continue

@@ -1230,3 +1230,124 @@ func TestBuildLabelsMap(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildCPUBreakdownMap(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    []*source.NodeCPUModeTotalResult
+		expected map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown
+	}{
+		{
+			name:     "empty input",
+			input:    []*source.NodeCPUModeTotalResult{},
+			expected: map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown{},
+		},
+		{
+			name: "normal modes",
+			input: []*source.NodeCPUModeTotalResult{
+				{
+					Cluster: "cluster1",
+					Node:    "node1",
+					Mode:    "idle",
+					Data:    []*util.Vector{{Value: 50.0}},
+				},
+				{
+					Cluster: "cluster1",
+					Node:    "node1",
+					Mode:    "user",
+					Data:    []*util.Vector{{Value: 30.0}},
+				},
+				{
+					Cluster: "cluster1",
+					Node:    "node1",
+					Mode:    "system",
+					Data:    []*util.Vector{{Value: 20.0}},
+				},
+			},
+			expected: map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown{
+				{Cluster: "cluster1", Name: "node1"}: {
+					Idle:   0.5,
+					User:   0.3,
+					System: 0.2,
+				},
+			},
+		},
+		{
+			name: "empty mode falls back to other",
+			input: []*source.NodeCPUModeTotalResult{
+				{
+					Cluster: "cluster1",
+					Node:    "node1",
+					Mode:    "idle",
+					Data:    []*util.Vector{{Value: 50.0}},
+				},
+				{
+					Cluster: "cluster1",
+					Node:    "node1",
+					Mode:    "", // empty mode should be treated as "other"
+					Data:    []*util.Vector{{Value: 50.0}},
+				},
+			},
+			expected: map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown{
+				{Cluster: "cluster1", Name: "node1"}: {
+					Idle:  0.5,
+					Other: 0.5,
+				},
+			},
+		},
+		{
+			name: "missing node is skipped",
+			input: []*source.NodeCPUModeTotalResult{
+				{
+					Cluster: "cluster1",
+					Node:    "", // empty node should be skipped
+					Mode:    "idle",
+					Data:    []*util.Vector{{Value: 50.0}},
+				},
+				{
+					Cluster: "cluster1",
+					Node:    "node1",
+					Mode:    "user",
+					Data:    []*util.Vector{{Value: 100.0}},
+				},
+			},
+			expected: map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown{
+				{Cluster: "cluster1", Name: "node1"}: {
+					User: 1.0,
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := buildCPUBreakdownMap(tc.input)
+
+			if len(result) != len(tc.expected) {
+				t.Errorf("buildCPUBreakdownMap case %s: expected %d entries, got %d", tc.name, len(tc.expected), len(result))
+				return
+			}
+
+			for key, expectedBreakdown := range tc.expected {
+				actualBreakdown, ok := result[key]
+				if !ok {
+					t.Errorf("buildCPUBreakdownMap case %s: missing key %+v", tc.name, key)
+					continue
+				}
+
+				if !util.IsApproximately(actualBreakdown.Idle, expectedBreakdown.Idle) {
+					t.Errorf("buildCPUBreakdownMap case %s: Idle mismatch for %+v: expected %f, got %f", tc.name, key, expectedBreakdown.Idle, actualBreakdown.Idle)
+				}
+				if !util.IsApproximately(actualBreakdown.User, expectedBreakdown.User) {
+					t.Errorf("buildCPUBreakdownMap case %s: User mismatch for %+v: expected %f, got %f", tc.name, key, expectedBreakdown.User, actualBreakdown.User)
+				}
+				if !util.IsApproximately(actualBreakdown.System, expectedBreakdown.System) {
+					t.Errorf("buildCPUBreakdownMap case %s: System mismatch for %+v: expected %f, got %f", tc.name, key, expectedBreakdown.System, actualBreakdown.System)
+				}
+				if !util.IsApproximately(actualBreakdown.Other, expectedBreakdown.Other) {
+					t.Errorf("buildCPUBreakdownMap case %s: Other mismatch for %+v: expected %f, got %f", tc.name, key, expectedBreakdown.Other, actualBreakdown.Other)
+				}
+			}
+		})
+	}
+}
