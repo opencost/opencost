@@ -99,6 +99,10 @@ func (c *Controller) GetUpdateConfigHandler() func(w http.ResponseWriter, r *htt
 		w.Header().Set("Content-Type", "application/json")
 
 		configType := r.URL.Query().Get("type")
+		if configType == "" {
+			http.Error(w, "'type' parameter is required", http.StatusBadRequest)
+			return
+		}
 
 		config, err := ParseConfig(configType, r.Body)
 		if err != nil {

@@ -259,6 +259,7 @@ func (c *Controller) UpdateConfig(conf cloud.KeyedConfig) error {
 	key := conf.Key()
 
 	_, ok := statuses.Get(key, source)
+	// we fail here if we're attempting to update any config that isn't created by the config controller
 	if !ok {
 		return fmt.Errorf("unable to find existing config with key %s and source %s", key, source.String())
 	}
@@ -277,6 +278,26 @@ func (c *Controller) UpdateConfig(conf cloud.KeyedConfig) error {
 		Config:     conf,
 	})
 
+	// check for configurations with the same configuration key and source that are already active.
+	for _, confStat := range statuses.List() {
+		if confStat.Key != key {
+			continue
+		}
+
+		// disable previous configuration in favor of the updated one
+		// note that this will not disable configs with the same key that are not created by config controller
+		if confStat.Source == ConfigControllerSource && confStat.Active {
+			confStat.Active = false
+			c.broadcastRemoveConfig(key)
+		}
+
+		if confStat.Source != ConfigControllerSource && confStat.Active {
+			log.Debugf("Detected active config with key %s that was not created by the config controller", key)
+		}
+
+	}
+
+	c.broadcastAddConfig(conf)
 	err = c.storage.save(statuses)
 	if err != nil {
 		return fmt.Errorf("failed to save statues: %w", err)
