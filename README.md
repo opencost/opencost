@@ -73,7 +73,7 @@ The OpenCost MCP (Model Context Protocol) server provides AI agents with access 
 ```bash
 # Clone and start OpenCost with MCP server
 # You may also need to clone opencost-ui and opencost-helm-charts repositories
-# Make sure the clones repositories are in the same parent tree as opencost
+# Make sure the cloned repositories are in the same parent tree as opencost
 
 git clone https://github.com/opencost/opencost.git
 cd opencost
