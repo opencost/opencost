@@ -60,9 +60,9 @@ require (
 	golang.org/x/text v0.31.0
 	google.golang.org/api v0.243.0
 	google.golang.org/protobuf v1.36.8
-	k8s.io/api v0.35.0
-	k8s.io/apimachinery v0.35.0
-	k8s.io/client-go v0.35.0
+	k8s.io/api v0.34.3
+	k8s.io/apimachinery v0.34.3
+	k8s.io/client-go v0.34.3
 )
 
 require (
@@ -82,6 +82,7 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/gofrs/flock v0.8.1 // indirect
+	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/jsonschema-go v0.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/minio/crc64nvme v1.0.1 // indirect
