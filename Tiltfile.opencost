@@ -66,10 +66,10 @@ def run_opencost(options):
     # npm install if package.json changes
     local_resource(
         name='build-npm-install',
-        dir='../opencost/ui',
+        dir='../opencost-ui',
         cmd='npm install',
         deps=[
-            '../opencost/ui/package.json',
+            '../opencost-ui/package.json',
         ],
         allow_parallel=True,
     )
@@ -77,11 +77,11 @@ def run_opencost(options):
     # Build FE locally when code changes
     local_resource(
         name='build-ui',
-        dir='../opencost/ui',
+        dir='../opencost-ui',
         cmd='npx parcel build src/index.html',
         deps=[
-            '../opencost/ui/src',
-            '../opencost/ui/package.json',
+            '../opencost-ui/src',
+            '../opencost-ui/package.json',
         ],
         allow_parallel=True,
         resource_deps=['build-npm-install'],
@@ -90,8 +90,8 @@ def run_opencost(options):
     # update container when relevant files change
     docker_build(
         ref=options["docker_repo"]+'opencost-ui',
-        context='../opencost/ui',
-        dockerfile='../opencost/ui/Dockerfile.debug',
+        context='../opencost-ui',
+        dockerfile='../opencost-ui/Dockerfile.debug',
         only=[
             'dist',
             'nginx.conf',
@@ -99,7 +99,7 @@ def run_opencost(options):
             'docker-entrypoint.sh',
         ],
         live_update=[
-            sync('../opencost/ui/dist', '/var/www'),
+            sync('../opencost-ui/dist', '/var/www'),
         ],
     )
 
