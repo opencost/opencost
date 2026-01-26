@@ -2,6 +2,7 @@ package prom
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
@@ -259,14 +260,21 @@ type diagnosticDefinition struct {
 
 // NewDiagnostic creates a new PrometheusDiagnostic instance using the provided definition data.
 func (pdd *diagnosticDefinition) NewDiagnostic(filter string, offset string) *PrometheusDiagnostic {
-	// FIXME: Any reasonable way to get the total number of replacements required in the query?
-	// FIXME: All of the other queries require a single offset replace, but CPUThrottle requires two.
-	var query string
-	if pdd.ID == CPUThrottlingDiagnosticMetricID {
-		query = fmt.Sprintf(pdd.QueryFmt, filter, offset, filter, offset)
-	} else {
-		query = fmt.Sprintf(pdd.QueryFmt, filter, offset)
+	// Count the number of %s placeholders in the query format string
+	// Placeholders alternate between filter and offset (filter, offset, filter, offset, ...)
+	placeholderCount := strings.Count(pdd.QueryFmt, "%s")
+
+	// Build the arguments slice dynamically
+	args := make([]interface{}, placeholderCount)
+	for i := 0; i < placeholderCount; i++ {
+		if i%2 == 0 {
+			args[i] = filter
+		} else {
+			args[i] = offset
+		}
 	}
+
+	query := fmt.Sprintf(pdd.QueryFmt, args...)
 
 	return &PrometheusDiagnostic{
 		ID:          pdd.ID,
