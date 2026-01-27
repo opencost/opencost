@@ -6,6 +6,7 @@ package ops
 
 import (
 	"fmt"
+	"github.com/opencost/opencost/core/pkg/filter/resourcequota"
 	"reflect"
 	"strings"
 
@@ -27,10 +28,11 @@ type keyFieldType interface {
 // This is somewhat of a fancy solution, but allows us to "register" DefaultFieldByName funcs
 // funcs by Field type.
 var defaultFieldByType = map[string]any{
-	typeutil.TypeOf[allocation.AllocationField](): allocation.DefaultFieldByName,
-	typeutil.TypeOf[asset.AssetField]():           asset.DefaultFieldByName,
-	typeutil.TypeOf[cloudcost.CloudCostField]():   cloudcost.DefaultFieldByName,
-	typeutil.TypeOf[k8sobject.K8sObjectField]():   k8sobject.DefaultFieldByName,
+	typeutil.TypeOf[allocation.AllocationField]():       allocation.DefaultFieldByName,
+	typeutil.TypeOf[asset.AssetField]():                 asset.DefaultFieldByName,
+	typeutil.TypeOf[cloudcost.CloudCostField]():         cloudcost.DefaultFieldByName,
+	typeutil.TypeOf[k8sobject.K8sObjectField]():         k8sobject.DefaultFieldByName,
+	typeutil.TypeOf[resourcequota.ResourceQuotaField](): resourcequota.DefaultFieldByName,
 	// typeutil.TypeOf[containerstats.ContainerStatsField](): containerstats.DefaultFieldByName,
 }
 
