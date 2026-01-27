@@ -20,6 +20,13 @@ Official list of [OpenCost Maintainers](https://github.com/orgs/opencost/teams/o
 | --------------- | --------- | ----------- | ----------- |
 | Rajith Attapattu| @rajith77 | Randoli | <rajith@randoli.ca> |
 
+## Sub Project Maintainers
+
+### opencost-integration-tests
+| Maintainer | GitHub ID | Affiliation | Email |
+| --------------- | --------- | ----------- | ----------- |
+| Manas Sivakumar | @Manas23601 |  | <manas23601@gmail.com> |
+
 ## Opencost Emeritus Committers
 
 We would like to acknowledge previous committers and their huge contributions to our collective success:
