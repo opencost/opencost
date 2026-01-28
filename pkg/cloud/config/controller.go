@@ -194,7 +194,7 @@ func (c *Controller) CreateConfig(conf cloud.KeyedConfig) error {
 
 	statuses, err := c.storage.load()
 	if err != nil {
-		return fmt.Errorf("failed to load statuses")
+		return fmt.Errorf("failed to load statuses: %w")
 	}
 	source := ConfigControllerSource
 	key := conf.Key()
@@ -224,8 +224,8 @@ func (c *Controller) CreateConfig(conf cloud.KeyedConfig) error {
 			continue
 		}
 
-		// if active disable
-		if confStat.Active == true {
+		// if active, disable and remove from observers
+		if confStat.Active {
 			confStat.Active = false
 			c.broadcastRemoveConfig(key)
 		}
@@ -253,7 +253,7 @@ func (c *Controller) UpdateConfig(conf cloud.KeyedConfig) error {
 
 	statuses, err := c.storage.load()
 	if err != nil {
-		return fmt.Errorf("failed to load statuses")
+		return fmt.Errorf("failed to load statuses: %w", err)
 	}
 	source := ConfigControllerSource
 	key := conf.Key()
@@ -269,22 +269,14 @@ func (c *Controller) UpdateConfig(conf cloud.KeyedConfig) error {
 		return fmt.Errorf("config did not have recoginzed config: %w", err)
 	}
 
-	statuses.Insert(&Status{
-		Key:        key,
-		Source:     source,
-		Valid:      true,
-		Active:     true,
-		ConfigType: configType,
-		Config:     conf,
-	})
-
-	// check for configurations with the same configuration key and source that are already active.
+	// check for configurations with the same configuration key that are already active
+	// and disable them before inserting the updated config
 	for _, confStat := range statuses.List() {
 		if confStat.Key != key {
 			continue
 		}
 
-		// disable previous configuration in favor of the updated one
+		// disable previous active configurations
 		// note that this will not disable configs with the same key that are not created by config controller
 		if confStat.Source == ConfigControllerSource && confStat.Active {
 			confStat.Active = false
@@ -294,8 +286,16 @@ func (c *Controller) UpdateConfig(conf cloud.KeyedConfig) error {
 		if confStat.Source != ConfigControllerSource && confStat.Active {
 			log.Debugf("Detected active config with key %s that was not created by the config controller", key)
 		}
-
 	}
+
+	statuses.Insert(&Status{
+		Key:        key,
+		Source:     source,
+		Valid:      true,
+		Active:     true,
+		ConfigType: configType,
+		Config:     conf,
+	})
 
 	c.broadcastAddConfig(conf)
 	err = c.storage.save(statuses)
