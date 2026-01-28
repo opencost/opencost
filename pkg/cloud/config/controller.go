@@ -194,7 +194,7 @@ func (c *Controller) CreateConfig(conf cloud.KeyedConfig) error {
 
 	statuses, err := c.storage.load()
 	if err != nil {
-		return fmt.Errorf("failed to load statuses: %w")
+		return fmt.Errorf("failed to load statuses: %w", err)
 	}
 	source := ConfigControllerSource
 	key := conf.Key()
