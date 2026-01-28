@@ -69,6 +69,10 @@ func (pc *ProviderConfig) onConfigFileUpdated(changeType config.ChangeType, data
 			customPricing = DefaultPricing()
 		}
 
+		// Debug: Log AthenaProjectID when config is updated
+		log.Debugf("onConfigFileUpdated: AthenaProjectID=%s, ProjectID=%s, AthenaBucketName=%s",
+			customPricing.AthenaProjectID, customPricing.ProjectID, customPricing.AthenaBucketName)
+
 		pc.customPricing = customPricing
 		if pc.customPricing.SpotGPU == "" {
 			pc.customPricing.SpotGPU = DefaultPricing().SpotGPU // Migration for users without this value set by default.
@@ -135,6 +139,10 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*models.CustomPrici
 		log.Infof("Could not decode Custom Pricing file at path %s", pc.configFile.Path())
 		return DefaultPricing(), err
 	}
+
+	// Debug: Log parsed AthenaProjectID
+	log.Debugf("loadConfig: Parsed AthenaProjectID=%s, AthenaBucketName=%s",
+		customPricing.AthenaProjectID, customPricing.AthenaBucketName)
 
 	pc.customPricing = &customPricing
 	if pc.customPricing.SpotGPU == "" {

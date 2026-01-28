@@ -509,6 +509,10 @@ func (aws *AWS) GetAWSAthenaInfo() (*AwsAthenaInfo, error) {
 		return nil, fmt.Errorf("could not retrieve AwsAthenaInfo %s", err)
 	}
 
+	// Debug: Log the AthenaProjectID from config
+	log.Debugf("GetAWSAthenaInfo: config.AthenaProjectID=%s, AthenaBucketName=%s, AthenaRegion=%s, AthenaDatabase=%s, AthenaTable=%s",
+		config.AthenaProjectID, config.AthenaBucketName, config.AthenaRegion, config.AthenaDatabase, config.AthenaTable)
+
 	aak, err := aws.GetAWSAccessKey()
 	if err != nil {
 		return nil, err
@@ -2084,6 +2088,8 @@ func (aws *AWS) QueryAthenaPaginated(ctx context.Context, query string, fn func(
 	}
 	if awsAthenaInfo.AthenaDatabase == "" || awsAthenaInfo.AthenaTable == "" || awsAthenaInfo.AthenaRegion == "" ||
 		awsAthenaInfo.AthenaBucketName == "" || awsAthenaInfo.AccountID == "" {
+		log.Debugf("AthenaDatabase: %s, AthenaTable: %s, AthenaRegion: %s, AthenaBucketName: %s, AccountID: %s",
+			awsAthenaInfo.AthenaDatabase, awsAthenaInfo.AthenaTable, awsAthenaInfo.AthenaRegion, awsAthenaInfo.AthenaBucketName, awsAthenaInfo.AccountID)
 		return fmt.Errorf("QueryAthenaPaginated: athena configuration incomplete")
 	}
 
