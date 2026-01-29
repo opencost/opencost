@@ -103,6 +103,7 @@ func (cm *CostModel) buildPodMap(window opencost.Window, podMap map[podKey]*pod,
 	}
 
 	applyPodResults(window, resolution, podMap, resPods, ingestPodUID, podUIDKeyMap)
+	rebuildPodUIDKeyMapFromPodMap(podMap, podUIDKeyMap, ingestPodUID)
 
 	return nil
 }
@@ -162,6 +163,34 @@ func filterPodsByUIDWithDedup(resPods []*source.PodsResult) []*source.PodsResult
 	return out
 }
 
+// nameOnlyFromPodKey returns the name-only key (cluster, namespace, pod name without UID suffix)
+func nameOnlyFromPodKey(key podKey, ingestPodUID bool) podKey {
+	if !ingestPodUID {
+		return key
+	}
+	idx := strings.LastIndex(key.Pod, " ")
+	if idx <= 0 {
+		return key
+	}
+	return newPodKey(key.Cluster, key.Namespace, key.Pod[:idx])
+}
+
+// rebuildPodUIDKeyMapFromPodMap repopulates podUIDKeyMap from the current podMap
+func rebuildPodUIDKeyMapFromPodMap(podMap map[podKey]*pod, podUIDKeyMap map[podKey][]podKey, ingestPodUID bool) {
+	for k := range podUIDKeyMap {
+		delete(podUIDKeyMap, k)
+	}
+	defaultCluster := coreenv.GetClusterID()
+	for key := range podMap {
+		nameOnly := nameOnlyFromPodKey(key, ingestPodUID)
+		podUIDKeyMap[nameOnly] = append(podUIDKeyMap[nameOnly], key)
+		if nameOnly.Cluster != defaultCluster {
+			alt := newPodKey(defaultCluster, nameOnly.Namespace, nameOnly.Pod)
+			podUIDKeyMap[alt] = append(podUIDKeyMap[alt], key)
+		}
+	}
+}
+
 func applyPodResults(window opencost.Window, resolution time.Duration, podMap map[podKey]*pod, resPods []*source.PodsResult, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) {
 	for _, res := range resPods {
 		if len(res.Data) == 0 {
@@ -188,21 +217,11 @@ func applyPodResults(window opencost.Window, resolution time.Duration, podMap ma
 
 		key := newPodKey(cluster, namespace, podName)
 
-		// If thisPod UIDs are being used to ID pods, append them to the thisPod name in
-		// the podKey.
-		if ingestPodUID {
-
-			uid := res.UID
-			if uid == "" {
-				log.Warnf("CostModel.ComputeAllocation: UID ingestion enabled, but query result missing field: uid")
-				podUIDKeyMap[key] = append(podUIDKeyMap[key], key)
-			} else {
-				newKey := newPodKey(cluster, namespace, podName+" "+uid)
-				podUIDKeyMap[key] = append(podUIDKeyMap[key], newKey)
-
-				key = newKey
-			}
-
+		// If ingesting UID, key pods by "name uid" so we can distinguish restarts
+		if ingestPodUID && res.UID != "" {
+			key = newPodKey(cluster, namespace, podName+" "+res.UID)
+		} else if ingestPodUID && res.UID == "" {
+			log.Warnf("CostModel.ComputeAllocation: UID ingestion enabled, but query result missing field: uid")
 		}
 
 		allocStart, allocEnd := calculateStartAndEnd(res.Data, resolution, window)
@@ -1159,11 +1178,7 @@ func resToPodLabels(resPodLabels []*source.PodLabelsResult, podUIDKeyMap map[pod
 		var keys []podKey
 
 		if ingestPodUID {
-			if uidKeys, ok := podUIDKeyMap[key]; ok {
-
-				keys = append(keys, uidKeys...)
-
-			}
+			keys = podUIDKeyMap[key]
 		} else {
 			keys = []podKey{key}
 		}
@@ -1215,9 +1230,7 @@ func resToPodAnnotations(resPodAnnotations []*source.PodAnnotationsResult, podUI
 		var keys []podKey
 
 		if ingestPodUID {
-			if uidKeys, ok := podUIDKeyMap[key]; ok {
-				keys = append(keys, uidKeys...)
-			}
+			keys = podUIDKeyMap[key]
 		} else {
 			keys = []podKey{key}
 		}
