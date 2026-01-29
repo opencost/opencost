@@ -543,6 +543,10 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
+				// Debug: Log when setting node cost metrics
+				log.Debugf("MetricsEmitter: Setting metrics for node=%s, type=%s, region=%s, providerID=%s, isSpot=%t, cpuCost=%.6f, ramCost=%.6f, gpuCost=%.6f, totalCost=%.6f, usageType=%s",
+					nodeName, nodeType, nodeRegion, node.ProviderID, node.IsSpot(), cpuCost, ramCost, gpuCost, totalCost, node.UsageType)
+
 				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType, nodeUID)
 
 				avgCosts, ok := nodeCostAverages[labelKey]

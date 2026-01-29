@@ -1863,6 +1863,9 @@ func applyNodeDiscount(nodeMap map[nodeKey]*nodePricing, cm *CostModel) {
 		return
 	}
 
+	// Debug: Log discount config values
+	log.Debugf("applyNodeDiscount: Config Discount=%s, NegotiatedDiscount=%s", c.Discount, c.NegotiatedDiscount)
+
 	discount, err := ParsePercentString(c.Discount)
 	if err != nil {
 		log.Errorf("CostModel.ComputeAllocation: applyNodeDiscount: %s", err)
@@ -1875,11 +1878,20 @@ func applyNodeDiscount(nodeMap map[nodeKey]*nodePricing, cm *CostModel) {
 		return
 	}
 
+	// Debug: Log parsed discount values
+	log.Debugf("applyNodeDiscount: Parsed discount=%.4f (%.2f%%), negotiatedDiscount=%.4f (%.2f%%)",
+		discount, discount*100, negotiatedDiscount, negotiatedDiscount*100)
+
 	for _, node := range nodeMap {
 		// TODO GKE Reserved Instances into account
 		node.Discount = cm.Provider.CombinedDiscountForNode(node.NodeType, node.Preemptible, discount, negotiatedDiscount)
+		originalCPUCost := node.CostPerCPUHr
+		originalRAMCost := node.CostPerRAMGiBHr
 		node.CostPerCPUHr *= (1.0 - node.Discount)
 		node.CostPerRAMGiBHr *= (1.0 - node.Discount)
+		// Debug: Log discount application per node
+		log.Debugf("applyNodeDiscount: Node=%s, NodeType=%s, Preemptible=%t, CombinedDiscount=%.4f (%.2f%%), CostPerCPUHr: %.6f -> %.6f, CostPerRAMGiBHr: %.6f -> %.6f",
+			node.Name, node.NodeType, node.Preemptible, node.Discount, node.Discount*100, originalCPUCost, node.CostPerCPUHr, originalRAMCost, node.CostPerRAMGiBHr)
 	}
 }
 

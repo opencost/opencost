@@ -180,6 +180,8 @@ type CustomPricing struct {
 	CurrencyCode                 string `json:"currencyCode"`
 	Discount                     string `json:"discount"`
 	NegotiatedDiscount           string `json:"negotiatedDiscount"`
+	SpotDiscount                 string `json:"spotDiscount,omitempty"`
+	SpotNegotiatedDiscount       string `json:"spotNegotiatedDiscount,omitempty"`
 	ClusterName                  string `json:"clusterName"`
 	ClusterAccountID             string `json:"clusterAccount,omitempty"`
 	DefaultLBPrice               string `json:"defaultLBPrice"`

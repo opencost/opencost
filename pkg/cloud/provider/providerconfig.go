@@ -140,9 +140,11 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*models.CustomPrici
 		return DefaultPricing(), err
 	}
 
-	// Debug: Log parsed AthenaProjectID
-	log.Debugf("loadConfig: Parsed AthenaProjectID=%s, AthenaBucketName=%s",
-		customPricing.AthenaProjectID, customPricing.AthenaBucketName)
+	// Debug: Log parsed config values including discounts
+	log.Debugf("loadConfig: Parsed config - AthenaProjectID=%s, AthenaBucketName=%s, AthenaRegion=%s, AthenaDatabase=%s, AthenaTable=%s",
+		customPricing.AthenaProjectID, customPricing.AthenaBucketName, customPricing.AthenaRegion, customPricing.AthenaDatabase, customPricing.AthenaTable)
+	log.Debugf("loadConfig: Discount=%s, NegotiatedDiscount=%s, CPU=%s, RAM=%s, GPU=%s, SpotCPU=%s, SpotRAM=%s, SpotGPU=%s",
+		customPricing.Discount, customPricing.NegotiatedDiscount, customPricing.CPU, customPricing.RAM, customPricing.GPU, customPricing.SpotCPU, customPricing.SpotRAM, customPricing.SpotGPU)
 
 	pc.customPricing = &customPricing
 	if pc.customPricing.SpotGPU == "" {
