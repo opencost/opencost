@@ -1299,7 +1299,7 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 	// OnDemand discount (applies to non-spot nodes)
 	onDemandDiscount := 1.0
 	if cfg.Discount != "" {
-		discountParsed, err := strconv.ParseFloat(cfg.Discount, 64)
+		discountParsed, err := ParsePercentString(cfg.Discount)
 		if err != nil {
 			log.Warnf("GetNodeCost: Failed to parse discount '%s': %v", cfg.Discount, err)
 		} else {
@@ -1308,7 +1308,7 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 		}
 	}
 	if cfg.NegotiatedDiscount != "" {
-		negDiscountParsed, err := strconv.ParseFloat(cfg.NegotiatedDiscount, 64)
+		negDiscountParsed, err := ParsePercentString(cfg.NegotiatedDiscount)
 		if err != nil {
 			log.Warnf("GetNodeCost: Failed to parse negotiatedDiscount '%s': %v", cfg.NegotiatedDiscount, err)
 		} else {
@@ -1320,7 +1320,7 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 	// Spot discount (applies to spot nodes)
 	spotDiscount := 1.0
 	if cfg.SpotDiscount != "" {
-		spotDiscountParsed, err := strconv.ParseFloat(cfg.SpotDiscount, 64)
+		spotDiscountParsed, err := ParsePercentString(cfg.SpotDiscount)
 		if err != nil {
 			log.Warnf("GetNodeCost: Failed to parse spotDiscount '%s': %v", cfg.SpotDiscount, err)
 		} else {
@@ -1329,7 +1329,7 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 		}
 	}
 	if cfg.SpotNegotiatedDiscount != "" {
-		spotNegDiscountParsed, err := strconv.ParseFloat(cfg.SpotNegotiatedDiscount, 64)
+		spotNegDiscountParsed, err := ParsePercentString(cfg.SpotNegotiatedDiscount)
 		if err != nil {
 			log.Warnf("GetNodeCost: Failed to parse spotNegotiatedDiscount '%s': %v", cfg.SpotNegotiatedDiscount, err)
 		} else {
@@ -1359,7 +1359,9 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 		// Apply discount to VCPUCost
 		if node.VCPUCost != "" {
 			vcpuCost, err := strconv.ParseFloat(node.VCPUCost, 64)
-			if err == nil {
+			if err != nil {
+				log.Warnf("GetNodeCost: node=%s failed to parse VCPUCost '%s': %v", name, node.VCPUCost, err)
+			} else {
 				originalVCPU := vcpuCost
 				vcpuCost = vcpuCost * discount
 				node.VCPUCost = fmt.Sprintf("%f", vcpuCost)
@@ -1369,7 +1371,9 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 		// Apply discount to RAMCost
 		if node.RAMCost != "" {
 			ramCost, err := strconv.ParseFloat(node.RAMCost, 64)
-			if err == nil {
+			if err != nil {
+				log.Warnf("GetNodeCost: node=%s failed to parse RAMCost '%s': %v", name, node.RAMCost, err)
+			} else {
 				originalRAM := ramCost
 				ramCost = ramCost * discount
 				node.RAMCost = fmt.Sprintf("%f", ramCost)
@@ -1379,7 +1383,9 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 		// Apply discount to GPUCost
 		if node.GPUCost != "" {
 			gpuCost, err := strconv.ParseFloat(node.GPUCost, 64)
-			if err == nil {
+			if err != nil {
+				log.Warnf("GetNodeCost: node=%s failed to parse GPUCost '%s': %v", name, node.GPUCost, err)
+			} else {
 				originalGPU := gpuCost
 				gpuCost = gpuCost * discount
 				node.GPUCost = fmt.Sprintf("%f", gpuCost)
@@ -1389,7 +1395,9 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 		// Apply discount to total Cost
 		if node.Cost != "" {
 			totalCost, err := strconv.ParseFloat(node.Cost, 64)
-			if err == nil {
+			if err != nil {
+				log.Warnf("GetNodeCost: node=%s failed to parse Cost '%s': %v", name, node.Cost, err)
+			} else {
 				originalCost := totalCost
 				totalCost = totalCost * discount
 				node.Cost = fmt.Sprintf("%f", totalCost)
