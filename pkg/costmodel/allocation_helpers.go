@@ -73,23 +73,31 @@ func (cm *CostModel) buildPodMap(window opencost.Window, podMap map[podKey]*pod,
 		return err
 	}
 
-	// queryFmtPodsUID will return both UID-containing results, and non-UID-containing results,
-	// so filter out the non-containing results so we don't duplicate pods. This is due to the
-	// default setup of Kubecost having replicated kube_pod_container_status_running and
-	// included KSM kube_pod_container_status_running. Querying w/ UID will return both.
+	// When ingesting UID, fill in missing UIDs from kube_pod_labels as a fallback (e.g. when
+	// kube_pod_container_status_running comes from a scrape job that doesn't expose uid).
 	if ingestPodUID {
-		var resPodsUID []*source.PodsResult
-
+		uidFromLabels := cm.buildPodUIDFromLabelsMap(start, end)
 		for _, res := range resPods {
-			uid := res.UID
-			if uid != "" {
-				resPodsUID = append(resPodsUID, res)
+			if res.UID != "" {
+				continue
+			}
+			cluster := res.Cluster
+			if cluster == "" {
+				cluster = coreenv.GetClusterID()
+			}
+			key := podUIDLookupKey(cluster, res.Namespace, res.Pod)
+			if uid, ok := uidFromLabels[key]; ok {
+				res.UID = uid
 			}
 		}
+	}
 
-		if len(resPodsUID) > 0 {
-			resPods = resPodsUID
-		} else {
+	// queryFmtPodsUID will return both UID-containing results, and non-UID-containing results,
+	// so filter so we don't duplicate pods: keep all with UID; keep those without UID only when
+	// no other result for the same (cluster, namespace, pod) has a UID.
+	if ingestPodUID {
+		resPods = filterPodsByUIDWithDedup(resPods)
+		if len(resPods) == 0 {
 			log.DedupedWarningf(5, "CostModel.ComputeAllocation: UID ingestion enabled, but query did not return any results with UID")
 		}
 	}
@@ -97,6 +105,61 @@ func (cm *CostModel) buildPodMap(window opencost.Window, podMap map[podKey]*pod,
 	applyPodResults(window, resolution, podMap, resPods, ingestPodUID, podUIDKeyMap)
 
 	return nil
+}
+
+// podUIDLookupKey returns a map key for (cluster, namespace, pod). Used for UID fallback lookup.
+func podUIDLookupKey(cluster, namespace, pod string) string {
+	return cluster + "|" + namespace + "|" + pod
+}
+
+// buildPodUIDFromLabelsMap queries kube_pod_labels and returns a map of (cluster|namespace|pod) -> uid
+func (cm *CostModel) buildPodUIDFromLabelsMap(start, end time.Time) map[string]string {
+	ds := cm.DataSource.Metrics()
+	res, err := ds.QueryPodLabels(start, end).Await()
+	if err != nil {
+		log.DedupedWarningf(5, "CostModel.ComputeAllocation: pod labels query failed, skipping UID fallback: %s", err)
+		return nil
+	}
+	m := make(map[string]string)
+	for _, r := range res {
+		if r.UID == "" {
+			continue
+		}
+		cluster := r.Cluster
+		if cluster == "" {
+			cluster = coreenv.GetClusterID()
+		}
+		m[podUIDLookupKey(cluster, r.Namespace, r.Pod)] = r.UID
+	}
+	return m
+}
+
+// filterPodsByUIDWithDedup returns exactly one PodsResult per (cluster, namespace, pod) to prevent
+// duplicate pod results. Prefers a result with non-empty UID when the same pod appears with and
+// without UID or from multiple scrape jobs.
+func filterPodsByUIDWithDedup(resPods []*source.PodsResult) []*source.PodsResult {
+	// key -> chosen result (we keep exactly one per key)
+	byKey := make(map[string]*source.PodsResult)
+	for _, res := range resPods {
+		cluster := res.Cluster
+		if cluster == "" {
+			cluster = coreenv.GetClusterID()
+		}
+		key := podUIDLookupKey(cluster, res.Namespace, res.Pod)
+		existing, ok := byKey[key]
+		if !ok {
+			byKey[key] = res
+			continue
+		}
+		if res.UID != "" && existing.UID == "" {
+			byKey[key] = res
+		}
+	}
+	out := make([]*source.PodsResult, 0, len(byKey))
+	for _, res := range byKey {
+		out = append(out, res)
+	}
+	return out
 }
 
 func applyPodResults(window opencost.Window, resolution time.Duration, podMap map[podKey]*pod, resPods []*source.PodsResult, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) {
