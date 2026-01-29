@@ -195,6 +195,7 @@ func applyPodResults(window opencost.Window, resolution time.Duration, podMap ma
 			uid := res.UID
 			if uid == "" {
 				log.Warnf("CostModel.ComputeAllocation: UID ingestion enabled, but query result missing field: uid")
+				podUIDKeyMap[key] = append(podUIDKeyMap[key], key)
 			} else {
 				newKey := newPodKey(cluster, namespace, podName+" "+uid)
 				podUIDKeyMap[key] = append(podUIDKeyMap[key], newKey)
