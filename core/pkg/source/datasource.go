@@ -39,6 +39,7 @@ type MetricsQuerier interface {
 	QueryLBPricePerHr(start, end time.Time) *Future[LBPricePerHrResult]
 
 	// Cluster Management
+	QueryClusterUptime(start, end time.Time) *Future[UptimeResult]
 	QueryClusterManagementDuration(start, end time.Time) *Future[ClusterManagementDurationResult]
 	QueryClusterManagementPricePerHr(start, end time.Time) *Future[ClusterManagementPricePerHrResult]
 
@@ -49,6 +50,7 @@ type MetricsQuerier interface {
 	// RAM
 	QueryRAMBytesAllocated(start, end time.Time) *Future[RAMBytesAllocatedResult]
 	QueryRAMRequests(start, end time.Time) *Future[RAMRequestsResult]
+	QueryRAMLimits(start, end time.Time) *Future[RAMLimitsResult]
 	QueryRAMUsageAvg(start, end time.Time) *Future[RAMUsageAvgResult]
 	QueryRAMUsageMax(start, end time.Time) *Future[RAMUsageMaxResult]
 	QueryNodeRAMPricePerGiBHr(start, end time.Time) *Future[NodeRAMPricePerGiBHrResult]
@@ -56,6 +58,7 @@ type MetricsQuerier interface {
 	// CPU
 	QueryCPUCoresAllocated(start, end time.Time) *Future[CPUCoresAllocatedResult]
 	QueryCPURequests(start, end time.Time) *Future[CPURequestsResult]
+	QueryCPULimits(start, end time.Time) *Future[CPULimitsResult]
 	QueryCPUUsageAvg(start, end time.Time) *Future[CPUUsageAvgResult]
 	QueryCPUUsageMax(start, end time.Time) *Future[CPUUsageMaxResult]
 	QueryNodeCPUPricePerHr(start, end time.Time) *Future[NodeCPUPricePerHrResult]
@@ -78,6 +81,9 @@ type MetricsQuerier interface {
 	QueryPVBytes(start, end time.Time) *Future[PVBytesResult]
 	QueryPVPricePerGiBHour(start, end time.Time) *Future[PVPricePerGiBHourResult]
 	QueryPVInfo(start, end time.Time) *Future[PVInfoResult]
+
+	// Namespace
+	QueryNamespaceUptime(start, end time.Time) *Future[UptimeResult]
 
 	// Network Egress
 	QueryNetZoneGiB(start, end time.Time) *Future[NetZoneGiBResult]
@@ -114,6 +120,25 @@ type MetricsQuerier interface {
 	QueryPodsWithReplicaSetOwner(start, end time.Time) *Future[PodsWithReplicaSetOwnerResult]
 	QueryReplicaSetsWithoutOwners(start, end time.Time) *Future[ReplicaSetsWithoutOwnersResult]
 	QueryReplicaSetsWithRollout(start, end time.Time) *Future[ReplicaSetsWithRolloutResult]
+
+	// ResourceQuotas
+	QueryResourceQuotaUptime(start, end time.Time) *Future[UptimeResult]
+	QueryResourceQuotaSpecCPURequestAverage(start, end time.Time) *Future[ResourceQuotaSpecCPURequestAvgResult]
+	QueryResourceQuotaSpecCPURequestMax(start, end time.Time) *Future[ResourceQuotaSpecCPURequestMaxResult]
+	QueryResourceQuotaSpecRAMRequestAverage(start, end time.Time) *Future[ResourceQuotaSpecRAMRequestAvgResult]
+	QueryResourceQuotaSpecRAMRequestMax(start, end time.Time) *Future[ResourceQuotaSpecRAMRequestMaxResult]
+	QueryResourceQuotaSpecCPULimitAverage(start, end time.Time) *Future[ResourceQuotaSpecCPULimitAvgResult]
+	QueryResourceQuotaSpecCPULimitMax(start, end time.Time) *Future[ResourceQuotaSpecCPULimitMaxResult]
+	QueryResourceQuotaSpecRAMLimitAverage(start, end time.Time) *Future[ResourceQuotaSpecRAMLimitAvgResult]
+	QueryResourceQuotaSpecRAMLimitMax(start, end time.Time) *Future[ResourceQuotaSpecRAMLimitMaxResult]
+	QueryResourceQuotaStatusUsedCPURequestAverage(start, end time.Time) *Future[ResourceQuotaStatusUsedCPURequestAvgResult]
+	QueryResourceQuotaStatusUsedCPURequestMax(start, end time.Time) *Future[ResourceQuotaStatusUsedCPURequestMaxResult]
+	QueryResourceQuotaStatusUsedRAMRequestAverage(start, end time.Time) *Future[ResourceQuotaStatusUsedRAMRequestAvgResult]
+	QueryResourceQuotaStatusUsedRAMRequestMax(start, end time.Time) *Future[ResourceQuotaStatusUsedRAMRequestMaxResult]
+	QueryResourceQuotaStatusUsedCPULimitAverage(start, end time.Time) *Future[ResourceQuotaStatusUsedCPULimitAvgResult]
+	QueryResourceQuotaStatusUsedCPULimitMax(start, end time.Time) *Future[ResourceQuotaStatusUsedCPULimitMaxResult]
+	QueryResourceQuotaStatusUsedRAMLimitAverage(start, end time.Time) *Future[ResourceQuotaStatusUsedRAMLimitAvgResult]
+	QueryResourceQuotaStatusUsedRAMLimitMax(start, end time.Time) *Future[ResourceQuotaStatusUsedRAMLimitMaxResult]
 
 	// Data Coverage Query
 	QueryDataCoverage(limitDays int) (time.Time, time.Time, error)

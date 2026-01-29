@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sync"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
@@ -60,22 +61,28 @@ func (nssc *NodeStatsSummaryClient) GetNodeData() ([]*stats.Summary, error) {
 	size := nssc.config.ConcurrentPollers
 	nodes := getReadyNodes(nssc.cache)
 
-	work := func(n *clustercache.Node) *stats.Summary {
-		if n.SpecProviderID == "" {
-			log.Warnf("node ProviderID not set, skipping for %s", n.Name)
-			return nil
-		}
+	var errLock sync.Mutex
+	var errs []error
 
+	work := func(n *clustercache.Node) *stats.Summary {
 		connections := nssc.connectionOptions(n)
 
 		resp, err := requestNodeData(connections, nssc.endpoint, bearerToken)
 		if err != nil {
+			errLock.Lock()
+			errs = append(errs, err)
+			errLock.Unlock()
+
 			log.Warnf("error retrieving node data: %s", err)
 			return nil
 		}
 
 		data, err := nodeResponseToStatSummary(resp)
 		if err != nil {
+			errLock.Lock()
+			errs = append(errs, err)
+			errLock.Unlock()
+
 			log.Warnf("error converting node data: %s", err)
 			return nil
 		}
@@ -83,7 +90,14 @@ func (nssc *NodeStatsSummaryClient) GetNodeData() ([]*stats.Summary, error) {
 		return data
 	}
 
-	return worker.ConcurrentCollectWith(size, work, nodes), nil
+	results := worker.ConcurrentCollectWith(size, work, nodes)
+
+	// no need to lock, as the concurrent collect blocks until all complete
+	var err error = nil
+	if len(errs) > 0 {
+		err = errors.Join(errs...)
+	}
+	return results, err
 }
 
 // connectionOptions returns the connection methods that are allowed for this node based on config

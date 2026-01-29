@@ -59,11 +59,15 @@ func NewGCSStorageWith(gc GCSConfig) (*GCSStorage, error) {
 		opts = append(opts, option.WithCredentials(credentials))
 	}
 
+	// HTTPS Protocol Configuration: Google Cloud Storage client uses HTTPS by default.
+	// The GCS client library (cloud.google.com/go/storage) automatically uses HTTPS
+	// for all API calls. All GCS operations (read, write, delete, list) use HTTPS protocol.
 	gcsClient, err := gcs.NewClient(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
 
+	log.Debugf("GCSStorage: New GCS client initialized with 'https://storage.googleapis.com/%s'", gc.Bucket)
 	return &GCSStorage{
 		name:   gc.Bucket,
 		bucket: gcsClient.Bucket(gc.Bucket),
@@ -71,8 +75,8 @@ func NewGCSStorageWith(gc GCSConfig) (*GCSStorage, error) {
 	}, nil
 }
 
-// Name returns the bucket name for gcs.
-func (gs *GCSStorage) Name() string {
+// String returns the bucket name for gcs.
+func (gs *GCSStorage) String() string {
 	return gs.name
 }
 
@@ -118,7 +122,7 @@ func (gs *GCSStorage) isDoesNotExist(err error) bool {
 // read the contents.
 func (gs *GCSStorage) Read(name string) ([]byte, error) {
 	name = trimLeading(name)
-	log.Debugf("GCSStorage::Read(%s)", name)
+	log.Debugf("GCSStorage::Read::HTTPS(%s)", name)
 
 	ctx := context.Background()
 	reader, err := gs.bucket.Object(name).NewReader(ctx)
@@ -138,7 +142,7 @@ func (gs *GCSStorage) Read(name string) ([]byte, error) {
 // to write a new file or overwrite an existing file.
 func (gs *GCSStorage) Write(name string, data []byte) error {
 	name = trimLeading(name)
-	log.Debugf("GCSStorage::Write(%s)", name)
+	log.Debugf("GCSStorage::Write::HTTPS(%s)", name)
 
 	ctx := context.Background()
 
@@ -167,7 +171,7 @@ func (gs *GCSStorage) Write(name string, data []byte) error {
 func (gs *GCSStorage) Remove(name string) error {
 	name = trimLeading(name)
 
-	log.Debugf("GCSStorage::Remove(%s)", name)
+	log.Debugf("GCSStorage::Remove::HTTPS(%s)", name)
 	ctx := context.Background()
 
 	return gs.bucket.Object(name).Delete(ctx)
@@ -196,7 +200,7 @@ func (gs *GCSStorage) Exists(name string) (bool, error) {
 func (gs *GCSStorage) List(path string) ([]*StorageInfo, error) {
 	path = trimLeading(path)
 
-	log.Debugf("GCSStorage::List(%s)", path)
+	log.Debugf("GCSStorage::List::HTTPS(%s)", path)
 	ctx := context.Background()
 
 	// Ensure the object name actually ends with a dir suffix. Otherwise we'll just iterate the
@@ -239,7 +243,7 @@ func (gs *GCSStorage) List(path string) ([]*StorageInfo, error) {
 func (gs *GCSStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 	path = trimLeading(path)
 
-	log.Debugf("GCSStorage::List(%s)", path)
+	log.Debugf("GCSStorage::ListDirectories::HTTPS(%s)", path)
 	ctx := context.Background()
 
 	// Ensure the object name actually ends with a dir suffix. Otherwise we'll just iterate the
@@ -261,17 +265,12 @@ func (gs *GCSStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 			break
 		}
 		if err != nil {
-			return nil, errors.Wrap(err, "list gcs objects")
+			return nil, errors.Wrap(err, "list gcs prefixes")
 		}
 
-		// ignore the root path directory
-		if attrs.Name == path {
-			continue
-		}
-
-		// We filter directories using DirDelim, so a nameless entry is a dir
+		// We filter directories using DirDelim, so a non empty prefix entry is a prefix(directory)
 		// See gcs.ObjectAttrs Prefix property
-		if attrs.Name == "" {
+		if attrs.Prefix != "" {
 			stats = append(stats, &StorageInfo{
 				Name:    attrs.Prefix,
 				Size:    attrs.Size,

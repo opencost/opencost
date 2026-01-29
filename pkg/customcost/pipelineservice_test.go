@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -147,6 +148,72 @@ func downloadLatestPluginExec(dirName string, t *testing.T) {
 	_, err = io.Copy(out, resp.Body)
 	if err != nil {
 		t.Fatalf("error copying: %v", err)
+	}
+}
+
+func TestGetRegisteredPlugins_UnreadableConfigDir(t *testing.T) {
+	testCases := []struct {
+		name          string
+		setupFunc     func() (configDir string, execDir string, cleanup func())
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "non-existent config directory",
+			setupFunc: func() (string, string, func()) {
+				execDir := t.TempDir()
+				return "/non/existent/path", execDir, func() {}
+			},
+			expectError:   true,
+			errorContains: "failed to read plugin config directory",
+		},
+		{
+			name: "config directory is a file not a directory",
+			setupFunc: func() (string, string, func()) {
+				tmpDir := t.TempDir()
+				execDir := t.TempDir()
+				// Create a file instead of a directory
+				configFile := tmpDir + "/not-a-directory"
+				err := os.WriteFile(configFile, []byte("test"), 0644)
+				if err != nil {
+					t.Fatalf("failed to create test file: %v", err)
+				}
+				return configFile, execDir, func() {}
+			},
+			expectError:   true,
+			errorContains: "failed to read plugin config directory",
+		},
+		{
+			name: "empty valid config directory",
+			setupFunc: func() (string, string, func()) {
+				configDir := t.TempDir()
+				execDir := t.TempDir()
+				return configDir, execDir, func() {}
+			},
+			expectError:   false,
+			errorContains: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			configDir, execDir, cleanup := tc.setupFunc()
+			defer cleanup()
+
+			_, err := getRegisteredPlugins(configDir, execDir)
+
+			if tc.expectError {
+				if err == nil {
+					t.Errorf("expected error but got nil")
+				} else if tc.errorContains != "" && !strings.Contains(err.Error(), tc.errorContains) {
+					t.Errorf("expected error to contain %q, but got: %v", tc.errorContains, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("expected no error but got: %v", err)
+				}
+			}
+		})
 	}
 }
 

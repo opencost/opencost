@@ -1,6 +1,7 @@
 package scrape
 
 import (
+	"github.com/opencost/opencost/modules/collector-source/pkg/event"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 )
@@ -16,8 +17,10 @@ func newOpenCostScraper() Scraper {
 
 func newOpencostTargetScraper(provider target.TargetProvider) *TargetScraper {
 	return newTargetScrapper(
+		event.OpenCostScraperName,
 		provider,
 		[]string{
+			metric.ClusterInfo,
 			metric.KubecostClusterManagementCost,
 			metric.KubecostNetworkZoneEgressCost,
 			metric.KubecostNetworkRegionEgressCost,

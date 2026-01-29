@@ -13,12 +13,15 @@ import (
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
 	coreenv "github.com/opencost/opencost/core/pkg/env"
+	"github.com/opencost/opencost/core/pkg/filter/allocation"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
+	km "github.com/opencost/opencost/pkg/kubemodel"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -46,10 +49,12 @@ type CostModel struct {
 	RequestGroup    *singleflight.Group
 	DataSource      source.OpenCostDataSource
 	Provider        costAnalyzerCloud.Provider
+	KubeModel       *km.KubeModel
 	pricingMetadata *costAnalyzerCloud.PricingMatchMetadata
 }
 
 func NewCostModel(
+	clusterUID string,
 	dataSource source.OpenCostDataSource,
 	provider costAnalyzerCloud.Provider,
 	cache clustercache.ClusterCache,
@@ -59,6 +64,16 @@ func NewCostModel(
 	// request grouping to prevent over-requesting the same data prior to caching
 	requestGroup := new(singleflight.Group)
 
+	var kubeModel *km.KubeModel
+	var err error
+	if dataSource != nil {
+		kubeModel, err = km.NewKubeModel(clusterUID, dataSource)
+		if err != nil {
+			// KubeModel is required. Log a fatal error if we fail to init.
+			log.Fatalf("error initializing KubeModel: %s", err)
+		}
+	}
+
 	return &CostModel{
 		Cache:         cache,
 		ClusterMap:    clusterMap,
@@ -66,7 +81,16 @@ func NewCostModel(
 		DataSource:    dataSource,
 		Provider:      provider,
 		RequestGroup:  requestGroup,
+		KubeModel:     kubeModel,
 	}
+}
+
+func (cm *CostModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeModelSet, error) {
+	if cm.KubeModel == nil {
+		return nil, fmt.Errorf("KubeModel not initialized")
+	}
+
+	return cm.KubeModel.ComputeKubeModelSet(start, end)
 }
 
 type CostData struct {
@@ -139,14 +163,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 	ds := cm.DataSource
 	mq := ds.Metrics()
 
-	grp := source.NewQueryGroup()
-
-	resChRAMUsage := source.WithGroup(grp, mq.QueryRAMUsageAvg(start, end))
-	resChCPUUsage := source.WithGroup(grp, mq.QueryCPUUsageAvg(start, end))
-	resChNetZoneRequests := source.WithGroup(grp, mq.QueryNetZoneGiB(start, end))
-	resChNetRegionRequests := source.WithGroup(grp, mq.QueryNetRegionGiB(start, end))
-	resChNetInternetRequests := source.WithGroup(grp, mq.QueryNetInternetGiB(start, end))
-
+	// Get Kubernetes data
 	// Pull pod information from k8s API
 	podlist := cm.Cache.GetAllPods()
 
@@ -170,30 +187,10 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 		return nil, err
 	}
 
-	// Process Prometheus query results. Handle errors using ctx.Errors.
-	resRAMUsage, _ := resChRAMUsage.Await()
-	resCPUUsage, _ := resChCPUUsage.Await()
-	resNetZoneRequests, _ := resChNetZoneRequests.Await()
-	resNetRegionRequests, _ := resChNetRegionRequests.Await()
-	resNetInternetRequests, _ := resChNetInternetRequests.Await()
-
-	// NOTE: The way we currently handle errors and warnings only early returns if there is an error. Warnings
-	// NOTE: will not propagate unless coupled with errors.
-	if grp.HasErrors() {
-		// To keep the context of where the errors are occurring, we log the errors here and pass them the error
-		// back to the caller. The caller should handle the specific case where error is an ErrorCollection
-		for _, queryErr := range grp.Errors() {
-			if queryErr.Error != nil {
-				log.Errorf("ComputeCostData: Request Error: %s", queryErr.Error)
-			}
-			if queryErr.ParseError != nil {
-				log.Errorf("ComputeCostData: Parsing Error: %s", queryErr.ParseError)
-			}
-		}
-
-		// ErrorCollection is an collection of errors wrapped in a single error implementation
-		// We opt to not return an error for the sake of running as a pure exporter.
-		log.Warnf("ComputeCostData: continuing despite prometheus errors: %s", grp.Error())
+	// Get metrics data
+	resRAMUsage, resCPUUsage, resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, err := queryMetrics(mq, start, end)
+	if err != nil {
+		log.Warnf("ComputeCostData: continuing despite metrics errors: %s", err)
 	}
 
 	defer measureTime(time.Now(), profileThreshold, "ComputeCostData: Processing Query Data")
@@ -254,7 +251,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 			return nil, err
 		}
 		for _, c := range cs {
-			containers[c.Key()] = true // captures any containers that existed for a time < a prometheus scrape interval. We currently charge 0 for this but should charge something.
+			containers[c.Key()] = true // captures any containers that existed for a time < a metrics scrape interval. We currently charge 0 for this but should charge something.
 			currentContainers[c.Key()] = *pod
 		}
 	}
@@ -268,6 +265,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 		// deleted so we have usage information but not request information. In that case,
 		// we return partial data for CPU and RAM: only usage and not requests.
 		if pod, ok := currentContainers[key]; ok {
+
 			podName := pod.Name
 			ns := pod.Namespace
 
@@ -361,7 +359,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 				ramRequestBytes := container.Resources.Requests.Memory().Value()
 
 				// Because information on container RAM & CPU requests isn't
-				// coming from Prometheus, it won't have a timestamp associated
+				// coming from metrics, it won't have a timestamp associated
 				// with it. We need to provide a timestamp.
 				RAMReqV := []*util.Vector{
 					{
@@ -461,7 +459,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 				containerNameCost[newKey] = costs
 			}
 		} else {
-			// The container has been deleted. Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
+			// The container has been deleted. Not all information is sent to metrics via ksm, so fill out what we can without k8s api
 			log.Debug("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
 			c, err := NewContainerMetricFromKey(key)
 			if err != nil {
@@ -543,6 +541,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 			missingContainers[key] = costs
 		}
 	}
+
 	// Use unmounted pvs to create a mapping of "Unmounted-<Namespace>" containers
 	// to pass along the cost data
 	unmounted := findUnmountedPVCostData(cm.ClusterMap, unmountedPVs, namespaceLabelsMapping, namespaceAnnotationsMapping)
@@ -562,6 +561,44 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 		log.Errorf("Error fetching historical pod data: %s", err.Error())
 	}
 	return containerNameCost, err
+}
+
+func queryMetrics(mq source.MetricsQuerier, start, end time.Time) ([]*source.ContainerMetricResult, []*source.ContainerMetricResult, []*source.NetZoneGiBResult, []*source.NetRegionGiBResult, []*source.NetInternetGiBResult, error) {
+	grp := source.NewQueryGroup()
+
+	resChRAMUsage := source.WithGroup(grp, mq.QueryRAMUsageAvg(start, end))
+	resChCPUUsage := source.WithGroup(grp, mq.QueryCPUUsageAvg(start, end))
+	resChNetZoneRequests := source.WithGroup(grp, mq.QueryNetZoneGiB(start, end))
+	resChNetRegionRequests := source.WithGroup(grp, mq.QueryNetRegionGiB(start, end))
+	resChNetInternetRequests := source.WithGroup(grp, mq.QueryNetInternetGiB(start, end))
+
+	// Process metrics query results. Handle errors using ctx.Errors.
+	resRAMUsage, _ := resChRAMUsage.Await()
+	resCPUUsage, _ := resChCPUUsage.Await()
+	resNetZoneRequests, _ := resChNetZoneRequests.Await()
+	resNetRegionRequests, _ := resChNetRegionRequests.Await()
+	resNetInternetRequests, _ := resChNetInternetRequests.Await()
+
+	// NOTE: The way we currently handle errors and warnings only early returns if there is an error. Warnings
+	// NOTE: will not propagate unless coupled with errors.
+	if grp.HasErrors() {
+		// To keep the context of where the errors are occurring, we log the errors here and pass them the error
+		// back to the caller. The caller should handle the specific case where error is an ErrorCollection
+		for _, queryErr := range grp.Errors() {
+			if queryErr.Error != nil {
+				log.Errorf("ComputeCostData: Request Error: %s", queryErr.Error)
+			}
+			if queryErr.ParseError != nil {
+				log.Errorf("ComputeCostData: Parsing Error: %s", queryErr.ParseError)
+			}
+		}
+
+		// ErrorCollection is an collection of errors wrapped in a single error implementation
+		// We opt to not return an error for the sake of running as a pure exporter.
+		return resRAMUsage, resCPUUsage, resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, grp.Error()
+	}
+
+	return resRAMUsage, resCPUUsage, resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, nil
 }
 
 func findUnmountedPVCostData(clusterMap clusters.ClusterMap, unmountedPVs map[string][]*PersistentVolumeClaimData, namespaceLabelsMapping map[string]map[string]string, namespaceAnnotationsMapping map[string]map[string]string) map[string]*CostData {
@@ -673,14 +710,14 @@ func findDeletedNodeInfo(dataSource source.OpenCostDataSource, missingNodes map[
 		}
 
 		if len(cpuCosts) == 0 {
-			log.Infof("Kubecost prometheus metrics not currently available. Ingest this server's /metrics endpoint to get that data.")
+			log.Infof("Opencost metrics not currently available. Ingest this server's /metrics endpoint to get that data.")
 		}
 
 		for node, costv := range cpuCosts {
 			if _, ok := missingNodes[node]; ok {
 				missingNodes[node].VCPUCost = fmt.Sprintf("%f", costv[0].Value)
 			} else {
-				log.DedupedWarningf(5, "Node `%s` in prometheus but not k8s api", node)
+				log.DedupedWarningf(5, "Node `%s` in metrics but not k8s api", node)
 			}
 		}
 		for node, costv := range ramCosts {
@@ -867,13 +904,18 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 	for _, n := range nodeList {
 		name := n.Name
 		nodeLabels := n.Labels
+		if nodeLabels == nil {
+			log.Warnf("GetNodeCost: Found node '%s' with no labels", name)
+			nodeLabels = make(map[string]string)
+		}
+
 		nodeLabels["providerID"] = n.SpecProviderID
 
 		pmd.TotalNodes++
 
 		cnode, _, err := cp.NodePricing(cp.GetKey(nodeLabels, n))
 		if err != nil {
-			log.Infof("Error getting node pricing. Error: %s", err.Error())
+			log.DedupedInfof(10, "Could not get node pricing for node %s: %s. Falling back to default pricing.", name, err.Error())
 			if cnode != nil {
 				nodes[name] = cnode
 				continue
@@ -919,17 +961,17 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 			cpu = 0
 		}
 
-		var ram float64
 		if newCnode.RAM == "" {
 			newCnode.RAM = n.Status.Capacity.Memory().String()
 		}
-		ram = float64(n.Status.Capacity.Memory().Value())
+		if newCnode.RAMBytes == "" {
+			newCnode.RAMBytes = fmt.Sprintf("%v", n.Status.Capacity.Memory().Value())
+		}
+		ram, _ := strconv.ParseFloat(newCnode.RAMBytes, 64)
 		if math.IsNaN(ram) {
 			log.Warnf("ram parsed as NaN. Setting to 0.")
 			ram = 0
 		}
-
-		newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
 		gpuc, err := strconv.ParseFloat(newCnode.GPU, 64)
 		if err != nil {
@@ -1540,7 +1582,7 @@ func measureTime(start time.Time, threshold time.Duration, name string) {
 	}
 }
 
-func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer bool, accumulateBy opencost.AccumulateOption, shareIdle bool) (*opencost.AllocationSetRange, error) {
+func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer bool, accumulateBy opencost.AccumulateOption, shareIdle bool, filterString string) (*opencost.AllocationSetRange, error) {
 	// Validate window is legal
 	if window.IsOpen() || window.IsNegative() {
 		return nil, fmt.Errorf("illegal window: %s", window)
@@ -1594,7 +1636,7 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 				}
 			}
 
-			idleSet, err := computeIdleAllocations(allocSet, assetSet, true)
+			idleSet, err := computeIdleAllocations(allocSet, assetSet, idleByNode)
 			if err != nil {
 				return nil, fmt.Errorf("error computing idle allocations for %s: %w", opencost.NewClosedWindow(stepStart, stepEnd), err)
 			}
@@ -1608,6 +1650,33 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 
 		stepStart = stepEnd
 		stepEnd = stepStart.Add(step)
+	}
+
+	// Apply allocation filter BEFORE aggregation if provided
+	if filterString != "" {
+		parser := allocation.NewAllocationFilterParser()
+		filterNode, err := parser.Parse(filterString)
+		if err != nil {
+			return nil, fmt.Errorf("invalid filter: %w", err)
+		}
+		compiler := opencost.NewAllocationMatchCompiler(nil)
+		matcher, err := compiler.Compile(filterNode)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compile filter: %w", err)
+		}
+		filteredASR := opencost.NewAllocationSetRange()
+		for _, as := range asr.Slice() {
+			filteredAS := opencost.NewAllocationSet(as.Start(), as.End())
+			for _, alloc := range as.Allocations {
+				if matcher.Matches(alloc) {
+					filteredAS.Set(alloc)
+				}
+			}
+			if filteredAS.Length() > 0 {
+				filteredASR.Append(filteredAS)
+			}
+		}
+		asr = filteredASR
 	}
 
 	// Set aggregation options and aggregate
@@ -1737,10 +1806,235 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 	return asr, nil
 }
 
+// debugAssetAllocationMismatch analyzes and logs discrepancies between asset and allocation data
+// This helps diagnose pricing issues and negative idle costs
+func debugAssetAllocationMismatch(allocSet *opencost.AllocationSet, assetSet *opencost.AssetSet) {
+	log.Debugf("=== Asset-Allocation Debug Analysis for window %s ===", allocSet.Window)
+
+	// Build maps for efficient lookup
+	assetsByProviderID := make(map[string]*opencost.Node)
+	assetsByNode := make(map[string]*opencost.Node)
+	for _, asset := range assetSet.Nodes {
+		if asset.Properties != nil && asset.Properties.ProviderID != "" {
+			assetsByProviderID[asset.Properties.ProviderID] = asset
+		}
+		if asset.Properties != nil && asset.Properties.Name != "" {
+			assetsByNode[asset.Properties.Name] = asset
+		}
+	}
+
+	// 1) Find allocations without matching assets (by ProviderID)
+	allocsWithoutAssets := make([]*opencost.Allocation, 0)
+	for _, alloc := range allocSet.Allocations {
+		if alloc.Properties == nil {
+			continue
+		}
+		providerID := alloc.Properties.ProviderID
+		if providerID == "" {
+			continue
+		}
+		if _, found := assetsByProviderID[providerID]; !found {
+			allocsWithoutAssets = append(allocsWithoutAssets, alloc)
+		}
+	}
+
+	if len(allocsWithoutAssets) > 0 {
+		log.Debugf("Found %d allocations without matching assets:", len(allocsWithoutAssets))
+		for _, alloc := range allocsWithoutAssets {
+			log.Debugf("  - Allocation: %s, Node: %s, ProviderID: %s, TotalCost: %.4f",
+				alloc.Name,
+				alloc.Properties.Node,
+				alloc.Properties.ProviderID,
+				alloc.TotalCost())
+		}
+	}
+
+	// 2) Sum allocations per node and compare to node asset costs
+	allocTotalsByNode := make(map[string]*struct {
+		CPUCost      float64
+		GPUCost      float64
+		RAMCost      float64
+		TotalCost    float64
+		CPUCoreHours float64
+		GPUHours     float64
+		RAMByteHours float64
+		Count        int
+	})
+
+	for _, alloc := range allocSet.Allocations {
+		if alloc.Properties == nil || alloc.Properties.Node == "" {
+			continue
+		}
+		node := alloc.Properties.Node
+
+		if _, exists := allocTotalsByNode[node]; !exists {
+			allocTotalsByNode[node] = &struct {
+				CPUCost      float64
+				GPUCost      float64
+				RAMCost      float64
+				TotalCost    float64
+				CPUCoreHours float64
+				GPUHours     float64
+				RAMByteHours float64
+				Count        int
+			}{}
+		}
+
+		allocTotalsByNode[node].CPUCost += alloc.CPUCost
+		allocTotalsByNode[node].GPUCost += alloc.GPUCost
+		allocTotalsByNode[node].RAMCost += alloc.RAMCost
+		allocTotalsByNode[node].TotalCost += alloc.TotalCost()
+		allocTotalsByNode[node].CPUCoreHours += alloc.CPUCoreHours
+		allocTotalsByNode[node].GPUHours += alloc.GPUHours
+		allocTotalsByNode[node].RAMByteHours += alloc.RAMByteHours
+		allocTotalsByNode[node].Count++
+	}
+
+	log.Debugf("Per-Node Asset vs Allocation Comparison:")
+	for node, allocTotals := range allocTotalsByNode {
+		asset, hasAsset := assetsByNode[node]
+		if !hasAsset {
+			log.Debugf("  Node %s: Has allocations but NO ASSET (allocations: %d, total cost: %.4f)",
+				node, allocTotals.Count, allocTotals.TotalCost)
+			continue
+		}
+
+		assetCPU := asset.CPUCost
+		assetGPU := asset.GPUCost
+		assetRAM := asset.RAMCost
+		assetTotal := asset.TotalCost()
+
+		cpuDiff := assetCPU - allocTotals.CPUCost
+		gpuDiff := assetGPU - allocTotals.GPUCost
+		ramDiff := assetRAM - allocTotals.RAMCost
+		totalDiff := assetTotal - allocTotals.TotalCost
+
+		status := "OK"
+		if cpuDiff < 0 || gpuDiff < 0 || ramDiff < 0 {
+			status = "NEGATIVE_IDLE"
+		}
+
+		log.Debugf("  Node %s [%s]:", node, status)
+		log.Debugf("    Asset:      CPU=%.4f, GPU=%.4f, RAM=%.4f, Total=%.4f",
+			assetCPU, assetGPU, assetRAM, assetTotal)
+		log.Debugf("    Allocation: CPU=%.4f, GPU=%.4f, RAM=%.4f, Total=%.4f (%d allocs)",
+			allocTotals.CPUCost, allocTotals.GPUCost, allocTotals.RAMCost, allocTotals.TotalCost, allocTotals.Count)
+		log.Debugf("    Difference: CPU=%.4f, GPU=%.4f, RAM=%.4f, Total=%.4f",
+			cpuDiff, gpuDiff, ramDiff, totalDiff)
+
+		if asset.Adjustment != 0 {
+			log.Debugf("    Adjustment: %.4f", asset.Adjustment)
+		}
+
+		// Compare resource amounts vs costs: higher resources should have higher costs
+		assetCPUHours := asset.CPUCoreHours
+		assetGPUHours := asset.GPUHours
+		assetRAMBytes := asset.RAMByteHours
+
+		allocCPUHours := allocTotals.CPUCoreHours
+		allocGPUHours := allocTotals.GPUHours
+		allocRAMBytes := allocTotals.RAMByteHours
+
+		// Warn if resource amounts and costs are inverted (higher resources but lower costs)
+		if assetCPUHours > 0 && allocCPUHours > 0 {
+			if assetCPUHours > allocCPUHours && assetCPU < allocTotals.CPUCost {
+				log.Warnf("Resource-cost inversion for %s CPU: asset has MORE hours (%.2f) but LESS cost (%.4f) than allocations (hours: %.2f, cost: %.4f)",
+					node, assetCPUHours, assetCPU, allocCPUHours, allocTotals.CPUCost)
+			} else if assetCPUHours < allocCPUHours && assetCPU > allocTotals.CPUCost {
+				log.Warnf("Resource-cost inversion for %s CPU: asset has LESS hours (%.2f) but MORE cost (%.4f) than allocations (hours: %.2f, cost: %.4f)",
+					node, assetCPUHours, assetCPU, allocCPUHours, allocTotals.CPUCost)
+			}
+		}
+
+		if assetGPUHours > 0 && allocGPUHours > 0 {
+			if assetGPUHours > allocGPUHours && assetGPU < allocTotals.GPUCost {
+				log.Warnf("Resource-cost inversion for %s GPU: asset has MORE hours (%.2f) but LESS cost (%.4f) than allocations (hours: %.2f, cost: %.4f)",
+					node, assetGPUHours, assetGPU, allocGPUHours, allocTotals.GPUCost)
+			} else if assetGPUHours < allocGPUHours && assetGPU > allocTotals.GPUCost {
+				log.Warnf("Resource-cost inversion for %s GPU: asset has LESS hours (%.2f) but MORE cost (%.4f) than allocations (hours: %.2f, cost: %.4f)",
+					node, assetGPUHours, assetGPU, allocGPUHours, allocTotals.GPUCost)
+			}
+		}
+
+		if assetRAMBytes > 0 && allocRAMBytes > 0 {
+			if assetRAMBytes > allocRAMBytes && assetRAM < allocTotals.RAMCost {
+				log.Warnf("Resource-cost inversion for %s RAM: asset has MORE byte-hours (%.2f) but LESS cost (%.4f) than allocations (byte-hours: %.2f, cost: %.4f)",
+					node, assetRAMBytes, assetRAM, allocRAMBytes, allocTotals.RAMCost)
+			} else if assetRAMBytes < allocRAMBytes && assetRAM > allocTotals.RAMCost {
+				log.Warnf("Resource-cost inversion for %s RAM: asset has LESS byte-hours (%.2f) but MORE cost (%.4f) than allocations (byte-hours: %.2f, cost: %.4f)",
+					node, assetRAMBytes, assetRAM, allocRAMBytes, allocTotals.RAMCost)
+			}
+		}
+
+		// Log resource amounts for debugging
+		log.Debugf("    Resource Hours:")
+		log.Debugf("      Asset:      CPU=%.2f hours, GPU=%.2f hours, RAM=%.2f byte-hours",
+			assetCPUHours, assetGPUHours, assetRAMBytes)
+		log.Debugf("      Allocation: CPU=%.2f hours, GPU=%.2f hours, RAM=%.2f byte-hours",
+			allocCPUHours, allocGPUHours, allocRAMBytes)
+	}
+
+	// 3) Sum total of all node costs
+	totalNodeCPU := 0.0
+	totalNodeGPU := 0.0
+	totalNodeRAM := 0.0
+	totalNodeCost := 0.0
+	nodeCount := 0
+
+	for _, asset := range assetSet.Nodes {
+		totalNodeCPU += asset.CPUCost
+		totalNodeGPU += asset.GPUCost
+		totalNodeRAM += asset.RAMCost
+		totalNodeCost += asset.TotalCost()
+		nodeCount++
+	}
+
+	log.Debugf("Total Node Asset Costs:")
+	log.Debugf("  Nodes: %d", nodeCount)
+	log.Debugf("  CPU:   %.4f", totalNodeCPU)
+	log.Debugf("  GPU:   %.4f", totalNodeGPU)
+	log.Debugf("  RAM:   %.4f", totalNodeRAM)
+	log.Debugf("  Total: %.4f", totalNodeCost)
+
+	// 4) Sum total of all allocation costs
+	totalAllocCPU := 0.0
+	totalAllocGPU := 0.0
+	totalAllocRAM := 0.0
+	totalAllocCost := 0.0
+	allocCount := 0
+
+	for _, alloc := range allocSet.Allocations {
+		totalAllocCPU += alloc.CPUCost
+		totalAllocGPU += alloc.GPUCost
+		totalAllocRAM += alloc.RAMCost
+		totalAllocCost += alloc.TotalCost()
+		allocCount++
+	}
+
+	log.Debugf("Total Allocation Costs:")
+	log.Debugf("  Allocations: %d", allocCount)
+	log.Debugf("  CPU:         %.4f", totalAllocCPU)
+	log.Debugf("  GPU:         %.4f", totalAllocGPU)
+	log.Debugf("  RAM:         %.4f", totalAllocRAM)
+	log.Debugf("  Total:       %.4f", totalAllocCost)
+
+	// Overall comparison
+	log.Debugf("Overall Asset vs Allocation:")
+	log.Debugf("  CPU Difference:   %.4f (Asset - Allocation)", totalNodeCPU-totalAllocCPU)
+	log.Debugf("  GPU Difference:   %.4f (Asset - Allocation)", totalNodeGPU-totalAllocGPU)
+	log.Debugf("  RAM Difference:   %.4f (Asset - Allocation)", totalNodeRAM-totalAllocRAM)
+	log.Debugf("  Total Difference: %.4f (Asset - Allocation)", totalNodeCost-totalAllocCost)
+
+	log.Debugf("=== End Asset-Allocation Debug Analysis ===")
+}
+
 func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost.AssetSet, idleByNode bool) (*opencost.AllocationSet, error) {
 	if !allocSet.Window.Equal(assetSet.Window) {
 		return nil, fmt.Errorf("cannot compute idle allocations for mismatched sets: %s does not equal %s", allocSet.Window, assetSet.Window)
 	}
+
+	// Run debug analysis when log level is debug
+	debugAssetAllocationMismatch(allocSet, assetSet)
 
 	var allocTotals map[string]*opencost.AllocationTotals
 	var assetTotals map[string]*opencost.AssetTotals
@@ -1775,20 +2069,48 @@ func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost
 		// Insert one idle allocation for each key (whether by node or
 		// by cluster), defined as the difference between the total
 		// asset cost and the allocated cost per-resource.
+		// Idle costs are clamped to zero to prevent negative values that can occur
+		// when asset total costs are less than allocated costs. This can happen when:
+		// - Pricing data is unavailable (promless mode, API failures, missing price data)
+		// - Custom pricing is misconfigured or returns zero values
+		// - Cloud billing adjustments reduce asset costs below allocation costs
+		// - Allocation calculations exceed asset costs due to timing or rounding
 		name := fmt.Sprintf("%s/%s", key, opencost.IdleSuffix)
+
+		cpuIdleCost := assetTotal.TotalCPUCost() - allocTotal.TotalCPUCost()
+		gpuIdleCost := assetTotal.TotalGPUCost() - allocTotal.TotalGPUCost()
+		ramIdleCost := assetTotal.TotalRAMCost() - allocTotal.TotalRAMCost()
+
+		// Clamp idle costs to zero to prevent negative idle allocations
+		if cpuIdleCost < 0 {
+			log.Warnf("Negative CPU idle cost detected for %s: asset total (%.4f) < allocation total (%.4f), clamping to 0",
+				key, assetTotal.TotalCPUCost(), allocTotal.TotalCPUCost())
+			cpuIdleCost = 0
+		}
+		if gpuIdleCost < 0 {
+			log.Warnf("Negative GPU idle cost detected for %s: asset total (%.4f) < allocation total (%.4f), clamping to 0",
+				key, assetTotal.TotalGPUCost(), allocTotal.TotalGPUCost())
+			gpuIdleCost = 0
+		}
+		if ramIdleCost < 0 {
+			log.Warnf("Negative RAM idle cost detected for %s: asset total (%.4f) < allocation total (%.4f), clamping to 0",
+				key, assetTotal.TotalRAMCost(), allocTotal.TotalRAMCost())
+			ramIdleCost = 0
+		}
+
 		err := idleSet.Insert(&opencost.Allocation{
 			Name:   name,
 			Window: idleSet.Window.Clone(),
 			Properties: &opencost.AllocationProperties{
 				Cluster:    assetTotal.Cluster,
 				Node:       assetTotal.Node,
-				ProviderID: assetTotal.Node,
+				ProviderID: assetTotal.ProviderID,
 			},
 			Start:   assetTotal.Start,
 			End:     assetTotal.End,
-			CPUCost: assetTotal.TotalCPUCost() - allocTotal.TotalCPUCost(),
-			GPUCost: assetTotal.TotalGPUCost() - allocTotal.TotalGPUCost(),
-			RAMCost: assetTotal.TotalRAMCost() - allocTotal.TotalRAMCost(),
+			CPUCost: cpuIdleCost,
+			GPUCost: gpuIdleCost,
+			RAMCost: ramIdleCost,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to insert idle allocation %s: %w", name, err)

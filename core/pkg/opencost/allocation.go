@@ -100,10 +100,12 @@ type Allocation struct {
 	// UnmountedPVCost is used to track how much of the cost in PVs is for an
 	// unmounted PV. It is not additive of PVCost() and need not be sent in API
 	// responses.
-	UnmountedPVCost             float64        `json:"-"`             //@bingen:field[ignore]
-	deprecatedGPURequestAverage float64        `json:"-"`             //@bingen:field[version=22]
-	deprecatedGPUUsageAverage   float64        `json:"-"`             //@bingen:field[version=22]
-	GPUAllocation               *GPUAllocation `json:"GPUAllocation"` //@bingen:field[version=23]
+	UnmountedPVCost             float64        `json:"-"`                   //@bingen:field[ignore]
+	deprecatedGPURequestAverage float64        `json:"-"`                   //@bingen:field[version=22]
+	deprecatedGPUUsageAverage   float64        `json:"-"`                   //@bingen:field[version=22]
+	GPUAllocation               *GPUAllocation `json:"GPUAllocation"`       //@bingen:field[version=23]
+	CPUCoreLimitAverage         float64        `json:"cpuCoreLimitAverage"` //@bingen:field[version=24]
+	RAMBytesLimitAverage        float64        `json:"ramByteLimitAverage"` //@bingen:field[version=24]
 }
 
 type GPUAllocation struct {
@@ -774,6 +776,8 @@ func (a *Allocation) Clone() *Allocation {
 		LoadBalancers:                  a.LoadBalancers.Clone(),
 		UnmountedPVCost:                a.UnmountedPVCost,
 		GPUAllocation:                  a.GPUAllocation.Clone(),
+		CPUCoreLimitAverage:            a.CPUCoreLimitAverage,
+		RAMBytesLimitAverage:           a.RAMBytesLimitAverage,
 	}
 }
 
@@ -1293,11 +1297,17 @@ func (a *Allocation) add(that *Allocation) {
 	cpuReqCoreMins := a.CPUCoreRequestAverage * a.Minutes()
 	cpuReqCoreMins += that.CPUCoreRequestAverage * that.Minutes()
 
+	cpuLimCoreMins := a.CPUCoreLimitAverage * a.Minutes()
+	cpuLimCoreMins += that.CPUCoreLimitAverage * that.Minutes()
+
 	cpuUseCoreMins := a.CPUCoreUsageAverage * a.Minutes()
 	cpuUseCoreMins += that.CPUCoreUsageAverage * that.Minutes()
 
 	ramReqByteMins := a.RAMBytesRequestAverage * a.Minutes()
 	ramReqByteMins += that.RAMBytesRequestAverage * that.Minutes()
+
+	ramLimByteMins := a.RAMBytesLimitAverage * a.Minutes()
+	ramLimByteMins += that.RAMBytesLimitAverage * that.Minutes()
 
 	ramUseByteMins := a.RAMBytesUsageAverage * a.Minutes()
 	ramUseByteMins += that.RAMBytesUsageAverage * that.Minutes()
@@ -1346,8 +1356,10 @@ func (a *Allocation) add(that *Allocation) {
 	// TODO:TEST write a unit test that fails if this is done incorrectly
 	if a.Minutes() > 0 {
 		a.CPUCoreRequestAverage = cpuReqCoreMins / a.Minutes()
+		a.CPUCoreLimitAverage = cpuLimCoreMins / a.Minutes()
 		a.CPUCoreUsageAverage = cpuUseCoreMins / a.Minutes()
 		a.RAMBytesRequestAverage = ramReqByteMins / a.Minutes()
+		a.RAMBytesLimitAverage = ramLimByteMins / a.Minutes()
 		a.RAMBytesUsageAverage = ramUseByteMins / a.Minutes()
 
 		if a.GPUAllocation != nil {
@@ -1367,8 +1379,10 @@ func (a *Allocation) add(that *Allocation) {
 		}
 	} else {
 		a.CPUCoreRequestAverage = 0.0
+		a.CPUCoreLimitAverage = 0.0
 		a.CPUCoreUsageAverage = 0.0
 		a.RAMBytesRequestAverage = 0.0
+		a.RAMBytesLimitAverage = 0.0
 		a.RAMBytesUsageAverage = 0.0
 
 		if a.GPUAllocation != nil {
@@ -2695,6 +2709,10 @@ func (a *Allocation) SanitizeNaN() {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCoreRequestAverage: name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
 		a.CPUCoreRequestAverage = 0
 	}
+	if math.IsNaN(a.CPUCoreLimitAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCoreLimitAverage: name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.CPUCoreLimitAverage = 0
+	}
 	if math.IsNaN(a.CPUCoreHours) {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CPUCoreHours: name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
 		a.CPUCoreHours = 0
@@ -2771,6 +2789,10 @@ func (a *Allocation) SanitizeNaN() {
 	if math.IsNaN(a.RAMBytesRequestAverage) {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMBytesRequestAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
 		a.RAMBytesRequestAverage = 0
+	}
+	if math.IsNaN(a.RAMBytesLimitAverage) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMBytesLimitAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.RAMBytesLimitAverage = 0
 	}
 	if math.IsNaN(a.RAMBytesUsageAverage) {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for RAMBytesUsageAverage name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())

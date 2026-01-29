@@ -488,3 +488,312 @@ func Test_getStorageClassTypeFrom(t *testing.T) {
 		})
 	}
 }
+
+func Test_awsKey_isFargateNode(t *testing.T) {
+	tests := []struct {
+		name   string
+		labels map[string]string
+		want   bool
+	}{
+		{
+			name: "fargate node with correct label",
+			labels: map[string]string{
+				eksComputeTypeLabel: "fargate",
+			},
+			want: true,
+		},
+		{
+			name: "ec2 node with different compute type",
+			labels: map[string]string{
+				eksComputeTypeLabel: "ec2",
+			},
+			want: false,
+		},
+		{
+			name: "node without compute type label",
+			labels: map[string]string{
+				"some.other.label": "value",
+			},
+			want: false,
+		},
+		{
+			name:   "node with empty labels",
+			labels: map[string]string{},
+			want:   false,
+		},
+		{
+			name:   "node with nil labels",
+			labels: nil,
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := &awsKey{
+				Labels: tt.labels,
+			}
+			if got := k.isFargateNode(); got != tt.want {
+				t.Errorf("awsKey.isFargateNode() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetPricingListURL(t *testing.T) {
+	tests := []struct {
+		name        string
+		serviceCode string
+		nodeList    []*clustercache.Node
+		expected    string
+	}{
+		{
+			name:        "AmazonEC2 service with us-east-1 region",
+			serviceCode: "AmazonEC2",
+			nodeList: []*clustercache.Node{
+				{
+					Name: "test-node",
+					Labels: map[string]string{
+						"topology.kubernetes.io/region": "us-east-1",
+					},
+				},
+			},
+			expected: "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.json",
+		},
+		{
+			name:        "AmazonECS service with us-west-2 region",
+			serviceCode: "AmazonECS",
+			nodeList: []*clustercache.Node{
+				{
+					Name: "test-node",
+					Labels: map[string]string{
+						"topology.kubernetes.io/region": "us-west-2",
+					},
+				},
+			},
+			expected: "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonECS/current/us-west-2/index.json",
+		},
+		{
+			name:        "Chinese region cn-north-1",
+			serviceCode: "AmazonEC2",
+			nodeList: []*clustercache.Node{
+				{
+					Name: "test-node",
+					Labels: map[string]string{
+						"topology.kubernetes.io/region": "cn-north-1",
+					},
+				},
+			},
+			expected: "https://pricing.cn-north-1.amazonaws.com.cn/offers/v1.0/cn/AmazonEC2/current/cn-north-1/index.json",
+		},
+		{
+			name:        "Chinese region cn-northwest-1",
+			serviceCode: "AmazonECS",
+			nodeList: []*clustercache.Node{
+				{
+					Name: "test-node",
+					Labels: map[string]string{
+						"topology.kubernetes.io/region": "cn-northwest-1",
+					},
+				},
+			},
+			expected: "https://pricing.cn-north-1.amazonaws.com.cn/offers/v1.0/cn/AmazonECS/current/cn-northwest-1/index.json",
+		},
+		{
+			name:        "empty node list - multiregion",
+			serviceCode: "AmazonEC2",
+			nodeList:    []*clustercache.Node{},
+			expected:    "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/index.json",
+		},
+		{
+			name:        "multiple regions - multiregion",
+			serviceCode: "AmazonECS",
+			nodeList: []*clustercache.Node{
+				{
+					Name: "test-node-1",
+					Labels: map[string]string{
+						"topology.kubernetes.io/region": "us-east-1",
+					},
+				},
+				{
+					Name: "test-node-2",
+					Labels: map[string]string{
+						"topology.kubernetes.io/region": "us-west-2",
+					},
+				},
+			},
+			expected: "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonECS/current/index.json",
+		},
+		{
+			name:        "node without region label",
+			serviceCode: "AmazonEC2",
+			nodeList: []*clustercache.Node{
+				{
+					Name: "test-node",
+					Labels: map[string]string{
+						"some.other.label": "value",
+					},
+				},
+			},
+			expected: "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/index.json",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getPricingListURL(tt.serviceCode, tt.nodeList)
+			if result != tt.expected {
+				t.Errorf("getPricingListURL() = %v, expected %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+// Mock cluster cache for testing
+type mockClusterCache struct {
+	pods []*clustercache.Pod
+}
+
+func (m *mockClusterCache) Run()  {}
+func (m *mockClusterCache) Stop() {}
+
+func (m *mockClusterCache) GetAllPods() []*clustercache.Pod {
+	return m.pods
+}
+
+func (m *mockClusterCache) GetAllNodes() []*clustercache.Node {
+	return nil
+}
+
+func (m *mockClusterCache) GetAllPersistentVolumes() []*clustercache.PersistentVolume {
+	return nil
+}
+
+func (m *mockClusterCache) GetAllPersistentVolumeClaims() []*clustercache.PersistentVolumeClaim {
+	return nil
+}
+
+func (m *mockClusterCache) GetAllStorageClasses() []*clustercache.StorageClass {
+	return nil
+}
+
+func (m *mockClusterCache) GetAllServices() []*clustercache.Service {
+	return nil
+}
+
+func (m *mockClusterCache) GetAllDeployments() []*clustercache.Deployment {
+	return nil
+}
+
+func (m *mockClusterCache) GetAllDaemonSets() []*clustercache.DaemonSet {
+	return nil
+}
+
+func (m *mockClusterCache) GetAllStatefulSets() []*clustercache.StatefulSet {
+	return nil
+}
+
+func (m *mockClusterCache) GetAllReplicaSets() []*clustercache.ReplicaSet {
+	return nil
+}
+
+func (m *mockClusterCache) GetAllJobs() []*clustercache.Job {
+	return nil
+}
+
+func (m *mockClusterCache) GetAllNamespaces() []*clustercache.Namespace {
+	return nil
+}
+
+func (m *mockClusterCache) GetAllPodDisruptionBudgets() []*clustercache.PodDisruptionBudget {
+	return nil
+}
+
+func (m *mockClusterCache) GetAllReplicationControllers() []*clustercache.ReplicationController {
+	return nil
+}
+
+func (m *mockClusterCache) GetAllResourceQuotas() []*clustercache.ResourceQuota {
+	return nil
+}
+
+func TestAWS_getFargatePod(t *testing.T) {
+	tests := []struct {
+		name     string
+		pods     []*clustercache.Pod
+		awsKey   *awsKey
+		wantPod  *clustercache.Pod
+		wantBool bool
+	}{
+		{
+			name: "pod found for node",
+			pods: []*clustercache.Pod{
+				{
+					Name: "test-pod",
+					Spec: clustercache.PodSpec{
+						NodeName: "fargate-node-1",
+					},
+				},
+			},
+			awsKey: &awsKey{
+				Name: "fargate-node-1",
+			},
+			wantPod: &clustercache.Pod{
+				Name: "test-pod",
+				Spec: clustercache.PodSpec{
+					NodeName: "fargate-node-1",
+				},
+			},
+			wantBool: true,
+		},
+		{
+			name: "pod not found for node",
+			pods: []*clustercache.Pod{
+				{
+					Name: "test-pod",
+					Spec: clustercache.PodSpec{
+						NodeName: "different-node",
+					},
+				},
+			},
+			awsKey: &awsKey{
+				Name: "fargate-node-1",
+			},
+			wantPod:  nil,
+			wantBool: false,
+		},
+		{
+			name: "no pods in cluster",
+			pods: []*clustercache.Pod{},
+			awsKey: &awsKey{
+				Name: "fargate-node-1",
+			},
+			wantPod:  nil,
+			wantBool: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aws := &AWS{
+				Clientset: &mockClusterCache{pods: tt.pods},
+			}
+
+			gotPod, gotBool := aws.getFargatePod(tt.awsKey)
+
+			if gotBool != tt.wantBool {
+				t.Errorf("AWS.getFargatePod() gotBool = %v, want %v", gotBool, tt.wantBool)
+			}
+
+			if tt.wantPod == nil && gotPod != nil {
+				t.Errorf("AWS.getFargatePod() gotPod = %v, want nil", gotPod)
+			} else if tt.wantPod != nil && gotPod == nil {
+				t.Errorf("AWS.getFargatePod() gotPod = nil, want %v", tt.wantPod)
+			} else if tt.wantPod != nil && gotPod != nil {
+				if gotPod.Name != tt.wantPod.Name || gotPod.Spec.NodeName != tt.wantPod.Spec.NodeName {
+					t.Errorf("AWS.getFargatePod() gotPod = %v, want %v", gotPod, tt.wantPod)
+				}
+			}
+		})
+	}
+}

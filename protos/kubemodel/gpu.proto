@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+import "kubemodel/diagnostic.proto";
+
+package kubemodel;
+option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
+
+// GPUDevice represents a GPU device with DCGM integration (provisioned resource)
+// This tracks available GPU capacity on a node
+message GPUDevice {
+  // Identification
+  string ID = 1;          // GPU UUID (hardware identifier)
+  string nodeID = 2;      // Node hosting this GPU device
+
+  // Properties
+  int32 deviceNumber = 3;
+  string modelName = 4;
+
+  // GPU sharing information
+  bool isShared = 6;
+  float sharePercentage = 9;
+
+  // Capacity metrics
+  // GPU hours available
+  float gpuHours = 10;
+
+  // GPU request average percentage (0-100)
+  float gpuRequestAverage = 11;
+
+  // GPU usage average percentage (0-100)
+  float gpuUsageAverage = 12;
+
+  // GPU usage max percentage (0-100)
+  float gpuUsageMax = 13;
+
+  // GPU memory capacity in bytes
+  int64 memoryBytes = 14;
+
+  // Diagnostic information about this resource
+  optional DiagnosticResult diagnostic = 99;
+}
+
+// GPUUsage represents GPU resources consumed by a container (allocated resource)
+// This tracks actual GPU usage by containers for cost analysis
+message GPUUsage {
+  // Identification
+  string containerID = 1;  // Container consuming GPU resources
+  string gpuDeviceID = 2;  // Reference to the GPU device being used
+
+  // Usage metrics
+  // GPU usage in device-hours consumed
+  float gpuHours = 3;
+
+  // GPU request in percentage (0-100)
+  float gpuRequestPercentage = 4;
+
+  // GPU usage average percentage (0-100)
+  float gpuUsageAverage = 5;
+
+  // GPU usage max percentage (0-100)
+  float gpuUsageMax = 6;
+
+  // GPU memory usage in bytes
+  int64 memoryBytesUsed = 7;
+
+  // Diagnostic information about this resource
+  optional DiagnosticResult diagnostic = 99;
+}

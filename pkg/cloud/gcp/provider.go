@@ -96,8 +96,6 @@ var gcpRegions = []string{
 }
 
 var (
-	nvidiaTeslaGPURegex = regexp.MustCompile("(Nvidia Tesla [^ ]+) ")
-	nvidiaGPURegex      = regexp.MustCompile("(Nvidia [^ ]+) ")
 	// gce://guestbook-12345/...
 	//  => guestbook-12345
 	gceRegex = regexp.MustCompile("gce://([^/]*)/*")
@@ -150,9 +148,6 @@ func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 	}
 	if c.CurrencyCode == "" {
 		c.CurrencyCode = "USD"
-	}
-	if c.ShareTenancyCosts == "" {
-		c.ShareTenancyCosts = models.DefaultShareTenancyCost
 	}
 	return c, nil
 }
@@ -735,6 +730,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					}
 				}
 
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N4 INSTANCE") {
+					instanceType = "n4standard"
+				}
+
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "A2 INSTANCE") {
 					instanceType = "a2"
 				}
@@ -758,23 +757,11 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					instanceType = "t2astandard"
 				}
 
-				var gpuType string
-				for matchnum, group := range nvidiaTeslaGPURegex.FindStringSubmatch(product.Description) {
-					if matchnum == 1 {
-						gpuType = strings.ToLower(strings.Join(strings.Split(group, " "), "-"))
-						log.Debugf("GCP Billing API: GPU type found: '%s'", gpuType)
-					}
+				gpuType := NormalizeGPULabel(product.Description)
+				if gpuType != "" {
+				    log.Debugf("GCP Billing API: normalized GPU type: %q", gpuType)
 				}
 
-				// If a 'Nvidia Tesla' is not found, try 'Nvidia'
-				if gpuType == "" {
-					for matchnum, group := range nvidiaGPURegex.FindStringSubmatch(product.Description) {
-						if matchnum == 1 {
-							gpuType = strings.ToLower(strings.Join(strings.Split(group, " "), "-"))
-							log.Debugf("GCP Billing API: GPU type found: '%s'", gpuType)
-						}
-					}
-				}
 
 				candidateKeys := []string{}
 				if gcp.ValidPricingKeys == nil {
@@ -1501,6 +1488,8 @@ func parseGCPInstanceTypeLabel(it string) string {
 			instanceType = "n1standard" // These are priced the same. TODO: support n1ultrahighmem
 		} else if instanceType == "n2highmem" || instanceType == "n2highcpu" {
 			instanceType = "n2standard"
+		} else if instanceType == "n4highmem" || instanceType == "n4highcpu" {
+			instanceType = "n4standard" // N4 variants are priced the same per vCPU and RAM
 		} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
 			instanceType = "e2standard"
 		} else if instanceType == "n2dhighmem" || instanceType == "n2dhighcpu" {
@@ -1642,7 +1631,7 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 	}
 	discount := defaultDiscount
 	switch class {
-	case "e2", "f1", "g1":
+	case "e2", "f1", "g1", "n4":
 		discount = 0.0
 	case "n2", "n2d":
 		discount = 0.2

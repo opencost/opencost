@@ -26,6 +26,7 @@ type clusterEncoding struct {
 	Jobs                   []*cc.Job                   `json:"jobs,omitempty"`
 	PodDisruptionBudgets   []*cc.PodDisruptionBudget   `json:"podDisruptionBudgets,omitempty"`
 	ReplicationControllers []*cc.ReplicationController `json:"replicationController,omitempty"`
+	ResourceQuotas         []*cc.ResourceQuota         `json:"resourceQuotas,omitempty"`
 }
 
 // ClusterExporter manages and runs an file export process which dumps the local kubernetes cluster to a target location.
@@ -97,6 +98,7 @@ func (ce *ClusterExporter) Export() error {
 		Jobs:                   c.GetAllJobs(),
 		PodDisruptionBudgets:   c.GetAllPodDisruptionBudgets(),
 		ReplicationControllers: c.GetAllReplicationControllers(),
+		ResourceQuotas:         c.GetAllResourceQuotas(),
 	}
 
 	data, err := json.Marshal(encoding)

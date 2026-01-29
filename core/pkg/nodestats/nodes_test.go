@@ -32,6 +32,7 @@ func TestNodeSummaryLive(t *testing.T) {
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: true,
+			MinVersion:         tls.VersionTLS12,
 		},
 	}
 
@@ -57,7 +58,8 @@ func TestNodeSummaryLive(t *testing.T) {
 }
 
 type NodesOnlyClusterCache struct {
-	k8sClient kubernetes.Interface
+	clusterUID string
+	k8sClient  kubernetes.Interface
 }
 
 func NewTestClusterCache(k8sClient kubernetes.Interface) *NodesOnlyClusterCache {
@@ -130,5 +132,9 @@ func (tcc *NodesOnlyClusterCache) GetAllPodDisruptionBudgets() []*clustercache.P
 
 // GetAllReplicationControllers returns all cached replication controllers
 func (tcc *NodesOnlyClusterCache) GetAllReplicationControllers() []*clustercache.ReplicationController {
+	return nil
+}
+
+func (tcc *NodesOnlyClusterCache) GetAllResourceQuotas() []*clustercache.ResourceQuota {
 	return nil
 }

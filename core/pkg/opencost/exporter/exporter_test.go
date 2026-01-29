@@ -9,6 +9,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/diagnostics"
 	"github.com/opencost/opencost/core/pkg/exporter"
 	"github.com/opencost/opencost/core/pkg/exporter/pathing"
+	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/pipelines"
 	"github.com/opencost/opencost/core/pkg/source"
@@ -58,6 +59,14 @@ func NewMockNetworkInsightSource() exporter.ComputeSource[opencost.NetworkInsigh
 	}
 }
 
+func NewMockKubeModelSource() exporter.ComputeSource[kubemodel.KubeModelSet] {
+	return &MockSource[kubemodel.KubeModelSet]{
+		generate: func(start, end time.Time) *kubemodel.KubeModelSet {
+			return opencost.GenerateMockKubeModelSet(start, end)
+		},
+	}
+}
+
 type MockDataSource struct {
 	resolution time.Duration
 }
@@ -81,27 +90,30 @@ func (mds *MockDataSource) BatchDuration() time.Duration                        
 func (mds *MockDataSource) Resolution() time.Duration                                     { return mds.resolution }
 
 type MockPipelineComputeSource struct {
-	allocSource exporter.ComputeSource[opencost.AllocationSet]
-	assetSource exporter.ComputeSource[opencost.AssetSet]
-	netSource   exporter.ComputeSource[opencost.NetworkInsightSet]
-	ds          *MockDataSource
+	allocSource     exporter.ComputeSource[opencost.AllocationSet]
+	assetSource     exporter.ComputeSource[opencost.AssetSet]
+	netSource       exporter.ComputeSource[opencost.NetworkInsightSet]
+	kubeModelSource exporter.ComputeSource[kubemodel.KubeModelSet]
+	ds              *MockDataSource
 }
 
 func NewMockPipelineComputeSource() *MockPipelineComputeSource {
 	return &MockPipelineComputeSource{
-		allocSource: NewMockAllocationSource(),
-		assetSource: NewMockAssetSource(),
-		netSource:   NewMockNetworkInsightSource(),
-		ds:          NewMockDataSource(),
+		allocSource:     NewMockAllocationSource(),
+		assetSource:     NewMockAssetSource(),
+		netSource:       NewMockNetworkInsightSource(),
+		kubeModelSource: NewMockKubeModelSource(),
+		ds:              NewMockDataSource(),
 	}
 }
 
 func NewMockPipelineComputeSourceWith(srcResolution time.Duration) *MockPipelineComputeSource {
 	return &MockPipelineComputeSource{
-		allocSource: NewMockAllocationSource(),
-		assetSource: NewMockAssetSource(),
-		netSource:   NewMockNetworkInsightSource(),
-		ds:          NewMockDataSourceWith(srcResolution),
+		allocSource:     NewMockAllocationSource(),
+		assetSource:     NewMockAssetSource(),
+		netSource:       NewMockNetworkInsightSource(),
+		kubeModelSource: NewMockKubeModelSource(),
+		ds:              NewMockDataSourceWith(srcResolution),
 	}
 }
 
@@ -113,6 +125,9 @@ func (mpcs *MockPipelineComputeSource) ComputeAssets(start, end time.Time) (*ope
 }
 func (mpcs *MockPipelineComputeSource) ComputeNetworkInsights(start, end time.Time) (*opencost.NetworkInsightSet, error) {
 	return mpcs.netSource.Compute(start, end)
+}
+func (mpcs *MockPipelineComputeSource) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeModelSet, error) {
+	return mpcs.kubeModelSource.Compute(start, end)
 }
 func (mpcs *MockPipelineComputeSource) GetDataSource() source.OpenCostDataSource {
 	return mpcs.ds
@@ -228,6 +243,35 @@ func TestExporters(t *testing.T) {
 		validateFileCreation[opencost.NetworkInsightSet](t, memStore, p, start, end)
 	})
 
+	t.Run("KubeModel exporter", func(t *testing.T) {
+		kubeModelSource := NewMockKubeModelSource()
+		memStore := storage.NewMemoryStorage()
+		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.KubeModelPipelineName, ptr(TestResolution))
+		if err != nil {
+			t.Fatalf("failed to create path formatter: %v", err)
+		}
+
+		kubeModelExporter, err := NewComputePipelineExporter[kubemodel.KubeModelSet](TestClusterId, TestResolution, memStore)
+		if err != nil {
+			t.Fatalf("failed to create KubeModel exporter: %v", err)
+		}
+
+		end := time.Now().UTC().Truncate(TestResolution)
+		start := end.Add(-TestResolution)
+
+		data, err := kubeModelSource.Compute(start, end)
+		if err != nil {
+			t.Fatalf("failed to compute KubeModel data: %v", err)
+		}
+
+		err = kubeModelExporter.Export(opencost.NewClosedWindow(start, end), data)
+		if err != nil {
+			t.Fatalf("failed to export KubeModel data: %v", err)
+		}
+
+		validateFileCreation[kubemodel.KubeModelSet](t, memStore, p, start, end)
+	})
+
 	t.Run("unknown exporter", func(t *testing.T) {
 		memStore := storage.NewMemoryStorage()
 
@@ -250,7 +294,9 @@ func TestPipelineExportControllers(t *testing.T) {
 		pipelineComputeSource := NewMockPipelineComputeSource()
 		memStore := storage.NewMemoryStorage()
 
-		exportControllers := NewPipelineExportControllers(TestClusterId, memStore, pipelineComputeSource, &PipelinesExportConfig{
+		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, PipelinesExportConfig{
+			ClusterUID:                        TestClusterId,
+			ClusterName:                       TestClusterId,
 			AllocationPiplineResolutions:      []time.Duration{TestResolution},
 			AssetPipelineResolutons:           []time.Duration{TestResolution},
 			NetworkInsightPipelineResolutions: []time.Duration{TestResolution},
@@ -286,7 +332,9 @@ func TestPipelineExportControllers(t *testing.T) {
 		pipelineComputeSource := NewMockPipelineComputeSourceWith(30 * time.Second)
 		memStore := storage.NewMemoryStorage()
 
-		exportControllers := NewPipelineExportControllers(TestClusterId, memStore, pipelineComputeSource, &PipelinesExportConfig{
+		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, PipelinesExportConfig{
+			ClusterUID:                        TestClusterId,
+			ClusterName:                       TestClusterId,
 			AllocationPiplineResolutions:      []time.Duration{TestResolution},
 			AssetPipelineResolutons:           []time.Duration{TestResolution},
 			NetworkInsightPipelineResolutions: []time.Duration{TestResolution},
@@ -322,7 +370,7 @@ func TestPipelineExportControllers(t *testing.T) {
 		pipelineComputeSource := NewMockPipelineComputeSource()
 		memStore := storage.NewMemoryStorage()
 
-		exportControllers := NewPipelineExportControllers(TestClusterId, memStore, pipelineComputeSource, nil)
+		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, NewPipelinesExportConfig(TestClusterId, TestClusterId))
 
 		if len(exportControllers.AllocationExportController.Resolutions()) != 2 {
 			t.Fatalf("expected 2 allocation resolutions, got %d", len(exportControllers.AllocationExportController.Resolutions()))
@@ -340,7 +388,7 @@ func TestPipelineExportControllers(t *testing.T) {
 		pipelineComputeSource := NewMockPipelineComputeSourceWith(48 * time.Hour)
 		memStore := storage.NewMemoryStorage()
 
-		exportControllers := NewPipelineExportControllers(TestClusterId, memStore, pipelineComputeSource, nil)
+		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, NewPipelinesExportConfig(TestClusterId, TestClusterId))
 
 		if len(exportControllers.AllocationExportController.Resolutions()) != 0 {
 			t.Fatalf("expected 0 allocation resolutions, got %d", len(exportControllers.AllocationExportController.Resolutions()))
@@ -357,7 +405,7 @@ func TestPipelineExportControllers(t *testing.T) {
 		pipelineComputeSource := NewMockPipelineComputeSource()
 		memStore := storage.NewMemoryStorage()
 
-		exportControllers := NewPipelineExportControllers("", memStore, pipelineComputeSource, nil)
+		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, NewPipelinesExportConfig("", ""))
 
 		if len(exportControllers.AllocationExportController.Resolutions()) != 0 {
 			t.Fatalf("expected 0 allocation resolutions, got %d", len(exportControllers.AllocationExportController.Resolutions()))

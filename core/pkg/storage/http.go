@@ -75,7 +75,10 @@ func (config HTTPConfig) GetHTTPTransport() (http.RoundTripper, error) {
 
 // NewTLSConfig creates a new tls.Config from the given TLSConfig.
 func (cfg TLSConfig) ToConfig() (*tls.Config, error) {
-	tlsConfig := &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify}
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		MinVersion:         tls.VersionTLS12,
+	}
 
 	// If a CA cert is provided then let's read it in.
 	if len(cfg.CAFile) > 0 {

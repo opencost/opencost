@@ -36,6 +36,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Nodes: []*clustercache.Node{
 						{
 							Name:           "node1",
+							UID:            "uuid1",
 							SpecProviderID: "i-1",
 							Status: v1.NodeStatus{
 								Capacity: v1.ResourceList{
@@ -62,6 +63,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
 					},
 					Value:          2.0,
 					AdditionalInfo: nil,
@@ -71,6 +73,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
 					},
 					Value:          2048.0,
 					AdditionalInfo: nil,
@@ -80,6 +83,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
 					},
 					Value:          1.0,
 					AdditionalInfo: nil,
@@ -89,6 +93,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
 					},
 					Value:          1024.0,
 					AdditionalInfo: nil,
@@ -98,6 +103,7 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
 						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -152,6 +158,7 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 						{
 							Name:      "deployment1",
 							Namespace: "namespace1",
+							UID:       "uuid1",
 							MatchLabels: map[string]string{
 								"test1": "blah",
 								"test2": "blah2",
@@ -168,6 +175,7 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 					Labels: map[string]string{
 						source.DeploymentLabel: "deployment1",
 						source.NamespaceLabel:  "namespace1",
+						source.UIDLabel:        "uuid1",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -221,6 +229,7 @@ func Test_kubernetesScraper_scrapeNamespaces(t *testing.T) {
 					Namespaces: []*clustercache.Namespace{
 						{
 							Name: "namespace1",
+							UID:  "uuid1",
 							Labels: map[string]string{
 								"test1": "blah",
 								"test2": "blah2",
@@ -236,9 +245,22 @@ func Test_kubernetesScraper_scrapeNamespaces(t *testing.T) {
 			},
 			expected: []metric.Update{
 				{
+					Name: metric.NamespaceInfo,
+					Labels: map[string]string{
+						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid1",
+					},
+				},
+				{
 					Name: metric.KubeNamespaceLabels,
 					Labels: map[string]string{
 						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid1",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -250,6 +272,7 @@ func Test_kubernetesScraper_scrapeNamespaces(t *testing.T) {
 					Name: metric.KubeNamespaceAnnotations,
 					Labels: map[string]string{
 						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid1",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -314,6 +337,10 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 											Requests: map[v1.ResourceName]resource.Quantity{
 												v1.ResourceCPU:    resource.MustParse("500m"),
 												v1.ResourceMemory: resource.MustParse("512"),
+											},
+											Limits: map[v1.ResourceName]resource.Quantity{
+												v1.ResourceCPU:    resource.MustParse("1"),
+												v1.ResourceMemory: resource.MustParse("1024"),
 											},
 										},
 									},
@@ -437,6 +464,36 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 					Value:          512,
 					AdditionalInfo: nil,
 				},
+				{
+					Name: metric.KubePodContainerResourceLimits,
+					Labels: map[string]string{
+						source.PodLabel:       "pod1",
+						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid1",
+						source.NodeLabel:      "node1",
+						source.InstanceLabel:  "node1",
+						source.ContainerLabel: "container1",
+						source.ResourceLabel:  "cpu",
+						source.UnitLabel:      "core",
+					},
+					Value:          1,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubePodContainerResourceLimits,
+					Labels: map[string]string{
+						source.PodLabel:       "pod1",
+						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid1",
+						source.NodeLabel:      "node1",
+						source.InstanceLabel:  "node1",
+						source.ContainerLabel: "container1",
+						source.ResourceLabel:  "memory",
+						source.UnitLabel:      "byte",
+					},
+					Value:          1024,
+					AdditionalInfo: nil,
+				},
 			},
 		},
 	}
@@ -484,6 +541,7 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 						{
 							Name:      "pvc1",
 							Namespace: "namespace1",
+							UID:       "uuid1",
 							Spec: v1.PersistentVolumeClaimSpec{
 								VolumeName:       "vol1",
 								StorageClassName: util.Ptr("storageClass1"),
@@ -504,6 +562,7 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 					Labels: map[string]string{
 						source.PVCLabel:          "pvc1",
 						source.NamespaceLabel:    "namespace1",
+						source.UIDLabel:          "uuid1",
 						source.VolumeNameLabel:   "vol1",
 						source.StorageClassLabel: "storageClass1",
 					},
@@ -515,6 +574,7 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 					Labels: map[string]string{
 						source.PVCLabel:          "pvc1",
 						source.NamespaceLabel:    "namespace1",
+						source.UIDLabel:          "uuid1",
 						source.VolumeNameLabel:   "vol1",
 						source.StorageClassLabel: "storageClass1",
 					},
@@ -567,6 +627,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 					PVs: []*clustercache.PersistentVolume{
 						{
 							Name: "pv1",
+							UID:  "uuid1",
 							Spec: v1.PersistentVolumeSpec{
 								StorageClassName: "storageClass1",
 								PersistentVolumeSource: v1.PersistentVolumeSource{
@@ -590,6 +651,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 						source.PVLabel:           "pv1",
 						source.ProviderIDLabel:   "vol-1",
 						source.StorageClassLabel: "storageClass1",
+						source.UIDLabel:          "uuid1",
 					},
 					Value:          0,
 					AdditionalInfo: nil,
@@ -600,6 +662,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 						source.PVLabel:           "pv1",
 						source.ProviderIDLabel:   "vol-1",
 						source.StorageClassLabel: "storageClass1",
+						source.UIDLabel:          "uuid1",
 					},
 					Value:          4096,
 					AdditionalInfo: nil,
@@ -651,6 +714,7 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 						{
 							Name:      "service1",
 							Namespace: "namespace1",
+							UID:       "uuid1",
 							SpecSelector: map[string]string{
 								"test1": "blah",
 								"test2": "blah2",
@@ -666,6 +730,7 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 					Labels: map[string]string{
 						"service":             "service1",
 						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid1",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -720,6 +785,7 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 						{
 							Name:      "statefulSet1",
 							Namespace: "namespace1",
+							UID:       "uuid1",
 							SpecSelector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{
 									"test1": "blah",
@@ -737,6 +803,7 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 					Labels: map[string]string{
 						source.StatefulSetLabel: "statefulSet1",
 						source.NamespaceLabel:   "namespace1",
+						source.UIDLabel:         "uuid1",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -791,12 +858,19 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 						{
 							Name:      "replicaSet1",
 							Namespace: "namespace1",
+							UID:       "uuid1",
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									Name: "rollout1",
 									Kind: "Rollout",
 								},
 							},
+						},
+						{
+							Name:            "pureReplicaSet",
+							Namespace:       "namespace1",
+							UID:             "uuid2",
+							OwnerReferences: []metav1.OwnerReference{},
 						},
 					},
 					Timestamp: start1,
@@ -808,8 +882,20 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 					Labels: map[string]string{
 						"replicaset":          "replicaSet1",
 						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid1",
 						source.OwnerNameLabel: "rollout1",
 						source.OwnerKindLabel: "Rollout",
+					},
+					Value: 0,
+				},
+				{
+					Name: metric.KubeReplicasetOwner,
+					Labels: map[string]string{
+						"replicaset":          "pureReplicaSet",
+						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid2",
+						source.OwnerNameLabel: source.NoneLabelValue,
+						source.OwnerKindLabel: source.NoneLabelValue,
 					},
 					Value: 0,
 				},
@@ -822,6 +908,186 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
 				res := ks.scrapeReplicaSets(s.ReplicaSets)
+				scrapeResults = append(scrapeResults, res...)
+			}
+
+			if len(scrapeResults) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
+			}
+
+			for i, expected := range tt.expected {
+				got := scrapeResults[i]
+				if !reflect.DeepEqual(expected, got) {
+					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
+				}
+			}
+		})
+	}
+}
+
+func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
+	start1, _ := time.Parse(time.RFC3339, Start1Str)
+
+	type scrape struct {
+		ResourceQuotas []*clustercache.ResourceQuota
+		Timestamp      time.Time
+	}
+	tests := []struct {
+		name     string
+		scrapes  []scrape
+		expected []metric.Update
+	}{
+		{
+			name: "simple",
+			scrapes: []scrape{
+				{
+					ResourceQuotas: []*clustercache.ResourceQuota{
+						{
+							Name:      "resourceQuota1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+							Spec: v1.ResourceQuotaSpec{
+								Hard: v1.ResourceList{
+									v1.ResourceRequestsCPU:    resource.MustParse("1"),
+									v1.ResourceRequestsMemory: resource.MustParse("1024"),
+									v1.ResourceLimitsCPU:      resource.MustParse("2"),
+									v1.ResourceLimitsMemory:   resource.MustParse("2048"),
+								},
+							},
+							Status: v1.ResourceQuotaStatus{
+								Used: v1.ResourceList{
+									v1.ResourceRequestsCPU:    resource.MustParse("0.5"),
+									v1.ResourceRequestsMemory: resource.MustParse("512"),
+									v1.ResourceLimitsCPU:      resource.MustParse("1"),
+									v1.ResourceLimitsMemory:   resource.MustParse("1024"),
+								},
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.ResourceQuotaInfo,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+					},
+				},
+				{
+					Name: metric.KubeResourceQuotaSpecResourceRequests,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+						source.ResourceLabel:      "cpu",
+						source.UnitLabel:          "core",
+					},
+					Value:          1,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeResourceQuotaSpecResourceRequests,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+						source.ResourceLabel:      "memory",
+						source.UnitLabel:          "byte",
+					},
+					Value:          1024,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeResourceQuotaSpecResourceLimits,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+						source.ResourceLabel:      "cpu",
+						source.UnitLabel:          "core",
+					},
+					Value:          2,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeResourceQuotaSpecResourceLimits,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+						source.ResourceLabel:      "memory",
+						source.UnitLabel:          "byte",
+					},
+					Value:          2048,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeResourceQuotaStatusUsedResourceRequests,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+						source.ResourceLabel:      "cpu",
+						source.UnitLabel:          "core",
+					},
+					Value:          0.5,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeResourceQuotaStatusUsedResourceRequests,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+						source.ResourceLabel:      "memory",
+						source.UnitLabel:          "byte",
+					},
+					Value:          512,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeResourceQuotaStatusUsedResourceLimits,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+						source.ResourceLabel:      "cpu",
+						source.UnitLabel:          "core",
+					},
+					Value:          1,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeResourceQuotaStatusUsedResourceLimits,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+						source.ResourceLabel:      "memory",
+						source.UnitLabel:          "byte",
+					},
+					Value:          1024,
+					AdditionalInfo: nil,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ks := &ClusterCacheScraper{}
+			var scrapeResults []metric.Update
+			for _, s := range tt.scrapes {
+				res := ks.scrapeResourceQuotas(s.ResourceQuotas)
 				scrapeResults = append(scrapeResults, res...)
 			}
 

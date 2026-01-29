@@ -40,7 +40,6 @@ type AllocationQueryOptions struct {
 	SharedHourlyCosts       map[string]float64
 	ShareIdle               string
 	ShareSplit              string
-	ShareTenancyCosts       bool
 	SplitIdle               bool
 	Step                    time.Duration
 }

@@ -22,6 +22,7 @@ var validAthenaConf = &aws.AthenaConfiguration{
 	Workgroup:  "workgroup",
 	Account:    "account",
 	Authorizer: &aws.ServiceAccount{},
+	CURVersion: "2.0",
 }
 
 // Config with the same key as the baseline but is not equal to it because of the change in the non-keyed property Workgroup
@@ -33,6 +34,7 @@ var validAthenaConfModifiedProperty = &aws.AthenaConfiguration{
 	Workgroup:  "workgroup1",
 	Account:    "account",
 	Authorizer: &aws.ServiceAccount{},
+	CURVersion: "2.0",
 }
 
 // Config with the same key as baseline but is invalid due to missing Authorizer
@@ -44,6 +46,7 @@ var invalidAthenaConf = &aws.AthenaConfiguration{
 	Workgroup:  "workgroup",
 	Account:    "account",
 	Authorizer: nil,
+	CURVersion: "2.0",
 }
 
 // A valid config with a different key from the baseline
@@ -992,6 +995,140 @@ func TestIntegrationController_CreateConfig(t *testing.T) {
 			}
 			if err == nil && tc.expectErr {
 				t.Errorf("no error where expect")
+			}
+
+			status, err := icd.storage.load()
+			if err != nil {
+				t.Errorf("failed to load status file: %s", err.Error())
+			}
+
+			err = checkStatuses(status, expectedStatuses)
+			if err != nil {
+				t.Errorf("statuses equality check failed: %s", err.Error())
+			}
+		})
+	}
+
+}
+
+func TestIntegrationController_UpdateConfig(t *testing.T) {
+	testCases := map[string]struct {
+		initial   []*Status
+		expected  []*Status
+		input     cloudconfig.KeyedConfig
+		expectErr bool
+	}{
+		"invalid config": {
+			initial: []*Status{
+				makeStatus(validAthenaConf, true, ConfigControllerSource),
+			},
+			expected: []*Status{
+				makeStatus(validAthenaConf, true, ConfigControllerSource),
+			},
+			input:     invalidAthenaConf,
+			expectErr: true,
+		},
+		"config is not from ConfigControllerSource": {
+			initial: []*Status{
+				makeStatus(validAthenaConf, true, MultiCloudSource),
+			},
+			expected: []*Status{
+				makeStatus(validAthenaConf, true, MultiCloudSource),
+			},
+			input:     validAthenaConf,
+			expectErr: true,
+		},
+		"config does not exist": {
+			initial:   []*Status{},
+			expected:  []*Status{},
+			input:     validAthenaConf,
+			expectErr: true,
+		},
+		"update existing config with modified properties": {
+			initial: []*Status{
+				makeStatus(validAthenaConf, true, ConfigControllerSource),
+			},
+			expected: []*Status{
+				makeStatus(validAthenaConfModifiedProperty, true, ConfigControllerSource),
+			},
+			input:     validAthenaConfModifiedProperty,
+			expectErr: false,
+		},
+		"update existing config with same properties": {
+			initial: []*Status{
+				makeStatus(validAthenaConf, true, ConfigControllerSource),
+			},
+			expected: []*Status{
+				makeStatus(validAthenaConf, true, ConfigControllerSource),
+			},
+			input:     validAthenaConf,
+			expectErr: false,
+		},
+		"update existing config when other source has same key": {
+			initial: []*Status{
+				makeStatus(validAthenaConf, false, MultiCloudSource),
+				makeStatus(validAthenaConf, true, ConfigControllerSource),
+			},
+			expected: []*Status{
+				makeStatus(validAthenaConf, false, MultiCloudSource),
+				makeStatus(validAthenaConfModifiedProperty, true, ConfigControllerSource),
+			},
+			input:     validAthenaConfModifiedProperty,
+			expectErr: false,
+		},
+		"update existing config when multiple other configs exist": {
+			initial: []*Status{
+				makeStatus(validBigQueryConf, true, MultiCloudSource),
+				makeStatus(validAthenaConf, true, ConfigControllerSource),
+			},
+			expected: []*Status{
+				makeStatus(validBigQueryConf, true, MultiCloudSource),
+				makeStatus(validAthenaConfModifiedProperty, true, ConfigControllerSource),
+			},
+			input:     validAthenaConfModifiedProperty,
+			expectErr: false,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Test set up and validation
+			initialStatuses, err := buildStatuses(tc.initial)
+			if err != nil {
+				t.Errorf("initial statuses: %s", err.Error())
+			}
+
+			expectedStatuses, err := buildStatuses(tc.expected)
+			if err != nil {
+				t.Errorf("expected statuses: %s", err.Error())
+			}
+
+			tempDir := os.TempDir()
+			path := filepath.Join(tempDir, configFile)
+			defer os.Remove(path)
+
+			storage := &FileControllerStorage{
+				path: path,
+			}
+
+			// Initialize controller
+			icd := &Controller{
+				storage: storage,
+			}
+			err = icd.storage.save(initialStatuses)
+			if err != nil {
+				t.Errorf("failed to save initial statuses: %s", err.Error())
+			}
+
+			// Functionality being tested
+			err = icd.UpdateConfig(tc.input)
+
+			// Test Result
+			if err != nil && !tc.expectErr {
+				t.Errorf("unexpected error when updating config: %s", err.Error())
+			}
+			if err == nil && tc.expectErr {
+				t.Errorf("no error where expected")
 			}
 
 			status, err := icd.storage.load()

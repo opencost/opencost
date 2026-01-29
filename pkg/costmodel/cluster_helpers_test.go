@@ -901,24 +901,6 @@ func TestAssetCustompricing(t *testing.T) {
 
 	startTimestamp := float64(windowStart.Unix())
 
-	nodePromResult := []*source.QueryResult{
-		source.NewQueryResult(
-			map[string]interface{}{
-				"cluster_id":    "cluster1",
-				"node":          "node1",
-				"instance_type": "type1",
-				"provider_id":   "provider1",
-			},
-			[]*util.Vector{
-				{
-					Timestamp: startTimestamp,
-					Value:     0.5,
-				},
-			},
-			source.DefaultResultKeys(),
-		),
-	}
-
 	pvCostPromResult := []*source.QueryResult{
 		source.NewQueryResult(
 			map[string]interface{}{
@@ -1052,6 +1034,7 @@ func TestAssetCustompricing(t *testing.T) {
 		name             string
 		customPricingMap map[string]string
 		expectedPricing  map[string]float64
+		zeroCollector    bool // If true, simulate collector returning 0 (promless mode)
 	}{
 		{
 			name:             "No custom pricing",
@@ -1062,6 +1045,7 @@ func TestAssetCustompricing(t *testing.T) {
 				"GPU":     1.0,
 				"Storage": 1.0,
 			},
+			zeroCollector: false,
 		},
 		{
 			name: "Custom pricing enabled",
@@ -1078,6 +1062,25 @@ func TestAssetCustompricing(t *testing.T) {
 				"GPU":     1.369864,              // 500.0 / 730 * 2
 				"Storage": 0.000137,              // 0.1 / 730 * (1073741824.0 / 1024 / 1024 / 1024) * (60 / 60) => 0.1 / 730 * 1 * 1
 			},
+			zeroCollector: false,
+		},
+		{
+			name: "Collector returns 0, fallback to custom pricing",
+			customPricingMap: map[string]string{
+				"CPU":     "20.0",
+				"RAM":     "4.0",
+				"GPU":     "500.0",
+				"Storage": "0.1",
+				// NOTE: customPricesEnabled is NOT set to "true"
+				// This tests the fallback behavior when collector returns 0
+			},
+			expectedPricing: map[string]float64{
+				"CPU":     0.027397,              // 20.0 / 730 (fallback from 0)
+				"RAM":     5.102716386318207e-12, // 4.0 / 730 / 1024^3 (fallback from 0)
+				"GPU":     0.0,                   // GPU doesn't have fallback logic
+				"Storage": 1.0,                   // Storage uses separate PV pricing (pvCostPromResult), not affected by node pricing
+			},
+			zeroCollector: true,
 		},
 	}
 
@@ -1088,10 +1091,34 @@ func TestAssetCustompricing(t *testing.T) {
 			}
 			testProvider.UpdateConfigFromConfigMap(testCase.customPricingMap)
 
+			// Create test data - if zeroCollector is true, simulate collector returning 0
+			testValue := 0.5
+			if testCase.zeroCollector {
+				testValue = 0.0
+			}
+
+			zeroCollectorPromResult := []*source.QueryResult{
+				source.NewQueryResult(
+					map[string]interface{}{
+						"cluster_id":    "cluster1",
+						"node":          "node1",
+						"instance_type": "type1",
+						"provider_id":   "provider1",
+					},
+					[]*util.Vector{
+						{
+							Timestamp: startTimestamp,
+							Value:     testValue,
+						},
+					},
+					source.DefaultResultKeys(),
+				),
+			}
+
 			testPreemptible := make(map[NodeIdentifier]bool)
-			nodeCpuResult := source.DecodeAll(nodePromResult, source.DecodeNodeCPUPricePerHrResult)
-			nodeRamResult := source.DecodeAll(nodePromResult, source.DecodeNodeRAMPricePerGiBHrResult)
-			nodeGpuResult := source.DecodeAll(nodePromResult, source.DecodeNodeGPUPricePerHrResult)
+			nodeCpuResult := source.DecodeAll(zeroCollectorPromResult, source.DecodeNodeCPUPricePerHrResult)
+			nodeRamResult := source.DecodeAll(zeroCollectorPromResult, source.DecodeNodeRAMPricePerGiBHrResult)
+			nodeGpuResult := source.DecodeAll(zeroCollectorPromResult, source.DecodeNodeGPUPricePerHrResult)
 
 			cpuMap, _ := buildCPUCostMap(nodeCpuResult, testProvider, testPreemptible)
 			ramMap, _ := buildRAMCostMap(nodeRamResult, testProvider, testPreemptible)
@@ -1201,5 +1228,126 @@ func TestBuildLabelsMap(t *testing.T) {
 		if ok {
 			t.Errorf("Non-label keys are included in label mapping for asset labels. Expected '%v' to not exist'.", nonLabelKey)
 		}
+	}
+}
+
+func TestBuildCPUBreakdownMap(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    []*source.NodeCPUModeTotalResult
+		expected map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown
+	}{
+		{
+			name:     "empty input",
+			input:    []*source.NodeCPUModeTotalResult{},
+			expected: map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown{},
+		},
+		{
+			name: "normal modes",
+			input: []*source.NodeCPUModeTotalResult{
+				{
+					Cluster: "cluster1",
+					Node:    "node1",
+					Mode:    "idle",
+					Data:    []*util.Vector{{Value: 50.0}},
+				},
+				{
+					Cluster: "cluster1",
+					Node:    "node1",
+					Mode:    "user",
+					Data:    []*util.Vector{{Value: 30.0}},
+				},
+				{
+					Cluster: "cluster1",
+					Node:    "node1",
+					Mode:    "system",
+					Data:    []*util.Vector{{Value: 20.0}},
+				},
+			},
+			expected: map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown{
+				{Cluster: "cluster1", Name: "node1"}: {
+					Idle:   0.5,
+					User:   0.3,
+					System: 0.2,
+				},
+			},
+		},
+		{
+			name: "empty mode falls back to other",
+			input: []*source.NodeCPUModeTotalResult{
+				{
+					Cluster: "cluster1",
+					Node:    "node1",
+					Mode:    "idle",
+					Data:    []*util.Vector{{Value: 50.0}},
+				},
+				{
+					Cluster: "cluster1",
+					Node:    "node1",
+					Mode:    "", // empty mode should be treated as "other"
+					Data:    []*util.Vector{{Value: 50.0}},
+				},
+			},
+			expected: map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown{
+				{Cluster: "cluster1", Name: "node1"}: {
+					Idle:  0.5,
+					Other: 0.5,
+				},
+			},
+		},
+		{
+			name: "missing node is skipped",
+			input: []*source.NodeCPUModeTotalResult{
+				{
+					Cluster: "cluster1",
+					Node:    "", // empty node should be skipped
+					Mode:    "idle",
+					Data:    []*util.Vector{{Value: 50.0}},
+				},
+				{
+					Cluster: "cluster1",
+					Node:    "node1",
+					Mode:    "user",
+					Data:    []*util.Vector{{Value: 100.0}},
+				},
+			},
+			expected: map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown{
+				{Cluster: "cluster1", Name: "node1"}: {
+					User: 1.0,
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := buildCPUBreakdownMap(tc.input)
+
+			if len(result) != len(tc.expected) {
+				t.Errorf("buildCPUBreakdownMap case %s: expected %d entries, got %d", tc.name, len(tc.expected), len(result))
+				return
+			}
+
+			for key, expectedBreakdown := range tc.expected {
+				actualBreakdown, ok := result[key]
+				if !ok {
+					t.Errorf("buildCPUBreakdownMap case %s: missing key %+v", tc.name, key)
+					continue
+				}
+
+				if !util.IsApproximately(actualBreakdown.Idle, expectedBreakdown.Idle) {
+					t.Errorf("buildCPUBreakdownMap case %s: Idle mismatch for %+v: expected %f, got %f", tc.name, key, expectedBreakdown.Idle, actualBreakdown.Idle)
+				}
+				if !util.IsApproximately(actualBreakdown.User, expectedBreakdown.User) {
+					t.Errorf("buildCPUBreakdownMap case %s: User mismatch for %+v: expected %f, got %f", tc.name, key, expectedBreakdown.User, actualBreakdown.User)
+				}
+				if !util.IsApproximately(actualBreakdown.System, expectedBreakdown.System) {
+					t.Errorf("buildCPUBreakdownMap case %s: System mismatch for %+v: expected %f, got %f", tc.name, key, expectedBreakdown.System, actualBreakdown.System)
+				}
+				if !util.IsApproximately(actualBreakdown.Other, expectedBreakdown.Other) {
+					t.Errorf("buildCPUBreakdownMap case %s: Other mismatch for %+v: expected %f, got %f", tc.name, key, expectedBreakdown.Other, actualBreakdown.Other)
+				}
+			}
+		})
 	}
 }

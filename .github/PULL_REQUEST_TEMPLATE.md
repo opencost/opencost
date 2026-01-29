@@ -1,20 +1,12 @@
-## What does this PR change?
-* 
+## Description
+<!-- Provide a clear and concise description of what this PR changes. -->
 
-## Does this PR relate to any other PRs?
-* 
+## Related Issues
+<!-- Link related issues using keywords: Fixes #123, Closes #456, Relates to #789 -->
 
-## How will this PR impact users?
-* 
+## User Impact
+<!-- Describe any user-facing changes. Is this a breaking change? Is there backwards compatibility? -->
 
-## Does this PR address any GitHub or Zendesk issues?
-* Closes ...
-
-## How was this PR tested?
-* 
-
-## Does this PR require changes to documentation?
-* 
-
-## Have you labeled this PR and its corresponding Issue as "next release" if it should be part of the next OpenCost release? If not, why not?
-* 
+## Testing
+<!-- Describe how you tested your changes: unit tests, manual tests, integration tests, etc. -->
+<!-- Integration tests: https://github.com/opencost/opencost-integration-tests -->
