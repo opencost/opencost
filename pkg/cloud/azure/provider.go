@@ -728,6 +728,14 @@ func createString(keys ...string) string {
 	return b.String()
 }
 
+// getConfigSource returns a human-readable string indicating the source of configuration
+func getConfigSource(envVarName, envValue, defaultSource string) string {
+	if envValue != "" {
+		return "env:" + envVarName
+	}
+	return defaultSource
+}
+
 func transformMachineType(subCategory string, mt []string) []string {
 	switch {
 	case strings.Contains(subCategory, "Basic"):
@@ -823,6 +831,27 @@ func (az *Azure) DownloadPricingData() error {
 		config.AzureOfferDurableID = envOfferID
 	}
 
+	// Check for Azure rate card filter environment variables with backward compatibility
+	locale := env.GetAzureLocale() // Defaults to "en-US"
+	
+	envCurrency := env.GetAzureCurrency()
+	currency := config.CurrencyCode // Use config default
+	if envCurrency != "" {
+		currency = envCurrency // Override with environment variable if provided
+	}
+	
+	envRegionInfo := env.GetAzureRegionInfo()
+	regionInfo := config.AzureBillingRegion // Use config default
+	if envRegionInfo != "" {
+		regionInfo = envRegionInfo // Override with environment variable if provided
+	}
+
+	// Debug logging for rate card configuration
+	log.Debugf("Azure rate card configuration: locale=%s (source: %s), currency=%s (source: %s), regionInfo=%s (source: %s)", 
+		locale, getConfigSource("AZURE_LOCALE", locale, "en-US"),
+		currency, getConfigSource("AZURE_CURRENCY", envCurrency, "config"),
+		regionInfo, getConfigSource("AZURE_REGION_INFO", envRegionInfo, "config"))
+
 	// Load the service provider keys
 	subscriptionID, clientID, clientSecret, tenantID := az.getAzureRateCardAuth(false, config)
 	config.AzureSubscriptionID = subscriptionID
@@ -866,7 +895,7 @@ func (az *Azure) DownloadPricingData() error {
 	providersClient := resources.NewProvidersClientWithBaseURI(azureEnv.ResourceManagerEndpoint, config.AzureSubscriptionID)
 	providersClient.Authorizer = authorizer
 
-	rateCardFilter := fmt.Sprintf("OfferDurableId eq '%s' and Currency eq '%s' and Locale eq 'en-US' and RegionInfo eq '%s'", config.AzureOfferDurableID, config.CurrencyCode, config.AzureBillingRegion)
+	rateCardFilter := fmt.Sprintf("OfferDurableId eq '%s' and Currency eq '%s' and Locale eq '%s' and RegionInfo eq '%s'", config.AzureOfferDurableID, currency, locale, regionInfo)
 
 	// create a preparer (the same way rcClient.Get() does) so that we can log the azureRateCard URL
 	log.Infof("Using azureRateCard query %s", rateCardFilter)
