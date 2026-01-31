@@ -1,6 +1,12 @@
 package azure
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/csv"
+	"io"
+	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -200,5 +206,167 @@ func TestAzureStorageBillingParser_parseCSV(t *testing.T) {
 
 		})
 
+	}
+}
+
+func TestAzureStorageBillingParser_parseCSV_GzippedFile(t *testing.T) {
+	// Integration test with real gzipped Azure billing export
+	loc, _ := time.LoadLocation("UTC")
+	start := time.Date(2021, 1, 1, 00, 00, 00, 00, loc)
+	end := time.Date(2026, 12, 31, 00, 00, 00, 00, loc)
+
+	asbp := &AzureStorageBillingParser{}
+
+	// Open the gzipped file
+	gzFile, err := os.Open(valueCasesPath + "part_0_0001.csv.gz")
+	if err != nil {
+		t.Skipf("Skipping gzipped file test - file not found: %v", err)
+		return
+	}
+	defer gzFile.Close()
+
+	// Use decompressIfGzipped to decompress
+	reader, err := decompressIfGzipped(gzFile, "part_0_0001.csv.gz")
+	if err != nil {
+		t.Fatalf("Failed to create gzip reader: %v", err)
+	}
+	defer reader.Close()
+
+	// Parse the CSV
+	var rowCount int
+	resultFn := func(abv *BillingRowValues) error {
+		rowCount++
+		// Validate that we're getting valid data
+		if abv == nil {
+			t.Error("Received nil BillingRowValues")
+		}
+		return nil
+	}
+
+	err = asbp.parseCSV(start, end, csv.NewReader(reader), resultFn)
+	if err != nil {
+		t.Fatalf("Error parsing gzipped CSV: %v", err)
+	}
+
+	if rowCount == 0 {
+		t.Error("No rows were parsed from the gzipped file")
+	}
+
+	t.Logf("Successfully parsed %d rows from gzipped Azure billing export", rowCount)
+}
+
+func TestDecompressIfGzipped(t *testing.T) {
+	testCases := map[string]struct {
+		blobName    string
+		content     string
+		shouldGzip  bool
+		expectError bool
+	}{
+		"Gzipped file with .gz extension": {
+			blobName:    "billing_export.csv.gz",
+			content:     "test,data\n1,2\n",
+			shouldGzip:  true,
+			expectError: false,
+		},
+		"Gzipped file with .GZ extension (case insensitive)": {
+			blobName:    "billing_export.CSV.GZ",
+			content:     "test,data\n1,2\n",
+			shouldGzip:  true,
+			expectError: false,
+		},
+		"Non-gzipped CSV file": {
+			blobName:    "billing_export.csv",
+			content:     "test,data\n1,2\n",
+			shouldGzip:  false,
+			expectError: false,
+		},
+		"Non-gzipped file without extension": {
+			blobName:    "billing_export",
+			content:     "test,data\n1,2\n",
+			shouldGzip:  false,
+			expectError: false,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			var inputReader io.Reader
+
+			if tc.shouldGzip {
+				// Create gzipped content
+				var buf bytes.Buffer
+				gw := gzip.NewWriter(&buf)
+				_, err := gw.Write([]byte(tc.content))
+				if err != nil {
+					t.Fatalf("Failed to write gzip content: %v", err)
+				}
+				gw.Close()
+				inputReader = &buf
+			} else {
+				// Use plain content
+				inputReader = strings.NewReader(tc.content)
+			}
+
+			// Call decompressIfGzipped
+			reader, err := decompressIfGzipped(inputReader, tc.blobName)
+			if tc.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			defer reader.Close()
+
+			// Read and verify content
+			output, err := io.ReadAll(reader)
+			if err != nil {
+				t.Fatalf("Failed to read from reader: %v", err)
+			}
+
+			if string(output) != tc.content {
+				t.Errorf("Content mismatch. Expected: %q, Got: %q", tc.content, string(output))
+			}
+		})
+	}
+}
+
+func TestDecompressIfGzipped_InvalidGzip(t *testing.T) {
+	// Test with invalid gzip data
+	blobName := "invalid.csv.gz"
+	invalidData := strings.NewReader("this is not gzipped data")
+
+	reader, err := decompressIfGzipped(invalidData, blobName)
+	if err == nil {
+		if reader != nil {
+			reader.Close()
+		}
+		t.Error("Expected error for invalid gzip data, but got none")
+	}
+}
+
+func TestDecompressIfGzipped_EmptyGzipFile(t *testing.T) {
+	// Test with empty gzipped file
+	blobName := "empty.csv.gz"
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	gw.Close()
+
+	reader, err := decompressIfGzipped(&buf, blobName)
+	if err != nil {
+		t.Fatalf("Unexpected error for empty gzip file: %v", err)
+	}
+	defer reader.Close()
+
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("Failed to read empty gzip file: %v", err)
+	}
+
+	if len(output) != 0 {
+		t.Errorf("Expected empty output, got %d bytes", len(output))
 	}
 }

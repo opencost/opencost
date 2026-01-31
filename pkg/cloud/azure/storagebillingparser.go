@@ -1,6 +1,7 @@
 package azure
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/csv"
 	"encoding/json"
@@ -30,6 +31,20 @@ func (asbp *AzureStorageBillingParser) Equals(config cloud.Config) bool {
 		return false
 	}
 	return asbp.StorageConnection.Equals(&thatConfig.StorageConnection)
+}
+
+// decompressIfGzipped wraps the reader with a gzip reader if the blob name indicates
+// the file is gzip compressed. Returns the original reader if not compressed.
+func decompressIfGzipped(r io.Reader, blobName string) (io.ReadCloser, error) {
+	if strings.HasSuffix(strings.ToLower(blobName), ".gz") {
+		gr, err := gzip.NewReader(r)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create gzip reader for %s: %w", blobName, err)
+		}
+		return gr, nil
+	}
+	// Return a NopCloser to maintain consistent interface
+	return io.NopCloser(r), nil
 }
 
 type AzureBillingResultFunc func(*BillingRowValues) error
@@ -85,7 +100,16 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 				return err
 			}
 			defer fp.Close()
-			err = asbp.parseCSV(start, end, csv.NewReader(fp), resultFn)
+
+			// Wrap with gzip reader if needed
+			reader, err := decompressIfGzipped(fp, blobName)
+			if err != nil {
+				asbp.ConnectionStatus = cloud.FailedConnection
+				return err
+			}
+			defer reader.Close()
+
+			err = asbp.parseCSV(start, end, csv.NewReader(reader), resultFn)
 			if err != nil {
 				asbp.ConnectionStatus = cloud.ParseError
 				return err
@@ -101,7 +125,15 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 				return err2
 			}
 
-			err2 = asbp.parseCSV(start, end, csv.NewReader(streamReader), resultFn)
+			// Wrap with gzip reader if needed
+			reader, err2 := decompressIfGzipped(streamReader, blobName)
+			if err2 != nil {
+				asbp.ConnectionStatus = cloud.FailedConnection
+				return err2
+			}
+			defer reader.Close()
+
+			err2 = asbp.parseCSV(start, end, csv.NewReader(reader), resultFn)
 			if err2 != nil {
 				asbp.ConnectionStatus = cloud.ParseError
 				return err2
