@@ -210,23 +210,22 @@ func TestAzureStorageBillingParser_parseCSV(t *testing.T) {
 }
 
 func TestAzureStorageBillingParser_parseCSV_GzippedFile(t *testing.T) {
-	// Integration test with real gzipped Azure billing export
+	// Integration test with gzipped Azure billing export
 	loc, _ := time.LoadLocation("UTC")
-	start := time.Date(2021, 1, 1, 00, 00, 00, 00, loc)
-	end := time.Date(2026, 12, 31, 00, 00, 00, 00, loc)
+	start := time.Date(2024, 10, 1, 00, 00, 00, 00, loc)
+	end := time.Date(2024, 11, 30, 00, 00, 00, 00, loc)
 
 	asbp := &AzureStorageBillingParser{}
 
-	// Open the gzipped file
-	gzFile, err := os.Open(valueCasesPath + "part_0_0001.csv.gz")
+	// Open the gzipped test file
+	gzFile, err := os.Open(valueCasesPath + "test_azure_billing.csv.gz")
 	if err != nil {
-		t.Skipf("Skipping gzipped file test - file not found: %v", err)
-		return
+		t.Fatalf("Failed to open test gzipped file: %v", err)
 	}
 	defer gzFile.Close()
 
 	// Use decompressIfGzipped to decompress
-	reader, err := decompressIfGzipped(gzFile, "part_0_0001.csv.gz")
+	reader, err := decompressIfGzipped(gzFile, "test_azure_billing.csv.gz")
 	if err != nil {
 		t.Fatalf("Failed to create gzip reader: %v", err)
 	}
@@ -234,12 +233,15 @@ func TestAzureStorageBillingParser_parseCSV_GzippedFile(t *testing.T) {
 
 	// Parse the CSV
 	var rowCount int
+	var totalCost float64
 	resultFn := func(abv *BillingRowValues) error {
 		rowCount++
 		// Validate that we're getting valid data
 		if abv == nil {
 			t.Error("Received nil BillingRowValues")
+			return nil
 		}
+		totalCost += abv.Cost
 		return nil
 	}
 
@@ -248,11 +250,64 @@ func TestAzureStorageBillingParser_parseCSV_GzippedFile(t *testing.T) {
 		t.Fatalf("Error parsing gzipped CSV: %v", err)
 	}
 
-	if rowCount == 0 {
-		t.Error("No rows were parsed from the gzipped file")
+	// We expect 5 data rows (excluding header)
+	expectedRows := 5
+	if rowCount != expectedRows {
+		t.Errorf("Expected %d rows, got %d rows", expectedRows, rowCount)
 	}
 
-	t.Logf("Successfully parsed %d rows from gzipped Azure billing export", rowCount)
+	// Verify we got some cost data
+	if totalCost == 0 {
+		t.Error("Total cost is 0, expected some cost data")
+	}
+
+	t.Logf("Successfully parsed %d rows from gzipped Azure billing export, total cost: $%.2f", rowCount, totalCost)
+}
+
+func TestAzureStorageBillingParser_parseCSV_NonGzippedFile(t *testing.T) {
+	// Test backward compatibility with non-gzipped files
+	loc, _ := time.LoadLocation("UTC")
+	start := time.Date(2024, 10, 1, 00, 00, 00, 00, loc)
+	end := time.Date(2024, 11, 30, 00, 00, 00, 00, loc)
+
+	asbp := &AzureStorageBillingParser{}
+
+	// Open the non-gzipped test file
+	csvFile, err := os.Open(valueCasesPath + "test_azure_billing.csv")
+	if err != nil {
+		t.Fatalf("Failed to open test CSV file: %v", err)
+	}
+	defer csvFile.Close()
+
+	// Use decompressIfGzipped - should return NopCloser for non-gz files
+	reader, err := decompressIfGzipped(csvFile, "test_azure_billing.csv")
+	if err != nil {
+		t.Fatalf("Failed to wrap reader: %v", err)
+	}
+	defer reader.Close()
+
+	// Parse the CSV
+	var rowCount int
+	resultFn := func(abv *BillingRowValues) error {
+		rowCount++
+		if abv == nil {
+			t.Error("Received nil BillingRowValues")
+		}
+		return nil
+	}
+
+	err = asbp.parseCSV(start, end, csv.NewReader(reader), resultFn)
+	if err != nil {
+		t.Fatalf("Error parsing non-gzipped CSV: %v", err)
+	}
+
+	// We expect 5 data rows (excluding header)
+	expectedRows := 5
+	if rowCount != expectedRows {
+		t.Errorf("Expected %d rows, got %d rows", expectedRows, rowCount)
+	}
+
+	t.Logf("Successfully parsed %d rows from non-gzipped Azure billing export", rowCount)
 }
 
 func TestDecompressIfGzipped(t *testing.T) {
