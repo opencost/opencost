@@ -146,14 +146,14 @@ type CustomPricing struct {
 	SpotLabelValue               string `json:"spotLabelValue,omitempty"`
 	GpuLabel                     string `json:"gpuLabel,omitempty"`
 	GpuLabelValue                string `json:"gpuLabelValue,omitempty"`
-	ServiceKeyName               string `json:"awsServiceKeyName,omitempty"`
-	ServiceKeySecret             string `json:"awsServiceKeySecret,omitempty"`
+	AwsServiceKeyName            string `json:"awsServiceKeyName,omitempty"`
+	AwsServiceKeySecret          string `json:"awsServiceKeySecret,omitempty"`
 	AlibabaServiceKeyName        string `json:"alibabaServiceKeyName,omitempty"`
 	AlibabaServiceKeySecret      string `json:"alibabaServiceKeySecret,omitempty"`
 	AlibabaClusterRegion         string `json:"alibabaClusterRegion,omitempty"`
-	SpotDataRegion               string `json:"awsSpotDataRegion,omitempty"`
-	SpotDataBucket               string `json:"awsSpotDataBucket,omitempty"`
-	SpotDataPrefix               string `json:"awsSpotDataPrefix,omitempty"`
+	AwsSpotDataRegion            string `json:"awsSpotDataRegion,omitempty"`
+	AwsSpotDataBucket            string `json:"awsSpotDataBucket,omitempty"`
+	AwsSpotDataPrefix            string `json:"awsSpotDataPrefix,omitempty"`
 	ProjectID                    string `json:"projectID,omitempty"`
 	AthenaProjectID              string `json:"athenaProjectID,omitempty"`
 	AthenaBucketName             string `json:"athenaBucketName"`
