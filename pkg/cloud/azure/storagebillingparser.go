@@ -83,61 +83,75 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 			log.Warnf("CloudCost: Azure: ParseBillingData: failed to remove the following stale files: %v", err)
 		}
 		for _, blob := range blobInfos {
-			blobName := *blob.Name
+			// Use anonymous function with defer to ensure cleanup at end of each iteration
+			err := func() error {
+				blobName := *blob.Name
 
-			// Use entire blob name to prevent collision with other files from previous months or other integrations (ex "part_0_0001.csv")
-			localFilePath := filepath.Join(localPath, strings.ReplaceAll(blobName, "/", "_"))
+				// Use entire blob name to prevent collision with other files from previous months or other integrations (ex "part_0_0001.csv")
+				localFilePath := filepath.Join(localPath, strings.ReplaceAll(blobName, "/", "_"))
 
-			err := asbp.DownloadBlobToFile(localFilePath, blob, client, ctx)
+				err := asbp.DownloadBlobToFile(localFilePath, blob, client, ctx)
+				if err != nil {
+					asbp.ConnectionStatus = cloud.FailedConnection
+					return err
+				}
+
+				fp, err := os.Open(localFilePath)
+				if err != nil {
+					asbp.ConnectionStatus = cloud.FailedConnection
+					return err
+				}
+				defer fp.Close()
+
+				// Wrap with gzip reader if needed
+				reader, err := decompressIfGzipped(fp, blobName)
+				if err != nil {
+					asbp.ConnectionStatus = cloud.FailedConnection
+					return err
+				}
+				defer reader.Close()
+
+				err = asbp.parseCSV(start, end, csv.NewReader(reader), resultFn)
+				if err != nil {
+					asbp.ConnectionStatus = cloud.ParseError
+					return err
+				}
+
+				return nil
+			}()
 			if err != nil {
-				asbp.ConnectionStatus = cloud.FailedConnection
 				return err
 			}
-
-			fp, err := os.Open(localFilePath)
-			if err != nil {
-				asbp.ConnectionStatus = cloud.FailedConnection
-				return err
-			}
-
-			// Wrap with gzip reader if needed
-			reader, err := decompressIfGzipped(fp, blobName)
-			if err != nil {
-				fp.Close()
-				asbp.ConnectionStatus = cloud.FailedConnection
-				return err
-			}
-
-			err = asbp.parseCSV(start, end, csv.NewReader(reader), resultFn)
-			reader.Close()
-			fp.Close()
-			if err != nil {
-				asbp.ConnectionStatus = cloud.ParseError
-				return err
-			}
-
 		}
 	} else {
 		for _, blobInfo := range blobInfos {
-			blobName := *blobInfo.Name
-			streamReader, err2 := asbp.StreamBlob(blobName, client)
-			if err2 != nil {
-				asbp.ConnectionStatus = cloud.FailedConnection
-				return err2
-			}
+			// Use anonymous function with defer to ensure cleanup at end of each iteration
+			err := func() error {
+				blobName := *blobInfo.Name
+				streamReader, err := asbp.StreamBlob(blobName, client)
+				if err != nil {
+					asbp.ConnectionStatus = cloud.FailedConnection
+					return err
+				}
 
-			// Wrap with gzip reader if needed
-			reader, err2 := decompressIfGzipped(streamReader, blobName)
-			if err2 != nil {
-				asbp.ConnectionStatus = cloud.FailedConnection
-				return err2
-			}
+				// Wrap with gzip reader if needed
+				reader, err := decompressIfGzipped(streamReader, blobName)
+				if err != nil {
+					asbp.ConnectionStatus = cloud.FailedConnection
+					return err
+				}
+				defer reader.Close()
 
-			err2 = asbp.parseCSV(start, end, csv.NewReader(reader), resultFn)
-			reader.Close()
-			if err2 != nil {
-				asbp.ConnectionStatus = cloud.ParseError
-				return err2
+				err = asbp.parseCSV(start, end, csv.NewReader(reader), resultFn)
+				if err != nil {
+					asbp.ConnectionStatus = cloud.ParseError
+					return err
+				}
+
+				return nil
+			}()
+			if err != nil {
+				return err
 			}
 		}
 	}

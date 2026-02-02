@@ -425,3 +425,126 @@ func TestDecompressIfGzipped_EmptyGzipFile(t *testing.T) {
 		t.Errorf("Expected empty output, got %d bytes", len(output))
 	}
 }
+
+// TestDecompressIfGzipped_MultipleFiles tests processing multiple files in sequence
+// to ensure proper resource cleanup between iterations
+func TestDecompressIfGzipped_MultipleFiles(t *testing.T) {
+	testFiles := []struct {
+		name       string
+		content    string
+		shouldGzip bool
+	}{
+		{"file1.csv.gz", "data1,data2\nvalue1,value2\n", true},
+		{"file2.csv", "data3,data4\nvalue3,value4\n", false},
+		{"file3.csv.GZ", "data5,data6\nvalue5,value6\n", true},
+	}
+
+	for _, tf := range testFiles {
+		t.Run(tf.name, func(t *testing.T) {
+			var input io.Reader
+			if tf.shouldGzip {
+				var buf bytes.Buffer
+				gw := gzip.NewWriter(&buf)
+				_, err := gw.Write([]byte(tf.content))
+				if err != nil {
+					t.Fatalf("Failed to write gzip data: %v", err)
+				}
+				gw.Close()
+				input = &buf
+			} else {
+				input = strings.NewReader(tf.content)
+			}
+
+			reader, err := decompressIfGzipped(input, tf.name)
+			if err != nil {
+				t.Fatalf("Failed to decompress %s: %v", tf.name, err)
+			}
+			defer reader.Close()
+
+			output, err := io.ReadAll(reader)
+			if err != nil {
+				t.Fatalf("Failed to read from reader for %s: %v", tf.name, err)
+			}
+
+			if string(output) != tf.content {
+				t.Errorf("Content mismatch for %s. Expected: %q, Got: %q", tf.name, tf.content, string(output))
+			}
+		})
+	}
+}
+
+// TestDecompressIfGzipped_CaseInsensitiveExtension tests various case combinations
+func TestDecompressIfGzipped_CaseInsensitiveExtension(t *testing.T) {
+	testCases := []string{
+		"file.gz",
+		"file.GZ",
+		"file.Gz",
+		"file.gZ",
+	}
+
+	content := "test,data\n1,2\n"
+	for _, blobName := range testCases {
+		t.Run(blobName, func(t *testing.T) {
+			var buf bytes.Buffer
+			gw := gzip.NewWriter(&buf)
+			_, err := gw.Write([]byte(content))
+			if err != nil {
+				t.Fatalf("Failed to write gzip data: %v", err)
+			}
+			gw.Close()
+
+			reader, err := decompressIfGzipped(&buf, blobName)
+			if err != nil {
+				t.Fatalf("Failed to decompress %s: %v", blobName, err)
+			}
+			defer reader.Close()
+
+			output, err := io.ReadAll(reader)
+			if err != nil {
+				t.Fatalf("Failed to read from reader: %v", err)
+			}
+
+			if string(output) != content {
+				t.Errorf("Content mismatch. Expected: %q, Got: %q", content, string(output))
+			}
+		})
+	}
+}
+
+// TestDecompressIfGzipped_LargeFile tests handling of larger gzipped files
+func TestDecompressIfGzipped_LargeFile(t *testing.T) {
+	// Create a larger CSV content (1000 rows)
+	var contentBuilder strings.Builder
+	contentBuilder.WriteString("col1,col2,col3,col4\n")
+	for i := 0; i < 1000; i++ {
+		contentBuilder.WriteString("value1,value2,value3,value4\n")
+	}
+	content := contentBuilder.String()
+
+	// Gzip the content
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	_, err := gw.Write([]byte(content))
+	if err != nil {
+		t.Fatalf("Failed to write gzip data: %v", err)
+	}
+	gw.Close()
+
+	blobName := "large_file.csv.gz"
+	reader, err := decompressIfGzipped(&buf, blobName)
+	if err != nil {
+		t.Fatalf("Failed to decompress large file: %v", err)
+	}
+	defer reader.Close()
+
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("Failed to read large file: %v", err)
+	}
+
+	if string(output) != content {
+		t.Errorf("Content mismatch for large file. Expected %d bytes, got %d bytes", len(content), len(output))
+	}
+
+	t.Logf("Successfully processed large gzipped file with %d bytes", len(output))
+}
