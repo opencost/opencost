@@ -13,7 +13,7 @@ import (
 
 func TestAzureStorageBillingParser_getMonthStrings(t *testing.T) {
 	asbp := AzureStorageBillingParser{}
-	loc, _ := time.LoadLocation("UTC")
+	loc := time.UTC // Use time.UTC constant instead of LoadLocation
 	testCases := map[string]struct {
 		start    time.Time
 		end      time.Time
@@ -57,7 +57,7 @@ func TestAzureStorageBillingParser_getMonthStrings(t *testing.T) {
 }
 
 func TestAzureStorageBillingParser_parseCSV(t *testing.T) {
-	loc, _ := time.LoadLocation("UTC")
+	loc := time.UTC // Use time.UTC constant instead of LoadLocation
 	start := time.Date(2021, 2, 1, 00, 00, 00, 00, loc)
 	end := time.Date(2021, 2, 3, 00, 00, 00, 00, loc)
 	tests := map[string]struct {
@@ -211,7 +211,7 @@ func TestAzureStorageBillingParser_parseCSV(t *testing.T) {
 
 func TestAzureStorageBillingParser_parseCSV_GzippedFile(t *testing.T) {
 	// Integration test with gzipped Azure billing export
-	loc, _ := time.LoadLocation("UTC")
+	loc := time.UTC // Use time.UTC constant instead of LoadLocation
 	start := time.Date(2024, 10, 1, 00, 00, 00, 00, loc)
 	end := time.Date(2024, 11, 30, 00, 00, 00, 00, loc)
 
@@ -266,7 +266,7 @@ func TestAzureStorageBillingParser_parseCSV_GzippedFile(t *testing.T) {
 
 func TestAzureStorageBillingParser_parseCSV_NonGzippedFile(t *testing.T) {
 	// Test backward compatibility with non-gzipped files
-	loc, _ := time.LoadLocation("UTC")
+	loc := time.UTC // Use time.UTC constant instead of LoadLocation
 	start := time.Date(2024, 10, 1, 00, 00, 00, 00, loc)
 	end := time.Date(2024, 11, 30, 00, 00, 00, 00, loc)
 
