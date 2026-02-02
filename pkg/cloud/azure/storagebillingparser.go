@@ -99,17 +99,18 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 				asbp.ConnectionStatus = cloud.FailedConnection
 				return err
 			}
-			defer fp.Close()
 
 			// Wrap with gzip reader if needed
 			reader, err := decompressIfGzipped(fp, blobName)
 			if err != nil {
+				fp.Close()
 				asbp.ConnectionStatus = cloud.FailedConnection
 				return err
 			}
-			defer reader.Close()
 
 			err = asbp.parseCSV(start, end, csv.NewReader(reader), resultFn)
+			reader.Close()
+			fp.Close()
 			if err != nil {
 				asbp.ConnectionStatus = cloud.ParseError
 				return err
@@ -131,9 +132,9 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 				asbp.ConnectionStatus = cloud.FailedConnection
 				return err2
 			}
-			defer reader.Close()
 
 			err2 = asbp.parseCSV(start, end, csv.NewReader(reader), resultFn)
+			reader.Close()
 			if err2 != nil {
 				asbp.ConnectionStatus = cloud.ParseError
 				return err2
