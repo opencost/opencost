@@ -138,7 +138,7 @@ type CustomPricing struct {
 	RegionNetworkEgress          string `json:"regionNetworkEgress"`
 	InternetNetworkEgress        string `json:"internetNetworkEgress"`
 	NatGatewayEgress             string `json:"natGatewayEgress"`
-	NatGatewayIngress            string `json:"nateGatewayIngress"`
+	NatGatewayIngress            string `json:"natGatewayIngress"`
 	FirstFiveForwardingRulesCost string `json:"firstFiveForwardingRulesCost"`
 	AdditionalForwardingRuleCost string `json:"additionalForwardingRuleCost"`
 	LBIngressDataCost            string `json:"LBIngressDataCost"`
