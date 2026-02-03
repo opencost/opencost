@@ -51,7 +51,6 @@ func decompressIfGzipped(r io.Reader, blobName string) (io.ReadCloser, error) {
 func (asbp *AzureStorageBillingParser) processLocalBillingFile(localFilePath, blobName string, start, end time.Time, resultFn AzureBillingResultFunc) error {
 	fp, err := os.Open(localFilePath)
 	if err != nil {
-		asbp.ConnectionStatus = cloud.ParseError
 		return err
 	}
 	defer fp.Close()
@@ -59,14 +58,12 @@ func (asbp *AzureStorageBillingParser) processLocalBillingFile(localFilePath, bl
 	// Wrap with gzip reader if needed
 	reader, err := decompressIfGzipped(fp, blobName)
 	if err != nil {
-		asbp.ConnectionStatus = cloud.ParseError
 		return err
 	}
 	defer reader.Close()
 
 	err = asbp.parseCSV(start, end, csv.NewReader(reader), resultFn)
 	if err != nil {
-		asbp.ConnectionStatus = cloud.ParseError
 		return err
 	}
 	return nil
@@ -77,14 +74,12 @@ func (asbp *AzureStorageBillingParser) processStreamBillingData(streamReader io.
 	// Wrap with gzip reader if needed
 	reader, err := decompressIfGzipped(streamReader, blobName)
 	if err != nil {
-		asbp.ConnectionStatus = cloud.ParseError
 		return err
 	}
 	defer reader.Close()
 
 	err = asbp.parseCSV(start, end, csv.NewReader(reader), resultFn)
 	if err != nil {
-		asbp.ConnectionStatus = cloud.ParseError
 		return err
 	}
 	return nil
@@ -139,6 +134,7 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 
 			err = asbp.processLocalBillingFile(localFilePath, blobName, start, end, resultFn)
 			if err != nil {
+				asbp.ConnectionStatus = cloud.ParseError
 				return err
 			}
 		}
@@ -153,6 +149,7 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 
 			err = asbp.processStreamBillingData(streamReader, blobName, start, end, resultFn)
 			if err != nil {
+				asbp.ConnectionStatus = cloud.ParseError
 				return err
 			}
 		}
