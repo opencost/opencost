@@ -47,6 +47,36 @@ func decompressIfGzipped(r io.Reader, blobName string) (io.ReadCloser, error) {
 	return io.NopCloser(r), nil
 }
 
+// processLocalBillingFile reads a local billing file, decompresses if needed, and parses it
+func (asbp *AzureStorageBillingParser) processLocalBillingFile(localFilePath, blobName string, start, end time.Time, resultFn AzureBillingResultFunc) error {
+	fp, err := os.Open(localFilePath)
+	if err != nil {
+		return err
+	}
+	defer fp.Close()
+
+	// Wrap with gzip reader if needed
+	reader, err := decompressIfGzipped(fp, blobName)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	return asbp.parseCSV(start, end, csv.NewReader(reader), resultFn)
+}
+
+// processStreamBillingData reads streaming billing data, decompresses if needed, and parses it
+func (asbp *AzureStorageBillingParser) processStreamBillingData(streamReader io.Reader, blobName string, start, end time.Time, resultFn AzureBillingResultFunc) error {
+	// Wrap with gzip reader if needed
+	reader, err := decompressIfGzipped(streamReader, blobName)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	return asbp.parseCSV(start, end, csv.NewReader(reader), resultFn)
+}
+
 type AzureBillingResultFunc func(*BillingRowValues) error
 
 func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, resultFn AzureBillingResultFunc) error {
@@ -83,74 +113,35 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 			log.Warnf("CloudCost: Azure: ParseBillingData: failed to remove the following stale files: %v", err)
 		}
 		for _, blob := range blobInfos {
-			// Use anonymous function with defer to ensure cleanup at end of each iteration
-			err := func() error {
-				blobName := *blob.Name
+			blobName := *blob.Name
 
-				// Use entire blob name to prevent collision with other files from previous months or other integrations (ex "part_0_0001.csv")
-				localFilePath := filepath.Join(localPath, strings.ReplaceAll(blobName, "/", "_"))
+			// Use entire blob name to prevent collision with other files from previous months or other integrations (ex "part_0_0001.csv")
+			localFilePath := filepath.Join(localPath, strings.ReplaceAll(blobName, "/", "_"))
 
-				err := asbp.DownloadBlobToFile(localFilePath, blob, client, ctx)
-				if err != nil {
-					asbp.ConnectionStatus = cloud.FailedConnection
-					return err
-				}
-
-				fp, err := os.Open(localFilePath)
-				if err != nil {
-					asbp.ConnectionStatus = cloud.FailedConnection
-					return err
-				}
-				defer fp.Close()
-
-				// Wrap with gzip reader if needed
-				reader, err := decompressIfGzipped(fp, blobName)
-				if err != nil {
-					asbp.ConnectionStatus = cloud.FailedConnection
-					return err
-				}
-				defer reader.Close()
-
-				err = asbp.parseCSV(start, end, csv.NewReader(reader), resultFn)
-				if err != nil {
-					asbp.ConnectionStatus = cloud.ParseError
-					return err
-				}
-
-				return nil
-			}()
+			err := asbp.DownloadBlobToFile(localFilePath, blob, client, ctx)
 			if err != nil {
+				asbp.ConnectionStatus = cloud.FailedConnection
+				return err
+			}
+
+			err = asbp.processLocalBillingFile(localFilePath, blobName, start, end, resultFn)
+			if err != nil {
+				asbp.ConnectionStatus = cloud.FailedConnection
 				return err
 			}
 		}
 	} else {
 		for _, blobInfo := range blobInfos {
-			// Use anonymous function with defer to ensure cleanup at end of each iteration
-			err := func() error {
-				blobName := *blobInfo.Name
-				streamReader, err := asbp.StreamBlob(blobName, client)
-				if err != nil {
-					asbp.ConnectionStatus = cloud.FailedConnection
-					return err
-				}
-
-				// Wrap with gzip reader if needed
-				reader, err := decompressIfGzipped(streamReader, blobName)
-				if err != nil {
-					asbp.ConnectionStatus = cloud.FailedConnection
-					return err
-				}
-				defer reader.Close()
-
-				err = asbp.parseCSV(start, end, csv.NewReader(reader), resultFn)
-				if err != nil {
-					asbp.ConnectionStatus = cloud.ParseError
-					return err
-				}
-
-				return nil
-			}()
+			blobName := *blobInfo.Name
+			streamReader, err := asbp.StreamBlob(blobName, client)
 			if err != nil {
+				asbp.ConnectionStatus = cloud.FailedConnection
+				return err
+			}
+
+			err = asbp.processStreamBillingData(streamReader, blobName, start, end, resultFn)
+			if err != nil {
+				asbp.ConnectionStatus = cloud.FailedConnection
 				return err
 			}
 		}
