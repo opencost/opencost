@@ -1325,7 +1325,7 @@ func (pds *PrometheusMetricsQuerier) QueryNetNatGatewayIngressPricePerGiB(start,
 	return source.NewFuture(source.DecodeNetNatGatewayPricePerGiBResult, ctx.QueryAtTime(queryNetNatGatewayIngressPricePerGiB, end))
 }
 
-func (pds *PrometheusMetricsQuerier) QueryNetNatGatewayIngressGiB(start, end time.Time) *source.Future[source.NetNatGatewayGiBResult] {
+func (pds *PrometheusMetricsQuerier) QueryNetNatGatewayIngressGiB(start, end time.Time) *source.Future[source.NetNatGatewayIngressGiBResult] {
 	const queryName = "QueryNetNatGatewayIngressGiB"
 	const queryFmtNetNatGatewayIngressGiB = `sum(increase(kubecost_pod_network_ingress_bytes_total{nat_gateway="true", %s}[%s:%dm])) by (pod_name, namespace, service, uid, %s) / 1024 / 1024 / 1024`
 
