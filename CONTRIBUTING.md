@@ -97,7 +97,7 @@ Before submitting a pull request, ensure your code is properly formatted:
 # Format all Go code
 go fmt ./...
 
-# Or use just commands
+# Or use just command
 just fmt
 ```
 
@@ -134,7 +134,7 @@ By contributing to this project, you certify that your contribution was created 
 
 Please write a commit message with Fixes Issue # if there is an outstanding issue that is fixed. It's okay to submit a PR without a corresponding issue; just please try to be detailed in the description of the problem you're addressing.
 
-**Code Formatting:** All code must be formatted with `go fmt ./...` before submitting. The CI pipeline will reject PRs with unformatted code. You can run `just fmt-check` to verify formatting locally.
+**Code Formatting:** All code must be formatted with `go fmt ./...` (or `just fmt`) before submitting. The CI pipeline will reject PRs with unformatted code. You can run `just fmt-check` to verify formatting locally.
 
 **Code Quality:** While lint warnings are acceptable in some cases (e.g., comments on exported functions are nice but not strictly required), please address any critical issues reported by `go vet`.
 

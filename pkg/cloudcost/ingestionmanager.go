@@ -61,7 +61,7 @@ func (im *IngestionManager) SetConfigs(configs map[string]cloud.KeyedConfig) {
 	im.lock.Lock()
 	defer im.lock.Unlock()
 	// delete any exiting ingestors
-	for key, _ := range im.ingestors {
+	for key := range im.ingestors {
 		im.deleteIngestor(key)
 	}
 	// create  ingestors for provided

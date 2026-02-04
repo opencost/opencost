@@ -12,16 +12,18 @@ fmt:
 
 # check if code is formatted
 fmt-check:
-    @echo "Checking code formatting..."
-    @unformatted=$$(gofmt -l .); \
-    if [ -n "$$unformatted" ]; then \
-        echo "The following files are not formatted:"; \
-        echo "$$unformatted"; \
-        echo ""; \
-        echo "Run 'just fmt' to format your code"; \
-        exit 1; \
-    else \
-        echo "All files are properly formatted"; \
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Checking code formatting..."
+    unformatted=$(gofmt -l .)
+    if [ -n "$unformatted" ]; then
+        echo "The following files are not formatted:"
+        echo "$unformatted"
+        echo ""
+        echo "Run 'just fmt' to format your code"
+        exit 1
+    else
+        echo "All files are properly formatted"
     fi
 
 # run core unit tests

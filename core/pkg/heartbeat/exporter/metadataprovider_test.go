@@ -10,7 +10,7 @@ import (
 type MockClusterInfoProvider struct{}
 
 var (
-	logLevel = "trace"
+	logLevel    = "trace"
 	ClusterInfo = map[string]string{
 		clusters.ClusterInfoIdKey:       "test-cluster-id",
 		clusters.ClusterInfoNameKey:     "test-cluster-name",
