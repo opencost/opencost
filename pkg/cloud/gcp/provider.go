@@ -759,9 +759,8 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 
 				gpuType := NormalizeGPULabel(product.Description)
 				if gpuType != "" {
-				    log.Debugf("GCP Billing API: normalized GPU type: %q", gpuType)
+					log.Debugf("GCP Billing API: normalized GPU type: %q", gpuType)
 				}
-
 
 				candidateKeys := []string{}
 				if gcp.ValidPricingKeys == nil {

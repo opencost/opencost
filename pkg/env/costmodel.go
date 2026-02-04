@@ -34,7 +34,7 @@ const (
 
 	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
 	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
-	
+
 	// Azure rate card filter environment variables
 	AzureLocaleEnvVar     = "AZURE_LOCALE"
 	AzureCurrencyEnvVar   = "AZURE_CURRENCY"

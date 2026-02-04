@@ -11,31 +11,31 @@ import (
 
 func TestSelectAuthorizerByType(t *testing.T) {
 	tests := []struct {
-		name        string
+		name           string
 		authorizerType string
-		expectError bool
+		expectError    bool
 	}{
 		{
-			name:        "ServiceAccountKey type",
+			name:           "ServiceAccountKey type",
 			authorizerType: ServiceAccountKeyAuthorizerType,
-			expectError: false,
+			expectError:    false,
 		},
 		{
-			name:        "WorkloadIdentity type",
+			name:           "WorkloadIdentity type",
 			authorizerType: WorkloadIdentityAuthorizerType,
-			expectError: false,
+			expectError:    false,
 		},
 		{
-			name:        "Invalid type",
+			name:           "Invalid type",
 			authorizerType: "InvalidType",
-			expectError: true,
+			expectError:    true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			authorizer, err := SelectAuthorizerByType(tt.authorizerType)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, authorizer)
@@ -50,7 +50,7 @@ func TestSelectAuthorizerByType(t *testing.T) {
 func TestServiceAccountKey_MarshalJSON(t *testing.T) {
 	key := &ServiceAccountKey{
 		Key: map[string]string{
-			"type": "service_account",
+			"type":       "service_account",
 			"project_id": "test-project",
 		},
 	}
@@ -95,7 +95,7 @@ func TestServiceAccountKey_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			saKey := &ServiceAccountKey{Key: tt.key}
 			err := saKey.Validate()
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
@@ -160,7 +160,7 @@ func TestServiceAccountKey_Equals(t *testing.T) {
 func TestServiceAccountKey_Sanitize(t *testing.T) {
 	key := &ServiceAccountKey{
 		Key: map[string]string{
-			"type": "service_account",
+			"type":        "service_account",
 			"private_key": "secret-key",
 		},
 	}
@@ -200,7 +200,7 @@ func TestServiceAccountKey_CreateGCPClientOptions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			saKey := &ServiceAccountKey{Key: tt.key}
 			options, err := saKey.CreateGCPClientOptions()
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, options)
@@ -274,7 +274,7 @@ func TestWorkloadIdentity_Equals(t *testing.T) {
 func TestWorkloadIdentity_Sanitize(t *testing.T) {
 	wi := &WorkloadIdentity{}
 	sanitized := wi.Sanitize()
-	
+
 	_, ok := sanitized.(*WorkloadIdentity)
 	assert.True(t, ok)
 }
@@ -282,7 +282,7 @@ func TestWorkloadIdentity_Sanitize(t *testing.T) {
 func TestWorkloadIdentity_CreateGCPClientOptions(t *testing.T) {
 	wi := &WorkloadIdentity{}
 	options, err := wi.CreateGCPClientOptions()
-	
+
 	assert.NoError(t, err)
 	assert.NotNil(t, options)
 	assert.Len(t, options, 0)
