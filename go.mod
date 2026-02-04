@@ -49,7 +49,7 @@ require (
 	github.com/prometheus/client_model v0.6.2
 	github.com/rs/cors v1.11.1
 	github.com/rs/zerolog v1.26.1
-	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.9
+	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.36
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.11.1
