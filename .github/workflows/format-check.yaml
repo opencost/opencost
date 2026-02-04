@@ -1,0 +1,28 @@
+name: Format Check
+
+on:
+  pull_request:
+    branches:
+      - develop
+  merge_group:
+    types: [checks_requested]
+
+permissions:
+  contents: read
+
+jobs:
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+
+      - name: Check formatting
+        run: just fmt-check
