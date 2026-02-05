@@ -245,12 +245,13 @@ func NewContainerMetricFrom(result *source.ContainerMetricResult, defaultCluster
 }
 
 /*
+- contain at least 1 character
 - contain no more than 253 characters
 - contain only lowercase alphanumeric characters, '-' or '.'
 - start with an alphanumeric character
 - end with an alphanumeric character
 */
-var nodeNameRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9\-\.]+[a-z0-9]$`)
+var nodeNameRegex = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9\-\.]*[a-z0-9])?$`)
 
 // isValidNodeName determines if the nodeName provided is valid according to DNS subdomain
 // specifications: RFC 1123
