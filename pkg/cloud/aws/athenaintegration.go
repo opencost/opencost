@@ -74,7 +74,7 @@ func (ai *AthenaIntegration) GetCloudCost(start, end time.Time) (*opencost.Cloud
 
 func (ai *AthenaIntegration) RefreshStatus() cloud.ConnectionStatus {
 	end := time.Now().UTC().Truncate(timeutil.Day)
-	start := end.Add(-2 * timeutil.Day) // lookback 48 hours
+	start := end.Add(-3 * timeutil.Day) // lookback 72 hours
 
 	// getCloudCost already sets ConnectionStatus in the event there is no error, so we don't need to handle the positive
 	// case here
