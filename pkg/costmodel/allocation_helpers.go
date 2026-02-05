@@ -1863,23 +1863,60 @@ func applyNodeDiscount(nodeMap map[nodeKey]*nodePricing, cm *CostModel) {
 		return
 	}
 
+	// Debug: Log discount config values
+	log.Debugf("applyNodeDiscount: Config Discount=%s, NegotiatedDiscount=%s, SpotDiscount=%s, SpotNegotiatedDiscount=%s",
+		c.Discount, c.NegotiatedDiscount, c.SpotDiscount, c.SpotNegotiatedDiscount)
+
+	// Parse on-demand discounts
 	discount, err := ParsePercentString(c.Discount)
 	if err != nil {
-		log.Errorf("CostModel.ComputeAllocation: applyNodeDiscount: %s", err)
+		log.Errorf("CostModel.ComputeAllocation: applyNodeDiscount: failed to parse discount: %s", err)
 		return
 	}
 
 	negotiatedDiscount, err := ParsePercentString(c.NegotiatedDiscount)
 	if err != nil {
-		log.Errorf("CostModel.ComputeAllocation: applyNodeDiscount: %s", err)
+		log.Errorf("CostModel.ComputeAllocation: applyNodeDiscount: failed to parse negotiatedDiscount: %s", err)
 		return
 	}
 
+	// Parse spot-specific discounts (fallback to 0 if not configured)
+	spotDiscount, err := ParsePercentString(c.SpotDiscount)
+	if err != nil {
+		log.Warnf("CostModel.ComputeAllocation: applyNodeDiscount: failed to parse spotDiscount: %s", err)
+		spotDiscount = 0
+	}
+
+	spotNegotiatedDiscount, err := ParsePercentString(c.SpotNegotiatedDiscount)
+	if err != nil {
+		log.Warnf("CostModel.ComputeAllocation: applyNodeDiscount: failed to parse spotNegotiatedDiscount: %s", err)
+		spotNegotiatedDiscount = 0
+	}
+
+	// Debug: Log parsed discount values
+	log.Debugf("applyNodeDiscount: Parsed discount=%.4f (%.2f%%), negotiatedDiscount=%.4f (%.2f%%), spotDiscount=%.4f (%.2f%%), spotNegotiatedDiscount=%.4f (%.2f%%)",
+		discount, discount*100, negotiatedDiscount, negotiatedDiscount*100, spotDiscount, spotDiscount*100, spotNegotiatedDiscount, spotNegotiatedDiscount*100)
+
 	for _, node := range nodeMap {
+		// Use spot-specific discounts for preemptible/spot nodes
+		var effectiveDiscount, effectiveNegotiatedDiscount float64
+		if node.Preemptible {
+			effectiveDiscount = spotDiscount
+			effectiveNegotiatedDiscount = spotNegotiatedDiscount
+		} else {
+			effectiveDiscount = discount
+			effectiveNegotiatedDiscount = negotiatedDiscount
+		}
+
 		// TODO GKE Reserved Instances into account
-		node.Discount = cm.Provider.CombinedDiscountForNode(node.NodeType, node.Preemptible, discount, negotiatedDiscount)
+		node.Discount = cm.Provider.CombinedDiscountForNode(node.NodeType, node.Preemptible, effectiveDiscount, effectiveNegotiatedDiscount)
+		originalCPUCost := node.CostPerCPUHr
+		originalRAMCost := node.CostPerRAMGiBHr
 		node.CostPerCPUHr *= (1.0 - node.Discount)
 		node.CostPerRAMGiBHr *= (1.0 - node.Discount)
+		// Debug: Log discount application per node
+		log.Debugf("applyNodeDiscount: Node=%s, NodeType=%s, Preemptible=%t, CombinedDiscount=%.4f (%.2f%%), CostPerCPUHr: %.6f -> %.6f, CostPerRAMGiBHr: %.6f -> %.6f",
+			node.Name, node.NodeType, node.Preemptible, node.Discount, node.Discount*100, originalCPUCost, node.CostPerCPUHr, originalRAMCost, node.CostPerRAMGiBHr)
 	}
 }
 

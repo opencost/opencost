@@ -509,6 +509,10 @@ func (aws *AWS) GetAWSAthenaInfo() (*AwsAthenaInfo, error) {
 		return nil, fmt.Errorf("could not retrieve AwsAthenaInfo %s", err)
 	}
 
+	// Debug: Log the AthenaProjectID from config
+	log.Debugf("GetAWSAthenaInfo: config.AthenaProjectID=%s, AthenaBucketName=%s, AthenaRegion=%s, AthenaDatabase=%s, AthenaTable=%s",
+		config.AthenaProjectID, config.AthenaBucketName, config.AthenaRegion, config.AthenaDatabase, config.AthenaTable)
+
 	aak, err := aws.GetAWSAccessKey()
 	if err != nil {
 		return nil, err
@@ -1405,6 +1409,9 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 		}
 	} else if sp, ok := aws.savingsPlanPricing(k.ID()); ok {
 		strCost := fmt.Sprintf("%f", sp.EffectiveCost)
+		// Debug: Log when using Savings Plan pricing for a node
+		log.Debugf("createNode: Using SavingsPlan pricing for node=%s, EffectiveCost=%s (OnDemand would be: %s)",
+			k.ID(), strCost, cost)
 		return &models.Node{
 			Cost:         strCost,
 			VCPU:         terms.VCpu,
@@ -2084,6 +2091,8 @@ func (aws *AWS) QueryAthenaPaginated(ctx context.Context, query string, fn func(
 	}
 	if awsAthenaInfo.AthenaDatabase == "" || awsAthenaInfo.AthenaTable == "" || awsAthenaInfo.AthenaRegion == "" ||
 		awsAthenaInfo.AthenaBucketName == "" || awsAthenaInfo.AccountID == "" {
+		log.Debugf("AthenaDatabase: %s, AthenaTable: %s, AthenaRegion: %s, AthenaBucketName: %s, AccountID: %s",
+			awsAthenaInfo.AthenaDatabase, awsAthenaInfo.AthenaTable, awsAthenaInfo.AthenaRegion, awsAthenaInfo.AthenaBucketName, awsAthenaInfo.AccountID)
 		return fmt.Errorf("QueryAthenaPaginated: athena configuration incomplete")
 	}
 
@@ -2148,16 +2157,21 @@ type SavingsPlanData struct {
 }
 
 func (aws *AWS) GetSavingsPlanDataFromAthena() error {
+	log.Debugf("GetSavingsPlanDataFromAthena: Starting Savings Plan data fetch from Athena")
 	cfg, err := aws.GetConfig()
 	if err != nil {
 		aws.RIPricingError = err
+		log.Errorf("GetSavingsPlanDataFromAthena: Failed to get config: %s", err.Error())
 		return err
 	}
 	if cfg.AthenaBucketName == "" {
 		err = ErrNoAthenaBucket
 		aws.RIPricingError = err
+		log.Debugf("GetSavingsPlanDataFromAthena: No AthenaBucketName configured")
 		return err
 	}
+	log.Debugf("GetSavingsPlanDataFromAthena: AthenaBucketName=%s, AthenaDatabase=%s, AthenaTable=%s",
+		cfg.AthenaBucketName, cfg.AthenaDatabase, cfg.AthenaTable)
 	if aws.SavingsPlanDataByInstanceID == nil {
 		aws.SavingsPlanDataByInstanceID = make(map[string]*SavingsPlanData)
 	}

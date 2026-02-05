@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.25.3-alpine3.21 AS build-env
+FROM --platform=$BUILDPLATFORM golang:1.25.5-alpine3.21 AS build-env
 
 WORKDIR /app
 

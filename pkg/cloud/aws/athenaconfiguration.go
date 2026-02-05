@@ -3,6 +3,7 @@ package aws
 import (
 	"fmt"
 
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud"
@@ -219,6 +220,10 @@ func (ac *AthenaConfiguration) UnmarshalJSON(b []byte) error {
 // ConvertAwsAthenaInfoToConfig takes a legacy config and generates a Config based on the presence of properties to match
 // legacy behavior
 func ConvertAwsAthenaInfoToConfig(aai AwsAthenaInfo) cloud.KeyedConfig {
+	// Debug: Log incoming AwsAthenaInfo
+	log.Debugf("ConvertAwsAthenaInfoToConfig: AccountID=%s, AthenaBucketName=%s, AthenaRegion=%s, AthenaDatabase=%s, AthenaTable=%s",
+		aai.AccountID, aai.AthenaBucketName, aai.AthenaRegion, aai.AthenaDatabase, aai.AthenaTable)
+
 	if aai.IsEmpty() {
 		return nil
 	}

@@ -927,6 +927,10 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 			}
 		}
 
+		// Debug: Log node pricing details including source and usage type
+		log.Debugf("GetNodeCost: node=%s, providerID=%s, Cost=%s, VCPUCost=%s, RAMCost=%s, UsageType=%s, PricingType=%s",
+			name, n.SpecProviderID, cnode.Cost, cnode.VCPUCost, cnode.RAMCost, cnode.UsageType, cnode.PricingType)
+
 		pmd.PricingTypeCounts[cnode.PricingType]++
 
 		// newCnode builds upon cnode but populates/overrides certain fields.
@@ -1289,6 +1293,118 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 	}
 	cm.pricingMetadata = pmd
 	cp.ApplyReservedInstancePricing(nodes)
+
+	// Apply discount to node costs for metrics
+	// This ensures Prometheus metrics reflect the configured discount
+	// OnDemand discount (applies to non-spot nodes)
+	onDemandDiscount := 1.0
+	if cfg.Discount != "" {
+		discountParsed, err := ParsePercentString(cfg.Discount)
+		if err != nil {
+			log.Warnf("GetNodeCost: Failed to parse discount '%s': %v", cfg.Discount, err)
+		} else {
+			onDemandDiscount = onDemandDiscount * (1.0 - discountParsed)
+			log.Debugf("GetNodeCost: Parsed onDemand discount=%f, multiplier=%f", discountParsed, onDemandDiscount)
+		}
+	}
+	if cfg.NegotiatedDiscount != "" {
+		negDiscountParsed, err := ParsePercentString(cfg.NegotiatedDiscount)
+		if err != nil {
+			log.Warnf("GetNodeCost: Failed to parse negotiatedDiscount '%s': %v", cfg.NegotiatedDiscount, err)
+		} else {
+			onDemandDiscount = onDemandDiscount * (1.0 - negDiscountParsed)
+			log.Debugf("GetNodeCost: Parsed negotiatedDiscount=%f, combined onDemand multiplier=%f", negDiscountParsed, onDemandDiscount)
+		}
+	}
+
+	// Spot discount (applies to spot nodes)
+	spotDiscount := 1.0
+	if cfg.SpotDiscount != "" {
+		spotDiscountParsed, err := ParsePercentString(cfg.SpotDiscount)
+		if err != nil {
+			log.Warnf("GetNodeCost: Failed to parse spotDiscount '%s': %v", cfg.SpotDiscount, err)
+		} else {
+			spotDiscount = spotDiscount * (1.0 - spotDiscountParsed)
+			log.Debugf("GetNodeCost: Parsed spotDiscount=%f, multiplier=%f", spotDiscountParsed, spotDiscount)
+		}
+	}
+	if cfg.SpotNegotiatedDiscount != "" {
+		spotNegDiscountParsed, err := ParsePercentString(cfg.SpotNegotiatedDiscount)
+		if err != nil {
+			log.Warnf("GetNodeCost: Failed to parse spotNegotiatedDiscount '%s': %v", cfg.SpotNegotiatedDiscount, err)
+		} else {
+			spotDiscount = spotDiscount * (1.0 - spotNegDiscountParsed)
+			log.Debugf("GetNodeCost: Parsed spotNegotiatedDiscount=%f, combined spot multiplier=%f", spotNegDiscountParsed, spotDiscount)
+		}
+	}
+
+	log.Infof("GetNodeCost: OnDemand discount multiplier=%f, Spot discount multiplier=%f", onDemandDiscount, spotDiscount)
+
+	for name, node := range nodes {
+		// Determine which discount to apply based on whether node is spot
+		discount := onDemandDiscount
+		nodeType := "ondemand"
+		if node.IsSpot() {
+			discount = spotDiscount
+			nodeType = "spot"
+		}
+
+		if discount == 1.0 {
+			log.Debugf("GetNodeCost: node=%s type=%s no discount to apply", name, nodeType)
+			continue
+		}
+
+		log.Debugf("GetNodeCost: node=%s type=%s applying discount multiplier %f", name, nodeType, discount)
+
+		// Apply discount to VCPUCost
+		if node.VCPUCost != "" {
+			vcpuCost, err := strconv.ParseFloat(node.VCPUCost, 64)
+			if err != nil {
+				log.Warnf("GetNodeCost: node=%s failed to parse VCPUCost '%s': %v", name, node.VCPUCost, err)
+			} else {
+				originalVCPU := vcpuCost
+				vcpuCost = vcpuCost * discount
+				node.VCPUCost = fmt.Sprintf("%f", vcpuCost)
+				log.Debugf("GetNodeCost: node=%s VCPUCost %f -> %f", name, originalVCPU, vcpuCost)
+			}
+		}
+		// Apply discount to RAMCost
+		if node.RAMCost != "" {
+			ramCost, err := strconv.ParseFloat(node.RAMCost, 64)
+			if err != nil {
+				log.Warnf("GetNodeCost: node=%s failed to parse RAMCost '%s': %v", name, node.RAMCost, err)
+			} else {
+				originalRAM := ramCost
+				ramCost = ramCost * discount
+				node.RAMCost = fmt.Sprintf("%f", ramCost)
+				log.Debugf("GetNodeCost: node=%s RAMCost %f -> %f", name, originalRAM, ramCost)
+			}
+		}
+		// Apply discount to GPUCost
+		if node.GPUCost != "" {
+			gpuCost, err := strconv.ParseFloat(node.GPUCost, 64)
+			if err != nil {
+				log.Warnf("GetNodeCost: node=%s failed to parse GPUCost '%s': %v", name, node.GPUCost, err)
+			} else {
+				originalGPU := gpuCost
+				gpuCost = gpuCost * discount
+				node.GPUCost = fmt.Sprintf("%f", gpuCost)
+				log.Debugf("GetNodeCost: node=%s GPUCost %f -> %f", name, originalGPU, gpuCost)
+			}
+		}
+		// Apply discount to total Cost
+		if node.Cost != "" {
+			totalCost, err := strconv.ParseFloat(node.Cost, 64)
+			if err != nil {
+				log.Warnf("GetNodeCost: node=%s failed to parse Cost '%s': %v", name, node.Cost, err)
+			} else {
+				originalCost := totalCost
+				totalCost = totalCost * discount
+				node.Cost = fmt.Sprintf("%f", totalCost)
+				log.Debugf("GetNodeCost: node=%s Cost %f -> %f", name, originalCost, totalCost)
+			}
+		}
+	}
 
 	return nodes, nil
 }
