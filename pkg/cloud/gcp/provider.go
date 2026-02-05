@@ -1088,7 +1088,7 @@ func (gcp *GCP) DownloadPricingData() error {
 
 	reserved, err := gcp.getReservedInstances()
 	if err != nil {
-		log.Errorf("Failed to lookup reserved instance data: %s", err.Error())
+		log.Warnf("Failed to lookup reserved instance data: %s", err.Error())
 	} else {
 		gcp.ReservedInstances = reserved
 
