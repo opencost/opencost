@@ -2839,14 +2839,6 @@ func (a *Allocation) SanitizeNaN() {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for ExternalCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
 		a.ExternalCost = 0
 	}
-	if math.IsNaN(a.NetworkNatGatewayEgressCost) {
-		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkNatGatewayEgressCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
-		a.NetworkNatGatewayEgressCost = 0
-	}
-	if math.IsNaN(a.NetworkNatGatewayIngressCost) {
-		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkNatGatewayIngressCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
-		a.NetworkNatGatewayIngressCost = 0
-	}
 
 	a.PVs.SanitizeNaN()
 	a.RawAllocationOnly.SanitizeNaN()
