@@ -759,9 +759,8 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 
 				gpuType := NormalizeGPULabel(product.Description)
 				if gpuType != "" {
-				    log.Debugf("GCP Billing API: normalized GPU type: %q", gpuType)
+					log.Debugf("GCP Billing API: normalized GPU type: %q", gpuType)
 				}
-
 
 				candidateKeys := []string{}
 				if gcp.ValidPricingKeys == nil {
@@ -1089,7 +1088,7 @@ func (gcp *GCP) DownloadPricingData() error {
 
 	reserved, err := gcp.getReservedInstances()
 	if err != nil {
-		log.Errorf("Failed to lookup reserved instance data: %s", err.Error())
+		log.Warnf("Failed to lookup reserved instance data: %s", err.Error())
 	} else {
 		gcp.ReservedInstances = reserved
 
