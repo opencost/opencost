@@ -936,7 +936,7 @@ func (aws *AWS) DownloadPricingData() error {
 			if errors.Is(err, ErrNoAthenaBucket) {
 				log.Debugf("No \"athenaBucketName\" configured, ReservedInstanceData watcher will not run")
 			} else {
-				log.Errorf("Failed to lookup reserved instance data: %s", err.Error())
+				log.Warnf("Failed to lookup reserved instance data: %s", err.Error())
 			}
 		} else { // If we make one successful run, check on new reservation data every hour
 			go func() {
