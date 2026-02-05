@@ -760,6 +760,8 @@ func (a *Allocation) Clone() *Allocation {
 		NetworkCrossZoneCost:           a.NetworkCrossZoneCost,
 		NetworkCrossRegionCost:         a.NetworkCrossRegionCost,
 		NetworkInternetCost:            a.NetworkInternetCost,
+		NetworkNatGatewayEgressCost:    a.NetworkNatGatewayEgressCost,
+		NetworkNatGatewayIngressCost:   a.NetworkNatGatewayIngressCost,
 		NetworkCostAdjustment:          a.NetworkCostAdjustment,
 		LoadBalancerCost:               a.LoadBalancerCost,
 		LoadBalancerCostAdjustment:     a.LoadBalancerCostAdjustment,
@@ -848,6 +850,12 @@ func (a *Allocation) Equal(that *Allocation) bool {
 		return false
 	}
 	if !util.IsApproximately(a.NetworkInternetCost, that.NetworkInternetCost) {
+		return false
+	}
+	if !util.IsApproximately(a.NetworkNatGatewayEgressCost, that.NetworkNatGatewayEgressCost) {
+		return false
+	}
+	if !util.IsApproximately(a.NetworkNatGatewayIngressCost, that.NetworkNatGatewayIngressCost) {
 		return false
 	}
 	if !util.IsApproximately(a.NetworkCostAdjustment, that.NetworkCostAdjustment) {
@@ -1412,6 +1420,8 @@ func (a *Allocation) add(that *Allocation) {
 	a.NetworkCrossZoneCost += that.NetworkCrossZoneCost
 	a.NetworkCrossRegionCost += that.NetworkCrossRegionCost
 	a.NetworkInternetCost += that.NetworkInternetCost
+	a.NetworkNatGatewayEgressCost += that.NetworkNatGatewayEgressCost
+	a.NetworkNatGatewayIngressCost += that.NetworkNatGatewayIngressCost
 	a.LoadBalancerCost += that.LoadBalancerCost
 	a.SharedCost += that.SharedCost
 	a.ExternalCost += that.ExternalCost
@@ -2768,6 +2778,14 @@ func (a *Allocation) SanitizeNaN() {
 	if math.IsNaN(a.NetworkInternetCost) {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkInternetCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
 		a.NetworkInternetCost = 0
+	}
+	if math.IsNaN(a.NetworkNatGatewayEgressCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkNatGatewayEgressCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkNatGatewayEgressCost = 0
+	}
+	if math.IsNaN(a.NetworkNatGatewayIngressCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkNatGatewayIngressCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkNatGatewayIngressCost = 0
 	}
 	if math.IsNaN(a.NetworkCostAdjustment) {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
