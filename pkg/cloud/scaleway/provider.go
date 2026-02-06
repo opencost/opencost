@@ -176,6 +176,8 @@ func (c *Scaleway) NetworkPricing() (*models.Network, error) {
 		ZoneNetworkEgressCost:     0,
 		RegionNetworkEgressCost:   0,
 		InternetNetworkEgressCost: 0,
+		NatGatewayEgressCost:      0,
+		NatGatewayIngressCost:     0,
 	}, nil
 }
 

@@ -103,6 +103,8 @@ func (rcs *RateCardStore) ForEgressRegion(region string, defaultPricing DefaultP
 		ZoneNetworkEgressCost:     0,
 		RegionNetworkEgressCost:   egressCost,
 		InternetNetworkEgressCost: egressCost,
+		NatGatewayEgressCost:      0,
+		NatGatewayIngressCost:     0,
 	}, nil
 }
 

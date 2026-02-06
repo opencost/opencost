@@ -3734,6 +3734,8 @@ func getMockAllocation(f float64) Allocation {
 		NetworkCrossRegionCost:         f,
 		NetworkInternetCost:            f,
 		NetworkCostAdjustment:          f,
+		NetworkNatGatewayEgressCost:    f,
+		NetworkNatGatewayIngressCost:   f,
 		LoadBalancerCost:               f,
 		LoadBalancerCostAdjustment:     f,
 		PVs:                            PVAllocations{{Cluster: "testPV", Name: "PVName"}: getMockPVAllocation(math.NaN())},
