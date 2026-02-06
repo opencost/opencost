@@ -1284,11 +1284,21 @@ func (az *Azure) NetworkPricing() (*models.Network, error) {
 	if err != nil {
 		return nil, err
 	}
+	nge, err := strconv.ParseFloat(cpricing.NatGatewayEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+	ngi, err := strconv.ParseFloat(cpricing.NatGatewayIngress, 64)
+	if err != nil {
+		return nil, err
+	}
 
 	return &models.Network{
 		ZoneNetworkEgressCost:     znec,
 		RegionNetworkEgressCost:   rnec,
 		InternetNetworkEgressCost: inec,
+		NatGatewayEgressCost:      nge,
+		NatGatewayIngressCost:     ngi,
 	}, nil
 }
 

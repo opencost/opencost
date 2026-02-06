@@ -1,9 +1,11 @@
 {
-  "provider":"Oracle",
+  "provider": "Oracle",
   "CPU": "0.015",
   "RAM": "0.002",
   "GPU": "2.00",
   "storage": "0.00005479452",
   "defaultLBPrice": "0.0113",
-  "internetNetworkEgress": "0.0085"
+  "internetNetworkEgress": "0.0085",
+  "natGatewayEgress": "0.045",
+  "natGatewayIngress": "0.045"
 }
