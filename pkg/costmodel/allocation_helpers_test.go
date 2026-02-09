@@ -23,6 +23,7 @@ var windowEnd = time.Date(2020, 6, 17, 0, 0, 0, 0, time.UTC)
 var window = opencost.NewWindow(&windowStart, &windowEnd)
 
 var startFloat = float64(windowStart.Unix())
+var endFloat = float64(windowEnd.Unix())
 
 var podKey1 = podKey{
 	namespaceKey: namespaceKey{
@@ -564,8 +565,8 @@ func TestCalculateStartAndEnd(t *testing.T) {
 		"1 minute resolution, 1 minute window": {
 			resolution:    time.Minute,
 			window:        opencost.NewClosedWindow(windowStart.Add(time.Minute*14).Add(time.Second*30), windowStart.Add(time.Minute*15).Add(time.Second*30)),
-			expectedStart: windowStart.Add(time.Minute * 14).Add(time.Second * 30),
-			expectedEnd:   windowStart.Add(time.Minute * 15).Add(time.Second * 30),
+			expectedStart: windowStart.Add(time.Minute * 15),
+			expectedEnd:   windowStart.Add(time.Minute * 16),
 			result: &source.QueryResult{
 				Values: []*util.Vector{
 					{
@@ -577,13 +578,41 @@ func TestCalculateStartAndEnd(t *testing.T) {
 		// Example: avg(node_total_hourly_cost{}) by (node, provider_id)[1m:1m]
 		"1 minute resolution, 1 minute window, at window start": {
 			resolution:    time.Minute,
-			window:        opencost.NewClosedWindow(windowStart, windowStart.Add(time.Second*30)),
+			window:        opencost.NewClosedWindow(windowStart, windowStart.Add(time.Hour)),
 			expectedStart: windowStart,
-			expectedEnd:   windowStart.Add(time.Second * 30),
+			expectedEnd:   windowStart.Add(time.Minute),
 			result: &source.QueryResult{
 				Values: []*util.Vector{
 					{
 						Timestamp: startFloat,
+					},
+				},
+			},
+		},
+		// Example: avg(node_total_hourly_cost{}) by (node, provider_id)[1m:1m]
+		"1 minute resolution, 1 minute window, at window end": {
+			resolution:    time.Minute,
+			window:        opencost.NewClosedWindow(windowStart, windowStart.Add(time.Hour)),
+			expectedStart: windowEnd,
+			expectedEnd:   windowEnd,
+			result: &source.QueryResult{
+				Values: []*util.Vector{
+					{
+						Timestamp: endFloat,
+					},
+				},
+			},
+		},
+		// Example: avg(node_total_hourly_cost{}) by (node, provider_id)[1m:1m]
+		"1 minute resolution, 1 minute window, near window end": {
+			resolution:    time.Minute,
+			window:        opencost.NewClosedWindow(windowStart, windowStart.Add(time.Hour)),
+			expectedStart: windowEnd.Add(-time.Second * 15),
+			expectedEnd:   windowEnd,
+			result: &source.QueryResult{
+				Values: []*util.Vector{
+					{
+						Timestamp: endFloat - 15.0,
 					},
 				},
 			},
