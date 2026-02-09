@@ -481,7 +481,7 @@ func (c *collectorMetricsQuerier) QueryNetInternetServiceIngressGiB(start, end t
 }
 
 func (c *collectorMetricsQuerier) QueryNetNatGatewayIngressPricePerGiB(start, end time.Time) *source.Future[source.NetNatGatewayPricePerGiBResult] {
-	return queryCollector(c, start, end, metric.NetNatGatewayPricePerGiBID, source.DecodeNetNatGatewayPricePerGiBResult)
+	return queryCollector(c, start, end, metric.NetNatGatewayIngressPricePerGiBID, source.DecodeNetNatGatewayPricePerGiBResult)
 }
 
 func (c *collectorMetricsQuerier) QueryNetNatGatewayIngressGiB(start, end time.Time) *source.Future[source.NetNatGatewayIngressGiBResult] {
