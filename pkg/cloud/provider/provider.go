@@ -18,6 +18,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/digitalocean"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/nebius"
 	"github.com/opencost/opencost/pkg/cloud/oracle"
 	"github.com/opencost/opencost/pkg/cloud/otc"
 	"github.com/opencost/opencost/pkg/cloud/scaleway"
@@ -112,6 +113,8 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			cp.configFileName = "scaleway.json"
 		case opencost.OTCProvider:
 			cp.configFileName = "otc.json"
+		case opencost.NebiusProvider:
+			cp.configFileName = "nebius.json"
 		case opencost.CSVProvider:
 			cp.configFileName = "default.json"
 		}
@@ -218,6 +221,14 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			Clientset:             cache,
 			ClusterManagementCost: 0.0,
 		}, nil
+	case opencost.NebiusProvider:
+		log.Info("Found ProviderID starting with \"nebius\", using Nebius Provider")
+		return &nebius.Nebius{
+			Clientset:        cache,
+			ClusterRegion:    cp.region,
+			ClusterAccountID: cp.accountID,
+			Config:           NewProviderConfig(config, cp.configFileName),
+		}, nil
 	default:
 		log.Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
@@ -293,6 +304,10 @@ func getClusterProperties(node *clustercache.Node) clusterProperties {
 		log.Debug("using OTC provider")
 		cp.provider = opencost.OTCProvider
 		cp.configFileName = "otc.json"
+	} else if strings.HasPrefix(providerID, "nebius") {
+		log.Debug("using Nebius provider")
+		cp.provider = opencost.NebiusProvider
+		cp.configFileName = "nebius.json"
 	} else if strings.HasPrefix(providerID, "digitalocean") {
 		log.Debug("using DigitalOcean provider")
 		cp.provider = opencost.DigitalOceanProvider
