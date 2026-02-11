@@ -1,5 +1,11 @@
 package kubemodel
 
+import (
+	"errors"
+	"fmt"
+	"math"
+)
+
 // @bingen:generate:StatType
 type StatType string
 
@@ -25,7 +31,7 @@ func NewStats(capacity ...int) Stats {
 
 func (s Stats) Avg() (float64, bool) {
 	if s == nil {
-		return 0, false
+		return 0.0, false
 	}
 
 	val, ok := s[StatAvg]
@@ -35,7 +41,7 @@ func (s Stats) Avg() (float64, bool) {
 
 func (s Stats) Max() (float64, bool) {
 	if s == nil {
-		return 0, false
+		return 0.0, false
 	}
 
 	val, ok := s[StatMax]
@@ -45,7 +51,7 @@ func (s Stats) Max() (float64, bool) {
 
 func (s Stats) Min() (float64, bool) {
 	if s == nil {
-		return 0, false
+		return 0.0, false
 	}
 
 	val, ok := s[StatMin]
@@ -55,7 +61,7 @@ func (s Stats) Min() (float64, bool) {
 
 func (s Stats) P95() (float64, bool) {
 	if s == nil {
-		return 0, false
+		return 0.0, false
 	}
 
 	val, ok := s[StatP95]
@@ -65,10 +71,39 @@ func (s Stats) P95() (float64, bool) {
 
 func (s Stats) P85() (float64, bool) {
 	if s == nil {
-		return 0, false
+		return 0.0, false
 	}
 
 	val, ok := s[StatP85]
 
 	return val, ok
+}
+
+func (s Stats) Sanitize() error {
+	if s == nil {
+		return nil
+	}
+
+	var errs []error
+
+	for t := range s {
+		if math.IsNaN(s[t]) {
+			delete(s, t)
+			errs = append(errs, fmt.Errorf("%v is NaN", t))
+		}
+		if math.IsInf(s[t], 0) {
+			delete(s, t)
+			errs = append(errs, fmt.Errorf("%v is Inf", t))
+		}
+	}
+
+	if len(errs) > 0 {
+		errStr := fmt.Sprintf("%d errors:", len(errs))
+		for _, e := range errs {
+			errStr += fmt.Sprintf(" [%s]", e)
+		}
+		return errors.New(errStr)
+	}
+
+	return nil
 }
