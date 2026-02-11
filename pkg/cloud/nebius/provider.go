@@ -72,7 +72,7 @@ func (n *Nebius) DownloadPricingData() error {
 	n.DownloadPricingDataLock.Lock()
 	defer n.DownloadPricingDataLock.Unlock()
 
-	if len(n.Pricing) != 0 {
+	if n.Pricing != nil {
 		return nil
 	}
 
@@ -179,7 +179,7 @@ func (n *Nebius) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 			Cost:         fmt.Sprintf("%f", pricing.HourlyCost),
 			PricingType:  models.DefaultPrices,
 			VCPU:         fmt.Sprintf("%d", pricing.VCPU),
-			RAM:          fmt.Sprintf("%d", pricing.RAMGB*1024*1024*1024),
+			RAM:          fmt.Sprintf("%d", pricing.RAMGB),
 			GPU:          fmt.Sprintf("%d", pricing.GPU),
 			InstanceType: instanceType,
 			Region:       zone,
@@ -221,7 +221,7 @@ func (n *Nebius) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 		Cost:         fmt.Sprintf("%f", totalCost),
 		PricingType:  models.DefaultPrices,
 		VCPU:         fmt.Sprintf("%d", vcpuCount),
-		RAM:          fmt.Sprintf("%d", ramGB*1024*1024*1024),
+		RAM:          fmt.Sprintf("%d", ramGB),
 		GPU:          fmt.Sprintf("%d", gpuCount),
 		InstanceType: instanceType,
 		Region:       zone,
