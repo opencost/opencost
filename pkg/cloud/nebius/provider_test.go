@@ -1,9 +1,12 @@
 package nebius
 
 import (
+	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/config"
 )
 
 func TestParsePreset(t *testing.T) {
@@ -59,6 +62,20 @@ func TestParsePreset(t *testing.T) {
 		{
 			name:     "empty string",
 			preset:   "",
+			wantGPU:  0,
+			wantVCPU: 0,
+			wantRAM:  0,
+		},
+		{
+			name:     "anchored rejects prefix",
+			preset:   "prefix-16vcpu-64gb",
+			wantGPU:  0,
+			wantVCPU: 0,
+			wantRAM:  0,
+		},
+		{
+			name:     "anchored rejects suffix",
+			preset:   "16vcpu-64gb-suffix",
 			wantGPU:  0,
 			wantVCPU: 0,
 			wantRAM:  0,
@@ -310,6 +327,170 @@ func TestGetOrphanedResources(t *testing.T) {
 	_, err := n.GetOrphanedResources()
 	if err == nil {
 		t.Error("GetOrphanedResources: expected error, got nil")
+	}
+}
+
+// mockProviderConfig implements models.ProviderConfig for testing.
+type mockProviderConfig struct {
+	pricing *models.CustomPricing
+}
+
+func (m *mockProviderConfig) ConfigFileManager() *config.ConfigFileManager {
+	return nil
+}
+
+func (m *mockProviderConfig) GetCustomPricingData() (*models.CustomPricing, error) {
+	if m.pricing == nil {
+		return nil, fmt.Errorf("no pricing data configured")
+	}
+	return m.pricing, nil
+}
+
+func (m *mockProviderConfig) Update(updateFunc func(*models.CustomPricing) error) (*models.CustomPricing, error) {
+	return m.pricing, updateFunc(m.pricing)
+}
+
+func (m *mockProviderConfig) UpdateFromMap(a map[string]string) (*models.CustomPricing, error) {
+	return m.pricing, nil
+}
+
+func newTestNebius(cpu, ram, gpu string) *Nebius {
+	return &Nebius{
+		Config: &mockProviderConfig{
+			pricing: &models.CustomPricing{
+				CPU:     cpu,
+				RAM:     ram,
+				GPU:     gpu,
+				Storage: "0.00005",
+			},
+		},
+		Pricing: make(map[string]*NebiusPricing),
+	}
+}
+
+func TestNodePricing_GPUPreset(t *testing.T) {
+	n := newTestNebius("0.01", "0.005", "1.50")
+
+	key := &nebiusKey{
+		Labels: map[string]string{
+			"node.kubernetes.io/instance-type": "1gpu-16vcpu-200gb",
+			"topology.kubernetes.io/zone":      "eu-west1-a",
+			"nebius.com/platform":              "gpu-h100-sxm",
+		},
+	}
+
+	node, _, err := n.NodePricing(key)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if node == nil {
+		t.Fatal("expected node pricing, got nil")
+	}
+
+	// Expected: 16*0.01 + 200*0.005 + 1*1.50 = 0.16 + 1.0 + 1.50 = 2.66
+	expectedCost := 16*0.01 + 200*0.005 + 1*1.50
+	gotCost, _ := strconv.ParseFloat(node.Cost, 64)
+	if fmt.Sprintf("%.2f", gotCost) != fmt.Sprintf("%.2f", expectedCost) {
+		t.Errorf("Cost: got %s, want %.2f", node.Cost, expectedCost)
+	}
+	if node.VCPU != "16" {
+		t.Errorf("VCPU: got %s, want 16", node.VCPU)
+	}
+	if node.GPU != "1" {
+		t.Errorf("GPU: got %s, want 1", node.GPU)
+	}
+	if node.GPUName != "H100" {
+		t.Errorf("GPUName: got %s, want H100", node.GPUName)
+	}
+	if node.Region != "eu-west1-a" {
+		t.Errorf("Region: got %s, want eu-west1-a", node.Region)
+	}
+}
+
+func TestNodePricing_CPUOnlyPreset(t *testing.T) {
+	n := newTestNebius("0.01", "0.005", "1.50")
+
+	key := &nebiusKey{
+		Labels: map[string]string{
+			"node.kubernetes.io/instance-type": "16vcpu-64gb",
+			"topology.kubernetes.io/zone":      "eu-north1-a",
+		},
+	}
+
+	node, _, err := n.NodePricing(key)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Expected: 16*0.01 + 64*0.005 + 0*1.50 = 0.16 + 0.32 = 0.48
+	expectedCost := 16*0.01 + 64*0.005
+	gotCost, _ := strconv.ParseFloat(node.Cost, 64)
+	if fmt.Sprintf("%.2f", gotCost) != fmt.Sprintf("%.2f", expectedCost) {
+		t.Errorf("Cost: got %s, want %.2f", node.Cost, expectedCost)
+	}
+	if node.GPU != "0" {
+		t.Errorf("GPU: got %s, want 0", node.GPU)
+	}
+	if node.GPUName != "" {
+		t.Errorf("GPUName: got %q, want empty", node.GPUName)
+	}
+}
+
+func TestNodePricing_UnknownPreset(t *testing.T) {
+	n := newTestNebius("0.01", "0.005", "1.50")
+
+	key := &nebiusKey{
+		Labels: map[string]string{
+			"node.kubernetes.io/instance-type": "custom-type",
+			"topology.kubernetes.io/zone":      "eu-west1-a",
+		},
+	}
+
+	node, _, err := n.NodePricing(key)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Unknown preset: all resource counts are 0, so cost should be 0
+	gotCost, _ := strconv.ParseFloat(node.Cost, 64)
+	if gotCost != 0 {
+		t.Errorf("Cost: got %f, want 0 for unknown preset", gotCost)
+	}
+}
+
+func TestNodePricing_CachedPricing(t *testing.T) {
+	n := newTestNebius("0.01", "0.005", "1.50")
+
+	// Pre-populate cached pricing for a specific instance type
+	n.Pricing["1gpu-16vcpu-200gb"] = &NebiusPricing{
+		PlatformID: "gpu-h100-sxm",
+		PresetID:   "1gpu-16vcpu-200gb",
+		VCPU:       16,
+		RAMGB:      200,
+		GPU:        1,
+		GPUModel:   "H100",
+		HourlyCost: 3.50, // Different from config-based calculation
+	}
+
+	key := &nebiusKey{
+		Labels: map[string]string{
+			"node.kubernetes.io/instance-type": "1gpu-16vcpu-200gb",
+			"topology.kubernetes.io/zone":      "eu-west1-a",
+		},
+	}
+
+	node, _, err := n.NodePricing(key)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should use cached pricing (3.50), not config-based calculation
+	gotCost, _ := strconv.ParseFloat(node.Cost, 64)
+	if fmt.Sprintf("%.2f", gotCost) != "3.50" {
+		t.Errorf("Cost: got %f, want 3.50 (cached pricing)", gotCost)
+	}
+	if node.GPUName != "H100" {
+		t.Errorf("GPUName: got %q, want H100", node.GPUName)
 	}
 }
 

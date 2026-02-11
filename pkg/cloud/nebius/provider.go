@@ -36,7 +36,7 @@ var gpuPlatformModels = map[string]string{
 }
 
 // presetPattern matches Nebius preset names like "1gpu-16vcpu-200gb" or "16vcpu-64gb".
-var presetPattern = regexp.MustCompile(`(?:(\d+)gpu-)?(\d+)vcpu-(\d+)gb`)
+var presetPattern = regexp.MustCompile(`^(?:(\d+)gpu-)?(\d+)vcpu-(\d+)gb$`)
 
 // NebiusPricing holds cached pricing data for a platform/preset combination.
 type NebiusPricing struct {
@@ -87,10 +87,9 @@ func (n *Nebius) DownloadPricingData() error {
 
 	// Log whether service account credentials are configured for future
 	// CalculatorService API integration.
-	saID := env.GetNebiusServiceAccountID()
-	if saID != "" {
-		log.Infof("Nebius: service account credentials detected (SA ID: %s). "+
-			"CalculatorService API integration is planned for a future release.", saID)
+	if env.GetNebiusServiceAccountID() != "" {
+		log.Infof("Nebius: service account credentials detected. " +
+			"CalculatorService API integration is planned for a future release.")
 	}
 
 	return nil
@@ -195,14 +194,26 @@ func (n *Nebius) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 	}
 
 	gpuCount, vcpuCount, ramGB := parsePreset(instanceType)
+	if instanceType != "" && vcpuCount == 0 && ramGB == 0 {
+		log.Warnf("Nebius: could not parse preset %q; cost will be zero", instanceType)
+	}
 	gpuModel := ""
 	if gpuCount > 0 {
 		gpuModel = key.GPUType()
 	}
 
-	cpuCost, _ := strconv.ParseFloat(c.CPU, 64)
-	ramCost, _ := strconv.ParseFloat(c.RAM, 64)
-	gpuCostPerUnit, _ := strconv.ParseFloat(c.GPU, 64)
+	cpuCost, err := strconv.ParseFloat(c.CPU, 64)
+	if err != nil {
+		log.Warnf("Nebius: failed to parse CPU cost %q, using 0: %v", c.CPU, err)
+	}
+	ramCost, err := strconv.ParseFloat(c.RAM, 64)
+	if err != nil {
+		log.Warnf("Nebius: failed to parse RAM cost %q, using 0: %v", c.RAM, err)
+	}
+	gpuCostPerUnit, err := strconv.ParseFloat(c.GPU, 64)
+	if err != nil {
+		log.Warnf("Nebius: failed to parse GPU cost %q, using 0: %v", c.GPU, err)
+	}
 
 	totalCost := float64(vcpuCount)*cpuCost + float64(ramGB)*ramCost + float64(gpuCount)*gpuCostPerUnit
 
@@ -303,7 +314,7 @@ func (n *Nebius) GpuPricing(nodeLabels map[string]string) (string, error) {
 func (n *Nebius) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	c, err := n.GetConfig()
 	if err != nil {
-		return &models.PV{}, nil
+		return nil, fmt.Errorf("failed to get Nebius config for PV pricing: %w", err)
 	}
 
 	storageCost := c.Storage
@@ -322,16 +333,39 @@ func (n *Nebius) ServiceAccountStatus() *models.ServiceAccountStatus {
 	checks := []*models.ServiceAccountCheck{}
 
 	saID := env.GetNebiusServiceAccountID()
-	if saID != "" {
-		checks = append(checks, &models.ServiceAccountCheck{
-			Message: "Nebius service account configured",
-			Status:  true,
-		})
-	} else {
+	saKey := env.GetNebiusServiceAccountPublicKeyID()
+	saPriv := env.GetNebiusServiceAccountPrivateKeyPath()
+
+	if saID == "" && saKey == "" && saPriv == "" {
 		checks = append(checks, &models.ServiceAccountCheck{
 			Message: "Nebius service account not configured; using default pricing",
 			Status:  false,
 		})
+	} else {
+		if saID == "" {
+			checks = append(checks, &models.ServiceAccountCheck{
+				Message: "NEBIUS_SA_ID is not set",
+				Status:  false,
+			})
+		}
+		if saKey == "" {
+			checks = append(checks, &models.ServiceAccountCheck{
+				Message: "NEBIUS_SA_PUBLIC_KEY_ID is not set",
+				Status:  false,
+			})
+		}
+		if saPriv == "" {
+			checks = append(checks, &models.ServiceAccountCheck{
+				Message: "NEBIUS_SA_PRIVATE_KEY_PATH is not set",
+				Status:  false,
+			})
+		}
+		if saID != "" && saKey != "" && saPriv != "" {
+			checks = append(checks, &models.ServiceAccountCheck{
+				Message: "Nebius service account configured",
+				Status:  true,
+			})
+		}
 	}
 
 	return &models.ServiceAccountStatus{
