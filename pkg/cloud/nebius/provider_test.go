@@ -2,6 +2,7 @@ package nebius
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"testing"
 
@@ -115,22 +116,32 @@ func TestNebiusKey_Features(t *testing.T) {
 
 func TestNebiusKey_GPUCount(t *testing.T) {
 	tests := []struct {
-		name         string
-		instanceType string
-		want         int
+		name   string
+		labels map[string]string
+		want   int
 	}{
-		{"GPU instance", "1gpu-16vcpu-200gb", 1},
-		{"8 GPU instance", "8gpu-128vcpu-1600gb", 8},
-		{"CPU-only instance", "16vcpu-64gb", 0},
-		{"Unknown instance", "custom-type", 0},
+		{"GPU instance", map[string]string{
+			"node.kubernetes.io/instance-type": "1gpu-16vcpu-200gb",
+		}, 1},
+		{"8 GPU instance", map[string]string{
+			"node.kubernetes.io/instance-type": "8gpu-128vcpu-1600gb",
+		}, 8},
+		{"CPU-only instance", map[string]string{
+			"node.kubernetes.io/instance-type": "16vcpu-64gb",
+		}, 0},
+		{"Unknown instance", map[string]string{
+			"node.kubernetes.io/instance-type": "custom-type",
+		}, 0},
+		{"GPU from capacity label", map[string]string{
+			"node.kubernetes.io/instance-type": "gpu-l40s-pcie",
+			"nvidia.com/gpu":                   "4",
+		}, 4},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			key := &nebiusKey{
-				Labels: map[string]string{
-					"node.kubernetes.io/instance-type": tt.instanceType,
-				},
+				Labels: tt.labels,
 			}
 			if got := key.GPUCount(); got != tt.want {
 				t.Errorf("GPUCount(): got %d, want %d", got, tt.want)
@@ -212,7 +223,7 @@ func TestNebiusPVKey(t *testing.T) {
 }
 
 func TestNetworkPricing(t *testing.T) {
-	n := &Nebius{}
+	n := newTestNebius("0.01", "0.005", "1.50")
 	pricing, err := n.NetworkPricing()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -281,7 +292,7 @@ func TestCombinedDiscountForNode(t *testing.T) {
 	n := &Nebius{}
 	discount := n.CombinedDiscountForNode("1gpu-16vcpu-200gb", false, 0.1, 0.2)
 	expected := 1.0 - ((1.0 - 0.1) * (1.0 - 0.2))
-	if discount != expected {
+	if math.Abs(discount-expected) > 1e-9 {
 		t.Errorf("CombinedDiscountForNode: got %f, want %f", discount, expected)
 	}
 }
@@ -358,10 +369,15 @@ func newTestNebius(cpu, ram, gpu string) *Nebius {
 	return &Nebius{
 		Config: &mockProviderConfig{
 			pricing: &models.CustomPricing{
-				CPU:     cpu,
-				RAM:     ram,
-				GPU:     gpu,
-				Storage: "0.00005",
+				CPU:                   cpu,
+				RAM:                   ram,
+				GPU:                   gpu,
+				Storage:               "0.00005",
+				ZoneNetworkEgress:     "0.0",
+				RegionNetworkEgress:   "0.0",
+				InternetNetworkEgress: "0.0",
+				NatGatewayEgress:      "0.0",
+				NatGatewayIngress:     "0.0",
 			},
 		},
 		Pricing: make(map[string]*NebiusPricing),

@@ -116,11 +116,23 @@ func (k *nebiusKey) Features() string {
 }
 
 // GPUCount returns the number of GPUs parsed from the instance type / preset name.
-// Nebius presets follow the pattern "1gpu-16vcpu-200gb".
+// Nebius presets follow the pattern "1gpu-16vcpu-200gb". Falls back to the
+// "nvidia.com/gpu" node capacity label when the preset name cannot be parsed.
 func (k *nebiusKey) GPUCount() int {
 	instanceType, _ := util.GetInstanceType(k.Labels)
 	count, _, _ := parsePreset(instanceType)
-	return count
+	if count > 0 {
+		return count
+	}
+
+	// Fallback: check Kubernetes GPU capacity label
+	if gpuStr, ok := k.Labels["nvidia.com/gpu"]; ok {
+		if n, err := strconv.Atoi(gpuStr); err == nil {
+			return n
+		}
+	}
+
+	return 0
 }
 
 // GPUType returns the GPU model name parsed from the platform label or instance type.
@@ -248,14 +260,40 @@ func (n *Nebius) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	}, nil
 }
 
-// NetworkPricing returns network pricing. Nebius currently offers free egress/ingress.
+// NetworkPricing returns network pricing from configuration.
+// Nebius defaults are free egress/ingress, but values can be overridden via config.
 func (n *Nebius) NetworkPricing() (*models.Network, error) {
+	cpricing, err := n.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	znec, err := strconv.ParseFloat(cpricing.ZoneNetworkEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+	rnec, err := strconv.ParseFloat(cpricing.RegionNetworkEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+	inec, err := strconv.ParseFloat(cpricing.InternetNetworkEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+	nge, err := strconv.ParseFloat(cpricing.NatGatewayEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+	ngi, err := strconv.ParseFloat(cpricing.NatGatewayIngress, 64)
+	if err != nil {
+		return nil, err
+	}
+
 	return &models.Network{
-		ZoneNetworkEgressCost:     0,
-		RegionNetworkEgressCost:   0,
-		InternetNetworkEgressCost: 0,
-		NatGatewayEgressCost:      0,
-		NatGatewayIngressCost:     0,
+		ZoneNetworkEgressCost:     znec,
+		RegionNetworkEgressCost:   rnec,
+		InternetNetworkEgressCost: inec,
+		NatGatewayEgressCost:      nge,
+		NatGatewayIngressCost:     ngi,
 	}, nil
 }
 
