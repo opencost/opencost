@@ -452,6 +452,14 @@ func (c *collectorMetricsQuerier) QueryNetInternetServiceGiB(start, end time.Tim
 	return queryCollectorGiB(c, start, end, metric.NetInternetServiceGiBID, source.DecodeNetInternetServiceGiBResult)
 }
 
+func (c *collectorMetricsQuerier) QueryNetNatGatewayPricePerGiB(start, end time.Time) *source.Future[source.NetNatGatewayPricePerGiBResult] {
+	return queryCollector(c, start, end, metric.NetNatGatewayPricePerGiBID, source.DecodeNetNatGatewayPricePerGiBResult)
+}
+
+func (c *collectorMetricsQuerier) QueryNetNatGatewayGiB(start, end time.Time) *source.Future[source.NetNatGatewayGiBResult] {
+	return queryCollectorGiB(c, start, end, metric.NetNatGatewayGiBID, source.DecodeNetNatGatewayGiBResult)
+}
+
 func (c *collectorMetricsQuerier) QueryNetTransferBytes(start, end time.Time) *source.Future[source.NetTransferBytesResult] {
 	return queryCollector(c, start, end, metric.NetTransferBytesID, source.DecodeNetTransferBytesResult)
 }
@@ -470,6 +478,14 @@ func (c *collectorMetricsQuerier) QueryNetInternetIngressGiB(start, end time.Tim
 
 func (c *collectorMetricsQuerier) QueryNetInternetServiceIngressGiB(start, end time.Time) *source.Future[source.NetInternetServiceIngressGiBResult] {
 	return queryCollectorGiB(c, start, end, metric.NetInternetServiceIngressGiBID, source.DecodeNetInternetServiceIngressGiBResult)
+}
+
+func (c *collectorMetricsQuerier) QueryNetNatGatewayIngressPricePerGiB(start, end time.Time) *source.Future[source.NetNatGatewayPricePerGiBResult] {
+	return queryCollector(c, start, end, metric.NetNatGatewayPricePerGiBID, source.DecodeNetNatGatewayPricePerGiBResult)
+}
+
+func (c *collectorMetricsQuerier) QueryNetNatGatewayIngressGiB(start, end time.Time) *source.Future[source.NetNatGatewayIngressGiBResult] {
+	return queryCollectorGiB(c, start, end, metric.NetNatGatewayIngressGiBID, source.DecodeNetNatGatewayIngressGiBResult)
 }
 
 func (c *collectorMetricsQuerier) QueryNetReceiveBytes(start, end time.Time) *source.Future[source.NetReceiveBytesResult] {

@@ -11,6 +11,8 @@ type Network struct {
 	ZoneNetworkEgressCost     float64
 	RegionNetworkEgressCost   float64
 	InternetNetworkEgressCost float64
+	NatGatewayEgressCost      float64
+	NatGatewayIngressCost     float64
 }
 
 // LoadBalancer is the interface by which the provider and cost model communicate LoadBalancer prices.

@@ -94,7 +94,6 @@ func (kms *KubeModelSet) Warn(msg string) {
 
 func (kms *KubeModelSet) GetInfos() []Diagnostic {
 	ds := []Diagnostic{}
-
 	for _, d := range kms.Metadata.Diagnostics {
 		if d.Level == DiagnosticLevelInfo {
 			ds = append(ds, d)

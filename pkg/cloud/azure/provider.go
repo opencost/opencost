@@ -833,13 +833,13 @@ func (az *Azure) DownloadPricingData() error {
 
 	// Check for Azure rate card filter environment variables with backward compatibility
 	locale := env.GetAzureLocale() // Defaults to "en-US"
-	
+
 	envCurrency := env.GetAzureCurrency()
 	currency := config.CurrencyCode // Use config default
 	if envCurrency != "" {
 		currency = envCurrency // Override with environment variable if provided
 	}
-	
+
 	envRegionInfo := env.GetAzureRegionInfo()
 	regionInfo := config.AzureBillingRegion // Use config default
 	if envRegionInfo != "" {
@@ -847,7 +847,7 @@ func (az *Azure) DownloadPricingData() error {
 	}
 
 	// Debug logging for rate card configuration
-	log.Debugf("Azure rate card configuration: locale=%s (source: %s), currency=%s (source: %s), regionInfo=%s (source: %s)", 
+	log.Debugf("Azure rate card configuration: locale=%s (source: %s), currency=%s (source: %s), regionInfo=%s (source: %s)",
 		locale, getConfigSource("AZURE_LOCALE", locale, "en-US"),
 		currency, getConfigSource("AZURE_CURRENCY", envCurrency, "config"),
 		regionInfo, getConfigSource("AZURE_REGION_INFO", envRegionInfo, "config"))
@@ -1284,11 +1284,21 @@ func (az *Azure) NetworkPricing() (*models.Network, error) {
 	if err != nil {
 		return nil, err
 	}
+	nge, err := strconv.ParseFloat(cpricing.NatGatewayEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+	ngi, err := strconv.ParseFloat(cpricing.NatGatewayIngress, 64)
+	if err != nil {
+		return nil, err
+	}
 
 	return &models.Network{
 		ZoneNetworkEgressCost:     znec,
 		RegionNetworkEgressCost:   rnec,
 		InternetNetworkEgressCost: inec,
+		NatGatewayEgressCost:      nge,
+		NatGatewayIngressCost:     ngi,
 	}, nil
 }
 

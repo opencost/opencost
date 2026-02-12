@@ -1261,6 +1261,8 @@ func (m *mockConfig) GetCustomPricingData() (*models.CustomPricing, error) {
 		ZoneNetworkEgress:     "0.12",
 		RegionNetworkEgress:   "0.08",
 		InternetNetworkEgress: "0.15",
+		NatGatewayEgress:      "0.45",
+		NatGatewayIngress:     "0.45",
 	}, nil
 }
 

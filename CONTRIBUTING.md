@@ -89,6 +89,26 @@ An example of the full command:
 PROMETHEUS_SERVER_ENDPOINT="http://127.0.0.1:9090" go run main.go
 ```
 
+## Code Formatting
+
+Before submitting a pull request, ensure your code is properly formatted:
+
+```bash
+# Format all Go code
+go fmt ./...
+
+# Or use just command
+just fmt
+```
+
+To check if your code is formatted without making changes:
+
+```bash
+just fmt-check
+```
+
+The CI pipeline will automatically check code formatting on pull requests.
+
 ## Testing code
 
 Testing is provided by the `just test` command which runs
@@ -112,9 +132,11 @@ By contributing to this project, you certify that your contribution was created 
 
 ## Committing
 
-Please write a commit message with Fixes Issue # if there is an outstanding issue that is fixed. It’s okay to submit a PR without a corresponding issue; just please try to be detailed in the description of the problem you’re addressing.
+Please write a commit message with Fixes Issue # if there is an outstanding issue that is fixed. It's okay to submit a PR without a corresponding issue; just please try to be detailed in the description of the problem you're addressing.
 
-Please run `go fmt` on the project directory. Lint can be okay (for example, comments on exported functions are nice but not required on the server).
+**Code Formatting:** All code must be formatted with `go fmt ./...` (or `just fmt`) before submitting. The CI pipeline will reject PRs with unformatted code. You can run `just fmt-check` to verify formatting locally.
+
+**Code Quality:** While lint warnings are acceptable in some cases (e.g., comments on exported functions are nice but not strictly required), please address any critical issues reported by `go vet`.
 
 Please reach us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or attend the biweekly [OpenCost Working Group community meeting](https://bit.ly/opencost-meeting) from the [Community Calendar](https://bit.ly/opencost-calendar) to discuss OpenCost development.
 

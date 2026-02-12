@@ -44,7 +44,7 @@ package opencost
 // @bingen:end
 
 // Allocation Version Set: Includes Allocation pipeline specific resources
-// @bingen:set[name=Allocation,version=24]
+// @bingen:set[name=Allocation,version=25]
 // @bingen:generate[migrate]:Allocation
 // @bingen:generate[stringtable]:AllocationSet
 // @bingen:generate:AllocationSetRange

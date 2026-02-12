@@ -205,7 +205,6 @@ func TestAthenaIntegration_GetIsKubernetesColumn(t *testing.T) {
 	}
 }
 
-
 func TestAthenaQuerier_GetStatus(t *testing.T) {
 	aq := &AthenaQuerier{}
 
