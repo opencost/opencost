@@ -512,3 +512,313 @@ func TestNodePricing_CachedPricing(t *testing.T) {
 
 // Verify that Nebius implements the Provider interface at compile time.
 var _ models.Provider = (*Nebius)(nil)
+
+func TestDownloadPricingData(t *testing.T) {
+	n := &Nebius{
+		Config: &mockProviderConfig{
+			pricing: &models.CustomPricing{
+				CPU: "0.01",
+				RAM: "0.005",
+				GPU: "1.50",
+			},
+		},
+	}
+
+	// First call should initialize pricing
+	err := n.DownloadPricingData()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if n.Pricing == nil {
+		t.Fatal("expected Pricing map to be initialized")
+	}
+
+	// Second call should be a no-op (guard check)
+	err = n.DownloadPricingData()
+	if err != nil {
+		t.Fatalf("unexpected error on second call: %v", err)
+	}
+}
+
+func TestDownloadPricingData_ConfigError(t *testing.T) {
+	n := &Nebius{
+		Config: &mockProviderConfig{pricing: nil},
+	}
+
+	err := n.DownloadPricingData()
+	if err == nil {
+		t.Fatal("expected error when config is nil")
+	}
+}
+
+func TestAllNodePricing(t *testing.T) {
+	n := newTestNebius("0.01", "0.005", "1.50")
+	pricing, err := n.AllNodePricing()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pricing == nil {
+		t.Fatal("expected non-nil pricing")
+	}
+}
+
+func TestPricingSourceSummary(t *testing.T) {
+	n := newTestNebius("0.01", "0.005", "1.50")
+	summary := n.PricingSourceSummary()
+	if summary == nil {
+		t.Fatal("expected non-nil summary")
+	}
+}
+
+func TestNebiusKey_ID(t *testing.T) {
+	key := &nebiusKey{
+		ProviderID: "nebius://abc123",
+	}
+	if got := key.ID(); got != "nebius://abc123" {
+		t.Errorf("ID(): got %q, want %q", got, "nebius://abc123")
+	}
+}
+
+func TestGetConfig(t *testing.T) {
+	n := &Nebius{
+		Config: &mockProviderConfig{
+			pricing: &models.CustomPricing{
+				CPU: "0.01",
+				RAM: "0.005",
+				GPU: "1.50",
+			},
+		},
+	}
+
+	c, err := n.GetConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Check defaults are applied
+	if c.Discount != "0%" {
+		t.Errorf("Discount: got %q, want %q", c.Discount, "0%")
+	}
+	if c.NegotiatedDiscount != "0%" {
+		t.Errorf("NegotiatedDiscount: got %q, want %q", c.NegotiatedDiscount, "0%")
+	}
+	if c.CurrencyCode != "USD" {
+		t.Errorf("CurrencyCode: got %q, want %q", c.CurrencyCode, "USD")
+	}
+}
+
+func TestGetConfig_Error(t *testing.T) {
+	n := &Nebius{
+		Config: &mockProviderConfig{pricing: nil},
+	}
+
+	_, err := n.GetConfig()
+	if err == nil {
+		t.Fatal("expected error when config is nil")
+	}
+}
+
+func TestGetConfig_PreserveExistingValues(t *testing.T) {
+	n := &Nebius{
+		Config: &mockProviderConfig{
+			pricing: &models.CustomPricing{
+				CPU:                "0.01",
+				Discount:           "10%",
+				NegotiatedDiscount: "5%",
+				CurrencyCode:       "EUR",
+			},
+		},
+	}
+
+	c, err := n.GetConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Existing values should not be overwritten
+	if c.Discount != "10%" {
+		t.Errorf("Discount: got %q, want %q", c.Discount, "10%")
+	}
+	if c.NegotiatedDiscount != "5%" {
+		t.Errorf("NegotiatedDiscount: got %q, want %q", c.NegotiatedDiscount, "5%")
+	}
+	if c.CurrencyCode != "EUR" {
+		t.Errorf("CurrencyCode: got %q, want %q", c.CurrencyCode, "EUR")
+	}
+}
+
+func TestPVPricing(t *testing.T) {
+	n := newTestNebius("0.01", "0.005", "1.50")
+
+	pvk := &nebiusPVKey{
+		StorageClassName: "network-ssd",
+		Zone:             "eu-west1-a",
+	}
+
+	pv, err := n.PVPricing(pvk)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pv.Cost != "0.00005" {
+		t.Errorf("PV Cost: got %q, want %q", pv.Cost, "0.00005")
+	}
+	if pv.Class != "network-ssd" {
+		t.Errorf("PV Class: got %q, want %q", pv.Class, "network-ssd")
+	}
+}
+
+func TestPVPricing_DefaultStorage(t *testing.T) {
+	n := &Nebius{
+		Config: &mockProviderConfig{
+			pricing: &models.CustomPricing{
+				CPU:     "0.01",
+				Storage: "", // empty storage should use default
+			},
+		},
+		Pricing: make(map[string]*NebiusPricing),
+	}
+
+	pvk := &nebiusPVKey{
+		StorageClassName: "network-hdd",
+		Zone:             "eu-west1-a",
+	}
+
+	pv, err := n.PVPricing(pvk)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pv.Cost != "0.00005" {
+		t.Errorf("PV Cost: got %q, want default %q", pv.Cost, "0.00005")
+	}
+}
+
+func TestPVPricing_ConfigError(t *testing.T) {
+	n := &Nebius{
+		Config:  &mockProviderConfig{pricing: nil},
+		Pricing: make(map[string]*NebiusPricing),
+	}
+
+	pvk := &nebiusPVKey{StorageClassName: "test", Zone: "eu-west1-a"}
+	_, err := n.PVPricing(pvk)
+	if err == nil {
+		t.Fatal("expected error when config is nil")
+	}
+}
+
+func TestGpuPricing(t *testing.T) {
+	n := &Nebius{}
+	result, err := n.GpuPricing(map[string]string{"node.kubernetes.io/instance-type": "1gpu-16vcpu-200gb"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != "" {
+		t.Errorf("GpuPricing: got %q, want empty string", result)
+	}
+}
+
+func TestClusterInfo(t *testing.T) {
+	n := &Nebius{
+		Config: &mockProviderConfig{
+			pricing: &models.CustomPricing{
+				ClusterName: "test-cluster",
+			},
+		},
+		ClusterRegion:    "eu-west1",
+		ClusterAccountID: "acct-123",
+	}
+
+	info, err := n.ClusterInfo()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info["name"] != "test-cluster" {
+		t.Errorf("name: got %q, want %q", info["name"], "test-cluster")
+	}
+	if info["provider"] != "Nebius" {
+		t.Errorf("provider: got %q, want %q", info["provider"], "Nebius")
+	}
+	if info["region"] != "eu-west1" {
+		t.Errorf("region: got %q, want %q", info["region"], "eu-west1")
+	}
+	if info["account"] != "acct-123" {
+		t.Errorf("account: got %q, want %q", info["account"], "acct-123")
+	}
+}
+
+func TestClusterInfo_DefaultName(t *testing.T) {
+	n := &Nebius{
+		Config: &mockProviderConfig{
+			pricing: &models.CustomPricing{},
+		},
+	}
+
+	info, err := n.ClusterInfo()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info["name"] != "Nebius Cluster #1" {
+		t.Errorf("name: got %q, want %q", info["name"], "Nebius Cluster #1")
+	}
+}
+
+func TestApplyReservedInstancePricing(t *testing.T) {
+	n := &Nebius{}
+	nodes := map[string]*models.Node{
+		"node1": {Cost: "1.0"},
+	}
+	// Should be a no-op, just verify it doesn't panic
+	n.ApplyReservedInstancePricing(nodes)
+	if nodes["node1"].Cost != "1.0" {
+		t.Errorf("expected node cost to be unchanged")
+	}
+}
+
+func TestNodePricing_ConfigError(t *testing.T) {
+	n := &Nebius{
+		Config:  &mockProviderConfig{pricing: nil},
+		Pricing: make(map[string]*NebiusPricing),
+	}
+
+	key := &nebiusKey{
+		Labels: map[string]string{
+			"node.kubernetes.io/instance-type": "16vcpu-64gb",
+			"topology.kubernetes.io/zone":      "eu-west1-a",
+		},
+	}
+
+	_, _, err := n.NodePricing(key)
+	if err == nil {
+		t.Fatal("expected error when config is nil")
+	}
+}
+
+func TestNetworkPricing_ConfigError(t *testing.T) {
+	n := &Nebius{
+		Config:  &mockProviderConfig{pricing: nil},
+		Pricing: make(map[string]*NebiusPricing),
+	}
+
+	_, err := n.NetworkPricing()
+	if err == nil {
+		t.Fatal("expected error when config is nil")
+	}
+}
+
+func TestServiceAccountStatus_NotConfigured(t *testing.T) {
+	n := &Nebius{}
+	status := n.ServiceAccountStatus()
+	if status == nil {
+		t.Fatal("expected non-nil status")
+	}
+	if len(status.Checks) == 0 {
+		t.Fatal("expected at least one check")
+	}
+}
+
+func TestUpdateConfigFromConfigMap(t *testing.T) {
+	n := newTestNebius("0.01", "0.005", "1.50")
+	_, err := n.UpdateConfigFromConfigMap(map[string]string{"CPU": "0.02"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
