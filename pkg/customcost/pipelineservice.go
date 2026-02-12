@@ -134,7 +134,7 @@ func NewPipelineService(hourlyrepo, dailyrepo Repository, ingConf CustomCostInge
 	dailyIngestor.Start(false)
 
 	var domains []string
-	for domain, _ := range registeredPlugins {
+	for domain := range registeredPlugins {
 		domains = append(domains, domain)
 	}
 

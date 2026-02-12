@@ -6,22 +6,89 @@ import (
 )
 
 type Container struct {
-	PodUID                              string    `json:"podUid"`
-	Name                                string    `json:"name"`
-	Start                               time.Time `json:"start"`
-	End                                 time.Time `json:"end"`
-	CpuMillicoreSecondsAllocated        uint64    `json:"cpuMillicoreSecondsAllocated"`
-	CpuMillicoreRequestAverageAllocated uint64    `json:"cpuMillicoreRequestAverageAllocated"`
-	CpuMillicoreUsageAverage            uint64    `json:"cpuMillicoreUsageAverage"`
-	CpuMillicoreUsageMax                uint64    `json:"cpuMillicoreUsageMax"`
-	RAMByteSecondsAllocated             uint64    `json:"ramByteSecondsAllocated"`
-	RAMByteRequestAverageAllocated      uint64    `json:"ramByteRequestAverageAllocated"`
-	RAMByteUsageAverage                 uint64    `json:"ramByteUsageAverage"`
-	RAMByteUsageMax                     uint64    `json:"ramByteUsageMax"`
-	StorageByteSecondsAllocated         uint64    `json:"storageByteSecondsAllocated"`
-	StorageByteRequestAverageAllocated  uint64    `json:"storageByteRequestAverageAllocated"`
-	StorageByteUsageAverage             uint64    `json:"storageByteUsageAverage"`
-	StorageByteUsageMax                 uint64    `json:"storageByteUsageMax"`
+	PodUID                     string                 `json:"podUid"`
+	Name                       string                 `json:"name"`
+	DurationSeconds            Measurement            `json:"durationSeconds"`
+	CpuMillicoreSeconds        Measurement            `json:"cpuMillicoreSeconds"`
+	CpuMillicoreUsageMax       Measurement            `json:"cpuMillicoreUsageMax"`
+	CpuMillicoreRequestSeconds Measurement            `json:"cpuMillicoreRequestSeconds"`
+	RAMByteSeconds             Measurement            `json:"ramByteSeconds"`
+	RAMByteUsageMax            Measurement            `json:"ramByteUsageMax"`
+	RAMByteSecondRequest       Measurement            `json:"ramByteSecondRequest"`
+	VolumeStorageByteSeconds   map[string]Measurement `json:"volumeStorageByteSeconds,omitempty"`
+	VolumeStorageByteUsageMax  map[string]Measurement `json:"volumeStorageByteUsageMax,omitempty"`
+	CpuMillicoreLimitSeconds   Measurement            `json:"cpuMillicoreLimitSeconds,omitempty"`
+	RAMByteSecondsLimit        Measurement            `json:"ramByteSecondsLimit,omitempty"`
+	Start                      time.Time              `json:"start"`
+	End                        time.Time              `json:"end"`
+}
+
+func (c *Container) CpuMillicoreUsageAverage() Measurement {
+	if c.DurationSeconds == 0 {
+		return 0
+	}
+	return c.CpuMillicoreSeconds / c.DurationSeconds
+}
+
+func (c *Container) RAMByteUsageAverage() Measurement {
+	if c.DurationSeconds == 0 {
+		return 0
+	}
+	return c.RAMByteSeconds / c.DurationSeconds
+}
+
+func (c *Container) TotalStorageByteSeconds() Measurement {
+	var total Measurement
+	for _, ByteSeconds := range c.VolumeStorageByteSeconds {
+		total += ByteSeconds
+	}
+	return total
+}
+
+func (c *Container) TotalStorageByteUsageMax() Measurement {
+	var max Measurement
+	for _, usage := range c.VolumeStorageByteUsageMax {
+		if usage > max {
+			max = usage
+		}
+	}
+	return max
+}
+
+func (c *Container) StorageByteUsageAverage() Measurement {
+	if c.DurationSeconds == 0 {
+		return 0
+	}
+	totalByteSeconds := c.TotalStorageByteSeconds()
+	return totalByteSeconds / c.DurationSeconds
+}
+
+func (c *Container) CpuMillicoreRequestAverage() Measurement {
+	if c.DurationSeconds == 0 {
+		return 0
+	}
+	return c.CpuMillicoreRequestSeconds / c.DurationSeconds
+}
+
+func (c *Container) RAMByteRequestAverage() Measurement {
+	if c.DurationSeconds == 0 {
+		return 0
+	}
+	return c.RAMByteSecondRequest / c.DurationSeconds
+}
+
+func (c *Container) CpuMillicoreLimitAverage() Measurement {
+	if c.DurationSeconds == 0 {
+		return 0
+	}
+	return c.CpuMillicoreLimitSeconds / c.DurationSeconds
+}
+
+func (c *Container) RAMByteLimitAverage() Measurement {
+	if c.DurationSeconds == 0 {
+		return 0
+	}
+	return c.RAMByteSecondsLimit / c.DurationSeconds
 }
 
 func (kms *KubeModelSet) RegisterContainer(uid, name, podUID string) error {

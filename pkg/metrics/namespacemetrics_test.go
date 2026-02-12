@@ -29,7 +29,7 @@ func TestKubecostNamespaceCollector_Collect(t *testing.T) {
 			},
 		},
 	}
-	
+
 	collector := KubecostNamespaceCollector{
 		KubeClusterCache: cache,
 		metricsConfig:    MetricsConfig{},
@@ -62,7 +62,7 @@ func TestKubeNamespaceCollector_Collect(t *testing.T) {
 			},
 		},
 	}
-	
+
 	collector := KubeNamespaceCollector{
 		KubeClusterCache: cache,
 		metricsConfig:    MetricsConfig{},
@@ -123,7 +123,7 @@ func TestNamespaceAnnotationsMetric_Write(t *testing.T) {
 func TestKubeNamespaceLabelsMetric_Write(t *testing.T) {
 	metric := newKubeNamespaceLabelsMetric(
 		"test_metric",
-		"test-ns", 
+		"test-ns",
 		"test-uid",
 		[]string{"env"},
 		[]string{"prod"},
@@ -158,7 +158,7 @@ func TestKubeNamespaceLabelsMetric_Write(t *testing.T) {
 
 func TestKubecostNamespaceCollector_Describe(t *testing.T) {
 	collector := KubecostNamespaceCollector{metricsConfig: MetricsConfig{}}
-	
+
 	ch := make(chan *prometheus.Desc, 1)
 	go func() {
 		collector.Describe(ch)
@@ -177,7 +177,7 @@ func TestKubecostNamespaceCollector_Describe(t *testing.T) {
 
 func TestKubeNamespaceCollector_Describe(t *testing.T) {
 	collector := KubeNamespaceCollector{metricsConfig: MetricsConfig{}}
-	
+
 	ch := make(chan *prometheus.Desc, 1)
 	go func() {
 		collector.Describe(ch)

@@ -8,17 +8,16 @@ import (
 type Pod struct {
 	UID                  string            `json:"uid"`
 	NamespaceUID         string            `json:"namespaceUid"`
-	OwnerUID             string            `json:"ownerUid"`
+	OwnerUID             string            `json:"ownerUid"` // Reference to Owner (Deployment, StatefulSet, etc.)
 	NodeUID              string            `json:"nodeUid"`
 	Name                 string            `json:"name"`
 	Labels               map[string]string `json:"labels,omitempty"`
 	Annotations          map[string]string `json:"annotations,omitempty"`
-	Start                time.Time         `json:"start"`
-	End                  time.Time         `json:"end"`
-	CpuMillicoreUsageMax uint64            `json:"cpuMillicoreUsageMax"`
-	RAMByteUsageMax      uint64            `json:"ramByteUsageMax"`
-	NetworkTransferBytes uint64            `json:"networkTransferBytes"`
-	NetworkReceiveBytes  uint64            `json:"networkReceiveBytes"`
+	DurationSeconds      Measurement       `json:"durationSeconds"`
+	NetworkTransferBytes Measurement       `json:"networkTransferBytes"`
+	NetworkReceiveBytes  Measurement       `json:"networkReceiveBytes"`
+	Start                time.Time         `json:"start,omitempty"` // Pod creation/start timestamp
+	End                  time.Time         `json:"end,omitempty"`   // Pod deletion/end timestamp (nil if still running)
 }
 
 func (kms *KubeModelSet) RegisterPod(uid, name, namespace string) error {

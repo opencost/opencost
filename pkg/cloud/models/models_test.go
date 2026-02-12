@@ -66,6 +66,8 @@ func TestSetSetCustomPricingField(t *testing.T) {
 		"ZoneNetworkEgress",
 		"RegionNetworkEgress",
 		"InternetNetworkEgress",
+		"NatGatewayEgress",
+		"NatGatewayIngress",
 	}
 
 	testCases := []testCase{}
@@ -98,6 +100,8 @@ func TestSetSetCustomPricingField(t *testing.T) {
 				ZoneNetworkEgress:     defaultValue,
 				RegionNetworkEgress:   defaultValue,
 				InternetNetworkEgress: defaultValue,
+				NatGatewayEgress:      defaultValue,
+				NatGatewayIngress:     defaultValue,
 			}
 			err := SetCustomPricingField(cp, tc.fieldName, tc.fieldValue)
 			if err != nil && tc.expError == nil {
@@ -141,7 +145,7 @@ func TestCustomPricing_AthenaCURVersion(t *testing.T) {
 			cp := &CustomPricing{
 				AthenaCURVersion: testCase.curVersion,
 			}
-			
+
 			if cp.AthenaCURVersion != testCase.expected {
 				t.Errorf("expected AthenaCURVersion to be '%s', got '%s'", testCase.expected, cp.AthenaCURVersion)
 			}

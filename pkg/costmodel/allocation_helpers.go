@@ -990,6 +990,14 @@ func applyInternetNetworkAllocation(alloc *opencost.Allocation, networkSubCost f
 	alloc.NetworkInternetCost = networkSubCost
 }
 
+func applyNatGatewayEgressAllocation(alloc *opencost.Allocation, networkSubCost float64) {
+	alloc.NetworkNatGatewayEgressCost = networkSubCost
+}
+
+func applyNatGatewayIngressAllocation(alloc *opencost.Allocation, networkSubCost float64) {
+	alloc.NetworkNatGatewayIngressCost = networkSubCost
+}
+
 func applyNetworkAllocation(podMap map[podKey]*pod, resNetworkGiB []*source.NetworkGiBResult, resNetworkCostPerGiB []*source.NetworkPricePerGiBResult, podUIDKeyMap map[podKey][]podKey, applyCostFunc func(*opencost.Allocation, float64)) {
 	costPerGiBByCluster := map[string]float64{}
 
@@ -2510,8 +2518,7 @@ func calculateStartAndEnd(result []*util.Vector, resolution time.Duration, windo
 	// of the pod by giving "one resolution" worth of duration, half on each
 	// side of the given timestamp.
 	if s.Equal(e) {
-		s = s.Add(-1 * resolution / time.Duration(2))
-		e = e.Add(resolution / time.Duration(2))
+		e = e.Add(resolution)
 	}
 	if s.Before(*window.Start()) {
 		s = *window.Start()

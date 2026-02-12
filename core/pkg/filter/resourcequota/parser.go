@@ -1,6 +1,9 @@
 package resourcequota
 
-import "github.com/opencost/opencost/core/pkg/filter/ast"
+import (
+	"github.com/opencost/opencost/core/pkg/filter/ast"
+	"github.com/opencost/opencost/core/pkg/filter/ops"
+)
 
 var resourceQuotaFilterFields []*ast.Field = []*ast.Field{
 	ast.NewField(FieldClusterID),
@@ -19,6 +22,7 @@ func init() {
 		ff := *f
 		fieldMap[ResourceQuotaField(ff.Name)] = &ff
 	}
+	ops.RegisterDefaultFieldLookup[ResourceQuotaField](DefaultFieldByName)
 }
 
 // DefaultFieldByName returns only default resource quota filter fields by name.

@@ -936,7 +936,7 @@ func (aws *AWS) DownloadPricingData() error {
 			if errors.Is(err, ErrNoAthenaBucket) {
 				log.Debugf("No \"athenaBucketName\" configured, ReservedInstanceData watcher will not run")
 			} else {
-				log.Errorf("Failed to lookup reserved instance data: %s", err.Error())
+				log.Warnf("Failed to lookup reserved instance data: %s", err.Error())
 			}
 		} else { // If we make one successful run, check on new reservation data every hour
 			go func() {
@@ -1276,11 +1276,21 @@ func (aws *AWS) NetworkPricing() (*models.Network, error) {
 	if err != nil {
 		return nil, err
 	}
+	nge, err := strconv.ParseFloat(cpricing.NatGatewayEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+	ngi, err := strconv.ParseFloat(cpricing.NatGatewayIngress, 64)
+	if err != nil {
+		return nil, err
+	}
 
 	return &models.Network{
 		ZoneNetworkEgressCost:     znec,
 		RegionNetworkEgressCost:   rnec,
 		InternetNetworkEgressCost: inec,
+		NatGatewayEgressCost:      nge,
+		NatGatewayIngressCost:     ngi,
 	}, nil
 }
 

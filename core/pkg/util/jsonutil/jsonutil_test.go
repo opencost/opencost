@@ -8,7 +8,7 @@ import (
 
 func TestEncodeFloat64(t *testing.T) {
 	buffer := &bytes.Buffer{}
-	
+
 	// Test normal float value
 	buffer.Reset()
 	EncodeFloat64(buffer, "test", 3.14, ",")
@@ -16,7 +16,7 @@ func TestEncodeFloat64(t *testing.T) {
 	if buffer.String() != expected {
 		t.Errorf("Expected %s, got %s", expected, buffer.String())
 	}
-	
+
 	// Test NaN value
 	buffer.Reset()
 	EncodeFloat64(buffer, "test", math.NaN(), ",")
@@ -24,7 +24,7 @@ func TestEncodeFloat64(t *testing.T) {
 	if buffer.String() != expected {
 		t.Errorf("Expected %s, got %s", expected, buffer.String())
 	}
-	
+
 	// Test positive infinity
 	buffer.Reset()
 	EncodeFloat64(buffer, "test", math.Inf(1), ",")
@@ -32,7 +32,7 @@ func TestEncodeFloat64(t *testing.T) {
 	if buffer.String() != expected {
 		t.Errorf("Expected %s, got %s", expected, buffer.String())
 	}
-	
+
 	// Test negative infinity
 	buffer.Reset()
 	EncodeFloat64(buffer, "test", math.Inf(-1), ",")
@@ -53,19 +53,19 @@ func TestEncodeString(t *testing.T) {
 
 func TestEncode(t *testing.T) {
 	buffer := &bytes.Buffer{}
-	
+
 	// Test with a simple struct
 	type testStruct struct {
 		Field string `json:"field"`
 	}
-	
+
 	testObj := testStruct{Field: "test"}
 	Encode(buffer, "key", testObj, ",")
 	expected := `"key":{"field":"test"},`
 	if buffer.String() != expected {
 		t.Errorf("Expected %s, got %s", expected, buffer.String())
 	}
-	
+
 	// Test with nil (should produce null)
 	buffer.Reset()
 	Encode(buffer, "key", nil, ",")
