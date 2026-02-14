@@ -734,6 +734,14 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					instanceType = "n4standard"
 				}
 
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "C4 INSTANCE") {
+					instanceType = "c4standard"
+				}
+
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "C4A ARM INSTANCE") {
+					instanceType = "c4astandard"
+				}
+
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "A2 INSTANCE") {
 					instanceType = "a2"
 				}
@@ -1499,6 +1507,10 @@ func parseGCPInstanceTypeLabel(it string) string {
 			instanceType = "n2standard"
 		} else if instanceType == "n4highmem" || instanceType == "n4highcpu" {
 			instanceType = "n4standard" // N4 variants are priced the same per vCPU and RAM
+		} else if instanceType == "c4highmem" || instanceType == "c4highcpu" {
+			instanceType = "c4standard" // C4 variants are priced the same per vCPU and RAM
+		} else if instanceType == "c4ahighmem" || instanceType == "c4ahighcpu" {
+			instanceType = "c4astandard" // C4A variants are priced the same per vCPU and RAM
 		} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
 			instanceType = "e2standard"
 		} else if instanceType == "n2dhighmem" || instanceType == "n2dhighcpu" {
@@ -1640,7 +1652,7 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 	}
 	discount := defaultDiscount
 	switch class {
-	case "e2", "f1", "g1", "n4":
+	case "e2", "f1", "g1", "n4", "c4", "c4a":
 		discount = 0.0
 	case "n2", "n2d":
 		discount = 0.2
