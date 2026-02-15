@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
+	promsource "github.com/opencost/opencost/modules/prometheus-source/pkg/prom"
 )
 
 // QueryDataCoverage returns the time range for which data is available
@@ -21,12 +22,12 @@ func (pds *PrometheusMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time
 	log.Debugf(PrometheusMetricsQueryLogFormat, "QueryDataCoverage", time.Now().Unix(), startQuery)
 
 	// Execute queries
-	startResults, _, err := pds.NewNamedContext(AllocationContextName).QuerySync(startQuery)
+	startResults, _, err := pds.NewNamedContext(promsource.AllocationContextName).QuerySync(startQuery)
 	if err != nil {
 		return time.Time{}, time.Time{}, err
 	}
 
-	endResults, _, err := pds.NewNamedContext(AllocationContextName).QuerySync(endQuery)
+	endResults, _, err := pds.NewNamedContext(promsource.AllocationContextName).QuerySync(endQuery)
 	if err != nil {
 		return time.Time{}, time.Time{}, err
 	}

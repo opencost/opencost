@@ -17,6 +17,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"github.com/opencost/opencost/core/pkg/util/json"
+	promsource "github.com/opencost/opencost/modules/prometheus-source/pkg/prom"
 
 	prometheus "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -68,46 +69,47 @@ func toStartEndStep(qp httputil.QueryParams) (start, end time.Time, step time.Du
 // creates a new help error which indicates the caller can retry and is non-fatal.
 func newHelpRetryError(format string, args ...any) error {
 	formatWithHelp := format + "\nTroubleshooting help available at: %s"
-	args = append(args, PrometheusTroubleshootingURL)
+	args = append(args, promsource.PrometheusTroubleshootingURL)
 
 	cause := fmt.Errorf(formatWithHelp, args...)
 	return source.NewHelpRetryError(cause)
 }
 
-// PrometheusDataSource is the OpenCost data source implementation leveraging Prometheus. Prometheus provides longer retention periods and
+// PrometheusOTelDataSource is the OpenCost data source implementation leveraging Prometheus
+// with OpenTelemetry Collector metrics. Prometheus provides longer retention periods and
 // more detailed metrics than the OpenCost Collector, which is useful for historical analysis and cost forecasting.
-type PrometheusDataSource struct {
-	promConfig   *OpenCostPrometheusConfig
+type PrometheusOTelDataSource struct {
+	promConfig   *promsource.OpenCostPrometheusConfig
 	promClient   prometheus.Client
-	promContexts *ContextFactory
+	promContexts *promsource.ContextFactory
 
 	metricsQuerier *PrometheusMetricsQuerier
 	clusterMap     clusters.ClusterMap
 	clusterInfo    clusters.ClusterInfoProvider
 }
 
-// NewDefaultPrometheusDataSource creates and initializes a new `PrometheusDataSource` with configuration
+// NewDefaultPrometheusOTelDataSource creates and initializes a new `PrometheusOTelDataSource` with configuration
 // parsed from environment variables. This function will block until a connection to prometheus is established,
 // or fails. It is recommended to run this function in a goroutine on a retry cycle.
-func NewDefaultPrometheusDataSource(clusterInfoProvider clusters.ClusterInfoProvider) (*PrometheusDataSource, error) {
-	config, err := NewOpenCostPrometheusConfigFromEnv()
+func NewDefaultPrometheusOTelDataSource(clusterInfoProvider clusters.ClusterInfoProvider) (*PrometheusOTelDataSource, error) {
+	config, err := promsource.NewOpenCostPrometheusConfigFromEnv()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create prometheus config from env: %w", err)
 	}
 
-	return NewPrometheusDataSource(clusterInfoProvider, config)
+	return NewPrometheusOTelDataSource(clusterInfoProvider, config)
 }
 
-// NewPrometheusDataSource initializes clients for Prometheus and Thanos, and returns a new PrometheusDataSource.
-func NewPrometheusDataSource(infoProvider clusters.ClusterInfoProvider, promConfig *OpenCostPrometheusConfig) (*PrometheusDataSource, error) {
-	promClient, err := NewPrometheusClient(promConfig.ServerEndpoint, promConfig.ClientConfig)
+// NewPrometheusOTelDataSource initializes clients for Prometheus and returns a new PrometheusOTelDataSource.
+func NewPrometheusOTelDataSource(infoProvider clusters.ClusterInfoProvider, promConfig *promsource.OpenCostPrometheusConfig) (*PrometheusOTelDataSource, error) {
+	promClient, err := promsource.NewPrometheusClient(promConfig.ServerEndpoint, promConfig.ClientConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build prometheus client: %w", err)
 	}
 
 	// validation of the prometheus client
 
-	m, err := Validate(promClient, promConfig)
+	m, err := promsource.Validate(promClient, promConfig)
 	if err != nil || !m.Running {
 		if err != nil {
 			return nil, newHelpRetryError("failed to query prometheus at %s: %w", promConfig.ServerEndpoint, err)
@@ -123,7 +125,7 @@ func NewPrometheusDataSource(infoProvider clusters.ClusterInfoProvider, promConf
 	bi, err := api.Buildinfo(context.Background())
 
 	if err != nil {
-		log.Infof("No valid prometheus config file at %s. Error: %s.\nTroubleshooting help available at: %s.\n**Ignore if using cortex/mimir/thanos here**", promConfig.ServerEndpoint, err.Error(), PrometheusTroubleshootingURL)
+		log.Infof("No valid prometheus config file at %s. Error: %s.\nTroubleshooting help available at: %s.\n**Ignore if using cortex/mimir/thanos here**", promConfig.ServerEndpoint, err.Error(), promsource.PrometheusTroubleshootingURL)
 	} else {
 		log.Infof("Retrieved a prometheus config file from: %s", promConfig.ServerEndpoint)
 		promConfig.Version = bi.Version
@@ -143,7 +145,7 @@ func NewPrometheusDataSource(infoProvider clusters.ClusterInfoProvider, promConf
 		promConfig.ScrapeInterval = time.Minute
 
 		// Lookup scrape interval for kubecost job, update if found
-		si, err := ScrapeIntervalFor(promClient, promConfig.JobName)
+		si, err := promsource.ScrapeIntervalFor(promClient, promConfig.JobName)
 		if err == nil {
 			promConfig.ScrapeInterval = si
 		}
@@ -151,7 +153,7 @@ func NewPrometheusDataSource(infoProvider clusters.ClusterInfoProvider, promConf
 
 	log.Infof("Using scrape interval of %f", promConfig.ScrapeInterval.Seconds())
 
-	promContexts := NewContextFactory(promClient, promConfig)
+	promContexts := promsource.NewContextFactory(promClient, promConfig)
 
 	// metadata creation for cluster info
 	metadata := map[string]string{
@@ -160,16 +162,16 @@ func NewPrometheusDataSource(infoProvider clusters.ClusterInfoProvider, promConf
 
 	// cluster info provider
 	clusterInfoProvider := clusters.NewClusterInfoDecorator(infoProvider, metadata)
-	clusterMap := newPrometheusClusterMap(promContexts, clusterInfoProvider, 5*time.Minute)
+	clusterMap := promsource.NewPrometheusClusterMap(promContexts, clusterInfoProvider, 5*time.Minute)
 
-	// create metrics querier implementation for prometheus and thanos
+	// create metrics querier implementation for prometheus with OTel metrics
 	metricsQuerier := newPrometheusMetricsQuerier(
 		promConfig,
 		promClient,
 		promContexts,
 	)
 
-	return &PrometheusDataSource{
+	return &PrometheusOTelDataSource{
 		promConfig:     promConfig,
 		promClient:     promClient,
 		promContexts:   promContexts,
@@ -182,16 +184,16 @@ func NewPrometheusDataSource(infoProvider clusters.ClusterInfoProvider, promConf
 var proto = protocol.HTTP()
 
 // prometheusMetadata returns the metadata for the prometheus server
-func (pds *PrometheusDataSource) prometheusMetadata(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+func (pds *PrometheusOTelDataSource) prometheusMetadata(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	resp := proto.ToResponse(Validate(pds.promClient, pds.promConfig))
+	resp := proto.ToResponse(promsource.Validate(pds.promClient, pds.promConfig))
 	proto.WriteResponse(w, resp)
 }
 
 // prometheusRecordingRules is a proxy for /rules against prometheus
-func (pds *PrometheusDataSource) prometheusRecordingRules(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (pds *PrometheusOTelDataSource) prometheusRecordingRules(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -213,7 +215,7 @@ func (pds *PrometheusDataSource) prometheusRecordingRules(w http.ResponseWriter,
 }
 
 // prometheusConfig returns the current configuration of the prometheus server
-func (pds *PrometheusDataSource) prometheusConfig(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (pds *PrometheusOTelDataSource) prometheusConfig(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -230,7 +232,7 @@ func (pds *PrometheusDataSource) prometheusConfig(w http.ResponseWriter, r *http
 }
 
 // prometheusTargets is a proxy for /targets against prometheus
-func (pds *PrometheusDataSource) prometheusTargets(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (pds *PrometheusOTelDataSource) prometheusTargets(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -252,7 +254,7 @@ func (pds *PrometheusDataSource) prometheusTargets(w http.ResponseWriter, r *htt
 }
 
 // status returns the status of the prometheus client
-func (pds *PrometheusDataSource) status(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (pds *PrometheusOTelDataSource) status(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -268,7 +270,7 @@ func (pds *PrometheusDataSource) status(w http.ResponseWriter, r *http.Request, 
 }
 
 // prometheusQuery is a proxy for /query against prometheus
-func (pds *PrometheusDataSource) prometheusQuery(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (pds *PrometheusOTelDataSource) prometheusQuery(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -295,7 +297,7 @@ func (pds *PrometheusDataSource) prometheusQuery(w http.ResponseWriter, r *http.
 		}
 	}
 
-	ctx := pds.promContexts.NewNamedContext(FrontendContextName)
+	ctx := pds.promContexts.NewNamedContext(promsource.FrontendContextName)
 	body, err := ctx.RawQuery(query, timeVal)
 	if err != nil {
 		proto.WriteResponse(w, proto.ToResponse(nil, fmt.Errorf("Error running query %s. Error: %s", query, err)))
@@ -305,7 +307,7 @@ func (pds *PrometheusDataSource) prometheusQuery(w http.ResponseWriter, r *http.
 	w.Write(body) // prometheusQueryRange is a proxy for /query_range against prometheus
 }
 
-func (pds *PrometheusDataSource) prometheusQueryRange(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (pds *PrometheusOTelDataSource) prometheusQueryRange(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -322,7 +324,7 @@ func (pds *PrometheusDataSource) prometheusQueryRange(w http.ResponseWriter, r *
 		return
 	}
 
-	ctx := pds.promContexts.NewNamedContext(FrontendContextName)
+	ctx := pds.promContexts.NewNamedContext(promsource.FrontendContextName)
 	body, err := ctx.RawQueryRange(query, start, end, duration)
 	if err != nil {
 		fmt.Fprintf(w, "Error running query %s. Error: %s", query, err)
@@ -333,17 +335,17 @@ func (pds *PrometheusDataSource) prometheusQueryRange(w http.ResponseWriter, r *
 }
 
 // promtheusQueueState returns the current state of the prometheus and thanos request queues
-func (pds *PrometheusDataSource) prometheusQueueState(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+func (pds *PrometheusOTelDataSource) prometheusQueueState(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	promQueueState, err := GetPrometheusQueueState(pds.promClient, pds.promConfig)
+	promQueueState, err := promsource.GetPrometheusQueueState(pds.promClient, pds.promConfig)
 	if err != nil {
 		proto.WriteResponse(w, proto.ToResponse(nil, err))
 		return
 	}
 
-	result := map[string]*PrometheusQueueState{
+	result := map[string]*promsource.PrometheusQueueState{
 		"prometheus": promQueueState,
 	}
 
@@ -351,7 +353,7 @@ func (pds *PrometheusDataSource) prometheusQueueState(w http.ResponseWriter, _ *
 }
 
 // prometheusMetrics retrieves availability of Prometheus and Thanos metrics
-func (pds *PrometheusDataSource) prometheusMetrics(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+func (pds *PrometheusOTelDataSource) prometheusMetrics(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -364,19 +366,19 @@ func (pds *PrometheusDataSource) prometheusMetrics(w http.ResponseWriter, _ *htt
 	proto.WriteResponse(w, proto.ToResponse(result, nil))
 }
 
-func (pds *PrometheusDataSource) PrometheusClient() prometheus.Client {
+func (pds *PrometheusOTelDataSource) PrometheusClient() prometheus.Client {
 	return pds.promClient
 }
 
-func (pds *PrometheusDataSource) PrometheusConfig() *OpenCostPrometheusConfig {
+func (pds *PrometheusOTelDataSource) PrometheusConfig() *promsource.OpenCostPrometheusConfig {
 	return pds.promConfig
 }
 
-func (pds *PrometheusDataSource) PrometheusContexts() *ContextFactory {
+func (pds *PrometheusOTelDataSource) PrometheusContexts() *promsource.ContextFactory {
 	return pds.promContexts
 }
 
-func (pds *PrometheusDataSource) RegisterEndPoints(router *httprouter.Router) {
+func (pds *PrometheusOTelDataSource) RegisterEndPoints(router *httprouter.Router) {
 	// endpoints migrated from server
 	router.GET("/validatePrometheus", pds.prometheusMetadata)
 	router.GET("/prometheusRecordingRules", pds.prometheusRecordingRules)
@@ -395,14 +397,14 @@ func (pds *PrometheusDataSource) RegisterEndPoints(router *httprouter.Router) {
 
 // RegisterDiagnostics registers any custom data source diagnostics with the `DiagnosticService` that can
 // be used to report externally.
-func (pds *PrometheusDataSource) RegisterDiagnostics(diagService diagnostics.DiagnosticService) {
-	const PrometheusDiagnosticCategory = "prometheus"
+func (pds *PrometheusOTelDataSource) RegisterDiagnostics(diagService diagnostics.DiagnosticService) {
+	const PrometheusDiagnosticCategory = "prometheus-otel"
 
 	for _, dd := range diagnosticDefinitions {
 		err := diagService.Register(dd.ID, dd.Description, PrometheusDiagnosticCategory, func(ctx context.Context) (map[string]any, error) {
 			promDiag := dd.NewDiagnostic(pds.promConfig.ClusterFilter, "")
 
-			promContext := pds.promContexts.NewNamedContext(DiagnosticContextName)
+			promContext := pds.promContexts.NewNamedContext(promsource.DiagnosticContextName)
 			e := promDiag.executePrometheusDiagnosticQuery(promContext)
 			if e != nil {
 				return nil, fmt.Errorf("failed to execute prometheus diagnostic: %s - %w", dd.ID, e)
@@ -417,27 +419,27 @@ func (pds *PrometheusDataSource) RegisterDiagnostics(diagService diagnostics.Dia
 	}
 }
 
-func (pds *PrometheusDataSource) RefreshInterval() time.Duration {
+func (pds *PrometheusOTelDataSource) RefreshInterval() time.Duration {
 	return pds.promConfig.ScrapeInterval
 }
 
-func (pds *PrometheusDataSource) Metrics() source.MetricsQuerier {
+func (pds *PrometheusOTelDataSource) Metrics() source.MetricsQuerier {
 	return pds.metricsQuerier
 }
 
-func (pds *PrometheusDataSource) ClusterMap() clusters.ClusterMap {
+func (pds *PrometheusOTelDataSource) ClusterMap() clusters.ClusterMap {
 	return pds.clusterMap
 }
 
 // ClusterInfo returns the ClusterInfoProvider for the local cluster.
-func (pds *PrometheusDataSource) ClusterInfo() clusters.ClusterInfoProvider {
+func (pds *PrometheusOTelDataSource) ClusterInfo() clusters.ClusterInfoProvider {
 	return pds.clusterInfo
 }
 
-func (pds *PrometheusDataSource) BatchDuration() time.Duration {
+func (pds *PrometheusOTelDataSource) BatchDuration() time.Duration {
 	return pds.promConfig.MaxQueryDuration
 }
 
-func (pds *PrometheusDataSource) Resolution() time.Duration {
+func (pds *PrometheusOTelDataSource) Resolution() time.Duration {
 	return pds.promConfig.DataResolution
 }
