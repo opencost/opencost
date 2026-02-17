@@ -313,3 +313,36 @@ func TestPipelineService_Stop_ShutdownLogging(t *testing.T) {
 	t.Log("Pipeline service logged shutdown progress")
 }
 
+func TestPipelineService_Stop_NilReceiver(t *testing.T) {
+	var ps *PipelineService
+	ps.Stop() // should not panic on nil receiver
+}
+
+func TestPipelineService_Stop_NilIngestors(t *testing.T) {
+	ps := &PipelineService{}
+	ps.Stop() // should not panic when ingestors are nil
+}
+
+func TestPipelineService_Stop_WithIngestors(t *testing.T) {
+	hourly := &CustomCostIngestor{plugins: map[string]*plugin.Client{}}
+	daily := &CustomCostIngestor{plugins: map[string]*plugin.Client{}}
+	ps := &PipelineService{
+		hourlyIngestor: hourly,
+		dailyIngestor:  daily,
+	}
+	ps.Stop()
+}
+
+func TestPipelineService_Stop_OnlyHourlyIngestor(t *testing.T) {
+	ps := &PipelineService{
+		hourlyIngestor: &CustomCostIngestor{plugins: map[string]*plugin.Client{}},
+	}
+	ps.Stop() // should not panic when dailyIngestor is nil
+}
+
+func TestPipelineService_Stop_OnlyDailyIngestor(t *testing.T) {
+	ps := &PipelineService{
+		dailyIngestor: &CustomCostIngestor{plugins: map[string]*plugin.Client{}},
+	}
+	ps.Stop() // should not panic when hourlyIngestor is nil
+}
