@@ -2,6 +2,7 @@ package customcost
 
 import (
 	"os/exec"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -146,4 +147,43 @@ func TestIngestor_Stop_WithStartedIngestor(t *testing.T) {
 	if ingestor.isStopping.Load() {
 		t.Error("Expected isStopping to be false after Stop()")
 	}
+}
+
+// TestIngestor_BuildWindow_WithPlugin covers pluginsLock paths inside buildSingleDomain.
+// Using a command that exits immediately causes client.Client() to fail fast, exercising
+// the RLock/RUnlock calls and the error-return path without hanging.
+func TestIngestor_BuildWindow_WithPlugin(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("requires Unix false command")
+	}
+
+	cmd := exec.Command("false") // exits immediately with failure
+	client := plugin.NewClient(&plugin.ClientConfig{
+		HandshakeConfig: plugin.HandshakeConfig{
+			ProtocolVersion:  1,
+			MagicCookieKey:   "test",
+			MagicCookieValue: "test",
+		},
+		Cmd:          cmd,
+		StartTimeout: 2 * time.Second,
+	})
+	t.Cleanup(func() { client.Kill() })
+
+	repo := NewMemoryRepository()
+	config := &CustomCostIngestorConfig{
+		DailyDuration:     24 * time.Hour,
+		HourlyDuration:    time.Hour,
+		DailyQueryWindow:  24 * time.Hour,
+		HourlyQueryWindow: time.Hour,
+	}
+
+	ingestor, err := NewCustomCostIngestor(config, repo, map[string]*plugin.Client{"test-plugin": client}, 24*time.Hour)
+	if err != nil {
+		t.Fatalf("Failed to create ingestor: %v", err)
+	}
+
+	now := time.Now().UTC()
+	// BuildWindow iterates the plugins map, exercising pluginsLock in both
+	// BuildWindow and buildSingleDomain; client.Client() fails fast (false exits)
+	ingestor.BuildWindow(now.Add(-time.Hour), now)
 }

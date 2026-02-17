@@ -65,4 +65,3 @@ func TestGracefulShutdownConfiguration(t *testing.T) {
 		t.Error("Shutdown timeout is too short for graceful shutdown")
 	}
 }
-
