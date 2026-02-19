@@ -13,6 +13,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/pkg/cloud/provider"
+	pkgenv "github.com/opencost/opencost/pkg/env"
 	"k8s.io/apimachinery/pkg/labels"
 )
 
@@ -1863,33 +1864,53 @@ func applyNodeDiscount(nodeMap map[nodeKey]*nodePricing, cm *CostModel) {
 		return
 	}
 
-	// Debug: Log discount config values
-	log.Debugf("applyNodeDiscount: Config Discount=%s, NegotiatedDiscount=%s, SpotDiscount=%s, SpotNegotiatedDiscount=%s",
-		c.Discount, c.NegotiatedDiscount, c.SpotDiscount, c.SpotNegotiatedDiscount)
+	// Priority: Environment variable > Config file
+	discountStr := pkgenv.GetDiscount()
+	if discountStr == "" {
+		discountStr = c.Discount
+	}
+	negDiscountStr := pkgenv.GetNegotiatedDiscount()
+	if negDiscountStr == "" {
+		negDiscountStr = c.NegotiatedDiscount
+	}
+	spotDiscountStr := pkgenv.GetSpotDiscount()
+	if spotDiscountStr == "" {
+		spotDiscountStr = c.SpotDiscount
+	}
+	spotNegDiscountStr := pkgenv.GetSpotNegotiatedDiscount()
+	if spotNegDiscountStr == "" {
+		spotNegDiscountStr = c.SpotNegotiatedDiscount
+	}
+
+	log.Debugf("applyNodeDiscount: discount=%s (env=%s, config=%s), negotiatedDiscount=%s (env=%s, config=%s), spotDiscount=%s (env=%s, config=%s), spotNegotiatedDiscount=%s (env=%s, config=%s)",
+		discountStr, pkgenv.GetDiscount(), c.Discount,
+		negDiscountStr, pkgenv.GetNegotiatedDiscount(), c.NegotiatedDiscount,
+		spotDiscountStr, pkgenv.GetSpotDiscount(), c.SpotDiscount,
+		spotNegDiscountStr, pkgenv.GetSpotNegotiatedDiscount(), c.SpotNegotiatedDiscount)
 
 	// Parse on-demand discounts
-	discount, err := ParsePercentString(c.Discount)
+	discount, err := ParsePercentString(discountStr)
 	if err != nil {
-		log.Errorf("CostModel.ComputeAllocation: applyNodeDiscount: failed to parse discount: %s", err)
+		log.Errorf("CostModel.ComputeAllocation: applyNodeDiscount: failed to parse discount '%s': %s", discountStr, err)
 		return
 	}
 
-	negotiatedDiscount, err := ParsePercentString(c.NegotiatedDiscount)
+	negotiatedDiscount, err := ParsePercentString(negDiscountStr)
 	if err != nil {
-		log.Errorf("CostModel.ComputeAllocation: applyNodeDiscount: failed to parse negotiatedDiscount: %s", err)
+		log.Errorf("CostModel.ComputeAllocation: applyNodeDiscount: failed to parse negotiatedDiscount '%s': %s", negDiscountStr, err)
 		return
 	}
 
 	// Parse spot-specific discounts (fallback to 0 if not configured)
-	spotDiscount, err := ParsePercentString(c.SpotDiscount)
+	spotDiscount, err := ParsePercentString(spotDiscountStr)
 	if err != nil {
-		log.Warnf("CostModel.ComputeAllocation: applyNodeDiscount: failed to parse spotDiscount: %s", err)
+		log.Warnf("CostModel.ComputeAllocation: applyNodeDiscount: failed to parse spotDiscount '%s': %s", spotDiscountStr, err)
 		spotDiscount = 0
 	}
 
-	spotNegotiatedDiscount, err := ParsePercentString(c.SpotNegotiatedDiscount)
+	spotNegotiatedDiscount, err := ParsePercentString(spotNegDiscountStr)
 	if err != nil {
-		log.Warnf("CostModel.ComputeAllocation: applyNodeDiscount: failed to parse spotNegotiatedDiscount: %s", err)
+		log.Warnf("CostModel.ComputeAllocation: applyNodeDiscount: failed to parse spotNegotiatedDiscount '%s': %s", spotNegDiscountStr, err)
 		spotNegotiatedDiscount = 0
 	}
 

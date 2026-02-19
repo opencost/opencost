@@ -21,6 +21,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
+	pkgenv "github.com/opencost/opencost/pkg/env"
 	km "github.com/opencost/opencost/pkg/kubemodel"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1296,45 +1297,63 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 
 	// Apply discount to node costs for metrics
 	// This ensures Prometheus metrics reflect the configured discount
+	// Priority: Environment variable > Config file
+
 	// OnDemand discount (applies to non-spot nodes)
 	onDemandDiscount := 1.0
-	if cfg.Discount != "" {
-		discountParsed, err := ParsePercentString(cfg.Discount)
+	discountStr := pkgenv.GetDiscount()
+	if discountStr == "" {
+		discountStr = cfg.Discount
+	}
+	if discountStr != "" {
+		discountParsed, err := ParsePercentString(discountStr)
 		if err != nil {
-			log.Warnf("GetNodeCost: Failed to parse discount '%s': %v", cfg.Discount, err)
+			log.Warnf("GetNodeCost: Failed to parse discount '%s': %v", discountStr, err)
 		} else {
 			onDemandDiscount = onDemandDiscount * (1.0 - discountParsed)
-			log.Debugf("GetNodeCost: Parsed onDemand discount=%f, multiplier=%f", discountParsed, onDemandDiscount)
+			log.Debugf("GetNodeCost: Parsed onDemand discount=%f, multiplier=%f (env=%s, config=%s)", discountParsed, onDemandDiscount, pkgenv.GetDiscount(), cfg.Discount)
 		}
 	}
-	if cfg.NegotiatedDiscount != "" {
-		negDiscountParsed, err := ParsePercentString(cfg.NegotiatedDiscount)
+	negDiscountStr := pkgenv.GetNegotiatedDiscount()
+	if negDiscountStr == "" {
+		negDiscountStr = cfg.NegotiatedDiscount
+	}
+	if negDiscountStr != "" {
+		negDiscountParsed, err := ParsePercentString(negDiscountStr)
 		if err != nil {
-			log.Warnf("GetNodeCost: Failed to parse negotiatedDiscount '%s': %v", cfg.NegotiatedDiscount, err)
+			log.Warnf("GetNodeCost: Failed to parse negotiatedDiscount '%s': %v", negDiscountStr, err)
 		} else {
 			onDemandDiscount = onDemandDiscount * (1.0 - negDiscountParsed)
-			log.Debugf("GetNodeCost: Parsed negotiatedDiscount=%f, combined onDemand multiplier=%f", negDiscountParsed, onDemandDiscount)
+			log.Debugf("GetNodeCost: Parsed negotiatedDiscount=%f, combined onDemand multiplier=%f (env=%s, config=%s)", negDiscountParsed, onDemandDiscount, pkgenv.GetNegotiatedDiscount(), cfg.NegotiatedDiscount)
 		}
 	}
 
 	// Spot discount (applies to spot nodes)
 	spotDiscount := 1.0
-	if cfg.SpotDiscount != "" {
-		spotDiscountParsed, err := ParsePercentString(cfg.SpotDiscount)
+	spotDiscountStr := pkgenv.GetSpotDiscount()
+	if spotDiscountStr == "" {
+		spotDiscountStr = cfg.SpotDiscount
+	}
+	if spotDiscountStr != "" {
+		spotDiscountParsed, err := ParsePercentString(spotDiscountStr)
 		if err != nil {
-			log.Warnf("GetNodeCost: Failed to parse spotDiscount '%s': %v", cfg.SpotDiscount, err)
+			log.Warnf("GetNodeCost: Failed to parse spotDiscount '%s': %v", spotDiscountStr, err)
 		} else {
 			spotDiscount = spotDiscount * (1.0 - spotDiscountParsed)
-			log.Debugf("GetNodeCost: Parsed spotDiscount=%f, multiplier=%f", spotDiscountParsed, spotDiscount)
+			log.Debugf("GetNodeCost: Parsed spotDiscount=%f, multiplier=%f (env=%s, config=%s)", spotDiscountParsed, spotDiscount, pkgenv.GetSpotDiscount(), cfg.SpotDiscount)
 		}
 	}
-	if cfg.SpotNegotiatedDiscount != "" {
-		spotNegDiscountParsed, err := ParsePercentString(cfg.SpotNegotiatedDiscount)
+	spotNegDiscountStr := pkgenv.GetSpotNegotiatedDiscount()
+	if spotNegDiscountStr == "" {
+		spotNegDiscountStr = cfg.SpotNegotiatedDiscount
+	}
+	if spotNegDiscountStr != "" {
+		spotNegDiscountParsed, err := ParsePercentString(spotNegDiscountStr)
 		if err != nil {
-			log.Warnf("GetNodeCost: Failed to parse spotNegotiatedDiscount '%s': %v", cfg.SpotNegotiatedDiscount, err)
+			log.Warnf("GetNodeCost: Failed to parse spotNegotiatedDiscount '%s': %v", spotNegDiscountStr, err)
 		} else {
 			spotDiscount = spotDiscount * (1.0 - spotNegDiscountParsed)
-			log.Debugf("GetNodeCost: Parsed spotNegotiatedDiscount=%f, combined spot multiplier=%f", spotNegDiscountParsed, spotDiscount)
+			log.Debugf("GetNodeCost: Parsed spotNegotiatedDiscount=%f, combined spot multiplier=%f (env=%s, config=%s)", spotNegDiscountParsed, spotDiscount, pkgenv.GetSpotNegotiatedDiscount(), cfg.SpotNegotiatedDiscount)
 		}
 	}
 

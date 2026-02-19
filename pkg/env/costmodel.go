@@ -96,7 +96,34 @@ const (
 
 	// Metrics Emitter
 	MetricsEmitterQueryWindowEnvVar = "METRICS_EMITTER_QUERY_WINDOW"
+
+	// Discount configuration
+	DiscountEnvVar               = "DISCOUNT"
+	NegotiatedDiscountEnvVar     = "NEGOTIATED_DISCOUNT"
+	SpotDiscountEnvVar           = "SPOT_DISCOUNT"
+	SpotNegotiatedDiscountEnvVar = "SPOT_NEGOTIATED_DISCOUNT"
 )
+
+// GetDiscount returns the discount from DISCOUNT env variable, or empty string if not set.
+// Value should be a percentage string like "60" for 60%, "0.60", or "60%".
+func GetDiscount() string {
+	return env.Get(DiscountEnvVar, "")
+}
+
+// GetNegotiatedDiscount returns the negotiated discount from NEGOTIATED_DISCOUNT env variable.
+func GetNegotiatedDiscount() string {
+	return env.Get(NegotiatedDiscountEnvVar, "")
+}
+
+// GetSpotDiscount returns the spot discount from SPOT_DISCOUNT env variable.
+func GetSpotDiscount() string {
+	return env.Get(SpotDiscountEnvVar, "")
+}
+
+// GetSpotNegotiatedDiscount returns the spot negotiated discount from SPOT_NEGOTIATED_DISCOUNT env variable.
+func GetSpotNegotiatedDiscount() string {
+	return env.Get(SpotNegotiatedDiscountEnvVar, "")
+}
 
 func GetGCPAuthSecretFilePath() string {
 	return env.GetPathFromConfig(GCPAuthSecretFile)

@@ -1,7 +1,10 @@
 package costmodel
 
 import (
+	"os"
 	"testing"
+
+	pkgenv "github.com/opencost/opencost/pkg/env"
 )
 
 func TestParsePercentString(t *testing.T) {
@@ -214,6 +217,88 @@ func TestCostDiscountApplication(t *testing.T) {
 			diff := result - tt.expectedCost
 			if diff < -0.0001 || diff > 0.0001 {
 				t.Errorf("Cost after discount = %f, want %f", result, tt.expectedCost)
+			}
+		})
+	}
+}
+
+func TestEnvVarPriorityOverConfig(t *testing.T) {
+	tests := []struct {
+		name           string
+		envVar         string
+		envValue       string
+		configValue    string
+		getEnvFunc     func() string
+		expectedResult string
+	}{
+		{
+			name:           "DISCOUNT env var overrides config",
+			envVar:         pkgenv.DiscountEnvVar,
+			envValue:       "50",
+			configValue:    "30",
+			getEnvFunc:     pkgenv.GetDiscount,
+			expectedResult: "50",
+		},
+		{
+			name:           "NEGOTIATED_DISCOUNT env var overrides config",
+			envVar:         pkgenv.NegotiatedDiscountEnvVar,
+			envValue:       "20",
+			configValue:    "10",
+			getEnvFunc:     pkgenv.GetNegotiatedDiscount,
+			expectedResult: "20",
+		},
+		{
+			name:           "SPOT_DISCOUNT env var overrides config",
+			envVar:         pkgenv.SpotDiscountEnvVar,
+			envValue:       "15",
+			configValue:    "5",
+			getEnvFunc:     pkgenv.GetSpotDiscount,
+			expectedResult: "15",
+		},
+		{
+			name:           "SPOT_NEGOTIATED_DISCOUNT env var overrides config",
+			envVar:         pkgenv.SpotNegotiatedDiscountEnvVar,
+			envValue:       "25",
+			configValue:    "10",
+			getEnvFunc:     pkgenv.GetSpotNegotiatedDiscount,
+			expectedResult: "25",
+		},
+		{
+			name:           "empty env var falls back to config",
+			envVar:         pkgenv.DiscountEnvVar,
+			envValue:       "",
+			configValue:    "30",
+			getEnvFunc:     pkgenv.GetDiscount,
+			expectedResult: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set env var
+			if tt.envValue != "" {
+				os.Setenv(tt.envVar, tt.envValue)
+				defer os.Unsetenv(tt.envVar)
+			} else {
+				os.Unsetenv(tt.envVar)
+			}
+
+			envResult := tt.getEnvFunc()
+			if envResult != tt.expectedResult {
+				t.Errorf("GetEnvFunc() = %q, want %q", envResult, tt.expectedResult)
+			}
+
+			// Test the priority logic: env > config
+			finalValue := envResult
+			if finalValue == "" {
+				finalValue = tt.configValue
+			}
+
+			if tt.envValue != "" && finalValue != tt.envValue {
+				t.Errorf("Priority logic: got %q, want env value %q", finalValue, tt.envValue)
+			}
+			if tt.envValue == "" && finalValue != tt.configValue {
+				t.Errorf("Fallback logic: got %q, want config value %q", finalValue, tt.configValue)
 			}
 		})
 	}
