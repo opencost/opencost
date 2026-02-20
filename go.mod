@@ -41,9 +41,9 @@ require (
 	github.com/kubecost/events v0.0.8
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/modelcontextprotocol/go-sdk v1.3.0
-	github.com/opencost/opencost/core v1.119.2
-	github.com/opencost/opencost/modules/collector-source v1.119.2
-	github.com/opencost/opencost/modules/prometheus-source v1.119.2
+	github.com/opencost/opencost/core v0.0.0-20250521155634-81d2b597d1bc
+	github.com/opencost/opencost/modules/collector-source v0.0.0-00010101000000-000000000000
+	github.com/opencost/opencost/modules/prometheus-source v0.0.0-00010101000000-000000000000
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
