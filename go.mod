@@ -60,8 +60,8 @@ require (
 	golang.org/x/text v0.33.0
 	google.golang.org/api v0.264.0
 	google.golang.org/protobuf v1.36.11
-	k8s.io/api v0.35.0
-	k8s.io/apimachinery v0.35.0
+	k8s.io/api v0.35.1
+	k8s.io/apimachinery v0.35.1
 	k8s.io/client-go v0.35.0
 )
 
