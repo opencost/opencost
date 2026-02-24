@@ -363,10 +363,10 @@ func DecodeNodeActiveMinutesResult(result *QueryResult) *NodeActiveMinutesResult
 }
 
 type NodeCPUCoresCapacityResult struct {
-	UID     string
-	Cluster string
-	Node    string
-	Data    []*util.Vector
+	UID      string
+	Cluster  string
+	Node     string
+	CPUCores float64
 }
 
 func DecodeNodeCPUCoresCapacityResult(result *QueryResult) *NodeCPUCoresCapacityResult {
@@ -375,10 +375,10 @@ func DecodeNodeCPUCoresCapacityResult(result *QueryResult) *NodeCPUCoresCapacity
 	node, _ := result.GetNode()
 
 	return &NodeCPUCoresCapacityResult{
-		UID:     uid,
-		Cluster: cluster,
-		Node:    node,
-		Data:    result.Values,
+		UID:      uid,
+		Cluster:  cluster,
+		Node:     node,
+		CPUCores: result.Values[0].Value,
 	}
 }
 
@@ -389,22 +389,23 @@ func DecodeNodeCPUCoresAllocatableResult(result *QueryResult) *NodeCPUCoresAlloc
 }
 
 type NodeRAMBytesCapacityResult struct {
-	UID     string
-	Cluster string
-	Node    string
-	Data    []*util.Vector
+	UID      string
+	Cluster  string
+	Node     string
+	RAMBytes float64
 }
 
 func DecodeNodeRAMBytesCapacityResult(result *QueryResult) *NodeRAMBytesCapacityResult {
 	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	node, _ := result.GetNode()
+	bytes := result.Values[0].Value
 
 	return &NodeRAMBytesCapacityResult{
-		UID:     uid,
-		Cluster: cluster,
-		Node:    node,
-		Data:    result.Values,
+		UID:      uid,
+		Cluster:  cluster,
+		Node:     node,
+		RAMBytes: bytes,
 	}
 }
 
@@ -419,8 +420,7 @@ type NodeGPUCountResult struct {
 	Cluster    string
 	Node       string
 	ProviderID string
-
-	Data []*util.Vector
+	GPUCount   float64
 }
 
 func DecodeNodeGPUCountResult(result *QueryResult) *NodeGPUCountResult {
@@ -434,7 +434,7 @@ func DecodeNodeGPUCountResult(result *QueryResult) *NodeGPUCountResult {
 		Cluster:    cluster,
 		Node:       node,
 		ProviderID: providerId,
-		Data:       result.Values,
+		GPUCount:   result.Values[0].Value,
 	}
 }
 
@@ -1314,7 +1314,6 @@ type NodeLabelsResult struct {
 	Cluster string
 	Node    string
 	Labels  map[string]string
-	Data    []*util.Vector
 }
 
 func DecodeNodeLabelsResult(result *QueryResult) *NodeLabelsResult {
@@ -1328,7 +1327,6 @@ func DecodeNodeLabelsResult(result *QueryResult) *NodeLabelsResult {
 		Cluster: cluster,
 		Node:    node,
 		Labels:  labels,
-		Data:    result.Values,
 	}
 }
 

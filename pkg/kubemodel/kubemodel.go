@@ -52,13 +52,19 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 		return kms, fmt.Errorf("error computing kubemodel.Cluster for (%s, %s): %w", start.Format(logTimeFmt), end.Format(logTimeFmt), err)
 	}
 
-	// 2.2 Compute Namespaces
+	// 2.2 Compute Nodes
+	err = km.computeNodes(kms, start, end)
+	if err != nil {
+		kms.Error(err)
+	}
+
+	// 2.3 Compute Namespaces
 	err = km.computeNamespaces(kms, start, end)
 	if err != nil {
 		kms.Error(err)
 	}
 
-	// 2.3 Compute ResourceQuotas
+	// 2.4 Compute ResourceQuotas
 	err = km.computeResourceQuotas(kms, start, end)
 	if err != nil {
 		kms.Error(err)
@@ -108,68 +114,75 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 	nodeRAMBytesCapacityResultFuture := source.WithGroup(grp, metrics.QueryNodeRAMBytesCapacity(start, end))
 	nodeGPUCapacityResultFuture := source.WithGroup(grp, metrics.QueryNodeGPUCount(start, end))
 
+	nodeMap := make(map[string]*kubemodel.Node)
+
 	nodeInfoResult, _ := nodeInfoResultFuture.Await()
 	for _, res := range nodeInfoResult {
-		err := kms.RegisterNode(res.UID, res.Node)
-		if err != nil {
-			log.Warnf("error registering node (%s): %s", res.UID, err)
-			continue
+		nodeMap[res.UID] = &kubemodel.Node{
+			UID:          res.UID,
+			ProviderID:   res.ProviderID,
+			Name:         res.Node,
+			InstanceType: res.InstanceType,
 		}
-
-		kms.Nodes[res.UID].ProviderID = res.ProviderID
-		kms.Nodes[res.UID].NodeType = res.InstanceType
 	}
 
 	nodeUptimeResult, _ := nodeUptimeResultFuture.Await()
 	for _, res := range nodeUptimeResult {
-		err := kms.RegisterNode(res.UID, "")
-		if err != nil {
-			log.Warnf("error registering node (%s): %s", res.UID, err)
+		node, ok := nodeMap[res.UID]
+		if !ok {
+			log.Warnf("node with UID '%s' has not been initialized to add uptime", res.UID)
 			continue
 		}
 
-		kms.Nodes[res.UID].Start = res.First
-		kms.Nodes[res.UID].End = res.Last
+		node.Start = res.First
+		node.End = res.Last
 	}
 
 	nodeCPUCoresCapacityResult, _ := nodeCPUCoresCapacityResultFuture.Await()
 	for _, res := range nodeCPUCoresCapacityResult {
-		err := kms.RegisterNode(res.UID, "")
-		if err != nil {
-			log.Warnf("error registering node (%s): %s", res.UID, err)
+		node, ok := nodeMap[res.UID]
+		if !ok {
+			log.Warnf("node with UID '%s' has not been initialized to add CPU cores capacity", res.UID)
 			continue
 		}
-		kms.Nodes[res.UID].CPUMilliCores = res.Data[0].Value * 1000
+		node.CPUMilliCores = res.CPUCores * 1000
 	}
 
 	nodeRAMBytesCapacityResult, _ := nodeRAMBytesCapacityResultFuture.Await()
 	for _, res := range nodeRAMBytesCapacityResult {
-		err := kms.RegisterNode(res.UID, "")
-		if err != nil {
-			log.Warnf("error registering node (%s): %s", res.UID, err)
+		node, ok := nodeMap[res.UID]
+		if !ok {
+			log.Warnf("node with UID '%s' has not been initialized to add RAM bytes capacity", res.UID)
 			continue
 		}
-		kms.Nodes[res.UID].RAMBytes = res.Data[0].Value
+		node.RAMBytes = res.RAMBytes
 	}
 
 	nodeGPUCapacityResult, _ := nodeGPUCapacityResultFuture.Await()
 	for _, res := range nodeGPUCapacityResult {
-		err := kms.RegisterNode(res.UID, "")
-		if err != nil {
-			log.Warnf("error registering node (%s): %s", res.UID, err)
+		node, ok := nodeMap[res.UID]
+		if !ok {
+			log.Warnf("node with UID '%s' has not been initialized to add GPU capacity", res.UID)
 			continue
 		}
-		kms.Nodes[res.UID].GPUCount = res.Data[0].Value
+		node.GPUCount = res.GPUCount
 	}
 
 	nodeLabelsResult, _ := nodeLabelsResultFuture.Await()
 	for _, res := range nodeLabelsResult {
-		err := kms.RegisterNode(res.UID, "")
-		if err != nil {
-			log.Warnf("error registering node (%s): %s", res.UID, err)
+		node, ok := nodeMap[res.UID]
+		if !ok {
+			log.Warnf("node with UID '%s' has not been initialized to add labels", res.UID)
 			continue
 		}
-		kms.Nodes[res.UID].Labels = res.Labels
+		node.Labels = res.Labels
+	}
+
+	for _, node := range nodeMap {
+		err := kms.RegisterNode(node)
+		if err != nil {
+			log.Warnf("Failed to register node: %s", err.Error())
+		}
 	}
 
 	return nil

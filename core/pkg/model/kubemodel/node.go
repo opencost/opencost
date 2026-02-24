@@ -15,7 +15,7 @@ type Node struct {
 	Name            string                      `json:"name"`
 	Labels          map[string]string           `json:"labels,omitempty"`
 	Annotations     map[string]string           `json:"annotations,omitempty"`
-	NodeType        string                      `json:"nodeType"`
+	InstanceType    string                      `json:"InstanceType"`
 	Preemptible     bool                        `json:"preemptible"`
 	CPUMilliCores   Measurement                 `json:"cpuMilliCores"`
 	RAMBytes        Measurement                 `json:"ramBytes"`
@@ -82,23 +82,42 @@ type NodeVolumeUsage struct {
 //	return volume.UsageByteSeconds / n.DurationSeconds
 //}
 
-func (kms *KubeModelSet) RegisterNode(uid, name string) error {
-	if uid == "" {
-		err := fmt.Errorf("UID is nil for Node '%s'", name)
+// RegisterNode validates and adds a node to the set
+func (kms *KubeModelSet) RegisterNode(node *Node) error {
+	// Check required fields
+	if node.UID == "" {
+		err := fmt.Errorf("UID is missing for Node with name '%s'", node.Name)
 		kms.Error(err)
 		return err
 	}
 
-	if _, ok := kms.Nodes[uid]; !ok {
+	if node.Name == "" {
+		err := fmt.Errorf("Name is missing for Node '%s'", node.UID)
+		kms.Error(err)
+		return err
+	}
+
+	if kms.Window.Start.After(node.Start) ||
+		kms.Window.Start.After(node.End) ||
+		kms.Window.End.Before(node.Start) ||
+		kms.Window.End.Before(node.End) {
+		err := fmt.Errorf(
+			"Node '%s' has a start or end time (%s-%s) outside of the window %s-%s",
+			node.Start.Format(time.RFC3339),
+			node.End.Format(time.RFC3339),
+			kms.Window.Start.Format(time.RFC3339),
+			kms.Window.End.Format(time.RFC3339),
+		)
+		kms.Error(err)
+		return err
+	}
+
+	if _, ok := kms.Nodes[node.UID]; !ok {
 		if kms.Cluster == nil {
-			kms.Warnf("RegisterNode(%s, %s): Cluster is nil", uid, name)
+			kms.Warnf("RegisterNode: Cluster is nil")
 		}
 
-		kms.Nodes[uid] = &Node{
-			UID:             uid,
-			Name:            name,
-			AttachedVolumes: make(map[string]*NodeVolumeUsage),
-		}
+		kms.Nodes[node.UID] = node
 
 		kms.Metadata.ObjectCount++
 	}

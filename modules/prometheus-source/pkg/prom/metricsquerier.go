@@ -253,6 +253,16 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageActiveMinutes(start, end t
 	return source.NewFuture(source.DecodeLocalStorageActiveMinutesResult, ctx.QueryAtTime(queryLocalStorageActiveMins, end))
 }
 
+func (pds *PrometheusMetricsQuerier) QueryNodeInfo(start, end time.Time) *source.Future[source.NodeInfoResult] {
+	//TODO implement
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryNodeUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	//TODO implement
+	return nil
+}
+
 func (pds *PrometheusMetricsQuerier) QueryNodeCPUCoresCapacity(start, end time.Time) *source.Future[source.NodeCPUCoresCapacityResult] {
 	const queryName = "QueryNodeCPUCoresCapacity"
 	const nodeCPUCoresCapacityQuery = `avg(avg_over_time(kube_node_status_capacity_cpu_cores{%s}[%s])) by (%s, node, uid)`
