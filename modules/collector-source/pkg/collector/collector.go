@@ -22,6 +22,8 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewLocalStorageUsedMaxMetricCollector())
 	memStore.Register(NewLocalStorageBytesMetricCollector())
 	memStore.Register(NewLocalStorageActiveMinutesMetricCollector())
+	memStore.Register(NewNodeInfoMetricCollector())
+	memStore.Register(NewNodeUptimeMetricCollector())
 	memStore.Register(NewNodeCPUCoresCapacityMetricCollector())
 	memStore.Register(NewNodeCPUCoresAllocatableMetricCollector())
 	memStore.Register(NewNodeRAMBytesCapacityMetricCollector())
@@ -343,6 +345,33 @@ func NewLocalStorageActiveMinutesMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.NodeLabel,
 			source.ProviderIDLabel,
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewNodeInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NodeInfoID,
+		metric.NodeInfo,
+		[]string{
+			source.NodeLabel,
+			source.UIDLabel,
+			source.ProviderIDLabel,
+			source.InstanceTypeLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewNodeUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NodeUptimeID,
+		metric.NodeInfo,
+		[]string{
 			source.UIDLabel,
 		},
 		aggregator.Uptime,

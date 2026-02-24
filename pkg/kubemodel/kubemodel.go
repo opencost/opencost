@@ -97,6 +97,84 @@ func (km *KubeModel) computeCluster(kms *kubemodel.KubeModelSet, start, end time
 	return nil
 }
 
+func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+	grp := source.NewQueryGroup()
+	metrics := km.ds.Metrics()
+
+	nodeInfoResultFuture := source.WithGroup(grp, metrics.QueryNodeInfo(start, end))
+	nodeUptimeResultFuture := source.WithGroup(grp, metrics.QueryNodeUptime(start, end))
+	nodeLabelsResultFuture := source.WithGroup(grp, metrics.QueryNodeLabels(start, end))
+	nodeCPUCoresCapacityResultFuture := source.WithGroup(grp, metrics.QueryNodeCPUCoresCapacity(start, end))
+	nodeRAMBytesCapacityResultFuture := source.WithGroup(grp, metrics.QueryNodeRAMBytesCapacity(start, end))
+	nodeGPUCapacityResultFuture := source.WithGroup(grp, metrics.QueryNodeGPUCount(start, end))
+
+	nodeInfoResult, _ := nodeInfoResultFuture.Await()
+	for _, res := range nodeInfoResult {
+		err := kms.RegisterNode(res.UID, res.Node)
+		if err != nil {
+			log.Warnf("error registering node (%s): %s", res.UID, err)
+			continue
+		}
+
+		kms.Nodes[res.UID].ProviderID = res.ProviderID
+		kms.Nodes[res.UID].NodeType = res.InstanceType
+	}
+
+	nodeUptimeResult, _ := nodeUptimeResultFuture.Await()
+	for _, res := range nodeUptimeResult {
+		err := kms.RegisterNode(res.UID, "")
+		if err != nil {
+			log.Warnf("error registering node (%s): %s", res.UID, err)
+			continue
+		}
+
+		kms.Nodes[res.UID].Start = res.First
+		kms.Nodes[res.UID].End = res.Last
+	}
+
+	nodeCPUCoresCapacityResult, _ := nodeCPUCoresCapacityResultFuture.Await()
+	for _, res := range nodeCPUCoresCapacityResult {
+		err := kms.RegisterNode(res.UID, "")
+		if err != nil {
+			log.Warnf("error registering node (%s): %s", res.UID, err)
+			continue
+		}
+		kms.Nodes[res.UID].CPUMilliCores = res.Data[0].Value * 1000
+	}
+
+	nodeRAMBytesCapacityResult, _ := nodeRAMBytesCapacityResultFuture.Await()
+	for _, res := range nodeRAMBytesCapacityResult {
+		err := kms.RegisterNode(res.UID, "")
+		if err != nil {
+			log.Warnf("error registering node (%s): %s", res.UID, err)
+			continue
+		}
+		kms.Nodes[res.UID].RAMBytes = res.Data[0].Value
+	}
+
+	nodeGPUCapacityResult, _ := nodeGPUCapacityResultFuture.Await()
+	for _, res := range nodeGPUCapacityResult {
+		err := kms.RegisterNode(res.UID, "")
+		if err != nil {
+			log.Warnf("error registering node (%s): %s", res.UID, err)
+			continue
+		}
+		kms.Nodes[res.UID].GPUCount = res.Data[0].Value
+	}
+
+	nodeLabelsResult, _ := nodeLabelsResultFuture.Await()
+	for _, res := range nodeLabelsResult {
+		err := kms.RegisterNode(res.UID, "")
+		if err != nil {
+			log.Warnf("error registering node (%s): %s", res.UID, err)
+			continue
+		}
+		kms.Nodes[res.UID].Labels = res.Labels
+	}
+
+	return nil
+}
+
 func (km *KubeModel) computeNamespaces(kms *kubemodel.KubeModelSet, start, end time.Time) error {
 	grp := source.NewQueryGroup()
 	metrics := km.ds.Metrics()

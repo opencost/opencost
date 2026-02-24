@@ -315,6 +315,30 @@ func DecodeLocalStorageBytesResult(result *QueryResult) *LocalStorageBytesResult
 	}
 }
 
+type NodeInfoResult struct {
+	UID          string
+	Cluster      string
+	Node         string
+	ProviderID   string
+	InstanceType string
+}
+
+func DecodeNodeInfoResult(result *QueryResult) *NodeInfoResult {
+	uid, _ := result.GetString(UIDLabel)
+	cluster, _ := result.GetCluster()
+	node, _ := result.GetNode()
+	providerId, _ := result.GetProviderID()
+	instanceType, _ := result.GetInstanceType()
+
+	return &NodeInfoResult{
+		UID:          uid,
+		Cluster:      cluster,
+		Node:         node,
+		ProviderID:   providerId,
+		InstanceType: instanceType,
+	}
+}
+
 type NodeActiveMinutesResult struct {
 	UID        string
 	Cluster    string

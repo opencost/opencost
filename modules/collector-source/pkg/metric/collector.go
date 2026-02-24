@@ -31,6 +31,8 @@ const (
 	NodeRAMBytesAllocatableID                  MetricCollectorID = "NodeRAMBytesAllocatable"
 	NodeGPUCountID                             MetricCollectorID = "NodeGPUCount"
 	NodeLabelsID                               MetricCollectorID = "NodeLabels"
+	NodeInfoID                                 MetricCollectorID = "NodeInfo"
+	NodeUptimeID                               MetricCollectorID = "NodeUptime"
 	NodeActiveMinutesID                        MetricCollectorID = "NodeActiveMinutes"
 	NodeCPUModeTotalID                         MetricCollectorID = "NodeCPUModeTotal"
 	NodeRAMSystemUsageAverageID                MetricCollectorID = "NodeRAMSystemUsageAverage"

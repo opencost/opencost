@@ -9,6 +9,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
+	coreutil "github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/modules/collector-source/pkg/event"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
@@ -59,6 +60,15 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 			source.ProviderIDLabel: node.SpecProviderID,
 			source.UIDLabel:        string(node.UID),
 		}
+
+		if instanceType, ok := coreutil.GetInstanceType(node.Labels); ok {
+			nodeInfo[source.InstanceTypeLabel] = instanceType
+		}
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:   metric.NodeInfo,
+			Labels: nodeInfo,
+		})
 
 		// Node Capacity
 		if node.Status.Capacity != nil {

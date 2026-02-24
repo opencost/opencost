@@ -182,6 +182,14 @@ func (c *collectorMetricsQuerier) QueryLocalStorageBytes(start, end time.Time) *
 	return queryCollector(c, start, end, metric.LocalStorageBytesID, source.DecodeLocalStorageBytesResult)
 }
 
+func (c *collectorMetricsQuerier) QueryNodeInfo(start, end time.Time) *source.Future[source.NodeInfoResult] {
+	return queryCollector(c, start, end, metric.NodeInfoID, source.DecodeNodeInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryNodeUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.NodeUptimeID, source.DecodeUptimeResult)
+}
+
 func (c *collectorMetricsQuerier) QueryNodeActiveMinutes(start, end time.Time) *source.Future[source.NodeActiveMinutesResult] {
 	return queryCollector(c, start, end, metric.NodeActiveMinutesID, source.DecodeNodeActiveMinutesResult)
 }

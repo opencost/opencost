@@ -23,6 +23,8 @@ type MetricsQuerier interface {
 	QueryLocalStorageBytes(start, end time.Time) *Future[LocalStorageBytesResult]
 
 	// Nodes
+	QueryNodeInfo(start, end time.Time) *Future[NodeInfoResult]
+	QueryNodeUptime(start, end time.Time) *Future[UptimeResult]
 	QueryNodeActiveMinutes(start, end time.Time) *Future[NodeActiveMinutesResult]
 	QueryNodeCPUCoresCapacity(start, end time.Time) *Future[NodeCPUCoresCapacityResult]
 	QueryNodeCPUCoresAllocatable(start, end time.Time) *Future[NodeCPUCoresAllocatableResult]
