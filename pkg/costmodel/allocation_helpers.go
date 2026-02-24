@@ -990,6 +990,14 @@ func applyInternetNetworkAllocation(alloc *opencost.Allocation, networkSubCost f
 	alloc.NetworkInternetCost = networkSubCost
 }
 
+func applyNatGatewayEgressAllocation(alloc *opencost.Allocation, networkSubCost float64) {
+	alloc.NetworkNatGatewayEgressCost = networkSubCost
+}
+
+func applyNatGatewayIngressAllocation(alloc *opencost.Allocation, networkSubCost float64) {
+	alloc.NetworkNatGatewayIngressCost = networkSubCost
+}
+
 func applyNetworkAllocation(podMap map[podKey]*pod, resNetworkGiB []*source.NetworkGiBResult, resNetworkCostPerGiB []*source.NetworkPricePerGiBResult, podUIDKeyMap map[podKey][]podKey, applyCostFunc func(*opencost.Allocation, float64)) {
 	costPerGiBByCluster := map[string]float64{}
 

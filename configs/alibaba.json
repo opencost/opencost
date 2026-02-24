@@ -12,5 +12,7 @@
     "zoneNetworkEgress": "0.02",
     "regionNetworkEgress": "0.08",
     "internetNetworkEgress": "0.123",
+    "natGatewayEgress": "0.045",
+    "natGatewayIngress": "0.045",
     "defaultLBPrice": "0.007"
 }

@@ -137,6 +137,8 @@ type CustomPricing struct {
 	ZoneNetworkEgress            string `json:"zoneNetworkEgress"`
 	RegionNetworkEgress          string `json:"regionNetworkEgress"`
 	InternetNetworkEgress        string `json:"internetNetworkEgress"`
+	NatGatewayEgress             string `json:"natGatewayEgress"`
+	NatGatewayIngress            string `json:"natGatewayIngress"`
 	FirstFiveForwardingRulesCost string `json:"firstFiveForwardingRulesCost"`
 	AdditionalForwardingRuleCost string `json:"additionalForwardingRuleCost"`
 	LBIngressDataCost            string `json:"LBIngressDataCost"`
@@ -215,7 +217,7 @@ func SetCustomPricingField(obj *CustomPricing, name string, value string) error 
 	// validation work in order to prevent "NaN" and other invalid strings
 	// from getting set here.
 	switch strings.ToLower(name) {
-	case "cpu", "gpu", "ram", "spotcpu", "spotgpu", "spotram", "storage", "zonenetworkegress", "regionnetworkegress", "internetnetworkegress":
+	case "cpu", "gpu", "ram", "spotcpu", "spotgpu", "spotram", "storage", "zonenetworkegress", "regionnetworkegress", "internetnetworkegress", "natgatewayegress", "natgatewayingress":
 		// If we are sent an empty string, ignore the key and don't change the value
 		if value == "" {
 			return nil

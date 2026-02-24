@@ -118,22 +118,24 @@ func toStringPtr(s string) *string { return &s }
 var metricsInit sync.Once
 
 var (
-	cpuGv                      *prometheus.GaugeVec
-	ramGv                      *prometheus.GaugeVec
-	gpuGv                      *prometheus.GaugeVec
-	gpuCountGv                 *prometheus.GaugeVec
-	pvGv                       *prometheus.GaugeVec
-	spotGv                     *prometheus.GaugeVec
-	totalGv                    *prometheus.GaugeVec
-	ramAllocGv                 *prometheus.GaugeVec
-	cpuAllocGv                 *prometheus.GaugeVec
-	gpuAllocGv                 *prometheus.GaugeVec
-	pvAllocGv                  *prometheus.GaugeVec
-	networkZoneEgressCostG     prometheus.Gauge
-	networkRegionEgressCostG   prometheus.Gauge
-	networkInternetEgressCostG prometheus.Gauge
-	clusterManagementCostGv    *prometheus.GaugeVec
-	lbCostGv                   *prometheus.GaugeVec
+	cpuGv                         *prometheus.GaugeVec
+	ramGv                         *prometheus.GaugeVec
+	gpuGv                         *prometheus.GaugeVec
+	gpuCountGv                    *prometheus.GaugeVec
+	pvGv                          *prometheus.GaugeVec
+	spotGv                        *prometheus.GaugeVec
+	totalGv                       *prometheus.GaugeVec
+	ramAllocGv                    *prometheus.GaugeVec
+	cpuAllocGv                    *prometheus.GaugeVec
+	gpuAllocGv                    *prometheus.GaugeVec
+	pvAllocGv                     *prometheus.GaugeVec
+	networkZoneEgressCostG        prometheus.Gauge
+	networkRegionEgressCostG      prometheus.Gauge
+	networkInternetEgressCostG    prometheus.Gauge
+	networkNatGatewayEgressCostG  prometheus.Gauge
+	networkNatGatewayIngressCostG prometheus.Gauge
+	clusterManagementCostGv       *prometheus.GaugeVec
+	lbCostGv                      *prometheus.GaugeVec
 )
 
 // initCostModelMetrics uses a sync.Once to ensure that these metrics are only created once
@@ -257,6 +259,22 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 			toRegisterGauge = append(toRegisterGauge, networkInternetEgressCostG)
 		}
 
+		networkNatGatewayEgressCostG = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "kubecost_network_nat_gateway_egress_cost",
+			Help: "kubecost_network_nat_gateway_egress_cost Total cost per GB of nat gateway egress.",
+		})
+		if _, disabled := disabledMetrics["kubecost_network_nat_gateway_egress_cost"]; !disabled {
+			toRegisterGauge = append(toRegisterGauge, networkNatGatewayEgressCostG)
+		}
+
+		networkNatGatewayIngressCostG = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "kubecost_network_nat_gateway_ingress_cost",
+			Help: "kubecost_network_nat_gateway_ingress_cost Total cost per GB of nat gateway ingress.",
+		})
+		if _, disabled := disabledMetrics["kubecost_network_nat_gateway_ingress_cost"]; !disabled {
+			toRegisterGauge = append(toRegisterGauge, networkNatGatewayIngressCostG)
+		}
+
 		clusterManagementCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "kubecost_cluster_management_cost",
 			Help: "kubecost_cluster_management_cost Hourly cost paid as a cluster management fee.",
@@ -302,22 +320,24 @@ type CostModelMetricsEmitter struct {
 	Model            *CostModel
 
 	// Metrics
-	CPUPriceRecorder              *prometheus.GaugeVec
-	RAMPriceRecorder              *prometheus.GaugeVec
-	PersistentVolumePriceRecorder *prometheus.GaugeVec
-	GPUPriceRecorder              *prometheus.GaugeVec
-	GPUCountRecorder              *prometheus.GaugeVec
-	PVAllocationRecorder          *prometheus.GaugeVec
-	NodeSpotRecorder              *prometheus.GaugeVec
-	NodeTotalPriceRecorder        *prometheus.GaugeVec
-	RAMAllocationRecorder         *prometheus.GaugeVec
-	CPUAllocationRecorder         *prometheus.GaugeVec
-	GPUAllocationRecorder         *prometheus.GaugeVec
-	ClusterManagementCostRecorder *prometheus.GaugeVec
-	LBCostRecorder                *prometheus.GaugeVec
-	NetworkZoneEgressRecorder     prometheus.Gauge
-	NetworkRegionEgressRecorder   prometheus.Gauge
-	NetworkInternetEgressRecorder prometheus.Gauge
+	CPUPriceRecorder                 *prometheus.GaugeVec
+	RAMPriceRecorder                 *prometheus.GaugeVec
+	PersistentVolumePriceRecorder    *prometheus.GaugeVec
+	GPUPriceRecorder                 *prometheus.GaugeVec
+	GPUCountRecorder                 *prometheus.GaugeVec
+	PVAllocationRecorder             *prometheus.GaugeVec
+	NodeSpotRecorder                 *prometheus.GaugeVec
+	NodeTotalPriceRecorder           *prometheus.GaugeVec
+	RAMAllocationRecorder            *prometheus.GaugeVec
+	CPUAllocationRecorder            *prometheus.GaugeVec
+	GPUAllocationRecorder            *prometheus.GaugeVec
+	ClusterManagementCostRecorder    *prometheus.GaugeVec
+	LBCostRecorder                   *prometheus.GaugeVec
+	NetworkZoneEgressRecorder        prometheus.Gauge
+	NetworkRegionEgressRecorder      prometheus.Gauge
+	NetworkInternetEgressRecorder    prometheus.Gauge
+	NetworkNatGatewayEgressRecorder  prometheus.Gauge
+	NetworkNatGatewayIngressRecorder prometheus.Gauge
 
 	// Concurrent Flow Control - Manages the run state of the metric emitter
 	runState atomic.AtomicRunState
@@ -351,25 +371,27 @@ func NewCostModelMetricsEmitter(clusterCache clustercache.ClusterCache, provider
 	metrics.InitOpencostTelemetry(metricsConfig)
 
 	return &CostModelMetricsEmitter{
-		KubeClusterCache:              clusterCache,
-		CloudProvider:                 provider,
-		Model:                         model,
-		CPUPriceRecorder:              cpuGv,
-		RAMPriceRecorder:              ramGv,
-		GPUPriceRecorder:              gpuGv,
-		GPUCountRecorder:              gpuCountGv,
-		PersistentVolumePriceRecorder: pvGv,
-		NodeSpotRecorder:              spotGv,
-		NodeTotalPriceRecorder:        totalGv,
-		RAMAllocationRecorder:         ramAllocGv,
-		CPUAllocationRecorder:         cpuAllocGv,
-		GPUAllocationRecorder:         gpuAllocGv,
-		PVAllocationRecorder:          pvAllocGv,
-		NetworkZoneEgressRecorder:     networkZoneEgressCostG,
-		NetworkRegionEgressRecorder:   networkRegionEgressCostG,
-		NetworkInternetEgressRecorder: networkInternetEgressCostG,
-		ClusterManagementCostRecorder: clusterManagementCostGv,
-		LBCostRecorder:                lbCostGv,
+		KubeClusterCache:                 clusterCache,
+		CloudProvider:                    provider,
+		Model:                            model,
+		CPUPriceRecorder:                 cpuGv,
+		RAMPriceRecorder:                 ramGv,
+		GPUPriceRecorder:                 gpuGv,
+		GPUCountRecorder:                 gpuCountGv,
+		PersistentVolumePriceRecorder:    pvGv,
+		NodeSpotRecorder:                 spotGv,
+		NodeTotalPriceRecorder:           totalGv,
+		RAMAllocationRecorder:            ramAllocGv,
+		CPUAllocationRecorder:            cpuAllocGv,
+		GPUAllocationRecorder:            gpuAllocGv,
+		PVAllocationRecorder:             pvAllocGv,
+		NetworkZoneEgressRecorder:        networkZoneEgressCostG,
+		NetworkRegionEgressRecorder:      networkRegionEgressCostG,
+		NetworkInternetEgressRecorder:    networkInternetEgressCostG,
+		NetworkNatGatewayEgressRecorder:  networkNatGatewayEgressCostG,
+		NetworkNatGatewayIngressRecorder: networkNatGatewayIngressCostG,
+		ClusterManagementCostRecorder:    clusterManagementCostGv,
+		LBCostRecorder:                   lbCostGv,
 	}
 }
 
@@ -474,6 +496,8 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				cmme.NetworkZoneEgressRecorder.Set(networkCosts.ZoneNetworkEgressCost)
 				cmme.NetworkRegionEgressRecorder.Set(networkCosts.RegionNetworkEgressCost)
 				cmme.NetworkInternetEgressRecorder.Set(networkCosts.InternetNetworkEgressCost)
+				cmme.NetworkNatGatewayEgressRecorder.Set(networkCosts.NatGatewayEgressCost)
+				cmme.NetworkNatGatewayIngressRecorder.Set(networkCosts.NatGatewayIngressCost)
 			}
 
 			end := time.Now()

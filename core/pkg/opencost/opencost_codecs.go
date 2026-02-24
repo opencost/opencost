@@ -33,6 +33,12 @@ const (
 )
 
 const (
+	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
+	CloudCostCodecVersion uint8 = 3
+
+	// NetworkInsightCodecVersion is used for any resources listed in the NetworkInsight version set
+	NetworkInsightCodecVersion uint8 = 1
+
 	// DefaultCodecVersion is used for any resources listed in the Default version set
 	DefaultCodecVersion uint8 = 18
 
@@ -40,13 +46,7 @@ const (
 	AssetsCodecVersion uint8 = 21
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
-	AllocationCodecVersion uint8 = 24
-
-	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
-	CloudCostCodecVersion uint8 = 3
-
-	// NetworkInsightCodecVersion is used for any resources listed in the NetworkInsight version set
-	NetworkInsightCodecVersion uint8 = 1
+	AllocationCodecVersion uint8 = 25
 )
 
 //--------------------------------------------------------------------------
@@ -477,8 +477,10 @@ func (target *Allocation) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 		// --- [end][write][struct](GPUAllocation) ---
 
 	}
-	buff.WriteFloat64(target.CPUCoreLimitAverage)  // write float64
-	buff.WriteFloat64(target.RAMBytesLimitAverage) // write float64
+	buff.WriteFloat64(target.CPUCoreLimitAverage)          // write float64
+	buff.WriteFloat64(target.RAMBytesLimitAverage)         // write float64
+	buff.WriteFloat64(target.NetworkNatGatewayEgressCost)  // write float64
+	buff.WriteFloat64(target.NetworkNatGatewayIngressCost) // write float64
 	return nil
 }
 
@@ -846,6 +848,24 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 
 	} else {
 		target.RAMBytesLimitAverage = float64(0) // default
+	}
+
+	// field version check
+	if uint8(25) <= version {
+		mmm := buff.ReadFloat64() // read float64
+		target.NetworkNatGatewayEgressCost = mmm
+
+	} else {
+		target.NetworkNatGatewayEgressCost = float64(0) // default
+	}
+
+	// field version check
+	if uint8(25) <= version {
+		nnn := buff.ReadFloat64() // read float64
+		target.NetworkNatGatewayIngressCost = nnn
+
+	} else {
+		target.NetworkNatGatewayIngressCost = float64(0) // default
 	}
 
 	// execute migration func if version delta detected
