@@ -225,6 +225,7 @@ type AssetProperties struct {
 	Category   string `json:"category,omitempty"`
 	Provider   string `json:"provider,omitempty"`
 	Account    string `json:"account,omitempty"`
+	AccountID  string `json:"accountID,omitempty"`
 	Project    string `json:"project,omitempty"`
 	Service    string `json:"service,omitempty"`
 	Cluster    string `json:"cluster,omitempty"`
@@ -242,6 +243,7 @@ func (ap *AssetProperties) Clone() *AssetProperties {
 	clone.Category = ap.Category
 	clone.Provider = ap.Provider
 	clone.Account = ap.Account
+	clone.AccountID = ap.AccountID
 	clone.Project = ap.Project
 	clone.Service = ap.Service
 	clone.Cluster = ap.Cluster

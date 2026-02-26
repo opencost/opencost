@@ -19,6 +19,7 @@ const (
 	FieldProvider   AssetField = AssetField(fieldstrings.FieldProvider)
 	FieldProviderID AssetField = AssetField(fieldstrings.FieldProviderID)
 	FieldAccount    AssetField = AssetField(fieldstrings.FieldAccount)
+	FieldAccountID  AssetField = AssetField(fieldstrings.FieldAccountID)
 	FieldService    AssetField = AssetField(fieldstrings.FieldService)
 	FieldLabel      AssetField = AssetField(fieldstrings.FieldLabel)
 )

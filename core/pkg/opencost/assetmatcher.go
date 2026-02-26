@@ -80,6 +80,8 @@ func assetFieldMap(a Asset, identifier ast.Identifier) (string, error) {
 		return props.ProviderID, nil
 	case afilter.FieldAccount:
 		return props.Account, nil
+	case afilter.FieldAccountID:
+		return props.AccountID, nil
 	case afilter.FieldService:
 		return props.Service, nil
 	}

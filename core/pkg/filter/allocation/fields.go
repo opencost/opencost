@@ -21,6 +21,7 @@ const (
 	FieldPod            AllocationField = AllocationField(fieldstrings.FieldPod)
 	FieldContainer      AllocationField = AllocationField(fieldstrings.FieldContainer)
 	FieldProvider       AllocationField = AllocationField(fieldstrings.FieldProvider)
+	FieldAccountID      AllocationField = AllocationField(fieldstrings.FieldAccountID)
 	FieldServices       AllocationField = AllocationField(fieldstrings.FieldServices)
 	FieldLabel          AllocationField = AllocationField(fieldstrings.FieldLabel)
 	FieldAnnotation     AllocationField = AllocationField(fieldstrings.FieldAnnotation)

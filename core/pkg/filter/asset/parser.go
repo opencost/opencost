@@ -13,6 +13,7 @@ var assetFilterFields []*ast.Field = []*ast.Field{
 	ast.NewField(FieldProvider),
 	ast.NewField(FieldProviderID),
 	ast.NewField(FieldAccount),
+	ast.NewField(FieldAccountID),
 	ast.NewField(FieldService),
 	ast.NewMapField(FieldLabel),
 	ast.NewAliasField(DepartmentProp),

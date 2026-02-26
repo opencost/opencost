@@ -184,6 +184,7 @@ type AllocationProperties struct {
 	Pod                  string                `json:"pod,omitempty"`
 	Services             []string              `json:"services,omitempty"`
 	ProviderID           string                `json:"providerID,omitempty"`
+	AccountID            string                `json:"accountID,omitempty"`
 	Labels               AllocationLabels      `json:"labels,omitempty"`
 	Annotations          AllocationAnnotations `json:"annotations,omitempty"`
 	NamespaceLabels      AllocationLabels      `json:"namespaceLabels,omitempty"`      // @bingen:field[version=17]
@@ -215,6 +216,7 @@ func (p *AllocationProperties) Clone() *AllocationProperties {
 	clone.Namespace = p.Namespace
 	clone.Pod = p.Pod
 	clone.ProviderID = p.ProviderID
+	clone.AccountID = p.AccountID
 
 	var services []string
 	services = append(services, p.Services...)
