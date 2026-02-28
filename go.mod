@@ -40,7 +40,7 @@ require (
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/kubecost/events v0.0.8
 	github.com/microcosm-cc/bluemonday v1.0.23
-	github.com/modelcontextprotocol/go-sdk v1.2.0
+	github.com/modelcontextprotocol/go-sdk v1.3.1
 	github.com/opencost/opencost/core v0.0.0-20250521155634-81d2b597d1bc
 	github.com/opencost/opencost/modules/collector-source v0.0.0-00010101000000-000000000000
 	github.com/opencost/opencost/modules/prometheus-source v0.0.0-00010101000000-000000000000
@@ -83,7 +83,7 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gofrs/flock v0.8.1 // indirect
-	github.com/google/jsonschema-go v0.3.0 // indirect
+	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/minio/crc64nvme v1.0.1 // indirect
 	github.com/minio/minio-go/v7 v7.0.88 // indirect
@@ -92,6 +92,8 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
+	github.com/segmentio/asm v1.1.3 // indirect
+	github.com/segmentio/encoding v0.5.3 // indirect
 	github.com/sony/gobreaker v0.5.0 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
