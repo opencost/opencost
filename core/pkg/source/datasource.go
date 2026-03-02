@@ -48,6 +48,9 @@ type MetricsQuerier interface {
 	// Pods
 	QueryPods(start, end time.Time) *Future[PodsResult]
 	QueryPodsUID(start, end time.Time) *Future[PodsResult]
+	QueryPodInfo(start, end time.Time) *Future[PodInfoResult]
+	QueryPodUptime(start, end time.Time) *Future[UptimeResult]
+	QueryPodOwners(start, end time.Time) *Future[PodOwnerResult]
 
 	// RAM
 	QueryRAMBytesAllocated(start, end time.Time) *Future[RAMBytesAllocatedResult]

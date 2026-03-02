@@ -10,31 +10,31 @@ import (
 // All resource measures (CPU, RAM) represent node capacity, not requests or limits.
 // This aligns with the principle that cost allocation should be based on provisioned capacity.
 type Node struct {
-	UID             string                      `json:"uid"`
-	ProviderID      string                      `json:"providerId"`
-	Name            string                      `json:"name"`
-	Labels          map[string]string           `json:"labels,omitempty"`
-	Annotations     map[string]string           `json:"annotations,omitempty"`
-	InstanceType    string                      `json:"InstanceType"`
-	Preemptible     bool                        `json:"preemptible"`
-	CPUMilliCores   Measurement                 `json:"cpuMilliCores"`
-	RAMBytes        Measurement                 `json:"ramBytes"`
-	GPUCount        Measurement                 `json:"gpuCount"`
-	AttachedVolumes map[string]*NodeVolumeUsage `json:"attachedVolumes,omitempty"`
-	Start           time.Time                   `json:"start,omitempty"` // Node creation/start timestamp
-	End             time.Time                   `json:"end,omitempty"`   // Node deletion/end timestamp (nil if still running)
+	UID           string            `json:"uid"`
+	ProviderID    string            `json:"providerId"`
+	Name          string            `json:"name"`
+	Labels        map[string]string `json:"labels,omitempty"`
+	Annotations   map[string]string `json:"annotations,omitempty"` // TODO unpopulated
+	InstanceType  string            `json:"InstanceType"`
+	Preemptible   bool              `json:"preemptible"` // TODO unpopulated
+	CPUMilliCores Measurement       `json:"cpuMilliCores"`
+	RAMBytes      Measurement       `json:"ramBytes"`
+	GPUCount      Measurement       `json:"gpuCount"`
+	//AttachedVolumes map[string]*NodeVolumeUsage `json:"attachedVolumes,omitempty"`
+	Start time.Time `json:"start,omitempty"` // Node creation/start timestamp
+	End   time.Time `json:"end,omitempty"`   // Node deletion/end timestamp (nil if still running)
 }
 
-// NodeVolumeUsage tracks storage usage for a disk volume attached to a node.
-// Used for cost allocation of cloud storage resources (e.g., AWS EBS volumes).
-type NodeVolumeUsage struct {
-	VolumeUID        string      `json:"volumeUid"`        // "root" for primary disk, or actual volume UID for additional volumes
-	CapacityBytes    Measurement `json:"capacityBytes"`    // Total capacity of the volume in bytes
-	UsageByteSeconds Measurement `json:"usageByteSeconds"` // Cumulative usage (Byte × seconds) over measurement window
-	VolumeType       string      `json:"volumeType"`       // "root" for primary disk, "persistent" for additional PVs
-	ProviderID       string      `json:"providerId"`       // Cloud provider volume ID (e.g., "vol-xxxxx" for AWS EBS)
-	DurationSeconds  Measurement `json:"durationSeconds"`  // Duration the volume was attached during measurement window in seconds
-}
+//// NodeVolumeUsage tracks storage usage for a disk volume attached to a node.
+//// Used for cost allocation of cloud storage resources (e.g., AWS EBS volumes).
+//type NodeVolumeUsage struct {
+//	VolumeUID        string      `json:"volumeUid"`        // "root" for primary disk, or actual volume UID for additional volumes
+//	CapacityBytes    Measurement `json:"capacityBytes"`    // Total capacity of the volume in bytes
+//	UsageByteSeconds Measurement `json:"usageByteSeconds"` // Cumulative usage (Byte × seconds) over measurement window
+//	VolumeType       string      `json:"volumeType"`       // "root" for primary disk, "persistent" for additional PVs
+//	ProviderID       string      `json:"providerId"`       // Cloud provider volume ID (e.g., "vol-xxxxx" for AWS EBS)
+//	DurationSeconds  Measurement `json:"durationSeconds"`  // Duration the volume was attached during measurement window in seconds
+//}
 
 //// CpuMillicoreUsageAverage calculates the average CPU usage in millicores over the uptime period.
 //// Returns 0 if uptime is 0 to avoid division by zero.

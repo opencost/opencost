@@ -582,6 +582,18 @@ func (pds *PrometheusMetricsQuerier) QueryPodsUID(start, end time.Time) *source.
 	return source.NewFuture(source.DecodePodsResult, ctx.QueryAtTime(queryPodsUID, end))
 }
 
+func (pds *PrometheusMetricsQuerier) QueryPodInfo(start, end time.Time) *source.Future[source.PodInfoResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryPodUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryPodOwners(start, end time.Time) *source.Future[source.PodOwnerResult] {
+	return nil
+}
+
 func (pds *PrometheusMetricsQuerier) QueryRAMBytesAllocated(start, end time.Time) *source.Future[source.RAMBytesAllocatedResult] {
 	const queryName = "QueryRAMBytesAllocated"
 	const queryFmtRAMBytesAllocated = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, uid, %s, provider_id)`

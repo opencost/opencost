@@ -17,6 +17,7 @@ import (
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
@@ -31,24 +32,48 @@ func newClusterCacheScraper(clusterCache clustercache.ClusterCache) Scraper {
 }
 
 func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
+	// retrieve objects for scrape
+	nodes := ccs.clusterCache.GetAllNodes()
+	deployments := ccs.clusterCache.GetAllDeployments()
+	namespaces := ccs.clusterCache.GetAllNamespaces()
+	pods := ccs.clusterCache.GetAllPods()
+	pvcs := ccs.clusterCache.GetAllPersistentVolumeClaims()
+	pvs := ccs.clusterCache.GetAllPersistentVolumes()
+	services := ccs.clusterCache.GetAllServices()
+	statefulSets := ccs.clusterCache.GetAllStatefulSets()
+	replicaSets := ccs.clusterCache.GetAllReplicaSets()
+	resourceQuotas := ccs.clusterCache.GetAllResourceQuotas()
+
+	// create scrape indexes. While the pairs being mapped here don't have a 1 to 1 relationship in the general case,
+	// we are assuming that in the context of a single snapshot of the cluster they are 1 to 1.
+	nodeNameToUID := make(map[string]types.UID, len(nodes))
+	for _, node := range nodes {
+		nodeNameToUID[node.Name] = node.UID
+	}
+	namespaceNameToUID := make(map[string]types.UID, len(namespaces))
+	for _, ns := range namespaces {
+		namespaceNameToUID[ns.Name] = ns.UID
+	}
+
 	scrapeFuncs := []ScrapeFunc{
-		ccs.ScrapeNodes,
-		ccs.ScrapeDeployments,
-		ccs.ScrapeNamespaces,
-		ccs.ScrapePods,
-		ccs.ScrapePVCs,
-		ccs.ScrapePVs,
-		ccs.ScrapeServices,
-		ccs.ScrapeStatefulSets,
-		ccs.ScrapeReplicaSets,
-		ccs.ScrapeResourceQuotas,
+		ccs.GetScrapeNodes(nodes),
+		ccs.GetScrapeDeployments(deployments),
+		ccs.GetScrapeNamespaces(namespaces),
+		ccs.GetScrapePods(pods, nodeNameToUID, namespaceNameToUID),
+		ccs.GetScrapePVCs(pvcs),
+		ccs.GetScrapePVs(pvs),
+		ccs.GetScrapeServices(services),
+		ccs.GetScrapeStatefulSets(statefulSets),
+		ccs.GetScrapeReplicaSets(replicaSets),
+		ccs.GetScrapeResourceQuotas(resourceQuotas),
 	}
 	return concurrentScrape(scrapeFuncs...)
 }
 
-func (ccs *ClusterCacheScraper) ScrapeNodes() []metric.Update {
-	nodes := ccs.clusterCache.GetAllNodes()
-	return ccs.scrapeNodes(nodes)
+func (ccs *ClusterCacheScraper) GetScrapeNodes(nodes []*clustercache.Node) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeNodes(nodes)
+	}
 }
 
 func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric.Update {
@@ -135,9 +160,10 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) ScrapeDeployments() []metric.Update {
-	deployments := ccs.clusterCache.GetAllDeployments()
-	return ccs.scrapeDeployments(deployments)
+func (ccs *ClusterCacheScraper) GetScrapeDeployments(deployments []*clustercache.Deployment) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeDeployments(deployments)
+	}
 }
 
 func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.Deployment) []metric.Update {
@@ -171,9 +197,10 @@ func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.De
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) ScrapeNamespaces() []metric.Update {
-	namespaces := ccs.clusterCache.GetAllNamespaces()
-	return ccs.scrapeNamespaces(namespaces)
+func (ccs *ClusterCacheScraper) GetScrapeNamespaces(namespaces []*clustercache.Namespace) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeNamespaces(namespaces)
+	}
 }
 
 func (ccs *ClusterCacheScraper) scrapeNamespaces(namespaces []*clustercache.Namespace) []metric.Update {
@@ -222,21 +249,39 @@ func (ccs *ClusterCacheScraper) scrapeNamespaces(namespaces []*clustercache.Name
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) ScrapePods() []metric.Update {
-	pods := ccs.clusterCache.GetAllPods()
-	return ccs.scrapePods(pods)
+func (ccs *ClusterCacheScraper) GetScrapePods(pods []*clustercache.Pod, nodeIndex, namespaceIndex map[string]types.UID) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapePods(pods, nodeIndex, namespaceIndex)
+	}
 }
 
-func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, nodeIndex, namespaceIndex map[string]types.UID) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, pod := range pods {
-		podInfo := map[string]string{
-			source.PodLabel:       pod.Name,
-			source.NamespaceLabel: pod.Namespace,
-			source.UIDLabel:       string(pod.UID),
-			source.NodeLabel:      pod.Spec.NodeName,
-			source.InstanceLabel:  pod.Spec.NodeName,
+		nodeUID, ok := nodeIndex[pod.Spec.NodeName]
+		if !ok {
+			log.Debugf("pod nodeUID missing from index for node name '%s'", pod.Spec.NodeName)
 		}
+		nsUID, ok := namespaceIndex[pod.Namespace]
+		if !ok {
+			log.Debugf("pod namespaceUID missing from index for namespace name '%s'", pod.Namespace)
+		}
+		podInfo := map[string]string{
+			source.UIDLabel:          string(pod.UID),
+			source.PodLabel:          pod.Name,
+			source.NamespaceUIDLabel: string(nsUID),
+			source.NodeUIDLabel:      string(nodeUID),
+		}
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.PodInfo,
+			Labels:         podInfo,
+			Value:          0,
+			AdditionalInfo: podInfo,
+		})
+
+		podInfo[source.NamespaceLabel] = pod.Namespace
+		podInfo[source.NodeLabel] = pod.Spec.NodeName
+		podInfo[source.InstanceLabel] = pod.Spec.NodeName
 
 		// pod labels
 		labelNames, labelValues := promutil.KubeLabelsToLabels(pod.Labels)
@@ -263,6 +308,7 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod) []metric.Up
 			ownerInfo := maps.Clone(podInfo)
 			ownerInfo[source.OwnerKindLabel] = owner.Kind
 			ownerInfo[source.OwnerNameLabel] = owner.Name
+			ownerInfo[source.OwnerUIDLabel] = string(owner.UID)
 			scrapeResults = append(scrapeResults, metric.Update{
 				Name:   metric.KubePodOwner,
 				Labels: ownerInfo,
@@ -350,9 +396,10 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod) []metric.Up
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) ScrapePVCs() []metric.Update {
-	pvcs := ccs.clusterCache.GetAllPersistentVolumeClaims()
-	return ccs.scrapePVCs(pvcs)
+func (ccs *ClusterCacheScraper) GetScrapePVCs(pvcs []*clustercache.PersistentVolumeClaim) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapePVCs(pvcs)
+	}
 }
 
 func (ccs *ClusterCacheScraper) scrapePVCs(pvcs []*clustercache.PersistentVolumeClaim) []metric.Update {
@@ -391,9 +438,10 @@ func (ccs *ClusterCacheScraper) scrapePVCs(pvcs []*clustercache.PersistentVolume
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) ScrapePVs() []metric.Update {
-	pvs := ccs.clusterCache.GetAllPersistentVolumes()
-	return ccs.scrapePVs(pvs)
+func (ccs *ClusterCacheScraper) GetScrapePVs(pvs []*clustercache.PersistentVolume) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapePVs(pvs)
+	}
 }
 
 func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume) []metric.Update {
@@ -436,9 +484,10 @@ func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume) 
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) ScrapeServices() []metric.Update {
-	services := ccs.clusterCache.GetAllServices()
-	return ccs.scrapeServices(services)
+func (ccs *ClusterCacheScraper) GetScrapeServices(services []*clustercache.Service) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeServices(services)
+	}
 }
 
 func (ccs *ClusterCacheScraper) scrapeServices(services []*clustercache.Service) []metric.Update {
@@ -472,9 +521,10 @@ func (ccs *ClusterCacheScraper) scrapeServices(services []*clustercache.Service)
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) ScrapeStatefulSets() []metric.Update {
-	statefulSets := ccs.clusterCache.GetAllStatefulSets()
-	return ccs.scrapeStatefulSets(statefulSets)
+func (ccs *ClusterCacheScraper) GetScrapeStatefulSets(statefulSets []*clustercache.StatefulSet) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeStatefulSets(statefulSets)
+	}
 }
 
 func (ccs *ClusterCacheScraper) scrapeStatefulSets(statefulSets []*clustercache.StatefulSet) []metric.Update {
@@ -507,9 +557,10 @@ func (ccs *ClusterCacheScraper) scrapeStatefulSets(statefulSets []*clustercache.
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) ScrapeReplicaSets() []metric.Update {
-	replicaSets := ccs.clusterCache.GetAllReplicaSets()
-	return ccs.scrapeReplicaSets(replicaSets)
+func (ccs *ClusterCacheScraper) GetScrapeReplicaSets(replicaSets []*clustercache.ReplicaSet) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeReplicaSets(replicaSets)
+	}
 }
 
 func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.ReplicaSet) []metric.Update {
@@ -556,9 +607,10 @@ func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.Re
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) ScrapeResourceQuotas() []metric.Update {
-	resourceQuotas := ccs.clusterCache.GetAllResourceQuotas()
-	return ccs.scrapeResourceQuotas(resourceQuotas)
+func (ccs *ClusterCacheScraper) GetScrapeResourceQuotas(resourceQuotas []*clustercache.ResourceQuota) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeResourceQuotas(resourceQuotas)
+	}
 }
 
 func (ccs *ClusterCacheScraper) scrapeResourceQuotas(resourceQuotas []*clustercache.ResourceQuota) []metric.Update {

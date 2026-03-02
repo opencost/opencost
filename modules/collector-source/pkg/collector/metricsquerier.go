@@ -328,6 +328,18 @@ func (c *collectorMetricsQuerier) QueryPodsUID(start, end time.Time) *source.Fut
 	return queryCollector(c, start, end, metric.PodActiveMinutesID, source.DecodePodsResult)
 }
 
+func (c *collectorMetricsQuerier) QueryPodInfo(start, end time.Time) *source.Future[source.PodInfoResult] {
+	return queryCollector(c, start, end, metric.PodInfoID, source.DecodePodInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryPodUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.PodUptimeID, source.DecodeUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryPodOwners(start, end time.Time) *source.Future[source.PodOwnerResult] {
+	return queryCollector(c, start, end, metric.PodOwnerID, source.DecodePodOwnerResult)
+}
+
 func (c *collectorMetricsQuerier) QueryRAMBytesAllocated(start, end time.Time) *source.Future[source.RAMBytesAllocatedResult] {
 	return queryCollector(c, start, end, metric.RAMBytesAllocatedID, source.DecodeRAMBytesAllocatedResult)
 }

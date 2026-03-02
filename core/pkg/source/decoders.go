@@ -13,7 +13,9 @@ const (
 	RegionLabel          = "region"
 	ClusterIDLabel       = "cluster_id"
 	NamespaceLabel       = "namespace"
+	NamespaceUIDLabel    = "namespace_uid"
 	NodeLabel            = "node"
+	NodeUIDLabel         = "node_uid"
 	InstanceLabel        = "instance"
 	InstanceTypeLabel    = "instance_type"
 	ContainerLabel       = "container"
@@ -41,6 +43,7 @@ const (
 	ResourceQuotaLabel   = "resourcequota"
 	OwnerNameLabel       = "owner_name"
 	OwnerKindLabel       = "owner_kind"
+	OwnerUIDLabel        = "owner_uid"
 	UnitLabel            = "unit"
 	InternetLabel        = "internet"
 	SameZoneLabel        = "same_zone"
@@ -567,6 +570,51 @@ type ClusterManagementPricePerHrResult = ClusterManagementDurationResult
 
 func DecodeClusterManagementPricePerHrResult(result *QueryResult) *ClusterManagementPricePerHrResult {
 	return DecodeClusterManagementDurationResult(result)
+}
+
+type PodInfoResult struct {
+	UID          string
+	Cluster      string
+	Pod          string
+	NamespaceUID string
+	NodeUID      string
+}
+
+func DecodePodInfoResult(result *QueryResult) *PodInfoResult {
+	uid, _ := result.GetString(UIDLabel)
+	cluster, _ := result.GetCluster()
+	pod, _ := result.GetPod()
+	namespaceUID, _ := result.GetString(NamespaceUIDLabel)
+	nodeUID, _ := result.GetString(NodeUIDLabel)
+
+	return &PodInfoResult{
+		UID:          uid,
+		Cluster:      cluster,
+		Pod:          pod,
+		NamespaceUID: namespaceUID,
+		NodeUID:      nodeUID,
+	}
+}
+
+type PodOwnerResult struct {
+	UID       string
+	Cluster   string
+	OwnerUID  string
+	OwnerKind string
+}
+
+func DecodePodOwnerResult(result *QueryResult) *PodOwnerResult {
+	uid, _ := result.GetString(UIDLabel)
+	cluster, _ := result.GetCluster()
+	ownerUID, _ := result.GetString(OwnerUIDLabel)
+	ownerKind, _ := result.GetString(OwnerKindLabel)
+
+	return &PodOwnerResult{
+		UID:       uid,
+		Cluster:   cluster,
+		OwnerUID:  ownerUID,
+		OwnerKind: ownerKind,
+	}
 }
 
 type PodsResult struct {

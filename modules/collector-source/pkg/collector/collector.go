@@ -92,6 +92,9 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewDaemonSetLabelsMetricCollector())
 	memStore.Register(NewJobLabelsMetricCollector())
 	memStore.Register(NewPodsWithReplicaSetOwnerMetricCollector())
+	memStore.Register(NewPodInfoMetricCollector())
+	memStore.Register(NewPodUptimeMetricCollector())
+	memStore.Register(NewPodOwnerMetricCollector())
 	memStore.Register(NewReplicaSetsWithoutOwnersMetricCollector())
 	memStore.Register(NewReplicaSetsWithRolloutMetricCollector())
 	memStore.Register(NewResourceQuotaUptimeMetricCollector())
@@ -717,6 +720,47 @@ func NewPodActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.PodLabel,
 		},
 		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewPodInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.PodInfoID,
+		metric.PodInfo,
+		[]string{
+			source.UIDLabel,
+			source.PodLabel,
+			source.NodeUIDLabel,
+			source.NodeUIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewPodUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.PodUptimeID,
+		metric.PodInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewPodOwnerMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.PodOwnerID,
+		metric.KubePodOwner,
+		[]string{
+			source.UIDLabel,
+			source.OwnerUIDLabel,
+			source.OwnerKindLabel,
+		},
+		aggregator.Info,
 		nil,
 	)
 }
