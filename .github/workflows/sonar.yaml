@@ -27,7 +27,7 @@ jobs:
           sha: ${{ github.event.workflow_run.head_sha }}
           target_url: 'https://sonarcloud.io/dashboard?id=opencost_opencost'
       - name: Checkout upstream repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: opencost/opencost
           ref: develop
