@@ -536,8 +536,24 @@ func (c *collectorMetricsQuerier) QueryServiceLabels(start, end time.Time) *sour
 	return queryCollector(c, start, end, metric.ServiceLabelsID, source.DecodeServiceLabelsResult)
 }
 
-func (c *collectorMetricsQuerier) QueryDeploymentLabels(start, end time.Time) *source.Future[source.DeploymentLabelsResult] {
-	return queryCollector(c, start, end, metric.DeploymentLabelsID, source.DecodeDeploymentLabelsResult)
+func (c *collectorMetricsQuerier) QueryDeploymentInfo(start, end time.Time) *source.Future[source.DeploymentInfoResult] {
+	return queryCollector(c, start, end, metric.DeploymentInfoID, source.DecodeDeploymentInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryDeploymentUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.DeploymentUptimeID, source.DecodeUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryDeploymentLabels(start, end time.Time) *source.Future[source.LabelsResult] {
+	return queryCollector(c, start, end, metric.DeploymentLabelsID, source.DecodeLabelsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryDeploymentAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
+	return queryCollector(c, start, end, metric.DeploymentAnnotationsID, source.DecodeAnnotationsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryDeploymentMatchLabels(start, end time.Time) *source.Future[source.DeploymentLabelsResult] {
+	return queryCollector(c, start, end, metric.DeploymentMatchLabelsID, source.DecodeDeploymentLabelsResult)
 }
 
 func (c *collectorMetricsQuerier) QueryStatefulSetLabels(start, end time.Time) *source.Future[source.StatefulSetLabelsResult] {

@@ -342,7 +342,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resChPodAnnotations := source.WithGroup(grp, ds.QueryPodAnnotations(start, end))
 
 	resChServiceLabels := source.WithGroup(grp, ds.QueryServiceLabels(start, end))
-	resChDeploymentLabels := source.WithGroup(grp, ds.QueryDeploymentLabels(start, end))
+	resChDeploymentMatchLabels := source.WithGroup(grp, ds.QueryDeploymentMatchLabels(start, end))
 	resChStatefulSetLabels := source.WithGroup(grp, ds.QueryStatefulSetLabels(start, end))
 	resChDaemonSetLabels := source.WithGroup(grp, ds.QueryDaemonSetLabels(start, end))
 
@@ -409,7 +409,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resPodLabels, _ := resChPodLabels.Await()
 	resPodAnnotations, _ := resChPodAnnotations.Await()
 	resServiceLabels, _ := resChServiceLabels.Await()
-	resDeploymentLabels, _ := resChDeploymentLabels.Await()
+	resDeploymentMatchLabels, _ := resChDeploymentMatchLabels.Await()
 	resStatefulSetLabels, _ := resChStatefulSetLabels.Await()
 	resDaemonSetLabels, _ := resChDaemonSetLabels.Await()
 	resPodsWithReplicaSetOwner, _ := resChPodsWithReplicaSetOwner.Await()
@@ -474,7 +474,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	applyLabels(podMap, nodeLabels, namespaceLabels, podLabels)
 	applyAnnotations(podMap, namespaceAnnotations, podAnnotations)
 
-	podDeploymentMap := labelsToPodControllerMap(podLabels, resToDeploymentLabels(resDeploymentLabels))
+	podDeploymentMap := labelsToPodControllerMap(podLabels, resToDeploymentLabels(resDeploymentMatchLabels))
 	podStatefulSetMap := labelsToPodControllerMap(podLabels, resToStatefulSetLabels(resStatefulSetLabels))
 	podDaemonSetMap := resToPodDaemonSetMap(resDaemonSetLabels, podUIDKeyMap, ingestPodUID)
 	podJobMap := resToPodJobMap(resJobLabels, podUIDKeyMap, ingestPodUID)

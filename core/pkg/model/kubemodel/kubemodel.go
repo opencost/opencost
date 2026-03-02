@@ -14,7 +14,12 @@ type KubeModelSet struct {
 	Namespaces             map[string]*Namespace             `json:"namespaces"`             // @bingen:field[version=1]
 	ResourceQuotas         map[string]*ResourceQuota         `json:"resourceQuotas"`         // @bingen:field[version=1]
 	Containers             map[string]*Container             `json:"containers,omitempty"`   // @bingen:field[ignore]
-	Owners                 map[string]*Owner                 `json:"owners,omitempty"`       // @bingen:field[ignore]
+	Deployments            map[string]*Deployment            `json:"deployments,omitempty"`  // @bingen:field[ignore]
+	StatefulSets           map[string]*StatefulSet           `json:"statefulSets,omitempty"` // @bingen:field[ignore]
+	DaemonSets             map[string]*DaemonSet             `json:"daemonSets,omitempty"`   // @bingen:field[ignore]
+	Jobs                   map[string]*Job                   `json:"jobs,omitempty"`         // @bingen:field[ignore]
+	CronJobs               map[string]*CronJob               `json:"cronJobs,omitempty"`     // @bingen:field[ignore]
+	ReplicaSets            map[string]*ReplicaSet            `json:"replicaSets,omitempty"`  // @bingen:field[ignore]
 	Devices                map[string]*Device                `json:"devices,omitempty"`      // @bingen:field[ignore]
 	DeviceUsages           map[string]*DeviceUsage           `json:"deviceUsages,omitempty"` // @bingen:field[ignore]
 	Nodes                  map[string]*Node                  `json:"nodes,omitempty"`        // @bingen:field[ignore]
@@ -38,7 +43,12 @@ func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
 			End:   end,
 		},
 		Containers:             map[string]*Container{},
-		Owners:                 map[string]*Owner{},
+		Deployments:            map[string]*Deployment{},
+		StatefulSets:           map[string]*StatefulSet{},
+		DaemonSets:             map[string]*DaemonSet{},
+		Jobs:                   map[string]*Job{},
+		CronJobs:               map[string]*CronJob{},
+		ReplicaSets:            map[string]*ReplicaSet{},
 		Devices:                map[string]*Device{},
 		DeviceUsages:           map[string]*DeviceUsage{},
 		Namespaces:             map[string]*Namespace{},
@@ -76,7 +86,12 @@ func (kms *KubeModelSet) IsEmpty() bool {
 
 	// Check if all resource maps are empty
 	return len(kms.Containers) == 0 &&
-		len(kms.Owners) == 0 &&
+		len(kms.Deployments) == 0 &&
+		len(kms.StatefulSets) == 0 &&
+		len(kms.DaemonSets) == 0 &&
+		len(kms.Jobs) == 0 &&
+		len(kms.CronJobs) == 0 &&
+		len(kms.ReplicaSets) == 0 &&
 		len(kms.Devices) == 0 &&
 		len(kms.DeviceUsages) == 0 &&
 		len(kms.Namespaces) == 0 &&

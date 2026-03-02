@@ -101,6 +101,42 @@ func DecodeUptimeResult(result *QueryResult) *UptimeResult {
 	}
 }
 
+type LabelsResult struct {
+	UID     string
+	Cluster string
+	Labels  map[string]string
+}
+
+func DecodeLabelsResult(result *QueryResult) *LabelsResult {
+	uid, _ := result.GetString(UIDLabel)
+	cluster, _ := result.GetCluster()
+	labels := result.GetLabels()
+
+	return &LabelsResult{
+		UID:     uid,
+		Cluster: cluster,
+		Labels:  labels,
+	}
+}
+
+type AnnotationsResult struct {
+	UID         string
+	Cluster     string
+	Annotations map[string]string
+}
+
+func DecodeAnnotationsResult(result *QueryResult) *AnnotationsResult {
+	uid, _ := result.GetString(UIDLabel)
+	cluster, _ := result.GetCluster()
+	annotations := result.GetAnnotations()
+
+	return &AnnotationsResult{
+		UID:         uid,
+		Cluster:     cluster,
+		Annotations: annotations,
+	}
+}
+
 type PVResult struct {
 	UID              string
 	Cluster          string
@@ -1451,6 +1487,27 @@ func DecodeServiceLabelsResult(result *QueryResult) *ServiceLabelsResult {
 		Service:   service,
 		Labels:    labels,
 		Data:      result.Values,
+	}
+}
+
+type DeploymentInfoResult struct {
+	UID          string
+	Cluster      string
+	NameSpaceUID string
+	Deployment   string
+}
+
+func DecodeDeploymentInfoResult(result *QueryResult) *DeploymentInfoResult {
+	uid, _ := result.GetString(UIDLabel)
+	cluster, _ := result.GetCluster()
+	namespaceUID, _ := result.GetString(NamespaceUIDLabel)
+	deployment, _ := result.GetString(DeploymentLabel)
+
+	return &DeploymentInfoResult{
+		UID:          uid,
+		Cluster:      cluster,
+		NameSpaceUID: namespaceUID,
+		Deployment:   deployment,
 	}
 }
 

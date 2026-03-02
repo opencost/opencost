@@ -64,7 +64,19 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 		kms.Error(err)
 	}
 
-	// 2.4 Compute ResourceQuotas
+	// 2.4 Compute Pods
+	err = km.computePods(kms, start, end)
+	if err != nil {
+		kms.Error(err)
+	}
+
+	// 2.5 Compute Deployments
+	err = km.computeDeployments(kms, start, end)
+	if err != nil {
+		kms.Error(err)
+	}
+
+	// 2.6 Compute ResourceQuotas
 	err = km.computeResourceQuotas(kms, start, end)
 	if err != nil {
 		kms.Error(err)
@@ -303,6 +315,44 @@ func (km *KubeModel) computePods(kms *kubemodel.KubeModelSet, start, end time.Ti
 		err := kms.RegisterPod(pod)
 		if err != nil {
 			log.Warnf("Failed to register pod: %s", err.Error())
+		}
+	}
+
+	return nil
+}
+
+func (km *KubeModel) computeDeployments(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+	grp := source.NewQueryGroup()
+	metrics := km.ds.Metrics()
+
+	deploymentLabelsResultFuture := source.WithGroup(grp, metrics.QueryDeploymentLabels(start, end))
+
+	deploymentMap := make(map[string]*kubemodel.Deployment)
+
+	deploymentLabelsResult, _ := deploymentLabelsResultFuture.Await()
+	for _, res := range deploymentLabelsResult {
+		// Look up namespace UID from namespace name
+		namespaceUID := ""
+		for _, ns := range kms.Namespaces {
+			if ns.Name == res.Namespace {
+				namespaceUID = ns.UID
+				break
+			}
+		}
+
+		deploymentMap[res.UID] = &kubemodel.Deployment{
+			UID:          res.UID,
+			Name:         res.Deployment,
+			NamespaceUID: namespaceUID,
+			Labels:       res.Labels,
+			// Note: Start, End, and Annotations are not populated as there are no queries available yet
+		}
+	}
+
+	for _, deployment := range deploymentMap {
+		err := kms.RegisterDeployment(deployment)
+		if err != nil {
+			log.Warnf("Failed to register deployment: %s", err.Error())
 		}
 	}
 

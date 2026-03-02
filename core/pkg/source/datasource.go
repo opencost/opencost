@@ -87,6 +87,13 @@ type MetricsQuerier interface {
 	QueryPVPricePerGiBHour(start, end time.Time) *Future[PVPricePerGiBHourResult]
 	QueryPVInfo(start, end time.Time) *Future[PVInfoResult]
 
+	// Deployment
+	QueryDeploymentInfo(start, end time.Time) *Future[DeploymentInfoResult]
+	QueryDeploymentUptime(start, end time.Time) *Future[UptimeResult]
+	QueryDeploymentLabels(start, end time.Time) *Future[LabelsResult]
+	QueryDeploymentAnnotations(start, end time.Time) *Future[AnnotationsResult]
+	QueryDeploymentMatchLabels(start, end time.Time) *Future[DeploymentLabelsResult]
+
 	// Namespace
 	QueryNamespaceUptime(start, end time.Time) *Future[UptimeResult]
 
@@ -120,7 +127,6 @@ type MetricsQuerier interface {
 	QueryNamespaceLabels(start, end time.Time) *Future[NamespaceLabelsResult]
 	QueryPodLabels(start, end time.Time) *Future[PodLabelsResult]
 	QueryServiceLabels(start, end time.Time) *Future[ServiceLabelsResult]
-	QueryDeploymentLabels(start, end time.Time) *Future[DeploymentLabelsResult]
 	QueryStatefulSetLabels(start, end time.Time) *Future[StatefulSetLabelsResult]
 	QueryDaemonSetLabels(start, end time.Time) *Future[DaemonSetLabelsResult]
 	QueryJobLabels(start, end time.Time) *Future[JobLabelsResult]

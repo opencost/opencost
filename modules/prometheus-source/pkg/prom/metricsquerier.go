@@ -1496,8 +1496,24 @@ func (pds *PrometheusMetricsQuerier) QueryServiceLabels(start, end time.Time) *s
 	return source.NewFuture(source.DecodeServiceLabelsResult, ctx.QueryAtTime(queryServiceLabels, end))
 }
 
-func (pds *PrometheusMetricsQuerier) QueryDeploymentLabels(start, end time.Time) *source.Future[source.DeploymentLabelsResult] {
-	const queryName = "QueryDeploymentLabels"
+func (pds *PrometheusMetricsQuerier) QueryDeploymentInfo(start, end time.Time) *source.Future[source.DeploymentInfoResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryDeploymentUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryDeploymentLabels(start, end time.Time) *source.Future[source.LabelsResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryDeploymentAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryDeploymentMatchLabels(start, end time.Time) *source.Future[source.DeploymentLabelsResult] {
+	const queryName = "QueryDeploymentMatchLabels"
 	const queryFmtDeploymentLabels = `avg_over_time(deployment_match_labels{%s}[%s])`
 
 	cfg := pds.promConfig
@@ -1507,11 +1523,11 @@ func (pds *PrometheusMetricsQuerier) QueryDeploymentLabels(start, end time.Time)
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
 
-	queryDeploymentLabels := fmt.Sprintf(queryFmtDeploymentLabels, cfg.ClusterFilter, durStr)
-	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryDeploymentLabels)
+	queryDeploymentMatchLabels := fmt.Sprintf(queryFmtDeploymentLabels, cfg.ClusterFilter, durStr)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryDeploymentMatchLabels)
 
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return source.NewFuture(source.DecodeDeploymentLabelsResult, ctx.QueryAtTime(queryDeploymentLabels, end))
+	return source.NewFuture(source.DecodeDeploymentLabelsResult, ctx.QueryAtTime(queryDeploymentMatchLabels, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryStatefulSetLabels(start, end time.Time) *source.Future[source.StatefulSetLabelsResult] {

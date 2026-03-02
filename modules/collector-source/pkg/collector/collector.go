@@ -87,7 +87,11 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewPodLabelsMetricCollector())
 	memStore.Register(NewPodAnnotationsMetricCollector())
 	memStore.Register(NewServiceLabelsMetricCollector())
+	memStore.Register(NewDeploymentInfoMetricCollector())
+	memStore.Register(NewDeploymentUptimeMetricCollector())
 	memStore.Register(NewDeploymentLabelsMetricCollector())
+	memStore.Register(NewDeploymentAnnotationsMetricCollector())
+	memStore.Register(NewDeploymentMatchLabelsMetricCollector())
 	memStore.Register(NewStatefulSetLabelsMetricCollector())
 	memStore.Register(NewDaemonSetLabelsMetricCollector())
 	memStore.Register(NewJobLabelsMetricCollector())
@@ -1950,9 +1954,61 @@ func NewServiceLabelsMetricCollector() *metric.MetricCollector {
 //		}[1h]
 //	)
 
+func NewDeploymentInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DeploymentInfoID,
+		metric.DeploymentInfo,
+		[]string{
+			source.UIDLabel,
+			source.NamespaceUIDLabel,
+			source.DeploymentLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewDeploymentUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DeploymentUptimeID,
+		metric.DeploymentInfo,
+		[]string{
+			source.UIDLabel,
+			source.NamespaceUIDLabel,
+			source.DeploymentLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
 func NewDeploymentLabelsMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.DeploymentLabelsID,
+		metric.DeploymentLabels,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewDeploymentAnnotationsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DeploymentAnnotationsID,
+		metric.DeploymentAnnotations,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewDeploymentMatchLabelsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DeploymentMatchLabelsID,
 		metric.DeploymentMatchLabels,
 		[]string{
 			source.NamespaceLabel,
