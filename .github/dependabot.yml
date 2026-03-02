@@ -5,6 +5,18 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+  - package-ecosystem: "gomod"
+    directory: "/core" # Location of package manifests
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "gomod"
+    directory: "/modules/collector-source" # Location of package manifests
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "gomod"
+    directory: "/modules/prometheus-source" # Location of package manifests
+    schedule:
+      interval: "weekly"
 
   # Dependencies listed in .github/workflows/*.yml
   - package-ecosystem: "github-actions"
