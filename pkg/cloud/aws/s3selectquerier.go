@@ -66,7 +66,7 @@ func (s3sq *S3SelectQuerier) GetQueryKeys(start, end time.Time, client *s3.Clien
 	}
 
 	monthStrings, err := getMonthStrings(start, end)
-	if err != err {
+	if err != nil {
 		return nil, err
 	}
 
@@ -109,20 +109,17 @@ func (s3sq *S3SelectQuerier) fetchCSVReader(query string, queryKey string, clien
 		return nil, err
 	}
 	resStream := res.GetStream()
-	// todo: this needs work
 	results, resultWriter := io.Pipe()
 	go func() {
 		defer resultWriter.Close()
 		defer resStream.Close()
-		resStream.Events()
 		for event := range resStream.Events() {
 			switch e := event.(type) {
 			case *s3Types.SelectObjectContentEventStreamMemberRecords:
 				resultWriter.Write(e.Value.Payload)
 			case *s3Types.SelectObjectContentEventStreamMemberEnd:
-				break
+				return
 			}
-
 		}
 	}()
 
