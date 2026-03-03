@@ -1582,9 +1582,9 @@ func (pds *PrometheusMetricsQuerier) QueryPodsWithDaemonSetOwner(start, end time
 	return source.NewFuture(source.DecodePodsWithDaemonSetOwnerResult, ctx.QueryAtTime(queryPodsWithDaemonSetOwner, end))
 }
 
-func (pds *PrometheusMetricsQuerier) QueryJobLabels(start, end time.Time) *source.Future[source.JobLabelsResult] {
-	const queryName = "QueryJobLabels"
-	const queryFmtJobLabels = `sum(avg_over_time(kube_pod_owner{owner_kind="Job", %s}[%s])) by (pod, owner_name, namespace, uid, %s)`
+func (pds *PrometheusMetricsQuerier) QueryPodsWithJobOwner(start, end time.Time) *source.Future[source.PodsWithJobOwnerResult] {
+	const queryName = "QueryPodsWithJobOwner"
+	const queryFmtPodsWithJobOwner = `sum(avg_over_time(kube_pod_owner{owner_kind="Job", %s}[%s])) by (pod, owner_name, namespace, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -1593,11 +1593,11 @@ func (pds *PrometheusMetricsQuerier) QueryJobLabels(start, end time.Time) *sourc
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
 
-	queryJobLabels := fmt.Sprintf(queryFmtJobLabels, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
-	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryJobLabels)
+	queryPodsWithJobOwner := fmt.Sprintf(queryFmtPodsWithJobOwner, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryPodsWithJobOwner)
 
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return source.NewFuture(source.DecodeJobLabelsResult, ctx.QueryAtTime(queryJobLabels, end))
+	return source.NewFuture(source.DecodePodsWithJobOwnerResult, ctx.QueryAtTime(queryPodsWithJobOwner, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryPodsWithReplicaSetOwner(start, end time.Time) *source.Future[source.PodsWithReplicaSetOwnerResult] {

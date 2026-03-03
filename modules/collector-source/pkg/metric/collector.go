@@ -104,7 +104,7 @@ const (
 	StatefulSetAnnotationsID                   MetricCollectorID = "StatefulSetAnnotations"
 	StatefulSetMatchLabelsID                   MetricCollectorID = "StatefulSetMatchLabels"
 	PodsWithDaemonSetOwnerID                   MetricCollectorID = "PodsWithDaemonSetOwner"
-	JobLabelsID                                MetricCollectorID = "JobLabels"
+	PodsWithJobOwnerID                         MetricCollectorID = "PodsWithJobOwner"
 	PodsWithReplicaSetOwnerID                  MetricCollectorID = "PodsWithReplicaSetOwner"
 	ReplicaSetsWithoutOwnersID                 MetricCollectorID = "ReplicaSetsWithoutOwners"
 	ReplicaSetsWithRolloutID                   MetricCollectorID = "ReplicaSetsWithRollout"

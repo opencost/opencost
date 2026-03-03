@@ -580,8 +580,8 @@ func (c *collectorMetricsQuerier) QueryPodsWithDaemonSetOwner(start, end time.Ti
 	return queryCollector(c, start, end, metric.PodsWithDaemonSetOwnerID, source.DecodePodsWithDaemonSetOwnerResult)
 }
 
-func (c *collectorMetricsQuerier) QueryJobLabels(start, end time.Time) *source.Future[source.JobLabelsResult] {
-	return queryCollector(c, start, end, metric.JobLabelsID, source.DecodeJobLabelsResult)
+func (c *collectorMetricsQuerier) QueryPodsWithJobOwner(start, end time.Time) *source.Future[source.PodsWithJobOwnerResult] {
+	return queryCollector(c, start, end, metric.PodsWithJobOwnerID, source.DecodePodsWithJobOwnerResult)
 }
 
 func (c *collectorMetricsQuerier) QueryPodsWithReplicaSetOwner(start, end time.Time) *source.Future[source.PodsWithReplicaSetOwnerResult] {

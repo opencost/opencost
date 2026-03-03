@@ -1608,32 +1608,27 @@ func DecodePodsWithDaemonSetOwnerResult(result *QueryResult) *PodsWithDaemonSetO
 	}
 }
 
-type JobLabelsResult struct {
+type PodsWithJobOwnerResult struct {
 	UID       string
 	Cluster   string
 	Namespace string
 	Pod       string
 	Job       string
-	Labels    map[string]string
-	Data      []*util.Vector
 }
 
-func DecodeJobLabelsResult(result *QueryResult) *JobLabelsResult {
+func DecodePodsWithJobOwnerResult(result *QueryResult) *PodsWithJobOwnerResult {
 	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
 	job, _ := result.GetString(OwnerNameLabel)
-	labels := result.GetLabels()
 
-	return &JobLabelsResult{
+	return &PodsWithJobOwnerResult{
 		UID:       uid,
 		Cluster:   cluster,
 		Namespace: namespace,
 		Pod:       pod,
 		Job:       job,
-		Labels:    labels,
-		Data:      result.Values,
 	}
 }
 
