@@ -556,7 +556,7 @@ func (c *collectorMetricsQuerier) QueryDeploymentMatchLabels(start, end time.Tim
 	return queryCollector(c, start, end, metric.DeploymentMatchLabelsID, source.DecodeDeploymentLabelsResult)
 }
 
-func (c *collectorMetricsQuerier) QueryStatefulSetLabels(start, end time.Time) *source.Future[source.StatefulSetLabelsResult] {
+func (c *collectorMetricsQuerier) QueryStatefulSetMatchLabels(start, end time.Time) *source.Future[source.StatefulSetLabelsResult] {
 	return queryCollector(c, start, end, metric.StatefulSetLabelsID, source.DecodeStatefulSetLabelsResult)
 }
 

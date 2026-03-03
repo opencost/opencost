@@ -1537,6 +1537,27 @@ func DecodeDeploymentLabelsResult(result *QueryResult) *DeploymentLabelsResult {
 	}
 }
 
+type StatefulSetInfoResult struct {
+	UID          string
+	Cluster      string
+	NameSpaceUID string
+	StatefulSet  string
+}
+
+func DecodeStatefulSetInfoResult(result *QueryResult) *StatefulSetInfoResult {
+	uid, _ := result.GetString(UIDLabel)
+	cluster, _ := result.GetCluster()
+	namespaceUID, _ := result.GetString(NamespaceUIDLabel)
+	statefulSet, _ := result.GetString(StatefulSetLabel)
+
+	return &StatefulSetInfoResult{
+		UID:          uid,
+		Cluster:      cluster,
+		NameSpaceUID: namespaceUID,
+		StatefulSet:  statefulSet,
+	}
+}
+
 type StatefulSetLabelsResult struct {
 	UID         string
 	Cluster     string

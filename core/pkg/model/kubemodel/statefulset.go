@@ -13,6 +13,7 @@ type StatefulSet struct {
 	Name         string            `json:"name"`
 	Labels       map[string]string `json:"labels,omitempty"`
 	Annotations  map[string]string `json:"annotations,omitempty"`
+	MatchLabels  map[string]string `json:"matchLabels,omitempty"`
 	Start        time.Time         `json:"start,omitempty"`
 	End          time.Time         `json:"end,omitempty"`
 }

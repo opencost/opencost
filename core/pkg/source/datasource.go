@@ -94,6 +94,13 @@ type MetricsQuerier interface {
 	QueryDeploymentAnnotations(start, end time.Time) *Future[AnnotationsResult]
 	QueryDeploymentMatchLabels(start, end time.Time) *Future[DeploymentLabelsResult]
 
+	// StatefulSet
+	QueryStatefulSetInfo(start, end time.Time) *Future[StatefulSetInfoResult]
+	QueryStatefulSetUptime(start, end time.Time) *Future[UptimeResult]
+	QueryStatefulSetLabels(start, end time.Time) *Future[LabelsResult]
+	QueryStatefulSetAnnotations(start, end time.Time) *Future[AnnotationsResult]
+	QueryStatefulSetMatchLabels(start, end time.Time) *Future[StatefulSetLabelsResult]
+
 	// Namespace
 	QueryNamespaceUptime(start, end time.Time) *Future[UptimeResult]
 
@@ -127,7 +134,6 @@ type MetricsQuerier interface {
 	QueryNamespaceLabels(start, end time.Time) *Future[NamespaceLabelsResult]
 	QueryPodLabels(start, end time.Time) *Future[PodLabelsResult]
 	QueryServiceLabels(start, end time.Time) *Future[ServiceLabelsResult]
-	QueryStatefulSetLabels(start, end time.Time) *Future[StatefulSetLabelsResult]
 	QueryDaemonSetLabels(start, end time.Time) *Future[DaemonSetLabelsResult]
 	QueryJobLabels(start, end time.Time) *Future[JobLabelsResult]
 

@@ -343,7 +343,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 
 	resChServiceLabels := source.WithGroup(grp, ds.QueryServiceLabels(start, end))
 	resChDeploymentMatchLabels := source.WithGroup(grp, ds.QueryDeploymentMatchLabels(start, end))
-	resChStatefulSetLabels := source.WithGroup(grp, ds.QueryStatefulSetLabels(start, end))
+	resChStatefulSetMatchLabels := source.WithGroup(grp, ds.QueryStatefulSetMatchLabels(start, end))
 	resChDaemonSetLabels := source.WithGroup(grp, ds.QueryDaemonSetLabels(start, end))
 
 	resChPodsWithReplicaSetOwner := source.WithGroup(grp, ds.QueryPodsWithReplicaSetOwner(start, end))
@@ -410,7 +410,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resPodAnnotations, _ := resChPodAnnotations.Await()
 	resServiceLabels, _ := resChServiceLabels.Await()
 	resDeploymentMatchLabels, _ := resChDeploymentMatchLabels.Await()
-	resStatefulSetLabels, _ := resChStatefulSetLabels.Await()
+	resStatefulSetMatchLabels, _ := resChStatefulSetMatchLabels.Await()
 	resDaemonSetLabels, _ := resChDaemonSetLabels.Await()
 	resPodsWithReplicaSetOwner, _ := resChPodsWithReplicaSetOwner.Await()
 	resReplicaSetsWithoutOwners, _ := resChReplicaSetsWithoutOwners.Await()
@@ -475,7 +475,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	applyAnnotations(podMap, namespaceAnnotations, podAnnotations)
 
 	podDeploymentMap := labelsToPodControllerMap(podLabels, resToDeploymentLabels(resDeploymentMatchLabels))
-	podStatefulSetMap := labelsToPodControllerMap(podLabels, resToStatefulSetLabels(resStatefulSetLabels))
+	podStatefulSetMap := labelsToPodControllerMap(podLabels, resToStatefulSetLabels(resStatefulSetMatchLabels))
 	podDaemonSetMap := resToPodDaemonSetMap(resDaemonSetLabels, podUIDKeyMap, ingestPodUID)
 	podJobMap := resToPodJobMap(resJobLabels, podUIDKeyMap, ingestPodUID)
 	podReplicaSetMap := resToPodReplicaSetMap(resPodsWithReplicaSetOwner, resReplicaSetsWithoutOwners, resReplicaSetsWithRolloutOwner, podUIDKeyMap, ingestPodUID)
