@@ -63,7 +63,7 @@ func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 		ccs.GetScrapePVCs(pvcs),
 		ccs.GetScrapePVs(pvs),
 		ccs.GetScrapeServices(services),
-		ccs.GetScrapeStatefulSets(statefulSets),
+		ccs.GetScrapeStatefulSets(statefulSets, namespaceNameToUID),
 		ccs.GetScrapeReplicaSets(replicaSets),
 		ccs.GetScrapeResourceQuotas(resourceQuotas),
 	}
@@ -548,29 +548,65 @@ func (ccs *ClusterCacheScraper) scrapeServices(services []*clustercache.Service)
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) GetScrapeStatefulSets(statefulSets []*clustercache.StatefulSet) ScrapeFunc {
+func (ccs *ClusterCacheScraper) GetScrapeStatefulSets(statefulSets []*clustercache.StatefulSet, namespaceIndex map[string]types.UID) ScrapeFunc {
 	return func() []metric.Update {
-		return ccs.scrapeStatefulSets(statefulSets)
+		return ccs.scrapeStatefulSets(statefulSets, namespaceIndex)
 	}
 }
 
-func (ccs *ClusterCacheScraper) scrapeStatefulSets(statefulSets []*clustercache.StatefulSet) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapeStatefulSets(statefulSets []*clustercache.StatefulSet, namespaceIndex map[string]types.UID) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, statefulSet := range statefulSets {
+		nsUID, ok := namespaceIndex[statefulSet.Namespace]
+		if !ok {
+			log.Debugf("statefulSet namespaceUID missing from index for namespace name '%s'", statefulSet.Namespace)
+		}
 		statefulSetInfo := map[string]string{
-			source.StatefulSetLabel: statefulSet.Name,
-			source.NamespaceLabel:   statefulSet.Namespace,
-			source.UIDLabel:         string(statefulSet.UID),
+			source.UIDLabel:          string(statefulSet.UID),
+			source.NamespaceUIDLabel: string(nsUID),
+			source.StatefulSetLabel:  statefulSet.Name,
 		}
 
+		// statefulSet info
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.StatefulSetInfo,
+			Labels:         statefulSetInfo,
+			Value:          0,
+			AdditionalInfo: statefulSetInfo,
+		})
+
 		// statefulSet labels
-		labelNames, labelValues := promutil.KubeLabelsToLabels(statefulSet.SpecSelector.MatchLabels)
+		labelNames, labelValues := promutil.KubeLabelsToLabels(statefulSet.Labels)
 		statefulSetLabels := util.ToMap(labelNames, labelValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.StatefulSetLabels,
+			Labels:         statefulSetInfo,
+			Value:          0,
+			AdditionalInfo: statefulSetLabels,
+		})
+
+		// statefulSet annotations
+		annotationNames, annotationValues := promutil.KubeAnnotationsToLabels(statefulSet.Annotations)
+		statefulSetAnnotations := util.ToMap(annotationNames, annotationValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.StatefulSetAnnotations,
+			Labels:         statefulSetInfo,
+			Value:          0,
+			AdditionalInfo: statefulSetAnnotations,
+		})
+
+		// statefulSet match labels
+		statefulSetInfo[source.NamespaceLabel] = statefulSet.Namespace
+		matchLabelNames, matchLabelValues := promutil.KubeLabelsToLabels(statefulSet.SpecSelector.MatchLabels)
+		statefulSetMatchLabels := util.ToMap(matchLabelNames, matchLabelValues)
+
 		scrapeResults = append(scrapeResults, metric.Update{
 			Name:           metric.StatefulSetMatchLabels,
 			Labels:         statefulSetInfo,
 			Value:          0,
-			AdditionalInfo: statefulSetLabels,
+			AdditionalInfo: statefulSetMatchLabels,
 		})
 	}
 

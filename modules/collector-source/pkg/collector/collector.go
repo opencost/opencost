@@ -92,7 +92,11 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewDeploymentLabelsMetricCollector())
 	memStore.Register(NewDeploymentAnnotationsMetricCollector())
 	memStore.Register(NewDeploymentMatchLabelsMetricCollector())
+	memStore.Register(NewStatefulSetInfoMetricCollector())
+	memStore.Register(NewStatefulSetUptimeMetricCollector())
 	memStore.Register(NewStatefulSetLabelsMetricCollector())
+	memStore.Register(NewStatefulSetAnnotationsMetricCollector())
+	memStore.Register(NewStatefulSetMatchLabelsMetricCollector())
 	memStore.Register(NewDaemonSetLabelsMetricCollector())
 	memStore.Register(NewJobLabelsMetricCollector())
 	memStore.Register(NewPodsWithReplicaSetOwnerMetricCollector())
@@ -2020,15 +2024,65 @@ func NewDeploymentMatchLabelsMetricCollector() *metric.MetricCollector {
 	)
 }
 
+func NewStatefulSetInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.StatefulSetInfoID,
+		metric.StatefulSetInfo,
+		[]string{
+			source.UIDLabel,
+			source.NamespaceUIDLabel,
+			source.StatefulSetLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewStatefulSetUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.StatefulSetUptimeID,
+		metric.StatefulSetInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewStatefulSetLabelsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.StatefulSetLabelsID,
+		metric.StatefulSetLabels,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewStatefulSetAnnotationsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.StatefulSetAnnotationsID,
+		metric.StatefulSetAnnotations,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
 //	avg_over_time(
 //		statefulSet_match_labels{
 //			<some_custom_filter>
 //		}[1h]
 //	)
 
-func NewStatefulSetLabelsMetricCollector() *metric.MetricCollector {
+func NewStatefulSetMatchLabelsMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
-		metric.StatefulSetLabelsID,
+		metric.StatefulSetMatchLabelsID,
 		metric.StatefulSetMatchLabels,
 		[]string{
 			source.NamespaceLabel,

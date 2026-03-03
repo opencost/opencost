@@ -1530,6 +1530,22 @@ func (pds *PrometheusMetricsQuerier) QueryDeploymentMatchLabels(start, end time.
 	return source.NewFuture(source.DecodeDeploymentLabelsResult, ctx.QueryAtTime(queryDeploymentMatchLabels, end))
 }
 
+func (pds *PrometheusMetricsQuerier) QueryStatefulSetInfo(start, end time.Time) *source.Future[source.StatefulSetInfoResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryStatefulSetUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryStatefulSetLabels(start, end time.Time) *source.Future[source.LabelsResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryStatefulSetAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
+	return nil
+}
+
 func (pds *PrometheusMetricsQuerier) QueryStatefulSetMatchLabels(start, end time.Time) *source.Future[source.StatefulSetLabelsResult] {
 	const queryName = "QueryStatefulSetMatchLabels"
 	const queryFmtStatefulSetMatchLabels = `avg_over_time(statefulSet_match_labels{%s}[%s])`

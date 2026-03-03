@@ -556,8 +556,24 @@ func (c *collectorMetricsQuerier) QueryDeploymentMatchLabels(start, end time.Tim
 	return queryCollector(c, start, end, metric.DeploymentMatchLabelsID, source.DecodeDeploymentLabelsResult)
 }
 
+func (c *collectorMetricsQuerier) QueryStatefulSetInfo(start, end time.Time) *source.Future[source.StatefulSetInfoResult] {
+	return queryCollector(c, start, end, metric.StatefulSetInfoID, source.DecodeStatefulSetInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryStatefulSetUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.StatefulSetUptimeID, source.DecodeUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryStatefulSetLabels(start, end time.Time) *source.Future[source.LabelsResult] {
+	return queryCollector(c, start, end, metric.StatefulSetLabelsID, source.DecodeLabelsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryStatefulSetAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
+	return queryCollector(c, start, end, metric.StatefulSetAnnotationsID, source.DecodeAnnotationsResult)
+}
+
 func (c *collectorMetricsQuerier) QueryStatefulSetMatchLabels(start, end time.Time) *source.Future[source.StatefulSetLabelsResult] {
-	return queryCollector(c, start, end, metric.StatefulSetLabelsID, source.DecodeStatefulSetLabelsResult)
+	return queryCollector(c, start, end, metric.StatefulSetMatchLabelsID, source.DecodeStatefulSetLabelsResult)
 }
 
 func (c *collectorMetricsQuerier) QueryDaemonSetLabels(start, end time.Time) *source.Future[source.DaemonSetLabelsResult] {
