@@ -57,7 +57,7 @@ func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 
 	scrapeFuncs := []ScrapeFunc{
 		ccs.GetScrapeNodes(nodes),
-		ccs.GetScrapeDeployments(deployments),
+		ccs.GetScrapeDeployments(deployments, namespaceNameToUID),
 		ccs.GetScrapeNamespaces(namespaces),
 		ccs.GetScrapePods(pods, nodeNameToUID, namespaceNameToUID),
 		ccs.GetScrapePVCs(pvcs),
@@ -160,30 +160,57 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) GetScrapeDeployments(deployments []*clustercache.Deployment) ScrapeFunc {
+func (ccs *ClusterCacheScraper) GetScrapeDeployments(deployments []*clustercache.Deployment, namespaceIndex map[string]types.UID) ScrapeFunc {
 	return func() []metric.Update {
-		return ccs.scrapeDeployments(deployments)
+		return ccs.scrapeDeployments(deployments, namespaceIndex)
 	}
 }
 
-func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.Deployment) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.Deployment, namespaceIndex map[string]types.UID) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, deployment := range deployments {
+		nsUID, ok := namespaceIndex[deployment.Namespace]
+		if !ok {
+			log.Debugf("deployment namespaceUID missing from index for namespace name '%s'", deployment.Namespace)
+		}
 		deploymentInfo := map[string]string{
-			source.DeploymentLabel: deployment.Name,
-			source.NamespaceLabel:  deployment.Namespace,
-			source.UIDLabel:        string(deployment.UID),
+			source.UIDLabel:          string(deployment.UID),
+			source.NamespaceUIDLabel: string(nsUID),
+			source.DeploymentLabel:   deployment.Name,
 		}
 
 		// deployment labels
-		labelNames, labelValues := promutil.KubeLabelsToLabels(deployment.MatchLabels)
+		labelNames, labelValues := promutil.KubeLabelsToLabels(deployment.Labels)
 		deploymentLabels := util.ToMap(labelNames, labelValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.DeploymentLabels,
+			Labels:         deploymentInfo,
+			Value:          0,
+			AdditionalInfo: deploymentLabels,
+		})
+
+		// deployment annotations
+		annoationNames, annotationValues := promutil.KubeAnnotationsToLabels(deployment.Annotations)
+		deploymentAnnotations := util.ToMap(annoationNames, annotationValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.DeploymentAnnotations,
+			Labels:         deploymentInfo,
+			Value:          0,
+			AdditionalInfo: deploymentAnnotations,
+		})
+
+		// deployment match labels
+		deploymentInfo[source.NamespaceLabel] = deployment.Namespace
+		matchLabelNames, matchLabelValues := promutil.KubeLabelsToLabels(deployment.MatchLabels)
+		deploymentMatchLabels := util.ToMap(matchLabelNames, matchLabelValues)
 
 		scrapeResults = append(scrapeResults, metric.Update{
 			Name:           metric.DeploymentMatchLabels,
 			Labels:         deploymentInfo,
 			Value:          0,
-			AdditionalInfo: deploymentLabels,
+			AdditionalInfo: deploymentMatchLabels,
 		})
 	}
 
