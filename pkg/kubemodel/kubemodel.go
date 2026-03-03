@@ -325,28 +325,63 @@ func (km *KubeModel) computeDeployments(kms *kubemodel.KubeModelSet, start, end 
 	grp := source.NewQueryGroup()
 	metrics := km.ds.Metrics()
 
+	deploymentInfoResultFuture := source.WithGroup(grp, metrics.QueryDeploymentInfo(start, end))
+	deploymentUptimeResultFuture := source.WithGroup(grp, metrics.QueryDeploymentUptime(start, end))
 	deploymentLabelsResultFuture := source.WithGroup(grp, metrics.QueryDeploymentLabels(start, end))
+	deploymentAnnotationsResultFuture := source.WithGroup(grp, metrics.QueryDeploymentAnnotations(start, end))
+	deploymentMatchLabelsResultFuture := source.WithGroup(grp, metrics.QueryDeploymentMatchLabels(start, end))
 
 	deploymentMap := make(map[string]*kubemodel.Deployment)
 
-	deploymentLabelsResult, _ := deploymentLabelsResultFuture.Await()
-	for _, res := range deploymentLabelsResult {
-		// Look up namespace UID from namespace name
-		namespaceUID := ""
-		for _, ns := range kms.Namespaces {
-			if ns.Name == res.Namespace {
-				namespaceUID = ns.UID
-				break
-			}
-		}
-
+	deploymentInfoResult, _ := deploymentInfoResultFuture.Await()
+	for _, res := range deploymentInfoResult {
 		deploymentMap[res.UID] = &kubemodel.Deployment{
 			UID:          res.UID,
 			Name:         res.Deployment,
-			NamespaceUID: namespaceUID,
-			Labels:       res.Labels,
-			// Note: Start, End, and Annotations are not populated as there are no queries available yet
+			NamespaceUID: res.NameSpaceUID,
 		}
+	}
+
+	deploymentUptimeResult, _ := deploymentUptimeResultFuture.Await()
+	for _, res := range deploymentUptimeResult {
+		deployment, ok := deploymentMap[res.UID]
+		if !ok {
+			log.Warnf("deployment with UID '%s' has not been initialized to add uptime", res.UID)
+			continue
+		}
+
+		deployment.Start = res.First
+		deployment.End = res.Last
+	}
+
+	deploymentLabelsResult, _ := deploymentLabelsResultFuture.Await()
+	for _, res := range deploymentLabelsResult {
+		deployment, ok := deploymentMap[res.UID]
+		if !ok {
+			log.Warnf("deployment with UID '%s' has not been initialized to add labels", res.UID)
+			continue
+		}
+		deployment.Labels = res.Labels
+	}
+
+	deploymentAnnotationsResult, _ := deploymentAnnotationsResultFuture.Await()
+	for _, res := range deploymentAnnotationsResult {
+		deployment, ok := deploymentMap[res.UID]
+		if !ok {
+			log.Warnf("deployment with UID '%s' has not been initialized to add annotations", res.UID)
+			continue
+		}
+		deployment.Annotations = res.Annotations
+	}
+
+	deploymentMatchLabelsResult, _ := deploymentMatchLabelsResultFuture.Await()
+	for _, res := range deploymentMatchLabelsResult {
+		deployment, ok := deploymentMap[res.UID]
+		if !ok {
+			log.Warnf("deployment with UID '%s' has not been initialized to add match labels", res.UID)
+			continue
+		}
+		deployment.MatchLabels = res.Labels
 	}
 
 	for _, deployment := range deploymentMap {
