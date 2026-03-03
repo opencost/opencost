@@ -97,6 +97,10 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewStatefulSetLabelsMetricCollector())
 	memStore.Register(NewStatefulSetAnnotationsMetricCollector())
 	memStore.Register(NewStatefulSetMatchLabelsMetricCollector())
+	memStore.Register(NewDaemonSetInfoMetricCollector())
+	memStore.Register(NewDaemonSetUptimeMetricCollector())
+	memStore.Register(NewDaemonSetLabelsMetricCollector())
+	memStore.Register(NewDaemonSetAnnotationsMetricCollector())
 	memStore.Register(NewPodsWithDaemonSetOwnerMetricCollector())
 	memStore.Register(NewPodsWithJobOwnerMetricCollector())
 	memStore.Register(NewPodsWithReplicaSetOwnerMetricCollector())
@@ -2087,6 +2091,60 @@ func NewStatefulSetMatchLabelsMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.NamespaceLabel,
 			source.StatefulSetLabel,
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewDaemonSetInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DaemonSetInfoID,
+		metric.DaemonSetInfo,
+		[]string{
+			source.UIDLabel,
+			source.NamespaceUIDLabel,
+			source.DaemonSetLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewDaemonSetUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DaemonSetUptimeID,
+		metric.DaemonSetInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewDaemonSetLabelsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DaemonSetLabelsID,
+		metric.DaemonSetLabels,
+		[]string{
+			source.NamespaceLabel,
+			source.DaemonSetLabel,
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewDaemonSetAnnotationsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DaemonSetAnnotationsID,
+		metric.DaemonSetAnnotations,
+		[]string{
+			source.NamespaceLabel,
+			source.DaemonSetLabel,
 			source.UIDLabel,
 		},
 		aggregator.Info,

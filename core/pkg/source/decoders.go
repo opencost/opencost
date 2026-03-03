@@ -39,6 +39,7 @@ const (
 	ResourceLabel        = "resource"
 	DeploymentLabel      = "deployment"
 	StatefulSetLabel     = "statefulSet"
+	DaemonSetLabel       = "daemonset"
 	ReplicaSetLabel      = "replicaset"
 	ResourceQuotaLabel   = "resourcequota"
 	OwnerNameLabel       = "owner_name"
@@ -1555,6 +1556,27 @@ func DecodeStatefulSetInfoResult(result *QueryResult) *StatefulSetInfoResult {
 		Cluster:      cluster,
 		NameSpaceUID: namespaceUID,
 		StatefulSet:  statefulSet,
+	}
+}
+
+type DaemonSetInfoResult struct {
+	UID          string
+	Cluster      string
+	NameSpaceUID string
+	DaemonSet    string
+}
+
+func DecodeDaemonSetInfoResult(result *QueryResult) *DaemonSetInfoResult {
+	uid, _ := result.GetString(UIDLabel)
+	cluster, _ := result.GetCluster()
+	namespaceUID, _ := result.GetString(NamespaceUIDLabel)
+	daemonSet, _ := result.GetString(DaemonSetLabel)
+
+	return &DaemonSetInfoResult{
+		UID:          uid,
+		Cluster:      cluster,
+		NameSpaceUID: namespaceUID,
+		DaemonSet:    daemonSet,
 	}
 }
 

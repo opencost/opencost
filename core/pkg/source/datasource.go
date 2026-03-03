@@ -101,6 +101,12 @@ type MetricsQuerier interface {
 	QueryStatefulSetAnnotations(start, end time.Time) *Future[AnnotationsResult]
 	QueryStatefulSetMatchLabels(start, end time.Time) *Future[StatefulSetLabelsResult]
 
+	// DaemonSet
+	QueryDaemonSetInfo(start, end time.Time) *Future[DaemonSetInfoResult]
+	QueryDaemonSetUptime(start, end time.Time) *Future[UptimeResult]
+	QueryDaemonSetLabels(start, end time.Time) *Future[LabelsResult]
+	QueryDaemonSetAnnotations(start, end time.Time) *Future[AnnotationsResult]
+
 	// Namespace
 	QueryNamespaceUptime(start, end time.Time) *Future[UptimeResult]
 

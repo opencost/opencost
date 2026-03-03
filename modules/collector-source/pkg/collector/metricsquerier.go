@@ -576,6 +576,22 @@ func (c *collectorMetricsQuerier) QueryStatefulSetMatchLabels(start, end time.Ti
 	return queryCollector(c, start, end, metric.StatefulSetMatchLabelsID, source.DecodeStatefulSetLabelsResult)
 }
 
+func (c *collectorMetricsQuerier) QueryDaemonSetInfo(start, end time.Time) *source.Future[source.DaemonSetInfoResult] {
+	return queryCollector(c, start, end, metric.DaemonSetInfoID, source.DecodeDaemonSetInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryDaemonSetUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.DaemonSetUptimeID, source.DecodeUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryDaemonSetLabels(start, end time.Time) *source.Future[source.LabelsResult] {
+	return queryCollector(c, start, end, metric.DaemonSetLabelsID, source.DecodeLabelsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryDaemonSetAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
+	return queryCollector(c, start, end, metric.DaemonSetAnnotationsID, source.DecodeAnnotationsResult)
+}
+
 func (c *collectorMetricsQuerier) QueryPodsWithDaemonSetOwner(start, end time.Time) *source.Future[source.PodsWithDaemonSetOwnerResult] {
 	return queryCollector(c, start, end, metric.PodsWithDaemonSetOwnerID, source.DecodePodsWithDaemonSetOwnerResult)
 }

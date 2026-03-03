@@ -1564,6 +1564,22 @@ func (pds *PrometheusMetricsQuerier) QueryStatefulSetMatchLabels(start, end time
 	return source.NewFuture(source.DecodeStatefulSetLabelsResult, ctx.QueryAtTime(queryStatefulSetMatchLabels, end))
 }
 
+func (pds *PrometheusMetricsQuerier) QueryDaemonSetInfo(start, end time.Time) *source.Future[source.DaemonSetInfoResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryDaemonSetUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryDaemonSetLabels(start, end time.Time) *source.Future[source.LabelsResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryDaemonSetAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
+	return nil
+}
+
 func (pds *PrometheusMetricsQuerier) QueryPodsWithDaemonSetOwner(start, end time.Time) *source.Future[source.PodsWithDaemonSetOwnerResult] {
 	const queryName = "QueryPodsWithDaemonSetOwner"
 	const queryFmtPodsWithDaemonSetOwner = `sum(avg_over_time(kube_pod_owner{owner_kind="DaemonSet", %s}[%s])) by (pod, owner_name, namespace, uid, %s)`

@@ -82,7 +82,13 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 		kms.Error(err)
 	}
 
-	// 2.7 Compute ResourceQuotas
+	// 2.7 Compute DaemonSets
+	err = km.computeDaemonSets(kms, start, end)
+	if err != nil {
+		kms.Error(err)
+	}
+
+	// 2.8 Compute ResourceQuotas
 	err = km.computeResourceQuotas(kms, start, end)
 	if err != nil {
 		kms.Error(err)
@@ -467,6 +473,68 @@ func (km *KubeModel) computeStatefulSets(kms *kubemodel.KubeModelSet, start, end
 		err := kms.RegisterStatefulSet(statefulSet)
 		if err != nil {
 			log.Warnf("Failed to register statefulset: %s", err.Error())
+		}
+	}
+
+	return nil
+}
+
+func (km *KubeModel) computeDaemonSets(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+	grp := source.NewQueryGroup()
+	metrics := km.ds.Metrics()
+
+	daemonSetInfoResultFuture := source.WithGroup(grp, metrics.QueryDaemonSetInfo(start, end))
+	daemonSetUptimeResultFuture := source.WithGroup(grp, metrics.QueryDaemonSetUptime(start, end))
+	daemonSetLabelsResultFuture := source.WithGroup(grp, metrics.QueryDaemonSetLabels(start, end))
+	daemonSetAnnotationsResultFuture := source.WithGroup(grp, metrics.QueryDaemonSetAnnotations(start, end))
+
+	daemonSetMap := make(map[string]*kubemodel.DaemonSet)
+
+	daemonSetInfoResult, _ := daemonSetInfoResultFuture.Await()
+	for _, res := range daemonSetInfoResult {
+		daemonSetMap[res.UID] = &kubemodel.DaemonSet{
+			UID:          res.UID,
+			Name:         res.DaemonSet,
+			NamespaceUID: res.NameSpaceUID,
+		}
+	}
+
+	daemonSetUptimeResult, _ := daemonSetUptimeResultFuture.Await()
+	for _, res := range daemonSetUptimeResult {
+		daemonSet, ok := daemonSetMap[res.UID]
+		if !ok {
+			log.Warnf("daemonset with UID '%s' has not been initialized to add uptime", res.UID)
+			continue
+		}
+
+		daemonSet.Start = res.First
+		daemonSet.End = res.Last
+	}
+
+	daemonSetLabelsResult, _ := daemonSetLabelsResultFuture.Await()
+	for _, res := range daemonSetLabelsResult {
+		daemonSet, ok := daemonSetMap[res.UID]
+		if !ok {
+			log.Warnf("daemonset with UID '%s' has not been initialized to add labels", res.UID)
+			continue
+		}
+		daemonSet.Labels = res.Labels
+	}
+
+	daemonSetAnnotationsResult, _ := daemonSetAnnotationsResultFuture.Await()
+	for _, res := range daemonSetAnnotationsResult {
+		daemonSet, ok := daemonSetMap[res.UID]
+		if !ok {
+			log.Warnf("daemonset with UID '%s' has not been initialized to add annotations", res.UID)
+			continue
+		}
+		daemonSet.Annotations = res.Annotations
+	}
+
+	for _, daemonSet := range daemonSetMap {
+		err := kms.RegisterDaemonSet(daemonSet)
+		if err != nil {
+			log.Warnf("Failed to register daemonset: %s", err.Error())
 		}
 	}
 

@@ -41,6 +41,7 @@ func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 	pvs := ccs.clusterCache.GetAllPersistentVolumes()
 	services := ccs.clusterCache.GetAllServices()
 	statefulSets := ccs.clusterCache.GetAllStatefulSets()
+	daemonSets := ccs.clusterCache.GetAllDaemonSets()
 	replicaSets := ccs.clusterCache.GetAllReplicaSets()
 	resourceQuotas := ccs.clusterCache.GetAllResourceQuotas()
 
@@ -64,6 +65,7 @@ func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 		ccs.GetScrapePVs(pvs),
 		ccs.GetScrapeServices(services),
 		ccs.GetScrapeStatefulSets(statefulSets, namespaceNameToUID),
+		ccs.GetScrapeDaemonSets(daemonSets, namespaceNameToUID),
 		ccs.GetScrapeReplicaSets(replicaSets),
 		ccs.GetScrapeResourceQuotas(resourceQuotas),
 	}
@@ -614,6 +616,66 @@ func (ccs *ClusterCacheScraper) scrapeStatefulSets(statefulSets []*clustercache.
 		ScraperName: event.KubernetesClusterScraperName,
 		ScrapeType:  event.StatefulSetScraperType,
 		Targets:     len(statefulSets),
+		Errors:      nil,
+	})
+
+	return scrapeResults
+}
+
+func (ccs *ClusterCacheScraper) GetScrapeDaemonSets(daemonSets []*clustercache.DaemonSet, namespaceIndex map[string]types.UID) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeDaemonSets(daemonSets, namespaceIndex)
+	}
+}
+
+func (ccs *ClusterCacheScraper) scrapeDaemonSets(daemonSets []*clustercache.DaemonSet, namespaceIndex map[string]types.UID) []metric.Update {
+	var scrapeResults []metric.Update
+	for _, daemonSet := range daemonSets {
+		nsUID, ok := namespaceIndex[daemonSet.Namespace]
+		if !ok {
+			log.Debugf("daemonSet namespaceUID missing from index for namespace name '%s'", daemonSet.Namespace)
+		}
+		daemonSetInfo := map[string]string{
+			source.UIDLabel:          string(daemonSet.UID),
+			source.NamespaceUIDLabel: string(nsUID),
+			source.DaemonSetLabel:    daemonSet.Name,
+		}
+
+		// daemonSet info
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.DaemonSetInfo,
+			Labels:         daemonSetInfo,
+			Value:          0,
+			AdditionalInfo: daemonSetInfo,
+		})
+
+		// daemonSet labels
+		labelNames, labelValues := promutil.KubeLabelsToLabels(daemonSet.Labels)
+		daemonSetLabels := util.ToMap(labelNames, labelValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.DaemonSetLabels,
+			Labels:         daemonSetInfo,
+			Value:          0,
+			AdditionalInfo: daemonSetLabels,
+		})
+
+		// daemonSet annotations
+		annotationNames, annotationValues := promutil.KubeAnnotationsToLabels(daemonSet.Annotations)
+		daemonSetAnnotations := util.ToMap(annotationNames, annotationValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.DaemonSetAnnotations,
+			Labels:         daemonSetInfo,
+			Value:          0,
+			AdditionalInfo: daemonSetAnnotations,
+		})
+	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.DaemonSetScraperType,
+		Targets:     len(daemonSets),
 		Errors:      nil,
 	})
 

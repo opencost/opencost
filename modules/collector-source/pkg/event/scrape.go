@@ -14,6 +14,7 @@ const (
 	ReplicaSetScraperType    = "replicasets"
 	DeploymentScraperType    = "deployments"
 	StatefulSetScraperType   = "statefulsets"
+	DaemonSetScraperType     = "daemonsets"
 	ServiceScraperType       = "services"
 	PodScraperType           = "pods"
 	PvScraperType            = "pvs"
