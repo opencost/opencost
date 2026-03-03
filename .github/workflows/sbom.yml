@@ -154,7 +154,7 @@ jobs:
 
       # Upload SBOMs as artifacts
       - name: Upload SBOM Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom-files
           path: |

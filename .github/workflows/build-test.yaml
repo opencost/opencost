@@ -90,7 +90,7 @@ jobs:
           echo $GITHUB_HEAD_REF > head.txt
 
       - name: Upload code coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage
           path: |
