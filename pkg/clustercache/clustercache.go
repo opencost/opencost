@@ -31,6 +31,7 @@ type KubernetesClusterCache struct {
 	pvcWatch                   WatchController
 	storageClassWatch          WatchController
 	jobsWatch                  WatchController
+	cronjobsWatch              WatchController
 	pdbWatch                   WatchController
 	replicationControllerWatch WatchController
 	resourceQuotasWatch        WatchController
@@ -73,6 +74,7 @@ func NewKubernetesClusterCacheV1(client kubernetes.Interface) cc.ClusterCache {
 		pvcWatch:                   NewCachingWatcher(coreRestClient, "persistentvolumeclaims", &v1.PersistentVolumeClaim{}, "", fields.Everything()),
 		storageClassWatch:          NewCachingWatcher(storageRestClient, "storageclasses", &stv1.StorageClass{}, "", fields.Everything()),
 		jobsWatch:                  NewCachingWatcher(batchClient, "jobs", &batchv1.Job{}, "", fields.Everything()),
+		cronjobsWatch:              NewCachingWatcher(batchClient, "cronjobs", &batchv1.CronJob{}, "", fields.Everything()),
 		pdbWatch:                   NewCachingWatcher(pdbClient, "poddisruptionbudgets", &policyv1.PodDisruptionBudget{}, "", fields.Everything()),
 		replicationControllerWatch: NewCachingWatcher(coreRestClient, "replicationcontrollers", &v1.ReplicationController{}, "", fields.Everything()),
 		resourceQuotasWatch:        NewCachingWatcher(coreRestClient, "resourcequotas", &v1.ResourceQuota{}, "", fields.Everything()),
@@ -82,7 +84,7 @@ func NewKubernetesClusterCacheV1(client kubernetes.Interface) cc.ClusterCache {
 	cancel := make(chan struct{})
 	var wg sync.WaitGroup
 	if env.HasKubernetesResourceAccess() {
-		wg.Add(15)
+		wg.Add(16)
 		go initializeCache(kcc.namespaceWatch, &wg, cancel)
 		go initializeCache(kcc.nodeWatch, &wg, cancel)
 		go initializeCache(kcc.podWatch, &wg, cancel)
@@ -95,6 +97,7 @@ func NewKubernetesClusterCacheV1(client kubernetes.Interface) cc.ClusterCache {
 		go initializeCache(kcc.pvcWatch, &wg, cancel)
 		go initializeCache(kcc.storageClassWatch, &wg, cancel)
 		go initializeCache(kcc.jobsWatch, &wg, cancel)
+		go initializeCache(kcc.cronjobsWatch, &wg, cancel)
 		go initializeCache(kcc.pdbWatch, &wg, cancel)
 		go initializeCache(kcc.replicationControllerWatch, &wg, cancel)
 		go initializeCache(kcc.resourceQuotasWatch, &wg, cancel)
@@ -125,6 +128,7 @@ func (kcc *KubernetesClusterCache) Run() {
 	go kcc.pvcWatch.Run(1, stopCh)
 	go kcc.storageClassWatch.Run(1, stopCh)
 	go kcc.jobsWatch.Run(1, stopCh)
+	go kcc.cronjobsWatch.Run(1, stopCh)
 	go kcc.pdbWatch.Run(1, stopCh)
 	go kcc.replicationControllerWatch.Run(1, stopCh)
 	go kcc.resourceQuotasWatch.Run(1, stopCh)
@@ -247,6 +251,15 @@ func (kcc *KubernetesClusterCache) GetAllJobs() []*cc.Job {
 		jobs = append(jobs, cc.TransformJob(job.(*batchv1.Job)))
 	}
 	return jobs
+}
+
+func (kcc *KubernetesClusterCache) GetAllCronJobs() []*cc.CronJob {
+	var cronjobs []*cc.CronJob
+	items := kcc.cronjobsWatch.GetAll()
+	for _, cronjob := range items {
+		cronjobs = append(cronjobs, cc.TransformCronJob(cronjob.(*batchv1.CronJob)))
+	}
+	return cronjobs
 }
 
 func (kcc *KubernetesClusterCache) GetAllPodDisruptionBudgets() []*cc.PodDisruptionBudget {

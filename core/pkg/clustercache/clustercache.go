@@ -75,6 +75,7 @@ type DaemonSet struct {
 	Name           string
 	Namespace      string
 	Labels         map[string]string
+	Annotations    map[string]string
 	SpecContainers []v1.Container
 }
 
@@ -123,10 +124,11 @@ type StorageClass struct {
 }
 
 type Job struct {
-	UID       types.UID
-	Name      string
-	Namespace string
-	Status    batchv1.JobStatus
+	UID         types.UID
+	Name        string
+	Namespace   string
+	Labels      map[string]string
+	Annotations map[string]string
 }
 
 type PersistentVolume struct {
@@ -167,6 +169,14 @@ type ResourceQuota struct {
 	Namespace string
 	Spec      v1.ResourceQuotaSpec
 	Status    v1.ResourceQuotaStatus
+}
+
+type CronJob struct {
+	UID         types.UID
+	Name        string
+	Namespace   string
+	Labels      map[string]string
+	Annotations map[string]string
 }
 
 type Volume struct {
@@ -309,6 +319,7 @@ func TransformDaemonSet(input *appsv1.DaemonSet) *DaemonSet {
 		Name:           input.Name,
 		Namespace:      input.Namespace,
 		Labels:         input.Labels,
+		Annotations:    input.Annotations,
 		SpecContainers: input.Spec.Template.Spec.Containers,
 	}
 }
@@ -378,10 +389,21 @@ func TransformStorageClass(input *stv1.StorageClass) *StorageClass {
 
 func TransformJob(input *batchv1.Job) *Job {
 	return &Job{
-		UID:       input.UID,
-		Name:      input.Name,
-		Namespace: input.Namespace,
-		Status:    input.Status,
+		UID:         input.UID,
+		Name:        input.Name,
+		Namespace:   input.Namespace,
+		Labels:      input.Labels,
+		Annotations: input.Annotations,
+	}
+}
+
+func TransformCronJob(input *batchv1.CronJob) *CronJob {
+	return &CronJob{
+		UID:         input.UID,
+		Name:        input.Name,
+		Namespace:   input.Namespace,
+		Labels:      input.Labels,
+		Annotations: input.Annotations,
 	}
 }
 
@@ -467,6 +489,9 @@ type ClusterCache interface {
 
 	// GetAllJobs returns all the cached jobs
 	GetAllJobs() []*Job
+
+	// GetAllCronJobs returns all the cached cronjobs
+	GetAllCronJobs() []*CronJob
 
 	// GetAllPodDisruptionBudgets returns all cached pod disruption budgets
 	GetAllPodDisruptionBudgets() []*PodDisruptionBudget
