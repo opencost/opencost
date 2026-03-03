@@ -134,7 +134,7 @@ type MetricsQuerier interface {
 	QueryNamespaceLabels(start, end time.Time) *Future[NamespaceLabelsResult]
 	QueryPodLabels(start, end time.Time) *Future[PodLabelsResult]
 	QueryServiceLabels(start, end time.Time) *Future[ServiceLabelsResult]
-	QueryDaemonSetLabels(start, end time.Time) *Future[DaemonSetLabelsResult]
+	QueryPodsWithDaemonSetOwner(start, end time.Time) *Future[PodsWithDaemonSetOwnerResult]
 	QueryJobLabels(start, end time.Time) *Future[JobLabelsResult]
 
 	// ReplicaSet -> Controller mapping

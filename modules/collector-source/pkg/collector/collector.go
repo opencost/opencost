@@ -97,7 +97,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewStatefulSetLabelsMetricCollector())
 	memStore.Register(NewStatefulSetAnnotationsMetricCollector())
 	memStore.Register(NewStatefulSetMatchLabelsMetricCollector())
-	memStore.Register(NewDaemonSetLabelsMetricCollector())
+	memStore.Register(NewPodsWithDaemonSetOwnerMetricCollector())
 	memStore.Register(NewJobLabelsMetricCollector())
 	memStore.Register(NewPodsWithReplicaSetOwnerMetricCollector())
 	memStore.Register(NewPodInfoMetricCollector())
@@ -2103,9 +2103,9 @@ func NewStatefulSetMatchLabelsMetricCollector() *metric.MetricCollector {
 //		)
 //	) by (pod, owner_name, namespace, cluster_id)
 
-func NewDaemonSetLabelsMetricCollector() *metric.MetricCollector {
+func NewPodsWithDaemonSetOwnerMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
-		metric.DaemonSetLabelsID,
+		metric.PodsWithDaemonSetOwnerID,
 		metric.KubePodOwner,
 		[]string{
 			source.NamespaceLabel,

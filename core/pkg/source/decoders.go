@@ -1584,32 +1584,27 @@ func DecodeStatefulSetLabelsResult(result *QueryResult) *StatefulSetLabelsResult
 	}
 }
 
-type DaemonSetLabelsResult struct {
+type PodsWithDaemonSetOwnerResult struct {
 	UID       string
 	Cluster   string
 	Namespace string
 	Pod       string
 	DaemonSet string
-	Labels    map[string]string
-	Data      []*util.Vector
 }
 
-func DecodeDaemonSetLabelsResult(result *QueryResult) *DaemonSetLabelsResult {
+func DecodePodsWithDaemonSetOwnerResult(result *QueryResult) *PodsWithDaemonSetOwnerResult {
 	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
 	daemonSet, _ := result.GetString(OwnerNameLabel)
-	labels := result.GetLabels()
 
-	return &DaemonSetLabelsResult{
+	return &PodsWithDaemonSetOwnerResult{
 		UID:       uid,
 		Cluster:   cluster,
 		Namespace: namespace,
 		Pod:       pod,
 		DaemonSet: daemonSet,
-		Labels:    labels,
-		Data:      result.Values,
 	}
 }
 
