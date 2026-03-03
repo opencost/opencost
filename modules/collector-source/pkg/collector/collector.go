@@ -109,6 +109,11 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewCronJobUptimeMetricCollector())
 	memStore.Register(NewCronJobLabelsMetricCollector())
 	memStore.Register(NewCronJobAnnotationsMetricCollector())
+	memStore.Register(NewReplicaSetInfoMetricCollector())
+	memStore.Register(NewReplicaSetUptimeMetricCollector())
+	memStore.Register(NewReplicaSetLabelsMetricCollector())
+	memStore.Register(NewReplicaSetAnnotationsMetricCollector())
+	memStore.Register(NewReplicaSetOwnerMetricCollector())
 	memStore.Register(NewPodsWithDaemonSetOwnerMetricCollector())
 	memStore.Register(NewPodsWithJobOwnerMetricCollector())
 	memStore.Register(NewPodsWithReplicaSetOwnerMetricCollector())
@@ -2262,6 +2267,74 @@ func NewCronJobAnnotationsMetricCollector() *metric.MetricCollector {
 			source.NamespaceLabel,
 			source.CronJobLabel,
 			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewReplicaSetInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ReplicaSetInfoID,
+		metric.ReplicaSetInfo,
+		[]string{
+			source.UIDLabel,
+			source.NamespaceUIDLabel,
+			source.ReplicaSetLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewReplicaSetUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ReplicaSetUptimeID,
+		metric.ReplicaSetInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewReplicaSetLabelsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ReplicaSetLabelsID,
+		metric.ReplicaSetLabels,
+		[]string{
+			source.NamespaceLabel,
+			source.ReplicaSetLabel,
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewReplicaSetAnnotationsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ReplicaSetAnnotationsID,
+		metric.ReplicaSetAnnotations,
+		[]string{
+			source.NamespaceLabel,
+			source.ReplicaSetLabel,
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewReplicaSetOwnerMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ReplicaSetOwnerID,
+		metric.KubeReplicasetOwner,
+		[]string{
+			source.UIDLabel,
+			source.OwnerUIDLabel,
+			source.OwnerKindLabel,
 		},
 		aggregator.Info,
 		nil,

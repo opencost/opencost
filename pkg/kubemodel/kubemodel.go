@@ -100,7 +100,13 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 		kms.Error(err)
 	}
 
-	// 2.10 Compute ResourceQuotas
+	// 2.10 Compute ReplicaSets
+	err = km.computeReplicaSets(kms, start, end)
+	if err != nil {
+		kms.Error(err)
+	}
+
+	// 2.11 Compute ResourceQuotas
 	err = km.computeResourceQuotas(kms, start, end)
 	if err != nil {
 		kms.Error(err)
@@ -671,6 +677,68 @@ func (km *KubeModel) computeCronJobs(kms *kubemodel.KubeModelSet, start, end tim
 		err := kms.RegisterCronJob(cronJob)
 		if err != nil {
 			log.Warnf("Failed to register cronjob: %s", err.Error())
+		}
+	}
+
+	return nil
+}
+
+func (km *KubeModel) computeReplicaSets(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+	grp := source.NewQueryGroup()
+	metrics := km.ds.Metrics()
+
+	replicaSetInfoResultFuture := source.WithGroup(grp, metrics.QueryReplicaSetInfo(start, end))
+	replicaSetUptimeResultFuture := source.WithGroup(grp, metrics.QueryReplicaSetUptime(start, end))
+	replicaSetLabelsResultFuture := source.WithGroup(grp, metrics.QueryReplicaSetLabels(start, end))
+	replicaSetAnnotationsResultFuture := source.WithGroup(grp, metrics.QueryReplicaSetAnnotations(start, end))
+
+	replicaSetMap := make(map[string]*kubemodel.ReplicaSet)
+
+	replicaSetInfoResult, _ := replicaSetInfoResultFuture.Await()
+	for _, res := range replicaSetInfoResult {
+		replicaSetMap[res.UID] = &kubemodel.ReplicaSet{
+			UID:          res.UID,
+			Name:         res.ReplicaSet,
+			NamespaceUID: res.NameSpaceUID,
+		}
+	}
+
+	replicaSetUptimeResult, _ := replicaSetUptimeResultFuture.Await()
+	for _, res := range replicaSetUptimeResult {
+		replicaSet, ok := replicaSetMap[res.UID]
+		if !ok {
+			log.Warnf("replicaset with UID '%s' has not been initialized to add uptime", res.UID)
+			continue
+		}
+
+		replicaSet.Start = res.First
+		replicaSet.End = res.Last
+	}
+
+	replicaSetLabelsResult, _ := replicaSetLabelsResultFuture.Await()
+	for _, res := range replicaSetLabelsResult {
+		replicaSet, ok := replicaSetMap[res.UID]
+		if !ok {
+			log.Warnf("replicaset with UID '%s' has not been initialized to add labels", res.UID)
+			continue
+		}
+		replicaSet.Labels = res.Labels
+	}
+
+	replicaSetAnnotationsResult, _ := replicaSetAnnotationsResultFuture.Await()
+	for _, res := range replicaSetAnnotationsResult {
+		replicaSet, ok := replicaSetMap[res.UID]
+		if !ok {
+			log.Warnf("replicaset with UID '%s' has not been initialized to add annotations", res.UID)
+			continue
+		}
+		replicaSet.Annotations = res.Annotations
+	}
+
+	for _, replicaSet := range replicaSetMap {
+		err := kms.RegisterReplicaSet(replicaSet)
+		if err != nil {
+			log.Warnf("Failed to register replicaset: %s", err.Error())
 		}
 	}
 

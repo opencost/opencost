@@ -1355,7 +1355,7 @@ func labelsToPodControllerMap(podLabels map[podKey]map[string]string, controller
 	return podControllerMap
 }
 
-func resToPodDaemonSetMap(resDaemonSetLabels []*source.DaemonSetLabelsResult, podUIDKeyMap map[podKey][]podKey, ingestPodUID bool) map[podKey]controllerKey {
+func resToPodDaemonSetMap(resDaemonSetLabels []*source.PodsWithDaemonSetOwnerResult, podUIDKeyMap map[podKey][]podKey, ingestPodUID bool) map[podKey]controllerKey {
 	daemonSetLabels := map[podKey]controllerKey{}
 
 	for _, res := range resDaemonSetLabels {
@@ -1391,7 +1391,7 @@ func resToPodDaemonSetMap(resDaemonSetLabels []*source.DaemonSetLabelsResult, po
 	return daemonSetLabels
 }
 
-func resToPodJobMap(resJobLabels []*source.JobLabelsResult, podUIDKeyMap map[podKey][]podKey, ingestPodUID bool) map[podKey]controllerKey {
+func resToPodJobMap(resJobLabels []*source.PodsWithJobOwnerResult, podUIDKeyMap map[podKey][]podKey, ingestPodUID bool) map[podKey]controllerKey {
 	jobLabels := map[podKey]controllerKey{}
 
 	for _, res := range resJobLabels {

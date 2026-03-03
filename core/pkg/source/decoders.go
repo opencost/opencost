@@ -635,20 +635,20 @@ func DecodePodInfoResult(result *QueryResult) *PodInfoResult {
 	}
 }
 
-type PodOwnerResult struct {
+type OwnerResult struct {
 	UID       string
 	Cluster   string
 	OwnerUID  string
 	OwnerKind string
 }
 
-func DecodePodOwnerResult(result *QueryResult) *PodOwnerResult {
+func DecodeOwnerResult(result *QueryResult) *OwnerResult {
 	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	ownerUID, _ := result.GetString(OwnerUIDLabel)
 	ownerKind, _ := result.GetString(OwnerKindLabel)
 
-	return &PodOwnerResult{
+	return &OwnerResult{
 		UID:       uid,
 		Cluster:   cluster,
 		OwnerUID:  ownerUID,
@@ -1621,6 +1621,27 @@ func DecodeCronJobInfoResult(result *QueryResult) *CronJobInfoResult {
 		Cluster:      cluster,
 		NameSpaceUID: namespaceUID,
 		CronJob:      cronJob,
+	}
+}
+
+type ReplicaSetInfoResult struct {
+	UID          string
+	Cluster      string
+	NameSpaceUID string
+	ReplicaSet   string
+}
+
+func DecodeReplicaSetInfoResult(result *QueryResult) *ReplicaSetInfoResult {
+	uid, _ := result.GetString(UIDLabel)
+	cluster, _ := result.GetCluster()
+	namespaceUID, _ := result.GetString(NamespaceUIDLabel)
+	replicaSet, _ := result.GetString(ReplicaSetLabel)
+
+	return &ReplicaSetInfoResult{
+		UID:          uid,
+		Cluster:      cluster,
+		NameSpaceUID: namespaceUID,
+		ReplicaSet:   replicaSet,
 	}
 }
 

@@ -50,7 +50,7 @@ type MetricsQuerier interface {
 	QueryPodsUID(start, end time.Time) *Future[PodsResult]
 	QueryPodInfo(start, end time.Time) *Future[PodInfoResult]
 	QueryPodUptime(start, end time.Time) *Future[UptimeResult]
-	QueryPodOwners(start, end time.Time) *Future[PodOwnerResult]
+	QueryPodOwners(start, end time.Time) *Future[OwnerResult]
 
 	// RAM
 	QueryRAMBytesAllocated(start, end time.Time) *Future[RAMBytesAllocatedResult]
@@ -119,6 +119,13 @@ type MetricsQuerier interface {
 	QueryCronJobLabels(start, end time.Time) *Future[LabelsResult]
 	QueryCronJobAnnotations(start, end time.Time) *Future[AnnotationsResult]
 
+	// ReplicaSet
+	QueryReplicaSetInfo(start, end time.Time) *Future[ReplicaSetInfoResult]
+	QueryReplicaSetUptime(start, end time.Time) *Future[UptimeResult]
+	QueryReplicaSetLabels(start, end time.Time) *Future[LabelsResult]
+	QueryReplicaSetAnnotations(start, end time.Time) *Future[AnnotationsResult]
+	QueryReplicaSetOwners(start, end time.Time) *Future[OwnerResult]
+	
 	// Namespace
 	QueryNamespaceUptime(start, end time.Time) *Future[UptimeResult]
 

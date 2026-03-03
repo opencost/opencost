@@ -344,13 +344,13 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resChServiceLabels := source.WithGroup(grp, ds.QueryServiceLabels(start, end))
 	resChDeploymentMatchLabels := source.WithGroup(grp, ds.QueryDeploymentMatchLabels(start, end))
 	resChStatefulSetMatchLabels := source.WithGroup(grp, ds.QueryStatefulSetMatchLabels(start, end))
-	resChDaemonSetLabels := source.WithGroup(grp, ds.QueryDaemonSetLabels(start, end))
+	resChPodsWithDaemonSetOwner := source.WithGroup(grp, ds.QueryPodsWithDaemonSetOwner(start, end))
 
 	resChPodsWithReplicaSetOwner := source.WithGroup(grp, ds.QueryPodsWithReplicaSetOwner(start, end))
 	resChReplicaSetsWithoutOwners := source.WithGroup(grp, ds.QueryReplicaSetsWithoutOwners(start, end))
 	resChReplicaSetsWithRolloutOwner := source.WithGroup(grp, ds.QueryReplicaSetsWithRollout(start, end))
 
-	resChJobLabels := source.WithGroup(grp, ds.QueryJobLabels(start, end))
+	resChPodsWithJobOwner := source.WithGroup(grp, ds.QueryPodsWithJobOwner(start, end))
 
 	resChLBCostPerHr := source.WithGroup(grp, ds.QueryLBPricePerHr(start, end))
 	resChLBActiveMins := source.WithGroup(grp, ds.QueryLBActiveMinutes(start, end))
@@ -411,11 +411,11 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resServiceLabels, _ := resChServiceLabels.Await()
 	resDeploymentMatchLabels, _ := resChDeploymentMatchLabels.Await()
 	resStatefulSetMatchLabels, _ := resChStatefulSetMatchLabels.Await()
-	resDaemonSetLabels, _ := resChDaemonSetLabels.Await()
+	resPodsWithDaemonSetOwner, _ := resChPodsWithDaemonSetOwner.Await()
 	resPodsWithReplicaSetOwner, _ := resChPodsWithReplicaSetOwner.Await()
 	resReplicaSetsWithoutOwners, _ := resChReplicaSetsWithoutOwners.Await()
 	resReplicaSetsWithRolloutOwner, _ := resChReplicaSetsWithRolloutOwner.Await()
-	resJobLabels, _ := resChJobLabels.Await()
+	resPodsWithJobOwner, _ := resChPodsWithJobOwner.Await()
 	resLBCostPerHr, _ := resChLBCostPerHr.Await()
 	resLBActiveMins, _ := resChLBActiveMins.Await()
 
@@ -476,8 +476,8 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 
 	podDeploymentMap := labelsToPodControllerMap(podLabels, resToDeploymentLabels(resDeploymentMatchLabels))
 	podStatefulSetMap := labelsToPodControllerMap(podLabels, resToStatefulSetLabels(resStatefulSetMatchLabels))
-	podDaemonSetMap := resToPodDaemonSetMap(resDaemonSetLabels, podUIDKeyMap, ingestPodUID)
-	podJobMap := resToPodJobMap(resJobLabels, podUIDKeyMap, ingestPodUID)
+	podDaemonSetMap := resToPodDaemonSetMap(resPodsWithDaemonSetOwner, podUIDKeyMap, ingestPodUID)
+	podJobMap := resToPodJobMap(resPodsWithJobOwner, podUIDKeyMap, ingestPodUID)
 	podReplicaSetMap := resToPodReplicaSetMap(resPodsWithReplicaSetOwner, resReplicaSetsWithoutOwners, resReplicaSetsWithRolloutOwner, podUIDKeyMap, ingestPodUID)
 	applyControllersToPods(podMap, podDeploymentMap)
 	applyControllersToPods(podMap, podStatefulSetMap)

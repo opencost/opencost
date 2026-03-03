@@ -590,7 +590,7 @@ func (pds *PrometheusMetricsQuerier) QueryPodUptime(start, end time.Time) *sourc
 	return nil
 }
 
-func (pds *PrometheusMetricsQuerier) QueryPodOwners(start, end time.Time) *source.Future[source.PodOwnerResult] {
+func (pds *PrometheusMetricsQuerier) QueryPodOwners(start, end time.Time) *source.Future[source.OwnerResult] {
 	return nil
 }
 
@@ -1609,6 +1609,26 @@ func (pds *PrometheusMetricsQuerier) QueryCronJobLabels(start, end time.Time) *s
 }
 
 func (pds *PrometheusMetricsQuerier) QueryCronJobAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryReplicaSetInfo(start, end time.Time) *source.Future[source.ReplicaSetInfoResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryReplicaSetUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryReplicaSetLabels(start, end time.Time) *source.Future[source.LabelsResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryReplicaSetAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryReplicaSetOwners(start, end time.Time) *source.Future[source.OwnerResult] {
 	return nil
 }
 

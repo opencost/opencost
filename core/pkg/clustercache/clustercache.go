@@ -129,6 +129,7 @@ type Job struct {
 	Namespace   string
 	Labels      map[string]string
 	Annotations map[string]string
+	Status      batchv1.JobStatus
 }
 
 type PersistentVolume struct {
@@ -158,6 +159,8 @@ type ReplicaSet struct {
 	UID             types.UID
 	Name            string
 	Namespace       string
+	Labels          map[string]string
+	Annotations     map[string]string
 	OwnerReferences []metav1.OwnerReference
 	SpecSelector    *metav1.LabelSelector
 	Spec            appsv1.ReplicaSetSpec
@@ -394,6 +397,7 @@ func TransformJob(input *batchv1.Job) *Job {
 		Namespace:   input.Namespace,
 		Labels:      input.Labels,
 		Annotations: input.Annotations,
+		Status:      input.Status,
 	}
 }
 
@@ -429,6 +433,8 @@ func TransformReplicaSet(input *appsv1.ReplicaSet) *ReplicaSet {
 		UID:             input.UID,
 		Name:            input.Name,
 		Namespace:       input.Namespace,
+		Labels:          input.Labels,
+		Annotations:     input.Annotations,
 		OwnerReferences: input.OwnerReferences,
 		Spec:            input.Spec,
 		SpecSelector:    input.Spec.Selector,

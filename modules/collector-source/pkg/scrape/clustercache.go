@@ -70,7 +70,7 @@ func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 		ccs.GetScrapeDaemonSets(daemonSets, namespaceNameToUID),
 		ccs.GetScrapeJobs(jobs, namespaceNameToUID),
 		ccs.GetScrapeCronJobs(cronJobs, namespaceNameToUID),
-		ccs.GetScrapeReplicaSets(replicaSets),
+		ccs.GetScrapeReplicaSets(replicaSets, namespaceNameToUID),
 		ccs.GetScrapeResourceQuotas(resourceQuotas),
 	}
 	return concurrentScrape(scrapeFuncs...)
@@ -806,16 +806,57 @@ func (ccs *ClusterCacheScraper) scrapeCronJobs(cronJobs []*clustercache.CronJob,
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) GetScrapeReplicaSets(replicaSets []*clustercache.ReplicaSet) ScrapeFunc {
+func (ccs *ClusterCacheScraper) GetScrapeReplicaSets(replicaSets []*clustercache.ReplicaSet, namespaceIndex map[string]types.UID) ScrapeFunc {
 	return func() []metric.Update {
-		return ccs.scrapeReplicaSets(replicaSets)
+		return ccs.scrapeReplicaSets(replicaSets, namespaceIndex)
 	}
 }
 
-func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.ReplicaSet) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.ReplicaSet, namespaceIndex map[string]types.UID) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, replicaSet := range replicaSets {
+		nsUID, ok := namespaceIndex[replicaSet.Namespace]
+		if !ok {
+			log.Debugf("replicaset namespaceUID missing from index for namespace name '%s'", replicaSet.Namespace)
+		}
 		replicaSetInfo := map[string]string{
+			source.UIDLabel:          string(replicaSet.UID),
+			source.NamespaceUIDLabel: string(nsUID),
+			source.ReplicaSetLabel:   replicaSet.Name,
+		}
+
+		// replicaset info
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.ReplicaSetInfo,
+			Labels:         replicaSetInfo,
+			Value:          0,
+			AdditionalInfo: replicaSetInfo,
+		})
+
+		// replicaset labels
+		labelNames, labelValues := promutil.KubeLabelsToLabels(replicaSet.Labels)
+		replicaSetLabels := util.ToMap(labelNames, labelValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.ReplicaSetLabels,
+			Labels:         replicaSetInfo,
+			Value:          0,
+			AdditionalInfo: replicaSetLabels,
+		})
+
+		// replicaset annotations
+		annotationNames, annotationValues := promutil.KubeAnnotationsToLabels(replicaSet.Annotations)
+		replicaSetAnnotations := util.ToMap(annotationNames, annotationValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.ReplicaSetAnnotations,
+			Labels:         replicaSetInfo,
+			Value:          0,
+			AdditionalInfo: replicaSetAnnotations,
+		})
+
+		// owner references for backward compatibility
+		replicaSetOwnerInfo := map[string]string{
 			source.ReplicaSetLabel: replicaSet.Name,
 			source.NamespaceLabel:  replicaSet.Namespace,
 			source.UIDLabel:        string(replicaSet.UID),
@@ -824,7 +865,7 @@ func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.Re
 		// this specific metric exports a special <none> value for name and kind
 		// if there are no owners
 		if len(replicaSet.OwnerReferences) == 0 {
-			ownerInfo := maps.Clone(replicaSetInfo)
+			ownerInfo := maps.Clone(replicaSetOwnerInfo)
 			ownerInfo[source.OwnerKindLabel] = source.NoneLabelValue
 			ownerInfo[source.OwnerNameLabel] = source.NoneLabelValue
 			scrapeResults = append(scrapeResults, metric.Update{
@@ -834,9 +875,10 @@ func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.Re
 			})
 		} else {
 			for _, owner := range replicaSet.OwnerReferences {
-				ownerInfo := maps.Clone(replicaSetInfo)
+				ownerInfo := maps.Clone(replicaSetOwnerInfo)
 				ownerInfo[source.OwnerKindLabel] = owner.Kind
 				ownerInfo[source.OwnerNameLabel] = owner.Name
+				ownerInfo[source.OwnerUIDLabel] = string(owner.UID)
 				scrapeResults = append(scrapeResults, metric.Update{
 					Name:   metric.KubeReplicasetOwner,
 					Labels: ownerInfo,

@@ -336,8 +336,8 @@ func (c *collectorMetricsQuerier) QueryPodUptime(start, end time.Time) *source.F
 	return queryCollector(c, start, end, metric.PodUptimeID, source.DecodeUptimeResult)
 }
 
-func (c *collectorMetricsQuerier) QueryPodOwners(start, end time.Time) *source.Future[source.PodOwnerResult] {
-	return queryCollector(c, start, end, metric.PodOwnerID, source.DecodePodOwnerResult)
+func (c *collectorMetricsQuerier) QueryPodOwners(start, end time.Time) *source.Future[source.OwnerResult] {
+	return queryCollector(c, start, end, metric.PodOwnerID, source.DecodeOwnerResult)
 }
 
 func (c *collectorMetricsQuerier) QueryRAMBytesAllocated(start, end time.Time) *source.Future[source.RAMBytesAllocatedResult] {
@@ -622,6 +622,26 @@ func (c *collectorMetricsQuerier) QueryCronJobLabels(start, end time.Time) *sour
 
 func (c *collectorMetricsQuerier) QueryCronJobAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
 	return queryCollector(c, start, end, metric.CronJobAnnotationsID, source.DecodeAnnotationsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryReplicaSetInfo(start, end time.Time) *source.Future[source.ReplicaSetInfoResult] {
+	return queryCollector(c, start, end, metric.ReplicaSetInfoID, source.DecodeReplicaSetInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryReplicaSetUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.ReplicaSetUptimeID, source.DecodeUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryReplicaSetLabels(start, end time.Time) *source.Future[source.LabelsResult] {
+	return queryCollector(c, start, end, metric.ReplicaSetLabelsID, source.DecodeLabelsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryReplicaSetAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
+	return queryCollector(c, start, end, metric.ReplicaSetAnnotationsID, source.DecodeAnnotationsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryReplicaSetOwners(start, end time.Time) *source.Future[source.OwnerResult] {
+	return queryCollector(c, start, end, metric.ReplicaSetOwnerID, source.DecodeOwnerResult)
 }
 
 func (c *collectorMetricsQuerier) QueryPodsWithDaemonSetOwner(start, end time.Time) *source.Future[source.PodsWithDaemonSetOwnerResult] {
