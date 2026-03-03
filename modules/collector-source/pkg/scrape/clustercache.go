@@ -42,6 +42,8 @@ func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 	services := ccs.clusterCache.GetAllServices()
 	statefulSets := ccs.clusterCache.GetAllStatefulSets()
 	daemonSets := ccs.clusterCache.GetAllDaemonSets()
+	jobs := ccs.clusterCache.GetAllJobs()
+	cronJobs := ccs.clusterCache.GetAllCronJobs()
 	replicaSets := ccs.clusterCache.GetAllReplicaSets()
 	resourceQuotas := ccs.clusterCache.GetAllResourceQuotas()
 
@@ -66,6 +68,8 @@ func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 		ccs.GetScrapeServices(services),
 		ccs.GetScrapeStatefulSets(statefulSets, namespaceNameToUID),
 		ccs.GetScrapeDaemonSets(daemonSets, namespaceNameToUID),
+		ccs.GetScrapeJobs(jobs, namespaceNameToUID),
+		ccs.GetScrapeCronJobs(cronJobs, namespaceNameToUID),
 		ccs.GetScrapeReplicaSets(replicaSets),
 		ccs.GetScrapeResourceQuotas(resourceQuotas),
 	}
@@ -676,6 +680,126 @@ func (ccs *ClusterCacheScraper) scrapeDaemonSets(daemonSets []*clustercache.Daem
 		ScraperName: event.KubernetesClusterScraperName,
 		ScrapeType:  event.DaemonSetScraperType,
 		Targets:     len(daemonSets),
+		Errors:      nil,
+	})
+
+	return scrapeResults
+}
+
+func (ccs *ClusterCacheScraper) GetScrapeJobs(jobs []*clustercache.Job, namespaceIndex map[string]types.UID) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeJobs(jobs, namespaceIndex)
+	}
+}
+
+func (ccs *ClusterCacheScraper) scrapeJobs(jobs []*clustercache.Job, namespaceIndex map[string]types.UID) []metric.Update {
+	var scrapeResults []metric.Update
+	for _, job := range jobs {
+		nsUID, ok := namespaceIndex[job.Namespace]
+		if !ok {
+			log.Debugf("job namespaceUID missing from index for namespace name '%s'", job.Namespace)
+		}
+		jobInfo := map[string]string{
+			source.UIDLabel:          string(job.UID),
+			source.NamespaceUIDLabel: string(nsUID),
+			source.JobLabel:          job.Name,
+		}
+
+		// job info
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.JobInfo,
+			Labels:         jobInfo,
+			Value:          0,
+			AdditionalInfo: jobInfo,
+		})
+
+		// job labels
+		labelNames, labelValues := promutil.KubeLabelsToLabels(job.Labels)
+		jobLabels := util.ToMap(labelNames, labelValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.JobLabels,
+			Labels:         jobInfo,
+			Value:          0,
+			AdditionalInfo: jobLabels,
+		})
+
+		// job annotations
+		annotationNames, annotationValues := promutil.KubeAnnotationsToLabels(job.Annotations)
+		jobAnnotations := util.ToMap(annotationNames, annotationValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.JobAnnotations,
+			Labels:         jobInfo,
+			Value:          0,
+			AdditionalInfo: jobAnnotations,
+		})
+	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.JobScraperType,
+		Targets:     len(jobs),
+		Errors:      nil,
+	})
+
+	return scrapeResults
+}
+
+func (ccs *ClusterCacheScraper) GetScrapeCronJobs(cronJobs []*clustercache.CronJob, namespaceIndex map[string]types.UID) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeCronJobs(cronJobs, namespaceIndex)
+	}
+}
+
+func (ccs *ClusterCacheScraper) scrapeCronJobs(cronJobs []*clustercache.CronJob, namespaceIndex map[string]types.UID) []metric.Update {
+	var scrapeResults []metric.Update
+	for _, cronJob := range cronJobs {
+		nsUID, ok := namespaceIndex[cronJob.Namespace]
+		if !ok {
+			log.Debugf("cronjob namespaceUID missing from index for namespace name '%s'", cronJob.Namespace)
+		}
+		cronJobInfo := map[string]string{
+			source.UIDLabel:          string(cronJob.UID),
+			source.NamespaceUIDLabel: string(nsUID),
+			source.CronJobLabel:      cronJob.Name,
+		}
+
+		// cronjob info
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.CronJobInfo,
+			Labels:         cronJobInfo,
+			Value:          0,
+			AdditionalInfo: cronJobInfo,
+		})
+
+		// cronjob labels
+		labelNames, labelValues := promutil.KubeLabelsToLabels(cronJob.Labels)
+		cronJobLabels := util.ToMap(labelNames, labelValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.CronJobLabels,
+			Labels:         cronJobInfo,
+			Value:          0,
+			AdditionalInfo: cronJobLabels,
+		})
+
+		// cronjob annotations
+		annotationNames, annotationValues := promutil.KubeAnnotationsToLabels(cronJob.Annotations)
+		cronJobAnnotations := util.ToMap(annotationNames, annotationValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.CronJobAnnotations,
+			Labels:         cronJobInfo,
+			Value:          0,
+			AdditionalInfo: cronJobAnnotations,
+		})
+	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.CronJobScraperType,
+		Targets:     len(cronJobs),
 		Errors:      nil,
 	})
 

@@ -101,6 +101,14 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewDaemonSetUptimeMetricCollector())
 	memStore.Register(NewDaemonSetLabelsMetricCollector())
 	memStore.Register(NewDaemonSetAnnotationsMetricCollector())
+	memStore.Register(NewJobInfoMetricCollector())
+	memStore.Register(NewJobUptimeMetricCollector())
+	memStore.Register(NewJobLabelsMetricCollector())
+	memStore.Register(NewJobAnnotationsMetricCollector())
+	memStore.Register(NewCronJobInfoMetricCollector())
+	memStore.Register(NewCronJobUptimeMetricCollector())
+	memStore.Register(NewCronJobLabelsMetricCollector())
+	memStore.Register(NewCronJobAnnotationsMetricCollector())
 	memStore.Register(NewPodsWithDaemonSetOwnerMetricCollector())
 	memStore.Register(NewPodsWithJobOwnerMetricCollector())
 	memStore.Register(NewPodsWithReplicaSetOwnerMetricCollector())
@@ -2145,6 +2153,114 @@ func NewDaemonSetAnnotationsMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.NamespaceLabel,
 			source.DaemonSetLabel,
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewJobInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.JobInfoID,
+		metric.JobInfo,
+		[]string{
+			source.UIDLabel,
+			source.NamespaceUIDLabel,
+			source.JobLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewJobUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.JobUptimeID,
+		metric.JobInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewJobLabelsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.JobLabelsID,
+		metric.JobLabels,
+		[]string{
+			source.NamespaceLabel,
+			source.JobLabel,
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewJobAnnotationsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.JobAnnotationsID,
+		metric.JobAnnotations,
+		[]string{
+			source.NamespaceLabel,
+			source.JobLabel,
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewCronJobInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.CronJobInfoID,
+		metric.CronJobInfo,
+		[]string{
+			source.UIDLabel,
+			source.NamespaceUIDLabel,
+			source.CronJobLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewCronJobUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.CronJobUptimeID,
+		metric.CronJobInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewCronJobLabelsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.CronJobLabelsID,
+		metric.CronJobLabels,
+		[]string{
+			source.NamespaceLabel,
+			source.CronJobLabel,
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewCronJobAnnotationsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.CronJobAnnotationsID,
+		metric.CronJobAnnotations,
+		[]string{
+			source.NamespaceLabel,
+			source.CronJobLabel,
 			source.UIDLabel,
 		},
 		aggregator.Info,

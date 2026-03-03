@@ -40,6 +40,8 @@ const (
 	DeploymentLabel      = "deployment"
 	StatefulSetLabel     = "statefulSet"
 	DaemonSetLabel       = "daemonset"
+	JobLabel             = "job"
+	CronJobLabel         = "cronjob"
 	ReplicaSetLabel      = "replicaset"
 	ResourceQuotaLabel   = "resourcequota"
 	OwnerNameLabel       = "owner_name"
@@ -1577,6 +1579,48 @@ func DecodeDaemonSetInfoResult(result *QueryResult) *DaemonSetInfoResult {
 		Cluster:      cluster,
 		NameSpaceUID: namespaceUID,
 		DaemonSet:    daemonSet,
+	}
+}
+
+type JobInfoResult struct {
+	UID          string
+	Cluster      string
+	NameSpaceUID string
+	Job          string
+}
+
+func DecodeJobInfoResult(result *QueryResult) *JobInfoResult {
+	uid, _ := result.GetString(UIDLabel)
+	cluster, _ := result.GetCluster()
+	namespaceUID, _ := result.GetString(NamespaceUIDLabel)
+	job, _ := result.GetString(JobLabel)
+
+	return &JobInfoResult{
+		UID:          uid,
+		Cluster:      cluster,
+		NameSpaceUID: namespaceUID,
+		Job:          job,
+	}
+}
+
+type CronJobInfoResult struct {
+	UID          string
+	Cluster      string
+	NameSpaceUID string
+	CronJob      string
+}
+
+func DecodeCronJobInfoResult(result *QueryResult) *CronJobInfoResult {
+	uid, _ := result.GetString(UIDLabel)
+	cluster, _ := result.GetCluster()
+	namespaceUID, _ := result.GetString(NamespaceUIDLabel)
+	cronJob, _ := result.GetString(CronJobLabel)
+
+	return &CronJobInfoResult{
+		UID:          uid,
+		Cluster:      cluster,
+		NameSpaceUID: namespaceUID,
+		CronJob:      cronJob,
 	}
 }
 

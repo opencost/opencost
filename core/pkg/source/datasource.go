@@ -107,6 +107,18 @@ type MetricsQuerier interface {
 	QueryDaemonSetLabels(start, end time.Time) *Future[LabelsResult]
 	QueryDaemonSetAnnotations(start, end time.Time) *Future[AnnotationsResult]
 
+	// Job
+	QueryJobInfo(start, end time.Time) *Future[JobInfoResult]
+	QueryJobUptime(start, end time.Time) *Future[UptimeResult]
+	QueryJobLabels(start, end time.Time) *Future[LabelsResult]
+	QueryJobAnnotations(start, end time.Time) *Future[AnnotationsResult]
+
+	// CronJob
+	QueryCronJobInfo(start, end time.Time) *Future[CronJobInfoResult]
+	QueryCronJobUptime(start, end time.Time) *Future[UptimeResult]
+	QueryCronJobLabels(start, end time.Time) *Future[LabelsResult]
+	QueryCronJobAnnotations(start, end time.Time) *Future[AnnotationsResult]
+
 	// Namespace
 	QueryNamespaceUptime(start, end time.Time) *Future[UptimeResult]
 

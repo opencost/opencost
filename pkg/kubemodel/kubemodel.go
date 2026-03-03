@@ -88,7 +88,19 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 		kms.Error(err)
 	}
 
-	// 2.8 Compute ResourceQuotas
+	// 2.8 Compute Jobs
+	err = km.computeJobs(kms, start, end)
+	if err != nil {
+		kms.Error(err)
+	}
+
+	// 2.9 Compute CronJobs
+	err = km.computeCronJobs(kms, start, end)
+	if err != nil {
+		kms.Error(err)
+	}
+
+	// 2.10 Compute ResourceQuotas
 	err = km.computeResourceQuotas(kms, start, end)
 	if err != nil {
 		kms.Error(err)
@@ -535,6 +547,130 @@ func (km *KubeModel) computeDaemonSets(kms *kubemodel.KubeModelSet, start, end t
 		err := kms.RegisterDaemonSet(daemonSet)
 		if err != nil {
 			log.Warnf("Failed to register daemonset: %s", err.Error())
+		}
+	}
+
+	return nil
+}
+
+func (km *KubeModel) computeJobs(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+	grp := source.NewQueryGroup()
+	metrics := km.ds.Metrics()
+
+	jobInfoResultFuture := source.WithGroup(grp, metrics.QueryJobInfo(start, end))
+	jobUptimeResultFuture := source.WithGroup(grp, metrics.QueryJobUptime(start, end))
+	jobLabelsResultFuture := source.WithGroup(grp, metrics.QueryJobLabels(start, end))
+	jobAnnotationsResultFuture := source.WithGroup(grp, metrics.QueryJobAnnotations(start, end))
+
+	jobMap := make(map[string]*kubemodel.Job)
+
+	jobInfoResult, _ := jobInfoResultFuture.Await()
+	for _, res := range jobInfoResult {
+		jobMap[res.UID] = &kubemodel.Job{
+			UID:          res.UID,
+			Name:         res.Job,
+			NamespaceUID: res.NameSpaceUID,
+		}
+	}
+
+	jobUptimeResult, _ := jobUptimeResultFuture.Await()
+	for _, res := range jobUptimeResult {
+		job, ok := jobMap[res.UID]
+		if !ok {
+			log.Warnf("job with UID '%s' has not been initialized to add uptime", res.UID)
+			continue
+		}
+
+		job.Start = res.First
+		job.End = res.Last
+	}
+
+	jobLabelsResult, _ := jobLabelsResultFuture.Await()
+	for _, res := range jobLabelsResult {
+		job, ok := jobMap[res.UID]
+		if !ok {
+			log.Warnf("job with UID '%s' has not been initialized to add labels", res.UID)
+			continue
+		}
+		job.Labels = res.Labels
+	}
+
+	jobAnnotationsResult, _ := jobAnnotationsResultFuture.Await()
+	for _, res := range jobAnnotationsResult {
+		job, ok := jobMap[res.UID]
+		if !ok {
+			log.Warnf("job with UID '%s' has not been initialized to add annotations", res.UID)
+			continue
+		}
+		job.Annotations = res.Annotations
+	}
+
+	for _, job := range jobMap {
+		err := kms.RegisterJob(job)
+		if err != nil {
+			log.Warnf("Failed to register job: %s", err.Error())
+		}
+	}
+
+	return nil
+}
+
+func (km *KubeModel) computeCronJobs(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+	grp := source.NewQueryGroup()
+	metrics := km.ds.Metrics()
+
+	cronJobInfoResultFuture := source.WithGroup(grp, metrics.QueryCronJobInfo(start, end))
+	cronJobUptimeResultFuture := source.WithGroup(grp, metrics.QueryCronJobUptime(start, end))
+	cronJobLabelsResultFuture := source.WithGroup(grp, metrics.QueryCronJobLabels(start, end))
+	cronJobAnnotationsResultFuture := source.WithGroup(grp, metrics.QueryCronJobAnnotations(start, end))
+
+	cronJobMap := make(map[string]*kubemodel.CronJob)
+
+	cronJobInfoResult, _ := cronJobInfoResultFuture.Await()
+	for _, res := range cronJobInfoResult {
+		cronJobMap[res.UID] = &kubemodel.CronJob{
+			UID:          res.UID,
+			Name:         res.CronJob,
+			NamespaceUID: res.NameSpaceUID,
+		}
+	}
+
+	cronJobUptimeResult, _ := cronJobUptimeResultFuture.Await()
+	for _, res := range cronJobUptimeResult {
+		cronJob, ok := cronJobMap[res.UID]
+		if !ok {
+			log.Warnf("cronjob with UID '%s' has not been initialized to add uptime", res.UID)
+			continue
+		}
+
+		cronJob.Start = res.First
+		cronJob.End = res.Last
+	}
+
+	cronJobLabelsResult, _ := cronJobLabelsResultFuture.Await()
+	for _, res := range cronJobLabelsResult {
+		cronJob, ok := cronJobMap[res.UID]
+		if !ok {
+			log.Warnf("cronjob with UID '%s' has not been initialized to add labels", res.UID)
+			continue
+		}
+		cronJob.Labels = res.Labels
+	}
+
+	cronJobAnnotationsResult, _ := cronJobAnnotationsResultFuture.Await()
+	for _, res := range cronJobAnnotationsResult {
+		cronJob, ok := cronJobMap[res.UID]
+		if !ok {
+			log.Warnf("cronjob with UID '%s' has not been initialized to add annotations", res.UID)
+			continue
+		}
+		cronJob.Annotations = res.Annotations
+	}
+
+	for _, cronJob := range cronJobMap {
+		err := kms.RegisterCronJob(cronJob)
+		if err != nil {
+			log.Warnf("Failed to register cronjob: %s", err.Error())
 		}
 	}
 

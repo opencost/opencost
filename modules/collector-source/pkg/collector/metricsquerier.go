@@ -592,6 +592,38 @@ func (c *collectorMetricsQuerier) QueryDaemonSetAnnotations(start, end time.Time
 	return queryCollector(c, start, end, metric.DaemonSetAnnotationsID, source.DecodeAnnotationsResult)
 }
 
+func (c *collectorMetricsQuerier) QueryJobInfo(start, end time.Time) *source.Future[source.JobInfoResult] {
+	return queryCollector(c, start, end, metric.JobInfoID, source.DecodeJobInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryJobUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.JobUptimeID, source.DecodeUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryJobLabels(start, end time.Time) *source.Future[source.LabelsResult] {
+	return queryCollector(c, start, end, metric.JobLabelsID, source.DecodeLabelsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryJobAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
+	return queryCollector(c, start, end, metric.JobAnnotationsID, source.DecodeAnnotationsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryCronJobInfo(start, end time.Time) *source.Future[source.CronJobInfoResult] {
+	return queryCollector(c, start, end, metric.CronJobInfoID, source.DecodeCronJobInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryCronJobUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.CronJobUptimeID, source.DecodeUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryCronJobLabels(start, end time.Time) *source.Future[source.LabelsResult] {
+	return queryCollector(c, start, end, metric.CronJobLabelsID, source.DecodeLabelsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryCronJobAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
+	return queryCollector(c, start, end, metric.CronJobAnnotationsID, source.DecodeAnnotationsResult)
+}
+
 func (c *collectorMetricsQuerier) QueryPodsWithDaemonSetOwner(start, end time.Time) *source.Future[source.PodsWithDaemonSetOwnerResult] {
 	return queryCollector(c, start, end, metric.PodsWithDaemonSetOwnerID, source.DecodePodsWithDaemonSetOwnerResult)
 }

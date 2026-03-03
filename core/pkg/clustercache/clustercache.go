@@ -71,6 +71,7 @@ type Service struct {
 }
 
 type DaemonSet struct {
+	UID            types.UID
 	Name           string
 	Namespace      string
 	Labels         map[string]string
@@ -304,6 +305,7 @@ func TransformService(input *v1.Service) *Service {
 
 func TransformDaemonSet(input *appsv1.DaemonSet) *DaemonSet {
 	return &DaemonSet{
+		UID:            input.UID,
 		Name:           input.Name,
 		Namespace:      input.Namespace,
 		Labels:         input.Labels,
