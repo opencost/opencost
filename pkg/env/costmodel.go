@@ -40,6 +40,11 @@ const (
 	AzureCurrencyEnvVar   = "AZURE_CURRENCY"
 	AzureRegionInfoEnvVar = "AZURE_REGION_INFO"
 
+	// Nebius Cloud
+	NebiusServiceAccountIDEnvVar         = "NEBIUS_SA_ID"
+	NebiusServiceAccountPublicKeyEnvVar  = "NEBIUS_SA_PUBLIC_KEY_ID"
+	NebiusServiceAccountPrivateKeyEnvVar = "NEBIUS_SA_PRIVATE_KEY_PATH"
+
 	// Currently being used for OCI and DigitalOcean
 	ProviderPricingURL = "PROVIDER_PRICING_URL"
 
@@ -394,6 +399,21 @@ func GetMetricConfigFile() string {
 func GetLocalCollectorDirectory() string {
 	dir := env.Get(LocalCollectorDirectoryEnvVar, DefaultLocalCollectorDir)
 	return env.GetPathFromConfig(dir)
+}
+
+// GetNebiusServiceAccountID returns the Nebius service account ID for API authentication
+func GetNebiusServiceAccountID() string {
+	return env.Get(NebiusServiceAccountIDEnvVar, "")
+}
+
+// GetNebiusServiceAccountPublicKeyID returns the Nebius service account public key ID
+func GetNebiusServiceAccountPublicKeyID() string {
+	return env.Get(NebiusServiceAccountPublicKeyEnvVar, "")
+}
+
+// GetNebiusServiceAccountPrivateKeyPath returns the path to the Nebius service account private key file
+func GetNebiusServiceAccountPrivateKeyPath() string {
+	return env.Get(NebiusServiceAccountPrivateKeyEnvVar, "")
 }
 
 func GetDOKSPricingURL() string {

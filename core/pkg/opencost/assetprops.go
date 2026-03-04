@@ -193,6 +193,9 @@ const OTCProvider = "OTC"
 // DigitalOceanProvider describes the provider DigitalOcean
 const DigitalOceanProvider = "DigitalOcean"
 
+// NebiusProvider describes the provider Nebius
+const NebiusProvider = "Nebius"
+
 // NilProvider describes unknown provider
 const NilProvider = "-"
 
@@ -215,6 +218,8 @@ func ParseProvider(str string) string {
 		return OracleProvider
 	case "digitalocean", "doks", "do":
 		return DigitalOceanProvider
+	case "nebius":
+		return NebiusProvider
 	default:
 		return NilProvider
 	}

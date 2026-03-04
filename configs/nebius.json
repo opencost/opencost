@@ -1,0 +1,13 @@
+{
+    "provider": "Nebius",
+    "description": "Default prices for Nebius AI Cloud. GPU rate is approximate H100 pricing. Override with custom pricing or provide Nebius service account credentials for live pricing via the CalculatorService API.",
+    "CPU": "0.01",
+    "RAM": "0.005",
+    "GPU": "1.50",
+    "storage": "0.00005",
+    "zoneNetworkEgress": "0.0",
+    "regionNetworkEgress": "0.0",
+    "internetNetworkEgress": "0.0",
+    "natGatewayEgress": "0.0",
+    "natGatewayIngress": "0.0"
+}
