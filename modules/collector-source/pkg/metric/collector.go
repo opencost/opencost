@@ -46,6 +46,7 @@ const (
 	PodInfoID                                  MetricCollectorID = "PodInfo"
 	PodUptimeID                                MetricCollectorID = "PodUptime"
 	PodOwnerID                                 MetricCollectorID = "PodOwner"
+	ContainerUptimeID                          MetricCollectorID = "ContainerUptime"
 	RAMBytesAllocatedID                        MetricCollectorID = "RAMBytesAllocated"
 	RAMRequestsID                              MetricCollectorID = "RAMRequests"
 	RAMLimitsID                                MetricCollectorID = "RAMLimits"

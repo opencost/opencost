@@ -106,7 +106,13 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 		kms.Error(err)
 	}
 
-	// 2.11 Compute ResourceQuotas
+	// 2.11 Compute Containers
+	err = km.computeContainers(kms, start, end)
+	if err != nil {
+		kms.Error(err)
+	}
+
+	// 2.12 Compute ResourceQuotas
 	err = km.computeResourceQuotas(kms, start, end)
 	if err != nil {
 		kms.Error(err)
@@ -739,6 +745,239 @@ func (km *KubeModel) computeReplicaSets(kms *kubemodel.KubeModelSet, start, end 
 		err := kms.RegisterReplicaSet(replicaSet)
 		if err != nil {
 			log.Warnf("Failed to register replicaset: %s", err.Error())
+		}
+	}
+
+	return nil
+}
+
+func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+	grp := source.NewQueryGroup()
+	metrics := km.ds.Metrics()
+
+	containerUptimeFuture := source.WithGroup(grp, metrics.QueryContainerUptime(start, end))
+
+	cpuAllocatedFuture := source.WithGroup(grp, metrics.QueryCPUCoresAllocated(start, end))
+	cpuUsageAvgFuture := source.WithGroup(grp, metrics.QueryCPUUsageAvg(start, end))
+	cpuUsageMaxFuture := source.WithGroup(grp, metrics.QueryCPUUsageMax(start, end))
+	cpuRequestsFuture := source.WithGroup(grp, metrics.QueryCPURequests(start, end))
+	cpuLimitsFuture := source.WithGroup(grp, metrics.QueryCPULimits(start, end))
+
+	ramAllocatedFuture := source.WithGroup(grp, metrics.QueryRAMBytesAllocated(start, end))
+	ramUsageAvgFuture := source.WithGroup(grp, metrics.QueryRAMUsageAvg(start, end))
+	ramUsageMaxFuture := source.WithGroup(grp, metrics.QueryRAMUsageMax(start, end))
+	ramRequestsFuture := source.WithGroup(grp, metrics.QueryRAMRequests(start, end))
+	ramLimitsFuture := source.WithGroup(grp, metrics.QueryRAMLimits(start, end))
+
+	gpuAllocatedFuture := source.WithGroup(grp, metrics.QueryGPUsAllocated(start, end))
+	gpuUsageAvgFuture := source.WithGroup(grp, metrics.QueryGPUsUsageAvg(start, end))
+	gpuUsageMaxFuture := source.WithGroup(grp, metrics.QueryGPUsUsageMax(start, end))
+	gpuRequestedFuture := source.WithGroup(grp, metrics.QueryGPUsRequested(start, end))
+
+	type containerKey struct {
+		podUID string
+		name   string
+	}
+
+	containerMap := make(map[containerKey]*kubemodel.Container)
+
+	containerUptimeResult, _ := containerUptimeFuture.Await()
+	for _, res := range containerUptimeResult {
+		key := containerKey{podUID: res.UID, name: res.Container}
+		containerMap[key] = &kubemodel.Container{
+			PodUID: res.UID,
+			Name:   res.Container,
+			Start:  res.First,
+			End:    res.Last,
+		}
+	}
+
+	cpuAllocatedResult, _ := cpuAllocatedFuture.Await()
+	for _, res := range cpuAllocatedResult {
+		key := containerKey{podUID: res.UID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add CPU allocated", res.UID, res.Container)
+			continue
+		}
+		if len(res.Data) > 0 {
+			containerMap[key].CPUAllocated = kubemodel.Measurement(res.Data[0].Value)
+		}
+	}
+
+	cpuUsageAvgResult, _ := cpuUsageAvgFuture.Await()
+	for _, res := range cpuUsageAvgResult {
+		key := containerKey{podUID: res.UID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add CPU usage avg", res.UID, res.Container)
+			continue
+		}
+		if len(res.Data) > 0 {
+			container.CPUUsageAvg = kubemodel.Measurement(res.Data[0].Value)
+		}
+	}
+
+	cpuUsageMaxResult, _ := cpuUsageMaxFuture.Await()
+	for _, res := range cpuUsageMaxResult {
+		key := containerKey{podUID: res.UID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add CPU usage max", res.UID, res.Container)
+			continue
+		}
+		if len(res.Data) > 0 {
+			container.CPUUsageMax = kubemodel.Measurement(res.Data[0].Value)
+		}
+	}
+
+	cpuRequestsResult, _ := cpuRequestsFuture.Await()
+	for _, res := range cpuRequestsResult {
+		key := containerKey{podUID: res.UID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add CPU requests", res.UID, res.Container)
+			continue
+		}
+		if len(res.Data) > 0 {
+			container.CPURequest = kubemodel.Measurement(res.Data[0].Value)
+		}
+	}
+
+	cpuLimitsResult, _ := cpuLimitsFuture.Await()
+	for _, res := range cpuLimitsResult {
+		key := containerKey{podUID: res.UID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add CPU limits", res.UID, res.Container)
+			continue
+		}
+		if len(res.Data) > 0 {
+			container.CPULimit = kubemodel.Measurement(res.Data[0].Value)
+		}
+	}
+
+	ramAllocatedResult, _ := ramAllocatedFuture.Await()
+	for _, res := range ramAllocatedResult {
+		key := containerKey{podUID: res.UID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add RAM allocated", res.UID, res.Container)
+			continue
+		}
+		if len(res.Data) > 0 {
+			container.RAMAllocated = kubemodel.Measurement(res.Data[0].Value)
+		}
+	}
+
+	ramUsageAvgResult, _ := ramUsageAvgFuture.Await()
+	for _, res := range ramUsageAvgResult {
+		key := containerKey{podUID: res.UID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add RAM usage avg", res.UID, res.Container)
+			continue
+		}
+		if len(res.Data) > 0 {
+			container.RAMUsageAvg = kubemodel.Measurement(res.Data[0].Value)
+		}
+	}
+
+	ramUsageMaxResult, _ := ramUsageMaxFuture.Await()
+	for _, res := range ramUsageMaxResult {
+		key := containerKey{podUID: res.UID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add RAM usage max", res.UID, res.Container)
+			continue
+		}
+		if len(res.Data) > 0 {
+			container.RAMUsageMax = kubemodel.Measurement(res.Data[0].Value)
+		}
+	}
+
+	ramRequestsResult, _ := ramRequestsFuture.Await()
+	for _, res := range ramRequestsResult {
+		key := containerKey{podUID: res.UID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add RAM requests", res.UID, res.Container)
+			continue
+		}
+		if len(res.Data) > 0 {
+			container.RAMRequest = kubemodel.Measurement(res.Data[0].Value)
+		}
+	}
+
+	ramLimitsResult, _ := ramLimitsFuture.Await()
+	for _, res := range ramLimitsResult {
+		key := containerKey{podUID: res.UID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add RAM limits", res.UID, res.Container)
+			continue
+		}
+		if len(res.Data) > 0 {
+			container.RAMLimit = kubemodel.Measurement(res.Data[0].Value)
+		}
+	}
+
+	gpuAllocatedResult, _ := gpuAllocatedFuture.Await()
+	for _, res := range gpuAllocatedResult {
+		key := containerKey{podUID: res.UID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add GPU allocated", res.UID, res.Container)
+			continue
+		}
+		if len(res.Data) > 0 {
+			container.GPUAllocated = kubemodel.Measurement(res.Data[0].Value)
+		}
+	}
+
+	gpuUsageAvgResult, _ := gpuUsageAvgFuture.Await()
+	for _, res := range gpuUsageAvgResult {
+		key := containerKey{podUID: res.UID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add GPU usage avg", res.UID, res.Container)
+			continue
+		}
+		if len(res.Data) > 0 {
+			container.GPUUsageAvg = kubemodel.Measurement(res.Data[0].Value)
+		}
+	}
+
+	gpuUsageMaxResult, _ := gpuUsageMaxFuture.Await()
+	for _, res := range gpuUsageMaxResult {
+		key := containerKey{podUID: res.UID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add GPU usage max", res.UID, res.Container)
+			continue
+		}
+		if len(res.Data) > 0 {
+			container.GPUUsageMax = kubemodel.Measurement(res.Data[0].Value)
+		}
+	}
+
+	gpuRequestedResult, _ := gpuRequestedFuture.Await()
+	for _, res := range gpuRequestedResult {
+		key := containerKey{podUID: res.UID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add GPU requested", res.UID, res.Container)
+			continue
+		}
+		if len(res.Data) > 0 {
+			container.GPURequest = kubemodel.Measurement(res.Data[0].Value)
+		}
+	}
+
+	for _, container := range containerMap {
+		err := kms.RegisterContainer(container)
+		if err != nil {
+			log.Warnf("Failed to register container: %s", err.Error())
 		}
 	}
 

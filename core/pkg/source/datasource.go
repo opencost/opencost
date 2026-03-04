@@ -52,6 +52,9 @@ type MetricsQuerier interface {
 	QueryPodUptime(start, end time.Time) *Future[UptimeResult]
 	QueryPodOwners(start, end time.Time) *Future[OwnerResult]
 
+	// Container
+	QueryContainerUptime(start, end time.Time) *Future[ContainerUptimeResult]
+
 	// RAM
 	QueryRAMBytesAllocated(start, end time.Time) *Future[RAMBytesAllocatedResult]
 	QueryRAMRequests(start, end time.Time) *Future[RAMRequestsResult]
@@ -125,7 +128,7 @@ type MetricsQuerier interface {
 	QueryReplicaSetLabels(start, end time.Time) *Future[LabelsResult]
 	QueryReplicaSetAnnotations(start, end time.Time) *Future[AnnotationsResult]
 	QueryReplicaSetOwners(start, end time.Time) *Future[OwnerResult]
-	
+
 	// Namespace
 	QueryNamespaceUptime(start, end time.Time) *Future[UptimeResult]
 

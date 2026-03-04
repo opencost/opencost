@@ -120,6 +120,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewPodInfoMetricCollector())
 	memStore.Register(NewPodUptimeMetricCollector())
 	memStore.Register(NewPodOwnerMetricCollector())
+	memStore.Register(NewContainerUptimeMetricCollector())
 	memStore.Register(NewReplicaSetsWithoutOwnersMetricCollector())
 	memStore.Register(NewReplicaSetsWithRolloutMetricCollector())
 	memStore.Register(NewResourceQuotaUptimeMetricCollector())
@@ -786,6 +787,19 @@ func NewPodOwnerMetricCollector() *metric.MetricCollector {
 			source.OwnerKindLabel,
 		},
 		aggregator.Info,
+		nil,
+	)
+}
+
+func NewContainerUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ContainerUptimeID,
+		metric.KubePodContainerStatusRunning,
+		[]string{
+			source.UIDLabel,
+			source.ContainerLabel,
+		},
+		aggregator.Uptime,
 		nil,
 	)
 }

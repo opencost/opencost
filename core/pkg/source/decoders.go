@@ -104,6 +104,20 @@ func DecodeUptimeResult(result *QueryResult) *UptimeResult {
 	}
 }
 
+type ContainerUptimeResult struct {
+	UptimeResult
+	Container string
+}
+
+func DecodeContainerUptimeResult(result *QueryResult) *ContainerUptimeResult {
+	container, _ := result.GetString(ContainerLabel)
+	ur := DecodeUptimeResult(result)
+	return &ContainerUptimeResult{
+		UptimeResult: *ur,
+		Container:    container,
+	}
+}
+
 type LabelsResult struct {
 	UID     string
 	Cluster string

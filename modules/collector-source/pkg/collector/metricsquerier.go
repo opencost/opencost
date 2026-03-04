@@ -340,6 +340,10 @@ func (c *collectorMetricsQuerier) QueryPodOwners(start, end time.Time) *source.F
 	return queryCollector(c, start, end, metric.PodOwnerID, source.DecodeOwnerResult)
 }
 
+func (c *collectorMetricsQuerier) QueryContainerUptime(start, end time.Time) *source.Future[source.ContainerUptimeResult] {
+	return queryCollector(c, start, end, metric.ContainerUptimeID, source.DecodeContainerUptimeResult)
+}
+
 func (c *collectorMetricsQuerier) QueryRAMBytesAllocated(start, end time.Time) *source.Future[source.RAMBytesAllocatedResult] {
 	return queryCollector(c, start, end, metric.RAMBytesAllocatedID, source.DecodeRAMBytesAllocatedResult)
 }
