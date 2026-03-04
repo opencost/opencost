@@ -209,7 +209,23 @@ func parseInstanceAddon(addon ovhAddon, pricing map[string]*OVHFlavorPricing) {
 		return
 	}
 
-	rawPrice := float64(addon.Pricings[0].Price) / microcentsPerUnit
+	// Select pricing entry by type: "consumption" for hourly, "monthly.postpaid" for monthly
+	targetType := "consumption"
+	if isMonthly {
+		targetType = "monthly.postpaid"
+	}
+	var rawPrice float64
+	matched := false
+	for _, p := range addon.Pricings {
+		if p.Type == targetType {
+			rawPrice = float64(p.Price) / microcentsPerUnit
+			matched = true
+			break
+		}
+	}
+	if !matched {
+		rawPrice = float64(addon.Pricings[0].Price) / microcentsPerUnit
+	}
 
 	entry, exists := pricing[flavorName]
 	if !exists {
