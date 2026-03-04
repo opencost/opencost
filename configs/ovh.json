@@ -1,6 +1,6 @@
 {
     "provider": "OVH",
-    "description": "OVH default prices based on b2-7 hourly rates",
+    "description": "OVH fallback prices: CPU/RAM from b2-7, GPU from t2-45 per-GPU-hour, storage from high-speed-gen2",
     "CPU": "0.03405",
     "spotCPU": "0.03405",
     "RAM": "0.009729",

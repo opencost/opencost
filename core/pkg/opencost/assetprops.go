@@ -218,7 +218,7 @@ func ParseProvider(str string) string {
 		return OracleProvider
 	case "digitalocean", "doks", "do":
 		return DigitalOceanProvider
-	case "ovh", "ovhcloud", "mks":
+	case "ovh", "ovhcloud", "ovh-mks":
 		return OVHProvider
 	default:
 		return NilProvider

@@ -405,7 +405,7 @@ func GetDOKSPricingURL() string {
 }
 
 func GetOVHSubsidiary() string {
-	return env.Get(OVHSubsidiaryEnvVar, "FR")
+	return strings.ToUpper(strings.TrimSpace(env.Get(OVHSubsidiaryEnvVar, "FR")))
 }
 
 func GetOVHMonthlyNodepools() []string {
@@ -413,9 +413,12 @@ func GetOVHMonthlyNodepools() []string {
 	if val == "" {
 		return nil
 	}
-	pools := strings.Split(val, ",")
-	for i := range pools {
-		pools[i] = strings.TrimSpace(pools[i])
+	var pools []string
+	for _, p := range strings.Split(val, ",") {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			pools = append(pools, p)
+		}
 	}
 	return pools
 }
