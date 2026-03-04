@@ -314,12 +314,18 @@ func (k *ovhKey) ID() string {
 
 // ovhPVKey implements models.PVKey for OVH persistent volumes.
 type ovhPVKey struct {
-	StorageClassName string
-	Zone             string
+	StorageClassName       string
+	StorageClassParameters map[string]string
+	Zone                   string
 }
 
 func (k *ovhPVKey) Features() string {
+	// First try the StorageClass name mapping
 	volumeType := storageClassToVolumeType[k.StorageClassName]
+	// Fallback to the "type" parameter from StorageClass (e.g. "high-speed-gen2")
+	if volumeType == "" && k.StorageClassParameters != nil {
+		volumeType = k.StorageClassParameters["type"]
+	}
 	return k.Zone + "," + volumeType
 }
 
@@ -547,8 +553,9 @@ func (c *OVH) GetPVKey(pv *clustercache.PersistentVolume, parameters map[string]
 		}
 	}
 	return &ovhPVKey{
-		StorageClassName: pv.Spec.StorageClassName,
-		Zone:             zone,
+		StorageClassName:       pv.Spec.StorageClassName,
+		StorageClassParameters: parameters,
+		Zone:                   zone,
 	}
 }
 
