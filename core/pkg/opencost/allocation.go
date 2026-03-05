@@ -2672,6 +2672,11 @@ func (a *Allocation) StringProperty(property string) (string, error) {
 			return "", nil
 		}
 		return a.Properties.ProviderID, nil
+	case AllocationAccountProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Account, nil
 	default:
 		return "", fmt.Errorf("Allocation: StringProperty: invalid property name: %s", property)
 	}
