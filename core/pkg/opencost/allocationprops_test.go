@@ -248,6 +248,245 @@ func TestGenerateKey(t *testing.T) {
 	}
 }
 
+func TestAllocationPropertiesEqual(t *testing.T) {
+	cases := map[string]struct {
+		props1   *AllocationProperties
+		props2   *AllocationProperties
+		expected bool
+	}{
+		"both nil": {
+			props1:   nil,
+			props2:   nil,
+			expected: false,
+		},
+		"first nil": {
+			props1:   nil,
+			props2:   &AllocationProperties{},
+			expected: false,
+		},
+		"second nil": {
+			props1:   &AllocationProperties{},
+			props2:   nil,
+			expected: false,
+		},
+		"both empty": {
+			props1:   &AllocationProperties{},
+			props2:   &AllocationProperties{},
+			expected: true,
+		},
+		"same account": {
+			props1: &AllocationProperties{
+				Account: "account-123",
+			},
+			props2: &AllocationProperties{
+				Account: "account-123",
+			},
+			expected: true,
+		},
+		"different account": {
+			props1: &AllocationProperties{
+				Account: "account-123",
+			},
+			props2: &AllocationProperties{
+				Account: "account-456",
+			},
+			expected: false,
+		},
+		"account vs empty": {
+			props1: &AllocationProperties{
+				Account: "account-123",
+			},
+			props2: &AllocationProperties{
+				Account: "",
+			},
+			expected: false,
+		},
+		"same account with other fields": {
+			props1: &AllocationProperties{
+				Cluster:   "cluster1",
+				Namespace: "ns1",
+				Account:   "account-123",
+			},
+			props2: &AllocationProperties{
+				Cluster:   "cluster1",
+				Namespace: "ns1",
+				Account:   "account-123",
+			},
+			expected: true,
+		},
+		"different account with same other fields": {
+			props1: &AllocationProperties{
+				Cluster:   "cluster1",
+				Namespace: "ns1",
+				Account:   "account-123",
+			},
+			props2: &AllocationProperties{
+				Cluster:   "cluster1",
+				Namespace: "ns1",
+				Account:   "account-456",
+			},
+			expected: false,
+		},
+		"all fields same including account": {
+			props1: &AllocationProperties{
+				Cluster:        "cluster1",
+				Node:           "node1",
+				Container:      "container1",
+				Controller:     "controller1",
+				ControllerKind: "deployment",
+				Namespace:      "ns1",
+				Pod:            "pod1",
+				ProviderID:     "provider1",
+				Account:        "account-123",
+				Services:       []string{"service1"},
+				Labels:         AllocationLabels{"key1": "value1"},
+				Annotations:    AllocationAnnotations{"key2": "value2"},
+			},
+			props2: &AllocationProperties{
+				Cluster:        "cluster1",
+				Node:           "node1",
+				Container:      "container1",
+				Controller:     "controller1",
+				ControllerKind: "deployment",
+				Namespace:      "ns1",
+				Pod:            "pod1",
+				ProviderID:     "provider1",
+				Account:        "account-123",
+				Services:       []string{"service1"},
+				Labels:         AllocationLabels{"key1": "value1"},
+				Annotations:    AllocationAnnotations{"key2": "value2"},
+			},
+			expected: true,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			result := tc.props1.Equal(tc.props2)
+			if result != tc.expected {
+				t.Fatalf("expected %v; got %v", tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestAllocationPropertiesClone(t *testing.T) {
+	cases := map[string]struct {
+		props *AllocationProperties
+	}{
+		"nil": {
+			props: nil,
+		},
+		"empty": {
+			props: &AllocationProperties{},
+		},
+		"with account": {
+			props: &AllocationProperties{
+				Account: "account-123",
+			},
+		},
+		"full properties with account": {
+			props: &AllocationProperties{
+				Cluster:              "cluster1",
+				Node:                 "node1",
+				Container:            "container1",
+				Controller:           "controller1",
+				ControllerKind:       "deployment",
+				Namespace:            "ns1",
+				Pod:                  "pod1",
+				ProviderID:           "provider1",
+				Account:              "account-123",
+				Services:             []string{"service1", "service2"},
+				Labels:               AllocationLabels{"key1": "value1"},
+				Annotations:          AllocationAnnotations{"key2": "value2"},
+				NamespaceLabels:      AllocationLabels{"nskey1": "nsvalue1"},
+				NamespaceAnnotations: AllocationAnnotations{"nskey2": "nsvalue2"},
+				AggregatedMetadata:   true,
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			clone := tc.props.Clone()
+
+			if tc.props == nil {
+				if clone != nil {
+					t.Fatalf("expected nil clone for nil input")
+				}
+				return
+			}
+
+			if clone == nil {
+				t.Fatalf("expected non-nil clone")
+			}
+
+			// Verify clone equals original
+			if !clone.Equal(tc.props) {
+				t.Fatalf("clone does not equal original")
+			}
+
+			// Verify it's a deep copy by modifying clone
+			if tc.props.Account != "" {
+				clone.Account = "modified-account"
+				if tc.props.Account == clone.Account {
+					t.Fatalf("modifying clone affected original")
+				}
+			}
+		})
+	}
+}
+
+func TestGenerateKeyWithAccount(t *testing.T) {
+	cases := map[string]struct {
+		aggregate       []string
+		allocationProps *AllocationProperties
+		expected        string
+	}{
+		"aggregate by account": {
+			aggregate: []string{"account"},
+			allocationProps: &AllocationProperties{
+				Account: "account-123",
+			},
+			expected: "account-123",
+		},
+		"aggregate by account and cluster": {
+			aggregate: []string{"cluster", "account"},
+			allocationProps: &AllocationProperties{
+				Cluster: "cluster1",
+				Account: "account-123",
+			},
+			expected: "cluster1/account-123",
+		},
+		"aggregate by account and namespace": {
+			aggregate: []string{"namespace", "account"},
+			allocationProps: &AllocationProperties{
+				Namespace: "ns1",
+				Account:   "account-456",
+			},
+			expected: "ns1/account-456",
+		},
+		"aggregate by multiple fields including account": {
+			aggregate: []string{"cluster", "namespace", "account"},
+			allocationProps: &AllocationProperties{
+				Cluster:   "cluster1",
+				Namespace: "ns1",
+				Account:   "account-789",
+			},
+			expected: "cluster1/ns1/account-789",
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			result := tc.allocationProps.GenerateKey(tc.aggregate, NewLabelConfig())
+			if result != tc.expected {
+				t.Fatalf("expected %s; got %s", tc.expected, result)
+			}
+		})
+	}
+}
+
 func TestIntersection(t *testing.T) {
 
 	propsEmpty := AllocationProperties{}

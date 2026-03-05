@@ -290,6 +290,10 @@ func (p *AllocationProperties) Equal(that *AllocationProperties) bool {
 		return false
 	}
 
+	if p.Account != that.Account {
+		return false
+	}
+
 	pLabels := p.Labels
 	thatLabels := that.Labels
 	if len(pLabels) == len(thatLabels) {
