@@ -649,6 +649,50 @@ func TestGetPricingListURL(t *testing.T) {
 	}
 }
 
+func Test_configUpdaterWithReaderAndType_forSpotValues(t *testing.T) {
+	fixture, err := os.Open("testdata/aws-config.json")
+	if err != nil {
+		t.Fatalf("failed to load aws config fixture: %s", err)
+	}
+	defer fixture.Close()
+	c := &models.CustomPricing{}
+	callback := configUpdaterWithReaderAndType(fixture, "otherupdatetype")
+	err = callback(c)
+	if err != nil {
+		t.Fatalf("failed to load aws config: %s", err)
+	}
+	if c.AwsSpotDataBucket != "mybucket" {
+		t.Fatalf("Expected %s but got %s", "mybucket", c.AwsSpotDataBucket)
+	}
+	if c.AwsSpotDataPrefix != "myprefix" {
+		t.Fatalf("Expected %s but got %s", "myprefix", c.AwsSpotDataPrefix)
+	}
+	if c.AwsSpotDataRegion != "us-east-1" {
+		t.Fatalf("Expected %s but got %s", "us-east-1", c.AwsSpotDataRegion)
+	}
+
+	fixture2, err := os.Open("testdata/aws-config-empty.json")
+	if err != nil {
+		t.Fatalf("failed to load aws config fixture: %s", err)
+	}
+	defer fixture2.Close()
+	c = &models.CustomPricing{}
+	callback = configUpdaterWithReaderAndType(fixture2, "otherupdatetype")
+	err = callback(c)
+	if err != nil {
+		t.Fatalf("failed to load aws config: %s", err)
+	}
+	if c.AwsSpotDataBucket != "" {
+		t.Fatalf("Expected empty string but got %s", c.AwsSpotDataBucket)
+	}
+	if c.AwsSpotDataPrefix != "" {
+		t.Fatalf("Expected empty string but got %s", c.AwsSpotDataPrefix)
+	}
+	if c.AwsSpotDataRegion != "" {
+		t.Fatalf("Expected empty string but got %s", c.AwsSpotDataRegion)
+	}
+}
+
 // Mock cluster cache for testing
 type mockClusterCache struct {
 	pods []*clustercache.Pod

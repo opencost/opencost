@@ -1,0 +1,213 @@
+{
+  "catalogId": "test",
+  "locale": {
+    "currencyCode": "EUR",
+    "subsidiary": "FR"
+  },
+  "plans": [
+    {
+      "planCode": "project.2018",
+      "addonFamilies": [
+        {
+          "name": "instance",
+          "addons": [
+            "b2-7.consumption",
+            "b2-7.monthly.postpaid",
+            "t2-45.consumption",
+            "t2-45.monthly.postpaid"
+          ]
+        },
+        {
+          "name": "volume",
+          "addons": [
+            "volume.high-speed-gen2.consumption",
+            "volume.high-speed.consumption",
+            "volume.classic.consumption"
+          ]
+        }
+      ]
+    }
+  ],
+  "addons": [
+    {
+      "planCode": "b2-7.consumption",
+      "invoiceName": "b2-7 - Hourly",
+      "product": "publiccloud-instance",
+      "pricingType": "consumption",
+      "pricings": [
+        {
+          "price": 6810000,
+          "type": "consumption"
+        }
+      ],
+      "blobs": {
+        "technical": {
+          "cpu": {
+            "cores": 2
+          },
+          "memory": {
+            "size": 7
+          },
+          "storage": {
+            "disks": [
+              {
+                "capacity": 50
+              }
+            ]
+          },
+          "name": "b2-7"
+        },
+        "commercial": {
+          "brickSubtype": "general-purpose",
+          "name": "b2-7"
+        }
+      }
+    },
+    {
+      "planCode": "b2-7.monthly.postpaid",
+      "invoiceName": "b2-7 - Monthly",
+      "product": "publiccloud-instance-monthly",
+      "pricingType": "consumption",
+      "pricings": [
+        {
+          "price": 2420000000,
+          "type": "monthly.postpaid"
+        }
+      ],
+      "blobs": {
+        "technical": {
+          "cpu": {
+            "cores": 2
+          },
+          "memory": {
+            "size": 7
+          },
+          "storage": {
+            "disks": [
+              {
+                "capacity": 50
+              }
+            ]
+          },
+          "name": "b2-7"
+        },
+        "commercial": {
+          "brickSubtype": "general-purpose",
+          "name": "b2-7"
+        }
+      }
+    },
+    {
+      "planCode": "t2-45.consumption",
+      "invoiceName": "t2-45 - Hourly",
+      "product": "publiccloud-instance",
+      "pricingType": "consumption",
+      "pricings": [
+        {
+          "price": 180000000,
+          "type": "consumption"
+        }
+      ],
+      "blobs": {
+        "technical": {
+          "cpu": {
+            "cores": 15
+          },
+          "memory": {
+            "size": 45
+          },
+          "storage": {
+            "disks": [
+              {
+                "capacity": 400
+              }
+            ]
+          },
+          "gpu": {
+            "number": 1,
+            "model": "Tesla V100S"
+          },
+          "name": "t2-45"
+        },
+        "commercial": {
+          "brickSubtype": "gpu",
+          "name": "t2-45"
+        }
+      }
+    },
+    {
+      "planCode": "t2-45.monthly.postpaid",
+      "invoiceName": "t2-45 - Monthly",
+      "product": "publiccloud-instance-monthly",
+      "pricingType": "consumption",
+      "pricings": [
+        {
+          "price": 63800000000,
+          "type": "monthly.postpaid"
+        }
+      ],
+      "blobs": {
+        "technical": {
+          "cpu": {
+            "cores": 15
+          },
+          "memory": {
+            "size": 45
+          },
+          "storage": {
+            "disks": [
+              {
+                "capacity": 400
+              }
+            ]
+          },
+          "gpu": {
+            "number": 1,
+            "model": "Tesla V100S"
+          },
+          "name": "t2-45"
+        },
+        "commercial": {
+          "brickSubtype": "gpu",
+          "name": "t2-45"
+        }
+      }
+    },
+    {
+      "planCode": "volume.high-speed-gen2.consumption",
+      "invoiceName": "Volume High Speed Gen2 - Hourly",
+      "product": "publiccloud-volume",
+      "pricingType": "consumption",
+      "pricings": [
+        {
+          "price": 11900,
+          "type": "consumption"
+        }
+      ]
+    },
+    {
+      "planCode": "volume.high-speed.consumption",
+      "invoiceName": "Volume High Speed - Hourly",
+      "product": "publiccloud-volume",
+      "pricingType": "consumption",
+      "pricings": [
+        {
+          "price": 11900,
+          "type": "consumption"
+        }
+      ]
+    },
+    {
+      "planCode": "volume.classic.consumption",
+      "invoiceName": "Volume Classic - Hourly",
+      "product": "publiccloud-volume",
+      "pricingType": "consumption",
+      "pricings": [
+        {
+          "price": 5900,
+          "type": "consumption"
+        }
+      ]
+    }
+  ]
+}
