@@ -67,7 +67,7 @@ jobs:
             MAINBRANCH: ${{ steps.set_image_tags.outputs.mainbranch }}
             passed: ${{ steps.wait_for_image_ready.outputs.passed }}
         steps:
-          - uses: actions/checkout@v4
+          - uses: actions/checkout@v6
             with:
               ref: ${{ github.event.merge_group.head.sha || github.event.pull_request.head.sha || github.ref }}
           - name: Set OC SHA
