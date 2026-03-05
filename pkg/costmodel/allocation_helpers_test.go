@@ -611,12 +611,12 @@ func TestCalculateStartAndEnd(t *testing.T) {
 		// Regression test: when a rolling window (e.g. "24h") clips into a
 		// daily store bucket whose data is entirely before the window start,
 		// clamping pushes start past end, producing negative durations.
-		// calculateStartAndEnd should return a zero-duration interval (e, e)
-		// so callers naturally compute zero cost.
+		// calculateStartAndEnd should return a zero-duration interval at
+		// window start so callers naturally compute zero cost.
 		"data entirely before window start should return zero-duration interval": {
 			resolution:    time.Minute,
-			expectedStart: windowStart.Add(-4 * time.Hour),
-			expectedEnd:   windowStart.Add(-4 * time.Hour),
+			expectedStart: windowStart,
+			expectedEnd:   windowStart,
 			result: &source.QueryResult{
 				Values: []*util.Vector{
 					{
@@ -635,8 +635,8 @@ func TestCalculateStartAndEnd(t *testing.T) {
 		// precedes window start, so clamping causes start > end.
 		"single data point before window start should return zero-duration interval": {
 			resolution:    time.Minute,
-			expectedStart: windowStart.Add(-2*time.Hour + time.Minute),
-			expectedEnd:   windowStart.Add(-2*time.Hour + time.Minute),
+			expectedStart: windowStart,
+			expectedEnd:   windowStart,
 			result: &source.QueryResult{
 				Values: []*util.Vector{
 					{
