@@ -874,6 +874,10 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.SpotDataPrefix = c.SpotDataPrefix
 	aws.ProjectID = c.ProjectID
 	aws.SpotDataRegion = c.SpotDataRegion
+	clusterManagementCost, hasCustomClusterManagementCost := c.GetClusterManagementCost()
+	if hasCustomClusterManagementCost {
+		aws.clusterManagementPrice = clusterManagementCost
+	}
 
 	aws.ConfigureAuthWith(c) // load aws authentication from configuration or secret
 
@@ -886,7 +890,9 @@ func (aws *AWS) DownloadPricingData() error {
 	for _, n := range nodeList {
 
 		if _, ok := n.Labels["eks.amazonaws.com/nodegroup"]; ok {
-			aws.clusterManagementPrice = 0.10
+			if !hasCustomClusterManagementCost {
+				aws.clusterManagementPrice = 0.10 // Default to 0.10 if not set by custom pricing
+			}
 			aws.clusterProvisioner = "EKS"
 		} else if _, ok := n.Labels["kops.k8s.io/instancegroup"]; ok {
 			aws.clusterProvisioner = "KOPS"

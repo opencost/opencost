@@ -1739,7 +1739,14 @@ func (az *Azure) PricingSourceStatus() map[string]*models.PricingSource {
 	return sources
 }
 
-func (*Azure) ClusterManagementPricing() (string, float64, error) {
+func (az *Azure) ClusterManagementPricing() (string, float64, error) {
+	config, err := az.GetConfig()
+	if err != nil {
+		return "", 0.0, err
+	}
+	if clusterManagementCost, ok := config.GetClusterManagementCost(); ok {
+		return "AKS", clusterManagementCost, nil
+	}
 	return "", 0.0, nil
 }
 

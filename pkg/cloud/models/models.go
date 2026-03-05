@@ -10,6 +10,7 @@ import (
 
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/config"
 )
 
@@ -142,6 +143,7 @@ type CustomPricing struct {
 	FirstFiveForwardingRulesCost string `json:"firstFiveForwardingRulesCost"`
 	AdditionalForwardingRuleCost string `json:"additionalForwardingRuleCost"`
 	LBIngressDataCost            string `json:"LBIngressDataCost"`
+	ClusterManagementCost        string `json:"clusterManagementCost,omitempty"`
 	SpotLabel                    string `json:"spotLabel,omitempty"`
 	SpotLabelValue               string `json:"spotLabelValue,omitempty"`
 	GpuLabel                     string `json:"gpuLabel,omitempty"`
@@ -187,6 +189,21 @@ type CustomPricing struct {
 	DefaultLBPrice               string `json:"defaultLBPrice"`
 }
 
+// GetClusterManagementCost parses and returns a float64 representation
+// of the configured hourly cluster management cost. If the string version cannot
+// be parsed into a float, an error is logged and 0.0 is returned.
+// Also returns a boolean indicating whether a value was configured.
+func (cp *CustomPricing) GetClusterManagementCost() (float64, bool) {
+	if cp.ClusterManagementCost == "" {
+		return 0.0, false
+	}
+	clusterManagementCost, err := strconv.ParseFloat(cp.ClusterManagementCost, 64)
+	if err != nil {
+		log.Warnf("ClusterManagementCost: failed to parse cluster management cost \"%s\": %s", cp.ClusterManagementCost, err)
+		return 0.0, false
+	}
+	return clusterManagementCost, true
+}
 func sanitizeFloatString(number string, allowNaN bool) (string, error) {
 	num, err := strconv.ParseFloat(number, 64)
 	if err != nil {
@@ -217,7 +234,7 @@ func SetCustomPricingField(obj *CustomPricing, name string, value string) error 
 	// validation work in order to prevent "NaN" and other invalid strings
 	// from getting set here.
 	switch strings.ToLower(name) {
-	case "cpu", "gpu", "ram", "spotcpu", "spotgpu", "spotram", "storage", "zonenetworkegress", "regionnetworkegress", "internetnetworkegress", "natgatewayegress", "natgatewayingress":
+	case "cpu", "gpu", "ram", "spotcpu", "spotgpu", "spotram", "storage", "zonenetworkegress", "regionnetworkegress", "internetnetworkegress", "natgatewayegress", "natgatewayingress", "clustermanagementcost":
 		// If we are sent an empty string, ignore the key and don't change the value
 		if value == "" {
 			return nil

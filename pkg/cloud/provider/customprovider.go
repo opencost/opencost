@@ -76,7 +76,14 @@ type customProviderKey struct {
 	Labels         map[string]string
 }
 
-func (*CustomProvider) ClusterManagementPricing() (string, float64, error) {
+func (cp *CustomProvider) ClusterManagementPricing() (string, float64, error) {
+	c, err := cp.GetConfig()
+	if err != nil {
+		return "", 0.0, err
+	}
+	if clusterManagementCost, ok := c.GetClusterManagementCost(); ok {
+		return "Custom", clusterManagementCost, nil
+	}
 	return "", 0.0, nil
 }
 
