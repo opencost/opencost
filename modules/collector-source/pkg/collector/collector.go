@@ -36,6 +36,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewNodeRAMUserUsageAverageMetricCollector())
 	memStore.Register(NewLBPricePerHourMetricCollector())
 	memStore.Register(NewLBActiveMinutesMetricCollector())
+	memStore.Register(NewClusterInfoMetricCollector())
 	memStore.Register(NewClusterUptimeMetricCollector())
 	memStore.Register(NewClusterManagementDurationMetricCollector())
 	memStore.Register(NewClusterManagementPricePerHourMetricCollector())
@@ -672,6 +673,18 @@ func NewLBActiveMinutesMetricCollector() *metric.MetricCollector {
 	)
 }
 
+func NewClusterInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ClusterInfoID,
+		metric.ClusterInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
 //	avg(
 //		cluster_info{
 //			<some_custom_filter>
@@ -756,9 +769,6 @@ func NewPodInfoMetricCollector() *metric.MetricCollector {
 		metric.PodInfo,
 		[]string{
 			source.UIDLabel,
-			source.PodLabel,
-			source.NodeUIDLabel,
-			source.NodeUIDLabel,
 		},
 		aggregator.Info,
 		nil,
@@ -1447,10 +1457,10 @@ func NewPVInfoMetricCollector() *metric.MetricCollector {
 		metric.PVInfoID,
 		metric.KubecostPVInfo,
 		[]string{
+			source.UIDLabel,
 			source.PVLabel,
 			source.StorageClassLabel,
 			source.ProviderIDLabel,
-			source.UIDLabel,
 		},
 		aggregator.AverageOverTime,
 		nil,
@@ -1995,8 +2005,6 @@ func NewDeploymentInfoMetricCollector() *metric.MetricCollector {
 		metric.DeploymentInfo,
 		[]string{
 			source.UIDLabel,
-			source.NamespaceUIDLabel,
-			source.DeploymentLabel,
 		},
 		aggregator.Info,
 		nil,
@@ -2116,8 +2124,6 @@ func NewStatefulSetMatchLabelsMetricCollector() *metric.MetricCollector {
 		metric.StatefulSetMatchLabelsID,
 		metric.StatefulSetMatchLabels,
 		[]string{
-			source.NamespaceLabel,
-			source.StatefulSetLabel,
 			source.UIDLabel,
 		},
 		aggregator.Info,
@@ -2131,8 +2137,6 @@ func NewDaemonSetInfoMetricCollector() *metric.MetricCollector {
 		metric.DaemonSetInfo,
 		[]string{
 			source.UIDLabel,
-			source.NamespaceUIDLabel,
-			source.DaemonSetLabel,
 		},
 		aggregator.Info,
 		nil,
@@ -2156,8 +2160,6 @@ func NewDaemonSetLabelsMetricCollector() *metric.MetricCollector {
 		metric.DaemonSetLabelsID,
 		metric.DaemonSetLabels,
 		[]string{
-			source.NamespaceLabel,
-			source.DaemonSetLabel,
 			source.UIDLabel,
 		},
 		aggregator.Info,
@@ -2170,8 +2172,6 @@ func NewDaemonSetAnnotationsMetricCollector() *metric.MetricCollector {
 		metric.DaemonSetAnnotationsID,
 		metric.DaemonSetAnnotations,
 		[]string{
-			source.NamespaceLabel,
-			source.DaemonSetLabel,
 			source.UIDLabel,
 		},
 		aggregator.Info,
@@ -2185,8 +2185,6 @@ func NewJobInfoMetricCollector() *metric.MetricCollector {
 		metric.JobInfo,
 		[]string{
 			source.UIDLabel,
-			source.NamespaceUIDLabel,
-			source.JobLabel,
 		},
 		aggregator.Info,
 		nil,

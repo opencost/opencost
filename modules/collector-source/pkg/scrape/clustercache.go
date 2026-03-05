@@ -185,6 +185,13 @@ func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.De
 			source.DeploymentLabel:   deployment.Name,
 		}
 
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.DeploymentLabels,
+			Labels:         deploymentInfo,
+			Value:          0,
+			AdditionalInfo: deploymentInfo,
+		})
+
 		// deployment labels
 		labelNames, labelValues := promutil.KubeLabelsToLabels(deployment.Labels)
 		deploymentLabels := util.ToMap(labelNames, labelValues)

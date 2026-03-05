@@ -39,6 +39,7 @@ const (
 	NodeRAMUserUsageAverageID                  MetricCollectorID = "NodeRAMUserUsageAverage"
 	LBPricePerHourID                           MetricCollectorID = "LBPricePerHour"
 	LBActiveMinutesID                          MetricCollectorID = "LBActiveMinutes"
+	ClusterInfoID                              MetricCollectorID = "ClusterInfo"
 	ClusterUptimeID                            MetricCollectorID = "ClusterUptime"
 	ClusterManagementDurationID                MetricCollectorID = "ClusterManagementDuration"
 	ClusterManagementPricePerHourID            MetricCollectorID = "ClusterManagementPricePerHour"

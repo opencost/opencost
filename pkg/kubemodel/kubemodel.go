@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/source"
@@ -125,28 +124,44 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 }
 
 func (km *KubeModel) computeCluster(kms *kubemodel.KubeModelSet, start, end time.Time) error {
-	kms.Cluster = &kubemodel.Cluster{
-		UID:  km.clusterUID,
-		Name: env.GetClusterID(),
-	}
 
 	grp := source.NewQueryGroup()
 	metrics := km.ds.Metrics()
+	clusterInfoResultFuture := source.WithGroup(grp, metrics.QueryClusterInfo(start, end))
 	clusterUptimeResultFuture := source.WithGroup(grp, metrics.QueryClusterUptime(start, end))
 
-	clusterUptimeResult, _ := clusterUptimeResultFuture.Await()
+	clusterMap := make(map[string]*kubemodel.Cluster)
 
-	if len(clusterUptimeResult) != 1 {
-		kms.Errorf("%d clusters returning from cluster uptime query", len(clusterUptimeResult))
-	}
-
-	for _, res := range clusterUptimeResult {
-		if res.UID == km.clusterUID {
-			s, e := res.GetStartEnd(start, end, km.ds.Resolution())
-			kms.Cluster.Start = s
-			kms.Cluster.End = e
+	clusterInfoResult, _ := clusterInfoResultFuture.Await()
+	for _, res := range clusterInfoResult {
+		clusterMap[res.UID] = &kubemodel.Cluster{
+			UID:         res.UID,
+			Provider:    kubemodel.ParseProvider(res.Provider),
+			Account:     res.AccountID,
+			Name:        res.Cluster,
+			Provisioner: res.Provisioner,
+			Region:      res.Region,
 		}
 	}
+
+	clusterUptimeResult, _ := clusterUptimeResultFuture.Await()
+	for _, res := range clusterUptimeResult {
+		cluster, ok := clusterMap[res.UID]
+		if !ok {
+			log.Warnf("cluster with UID '%s' has not been initialized to add uptime", res.UID)
+			continue
+		}
+		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
+		cluster.Start = s
+		cluster.End = e
+	}
+
+	cluster, ok := clusterMap[km.clusterUID]
+	if !ok {
+		return fmt.Errorf("failed to compute cluster with UID '%s'", km.clusterUID)
+	}
+
+	kms.RegisterCluster(cluster)
 
 	return nil
 }
@@ -801,7 +816,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			containerMap[key].CPUAllocated = kubemodel.Measurement(res.Data[0].Value)
+			container.CPUAllocated = kubemodel.Measurement(res.Data[0].Value)
 		}
 	}
 

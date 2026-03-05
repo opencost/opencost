@@ -599,6 +599,33 @@ func DecodeLBPricePerHrResult(result *QueryResult) *LBPricePerHrResult {
 	return DecodeLBActiveMinutesResult(result)
 }
 
+type ClusterInfoResult struct {
+	UID         string
+	Cluster     string
+	Provider    string
+	AccountID   string
+	Provisioner string
+	Region      string
+}
+
+func DecodeClusterInfoResult(result *QueryResult) *ClusterInfoResult {
+	uid, _ := result.GetString(UIDLabel)
+	cluster, _ := result.GetString(ClusterNameLabel)
+	provider, _ := result.GetString(ProviderLabel)
+	accountID, _ := result.GetString(AccountIDLabel)
+	provisioner, _ := result.GetString(ProvisionerNameLabel)
+	region, _ := result.GetString(RegionLabel)
+
+	return &ClusterInfoResult{
+		UID:         uid,
+		Cluster:     cluster,
+		Provider:    provider,
+		AccountID:   accountID,
+		Provisioner: provisioner,
+		Region:      region,
+	}
+}
+
 type ClusterManagementDurationResult struct {
 	UID         string
 	Cluster     string

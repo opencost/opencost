@@ -307,6 +307,10 @@ func (c *collectorMetricsQuerier) QueryLBPricePerHr(start, end time.Time) *sourc
 	return queryCollector(c, start, end, metric.LBPricePerHourID, source.DecodeLBPricePerHrResult)
 }
 
+func (c *collectorMetricsQuerier) QueryClusterInfo(start, end time.Time) *source.Future[source.ClusterInfoResult] {
+	return queryCollector(c, start, end, metric.ClusterInfoID, source.DecodeClusterInfoResult)
+}
+
 func (c *collectorMetricsQuerier) QueryClusterUptime(start, end time.Time) *source.Future[source.UptimeResult] {
 	return queryCollector(c, start, end, metric.ClusterUptimeID, source.DecodeUptimeResult)
 }
