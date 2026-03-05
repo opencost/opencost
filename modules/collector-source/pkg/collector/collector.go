@@ -125,6 +125,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewContainerUptimeMetricCollector())
 	memStore.Register(NewReplicaSetsWithoutOwnersMetricCollector())
 	memStore.Register(NewReplicaSetsWithRolloutMetricCollector())
+	memStore.Register(NewResourceQuotaInfoMetricCollector())
 	memStore.Register(NewResourceQuotaUptimeMetricCollector())
 	memStore.Register(NewResourceQuotaSpecCPURequestAverageMetricCollector())
 	memStore.Register(NewResourceQuotaSpecCPURequestMaxMetricCollector())
@@ -2494,6 +2495,18 @@ func NewReplicaSetsWithRolloutMetricCollector() *metric.MetricCollector {
 		func(labels map[string]string) bool {
 			return labels[source.OwnerKindLabel] == "Rollout"
 		},
+	)
+}
+
+func NewResourceQuotaInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ResourceQuotaInfoID,
+		metric.ResourceQuotaInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
 	)
 }
 

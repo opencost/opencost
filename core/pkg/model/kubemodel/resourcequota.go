@@ -70,29 +70,41 @@ func (stat *ResourceQuotaStatusUsed) SetLimit(resource Resource, unit Unit, stat
 	stat.Limits.Set(resource, unit, statType, value)
 }
 
-func (kms *KubeModelSet) RegisterResourceQuota(uid, name, namespace string) error {
-	if uid == "" {
-		err := fmt.Errorf("UID is nil for ResourceQuota '%s'", name)
+func (kms *KubeModelSet) RegisterResourceQuota(resourceQuota *ResourceQuota) error {
+	// Check required fields
+	if resourceQuota.UID == "" {
+		err := fmt.Errorf("UID is missing for ResourceQuota with name '%s'", resourceQuota.Name)
 		kms.Error(err)
 		return err
 	}
 
-	if _, ok := kms.ResourceQuotas[uid]; !ok {
-		namespaceUID := ""
+	if resourceQuota.Name == "" {
+		err := fmt.Errorf("Name is missing for ResourceQuota '%s'", resourceQuota.UID)
+		kms.Error(err)
+		return err
+	}
 
-		if _, ok := kms.idx.namespaceByName[namespace]; !ok {
-			kms.Warnf("RegisterResourceQuota(%s, %s, %s): missing namespace", uid, name, namespace)
-		} else {
-			namespaceUID = kms.idx.namespaceByName[namespace].UID
+	if resourceQuota.NamespaceUID == "" {
+		err := fmt.Errorf("Namespace is missing for ResourceQuota '%s'", resourceQuota.UID)
+		kms.Error(err)
+		return err
+	}
+
+	if _, ok := kms.ResourceQuotas[resourceQuota.UID]; !ok {
+		// Initialize Spec and Status if they're nil
+		if resourceQuota.Spec == nil {
+			resourceQuota.Spec = &ResourceQuotaSpec{Hard: &ResourceQuotaSpecHard{}}
+		} else if resourceQuota.Spec.Hard == nil {
+			resourceQuota.Spec.Hard = &ResourceQuotaSpecHard{}
 		}
 
-		kms.ResourceQuotas[uid] = &ResourceQuota{
-			UID:          uid,
-			Name:         name,
-			NamespaceUID: namespaceUID,
-			Spec:         &ResourceQuotaSpec{Hard: &ResourceQuotaSpecHard{}},
-			Status:       &ResourceQuotaStatus{Used: &ResourceQuotaStatusUsed{}},
+		if resourceQuota.Status == nil {
+			resourceQuota.Status = &ResourceQuotaStatus{Used: &ResourceQuotaStatusUsed{}}
+		} else if resourceQuota.Status.Used == nil {
+			resourceQuota.Status.Used = &ResourceQuotaStatusUsed{}
 		}
+
+		kms.ResourceQuotas[resourceQuota.UID] = resourceQuota
 
 		kms.Metadata.ObjectCount++
 	}

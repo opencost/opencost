@@ -128,6 +128,7 @@ const (
 	PodsWithReplicaSetOwnerID                  MetricCollectorID = "PodsWithReplicaSetOwner"
 	ReplicaSetsWithoutOwnersID                 MetricCollectorID = "ReplicaSetsWithoutOwners"
 	ReplicaSetsWithRolloutID                   MetricCollectorID = "ReplicaSetsWithRollout"
+	ResourceQuotaInfoID                        MetricCollectorID = "ResourceQuotaInfo"
 	ResourceQuotaUptimeID                      MetricCollectorID = "ResourceQuotaUptime"
 	ResourceQuotaSpecCPURequestAverageID       MetricCollectorID = "ResourceQuotaSpecCPURequestAverage"
 	ResourceQuotaSpecCPURequestMaxID           MetricCollectorID = "ResourceQuotaSpecCPURequestMax"

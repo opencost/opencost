@@ -448,6 +448,10 @@ func (c *collectorMetricsQuerier) QueryPVInfo(start, end time.Time) *source.Futu
 	return queryCollector(c, start, end, metric.PVInfoID, source.DecodePVInfoResult)
 }
 
+func (c *collectorMetricsQuerier) QueryNamespaceInfo(start, end time.Time) *source.Future[source.NamespaceInfoResult] {
+	return queryCollector(c, start, end, metric.NamespaceInfoID, source.DecodeNamespaceInfoResult)
+}
+
 func (c *collectorMetricsQuerier) QueryNamespaceUptime(start, end time.Time) *source.Future[source.UptimeResult] {
 	return queryCollector(c, start, end, metric.NamespaceUptimeID, source.DecodeUptimeResult)
 }
@@ -670,6 +674,10 @@ func (c *collectorMetricsQuerier) QueryReplicaSetsWithoutOwners(start, end time.
 
 func (c *collectorMetricsQuerier) QueryReplicaSetsWithRollout(start, end time.Time) *source.Future[source.ReplicaSetsWithRolloutResult] {
 	return queryCollector(c, start, end, metric.ReplicaSetsWithRolloutID, source.DecodeReplicaSetsWithRolloutResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaInfo(start, end time.Time) *source.Future[source.ResourceQuotaInfoResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaInfoID, source.DecodeResourceQuotaInfoResult)
 }
 
 func (c *collectorMetricsQuerier) QueryResourceQuotaUptime(start, end time.Time) *source.Future[source.UptimeResult] {

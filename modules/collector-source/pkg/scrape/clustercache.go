@@ -71,7 +71,7 @@ func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 		ccs.GetScrapeJobs(jobs, namespaceNameToUID),
 		ccs.GetScrapeCronJobs(cronJobs, namespaceNameToUID),
 		ccs.GetScrapeReplicaSets(replicaSets, namespaceNameToUID),
-		ccs.GetScrapeResourceQuotas(resourceQuotas),
+		ccs.GetScrapeResourceQuotas(resourceQuotas, namespaceNameToUID),
 	}
 	return concurrentScrape(scrapeFuncs...)
 }
@@ -905,13 +905,13 @@ func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.Re
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) GetScrapeResourceQuotas(resourceQuotas []*clustercache.ResourceQuota) ScrapeFunc {
+func (ccs *ClusterCacheScraper) GetScrapeResourceQuotas(resourceQuotas []*clustercache.ResourceQuota, namespaceIndex map[string]types.UID) ScrapeFunc {
 	return func() []metric.Update {
-		return ccs.scrapeResourceQuotas(resourceQuotas)
+		return ccs.scrapeResourceQuotas(resourceQuotas, namespaceIndex)
 	}
 }
 
-func (ccs *ClusterCacheScraper) scrapeResourceQuotas(resourceQuotas []*clustercache.ResourceQuota) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapeResourceQuotas(resourceQuotas []*clustercache.ResourceQuota, namespaceIndex map[string]types.UID) []metric.Update {
 	var scrapeResults []metric.Update
 
 	processResource := func(baseLabels map[string]string, name v1.ResourceName, quantity resource.Quantity, metricName string) metric.Update {
@@ -929,10 +929,11 @@ func (ccs *ClusterCacheScraper) scrapeResourceQuotas(resourceQuotas []*clusterca
 	}
 
 	for _, resourceQuota := range resourceQuotas {
+		nsUID, _ := namespaceIndex[resourceQuota.Namespace]
 		resourceQuotaInfo := map[string]string{
-			source.ResourceQuotaLabel: resourceQuota.Name,
-			source.NamespaceLabel:     resourceQuota.Namespace,
 			source.UIDLabel:           string(resourceQuota.UID),
+			source.NamespaceUIDLabel:  string(nsUID),
+			source.ResourceQuotaLabel: resourceQuota.Name,
 		}
 
 		scrapeResults = append(scrapeResults, metric.Update{

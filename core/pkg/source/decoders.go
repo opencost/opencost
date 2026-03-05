@@ -1851,29 +1851,45 @@ func DecodeReplicaSetsWithRolloutResult(result *QueryResult) *ReplicaSetsWithRol
 	}
 }
 
-type ResourceQuotaMetricResult struct {
+type ResourceQuotaInfoResult struct {
 	UID           string
-	Namespace     string
+	NamespaceUID  string
 	ResourceQuota string
-	Resource      string
-	Unit          string
-	Data          []*util.Vector
+}
+
+func DecodeResourceQuotaInfoResult(result *QueryResult) *ResourceQuotaInfoResult {
+	uid, _ := result.GetString(UIDLabel)
+	namespaceUID, _ := result.GetString(NamespaceUIDLabel)
+	resourceQuota, _ := result.GetString(ResourceQuotaLabel)
+
+	return &ResourceQuotaInfoResult{
+		UID:           uid,
+		NamespaceUID:  namespaceUID,
+		ResourceQuota: resourceQuota,
+	}
+}
+
+type ResourceQuotaMetricResult struct {
+	UID      string
+	Resource string
+	Unit     string
+	Value    float64
 }
 
 func DecodeResourceQuotaMetricResult(result *QueryResult) *ResourceQuotaMetricResult {
 	uid, _ := result.GetString(UIDLabel)
-	namespace, _ := result.GetNamespace()
-	resourceQuota, _ := result.GetString(ResourceQuotaLabel)
 	resource, _ := result.GetString(ResourceLabel)
 	unit, _ := result.GetString(UnitLabel)
+	var value float64
+	if len(result.Values) > 0 {
+		value = result.Values[0].Value
+	}
 
 	return &ResourceQuotaMetricResult{
-		UID:           uid,
-		Namespace:     namespace,
-		ResourceQuota: resourceQuota,
-		Resource:      resource,
-		Unit:          unit,
-		Data:          result.Values,
+		UID:      uid,
+		Resource: resource,
+		Unit:     unit,
+		Value:    value,
 	}
 }
 
