@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/kubecost/events"
 	"github.com/opencost/opencost/core/pkg/clustercache"
@@ -20,6 +21,34 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
+
+// SyncMap provides thread-safe concurrent access to a generic map
+type SyncMap[U comparable, T any] struct {
+	mu   sync.RWMutex
+	data map[U]T
+}
+
+// newSyncMap creates a new thread-safe map with the specified initial capacity
+func newSyncMap[U comparable, T any](size int) *SyncMap[U, T] {
+	return &SyncMap[U, T]{
+		data: make(map[U]T, size),
+	}
+}
+
+// Set adds or updates a key-value mapping
+func (sm *SyncMap[U, T]) Set(key U, value T) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	sm.data[key] = value
+}
+
+// Get retrieves a value by key. Returns the value and a boolean indicating if it was found.
+func (sm *SyncMap[U, T]) Get(key U) (T, bool) {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	value, ok := sm.data[key]
+	return value, ok
+}
 
 type ClusterCacheScraper struct {
 	clusterCache clustercache.ClusterCache
@@ -49,13 +78,13 @@ func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 
 	// create scrape indexes. While the pairs being mapped here don't have a 1 to 1 relationship in the general case,
 	// we are assuming that in the context of a single snapshot of the cluster they are 1 to 1.
-	nodeNameToUID := make(map[string]types.UID, len(nodes))
+	nodeNameToUID := newSyncMap[string, types.UID](len(nodes))
 	for _, node := range nodes {
-		nodeNameToUID[node.Name] = node.UID
+		nodeNameToUID.Set(node.Name, node.UID)
 	}
-	namespaceNameToUID := make(map[string]types.UID, len(namespaces))
+	namespaceNameToUID := newSyncMap[string, types.UID](len(namespaces))
 	for _, ns := range namespaces {
-		namespaceNameToUID[ns.Name] = ns.UID
+		namespaceNameToUID.Set(ns.Name, ns.UID)
 	}
 
 	scrapeFuncs := []ScrapeFunc{
@@ -166,16 +195,16 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) GetScrapeDeployments(deployments []*clustercache.Deployment, namespaceIndex map[string]types.UID) ScrapeFunc {
+func (ccs *ClusterCacheScraper) GetScrapeDeployments(deployments []*clustercache.Deployment, namespaceIndex *SyncMap[string, types.UID]) ScrapeFunc {
 	return func() []metric.Update {
 		return ccs.scrapeDeployments(deployments, namespaceIndex)
 	}
 }
 
-func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.Deployment, namespaceIndex map[string]types.UID) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.Deployment, namespaceIndex *SyncMap[string, types.UID]) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, deployment := range deployments {
-		nsUID, ok := namespaceIndex[deployment.Namespace]
+		nsUID, ok := namespaceIndex.Get(deployment.Namespace)
 		if !ok {
 			log.Debugf("deployment namespaceUID missing from index for namespace name '%s'", deployment.Namespace)
 		}
@@ -289,20 +318,20 @@ func (ccs *ClusterCacheScraper) scrapeNamespaces(namespaces []*clustercache.Name
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) GetScrapePods(pods []*clustercache.Pod, nodeIndex, namespaceIndex map[string]types.UID) ScrapeFunc {
+func (ccs *ClusterCacheScraper) GetScrapePods(pods []*clustercache.Pod, nodeIndex, namespaceIndex *SyncMap[string, types.UID]) ScrapeFunc {
 	return func() []metric.Update {
 		return ccs.scrapePods(pods, nodeIndex, namespaceIndex)
 	}
 }
 
-func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, nodeIndex, namespaceIndex map[string]types.UID) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, nodeIndex, namespaceIndex *SyncMap[string, types.UID]) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, pod := range pods {
-		nodeUID, ok := nodeIndex[pod.Spec.NodeName]
+		nodeUID, ok := nodeIndex.Get(pod.Spec.NodeName)
 		if !ok {
 			log.Debugf("pod nodeUID missing from index for node name '%s'", pod.Spec.NodeName)
 		}
-		nsUID, ok := namespaceIndex[pod.Namespace]
+		nsUID, ok := namespaceIndex.Get(pod.Namespace)
 		if !ok {
 			log.Debugf("pod namespaceUID missing from index for namespace name '%s'", pod.Namespace)
 		}
@@ -561,16 +590,16 @@ func (ccs *ClusterCacheScraper) scrapeServices(services []*clustercache.Service)
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) GetScrapeStatefulSets(statefulSets []*clustercache.StatefulSet, namespaceIndex map[string]types.UID) ScrapeFunc {
+func (ccs *ClusterCacheScraper) GetScrapeStatefulSets(statefulSets []*clustercache.StatefulSet, namespaceIndex *SyncMap[string, types.UID]) ScrapeFunc {
 	return func() []metric.Update {
 		return ccs.scrapeStatefulSets(statefulSets, namespaceIndex)
 	}
 }
 
-func (ccs *ClusterCacheScraper) scrapeStatefulSets(statefulSets []*clustercache.StatefulSet, namespaceIndex map[string]types.UID) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapeStatefulSets(statefulSets []*clustercache.StatefulSet, namespaceIndex *SyncMap[string, types.UID]) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, statefulSet := range statefulSets {
-		nsUID, ok := namespaceIndex[statefulSet.Namespace]
+		nsUID, ok := namespaceIndex.Get(statefulSet.Namespace)
 		if !ok {
 			log.Debugf("statefulSet namespaceUID missing from index for namespace name '%s'", statefulSet.Namespace)
 		}
@@ -633,16 +662,16 @@ func (ccs *ClusterCacheScraper) scrapeStatefulSets(statefulSets []*clustercache.
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) GetScrapeDaemonSets(daemonSets []*clustercache.DaemonSet, namespaceIndex map[string]types.UID) ScrapeFunc {
+func (ccs *ClusterCacheScraper) GetScrapeDaemonSets(daemonSets []*clustercache.DaemonSet, namespaceIndex *SyncMap[string, types.UID]) ScrapeFunc {
 	return func() []metric.Update {
 		return ccs.scrapeDaemonSets(daemonSets, namespaceIndex)
 	}
 }
 
-func (ccs *ClusterCacheScraper) scrapeDaemonSets(daemonSets []*clustercache.DaemonSet, namespaceIndex map[string]types.UID) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapeDaemonSets(daemonSets []*clustercache.DaemonSet, namespaceIndex *SyncMap[string, types.UID]) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, daemonSet := range daemonSets {
-		nsUID, ok := namespaceIndex[daemonSet.Namespace]
+		nsUID, ok := namespaceIndex.Get(daemonSet.Namespace)
 		if !ok {
 			log.Debugf("daemonSet namespaceUID missing from index for namespace name '%s'", daemonSet.Namespace)
 		}
@@ -693,16 +722,16 @@ func (ccs *ClusterCacheScraper) scrapeDaemonSets(daemonSets []*clustercache.Daem
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) GetScrapeJobs(jobs []*clustercache.Job, namespaceIndex map[string]types.UID) ScrapeFunc {
+func (ccs *ClusterCacheScraper) GetScrapeJobs(jobs []*clustercache.Job, namespaceIndex *SyncMap[string, types.UID]) ScrapeFunc {
 	return func() []metric.Update {
 		return ccs.scrapeJobs(jobs, namespaceIndex)
 	}
 }
 
-func (ccs *ClusterCacheScraper) scrapeJobs(jobs []*clustercache.Job, namespaceIndex map[string]types.UID) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapeJobs(jobs []*clustercache.Job, namespaceIndex *SyncMap[string, types.UID]) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, job := range jobs {
-		nsUID, ok := namespaceIndex[job.Namespace]
+		nsUID, ok := namespaceIndex.Get(job.Namespace)
 		if !ok {
 			log.Debugf("job namespaceUID missing from index for namespace name '%s'", job.Namespace)
 		}
@@ -753,16 +782,16 @@ func (ccs *ClusterCacheScraper) scrapeJobs(jobs []*clustercache.Job, namespaceIn
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) GetScrapeCronJobs(cronJobs []*clustercache.CronJob, namespaceIndex map[string]types.UID) ScrapeFunc {
+func (ccs *ClusterCacheScraper) GetScrapeCronJobs(cronJobs []*clustercache.CronJob, namespaceIndex *SyncMap[string, types.UID]) ScrapeFunc {
 	return func() []metric.Update {
 		return ccs.scrapeCronJobs(cronJobs, namespaceIndex)
 	}
 }
 
-func (ccs *ClusterCacheScraper) scrapeCronJobs(cronJobs []*clustercache.CronJob, namespaceIndex map[string]types.UID) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapeCronJobs(cronJobs []*clustercache.CronJob, namespaceIndex *SyncMap[string, types.UID]) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, cronJob := range cronJobs {
-		nsUID, ok := namespaceIndex[cronJob.Namespace]
+		nsUID, ok := namespaceIndex.Get(cronJob.Namespace)
 		if !ok {
 			log.Debugf("cronjob namespaceUID missing from index for namespace name '%s'", cronJob.Namespace)
 		}
@@ -813,16 +842,16 @@ func (ccs *ClusterCacheScraper) scrapeCronJobs(cronJobs []*clustercache.CronJob,
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) GetScrapeReplicaSets(replicaSets []*clustercache.ReplicaSet, namespaceIndex map[string]types.UID) ScrapeFunc {
+func (ccs *ClusterCacheScraper) GetScrapeReplicaSets(replicaSets []*clustercache.ReplicaSet, namespaceIndex *SyncMap[string, types.UID]) ScrapeFunc {
 	return func() []metric.Update {
 		return ccs.scrapeReplicaSets(replicaSets, namespaceIndex)
 	}
 }
 
-func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.ReplicaSet, namespaceIndex map[string]types.UID) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.ReplicaSet, namespaceIndex *SyncMap[string, types.UID]) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, replicaSet := range replicaSets {
-		nsUID, ok := namespaceIndex[replicaSet.Namespace]
+		nsUID, ok := namespaceIndex.Get(replicaSet.Namespace)
 		if !ok {
 			log.Debugf("replicaset namespaceUID missing from index for namespace name '%s'", replicaSet.Namespace)
 		}
@@ -905,13 +934,13 @@ func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.Re
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) GetScrapeResourceQuotas(resourceQuotas []*clustercache.ResourceQuota, namespaceIndex map[string]types.UID) ScrapeFunc {
+func (ccs *ClusterCacheScraper) GetScrapeResourceQuotas(resourceQuotas []*clustercache.ResourceQuota, namespaceIndex *SyncMap[string, types.UID]) ScrapeFunc {
 	return func() []metric.Update {
 		return ccs.scrapeResourceQuotas(resourceQuotas, namespaceIndex)
 	}
 }
 
-func (ccs *ClusterCacheScraper) scrapeResourceQuotas(resourceQuotas []*clustercache.ResourceQuota, namespaceIndex map[string]types.UID) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapeResourceQuotas(resourceQuotas []*clustercache.ResourceQuota, namespaceIndex *SyncMap[string, types.UID]) []metric.Update {
 	var scrapeResults []metric.Update
 
 	processResource := func(baseLabels map[string]string, name v1.ResourceName, quantity resource.Quantity, metricName string) metric.Update {
@@ -929,7 +958,7 @@ func (ccs *ClusterCacheScraper) scrapeResourceQuotas(resourceQuotas []*clusterca
 	}
 
 	for _, resourceQuota := range resourceQuotas {
-		nsUID, _ := namespaceIndex[resourceQuota.Namespace]
+		nsUID, _ := namespaceIndex.Get(resourceQuota.Namespace)
 		resourceQuotaInfo := map[string]string{
 			source.UIDLabel:           string(resourceQuota.UID),
 			source.NamespaceUIDLabel:  string(nsUID),
