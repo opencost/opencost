@@ -34,7 +34,7 @@ jobs:
     steps:
       - name: Checkout Repo (for version detection)
         if: github.event_name == 'workflow_run'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -80,7 +80,7 @@ jobs:
 
       - name: Checkout Repo
         if: github.event_name != 'workflow_run'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name != 'pull_request' && steps.branch.outputs.BRANCH_NAME || '' }}
 
