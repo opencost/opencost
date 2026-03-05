@@ -126,8 +126,9 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 		}
 
 		scrapeResults = append(scrapeResults, metric.Update{
-			Name:   metric.NodeInfo,
-			Labels: nodeInfo,
+			Name:           metric.NodeInfo,
+			Labels:         nodeInfo,
+			AdditionalInfo: nodeInfo,
 		})
 
 		// Node Capacity
@@ -391,9 +392,10 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, nodeIndex, 
 				containerInfo := maps.Clone(podInfo)
 				containerInfo[source.ContainerLabel] = status.Name
 				scrapeResults = append(scrapeResults, metric.Update{
-					Name:   metric.KubePodContainerStatusRunning,
-					Labels: containerInfo,
-					Value:  0,
+					Name:           metric.KubePodContainerStatusRunning,
+					Labels:         containerInfo,
+					AdditionalInfo: containerInfo,
+					Value:          0,
 				})
 			}
 		}
@@ -475,17 +477,18 @@ func (ccs *ClusterCacheScraper) scrapePVCs(pvcs []*clustercache.PersistentVolume
 	var scrapeResults []metric.Update
 	for _, pvc := range pvcs {
 		pvcInfo := map[string]string{
+			source.UIDLabel:          string(pvc.UID),
 			source.PVCLabel:          pvc.Name,
 			source.NamespaceLabel:    pvc.Namespace,
-			source.UIDLabel:          string(pvc.UID),
 			source.VolumeNameLabel:   pvc.Spec.VolumeName,
 			source.StorageClassLabel: getPersistentVolumeClaimClass(pvc),
 		}
 
 		scrapeResults = append(scrapeResults, metric.Update{
-			Name:   metric.KubePersistentVolumeClaimInfo,
-			Labels: pvcInfo,
-			Value:  0,
+			Name:           metric.KubePersistentVolumeClaimInfo,
+			Labels:         pvcInfo,
+			AdditionalInfo: pvcInfo,
+			Value:          0,
 		})
 
 		if storage, ok := pvc.Spec.Resources.Requests[v1.ResourceStorage]; ok {
@@ -522,16 +525,17 @@ func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume) 
 			providerID = pv.Spec.CSI.VolumeHandle
 		}
 		pvInfo := map[string]string{
-			source.PVLabel:           pv.Name,
 			source.UIDLabel:          string(pv.UID),
+			source.PVLabel:           pv.Name,
 			source.StorageClassLabel: pv.Spec.StorageClassName,
 			source.ProviderIDLabel:   providerID,
 		}
 
 		scrapeResults = append(scrapeResults, metric.Update{
-			Name:   metric.KubecostPVInfo,
-			Labels: pvInfo,
-			Value:  0,
+			Name:           metric.KubecostPVInfo,
+			Labels:         pvInfo,
+			AdditionalInfo: pvInfo,
+			Value:          0,
 		})
 
 		if storage, ok := pv.Spec.Capacity[v1.ResourceStorage]; ok {

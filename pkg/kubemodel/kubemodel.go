@@ -196,9 +196,9 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 			log.Warnf("node with UID '%s' has not been initialized to add uptime", res.UID)
 			continue
 		}
-
-		node.Start = res.First
-		node.End = res.Last
+		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
+		node.Start = s
+		node.End = e
 	}
 
 	nodeCPUCoresCapacityResult, _ := nodeCPUCoresCapacityResultFuture.Await()
@@ -342,9 +342,9 @@ func (km *KubeModel) computePods(kms *kubemodel.KubeModelSet, start, end time.Ti
 			log.Warnf("pod with UID '%s' has not been initialized to add uptime", res.UID)
 			continue
 		}
-
-		pod.Start = res.First
-		pod.End = res.Last
+		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
+		pod.Start = s
+		pod.End = e
 	}
 
 	podOwnersResult, _ := podOwnerResultFuture.Await()
@@ -419,9 +419,9 @@ func (km *KubeModel) computeDeployments(kms *kubemodel.KubeModelSet, start, end 
 			log.Warnf("deployment with UID '%s' has not been initialized to add uptime", res.UID)
 			continue
 		}
-
-		deployment.Start = res.First
-		deployment.End = res.Last
+		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
+		deployment.Start = s
+		deployment.End = e
 	}
 
 	deploymentLabelsResult, _ := deploymentLabelsResultFuture.Await()
@@ -492,9 +492,9 @@ func (km *KubeModel) computeStatefulSets(kms *kubemodel.KubeModelSet, start, end
 			log.Warnf("statefulset with UID '%s' has not been initialized to add uptime", res.UID)
 			continue
 		}
-
-		statefulSet.Start = res.First
-		statefulSet.End = res.Last
+		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
+		statefulSet.Start = s
+		statefulSet.End = e
 	}
 
 	statefulSetLabelsResult, _ := statefulSetLabelsResultFuture.Await()
@@ -564,9 +564,9 @@ func (km *KubeModel) computeDaemonSets(kms *kubemodel.KubeModelSet, start, end t
 			log.Warnf("daemonset with UID '%s' has not been initialized to add uptime", res.UID)
 			continue
 		}
-
-		daemonSet.Start = res.First
-		daemonSet.End = res.Last
+		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
+		daemonSet.Start = s
+		daemonSet.End = e
 	}
 
 	daemonSetLabelsResult, _ := daemonSetLabelsResultFuture.Await()
@@ -626,9 +626,9 @@ func (km *KubeModel) computeJobs(kms *kubemodel.KubeModelSet, start, end time.Ti
 			log.Warnf("job with UID '%s' has not been initialized to add uptime", res.UID)
 			continue
 		}
-
-		job.Start = res.First
-		job.End = res.Last
+		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
+		job.Start = s
+		job.End = e
 	}
 
 	jobLabelsResult, _ := jobLabelsResultFuture.Await()
@@ -688,9 +688,9 @@ func (km *KubeModel) computeCronJobs(kms *kubemodel.KubeModelSet, start, end tim
 			log.Warnf("cronjob with UID '%s' has not been initialized to add uptime", res.UID)
 			continue
 		}
-
-		cronJob.Start = res.First
-		cronJob.End = res.Last
+		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
+		cronJob.Start = s
+		cronJob.End = e
 	}
 
 	cronJobLabelsResult, _ := cronJobLabelsResultFuture.Await()
@@ -750,9 +750,9 @@ func (km *KubeModel) computeReplicaSets(kms *kubemodel.KubeModelSet, start, end 
 			log.Warnf("replicaset with UID '%s' has not been initialized to add uptime", res.UID)
 			continue
 		}
-
-		replicaSet.Start = res.First
-		replicaSet.End = res.Last
+		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
+		replicaSet.Start = s
+		replicaSet.End = e
 	}
 
 	replicaSetLabelsResult, _ := replicaSetLabelsResultFuture.Await()
@@ -818,11 +818,12 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 	containerUptimeResult, _ := containerUptimeFuture.Await()
 	for _, res := range containerUptimeResult {
 		key := containerKey{podUID: res.UID, name: res.Container}
+		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
 		containerMap[key] = &kubemodel.Container{
 			PodUID: res.UID,
 			Name:   res.Container,
-			Start:  res.First,
-			End:    res.Last,
+			Start:  s,
+			End:    e,
 		}
 	}
 
