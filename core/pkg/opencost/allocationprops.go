@@ -187,7 +187,6 @@ type AllocationProperties struct {
 	Pod                  string                `json:"pod,omitempty"`
 	Services             []string              `json:"services,omitempty"`
 	ProviderID           string                `json:"providerID,omitempty"`
-	Account              string                `json:"account,omitempty"` // @bingen:field[version=18]
 	Labels               AllocationLabels      `json:"labels,omitempty"`
 	Annotations          AllocationAnnotations `json:"annotations,omitempty"`
 	NamespaceLabels      AllocationLabels      `json:"namespaceLabels,omitempty"`      // @bingen:field[version=17]
@@ -219,7 +218,6 @@ func (p *AllocationProperties) Clone() *AllocationProperties {
 	clone.Namespace = p.Namespace
 	clone.Pod = p.Pod
 	clone.ProviderID = p.ProviderID
-	clone.Account = p.Account
 
 	var services []string
 	services = append(services, p.Services...)
@@ -287,10 +285,6 @@ func (p *AllocationProperties) Equal(that *AllocationProperties) bool {
 	}
 
 	if p.ProviderID != that.ProviderID {
-		return false
-	}
-
-	if p.Account != that.Account {
 		return false
 	}
 
@@ -388,8 +382,6 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 			names = append(names, p.Node)
 		case agg == AllocationNamespaceProp:
 			names = append(names, p.Namespace)
-		case agg == AllocationAccountProp:
-			names = append(names, p.Account)
 		case agg == AllocationControllerKindProp:
 			controllerKind := p.ControllerKind
 			if controllerKind == "" {

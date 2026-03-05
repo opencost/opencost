@@ -276,28 +276,22 @@ func TestAllocationPropertiesEqual(t *testing.T) {
 		},
 		"same account": {
 			props1: &AllocationProperties{
-				Account: "account-123",
 			},
 			props2: &AllocationProperties{
-				Account: "account-123",
 			},
 			expected: true,
 		},
 		"different account": {
 			props1: &AllocationProperties{
-				Account: "account-123",
 			},
 			props2: &AllocationProperties{
-				Account: "account-456",
 			},
 			expected: false,
 		},
 		"account vs empty": {
 			props1: &AllocationProperties{
-				Account: "account-123",
 			},
 			props2: &AllocationProperties{
-				Account: "",
 			},
 			expected: false,
 		},
@@ -305,12 +299,10 @@ func TestAllocationPropertiesEqual(t *testing.T) {
 			props1: &AllocationProperties{
 				Cluster:   "cluster1",
 				Namespace: "ns1",
-				Account:   "account-123",
 			},
 			props2: &AllocationProperties{
 				Cluster:   "cluster1",
 				Namespace: "ns1",
-				Account:   "account-123",
 			},
 			expected: true,
 		},
@@ -318,12 +310,10 @@ func TestAllocationPropertiesEqual(t *testing.T) {
 			props1: &AllocationProperties{
 				Cluster:   "cluster1",
 				Namespace: "ns1",
-				Account:   "account-123",
 			},
 			props2: &AllocationProperties{
 				Cluster:   "cluster1",
 				Namespace: "ns1",
-				Account:   "account-456",
 			},
 			expected: false,
 		},
@@ -337,7 +327,6 @@ func TestAllocationPropertiesEqual(t *testing.T) {
 				Namespace:      "ns1",
 				Pod:            "pod1",
 				ProviderID:     "provider1",
-				Account:        "account-123",
 				Services:       []string{"service1"},
 				Labels:         AllocationLabels{"key1": "value1"},
 				Annotations:    AllocationAnnotations{"key2": "value2"},
@@ -351,7 +340,6 @@ func TestAllocationPropertiesEqual(t *testing.T) {
 				Namespace:      "ns1",
 				Pod:            "pod1",
 				ProviderID:     "provider1",
-				Account:        "account-123",
 				Services:       []string{"service1"},
 				Labels:         AllocationLabels{"key1": "value1"},
 				Annotations:    AllocationAnnotations{"key2": "value2"},
@@ -382,7 +370,6 @@ func TestAllocationPropertiesClone(t *testing.T) {
 		},
 		"with account": {
 			props: &AllocationProperties{
-				Account: "account-123",
 			},
 		},
 		"full properties with account": {
@@ -395,7 +382,6 @@ func TestAllocationPropertiesClone(t *testing.T) {
 				Namespace:            "ns1",
 				Pod:                  "pod1",
 				ProviderID:           "provider1",
-				Account:              "account-123",
 				Services:             []string{"service1", "service2"},
 				Labels:               AllocationLabels{"key1": "value1"},
 				Annotations:          AllocationAnnotations{"key2": "value2"},
@@ -427,9 +413,6 @@ func TestAllocationPropertiesClone(t *testing.T) {
 			}
 
 			// Verify it's a deep copy by modifying clone
-			if tc.props.Account != "" {
-				clone.Account = "modified-account"
-				if tc.props.Account == clone.Account {
 					t.Fatalf("modifying clone affected original")
 				}
 			}
@@ -446,7 +429,6 @@ func TestGenerateKeyWithAccount(t *testing.T) {
 		"aggregate by account": {
 			aggregate: []string{"account"},
 			allocationProps: &AllocationProperties{
-				Account: "account-123",
 			},
 			expected: "account-123",
 		},
@@ -454,7 +436,6 @@ func TestGenerateKeyWithAccount(t *testing.T) {
 			aggregate: []string{"cluster", "account"},
 			allocationProps: &AllocationProperties{
 				Cluster: "cluster1",
-				Account: "account-123",
 			},
 			expected: "cluster1/account-123",
 		},
@@ -462,7 +443,6 @@ func TestGenerateKeyWithAccount(t *testing.T) {
 			aggregate: []string{"namespace", "account"},
 			allocationProps: &AllocationProperties{
 				Namespace: "ns1",
-				Account:   "account-456",
 			},
 			expected: "ns1/account-456",
 		},
@@ -471,7 +451,6 @@ func TestGenerateKeyWithAccount(t *testing.T) {
 			allocationProps: &AllocationProperties{
 				Cluster:   "cluster1",
 				Namespace: "ns1",
-				Account:   "account-789",
 			},
 			expected: "cluster1/ns1/account-789",
 		},
