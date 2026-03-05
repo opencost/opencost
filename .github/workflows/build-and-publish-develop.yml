@@ -25,7 +25,7 @@ jobs:
       packages: write
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Set SHA
         id: sha
         run: |
@@ -48,7 +48,7 @@ jobs:
           release_version: develop-${{ steps.sha.outputs.OC_SHORTHASH }}
       
       - name: Install crane
-        uses: imjasonh/setup-crane@v0.4
+        uses: imjasonh/setup-crane@v0.5
 
       - name: Tag and push latest image
         env:
