@@ -131,6 +131,7 @@ type MetricsQuerier interface {
 	QueryReplicaSetOwners(start, end time.Time) *Future[OwnerResult]
 
 	// Namespace
+	QueryNamespaceInfo(start, end time.Time) *Future[NamespaceInfoResult]
 	QueryNamespaceUptime(start, end time.Time) *Future[UptimeResult]
 
 	// Network Egress

@@ -82,6 +82,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewNetNatGatewayIngressPricePerGiBMetricCollector())
 	memStore.Register(NewNetNatGatewayIngressGiBMetricCollector())
 	memStore.Register(NewNetTransferBytesMetricCollector())
+	memStore.Register(NewNamespaceInfoMetricCollector())
 	memStore.Register(NewNamespaceUptimeMetricCollector())
 	memStore.Register(NewNamespaceLabelsMetricCollector())
 	memStore.Register(NewNamespaceAnnotationsMetricCollector())
@@ -1874,6 +1875,18 @@ func NewNetTransferBytesMetricCollector() *metric.MetricCollector {
 		func(labels map[string]string) bool {
 			return labels[source.PodLabel] != ""
 		},
+	)
+}
+
+func NewNamespaceInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NamespaceInfoID,
+		metric.NamespaceInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
 	)
 }
 

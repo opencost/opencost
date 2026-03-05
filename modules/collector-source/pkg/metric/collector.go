@@ -89,6 +89,7 @@ const (
 	NetInternetServiceIngressGiBID             MetricCollectorID = "NetInternetServiceIngressGiB"
 	NetNatGatewayIngressGiBID                  MetricCollectorID = "NetNatGatewayIngressGiB"
 	NetReceiveBytesID                          MetricCollectorID = "NetReceiveBytes"
+	NamespaceInfoID                            MetricCollectorID = "NamespaceUptime"
 	NamespaceUptimeID                          MetricCollectorID = "NamespaceUptime"
 	NamespaceLabelsID                          MetricCollectorID = "NamespaceLabels"
 	NamespaceAnnotationsID                     MetricCollectorID = "NamespaceAnnotations"

@@ -1458,6 +1458,24 @@ func DecodeNodeLabelsResult(result *QueryResult) *NodeLabelsResult {
 	}
 }
 
+type NamespaceInfoResult struct {
+	UID       string
+	Cluster   string
+	Namespace string
+}
+
+func DecodeNamespaceInfoResult(result *QueryResult) *NamespaceInfoResult {
+	uid, _ := result.GetString(UIDLabel)
+	cluster, _ := result.GetCluster()
+	namespace, _ := result.GetNamespace()
+
+	return &NamespaceInfoResult{
+		UID:       uid,
+		Cluster:   cluster,
+		Namespace: namespace,
+	}
+}
+
 type NamespaceLabelsResult struct {
 	UID       string
 	Cluster   string
