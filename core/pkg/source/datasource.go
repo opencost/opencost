@@ -134,6 +134,11 @@ type MetricsQuerier interface {
 	QueryNamespaceInfo(start, end time.Time) *Future[NamespaceInfoResult]
 	QueryNamespaceUptime(start, end time.Time) *Future[UptimeResult]
 
+	// Service
+	QueryServiceInfo(start, end time.Time) *Future[ServiceInfoResult]
+	QueryServiceUptime(start, end time.Time) *Future[UptimeResult]
+	QueryServiceSelectorLabels(start, end time.Time) *Future[ServiceLabelsResult]
+
 	// Network Egress
 	QueryNetZoneGiB(start, end time.Time) *Future[NetZoneGiBResult]
 	QueryNetZonePricePerGiB(start, end time.Time) *Future[NetZonePricePerGiBResult]
@@ -163,7 +168,7 @@ type MetricsQuerier interface {
 	QueryNodeLabels(start, end time.Time) *Future[NodeLabelsResult]
 	QueryNamespaceLabels(start, end time.Time) *Future[NamespaceLabelsResult]
 	QueryPodLabels(start, end time.Time) *Future[PodLabelsResult]
-	QueryServiceLabels(start, end time.Time) *Future[ServiceLabelsResult]
+
 	QueryPodsWithDaemonSetOwner(start, end time.Time) *Future[PodsWithDaemonSetOwnerResult]
 	QueryPodsWithJobOwner(start, end time.Time) *Future[PodsWithJobOwnerResult]
 

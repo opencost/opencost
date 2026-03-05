@@ -96,6 +96,8 @@ const (
 	PodLabelsID                                MetricCollectorID = "PodLabels"
 	PodAnnotationsID                           MetricCollectorID = "PodAnnotations"
 	ServiceLabelsID                            MetricCollectorID = "ServiceLabels"
+	ServiceInfoID                              MetricCollectorID = "ServiceInfo"
+	ServiceUptimeID                            MetricCollectorID = "ServiceUptime"
 	DeploymentInfoID                           MetricCollectorID = "DeploymentInfo"
 	DeploymentUptimeID                         MetricCollectorID = "DeploymentUptime"
 	DeploymentLabelsID                         MetricCollectorID = "DeploymentLabels"

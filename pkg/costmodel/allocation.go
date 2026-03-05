@@ -341,7 +341,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resChPodLabels := source.WithGroup(grp, ds.QueryPodLabels(start, end))
 	resChPodAnnotations := source.WithGroup(grp, ds.QueryPodAnnotations(start, end))
 
-	resChServiceLabels := source.WithGroup(grp, ds.QueryServiceLabels(start, end))
+	resChServiceSelectorLabels := source.WithGroup(grp, ds.QueryServiceSelectorLabels(start, end))
 	resChDeploymentMatchLabels := source.WithGroup(grp, ds.QueryDeploymentMatchLabels(start, end))
 	resChStatefulSetMatchLabels := source.WithGroup(grp, ds.QueryStatefulSetMatchLabels(start, end))
 	resChPodsWithDaemonSetOwner := source.WithGroup(grp, ds.QueryPodsWithDaemonSetOwner(start, end))
@@ -408,7 +408,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resNamespaceAnnotations, _ := resChNamespaceAnnotations.Await()
 	resPodLabels, _ := resChPodLabels.Await()
 	resPodAnnotations, _ := resChPodAnnotations.Await()
-	resServiceLabels, _ := resChServiceLabels.Await()
+	resServiceSelectorLabels, _ := resChServiceSelectorLabels.Await()
 	resDeploymentMatchLabels, _ := resChDeploymentMatchLabels.Await()
 	resStatefulSetMatchLabels, _ := resChStatefulSetMatchLabels.Await()
 	resPodsWithDaemonSetOwner, _ := resChPodsWithDaemonSetOwner.Await()
@@ -485,9 +485,9 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	applyControllersToPods(podMap, podJobMap)
 	applyControllersToPods(podMap, podReplicaSetMap)
 
-	serviceLabels := getServiceLabels(resServiceLabels)
+	serviceSelectorLabels := getServiceSelectorLabels(resServiceSelectorLabels)
 	allocsByService := map[serviceKey][]*opencost.Allocation{}
-	applyServicesToPods(podMap, podLabels, allocsByService, serviceLabels)
+	applyServicesToPods(podMap, podLabels, allocsByService, serviceSelectorLabels)
 
 	// TODO breakdown network costs?
 

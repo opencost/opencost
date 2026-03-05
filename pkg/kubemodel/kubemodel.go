@@ -117,6 +117,12 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 		kms.Error(err)
 	}
 
+	// 2.13 Compute Services
+	err = km.computeServices(kms, start, end)
+	if err != nil {
+		kms.Error(err)
+	}
+
 	// 3. Mark KubeModelSet as completed
 	kms.Metadata.CompletedAt = time.Now().UTC()
 
@@ -408,7 +414,7 @@ func (km *KubeModel) computeDeployments(kms *kubemodel.KubeModelSet, start, end 
 		deploymentMap[res.UID] = &kubemodel.Deployment{
 			UID:          res.UID,
 			Name:         res.Deployment,
-			NamespaceUID: res.NameSpaceUID,
+			NamespaceUID: res.NamespaceUID,
 		}
 	}
 
@@ -481,7 +487,7 @@ func (km *KubeModel) computeStatefulSets(kms *kubemodel.KubeModelSet, start, end
 		statefulSetMap[res.UID] = &kubemodel.StatefulSet{
 			UID:          res.UID,
 			Name:         res.StatefulSet,
-			NamespaceUID: res.NameSpaceUID,
+			NamespaceUID: res.NamespaceUID,
 		}
 	}
 
@@ -553,7 +559,7 @@ func (km *KubeModel) computeDaemonSets(kms *kubemodel.KubeModelSet, start, end t
 		daemonSetMap[res.UID] = &kubemodel.DaemonSet{
 			UID:          res.UID,
 			Name:         res.DaemonSet,
-			NamespaceUID: res.NameSpaceUID,
+			NamespaceUID: res.NamespaceUID,
 		}
 	}
 
@@ -615,7 +621,7 @@ func (km *KubeModel) computeJobs(kms *kubemodel.KubeModelSet, start, end time.Ti
 		jobMap[res.UID] = &kubemodel.Job{
 			UID:          res.UID,
 			Name:         res.Job,
-			NamespaceUID: res.NameSpaceUID,
+			NamespaceUID: res.NamespaceUID,
 		}
 	}
 
@@ -677,7 +683,7 @@ func (km *KubeModel) computeCronJobs(kms *kubemodel.KubeModelSet, start, end tim
 		cronJobMap[res.UID] = &kubemodel.CronJob{
 			UID:          res.UID,
 			Name:         res.CronJob,
-			NamespaceUID: res.NameSpaceUID,
+			NamespaceUID: res.NamespaceUID,
 		}
 	}
 
@@ -739,7 +745,7 @@ func (km *KubeModel) computeReplicaSets(kms *kubemodel.KubeModelSet, start, end 
 		replicaSetMap[res.UID] = &kubemodel.ReplicaSet{
 			UID:          res.UID,
 			Name:         res.ReplicaSet,
-			NamespaceUID: res.NameSpaceUID,
+			NamespaceUID: res.NamespaceUID,
 		}
 	}
 
@@ -1266,6 +1272,59 @@ func (km *KubeModel) computeResourceQuotas(kms *kubemodel.KubeModelSet, start, e
 		err := kms.RegisterResourceQuota(resourceQuota)
 		if err != nil {
 			log.Warnf("Failed to register resource quota: %s", err.Error())
+		}
+	}
+
+	return nil
+}
+
+func (km *KubeModel) computeServices(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+	grp := source.NewQueryGroup()
+	metrics := km.ds.Metrics()
+
+	serviceInfoResultFuture := source.WithGroup(grp, metrics.QueryServiceInfo(start, end))
+	serviceUptimeResultFuture := source.WithGroup(grp, metrics.QueryServiceUptime(start, end))
+	serviceSelectorLabelsResultFuture := source.WithGroup(grp, metrics.QueryServiceSelectorLabels(start, end))
+
+	serviceMap := make(map[string]*kubemodel.Service)
+
+	// Initialize services from info
+	serviceInfoResult, _ := serviceInfoResultFuture.Await()
+	for _, res := range serviceInfoResult {
+		serviceMap[res.UID] = &kubemodel.Service{
+			UID:          res.UID,
+			NamespaceUID: res.NamespaceUID,
+			Name:         res.Service,
+			Type:         kubemodel.ParseServiceType(res.ServiceType),
+		}
+	}
+
+	serviceUptimeResult, _ := serviceUptimeResultFuture.Await()
+	for _, res := range serviceUptimeResult {
+		service, ok := serviceMap[res.UID]
+		if !ok {
+			log.Warnf("service with UID '%s' has not been initialized to add uptime", res.UID)
+			continue
+		}
+		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
+		service.Start = s
+		service.End = e
+	}
+
+	serviceSelectorLabelsResult, _ := serviceSelectorLabelsResultFuture.Await()
+	for _, res := range serviceSelectorLabelsResult {
+		service, ok := serviceMap[res.UID]
+		if !ok {
+			log.Warnf("service with UID '%s' has not been initialized to add selector labels", res.UID)
+			continue
+		}
+		service.Selector = res.Labels
+	}
+
+	for _, service := range serviceMap {
+		err := kms.RegisterService(service)
+		if err != nil {
+			log.Warnf("Failed to register service: %s", err.Error())
 		}
 	}
 

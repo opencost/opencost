@@ -544,7 +544,15 @@ func (c *collectorMetricsQuerier) QueryPodLabels(start, end time.Time) *source.F
 	return queryCollector(c, start, end, metric.PodLabelsID, source.DecodePodLabelsResult)
 }
 
-func (c *collectorMetricsQuerier) QueryServiceLabels(start, end time.Time) *source.Future[source.ServiceLabelsResult] {
+func (c *collectorMetricsQuerier) QueryServiceInfo(start, end time.Time) *source.Future[source.ServiceInfoResult] {
+	return queryCollector(c, start, end, metric.ServiceInfoID, source.DecodeServiceInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryServiceUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.ServiceUptimeID, source.DecodeUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryServiceSelectorLabels(start, end time.Time) *source.Future[source.ServiceLabelsResult] {
 	return queryCollector(c, start, end, metric.ServiceLabelsID, source.DecodeServiceLabelsResult)
 }
 

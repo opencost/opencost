@@ -43,6 +43,7 @@ const (
 	NamespaceInfo                                         = "namespace_info"
 	KubeNamespaceLabels                                   = "kube_namespace_labels"
 	KubeNamespaceAnnotations                              = "kube_namespace_annotations"
+	ServiceInfo                                           = "service_info"
 	ServiceSelectorLabels                                 = "service_selector_labels"
 	KubeReplicasetOwner                                   = "kube_replicaset_owner"
 	ResourceQuotaInfo                                     = "resourcequota_info"

@@ -29,6 +29,7 @@ const (
 	VolumeNameLabel      = "volumename"
 	ServiceLabel         = "service"
 	ServiceNameLabel     = "service_name"
+	ServiceTypeLabel     = "service_type"
 	IngressIPLabel       = "ingress_ip"
 	ProvisionerNameLabel = "provisioner_name"
 	UIDLabel             = "uid"
@@ -1552,10 +1553,34 @@ func DecodeServiceLabelsResult(result *QueryResult) *ServiceLabelsResult {
 	}
 }
 
+type ServiceInfoResult struct {
+	UID          string
+	Cluster      string
+	NamespaceUID string
+	Service      string
+	ServiceType  string
+}
+
+func DecodeServiceInfoResult(result *QueryResult) *ServiceInfoResult {
+	uid, _ := result.GetString(UIDLabel)
+	cluster, _ := result.GetCluster()
+	namespaceUID, _ := result.GetString(NamespaceUIDLabel)
+	service, _ := result.GetString(ServiceLabel)
+	serviceType, _ := result.GetString(ServiceTypeLabel)
+
+	return &ServiceInfoResult{
+		UID:          uid,
+		Cluster:      cluster,
+		NamespaceUID: namespaceUID,
+		Service:      service,
+		ServiceType:  serviceType,
+	}
+}
+
 type DeploymentInfoResult struct {
 	UID          string
 	Cluster      string
-	NameSpaceUID string
+	NamespaceUID string
 	Deployment   string
 }
 
@@ -1568,7 +1593,7 @@ func DecodeDeploymentInfoResult(result *QueryResult) *DeploymentInfoResult {
 	return &DeploymentInfoResult{
 		UID:          uid,
 		Cluster:      cluster,
-		NameSpaceUID: namespaceUID,
+		NamespaceUID: namespaceUID,
 		Deployment:   deployment,
 	}
 }
@@ -1602,7 +1627,7 @@ func DecodeDeploymentLabelsResult(result *QueryResult) *DeploymentLabelsResult {
 type StatefulSetInfoResult struct {
 	UID          string
 	Cluster      string
-	NameSpaceUID string
+	NamespaceUID string
 	StatefulSet  string
 }
 
@@ -1615,7 +1640,7 @@ func DecodeStatefulSetInfoResult(result *QueryResult) *StatefulSetInfoResult {
 	return &StatefulSetInfoResult{
 		UID:          uid,
 		Cluster:      cluster,
-		NameSpaceUID: namespaceUID,
+		NamespaceUID: namespaceUID,
 		StatefulSet:  statefulSet,
 	}
 }
@@ -1623,7 +1648,7 @@ func DecodeStatefulSetInfoResult(result *QueryResult) *StatefulSetInfoResult {
 type DaemonSetInfoResult struct {
 	UID          string
 	Cluster      string
-	NameSpaceUID string
+	NamespaceUID string
 	DaemonSet    string
 }
 
@@ -1636,7 +1661,7 @@ func DecodeDaemonSetInfoResult(result *QueryResult) *DaemonSetInfoResult {
 	return &DaemonSetInfoResult{
 		UID:          uid,
 		Cluster:      cluster,
-		NameSpaceUID: namespaceUID,
+		NamespaceUID: namespaceUID,
 		DaemonSet:    daemonSet,
 	}
 }
@@ -1644,7 +1669,7 @@ func DecodeDaemonSetInfoResult(result *QueryResult) *DaemonSetInfoResult {
 type JobInfoResult struct {
 	UID          string
 	Cluster      string
-	NameSpaceUID string
+	NamespaceUID string
 	Job          string
 }
 
@@ -1657,7 +1682,7 @@ func DecodeJobInfoResult(result *QueryResult) *JobInfoResult {
 	return &JobInfoResult{
 		UID:          uid,
 		Cluster:      cluster,
-		NameSpaceUID: namespaceUID,
+		NamespaceUID: namespaceUID,
 		Job:          job,
 	}
 }
@@ -1665,7 +1690,7 @@ func DecodeJobInfoResult(result *QueryResult) *JobInfoResult {
 type CronJobInfoResult struct {
 	UID          string
 	Cluster      string
-	NameSpaceUID string
+	NamespaceUID string
 	CronJob      string
 }
 
@@ -1678,7 +1703,7 @@ func DecodeCronJobInfoResult(result *QueryResult) *CronJobInfoResult {
 	return &CronJobInfoResult{
 		UID:          uid,
 		Cluster:      cluster,
-		NameSpaceUID: namespaceUID,
+		NamespaceUID: namespaceUID,
 		CronJob:      cronJob,
 	}
 }
@@ -1686,7 +1711,7 @@ func DecodeCronJobInfoResult(result *QueryResult) *CronJobInfoResult {
 type ReplicaSetInfoResult struct {
 	UID          string
 	Cluster      string
-	NameSpaceUID string
+	NamespaceUID string
 	ReplicaSet   string
 }
 
@@ -1699,7 +1724,7 @@ func DecodeReplicaSetInfoResult(result *QueryResult) *ReplicaSetInfoResult {
 	return &ReplicaSetInfoResult{
 		UID:          uid,
 		Cluster:      cluster,
-		NameSpaceUID: namespaceUID,
+		NamespaceUID: namespaceUID,
 		ReplicaSet:   replicaSet,
 	}
 }

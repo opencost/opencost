@@ -567,14 +567,22 @@ func (ccs *ClusterCacheScraper) scrapeServices(services []*clustercache.Service)
 	var scrapeResults []metric.Update
 	for _, service := range services {
 		serviceInfo := map[string]string{
-			source.ServiceLabel:   service.Name,
-			source.NamespaceLabel: service.Namespace,
-			source.UIDLabel:       string(service.UID),
+			source.UIDLabel:         string(service.UID),
+			source.ServiceLabel:     service.Name,
+			source.NamespaceLabel:   service.Namespace,
+			source.ServiceTypeLabel: string(service.Type),
 		}
 
-		// service labels
-		labelNames, labelValues := promutil.KubeLabelsToLabels(service.SpecSelector)
-		serviceLabels := util.ToMap(labelNames, labelValues)
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.ServiceInfo,
+			Labels:         serviceInfo,
+			Value:          0,
+			AdditionalInfo: serviceInfo,
+		})
+
+		// service selector labels
+		selectorNames, selectorValues := promutil.KubeLabelsToLabels(service.SpecSelector)
+		serviceLabels := util.ToMap(selectorNames, selectorValues)
 		scrapeResults = append(scrapeResults, metric.Update{
 			Name:           metric.ServiceSelectorLabels,
 			Labels:         serviceInfo,

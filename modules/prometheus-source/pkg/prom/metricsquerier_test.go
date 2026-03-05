@@ -164,7 +164,7 @@ func TestQueryLogs(t *testing.T) {
 		"QueryNodeLabels":                               func(s, e time.Time) { querier.QueryNodeLabels(s, e) },
 		"QueryNamespaceLabels":                          func(s, e time.Time) { querier.QueryNamespaceLabels(s, e) },
 		"QueryPodLabels":                                func(s, e time.Time) { querier.QueryPodLabels(s, e) },
-		"QueryServiceLabels":                            func(s, e time.Time) { querier.QueryServiceLabels(s, e) },
+		"QueryServiceSelectorLabels":                    func(s, e time.Time) { querier.QueryServiceLabels(s, e) },
 		"QueryDeploymentMatchLabels":                    func(s, e time.Time) { querier.QueryDeploymentMatchLabels(s, e) },
 		"QueryStatefulSetMatchLabels":                   func(s, e time.Time) { querier.QueryStatefulSetMatchLabels(s, e) },
 		"QueryDaemonSetLabels":                          func(s, e time.Time) { querier.QueryDaemonSetLabels(s, e) },

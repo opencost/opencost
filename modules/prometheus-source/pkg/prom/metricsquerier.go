@@ -1490,9 +1490,17 @@ func (pds *PrometheusMetricsQuerier) QueryPodAnnotations(start, end time.Time) *
 	return source.NewFuture(source.DecodePodAnnotationsResult, ctx.QueryAtTime(queryPodAnnotations, end))
 }
 
-func (pds *PrometheusMetricsQuerier) QueryServiceLabels(start, end time.Time) *source.Future[source.ServiceLabelsResult] {
-	const queryName = "QueryServiceLabels"
-	const queryFmtServiceLabels = `avg_over_time(service_selector_labels{%s}[%s])`
+func (pds *PrometheusMetricsQuerier) QueryServiceInfo(start, end time.Time) *source.Future[source.ServiceInfoResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryServiceUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryServiceSelectorLabels(start, end time.Time) *source.Future[source.ServiceLabelsResult] {
+	const queryName = "QueryServiceSelectorLabels"
+	const queryFmtServiceSelectorLabels = `avg_over_time(service_selector_labels{%s}[%s])`
 
 	cfg := pds.promConfig
 
@@ -1501,11 +1509,11 @@ func (pds *PrometheusMetricsQuerier) QueryServiceLabels(start, end time.Time) *s
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
 
-	queryServiceLabels := fmt.Sprintf(queryFmtServiceLabels, cfg.ClusterFilter, durStr)
-	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryServiceLabels)
+	queryServiceSelectorLabels := fmt.Sprintf(queryFmtServiceSelectorLabels, cfg.ClusterFilter, durStr)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryServiceSelectorLabels)
 
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return source.NewFuture(source.DecodeServiceLabelsResult, ctx.QueryAtTime(queryServiceLabels, end))
+	return source.NewFuture(source.DecodeServiceLabelsResult, ctx.QueryAtTime(queryServiceSelectorLabels, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryDeploymentInfo(start, end time.Time) *source.Future[source.DeploymentInfoResult] {

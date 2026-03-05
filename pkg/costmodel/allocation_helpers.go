@@ -1521,10 +1521,10 @@ func applyControllersToPods(podMap map[podKey]*pod, podControllerMap map[podKey]
 
 /* Service Helpers */
 
-func getServiceLabels(resServiceLabels []*source.ServiceLabelsResult) map[serviceKey]map[string]string {
+func getServiceSelectorLabels(resServiceSelectorLabels []*source.ServiceLabelsResult) map[serviceKey]map[string]string {
 	serviceLabels := map[serviceKey]map[string]string{}
 
-	for _, res := range resServiceLabels {
+	for _, res := range resServiceSelectorLabels {
 		serviceKey, err := newResultServiceKey(res.Cluster, res.Namespace, res.Service)
 		if err != nil {
 			continue
