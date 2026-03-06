@@ -5,19 +5,24 @@ import (
 	"time"
 )
 
+// @bingen:generate:PodPVCVolumes
+type PodPVCVolumes struct {
+	Name                     string `json:"name"`
+	PersistentVolumeClaimUID string `json:"persistentVolumeClaimUID"`
+}
+
+// @bingen:generate:Pod
 type Pod struct {
 	UID          string            `json:"uid"`
 	NamespaceUID string            `json:"namespaceUid"`
 	NodeUID      string            `json:"nodeUid"`
 	Name         string            `json:"name"`
 	Owners       []Owner           `json:"owners"`
+	PVCVolumes   []PodPVCVolumes   `json:"pvcVolumes"`
 	Labels       map[string]string `json:"labels,omitempty"`
 	Annotations  map[string]string `json:"annotations,omitempty"`
-	//NetworkTransferBytes Measurement       `json:"networkTransferBytes"` // TODO  separate ticket
-	//NetworkReceiveBytes  Measurement       `json:"networkReceiveBytes"`
-	Start time.Time `json:"start,omitempty"` // Pod creation/start timestamp
-	End   time.Time `json:"end,omitempty"`   // Pod deletion/end timestamp (nil if still running)
-	//DurationSeconds      Measurement       `json:"durationSeconds"`
+	Start        time.Time         `json:"start,omitempty"` // Pod creation/start timestamp
+	End          time.Time         `json:"end,omitempty"`   // Pod deletion/end timestamp (nil if still running)
 }
 
 func (kms *KubeModelSet) RegisterPod(pod *Pod) error {

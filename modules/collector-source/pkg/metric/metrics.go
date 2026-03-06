@@ -5,6 +5,7 @@ const (
 	ClusterInfo                                           = "cluster_info"
 	NodeInfo                                              = "node_info"
 	PodInfo                                               = "pod_info"
+	PodPVCVolume                                          = "pod_pvc_volume"
 	KubeNodeStatusCapacityCPUCores                        = "kube_node_status_capacity_cpu_cores"
 	KubeNodeStatusCapacityMemoryBytes                     = "kube_node_status_capacity_memory_bytes"
 	KubeNodeStatusAllocatableCPUCores                     = "kube_node_status_allocatable_cpu_cores"

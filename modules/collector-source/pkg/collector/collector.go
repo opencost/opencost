@@ -123,6 +123,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewPodInfoMetricCollector())
 	memStore.Register(NewPodUptimeMetricCollector())
 	memStore.Register(NewPodOwnerMetricCollector())
+	memStore.Register(NewPodPVCVolumeMetricCollector())
 	memStore.Register(NewContainerUptimeMetricCollector())
 	memStore.Register(NewReplicaSetsWithoutOwnersMetricCollector())
 	memStore.Register(NewReplicaSetsWithRolloutMetricCollector())
@@ -810,6 +811,20 @@ func NewPodOwnerMetricCollector() *metric.MetricCollector {
 			source.UIDLabel,
 			source.OwnerUIDLabel,
 			source.OwnerKindLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewPodPVCVolumeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.PodPVCVolumeID,
+		metric.PodPVCVolume,
+		[]string{
+			source.UIDLabel,
+			source.PVCUIDLabel,
+			source.PodVolumeNameLabel,
 		},
 		aggregator.Info,
 		nil,

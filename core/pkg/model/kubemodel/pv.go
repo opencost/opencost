@@ -10,8 +10,8 @@ type PersistentVolume struct {
 	UID             string      `json:"uid"`
 	Name            string      `json:"name"`
 	StorageClass    string      `json:"storageClass"`
-	SizeBytes       Measurement `json:"size"`
 	CSIVolumeHandle string      `json:"csiVolumeHandle,omitempty"`
+	SizeBytes       Measurement `json:"size"`
 	Start           time.Time   `json:"start"`
 	End             time.Time   `json:"end"`
 }

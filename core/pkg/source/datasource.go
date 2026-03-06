@@ -52,6 +52,7 @@ type MetricsQuerier interface {
 	QueryPodInfo(start, end time.Time) *Future[PodInfoResult]
 	QueryPodUptime(start, end time.Time) *Future[UptimeResult]
 	QueryPodOwners(start, end time.Time) *Future[OwnerResult]
+	QueryPodPVCVolumes(start, end time.Time) *Future[PodPVCVolumeResult]
 
 	// Container
 	QueryContainerUptime(start, end time.Time) *Future[ContainerUptimeResult]
@@ -85,6 +86,7 @@ type MetricsQuerier interface {
 	QueryPodPVCAllocation(start, end time.Time) *Future[PodPVCAllocationResult]
 	QueryPVCBytesRequested(start, end time.Time) *Future[PVCBytesRequestedResult]
 	QueryPVCInfo(start, end time.Time) *Future[PVCInfoResult]
+	QueryPVCUptime(start, end time.Time) *Future[UptimeResult]
 
 	// PV
 	QueryPVBytes(start, end time.Time) *Future[PVBytesResult]

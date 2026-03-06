@@ -21,13 +21,16 @@ const (
 	ContainerLabel       = "container"
 	PodLabel             = "pod"
 	PodNameLabel         = "pod_name"
+	PodVolumeNameLabel   = "pod_volume_name"
 	ProviderIDLabel      = "provider_id"
 	DeviceLabel          = "device"
 	PVCLabel             = "persistentvolumeclaim"
+	PVCUIDLabel          = "persistentvolumeclaim_uid"
 	PVLabel              = "persistentvolume"
 	CSIVolumeHandleLabel = "csi_volume_handle"
 	StorageClassLabel    = "storageclass"
 	VolumeNameLabel      = "volumename"
+	PVUIDLabel           = "persistentvolume_uid"
 	ServiceLabel         = "service"
 	ServiceNameLabel     = "service_name"
 	ServiceTypeLabel     = "service_type"
@@ -678,6 +681,27 @@ func DecodePodInfoResult(result *QueryResult) *PodInfoResult {
 	}
 }
 
+type PodPVCVolumeResult struct {
+	UID           string
+	Cluster       string
+	PVCUID        string
+	PodVolumeName string
+}
+
+func DecodePodPVCVolumeResult(result *QueryResult) *PodPVCVolumeResult {
+	uid, _ := result.GetString(UIDLabel)
+	cluster, _ := result.GetCluster()
+	pvcUID, _ := result.GetString(PVCUIDLabel)
+	podVolumeName, _ := result.GetString(PodVolumeNameLabel)
+
+	return &PodPVCVolumeResult{
+		UID:           uid,
+		Cluster:       cluster,
+		PVCUID:        pvcUID,
+		PodVolumeName: podVolumeName,
+	}
+}
+
 type OwnerResult struct {
 	UID       string
 	Cluster   string
@@ -1108,18 +1132,20 @@ func DecodePVCBytesRequestedResult(result *QueryResult) *PVCBytesRequestedResult
 type PVCInfoResult struct {
 	UID                   string
 	Cluster               string
+	NamespaceUID          string
 	Namespace             string
 	VolumeName            string
+	PVUID                 string
 	PersistentVolumeClaim string
 	StorageClass          string
-
-	Data []*util.Vector
 }
 
 func DecodePVCInfoResult(result *QueryResult) *PVCInfoResult {
 	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
+	namespaceUID, _ := result.GetString(NamespaceUIDLabel)
 	namespace, _ := result.GetNamespace()
+	pvUID, _ := result.GetString(PVUIDLabel)
 	volumeName, _ := result.GetString(VolumeNameLabel)
 	pvc, _ := result.GetString(PVCLabel)
 	storageClass, _ := result.GetString(StorageClassLabel)
@@ -1127,11 +1153,12 @@ func DecodePVCInfoResult(result *QueryResult) *PVCInfoResult {
 	return &PVCInfoResult{
 		UID:                   uid,
 		Cluster:               cluster,
+		NamespaceUID:          namespaceUID,
 		Namespace:             namespace,
+		PVUID:                 pvUID,
 		VolumeName:            volumeName,
 		PersistentVolumeClaim: pvc,
 		StorageClass:          storageClass,
-		Data:                  result.Values,
 	}
 }
 
@@ -1139,20 +1166,23 @@ type PVBytesResult struct {
 	UID              string
 	Cluster          string
 	PersistentVolume string
-
-	Data []*util.Vector
+	Value            float64
 }
 
 func DecodePVBytesResult(result *QueryResult) *PVBytesResult {
 	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	pv, _ := result.GetString(PVLabel)
+	var value float64
+	if len(result.Values) > 0 {
+		value = result.Values[0].Value
+	}
 
 	return &PVBytesResult{
 		UID:              uid,
 		Cluster:          cluster,
 		PersistentVolume: pv,
-		Data:             result.Values,
+		Value:            value,
 	}
 }
 
@@ -1190,6 +1220,7 @@ type PVInfoResult struct {
 	PersistentVolume string
 	StorageClass     string
 	ProviderID       string
+	CSIVolumeHandle  string
 }
 
 func DecodePVInfoResult(result *QueryResult) *PVInfoResult {
@@ -1198,6 +1229,7 @@ func DecodePVInfoResult(result *QueryResult) *PVInfoResult {
 	storageClass, _ := result.GetString(StorageClassLabel)
 	providerId, _ := result.GetProviderID()
 	pv, _ := result.GetString(PVLabel)
+	csiVolumeHandle, _ := result.GetString(CSIVolumeHandleLabel)
 
 	return &PVInfoResult{
 		UID:              uid,
@@ -1205,6 +1237,7 @@ func DecodePVInfoResult(result *QueryResult) *PVInfoResult {
 		PersistentVolume: pv,
 		StorageClass:     storageClass,
 		ProviderID:       providerId,
+		CSIVolumeHandle:  csiVolumeHandle,
 	}
 }
 

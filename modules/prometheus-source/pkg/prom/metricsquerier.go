@@ -91,6 +91,10 @@ func (pds *PrometheusMetricsQuerier) QueryPVUsedMax(start, end time.Time) *sourc
 	return source.NewFuture(source.DecodePVUsedMaxResult, ctx.QueryAtTime(queryPVUsedMax, end))
 }
 
+func (pds *PrometheusMetricsQuerier) QueryPVCUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return nil
+}
+
 func (pds *PrometheusMetricsQuerier) QueryPVCInfo(start, end time.Time) *source.Future[source.PVCInfoResult] {
 	const queryName = "QueryPVCInfo"
 	const queryFmtPVCInfo = `avg(kube_persistentvolumeclaim_info{volumename != "", %s}) by (persistentvolumeclaim, storageclass, volumename, namespace, uid, %s)[%s:%dm]`
@@ -595,6 +599,10 @@ func (pds *PrometheusMetricsQuerier) QueryPodUptime(start, end time.Time) *sourc
 }
 
 func (pds *PrometheusMetricsQuerier) QueryPodOwners(start, end time.Time) *source.Future[source.OwnerResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryPodPVCVolumes(start, end time.Time) *source.Future[source.PodPVCVolumeResult] {
 	return nil
 }
 

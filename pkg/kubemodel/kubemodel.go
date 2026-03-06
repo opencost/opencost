@@ -129,6 +129,12 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 		kms.Error(err)
 	}
 
+	// 2.15 Compute PersistentVolumeClaims
+	err = km.computePersistentVolumeClaims(kms, start, end)
+	if err != nil {
+		kms.Error(err)
+	}
+
 	// 3. Mark KubeModelSet as completed
 	kms.Metadata.CompletedAt = time.Now().UTC()
 
@@ -332,6 +338,7 @@ func (km *KubeModel) computePods(kms *kubemodel.KubeModelSet, start, end time.Ti
 	podInfoResultFuture := source.WithGroup(grp, metrics.QueryPodInfo(start, end))
 	podUptimeResultFuture := source.WithGroup(grp, metrics.QueryPodUptime(start, end))
 	podOwnerResultFuture := source.WithGroup(grp, metrics.QueryPodOwners(start, end))
+	podPVCVolumesResultFuture := source.WithGroup(grp, metrics.QueryPodPVCVolumes(start, end))
 	podLabelsResultFuture := source.WithGroup(grp, metrics.QueryPodLabels(start, end))
 	podAnnosResultFuture := source.WithGroup(grp, metrics.QueryPodAnnotations(start, end))
 
@@ -369,6 +376,19 @@ func (km *KubeModel) computePods(kms *kubemodel.KubeModelSet, start, end time.Ti
 		pod.Owners = append(pod.Owners, kubemodel.Owner{
 			UID:  res.OwnerUID,
 			Kind: kubemodel.ParseOwnerKind(res.OwnerKind),
+		})
+	}
+
+	podPVCVolumesResult, _ := podPVCVolumesResultFuture.Await()
+	for _, res := range podPVCVolumesResult {
+		pod, ok := podMap[res.UID]
+		if !ok {
+			log.Warnf("pod with UID '%s' has not been initialized to add PVC volumes", res.UID)
+			continue
+		}
+		pod.PVCVolumes = append(pod.PVCVolumes, kubemodel.PodPVCVolumes{
+			Name:                     res.PodVolumeName,
+			PersistentVolumeClaimUID: res.PVCUID,
 		})
 	}
 
@@ -1350,9 +1370,10 @@ func (km *KubeModel) computePersistentVolumes(kms *kubemodel.KubeModelSet, start
 	pvInfoResult, _ := pvInfoResultFuture.Await()
 	for _, res := range pvInfoResult {
 		pvMap[res.UID] = &kubemodel.PersistentVolume{
-			UID:          res.UID,
-			Name:         res.PersistentVolume,
-			StorageClass: res.StorageClass,
+			UID:             res.UID,
+			Name:            res.PersistentVolume,
+			StorageClass:    res.StorageClass,
+			CSIVolumeHandle: res.CSIVolumeHandle,
 		}
 	}
 
@@ -1375,15 +1396,70 @@ func (km *KubeModel) computePersistentVolumes(kms *kubemodel.KubeModelSet, start
 			log.Warnf("persistent volume with UID '%s' has not been initialized to add bytes", res.UID)
 			continue
 		}
-		if len(res.Data) > 0 {
-			pv.SizeBytes = kubemodel.Measurement(res.Data[0].Value)
-		}
+
+		pv.SizeBytes = kubemodel.Measurement(res.Value)
+
 	}
 
 	for _, pv := range pvMap {
 		err := kms.RegisterPersistentVolume(pv)
 		if err != nil {
 			log.Warnf("Failed to register persistent volume: %s", err.Error())
+		}
+	}
+
+	return nil
+}
+
+func (km *KubeModel) computePersistentVolumeClaims(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+	grp := source.NewQueryGroup()
+	metrics := km.ds.Metrics()
+
+	pvcInfoResultFuture := source.WithGroup(grp, metrics.QueryPVCInfo(start, end))
+	pvcUptimeResultFuture := source.WithGroup(grp, metrics.QueryPVCUptime(start, end))
+	pvcBytesRequestedResultFuture := source.WithGroup(grp, metrics.QueryPVCBytesRequested(start, end))
+
+	pvcMap := make(map[string]*kubemodel.PersistentVolumeClaim)
+
+	pvcInfoResult, _ := pvcInfoResultFuture.Await()
+	for _, res := range pvcInfoResult {
+		pvcMap[res.UID] = &kubemodel.PersistentVolumeClaim{
+			UID:                 res.UID,
+			Name:                res.PersistentVolumeClaim,
+			NamespaceUID:        res.NamespaceUID,
+			PersistentVolumeUID: res.PVUID,
+			StorageClass:        res.StorageClass,
+		}
+	}
+
+	pvcUptimeResult, _ := pvcUptimeResultFuture.Await()
+	for _, res := range pvcUptimeResult {
+		pvc, ok := pvcMap[res.UID]
+		if !ok {
+			log.Warnf("persistent volume claim with UID '%s' has not been initialized to add uptime", res.UID)
+			continue
+		}
+		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
+		pvc.Start = s
+		pvc.End = e
+	}
+
+	pvcBytesRequestedResult, _ := pvcBytesRequestedResultFuture.Await()
+	for _, res := range pvcBytesRequestedResult {
+		pvc, ok := pvcMap[res.UID]
+		if !ok {
+			log.Warnf("persistent volume claim with UID '%s' has not been initialized to add requested bytes", res.UID)
+			continue
+		}
+		if len(res.Data) > 0 {
+			pvc.RequestedBytes = kubemodel.Measurement(res.Data[0].Value)
+		}
+	}
+
+	for _, pvc := range pvcMap {
+		err := kms.RegisterPVC(pvc)
+		if err != nil {
+			log.Warnf("Failed to register persistent volume claim: %s", err.Error())
 		}
 	}
 

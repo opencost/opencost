@@ -60,6 +60,11 @@ func newClusterCacheScraper(clusterCache clustercache.ClusterCache) Scraper {
 	}
 }
 
+type pvcKey struct {
+	name      string
+	namespace string
+}
+
 func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 	// retrieve objects for scrape
 	nodes := ccs.clusterCache.GetAllNodes()
@@ -86,13 +91,24 @@ func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 	for _, ns := range namespaces {
 		namespaceNameToUID.Set(ns.Name, ns.UID)
 	}
+	pvcNameToUID := newSyncMap[pvcKey, types.UID](len(pvcs))
+	for _, pvc := range pvcs {
+		pvcNameToUID.Set(pvcKey{
+			name:      pvc.Name,
+			namespace: pvc.Namespace,
+		}, pvc.UID)
+	}
+	pvNameToUID := newSyncMap[string, types.UID](len(pvs))
+	for _, pv := range pvs {
+		pvNameToUID.Set(pv.Name, pv.UID)
+	}
 
 	scrapeFuncs := []ScrapeFunc{
 		ccs.GetScrapeNodes(nodes),
 		ccs.GetScrapeDeployments(deployments, namespaceNameToUID),
 		ccs.GetScrapeNamespaces(namespaces),
-		ccs.GetScrapePods(pods, nodeNameToUID, namespaceNameToUID),
-		ccs.GetScrapePVCs(pvcs),
+		ccs.GetScrapePods(pods, nodeNameToUID, namespaceNameToUID, pvcNameToUID),
+		ccs.GetScrapePVCs(pvcs, namespaceNameToUID, pvNameToUID),
 		ccs.GetScrapePVs(pvs),
 		ccs.GetScrapeServices(services),
 		ccs.GetScrapeStatefulSets(statefulSets, namespaceNameToUID),
@@ -319,13 +335,23 @@ func (ccs *ClusterCacheScraper) scrapeNamespaces(namespaces []*clustercache.Name
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) GetScrapePods(pods []*clustercache.Pod, nodeIndex, namespaceIndex *SyncMap[string, types.UID]) ScrapeFunc {
+func (ccs *ClusterCacheScraper) GetScrapePods(
+	pods []*clustercache.Pod,
+	nodeIndex,
+	namespaceIndex *SyncMap[string, types.UID],
+	pvcIndex *SyncMap[pvcKey, types.UID],
+) ScrapeFunc {
 	return func() []metric.Update {
-		return ccs.scrapePods(pods, nodeIndex, namespaceIndex)
+		return ccs.scrapePods(pods, nodeIndex, namespaceIndex, pvcIndex)
 	}
 }
 
-func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, nodeIndex, namespaceIndex *SyncMap[string, types.UID]) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapePods(
+	pods []*clustercache.Pod,
+	nodeIndex,
+	namespaceIndex *SyncMap[string, types.UID],
+	pvcIndex *SyncMap[pvcKey, types.UID],
+) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, pod := range pods {
 		nodeUID, ok := nodeIndex.Get(pod.Spec.NodeName)
@@ -400,6 +426,25 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, nodeIndex, 
 			}
 		}
 
+		for _, volume := range pod.Spec.Volumes {
+			if volume.PersistentVolumeClaim != nil {
+				pvcUID, _ := pvcIndex.Get(pvcKey{
+					name:      volume.PersistentVolumeClaim.ClaimName,
+					namespace: pod.Namespace,
+				})
+				podPVCVolumeInfo := map[string]string{
+					source.UIDLabel:           string(pod.UID),
+					source.PVCUIDLabel:        string(pvcUID),
+					source.PodVolumeNameLabel: volume.Name,
+				}
+				scrapeResults = append(scrapeResults, metric.Update{
+					Name:   metric.PodPVCVolume,
+					Labels: podPVCVolumeInfo,
+					Value:  0,
+				})
+			}
+		}
+
 		for _, container := range pod.Spec.Containers {
 			containerInfo := maps.Clone(podInfo)
 			containerInfo[source.ContainerLabel] = container.Name
@@ -467,20 +512,38 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, nodeIndex, 
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) GetScrapePVCs(pvcs []*clustercache.PersistentVolumeClaim) ScrapeFunc {
+func (ccs *ClusterCacheScraper) GetScrapePVCs(
+	pvcs []*clustercache.PersistentVolumeClaim,
+	namespaceIndex *SyncMap[string, types.UID],
+	pvIndex *SyncMap[string, types.UID],
+) ScrapeFunc {
 	return func() []metric.Update {
-		return ccs.scrapePVCs(pvcs)
+		return ccs.scrapePVCs(pvcs, namespaceIndex, pvIndex)
 	}
 }
 
-func (ccs *ClusterCacheScraper) scrapePVCs(pvcs []*clustercache.PersistentVolumeClaim) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapePVCs(
+	pvcs []*clustercache.PersistentVolumeClaim,
+	namespaceIndex *SyncMap[string, types.UID],
+	pvIndex *SyncMap[string, types.UID],
+) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, pvc := range pvcs {
+		nsUID, ok := namespaceIndex.Get(pvc.Namespace)
+		if !ok {
+			log.Debugf("pvc namespaceUID missing from index for namespace name '%s'", pvc.Namespace)
+		}
+		pvUID, ok := pvIndex.Get(pvc.Spec.VolumeName)
+		if !ok && pvc.Spec.VolumeName != "" {
+			log.Debugf("pvc volume name missing from index for pv name '%s'", pvc.Spec.VolumeName)
+		}
 		pvcInfo := map[string]string{
 			source.UIDLabel:          string(pvc.UID),
 			source.PVCLabel:          pvc.Name,
+			source.NamespaceUIDLabel: string(nsUID),
 			source.NamespaceLabel:    pvc.Namespace,
 			source.VolumeNameLabel:   pvc.Spec.VolumeName,
+			source.PVUIDLabel:        string(pvUID),
 			source.StorageClassLabel: getPersistentVolumeClaimClass(pvc),
 		}
 
