@@ -1324,6 +1324,8 @@ func (az *Azure) GetPVKey(pv *clustercache.PersistentVolume, parameters map[stri
 	providerID := ""
 	if pv.Spec.AzureDisk != nil {
 		providerID = pv.Spec.AzureDisk.DiskName
+	} else if pv.Spec.CSI != nil {
+		providerID = pv.Spec.CSI.VolumeHandle
 	}
 	return &azurePvKey{
 		Labels:                 pv.Labels,
