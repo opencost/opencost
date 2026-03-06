@@ -10,7 +10,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-11-01/compute"
 	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
 	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/util/mathutil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 )
@@ -552,4 +554,53 @@ func Test_extractAzureVMRetailAndSpotPrices(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetPVKey(t *testing.T) {
+	az := &Azure{}
+
+	t.Run("legacy AzureDisk in-tree", func(t *testing.T) {
+		pv := &clustercache.PersistentVolume{
+			Spec: v1.PersistentVolumeSpec{
+				StorageClassName: "managed-premium",
+				PersistentVolumeSource: v1.PersistentVolumeSource{
+					AzureDisk: &v1.AzureDiskVolumeSource{
+						DiskName: "my-disk",
+					},
+				},
+			},
+		}
+		key := az.GetPVKey(pv, map[string]string{}, "eastus")
+		require.Equal(t, "my-disk", key.ID())
+		require.Equal(t, "managed-premium", key.GetStorageClass())
+	})
+
+	t.Run("Azure Disk CSI", func(t *testing.T) {
+		volumeHandle := "/subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.Compute/disks/my-csi-disk"
+		pv := &clustercache.PersistentVolume{
+			Spec: v1.PersistentVolumeSpec{
+				StorageClassName: "managed-csi",
+				PersistentVolumeSource: v1.PersistentVolumeSource{
+					CSI: &v1.CSIPersistentVolumeSource{
+						Driver:       "disk.csi.azure.com",
+						VolumeHandle: volumeHandle,
+					},
+				},
+			},
+		}
+		key := az.GetPVKey(pv, map[string]string{}, "eastus")
+		require.Equal(t, volumeHandle, key.ID())
+		require.Equal(t, "managed-csi", key.GetStorageClass())
+	})
+
+	t.Run("no volume source", func(t *testing.T) {
+		pv := &clustercache.PersistentVolume{
+			Spec: v1.PersistentVolumeSpec{
+				StorageClassName: "some-class",
+			},
+		}
+		key := az.GetPVKey(pv, map[string]string{}, "westus")
+		require.Equal(t, "", key.ID())
+		require.Equal(t, "some-class", key.GetStorageClass())
+	})
 }
