@@ -1,0 +1,287 @@
+=== RUN   TestClientSecretCredential_Validate
+=== RUN   TestClientSecretCredential_Validate/missing_TenantID
+=== RUN   TestClientSecretCredential_Validate/missing_ClientID
+=== RUN   TestClientSecretCredential_Validate/missing_ClientSecret
+=== RUN   TestClientSecretCredential_Validate/valid
+--- PASS: TestClientSecretCredential_Validate (0.00s)
+    --- PASS: TestClientSecretCredential_Validate/missing_TenantID (0.00s)
+    --- PASS: TestClientSecretCredential_Validate/missing_ClientID (0.00s)
+    --- PASS: TestClientSecretCredential_Validate/missing_ClientSecret (0.00s)
+    --- PASS: TestClientSecretCredential_Validate/valid (0.00s)
+=== RUN   TestClientSecretCredential_Sanitize
+=== RUN   TestClientSecretCredential_Sanitize/Plain_integration
+--- PASS: TestClientSecretCredential_Sanitize (0.00s)
+    --- PASS: TestClientSecretCredential_Sanitize/Plain_integration (0.00s)
+=== RUN   TestClientSecretCredential_Equals
+=== RUN   TestClientSecretCredential_Equals/different_config
+=== RUN   TestClientSecretCredential_Equals/different_TenantID
+=== RUN   TestClientSecretCredential_Equals/different_ClientID
+=== RUN   TestClientSecretCredential_Equals/different_ClientSecret
+=== RUN   TestClientSecretCredential_Equals/equal
+=== RUN   TestClientSecretCredential_Equals/compare_nil
+--- PASS: TestClientSecretCredential_Equals (0.00s)
+    --- PASS: TestClientSecretCredential_Equals/different_config (0.00s)
+    --- PASS: TestClientSecretCredential_Equals/different_TenantID (0.00s)
+    --- PASS: TestClientSecretCredential_Equals/different_ClientID (0.00s)
+    --- PASS: TestClientSecretCredential_Equals/different_ClientSecret (0.00s)
+    --- PASS: TestClientSecretCredential_Equals/equal (0.00s)
+    --- PASS: TestClientSecretCredential_Equals/compare_nil (0.00s)
+=== RUN   Test_NewBillingExportParser
+=== RUN   Test_NewBillingExportParser/German_Headers
+=== RUN   Test_NewBillingExportParser/YA_Headers
+=== RUN   Test_NewBillingExportParser/BOM_Prefixed_Headers
+=== RUN   Test_NewBillingExportParser/English_Headers
+=== RUN   Test_NewBillingExportParser/Enterprise_Camel_Headers
+=== RUN   Test_NewBillingExportParser/Enterprise_Headers
+--- PASS: Test_NewBillingExportParser (0.01s)
+    --- PASS: Test_NewBillingExportParser/German_Headers (0.00s)
+    --- PASS: Test_NewBillingExportParser/YA_Headers (0.00s)
+    --- PASS: Test_NewBillingExportParser/BOM_Prefixed_Headers (0.00s)
+    --- PASS: Test_NewBillingExportParser/English_Headers (0.00s)
+    --- PASS: Test_NewBillingExportParser/Enterprise_Camel_Headers (0.00s)
+    --- PASS: Test_NewBillingExportParser/Enterprise_Headers (0.00s)
+=== RUN   TestPriceSheetClient_CreateRequest_HTTPMethod
+=== RUN   TestPriceSheetClient_CreateRequest_HTTPMethod/POST_method_for_valid_billing_account
+=== RUN   TestPriceSheetClient_CreateRequest_HTTPMethod/POST_method_for_different_billing_period
+--- PASS: TestPriceSheetClient_CreateRequest_HTTPMethod (0.00s)
+    --- PASS: TestPriceSheetClient_CreateRequest_HTTPMethod/POST_method_for_valid_billing_account (0.00s)
+    --- PASS: TestPriceSheetClient_CreateRequest_HTTPMethod/POST_method_for_different_billing_period (0.00s)
+=== RUN   TestPriceSheetClient_Validation
+=== RUN   TestPriceSheetClient_Validation/empty_billing_account_ID
+=== RUN   TestPriceSheetClient_Validation/empty_billing_period_name
+=== RUN   TestPriceSheetClient_Validation/valid_parameters
+--- PASS: TestPriceSheetClient_Validation (0.00s)
+    --- PASS: TestPriceSheetClient_Validation/empty_billing_account_ID (0.00s)
+    --- PASS: TestPriceSheetClient_Validation/empty_billing_period_name (0.00s)
+    --- PASS: TestPriceSheetClient_Validation/valid_parameters (0.00s)
+=== RUN   TestPriceSheetClient_URLConstruction
+=== RUN   TestPriceSheetClient_URLConstruction/standard_billing_account_and_period
+=== RUN   TestPriceSheetClient_URLConstruction/billing_account_with_dashes
+--- PASS: TestPriceSheetClient_URLConstruction (0.00s)
+    --- PASS: TestPriceSheetClient_URLConstruction/standard_billing_account_and_period (0.00s)
+    --- PASS: TestPriceSheetClient_URLConstruction/billing_account_with_dashes (0.00s)
+=== RUN   TestPriceSheetClient_MethodRegression
+--- PASS: TestPriceSheetClient_MethodRegression (0.00s)
+=== RUN   TestDownloader
+=== RUN   TestDownloader/read_prices
+{"level":"warn","time":"2026-03-05T20:41:16-08:00","message":"converting meter to pricings (line 11): there was an error handling this row!"}
+{"level":"info","time":"2026-03-05T20:41:16-08:00","message":"all units in pricesheet: 1 Hour"}
+=== RUN   TestDownloader/bad_header
+=== RUN   TestDownloader/short_header
+=== RUN   TestDownloader/no_matching_prices
+--- PASS: TestDownloader (0.00s)
+    --- PASS: TestDownloader/read_prices (0.00s)
+    --- PASS: TestDownloader/bad_header (0.00s)
+    --- PASS: TestDownloader/short_header (0.00s)
+    --- PASS: TestDownloader/no_matching_prices (0.00s)
+=== RUN   TestParseAzureSubscriptionID
+--- PASS: TestParseAzureSubscriptionID (0.00s)
+=== RUN   TestConvertMeterToPricings
+=== RUN   TestConvertMeterToPricings/windows
+=== RUN   TestConvertMeterToPricings/storage
+{"level":"debug","time":"2026-03-05T20:41:16-08:00","message":"Adding PV.Key: useast,premium_ssd, Cost: 0.085616"}
+=== RUN   TestConvertMeterToPricings/virtual_machines
+--- PASS: TestConvertMeterToPricings (0.00s)
+    --- PASS: TestConvertMeterToPricings/windows (0.00s)
+    --- PASS: TestConvertMeterToPricings/storage (0.00s)
+    --- PASS: TestConvertMeterToPricings/virtual_machines (0.00s)
+=== RUN   TestAzure_findCostForDisk
+=== RUN   TestAzure_findCostForDisk/disk_is_nil
+=== RUN   TestAzure_findCostForDisk/nil_location
+=== RUN   TestAzure_findCostForDisk/nil_disk_properties
+=== RUN   TestAzure_findCostForDisk/nil_disk_size
+=== RUN   TestAzure_findCostForDisk/sku_does_not_exist
+=== RUN   TestAzure_findCostForDisk/pricing_is_nil
+=== RUN   TestAzure_findCostForDisk/pricing.PV_is_nil
+=== RUN   TestAzure_findCostForDisk/valid_(ssd)
+=== RUN   TestAzure_findCostForDisk/nil_sku
+--- PASS: TestAzure_findCostForDisk (0.00s)
+    --- PASS: TestAzure_findCostForDisk/disk_is_nil (0.00s)
+    --- PASS: TestAzure_findCostForDisk/nil_location (0.00s)
+    --- PASS: TestAzure_findCostForDisk/nil_disk_properties (0.00s)
+    --- PASS: TestAzure_findCostForDisk/nil_disk_size (0.00s)
+    --- PASS: TestAzure_findCostForDisk/sku_does_not_exist (0.00s)
+    --- PASS: TestAzure_findCostForDisk/pricing_is_nil (0.00s)
+    --- PASS: TestAzure_findCostForDisk/pricing.PV_is_nil (0.00s)
+    --- PASS: TestAzure_findCostForDisk/valid_(ssd) (0.00s)
+    --- PASS: TestAzure_findCostForDisk/nil_sku (0.00s)
+=== RUN   Test_buildAzureRetailPricesURL
+=== RUN   Test_buildAzureRetailPricesURL/all_parameters_provided
+=== RUN   Test_buildAzureRetailPricesURL/no_currency_code
+=== RUN   Test_buildAzureRetailPricesURL/no_region
+=== RUN   Test_buildAzureRetailPricesURL/no_sku_name
+=== RUN   Test_buildAzureRetailPricesURL/only_currency_code
+=== RUN   Test_buildAzureRetailPricesURL/no_parameters
+=== RUN   Test_buildAzureRetailPricesURL/region_with_special_characters
+=== RUN   Test_buildAzureRetailPricesURL/sku_name_with_underscores
+--- PASS: Test_buildAzureRetailPricesURL (0.00s)
+    --- PASS: Test_buildAzureRetailPricesURL/all_parameters_provided (0.00s)
+    --- PASS: Test_buildAzureRetailPricesURL/no_currency_code (0.00s)
+    --- PASS: Test_buildAzureRetailPricesURL/no_region (0.00s)
+    --- PASS: Test_buildAzureRetailPricesURL/no_sku_name (0.00s)
+    --- PASS: Test_buildAzureRetailPricesURL/only_currency_code (0.00s)
+    --- PASS: Test_buildAzureRetailPricesURL/no_parameters (0.00s)
+    --- PASS: Test_buildAzureRetailPricesURL/region_with_special_characters (0.00s)
+    --- PASS: Test_buildAzureRetailPricesURL/sku_name_with_underscores (0.00s)
+=== RUN   Test_extractAzureVMRetailAndSpotPrices
+=== RUN   Test_extractAzureVMRetailAndSpotPrices/valid_response_with_retail_and_spot_prices
+=== RUN   Test_extractAzureVMRetailAndSpotPrices/only_retail_price_available
+=== RUN   Test_extractAzureVMRetailAndSpotPrices/only_spot_price_available
+=== RUN   Test_extractAzureVMRetailAndSpotPrices/filters_out_Windows_instances
+=== RUN   Test_extractAzureVMRetailAndSpotPrices/filters_out_low_priority_instances
+=== RUN   Test_extractAzureVMRetailAndSpotPrices/empty_items_array
+=== RUN   Test_extractAzureVMRetailAndSpotPrices/invalid_JSON
+--- PASS: Test_extractAzureVMRetailAndSpotPrices (0.00s)
+    --- PASS: Test_extractAzureVMRetailAndSpotPrices/valid_response_with_retail_and_spot_prices (0.00s)
+    --- PASS: Test_extractAzureVMRetailAndSpotPrices/only_retail_price_available (0.00s)
+    --- PASS: Test_extractAzureVMRetailAndSpotPrices/only_spot_price_available (0.00s)
+    --- PASS: Test_extractAzureVMRetailAndSpotPrices/filters_out_Windows_instances (0.00s)
+    --- PASS: Test_extractAzureVMRetailAndSpotPrices/filters_out_low_priority_instances (0.00s)
+    --- PASS: Test_extractAzureVMRetailAndSpotPrices/empty_items_array (0.00s)
+    --- PASS: Test_extractAzureVMRetailAndSpotPrices/invalid_JSON (0.00s)
+=== RUN   TestGetPVKey
+=== RUN   TestGetPVKey/legacy_AzureDisk_in-tree
+=== RUN   TestGetPVKey/Azure_Disk_CSI
+=== RUN   TestGetPVKey/no_volume_source
+--- PASS: TestGetPVKey (0.00s)
+    --- PASS: TestGetPVKey/legacy_AzureDisk_in-tree (0.00s)
+    --- PASS: TestGetPVKey/Azure_Disk_CSI (0.00s)
+    --- PASS: TestGetPVKey/no_volume_source (0.00s)
+=== RUN   TestAzureStorageBillingParser_getMonthStrings
+=== RUN   TestAzureStorageBillingParser_getMonthStrings/Single_Month
+=== RUN   TestAzureStorageBillingParser_getMonthStrings/Two_Month
+--- PASS: TestAzureStorageBillingParser_getMonthStrings (0.00s)
+    --- PASS: TestAzureStorageBillingParser_getMonthStrings/Single_Month (0.00s)
+    --- PASS: TestAzureStorageBillingParser_getMonthStrings/Two_Month (0.00s)
+=== RUN   TestAzureStorageBillingParser_parseCSV
+=== RUN   TestAzureStorageBillingParser_parseCSV/Virtual_Machine
+=== RUN   TestAzureStorageBillingParser_parseCSV/Missing_Brackets
+--- PASS: TestAzureStorageBillingParser_parseCSV (0.00s)
+    --- PASS: TestAzureStorageBillingParser_parseCSV/Virtual_Machine (0.00s)
+    --- PASS: TestAzureStorageBillingParser_parseCSV/Missing_Brackets (0.00s)
+=== RUN   TestAzureStorageBillingParser_processLocalBillingFile
+=== RUN   TestAzureStorageBillingParser_processLocalBillingFile/Gzipped_file
+=== RUN   TestAzureStorageBillingParser_processLocalBillingFile/Non-gzipped_file
+--- PASS: TestAzureStorageBillingParser_processLocalBillingFile (0.01s)
+    --- PASS: TestAzureStorageBillingParser_processLocalBillingFile/Gzipped_file (0.00s)
+    --- PASS: TestAzureStorageBillingParser_processLocalBillingFile/Non-gzipped_file (0.00s)
+=== RUN   TestAzureStorageBillingParser_processStreamBillingData
+=== RUN   TestAzureStorageBillingParser_processStreamBillingData/Gzipped_stream
+=== RUN   TestAzureStorageBillingParser_processStreamBillingData/Non-gzipped_stream
+--- PASS: TestAzureStorageBillingParser_processStreamBillingData (0.00s)
+    --- PASS: TestAzureStorageBillingParser_processStreamBillingData/Gzipped_stream (0.00s)
+    --- PASS: TestAzureStorageBillingParser_processStreamBillingData/Non-gzipped_stream (0.00s)
+=== RUN   TestDecompressIfGzipped
+=== RUN   TestDecompressIfGzipped/Gzipped_file_with_.GZ_extension_(case_insensitive)
+=== RUN   TestDecompressIfGzipped/Non-gzipped_CSV_file
+=== RUN   TestDecompressIfGzipped/Non-gzipped_file_without_extension
+=== RUN   TestDecompressIfGzipped/Gzipped_file_with_.gz_extension
+--- PASS: TestDecompressIfGzipped (0.00s)
+    --- PASS: TestDecompressIfGzipped/Gzipped_file_with_.GZ_extension_(case_insensitive) (0.00s)
+    --- PASS: TestDecompressIfGzipped/Non-gzipped_CSV_file (0.00s)
+    --- PASS: TestDecompressIfGzipped/Non-gzipped_file_without_extension (0.00s)
+    --- PASS: TestDecompressIfGzipped/Gzipped_file_with_.gz_extension (0.00s)
+=== RUN   TestDecompressIfGzipped_InvalidGzip
+--- PASS: TestDecompressIfGzipped_InvalidGzip (0.00s)
+=== RUN   TestDecompressIfGzipped_EmptyGzipFile
+--- PASS: TestDecompressIfGzipped_EmptyGzipFile (0.00s)
+=== RUN   TestDecompressIfGzipped_MultipleFiles
+=== RUN   TestDecompressIfGzipped_MultipleFiles/file1.csv.gz
+=== RUN   TestDecompressIfGzipped_MultipleFiles/file2.csv
+=== RUN   TestDecompressIfGzipped_MultipleFiles/file3.csv.GZ
+--- PASS: TestDecompressIfGzipped_MultipleFiles (0.00s)
+    --- PASS: TestDecompressIfGzipped_MultipleFiles/file1.csv.gz (0.00s)
+    --- PASS: TestDecompressIfGzipped_MultipleFiles/file2.csv (0.00s)
+    --- PASS: TestDecompressIfGzipped_MultipleFiles/file3.csv.GZ (0.00s)
+=== RUN   TestDecompressIfGzipped_CaseInsensitiveExtension
+=== RUN   TestDecompressIfGzipped_CaseInsensitiveExtension/file.gz
+=== RUN   TestDecompressIfGzipped_CaseInsensitiveExtension/file.GZ
+=== RUN   TestDecompressIfGzipped_CaseInsensitiveExtension/file.Gz
+=== RUN   TestDecompressIfGzipped_CaseInsensitiveExtension/file.gZ
+--- PASS: TestDecompressIfGzipped_CaseInsensitiveExtension (0.00s)
+    --- PASS: TestDecompressIfGzipped_CaseInsensitiveExtension/file.gz (0.00s)
+    --- PASS: TestDecompressIfGzipped_CaseInsensitiveExtension/file.GZ (0.00s)
+    --- PASS: TestDecompressIfGzipped_CaseInsensitiveExtension/file.Gz (0.00s)
+    --- PASS: TestDecompressIfGzipped_CaseInsensitiveExtension/file.gZ (0.00s)
+=== RUN   TestDecompressIfGzipped_LargeFile
+    storagebillingparser_test.go:549: Successfully processed large gzipped file with 28020 bytes
+--- PASS: TestDecompressIfGzipped_LargeFile (0.00s)
+=== RUN   TestStorageConfiguration_Validate
+=== RUN   TestStorageConfiguration_Validate/access_key_invalid
+=== RUN   TestStorageConfiguration_Validate/missing_subscriptionID
+=== RUN   TestStorageConfiguration_Validate/missing_account
+=== RUN   TestStorageConfiguration_Validate/missing_cloud
+=== RUN   TestStorageConfiguration_Validate/valid_config_StorageConnectionStringCredential
+=== RUN   TestStorageConfiguration_Validate/valid_config_Azure_SharedKeyCredential
+=== RUN   TestStorageConfiguration_Validate/missing_authorizer
+=== RUN   TestStorageConfiguration_Validate/missing_container
+=== RUN   TestStorageConfiguration_Validate/missing_path
+=== RUN   TestStorageConfiguration_Validate/missing_storage_connection_string
+--- PASS: TestStorageConfiguration_Validate (0.00s)
+    --- PASS: TestStorageConfiguration_Validate/access_key_invalid (0.00s)
+    --- PASS: TestStorageConfiguration_Validate/missing_subscriptionID (0.00s)
+    --- PASS: TestStorageConfiguration_Validate/missing_account (0.00s)
+    --- PASS: TestStorageConfiguration_Validate/missing_cloud (0.00s)
+    --- PASS: TestStorageConfiguration_Validate/valid_config_StorageConnectionStringCredential (0.00s)
+    --- PASS: TestStorageConfiguration_Validate/valid_config_Azure_SharedKeyCredential (0.00s)
+    --- PASS: TestStorageConfiguration_Validate/missing_authorizer (0.00s)
+    --- PASS: TestStorageConfiguration_Validate/missing_container (0.00s)
+    --- PASS: TestStorageConfiguration_Validate/missing_path (0.00s)
+    --- PASS: TestStorageConfiguration_Validate/missing_storage_connection_string (0.00s)
+=== RUN   TestStorageConfiguration_Equals
+=== RUN   TestStorageConfiguration_Equals/missing_both_authorizer
+=== RUN   TestStorageConfiguration_Equals/different_subscriptionID
+=== RUN   TestStorageConfiguration_Equals/different_cloud
+=== RUN   TestStorageConfiguration_Equals/different_config
+=== RUN   TestStorageConfiguration_Equals/different_HTTPConfig_in_StorageConnectionStringCredential
+=== RUN   TestStorageConfiguration_Equals/different_container
+=== RUN   TestStorageConfiguration_Equals/different_path
+=== RUN   TestStorageConfiguration_Equals/matching_config
+=== RUN   TestStorageConfiguration_Equals/missing_left_authorizer
+=== RUN   TestStorageConfiguration_Equals/differing_storage_authorizer
+=== RUN   TestStorageConfiguration_Equals/different_account
+=== RUN   TestStorageConfiguration_Equals/matching_config_StorageConnectionStringCredential
+=== RUN   TestStorageConfiguration_Equals/matching_config_AuthorizerHolder
+=== RUN   TestStorageConfiguration_Equals/missing_right_authorizer
+=== RUN   TestStorageConfiguration_Equals/different_StorageConnectionString_in_StorageConnectionStringCredential
+--- PASS: TestStorageConfiguration_Equals (0.00s)
+    --- PASS: TestStorageConfiguration_Equals/missing_both_authorizer (0.00s)
+    --- PASS: TestStorageConfiguration_Equals/different_subscriptionID (0.00s)
+    --- PASS: TestStorageConfiguration_Equals/different_cloud (0.00s)
+    --- PASS: TestStorageConfiguration_Equals/different_config (0.00s)
+    --- PASS: TestStorageConfiguration_Equals/different_HTTPConfig_in_StorageConnectionStringCredential (0.00s)
+    --- PASS: TestStorageConfiguration_Equals/different_container (0.00s)
+    --- PASS: TestStorageConfiguration_Equals/different_path (0.00s)
+    --- PASS: TestStorageConfiguration_Equals/matching_config (0.00s)
+    --- PASS: TestStorageConfiguration_Equals/missing_left_authorizer (0.00s)
+    --- PASS: TestStorageConfiguration_Equals/differing_storage_authorizer (0.00s)
+    --- PASS: TestStorageConfiguration_Equals/different_account (0.00s)
+    --- PASS: TestStorageConfiguration_Equals/matching_config_StorageConnectionStringCredential (0.00s)
+    --- PASS: TestStorageConfiguration_Equals/matching_config_AuthorizerHolder (0.00s)
+    --- PASS: TestStorageConfiguration_Equals/missing_right_authorizer (0.00s)
+    --- PASS: TestStorageConfiguration_Equals/different_StorageConnectionString_in_StorageConnectionStringCredential (0.00s)
+=== RUN   TestStorageConfiguration_JSON
+=== RUN   TestStorageConfiguration_JSON/Default_AuthorizerHolder_Authorizer
+{"level":"info","time":"2026-03-05T20:41:16-08:00","message":"{\"account\":\"account\",\"authorizer\":{\"authorizerType\":\"AzureDefaultCredential\"},\"cloud\":\"cloud\",\"container\":\"container\",\"path\":\"path\",\"subscriptionID\":\"subscriptionID\"}"}
+=== RUN   TestStorageConfiguration_JSON/ClientSecretCredential_Authorizer
+{"level":"info","time":"2026-03-05T20:41:16-08:00","message":"{\"account\":\"account\",\"authorizer\":{\"authorizerType\":\"AzureClientSecretCredential\",\"clientID\":\"clientID\",\"clientSecret\":\"clientSecret\",\"tenantID\":\"tenantID\"},\"cloud\":\"cloud\",\"container\":\"container\",\"path\":\"path\",\"subscriptionID\":\"subscriptionID\"}"}
+=== RUN   TestStorageConfiguration_JSON/StorageConnectionStringCredential_Authorizer
+{"level":"info","time":"2026-03-05T20:41:16-08:00","message":"{\"account\":\"account\",\"authorizer\":{\"authorizerType\":\"AzureStorageConnectionString\",\"httpConfig\":{\"insecureSkipVerify\":true},\"storageConnectionString\":\"storageConnectionString\"},\"cloud\":\"cloud\",\"container\":\"container\",\"path\":\"path\",\"subscriptionID\":\"subscriptionID\"}"}
+=== RUN   TestStorageConfiguration_JSON/Nil_Authorizer
+{"level":"info","time":"2026-03-05T20:41:16-08:00","message":"{\"account\":\"account\",\"authorizer\":null,\"cloud\":\"cloud\",\"container\":\"container\",\"path\":\"path\",\"subscriptionID\":\"subscriptionID\"}"}
+=== RUN   TestStorageConfiguration_JSON/SharedKeyCredential_Authorizer
+{"level":"info","time":"2026-03-05T20:41:16-08:00","message":"{\"account\":\"account\",\"authorizer\":{\"accessKey\":\"accessKey\",\"account\":\"account\",\"authorizerType\":\"AzureAccessKey\"},\"cloud\":\"cloud\",\"container\":\"container\",\"path\":\"path\",\"subscriptionID\":\"subscriptionID\"}"}
+--- PASS: TestStorageConfiguration_JSON (0.00s)
+    --- PASS: TestStorageConfiguration_JSON/Default_AuthorizerHolder_Authorizer (0.00s)
+    --- PASS: TestStorageConfiguration_JSON/ClientSecretCredential_Authorizer (0.00s)
+    --- PASS: TestStorageConfiguration_JSON/StorageConnectionStringCredential_Authorizer (0.00s)
+    --- PASS: TestStorageConfiguration_JSON/Nil_Authorizer (0.00s)
+    --- PASS: TestStorageConfiguration_JSON/SharedKeyCredential_Authorizer (0.00s)
+=== RUN   TestStorageConfiguration_Sanitize
+=== RUN   TestStorageConfiguration_Sanitize/Sanitize_StorageConnectionStringCredential
+=== RUN   TestStorageConfiguration_Sanitize/Sanitize_SharedKeyCredential
+--- PASS: TestStorageConfiguration_Sanitize (0.00s)
+    --- PASS: TestStorageConfiguration_Sanitize/Sanitize_StorageConnectionStringCredential (0.00s)
+    --- PASS: TestStorageConfiguration_Sanitize/Sanitize_SharedKeyCredential (0.00s)
+PASS
+ok  	github.com/opencost/opencost/pkg/cloud/azure	0.611s
