@@ -448,6 +448,10 @@ func (c *collectorMetricsQuerier) QueryPVInfo(start, end time.Time) *source.Futu
 	return queryCollector(c, start, end, metric.PVInfoID, source.DecodePVInfoResult)
 }
 
+func (c *collectorMetricsQuerier) QueryPVUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.PVUptimeID, source.DecodeUptimeResult)
+}
+
 func (c *collectorMetricsQuerier) QueryNamespaceInfo(start, end time.Time) *source.Future[source.NamespaceInfoResult] {
 	return queryCollector(c, start, end, metric.NamespaceInfoID, source.DecodeNamespaceInfoResult)
 }

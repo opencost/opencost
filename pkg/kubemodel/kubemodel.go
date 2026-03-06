@@ -123,6 +123,12 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 		kms.Error(err)
 	}
 
+	// 2.14 Compute PersistentVolumes
+	err = km.computePersistentVolumes(kms, start, end)
+	if err != nil {
+		kms.Error(err)
+	}
+
 	// 3. Mark KubeModelSet as completed
 	kms.Metadata.CompletedAt = time.Now().UTC()
 
@@ -1325,6 +1331,59 @@ func (km *KubeModel) computeServices(kms *kubemodel.KubeModelSet, start, end tim
 		err := kms.RegisterService(service)
 		if err != nil {
 			log.Warnf("Failed to register service: %s", err.Error())
+		}
+	}
+
+	return nil
+}
+
+func (km *KubeModel) computePersistentVolumes(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+	grp := source.NewQueryGroup()
+	metrics := km.ds.Metrics()
+
+	pvInfoResultFuture := source.WithGroup(grp, metrics.QueryPVInfo(start, end))
+	pvUptimeResultFuture := source.WithGroup(grp, metrics.QueryPVUptime(start, end))
+	pvBytesResultFuture := source.WithGroup(grp, metrics.QueryPVBytes(start, end))
+
+	pvMap := make(map[string]*kubemodel.PersistentVolume)
+
+	pvInfoResult, _ := pvInfoResultFuture.Await()
+	for _, res := range pvInfoResult {
+		pvMap[res.UID] = &kubemodel.PersistentVolume{
+			UID:          res.UID,
+			Name:         res.PersistentVolume,
+			StorageClass: res.StorageClass,
+		}
+	}
+
+	pvUptimeResult, _ := pvUptimeResultFuture.Await()
+	for _, res := range pvUptimeResult {
+		pv, ok := pvMap[res.UID]
+		if !ok {
+			log.Warnf("persistent volume with UID '%s' has not been initialized to add uptime", res.UID)
+			continue
+		}
+		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
+		pv.Start = s
+		pv.End = e
+	}
+
+	pvBytesResult, _ := pvBytesResultFuture.Await()
+	for _, res := range pvBytesResult {
+		pv, ok := pvMap[res.UID]
+		if !ok {
+			log.Warnf("persistent volume with UID '%s' has not been initialized to add bytes", res.UID)
+			continue
+		}
+		if len(res.Data) > 0 {
+			pv.SizeBytes = kubemodel.Measurement(res.Data[0].Value)
+		}
+	}
+
+	for _, pv := range pvMap {
+		err := kms.RegisterPersistentVolume(pv)
+		if err != nil {
+			log.Warnf("Failed to register persistent volume: %s", err.Error())
 		}
 	}
 

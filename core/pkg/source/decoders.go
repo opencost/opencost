@@ -25,6 +25,7 @@ const (
 	DeviceLabel          = "device"
 	PVCLabel             = "persistentvolumeclaim"
 	PVLabel              = "persistentvolume"
+	CSIVolumeHandleLabel = "csi_volume_handle"
 	StorageClassLabel    = "storageclass"
 	VolumeNameLabel      = "volumename"
 	ServiceLabel         = "service"
@@ -1189,8 +1190,6 @@ type PVInfoResult struct {
 	PersistentVolume string
 	StorageClass     string
 	ProviderID       string
-
-	Data []*util.Vector
 }
 
 func DecodePVInfoResult(result *QueryResult) *PVInfoResult {
@@ -1206,7 +1205,6 @@ func DecodePVInfoResult(result *QueryResult) *PVInfoResult {
 		PersistentVolume: pv,
 		StorageClass:     storageClass,
 		ProviderID:       providerId,
-		Data:             result.Values,
 	}
 }
 

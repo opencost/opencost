@@ -20,13 +20,13 @@ type KubeModelSet struct {
 	Jobs                   map[string]*Job                   `json:"jobs,omitempty"`         // @bingen:field[version=2]
 	CronJobs               map[string]*CronJob               `json:"cronJobs,omitempty"`     // @bingen:field[version=2]
 	ReplicaSets            map[string]*ReplicaSet            `json:"replicaSets,omitempty"`  // @bingen:field[version=2]
-	Devices                map[string]*Device                `json:"devices,omitempty"`      // @bingen:field[version=2]
-	DeviceUsages           map[string]*DeviceUsage           `json:"deviceUsages,omitempty"` // @bingen:field[version=2]
+	Devices                map[string]*Device                `json:"devices,omitempty"`      // @bingen:field[ignore]
+	DeviceUsages           map[string]*DeviceUsage           `json:"deviceUsages,omitempty"` // @bingen:field[ignore]
 	Nodes                  map[string]*Node                  `json:"nodes,omitempty"`        // @bingen:field[version=2]
 	Pods                   map[string]*Pod                   `json:"pods,omitempty"`         // @bingen:field[version=2]
 	PersistentVolumeClaims map[string]*PersistentVolumeClaim `json:"pvcs,omitempty"`         // @bingen:field[version=2]
 	Services               map[string]*Service               `json:"services,omitempty"`     // @bingen:field[version=2]
-	Volumes                map[string]*PersistentVolume      `json:"volumes,omitempty"`      // @bingen:field[version=2]
+	PersistentVolumes      map[string]*PersistentVolume      `json:"volumes,omitempty"`      // @bingen:field[version=2]
 	idx                    *kubeModelSetIndexes              // @bingen:field[ignore]
 }
 
@@ -57,7 +57,7 @@ func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
 		PersistentVolumeClaims: map[string]*PersistentVolumeClaim{},
 		ResourceQuotas:         map[string]*ResourceQuota{},
 		Services:               map[string]*Service{},
-		Volumes:                map[string]*PersistentVolume{},
+		PersistentVolumes:      map[string]*PersistentVolume{},
 		idx:                    newKubeModelSetIndexes(),
 	}
 	return kms
@@ -100,7 +100,7 @@ func (kms *KubeModelSet) IsEmpty() bool {
 		len(kms.PersistentVolumeClaims) == 0 &&
 		len(kms.ResourceQuotas) == 0 &&
 		len(kms.Services) == 0 &&
-		len(kms.Volumes) == 0
+		len(kms.PersistentVolumes) == 0
 }
 
 type kubeModelSetIndexes struct {

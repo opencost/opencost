@@ -520,15 +520,18 @@ func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume) 
 	var scrapeResults []metric.Update
 	for _, pv := range pvs {
 		providerID := pv.Name
+		var csiVolumeHandle string
 		// if a more accurate provider ID is available, use that
 		if pv.Spec.CSI != nil && pv.Spec.CSI.VolumeHandle != "" {
 			providerID = pv.Spec.CSI.VolumeHandle
+			csiVolumeHandle = pv.Spec.CSI.VolumeHandle
 		}
 		pvInfo := map[string]string{
-			source.UIDLabel:          string(pv.UID),
-			source.PVLabel:           pv.Name,
-			source.StorageClassLabel: pv.Spec.StorageClassName,
-			source.ProviderIDLabel:   providerID,
+			source.UIDLabel:             string(pv.UID),
+			source.PVLabel:              pv.Name,
+			source.StorageClassLabel:    pv.Spec.StorageClassName,
+			source.ProviderIDLabel:      providerID,
+			source.CSIVolumeHandleLabel: csiVolumeHandle,
 		}
 
 		scrapeResults = append(scrapeResults, metric.Update{

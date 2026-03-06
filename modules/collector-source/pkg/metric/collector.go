@@ -20,6 +20,7 @@ const (
 	PVUsedMaxID                                MetricCollectorID = "PVUsedMax"
 	PVCInfoID                                  MetricCollectorID = "PVCInfo"
 	PVActiveMinutesID                          MetricCollectorID = "PVActiveMinutes"
+	PVUptimeID                                 MetricCollectorID = "PVUptime"
 	LocalStorageUsedActiveMinutesID            MetricCollectorID = "LocalStorageUsedCost"
 	LocalStorageUsedAverageID                  MetricCollectorID = "LocalStorageUsedAverage"
 	LocalStorageUsedMaxID                      MetricCollectorID = "LocalStorageUsedMax"

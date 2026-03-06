@@ -90,6 +90,7 @@ type MetricsQuerier interface {
 	QueryPVBytes(start, end time.Time) *Future[PVBytesResult]
 	QueryPVPricePerGiBHour(start, end time.Time) *Future[PVPricePerGiBHourResult]
 	QueryPVInfo(start, end time.Time) *Future[PVInfoResult]
+	QueryPVUptime(start, end time.Time) *Future[UptimeResult]
 
 	// Deployment
 	QueryDeploymentInfo(start, end time.Time) *Future[DeploymentInfoResult]

@@ -16,7 +16,10 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewPVUsedAverageMetricCollector())
 	memStore.Register(NewPVUsedMaxMetricCollector())
 	memStore.Register(NewPVCInfoMetricCollector())
+	memStore.Register(NewPVInfoMetricCollector())
+	memStore.Register(NewPVUptimeMetricCollector())
 	memStore.Register(NewPVActiveMinutesMetricCollector())
+	memStore.Register(NewPVBytesMetricCollector())
 	memStore.Register(NewLocalStorageUsedActiveMinutesMetricCollector())
 	memStore.Register(NewLocalStorageUsedAverageMetricCollector())
 	memStore.Register(NewLocalStorageUsedMaxMetricCollector())
@@ -63,8 +66,6 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewNodeIsSpotMetricCollector())
 	memStore.Register(NewPodPVCAllocationMetricCollector())
 	memStore.Register(NewPVCBytesRequestedMetricCollector())
-	memStore.Register(NewPVBytesMetricCollector())
-	memStore.Register(NewPVInfoMetricCollector())
 	memStore.Register(NewNetZoneGiBMetricCollector())
 	memStore.Register(NewNetZonePricePerGiBMetricCollector())
 	memStore.Register(NewNetRegionGiBMetricCollector())
@@ -239,6 +240,18 @@ func NewPVCInfoMetricCollector() *metric.MetricCollector {
 	)
 }
 
+func NewPVUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.PVUptimeID,
+		metric.KubecostPVInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
 //	avg(
 //		kube_persistentvolume_capacity_bytes{
 //			<some_custom_filter>
@@ -250,8 +263,8 @@ func NewPVActiveMinutesMetricCollector() *metric.MetricCollector {
 		metric.PVActiveMinutesID,
 		metric.KubePersistentVolumeCapacityBytes,
 		[]string{
-			source.PVLabel,
 			source.UIDLabel,
+			source.PVLabel,
 		},
 		aggregator.Uptime,
 		nil,

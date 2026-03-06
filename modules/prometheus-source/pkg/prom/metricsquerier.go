@@ -1075,6 +1075,10 @@ func (pds *PrometheusMetricsQuerier) QueryPVInfo(start, end time.Time) *source.F
 	return source.NewFuture(source.DecodePVInfoResult, ctx.QueryAtTime(queryPVMeta, end))
 }
 
+func (pds *PrometheusMetricsQuerier) QueryPVUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return nil
+}
+
 func (pds *PrometheusMetricsQuerier) QueryNetZoneGiB(start, end time.Time) *source.Future[source.NetZoneGiBResult] {
 	const queryName = "QueryNetZoneGiB"
 	const queryFmtNetZoneGiB = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", same_zone="false", same_region="true", %s}[%s:%dm])) by (pod_name, namespace, uid, %s) / 1024 / 1024 / 1024`
