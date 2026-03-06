@@ -178,7 +178,7 @@ func ParseProperty(text string) (AllocationProperty, error) {
 
 // AllocationProperties describes a set of Kubernetes objects.
 type AllocationProperties struct {
-	Account              string                `json:"account,omitempty"`
+	Account              string                `json:"account,omitempty"`              // @bingen:field[version=18]
 	Cluster              string                `json:"cluster,omitempty"`
 	Node                 string                `json:"node,omitempty"`
 	Container            string                `json:"container,omitempty"`
