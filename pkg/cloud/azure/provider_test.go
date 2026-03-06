@@ -553,3 +553,39 @@ func Test_extractAzureVMRetailAndSpotPrices(t *testing.T) {
 		})
 	}
 }
+
+func TestAzurePvKeyFeatures_CSIDiskLowercaseSkuname(t *testing.T) {
+	// Azure Disk CSI driver writes "skuname" (all lowercase)
+	key := azurePvKey{
+		StorageClassParameters: map[string]string{
+			"skuname": "Premium_LRS",
+		},
+		Region: "eastus2",
+	}
+	features := key.Features()
+	assert.Contains(t, features, "Premium")
+}
+
+func TestAzurePvKeyFeatures_CamelCaseSkuName(t *testing.T) {
+	// Azure Files CSI driver writes "skuName" (camelCase)
+	key := azurePvKey{
+		StorageClassParameters: map[string]string{
+			"skuName": "Premium_LRS",
+		},
+		Region: "eastus2",
+	}
+	features := key.Features()
+	assert.Contains(t, features, "Premium")
+}
+
+func TestAzurePvKeyFeatures_LegacyStorageAccountType(t *testing.T) {
+	// Legacy in-tree provisioner writes "storageaccounttype"
+	key := azurePvKey{
+		StorageClassParameters: map[string]string{
+			"storageaccounttype": "Premium_LRS",
+		},
+		Region: "eastus2",
+	}
+	features := key.Features()
+	assert.Contains(t, features, "Premium")
+}

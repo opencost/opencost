@@ -1345,6 +1345,9 @@ func (key *azurePvKey) GetStorageClass() string {
 func (key *azurePvKey) Features() string {
 	storageClass := key.StorageClassParameters["storageaccounttype"]
 	storageSKU := key.StorageClassParameters["skuName"]
+	if storageSKU == "" {
+		storageSKU = key.StorageClassParameters["skuname"]
+	}
 	if storageClass != "" {
 		if strings.EqualFold(storageClass, "Premium_LRS") {
 			storageClass = AzureDiskPremiumSSDStorageClass
