@@ -73,9 +73,7 @@ func allocationFieldMap(a *Allocation, identifier ast.Identifier) (string, error
 	case afilter.FieldProvider:
 		return a.Properties.ProviderID, nil
 	case afilter.FieldAccount:
-		// TODO: Account field needs to be populated from cluster configuration or other source
-		// For now, return empty string to allow filter compilation
-		return "", nil
+		return a.Properties.Account, nil
 	case afilter.FieldLabel:
 		return a.Properties.Labels[identifier.Key], nil
 	case afilter.FieldAnnotation:

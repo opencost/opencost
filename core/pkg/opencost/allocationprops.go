@@ -74,6 +74,7 @@ func (apt *AllocationProperty) GetAliasedLabelDefault() string {
 
 const (
 	AllocationNilProp            AllocationProperty = ""
+	AllocationAccountProp                           = "account"
 	AllocationClusterProp                           = "cluster"
 	AllocationNodeProp                              = "node"
 	AllocationContainerProp                         = "container"
@@ -118,6 +119,8 @@ func ParseProperties(props []string) ([]AllocationProperty, error) {
 
 func ParseProperty(text string) (AllocationProperty, error) {
 	switch strings.TrimSpace(strings.ToLower(text)) {
+	case "account":
+		return AllocationAccountProp, nil
 	case "cluster":
 		return AllocationClusterProp, nil
 	case "node":
@@ -175,6 +178,7 @@ func ParseProperty(text string) (AllocationProperty, error) {
 
 // AllocationProperties describes a set of Kubernetes objects.
 type AllocationProperties struct {
+	Account              string                `json:"account,omitempty"`
 	Cluster              string                `json:"cluster,omitempty"`
 	Node                 string                `json:"node,omitempty"`
 	Container            string                `json:"container,omitempty"`
@@ -207,6 +211,7 @@ func (p *AllocationProperties) Clone() *AllocationProperties {
 	}
 
 	clone := &AllocationProperties{}
+	clone.Account = p.Account
 	clone.Cluster = p.Cluster
 	clone.Node = p.Node
 	clone.Container = p.Container
@@ -250,6 +255,10 @@ func (p *AllocationProperties) Clone() *AllocationProperties {
 
 func (p *AllocationProperties) Equal(that *AllocationProperties) bool {
 	if p == nil || that == nil {
+		return false
+	}
+
+	if p.Account != that.Account {
 		return false
 	}
 
