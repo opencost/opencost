@@ -1318,6 +1318,7 @@ type azurePvKey struct {
 	StorageClassParameters map[string]string
 	DefaultRegion          string
 	ProviderId             string
+	IsDiskCSI              bool
 }
 
 func (az *Azure) GetPVKey(pv *clustercache.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
@@ -1325,12 +1326,19 @@ func (az *Azure) GetPVKey(pv *clustercache.PersistentVolume, parameters map[stri
 	if pv.Spec.AzureDisk != nil {
 		providerID = pv.Spec.AzureDisk.DiskName
 	}
+
+	isDiskCSI := false
+	if pv.Spec.CSI != nil && pv.Spec.CSI.Driver == "disk.csi.azure.com" {
+		isDiskCSI = true
+	}
+
 	return &azurePvKey{
 		Labels:                 pv.Labels,
 		StorageClass:           pv.Spec.StorageClassName,
 		StorageClassParameters: parameters,
 		DefaultRegion:          defaultRegion,
 		ProviderId:             providerID,
+		IsDiskCSI:              isDiskCSI,
 	}
 }
 
@@ -1345,9 +1353,16 @@ func (key *azurePvKey) GetStorageClass() string {
 func (key *azurePvKey) Features() string {
 	storageClass := key.StorageClassParameters["storageaccounttype"]
 	storageSKU := key.StorageClassParameters["skuName"]
+	isAzureDiskCSI := key.IsDiskCSI
+
 	if storageSKU == "" {
 		storageSKU = key.StorageClassParameters["skuname"]
+		// skuname is used by Azure Disk CSI driver
+		if storageSKU != "" {
+			isAzureDiskCSI = true
+		}
 	}
+
 	if storageClass != "" {
 		if strings.EqualFold(storageClass, "Premium_LRS") {
 			storageClass = AzureDiskPremiumSSDStorageClass
@@ -1357,10 +1372,22 @@ func (key *azurePvKey) Features() string {
 			storageClass = AzureDiskStandardStorageClass
 		}
 	} else {
-		if strings.EqualFold(storageSKU, "Premium_LRS") {
-			storageClass = AzureFilePremiumStorageClass
-		} else if strings.EqualFold(storageSKU, "Standard_LRS") {
-			storageClass = AzureFileStandardStorageClass
+		if isAzureDiskCSI {
+			// For Azure Disk CSI, skuname represents managed disk SKU
+			if strings.EqualFold(storageSKU, "Premium_LRS") {
+				storageClass = AzureDiskPremiumSSDStorageClass
+			} else if strings.EqualFold(storageSKU, "StandardSSD_LRS") {
+				storageClass = AzureDiskStandardSSDStorageClass
+			} else if strings.EqualFold(storageSKU, "Standard_LRS") {
+				storageClass = AzureDiskStandardStorageClass
+			}
+		} else {
+			// For Azure Files, skuName represents file share SKU
+			if strings.EqualFold(storageSKU, "Premium_LRS") {
+				storageClass = AzureFilePremiumStorageClass
+			} else if strings.EqualFold(storageSKU, "Standard_LRS") {
+				storageClass = AzureFileStandardStorageClass
+			}
 		}
 	}
 	if region, ok := util.GetRegion(key.Labels); ok {
