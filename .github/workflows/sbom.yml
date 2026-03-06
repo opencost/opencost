@@ -167,7 +167,7 @@ jobs:
       # Attach SBOMs to GitHub release (only for releases, not PRs)
       - name: Attach SBOMs to GitHub Release
         if: github.event_name != 'pull_request'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version_number.outputs.RELEASE_VERSION }}
           files: |
