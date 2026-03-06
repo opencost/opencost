@@ -167,6 +167,51 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 			expected: true,
 		},
 		{
+			name: "Account Equals (empty) -> true",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Cluster: "cluster-one",
+				},
+			},
+			// Account field currently returns empty string as it's not yet populated
+			// from cluster configuration or other source
+			filter:   ops.Eq(afilter.FieldAccount, ""),
+			expected: true,
+		},
+		{
+			name: "Account Equals (non-empty) -> false",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Cluster: "cluster-one",
+				},
+			},
+			// Account field currently returns empty string, so any non-empty value won't match
+			filter:   ops.Eq(afilter.FieldAccount, "123456789012"),
+			expected: false,
+		},
+		{
+			name: "Account NotEquals (empty) -> false",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Cluster: "cluster-one",
+				},
+			},
+			// Account field currently returns empty string
+			filter:   ops.NotEq(afilter.FieldAccount, ""),
+			expected: false,
+		},
+		{
+			name: "Account NotEquals (non-empty) -> true",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Cluster: "cluster-one",
+				},
+			},
+			// Account field currently returns empty string, so it's not equal to any non-empty value
+			filter:   ops.NotEq(afilter.FieldAccount, "123456789012"),
+			expected: true,
+		},
+		{
 			name: `label[app]="foo" -> true`,
 			a: &Allocation{
 				Properties: &AllocationProperties{
