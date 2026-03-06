@@ -1373,7 +1373,7 @@ func (key *azurePvKey) Features() string {
 		}
 	} else {
 		if isAzureDiskCSI {
-			// For Azure Disk CSI, skuname represents managed disk SKU
+			// For Azure Disk CSI, the storage SKU (from skuName or skuname) represents the managed disk SKU
 			if strings.EqualFold(storageSKU, "Premium_LRS") {
 				storageClass = AzureDiskPremiumSSDStorageClass
 			} else if strings.EqualFold(storageSKU, "StandardSSD_LRS") {
