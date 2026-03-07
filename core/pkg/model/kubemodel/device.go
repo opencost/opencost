@@ -7,21 +7,21 @@ import (
 )
 
 type Device struct {
-	UID               string      `json:"uid"`            // Device UUID (hardware identifier)
-	Type              string      `json:"type,omitempty"` // Device type (e.g., "device", "tpu")
-	NodeUID           string      `json:"nodeUid"`        // Node hosting this device
-	DeviceNumber      int32       `json:"deviceNumber"`
-	ModelName         string      `json:"modelName"`
-	IsShared          bool        `json:"isShared"` // Device sharing information
-	SharePercentage   float64     `json:"sharePercentage"`
-	UsageSeconds      float64     `json:"usageSeconds"`      // Device seconds available
-	MemoryByteSeconds Measurement `json:"memoryByteSeconds"` // Device memory capacity in Byte-seconds
-	PowerWattSeconds  float64     `json:"powerWattSeconds"`  // Device power consumption in watt-seconds (Joules)
-	PowerWattMax      float64     `json:"powerWattMax"`      // Device max power consumption in watts
+	UID               string  `json:"uid"`            // Device UUID (hardware identifier)
+	Type              string  `json:"type,omitempty"` // Device type (e.g., "device", "tpu")
+	NodeUID           string  `json:"nodeUid"`        // Node hosting this device
+	DeviceNumber      int32   `json:"deviceNumber"`
+	ModelName         string  `json:"modelName"`
+	IsShared          bool    `json:"isShared"` // Device sharing information
+	SharePercentage   float64 `json:"sharePercentage"`
+	UsageSeconds      float64 `json:"usageSeconds"`      // Device seconds available
+	MemoryByteSeconds float64 `json:"memoryByteSeconds"` // Device memory capacity in Byte-seconds
+	PowerWattSeconds  float64 `json:"powerWattSeconds"`  // Device power consumption in watt-seconds (Joules)
+	PowerWattMax      float64 `json:"powerWattMax"`      // Device max power consumption in watts
 	// Version 2 fields - Lifecycle tracking
-	Start           time.Time   `json:"start,omitempty"` // Device availability start
-	End             time.Time   `json:"end,omitempty"`   // Device availability end
-	DurationSeconds Measurement `json:"durationSeconds"` // Duration device was available
+	Start           time.Time `json:"start,omitempty"` // Device availability start
+	End             time.Time `json:"end,omitempty"`   // Device availability end
+	DurationSeconds float64   `json:"durationSeconds"` // Duration device was available
 }
 
 // Validate validates the Device fields

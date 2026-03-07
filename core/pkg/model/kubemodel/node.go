@@ -17,28 +17,28 @@ type Node struct {
 	Annotations   map[string]string `json:"annotations,omitempty"` // TODO unpopulated
 	InstanceType  string            `json:"InstanceType"`
 	Preemptible   bool              `json:"preemptible"` // TODO unpopulated
-	CPUMilliCores Measurement       `json:"cpuMilliCores"`
-	RAMBytes      Measurement       `json:"ramBytes"`
-	GPUCount      Measurement       `json:"gpuCount"`
+	CPUMilliCores float64           `json:"cpuMilliCores"`
+	RAMBytes      float64           `json:"ramBytes"`
+	GPUCount      float64           `json:"gpuCount"`
 	//AttachedVolumes map[string]*NodeVolumeUsage `json:"attachedVolumes,omitempty"`
 	Start time.Time `json:"start,omitempty"` // Node creation/start timestamp
 	End   time.Time `json:"end,omitempty"`   // Node deletion/end timestamp (nil if still running)
 }
 
-//// NodeVolumeUsage tracks storage usage for a disk volume attached to a node.
-//// Used for cost allocation of cloud storage resources (e.g., AWS EBS volumes).
-//type NodeVolumeUsage struct {
-//	VolumeUID        string      `json:"volumeUid"`        // "root" for primary disk, or actual volume UID for additional volumes
-//	CapacityBytes    Measurement `json:"capacityBytes"`    // Total capacity of the volume in bytes
-//	UsageByteSeconds Measurement `json:"usageByteSeconds"` // Cumulative usage (Byte × seconds) over measurement window
-//	VolumeType       string      `json:"volumeType"`       // "root" for primary disk, "persistent" for additional PVs
-//	ProviderID       string      `json:"providerId"`       // Cloud provider volume ID (e.g., "vol-xxxxx" for AWS EBS)
-//	DurationSeconds  Measurement `json:"durationSeconds"`  // Duration the volume was attached during measurement window in seconds
-//}
+// @bingen:generate:Node
+// NodeVolumeUsage tracks storage usage for a disk volume attached to a node.
+// Used for cost allocation of cloud storage resources (e.g., AWS EBS volumes).
+type NodeVolumeUsage struct {
+	VolumeUID        string  `json:"volumeUid"`        // "root" for primary disk, or actual volume UID for additional volumes
+	CapacityBytes    float64 `json:"capacityBytes"`    // Total capacity of the volume in bytes
+	UsageByteSeconds float64 `json:"usageByteSeconds"` // Cumulative usage (Byte × seconds) over measurement window
+	VolumeType       string  `json:"volumeType"`       // "root" for primary disk, "persistent" for additional PVs
+	ProviderID       string  `json:"providerId"`       // Cloud provider volume ID (e.g., "vol-xxxxx" for AWS EBS)
+}
 
 //// CpuMillicoreUsageAverage calculates the average CPU usage in millicores over the uptime period.
 //// Returns 0 if uptime is 0 to avoid division by zero.
-//func (n *Node) CpuMillicoreUsageAverage() Measurement {
+//func (n *Node) CpuMillicoreUsageAverage() float64 {
 //	if n.DurationSeconds == 0 {
 //		return 0
 //	}
@@ -47,7 +47,7 @@ type Node struct {
 //
 //// RAMByteUsageAverage calculates the average RAM usage in bytes over the uptime period.
 //// Returns 0 if uptime is 0 to avoid division by zero.
-//func (n *Node) RAMByteUsageAverage() Measurement {
+//func (n *Node) RAMByteUsageAverage() float64 {
 //	if n.DurationSeconds == 0 {
 //		return 0
 //	}
@@ -55,8 +55,8 @@ type Node struct {
 //}
 //
 //// TotalVolumeUsageByteSeconds returns the sum of all volume usage Byte-seconds across all attached volumes.
-//func (n *Node) TotalVolumeUsageByteSeconds() Measurement {
-//	var total Measurement
+//func (n *Node) TotalVolumeUsageByteSeconds() float64 {
+//	var total float64
 //	for _, volume := range n.AttachedVolumes {
 //		total += volume.UsageByteSeconds
 //	}
@@ -64,8 +64,8 @@ type Node struct {
 //}
 //
 //// TotalVolumeCapacityBytes returns the sum of all volume capacities across all attached volumes.
-//func (n *Node) TotalVolumeCapacityBytes() Measurement {
-//	var total Measurement
+//func (n *Node) TotalVolumeCapacityBytes() float64 {
+//	var total float64
 //	for _, volume := range n.AttachedVolumes {
 //		total += volume.CapacityBytes
 //	}
@@ -74,7 +74,7 @@ type Node struct {
 //
 //// GetVolumeUsageAverage calculates the average storage usage in bytes for a specific volume over the uptime period.
 //// Returns 0 if uptime is 0 or volume doesn't exist.
-//func (n *Node) GetVolumeUsageAverage(volumeUID string) Measurement {
+//func (n *Node) GetVolumeUsageAverage(volumeUID string) float64 {
 //	volume, exists := n.AttachedVolumes[volumeUID]
 //	if !exists || n.DurationSeconds == 0 {
 //		return 0

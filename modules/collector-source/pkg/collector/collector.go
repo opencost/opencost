@@ -292,7 +292,6 @@ func NewLocalStorageUsedActiveMinutesMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.InstanceLabel,
 			source.DeviceLabel,
-			source.UIDLabel,
 		},
 		aggregator.Uptime,
 		nil, // filter not required here because only container root file system is being scraped
@@ -318,7 +317,6 @@ func NewLocalStorageUsedAverageMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.InstanceLabel,
 			source.DeviceLabel,
-			source.UIDLabel,
 		},
 		aggregator.AverageOverTime,
 		nil, // filter not required here because only container root file system is being scraped
@@ -345,7 +343,6 @@ func NewLocalStorageUsedMaxMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.InstanceLabel,
 			source.DeviceLabel,
-			source.UIDLabel,
 		},
 		aggregator.MaxOverTime,
 		nil, // filter not required here because only container root file system is being scraped

@@ -5,26 +5,26 @@ import (
 	"time"
 )
 
-// @bingen:generate:Cluster
+// @bingen:generate:Container
 type Container struct {
-	PodUID       string      `json:"podUid"`
-	Name         string      `json:"name"`
-	CPUAllocated Measurement `json:"cpuAllocated"`
-	CPUUsageAvg  Measurement `json:"cpuUsageAvg"`
-	CPUUsageMax  Measurement `json:"cpuUsageMax"`
-	CPURequest   Measurement `json:"cpuRequest"`
-	CPULimit     Measurement `json:"cpuLimit"`
-	RAMAllocated Measurement `json:"ramAllocated"`
-	RAMUsageAvg  Measurement `json:"ramUsageAvg"`
-	RAMUsageMax  Measurement `json:"ramUsageMax"`
-	RAMRequest   Measurement `json:"ramRequest"`
-	RAMLimit     Measurement `json:"ramLimit"`
-	GPUAllocated Measurement `json:"gpuAllocated"`
-	GPUUsageAvg  Measurement `json:"gpuUsageAvg"`
-	GPUUsageMax  Measurement `json:"gpuUsageMax"`
-	GPURequest   Measurement `json:"gpuRequest"`
-	//VolumeStorageByteSeconds  map[string]Measurement `json:"volumeStorageByteSeconds,omitempty"`
-	//VolumeStorageByteUsageMax map[string]Measurement `json:"volumeStorageByteUsageMax,omitempty"`
+	PodUID       string  `json:"podUid"`
+	Name         string  `json:"name"`
+	CPUAllocated float64 `json:"cpuAllocated"`
+	CPUUsageAvg  float64 `json:"cpuUsageAvg"`
+	CPUUsageMax  float64 `json:"cpuUsageMax"`
+	CPURequest   float64 `json:"cpuRequest"`
+	CPULimit     float64 `json:"cpuLimit"`
+	RAMAllocated float64 `json:"ramAllocated"`
+	RAMUsageAvg  float64 `json:"ramUsageAvg"`
+	RAMUsageMax  float64 `json:"ramUsageMax"`
+	RAMRequest   float64 `json:"ramRequest"`
+	RAMLimit     float64 `json:"ramLimit"`
+	GPUAllocated float64 `json:"gpuAllocated"`
+	GPUUsageAvg  float64 `json:"gpuUsageAvg"`
+	GPUUsageMax  float64 `json:"gpuUsageMax"`
+	GPURequest   float64 `json:"gpuRequest"`
+	//VolumeStorageByteSeconds  map[string]float64 `json:"volumeStorageByteSeconds,omitempty"`
+	//VolumeStorageByteUsageMax map[string]float64 `json:"volumeStorageByteUsageMax,omitempty"`
 	Start time.Time `json:"start"`
 	End   time.Time `json:"end"`
 }

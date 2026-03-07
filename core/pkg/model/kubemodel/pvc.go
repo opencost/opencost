@@ -7,14 +7,14 @@ import (
 
 // @bingen:generate:PersistentVolumeClaim
 type PersistentVolumeClaim struct {
-	UID                 string      `json:"uid"`
-	NamespaceUID        string      `json:"namespaceUid"`
-	Name                string      `json:"name"`
-	PersistentVolumeUID string      `json:"persistentVolumeUID,omitempty"`
-	StorageClass        string      `json:"storageClass"`
-	Start               time.Time   `json:"start"`
-	End                 time.Time   `json:"end"`
-	RequestedBytes      Measurement `json:"requestedBytes"`
+	UID                 string    `json:"uid"`
+	NamespaceUID        string    `json:"namespaceUid"`
+	Name                string    `json:"name"`
+	PersistentVolumeUID string    `json:"persistentVolumeUID,omitempty"`
+	StorageClass        string    `json:"storageClass"`
+	Start               time.Time `json:"start"`
+	End                 time.Time `json:"end"`
+	RequestedBytes      float64   `json:"requestedBytes"`
 }
 
 func (kms *KubeModelSet) RegisterPVC(pvc *PersistentVolumeClaim) error {

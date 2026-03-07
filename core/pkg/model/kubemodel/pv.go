@@ -7,13 +7,13 @@ import (
 
 // @bingen:generate:PersistentVolume
 type PersistentVolume struct {
-	UID             string      `json:"uid"`
-	Name            string      `json:"name"`
-	StorageClass    string      `json:"storageClass"`
-	CSIVolumeHandle string      `json:"csiVolumeHandle,omitempty"`
-	SizeBytes       Measurement `json:"size"`
-	Start           time.Time   `json:"start"`
-	End             time.Time   `json:"end"`
+	UID             string    `json:"uid"`
+	Name            string    `json:"name"`
+	StorageClass    string    `json:"storageClass"`
+	CSIVolumeHandle string    `json:"csiVolumeHandle,omitempty"`
+	SizeBytes       float64   `json:"size"`
+	Start           time.Time `json:"start"`
+	End             time.Time `json:"end"`
 }
 
 func (kms *KubeModelSet) RegisterPersistentVolume(pv *PersistentVolume) error {

@@ -7,15 +7,15 @@ import (
 )
 
 type DeviceUsage struct {
-	ContainerUID          string      `json:"containerUid"`
-	DeviceUID             string      `json:"deviceUid"`
-	UsageSeconds          Measurement `json:"usageSeconds"`
-	UsagePercentageMax    float64     `json:"usagePercentageMax"`
-	MemoryByteSecondsUsed Measurement `json:"memoryByteSecondsUsed"`
-	DeviceType            string      `json:"deviceType,omitempty"`
-	DurationSeconds       Measurement `json:"durationSeconds,omitempty"`
-	Start                 time.Time   `json:"start"`
-	End                   time.Time   `json:"end"`
+	ContainerUID          string    `json:"containerUid"`
+	DeviceUID             string    `json:"deviceUid"`
+	UsageSeconds          float64   `json:"usageSeconds"`
+	UsagePercentageMax    float64   `json:"usagePercentageMax"`
+	MemoryByteSecondsUsed float64   `json:"memoryByteSecondsUsed"`
+	DeviceType            string    `json:"deviceType,omitempty"`
+	DurationSeconds       float64   `json:"durationSeconds,omitempty"`
+	Start                 time.Time `json:"start"`
+	End                   time.Time `json:"end"`
 }
 
 func (u *DeviceUsage) Validate() error {
@@ -51,14 +51,14 @@ func (u *DeviceUsage) Clone() *DeviceUsage {
 	return cloned
 }
 
-func (u *DeviceUsage) UsageAverage() Measurement {
+func (u *DeviceUsage) UsageAverage() float64 {
 	if u.DurationSeconds == 0 {
 		return 0
 	}
 	return (u.UsageSeconds / u.DurationSeconds) * 100
 }
 
-func (u *DeviceUsage) MemoryByteUsageAverage() Measurement {
+func (u *DeviceUsage) MemoryByteUsageAverage() float64 {
 	if u.DurationSeconds == 0 {
 		return 0
 	}
