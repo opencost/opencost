@@ -1025,13 +1025,35 @@ func GenerateMockKubeModelSet(start, end time.Time) *kubemodel.KubeModelSet {
 		Name: "cluster",
 	}
 
-	kms.RegisterNamespace("namespace-1", "namespace-1")
-	kms.RegisterNamespace("namespace-2", "namespace-2")
+	kms.RegisterNamespace(&kubemodel.Namespace{
+		UID:  "namespace-1",
+		Name: "namespace-1",
+	})
+	kms.RegisterNamespace(&kubemodel.Namespace{
+		UID:  "namespace-2",
+		Name: "namespace-2",
+	})
 
-	kms.RegisterResourceQuota("resourcequota-1", "resourcequota-1", "namespace-1")
-	kms.RegisterResourceQuota("resourcequota-2", "resourcequota-2", "namespace-1")
-	kms.RegisterResourceQuota("resourcequota-3", "resourcequota-3", "namespace-2")
-	kms.RegisterResourceQuota("resourcequota-4", "resourcequota-4", "namespace-2")
+	kms.RegisterResourceQuota(&kubemodel.ResourceQuota{
+		UID:          "resourcequota-1",
+		NamespaceUID: "resourcequota-1",
+		Name:         "namespace-1",
+	})
+	kms.RegisterResourceQuota(&kubemodel.ResourceQuota{
+		UID:          "resourcequota-2",
+		NamespaceUID: "resourcequota-2",
+		Name:         "namespace-1",
+	})
+	kms.RegisterResourceQuota(&kubemodel.ResourceQuota{
+		UID:          "resourcequota-3",
+		NamespaceUID: "resourcequota-3",
+		Name:         "namespace-2",
+	})
+	kms.RegisterResourceQuota(&kubemodel.ResourceQuota{
+		UID:          "resourcequota-4",
+		NamespaceUID: "resourcequota-4",
+		Name:         "namespace-2",
+	})
 
 	return kms
 }

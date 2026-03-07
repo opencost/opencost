@@ -868,7 +868,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.CPUAllocated = kubemodel.Measurement(res.Data[0].Value)
+			container.CPUAllocated = res.Data[0].Value
 		}
 	}
 
@@ -881,7 +881,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.CPUUsageAvg = kubemodel.Measurement(res.Data[0].Value)
+			container.CPUUsageAvg = res.Data[0].Value
 		}
 	}
 
@@ -894,7 +894,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.CPUUsageMax = kubemodel.Measurement(res.Data[0].Value)
+			container.CPUUsageMax = res.Data[0].Value
 		}
 	}
 
@@ -907,7 +907,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.CPURequest = kubemodel.Measurement(res.Data[0].Value)
+			container.CPURequest = res.Data[0].Value
 		}
 	}
 
@@ -920,7 +920,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.CPULimit = kubemodel.Measurement(res.Data[0].Value)
+			container.CPULimit = res.Data[0].Value
 		}
 	}
 
@@ -933,7 +933,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.RAMAllocated = kubemodel.Measurement(res.Data[0].Value)
+			container.RAMAllocated = res.Data[0].Value
 		}
 	}
 
@@ -946,7 +946,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.RAMUsageAvg = kubemodel.Measurement(res.Data[0].Value)
+			container.RAMUsageAvg = res.Data[0].Value
 		}
 	}
 
@@ -959,7 +959,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.RAMUsageMax = kubemodel.Measurement(res.Data[0].Value)
+			container.RAMUsageMax = res.Data[0].Value
 		}
 	}
 
@@ -972,7 +972,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.RAMRequest = kubemodel.Measurement(res.Data[0].Value)
+			container.RAMRequest = res.Data[0].Value
 		}
 	}
 
@@ -985,7 +985,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.RAMLimit = kubemodel.Measurement(res.Data[0].Value)
+			container.RAMLimit = res.Data[0].Value
 		}
 	}
 
@@ -998,7 +998,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.GPUAllocated = kubemodel.Measurement(res.Data[0].Value)
+			container.GPUAllocated = res.Data[0].Value
 		}
 	}
 
@@ -1011,7 +1011,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.GPUUsageAvg = kubemodel.Measurement(res.Data[0].Value)
+			container.GPUUsageAvg = res.Data[0].Value
 		}
 	}
 
@@ -1024,7 +1024,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.GPUUsageMax = kubemodel.Measurement(res.Data[0].Value)
+			container.GPUUsageMax = res.Data[0].Value
 		}
 	}
 
@@ -1037,7 +1037,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.GPURequest = kubemodel.Measurement(res.Data[0].Value)
+			container.GPURequest = res.Data[0].Value
 		}
 	}
 
@@ -1397,7 +1397,7 @@ func (km *KubeModel) computePersistentVolumes(kms *kubemodel.KubeModelSet, start
 			continue
 		}
 
-		pv.SizeBytes = kubemodel.Measurement(res.Value)
+		pv.SizeBytes = res.Value
 
 	}
 
@@ -1452,7 +1452,7 @@ func (km *KubeModel) computePersistentVolumeClaims(kms *kubemodel.KubeModelSet, 
 			continue
 		}
 		if len(res.Data) > 0 {
-			pvc.RequestedBytes = kubemodel.Measurement(res.Data[0].Value)
+			pvc.RequestedBytes = res.Data[0].Value
 		}
 	}
 

@@ -20,67 +20,18 @@ type Node struct {
 	CPUMilliCores float64           `json:"cpuMilliCores"`
 	RAMBytes      float64           `json:"ramBytes"`
 	GPUCount      float64           `json:"gpuCount"`
-	//AttachedVolumes map[string]*NodeVolumeUsage `json:"attachedVolumes,omitempty"`
-	Start time.Time `json:"start,omitempty"` // Node creation/start timestamp
-	End   time.Time `json:"end,omitempty"`   // Node deletion/end timestamp (nil if still running)
+	FileSystem    FileSystem        `json:"fileSystem"`
+	Start         time.Time         `json:"start,omitempty"` // Node creation/start timestamp
+	End           time.Time         `json:"end,omitempty"`   // Node deletion/end timestamp (nil if still running)
 }
 
-// @bingen:generate:Node
+// @bingen:generate:FileSystem
 // NodeVolumeUsage tracks storage usage for a disk volume attached to a node.
 // Used for cost allocation of cloud storage resources (e.g., AWS EBS volumes).
-type NodeVolumeUsage struct {
-	VolumeUID        string  `json:"volumeUid"`        // "root" for primary disk, or actual volume UID for additional volumes
-	CapacityBytes    float64 `json:"capacityBytes"`    // Total capacity of the volume in bytes
-	UsageByteSeconds float64 `json:"usageByteSeconds"` // Cumulative usage (Byte × seconds) over measurement window
-	VolumeType       string  `json:"volumeType"`       // "root" for primary disk, "persistent" for additional PVs
-	ProviderID       string  `json:"providerId"`       // Cloud provider volume ID (e.g., "vol-xxxxx" for AWS EBS)
+type FileSystem struct {
+	CapacityBytes float64 `json:"capacityBytes"` // Total capacity of the volume in bytes
+	UsageByteAvg  float64 `json:"usageByteAvg"`
 }
-
-//// CpuMillicoreUsageAverage calculates the average CPU usage in millicores over the uptime period.
-//// Returns 0 if uptime is 0 to avoid division by zero.
-//func (n *Node) CpuMillicoreUsageAverage() float64 {
-//	if n.DurationSeconds == 0 {
-//		return 0
-//	}
-//	return n.CpuMillicoreSeconds / n.DurationSeconds
-//}
-//
-//// RAMByteUsageAverage calculates the average RAM usage in bytes over the uptime period.
-//// Returns 0 if uptime is 0 to avoid division by zero.
-//func (n *Node) RAMByteUsageAverage() float64 {
-//	if n.DurationSeconds == 0 {
-//		return 0
-//	}
-//	return n.RAMByteSeconds / n.DurationSeconds
-//}
-//
-//// TotalVolumeUsageByteSeconds returns the sum of all volume usage Byte-seconds across all attached volumes.
-//func (n *Node) TotalVolumeUsageByteSeconds() float64 {
-//	var total float64
-//	for _, volume := range n.AttachedVolumes {
-//		total += volume.UsageByteSeconds
-//	}
-//	return total
-//}
-//
-//// TotalVolumeCapacityBytes returns the sum of all volume capacities across all attached volumes.
-//func (n *Node) TotalVolumeCapacityBytes() float64 {
-//	var total float64
-//	for _, volume := range n.AttachedVolumes {
-//		total += volume.CapacityBytes
-//	}
-//	return total
-//}
-//
-//// GetVolumeUsageAverage calculates the average storage usage in bytes for a specific volume over the uptime period.
-//// Returns 0 if uptime is 0 or volume doesn't exist.
-//func (n *Node) GetVolumeUsageAverage(volumeUID string) float64 {
-//	volume, exists := n.AttachedVolumes[volumeUID]
-//	if !exists || n.DurationSeconds == 0 {
-//		return 0
-//	}
-//	return volume.UsageByteSeconds / n.DurationSeconds
-//}
 
 // RegisterNode validates and adds a node to the set
 func (kms *KubeModelSet) RegisterNode(node *Node) error {

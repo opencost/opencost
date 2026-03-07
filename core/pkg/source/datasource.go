@@ -10,9 +10,6 @@ import (
 
 type MetricsQuerier interface {
 	// Cluster Disks
-	QueryPVActiveMinutes(start, end time.Time) *Future[PVActiveMinutesResult]
-	QueryPVUsedAverage(start, end time.Time) *Future[PVUsedAvgResult]
-	QueryPVUsedMax(start, end time.Time) *Future[PVUsedMaxResult]
 
 	// Local Cluster Disks
 	QueryLocalStorageActiveMinutes(start, end time.Time) *Future[LocalStorageActiveMinutesResult]
@@ -93,6 +90,9 @@ type MetricsQuerier interface {
 	QueryPVPricePerGiBHour(start, end time.Time) *Future[PVPricePerGiBHourResult]
 	QueryPVInfo(start, end time.Time) *Future[PVInfoResult]
 	QueryPVUptime(start, end time.Time) *Future[UptimeResult]
+	QueryPVActiveMinutes(start, end time.Time) *Future[PVActiveMinutesResult]
+	QueryPVUsedAverage(start, end time.Time) *Future[PVUsedAvgResult]
+	QueryPVUsedMax(start, end time.Time) *Future[PVUsedMaxResult]
 
 	// Deployment
 	QueryDeploymentInfo(start, end time.Time) *Future[DeploymentInfoResult]

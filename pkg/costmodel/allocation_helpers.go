@@ -2126,7 +2126,7 @@ func applyPVBytes(pvMap map[pvKey]*pv, resPVBytes []*source.PVBytesResult) {
 			continue
 		}
 
-		pvBytesUsed := res.Data[0].Value
+		pvBytesUsed := res.Value
 		if pvBytesUsed < PV_USAGE_SANITY_LIMIT_BYTES {
 			pvMap[key].Bytes = pvBytesUsed
 		} else {

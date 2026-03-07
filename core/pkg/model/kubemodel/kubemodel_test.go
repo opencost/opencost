@@ -33,7 +33,7 @@ func TestKubeModel(t *testing.T) {
 
 			kms := NewKubeModelSet(start, end)
 
-			err = kms.RegisterCluster("")
+			err = kms.RegisterCluster(&Cluster{UID: ""})
 			require.NotNil(t, err)
 
 			require.Len(t, kms.GetErrors(), 1)
@@ -47,7 +47,7 @@ func TestKubeModel(t *testing.T) {
 
 			kms := NewKubeModelSet(start, end)
 
-			err = kms.RegisterCluster(clusterUID)
+			err = kms.RegisterCluster(&Cluster{UID: clusterUID})
 			require.Nil(t, err)
 
 			require.Len(t, kms.GetErrors(), 0)
@@ -61,7 +61,7 @@ func TestKubeModel(t *testing.T) {
 
 			kms := NewKubeModelSet(start, end)
 
-			err = kms.RegisterCluster(clusterUID)
+			err = kms.RegisterCluster(&Cluster{UID: clusterUID})
 			require.Nil(t, err)
 
 			require.Len(t, kms.GetErrors(), 0)
@@ -69,7 +69,7 @@ func TestKubeModel(t *testing.T) {
 			require.Equal(t, clusterUID, kms.Cluster.UID)
 
 			// Register cluster with same UID, expect no-op on second try
-			err = kms.RegisterCluster(clusterUID)
+			err = kms.RegisterCluster(&Cluster{UID: clusterUID})
 			require.Nil(t, err)
 
 			require.Len(t, kms.GetErrors(), 0)
@@ -77,7 +77,7 @@ func TestKubeModel(t *testing.T) {
 			require.Equal(t, clusterUID, kms.Cluster.UID)
 
 			// Register cluster with another UID (should not happen), expect no-op
-			err = kms.RegisterCluster("another-uid")
+			err = kms.RegisterCluster(&Cluster{UID: "another-uid"})
 			require.Nil(t, err)
 
 			require.Len(t, kms.GetWarnings(), 1)
@@ -93,11 +93,11 @@ func TestKubeModel(t *testing.T) {
 
 			kms := NewKubeModelSet(start, end)
 
-			err = kms.RegisterNamespace("", "")
+			err = kms.RegisterNamespace(&Namespace{UID: "", Name: ""})
 			require.NotNil(t, err)
 
 			require.Len(t, kms.GetErrors(), 1)
-			require.Equal(t, "UID is nil for Namespace ''", kms.GetErrors()[0].Message)
+			require.Equal(t, "UID is missing for Namespace with name ''", kms.GetErrors()[0].Message)
 			require.Len(t, kms.Namespaces, 0)
 		})
 
@@ -109,13 +109,13 @@ func TestKubeModel(t *testing.T) {
 			testUID := "uid"
 			testName := "name"
 
-			err = kms.RegisterNamespace(testUID, testName)
+			err = kms.RegisterNamespace(&Namespace{UID: testUID, Name: testName})
 			require.Nil(t, err)
 
 			require.Len(t, kms.GetWarnings(), 1)
-			require.Equal(t, "RegisterNamespace(uid, name): Cluster is nil", kms.GetWarnings()[0].Message)
+			require.Equal(t, "RegisterNamespace: Cluster is nil", kms.GetWarnings()[0].Message)
 
-			testNamespace := &Namespace{UID: testUID, ClusterUID: "", Name: testName}
+			testNamespace := &Namespace{UID: testUID, Name: testName}
 
 			require.NotNil(t, kms.Namespaces[testUID])
 			require.Equal(t, testNamespace, kms.Namespaces[testUID])
@@ -128,7 +128,7 @@ func TestKubeModel(t *testing.T) {
 			var err error
 
 			kms := NewKubeModelSet(start, end)
-			err = kms.RegisterCluster("cluster-uid")
+			err = kms.RegisterCluster(&Cluster{UID: "cluster-uid"})
 			require.Nil(t, err)
 
 			// At this point we have a KMS with a cluster registered
@@ -136,20 +136,20 @@ func TestKubeModel(t *testing.T) {
 			testUID := "uid"
 			testName := "name"
 
-			err = kms.RegisterNamespace(testUID, testName)
+			err = kms.RegisterNamespace(&Namespace{UID: testUID, Name: testName})
 			require.Nil(t, err)
 
 			require.Len(t, kms.GetErrors(), 0)
 			require.NotNil(t, kms.Namespaces[testUID])
 
-			testNamespace := &Namespace{UID: testUID, ClusterUID: "cluster-uid", Name: testName}
+			testNamespace := &Namespace{UID: testUID, Name: testName}
 
 			require.Equal(t, testNamespace, kms.Namespaces[testUID])
 			require.Equal(t, testNamespace, kms.idx.namespaceByName[testName])
 			require.Equal(t, 1, kms.Metadata.ObjectCount)
 
 			// Register same namespace again, expect no-op on second try
-			err = kms.RegisterNamespace(testUID, testName)
+			err = kms.RegisterNamespace(&Namespace{UID: testUID, Name: testName})
 			require.Nil(t, err)
 
 			require.Len(t, kms.GetErrors(), 0)

@@ -1113,6 +1113,7 @@ type PVCInfoResult struct {
 	PVUID                 string
 	PersistentVolumeClaim string
 	StorageClass          string
+	Data                  []*util.Vector
 }
 
 func DecodePVCInfoResult(result *QueryResult) *PVCInfoResult {
@@ -1134,6 +1135,8 @@ func DecodePVCInfoResult(result *QueryResult) *PVCInfoResult {
 		VolumeName:            volumeName,
 		PersistentVolumeClaim: pvc,
 		StorageClass:          storageClass,
+
+		Data: result.Values,
 	}
 }
 
@@ -1196,6 +1199,7 @@ type PVInfoResult struct {
 	StorageClass     string
 	ProviderID       string
 	CSIVolumeHandle  string
+	Data             []*util.Vector
 }
 
 func DecodePVInfoResult(result *QueryResult) *PVInfoResult {
@@ -1213,6 +1217,8 @@ func DecodePVInfoResult(result *QueryResult) *PVInfoResult {
 		StorageClass:     storageClass,
 		ProviderID:       providerId,
 		CSIVolumeHandle:  csiVolumeHandle,
+
+		Data: result.Values,
 	}
 }
 
