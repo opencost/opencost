@@ -15,7 +15,7 @@ type Node struct {
 	Name          string            `json:"name"`
 	Labels        map[string]string `json:"labels,omitempty"`
 	Annotations   map[string]string `json:"annotations,omitempty"` // TODO unpopulated
-	InstanceType  string            `json:"InstanceType"`
+	InstanceType  string            `json:"instanceType"`
 	Preemptible   bool              `json:"preemptible"` // TODO unpopulated
 	CPUMilliCores float64           `json:"cpuMilliCores"`
 	RAMBytes      float64           `json:"ramBytes"`
