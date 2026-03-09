@@ -73,7 +73,7 @@ func allocationFieldMap(a *Allocation, identifier ast.Identifier) (string, error
 	case afilter.FieldProvider:
 		return a.Properties.ProviderID, nil
 	case afilter.FieldAccount:
-		return "", nil
+		return "", fmt.Errorf("account property not implemented")
 	case afilter.FieldLabel:
 		return a.Properties.Labels[identifier.Key], nil
 	case afilter.FieldAnnotation:
