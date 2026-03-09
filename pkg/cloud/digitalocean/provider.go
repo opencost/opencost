@@ -156,7 +156,7 @@ func (do *DOKS) fetchPricingData() (*DOResponse, error) {
 	req.Header.Set("Content-Type", "application/json")
 	log.Debugf("Using authenticated DigitalOcean API request")
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Warnf("Failed to fetch sizes from DigitalOcean: %v", err)
@@ -264,21 +264,15 @@ func (k *doksKey) Features() string {
 }
 
 func (k *doksKey) GPUType() string {
-	if t, ok := k.Labels["node.kubernetes.io/instance-type"]; ok {
-		if strings.HasPrefix(t, "gpu-") {
-			// Expected format: gpu-<model>x<count>-<vram>
-			// e.g. gpu-h100x1-80gb
-			parts := strings.Split(t, "-")
-			if len(parts) >= 2 {
-				// The model+count is usually the second part: "h100x1"
-				// We want "h100"
-				modelParts := strings.Split(parts[1], "x")
-				return modelParts[0]
-			}
+	t := k.ID()
+	if t != "" && strings.HasPrefix(t, "gpu-") {
+		parts := strings.Split(t, "-")
+		if len(parts) >= 2 {
+			modelParts := strings.Split(parts[1], "x")
+			return modelParts[0]
 		}
 	}
 	return ""
-
 }
 
 func (k *doksKey) String() string {
@@ -292,28 +286,18 @@ func (k *doksKey) String() string {
 }
 
 func (k *doksKey) GPUCount() int {
-	if t, ok := k.Labels["node.kubernetes.io/instance-type"]; ok {
-		if strings.HasPrefix(t, "gpu-") {
-			// Try to extract count from slug "x<count>"
-			// e.g. gpu-h100x1-80gb => 1
-			// e.g. gpu-h100x8-640gb => 8
-			// Regex could work: matches x<digits> followed by dash or end
-			re := regexp.MustCompile(`x(\d+)(?:-|$)`)
-			matches := re.FindStringSubmatch(t)
-			if len(matches) == 2 {
-				count, err := strconv.Atoi(matches[1])
-				if err == nil {
-					return count
-				}
+	t := k.ID()
+	if t != "" && strings.HasPrefix(t, "gpu-") {
+		matches := reGPUCount.FindStringSubmatch(t)
+		if len(matches) == 2 {
+			count, err := strconv.Atoi(matches[1])
+			if err == nil {
+				return count
 			}
-			// Fallback: usually 1 if it's a gpu node and we can't parse?
-			// But let's be safe and return 0 if unsure, or 1?
-			// Most DO GPU droplets have at least 1.
-			return 1
 		}
+		return 1
 	}
 	return 0
-
 }
 
 type SlugBase struct {
@@ -360,6 +344,7 @@ var (
 	reVCpu        = regexp.MustCompile(`(\d+)\s*vcpu`)
 	reRAM         = regexp.MustCompile(`(\d+)\s*gb`)
 	reSimpleCount = regexp.MustCompile(`^[a-z0-9_]+-(\d+)(?:-|$)`)
+	reGPUCount    = regexp.MustCompile(`x(\d+)(?:-|$)`)
 )
 
 func extractResources(slug string) (int, int, bool) {
@@ -580,39 +565,39 @@ func parseArch(features string) string {
 func (do *DOKS) sizeToNode(size *DOSize, arch string) (*models.Node, models.PricingMetadata) {
 	hourlyCost := size.PriceHourly
 	vcpu := size.VCPUs
-	ramGiB := float64(size.Memory) / 1024.0 // Convert MB to GiB (float division)
+	ramGiB := float64(size.Memory) / 1024.0 // Convert MB to GiB
 
-	// Distribute cost proportionally between CPU and RAM
-	// Since OpenCost will multiply these by the actual vCPU count and RAM GiB,
-	// we need to calculate the per-unit costs correctly.
-	// We distribute the total cost 50/50 between CPU and RAM, then divide by the resource count.
+	// Distribute cost proportionally between CPU and RAM based on resource counts.
+	// VCPUCost = total CPU cost portion, RAMCost = total RAM cost portion.
+	totalUnits := float64(vcpu) + ramGiB
 	var vcpuCost, ramCost float64
-	if vcpu > 0 && ramGiB > 0 {
-		cpuPortion := hourlyCost / 2.0
-		ramPortion := hourlyCost / 2.0
-		vcpuCost = cpuPortion / float64(vcpu)  // Cost per vCPU core
-		ramCost = ramPortion / ramGiB           // Cost per GiB of RAM
+	if totalUnits > 0 {
+		vcpuCost = hourlyCost * float64(vcpu) / totalUnits
+		ramCost = hourlyCost * ramGiB / totalUnits
 	}
 
 	if arch == "" {
 		arch = "amd64"
 	}
 
-	// Use first region as default if available
 	region := "global"
 	if len(size.Regions) > 0 {
 		region = size.Regions[0]
 	}
 
-	// Convert RAM from GiB to bytes for RAMBytes field
-	ramBytes := int64(ramGiB * 1024 * 1024 * 1024)
+	// Convert RAM from MB to bytes directly to avoid float rounding
+	ramBytes := int64(size.Memory) * 1024 * 1024
+
+	// Format RAM as integer GiB when possible
+	ramGiBInt := int(ramGiB)
+	ramStr := fmt.Sprintf("%dGiB", ramGiBInt)
 
 	node := &models.Node{
-		// Don't set Cost field - let OpenCost calculate it from VCPUCost and RAMCost
+		Cost:         fmt.Sprintf("%.5f", hourlyCost),
 		VCPUCost:     fmt.Sprintf("%.5f", vcpuCost),
 		RAMCost:      fmt.Sprintf("%.5f", ramCost),
 		VCPU:         strconv.Itoa(vcpu),
-		RAM:          fmt.Sprintf("%.2fGiB", ramGiB),
+		RAM:          ramStr,
 		RAMBytes:     fmt.Sprintf("%d", ramBytes),
 		InstanceType: size.Slug,
 		Region:       region,
@@ -650,7 +635,7 @@ func fallbackNode(slug string) (*models.Node, models.PricingMetadata, error) {
 		ramBytes := int64(ram) * 1024 * 1024 * 1024
 
 		return &models.Node{
-				// Don't set Cost field - let OpenCost calculate it from VCPUCost and RAMCost
+				Cost:         fmt.Sprintf("%.5f", cost),
 				VCPUCost:     fmt.Sprintf("%.5f", unitCost),
 				RAMCost:      fmt.Sprintf("%.5f", unitCost),
 				VCPU:         strconv.Itoa(vcpu),
