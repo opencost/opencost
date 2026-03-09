@@ -66,6 +66,7 @@ type CustomCostIngestor struct {
 	exitBuildCh  chan string
 	exitRunCh    chan string
 	plugins      map[string]*plugin.Client
+	pluginsLock  sync.RWMutex
 	resolution   time.Duration
 	refreshRate  time.Duration
 }
@@ -128,6 +129,7 @@ func (ing *CustomCostIngestor) LoadWindow(start, end time.Time) {
 
 	for _, window := range targets {
 		allPluginsHave := true
+		ing.pluginsLock.RLock()
 		for domain := range ing.plugins {
 			has, err2 := ing.repo.Has(*window.Start(), domain)
 			if err2 != nil {
@@ -138,12 +140,15 @@ func (ing *CustomCostIngestor) LoadWindow(start, end time.Time) {
 				break
 			}
 		}
+		ing.pluginsLock.RUnlock()
 		if !allPluginsHave {
 			ing.BuildWindow(*window.Start(), *window.End())
 		} else {
+			ing.pluginsLock.RLock()
 			for domain := range ing.plugins {
 				ing.expandCoverage(window, domain)
 			}
+			ing.pluginsLock.RUnlock()
 			log.Debugf("CustomCost[%s]: ingestor: skipping build for window %s, coverage already exists", ing.key, window.String())
 		}
 	}
@@ -152,9 +157,11 @@ func (ing *CustomCostIngestor) LoadWindow(start, end time.Time) {
 
 func (ing *CustomCostIngestor) BuildWindow(start, end time.Time) {
 
+	ing.pluginsLock.RLock()
 	for domain := range ing.plugins {
 		ing.buildSingleDomain(start, end, domain)
 	}
+	ing.pluginsLock.RUnlock()
 }
 
 func (ing *CustomCostIngestor) buildSingleDomain(start, end time.Time, domain string) {
@@ -165,7 +172,9 @@ func (ing *CustomCostIngestor) buildSingleDomain(start, end time.Time, domain st
 	}
 	log.Infof("ingestor: building window %s for plugin %s", opencost.NewWindow(&start, &end), domain)
 	// make RPC call via plugin
+	ing.pluginsLock.RLock()
 	pluginClient, found := ing.plugins[domain]
+	ing.pluginsLock.RUnlock()
 	if !found {
 		log.Errorf("could not find plugin client for plugin %s. Did you initialize the plugin correctly?", domain)
 		return
@@ -262,8 +271,17 @@ func (ing *CustomCostIngestor) Stop() {
 
 	wg.Wait()
 
-	// Declare that the store is officially no longer running. This allows
-	// Start to be called again, restarting the store from scratch.
+	// Kill all plugin client processes before returning
+	ing.pluginsLock.Lock()
+	for name, client := range ing.plugins {
+		if client != nil {
+			log.Debugf("CustomCost[%s]: ingestor: killing plugin process: %s", ing.key, name)
+			client.Kill()
+		}
+	}
+	ing.pluginsLock.Unlock()
+
+	// Mark as no longer running so Start() can be called again if needed
 	ing.isRunning.Store(false)
 	ing.isStopping.Store(false)
 }

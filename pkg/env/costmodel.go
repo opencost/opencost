@@ -1,6 +1,7 @@
 package env
 
 import (
+	"strings"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/env"
@@ -42,6 +43,9 @@ const (
 
 	// Currently being used for OCI and DigitalOcean
 	ProviderPricingURL = "PROVIDER_PRICING_URL"
+
+	OVHSubsidiaryEnvVar    = "OVH_SUBSIDIARY"
+	OVHMonthlyNodepoolsVar = "OVH_MONTHLY_NODEPOOLS"
 
 	ClusterProfileEnvVar    = "CLUSTER_PROFILE"
 	RemoteEnabledEnvVar     = "REMOTE_WRITE_ENABLED"
@@ -398,6 +402,25 @@ func GetLocalCollectorDirectory() string {
 
 func GetDOKSPricingURL() string {
 	return env.Get(ProviderPricingURL, "https://api.digitalocean.com/v2/billing/pricing")
+}
+
+func GetOVHSubsidiary() string {
+	return strings.ToUpper(strings.TrimSpace(env.Get(OVHSubsidiaryEnvVar, "FR")))
+}
+
+func GetOVHMonthlyNodepools() []string {
+	val := env.Get(OVHMonthlyNodepoolsVar, "")
+	if val == "" {
+		return nil
+	}
+	var pools []string
+	for _, p := range strings.Split(val, ",") {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			pools = append(pools, p)
+		}
+	}
+	return pools
 }
 
 // IsMCPServerEnabled returns the environment variable value for MCPServerEnabledEnvVar which represents
