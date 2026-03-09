@@ -31,6 +31,7 @@ type Node struct {
 type FileSystem struct {
 	CapacityBytes float64 `json:"capacityBytes"` // Total capacity of the volume in bytes
 	UsageByteAvg  float64 `json:"usageByteAvg"`
+	UsageByteMax  float64 `json:"usageByteMax"`
 }
 
 // RegisterNode validates and adds a node to the set

@@ -15,6 +15,8 @@ type PersistentVolumeClaim struct {
 	Start               time.Time `json:"start"`
 	End                 time.Time `json:"end"`
 	RequestedBytes      float64   `json:"requestedBytes"`
+	UsageBytesAvg       float64   `json:"usageBytesAvg"`
+	UsageBytesMax       float64   `json:"usageBytesMax"`
 }
 
 func (kms *KubeModelSet) RegisterPVC(pvc *PersistentVolumeClaim) error {
