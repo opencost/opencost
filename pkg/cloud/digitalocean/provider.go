@@ -784,9 +784,11 @@ func (do *DOKS) LoadBalancerPricing() (*models.LoadBalancer, error) {
 func (do *DOKS) NetworkPricing() (*models.Network, error) {
 	// fallback
 	const (
-		defaultZoneEgress     = 0.00
-		defaultRegionEgress   = 0.00
-		defaultInternetEgress = 0.01
+		defaultZoneEgress        = 0.00
+		defaultRegionEgress      = 0.00
+		defaultInternetEgress    = 0.01
+		defaultNatGatewayEgress  = 0.045
+		defaultNatGatewayIngress = 0.045
 	)
 
 	log.Infof("NetworkPricing: retrieving custom pricing data")
@@ -799,12 +801,16 @@ func (do *DOKS) NetworkPricing() (*models.Network, error) {
 			ZoneNetworkEgressCost:     defaultZoneEgress,
 			RegionNetworkEgressCost:   defaultRegionEgress,
 			InternetNetworkEgressCost: defaultInternetEgress,
+			NatGatewayEgressCost:      defaultNatGatewayEgress,
+			NatGatewayIngressCost:     defaultNatGatewayIngress,
 		}, nil
 	}
 
 	znec := parseWithDefault(cpricing.ZoneNetworkEgress, defaultZoneEgress, "ZoneNetworkEgress")
 	rnec := parseWithDefault(cpricing.RegionNetworkEgress, defaultRegionEgress, "RegionNetworkEgress")
 	inec := parseWithDefault(cpricing.InternetNetworkEgress, defaultInternetEgress, "InternetNetworkEgress")
+	nge := parseWithDefault(cpricing.NatGatewayEgress, defaultNatGatewayEgress, "NatGatewayEgress")
+	ngi := parseWithDefault(cpricing.NatGatewayIngress, defaultNatGatewayIngress, "NatGatewayIngress")
 
 	log.Infof("NetworkPricing: using parsed values: zone=%.4f/GiB, region=%.4f/GiB, internet=%.4f/GIB", znec, rnec, inec)
 
@@ -812,6 +818,8 @@ func (do *DOKS) NetworkPricing() (*models.Network, error) {
 		ZoneNetworkEgressCost:     znec,
 		RegionNetworkEgressCost:   rnec,
 		InternetNetworkEgressCost: inec,
+		NatGatewayEgressCost:      nge,
+		NatGatewayIngressCost:     ngi,
 	}, nil
 }
 
@@ -832,7 +840,9 @@ func isDefaultNetworkPricing(cp *models.CustomPricing) bool {
 	return cp != nil &&
 		cp.ZoneNetworkEgress == "0.01" &&
 		cp.RegionNetworkEgress == "0.01" &&
-		cp.InternetNetworkEgress == "0.12"
+		cp.InternetNetworkEgress == "0.12" &&
+		cp.NatGatewayEgress == "0.045" &&
+		cp.NatGatewayIngress == "0.045"
 }
 
 func (do *DOKS) AllNodePricing() (interface{}, error) {

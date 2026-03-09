@@ -178,4 +178,3 @@ func TestPriceSheetClient_MethodRegression(t *testing.T) {
 	assert.Equal(t, "POST", req.Raw().Method, "REGRESSION: HTTP method changed back to GET - this will cause 404 errors with Azure billing API")
 	assert.NotEqual(t, "GET", req.Raw().Method, "HTTP method must not be GET for Azure pricesheet download endpoint")
 }
-

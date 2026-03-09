@@ -25,7 +25,6 @@ func collectMetrics(collector KubePVCCollector) []prometheus.Metric {
 	return metrics
 }
 
-
 func TestKubePVCCollector_Describe(t *testing.T) {
 	collector := KubePVCCollector{metricsConfig: MetricsConfig{}}
 	ch := make(chan *prometheus.Desc, 5)
@@ -43,7 +42,6 @@ func TestKubePVCCollector_Describe(t *testing.T) {
 		t.Errorf("Expected 2 metrics described, got %d", count)
 	}
 }
-
 
 func TestKubePVCCollector_Collect(t *testing.T) {
 	storageSize := resource.MustParse("1Gi")
@@ -89,7 +87,6 @@ func TestKubePVCCollector_Collect(t *testing.T) {
 	}
 }
 
-
 func TestKubePVCMetrics_UIDLabel(t *testing.T) {
 	metric := newKubePVCResourceRequestsStorageBytesMetric(
 		"test_metric", "test-pvc", "test-namespace", "test-uid", 1000.0,
@@ -108,11 +105,6 @@ func TestKubePVCMetrics_UIDLabel(t *testing.T) {
 	}
 	t.Error("UID label not found in metric")
 }
-
-
-
-
-
 
 type FakePVCCache struct {
 	clustercache.ClusterCache

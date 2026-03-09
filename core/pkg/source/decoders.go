@@ -45,6 +45,7 @@ const (
 	InternetLabel        = "internet"
 	SameZoneLabel        = "same_zone"
 	SameRegionLabel      = "same_region"
+	NatGatewayLabel      = "nat_gateway"
 )
 
 const (
@@ -1115,10 +1116,14 @@ type NetInternetPricePerGiBResult = NetworkPricePerGiBResult
 
 type NetInternetServiceGiBResult = NetworkGiBResult
 
+type NetNatGatewayPricePerGiBResult = NetworkPricePerGiBResult
+type NetNatGatewayGiBResult = NetworkGiBResult
+
 type NetZoneIngressGiBResult = NetworkGiBResult
 type NetRegionIngressGiBResult = NetworkGiBResult
 type NetInternetIngressGiBResult = NetworkGiBResult
 type NetInternetServiceIngressGiBResult = NetworkGiBResult
+type NetNatGatewayIngressGiBResult = NetworkGiBResult
 
 func DecodeNetZoneGiBResult(result *QueryResult) *NetZoneGiBResult {
 	return DecodeNetworkGiBResult(result)
@@ -1148,6 +1153,14 @@ func DecodeNetInternetServiceGiBResult(result *QueryResult) *NetInternetServiceG
 	return DecodeNetworkGiBResult(result)
 }
 
+func DecodeNetNatGatewayPricePerGiBResult(result *QueryResult) *NetNatGatewayPricePerGiBResult {
+	return DecodeNetworkPricePerGiBResult(result)
+}
+
+func DecodeNetNatGatewayGiBResult(result *QueryResult) *NetNatGatewayGiBResult {
+	return DecodeNetworkGiBResult(result)
+}
+
 func DecodeNetZoneIngressGiBResult(result *QueryResult) *NetZoneIngressGiBResult {
 	return DecodeNetworkGiBResult(result)
 }
@@ -1161,6 +1174,10 @@ func DecodeNetInternetIngressGiBResult(result *QueryResult) *NetInternetIngressG
 }
 
 func DecodeNetInternetServiceIngressGiBResult(result *QueryResult) *NetInternetServiceIngressGiBResult {
+	return DecodeNetworkGiBResult(result)
+}
+
+func DecodeNetNatGatewayIngressGiBResult(result *QueryResult) *NetNatGatewayIngressGiBResult {
 	return DecodeNetworkGiBResult(result)
 }
 

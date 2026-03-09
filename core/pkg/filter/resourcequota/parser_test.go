@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/filter/ast"
+	"github.com/opencost/opencost/core/pkg/filter/ops"
 )
 
 func TestDefaultFieldByName(t *testing.T) {
@@ -40,4 +41,29 @@ func TestDefaultFieldByName(t *testing.T) {
 		t.Errorf("expected %s; received %s", "uid", astf.Name)
 	}
 
+}
+
+func TestOpsEqWithResourceQuotaField(t *testing.T) {
+	clusterFilter := ops.Eq(FieldClusterID, "test-cluster")
+
+	equalOp, ok := clusterFilter.(*ast.EqualOp)
+	if !ok {
+		t.Fatalf("expected *ast.EqualOp, got %T", clusterFilter)
+	}
+
+	if equalOp.Left.Field == nil {
+		t.Fatal("expected Field to be non-nil, got nil")
+	}
+
+	if equalOp.Left.Field.Name == "" {
+		t.Fatal("expected Field.Name to be non-empty, got empty string")
+	}
+
+	if equalOp.Left.Field.Name != "cluster" {
+		t.Errorf("expected Field.Name to be 'cluster', got '%s'", equalOp.Left.Field.Name)
+	}
+
+	if equalOp.Right != "test-cluster" {
+		t.Errorf("expected Right to be 'test-cluster', got '%s'", equalOp.Right)
+	}
 }

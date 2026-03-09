@@ -135,7 +135,7 @@ func (s *scanner) advance() rune {
 	if s.atEnd() {
 		return 0
 	}
-	
+
 	r, size := utf8.DecodeRuneInString(s.source[s.nextByte:])
 	s.nextByte += size
 	return r
@@ -145,7 +145,7 @@ func (s *scanner) match(expected rune) bool {
 	if s.atEnd() {
 		return false
 	}
-	
+
 	// Get the rune at the current position
 	r, size := utf8.DecodeRuneInString(s.source[s.nextByte:])
 	if r != expected {
@@ -173,7 +173,7 @@ func (s *scanner) peek() rune {
 	if s.atEnd() {
 		return 0
 	}
-	
+
 	// Get the rune at the current position
 	r, _ := utf8.DecodeRuneInString(s.source[s.nextByte:])
 	return r
@@ -259,7 +259,7 @@ func (s *scanner) scanToken() {
 			s.errors = append(s.errors, fmt.Errorf("invalid UTF-8 character at position %d", s.nextByte-1))
 			break
 		}
-		
+
 		// identifiers
 		//
 		// We can keep it simple and not _force_ the first character to be a

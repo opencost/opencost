@@ -69,11 +69,15 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewNetInternetGiBMetricCollector())
 	memStore.Register(NewNetInternetPricePerGiBMetricCollector())
 	memStore.Register(NewNetInternetServiceGiBMetricCollector())
+	memStore.Register(NewNetNatGatewayGiBMetricCollector())
+	memStore.Register(NewNetNatGatewayPricePerGiBMetricCollector())
 	memStore.Register(NewNetReceiveBytesMetricCollector())
 	memStore.Register(NewNetZoneIngressGiBMetricCollector())
 	memStore.Register(NewNetRegionIngressGiBMetricCollector())
 	memStore.Register(NewNetInternetIngressGiBMetricCollector())
 	memStore.Register(NewNetInternetServiceIngressGiBMetricCollector())
+	memStore.Register(NewNetNatGatewayIngressPricePerGiBMetricCollector())
+	memStore.Register(NewNetNatGatewayIngressGiBMetricCollector())
 	memStore.Register(NewNetTransferBytesMetricCollector())
 	memStore.Register(NewNamespaceUptimeMetricCollector())
 	memStore.Register(NewNamespaceLabelsMetricCollector())
@@ -1504,6 +1508,51 @@ func NewNetInternetServiceGiBMetricCollector() *metric.MetricCollector {
 
 //	sum(
 //		increase(
+//			kubecost_pod_network_egress_bytes_total{
+//				nat_gateway="true",
+//				<some_custom_filter>
+//			}[1h]
+//		)
+//	) by (pod_name, namespace, uid, cluster_id) / 1024 / 1024 / 1024
+
+func NewNetNatGatewayGiBMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NetNatGatewayGiBID,
+		metric.KubecostPodNetworkEgressBytesTotal,
+		[]string{
+			source.NamespaceLabel,
+			source.PodNameLabel,
+			source.UIDLabel,
+		},
+		aggregator.Increase,
+		func(labels map[string]string) bool {
+			natLabel, labelExists := labels[source.NatGatewayLabel]
+
+			return labelExists && natLabel == "true"
+		},
+	)
+}
+
+// avg(
+//      avg_over_time(
+// 			kubecost_network_nat_gateway_egress_cost{
+// 				<some_custom_filter>
+//			}[1h]
+//		)
+// ) by (cluster_id)
+
+func NewNetNatGatewayPricePerGiBMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NetNatGatewayPricePerGiBID,
+		metric.KubecostNetworkNatGatewayEgressCost,
+		[]string{},
+		aggregator.AverageOverTime,
+		nil,
+	)
+}
+
+//	sum(
+//		increase(
 //			container_network_receive_bytes_total{
 //				pod!="",
 //				<some_custom_filter>
@@ -1632,6 +1681,51 @@ func NewNetInternetServiceIngressGiBMetricCollector() *metric.MetricCollector {
 		aggregator.Increase,
 		func(labels map[string]string) bool {
 			return labels[source.InternetLabel] == "true"
+		},
+	)
+}
+
+// avg(
+//      avg_over_time(
+// 			kubecost_network_nat_gateway_ingress_cost{
+// 				<some_custom_filter>
+//			}[1h]
+//		)
+// ) by (cluster_id)
+
+func NewNetNatGatewayIngressPricePerGiBMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NetNatGatewayIngressPricePerGiBID,
+		metric.KubecostNetworkNatGatewayIngressCost,
+		[]string{},
+		aggregator.AverageOverTime,
+		nil,
+	)
+}
+
+//	sum(
+//		increase(
+//			kubecost_pod_network_ingress_bytes_total{
+//				nat_gateway="true",
+//				<some_custom_filter>
+//			}[1h]
+//		)
+//	) by (pod_name, namespace, uid, cluster_id) / 1024 / 1024 / 1024
+
+func NewNetNatGatewayIngressGiBMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NetNatGatewayIngressGiBID,
+		metric.KubecostPodNetworkIngressBytesTotal,
+		[]string{
+			source.NamespaceLabel,
+			source.PodNameLabel,
+			source.UIDLabel,
+		},
+		aggregator.Increase,
+		func(labels map[string]string) bool {
+			natLabel, labelExists := labels[source.NatGatewayLabel]
+
+			return labelExists && natLabel == "true"
 		},
 	)
 }

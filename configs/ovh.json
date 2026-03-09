@@ -1,0 +1,13 @@
+{
+    "provider": "OVH",
+    "description": "OVH fallback prices: CPU/RAM from b2-7, GPU from t2-45 per-GPU-hour, storage from high-speed-gen2",
+    "CPU": "0.03405",
+    "spotCPU": "0.03405",
+    "RAM": "0.009729",
+    "spotRAM": "0.009729",
+    "GPU": "1.80",
+    "storage": "0.000119",
+    "zoneNetworkEgress": "0.0",
+    "regionNetworkEgress": "0.0",
+    "internetNetworkEgress": "0.01"
+}

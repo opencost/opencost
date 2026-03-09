@@ -170,6 +170,6 @@ func Execute(opts *AgentOpts) error {
 	if port == 0 {
 		port = env.GetKubecostMetricsPort()
 	}
-	
+
 	return http.ListenAndServe(fmt.Sprintf(":%d", port), handler)
 }

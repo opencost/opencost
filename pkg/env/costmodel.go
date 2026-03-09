@@ -1,6 +1,7 @@
 package env
 
 import (
+	"strings"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/env"
@@ -34,11 +35,18 @@ const (
 
 	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
 	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
+	AzureLocaleEnvVar     = "AZURE_LOCALE"
+	AzureCurrencyEnvVar   = "AZURE_CURRENCY"
+	AzureRegionInfoEnvVar = "AZURE_REGION_INFO"
 
 	DigitalOceanAccessTokenEnvVar = "DIGITALOCEAN_ACCESS_TOKEN"
+	// Azure rate card filter environment variables
 
 	// Currently being used for OCI and DigitalOcean
 	ProviderPricingURL = "PROVIDER_PRICING_URL"
+
+	OVHSubsidiaryEnvVar    = "OVH_SUBSIDIARY"
+	OVHMonthlyNodepoolsVar = "OVH_MONTHLY_NODEPOOLS"
 
 	ClusterProfileEnvVar    = "CLUSTER_PROFILE"
 	RemoteEnabledEnvVar     = "REMOTE_WRITE_ENABLED"
@@ -223,6 +231,24 @@ func GetAzureBillingAccount() string {
 	return env.Get(AzureBillingAccountEnvVar, "")
 }
 
+// GetAzureLocale returns the environment variable value for AzureLocaleEnvVar which represents
+// the Azure rate card locale filter. Defaults to "en-US" if not specified.
+func GetAzureLocale() string {
+	return env.Get(AzureLocaleEnvVar, "en-US")
+}
+
+// GetAzureCurrency returns the environment variable value for AzureCurrencyEnvVar which represents
+// the Azure rate card currency filter. This overrides the default currency from config if specified.
+func GetAzureCurrency() string {
+	return env.Get(AzureCurrencyEnvVar, "")
+}
+
+// GetAzureRegionInfo returns the environment variable value for AzureRegionInfoEnvVar which represents
+// the Azure rate card region filter. This overrides the default region from config if specified.
+func GetAzureRegionInfo() string {
+	return env.Get(AzureRegionInfoEnvVar, "")
+}
+
 // IsAzureDownloadBillingDataToDisk returns the environment variable value for
 // AzureDownloadBillingDataToDiskEnvVar which indicates whether the Azure
 // Billing Data should be held in memory or written to disk.
@@ -386,6 +412,25 @@ func GetDigitalOceanAccessToken() string {
 		token = env.Get(CloudProviderAPIKeyEnvVar, "")
 	}
 	return token
+}
+
+func GetOVHSubsidiary() string {
+	return strings.ToUpper(strings.TrimSpace(env.Get(OVHSubsidiaryEnvVar, "FR")))
+}
+
+func GetOVHMonthlyNodepools() []string {
+	val := env.Get(OVHMonthlyNodepoolsVar, "")
+	if val == "" {
+		return nil
+	}
+	var pools []string
+	for _, p := range strings.Split(val, ",") {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			pools = append(pools, p)
+		}
+	}
+	return pools
 }
 
 // IsMCPServerEnabled returns the environment variable value for MCPServerEnabledEnvVar which represents

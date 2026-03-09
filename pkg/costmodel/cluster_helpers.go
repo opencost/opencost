@@ -385,7 +385,7 @@ func buildCPUBreakdownMap(resNodeCPUModeTotal []*source.NodeCPUModeTotalResult) 
 
 		mode := result.Mode
 		if mode == "" {
-			log.Warnf("ClusterNodes: unable to read CPU mode data.")
+			log.DedupedWarningf(10, "ClusterNodes: unable to read CPU mode data for node %s.", node)
 			mode = "other"
 		}
 
