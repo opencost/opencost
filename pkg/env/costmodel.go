@@ -35,9 +35,9 @@ const (
 
 	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
 	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
-	AzureLocaleEnvVar     = "AZURE_LOCALE"
-	AzureCurrencyEnvVar   = "AZURE_CURRENCY"
-	AzureRegionInfoEnvVar = "AZURE_REGION_INFO"
+	AzureLocaleEnvVar         = "AZURE_LOCALE"
+	AzureCurrencyEnvVar       = "AZURE_CURRENCY"
+	AzureRegionInfoEnvVar     = "AZURE_REGION_INFO"
 
 	DigitalOceanAccessTokenEnvVar = "DIGITALOCEAN_ACCESS_TOKEN"
 	// Azure rate card filter environment variables
