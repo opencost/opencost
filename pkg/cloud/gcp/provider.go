@@ -1574,11 +1574,12 @@ func (gcp *GCP) NodePricing(key models.Key) (*models.Node, models.PricingMetadat
 
 		return n.Node, meta, nil
 	} else if ok := gcp.isValidPricingKey(key); ok {
+		log.DedupedInfof(10, "GCP NodePricing: key %q is valid but pricing data not loaded, attempting download", key.Features())
 		meta.Warnings = append(meta.Warnings, fmt.Sprintf("No pricing found, but key is valid: %s", key.Features()))
 
 		err := gcp.DownloadPricingData()
 		if err != nil {
-			log.Warnf("no pricing data found for %s", key.Features())
+			log.DedupedInfof(10, "GCP NodePricing: failed to download pricing data for key %q: %v", key.Features(), err)
 
 			meta.Warnings = append(meta.Warnings, "Failed to download pricing data")
 
@@ -1595,13 +1596,14 @@ func (gcp *GCP) NodePricing(key models.Key) (*models.Node, models.PricingMetadat
 			return n.Node, meta, nil
 		}
 
-		log.Warnf("no pricing data found for %s", key.Features())
+		log.DedupedInfof(10, "GCP NodePricing: pricing data still not found for key %q after successful download", key.Features())
 
 		meta.Warnings = append(meta.Warnings, "Failed to find pricing after downloading data, but key is valid")
 
 		return nil, meta, fmt.Errorf("failed to find pricing data: %s", key.Features())
 	}
 
+	log.DedupedInfof(10, "GCP NodePricing: unknown instance type, key %q not found in valid pricing keys", key.Features())
 	meta.Warnings = append(meta.Warnings, fmt.Sprintf("No pricing found, and key is not valid: %s", key.Features()))
 
 	return nil, meta, fmt.Errorf("no pricing data found for %s", key.Features())
