@@ -38,8 +38,8 @@ type Pod struct {
 	Annotations    map[string]string `json:"annotations,omitempty"`
 	NetworkEgress  *NetworkTraffic   `json:"networkEgress"`
 	NetworkIngress *NetworkTraffic   `json:"networkIngress"`
-	Start          time.Time         `json:"start,omitempty"` // Pod creation/start timestamp
-	End            time.Time         `json:"end,omitempty"`   // Pod deletion/end timestamp (nil if still running)
+	Start          time.Time         `json:"start"`
+	End            time.Time         `json:"end"`
 }
 
 func (kms *KubeModelSet) RegisterPod(pod *Pod) error {
