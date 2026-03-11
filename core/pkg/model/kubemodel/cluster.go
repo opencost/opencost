@@ -7,14 +7,13 @@ import (
 
 // @bingen:generate:Cluster
 type Cluster struct {
-	UID         string    `json:"uid"`         // @bingen:field[version=1]
-	Provider    Provider  `json:"provider"`    // @bingen:field[version=1]
-	Account     string    `json:"account"`     // @bingen:field[version=1]
-	Name        string    `json:"name"`        // @bingen:field[version=1]
-	Provisioner string    `json:"provisioner"` // @bingen:field[version=2]
-	Region      string    `json:"region"`      // @bingen:field[version=2]
-	Start       time.Time `json:"start"`       // @bingen:field[version=1]
-	End         time.Time `json:"end"`         // @bingen:field[version=1]
+	UID      string    `json:"uid"`      // @bingen:field[version=1]
+	Provider Provider  `json:"provider"` // @bingen:field[version=1]
+	Account  string    `json:"account"`  // @bingen:field[version=1]
+	Name     string    `json:"name"`     // @bingen:field[version=1]
+	Region   string    `json:"region"`   // @bingen:field[version=2]
+	Start    time.Time `json:"start"`    // @bingen:field[version=1]
+	End      time.Time `json:"end"`      // @bingen:field[version=1]
 }
 
 func (kms *KubeModelSet) RegisterCluster(cluster *Cluster) error {

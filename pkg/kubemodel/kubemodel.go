@@ -153,12 +153,11 @@ func (km *KubeModel) computeCluster(kms *kubemodel.KubeModelSet, start, end time
 	clusterInfoResult, _ := clusterInfoResultFuture.Await()
 	for _, res := range clusterInfoResult {
 		clusterMap[res.UID] = &kubemodel.Cluster{
-			UID:         res.UID,
-			Provider:    kubemodel.ParseProvider(res.Provider),
-			Account:     res.AccountID,
-			Name:        res.Cluster,
-			Provisioner: res.Provisioner,
-			Region:      res.Region,
+			UID:      res.UID,
+			Provider: kubemodel.ParseProvider(res.Provider),
+			Account:  res.AccountID,
+			Name:     res.Cluster,
+			Region:   res.Region,
 		}
 	}
 
@@ -761,6 +760,7 @@ func (km *KubeModel) computeReplicaSets(kms *kubemodel.KubeModelSet, start, end 
 
 	replicaSetInfoResultFuture := source.WithGroup(grp, metrics.QueryReplicaSetInfo(start, end))
 	replicaSetUptimeResultFuture := source.WithGroup(grp, metrics.QueryReplicaSetUptime(start, end))
+	replicaSetOwnerResultFuture := source.WithGroup(grp, metrics.QueryReplicaSetOwners(start, end))
 	replicaSetLabelsResultFuture := source.WithGroup(grp, metrics.QueryReplicaSetLabels(start, end))
 	replicaSetAnnotationsResultFuture := source.WithGroup(grp, metrics.QueryReplicaSetAnnotations(start, end))
 
@@ -785,6 +785,19 @@ func (km *KubeModel) computeReplicaSets(kms *kubemodel.KubeModelSet, start, end 
 		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
 		replicaSet.Start = s
 		replicaSet.End = e
+	}
+
+	replicaSetOwnersResult, _ := replicaSetOwnerResultFuture.Await()
+	for _, res := range replicaSetOwnersResult {
+		replicaSet, ok := replicaSetMap[res.UID]
+		if !ok {
+			log.Warnf("replicaset with UID '%s' has not been initialized to add owner", res.UID)
+			continue
+		}
+		replicaSet.Owners = append(replicaSet.Owners, kubemodel.Owner{
+			UID:  res.OwnerUID,
+			Kind: kubemodel.ParseOwnerKind(res.OwnerKind),
+		})
 	}
 
 	replicaSetLabelsResult, _ := replicaSetLabelsResultFuture.Await()

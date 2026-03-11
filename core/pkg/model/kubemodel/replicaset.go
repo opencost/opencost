@@ -11,6 +11,7 @@ type ReplicaSet struct {
 	UID          string            `json:"uid"`
 	NamespaceUID string            `json:"namespaceUid"`
 	Name         string            `json:"name"`
+	Owners       []Owner           `json:"owners"`
 	Labels       map[string]string `json:"labels,omitempty"`
 	Annotations  map[string]string `json:"annotations,omitempty"`
 	Start        time.Time         `json:"start,omitempty"`
