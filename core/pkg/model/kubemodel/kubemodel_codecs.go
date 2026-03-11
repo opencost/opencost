@@ -4603,33 +4603,9 @@ func (target *Node) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 		// --- [end][write][map](map[string]string) ---
 
 	}
-	if target.Annotations == nil {
-		buff.WriteUInt8(uint8(0)) // write nil byte
-	} else {
-		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
-		// --- [begin][write][map](map[string]string) ---
-		buff.WriteInt(len(target.Annotations)) // map length
-		for vv, zz := range target.Annotations {
-			if ctx.IsStringTable() {
-				f := ctx.Table.AddOrGet(vv)
-				buff.WriteInt(f) // write table index
-			} else {
-				buff.WriteString(vv) // write string
-			}
-			if ctx.IsStringTable() {
-				g := ctx.Table.AddOrGet(zz)
-				buff.WriteInt(g) // write table index
-			} else {
-				buff.WriteString(zz) // write string
-			}
-		}
-		// --- [end][write][map](map[string]string) ---
-
-	}
 	if ctx.IsStringTable() {
-		h := ctx.Table.AddOrGet(target.InstanceType)
-		buff.WriteInt(h) // write table index
+		f := ctx.Table.AddOrGet(target.InstanceType)
+		buff.WriteInt(f) // write table index
 	} else {
 		buff.WriteString(target.InstanceType) // write string
 	}
@@ -4646,21 +4622,21 @@ func (target *Node) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 	// --- [end][write][struct](FileSystem) ---
 
 	// --- [begin][write][reference](time.Time) ---
-	k, errB := target.Start.MarshalBinary()
+	g, errB := target.Start.MarshalBinary()
 	if errB != nil {
 		return errB
 	}
-	buff.WriteInt(len(k))
-	buff.WriteBytes(k)
+	buff.WriteInt(len(g))
+	buff.WriteBytes(g)
 	// --- [end][write][reference](time.Time) ---
 
 	// --- [begin][write][reference](time.Time) ---
-	l, errC := target.End.MarshalBinary()
+	h, errC := target.End.MarshalBinary()
 	if errC != nil {
 		return errC
 	}
-	buff.WriteInt(len(l))
-	buff.WriteBytes(l)
+	buff.WriteInt(len(h))
+	buff.WriteBytes(h)
 	// --- [end][write][reference](time.Time) ---
 
 	return nil
@@ -4785,93 +4761,58 @@ func (target *Node) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 		// --- [end][read][map](map[string]string) ---
 
 	}
-	if buff.ReadUInt8() == uint8(0) {
-		target.Annotations = nil
-	} else {
-		// --- [begin][read][map](map[string]string) ---
-		u := buff.ReadInt() // map len
-		t := make(map[string]string, u)
-		for j := 0; j < u; j++ {
-			var vv string
-			var x string
-			if ctx.IsStringTable() {
-				y := buff.ReadInt() // read string index
-				x = ctx.Table[y]
-			} else {
-				x = buff.ReadString() // read string
-			}
-			w := x
-			vv = w
-
-			var zz string
-			var bb string
-			if ctx.IsStringTable() {
-				cc := buff.ReadInt() // read string index
-				bb = ctx.Table[cc]
-			} else {
-				bb = buff.ReadString() // read string
-			}
-			aa := bb
-			zz = aa
-
-			t[vv] = zz
-		}
-		target.Annotations = t
-		// --- [end][read][map](map[string]string) ---
-
-	}
-	var ee string
+	var u string
 	if ctx.IsStringTable() {
-		ff := buff.ReadInt() // read string index
-		ee = ctx.Table[ff]
+		w := buff.ReadInt() // read string index
+		u = ctx.Table[w]
 	} else {
-		ee = buff.ReadString() // read string
+		u = buff.ReadString() // read string
 	}
-	dd := ee
-	target.InstanceType = dd
+	t := u
+	target.InstanceType = t
 
-	gg := buff.ReadBool() // read bool
-	target.Preemptible = gg
+	x := buff.ReadBool() // read bool
+	target.Preemptible = x
 
-	hh := buff.ReadFloat64() // read float64
-	target.CPUMilliCores = hh
+	y := buff.ReadFloat64() // read float64
+	target.CPUMilliCores = y
 
-	kk := buff.ReadFloat64() // read float64
-	target.RAMBytes = kk
+	aa := buff.ReadFloat64() // read float64
+	target.RAMBytes = aa
 
-	ll := buff.ReadFloat64() // read float64
-	target.GPUCount = ll
+	bb := buff.ReadFloat64() // read float64
+	target.GPUCount = bb
 
 	// --- [begin][read][struct](FileSystem) ---
-	mm := &FileSystem{}
+	cc := &FileSystem{}
 	buff.ReadInt() // [compatibility, unused]
-	errA := mm.UnmarshalBinaryWithContext(ctx)
+	errA := cc.UnmarshalBinaryWithContext(ctx)
 	if errA != nil {
 		return errA
 	}
-	target.FileSystem = *mm
+	target.FileSystem = *cc
 	// --- [end][read][struct](FileSystem) ---
 
 	// --- [begin][read][reference](time.Time) ---
-	nn := &time.Time{}
-	oo := buff.ReadInt()     // byte array length
-	pp := buff.ReadBytes(oo) // byte array
-	errB := nn.UnmarshalBinary(pp)
+	dd := &time.Time{}
+	ee := buff.ReadInt()     // byte array length
+	ff := buff.ReadBytes(ee) // byte array
+	errB := dd.UnmarshalBinary(ff)
 	if errB != nil {
 		return errB
 	}
-	target.Start = *nn
+	target.Start = *dd
 	// --- [end][read][reference](time.Time) ---
 
 	// --- [begin][read][reference](time.Time) ---
-	qq := &time.Time{}
-	rr := buff.ReadInt()     // byte array length
-	ss := buff.ReadBytes(rr) // byte array
-	errC := qq.UnmarshalBinary(ss)
+	gg := &time.Time{}
+	hh := buff.ReadInt()     // byte array length
+	kk := buff.ReadBytes(hh) // byte array
+	errC := gg.UnmarshalBinary(kk)
 	if errC != nil {
 		return errC
 	}
-	target.End = *qq
+	target.End = *gg
 	// --- [end][read][reference](time.Time) ---
 
 	return nil

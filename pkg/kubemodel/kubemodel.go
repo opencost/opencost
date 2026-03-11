@@ -484,7 +484,7 @@ func (km *KubeModel) computePods(kms *kubemodel.KubeModelSet, start, end time.Ti
 		if pod.NetworkEgress == nil {
 			pod.NetworkEgress = &kubemodel.NetworkTraffic{}
 		}
-		pod.NetworkEgress.Services = append(pod.NetworkEgress.Services, &kubemodel.NetworkService{
+		pod.NetworkEgress.ExternalServices = append(pod.NetworkEgress.ExternalServices, &kubemodel.NetworkService{
 			ServiceName: res.Service,
 			TotalBytes:  res.Data[0].Value * gibToBytes,
 		})
@@ -547,7 +547,7 @@ func (km *KubeModel) computePods(kms *kubemodel.KubeModelSet, start, end time.Ti
 		if pod.NetworkIngress == nil {
 			pod.NetworkIngress = &kubemodel.NetworkTraffic{}
 		}
-		pod.NetworkIngress.Services = append(pod.NetworkIngress.Services, &kubemodel.NetworkService{
+		pod.NetworkIngress.ExternalServices = append(pod.NetworkIngress.ExternalServices, &kubemodel.NetworkService{
 			ServiceName: res.Service,
 			TotalBytes:  res.Data[0].Value * gibToBytes,
 		})
