@@ -1,30 +1,101 @@
 {
-  "products": [
-    {
-      "sku": "1-KS-K8SWN-00123",
-      "itemType": "K8S_WORKER_NODE",
-      "displayName": "Kubernetes Worker Node, General Purpose Droplets - 1 VCPU 2GB RAM",
-      "category": "IAAS",
-      "prices": [
+    "sizes": [
         {
-          "unit": "ITEM_PER_SECOND",
-          "rate": "0.00000333",
-          "currency": "USD",
-          "region": "global",
-          "minAmount": "0.01",
-          "maxAmount": "10.00",
-          "minUsage": "60",
-          "maxUsage": "2419200"
-        }
-      ],
-      "attributes": [
+            "slug": "s-1vcpu-2gb",
+            "memory": 2048,
+            "vcpus": 1,
+            "disk": 50,
+            "transfer": 2.0,
+            "price_monthly": 12,
+            "price_hourly": 0.01786,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic"
+        },
         {
-          "name": "size_id",
-          "value": "184",
-          "unit": "NO_UNIT"
+            "slug": "s-2vcpu-4gb",
+            "memory": 4096,
+            "vcpus": 2,
+            "disk": 80,
+            "transfer": 4.0,
+            "price_monthly": 24,
+            "price_hourly": 0.03571,
+            "regions": [
+                "ams2",
+                "ams3",
+                "blr1",
+                "fra1",
+                "lon1",
+                "nyc1",
+                "nyc2",
+                "nyc3",
+                "sfo2",
+                "sfo3",
+                "sgp1",
+                "syd1",
+                "tor1"
+            ],
+            "available": true,
+            "description": "Basic"
+        },
+        {
+            "slug": "gpu-h100x1-80gb",
+            "memory": 245760,
+            "vcpus": 20,
+            "disk": 720,
+            "transfer": 15.0,
+            "price_monthly": 2522.16,
+            "price_hourly": 3.39,
+            "regions": [
+                "ams3",
+                "nyc2",
+                "tor1"
+            ],
+            "available": true,
+            "description": "H100 GPU - 1X",
+            "networking_throughput": 10000,
+            "gpu_info": {
+                "count": 1,
+                "vram": {
+                    "amount": 80,
+                    "unit": "gib"
+                },
+                "model": "nvidia_h100"
+            },
+            "disk_info": [
+                {
+                    "type": "local",
+                    "size": {
+                        "amount": 720,
+                        "unit": "gib"
+                    }
+                },
+                {
+                    "type": "scratch",
+                    "size": {
+                        "amount": 5120,
+                        "unit": "gib"
+                    }
+                }
+            ]
         }
-      ],
-      "effectiveAt": "2023-09-08T00:00:00Z"
+    ],
+    "links": {},
+    "meta": {
+        "total": 3
     }
-  ]
 }

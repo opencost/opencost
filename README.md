@@ -72,10 +72,15 @@ The OpenCost MCP (Model Context Protocol) server provides AI agents with access 
 #### Using Tilt (Development)
 ```bash
 # Clone and start OpenCost with MCP server
+# You may also need to clone opencost-ui and opencost-helm-charts repositories
+# Make sure the cloned repositories are in the same parent tree as opencost
+
 git clone https://github.com/opencost/opencost.git
 cd opencost
 tilt up
 ```
+##### Default Configurations
+The UI and Prometheus both run on port 9090. You may need to port-forward to a non-default port to access both them at the same time.
 
 Tilt configuration notes (cloud costs):
 

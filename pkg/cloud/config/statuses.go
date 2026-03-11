@@ -33,7 +33,7 @@ func ConfigTypeFromConfig(config cloud.KeyedConfig) (string, error) {
 	case *oracle.UsageApiConfiguration:
 		return UsageApiConfigType, nil
 	}
-	return "", fmt.Errorf("failed to config type for config with key: %s, type %T", config.Key(), config)
+	return "", fmt.Errorf("failed to determine config type for config with key: %s, type %T", config.Key(), config)
 }
 
 type Statuses map[ConfigSource]map[string]*Status

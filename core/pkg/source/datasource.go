@@ -93,6 +93,8 @@ type MetricsQuerier interface {
 	QueryNetInternetGiB(start, end time.Time) *Future[NetInternetGiBResult]
 	QueryNetInternetPricePerGiB(start, end time.Time) *Future[NetInternetPricePerGiBResult]
 	QueryNetInternetServiceGiB(start, end time.Time) *Future[NetInternetServiceGiBResult]
+	QueryNetNatGatewayPricePerGiB(start, end time.Time) *Future[NetNatGatewayPricePerGiBResult]
+	QueryNetNatGatewayGiB(start, end time.Time) *Future[NetNatGatewayGiBResult]
 	QueryNetTransferBytes(start, end time.Time) *Future[NetTransferBytesResult]
 
 	// Network Ingress
@@ -100,6 +102,8 @@ type MetricsQuerier interface {
 	QueryNetRegionIngressGiB(start, end time.Time) *Future[NetRegionIngressGiBResult]
 	QueryNetInternetIngressGiB(start, end time.Time) *Future[NetInternetIngressGiBResult]
 	QueryNetInternetServiceIngressGiB(start, end time.Time) *Future[NetInternetServiceIngressGiBResult]
+	QueryNetNatGatewayIngressPricePerGiB(start, end time.Time) *Future[NetNatGatewayPricePerGiBResult]
+	QueryNetNatGatewayIngressGiB(start, end time.Time) *Future[NetNatGatewayIngressGiBResult]
 	QueryNetReceiveBytes(start, end time.Time) *Future[NetReceiveBytesResult]
 
 	// Annotations

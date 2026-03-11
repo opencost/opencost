@@ -13,6 +13,7 @@ var allocationFilterFields []*ast.Field = []*ast.Field{
 	ast.NewField(FieldContainer),
 	ast.NewField(FieldPod),
 	ast.NewField(FieldProvider),
+	ast.NewField(FieldAccount),
 	ast.NewAliasField(AliasDepartment),
 	ast.NewAliasField(AliasEnvironment),
 	ast.NewAliasField(AliasOwner),

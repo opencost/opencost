@@ -1,7 +1,11 @@
 package scrape
 
 import (
+	"fmt"
+	"io"
 	"reflect"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
@@ -99,6 +103,53 @@ DCGM_FI_PROF_GR_ENGINE_ACTIVE{gpu="0",UUID="GPU-1",pci_bus_id="00000000:00:0A.0"
 # TYPE DCGM_FI_DEV_DEC_UTIL gauge
 DCGM_FI_DEV_DEC_UTIL{gpu="0",UUID="GPU-1",pci_bus_id="00000000:00:0A.0",device="nvidia0",modelName="Tesla T4",Hostname="localhost"} 0 
 `
+
+type CloseableStringReader struct {
+	*strings.Reader
+
+	closed *atomic.Bool
+}
+
+func newCloseableStringReader(reader *strings.Reader, closed *atomic.Bool) *CloseableStringReader {
+	return &CloseableStringReader{
+		Reader: reader,
+		closed: closed,
+	}
+}
+
+func (csr *CloseableStringReader) Close() error {
+	if csr.closed != nil {
+		csr.closed.Store(true)
+	}
+
+	return nil
+}
+
+type CloseableStringTarget struct {
+	sTarget *target.StringTarget
+	closed  *atomic.Bool
+}
+
+func newCloseableStringTarget(sTarget *target.StringTarget, closed *atomic.Bool) *CloseableStringTarget {
+	return &CloseableStringTarget{
+		sTarget: sTarget,
+		closed:  closed,
+	}
+}
+
+func (cst *CloseableStringTarget) Load() (io.Reader, error) {
+	reader, err := cst.sTarget.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	sReader, ok := reader.(*strings.Reader)
+	if !ok {
+		return nil, fmt.Errorf("Reader was not a string reader")
+	}
+
+	return newCloseableStringReader(sReader, cst.closed), nil
+}
 
 func TestTargetScraper_Scrape(t *testing.T) {
 	tests := []struct {
@@ -479,18 +530,34 @@ func TestTargetScraper_Scrape(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			scraper := tt.targetScraperFactory(target.NewDefaultTargetProvider(target.NewStringTarget(tt.scrapeText)))
-			scrapeResults := scraper.Scrape()
+			closed := new(atomic.Bool)
 
-			if len(scrapeResults) != len(tt.expected) {
-				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
+			for i := range 2 {
+				var sTarget target.ScrapeTarget
+				if i == 0 {
+					sTarget = target.NewStringTarget(tt.scrapeText)
+				} else {
+					sTarget = newCloseableStringTarget(target.NewStringTarget(tt.scrapeText), closed)
+				}
+
+				scraper := tt.targetScraperFactory(target.NewDefaultTargetProvider(sTarget))
+				scrapeResults := scraper.Scrape()
+
+				if len(scrapeResults) != len(tt.expected) {
+					t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
+				}
+
+				for i, expected := range tt.expected {
+					got := scrapeResults[i]
+					if !reflect.DeepEqual(expected, got) {
+						t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
+					}
+				}
 			}
 
-			for i, expected := range tt.expected {
-				got := scrapeResults[i]
-				if !reflect.DeepEqual(expected, got) {
-					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
-				}
+			if !closed.Load() {
+				t.Errorf("Closeable target did not call Close on Scrape()")
+				t.Fail()
 			}
 		})
 	}

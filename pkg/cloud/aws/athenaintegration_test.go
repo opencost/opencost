@@ -419,13 +419,13 @@ func (m *mockAthenaIntegration) GetPartitionWhere(start, end time.Time) string {
 	month := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, time.UTC)
 	endMonth := time.Date(end.Year(), end.Month(), 1, 0, 0, 0, 0, time.UTC)
 	var disjuncts []string
-	
+
 	// Using our mock's result for billing period partitions
 	useBillingPeriodPartitions := false
 	if m.mockAthenaQuerier.AthenaConfiguration.CURVersion != "1.0" {
 		useBillingPeriodPartitions = m.mockAthenaQuerier.hasBillingPeriodPartitions
 	}
-	
+
 	for !month.After(endMonth) {
 		if m.mockAthenaQuerier.AthenaConfiguration.CURVersion == "1.0" {
 			// CUR 1.0 uses year and month columns for partitioning
@@ -445,10 +445,12 @@ func (m *mockAthenaIntegration) GetPartitionWhere(start, end time.Time) string {
 
 func TestAthenaIntegration_GetPartitionWhere(t *testing.T) {
 	testCases := map[string]struct {
-		integration interface{ GetPartitionWhere(time.Time, time.Time) string }
-		start       time.Time
-		end         time.Time
-		expected    string
+		integration interface {
+			GetPartitionWhere(time.Time, time.Time) string
+		}
+		start    time.Time
+		end      time.Time
+		expected string
 	}{
 		"CUR 1.0 single month": {
 			integration: &AthenaIntegration{

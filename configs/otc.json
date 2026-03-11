@@ -6,5 +6,7 @@
     "storage": "0.0",
     "zoneNetworkEgress": "0.0",
     "regionNetworkEgress": "0.0",
-    "internetNetworkEgress": "0.0"
+    "internetNetworkEgress": "0.0",
+    "natGatewayEgress": "0.0",
+    "natGatewayIngress": "0.0"
 }

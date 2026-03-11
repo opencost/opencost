@@ -194,8 +194,8 @@ func (cfw *ConfigFileWatcher) GetConfigs() []cloud.KeyedConfig {
 			AthenaDatabase:   customPricing.AthenaDatabase,
 			AthenaTable:      customPricing.AthenaTable,
 			AthenaWorkgroup:  customPricing.AthenaWorkgroup,
-			ServiceKeyName:   customPricing.ServiceKeyName,
-			ServiceKeySecret: customPricing.ServiceKeySecret,
+			ServiceKeyName:   customPricing.AwsServiceKeyName,
+			ServiceKeySecret: customPricing.AwsServiceKeySecret,
 			AccountID:        customPricing.AthenaProjectID,
 			MasterPayerARN:   customPricing.MasterPayerARN,
 		}
