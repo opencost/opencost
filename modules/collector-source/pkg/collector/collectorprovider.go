@@ -53,6 +53,10 @@ func (r *repoStoreProvider) GetStore(start, end time.Time) metric.MetricStore {
 // between the interval generated times, with the lowest
 func (r *repoStoreProvider) getStoreKeys(start, end time.Time) (string, time.Time) {
 	windowDuration := int64(end.Sub(start))
+
+	fmt.Println(start)
+	fmt.Println(end)
+
 	var minDiff *int64
 	var minKey string
 	var minStart time.Time
