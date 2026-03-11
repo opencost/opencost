@@ -881,7 +881,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.CPUAllocated = res.Data[0].Value
+			container.CPUMilliCoreAllocated = res.Data[0].Value
 		}
 	}
 
@@ -894,7 +894,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.CPUUsageAvg = res.Data[0].Value
+			container.CPUMilliCoreUsageAvg = res.Data[0].Value
 		}
 	}
 
@@ -907,7 +907,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.CPUUsageMax = res.Data[0].Value
+			container.CPUMilliCoreUsageMax = res.Data[0].Value
 		}
 	}
 
@@ -920,7 +920,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.CPURequest = res.Data[0].Value
+			container.CPUMilliCoreRequest = res.Data[0].Value
 		}
 	}
 
@@ -933,7 +933,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.CPULimit = res.Data[0].Value
+			container.CPUMilliCoreLimit = res.Data[0].Value
 		}
 	}
 
@@ -946,7 +946,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.RAMAllocated = res.Data[0].Value
+			container.RAMBytesAllocated = res.Data[0].Value
 		}
 	}
 
@@ -959,7 +959,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.RAMUsageAvg = res.Data[0].Value
+			container.RAMBytesUsageAvg = res.Data[0].Value
 		}
 	}
 
@@ -972,7 +972,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.RAMUsageMax = res.Data[0].Value
+			container.RAMBytesUsageMax = res.Data[0].Value
 		}
 	}
 
@@ -985,7 +985,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.RAMRequest = res.Data[0].Value
+			container.RAMBytesRequest = res.Data[0].Value
 		}
 	}
 
@@ -998,7 +998,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.RAMLimit = res.Data[0].Value
+			container.RAMBytesLimit = res.Data[0].Value
 		}
 	}
 

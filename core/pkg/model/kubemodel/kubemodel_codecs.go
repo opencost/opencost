@@ -587,20 +587,20 @@ func (target *Container) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 	} else {
 		buff.WriteString(target.Name) // write string
 	}
-	buff.WriteFloat64(target.CPUAllocated) // write float64
-	buff.WriteFloat64(target.CPUUsageAvg)  // write float64
-	buff.WriteFloat64(target.CPUUsageMax)  // write float64
-	buff.WriteFloat64(target.CPURequest)   // write float64
-	buff.WriteFloat64(target.CPULimit)     // write float64
-	buff.WriteFloat64(target.RAMAllocated) // write float64
-	buff.WriteFloat64(target.RAMUsageAvg)  // write float64
-	buff.WriteFloat64(target.RAMUsageMax)  // write float64
-	buff.WriteFloat64(target.RAMRequest)   // write float64
-	buff.WriteFloat64(target.RAMLimit)     // write float64
-	buff.WriteFloat64(target.GPUAllocated) // write float64
-	buff.WriteFloat64(target.GPUUsageAvg)  // write float64
-	buff.WriteFloat64(target.GPUUsageMax)  // write float64
-	buff.WriteFloat64(target.GPURequest)   // write float64
+	buff.WriteFloat64(target.CPUMilliCoreAllocated) // write float64
+	buff.WriteFloat64(target.CPUMilliCoreUsageAvg)  // write float64
+	buff.WriteFloat64(target.CPUMilliCoreUsageMax)  // write float64
+	buff.WriteFloat64(target.CPUMilliCoreRequest)   // write float64
+	buff.WriteFloat64(target.CPUMilliCoreLimit)     // write float64
+	buff.WriteFloat64(target.RAMBytesAllocated)     // write float64
+	buff.WriteFloat64(target.RAMBytesUsageAvg)      // write float64
+	buff.WriteFloat64(target.RAMBytesUsageMax)      // write float64
+	buff.WriteFloat64(target.RAMBytesRequest)       // write float64
+	buff.WriteFloat64(target.RAMBytesLimit)         // write float64
+	buff.WriteFloat64(target.GPUAllocated)          // write float64
+	buff.WriteFloat64(target.GPUUsageAvg)           // write float64
+	buff.WriteFloat64(target.GPUUsageMax)           // write float64
+	buff.WriteFloat64(target.GPURequest)            // write float64
 	// --- [begin][write][reference](time.Time) ---
 	c, errA := target.Start.MarshalBinary()
 	if errA != nil {
@@ -697,34 +697,34 @@ func (target *Container) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 	target.Name = d
 
 	g := buff.ReadFloat64() // read float64
-	target.CPUAllocated = g
+	target.CPUMilliCoreAllocated = g
 
 	h := buff.ReadFloat64() // read float64
-	target.CPUUsageAvg = h
+	target.CPUMilliCoreUsageAvg = h
 
 	k := buff.ReadFloat64() // read float64
-	target.CPUUsageMax = k
+	target.CPUMilliCoreUsageMax = k
 
 	l := buff.ReadFloat64() // read float64
-	target.CPURequest = l
+	target.CPUMilliCoreRequest = l
 
 	m := buff.ReadFloat64() // read float64
-	target.CPULimit = m
+	target.CPUMilliCoreLimit = m
 
 	n := buff.ReadFloat64() // read float64
-	target.RAMAllocated = n
+	target.RAMBytesAllocated = n
 
 	o := buff.ReadFloat64() // read float64
-	target.RAMUsageAvg = o
+	target.RAMBytesUsageAvg = o
 
 	p := buff.ReadFloat64() // read float64
-	target.RAMUsageMax = p
+	target.RAMBytesUsageMax = p
 
 	q := buff.ReadFloat64() // read float64
-	target.RAMRequest = q
+	target.RAMBytesRequest = q
 
 	r := buff.ReadFloat64() // read float64
-	target.RAMLimit = r
+	target.RAMBytesLimit = r
 
 	s := buff.ReadFloat64() // read float64
 	target.GPUAllocated = s

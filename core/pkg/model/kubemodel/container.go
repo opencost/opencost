@@ -7,26 +7,24 @@ import (
 
 // @bingen:generate:Container
 type Container struct {
-	PodUID       string  `json:"podUid"`
-	Name         string  `json:"name"`
-	CPUAllocated float64 `json:"cpuAllocated"`
-	CPUUsageAvg  float64 `json:"cpuUsageAvg"`
-	CPUUsageMax  float64 `json:"cpuUsageMax"`
-	CPURequest   float64 `json:"cpuRequest"`
-	CPULimit     float64 `json:"cpuLimit"`
-	RAMAllocated float64 `json:"ramAllocated"`
-	RAMUsageAvg  float64 `json:"ramUsageAvg"`
-	RAMUsageMax  float64 `json:"ramUsageMax"`
-	RAMRequest   float64 `json:"ramRequest"`
-	RAMLimit     float64 `json:"ramLimit"`
-	GPUAllocated float64 `json:"gpuAllocated"`
-	GPUUsageAvg  float64 `json:"gpuUsageAvg"`
-	GPUUsageMax  float64 `json:"gpuUsageMax"`
-	GPURequest   float64 `json:"gpuRequest"`
-	//VolumeStorageByteSeconds  map[string]float64 `json:"volumeStorageByteSeconds,omitempty"`
-	//VolumeStorageByteUsageMax map[string]float64 `json:"volumeStorageByteUsageMax,omitempty"`
-	Start time.Time `json:"start"`
-	End   time.Time `json:"end"`
+	PodUID                string    `json:"podUid"`
+	Name                  string    `json:"name"`
+	CPUMilliCoreAllocated float64   `json:"cpuMilliCoreAllocated"`
+	CPUMilliCoreUsageAvg  float64   `json:"cpuMilliCoreUsageAvg"`
+	CPUMilliCoreUsageMax  float64   `json:"cpuMilliCoreUsageMax"`
+	CPUMilliCoreRequest   float64   `json:"cpuMilliCoreRequest"`
+	CPUMilliCoreLimit     float64   `json:"cpuMilliCoreLimit"`
+	RAMBytesAllocated     float64   `json:"ramBytesAllocated"`
+	RAMBytesUsageAvg      float64   `json:"ramBytesUsageAvg"`
+	RAMBytesUsageMax      float64   `json:"ramBytesUsageMax"`
+	RAMBytesRequest       float64   `json:"ramBytesRequest"`
+	RAMBytesLimit         float64   `json:"ramBytesLimit"`
+	GPUAllocated          float64   `json:"gpuAllocated"`
+	GPUUsageAvg           float64   `json:"gpuUsageAvg"`
+	GPUUsageMax           float64   `json:"gpuUsageMax"`
+	GPURequest            float64   `json:"gpuRequest"`
+	Start                 time.Time `json:"start"`
+	End                   time.Time `json:"end"`
 }
 
 func (c *Container) GetKey() string {
