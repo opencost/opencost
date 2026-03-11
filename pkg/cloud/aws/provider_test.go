@@ -131,8 +131,8 @@ func Test_PricingData_Regression(t *testing.T) {
 			t.Errorf("Failed to download pricing data for region %s: %v", region, err)
 		}
 
-		// Unmarshal pricing data into AWSPricing
-		var pricingData AWSPricing
+		// Unmarshal pricing data into PriceListEC2Response
+		var pricingData PriceListEC2Response
 		body, err := io.ReadAll(res.Body)
 		if err != nil {
 			t.Errorf("Failed to read pricing data for region %s: %v", region, err)
@@ -205,13 +205,13 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "",
 		VCpu:    "",
 		GPU:     "",
-		OnDemand: &AWSOfferTerm{
+		OnDemand: &PriceListEC2Term{
 			Sku:           "M6UGCCQ3CDJQAA37",
 			OfferTermCode: "JRTCKXETXF",
-			PriceDimensions: map[string]*AWSRateCode{
+			PriceDimensions: map[string]*PriceListEC2PriceDimension{
 				"M6UGCCQ3CDJQAA37.JRTCKXETXF.6YS6EN2CT7": {
 					Unit: "GB-Mo",
-					PricePerUnit: AWSCurrencyCode{
+					PricePerUnit: PriceListEC2PricePerUnit{
 						USD: "0.0800000000",
 						CNY: "",
 					},
@@ -234,13 +234,13 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "EBS only",
 		VCpu:    "2",
 		GPU:     "",
-		OnDemand: &AWSOfferTerm{
+		OnDemand: &PriceListEC2Term{
 			Sku:           "8D49XP354UEYTHGM",
 			OfferTermCode: "MZU6U2429S",
-			PriceDimensions: map[string]*AWSRateCode{
+			PriceDimensions: map[string]*PriceListEC2PriceDimension{
 				"8D49XP354UEYTHGM.MZU6U2429S.2TG2D8R56U": {
 					Unit: "Quantity",
-					PricePerUnit: AWSCurrencyCode{
+					PricePerUnit: PriceListEC2PricePerUnit{
 						USD: "1161",
 						CNY: "",
 					},
@@ -255,13 +255,13 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "EBS only",
 		VCpu:    "2",
 		GPU:     "",
-		OnDemand: &AWSOfferTerm{
+		OnDemand: &PriceListEC2Term{
 			Sku:           "8D49XP354UEYTHGM",
 			OfferTermCode: "MZU6U2429S",
-			PriceDimensions: map[string]*AWSRateCode{
+			PriceDimensions: map[string]*PriceListEC2PriceDimension{
 				"8D49XP354UEYTHGM.MZU6U2429S.2TG2D8R56U": {
 					Unit: "Quantity",
-					PricePerUnit: AWSCurrencyCode{
+					PricePerUnit: PriceListEC2PricePerUnit{
 						USD: "1161",
 						CNY: "",
 					},
@@ -272,13 +272,13 @@ func Test_populate_pricing(t *testing.T) {
 
 	expectedProdTermsLoadbalancer := &AWSProductTerms{
 		Sku: "Y9RYMSE644KDSV4S",
-		OnDemand: &AWSOfferTerm{
+		OnDemand: &PriceListEC2Term{
 			Sku:           "Y9RYMSE644KDSV4S",
 			OfferTermCode: "JRTCKXETXF",
-			PriceDimensions: map[string]*AWSRateCode{
+			PriceDimensions: map[string]*PriceListEC2PriceDimension{
 				"Y9RYMSE644KDSV4S.JRTCKXETXF.6YS6EN2CT7": {
 					Unit: "Hrs",
-					PricePerUnit: AWSCurrencyCode{
+					PricePerUnit: PriceListEC2PricePerUnit{
 						USD: "0.0225000000",
 						CNY: "",
 					},
@@ -335,13 +335,13 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "8 x 1000 SSD",
 		VCpu:    "96",
 		GPU:     "8",
-		OnDemand: &AWSOfferTerm{
+		OnDemand: &PriceListEC2Term{
 			Sku:           "H7NGEAC6UEHNTKSJ",
 			OfferTermCode: "JRTCKXETXF",
-			PriceDimensions: map[string]*AWSRateCode{
+			PriceDimensions: map[string]*PriceListEC2PriceDimension{
 				"H7NGEAC6UEHNTKSJ.JRTCKXETXF.6YS6EN2CT7": {
 					Unit: "Hrs",
-					PricePerUnit: AWSCurrencyCode{
+					PricePerUnit: PriceListEC2PricePerUnit{
 						USD: "32.7726000000",
 					},
 				},
@@ -390,13 +390,13 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "",
 		VCpu:    "",
 		GPU:     "",
-		OnDemand: &AWSOfferTerm{
+		OnDemand: &PriceListEC2Term{
 			Sku:           "R83VXG9NAPDASEGN",
 			OfferTermCode: "5Y9WH78GDR",
-			PriceDimensions: map[string]*AWSRateCode{
+			PriceDimensions: map[string]*PriceListEC2PriceDimension{
 				"R83VXG9NAPDASEGN.5Y9WH78GDR.Q7UJUT2CE6": {
 					Unit: "GB-Mo",
-					PricePerUnit: AWSCurrencyCode{
+					PricePerUnit: PriceListEC2PricePerUnit{
 						USD: "",
 						CNY: "0.5312000000",
 					},
@@ -743,6 +743,10 @@ func (m *mockClusterCache) GetAllReplicaSets() []*clustercache.ReplicaSet {
 }
 
 func (m *mockClusterCache) GetAllJobs() []*clustercache.Job {
+	return nil
+}
+
+func (m *mockClusterCache) GetAllCronJobs() []*clustercache.CronJob {
 	return nil
 }
 

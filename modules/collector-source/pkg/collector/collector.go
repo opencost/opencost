@@ -16,12 +16,19 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewPVUsedAverageMetricCollector())
 	memStore.Register(NewPVUsedMaxMetricCollector())
 	memStore.Register(NewPVCInfoMetricCollector())
+	memStore.Register(NewPVInfoMetricCollector())
+	memStore.Register(NewPVUptimeMetricCollector())
 	memStore.Register(NewPVActiveMinutesMetricCollector())
+	memStore.Register(NewPVBytesMetricCollector())
 	memStore.Register(NewLocalStorageUsedActiveMinutesMetricCollector())
 	memStore.Register(NewLocalStorageUsedAverageMetricCollector())
 	memStore.Register(NewLocalStorageUsedMaxMetricCollector())
 	memStore.Register(NewLocalStorageBytesMetricCollector())
 	memStore.Register(NewLocalStorageActiveMinutesMetricCollector())
+	memStore.Register(NewNodeInfoMetricCollector())
+	memStore.Register(NewNodeUptimeMetricCollector())
+	memStore.Register(NewNodeResourceCapacitiesMetricCollector())
+	memStore.Register(NewNodeResourcesAllocatableMetricCollector())
 	memStore.Register(NewNodeCPUCoresCapacityMetricCollector())
 	memStore.Register(NewNodeCPUCoresAllocatableMetricCollector())
 	memStore.Register(NewNodeRAMBytesCapacityMetricCollector())
@@ -34,6 +41,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewNodeRAMUserUsageAverageMetricCollector())
 	memStore.Register(NewLBPricePerHourMetricCollector())
 	memStore.Register(NewLBActiveMinutesMetricCollector())
+	memStore.Register(NewClusterInfoMetricCollector())
 	memStore.Register(NewClusterUptimeMetricCollector())
 	memStore.Register(NewClusterManagementDurationMetricCollector())
 	memStore.Register(NewClusterManagementPricePerHourMetricCollector())
@@ -54,14 +62,16 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewGPUsAllocatedMetricCollector())
 	memStore.Register(NewIsGPUSharedMetricCollector())
 	memStore.Register(NewGPUInfoMetricCollector())
+	memStore.Register(NewDCGMInfoMetricCollector())
+	memStore.Register(NewDCGMUptimeMetricCollector())
+	memStore.Register(NewDCGMContainerUsageAvgMetricCollector())
+	memStore.Register(NewDCGMContainerUsageMaxMetricCollector())
 	memStore.Register(NewNodeCPUPricePerHourMetricCollector())
 	memStore.Register(NewNodeRAMPricePerGiBHourMetricCollector())
 	memStore.Register(NewNodeGPUPricePerHourMetricCollector())
 	memStore.Register(NewNodeIsSpotMetricCollector())
 	memStore.Register(NewPodPVCAllocationMetricCollector())
 	memStore.Register(NewPVCBytesRequestedMetricCollector())
-	memStore.Register(NewPVBytesMetricCollector())
-	memStore.Register(NewPVInfoMetricCollector())
 	memStore.Register(NewNetZoneGiBMetricCollector())
 	memStore.Register(NewNetZonePricePerGiBMetricCollector())
 	memStore.Register(NewNetRegionGiBMetricCollector())
@@ -79,19 +89,55 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewNetNatGatewayIngressPricePerGiBMetricCollector())
 	memStore.Register(NewNetNatGatewayIngressGiBMetricCollector())
 	memStore.Register(NewNetTransferBytesMetricCollector())
+	memStore.Register(NewNamespaceInfoMetricCollector())
 	memStore.Register(NewNamespaceUptimeMetricCollector())
 	memStore.Register(NewNamespaceLabelsMetricCollector())
 	memStore.Register(NewNamespaceAnnotationsMetricCollector())
 	memStore.Register(NewPodLabelsMetricCollector())
 	memStore.Register(NewPodAnnotationsMetricCollector())
 	memStore.Register(NewServiceLabelsMetricCollector())
+	memStore.Register(NewDeploymentInfoMetricCollector())
+	memStore.Register(NewDeploymentUptimeMetricCollector())
 	memStore.Register(NewDeploymentLabelsMetricCollector())
+	memStore.Register(NewDeploymentAnnotationsMetricCollector())
+	memStore.Register(NewDeploymentMatchLabelsMetricCollector())
+	memStore.Register(NewStatefulSetInfoMetricCollector())
+	memStore.Register(NewStatefulSetUptimeMetricCollector())
 	memStore.Register(NewStatefulSetLabelsMetricCollector())
+	memStore.Register(NewStatefulSetAnnotationsMetricCollector())
+	memStore.Register(NewStatefulSetMatchLabelsMetricCollector())
+	memStore.Register(NewDaemonSetInfoMetricCollector())
+	memStore.Register(NewDaemonSetUptimeMetricCollector())
 	memStore.Register(NewDaemonSetLabelsMetricCollector())
+	memStore.Register(NewDaemonSetAnnotationsMetricCollector())
+	memStore.Register(NewJobInfoMetricCollector())
+	memStore.Register(NewJobUptimeMetricCollector())
 	memStore.Register(NewJobLabelsMetricCollector())
+	memStore.Register(NewJobAnnotationsMetricCollector())
+	memStore.Register(NewCronJobInfoMetricCollector())
+	memStore.Register(NewCronJobUptimeMetricCollector())
+	memStore.Register(NewCronJobLabelsMetricCollector())
+	memStore.Register(NewCronJobAnnotationsMetricCollector())
+	memStore.Register(NewReplicaSetInfoMetricCollector())
+	memStore.Register(NewReplicaSetUptimeMetricCollector())
+	memStore.Register(NewReplicaSetLabelsMetricCollector())
+	memStore.Register(NewReplicaSetAnnotationsMetricCollector())
+	memStore.Register(NewReplicaSetOwnerMetricCollector())
+	memStore.Register(NewPodsWithDaemonSetOwnerMetricCollector())
+	memStore.Register(NewPodsWithJobOwnerMetricCollector())
 	memStore.Register(NewPodsWithReplicaSetOwnerMetricCollector())
+	memStore.Register(NewPodInfoMetricCollector())
+	memStore.Register(NewPodUptimeMetricCollector())
+	memStore.Register(NewPodOwnerMetricCollector())
+	memStore.Register(NewPodPVCVolumeMetricCollector())
+	memStore.Register(NewPodNetworkEgressBytesMetricCollector())
+	memStore.Register(NewPodNetworkIngressBytesMetricCollector())
+	memStore.Register(NewContainerUptimeMetricCollector())
+	memStore.Register(NewContainerResourceRequestsMetricCollector())
+	memStore.Register(NewContainerResourceLimitsMetricCollector())
 	memStore.Register(NewReplicaSetsWithoutOwnersMetricCollector())
 	memStore.Register(NewReplicaSetsWithRolloutMetricCollector())
+	memStore.Register(NewResourceQuotaInfoMetricCollector())
 	memStore.Register(NewResourceQuotaUptimeMetricCollector())
 	memStore.Register(NewResourceQuotaSpecCPURequestAverageMetricCollector())
 	memStore.Register(NewResourceQuotaSpecCPURequestMaxMetricCollector())
@@ -205,6 +251,18 @@ func NewPVCInfoMetricCollector() *metric.MetricCollector {
 	)
 }
 
+func NewPVUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.PVUptimeID,
+		metric.KubecostPVInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
 //	avg(
 //		kube_persistentvolume_capacity_bytes{
 //			<some_custom_filter>
@@ -216,8 +274,8 @@ func NewPVActiveMinutesMetricCollector() *metric.MetricCollector {
 		metric.PVActiveMinutesID,
 		metric.KubePersistentVolumeCapacityBytes,
 		[]string{
-			source.PVLabel,
 			source.UIDLabel,
+			source.PVLabel,
 		},
 		aggregator.Uptime,
 		nil,
@@ -244,7 +302,6 @@ func NewLocalStorageUsedActiveMinutesMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.InstanceLabel,
 			source.DeviceLabel,
-			source.UIDLabel,
 		},
 		aggregator.Uptime,
 		nil, // filter not required here because only container root file system is being scraped
@@ -270,7 +327,6 @@ func NewLocalStorageUsedAverageMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.InstanceLabel,
 			source.DeviceLabel,
-			source.UIDLabel,
 		},
 		aggregator.AverageOverTime,
 		nil, // filter not required here because only container root file system is being scraped
@@ -297,7 +353,6 @@ func NewLocalStorageUsedMaxMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.InstanceLabel,
 			source.DeviceLabel,
-			source.UIDLabel,
 		},
 		aggregator.MaxOverTime,
 		nil, // filter not required here because only container root file system is being scraped
@@ -346,6 +401,61 @@ func NewLocalStorageActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.UIDLabel,
 		},
 		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewNodeInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NodeInfoID,
+		metric.NodeInfo,
+		[]string{
+			source.NodeLabel,
+			source.UIDLabel,
+			source.ProviderIDLabel,
+			source.InstanceTypeLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewNodeUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NodeUptimeID,
+		metric.NodeInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewNodeResourceCapacitiesMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NodeResourceCapacitiesID,
+		metric.NodeResourceCapacities,
+		[]string{
+			source.UIDLabel,
+			source.ResourceLabel,
+			source.UnitLabel,
+		},
+		aggregator.AverageOverTime,
+		nil,
+	)
+}
+
+func NewNodeResourcesAllocatableMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NodeResourcesAllocatableID,
+		metric.NodeResourcesAllocatable,
+		[]string{
+			source.UIDLabel,
+			source.ResourceLabel,
+			source.UnitLabel,
+		},
+		aggregator.AverageOverTime,
 		nil,
 	)
 }
@@ -614,6 +724,18 @@ func NewLBActiveMinutesMetricCollector() *metric.MetricCollector {
 	)
 }
 
+func NewClusterInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ClusterInfoID,
+		metric.ClusterInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
 //	avg(
 //		cluster_info{
 //			<some_custom_filter>
@@ -686,6 +808,109 @@ func NewPodActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.UIDLabel,
 			source.NamespaceLabel,
 			source.PodLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewPodInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.PodInfoID,
+		metric.PodInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewPodUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.PodUptimeID,
+		metric.PodInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewPodOwnerMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.PodOwnerID,
+		metric.KubePodOwner,
+		[]string{
+			source.UIDLabel,
+			source.OwnerUIDLabel,
+			source.OwnerKindLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewPodPVCVolumeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.PodPVCVolumeID,
+		metric.PodPVCVolume,
+		[]string{
+			source.UIDLabel,
+			source.PVCUIDLabel,
+			source.PodVolumeNameLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewPodNetworkEgressBytesMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.PodNetworkEgressBytesID,
+		metric.KubecostPodNetworkEgressBytesTotal,
+		[]string{
+			source.UIDLabel,
+			source.ServiceLabel,
+			source.InternetLabel,
+			source.SameRegionLabel,
+			source.SameZoneLabel,
+			source.NatGatewayLabel,
+		},
+		aggregator.Increase,
+		func(labels map[string]string) bool {
+			return labels[source.UIDLabel] != ""
+		},
+	)
+}
+
+func NewPodNetworkIngressBytesMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.PodNetworkIngressBytesID,
+		metric.KubecostPodNetworkIngressBytesTotal,
+		[]string{
+			source.UIDLabel,
+			source.NatGatewayLabel,
+			source.ServiceLabel,
+			source.SameZoneLabel,
+			source.SameRegionLabel,
+			source.InternetLabel,
+		},
+		aggregator.Increase,
+		func(labels map[string]string) bool {
+			return labels[source.UIDLabel] != ""
+		},
+	)
+}
+
+func NewContainerUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ContainerUptimeID,
+		metric.KubePodContainerStatusRunning,
+		[]string{
+			source.UIDLabel,
+			source.ContainerLabel,
 		},
 		aggregator.Uptime,
 		nil,
@@ -937,6 +1162,36 @@ func NewCPULimitsMetricCollector() *metric.MetricCollector {
 	)
 }
 
+func NewContainerResourceRequestsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ContainerResourceRequestsID,
+		metric.KubePodContainerResourceRequests,
+		[]string{
+			source.UIDLabel,
+			source.ContainerLabel,
+			source.ResourceLabel,
+			source.UnitLabel,
+		},
+		aggregator.AverageOverTime,
+		nil,
+	)
+}
+
+func NewContainerResourceLimitsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ContainerResourceLimitsID,
+		metric.KubePodContainerResourceLimits,
+		[]string{
+			source.UIDLabel,
+			source.ContainerLabel,
+			source.ResourceLabel,
+			source.UnitLabel,
+		},
+		aggregator.AverageOverTime,
+		nil,
+	)
+}
+
 //	avg(
 //		rate(
 //			container_cpu_usage_seconds_total{
@@ -1166,6 +1421,62 @@ func NewGPUInfoMetricCollector() *metric.MetricCollector {
 	)
 }
 
+func NewDCGMInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DCGMInfoID,
+		metric.DCGMFIDEVDECUTIL,
+		[]string{
+			source.UUIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewDCGMUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DCGMUptimeID,
+		metric.DCGMFIDEVDECUTIL,
+		[]string{
+			source.UUIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewDCGMContainerUsageAvgMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DCGMContainerUsageAvgID,
+		metric.DCGMFIPROFGRENGINEACTIVE,
+		[]string{
+			source.UUIDLabel,
+			source.PodUIDLabel,
+			source.ContainerLabel,
+		},
+		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.ContainerLabel] != ""
+		},
+	)
+}
+
+func NewDCGMContainerUsageMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DCGMContainerUsageMaxID,
+		metric.DCGMFIPROFGRENGINEACTIVE,
+		[]string{
+			source.UUIDLabel,
+			source.PodUIDLabel,
+			source.ContainerLabel,
+		},
+		aggregator.MaxOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.ContainerLabel] != ""
+		},
+	)
+}
+
 //	avg(
 //		avg_over_time(
 //			node_cpu_hourly_cost{
@@ -1335,10 +1646,10 @@ func NewPVInfoMetricCollector() *metric.MetricCollector {
 		metric.PVInfoID,
 		metric.KubecostPVInfo,
 		[]string{
+			source.UIDLabel,
 			source.PVLabel,
 			source.StorageClassLabel,
 			source.ProviderIDLabel,
-			source.UIDLabel,
 		},
 		aggregator.AverageOverTime,
 		nil,
@@ -1755,6 +2066,18 @@ func NewNetTransferBytesMetricCollector() *metric.MetricCollector {
 	)
 }
 
+func NewNamespaceInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NamespaceInfoID,
+		metric.NamespaceInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
 //	avg(
 //		namespace_info{
 //			<some_custom_filter>
@@ -1877,13 +2200,113 @@ func NewServiceLabelsMetricCollector() *metric.MetricCollector {
 //		}[1h]
 //	)
 
+func NewDeploymentInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DeploymentInfoID,
+		metric.DeploymentInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewDeploymentUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DeploymentUptimeID,
+		metric.DeploymentInfo,
+		[]string{
+			source.UIDLabel,
+			source.NamespaceUIDLabel,
+			source.DeploymentLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
 func NewDeploymentLabelsMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.DeploymentLabelsID,
+		metric.DeploymentLabels,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewDeploymentAnnotationsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DeploymentAnnotationsID,
+		metric.DeploymentAnnotations,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewDeploymentMatchLabelsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DeploymentMatchLabelsID,
 		metric.DeploymentMatchLabels,
 		[]string{
 			source.NamespaceLabel,
 			source.DeploymentLabel,
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewStatefulSetInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.StatefulSetInfoID,
+		metric.StatefulSetInfo,
+		[]string{
+			source.UIDLabel,
+			source.NamespaceUIDLabel,
+			source.StatefulSetLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewStatefulSetUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.StatefulSetUptimeID,
+		metric.StatefulSetInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewStatefulSetLabelsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.StatefulSetLabelsID,
+		metric.StatefulSetLabels,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewStatefulSetAnnotationsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.StatefulSetAnnotationsID,
+		metric.StatefulSetAnnotations,
+		[]string{
 			source.UIDLabel,
 		},
 		aggregator.Info,
@@ -1897,14 +2320,234 @@ func NewDeploymentLabelsMetricCollector() *metric.MetricCollector {
 //		}[1h]
 //	)
 
-func NewStatefulSetLabelsMetricCollector() *metric.MetricCollector {
+func NewStatefulSetMatchLabelsMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
-		metric.StatefulSetLabelsID,
+		metric.StatefulSetMatchLabelsID,
 		metric.StatefulSetMatchLabels,
 		[]string{
-			source.NamespaceLabel,
-			source.StatefulSetLabel,
 			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewDaemonSetInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DaemonSetInfoID,
+		metric.DaemonSetInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewDaemonSetUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DaemonSetUptimeID,
+		metric.DaemonSetInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewDaemonSetLabelsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DaemonSetLabelsID,
+		metric.DaemonSetLabels,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewDaemonSetAnnotationsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DaemonSetAnnotationsID,
+		metric.DaemonSetAnnotations,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewJobInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.JobInfoID,
+		metric.JobInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewJobUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.JobUptimeID,
+		metric.JobInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewJobLabelsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.JobLabelsID,
+		metric.JobLabels,
+		[]string{
+			source.NamespaceLabel,
+			source.JobLabel,
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewJobAnnotationsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.JobAnnotationsID,
+		metric.JobAnnotations,
+		[]string{
+			source.NamespaceLabel,
+			source.JobLabel,
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewCronJobInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.CronJobInfoID,
+		metric.CronJobInfo,
+		[]string{
+			source.UIDLabel,
+			source.NamespaceUIDLabel,
+			source.CronJobLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewCronJobUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.CronJobUptimeID,
+		metric.CronJobInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewCronJobLabelsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.CronJobLabelsID,
+		metric.CronJobLabels,
+		[]string{
+			source.NamespaceLabel,
+			source.CronJobLabel,
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewCronJobAnnotationsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.CronJobAnnotationsID,
+		metric.CronJobAnnotations,
+		[]string{
+			source.NamespaceLabel,
+			source.CronJobLabel,
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewReplicaSetInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ReplicaSetInfoID,
+		metric.ReplicaSetInfo,
+		[]string{
+			source.UIDLabel,
+			source.NamespaceUIDLabel,
+			source.ReplicaSetLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewReplicaSetUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ReplicaSetUptimeID,
+		metric.ReplicaSetInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewReplicaSetLabelsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ReplicaSetLabelsID,
+		metric.ReplicaSetLabels,
+		[]string{
+			source.NamespaceLabel,
+			source.ReplicaSetLabel,
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewReplicaSetAnnotationsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ReplicaSetAnnotationsID,
+		metric.ReplicaSetAnnotations,
+		[]string{
+			source.NamespaceLabel,
+			source.ReplicaSetLabel,
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewReplicaSetOwnerMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ReplicaSetOwnerID,
+		metric.KubeReplicasetOwner,
+		[]string{
+			source.UIDLabel,
+			source.OwnerUIDLabel,
+			source.OwnerKindLabel,
 		},
 		aggregator.Info,
 		nil,
@@ -1920,9 +2563,9 @@ func NewStatefulSetLabelsMetricCollector() *metric.MetricCollector {
 //		)
 //	) by (pod, owner_name, namespace, cluster_id)
 
-func NewDaemonSetLabelsMetricCollector() *metric.MetricCollector {
+func NewPodsWithDaemonSetOwnerMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
-		metric.DaemonSetLabelsID,
+		metric.PodsWithDaemonSetOwnerID,
 		metric.KubePodOwner,
 		[]string{
 			source.NamespaceLabel,
@@ -1946,9 +2589,9 @@ func NewDaemonSetLabelsMetricCollector() *metric.MetricCollector {
 //		)
 //	) by (pod, owner_name, namespace, cluster_id)
 
-func NewJobLabelsMetricCollector() *metric.MetricCollector {
+func NewPodsWithJobOwnerMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
-		metric.JobLabelsID,
+		metric.PodsWithJobOwnerID,
 		metric.KubePodOwner,
 		[]string{
 			source.NamespaceLabel,
@@ -2039,6 +2682,18 @@ func NewReplicaSetsWithRolloutMetricCollector() *metric.MetricCollector {
 		func(labels map[string]string) bool {
 			return labels[source.OwnerKindLabel] == "Rollout"
 		},
+	)
+}
+
+func NewResourceQuotaInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ResourceQuotaInfoID,
+		metric.ResourceQuotaInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
 	)
 }
 

@@ -254,78 +254,11 @@ func (accessKey AWSAccessKey) CreateConfig(region string) (awsSDK.Config, error)
 	return cfg, nil
 }
 
-// AWSPricing maps a k8s node to an AWS Pricing "product"
-type AWSPricing struct {
-	Products map[string]*AWSProduct `json:"products"`
-	Terms    AWSPricingTerms        `json:"terms"`
-}
-
-// AWSProduct represents a purchased SKU
-type AWSProduct struct {
-	Sku        string               `json:"sku"`
-	Attributes AWSProductAttributes `json:"attributes"`
-}
-
-// AWSProductAttributes represents metadata about the product used to map to a node.
-type AWSProductAttributes struct {
-	Location        string `json:"location"`
-	RegionCode      string `json:"regionCode"`
-	Operation       string `json:"operation"`
-	InstanceType    string `json:"instanceType"`
-	Memory          string `json:"memory"`
-	Storage         string `json:"storage"`
-	VCpu            string `json:"vcpu"`
-	UsageType       string `json:"usagetype"`
-	OperatingSystem string `json:"operatingSystem"`
-	PreInstalledSw  string `json:"preInstalledSw"`
-	InstanceFamily  string `json:"instanceFamily"`
-	CapacityStatus  string `json:"capacitystatus"`
-	GPU             string `json:"gpu"` // GPU represents the number of GPU on the instance
-	MarketOption    string `json:"marketOption"`
-}
-
-// AWSPricingTerms are how you pay for the node: OnDemand, Reserved, or (TODO) Spot
-type AWSPricingTerms struct {
-	OnDemand map[string]map[string]*AWSOfferTerm `json:"OnDemand"`
-	Reserved map[string]map[string]*AWSOfferTerm `json:"Reserved"`
-}
-
-// AWSOfferTerm is a sku extension used to pay for the node.
-type AWSOfferTerm struct {
-	Sku             string                  `json:"sku"`
-	OfferTermCode   string                  `json:"offerTermCode"`
-	PriceDimensions map[string]*AWSRateCode `json:"priceDimensions"`
-}
-
-func (ot *AWSOfferTerm) String() string {
-	var strs []string
-	for k, rc := range ot.PriceDimensions {
-		strs = append(strs, fmt.Sprintf("%s:%s", k, rc.String()))
-	}
-	return fmt.Sprintf("%s:%s", ot.Sku, strings.Join(strs, ","))
-}
-
-// AWSRateCode encodes data about the price of a product
-type AWSRateCode struct {
-	Unit         string          `json:"unit"`
-	PricePerUnit AWSCurrencyCode `json:"pricePerUnit"`
-}
-
-func (rc *AWSRateCode) String() string {
-	return fmt.Sprintf("{unit: %s, pricePerUnit: %v", rc.Unit, rc.PricePerUnit)
-}
-
-// AWSCurrencyCode is the localized currency. (TODO: support non-USD)
-type AWSCurrencyCode struct {
-	USD string `json:"USD,omitempty"`
-	CNY string `json:"CNY,omitempty"`
-}
-
 // AWSProductTerms represents the full terms of the product
 type AWSProductTerms struct {
 	Sku          string               `json:"sku"`
-	OnDemand     *AWSOfferTerm        `json:"OnDemand"`
-	Reserved     *AWSOfferTerm        `json:"Reserved"`
+	OnDemand     *PriceListEC2Term    `json:"OnDemand"`
+	Reserved     *PriceListEC2Term    `json:"Reserved"`
 	Memory       string               `json:"memory"`
 	Storage      string               `json:"storage"`
 	VCpu         string               `json:"vcpu"`
@@ -333,26 +266,6 @@ type AWSProductTerms struct {
 	PV           *models.PV           `json:"pv"`
 	LoadBalancer *models.LoadBalancer `json:"load_balancer"`
 }
-
-// ClusterIdEnvVar is the environment variable in which one can manually set the ClusterId
-const ClusterIdEnvVar = "AWS_CLUSTER_ID"
-
-// OnDemandRateCodes is are sets of identifiers for offerTermCodes matching 'On Demand' rates
-var OnDemandRateCodes = map[string]struct{}{
-	"JRTCKXETXF": {},
-}
-
-var OnDemandRateCodesCn = map[string]struct{}{
-	"99YE2YK9UR": {},
-	"5Y9WH78GDR": {},
-	"KW44MY7SZN": {},
-}
-
-// HourlyRateCode is appended to a node sku
-const (
-	HourlyRateCode   = "6YS6EN2CT7"
-	HourlyRateCodeCn = "Q7UJUT2CE6"
-)
 
 // volTypes are used to map between AWS UsageTypes and
 // EBS volume types, as they would appear in K8s storage class
@@ -1069,7 +982,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 				if err != nil {
 					return err
 				}
-				product := &AWSProduct{}
+				product := &PriceListEC2Product{}
 
 				err = dec.Decode(&product)
 				if err != nil {
@@ -1161,7 +1074,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 					if err != nil {
 						return err
 					}
-					offerTerm := &AWSOfferTerm{}
+					offerTerm := &PriceListEC2Term{}
 					err = dec.Decode(&offerTerm)
 					if err != nil {
 						log.Errorf("Error decoding AWS Offer Term: %s", err.Error())

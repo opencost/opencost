@@ -11,6 +11,14 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const (
+	BingenExt           = "bin"
+	BingenVersionExtFMT = "v%d.bin"
+	JSONExt             = "json"
+	GZipExt             = ".gz"
+	PBExt               = "binpb"
+)
+
 // Encoder[T] is a generic interface for encoding an instance of a T type into a byte slice.
 type Encoder[T any] interface {
 	Encode(*T) ([]byte, error)
@@ -30,12 +38,20 @@ type BinaryMarshalerPtr[T any] interface {
 
 // BingenEncoder[T, U] is a generic encoder that uses the BinaryMarshaler interface to encode data.
 // It supports any type T that implements the encoding.BinaryMarshaler interface.
-type BingenEncoder[T any, U BinaryMarshalerPtr[T]] struct{}
+type BingenEncoder[T any, U BinaryMarshalerPtr[T]] struct {
+	fileExt string
+}
 
 // NewBingenEncoder creates an `Encoder[T]` implementation which supports binary encoding for the `T`
 // type.
 func NewBingenEncoder[T any, U BinaryMarshalerPtr[T]]() Encoder[T] {
 	return new(BingenEncoder[T, U])
+}
+
+func NewVersionBingenEncoder[T any, U BinaryMarshalerPtr[T]](version uint8) Encoder[T] {
+	be := new(BingenEncoder[T, U])
+	be.fileExt = fmt.Sprintf(BingenVersionExtFMT, version)
+	return be
 }
 
 // Encode encodes the provided data of type T into a byte slice using the BinaryMarshaler interface.
@@ -47,7 +63,7 @@ func (b *BingenEncoder[T, U]) Encode(data *T) ([]byte, error) {
 // FileExt returns the file extension for the encoded data. In this case, it returns an empty string
 // to indicate that there is no specific file extension for the binary encoded data.
 func (b *BingenEncoder[T, U]) FileExt() string {
-	return ""
+	return b.fileExt
 }
 
 // JSONEncoder[T] is a generic encoder that uses the JSON encoding format to encode data.
@@ -67,7 +83,7 @@ func (j *JSONEncoder[T]) Encode(data *T) ([]byte, error) {
 // FileExt returns the file extension for the encoded data. In this case, it returns "json" to indicate
 // that the data is in JSON format.
 func (j *JSONEncoder[T]) FileExt() string {
-	return "json"
+	return JSONExt
 }
 
 type GZipEncoder[T any] struct {
@@ -113,7 +129,7 @@ func gZipEncode(data []byte) ([]byte, error) {
 // FileExt returns the file extension for the encoded data. In this case, it returns the wrapped encoder's
 // file extension with ".gz" appended to indicate that the data is compressed with GZip.
 func (gz *GZipEncoder[T]) FileExt() string {
-	return gz.encoder.FileExt() + ".gz"
+	return gz.encoder.FileExt() + GZipExt
 }
 
 // ProtoMessagePtr [T] is a generic constraint to ensure types passed to the encoder implement
@@ -146,7 +162,7 @@ func (p *ProtobufEncoder[T, U]) Encode(data *T) ([]byte, error) {
 // FileExt returns the file extension for the encoded data. In this case, it returns an empty string
 // to indicate that there is no specific file extension for the binary encoded data.
 func (p *ProtobufEncoder[T, U]) FileExt() string {
-	return "binpb"
+	return PBExt
 }
 
 // ProtoJsonEncoder [T, U] is a generic encoder that uses the proto.Message interface to encode data in json format.
@@ -172,5 +188,5 @@ func (p *ProtoJsonEncoder[T, U]) Encode(data *T) ([]byte, error) {
 // FileExt returns the file extension for the encoded data. In this case, it returns an empty string
 // to indicate that there is no specific file extension for the binary encoded data.
 func (p *ProtoJsonEncoder[T, U]) FileExt() string {
-	return "json"
+	return JSONExt
 }
