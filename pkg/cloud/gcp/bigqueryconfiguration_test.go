@@ -425,7 +425,7 @@ func TestBigQueryConfiguration_Sanitize(t *testing.T) {
 		Table:     "test-table",
 		Authorizer: &ServiceAccountKey{
 			Key: map[string]string{
-				"type": "service_account",
+				"type":        "service_account",
 				"private_key": "secret-key",
 			},
 		},
@@ -457,8 +457,8 @@ func TestConvertBigQueryConfigToConfig(t *testing.T) {
 		expected cloud.KeyedConfig
 	}{
 		{
-			name: "Empty config",
-			bqc:  BigQueryConfig{},
+			name:     "Empty config",
+			bqc:      BigQueryConfig{},
 			expected: nil,
 		},
 		{
@@ -514,14 +514,14 @@ func TestConvertBigQueryConfigToConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ConvertBigQueryConfigToConfig(tt.bqc)
-			
+
 			if tt.expected == nil {
 				assert.Nil(t, result)
 			} else {
 				assert.NotNil(t, result)
 				expectedBQC := tt.expected.(*BigQueryConfiguration)
 				resultBQC := result.(*BigQueryConfiguration)
-				
+
 				assert.Equal(t, expectedBQC.ProjectID, resultBQC.ProjectID)
 				assert.Equal(t, expectedBQC.Dataset, resultBQC.Dataset)
 				assert.Equal(t, expectedBQC.Table, resultBQC.Table)

@@ -527,7 +527,6 @@ func TestFargatePricing_ValidateAWSPricingFormat(t *testing.T) {
 		t.Fatal("Expected OnDemand terms in pricing data, got none - AWS format may have changed")
 	}
 
-	t.Logf("✓ AWS pricing format validated: %d products, %d OnDemand terms", 
+	t.Logf("✓ AWS pricing format validated: %d products, %d OnDemand terms",
 		len(pricing.Products), len(pricing.Terms.OnDemand))
 }
-

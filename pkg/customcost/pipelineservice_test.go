@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/go-plugin"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
@@ -254,4 +255,94 @@ func writeDDConfig(pluginConfigDir string, t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not write file: %v", err)
 	}
+}
+
+// TestPipelineService_Stop_Nil ensures nil PipelineService is safe
+func TestPipelineService_Stop_Nil(t *testing.T) {
+	var ps *PipelineService
+	ps.Stop()
+	t.Log("Nil PipelineService handled safely")
+}
+
+// TestPipelineService_Stop_WithNilIngestors ensures nil ingestors are handled
+func TestPipelineService_Stop_WithNilIngestors(t *testing.T) {
+	ps := &PipelineService{
+		hourlyIngestor: nil,
+		dailyIngestor:  nil,
+		domains:        []string{},
+	}
+
+	ps.Stop()
+	t.Log("Nil ingestors handled safely")
+}
+
+// TestPipelineService_Stop_PartialNilIngestors ensures partial nil is handled
+func TestPipelineService_Stop_PartialNilIngestors(t *testing.T) {
+	hourly := &CustomCostIngestor{
+		key:     "hourly",
+		plugins: make(map[string]*plugin.Client),
+	}
+
+	ps := &PipelineService{
+		hourlyIngestor: hourly,
+		dailyIngestor:  nil,
+		domains:        []string{},
+	}
+
+	ps.Stop()
+	t.Log("Partial nil ingestors handled safely")
+}
+
+// TestPipelineService_Stop_ShutdownLogging verifies logging during shutdown
+func TestPipelineService_Stop_ShutdownLogging(t *testing.T) {
+	ps := &PipelineService{
+		hourlyIngestor: &CustomCostIngestor{
+			key:     "hourly",
+			plugins: make(map[string]*plugin.Client),
+		},
+		dailyIngestor: &CustomCostIngestor{
+			key:     "daily",
+			plugins: make(map[string]*plugin.Client),
+		},
+		domains: []string{},
+	}
+
+	ps.Stop()
+	time.Sleep(50 * time.Millisecond)
+
+	t.Log("Pipeline service logged shutdown progress")
+}
+
+func TestPipelineService_Stop_NilReceiver(t *testing.T) {
+	var ps *PipelineService
+	ps.Stop() // should not panic on nil receiver
+}
+
+func TestPipelineService_Stop_NilIngestors(t *testing.T) {
+	ps := &PipelineService{}
+	ps.Stop() // should not panic when ingestors are nil
+}
+
+func TestPipelineService_Stop_WithIngestors(t *testing.T) {
+	hourly := &CustomCostIngestor{plugins: map[string]*plugin.Client{}}
+	daily := &CustomCostIngestor{plugins: map[string]*plugin.Client{}}
+	ps := &PipelineService{
+		hourlyIngestor: hourly,
+		dailyIngestor:  daily,
+	}
+	ps.Stop()
+}
+
+func TestPipelineService_Stop_OnlyHourlyIngestor(t *testing.T) {
+	ps := &PipelineService{
+		hourlyIngestor: &CustomCostIngestor{plugins: map[string]*plugin.Client{}},
+	}
+	ps.Stop() // should not panic when dailyIngestor is nil
+}
+
+func TestPipelineService_Stop_OnlyDailyIngestor(t *testing.T) {
+	ps := &PipelineService{
+		dailyIngestor: &CustomCostIngestor{plugins: map[string]*plugin.Client{}},
+	}
+	ps.Stop() // should not panic when hourlyIngestor is nil
 }

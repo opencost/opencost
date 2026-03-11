@@ -106,7 +106,7 @@ func newCostModelCommand() *cobra.Command {
 			// Init logging here so cobra/viper has processed the command line args and flags
 			// otherwise only envvars are available during init
 			log.InitLogging(true)
-			
+
 			// Update config with command-line flag values if they were explicitly set
 			if cmd.Flags().Changed("port") {
 				port, _ := cmd.Flags().GetInt("port")
@@ -128,7 +128,7 @@ func newCostModelCommand() *cobra.Command {
 				customCostEnabled, _ := cmd.Flags().GetBool("custom-cost-enabled")
 				config.CustomCostEnabled = customCostEnabled
 			}
-			
+
 			return costmodel.Execute(config)
 		},
 	}
@@ -153,13 +153,13 @@ func newAgentCommand() *cobra.Command {
 			// Init logging here so cobra/viper has processed the command line args and flags
 			// otherwise only envvars are available during init
 			log.InitLogging(true)
-			
+
 			// Update opts with command-line flag values if they were explicitly set
 			if cmd.Flags().Changed("port") {
 				port, _ := cmd.Flags().GetInt("port")
 				opts.Port = port
 			}
-			
+
 			return agent.Execute(opts)
 		},
 	}

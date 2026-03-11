@@ -1497,7 +1497,7 @@ func TestQueryCloudCosts_ContextCancellation(t *testing.T) {
 
 	// Query should fail with context cancelled error
 	_, err := s.QueryCloudCosts(ctx, req)
-	
+
 	// Verify context cancellation was detected
 	assert.Error(t, err)
 	assert.True(t, caq.contextWasCancelled, "Context cancellation should be detected by querier")

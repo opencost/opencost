@@ -145,7 +145,7 @@ func TestCustomPricing_AthenaCURVersion(t *testing.T) {
 			cp := &CustomPricing{
 				AthenaCURVersion: testCase.curVersion,
 			}
-			
+
 			if cp.AthenaCURVersion != testCase.expected {
 				t.Errorf("expected AthenaCURVersion to be '%s', got '%s'", testCase.expected, cp.AthenaCURVersion)
 			}

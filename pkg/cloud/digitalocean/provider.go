@@ -19,12 +19,17 @@ import (
 	"github.com/opencost/opencost/pkg/env"
 )
 
+// DigitalOcean Volumes Block Storage: $0.10/GiB/month
+// Converting to hourly: $0.10 / 730 hours (average month) ≈ $0.000137/GiB/hour
+const doVolumeHourlyRatePerGiB = 0.000137
+
+// Legacy fallback rate (kept for compatibility)
 const fallbackPVHourlyRate = 0.00015
 
 type DOKS struct {
 	PricingURL            string
 	Cache                 *PricingCache
-	Products              map[string][]DOProduct
+	Sizes                 map[string]*DOSize
 	Config                models.ProviderConfig
 	Clientset             clustercache.ClusterCache
 	ClusterManagementCost float64
@@ -36,50 +41,77 @@ type PricingCache struct {
 	mu         sync.Mutex
 }
 
+// DOResponse represents the response from DigitalOcean's /v2/sizes API
 type DOResponse struct {
-	Products []DOProduct `json:"products"`
+	Sizes []DOSize `json:"sizes"`
+	Links DOLinks  `json:"links,omitempty"`
+	Meta  DOMeta   `json:"meta,omitempty"`
 }
 
-type DOProduct struct {
-	SKU         string        `json:"sku"`
-	ItemType    string        `json:"itemType"`
-	DisplayName string        `json:"displayName"`
-	Category    string        `json:"category"`
-	Prices      []DOPrice     `json:"prices"`
-	Allowances  []DOAllowance `json:"allowances,omitempty"`
-	Attributes  []DOAttribute `json:"attributes,omitempty"`
-	EffectiveAt string        `json:"effectiveAt"`
+// DOSize represents a DigitalOcean Droplet size
+type DOSize struct {
+	Slug         string       `json:"slug"`
+	Memory       int          `json:"memory"` // Memory in MB
+	VCPUs        int          `json:"vcpus"`
+	Disk         int          `json:"disk"`          // Disk in GB
+	Transfer     float64      `json:"transfer"`      // Transfer in TB
+	PriceMonthly float64      `json:"price_monthly"` // Monthly price in USD
+	PriceHourly  float64      `json:"price_hourly"`  // Hourly price in USD
+	Regions      []string     `json:"regions"`
+	Available    bool         `json:"available"`
+	Description  string       `json:"description"`
+	DiskInfo     []DODiskInfo `json:"disk_info,omitempty"`
+	GPUInfo      DOGPUInfo    `json:"gpu_info,omitempty"`
 }
 
-type DOPrice struct {
-	Unit      string `json:"unit"`
-	Rate      string `json:"rate"`
-	MinAmount string `json:"minAmount"`
-	MaxAmount string `json:"maxAmount"`
-	MinUsage  string `json:"minUsage"`
-	MaxUsage  string `json:"maxUsage"`
-	Currency  string `json:"currency"`
-	Region    string `json:"region"`
+// DODiskInfo represents disk information for a DigitalOcean size
+type DODiskInfo struct {
+	Type string     `json:"type"`
+	Size DODiskSize `json:"size"`
 }
 
-type DOAllowance struct {
-	Quantity    string `json:"quantity"`
-	Unit        string `json:"unit"`
-	AllowanceId string `json:"allowanceId"`
-	Schedule    string `json:"schedule"`
+// DOGPUInfo represents GPU information for a DigitalOcean size
+type DOGPUInfo struct {
+	Count int       `json:"count"`
+	VRAM  DOGPUVRAM `json:"vram"`
+	Model string    `json:"model"`
 }
 
-type DOAttribute struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-	Unit  string `json:"unit"`
+// DOGPUVRAM represents GPU VRAM details
+type DOGPUVRAM struct {
+	Amount int    `json:"amount"`
+	Unit   string `json:"unit"`
+}
+
+// DODiskSize represents disk size details
+type DODiskSize struct {
+	Amount int    `json:"amount"`
+	Unit   string `json:"unit"`
+}
+
+// DOLinks represents pagination links
+type DOLinks struct {
+	Pages DOPages `json:"pages,omitempty"`
+}
+
+// DOPages represents pagination page links
+type DOPages struct {
+	First string `json:"first,omitempty"`
+	Prev  string `json:"prev,omitempty"`
+	Next  string `json:"next,omitempty"`
+	Last  string `json:"last,omitempty"`
+}
+
+// DOMeta represents metadata about the response
+type DOMeta struct {
+	Total int `json:"total"`
 }
 
 func NewDOKSProvider(pricingURL string) *DOKS {
 	return &DOKS{
 		PricingURL: pricingURL,
 		Cache:      &PricingCache{},
-		Products:   make(map[string][]DOProduct),
+		Sizes:      make(map[string]*DOSize),
 	}
 }
 
@@ -104,39 +136,62 @@ func (do *DOKS) fetchPricingData() (*DOResponse, error) {
 	if pricingURL == "" {
 		pricingURL = env.GetDOKSPricingURL()
 	}
-	log.Infof("Fetching DigitalOcean pricing from: %s", pricingURL)
+	log.Infof("Fetching DigitalOcean sizes from: %s", pricingURL)
 
-	resp, err := http.Get(pricingURL)
+	// Create request with authentication
+	req, err := http.NewRequest("GET", pricingURL, nil)
 	if err != nil {
-		log.Warnf("Failed to fetch pricing from DigitalOcean: %v", err)
-		return nil, fmt.Errorf("pricing API fetch error: %w", err)
+		log.Warnf("Failed to create request: %v", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Authentication is required for the DigitalOcean sizes API
+	token := env.GetDigitalOceanAccessToken()
+	if token == "" {
+		log.Errorf("DigitalOcean API requires authentication. Set DIGITALOCEAN_ACCESS_TOKEN or CLOUD_PROVIDER_API_KEY environment variable with your DigitalOcean Personal Access Token")
+		return nil, fmt.Errorf("DigitalOcean authentication required: set DIGITALOCEAN_ACCESS_TOKEN or CLOUD_PROVIDER_API_KEY environment variable")
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	req.Header.Set("Content-Type", "application/json")
+	log.Debugf("Using authenticated DigitalOcean API request")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Warnf("Failed to fetch sizes from DigitalOcean: %v", err)
+		return nil, fmt.Errorf("sizes API fetch error: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Warnf("Pricing API returned unexpected status: %d", resp.StatusCode)
-		return nil, fmt.Errorf("pricing API returned status: %d", resp.StatusCode)
+		log.Warnf("Sizes API returned unexpected status: %d", resp.StatusCode)
+		return nil, fmt.Errorf("sizes API returned status: %d", resp.StatusCode)
 	}
 
 	var data DOResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		log.Errorf("Failed to decode pricing JSON: %v", err)
-		return nil, fmt.Errorf("failed to decode pricing response: %w", err)
+		log.Errorf("Failed to decode sizes JSON: %v", err)
+		return nil, fmt.Errorf("failed to decode sizes response: %w", err)
 	}
 
-	// Categorize products by item type
-	categorized := make(map[string][]DOProduct)
-	for _, product := range data.Products {
-		log.Debugf("Indexing product: SKU=%s, ItemType=%s, Name=%s", product.SKU, product.ItemType, product.DisplayName)
-		categorized[product.ItemType] = append(categorized[product.ItemType], product)
+	// TODO: handle pagination
+
+	// Index sizes by slug for quick lookup
+	sizesMap := make(map[string]*DOSize)
+	for i := range data.Sizes {
+		size := &data.Sizes[i]
+		sizesMap[size.Slug] = size
+		log.Debugf("Indexing size: Slug=%s, VCPUs=%d, Memory=%dMB, PriceHourly=$%.5f",
+			size.Slug, size.VCPUs, size.Memory, size.PriceHourly)
 	}
 
 	// Cache and return
-	do.Products = categorized
+	do.Sizes = sizesMap
 	do.Cache.data = &data
 	do.Cache.lastUpdate = time.Now()
 
-	log.Infof("Successfully updated DigitalOcean pricing cache (%d products)", len(data.Products))
+	log.Infof("Successfully updated DigitalOcean pricing cache (%d sizes)", len(data.Sizes))
 	return do.Cache.data, nil
 }
 
@@ -209,6 +264,14 @@ func (k *doksKey) Features() string {
 }
 
 func (k *doksKey) GPUType() string {
+	t := k.ID()
+	if t != "" && strings.HasPrefix(t, "gpu-") {
+		parts := strings.Split(t, "-")
+		if len(parts) >= 2 {
+			modelParts := strings.Split(parts[1], "x")
+			return modelParts[0]
+		}
+	}
 	return ""
 }
 
@@ -223,6 +286,17 @@ func (k *doksKey) String() string {
 }
 
 func (k *doksKey) GPUCount() int {
+	t := k.ID()
+	if t != "" && strings.HasPrefix(t, "gpu-") {
+		matches := reGPUCount.FindStringSubmatch(t)
+		if len(matches) == 2 {
+			count, err := strconv.Atoi(matches[1])
+			if err == nil {
+				return count
+			}
+		}
+		return 1
+	}
 	return 0
 }
 
@@ -270,6 +344,7 @@ var (
 	reVCpu        = regexp.MustCompile(`(\d+)\s*vcpu`)
 	reRAM         = regexp.MustCompile(`(\d+)\s*gb`)
 	reSimpleCount = regexp.MustCompile(`^[a-z0-9_]+-(\d+)(?:-|$)`)
+	reGPUCount    = regexp.MustCompile(`x(\d+)(?:-|$)`)
 )
 
 func extractResources(slug string) (int, int, bool) {
@@ -387,32 +462,6 @@ func extractVCpuRAMGuess(slugLower, family string, ramPerVCPU int) (vcpu int, ra
 	return
 }
 
-var (
-	vcpuRegex = regexp.MustCompile(`(?i)(\d+)\s*VCPU`)
-	ramRegex  = regexp.MustCompile(`(?i)(\d+)\s*GB\s*RAM`)
-)
-
-func extractSpecsFromDisplayName(name string) (vcpu int, memoryGiB int, err error) {
-	vcpuMatches := vcpuRegex.FindStringSubmatch(name)
-	ramMatches := ramRegex.FindStringSubmatch(name)
-
-	if len(vcpuMatches) < 2 || len(ramMatches) < 2 {
-		return 0, 0, fmt.Errorf("could not extract specs from displayName: %q", name)
-	}
-
-	vcpu, err = strconv.Atoi(vcpuMatches[1])
-	if err != nil {
-		return 0, 0, fmt.Errorf("invalid vCPU format: %v", err)
-	}
-
-	memoryGiB, err = strconv.Atoi(ramMatches[1])
-	if err != nil {
-		return 0, 0, fmt.Errorf("invalid RAM format: %v", err)
-	}
-
-	return vcpu, memoryGiB, nil
-}
-
 func parseResources(features string) (int, int, error) {
 	parts := strings.Split(features, ",")
 	var cpu, ram int
@@ -453,6 +502,14 @@ func (do *DOKS) NodePricing(key models.Key) (*models.Node, models.PricingMetadat
 	arch := parseArch(key.Features())
 	slug := key.ID()
 
+	// First, try to find by exact slug match
+	if size, ok := do.Sizes[slug]; ok && size.Available {
+		node, meta := do.sizeToNode(size, arch)
+		log.Infof("Found size by slug: %s (vCPU: %d, RAM: %dMB, price: $%.5f/hr)",
+			size.Slug, size.VCPUs, size.Memory, size.PriceHourly)
+		return node, meta, nil
+	}
+
 	// Try parsing vCPU/RAM from labels
 	vcpu, ram, err := parseResources(key.Features())
 	if err != nil || vcpu == 0 || ram == 0 {
@@ -473,30 +530,23 @@ func (do *DOKS) NodePricing(key models.Key) (*models.Node, models.PricingMetadat
 		}
 	}
 
-	// Search for matching product in the DigitalOcean catalog
-	for _, products := range do.Products {
-		for _, product := range products {
-			if product.ItemType != "K8S_WORKER_NODE" {
-				continue
-			}
+	// If slug lookup fails, search by vCPU and RAM specs
+	ramMB := ram * 1024 // Convert GiB to MB
+	for _, size := range do.Sizes {
+		if !size.Available {
+			continue
+		}
 
-			productVCPU, productRAM, err := extractSpecsFromDisplayName(product.DisplayName)
-			if err != nil {
-				continue
-			}
-
-			if productVCPU == vcpu && productRAM == ram {
-				node, meta, err := do.productToNode(product, vcpu, ram, arch)
-				if err != nil {
-					log.Warnf("Failed to convert product %s to node: %v", product.SKU, err)
-					continue
-				}
-				return node, meta, nil
-			}
+		// Match by vCPU and memory (with small tolerance for memory)
+		if size.VCPUs == vcpu && size.Memory == ramMB {
+			node, meta := do.sizeToNode(size, arch)
+			log.Infof("Found size by specs: %s (vCPU: %d, RAM: %dMB, price: $%.5f/hr)",
+				size.Slug, size.VCPUs, size.Memory, size.PriceHourly)
+			return node, meta, nil
 		}
 	}
 
-	log.Warnf("No matching product found for slug %s (vCPU: %d, RAM: %d), falling back", slug, vcpu, ram)
+	log.Warnf("No matching size found for slug %s (vCPU: %d, RAM: %dGiB), falling back", slug, vcpu, ram)
 	return fallbackNode(slug)
 }
 
@@ -511,63 +561,60 @@ func parseArch(features string) string {
 	return ""
 }
 
-func (do *DOKS) productToNode(product DOProduct, vcpu int, ramGiB int, arch string) (*models.Node, models.PricingMetadata, error) {
-	if len(product.Prices) == 0 {
-		return nil, models.PricingMetadata{
-			Currency: "USD",
-			Source:   "digitalocean",
-			Warnings: []string{"product has no prices"},
-		}, fmt.Errorf("no pricing data for product: %s", product.SKU)
-	}
+// sizeToNode converts a DigitalOcean size to an OpenCost Node model
+func (do *DOKS) sizeToNode(size *DOSize, arch string) (*models.Node, models.PricingMetadata) {
+	hourlyCost := size.PriceHourly
+	vcpu := size.VCPUs
+	ramGiB := float64(size.Memory) / 1024.0 // Convert MB to GiB
 
-	price := product.Prices[0]
-	rate, err := strconv.ParseFloat(price.Rate, 64)
-	if err != nil {
-		return nil, models.PricingMetadata{
-			Currency: "USD",
-			Source:   "digitalocean",
-			Warnings: []string{"invalid price rate format"},
-		}, fmt.Errorf("invalid rate for %s: %v", product.SKU, err)
+	// Distribute cost proportionally between CPU and RAM based on resource counts.
+	// VCPUCost = total CPU cost portion, RAMCost = total RAM cost portion.
+	totalUnits := float64(vcpu) + ramGiB
+	var vcpuCost, ramCost float64
+	if totalUnits > 0 {
+		vcpuCost = hourlyCost * float64(vcpu) / totalUnits
+		ramCost = hourlyCost * ramGiB / totalUnits
 	}
-
-	var hourlyCost float64
-	switch price.Unit {
-	case "ITEM_PER_SECOND":
-		hourlyCost = rate * 3600
-	case "ITEM_PER_HOUR":
-		hourlyCost = rate
-	default:
-		return nil, models.PricingMetadata{
-			Currency: "USD",
-			Source:   "digitalocean",
-			Warnings: []string{"unsupported pricing unit"},
-		}, fmt.Errorf("unsupported unit: %s", price.Unit)
-	}
-
-	// Assuming CPU and RAM are priced similarly
-	totalUnits := float64(vcpu + ramGiB)
-	vcpuCost := hourlyCost * float64(vcpu) / totalUnits
-	ramCost := hourlyCost * float64(ramGiB) / totalUnits
 
 	if arch == "" {
 		arch = "amd64"
 	}
 
-	return &models.Node{
-			Cost:         fmt.Sprintf("%.5f", hourlyCost),
-			VCPUCost:     fmt.Sprintf("%.5f", vcpuCost),
-			RAMCost:      fmt.Sprintf("%.5f", ramCost),
-			VCPU:         strconv.Itoa(vcpu),
-			RAM:          fmt.Sprintf("%dGiB", ramGiB),
-			InstanceType: product.DisplayName,
-			Region:       price.Region,
-			UsageType:    product.ItemType,
-			PricingType:  models.DefaultPrices,
-			ArchType:     arch,
-		}, models.PricingMetadata{
-			Currency: "USD",
-			Source:   "digitalocean",
-		}, nil
+	region := "global"
+	if len(size.Regions) > 0 {
+		region = size.Regions[0]
+	}
+
+	// Convert RAM from MB to bytes directly to avoid float rounding
+	ramBytes := int64(size.Memory) * 1024 * 1024
+
+	// Format RAM as integer GiB when possible
+	ramGiBInt := int(ramGiB)
+	ramStr := fmt.Sprintf("%dGiB", ramGiBInt)
+
+	node := &models.Node{
+		Cost:         fmt.Sprintf("%.5f", hourlyCost),
+		VCPUCost:     fmt.Sprintf("%.5f", vcpuCost),
+		RAMCost:      fmt.Sprintf("%.5f", ramCost),
+		VCPU:         strconv.Itoa(vcpu),
+		RAM:          ramStr,
+		RAMBytes:     fmt.Sprintf("%d", ramBytes),
+		InstanceType: size.Slug,
+		Region:       region,
+		UsageType:    "droplet",
+		PricingType:  models.DefaultPrices,
+		ArchType:     arch,
+	}
+
+	if size.GPUInfo.Count > 0 {
+		node.GPU = strconv.Itoa(size.GPUInfo.Count)
+		node.GPUName = size.GPUInfo.Model
+	}
+
+	return node, models.PricingMetadata{
+		Currency: "USD",
+		Source:   "digitalocean-sizes-api",
+	}
 }
 
 func fallbackNode(slug string) (*models.Node, models.PricingMetadata, error) {
@@ -585,12 +632,15 @@ func fallbackNode(slug string) (*models.Node, models.PricingMetadata, error) {
 
 		log.Infof("FallbackNode (estimated): %s , hourly=%.5f, vcpuUnit=%.5f, ramUnit=%.5f", slug, cost, unitCost, unitCost)
 
+		ramBytes := int64(ram) * 1024 * 1024 * 1024
+
 		return &models.Node{
 				Cost:         fmt.Sprintf("%.5f", cost),
 				VCPUCost:     fmt.Sprintf("%.5f", unitCost),
 				RAMCost:      fmt.Sprintf("%.5f", unitCost),
 				VCPU:         strconv.Itoa(vcpu),
 				RAM:          fmt.Sprintf("%dGiB", ram),
+				RAMBytes:     fmt.Sprintf("%d", ramBytes),
 				InstanceType: slug,
 				Region:       "global",
 				UsageType:    "static-fallback",
@@ -638,48 +688,29 @@ func (k *doksPVKey) GetStorageClass() string {
 func (do *DOKS) PVPricing(key models.PVKey) (*models.PV, error) {
 	log.Debug("Fetching DigitalOcean block storage pricing")
 
-	_, err := do.fetchPricingData()
-	if err != nil {
-		log.Warnf("Failed to fetch PV pricing data: %v, using fallback", err)
-		return fallbackPV(key)
-	}
-
-	products, ok := do.Products["K8S_VOLUME"]
-	if !ok || len(products) == 0 {
-		log.Warn("No 'K8S_VOLUME' product found in catalog, using fallback")
-		return fallbackPV(key)
-	}
-
-	product := products[0]
-	if len(product.Prices) == 0 {
-		log.Warn("No pricing info found for K8S_VOLUME, using fallback")
-		return fallbackPV(key)
-	}
-
-	price := product.Prices[0]
-	if price.Unit != "GIB_PER_HOUR" {
-		log.Warnf("Unsupported PV price unit: %s, expected GIB_PER_HOUR. Using fallback.", price.Unit)
-		return fallbackPV(key)
-	}
-
-	rate, err := strconv.ParseFloat(price.Rate, 64)
-	if err != nil {
-		log.Warnf("Failed to parse PV rate: %v, using fallback", err)
-		return fallbackPV(key)
-	}
-
+	// DigitalOcean volumes have fixed pricing: $0.10/GiB/month
+	// This is approximately $0.000137/GiB/hour
 	k, ok := key.(*doksPVKey)
 	var sizeGB int64
+	var region string
 	if ok {
 		sizeGB = k.SizeGiB()
+		region = k.region
 	}
 
+	if region == "" {
+		region = "global"
+	}
+
+	log.Infof("Using DigitalOcean volume pricing: $%.6f/GiB/hr | Class=%s | SizeGiB=%d | Region=%s | ID=%s",
+		doVolumeHourlyRatePerGiB, key.GetStorageClass(), sizeGB, region, key.ID())
+
 	return &models.PV{
-		Cost:       fmt.Sprintf("%.5f", rate),
+		Cost:       fmt.Sprintf("%.6f", doVolumeHourlyRatePerGiB),
 		CostPerIO:  "0",
 		Class:      key.GetStorageClass(),
 		Size:       fmt.Sprintf("%d", sizeGB),
-		Region:     price.Region,
+		Region:     region,
 		ProviderID: key.ID(),
 		Parameters: nil,
 	}, nil
@@ -805,20 +836,9 @@ func (do *DOKS) AllNodePricing() (interface{}, error) {
 }
 
 func (do *DOKS) AllPVPricing() (map[models.PVKey]*models.PV, error) {
-	_, err := do.fetchPricingData()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch pricing data: %w", err)
-	}
-
-	products, ok := do.Products["K8S_VOLUME"]
-	if !ok || len(products) == 0 {
-		return nil, fmt.Errorf("no PV products found")
-	}
-
-	// Only one PV product
-	product := products[0]
+	// DigitalOcean has a single, fixed pricing tier for block storage volumes
 	key := &doksPVKey{
-		id:           product.SKU,
+		id:           "do-volume",
 		storageClass: "do-block-storage",
 	}
 

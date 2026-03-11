@@ -1,6 +1,7 @@
 package env
 
 import (
+	"strings"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/env"
@@ -34,14 +35,18 @@ const (
 
 	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
 	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
-	
+	AzureLocaleEnvVar         = "AZURE_LOCALE"
+	AzureCurrencyEnvVar       = "AZURE_CURRENCY"
+	AzureRegionInfoEnvVar     = "AZURE_REGION_INFO"
+
+	DigitalOceanAccessTokenEnvVar = "DIGITALOCEAN_ACCESS_TOKEN"
 	// Azure rate card filter environment variables
-	AzureLocaleEnvVar     = "AZURE_LOCALE"
-	AzureCurrencyEnvVar   = "AZURE_CURRENCY"
-	AzureRegionInfoEnvVar = "AZURE_REGION_INFO"
 
 	// Currently being used for OCI and DigitalOcean
 	ProviderPricingURL = "PROVIDER_PRICING_URL"
+
+	OVHSubsidiaryEnvVar    = "OVH_SUBSIDIARY"
+	OVHMonthlyNodepoolsVar = "OVH_MONTHLY_NODEPOOLS"
 
 	ClusterProfileEnvVar    = "CLUSTER_PROFILE"
 	RemoteEnabledEnvVar     = "REMOTE_WRITE_ENABLED"
@@ -404,7 +409,35 @@ func GetLocalCollectorDirectory() string {
 }
 
 func GetDOKSPricingURL() string {
-	return env.Get(ProviderPricingURL, "https://api.digitalocean.com/v2/billing/pricing")
+	return env.Get(ProviderPricingURL, "https://api.digitalocean.com/v2/sizes")
+}
+
+func GetDigitalOceanAccessToken() string {
+	// Try DIGITALOCEAN_ACCESS_TOKEN first, then fall back to CLOUD_PROVIDER_API_KEY
+	token := env.Get(DigitalOceanAccessTokenEnvVar, "")
+	if token == "" {
+		token = env.Get(CloudProviderAPIKeyEnvVar, "")
+	}
+	return token
+}
+
+func GetOVHSubsidiary() string {
+	return strings.ToUpper(strings.TrimSpace(env.Get(OVHSubsidiaryEnvVar, "FR")))
+}
+
+func GetOVHMonthlyNodepools() []string {
+	val := env.Get(OVHMonthlyNodepoolsVar, "")
+	if val == "" {
+		return nil
+	}
+	var pools []string
+	for _, p := range strings.Split(val, ",") {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			pools = append(pools, p)
+		}
+	}
+	return pools
 }
 
 // IsMCPServerEnabled returns the environment variable value for MCPServerEnabledEnvVar which represents
