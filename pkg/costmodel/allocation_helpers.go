@@ -1355,7 +1355,7 @@ func labelsToPodControllerMap(podLabels map[podKey]map[string]string, controller
 	return podControllerMap
 }
 
-func resToPodDaemonSetMap(resDaemonSetLabels []*source.DaemonSetLabelsResult, podUIDKeyMap map[podKey][]podKey, ingestPodUID bool) map[podKey]controllerKey {
+func resToPodDaemonSetMap(resDaemonSetLabels []*source.PodsWithDaemonSetOwnerResult, podUIDKeyMap map[podKey][]podKey, ingestPodUID bool) map[podKey]controllerKey {
 	daemonSetLabels := map[podKey]controllerKey{}
 
 	for _, res := range resDaemonSetLabels {
@@ -1391,7 +1391,7 @@ func resToPodDaemonSetMap(resDaemonSetLabels []*source.DaemonSetLabelsResult, po
 	return daemonSetLabels
 }
 
-func resToPodJobMap(resJobLabels []*source.JobLabelsResult, podUIDKeyMap map[podKey][]podKey, ingestPodUID bool) map[podKey]controllerKey {
+func resToPodJobMap(resJobLabels []*source.PodsWithJobOwnerResult, podUIDKeyMap map[podKey][]podKey, ingestPodUID bool) map[podKey]controllerKey {
 	jobLabels := map[podKey]controllerKey{}
 
 	for _, res := range resJobLabels {
@@ -1521,10 +1521,10 @@ func applyControllersToPods(podMap map[podKey]*pod, podControllerMap map[podKey]
 
 /* Service Helpers */
 
-func getServiceLabels(resServiceLabels []*source.ServiceLabelsResult) map[serviceKey]map[string]string {
+func getServiceSelectorLabels(resServiceSelectorLabels []*source.ServiceLabelsResult) map[serviceKey]map[string]string {
 	serviceLabels := map[serviceKey]map[string]string{}
 
-	for _, res := range resServiceLabels {
+	for _, res := range resServiceSelectorLabels {
 		serviceKey, err := newResultServiceKey(res.Cluster, res.Namespace, res.Service)
 		if err != nil {
 			continue
@@ -2126,7 +2126,7 @@ func applyPVBytes(pvMap map[pvKey]*pv, resPVBytes []*source.PVBytesResult) {
 			continue
 		}
 
-		pvBytesUsed := res.Data[0].Value
+		pvBytesUsed := res.Value
 		if pvBytesUsed < PV_USAGE_SANITY_LIMIT_BYTES {
 			pvMap[key].Bytes = pvBytesUsed
 		} else {

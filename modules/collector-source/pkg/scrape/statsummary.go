@@ -139,9 +139,10 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 					scrapeResults = append(scrapeResults, metric.Update{
 						Name: metric.ContainerFSUsageBytes,
 						Labels: map[string]string{
-							source.InstanceLabel: nodeName,
-							source.DeviceLabel:   "local",
-							source.UIDLabel:      podUID,
+							source.InstanceLabel:  nodeName,
+							source.DeviceLabel:    "local",
+							source.UIDLabel:       podUID,
+							source.ContainerLabel: container.Name,
 						},
 						Value: float64(*container.Rootfs.UsedBytes),
 					})

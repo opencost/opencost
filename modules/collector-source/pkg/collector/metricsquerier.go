@@ -182,6 +182,14 @@ func (c *collectorMetricsQuerier) QueryLocalStorageBytes(start, end time.Time) *
 	return queryCollector(c, start, end, metric.LocalStorageBytesID, source.DecodeLocalStorageBytesResult)
 }
 
+func (c *collectorMetricsQuerier) QueryNodeInfo(start, end time.Time) *source.Future[source.NodeInfoResult] {
+	return queryCollector(c, start, end, metric.NodeInfoID, source.DecodeNodeInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryNodeUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.NodeUptimeID, source.DecodeUptimeResult)
+}
+
 func (c *collectorMetricsQuerier) QueryNodeActiveMinutes(start, end time.Time) *source.Future[source.NodeActiveMinutesResult] {
 	return queryCollector(c, start, end, metric.NodeActiveMinutesID, source.DecodeNodeActiveMinutesResult)
 }
@@ -299,6 +307,10 @@ func (c *collectorMetricsQuerier) QueryLBPricePerHr(start, end time.Time) *sourc
 	return queryCollector(c, start, end, metric.LBPricePerHourID, source.DecodeLBPricePerHrResult)
 }
 
+func (c *collectorMetricsQuerier) QueryClusterInfo(start, end time.Time) *source.Future[source.ClusterInfoResult] {
+	return queryCollector(c, start, end, metric.ClusterInfoID, source.DecodeClusterInfoResult)
+}
+
 func (c *collectorMetricsQuerier) QueryClusterUptime(start, end time.Time) *source.Future[source.UptimeResult] {
 	return queryCollector(c, start, end, metric.ClusterUptimeID, source.DecodeUptimeResult)
 }
@@ -318,6 +330,26 @@ func (c *collectorMetricsQuerier) QueryPods(start, end time.Time) *source.Future
 
 func (c *collectorMetricsQuerier) QueryPodsUID(start, end time.Time) *source.Future[source.PodsResult] {
 	return queryCollector(c, start, end, metric.PodActiveMinutesID, source.DecodePodsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryPodInfo(start, end time.Time) *source.Future[source.PodInfoResult] {
+	return queryCollector(c, start, end, metric.PodInfoID, source.DecodePodInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryPodUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.PodUptimeID, source.DecodeUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryPodOwners(start, end time.Time) *source.Future[source.OwnerResult] {
+	return queryCollector(c, start, end, metric.PodOwnerID, source.DecodeOwnerResult)
+}
+
+func (c *collectorMetricsQuerier) QueryPodPVCVolumes(start, end time.Time) *source.Future[source.PodPVCVolumeResult] {
+	return queryCollector(c, start, end, metric.PodPVCVolumeID, source.DecodePodPVCVolumeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryContainerUptime(start, end time.Time) *source.Future[source.ContainerUptimeResult] {
+	return queryCollector(c, start, end, metric.ContainerUptimeID, source.DecodeContainerUptimeResult)
 }
 
 func (c *collectorMetricsQuerier) QueryRAMBytesAllocated(start, end time.Time) *source.Future[source.RAMBytesAllocatedResult] {
@@ -408,6 +440,10 @@ func (c *collectorMetricsQuerier) QueryPVCInfo(start, end time.Time) *source.Fut
 	return queryCollector(c, start, end, metric.PVCInfoID, source.DecodePVCInfoResult)
 }
 
+func (c *collectorMetricsQuerier) QueryPVCUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.PVCUptimeID, source.DecodeUptimeResult)
+}
+
 func (c *collectorMetricsQuerier) QueryPVBytes(start, end time.Time) *source.Future[source.PVBytesResult] {
 	return queryCollector(c, start, end, metric.PVBytesID, source.DecodePVBytesResult)
 }
@@ -418,6 +454,14 @@ func (c *collectorMetricsQuerier) QueryPVPricePerGiBHour(start, end time.Time) *
 
 func (c *collectorMetricsQuerier) QueryPVInfo(start, end time.Time) *source.Future[source.PVInfoResult] {
 	return queryCollector(c, start, end, metric.PVInfoID, source.DecodePVInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryPVUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.PVUptimeID, source.DecodeUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryNamespaceInfo(start, end time.Time) *source.Future[source.NamespaceInfoResult] {
+	return queryCollector(c, start, end, metric.NamespaceInfoID, source.DecodeNamespaceInfoResult)
 }
 
 func (c *collectorMetricsQuerier) QueryNamespaceUptime(start, end time.Time) *source.Future[source.UptimeResult] {
@@ -512,24 +556,132 @@ func (c *collectorMetricsQuerier) QueryPodLabels(start, end time.Time) *source.F
 	return queryCollector(c, start, end, metric.PodLabelsID, source.DecodePodLabelsResult)
 }
 
-func (c *collectorMetricsQuerier) QueryServiceLabels(start, end time.Time) *source.Future[source.ServiceLabelsResult] {
+func (c *collectorMetricsQuerier) QueryServiceInfo(start, end time.Time) *source.Future[source.ServiceInfoResult] {
+	return queryCollector(c, start, end, metric.ServiceInfoID, source.DecodeServiceInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryServiceUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.ServiceUptimeID, source.DecodeUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryServiceSelectorLabels(start, end time.Time) *source.Future[source.ServiceLabelsResult] {
 	return queryCollector(c, start, end, metric.ServiceLabelsID, source.DecodeServiceLabelsResult)
 }
 
-func (c *collectorMetricsQuerier) QueryDeploymentLabels(start, end time.Time) *source.Future[source.DeploymentLabelsResult] {
-	return queryCollector(c, start, end, metric.DeploymentLabelsID, source.DecodeDeploymentLabelsResult)
+func (c *collectorMetricsQuerier) QueryDeploymentInfo(start, end time.Time) *source.Future[source.DeploymentInfoResult] {
+	return queryCollector(c, start, end, metric.DeploymentInfoID, source.DecodeDeploymentInfoResult)
 }
 
-func (c *collectorMetricsQuerier) QueryStatefulSetLabels(start, end time.Time) *source.Future[source.StatefulSetLabelsResult] {
-	return queryCollector(c, start, end, metric.StatefulSetLabelsID, source.DecodeStatefulSetLabelsResult)
+func (c *collectorMetricsQuerier) QueryDeploymentUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.DeploymentUptimeID, source.DecodeUptimeResult)
 }
 
-func (c *collectorMetricsQuerier) QueryDaemonSetLabels(start, end time.Time) *source.Future[source.DaemonSetLabelsResult] {
-	return queryCollector(c, start, end, metric.DaemonSetLabelsID, source.DecodeDaemonSetLabelsResult)
+func (c *collectorMetricsQuerier) QueryDeploymentLabels(start, end time.Time) *source.Future[source.LabelsResult] {
+	return queryCollector(c, start, end, metric.DeploymentLabelsID, source.DecodeLabelsResult)
 }
 
-func (c *collectorMetricsQuerier) QueryJobLabels(start, end time.Time) *source.Future[source.JobLabelsResult] {
-	return queryCollector(c, start, end, metric.JobLabelsID, source.DecodeJobLabelsResult)
+func (c *collectorMetricsQuerier) QueryDeploymentAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
+	return queryCollector(c, start, end, metric.DeploymentAnnotationsID, source.DecodeAnnotationsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryDeploymentMatchLabels(start, end time.Time) *source.Future[source.DeploymentLabelsResult] {
+	return queryCollector(c, start, end, metric.DeploymentMatchLabelsID, source.DecodeDeploymentLabelsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryStatefulSetInfo(start, end time.Time) *source.Future[source.StatefulSetInfoResult] {
+	return queryCollector(c, start, end, metric.StatefulSetInfoID, source.DecodeStatefulSetInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryStatefulSetUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.StatefulSetUptimeID, source.DecodeUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryStatefulSetLabels(start, end time.Time) *source.Future[source.LabelsResult] {
+	return queryCollector(c, start, end, metric.StatefulSetLabelsID, source.DecodeLabelsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryStatefulSetAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
+	return queryCollector(c, start, end, metric.StatefulSetAnnotationsID, source.DecodeAnnotationsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryStatefulSetMatchLabels(start, end time.Time) *source.Future[source.StatefulSetLabelsResult] {
+	return queryCollector(c, start, end, metric.StatefulSetMatchLabelsID, source.DecodeStatefulSetLabelsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryDaemonSetInfo(start, end time.Time) *source.Future[source.DaemonSetInfoResult] {
+	return queryCollector(c, start, end, metric.DaemonSetInfoID, source.DecodeDaemonSetInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryDaemonSetUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.DaemonSetUptimeID, source.DecodeUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryDaemonSetLabels(start, end time.Time) *source.Future[source.LabelsResult] {
+	return queryCollector(c, start, end, metric.DaemonSetLabelsID, source.DecodeLabelsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryDaemonSetAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
+	return queryCollector(c, start, end, metric.DaemonSetAnnotationsID, source.DecodeAnnotationsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryJobInfo(start, end time.Time) *source.Future[source.JobInfoResult] {
+	return queryCollector(c, start, end, metric.JobInfoID, source.DecodeJobInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryJobUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.JobUptimeID, source.DecodeUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryJobLabels(start, end time.Time) *source.Future[source.LabelsResult] {
+	return queryCollector(c, start, end, metric.JobLabelsID, source.DecodeLabelsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryJobAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
+	return queryCollector(c, start, end, metric.JobAnnotationsID, source.DecodeAnnotationsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryCronJobInfo(start, end time.Time) *source.Future[source.CronJobInfoResult] {
+	return queryCollector(c, start, end, metric.CronJobInfoID, source.DecodeCronJobInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryCronJobUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.CronJobUptimeID, source.DecodeUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryCronJobLabels(start, end time.Time) *source.Future[source.LabelsResult] {
+	return queryCollector(c, start, end, metric.CronJobLabelsID, source.DecodeLabelsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryCronJobAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
+	return queryCollector(c, start, end, metric.CronJobAnnotationsID, source.DecodeAnnotationsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryReplicaSetInfo(start, end time.Time) *source.Future[source.ReplicaSetInfoResult] {
+	return queryCollector(c, start, end, metric.ReplicaSetInfoID, source.DecodeReplicaSetInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryReplicaSetUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.ReplicaSetUptimeID, source.DecodeUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryReplicaSetLabels(start, end time.Time) *source.Future[source.LabelsResult] {
+	return queryCollector(c, start, end, metric.ReplicaSetLabelsID, source.DecodeLabelsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryReplicaSetAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
+	return queryCollector(c, start, end, metric.ReplicaSetAnnotationsID, source.DecodeAnnotationsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryReplicaSetOwners(start, end time.Time) *source.Future[source.OwnerResult] {
+	return queryCollector(c, start, end, metric.ReplicaSetOwnerID, source.DecodeOwnerResult)
+}
+
+func (c *collectorMetricsQuerier) QueryPodsWithDaemonSetOwner(start, end time.Time) *source.Future[source.PodsWithDaemonSetOwnerResult] {
+	return queryCollector(c, start, end, metric.PodsWithDaemonSetOwnerID, source.DecodePodsWithDaemonSetOwnerResult)
+}
+
+func (c *collectorMetricsQuerier) QueryPodsWithJobOwner(start, end time.Time) *source.Future[source.PodsWithJobOwnerResult] {
+	return queryCollector(c, start, end, metric.PodsWithJobOwnerID, source.DecodePodsWithJobOwnerResult)
 }
 
 func (c *collectorMetricsQuerier) QueryPodsWithReplicaSetOwner(start, end time.Time) *source.Future[source.PodsWithReplicaSetOwnerResult] {
@@ -542,6 +694,10 @@ func (c *collectorMetricsQuerier) QueryReplicaSetsWithoutOwners(start, end time.
 
 func (c *collectorMetricsQuerier) QueryReplicaSetsWithRollout(start, end time.Time) *source.Future[source.ReplicaSetsWithRolloutResult] {
 	return queryCollector(c, start, end, metric.ReplicaSetsWithRolloutID, source.DecodeReplicaSetsWithRolloutResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaInfo(start, end time.Time) *source.Future[source.ResourceQuotaInfoResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaInfoID, source.DecodeResourceQuotaInfoResult)
 }
 
 func (c *collectorMetricsQuerier) QueryResourceQuotaUptime(start, end time.Time) *source.Future[source.UptimeResult] {
