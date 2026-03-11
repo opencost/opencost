@@ -142,7 +142,7 @@ func adminAuthMiddleware(next httprouter.Handle) httprouter.Handle {
 		authHeader := r.Header.Get("Authorization")
 		const prefix = "Bearer "
 		if !strings.HasPrefix(authHeader, prefix) {
-			http.Error(w, "Missing or invalid authorization", http.StatusForbidden)
+			http.Error(w, "Missing or invalid authorization", http.StatusUnauthorized)
 			return
 		}
 		bearerToken := strings.TrimPrefix(authHeader, prefix)
