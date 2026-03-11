@@ -616,8 +616,6 @@ func InitializeCloudCost(router *httprouter.Router, providerConfig models.Provid
 	repoQuerier := cloudcost.NewRepositoryQuerier(repo)
 	cloudCostQueryService := cloudcost.NewQueryService(repoQuerier, repoQuerier)
 
-	
-
 	router.GET("/cloudCost", cloudCostQueryService.GetCloudCostHandler())
 	router.GET("/cloudCost/view/graph", cloudCostQueryService.GetCloudCostViewGraphHandler())
 	router.GET("/cloudCost/view/totals", cloudCostQueryService.GetCloudCostViewTotalsHandler())
