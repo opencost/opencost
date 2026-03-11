@@ -13,21 +13,19 @@ type Node struct {
 	UID           string            `json:"uid"`
 	ProviderID    string            `json:"providerId"`
 	Name          string            `json:"name"`
-	Labels        map[string]string `json:"labels,omitempty"`
-	Annotations   map[string]string `json:"annotations,omitempty"` // TODO unpopulated
-	InstanceType  string            `json:"InstanceType"`
+	Labels        map[string]string `json:"labels"`
+	InstanceType  string            `json:"instanceType"`
 	Preemptible   bool              `json:"preemptible"` // TODO unpopulated
 	CPUMilliCores float64           `json:"cpuMilliCores"`
 	RAMBytes      float64           `json:"ramBytes"`
 	GPUCount      float64           `json:"gpuCount"`
 	FileSystem    FileSystem        `json:"fileSystem"`
-	Start         time.Time         `json:"start,omitempty"` // Node creation/start timestamp
-	End           time.Time         `json:"end,omitempty"`   // Node deletion/end timestamp (nil if still running)
+	Start         time.Time         `json:"start"`
+	End           time.Time         `json:"end"`
 }
 
 // @bingen:generate:FileSystem
-// NodeVolumeUsage tracks storage usage for a disk volume attached to a node.
-// Used for cost allocation of cloud storage resources (e.g., AWS EBS volumes).
+// FileSystem records information for a nodes local storage
 type FileSystem struct {
 	CapacityBytes float64 `json:"capacityBytes"` // Total capacity of the volume in bytes
 	UsageByteAvg  float64 `json:"usageByteAvg"`

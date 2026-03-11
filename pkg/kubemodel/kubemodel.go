@@ -341,6 +341,20 @@ func (km *KubeModel) computePods(kms *kubemodel.KubeModelSet, start, end time.Ti
 	podLabelsResultFuture := source.WithGroup(grp, metrics.QueryPodLabels(start, end))
 	podAnnosResultFuture := source.WithGroup(grp, metrics.QueryPodAnnotations(start, end))
 
+	// Network egress
+	netZoneGiBFuture := source.WithGroup(grp, metrics.QueryNetZoneGiB(start, end))
+	netRegionGiBFuture := source.WithGroup(grp, metrics.QueryNetRegionGiB(start, end))
+	netInternetGiBFuture := source.WithGroup(grp, metrics.QueryNetInternetGiB(start, end))
+	netInternetServiceGiBFuture := source.WithGroup(grp, metrics.QueryNetInternetServiceGiB(start, end))
+	netNatGatewayGiBFuture := source.WithGroup(grp, metrics.QueryNetNatGatewayGiB(start, end))
+
+	// Network ingress
+	netZoneIngressGiBFuture := source.WithGroup(grp, metrics.QueryNetZoneIngressGiB(start, end))
+	netRegionIngressGiBFuture := source.WithGroup(grp, metrics.QueryNetRegionIngressGiB(start, end))
+	netInternetIngressGiBFuture := source.WithGroup(grp, metrics.QueryNetInternetIngressGiB(start, end))
+	netInternetServiceIngressGiBFuture := source.WithGroup(grp, metrics.QueryNetInternetServiceIngressGiB(start, end))
+	netNatGatewayIngressGiBFuture := source.WithGroup(grp, metrics.QueryNetNatGatewayIngressGiB(start, end))
+
 	podMap := make(map[string]*kubemodel.Pod)
 
 	podInfoResult, _ := podInfoResultFuture.Await()
@@ -409,6 +423,134 @@ func (km *KubeModel) computePods(kms *kubemodel.KubeModelSet, start, end time.Ti
 			continue
 		}
 		pod.Annotations = res.Annotations
+	}
+
+	const gibToBytes = 1024 * 1024 * 1024
+
+	netZoneGiBResult, _ := netZoneGiBFuture.Await()
+	for _, res := range netZoneGiBResult {
+		pod, ok := podMap[res.UID]
+		if !ok || len(res.Data) == 0 {
+			continue
+		}
+		if pod.NetworkEgress == nil {
+			pod.NetworkEgress = &kubemodel.NetworkTraffic{}
+		}
+		pod.NetworkEgress.CrossZoneBytes += res.Data[0].Value * gibToBytes
+	}
+
+	netRegionGiBResult, _ := netRegionGiBFuture.Await()
+	for _, res := range netRegionGiBResult {
+		pod, ok := podMap[res.UID]
+		if !ok || len(res.Data) == 0 {
+			continue
+		}
+		if pod.NetworkEgress == nil {
+			pod.NetworkEgress = &kubemodel.NetworkTraffic{}
+		}
+		pod.NetworkEgress.CrossRegionBytes += res.Data[0].Value * gibToBytes
+	}
+
+	netInternetGiBResult, _ := netInternetGiBFuture.Await()
+	for _, res := range netInternetGiBResult {
+		pod, ok := podMap[res.UID]
+		if !ok || len(res.Data) == 0 {
+			continue
+		}
+		if pod.NetworkEgress == nil {
+			pod.NetworkEgress = &kubemodel.NetworkTraffic{}
+		}
+		pod.NetworkEgress.InternetBytes += res.Data[0].Value * gibToBytes
+	}
+
+	netNatGatewayGiBResult, _ := netNatGatewayGiBFuture.Await()
+	for _, res := range netNatGatewayGiBResult {
+		pod, ok := podMap[res.UID]
+		if !ok || len(res.Data) == 0 {
+			continue
+		}
+		if pod.NetworkEgress == nil {
+			pod.NetworkEgress = &kubemodel.NetworkTraffic{}
+		}
+		pod.NetworkEgress.NatGatewayBytes += res.Data[0].Value * gibToBytes
+	}
+
+	netInternetServiceGiBResult, _ := netInternetServiceGiBFuture.Await()
+	for _, res := range netInternetServiceGiBResult {
+		pod, ok := podMap[res.UID]
+		if !ok || len(res.Data) == 0 {
+			continue
+		}
+		if pod.NetworkEgress == nil {
+			pod.NetworkEgress = &kubemodel.NetworkTraffic{}
+		}
+		pod.NetworkEgress.ExternalServices = append(pod.NetworkEgress.ExternalServices, &kubemodel.NetworkService{
+			ServiceName: res.Service,
+			TotalBytes:  res.Data[0].Value * gibToBytes,
+		})
+	}
+
+	netZoneIngressGiBResult, _ := netZoneIngressGiBFuture.Await()
+	for _, res := range netZoneIngressGiBResult {
+		pod, ok := podMap[res.UID]
+		if !ok || len(res.Data) == 0 {
+			continue
+		}
+		if pod.NetworkIngress == nil {
+			pod.NetworkIngress = &kubemodel.NetworkTraffic{}
+		}
+		pod.NetworkIngress.CrossZoneBytes += res.Data[0].Value * gibToBytes
+	}
+
+	netRegionIngressGiBResult, _ := netRegionIngressGiBFuture.Await()
+	for _, res := range netRegionIngressGiBResult {
+		pod, ok := podMap[res.UID]
+		if !ok || len(res.Data) == 0 {
+			continue
+		}
+		if pod.NetworkIngress == nil {
+			pod.NetworkIngress = &kubemodel.NetworkTraffic{}
+		}
+		pod.NetworkIngress.CrossRegionBytes += res.Data[0].Value * gibToBytes
+	}
+
+	netInternetIngressGiBResult, _ := netInternetIngressGiBFuture.Await()
+	for _, res := range netInternetIngressGiBResult {
+		pod, ok := podMap[res.UID]
+		if !ok || len(res.Data) == 0 {
+			continue
+		}
+		if pod.NetworkIngress == nil {
+			pod.NetworkIngress = &kubemodel.NetworkTraffic{}
+		}
+		pod.NetworkIngress.InternetBytes += res.Data[0].Value * gibToBytes
+	}
+
+	netNatGatewayIngressGiBResult, _ := netNatGatewayIngressGiBFuture.Await()
+	for _, res := range netNatGatewayIngressGiBResult {
+		pod, ok := podMap[res.UID]
+		if !ok || len(res.Data) == 0 {
+			continue
+		}
+		if pod.NetworkIngress == nil {
+			pod.NetworkIngress = &kubemodel.NetworkTraffic{}
+		}
+		pod.NetworkIngress.NatGatewayBytes += res.Data[0].Value * gibToBytes
+	}
+
+	netInternetServiceIngressGiBResult, _ := netInternetServiceIngressGiBFuture.Await()
+	for _, res := range netInternetServiceIngressGiBResult {
+		pod, ok := podMap[res.UID]
+		if !ok || len(res.Data) == 0 {
+			continue
+		}
+		if pod.NetworkIngress == nil {
+			pod.NetworkIngress = &kubemodel.NetworkTraffic{}
+		}
+		pod.NetworkIngress.ExternalServices = append(pod.NetworkIngress.ExternalServices, &kubemodel.NetworkService{
+			ServiceName: res.Service,
+			TotalBytes:  res.Data[0].Value * gibToBytes,
+		})
 	}
 
 	for _, pod := range podMap {
