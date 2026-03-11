@@ -130,7 +130,7 @@ func ParsePercentString(percentStr string) (float64, error) {
 
 // adminAuthMiddleware wraps a handler and requires a Bearer token matching ADMIN_TOKEN env var when set.
 // When ADMIN_TOKEN is not set, logs a deduped warning and allows the request through.
-// When ADMIN_TOKEN is set, returns 403 if the Bearer token is missing or does not match.
+// When ADMIN_TOKEN is set, returns 401 if the Bearer token is missing or 403 if it does not match.
 func adminAuthMiddleware(next httprouter.Handle) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		adminToken := env.GetAdminToken()
