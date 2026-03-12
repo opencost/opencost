@@ -33,9 +33,6 @@ const (
 )
 
 const (
-	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 18
-
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
 	AssetsCodecVersion uint8 = 21
 
@@ -47,6 +44,9 @@ const (
 
 	// NetworkInsightCodecVersion is used for any resources listed in the NetworkInsight version set
 	NetworkInsightCodecVersion uint8 = 1
+
+	// DefaultCodecVersion is used for any resources listed in the Default version set
+	DefaultCodecVersion uint8 = 18
 )
 
 //--------------------------------------------------------------------------
@@ -1037,14 +1037,14 @@ func (target *AllocationProperties) MarshalBinaryWithContext(ctx *EncodingContex
 	// --- [end][write][alias](AllocationAnnotations) ---
 
 	// --- [begin][write][alias](AllocationLabels) ---
-	if map[string]string(target.NodeLabels) == nil {
+	if map[string]string(target.NamespaceLabels) == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
 
 		// --- [begin][write][map](map[string]string) ---
-		buff.WriteInt(len(map[string]string(target.NodeLabels))) // map length
-		for vvv, zzz := range map[string]string(target.NodeLabels) {
+		buff.WriteInt(len(map[string]string(target.NamespaceLabels))) // map length
+		for vvv, zzz := range map[string]string(target.NamespaceLabels) {
 			if ctx.IsStringTable() {
 				p := ctx.Table.AddOrGet(vvv)
 				buff.WriteInt(p) // write table index
@@ -1063,15 +1063,15 @@ func (target *AllocationProperties) MarshalBinaryWithContext(ctx *EncodingContex
 	}
 	// --- [end][write][alias](AllocationLabels) ---
 
-	// --- [begin][write][alias](AllocationLabels) ---
-	if map[string]string(target.NamespaceLabels) == nil {
+	// --- [begin][write][alias](AllocationAnnotations) ---
+	if map[string]string(target.NamespaceAnnotations) == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
 
 		// --- [begin][write][map](map[string]string) ---
-		buff.WriteInt(len(map[string]string(target.NamespaceLabels))) // map length
-		for vvvv, zzzz := range map[string]string(target.NamespaceLabels) {
+		buff.WriteInt(len(map[string]string(target.NamespaceAnnotations))) // map length
+		for vvvv, zzzz := range map[string]string(target.NamespaceAnnotations) {
 			if ctx.IsStringTable() {
 				r := ctx.Table.AddOrGet(vvvv)
 				buff.WriteInt(r) // write table index
@@ -1083,33 +1083,6 @@ func (target *AllocationProperties) MarshalBinaryWithContext(ctx *EncodingContex
 				buff.WriteInt(s) // write table index
 			} else {
 				buff.WriteString(zzzz) // write string
-			}
-		}
-		// --- [end][write][map](map[string]string) ---
-
-	}
-	// --- [end][write][alias](AllocationLabels) ---
-
-	// --- [begin][write][alias](AllocationAnnotations) ---
-	if map[string]string(target.NamespaceAnnotations) == nil {
-		buff.WriteUInt8(uint8(0)) // write nil byte
-	} else {
-		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
-		// --- [begin][write][map](map[string]string) ---
-		buff.WriteInt(len(map[string]string(target.NamespaceAnnotations))) // map length
-		for vvvvv, zzzzz := range map[string]string(target.NamespaceAnnotations) {
-			if ctx.IsStringTable() {
-				t := ctx.Table.AddOrGet(vvvvv)
-				buff.WriteInt(t) // write table index
-			} else {
-				buff.WriteString(vvvvv) // write string
-			}
-			if ctx.IsStringTable() {
-				u := ctx.Table.AddOrGet(zzzzz)
-				buff.WriteInt(u) // write table index
-			} else {
-				buff.WriteString(zzzzz) // write string
 			}
 		}
 		// --- [end][write][map](map[string]string) ---
@@ -1359,7 +1332,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 	// --- [end][read][alias](AllocationAnnotations) ---
 
 	// field version check
-	if uint8(18) <= version {
+	if uint8(17) <= version {
 		// --- [begin][read][alias](AllocationLabels) ---
 		var eee map[string]string
 		if buff.ReadUInt8() == uint8(0) {
@@ -1397,7 +1370,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 			// --- [end][read][map](map[string]string) ---
 
 		}
-		target.NodeLabels = AllocationLabels(eee)
+		target.NamespaceLabels = AllocationLabels(eee)
 		// --- [end][read][alias](AllocationLabels) ---
 
 	} else {
@@ -1405,7 +1378,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 
 	// field version check
 	if uint8(17) <= version {
-		// --- [begin][read][alias](AllocationLabels) ---
+		// --- [begin][read][alias](AllocationAnnotations) ---
 		var ppp map[string]string
 		if buff.ReadUInt8() == uint8(0) {
 			ppp = nil
@@ -1442,52 +1415,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 			// --- [end][read][map](map[string]string) ---
 
 		}
-		target.NamespaceLabels = AllocationLabels(ppp)
-		// --- [end][read][alias](AllocationLabels) ---
-
-	} else {
-	}
-
-	// field version check
-	if uint8(17) <= version {
-		// --- [begin][read][alias](AllocationAnnotations) ---
-		var aaaa map[string]string
-		if buff.ReadUInt8() == uint8(0) {
-			aaaa = nil
-		} else {
-			// --- [begin][read][map](map[string]string) ---
-			cccc := buff.ReadInt() // map len
-			bbbb := make(map[string]string, cccc)
-			for jjj := 0; jjj < cccc; jjj++ {
-				var vvvvv string
-				var eeee string
-				if ctx.IsStringTable() {
-					ffff := buff.ReadInt() // read string index
-					eeee = ctx.Table[ffff]
-				} else {
-					eeee = buff.ReadString() // read string
-				}
-				dddd := eeee
-				vvvvv = dddd
-
-				var zzzzz string
-				var hhhh string
-				if ctx.IsStringTable() {
-					kkkk := buff.ReadInt() // read string index
-					hhhh = ctx.Table[kkkk]
-				} else {
-					hhhh = buff.ReadString() // read string
-				}
-				gggg := hhhh
-				zzzzz = gggg
-
-				bbbb[vvvvv] = zzzzz
-			}
-			aaaa = bbbb
-			// --- [end][read][map](map[string]string) ---
-
-		}
-		target.NamespaceAnnotations = AllocationAnnotations(aaaa)
+		target.NamespaceAnnotations = AllocationAnnotations(ppp)
 		// --- [end][read][alias](AllocationAnnotations) ---
 
 	} else {
