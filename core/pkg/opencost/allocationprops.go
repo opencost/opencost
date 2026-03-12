@@ -186,6 +186,7 @@ type AllocationProperties struct {
 	ProviderID           string                `json:"providerID,omitempty"`
 	Labels               AllocationLabels      `json:"labels,omitempty"`
 	Annotations          AllocationAnnotations `json:"annotations,omitempty"`
+	NodeLabels           AllocationLabels      `json:"nodeLabels,omitempty"`
 	NamespaceLabels      AllocationLabels      `json:"namespaceLabels,omitempty"`      // @bingen:field[version=17]
 	NamespaceAnnotations AllocationAnnotations `json:"namespaceAnnotations,omitempty"` // @bingen:field[version=17]
 	// When set to true, maintain the intersection of all labels + annotations
@@ -225,6 +226,12 @@ func (p *AllocationProperties) Clone() *AllocationProperties {
 		labels[k] = v
 	}
 	clone.Labels = labels
+
+	nodeLabels := make(map[string]string, len(p.NodeLabels))
+	for k, v := range p.NodeLabels {
+		nodeLabels[k] = v
+	}
+	clone.NodeLabels = nodeLabels
 
 	nsLabels := make(map[string]string, len(p.NamespaceLabels))
 	for k, v := range p.NamespaceLabels {

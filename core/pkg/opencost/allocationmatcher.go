@@ -100,6 +100,10 @@ func allocationMapFieldMap(a *Allocation, identifier ast.Identifier) (map[string
 		return a.Properties.Labels, nil
 	case afilter.FieldAnnotation:
 		return a.Properties.Annotations, nil
+	case afilter.FieldNodeLabel:
+		return a.Properties.NodeLabels, nil
+	case afilter.FieldNamespaceLabel:
+		return a.Properties.NamespaceLabels, nil
 	}
 	return nil, fmt.Errorf("Failed to find map[string]string identifier on Allocation: %s", identifier.Field.Name)
 }
