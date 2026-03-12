@@ -104,12 +104,19 @@ const (
 	MCPServerEnabledEnvVar = "MCP_SERVER_ENABLED"
 	MCPHTTPPortEnvVar      = "MCP_HTTP_PORT"
 
+	// Admin write operations (e.g. serviceKey, cloud config)
+	AdminTokenEnvVar = "ADMIN_TOKEN"
+
 	// Metrics Emitter
 	MetricsEmitterQueryWindowEnvVar = "METRICS_EMITTER_QUERY_WINDOW"
 )
 
 func GetGCPAuthSecretFilePath() string {
 	return env.GetPathFromConfig(GCPAuthSecretFile)
+}
+
+func GetAdminToken() string {
+	return env.Get(AdminTokenEnvVar, "")
 }
 
 func GetExportCSVFile() string {

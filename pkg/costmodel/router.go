@@ -2,6 +2,7 @@ package costmodel
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -125,6 +126,32 @@ func ParsePercentString(percentStr string) (float64, error) {
 	discount *= 0.01
 
 	return discount, nil
+}
+
+// adminAuthMiddleware wraps a handler and requires a Bearer token matching ADMIN_TOKEN env var when set.
+// When ADMIN_TOKEN is not set, logs a deduped warning and allows the request through.
+// When ADMIN_TOKEN is set, returns 401 if the Bearer token is missing or 403 if it does not match.
+func adminAuthMiddleware(next httprouter.Handle) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		adminToken := env.GetAdminToken()
+		if adminToken == "" {
+			log.DedupedWarningf(5, "Admin token (ADMIN_TOKEN) not configured; write operations are unauthenticated")
+			next(w, r, ps)
+			return
+		}
+		authHeader := r.Header.Get("Authorization")
+		const prefix = "Bearer "
+		if !strings.HasPrefix(authHeader, prefix) {
+			http.Error(w, "Missing or invalid authorization", http.StatusUnauthorized)
+			return
+		}
+		bearerToken := strings.TrimPrefix(authHeader, prefix)
+		if subtle.ConstantTimeCompare([]byte(bearerToken), []byte(adminToken)) != 1 {
+			http.Error(w, "Missing or invalid authorization", http.StatusForbidden)
+			return
+		}
+		next(w, r, ps)
+	}
 }
 
 func WriteData(w http.ResponseWriter, data interface{}, err error) {
@@ -541,7 +568,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	router.GET("/orphanedPods", a.GetOrphanedPods)
 	router.GET("/installNamespace", a.GetInstallNamespace)
 	router.GET("/installInfo", a.GetInstallInfo)
-	router.POST("/serviceKey", a.AddServiceKey)
+	router.POST("/serviceKey", adminAuthMiddleware(a.AddServiceKey))
 	router.GET("/helmValues", a.GetHelmValues)
 
 	return a
@@ -589,19 +616,18 @@ func InitializeCloudCost(router *httprouter.Router, providerConfig models.Provid
 	repoQuerier := cloudcost.NewRepositoryQuerier(repo)
 	cloudCostQueryService := cloudcost.NewQueryService(repoQuerier, repoQuerier)
 
-	router.GET("/cloud/config/export", cloudConfigController.GetExportConfigHandler())
-	router.GET("/cloud/config/enable", cloudConfigController.GetEnableConfigHandler())
-	router.GET("/cloud/config/disable", cloudConfigController.GetDisableConfigHandler())
-	router.GET("/cloud/config/delete", cloudConfigController.GetDeleteConfigHandler())
-
 	router.GET("/cloudCost", cloudCostQueryService.GetCloudCostHandler())
 	router.GET("/cloudCost/view/graph", cloudCostQueryService.GetCloudCostViewGraphHandler())
 	router.GET("/cloudCost/view/totals", cloudCostQueryService.GetCloudCostViewTotalsHandler())
 	router.GET("/cloudCost/view/table", cloudCostQueryService.GetCloudCostViewTableHandler(nil))
 
 	router.GET("/cloudCost/status", cloudCostPipelineService.GetCloudCostStatusHandler())
-	router.GET("/cloudCost/rebuild", cloudCostPipelineService.GetCloudCostRebuildHandler())
-	router.GET("/cloudCost/repair", cloudCostPipelineService.GetCloudCostRepairHandler())
+	router.GET("/cloudCost/rebuild", adminAuthMiddleware(cloudCostPipelineService.GetCloudCostRebuildHandler()))
+	router.GET("/cloudCost/repair", adminAuthMiddleware(cloudCostPipelineService.GetCloudCostRepairHandler()))
+	router.GET("/cloud/config/export", adminAuthMiddleware(cloudConfigController.GetExportConfigHandler()))
+	router.GET("/cloud/config/enable", adminAuthMiddleware(cloudConfigController.GetEnableConfigHandler()))
+	router.GET("/cloud/config/disable", adminAuthMiddleware(cloudConfigController.GetDisableConfigHandler()))
+	router.GET("/cloud/config/delete", adminAuthMiddleware(cloudConfigController.GetDeleteConfigHandler()))
 
 	return cloudCostPipelineService
 }
