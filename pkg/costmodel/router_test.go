@@ -37,14 +37,14 @@ func TestAdminAuthMiddleware(t *testing.T) {
 			name:           "missing authorization header",
 			setToken:       testToken,
 			authHeader:     "",
-			wantStatus:     http.StatusForbidden,
+			wantStatus:     http.StatusUnauthorized,
 			wantNextCalled: false,
 		},
 		{
 			name:           "wrong authorization scheme",
 			setToken:       testToken,
 			authHeader:     "Basic dXNlcjpwYXNz",
-			wantStatus:     http.StatusForbidden,
+			wantStatus:     http.StatusUnauthorized,
 			wantNextCalled: false,
 		},
 		{
