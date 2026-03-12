@@ -186,7 +186,7 @@ type AllocationProperties struct {
 	ProviderID           string                `json:"providerID,omitempty"`
 	Labels               AllocationLabels      `json:"labels,omitempty"`
 	Annotations          AllocationAnnotations `json:"annotations,omitempty"`
-	NodeLabels           AllocationLabels      `json:"nodeLabels,omitempty"`           // @bingen:field[version=17]
+	NodeLabels           AllocationLabels      `json:"nodeLabels,omitempty"`           // @bingen:field[version=18]
 	NamespaceLabels      AllocationLabels      `json:"namespaceLabels,omitempty"`      // @bingen:field[version=17]
 	NamespaceAnnotations AllocationAnnotations `json:"namespaceAnnotations,omitempty"` // @bingen:field[version=17]
 	// When set to true, maintain the intersection of all labels + annotations
