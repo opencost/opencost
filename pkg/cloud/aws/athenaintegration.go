@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/athena/types"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloud"
 )
@@ -17,6 +18,7 @@ import (
 const LabelColumnPrefix = "resource_tags_user_"
 const AWSLabelColumnPrefix = "resource_tags_aws_"
 const AthenaResourceTagPrefix = "resource_tags_"
+const AthenaResourceTagsColumn = "resource_tags"
 
 // athenaDateLayout is the default AWS date format
 const AthenaDateLayout = "2006-01-02 15:04:05.000"
@@ -49,6 +51,24 @@ const AthenaDateTruncColumn = "DATE_TRUNC('day'," + AthenaDateColumn + ") as usa
 
 const AthenaWhereDateFmt = `line_item_usage_start_date >= date '%s' AND line_item_usage_start_date < date '%s'`
 const AthenaWhereUsage = "(line_item_line_item_type = 'Usage' OR line_item_line_item_type = 'DiscountedUsage' OR line_item_line_item_type = 'SavingsPlanCoveredUsage' OR line_item_line_item_type = 'EdpDiscount' OR line_item_line_item_type = 'PrivateRateDiscount')"
+
+var TagColumnsIsK8sCUR10 = []string{
+	"resource_tags_aws_eks_cluster_name",
+	"resource_tags_user_eks_cluster_name",
+	"resource_tags_user_alpha_eksctl_io_cluster_name",
+	"resource_tags_user_kubernetes_io_service_name",
+	"resource_tags_user_kubernetes_io_created_for_pvc_name",
+	"resource_tags_user_kubernetes_io_created_for_pv_name",
+}
+
+var TagColumnsIsK8sCUR20 = []string{
+	"resource_tags['aws_eks_cluster_name']",
+	"resource_tags['user_eks_cluster_name']",
+	"resource_tags['user_alpha_eksctl_io_cluster_name']",
+	"resource_tags['user_kubernetes_io_service_name']",
+	"resource_tags['user_kubernetes_io_created_for_pvc_name']",
+	"resource_tags['user_kubernetes_io_created_for_pv_name']",
+}
 
 // AthenaQueryIndexes is a struct for holding the context of a query
 type AthenaQueryIndexes struct {
@@ -126,6 +146,10 @@ func (ai *AthenaIntegration) getCloudCost(start, end time.Time, limit int) (*ope
 		if strings.HasPrefix(column, AWSLabelColumnPrefix) {
 			groupByColumns = append(groupByColumns, column)
 			aqi.AWSTagColumns = append(aqi.AWSTagColumns, column)
+		}
+		if column == AthenaResourceTagsColumn {
+			castToJsonColumn := fmt.Sprintf("CAST(%s AS JSON) as %s", column, column)
+			groupByColumns = append(groupByColumns, castToJsonColumn)
 		}
 	}
 	var selectColumns []string
@@ -327,13 +351,11 @@ func (ai *AthenaIntegration) GetIsKubernetesColumn(allColumns map[string]bool) s
 		"line_item_product_code = 'AmazonEKS'", // EKS is always kubernetes
 	}
 	// tagColumns is a list of columns where the presence of a value indicates that a resource is part of a kubernetes cluster
-	tagColumns := []string{
-		"resource_tags_aws_eks_cluster_name",
-		"resource_tags_user_eks_cluster_name",
-		"resource_tags_user_alpha_eksctl_io_cluster_name",
-		"resource_tags_user_kubernetes_io_service_name",
-		"resource_tags_user_kubernetes_io_created_for_pvc_name",
-		"resource_tags_user_kubernetes_io_created_for_pv_name",
+	var tagColumns []string
+	if ai.CURVersion == "1.0" {
+		tagColumns = TagColumnsIsK8sCUR10
+	} else {
+		tagColumns = TagColumnsIsK8sCUR20
 	}
 
 	for _, tagColumn := range tagColumns {
@@ -353,6 +375,7 @@ func (ai *AthenaIntegration) GetPartitionWhere(start, end time.Time) string {
 	var disjuncts []string
 
 	// For CUR 2.0, check if billing_period partitions actually exist
+	// Maybe have useBillingPeriodPartitions be present in the AthenaConfiguration struct, so we do not have to call HasBillingPeriodPartitions()
 	useBillingPeriodPartitions := false
 	if ai.CURVersion != "1.0" {
 		// Check if billing_period partitions exist in the table
@@ -405,6 +428,15 @@ func athenaRowToCloudCost(row types.Row, aqi AthenaQueryIndexes) (*opencost.Clou
 		value := GetAthenaRowValue(row, aqi.ColumnIndexes, awsColumnName)
 		if value != "" {
 			labels[labelName] = value
+		}
+	}
+
+	if len(labels) == 0 {
+		castToJsonColumn := fmt.Sprintf("CAST(%s AS JSON) as %s", AthenaResourceTagsColumn, AthenaResourceTagsColumn)
+		resourceTags := GetAthenaRowValue(row, aqi.ColumnIndexes, castToJsonColumn)
+		err := json.Unmarshal([]byte(resourceTags), &labels)
+		if err != nil {
+			log.Errorf("athenaRowToCloudCost: error unmarshalling resource tags: %s", err.Error())
 		}
 	}
 
