@@ -437,7 +437,7 @@ func athenaRowToCloudCost(row types.Row, aqi AthenaQueryIndexes) (*opencost.Clou
 		}
 	}
 
-	if aqi.ColumnIndexes[AthenaResourceTagsCastToJsonColumn] != 0 {
+	if _, ok := aqi.ColumnIndexes[AthenaResourceTagsCastToJsonColumn]; ok {
 		resourceTags := GetAthenaRowValue(row, aqi.ColumnIndexes, AthenaResourceTagsCastToJsonColumn)
 		err := json.Unmarshal([]byte(resourceTags), &labels)
 		if err != nil {
