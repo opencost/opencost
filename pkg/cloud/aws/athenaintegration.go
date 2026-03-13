@@ -140,7 +140,7 @@ func (ai *AthenaIntegration) getCloudCost(start, end time.Time, limit int) (*ope
 	// Determine which columns are user-defined tags and add those to the list
 	// of columns to query.
 	for column := range allColumns {
-		// We dont need to check for CUR version here as the column presence itself are exclusive of each other
+		// We don't need to check for CUR version here as the column presence itself are exclusive of each other
 		// e.g.: If resource tags column is present(CUR 2.0), then AWS and user label columns will not be present at all
 		// and vice versa
 
