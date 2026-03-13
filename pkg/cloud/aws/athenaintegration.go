@@ -357,12 +357,10 @@ func (ai *AthenaIntegration) GetIsKubernetesColumn(allColumns map[string]bool) s
 		"line_item_product_code = 'AmazonEKS'", // EKS is always kubernetes
 	}
 	if allColumns[AthenaResourceTagsColumn] {
-		if _, ok := allColumns[AthenaResourceTagsColumn]; ok {
-			// if resource tags column is present in the CUR check for IsKubernetes keys in the resource tags map
-			for _, tagColumn := range TagColumnsIsK8sCUR20 {
-				disjunctStr := fmt.Sprintf("%s <> ''", tagColumn)
-				disjuncts = append(disjuncts, disjunctStr)
-			}
+		// if resource tags column is present in the CUR check for IsKubernetes keys in the resource tags map
+		for _, tagColumn := range TagColumnsIsK8sCUR20 {
+			disjunctStr := fmt.Sprintf("%s <> ''", tagColumn)
+			disjuncts = append(disjuncts, disjunctStr)
 		}
 	} else {
 		for _, tagColumn := range TagColumnsIsK8sCUR10 {
