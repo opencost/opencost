@@ -2124,10 +2124,18 @@ func (aws *AWS) QueryAthenaPaginated(ctx context.Context, query string, fn func(
 		startQueryExecutionInput.WorkGroup = awsSDK.String(awsAthenaInfo.AthenaWorkgroup)
 	}
 
-	// Create Athena Client
-	cfg, err := awsAthenaInfo.CreateConfig()
+	// Create Athena Client using modern authorization path that supports IRSA
+	athenaConfig := ConvertAwsAthenaInfoToConfig(*awsAthenaInfo)
+	if athenaConfig == nil {
+		return fmt.Errorf("QueryAthenaPaginated: failed to convert athena configuration")
+	}
+	ac, ok := athenaConfig.(*AthenaConfiguration)
+	if !ok {
+		return fmt.Errorf("QueryAthenaPaginated: unexpected configuration type")
+	}
+	cfg, err := ac.Authorizer.CreateAWSConfig(awsAthenaInfo.AthenaRegion)
 	if err != nil {
-		log.Errorf("Could not retrieve Athena Configuration: %s", err.Error())
+		return fmt.Errorf("QueryAthenaPaginated: failed to create AWS config: %s", err.Error())
 	}
 	cli := athena.NewFromConfig(cfg)
 

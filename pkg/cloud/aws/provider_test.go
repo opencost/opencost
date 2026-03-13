@@ -1,14 +1,17 @@
 package aws
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/service/athena"
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	v1 "k8s.io/api/core/v1"
@@ -837,6 +840,147 @@ func TestAWS_getFargatePod(t *testing.T) {
 				if gotPod.Name != tt.wantPod.Name || gotPod.Spec.NodeName != tt.wantPod.Spec.NodeName {
 					t.Errorf("AWS.getFargatePod() gotPod = %v, want %v", gotPod, tt.wantPod)
 				}
+			}
+		})
+	}
+}
+
+// mockProviderConfig implements models.ProviderConfig for testing
+type mockProviderConfig struct {
+	customPricing *models.CustomPricing
+	err           error
+}
+
+func (m *mockProviderConfig) GetCustomPricingData() (*models.CustomPricing, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.customPricing, nil
+}
+
+func (m *mockProviderConfig) UpdateFromMap(cm map[string]string) (*models.CustomPricing, error) {
+	return m.customPricing, nil
+}
+
+func (m *mockProviderConfig) Update(updateFunc func(*models.CustomPricing) error) (*models.CustomPricing, error) {
+	return m.customPricing, nil
+}
+
+func TestAWS_QueryAthenaPaginated_ConfigConversion(t *testing.T) {
+	tests := []struct {
+		name          string
+		customPricing *models.CustomPricing
+		wantErrSubstr string
+	}{
+		{
+			name: "empty athena config returns conversion error",
+			customPricing: &models.CustomPricing{
+				// No Athena fields set - will result in empty AwsAthenaInfo
+				Discount:           "0%",
+				NegotiatedDiscount: "0%",
+			},
+			wantErrSubstr: "athena configuration incomplete",
+		},
+		{
+			name: "incomplete athena config missing database returns error",
+			customPricing: &models.CustomPricing{
+				AthenaBucketName:   "test-bucket",
+				AthenaRegion:       "us-east-1",
+				AthenaTable:        "test-table",
+				AthenaProjectID:    "123456789012",
+				Discount:           "0%",
+				NegotiatedDiscount: "0%",
+				// Missing AthenaDatabase
+			},
+			wantErrSubstr: "athena configuration incomplete",
+		},
+		{
+			name: "valid IRSA config with empty credentials proceeds to AWS API call",
+			customPricing: &models.CustomPricing{
+				AthenaBucketName:   "s3://test-bucket/results/",
+				AthenaRegion:       "us-east-1",
+				AthenaDatabase:     "test-db",
+				AthenaTable:        "test-table",
+				AthenaProjectID:    "123456789012",
+				ServiceKeyName:     "", // Empty for IRSA
+				ServiceKeySecret:   "", // Empty for IRSA
+				Discount:           "0%",
+				NegotiatedDiscount: "0%",
+			},
+			// With IRSA (empty credentials), the config conversion succeeds and
+			// we proceed to the AWS API call which will fail differently
+			wantErrSubstr: "start query error",
+		},
+		{
+			name: "valid config with access key proceeds to AWS API call",
+			customPricing: &models.CustomPricing{
+				AthenaBucketName:   "s3://test-bucket/results/",
+				AthenaRegion:       "us-east-1",
+				AthenaDatabase:     "test-db",
+				AthenaTable:        "test-table",
+				AthenaProjectID:    "123456789012",
+				ServiceKeyName:     "AKIAIOSFODNN7EXAMPLE",
+				ServiceKeySecret:   "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+				Discount:           "0%",
+				NegotiatedDiscount: "0%",
+			},
+			// With valid credentials, the config conversion succeeds and
+			// we proceed to the AWS API call which will fail
+			wantErrSubstr: "start query error",
+		},
+		{
+			name: "config with invalid access key (only ID) fails",
+			customPricing: &models.CustomPricing{
+				AthenaBucketName:   "s3://test-bucket/results/",
+				AthenaRegion:       "us-east-1",
+				AthenaDatabase:     "test-db",
+				AthenaTable:        "test-table",
+				AthenaProjectID:    "123456789012",
+				ServiceKeyName:     "AKIAIOSFODNN7EXAMPLE",
+				ServiceKeySecret:   "", // Missing secret
+				Discount:           "0%",
+				NegotiatedDiscount: "0%",
+			},
+			wantErrSubstr: "failed to create AWS config",
+		},
+		{
+			name: "IRSA with assume role proceeds to AWS API call",
+			customPricing: &models.CustomPricing{
+				AthenaBucketName:   "s3://test-bucket/results/",
+				AthenaRegion:       "us-east-1",
+				AthenaDatabase:     "test-db",
+				AthenaTable:        "test-table",
+				AthenaProjectID:    "123456789012",
+				ServiceKeyName:     "", // Empty for IRSA
+				ServiceKeySecret:   "", // Empty for IRSA
+				MasterPayerARN:     "arn:aws:iam::987654321098:role/cross-account",
+				Discount:           "0%",
+				NegotiatedDiscount: "0%",
+			},
+			// With IRSA + AssumeRole, the config conversion succeeds
+			wantErrSubstr: "start query error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aws := &AWS{
+				Config: &mockProviderConfig{
+					customPricing: tt.customPricing,
+				},
+			}
+
+			err := aws.QueryAthenaPaginated(context.Background(), "SELECT 1", func(page *athena.GetQueryResultsOutput) bool {
+				return true
+			})
+
+			if err == nil {
+				t.Errorf("QueryAthenaPaginated() expected error containing %q, got nil", tt.wantErrSubstr)
+				return
+			}
+
+			if !strings.Contains(err.Error(), tt.wantErrSubstr) {
+				t.Errorf("QueryAthenaPaginated() error = %v, want error containing %q", err, tt.wantErrSubstr)
 			}
 		})
 	}
