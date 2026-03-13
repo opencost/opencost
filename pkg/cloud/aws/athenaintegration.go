@@ -381,7 +381,6 @@ func (ai *AthenaIntegration) GetPartitionWhere(start, end time.Time) string {
 	var disjuncts []string
 
 	// For CUR 2.0, check if billing_period partitions actually exist
-	// Maybe have useBillingPeriodPartitions be present in the AthenaConfiguration struct, so we do not have to call HasBillingPeriodPartitions()
 	useBillingPeriodPartitions := false
 	if ai.CURVersion != "1.0" {
 		// Check if billing_period partitions exist in the table
