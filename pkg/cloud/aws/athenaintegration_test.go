@@ -70,7 +70,7 @@ func TestAthenaIntegration_GetCloudCost(t *testing.T) {
 }
 
 func Test_athenaRowToCloudCost(t *testing.T) {
-	aqi_cur_10 := AthenaQueryIndexes{
+	aqiCur10 := AthenaQueryIndexes{
 		ColumnIndexes: map[string]int{
 			"ListCostColumn":              0,
 			"NetCostColumn":               1,
@@ -133,49 +133,49 @@ func Test_athenaRowToCloudCost(t *testing.T) {
 		{
 			name:    "incorrect row length CUR 1.0",
 			row:     []string{"not enough elements"},
-			aqi:     aqi_cur_10,
+			aqi:     aqiCur10,
 			want:    nil,
 			wantErr: true,
 		},
 		{
 			name:    "invalid list cost CUR 1.0",
 			row:     []string{"invalid", "2", "3", "4", "true", "2024-09-01 00:00:00.000", "resourceID", "payerAccountID", "usageAccountID", "productCode", "usageType", "regionCode", "availabilityZone", "userTagTestValue", "awsTagTestValue"},
-			aqi:     aqi_cur_10,
+			aqi:     aqiCur10,
 			want:    nil,
 			wantErr: true,
 		},
 		{
 			name:    "invalid net cost CUR 1.0",
 			row:     []string{"1", "invalid", "3", "4", "true", "2024-09-01 00:00:00.000", "resourceID", "payerAccountID", "usageAccountID", "productCode", "usageType", "regionCode", "availabilityZone", "userTagTestValue", "awsTagTestValue"},
-			aqi:     aqi_cur_10,
+			aqi:     aqiCur10,
 			want:    nil,
 			wantErr: true,
 		},
 		{
 			name:    "invalid amortized net cost CUR 1.0",
 			row:     []string{"1", "2", "invalid", "4", "true", "2024-09-01 00:00:00.000", "resourceID", "payerAccountID", "usageAccountID", "productCode", "usageType", "regionCode", "availabilityZone", "userTagTestValue", "awsTagTestValue"},
-			aqi:     aqi_cur_10,
+			aqi:     aqiCur10,
 			want:    nil,
 			wantErr: true,
 		},
 		{
 			name:    "invalid amortized cost CUR 1.0",
 			row:     []string{"1", "2", "3", "invalid", "true", "2024-09-01 00:00:00.000", "resourceID", "payerAccountID", "usageAccountID", "productCode", "usageType", "regionCode", "availabilityZone", "userTagTestValue", "awsTagTestValue"},
-			aqi:     aqi_cur_10,
+			aqi:     aqiCur10,
 			want:    nil,
 			wantErr: true,
 		},
 		{
 			name:    "invalid date CUR 1.0",
 			row:     []string{"1", "2", "3", "4", "true", "invalid", "resourceID", "payerAccountID", "usageAccountID", "productCode", "usageType", "regionCode", "availabilityZone", "userTagTestValue", "awsTagTestValue"},
-			aqi:     aqi_cur_10,
+			aqi:     aqiCur10,
 			want:    nil,
 			wantErr: true,
 		},
 		{
 			name: "valid kubernetes with labels CUR 1.0",
 			row:  []string{"1", "2", "3", "4", "true", "2024-09-01 00:00:00.000", "resourceID", "payerAccountID", "usageAccountID", "productCode", "usageType", "regionCode", "availabilityZone", "userTagTestValue", "awsTagTestValue"},
-			aqi:  aqi_cur_10,
+			aqi:  aqiCur10,
 			want: &opencost.CloudCost{
 				Properties: &opencost.CloudCostProperties{
 					ProviderID:        "resourceID",
@@ -223,7 +223,7 @@ func Test_athenaRowToCloudCost(t *testing.T) {
 		{
 			name: "valid non-kubernetes, no labels",
 			row:  []string{"1", "2", "3", "4", "false", "2024-09-01 00:00:00.000", "resourceID", "payerAccountID", "usageAccountID", "productCode", "usageType", "regionCode", "availabilityZone", "", ""},
-			aqi:  aqi_cur_10,
+			aqi:  aqiCur10,
 			want: &opencost.CloudCost{
 				Properties: &opencost.CloudCostProperties{
 					ProviderID:        "resourceID",
@@ -268,7 +268,7 @@ func Test_athenaRowToCloudCost(t *testing.T) {
 		{
 			name: "valid load balancer product code CUR 1.0",
 			row:  []string{"1", "2", "3", "4", "false", "2024-09-01 00:00:00.000", "resourceID/lbID", "payerAccountID", "usageAccountID", "AWSELB", "usageType", "regionCode", "availabilityZone", "", ""},
-			aqi:  aqi_cur_10,
+			aqi:  aqiCur10,
 			want: &opencost.CloudCost{
 				Properties: &opencost.CloudCostProperties{
 					ProviderID:        "lbID",
@@ -313,7 +313,7 @@ func Test_athenaRowToCloudCost(t *testing.T) {
 		{
 			name: "valid non-kubernetes, Fargate CPU CUR 1.0",
 			row:  []string{"1", "2", "3", "4", "false", "2024-09-01 00:00:00.000", "123:pod/resource", "payerAccountID", "usageAccountID", "AmazonEKS", "CPU", "regionCode", "availabilityZone", "", ""},
-			aqi:  aqi_cur_10,
+			aqi:  aqiCur10,
 			want: &opencost.CloudCost{
 				Properties: &opencost.CloudCostProperties{
 					ProviderID:        "123:pod/resource/CPU",
@@ -358,7 +358,7 @@ func Test_athenaRowToCloudCost(t *testing.T) {
 		{
 			name: "valid non-kubernetes, Fargate RAM CUR 1.0",
 			row:  []string{"1", "2", "3", "4", "false", "2024-09-01 00:00:00.000", "123:pod/resource", "payerAccountID", "usageAccountID", "AmazonEKS", "GB", "regionCode", "availabilityZone", "", ""},
-			aqi:  aqi_cur_10,
+			aqi:  aqiCur10,
 			want: &opencost.CloudCost{
 				Properties: &opencost.CloudCostProperties{
 					ProviderID:        "123:pod/resource/RAM",
