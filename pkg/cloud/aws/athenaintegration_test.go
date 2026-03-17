@@ -592,7 +592,7 @@ func TestAthenaIntegration_GetPartitionWhere(t *testing.T) {
 			end:      time.Date(2024, 2, 10, 0, 0, 0, 0, time.UTC),
 			expected: "((year = '2023' AND month = '12') OR (year = '2024' AND month = '1') OR (year = '2024' AND month = '2'))",
 		},
-		"Default CUR version (empty string defaults to 2.0)": {
+		"Default CUR version (empty string defaults to 1.0)": {
 			integration: &AthenaIntegration{
 				AthenaQuerier: AthenaQuerier{
 					AthenaConfiguration: AthenaConfiguration{
@@ -609,7 +609,7 @@ func TestAthenaIntegration_GetPartitionWhere(t *testing.T) {
 			},
 			start:    time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
 			end:      time.Date(2024, 1, 25, 0, 0, 0, 0, time.UTC),
-			expected: "((billing_period = '2024-01'))",
+			expected: "((year = '2024' AND month = '1'))",
 		},
 	}
 

@@ -770,7 +770,7 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 					},
 					RoleARN: "12345",
 				},
-				CURVersion: "2.0", // Default value after JSON unmarshal
+				CURVersion: "1.0", // Default value after JSON unmarshal
 			},
 		},
 		"CUR Version 1.0": {

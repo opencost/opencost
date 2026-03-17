@@ -18,7 +18,7 @@ type AthenaConfiguration struct {
 	Workgroup  string     `json:"workgroup"`
 	Account    string     `json:"account"`
 	Authorizer Authorizer `json:"authorizer"`
-	CURVersion string     `json:"curVersion,omitempty"` // "1.0" or "2.0", defaults to "2.0" if not specified
+	CURVersion string     `json:"curVersion,omitempty"` // "1.0" or "2.0", defaults to "1.0" if not specified
 }
 
 func (ac *AthenaConfiguration) Validate() error {
@@ -209,8 +209,8 @@ func (ac *AthenaConfiguration) UnmarshalJSON(b []byte) error {
 		}
 		ac.CURVersion = curVersion
 	} else {
-		// Default to 2.0 if not specified
-		ac.CURVersion = "2.0"
+		// Default to 1.0 if not specified
+		ac.CURVersion = "1.0"
 	}
 
 	return nil
@@ -243,10 +243,10 @@ func ConvertAwsAthenaInfoToConfig(aai AwsAthenaInfo) cloud.KeyedConfig {
 
 	var config cloud.KeyedConfig
 	if aai.AthenaTable != "" || aai.AthenaDatabase != "" {
-		// Use CURVersion from config if specified, otherwise default to 2.0
+		// Use CURVersion from config if specified, otherwise default to 1.0
 		curVersion := aai.CURVersion
 		if curVersion == "" {
-			curVersion = "2.0"
+			curVersion = "1.0"
 		}
 		config = &AthenaConfiguration{
 			Bucket:     aai.AthenaBucketName,

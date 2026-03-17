@@ -381,12 +381,12 @@ func (ai *AthenaIntegration) GetPartitionWhere(start, end time.Time) string {
 	var disjuncts []string
 
 	for !month.After(endMonth) {
-		if ai.CURVersion == "1.0" {
-			// CUR 1.0 uses year and month columns for partitioning
-			disjuncts = append(disjuncts, fmt.Sprintf("(year = '%d' AND month = '%d')", month.Year(), month.Month()))
-		} else {
+		if ai.CURVersion == "2.0" {
 			// CUR 2.0 with billing_period partitions
 			disjuncts = append(disjuncts, fmt.Sprintf("(billing_period = '%d-%02d')", month.Year(), month.Month()))
+		} else {
+			// CUR 1.0 uses year and month columns for partitioning
+			disjuncts = append(disjuncts, fmt.Sprintf("(year = '%d' AND month = '%d')", month.Year(), month.Month()))
 		}
 		month = month.AddDate(0, 1, 0)
 	}

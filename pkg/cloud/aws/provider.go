@@ -412,7 +412,7 @@ type AwsAthenaInfo struct {
 	ServiceKeySecret string `json:"serviceKeySecret"`
 	AccountID        string `json:"projectID"`
 	MasterPayerARN   string `json:"masterPayerARN"`
-	CURVersion       string `json:"curVersion"` // "1.0" or "2.0", defaults to "2.0" if not specified
+	CURVersion       string `json:"curVersion"` // "1.0" or "2.0", defaults to "1.0" if not specified
 }
 
 // IsEmpty returns true if all fields in config are empty, false if not.
