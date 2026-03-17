@@ -185,14 +185,14 @@ func TestAthenaIntegration_GetIsKubernetesColumn(t *testing.T) {
 	ai := &AthenaIntegration{}
 
 	// Test with some tag columns present CUR 1.0
-	allColumns_cur_10 := map[string]bool{
+	allColumnsCur10 := map[string]bool{
 		"resource_tags_user_eks_cluster_name":             true,
 		"resource_tags_user_alpha_eksctl_io_cluster_name": true,
 		"resource_tags_user_kubernetes_io_service_name":   true,
 		"some_other_column":                               true,
 	}
 
-	result := ai.GetIsKubernetesColumn(allColumns_cur_10)
+	result := ai.GetIsKubernetesColumn(allColumnsCur10)
 	if !strings.Contains(result, "line_item_product_code = 'AmazonEKS'") {
 		t.Errorf("GetIsKubernetesColumn() should always include EKS check, got: %v", result)
 	}
@@ -204,12 +204,12 @@ func TestAthenaIntegration_GetIsKubernetesColumn(t *testing.T) {
 	}
 
 	// Test with some tag columns present CUR 2.0
-	allColumns_cur_20 := map[string]bool{
+	allColumnsCur20 := map[string]bool{
 		"resource_tags":     true,
 		"some_other_column": true,
 	}
 
-	result = ai.GetIsKubernetesColumn(allColumns_cur_20)
+	result = ai.GetIsKubernetesColumn(allColumnsCur20)
 	if !strings.Contains(result, "line_item_product_code = 'AmazonEKS'") {
 		t.Errorf("GetIsKubernetesColumn() should always include EKS check, got: %v", result)
 	}

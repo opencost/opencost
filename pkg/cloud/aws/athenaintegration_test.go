@@ -95,7 +95,7 @@ func Test_athenaRowToCloudCost(t *testing.T) {
 		IsK8sColumn:            "IsK8sColumn",
 	}
 
-	aqi_cur_20 := AthenaQueryIndexes{
+	aqiCur20 := AthenaQueryIndexes{
 		ColumnIndexes: map[string]int{
 			"ListCostColumn":                               0,
 			"NetCostColumn":                                1,
@@ -401,7 +401,7 @@ func Test_athenaRowToCloudCost(t *testing.T) {
 		{
 			name: "valid kubernetes with labels CUR 2.0",
 			row:  []string{"1", "2", "3", "4", "true", "2024-09-01 00:00:00.000", "resourceID", "payerAccountID", "usageAccountID", "productCode", "usageType", "regionCode", "availabilityZone", `{"test": "userTagTestValue", "aws_test": "awsTagTestValue"}`},
-			aqi:  aqi_cur_20,
+			aqi:  aqiCur20,
 			want: &opencost.CloudCost{
 				Properties: &opencost.CloudCostProperties{
 					ProviderID:        "resourceID",
