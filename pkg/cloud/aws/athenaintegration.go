@@ -20,7 +20,7 @@ const AWSLabelColumnPrefix = "resource_tags_aws_"
 const AthenaResourceTagPrefix = "resource_tags_"
 const AthenaResourceTagsColumn = "resource_tags"
 
-var AthenaResourceTagsCastToJsonColumn = fmt.Sprintf("CAST(%s AS JSON) as %s", AthenaResourceTagsColumn, AthenaResourceTagsColumn)
+const AthenaResourceTagsCastToJsonColumn = "CAST(resource_tags AS JSON) as resource_tags"
 
 // athenaDateLayout is the default AWS date format
 const AthenaDateLayout = "2006-01-02 15:04:05.000"
@@ -359,7 +359,7 @@ func (ai *AthenaIntegration) GetIsKubernetesColumn(allColumns map[string]bool) s
 	if allColumns[AthenaResourceTagsColumn] {
 		// if resource tags column is present in the CUR check for IsKubernetes keys in the resource tags map
 		for _, tagColumn := range TagColumnsIsK8sCUR20 {
-			disjunctStr := fmt.Sprintf("%s <> ''", tagColumn)
+			disjunctStr := fmt.Sprintf("COALESCE(%s, '') <> ''", tagColumn)
 			disjuncts = append(disjuncts, disjunctStr)
 		}
 	} else {
