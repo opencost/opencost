@@ -192,7 +192,7 @@ func (ai *AthenaIntegration) getCloudCost(start, end time.Time, limit int) (*ope
 		aqi.ColumnIndexes[column] = i
 	}
 	whereDate := fmt.Sprintf(AthenaWhereDateFmt, start.Format("2006-01-02"), end.Format("2006-01-02"))
-	wherePartitions := ai.GetPartitionWhere(start, end)
+	wherePartitions := ai.GetPartitionWhere(start, end, allColumns[AthenaResourceTagsColumn])
 
 	// Query for all line items with a resource_id or from AWS Marketplace, which did not end before
 	// the range or start after it. This captures all costs with any amount of
@@ -375,13 +375,14 @@ func (ai *AthenaIntegration) GetIsKubernetesColumn(allColumns map[string]bool) s
 	return fmt.Sprintf("(%s) as is_kubernetes", strings.Join(disjuncts, " OR "))
 }
 
-func (ai *AthenaIntegration) GetPartitionWhere(start, end time.Time) string {
+func (ai *AthenaIntegration) GetPartitionWhere(start, end time.Time, resourceTagsColumn bool) string {
 	month := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, time.UTC)
 	endMonth := time.Date(end.Year(), end.Month(), 1, 0, 0, 0, 0, time.UTC)
 	var disjuncts []string
 
 	for !month.After(endMonth) {
-		if ai.CURVersion == "2.0" {
+		// Presence of resource tags column indicates CUR 2.0
+		if resourceTagsColumn {
 			// CUR 2.0 with billing_period partitions
 			disjuncts = append(disjuncts, fmt.Sprintf("(billing_period = '%d-%02d')", month.Year(), month.Month()))
 		} else {

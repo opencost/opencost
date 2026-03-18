@@ -412,7 +412,6 @@ type AwsAthenaInfo struct {
 	ServiceKeySecret string `json:"serviceKeySecret"`
 	AccountID        string `json:"projectID"`
 	MasterPayerARN   string `json:"masterPayerARN"`
-	CURVersion       string `json:"curVersion"` // "1.0" or "2.0", defaults to "1.0" if not specified
 }
 
 // IsEmpty returns true if all fields in config are empty, false if not.
@@ -525,7 +524,6 @@ func (aws *AWS) GetAWSAthenaInfo() (*AwsAthenaInfo, error) {
 		ServiceKeySecret: aak.SecretAccessKey,
 		AccountID:        config.AthenaProjectID,
 		MasterPayerARN:   config.MasterPayerARN,
-		CURVersion:       config.AthenaCURVersion,
 	}, nil
 }
 
@@ -575,9 +573,6 @@ func configUpdaterWithReaderAndType(r io.Reader, updateType string) func(c *mode
 				c.MasterPayerARN = aai.MasterPayerARN
 			}
 			c.AthenaProjectID = aai.AccountID
-			if aai.CURVersion != "" {
-				c.AthenaCURVersion = aai.CURVersion
-			}
 		default:
 			a := make(map[string]any)
 			err := json.NewDecoder(r).Decode(&a)

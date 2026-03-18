@@ -473,10 +473,11 @@ func stringsToRow(strings []string) types.Row {
 
 func TestAthenaIntegration_GetPartitionWhere(t *testing.T) {
 	testCases := map[string]struct {
-		integration *AthenaIntegration
-		start       time.Time
-		end         time.Time
-		expected    string
+		integration        *AthenaIntegration
+		start              time.Time
+		end                time.Time
+		resourceTagsColumn bool
+		expected           string
 	}{
 		"CUR 1.0 single month": {
 			integration: &AthenaIntegration{
@@ -489,13 +490,13 @@ func TestAthenaIntegration_GetPartitionWhere(t *testing.T) {
 						Workgroup:  "workgroup",
 						Account:    "account",
 						Authorizer: &ServiceAccount{},
-						CURVersion: "1.0",
 					},
 				},
 			},
-			start:    time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
-			end:      time.Date(2024, 1, 25, 0, 0, 0, 0, time.UTC),
-			expected: "((year = '2024' AND month = '1'))",
+			start:              time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+			end:                time.Date(2024, 1, 25, 0, 0, 0, 0, time.UTC),
+			resourceTagsColumn: false,
+			expected:           "((year = '2024' AND month = '1'))",
 		},
 		"CUR 2.0 single month": {
 			integration: &AthenaIntegration{
@@ -508,13 +509,13 @@ func TestAthenaIntegration_GetPartitionWhere(t *testing.T) {
 						Workgroup:  "workgroup",
 						Account:    "account",
 						Authorizer: &ServiceAccount{},
-						CURVersion: "2.0",
 					},
 				},
 			},
-			start:    time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
-			end:      time.Date(2024, 1, 25, 0, 0, 0, 0, time.UTC),
-			expected: "((billing_period = '2024-01'))",
+			start:              time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+			end:                time.Date(2024, 1, 25, 0, 0, 0, 0, time.UTC),
+			resourceTagsColumn: true,
+			expected:           "((billing_period = '2024-01'))",
 		},
 		"CUR 1.0 multiple months": {
 			integration: &AthenaIntegration{
@@ -527,13 +528,13 @@ func TestAthenaIntegration_GetPartitionWhere(t *testing.T) {
 						Workgroup:  "workgroup",
 						Account:    "account",
 						Authorizer: &ServiceAccount{},
-						CURVersion: "1.0",
 					},
 				},
 			},
-			start:    time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
-			end:      time.Date(2024, 3, 10, 0, 0, 0, 0, time.UTC),
-			expected: "((year = '2024' AND month = '1') OR (year = '2024' AND month = '2') OR (year = '2024' AND month = '3'))",
+			start:              time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+			end:                time.Date(2024, 3, 10, 0, 0, 0, 0, time.UTC),
+			resourceTagsColumn: false,
+			expected:           "((year = '2024' AND month = '1') OR (year = '2024' AND month = '2') OR (year = '2024' AND month = '3'))",
 		},
 		"CUR 2.0 multiple months": {
 			integration: &AthenaIntegration{
@@ -546,13 +547,13 @@ func TestAthenaIntegration_GetPartitionWhere(t *testing.T) {
 						Workgroup:  "workgroup",
 						Account:    "account",
 						Authorizer: &ServiceAccount{},
-						CURVersion: "2.0",
 					},
 				},
 			},
-			start:    time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
-			end:      time.Date(2024, 3, 10, 0, 0, 0, 0, time.UTC),
-			expected: "((billing_period = '2024-01') OR (billing_period = '2024-02') OR (billing_period = '2024-03'))",
+			start:              time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+			end:                time.Date(2024, 3, 10, 0, 0, 0, 0, time.UTC),
+			resourceTagsColumn: true,
+			expected:           "((billing_period = '2024-01') OR (billing_period = '2024-02') OR (billing_period = '2024-03'))",
 		},
 		"CUR 2.0 across year boundary": {
 			integration: &AthenaIntegration{
@@ -565,13 +566,13 @@ func TestAthenaIntegration_GetPartitionWhere(t *testing.T) {
 						Workgroup:  "workgroup",
 						Account:    "account",
 						Authorizer: &ServiceAccount{},
-						CURVersion: "2.0",
 					},
 				},
 			},
-			start:    time.Date(2023, 12, 15, 0, 0, 0, 0, time.UTC),
-			end:      time.Date(2024, 2, 10, 0, 0, 0, 0, time.UTC),
-			expected: "((billing_period = '2023-12') OR (billing_period = '2024-01') OR (billing_period = '2024-02'))",
+			start:              time.Date(2023, 12, 15, 0, 0, 0, 0, time.UTC),
+			end:                time.Date(2024, 2, 10, 0, 0, 0, 0, time.UTC),
+			resourceTagsColumn: true,
+			expected:           "((billing_period = '2023-12') OR (billing_period = '2024-01') OR (billing_period = '2024-02'))",
 		},
 		"CUR 1.0 across year boundary": {
 			integration: &AthenaIntegration{
@@ -584,38 +585,19 @@ func TestAthenaIntegration_GetPartitionWhere(t *testing.T) {
 						Workgroup:  "workgroup",
 						Account:    "account",
 						Authorizer: &ServiceAccount{},
-						CURVersion: "1.0",
 					},
 				},
 			},
-			start:    time.Date(2023, 12, 15, 0, 0, 0, 0, time.UTC),
-			end:      time.Date(2024, 2, 10, 0, 0, 0, 0, time.UTC),
-			expected: "((year = '2023' AND month = '12') OR (year = '2024' AND month = '1') OR (year = '2024' AND month = '2'))",
-		},
-		"Default CUR version (empty string defaults to 1.0)": {
-			integration: &AthenaIntegration{
-				AthenaQuerier: AthenaQuerier{
-					AthenaConfiguration: AthenaConfiguration{
-						Bucket:     "bucket",
-						Region:     "region",
-						Database:   "database",
-						Table:      "table",
-						Workgroup:  "workgroup",
-						Account:    "account",
-						Authorizer: &ServiceAccount{},
-						CURVersion: "",
-					},
-				},
-			},
-			start:    time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
-			end:      time.Date(2024, 1, 25, 0, 0, 0, 0, time.UTC),
-			expected: "((year = '2024' AND month = '1'))",
+			start:              time.Date(2023, 12, 15, 0, 0, 0, 0, time.UTC),
+			end:                time.Date(2024, 2, 10, 0, 0, 0, 0, time.UTC),
+			resourceTagsColumn: false,
+			expected:           "((year = '2023' AND month = '12') OR (year = '2024' AND month = '1') OR (year = '2024' AND month = '2'))",
 		},
 	}
 
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
-			actual := testCase.integration.GetPartitionWhere(testCase.start, testCase.end)
+			actual := testCase.integration.GetPartitionWhere(testCase.start, testCase.end, testCase.resourceTagsColumn)
 			if actual != testCase.expected {
 				t.Errorf("GetPartitionWhere() mismatch:\nActual:   %s\nExpected: %s", actual, testCase.expected)
 			}

@@ -161,62 +161,6 @@ func TestAthenaConfiguration_Validate(t *testing.T) {
 			},
 			expected: fmt.Errorf("AthenaConfiguration: missing account"),
 		},
-		"valid CUR version 1.0": {
-			config: AthenaConfiguration{
-				Bucket:     "bucket",
-				Region:     "region",
-				Database:   "database",
-				Catalog:    "catalog",
-				Table:      "table",
-				Workgroup:  "workgroup",
-				Account:    "account",
-				Authorizer: &ServiceAccount{},
-				CURVersion: "1.0",
-			},
-			expected: nil,
-		},
-		"valid CUR version 2.0": {
-			config: AthenaConfiguration{
-				Bucket:     "bucket",
-				Region:     "region",
-				Database:   "database",
-				Catalog:    "catalog",
-				Table:      "table",
-				Workgroup:  "workgroup",
-				Account:    "account",
-				Authorizer: &ServiceAccount{},
-				CURVersion: "2.0",
-			},
-			expected: nil,
-		},
-		"valid empty CUR version defaults to 2.0": {
-			config: AthenaConfiguration{
-				Bucket:     "bucket",
-				Region:     "region",
-				Database:   "database",
-				Catalog:    "catalog",
-				Table:      "table",
-				Workgroup:  "workgroup",
-				Account:    "account",
-				Authorizer: &ServiceAccount{},
-				CURVersion: "",
-			},
-			expected: nil,
-		},
-		"invalid CUR version": {
-			config: AthenaConfiguration{
-				Bucket:     "bucket",
-				Region:     "region",
-				Database:   "database",
-				Catalog:    "catalog",
-				Table:      "table",
-				Workgroup:  "workgroup",
-				Account:    "account",
-				Authorizer: &ServiceAccount{},
-				CURVersion: "3.0",
-			},
-			expected: fmt.Errorf("AthenaConfiguration: invalid CURVersion '3.0', must be '1.0' or '2.0'"),
-		},
 	}
 
 	for name, testCase := range testCases {
@@ -571,68 +515,6 @@ func TestAthenaConfiguration_Equals(t *testing.T) {
 			},
 			expected: false,
 		},
-		"different CUR version": {
-			left: AthenaConfiguration{
-				Bucket:    "bucket",
-				Region:    "region",
-				Database:  "database",
-				Catalog:   "catalog",
-				Table:     "table",
-				Workgroup: "workgroup",
-				Account:   "account",
-				Authorizer: &AccessKey{
-					ID:     "id",
-					Secret: "secret",
-				},
-				CURVersion: "1.0",
-			},
-			right: &AthenaConfiguration{
-				Bucket:    "bucket",
-				Region:    "region",
-				Database:  "database",
-				Catalog:   "catalog",
-				Table:     "table",
-				Workgroup: "workgroup",
-				Account:   "account",
-				Authorizer: &AccessKey{
-					ID:     "id",
-					Secret: "secret",
-				},
-				CURVersion: "2.0",
-			},
-			expected: false,
-		},
-		"matching CUR version": {
-			left: AthenaConfiguration{
-				Bucket:    "bucket",
-				Region:    "region",
-				Database:  "database",
-				Catalog:   "catalog",
-				Table:     "table",
-				Workgroup: "workgroup",
-				Account:   "account",
-				Authorizer: &AccessKey{
-					ID:     "id",
-					Secret: "secret",
-				},
-				CURVersion: "1.0",
-			},
-			right: &AthenaConfiguration{
-				Bucket:    "bucket",
-				Region:    "region",
-				Database:  "database",
-				Catalog:   "catalog",
-				Table:     "table",
-				Workgroup: "workgroup",
-				Account:   "account",
-				Authorizer: &AccessKey{
-					ID:     "id",
-					Secret: "secret",
-				},
-				CURVersion: "1.0",
-			},
-			expected: true,
-		},
 		"different config": {
 			left: AthenaConfiguration{
 				Bucket:    "bucket",
@@ -666,14 +548,10 @@ func TestAthenaConfiguration_Equals(t *testing.T) {
 
 func TestAthenaConfiguration_JSON(t *testing.T) {
 	testCases := map[string]struct {
-		config             AthenaConfiguration
-		unmarshalledConfig *AthenaConfiguration
+		config AthenaConfiguration
 	}{
 		"Empty Config": {
 			config: AthenaConfiguration{},
-			unmarshalledConfig: &AthenaConfiguration{
-				CURVersion: "1.0", // Default value after JSON unmarshal
-			},
 		},
 		"AccessKey": {
 			config: AthenaConfiguration{
@@ -688,7 +566,6 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 					ID:     "id",
 					Secret: "secret",
 				},
-				CURVersion: "2.0",
 			},
 		},
 
@@ -702,7 +579,6 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 				Workgroup:  "workgroup",
 				Account:    "account",
 				Authorizer: &ServiceAccount{},
-				CURVersion: "2.0",
 			},
 		},
 		"AssumeRole with AccessKey": {
@@ -721,7 +597,6 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 					},
 					RoleARN: "12345",
 				},
-				CURVersion: "2.0",
 			},
 		},
 		"AssumeRole with ServiceAccount": {
@@ -737,7 +612,6 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 					Authorizer: &ServiceAccount{},
 					RoleARN:    "12345",
 				},
-				CURVersion: "2.0",
 			},
 		},
 		"RoleArnNil": {
@@ -753,7 +627,6 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 					Authorizer: nil,
 					RoleARN:    "12345",
 				},
-				CURVersion: "2.0",
 			},
 		},
 		"AssumeRole with AssumeRole with ServiceAccount": {
@@ -772,39 +645,6 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 					},
 					RoleARN: "12345",
 				},
-				CURVersion: "1.0",
-			},
-		},
-		"CUR Version 1.0": {
-			config: AthenaConfiguration{
-				Bucket:    "bucket",
-				Region:    "region",
-				Database:  "database",
-				Catalog:   "catalog",
-				Table:     "table",
-				Workgroup: "workgroup",
-				Account:   "account",
-				Authorizer: &AccessKey{
-					ID:     "id",
-					Secret: "secret",
-				},
-				CURVersion: "1.0",
-			},
-		},
-		"CUR Version 2.0": {
-			config: AthenaConfiguration{
-				Bucket:    "bucket",
-				Region:    "region",
-				Database:  "database",
-				Catalog:   "catalog",
-				Table:     "table",
-				Workgroup: "workgroup",
-				Account:   "account",
-				Authorizer: &AccessKey{
-					ID:     "id",
-					Secret: "secret",
-				},
-				CURVersion: "2.0",
 			},
 		},
 	}
@@ -822,12 +662,7 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 			if err != nil {
 				t.Errorf("failed to unmarshal configuration: %s", err.Error())
 			}
-			if testCase.unmarshalledConfig != nil {
-				if !testCase.unmarshalledConfig.Equals(unmarshalledConfig) {
-					t.Error("unmarshalled config does not equal expected config")
-				}
-				return
-			}
+
 			if !testCase.config.Equals(unmarshalledConfig) {
 				t.Error("config does not equal unmarshalled config")
 			}
