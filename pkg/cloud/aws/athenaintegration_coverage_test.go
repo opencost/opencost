@@ -213,7 +213,7 @@ func TestAthenaIntegration_GetIsKubernetesColumn(t *testing.T) {
 	if !strings.Contains(result, "line_item_product_code = 'AmazonEKS'") {
 		t.Errorf("GetIsKubernetesColumn() should always include EKS check, got: %v", result)
 	}
-	if !strings.Contains(result, "resource_tags['user_eks_cluster_name'] <> ''") {
+	if !strings.Contains(result, "COALESCE(resource_tags['user_eks_cluster_name'], '') <> ''") {
 		t.Errorf("GetIsKubernetesColumn() should include checks for tag columns, got: %v", result)
 	}
 	if !strings.Contains(result, " as is_kubernetes") {
