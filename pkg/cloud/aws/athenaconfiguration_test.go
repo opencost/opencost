@@ -666,7 +666,7 @@ func TestAthenaConfiguration_Equals(t *testing.T) {
 
 func TestAthenaConfiguration_JSON(t *testing.T) {
 	testCases := map[string]struct {
-		config AthenaConfiguration
+		config             AthenaConfiguration
 		unmarshalledConfig *AthenaConfiguration
 	}{
 		"Empty Config": {
