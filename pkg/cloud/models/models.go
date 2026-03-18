@@ -154,6 +154,7 @@ type CustomPricing struct {
 	AwsSpotDataRegion            string `json:"awsSpotDataRegion,omitempty"`
 	AwsSpotDataBucket            string `json:"awsSpotDataBucket,omitempty"`
 	AwsSpotDataPrefix            string `json:"awsSpotDataPrefix,omitempty"`
+	SpotDataFeedEnabled          string `json:"spotDataFeedEnabled,omitempty"`
 	ProjectID                    string `json:"projectID,omitempty"`
 	AthenaProjectID              string `json:"athenaProjectID,omitempty"`
 	AthenaBucketName             string `json:"athenaBucketName"`
