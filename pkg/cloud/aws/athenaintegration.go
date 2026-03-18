@@ -55,7 +55,7 @@ const AthenaWhereDateFmt = `line_item_usage_start_date >= date '%s' AND line_ite
 const AthenaWhereUsage = "(line_item_line_item_type = 'Usage' OR line_item_line_item_type = 'DiscountedUsage' OR line_item_line_item_type = 'SavingsPlanCoveredUsage' OR line_item_line_item_type = 'EdpDiscount' OR line_item_line_item_type = 'PrivateRateDiscount')"
 
 // tagColumns is a list of columns where the presence of a value indicates that a resource is part of a kubernetes cluster
-var TagColumnsIsK8sCUR10 = []string{
+var tagColumnsIsK8sCUR10 = []string{
 	"resource_tags_aws_eks_cluster_name",
 	"resource_tags_user_eks_cluster_name",
 	"resource_tags_user_alpha_eksctl_io_cluster_name",
@@ -63,7 +63,7 @@ var TagColumnsIsK8sCUR10 = []string{
 	"resource_tags_user_kubernetes_io_created_for_pvc_name",
 	"resource_tags_user_kubernetes_io_created_for_pv_name",
 }
-var TagColumnsIsK8sCUR20 = []string{
+var tagColumnsIsK8sCUR20 = []string{
 	"resource_tags['aws_eks_cluster_name']",
 	"resource_tags['user_eks_cluster_name']",
 	"resource_tags['user_alpha_eksctl_io_cluster_name']",
@@ -358,12 +358,12 @@ func (ai *AthenaIntegration) GetIsKubernetesColumn(allColumns map[string]bool) s
 	}
 	if allColumns[AthenaResourceTagsColumn] {
 		// if resource tags column is present in the CUR check for IsKubernetes keys in the resource tags map
-		for _, tagColumn := range TagColumnsIsK8sCUR20 {
+		for _, tagColumn := range tagColumnsIsK8sCUR20 {
 			disjunctStr := fmt.Sprintf("COALESCE(%s, '') <> ''", tagColumn)
 			disjuncts = append(disjuncts, disjunctStr)
 		}
 	} else {
-		for _, tagColumn := range TagColumnsIsK8sCUR10 {
+		for _, tagColumn := range tagColumnsIsK8sCUR10 {
 			// if tag column is present in the CUR check for it
 			if _, ok := allColumns[tagColumn]; ok {
 				disjunctStr := fmt.Sprintf("%s <> ''", tagColumn)
