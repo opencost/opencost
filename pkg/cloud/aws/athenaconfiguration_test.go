@@ -667,10 +667,12 @@ func TestAthenaConfiguration_Equals(t *testing.T) {
 func TestAthenaConfiguration_JSON(t *testing.T) {
 	testCases := map[string]struct {
 		config AthenaConfiguration
+		unmarshalledConfig *AthenaConfiguration
 	}{
 		"Empty Config": {
-			config: AthenaConfiguration{
-				CURVersion: "2.0", // Default value after JSON unmarshal
+			config: AthenaConfiguration{},
+			unmarshalledConfig: &AthenaConfiguration{
+				CURVersion: "1.0", // Default value after JSON unmarshal
 			},
 		},
 		"AccessKey": {
@@ -686,7 +688,7 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 					ID:     "id",
 					Secret: "secret",
 				},
-				CURVersion: "2.0", // Default value after JSON unmarshal
+				CURVersion: "2.0",
 			},
 		},
 
@@ -700,7 +702,7 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 				Workgroup:  "workgroup",
 				Account:    "account",
 				Authorizer: &ServiceAccount{},
-				CURVersion: "2.0", // Default value after JSON unmarshal
+				CURVersion: "2.0",
 			},
 		},
 		"AssumeRole with AccessKey": {
@@ -719,7 +721,7 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 					},
 					RoleARN: "12345",
 				},
-				CURVersion: "2.0", // Default value after JSON unmarshal
+				CURVersion: "2.0",
 			},
 		},
 		"AssumeRole with ServiceAccount": {
@@ -735,7 +737,7 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 					Authorizer: &ServiceAccount{},
 					RoleARN:    "12345",
 				},
-				CURVersion: "2.0", // Default value after JSON unmarshal
+				CURVersion: "2.0",
 			},
 		},
 		"RoleArnNil": {
@@ -751,7 +753,7 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 					Authorizer: nil,
 					RoleARN:    "12345",
 				},
-				CURVersion: "2.0", // Default value after JSON unmarshal
+				CURVersion: "2.0",
 			},
 		},
 		"AssumeRole with AssumeRole with ServiceAccount": {
@@ -770,7 +772,7 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 					},
 					RoleARN: "12345",
 				},
-				CURVersion: "1.0", // Default value after JSON unmarshal
+				CURVersion: "1.0",
 			},
 		},
 		"CUR Version 1.0": {
@@ -820,7 +822,12 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 			if err != nil {
 				t.Errorf("failed to unmarshal configuration: %s", err.Error())
 			}
-
+			if testCase.unmarshalledConfig != nil {
+				if !testCase.unmarshalledConfig.Equals(unmarshalledConfig) {
+					t.Error("unmarshalled config does not equal expected config")
+				}
+				return
+			}
 			if !testCase.config.Equals(unmarshalledConfig) {
 				t.Error("config does not equal unmarshalled config")
 			}
