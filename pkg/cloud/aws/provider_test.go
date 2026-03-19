@@ -961,4 +961,35 @@ func TestAWS_SpotRefreshEnabled(t *testing.T) {
 			}
 		})
 	}
+
+	// Test nil Config scenario to ensure no panic
+	t.Run("nil config - falls back to field check", func(t *testing.T) {
+		aws := &AWS{
+			SpotDataBucket: "my-bucket",
+			SpotDataRegion: "us-east-1",
+			ProjectID:      "123456789",
+			Config:         nil, // nil Config should not cause panic
+		}
+
+		got := aws.SpotRefreshEnabled()
+		want := true // Should fall back to field-based check
+		if got != want {
+			t.Errorf("AWS.SpotRefreshEnabled() with nil Config = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("nil config - no spot fields", func(t *testing.T) {
+		aws := &AWS{
+			SpotDataBucket: "",
+			SpotDataRegion: "",
+			ProjectID:      "",
+			Config:         nil, // nil Config should not cause panic
+		}
+
+		got := aws.SpotRefreshEnabled()
+		want := false // No fields set, should return false
+		if got != want {
+			t.Errorf("AWS.SpotRefreshEnabled() with nil Config and no fields = %v, want %v", got, want)
+		}
+	})
 }
