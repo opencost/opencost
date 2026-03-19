@@ -136,7 +136,7 @@ func (ai *AthenaIntegration) getCloudCost(start, end time.Time, limit int) (*ope
 		}
 	}
 
-	// CUR 2.0 specific columns, CUR 2.0 has ability to not disable any column, so we check for any of these columns before querying
+	// CUR 2.0 specific columns, CUR 2.0 has ability to disable any column, so we check for any of these columns before querying
 	if allColumns[AthenaResourceTagsColumn] {
 		groupByColumns = append(groupByColumns, AthenaResourceTagsCastToJsonColumn)
 	}
@@ -181,7 +181,7 @@ func (ai *AthenaIntegration) getCloudCost(start, end time.Time, limit int) (*ope
 		aqi.ColumnIndexes[column] = i
 	}
 	whereDate := fmt.Sprintf(AthenaWhereDateFmt, start.Format("2006-01-02"), end.Format("2006-01-02"))
-	wherePartitions := ai.GetPartitionWhere(start, end, allColumns[AthenaResourceTagsColumn])
+	wherePartitions := ai.GetPartitionWhere(start, end, isCUR20(allColumns))
 
 	// Query for all line items with a resource_id or from AWS Marketplace, which did not end before
 	// the range or start after it. This captures all costs with any amount of
@@ -383,14 +383,13 @@ func (ai *AthenaIntegration) GetIsKubernetesColumn(allColumns map[string]bool) s
 	return fmt.Sprintf("(%s) as is_kubernetes", strings.Join(disjuncts, " OR "))
 }
 
-func (ai *AthenaIntegration) GetPartitionWhere(start, end time.Time, resourceTagsColumn bool) string {
+func (ai *AthenaIntegration) GetPartitionWhere(start, end time.Time, isCUR20 bool) string {
 	month := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, time.UTC)
 	endMonth := time.Date(end.Year(), end.Month(), 1, 0, 0, 0, 0, time.UTC)
 	var disjuncts []string
 
 	for !month.After(endMonth) {
-		// Presence of resource tags column indicates CUR 2.0
-		if resourceTagsColumn {
+		if isCUR20 {
 			// CUR 2.0 with billing_period partitions
 			disjuncts = append(disjuncts, fmt.Sprintf("(billing_period = '%d-%02d')", month.Year(), month.Month()))
 		} else {
@@ -551,4 +550,9 @@ func (ai *AthenaIntegration) GetConnectionStatusFromResult(result cloud.EmptyChe
 		return cloud.MissingData
 	}
 	return cloud.SuccessfulConnection
+}
+
+// presence of any of resource_tags, line_item_usage_account_name, or bill_payer_account_name columns confirms CUR 2.0
+func isCUR20(allColumns map[string]bool) bool {
+	return allColumns[AthenaResourceTagsColumn] || allColumns[AthenaAccountNameColumn] || allColumns[AthenaInvoiceEntityNameColumn]
 }
