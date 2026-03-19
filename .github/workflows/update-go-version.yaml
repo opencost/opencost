@@ -135,7 +135,7 @@ jobs:
     - name: Create Pull Request
       if: steps.check-existing-prs.outputs.skip_update == 'false' && steps.version-check.outputs.update_needed == 'true' && steps.changes.outputs.skip_pr == 'false'
       id: create-pr
-      uses: kubecost/github-actions/create-pull-request@main
+      uses: peter-evans/create-pull-request@v8
       with:
         path: ./opencost
         token: ${{ secrets.GITHUB_TOKEN }}
