@@ -855,8 +855,13 @@ func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response,
 
 // SpotRefreshEnabled determines whether the required configs to run the spot feed query have been set up
 func (aws *AWS) SpotRefreshEnabled() bool {
-	// Fallback if AWS or config is not initialized
-	if aws == nil || aws.Config == nil {
+	// Guard against nil receiver
+	if aws == nil {
+		return false
+	}
+
+	// Fallback if config is not initialized
+	if aws.Config == nil {
 		return len(aws.SpotDataBucket) != 0 ||
 			len(aws.SpotDataRegion) != 0 ||
 			len(aws.ProjectID) != 0
