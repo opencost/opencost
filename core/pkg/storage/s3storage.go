@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -296,6 +297,56 @@ func (s3 *S3Storage) Read(name string) ([]byte, error) {
 
 	return s3.getRange(ctx, name, 0, -1)
 
+}
+
+// ReadToLocalFile streams the specified object at path to destPath on the local file system.
+func (s3 *S3Storage) ReadToLocalFile(path, destPath string) error {
+	path = trimLeading(path)
+
+	log.Debugf("S3Storage::ReadToLocalFile::%s(%s) -> %s", s3.protocol(), path, destPath)
+	ctx := context.Background()
+
+	sse, err := s3.getServerSideEncryption(ctx)
+	if err != nil {
+		return err
+	}
+
+	opts := &minio.GetObjectOptions{ServerSideEncryption: sse}
+	r, err := s3.client.GetObject(ctx, s3.name, path, *opts)
+	if err != nil {
+		if s3.isObjNotFound(err) {
+			return DoesNotExistError
+		}
+		return err
+	}
+	defer r.Close()
+
+	// Force the initial GetObject call and surface "not found" errors early,
+	// matching behavior in getRange().
+	if _, err := r.Read(nil); err != nil {
+		if s3.isObjNotFound(err) {
+			return DoesNotExistError
+		}
+		return errors.Wrap(err, "Read from S3 failed")
+	}
+
+	if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
+		return errors.Wrap(err, "creating destination directory")
+	}
+
+	f, err := os.Create(destPath)
+	if err != nil {
+		return errors.Wrapf(err, "creating destination file %s", destPath)
+	}
+	defer f.Close()
+
+	// Use 1 MB buffer for streaming operations
+	buf := make([]byte, 1024*1024)
+	if _, err := io.CopyBuffer(f, r, buf); err != nil {
+		return errors.Wrapf(err, "streaming %s to %s", path, destPath)
+	}
+
+	return nil
 }
 
 // Exists checks if the given object exists.

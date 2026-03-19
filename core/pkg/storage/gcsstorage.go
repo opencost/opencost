@@ -7,6 +7,8 @@ package storage
 import (
 	"context"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 
 	gcs "cloud.google.com/go/storage"
@@ -136,6 +138,37 @@ func (gs *GCSStorage) Read(name string) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// ReadToLocalFile streams the specified object at path to destPath on the local file system.
+func (gs *GCSStorage) ReadToLocalFile(path, destPath string) error {
+	path = trimLeading(path)
+	log.Debugf("GCSStorage::ReadToLocalFile::HTTPS(%s) -> %s", path, destPath)
+
+	ctx := context.Background()
+	reader, err := gs.bucket.Object(path).NewReader(ctx)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
+		return errors.Wrap(err, "creating destination directory")
+	}
+
+	f, err := os.Create(destPath)
+	if err != nil {
+		return errors.Wrapf(err, "creating destination file %s", destPath)
+	}
+	defer f.Close()
+
+	// Use 1 MB buffer for streaming operations
+	buf := make([]byte, 1024*1024)
+	if _, err := io.CopyBuffer(f, reader, buf); err != nil {
+		return errors.Wrapf(err, "streaming %s to %s", path, destPath)
+	}
+
+	return nil
 }
 
 // Write uses the relative path of the storage combined with the provided path
