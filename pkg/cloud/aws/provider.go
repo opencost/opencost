@@ -855,16 +855,23 @@ func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response,
 
 // SpotRefreshEnabled determines whether the required configs to run the spot feed query have been set up
 func (aws *AWS) SpotRefreshEnabled() bool {
-	// Check if spot data feed is explicitly disabled via config
-	// Guard against nil Config to prevent panic
-	if aws.Config != nil {
-		c, err := aws.Config.GetCustomPricingData()
-		if err == nil && c.SpotDataFeedEnabled == "false" {
-			return false
-		}
+	// Fallback if AWS or config is not initialized
+	if aws == nil || aws.Config == nil {
+		return len(aws.SpotDataBucket) != 0 ||
+			len(aws.SpotDataRegion) != 0 ||
+			len(aws.ProjectID) != 0
 	}
-	// Need a valid value for at least one of these fields to consider spot pricing as enabled
-	return len(aws.SpotDataBucket) != 0 || len(aws.SpotDataRegion) != 0 || len(aws.ProjectID) != 0
+
+	// Check if spot data feed is explicitly disabled via config
+	c, err := aws.Config.GetCustomPricingData()
+	if err == nil && c.SpotDataFeedEnabled == "false" {
+		return false
+	}
+
+	// Default behavior
+	return len(aws.SpotDataBucket) != 0 ||
+		len(aws.SpotDataRegion) != 0 ||
+		len(aws.ProjectID) != 0
 }
 
 // DownloadPricingData fetches data from the AWS Pricing API
