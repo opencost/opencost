@@ -552,8 +552,3 @@ func (ai *AthenaIntegration) GetConnectionStatusFromResult(result cloud.EmptyChe
 	}
 	return cloud.SuccessfulConnection
 }
-
-// isCUR20 checks if the CUR is version 2.0 by checking for the presence of the resource_tags, line_item_usage_account_name, and bill_payer_account_name columns
-func isCUR20(allColumns map[string]bool) bool {
-	return allColumns[AthenaResourceTagsColumn] && allColumns[AthenaAccountNameColumn] && allColumns[AthenaInvoiceEntityNameColumn]
-}
