@@ -607,9 +607,9 @@ func GetDefaultCollectorStorage() storage.Storage {
 }
 
 // InitializeCloudCost Initializes Cloud Cost pipeline and querier and registers endpoints
-func InitializeCloudCost(router *httprouter.Router, providerConfig models.ProviderConfig) *cloudcost.PipelineService {
+func InitializeCloudCost(router *httprouter.Router) *cloudcost.PipelineService {
 	log.Debugf("Cloud Cost config path: %s", env.GetCloudCostConfigPath())
-	cloudConfigController := cloudconfig.NewMemoryController(providerConfig)
+	cloudConfigController := cloudconfig.NewMemoryController(nil)
 
 	repo := cloudcost.NewMemoryRepository()
 	cloudCostPipelineService := cloudcost.NewPipelineService(repo, cloudConfigController, cloudcost.DefaultIngestorConfiguration())
