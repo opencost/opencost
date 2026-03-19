@@ -60,7 +60,7 @@ const (
 	CPURequestsID                              MetricCollectorID = "CPURequestsID"
 	CPULimitsID                                MetricCollectorID = "CPULimitsID"
 	CPUUsageAverageID                          MetricCollectorID = "CPUUsageAverage"
-	CPUUsageMaxID                              MetricCollectorID = "CPUMilliCoreUsageMax"
+	CPUUsageMaxID                              MetricCollectorID = "CPUUsageMax"
 	GPUsRequestedID                            MetricCollectorID = "GPUsRequested"
 	GPUsUsageAverageID                         MetricCollectorID = "GPUsUsageAverage"
 	GPUsUsageMaxID                             MetricCollectorID = "GPUsUsageMax"

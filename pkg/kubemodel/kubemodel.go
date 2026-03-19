@@ -225,7 +225,7 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 			log.Warnf("node with UID '%s' has not been initialized to add CPU cores capacity", res.UID)
 			continue
 		}
-		node.CPUMilliCores = res.CPUCores * 1000
+		node.CPUCores = res.CPUCores * 1000
 	}
 
 	nodeRAMBytesCapacityResult, _ := nodeRAMBytesCapacityResultFuture.Await()
@@ -1023,7 +1023,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.CPUMilliCoreAllocated = res.Data[0].Value
+			container.CPUCoreAllocated = res.Data[0].Value
 		}
 	}
 
@@ -1036,7 +1036,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.CPUMilliCoreUsageAvg = res.Data[0].Value
+			container.CPUCoreUsageAvg = res.Data[0].Value
 		}
 	}
 
@@ -1049,7 +1049,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.CPUMilliCoreUsageMax = res.Data[0].Value
+			container.CPUCoreUsageMax = res.Data[0].Value
 		}
 	}
 
@@ -1062,7 +1062,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.CPUMilliCoreRequest = res.Data[0].Value
+			container.CPUCoreRequest = res.Data[0].Value
 		}
 	}
 
@@ -1075,7 +1075,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.CPUMilliCoreLimit = res.Data[0].Value
+			container.CPUCoreLimit = res.Data[0].Value
 		}
 	}
 
