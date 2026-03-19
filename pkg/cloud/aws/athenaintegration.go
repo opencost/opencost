@@ -22,6 +22,9 @@ const AthenaResourceTagsColumn = "resource_tags"
 
 const AthenaResourceTagsCastToJsonColumn = "CAST(resource_tags AS JSON) as resource_tags"
 
+const AthenaInvoiceEntityNameColumn = "bill_payer_account_name"
+const AthenaAccountNameColumn = "line_item_usage_account_name"
+
 // athenaDateLayout is the default AWS date format
 const AthenaDateLayout = "2006-01-02 15:04:05.000"
 
@@ -53,24 +56,6 @@ const AthenaDateTruncColumn = "DATE_TRUNC('day'," + AthenaDateColumn + ") as usa
 
 const AthenaWhereDateFmt = `line_item_usage_start_date >= date '%s' AND line_item_usage_start_date < date '%s'`
 const AthenaWhereUsage = "(line_item_line_item_type = 'Usage' OR line_item_line_item_type = 'DiscountedUsage' OR line_item_line_item_type = 'SavingsPlanCoveredUsage' OR line_item_line_item_type = 'EdpDiscount' OR line_item_line_item_type = 'PrivateRateDiscount')"
-
-// tagColumns is a list of columns where the presence of a value indicates that a resource is part of a kubernetes cluster
-var tagColumnsIsK8sCUR10 = []string{
-	"resource_tags_aws_eks_cluster_name",
-	"resource_tags_user_eks_cluster_name",
-	"resource_tags_user_alpha_eksctl_io_cluster_name",
-	"resource_tags_user_kubernetes_io_service_name",
-	"resource_tags_user_kubernetes_io_created_for_pvc_name",
-	"resource_tags_user_kubernetes_io_created_for_pv_name",
-}
-var tagColumnsIsK8sCUR20 = []string{
-	"resource_tags['aws_eks_cluster_name']",
-	"resource_tags['user_eks_cluster_name']",
-	"resource_tags['user_alpha_eksctl_io_cluster_name']",
-	"resource_tags['user_kubernetes_io_service_name']",
-	"resource_tags['user_kubernetes_io_created_for_pvc_name']",
-	"resource_tags['user_kubernetes_io_created_for_pv_name']",
-}
 
 // AthenaQueryIndexes is a struct for holding the context of a query
 type AthenaQueryIndexes struct {
@@ -140,10 +125,6 @@ func (ai *AthenaIntegration) getCloudCost(start, end time.Time, limit int) (*ope
 	// Determine which columns are user-defined tags and add those to the list
 	// of columns to query.
 	for column := range allColumns {
-		// We don't need to check for CUR version here as the column presence itself are exclusive of each other
-		// e.g.: If resource tags column is present(CUR 2.0), then AWS and user label columns will not be present at all
-		// and vice versa
-
 		if strings.HasPrefix(column, LabelColumnPrefix) {
 			quotedTag := fmt.Sprintf(`"%s"`, column)
 			groupByColumns = append(groupByColumns, quotedTag)
@@ -153,11 +134,19 @@ func (ai *AthenaIntegration) getCloudCost(start, end time.Time, limit int) (*ope
 			groupByColumns = append(groupByColumns, column)
 			aqi.AWSTagColumns = append(aqi.AWSTagColumns, column)
 		}
-
-		if column == AthenaResourceTagsColumn {
-			groupByColumns = append(groupByColumns, AthenaResourceTagsCastToJsonColumn)
-		}
 	}
+
+	// CUR 2.0 specific columns, CUR 2.0 has ability to not disable any column, so we check for any of these columns before querying
+	if allColumns[AthenaResourceTagsColumn] {
+		groupByColumns = append(groupByColumns, AthenaResourceTagsCastToJsonColumn)
+	}
+	if allColumns[AthenaAccountNameColumn] {
+		groupByColumns = append(groupByColumns, AthenaAccountNameColumn)
+	}
+	if allColumns[AthenaInvoiceEntityNameColumn] {
+		groupByColumns = append(groupByColumns, AthenaInvoiceEntityNameColumn)
+	}
+
 	var selectColumns []string
 
 	// Duplicate GroupBy Columns into select columns
@@ -353,6 +342,25 @@ func (ai *AthenaIntegration) ConvertLabelToAWSTag(label string) string {
 
 // GetIsKubernetesColumn builds a column that determines if a row represents kubernetes spend
 func (ai *AthenaIntegration) GetIsKubernetesColumn(allColumns map[string]bool) string {
+	// tagColumns is a list of columns where the presence of a value indicates that a resource is part of a kubernetes cluster
+	// Known columns hardcoded for CUR 1.0 and CUR 2.0
+	tagColumnsIsK8sCUR10 := []string{
+		"resource_tags_aws_eks_cluster_name",
+		"resource_tags_user_eks_cluster_name",
+		"resource_tags_user_alpha_eksctl_io_cluster_name",
+		"resource_tags_user_kubernetes_io_service_name",
+		"resource_tags_user_kubernetes_io_created_for_pvc_name",
+		"resource_tags_user_kubernetes_io_created_for_pv_name",
+	}
+	tagColumnsIsK8sCUR20 := []string{
+		"resource_tags['aws_eks_cluster_name']",
+		"resource_tags['user_eks_cluster_name']",
+		"resource_tags['user_alpha_eksctl_io_cluster_name']",
+		"resource_tags['user_kubernetes_io_service_name']",
+		"resource_tags['user_kubernetes_io_created_for_pvc_name']",
+		"resource_tags['user_kubernetes_io_created_for_pv_name']",
+	}
+
 	disjuncts := []string{
 		"line_item_product_code = 'AmazonEKS'", // EKS is always kubernetes
 	}
@@ -434,6 +442,14 @@ func athenaRowToCloudCost(row types.Row, aqi AthenaQueryIndexes) (*opencost.Clou
 
 	invoiceEntityID := GetAthenaRowValue(row, aqi.ColumnIndexes, "bill_payer_account_id")
 	accountID := GetAthenaRowValue(row, aqi.ColumnIndexes, "line_item_usage_account_id")
+	invoiceEntityName := invoiceEntityID
+	accountName := accountID
+	if _, ok := aqi.ColumnIndexes[AthenaInvoiceEntityNameColumn]; ok {
+		invoiceEntityName = GetAthenaRowValue(row, aqi.ColumnIndexes, AthenaInvoiceEntityNameColumn)
+	}
+	if _, ok := aqi.ColumnIndexes[AthenaAccountNameColumn]; ok {
+		accountName = GetAthenaRowValue(row, aqi.ColumnIndexes, AthenaAccountNameColumn)
+	}
 	startStr := GetAthenaRowValue(row, aqi.ColumnIndexes, AthenaDateTruncColumn)
 	providerID := GetAthenaRowValue(row, aqi.ColumnIndexes, "line_item_resource_id")
 	productCode := GetAthenaRowValue(row, aqi.ColumnIndexes, "line_item_product_code")
@@ -486,9 +502,9 @@ func athenaRowToCloudCost(row types.Row, aqi AthenaQueryIndexes) (*opencost.Clou
 		ProviderID:        providerID,
 		Provider:          opencost.AWSProvider,
 		AccountID:         accountID,
-		AccountName:       accountID,
+		AccountName:       accountName,
 		InvoiceEntityID:   invoiceEntityID,
-		InvoiceEntityName: invoiceEntityID,
+		InvoiceEntityName: invoiceEntityName,
 		RegionID:          regionCode,
 		AvailabilityZone:  availabilityZone,
 		Service:           productCode,
@@ -535,4 +551,9 @@ func (ai *AthenaIntegration) GetConnectionStatusFromResult(result cloud.EmptyChe
 		return cloud.MissingData
 	}
 	return cloud.SuccessfulConnection
+}
+
+// isCUR20 checks if the CUR is version 2.0 by checking for the presence of the resource_tags, line_item_usage_account_name, and bill_payer_account_name columns
+func isCUR20(allColumns map[string]bool) bool {
+	return allColumns[AthenaResourceTagsColumn] && allColumns[AthenaAccountNameColumn] && allColumns[AthenaInvoiceEntityNameColumn]
 }
