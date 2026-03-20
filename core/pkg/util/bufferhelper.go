@@ -165,7 +165,7 @@ func readFloat32(r *bytes.Buffer, data *float32) error {
 
 func readFloat64(r *bytes.Buffer, data *float64) error {
 	order := binary.LittleEndian
-	var b [4]byte
+	var b [8]byte
 
 	bs := b[:]
 	_, err := r.Read(bs)
@@ -335,7 +335,7 @@ func readBuffFloat32(r *bufio.Reader, data *float32) error {
 
 func readBuffFloat64(r *bufio.Reader, data *float64) error {
 	order := binary.LittleEndian
-	var b [4]byte
+	var b [8]byte
 
 	bs := b[:]
 	_, err := r.Read(bs)
