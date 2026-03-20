@@ -568,36 +568,92 @@ func (target *Container) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 	} else {
 		buff.WriteString(target.Name) // write string
 	}
-	buff.WriteFloat64(target.CPUMilliCoreAllocated) // write float64
-	buff.WriteFloat64(target.CPUMilliCoreUsageAvg)  // write float64
-	buff.WriteFloat64(target.CPUMilliCoreUsageMax)  // write float64
-	buff.WriteFloat64(target.CPUMilliCoreRequest)   // write float64
-	buff.WriteFloat64(target.CPUMilliCoreLimit)     // write float64
-	buff.WriteFloat64(target.RAMBytesAllocated)     // write float64
-	buff.WriteFloat64(target.RAMBytesUsageAvg)      // write float64
-	buff.WriteFloat64(target.RAMBytesUsageMax)      // write float64
-	buff.WriteFloat64(target.RAMBytesRequest)       // write float64
-	buff.WriteFloat64(target.RAMBytesLimit)         // write float64
-	buff.WriteFloat64(target.GPUAllocated)          // write float64
-	buff.WriteFloat64(target.GPUUsageAvg)           // write float64
-	buff.WriteFloat64(target.GPUUsageMax)           // write float64
-	buff.WriteFloat64(target.GPURequest)            // write float64
-	// --- [begin][write][reference](time.Time) ---
-	c, errA := target.Start.MarshalBinary()
-	if errA != nil {
-		return errA
+	// --- [begin][write][alias](ResourceQuantities) ---
+	if map[Resource]ResourceQuantity(target.ResourceRequests) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[Resource]ResourceQuantity) ---
+		buff.WriteInt(len(map[Resource]ResourceQuantity(target.ResourceRequests))) // map length
+		for v, z := range map[Resource]ResourceQuantity(target.ResourceRequests) {
+			// --- [begin][write][alias](Resource) ---
+			if ctx.IsStringTable() {
+				c := ctx.Table.AddOrGet(string(v))
+				buff.WriteInt(c) // write table index
+			} else {
+				buff.WriteString(string(v)) // write string
+			}
+			// --- [end][write][alias](Resource) ---
+
+			// --- [begin][write][struct](ResourceQuantity) ---
+			buff.WriteInt(0) // [compatibility, unused]
+			errA := z.MarshalBinaryWithContext(ctx)
+			if errA != nil {
+				return errA
+			}
+			// --- [end][write][struct](ResourceQuantity) ---
+
+		}
+		// --- [end][write][map](map[Resource]ResourceQuantity) ---
+
 	}
-	buff.WriteInt(len(c))
-	buff.WriteBytes(c)
+	// --- [end][write][alias](ResourceQuantities) ---
+
+	// --- [begin][write][alias](ResourceQuantities) ---
+	if map[Resource]ResourceQuantity(target.ResourceLimits) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[Resource]ResourceQuantity) ---
+		buff.WriteInt(len(map[Resource]ResourceQuantity(target.ResourceLimits))) // map length
+		for vv, zz := range map[Resource]ResourceQuantity(target.ResourceLimits) {
+			// --- [begin][write][alias](Resource) ---
+			if ctx.IsStringTable() {
+				d := ctx.Table.AddOrGet(string(vv))
+				buff.WriteInt(d) // write table index
+			} else {
+				buff.WriteString(string(vv)) // write string
+			}
+			// --- [end][write][alias](Resource) ---
+
+			// --- [begin][write][struct](ResourceQuantity) ---
+			buff.WriteInt(0) // [compatibility, unused]
+			errB := zz.MarshalBinaryWithContext(ctx)
+			if errB != nil {
+				return errB
+			}
+			// --- [end][write][struct](ResourceQuantity) ---
+
+		}
+		// --- [end][write][map](map[Resource]ResourceQuantity) ---
+
+	}
+	// --- [end][write][alias](ResourceQuantities) ---
+
+	buff.WriteFloat64(target.CPUCoreUsageAvg)  // write float64
+	buff.WriteFloat64(target.CPUCoreUsageMax)  // write float64
+	buff.WriteFloat64(target.RAMBytesUsageAvg) // write float64
+	buff.WriteFloat64(target.RAMBytesUsageMax) // write float64
+	buff.WriteFloat64(target.GPUUsageAvg)      // write float64
+	buff.WriteFloat64(target.GPUUsageMax)      // write float64
+	// --- [begin][write][reference](time.Time) ---
+	e, errC := target.Start.MarshalBinary()
+	if errC != nil {
+		return errC
+	}
+	buff.WriteInt(len(e))
+	buff.WriteBytes(e)
 	// --- [end][write][reference](time.Time) ---
 
 	// --- [begin][write][reference](time.Time) ---
-	d, errB := target.End.MarshalBinary()
-	if errB != nil {
-		return errB
+	f, errD := target.End.MarshalBinary()
+	if errD != nil {
+		return errD
 	}
-	buff.WriteInt(len(d))
-	buff.WriteBytes(d)
+	buff.WriteInt(len(f))
+	buff.WriteBytes(f)
 	// --- [end][write][reference](time.Time) ---
 
 	return nil
@@ -677,68 +733,130 @@ func (target *Container) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 	d := e
 	target.Name = d
 
-	g := buff.ReadFloat64() // read float64
-	target.CPUMilliCoreAllocated = g
+	// --- [begin][read][alias](ResourceQuantities) ---
+	var g map[Resource]ResourceQuantity
+	if buff.ReadUInt8() == uint8(0) {
+		g = nil
+	} else {
+		// --- [begin][read][map](map[Resource]ResourceQuantity) ---
+		k := buff.ReadInt() // map len
+		h := make(map[Resource]ResourceQuantity, k)
+		for i := 0; i < k; i++ {
+			// --- [begin][read][alias](Resource) ---
+			var l string
+			var n string
+			if ctx.IsStringTable() {
+				o := buff.ReadInt() // read string index
+				n = ctx.Table[o]
+			} else {
+				n = buff.ReadString() // read string
+			}
+			m := n
+			l = m
 
-	h := buff.ReadFloat64() // read float64
-	target.CPUMilliCoreUsageAvg = h
+			v := Resource(l)
+			// --- [end][read][alias](Resource) ---
 
-	k := buff.ReadFloat64() // read float64
-	target.CPUMilliCoreUsageMax = k
+			// --- [begin][read][struct](ResourceQuantity) ---
+			p := &ResourceQuantity{}
+			buff.ReadInt() // [compatibility, unused]
+			errA := p.UnmarshalBinaryWithContext(ctx)
+			if errA != nil {
+				return errA
+			}
+			z := *p
+			// --- [end][read][struct](ResourceQuantity) ---
 
-	l := buff.ReadFloat64() // read float64
-	target.CPUMilliCoreRequest = l
+			h[v] = z
+		}
+		g = h
+		// --- [end][read][map](map[Resource]ResourceQuantity) ---
 
-	m := buff.ReadFloat64() // read float64
-	target.CPUMilliCoreLimit = m
+	}
+	target.ResourceRequests = ResourceQuantities(g)
+	// --- [end][read][alias](ResourceQuantities) ---
 
-	n := buff.ReadFloat64() // read float64
-	target.RAMBytesAllocated = n
+	// --- [begin][read][alias](ResourceQuantities) ---
+	var q map[Resource]ResourceQuantity
+	if buff.ReadUInt8() == uint8(0) {
+		q = nil
+	} else {
+		// --- [begin][read][map](map[Resource]ResourceQuantity) ---
+		s := buff.ReadInt() // map len
+		r := make(map[Resource]ResourceQuantity, s)
+		for j := 0; j < s; j++ {
+			// --- [begin][read][alias](Resource) ---
+			var t string
+			var w string
+			if ctx.IsStringTable() {
+				x := buff.ReadInt() // read string index
+				w = ctx.Table[x]
+			} else {
+				w = buff.ReadString() // read string
+			}
+			u := w
+			t = u
 
-	o := buff.ReadFloat64() // read float64
-	target.RAMBytesUsageAvg = o
+			vv := Resource(t)
+			// --- [end][read][alias](Resource) ---
 
-	p := buff.ReadFloat64() // read float64
-	target.RAMBytesUsageMax = p
+			// --- [begin][read][struct](ResourceQuantity) ---
+			y := &ResourceQuantity{}
+			buff.ReadInt() // [compatibility, unused]
+			errB := y.UnmarshalBinaryWithContext(ctx)
+			if errB != nil {
+				return errB
+			}
+			zz := *y
+			// --- [end][read][struct](ResourceQuantity) ---
 
-	q := buff.ReadFloat64() // read float64
-	target.RAMBytesRequest = q
+			r[vv] = zz
+		}
+		q = r
+		// --- [end][read][map](map[Resource]ResourceQuantity) ---
 
-	r := buff.ReadFloat64() // read float64
-	target.RAMBytesLimit = r
+	}
+	target.ResourceLimits = ResourceQuantities(q)
+	// --- [end][read][alias](ResourceQuantities) ---
 
-	s := buff.ReadFloat64() // read float64
-	target.GPUAllocated = s
+	aa := buff.ReadFloat64() // read float64
+	target.CPUCoreUsageAvg = aa
 
-	t := buff.ReadFloat64() // read float64
-	target.GPUUsageAvg = t
+	bb := buff.ReadFloat64() // read float64
+	target.CPUCoreUsageMax = bb
 
-	u := buff.ReadFloat64() // read float64
-	target.GPUUsageMax = u
+	cc := buff.ReadFloat64() // read float64
+	target.RAMBytesUsageAvg = cc
 
-	w := buff.ReadFloat64() // read float64
-	target.GPURequest = w
+	dd := buff.ReadFloat64() // read float64
+	target.RAMBytesUsageMax = dd
+
+	ee := buff.ReadFloat64() // read float64
+	target.GPUUsageAvg = ee
+
+	ff := buff.ReadFloat64() // read float64
+	target.GPUUsageMax = ff
 
 	// --- [begin][read][reference](time.Time) ---
-	x := &time.Time{}
-	y := buff.ReadInt()     // byte array length
-	aa := buff.ReadBytes(y) // byte array
-	errA := x.UnmarshalBinary(aa)
-	if errA != nil {
-		return errA
+	gg := &time.Time{}
+	hh := buff.ReadInt()     // byte array length
+	kk := buff.ReadBytes(hh) // byte array
+	errC := gg.UnmarshalBinary(kk)
+	if errC != nil {
+		return errC
 	}
-	target.Start = *x
+	target.Start = *gg
 	// --- [end][read][reference](time.Time) ---
 
 	// --- [begin][read][reference](time.Time) ---
-	bb := &time.Time{}
-	cc := buff.ReadInt()     // byte array length
-	dd := buff.ReadBytes(cc) // byte array
-	errB := bb.UnmarshalBinary(dd)
-	if errB != nil {
-		return errB
+	ll := &time.Time{}
+	mm := buff.ReadInt()     // byte array length
+	nn := buff.ReadBytes(mm) // byte array
+	errD := ll.UnmarshalBinary(nn)
+	if errD != nil {
+		return errD
 	}
-	target.End = *bb
+	target.End = *ll
 	// --- [end][read][reference](time.Time) ---
 
 	return nil
@@ -4609,34 +4727,95 @@ func (target *Node) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 	} else {
 		buff.WriteString(target.InstanceType) // write string
 	}
-	buff.WriteBool(target.Preemptible)      // write bool
-	buff.WriteFloat64(target.CPUMilliCores) // write float64
-	buff.WriteFloat64(target.RAMBytes)      // write float64
-	buff.WriteFloat64(target.GPUCount)      // write float64
+	buff.WriteBool(target.Preemptible) // write bool
+	// --- [begin][write][alias](ResourceQuantities) ---
+	if map[Resource]ResourceQuantity(target.ResourceCapacities) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[Resource]ResourceQuantity) ---
+		buff.WriteInt(len(map[Resource]ResourceQuantity(target.ResourceCapacities))) // map length
+		for vv, zz := range map[Resource]ResourceQuantity(target.ResourceCapacities) {
+			// --- [begin][write][alias](Resource) ---
+			if ctx.IsStringTable() {
+				g := ctx.Table.AddOrGet(string(vv))
+				buff.WriteInt(g) // write table index
+			} else {
+				buff.WriteString(string(vv)) // write string
+			}
+			// --- [end][write][alias](Resource) ---
+
+			// --- [begin][write][struct](ResourceQuantity) ---
+			buff.WriteInt(0) // [compatibility, unused]
+			errA := zz.MarshalBinaryWithContext(ctx)
+			if errA != nil {
+				return errA
+			}
+			// --- [end][write][struct](ResourceQuantity) ---
+
+		}
+		// --- [end][write][map](map[Resource]ResourceQuantity) ---
+
+	}
+	// --- [end][write][alias](ResourceQuantities) ---
+
+	// --- [begin][write][alias](ResourceQuantities) ---
+	if map[Resource]ResourceQuantity(target.ResourcesAllocatable) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[Resource]ResourceQuantity) ---
+		buff.WriteInt(len(map[Resource]ResourceQuantity(target.ResourcesAllocatable))) // map length
+		for vvv, zzz := range map[Resource]ResourceQuantity(target.ResourcesAllocatable) {
+			// --- [begin][write][alias](Resource) ---
+			if ctx.IsStringTable() {
+				h := ctx.Table.AddOrGet(string(vvv))
+				buff.WriteInt(h) // write table index
+			} else {
+				buff.WriteString(string(vvv)) // write string
+			}
+			// --- [end][write][alias](Resource) ---
+
+			// --- [begin][write][struct](ResourceQuantity) ---
+			buff.WriteInt(0) // [compatibility, unused]
+			errB := zzz.MarshalBinaryWithContext(ctx)
+			if errB != nil {
+				return errB
+			}
+			// --- [end][write][struct](ResourceQuantity) ---
+
+		}
+		// --- [end][write][map](map[Resource]ResourceQuantity) ---
+
+	}
+	// --- [end][write][alias](ResourceQuantities) ---
+
 	// --- [begin][write][struct](FileSystem) ---
 	buff.WriteInt(0) // [compatibility, unused]
-	errA := target.FileSystem.MarshalBinaryWithContext(ctx)
-	if errA != nil {
-		return errA
+	errC := target.FileSystem.MarshalBinaryWithContext(ctx)
+	if errC != nil {
+		return errC
 	}
 	// --- [end][write][struct](FileSystem) ---
 
 	// --- [begin][write][reference](time.Time) ---
-	g, errB := target.Start.MarshalBinary()
-	if errB != nil {
-		return errB
+	k, errD := target.Start.MarshalBinary()
+	if errD != nil {
+		return errD
 	}
-	buff.WriteInt(len(g))
-	buff.WriteBytes(g)
+	buff.WriteInt(len(k))
+	buff.WriteBytes(k)
 	// --- [end][write][reference](time.Time) ---
 
 	// --- [begin][write][reference](time.Time) ---
-	h, errC := target.End.MarshalBinary()
-	if errC != nil {
-		return errC
+	l, errE := target.End.MarshalBinary()
+	if errE != nil {
+		return errE
 	}
-	buff.WriteInt(len(h))
-	buff.WriteBytes(h)
+	buff.WriteInt(len(l))
+	buff.WriteBytes(l)
 	// --- [end][write][reference](time.Time) ---
 
 	return nil
@@ -4774,45 +4953,122 @@ func (target *Node) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 	x := buff.ReadBool() // read bool
 	target.Preemptible = x
 
-	y := buff.ReadFloat64() // read float64
-	target.CPUMilliCores = y
+	// --- [begin][read][alias](ResourceQuantities) ---
+	var y map[Resource]ResourceQuantity
+	if buff.ReadUInt8() == uint8(0) {
+		y = nil
+	} else {
+		// --- [begin][read][map](map[Resource]ResourceQuantity) ---
+		bb := buff.ReadInt() // map len
+		aa := make(map[Resource]ResourceQuantity, bb)
+		for j := 0; j < bb; j++ {
+			// --- [begin][read][alias](Resource) ---
+			var cc string
+			var ee string
+			if ctx.IsStringTable() {
+				ff := buff.ReadInt() // read string index
+				ee = ctx.Table[ff]
+			} else {
+				ee = buff.ReadString() // read string
+			}
+			dd := ee
+			cc = dd
 
-	aa := buff.ReadFloat64() // read float64
-	target.RAMBytes = aa
+			vv := Resource(cc)
+			// --- [end][read][alias](Resource) ---
 
-	bb := buff.ReadFloat64() // read float64
-	target.GPUCount = bb
+			// --- [begin][read][struct](ResourceQuantity) ---
+			gg := &ResourceQuantity{}
+			buff.ReadInt() // [compatibility, unused]
+			errA := gg.UnmarshalBinaryWithContext(ctx)
+			if errA != nil {
+				return errA
+			}
+			zz := *gg
+			// --- [end][read][struct](ResourceQuantity) ---
+
+			aa[vv] = zz
+		}
+		y = aa
+		// --- [end][read][map](map[Resource]ResourceQuantity) ---
+
+	}
+	target.ResourceCapacities = ResourceQuantities(y)
+	// --- [end][read][alias](ResourceQuantities) ---
+
+	// --- [begin][read][alias](ResourceQuantities) ---
+	var hh map[Resource]ResourceQuantity
+	if buff.ReadUInt8() == uint8(0) {
+		hh = nil
+	} else {
+		// --- [begin][read][map](map[Resource]ResourceQuantity) ---
+		ll := buff.ReadInt() // map len
+		kk := make(map[Resource]ResourceQuantity, ll)
+		for ii := 0; ii < ll; ii++ {
+			// --- [begin][read][alias](Resource) ---
+			var mm string
+			var oo string
+			if ctx.IsStringTable() {
+				pp := buff.ReadInt() // read string index
+				oo = ctx.Table[pp]
+			} else {
+				oo = buff.ReadString() // read string
+			}
+			nn := oo
+			mm = nn
+
+			vvv := Resource(mm)
+			// --- [end][read][alias](Resource) ---
+
+			// --- [begin][read][struct](ResourceQuantity) ---
+			qq := &ResourceQuantity{}
+			buff.ReadInt() // [compatibility, unused]
+			errB := qq.UnmarshalBinaryWithContext(ctx)
+			if errB != nil {
+				return errB
+			}
+			zzz := *qq
+			// --- [end][read][struct](ResourceQuantity) ---
+
+			kk[vvv] = zzz
+		}
+		hh = kk
+		// --- [end][read][map](map[Resource]ResourceQuantity) ---
+
+	}
+	target.ResourcesAllocatable = ResourceQuantities(hh)
+	// --- [end][read][alias](ResourceQuantities) ---
 
 	// --- [begin][read][struct](FileSystem) ---
-	cc := &FileSystem{}
+	rr := &FileSystem{}
 	buff.ReadInt() // [compatibility, unused]
-	errA := cc.UnmarshalBinaryWithContext(ctx)
-	if errA != nil {
-		return errA
-	}
-	target.FileSystem = *cc
-	// --- [end][read][struct](FileSystem) ---
-
-	// --- [begin][read][reference](time.Time) ---
-	dd := &time.Time{}
-	ee := buff.ReadInt()     // byte array length
-	ff := buff.ReadBytes(ee) // byte array
-	errB := dd.UnmarshalBinary(ff)
-	if errB != nil {
-		return errB
-	}
-	target.Start = *dd
-	// --- [end][read][reference](time.Time) ---
-
-	// --- [begin][read][reference](time.Time) ---
-	gg := &time.Time{}
-	hh := buff.ReadInt()     // byte array length
-	kk := buff.ReadBytes(hh) // byte array
-	errC := gg.UnmarshalBinary(kk)
+	errC := rr.UnmarshalBinaryWithContext(ctx)
 	if errC != nil {
 		return errC
 	}
-	target.End = *gg
+	target.FileSystem = *rr
+	// --- [end][read][struct](FileSystem) ---
+
+	// --- [begin][read][reference](time.Time) ---
+	ss := &time.Time{}
+	tt := buff.ReadInt()     // byte array length
+	uu := buff.ReadBytes(tt) // byte array
+	errD := ss.UnmarshalBinary(uu)
+	if errD != nil {
+		return errD
+	}
+	target.Start = *ss
+	// --- [end][read][reference](time.Time) ---
+
+	// --- [begin][read][reference](time.Time) ---
+	ww := &time.Time{}
+	xx := buff.ReadInt()     // byte array length
+	yy := buff.ReadBytes(xx) // byte array
+	errE := ww.UnmarshalBinary(yy)
+	if errE != nil {
+		return errE
+	}
+	target.End = *ww
 	// --- [end][read][reference](time.Time) ---
 
 	return nil
