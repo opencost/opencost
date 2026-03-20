@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
 )
 
-var otcHTTPClient = &http.Client{Timeout: 30 * time.Second}
+var otcHTTPClient = http.DefaultClient
 
 // Fetches and flattens all product entries across multiple services with pagination
 func (otc *OTC) fetchPaginatedProducts(serviceNames []string) ([]Product, error) {
