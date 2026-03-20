@@ -17,6 +17,9 @@ func newTestProviderWithFile(t *testing.T, filename string) (*DOKS, func() int) 
 		t.Fatalf("Failed to read file: %v", err)
 	}
 
+	// Set a fake token for testing
+	t.Setenv("DIGITALOCEAN_ACCESS_TOKEN", "test_token_dop_v1_fake")
+
 	var count int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		count++
@@ -32,6 +35,9 @@ func newTestProviderWithFile(t *testing.T, filename string) (*DOKS, func() int) 
 
 func newTestProviderWith404(t *testing.T) *DOKS {
 	t.Helper()
+
+	// Set a fake token for testing
+	t.Setenv("DIGITALOCEAN_ACCESS_TOKEN", "test_token_dop_v1_fake")
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
@@ -68,16 +74,16 @@ func TestNodePricing_APIMatches(t *testing.T) {
 		}
 	}
 
-	assertEqual("Cost", node.Cost, "0.01199")
-	assertEqual("VCPUCost", node.VCPUCost, "0.00400") // 1/3
-	assertEqual("RAMCost", node.RAMCost, "0.00799")   // 2/3
+	assertEqual("Cost", node.Cost, "0.01786")
+	assertEqual("VCPUCost", node.VCPUCost, "0.00595") // 1/3
+	assertEqual("RAMCost", node.RAMCost, "0.01191")   // 2/3
 	assertEqual("VCPU", node.VCPU, "1")
 	assertEqual("RAM", node.RAM, "2GiB")
 	assertEqual("ArchType", node.ArchType, "amd64")
 	assertEqual("PricingType", string(node.PricingType), string(models.DefaultPrices))
 
-	if meta.Source != "digitalocean" {
-		t.Errorf("expected metadata source to be digitalocean, got: %s", meta.Source)
+	if meta.Source != "digitalocean-sizes-api" {
+		t.Errorf("expected metadata source to be digitalocean-sizes-api, got: %s", meta.Source)
 	}
 
 	if c := callCount(); c != 1 {
@@ -85,7 +91,7 @@ func TestNodePricing_APIMatches(t *testing.T) {
 	}
 }
 
-func TestNodePricing_Fallback(t *testing.T) {
+func TestNodePricing_S2(t *testing.T) {
 	provider, callCount := newTestProviderWithFile(t, "testdata/do_pricing.json")
 
 	key := &doksKey{
@@ -111,22 +117,21 @@ func TestNodePricing_Fallback(t *testing.T) {
 	}
 
 	assertEqual("Cost", node.Cost, "0.03571")
-	assertEqual("VCPUCost", node.VCPUCost, "0.00595")
-	assertEqual("RAMCost", node.RAMCost, "0.00595")
+	assertEqual("VCPUCost", node.VCPUCost, "0.01190")
+	assertEqual("RAMCost", node.RAMCost, "0.02381")
 	assertEqual("VCPU", node.VCPU, "2")
 	assertEqual("RAM", node.RAM, "4GiB")
 	assertEqual("ArchType", node.ArchType, "amd64")
 	assertEqual("PricingType", string(node.PricingType), string(models.DefaultPrices))
 
-	if meta.Source != "static-fallback" {
-		t.Errorf("expected metadata source to be static-fallback, got: %s", meta.Source)
+	if meta.Source != "digitalocean-sizes-api" {
+		t.Errorf("expected metadata source to be digitalocean-sizes-api, got: %s", meta.Source)
 	}
 
 	if c := callCount(); c != 1 {
 		t.Errorf("expected 1 API call, got %d", c)
 	}
 }
-
 func TestNodePricing_Estimation_C8Intel(t *testing.T) {
 	provider := newTestProviderWith404(t)
 
@@ -564,5 +569,55 @@ func TestNodePricing_Estimation_FamilySeeds(t *testing.T) {
 				t.Errorf("expected metadata source to be 'static-fallback', got: %s", meta.Source)
 			}
 		})
+	}
+}
+
+func TestNodePricing_GPU(t *testing.T) {
+	provider, callCount := newTestProviderWithFile(t, "testdata/do_pricing.json")
+
+	key := &doksKey{
+		Labels: map[string]string{
+			"node.kubernetes.io/instance-type": "gpu-h100x1-80gb",
+			"kubernetes.io/arch":               "amd64",
+		},
+	}
+
+	// Verify key methods - might return defaults but shouldn't panic
+	if count := key.GPUCount(); count != 1 {
+		t.Errorf("expected GPUCount 1, got %d", count)
+	}
+	if gpuType := key.GPUType(); gpuType != "h100" {
+		t.Errorf("expected GPUType h100, got %s", gpuType)
+	}
+
+	node, meta, err := provider.NodePricing(key)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if node == nil {
+		t.Fatal("expected node pricing, got nil")
+	}
+
+	assertEqual := func(name, got, want string) {
+		if got != want {
+			t.Errorf("%s: got %s, want %s", name, got, want)
+		}
+	}
+
+	assertEqual("Cost", node.Cost, "3.39000")
+	assertEqual("VCPUCost", node.VCPUCost, "0.26077") // 3.39 * 20 / 260 = 0.260769...
+	assertEqual("RAMCost", node.RAMCost, "3.12923")   // 3.39 * 240 / 260 = 3.129230...
+	assertEqual("VCPU", node.VCPU, "20")
+	assertEqual("RAM", node.RAM, "240GiB")
+	assertEqual("GPU", node.GPU, "1")
+	assertEqual("GPUName", node.GPUName, "nvidia_h100")
+
+	if meta.Source != "digitalocean-sizes-api" {
+		t.Errorf("expected metadata source to be digitalocean-sizes-api, got: %s", meta.Source)
+	}
+
+	if c := callCount(); c != 1 {
+		t.Errorf("expected 1 API call, got %d", c)
 	}
 }

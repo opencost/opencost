@@ -26,7 +26,7 @@ const closedSourceConfigMount = "models/"
 // ProviderConfig is a utility class that provides a thread-safe configuration storage/cache for all Provider
 // implementations
 type ProviderConfig struct {
-	lock            *sync.Mutex
+	lock            sync.Mutex
 	configManager   *config.ConfigFileManager
 	configFile      *config.ConfigFile
 	customPricing   *models.CustomPricing
@@ -37,7 +37,6 @@ type ProviderConfig struct {
 func NewProviderConfig(configManager *config.ConfigFileManager, fileName string) *ProviderConfig {
 	configFile := configManager.ConfigFileAt(coreenv.GetPathFromConfig(fileName))
 	pc := &ProviderConfig{
-		lock:          new(sync.Mutex),
 		configManager: configManager,
 		configFile:    configFile,
 		customPricing: nil,
@@ -69,10 +68,7 @@ func (pc *ProviderConfig) onConfigFileUpdated(changeType config.ChangeType, data
 			customPricing = DefaultPricing()
 		}
 
-		pc.customPricing = customPricing
-		if pc.customPricing.SpotGPU == "" {
-			pc.customPricing.SpotGPU = DefaultPricing().SpotGPU // Migration for users without this value set by default.
-		}
+		pc.customPricing = updateDefaultsOnEmpty(customPricing)
 	}
 }
 
@@ -136,10 +132,7 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*models.CustomPrici
 		return DefaultPricing(), err
 	}
 
-	pc.customPricing = &customPricing
-	if pc.customPricing.SpotGPU == "" {
-		pc.customPricing.SpotGPU = DefaultPricing().SpotGPU // Migration for users without this value set by default.
-	}
+	pc.customPricing = updateDefaultsOnEmpty(&customPricing)
 
 	return pc.customPricing, nil
 }
@@ -177,7 +170,7 @@ func (pc *ProviderConfig) Update(updateFunc func(*models.CustomPricing) error) (
 	}
 
 	// Cache Update (possible the ptr already references the cached value)
-	pc.customPricing = c
+	pc.customPricing = updateDefaultsOnEmpty(c)
 
 	cj, err := json.Marshal(c)
 	if err != nil {
@@ -247,8 +240,31 @@ func DefaultPricing() *models.CustomPricing {
 		ZoneNetworkEgress:     "0.01",
 		RegionNetworkEgress:   "0.01",
 		InternetNetworkEgress: "0.12",
+		NatGatewayEgress:      "0.045",
+		NatGatewayIngress:     "0.045",
 		CustomPricesEnabled:   "false",
 	}
+}
+
+// Helper to default fields that may be left unset or empty due to config age
+func updateDefaultsOnEmpty(pricing *models.CustomPricing) *models.CustomPricing {
+	if pricing == nil {
+		return pricing
+	}
+
+	defaultPricing := DefaultPricing()
+
+	if pricing.SpotGPU == "" {
+		pricing.SpotGPU = defaultPricing.SpotGPU // Migration for users without this value set by default.
+	}
+	if pricing.NatGatewayEgress == "" {
+		pricing.NatGatewayEgress = defaultPricing.NatGatewayEgress
+	}
+	if pricing.NatGatewayIngress == "" {
+		pricing.NatGatewayIngress = defaultPricing.NatGatewayIngress
+	}
+
+	return pricing
 }
 
 // Gives the config file name in a full qualified file name
@@ -277,7 +293,7 @@ func ReturnPricingFromConfigs(filename string) (*models.CustomPricing, error) {
 	if err != nil {
 		return &models.CustomPricing{}, fmt.Errorf("ReturnPricingFromConfigs: unable to open file %s with err: %v", providerConfigFile, err)
 	}
-	return defaultPricing, nil
+	return updateDefaultsOnEmpty(defaultPricing), nil
 }
 
 func ExtractConfigFromProviders(prov models.Provider) models.ProviderConfig {

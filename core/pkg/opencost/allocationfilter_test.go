@@ -497,6 +497,16 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 			},
 			expected: true,
 		},
+		{
+			name: "Account Equals -> not implemented (returns false)",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Cluster: "cluster-one",
+				},
+			},
+			filter:   ops.Eq(afilter.FieldAccount, "account-123"),
+			expected: false,
+		},
 	}
 
 	for _, c := range cases {

@@ -10,5 +10,7 @@
     "zoneNetworkEgress": "0.01",
     "regionNetworkEgress": "0.01",
     "internetNetworkEgress": "0.12",
+    "natGatewayEgress": "0.045",
+    "natGatewayIngress": "0.045",
     "billingDataDataset": ""
 }

@@ -412,7 +412,6 @@ type AwsAthenaInfo struct {
 	ServiceKeySecret string `json:"serviceKeySecret"`
 	AccountID        string `json:"projectID"`
 	MasterPayerARN   string `json:"masterPayerARN"`
-	CURVersion       string `json:"curVersion"` // "1.0" or "2.0", defaults to "2.0" if not specified
 }
 
 // IsEmpty returns true if all fields in config are empty, false if not.
@@ -488,18 +487,18 @@ func (aws *AWS) GetAWSAccessKey() (*AWSAccessKey, error) {
 		return nil, fmt.Errorf("error configuring Cloud Provider %s", err)
 	}
 	// Look for service key values in env if not present in config
-	if config.ServiceKeyName == "" {
-		config.ServiceKeyName = env.GetAWSAccessKeyID()
+	if config.AwsServiceKeyName == "" {
+		config.AwsServiceKeyName = env.GetAWSAccessKeyID()
 	}
-	if config.ServiceKeySecret == "" {
-		config.ServiceKeySecret = env.GetAWSAccessKeySecret()
+	if config.AwsServiceKeySecret == "" {
+		config.AwsServiceKeySecret = env.GetAWSAccessKeySecret()
 	}
 
-	if config.ServiceKeyName == "" && config.ServiceKeySecret == "" {
+	if config.AwsServiceKeyName == "" && config.AwsServiceKeySecret == "" {
 		log.DedupedInfof(1, "missing service key values for AWS cloud integration attempting to use service account integration")
 	}
 
-	return &AWSAccessKey{AccessKeyID: config.ServiceKeyName, SecretAccessKey: config.ServiceKeySecret}, nil
+	return &AWSAccessKey{AccessKeyID: config.AwsServiceKeyName, SecretAccessKey: config.AwsServiceKeySecret}, nil
 }
 
 // GetAWSAthenaInfo generate an AWSAthenaInfo object from the config
@@ -525,7 +524,6 @@ func (aws *AWS) GetAWSAthenaInfo() (*AwsAthenaInfo, error) {
 		ServiceKeySecret: aak.SecretAccessKey,
 		AccountID:        config.AthenaProjectID,
 		MasterPayerARN:   config.MasterPayerARN,
-		CURVersion:       config.AthenaCURVersion,
 	}, nil
 }
 
@@ -533,27 +531,28 @@ func (aws *AWS) UpdateConfigFromConfigMap(cm map[string]string) (*models.CustomP
 	return aws.Config.UpdateFromMap(cm)
 }
 
-func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPricing, error) {
-	return aws.Config.Update(func(c *models.CustomPricing) error {
-		if updateType == SpotInfoUpdateType {
+func configUpdaterWithReaderAndType(r io.Reader, updateType string) func(c *models.CustomPricing) error {
+	return func(c *models.CustomPricing) error {
+		switch updateType {
+		case SpotInfoUpdateType:
 			asfi := AwsSpotFeedInfo{}
 			err := json.NewDecoder(r).Decode(&asfi)
 			if err != nil {
 				return err
 			}
 
-			c.ServiceKeyName = asfi.ServiceKeyName
+			c.AwsServiceKeyName = asfi.ServiceKeyName
 			if asfi.ServiceKeySecret != "" {
-				c.ServiceKeySecret = asfi.ServiceKeySecret
+				c.AwsServiceKeySecret = asfi.ServiceKeySecret
 			}
-			c.SpotDataPrefix = asfi.Prefix
-			c.SpotDataBucket = asfi.BucketName
+			c.AwsSpotDataPrefix = asfi.Prefix
+			c.AwsSpotDataBucket = asfi.BucketName
 			c.ProjectID = asfi.AccountID
-			c.SpotDataRegion = asfi.Region
+			c.AwsSpotDataRegion = asfi.Region
 			c.SpotLabel = asfi.SpotLabel
 			c.SpotLabelValue = asfi.SpotLabelValue
 
-		} else if updateType == AthenaInfoUpdateType {
+		case AthenaInfoUpdateType:
 			aai := AwsAthenaInfo{}
 			err := json.NewDecoder(r).Decode(&aai)
 			if err != nil {
@@ -566,19 +565,16 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 			c.AthenaCatalog = aai.AthenaCatalog
 			c.AthenaTable = aai.AthenaTable
 			c.AthenaWorkgroup = aai.AthenaWorkgroup
-			c.ServiceKeyName = aai.ServiceKeyName
+			c.AwsServiceKeyName = aai.ServiceKeyName
 			if aai.ServiceKeySecret != "" {
-				c.ServiceKeySecret = aai.ServiceKeySecret
+				c.AwsServiceKeySecret = aai.ServiceKeySecret
 			}
 			if aai.MasterPayerARN != "" {
 				c.MasterPayerARN = aai.MasterPayerARN
 			}
 			c.AthenaProjectID = aai.AccountID
-			if aai.CURVersion != "" {
-				c.AthenaCURVersion = aai.CURVersion
-			}
-		} else {
-			a := make(map[string]interface{})
+		default:
+			a := make(map[string]any)
 			err := json.NewDecoder(r).Decode(&a)
 			if err != nil {
 				return err
@@ -604,7 +600,11 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 			}
 		}
 		return nil
-	})
+	}
+}
+
+func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPricing, error) {
+	return aws.Config.Update(configUpdaterWithReaderAndType(r, updateType))
 }
 
 type awsKey struct {
@@ -850,8 +850,28 @@ func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response,
 
 // SpotRefreshEnabled determines whether the required configs to run the spot feed query have been set up
 func (aws *AWS) SpotRefreshEnabled() bool {
-	// Need a valid value for at least one of these fields to consider spot pricing as enabled
-	return len(aws.SpotDataBucket) != 0 || len(aws.SpotDataRegion) != 0 || len(aws.ProjectID) != 0
+	// Guard against nil receiver
+	if aws == nil {
+		return false
+	}
+
+	// Fallback if config is not initialized
+	if aws.Config == nil {
+		return len(aws.SpotDataBucket) != 0 ||
+			len(aws.SpotDataRegion) != 0 ||
+			len(aws.ProjectID) != 0
+	}
+
+	// Check if spot data feed is explicitly disabled via config
+	c, err := aws.Config.GetCustomPricingData()
+	if err == nil && c.SpotDataFeedEnabled == "false" {
+		return false
+	}
+
+	// Default behavior
+	return len(aws.SpotDataBucket) != 0 ||
+		len(aws.SpotDataRegion) != 0 ||
+		len(aws.ProjectID) != 0
 }
 
 // DownloadPricingData fetches data from the AWS Pricing API
@@ -870,10 +890,10 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.BaseSpotGPUPrice = c.SpotGPU
 	aws.SpotLabelName = c.SpotLabel
 	aws.SpotLabelValue = c.SpotLabelValue
-	aws.SpotDataBucket = c.SpotDataBucket
-	aws.SpotDataPrefix = c.SpotDataPrefix
+	aws.SpotDataBucket = c.AwsSpotDataBucket
+	aws.SpotDataPrefix = c.AwsSpotDataPrefix
 	aws.ProjectID = c.ProjectID
-	aws.SpotDataRegion = c.SpotDataRegion
+	aws.SpotDataRegion = c.AwsSpotDataRegion
 
 	aws.ConfigureAuthWith(c) // load aws authentication from configuration or secret
 
@@ -936,7 +956,7 @@ func (aws *AWS) DownloadPricingData() error {
 			if errors.Is(err, ErrNoAthenaBucket) {
 				log.Debugf("No \"athenaBucketName\" configured, ReservedInstanceData watcher will not run")
 			} else {
-				log.Errorf("Failed to lookup reserved instance data: %s", err.Error())
+				log.Warnf("Failed to lookup reserved instance data: %s", err.Error())
 			}
 		} else { // If we make one successful run, check on new reservation data every hour
 			go func() {
@@ -1276,11 +1296,21 @@ func (aws *AWS) NetworkPricing() (*models.Network, error) {
 	if err != nil {
 		return nil, err
 	}
+	nge, err := strconv.ParseFloat(cpricing.NatGatewayEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+	ngi, err := strconv.ParseFloat(cpricing.NatGatewayIngress, 64)
+	if err != nil {
+		return nil, err
+	}
 
 	return &models.Network{
 		ZoneNetworkEgressCost:     znec,
 		RegionNetworkEgressCost:   rnec,
 		InternetNetworkEgressCost: inec,
+		NatGatewayEgressCost:      nge,
+		NatGatewayIngressCost:     ngi,
 	}, nil
 }
 
@@ -1645,12 +1675,12 @@ func (aws *AWS) ConfigureAuthWith(config *models.CustomPricing) error {
 // Gets the aws key id and secret
 func (aws *AWS) getAWSAuth(forceReload bool, cp *models.CustomPricing) (string, string) {
 	// 1. Check config values first (set from frontend UI)
-	if cp.ServiceKeyName != "" && cp.ServiceKeySecret != "" {
+	if cp.AwsServiceKeyName != "" && cp.AwsServiceKeySecret != "" {
 		aws.ServiceAccountChecks.Set("hasKey", &models.ServiceAccountCheck{
 			Message: "AWS ServiceKey exists",
 			Status:  true,
 		})
-		return cp.ServiceKeyName, cp.ServiceKeySecret
+		return cp.AwsServiceKeyName, cp.AwsServiceKeySecret
 	}
 
 	// 2. Check for secret

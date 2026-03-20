@@ -1175,6 +1175,43 @@ func (pds *PrometheusMetricsQuerier) QueryNetInternetServiceGiB(start, end time.
 	return source.NewFuture(source.DecodeNetInternetServiceGiBResult, ctx.QueryAtTime(queryNetInternetGiB, end))
 }
 
+func (pds *PrometheusMetricsQuerier) QueryNetNatGatewayPricePerGiB(start, end time.Time) *source.Future[source.NetNatGatewayPricePerGiBResult] {
+	const queryName = "QueryNetNatGatewayPricePerGiB"
+	const queryFmtNetNatGatewayPricePerGiB = `avg(avg_over_time(kubecost_network_nat_gateway_egress_cost{%s}[%s])) by (%s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryNetNatGatewayPricePerGiB := fmt.Sprintf(queryFmtNetNatGatewayPricePerGiB, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryNetNatGatewayPricePerGiB)
+
+	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
+	return source.NewFuture(source.DecodeNetNatGatewayPricePerGiBResult, ctx.QueryAtTime(queryNetNatGatewayPricePerGiB, end))
+}
+
+func (pds *PrometheusMetricsQuerier) QueryNetNatGatewayGiB(start, end time.Time) *source.Future[source.NetNatGatewayGiBResult] {
+	const queryName = "QueryNetNatGatewayGiB"
+	const queryFmtNetNatGatewayGiB = `sum(increase(kubecost_pod_network_egress_bytes_total{nat_gateway="true", %s}[%s:%dm])) by (pod_name, namespace, service, uid, %s) / 1024 / 1024 / 1024`
+
+	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
+
+	durStr := pds.durationStringFor(start, end, minsPerResolution, true)
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryNetNatGatewayGiB := fmt.Sprintf(queryFmtNetNatGatewayGiB, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryNetNatGatewayGiB)
+
+	ctx := pds.promContexts.NewNamedContext(NetworkInsightsContextName)
+	return source.NewFuture(source.DecodeNetNatGatewayGiBResult, ctx.QueryAtTime(queryNetNatGatewayGiB, end))
+}
+
 func (pds *PrometheusMetricsQuerier) QueryNetTransferBytes(start, end time.Time) *source.Future[source.NetTransferBytesResult] {
 	const queryName = "QueryNetTransferBytes"
 	const queryFmtNetTransferBytes = `sum(increase(container_network_transmit_bytes_total{pod!="", %s}[%s:%dm])) by (pod_name, pod, namespace, uid, %s)`
@@ -1268,6 +1305,43 @@ func (pds *PrometheusMetricsQuerier) QueryNetInternetServiceIngressGiB(start, en
 
 	ctx := pds.promContexts.NewNamedContext(NetworkInsightsContextName)
 	return source.NewFuture(source.DecodeNetInternetServiceIngressGiBResult, ctx.QueryAtTime(queryNetIngInternetGiB, end))
+}
+
+func (pds *PrometheusMetricsQuerier) QueryNetNatGatewayIngressPricePerGiB(start, end time.Time) *source.Future[source.NetNatGatewayPricePerGiBResult] {
+	const queryName = "QueryNetNatGatewayIngressPricePerGiB"
+	const queryFmtNetNatGatewayIngressPricePerGiB = `avg(avg_over_time(kubecost_network_nat_gateway_ingress_cost{%s}[%s])) by (%s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryNetNatGatewayIngressPricePerGiB := fmt.Sprintf(queryFmtNetNatGatewayIngressPricePerGiB, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryNetNatGatewayIngressPricePerGiB)
+
+	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
+	return source.NewFuture(source.DecodeNetNatGatewayPricePerGiBResult, ctx.QueryAtTime(queryNetNatGatewayIngressPricePerGiB, end))
+}
+
+func (pds *PrometheusMetricsQuerier) QueryNetNatGatewayIngressGiB(start, end time.Time) *source.Future[source.NetNatGatewayIngressGiBResult] {
+	const queryName = "QueryNetNatGatewayIngressGiB"
+	const queryFmtNetNatGatewayIngressGiB = `sum(increase(kubecost_pod_network_ingress_bytes_total{nat_gateway="true", %s}[%s:%dm])) by (pod_name, namespace, service, uid, %s) / 1024 / 1024 / 1024`
+
+	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
+
+	durStr := pds.durationStringFor(start, end, minsPerResolution, true)
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryNetNatGatewayIngressGiB := fmt.Sprintf(queryFmtNetNatGatewayIngressGiB, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryNetNatGatewayIngressGiB)
+
+	ctx := pds.promContexts.NewNamedContext(NetworkInsightsContextName)
+	return source.NewFuture(source.DecodeNetNatGatewayIngressGiBResult, ctx.QueryAtTime(queryNetNatGatewayIngressGiB, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNetReceiveBytes(start, end time.Time) *source.Future[source.NetReceiveBytesResult] {

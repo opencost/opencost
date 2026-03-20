@@ -66,6 +66,8 @@ func TestSetSetCustomPricingField(t *testing.T) {
 		"ZoneNetworkEgress",
 		"RegionNetworkEgress",
 		"InternetNetworkEgress",
+		"NatGatewayEgress",
+		"NatGatewayIngress",
 	}
 
 	testCases := []testCase{}
@@ -98,6 +100,8 @@ func TestSetSetCustomPricingField(t *testing.T) {
 				ZoneNetworkEgress:     defaultValue,
 				RegionNetworkEgress:   defaultValue,
 				InternetNetworkEgress: defaultValue,
+				NatGatewayEgress:      defaultValue,
+				NatGatewayIngress:     defaultValue,
 			}
 			err := SetCustomPricingField(cp, tc.fieldName, tc.fieldValue)
 			if err != nil && tc.expError == nil {
@@ -112,38 +116,6 @@ func TestSetSetCustomPricingField(t *testing.T) {
 			actValue := structFieldValue.String()
 			if actValue != tc.expValue {
 				t.Errorf("expected field '%s' to be '%s'; actual value is '%s'", tc.fieldName, tc.expValue, actValue)
-			}
-		})
-	}
-}
-
-func TestCustomPricing_AthenaCURVersion(t *testing.T) {
-	testCases := map[string]struct {
-		curVersion string
-		expected   string
-	}{
-		"CUR version 1.0": {
-			curVersion: "1.0",
-			expected:   "1.0",
-		},
-		"CUR version 2.0": {
-			curVersion: "2.0",
-			expected:   "2.0",
-		},
-		"empty CUR version": {
-			curVersion: "",
-			expected:   "",
-		},
-	}
-
-	for name, testCase := range testCases {
-		t.Run(name, func(t *testing.T) {
-			cp := &CustomPricing{
-				AthenaCURVersion: testCase.curVersion,
-			}
-			
-			if cp.AthenaCURVersion != testCase.expected {
-				t.Errorf("expected AthenaCURVersion to be '%s', got '%s'", testCase.expected, cp.AthenaCURVersion)
 			}
 		})
 	}

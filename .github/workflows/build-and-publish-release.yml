@@ -65,7 +65,7 @@ jobs:
           echo "BRANCH_NAME=v${RELEASE_VERSION%.*}" >> $GITHUB_OUTPUT
 
       - name: Checkout Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
         with:
           ref: '${{ steps.branch.outputs.BRANCH_NAME }}'
 
@@ -94,14 +94,14 @@ jobs:
           release_version: ${{ steps.version_number.outputs.RELEASE_VERSION }}
 
       - name: Log into registry ${{ env.REGISTRY }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
             registry: ${{ env.REGISTRY }}
             username: ${{ github.actor }}
             password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install crane
-        uses: imjasonh/setup-crane@v0.4
+        uses: imjasonh/setup-crane@v0.5
 
       - name: Copy tags
         env:

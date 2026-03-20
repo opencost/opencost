@@ -86,6 +86,40 @@ func (c *Controller) GetAddConfigHandler() func(w http.ResponseWriter, r *http.R
 	}
 }
 
+// GetUpdateConfigHandler creates a handler from a http request which updates an existing integration via the integrationController
+func (c *Controller) GetUpdateConfigHandler() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	// perform basic checks to ensure that the pipeline can be accessed
+	fn := c.cloudCostChecks()
+	if fn != nil {
+		return fn
+	}
+
+	// Return valid handler func
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		w.Header().Set("Content-Type", "application/json")
+
+		configType := r.URL.Query().Get("type")
+		if configType == "" {
+			http.Error(w, "'type' parameter is required", http.StatusBadRequest)
+			return
+		}
+
+		config, err := ParseConfig(configType, r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		err = c.UpdateConfig(config)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		protocol.WriteData(w, fmt.Sprintf("Successfully updated integration with key %s", config.Key()))
+	}
+}
+
 func ParseConfig(configType string, body io.Reader) (cloud.KeyedConfig, error) {
 	buf := new(bytes.Buffer)
 	_, err := buf.ReadFrom(body)

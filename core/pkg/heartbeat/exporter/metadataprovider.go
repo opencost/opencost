@@ -42,7 +42,7 @@ func (c *ClusterInfoMetadataProvider) GetMetadata() map[string]any {
 }
 
 // LogLevelMetadataProvider is a `HeartbeatMetadataProvider` implementation that provides the log level.
-type LogLevelMetadataProvider struct {}
+type LogLevelMetadataProvider struct{}
 
 // NewLogLevelMetadataProvider creates a new `LogLevelMetadataProvider` instance.
 func NewLogLevelMetadataProvider() *LogLevelMetadataProvider {
@@ -68,7 +68,7 @@ func NewMultiMetadataProvider(providers ...HeartbeatMetadataProvider) *MultiMeta
 	}
 }
 
-// GetMetadata returns the metadata for new heartbeat instances. 
+// GetMetadata returns the metadata for new heartbeat instances.
 // It uses the `MultiMetadataProvider` to get the metadata from multiple providers and injects it into the metadata map.
 func (m *MultiMetadataProvider) GetMetadata() map[string]any {
 	metadata := make(map[string]any)

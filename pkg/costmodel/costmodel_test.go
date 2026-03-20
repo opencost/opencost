@@ -20,6 +20,9 @@ func TestIsValidNodeName(t *testing.T) {
 		"node-1",
 		"another.test.node",
 		"10-55.23-10",
+		"s21",
+		"s1",
+		"s",
 	}
 
 	for _, test := range tests {

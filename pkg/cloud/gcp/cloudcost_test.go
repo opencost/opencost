@@ -82,9 +82,9 @@ func TestParseProviderID(t *testing.T) {
 			expected:   "gke-cluster-3-default-pool-xxxx-yy",
 		},
 		{
-			name:     "Provider ID with trailing slash",
+			name:       "Provider ID with trailing slash",
 			providerID: "projects/123456789/instances/gke-cluster-3-default-pool-xxxx-yy/",
-			expected:  "", // The function doesn't handle trailing slashes, so expect empty string
+			expected:   "", // The function doesn't handle trailing slashes, so expect empty string
 		},
 		{
 			name:       "Provider ID without project prefix",

@@ -6,6 +6,24 @@ commit := `git rev-parse --short HEAD`
 default:
     just --list
 
+# format all Go code
+fmt:
+    go fmt ./...
+
+# check if code is formatted
+fmt-check:
+    #!/bin/sh
+    echo "Checking code formatting..."
+    unformatted="$(gofmt -l .)"
+    if [ -n "$unformatted" ]; then \
+        echo "The following files are not formatted:"; \
+        echo "$unformatted"; \
+        echo ""; \
+        echo "Run 'just fmt' to format your code"; \
+        exit 1; \
+    fi
+    echo "All files are properly formatted"
+
 # run core unit tests
 test-core: 
     {{commonenv}} cd ./core && go test ./... -coverprofile=coverage.out

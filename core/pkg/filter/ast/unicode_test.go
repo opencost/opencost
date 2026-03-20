@@ -47,7 +47,7 @@ func TestUnicodeErrorMessages(t *testing.T) {
 		t.Errorf("expected error but got nil")
 		return
 	}
-	
+
 	// Check that the error message contains Unicode information
 	errStr := err.Error()
 	if len(errStr) == 0 {
@@ -59,13 +59,13 @@ func TestInvalidUTF8(t *testing.T) {
 	// Test invalid UTF-8 sequences
 	// This is a string with an invalid UTF-8 sequence
 	invalidUTF8 := "\xC0\x80" // Invalid UTF-8 sequence
-	
+
 	_, err := lex(invalidUTF8, allocFields, allocMapFields)
 	if err == nil {
 		t.Errorf("expected error for invalid UTF-8 but got nil")
 		return
 	}
-	
+
 	// Check that the error message mentions invalid UTF-8
 	errStr := err.Error()
 	if len(errStr) == 0 || !contains(errStr, "invalid UTF-8") {
