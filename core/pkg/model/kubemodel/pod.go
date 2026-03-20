@@ -11,35 +11,18 @@ type PodPVCVolumes struct {
 	PersistentVolumeClaimUID string `json:"persistentVolumeClaimUID"`
 }
 
-// @bingen:generate:NetworkTraffic
-type NetworkTraffic struct {
-	CrossZoneBytes   float64
-	CrossRegionBytes float64
-	InternetBytes    float64
-	NatGatewayBytes  float64
-	ExternalServices []*NetworkService
-}
-
-// @bingen:generate:NetworkService
-type NetworkService struct {
-	ServiceName string
-	TotalBytes  float64
-}
-
 // @bingen:generate:Pod
 type Pod struct {
-	UID            string            `json:"uid"`
-	NamespaceUID   string            `json:"namespaceUid"`
-	NodeUID        string            `json:"nodeUid"`
-	Name           string            `json:"name"`
-	Owners         []Owner           `json:"owners"`
-	PVCVolumes     []PodPVCVolumes   `json:"pvcVolumes"`
-	Labels         map[string]string `json:"labels,omitempty"`
-	Annotations    map[string]string `json:"annotations,omitempty"`
-	NetworkEgress  *NetworkTraffic   `json:"networkEgress"`
-	NetworkIngress *NetworkTraffic   `json:"networkIngress"`
-	Start          time.Time         `json:"start"`
-	End            time.Time         `json:"end"`
+	UID          string            `json:"uid"`
+	NamespaceUID string            `json:"namespaceUid"`
+	NodeUID      string            `json:"nodeUid"`
+	Name         string            `json:"name"`
+	Owners       []Owner           `json:"owners"`
+	PVCVolumes   []PodPVCVolumes   `json:"pvcVolumes"`
+	Labels       map[string]string `json:"labels,omitempty"`
+	Annotations  map[string]string `json:"annotations,omitempty"`
+	Start        time.Time         `json:"start"`
+	End          time.Time         `json:"end"`
 }
 
 func (kms *KubeModelSet) RegisterPod(pod *Pod) error {

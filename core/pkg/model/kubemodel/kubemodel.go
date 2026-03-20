@@ -8,26 +8,27 @@ import (
 
 // @bingen:generate[stringtable]:KubeModelSet
 type KubeModelSet struct {
-	Metadata               *Metadata                         `json:"meta"`                   // @bingen:field[version=1]
-	Window                 Window                            `json:"window"`                 // @bingen:field[version=1]
-	Cluster                *Cluster                          `json:"cluster"`                // @bingen:field[version=1]
-	Namespaces             map[string]*Namespace             `json:"namespaces"`             // @bingen:field[version=1]
-	ResourceQuotas         map[string]*ResourceQuota         `json:"resourceQuotas"`         // @bingen:field[version=1]
-	Containers             map[string]*Container             `json:"containers,omitempty"`   // @bingen:field[version=2]
-	Deployments            map[string]*Deployment            `json:"deployments,omitempty"`  // @bingen:field[version=2]
-	StatefulSets           map[string]*StatefulSet           `json:"statefulSets,omitempty"` // @bingen:field[version=2]
-	DaemonSets             map[string]*DaemonSet             `json:"daemonSets,omitempty"`   // @bingen:field[version=2]
-	Jobs                   map[string]*Job                   `json:"jobs,omitempty"`         // @bingen:field[version=2]
-	CronJobs               map[string]*CronJob               `json:"cronJobs,omitempty"`     // @bingen:field[version=2]
-	ReplicaSets            map[string]*ReplicaSet            `json:"replicaSets,omitempty"`  // @bingen:field[version=2]
-	Devices                map[string]*Device                `json:"devices,omitempty"`      // @bingen:field[ignore]
-	DeviceUsages           map[string]*DeviceUsage           `json:"deviceUsages,omitempty"` // @bingen:field[ignore]
-	Nodes                  map[string]*Node                  `json:"nodes,omitempty"`        // @bingen:field[version=2]
-	Pods                   map[string]*Pod                   `json:"pods,omitempty"`         // @bingen:field[version=2]
-	PersistentVolumeClaims map[string]*PersistentVolumeClaim `json:"pvcs,omitempty"`         // @bingen:field[version=2]
-	Services               map[string]*Service               `json:"services,omitempty"`     // @bingen:field[version=2]
-	PersistentVolumes      map[string]*PersistentVolume      `json:"volumes,omitempty"`      // @bingen:field[version=2]
-	idx                    *kubeModelSetIndexes              // @bingen:field[ignore]
+	Metadata                 *Metadata                          `json:"meta"`                               // @bingen:field[version=1]
+	Window                   Window                             `json:"window"`                             // @bingen:field[version=1]
+	Cluster                  *Cluster                           `json:"cluster"`                            // @bingen:field[version=1]
+	Namespaces               map[string]*Namespace              `json:"namespaces"`                         // @bingen:field[version=1]
+	ResourceQuotas           map[string]*ResourceQuota          `json:"resourceQuotas"`                     // @bingen:field[version=1]
+	Containers               map[string]*Container              `json:"containers,omitempty"`               // @bingen:field[version=2]
+	Deployments              map[string]*Deployment             `json:"deployments,omitempty"`              // @bingen:field[version=2]
+	StatefulSets             map[string]*StatefulSet            `json:"statefulSets,omitempty"`             // @bingen:field[version=2]
+	DaemonSets               map[string]*DaemonSet              `json:"daemonSets,omitempty"`               // @bingen:field[version=2]
+	Jobs                     map[string]*Job                    `json:"jobs,omitempty"`                     // @bingen:field[version=2]
+	CronJobs                 map[string]*CronJob                `json:"cronJobs,omitempty"`                 // @bingen:field[version=2]
+	ReplicaSets              map[string]*ReplicaSet             `json:"replicaSets,omitempty"`              // @bingen:field[version=2]
+	Devices                  map[string]*Device                 `json:"devices,omitempty"`                  // @bingen:field[ignore]
+	DeviceUsages             map[string]*DeviceUsage            `json:"deviceUsages,omitempty"`             // @bingen:field[ignore]
+	Nodes                    map[string]*Node                   `json:"nodes,omitempty"`                    // @bingen:field[version=2]
+	Pods                     map[string]*Pod                    `json:"pods,omitempty"`                     // @bingen:field[version=2]
+	PersistentVolumeClaims   map[string]*PersistentVolumeClaim  `json:"pvcs,omitempty"`                     // @bingen:field[version=2]
+	Services                 map[string]*Service                `json:"services,omitempty"`                 // @bingen:field[version=2]
+	PersistentVolumes        map[string]*PersistentVolume       `json:"volumes,omitempty"`                  // @bingen:field[version=2]
+	PodNetworkTrafficDetails map[string][]*NetworkTrafficDetail `json:"podNetworkTrafficDetails,omitempty"` // @bingen:field[version=2]
+	idx                      *kubeModelSetIndexes               // @bingen:field[ignore]
 }
 
 func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
@@ -42,23 +43,24 @@ func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
 			Start: start,
 			End:   end,
 		},
-		Containers:             map[string]*Container{},
-		Deployments:            map[string]*Deployment{},
-		StatefulSets:           map[string]*StatefulSet{},
-		DaemonSets:             map[string]*DaemonSet{},
-		Jobs:                   map[string]*Job{},
-		CronJobs:               map[string]*CronJob{},
-		ReplicaSets:            map[string]*ReplicaSet{},
-		Devices:                map[string]*Device{},
-		DeviceUsages:           map[string]*DeviceUsage{},
-		Namespaces:             map[string]*Namespace{},
-		Nodes:                  map[string]*Node{},
-		Pods:                   map[string]*Pod{},
-		PersistentVolumeClaims: map[string]*PersistentVolumeClaim{},
-		ResourceQuotas:         map[string]*ResourceQuota{},
-		Services:               map[string]*Service{},
-		PersistentVolumes:      map[string]*PersistentVolume{},
-		idx:                    newKubeModelSetIndexes(),
+		Containers:               map[string]*Container{},
+		Deployments:              map[string]*Deployment{},
+		StatefulSets:             map[string]*StatefulSet{},
+		DaemonSets:               map[string]*DaemonSet{},
+		Jobs:                     map[string]*Job{},
+		CronJobs:                 map[string]*CronJob{},
+		ReplicaSets:              map[string]*ReplicaSet{},
+		Devices:                  map[string]*Device{},
+		DeviceUsages:             map[string]*DeviceUsage{},
+		Namespaces:               map[string]*Namespace{},
+		Nodes:                    map[string]*Node{},
+		Pods:                     map[string]*Pod{},
+		PersistentVolumeClaims:   map[string]*PersistentVolumeClaim{},
+		ResourceQuotas:           map[string]*ResourceQuota{},
+		Services:                 map[string]*Service{},
+		PersistentVolumes:        map[string]*PersistentVolume{},
+		PodNetworkTrafficDetails: map[string][]*NetworkTrafficDetail{},
+		idx:                      newKubeModelSetIndexes(),
 	}
 	return kms
 }
