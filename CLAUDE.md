@@ -5,7 +5,6 @@ This document provides guidance for AI assistants working with the OpenCost code
 ## AI Assistant Behaviour
 
 - Never include claude.ai session links or URLs in commit messages or pull request bodies.
-- Use git commit author as configured in local git config (currently peatey / warwick.peatey@ibm.com).
 
 ## Project Overview
 
