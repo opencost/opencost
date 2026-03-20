@@ -32,6 +32,7 @@ func (otc *OTC) fetchPaginatedProducts(serviceNames []string) ([]Product, error)
 			return nil, err
 		}
 		if resp.StatusCode != http.StatusOK {
+			io.Copy(io.Discard, resp.Body)
 			resp.Body.Close()
 			return nil, fmt.Errorf("OTC API returned unexpected status %d", resp.StatusCode)
 		}
