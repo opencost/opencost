@@ -190,19 +190,26 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 	nodeInfoResultFuture := source.WithGroup(grp, metrics.QueryNodeInfo(start, end))
 	nodeUptimeResultFuture := source.WithGroup(grp, metrics.QueryNodeUptime(start, end))
 	nodeLabelsResultFuture := source.WithGroup(grp, metrics.QueryNodeLabels(start, end))
-	nodeCPUCoresCapacityResultFuture := source.WithGroup(grp, metrics.QueryNodeCPUCoresCapacity(start, end))
-	nodeRAMBytesCapacityResultFuture := source.WithGroup(grp, metrics.QueryNodeRAMBytesCapacity(start, end))
-	nodeGPUCapacityResultFuture := source.WithGroup(grp, metrics.QueryNodeGPUCount(start, end))
+	// TODO make sure that UID is being populated correctly here
+	nodeIsSpotResultFuture := source.WithGroup(grp, metrics.QueryNodeIsSpot(start, end))
+	nodeResourceCapacitiesFuture := source.WithGroup(grp, metrics.QueryNodeResourceCapacities(start, end))
+	nodeResourcesAllocatableFuture := source.WithGroup(grp, metrics.QueryNodeResourcesAllocatable(start, end))
+	// TODO before merge add Node UID to Nodestates metrics
+	//localStorageBytesFuture := source.WithGroup(grp, metrics.QueryLocalStorageBytes(start, end))
+	//localStorageUsedAvgFuture := source.WithGroup(grp, metrics.QueryLocalStorageUsedAvg(start, end))
+	//localStorageUsedMaxFuture := source.WithGroup(grp, metrics.QueryLocalStorageUsedMax(start, end))
 
 	nodeMap := make(map[string]*kubemodel.Node)
 
 	nodeInfoResult, _ := nodeInfoResultFuture.Await()
 	for _, res := range nodeInfoResult {
 		nodeMap[res.UID] = &kubemodel.Node{
-			UID:          res.UID,
-			ProviderID:   res.ProviderID,
-			Name:         res.Node,
-			InstanceType: res.InstanceType,
+			UID:                  res.UID,
+			ProviderID:           res.ProviderID,
+			Name:                 res.Node,
+			InstanceType:         res.InstanceType,
+			ResourceCapacities:   make(kubemodel.ResourceQuantities),
+			ResourcesAllocatable: make(kubemodel.ResourceQuantities),
 		}
 	}
 
@@ -218,34 +225,38 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 		node.End = e
 	}
 
-	nodeCPUCoresCapacityResult, _ := nodeCPUCoresCapacityResultFuture.Await()
-	for _, res := range nodeCPUCoresCapacityResult {
+	nodeResourceCapacitiesResult, _ := nodeResourceCapacitiesFuture.Await()
+	for _, res := range nodeResourceCapacitiesResult {
 		node, ok := nodeMap[res.UID]
 		if !ok {
-			log.Warnf("node with UID '%s' has not been initialized to add CPU cores capacity", res.UID)
+			log.Warnf("node with UID '%s' has not been initialized to add resource capacities", res.UID)
 			continue
 		}
-		node.CPUCores = res.CPUCores * 1000
+		resource, unit, value := nodeResourceUnitValue(res.Resource, res.Unit, res.Value)
+		node.ResourceCapacities.Set(resource, unit, kubemodel.StatAvg, value)
 	}
 
-	nodeRAMBytesCapacityResult, _ := nodeRAMBytesCapacityResultFuture.Await()
-	for _, res := range nodeRAMBytesCapacityResult {
+	nodeResourcesAllocatableResult, _ := nodeResourcesAllocatableFuture.Await()
+	for _, res := range nodeResourcesAllocatableResult {
 		node, ok := nodeMap[res.UID]
 		if !ok {
-			log.Warnf("node with UID '%s' has not been initialized to add RAM bytes capacity", res.UID)
+			log.Warnf("node with UID '%s' has not been initialized to add resources allocatable", res.UID)
 			continue
 		}
-		node.RAMBytes = res.RAMBytes
+		resource, unit, value := nodeResourceUnitValue(res.Resource, res.Unit, res.Value)
+		node.ResourcesAllocatable.Set(resource, unit, kubemodel.StatAvg, value)
 	}
 
-	nodeGPUCapacityResult, _ := nodeGPUCapacityResultFuture.Await()
-	for _, res := range nodeGPUCapacityResult {
+	nodeIsSpotResult, _ := nodeIsSpotResultFuture.Await()
+	for _, res := range nodeIsSpotResult {
 		node, ok := nodeMap[res.UID]
 		if !ok {
-			log.Warnf("node with UID '%s' has not been initialized to add GPU capacity", res.UID)
+			log.Warnf("node with UID '%s' has not been initialized to add spot status", res.UID)
 			continue
 		}
-		node.GPUCount = res.GPUCount
+		if len(res.Data) > 0 {
+			node.Preemptible = res.Data[0].Value > 0
+		}
 	}
 
 	nodeLabelsResult, _ := nodeLabelsResultFuture.Await()
@@ -258,6 +269,42 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 		node.Labels = res.Labels
 	}
 
+	//localStorageBytesResult, _ := localStorageBytesFuture.Await()
+	//for _, res := range localStorageBytesResult {
+	//	uid, ok := nodeNameToUID[res.Instance]
+	//	if !ok {
+	//		continue
+	//	}
+	//	node := nodeMap[uid]
+	//	if len(res.Data) > 0 {
+	//		node.FileSystem.CapacityBytes = res.Data[0].Value
+	//	}
+	//}
+	//
+	//localStorageUsedAvgResult, _ := localStorageUsedAvgFuture.Await()
+	//for _, res := range localStorageUsedAvgResult {
+	//	uid, ok := nodeNameToUID[res.Instance]
+	//	if !ok {
+	//		continue
+	//	}
+	//	node := nodeMap[uid]
+	//	if len(res.Data) > 0 {
+	//		node.FileSystem.UsageByteAvg = res.Data[0].Value
+	//	}
+	//}
+	//
+	//localStorageUsedMaxResult, _ := localStorageUsedMaxFuture.Await()
+	//for _, res := range localStorageUsedMaxResult {
+	//	uid, ok := nodeNameToUID[res.Instance]
+	//	if !ok {
+	//		continue
+	//	}
+	//	node := nodeMap[uid]
+	//	if len(res.Data) > 0 {
+	//		node.FileSystem.UsageByteMax = res.Data[0].Value
+	//	}
+	//}
+
 	for _, node := range nodeMap {
 		err := kms.RegisterNode(node)
 		if err != nil {
@@ -266,6 +313,21 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 	}
 
 	return nil
+}
+
+// nodeResourceUnitValue converts prometheus resource/unit strings from ResourceResult
+// into kubemodel types, applying any necessary unit conversions.
+func nodeResourceUnitValue(resource, unit string, value float64) (kubemodel.Resource, kubemodel.Unit, float64) {
+	switch resource {
+	case "cpu":
+		return kubemodel.ResourceCPU, kubemodel.UnitMillicore, value * 1000
+	case "memory":
+		return kubemodel.ResourceMemory, kubemodel.UnitByte, value
+	case "storage", "ephemeral-storage":
+		return kubemodel.ResourceStorage, kubemodel.UnitByte, value
+	default:
+		return kubemodel.Resource(resource), kubemodel.Unit(unit), value
+	}
 }
 
 func (km *KubeModel) computeNamespaces(kms *kubemodel.KubeModelSet, start, end time.Time) error {
