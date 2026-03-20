@@ -2682,7 +2682,7 @@ type AssetSetResponse struct {
 // a window. An AssetSet is mutable, so treat it like a threadsafe map.
 type AssetSet struct {
 	AggregationKeys   []string
-	Assets            map[string]Asset
+	Assets            map[string]Asset              // @bingen:field[version=1]
 	Any               map[string]*Any               //@bingen:field[ignore]
 	Cloud             map[string]*Cloud             //@bingen:field[ignore]
 	ClusterManagement map[string]*ClusterManagement //@bingen:field[ignore]

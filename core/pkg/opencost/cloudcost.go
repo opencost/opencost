@@ -168,7 +168,7 @@ func (cc *CloudCost) WeightCostMetrics(weightedAverge float64) {
 // set is joined with another with a different key
 // - AggregationProperties is set by the Aggregate function and ensures that any additional inserts are keyed correctly
 type CloudCostSet struct {
-	CloudCosts            map[string]*CloudCost `json:"cloudCosts"`
+	CloudCosts            map[string]*CloudCost `json:"cloudCosts"` // @bingen:field[version=3]
 	Window                Window                `json:"window"`
 	Integration           string                `json:"-"`
 	AggregationProperties []string              `json:"aggregationProperties"`

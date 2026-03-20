@@ -1481,10 +1481,10 @@ func (thisLbAllocs LbAllocations) SanitizeNaN() {
 // AllocationSet stores a set of Allocations, each with a unique name, that share
 // a window. An AllocationSet is mutable, so treat it like a threadsafe map.
 type AllocationSet struct {
-	Allocations  map[string]*Allocation
-	ExternalKeys map[string]bool
-	IdleKeys     map[string]bool
-	FromSource   string // stores the name of the source used to compute the data
+	Allocations  map[string]*Allocation // @bingen:field[version=1]
+	ExternalKeys map[string]bool        // @bingen:field[version=1]
+	IdleKeys     map[string]bool        // @bingen:field[version=1]
+	FromSource   string                 // stores the name of the source used to compute the data
 	Window       Window
 	Warnings     []string
 	Errors       []string
