@@ -232,7 +232,7 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 			log.Warnf("node with UID '%s' has not been initialized to add resource capacities", res.UID)
 			continue
 		}
-		resource, unit, value := nodeResourceUnitValue(res.Resource, res.Unit, res.Value)
+		resource, unit, value := resourceUnitValue(res.Resource, res.Unit, res.Value)
 		node.ResourceCapacities.Set(resource, unit, kubemodel.StatAvg, value)
 	}
 
@@ -243,7 +243,7 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 			log.Warnf("node with UID '%s' has not been initialized to add resources allocatable", res.UID)
 			continue
 		}
-		resource, unit, value := nodeResourceUnitValue(res.Resource, res.Unit, res.Value)
+		resource, unit, value := resourceUnitValue(res.Resource, res.Unit, res.Value)
 		node.ResourcesAllocatable.Set(resource, unit, kubemodel.StatAvg, value)
 	}
 
@@ -315,16 +315,14 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 	return nil
 }
 
-// nodeResourceUnitValue converts prometheus resource/unit strings from ResourceResult
+// resourceUnitValue converts prometheus resource/unit strings from ResourceResult
 // into kubemodel types, applying any necessary unit conversions.
-func nodeResourceUnitValue(resource, unit string, value float64) (kubemodel.Resource, kubemodel.Unit, float64) {
+func resourceUnitValue(resource, unit string, value float64) (kubemodel.Resource, kubemodel.Unit, float64) {
 	switch resource {
 	case "cpu":
-		return kubemodel.ResourceCPU, kubemodel.UnitMillicore, value * 1000
+		return kubemodel.ResourceCPU, kubemodel.UnitCore, value
 	case "memory":
 		return kubemodel.ResourceMemory, kubemodel.UnitByte, value
-	case "storage", "ephemeral-storage":
-		return kubemodel.ResourceStorage, kubemodel.UnitByte, value
 	default:
 		return kubemodel.Resource(resource), kubemodel.Unit(unit), value
 	}
@@ -1040,22 +1038,17 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 
 	containerUptimeFuture := source.WithGroup(grp, metrics.QueryContainerUptime(start, end))
 
-	cpuAllocatedFuture := source.WithGroup(grp, metrics.QueryCPUCoresAllocated(start, end))
+	containerResourceRequestsFuture := source.WithGroup(grp, metrics.QueryContainerResourceRequests(start, end))
+	containerResourceLimitsFuture := source.WithGroup(grp, metrics.QueryContainerResourceLimits(start, end))
+
 	cpuUsageAvgFuture := source.WithGroup(grp, metrics.QueryCPUUsageAvg(start, end))
 	cpuUsageMaxFuture := source.WithGroup(grp, metrics.QueryCPUUsageMax(start, end))
-	cpuRequestsFuture := source.WithGroup(grp, metrics.QueryCPURequests(start, end))
-	cpuLimitsFuture := source.WithGroup(grp, metrics.QueryCPULimits(start, end))
 
-	ramAllocatedFuture := source.WithGroup(grp, metrics.QueryRAMBytesAllocated(start, end))
 	ramUsageAvgFuture := source.WithGroup(grp, metrics.QueryRAMUsageAvg(start, end))
 	ramUsageMaxFuture := source.WithGroup(grp, metrics.QueryRAMUsageMax(start, end))
-	ramRequestsFuture := source.WithGroup(grp, metrics.QueryRAMRequests(start, end))
-	ramLimitsFuture := source.WithGroup(grp, metrics.QueryRAMLimits(start, end))
 
-	gpuAllocatedFuture := source.WithGroup(grp, metrics.QueryGPUsAllocated(start, end))
 	gpuUsageAvgFuture := source.WithGroup(grp, metrics.QueryGPUsUsageAvg(start, end))
 	gpuUsageMaxFuture := source.WithGroup(grp, metrics.QueryGPUsUsageMax(start, end))
-	gpuRequestedFuture := source.WithGroup(grp, metrics.QueryGPUsRequested(start, end))
 
 	type containerKey struct {
 		podUID string
@@ -1069,24 +1062,37 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 		key := containerKey{podUID: res.UID, name: res.Container}
 		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
 		containerMap[key] = &kubemodel.Container{
-			PodUID: res.UID,
-			Name:   res.Container,
-			Start:  s,
-			End:    e,
+			PodUID:           res.UID,
+			Name:             res.Container,
+			ResourceRequests: make(kubemodel.ResourceQuantities),
+			ResourceLimits:   make(kubemodel.ResourceQuantities),
+			Start:            s,
+			End:              e,
 		}
 	}
 
-	cpuAllocatedResult, _ := cpuAllocatedFuture.Await()
-	for _, res := range cpuAllocatedResult {
+	containerResourceRequestsResult, _ := containerResourceRequestsFuture.Await()
+	for _, res := range containerResourceRequestsResult {
 		key := containerKey{podUID: res.UID, name: res.Container}
 		container, ok := containerMap[key]
 		if !ok {
-			log.Warnf("container %s/%s has not been initialized to add CPU allocated", res.UID, res.Container)
+			log.Warnf("container %s/%s has not been initialized to add resource requests", res.UID, res.Container)
 			continue
 		}
-		if len(res.Data) > 0 {
-			container.CPUCoreAllocated = res.Data[0].Value
+		resource, unit, value := resourceUnitValue(res.Resource, res.Unit, res.Value)
+		container.ResourceRequests.Set(resource, unit, kubemodel.StatAvg, value)
+	}
+
+	containerResourceLimitsResult, _ := containerResourceLimitsFuture.Await()
+	for _, res := range containerResourceLimitsResult {
+		key := containerKey{podUID: res.UID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add resource limits", res.UID, res.Container)
+			continue
 		}
+		resource, unit, value := resourceUnitValue(res.Resource, res.Unit, res.Value)
+		container.ResourceLimits.Set(resource, unit, kubemodel.StatAvg, value)
 	}
 
 	cpuUsageAvgResult, _ := cpuUsageAvgFuture.Await()
@@ -1112,45 +1118,6 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 		}
 		if len(res.Data) > 0 {
 			container.CPUCoreUsageMax = res.Data[0].Value
-		}
-	}
-
-	cpuRequestsResult, _ := cpuRequestsFuture.Await()
-	for _, res := range cpuRequestsResult {
-		key := containerKey{podUID: res.UID, name: res.Container}
-		container, ok := containerMap[key]
-		if !ok {
-			log.Warnf("container %s/%s has not been initialized to add CPU requests", res.UID, res.Container)
-			continue
-		}
-		if len(res.Data) > 0 {
-			container.CPUCoreRequest = res.Data[0].Value
-		}
-	}
-
-	cpuLimitsResult, _ := cpuLimitsFuture.Await()
-	for _, res := range cpuLimitsResult {
-		key := containerKey{podUID: res.UID, name: res.Container}
-		container, ok := containerMap[key]
-		if !ok {
-			log.Warnf("container %s/%s has not been initialized to add CPU limits", res.UID, res.Container)
-			continue
-		}
-		if len(res.Data) > 0 {
-			container.CPUCoreLimit = res.Data[0].Value
-		}
-	}
-
-	ramAllocatedResult, _ := ramAllocatedFuture.Await()
-	for _, res := range ramAllocatedResult {
-		key := containerKey{podUID: res.UID, name: res.Container}
-		container, ok := containerMap[key]
-		if !ok {
-			log.Warnf("container %s/%s has not been initialized to add RAM allocated", res.UID, res.Container)
-			continue
-		}
-		if len(res.Data) > 0 {
-			container.RAMBytesAllocated = res.Data[0].Value
 		}
 	}
 
@@ -1180,45 +1147,6 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 		}
 	}
 
-	ramRequestsResult, _ := ramRequestsFuture.Await()
-	for _, res := range ramRequestsResult {
-		key := containerKey{podUID: res.UID, name: res.Container}
-		container, ok := containerMap[key]
-		if !ok {
-			log.Warnf("container %s/%s has not been initialized to add RAM requests", res.UID, res.Container)
-			continue
-		}
-		if len(res.Data) > 0 {
-			container.RAMBytesRequest = res.Data[0].Value
-		}
-	}
-
-	ramLimitsResult, _ := ramLimitsFuture.Await()
-	for _, res := range ramLimitsResult {
-		key := containerKey{podUID: res.UID, name: res.Container}
-		container, ok := containerMap[key]
-		if !ok {
-			log.Warnf("container %s/%s has not been initialized to add RAM limits", res.UID, res.Container)
-			continue
-		}
-		if len(res.Data) > 0 {
-			container.RAMBytesLimit = res.Data[0].Value
-		}
-	}
-
-	gpuAllocatedResult, _ := gpuAllocatedFuture.Await()
-	for _, res := range gpuAllocatedResult {
-		key := containerKey{podUID: res.UID, name: res.Container}
-		container, ok := containerMap[key]
-		if !ok {
-			log.Warnf("container %s/%s has not been initialized to add GPU allocated", res.UID, res.Container)
-			continue
-		}
-		if len(res.Data) > 0 {
-			container.GPUAllocated = res.Data[0].Value
-		}
-	}
-
 	gpuUsageAvgResult, _ := gpuUsageAvgFuture.Await()
 	for _, res := range gpuUsageAvgResult {
 		key := containerKey{podUID: res.UID, name: res.Container}
@@ -1242,19 +1170,6 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 		}
 		if len(res.Data) > 0 {
 			container.GPUUsageMax = res.Data[0].Value
-		}
-	}
-
-	gpuRequestedResult, _ := gpuRequestedFuture.Await()
-	for _, res := range gpuRequestedResult {
-		key := containerKey{podUID: res.UID, name: res.Container}
-		container, ok := containerMap[key]
-		if !ok {
-			log.Warnf("container %s/%s has not been initialized to add GPU requested", res.UID, res.Container)
-			continue
-		}
-		if len(res.Data) > 0 {
-			container.GPURequest = res.Data[0].Value
 		}
 	}
 

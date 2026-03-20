@@ -4,10 +4,8 @@ package kubemodel
 type Resource string
 
 const (
-	ResourceCPU     Resource = "cpu"
-	ResourceMemory  Resource = "memory"
-	ResourceGPU     Resource = "gpu"
-	ResourceStorage Resource = "storage"
+	ResourceCPU    Resource = "cpu"
+	ResourceMemory Resource = "memory"
 )
 
 // @bingen:generate:ResourceQuantity
