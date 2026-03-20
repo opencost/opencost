@@ -25,9 +25,9 @@ func (otc *OTC) fetchPaginatedProducts(serviceNames []string) ([]Product, error)
 			log.Errorf("Error fetching products from OTC API: %v", err)
 			return nil, err
 		}
-		defer resp.Body.Close()
 
 		pageData, stats, err := otc.loadPaginatedResponse(resp)
+		resp.Body.Close()
 		if err != nil {
 			log.Errorf("Error loading paginated response: %v", err)
 			return nil, err
