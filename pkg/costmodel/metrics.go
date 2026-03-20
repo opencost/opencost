@@ -430,6 +430,13 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 		pvSeen := make(map[string]bool)
 		pvcSeen := make(map[string]bool)
 		nodeCostAverages := make(map[string]NodeCostAverages)
+		// nodeCurrentLabelKey tracks the most recently emitted label key for each
+		// node. When a node's labels change (e.g., instance_type becomes empty due
+		// to a temporary K8s API outage and then recovers), the old Prometheus time
+		// series must be explicitly deleted before emitting the new one. Without
+		// this, both series coexist within Prometheus's query window and cause
+		// cost inflation through double-counting in aggregation queries.
+		nodeCurrentLabelKey := make(map[string]string)
 
 		getKeyFromLabelStrings := func(labels ...string) string {
 			return strings.Join(labels, ",")
@@ -568,6 +575,25 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
 				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType, nodeUID)
+
+				// If the label key changed for this node (e.g., instance_type
+				// temporarily became empty due to a K8s API outage), delete the old
+				// metric series immediately. This prevents two time series for the
+				// same node from coexisting within Prometheus's query window, which
+				// would cause cost double-counting and inflated allocation results.
+				if prevLabelKey, exists := nodeCurrentLabelKey[nodeName]; exists && prevLabelKey != labelKey {
+					log.Infof("Node %s label set changed (previous: %q, current: %q); removing stale metrics to prevent duplicate time series", nodeName, prevLabelKey, labelKey)
+					prevLabels := getLabelStringsFromKey(prevLabelKey)
+					cmme.NodeTotalPriceRecorder.DeleteLabelValues(prevLabels...)
+					cmme.NodeSpotRecorder.DeleteLabelValues(prevLabels...)
+					cmme.CPUPriceRecorder.DeleteLabelValues(prevLabels...)
+					cmme.RAMPriceRecorder.DeleteLabelValues(prevLabels...)
+					cmme.GPUPriceRecorder.DeleteLabelValues(prevLabels...)
+					cmme.GPUCountRecorder.DeleteLabelValues(prevLabels...)
+					delete(nodeSeen, prevLabelKey)
+					delete(nodeCostAverages, prevLabelKey)
+				}
+				nodeCurrentLabelKey[nodeName] = labelKey
 
 				avgCosts, ok := nodeCostAverages[labelKey]
 
