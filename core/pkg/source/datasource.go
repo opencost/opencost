@@ -10,9 +10,6 @@ import (
 
 type MetricsQuerier interface {
 	// Cluster Disks
-	QueryPVActiveMinutes(start, end time.Time) *Future[PVActiveMinutesResult]
-	QueryPVUsedAverage(start, end time.Time) *Future[PVUsedAvgResult]
-	QueryPVUsedMax(start, end time.Time) *Future[PVUsedMaxResult]
 
 	// Local Cluster Disks
 	QueryLocalStorageActiveMinutes(start, end time.Time) *Future[LocalStorageActiveMinutesResult]
@@ -23,6 +20,8 @@ type MetricsQuerier interface {
 	QueryLocalStorageBytes(start, end time.Time) *Future[LocalStorageBytesResult]
 
 	// Nodes
+	QueryNodeInfo(start, end time.Time) *Future[NodeInfoResult]
+	QueryNodeUptime(start, end time.Time) *Future[UptimeResult]
 	QueryNodeActiveMinutes(start, end time.Time) *Future[NodeActiveMinutesResult]
 	QueryNodeCPUCoresCapacity(start, end time.Time) *Future[NodeCPUCoresCapacityResult]
 	QueryNodeCPUCoresAllocatable(start, end time.Time) *Future[NodeCPUCoresAllocatableResult]
@@ -39,6 +38,7 @@ type MetricsQuerier interface {
 	QueryLBPricePerHr(start, end time.Time) *Future[LBPricePerHrResult]
 
 	// Cluster Management
+	QueryClusterInfo(start, end time.Time) *Future[ClusterInfoResult]
 	QueryClusterUptime(start, end time.Time) *Future[UptimeResult]
 	QueryClusterManagementDuration(start, end time.Time) *Future[ClusterManagementDurationResult]
 	QueryClusterManagementPricePerHr(start, end time.Time) *Future[ClusterManagementPricePerHrResult]
@@ -46,6 +46,13 @@ type MetricsQuerier interface {
 	// Pods
 	QueryPods(start, end time.Time) *Future[PodsResult]
 	QueryPodsUID(start, end time.Time) *Future[PodsResult]
+	QueryPodInfo(start, end time.Time) *Future[PodInfoResult]
+	QueryPodUptime(start, end time.Time) *Future[UptimeResult]
+	QueryPodOwners(start, end time.Time) *Future[OwnerResult]
+	QueryPodPVCVolumes(start, end time.Time) *Future[PodPVCVolumeResult]
+
+	// Container
+	QueryContainerUptime(start, end time.Time) *Future[ContainerUptimeResult]
 
 	// RAM
 	QueryRAMBytesAllocated(start, end time.Time) *Future[RAMBytesAllocatedResult]
@@ -76,14 +83,64 @@ type MetricsQuerier interface {
 	QueryPodPVCAllocation(start, end time.Time) *Future[PodPVCAllocationResult]
 	QueryPVCBytesRequested(start, end time.Time) *Future[PVCBytesRequestedResult]
 	QueryPVCInfo(start, end time.Time) *Future[PVCInfoResult]
+	QueryPVCUptime(start, end time.Time) *Future[UptimeResult]
 
 	// PV
 	QueryPVBytes(start, end time.Time) *Future[PVBytesResult]
 	QueryPVPricePerGiBHour(start, end time.Time) *Future[PVPricePerGiBHourResult]
 	QueryPVInfo(start, end time.Time) *Future[PVInfoResult]
+	QueryPVUptime(start, end time.Time) *Future[UptimeResult]
+	QueryPVActiveMinutes(start, end time.Time) *Future[PVActiveMinutesResult]
+	QueryPVUsedAverage(start, end time.Time) *Future[PVUsedAvgResult]
+	QueryPVUsedMax(start, end time.Time) *Future[PVUsedMaxResult]
+
+	// Deployment
+	QueryDeploymentInfo(start, end time.Time) *Future[DeploymentInfoResult]
+	QueryDeploymentUptime(start, end time.Time) *Future[UptimeResult]
+	QueryDeploymentLabels(start, end time.Time) *Future[LabelsResult]
+	QueryDeploymentAnnotations(start, end time.Time) *Future[AnnotationsResult]
+	QueryDeploymentMatchLabels(start, end time.Time) *Future[DeploymentLabelsResult]
+
+	// StatefulSet
+	QueryStatefulSetInfo(start, end time.Time) *Future[StatefulSetInfoResult]
+	QueryStatefulSetUptime(start, end time.Time) *Future[UptimeResult]
+	QueryStatefulSetLabels(start, end time.Time) *Future[LabelsResult]
+	QueryStatefulSetAnnotations(start, end time.Time) *Future[AnnotationsResult]
+	QueryStatefulSetMatchLabels(start, end time.Time) *Future[StatefulSetLabelsResult]
+
+	// DaemonSet
+	QueryDaemonSetInfo(start, end time.Time) *Future[DaemonSetInfoResult]
+	QueryDaemonSetUptime(start, end time.Time) *Future[UptimeResult]
+	QueryDaemonSetLabels(start, end time.Time) *Future[LabelsResult]
+	QueryDaemonSetAnnotations(start, end time.Time) *Future[AnnotationsResult]
+
+	// Job
+	QueryJobInfo(start, end time.Time) *Future[JobInfoResult]
+	QueryJobUptime(start, end time.Time) *Future[UptimeResult]
+	QueryJobLabels(start, end time.Time) *Future[LabelsResult]
+	QueryJobAnnotations(start, end time.Time) *Future[AnnotationsResult]
+
+	// CronJob
+	QueryCronJobInfo(start, end time.Time) *Future[CronJobInfoResult]
+	QueryCronJobUptime(start, end time.Time) *Future[UptimeResult]
+	QueryCronJobLabels(start, end time.Time) *Future[LabelsResult]
+	QueryCronJobAnnotations(start, end time.Time) *Future[AnnotationsResult]
+
+	// ReplicaSet
+	QueryReplicaSetInfo(start, end time.Time) *Future[ReplicaSetInfoResult]
+	QueryReplicaSetUptime(start, end time.Time) *Future[UptimeResult]
+	QueryReplicaSetLabels(start, end time.Time) *Future[LabelsResult]
+	QueryReplicaSetAnnotations(start, end time.Time) *Future[AnnotationsResult]
+	QueryReplicaSetOwners(start, end time.Time) *Future[OwnerResult]
 
 	// Namespace
+	QueryNamespaceInfo(start, end time.Time) *Future[NamespaceInfoResult]
 	QueryNamespaceUptime(start, end time.Time) *Future[UptimeResult]
+
+	// Service
+	QueryServiceInfo(start, end time.Time) *Future[ServiceInfoResult]
+	QueryServiceUptime(start, end time.Time) *Future[UptimeResult]
+	QueryServiceSelectorLabels(start, end time.Time) *Future[ServiceLabelsResult]
 
 	// Network Egress
 	QueryNetZoneGiB(start, end time.Time) *Future[NetZoneGiBResult]
@@ -114,11 +171,9 @@ type MetricsQuerier interface {
 	QueryNodeLabels(start, end time.Time) *Future[NodeLabelsResult]
 	QueryNamespaceLabels(start, end time.Time) *Future[NamespaceLabelsResult]
 	QueryPodLabels(start, end time.Time) *Future[PodLabelsResult]
-	QueryServiceLabels(start, end time.Time) *Future[ServiceLabelsResult]
-	QueryDeploymentLabels(start, end time.Time) *Future[DeploymentLabelsResult]
-	QueryStatefulSetLabels(start, end time.Time) *Future[StatefulSetLabelsResult]
-	QueryDaemonSetLabels(start, end time.Time) *Future[DaemonSetLabelsResult]
-	QueryJobLabels(start, end time.Time) *Future[JobLabelsResult]
+
+	QueryPodsWithDaemonSetOwner(start, end time.Time) *Future[PodsWithDaemonSetOwnerResult]
+	QueryPodsWithJobOwner(start, end time.Time) *Future[PodsWithJobOwnerResult]
 
 	// ReplicaSet -> Controller mapping
 	QueryPodsWithReplicaSetOwner(start, end time.Time) *Future[PodsWithReplicaSetOwnerResult]
@@ -126,6 +181,7 @@ type MetricsQuerier interface {
 	QueryReplicaSetsWithRollout(start, end time.Time) *Future[ReplicaSetsWithRolloutResult]
 
 	// ResourceQuotas
+	QueryResourceQuotaInfo(start, end time.Time) *Future[ResourceQuotaInfoResult]
 	QueryResourceQuotaUptime(start, end time.Time) *Future[UptimeResult]
 	QueryResourceQuotaSpecCPURequestAverage(start, end time.Time) *Future[ResourceQuotaSpecCPURequestAvgResult]
 	QueryResourceQuotaSpecCPURequestMax(start, end time.Time) *Future[ResourceQuotaSpecCPURequestMaxResult]

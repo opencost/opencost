@@ -5,42 +5,78 @@ import (
 	"time"
 )
 
-type Pod struct {
-	UID                  string            `json:"uid"`
-	NamespaceUID         string            `json:"namespaceUid"`
-	OwnerUID             string            `json:"ownerUid"` // Reference to Owner (Deployment, StatefulSet, etc.)
-	NodeUID              string            `json:"nodeUid"`
-	Name                 string            `json:"name"`
-	Labels               map[string]string `json:"labels,omitempty"`
-	Annotations          map[string]string `json:"annotations,omitempty"`
-	DurationSeconds      Measurement       `json:"durationSeconds"`
-	NetworkTransferBytes Measurement       `json:"networkTransferBytes"`
-	NetworkReceiveBytes  Measurement       `json:"networkReceiveBytes"`
-	Start                time.Time         `json:"start,omitempty"` // Pod creation/start timestamp
-	End                  time.Time         `json:"end,omitempty"`   // Pod deletion/end timestamp (nil if still running)
+// @bingen:generate:PodPVCVolumes
+type PodPVCVolumes struct {
+	Name                     string `json:"name"`
+	PersistentVolumeClaimUID string `json:"persistentVolumeClaimUID"`
 }
 
-func (kms *KubeModelSet) RegisterPod(uid, name, namespace string) error {
-	if uid == "" {
-		err := fmt.Errorf("UID is nil for Pod '%s'", name)
+// @bingen:generate:NetworkTraffic
+type NetworkTraffic struct {
+	CrossZoneBytes   float64
+	CrossRegionBytes float64
+	InternetBytes    float64
+	NatGatewayBytes  float64
+	ExternalServices []*NetworkService
+}
+
+// @bingen:generate:NetworkService
+type NetworkService struct {
+	ServiceName string
+	TotalBytes  float64
+}
+
+// @bingen:generate:Pod
+type Pod struct {
+	UID            string            `json:"uid"`
+	NamespaceUID   string            `json:"namespaceUid"`
+	NodeUID        string            `json:"nodeUid"`
+	Name           string            `json:"name"`
+	Owners         []Owner           `json:"owners"`
+	PVCVolumes     []PodPVCVolumes   `json:"pvcVolumes"`
+	Labels         map[string]string `json:"labels,omitempty"`
+	Annotations    map[string]string `json:"annotations,omitempty"`
+	NetworkEgress  *NetworkTraffic   `json:"networkEgress"`
+	NetworkIngress *NetworkTraffic   `json:"networkIngress"`
+	Start          time.Time         `json:"start"`
+	End            time.Time         `json:"end"`
+}
+
+func (kms *KubeModelSet) RegisterPod(pod *Pod) error {
+	// Check required fields
+	if pod.UID == "" {
+		err := fmt.Errorf("UID is missing for Pod with name '%s'", pod.Name)
 		kms.Error(err)
 		return err
 	}
 
-	if _, ok := kms.Pods[uid]; !ok {
-		namespaceUID := ""
+	if pod.Name == "" {
+		err := fmt.Errorf("Name is missing for Pod '%s'", pod.UID)
+		kms.Error(err)
+		return err
+	}
 
-		if ns, ok := kms.idx.namespaceByName[namespace]; !ok {
-			kms.Warnf("RegisterPod(%s, %s, %s): missing namespace '%s'", uid, name, namespace, namespace)
-		} else {
-			namespaceUID = ns.UID
+	if kms.Window.Start.After(pod.Start) ||
+		kms.Window.Start.After(pod.End) ||
+		kms.Window.End.Before(pod.Start) ||
+		kms.Window.End.Before(pod.End) {
+		err := fmt.Errorf(
+			"Pod '%s' has a start or end time (%s-%s) outside of the window %s-%s",
+			pod.Start.Format(time.RFC3339),
+			pod.End.Format(time.RFC3339),
+			kms.Window.Start.Format(time.RFC3339),
+			kms.Window.End.Format(time.RFC3339),
+		)
+		kms.Error(err)
+		return err
+	}
+
+	if _, ok := kms.Pods[pod.UID]; !ok {
+		if kms.Cluster == nil {
+			kms.Warnf("RegisterPod: Cluster is nil")
 		}
 
-		kms.Pods[uid] = &Pod{
-			UID:          uid,
-			Name:         name,
-			NamespaceUID: namespaceUID,
-		}
+		kms.Pods[pod.UID] = pod
 
 		kms.Metadata.ObjectCount++
 	}

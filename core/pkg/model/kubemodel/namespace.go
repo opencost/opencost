@@ -7,38 +7,39 @@ import (
 
 // @bingen:generate:Namespace
 type Namespace struct {
-	UID         string            `json:"uid"`             // @bingen:field[version=1]
-	ClusterUID  string            `json:"clusterUID"`      // @bingen:field[version=1]
-	Name        string            `json:"name"`            // @bingen:field[version=1]
-	Labels      map[string]string `json:"labels"`          // @bingen:field[version=1]
-	Annotations map[string]string `json:"annotations"`     // @bingen:field[version=1]
-	Start       time.Time         `json:"start,omitempty"` // @bingen:field[version=1]
-	End         time.Time         `json:"end,omitempty"`   // @bingen:field[version=1]
+	UID string `json:"uid"` // @bingen:field[version=1]
+	// This field was included in the initial bigen codec but was never populated. If you need to add a new string
+	// field to this structure rename this field and delete this comment
+	bingenPlaceHolder string            // @bingen:field[version=1]
+	Name              string            `json:"name"`            // @bingen:field[version=1]
+	Labels            map[string]string `json:"labels"`          // @bingen:field[version=1]
+	Annotations       map[string]string `json:"annotations"`     // @bingen:field[version=1]
+	Start             time.Time         `json:"start,omitempty"` // @bingen:field[version=1]
+	End               time.Time         `json:"end,omitempty"`   // @bingen:field[version=1]
 }
 
-func (kms *KubeModelSet) RegisterNamespace(uid, name string) error {
-	if uid == "" {
-		err := fmt.Errorf("UID is nil for Namespace '%s'", name)
+func (kms *KubeModelSet) RegisterNamespace(namespace *Namespace) error {
+	// Check required fields
+	if namespace.UID == "" {
+		err := fmt.Errorf("UID is missing for Namespace with name '%s'", namespace.Name)
 		kms.Error(err)
 		return err
 	}
 
-	if _, ok := kms.Namespaces[uid]; !ok {
-		clusterUID := ""
+	if namespace.Name == "" {
+		err := fmt.Errorf("Name is missing for Namespace '%s'", namespace.UID)
+		kms.Error(err)
+		return err
+	}
 
+	if _, ok := kms.Namespaces[namespace.UID]; !ok {
 		if kms.Cluster == nil {
-			kms.Warnf("RegisterNamespace(%s, %s): Cluster is nil", uid, name)
-		} else {
-			clusterUID = kms.Cluster.UID
+			kms.Warnf("RegisterNamespace: Cluster is nil")
 		}
 
-		kms.Namespaces[uid] = &Namespace{
-			UID:        uid,
-			ClusterUID: clusterUID,
-			Name:       name,
-		}
+		kms.Namespaces[namespace.UID] = namespace
 
-		kms.idx.namespaceByName[name] = kms.Namespaces[uid]
+		kms.idx.namespaceByName[namespace.Name] = namespace
 
 		kms.Metadata.ObjectCount++
 	}
