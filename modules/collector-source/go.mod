@@ -2,7 +2,7 @@ module github.com/opencost/opencost/modules/collector-source
 
 replace github.com/opencost/opencost/core => ./../../core
 
-go 1.26.1
+go 1.25.5
 
 require (
 	github.com/julienschmidt/httprouter v1.3.0
