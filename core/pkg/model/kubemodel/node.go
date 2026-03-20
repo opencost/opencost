@@ -10,18 +10,17 @@ import (
 // All resource measures (CPU, RAM) represent node capacity, not requests or limits.
 // This aligns with the principle that cost allocation should be based on provisioned capacity.
 type Node struct {
-	UID          string            `json:"uid"`
-	ProviderID   string            `json:"providerId"`
-	Name         string            `json:"name"`
-	Labels       map[string]string `json:"labels"`
-	InstanceType string            `json:"instanceType"`
-	Preemptible  bool              `json:"preemptible"` // TODO unpopulated
-	CPUCores     float64           `json:"cpuCores"`
-	RAMBytes     float64           `json:"ramBytes"`
-	GPUCount     float64           `json:"gpuCount"`
-	FileSystem   FileSystem        `json:"fileSystem"`
-	Start        time.Time         `json:"start"`
-	End          time.Time         `json:"end"`
+	UID                  string                      `json:"uid"`
+	ProviderID           string                      `json:"providerId"`
+	Name                 string                      `json:"name"`
+	Labels               map[string]string           `json:"labels"`
+	InstanceType         string                      `json:"instanceType"`
+	Preemptible          bool                        `json:"preemptible"` // TODO unpopulated
+	ResourceCapacities   map[string]ResourceQuantity `json:"resourceCapacities"`
+	ResourcesAllocatable map[string]ResourceQuantity `json:"resourcesAllocatable"`
+	FileSystem           FileSystem                  `json:"fileSystem"`
+	Start                time.Time                   `json:"start"`
+	End                  time.Time                   `json:"end"`
 }
 
 // @bingen:generate:FileSystem

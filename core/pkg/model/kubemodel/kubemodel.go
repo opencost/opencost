@@ -20,8 +20,6 @@ type KubeModelSet struct {
 	Jobs                   map[string]*Job                   `json:"jobs,omitempty"`         // @bingen:field[version=2]
 	CronJobs               map[string]*CronJob               `json:"cronJobs,omitempty"`     // @bingen:field[version=2]
 	ReplicaSets            map[string]*ReplicaSet            `json:"replicaSets,omitempty"`  // @bingen:field[version=2]
-	Devices                map[string]*Device                `json:"devices,omitempty"`      // @bingen:field[ignore]
-	DeviceUsages           map[string]*DeviceUsage           `json:"deviceUsages,omitempty"` // @bingen:field[ignore]
 	Nodes                  map[string]*Node                  `json:"nodes,omitempty"`        // @bingen:field[version=2]
 	Pods                   map[string]*Pod                   `json:"pods,omitempty"`         // @bingen:field[version=2]
 	PersistentVolumeClaims map[string]*PersistentVolumeClaim `json:"pvcs,omitempty"`         // @bingen:field[version=2]
@@ -49,8 +47,6 @@ func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
 		Jobs:                   map[string]*Job{},
 		CronJobs:               map[string]*CronJob{},
 		ReplicaSets:            map[string]*ReplicaSet{},
-		Devices:                map[string]*Device{},
-		DeviceUsages:           map[string]*DeviceUsage{},
 		Namespaces:             map[string]*Namespace{},
 		Nodes:                  map[string]*Node{},
 		Pods:                   map[string]*Pod{},
@@ -92,8 +88,6 @@ func (kms *KubeModelSet) IsEmpty() bool {
 		len(kms.Jobs) == 0 &&
 		len(kms.CronJobs) == 0 &&
 		len(kms.ReplicaSets) == 0 &&
-		len(kms.Devices) == 0 &&
-		len(kms.DeviceUsages) == 0 &&
 		len(kms.Namespaces) == 0 &&
 		len(kms.Nodes) == 0 &&
 		len(kms.Pods) == 0 &&
