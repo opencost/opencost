@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
 )
+
+var otcHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 // Fetches and flattens all product entries across multiple services with pagination
 func (otc *OTC) fetchPaginatedProducts(serviceNames []string) ([]Product, error) {
@@ -20,10 +23,17 @@ func (otc *OTC) fetchPaginatedProducts(serviceNames []string) ([]Product, error)
 	for {
 		url := fmt.Sprintf("%s?%s&columns%%5B0%%5D=productIdParameter&columns%%5B1%%5D=opiFlavour&columns%%5B2%%5D=osUnit&columns%%5B3%%5D=vCpu&columns%%5B4%%5D=ram&columns%%5B5%%5D=priceAmount&limitFrom=%d", baseURL, query, limitFrom)
 
-		resp, err := http.Get(url)
+		resp, err := otcHTTPClient.Get(url)
 		if err != nil {
+			if resp != nil {
+				resp.Body.Close()
+			}
 			log.Errorf("Error fetching products from OTC API: %v", err)
 			return nil, err
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			return nil, fmt.Errorf("OTC API returned unexpected status %d", resp.StatusCode)
 		}
 
 		pageData, stats, err := otc.loadPaginatedResponse(resp)
