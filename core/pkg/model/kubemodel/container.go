@@ -7,24 +7,18 @@ import (
 
 // @bingen:generate:Container
 type Container struct {
-	PodUID            string    `json:"podUid"`
-	Name              string    `json:"name"`
-	CPUCoreAllocated  float64   `json:"cpuCoreAllocated"`
-	CPUCoreUsageAvg   float64   `json:"cpuCoreUsageAvg"`
-	CPUCoreUsageMax   float64   `json:"cpuCoreUsageMax"`
-	CPUCoreRequest    float64   `json:"cpuCoreRequest"`
-	CPUCoreLimit      float64   `json:"cpuCoreLimit"`
-	RAMBytesAllocated float64   `json:"ramBytesAllocated"`
-	RAMBytesUsageAvg  float64   `json:"ramBytesUsageAvg"`
-	RAMBytesUsageMax  float64   `json:"ramBytesUsageMax"`
-	RAMBytesRequest   float64   `json:"ramBytesRequest"`
-	RAMBytesLimit     float64   `json:"ramBytesLimit"`
-	GPUAllocated      float64   `json:"gpuAllocated"`
-	GPUUsageAvg       float64   `json:"gpuUsageAvg"`
-	GPUUsageMax       float64   `json:"gpuUsageMax"`
-	GPURequest        float64   `json:"gpuRequest"`
-	Start             time.Time `json:"start"`
-	End               time.Time `json:"end"`
+	PodUID           string             `json:"podUid"`
+	Name             string             `json:"name"`
+	ResourceRequests ResourceQuantities `json:"resourceRequests"`
+	ResourceLimits   ResourceQuantities `json:"ResourceLimits"`
+	CPUCoreUsageAvg  float64            `json:"cpuCoreUsageAvg"`
+	CPUCoreUsageMax  float64            `json:"cpuCoreUsageMax"`
+	RAMBytesUsageAvg float64            `json:"ramBytesUsageAvg"`
+	RAMBytesUsageMax float64            `json:"ramBytesUsageMax"`
+	GPUUsageAvg      float64            `json:"gpuUsageAvg"`
+	GPUUsageMax      float64            `json:"gpuUsageMax"`
+	Start            time.Time          `json:"start"`
+	End              time.Time          `json:"end"`
 }
 
 func (c *Container) GetKey() string {
