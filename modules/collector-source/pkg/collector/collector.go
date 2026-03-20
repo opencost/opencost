@@ -27,6 +27,8 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewLocalStorageActiveMinutesMetricCollector())
 	memStore.Register(NewNodeInfoMetricCollector())
 	memStore.Register(NewNodeUptimeMetricCollector())
+	memStore.Register(NewNodeResourceCapacitiesMetricCollector())
+	memStore.Register(NewNodeResourcesAllocatableMetricCollector())
 	memStore.Register(NewNodeCPUCoresCapacityMetricCollector())
 	memStore.Register(NewNodeCPUCoresAllocatableMetricCollector())
 	memStore.Register(NewNodeRAMBytesCapacityMetricCollector())
@@ -125,6 +127,8 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewPodOwnerMetricCollector())
 	memStore.Register(NewPodPVCVolumeMetricCollector())
 	memStore.Register(NewContainerUptimeMetricCollector())
+	memStore.Register(NewContainerResourceRequestsMetricCollector())
+	memStore.Register(NewContainerResourceLimitsMetricCollector())
 	memStore.Register(NewReplicaSetsWithoutOwnersMetricCollector())
 	memStore.Register(NewReplicaSetsWithRolloutMetricCollector())
 	memStore.Register(NewResourceQuotaInfoMetricCollector())
@@ -418,6 +422,34 @@ func NewNodeUptimeMetricCollector() *metric.MetricCollector {
 			source.UIDLabel,
 		},
 		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewNodeResourceCapacitiesMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NodeResourceCapacitiesID,
+		metric.NodeResourceCapacities,
+		[]string{
+			source.UIDLabel,
+			source.ResourceLabel,
+			source.UnitLabel,
+		},
+		aggregator.AverageOverTime,
+		nil,
+	)
+}
+
+func NewNodeResourcesAllocatableMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NodeResourcesAllocatableID,
+		metric.NodeResourcesAllocatable,
+		[]string{
+			source.UIDLabel,
+			source.ResourceLabel,
+			source.UnitLabel,
+		},
+		aggregator.AverageOverTime,
 		nil,
 	)
 }
@@ -1083,6 +1115,36 @@ func NewCPULimitsMetricCollector() *metric.MetricCollector {
 		func(labels map[string]string) bool {
 			return labels[source.ResourceLabel] == "cpu" && labels[source.UnitLabel] == "core" && labels[source.ContainerLabel] != "POD" && labels[source.ContainerLabel] != "" && labels[source.NodeLabel] != ""
 		},
+	)
+}
+
+func NewContainerResourceRequestsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ContainerResourceRequestsID,
+		metric.KubePodContainerResourceRequests,
+		[]string{
+			source.UIDLabel,
+			source.ContainerLabel,
+			source.ResourceLabel,
+			source.UnitLabel,
+		},
+		aggregator.AverageOverTime,
+		nil,
+	)
+}
+
+func NewContainerResourceLimitsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ContainerResourceLimitsID,
+		metric.KubePodContainerResourceLimits,
+		[]string{
+			source.UIDLabel,
+			source.ContainerLabel,
+			source.ResourceLabel,
+			source.UnitLabel,
+		},
+		aggregator.AverageOverTime,
+		nil,
 	)
 }
 

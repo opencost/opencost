@@ -299,6 +299,14 @@ func (c *collectorMetricsQuerier) QueryNodeRAMUserPercent(start, end time.Time) 
 	return f
 }
 
+func (c *collectorMetricsQuerier) QueryNodeResourceCapacities(start, end time.Time) *source.Future[source.ResourceResult] {
+	return queryCollector(c, start, end, metric.NodeResourceCapacitiesID, source.DecodeResourceResult)
+}
+
+func (c *collectorMetricsQuerier) QueryNodeResourcesAllocatable(start, end time.Time) *source.Future[source.ResourceResult] {
+	return queryCollector(c, start, end, metric.NodeResourcesAllocatableID, source.DecodeResourceResult)
+}
+
 func (c *collectorMetricsQuerier) QueryLBActiveMinutes(start, end time.Time) *source.Future[source.LBActiveMinutesResult] {
 	return queryCollector(c, start, end, metric.LBActiveMinutesID, source.DecodeLBActiveMinutesResult)
 }
@@ -350,6 +358,14 @@ func (c *collectorMetricsQuerier) QueryPodPVCVolumes(start, end time.Time) *sour
 
 func (c *collectorMetricsQuerier) QueryContainerUptime(start, end time.Time) *source.Future[source.ContainerUptimeResult] {
 	return queryCollector(c, start, end, metric.ContainerUptimeID, source.DecodeContainerUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryContainerResourceRequests(start, end time.Time) *source.Future[source.ContainerResourceResult] {
+	return queryCollector(c, start, end, metric.ContainerResourceRequestsID, source.DecodeContainerResourceResult)
+}
+
+func (c *collectorMetricsQuerier) QueryContainerResourceLimits(start, end time.Time) *source.Future[source.ContainerResourceResult] {
+	return queryCollector(c, start, end, metric.ContainerResourceLimitsID, source.DecodeContainerResourceResult)
 }
 
 func (c *collectorMetricsQuerier) QueryRAMBytesAllocated(start, end time.Time) *source.Future[source.RAMBytesAllocatedResult] {
@@ -704,68 +720,68 @@ func (c *collectorMetricsQuerier) QueryResourceQuotaUptime(start, end time.Time)
 	return queryCollector(c, start, end, metric.ResourceQuotaUptimeID, source.DecodeUptimeResult)
 }
 
-func (c *collectorMetricsQuerier) QueryResourceQuotaSpecCPURequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPURequestAvgResult] {
-	return queryCollector(c, start, end, metric.ResourceQuotaSpecCPURequestAverageID, source.DecodeResourceQuotaSpecCPURequestAvgResult)
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecCPURequestAverage(start, end time.Time) *source.Future[source.ResourceResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecCPURequestAverageID, source.DecodeResourceResult)
 }
 
-func (c *collectorMetricsQuerier) QueryResourceQuotaSpecCPURequestMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPURequestMaxResult] {
-	return queryCollector(c, start, end, metric.ResourceQuotaSpecCPURequestMaxID, source.DecodeResourceQuotaSpecCPURequestMaxResult)
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecCPURequestMax(start, end time.Time) *source.Future[source.ResourceResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecCPURequestMaxID, source.DecodeResourceResult)
 }
 
-func (c *collectorMetricsQuerier) QueryResourceQuotaSpecRAMRequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMRequestAvgResult] {
-	return queryCollector(c, start, end, metric.ResourceQuotaSpecRAMRequestAverageID, source.DecodeResourceQuotaSpecRAMRequestAvgResult)
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecRAMRequestAverage(start, end time.Time) *source.Future[source.ResourceResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecRAMRequestAverageID, source.DecodeResourceResult)
 }
 
-func (c *collectorMetricsQuerier) QueryResourceQuotaSpecRAMRequestMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMRequestMaxResult] {
-	return queryCollector(c, start, end, metric.ResourceQuotaSpecRAMRequestMaxID, source.DecodeResourceQuotaSpecRAMRequestMaxResult)
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecRAMRequestMax(start, end time.Time) *source.Future[source.ResourceResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecRAMRequestMaxID, source.DecodeResourceResult)
 }
 
-func (c *collectorMetricsQuerier) QueryResourceQuotaSpecCPULimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPULimitAvgResult] {
-	return queryCollector(c, start, end, metric.ResourceQuotaSpecCPULimitAverageID, source.DecodeResourceQuotaSpecCPULimitAvgResult)
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecCPULimitAverage(start, end time.Time) *source.Future[source.ResourceResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecCPULimitAverageID, source.DecodeResourceResult)
 }
 
-func (c *collectorMetricsQuerier) QueryResourceQuotaSpecCPULimitMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPULimitMaxResult] {
-	return queryCollector(c, start, end, metric.ResourceQuotaSpecCPULimitMaxID, source.DecodeResourceQuotaSpecCPULimitMaxResult)
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecCPULimitMax(start, end time.Time) *source.Future[source.ResourceResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecCPULimitMaxID, source.DecodeResourceResult)
 }
 
-func (c *collectorMetricsQuerier) QueryResourceQuotaSpecRAMLimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMLimitAvgResult] {
-	return queryCollector(c, start, end, metric.ResourceQuotaSpecRAMLimitAverageID, source.DecodeResourceQuotaSpecRAMLimitAvgResult)
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecRAMLimitAverage(start, end time.Time) *source.Future[source.ResourceResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecRAMLimitAverageID, source.DecodeResourceResult)
 }
 
-func (c *collectorMetricsQuerier) QueryResourceQuotaSpecRAMLimitMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMLimitMaxResult] {
-	return queryCollector(c, start, end, metric.ResourceQuotaSpecRAMLimitMaxID, source.DecodeResourceQuotaSpecRAMLimitMaxResult)
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecRAMLimitMax(start, end time.Time) *source.Future[source.ResourceResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecRAMLimitMaxID, source.DecodeResourceResult)
 }
 
-func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedCPURequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPURequestAvgResult] {
-	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedCPURequestAverageID, source.DecodeResourceQuotaStatusUsedCPURequestAvgResult)
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedCPURequestAverage(start, end time.Time) *source.Future[source.ResourceResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedCPURequestAverageID, source.DecodeResourceResult)
 }
 
-func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedCPURequestMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPURequestMaxResult] {
-	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedCPURequestMaxID, source.DecodeResourceQuotaStatusUsedCPURequestMaxResult)
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedCPURequestMax(start, end time.Time) *source.Future[source.ResourceResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedCPURequestMaxID, source.DecodeResourceResult)
 }
 
-func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedRAMRequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMRequestAvgResult] {
-	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedRAMRequestAverageID, source.DecodeResourceQuotaStatusUsedRAMRequestAvgResult)
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedRAMRequestAverage(start, end time.Time) *source.Future[source.ResourceResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedRAMRequestAverageID, source.DecodeResourceResult)
 }
 
-func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedRAMRequestMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMRequestMaxResult] {
-	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedRAMRequestMaxID, source.DecodeResourceQuotaStatusUsedRAMRequestMaxResult)
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedRAMRequestMax(start, end time.Time) *source.Future[source.ResourceResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedRAMRequestMaxID, source.DecodeResourceResult)
 }
 
-func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedCPULimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPULimitAvgResult] {
-	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedCPULimitAverageID, source.DecodeResourceQuotaStatusUsedCPULimitAvgResult)
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedCPULimitAverage(start, end time.Time) *source.Future[source.ResourceResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedCPULimitAverageID, source.DecodeResourceResult)
 }
 
-func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedCPULimitMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPULimitMaxResult] {
-	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedCPULimitMaxID, source.DecodeResourceQuotaStatusUsedCPULimitMaxResult)
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedCPULimitMax(start, end time.Time) *source.Future[source.ResourceResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedCPULimitMaxID, source.DecodeResourceResult)
 }
 
-func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMLimitAvgResult] {
-	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedRAMLimitAverageID, source.DecodeResourceQuotaStatusUsedRAMLimitAvgResult)
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimitAverage(start, end time.Time) *source.Future[source.ResourceResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedRAMLimitAverageID, source.DecodeResourceResult)
 }
 
-func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimitMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMLimitMaxResult] {
-	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedRAMLimitMaxID, source.DecodeResourceQuotaStatusUsedRAMLimitMaxResult)
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimitMax(start, end time.Time) *source.Future[source.ResourceResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedRAMLimitMaxID, source.DecodeResourceResult)
 }
 
 func (c *collectorMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {

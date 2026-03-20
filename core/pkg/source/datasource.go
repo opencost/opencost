@@ -55,8 +55,8 @@ type MetricsQuerier interface {
 
 	// Container
 	QueryContainerUptime(start, end time.Time) *Future[ContainerUptimeResult]
-	QueryContainerResourceRequests(start, end time.Time) *Future[ResourceResult]
-	QueryContainerResourceLimits(start, end time.Time) *Future[ResourceResult]
+	QueryContainerResourceRequests(start, end time.Time) *Future[ContainerResourceResult]
+	QueryContainerResourceLimits(start, end time.Time) *Future[ContainerResourceResult]
 
 	// RAM
 	QueryRAMBytesAllocated(start, end time.Time) *Future[RAMBytesAllocatedResult]

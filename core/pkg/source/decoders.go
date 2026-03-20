@@ -109,6 +109,8 @@ func DecodeUptimeResult(result *QueryResult) *UptimeResult {
 	}
 }
 
+// Container requires some special results because container name and pod UID is required to uniqly identify it
+
 type ContainerUptimeResult struct {
 	UptimeResult
 	Container string
@@ -120,6 +122,20 @@ func DecodeContainerUptimeResult(result *QueryResult) *ContainerUptimeResult {
 	return &ContainerUptimeResult{
 		UptimeResult: *ur,
 		Container:    container,
+	}
+}
+
+type ContainerResourceResult struct {
+	ResourceResult
+	Container string
+}
+
+func DecodeContainerResourceResult(result *QueryResult) *ContainerResourceResult {
+	container, _ := result.GetString(ContainerLabel)
+	rr := DecodeResourceResult(result)
+	return &ContainerResourceResult{
+		ResourceResult: *rr,
+		Container:      container,
 	}
 }
 

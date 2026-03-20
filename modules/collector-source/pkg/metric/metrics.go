@@ -4,6 +4,8 @@ const (
 	// Cluster Cache Metrics
 	ClusterInfo                                           = "cluster_info"
 	NodeInfo                                              = "node_info"
+	NodeResourceCapacities                                = "node_resource_capacities"
+	NodeResourcesAllocatable                              = "node_resources_allocatable"
 	PodInfo                                               = "pod_info"
 	PodPVCVolume                                          = "pod_pvc_volume"
 	KubeNodeStatusCapacityCPUCores                        = "kube_node_status_capacity_cpu_cores"
