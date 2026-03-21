@@ -39,14 +39,19 @@ test-collector-source:
     {{commonenv}} cd ./modules/collector-source && go test ./... -coverprofile=coverage.out
     {{commonenv}} cd ./modules/collector-source && go vet ./...
 
+# run prometheus-otel-source unit tests
+test-prometheus-otel-source:
+    {{commonenv}} cd ./modules/prometheus-otel-source && go test ./... -coverprofile=coverage.out
+    {{commonenv}} cd ./modules/prometheus-otel-source && go vet ./...
+
 # run the opencost unit tests 
 test-opencost: 
     {{commonenv}} go test ./... -coverprofile=coverage.out
     {{commonenv}} go tool cover -html=coverage.out -o coverage.html
     {{commonenv}} go vet ./...
 
-# Run unit tests, merge coverage reports, remove old reports 
-test: test-core test-prometheus-source test-collector-source test-opencost
+# Run unit tests, merge coverage reports, remove old reports
+test: test-core test-prometheus-source test-prometheus-otel-source test-collector-source test-opencost
     find . -name "coverage.out" -print0 | xargs -0 cat > coverage.new
     find . -name "coverage.out" -delete
     mv coverage.new coverage.out
