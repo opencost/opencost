@@ -14,7 +14,9 @@ func (pds *PrometheusMetricsQuerier) QueryPods(start, end time.Time) *source.Fut
 	cfg := pds.promConfig
 	m := cfg.DataResolutionMinutes
 	d := pds.durationStringFor(start, end, m, false)
-	q := fmt.Sprintf(`avg(kube_pod_container_status_running{%s} != 0) by (pod, k8s_namespace_name, %s)[%s:%dm]`, cfg.ClusterFilter, cfg.ClusterLabel, d, m)
+	// When kube-state-metrics already emits OTel-style labels (k8s_pod_name, k8s_namespace_name),
+	// no label_replace transformation is needed
+	q := fmt.Sprintf(`avg(kube_pod_container_status_running{%s} != 0) by (k8s_pod_name, k8s_namespace_name, %s)[%s:%dm]`, cfg.ClusterFilter, cfg.ClusterLabel, d, m)
 	log.Debugf(PrometheusMetricsQueryLogFormat, "QueryPods", end.Unix(), q)
 	return source.NewFuture(source.DecodePodsResult, pds.NewNamedContext(promsource.AllocationContextName).QueryAtTime(q, end))
 }
@@ -23,7 +25,9 @@ func (pds *PrometheusMetricsQuerier) QueryPodsUID(start, end time.Time) *source.
 	cfg := pds.promConfig
 	m := cfg.DataResolutionMinutes
 	d := pds.durationStringFor(start, end, m, false)
-	q := fmt.Sprintf(`avg(kube_pod_container_status_running{%s} != 0) by (pod, k8s_namespace_name, uid, %s)[%s:%dm]`, cfg.ClusterFilter, cfg.ClusterLabel, d, m)
+	// When kube-state-metrics already emits OTel-style labels (k8s_pod_name, k8s_namespace_name),
+	// no label_replace transformation is needed
+	q := fmt.Sprintf(`avg(kube_pod_container_status_running{%s} != 0) by (k8s_pod_name, k8s_namespace_name, uid, %s)[%s:%dm]`, cfg.ClusterFilter, cfg.ClusterLabel, d, m)
 	log.Debugf(PrometheusMetricsQueryLogFormat, "QueryPodsUID", end.Unix(), q)
 	return source.NewFuture(source.DecodePodsResult, pds.NewNamedContext(promsource.AllocationContextName).QueryAtTime(q, end))
 }

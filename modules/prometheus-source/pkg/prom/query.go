@@ -175,8 +175,8 @@ func (ctx *Context) QuerySync(query string) ([]*source.QueryResult, v1.Warnings,
 		return nil, warnings, err
 	}
 
-	// create result keys from custom cluster label
-	resultKeys := source.ClusterKeyWithDefaults(ctx.config.ClusterLabel)
+	// create result keys from config
+	resultKeys := ctx.resultKeys()
 
 	results := NewQueryResults(query, raw, resultKeys)
 	if results.Error != nil {
@@ -184,6 +184,16 @@ func (ctx *Context) QuerySync(query string) ([]*source.QueryResult, v1.Warnings,
 	}
 
 	return results.Results, warnings, nil
+}
+
+// resultKeys returns the appropriate ResultKeys based on the config.
+// If UseOTelLabels is true, it returns OTel-specific keys (k8s_container_name, etc.).
+// Otherwise, it returns default keys with the custom cluster label.
+func (ctx *Context) resultKeys() *source.ResultKeys {
+	if ctx.config.UseOTelLabels {
+		return source.OTelResultKeys(ctx.config.ClusterLabel)
+	}
+	return source.ClusterKeyWithDefaults(ctx.config.ClusterLabel)
 }
 
 // QueryURL returns the URL used to query Prometheus
@@ -205,8 +215,8 @@ func runQuery(query string, ctx *Context, resCh source.QueryResultsChan, t time.
 	if requestError != nil {
 		results = NewQueryResultError(query, requestError)
 	} else {
-		// create result keys from custom cluster label
-		resultKeys := source.ClusterKeyWithDefaults(ctx.config.ClusterLabel)
+		// create result keys from config
+		resultKeys := ctx.resultKeys()
 		results = NewQueryResults(query, raw, resultKeys)
 
 		parseError = results.Error
@@ -330,8 +340,8 @@ func (ctx *Context) QueryRangeSync(query string, start, end time.Time, step time
 		return nil, warnings, err
 	}
 
-	// create result keys from custom cluster label
-	resultKeys := source.ClusterKeyWithDefaults(ctx.config.ClusterLabel)
+	// create result keys from config
+	resultKeys := ctx.resultKeys()
 	results := NewQueryResults(query, raw, resultKeys)
 	if results.Error != nil {
 		return nil, warnings, results.Error
@@ -359,8 +369,8 @@ func runQueryRange(query string, start, end time.Time, step time.Duration, ctx *
 	if requestError != nil {
 		results = NewQueryResultError(query, requestError)
 	} else {
-		// create result keys from custom cluster label
-		resultKeys := source.ClusterKeyWithDefaults(ctx.config.ClusterLabel)
+		// create result keys from config
+		resultKeys := ctx.resultKeys()
 		results = NewQueryResults(query, raw, resultKeys)
 
 		parseError = results.Error

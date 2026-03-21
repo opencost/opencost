@@ -37,7 +37,8 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/modules/collector-source/pkg/collector"
-	"github.com/opencost/opencost/modules/prometheus-source/pkg/prom"
+	"github.com/opencost/opencost/modules/prometheus-otel-source/pkg/prom"
+	promsource "github.com/opencost/opencost/modules/prometheus-source/pkg/prom"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	clusterc "github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
@@ -466,8 +467,10 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	var fatalErr error
 
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// Default: Use standard Prometheus data source
 	fn := func() (source.OpenCostDataSource, error) {
-		ds, e := prom.NewDefaultPrometheusDataSource(clusterInfoProvider)
+		ds, e := promsource.NewDefaultPrometheusDataSource(clusterInfoProvider)
 		if e != nil {
 			if source.IsRetryable(e) {
 				return nil, e
@@ -478,6 +481,24 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 
 		return ds, e
 	}
+
+	// Alternative: Use Prometheus with OpenTelemetry Collector metrics
+	if env.IsPrometheusOTelDataSourceEnabled() {
+		fn = func() (source.OpenCostDataSource, error) {
+			ds, e := prom.NewDefaultPrometheusOTelDataSource(clusterInfoProvider)
+			if e != nil {
+				if source.IsRetryable(e) {
+					return nil, e
+				}
+				fatalErr = e
+				cancel()
+			}
+
+			return ds, e
+		}
+	}
+
+	// Alternative: Use Collector data source (no Prometheus)
 	if env.IsCollectorDataSourceEnabled() {
 		fn = func() (source.OpenCostDataSource, error) {
 			store := GetDefaultCollectorStorage()

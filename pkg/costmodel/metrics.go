@@ -9,12 +9,14 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/errors"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/atomic"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
+	promenv "github.com/opencost/opencost/modules/prometheus-source/pkg/env"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/metrics"
@@ -24,6 +26,173 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	v1 "k8s.io/api/core/v1"
 )
+
+//--------------------------------------------------------------------------
+//  Configurable Metric Labels (OTel compatibility)
+//--------------------------------------------------------------------------
+
+// Default label names (classic Prometheus/Kubernetes style)
+var (
+	metricLabelNode                  = "node"
+	metricLabelNamespace             = "namespace"
+	metricLabelPod                   = "pod"
+	metricLabelContainer             = "container"
+	metricLabelPersistentVolume      = "persistentvolume"
+	metricLabelPersistentVolumeClaim = "persistentvolumeclaim"
+	metricLabelVolumeName            = "volumename"
+	metricLabelCluster               = "" // Disabled by default (no cluster label in classic mode)
+	metricClusterValue               = "" // Cluster ID value when cluster label is enabled
+)
+
+// SetOTelLabels configures metrics to use OTel-style label names.
+// This should be called during initialization before metrics are registered.
+func SetOTelLabels(clusterID, clusterLabel string) {
+	metricLabelNode = "k8s_node_name"
+	metricLabelNamespace = "k8s_namespace_name"
+	metricLabelPod = "k8s_pod_name"
+	metricLabelContainer = "k8s_container_name"
+	metricLabelPersistentVolume = "k8s_persistentvolume_name"
+	metricLabelPersistentVolumeClaim = "k8s_persistentvolumeclaim_name"
+	metricLabelVolumeName = "k8s_volume_name"
+	metricLabelCluster = clusterLabel
+	metricClusterValue = clusterID
+}
+
+// initOTelLabelsFromEnv checks environment variables and configures OTel labels if enabled.
+// This must be called before metrics are registered (before initCostModelMetrics).
+var otelLabelsInitOnce sync.Once
+
+func initOTelLabelsFromEnv() {
+	otelLabelsInitOnce.Do(func() {
+		if env.IsOTelLabelsEnabled() {
+			clusterID := coreenv.GetClusterID()
+			clusterLabel := promenv.GetPromClusterLabel()
+			SetOTelLabels(clusterID, clusterLabel)
+			log.Infof("OpenCost metrics using OTel-style labels (cluster label: %s=%s)", clusterLabel, clusterID)
+		}
+	})
+}
+
+// nodeMetricLabels returns the label names for node metrics
+func nodeMetricLabels() []string {
+	labels := []string{"instance", metricLabelNode, "instance_type", "region", "provider_id", "arch", "uid"}
+	if metricLabelCluster != "" {
+		labels = append(labels, metricLabelCluster)
+	}
+	return labels
+}
+
+// pvMetricLabels returns the label names for persistent volume metrics
+func pvMetricLabels() []string {
+	labels := []string{metricLabelVolumeName, metricLabelPersistentVolume, "provider_id", "uid"}
+	if metricLabelCluster != "" {
+		labels = append(labels, metricLabelCluster)
+	}
+	return labels
+}
+
+// containerMetricLabels returns the label names for container metrics
+func containerMetricLabels() []string {
+	labels := []string{metricLabelNamespace, metricLabelPod, metricLabelContainer, "instance", metricLabelNode, "uid"}
+	if metricLabelCluster != "" {
+		labels = append(labels, metricLabelCluster)
+	}
+	return labels
+}
+
+// pvcMetricLabels returns the label names for PVC allocation metrics
+func pvcMetricLabels() []string {
+	labels := []string{metricLabelNamespace, metricLabelPod, metricLabelPersistentVolumeClaim, metricLabelPersistentVolume, "uid"}
+	if metricLabelCluster != "" {
+		labels = append(labels, metricLabelCluster)
+	}
+	return labels
+}
+
+// lbMetricLabels returns the label names for load balancer metrics
+func lbMetricLabels() []string {
+	labels := []string{"ingress_ip", metricLabelNamespace, "service_name", "uid"}
+	if metricLabelCluster != "" {
+		labels = append(labels, metricLabelCluster)
+	}
+	return labels
+}
+
+// buildNodeLabels creates a prometheus.Labels map for node metrics
+func buildNodeLabels(instance, nodeName, instanceType, region, providerID, arch, uid string) prometheus.Labels {
+	labels := prometheus.Labels{
+		"instance":      instance,
+		metricLabelNode: nodeName,
+		"instance_type": instanceType,
+		"region":        region,
+		"provider_id":   providerID,
+		"arch":          arch,
+		"uid":           uid,
+	}
+	if metricLabelCluster != "" {
+		labels[metricLabelCluster] = metricClusterValue
+	}
+	return labels
+}
+
+// buildPVLabels creates a prometheus.Labels map for persistent volume metrics
+func buildPVLabels(volumeName, pvName, providerID, uid string) prometheus.Labels {
+	labels := prometheus.Labels{
+		metricLabelVolumeName:       volumeName,
+		metricLabelPersistentVolume: pvName,
+		"provider_id":               providerID,
+		"uid":                       uid,
+	}
+	if metricLabelCluster != "" {
+		labels[metricLabelCluster] = metricClusterValue
+	}
+	return labels
+}
+
+// buildContainerLabels creates a prometheus.Labels map for container metrics
+func buildContainerLabels(namespace, pod, container, instance, nodeName, uid string) prometheus.Labels {
+	labels := prometheus.Labels{
+		metricLabelNamespace: namespace,
+		metricLabelPod:       pod,
+		metricLabelContainer: container,
+		"instance":           instance,
+		metricLabelNode:      nodeName,
+		"uid":                uid,
+	}
+	if metricLabelCluster != "" {
+		labels[metricLabelCluster] = metricClusterValue
+	}
+	return labels
+}
+
+// buildPVCLabels creates a prometheus.Labels map for PVC allocation metrics
+func buildPVCLabels(namespace, pod, pvcName, pvName, uid string) prometheus.Labels {
+	labels := prometheus.Labels{
+		metricLabelNamespace:             namespace,
+		metricLabelPod:                   pod,
+		metricLabelPersistentVolumeClaim: pvcName,
+		metricLabelPersistentVolume:      pvName,
+		"uid":                            uid,
+	}
+	if metricLabelCluster != "" {
+		labels[metricLabelCluster] = metricClusterValue
+	}
+	return labels
+}
+
+// buildLBLabels creates a prometheus.Labels map for load balancer metrics
+func buildLBLabels(ingressIP, namespace, serviceName, uid string) prometheus.Labels {
+	labels := prometheus.Labels{
+		"ingress_ip":         ingressIP,
+		metricLabelNamespace: namespace,
+		"service_name":       serviceName,
+		"uid":                uid,
+	}
+	if metricLabelCluster != "" {
+		labels[metricLabelCluster] = metricClusterValue
+	}
+	return labels
+}
 
 //--------------------------------------------------------------------------
 //  ClusterInfoCollector
@@ -150,7 +319,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		cpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_cpu_hourly_cost",
 			Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch", "uid"})
+		}, nodeMetricLabels())
 		if _, disabled := disabledMetrics["node_cpu_hourly_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, cpuGv)
 		}
@@ -158,7 +327,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		ramGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_ram_hourly_cost",
 			Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch", "uid"})
+		}, nodeMetricLabels())
 		if _, disabled := disabledMetrics["node_ram_hourly_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, ramGv)
 		}
@@ -166,7 +335,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		gpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_gpu_hourly_cost",
 			Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch", "uid"})
+		}, nodeMetricLabels())
 		if _, disabled := disabledMetrics["node_gpu_hourly_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, gpuGv)
 		}
@@ -174,7 +343,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		gpuCountGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_gpu_count",
 			Help: "node_gpu_count count of gpu on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch", "uid"})
+		}, nodeMetricLabels())
 		if _, disabled := disabledMetrics["node_gpu_count"]; !disabled {
 			toRegisterGV = append(toRegisterGV, gpuCountGv)
 		}
@@ -182,7 +351,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		pvGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "pv_hourly_cost",
 			Help: "pv_hourly_cost Cost per GB per hour on a persistent disk",
-		}, []string{"volumename", "persistentvolume", "provider_id", "uid"})
+		}, pvMetricLabels())
 		if _, disabled := disabledMetrics["pv_hourly_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, pvGv)
 		}
@@ -190,7 +359,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		spotGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "kubecost_node_is_spot",
 			Help: "kubecost_node_is_spot Cloud provider info about node preemptibility",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch", "uid"})
+		}, nodeMetricLabels())
 		if _, disabled := disabledMetrics["kubecost_node_is_spot"]; !disabled {
 			toRegisterGV = append(toRegisterGV, spotGv)
 		}
@@ -198,7 +367,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		totalGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_total_hourly_cost",
 			Help: "node_total_hourly_cost Total node cost per hour",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch", "uid"})
+		}, nodeMetricLabels())
 		if _, disabled := disabledMetrics["node_total_hourly_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, totalGv)
 		}
@@ -206,7 +375,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		ramAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "container_memory_allocation_bytes",
 			Help: "container_memory_allocation_bytes Bytes of RAM used",
-		}, []string{"namespace", "pod", "container", "instance", "node", "uid"})
+		}, containerMetricLabels())
 		if _, disabled := disabledMetrics["container_memory_allocation_bytes"]; !disabled {
 			toRegisterGV = append(toRegisterGV, ramAllocGv)
 		}
@@ -214,7 +383,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		cpuAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "container_cpu_allocation",
 			Help: "container_cpu_allocation Percent of a single CPU used in a minute",
-		}, []string{"namespace", "pod", "container", "instance", "node", "uid"})
+		}, containerMetricLabels())
 		if _, disabled := disabledMetrics["container_cpu_allocation"]; !disabled {
 			toRegisterGV = append(toRegisterGV, cpuAllocGv)
 		}
@@ -222,7 +391,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		gpuAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "container_gpu_allocation",
 			Help: "container_gpu_allocation GPU used",
-		}, []string{"namespace", "pod", "container", "instance", "node", "uid"})
+		}, containerMetricLabels())
 		if _, disabled := disabledMetrics["container_gpu_allocation"]; !disabled {
 			toRegisterGV = append(toRegisterGV, gpuAllocGv)
 		}
@@ -230,7 +399,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		pvAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "pod_pvc_allocation",
 			Help: "pod_pvc_allocation Bytes used by a PVC attached to a pod",
-		}, []string{"namespace", "pod", "persistentvolumeclaim", "persistentvolume", "uid"})
+		}, pvcMetricLabels())
 		if _, disabled := disabledMetrics["pod_pvc_allocation"]; !disabled {
 			toRegisterGV = append(toRegisterGV, pvAllocGv)
 		}
@@ -286,7 +455,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 		lbCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{ // no differentiation between ELB and ALB right now
 			Name: "kubecost_load_balancer_cost",
 			Help: "kubecost_load_balancer_cost Hourly cost of load balancer",
-		}, []string{"ingress_ip", "namespace", "service_name", "uid"}) // assumes one ingress IP per load balancer
+		}, lbMetricLabels()) // assumes one ingress IP per load balancer
 		if _, disabled := disabledMetrics["kubecost_load_balancer_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, lbCostGv)
 		}
@@ -355,6 +524,9 @@ func NewCostModelMetricsEmitter(clusterCache clustercache.ClusterCache, provider
 	if len(metricsConfig.DisabledMetrics) > 0 {
 		log.Infof("Starting metrics init with disabled metrics: %v", metricsConfig.DisabledMetrics)
 	}
+
+	// Configure OTel-style labels if enabled (must be done before metric registration)
+	initOTelLabelsFromEnv()
 
 	// init will only actually execute once to register the custom gauges
 	initCostModelMetrics(clusterInfo, metricsConfig)
@@ -582,8 +754,9 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					nodeCostAverages[labelKey] = avgCosts
 				}
 
-				cmme.GPUCountRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType, nodeUID).Set(gpu)
-				cmme.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType, nodeUID).Set(gpuCost)
+				nodeLabels := buildNodeLabels(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType, nodeUID)
+				cmme.GPUCountRecorder.With(nodeLabels).Set(gpu)
+				cmme.GPUPriceRecorder.With(nodeLabels).Set(gpuCost)
 
 				const outlierFactor float64 = 30
 				// don't record cpuCost, ramCost, or gpuCost in the case of wild outliers
@@ -591,7 +764,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				// https://github.com/opencost/opencost/issues/927
 				cpuOutlierCutoff := outlierFactor * avgCosts.CpuCostAverage
 				if cpuCost < cpuOutlierCutoff {
-					cmme.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType, nodeUID).Set(cpuCost)
+					cmme.CPUPriceRecorder.With(nodeLabels).Set(cpuCost)
 					avgCosts.CpuCostAverage = (avgCosts.CpuCostAverage*avgCosts.NumCpuDataPoints + cpuCost) / (avgCosts.NumCpuDataPoints + 1)
 					avgCosts.NumCpuDataPoints += 1
 				} else {
@@ -599,7 +772,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				}
 				ramOutlierCutoff := outlierFactor * avgCosts.RamCostAverage
 				if ramCost < ramOutlierCutoff {
-					cmme.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType, nodeUID).Set(ramCost)
+					cmme.RAMPriceRecorder.With(nodeLabels).Set(ramCost)
 					avgCosts.RamCostAverage = (avgCosts.RamCostAverage*avgCosts.NumRamDataPoints + ramCost) / (avgCosts.NumRamDataPoints + 1)
 					avgCosts.NumRamDataPoints += 1
 				} else {
@@ -607,7 +780,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				}
 				// skip redording totalCost if any constituent costs were outliers
 				if cpuCost < cpuOutlierCutoff && ramCost < ramOutlierCutoff {
-					cmme.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType, nodeUID).Set(totalCost)
+					cmme.NodeTotalPriceRecorder.With(nodeLabels).Set(totalCost)
 				} else {
 					log.Debugf("CPU and RAM outlier detected, not recording node %s total cost %f", nodeName, totalCost)
 				}
@@ -615,9 +788,9 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				nodeCostAverages[labelKey] = avgCosts
 
 				if node.IsSpot() {
-					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType, nodeUID).Set(1.0)
+					cmme.NodeSpotRecorder.With(nodeLabels).Set(1.0)
 				} else {
-					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType, nodeUID).Set(0.0)
+					cmme.NodeSpotRecorder.With(nodeLabels).Set(0.0)
 				}
 				nodeSeen[labelKey] = true
 			}
@@ -637,7 +810,8 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				}
 				serviceKey := namespace + "/" + serviceName
 				serviceUID := serviceUIDs[serviceKey]
-				cmme.LBCostRecorder.WithLabelValues(ingressIP, namespace, serviceName, serviceUID).Set(lb.Cost)
+				lbLabels := buildLBLabels(ingressIP, namespace, serviceName, serviceUID)
+				cmme.LBCostRecorder.With(lbLabels).Set(lb.Cost)
 
 				labelKey := getKeyFromLabelStrings(ingressIP, namespace, serviceName, serviceUID)
 				loadBalancerSeen[labelKey] = true
@@ -658,7 +832,8 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 								timesClaimed = 1 // unallocated PVs are unclaimed but have a full allocation
 							}
 							podUID := podUIDs[podName]
-							cmme.PVAllocationRecorder.WithLabelValues(namespace, podName, pvc.Claim, pvc.VolumeName, podUID).Set(pvc.Values[0].Value / float64(timesClaimed))
+							pvcLabels := buildPVCLabels(namespace, podName, pvc.Claim, pvc.VolumeName, podUID)
+							cmme.PVAllocationRecorder.With(pvcLabels).Set(pvc.Values[0].Value / float64(timesClaimed))
 							labelKey := getKeyFromLabelStrings(namespace, podName, pvc.Claim, pvc.VolumeName, podUID)
 							pvcSeen[labelKey] = true
 						}
@@ -667,11 +842,13 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 				if len(costs.RAMAllocation) > 0 {
 					podUID := podUIDs[podName]
-					cmme.RAMAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName, podUID).Set(costs.RAMAllocation[0].Value)
+					containerLabels := buildContainerLabels(namespace, podName, containerName, nodeName, nodeName, podUID)
+					cmme.RAMAllocationRecorder.With(containerLabels).Set(costs.RAMAllocation[0].Value)
 				}
 				if len(costs.CPUAllocation) > 0 {
 					podUID := podUIDs[podName]
-					cmme.CPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName, podUID).Set(costs.CPUAllocation[0].Value)
+					containerLabels := buildContainerLabels(namespace, podName, containerName, nodeName, nodeName, podUID)
+					cmme.CPUAllocationRecorder.With(containerLabels).Set(costs.CPUAllocation[0].Value)
 				}
 				if len(costs.GPUReq) > 0 {
 					// allocation here is set to the request because shared GPU usage not yet supported.
@@ -693,7 +870,8 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					}
 
 					podUID := podUIDs[podName]
-					cmme.GPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName, podUID).Set(gpualloc)
+					containerLabels := buildContainerLabels(namespace, podName, containerName, nodeName, nodeName, podUID)
+					cmme.GPUAllocationRecorder.With(containerLabels).Set(gpualloc)
 				}
 				podUID := podUIDs[podName]
 				labelKey := getKeyFromLabelStrings(namespace, podName, containerName, nodeName, nodeName, podUID)
@@ -741,7 +919,8 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				cmme.Model.GetPVCost(cacPv, pv, region)
 				c, _ := strconv.ParseFloat(cacPv.Cost, 64)
 				pvUID := pvUIDs[pv.Name]
-				cmme.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name, cacPv.ProviderID, pvUID).Set(c)
+				pvLabels := buildPVLabels(pv.Name, pv.Name, cacPv.ProviderID, pvUID)
+				cmme.PersistentVolumePriceRecorder.With(pvLabels).Set(c)
 				labelKey := getKeyFromLabelStrings(pv.Name, pv.Name, cacPv.ProviderID, pvUID)
 				pvSeen[labelKey] = true
 			}

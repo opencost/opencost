@@ -29,7 +29,9 @@ type PrometheusMetricsQuerier struct {
 
 func (pds *PrometheusMetricsQuerier) QueryPVActiveMinutes(start, end time.Time) *source.Future[source.PVActiveMinutesResult] {
 	const queryName = "QueryPVActiveMinutes"
-	const pvActiveMinsQuery = `avg(kube_persistentvolume_capacity_bytes{%s}) by (%s, persistentvolume, uid)[%s:%dm]`
+	// kube_persistentvolume_capacity_bytes uses standard 'persistentvolume' label
+	// Use label_replace to transform persistentvolume -> k8s_persistentvolume_name for decoder compatibility
+	const pvActiveMinsQuery = `avg(label_replace(kube_persistentvolume_capacity_bytes{%s}, "k8s_persistentvolume_name", "$1", "persistentvolume", "(.*)")) by (%s, k8s_persistentvolume_name, uid)[%s:%dm]`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -88,7 +90,9 @@ func (pds *PrometheusMetricsQuerier) QueryPVUsedMax(start, end time.Time) *sourc
 
 func (pds *PrometheusMetricsQuerier) QueryLocalStorageActiveMinutes(start, end time.Time) *source.Future[source.LocalStorageActiveMinutesResult] {
 	const queryName = "QueryLocalStorageActiveMinutes"
-	const localStorageActiveMinutesQuery = `count(node_total_hourly_cost{%s}) by (%s, node, uid, instance, provider_id)[%s:%dm]`
+	// node_total_hourly_cost uses standard 'node' label
+	// Use label_replace to transform node -> k8s_node_name for decoder compatibility
+	const localStorageActiveMinutesQuery = `count(label_replace(node_total_hourly_cost{%s}, "k8s_node_name", "$1", "node", "(.*)")) by (%s, k8s_node_name, uid, instance, provider_id)[%s:%dm]`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -281,7 +285,21 @@ func (pds *PrometheusMetricsQuerier) QueryCPULimits(start, end time.Time) *sourc
 
 func (pds *PrometheusMetricsQuerier) QueryPVCInfo(start, end time.Time) *source.Future[source.PVCInfoResult] {
 	const queryName = "QueryPVCInfo"
-	const queryFmtPVCInfo = `avg(kube_persistentvolumeclaim_info{volumename != "", %s}) by (persistentvolumeclaim, storageclass, volumename, namespace, uid, %s)[%s:%dm]`
+	// kube_persistentvolumeclaim_info uses standard labels: persistentvolumeclaim, storageclass, volumename
+	// Use label_replace to transform to OTel-style labels for decoder compatibility
+	// Note: k8s_namespace_name is already present from kube-state-metrics OTel relabeling
+	const queryFmtPVCInfo = `avg(
+  label_replace(
+    label_replace(
+      label_replace(
+        kube_persistentvolumeclaim_info{volumename != "", %s},
+        "k8s_persistentvolumeclaim_name", "$1", "persistentvolumeclaim", "(.*)"
+      ),
+      "k8s_storageclass_name", "$1", "storageclass", "(.*)"
+    ),
+    "k8s_volume_name", "$1", "volumename", "(.*)"
+  )
+) by (k8s_persistentvolumeclaim_name, k8s_storageclass_name, k8s_volume_name, k8s_namespace_name, uid, %s)[%s:%dm]`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -300,7 +318,18 @@ func (pds *PrometheusMetricsQuerier) QueryPVCInfo(start, end time.Time) *source.
 
 func (pds *PrometheusMetricsQuerier) QueryPVPricePerGiBHour(start, end time.Time) *source.Future[source.PVPricePerGiBHourResult] {
 	const queryName = "QueryPVPricePerGiBHour"
-	const pvCostQuery = `avg(avg_over_time(pv_hourly_cost{%s}[%s])) by (%s, persistentvolume, volumename, uid, provider_id)`
+	// pv_hourly_cost uses standard labels: persistentvolume, volumename
+	// Use label_replace to transform to OTel-style labels for decoder compatibility
+	// Note: label_replace must wrap avg_over_time since range selectors only work on vector selectors
+	const pvCostQuery = `avg(
+  label_replace(
+    label_replace(
+      avg_over_time(pv_hourly_cost{%s}[%s]),
+      "k8s_persistentvolume_name", "$1", "persistentvolume", "(.*)"
+    ),
+    "k8s_volume_name", "$1", "volumename", "(.*)"
+  )
+) by (%s, k8s_persistentvolume_name, k8s_volume_name, uid, provider_id)`
 
 	cfg := pds.promConfig
 
@@ -357,7 +386,8 @@ func (pds *PrometheusMetricsQuerier) QueryNetNatGatewayPricePerGiB(start, end ti
 
 func (pds *PrometheusMetricsQuerier) QueryNetNatGatewayGiB(start, end time.Time) *source.Future[source.NetNatGatewayGiBResult] {
 	const queryName = "QueryNetNatGatewayGiB"
-	const queryFmtNetNatGatewayGiB = `sum(increase(kubecost_pod_network_egress_bytes_total{nat_gateway="true", %s}[%s:%dm])) by (pod_name, namespace, service, uid, %s) / 1024 / 1024 / 1024`
+	// Use OTel labels: k8s_pod_name, k8s_namespace_name
+	const queryFmtNetNatGatewayGiB = `sum(increase(kubecost_pod_network_egress_bytes_total{nat_gateway="true", %s}[%s:%dm])) by (k8s_pod_name, k8s_namespace_name, service, uid, %s) / 1024 / 1024 / 1024`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -394,7 +424,8 @@ func (pds *PrometheusMetricsQuerier) QueryNetNatGatewayIngressPricePerGiB(start,
 
 func (pds *PrometheusMetricsQuerier) QueryNetNatGatewayIngressGiB(start, end time.Time) *source.Future[source.NetNatGatewayIngressGiBResult] {
 	const queryName = "QueryNetNatGatewayIngressGiB"
-	const queryFmtNetNatGatewayIngressGiB = `sum(increase(kubecost_pod_network_ingress_bytes_total{nat_gateway="true", %s}[%s:%dm])) by (pod_name, namespace, service, uid, %s) / 1024 / 1024 / 1024`
+	// Use OTel labels: k8s_pod_name, k8s_namespace_name
+	const queryFmtNetNatGatewayIngressGiB = `sum(increase(kubecost_pod_network_ingress_bytes_total{nat_gateway="true", %s}[%s:%dm])) by (k8s_pod_name, k8s_namespace_name, service, uid, %s) / 1024 / 1024 / 1024`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -435,7 +466,7 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaUptime(start, end time.Ti
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecCPURequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPURequestAvgResult] {
 	const queryName = "QueryResourceQuotaSpecCPURequestAverage"
-	const queryFmtResourceQuotaSpecCPURequests = `avg(avg_over_time(resourcequota_spec_resource_requests{resource="cpu",unit="core", %s}[%s])) by (resourcequota, namespace, uid, %s)`
+	const queryFmtResourceQuotaSpecCPURequests = `avg(avg_over_time(resourcequota_spec_resource_requests{resource="cpu",unit="core", %s}[%s])) by (resourcequota, k8s_namespace_name, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -453,7 +484,7 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecCPURequestAverage(sta
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecCPURequestMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPURequestMaxResult] {
 	const queryName = "QueryResourceQuotaSpecCPURequestMax"
-	const queryFmtResourceQuotaSpecCPURequests = `max(max_over_time(resourcequota_spec_resource_requests{resource="cpu",unit="core", %s}[%s])) by (resourcequota, namespace, uid, %s)`
+	const queryFmtResourceQuotaSpecCPURequests = `max(max_over_time(resourcequota_spec_resource_requests{resource="cpu",unit="core", %s}[%s])) by (resourcequota, k8s_namespace_name, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -471,7 +502,7 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecCPURequestMax(start, 
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecRAMRequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMRequestAvgResult] {
 	const queryName = "QueryResourceQuotaSpecRAMRequestAverage"
-	const queryFmtResourceQuotaSpecRAMRequests = `avg(avg_over_time(resourcequota_spec_resource_requests{resource="memory",unit="byte", %s}[%s])) by (resourcequota, namespace, uid, %s)`
+	const queryFmtResourceQuotaSpecRAMRequests = `avg(avg_over_time(resourcequota_spec_resource_requests{resource="memory",unit="byte", %s}[%s])) by (resourcequota, k8s_namespace_name, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -489,7 +520,7 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecRAMRequestAverage(sta
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecRAMRequestMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMRequestMaxResult] {
 	const queryName = "QueryResourceQuotaSpecRAMRequestMax"
-	const queryFmtResourceQuotaSpecRAMRequests = `max(max_over_time(resourcequota_spec_resource_requests{resource="memory",unit="byte", %s}[%s])) by (resourcequota, namespace, uid, %s)`
+	const queryFmtResourceQuotaSpecRAMRequests = `max(max_over_time(resourcequota_spec_resource_requests{resource="memory",unit="byte", %s}[%s])) by (resourcequota, k8s_namespace_name, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -507,7 +538,7 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecRAMRequestMax(start, 
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecCPULimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPULimitAvgResult] {
 	const queryName = "QueryResourceQuotaSpecCPULimitAverage"
-	const queryFmtResourceQuotaSpecCPULimits = `avg(avg_over_time(resourcequota_spec_resource_limits{resource="cpu",unit="core", %s}[%s])) by (resourcequota, namespace, uid, %s)`
+	const queryFmtResourceQuotaSpecCPULimits = `avg(avg_over_time(resourcequota_spec_resource_limits{resource="cpu",unit="core", %s}[%s])) by (resourcequota, k8s_namespace_name, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -525,7 +556,7 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecCPULimitAverage(start
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecCPULimitMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPULimitMaxResult] {
 	const queryName = "QueryResourceQuotaSpecCPULimitMax"
-	const queryFmtResourceQuotaSpecCPULimits = `max(max_over_time(resourcequota_spec_resource_limits{resource="cpu",unit="core", %s}[%s])) by (resourcequota, namespace, uid, %s)`
+	const queryFmtResourceQuotaSpecCPULimits = `max(max_over_time(resourcequota_spec_resource_limits{resource="cpu",unit="core", %s}[%s])) by (resourcequota, k8s_namespace_name, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -543,7 +574,7 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecCPULimitMax(start, en
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecRAMLimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMLimitAvgResult] {
 	const queryName = "QueryResourceQuotaSpecRAMLimitAverage"
-	const queryFmtResourceQuotaSpecRAMLimits = `avg(avg_over_time(resourcequota_spec_resource_limits{resource="memory",unit="byte", %s}[%s])) by (resourcequota, namespace, uid, %s)`
+	const queryFmtResourceQuotaSpecRAMLimits = `avg(avg_over_time(resourcequota_spec_resource_limits{resource="memory",unit="byte", %s}[%s])) by (resourcequota, k8s_namespace_name, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -561,7 +592,7 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecRAMLimitAverage(start
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecRAMLimitMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMLimitMaxResult] {
 	const queryName = "QueryResourceQuotaSpecRAMLimitMax"
-	const queryFmtResourceQuotaSpecRAMLimits = `max(max_over_time(resourcequota_spec_resource_limits{resource="memory",unit="byte", %s}[%s])) by (resourcequota, namespace, uid, %s)`
+	const queryFmtResourceQuotaSpecRAMLimits = `max(max_over_time(resourcequota_spec_resource_limits{resource="memory",unit="byte", %s}[%s])) by (resourcequota, k8s_namespace_name, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -579,7 +610,7 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaSpecRAMLimitMax(start, en
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedCPURequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPURequestAvgResult] {
 	const queryName = "QueryResourceQuotaStatusUsedCPURequestAverage"
-	const queryFmtResourceQuotaStatusUsedCPURequests = `avg(avg_over_time(resourcequota_status_used_resource_requests{resource="cpu",unit="core", %s}[%s])) by (resourcequota, namespace, uid, %s)`
+	const queryFmtResourceQuotaStatusUsedCPURequests = `avg(avg_over_time(resourcequota_status_used_resource_requests{resource="cpu",unit="core", %s}[%s])) by (resourcequota, k8s_namespace_name, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -597,7 +628,7 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedCPURequestAvera
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedCPURequestMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPURequestMaxResult] {
 	const queryName = "QueryResourceQuotaStatusUsedCPURequestMax"
-	const queryFmtResourceQuotaStatusUsedCPURequests = `max(max_over_time(resourcequota_status_used_resource_requests{resource="cpu",unit="core", %s}[%s])) by (resourcequota, namespace, uid, %s)`
+	const queryFmtResourceQuotaStatusUsedCPURequests = `max(max_over_time(resourcequota_status_used_resource_requests{resource="cpu",unit="core", %s}[%s])) by (resourcequota, k8s_namespace_name, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -615,7 +646,7 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedCPURequestMax(s
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedRAMRequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMRequestAvgResult] {
 	const queryName = "QueryResourceQuotaStatusUsedRAMRequestAverage"
-	const queryFmtResourceQuotaStatusUsedRAMRequests = `avg(avg_over_time(resourcequota_status_used_resource_requests{resource="memory",unit="byte", %s}[%s])) by (resourcequota, namespace, uid, %s)`
+	const queryFmtResourceQuotaStatusUsedRAMRequests = `avg(avg_over_time(resourcequota_status_used_resource_requests{resource="memory",unit="byte", %s}[%s])) by (resourcequota, k8s_namespace_name, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -633,7 +664,7 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedRAMRequestAvera
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedRAMRequestMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMRequestMaxResult] {
 	const queryName = "QueryResourceQuotaStatusUsedRAMRequestMax"
-	const queryFmtResourceQuotaStatusUsedRAMRequests = `max(max_over_time(resourcequota_status_used_resource_requests{resource="memory",unit="byte", %s}[%s])) by (resourcequota, namespace, uid, %s)`
+	const queryFmtResourceQuotaStatusUsedRAMRequests = `max(max_over_time(resourcequota_status_used_resource_requests{resource="memory",unit="byte", %s}[%s])) by (resourcequota, k8s_namespace_name, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -651,7 +682,7 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedRAMRequestMax(s
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedCPULimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPULimitAvgResult] {
 	const queryName = "QueryResourceQuotaStatusUsedCPULimitAverage"
-	const queryFmtResourceQuotaStatusUsedCPULimits = `avg(avg_over_time(resourcequota_status_used_resource_limits{resource="cpu",unit="core", %s}[%s])) by (resourcequota, namespace, uid, %s)`
+	const queryFmtResourceQuotaStatusUsedCPULimits = `avg(avg_over_time(resourcequota_status_used_resource_limits{resource="cpu",unit="core", %s}[%s])) by (resourcequota, k8s_namespace_name, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -669,7 +700,7 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedCPULimitAverage
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedCPULimitMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPULimitMaxResult] {
 	const queryName = "QueryResourceQuotaStatusUsedCPULimitMax"
-	const queryFmtResourceQuotaStatusUsedCPULimits = `max(max_over_time(resourcequota_status_used_resource_limits{resource="cpu",unit="core", %s}[%s])) by (resourcequota, namespace, uid, %s)`
+	const queryFmtResourceQuotaStatusUsedCPULimits = `max(max_over_time(resourcequota_status_used_resource_limits{resource="cpu",unit="core", %s}[%s])) by (resourcequota, k8s_namespace_name, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -687,7 +718,7 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedCPULimitMax(sta
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMLimitAvgResult] {
 	const queryName = "QueryResourceQuotaStatusUsedRAMLimitAverage"
-	const queryFmtResourceQuotaStatusUsedRAMLimits = `avg(avg_over_time(resourcequota_status_used_resource_limits{resource="memory",unit="byte", %s}[%s])) by (resourcequota, namespace, uid, %s)`
+	const queryFmtResourceQuotaStatusUsedRAMLimits = `avg(avg_over_time(resourcequota_status_used_resource_limits{resource="memory",unit="byte", %s}[%s])) by (resourcequota, k8s_namespace_name, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -705,7 +736,7 @@ func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimitAverage
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimitMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMLimitMaxResult] {
 	const queryName = "QueryResourceQuotaStatusUsedRAMLimitMax"
-	const queryFmtResourceQuotaStatusUsedRAMLimits = `max(max_over_time(resourcequota_status_used_resource_limits{resource="memory",unit="byte", %s}[%s])) by (resourcequota, namespace, uid, %s)`
+	const queryFmtResourceQuotaStatusUsedRAMLimits = `max(max_over_time(resourcequota_status_used_resource_limits{resource="memory",unit="byte", %s}[%s])) by (resourcequota, k8s_namespace_name, uid, %s)`
 
 	cfg := pds.promConfig
 

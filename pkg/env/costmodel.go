@@ -58,9 +58,10 @@ const (
 	CSVEndpointEnvVar       = "CSV_ENDPOINT"
 	CSVPathEnvVar           = "CSV_PATH"
 
-	CloudProviderAPIKeyEnvVar        = "CLOUD_PROVIDER_API_KEY"
-	CollectorDataSourceEnabledEnvVar = "COLLECTOR_DATA_SOURCE_ENABLED"
-	LocalCollectorDirectoryEnvVar    = "LOCAL_COLLECTOR_DIRECTORY"
+	CloudProviderAPIKeyEnvVar             = "CLOUD_PROVIDER_API_KEY"
+	CollectorDataSourceEnabledEnvVar      = "COLLECTOR_DATA_SOURCE_ENABLED"
+	PrometheusOTelDataSourceEnabledEnvVar = "PROMETHEUS_OTEL_DATA_SOURCE_ENABLED"
+	LocalCollectorDirectoryEnvVar         = "LOCAL_COLLECTOR_DIRECTORY"
 
 	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
 	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
@@ -109,6 +110,9 @@ const (
 
 	// Metrics Emitter
 	MetricsEmitterQueryWindowEnvVar = "METRICS_EMITTER_QUERY_WINDOW"
+
+	// OTel Labels - When enabled, OpenCost metrics use OTel-style label names
+	OpenCostUseOTelLabelsEnvVar = "OPENCOST_USE_OTEL_LABELS"
 )
 
 func GetGCPAuthSecretFilePath() string {
@@ -323,9 +327,15 @@ func GetCloudProviderAPIKey() string {
 	return env.Get(CloudProviderAPIKeyEnvVar, "")
 }
 
-// IsCollectorDataSourceEnabeled returns the environment variable which enables a source.OpencostDatasource which does not use uses Prometheus
+// IsCollectorDataSourceEnabled returns the environment variable which enables a source.OpenCostDataSource which does not use Prometheus
 func IsCollectorDataSourceEnabled() bool {
 	return env.GetBool(CollectorDataSourceEnabledEnvVar, false)
+}
+
+// IsPrometheusOTelDataSourceEnabled returns the environment variable which enables a source.OpenCostDataSource
+// that uses Prometheus with OpenTelemetry Collector metric names instead of standard cAdvisor/KSM metrics.
+func IsPrometheusOTelDataSourceEnabled() bool {
+	return env.GetBool(PrometheusOTelDataSourceEnabledEnvVar, false)
 }
 
 // IsLogCollectionEnabled returns the environment variable value for LogCollectionEnabledEnvVar which represents
@@ -457,4 +467,11 @@ func GetMCPHTTPPort() int {
 // Default is 2m.
 func GetMetricsEmitterQueryWindow() time.Duration {
 	return env.GetDuration(MetricsEmitterQueryWindowEnvVar, 2*time.Minute)
+}
+
+// IsOTelLabelsEnabled returns true if OpenCost should use OTel-style labels
+// for exported metrics (e.g., k8s_node_name instead of node, k8s_namespace_name instead of namespace).
+// This allows OpenCost metrics to correlate with OTel Collector metrics without label_replace() transformations.
+func IsOTelLabelsEnabled() bool {
+	return env.GetBool(OpenCostUseOTelLabelsEnvVar, false)
 }

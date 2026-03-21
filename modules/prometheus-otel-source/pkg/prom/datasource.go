@@ -97,6 +97,9 @@ func NewDefaultPrometheusOTelDataSource(clusterInfoProvider clusters.ClusterInfo
 		return nil, fmt.Errorf("failed to create prometheus config from env: %w", err)
 	}
 
+	// Enable OTel label names for query result parsing
+	config.UseOTelLabels = true
+
 	return NewPrometheusOTelDataSource(clusterInfoProvider, config)
 }
 

@@ -16,7 +16,8 @@ func (pds *PrometheusMetricsQuerier) QueryNodeCPUCoresCapacity(start, end time.T
 	cfg := pds.promConfig
 	d := timeutil.DurationString(end.Sub(start))
 	// Use kube_node_status_capacity from kube-state-metrics with resource="cpu"
-	q := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity{resource="cpu",%s}[%s])) by (%s, node)`, cfg.ClusterFilter, d, cfg.ClusterLabel)
+	// kube-state-metrics emits k8s_node_name label in OTel environments
+	q := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity{resource="cpu",%s}[%s])) by (%s, k8s_node_name)`, cfg.ClusterFilter, d, cfg.ClusterLabel)
 	log.Debugf(PrometheusMetricsQueryLogFormat, "QueryNodeCPUCoresCapacity", end.Unix(), q)
 	return source.NewFuture(source.DecodeNodeCPUCoresCapacityResult, pds.NewNamedContext(promsource.ClusterContextName).QueryAtTime(q, end))
 }
@@ -34,7 +35,8 @@ func (pds *PrometheusMetricsQuerier) QueryNodeRAMBytesCapacity(start, end time.T
 	cfg := pds.promConfig
 	d := timeutil.DurationString(end.Sub(start))
 	// Use kube_node_status_capacity from kube-state-metrics with resource="memory"
-	q := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity{resource="memory",%s}[%s])) by (%s, node)`, cfg.ClusterFilter, d, cfg.ClusterLabel)
+	// kube-state-metrics emits k8s_node_name label in OTel environments
+	q := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity{resource="memory",%s}[%s])) by (%s, k8s_node_name)`, cfg.ClusterFilter, d, cfg.ClusterLabel)
 	log.Debugf(PrometheusMetricsQueryLogFormat, "QueryNodeRAMBytesCapacity", end.Unix(), q)
 	return source.NewFuture(source.DecodeNodeRAMBytesCapacityResult, pds.NewNamedContext(promsource.ClusterContextName).QueryAtTime(q, end))
 }
@@ -51,7 +53,9 @@ func (pds *PrometheusMetricsQuerier) QueryNodeRAMBytesAllocatable(start, end tim
 func (pds *PrometheusMetricsQuerier) QueryNodeGPUCount(start, end time.Time) *source.Future[source.NodeGPUCountResult] {
 	cfg := pds.promConfig
 	d := timeutil.DurationString(end.Sub(start))
-	q := fmt.Sprintf(`avg(avg_over_time(node_gpu_count{%s}[%s])) by (%s, k8s_node_name, provider_id)`, cfg.ClusterFilter, d, cfg.ClusterLabel)
+	// node_gpu_count uses standard 'node' label
+	// Use label_replace to transform node -> k8s_node_name for decoder compatibility
+	q := fmt.Sprintf(`avg(label_replace(avg_over_time(node_gpu_count{%s}[%s]), "k8s_node_name", "$1", "node", "(.*)")) by (%s, k8s_node_name, provider_id)`, cfg.ClusterFilter, d, cfg.ClusterLabel)
 	log.Debugf(PrometheusMetricsQueryLogFormat, "QueryNodeGPUCount", end.Unix(), q)
 	return source.NewFuture(source.DecodeNodeGPUCountResult, pds.NewNamedContext(promsource.ClusterContextName).QueryAtTime(q, end))
 }
@@ -60,7 +64,9 @@ func (pds *PrometheusMetricsQuerier) QueryNodeActiveMinutes(start, end time.Time
 	cfg := pds.promConfig
 	m := cfg.DataResolutionMinutes
 	d := pds.durationStringFor(start, end, m, false)
-	q := fmt.Sprintf(`avg(node_total_hourly_cost{%s}) by (node, %s, provider_id)[%s:%dm]`, cfg.ClusterFilter, cfg.ClusterLabel, d, m)
+	// node_total_hourly_cost uses standard 'node' label, but decoder expects k8s_node_name
+	// Use label_replace to transform node -> k8s_node_name for decoder compatibility
+	q := fmt.Sprintf(`avg(label_replace(node_total_hourly_cost{%s}, "k8s_node_name", "$1", "node", "(.*)")) by (k8s_node_name, %s, provider_id)[%s:%dm]`, cfg.ClusterFilter, cfg.ClusterLabel, d, m)
 	log.Debugf(PrometheusMetricsQueryLogFormat, "QueryNodeActiveMinutes", end.Unix(), q)
 	return source.NewFuture(source.DecodeNodeActiveMinutesResult, pds.NewNamedContext(promsource.ClusterContextName).QueryAtTime(q, end))
 }
@@ -101,7 +107,8 @@ func (pds *PrometheusMetricsQuerier) QueryNodeRAMUserPercent(start, end time.Tim
 func (pds *PrometheusMetricsQuerier) QueryLBPricePerHr(start, end time.Time) *source.Future[source.LBPricePerHrResult] {
 	cfg := pds.promConfig
 	d := timeutil.DurationString(end.Sub(start))
-	q := fmt.Sprintf(`avg(avg_over_time(kubecost_load_balancer_cost{%s}[%s])) by (namespace, service_name, ingress_ip, %s)`, cfg.ClusterFilter, d, cfg.ClusterLabel)
+	// Use OTel label: k8s_namespace_name
+	q := fmt.Sprintf(`avg(avg_over_time(kubecost_load_balancer_cost{%s}[%s])) by (k8s_namespace_name, service_name, ingress_ip, %s)`, cfg.ClusterFilter, d, cfg.ClusterLabel)
 	log.Debugf(PrometheusMetricsQueryLogFormat, "QueryLBPricePerHr", end.Unix(), q)
 	return source.NewFuture(source.DecodeLBPricePerHrResult, pds.NewNamedContext(promsource.AllocationContextName).QueryAtTime(q, end))
 }
@@ -110,7 +117,8 @@ func (pds *PrometheusMetricsQuerier) QueryLBActiveMinutes(start, end time.Time) 
 	cfg := pds.promConfig
 	m := cfg.DataResolutionMinutes
 	d := pds.durationStringFor(start, end, m, false)
-	q := fmt.Sprintf(`avg(kubecost_load_balancer_cost{%s}) by (namespace, service_name, %s, ingress_ip)[%s:%dm]`, cfg.ClusterFilter, cfg.ClusterLabel, d, m)
+	// Use OTel label: k8s_namespace_name
+	q := fmt.Sprintf(`avg(kubecost_load_balancer_cost{%s}) by (k8s_namespace_name, service_name, %s, ingress_ip)[%s:%dm]`, cfg.ClusterFilter, cfg.ClusterLabel, d, m)
 	log.Debugf(PrometheusMetricsQueryLogFormat, "QueryLBActiveMinutes", end.Unix(), q)
 	return source.NewFuture(source.DecodeLBActiveMinutesResult, pds.NewNamedContext(promsource.ClusterContextName).QueryAtTime(q, end))
 }

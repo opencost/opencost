@@ -46,8 +46,22 @@ func main() {
 
 	tenantID := os.Getenv("PROMETHEUS_HEADER_X_SCOPE_ORGID")
 	if tenantID == "" {
-		tenantID = "main"
-		log.Warn().Msgf("PROMETHEUS_HEADER_X_SCOPE_ORGID not set, using default: %s", tenantID)
+		log.Info().Msg("PROMETHEUS_HEADER_X_SCOPE_ORGID not set, no tenant header will be sent")
+	}
+
+	clusterLabel := os.Getenv("PROM_CLUSTER_ID_LABEL")
+	if clusterLabel == "" {
+		clusterLabel = "k8s_cluster_name" // OTel default
+		log.Warn().Msgf("PROM_CLUSTER_ID_LABEL not set, using default: %s", clusterLabel)
+	}
+
+	clusterID := os.Getenv("CLUSTER_ID")
+	clusterFilter := ""
+	if clusterID != "" {
+		clusterFilter = fmt.Sprintf(`%s="%s"`, clusterLabel, clusterID)
+		log.Info().Msgf("Using cluster filter: %s", clusterFilter)
+	} else {
+		log.Warn().Msg("CLUSTER_ID not set, querying all clusters")
 	}
 
 	log.Info().
@@ -65,9 +79,10 @@ func main() {
 		Offset:                "",
 		QueryOffset:           0,
 		MaxQueryDuration:      24 * time.Hour,
-		ClusterLabel:          "cluster_id",
-		ClusterID:             "test-cluster",
-		ClusterFilter:         "", // No cluster filter for testing
+		ClusterLabel:          clusterLabel,
+		ClusterID:             clusterID,
+		ClusterFilter:         clusterFilter,
+		UseOTelLabels:         true, // Use OTel label names for decoding results
 		DataResolution:        5 * time.Minute,
 		DataResolutionMinutes: 5,
 		ClientConfig: &promsource.PrometheusClientConfig{
@@ -89,6 +104,18 @@ func main() {
 	// Create context factory and metrics querier
 	promContexts := promsource.NewContextFactory(promClient, promConfig)
 	querier := prom.NewPrometheusMetricsQuerierForTesting(promConfig, promClient, promContexts)
+
+	// Debug: Test raw query
+	log.Info().Msgf("Tenant ID from config: '%s'", promConfig.ClientConfig.HeaderXScopeOrgId)
+	ctx := promContexts.NewNamedContext("test")
+	testQuery := fmt.Sprintf(`avg(avg_over_time(k8s_node_allocatable_cpu{%s}[1h])) by (%s, k8s_node_name)`, clusterFilter, clusterLabel)
+	log.Info().Msgf("Debug raw query: %s", testQuery)
+	rawResult, err := ctx.RawQuery(testQuery, time.Now())
+	if err != nil {
+		log.Error().Err(err).Msg("Raw query failed")
+	} else {
+		log.Info().Msgf("Raw result (first 500 chars): %s", string(rawResult)[:min(500, len(rawResult))])
+	}
 
 	// Calculate time window (last 1 hour)
 	end := time.Now()
