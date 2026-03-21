@@ -354,7 +354,7 @@ func (b *Buffer) ReadString() string {
 	bytes := bytePool.Get(int(l))
 	defer bytePool.Put(bytes)
 
-	_, err := readFull(b.b, bytes)
+	_, err := readBuffFull(b.b, bytes)
 	if err != nil {
 		return ""
 	}
@@ -371,30 +371,12 @@ func (b *Buffer) ReadBytes(length int) []byte {
 	bytes := bytePool.Get(length)
 	defer bytePool.Put(bytes)
 
-	_, err := readFull(b.b, bytes)
+	_, err := readBuffFull(b.b, bytes)
 	if err != nil {
 		return bytes
 	}
 
 	return bytes
-}
-
-// read full is a bufio.Reader specific implementation of io.ReadFull() which
-// avoids escaping our stack allocated scratch bytes
-func readFull(r *bufio.Reader, buf []byte) (n int, err error) {
-
-	min := len(buf)
-	for n < min && err == nil {
-		var nn int
-		nn, err = r.Read(buf[n:])
-		n += nn
-	}
-	if n >= min {
-		err = nil
-	} else if n > 0 && err == io.EOF {
-		err = io.ErrUnexpectedEOF
-	}
-	return
 }
 
 // Conversion from byte slice to string

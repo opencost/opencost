@@ -2,8 +2,9 @@ package util
 
 import (
 	"bytes"
+	"io"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"runtime"
 	"strings"
 	"testing"
@@ -224,7 +225,7 @@ const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 func generateRandomString(ln int) string {
 	b := make([]byte, ln)
 	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
+		b[i] = letters[rand.IntN(len(letters))]
 	}
 	return string(b)
 }
@@ -280,6 +281,85 @@ func TestStringBytes(t *testing.T) {
 
 	if delta > 0.5 {
 		t.Errorf("Expected memory delta to be less than 0.5 MiB, got %v MiB", delta)
+	}
+}
+
+type randomByteReader struct {
+	bytes []byte
+	pos   int
+}
+
+func newSingleByteReader(bytes []byte) *randomByteReader {
+	return &randomByteReader{
+		bytes: bytes,
+		pos:   0,
+	}
+}
+
+func (sbr *randomByteReader) Read(b []byte) (int, error) {
+	if sbr.pos >= len(sbr.bytes) {
+		return 0, io.EOF
+	}
+
+	toCopy := rand.IntN(4)
+	if toCopy > len(b) {
+		toCopy = len(b)
+	}
+
+	var err error
+	remaining := len(sbr.bytes) - sbr.pos
+	if toCopy > remaining {
+		err = io.EOF
+		toCopy = remaining
+	}
+
+	bytesCopied := copy(b, sbr.bytes[sbr.pos:sbr.pos+toCopy])
+	sbr.pos += bytesCopied
+
+	return bytesCopied, err
+}
+
+func TestBufferReaderSupport(t *testing.T) {
+	buf := NewBuffer()
+	buf.WriteBool(true)
+	buf.WriteInt(42)
+	buf.WriteFloat64(3.14)
+	buf.WriteString("Testing, 1, 2, 3!")
+	buf.WriteUInt64(uint64(123456))
+	buf.WriteInt16(44)
+	buf.WriteFloat32(float32(5.0))
+
+	reader := newSingleByteReader(buf.Bytes())
+	readerBuff := NewBufferFromReader(reader)
+
+	b := readerBuff.ReadBool()
+	i := readerBuff.ReadInt()
+	f := readerBuff.ReadFloat64()
+	s := readerBuff.ReadString()
+	ui64 := readerBuff.ReadUInt64()
+	i16 := readerBuff.ReadInt16()
+	f32 := readerBuff.ReadFloat32()
+
+	if !b {
+		t.Errorf("expected true, got: false")
+	}
+	if i != 42 {
+		t.Errorf("expected 42, got: %d", i)
+	}
+	if f != 3.14 {
+		t.Errorf("expected 3.14, got: %f", f)
+	}
+	if s != "Testing, 1, 2, 3!" {
+		t.Errorf("expected 'Testing, 1, 2, 3!', got: '%s'", s)
+	}
+	if ui64 != uint64(123456) {
+		t.Errorf("expected 123456, got: %d", ui64)
+	}
+	if i16 != int16(44) {
+		t.Errorf("expected 44, got: %d", i16)
+	}
+	if f32 != float32(5.0) {
+		t.Errorf("expected 5.0, got: %f", f32)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"io"
 	"math"
 )
 
@@ -42,7 +43,7 @@ func readInt16(r *bytes.Buffer, data *int16) error {
 	var b [2]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -56,7 +57,7 @@ func readUint16(r *bytes.Buffer, data *uint16) error {
 	var b [2]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -70,7 +71,7 @@ func readInt(r *bytes.Buffer, data *int) error {
 	var b [4]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -84,7 +85,7 @@ func readInt32(r *bytes.Buffer, data *int32) error {
 	var b [4]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -98,7 +99,7 @@ func readUint(r *bytes.Buffer, data *uint) error {
 	var b [4]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -112,7 +113,7 @@ func readUint32(r *bytes.Buffer, data *uint32) error {
 	var b [4]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -126,7 +127,7 @@ func readInt64(r *bytes.Buffer, data *int64) error {
 	var b [8]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -140,7 +141,7 @@ func readUint64(r *bytes.Buffer, data *uint64) error {
 	var b [8]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -154,7 +155,7 @@ func readFloat32(r *bytes.Buffer, data *float32) error {
 	var b [4]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -168,7 +169,7 @@ func readFloat64(r *bytes.Buffer, data *float64) error {
 	var b [8]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -212,7 +213,7 @@ func readBuffInt16(r *bufio.Reader, data *int16) error {
 	var b [2]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readBuffFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -226,7 +227,7 @@ func readBuffUint16(r *bufio.Reader, data *uint16) error {
 	var b [2]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readBuffFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -240,7 +241,7 @@ func readBuffInt(r *bufio.Reader, data *int) error {
 	var b [4]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readBuffFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -254,7 +255,7 @@ func readBuffInt32(r *bufio.Reader, data *int32) error {
 	var b [4]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readBuffFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -268,7 +269,7 @@ func readBuffUint(r *bufio.Reader, data *uint) error {
 	var b [4]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readBuffFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -282,7 +283,7 @@ func readBuffUint32(r *bufio.Reader, data *uint32) error {
 	var b [4]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readBuffFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -296,7 +297,7 @@ func readBuffInt64(r *bufio.Reader, data *int64) error {
 	var b [8]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readBuffFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -310,7 +311,7 @@ func readBuffUint64(r *bufio.Reader, data *uint64) error {
 	var b [8]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readBuffFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -324,7 +325,7 @@ func readBuffFloat32(r *bufio.Reader, data *float32) error {
 	var b [4]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readBuffFull(r, bs)
 	if err != nil {
 		return err
 	}
@@ -338,13 +339,47 @@ func readBuffFloat64(r *bufio.Reader, data *float64) error {
 	var b [8]byte
 
 	bs := b[:]
-	_, err := r.Read(bs)
+	_, err := readBuffFull(r, bs)
 	if err != nil {
 		return err
 	}
 
 	*data = math.Float64frombits(order.Uint64(bs))
 	return nil
+}
+
+// read full is a bufio.Reader specific implementation of io.ReadFull() which
+// avoids escaping our stack allocated scratch bytes
+func readBuffFull(r *bufio.Reader, buf []byte) (n int, err error) {
+	min := len(buf)
+	for n < min && err == nil {
+		var nn int
+		nn, err = r.Read(buf[n:])
+		n += nn
+	}
+	if n >= min {
+		err = nil
+	} else if n > 0 && err == io.EOF {
+		err = io.ErrUnexpectedEOF
+	}
+	return
+}
+
+// read full is a bytes.Buffer specific implementation of io.ReadFull() which
+// avoids escaping our stack allocated scratch bytes
+func readFull(r *bytes.Buffer, buf []byte) (n int, err error) {
+	min := len(buf)
+	for n < min && err == nil {
+		var nn int
+		nn, err = r.Read(buf[n:])
+		n += nn
+	}
+	if n >= min {
+		err = nil
+	} else if n > 0 && err == io.EOF {
+		err = io.ErrUnexpectedEOF
+	}
+	return
 }
 
 func writeBool(w *bytes.Buffer, data bool) error {
