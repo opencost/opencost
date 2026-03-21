@@ -84,9 +84,9 @@ func newServiceSelectorLabelsMetric(name, namespace, fqname string, labelNames, 
 // returns the same descriptor throughout the lifetime of the Metric.
 func (s ServiceSelectorLabelsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"service":   s.serviceName,
-		"namespace": s.namespace,
-		"uid":       s.uid,
+		"service":           s.serviceName,
+		GetNamespaceLabel(): s.namespace,
+		"uid":               s.uid,
 	}
 	return prometheus.NewDesc(s.fqName, s.help, s.labelNames, l)
 }
@@ -106,7 +106,7 @@ func (s ServiceSelectorLabelsMetric) Write(m *dto.Metric) error {
 		})
 	}
 	labels = append(labels, &dto.LabelPair{
-		Name:  toStringPtr("namespace"),
+		Name:  toStringPtr(GetNamespaceLabel()),
 		Value: &s.namespace,
 	})
 	labels = append(labels, &dto.LabelPair{

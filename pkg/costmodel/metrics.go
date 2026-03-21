@@ -68,6 +68,8 @@ func initOTelLabelsFromEnv() {
 			clusterID := coreenv.GetClusterID()
 			clusterLabel := promenv.GetPromClusterLabel()
 			SetOTelLabels(clusterID, clusterLabel)
+			// Also configure the kube-state-metrics-style metrics in pkg/metrics
+			metrics.SetOTelMetricLabels()
 			log.Infof("OpenCost metrics using OTel-style labels (cluster label: %s=%s)", clusterLabel, clusterID)
 		}
 	})
