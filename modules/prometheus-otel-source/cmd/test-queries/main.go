@@ -431,9 +431,8 @@ func printResult(r testResult) {
 	statusColor := "\033[32m" // green
 
 	if r.Error != nil {
-		statusIcon := "✗"
+		statusIcon = "✗"
 		statusColor = "\033[31m" // red
-		_ = statusIcon
 	} else if r.ResultCount == 0 {
 		statusIcon = "○"
 		statusColor = "\033[33m" // yellow

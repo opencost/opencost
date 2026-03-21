@@ -48,17 +48,17 @@ func toStartEndStep(qp httputil.QueryParams) (start, end time.Time, step time.Du
 
 	start, e = time.Parse(layout, ss)
 	if e != nil {
-		err = fmt.Errorf("Error parsing time %s. Error: %s", ss, err)
+		err = fmt.Errorf("Error parsing time %s. Error: %s", ss, e)
 		return
 	}
 	end, e = time.Parse(layout, es)
 	if e != nil {
-		err = fmt.Errorf("Error parsing time %s. Error: %s", es, err)
+		err = fmt.Errorf("Error parsing time %s. Error: %s", es, e)
 		return
 	}
 	step, e = time.ParseDuration(ds)
 	if e != nil {
-		err = fmt.Errorf("Error parsing duration %s. Error: %s", ds, err)
+		err = fmt.Errorf("Error parsing duration %s. Error: %s", ds, e)
 		return
 	}
 	err = nil
@@ -396,6 +396,7 @@ func (pds *PrometheusOTelDataSource) RegisterEndPoints(router *httprouter.Router
 	// diagnostics
 	router.GET("/diagnostics/requestQueue", pds.prometheusQueueState)
 	router.GET("/diagnostics/prometheusMetrics", pds.prometheusMetrics)
+	router.GET("/otel/diagnostics", pds.prometheusMetrics) // OTel-specific diagnostics endpoint
 }
 
 // RegisterDiagnostics registers any custom data source diagnostics with the `DiagnosticService` that can
