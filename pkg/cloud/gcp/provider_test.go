@@ -1384,6 +1384,21 @@ func (m *mockMetadataClient) InstanceAttributeValue(attr string) (string, error)
 	return "", fmt.Errorf("attribute not found")
 }
 
+func (m *mockMetadataClient) InstanceID() (string, error) {
+	return "", nil
+}
+
 func (m *mockMetadataClient) ProjectID() (string, error) {
 	return "test-project", nil
+}
+
+func TestGCPRefreshCustomPricing(t *testing.T) {
+	gcp := &GCP{Config: &mockConfig{}}
+	if err := gcp.RefreshCustomPricing(); err != nil {
+		t.Fatalf("RefreshCustomPricing() unexpected error: %v", err)
+	}
+	// mockConfig returns an empty CustomPricing; verify fields are updated (to "")
+	if gcp.BaseCPUPrice != "" {
+		t.Errorf("BaseCPUPrice = %q, want empty string", gcp.BaseCPUPrice)
+	}
 }

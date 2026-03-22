@@ -492,6 +492,25 @@ func (alibaba *Alibaba) DownloadPricingData() error {
 	return nil
 }
 
+// RefreshCustomPricing reloads base price fields on all cached node entries from config.
+// Avoids the full node/PV discovery and external Alibaba API calls in DownloadPricingData.
+func (alibaba *Alibaba) RefreshCustomPricing() error {
+	alibaba.DownloadPricingDataLock.Lock()
+	defer alibaba.DownloadPricingDataLock.Unlock()
+	c, err := alibaba.Config.GetCustomPricingData()
+	if err != nil {
+		return fmt.Errorf("error loading custom pricing config: %w", err)
+	}
+	for _, p := range alibaba.Pricing {
+		if p.Node != nil {
+			p.Node.BaseCPUPrice = c.CPU
+			p.Node.BaseRAMPrice = c.RAM
+			p.Node.BaseGPUPrice = c.GPU
+		}
+	}
+	return nil
+}
+
 // AllNodePricing returns all the pricing data for all nodes and pvs
 func (alibaba *Alibaba) AllNodePricing() (interface{}, error) {
 	alibaba.DownloadPricingDataLock.RLock()

@@ -13,6 +13,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/util/mathutil"
 	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/config"
 )
 
 func TestParseAzureSubscriptionID(t *testing.T) {
@@ -613,5 +614,56 @@ func Test_extractAzureVMRetailAndSpotPrices(t *testing.T) {
 				require.Equal(t, tc.expectedSpot, spotPrice, "Spot price mismatch")
 			}
 		})
+	}
+}
+
+// azureMockConfig implements models.ProviderConfig for testing RefreshCustomPricing.
+type azureMockConfig struct {
+	customPricing *models.CustomPricing
+}
+
+func (m *azureMockConfig) GetCustomPricingData() (*models.CustomPricing, error) {
+	return m.customPricing, nil
+}
+
+func (m *azureMockConfig) Update(_ func(*models.CustomPricing) error) (*models.CustomPricing, error) {
+	return nil, nil
+}
+
+func (m *azureMockConfig) UpdateFromMap(_ map[string]string) (*models.CustomPricing, error) {
+	return nil, nil
+}
+
+func (m *azureMockConfig) ConfigFileManager() *config.ConfigFileManager {
+	return nil
+}
+
+func TestAzureRefreshCustomPricing(t *testing.T) {
+	cpuPrice := "0.04"
+	cp := &models.CustomPricing{CPU: cpuPrice}
+
+	node := &AzurePricing{Node: &models.Node{BaseCPUPrice: "old"}}
+	az := &Azure{
+		Config:  &azureMockConfig{customPricing: cp},
+		Pricing: map[string]*AzurePricing{"eastus,Standard_D2s_v3,ondemand": node},
+	}
+
+	if err := az.RefreshCustomPricing(); err != nil {
+		t.Fatalf("RefreshCustomPricing() unexpected error: %v", err)
+	}
+	if node.Node.BaseCPUPrice != cpuPrice {
+		t.Errorf("BaseCPUPrice = %q, want %q", node.Node.BaseCPUPrice, cpuPrice)
+	}
+}
+
+func TestAzureRefreshCustomPricingNilNode(t *testing.T) {
+	cp := &models.CustomPricing{CPU: "0.04"}
+	// A Pricing entry with nil Node should not panic.
+	az := &Azure{
+		Config:  &azureMockConfig{customPricing: cp},
+		Pricing: map[string]*AzurePricing{"key": {Node: nil}},
+	}
+	if err := az.RefreshCustomPricing(); err != nil {
+		t.Fatalf("RefreshCustomPricing() unexpected error: %v", err)
 	}
 }

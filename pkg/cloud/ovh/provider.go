@@ -683,3 +683,9 @@ func (c *OVH) PricingSourceStatus() map[string]*models.PricingSource {
 func (c *OVH) PricingSourceSummary() interface{} {
 	return c.Pricing
 }
+
+// RefreshCustomPricing is not implemented for OVH; pricing is sourced from the OVH catalog API.
+func (c *OVH) RefreshCustomPricing() error {
+	log.Infof("RefreshCustomPricing is not implemented for OVH; pricing is sourced from the OVH catalog API and cannot be refreshed via custom config")
+	return nil
+}

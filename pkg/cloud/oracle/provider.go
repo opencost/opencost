@@ -140,6 +140,26 @@ func (o *Oracle) DownloadPricingData() error {
 	return nil
 }
 
+// RefreshCustomPricing reloads DefaultPricing from config.
+// Avoids a full Oracle Rate Card API re-download.
+func (o *Oracle) RefreshCustomPricing() error {
+	o.DownloadPricingDataLock.Lock()
+	defer o.DownloadPricingDataLock.Unlock()
+	cfg, err := o.GetConfig()
+	if err != nil {
+		return err
+	}
+	o.DefaultPricing = DefaultPricing{
+		OCPU:    cfg.CPU,
+		Memory:  cfg.RAM,
+		GPU:     cfg.GPU,
+		Storage: cfg.Storage,
+		Egress:  cfg.InternetNetworkEgress,
+		LB:      cfg.DefaultLBPrice,
+	}
+	return nil
+}
+
 func (o *Oracle) GetKey(labels map[string]string, n *clustercache.Node) models.Key {
 	var gpuCount int
 	var gpuType string

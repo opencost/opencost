@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/config"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -171,5 +173,50 @@ func testNode(gpus int) *clustercache.Node {
 		Status: v1.NodeStatus{
 			Capacity: capacity,
 		},
+	}
+}
+
+// oracleMockConfig implements models.ProviderConfig for testing RefreshCustomPricing.
+type oracleMockConfig struct {
+	customPricing *models.CustomPricing
+}
+
+func (m *oracleMockConfig) GetCustomPricingData() (*models.CustomPricing, error) {
+	return m.customPricing, nil
+}
+
+func (m *oracleMockConfig) Update(_ func(*models.CustomPricing) error) (*models.CustomPricing, error) {
+	return nil, nil
+}
+
+func (m *oracleMockConfig) UpdateFromMap(_ map[string]string) (*models.CustomPricing, error) {
+	return nil, nil
+}
+
+func (m *oracleMockConfig) ConfigFileManager() *config.ConfigFileManager {
+	return nil
+}
+
+func TestOracleRefreshCustomPricing(t *testing.T) {
+	cp := &models.CustomPricing{
+		CPU:                   "0.03",
+		RAM:                   "0.004",
+		GPU:                   "1.5",
+		Storage:               "0.00023",
+		InternetNetworkEgress: "0.085",
+		DefaultLBPrice:        "0.025",
+	}
+	o := &Oracle{Config: &oracleMockConfig{customPricing: cp}}
+	if err := o.RefreshCustomPricing(); err != nil {
+		t.Fatalf("RefreshCustomPricing() unexpected error: %v", err)
+	}
+	if o.DefaultPricing.OCPU != cp.CPU {
+		t.Errorf("DefaultPricing.OCPU = %q, want %q", o.DefaultPricing.OCPU, cp.CPU)
+	}
+	if o.DefaultPricing.Memory != cp.RAM {
+		t.Errorf("DefaultPricing.Memory = %q, want %q", o.DefaultPricing.Memory, cp.RAM)
+	}
+	if o.DefaultPricing.Storage != cp.Storage {
+		t.Errorf("DefaultPricing.Storage = %q, want %q", o.DefaultPricing.Storage, cp.Storage)
 	}
 }

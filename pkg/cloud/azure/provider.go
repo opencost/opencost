@@ -1142,6 +1142,23 @@ func (az *Azure) addPricing(features string, azurePricing *AzurePricing) {
 	az.Pricing[features] = azurePricing
 }
 
+// RefreshCustomPricing reloads BaseCPUPrice on all cached entries from config.
+// Avoids a full Azure Rate Card API re-download.
+func (az *Azure) RefreshCustomPricing() error {
+	az.DownloadPricingDataLock.Lock()
+	defer az.DownloadPricingDataLock.Unlock()
+	config, err := az.GetConfig()
+	if err != nil {
+		return err
+	}
+	for _, p := range az.Pricing {
+		if p.Node != nil {
+			p.Node.BaseCPUPrice = config.CPU
+		}
+	}
+	return nil
+}
+
 // AllNodePricing returns the Azure pricing objects stored
 func (az *Azure) AllNodePricing() (interface{}, error) {
 	az.DownloadPricingDataLock.RLock()

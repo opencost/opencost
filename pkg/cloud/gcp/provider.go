@@ -1576,6 +1576,21 @@ func (gcp *gcpKey) Features() string {
 	return region + "," + instanceType + "," + usageType
 }
 
+// RefreshCustomPricing reloads base price fields from config.
+// Avoids the full node/PV discovery and external GCP API calls in DownloadPricingData.
+func (gcp *GCP) RefreshCustomPricing() error {
+	gcp.DownloadPricingDataLock.Lock()
+	defer gcp.DownloadPricingDataLock.Unlock()
+	c, err := gcp.Config.GetCustomPricingData()
+	if err != nil {
+		return err
+	}
+	gcp.BaseCPUPrice = c.CPU
+	gcp.ProjectID = c.ProjectID
+	gcp.BillingDataDataset = c.BillingDataDataset
+	return nil
+}
+
 // AllNodePricing returns the GCP pricing objects stored
 func (gcp *GCP) AllNodePricing() (interface{}, error) {
 	gcp.DownloadPricingDataLock.RLock()

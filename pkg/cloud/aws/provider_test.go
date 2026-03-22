@@ -845,6 +845,68 @@ func TestAWS_getFargatePod(t *testing.T) {
 	}
 }
 
+// awsMockConfig implements models.ProviderConfig for testing RefreshCustomPricing.
+type awsMockConfig struct {
+	customPricing *models.CustomPricing
+}
+
+func (m *awsMockConfig) GetCustomPricingData() (*models.CustomPricing, error) {
+	return m.customPricing, nil
+}
+
+func (m *awsMockConfig) Update(_ func(*models.CustomPricing) error) (*models.CustomPricing, error) {
+	return nil, nil
+}
+
+func (m *awsMockConfig) UpdateFromMap(_ map[string]string) (*models.CustomPricing, error) {
+	return nil, nil
+}
+
+func (m *awsMockConfig) ConfigFileManager() *config.ConfigFileManager {
+	return nil
+}
+
+func TestAWSRefreshCustomPricing(t *testing.T) {
+	cp := &models.CustomPricing{
+		CPU:            "0.02",
+		RAM:            "0.003",
+		GPU:            "0.5",
+		SpotCPU:        "0.01",
+		SpotRAM:        "0.002",
+		SpotGPU:        "0.25",
+		SpotLabel:      "eks.amazonaws.com/capacityType",
+		SpotLabelValue: "SPOT",
+	}
+	a := &AWS{Config: &awsMockConfig{customPricing: cp}}
+	if err := a.RefreshCustomPricing(); err != nil {
+		t.Fatalf("RefreshCustomPricing() unexpected error: %v", err)
+	}
+	if a.BaseCPUPrice != cp.CPU {
+		t.Errorf("BaseCPUPrice = %q, want %q", a.BaseCPUPrice, cp.CPU)
+	}
+	if a.BaseRAMPrice != cp.RAM {
+		t.Errorf("BaseRAMPrice = %q, want %q", a.BaseRAMPrice, cp.RAM)
+	}
+	if a.BaseGPUPrice != cp.GPU {
+		t.Errorf("BaseGPUPrice = %q, want %q", a.BaseGPUPrice, cp.GPU)
+	}
+	if a.BaseSpotCPUPrice != cp.SpotCPU {
+		t.Errorf("BaseSpotCPUPrice = %q, want %q", a.BaseSpotCPUPrice, cp.SpotCPU)
+	}
+	if a.BaseSpotRAMPrice != cp.SpotRAM {
+		t.Errorf("BaseSpotRAMPrice = %q, want %q", a.BaseSpotRAMPrice, cp.SpotRAM)
+	}
+	if a.BaseSpotGPUPrice != cp.SpotGPU {
+		t.Errorf("BaseSpotGPUPrice = %q, want %q", a.BaseSpotGPUPrice, cp.SpotGPU)
+	}
+	if a.SpotLabelName != cp.SpotLabel {
+		t.Errorf("SpotLabelName = %q, want %q", a.SpotLabelName, cp.SpotLabel)
+	}
+	if a.SpotLabelValue != cp.SpotLabelValue {
+		t.Errorf("SpotLabelValue = %q, want %q", a.SpotLabelValue, cp.SpotLabelValue)
+	}
+}
+
 // fakeProviderConfig implements models.ProviderConfig for testing
 type fakeProviderConfig struct {
 	customPricing *models.CustomPricing

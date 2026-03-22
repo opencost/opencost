@@ -160,6 +160,28 @@ func (*CustomProvider) GetOrphanedResources() ([]models.OrphanedResource, error)
 	return nil, errors.New("not implemented")
 }
 
+// RefreshCustomPricing reloads the pricing map from config.
+// For CustomProvider this is equivalent to DownloadPricingData since all pricing is config-driven.
+func (cp *CustomProvider) RefreshCustomPricing() error {
+	cp.DownloadPricingDataLock.Lock()
+	defer cp.DownloadPricingDataLock.Unlock()
+	p, err := cp.Config.GetCustomPricingData()
+	if err != nil {
+		return err
+	}
+	cp.SpotLabel = p.SpotLabel
+	cp.SpotLabelValue = p.SpotLabelValue
+	cp.GPULabel = p.GpuLabel
+	cp.GPULabelValue = p.GpuLabelValue
+	if cp.Pricing == nil {
+		cp.Pricing = make(map[string]*NodePrice)
+	}
+	cp.Pricing["default"] = &NodePrice{CPU: p.CPU, RAM: p.RAM}
+	cp.Pricing["default,spot"] = &NodePrice{CPU: p.SpotCPU, RAM: p.SpotRAM}
+	cp.Pricing["default,gpu"] = &NodePrice{CPU: p.CPU, RAM: p.RAM, GPU: p.GPU}
+	return nil
+}
+
 func (cp *CustomProvider) AllNodePricing() (interface{}, error) {
 	cp.DownloadPricingDataLock.RLock()
 	defer cp.DownloadPricingDataLock.RUnlock()
