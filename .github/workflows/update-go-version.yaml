@@ -96,13 +96,21 @@ jobs:
           exit 1
         fi
 
-        if [ "$CURRENT_NUM" != "$LATEST_NUM" ]; then
-          echo "New Go version available: $LATEST_VERSION"
-          echo "update_needed=true" >> $GITHUB_OUTPUT
-          echo "new_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
-        else
+        if [ "$CURRENT_NUM" = "$LATEST_NUM" ]; then
           echo "Go version is up to date"
           echo "update_needed=false" >> $GITHUB_OUTPUT
+        else
+          # Use version-aware sorting to determine which version is greater
+          HIGHEST_VERSION=$(printf '%s\n' "$CURRENT_NUM" "$LATEST_NUM" | sort -V | tail -n1)
+
+          if [ "$HIGHEST_VERSION" = "$LATEST_NUM" ]; then
+            echo "Newer Go version available: $LATEST_VERSION (current: $CURRENT_VERSION)"
+            echo "update_needed=true" >> $GITHUB_OUTPUT
+            echo "new_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "Current Go version ($CURRENT_VERSION) is newer than or equal to latest reported version ($LATEST_VERSION); no update needed."
+            echo "update_needed=false" >> $GITHUB_OUTPUT
+          fi
         fi
 
     - name: Update go.mod with new Go version
