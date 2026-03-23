@@ -71,14 +71,29 @@ jobs:
       run: |
         CURRENT_VERSION="${{ steps.current-version.outputs.current_version }}"
         LATEST_VERSION="${{ steps.latest-version.outputs.latest_version }}"
-        
+
         # Remove 'go' prefix for comparison
-        CURRENT_NUM=$(echo $CURRENT_VERSION | sed 's/go//')
-        LATEST_NUM=$(echo $LATEST_VERSION | sed 's/go//')
-        
+        CURRENT_NUM=$(echo "$CURRENT_VERSION" | sed 's/^go//')
+        LATEST_NUM=$(echo "$LATEST_VERSION" | sed 's/^go//')
+
+        echo "Raw current version: $CURRENT_VERSION"
+        echo "Raw latest version: $LATEST_VERSION"
         echo "Current version number: $CURRENT_NUM"
         echo "Latest version number: $LATEST_NUM"
-        
+
+        # Validate that both versions are non-empty and match an expected pattern (e.g., 1.22.1)
+        VERSION_REGEX='^[0-9]+\.[0-9]+(\.[0-9]+)?$'
+
+        if ! echo "$CURRENT_NUM" | grep -Eq "$VERSION_REGEX"; then
+          echo "Error: CURRENT_VERSION '$CURRENT_VERSION' (normalized: '$CURRENT_NUM') is invalid or empty."
+          exit 1
+        fi
+
+        if ! echo "$LATEST_NUM" | grep -Eq "$VERSION_REGEX"; then
+          echo "Error: LATEST_VERSION '$LATEST_VERSION' (normalized: '$LATEST_NUM') is invalid or empty."
+          exit 1
+        fi
+
         if [ "$CURRENT_NUM" != "$LATEST_NUM" ]; then
           echo "New Go version available: $LATEST_VERSION"
           echo "update_needed=true" >> $GITHUB_OUTPUT
