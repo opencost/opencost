@@ -7,7 +7,11 @@ on:
   pull_request:
     branches:
       - develop
-  
+
+concurrency:
+  group: golang-ver-bump
+  cancel-in-progress: true
+
 jobs:
   check-and-update-go:
     name: Check and Update Go Version
@@ -60,7 +64,7 @@ jobs:
       if: steps.check-existing-prs.outputs.skip_update == 'false'
       run: |
         # Get the latest Go version from golang.org/dl
-        LATEST_VERSION=$(curl -sL https://golang.org/dl/ | grep -o 'go[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1)
+        LATEST_VERSION=$(curl -sS https://go.dev/VERSION?m=text | grep -o 'go[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1)
         echo "latest_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
         echo "Latest Go version: $LATEST_VERSION"
 
