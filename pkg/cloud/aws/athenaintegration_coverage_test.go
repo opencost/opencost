@@ -3,7 +3,6 @@ package aws
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/opencost/opencost/pkg/cloud"
 )
@@ -185,19 +184,36 @@ func TestAthenaIntegration_ConvertLabelToAWSTag(t *testing.T) {
 func TestAthenaIntegration_GetIsKubernetesColumn(t *testing.T) {
 	ai := &AthenaIntegration{}
 
-	// Test with some tag columns present
-	allColumns := map[string]bool{
+	// Test with some tag columns present CUR 1.0
+	allColumnsCur10 := map[string]bool{
 		"resource_tags_user_eks_cluster_name":             true,
 		"resource_tags_user_alpha_eksctl_io_cluster_name": true,
 		"resource_tags_user_kubernetes_io_service_name":   true,
 		"some_other_column":                               true,
 	}
 
-	result := ai.GetIsKubernetesColumn(allColumns)
+	result := ai.GetIsKubernetesColumn(allColumnsCur10)
 	if !strings.Contains(result, "line_item_product_code = 'AmazonEKS'") {
 		t.Errorf("GetIsKubernetesColumn() should always include EKS check, got: %v", result)
 	}
 	if !strings.Contains(result, "resource_tags_user_eks_cluster_name <> ''") {
+		t.Errorf("GetIsKubernetesColumn() should include checks for tag columns, got: %v", result)
+	}
+	if !strings.Contains(result, " as is_kubernetes") {
+		t.Errorf("GetIsKubernetesColumn() should alias result as is_kubernetes, got: %v", result)
+	}
+
+	// Test with some tag columns present CUR 2.0
+	allColumnsCur20 := map[string]bool{
+		"resource_tags":     true,
+		"some_other_column": true,
+	}
+
+	result = ai.GetIsKubernetesColumn(allColumnsCur20)
+	if !strings.Contains(result, "line_item_product_code = 'AmazonEKS'") {
+		t.Errorf("GetIsKubernetesColumn() should always include EKS check, got: %v", result)
+	}
+	if !strings.Contains(result, "COALESCE(resource_tags['user_eks_cluster_name'], '') <> ''") {
 		t.Errorf("GetIsKubernetesColumn() should include checks for tag columns, got: %v", result)
 	}
 	if !strings.Contains(result, " as is_kubernetes") {
@@ -283,13 +299,4 @@ func TestAthenaQuerier_Equals(t *testing.T) {
 	if aq1.Equals(accessKey) {
 		t.Errorf("Equals() should return false when comparing with different type")
 	}
-}
-
-// Helper function for parsing time in tests
-func mustParseTime(value string) time.Time {
-	t, err := time.Parse(time.RFC3339, value)
-	if err != nil {
-		panic(err)
-	}
-	return t
 }
