@@ -296,12 +296,14 @@ func newSingleByteReader(bytes []byte) *randomByteReader {
 	}
 }
 
+// reads a random number of bytes from 1-4 each time Read is called.
+// simulates partial buffered reads
 func (sbr *randomByteReader) Read(b []byte) (int, error) {
 	if sbr.pos >= len(sbr.bytes) {
 		return 0, io.EOF
 	}
 
-	toCopy := rand.IntN(4)
+	toCopy := rand.IntN(4) + 1
 	if toCopy > len(b) {
 		toCopy = len(b)
 	}
