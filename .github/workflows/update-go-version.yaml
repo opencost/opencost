@@ -142,6 +142,8 @@ jobs:
         commit-message: 'chore: update Go version to ${{ steps.version-check.outputs.new_version }}'
         delete-branch: true
         add-paths: |
+          go.mod
+          go.sum
           **/go.mod
           **/go.sum
         body: |
