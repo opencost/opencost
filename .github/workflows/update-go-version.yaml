@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: '0 14 * * 1'  # Run every Monday at 2 PM UTC
   workflow_dispatch:  # Allow manual triggering
+  pull_request:
+    branches:
+      - develop
   
 jobs:
   check-and-update-go:
