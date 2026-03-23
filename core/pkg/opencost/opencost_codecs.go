@@ -14,6 +14,7 @@ package opencost
 import (
 	"fmt"
 	util "github.com/opencost/opencost/core/pkg/util"
+	"io"
 	"reflect"
 	"strings"
 	"sync"
@@ -33,9 +34,6 @@ const (
 )
 
 const (
-	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
-	CloudCostCodecVersion uint8 = 3
-
 	// NetworkInsightCodecVersion is used for any resources listed in the NetworkInsight version set
 	NetworkInsightCodecVersion uint8 = 1
 
@@ -47,6 +45,9 @@ const (
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
 	AllocationCodecVersion uint8 = 25
+
+	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
+	CloudCostCodecVersion uint8 = 3
 )
 
 //--------------------------------------------------------------------------
@@ -56,37 +57,37 @@ const (
 // Generated type map for resolving interface implementations to
 // to concrete types
 var typeMap map[string]reflect.Type = map[string]reflect.Type{
-	"Allocation":            reflect.TypeOf((*Allocation)(nil)).Elem(),
-	"AllocationProperties":  reflect.TypeOf((*AllocationProperties)(nil)).Elem(),
-	"AllocationSet":         reflect.TypeOf((*AllocationSet)(nil)).Elem(),
-	"AllocationSetRange":    reflect.TypeOf((*AllocationSetRange)(nil)).Elem(),
-	"Any":                   reflect.TypeOf((*Any)(nil)).Elem(),
-	"AssetProperties":       reflect.TypeOf((*AssetProperties)(nil)).Elem(),
-	"AssetSet":              reflect.TypeOf((*AssetSet)(nil)).Elem(),
-	"AssetSetRange":         reflect.TypeOf((*AssetSetRange)(nil)).Elem(),
-	"Breakdown":             reflect.TypeOf((*Breakdown)(nil)).Elem(),
-	"Cloud":                 reflect.TypeOf((*Cloud)(nil)).Elem(),
-	"CloudCost":             reflect.TypeOf((*CloudCost)(nil)).Elem(),
-	"CloudCostProperties":   reflect.TypeOf((*CloudCostProperties)(nil)).Elem(),
-	"CloudCostSet":          reflect.TypeOf((*CloudCostSet)(nil)).Elem(),
-	"CloudCostSetRange":     reflect.TypeOf((*CloudCostSetRange)(nil)).Elem(),
-	"ClusterManagement":     reflect.TypeOf((*ClusterManagement)(nil)).Elem(),
-	"CostMetric":            reflect.TypeOf((*CostMetric)(nil)).Elem(),
-	"Disk":                  reflect.TypeOf((*Disk)(nil)).Elem(),
-	"GPUAllocation":         reflect.TypeOf((*GPUAllocation)(nil)).Elem(),
-	"LbAllocation":          reflect.TypeOf((*LbAllocation)(nil)).Elem(),
-	"LoadBalancer":          reflect.TypeOf((*LoadBalancer)(nil)).Elem(),
-	"Network":               reflect.TypeOf((*Network)(nil)).Elem(),
-	"NetworkDetail":         reflect.TypeOf((*NetworkDetail)(nil)).Elem(),
-	"NetworkInsight":        reflect.TypeOf((*NetworkInsight)(nil)).Elem(),
-	"NetworkInsightSet":     reflect.TypeOf((*NetworkInsightSet)(nil)).Elem(),
-	"Node":                  reflect.TypeOf((*Node)(nil)).Elem(),
-	"NodeOverhead":          reflect.TypeOf((*NodeOverhead)(nil)).Elem(),
-	"PVAllocation":          reflect.TypeOf((*PVAllocation)(nil)).Elem(),
-	"PVKey":                 reflect.TypeOf((*PVKey)(nil)).Elem(),
-	"RawAllocationOnlyData": reflect.TypeOf((*RawAllocationOnlyData)(nil)).Elem(),
-	"SharedAsset":           reflect.TypeOf((*SharedAsset)(nil)).Elem(),
-	"Window":                reflect.TypeOf((*Window)(nil)).Elem(),
+	"Allocation":            reflect.TypeFor[Allocation](),
+	"AllocationProperties":  reflect.TypeFor[AllocationProperties](),
+	"AllocationSet":         reflect.TypeFor[AllocationSet](),
+	"AllocationSetRange":    reflect.TypeFor[AllocationSetRange](),
+	"Any":                   reflect.TypeFor[Any](),
+	"AssetProperties":       reflect.TypeFor[AssetProperties](),
+	"AssetSet":              reflect.TypeFor[AssetSet](),
+	"AssetSetRange":         reflect.TypeFor[AssetSetRange](),
+	"Breakdown":             reflect.TypeFor[Breakdown](),
+	"Cloud":                 reflect.TypeFor[Cloud](),
+	"CloudCost":             reflect.TypeFor[CloudCost](),
+	"CloudCostProperties":   reflect.TypeFor[CloudCostProperties](),
+	"CloudCostSet":          reflect.TypeFor[CloudCostSet](),
+	"CloudCostSetRange":     reflect.TypeFor[CloudCostSetRange](),
+	"ClusterManagement":     reflect.TypeFor[ClusterManagement](),
+	"CostMetric":            reflect.TypeFor[CostMetric](),
+	"Disk":                  reflect.TypeFor[Disk](),
+	"GPUAllocation":         reflect.TypeFor[GPUAllocation](),
+	"LbAllocation":          reflect.TypeFor[LbAllocation](),
+	"LoadBalancer":          reflect.TypeFor[LoadBalancer](),
+	"Network":               reflect.TypeFor[Network](),
+	"NetworkDetail":         reflect.TypeFor[NetworkDetail](),
+	"NetworkInsight":        reflect.TypeFor[NetworkInsight](),
+	"NetworkInsightSet":     reflect.TypeFor[NetworkInsightSet](),
+	"Node":                  reflect.TypeFor[Node](),
+	"NodeOverhead":          reflect.TypeFor[NodeOverhead](),
+	"PVAllocation":          reflect.TypeFor[PVAllocation](),
+	"PVKey":                 reflect.TypeFor[PVKey](),
+	"RawAllocationOnlyData": reflect.TypeFor[RawAllocationOnlyData](),
+	"SharedAsset":           reflect.TypeFor[SharedAsset](),
+	"Window":                reflect.TypeFor[Window](),
 }
 
 //--------------------------------------------------------------------------
@@ -98,6 +99,16 @@ func isBinaryTag(data []byte, tag string) bool {
 	return string(data[:len(tag)]) == tag
 }
 
+// isReaderBinaryTag is used to peek the header for an io.Reader Buffer
+func isReaderBinaryTag(buff *util.Buffer, tag string) bool {
+	data, err := buff.Peek(len(tag))
+	if err != nil {
+		panic(fmt.Sprintf("called Peek() on a non buffered reader: %s", err))
+	}
+
+	return string(data[:len(tag)]) == tag
+}
+
 // appendBytes combines a and b into a new byte array
 func appendBytes(a []byte, b []byte) []byte {
 	al := len(a)
@@ -106,7 +117,7 @@ func appendBytes(a []byte, b []byte) []byte {
 
 	// allocate a new byte array for the combined
 	// use native copy for speedy byte copying
-	result := make([]byte, tl, tl)
+	result := make([]byte, tl)
 	copy(result, a)
 	copy(result[al:], b)
 
@@ -154,7 +165,7 @@ func resolveType(t string) (pkg string, name string, isPtr bool) {
 
 // StringTable maps strings to specific indices for encoding
 type StringTable struct {
-	l       *sync.Mutex
+	l       sync.Mutex
 	indices map[string]int
 	next    int
 }
@@ -162,7 +173,6 @@ type StringTable struct {
 // NewStringTable Creates a new StringTable instance with provided contents
 func NewStringTable(contents ...string) *StringTable {
 	st := &StringTable{
-		l:       new(sync.Mutex),
 		indices: make(map[string]int),
 		next:    len(contents),
 	}
@@ -200,7 +210,7 @@ func (st *StringTable) ToSlice() []string {
 		return []string{}
 	}
 
-	sl := make([]string, st.next, st.next)
+	sl := make([]string, st.next)
 	for s, i := range st.indices {
 		sl[i] = s
 	}
@@ -495,7 +505,38 @@ func (target *Allocation) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the Allocation type
+func (target *Allocation) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -1104,7 +1145,38 @@ func (target *AllocationProperties) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the AllocationProperties type
+func (target *AllocationProperties) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -1600,7 +1672,38 @@ func (target *AllocationSet) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the AllocationSet type
+func (target *AllocationSet) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -1895,7 +1998,38 @@ func (target *AllocationSetRange) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the AllocationSetRange type
+func (target *AllocationSetRange) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -2102,7 +2236,38 @@ func (target *Any) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the Any type
+func (target *Any) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -2342,7 +2507,38 @@ func (target *AssetProperties) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the AssetProperties type
+func (target *AssetProperties) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -2632,7 +2828,38 @@ func (target *AssetSet) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the AssetSet type
+func (target *AssetSet) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -2905,7 +3132,38 @@ func (target *AssetSetRange) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the AssetSetRange type
+func (target *AssetSetRange) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -3047,7 +3305,38 @@ func (target *Breakdown) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the Breakdown type
+func (target *Breakdown) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -3229,7 +3518,38 @@ func (target *Cloud) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the Cloud type
+func (target *Cloud) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -3486,7 +3806,38 @@ func (target *CloudCost) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the CloudCost type
+func (target *CloudCost) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -3747,7 +4098,38 @@ func (target *CloudCostProperties) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the CloudCostProperties type
+func (target *CloudCostProperties) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -4077,7 +4459,38 @@ func (target *CloudCostSet) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the CloudCostSet type
+func (target *CloudCostSet) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -4294,7 +4707,38 @@ func (target *CloudCostSetRange) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the CloudCostSetRange type
+func (target *CloudCostSetRange) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -4483,7 +4927,38 @@ func (target *ClusterManagement) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the ClusterManagement type
+func (target *ClusterManagement) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -4661,7 +5136,38 @@ func (target *CostMetric) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the CostMetric type
+func (target *CostMetric) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -4890,7 +5396,38 @@ func (target *Disk) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the Disk type
+func (target *Disk) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -5233,7 +5770,38 @@ func (target *GPUAllocation) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the GPUAllocation type
+func (target *GPUAllocation) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -5399,7 +5967,38 @@ func (target *LbAllocation) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the LbAllocation type
+func (target *LbAllocation) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -5616,7 +6215,38 @@ func (target *LoadBalancer) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the LoadBalancer type
+func (target *LoadBalancer) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -5902,7 +6532,38 @@ func (target *Network) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the Network type
+func (target *Network) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -6120,7 +6781,38 @@ func (target *NetworkDetail) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the NetworkDetail type
+func (target *NetworkDetail) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -6371,7 +7063,38 @@ func (target *NetworkInsight) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the NetworkInsight type
+func (target *NetworkInsight) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -6672,7 +7395,38 @@ func (target *NetworkInsightSet) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the NetworkInsightSet type
+func (target *NetworkInsightSet) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -6946,7 +7700,38 @@ func (target *Node) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the Node type
+func (target *Node) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -7224,7 +8009,38 @@ func (target *NodeOverhead) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the NodeOverhead type
+func (target *NodeOverhead) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -7341,7 +8157,38 @@ func (target *PVAllocation) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the PVAllocation type
+func (target *PVAllocation) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -7475,7 +8322,38 @@ func (target *PVKey) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the PVKey type
+func (target *PVKey) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -7604,7 +8482,38 @@ func (target *RawAllocationOnlyData) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the RawAllocationOnlyData type
+func (target *RawAllocationOnlyData) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -7774,7 +8683,38 @@ func (target *SharedAsset) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the SharedAsset type
+func (target *SharedAsset) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}
@@ -7971,7 +8911,38 @@ func (target *Window) UnmarshalBinary(data []byte) error {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 		tl := buff.ReadInt()                      // table length
 		if tl > 0 {
-			table = make([]string, tl, tl)
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the Window type
+func (target *Window) UnmarshalBinaryFromReader(reader io.Reader) error {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
 			for i := 0; i < tl; i++ {
 				table[i] = buff.ReadString()
 			}

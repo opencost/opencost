@@ -289,7 +289,7 @@ type randomByteReader struct {
 	pos   int
 }
 
-func newSingleByteReader(bytes []byte) *randomByteReader {
+func newRandomByteReader(bytes []byte) *randomByteReader {
 	return &randomByteReader{
 		bytes: bytes,
 		pos:   0,
@@ -331,7 +331,7 @@ func TestBufferReaderSupport(t *testing.T) {
 	buf.WriteInt16(44)
 	buf.WriteFloat32(float32(5.0))
 
-	reader := newSingleByteReader(buf.Bytes())
+	reader := newRandomByteReader(buf.Bytes())
 	readerBuff := NewBufferFromReader(reader)
 
 	b := readerBuff.ReadBool()
