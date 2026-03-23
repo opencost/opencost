@@ -8,7 +8,7 @@ on:
     branches:
       - develop
 
-      
+
 concurrency:
   group: golang-ver-bump
   cancel-in-progress: true
@@ -18,7 +18,6 @@ jobs:
     name: Check and Update Go Version
     runs-on: ubuntu-latest
     permissions:
-    - uses: actions/checkout@v6.0.2
       pull-requests: write
     steps:
     - uses: actions/checkout@v6
