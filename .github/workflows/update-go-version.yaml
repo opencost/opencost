@@ -8,6 +8,7 @@ on:
     branches:
       - develop
 
+      
 concurrency:
   group: golang-ver-bump
   cancel-in-progress: true
