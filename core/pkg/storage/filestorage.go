@@ -105,7 +105,7 @@ func (fs *FileStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 //
 // It takes advantage of flock() based locking to improve safety.
 func (fs *FileStorage) Read(path string) ([]byte, error) {
-	f := gopath.Join(fs.baseDir, path)
+	f := filepath.Join(fs.baseDir, path)
 
 	b, err := fileutil.ReadLocked(f)
 	if err != nil {
@@ -122,7 +122,7 @@ func (fs *FileStorage) Read(path string) ([]byte, error) {
 //
 // For FileStorage, this is implemented as a local file copy.
 func (fs *FileStorage) ReadToLocalFile(path, destPath string) error {
-	src := gopath.Join(fs.baseDir, path)
+	src := filepath.Join(fs.baseDir, path)
 
 	in, err := os.Open(src)
 	if err != nil {

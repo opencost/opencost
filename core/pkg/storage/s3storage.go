@@ -321,31 +321,57 @@ func (s3 *S3Storage) ReadToLocalFile(path, destPath string) error {
 	}
 	defer r.Close()
 
-	// Force the initial GetObject call and surface "not found" errors early,
+	// Force a metadata call and surface "not found" errors early,
 	// matching behavior in getRange().
-	if _, err := r.Read(nil); err != nil {
+	if _, err := s3.client.StatObject(ctx, s3.name, path, minio.StatObjectOptions{ServerSideEncryption: sse}); err != nil {
 		if s3.isObjNotFound(err) {
 			return DoesNotExistError
 		}
-		return errors.Wrap(err, "Read from S3 failed")
+		return errors.Wrap(err, "StatObject from S3 failed")
 	}
 
-	if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
+	dir := filepath.Dir(destPath)
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
 		return errors.Wrap(err, "creating destination directory")
 	}
 
-	f, err := os.Create(destPath)
+	// Write to a temporary file in the same directory to avoid leaving a
+	// partially-written file at destPath on error. Rename atomically on success.
+	tmpFile, err := os.CreateTemp(dir, ".s3-read-*")
 	if err != nil {
-		return errors.Wrapf(err, "creating destination file %s", destPath)
+		return errors.Wrapf(err, "creating temporary file in %s", dir)
 	}
-	defer f.Close()
+	tmpPath := tmpFile.Name()
+
+	// Ensure temporary file is cleaned up on error.
+	success := false
+	defer func() {
+		if !success {
+			_ = tmpFile.Close()
+			_ = os.Remove(tmpPath)
+		}
+	}()
 
 	// Use 1 MB buffer for streaming operations
 	buf := make([]byte, 1024*1024)
-	if _, err := io.CopyBuffer(f, r, buf); err != nil {
+	if _, err := io.CopyBuffer(tmpFile, r, buf); err != nil {
 		return errors.Wrapf(err, "streaming %s to %s", path, destPath)
 	}
 
+	// Ensure data is flushed to disk before renaming.
+	if err := tmpFile.Sync(); err != nil {
+		return errors.Wrapf(err, "syncing temporary file for %s", destPath)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return errors.Wrapf(err, "closing temporary file for %s", destPath)
+	}
+
+	// Atomically move the fully written temp file into place.
+	if err := os.Rename(tmpPath, destPath); err != nil {
+		return errors.Wrapf(err, "renaming temporary file to %s", destPath)
+	}
+
+	success = true
 	return nil
 }
 

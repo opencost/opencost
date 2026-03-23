@@ -38,10 +38,11 @@ type Storage interface {
 	// read the contents.
 	Read(path string) ([]byte, error)
 
-	// ReadToLocalFile streams the specified file at path to destPath on the local file system
-	// designed for minimal RAM consumption 
-	// note, it is up to caller to clean up file when finished
-	ReadToLocalFile(path, destPath string) (error)
+	// ReadToLocalFile writes the specified file at path to destPath on the local file system.
+	// Implementations may stream data to minimize RAM usage, but some backends may still buffer
+	// data in memory depending on their capabilities. It is up to the caller to clean up the
+	// local file when finished.
+	ReadToLocalFile(path, destPath string) error
 
 	// Write uses the relative path of the storage combined with the provided path
 	// to write a new file or overwrite an existing file.

@@ -238,9 +238,9 @@ func (b *AzureStorage) Read(name string) ([]byte, error) {
 
 	downloadResponse, err := b.containerClient.NewBlobClient(name).DownloadStream(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("AzureStorage: Read: failed to download %w", err)
+		return nil, fmt.Errorf("AzureStorage: Read: failed to download blob %q: %w", name, err)
 	}
-	// NOTE: automatically retries are performed if the connection fails
+	// NOTE: automatic retries are performed if the connection fails
 	retryReader := downloadResponse.NewRetryReader(ctx, &azblob.RetryReaderOptions{
 		MaxRetries: int32(b.config.ReaderConfig.MaxRetryRequests),
 	})
@@ -266,9 +266,9 @@ func (b *AzureStorage) ReadToLocalFile(path, destPath string) error {
 
 	downloadResponse, err := b.containerClient.NewBlobClient(path).DownloadStream(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("AzureStorage: ReadToLocalFile: failed to download %w", err)
+		return fmt.Errorf("AzureStorage: ReadToLocalFile: failed to download blob %q to %q: %w", path, destPath, err)
 	}
-	// NOTE: automatically retries are performed if the connection fails.
+	// NOTE: automatic retries are performed if the connection fails.
 	retryReader := downloadResponse.NewRetryReader(ctx, &azblob.RetryReaderOptions{
 		MaxRetries: int32(b.config.ReaderConfig.MaxRetryRequests),
 	})

@@ -129,6 +129,13 @@ func (gs *GCSStorage) Read(name string) ([]byte, error) {
 	ctx := context.Background()
 	reader, err := gs.bucket.Object(name).NewReader(ctx)
 	if err != nil {
+		// Normalize GCS "object not found" errors to DoesNotExistError for consistency
+		if err == gcs.ErrObjectNotExist {
+			return nil, DoesNotExistError
+		}
+		if e, ok := err.(*gcs.Error); ok && e.Code == 404 {
+			return nil, DoesNotExistError
+		}
 		return nil, err
 	}
 
@@ -148,6 +155,13 @@ func (gs *GCSStorage) ReadToLocalFile(path, destPath string) error {
 	ctx := context.Background()
 	reader, err := gs.bucket.Object(path).NewReader(ctx)
 	if err != nil {
+		// Normalize GCS "object not found" errors to DoesNotExistError for consistency
+		if err == gcs.ErrObjectNotExist {
+			return DoesNotExistError
+		}
+		if e, ok := err.(*gcs.Error); ok && e.Code == 404 {
+			return DoesNotExistError
+		}
 		return err
 	}
 	defer reader.Close()

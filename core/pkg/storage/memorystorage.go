@@ -55,7 +55,7 @@ func (ms *MemoryStorage) Stat(path string) (*StorageInfo, error) {
 		}, nil
 	}
 
-	return nil, fmt.Errorf("file not found: %s - %w", path, DoesNotExistError)
+	return nil, DoesNotExistError
 }
 
 // Read uses the relative path of the storage combined with the provided path to
@@ -70,7 +70,7 @@ func (ms *MemoryStorage) Read(path string) ([]byte, error) {
 		return file.Contents, nil
 	}
 
-	return nil, fmt.Errorf("file not found: %s - %w", path, DoesNotExistError)
+	return nil, DoesNotExistError
 }
 
 // ReadToLocalFile writes the specified object at path to destPath on the local file system.
@@ -81,7 +81,7 @@ func (ms *MemoryStorage) ReadToLocalFile(path, destPath string) error {
 	file, ok := ms.directPaths[path]
 	if !ok {
 		ms.lock.Unlock()
-		return fmt.Errorf("file not found: %s - %w", path, DoesNotExistError)
+		return DoesNotExistError
 	}
 
 	// Copy the contents so we can release the lock before doing potentially slow disk IO.
