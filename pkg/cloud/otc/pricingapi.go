@@ -9,6 +9,8 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 )
 
+var otcHTTPClient = http.DefaultClient
+
 // Fetches and flattens all product entries across multiple services with pagination
 func (otc *OTC) fetchPaginatedProducts(serviceNames []string) ([]Product, error) {
 	const baseURL = "https://calculator.otc-service.com/de/open-telekom-price-api/"
@@ -20,14 +22,22 @@ func (otc *OTC) fetchPaginatedProducts(serviceNames []string) ([]Product, error)
 	for {
 		url := fmt.Sprintf("%s?%s&columns%%5B0%%5D=productIdParameter&columns%%5B1%%5D=opiFlavour&columns%%5B2%%5D=osUnit&columns%%5B3%%5D=vCpu&columns%%5B4%%5D=ram&columns%%5B5%%5D=priceAmount&limitFrom=%d", baseURL, query, limitFrom)
 
-		resp, err := http.Get(url)
+		resp, err := otcHTTPClient.Get(url)
 		if err != nil {
+			if resp != nil {
+				resp.Body.Close()
+			}
 			log.Errorf("Error fetching products from OTC API: %v", err)
 			return nil, err
 		}
-		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+			return nil, fmt.Errorf("OTC API returned unexpected status %d", resp.StatusCode)
+		}
 
 		pageData, stats, err := otc.loadPaginatedResponse(resp)
+		resp.Body.Close()
 		if err != nil {
 			log.Errorf("Error loading paginated response: %v", err)
 			return nil, err
