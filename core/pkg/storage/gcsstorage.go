@@ -7,6 +7,7 @@ package storage
 import (
 	"context"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"gopkg.in/yaml.v2"
@@ -133,7 +135,7 @@ func (gs *GCSStorage) Read(name string) ([]byte, error) {
 		if err == gcs.ErrObjectNotExist {
 			return nil, DoesNotExistError
 		}
-		if e, ok := err.(*gcs.Error); ok && e.Code == 404 {
+		if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusNotFound {
 			return nil, DoesNotExistError
 		}
 		return nil, err
@@ -159,7 +161,7 @@ func (gs *GCSStorage) ReadToLocalFile(path, destPath string) error {
 		if err == gcs.ErrObjectNotExist {
 			return DoesNotExistError
 		}
-		if e, ok := err.(*gcs.Error); ok && e.Code == 404 {
+		if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusNotFound {
 			return DoesNotExistError
 		}
 		return err
