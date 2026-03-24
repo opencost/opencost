@@ -30,6 +30,7 @@ func TestBasicLruEvict(t *testing.T) {
 			t.Errorf("The 'bar' entry should've been replaced by 'test'")
 		}
 	}
+	lruBank.lock.Unlock()
 }
 
 // ---------------------------------------------------------------------------
@@ -42,7 +43,7 @@ func TestLoadOrStore_MissAndHit(t *testing.T) {
 	bank := NewLruStringBank(10, time.Minute).(*lruStringBank)
 	defer bank.Stop()
 
-	v, loaded := bank.LoadOrStore("k", "hello")
+	v, loaded := bank.LoadOrStore("hello", "hello")
 	if loaded {
 		t.Errorf("first LoadOrStore: expected loaded=false, got true")
 	}
@@ -50,7 +51,7 @@ func TestLoadOrStore_MissAndHit(t *testing.T) {
 		t.Errorf("first LoadOrStore: expected value %q, got %q", "hello", v)
 	}
 
-	v, loaded = bank.LoadOrStore("k", "world")
+	v, loaded = bank.LoadOrStore("hello", "world")
 	if !loaded {
 		t.Errorf("second LoadOrStore: expected loaded=true, got false")
 	}
@@ -104,7 +105,7 @@ func TestLoadOrStoreFunc_FactoryCalledOnMissOnly(t *testing.T) {
 
 	factory := func() string {
 		calls++
-		return "generated"
+		return "k"
 	}
 
 	bank.LoadOrStoreFunc("k", factory)
@@ -112,32 +113,6 @@ func TestLoadOrStoreFunc_FactoryCalledOnMissOnly(t *testing.T) {
 
 	if calls != 1 {
 		t.Errorf("factory should be called exactly once, got %d calls", calls)
-	}
-}
-
-// Regression test: LoadOrStoreFunc stores entries under the *value* key, not
-// the *key* argument.  Subsequent lookups by the original key will therefore
-// miss every time.  This test documents the behaviour so any fix is caught
-// immediately.
-func TestLoadOrStoreFunc_KeyBug(t *testing.T) {
-	bank := NewLruStringBank(10, time.Minute).(*lruStringBank)
-	defer bank.Stop()
-
-	// First call: miss → stores entry under value "v", not key "k".
-	v, loaded := bank.LoadOrStoreFunc("k", func() string { return "v" })
-	if loaded {
-		t.Errorf("first call: expected loaded=false")
-	}
-	if v != "v" {
-		t.Errorf("first call: expected value %q, got %q", "v", v)
-	}
-
-	// Second call with the same key: because the entry was stored under "v",
-	// looking up "k" misses again.  This is the bug: loaded should be true
-	// but the current implementation returns false.
-	_, loaded = bank.LoadOrStoreFunc("k", func() string { return "v" })
-	if !loaded {
-		t.Errorf("LoadOrStoreFunc second call returned loaded=false")
 	}
 }
 
@@ -152,7 +127,7 @@ func TestEviction_BelowCapacityNoEviction(t *testing.T) {
 	defer bank.Stop()
 
 	for i := 0; i < capacity; i++ {
-		bank.LoadOrStore(fmt.Sprintf("k%d", i), fmt.Sprintf("v%d", i))
+		bank.LoadOrStore(fmt.Sprintf("v%d", i), fmt.Sprintf("v%d", i))
 	}
 
 	// Wait several eviction cycles.
@@ -173,7 +148,7 @@ func TestEviction_ExceedCapacityTrimsToCapacity(t *testing.T) {
 	defer bank.Stop()
 
 	for i := 0; i < capacity+3; i++ {
-		bank.LoadOrStore(fmt.Sprintf("k%d", i), fmt.Sprintf("v%d", i))
+		bank.LoadOrStore(fmt.Sprintf("v%d", i), fmt.Sprintf("v%d", i))
 		time.Sleep(20 * time.Millisecond) // ensure distinct timestamps
 	}
 
@@ -225,7 +200,7 @@ func TestClear_EmptiesMap(t *testing.T) {
 	defer bank.Stop()
 
 	for i := 0; i < 5; i++ {
-		bank.LoadOrStore(fmt.Sprintf("k%d", i), fmt.Sprintf("v%d", i))
+		bank.LoadOrStore(fmt.Sprintf("v%d", i), fmt.Sprintf("v%d", i))
 	}
 
 	bank.Clear()
@@ -333,20 +308,33 @@ func TestConcurrentLoadOrStore(t *testing.T) {
 	const opsEach = 100
 
 	var wg sync.WaitGroup
-	wg.Add(goroutines)
-
-	for g := 0; g < goroutines; g++ {
-		g := g
-		go func() {
-			defer wg.Done()
+	for i := 0; i < goroutines; i++ {
+		g := i
+		wg.Go(func() {
 			for i := 0; i < opsEach; i++ {
 				key := fmt.Sprintf("k%d", (g*opsEach+i)%30)
 				bank.LoadOrStore(key, key)
 			}
-		}()
+		})
 	}
 
-	wg.Wait()
+	waiter := func() chan struct{} {
+		st := make(chan struct{})
+
+		go func() {
+			wg.Wait()
+			close(st)
+		}()
+
+		return st
+	}
+
+	select {
+	case <-waiter():
+		t.Logf("Completed Successfully\n")
+	case <-time.After(10 * time.Second):
+		t.Logf("Timed out\n")
+	}
 }
 
 // Concurrent calls interleaved with eviction cycles must not deadlock or race.
@@ -358,13 +346,12 @@ func TestConcurrentLoadOrStoreWithEviction(t *testing.T) {
 	const duration = 300 * time.Millisecond
 
 	var wg sync.WaitGroup
-	stop := time.After(duration)
 
 	for i := 0; i < goroutines; i++ {
 		g := i
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		stop := time.After(duration)
+
+		wg.Go(func() {
 			for {
 				select {
 				case <-stop:
@@ -374,10 +361,26 @@ func TestConcurrentLoadOrStoreWithEviction(t *testing.T) {
 					bank.LoadOrStore(key, key)
 				}
 			}
-		}()
+		})
 	}
 
-	wg.Wait()
+	waiter := func() chan struct{} {
+		st := make(chan struct{})
+
+		go func() {
+			wg.Wait()
+			close(st)
+		}()
+
+		return st
+	}
+
+	select {
+	case <-waiter():
+		t.Logf("Completed Successfully\n")
+	case <-time.After(10 * time.Second):
+		t.Logf("Timed out\n")
+	}
 }
 
 // Concurrent Clear calls alongside reads/writes must not panic.

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/opencost/opencost/core/pkg/util/stringutil"
 )
@@ -47,7 +48,7 @@ func copyString(s string) string {
 	return string([]byte(s))
 }
 
-func generateBenchData(totalStrings, totalUnique int) []string {
+func generateBenchData(totalStrings, totalUnique int) [][]byte {
 	randStrings := make([]string, 0, totalStrings)
 	r := rand.New(rand.NewSource(27644437))
 
@@ -70,7 +71,11 @@ func generateBenchData(totalStrings, totalUnique int) []string {
 	// shuffle the list of strings
 	r.Shuffle(totalStrings, func(i, j int) { randStrings[i], randStrings[j] = randStrings[j], randStrings[i] })
 
-	return randStrings
+	stringBytes := make([][]byte, 0, totalStrings)
+	for _, str := range randStrings {
+		stringBytes = append(stringBytes, []byte(str))
+	}
+	return stringBytes
 }
 
 func benchmarkStringBank(b *testing.B, bt bankTest, totalStrings, totalUnique int, useBankFunc bool) {
@@ -81,10 +86,16 @@ func benchmarkStringBank(b *testing.B, bt bankTest, totalStrings, totalUnique in
 		for i := 0; i < b.N; i++ {
 			b.StartTimer()
 			for bb := 0; bb < totalStrings; bb++ {
+				bytes := randStrings[bb]
+
 				if useBankFunc {
-					bt.BankFunc(randStrings[bb], func() string { return randStrings[bb] })
+					str := unsafe.String(unsafe.SliceData(bytes), len(bytes))
+
+					bt.BankFunc(str, func() string {
+						return string(bytes)
+					})
 				} else {
-					bt.Bank(randStrings[bb])
+					bt.Bank(string(bytes))
 				}
 			}
 			b.StopTimer()

@@ -139,7 +139,7 @@ func (sb *lruStringBank) LoadOrStoreFunc(key string, f func() string) (string, b
 
 	// create the key and value using the func (the key could be deallocated later)
 	value := f()
-	sb.m[key] = &lruEntry{
+	sb.m[value] = &lruEntry{
 		value: value,
 		used:  time.Now().UTC(),
 	}
