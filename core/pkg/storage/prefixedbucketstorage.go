@@ -81,6 +81,11 @@ func (pbs *PrefixedBucketStorage) Read(name string) ([]byte, error) {
 	return pbs.storage.Read(conditionalPrefix(pbs.prefix, name))
 }
 
+// ReadToLocalFile streams the specified object at path to destPath on the local file system.
+func (pbs *PrefixedBucketStorage) ReadToLocalFile(path, destPath string) error {
+	return pbs.storage.ReadToLocalFile(conditionalPrefix(pbs.prefix, path), destPath)
+}
+
 // Remove deletes the object with the given name.
 func (pbs *PrefixedBucketStorage) Remove(name string) error {
 	return pbs.storage.Remove(conditionalPrefix(pbs.prefix, name))

@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -296,6 +297,82 @@ func (s3 *S3Storage) Read(name string) ([]byte, error) {
 
 	return s3.getRange(ctx, name, 0, -1)
 
+}
+
+// ReadToLocalFile streams the specified object at path to destPath on the local file system.
+func (s3 *S3Storage) ReadToLocalFile(path, destPath string) error {
+	path = trimLeading(path)
+
+	log.Debugf("S3Storage::ReadToLocalFile::%s(%s) -> %s", s3.protocol(), path, destPath)
+	ctx := context.Background()
+
+	sse, err := s3.getServerSideEncryption(ctx)
+	if err != nil {
+		return err
+	}
+
+	opts := &minio.GetObjectOptions{ServerSideEncryption: sse}
+	r, err := s3.client.GetObject(ctx, s3.name, path, *opts)
+	if err != nil {
+		if s3.isObjNotFound(err) {
+			return DoesNotExistError
+		}
+		return err
+	}
+	defer r.Close()
+
+	// Force a metadata call and surface "not found" errors early,
+	// matching behavior in getRange().
+	if _, err := s3.client.StatObject(ctx, s3.name, path, minio.StatObjectOptions{ServerSideEncryption: sse}); err != nil {
+		if s3.isObjNotFound(err) {
+			return DoesNotExistError
+		}
+		return errors.Wrap(err, "StatObject from S3 failed")
+	}
+
+	dir := filepath.Dir(destPath)
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return errors.Wrap(err, "creating destination directory")
+	}
+
+	// Write to a temporary file in the same directory to avoid leaving a
+	// partially-written file at destPath on error. Rename atomically on success.
+	tmpFile, err := os.CreateTemp(dir, ".s3-read-*")
+	if err != nil {
+		return errors.Wrapf(err, "creating temporary file in %s", dir)
+	}
+	tmpPath := tmpFile.Name()
+
+	// Ensure temporary file is cleaned up on error.
+	success := false
+	defer func() {
+		if !success {
+			_ = tmpFile.Close()
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	// Use 1 MB buffer for streaming operations
+	buf := make([]byte, 1024*1024)
+	if _, err := io.CopyBuffer(tmpFile, r, buf); err != nil {
+		return errors.Wrapf(err, "streaming %s to %s", path, destPath)
+	}
+
+	// Ensure data is flushed to disk before renaming.
+	if err := tmpFile.Sync(); err != nil {
+		return errors.Wrapf(err, "syncing temporary file for %s", destPath)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return errors.Wrapf(err, "closing temporary file for %s", destPath)
+	}
+
+	// Atomically move the fully written temp file into place.
+	if err := os.Rename(tmpPath, destPath); err != nil {
+		return errors.Wrapf(err, "renaming temporary file to %s", destPath)
+	}
+
+	success = true
+	return nil
 }
 
 // Exists checks if the given object exists.
