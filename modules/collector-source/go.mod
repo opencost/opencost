@@ -9,9 +9,9 @@ require (
 	github.com/kubecost/events v0.0.8
 	github.com/opencost/opencost/core v0.0.0-20250521155634-81d2b597d1bc
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
-	k8s.io/api v0.35.2
-	k8s.io/apimachinery v0.35.2
-	k8s.io/kubelet v0.35.2
+	k8s.io/api v0.35.3
+	k8s.io/apimachinery v0.35.3
+	k8s.io/kubelet v0.35.3
 )
 
 require (
@@ -126,7 +126,7 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	k8s.io/client-go v0.35.2 // indirect
+	k8s.io/client-go v0.35.3 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20260127142750-a19766b6e2d4 // indirect
 	k8s.io/utils v0.0.0-20260210185600-b8788abfbbc2 // indirect
