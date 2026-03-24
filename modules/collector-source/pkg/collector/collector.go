@@ -62,6 +62,10 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewGPUsAllocatedMetricCollector())
 	memStore.Register(NewIsGPUSharedMetricCollector())
 	memStore.Register(NewGPUInfoMetricCollector())
+	memStore.Register(NewDCGMInfoMetricCollector())
+	memStore.Register(NewDCGMUptimeMetricCollector())
+	memStore.Register(NewDCGMContainerUsageAvgMetricCollector())
+	memStore.Register(NewDCGMContainerUsageMaxMetricCollector())
 	memStore.Register(NewNodeCPUPricePerHourMetricCollector())
 	memStore.Register(NewNodeRAMPricePerGiBHourMetricCollector())
 	memStore.Register(NewNodeGPUPricePerHourMetricCollector())
@@ -1371,6 +1375,65 @@ func NewGPUInfoMetricCollector() *metric.MetricCollector {
 			source.UUIDLabel,
 		},
 		aggregator.Info,
+		func(labels map[string]string) bool {
+			return labels[source.ContainerLabel] != ""
+		},
+	)
+}
+
+func NewDCGMInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DCGMInfoID,
+		metric.DCGMFIDEVDECUTIL,
+		[]string{
+			source.UUIDLabel,
+			source.DeviceLabel,
+			source.ModelNameLabel,
+			source.HostNameLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewDCGMUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DCGMUptimeID,
+		metric.DCGMFIDEVDECUTIL,
+		[]string{
+			source.UUIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewDCGMContainerUsageAvgMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DCGMContainerUsageAvgID,
+		metric.DCGMFIPROFGRENGINEACTIVE,
+		[]string{
+			source.UUIDLabel,
+			source.PodUIDLabel,
+			source.ContainerLabel,
+		},
+		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.ContainerLabel] != ""
+		},
+	)
+}
+
+func NewDCGMContainerUsageMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DCGMContainerUsageMaxID,
+		metric.DCGMFIPROFGRENGINEACTIVE,
+		[]string{
+			source.UUIDLabel,
+			source.PodUIDLabel,
+			source.ContainerLabel,
+		},
+		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
 			return labels[source.ContainerLabel] != ""
 		},

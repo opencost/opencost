@@ -6,7 +6,10 @@ type Resource string
 const (
 	ResourceCPU    Resource = "cpu"
 	ResourceMemory Resource = "memory"
+	ResourceNvidia Resource = "nvidia.com/gpu"
 )
+
+var GPUResources = []Resource{ResourceNvidia}
 
 // @bingen:generate:ResourceQuantity
 type ResourceQuantity struct {

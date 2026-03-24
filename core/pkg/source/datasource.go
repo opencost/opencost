@@ -83,6 +83,12 @@ type MetricsQuerier interface {
 	QueryGPUInfo(start, end time.Time) *Future[GPUInfoResult]
 	QueryIsGPUShared(start, end time.Time) *Future[IsGPUSharedResult]
 
+	// Device
+	QueryDCGMDeviceInfo(start, end time.Time) *Future[DCGMDeviceInfoResult]
+	QueryDCGMDeviceUptime(start, end time.Time) *Future[DCGMDeviceUptimeResult]
+	QueryDCGMContainerUsageAvg(start, end time.Time) *Future[DCGMDeviceContainerUsageResult]
+	QueryDCGMContainerUsageMax(start, end time.Time) *Future[DCGMDeviceContainerUsageResult]
+
 	// PVC
 	QueryPodPVCAllocation(start, end time.Time) *Future[PodPVCAllocationResult]
 	QueryPVCBytesRequested(start, end time.Time) *Future[PVCBytesRequestedResult]

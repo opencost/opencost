@@ -20,6 +20,7 @@ const (
 	InstanceTypeLabel    = "instance_type"
 	ContainerLabel       = "container"
 	PodLabel             = "pod"
+	PodUIDLabel          = "pod_uid"
 	PodNameLabel         = "pod_name"
 	PodVolumeNameLabel   = "pod_volume_name"
 	ProviderIDLabel      = "provider_id"
@@ -40,6 +41,7 @@ const (
 	KubernetesNodeLabel  = "kubernetes_node"
 	ModeLabel            = "mode"
 	ModelNameLabel       = "modelName"
+	HostNameLabel        = "Hostname"
 	UUIDLabel            = "UUID"
 	ResourceLabel        = "resource"
 	DeploymentLabel      = "deployment"
@@ -1016,7 +1018,7 @@ type GPUInfoResult struct {
 }
 
 func DecodeGPUInfoResult(result *QueryResult) *GPUInfoResult {
-	uid, _ := result.GetString(UIDLabel)
+	uid, _ := result.GetString(PodUIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
@@ -1943,6 +1945,70 @@ func DecodeResourceResult(result *QueryResult) *ResourceResult {
 		Resource: resource,
 		Unit:     unit,
 		Value:    value,
+	}
+}
+
+// DCGM needs specialized results because it uses UUID instead of the uid label that we use.
+type DCGMDeviceInfoResult struct {
+	UUID      string
+	Device    string
+	ModelName string
+	HostName  string
+}
+
+func DecodeDCGMDeviceInfoResult(result *QueryResult) *DCGMDeviceInfoResult {
+	uuid, _ := result.GetString(UUIDLabel)
+	device, _ := result.GetString(DeviceLabel)
+	modelName, _ := result.GetString(ModelNameLabel)
+	hostName, _ := result.GetString(HostNameLabel)
+
+	return &DCGMDeviceInfoResult{
+		UUID:      uuid,
+		Device:    device,
+		ModelName: modelName,
+		HostName:  hostName,
+	}
+}
+
+type DCGMDeviceUptimeResult struct {
+	UUID  string
+	First time.Time
+	Last  time.Time
+}
+
+func DecodeDCGMDeviceUptimeResult(result *QueryResult) *DCGMDeviceUptimeResult {
+	uuid, _ := result.GetString(UUIDLabel)
+	first := time.Unix(int64(result.Values[0].Timestamp), 0).UTC()
+	last := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).UTC()
+
+	return &DCGMDeviceUptimeResult{
+		UUID:  uuid,
+		First: first,
+		Last:  last,
+	}
+}
+
+type DCGMDeviceContainerUsageResult struct {
+	UUID      string
+	PodUID    string
+	Container string
+	Value     float64
+}
+
+func DecodeDCGMDeviceContainerUsageResult(result *QueryResult) *DCGMDeviceContainerUsageResult {
+	uuid, _ := result.GetString(UUIDLabel)
+	podUID, _ := result.GetString(PodUIDLabel)
+	container, _ := result.GetString(ContainerLabel)
+	var value float64
+	if len(result.Values) > 0 {
+		value = result.Values[0].Value
+	}
+
+	return &DCGMDeviceContainerUsageResult{
+		UUID:      uuid,
+		PodUID:    podUID,
+		Container: container,
+		Value:     value,
 	}
 }
 

@@ -444,6 +444,22 @@ func (c *collectorMetricsQuerier) QueryIsGPUShared(start, end time.Time) *source
 	return queryCollector(c, start, end, metric.IsGPUSharedID, source.DecodeIsGPUSharedResult)
 }
 
+func (c *collectorMetricsQuerier) QueryDCGMDeviceInfo(start, end time.Time) *source.Future[source.DCGMDeviceInfoResult] {
+	return queryCollector(c, start, end, metric.DCGMInfoID, source.DecodeDCGMDeviceInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryDCGMDeviceUptime(start, end time.Time) *source.Future[source.DCGMDeviceUptimeResult] {
+	return queryCollector(c, start, end, metric.DCGMUptimeID, source.DecodeDCGMDeviceUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryDCGMContainerUsageAvg(start, end time.Time) *source.Future[source.DCGMDeviceContainerUsageResult] {
+	return queryCollector(c, start, end, metric.DCGMContainerUsageAvgID, source.DecodeDCGMDeviceContainerUsageResult)
+}
+
+func (c *collectorMetricsQuerier) QueryDCGMContainerUsageMax(start, end time.Time) *source.Future[source.DCGMDeviceContainerUsageResult] {
+	return queryCollector(c, start, end, metric.DCGMContainerUsageMaxID, source.DecodeDCGMDeviceContainerUsageResult)
+}
+
 func (c *collectorMetricsQuerier) QueryPodPVCAllocation(start, end time.Time) *source.Future[source.PodPVCAllocationResult] {
 	return queryCollector(c, start, end, metric.PodPVCAllocationID, source.DecodePodPVCAllocationResult)
 }

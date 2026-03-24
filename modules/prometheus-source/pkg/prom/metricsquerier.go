@@ -618,11 +618,11 @@ func (pds *PrometheusMetricsQuerier) QueryContainerUptime(start, end time.Time) 
 	return nil
 }
 
-func (pds *PrometheusMetricsQuerier) QueryContainerResourceRequests(start, end time.Time) *source.Future[source.ResourceResult] {
+func (pds *PrometheusMetricsQuerier) QueryContainerResourceRequests(start, end time.Time) *source.Future[source.ContainerResourceResult] {
 	return nil
 }
 
-func (pds *PrometheusMetricsQuerier) QueryContainerResourceLimits(start, end time.Time) *source.Future[source.ResourceResult] {
+func (pds *PrometheusMetricsQuerier) QueryContainerResourceLimits(start, end time.Time) *source.Future[source.ContainerResourceResult] {
 	return nil
 }
 
@@ -867,7 +867,7 @@ func (pds *PrometheusMetricsQuerier) QueryGPUsRequested(start, end time.Time) *s
 
 func (pds *PrometheusMetricsQuerier) QueryGPUsUsageAvg(start, end time.Time) *source.Future[source.GPUsUsageAvgResult] {
 	const queryName = "QueryGPUsUsageAvg"
-	const queryFmtGPUsUsageAvg = `avg(avg_over_time(DCGM_FI_PROF_GR_ENGINE_ACTIVE{container!=""}[%s])) by (container, pod, namespace, uid, %s)`
+	const queryFmtGPUsUsageAvg = `avg(avg_over_time(DCGM_FI_PROF_GR_ENGINE_ACTIVE{container!=""}[%s])) by (container, pod, namespace, pod_uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -885,7 +885,7 @@ func (pds *PrometheusMetricsQuerier) QueryGPUsUsageAvg(start, end time.Time) *so
 
 func (pds *PrometheusMetricsQuerier) QueryGPUsUsageMax(start, end time.Time) *source.Future[source.GPUsUsageMaxResult] {
 	const queryName = "QueryGPUsUsageMax"
-	const queryFmtGPUsUsageMax = `max(max_over_time(DCGM_FI_PROF_GR_ENGINE_ACTIVE{container!=""}[%s])) by (container, pod, namespace, uid, %s)`
+	const queryFmtGPUsUsageMax = `max(max_over_time(DCGM_FI_PROF_GR_ENGINE_ACTIVE{container!=""}[%s])) by (container, pod, namespace, pod_uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -937,9 +937,25 @@ func (pds *PrometheusMetricsQuerier) QueryIsGPUShared(start, end time.Time) *sou
 	return source.NewFuture(source.DecodeIsGPUSharedResult, ctx.QueryAtTime(queryIsGPUShared, end))
 }
 
+func (pds *PrometheusMetricsQuerier) QueryDCGMDeviceInfo(start, end time.Time) *source.Future[source.DCGMDeviceInfoResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryDCGMDeviceUptime(start, end time.Time) *source.Future[source.DCGMDeviceUptimeResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryDCGMContainerUsageAvg(start, end time.Time) *source.Future[source.DCGMDeviceContainerUsageResult] {
+	return nil
+}
+
+func (pds *PrometheusMetricsQuerier) QueryDCGMContainerUsageMax(start, end time.Time) *source.Future[source.DCGMDeviceContainerUsageResult] {
+	return nil
+}
+
 func (pds *PrometheusMetricsQuerier) QueryGPUInfo(start, end time.Time) *source.Future[source.GPUInfoResult] {
 	const queryName = "QueryGPUInfo"
-	const queryFmtGetGPUInfo = `avg(avg_over_time(DCGM_FI_DEV_DEC_UTIL{container!="",%s}[%s])) by (container, pod, namespace, device, modelName, UUID, uid, %s)`
+	const queryFmtGetGPUInfo = `avg(avg_over_time(DCGM_FI_DEV_DEC_UTIL{container!="",%s}[%s])) by (container, pod, namespace, device, modelName, UUID, pod_uid, %s)`
 
 	cfg := pds.promConfig
 

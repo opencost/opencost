@@ -57,79 +57,85 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 		kms.Error(err)
 	}
 
-	// 2.3 Compute Namespaces
+	// 2.3 Compute Devices
+	err = km.computeDevices(kms, start, end)
+	if err != nil {
+		kms.Error(err)
+	}
+
+	// 2.4 Compute Namespaces
 	err = km.computeNamespaces(kms, start, end)
 	if err != nil {
 		kms.Error(err)
 	}
 
-	// 2.4 Compute Pods
+	// 2.5 Compute Pods
 	err = km.computePods(kms, start, end)
 	if err != nil {
 		kms.Error(err)
 	}
 
-	// 2.5 Compute Deployments
+	// 2.6 Compute Deployments
 	err = km.computeDeployments(kms, start, end)
 	if err != nil {
 		kms.Error(err)
 	}
 
-	// 2.6 Compute StatefulSets
+	// 2.7 Compute StatefulSets
 	err = km.computeStatefulSets(kms, start, end)
 	if err != nil {
 		kms.Error(err)
 	}
 
-	// 2.7 Compute DaemonSets
+	// 2.8 Compute DaemonSets
 	err = km.computeDaemonSets(kms, start, end)
 	if err != nil {
 		kms.Error(err)
 	}
 
-	// 2.8 Compute Jobs
+	// 2.9 Compute Jobs
 	err = km.computeJobs(kms, start, end)
 	if err != nil {
 		kms.Error(err)
 	}
 
-	// 2.9 Compute CronJobs
+	// 2.10 Compute CronJobs
 	err = km.computeCronJobs(kms, start, end)
 	if err != nil {
 		kms.Error(err)
 	}
 
-	// 2.10 Compute ReplicaSets
+	// 2.11 Compute ReplicaSets
 	err = km.computeReplicaSets(kms, start, end)
 	if err != nil {
 		kms.Error(err)
 	}
 
-	// 2.11 Compute Containers
+	// 2.12 Compute Containers
 	err = km.computeContainers(kms, start, end)
 	if err != nil {
 		kms.Error(err)
 	}
 
-	// 2.12 Compute ResourceQuotas
+	// 2.13 Compute ResourceQuotas
 	err = km.computeResourceQuotas(kms, start, end)
 	if err != nil {
 		kms.Error(err)
 	}
 
-	// 2.13 Compute Services
+	// 2.14 Compute Services
 	err = km.computeServices(kms, start, end)
 	if err != nil {
 		kms.Error(err)
 	}
 
-	// 2.14 Compute PersistentVolumes
+	// 2.15 Compute PersistentVolumes
 	err = km.computePersistentVolumes(kms, start, end)
 	if err != nil {
 		kms.Error(err)
 	}
 
-	// 2.15 Compute PersistentVolumeClaims
+	// 2.16 Compute PersistentVolumeClaims
 	err = km.computePersistentVolumeClaims(kms, start, end)
 	if err != nil {
 		kms.Error(err)
@@ -326,6 +332,60 @@ func resourceUnitValue(resource, unit string, value float64) (kubemodel.Resource
 	default:
 		return kubemodel.Resource(resource), kubemodel.Unit(unit), value
 	}
+}
+
+func (km *KubeModel) computeDevices(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+	grp := source.NewQueryGroup()
+	metrics := km.ds.Metrics()
+
+	gpuInfoFuture := source.WithGroup(grp, metrics.QueryGPUInfo(start, end))
+
+	// Build pod name → node UID reverse map from already-computed pods.
+	podNameToNodeUID := make(map[string]string)
+	for _, pod := range kms.Pods {
+		podNameToNodeUID[pod.Name] = pod.NodeUID
+	}
+
+	// Deduplicate devices by UUID; a device may appear in multiple metric results.
+	deviceMap := make(map[string]*kubemodel.Device)
+
+	gpuInfoResult, _ := gpuInfoFuture.Await()
+	for _, res := range gpuInfoResult {
+		if res.UUID == "" {
+			continue
+		}
+		if _, ok := deviceMap[res.UUID]; ok {
+			continue
+		}
+
+		nodeUID := podNameToNodeUID[res.Pod]
+		if nodeUID == "" {
+			log.Warnf("device '%s': no node found for pod '%s'", res.UUID, res.Pod)
+		}
+
+		device := &kubemodel.Device{
+			UID:          res.UUID,
+			NodeUID:      nodeUID,
+			Model:        res.ModelName,
+			ResourceName: res.Device,
+		}
+
+		if node, ok := kms.Nodes[nodeUID]; ok {
+			device.Start = node.Start
+			device.End = node.End
+		}
+
+		deviceMap[res.UUID] = device
+	}
+
+	for _, device := range deviceMap {
+		err := kms.RegisterDevice(device)
+		if err != nil {
+			log.Warnf("Failed to register device: %s", err.Error())
+		}
+	}
+
+	return nil
 }
 
 func (km *KubeModel) computeNamespaces(kms *kubemodel.KubeModelSet, start, end time.Time) error {
