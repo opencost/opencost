@@ -233,12 +233,12 @@ func TestClear_PreviousKeysGone(t *testing.T) {
 
 func TestNOldest_ReturnsCorrectCount(t *testing.T) {
 	now := time.Now()
-	entries := []*heapEntry{
-		{key: "a", lruEntry: &lruEntry{value: "a", used: now.Add(-4 * time.Second)}},
-		{key: "b", lruEntry: &lruEntry{value: "b", used: now.Add(-3 * time.Second)}},
-		{key: "c", lruEntry: &lruEntry{value: "c", used: now.Add(-2 * time.Second)}},
-		{key: "d", lruEntry: &lruEntry{value: "d", used: now.Add(-1 * time.Second)}},
-		{key: "e", lruEntry: &lruEntry{value: "e", used: now}},
+	entries := []*lruEntry{
+		{value: "a", used: now.Add(-4 * time.Second)},
+		{value: "b", used: now.Add(-3 * time.Second)},
+		{value: "c", used: now.Add(-2 * time.Second)},
+		{value: "d", used: now.Add(-1 * time.Second)},
+		{value: "e", used: now},
 	}
 
 	oldest := nOldest(entries, 2)
@@ -259,9 +259,9 @@ func TestNOldest_ReturnsCorrectCount(t *testing.T) {
 
 func TestNOldest_NGreaterThanLen(t *testing.T) {
 	now := time.Now()
-	entries := []*heapEntry{
-		{key: "x", lruEntry: &lruEntry{value: "x", used: now}},
-		{key: "y", lruEntry: &lruEntry{value: "y", used: now.Add(-time.Second)}},
+	entries := []*lruEntry{
+		{value: "x", used: now},
+		{value: "y", used: now.Add(-time.Second)},
 	}
 
 	result := nOldest(entries, 10)
@@ -272,9 +272,9 @@ func TestNOldest_NGreaterThanLen(t *testing.T) {
 
 func TestNOldest_NEqualsLen(t *testing.T) {
 	now := time.Now()
-	entries := []*heapEntry{
-		{key: "x", lruEntry: &lruEntry{value: "x", used: now}},
-		{key: "y", lruEntry: &lruEntry{value: "y", used: now.Add(-time.Second)}},
+	entries := []*lruEntry{
+		{value: "x", used: now},
+		{value: "y", used: now.Add(-time.Second)},
 	}
 
 	result := nOldest(entries, 2)
@@ -285,8 +285,8 @@ func TestNOldest_NEqualsLen(t *testing.T) {
 
 func TestNOldest_NIsZero(t *testing.T) {
 	now := time.Now()
-	entries := []*heapEntry{
-		{key: "x", lruEntry: &lruEntry{value: "x", used: now}},
+	entries := []*lruEntry{
+		{value: "x", used: now},
 	}
 
 	result := nOldest(entries, 0)

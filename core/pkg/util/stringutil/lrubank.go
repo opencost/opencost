@@ -10,20 +10,14 @@ type lruEntry struct {
 	value string
 	used  time.Time
 }
-
-type heapEntry struct {
-	*lruEntry
-	key string
-}
-
-type maxHeap []*heapEntry
+type maxHeap []*lruEntry
 
 func (h maxHeap) Len() int           { return len(h) }
 func (h maxHeap) Less(i, j int) bool { return h[i].used.After(h[j].used) } // newer = "larger"
 func (h maxHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 
 func (h *maxHeap) Push(x any) {
-	*h = append(*h, x.(*heapEntry))
+	*h = append(*h, x.(*lruEntry))
 }
 
 func (h *maxHeap) Pop() any {
@@ -34,9 +28,9 @@ func (h *maxHeap) Pop() any {
 	return x
 }
 
-func nOldest(arr []*heapEntry, n int) []*heapEntry {
+func nOldest(arr []*lruEntry, n int) []*lruEntry {
 	if n <= 0 {
-		return []*heapEntry{}
+		return []*lruEntry{}
 	}
 
 	if n >= len(arr) {
@@ -54,7 +48,7 @@ func nOldest(arr []*heapEntry, n int) []*heapEntry {
 		}
 	}
 
-	return []*heapEntry(h)
+	return []*lruEntry(h)
 }
 
 type lruStringBank struct {
@@ -85,14 +79,14 @@ func NewLruStringBank(capacity int, evictionInterval time.Duration) StringBank {
 			}
 
 			// we collect a list of all lru entries so we can max heap the first n elements
-			arr := make([]*heapEntry, 0, len(bank.m))
-			for k, v := range bank.m {
-				arr = append(arr, &heapEntry{key: k, lruEntry: v})
+			arr := make([]*lruEntry, 0, len(bank.m))
+			for _, v := range bank.m {
+				arr = append(arr, v)
 			}
 
 			oldest := nOldest(arr, len(bank.m)-capacity)
 			for _, old := range oldest {
-				delete(bank.m, old.key)
+				delete(bank.m, old.value)
 			}
 			bank.lock.Unlock()
 		}
