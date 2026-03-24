@@ -73,30 +73,7 @@ type UptimeResult struct {
 }
 
 func (res *UptimeResult) GetStartEnd(windowStart, windowEnd time.Time, resolution time.Duration) (time.Time, time.Time) {
-	first := res.First
-	last := res.Last
-	// The only corner-case here is what to do if you only get one timestamp.
-	// This dilemma still requires the use of the resolution, and can be
-	// clamped using the window. In this case, we want to honor the existence
-	// of the pod by giving "one resolution" worth of duration, half on each
-	// side of the given timestamp.
-	if first.Equal(last) {
-		first = first.Add(-1 * resolution / time.Duration(2))
-		last = last.Add(resolution / time.Duration(2))
-	}
-	if first.Before(windowStart) {
-		first = windowStart
-	}
-	if last.After(windowEnd) {
-		last = windowEnd
-	}
-	// prevent end times in the future
-	now := time.Now().UTC()
-	if last.After(now) {
-		last = now
-	}
-
-	return first, last
+	return getStartEnd(res.First, res.Last, windowStart, windowEnd, resolution)
 }
 
 func DecodeUptimeResult(result *QueryResult) *UptimeResult {
@@ -1974,6 +1951,35 @@ type DCGMDeviceUptimeResult struct {
 	UUID  string
 	First time.Time
 	Last  time.Time
+}
+
+func (res *DCGMDeviceUptimeResult) GetStartEnd(windowStart, windowEnd time.Time, resolution time.Duration) (time.Time, time.Time) {
+	return getStartEnd(res.First, res.Last, windowStart, windowEnd, resolution)
+}
+
+func getStartEnd(first, last, windowStart, windowEnd time.Time, resolution time.Duration) (time.Time, time.Time) {
+	// The only corner-case here is what to do if you only get one timestamp.
+	// This dilemma still requires the use of the resolution, and can be
+	// clamped using the window. In this case, we want to honor the existence
+	// of the pod by giving "one resolution" worth of duration, half on each
+	// side of the given timestamp.
+	if first.Equal(last) {
+		first = first.Add(-1 * resolution / time.Duration(2))
+		last = last.Add(resolution / time.Duration(2))
+	}
+	if first.Before(windowStart) {
+		first = windowStart
+	}
+	if last.After(windowEnd) {
+		last = windowEnd
+	}
+	// prevent end times in the future
+	now := time.Now().UTC()
+	if last.After(now) {
+		last = now
+	}
+
+	return first, last
 }
 
 func DecodeDCGMDeviceUptimeResult(result *QueryResult) *DCGMDeviceUptimeResult {

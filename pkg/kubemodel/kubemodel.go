@@ -3,6 +3,7 @@ package kubemodel
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -334,48 +335,81 @@ func resourceUnitValue(resource, unit string, value float64) (kubemodel.Resource
 	}
 }
 
+// computeDevices must take place after computePod and computeNode
 func (km *KubeModel) computeDevices(kms *kubemodel.KubeModelSet, start, end time.Time) error {
 	grp := source.NewQueryGroup()
 	metrics := km.ds.Metrics()
 
-	gpuInfoFuture := source.WithGroup(grp, metrics.QueryGPUInfo(start, end))
+	DCGMDeviceInfoFuture := source.WithGroup(grp, metrics.QueryDCGMDeviceInfo(start, end))
+	DCGMDeviceUptimeFuture := source.WithGroup(grp, metrics.QueryDCGMDeviceUptime(start, end))
+	// Using this query to establish relationship between devices and nodes
+	DCGMContainerUsageAvgFuture := source.WithGroup(grp, metrics.QueryDCGMContainerUsageAvg(start, end))
 
-	// Build pod name → node UID reverse map from already-computed pods.
-	podNameToNodeUID := make(map[string]string)
-	for _, pod := range kms.Pods {
-		podNameToNodeUID[pod.Name] = pod.NodeUID
+	uuidToNodeUID := make(map[string]string)
+
+	DCGMContainerUsageAvg, _ := DCGMContainerUsageAvgFuture.Await()
+	for _, res := range DCGMContainerUsageAvg {
+		if _, ok := uuidToNodeUID[res.UUID]; !ok {
+			if pod, ok2 := kms.Pods[res.PodUID]; ok2 {
+				uuidToNodeUID[res.UUID] = pod.NodeUID
+			}
+		}
 	}
 
-	// Deduplicate devices by UUID; a device may appear in multiple metric results.
+	nodeNameToUID := make(map[string]string, len(kms.Nodes))
+	for _, node := range kms.Nodes {
+		nodeNameToUID[node.Name] = node.UID
+	}
+
 	deviceMap := make(map[string]*kubemodel.Device)
 
-	gpuInfoResult, _ := gpuInfoFuture.Await()
-	for _, res := range gpuInfoResult {
+	deviceInfoResult, _ := DCGMDeviceInfoFuture.Await()
+	for _, res := range deviceInfoResult {
 		if res.UUID == "" {
 			continue
 		}
-		if _, ok := deviceMap[res.UUID]; ok {
+
+		// Determine Node UID
+		nodeUID, ok := uuidToNodeUID[res.UUID]
+		if !ok {
+			nodeUID, ok = nodeNameToUID[res.HostName]
+		}
+
+		// DCGM usage unrelated to a node is not a device. Needs to be handled as DRA
+		if nodeUID == "" {
 			continue
 		}
 
-		nodeUID := podNameToNodeUID[res.Pod]
-		if nodeUID == "" {
-			log.Warnf("device '%s': no node found for pod '%s'", res.UUID, res.Pod)
+		// Check that the node has an nvidia resources or else it is not a device
+		var resourceName string
+		node, _ := kms.Nodes[nodeUID]
+		for resource, _ := range node.ResourceCapacities {
+			if strings.Contains(strings.ToLower(string(resource)), "nvidia") {
+				resourceName = string(resource)
+			}
 		}
 
 		device := &kubemodel.Device{
 			UID:          res.UUID,
 			NodeUID:      nodeUID,
+			Name:         res.Device,
 			Model:        res.ModelName,
-			ResourceName: res.Device,
-		}
-
-		if node, ok := kms.Nodes[nodeUID]; ok {
-			device.Start = node.Start
-			device.End = node.End
+			ResourceName: resourceName,
 		}
 
 		deviceMap[res.UUID] = device
+	}
+
+	DCGMDeviceUptimeResult, _ := DCGMDeviceUptimeFuture.Await()
+	for _, res := range DCGMDeviceUptimeResult {
+		device, ok := deviceMap[res.UUID]
+		if !ok {
+			// Skipping warning because devices can get filtered
+			continue
+		}
+		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
+		device.Start = s
+		device.End = e
 	}
 
 	for _, device := range deviceMap {
@@ -1107,8 +1141,8 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 	ramUsageAvgFuture := source.WithGroup(grp, metrics.QueryRAMUsageAvg(start, end))
 	ramUsageMaxFuture := source.WithGroup(grp, metrics.QueryRAMUsageMax(start, end))
 
-	gpuUsageAvgFuture := source.WithGroup(grp, metrics.QueryGPUsUsageAvg(start, end))
-	gpuUsageMaxFuture := source.WithGroup(grp, metrics.QueryGPUsUsageMax(start, end))
+	DCGMConatinerUsageAvgFuture := source.WithGroup(grp, metrics.QueryDCGMContainerUsageAvg(start, end))
+	DCGMConatinerUsageMaxFuture := source.WithGroup(grp, metrics.QueryDCGMContainerUsageMax(start, end))
 
 	type containerKey struct {
 		podUID string
@@ -1126,6 +1160,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			Name:             res.Container,
 			ResourceRequests: make(kubemodel.ResourceQuantities),
 			ResourceLimits:   make(kubemodel.ResourceQuantities),
+			DeviceUsage:      make(map[string]kubemodel.ContainerDeviceUsage),
 			Start:            s,
 			End:              e,
 		}
@@ -1207,30 +1242,37 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 		}
 	}
 
-	gpuUsageAvgResult, _ := gpuUsageAvgFuture.Await()
-	for _, res := range gpuUsageAvgResult {
-		key := containerKey{podUID: res.UID, name: res.Container}
+	dcgmConatinerUsageAvgResult, _ := DCGMConatinerUsageAvgFuture.Await()
+	for _, res := range dcgmConatinerUsageAvgResult {
+		key := containerKey{podUID: res.PodUID, name: res.Container}
 		container, ok := containerMap[key]
 		if !ok {
-			log.Warnf("container %s/%s has not been initialized to add GPU usage avg", res.UID, res.Container)
+			log.Warnf("container %s/%s has not been initialized to add device usage avg", res.PodUID, res.Container)
 			continue
 		}
-		if len(res.Data) > 0 {
-			container.GPUUsageAvg = res.Data[0].Value
+		container.DeviceUsage[res.UUID] = kubemodel.ContainerDeviceUsage{
+			DeviceUID: res.UUID,
+			UsageAvg:  res.Value,
 		}
 	}
 
-	gpuUsageMaxResult, _ := gpuUsageMaxFuture.Await()
-	for _, res := range gpuUsageMaxResult {
-		key := containerKey{podUID: res.UID, name: res.Container}
+	dcgmConatinerUsageMaxResult, _ := DCGMConatinerUsageMaxFuture.Await()
+	for _, res := range dcgmConatinerUsageMaxResult {
+		key := containerKey{podUID: res.PodUID, name: res.Container}
 		container, ok := containerMap[key]
 		if !ok {
-			log.Warnf("container %s/%s has not been initialized to add GPU usage max", res.UID, res.Container)
+			log.Warnf("container %s/%s has not been initialized to add device usage max", res.PodUID, res.Container)
 			continue
 		}
-		if len(res.Data) > 0 {
-			container.GPUUsageMax = res.Data[0].Value
+		usage, ok := container.DeviceUsage[res.UUID]
+		if !ok {
+			usage = kubemodel.ContainerDeviceUsage{
+				DeviceUID: "UUID",
+			}
 		}
+
+		usage.UsageMax = res.Value
+		container.DeviceUsage[res.UUID] = usage
 	}
 
 	for _, container := range containerMap {

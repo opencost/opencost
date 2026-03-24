@@ -10,6 +10,7 @@ type Device struct {
 	UID          string
 	NodeUID      string
 	Model        string
+	Name         string
 	ResourceName string
 	Start        time.Time
 	End          time.Time
