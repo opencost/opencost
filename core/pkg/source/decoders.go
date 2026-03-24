@@ -54,6 +54,7 @@ const (
 	OwnerNameLabel       = "owner_name"
 	OwnerKindLabel       = "owner_kind"
 	OwnerUIDLabel        = "owner_uid"
+	ControllerLabel      = "controller"
 	UnitLabel            = "unit"
 	InternetLabel        = "internet"
 	SameZoneLabel        = "same_zone"
@@ -673,10 +674,11 @@ func DecodePodPVCVolumeResult(result *QueryResult) *PodPVCVolumeResult {
 }
 
 type OwnerResult struct {
-	UID       string
-	Cluster   string
-	OwnerUID  string
-	OwnerKind string
+	UID        string
+	Cluster    string
+	OwnerUID   string
+	OwnerKind  string
+	Controller bool
 }
 
 func DecodeOwnerResult(result *QueryResult) *OwnerResult {
@@ -684,12 +686,18 @@ func DecodeOwnerResult(result *QueryResult) *OwnerResult {
 	cluster, _ := result.GetCluster()
 	ownerUID, _ := result.GetString(OwnerUIDLabel)
 	ownerKind, _ := result.GetString(OwnerKindLabel)
+	controllerStr, _ := result.GetString(ControllerLabel)
+	controller := false
+	if controllerStr == "true" {
+		controller = true
+	}
 
 	return &OwnerResult{
-		UID:       uid,
-		Cluster:   cluster,
-		OwnerUID:  ownerUID,
-		OwnerKind: ownerKind,
+		UID:        uid,
+		Cluster:    cluster,
+		OwnerUID:   ownerUID,
+		OwnerKind:  ownerKind,
+		Controller: controller,
 	}
 }
 

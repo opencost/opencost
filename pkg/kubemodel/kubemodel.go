@@ -541,8 +541,9 @@ func (km *KubeModel) computePods(kms *kubemodel.KubeModelSet, start, end time.Ti
 			continue
 		}
 		pod.Owners = append(pod.Owners, kubemodel.Owner{
-			UID:  res.OwnerUID,
-			Kind: kubemodel.ParseOwnerKind(res.OwnerKind),
+			UID:        res.OwnerUID,
+			Kind:       kubemodel.ParseOwnerKind(res.OwnerKind),
+			Controller: res.Controller,
 		})
 	}
 
@@ -1091,8 +1092,9 @@ func (km *KubeModel) computeReplicaSets(kms *kubemodel.KubeModelSet, start, end 
 			continue
 		}
 		replicaSet.Owners = append(replicaSet.Owners, kubemodel.Owner{
-			UID:  res.OwnerUID,
-			Kind: kubemodel.ParseOwnerKind(res.OwnerKind),
+			UID:        res.OwnerUID,
+			Kind:       kubemodel.ParseOwnerKind(res.OwnerKind),
+			Controller: res.Controller,
 		})
 	}
 
