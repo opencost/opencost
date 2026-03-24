@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/opencost/opencost/core/pkg/util/stringutil"
 )
@@ -151,5 +152,68 @@ func BenchmarkStringBankFunc25PercentDuplicate(b *testing.B) {
 }
 
 func BenchmarkStringBankFuncNoDuplicate(b *testing.B) {
+	benchmarkStringBank(b, standardBankTest, 1_000_000, 1_000_000, true)
+}
+
+const LruCapacity = 500_000
+const LruEvictInterval = 5 * time.Second
+
+func BenchmarkLruStringBankFunc90PercentDuplicate(b *testing.B) {
+	sb := stringutil.NewLruStringBank(LruCapacity, LruEvictInterval)
+	defer func() {
+		if lruBank, ok := sb.(interface{ Stop() }); ok {
+			lruBank.Stop()
+		}
+	}()
+
+	stringutil.UpdateStringBank(sb)
+	benchmarkStringBank(b, standardBankTest, 1_000_000, 100_000, true)
+}
+
+func BenchmarkLruStringBankFunc75PercentDuplicate(b *testing.B) {
+	sb := stringutil.NewLruStringBank(LruCapacity, LruEvictInterval)
+	defer func() {
+		if lruBank, ok := sb.(interface{ Stop() }); ok {
+			lruBank.Stop()
+		}
+	}()
+
+	stringutil.UpdateStringBank(sb)
+	benchmarkStringBank(b, standardBankTest, 1_000_000, 250_000, true)
+}
+
+func BenchmarkLruStringBankFunc50PercentDuplicate(b *testing.B) {
+	sb := stringutil.NewLruStringBank(LruCapacity, LruEvictInterval)
+	defer func() {
+		if lruBank, ok := sb.(interface{ Stop() }); ok {
+			lruBank.Stop()
+		}
+	}()
+
+	stringutil.UpdateStringBank(sb)
+	benchmarkStringBank(b, standardBankTest, 1_000_000, 100_000, true)
+}
+
+func BenchmarkLruStringBankFunc25PercentDuplicate(b *testing.B) {
+	sb := stringutil.NewLruStringBank(LruCapacity, LruEvictInterval)
+	defer func() {
+		if lruBank, ok := sb.(interface{ Stop() }); ok {
+			lruBank.Stop()
+		}
+	}()
+
+	stringutil.UpdateStringBank(sb)
+	benchmarkStringBank(b, standardBankTest, 1_000_000, 750_000, true)
+}
+
+func BenchmarkLruStringBankFuncNoDuplicate(b *testing.B) {
+	sb := stringutil.NewLruStringBank(LruCapacity, LruEvictInterval)
+	defer func() {
+		if lruBank, ok := sb.(interface{ Stop() }); ok {
+			lruBank.Stop()
+		}
+	}()
+
+	stringutil.UpdateStringBank(sb)
 	benchmarkStringBank(b, standardBankTest, 1_000_000, 1_000_000, true)
 }
