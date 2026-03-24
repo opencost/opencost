@@ -2,7 +2,7 @@ package stringutil
 
 type noOpStringBank struct{}
 
-func newNoOpStringBank() *noOpStringBank {
+func NewNoOpStringBank() StringBank {
 	return new(noOpStringBank)
 }
 

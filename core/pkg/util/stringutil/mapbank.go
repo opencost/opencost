@@ -7,7 +7,7 @@ type stringBank struct {
 	m    map[string]string
 }
 
-func newStringBank() *stringBank {
+func NewStringBank() StringBank {
 	return &stringBank{
 		m: make(map[string]string),
 	}
@@ -21,7 +21,7 @@ func (sb *stringBank) LoadOrStore(key, value string) (string, bool) {
 		return v, ok
 	}
 
-	sb.m[key] = value
+	sb.m[value] = value
 	sb.lock.Unlock()
 	return value, false
 }

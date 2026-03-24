@@ -34,7 +34,7 @@ var (
 
 	// stringBank is an unbounded string cache that is thread-safe. It is especially useful if
 	// storing a large frequency of dynamically allocated duplicate strings.
-	strings StringBank = newStringBank() // sync.Map
+	strings StringBank = NewStringBank()
 )
 
 func init() {

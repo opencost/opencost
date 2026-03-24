@@ -8,12 +8,12 @@ import (
 
 type lruEntry struct {
 	value string
-	used  time.Time
+	used  int64
 }
 type maxHeap []*lruEntry
 
 func (h maxHeap) Len() int           { return len(h) }
-func (h maxHeap) Less(i, j int) bool { return h[i].used.After(h[j].used) } // newer = "larger"
+func (h maxHeap) Less(i, j int) bool { return h[i].used > h[j].used } // newer = "larger"
 func (h maxHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 
 func (h *maxHeap) Push(x any) {
@@ -42,7 +42,7 @@ func nOldest(arr []*lruEntry, n int) []*lruEntry {
 
 	for _, entry := range arr[n:] {
 		// swap in oldest, re-heapify
-		if entry.used.Before(h[0].used) {
+		if entry.used < h[0].used {
 			h[0] = entry
 			heap.Fix(&h, 0)
 		}
@@ -52,15 +52,17 @@ func nOldest(arr []*lruEntry, n int) []*lruEntry {
 }
 
 type lruStringBank struct {
-	lock sync.Mutex
-	stop chan struct{}
-	m    map[string]*lruEntry
+	lock     sync.Mutex
+	stop     chan struct{}
+	m        map[string]*lruEntry
+	capacity int
 }
 
 func NewLruStringBank(capacity int, evictionInterval time.Duration) StringBank {
 	stop := make(chan struct{})
 	bank := &lruStringBank{
-		m: make(map[string]*lruEntry),
+		m:        make(map[string]*lruEntry),
+		capacity: capacity,
 	}
 
 	go func() {
@@ -73,26 +75,29 @@ func NewLruStringBank(capacity int, evictionInterval time.Duration) StringBank {
 
 			// need to take the lock during eviction
 			bank.lock.Lock()
-			if len(bank.m) <= capacity {
-				bank.lock.Unlock()
-				continue
-			}
-
-			// we collect a list of all lru entries so we can max heap the first n elements
-			arr := make([]*lruEntry, 0, len(bank.m))
-			for _, v := range bank.m {
-				arr = append(arr, v)
-			}
-
-			oldest := nOldest(arr, len(bank.m)-capacity)
-			for _, old := range oldest {
-				delete(bank.m, old.value)
-			}
+			evict(bank, capacity)
 			bank.lock.Unlock()
 		}
 	}()
 
 	return bank
+}
+
+func evict(bank *lruStringBank, capacity int) {
+	if len(bank.m) <= capacity {
+		return
+	}
+
+	// we collect a list of all lru entries so we can max heap the first n elements
+	arr := make([]*lruEntry, 0, len(bank.m))
+	for _, v := range bank.m {
+		arr = append(arr, v)
+	}
+
+	oldest := nOldest(arr, len(bank.m)-capacity)
+	for _, old := range oldest {
+		delete(bank.m, old.value)
+	}
 }
 
 func (sb *lruStringBank) Stop() {
@@ -109,14 +114,17 @@ func (sb *lruStringBank) LoadOrStore(key, value string) (string, bool) {
 	sb.lock.Lock()
 
 	if v, ok := sb.m[key]; ok {
-		v.used = time.Now().UTC()
+		v.used = time.Now().UnixMilli()
 		sb.lock.Unlock()
 		return v.value, ok
 	}
 
 	sb.m[key] = &lruEntry{
 		value: value,
-		used:  time.Now().UTC(),
+		used:  time.Now().UnixMilli(),
+	}
+	if len(sb.m) > (sb.capacity + (sb.capacity / 2)) {
+		evict(sb, sb.capacity)
 	}
 	sb.lock.Unlock()
 	return value, false
@@ -126,7 +134,7 @@ func (sb *lruStringBank) LoadOrStoreFunc(key string, f func() string) (string, b
 	sb.lock.Lock()
 
 	if v, ok := sb.m[key]; ok {
-		v.used = time.Now().UTC()
+		v.used = time.Now().UnixMilli()
 		sb.lock.Unlock()
 		return v.value, ok
 	}
@@ -135,7 +143,10 @@ func (sb *lruStringBank) LoadOrStoreFunc(key string, f func() string) (string, b
 	value := f()
 	sb.m[value] = &lruEntry{
 		value: value,
-		used:  time.Now().UTC(),
+		used:  time.Now().UnixMilli(),
+	}
+	if len(sb.m) > (sb.capacity + (sb.capacity / 2)) {
+		evict(sb, sb.capacity)
 	}
 	sb.lock.Unlock()
 	return value, false

@@ -234,11 +234,11 @@ func TestClear_PreviousKeysGone(t *testing.T) {
 func TestNOldest_ReturnsCorrectCount(t *testing.T) {
 	now := time.Now()
 	entries := []*lruEntry{
-		{value: "a", used: now.Add(-4 * time.Second)},
-		{value: "b", used: now.Add(-3 * time.Second)},
-		{value: "c", used: now.Add(-2 * time.Second)},
-		{value: "d", used: now.Add(-1 * time.Second)},
-		{value: "e", used: now},
+		{value: "a", used: now.Add(-4 * time.Second).UnixMilli()},
+		{value: "b", used: now.Add(-3 * time.Second).UnixMilli()},
+		{value: "c", used: now.Add(-2 * time.Second).UnixMilli()},
+		{value: "d", used: now.Add(-1 * time.Second).UnixMilli()},
+		{value: "e", used: now.UnixMilli()},
 	}
 
 	oldest := nOldest(entries, 2)
@@ -260,8 +260,8 @@ func TestNOldest_ReturnsCorrectCount(t *testing.T) {
 func TestNOldest_NGreaterThanLen(t *testing.T) {
 	now := time.Now()
 	entries := []*lruEntry{
-		{value: "x", used: now},
-		{value: "y", used: now.Add(-time.Second)},
+		{value: "x", used: now.UnixMilli()},
+		{value: "y", used: now.Add(-time.Second).UnixMilli()},
 	}
 
 	result := nOldest(entries, 10)
@@ -273,8 +273,8 @@ func TestNOldest_NGreaterThanLen(t *testing.T) {
 func TestNOldest_NEqualsLen(t *testing.T) {
 	now := time.Now()
 	entries := []*lruEntry{
-		{value: "x", used: now},
-		{value: "y", used: now.Add(-time.Second)},
+		{value: "x", used: now.UnixMilli()},
+		{value: "y", used: now.Add(-time.Second).UnixMilli()},
 	}
 
 	result := nOldest(entries, 2)
@@ -286,7 +286,7 @@ func TestNOldest_NEqualsLen(t *testing.T) {
 func TestNOldest_NIsZero(t *testing.T) {
 	now := time.Now()
 	entries := []*lruEntry{
-		{value: "x", used: now},
+		{value: "x", used: now.UnixMilli()},
 	}
 
 	result := nOldest(entries, 0)
