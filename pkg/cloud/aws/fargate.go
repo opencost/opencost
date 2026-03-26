@@ -73,7 +73,7 @@ func (f *FargatePricing) Initialize(nodeList []*clustercache.Node) error {
 		return fmt.Errorf("pricing download failed: status=%d", resp.StatusCode)
 	}
 
-	var pricing AWSPricing
+	var pricing PriceListEC2Response
 	if err := json.NewDecoder(resp.Body).Decode(&pricing); err != nil {
 		return fmt.Errorf("parsing pricing data: %w", err)
 	}
@@ -89,7 +89,7 @@ func (f *FargatePricing) getPricingURL(nodeList []*clustercache.Node) string {
 	return getPricingListURL("AmazonECS", nodeList)
 }
 
-func (f *FargatePricing) populatePricing(pricing *AWSPricing) error {
+func (f *FargatePricing) populatePricing(pricing *PriceListEC2Response) error {
 	// Populate pricing for each region
 productLoop:
 	for sku, product := range pricing.Products {
@@ -121,7 +121,7 @@ productLoop:
 	return nil
 }
 
-func (f *FargatePricing) getPricingOfSKU(sku string, allTerms *AWSPricingTerms) (float64, error) {
+func (f *FargatePricing) getPricingOfSKU(sku string, allTerms *PriceListEC2Terms) (float64, error) {
 	skuTerm, ok := allTerms.OnDemand[sku]
 	if !ok {
 		return 0, fmt.Errorf("missing pricing for sku %s", sku)
