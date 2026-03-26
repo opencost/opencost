@@ -13,12 +13,14 @@ package opencost
 
 import (
 	"fmt"
-	util "github.com/opencost/opencost/core/pkg/util"
 	"io"
+	"iter"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
+
+	util "github.com/opencost/opencost/core/pkg/util"
 )
 
 const (
@@ -157,6 +159,42 @@ func resolveType(t string) (pkg string, name string, isPtr bool) {
 	pkg = parts[0]
 	name = parts[1]
 	return
+}
+
+//--------------------------------------------------------------------------
+//  Stream Helpers
+//--------------------------------------------------------------------------
+
+// BingenValue contains the value of a field as well as any index/key associated with that value.
+type BingenValue struct {
+	Value any
+	Index any
+}
+
+// IsNil is just a method accessor way to check to see if the value returned was nil
+func (bv *BingenValue) IsNil() bool {
+	return bv == nil
+}
+
+// creates a single BingenValue instance without a key or index
+func singleV(value any) *BingenValue {
+	return &BingenValue{
+		Value: value,
+	}
+}
+
+// creates a pair of key/index and value.
+func pairV(index any, value any) *BingenValue {
+	return &BingenValue{
+		Value: value,
+		Index: index,
+	}
+}
+
+// BingenFieldInfo contains the type of the field being streamed as well as the name of the field.
+type BingenFieldInfo struct {
+	Type reflect.Type
+	Name string
 }
 
 //--------------------------------------------------------------------------
@@ -1910,6 +1948,303 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 
 	}
 	return nil
+}
+
+//--------------------------------------------------------------------------
+//  AllocationSetStream
+//--------------------------------------------------------------------------
+
+// AllocationSetStream is a single use field stream for the contents of an AllocationSet instance. Instead of creating an instance and populating
+// the fields on that instance, we provide a streaming iterator which yields (BingenFieldInfo, *BingenValue) tuples for each
+// stremable element. All slices and maps will be flattened one depth and each element streamed individually.
+type AllocationSetStream struct {
+	reader io.Reader
+	ctx    *DecodingContext
+}
+
+// Closes closes the internal io.Reader used to read and parse the AllocationSet fields.
+// This should be called once the stream is no longer needed.
+func (stream *AllocationSetStream) Close() {
+	if closer, ok := stream.reader.(io.Closer); ok {
+		closer.Close()
+	}
+}
+
+// NewAllocationSetStream creates a new AllocationSetStream, which uses the io.Reader data to stream all internal fields of an AllocationSet instance
+func NewAllocationSetStream(reader io.Reader) *AllocationSetStream {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	return &AllocationSetStream{
+		ctx: &DecodingContext{
+			Buffer: buff,
+			Table:  table,
+		},
+		reader: reader,
+	}
+}
+
+func (as *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
+	return func(yield func(BingenFieldInfo, *BingenValue) bool) {
+		// TODO: Propagate errors either by storing on stream instance directly, or some
+		// TODO: broader global error collector
+		/*
+			defer func() {
+				if r := recover(); r != nil {
+					if e, ok := r.(error); ok {
+						err = e
+					} else if s, ok := r.(string); ok {
+						err = fmt.Errorf("Unexpected panic: %s", s)
+					} else {
+						err = fmt.Errorf("Unexpected panic: %+v", r)
+					}
+				}
+			}()
+		*/
+
+		var fi BingenFieldInfo
+		ctx := as.ctx
+		buff := ctx.Buffer
+		version := buff.ReadUInt8()
+
+		if version > AllocationCodecVersion {
+			// TODO: Propagate errors correctly
+			fmt.Printf("[error]: %s\n", fmt.Errorf("Invalid Version Unmarshaling AllocationSet. Expected %d or less, got %d", AllocationCodecVersion, version))
+			return
+		}
+
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[map[string]*Allocation](),
+			Name: "Allocations",
+		}
+
+		if buff.ReadUInt8() == uint8(0) {
+			if !yield(fi, nil) {
+				return
+			}
+		} else {
+			// --- [begin][read][map](map[string]*Allocation) ---
+			b := buff.ReadInt() // map len
+
+			for i := 0; i < b; i++ {
+				var v string
+				var d string
+				if ctx.IsStringTable() {
+					e := buff.ReadInt() // read string index
+					d = ctx.Table[e]
+				} else {
+					d = buff.ReadString() // read string
+				}
+				c := d
+				v = c
+
+				var z *Allocation
+				if buff.ReadUInt8() == uint8(0) {
+					z = nil
+				} else {
+					// --- [begin][read][struct](Allocation) ---
+					f := &Allocation{}
+					buff.ReadInt() // [compatibility, unused]
+					errA := f.UnmarshalBinaryWithContext(ctx)
+					if errA != nil {
+						fmt.Printf("[error]: %s\n", errA)
+						return
+					}
+					z = f
+					// --- [end][read][struct](Allocation) ---
+
+				}
+
+				if !yield(fi, pairV(v, z)) {
+					return
+				}
+				// --- [end][read][map](map[string]*Allocation) ---
+			}
+		}
+
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[map[string]bool](),
+			Name: "ExternalKeys",
+		}
+		if buff.ReadUInt8() == uint8(0) {
+			if !yield(fi, nil) {
+				return
+			}
+		} else {
+			// --- [begin][read][map](map[string]bool) ---
+			h := buff.ReadInt() // map len
+
+			for j := 0; j < h; j++ {
+				var vv string
+				var l string
+				if ctx.IsStringTable() {
+					m := buff.ReadInt() // read string index
+					l = ctx.Table[m]
+				} else {
+					l = buff.ReadString() // read string
+				}
+				k := l
+				vv = k
+
+				var zz bool
+				n := buff.ReadBool() // read bool
+				zz = n
+
+				if !yield(fi, pairV(vv, zz)) {
+					return
+				}
+			}
+			// --- [end][read][map](map[string]bool) ---
+
+		}
+
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[map[string]bool](),
+			Name: "IdleKeys",
+		}
+		if buff.ReadUInt8() == uint8(0) {
+			if !yield(fi, nil) {
+				return
+			}
+		} else {
+			// --- [begin][read][map](map[string]bool) ---
+			p := buff.ReadInt() // map len
+
+			for ii := 0; ii < p; ii++ {
+				var vvv string
+				var r string
+				if ctx.IsStringTable() {
+					s := buff.ReadInt() // read string index
+					r = ctx.Table[s]
+				} else {
+					r = buff.ReadString() // read string
+				}
+				q := r
+				vvv = q
+
+				var zzz bool
+				t := buff.ReadBool() // read bool
+				zzz = t
+
+				if !yield(fi, pairV(vvv, zzz)) {
+					return
+				}
+			}
+
+			// --- [end][read][map](map[string]bool) ---
+
+		}
+
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[string](),
+			Name: "FromSource",
+		}
+		var w string
+		if ctx.IsStringTable() {
+			x := buff.ReadInt() // read string index
+			w = ctx.Table[x]
+		} else {
+			w = buff.ReadString() // read string
+		}
+		u := w
+		if !yield(fi, singleV(u)) {
+			return
+		}
+
+		// --- [begin][read][struct](Window) ---
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[Window](),
+			Name: "Window",
+		}
+		y := &Window{}
+		buff.ReadInt() // [compatibility, unused]
+		errB := y.UnmarshalBinaryWithContext(ctx)
+		if errB != nil {
+			fmt.Printf("[error]: %s\n", errB)
+			return
+		}
+
+		if !yield(fi, singleV(*y)) {
+			return
+		}
+		// --- [end][read][struct](Window) ---
+
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[[]string](),
+			Name: "Warnings",
+		}
+		if buff.ReadUInt8() == uint8(0) {
+			if !yield(fi, nil) {
+				return
+			}
+		} else {
+			// --- [begin][read][slice]([]string) ---
+			bb := buff.ReadInt() // array len
+
+			for jj := 0; jj < bb; jj++ {
+				var cc string
+				var ee string
+				if ctx.IsStringTable() {
+					ff := buff.ReadInt() // read string index
+					ee = ctx.Table[ff]
+				} else {
+					ee = buff.ReadString() // read string
+				}
+				dd := ee
+				cc = dd
+
+				if !yield(fi, pairV(jj, cc)) {
+					return
+				}
+			}
+			// --- [end][read][slice]([]string) ---
+
+		}
+
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[[]string](),
+			Name: "Errors",
+		}
+
+		if buff.ReadUInt8() == uint8(0) {
+			if !yield(fi, nil) {
+				return
+			}
+		} else {
+			// --- [begin][read][slice]([]string) ---
+			hh := buff.ReadInt() // array len
+			for iii := 0; iii < hh; iii++ {
+				var kk string
+				var mm string
+				if ctx.IsStringTable() {
+					nn := buff.ReadInt() // read string index
+					mm = ctx.Table[nn]
+				} else {
+					mm = buff.ReadString() // read string
+				}
+				ll := mm
+				kk = ll
+
+				if !yield(fi, pairV(iii, kk)) {
+					return
+				}
+			}
+			// --- [end][read][slice]([]string) ---
+
+		}
+	}
 }
 
 //--------------------------------------------------------------------------
