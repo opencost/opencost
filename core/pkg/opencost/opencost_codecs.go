@@ -165,6 +165,16 @@ func resolveType(t string) (pkg string, name string, isPtr bool) {
 //  Stream Helpers
 //--------------------------------------------------------------------------
 
+// BingenStream is the stream interface for all streamable types
+type BingenStream interface {
+	// Stream returns the iterator which will stream each field of the target type and
+	// return the field info as well as the value.
+	Stream() iter.Seq2[BingenFieldInfo, *BingenValue]
+
+	// Close will close any dynamic io.Readers used to stream in the fields
+	Close()
+}
+
 // BingenValue contains the value of a field as well as any index/key associated with that value.
 type BingenValue struct {
 	Value any
