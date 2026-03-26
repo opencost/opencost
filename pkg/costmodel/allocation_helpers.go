@@ -1333,6 +1333,14 @@ func labelsToPodControllerMap(podLabels map[podKey]map[string]string, controller
 	// match it with each set of pod labels. A match indicates that the pod
 	// belongs to the controller.
 	for cKey, cLabels := range controllerLabels {
+		// An empty selector matches everything, which would incorrectly assign
+		// all pods in the namespace to this controller and trigger the
+		// "PodControllerMap match already exists" dedup warning for every pod.
+		// Skip controllers whose selector resolved to no labels.
+		if len(cLabels) == 0 {
+			log.DedupedWarningf(5, "CostModel.ComputeAllocation: skipping controller %s with empty label selector", cKey)
+			continue
+		}
 		selector := labels.Set(cLabels).AsSelectorPreValidated()
 
 		for pKey, pLabels := range podLabels {
@@ -1561,6 +1569,13 @@ func applyServicesToPods(podMap map[podKey]*pod, podLabels map[podKey]map[string
 	// match it with each set of pod labels. A match indicates that the pod
 	// belongs to the service.
 	for sKey, sLabels := range serviceLabels {
+		// An empty selector matches everything, which would incorrectly assign
+		// all pods in the namespace to this service (e.g. a headless service
+		// with no selector). Skip services whose selector resolved to no labels.
+		if len(sLabels) == 0 {
+			log.DedupedWarningf(5, "CostModel.ComputeAllocation: skipping service %s with empty label selector", sKey)
+			continue
+		}
 		selector := labels.Set(sLabels).AsSelectorPreValidated()
 
 		for pKey, pLabels := range podLabels {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 //--------------------------------------------------------------------------
@@ -43,7 +44,21 @@ func (sc KubecostStatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
 		statefulsetUID := string(statefulset.UID)
 
 		if statefulset.SpecSelector != nil {
-			labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(statefulset.SpecSelector.MatchLabels))
+			// Use MatchLabels when available. If a statefulset uses only
+			// matchExpressions (e.g. operator: In with a single value), synthesise
+			// a flat label map so the statefulset is still attributed correctly.
+			selectorLabels := statefulset.SpecSelector.MatchLabels
+			if len(selectorLabels) == 0 {
+				selectorLabels = make(map[string]string)
+				for _, expr := range statefulset.SpecSelector.MatchExpressions {
+					if len(expr.Values) == 1 &&
+						(expr.Operator == metav1.LabelSelectorOpIn ||
+							expr.Operator == metav1.LabelSelectorOpExists) {
+						selectorLabels[expr.Key] = expr.Values[0]
+					}
+				}
+			}
+			labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(selectorLabels))
 			if len(labels) > 0 {
 				m := newStatefulsetMatchLabelsMetric(statefulsetName, statefulsetNS, "statefulSet_match_labels", labels, values, statefulsetUID)
 				ch <- m

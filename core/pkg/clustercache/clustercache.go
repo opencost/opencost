@@ -312,14 +312,24 @@ func TransformDaemonSet(input *appsv1.DaemonSet) *DaemonSet {
 }
 
 func TransformDeployment(input *appsv1.Deployment) *Deployment {
+	// Spec.Selector is required by the Kubernetes API but can be nil for
+	// manually-created or operator-managed resources. Guard against a nil
+	// dereference that would silently crash the cluster-cache refresh and
+	// leave all deployments unmapped (costs fall into __unallocated__).
+	var matchLabels map[string]string
+	var specSelector *metav1.LabelSelector
+	if input.Spec.Selector != nil {
+		matchLabels = input.Spec.Selector.MatchLabels
+		specSelector = input.Spec.Selector
+	}
 	return &Deployment{
 		UID:                     input.UID,
 		Name:                    input.Name,
 		Namespace:               input.Namespace,
 		Labels:                  input.Labels,
-		MatchLabels:             input.Spec.Selector.MatchLabels,
+		MatchLabels:             matchLabels,
 		SpecReplicas:            input.Spec.Replicas,
-		SpecSelector:            input.Spec.Selector,
+		SpecSelector:            specSelector,
 		SpecStrategy:            input.Spec.Strategy,
 		StatusAvailableReplicas: input.Status.AvailableReplicas,
 		PodSpec:                 TransformPodSpec(input.Spec.Template.Spec),
