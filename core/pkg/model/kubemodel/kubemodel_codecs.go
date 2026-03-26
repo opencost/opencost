@@ -57,8 +57,7 @@ var typeMap map[string]reflect.Type = map[string]reflect.Type{
 	"KubeModelSet":            reflect.TypeOf((*KubeModelSet)(nil)).Elem(),
 	"Metadata":                reflect.TypeOf((*Metadata)(nil)).Elem(),
 	"Namespace":               reflect.TypeOf((*Namespace)(nil)).Elem(),
-	"NetworkService":          reflect.TypeOf((*NetworkService)(nil)).Elem(),
-	"NetworkTraffic":          reflect.TypeOf((*NetworkTraffic)(nil)).Elem(),
+	"NetworkTrafficDetail":    reflect.TypeOf((*NetworkTrafficDetail)(nil)).Elem(),
 	"Node":                    reflect.TypeOf((*Node)(nil)).Elem(),
 	"Owner":                   reflect.TypeOf((*Owner)(nil)).Elem(),
 	"PersistentVolume":        reflect.TypeOf((*PersistentVolume)(nil)).Elem(),
@@ -4827,12 +4826,12 @@ func (target *Namespace) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 }
 
 //--------------------------------------------------------------------------
-//  NetworkService
+//  NetworkTrafficDetail
 //--------------------------------------------------------------------------
 
-// MarshalBinary serializes the internal properties of this NetworkService instance
+// MarshalBinary serializes the internal properties of this NetworkTrafficDetail instance
 // into a byte array
-func (target *NetworkService) MarshalBinary() (data []byte, err error) {
+func (target *NetworkTrafficDetail) MarshalBinary() (data []byte, err error) {
 	ctx := &EncodingContext{
 		Buffer: util.NewBuffer(),
 		Table:  nil,
@@ -4847,9 +4846,9 @@ func (target *NetworkService) MarshalBinary() (data []byte, err error) {
 	return encBytes, nil
 }
 
-// MarshalBinaryWithContext serializes the internal properties of this NetworkService instance
+// MarshalBinaryWithContext serializes the internal properties of this NetworkTrafficDetail instance
 // into a byte array leveraging a predefined context.
-func (target *NetworkService) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+func (target *NetworkTrafficDetail) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 	// panics are recovered and propagated as errors
 	defer func() {
 		if r := recover(); r != nil {
@@ -4867,18 +4866,43 @@ func (target *NetworkService) MarshalBinaryWithContext(ctx *EncodingContext) (er
 	buff.WriteUInt8(DefaultCodecVersion) // version
 
 	if ctx.IsStringTable() {
-		a := ctx.Table.AddOrGet(target.ServiceName)
+		a := ctx.Table.AddOrGet(target.PodUID)
 		buff.WriteInt(a) // write table index
 	} else {
-		buff.WriteString(target.ServiceName) // write string
+		buff.WriteString(target.PodUID) // write string
 	}
-	buff.WriteFloat64(target.TotalBytes) // write float64
+	if ctx.IsStringTable() {
+		b := ctx.Table.AddOrGet(target.Endpoint)
+		buff.WriteInt(b) // write table index
+	} else {
+		buff.WriteString(target.Endpoint) // write string
+	}
+	// --- [begin][write][alias](TrafficDirection) ---
+	if ctx.IsStringTable() {
+		c := ctx.Table.AddOrGet(string(target.TrafficDirection))
+		buff.WriteInt(c) // write table index
+	} else {
+		buff.WriteString(string(target.TrafficDirection)) // write string
+	}
+	// --- [end][write][alias](TrafficDirection) ---
+
+	// --- [begin][write][alias](TrafficType) ---
+	if ctx.IsStringTable() {
+		d := ctx.Table.AddOrGet(string(target.TrafficType))
+		buff.WriteInt(d) // write table index
+	} else {
+		buff.WriteString(string(target.TrafficType)) // write string
+	}
+	// --- [end][write][alias](TrafficType) ---
+
+	buff.WriteBool(target.IsNatGateway) // write bool
+	buff.WriteFloat64(target.Bytes)     // write float64
 	return nil
 }
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
-// the NetworkService type
-func (target *NetworkService) UnmarshalBinary(data []byte) error {
+// the NetworkTrafficDetail type
+func (target *NetworkTrafficDetail) UnmarshalBinary(data []byte) error {
 	var table []string
 	buff := util.NewBufferFromBytes(data)
 
@@ -4908,8 +4932,8 @@ func (target *NetworkService) UnmarshalBinary(data []byte) error {
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
-// the NetworkService type
-func (target *NetworkService) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+// the NetworkTrafficDetail type
+func (target *NetworkTrafficDetail) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
 	// panics are recovered and propagated as errors
 	defer func() {
 		if r := recover(); r != nil {
@@ -4927,7 +4951,7 @@ func (target *NetworkService) UnmarshalBinaryWithContext(ctx *DecodingContext) (
 	version := buff.ReadUInt8()
 
 	if version > DefaultCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling NetworkService. Expected %d or less, got %d", DefaultCodecVersion, version)
+		return fmt.Errorf("Invalid Version Unmarshaling NetworkTrafficDetail. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
 	var b string
@@ -4938,181 +4962,54 @@ func (target *NetworkService) UnmarshalBinaryWithContext(ctx *DecodingContext) (
 		b = buff.ReadString() // read string
 	}
 	a := b
-	target.ServiceName = a
+	target.PodUID = a
 
-	d := buff.ReadFloat64() // read float64
-	target.TotalBytes = d
-
-	return nil
-}
-
-//--------------------------------------------------------------------------
-//  NetworkTraffic
-//--------------------------------------------------------------------------
-
-// MarshalBinary serializes the internal properties of this NetworkTraffic instance
-// into a byte array
-func (target *NetworkTraffic) MarshalBinary() (data []byte, err error) {
-	ctx := &EncodingContext{
-		Buffer: util.NewBuffer(),
-		Table:  nil,
-	}
-
-	e := target.MarshalBinaryWithContext(ctx)
-	if e != nil {
-		return nil, e
-	}
-
-	encBytes := ctx.Buffer.Bytes()
-	return encBytes, nil
-}
-
-// MarshalBinaryWithContext serializes the internal properties of this NetworkTraffic instance
-// into a byte array leveraging a predefined context.
-func (target *NetworkTraffic) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	buff.WriteUInt8(DefaultCodecVersion) // version
-
-	buff.WriteFloat64(target.CrossZoneBytes)   // write float64
-	buff.WriteFloat64(target.CrossRegionBytes) // write float64
-	buff.WriteFloat64(target.InternetBytes)    // write float64
-	buff.WriteFloat64(target.NatGatewayBytes)  // write float64
-	if target.ExternalServices == nil {
-		buff.WriteUInt8(uint8(0)) // write nil byte
+	var e string
+	if ctx.IsStringTable() {
+		f := buff.ReadInt() // read string index
+		e = ctx.Table[f]
 	} else {
-		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
-		// --- [begin][write][slice]([]*NetworkService) ---
-		buff.WriteInt(len(target.ExternalServices)) // array length
-		for i := 0; i < len(target.ExternalServices); i++ {
-			if target.ExternalServices[i] == nil {
-				buff.WriteUInt8(uint8(0)) // write nil byte
-			} else {
-				buff.WriteUInt8(uint8(1)) // write non-nil byte
-
-				// --- [begin][write][struct](NetworkService) ---
-				buff.WriteInt(0) // [compatibility, unused]
-				errA := target.ExternalServices[i].MarshalBinaryWithContext(ctx)
-				if errA != nil {
-					return errA
-				}
-				// --- [end][write][struct](NetworkService) ---
-
-			}
-		}
-		// --- [end][write][slice]([]*NetworkService) ---
-
+		e = buff.ReadString() // read string
 	}
-	return nil
-}
+	d := e
+	target.Endpoint = d
 
-// UnmarshalBinary uses the data passed byte array to set all the internal properties of
-// the NetworkTraffic type
-func (target *NetworkTraffic) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
-	}
-
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
-// the NetworkTraffic type
-func (target *NetworkTraffic) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	version := buff.ReadUInt8()
-
-	if version > DefaultCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling NetworkTraffic. Expected %d or less, got %d", DefaultCodecVersion, version)
-	}
-
-	a := buff.ReadFloat64() // read float64
-	target.CrossZoneBytes = a
-
-	b := buff.ReadFloat64() // read float64
-	target.CrossRegionBytes = b
-
-	c := buff.ReadFloat64() // read float64
-	target.InternetBytes = c
-
-	d := buff.ReadFloat64() // read float64
-	target.NatGatewayBytes = d
-
-	if buff.ReadUInt8() == uint8(0) {
-		target.ExternalServices = nil
+	// --- [begin][read][alias](TrafficDirection) ---
+	var g string
+	var k string
+	if ctx.IsStringTable() {
+		l := buff.ReadInt() // read string index
+		k = ctx.Table[l]
 	} else {
-		// --- [begin][read][slice]([]*NetworkService) ---
-		f := buff.ReadInt() // array len
-		e := make([]*NetworkService, f)
-		for i := 0; i < f; i++ {
-			var g *NetworkService
-			if buff.ReadUInt8() == uint8(0) {
-				g = nil
-			} else {
-				// --- [begin][read][struct](NetworkService) ---
-				h := &NetworkService{}
-				buff.ReadInt() // [compatibility, unused]
-				errA := h.UnmarshalBinaryWithContext(ctx)
-				if errA != nil {
-					return errA
-				}
-				g = h
-				// --- [end][read][struct](NetworkService) ---
-
-			}
-			e[i] = g
-		}
-		target.ExternalServices = e
-		// --- [end][read][slice]([]*NetworkService) ---
-
+		k = buff.ReadString() // read string
 	}
+	h := k
+	g = h
+
+	target.TrafficDirection = TrafficDirection(g)
+	// --- [end][read][alias](TrafficDirection) ---
+
+	// --- [begin][read][alias](TrafficType) ---
+	var m string
+	var o string
+	if ctx.IsStringTable() {
+		p := buff.ReadInt() // read string index
+		o = ctx.Table[p]
+	} else {
+		o = buff.ReadString() // read string
+	}
+	n := o
+	m = n
+
+	target.TrafficType = TrafficType(m)
+	// --- [end][read][alias](TrafficType) ---
+
+	q := buff.ReadBool() // read bool
+	target.IsNatGateway = q
+
+	r := buff.ReadFloat64() // read float64
+	target.Bytes = r
+
 	return nil
 }
 
@@ -6287,47 +6184,39 @@ func (target *Pod) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 		// --- [end][write][map](map[string]string) ---
 
 	}
-	if target.NetworkEgress == nil {
+	if target.NetworkTrafficDetails == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
 
-		// --- [begin][write][struct](NetworkTraffic) ---
-		buff.WriteInt(0) // [compatibility, unused]
-		errC := target.NetworkEgress.MarshalBinaryWithContext(ctx)
-		if errC != nil {
-			return errC
-		}
-		// --- [end][write][struct](NetworkTraffic) ---
+		// --- [begin][write][slice]([]NetworkTrafficDetail) ---
+		buff.WriteInt(len(target.NetworkTrafficDetails)) // array length
+		for ii := 0; ii < len(target.NetworkTrafficDetails); ii++ {
+			// --- [begin][write][struct](NetworkTrafficDetail) ---
+			buff.WriteInt(0) // [compatibility, unused]
+			errC := target.NetworkTrafficDetails[ii].MarshalBinaryWithContext(ctx)
+			if errC != nil {
+				return errC
+			}
+			// --- [end][write][struct](NetworkTrafficDetail) ---
 
-	}
-	if target.NetworkIngress == nil {
-		buff.WriteUInt8(uint8(0)) // write nil byte
-	} else {
-		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
-		// --- [begin][write][struct](NetworkTraffic) ---
-		buff.WriteInt(0) // [compatibility, unused]
-		errD := target.NetworkIngress.MarshalBinaryWithContext(ctx)
-		if errD != nil {
-			return errD
 		}
-		// --- [end][write][struct](NetworkTraffic) ---
+		// --- [end][write][slice]([]NetworkTrafficDetail) ---
 
 	}
 	// --- [begin][write][reference](time.Time) ---
-	k, errE := target.Start.MarshalBinary()
-	if errE != nil {
-		return errE
+	k, errD := target.Start.MarshalBinary()
+	if errD != nil {
+		return errD
 	}
 	buff.WriteInt(len(k))
 	buff.WriteBytes(k)
 	// --- [end][write][reference](time.Time) ---
 
 	// --- [begin][write][reference](time.Time) ---
-	l, errF := target.End.MarshalBinary()
-	if errF != nil {
-		return errF
+	l, errE := target.End.MarshalBinary()
+	if errE != nil {
+		return errE
 	}
 	buff.WriteInt(len(l))
 	buff.WriteBytes(l)
@@ -6547,53 +6436,48 @@ func (target *Pod) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) 
 
 	}
 	if buff.ReadUInt8() == uint8(0) {
-		target.NetworkEgress = nil
+		target.NetworkTrafficDetails = nil
 	} else {
-		// --- [begin][read][struct](NetworkTraffic) ---
-		qq := &NetworkTraffic{}
-		buff.ReadInt() // [compatibility, unused]
-		errC := qq.UnmarshalBinaryWithContext(ctx)
-		if errC != nil {
-			return errC
-		}
-		target.NetworkEgress = qq
-		// --- [end][read][struct](NetworkTraffic) ---
+		// --- [begin][read][slice]([]NetworkTrafficDetail) ---
+		rr := buff.ReadInt() // array len
+		qq := make([]NetworkTrafficDetail, rr)
+		for iii := 0; iii < rr; iii++ {
+			// --- [begin][read][struct](NetworkTrafficDetail) ---
+			tt := &NetworkTrafficDetail{}
+			buff.ReadInt() // [compatibility, unused]
+			errC := tt.UnmarshalBinaryWithContext(ctx)
+			if errC != nil {
+				return errC
+			}
+			ss := *tt
+			// --- [end][read][struct](NetworkTrafficDetail) ---
 
-	}
-	if buff.ReadUInt8() == uint8(0) {
-		target.NetworkIngress = nil
-	} else {
-		// --- [begin][read][struct](NetworkTraffic) ---
-		rr := &NetworkTraffic{}
-		buff.ReadInt() // [compatibility, unused]
-		errD := rr.UnmarshalBinaryWithContext(ctx)
-		if errD != nil {
-			return errD
+			qq[iii] = ss
 		}
-		target.NetworkIngress = rr
-		// --- [end][read][struct](NetworkTraffic) ---
+		target.NetworkTrafficDetails = qq
+		// --- [end][read][slice]([]NetworkTrafficDetail) ---
 
 	}
 	// --- [begin][read][reference](time.Time) ---
-	ss := &time.Time{}
-	tt := buff.ReadInt()     // byte array length
-	uu := buff.ReadBytes(tt) // byte array
-	errE := ss.UnmarshalBinary(uu)
-	if errE != nil {
-		return errE
+	uu := &time.Time{}
+	ww := buff.ReadInt()     // byte array length
+	xx := buff.ReadBytes(ww) // byte array
+	errD := uu.UnmarshalBinary(xx)
+	if errD != nil {
+		return errD
 	}
-	target.Start = *ss
+	target.Start = *uu
 	// --- [end][read][reference](time.Time) ---
 
 	// --- [begin][read][reference](time.Time) ---
-	ww := &time.Time{}
-	xx := buff.ReadInt()     // byte array length
-	yy := buff.ReadBytes(xx) // byte array
-	errF := ww.UnmarshalBinary(yy)
-	if errF != nil {
-		return errF
+	yy := &time.Time{}
+	aaa := buff.ReadInt()      // byte array length
+	bbb := buff.ReadBytes(aaa) // byte array
+	errE := yy.UnmarshalBinary(bbb)
+	if errE != nil {
+		return errE
 	}
-	target.End = *ww
+	target.End = *yy
 	// --- [end][read][reference](time.Time) ---
 
 	return nil
