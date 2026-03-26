@@ -1,14 +1,19 @@
 name: API Breaking Change Check
 
+# Runs only when docs/swagger.json is modified in a PR targeting develop,
+# or when the merge queue requests a check.
 on:
   pull_request:
     branches:
       - develop
     paths:
       - "docs/swagger.json"
+  # merge_group does not support paths: filtering, so we guard inside the job
+  # with a changed-files check instead of running unconditionally.
   merge_group:
     types: [checks_requested]
 
+# Minimal permissions: read repo content, write PR comments.
 permissions:
   contents: read
   pull-requests: write
@@ -17,89 +22,145 @@ jobs:
   api-breaking-change-check:
     name: Detect Breaking API Changes
     runs-on: ubuntu-latest
+    # Prevent a hung curl/oasdiff from blocking a runner indefinitely.
+    timeout-minutes: 10
 
     steps:
       # ------------------------------------------------------------------ #
-      # 1. Checkout the full repo so we have both HEAD and base available   #
+      # 1. Shallow checkout — we only need the working tree + enough        #
+      #    history to resolve the base ref tip (fetched in step 2).         #
       # ------------------------------------------------------------------ #
       - name: Checkout PR branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
         with:
-          fetch-depth: 0
+          # depth=1 is enough; we fetch the base ref separately below.
+          fetch-depth: 1
 
       # ------------------------------------------------------------------ #
-      # 2. Extract the base-branch version of swagger.json                 #
+      # 2. For merge_group events, check whether swagger.json actually      #
+      #    changed. If not, skip all remaining steps gracefully.            #
+      # ------------------------------------------------------------------ #
+      - name: Check if swagger.json changed (merge_group only)
+        id: changed
+        if: github.event_name == 'merge_group'
+        run: |
+          git fetch origin ${{ github.base_ref }} --depth=1 2>/dev/null || \
+          git fetch origin HEAD~1 --depth=1 2>/dev/null || true
+
+          if git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -q "docs/swagger.json"; then
+            echo "swagger_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "swagger_changed=false" >> "$GITHUB_OUTPUT"
+            echo "docs/swagger.json not changed in this merge group entry — skipping."
+          fi
+
+      # ------------------------------------------------------------------ #
+      # 3. Extract the base-branch version of swagger.json                 #
       # ------------------------------------------------------------------ #
       - name: Extract base swagger.json
+        if: github.event_name == 'pull_request' || steps.changed.outputs.swagger_changed == 'true'
         run: |
           git fetch origin ${{ github.base_ref }} --depth=1
           git show origin/${{ github.base_ref }}:docs/swagger.json \
             > /tmp/swagger-base.json
           echo "Base spec extracted from origin/${{ github.base_ref }}"
 
-      # ------------------------------------------------------------------ #
-      # 3. Copy the PR version of swagger.json                             #
-      # ------------------------------------------------------------------ #
-      - name: Copy PR swagger.json
-        run: |
-          cp docs/swagger.json /tmp/swagger-pr.json
-          echo "PR spec copied"
+          # Validate the base spec is parseable JSON before diffing.
+          python3 -c "import json,sys; json.load(open('/tmp/swagger-base.json'))" \
+            || { echo "ERROR: base swagger.json is not valid JSON"; exit 1; }
 
       # ------------------------------------------------------------------ #
-      # 4. Install oasdiff — the most capable OpenAPI 3.x diff tool        #
-      #    https://github.com/Tufin/oasdiff                                #
+      # 4. Validate and copy the PR version of swagger.json                #
+      # ------------------------------------------------------------------ #
+      - name: Validate and copy PR swagger.json
+        if: github.event_name == 'pull_request' || steps.changed.outputs.swagger_changed == 'true'
+        run: |
+          # Fail fast if the PR spec itself is malformed JSON.
+          python3 -c "import json,sys; json.load(open('docs/swagger.json'))" \
+            || { echo "ERROR: PR docs/swagger.json is not valid JSON"; exit 1; }
+
+          cp docs/swagger.json /tmp/swagger-pr.json
+          echo "PR spec validated and copied"
+
+      # ------------------------------------------------------------------ #
+      # 5. Install oasdiff at a pinned version for reproducibility.        #
+      #    https://github.com/Tufin/oasdiff/releases                       #
       # ------------------------------------------------------------------ #
       - name: Install oasdiff
+        if: github.event_name == 'pull_request' || steps.changed.outputs.swagger_changed == 'true'
+        env:
+          OASDIFF_VERSION: "1.10.24"
         run: |
           curl -sSfL \
-            https://raw.githubusercontent.com/Tufin/oasdiff/main/install.sh \
-            | sh -s -- -b /usr/local/bin
+            "https://github.com/Tufin/oasdiff/releases/download/v${OASDIFF_VERSION}/oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz" \
+            -o /tmp/oasdiff.tar.gz
+          tar -xzf /tmp/oasdiff.tar.gz -C /tmp oasdiff
+          sudo mv /tmp/oasdiff /usr/local/bin/oasdiff
           oasdiff --version
 
       # ------------------------------------------------------------------ #
-      # 5. Run breaking-change detection                                   #
-      #    Exit code 1 = breaking changes found → fail the job             #
-      #    Exit code 0 = no breaking changes                               #
+      # 6. Run breaking-change detection.                                  #
+      #    oasdiff exit codes:                                              #
+      #      0 = no breaking changes                                        #
+      #      1 = breaking changes found                                     #
+      #     >1 = tool error (bad input, internal error)                     #
+      #    We distinguish tool errors from actual breaking changes so we    #
+      #    don't report a malformed spec as "breaking changes".             #
       # ------------------------------------------------------------------ #
       - name: Check for breaking changes
         id: breaking
+        if: github.event_name == 'pull_request' || steps.changed.outputs.swagger_changed == 'true'
         run: |
           set +e
           oasdiff breaking \
             /tmp/swagger-base.json \
             /tmp/swagger-pr.json \
             --format text \
-            > /tmp/breaking-report.txt 2>&1
+            > /tmp/breaking-report.txt 2>/tmp/breaking-error.txt
           EXIT_CODE=$?
           set -e
 
-          echo "exit_code=${EXIT_CODE}" >> "$GITHUB_OUTPUT"
+          if [ $EXIT_CODE -gt 1 ]; then
+            echo "ERROR: oasdiff exited with code ${EXIT_CODE} (tool error):"
+            cat /tmp/breaking-error.txt
+            echo "has_breaking=false"  >> "$GITHUB_OUTPUT"
+            echo "tool_error=true"     >> "$GITHUB_OUTPUT"
+            exit $EXIT_CODE
+          fi
+
+          echo "has_breaking=$([ $EXIT_CODE -eq 1 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "tool_error=false" >> "$GITHUB_OUTPUT"
 
           echo "---------- Breaking Change Report ----------"
           cat /tmp/breaking-report.txt
           echo "-------------------------------------------"
 
       # ------------------------------------------------------------------ #
-      # 6. Generate a full changelog (non-breaking + breaking) as artifact #
+      # 7. Generate a full changelog (non-breaking + breaking).            #
       # ------------------------------------------------------------------ #
       - name: Generate full API changelog
-        if: always()
+        if: >-
+          always() &&
+          (github.event_name == 'pull_request' || steps.changed.outputs.swagger_changed == 'true')
         run: |
           oasdiff changelog \
             /tmp/swagger-base.json \
             /tmp/swagger-pr.json \
             --format text \
             > /tmp/changelog.txt 2>&1 || true
+
           echo "---------- Full API Changelog ----------"
           cat /tmp/changelog.txt
           echo "----------------------------------------"
 
       # ------------------------------------------------------------------ #
-      # 7. Upload both reports as artifacts for reviewers                  #
+      # 8. Upload both reports as downloadable artifacts for reviewers.    #
       # ------------------------------------------------------------------ #
       - name: Upload diff reports
-        if: always()
-        uses: actions/upload-artifact@v4
+        if: >-
+          always() &&
+          (github.event_name == 'pull_request' || steps.changed.outputs.swagger_changed == 'true')
+        uses: actions/upload-artifact@v7
         with:
           name: api-diff-reports
           path: |
@@ -108,91 +169,115 @@ jobs:
           retention-days: 30
 
       # ------------------------------------------------------------------ #
-      # 8. Post a PR comment with the breaking change report               #
+      # 9. Post (or update) a PR comment with the full report.             #
+      #    Replaces any previous comment from this workflow to avoid spam.  #
       # ------------------------------------------------------------------ #
       - name: Post PR comment
-        if: github.event_name == 'pull_request' && always()
+        if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
-            const exitCode = '${{ steps.breaking.outputs.exit_code }}';
-            const hasBreaking = exitCode !== '0';
 
-            let breakingReport = '';
-            try {
-              breakingReport = fs.readFileSync('/tmp/breaking-report.txt', 'utf8').trim();
-            } catch (e) {
-              breakingReport = 'Could not read breaking change report.';
+            const hasBreaking  = '${{ steps.breaking.outputs.has_breaking }}' === 'true';
+            const toolError    = '${{ steps.breaking.outputs.tool_error }}'   === 'true';
+
+            // Read report files, fall back gracefully if missing.
+            const readFile = (p) => {
+              try { return fs.readFileSync(p, 'utf8').trim(); }
+              catch { return ''; }
+            };
+            const breakingReport = readFile('/tmp/breaking-report.txt');
+            const changelog      = readFile('/tmp/changelog.txt');
+
+            // Build comment body.
+            let icon, statusLine;
+            if (toolError) {
+              icon       = '⚠️';
+              statusLine = '**oasdiff encountered an error** — could not complete the diff. Check the workflow logs.';
+            } else if (hasBreaking) {
+              icon       = '🚨';
+              statusLine = '**Breaking changes detected** — this PR modifies the OpenCost API in a backward-incompatible way.';
+            } else {
+              icon       = '✅';
+              statusLine = '**No breaking changes** — this PR is backward-compatible.';
             }
 
-            let changelog = '';
-            try {
-              changelog = fs.readFileSync('/tmp/changelog.txt', 'utf8').trim();
-            } catch (e) {
-              changelog = 'Could not read changelog.';
-            }
-
-            const icon   = hasBreaking ? '🚨' : '✅';
-            const status = hasBreaking
-              ? '**Breaking changes detected** — this PR modifies the OpenCost API in a backward-incompatible way.'
-              : '**No breaking changes** — this PR is backward-compatible.';
-
-            const breakingSection = hasBreaking
-              ? `### Breaking Changes\n\`\`\`\n${breakingReport}\n\`\`\``
-              : '';
-
-            const changelogSection = changelog
-              ? `<details>\n<summary>Full API Changelog</summary>\n\n\`\`\`\n${changelog}\n\`\`\`\n</details>`
-              : '';
-
-            const overrideNote = hasBreaking
-              ? `\n> **To override:** If this breaking change is intentional, add the label \`api-breaking-change-approved\` to this PR and re-run the check.`
-              : '';
-
-            const body = [
+            const parts = [
               `## ${icon} API Breaking Change Check`,
               '',
-              status,
-              overrideNote,
-              '',
-              breakingSection,
-              changelogSection,
-              '',
-              `_Powered by [oasdiff](https://github.com/Tufin/oasdiff) · Comparing \`${context.payload.pull_request.base.ref}\` → \`${context.payload.pull_request.head.ref}\`_`
-            ].filter(l => l !== undefined).join('\n');
+              statusLine,
+            ];
 
-            // Delete any previous comment from this workflow to avoid spam
+            if (hasBreaking && !toolError) {
+              parts.push(
+                '',
+                '> **To override:** If this breaking change is intentional, add the label',
+                '> `api-breaking-change-approved` to this PR and re-run the check.',
+                '> Also bump `info.version` in `docs/swagger.json`.',
+              );
+            }
+
+            if (hasBreaking && breakingReport) {
+              parts.push('', '### Breaking Changes', '```', breakingReport, '```');
+            }
+
+            if (changelog) {
+              parts.push(
+                '',
+                '<details>',
+                '<summary>Full API Changelog</summary>',
+                '',
+                '```',
+                changelog,
+                '```',
+                '</details>',
+              );
+            }
+
+            const baseRef = context.payload.pull_request.base.ref;
+            const headRef = context.payload.pull_request.head.ref;
+            parts.push(
+              '',
+              `_Powered by [oasdiff](https://github.com/Tufin/oasdiff) · \`${baseRef}\` ← \`${headRef}\`_`,
+            );
+
+            const body = parts.join('\n');
+
+            // Delete any previous comment from this workflow to avoid spam.
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
-              repo: context.repo.repo,
+              repo:  context.repo.repo,
               issue_number: context.issue.number,
             });
-            for (const comment of comments) {
-              if (comment.body.includes('API Breaking Change Check') &&
-                  comment.user.login === 'github-actions[bot]') {
+            for (const c of comments) {
+              if (
+                c.user.login === 'github-actions[bot]' &&
+                c.body.includes('API Breaking Change Check')
+              ) {
                 await github.rest.issues.deleteComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  comment_id: comment.id,
+                  owner:      context.repo.owner,
+                  repo:       context.repo.repo,
+                  comment_id: c.id,
                 });
               }
             }
 
             await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner:        context.repo.owner,
+              repo:         context.repo.repo,
               issue_number: context.issue.number,
               body,
             });
 
       # ------------------------------------------------------------------ #
-      # 9. Allow intentional breaking changes via PR label override        #
+      # 10. Check for the intentional-override label.                      #
+      #     Only evaluated when breaking changes were actually found.       #
       # ------------------------------------------------------------------ #
       - name: Check for override label
-        if: steps.breaking.outputs.exit_code != '0'
         id: override
+        if: steps.breaking.outputs.has_breaking == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -201,21 +286,25 @@ jobs:
               core.setOutput('approved', 'false');
               return;
             }
-            const labels = context.payload.pull_request.labels.map(l => l.name);
+            const labels   = context.payload.pull_request.labels.map(l => l.name);
             const approved = labels.includes('api-breaking-change-approved');
-            core.setOutput('approved', approved.toString());
+            core.setOutput('approved', String(approved));
             if (approved) {
               core.warning(
                 'Breaking changes approved via label "api-breaking-change-approved". ' +
-                'Ensure this is intentional and the API version has been bumped.'
+                'Ensure this is intentional and info.version in swagger.json has been bumped.'
               );
             }
 
       # ------------------------------------------------------------------ #
-      # 10. Fail the job if breaking changes exist and no override label   #
+      # 11. Fail the job when breaking changes exist and no override label. #
+      #     Step 10 is only reached when has_breaking == true, so          #
+      #     steps.override.outputs.approved is always set here.            #
       # ------------------------------------------------------------------ #
       - name: Fail on unapproved breaking changes
-        if: steps.breaking.outputs.exit_code != '0' && steps.override.outputs.approved != 'true'
+        if: >-
+          steps.breaking.outputs.has_breaking == 'true' &&
+          steps.override.outputs.approved != 'true'
         run: |
           echo ""
           echo "##########################################################"
@@ -226,9 +315,10 @@ jobs:
           echo "#                                                        #"
           echo "#  Options:                                              #"
           echo "#  1. Refactor the change to be backward-compatible.    #"
-          echo "#  2. If intentional, add label:                        #"
-          echo "#     'api-breaking-change-approved'                    #"
-          echo "#     and bump the API version in swagger.json.         #"
+          echo "#  2. If intentional:                                   #"
+          echo "#     a) Add label 'api-breaking-change-approved'       #"
+          echo "#     b) Bump info.version in docs/swagger.json         #"
+          echo "#     c) Re-run this check                              #"
           echo "##########################################################"
           echo ""
           cat /tmp/breaking-report.txt
