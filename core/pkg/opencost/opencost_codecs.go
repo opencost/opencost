@@ -36,12 +36,6 @@ const (
 )
 
 const (
-	// NetworkInsightCodecVersion is used for any resources listed in the NetworkInsight version set
-	NetworkInsightCodecVersion uint8 = 1
-
-	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 18
-
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
 	AssetsCodecVersion uint8 = 21
 
@@ -50,6 +44,12 @@ const (
 
 	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
 	CloudCostCodecVersion uint8 = 3
+
+	// NetworkInsightCodecVersion is used for any resources listed in the NetworkInsight version set
+	NetworkInsightCodecVersion uint8 = 1
+
+	// DefaultCodecVersion is used for any resources listed in the Default version set
+	DefaultCodecVersion uint8 = 18
 )
 
 //--------------------------------------------------------------------------
@@ -165,14 +165,44 @@ func resolveType(t string) (pkg string, name string, isPtr bool) {
 //  Stream Helpers
 //--------------------------------------------------------------------------
 
+// StreamFactoryFunc is an alias for a func that creates a BingenStream implementation.
+type StreamFactoryFunc func(io.Reader) BingenStream
+
+// Generated streamable factory map for finding the specific new stream methods
+// by T type
+var streamFactoryMap map[reflect.Type]StreamFactoryFunc = map[reflect.Type]StreamFactoryFunc{
+	reflect.TypeFor[AllocationSet]():     NewAllocationSetStream,
+	reflect.TypeFor[AssetSet]():          NewAssetSetStream,
+	reflect.TypeFor[CloudCostSet]():      NewCloudCostSetStream,
+	reflect.TypeFor[NetworkInsightSet](): NewNetworkInsightSetStream,
+}
+
+// NewStreamFor accepts an io.Reader, and returns a new BingenStream for the generic T
+// type provided _if_ it is a registered bingen type that is annotated as 'streamable'. See
+// the streamFactoryMap for generated type listings.
+func NewStreamFor[T any](reader io.Reader) (BingenStream, error) {
+	typeKey := reflect.TypeFor[T]()
+
+	factory, ok := streamFactoryMap[typeKey]
+	if !ok {
+		return nil, fmt.Errorf("the type: %s is not a registerd bingen streamable type", typeKey.Name())
+	}
+
+	return factory(reader), nil
+}
+
 // BingenStream is the stream interface for all streamable types
 type BingenStream interface {
 	// Stream returns the iterator which will stream each field of the target type and
 	// return the field info as well as the value.
 	Stream() iter.Seq2[BingenFieldInfo, *BingenValue]
 
-	// Close will close any dynamic io.Readers used to stream in the fields
+	// Close will close any dynamic io.Reader used to stream in the fields
 	Close()
+
+	// Error returns an error if one occurred during the process of streaming the type's fields.
+	// This can be checked after iterating through the Stream().
+	Error() error
 }
 
 // BingenValue contains the value of a field as well as any index/key associated with that value.
@@ -221,7 +251,7 @@ type StringTable struct {
 // NewStringTable Creates a new StringTable instance with provided contents
 func NewStringTable(contents ...string) *StringTable {
 	st := &StringTable{
-		indices: make(map[string]int),
+		indices: make(map[string]int, len(contents)),
 		next:    len(contents),
 	}
 
@@ -1970,6 +2000,7 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 type AllocationSetStream struct {
 	reader io.Reader
 	ctx    *DecodingContext
+	err    error
 }
 
 // Closes closes the internal io.Reader used to read and parse the AllocationSet fields.
@@ -1980,8 +2011,14 @@ func (stream *AllocationSetStream) Close() {
 	}
 }
 
+// Error returns an error if one occurred during the process of streaming the %!!(string=AllocationSet)s(MISSING) fields
+// This can be checked after iterating through the Stream().
+func (stream *AllocationSetStream) Error() error {
+	return stream.err
+}
+
 // NewAllocationSetStream creates a new AllocationSetStream, which uses the io.Reader data to stream all internal fields of an AllocationSet instance
-func NewAllocationSetStream(reader io.Reader) *AllocationSetStream {
+func NewAllocationSetStream(reader io.Reader) BingenStream {
 	var table []string
 	buff := util.NewBufferFromReader(reader)
 
@@ -2006,32 +2043,17 @@ func NewAllocationSetStream(reader io.Reader) *AllocationSetStream {
 	}
 }
 
-func (as *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
+// Stream returns the iterator which will stream each field of the target type.
+func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 	return func(yield func(BingenFieldInfo, *BingenValue) bool) {
-		// TODO: Propagate errors either by storing on stream instance directly, or some
-		// TODO: broader global error collector
-		/*
-			defer func() {
-				if r := recover(); r != nil {
-					if e, ok := r.(error); ok {
-						err = e
-					} else if s, ok := r.(string); ok {
-						err = fmt.Errorf("Unexpected panic: %s", s)
-					} else {
-						err = fmt.Errorf("Unexpected panic: %+v", r)
-					}
-				}
-			}()
-		*/
-
 		var fi BingenFieldInfo
-		ctx := as.ctx
+
+		ctx := stream.ctx
 		buff := ctx.Buffer
 		version := buff.ReadUInt8()
 
 		if version > AllocationCodecVersion {
-			// TODO: Propagate errors correctly
-			fmt.Printf("[error]: %s\n", fmt.Errorf("Invalid Version Unmarshaling AllocationSet. Expected %d or less, got %d", AllocationCodecVersion, version))
+			stream.err = fmt.Errorf("Invalid Version Unmarshaling AllocationSet. Expected %d or less, got %d", AllocationCodecVersion, version)
 			return
 		}
 
@@ -2045,184 +2067,182 @@ func (as *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue]
 				return
 			}
 		} else {
-			// --- [begin][read][map](map[string]*Allocation) ---
-			b := buff.ReadInt() // map len
-
-			for i := 0; i < b; i++ {
+			// --- [begin][read][streaming-map](map[string]*Allocation) ---
+			a := buff.ReadInt() // map len
+			for i := 0; i < a; i++ {
 				var v string
-				var d string
+				var c string
 				if ctx.IsStringTable() {
-					e := buff.ReadInt() // read string index
-					d = ctx.Table[e]
+					d := buff.ReadInt() // read string index
+					c = ctx.Table[d]
 				} else {
-					d = buff.ReadString() // read string
+					c = buff.ReadString() // read string
 				}
-				c := d
-				v = c
+				b := c
+				v = b
 
 				var z *Allocation
 				if buff.ReadUInt8() == uint8(0) {
 					z = nil
 				} else {
 					// --- [begin][read][struct](Allocation) ---
-					f := &Allocation{}
+					e := &Allocation{}
 					buff.ReadInt() // [compatibility, unused]
-					errA := f.UnmarshalBinaryWithContext(ctx)
+					errA := e.UnmarshalBinaryWithContext(ctx)
 					if errA != nil {
-						fmt.Printf("[error]: %s\n", errA)
+						stream.err = errA
 						return
 					}
-					z = f
+					z = e
 					// --- [end][read][struct](Allocation) ---
 
 				}
-
 				if !yield(fi, pairV(v, z)) {
 					return
 				}
-				// --- [end][read][map](map[string]*Allocation) ---
 			}
-		}
+			// --- [end][read][streaming-map](map[string]*Allocation) ---
 
+		}
 		fi = BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]bool](),
 			Name: "ExternalKeys",
 		}
+
 		if buff.ReadUInt8() == uint8(0) {
 			if !yield(fi, nil) {
 				return
 			}
 		} else {
-			// --- [begin][read][map](map[string]bool) ---
-			h := buff.ReadInt() // map len
-
-			for j := 0; j < h; j++ {
+			// --- [begin][read][streaming-map](map[string]bool) ---
+			f := buff.ReadInt() // map len
+			for j := 0; j < f; j++ {
 				var vv string
-				var l string
+				var h string
 				if ctx.IsStringTable() {
-					m := buff.ReadInt() // read string index
-					l = ctx.Table[m]
+					k := buff.ReadInt() // read string index
+					h = ctx.Table[k]
 				} else {
-					l = buff.ReadString() // read string
+					h = buff.ReadString() // read string
 				}
-				k := l
-				vv = k
+				g := h
+				vv = g
 
 				var zz bool
-				n := buff.ReadBool() // read bool
-				zz = n
+				l := buff.ReadBool() // read bool
+				zz = l
 
 				if !yield(fi, pairV(vv, zz)) {
 					return
 				}
 			}
-			// --- [end][read][map](map[string]bool) ---
+			// --- [end][read][streaming-map](map[string]bool) ---
 
 		}
-
 		fi = BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]bool](),
 			Name: "IdleKeys",
 		}
+
 		if buff.ReadUInt8() == uint8(0) {
 			if !yield(fi, nil) {
 				return
 			}
 		} else {
-			// --- [begin][read][map](map[string]bool) ---
-			p := buff.ReadInt() // map len
-
-			for ii := 0; ii < p; ii++ {
+			// --- [begin][read][streaming-map](map[string]bool) ---
+			m := buff.ReadInt() // map len
+			for ii := 0; ii < m; ii++ {
 				var vvv string
-				var r string
+				var o string
 				if ctx.IsStringTable() {
-					s := buff.ReadInt() // read string index
-					r = ctx.Table[s]
+					p := buff.ReadInt() // read string index
+					o = ctx.Table[p]
 				} else {
-					r = buff.ReadString() // read string
+					o = buff.ReadString() // read string
 				}
-				q := r
-				vvv = q
+				n := o
+				vvv = n
 
 				var zzz bool
-				t := buff.ReadBool() // read bool
-				zzz = t
+				q := buff.ReadBool() // read bool
+				zzz = q
 
 				if !yield(fi, pairV(vvv, zzz)) {
 					return
 				}
 			}
-
-			// --- [end][read][map](map[string]bool) ---
+			// --- [end][read][streaming-map](map[string]bool) ---
 
 		}
-
 		fi = BingenFieldInfo{
 			Type: reflect.TypeFor[string](),
 			Name: "FromSource",
 		}
-		var w string
+
+		var r string
+		var t string
 		if ctx.IsStringTable() {
-			x := buff.ReadInt() // read string index
-			w = ctx.Table[x]
+			u := buff.ReadInt() // read string index
+			t = ctx.Table[u]
 		} else {
-			w = buff.ReadString() // read string
+			t = buff.ReadString() // read string
 		}
-		u := w
-		if !yield(fi, singleV(u)) {
+		s := t
+		r = s
+
+		if !yield(fi, singleV(r)) {
 			return
 		}
-
-		// --- [begin][read][struct](Window) ---
 		fi = BingenFieldInfo{
 			Type: reflect.TypeFor[Window](),
 			Name: "Window",
 		}
-		y := &Window{}
-		buff.ReadInt() // [compatibility, unused]
-		errB := y.UnmarshalBinaryWithContext(ctx)
-		if errB != nil {
-			fmt.Printf("[error]: %s\n", errB)
-			return
-		}
 
-		if !yield(fi, singleV(*y)) {
+		// --- [begin][read][struct](Window) ---
+		x := &Window{}
+		buff.ReadInt() // [compatibility, unused]
+		errB := x.UnmarshalBinaryWithContext(ctx)
+		if errB != nil {
+			stream.err = errB
 			return
 		}
+		w := *x
 		// --- [end][read][struct](Window) ---
 
+		if !yield(fi, singleV(w)) {
+			return
+		}
 		fi = BingenFieldInfo{
 			Type: reflect.TypeFor[[]string](),
 			Name: "Warnings",
 		}
+
 		if buff.ReadUInt8() == uint8(0) {
 			if !yield(fi, nil) {
 				return
 			}
 		} else {
-			// --- [begin][read][slice]([]string) ---
-			bb := buff.ReadInt() // array len
-
-			for jj := 0; jj < bb; jj++ {
+			// --- [begin][read][streaming-slice]([]string) ---
+			y := buff.ReadInt() // array len
+			for jj := 0; jj < y; jj++ {
+				var aa string
 				var cc string
-				var ee string
 				if ctx.IsStringTable() {
-					ff := buff.ReadInt() // read string index
-					ee = ctx.Table[ff]
+					dd := buff.ReadInt() // read string index
+					cc = ctx.Table[dd]
 				} else {
-					ee = buff.ReadString() // read string
+					cc = buff.ReadString() // read string
 				}
-				dd := ee
-				cc = dd
+				bb := cc
+				aa = bb
 
-				if !yield(fi, pairV(jj, cc)) {
+				if !yield(fi, pairV(jj, aa)) {
 					return
 				}
 			}
-			// --- [end][read][slice]([]string) ---
+			// --- [end][read][streaming-slice]([]string) ---
 
 		}
-
 		fi = BingenFieldInfo{
 			Type: reflect.TypeFor[[]string](),
 			Name: "Errors",
@@ -2233,25 +2253,25 @@ func (as *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue]
 				return
 			}
 		} else {
-			// --- [begin][read][slice]([]string) ---
-			hh := buff.ReadInt() // array len
-			for iii := 0; iii < hh; iii++ {
-				var kk string
-				var mm string
+			// --- [begin][read][streaming-slice]([]string) ---
+			ee := buff.ReadInt() // array len
+			for iii := 0; iii < ee; iii++ {
+				var ff string
+				var hh string
 				if ctx.IsStringTable() {
-					nn := buff.ReadInt() // read string index
-					mm = ctx.Table[nn]
+					kk := buff.ReadInt() // read string index
+					hh = ctx.Table[kk]
 				} else {
-					mm = buff.ReadString() // read string
+					hh = buff.ReadString() // read string
 				}
-				ll := mm
-				kk = ll
+				gg := hh
+				ff = gg
 
-				if !yield(fi, pairV(iii, kk)) {
+				if !yield(fi, pairV(iii, ff)) {
 					return
 				}
 			}
-			// --- [end][read][slice]([]string) ---
+			// --- [end][read][streaming-slice]([]string) ---
 
 		}
 	}
@@ -3389,6 +3409,264 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 	// execute post-processing func
 	postProcessAssetSet(target)
 	return nil
+}
+
+//--------------------------------------------------------------------------
+//  AssetSetStream
+//--------------------------------------------------------------------------
+
+// AssetSetStream is a single use field stream for the contents of an AssetSet instance. Instead of creating an instance and populating
+// the fields on that instance, we provide a streaming iterator which yields (BingenFieldInfo, *BingenValue) tuples for each
+// stremable element. All slices and maps will be flattened one depth and each element streamed individually.
+type AssetSetStream struct {
+	reader io.Reader
+	ctx    *DecodingContext
+	err    error
+}
+
+// Closes closes the internal io.Reader used to read and parse the AssetSet fields.
+// This should be called once the stream is no longer needed.
+func (stream *AssetSetStream) Close() {
+	if closer, ok := stream.reader.(io.Closer); ok {
+		closer.Close()
+	}
+}
+
+// Error returns an error if one occurred during the process of streaming the %!!(string=AssetSet)s(MISSING) fields
+// This can be checked after iterating through the Stream().
+func (stream *AssetSetStream) Error() error {
+	return stream.err
+}
+
+// NewAssetSetStream creates a new AssetSetStream, which uses the io.Reader data to stream all internal fields of an AssetSet instance
+func NewAssetSetStream(reader io.Reader) BingenStream {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	return &AssetSetStream{
+		ctx: &DecodingContext{
+			Buffer: buff,
+			Table:  table,
+		},
+		reader: reader,
+	}
+}
+
+// Stream returns the iterator which will stream each field of the target type.
+func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
+	return func(yield func(BingenFieldInfo, *BingenValue) bool) {
+		var fi BingenFieldInfo
+
+		ctx := stream.ctx
+		buff := ctx.Buffer
+		version := buff.ReadUInt8()
+
+		if version > AssetsCodecVersion {
+			stream.err = fmt.Errorf("Invalid Version Unmarshaling AssetSet. Expected %d or less, got %d", AssetsCodecVersion, version)
+			return
+		}
+
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[[]string](),
+			Name: "AggregationKeys",
+		}
+
+		if buff.ReadUInt8() == uint8(0) {
+			if !yield(fi, nil) {
+				return
+			}
+		} else {
+			// --- [begin][read][streaming-slice]([]string) ---
+			a := buff.ReadInt() // array len
+			for i := 0; i < a; i++ {
+				var b string
+				var d string
+				if ctx.IsStringTable() {
+					e := buff.ReadInt() // read string index
+					d = ctx.Table[e]
+				} else {
+					d = buff.ReadString() // read string
+				}
+				c := d
+				b = c
+
+				if !yield(fi, pairV(i, b)) {
+					return
+				}
+			}
+			// --- [end][read][streaming-slice]([]string) ---
+
+		}
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[map[string]Asset](),
+			Name: "Assets",
+		}
+
+		if buff.ReadUInt8() == uint8(0) {
+			if !yield(fi, nil) {
+				return
+			}
+		} else {
+			// --- [begin][read][streaming-map](map[string]Asset) ---
+			f := buff.ReadInt() // map len
+			for j := 0; j < f; j++ {
+				var v string
+				var h string
+				if ctx.IsStringTable() {
+					k := buff.ReadInt() // read string index
+					h = ctx.Table[k]
+				} else {
+					h = buff.ReadString() // read string
+				}
+				g := h
+				v = g
+
+				var z Asset
+				if buff.ReadUInt8() == uint8(0) {
+					z = nil
+				} else {
+					// --- [begin][read][interface](Asset) ---
+					l := buff.ReadString()
+					_, m, _ := resolveType(l)
+					if _, ok := typeMap[m]; !ok {
+						stream.err = fmt.Errorf("Unknown Type: %s", m)
+						return
+					}
+					n, okA := reflect.New(typeMap[m]).Interface().(BinDecoder)
+					if !okA {
+						stream.err = fmt.Errorf("Type: %s does not implement %s.BinDecoder.", m, GeneratorPackageName)
+						return
+					}
+					buff.ReadInt() // [compatibility, unused]
+					errA := n.UnmarshalBinaryWithContext(ctx)
+					if errA != nil {
+						stream.err = errA
+						return
+					}
+					z = n.(Asset)
+					// --- [end][read][interface](Asset) ---
+
+				}
+				if !yield(fi, pairV(v, z)) {
+					return
+				}
+			}
+			// --- [end][read][streaming-map](map[string]Asset) ---
+
+		}
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[string](),
+			Name: "FromSource",
+		}
+
+		var o string
+		var q string
+		if ctx.IsStringTable() {
+			r := buff.ReadInt() // read string index
+			q = ctx.Table[r]
+		} else {
+			q = buff.ReadString() // read string
+		}
+		p := q
+		o = p
+
+		if !yield(fi, singleV(o)) {
+			return
+		}
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[Window](),
+			Name: "Window",
+		}
+
+		// --- [begin][read][struct](Window) ---
+		t := &Window{}
+		buff.ReadInt() // [compatibility, unused]
+		errB := t.UnmarshalBinaryWithContext(ctx)
+		if errB != nil {
+			stream.err = errB
+			return
+		}
+		s := *t
+		// --- [end][read][struct](Window) ---
+
+		if !yield(fi, singleV(s)) {
+			return
+		}
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[[]string](),
+			Name: "Warnings",
+		}
+
+		if buff.ReadUInt8() == uint8(0) {
+			if !yield(fi, nil) {
+				return
+			}
+		} else {
+			// --- [begin][read][streaming-slice]([]string) ---
+			u := buff.ReadInt() // array len
+			for ii := 0; ii < u; ii++ {
+				var w string
+				var y string
+				if ctx.IsStringTable() {
+					aa := buff.ReadInt() // read string index
+					y = ctx.Table[aa]
+				} else {
+					y = buff.ReadString() // read string
+				}
+				x := y
+				w = x
+
+				if !yield(fi, pairV(ii, w)) {
+					return
+				}
+			}
+			// --- [end][read][streaming-slice]([]string) ---
+
+		}
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[[]string](),
+			Name: "Errors",
+		}
+
+		if buff.ReadUInt8() == uint8(0) {
+			if !yield(fi, nil) {
+				return
+			}
+		} else {
+			// --- [begin][read][streaming-slice]([]string) ---
+			bb := buff.ReadInt() // array len
+			for jj := 0; jj < bb; jj++ {
+				var cc string
+				var ee string
+				if ctx.IsStringTable() {
+					ff := buff.ReadInt() // read string index
+					ee = ctx.Table[ff]
+				} else {
+					ee = buff.ReadString() // read string
+				}
+				dd := ee
+				cc = dd
+
+				if !yield(fi, pairV(jj, cc)) {
+					return
+				}
+			}
+			// --- [end][read][streaming-slice]([]string) ---
+
+		}
+	}
 }
 
 //--------------------------------------------------------------------------
@@ -4962,6 +5240,192 @@ func (target *CloudCostSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 
 	}
 	return nil
+}
+
+//--------------------------------------------------------------------------
+//  CloudCostSetStream
+//--------------------------------------------------------------------------
+
+// CloudCostSetStream is a single use field stream for the contents of an CloudCostSet instance. Instead of creating an instance and populating
+// the fields on that instance, we provide a streaming iterator which yields (BingenFieldInfo, *BingenValue) tuples for each
+// stremable element. All slices and maps will be flattened one depth and each element streamed individually.
+type CloudCostSetStream struct {
+	reader io.Reader
+	ctx    *DecodingContext
+	err    error
+}
+
+// Closes closes the internal io.Reader used to read and parse the CloudCostSet fields.
+// This should be called once the stream is no longer needed.
+func (stream *CloudCostSetStream) Close() {
+	if closer, ok := stream.reader.(io.Closer); ok {
+		closer.Close()
+	}
+}
+
+// Error returns an error if one occurred during the process of streaming the %!!(string=CloudCostSet)s(MISSING) fields
+// This can be checked after iterating through the Stream().
+func (stream *CloudCostSetStream) Error() error {
+	return stream.err
+}
+
+// NewCloudCostSetStream creates a new CloudCostSetStream, which uses the io.Reader data to stream all internal fields of an CloudCostSet instance
+func NewCloudCostSetStream(reader io.Reader) BingenStream {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	return &CloudCostSetStream{
+		ctx: &DecodingContext{
+			Buffer: buff,
+			Table:  table,
+		},
+		reader: reader,
+	}
+}
+
+// Stream returns the iterator which will stream each field of the target type.
+func (stream *CloudCostSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
+	return func(yield func(BingenFieldInfo, *BingenValue) bool) {
+		var fi BingenFieldInfo
+
+		ctx := stream.ctx
+		buff := ctx.Buffer
+		version := buff.ReadUInt8()
+
+		if version > CloudCostCodecVersion {
+			stream.err = fmt.Errorf("Invalid Version Unmarshaling CloudCostSet. Expected %d or less, got %d", CloudCostCodecVersion, version)
+			return
+		}
+
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[map[string]*CloudCost](),
+			Name: "CloudCosts",
+		}
+
+		if buff.ReadUInt8() == uint8(0) {
+			if !yield(fi, nil) {
+				return
+			}
+		} else {
+			// --- [begin][read][streaming-map](map[string]*CloudCost) ---
+			a := buff.ReadInt() // map len
+			for i := 0; i < a; i++ {
+				var v string
+				var c string
+				if ctx.IsStringTable() {
+					d := buff.ReadInt() // read string index
+					c = ctx.Table[d]
+				} else {
+					c = buff.ReadString() // read string
+				}
+				b := c
+				v = b
+
+				var z *CloudCost
+				if buff.ReadUInt8() == uint8(0) {
+					z = nil
+				} else {
+					// --- [begin][read][struct](CloudCost) ---
+					e := &CloudCost{}
+					buff.ReadInt() // [compatibility, unused]
+					errA := e.UnmarshalBinaryWithContext(ctx)
+					if errA != nil {
+						stream.err = errA
+						return
+					}
+					z = e
+					// --- [end][read][struct](CloudCost) ---
+
+				}
+				if !yield(fi, pairV(v, z)) {
+					return
+				}
+			}
+			// --- [end][read][streaming-map](map[string]*CloudCost) ---
+
+		}
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[Window](),
+			Name: "Window",
+		}
+
+		// --- [begin][read][struct](Window) ---
+		g := &Window{}
+		buff.ReadInt() // [compatibility, unused]
+		errB := g.UnmarshalBinaryWithContext(ctx)
+		if errB != nil {
+			stream.err = errB
+			return
+		}
+		f := *g
+		// --- [end][read][struct](Window) ---
+
+		if !yield(fi, singleV(f)) {
+			return
+		}
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[string](),
+			Name: "Integration",
+		}
+
+		var h string
+		var l string
+		if ctx.IsStringTable() {
+			m := buff.ReadInt() // read string index
+			l = ctx.Table[m]
+		} else {
+			l = buff.ReadString() // read string
+		}
+		k := l
+		h = k
+
+		if !yield(fi, singleV(h)) {
+			return
+		}
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[[]string](),
+			Name: "AggregationProperties",
+		}
+
+		if buff.ReadUInt8() == uint8(0) {
+			if !yield(fi, nil) {
+				return
+			}
+		} else {
+			// --- [begin][read][streaming-slice]([]string) ---
+			n := buff.ReadInt() // array len
+			for j := 0; j < n; j++ {
+				var o string
+				var q string
+				if ctx.IsStringTable() {
+					r := buff.ReadInt() // read string index
+					q = ctx.Table[r]
+				} else {
+					q = buff.ReadString() // read string
+				}
+				p := q
+				o = p
+
+				if !yield(fi, pairV(j, o)) {
+					return
+				}
+			}
+			// --- [end][read][streaming-slice]([]string) ---
+
+		}
+	}
 }
 
 //--------------------------------------------------------------------------
@@ -7655,7 +8119,7 @@ func (target *NetworkInsight) UnmarshalBinaryWithContext(ctx *DecodingContext) (
 func (target *NetworkInsightSet) MarshalBinary() (data []byte, err error) {
 	ctx := &EncodingContext{
 		Buffer: util.NewBuffer(),
-		Table:  nil,
+		Table:  NewStringTable(),
 	}
 
 	e := target.MarshalBinaryWithContext(ctx)
@@ -7664,7 +8128,9 @@ func (target *NetworkInsightSet) MarshalBinary() (data []byte, err error) {
 	}
 
 	encBytes := ctx.Buffer.Bytes()
-	return encBytes, nil
+	sTableBytes := ctx.Table.ToBytes()
+	merged := appendBytes(sTableBytes, encBytes)
+	return merged, nil
 }
 
 // MarshalBinaryWithContext serializes the internal properties of this NetworkInsightSet instance
@@ -7864,6 +8330,142 @@ func (target *NetworkInsightSet) UnmarshalBinaryWithContext(ctx *DecodingContext
 	// --- [end][read][struct](Window) ---
 
 	return nil
+}
+
+//--------------------------------------------------------------------------
+//  NetworkInsightSetStream
+//--------------------------------------------------------------------------
+
+// NetworkInsightSetStream is a single use field stream for the contents of an NetworkInsightSet instance. Instead of creating an instance and populating
+// the fields on that instance, we provide a streaming iterator which yields (BingenFieldInfo, *BingenValue) tuples for each
+// stremable element. All slices and maps will be flattened one depth and each element streamed individually.
+type NetworkInsightSetStream struct {
+	reader io.Reader
+	ctx    *DecodingContext
+	err    error
+}
+
+// Closes closes the internal io.Reader used to read and parse the NetworkInsightSet fields.
+// This should be called once the stream is no longer needed.
+func (stream *NetworkInsightSetStream) Close() {
+	if closer, ok := stream.reader.(io.Closer); ok {
+		closer.Close()
+	}
+}
+
+// Error returns an error if one occurred during the process of streaming the %!!(string=NetworkInsightSet)s(MISSING) fields
+// This can be checked after iterating through the Stream().
+func (stream *NetworkInsightSetStream) Error() error {
+	return stream.err
+}
+
+// NewNetworkInsightSetStream creates a new NetworkInsightSetStream, which uses the io.Reader data to stream all internal fields of an NetworkInsightSet instance
+func NewNetworkInsightSetStream(reader io.Reader) BingenStream {
+	var table []string
+	buff := util.NewBufferFromReader(reader)
+
+	// string table header validation
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	return &NetworkInsightSetStream{
+		ctx: &DecodingContext{
+			Buffer: buff,
+			Table:  table,
+		},
+		reader: reader,
+	}
+}
+
+// Stream returns the iterator which will stream each field of the target type.
+func (stream *NetworkInsightSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
+	return func(yield func(BingenFieldInfo, *BingenValue) bool) {
+		var fi BingenFieldInfo
+
+		ctx := stream.ctx
+		buff := ctx.Buffer
+		version := buff.ReadUInt8()
+
+		if version > NetworkInsightCodecVersion {
+			stream.err = fmt.Errorf("Invalid Version Unmarshaling NetworkInsightSet. Expected %d or less, got %d", NetworkInsightCodecVersion, version)
+			return
+		}
+
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[map[string]*NetworkInsight](),
+			Name: "NetworkInsights",
+		}
+
+		if buff.ReadUInt8() == uint8(0) {
+			if !yield(fi, nil) {
+				return
+			}
+		} else {
+			// --- [begin][read][streaming-map](map[string]*NetworkInsight) ---
+			a := buff.ReadInt() // map len
+			for i := 0; i < a; i++ {
+				var v string
+				var c string
+				if ctx.IsStringTable() {
+					d := buff.ReadInt() // read string index
+					c = ctx.Table[d]
+				} else {
+					c = buff.ReadString() // read string
+				}
+				b := c
+				v = b
+
+				var z *NetworkInsight
+				if buff.ReadUInt8() == uint8(0) {
+					z = nil
+				} else {
+					// --- [begin][read][struct](NetworkInsight) ---
+					e := &NetworkInsight{}
+					buff.ReadInt() // [compatibility, unused]
+					errA := e.UnmarshalBinaryWithContext(ctx)
+					if errA != nil {
+						stream.err = errA
+						return
+					}
+					z = e
+					// --- [end][read][struct](NetworkInsight) ---
+
+				}
+				if !yield(fi, pairV(v, z)) {
+					return
+				}
+			}
+			// --- [end][read][streaming-map](map[string]*NetworkInsight) ---
+
+		}
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[Window](),
+			Name: "Window",
+		}
+
+		// --- [begin][read][struct](Window) ---
+		g := &Window{}
+		buff.ReadInt() // [compatibility, unused]
+		errB := g.UnmarshalBinaryWithContext(ctx)
+		if errB != nil {
+			stream.err = errB
+			return
+		}
+		f := *g
+		// --- [end][read][struct](Window) ---
+
+		if !yield(fi, singleV(f)) {
+			return
+		}
+	}
 }
 
 //--------------------------------------------------------------------------
