@@ -314,9 +314,21 @@ func IsCommError(err error) bool {
 	return ok
 }
 
-// Error prints the error as a string
+// Error prints the error as a string, with an actionable hint for known
+// non-standard HTTP status codes such as AWS ALB's 464.
 func (pce CommError) Error() string {
-	return fmt.Sprintf("Communication error: %s", strings.Join(pce.messages, ": "))
+	msg := strings.Join(pce.messages, ": ")
+
+	// HTTP 464 is a non-standard AWS ALB error that occurs when the load
+	// balancer detects a protocol mismatch between the client and the
+	// backend target group. This typically happens when Go's HTTP/2
+	// transport negotiates h2 via ALPN but the ALB backend expects HTTP/1.1.
+	// Provide an actionable hint so operators know exactly what to do.
+	if strings.Contains(msg, "464") {
+		msg += " [HTTP 464: AWS ALB protocol mismatch — if Prometheus is behind an AWS Load Balancer with HTTP/2 backend target groups, set PROMETHEUS_DISABLE_HTTP2=true]"
+	}
+
+	return fmt.Sprintf("Communication error: %s", msg)
 }
 
 // Wrap wraps the error with the given message, but persists the error type.

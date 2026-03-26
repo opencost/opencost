@@ -380,26 +380,51 @@ type PrometheusClientConfig struct {
 	HeaderXScopeOrgId     string
 	RootCAs               *x509.CertPool
 	ClientCertificates    []tls.Certificate
+	// DisableHTTP2 forces the HTTP transport to use HTTP/1.1 only by
+	// disabling HTTP/2 ALPN negotiation. Set this to true when Prometheus
+	// is behind an AWS ALB (or similar) configured with HTTP/2 backend
+	// target groups, which can cause "Communication error: 464" failures
+	// due to a protocol mismatch between Go's HTTP/2 client and the LB.
+	DisableHTTP2 bool
 }
 
 // NewPrometheusClient creates a new rate limited client which limits by outbound concurrent requests.
 func NewPrometheusClient(address string, config *PrometheusClientConfig) (prometheus.Client, error) {
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: config.TLSInsecureSkipVerify,
+		RootCAs:            config.RootCAs,
+		Certificates:       config.ClientCertificates,
+		MinVersion:         tls.VersionTLS12,
+	}
 
-	// may be necessary for long prometheus queries
-	rt := httputil.NewUserAgentTransport(UserAgent, &http.Transport{
+	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
 			Timeout:   config.Timeout,
 			KeepAlive: config.KeepAlive,
 		}).DialContext,
 		TLSHandshakeTimeout: config.TLSHandshakeTimeout,
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: config.TLSInsecureSkipVerify,
-			RootCAs:            config.RootCAs,
-			Certificates:       config.ClientCertificates,
-			MinVersion:         tls.VersionTLS12,
-		},
-	})
+		TLSClientConfig:     tlsConfig,
+	}
+
+	// When DisableHTTP2 is set, prevent Go's net/http from advertising h2
+	// via ALPN and from upgrading connections to HTTP/2. This is necessary
+	// when Prometheus sits behind an AWS ALB with HTTP/2 backend target
+	// groups: the ALB returns a non-standard 464 status when it detects a
+	// protocol mismatch between the HTTP/2 framing sent by Go's transport
+	// and what the backend expects. Forcing HTTP/1.1 avoids the mismatch.
+	//
+	// See: https://github.com/golang/go/issues/14391
+	// See: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-troubleshooting.html
+	if config.DisableHTTP2 {
+		// Setting TLSNextProto to a non-nil empty map disables HTTP/2
+		// negotiation without affecting any other transport behaviour.
+		transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
+		log.Infof("Prometheus HTTP client: HTTP/2 disabled (PROMETHEUS_DISABLE_HTTP2=true)")
+	}
+
+	// may be necessary for long prometheus queries
+	rt := httputil.NewUserAgentTransport(UserAgent, transport)
 	pc := prometheus.Config{
 		Address:      address,
 		RoundTripper: rt,
