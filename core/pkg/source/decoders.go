@@ -1222,6 +1222,42 @@ func DecodePVInfoResult(result *QueryResult) *PVInfoResult {
 	}
 }
 
+type PodNetworkBytesResult struct {
+	UID        string
+	Cluster    string
+	Service    string
+	Internet   bool
+	SameRegion bool
+	SameZone   bool
+	NatGateway bool
+	Value      float64
+}
+
+func DecodePodNetworkBytesResult(result *QueryResult) *PodNetworkBytesResult {
+	uid, _ := result.GetString(UIDLabel)
+	cluster, _ := result.GetCluster()
+	service, _ := result.GetString(ServiceLabel)
+	internet, _ := result.GetString(InternetLabel)
+	sameRegion, _ := result.GetString(SameRegionLabel)
+	sameZone, _ := result.GetString(SameZoneLabel)
+	natGateway, _ := result.GetString(NatGatewayLabel)
+	var value float64
+	if len(result.Values) > 0 {
+		value = result.Values[0].Value
+	}
+
+	return &PodNetworkBytesResult{
+		UID:        uid,
+		Cluster:    cluster,
+		Service:    service,
+		Internet:   internet == "true",
+		SameRegion: sameRegion == "true",
+		SameZone:   sameZone == "true",
+		NatGateway: natGateway == "true",
+		Value:      value,
+	}
+}
+
 // Base type for network usage results
 type NetworkGiBResult struct {
 	UID       string
@@ -1283,20 +1319,11 @@ type NetInternetServiceGiBResult = NetworkGiBResult
 
 type NetNatGatewayPricePerGiBResult = NetworkPricePerGiBResult
 type NetNatGatewayGiBResult = NetworkGiBResult
-
-type NetNatGatewayZoneGiBResult = NetworkGiBResult
-type NetNatGatewayRegionGiBResult = NetworkGiBResult
-type NetNatGatewayInternetGiBResult = NetworkGiBResult
-
 type NetZoneIngressGiBResult = NetworkGiBResult
 type NetRegionIngressGiBResult = NetworkGiBResult
 type NetInternetIngressGiBResult = NetworkGiBResult
 type NetInternetServiceIngressGiBResult = NetworkGiBResult
 type NetNatGatewayIngressGiBResult = NetworkGiBResult
-
-type NetNatGatewayZoneIngressGiBResult = NetworkGiBResult
-type NetNatGatewayRegionIngressGiBResult = NetworkGiBResult
-type NetNatGatewayInternetIngressGiBResult = NetworkGiBResult
 
 func DecodeNetZoneGiBResult(result *QueryResult) *NetZoneGiBResult {
 	return DecodeNetworkGiBResult(result)
@@ -1334,18 +1361,6 @@ func DecodeNetNatGatewayGiBResult(result *QueryResult) *NetNatGatewayGiBResult {
 	return DecodeNetworkGiBResult(result)
 }
 
-func DecodeNetNatGatewayZoneGiBResult(result *QueryResult) *NetNatGatewayZoneGiBResult {
-	return DecodeNetworkGiBResult(result)
-}
-
-func DecodeNetNatGatewayRegionGiBResult(result *QueryResult) *NetNatGatewayRegionGiBResult {
-	return DecodeNetworkGiBResult(result)
-}
-
-func DecodeNetNatGatewayInternetGiBResult(result *QueryResult) *NetNatGatewayInternetGiBResult {
-	return DecodeNetworkGiBResult(result)
-}
-
 func DecodeNetZoneIngressGiBResult(result *QueryResult) *NetZoneIngressGiBResult {
 	return DecodeNetworkGiBResult(result)
 }
@@ -1363,18 +1378,6 @@ func DecodeNetInternetServiceIngressGiBResult(result *QueryResult) *NetInternetS
 }
 
 func DecodeNetNatGatewayIngressGiBResult(result *QueryResult) *NetNatGatewayIngressGiBResult {
-	return DecodeNetworkGiBResult(result)
-}
-
-func DecodeNetNatGatewayZoneIngressGiBResult(result *QueryResult) *NetNatGatewayZoneIngressGiBResult {
-	return DecodeNetworkGiBResult(result)
-}
-
-func DecodeNetNatGatewayRegionIngressGiBResult(result *QueryResult) *NetNatGatewayRegionIngressGiBResult {
-	return DecodeNetworkGiBResult(result)
-}
-
-func DecodeNetNatGatewayInternetIngressGiBResult(result *QueryResult) *NetNatGatewayInternetIngressGiBResult {
 	return DecodeNetworkGiBResult(result)
 }
 

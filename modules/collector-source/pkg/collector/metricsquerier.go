@@ -348,6 +348,14 @@ func (c *collectorMetricsQuerier) QueryPodPVCVolumes(start, end time.Time) *sour
 	return queryCollector(c, start, end, metric.PodPVCVolumeID, source.DecodePodPVCVolumeResult)
 }
 
+func (c *collectorMetricsQuerier) QueryPodNetworkEgressBytes(start, end time.Time) *source.Future[source.PodNetworkBytesResult] {
+	return queryCollectorGiB(c, start, end, metric.PodNetworkEgressBytesID, source.DecodePodNetworkBytesResult)
+}
+
+func (c *collectorMetricsQuerier) QueryPodNetworkIngressBytes(start, end time.Time) *source.Future[source.PodNetworkBytesResult] {
+	return queryCollectorGiB(c, start, end, metric.PodNetworkIngressBytesID, source.DecodePodNetworkBytesResult)
+}
+
 func (c *collectorMetricsQuerier) QueryContainerUptime(start, end time.Time) *source.Future[source.ContainerUptimeResult] {
 	return queryCollector(c, start, end, metric.ContainerUptimeID, source.DecodeContainerUptimeResult)
 }
@@ -504,18 +512,6 @@ func (c *collectorMetricsQuerier) QueryNetNatGatewayGiB(start, end time.Time) *s
 	return queryCollectorGiB(c, start, end, metric.NetNatGatewayGiBID, source.DecodeNetNatGatewayGiBResult)
 }
 
-func (c *collectorMetricsQuerier) QueryNetNatGatewayZoneGiB(start, end time.Time) *source.Future[source.NetNatGatewayZoneGiBResult] {
-	return queryCollectorGiB(c, start, end, metric.NetNatGatewayZoneGiBID, source.DecodeNetNatGatewayZoneGiBResult)
-}
-
-func (c *collectorMetricsQuerier) QueryNetNatGatewayRegionGiB(start, end time.Time) *source.Future[source.NetNatGatewayRegionGiBResult] {
-	return queryCollectorGiB(c, start, end, metric.NetNatGatewayRegionGiBID, source.DecodeNetNatGatewayRegionGiBResult)
-}
-
-func (c *collectorMetricsQuerier) QueryNetNatGatewayInternetGiB(start, end time.Time) *source.Future[source.NetNatGatewayInternetGiBResult] {
-	return queryCollectorGiB(c, start, end, metric.NetNatGatewayInternetGiBID, source.DecodeNetNatGatewayInternetGiBResult)
-}
-
 func (c *collectorMetricsQuerier) QueryNetTransferBytes(start, end time.Time) *source.Future[source.NetTransferBytesResult] {
 	return queryCollector(c, start, end, metric.NetTransferBytesID, source.DecodeNetTransferBytesResult)
 }
@@ -542,18 +538,6 @@ func (c *collectorMetricsQuerier) QueryNetNatGatewayIngressPricePerGiB(start, en
 
 func (c *collectorMetricsQuerier) QueryNetNatGatewayIngressGiB(start, end time.Time) *source.Future[source.NetNatGatewayIngressGiBResult] {
 	return queryCollectorGiB(c, start, end, metric.NetNatGatewayIngressGiBID, source.DecodeNetNatGatewayIngressGiBResult)
-}
-
-func (c *collectorMetricsQuerier) QueryNetNatGatewayZoneIngressGiB(start, end time.Time) *source.Future[source.NetNatGatewayZoneIngressGiBResult] {
-	return queryCollectorGiB(c, start, end, metric.NetNatGatewayZoneIngressGiBID, source.DecodeNetNatGatewayZoneIngressGiBResult)
-}
-
-func (c *collectorMetricsQuerier) QueryNetNatGatewayRegionIngressGiB(start, end time.Time) *source.Future[source.NetNatGatewayRegionIngressGiBResult] {
-	return queryCollectorGiB(c, start, end, metric.NetNatGatewayRegionIngressGiBID, source.DecodeNetNatGatewayRegionIngressGiBResult)
-}
-
-func (c *collectorMetricsQuerier) QueryNetNatGatewayInternetIngressGiB(start, end time.Time) *source.Future[source.NetNatGatewayInternetIngressGiBResult] {
-	return queryCollectorGiB(c, start, end, metric.NetNatGatewayInternetIngressGiBID, source.DecodeNetNatGatewayInternetIngressGiBResult)
 }
 
 func (c *collectorMetricsQuerier) QueryNetReceiveBytes(start, end time.Time) *source.Future[source.NetReceiveBytesResult] {
