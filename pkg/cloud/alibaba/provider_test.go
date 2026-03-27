@@ -840,6 +840,16 @@ func TestGetNumericalValueFromResourceQuantity(t *testing.T) {
 			inputResourceQuanity: "2Ti",
 			expectedValue:        "2048",
 		},
+		{
+			name:                 "positive scenario: fractional Gi unit - 1.5Gi (rounds up to 2 GiB)",
+			inputResourceQuanity: "1.5Gi",
+			expectedValue:        "2",
+		},
+		{
+			name:                 "positive scenario: fractional Mi unit - 1536Mi (1.5 GiB, rounds up to 2 GiB)",
+			inputResourceQuanity: "1536Mi",
+			expectedValue:        "2",
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
