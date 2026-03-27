@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/athena/types"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloud"
 )
@@ -17,6 +18,12 @@ import (
 const LabelColumnPrefix = "resource_tags_user_"
 const AWSLabelColumnPrefix = "resource_tags_aws_"
 const AthenaResourceTagPrefix = "resource_tags_"
+const AthenaResourceTagsColumn = "resource_tags"
+
+const AthenaResourceTagsCastToJsonColumn = "CAST(resource_tags AS JSON) as resource_tags"
+
+const AthenaInvoiceEntityNameColumn = "bill_payer_account_name"
+const AthenaAccountNameColumn = "line_item_usage_account_name"
 
 // athenaDateLayout is the default AWS date format
 const AthenaDateLayout = "2006-01-02 15:04:05.000"
@@ -128,6 +135,18 @@ func (ai *AthenaIntegration) getCloudCost(start, end time.Time, limit int) (*ope
 			aqi.AWSTagColumns = append(aqi.AWSTagColumns, column)
 		}
 	}
+
+	// CUR 2.0 specific columns, CUR 2.0 has ability to disable any column, so we check for any of these columns before querying
+	if allColumns[AthenaResourceTagsColumn] {
+		groupByColumns = append(groupByColumns, AthenaResourceTagsCastToJsonColumn)
+	}
+	if allColumns[AthenaAccountNameColumn] {
+		groupByColumns = append(groupByColumns, AthenaAccountNameColumn)
+	}
+	if allColumns[AthenaInvoiceEntityNameColumn] {
+		groupByColumns = append(groupByColumns, AthenaInvoiceEntityNameColumn)
+	}
+
 	var selectColumns []string
 
 	// Duplicate GroupBy Columns into select columns
@@ -162,7 +181,7 @@ func (ai *AthenaIntegration) getCloudCost(start, end time.Time, limit int) (*ope
 		aqi.ColumnIndexes[column] = i
 	}
 	whereDate := fmt.Sprintf(AthenaWhereDateFmt, start.Format("2006-01-02"), end.Format("2006-01-02"))
-	wherePartitions := ai.GetPartitionWhere(start, end)
+	wherePartitions := ai.GetPartitionWhere(start, end, isCUR20(allColumns))
 
 	// Query for all line items with a resource_id or from AWS Marketplace, which did not end before
 	// the range or start after it. This captures all costs with any amount of
@@ -323,11 +342,9 @@ func (ai *AthenaIntegration) ConvertLabelToAWSTag(label string) string {
 
 // GetIsKubernetesColumn builds a column that determines if a row represents kubernetes spend
 func (ai *AthenaIntegration) GetIsKubernetesColumn(allColumns map[string]bool) string {
-	disjuncts := []string{
-		"line_item_product_code = 'AmazonEKS'", // EKS is always kubernetes
-	}
 	// tagColumns is a list of columns where the presence of a value indicates that a resource is part of a kubernetes cluster
-	tagColumns := []string{
+	// Known columns hardcoded for CUR 1.0 and CUR 2.0
+	tagColumnsIsK8sCUR10 := []string{
 		"resource_tags_aws_eks_cluster_name",
 		"resource_tags_user_eks_cluster_name",
 		"resource_tags_user_alpha_eksctl_io_cluster_name",
@@ -335,43 +352,49 @@ func (ai *AthenaIntegration) GetIsKubernetesColumn(allColumns map[string]bool) s
 		"resource_tags_user_kubernetes_io_created_for_pvc_name",
 		"resource_tags_user_kubernetes_io_created_for_pv_name",
 	}
+	tagColumnsIsK8sCUR20 := []string{
+		"resource_tags['aws_eks_cluster_name']",
+		"resource_tags['user_eks_cluster_name']",
+		"resource_tags['user_alpha_eksctl_io_cluster_name']",
+		"resource_tags['user_kubernetes_io_service_name']",
+		"resource_tags['user_kubernetes_io_created_for_pvc_name']",
+		"resource_tags['user_kubernetes_io_created_for_pv_name']",
+	}
 
-	for _, tagColumn := range tagColumns {
-		// if tag column is present in the CUR check for it
-		if _, ok := allColumns[tagColumn]; ok {
-			disjunctStr := fmt.Sprintf("%s <> ''", tagColumn)
+	disjuncts := []string{
+		"line_item_product_code = 'AmazonEKS'", // EKS is always kubernetes
+	}
+	if allColumns[AthenaResourceTagsColumn] {
+		// if resource tags column is present in the CUR check for IsKubernetes keys in the resource tags map
+		for _, tagColumn := range tagColumnsIsK8sCUR20 {
+			disjunctStr := fmt.Sprintf("COALESCE(%s, '') <> ''", tagColumn)
 			disjuncts = append(disjuncts, disjunctStr)
+		}
+	} else {
+		for _, tagColumn := range tagColumnsIsK8sCUR10 {
+			// if tag column is present in the CUR check for it
+			if _, ok := allColumns[tagColumn]; ok {
+				disjunctStr := fmt.Sprintf("%s <> ''", tagColumn)
+				disjuncts = append(disjuncts, disjunctStr)
+			}
 		}
 	}
 
 	return fmt.Sprintf("(%s) as is_kubernetes", strings.Join(disjuncts, " OR "))
 }
 
-func (ai *AthenaIntegration) GetPartitionWhere(start, end time.Time) string {
+func (ai *AthenaIntegration) GetPartitionWhere(start, end time.Time, isCUR20 bool) string {
 	month := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, time.UTC)
 	endMonth := time.Date(end.Year(), end.Month(), 1, 0, 0, 0, 0, time.UTC)
 	var disjuncts []string
 
-	// For CUR 2.0, check if billing_period partitions actually exist
-	useBillingPeriodPartitions := false
-	if ai.CURVersion != "1.0" {
-		// Check if billing_period partitions exist in the table
-		if hasBillingPeriod, err := ai.HasBillingPeriodPartitions(); err == nil && hasBillingPeriod {
-			useBillingPeriodPartitions = true
-		}
-	}
-
 	for !month.After(endMonth) {
-		if ai.CURVersion == "1.0" {
-			// CUR 1.0 uses year and month columns for partitioning
-			disjuncts = append(disjuncts, fmt.Sprintf("(year = '%d' AND month = '%d')", month.Year(), month.Month()))
-		} else if useBillingPeriodPartitions {
+		if isCUR20 {
 			// CUR 2.0 with billing_period partitions
 			disjuncts = append(disjuncts, fmt.Sprintf("(billing_period = '%d-%02d')", month.Year(), month.Month()))
 		} else {
-			// CUR 2.0 fallback - use date_format functions (less efficient but works without partitions)
-			disjuncts = append(disjuncts, fmt.Sprintf("(date_format(line_item_usage_start_date, '%%Y') = '%d' AND date_format(line_item_usage_start_date, '%%m') = '%02d')",
-				month.Year(), month.Month()))
+			// CUR 1.0 uses year and month columns for partitioning
+			disjuncts = append(disjuncts, fmt.Sprintf("(year = '%d' AND month = '%d')", month.Year(), month.Month()))
 		}
 		month = month.AddDate(0, 1, 0)
 	}
@@ -408,8 +431,24 @@ func athenaRowToCloudCost(row types.Row, aqi AthenaQueryIndexes) (*opencost.Clou
 		}
 	}
 
+	if _, ok := aqi.ColumnIndexes[AthenaResourceTagsCastToJsonColumn]; ok {
+		resourceTags := GetAthenaRowValue(row, aqi.ColumnIndexes, AthenaResourceTagsCastToJsonColumn)
+		err := json.Unmarshal([]byte(resourceTags), &labels)
+		if err != nil {
+			log.Errorf("athenaRowToCloudCost: error unmarshalling resource tags: %s", err.Error())
+		}
+	}
+
 	invoiceEntityID := GetAthenaRowValue(row, aqi.ColumnIndexes, "bill_payer_account_id")
 	accountID := GetAthenaRowValue(row, aqi.ColumnIndexes, "line_item_usage_account_id")
+	invoiceEntityName := invoiceEntityID
+	accountName := accountID
+	if _, ok := aqi.ColumnIndexes[AthenaInvoiceEntityNameColumn]; ok {
+		invoiceEntityName = GetAthenaRowValue(row, aqi.ColumnIndexes, AthenaInvoiceEntityNameColumn)
+	}
+	if _, ok := aqi.ColumnIndexes[AthenaAccountNameColumn]; ok {
+		accountName = GetAthenaRowValue(row, aqi.ColumnIndexes, AthenaAccountNameColumn)
+	}
 	startStr := GetAthenaRowValue(row, aqi.ColumnIndexes, AthenaDateTruncColumn)
 	providerID := GetAthenaRowValue(row, aqi.ColumnIndexes, "line_item_resource_id")
 	productCode := GetAthenaRowValue(row, aqi.ColumnIndexes, "line_item_product_code")
@@ -462,9 +501,9 @@ func athenaRowToCloudCost(row types.Row, aqi AthenaQueryIndexes) (*opencost.Clou
 		ProviderID:        providerID,
 		Provider:          opencost.AWSProvider,
 		AccountID:         accountID,
-		AccountName:       accountID,
+		AccountName:       accountName,
 		InvoiceEntityID:   invoiceEntityID,
-		InvoiceEntityName: invoiceEntityID,
+		InvoiceEntityName: invoiceEntityName,
 		RegionID:          regionCode,
 		AvailabilityZone:  availabilityZone,
 		Service:           productCode,
@@ -511,4 +550,9 @@ func (ai *AthenaIntegration) GetConnectionStatusFromResult(result cloud.EmptyChe
 		return cloud.MissingData
 	}
 	return cloud.SuccessfulConnection
+}
+
+// presence of any of resource_tags, line_item_usage_account_name, or bill_payer_account_name columns confirms CUR 2.0
+func isCUR20(allColumns map[string]bool) bool {
+	return allColumns[AthenaResourceTagsColumn] || allColumns[AthenaAccountNameColumn] || allColumns[AthenaInvoiceEntityNameColumn]
 }

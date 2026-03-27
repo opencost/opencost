@@ -62,7 +62,6 @@ func Test_ParseConfig_Athena(t *testing.T) {
 			ID:     "id",
 			Secret: "secret",
 		},
-		CURVersion: "curversion",
 	}
 
 	configBytes, err := json.Marshal(config)

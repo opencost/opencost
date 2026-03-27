@@ -1,0 +1,193 @@
+name: Update Go Version in "go.mod"
+
+on:
+  schedule:
+    - cron: '0 14 * * 1'  # Run every Monday at 2 PM UTC
+  workflow_dispatch:  # Allow manual triggering
+
+
+concurrency:
+  group: golang-ver-bump
+  cancel-in-progress: true
+
+jobs:
+  check-and-update-go:
+    name: Check and Update Go Version
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: write
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        repository: 'opencost/opencost'
+        ref: 'develop'
+        fetch-depth: 0
+        path: ./opencost 
+
+    - name: Setup Go
+      uses: actions/setup-go@v6
+      with:
+         go-version: 'stable'
+
+    - name: Check for existing open PRs
+      id: check-existing-prs
+      run: |
+        # Check if there are any open PRs with the go-version-update label
+        EXISTING_PRS=$(gh pr list --label "go-version-update" --state open --json number,title,url)
+        if [ "$(echo "$EXISTING_PRS" | jq 'length')" -gt 0 ]; then
+          echo "Found existing open PR(s) with go-version-update label:"
+          echo "$EXISTING_PRS" | jq -r '.[] | "  - #\(.number): \(.title) (\(.url))"'
+          echo "skip_update=true" >> $GITHUB_OUTPUT
+        else
+          echo "No existing open PRs found, proceeding with update check"
+          echo "skip_update=false" >> $GITHUB_OUTPUT
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN}}
+        GH_REPO: ${{ github.repository }}
+
+    - name: Get current Go version from go.mod
+      id: current-version
+      working-directory: ./opencost
+      if: steps.check-existing-prs.outputs.skip_update == 'false'
+      run: |
+        CURRENT_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
+        echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+        echo "Current Go version: $CURRENT_VERSION"
+
+    - name: Get latest Go version
+      id: latest-version
+      working-directory: ./opencost
+      if: steps.check-existing-prs.outputs.skip_update == 'false'
+      run: |
+        # Get the latest Go version from golang.org/dl
+        LATEST_VERSION=$(curl -sS https://go.dev/VERSION?m=text | grep -o 'go[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1)
+        echo "latest_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+        echo "Latest Go version: $LATEST_VERSION"
+
+    - name: Compare versions
+      id: version-check
+      working-directory: ./opencost
+      if: steps.check-existing-prs.outputs.skip_update == 'false'
+      run: |
+        CURRENT_VERSION="${{ steps.current-version.outputs.current_version }}"
+        LATEST_VERSION="${{ steps.latest-version.outputs.latest_version }}"
+
+        # Remove 'go' prefix for comparison
+        CURRENT_NUM=$(echo "$CURRENT_VERSION" | sed 's/^go//')
+        LATEST_NUM=$(echo "$LATEST_VERSION" | sed 's/^go//')
+
+        echo "Raw current version: $CURRENT_VERSION"
+        echo "Raw latest version: $LATEST_VERSION"
+        echo "Current version number: $CURRENT_NUM"
+        echo "Latest version number: $LATEST_NUM"
+
+        # Validate that both versions are non-empty and match an expected pattern (e.g., 1.22.1)
+        VERSION_REGEX='^[0-9]+\.[0-9]+(\.[0-9]+)?$'
+
+        if ! echo "$CURRENT_NUM" | grep -Eq "$VERSION_REGEX"; then
+          echo "Error: CURRENT_VERSION '$CURRENT_VERSION' (normalized: '$CURRENT_NUM') is invalid or empty."
+          exit 1
+        fi
+
+        if ! echo "$LATEST_NUM" | grep -Eq "$VERSION_REGEX"; then
+          echo "Error: LATEST_VERSION '$LATEST_VERSION' (normalized: '$LATEST_NUM') is invalid or empty."
+          exit 1
+        fi
+
+        if [ "$CURRENT_NUM" = "$LATEST_NUM" ]; then
+          echo "Go version is up to date"
+          echo "update_needed=false" >> $GITHUB_OUTPUT
+        else
+          # Use version-aware sorting to determine which version is greater
+          HIGHEST_VERSION=$(printf '%s\n' "$CURRENT_NUM" "$LATEST_NUM" | sort -V | tail -n1)
+
+          if [ "$HIGHEST_VERSION" = "$LATEST_NUM" ]; then
+            echo "Newer Go version available: $LATEST_VERSION (current: $CURRENT_VERSION)"
+            echo "update_needed=true" >> $GITHUB_OUTPUT
+            echo "new_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "Current Go version ($CURRENT_VERSION) is newer than or equal to latest reported version ($LATEST_VERSION); no update needed."
+            echo "update_needed=false" >> $GITHUB_OUTPUT
+          fi
+        fi
+
+    - name: Update go.mod with new Go version
+      if: steps.check-existing-prs.outputs.skip_update == 'false' && steps.version-check.outputs.update_needed == 'true'
+      working-directory: ./opencost
+      run: |
+        NEW_VERSION="$(echo '${{ steps.version-check.outputs.new_version }}' | tr -d 'go')"
+        echo "Updating all go.mod files under $(pwd) to use Go version: $NEW_VERSION"
+
+        # Recursively update every go.mod we find under the working directory.
+        # (Skip vendor directories to avoid accidental edits of vendored content.)
+        while IFS= read -r go_mod_file; do
+          echo "Updating: $go_mod_file"
+          sed -i -E "s/^go[[:space:]].*/go ${NEW_VERSION}/" "$go_mod_file"
+        done < <(find . -name go.mod -type f -not -path "*/vendor/*")
+        
+
+    - name: Run go mod tidy
+      if: steps.check-existing-prs.outputs.skip_update == 'false' && steps.version-check.outputs.update_needed == 'true'
+      working-directory: ./opencost
+      run: |
+        echo "Running go mod tidy for every module found under $(pwd)"
+
+        # Tidy once per module directory (dirname of each go.mod we find).
+        # Skip vendor directories to avoid editing vendored content.
+        mapfile -t tidy_dirs < <(find . -name go.mod -type f -not -path "*/vendor/*" -exec dirname {} \; | sort -u)
+        for d in "${tidy_dirs[@]}"; do
+          echo "Tidying: $d"
+          (cd "$d" && go mod tidy)
+        done
+
+    - name: Check for changes
+      id: changes
+      if: steps.check-existing-prs.outputs.skip_update == 'false' && steps.version-check.outputs.update_needed == 'true'
+      working-directory: ./opencost
+      run: |
+        if [ -z "$(git status --porcelain)" ]; then
+          echo "No changes detected, skipping PR creation"
+          echo "skip_pr=true" >> $GITHUB_OUTPUT
+        else
+          echo "Changes detected, will create PR" 
+          echo "skip_pr=false" >> $GITHUB_OUTPUT
+          # Generate a unique branch name with timestamp
+          branch_name="update-go-version-$(date +%Y%m%d-%H%M%S)"
+          echo "branch_name=$branch_name" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create Pull Request
+      if: steps.check-existing-prs.outputs.skip_update == 'false' && steps.version-check.outputs.update_needed == 'true' && steps.changes.outputs.skip_pr == 'false'
+      id: create-pr
+      uses: peter-evans/create-pull-request@v8
+      with:
+        path: ./opencost
+        token: ${{ secrets.GITHUB_TOKEN }}
+        branch: ${{ steps.changes.outputs.branch_name }}
+        title: 'chore: update Go version to ${{ steps.version-check.outputs.new_version }}'
+        commit-message: 'chore: update Go version to ${{ steps.version-check.outputs.new_version }}'
+        delete-branch: true
+        add-paths: |
+          go.mod
+          go.sum
+          **/go.mod
+          **/go.sum
+        body: |
+          Automated PR to update Go version from ${{ steps.current-version.outputs.current_version }} to ${{ steps.version-check.outputs.new_version }}.
+          
+          This PR was automatically generated after detecting a newer Go version is available.
+        base: develop
+        labels: automated,go-version-update
+    
+
+    - name: Skip message - no update needed
+      if: steps.check-existing-prs.outputs.skip_update == 'false' && steps.version-check.outputs.update_needed == 'false'
+      run: |
+        echo "No Go version update needed. Current version is up to date."
+
+    - name: Skip message - existing PR
+      if: steps.check-existing-prs.outputs.skip_update == 'true'
+      run: |
+        echo "Skipping Go version update because an existing PR with go-version-update label is already open." 
