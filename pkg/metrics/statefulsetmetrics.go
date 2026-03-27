@@ -45,17 +45,26 @@ func (sc KubecostStatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
 
 		if statefulset.SpecSelector != nil {
 			// Use MatchLabels when available. If a statefulset uses only
-			// matchExpressions (e.g. operator: In with a single value), synthesise
-			// a flat label map so the statefulset is still attributed correctly.
+			// matchExpressions, synthesise a flat label map only when every
+			// expression can be reduced to a single key=value equality pair
+			// (i.e. operator In with exactly one value). Any non-synthesisable
+			// expression (NotIn, DoesNotExist, Exists, multi-value In) causes
+			// the whole synthesis to be skipped to avoid emitting a selector
+			// broader than the real controller selector.
 			selectorLabels := statefulset.SpecSelector.MatchLabels
 			if len(selectorLabels) == 0 {
-				selectorLabels = make(map[string]string)
+				synthesized := make(map[string]string)
+				ok := true
 				for _, expr := range statefulset.SpecSelector.MatchExpressions {
-					if len(expr.Values) == 1 &&
-						(expr.Operator == metav1.LabelSelectorOpIn ||
-							expr.Operator == metav1.LabelSelectorOpExists) {
-						selectorLabels[expr.Key] = expr.Values[0]
+					if expr.Operator == metav1.LabelSelectorOpIn && len(expr.Values) == 1 {
+						synthesized[expr.Key] = expr.Values[0]
+					} else {
+						ok = false
+						break
 					}
+				}
+				if ok && len(synthesized) > 0 {
+					selectorLabels = synthesized
 				}
 			}
 			labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(selectorLabels))

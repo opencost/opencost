@@ -525,7 +525,7 @@ func TestKubecostDeploymentCollector_Collect_MatchExpressions(t *testing.T) {
 			expectedCount: 1,
 		},
 		{
-			name: "deployment with matchExpressions Exists operator single value",
+			name: "deployment with matchExpressions Exists operator is skipped (not synthesisable)",
 			deployments: []*clustercache.Deployment{
 				{
 					UID:         types.UID("expr-uid-2"),
@@ -535,15 +535,16 @@ func TestKubecostDeploymentCollector_Collect_MatchExpressions(t *testing.T) {
 					SpecSelector: &metav1.LabelSelector{
 						MatchExpressions: []metav1.LabelSelectorRequirement{
 							{
+								// Exists cannot be represented as key=value; synthesis must be skipped.
 								Key:      "tier",
 								Operator: metav1.LabelSelectorOpExists,
-								Values:   []string{"frontend"},
+								Values:   []string{},
 							},
 						},
 					},
 				},
 			},
-			expectedCount: 1,
+			expectedCount: 0,
 		},
 		{
 			name: "deployment with matchExpressions NotIn operator is skipped (multi-value not synthesisable)",
@@ -559,6 +560,32 @@ func TestKubecostDeploymentCollector_Collect_MatchExpressions(t *testing.T) {
 								Key:      "env",
 								Operator: metav1.LabelSelectorOpNotIn,
 								Values:   []string{"prod", "staging"},
+							},
+						},
+					},
+				},
+			},
+			expectedCount: 0,
+		},
+		{
+			name: "deployment with mixed In+NotIn expressions is skipped (partial synthesis would broaden selector)",
+			deployments: []*clustercache.Deployment{
+				{
+					UID:         types.UID("expr-uid-6"),
+					Name:        "mixed-deployment",
+					Namespace:   "default",
+					MatchLabels: map[string]string{},
+					SpecSelector: &metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "app",
+								Operator: metav1.LabelSelectorOpIn,
+								Values:   []string{"myapp"},
+							},
+							{
+								Key:      "env",
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"prod"},
 							},
 						},
 					},

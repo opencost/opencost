@@ -45,18 +45,26 @@ func (kdc KubecostDeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 		deploymentUID := string(deployment.UID)
 
 		// Use MatchLabels when available. If a deployment uses only
-		// matchExpressions (e.g. operator: In with a single value), synthesise
-		// a flat label map from those expressions so the deployment is still
-		// attributed correctly instead of falling into __unallocated__.
+		// matchExpressions, synthesise a flat label map only when every
+		// expression can be reduced to a single key=value equality pair
+		// (i.e. operator In with exactly one value). Any non-synthesisable
+		// expression (NotIn, DoesNotExist, Exists, multi-value In) causes the
+		// whole synthesis to be skipped so we never emit a selector that is
+		// broader than the real controller selector.
 		selectorLabels := deployment.MatchLabels
 		if len(selectorLabels) == 0 && deployment.SpecSelector != nil {
-			selectorLabels = make(map[string]string)
+			synthesized := make(map[string]string)
+			ok := true
 			for _, expr := range deployment.SpecSelector.MatchExpressions {
-				if len(expr.Values) == 1 &&
-					(expr.Operator == metav1.LabelSelectorOpIn ||
-						expr.Operator == metav1.LabelSelectorOpExists) {
-					selectorLabels[expr.Key] = expr.Values[0]
+				if expr.Operator == metav1.LabelSelectorOpIn && len(expr.Values) == 1 {
+					synthesized[expr.Key] = expr.Values[0]
+				} else {
+					ok = false
+					break
 				}
+			}
+			if ok && len(synthesized) > 0 {
+				selectorLabels = synthesized
 			}
 		}
 
