@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"regexp"
 	"strconv"
@@ -60,8 +61,8 @@ const (
 )
 
 var (
-	// Regular expression to get the numerical value of PV suffix with GiB from *v1.PersistentVolume.
-	sizeRegEx = regexp.MustCompile("(.*?)Gi")
+	// sizeRegEx parses a PV capacity string into a numeric part and an optional binary SI suffix (Ki, Mi, Gi, Ti).
+	sizeRegEx = regexp.MustCompile(`^(\d+(?:\.\d+)?)(Ki|Mi|Gi|Ti)?$`)
 )
 
 // Variable to keep track of instance families that fail in DescribePrice API due improper defaulting of systemDisk if the information is not available
@@ -1296,21 +1297,57 @@ func generateSlimK8sNodeFromV1Node(node *clustercache.Node) *SlimK8sNode {
 	return NewSlimK8sNode(instanceType, regionID, priceUnit, memorySizeInKiB, osType, providerID, instanceFamily, IsIoOptimized, systemDisk)
 }
 
-// getNumericalValueFromResourceQuantity returns the numericalValue of the resourceQuantity
-// An example is: 20Gi returns to 20. If any error occurs it returns the default value used in describePrice API which is 2000.
+// getNumericalValueFromResourceQuantity converts a Kubernetes PV capacity string (e.g. "20Gi", "48828125Ki")
+// into a whole GiB integer string, as required by the Alibaba DescribePrice API.
+// Returns ALIBABA_DEFAULT_DATADISK_SIZE if the quantity cannot be parsed.
 func getNumericalValueFromResourceQuantity(quantity string) (value string) {
-	// defaulting when any panic or empty string occurs.
 	defer func() {
-		log.Debugf("unable to determine the size of the PV so defaulting the size to %s", ALIBABA_DEFAULT_DATADISK_SIZE)
 		if err := recover(); err != nil {
+			log.Debugf("panic while parsing PV capacity %q, defaulting to %s: %v", quantity, ALIBABA_DEFAULT_DATADISK_SIZE, err)
 			value = ALIBABA_DEFAULT_DATADISK_SIZE
 		}
 		if value == "" {
+			log.Debugf("unable to determine the size of the PV from quantity %q, defaulting to %s", quantity, ALIBABA_DEFAULT_DATADISK_SIZE)
 			value = ALIBABA_DEFAULT_DATADISK_SIZE
 		}
 	}()
-	res := sizeRegEx.FindAllStringSubmatch(quantity, 1)
-	value = res[0][1]
+
+	res := sizeRegEx.FindStringSubmatch(strings.TrimSpace(quantity))
+	if len(res) < 2 || res[1] == "" {
+		return
+	}
+
+	numericPart, err := strconv.ParseFloat(res[1], 64)
+	if err != nil || numericPart <= 0 {
+		return
+	}
+
+	unit := ""
+	if len(res) >= 3 {
+		unit = res[2]
+	}
+
+	var sizeInGiB float64
+	switch unit {
+	case "Ki":
+		sizeInGiB = numericPart / (1024 * 1024)
+	case "Mi":
+		sizeInGiB = numericPart / 1024
+	case "Gi":
+		sizeInGiB = numericPart
+	case "Ti":
+		sizeInGiB = numericPart * 1024
+	default:
+		sizeInGiB = numericPart / (1024 * 1024 * 1024)
+	}
+
+	// ceil so we never underreport disk size to the DescribePrice API.
+	sizeInGiBInt := int64(math.Ceil(sizeInGiB))
+	if sizeInGiBInt <= 0 {
+		return
+	}
+
+	value = strconv.FormatInt(sizeInGiBInt, 10)
 	return
 }
 
