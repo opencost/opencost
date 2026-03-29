@@ -861,7 +861,6 @@ func TestGetNumericalValueFromResourceQuantity(t *testing.T) {
 	}
 }
 
-
 func TestDeterminePVRegion(t *testing.T) {
 	genericNodeAffinityTestStruct := v1.NodeSelectorTerm{
 		MatchExpressions: []v1.NodeSelectorRequirement{
