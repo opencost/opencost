@@ -45,15 +45,15 @@ func (sc KubecostStatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
 
 		if statefulset.SpecSelector != nil {
 			// Use MatchLabels when available. If a statefulset uses only
-			// matchExpressions (e.g. operator: In with a single value), synthesise
-			// a flat label map so the statefulset is still attributed correctly.
+			// matchExpressions, synthesise a flat label map from OpIn expressions
+			// with exactly one value so the statefulset is still attributed correctly.
+			// Note: OpExists is value-less in Kubernetes and cannot be represented
+			// as a flat key=value map, so it is intentionally excluded here.
 			selectorLabels := statefulset.SpecSelector.MatchLabels
 			if len(selectorLabels) == 0 {
 				selectorLabels = make(map[string]string)
 				for _, expr := range statefulset.SpecSelector.MatchExpressions {
-					if len(expr.Values) == 1 &&
-						(expr.Operator == metav1.LabelSelectorOpIn ||
-							expr.Operator == metav1.LabelSelectorOpExists) {
+					if expr.Operator == metav1.LabelSelectorOpIn && len(expr.Values) == 1 {
 						selectorLabels[expr.Key] = expr.Values[0]
 					}
 				}

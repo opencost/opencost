@@ -45,16 +45,16 @@ func (kdc KubecostDeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 		deploymentUID := string(deployment.UID)
 
 		// Use MatchLabels when available. If a deployment uses only
-		// matchExpressions (e.g. operator: In with a single value), synthesise
-		// a flat label map from those expressions so the deployment is still
-		// attributed correctly instead of falling into __unallocated__.
+		// matchExpressions, synthesise a flat label map from OpIn expressions
+		// with exactly one value so the deployment is still attributed
+		// correctly instead of falling into __unallocated__.
+		// Note: OpExists is value-less in Kubernetes and cannot be represented
+		// as a flat key=value map, so it is intentionally excluded here.
 		selectorLabels := deployment.MatchLabels
 		if len(selectorLabels) == 0 && deployment.SpecSelector != nil {
 			selectorLabels = make(map[string]string)
 			for _, expr := range deployment.SpecSelector.MatchExpressions {
-				if len(expr.Values) == 1 &&
-					(expr.Operator == metav1.LabelSelectorOpIn ||
-						expr.Operator == metav1.LabelSelectorOpExists) {
+				if expr.Operator == metav1.LabelSelectorOpIn && len(expr.Values) == 1 {
 					selectorLabels[expr.Key] = expr.Values[0]
 				}
 			}

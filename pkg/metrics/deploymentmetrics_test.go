@@ -525,7 +525,7 @@ func TestKubecostDeploymentCollector_Collect_MatchExpressions(t *testing.T) {
 			expectedCount: 1,
 		},
 		{
-			name: "deployment with matchExpressions Exists operator single value",
+			name: "deployment with matchExpressions Exists operator is skipped (value-less in Kubernetes)",
 			deployments: []*clustercache.Deployment{
 				{
 					UID:         types.UID("expr-uid-2"),
@@ -537,13 +537,13 @@ func TestKubecostDeploymentCollector_Collect_MatchExpressions(t *testing.T) {
 							{
 								Key:      "tier",
 								Operator: metav1.LabelSelectorOpExists,
-								Values:   []string{"frontend"},
+								Values:   []string{},
 							},
 						},
 					},
 				},
 			},
-			expectedCount: 1,
+			expectedCount: 0,
 		},
 		{
 			name: "deployment with matchExpressions NotIn operator is skipped (multi-value not synthesisable)",

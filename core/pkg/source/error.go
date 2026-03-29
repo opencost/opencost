@@ -324,7 +324,10 @@ func (pce CommError) Error() string {
 	// backend target group. This typically happens when Go's HTTP/2
 	// transport negotiates h2 via ALPN but the ALB backend expects HTTP/1.1.
 	// Provide an actionable hint so operators know exactly what to do.
-	if strings.Contains(msg, "464") {
+	// We check for a "464 " prefix on the first message (e.g. "464 () URL: ...")
+	// rather than a broad substring match to avoid false positives from
+	// timestamps, IDs, or other numeric values that happen to contain "464".
+	if len(pce.messages) > 0 && strings.HasPrefix(strings.TrimSpace(pce.messages[0]), "464 ") {
 		msg += " [HTTP 464: AWS ALB protocol mismatch — if Prometheus is behind an AWS Load Balancer with HTTP/2 backend target groups, set PROMETHEUS_DISABLE_HTTP2=true]"
 	}
 

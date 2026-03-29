@@ -1,8 +1,6 @@
 package prom
 
 import (
-	"crypto/tls"
-	"net/http"
 	"reflect"
 	"testing"
 	"time"
@@ -186,13 +184,11 @@ func TestContext_alignWindow(t *testing.T) {
 	}
 }
 
-// TestNewPrometheusClient_DisableHTTP2 verifies that when DisableHTTP2 is set
-// on PrometheusClientConfig, the resulting transport has TLSNextProto set to a
-// non-nil empty map — the canonical Go mechanism for disabling HTTP/2 ALPN
-// negotiation and forcing HTTP/1.1.
-func TestNewPrometheusClient_DisableHTTP2(t *testing.T) {
-	// We can't call NewPrometheusClient directly (it dials the network), so
-	// we replicate the transport construction logic and verify the outcome.
+// TestNewPrometheusTransport_DisableHTTP2 verifies that when DisableHTTP2 is
+// set on PrometheusClientConfig, the resulting transport has TLSNextProto set
+// to a non-nil empty map — the canonical Go mechanism for disabling HTTP/2
+// ALPN negotiation and forcing HTTP/1.1.
+func TestNewPrometheusTransport_DisableHTTP2(t *testing.T) {
 	cfg := &PrometheusClientConfig{
 		Timeout:               5 * time.Second,
 		KeepAlive:             30 * time.Second,
@@ -201,19 +197,7 @@ func TestNewPrometheusClient_DisableHTTP2(t *testing.T) {
 		DisableHTTP2:          true,
 	}
 
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: cfg.TLSInsecureSkipVerify,
-		MinVersion:         tls.VersionTLS12,
-	}
-
-	transport := &http.Transport{
-		TLSHandshakeTimeout: cfg.TLSHandshakeTimeout,
-		TLSClientConfig:     tlsConfig,
-	}
-
-	if cfg.DisableHTTP2 {
-		transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
-	}
+	transport := newPrometheusTransport(cfg)
 
 	// TLSNextProto must be non-nil and empty to disable HTTP/2.
 	if transport.TLSNextProto == nil {
@@ -222,24 +206,29 @@ func TestNewPrometheusClient_DisableHTTP2(t *testing.T) {
 	if len(transport.TLSNextProto) != 0 {
 		t.Errorf("Expected TLSNextProto to be empty, got %d entries", len(transport.TLSNextProto))
 	}
+
+	// Verify other transport fields are set from config.
+	if transport.TLSHandshakeTimeout != cfg.TLSHandshakeTimeout {
+		t.Errorf("TLSHandshakeTimeout mismatch: got %v, want %v", transport.TLSHandshakeTimeout, cfg.TLSHandshakeTimeout)
+	}
+	if transport.TLSClientConfig == nil {
+		t.Fatal("Expected TLSClientConfig to be set")
+	}
+	if transport.TLSClientConfig.InsecureSkipVerify != cfg.TLSInsecureSkipVerify {
+		t.Errorf("InsecureSkipVerify mismatch: got %v, want %v", transport.TLSClientConfig.InsecureSkipVerify, cfg.TLSInsecureSkipVerify)
+	}
 }
 
-// TestNewPrometheusClient_HTTP2EnabledByDefault verifies that when DisableHTTP2
-// is false (the default), TLSNextProto is NOT set — allowing Go's net/http to
-// negotiate HTTP/2 via ALPN as normal.
-func TestNewPrometheusClient_HTTP2EnabledByDefault(t *testing.T) {
+// TestNewPrometheusTransport_HTTP2EnabledByDefault verifies that when
+// DisableHTTP2 is false (the default), TLSNextProto is NOT set — allowing
+// Go's net/http to negotiate HTTP/2 via ALPN as normal.
+func TestNewPrometheusTransport_HTTP2EnabledByDefault(t *testing.T) {
 	cfg := &PrometheusClientConfig{
 		Timeout:      5 * time.Second,
 		DisableHTTP2: false,
 	}
 
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
-	}
-
-	if cfg.DisableHTTP2 {
-		transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
-	}
+	transport := newPrometheusTransport(cfg)
 
 	// TLSNextProto must remain nil so Go can auto-configure HTTP/2.
 	if transport.TLSNextProto != nil {

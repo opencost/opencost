@@ -44,10 +44,14 @@ jobs:
         id: changed
         if: github.event_name == 'merge_group'
         run: |
-          git fetch origin ${{ github.base_ref }} --depth=1 2>/dev/null || \
-          git fetch origin HEAD~1 --depth=1 2>/dev/null || true
+          BASE_SHA="${{ github.event.merge_group.base_sha }}"
+          HEAD_SHA="${{ github.event.merge_group.head_sha }}"
 
-          if git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -q "docs/swagger.json"; then
+          # Fetch both SHAs so git diff can compare them.
+          git fetch origin "$BASE_SHA" --depth=1 2>/dev/null || true
+          git fetch origin "$HEAD_SHA" --depth=1 2>/dev/null || true
+
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" 2>/dev/null | grep -q "docs/swagger.json"; then
             echo "swagger_changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "swagger_changed=false" >> "$GITHUB_OUTPUT"

@@ -388,8 +388,10 @@ type PrometheusClientConfig struct {
 	DisableHTTP2 bool
 }
 
-// NewPrometheusClient creates a new rate limited client which limits by outbound concurrent requests.
-func NewPrometheusClient(address string, config *PrometheusClientConfig) (prometheus.Client, error) {
+// newPrometheusTransport builds the http.Transport for a Prometheus client.
+// It is extracted so that tests can exercise the transport configuration
+// directly without needing a live network connection.
+func newPrometheusTransport(config *PrometheusClientConfig) *http.Transport {
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: config.TLSInsecureSkipVerify,
 		RootCAs:            config.RootCAs,
@@ -422,6 +424,13 @@ func NewPrometheusClient(address string, config *PrometheusClientConfig) (promet
 		transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
 		log.Infof("Prometheus HTTP client: HTTP/2 disabled (PROMETHEUS_DISABLE_HTTP2=true)")
 	}
+
+	return transport
+}
+
+// NewPrometheusClient creates a new rate limited client which limits by outbound concurrent requests.
+func NewPrometheusClient(address string, config *PrometheusClientConfig) (prometheus.Client, error) {
+	transport := newPrometheusTransport(config)
 
 	// may be necessary for long prometheus queries
 	rt := httputil.NewUserAgentTransport(UserAgent, transport)
