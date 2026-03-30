@@ -349,11 +349,11 @@ func (c *collectorMetricsQuerier) QueryPodPVCVolumes(start, end time.Time) *sour
 }
 
 func (c *collectorMetricsQuerier) QueryPodNetworkEgressBytes(start, end time.Time) *source.Future[source.PodNetworkBytesResult] {
-	return queryCollectorGiB(c, start, end, metric.PodNetworkEgressBytesID, source.DecodePodNetworkBytesResult)
+	return queryCollector(c, start, end, metric.PodNetworkEgressBytesID, source.DecodePodNetworkBytesResult)
 }
 
 func (c *collectorMetricsQuerier) QueryPodNetworkIngressBytes(start, end time.Time) *source.Future[source.PodNetworkBytesResult] {
-	return queryCollectorGiB(c, start, end, metric.PodNetworkIngressBytesID, source.DecodePodNetworkBytesResult)
+	return queryCollector(c, start, end, metric.PodNetworkIngressBytesID, source.DecodePodNetworkBytesResult)
 }
 
 func (c *collectorMetricsQuerier) QueryContainerUptime(start, end time.Time) *source.Future[source.ContainerUptimeResult] {

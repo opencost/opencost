@@ -608,7 +608,7 @@ func (pds *PrometheusMetricsQuerier) QueryPodPVCVolumes(start, end time.Time) *s
 
 func (pds *PrometheusMetricsQuerier) QueryPodNetworkEgressBytes(start, end time.Time) *source.Future[source.PodNetworkBytesResult] {
 	const queryName = "QueryPodNetworkEgressBytes"
-	const queryFmt = `sum(increase(kubecost_pod_network_egress_bytes_total{uid!="", %s}[%s:%dm])) by (uid, service, internet, same_region, same_zone, nat_gateway %s)`
+	const queryFmt = `sum(increase(kubecost_pod_network_egress_bytes_total{uid!="", %s}[%s:%dm])) by (uid, service, internet, same_region, same_zone, nat_gateway, %s)`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -626,7 +626,7 @@ func (pds *PrometheusMetricsQuerier) QueryPodNetworkEgressBytes(start, end time.
 
 func (pds *PrometheusMetricsQuerier) QueryPodNetworkIngressBytes(start, end time.Time) *source.Future[source.PodNetworkBytesResult] {
 	const queryName = "QueryPodNetworkIngressBytes"
-	const queryFmt = `sum(increase(kubecost_pod_network_ingress_bytes_total{uid!="", %s}[%s:%dm])) by (uid, service, internet, same_region, same_zone, nat_gateway %s)`
+	const queryFmt = `sum(increase(kubecost_pod_network_ingress_bytes_total{uid!="", %s}[%s:%dm])) by (uid, service, internet, same_region, same_zone, nat_gateway, %s)`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
