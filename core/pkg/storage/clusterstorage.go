@@ -280,6 +280,18 @@ func (c *ClusterStorage) Read(path string) ([]byte, error) {
 	return jsonResp.Data, nil
 }
 
+// ReadStream returns a reader for the specified object path.
+//
+// Note: ClusterStorage does not currently expose a remote streaming endpoint, so this
+// implementation materializes the response via Read and wraps it as an io.ReadCloser.
+func (c *ClusterStorage) ReadStream(path string) (io.ReadCloser, error) {
+	data, err := c.Read(path)
+	if err != nil {
+		return nil, err
+	}
+	return io.NopCloser(bytes.NewReader(data)), nil
+}
+
 // ReadToLocalFile downloads the specified object at path to destPath on the local file system.
 //
 // Note: ClusterStorage does not currently expose a streaming download endpoint, so this implementation

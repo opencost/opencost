@@ -140,6 +140,7 @@ func (gs *GCSStorage) Read(name string) ([]byte, error) {
 		}
 		return nil, err
 	}
+	defer reader.Close()
 
 	data, err := io.ReadAll(reader)
 	if err != nil {
@@ -147,6 +148,26 @@ func (gs *GCSStorage) Read(name string) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// ReadStream returns a streaming reader for the specified object path.
+func (gs *GCSStorage) ReadStream(path string) (io.ReadCloser, error) {
+	path = trimLeading(path)
+	log.Debugf("GCSStorage::ReadStream::HTTPS(%s)", path)
+
+	ctx := context.Background()
+	reader, err := gs.bucket.Object(path).NewReader(ctx)
+	if err != nil {
+		if err == gcs.ErrObjectNotExist {
+			return nil, DoesNotExistError
+		}
+		if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusNotFound {
+			return nil, DoesNotExistError
+		}
+		return nil, err
+	}
+
+	return reader, nil
 }
 
 // ReadToLocalFile streams the specified object at path to destPath on the local file system.

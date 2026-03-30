@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -37,6 +38,10 @@ type Storage interface {
 	// Read uses the relative path of the storage combined with the provided path to
 	// read the contents.
 	Read(path string) ([]byte, error)
+
+	// ReadStream returns an io.ReadCloser for the specified path. Implementations should
+	// stream incrementally when possible to avoid loading entire objects into memory.
+	ReadStream(path string) (io.ReadCloser, error)
 
 	// ReadToLocalFile writes the specified file at path to destPath on the local file system.
 	// Implementations may stream data to minimize RAM usage, but some backends may still buffer

@@ -257,6 +257,27 @@ func (b *AzureStorage) Read(name string) ([]byte, error) {
 	return downloadedData.Bytes(), nil
 }
 
+// ReadStream returns a streaming reader for the specified blob path.
+func (b *AzureStorage) ReadStream(path string) (io.ReadCloser, error) {
+	path = trimLeading(path)
+	ctx := context.Background()
+
+	log.Debugf("AzureStorage::ReadStream::HTTPS(%s)", path)
+
+	downloadResponse, err := b.containerClient.NewBlobClient(path).DownloadStream(ctx, nil)
+	if err != nil {
+		if b.IsObjNotFoundErr(err) {
+			return nil, DoesNotExistError
+		}
+		return nil, fmt.Errorf("AzureStorage: ReadStream: failed to download blob %q: %w", path, err)
+	}
+
+	retryReader := downloadResponse.NewRetryReader(ctx, &azblob.RetryReaderOptions{
+		MaxRetries: int32(b.config.ReaderConfig.MaxRetryRequests),
+	})
+	return retryReader, nil
+}
+
 // ReadToLocalFile streams the specified blob at path to destPath on the local file system.
 func (b *AzureStorage) ReadToLocalFile(path, destPath string) error {
 	path = trimLeading(path)

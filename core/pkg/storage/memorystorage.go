@@ -1,7 +1,9 @@
 package storage
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -68,6 +70,21 @@ func (ms *MemoryStorage) Read(path string) ([]byte, error) {
 
 	if file, ok := ms.directPaths[path]; ok {
 		return file.Contents, nil
+	}
+
+	return nil, DoesNotExistError
+}
+
+// ReadStream returns a streaming reader for the specified in-memory object.
+func (ms *MemoryStorage) ReadStream(path string) (io.ReadCloser, error) {
+	ms.lock.Lock()
+	defer ms.lock.Unlock()
+
+	path = filepath.Clean(path)
+
+	if file, ok := ms.directPaths[path]; ok {
+		data := append([]byte(nil), file.Contents...)
+		return io.NopCloser(bytes.NewReader(data)), nil
 	}
 
 	return nil, DoesNotExistError

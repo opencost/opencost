@@ -118,6 +118,21 @@ func (fs *FileStorage) Read(path string) ([]byte, error) {
 	return b, nil
 }
 
+// ReadStream returns a streaming reader for the specified file path.
+func (fs *FileStorage) ReadStream(path string) (io.ReadCloser, error) {
+	f := filepath.Join(fs.baseDir, path)
+
+	file, err := os.Open(f)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, DoesNotExistError
+		}
+		return nil, fmt.Errorf("opening %s: %w", f, err)
+	}
+
+	return file, nil
+}
+
 // ReadToLocalFile streams the specified file at path to destPath on the local file system.
 //
 // For FileStorage, this is implemented as a local file copy.

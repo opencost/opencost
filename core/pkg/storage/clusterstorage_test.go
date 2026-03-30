@@ -3,6 +3,7 @@ package storage
 import (
 	"crypto/tls"
 	"encoding/json"
+	"io"
 	"net/http/httptest"
 	"net/http"
 	"net/url"
@@ -117,5 +118,56 @@ func TestClusterStorage_ReadToLocalFile(t *testing.T) {
 
 	if string(data) != string(expected) {
 		t.Fatalf("destination file contents mismatch: got %q want %q", string(data), string(expected))
+	}
+}
+
+func TestClusterStorage_ReadStream(t *testing.T) {
+	expected := []byte("cluster-storage-stream-contents")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/clusterStorage/read" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		resp := Response[[]byte]{
+			Code: 0,
+			Data: expected,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	u, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatalf("parsing test server URL: %s", err)
+	}
+
+	port, err := strconv.Atoi(u.Port())
+	if err != nil {
+		t.Fatalf("parsing test server port: %s", err)
+	}
+
+	cs := &ClusterStorage{
+		client: &http.Client{},
+		host:   u.Hostname(),
+		port:   port,
+	}
+
+	r, err := cs.ReadStream("some/path")
+	if err != nil {
+		t.Fatalf("ReadStream failed: %s", err)
+	}
+	defer r.Close()
+
+	data, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("reading stream failed: %s", err)
+	}
+
+	if string(data) != string(expected) {
+		t.Fatalf("stream contents mismatch: got %q want %q", string(data), string(expected))
 	}
 }
