@@ -34,8 +34,8 @@ func TestFileBank_LoadOrStore_MissAndHit(t *testing.T) {
 
 func TestFileBank_EvictionPersistsAndReloads(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "strings.dat")
-	capacity := 2
-	bank, err := NewFileStringBank(path, capacity, 200*time.Millisecond)
+	maxBytes := 4 // 2 entries of size len(key)+len(value)==2 each
+	bank, err := NewFileStringBank(path, maxBytes, 200*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,10 +54,10 @@ func TestFileBank_EvictionPersistsAndReloads(t *testing.T) {
 
 	fb := bank.(*fileStringBank)
 	fb.lock.Lock()
-	inMem := len(fb.m)
+	inMemBytes := fb.currentSize
 	fb.lock.Unlock()
-	if inMem > capacity {
-		t.Fatalf("expected in-memory size <= %d after eviction, got %d", capacity, inMem)
+	if inMemBytes > maxBytes {
+		t.Fatalf("expected in-memory bytes <= %d after eviction, got %d", maxBytes, inMemBytes)
 	}
 
 	// Oldest entries should be recoverable from file-backed spill.
@@ -74,6 +74,29 @@ func TestFileBank_EvictionPersistsAndReloads(t *testing.T) {
 	fb.lock.Unlock()
 	if stillSpill {
 		t.Error("after promoting 'a' into cache, it should be removed from spill index")
+	}
+}
+
+func TestFileBank_EvictionUsesByteSizeNotEntryCount(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "strings.dat")
+	maxBytes := 10
+	bank, err := NewFileStringBank(path, maxBytes, 150*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = bank.(*fileStringBank).Close() }()
+
+	bank.LoadOrStore("k1", "aaaaaa") // size 8
+	time.Sleep(30 * time.Millisecond)
+	bank.LoadOrStore("k2", "bb") // size 4, total 12 > 10
+
+	time.Sleep(250 * time.Millisecond)
+
+	fb := bank.(*fileStringBank)
+	fb.lock.Lock()
+	defer fb.lock.Unlock()
+	if fb.currentSize > maxBytes {
+		t.Fatalf("expected in-memory bytes <= %d, got %d", maxBytes, fb.currentSize)
 	}
 }
 
