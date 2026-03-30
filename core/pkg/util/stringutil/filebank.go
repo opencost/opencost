@@ -7,8 +7,6 @@ import (
 	"os"
 	"sync"
 	"time"
-
-	"github.com/opencost/opencost/core/pkg/log"
 )
 
 // fileLruEntry tracks the map key (lookup key) separately from the canonical value
@@ -93,7 +91,7 @@ func (bank *fileStringBank) persistSpill(e *fileLruEntry) error {
 	if _, err := bank.f.Write(hdr[:]); err != nil {
 		return err
 	}
-	log.Infof("persisting spill: %s, payload: %s", e.key, string(payload))
+
 	if _, err := bank.f.Write(payload); err != nil {
 		return err
 	}
