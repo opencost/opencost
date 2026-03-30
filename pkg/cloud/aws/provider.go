@@ -267,26 +267,6 @@ type AWSProductTerms struct {
 	LoadBalancer *models.LoadBalancer `json:"load_balancer"`
 }
 
-// ClusterIdEnvVar is the environment variable in which one can manually set the ClusterId
-const ClusterIdEnvVar = "AWS_CLUSTER_ID"
-
-// OnDemandRateCodes is are sets of identifiers for offerTermCodes matching 'On Demand' rates
-var OnDemandRateCodes = map[string]struct{}{
-	"JRTCKXETXF": {},
-}
-
-var OnDemandRateCodesCn = map[string]struct{}{
-	"99YE2YK9UR": {},
-	"5Y9WH78GDR": {},
-	"KW44MY7SZN": {},
-}
-
-// HourlyRateCode is appended to a node sku
-const (
-	HourlyRateCode   = "6YS6EN2CT7"
-	HourlyRateCodeCn = "Q7UJUT2CE6"
-)
-
 // volTypes are used to map between AWS UsageTypes and
 // EBS volume types, as they would appear in K8s storage class
 // name and the EC2 API.

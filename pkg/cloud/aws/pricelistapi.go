@@ -11,6 +11,23 @@ import (
 	"github.com/opencost/opencost/pkg/env"
 )
 
+// OnDemandRateCodes is are sets of identifiers for offerTermCodes matching 'On Demand' rates
+var OnDemandRateCodes = map[string]struct{}{
+	"JRTCKXETXF": {},
+}
+
+var OnDemandRateCodesCn = map[string]struct{}{
+	"99YE2YK9UR": {},
+	"5Y9WH78GDR": {},
+	"KW44MY7SZN": {},
+}
+
+// HourlyRateCode is appended to a node sku
+const (
+	HourlyRateCode   = "6YS6EN2CT7"
+	HourlyRateCodeCn = "Q7UJUT2CE6"
+)
+
 func getListPriceURL(service, region string) string {
 	if env.GetAWSPricingURL() != "" { // Allow override of pricing URL
 		return env.GetAWSPricingURL()
