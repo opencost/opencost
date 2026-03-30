@@ -95,9 +95,9 @@ func (bank *fileStringBank) persistSpill(e *fileLruEntry) error {
 	if _, err := bank.f.Write(payload); err != nil {
 		return err
 	}
-	if err := bank.f.Sync(); err != nil {
-		return err
-	}
+	// if err := bank.f.Sync(); err != nil {
+	// 	return err
+	// }
 	bank.spill[e.key] = off
 	return nil
 }
