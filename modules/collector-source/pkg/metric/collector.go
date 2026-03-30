@@ -51,6 +51,8 @@ const (
 	PodOwnerID                                 MetricCollectorID = "PodOwner"
 	PodPVCVolumeID                             MetricCollectorID = "PodPVCVolume"
 	ContainerUptimeID                          MetricCollectorID = "ContainerUptime"
+	PodNetworkEgressBytesID                    MetricCollectorID = "PodNetworkEgressBytes"
+	PodNetworkIngressBytesID                   MetricCollectorID = "PodNetworkIngressBytes"
 	RAMBytesAllocatedID                        MetricCollectorID = "RAMBytesAllocated"
 	RAMRequestsID                              MetricCollectorID = "RAMRequests"
 	RAMLimitsID                                MetricCollectorID = "RAMLimits"

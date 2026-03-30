@@ -606,6 +606,42 @@ func (pds *PrometheusMetricsQuerier) QueryPodPVCVolumes(start, end time.Time) *s
 	return nil
 }
 
+func (pds *PrometheusMetricsQuerier) QueryPodNetworkEgressBytes(start, end time.Time) *source.Future[source.PodNetworkBytesResult] {
+	const queryName = "QueryPodNetworkEgressBytes"
+	const queryFmt = `sum(increase(kubecost_pod_network_egress_bytes_total{uid!="", %s}[%s:%dm])) by (uid, service, internet, same_region, same_zone, nat_gateway, %s)`
+
+	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
+	durStr := pds.durationStringFor(start, end, minsPerResolution, true)
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	q := fmt.Sprintf(queryFmt, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), q)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodePodNetworkBytesResult, ctx.QueryAtTime(q, end))
+}
+
+func (pds *PrometheusMetricsQuerier) QueryPodNetworkIngressBytes(start, end time.Time) *source.Future[source.PodNetworkBytesResult] {
+	const queryName = "QueryPodNetworkIngressBytes"
+	const queryFmt = `sum(increase(kubecost_pod_network_ingress_bytes_total{uid!="", %s}[%s:%dm])) by (uid, service, internet, same_region, same_zone, nat_gateway, %s)`
+
+	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
+	durStr := pds.durationStringFor(start, end, minsPerResolution, true)
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	q := fmt.Sprintf(queryFmt, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), q)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodePodNetworkBytesResult, ctx.QueryAtTime(q, end))
+}
+
 func (pds *PrometheusMetricsQuerier) QueryContainerUptime(start, end time.Time) *source.Future[source.ContainerUptimeResult] {
 	return nil
 }

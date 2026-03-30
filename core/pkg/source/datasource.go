@@ -50,6 +50,8 @@ type MetricsQuerier interface {
 	QueryPodUptime(start, end time.Time) *Future[UptimeResult]
 	QueryPodOwners(start, end time.Time) *Future[OwnerResult]
 	QueryPodPVCVolumes(start, end time.Time) *Future[PodPVCVolumeResult]
+	QueryPodNetworkEgressBytes(start, end time.Time) *Future[PodNetworkBytesResult]
+	QueryPodNetworkIngressBytes(start, end time.Time) *Future[PodNetworkBytesResult]
 
 	// Container
 	QueryContainerUptime(start, end time.Time) *Future[ContainerUptimeResult]

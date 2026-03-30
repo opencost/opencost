@@ -348,6 +348,14 @@ func (c *collectorMetricsQuerier) QueryPodPVCVolumes(start, end time.Time) *sour
 	return queryCollector(c, start, end, metric.PodPVCVolumeID, source.DecodePodPVCVolumeResult)
 }
 
+func (c *collectorMetricsQuerier) QueryPodNetworkEgressBytes(start, end time.Time) *source.Future[source.PodNetworkBytesResult] {
+	return queryCollector(c, start, end, metric.PodNetworkEgressBytesID, source.DecodePodNetworkBytesResult)
+}
+
+func (c *collectorMetricsQuerier) QueryPodNetworkIngressBytes(start, end time.Time) *source.Future[source.PodNetworkBytesResult] {
+	return queryCollector(c, start, end, metric.PodNetworkIngressBytesID, source.DecodePodNetworkBytesResult)
+}
+
 func (c *collectorMetricsQuerier) QueryContainerUptime(start, end time.Time) *source.Future[source.ContainerUptimeResult] {
 	return queryCollector(c, start, end, metric.ContainerUptimeID, source.DecodeContainerUptimeResult)
 }
