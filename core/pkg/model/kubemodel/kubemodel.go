@@ -17,6 +17,8 @@ type KubeModelSet struct {
 	Owners                 map[string]*Owner                 `json:"owners,omitempty"`       // @bingen:field[ignore]
 	Devices                map[string]*Device                `json:"devices,omitempty"`      // @bingen:field[ignore]
 	DeviceUsages           map[string]*DeviceUsage           `json:"deviceUsages,omitempty"` // @bingen:field[ignore]
+	GPUDevices              map[string]*GPUDevice             `json:"gpuDevices,omitempty"`   // @bingen:field[ignore]
+	GPUUsages               map[string]*GPUUsage              `json:"gpuUsages,omitempty"`    // @bingen:field[ignore]
 	Nodes                  map[string]*Node                  `json:"nodes,omitempty"`        // @bingen:field[ignore]
 	Pods                   map[string]*Pod                   `json:"pods,omitempty"`         // @bingen:field[ignore]
 	PersistentVolumeClaims map[string]*PersistentVolumeClaim `json:"pvcs,omitempty"`         // @bingen:field[ignore]
