@@ -362,6 +362,39 @@ func (b *Buffer) ReadString() string {
 	return bytesToString(bytes)
 }
 
+// ReadStringBytes reads a uint16 length prefix and that many bytes as a new slice.
+// Unlike ReadString, this does not route through the global string bank.
+func (b *Buffer) ReadStringBytes() ([]byte, error) {
+	var l uint16
+	if b.bw != nil {
+		if err := readUint16(b.bw, &l); err != nil {
+			return nil, err
+		}
+		if l == 0 {
+			return []byte{}, nil
+		}
+		out := make([]byte, int(l))
+		if _, err := readFull(b.bw, out); err != nil {
+			return nil, err
+		}
+		return out, nil
+	}
+	if b.b == nil {
+		return nil, fmt.Errorf("buffer: ReadStringBytes on invalid buffer")
+	}
+	if err := readBuffUint16(b.b, &l); err != nil {
+		return nil, err
+	}
+	if l == 0 {
+		return []byte{}, nil
+	}
+	out := make([]byte, int(l))
+	if _, err := readBuffFull(b.b, out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ReadBytes reads the specified length from the buffer and returns the byte slice.
 func (b *Buffer) ReadBytes(length int) []byte {
 	if b.bw != nil {

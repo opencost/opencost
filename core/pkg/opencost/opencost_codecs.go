@@ -330,12 +330,10 @@ func (ec *EncodingContext) IsStringTable() bool {
 // reuse as much data as possible
 type DecodingContext struct {
 	Buffer *util.Buffer
-	Table  []string
-}
-
-// IsStringTable returns true if the table is available
-func (dc *DecodingContext) IsStringTable() bool {
-	return len(dc.Table) > 0
+	// FileTable holds on-disk string table payloads (BGST); indices reference byte offsets in that file.
+	FileTable *FileStringTable
+	// Table is an in-memory string table for codecs that still populate entries directly (e.g. kubemodel).
+	Table []string
 }
 
 //--------------------------------------------------------------------------
@@ -575,27 +573,13 @@ func (target *Allocation) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Allocation type
 func (target *Allocation) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -606,27 +590,13 @@ func (target *Allocation) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Allocation type
 func (target *Allocation) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -660,7 +630,7 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 	var b string
 	if ctx.IsStringTable() {
 		c := buff.ReadInt() // read string index
-		b = ctx.Table[c]
+		b = ctx.tableString(c)
 	} else {
 		b = buff.ReadString() // read string
 	}
@@ -878,7 +848,7 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 				var ccc string
 				if ctx.IsStringTable() {
 					ddd := buff.ReadInt() // read string index
-					ccc = ctx.Table[ddd]
+					ccc = ctx.tableString(ddd)
 				} else {
 					ccc = buff.ReadString() // read string
 				}
@@ -1215,27 +1185,13 @@ func (target *AllocationProperties) MarshalBinaryWithContext(ctx *EncodingContex
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the AllocationProperties type
 func (target *AllocationProperties) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -1246,27 +1202,13 @@ func (target *AllocationProperties) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the AllocationProperties type
 func (target *AllocationProperties) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -1300,7 +1242,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 	var b string
 	if ctx.IsStringTable() {
 		c := buff.ReadInt() // read string index
-		b = ctx.Table[c]
+		b = ctx.tableString(c)
 	} else {
 		b = buff.ReadString() // read string
 	}
@@ -1310,7 +1252,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 	var e string
 	if ctx.IsStringTable() {
 		f := buff.ReadInt() // read string index
-		e = ctx.Table[f]
+		e = ctx.tableString(f)
 	} else {
 		e = buff.ReadString() // read string
 	}
@@ -1320,7 +1262,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 	var h string
 	if ctx.IsStringTable() {
 		k := buff.ReadInt() // read string index
-		h = ctx.Table[k]
+		h = ctx.tableString(k)
 	} else {
 		h = buff.ReadString() // read string
 	}
@@ -1330,7 +1272,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 	var m string
 	if ctx.IsStringTable() {
 		n := buff.ReadInt() // read string index
-		m = ctx.Table[n]
+		m = ctx.tableString(n)
 	} else {
 		m = buff.ReadString() // read string
 	}
@@ -1340,7 +1282,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 	var p string
 	if ctx.IsStringTable() {
 		q := buff.ReadInt() // read string index
-		p = ctx.Table[q]
+		p = ctx.tableString(q)
 	} else {
 		p = buff.ReadString() // read string
 	}
@@ -1350,7 +1292,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 	var s string
 	if ctx.IsStringTable() {
 		t := buff.ReadInt() // read string index
-		s = ctx.Table[t]
+		s = ctx.tableString(t)
 	} else {
 		s = buff.ReadString() // read string
 	}
@@ -1360,7 +1302,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 	var w string
 	if ctx.IsStringTable() {
 		x := buff.ReadInt() // read string index
-		w = ctx.Table[x]
+		w = ctx.tableString(x)
 	} else {
 		w = buff.ReadString() // read string
 	}
@@ -1378,7 +1320,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 			var dd string
 			if ctx.IsStringTable() {
 				ee := buff.ReadInt() // read string index
-				dd = ctx.Table[ee]
+				dd = ctx.tableString(ee)
 			} else {
 				dd = buff.ReadString() // read string
 			}
@@ -1394,7 +1336,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 	var gg string
 	if ctx.IsStringTable() {
 		hh := buff.ReadInt() // read string index
-		gg = ctx.Table[hh]
+		gg = ctx.tableString(hh)
 	} else {
 		gg = buff.ReadString() // read string
 	}
@@ -1414,7 +1356,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 			var oo string
 			if ctx.IsStringTable() {
 				pp := buff.ReadInt() // read string index
-				oo = ctx.Table[pp]
+				oo = ctx.tableString(pp)
 			} else {
 				oo = buff.ReadString() // read string
 			}
@@ -1425,7 +1367,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 			var rr string
 			if ctx.IsStringTable() {
 				ss := buff.ReadInt() // read string index
-				rr = ctx.Table[ss]
+				rr = ctx.tableString(ss)
 			} else {
 				rr = buff.ReadString() // read string
 			}
@@ -1454,7 +1396,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 			var yy string
 			if ctx.IsStringTable() {
 				aaa := buff.ReadInt() // read string index
-				yy = ctx.Table[aaa]
+				yy = ctx.tableString(aaa)
 			} else {
 				yy = buff.ReadString() // read string
 			}
@@ -1465,7 +1407,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 			var ccc string
 			if ctx.IsStringTable() {
 				ddd := buff.ReadInt() // read string index
-				ccc = ctx.Table[ddd]
+				ccc = ctx.tableString(ddd)
 			} else {
 				ccc = buff.ReadString() // read string
 			}
@@ -1496,7 +1438,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 				var kkk string
 				if ctx.IsStringTable() {
 					lll := buff.ReadInt() // read string index
-					kkk = ctx.Table[lll]
+					kkk = ctx.tableString(lll)
 				} else {
 					kkk = buff.ReadString() // read string
 				}
@@ -1507,7 +1449,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 				var nnn string
 				if ctx.IsStringTable() {
 					ooo := buff.ReadInt() // read string index
-					nnn = ctx.Table[ooo]
+					nnn = ctx.tableString(ooo)
 				} else {
 					nnn = buff.ReadString() // read string
 				}
@@ -1541,7 +1483,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 				var ttt string
 				if ctx.IsStringTable() {
 					uuu := buff.ReadInt() // read string index
-					ttt = ctx.Table[uuu]
+					ttt = ctx.tableString(uuu)
 				} else {
 					ttt = buff.ReadString() // read string
 				}
@@ -1552,7 +1494,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 				var xxx string
 				if ctx.IsStringTable() {
 					yyy := buff.ReadInt() // read string index
-					xxx = ctx.Table[yyy]
+					xxx = ctx.tableString(yyy)
 				} else {
 					xxx = buff.ReadString() // read string
 				}
@@ -1742,27 +1684,13 @@ func (target *AllocationSet) MarshalBinaryWithContext(ctx *EncodingContext) (err
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the AllocationSet type
 func (target *AllocationSet) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -1773,27 +1701,13 @@ func (target *AllocationSet) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the AllocationSet type
 func (target *AllocationSet) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -1835,7 +1749,7 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 			var d string
 			if ctx.IsStringTable() {
 				e := buff.ReadInt() // read string index
-				d = ctx.Table[e]
+				d = ctx.tableString(e)
 			} else {
 				d = buff.ReadString() // read string
 			}
@@ -1874,7 +1788,7 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 			var l string
 			if ctx.IsStringTable() {
 				m := buff.ReadInt() // read string index
-				l = ctx.Table[m]
+				l = ctx.tableString(m)
 			} else {
 				l = buff.ReadString() // read string
 			}
@@ -1902,7 +1816,7 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 			var r string
 			if ctx.IsStringTable() {
 				s := buff.ReadInt() // read string index
-				r = ctx.Table[s]
+				r = ctx.tableString(s)
 			} else {
 				r = buff.ReadString() // read string
 			}
@@ -1922,7 +1836,7 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	var w string
 	if ctx.IsStringTable() {
 		x := buff.ReadInt() // read string index
-		w = ctx.Table[x]
+		w = ctx.tableString(x)
 	} else {
 		w = buff.ReadString() // read string
 	}
@@ -1950,7 +1864,7 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 			var ee string
 			if ctx.IsStringTable() {
 				ff := buff.ReadInt() // read string index
-				ee = ctx.Table[ff]
+				ee = ctx.tableString(ff)
 			} else {
 				ee = buff.ReadString() // read string
 			}
@@ -1974,7 +1888,7 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 			var mm string
 			if ctx.IsStringTable() {
 				nn := buff.ReadInt() // read string index
-				mm = ctx.Table[nn]
+				mm = ctx.tableString(nn)
 			} else {
 				mm = buff.ReadString() // read string
 			}
@@ -2006,6 +1920,9 @@ type AllocationSetStream struct {
 // Closes closes the internal io.Reader used to read and parse the AllocationSet fields.
 // This should be called once the stream is no longer needed.
 func (stream *AllocationSetStream) Close() {
+	if stream.ctx != nil {
+		stream.ctx.CloseFileTable()
+	}
 	if closer, ok := stream.reader.(io.Closer); ok {
 		closer.Close()
 	}
@@ -2019,26 +1936,12 @@ func (stream *AllocationSetStream) Error() error {
 
 // NewAllocationSetStream creates a new AllocationSetStream, which uses the io.Reader data to stream all internal fields of an AllocationSet instance
 func NewAllocationSetStream(reader io.Reader) BingenStream {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return &AllocationSetStream{reader: reader, err: err}
 	}
-
 	return &AllocationSetStream{
-		ctx: &DecodingContext{
-			Buffer: buff,
-			Table:  table,
-		},
+		ctx:    ctx,
 		reader: reader,
 	}
 }
@@ -2046,6 +1949,9 @@ func NewAllocationSetStream(reader io.Reader) BingenStream {
 // Stream returns the iterator which will stream each field of the target type.
 func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 	return func(yield func(BingenFieldInfo, *BingenValue) bool) {
+		if stream.err != nil {
+			return
+		}
 		var fi BingenFieldInfo
 
 		ctx := stream.ctx
@@ -2074,7 +1980,7 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 				var c string
 				if ctx.IsStringTable() {
 					d := buff.ReadInt() // read string index
-					c = ctx.Table[d]
+					c = ctx.tableString(d)
 				} else {
 					c = buff.ReadString() // read string
 				}
@@ -2121,7 +2027,7 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 				var h string
 				if ctx.IsStringTable() {
 					k := buff.ReadInt() // read string index
-					h = ctx.Table[k]
+					h = ctx.tableString(k)
 				} else {
 					h = buff.ReadString() // read string
 				}
@@ -2156,7 +2062,7 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 				var o string
 				if ctx.IsStringTable() {
 					p := buff.ReadInt() // read string index
-					o = ctx.Table[p]
+					o = ctx.tableString(p)
 				} else {
 					o = buff.ReadString() // read string
 				}
@@ -2183,7 +2089,7 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 		var t string
 		if ctx.IsStringTable() {
 			u := buff.ReadInt() // read string index
-			t = ctx.Table[u]
+			t = ctx.tableString(u)
 		} else {
 			t = buff.ReadString() // read string
 		}
@@ -2229,7 +2135,7 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 				var cc string
 				if ctx.IsStringTable() {
 					dd := buff.ReadInt() // read string index
-					cc = ctx.Table[dd]
+					cc = ctx.tableString(dd)
 				} else {
 					cc = buff.ReadString() // read string
 				}
@@ -2260,7 +2166,7 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 				var hh string
 				if ctx.IsStringTable() {
 					kk := buff.ReadInt() // read string index
-					hh = ctx.Table[kk]
+					hh = ctx.tableString(kk)
 				} else {
 					hh = buff.ReadString() // read string
 				}
@@ -2355,27 +2261,13 @@ func (target *AllocationSetRange) MarshalBinaryWithContext(ctx *EncodingContext)
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the AllocationSetRange type
 func (target *AllocationSetRange) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -2386,27 +2278,13 @@ func (target *AllocationSetRange) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the AllocationSetRange type
 func (target *AllocationSetRange) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -2468,7 +2346,7 @@ func (target *AllocationSetRange) UnmarshalBinaryWithContext(ctx *DecodingContex
 	var f string
 	if ctx.IsStringTable() {
 		g := buff.ReadInt() // read string index
-		f = ctx.Table[g]
+		f = ctx.tableString(g)
 	} else {
 		f = buff.ReadString() // read string
 	}
@@ -2593,27 +2471,13 @@ func (target *Any) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Any type
 func (target *Any) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -2624,27 +2488,13 @@ func (target *Any) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Any type
 func (target *Any) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -2688,7 +2538,7 @@ func (target *Any) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) 
 			var e string
 			if ctx.IsStringTable() {
 				f := buff.ReadInt() // read string index
-				e = ctx.Table[f]
+				e = ctx.tableString(f)
 			} else {
 				e = buff.ReadString() // read string
 			}
@@ -2699,7 +2549,7 @@ func (target *Any) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) 
 			var h string
 			if ctx.IsStringTable() {
 				k := buff.ReadInt() // read string index
-				h = ctx.Table[k]
+				h = ctx.tableString(k)
 			} else {
 				h = buff.ReadString() // read string
 			}
@@ -2864,27 +2714,13 @@ func (target *AssetProperties) MarshalBinaryWithContext(ctx *EncodingContext) (e
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the AssetProperties type
 func (target *AssetProperties) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -2895,27 +2731,13 @@ func (target *AssetProperties) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the AssetProperties type
 func (target *AssetProperties) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -2949,7 +2771,7 @@ func (target *AssetProperties) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 	var b string
 	if ctx.IsStringTable() {
 		c := buff.ReadInt() // read string index
-		b = ctx.Table[c]
+		b = ctx.tableString(c)
 	} else {
 		b = buff.ReadString() // read string
 	}
@@ -2959,7 +2781,7 @@ func (target *AssetProperties) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 	var e string
 	if ctx.IsStringTable() {
 		f := buff.ReadInt() // read string index
-		e = ctx.Table[f]
+		e = ctx.tableString(f)
 	} else {
 		e = buff.ReadString() // read string
 	}
@@ -2969,7 +2791,7 @@ func (target *AssetProperties) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 	var h string
 	if ctx.IsStringTable() {
 		k := buff.ReadInt() // read string index
-		h = ctx.Table[k]
+		h = ctx.tableString(k)
 	} else {
 		h = buff.ReadString() // read string
 	}
@@ -2979,7 +2801,7 @@ func (target *AssetProperties) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 	var m string
 	if ctx.IsStringTable() {
 		n := buff.ReadInt() // read string index
-		m = ctx.Table[n]
+		m = ctx.tableString(n)
 	} else {
 		m = buff.ReadString() // read string
 	}
@@ -2989,7 +2811,7 @@ func (target *AssetProperties) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 	var p string
 	if ctx.IsStringTable() {
 		q := buff.ReadInt() // read string index
-		p = ctx.Table[q]
+		p = ctx.tableString(q)
 	} else {
 		p = buff.ReadString() // read string
 	}
@@ -2999,7 +2821,7 @@ func (target *AssetProperties) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 	var s string
 	if ctx.IsStringTable() {
 		t := buff.ReadInt() // read string index
-		s = ctx.Table[t]
+		s = ctx.tableString(t)
 	} else {
 		s = buff.ReadString() // read string
 	}
@@ -3009,7 +2831,7 @@ func (target *AssetProperties) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 	var w string
 	if ctx.IsStringTable() {
 		x := buff.ReadInt() // read string index
-		w = ctx.Table[x]
+		w = ctx.tableString(x)
 	} else {
 		w = buff.ReadString() // read string
 	}
@@ -3019,7 +2841,7 @@ func (target *AssetProperties) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 	var aa string
 	if ctx.IsStringTable() {
 		bb := buff.ReadInt() // read string index
-		aa = ctx.Table[bb]
+		aa = ctx.tableString(bb)
 	} else {
 		aa = buff.ReadString() // read string
 	}
@@ -3185,27 +3007,13 @@ func (target *AssetSet) MarshalBinaryWithContext(ctx *EncodingContext) (err erro
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the AssetSet type
 func (target *AssetSet) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -3216,27 +3024,13 @@ func (target *AssetSet) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the AssetSet type
 func (target *AssetSet) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -3278,7 +3072,7 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 			var e string
 			if ctx.IsStringTable() {
 				f := buff.ReadInt() // read string index
-				e = ctx.Table[f]
+				e = ctx.tableString(f)
 			} else {
 				e = buff.ReadString() // read string
 			}
@@ -3302,7 +3096,7 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 			var l string
 			if ctx.IsStringTable() {
 				m := buff.ReadInt() // read string index
-				l = ctx.Table[m]
+				l = ctx.tableString(m)
 			} else {
 				l = buff.ReadString() // read string
 			}
@@ -3341,7 +3135,7 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 	var r string
 	if ctx.IsStringTable() {
 		s := buff.ReadInt() // read string index
-		r = ctx.Table[s]
+		r = ctx.tableString(s)
 	} else {
 		r = buff.ReadString() // read string
 	}
@@ -3369,7 +3163,7 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 			var aa string
 			if ctx.IsStringTable() {
 				bb := buff.ReadInt() // read string index
-				aa = ctx.Table[bb]
+				aa = ctx.tableString(bb)
 			} else {
 				aa = buff.ReadString() // read string
 			}
@@ -3393,7 +3187,7 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 			var gg string
 			if ctx.IsStringTable() {
 				hh := buff.ReadInt() // read string index
-				gg = ctx.Table[hh]
+				gg = ctx.tableString(hh)
 			} else {
 				gg = buff.ReadString() // read string
 			}
@@ -3427,6 +3221,9 @@ type AssetSetStream struct {
 // Closes closes the internal io.Reader used to read and parse the AssetSet fields.
 // This should be called once the stream is no longer needed.
 func (stream *AssetSetStream) Close() {
+	if stream.ctx != nil {
+		stream.ctx.CloseFileTable()
+	}
 	if closer, ok := stream.reader.(io.Closer); ok {
 		closer.Close()
 	}
@@ -3440,26 +3237,12 @@ func (stream *AssetSetStream) Error() error {
 
 // NewAssetSetStream creates a new AssetSetStream, which uses the io.Reader data to stream all internal fields of an AssetSet instance
 func NewAssetSetStream(reader io.Reader) BingenStream {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return &AssetSetStream{reader: reader, err: err}
 	}
-
 	return &AssetSetStream{
-		ctx: &DecodingContext{
-			Buffer: buff,
-			Table:  table,
-		},
+		ctx:    ctx,
 		reader: reader,
 	}
 }
@@ -3467,6 +3250,9 @@ func NewAssetSetStream(reader io.Reader) BingenStream {
 // Stream returns the iterator which will stream each field of the target type.
 func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 	return func(yield func(BingenFieldInfo, *BingenValue) bool) {
+		if stream.err != nil {
+			return
+		}
 		var fi BingenFieldInfo
 
 		ctx := stream.ctx
@@ -3495,7 +3281,7 @@ func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] 
 				var d string
 				if ctx.IsStringTable() {
 					e := buff.ReadInt() // read string index
-					d = ctx.Table[e]
+					d = ctx.tableString(e)
 				} else {
 					d = buff.ReadString() // read string
 				}
@@ -3526,7 +3312,7 @@ func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] 
 				var h string
 				if ctx.IsStringTable() {
 					k := buff.ReadInt() // read string index
-					h = ctx.Table[k]
+					h = ctx.tableString(k)
 				} else {
 					h = buff.ReadString() // read string
 				}
@@ -3575,7 +3361,7 @@ func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] 
 		var q string
 		if ctx.IsStringTable() {
 			r := buff.ReadInt() // read string index
-			q = ctx.Table[r]
+			q = ctx.tableString(r)
 		} else {
 			q = buff.ReadString() // read string
 		}
@@ -3621,7 +3407,7 @@ func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] 
 				var y string
 				if ctx.IsStringTable() {
 					aa := buff.ReadInt() // read string index
-					y = ctx.Table[aa]
+					y = ctx.tableString(aa)
 				} else {
 					y = buff.ReadString() // read string
 				}
@@ -3652,7 +3438,7 @@ func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] 
 				var ee string
 				if ctx.IsStringTable() {
 					ff := buff.ReadInt() // read string index
-					ee = ctx.Table[ff]
+					ee = ctx.tableString(ff)
 				} else {
 					ee = buff.ReadString() // read string
 				}
@@ -3747,27 +3533,13 @@ func (target *AssetSetRange) MarshalBinaryWithContext(ctx *EncodingContext) (err
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the AssetSetRange type
 func (target *AssetSetRange) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -3778,27 +3550,13 @@ func (target *AssetSetRange) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the AssetSetRange type
 func (target *AssetSetRange) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -3860,7 +3618,7 @@ func (target *AssetSetRange) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	var f string
 	if ctx.IsStringTable() {
 		g := buff.ReadInt() // read string index
-		f = ctx.Table[g]
+		f = ctx.tableString(g)
 	} else {
 		f = buff.ReadString() // read string
 	}
@@ -3920,27 +3678,13 @@ func (target *Breakdown) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Breakdown type
 func (target *Breakdown) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -3951,27 +3695,13 @@ func (target *Breakdown) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Breakdown type
 func (target *Breakdown) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -4133,27 +3863,13 @@ func (target *Cloud) MarshalBinaryWithContext(ctx *EncodingContext) (err error) 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Cloud type
 func (target *Cloud) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -4164,27 +3880,13 @@ func (target *Cloud) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Cloud type
 func (target *Cloud) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -4228,7 +3930,7 @@ func (target *Cloud) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error
 			var e string
 			if ctx.IsStringTable() {
 				f := buff.ReadInt() // read string index
-				e = ctx.Table[f]
+				e = ctx.tableString(f)
 			} else {
 				e = buff.ReadString() // read string
 			}
@@ -4239,7 +3941,7 @@ func (target *Cloud) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error
 			var h string
 			if ctx.IsStringTable() {
 				k := buff.ReadInt() // read string index
-				h = ctx.Table[k]
+				h = ctx.tableString(k)
 			} else {
 				h = buff.ReadString() // read string
 			}
@@ -4421,27 +4123,13 @@ func (target *CloudCost) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the CloudCost type
 func (target *CloudCost) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -4452,27 +4140,13 @@ func (target *CloudCost) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the CloudCost type
 func (target *CloudCost) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -4713,27 +4387,13 @@ func (target *CloudCostProperties) MarshalBinaryWithContext(ctx *EncodingContext
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the CloudCostProperties type
 func (target *CloudCostProperties) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -4744,27 +4404,13 @@ func (target *CloudCostProperties) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the CloudCostProperties type
 func (target *CloudCostProperties) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -4798,7 +4444,7 @@ func (target *CloudCostProperties) UnmarshalBinaryWithContext(ctx *DecodingConte
 	var b string
 	if ctx.IsStringTable() {
 		c := buff.ReadInt() // read string index
-		b = ctx.Table[c]
+		b = ctx.tableString(c)
 	} else {
 		b = buff.ReadString() // read string
 	}
@@ -4808,7 +4454,7 @@ func (target *CloudCostProperties) UnmarshalBinaryWithContext(ctx *DecodingConte
 	var e string
 	if ctx.IsStringTable() {
 		f := buff.ReadInt() // read string index
-		e = ctx.Table[f]
+		e = ctx.tableString(f)
 	} else {
 		e = buff.ReadString() // read string
 	}
@@ -4818,7 +4464,7 @@ func (target *CloudCostProperties) UnmarshalBinaryWithContext(ctx *DecodingConte
 	var h string
 	if ctx.IsStringTable() {
 		k := buff.ReadInt() // read string index
-		h = ctx.Table[k]
+		h = ctx.tableString(k)
 	} else {
 		h = buff.ReadString() // read string
 	}
@@ -4830,7 +4476,7 @@ func (target *CloudCostProperties) UnmarshalBinaryWithContext(ctx *DecodingConte
 		var m string
 		if ctx.IsStringTable() {
 			n := buff.ReadInt() // read string index
-			m = ctx.Table[n]
+			m = ctx.tableString(n)
 		} else {
 			m = buff.ReadString() // read string
 		}
@@ -4844,7 +4490,7 @@ func (target *CloudCostProperties) UnmarshalBinaryWithContext(ctx *DecodingConte
 	var p string
 	if ctx.IsStringTable() {
 		q := buff.ReadInt() // read string index
-		p = ctx.Table[q]
+		p = ctx.tableString(q)
 	} else {
 		p = buff.ReadString() // read string
 	}
@@ -4856,7 +4502,7 @@ func (target *CloudCostProperties) UnmarshalBinaryWithContext(ctx *DecodingConte
 		var s string
 		if ctx.IsStringTable() {
 			t := buff.ReadInt() // read string index
-			s = ctx.Table[t]
+			s = ctx.tableString(t)
 		} else {
 			s = buff.ReadString() // read string
 		}
@@ -4872,7 +4518,7 @@ func (target *CloudCostProperties) UnmarshalBinaryWithContext(ctx *DecodingConte
 		var w string
 		if ctx.IsStringTable() {
 			x := buff.ReadInt() // read string index
-			w = ctx.Table[x]
+			w = ctx.tableString(x)
 		} else {
 			w = buff.ReadString() // read string
 		}
@@ -4888,7 +4534,7 @@ func (target *CloudCostProperties) UnmarshalBinaryWithContext(ctx *DecodingConte
 		var aa string
 		if ctx.IsStringTable() {
 			bb := buff.ReadInt() // read string index
-			aa = ctx.Table[bb]
+			aa = ctx.tableString(bb)
 		} else {
 			aa = buff.ReadString() // read string
 		}
@@ -4902,7 +4548,7 @@ func (target *CloudCostProperties) UnmarshalBinaryWithContext(ctx *DecodingConte
 	var dd string
 	if ctx.IsStringTable() {
 		ee := buff.ReadInt() // read string index
-		dd = ctx.Table[ee]
+		dd = ctx.tableString(ee)
 	} else {
 		dd = buff.ReadString() // read string
 	}
@@ -4912,7 +4558,7 @@ func (target *CloudCostProperties) UnmarshalBinaryWithContext(ctx *DecodingConte
 	var gg string
 	if ctx.IsStringTable() {
 		hh := buff.ReadInt() // read string index
-		gg = ctx.Table[hh]
+		gg = ctx.tableString(hh)
 	} else {
 		gg = buff.ReadString() // read string
 	}
@@ -4932,7 +4578,7 @@ func (target *CloudCostProperties) UnmarshalBinaryWithContext(ctx *DecodingConte
 			var oo string
 			if ctx.IsStringTable() {
 				pp := buff.ReadInt() // read string index
-				oo = ctx.Table[pp]
+				oo = ctx.tableString(pp)
 			} else {
 				oo = buff.ReadString() // read string
 			}
@@ -4943,7 +4589,7 @@ func (target *CloudCostProperties) UnmarshalBinaryWithContext(ctx *DecodingConte
 			var rr string
 			if ctx.IsStringTable() {
 				ss := buff.ReadInt() // read string index
-				rr = ctx.Table[ss]
+				rr = ctx.tableString(ss)
 			} else {
 				rr = buff.ReadString() // read string
 			}
@@ -5074,27 +4720,13 @@ func (target *CloudCostSet) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the CloudCostSet type
 func (target *CloudCostSet) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -5105,27 +4737,13 @@ func (target *CloudCostSet) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the CloudCostSet type
 func (target *CloudCostSet) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -5167,7 +4785,7 @@ func (target *CloudCostSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 			var d string
 			if ctx.IsStringTable() {
 				e := buff.ReadInt() // read string index
-				d = ctx.Table[e]
+				d = ctx.tableString(e)
 			} else {
 				d = buff.ReadString() // read string
 			}
@@ -5208,7 +4826,7 @@ func (target *CloudCostSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 	var k string
 	if ctx.IsStringTable() {
 		l := buff.ReadInt() // read string index
-		k = ctx.Table[l]
+		k = ctx.tableString(l)
 	} else {
 		k = buff.ReadString() // read string
 	}
@@ -5226,7 +4844,7 @@ func (target *CloudCostSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 			var q string
 			if ctx.IsStringTable() {
 				r := buff.ReadInt() // read string index
-				q = ctx.Table[r]
+				q = ctx.tableString(r)
 			} else {
 				q = buff.ReadString() // read string
 			}
@@ -5258,6 +4876,9 @@ type CloudCostSetStream struct {
 // Closes closes the internal io.Reader used to read and parse the CloudCostSet fields.
 // This should be called once the stream is no longer needed.
 func (stream *CloudCostSetStream) Close() {
+	if stream.ctx != nil {
+		stream.ctx.CloseFileTable()
+	}
 	if closer, ok := stream.reader.(io.Closer); ok {
 		closer.Close()
 	}
@@ -5271,26 +4892,12 @@ func (stream *CloudCostSetStream) Error() error {
 
 // NewCloudCostSetStream creates a new CloudCostSetStream, which uses the io.Reader data to stream all internal fields of an CloudCostSet instance
 func NewCloudCostSetStream(reader io.Reader) BingenStream {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return &CloudCostSetStream{reader: reader, err: err}
 	}
-
 	return &CloudCostSetStream{
-		ctx: &DecodingContext{
-			Buffer: buff,
-			Table:  table,
-		},
+		ctx:    ctx,
 		reader: reader,
 	}
 }
@@ -5298,6 +4905,9 @@ func NewCloudCostSetStream(reader io.Reader) BingenStream {
 // Stream returns the iterator which will stream each field of the target type.
 func (stream *CloudCostSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 	return func(yield func(BingenFieldInfo, *BingenValue) bool) {
+		if stream.err != nil {
+			return
+		}
 		var fi BingenFieldInfo
 
 		ctx := stream.ctx
@@ -5326,7 +4936,7 @@ func (stream *CloudCostSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 				var c string
 				if ctx.IsStringTable() {
 					d := buff.ReadInt() // read string index
-					c = ctx.Table[d]
+					c = ctx.tableString(d)
 				} else {
 					c = buff.ReadString() // read string
 				}
@@ -5384,7 +4994,7 @@ func (stream *CloudCostSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 		var l string
 		if ctx.IsStringTable() {
 			m := buff.ReadInt() // read string index
-			l = ctx.Table[m]
+			l = ctx.tableString(m)
 		} else {
 			l = buff.ReadString() // read string
 		}
@@ -5411,7 +5021,7 @@ func (stream *CloudCostSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 				var q string
 				if ctx.IsStringTable() {
 					r := buff.ReadInt() // read string index
-					q = ctx.Table[r]
+					q = ctx.tableString(r)
 				} else {
 					q = buff.ReadString() // read string
 				}
@@ -5508,27 +5118,13 @@ func (target *CloudCostSetRange) MarshalBinaryWithContext(ctx *EncodingContext) 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the CloudCostSetRange type
 func (target *CloudCostSetRange) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -5539,27 +5135,13 @@ func (target *CloudCostSetRange) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the CloudCostSetRange type
 func (target *CloudCostSetRange) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -5728,27 +5310,13 @@ func (target *ClusterManagement) MarshalBinaryWithContext(ctx *EncodingContext) 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the ClusterManagement type
 func (target *ClusterManagement) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -5759,27 +5327,13 @@ func (target *ClusterManagement) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the ClusterManagement type
 func (target *ClusterManagement) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -5823,7 +5377,7 @@ func (target *ClusterManagement) UnmarshalBinaryWithContext(ctx *DecodingContext
 			var e string
 			if ctx.IsStringTable() {
 				f := buff.ReadInt() // read string index
-				e = ctx.Table[f]
+				e = ctx.tableString(f)
 			} else {
 				e = buff.ReadString() // read string
 			}
@@ -5834,7 +5388,7 @@ func (target *ClusterManagement) UnmarshalBinaryWithContext(ctx *DecodingContext
 			var h string
 			if ctx.IsStringTable() {
 				k := buff.ReadInt() // read string index
-				h = ctx.Table[k]
+				h = ctx.tableString(k)
 			} else {
 				h = buff.ReadString() // read string
 			}
@@ -5937,27 +5491,13 @@ func (target *CostMetric) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the CostMetric type
 func (target *CostMetric) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -5968,27 +5508,13 @@ func (target *CostMetric) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the CostMetric type
 func (target *CostMetric) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -6197,27 +5723,13 @@ func (target *Disk) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Disk type
 func (target *Disk) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -6228,27 +5740,13 @@ func (target *Disk) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Disk type
 func (target *Disk) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -6292,7 +5790,7 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 			var e string
 			if ctx.IsStringTable() {
 				f := buff.ReadInt() // read string index
-				e = ctx.Table[f]
+				e = ctx.tableString(f)
 			} else {
 				e = buff.ReadString() // read string
 			}
@@ -6303,7 +5801,7 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 			var h string
 			if ctx.IsStringTable() {
 				k := buff.ReadInt() // read string index
-				h = ctx.Table[k]
+				h = ctx.tableString(k)
 			} else {
 				h = buff.ReadString() // read string
 			}
@@ -6396,7 +5894,7 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 		var bb string
 		if ctx.IsStringTable() {
 			cc := buff.ReadInt() // read string index
-			bb = ctx.Table[cc]
+			bb = ctx.tableString(cc)
 		} else {
 			bb = buff.ReadString() // read string
 		}
@@ -6440,7 +5938,7 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 		var gg string
 		if ctx.IsStringTable() {
 			hh := buff.ReadInt() // read string index
-			gg = ctx.Table[hh]
+			gg = ctx.tableString(hh)
 		} else {
 			gg = buff.ReadString() // read string
 		}
@@ -6456,7 +5954,7 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 		var ll string
 		if ctx.IsStringTable() {
 			mm := buff.ReadInt() // read string index
-			ll = ctx.Table[mm]
+			ll = ctx.tableString(mm)
 		} else {
 			ll = buff.ReadString() // read string
 		}
@@ -6472,7 +5970,7 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 		var oo string
 		if ctx.IsStringTable() {
 			pp := buff.ReadInt() // read string index
-			oo = ctx.Table[pp]
+			oo = ctx.tableString(pp)
 		} else {
 			oo = buff.ReadString() // read string
 		}
@@ -6571,27 +6069,13 @@ func (target *GPUAllocation) MarshalBinaryWithContext(ctx *EncodingContext) (err
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the GPUAllocation type
 func (target *GPUAllocation) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -6602,27 +6086,13 @@ func (target *GPUAllocation) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the GPUAllocation type
 func (target *GPUAllocation) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -6656,7 +6126,7 @@ func (target *GPUAllocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	var b string
 	if ctx.IsStringTable() {
 		c := buff.ReadInt() // read string index
-		b = ctx.Table[c]
+		b = ctx.tableString(c)
 	} else {
 		b = buff.ReadString() // read string
 	}
@@ -6666,7 +6136,7 @@ func (target *GPUAllocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	var e string
 	if ctx.IsStringTable() {
 		f := buff.ReadInt() // read string index
-		e = ctx.Table[f]
+		e = ctx.tableString(f)
 	} else {
 		e = buff.ReadString() // read string
 	}
@@ -6676,7 +6146,7 @@ func (target *GPUAllocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	var h string
 	if ctx.IsStringTable() {
 		k := buff.ReadInt() // read string index
-		h = ctx.Table[k]
+		h = ctx.tableString(k)
 	} else {
 		h = buff.ReadString() // read string
 	}
@@ -6768,27 +6238,13 @@ func (target *LbAllocation) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the LbAllocation type
 func (target *LbAllocation) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -6799,27 +6255,13 @@ func (target *LbAllocation) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the LbAllocation type
 func (target *LbAllocation) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -6853,7 +6295,7 @@ func (target *LbAllocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 	var b string
 	if ctx.IsStringTable() {
 		c := buff.ReadInt() // read string index
-		b = ctx.Table[c]
+		b = ctx.tableString(c)
 	} else {
 		b = buff.ReadString() // read string
 	}
@@ -6871,7 +6313,7 @@ func (target *LbAllocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 		var g string
 		if ctx.IsStringTable() {
 			h := buff.ReadInt() // read string index
-			g = ctx.Table[h]
+			g = ctx.tableString(h)
 		} else {
 			g = buff.ReadString() // read string
 		}
@@ -7016,27 +6458,13 @@ func (target *LoadBalancer) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the LoadBalancer type
 func (target *LoadBalancer) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -7047,27 +6475,13 @@ func (target *LoadBalancer) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the LoadBalancer type
 func (target *LoadBalancer) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -7125,7 +6539,7 @@ func (target *LoadBalancer) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 			var f string
 			if ctx.IsStringTable() {
 				g := buff.ReadInt() // read string index
-				f = ctx.Table[g]
+				f = ctx.tableString(g)
 			} else {
 				f = buff.ReadString() // read string
 			}
@@ -7136,7 +6550,7 @@ func (target *LoadBalancer) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 			var k string
 			if ctx.IsStringTable() {
 				l := buff.ReadInt() // read string index
-				k = ctx.Table[l]
+				k = ctx.tableString(l)
 			} else {
 				k = buff.ReadString() // read string
 			}
@@ -7204,7 +6618,7 @@ func (target *LoadBalancer) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 		var y string
 		if ctx.IsStringTable() {
 			aa := buff.ReadInt() // read string index
-			y = ctx.Table[aa]
+			y = ctx.tableString(aa)
 		} else {
 			y = buff.ReadString() // read string
 		}
@@ -7333,27 +6747,13 @@ func (target *Network) MarshalBinaryWithContext(ctx *EncodingContext) (err error
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Network type
 func (target *Network) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -7364,27 +6764,13 @@ func (target *Network) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Network type
 func (target *Network) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -7442,7 +6828,7 @@ func (target *Network) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 			var f string
 			if ctx.IsStringTable() {
 				g := buff.ReadInt() // read string index
-				f = ctx.Table[g]
+				f = ctx.tableString(g)
 			} else {
 				f = buff.ReadString() // read string
 			}
@@ -7453,7 +6839,7 @@ func (target *Network) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 			var k string
 			if ctx.IsStringTable() {
 				l := buff.ReadInt() // read string index
-				k = ctx.Table[l]
+				k = ctx.tableString(l)
 			} else {
 				k = buff.ReadString() // read string
 			}
@@ -7582,27 +6968,13 @@ func (target *NetworkDetail) MarshalBinaryWithContext(ctx *EncodingContext) (err
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the NetworkDetail type
 func (target *NetworkDetail) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -7613,27 +6985,13 @@ func (target *NetworkDetail) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the NetworkDetail type
 func (target *NetworkDetail) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -7673,7 +7031,7 @@ func (target *NetworkDetail) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	var d string
 	if ctx.IsStringTable() {
 		e := buff.ReadInt() // read string index
-		d = ctx.Table[e]
+		d = ctx.tableString(e)
 	} else {
 		d = buff.ReadString() // read string
 	}
@@ -7685,7 +7043,7 @@ func (target *NetworkDetail) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	var h string
 	if ctx.IsStringTable() {
 		k := buff.ReadInt() // read string index
-		h = ctx.Table[k]
+		h = ctx.tableString(k)
 	} else {
 		h = buff.ReadString() // read string
 	}
@@ -7700,7 +7058,7 @@ func (target *NetworkDetail) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	var n string
 	if ctx.IsStringTable() {
 		o := buff.ReadInt() // read string index
-		n = ctx.Table[o]
+		n = ctx.tableString(o)
 	} else {
 		n = buff.ReadString() // read string
 	}
@@ -7864,27 +7222,13 @@ func (target *NetworkInsight) MarshalBinaryWithContext(ctx *EncodingContext) (er
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the NetworkInsight type
 func (target *NetworkInsight) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -7895,27 +7239,13 @@ func (target *NetworkInsight) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the NetworkInsight type
 func (target *NetworkInsight) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -7949,7 +7279,7 @@ func (target *NetworkInsight) UnmarshalBinaryWithContext(ctx *DecodingContext) (
 	var b string
 	if ctx.IsStringTable() {
 		c := buff.ReadInt() // read string index
-		b = ctx.Table[c]
+		b = ctx.tableString(c)
 	} else {
 		b = buff.ReadString() // read string
 	}
@@ -7959,7 +7289,7 @@ func (target *NetworkInsight) UnmarshalBinaryWithContext(ctx *DecodingContext) (
 	var e string
 	if ctx.IsStringTable() {
 		f := buff.ReadInt() // read string index
-		e = ctx.Table[f]
+		e = ctx.tableString(f)
 	} else {
 		e = buff.ReadString() // read string
 	}
@@ -7969,7 +7299,7 @@ func (target *NetworkInsight) UnmarshalBinaryWithContext(ctx *DecodingContext) (
 	var h string
 	if ctx.IsStringTable() {
 		k := buff.ReadInt() // read string index
-		h = ctx.Table[k]
+		h = ctx.tableString(k)
 	} else {
 		h = buff.ReadString() // read string
 	}
@@ -7979,7 +7309,7 @@ func (target *NetworkInsight) UnmarshalBinaryWithContext(ctx *DecodingContext) (
 	var m string
 	if ctx.IsStringTable() {
 		n := buff.ReadInt() // read string index
-		m = ctx.Table[n]
+		m = ctx.tableString(n)
 	} else {
 		m = buff.ReadString() // read string
 	}
@@ -7989,7 +7319,7 @@ func (target *NetworkInsight) UnmarshalBinaryWithContext(ctx *DecodingContext) (
 	var p string
 	if ctx.IsStringTable() {
 		q := buff.ReadInt() // read string index
-		p = ctx.Table[q]
+		p = ctx.tableString(q)
 	} else {
 		p = buff.ReadString() // read string
 	}
@@ -8007,7 +7337,7 @@ func (target *NetworkInsight) UnmarshalBinaryWithContext(ctx *DecodingContext) (
 			var u string
 			if ctx.IsStringTable() {
 				w := buff.ReadInt() // read string index
-				u = ctx.Table[w]
+				u = ctx.tableString(w)
 			} else {
 				u = buff.ReadString() // read string
 			}
@@ -8018,7 +7348,7 @@ func (target *NetworkInsight) UnmarshalBinaryWithContext(ctx *DecodingContext) (
 			var y string
 			if ctx.IsStringTable() {
 				aa := buff.ReadInt() // read string index
-				y = ctx.Table[aa]
+				y = ctx.tableString(aa)
 			} else {
 				y = buff.ReadString() // read string
 			}
@@ -8034,7 +7364,7 @@ func (target *NetworkInsight) UnmarshalBinaryWithContext(ctx *DecodingContext) (
 	var cc string
 	if ctx.IsStringTable() {
 		dd := buff.ReadInt() // read string index
-		cc = ctx.Table[dd]
+		cc = ctx.tableString(dd)
 	} else {
 		cc = buff.ReadString() // read string
 	}
@@ -8044,7 +7374,7 @@ func (target *NetworkInsight) UnmarshalBinaryWithContext(ctx *DecodingContext) (
 	var ff string
 	if ctx.IsStringTable() {
 		gg := buff.ReadInt() // read string index
-		ff = ctx.Table[gg]
+		ff = ctx.tableString(gg)
 	} else {
 		ff = buff.ReadString() // read string
 	}
@@ -8076,7 +7406,7 @@ func (target *NetworkInsight) UnmarshalBinaryWithContext(ctx *DecodingContext) (
 			var rr string
 			if ctx.IsStringTable() {
 				ss := buff.ReadInt() // read string index
-				rr = ctx.Table[ss]
+				rr = ctx.tableString(ss)
 			} else {
 				rr = buff.ReadString() // read string
 			}
@@ -8198,27 +7528,13 @@ func (target *NetworkInsightSet) MarshalBinaryWithContext(ctx *EncodingContext) 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the NetworkInsightSet type
 func (target *NetworkInsightSet) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -8229,27 +7545,13 @@ func (target *NetworkInsightSet) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the NetworkInsightSet type
 func (target *NetworkInsightSet) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -8291,7 +7593,7 @@ func (target *NetworkInsightSet) UnmarshalBinaryWithContext(ctx *DecodingContext
 			var d string
 			if ctx.IsStringTable() {
 				e := buff.ReadInt() // read string index
-				d = ctx.Table[e]
+				d = ctx.tableString(e)
 			} else {
 				d = buff.ReadString() // read string
 			}
@@ -8348,6 +7650,9 @@ type NetworkInsightSetStream struct {
 // Closes closes the internal io.Reader used to read and parse the NetworkInsightSet fields.
 // This should be called once the stream is no longer needed.
 func (stream *NetworkInsightSetStream) Close() {
+	if stream.ctx != nil {
+		stream.ctx.CloseFileTable()
+	}
 	if closer, ok := stream.reader.(io.Closer); ok {
 		closer.Close()
 	}
@@ -8361,26 +7666,12 @@ func (stream *NetworkInsightSetStream) Error() error {
 
 // NewNetworkInsightSetStream creates a new NetworkInsightSetStream, which uses the io.Reader data to stream all internal fields of an NetworkInsightSet instance
 func NewNetworkInsightSetStream(reader io.Reader) BingenStream {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return &NetworkInsightSetStream{reader: reader, err: err}
 	}
-
 	return &NetworkInsightSetStream{
-		ctx: &DecodingContext{
-			Buffer: buff,
-			Table:  table,
-		},
+		ctx:    ctx,
 		reader: reader,
 	}
 }
@@ -8388,6 +7679,9 @@ func NewNetworkInsightSetStream(reader io.Reader) BingenStream {
 // Stream returns the iterator which will stream each field of the target type.
 func (stream *NetworkInsightSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 	return func(yield func(BingenFieldInfo, *BingenValue) bool) {
+		if stream.err != nil {
+			return
+		}
 		var fi BingenFieldInfo
 
 		ctx := stream.ctx
@@ -8416,7 +7710,7 @@ func (stream *NetworkInsightSetStream) Stream() iter.Seq2[BingenFieldInfo, *Bing
 				var c string
 				if ctx.IsStringTable() {
 					d := buff.ReadInt() // read string index
-					c = ctx.Table[d]
+					c = ctx.tableString(d)
 				} else {
 					c = buff.ReadString() // read string
 				}
@@ -8639,27 +7933,13 @@ func (target *Node) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Node type
 func (target *Node) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -8670,27 +7950,13 @@ func (target *Node) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Node type
 func (target *Node) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -8748,7 +8014,7 @@ func (target *Node) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 			var f string
 			if ctx.IsStringTable() {
 				g := buff.ReadInt() // read string index
-				f = ctx.Table[g]
+				f = ctx.tableString(g)
 			} else {
 				f = buff.ReadString() // read string
 			}
@@ -8759,7 +8025,7 @@ func (target *Node) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 			var k string
 			if ctx.IsStringTable() {
 				l := buff.ReadInt() // read string index
-				k = ctx.Table[l]
+				k = ctx.tableString(l)
 			} else {
 				k = buff.ReadString() // read string
 			}
@@ -8813,7 +8079,7 @@ func (target *Node) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 	var w string
 	if ctx.IsStringTable() {
 		x := buff.ReadInt() // read string index
-		w = ctx.Table[x]
+		w = ctx.tableString(x)
 	} else {
 		w = buff.ReadString() // read string
 	}
@@ -8948,27 +8214,13 @@ func (target *NodeOverhead) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the NodeOverhead type
 func (target *NodeOverhead) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -8979,27 +8231,13 @@ func (target *NodeOverhead) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the NodeOverhead type
 func (target *NodeOverhead) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -9096,27 +8334,13 @@ func (target *PVAllocation) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the PVAllocation type
 func (target *PVAllocation) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -9127,27 +8351,13 @@ func (target *PVAllocation) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the PVAllocation type
 func (target *PVAllocation) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -9189,7 +8399,7 @@ func (target *PVAllocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 		var d string
 		if ctx.IsStringTable() {
 			e := buff.ReadInt() // read string index
-			d = ctx.Table[e]
+			d = ctx.tableString(e)
 		} else {
 			d = buff.ReadString() // read string
 		}
@@ -9261,27 +8471,13 @@ func (target *PVKey) MarshalBinaryWithContext(ctx *EncodingContext) (err error) 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the PVKey type
 func (target *PVKey) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -9292,27 +8488,13 @@ func (target *PVKey) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the PVKey type
 func (target *PVKey) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -9346,7 +8528,7 @@ func (target *PVKey) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error
 	var b string
 	if ctx.IsStringTable() {
 		c := buff.ReadInt() // read string index
-		b = ctx.Table[c]
+		b = ctx.tableString(c)
 	} else {
 		b = buff.ReadString() // read string
 	}
@@ -9356,7 +8538,7 @@ func (target *PVKey) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error
 	var e string
 	if ctx.IsStringTable() {
 		f := buff.ReadInt() // read string index
-		e = ctx.Table[f]
+		e = ctx.tableString(f)
 	} else {
 		e = buff.ReadString() // read string
 	}
@@ -9421,27 +8603,13 @@ func (target *RawAllocationOnlyData) MarshalBinaryWithContext(ctx *EncodingConte
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the RawAllocationOnlyData type
 func (target *RawAllocationOnlyData) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -9452,27 +8620,13 @@ func (target *RawAllocationOnlyData) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the RawAllocationOnlyData type
 func (target *RawAllocationOnlyData) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -9622,27 +8776,13 @@ func (target *SharedAsset) MarshalBinaryWithContext(ctx *EncodingContext) (err e
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the SharedAsset type
 func (target *SharedAsset) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -9653,27 +8793,13 @@ func (target *SharedAsset) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the SharedAsset type
 func (target *SharedAsset) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -9731,7 +8857,7 @@ func (target *SharedAsset) UnmarshalBinaryWithContext(ctx *DecodingContext) (err
 			var f string
 			if ctx.IsStringTable() {
 				g := buff.ReadInt() // read string index
-				f = ctx.Table[g]
+				f = ctx.tableString(g)
 			} else {
 				f = buff.ReadString() // read string
 			}
@@ -9742,7 +8868,7 @@ func (target *SharedAsset) UnmarshalBinaryWithContext(ctx *DecodingContext) (err
 			var k string
 			if ctx.IsStringTable() {
 				l := buff.ReadInt() // read string index
-				k = ctx.Table[l]
+				k = ctx.tableString(l)
 			} else {
 				k = buff.ReadString() // read string
 			}
@@ -9850,27 +8976,13 @@ func (target *Window) MarshalBinaryWithContext(ctx *EncodingContext) (err error)
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Window type
 func (target *Window) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromBytes(data)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -9881,27 +8993,13 @@ func (target *Window) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Window type
 func (target *Window) UnmarshalBinaryFromReader(reader io.Reader) error {
-	var table []string
-	buff := util.NewBufferFromReader(reader)
-
-	// string table header validation
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
+	ctx, err := newDecodingContextFromReader(reader)
+	if err != nil {
+		return err
 	}
+	defer ctx.CloseFileTable()
 
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	err = target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
 	}

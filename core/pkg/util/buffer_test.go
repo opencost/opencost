@@ -40,6 +40,36 @@ func TestBufferReadWrite(t *testing.T) {
 	}
 }
 
+func TestBufferReadStringBytesMatchesReadString(t *testing.T) {
+	buf := NewBuffer()
+	buf.WriteString("alpha")
+	buf.WriteString("")
+	buf.WriteString("β")
+
+	readBuf := NewBufferFromBytes(buf.Bytes())
+	b0, err := readBuf.ReadStringBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b0) != "alpha" {
+		t.Fatalf("got %q", b0)
+	}
+	b1, err := readBuf.ReadStringBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b1) != 0 {
+		t.Fatalf("expected empty slice")
+	}
+	b2, err := readBuf.ReadStringBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b2) != "β" {
+		t.Fatalf("got %q", b2)
+	}
+}
+
 func TestBufferWriteReadBytes(t *testing.T) {
 	buf := NewBuffer()
 
