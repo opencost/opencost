@@ -1427,9 +1427,6 @@ func NewDCGMInfoMetricCollector() *metric.MetricCollector {
 		metric.DCGMFIDEVDECUTIL,
 		[]string{
 			source.UUIDLabel,
-			source.DeviceLabel,
-			source.ModelNameLabel,
-			source.HostNameLabel,
 		},
 		aggregator.Info,
 		nil,

@@ -3,7 +3,6 @@ package kubemodel
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -58,13 +57,7 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 		kms.Error(err)
 	}
 
-	// 2.3 Compute Devices
-	err = km.computeDevices(kms, start, end)
-	if err != nil {
-		kms.Error(err)
-	}
-
-	// 2.4 Compute Namespaces
+	// 2.3 Compute Namespaces
 	err = km.computeNamespaces(kms, start, end)
 	if err != nil {
 		kms.Error(err)
@@ -138,6 +131,12 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 
 	// 2.16 Compute PersistentVolumeClaims
 	err = km.computePersistentVolumeClaims(kms, start, end)
+	if err != nil {
+		kms.Error(err)
+	}
+
+	// 2.17 Compute DCGM Devices
+	err = km.computeDCGMDevices(kms, start, end)
 	if err != nil {
 		kms.Error(err)
 	}
@@ -336,92 +335,6 @@ func resourceUnitValue(resource, unit string, value float64) (kubemodel.Resource
 }
 
 // computeDevices must take place after computePod and computeNode
-func (km *KubeModel) computeDevices(kms *kubemodel.KubeModelSet, start, end time.Time) error {
-	grp := source.NewQueryGroup()
-	metrics := km.ds.Metrics()
-
-	DCGMDeviceInfoFuture := source.WithGroup(grp, metrics.QueryDCGMDeviceInfo(start, end))
-	DCGMDeviceUptimeFuture := source.WithGroup(grp, metrics.QueryDCGMDeviceUptime(start, end))
-	// Using this query to establish relationship between devices and nodes
-	DCGMContainerUsageAvgFuture := source.WithGroup(grp, metrics.QueryDCGMContainerUsageAvg(start, end))
-
-	uuidToNodeUID := make(map[string]string)
-
-	DCGMContainerUsageAvg, _ := DCGMContainerUsageAvgFuture.Await()
-	for _, res := range DCGMContainerUsageAvg {
-		if _, ok := uuidToNodeUID[res.UUID]; !ok {
-			if pod, ok2 := kms.Pods[res.PodUID]; ok2 {
-				uuidToNodeUID[res.UUID] = pod.NodeUID
-			}
-		}
-	}
-
-	nodeNameToUID := make(map[string]string, len(kms.Nodes))
-	for _, node := range kms.Nodes {
-		nodeNameToUID[node.Name] = node.UID
-	}
-
-	deviceMap := make(map[string]*kubemodel.Device)
-
-	deviceInfoResult, _ := DCGMDeviceInfoFuture.Await()
-	for _, res := range deviceInfoResult {
-		if res.UUID == "" {
-			continue
-		}
-
-		// Determine Node UID
-		nodeUID, ok := uuidToNodeUID[res.UUID]
-		if !ok {
-			nodeUID, ok = nodeNameToUID[res.HostName]
-		}
-
-		// DCGM usage unrelated to a node is not a device. Needs to be handled as DRA
-		if nodeUID == "" {
-			continue
-		}
-
-		// Check that the node has an nvidia resources or else it is not a device
-		var resourceName string
-		node, _ := kms.Nodes[nodeUID]
-		for resource, _ := range node.ResourceCapacities {
-			if strings.Contains(strings.ToLower(string(resource)), "nvidia") {
-				resourceName = string(resource)
-			}
-		}
-
-		device := &kubemodel.Device{
-			UID:          res.UUID,
-			NodeUID:      nodeUID,
-			Name:         res.Device,
-			Model:        res.ModelName,
-			ResourceName: resourceName,
-		}
-
-		deviceMap[res.UUID] = device
-	}
-
-	DCGMDeviceUptimeResult, _ := DCGMDeviceUptimeFuture.Await()
-	for _, res := range DCGMDeviceUptimeResult {
-		device, ok := deviceMap[res.UUID]
-		if !ok {
-			// Skipping warning because devices can get filtered
-			continue
-		}
-		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
-		device.Start = s
-		device.End = e
-	}
-
-	for _, device := range deviceMap {
-		err := kms.RegisterDevice(device)
-		if err != nil {
-			log.Warnf("Failed to register device: %s", err.Error())
-		}
-	}
-
-	return nil
-}
-
 func (km *KubeModel) computeNamespaces(kms *kubemodel.KubeModelSet, start, end time.Time) error {
 	grp := source.NewQueryGroup()
 	metrics := km.ds.Metrics()
@@ -1049,9 +962,6 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 	ramUsageAvgFuture := source.WithGroup(grp, metrics.QueryRAMUsageAvg(start, end))
 	ramUsageMaxFuture := source.WithGroup(grp, metrics.QueryRAMUsageMax(start, end))
 
-	DCGMConatinerUsageAvgFuture := source.WithGroup(grp, metrics.QueryDCGMContainerUsageAvg(start, end))
-	DCGMConatinerUsageMaxFuture := source.WithGroup(grp, metrics.QueryDCGMContainerUsageMax(start, end))
-
 	type containerKey struct {
 		podUID string
 		name   string
@@ -1068,7 +978,6 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			Name:             res.Container,
 			ResourceRequests: make(kubemodel.ResourceQuantities),
 			ResourceLimits:   make(kubemodel.ResourceQuantities),
-			DeviceUsage:      make(map[string]kubemodel.ContainerDeviceUsage),
 			Start:            s,
 			End:              e,
 		}
@@ -1148,39 +1057,6 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 		if len(res.Data) > 0 {
 			container.RAMBytesUsageMax = res.Data[0].Value
 		}
-	}
-
-	dcgmConatinerUsageAvgResult, _ := DCGMConatinerUsageAvgFuture.Await()
-	for _, res := range dcgmConatinerUsageAvgResult {
-		key := containerKey{podUID: res.PodUID, name: res.Container}
-		container, ok := containerMap[key]
-		if !ok {
-			log.Warnf("container %s/%s has not been initialized to add device usage avg", res.PodUID, res.Container)
-			continue
-		}
-		container.DeviceUsage[res.UUID] = kubemodel.ContainerDeviceUsage{
-			DeviceUID: res.UUID,
-			UsageAvg:  res.Value,
-		}
-	}
-
-	dcgmConatinerUsageMaxResult, _ := DCGMConatinerUsageMaxFuture.Await()
-	for _, res := range dcgmConatinerUsageMaxResult {
-		key := containerKey{podUID: res.PodUID, name: res.Container}
-		container, ok := containerMap[key]
-		if !ok {
-			log.Warnf("container %s/%s has not been initialized to add device usage max", res.PodUID, res.Container)
-			continue
-		}
-		usage, ok := container.DeviceUsage[res.UUID]
-		if !ok {
-			usage = kubemodel.ContainerDeviceUsage{
-				DeviceUID: "UUID",
-			}
-		}
-
-		usage.UsageMax = res.Value
-		container.DeviceUsage[res.UUID] = usage
 	}
 
 	for _, container := range containerMap {
@@ -1602,6 +1478,86 @@ func (km *KubeModel) computePersistentVolumeClaims(kms *kubemodel.KubeModelSet, 
 		err := kms.RegisterPVC(pvc)
 		if err != nil {
 			log.Warnf("Failed to register persistent volume claim: %s", err.Error())
+		}
+	}
+
+	return nil
+}
+
+func (km *KubeModel) computeDCGMDevices(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+	grp := source.NewQueryGroup()
+	metrics := km.ds.Metrics()
+
+	dcgmInfoFuture := source.WithGroup(grp, metrics.QueryDCGMDeviceInfo(start, end))
+	dcgmUptimeFuture := source.WithGroup(grp, metrics.QueryDCGMDeviceUptime(start, end))
+	dcgmUsageAvgFuture := source.WithGroup(grp, metrics.QueryDCGMContainerUsageAvg(start, end))
+	dcgmUsageMaxFuture := source.WithGroup(grp, metrics.QueryDCGMContainerUsageMax(start, end))
+
+	deviceMap := make(map[string]*kubemodel.DCGMDevice)
+
+	dcgmInfoResult, _ := dcgmInfoFuture.Await()
+	for _, res := range dcgmInfoResult {
+		if res.UUID == "" {
+			continue
+		}
+		if _, ok := deviceMap[res.UUID]; ok {
+			continue
+		}
+		deviceMap[res.UUID] = &kubemodel.DCGMDevice{
+			UUID:      res.UUID,
+			Device:    res.Device,
+			ModelName: res.ModelName,
+			PodUsage:  make(map[string]kubemodel.DCGMPod),
+		}
+	}
+
+	dcgmUptimeResult, _ := dcgmUptimeFuture.Await()
+	for _, res := range dcgmUptimeResult {
+		d, ok := deviceMap[res.UUID]
+		if !ok {
+			log.Warnf("DCGM uptime result for unknown device UUID '%s'", res.UUID)
+			continue
+		}
+		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
+		d.Start = s
+		d.End = e
+	}
+
+	dcgmUsageAvgResult, _ := dcgmUsageAvgFuture.Await()
+	for _, res := range dcgmUsageAvgResult {
+		device, ok := deviceMap[res.UUID]
+		if !ok || res.PodUID == "" || res.Container == "" {
+			continue
+		}
+		pod, ok := device.PodUsage[res.PodUID]
+		if !ok {
+			pod = kubemodel.DCGMPod{ContainerUsage: make(map[string]kubemodel.DCGMContainer)}
+		}
+		c := pod.ContainerUsage[res.Container]
+		c.UsageAvg = res.Value
+		pod.ContainerUsage[res.Container] = c
+		device.PodUsage[res.PodUID] = pod
+	}
+
+	dcgmUsageMaxResult, _ := dcgmUsageMaxFuture.Await()
+	for _, res := range dcgmUsageMaxResult {
+		device, ok := deviceMap[res.UUID]
+		if !ok || res.PodUID == "" || res.Container == "" {
+			continue
+		}
+		pod, ok := device.PodUsage[res.PodUID]
+		if !ok {
+			pod = kubemodel.DCGMPod{ContainerUsage: make(map[string]kubemodel.DCGMContainer)}
+		}
+		c := pod.ContainerUsage[res.Container]
+		c.UsageMax = res.Value
+		pod.ContainerUsage[res.Container] = c
+		device.PodUsage[res.PodUID] = pod
+	}
+
+	for _, device := range deviceMap {
+		if err := kms.RegisterDCGMDevice(device); err != nil {
+			log.Warnf("Failed to register DCGM device: %s", err.Error())
 		}
 	}
 
