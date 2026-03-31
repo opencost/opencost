@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/mbolt35/bingen-file-loader/core/util/monitor/memory"
+	"github.com/opencost/opencost/core/pkg/util/monitor/memory"
 )
 
 func TestObservationMode(t *testing.T) {

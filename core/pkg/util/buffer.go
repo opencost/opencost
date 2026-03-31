@@ -368,15 +368,43 @@ func (b *Buffer) ReadBytes(length int) []byte {
 		return b.bw.Next(length)
 	}
 
-	bytes := bytePool.Get(length)
-	defer bytePool.Put(bytes)
-
+	bytes := make([]byte, length)
 	_, err := readBuffFull(b.b, bytes)
 	if err != nil {
 		return bytes
 	}
 
 	return bytes
+}
+
+// bytesAsString converts a []byte into a string in place. Note that you should use this helper
+// when the []byte slice contains _only_ the string data and isn't part of a larger underlying array.
+// For example, a case where you should *not* use this helper:
+//
+//	func parseString(buffer *bytes.Buffer, length int) string {
+//	  bytes := buffer.Next(length)   // this extracts a sub-slice of the underlying byte array from pos->pos+length
+//
+//	  return bytesAsString(bytes)
+//	}
+//
+// Now both the []byte AND the value string are linked and neither can be GC'd until the other one is GC'd.
+// This is especially problematic if you drop the references to the byte array, as you're effectively requiring
+// 1024 bytes for an 11-byte string.
+//
+// An example where it _is_ ok, and recommended to drop the underlying []byte reference is the following:
+//
+//	func parseString(reader io.Reader, length int) string {
+//	  bytes := make([]byte, length)
+//	  io.ReadFull(reader, bytes)
+//
+//	  return bytesAsString(bytes)
+//	}
+//
+// In this case, we've create a byte array just big enough for the string, we extract the string data from the reader
+// and then cast the byte array in place to the string, and finally drop the byte array reference. This omits an additional
+// allocation if you were to use string(bytes)
+func bytesAsString(b []byte) string {
+	return unsafe.String(unsafe.SliceData(b), len(b))
 }
 
 // Conversion from byte slice to string
