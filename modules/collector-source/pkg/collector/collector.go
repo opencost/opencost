@@ -130,6 +130,8 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewPodUptimeMetricCollector())
 	memStore.Register(NewPodOwnerMetricCollector())
 	memStore.Register(NewPodPVCVolumeMetricCollector())
+	memStore.Register(NewPodNetworkEgressBytesMetricCollector())
+	memStore.Register(NewPodNetworkIngressBytesMetricCollector())
 	memStore.Register(NewContainerUptimeMetricCollector())
 	memStore.Register(NewContainerResourceRequestsMetricCollector())
 	memStore.Register(NewContainerResourceLimitsMetricCollector())
@@ -861,6 +863,44 @@ func NewPodPVCVolumeMetricCollector() *metric.MetricCollector {
 		},
 		aggregator.Info,
 		nil,
+	)
+}
+
+func NewPodNetworkEgressBytesMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.PodNetworkEgressBytesID,
+		metric.KubecostPodNetworkEgressBytesTotal,
+		[]string{
+			source.UIDLabel,
+			source.ServiceLabel,
+			source.InternetLabel,
+			source.SameRegionLabel,
+			source.SameZoneLabel,
+			source.NatGatewayLabel,
+		},
+		aggregator.Increase,
+		func(labels map[string]string) bool {
+			return labels[source.UIDLabel] != ""
+		},
+	)
+}
+
+func NewPodNetworkIngressBytesMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.PodNetworkIngressBytesID,
+		metric.KubecostPodNetworkIngressBytesTotal,
+		[]string{
+			source.UIDLabel,
+			source.NatGatewayLabel,
+			source.ServiceLabel,
+			source.SameZoneLabel,
+			source.SameRegionLabel,
+			source.InternetLabel,
+		},
+		aggregator.Increase,
+		func(labels map[string]string) bool {
+			return labels[source.UIDLabel] != ""
+		},
 	)
 }
 

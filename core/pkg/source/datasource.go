@@ -52,6 +52,8 @@ type MetricsQuerier interface {
 	QueryPodUptime(start, end time.Time) *Future[UptimeResult]
 	QueryPodOwners(start, end time.Time) *Future[OwnerResult]
 	QueryPodPVCVolumes(start, end time.Time) *Future[PodPVCVolumeResult]
+	QueryPodNetworkEgressBytes(start, end time.Time) *Future[PodNetworkBytesResult]
+	QueryPodNetworkIngressBytes(start, end time.Time) *Future[PodNetworkBytesResult]
 
 	// Container
 	QueryContainerUptime(start, end time.Time) *Future[ContainerUptimeResult]
@@ -162,9 +164,6 @@ type MetricsQuerier interface {
 	QueryNetInternetServiceGiB(start, end time.Time) *Future[NetInternetServiceGiBResult]
 	QueryNetNatGatewayPricePerGiB(start, end time.Time) *Future[NetNatGatewayPricePerGiBResult]
 	QueryNetNatGatewayGiB(start, end time.Time) *Future[NetNatGatewayGiBResult]
-	QueryNetNatGatewayZoneGiB(start, end time.Time) *Future[NetNatGatewayZoneGiBResult]
-	QueryNetNatGatewayRegionGiB(start, end time.Time) *Future[NetNatGatewayRegionGiBResult]
-	QueryNetNatGatewayInternetGiB(start, end time.Time) *Future[NetNatGatewayInternetGiBResult]
 	QueryNetTransferBytes(start, end time.Time) *Future[NetTransferBytesResult]
 
 	// Network Ingress
@@ -174,9 +173,6 @@ type MetricsQuerier interface {
 	QueryNetInternetServiceIngressGiB(start, end time.Time) *Future[NetInternetServiceIngressGiBResult]
 	QueryNetNatGatewayIngressPricePerGiB(start, end time.Time) *Future[NetNatGatewayPricePerGiBResult]
 	QueryNetNatGatewayIngressGiB(start, end time.Time) *Future[NetNatGatewayIngressGiBResult]
-	QueryNetNatGatewayZoneIngressGiB(start, end time.Time) *Future[NetNatGatewayZoneIngressGiBResult]
-	QueryNetNatGatewayRegionIngressGiB(start, end time.Time) *Future[NetNatGatewayRegionIngressGiBResult]
-	QueryNetNatGatewayInternetIngressGiB(start, end time.Time) *Future[NetNatGatewayInternetIngressGiBResult]
 	QueryNetReceiveBytes(start, end time.Time) *Future[NetReceiveBytesResult]
 
 	// Annotations
