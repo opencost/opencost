@@ -12,7 +12,7 @@ require (
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/opencost/opencost/core v0.0.0-20241211165149-ee44b80e2fd0
 	github.com/prometheus/client_golang v1.23.2
-	github.com/rs/zerolog v1.34.0
+	github.com/rs/zerolog v1.35.0
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/client-go v0.35.2
 )
