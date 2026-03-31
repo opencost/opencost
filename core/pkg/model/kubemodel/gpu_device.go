@@ -55,6 +55,7 @@ func (kms *KubeModelSet) RegisterGPUDevice(device *GPUDevice) {
 		kms.GPUDevices = make(map[string]*GPUDevice)
 	}
 	kms.GPUDevices[device.UID] = device
+	kms.Metadata.ObjectCount++
 }
 
 // RegisterGPUUsage adds or replaces a GPUUsage record, keyed by ContainerUID+DeviceUID.
@@ -67,4 +68,5 @@ func (kms *KubeModelSet) RegisterGPUUsage(usage *GPUUsage) {
 	}
 	key := usage.ContainerUID + "/" + usage.DeviceUID
 	kms.GPUUsages[key] = usage
+	kms.Metadata.ObjectCount++
 }
