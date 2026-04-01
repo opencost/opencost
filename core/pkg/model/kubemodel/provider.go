@@ -10,5 +10,6 @@ const (
 	ProviderAzure        Provider = "Azure"
 	ProviderAlibaba      Provider = "Alibaba"
 	ProviderDigitalOcean Provider = "DigitalOcean"
+	ProviderHCloud       Provider = "hcloud"
 	ProviderOracle       Provider = "Oracle"
 )

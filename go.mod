@@ -65,6 +65,8 @@ require (
 	k8s.io/client-go v0.35.2
 )
 
+require github.com/hetznercloud/hcloud-go/v2 v2.36.0
+
 require (
 	cel.dev/expr v0.25.1 // indirect
 	cloud.google.com/go/monitoring v1.24.3 // indirect
