@@ -38,12 +38,6 @@ const (
 )
 
 const (
-	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
-	CloudCostCodecVersion uint8 = 3
-
-	// NetworkInsightCodecVersion is used for any resources listed in the NetworkInsight version set
-	NetworkInsightCodecVersion uint8 = 1
-
 	// DefaultCodecVersion is used for any resources listed in the Default version set
 	DefaultCodecVersion uint8 = 18
 
@@ -52,6 +46,12 @@ const (
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
 	AllocationCodecVersion uint8 = 25
+
+	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
+	CloudCostCodecVersion uint8 = 3
+
+	// NetworkInsightCodecVersion is used for any resources listed in the NetworkInsight version set
+	NetworkInsightCodecVersion uint8 = 1
 )
 
 //--------------------------------------------------------------------------
@@ -154,13 +154,17 @@ var typeMap map[string]reflect.Type = map[string]reflect.Type{
 
 // isBinaryTag returns true when the first bytes in the provided binary matches the tag
 func isBinaryTag(data []byte, tag string) bool {
+	if len(data) < len(tag) {
+		return false
+	}
+
 	return string(data[:len(tag)]) == tag
 }
 
 // isReaderBinaryTag is used to peek the header for an io.Reader Buffer
 func isReaderBinaryTag(buff *util.Buffer, tag string) bool {
 	data, err := buff.Peek(len(tag))
-	if err != nil {
+	if err != nil && err != io.EOF {
 		panic(fmt.Sprintf("called Peek() on a non buffered reader: %s", err))
 	}
 
