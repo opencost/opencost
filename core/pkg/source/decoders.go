@@ -20,6 +20,7 @@ const (
 	InstanceTypeLabel    = "instance_type"
 	ContainerLabel       = "container"
 	PodLabel             = "pod"
+	PodUIDLabel          = "pod_uid"
 	PodNameLabel         = "pod_name"
 	PodVolumeNameLabel   = "pod_volume_name"
 	ProviderIDLabel      = "provider_id"
@@ -40,6 +41,7 @@ const (
 	KubernetesNodeLabel  = "kubernetes_node"
 	ModeLabel            = "mode"
 	ModelNameLabel       = "modelName"
+	HostNameLabel        = "Hostname"
 	UUIDLabel            = "UUID"
 	ResourceLabel        = "resource"
 	DeploymentLabel      = "deployment"
@@ -52,6 +54,7 @@ const (
 	OwnerNameLabel       = "owner_name"
 	OwnerKindLabel       = "owner_kind"
 	OwnerUIDLabel        = "owner_uid"
+	ControllerLabel      = "controller"
 	UnitLabel            = "unit"
 	InternetLabel        = "internet"
 	SameZoneLabel        = "same_zone"
@@ -71,30 +74,7 @@ type UptimeResult struct {
 }
 
 func (res *UptimeResult) GetStartEnd(windowStart, windowEnd time.Time, resolution time.Duration) (time.Time, time.Time) {
-	first := res.First
-	last := res.Last
-	// The only corner-case here is what to do if you only get one timestamp.
-	// This dilemma still requires the use of the resolution, and can be
-	// clamped using the window. In this case, we want to honor the existence
-	// of the pod by giving "one resolution" worth of duration, half on each
-	// side of the given timestamp.
-	if first.Equal(last) {
-		first = first.Add(-1 * resolution / time.Duration(2))
-		last = last.Add(resolution / time.Duration(2))
-	}
-	if first.Before(windowStart) {
-		first = windowStart
-	}
-	if last.After(windowEnd) {
-		last = windowEnd
-	}
-	// prevent end times in the future
-	now := time.Now().UTC()
-	if last.After(now) {
-		last = now
-	}
-
-	return first, last
+	return getStartEnd(res.First, res.Last, windowStart, windowEnd, resolution)
 }
 
 func DecodeUptimeResult(result *QueryResult) *UptimeResult {
@@ -109,6 +89,8 @@ func DecodeUptimeResult(result *QueryResult) *UptimeResult {
 	}
 }
 
+// Container requires some special results because container name and pod UID is required to uniqly identify it
+
 type ContainerUptimeResult struct {
 	UptimeResult
 	Container string
@@ -120,6 +102,20 @@ func DecodeContainerUptimeResult(result *QueryResult) *ContainerUptimeResult {
 	return &ContainerUptimeResult{
 		UptimeResult: *ur,
 		Container:    container,
+	}
+}
+
+type ContainerResourceResult struct {
+	ResourceResult
+	Container string
+}
+
+func DecodeContainerResourceResult(result *QueryResult) *ContainerResourceResult {
+	container, _ := result.GetString(ContainerLabel)
+	rr := DecodeResourceResult(result)
+	return &ContainerResourceResult{
+		ResourceResult: *rr,
+		Container:      container,
 	}
 }
 
@@ -678,10 +674,11 @@ func DecodePodPVCVolumeResult(result *QueryResult) *PodPVCVolumeResult {
 }
 
 type OwnerResult struct {
-	UID       string
-	Cluster   string
-	OwnerUID  string
-	OwnerKind string
+	UID        string
+	Cluster    string
+	OwnerUID   string
+	OwnerKind  string
+	Controller bool
 }
 
 func DecodeOwnerResult(result *QueryResult) *OwnerResult {
@@ -689,12 +686,18 @@ func DecodeOwnerResult(result *QueryResult) *OwnerResult {
 	cluster, _ := result.GetCluster()
 	ownerUID, _ := result.GetString(OwnerUIDLabel)
 	ownerKind, _ := result.GetString(OwnerKindLabel)
+	controllerStr, _ := result.GetString(ControllerLabel)
+	controller := false
+	if controllerStr == "true" {
+		controller = true
+	}
 
 	return &OwnerResult{
-		UID:       uid,
-		Cluster:   cluster,
-		OwnerUID:  ownerUID,
-		OwnerKind: ownerKind,
+		UID:        uid,
+		Cluster:    cluster,
+		OwnerUID:   ownerUID,
+		OwnerKind:  ownerKind,
+		Controller: controller,
 	}
 }
 
@@ -1000,7 +1003,7 @@ type GPUInfoResult struct {
 }
 
 func DecodeGPUInfoResult(result *QueryResult) *GPUInfoResult {
-	uid, _ := result.GetString(UIDLabel)
+	uid, _ := result.GetString(PodUIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
@@ -1941,14 +1944,14 @@ func DecodeResourceQuotaInfoResult(result *QueryResult) *ResourceQuotaInfoResult
 	}
 }
 
-type ResourceQuotaMetricResult struct {
+type ResourceResult struct {
 	UID      string
 	Resource string
 	Unit     string
 	Value    float64
 }
 
-func DecodeResourceQuotaMetricResult(result *QueryResult) *ResourceQuotaMetricResult {
+func DecodeResourceResult(result *QueryResult) *ResourceResult {
 	uid, _ := result.GetString(UIDLabel)
 	resource, _ := result.GetString(ResourceLabel)
 	unit, _ := result.GetString(UnitLabel)
@@ -1957,7 +1960,7 @@ func DecodeResourceQuotaMetricResult(result *QueryResult) *ResourceQuotaMetricRe
 		value = result.Values[0].Value
 	}
 
-	return &ResourceQuotaMetricResult{
+	return &ResourceResult{
 		UID:      uid,
 		Resource: resource,
 		Unit:     unit,
@@ -1965,100 +1968,97 @@ func DecodeResourceQuotaMetricResult(result *QueryResult) *ResourceQuotaMetricRe
 	}
 }
 
-type ResourceQuotaSpecCPURequestAvgResult = ResourceQuotaMetricResult
-
-func DecodeResourceQuotaSpecCPURequestAvgResult(result *QueryResult) *ResourceQuotaSpecCPURequestAvgResult {
-	return DecodeResourceQuotaMetricResult(result)
+// DCGM needs specialized results because it uses UUID instead of the uid label that we use.
+type DCGMDeviceInfoResult struct {
+	UUID      string
+	Device    string
+	ModelName string
+	HostName  string
 }
 
-type ResourceQuotaSpecCPURequestMaxResult = ResourceQuotaMetricResult
+func DecodeDCGMDeviceInfoResult(result *QueryResult) *DCGMDeviceInfoResult {
+	uuid, _ := result.GetString(UUIDLabel)
+	device, _ := result.GetString(DeviceLabel)
+	modelName, _ := result.GetString(ModelNameLabel)
+	hostName, _ := result.GetString(HostNameLabel)
 
-func DecodeResourceQuotaSpecCPURequestMaxResult(result *QueryResult) *ResourceQuotaSpecCPURequestMaxResult {
-	return DecodeResourceQuotaMetricResult(result)
+	return &DCGMDeviceInfoResult{
+		UUID:      uuid,
+		Device:    device,
+		ModelName: modelName,
+		HostName:  hostName,
+	}
 }
 
-type ResourceQuotaSpecRAMRequestAvgResult = ResourceQuotaMetricResult
-
-func DecodeResourceQuotaSpecRAMRequestAvgResult(result *QueryResult) *ResourceQuotaSpecRAMRequestAvgResult {
-	return DecodeResourceQuotaMetricResult(result)
+type DCGMDeviceUptimeResult struct {
+	UUID  string
+	First time.Time
+	Last  time.Time
 }
 
-type ResourceQuotaSpecRAMRequestMaxResult = ResourceQuotaMetricResult
-
-func DecodeResourceQuotaSpecRAMRequestMaxResult(result *QueryResult) *ResourceQuotaSpecRAMRequestMaxResult {
-	return DecodeResourceQuotaMetricResult(result)
+func (res *DCGMDeviceUptimeResult) GetStartEnd(windowStart, windowEnd time.Time, resolution time.Duration) (time.Time, time.Time) {
+	return getStartEnd(res.First, res.Last, windowStart, windowEnd, resolution)
 }
 
-type ResourceQuotaSpecCPULimitAvgResult = ResourceQuotaMetricResult
+func getStartEnd(first, last, windowStart, windowEnd time.Time, resolution time.Duration) (time.Time, time.Time) {
+	// The only corner-case here is what to do if you only get one timestamp.
+	// This dilemma still requires the use of the resolution, and can be
+	// clamped using the window. In this case, we want to honor the existence
+	// of the pod by giving "one resolution" worth of duration, half on each
+	// side of the given timestamp.
+	if first.Equal(last) {
+		first = first.Add(-1 * resolution / time.Duration(2))
+		last = last.Add(resolution / time.Duration(2))
+	}
+	if first.Before(windowStart) {
+		first = windowStart
+	}
+	if last.After(windowEnd) {
+		last = windowEnd
+	}
+	// prevent end times in the future
+	now := time.Now().UTC()
+	if last.After(now) {
+		last = now
+	}
 
-func DecodeResourceQuotaSpecCPULimitAvgResult(result *QueryResult) *ResourceQuotaSpecCPULimitAvgResult {
-	return DecodeResourceQuotaMetricResult(result)
+	return first, last
 }
 
-type ResourceQuotaSpecCPULimitMaxResult = ResourceQuotaMetricResult
+func DecodeDCGMDeviceUptimeResult(result *QueryResult) *DCGMDeviceUptimeResult {
+	uuid, _ := result.GetString(UUIDLabel)
+	first := time.Unix(int64(result.Values[0].Timestamp), 0).UTC()
+	last := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).UTC()
 
-func DecodeResourceQuotaSpecCPULimitMaxResult(result *QueryResult) *ResourceQuotaSpecCPULimitMaxResult {
-	return DecodeResourceQuotaMetricResult(result)
+	return &DCGMDeviceUptimeResult{
+		UUID:  uuid,
+		First: first,
+		Last:  last,
+	}
 }
 
-type ResourceQuotaSpecRAMLimitAvgResult = ResourceQuotaMetricResult
-
-func DecodeResourceQuotaSpecRAMLimitAvgResult(result *QueryResult) *ResourceQuotaSpecRAMLimitAvgResult {
-	return DecodeResourceQuotaMetricResult(result)
+type DCGMDeviceContainerUsageResult struct {
+	UUID      string
+	PodUID    string
+	Container string
+	Value     float64
 }
 
-type ResourceQuotaSpecRAMLimitMaxResult = ResourceQuotaMetricResult
+func DecodeDCGMDeviceContainerUsageResult(result *QueryResult) *DCGMDeviceContainerUsageResult {
+	uuid, _ := result.GetString(UUIDLabel)
+	podUID, _ := result.GetString(PodUIDLabel)
+	container, _ := result.GetString(ContainerLabel)
+	var value float64
+	if len(result.Values) > 0 {
+		value = result.Values[0].Value
+	}
 
-func DecodeResourceQuotaSpecRAMLimitMaxResult(result *QueryResult) *ResourceQuotaSpecRAMLimitMaxResult {
-	return DecodeResourceQuotaMetricResult(result)
-}
-
-type ResourceQuotaStatusUsedCPURequestAvgResult = ResourceQuotaMetricResult
-
-func DecodeResourceQuotaStatusUsedCPURequestAvgResult(result *QueryResult) *ResourceQuotaStatusUsedCPURequestAvgResult {
-	return DecodeResourceQuotaMetricResult(result)
-}
-
-type ResourceQuotaStatusUsedCPURequestMaxResult = ResourceQuotaMetricResult
-
-func DecodeResourceQuotaStatusUsedCPURequestMaxResult(result *QueryResult) *ResourceQuotaStatusUsedCPURequestMaxResult {
-	return DecodeResourceQuotaMetricResult(result)
-}
-
-type ResourceQuotaStatusUsedRAMRequestAvgResult = ResourceQuotaMetricResult
-
-func DecodeResourceQuotaStatusUsedRAMRequestAvgResult(result *QueryResult) *ResourceQuotaStatusUsedRAMRequestAvgResult {
-	return DecodeResourceQuotaMetricResult(result)
-}
-
-type ResourceQuotaStatusUsedRAMRequestMaxResult = ResourceQuotaMetricResult
-
-func DecodeResourceQuotaStatusUsedRAMRequestMaxResult(result *QueryResult) *ResourceQuotaStatusUsedRAMRequestMaxResult {
-	return DecodeResourceQuotaMetricResult(result)
-}
-
-type ResourceQuotaStatusUsedCPULimitAvgResult = ResourceQuotaMetricResult
-
-func DecodeResourceQuotaStatusUsedCPULimitAvgResult(result *QueryResult) *ResourceQuotaStatusUsedCPULimitAvgResult {
-	return DecodeResourceQuotaMetricResult(result)
-}
-
-type ResourceQuotaStatusUsedCPULimitMaxResult = ResourceQuotaMetricResult
-
-func DecodeResourceQuotaStatusUsedCPULimitMaxResult(result *QueryResult) *ResourceQuotaStatusUsedCPULimitMaxResult {
-	return DecodeResourceQuotaMetricResult(result)
-}
-
-type ResourceQuotaStatusUsedRAMLimitAvgResult = ResourceQuotaMetricResult
-
-func DecodeResourceQuotaStatusUsedRAMLimitAvgResult(result *QueryResult) *ResourceQuotaStatusUsedRAMLimitAvgResult {
-	return DecodeResourceQuotaMetricResult(result)
-}
-
-type ResourceQuotaStatusUsedRAMLimitMaxResult = ResourceQuotaMetricResult
-
-func DecodeResourceQuotaStatusUsedRAMLimitMaxResult(result *QueryResult) *ResourceQuotaStatusUsedRAMLimitMaxResult {
-	return DecodeResourceQuotaMetricResult(result)
+	return &DCGMDeviceContainerUsageResult{
+		UUID:      uuid,
+		PodUID:    podUID,
+		Container: container,
+		Value:     value,
+	}
 }
 
 func DecodeAll[T any](results []*QueryResult, decode ResultDecoder[T]) []*T {

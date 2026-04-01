@@ -148,6 +148,13 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 		})
 
 		// Node Capacity
+		scrapeResults = scrapeResourceList(
+			metric.NodeResourceCapacities,
+			node.Status.Capacity,
+			nodeInfo,
+			scrapeResults)
+
+		// This block and metric can be removed, when we stop exporting assets and allocations
 		if node.Status.Capacity != nil {
 			if quantity, ok := node.Status.Capacity[v1.ResourceCPU]; ok {
 				_, _, value := toResourceUnitValue(v1.ResourceCPU, quantity)
@@ -169,6 +176,13 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 		}
 
 		// Node Allocatable Resources
+		scrapeResults = scrapeResourceList(
+			metric.NodeResourcesAllocatable,
+			node.Status.Allocatable,
+			nodeInfo,
+			scrapeResults)
+
+		// This block and metric can be removed, when we stop exporting assets and allocations
 		if node.Status.Allocatable != nil {
 			if quantity, ok := node.Status.Allocatable[v1.ResourceCPU]; ok {
 				_, _, value := toResourceUnitValue(v1.ResourceCPU, quantity)
@@ -401,10 +415,15 @@ func (ccs *ClusterCacheScraper) scrapePods(
 
 		// Pod owner metric
 		for _, owner := range pod.OwnerReferences {
+			controller := "false"
+			if owner.Controller != nil && *owner.Controller {
+				controller = "true"
+			}
 			ownerInfo := maps.Clone(podInfo)
 			ownerInfo[source.OwnerKindLabel] = owner.Kind
 			ownerInfo[source.OwnerNameLabel] = owner.Name
 			ownerInfo[source.OwnerUIDLabel] = string(owner.UID)
+			ownerInfo[source.ContainerLabel] = controller
 			scrapeResults = append(scrapeResults, metric.Update{
 				Name:   metric.KubePodOwner,
 				Labels: ownerInfo,
@@ -449,56 +468,18 @@ func (ccs *ClusterCacheScraper) scrapePods(
 			containerInfo := maps.Clone(podInfo)
 			containerInfo[source.ContainerLabel] = container.Name
 			// Requests
-			if container.Resources.Requests != nil {
-				// sorting keys here for testing purposes
-				keys := maps.Keys(container.Resources.Requests)
-				slices.Sort(keys)
-				for _, resourceName := range keys {
-					quantity := container.Resources.Requests[resourceName]
-					resource, unit, value := toResourceUnitValue(resourceName, quantity)
-
-					// failed to parse the resource type
-					if resource == "" {
-						log.DedupedWarningf(5, "Failed to parse resource units and quantity for resource: %s", resourceName)
-						continue
-					}
-
-					resourceRequestInfo := maps.Clone(containerInfo)
-					resourceRequestInfo[source.ResourceLabel] = resource
-					resourceRequestInfo[source.UnitLabel] = unit
-					scrapeResults = append(scrapeResults, metric.Update{
-						Name:   metric.KubePodContainerResourceRequests,
-						Labels: resourceRequestInfo,
-						Value:  value,
-					})
-				}
-			}
+			scrapeResults = scrapeResourceList(
+				metric.KubePodContainerResourceRequests,
+				container.Resources.Requests,
+				containerInfo,
+				scrapeResults)
 
 			// Limits
-			if container.Resources.Limits != nil {
-				// sorting keys here for testing purposes
-				keys := maps.Keys(container.Resources.Limits)
-				slices.Sort(keys)
-				for _, resourceName := range keys {
-					quantity := container.Resources.Limits[resourceName]
-					resource, unit, value := toResourceUnitValue(resourceName, quantity)
-
-					// failed to parse the resource type
-					if resource == "" {
-						log.DedupedWarningf(5, "Failed to parse resource units and quantity for resource: %s", resourceName)
-						continue
-					}
-
-					resourceLimitInfo := maps.Clone(containerInfo)
-					resourceLimitInfo[source.ResourceLabel] = resource
-					resourceLimitInfo[source.UnitLabel] = unit
-					scrapeResults = append(scrapeResults, metric.Update{
-						Name:   metric.KubePodContainerResourceLimits,
-						Labels: resourceLimitInfo,
-						Value:  value,
-					})
-				}
-			}
+			scrapeResults = scrapeResourceList(
+				metric.KubePodContainerResourceLimits,
+				container.Resources.Limits,
+				containerInfo,
+				scrapeResults)
 		}
 	}
 
@@ -509,6 +490,34 @@ func (ccs *ClusterCacheScraper) scrapePods(
 		Errors:      nil,
 	})
 
+	return scrapeResults
+}
+
+func scrapeResourceList(metricName string, resourceList v1.ResourceList, baseLabels map[string]string, scrapeResults []metric.Update) []metric.Update {
+	if resourceList != nil {
+		// sorting keys here for testing purposes
+		keys := maps.Keys(resourceList)
+		slices.Sort(keys)
+		for _, resourceName := range keys {
+			quantity := resourceList[resourceName]
+			resource, unit, value := toResourceUnitValue(resourceName, quantity)
+
+			// failed to parse the resource type
+			if resource == "" {
+				log.DedupedWarningf(5, "Failed to parse resource units and quantity for resource: %s", resourceName)
+				continue
+			}
+
+			resourceRequestInfo := maps.Clone(baseLabels)
+			resourceRequestInfo[source.ResourceLabel] = resource
+			resourceRequestInfo[source.UnitLabel] = unit
+			scrapeResults = append(scrapeResults, metric.Update{
+				Name:   metricName,
+				Labels: resourceRequestInfo,
+				Value:  value,
+			})
+		}
+	}
 	return scrapeResults
 }
 
@@ -989,10 +998,15 @@ func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.Re
 			})
 		} else {
 			for _, owner := range replicaSet.OwnerReferences {
+				controller := "false"
+				if owner.Controller != nil && *owner.Controller {
+					controller = "true"
+				}
 				ownerInfo := maps.Clone(replicaSetOwnerInfo)
 				ownerInfo[source.OwnerKindLabel] = owner.Kind
 				ownerInfo[source.OwnerNameLabel] = owner.Name
 				ownerInfo[source.OwnerUIDLabel] = string(owner.UID)
+				ownerInfo[source.ControllerLabel] = controller
 				scrapeResults = append(scrapeResults, metric.Update{
 					Name:   metric.KubeReplicasetOwner,
 					Labels: ownerInfo,

@@ -27,6 +27,8 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewLocalStorageActiveMinutesMetricCollector())
 	memStore.Register(NewNodeInfoMetricCollector())
 	memStore.Register(NewNodeUptimeMetricCollector())
+	memStore.Register(NewNodeResourceCapacitiesMetricCollector())
+	memStore.Register(NewNodeResourcesAllocatableMetricCollector())
 	memStore.Register(NewNodeCPUCoresCapacityMetricCollector())
 	memStore.Register(NewNodeCPUCoresAllocatableMetricCollector())
 	memStore.Register(NewNodeRAMBytesCapacityMetricCollector())
@@ -60,6 +62,10 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewGPUsAllocatedMetricCollector())
 	memStore.Register(NewIsGPUSharedMetricCollector())
 	memStore.Register(NewGPUInfoMetricCollector())
+	memStore.Register(NewDCGMInfoMetricCollector())
+	memStore.Register(NewDCGMUptimeMetricCollector())
+	memStore.Register(NewDCGMContainerUsageAvgMetricCollector())
+	memStore.Register(NewDCGMContainerUsageMaxMetricCollector())
 	memStore.Register(NewNodeCPUPricePerHourMetricCollector())
 	memStore.Register(NewNodeRAMPricePerGiBHourMetricCollector())
 	memStore.Register(NewNodeGPUPricePerHourMetricCollector())
@@ -127,6 +133,8 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewPodNetworkEgressBytesMetricCollector())
 	memStore.Register(NewPodNetworkIngressBytesMetricCollector())
 	memStore.Register(NewContainerUptimeMetricCollector())
+	memStore.Register(NewContainerResourceRequestsMetricCollector())
+	memStore.Register(NewContainerResourceLimitsMetricCollector())
 	memStore.Register(NewReplicaSetsWithoutOwnersMetricCollector())
 	memStore.Register(NewReplicaSetsWithRolloutMetricCollector())
 	memStore.Register(NewResourceQuotaInfoMetricCollector())
@@ -420,6 +428,34 @@ func NewNodeUptimeMetricCollector() *metric.MetricCollector {
 			source.UIDLabel,
 		},
 		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewNodeResourceCapacitiesMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NodeResourceCapacitiesID,
+		metric.NodeResourceCapacities,
+		[]string{
+			source.UIDLabel,
+			source.ResourceLabel,
+			source.UnitLabel,
+		},
+		aggregator.AverageOverTime,
+		nil,
+	)
+}
+
+func NewNodeResourcesAllocatableMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NodeResourcesAllocatableID,
+		metric.NodeResourcesAllocatable,
+		[]string{
+			source.UIDLabel,
+			source.ResourceLabel,
+			source.UnitLabel,
+		},
+		aggregator.AverageOverTime,
 		nil,
 	)
 }
@@ -1126,6 +1162,36 @@ func NewCPULimitsMetricCollector() *metric.MetricCollector {
 	)
 }
 
+func NewContainerResourceRequestsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ContainerResourceRequestsID,
+		metric.KubePodContainerResourceRequests,
+		[]string{
+			source.UIDLabel,
+			source.ContainerLabel,
+			source.ResourceLabel,
+			source.UnitLabel,
+		},
+		aggregator.AverageOverTime,
+		nil,
+	)
+}
+
+func NewContainerResourceLimitsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ContainerResourceLimitsID,
+		metric.KubePodContainerResourceLimits,
+		[]string{
+			source.UIDLabel,
+			source.ContainerLabel,
+			source.ResourceLabel,
+			source.UnitLabel,
+		},
+		aggregator.AverageOverTime,
+		nil,
+	)
+}
+
 //	avg(
 //		rate(
 //			container_cpu_usage_seconds_total{
@@ -1349,6 +1415,62 @@ func NewGPUInfoMetricCollector() *metric.MetricCollector {
 			source.UUIDLabel,
 		},
 		aggregator.Info,
+		func(labels map[string]string) bool {
+			return labels[source.ContainerLabel] != ""
+		},
+	)
+}
+
+func NewDCGMInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DCGMInfoID,
+		metric.DCGMFIDEVDECUTIL,
+		[]string{
+			source.UUIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewDCGMUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DCGMUptimeID,
+		metric.DCGMFIDEVDECUTIL,
+		[]string{
+			source.UUIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewDCGMContainerUsageAvgMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DCGMContainerUsageAvgID,
+		metric.DCGMFIPROFGRENGINEACTIVE,
+		[]string{
+			source.UUIDLabel,
+			source.PodUIDLabel,
+			source.ContainerLabel,
+		},
+		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.ContainerLabel] != ""
+		},
+	)
+}
+
+func NewDCGMContainerUsageMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DCGMContainerUsageMaxID,
+		metric.DCGMFIPROFGRENGINEACTIVE,
+		[]string{
+			source.UUIDLabel,
+			source.PodUIDLabel,
+			source.ContainerLabel,
+		},
+		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
 			return labels[source.ContainerLabel] != ""
 		},

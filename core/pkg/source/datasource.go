@@ -32,6 +32,8 @@ type MetricsQuerier interface {
 	QueryNodeIsSpot(start, end time.Time) *Future[NodeIsSpotResult]
 	QueryNodeRAMSystemPercent(start, end time.Time) *Future[NodeRAMSystemPercentResult]
 	QueryNodeRAMUserPercent(start, end time.Time) *Future[NodeRAMUserPercentResult]
+	QueryNodeResourceCapacities(start, end time.Time) *Future[ResourceResult]
+	QueryNodeResourcesAllocatable(start, end time.Time) *Future[ResourceResult]
 
 	// Load Balancers
 	QueryLBActiveMinutes(start, end time.Time) *Future[LBActiveMinutesResult]
@@ -55,6 +57,8 @@ type MetricsQuerier interface {
 
 	// Container
 	QueryContainerUptime(start, end time.Time) *Future[ContainerUptimeResult]
+	QueryContainerResourceRequests(start, end time.Time) *Future[ContainerResourceResult]
+	QueryContainerResourceLimits(start, end time.Time) *Future[ContainerResourceResult]
 
 	// RAM
 	QueryRAMBytesAllocated(start, end time.Time) *Future[RAMBytesAllocatedResult]
@@ -80,6 +84,12 @@ type MetricsQuerier interface {
 	QueryNodeGPUPricePerHr(start, end time.Time) *Future[NodeGPUPricePerHrResult]
 	QueryGPUInfo(start, end time.Time) *Future[GPUInfoResult]
 	QueryIsGPUShared(start, end time.Time) *Future[IsGPUSharedResult]
+
+	// Device
+	QueryDCGMDeviceInfo(start, end time.Time) *Future[DCGMDeviceInfoResult]
+	QueryDCGMDeviceUptime(start, end time.Time) *Future[DCGMDeviceUptimeResult]
+	QueryDCGMContainerUsageAvg(start, end time.Time) *Future[DCGMDeviceContainerUsageResult]
+	QueryDCGMContainerUsageMax(start, end time.Time) *Future[DCGMDeviceContainerUsageResult]
 
 	// PVC
 	QueryPodPVCAllocation(start, end time.Time) *Future[PodPVCAllocationResult]
@@ -185,22 +195,22 @@ type MetricsQuerier interface {
 	// ResourceQuotas
 	QueryResourceQuotaInfo(start, end time.Time) *Future[ResourceQuotaInfoResult]
 	QueryResourceQuotaUptime(start, end time.Time) *Future[UptimeResult]
-	QueryResourceQuotaSpecCPURequestAverage(start, end time.Time) *Future[ResourceQuotaSpecCPURequestAvgResult]
-	QueryResourceQuotaSpecCPURequestMax(start, end time.Time) *Future[ResourceQuotaSpecCPURequestMaxResult]
-	QueryResourceQuotaSpecRAMRequestAverage(start, end time.Time) *Future[ResourceQuotaSpecRAMRequestAvgResult]
-	QueryResourceQuotaSpecRAMRequestMax(start, end time.Time) *Future[ResourceQuotaSpecRAMRequestMaxResult]
-	QueryResourceQuotaSpecCPULimitAverage(start, end time.Time) *Future[ResourceQuotaSpecCPULimitAvgResult]
-	QueryResourceQuotaSpecCPULimitMax(start, end time.Time) *Future[ResourceQuotaSpecCPULimitMaxResult]
-	QueryResourceQuotaSpecRAMLimitAverage(start, end time.Time) *Future[ResourceQuotaSpecRAMLimitAvgResult]
-	QueryResourceQuotaSpecRAMLimitMax(start, end time.Time) *Future[ResourceQuotaSpecRAMLimitMaxResult]
-	QueryResourceQuotaStatusUsedCPURequestAverage(start, end time.Time) *Future[ResourceQuotaStatusUsedCPURequestAvgResult]
-	QueryResourceQuotaStatusUsedCPURequestMax(start, end time.Time) *Future[ResourceQuotaStatusUsedCPURequestMaxResult]
-	QueryResourceQuotaStatusUsedRAMRequestAverage(start, end time.Time) *Future[ResourceQuotaStatusUsedRAMRequestAvgResult]
-	QueryResourceQuotaStatusUsedRAMRequestMax(start, end time.Time) *Future[ResourceQuotaStatusUsedRAMRequestMaxResult]
-	QueryResourceQuotaStatusUsedCPULimitAverage(start, end time.Time) *Future[ResourceQuotaStatusUsedCPULimitAvgResult]
-	QueryResourceQuotaStatusUsedCPULimitMax(start, end time.Time) *Future[ResourceQuotaStatusUsedCPULimitMaxResult]
-	QueryResourceQuotaStatusUsedRAMLimitAverage(start, end time.Time) *Future[ResourceQuotaStatusUsedRAMLimitAvgResult]
-	QueryResourceQuotaStatusUsedRAMLimitMax(start, end time.Time) *Future[ResourceQuotaStatusUsedRAMLimitMaxResult]
+	QueryResourceQuotaSpecCPURequestAverage(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaSpecCPURequestMax(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaSpecRAMRequestAverage(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaSpecRAMRequestMax(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaSpecCPULimitAverage(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaSpecCPULimitMax(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaSpecRAMLimitAverage(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaSpecRAMLimitMax(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaStatusUsedCPURequestAverage(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaStatusUsedCPURequestMax(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaStatusUsedRAMRequestAverage(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaStatusUsedRAMRequestMax(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaStatusUsedCPULimitAverage(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaStatusUsedCPULimitMax(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaStatusUsedRAMLimitAverage(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaStatusUsedRAMLimitMax(start, end time.Time) *Future[ResourceResult]
 
 	// Data Coverage Query
 	QueryDataCoverage(limitDays int) (time.Time, time.Time, error)
