@@ -8,6 +8,7 @@ import (
 type PricingModelSet struct {
 	Window      Window
 	NodePricing map[NodeKey]NodePricing
+	Source      string
 }
 
 func NewPricingModelSet(start, end time.Time) *PricingModelSet {

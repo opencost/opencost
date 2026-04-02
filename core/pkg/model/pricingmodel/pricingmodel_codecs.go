@@ -553,6 +553,12 @@ func (target *PricingModelSet) MarshalBinaryWithContext(ctx *EncodingContext) (e
 		// --- [end][write][map](map[NodeKey]NodePricing) ---
 
 	}
+	if ctx.IsStringTable() {
+		a := ctx.Table.AddOrGet(target.Source)
+		buff.WriteInt(a) // write table index
+	} else {
+		buff.WriteString(target.Source) // write string
+	}
 	return nil
 }
 
@@ -653,6 +659,16 @@ func (target *PricingModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 		// --- [end][read][map](map[NodeKey]NodePricing) ---
 
 	}
+	var g string
+	if ctx.IsStringTable() {
+		h := buff.ReadInt() // read string index
+		g = ctx.Table[h]
+	} else {
+		g = buff.ReadString() // read string
+	}
+	f := g
+	target.Source = f
+
 	return nil
 }
 
