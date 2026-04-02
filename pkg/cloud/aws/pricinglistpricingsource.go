@@ -69,13 +69,16 @@ func (p PublicAPIPricingSource) saveToCache(pms *pricingmodel.PricingModelSet) {
 
 const PublicAPIPricingSourceKey = "aws/public_api_ec2_pricing"
 
+func (p PublicAPIPricingSource) PricingSourceKey() string {
+	return PublicAPIPricingSourceKey
+}
+
 func (p PublicAPIPricingSource) GetPricing() (*pricingmodel.PricingModelSet, error) {
 	if cached, ok := p.loadFromCache(); ok {
 		return cached, nil
 	}
 	now := time.Now().UTC()
-	pms := pricingmodel.NewPricingModelSet(now, now)
-	pms.Source = PublicAPIPricingSourceKey
+	pms := pricingmodel.NewPricingModelSet(now, PublicAPIPricingSourceKey)
 	skuToNodeKey := make(map[string]pricingmodel.NodeKey)
 
 	// When parsing product we create keys based off of product attributes and link those to a SKU.

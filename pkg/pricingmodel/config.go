@@ -1,24 +1,29 @@
 package pricingmodel
 
-import "time"
+import (
+	"time"
 
-const defaultRefreshInterval = time.Hour
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
+)
 
 // PipelineConfig holds configuration for the pricing model pipeline.
 // If nil is passed to NewPipeline, DefaultPipelineConfig is used.
 type PipelineConfig struct {
+	AppName         string
+	AWSRunnerConfig AWSRunnerConfig
+}
+
+type AWSRunnerConfig struct {
+	Enabled         bool
 	RefreshInterval time.Duration
 }
 
-func DefaultPipelineConfig() PipelineConfig {
+func DefaultPipelineConfig(appName string) PipelineConfig {
 	return PipelineConfig{
-		RefreshInterval: defaultRefreshInterval,
+		AppName: appName,
+		AWSRunnerConfig: AWSRunnerConfig{
+			Enabled:         true,
+			RefreshInterval: timeutil.Day,
+		},
 	}
-}
-
-func resolveConfig(cfg *PipelineConfig) PipelineConfig {
-	if cfg == nil {
-		return DefaultPipelineConfig()
-	}
-	return *cfg
 }

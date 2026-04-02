@@ -18,6 +18,7 @@ const (
 	HeartbeatPipelineName         string = "heartbeat"
 	DiagnosticsPipelineName       string = "diagnostics"
 	KubeModelPipelineName         string = "kubemodel"
+	PricingModelPipelineName      string = "pricingmodel"
 )
 
 var nameByType map[string]string

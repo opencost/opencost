@@ -517,14 +517,21 @@ func (target *PricingModelSet) MarshalBinaryWithContext(ctx *EncodingContext) (e
 	buff := ctx.Buffer
 	buff.WriteUInt8(DefaultCodecVersion) // version
 
-	// --- [begin][write][struct](Window) ---
-	buff.WriteInt(0) // [compatibility, unused]
-	errA := target.Window.MarshalBinaryWithContext(ctx)
+	// --- [begin][write][reference](time.Time) ---
+	a, errA := target.TimeStamp.MarshalBinary()
 	if errA != nil {
 		return errA
 	}
-	// --- [end][write][struct](Window) ---
+	buff.WriteInt(len(a))
+	buff.WriteBytes(a)
+	// --- [end][write][reference](time.Time) ---
 
+	if ctx.IsStringTable() {
+		b := ctx.Table.AddOrGet(target.Source)
+		buff.WriteInt(b) // write table index
+	} else {
+		buff.WriteString(target.Source) // write string
+	}
 	if target.NodePricing == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
@@ -552,12 +559,6 @@ func (target *PricingModelSet) MarshalBinaryWithContext(ctx *EncodingContext) (e
 		}
 		// --- [end][write][map](map[NodeKey]NodePricing) ---
 
-	}
-	if ctx.IsStringTable() {
-		a := ctx.Table.AddOrGet(target.Source)
-		buff.WriteInt(a) // write table index
-	} else {
-		buff.WriteString(target.Source) // write string
 	}
 	return nil
 }
@@ -616,59 +617,60 @@ func (target *PricingModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 		return fmt.Errorf("Invalid Version Unmarshaling PricingModelSet. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
-	// --- [begin][read][struct](Window) ---
-	a := &Window{}
-	buff.ReadInt() // [compatibility, unused]
-	errA := a.UnmarshalBinaryWithContext(ctx)
+	// --- [begin][read][reference](time.Time) ---
+	a := &time.Time{}
+	b := buff.ReadInt()    // byte array length
+	c := buff.ReadBytes(b) // byte array
+	errA := a.UnmarshalBinary(c)
 	if errA != nil {
 		return errA
 	}
-	target.Window = *a
-	// --- [end][read][struct](Window) ---
+	target.TimeStamp = *a
+	// --- [end][read][reference](time.Time) ---
+
+	var e string
+	if ctx.IsStringTable() {
+		f := buff.ReadInt() // read string index
+		e = ctx.Table[f]
+	} else {
+		e = buff.ReadString() // read string
+	}
+	d := e
+	target.Source = d
 
 	if buff.ReadUInt8() == uint8(0) {
 		target.NodePricing = nil
 	} else {
 		// --- [begin][read][map](map[NodeKey]NodePricing) ---
-		c := buff.ReadInt() // map len
-		b := make(map[NodeKey]NodePricing, c)
-		for i := 0; i < c; i++ {
+		h := buff.ReadInt() // map len
+		g := make(map[NodeKey]NodePricing, h)
+		for i := 0; i < h; i++ {
 			// --- [begin][read][struct](NodeKey) ---
-			d := &NodeKey{}
+			k := &NodeKey{}
 			buff.ReadInt() // [compatibility, unused]
-			errB := d.UnmarshalBinaryWithContext(ctx)
+			errB := k.UnmarshalBinaryWithContext(ctx)
 			if errB != nil {
 				return errB
 			}
-			v := *d
+			v := *k
 			// --- [end][read][struct](NodeKey) ---
 
 			// --- [begin][read][struct](NodePricing) ---
-			e := &NodePricing{}
+			l := &NodePricing{}
 			buff.ReadInt() // [compatibility, unused]
-			errC := e.UnmarshalBinaryWithContext(ctx)
+			errC := l.UnmarshalBinaryWithContext(ctx)
 			if errC != nil {
 				return errC
 			}
-			z := *e
+			z := *l
 			// --- [end][read][struct](NodePricing) ---
 
-			b[v] = z
+			g[v] = z
 		}
-		target.NodePricing = b
+		target.NodePricing = g
 		// --- [end][read][map](map[NodeKey]NodePricing) ---
 
 	}
-	var g string
-	if ctx.IsStringTable() {
-		h := buff.ReadInt() // read string index
-		g = ctx.Table[h]
-	} else {
-		g = buff.ReadString() // read string
-	}
-	f := g
-	target.Source = f
-
 	return nil
 }
 

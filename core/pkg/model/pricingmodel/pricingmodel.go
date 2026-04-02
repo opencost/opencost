@@ -6,17 +6,15 @@ import (
 
 // @bingen:generate:PricingModelSet
 type PricingModelSet struct {
-	Window      Window
-	NodePricing map[NodeKey]NodePricing
+	TimeStamp   time.Time
 	Source      string
+	NodePricing map[NodeKey]NodePricing
 }
 
-func NewPricingModelSet(start, end time.Time) *PricingModelSet {
+func NewPricingModelSet(timeStamp time.Time, source string) *PricingModelSet {
 	return &PricingModelSet{
-		Window: Window{
-			Start: start,
-			End:   end,
-		},
+		TimeStamp:   timeStamp,
+		Source:      source,
 		NodePricing: make(map[NodeKey]NodePricing),
 	}
 }

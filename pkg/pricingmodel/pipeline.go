@@ -2,12 +2,12 @@ package pricingmodel
 
 import (
 	"fmt"
-	"reflect"
 	"sync"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/model/pricingmodel"
-	"github.com/opencost/opencost/core/pkg/storage"
+	corestorage "github.com/opencost/opencost/core/pkg/storage"
+	"github.com/opencost/opencost/pkg/cloud/aws"
 )
 
 // Pipeline manages a set of runners, one per PricingSource, exporting pricing
@@ -20,7 +20,7 @@ import (
 type Pipeline struct {
 	lock    sync.Mutex
 	runners map[string]*runner
-	store   storage.Storage
+	store   *storageWriter
 	config  PipelineConfig
 }
 
@@ -28,16 +28,24 @@ type Pipeline struct {
 // If cfg is nil, DefaultPipelineConfig is used.
 // The storage should be initialized by the caller via storage.InitializeStorage
 // or storage.GetDefaultStorage, matching how CloudCost storage is wired up.
-func NewPipeline(store storage.Storage, sources []pricingmodel.PricingSource, cfg *PipelineConfig) *Pipeline {
+func NewPipeline(store corestorage.Storage, cfg PipelineConfig) (*Pipeline, error) {
+
+	ps, err := newStorageWriter(store, cfg.AppName)
+	if err != nil {
+		return nil, fmt.Errorf("NewPipeline: %w", err)
+	}
+
 	p := &Pipeline{
 		runners: make(map[string]*runner),
-		store:   store,
-		config:  resolveConfig(cfg),
+		store:   ps,
+		config:  cfg,
 	}
-	for _, src := range sources {
-		p.addSource(src)
+	if cfg.AWSRunnerConfig.Enabled {
+		p.addSource(aws.PublicAPIPricingSource{}, runnerConfig{
+			interval: cfg.AWSRunnerConfig.RefreshInterval,
+		})
 	}
-	return p
+	return p, nil
 }
 
 // StartAll starts all registered runners.
@@ -65,37 +73,65 @@ func (p *Pipeline) StopAll() {
 }
 
 // AddSource registers a new PricingSource and starts its runner. If a source
-// of the same type already exists it is stopped and replaced.
-func (p *Pipeline) AddSource(src pricingmodel.PricingSource) {
+// with the same key already exists it is stopped and replaced.
+func (p *Pipeline) AddSource(src pricingmodel.PricingSource, cfg runnerConfig) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	p.addSource(src)
+	p.addSource(src, cfg)
 }
 
-// RemoveSource stops and removes the runner for the given source type key.
-// The key is the fully qualified type name, e.g. "aws.PublicAPIPricingSource".
+// RemoveSource stops and removes the runner for the given source key.
 func (p *Pipeline) RemoveSource(key string) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	p.removeSource(key)
 }
 
-// sourceKey returns a stable map key for a PricingSource based on its concrete type.
-func sourceKey(src pricingmodel.PricingSource) string {
-	t := reflect.TypeOf(src)
-	if t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-	return fmt.Sprintf("%s.%s", t.PkgPath(), t.Name())
-}
-
-func (p *Pipeline) addSource(src pricingmodel.PricingSource) {
-	key := sourceKey(src)
+func (p *Pipeline) addSource(src pricingmodel.PricingSource, cfg runnerConfig) {
+	key := src.PricingSourceKey()
 	p.removeSource(key)
 	log.Infof("PricingModel: pipeline: adding source %s", key)
-	r := newRunner(src, p.store, p.config)
+	r := newRunner(src, p.store, cfg)
 	r.Start()
 	p.runners[key] = r
+}
+
+// Status returns the current status of all runners.
+func (p *Pipeline) Status() []Status {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	statuses := make([]Status, 0, len(p.runners))
+	for _, r := range p.runners {
+		statuses = append(statuses, r.Status())
+	}
+	return statuses
+}
+
+// Rebuild triggers an immediate export on all runners outside the scheduled tick.
+func (p *Pipeline) Rebuild() {
+	p.lock.Lock()
+	runners := make([]*runner, 0, len(p.runners))
+	for _, r := range p.runners {
+		runners = append(runners, r)
+	}
+	p.lock.Unlock()
+
+	for _, r := range runners {
+		go r.export()
+	}
+}
+
+// RebuildSource triggers an immediate export for the runner with the given source key.
+func (p *Pipeline) RebuildSource(sourceKey string) error {
+	p.lock.Lock()
+	r, ok := p.runners[sourceKey]
+	p.lock.Unlock()
+
+	if !ok {
+		return fmt.Errorf("PricingModel: no runner found for source key %q", sourceKey)
+	}
+	go r.export()
+	return nil
 }
 
 func (p *Pipeline) removeSource(key string) {
