@@ -3,6 +3,7 @@ package pricingmodel
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/model/pricingmodel"
@@ -40,10 +41,21 @@ func NewPipeline(store corestorage.Storage, cfg PipelineConfig) (*Pipeline, erro
 		store:   ps,
 		config:  cfg,
 	}
+	lastUpdates, err := ps.LastUpdates()
+	if err != nil {
+		log.Warnf("NewPipeline: failed to load last update times, runners will start immediately: %s", err.Error())
+		lastUpdates = map[string]time.Time{}
+	}
+
 	if cfg.AWSRunnerConfig.Enabled {
-		p.addSource(aws.PublicAPIPricingSource{}, runnerConfig{
+		src := aws.PublicAPIPricingSource{}
+		rc := runnerConfig{
 			interval: cfg.AWSRunnerConfig.RefreshInterval,
-		})
+		}
+		if t, ok := lastUpdates[src.PricingSourceKey()]; ok {
+			rc.lastRun = &t
+		}
+		p.addSource(src, rc)
 	}
 	return p, nil
 }

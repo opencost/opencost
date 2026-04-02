@@ -2,6 +2,7 @@ package pricingmodel
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/opencost/opencost/core/pkg/exporter/pathing"
 	"github.com/opencost/opencost/core/pkg/pipelines"
@@ -29,4 +30,23 @@ func newStorageWriter(store storage.Storage, appName string) (*storageWriter, er
 func (sw *storageWriter) Write(sourceKey string, data []byte) error {
 	fullPath := sw.pathing.ToFullPath("", sourceKey, "")
 	return sw.store.Write(fullPath, data)
+}
+
+// LastUpdates returns a map of source key to last modified time for each file
+// found under the formatter's directory. Source keys are reconstructed as the
+// file path relative to Dir().
+func (sw *storageWriter) LastUpdates() (map[string]time.Time, error) {
+	result := make(map[string]time.Time)
+	dir := sw.pathing.Dir()
+
+	files, err := sw.store.List(dir)
+	if err != nil && !storage.IsNotExist(err) {
+		return nil, fmt.Errorf("collectModTimes: listing %s: %w", dir, err)
+	}
+	for _, f := range files {
+		key := f.Name
+		result[key] = f.ModTime
+	}
+
+	return result, nil
 }
