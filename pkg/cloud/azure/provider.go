@@ -239,8 +239,12 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 	}
 }
 
+// azureRetailPricesBaseURL is the base URL for Azure retail prices API.
+// It is a variable so that tests can override it with a local test server.
+var azureRetailPricesBaseURL = "https://prices.azure.com/api/retail/prices"
+
 func buildAzureRetailPricesURL(region string, skuName string, currencyCode string) string {
-	pricingURL := "https://prices.azure.com/api/retail/prices?$skip=0"
+	pricingURL := azureRetailPricesBaseURL + "?$skip=0"
 
 	if currencyCode != "" {
 		pricingURL += fmt.Sprintf("&currencyCode='%s'", currencyCode)
@@ -306,8 +310,9 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch retail price with URL \"%s\": %v", pricingURL, err)
 	}
+	defer resp.Body.Close()
 
-	if resp.StatusCode < 200 && resp.StatusCode > 299 {
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return "", fmt.Errorf("retail price responded with error status code %d", resp.StatusCode)
 	}
 
