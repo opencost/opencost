@@ -48,7 +48,7 @@ func NewPipeline(store corestorage.Storage, cfg PipelineConfig) (*Pipeline, erro
 	}
 
 	if cfg.AWSRunnerConfig.Enabled {
-		src := aws.PublicAPIPricingSource{}
+		src := &aws.PricingListPricingSource{}
 		rc := runnerConfig{
 			interval: cfg.AWSRunnerConfig.RefreshInterval,
 		}

@@ -30,15 +30,17 @@ type runner struct {
 }
 
 func newRunner(source pricingmodel.PricingSource, store *storageWriter, config runnerConfig) *runner {
+	status := Status{
+		SourceKey:   source.PricingSourceKey(),
+		CreatedAt:   time.Now().UTC(),
+		RefreshRate: config.interval.String(),
+	}
+
 	return &runner{
 		source: source,
 		store:  store,
 		config: config,
-		status: Status{
-			SourceKey:   source.PricingSourceKey(),
-			CreatedAt:   time.Now().UTC(),
-			RefreshRate: config.interval.String(),
-		},
+		status: status,
 	}
 }
 
@@ -49,11 +51,18 @@ func (r *runner) initialDelay() time.Duration {
 	if r.config.lastRun == nil {
 		return 0
 	}
+	r.status.LastRun = *r.config.lastRun
 	next := r.config.lastRun.Add(r.config.interval)
 	delay := time.Until(next)
 	if delay <= 0 {
+		r.status.NextRun = time.Now()
 		return 0
 	}
+	r.status.NextRun = next
+	log.Infof("PricingModel[%s]: runner: previous run at '%s' next run '%s'",
+		r.source.PricingSourceKey(),
+		r.status.LastRun.Format(time.RFC3339),
+		r.status.NextRun.Format(time.RFC3339))
 	return delay
 }
 
@@ -123,7 +132,7 @@ func (r *runner) export() {
 		return
 	}
 
-	err = r.store.Write(pms.Source, data)
+	err = r.store.Write(r.source.PricingSourceKey(), data)
 	if err != nil {
 		log.Errorf("PricingModel[%s]: runner: failed to write pricing model set to storage: %v", pms.Source, err)
 		r.statusLock.Lock()

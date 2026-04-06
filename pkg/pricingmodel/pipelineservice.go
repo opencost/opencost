@@ -3,6 +3,7 @@ package pricingmodel
 import (
 	"net/http"
 
+	"github.com/julienschmidt/httprouter"
 	proto "github.com/opencost/opencost/core/pkg/protocol"
 )
 
@@ -19,8 +20,8 @@ func NewPipelineService(pipeline *Pipeline) *PipelineService {
 }
 
 // GetStatusHandler returns an HTTP handler that serializes the status of all runners.
-func (s *PipelineService) GetStatusHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *PipelineService) GetStatusHandler() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		w.Header().Set("Content-Type", "application/json")
 		protocol.WriteData(w, s.pipeline.Status())
 	}
@@ -29,8 +30,8 @@ func (s *PipelineService) GetStatusHandler() http.HandlerFunc {
 // GetRebuildHandler returns an HTTP handler that triggers an immediate export
 // outside the scheduled tick. If the "sourceKey" query parameter is provided,
 // only that source is rebuilt; otherwise all sources are rebuilt.
-func (s *PipelineService) GetRebuildHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *PipelineService) GetRebuildHandler() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		sourceKey := r.URL.Query().Get("sourceKey")
 		if sourceKey == "" {
 			s.pipeline.Rebuild()
