@@ -37,6 +37,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/modules/collector-source/pkg/collector"
+	"github.com/opencost/opencost/modules/collector-source/pkg/scrape"
 	"github.com/opencost/opencost/modules/prometheus-source/pkg/prom"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	clusterc "github.com/opencost/opencost/pkg/clustercache"
@@ -490,12 +491,14 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 				return nil, fmt.Errorf("failed to load kube config: %w", err)
 			}
 			nodeStatClient := nodestats.NewNodeStatsSummaryClient(k8sCache, nodeStatConf, clusterConfig)
+			networkCostsClient := scrape.NewNetworkCostsClient(k8sCache, clusterConfig)
 			ds := collector.NewDefaultCollectorDataSource(
 				clusterUID,
 				store,
 				clusterInfoProvider,
 				k8sCache,
 				nodeStatClient,
+				networkCostsClient,
 			)
 			return ds, nil
 		}

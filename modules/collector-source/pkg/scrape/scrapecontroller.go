@@ -29,6 +29,7 @@ func NewScrapeController(
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient nodestats.StatSummaryClient,
+	networkCostsClient NetworkCostsClient,
 ) *ScrapeController {
 
 	var scrapers []Scraper
@@ -44,7 +45,7 @@ func NewScrapeController(
 	statSummaryScraper := newStatSummaryScraper(statSummaryClient)
 	scrapers = append(scrapers, statSummaryScraper)
 
-	networkScraper := newNetworkScraper(networkPort, clusterCache)
+	networkScraper := newNetworkScraper(networkPort, clusterCache, networkCostsClient)
 	scrapers = append(scrapers, networkScraper)
 
 	dcgmScraper := newDCGMScrapper(clusterCache)

@@ -19,8 +19,9 @@ const (
 func newNetworkScraper(
 	port int,
 	clusterCache clustercache.ClusterCache,
+	networkCostsClient NetworkCostsClient,
 ) Scraper {
-	tp := NewNetworkTargetProvider(port, clusterCache)
+	tp := NewNetworkTargetProvider(port, clusterCache, networkCostsClient)
 	return newNetworkTargetScraper(tp)
 }
 
@@ -36,14 +37,16 @@ func newNetworkTargetScraper(provider target.TargetProvider) *TargetScraper {
 }
 
 type NetworkTargetProvider struct {
-	port         int
-	clusterCache clustercache.ClusterCache
+	port               int
+	clusterCache       clustercache.ClusterCache
+	networkCostsClient NetworkCostsClient
 }
 
-func NewNetworkTargetProvider(port int, clusterCache clustercache.ClusterCache) *NetworkTargetProvider {
+func NewNetworkTargetProvider(port int, clusterCache clustercache.ClusterCache, networkCostsClient NetworkCostsClient) *NetworkTargetProvider {
 	return &NetworkTargetProvider{
-		port:         port,
-		clusterCache: clusterCache,
+		port:               port,
+		clusterCache:       clusterCache,
+		networkCostsClient: networkCostsClient,
 	}
 }
 
@@ -58,9 +61,22 @@ func (n *NetworkTargetProvider) GetTargets() []target.ScrapeTarget {
 	var targets []target.ScrapeTarget
 	for _, pod := range pods {
 		if pod.Status.Phase == v1.PodRunning && isNetworkCosts(pod.Labels) {
-			log.Debugf("Network: found target for http://%s:%d/metrics", pod.Status.PodIP, n.port)
+			log.Debugf("Network: found target for pod %s in namespace %s", pod.Name, pod.Namespace)
 
-			t := target.NewUrlTarget(fmt.Sprintf("http://%s:%d/metrics", pod.Status.PodIP, n.port))
+			// Create target with automatic fallback: tries direct HTTP first, then K8s proxy
+			url := fmt.Sprintf("http://%s:%d/metrics", pod.Status.PodIP, n.port)
+
+			if n.networkCostsClient != nil {
+				if kubeClient := n.networkCostsClient.GetKubeClient(); kubeClient != nil {
+					// Use K8sProxyTarget which automatically falls back to K8s proxy on direct HTTP failure
+					t := target.NewK8sProxyTarget(url, kubeClient, pod.Namespace, pod.Name, n.port, "metrics")
+					targets = append(targets, t)
+					continue
+				}
+			}
+
+			// Fallback to direct HTTP only if no K8s client available
+			t := target.NewUrlTarget(url)
 			targets = append(targets, t)
 		}
 	}

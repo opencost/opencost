@@ -31,6 +31,7 @@ func NewDefaultCollectorDataSource(
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient nodestats.StatSummaryClient,
+	networkCostsClient scrape.NetworkCostsClient,
 ) source.OpenCostDataSource {
 	config := NewOpenCostCollectorConfigFromEnv(clusterUID)
 	return NewCollectorDataSource(
@@ -39,6 +40,7 @@ func NewDefaultCollectorDataSource(
 		clusterInfoProvider,
 		clusterCache,
 		statSummaryClient,
+		networkCostsClient,
 	)
 }
 
@@ -48,6 +50,7 @@ func NewCollectorDataSource(
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient nodestats.StatSummaryClient,
+	networkCostsClient scrape.NetworkCostsClient,
 ) source.OpenCostDataSource {
 	var resolutions []*util.Resolution
 	for _, resconf := range config.Resolutions {
@@ -90,6 +93,7 @@ func NewCollectorDataSource(
 		clusterInfoProvider,
 		clusterCache,
 		statSummaryClient,
+		networkCostsClient,
 	)
 	scrapeController.Start()
 
