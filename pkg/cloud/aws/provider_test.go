@@ -11,6 +11,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/config"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -840,4 +841,155 @@ func TestAWS_getFargatePod(t *testing.T) {
 			}
 		})
 	}
+}
+
+// fakeProviderConfig implements models.ProviderConfig for testing
+type fakeProviderConfig struct {
+	customPricing *models.CustomPricing
+}
+
+func (f *fakeProviderConfig) GetCustomPricingData() (*models.CustomPricing, error) {
+	if f.customPricing != nil {
+		return f.customPricing, nil
+	}
+	return &models.CustomPricing{}, nil
+}
+
+func (f *fakeProviderConfig) Update(func(*models.CustomPricing) error) (*models.CustomPricing, error) {
+	return f.customPricing, nil
+}
+
+func (f *fakeProviderConfig) UpdateFromMap(map[string]string) (*models.CustomPricing, error) {
+	return f.customPricing, nil
+}
+
+func (f *fakeProviderConfig) ConfigFileManager() *config.ConfigFileManager {
+	return nil
+}
+
+func TestAWS_SpotRefreshEnabled(t *testing.T) {
+	tests := []struct {
+		name                string
+		spotDataBucket      string
+		spotDataRegion      string
+		projectID           string
+		spotDataFeedEnabled string
+		want                bool
+	}{
+		{
+			name:                "disabled via config - with bucket",
+			spotDataBucket:      "my-bucket",
+			spotDataRegion:      "us-east-1",
+			projectID:           "123456789",
+			spotDataFeedEnabled: "false",
+			want:                false,
+		},
+		{
+			name:                "disabled via config - with projectID only",
+			projectID:           "123456789",
+			spotDataFeedEnabled: "false",
+			want:                false,
+		},
+		{
+			name:                "enabled by default - with bucket",
+			spotDataBucket:      "my-bucket",
+			spotDataRegion:      "us-east-1",
+			projectID:           "123456789",
+			spotDataFeedEnabled: "",
+			want:                true,
+		},
+		{
+			name:                "enabled explicitly - with bucket",
+			spotDataBucket:      "my-bucket",
+			spotDataRegion:      "us-east-1",
+			projectID:           "123456789",
+			spotDataFeedEnabled: "true",
+			want:                true,
+		},
+		{
+			name:                "no spot config - disabled",
+			spotDataBucket:      "",
+			spotDataRegion:      "",
+			projectID:           "",
+			spotDataFeedEnabled: "",
+			want:                false,
+		},
+		{
+			name:                "no spot config - but explicitly enabled",
+			spotDataBucket:      "",
+			spotDataRegion:      "",
+			projectID:           "",
+			spotDataFeedEnabled: "true",
+			want:                false,
+		},
+		{
+			name:                "only projectID set - enabled by default",
+			projectID:           "123456789",
+			spotDataFeedEnabled: "",
+			want:                true,
+		},
+		{
+			name:                "only bucket set - enabled by default",
+			spotDataBucket:      "my-bucket",
+			spotDataFeedEnabled: "",
+			want:                true,
+		},
+		{
+			name:                "only region set - enabled by default",
+			spotDataRegion:      "us-east-1",
+			spotDataFeedEnabled: "",
+			want:                true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aws := &AWS{
+				SpotDataBucket: tt.spotDataBucket,
+				SpotDataRegion: tt.spotDataRegion,
+				ProjectID:      tt.projectID,
+				Config: &fakeProviderConfig{
+					customPricing: &models.CustomPricing{
+						SpotDataFeedEnabled: tt.spotDataFeedEnabled,
+					},
+				},
+			}
+
+			got := aws.SpotRefreshEnabled()
+			if got != tt.want {
+				t.Errorf("AWS.SpotRefreshEnabled() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+
+	// Test nil Config scenario to ensure no panic
+	t.Run("nil config - falls back to field check", func(t *testing.T) {
+		aws := &AWS{
+			SpotDataBucket: "my-bucket",
+			SpotDataRegion: "us-east-1",
+			ProjectID:      "123456789",
+			Config:         nil, // nil Config should not cause panic
+		}
+
+		got := aws.SpotRefreshEnabled()
+		want := true // Should fall back to field-based check
+		if got != want {
+			t.Errorf("AWS.SpotRefreshEnabled() with nil Config = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("nil config - no spot fields", func(t *testing.T) {
+		aws := &AWS{
+			SpotDataBucket: "",
+			SpotDataRegion: "",
+			ProjectID:      "",
+			Config:         nil, // nil Config should not cause panic
+		}
+
+		got := aws.SpotRefreshEnabled()
+		want := false // No fields set, should return false
+		if got != want {
+			t.Errorf("AWS.SpotRefreshEnabled() with nil Config and no fields = %v, want %v", got, want)
+		}
+	})
 }
