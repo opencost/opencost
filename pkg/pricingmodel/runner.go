@@ -123,16 +123,7 @@ func (r *runner) export() {
 		return
 	}
 
-	data, err := pms.MarshalBinary()
-	if err != nil {
-		log.Errorf("PricingModel[%s]: runner: failed to marshal pricing model set: %v", pms.Source, err)
-		r.statusLock.Lock()
-		r.status.LastError = err.Error()
-		r.statusLock.Unlock()
-		return
-	}
-
-	err = r.store.Write(r.source.PricingSourceKey(), data)
+	err = r.store.Write(r.source.PricingSourceKey(), pms)
 	if err != nil {
 		log.Errorf("PricingModel[%s]: runner: failed to write pricing model set to storage: %v", pms.Source, err)
 		r.statusLock.Lock()
@@ -140,9 +131,7 @@ func (r *runner) export() {
 		r.statusLock.Unlock()
 		return
 	}
-
-	log.Infof("PricingModel[%s]: runner: exported pricing model set (%d bytes)", pms.Source, len(data))
-
+	
 	r.statusLock.Lock()
 	r.status.LastRun = time.Now().UTC()
 	r.status.Runs++

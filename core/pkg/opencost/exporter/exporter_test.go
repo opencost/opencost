@@ -1,6 +1,7 @@
 package exporter
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -182,7 +183,7 @@ func TestExporters(t *testing.T) {
 			t.Fatalf("failed to export allocation data: %v", err)
 		}
 
-		validateFileCreation[opencost.AllocationSet](t, memStore, p, start, end)
+		validateFileCreation[opencost.AllocationSet](t, memStore, p, "", start, end)
 	})
 
 	t.Run("asset exporter", func(t *testing.T) {
@@ -211,7 +212,7 @@ func TestExporters(t *testing.T) {
 			t.Fatalf("failed to export asset data: %v", err)
 		}
 
-		validateFileCreation[opencost.AssetSet](t, memStore, p, start, end)
+		validateFileCreation[opencost.AssetSet](t, memStore, p, "", start, end)
 	})
 
 	t.Run("network insight exporter", func(t *testing.T) {
@@ -240,7 +241,7 @@ func TestExporters(t *testing.T) {
 			t.Fatalf("failed to export net insights data: %v", err)
 		}
 
-		validateFileCreation[opencost.NetworkInsightSet](t, memStore, p, start, end)
+		validateFileCreation[opencost.NetworkInsightSet](t, memStore, p, "", start, end)
 	})
 
 	t.Run("KubeModel exporter", func(t *testing.T) {
@@ -268,8 +269,9 @@ func TestExporters(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to export KubeModel data: %v", err)
 		}
-
-		validateFileCreation[kubemodel.KubeModelSet](t, memStore, p, start, end)
+		
+		ext := fmt.Sprintf(exporter.BingenVersionExtFMT, kubemodel.DefaultCodecVersion)
+		validateFileCreation[kubemodel.KubeModelSet](t, memStore, p, ext, start, end)
 	})
 
 	t.Run("unknown exporter", func(t *testing.T) {
@@ -323,9 +325,9 @@ func TestPipelineExportControllers(t *testing.T) {
 			t.Fatalf("failed to create net insights path formatter: %v", err)
 		}
 
-		validateFileCreation[opencost.AllocationSet](t, memStore, allocPath, start, end)
-		validateFileCreation[opencost.AssetSet](t, memStore, assetPath, start, end)
-		validateFileCreation[opencost.NetworkInsightSet](t, memStore, netPath, start, end)
+		validateFileCreation[opencost.AllocationSet](t, memStore, allocPath, "", start, end)
+		validateFileCreation[opencost.AssetSet](t, memStore, assetPath, "", start, end)
+		validateFileCreation[opencost.NetworkInsightSet](t, memStore, netPath, "", start, end)
 	})
 
 	t.Run("with auto-set to minute resolution", func(t *testing.T) {
@@ -361,9 +363,9 @@ func TestPipelineExportControllers(t *testing.T) {
 			t.Fatalf("failed to create net insights path formatter: %v", err)
 		}
 
-		validateFileCreation[opencost.AllocationSet](t, memStore, allocPath, start, end)
-		validateFileCreation[opencost.AssetSet](t, memStore, assetPath, start, end)
-		validateFileCreation[opencost.NetworkInsightSet](t, memStore, netPath, start, end)
+		validateFileCreation[opencost.AllocationSet](t, memStore, allocPath, "", start, end)
+		validateFileCreation[opencost.AssetSet](t, memStore, assetPath, "", start, end)
+		validateFileCreation[opencost.NetworkInsightSet](t, memStore, netPath, "", start, end)
 	})
 
 	t.Run("with default export config", func(t *testing.T) {
@@ -420,10 +422,15 @@ func TestPipelineExportControllers(t *testing.T) {
 }
 
 // test helper function that will load a path from a storage implementation and ensure that the file is not empty and can be decoded, etc...
-func validateFileCreation[T any, U PipelineData[T]](t *testing.T, memStore storage.Storage, p pathing.StoragePathFormatter[opencost.Window], start, end time.Time) {
+func validateFileCreation[T any, U PipelineData[T]](
+	t *testing.T,
+	memStore storage.Storage,
+	p pathing.StoragePathFormatter[opencost.Window],
+	ext string,
+	start, end time.Time) {
 	t.Helper()
 
-	expectedPath := p.ToFullPath("", opencost.NewClosedWindow(start, end), "")
+	expectedPath := p.ToFullPath("", opencost.NewClosedWindow(start, end), ext)
 
 	fileContents, err := memStore.Read(expectedPath)
 	if err != nil {
