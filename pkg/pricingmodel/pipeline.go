@@ -9,6 +9,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/model/pricingmodel"
 	corestorage "github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/pkg/cloud/aws"
+	"github.com/opencost/opencost/pkg/cloud/azure"
 )
 
 // Pipeline manages a set of runners, one per PricingSource, exporting pricing
@@ -57,6 +58,20 @@ func NewPipeline(store corestorage.Storage, cfg PipelineConfig) (*Pipeline, erro
 		}
 		p.addSource(src, rc)
 	}
+
+	if cfg.AzureRunnerConfig.Enabled {
+		src := azure.NewAzureRetailPricingSource(azure.AzureRetailPricingSourceConfig{
+			CurrencyCode: cfg.AzureRunnerConfig.CurrencyCode,
+		})
+		rc := runnerConfig{
+			interval: cfg.AzureRunnerConfig.RefreshInterval,
+		}
+		if t, ok := lastUpdates[src.PricingSourceKey()]; ok {
+			rc.lastRun = &t
+		}
+		p.addSource(src, rc)
+	}
+
 	return p, nil
 }
 

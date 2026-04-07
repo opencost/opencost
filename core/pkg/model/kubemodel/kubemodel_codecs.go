@@ -15,6 +15,7 @@ import (
 	"fmt"
 	util "github.com/opencost/opencost/core/pkg/util"
 	"reflect"
+	"github.com/opencost/opencost/core/pkg/model/shared"
 	"strings"
 	"sync"
 	"time"
@@ -298,14 +299,12 @@ func (target *Cluster) MarshalBinaryWithContext(ctx *EncodingContext) (err error
 	} else {
 		buff.WriteString(target.UID) // write string
 	}
-	// --- [begin][write][alias](Provider) ---
 	if ctx.IsStringTable() {
 		b := ctx.Table.AddOrGet(string(target.Provider))
 		buff.WriteInt(b) // write table index
 	} else {
 		buff.WriteString(string(target.Provider)) // write string
 	}
-	// --- [end][write][alias](Provider) ---
 
 	if ctx.IsStringTable() {
 		c := ctx.Table.AddOrGet(target.Account)
@@ -326,18 +325,18 @@ func (target *Cluster) MarshalBinaryWithContext(ctx *EncodingContext) (err error
 		buff.WriteString(target.Region) // write string
 	}
 	// --- [begin][write][reference](time.Time) ---
-	f, errA := target.Start.MarshalBinary()
-	if errA != nil {
-		return errA
+	f, errB := target.Start.MarshalBinary()
+	if errB != nil {
+		return errB
 	}
 	buff.WriteInt(len(f))
 	buff.WriteBytes(f)
 	// --- [end][write][reference](time.Time) ---
 
 	// --- [begin][write][reference](time.Time) ---
-	g, errB := target.End.MarshalBinary()
-	if errB != nil {
-		return errB
+	g, errC := target.End.MarshalBinary()
+	if errC != nil {
+		return errC
 	}
 	buff.WriteInt(len(g))
 	buff.WriteBytes(g)
@@ -418,35 +417,29 @@ func (target *Cluster) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 
 	// field version check
 	if uint8(1) <= version {
-		// --- [begin][read][alias](Provider) ---
 		var d string
-		var f string
 		if ctx.IsStringTable() {
-			g := buff.ReadInt() // read string index
-			f = ctx.Table[g]
+			e := buff.ReadInt() // read string index
+			d = ctx.Table[e]
 		} else {
-			f = buff.ReadString() // read string
+			d = buff.ReadString() // read string
 		}
-		e := f
-		d = e
-
-		target.Provider = Provider(d)
-		// --- [end][read][alias](Provider) ---
+		target.Provider = shared.Provider(d)
 
 	} else {
 	}
 
 	// field version check
 	if uint8(1) <= version {
-		var k string
+		var h string
 		if ctx.IsStringTable() {
-			l := buff.ReadInt() // read string index
-			k = ctx.Table[l]
+			k := buff.ReadInt() // read string index
+			h = ctx.Table[k]
 		} else {
-			k = buff.ReadString() // read string
+			h = buff.ReadString() // read string
 		}
-		h := k
-		target.Account = h
+		g := h
+		target.Account = g
 
 	} else {
 		target.Account = "" // default
@@ -454,15 +447,15 @@ func (target *Cluster) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 
 	// field version check
 	if uint8(1) <= version {
-		var n string
+		var m string
 		if ctx.IsStringTable() {
-			o := buff.ReadInt() // read string index
-			n = ctx.Table[o]
+			n := buff.ReadInt() // read string index
+			m = ctx.Table[n]
 		} else {
-			n = buff.ReadString() // read string
+			m = buff.ReadString() // read string
 		}
-		m := n
-		target.Name = m
+		l := m
+		target.Name = l
 
 	} else {
 		target.Name = "" // default
@@ -470,15 +463,15 @@ func (target *Cluster) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 
 	// field version check
 	if uint8(2) <= version {
-		var q string
+		var p string
 		if ctx.IsStringTable() {
-			r := buff.ReadInt() // read string index
-			q = ctx.Table[r]
+			q := buff.ReadInt() // read string index
+			p = ctx.Table[q]
 		} else {
-			q = buff.ReadString() // read string
+			p = buff.ReadString() // read string
 		}
-		p := q
-		target.Region = p
+		o := p
+		target.Region = o
 
 	} else {
 		target.Region = "" // default
@@ -487,14 +480,14 @@ func (target *Cluster) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 	// field version check
 	if uint8(1) <= version {
 		// --- [begin][read][reference](time.Time) ---
-		s := &time.Time{}
-		t := buff.ReadInt()    // byte array length
-		u := buff.ReadBytes(t) // byte array
-		errA := s.UnmarshalBinary(u)
-		if errA != nil {
-			return errA
+		r := &time.Time{}
+		s := buff.ReadInt()    // byte array length
+		t := buff.ReadBytes(s) // byte array
+		errB := r.UnmarshalBinary(t)
+		if errB != nil {
+			return errB
 		}
-		target.Start = *s
+		target.Start = *r
 		// --- [end][read][reference](time.Time) ---
 
 	} else {
@@ -503,14 +496,14 @@ func (target *Cluster) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 	// field version check
 	if uint8(1) <= version {
 		// --- [begin][read][reference](time.Time) ---
-		w := &time.Time{}
-		x := buff.ReadInt()    // byte array length
-		y := buff.ReadBytes(x) // byte array
-		errB := w.UnmarshalBinary(y)
-		if errB != nil {
-			return errB
+		u := &time.Time{}
+		w := buff.ReadInt()    // byte array length
+		x := buff.ReadBytes(w) // byte array
+		errC := u.UnmarshalBinary(x)
+		if errC != nil {
+			return errC
 		}
-		target.End = *w
+		target.End = *u
 		// --- [end][read][reference](time.Time) ---
 
 	} else {
@@ -1317,15 +1310,33 @@ func (target *DCGMDevice) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 	} else {
 		buff.WriteString(target.UUID) // write string
 	}
+	// --- [begin][write][reference](time.Time) ---
+	b, errA := target.Start.MarshalBinary()
+	if errA != nil {
+		return errA
+	}
+	buff.WriteInt(len(b))
+	buff.WriteBytes(b)
+	// --- [end][write][reference](time.Time) ---
+
+	// --- [begin][write][reference](time.Time) ---
+	c, errB := target.End.MarshalBinary()
+	if errB != nil {
+		return errB
+	}
+	buff.WriteInt(len(c))
+	buff.WriteBytes(c)
+	// --- [end][write][reference](time.Time) ---
+
 	if ctx.IsStringTable() {
-		b := ctx.Table.AddOrGet(target.Device)
-		buff.WriteInt(b) // write table index
+		d := ctx.Table.AddOrGet(target.Device)
+		buff.WriteInt(d) // write table index
 	} else {
 		buff.WriteString(target.Device) // write string
 	}
 	if ctx.IsStringTable() {
-		c := ctx.Table.AddOrGet(target.ModelName)
-		buff.WriteInt(c) // write table index
+		e := ctx.Table.AddOrGet(target.ModelName)
+		buff.WriteInt(e) // write table index
 	} else {
 		buff.WriteString(target.ModelName) // write string
 	}
@@ -1338,16 +1349,16 @@ func (target *DCGMDevice) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 		buff.WriteInt(len(target.PodUsage)) // map length
 		for v, z := range target.PodUsage {
 			if ctx.IsStringTable() {
-				d := ctx.Table.AddOrGet(v)
-				buff.WriteInt(d) // write table index
+				f := ctx.Table.AddOrGet(v)
+				buff.WriteInt(f) // write table index
 			} else {
 				buff.WriteString(v) // write string
 			}
 			// --- [begin][write][struct](DCGMPod) ---
 			buff.WriteInt(0) // [compatibility, unused]
-			errA := z.MarshalBinaryWithContext(ctx)
-			if errA != nil {
-				return errA
+			errC := z.MarshalBinaryWithContext(ctx)
+			if errC != nil {
+				return errC
 			}
 			// --- [end][write][struct](DCGMPod) ---
 
@@ -1422,57 +1433,79 @@ func (target *DCGMDevice) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 	a := b
 	target.UUID = a
 
-	var e string
-	if ctx.IsStringTable() {
-		f := buff.ReadInt() // read string index
-		e = ctx.Table[f]
-	} else {
-		e = buff.ReadString() // read string
+	// --- [begin][read][reference](time.Time) ---
+	d := &time.Time{}
+	e := buff.ReadInt()    // byte array length
+	f := buff.ReadBytes(e) // byte array
+	errA := d.UnmarshalBinary(f)
+	if errA != nil {
+		return errA
 	}
-	d := e
-	target.Device = d
+	target.Start = *d
+	// --- [end][read][reference](time.Time) ---
 
-	var h string
-	if ctx.IsStringTable() {
-		k := buff.ReadInt() // read string index
-		h = ctx.Table[k]
-	} else {
-		h = buff.ReadString() // read string
+	// --- [begin][read][reference](time.Time) ---
+	g := &time.Time{}
+	h := buff.ReadInt()    // byte array length
+	k := buff.ReadBytes(h) // byte array
+	errB := g.UnmarshalBinary(k)
+	if errB != nil {
+		return errB
 	}
-	g := h
-	target.ModelName = g
+	target.End = *g
+	// --- [end][read][reference](time.Time) ---
+
+	var m string
+	if ctx.IsStringTable() {
+		n := buff.ReadInt() // read string index
+		m = ctx.Table[n]
+	} else {
+		m = buff.ReadString() // read string
+	}
+	l := m
+	target.Device = l
+
+	var p string
+	if ctx.IsStringTable() {
+		q := buff.ReadInt() // read string index
+		p = ctx.Table[q]
+	} else {
+		p = buff.ReadString() // read string
+	}
+	o := p
+	target.ModelName = o
 
 	if buff.ReadUInt8() == uint8(0) {
 		target.PodUsage = nil
 	} else {
 		// --- [begin][read][map](map[string]DCGMPod) ---
-		m := buff.ReadInt() // map len
-		l := make(map[string]DCGMPod, m)
-		for i := 0; i < m; i++ {
+		s := buff.ReadInt() // map len
+		r := make(map[string]DCGMPod, s)
+		for i := 0; i < s; i++ {
 			var v string
-			var o string
+			var u string
 			if ctx.IsStringTable() {
-				p := buff.ReadInt() // read string index
-				o = ctx.Table[p]
+				w := buff.ReadInt() // read string index
+				u = ctx.Table[w]
 			} else {
-				o = buff.ReadString() // read string
+				u = buff.ReadString() // read string
 			}
-			n := o
-			v = n
+			t := u
+			v = t
 
 			// --- [begin][read][struct](DCGMPod) ---
-			q := &DCGMPod{}
+			x := &DCGMPod{}
 			buff.ReadInt() // [compatibility, unused]
-			errA := q.UnmarshalBinaryWithContext(ctx)
-			if errA != nil {
-				return errA
+			errC := x.UnmarshalBinaryWithContext(ctx)
+			if errC != nil {
+				return errC
 			}
-			z := *q
+			z := *x
 			// --- [end][read][struct](DCGMPod) ---
 
-			l[v] = z
+			r[v] = z
 		}
-		target.PodUsage = l
+		target.PodUsage = r
 		// --- [end][read][map](map[string]DCGMPod) ---
 
 	}

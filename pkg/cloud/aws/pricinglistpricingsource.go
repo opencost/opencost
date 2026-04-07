@@ -11,6 +11,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/model/pricingmodel"
+	"github.com/opencost/opencost/core/pkg/model/shared"
 )
 
 const pricingCacheTTL = 24 * time.Hour
@@ -106,9 +107,10 @@ func (p *PricingListPricingSource) GetPricing() (*pricingmodel.PricingModelSet, 
 		}
 
 		skuToNodeKey[product.Sku] = pricingmodel.NodeKey{
-			Provider: "AWS",
-			Region:   attr.RegionCode,
-			NodeType: attr.InstanceType,
+			Provider:  shared.ProviderAWS,
+			Region:    attr.RegionCode,
+			NodeType:  attr.InstanceType,
+			UsageType: shared.UsageTypeOnDemand,
 		}
 	}
 

@@ -15,6 +15,7 @@ import (
 	"fmt"
 	util "github.com/opencost/opencost/core/pkg/util"
 	"reflect"
+	"github.com/opencost/opencost/core/pkg/model/shared"
 	"strings"
 	"sync"
 	"time"
@@ -265,10 +266,10 @@ func (target *NodeKey) MarshalBinaryWithContext(ctx *EncodingContext) (err error
 	buff.WriteUInt8(DefaultCodecVersion) // version
 
 	if ctx.IsStringTable() {
-		a := ctx.Table.AddOrGet(target.Provider)
+		a := ctx.Table.AddOrGet(string(target.Provider))
 		buff.WriteInt(a) // write table index
 	} else {
-		buff.WriteString(target.Provider) // write string
+		buff.WriteString(string(target.Provider)) // write string
 	}
 	if ctx.IsStringTable() {
 		b := ctx.Table.AddOrGet(target.Region)
@@ -282,6 +283,13 @@ func (target *NodeKey) MarshalBinaryWithContext(ctx *EncodingContext) (err error
 	} else {
 		buff.WriteString(target.NodeType) // write string
 	}
+	if ctx.IsStringTable() {
+		d := ctx.Table.AddOrGet(string(target.UsageType))
+		buff.WriteInt(d) // write table index
+	} else {
+		buff.WriteString(string(target.UsageType)) // write string
+	}
+
 	return nil
 }
 
@@ -346,8 +354,7 @@ func (target *NodeKey) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 	} else {
 		b = buff.ReadString() // read string
 	}
-	a := b
-	target.Provider = a
+	target.Provider = shared.Provider(b)
 
 	var e string
 	if ctx.IsStringTable() {
@@ -356,8 +363,7 @@ func (target *NodeKey) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 	} else {
 		e = buff.ReadString() // read string
 	}
-	d := e
-	target.Region = d
+	target.Region = e
 
 	var h string
 	if ctx.IsStringTable() {
@@ -366,8 +372,16 @@ func (target *NodeKey) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 	} else {
 		h = buff.ReadString() // read string
 	}
-	g := h
-	target.NodeType = g
+	target.NodeType = h
+
+	var m string
+	if ctx.IsStringTable() {
+		n := buff.ReadInt() // read string index
+		m = ctx.Table[n]
+	} else {
+		m = buff.ReadString() // read string
+	}
+	target.UsageType = shared.UsageType(m)
 
 	return nil
 }
