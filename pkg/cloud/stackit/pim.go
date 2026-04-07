@@ -142,7 +142,7 @@ func fetchAllPIMSKUs(req pimSearchRequest) ([]pimSKU, error) {
 	return allSKUs, nil
 }
 
-// parsePIMVMFlavors converts VM SKUs into a flavor → pricing map.
+// parsePIMVMFlavors converts VM SKUs into a flavor -> pricing map.
 // It filters for non-metro SKUs and extracts flavor name, vCPU, RAM, and hourly price.
 func parsePIMVMFlavors(skus []pimSKU) map[string]*pimFlavorPricing {
 	flavors := make(map[string]*pimFlavorPricing)
@@ -178,7 +178,7 @@ func parsePIMVMFlavors(skus []pimSKU) map[string]*pimFlavorPricing {
 			ramGB = *attrs.RAM
 		}
 
-		// Detect GPU count from flavor name (e.g. "n1.14d.g1" → 1, "n1.28d.g2" → 2)
+		// Detect GPU count from flavor name (e.g. "n1.14d.g1" -> 1, "n1.28d.g2" -> 2)
 		gpuCount := 0
 		gpuType := ""
 		if strings.HasPrefix(flavor, "n1.") || strings.HasPrefix(flavor, "n2.") || strings.HasPrefix(flavor, "n3.") {
@@ -241,7 +241,7 @@ func parsePIMStoragePricing(skus []pimSKU) map[string]*pimStoragePricing {
 }
 
 // gpuCountFromFlavor extracts GPU count from a STACKIT GPU flavor name.
-// e.g. "n1.14d.g1" → 1, "n1.28d.g2" → 2, "n3.104d.g8" → 8
+// e.g. "n1.14d.g1" -> 1, "n1.28d.g2" -> 2, "n3.104d.g8" -> 8
 func gpuCountFromFlavor(flavor string) int {
 	parts := strings.Split(flavor, ".g")
 	if len(parts) == 2 {
