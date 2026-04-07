@@ -4,30 +4,91 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
-// K8sProxyTarget implements automatic fallback from direct HTTP to Kubernetes API proxy.
+// PodProxyGetter makes requests to pods via the Kubernetes API server's proxy endpoint.
+// The K8s API server proxies the request to the target pod on our behalf.
+type PodProxyGetter interface {
+	Get(ctx context.Context, namespace, podName string, port int, path string) (io.Reader, error)
+}
+
+// PodProxyClient implements PodProxyGetter using the Kubernetes API.
+type PodProxyClient struct {
+	clientset kubernetes.Interface
+}
+
+// NewPodProxyClient creates a PodProxyClient from a Kubernetes REST config.
+// Returns nil if the client cannot be created.
+func NewPodProxyClient(config *rest.Config) *PodProxyClient {
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil
+	}
+
+	return &PodProxyClient{clientset: clientset}
+}
+
+// Get makes a GET request to a pod via the Kubernetes API server's proxy endpoint.
+// The API server proxies the request to the specified pod.
+func (c *PodProxyClient) Get(ctx context.Context, namespace, podName string, port int, path string) (io.Reader, error) {
+	// Build the proxy request
+	// Format: /api/v1/namespaces/{namespace}/pods/{pod}:{port}/proxy/{path}
+	req := c.clientset.CoreV1().
+		RESTClient().
+		Get().
+		Namespace(namespace).
+		Resource("pods").
+		SubResource("proxy").
+		Name(fmt.Sprintf("%s:%d", podName, port)).
+		Suffix(path)
+
+	// Execute the request - the K8s API server will proxy it to the pod
+	data, err := req.DoRaw(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("proxy request failed: %w", err)
+	}
+
+	return &bytesReader{data: data}, nil
+}
+
+// bytesReader wraps a byte slice to implement io.Reader
+type bytesReader struct {
+	data []byte
+	pos  int
+}
+
+func (r *bytesReader) Read(p []byte) (n int, err error) {
+	if r.pos >= len(r.data) {
+		return 0, io.EOF
+	}
+	n = copy(p, r.data[r.pos:])
+	r.pos += n
+	return n, nil
+}
+
+// K8sProxyTarget implements automatic fallback from direct HTTP to Kubernetes API server proxy.
 // It first tries direct HTTP scraping (optimal), and if that fails, automatically retries
-// via K8s API proxy. This handles environments where direct pod-to-pod communication is
-// restricted (e.g., OpenShift with OVN-Kubernetes CNI and hostNetwork=true).
+// by requesting the K8s API server to proxy the request to the pod. This handles environments
+// where direct pod-to-pod communication is restricted (e.g., OpenShift with OVN-Kubernetes CNI
+// and hostNetwork=true).
 type K8sProxyTarget struct {
 	directTarget *UrlTarget
-	clientset    kubernetes.Interface
+	proxyGetter  PodProxyGetter
 	namespace    string
 	podName      string
 	port         int
 	path         string
 }
 
-// NewK8sProxyTarget creates a target that tries direct HTTP first, then K8s API proxy on failure.
-func NewK8sProxyTarget(url string, clientset kubernetes.Interface, namespace, podName string, port int, path string) *K8sProxyTarget {
+// NewK8sProxyTarget creates a target that tries direct HTTP first, then K8s API server proxy on failure.
+func NewK8sProxyTarget(url string, proxyGetter PodProxyGetter, namespace, podName string, port int, path string) *K8sProxyTarget {
 	return &K8sProxyTarget{
 		directTarget: NewUrlTarget(url),
-		clientset:    clientset,
+		proxyGetter:  proxyGetter,
 		namespace:    namespace,
 		podName:      podName,
 		port:         port,
@@ -35,7 +96,7 @@ func NewK8sProxyTarget(url string, clientset kubernetes.Interface, namespace, po
 	}
 }
 
-// Load tries direct HTTP first, then falls back to K8s API proxy on failure.
+// Load tries direct HTTP first, then falls back to K8s API server proxy on failure.
 func (t *K8sProxyTarget) Load() (io.Reader, error) {
 	// Try direct HTTP first (optimal performance)
 	reader, err := t.directTarget.Load()
@@ -43,32 +104,15 @@ func (t *K8sProxyTarget) Load() (io.Reader, error) {
 		return reader, nil
 	}
 
-	// Direct HTTP failed, try K8s API proxy
-	log.Debugf("Direct HTTP failed for %s/%s, trying K8s API proxy", t.namespace, t.podName)
+	// Direct HTTP failed, request K8s API server to proxy to the pod
+	log.Debugf("Direct HTTP failed for %s/%s, requesting K8s API server to proxy", t.namespace, t.podName)
 
-	// Build the proxy request path
-	proxyPath := t.path
-	if !strings.HasPrefix(proxyPath, "/") {
-		proxyPath = "/" + proxyPath
-	}
-
-	// Use the Kubernetes client to make a proxy request
-	// Format: /api/v1/namespaces/{namespace}/pods/{pod}:{port}/proxy/{path}
-	req := t.clientset.CoreV1().
-		RESTClient().
-		Get().
-		Namespace(t.namespace).
-		Resource("pods").
-		SubResource("proxy").
-		Name(fmt.Sprintf("%s:%d", t.podName, t.port)).
-		Suffix(proxyPath)
-
-	// Execute the request
-	data, proxyErr := req.DoRaw(context.Background())
+	// Use the proxy getter to make the request via K8s API server
+	reader, proxyErr := t.proxyGetter.Get(context.Background(), t.namespace, t.podName, t.port, t.path)
 	if proxyErr != nil {
-		return nil, fmt.Errorf("both direct HTTP and K8s proxy failed - direct: %v, proxy: %v", err, proxyErr)
+		return nil, fmt.Errorf("both direct HTTP and K8s API proxy failed - direct: %v, proxy: %v", err, proxyErr)
 	}
 
-	log.Infof("Successfully scraped %s/%s via K8s API proxy fallback", t.namespace, t.podName)
-	return strings.NewReader(string(data)), nil
+	log.Infof("Successfully scraped %s/%s via K8s API server proxy fallback", t.namespace, t.podName)
+	return reader, nil
 }

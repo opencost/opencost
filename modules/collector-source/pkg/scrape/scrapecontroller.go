@@ -10,6 +10,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/nodestats"
 	"github.com/opencost/opencost/core/pkg/util/atomic"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
+	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 )
 
@@ -29,7 +30,7 @@ func NewScrapeController(
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient nodestats.StatSummaryClient,
-	networkCostsClient NetworkCostsClient,
+	proxyGetter target.PodProxyGetter,
 ) *ScrapeController {
 
 	var scrapers []Scraper
@@ -45,7 +46,7 @@ func NewScrapeController(
 	statSummaryScraper := newStatSummaryScraper(statSummaryClient)
 	scrapers = append(scrapers, statSummaryScraper)
 
-	networkScraper := newNetworkScraper(networkPort, clusterCache, networkCostsClient)
+	networkScraper := newNetworkScraper(networkPort, clusterCache, proxyGetter)
 	scrapers = append(scrapers, networkScraper)
 
 	dcgmScraper := newDCGMScrapper(clusterCache)

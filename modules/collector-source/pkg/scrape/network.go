@@ -19,9 +19,9 @@ const (
 func newNetworkScraper(
 	port int,
 	clusterCache clustercache.ClusterCache,
-	networkCostsClient NetworkCostsClient,
+	proxyGetter target.PodProxyGetter,
 ) Scraper {
-	tp := NewNetworkTargetProvider(port, clusterCache, networkCostsClient)
+	tp := NewNetworkTargetProvider(port, clusterCache, proxyGetter)
 	return newNetworkTargetScraper(tp)
 }
 
@@ -37,16 +37,16 @@ func newNetworkTargetScraper(provider target.TargetProvider) *TargetScraper {
 }
 
 type NetworkTargetProvider struct {
-	port               int
-	clusterCache       clustercache.ClusterCache
-	networkCostsClient NetworkCostsClient
+	port         int
+	clusterCache clustercache.ClusterCache
+	proxyGetter  target.PodProxyGetter
 }
 
-func NewNetworkTargetProvider(port int, clusterCache clustercache.ClusterCache, networkCostsClient NetworkCostsClient) *NetworkTargetProvider {
+func NewNetworkTargetProvider(port int, clusterCache clustercache.ClusterCache, proxyGetter target.PodProxyGetter) *NetworkTargetProvider {
 	return &NetworkTargetProvider{
-		port:               port,
-		clusterCache:       clusterCache,
-		networkCostsClient: networkCostsClient,
+		port:         port,
+		clusterCache: clusterCache,
+		proxyGetter:  proxyGetter,
 	}
 }
 
@@ -63,21 +63,18 @@ func (n *NetworkTargetProvider) GetTargets() []target.ScrapeTarget {
 		if pod.Status.Phase == v1.PodRunning && isNetworkCosts(pod.Labels) {
 			log.Debugf("Network: found target for pod %s in namespace %s", pod.Name, pod.Namespace)
 
-			// Create target with automatic fallback: tries direct HTTP first, then K8s proxy
+			// Create target with automatic fallback: tries direct HTTP first, then K8s API proxy
 			url := fmt.Sprintf("http://%s:%d/metrics", pod.Status.PodIP, n.port)
 
-			if n.networkCostsClient != nil {
-				if kubeClient := n.networkCostsClient.GetKubeClient(); kubeClient != nil {
-					// Use K8sProxyTarget which automatically falls back to K8s proxy on direct HTTP failure
-					t := target.NewK8sProxyTarget(url, kubeClient, pod.Namespace, pod.Name, n.port, "metrics")
-					targets = append(targets, t)
-					continue
-				}
+			if n.proxyGetter != nil {
+				// Use K8sProxyTarget which automatically falls back to K8s API proxy on direct HTTP failure
+				t := target.NewK8sProxyTarget(url, n.proxyGetter, pod.Namespace, pod.Name, n.port, "metrics")
+				targets = append(targets, t)
+			} else {
+				// Fallback to direct HTTP only if no proxy getter available
+				t := target.NewUrlTarget(url)
+				targets = append(targets, t)
 			}
-
-			// Fallback to direct HTTP only if no K8s client available
-			t := target.NewUrlTarget(url)
-			targets = append(targets, t)
 		}
 	}
 

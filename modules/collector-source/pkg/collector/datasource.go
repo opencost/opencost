@@ -14,6 +14,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape"
+	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 )
 
@@ -31,7 +32,7 @@ func NewDefaultCollectorDataSource(
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient nodestats.StatSummaryClient,
-	networkCostsClient scrape.NetworkCostsClient,
+	proxyGetter target.PodProxyGetter,
 ) source.OpenCostDataSource {
 	config := NewOpenCostCollectorConfigFromEnv(clusterUID)
 	return NewCollectorDataSource(
@@ -40,7 +41,7 @@ func NewDefaultCollectorDataSource(
 		clusterInfoProvider,
 		clusterCache,
 		statSummaryClient,
-		networkCostsClient,
+		proxyGetter,
 	)
 }
 
@@ -50,7 +51,7 @@ func NewCollectorDataSource(
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient nodestats.StatSummaryClient,
-	networkCostsClient scrape.NetworkCostsClient,
+	proxyGetter target.PodProxyGetter,
 ) source.OpenCostDataSource {
 	var resolutions []*util.Resolution
 	for _, resconf := range config.Resolutions {
@@ -93,7 +94,7 @@ func NewCollectorDataSource(
 		clusterInfoProvider,
 		clusterCache,
 		statSummaryClient,
-		networkCostsClient,
+		proxyGetter,
 	)
 	scrapeController.Start()
 
