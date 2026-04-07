@@ -1311,6 +1311,7 @@ func (m *mockClusterCache) GetAllPersistentVolumeClaims() []*clustercache.Persis
 }
 func (m *mockClusterCache) GetAllStorageClasses() []*clustercache.StorageClass { return m.scs }
 func (m *mockClusterCache) GetAllJobs() []*clustercache.Job                    { return nil }
+func (m *mockClusterCache) GetAllCronJobs() []*clustercache.CronJob            { return nil }
 func (m *mockClusterCache) GetAllPodDisruptionBudgets() []*clustercache.PodDisruptionBudget {
 	return nil
 }

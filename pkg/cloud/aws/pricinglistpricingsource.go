@@ -16,10 +16,11 @@ import (
 const pricingCacheTTL = 24 * time.Hour
 const pricingCacheDir = "pricingsource/aws"
 const pricingCacheFile = "cached_ec2_pricingmodelset"
+const PricingListPricingSourceKey = "aws_pricing_list_api"
 
-type PublicAPIPricingSource struct{}
+type PricingListPricingSource struct{}
 
-func (p PublicAPIPricingSource) cacheFilePath() (string, error) {
+func (p *PricingListPricingSource) cacheFilePath() (string, error) {
 	dir := env.GetPathFromConfig(pricingCacheDir)
 	if _, e := os.Stat(dir); e != nil && os.IsNotExist(e) {
 		err := os.MkdirAll(dir, os.ModePerm)
@@ -30,7 +31,7 @@ func (p PublicAPIPricingSource) cacheFilePath() (string, error) {
 	return filepath.Join(dir, pricingCacheFile), nil
 }
 
-func (p PublicAPIPricingSource) loadFromCache() (*pricingmodel.PricingModelSet, bool) {
+func (p *PricingListPricingSource) loadFromCache() (*pricingmodel.PricingModelSet, bool) {
 	path, err := p.cacheFilePath()
 	if err != nil {
 		return nil, false
@@ -51,7 +52,7 @@ func (p PublicAPIPricingSource) loadFromCache() (*pricingmodel.PricingModelSet, 
 	return pms, true
 }
 
-func (p PublicAPIPricingSource) saveToCache(pms *pricingmodel.PricingModelSet) {
+func (p *PricingListPricingSource) saveToCache(pms *pricingmodel.PricingModelSet) {
 	path, err := p.cacheFilePath()
 	if err != nil {
 		log.Warnf("failed to determine pricing cache path: %s", err.Error())
@@ -67,11 +68,16 @@ func (p PublicAPIPricingSource) saveToCache(pms *pricingmodel.PricingModelSet) {
 	}
 }
 
-func (p PublicAPIPricingSource) GetPricing(start, end time.Time) (*pricingmodel.PricingModelSet, error) {
+func (p *PricingListPricingSource) PricingSourceKey() string {
+	return PricingListPricingSourceKey
+}
+
+func (p *PricingListPricingSource) GetPricing() (*pricingmodel.PricingModelSet, error) {
 	if cached, ok := p.loadFromCache(); ok {
 		return cached, nil
 	}
-	pms := pricingmodel.NewPricingModelSet(start, end)
+	now := time.Now().UTC()
+	pms := pricingmodel.NewPricingModelSet(now, PricingListPricingSourceKey)
 	skuToNodeKey := make(map[string]pricingmodel.NodeKey)
 
 	// When parsing product we create keys based off of product attributes and link those to a SKU.

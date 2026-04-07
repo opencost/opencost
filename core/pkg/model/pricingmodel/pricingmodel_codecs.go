@@ -47,7 +47,6 @@ var typeMap map[string]reflect.Type = map[string]reflect.Type{
 	"NodeKey":         reflect.TypeOf((*NodeKey)(nil)).Elem(),
 	"NodePricing":     reflect.TypeOf((*NodePricing)(nil)).Elem(),
 	"PricingModelSet": reflect.TypeOf((*PricingModelSet)(nil)).Elem(),
-	"Window":          reflect.TypeOf((*Window)(nil)).Elem(),
 }
 
 //--------------------------------------------------------------------------
@@ -517,14 +516,21 @@ func (target *PricingModelSet) MarshalBinaryWithContext(ctx *EncodingContext) (e
 	buff := ctx.Buffer
 	buff.WriteUInt8(DefaultCodecVersion) // version
 
-	// --- [begin][write][struct](Window) ---
-	buff.WriteInt(0) // [compatibility, unused]
-	errA := target.Window.MarshalBinaryWithContext(ctx)
+	// --- [begin][write][reference](time.Time) ---
+	a, errA := target.TimeStamp.MarshalBinary()
 	if errA != nil {
 		return errA
 	}
-	// --- [end][write][struct](Window) ---
+	buff.WriteInt(len(a))
+	buff.WriteBytes(a)
+	// --- [end][write][reference](time.Time) ---
 
+	if ctx.IsStringTable() {
+		b := ctx.Table.AddOrGet(target.Source)
+		buff.WriteInt(b) // write table index
+	} else {
+		buff.WriteString(target.Source) // write string
+	}
 	if target.NodePricing == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
@@ -610,198 +616,59 @@ func (target *PricingModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 		return fmt.Errorf("Invalid Version Unmarshaling PricingModelSet. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
-	// --- [begin][read][struct](Window) ---
-	a := &Window{}
-	buff.ReadInt() // [compatibility, unused]
-	errA := a.UnmarshalBinaryWithContext(ctx)
+	// --- [begin][read][reference](time.Time) ---
+	a := &time.Time{}
+	b := buff.ReadInt()    // byte array length
+	c := buff.ReadBytes(b) // byte array
+	errA := a.UnmarshalBinary(c)
 	if errA != nil {
 		return errA
 	}
-	target.Window = *a
-	// --- [end][read][struct](Window) ---
+	target.TimeStamp = *a
+	// --- [end][read][reference](time.Time) ---
+
+	var e string
+	if ctx.IsStringTable() {
+		f := buff.ReadInt() // read string index
+		e = ctx.Table[f]
+	} else {
+		e = buff.ReadString() // read string
+	}
+	d := e
+	target.Source = d
 
 	if buff.ReadUInt8() == uint8(0) {
 		target.NodePricing = nil
 	} else {
 		// --- [begin][read][map](map[NodeKey]NodePricing) ---
-		c := buff.ReadInt() // map len
-		b := make(map[NodeKey]NodePricing, c)
-		for i := 0; i < c; i++ {
+		h := buff.ReadInt() // map len
+		g := make(map[NodeKey]NodePricing, h)
+		for i := 0; i < h; i++ {
 			// --- [begin][read][struct](NodeKey) ---
-			d := &NodeKey{}
+			k := &NodeKey{}
 			buff.ReadInt() // [compatibility, unused]
-			errB := d.UnmarshalBinaryWithContext(ctx)
+			errB := k.UnmarshalBinaryWithContext(ctx)
 			if errB != nil {
 				return errB
 			}
-			v := *d
+			v := *k
 			// --- [end][read][struct](NodeKey) ---
 
 			// --- [begin][read][struct](NodePricing) ---
-			e := &NodePricing{}
+			l := &NodePricing{}
 			buff.ReadInt() // [compatibility, unused]
-			errC := e.UnmarshalBinaryWithContext(ctx)
+			errC := l.UnmarshalBinaryWithContext(ctx)
 			if errC != nil {
 				return errC
 			}
-			z := *e
+			z := *l
 			// --- [end][read][struct](NodePricing) ---
 
-			b[v] = z
+			g[v] = z
 		}
-		target.NodePricing = b
+		target.NodePricing = g
 		// --- [end][read][map](map[NodeKey]NodePricing) ---
 
 	}
-	return nil
-}
-
-//--------------------------------------------------------------------------
-//  Window
-//--------------------------------------------------------------------------
-
-// MarshalBinary serializes the internal properties of this Window instance
-// into a byte array
-func (target *Window) MarshalBinary() (data []byte, err error) {
-	ctx := &EncodingContext{
-		Buffer: util.NewBuffer(),
-		Table:  nil,
-	}
-
-	e := target.MarshalBinaryWithContext(ctx)
-	if e != nil {
-		return nil, e
-	}
-
-	encBytes := ctx.Buffer.Bytes()
-	return encBytes, nil
-}
-
-// MarshalBinaryWithContext serializes the internal properties of this Window instance
-// into a byte array leveraging a predefined context.
-func (target *Window) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	buff.WriteUInt8(DefaultCodecVersion) // version
-
-	// --- [begin][write][reference](time.Time) ---
-	a, errA := target.Start.MarshalBinary()
-	if errA != nil {
-		return errA
-	}
-	buff.WriteInt(len(a))
-	buff.WriteBytes(a)
-	// --- [end][write][reference](time.Time) ---
-
-	// --- [begin][write][reference](time.Time) ---
-	b, errB := target.End.MarshalBinary()
-	if errB != nil {
-		return errB
-	}
-	buff.WriteInt(len(b))
-	buff.WriteBytes(b)
-	// --- [end][write][reference](time.Time) ---
-
-	return nil
-}
-
-// UnmarshalBinary uses the data passed byte array to set all the internal properties of
-// the Window type
-func (target *Window) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
-	}
-
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
-// the Window type
-func (target *Window) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	version := buff.ReadUInt8()
-
-	if version > DefaultCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling Window. Expected %d or less, got %d", DefaultCodecVersion, version)
-	}
-
-	// field version check
-	if uint8(1) <= version {
-		// --- [begin][read][reference](time.Time) ---
-		a := &time.Time{}
-		b := buff.ReadInt()    // byte array length
-		c := buff.ReadBytes(b) // byte array
-		errA := a.UnmarshalBinary(c)
-		if errA != nil {
-			return errA
-		}
-		target.Start = *a
-		// --- [end][read][reference](time.Time) ---
-
-	} else {
-	}
-
-	// field version check
-	if uint8(1) <= version {
-		// --- [begin][read][reference](time.Time) ---
-		d := &time.Time{}
-		e := buff.ReadInt()    // byte array length
-		f := buff.ReadBytes(e) // byte array
-		errB := d.UnmarshalBinary(f)
-		if errB != nil {
-			return errB
-		}
-		target.End = *d
-		// --- [end][read][reference](time.Time) ---
-
-	} else {
-	}
-
 	return nil
 }
