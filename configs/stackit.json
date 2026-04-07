@@ -1,0 +1,16 @@
+{
+    "provider": "STACKIT",
+    "currencyCode": "EUR",
+    "description": "STACKIT cloud prices derived from b1.1 (1CPU/4GB/64GB) at 42.78 EUR/month",
+    "CPU": "0.02316",
+    "spotCPU": "0.02316",
+    "RAM": "0.00772",
+    "spotRAM": "0.00772",
+    "GPU": "0",
+    "storage": "0.0000712",
+    "zoneNetworkEgress": "0.01",
+    "regionNetworkEgress": "0.01",
+    "internetNetworkEgress": "0.12",
+    "natGatewayEgress": "0.045",
+    "natGatewayIngress": "0.045"
+}

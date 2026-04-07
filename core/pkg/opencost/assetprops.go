@@ -196,6 +196,9 @@ const DigitalOceanProvider = "DigitalOcean"
 // OVHProvider describes the provider OVH
 const OVHProvider = "OVH"
 
+// STACKITProvider describes the provider STACKIT
+const STACKITProvider = "STACKIT"
+
 // NilProvider describes unknown provider
 const NilProvider = "-"
 

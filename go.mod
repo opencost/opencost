@@ -52,6 +52,8 @@ require (
 	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.36
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
+	github.com/stackitcloud/stackit-sdk-go/core v0.24.0
+	github.com/stackitcloud/stackit-sdk-go/services/cost v0.2.1
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.41.0
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa

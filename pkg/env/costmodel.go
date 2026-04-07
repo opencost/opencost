@@ -40,6 +40,10 @@ const (
 	AzureRegionInfoEnvVar     = "AZURE_REGION_INFO"
 
 	DigitalOceanAccessTokenEnvVar = "DIGITALOCEAN_ACCESS_TOKEN"
+
+	StackitCustomerAccountIDEnvVar = "STACKIT_CUSTOMER_ACCOUNT_ID"
+	StackitProjectIDEnvVar         = "STACKIT_PROJECT_ID"
+	StackitServiceAccountKeyEnvVar = "STACKIT_SERVICE_ACCOUNT_KEY_PATH"
 	// Azure rate card filter environment variables
 
 	// Currently being used for OCI and DigitalOcean
@@ -419,6 +423,18 @@ func GetDigitalOceanAccessToken() string {
 		token = env.Get(CloudProviderAPIKeyEnvVar, "")
 	}
 	return token
+}
+
+func GetStackitCustomerAccountID() string {
+	return env.Get(StackitCustomerAccountIDEnvVar, "")
+}
+
+func GetStackitProjectID() string {
+	return env.Get(StackitProjectIDEnvVar, "")
+}
+
+func GetStackitServiceAccountKeyPath() string {
+	return env.Get(StackitServiceAccountKeyEnvVar, "")
 }
 
 func GetOVHSubsidiary() string {
