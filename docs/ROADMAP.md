@@ -12,7 +12,7 @@ This roadmap reflects the current priorities for the OpenCost project. It is rev
 - **Plugin ecosystem:** Snowflake, GitHub, and currency conversion plugins proposed; MongoDB reference implementation for currency support
 - **Helm chart signing:** Cryptographic signing of Helm charts (research in progress)
 - **Data persistence and export:** Mounting persistence for promless mode, potential S3 export for cost data
-- **Supply chain security:** Achieving [OpenSSF Best Practices](https://www.bestpractices.dev/en/projects/6219) Silver and Gold badges, cryptographically signed releases via Sigstore/cosign, SLSA build provenance, and SPDX license compliance across all source files
+- **Supply chain security:** Achieving [OpenSSF Best Practices](https://www.bestpractices.dev/projects/6219) Silver and Gold badges, cryptographically signed releases via Sigstore/cosign, SLSA build provenance, and SPDX license compliance across all source files
 - **Community growth:** EMEA/APAC meeting cadence, YouTube channel for meeting recordings, DigitalOcean cloud sponsorship for testing
 
 ## Recent Milestones
