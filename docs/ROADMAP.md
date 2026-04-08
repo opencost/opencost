@@ -8,7 +8,7 @@ This roadmap reflects the current priorities for the OpenCost project. It is rev
 - **UI revamp:** Major frontend overhaul via LFX mentorship — new UI released, stabilizing before next core release
 - **OpenCost AI:** New sub-project for airgapped private cost models (CI/CD, testing models at scale, finding smallest viable model)
 - **First-class LLM cost support:** Design proposal for native LLM cost tracking in OpenCost core
-- **Integration test expansion:** Pod restart tests, network cost tests, resolving promless vs Prometheus-backed test discrepancies
+- **Integration test expansion:** Pod restart tests, network cost tests, resolving Prometheus-less (promless) vs Prometheus-backed test discrepancies
 - **Plugin ecosystem:** Snowflake, GitHub, and currency conversion plugins proposed; MongoDB reference implementation for currency support
 - **Helm chart signing:** Cryptographic signing of Helm charts (research in progress)
 - **Data persistence and export:** Mounting persistence for promless mode, potential S3 export for cost data
