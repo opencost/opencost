@@ -1,6 +1,6 @@
 # OpenCost Roadmap
 
-This roadmap reflects the current priorities for the OpenCost project. It is reviewed quarterly and discussed in the biweekly [Working Group meetings](https://bit.ly/opencost-meeting).
+This roadmap reflects the current priorities for the OpenCost project. It is reviewed quarterly and discussed in the biweekly [Working Group meetings](https://zoom-lfx.platform.linuxfoundation.org/meetings/opencost?view=list).
 
 ## Current Focus Areas
 

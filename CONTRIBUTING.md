@@ -145,7 +145,7 @@ All pull requests must be reviewed before merging. The review process ensures:
 
 ## Regression Tests
 
-When fixing a bug, contributors SHOULD add a test that reproduces the bug before applying the fix. This ensures the bug does not recur. At least 50% of bugs fixed in any six-month window should have corresponding regression tests.
+When fixing a bug, contributors SHOULD add a test that reproduces the bug before applying the fix. This ensures the bug does not recur. As a project-wide goal, at least 50% of bugs fixed in any six-month window should have corresponding regression tests. This is tracked by maintainers using issues labeled `bug` and measured during release reviews; it is an aspirational target for the project as a whole, not a requirement applied to individual contributors.
 
 ## Finding Issues to Work On
 
