@@ -1,9 +1,18 @@
-package kubemodel
+package shared
 
 import "strings"
 
 // @bingen:generate:Provider
 type Provider string
+
+func (p Provider) MarshalBinary() ([]byte, error) {
+	return []byte(p), nil
+}
+
+func (p *Provider) UnmarshalBinary(data []byte) error {
+	*p = Provider(data)
+	return nil
+}
 
 const (
 	ProviderEmpty        Provider = ""
