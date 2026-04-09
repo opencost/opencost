@@ -95,10 +95,11 @@ func (a *AzureRetailPricingSource) parsePage(body io.Reader, pms *pricingmodel.P
 			Region:    item.ArmRegionName,
 			NodeType:  item.ArmSkuName,
 			UsageType: usageTypeFromSku(item.SkuName),
+			Type:      pricingmodel.NodePricingTypeTotal,
 		}
 
 		pms.NodePricing[key] = pricingmodel.NodePricing{
-			TotalHourlyRate: float64(item.RetailPrice),
+			HourlyRate: float64(item.RetailPrice),
 		}
 	}
 

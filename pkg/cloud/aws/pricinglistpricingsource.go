@@ -111,6 +111,7 @@ func (p *PricingListPricingSource) GetPricing() (*pricingmodel.PricingModelSet, 
 			Region:    attr.RegionCode,
 			NodeType:  attr.InstanceType,
 			UsageType: shared.UsageTypeOnDemand,
+			Type:      pricingmodel.NodePricingTypeTotal,
 		}
 	}
 
@@ -147,7 +148,7 @@ func (p *PricingListPricingSource) GetPricing() (*pricingmodel.PricingModelSet, 
 			return
 		}
 		pms.NodePricing[nodeKey] = pricingmodel.NodePricing{
-			TotalHourlyRate: price,
+			HourlyRate: price,
 		}
 	}
 

@@ -289,6 +289,24 @@ func (target *NodeKey) MarshalBinaryWithContext(ctx *EncodingContext) (err error
 	} else {
 		buff.WriteString(string(target.UsageType)) // write string
 	}
+	if ctx.IsStringTable() {
+		e := ctx.Table.AddOrGet(target.Family)
+		buff.WriteInt(e) // write table index
+	} else {
+		buff.WriteString(target.Family) // write string
+	}
+	if ctx.IsStringTable() {
+		f := ctx.Table.AddOrGet(target.Accelerator)
+		buff.WriteInt(f) // write table index
+	} else {
+		buff.WriteString(target.Accelerator) // write string
+	}
+	if ctx.IsStringTable() {
+		g := ctx.Table.AddOrGet(string(target.Type))
+		buff.WriteInt(g) // write table index
+	} else {
+		buff.WriteString(string(target.Type)) // write string
+	}
 
 	return nil
 }
@@ -383,6 +401,33 @@ func (target *NodeKey) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 	}
 	target.UsageType = shared.UsageType(m)
 
+	var p string
+	if ctx.IsStringTable() {
+		q := buff.ReadInt() // read string index
+		p = ctx.Table[q]
+	} else {
+		p = buff.ReadString() // read string
+	}
+	target.Family = p
+
+	var s string
+	if ctx.IsStringTable() {
+		t := buff.ReadInt() // read string index
+		s = ctx.Table[t]
+	} else {
+		s = buff.ReadString() // read string
+	}
+	target.Accelerator = s
+
+	var u string
+	if ctx.IsStringTable() {
+		w := buff.ReadInt() // read string index
+		u = ctx.Table[w]
+	} else {
+		u = buff.ReadString() // read string
+	}
+	target.Type = NodePricingType(u)
+
 	return nil
 }
 
@@ -426,7 +471,7 @@ func (target *NodePricing) MarshalBinaryWithContext(ctx *EncodingContext) (err e
 	buff := ctx.Buffer
 	buff.WriteUInt8(DefaultCodecVersion) // version
 
-	buff.WriteFloat64(target.TotalHourlyRate) // write float64
+	buff.WriteFloat64(target.HourlyRate) // write float64
 	return nil
 }
 
@@ -485,7 +530,7 @@ func (target *NodePricing) UnmarshalBinaryWithContext(ctx *DecodingContext) (err
 	}
 
 	a := buff.ReadFloat64() // read float64
-	target.TotalHourlyRate = a
+	target.HourlyRate = a
 
 	return nil
 }

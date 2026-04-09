@@ -4,15 +4,27 @@ import (
 	"github.com/opencost/opencost/core/pkg/model/shared"
 )
 
+type NodePricingType string
+
+const (
+	NodePricingTypeTotal   NodePricingType = "Total"
+	NodePricingTypeCPUCore NodePricingType = "CPUCore"
+	NodePricingTypeRamGB   NodePricingType = "RamGB"
+	NodePricingTypeGPU     NodePricingType = "GPU"
+)
+
 // @bingen:generate:NodeKey
 type NodeKey struct {
-	Provider  shared.Provider
-	Region    string
-	NodeType  string
-	UsageType shared.UsageType
+	Provider    shared.Provider
+	Region      string
+	NodeType    string
+	UsageType   shared.UsageType
+	Family      string
+	Accelerator string
+	Type        NodePricingType
 }
 
 // @bingen:generate:NodePricing
 type NodePricing struct {
-	TotalHourlyRate float64
+	HourlyRate float64
 }
