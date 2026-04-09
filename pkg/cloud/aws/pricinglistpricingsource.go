@@ -19,7 +19,17 @@ const pricingCacheDir = "pricingsource/aws"
 const pricingCacheFile = "cached_ec2_pricingmodelset"
 const PricingListPricingSourceKey = "aws_pricing_list_api"
 
-type PricingListPricingSource struct{}
+type PricingListPricingSourceConfig struct {
+	CurrencyCode string
+}
+
+type PricingListPricingSource struct {
+	config PricingListPricingSourceConfig
+}
+
+func NewPricingListPricingSource(cfg PricingListPricingSourceConfig) *PricingListPricingSource {
+	return &PricingListPricingSource{config: cfg}
+}
 
 func (p *PricingListPricingSource) cacheFilePath() (string, error) {
 	dir := env.GetPathFromConfig(pricingCacheDir)
@@ -121,14 +131,12 @@ func (p *PricingListPricingSource) GetPricing() (*pricingmodel.PricingModelSet, 
 		if !ok {
 			return
 		}
-		isCN := false
 		hourlyRateCode := HourlyRateCode
 		if _, ok = OnDemandRateCodes[term.OfferTermCode]; !ok {
 			if _, okCN := OnDemandRateCodesCn[term.OfferTermCode]; !okCN {
 				// Skip if term is not OnDemand
 				return
 			}
-			isCN = true
 			hourlyRateCode = HourlyRateCodeCn
 		}
 		priceDimensionKey := strings.Join([]string{term.Sku, term.OfferTermCode, hourlyRateCode}, ".")
@@ -138,10 +146,7 @@ func (p *PricingListPricingSource) GetPricing() (*pricingmodel.PricingModelSet, 
 			return
 		}
 
-		priceStr := pricingDimension.PricePerUnit.USD
-		if isCN {
-			priceStr = pricingDimension.PricePerUnit.CNY
-		}
+		priceStr := pricingDimension.PricePerUnit.ForCurrency(p.config.CurrencyCode)
 		price, err := strconv.ParseFloat(priceStr, 64)
 		if err != nil {
 			log.Errorf("failed to parse str to float '%s': %s", priceStr, err.Error())

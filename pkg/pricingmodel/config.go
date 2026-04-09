@@ -4,14 +4,16 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
+	"github.com/opencost/opencost/pkg/env"
 )
 
 // PipelineConfig holds configuration for the pricing model pipeline.
-// If nil is passed to NewPipeline, DefaultPipelineConfig is used.
 type PipelineConfig struct {
 	AppName           string
+	CurrencyCode      string
 	AWSRunnerConfig   AWSRunnerConfig
 	AzureRunnerConfig AzureRunnerConfig
+	GCPRunnerConfig   GCPRunnerConfig
 }
 
 type AWSRunnerConfig struct {
@@ -22,12 +24,18 @@ type AWSRunnerConfig struct {
 type AzureRunnerConfig struct {
 	Enabled         bool
 	RefreshInterval time.Duration
-	CurrencyCode    string
+}
+
+type GCPRunnerConfig struct {
+	Enabled         bool
+	RefreshInterval time.Duration
+	APIKey          string
 }
 
 func DefaultPipelineConfig(appName string) PipelineConfig {
 	return PipelineConfig{
-		AppName: appName,
+		AppName:      appName,
+		CurrencyCode: "USD",
 		AWSRunnerConfig: AWSRunnerConfig{
 			Enabled:         true,
 			RefreshInterval: timeutil.Day,
@@ -35,6 +43,11 @@ func DefaultPipelineConfig(appName string) PipelineConfig {
 		AzureRunnerConfig: AzureRunnerConfig{
 			Enabled:         true,
 			RefreshInterval: timeutil.Day,
+		},
+		GCPRunnerConfig: GCPRunnerConfig{
+			Enabled:         true,
+			RefreshInterval: timeutil.Day,
+			APIKey:          env.GetCloudProviderAPIKey(),
 		},
 	}
 }
