@@ -13,9 +13,9 @@ package pricingmodel
 
 import (
 	"fmt"
+	"github.com/opencost/opencost/core/pkg/model/shared"
 	util "github.com/opencost/opencost/core/pkg/util"
 	"reflect"
-	"github.com/opencost/opencost/core/pkg/model/shared"
 	"strings"
 	"sync"
 	"time"
@@ -309,10 +309,10 @@ func (target *NodeKey) MarshalBinaryWithContext(ctx *EncodingContext) (err error
 	}
 	// --- [begin][write][alias](NodePricingType) ---
 	if ctx.IsStringTable() {
-		g := ctx.Table.AddOrGet(string(target.Type))
+		g := ctx.Table.AddOrGet(string(target.PricingType))
 		buff.WriteInt(g) // write table index
 	} else {
-		buff.WriteString(string(target.Type)) // write string
+		buff.WriteString(string(target.PricingType)) // write string
 	}
 	// --- [end][write][alias](NodePricingType) ---
 
@@ -447,7 +447,7 @@ func (target *NodeKey) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 	w := x
 	u = w
 
-	target.Type = NodePricingType(u)
+	target.PricingType = NodePricingType(u)
 	// --- [end][read][alias](NodePricingType) ---
 
 	return nil

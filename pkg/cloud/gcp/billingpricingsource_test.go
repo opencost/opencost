@@ -193,33 +193,33 @@ func TestGCPBillingPricingSource_ParsePage(t *testing.T) {
 	}
 
 	cpuKey := pricingmodel.NodeKey{
-		Provider:  shared.ProviderGCP,
-		Region:    "us-central1",
-		Family:    "n1",
-		UsageType: shared.UsageTypeOnDemand,
-		Type:      pricingmodel.NodePricingTypeCPUCore,
+		Provider:    shared.ProviderGCP,
+		Region:      "us-central1",
+		Family:      "n1",
+		UsageType:   shared.UsageTypeOnDemand,
+		PricingType: pricingmodel.NodePricingTypeCPUCore,
 	}
 	if _, ok := pms.NodePricing[cpuKey]; !ok {
 		t.Error("missing CPU entry for n1/us-central1")
 	}
 
 	ramKey := pricingmodel.NodeKey{
-		Provider:  shared.ProviderGCP,
-		Region:    "us-central1",
-		Family:    "n1",
-		UsageType: shared.UsageTypeOnDemand,
-		Type:      pricingmodel.NodePricingTypeRamGB,
+		Provider:    shared.ProviderGCP,
+		Region:      "us-central1",
+		Family:      "n1",
+		UsageType:   shared.UsageTypeOnDemand,
+		PricingType: pricingmodel.NodePricingTypeRamGB,
 	}
 	if _, ok := pms.NodePricing[ramKey]; !ok {
 		t.Error("missing RAM entry for n1/us-central1")
 	}
 
 	gpuKey := pricingmodel.NodeKey{
-		Provider:   shared.ProviderGCP,
-		Region:     "us-central1",
-		UsageType:  shared.UsageTypeOnDemand,
-		DeviceType: "nvidia-tesla-t4",
-		Type:       pricingmodel.NodePricingTypeDevice,
+		Provider:    shared.ProviderGCP,
+		Region:      "us-central1",
+		UsageType:   shared.UsageTypeOnDemand,
+		DeviceType:  "nvidia-tesla-t4",
+		PricingType: pricingmodel.NodePricingTypeDevice,
 	}
 	if entry, ok := pms.NodePricing[gpuKey]; !ok {
 		t.Error("missing GPU entry for T4/us-central1")
@@ -252,11 +252,11 @@ func TestGCPBillingPricingSource_ParsePage_Preemptible(t *testing.T) {
 	}
 
 	key := pricingmodel.NodeKey{
-		Provider:  shared.ProviderGCP,
-		Region:    "us-east1",
-		Family:    "n1",
-		UsageType: shared.UsageTypeSpot,
-		Type:      pricingmodel.NodePricingTypeCPUCore,
+		Provider:    shared.ProviderGCP,
+		Region:      "us-east1",
+		Family:      "n1",
+		UsageType:   shared.UsageTypeSpot,
+		PricingType: pricingmodel.NodePricingTypeCPUCore,
 	}
 	if _, ok := pms.NodePricing[key]; !ok {
 		t.Error("missing Preemptible CPU entry")

@@ -165,11 +165,11 @@ func TestAzureRetailPricingSource_ParsePage(t *testing.T) {
 	}
 
 	onDemandKey := pricingmodel.NodeKey{
-		Provider:  shared.ProviderAzure,
-		Region:    "eastus",
-		NodeType:  "Standard_D4s_v3",
-		UsageType: shared.UsageTypeOnDemand,
-		Type:      pricingmodel.NodePricingTypeTotal,
+		Provider:    shared.ProviderAzure,
+		Region:      "eastus",
+		NodeType:    "Standard_D4s_v3",
+		UsageType:   shared.UsageTypeOnDemand,
+		PricingType: pricingmodel.NodePricingTypeTotal,
 	}
 	if entry, ok := pms.NodePricing[onDemandKey]; !ok {
 		t.Error("missing OnDemand entry")
@@ -178,11 +178,11 @@ func TestAzureRetailPricingSource_ParsePage(t *testing.T) {
 	}
 
 	spotKey := pricingmodel.NodeKey{
-		Provider:  shared.ProviderAzure,
-		Region:    "eastus",
-		NodeType:  "Standard_D4s_v3",
-		UsageType: shared.UsageTypeSpot,
-		Type:      pricingmodel.NodePricingTypeTotal,
+		Provider:    shared.ProviderAzure,
+		Region:      "eastus",
+		NodeType:    "Standard_D4s_v3",
+		UsageType:   shared.UsageTypeSpot,
+		PricingType: pricingmodel.NodePricingTypeTotal,
 	}
 	if _, ok := pms.NodePricing[spotKey]; !ok {
 		t.Error("missing Spot entry")

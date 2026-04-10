@@ -161,11 +161,11 @@ func (g *GCPBillingPricingSource) processGPUSKU(sku *GCPPricing, usageType share
 	}
 	for _, region := range sku.ServiceRegions {
 		key := pricingmodel.NodeKey{
-			Provider:   shared.ProviderGCP,
-			Region:     region,
-			UsageType:  usageType,
-			DeviceType: accelerator,
-			Type:       pricingmodel.NodePricingTypeDevice,
+			Provider:    shared.ProviderGCP,
+			Region:      region,
+			UsageType:   usageType,
+			DeviceType:  accelerator,
+			PricingType: pricingmodel.NodePricingTypeDevice,
 		}
 		pms.NodePricing[key] = pricingmodel.NodePricing{HourlyRate: hourlyRate}
 	}
@@ -191,11 +191,11 @@ func (g *GCPBillingPricingSource) processComputeSKU(sku *GCPPricing, usageType s
 
 	for _, region := range sku.ServiceRegions {
 		key := pricingmodel.NodeKey{
-			Provider:  shared.ProviderGCP,
-			Region:    region,
-			Family:    family,
-			UsageType: usageType,
-			Type:      pricingType,
+			Provider:    shared.ProviderGCP,
+			Region:      region,
+			Family:      family,
+			UsageType:   usageType,
+			PricingType: pricingType,
 		}
 		pms.NodePricing[key] = pricingmodel.NodePricing{HourlyRate: hourlyRate}
 	}

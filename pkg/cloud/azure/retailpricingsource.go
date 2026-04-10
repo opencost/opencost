@@ -100,11 +100,11 @@ func (a *AzureRetailPricingSource) parsePage(body io.Reader, pms *pricingmodel.P
 		}
 
 		key := pricingmodel.NodeKey{
-			Provider:  shared.ProviderAzure,
-			Region:    item.ArmRegionName,
-			NodeType:  item.ArmSkuName,
-			UsageType: usageTypeFromSku(item.SkuName),
-			Type:      pricingmodel.NodePricingTypeTotal,
+			Provider:    shared.ProviderAzure,
+			Region:      item.ArmRegionName,
+			NodeType:    item.ArmSkuName,
+			UsageType:   usageTypeFromSku(item.SkuName),
+			PricingType: pricingmodel.NodePricingTypeTotal,
 		}
 
 		pms.NodePricing[key] = pricingmodel.NodePricing{

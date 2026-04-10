@@ -16,13 +16,13 @@ const (
 
 // @bingen:generate:NodeKey
 type NodeKey struct {
-	Provider   shared.Provider
-	Region     string
-	NodeType   string
-	UsageType  shared.UsageType
-	Family     string
-	DeviceType string
-	Type       NodePricingType
+	Provider    shared.Provider
+	PricingType NodePricingType
+	UsageType   shared.UsageType
+	Region      string
+	NodeType    string
+	Family      string
+	DeviceType  string
 }
 
 // @bingen:generate:NodePricing

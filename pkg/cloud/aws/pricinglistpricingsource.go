@@ -129,11 +129,11 @@ func (p *PricingListPricingSource) GetPricing() (*pricingmodel.PricingModelSet, 
 		}
 
 		skuToNodeKey[product.Sku] = pricingmodel.NodeKey{
-			Provider:  shared.ProviderAWS,
-			Region:    attr.RegionCode,
-			NodeType:  attr.InstanceType,
-			UsageType: shared.UsageTypeOnDemand,
-			Type:      pricingmodel.NodePricingTypeTotal,
+			Provider:    shared.ProviderAWS,
+			Region:      attr.RegionCode,
+			NodeType:    attr.InstanceType,
+			UsageType:   shared.UsageTypeOnDemand,
+			PricingType: pricingmodel.NodePricingTypeTotal,
 		}
 	}
 
