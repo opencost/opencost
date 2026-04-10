@@ -20,7 +20,7 @@ func TestNodeKeyRoundtrip(t *testing.T) {
 				UsageType:  shared.UsageTypeOnDemand,
 				Family:     "n2",
 				DeviceType: "nvidia-tesla-t4",
-				Type:       NodePricingTypeDevice,
+				PricingType:       NodePricingTypeDevice,
 			},
 		},
 		{
@@ -31,7 +31,7 @@ func TestNodeKeyRoundtrip(t *testing.T) {
 				NodeType:  "m5.xlarge",
 				UsageType: shared.UsageTypeOnDemand,
 				Family:    "m5",
-				Type:      NodePricingTypeCPUCore,
+				PricingType:      NodePricingTypeCPUCore,
 			},
 		},
 		{
@@ -41,7 +41,7 @@ func TestNodeKeyRoundtrip(t *testing.T) {
 				Region:    "eastus",
 				NodeType:  "Standard_D4s_v3",
 				UsageType: shared.UsageTypeSpot,
-				Type:      NodePricingTypeTotal,
+				PricingType:      NodePricingTypeTotal,
 			},
 		},
 		{
@@ -51,7 +51,7 @@ func TestNodeKeyRoundtrip(t *testing.T) {
 				Region:    "europe-west1",
 				Family:    "n1",
 				UsageType: shared.UsageTypeOnDemand,
-				Type:      NodePricingTypeRamGB,
+				PricingType:      NodePricingTypeRamGB,
 			},
 		},
 		{

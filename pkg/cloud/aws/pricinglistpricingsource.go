@@ -17,7 +17,8 @@ import (
 const pricingCacheTTL = 24 * time.Hour
 const pricingCacheDir = "pricingsource/aws"
 const pricingCacheFile = "cached_ec2_pricingmodelset"
-const PricingListPricingSourceKey = "aws_pricing_list_api"
+
+const PricingListPricingSourceType pricingmodel.PricingSourceType = "aws_pricing_list_api"
 
 type PricingListPricingSourceConfig struct {
 	CurrencyCode string
@@ -79,8 +80,13 @@ func (p *PricingListPricingSource) saveToCache(pms *pricingmodel.PricingModelSet
 	}
 }
 
+func (p *PricingListPricingSource) PricingSourceType() pricingmodel.PricingSourceType {
+	return PricingListPricingSourceType
+}
+
+// PricingSourceKey returns the PricingSourceType because it is meant to run single instance.
 func (p *PricingListPricingSource) PricingSourceKey() string {
-	return PricingListPricingSourceKey
+	return string(PricingListPricingSourceType)
 }
 
 func (p *PricingListPricingSource) GetPricing() (*pricingmodel.PricingModelSet, error) {
@@ -93,7 +99,7 @@ func (p *PricingListPricingSource) GetPricing() (*pricingmodel.PricingModelSet, 
 	start := time.Now()
 
 	now := time.Now().UTC()
-	pms := pricingmodel.NewPricingModelSet(now, PricingListPricingSourceKey)
+	pms := pricingmodel.NewPricingModelSet(now, p.PricingSourceType(), p.PricingSourceKey())
 	skuToNodeKey := make(map[string]pricingmodel.NodeKey)
 
 	var productCount, termCount int

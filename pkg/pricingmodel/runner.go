@@ -123,15 +123,15 @@ func (r *runner) export() {
 		return
 	}
 
-	err = r.store.Write(r.source.PricingSourceKey(), pms)
+	err = r.store.Write(pms)
 	if err != nil {
-		log.Errorf("PricingModel[%s]: runner: failed to write pricing model set to storage: %v", pms.Source, err)
+		log.Errorf("PricingModel[%s]: runner: failed to write pricing model set to storage: %v", r.source.PricingSourceKey(), err)
 		r.statusLock.Lock()
 		r.status.LastError = err.Error()
 		r.statusLock.Unlock()
 		return
 	}
-	
+
 	r.statusLock.Lock()
 	r.status.LastRun = time.Now().UTC()
 	r.status.Runs++

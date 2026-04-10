@@ -18,11 +18,15 @@ import (
 const (
 	gcpBillingComputeServiceID = "6F81-5844-456A"
 	gcpBillingBaseURL          = "https://cloudbilling.googleapis.com/v1/services/" + gcpBillingComputeServiceID + "/skus"
-	GCPBillingPricingSourceKey = "gcp_billing_catalog_api"
-	gcpResourceFamilyCompute   = "Compute"
-	gcpResourceGroupGPU        = "GPU"
-	gcpUsageTypeOnDemand       = "OnDemand"
-	gcpUsageTypePreemptible    = "Preemptible"
+)
+
+const GCPBillingPricingSourceType pricingmodel.PricingSourceType = "gcp_billing_catalog_api"
+
+const (
+	gcpResourceFamilyCompute = "Compute"
+	gcpResourceGroupGPU      = "GPU"
+	gcpUsageTypeOnDemand     = "OnDemand"
+	gcpUsageTypePreemptible  = "Preemptible"
 )
 
 // GCPBillingPricingSourceConfig holds configuration for GCPBillingPricingSource.
@@ -52,8 +56,13 @@ func NewGCPBillingPricingSource(cfg GCPBillingPricingSourceConfig) (*GCPBillingP
 	}, nil
 }
 
+func (g *GCPBillingPricingSource) PricingSourceType() pricingmodel.PricingSourceType {
+	return GCPBillingPricingSourceType
+}
+
+// PricingSourceKey returns the PricingSourceType because it is meant to run single instance.
 func (g *GCPBillingPricingSource) PricingSourceKey() string {
-	return GCPBillingPricingSourceKey
+	return string(GCPBillingPricingSourceType)
 }
 
 func (g *GCPBillingPricingSource) GetPricing() (*pricingmodel.PricingModelSet, error) {
@@ -61,7 +70,7 @@ func (g *GCPBillingPricingSource) GetPricing() (*pricingmodel.PricingModelSet, e
 		return nil, fmt.Errorf("GCPBillingPricingSource: api key is nil")
 	}
 	now := time.Now().UTC()
-	pms := pricingmodel.NewPricingModelSet(now, GCPBillingPricingSourceKey)
+	pms := pricingmodel.NewPricingModelSet(now, g.PricingSourceType(), g.PricingSourceKey())
 
 	url := g.buildURL("")
 	pageCount := 0

@@ -15,10 +15,11 @@ import (
 )
 
 const (
-	azureRetailPricingBaseURL   = "https://prices.azure.com/api/retail/prices"
-	azureRetailVMFilter         = "serviceName eq 'Virtual Machines' and priceType eq 'Consumption'"
-	AzureRetailPricingSourceKey = "azure_retail_pricing_api"
+	azureRetailPricingBaseURL = "https://prices.azure.com/api/retail/prices"
+	azureRetailVMFilter       = "serviceName eq 'Virtual Machines' and priceType eq 'Consumption'"
 )
+
+const AzureRetailPricingSourceType pricingmodel.PricingSourceType = "azure_retail_pricing_api"
 
 // AzureRetailPricingSourceConfig holds configuration for AzureRetailPricingSource.
 type AzureRetailPricingSourceConfig struct {
@@ -37,13 +38,18 @@ func NewAzureRetailPricingSource(cfg AzureRetailPricingSourceConfig) *AzureRetai
 	return &AzureRetailPricingSource{config: cfg}
 }
 
+func (a *AzureRetailPricingSource) PricingSourceType() pricingmodel.PricingSourceType {
+	return AzureRetailPricingSourceType
+}
+
+// PricingSourceKey returns the PricingSourceType because it is meant to run single instance.
 func (a *AzureRetailPricingSource) PricingSourceKey() string {
-	return AzureRetailPricingSourceKey
+	return string(AzureRetailPricingSourceType)
 }
 
 func (a *AzureRetailPricingSource) GetPricing() (*pricingmodel.PricingModelSet, error) {
 	now := time.Now().UTC()
-	pms := pricingmodel.NewPricingModelSet(now, AzureRetailPricingSourceKey)
+	pms := pricingmodel.NewPricingModelSet(now, a.PricingSourceType(), a.PricingSourceKey())
 
 	url := a.buildInitialURL()
 	pageCount := 0

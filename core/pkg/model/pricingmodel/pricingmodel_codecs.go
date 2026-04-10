@@ -13,12 +13,13 @@ package pricingmodel
 
 import (
 	"fmt"
-	"github.com/opencost/opencost/core/pkg/model/shared"
-	util "github.com/opencost/opencost/core/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/opencost/opencost/core/pkg/model/shared"
+	"github.com/opencost/opencost/core/pkg/util"
 )
 
 const (
@@ -607,10 +608,10 @@ func (target *PricingModelSet) MarshalBinaryWithContext(ctx *EncodingContext) (e
 	// --- [end][write][reference](time.Time) ---
 
 	if ctx.IsStringTable() {
-		b := ctx.Table.AddOrGet(target.Source)
+		b := ctx.Table.AddOrGet(string(target.SourceType))
 		buff.WriteInt(b) // write table index
 	} else {
-		buff.WriteString(target.Source) // write string
+		buff.WriteString(string(target.SourceType)) // write string
 	}
 	if target.NodePricing == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
@@ -639,6 +640,12 @@ func (target *PricingModelSet) MarshalBinaryWithContext(ctx *EncodingContext) (e
 		}
 		// --- [end][write][map](map[NodeKey]NodePricing) ---
 
+	}
+	if ctx.IsStringTable() {
+		i := ctx.Table.AddOrGet(target.SourceKey)
+		buff.WriteInt(i) // write table index
+	} else {
+		buff.WriteString(target.SourceKey) // write string
 	}
 	return nil
 }
@@ -716,7 +723,7 @@ func (target *PricingModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 		e = buff.ReadString() // read string
 	}
 	d := e
-	target.Source = d
+	target.SourceType = PricingSourceType(d)
 
 	if buff.ReadUInt8() == uint8(0) {
 		target.NodePricing = nil
@@ -751,5 +758,13 @@ func (target *PricingModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 		// --- [end][read][map](map[NodeKey]NodePricing) ---
 
 	}
+	var m string
+	if ctx.IsStringTable() {
+		n := buff.ReadInt() // read string index
+		m = ctx.Table[n]
+	} else {
+		m = buff.ReadString() // read string
+	}
+	target.SourceKey = m
 	return nil
 }

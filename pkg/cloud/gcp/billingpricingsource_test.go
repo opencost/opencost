@@ -177,7 +177,7 @@ func TestGCPBillingPricingSource_ParsePage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewGCPBillingPricingSource error: %v", err)
 	}
-	pms := pricingmodel.NewPricingModelSet(time.Now().UTC(), GCPBillingPricingSourceKey)
+	pms := pricingmodel.NewPricingModelSet(time.Now().UTC(), src.PricingSourceType(), src.PricingSourceKey())
 
 	nextToken, err := src.parsePage(strings.NewReader(string(body)), pms)
 	if err != nil {
@@ -245,7 +245,7 @@ func TestGCPBillingPricingSource_ParsePage_Preemptible(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewGCPBillingPricingSource error: %v", err)
 	}
-	pms := pricingmodel.NewPricingModelSet(time.Now().UTC(), GCPBillingPricingSourceKey)
+	pms := pricingmodel.NewPricingModelSet(time.Now().UTC(), src.PricingSourceType(), src.PricingSourceKey())
 
 	if _, err := src.parsePage(strings.NewReader(string(body)), pms); err != nil {
 		t.Fatalf("parsePage error: %v", err)

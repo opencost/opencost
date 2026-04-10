@@ -153,7 +153,7 @@ func TestAzureRetailPricingSource_ParsePage(t *testing.T) {
 	body, _ := json.Marshal(page)
 
 	src := NewAzureRetailPricingSource(AzureRetailPricingSourceConfig{})
-	pms := pricingmodel.NewPricingModelSet(time.Now().UTC(), AzureRetailPricingSourceKey)
+	pms := pricingmodel.NewPricingModelSet(time.Now().UTC(), src.PricingSourceType(), src.PricingSourceKey())
 
 	_, err := src.parsePage(strings.NewReader(string(body)), pms)
 	if err != nil {
