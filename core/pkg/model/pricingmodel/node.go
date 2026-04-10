@@ -10,7 +10,7 @@ const (
 	NodePricingTypeTotal   NodePricingType = "Total"
 	NodePricingTypeCPUCore NodePricingType = "CPUCore"
 	NodePricingTypeRamGB   NodePricingType = "RamGB"
-	NodePricingTypeGPU     NodePricingType = "GPU"
+	NodePricingTypeDevice  NodePricingType = "Device"
 )
 
 // @bingen:generate:NodeKey

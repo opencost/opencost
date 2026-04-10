@@ -153,7 +153,7 @@ func (g *GCPBillingPricingSource) processGPUSKU(sku *GCPPricing, usageType share
 			Region:      region,
 			UsageType:   usageType,
 			Accelerator: accelerator,
-			Type:        pricingmodel.NodePricingTypeGPU,
+			Type:        pricingmodel.NodePricingTypeDevice,
 		}
 		pms.NodePricing[key] = pricingmodel.NodePricing{HourlyRate: hourlyRate}
 	}
