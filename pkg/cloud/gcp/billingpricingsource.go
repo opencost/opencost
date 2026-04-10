@@ -31,6 +31,8 @@ type GCPBillingPricingSourceConfig struct {
 	CurrencyCode string
 }
 
+var gcpBillingHTTPClient = &http.Client{Timeout: 60 * time.Second}
+
 // GCPBillingPricingSource implements pricingmodel.PricingSource using the
 // GCP Cloud Billing Catalog API. It emits per-vCPU, per-GB RAM, and per-GPU
 // hourly rates keyed by family and region, which consumers combine with
@@ -65,7 +67,7 @@ func (g *GCPBillingPricingSource) GetPricing() (*pricingmodel.PricingModelSet, e
 	pageCount := 0
 
 	for url != "" {
-		resp, err := http.Get(url)
+		resp, err := gcpBillingHTTPClient.Get(url)
 		if err != nil {
 			return nil, fmt.Errorf("GCPBillingPricingSource: GET: %w", err)
 		}

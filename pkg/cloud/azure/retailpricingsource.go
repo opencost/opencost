@@ -25,6 +25,8 @@ type AzureRetailPricingSourceConfig struct {
 	CurrencyCode string
 }
 
+var azureRetailHTTPClient = &http.Client{Timeout: 60 * time.Second}
+
 // AzureRetailPricingSource implements pricingmodel.PricingSource using the
 // Azure Retail Prices API (no authentication required).
 type AzureRetailPricingSource struct {
@@ -47,7 +49,7 @@ func (a *AzureRetailPricingSource) GetPricing() (*pricingmodel.PricingModelSet, 
 	pageCount := 0
 
 	for url != "" {
-		resp, err := http.Get(url)
+		resp, err := azureRetailHTTPClient.Get(url)
 		if err != nil {
 			return nil, fmt.Errorf("AzureRetailPricingSource: GET %s: %w", url, err)
 		}
