@@ -1403,7 +1403,9 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 			UsageType:    PreemptibleType,
 		}, meta, nil
 	} else if aws.isPreemptible(key) { // Preemptible but we don't have any data in the pricing report.
-		log.DedupedWarningf(5, "Node %s marked preemptible but we have no data in spot feed", k.ID())
+		if aws.SpotRefreshEnabled() {
+			log.DedupedWarningf(5, "Node %s marked preemptible but we have no data in spot feed", k.ID())
+		}
 		if publicPricingFound {
 			// return public price if found
 			return &models.Node{
@@ -1419,7 +1421,9 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 			}, meta, nil
 		} else {
 			// return defaults if public pricing not found
-			log.DedupedWarningf(5, "Could not find Node %s's public pricing info, using default configured spot prices instead", k.ID())
+			if aws.SpotRefreshEnabled() {
+				log.DedupedWarningf(5, "Could not find Node %s's public pricing info, using default configured spot prices instead", k.ID())
+			}
 			return &models.Node{
 				VCPU:         terms.VCpu,
 				VCPUCost:     aws.BaseSpotCPUPrice,
