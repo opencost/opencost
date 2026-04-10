@@ -85,14 +85,26 @@ func (p *PricingListPricingSource) PricingSourceKey() string {
 
 func (p *PricingListPricingSource) GetPricing() (*pricingmodel.PricingModelSet, error) {
 	if cached, ok := p.loadFromCache(); ok {
+		log.Infof("PricingListPricingSource: loaded %d pricing entries from cache", len(cached.NodePricing))
 		return cached, nil
 	}
+
+	log.Infof("PricingListPricingSource: starting AWS EC2 pricing list download (large file, this may take a while)")
+	start := time.Now()
+
 	now := time.Now().UTC()
 	pms := pricingmodel.NewPricingModelSet(now, PricingListPricingSourceKey)
 	skuToNodeKey := make(map[string]pricingmodel.NodeKey)
 
+	var productCount, termCount int
+	const logInterval = 50000
+
 	// When parsing product we create keys based off of product attributes and link those to a SKU.
 	handleProduct := func(product *PriceListEC2Product) {
+		productCount++
+		if productCount%logInterval == 0 {
+			log.Infof("PricingListPricingSource: processed %d products...", productCount)
+		}
 		attr := product.Attributes
 		if attr.LocationType != "AWS Region" {
 			return
@@ -127,6 +139,10 @@ func (p *PricingListPricingSource) GetPricing() (*pricingmodel.PricingModelSet, 
 
 	// Terms are used to define pricing and have the sku to look up the appropriate key.
 	handleTerm := func(term *PriceListEC2Term) {
+		termCount++
+		if termCount%logInterval == 0 {
+			log.Infof("PricingListPricingSource: processed %d terms, %d pricing entries so far...", termCount, len(pms.NodePricing))
+		}
 		nodeKey, ok := skuToNodeKey[term.Sku]
 		if !ok {
 			return
@@ -161,6 +177,9 @@ func (p *PricingListPricingSource) GetPricing() (*pricingmodel.PricingModelSet, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to query list pricing data %w", err)
 	}
+
+	log.Infof("PricingListPricingSource: completed in %s — %d products, %d terms, %d pricing entries",
+		time.Since(start).Round(time.Second), productCount, termCount, len(pms.NodePricing))
 
 	p.saveToCache(pms)
 

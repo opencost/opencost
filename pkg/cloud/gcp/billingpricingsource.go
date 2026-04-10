@@ -60,6 +60,12 @@ func (g *GCPBillingPricingSource) GetPricing() (*pricingmodel.PricingModelSet, e
 			return nil, fmt.Errorf("GCPBillingPricingSource: GET: %w", err)
 		}
 
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			return nil, fmt.Errorf("GCPBillingPricingSource: unexpected status %d on page %d: %s", resp.StatusCode, pageCount, string(body))
+		}
+
 		nextToken, err := g.parsePage(resp.Body, pms)
 		resp.Body.Close()
 		if err != nil {

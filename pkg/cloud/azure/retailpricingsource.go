@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -51,6 +52,12 @@ func (a *AzureRetailPricingSource) GetPricing() (*pricingmodel.PricingModelSet, 
 			return nil, fmt.Errorf("AzureRetailPricingSource: GET %s: %w", url, err)
 		}
 
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			return nil, fmt.Errorf("AzureRetailPricingSource: unexpected status %d on page %d: %s", resp.StatusCode, pageCount, string(body))
+		}
+
 		next, err := a.parsePage(resp.Body, pms)
 		resp.Body.Close()
 		if err != nil {
@@ -67,11 +74,12 @@ func (a *AzureRetailPricingSource) GetPricing() (*pricingmodel.PricingModelSet, 
 }
 
 func (a *AzureRetailPricingSource) buildInitialURL() string {
-	url := fmt.Sprintf("%s?$filter=%s", azureRetailPricingBaseURL, azureRetailVMFilter)
+	params := url.Values{}
+	params.Set("$filter", azureRetailVMFilter)
 	if a.config.CurrencyCode != "" {
-		url += fmt.Sprintf("&currencyCode='%s'", a.config.CurrencyCode)
+		params.Set("currencyCode", a.config.CurrencyCode)
 	}
-	return url
+	return azureRetailPricingBaseURL + "?" + params.Encode()
 }
 
 func (a *AzureRetailPricingSource) parsePage(body io.Reader, pms *pricingmodel.PricingModelSet) (nextURL string, err error) {
