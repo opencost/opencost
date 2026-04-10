@@ -74,12 +74,11 @@ func (a *AzureRetailPricingSource) GetPricing() (*pricingmodel.PricingModelSet, 
 }
 
 func (a *AzureRetailPricingSource) buildInitialURL() string {
-	params := url.Values{}
-	params.Set("$filter", azureRetailVMFilter)
+	u := azureRetailPricingBaseURL + "?$filter=" + url.QueryEscape(azureRetailVMFilter)
 	if a.config.CurrencyCode != "" {
-		params.Set("currencyCode", a.config.CurrencyCode)
+		u += "&currencyCode=" + url.QueryEscape(a.config.CurrencyCode)
 	}
-	return azureRetailPricingBaseURL + "?" + params.Encode()
+	return u
 }
 
 func (a *AzureRetailPricingSource) parsePage(body io.Reader, pms *pricingmodel.PricingModelSet) (nextURL string, err error) {

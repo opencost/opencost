@@ -4,6 +4,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/model/shared"
 )
 
+// @bingen:generate:NodePricingType
 type NodePricingType string
 
 const (
@@ -15,13 +16,13 @@ const (
 
 // @bingen:generate:NodeKey
 type NodeKey struct {
-	Provider    shared.Provider
-	Region      string
-	NodeType    string
-	UsageType   shared.UsageType
-	Family      string
-	Accelerator string
-	Type        NodePricingType
+	Provider   shared.Provider
+	Region     string
+	NodeType   string
+	UsageType  shared.UsageType
+	Family     string
+	DeviceType string
+	Type       NodePricingType
 }
 
 // @bingen:generate:NodePricing

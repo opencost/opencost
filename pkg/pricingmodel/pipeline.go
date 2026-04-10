@@ -76,20 +76,22 @@ func NewPipeline(store corestorage.Storage, cfg PipelineConfig) (*Pipeline, erro
 	}
 
 	if cfg.GCPRunnerConfig.Enabled {
-		if cfg.GCPRunnerConfig.APIKey == "" {
-			log.Warnf("GCP Billing Catelog Pricing Source is enabled but no api key was provided")
-		}
-		src := gcp.NewGCPBillingPricingSource(gcp.GCPBillingPricingSourceConfig{
+
+		src, err := gcp.NewGCPBillingPricingSource(gcp.GCPBillingPricingSourceConfig{
 			APIKey:       cfg.GCPRunnerConfig.APIKey,
 			CurrencyCode: cfg.CurrencyCode,
 		})
-		rc := runnerConfig{
-			interval: cfg.GCPRunnerConfig.RefreshInterval,
+		if err != nil {
+			log.Error(err.Error())
+		} else {
+			rc := runnerConfig{
+				interval: cfg.GCPRunnerConfig.RefreshInterval,
+			}
+			if t, ok := lastUpdates[src.PricingSourceKey()]; ok {
+				rc.lastRun = &t
+			}
+			p.addSource(src, rc)
 		}
-		if t, ok := lastUpdates[src.PricingSourceKey()]; ok {
-			rc.lastRun = &t
-		}
-		p.addSource(src, rc)
 	}
 
 	return p, nil

@@ -36,11 +36,18 @@ type GCPBillingPricingSourceConfig struct {
 // hourly rates keyed by family and region, which consumers combine with
 // machine specs to compute total instance costs.
 type GCPBillingPricingSource struct {
-	config GCPBillingPricingSourceConfig
+	apiKey       string
+	currencyCode string
 }
 
-func NewGCPBillingPricingSource(cfg GCPBillingPricingSourceConfig) *GCPBillingPricingSource {
-	return &GCPBillingPricingSource{config: cfg}
+func NewGCPBillingPricingSource(cfg GCPBillingPricingSourceConfig) (*GCPBillingPricingSource, error) {
+	if cfg.APIKey == "" {
+		return nil, fmt.Errorf("cannot initialize GCPBillingPriceSource with empty API Key")
+	}
+	return &GCPBillingPricingSource{
+		apiKey:       cfg.APIKey,
+		currencyCode: cfg.CurrencyCode,
+	}, nil
 }
 
 func (g *GCPBillingPricingSource) PricingSourceKey() string {
@@ -48,6 +55,9 @@ func (g *GCPBillingPricingSource) PricingSourceKey() string {
 }
 
 func (g *GCPBillingPricingSource) GetPricing() (*pricingmodel.PricingModelSet, error) {
+	if g.apiKey == "" {
+		return nil, fmt.Errorf("GCPBillingPricingSource: api key is nil")
+	}
 	now := time.Now().UTC()
 	pms := pricingmodel.NewPricingModelSet(now, GCPBillingPricingSourceKey)
 
@@ -86,9 +96,9 @@ func (g *GCPBillingPricingSource) GetPricing() (*pricingmodel.PricingModelSet, e
 }
 
 func (g *GCPBillingPricingSource) buildURL(pageToken string) string {
-	url := fmt.Sprintf("%s?key=%s", gcpBillingBaseURL, g.config.APIKey)
-	if g.config.CurrencyCode != "" {
-		url += "&currencyCode=" + g.config.CurrencyCode
+	url := fmt.Sprintf("%s?key=%s", gcpBillingBaseURL, g.apiKey)
+	if g.currencyCode != "" {
+		url += "&currencyCode=" + g.currencyCode
 	}
 	if pageToken != "" {
 		url += "&pageToken=" + pageToken
@@ -149,11 +159,11 @@ func (g *GCPBillingPricingSource) processGPUSKU(sku *GCPPricing, usageType share
 	}
 	for _, region := range sku.ServiceRegions {
 		key := pricingmodel.NodeKey{
-			Provider:    shared.ProviderGCP,
-			Region:      region,
-			UsageType:   usageType,
-			Accelerator: accelerator,
-			Type:        pricingmodel.NodePricingTypeDevice,
+			Provider:   shared.ProviderGCP,
+			Region:     region,
+			UsageType:  usageType,
+			DeviceType: accelerator,
+			Type:       pricingmodel.NodePricingTypeDevice,
 		}
 		pms.NodePricing[key] = pricingmodel.NodePricing{HourlyRate: hourlyRate}
 	}
