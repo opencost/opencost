@@ -79,3 +79,17 @@ func TestGetKubernetesEnabled(t *testing.T) {
 	}
 
 }
+
+func TestIsMCPServerEnabled_DefaultFalse(t *testing.T) {
+	t.Setenv("MCP_SERVER_ENABLED", "")
+	if got := IsMCPServerEnabled(); got {
+		t.Fatalf("expected false when env var unset, got %v", got)
+	}
+}
+
+func TestIsMCPServerEnabled_True(t *testing.T) {
+	t.Setenv("MCP_SERVER_ENABLED", "true")
+	if got := IsMCPServerEnabled(); !got {
+		t.Fatalf("expected true when env var set to true, got %v", got)
+	}
+}
