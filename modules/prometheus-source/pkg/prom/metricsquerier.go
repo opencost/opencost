@@ -92,7 +92,22 @@ func (pds *PrometheusMetricsQuerier) QueryPVUsedMax(start, end time.Time) *sourc
 }
 
 func (pds *PrometheusMetricsQuerier) QueryPVCUptime(start, end time.Time) *source.Future[source.UptimeResult] {
-	return nil
+	const queryName = "QueryPVCUptime"
+	const queryFmtPVCUptime = `avg(kube_persistentvolumeclaim_info{%s}) by (%s, uid)[%s:%dm]`
+
+	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
+
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryPVCUptime := fmt.Sprintf(queryFmtPVCUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryPVCUptime)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeUptimeResult, ctx.QueryAtTime(queryPVCUptime, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryPVCInfo(start, end time.Time) *source.Future[source.PVCInfoResult] {
@@ -258,13 +273,40 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageActiveMinutes(start, end t
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNodeInfo(start, end time.Time) *source.Future[source.NodeInfoResult] {
-	//TODO implement
-	return nil
+	const queryName = "QueryNodeInfo"
+	const queryFmtNodeInfo = `avg(avg_over_time(node_info{%s}[%s])) by (%s, node, uid, provider_id, instance_type)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryNodeInfo := fmt.Sprintf(queryFmtNodeInfo, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryNodeInfo)
+
+	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
+	return source.NewFuture(source.DecodeNodeInfoResult, ctx.QueryAtTime(queryNodeInfo, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNodeUptime(start, end time.Time) *source.Future[source.UptimeResult] {
-	//TODO implement
-	return nil
+	const queryName = "QueryNodeUptime"
+	const queryFmtNodeUptime = `avg(node_info{%s}) by (%s, uid)[%s:%dm]`
+
+	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
+
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryNodeUptime := fmt.Sprintf(queryFmtNodeUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryNodeUptime)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeUptimeResult, ctx.QueryAtTime(queryNodeUptime, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNodeCPUCoresCapacity(start, end time.Time) *source.Future[source.NodeCPUCoresCapacityResult] {
@@ -452,11 +494,39 @@ func (pds *PrometheusMetricsQuerier) QueryNodeRAMUserPercent(start, end time.Tim
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNodeResourceCapacities(start, end time.Time) *source.Future[source.ResourceResult] {
-	return nil
+	const queryName = "QueryNodeResourceCapacities"
+	const queryFmtNodeResourceCapacities = `avg(avg_over_time(kube_node_status_capacity{%s}[%s])) by (%s, node, uid, resource, unit)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryNodeResourceCapacities := fmt.Sprintf(queryFmtNodeResourceCapacities, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryNodeResourceCapacities)
+
+	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
+	return source.NewFuture(source.DecodeResourceResult, ctx.QueryAtTime(queryNodeResourceCapacities, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNodeResourcesAllocatable(start, end time.Time) *source.Future[source.ResourceResult] {
-	return nil
+	const queryName = "QueryNodeResourcesAllocatable"
+	const queryFmtNodeResourcesAllocatable = `avg(avg_over_time(kube_node_status_allocatable{%s}[%s])) by (%s, node, uid, resource, unit)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryNodeResourcesAllocatable := fmt.Sprintf(queryFmtNodeResourcesAllocatable, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryNodeResourcesAllocatable)
+
+	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
+	return source.NewFuture(source.DecodeResourceResult, ctx.QueryAtTime(queryNodeResourcesAllocatable, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryLBPricePerHr(start, end time.Time) *source.Future[source.LBPricePerHrResult] {
@@ -497,7 +567,21 @@ func (pds *PrometheusMetricsQuerier) QueryLBActiveMinutes(start, end time.Time) 
 }
 
 func (pds *PrometheusMetricsQuerier) QueryClusterInfo(start, end time.Time) *source.Future[source.ClusterInfoResult] {
-	return nil
+	const queryName = "QueryClusterInfo"
+	const queryFmtClusterInfo = `avg(avg_over_time(kubecost_cluster_info{%s}[%s])) by (%s, uid, provider, account_id, provisioner_name, region)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryClusterInfo := fmt.Sprintf(queryFmtClusterInfo, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryClusterInfo)
+
+	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
+	return source.NewFuture(source.DecodeClusterInfoResult, ctx.QueryAtTime(queryClusterInfo, end))
 }
 
 // Note: cluster_info is not currently emitted
@@ -599,19 +683,76 @@ func (pds *PrometheusMetricsQuerier) QueryPodsUID(start, end time.Time) *source.
 }
 
 func (pds *PrometheusMetricsQuerier) QueryPodInfo(start, end time.Time) *source.Future[source.PodInfoResult] {
-	return nil
+	const queryName = "QueryPodInfo"
+	const queryFmtPodInfo = `avg(avg_over_time(pod_info{%s}[%s])) by (%s, pod, uid, namespace_uid, node_uid)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryPodInfo := fmt.Sprintf(queryFmtPodInfo, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryPodInfo)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodePodInfoResult, ctx.QueryAtTime(queryPodInfo, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryPodUptime(start, end time.Time) *source.Future[source.UptimeResult] {
-	return nil
+	const queryName = "QueryPodUptime"
+	const queryFmtPodUptime = `avg(pod_info{%s}) by (%s, uid)[%s:%dm]`
+
+	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
+
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryPodUptime := fmt.Sprintf(queryFmtPodUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryPodUptime)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeUptimeResult, ctx.QueryAtTime(queryPodUptime, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryPodOwners(start, end time.Time) *source.Future[source.OwnerResult] {
-	return nil
+	const queryName = "QueryPodOwners"
+	const queryFmtPodOwners = `avg(avg_over_time(kube_pod_owner{%s}[%s])) by (%s, uid, owner_uid, owner_kind)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryPodOwners := fmt.Sprintf(queryFmtPodOwners, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryPodOwners)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeOwnerResult, ctx.QueryAtTime(queryPodOwners, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryPodPVCVolumes(start, end time.Time) *source.Future[source.PodPVCVolumeResult] {
-	return nil
+	const queryName = "QueryPodPVCVolumes"
+	const queryFmtPodPVCVolumes = `avg(avg_over_time(pod_pvc_volume{%s}[%s])) by (%s, uid, persistentvolumeclaim_uid, pod_volume_name)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryPodPVCVolumes := fmt.Sprintf(queryFmtPodPVCVolumes, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryPodPVCVolumes)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodePodPVCVolumeResult, ctx.QueryAtTime(queryPodPVCVolumes, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryPodNetworkEgressBytes(start, end time.Time) *source.Future[source.PodNetworkBytesResult] {
@@ -651,15 +792,58 @@ func (pds *PrometheusMetricsQuerier) QueryPodNetworkIngressBytes(start, end time
 }
 
 func (pds *PrometheusMetricsQuerier) QueryContainerUptime(start, end time.Time) *source.Future[source.ContainerUptimeResult] {
-	return nil
+	const queryName = "QueryContainerUptime"
+	const queryFmtContainerUptime = `avg(kube_pod_container_status_running{container!="", %s} != 0) by (container, uid, %s)[%s:%dm]`
+
+	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
+
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryContainerUptime := fmt.Sprintf(queryFmtContainerUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryContainerUptime)
+
+	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
+	return source.NewFuture(source.DecodeContainerUptimeResult, ctx.QueryAtTime(queryContainerUptime, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryContainerResourceRequests(start, end time.Time) *source.Future[source.ContainerResourceResult] {
-	return nil
+	const queryName = "QueryContainerResourceRequests"
+	const queryFmtContainerResourceRequests = `avg(avg_over_time(kube_pod_container_resource_requests{container!="", container!="POD", node!="", %s}[%s])) by (container, uid, resource, unit, %s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryContainerResourceRequests := fmt.Sprintf(queryFmtContainerResourceRequests, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryContainerResourceRequests)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeContainerResourceResult, ctx.QueryAtTime(queryContainerResourceRequests, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryContainerResourceLimits(start, end time.Time) *source.Future[source.ContainerResourceResult] {
-	return nil
+	const queryName = "QueryContainerResourceLimits"
+	const queryFmtContainerResourceLimits = `avg(avg_over_time(kube_pod_container_resource_limits{container!="", container!="POD", node!="", %s}[%s])) by (container, uid, resource, unit, %s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryContainerResourceLimits := fmt.Sprintf(queryFmtContainerResourceLimits, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryContainerResourceLimits)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeContainerResourceResult, ctx.QueryAtTime(queryContainerResourceLimits, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryRAMBytesAllocated(start, end time.Time) *source.Future[source.RAMBytesAllocatedResult] {
@@ -974,19 +1158,76 @@ func (pds *PrometheusMetricsQuerier) QueryIsGPUShared(start, end time.Time) *sou
 }
 
 func (pds *PrometheusMetricsQuerier) QueryDCGMDeviceInfo(start, end time.Time) *source.Future[source.DCGMDeviceInfoResult] {
-	return nil
+	const queryName = "QueryDCGMDeviceInfo"
+	const queryFmtDCGMDeviceInfo = `avg(avg_over_time(DCGM_FI_DEV_DEC_UTIL{%s}[%s])) by (UUID, device, modelName, Hostname, %s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryDCGMDeviceInfo := fmt.Sprintf(queryFmtDCGMDeviceInfo, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryDCGMDeviceInfo)
+
+	ctx := pds.promContexts.NewNamedContext(ComputeCostDataContextName)
+	return source.NewFuture(source.DecodeDCGMDeviceInfoResult, ctx.QueryAtTime(queryDCGMDeviceInfo, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryDCGMDeviceUptime(start, end time.Time) *source.Future[source.DCGMDeviceUptimeResult] {
-	return nil
+	const queryName = "QueryDCGMDeviceUptime"
+	const queryFmtDCGMDeviceUptime = `avg(DCGM_FI_DEV_DEC_UTIL{%s}) by (UUID, %s)[%s:%dm]`
+
+	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
+
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryDCGMDeviceUptime := fmt.Sprintf(queryFmtDCGMDeviceUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryDCGMDeviceUptime)
+
+	ctx := pds.promContexts.NewNamedContext(ComputeCostDataContextName)
+	return source.NewFuture(source.DecodeDCGMDeviceUptimeResult, ctx.QueryAtTime(queryDCGMDeviceUptime, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryDCGMContainerUsageAvg(start, end time.Time) *source.Future[source.DCGMDeviceContainerUsageResult] {
-	return nil
+	const queryName = "QueryDCGMContainerUsageAvg"
+	const queryFmtDCGMContainerUsageAvg = `avg(avg_over_time(DCGM_FI_PROF_GR_ENGINE_ACTIVE{container!="", %s}[%s])) by (UUID, pod_uid, container, %s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryDCGMContainerUsageAvg := fmt.Sprintf(queryFmtDCGMContainerUsageAvg, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryDCGMContainerUsageAvg)
+
+	ctx := pds.promContexts.NewNamedContext(ComputeCostDataContextName)
+	return source.NewFuture(source.DecodeDCGMDeviceContainerUsageResult, ctx.QueryAtTime(queryDCGMContainerUsageAvg, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryDCGMContainerUsageMax(start, end time.Time) *source.Future[source.DCGMDeviceContainerUsageResult] {
-	return nil
+	const queryName = "QueryDCGMContainerUsageMax"
+	const queryFmtDCGMContainerUsageMax = `max(max_over_time(DCGM_FI_PROF_GR_ENGINE_ACTIVE{container!="", %s}[%s])) by (UUID, pod_uid, container, %s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryDCGMContainerUsageMax := fmt.Sprintf(queryFmtDCGMContainerUsageMax, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryDCGMContainerUsageMax)
+
+	ctx := pds.promContexts.NewNamedContext(ComputeCostDataContextName)
+	return source.NewFuture(source.DecodeDCGMDeviceContainerUsageResult, ctx.QueryAtTime(queryDCGMContainerUsageMax, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryGPUInfo(start, end time.Time) *source.Future[source.GPUInfoResult] {
@@ -1152,7 +1393,22 @@ func (pds *PrometheusMetricsQuerier) QueryPVInfo(start, end time.Time) *source.F
 }
 
 func (pds *PrometheusMetricsQuerier) QueryPVUptime(start, end time.Time) *source.Future[source.UptimeResult] {
-	return nil
+	const queryName = "QueryPVUptime"
+	const queryFmtPVUptime = `avg(kubecost_pv_info{%s}) by (%s, uid)[%s:%dm]`
+
+	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
+
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryPVUptime := fmt.Sprintf(queryFmtPVUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryPVUptime)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeUptimeResult, ctx.QueryAtTime(queryPVUptime, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNetZoneGiB(start, end time.Time) *source.Future[source.NetZoneGiBResult] {
@@ -1474,7 +1730,21 @@ func (pds *PrometheusMetricsQuerier) QueryNetReceiveBytes(start, end time.Time) 
 }
 
 func (pds *PrometheusMetricsQuerier) QueryNamespaceInfo(start, end time.Time) *source.Future[source.NamespaceInfoResult] {
-	return nil
+	const queryName = "QueryNamespaceInfo"
+	const queryFmtNamespaceInfo = `avg(avg_over_time(namespace_info{%s}[%s])) by (%s, uid, namespace)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryNamespaceInfo := fmt.Sprintf(queryFmtNamespaceInfo, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryNamespaceInfo)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeNamespaceInfoResult, ctx.QueryAtTime(queryNamespaceInfo, end))
 }
 
 // Note: namespace_info is not currently emitted
@@ -1571,11 +1841,40 @@ func (pds *PrometheusMetricsQuerier) QueryPodAnnotations(start, end time.Time) *
 }
 
 func (pds *PrometheusMetricsQuerier) QueryServiceInfo(start, end time.Time) *source.Future[source.ServiceInfoResult] {
-	return nil
+	const queryName = "QueryServiceInfo"
+	const queryFmtServiceInfo = `avg(avg_over_time(service_selector_labels{%s}[%s])) by (%s, uid, namespace_uid, service, service_type)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryServiceInfo := fmt.Sprintf(queryFmtServiceInfo, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryServiceInfo)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeServiceInfoResult, ctx.QueryAtTime(queryServiceInfo, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryServiceUptime(start, end time.Time) *source.Future[source.UptimeResult] {
-	return nil
+	const queryName = "QueryServiceUptime"
+	const queryFmtServiceUptime = `avg(service_selector_labels{%s}) by (%s, uid)[%s:%dm]`
+
+	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
+
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryServiceUptime := fmt.Sprintf(queryFmtServiceUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryServiceUptime)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeUptimeResult, ctx.QueryAtTime(queryServiceUptime, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryServiceSelectorLabels(start, end time.Time) *source.Future[source.ServiceLabelsResult] {
@@ -1597,19 +1896,76 @@ func (pds *PrometheusMetricsQuerier) QueryServiceSelectorLabels(start, end time.
 }
 
 func (pds *PrometheusMetricsQuerier) QueryDeploymentInfo(start, end time.Time) *source.Future[source.DeploymentInfoResult] {
-	return nil
+	const queryName = "QueryDeploymentInfo"
+	const queryFmtDeploymentInfo = `avg(avg_over_time(deployment_info{%s}[%s])) by (%s, uid, namespace_uid, deployment)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryDeploymentInfo := fmt.Sprintf(queryFmtDeploymentInfo, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryDeploymentInfo)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeDeploymentInfoResult, ctx.QueryAtTime(queryDeploymentInfo, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryDeploymentUptime(start, end time.Time) *source.Future[source.UptimeResult] {
-	return nil
+	const queryName = "QueryDeploymentUptime"
+	const queryFmtDeploymentUptime = `avg(deployment_info{%s}) by (%s, uid)[%s:%dm]`
+
+	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
+
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryDeploymentUptime := fmt.Sprintf(queryFmtDeploymentUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryDeploymentUptime)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeUptimeResult, ctx.QueryAtTime(queryDeploymentUptime, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryDeploymentLabels(start, end time.Time) *source.Future[source.LabelsResult] {
-	return nil
+	const queryName = "QueryDeploymentLabels"
+	const queryFmtDeploymentLabels = `avg_over_time(deployment_labels{%s}[%s])`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryDeploymentLabels := fmt.Sprintf(queryFmtDeploymentLabels, cfg.ClusterFilter, durStr)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryDeploymentLabels)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeLabelsResult, ctx.QueryAtTime(queryDeploymentLabels, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryDeploymentAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
-	return nil
+	const queryName = "QueryDeploymentAnnotations"
+	const queryFmtDeploymentAnnotations = `avg_over_time(deployment_annotations{%s}[%s])`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryDeploymentAnnotations := fmt.Sprintf(queryFmtDeploymentAnnotations, cfg.ClusterFilter, durStr)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryDeploymentAnnotations)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeAnnotationsResult, ctx.QueryAtTime(queryDeploymentAnnotations, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryDeploymentMatchLabels(start, end time.Time) *source.Future[source.DeploymentLabelsResult] {
@@ -1631,19 +1987,76 @@ func (pds *PrometheusMetricsQuerier) QueryDeploymentMatchLabels(start, end time.
 }
 
 func (pds *PrometheusMetricsQuerier) QueryStatefulSetInfo(start, end time.Time) *source.Future[source.StatefulSetInfoResult] {
-	return nil
+	const queryName = "QueryStatefulSetInfo"
+	const queryFmtStatefulSetInfo = `avg(avg_over_time(statefulset_info{%s}[%s])) by (%s, uid, namespace_uid, statefulSet)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryStatefulSetInfo := fmt.Sprintf(queryFmtStatefulSetInfo, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryStatefulSetInfo)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeStatefulSetInfoResult, ctx.QueryAtTime(queryStatefulSetInfo, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryStatefulSetUptime(start, end time.Time) *source.Future[source.UptimeResult] {
-	return nil
+	const queryName = "QueryStatefulSetUptime"
+	const queryFmtStatefulSetUptime = `avg(statefulset_info{%s}) by (%s, uid)[%s:%dm]`
+
+	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
+
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryStatefulSetUptime := fmt.Sprintf(queryFmtStatefulSetUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryStatefulSetUptime)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeUptimeResult, ctx.QueryAtTime(queryStatefulSetUptime, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryStatefulSetLabels(start, end time.Time) *source.Future[source.LabelsResult] {
-	return nil
+	const queryName = "QueryStatefulSetLabels"
+	const queryFmtStatefulSetLabels = `avg_over_time(statefulset_labels{%s}[%s])`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryStatefulSetLabels := fmt.Sprintf(queryFmtStatefulSetLabels, cfg.ClusterFilter, durStr)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryStatefulSetLabels)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeLabelsResult, ctx.QueryAtTime(queryStatefulSetLabels, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryStatefulSetAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
-	return nil
+	const queryName = "QueryStatefulSetAnnotations"
+	const queryFmtStatefulSetAnnotations = `avg_over_time(statefulset_annotations{%s}[%s])`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryStatefulSetAnnotations := fmt.Sprintf(queryFmtStatefulSetAnnotations, cfg.ClusterFilter, durStr)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryStatefulSetAnnotations)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeAnnotationsResult, ctx.QueryAtTime(queryStatefulSetAnnotations, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryStatefulSetMatchLabels(start, end time.Time) *source.Future[source.StatefulSetLabelsResult] {
@@ -1665,71 +2078,313 @@ func (pds *PrometheusMetricsQuerier) QueryStatefulSetMatchLabels(start, end time
 }
 
 func (pds *PrometheusMetricsQuerier) QueryDaemonSetInfo(start, end time.Time) *source.Future[source.DaemonSetInfoResult] {
-	return nil
+	const queryName = "QueryDaemonSetInfo"
+	const queryFmtDaemonSetInfo = `avg(avg_over_time(daemonset_info{%s}[%s])) by (%s, uid, namespace_uid, daemonset)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryDaemonSetInfo := fmt.Sprintf(queryFmtDaemonSetInfo, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryDaemonSetInfo)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeDaemonSetInfoResult, ctx.QueryAtTime(queryDaemonSetInfo, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryDaemonSetUptime(start, end time.Time) *source.Future[source.UptimeResult] {
-	return nil
+	const queryName = "QueryDaemonSetUptime"
+	const queryFmtDaemonSetUptime = `avg(daemonset_info{%s}) by (%s, uid)[%s:%dm]`
+
+	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
+
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryDaemonSetUptime := fmt.Sprintf(queryFmtDaemonSetUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryDaemonSetUptime)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeUptimeResult, ctx.QueryAtTime(queryDaemonSetUptime, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryDaemonSetLabels(start, end time.Time) *source.Future[source.LabelsResult] {
-	return nil
+	const queryName = "QueryDaemonSetLabels"
+	const queryFmtDaemonSetLabels = `avg_over_time(daemonset_labels{%s}[%s])`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryDaemonSetLabels := fmt.Sprintf(queryFmtDaemonSetLabels, cfg.ClusterFilter, durStr)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryDaemonSetLabels)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeLabelsResult, ctx.QueryAtTime(queryDaemonSetLabels, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryDaemonSetAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
-	return nil
+	const queryName = "QueryDaemonSetAnnotations"
+	const queryFmtDaemonSetAnnotations = `avg_over_time(daemonset_annotations{%s}[%s])`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryDaemonSetAnnotations := fmt.Sprintf(queryFmtDaemonSetAnnotations, cfg.ClusterFilter, durStr)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryDaemonSetAnnotations)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeAnnotationsResult, ctx.QueryAtTime(queryDaemonSetAnnotations, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryJobInfo(start, end time.Time) *source.Future[source.JobInfoResult] {
-	return nil
+	const queryName = "QueryJobInfo"
+	const queryFmtJobInfo = `avg(avg_over_time(job_info{%s}[%s])) by (%s, uid, namespace_uid, job)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryJobInfo := fmt.Sprintf(queryFmtJobInfo, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryJobInfo)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeJobInfoResult, ctx.QueryAtTime(queryJobInfo, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryJobUptime(start, end time.Time) *source.Future[source.UptimeResult] {
-	return nil
+	const queryName = "QueryJobUptime"
+	const queryFmtJobUptime = `avg(job_info{%s}) by (%s, uid)[%s:%dm]`
+
+	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
+
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryJobUptime := fmt.Sprintf(queryFmtJobUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryJobUptime)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeUptimeResult, ctx.QueryAtTime(queryJobUptime, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryJobLabels(start, end time.Time) *source.Future[source.LabelsResult] {
-	return nil
+	const queryName = "QueryJobLabels"
+	const queryFmtJobLabels = `avg_over_time(job_labels{%s}[%s])`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryJobLabels := fmt.Sprintf(queryFmtJobLabels, cfg.ClusterFilter, durStr)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryJobLabels)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeLabelsResult, ctx.QueryAtTime(queryJobLabels, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryJobAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
-	return nil
+	const queryName = "QueryJobAnnotations"
+	const queryFmtJobAnnotations = `avg_over_time(job_annotations{%s}[%s])`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryJobAnnotations := fmt.Sprintf(queryFmtJobAnnotations, cfg.ClusterFilter, durStr)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryJobAnnotations)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeAnnotationsResult, ctx.QueryAtTime(queryJobAnnotations, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryCronJobInfo(start, end time.Time) *source.Future[source.CronJobInfoResult] {
-	return nil
+	const queryName = "QueryCronJobInfo"
+	const queryFmtCronJobInfo = `avg(avg_over_time(cronjob_info{%s}[%s])) by (%s, uid, namespace_uid, cronjob)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryCronJobInfo := fmt.Sprintf(queryFmtCronJobInfo, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryCronJobInfo)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeCronJobInfoResult, ctx.QueryAtTime(queryCronJobInfo, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryCronJobUptime(start, end time.Time) *source.Future[source.UptimeResult] {
-	return nil
+	const queryName = "QueryCronJobUptime"
+	const queryFmtCronJobUptime = `avg(cronjob_info{%s}) by (%s, uid)[%s:%dm]`
+
+	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
+
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryCronJobUptime := fmt.Sprintf(queryFmtCronJobUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryCronJobUptime)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeUptimeResult, ctx.QueryAtTime(queryCronJobUptime, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryCronJobLabels(start, end time.Time) *source.Future[source.LabelsResult] {
-	return nil
+	const queryName = "QueryCronJobLabels"
+	const queryFmtCronJobLabels = `avg_over_time(cronjob_labels{%s}[%s])`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryCronJobLabels := fmt.Sprintf(queryFmtCronJobLabels, cfg.ClusterFilter, durStr)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryCronJobLabels)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeLabelsResult, ctx.QueryAtTime(queryCronJobLabels, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryCronJobAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
-	return nil
+	const queryName = "QueryCronJobAnnotations"
+	const queryFmtCronJobAnnotations = `avg_over_time(cronjob_annotations{%s}[%s])`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryCronJobAnnotations := fmt.Sprintf(queryFmtCronJobAnnotations, cfg.ClusterFilter, durStr)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryCronJobAnnotations)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeAnnotationsResult, ctx.QueryAtTime(queryCronJobAnnotations, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryReplicaSetInfo(start, end time.Time) *source.Future[source.ReplicaSetInfoResult] {
-	return nil
+	const queryName = "QueryReplicaSetInfo"
+	const queryFmtReplicaSetInfo = `avg(avg_over_time(replicaset_info{%s}[%s])) by (%s, uid, namespace_uid, replicaset)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryReplicaSetInfo := fmt.Sprintf(queryFmtReplicaSetInfo, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryReplicaSetInfo)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeReplicaSetInfoResult, ctx.QueryAtTime(queryReplicaSetInfo, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryReplicaSetUptime(start, end time.Time) *source.Future[source.UptimeResult] {
-	return nil
+	const queryName = "QueryReplicaSetUptime"
+	const queryFmtReplicaSetUptime = `avg(replicaset_info{%s}) by (%s, uid)[%s:%dm]`
+
+	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
+
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryReplicaSetUptime := fmt.Sprintf(queryFmtReplicaSetUptime, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryReplicaSetUptime)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeUptimeResult, ctx.QueryAtTime(queryReplicaSetUptime, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryReplicaSetLabels(start, end time.Time) *source.Future[source.LabelsResult] {
-	return nil
+	const queryName = "QueryReplicaSetLabels"
+	const queryFmtReplicaSetLabels = `avg_over_time(replicaset_labels{%s}[%s])`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryReplicaSetLabels := fmt.Sprintf(queryFmtReplicaSetLabels, cfg.ClusterFilter, durStr)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryReplicaSetLabels)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeLabelsResult, ctx.QueryAtTime(queryReplicaSetLabels, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryReplicaSetAnnotations(start, end time.Time) *source.Future[source.AnnotationsResult] {
-	return nil
+	const queryName = "QueryReplicaSetAnnotations"
+	const queryFmtReplicaSetAnnotations = `avg_over_time(replicaset_annotations{%s}[%s])`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryReplicaSetAnnotations := fmt.Sprintf(queryFmtReplicaSetAnnotations, cfg.ClusterFilter, durStr)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryReplicaSetAnnotations)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeAnnotationsResult, ctx.QueryAtTime(queryReplicaSetAnnotations, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryReplicaSetOwners(start, end time.Time) *source.Future[source.OwnerResult] {
-	return nil
+	const queryName = "QueryReplicaSetOwners"
+	const queryFmtReplicaSetOwners = `avg(avg_over_time(kube_replicaset_owner{%s}[%s])) by (%s, uid, owner_uid, owner_kind)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryReplicaSetOwners := fmt.Sprintf(queryFmtReplicaSetOwners, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryReplicaSetOwners)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeOwnerResult, ctx.QueryAtTime(queryReplicaSetOwners, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryPodsWithDaemonSetOwner(start, end time.Time) *source.Future[source.PodsWithDaemonSetOwnerResult] {
@@ -1825,7 +2480,21 @@ func (pds *PrometheusMetricsQuerier) QueryReplicaSetsWithRollout(start, end time
 // Note: The ResourceQuota metrics are _not_ emitted at the moment. Leaving the query implementations here in case we add metric emission later on.
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaInfo(start, end time.Time) *source.Future[source.ResourceQuotaInfoResult] {
-	return nil
+	const queryName = "QueryResourceQuotaInfo"
+	const queryFmtResourceQuotaInfo = `avg(avg_over_time(resourcequota_info{%s}[%s])) by (%s, uid, namespace_uid, resourcequota)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryResourceQuotaInfo := fmt.Sprintf(queryFmtResourceQuotaInfo, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryResourceQuotaInfo)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeResourceQuotaInfoResult, ctx.QueryAtTime(queryResourceQuotaInfo, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryResourceQuotaUptime(start, end time.Time) *source.Future[source.UptimeResult] {
