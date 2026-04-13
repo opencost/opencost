@@ -33,8 +33,8 @@ func newStorageWriter(store storage.Storage, appName string) (*storageWriter, er
 	}, nil
 }
 
-func (sw *storageWriter) Write(sourceKey string, pms *pricingmodel.PricingModelSet) error {
-	fullPath := sw.pathing.ToFullPath("", sourceKey, sw.encoder.FileExt())
+func (sw *storageWriter) Write(pms *pricingmodel.PricingModelSet) error {
+	fullPath := sw.pathing.ToFullPath("", pms.SourceKey, sw.encoder.FileExt())
 	data, err := sw.encoder.Encode(pms)
 	if err != nil {
 		return fmt.Errorf("failed to encode data: %w", err)
@@ -43,7 +43,7 @@ func (sw *storageWriter) Write(sourceKey string, pms *pricingmodel.PricingModelS
 	if err != nil {
 		return fmt.Errorf("failed to write to storage: %w", err)
 	}
-	log.Infof("PricingModel[%s]: exported pricing model set (%d bytes)", sourceKey, len(data))
+	log.Infof("PricingModel[%s]: exported pricing model set (%d bytes)", pms.SourceKey, len(data))
 	return nil
 }
 

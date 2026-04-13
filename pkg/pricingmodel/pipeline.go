@@ -10,6 +10,7 @@ import (
 	corestorage "github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/azure"
+	"github.com/opencost/opencost/pkg/cloud/gcp"
 )
 
 // Pipeline manages a set of runners, one per PricingSource, exporting pricing
@@ -49,7 +50,9 @@ func NewPipeline(store corestorage.Storage, cfg PipelineConfig) (*Pipeline, erro
 	}
 
 	if cfg.AWSRunnerConfig.Enabled {
-		src := &aws.PricingListPricingSource{}
+		src := aws.NewPricingListPricingSource(aws.PricingListPricingSourceConfig{
+			CurrencyCode: cfg.CurrencyCode,
+		})
 		rc := runnerConfig{
 			interval: cfg.AWSRunnerConfig.RefreshInterval,
 		}
@@ -61,7 +64,7 @@ func NewPipeline(store corestorage.Storage, cfg PipelineConfig) (*Pipeline, erro
 
 	if cfg.AzureRunnerConfig.Enabled {
 		src := azure.NewAzureRetailPricingSource(azure.AzureRetailPricingSourceConfig{
-			CurrencyCode: cfg.AzureRunnerConfig.CurrencyCode,
+			CurrencyCode: cfg.CurrencyCode,
 		})
 		rc := runnerConfig{
 			interval: cfg.AzureRunnerConfig.RefreshInterval,
@@ -70,6 +73,25 @@ func NewPipeline(store corestorage.Storage, cfg PipelineConfig) (*Pipeline, erro
 			rc.lastRun = &t
 		}
 		p.addSource(src, rc)
+	}
+
+	if cfg.GCPRunnerConfig.Enabled {
+
+		src, err := gcp.NewGCPBillingPricingSource(gcp.GCPBillingPricingSourceConfig{
+			APIKey:       cfg.GCPRunnerConfig.APIKey,
+			CurrencyCode: cfg.CurrencyCode,
+		})
+		if err != nil {
+			log.Error(err.Error())
+		} else {
+			rc := runnerConfig{
+				interval: cfg.GCPRunnerConfig.RefreshInterval,
+			}
+			if t, ok := lastUpdates[src.PricingSourceKey()]; ok {
+				rc.lastRun = &t
+			}
+			p.addSource(src, rc)
+		}
 	}
 
 	return p, nil

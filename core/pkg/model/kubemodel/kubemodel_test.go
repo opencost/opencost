@@ -166,50 +166,35 @@ func TestKubeModel(t *testing.T) {
 
 			kms := NewKubeModelSet(start, end)
 
-			err = kms.RegisterResourceQuota("", "test", "")
+			err = kms.RegisterResourceQuota(&ResourceQuota{UID: "", Name: "test"})
 			require.NotNil(t, err)
 			require.Len(t, kms.GetErrors(), 1)
-			require.Equal(t, "UID is nil for ResourceQuota 'test'", kms.GetErrors()[0].Message)
+			require.Equal(t, "UID is missing for ResourceQuota with name 'test'", kms.GetErrors()[0].Message)
 			require.Len(t, kms.ResourceQuotas, 0)
 		})
 
-		t.Run("register resource quota on KMS w/o namespace", func(t *testing.T) {
+		t.Run("register resource quota with empty NamespaceUID", func(t *testing.T) {
 			var err error
 
 			kms := NewKubeModelSet(start, end)
 
-			testUID := "uid"
-			testName := "name"
-
-			err = kms.RegisterResourceQuota(testUID, testName, "unregistered-namespace")
-			require.Nil(t, err)
-			require.Len(t, kms.GetWarnings(), 1)
-			require.Equal(t, "RegisterResourceQuota(uid, name, unregistered-namespace): missing namespace", kms.GetWarnings()[0].Message)
-
-			testRQ := &ResourceQuota{
-				UID:          "uid",
-				NamespaceUID: "",
-				Name:         "name",
-				Spec:         &ResourceQuotaSpec{Hard: &ResourceQuotaSpecHard{}},
-				Status:       &ResourceQuotaStatus{Used: &ResourceQuotaStatusUsed{}},
-			}
-
-			require.NotNil(t, kms.ResourceQuotas[testUID])
-			require.Equal(t, testRQ, kms.ResourceQuotas[testUID])
-			require.Equal(t, 1, kms.Metadata.ObjectCount)
+			err = kms.RegisterResourceQuota(&ResourceQuota{UID: "uid", Name: "name", NamespaceUID: ""})
+			require.NotNil(t, err)
+			require.Len(t, kms.GetErrors(), 1)
+			require.Equal(t, "Namespace is missing for ResourceQuota 'uid'", kms.GetErrors()[0].Message)
+			require.Len(t, kms.ResourceQuotas, 0)
 		})
 
 		t.Run("register resource quota on KMS w/ namespace", func(t *testing.T) {
 			kms := NewKubeModelSet(start, end)
-			kms.RegisterCluster("cluster-uid")
-			kms.RegisterNamespace("namespace-uid", "namespace")
+			kms.RegisterCluster(&Cluster{UID: "cluster-uid"})
+			kms.RegisterNamespace(&Namespace{UID: "namespace-uid", Name: "namespace"})
 			// At this point we have a KMS with a cluster and namespace registered
 
 			testUID := "uid"
 			testName := "name"
-			testNamespace := "namespace" // Register RQ in namespace that was already registered
 
-			kms.RegisterResourceQuota(testUID, testName, testNamespace)
+			kms.RegisterResourceQuota(&ResourceQuota{UID: testUID, Name: testName, NamespaceUID: "namespace-uid"})
 
 			testRQ := &ResourceQuota{
 				UID:          "uid",
@@ -225,7 +210,7 @@ func TestKubeModel(t *testing.T) {
 			require.Equal(t, 2, kms.Metadata.ObjectCount) // 1 namespace and 1 RQ
 
 			// Register same RQ again, expect no-op on second try
-			kms.RegisterResourceQuota(testUID, testName, testNamespace)
+			kms.RegisterResourceQuota(&ResourceQuota{UID: testUID, Name: testName, NamespaceUID: "namespace-uid"})
 			require.Len(t, kms.GetErrors(), 0)
 			require.NotNil(t, kms.ResourceQuotas[testUID])
 			require.Equal(t, testRQ, kms.ResourceQuotas[testUID])
@@ -234,12 +219,12 @@ func TestKubeModel(t *testing.T) {
 
 		t.Run("register multiple RQs in multiple namespaces", func(t *testing.T) {
 			kms := NewKubeModelSet(start, end)
-			kms.RegisterCluster("cluster-uid")
-			kms.RegisterNamespace("namespace-1-uid", "namespace-1")
-			kms.RegisterNamespace("namespace-2-uid", "namespace-2")
+			kms.RegisterCluster(&Cluster{UID: "cluster-uid"})
+			kms.RegisterNamespace(&Namespace{UID: "namespace-1-uid", Name: "namespace-1"})
+			kms.RegisterNamespace(&Namespace{UID: "namespace-2-uid", Name: "namespace-2"})
 
-			kms.RegisterResourceQuota("uid-1", "name-1", "namespace-1")
-			kms.RegisterResourceQuota("uid-2", "name-2", "namespace-2")
+			kms.RegisterResourceQuota(&ResourceQuota{UID: "uid-1", Name: "name-1", NamespaceUID: "namespace-1-uid"})
+			kms.RegisterResourceQuota(&ResourceQuota{UID: "uid-2", Name: "name-2", NamespaceUID: "namespace-2-uid"})
 
 			require.Len(t, kms.GetErrors(), 0)
 			require.NotNil(t, kms.ResourceQuotas)
@@ -264,24 +249,13 @@ func TestKubeModel(t *testing.T) {
 			require.Equal(t, testRQ2, kms.ResourceQuotas["uid-2"])
 			require.Equal(t, 4, kms.Metadata.ObjectCount) // 2 namespaces and 2 RQs
 
-			// Register a third RQ with an invalid namespace
-			kms.RegisterResourceQuota("uid-3", "name-3", "namespace-3")
-
-			require.Len(t, kms.GetWarnings(), 1)
-			require.Equal(t, "RegisterResourceQuota(uid-3, name-3, namespace-3): missing namespace", kms.GetWarnings()[0].Message)
-
-			testRQ3 := &ResourceQuota{
-				UID:          "uid-3",
-				NamespaceUID: "",
-				Name:         "name-3",
-				Spec:         &ResourceQuotaSpec{Hard: &ResourceQuotaSpecHard{}},
-				Status:       &ResourceQuotaStatus{Used: &ResourceQuotaStatusUsed{}},
-			}
-
-			require.Len(t, kms.ResourceQuotas, 3)
-			require.NotNil(t, kms.ResourceQuotas["uid-3"])
-			require.Equal(t, testRQ3, kms.ResourceQuotas["uid-3"])
-			require.Equal(t, 5, kms.Metadata.ObjectCount) // 2 namespaces and 3 RQs
+			// Register a third RQ with empty NamespaceUID — expect error, not registered
+			err := kms.RegisterResourceQuota(&ResourceQuota{UID: "uid-3", Name: "name-3", NamespaceUID: ""})
+			require.NotNil(t, err)
+			require.Len(t, kms.GetErrors(), 1)
+			require.Equal(t, "Namespace is missing for ResourceQuota 'uid-3'", kms.GetErrors()[0].Message)
+			require.Len(t, kms.ResourceQuotas, 2)          // still 2
+			require.Equal(t, 4, kms.Metadata.ObjectCount)  // unchanged
 		})
 	})
 }

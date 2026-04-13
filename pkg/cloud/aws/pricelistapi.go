@@ -213,3 +213,15 @@ type PriceListEC2PricePerUnit struct {
 	USD string `json:"USD,omitempty"`
 	CNY string `json:"CNY,omitempty"`
 }
+
+// ForCurrency returns the price string for the given currency code, falling
+// back to USD if the code is unrecognized or the field is empty.
+func (p PriceListEC2PricePerUnit) ForCurrency(code string) string {
+	switch strings.ToUpper(code) {
+	case "CNY":
+		if p.CNY != "" {
+			return p.CNY
+		}
+	}
+	return p.USD
+}

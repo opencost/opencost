@@ -17,9 +17,20 @@ import (
 const pricingCacheTTL = 24 * time.Hour
 const pricingCacheDir = "pricingsource/aws"
 const pricingCacheFile = "cached_ec2_pricingmodelset"
-const PricingListPricingSourceKey = "aws_pricing_list_api"
 
-type PricingListPricingSource struct{}
+const PricingListPricingSourceType pricingmodel.PricingSourceType = "aws_pricing_list_api"
+
+type PricingListPricingSourceConfig struct {
+	CurrencyCode string
+}
+
+type PricingListPricingSource struct {
+	config PricingListPricingSourceConfig
+}
+
+func NewPricingListPricingSource(cfg PricingListPricingSourceConfig) *PricingListPricingSource {
+	return &PricingListPricingSource{config: cfg}
+}
 
 func (p *PricingListPricingSource) cacheFilePath() (string, error) {
 	dir := env.GetPathFromConfig(pricingCacheDir)
@@ -69,20 +80,37 @@ func (p *PricingListPricingSource) saveToCache(pms *pricingmodel.PricingModelSet
 	}
 }
 
+func (p *PricingListPricingSource) PricingSourceType() pricingmodel.PricingSourceType {
+	return PricingListPricingSourceType
+}
+
+// PricingSourceKey returns the PricingSourceType because it is meant to run single instance.
 func (p *PricingListPricingSource) PricingSourceKey() string {
-	return PricingListPricingSourceKey
+	return string(PricingListPricingSourceType)
 }
 
 func (p *PricingListPricingSource) GetPricing() (*pricingmodel.PricingModelSet, error) {
 	if cached, ok := p.loadFromCache(); ok {
+		log.Infof("PricingListPricingSource: loaded %d pricing entries from cache", len(cached.NodePricing))
 		return cached, nil
 	}
+
+	log.Infof("PricingListPricingSource: starting AWS EC2 pricing list download (large file, this may take a while)")
+	start := time.Now()
+
 	now := time.Now().UTC()
-	pms := pricingmodel.NewPricingModelSet(now, PricingListPricingSourceKey)
+	pms := pricingmodel.NewPricingModelSet(now, p.PricingSourceType(), p.PricingSourceKey())
 	skuToNodeKey := make(map[string]pricingmodel.NodeKey)
+
+	var productCount, termCount int
+	const logInterval = 50000
 
 	// When parsing product we create keys based off of product attributes and link those to a SKU.
 	handleProduct := func(product *PriceListEC2Product) {
+		productCount++
+		if productCount%logInterval == 0 {
+			log.Infof("PricingListPricingSource: processed %d products...", productCount)
+		}
 		attr := product.Attributes
 		if attr.LocationType != "AWS Region" {
 			return
@@ -107,27 +135,30 @@ func (p *PricingListPricingSource) GetPricing() (*pricingmodel.PricingModelSet, 
 		}
 
 		skuToNodeKey[product.Sku] = pricingmodel.NodeKey{
-			Provider:  shared.ProviderAWS,
-			Region:    attr.RegionCode,
-			NodeType:  attr.InstanceType,
-			UsageType: shared.UsageTypeOnDemand,
+			Provider:    shared.ProviderAWS,
+			Region:      attr.RegionCode,
+			NodeType:    attr.InstanceType,
+			UsageType:   shared.UsageTypeOnDemand,
+			PricingType: pricingmodel.NodePricingTypeTotal,
 		}
 	}
 
 	// Terms are used to define pricing and have the sku to look up the appropriate key.
 	handleTerm := func(term *PriceListEC2Term) {
+		termCount++
+		if termCount%logInterval == 0 {
+			log.Infof("PricingListPricingSource: processed %d terms, %d pricing entries so far...", termCount, len(pms.NodePricing))
+		}
 		nodeKey, ok := skuToNodeKey[term.Sku]
 		if !ok {
 			return
 		}
-		isCN := false
 		hourlyRateCode := HourlyRateCode
 		if _, ok = OnDemandRateCodes[term.OfferTermCode]; !ok {
 			if _, okCN := OnDemandRateCodesCn[term.OfferTermCode]; !okCN {
 				// Skip if term is not OnDemand
 				return
 			}
-			isCN = true
 			hourlyRateCode = HourlyRateCodeCn
 		}
 		priceDimensionKey := strings.Join([]string{term.Sku, term.OfferTermCode, hourlyRateCode}, ".")
@@ -137,17 +168,14 @@ func (p *PricingListPricingSource) GetPricing() (*pricingmodel.PricingModelSet, 
 			return
 		}
 
-		priceStr := pricingDimension.PricePerUnit.USD
-		if isCN {
-			priceStr = pricingDimension.PricePerUnit.CNY
-		}
+		priceStr := pricingDimension.PricePerUnit.ForCurrency(p.config.CurrencyCode)
 		price, err := strconv.ParseFloat(priceStr, 64)
 		if err != nil {
 			log.Errorf("failed to parse str to float '%s': %s", priceStr, err.Error())
 			return
 		}
 		pms.NodePricing[nodeKey] = pricingmodel.NodePricing{
-			TotalHourlyRate: price,
+			HourlyRate: price,
 		}
 	}
 
@@ -155,6 +183,9 @@ func (p *PricingListPricingSource) GetPricing() (*pricingmodel.PricingModelSet, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to query list pricing data %w", err)
 	}
+
+	log.Infof("PricingListPricingSource: completed in %s — %d products, %d terms, %d pricing entries",
+		time.Since(start).Round(time.Second), productCount, termCount, len(pms.NodePricing))
 
 	p.saveToCache(pms)
 

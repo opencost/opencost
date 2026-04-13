@@ -46,6 +46,7 @@ func (kms *KubeModelSet) RegisterPod(pod *Pod) error {
 		kms.Window.End.Before(pod.End) {
 		err := fmt.Errorf(
 			"Pod '%s' has a start or end time (%s-%s) outside of the window %s-%s",
+			pod.UID,
 			pod.Start.Format(time.RFC3339),
 			pod.End.Format(time.RFC3339),
 			kms.Window.Start.Format(time.RFC3339),

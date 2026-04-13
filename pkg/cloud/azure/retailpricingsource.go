@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -14,15 +15,18 @@ import (
 )
 
 const (
-	azureRetailPricingBaseURL   = "https://prices.azure.com/api/retail/prices"
-	azureRetailVMFilter         = "serviceName eq 'Virtual Machines' and priceType eq 'Consumption'"
-	AzureRetailPricingSourceKey = "azure_retail_pricing_api"
+	azureRetailPricingBaseURL = "https://prices.azure.com/api/retail/prices"
+	azureRetailVMFilter       = "serviceName eq 'Virtual Machines' and priceType eq 'Consumption'"
 )
+
+const AzureRetailPricingSourceType pricingmodel.PricingSourceType = "azure_retail_pricing_api"
 
 // AzureRetailPricingSourceConfig holds configuration for AzureRetailPricingSource.
 type AzureRetailPricingSourceConfig struct {
 	CurrencyCode string
 }
+
+var azureRetailHTTPClient = &http.Client{Timeout: 60 * time.Second}
 
 // AzureRetailPricingSource implements pricingmodel.PricingSource using the
 // Azure Retail Prices API (no authentication required).
@@ -34,21 +38,32 @@ func NewAzureRetailPricingSource(cfg AzureRetailPricingSourceConfig) *AzureRetai
 	return &AzureRetailPricingSource{config: cfg}
 }
 
+func (a *AzureRetailPricingSource) PricingSourceType() pricingmodel.PricingSourceType {
+	return AzureRetailPricingSourceType
+}
+
+// PricingSourceKey returns the PricingSourceType because it is meant to run single instance.
 func (a *AzureRetailPricingSource) PricingSourceKey() string {
-	return AzureRetailPricingSourceKey
+	return string(AzureRetailPricingSourceType)
 }
 
 func (a *AzureRetailPricingSource) GetPricing() (*pricingmodel.PricingModelSet, error) {
 	now := time.Now().UTC()
-	pms := pricingmodel.NewPricingModelSet(now, AzureRetailPricingSourceKey)
+	pms := pricingmodel.NewPricingModelSet(now, a.PricingSourceType(), a.PricingSourceKey())
 
 	url := a.buildInitialURL()
 	pageCount := 0
 
 	for url != "" {
-		resp, err := http.Get(url)
+		resp, err := azureRetailHTTPClient.Get(url)
 		if err != nil {
 			return nil, fmt.Errorf("AzureRetailPricingSource: GET %s: %w", url, err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			return nil, fmt.Errorf("AzureRetailPricingSource: unexpected status %d on page %d: %s", resp.StatusCode, pageCount, string(body))
 		}
 
 		next, err := a.parsePage(resp.Body, pms)
@@ -67,11 +82,11 @@ func (a *AzureRetailPricingSource) GetPricing() (*pricingmodel.PricingModelSet, 
 }
 
 func (a *AzureRetailPricingSource) buildInitialURL() string {
-	url := fmt.Sprintf("%s?$filter=%s", azureRetailPricingBaseURL, azureRetailVMFilter)
+	u := azureRetailPricingBaseURL + "?$filter=" + url.QueryEscape(azureRetailVMFilter)
 	if a.config.CurrencyCode != "" {
-		url += fmt.Sprintf("&currencyCode='%s'", a.config.CurrencyCode)
+		u += "&currencyCode=" + url.QueryEscape(a.config.CurrencyCode)
 	}
-	return url
+	return u
 }
 
 func (a *AzureRetailPricingSource) parsePage(body io.Reader, pms *pricingmodel.PricingModelSet) (nextURL string, err error) {
@@ -91,14 +106,15 @@ func (a *AzureRetailPricingSource) parsePage(body io.Reader, pms *pricingmodel.P
 		}
 
 		key := pricingmodel.NodeKey{
-			Provider:  shared.ProviderAzure,
-			Region:    item.ArmRegionName,
-			NodeType:  item.ArmSkuName,
-			UsageType: usageTypeFromSku(item.SkuName),
+			Provider:    shared.ProviderAzure,
+			Region:      item.ArmRegionName,
+			NodeType:    item.ArmSkuName,
+			UsageType:   usageTypeFromSku(item.SkuName),
+			PricingType: pricingmodel.NodePricingTypeTotal,
 		}
 
 		pms.NodePricing[key] = pricingmodel.NodePricing{
-			TotalHourlyRate: float64(item.RetailPrice),
+			HourlyRate: float64(item.RetailPrice),
 		}
 	}
 
