@@ -18,7 +18,7 @@ jobs:
   validate-protobuf:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
         with:
           path: ./
       -
@@ -48,7 +48,7 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
         with:
           path: ./
 
@@ -64,7 +64,7 @@ jobs:
 
       # Saves us from having to redownload all modules
       - name: Go Mod cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cache/go-build
@@ -90,7 +90,7 @@ jobs:
           echo $GITHUB_HEAD_REF > head.txt
 
       - name: Upload code coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage
           path: |

@@ -325,7 +325,6 @@ type AwsAthenaInfo struct {
 	ServiceKeySecret string `json:"serviceKeySecret"`
 	AccountID        string `json:"projectID"`
 	MasterPayerARN   string `json:"masterPayerARN"`
-	CURVersion       string `json:"curVersion"` // "1.0" or "2.0", defaults to "2.0" if not specified
 }
 
 // IsEmpty returns true if all fields in config are empty, false if not.
@@ -438,7 +437,6 @@ func (aws *AWS) GetAWSAthenaInfo() (*AwsAthenaInfo, error) {
 		ServiceKeySecret: aak.SecretAccessKey,
 		AccountID:        config.AthenaProjectID,
 		MasterPayerARN:   config.MasterPayerARN,
-		CURVersion:       config.AthenaCURVersion,
 	}, nil
 }
 
@@ -488,9 +486,6 @@ func configUpdaterWithReaderAndType(r io.Reader, updateType string) func(c *mode
 				c.MasterPayerARN = aai.MasterPayerARN
 			}
 			c.AthenaProjectID = aai.AccountID
-			if aai.CURVersion != "" {
-				c.AthenaCURVersion = aai.CURVersion
-			}
 		default:
 			a := make(map[string]any)
 			err := json.NewDecoder(r).Decode(&a)
@@ -768,8 +763,28 @@ func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response,
 
 // SpotRefreshEnabled determines whether the required configs to run the spot feed query have been set up
 func (aws *AWS) SpotRefreshEnabled() bool {
-	// Need a valid value for at least one of these fields to consider spot pricing as enabled
-	return len(aws.SpotDataBucket) != 0 || len(aws.SpotDataRegion) != 0 || len(aws.ProjectID) != 0
+	// Guard against nil receiver
+	if aws == nil {
+		return false
+	}
+
+	// Fallback if config is not initialized
+	if aws.Config == nil {
+		return len(aws.SpotDataBucket) != 0 ||
+			len(aws.SpotDataRegion) != 0 ||
+			len(aws.ProjectID) != 0
+	}
+
+	// Check if spot data feed is explicitly disabled via config
+	c, err := aws.Config.GetCustomPricingData()
+	if err == nil && c.SpotDataFeedEnabled == "false" {
+		return false
+	}
+
+	// Default behavior
+	return len(aws.SpotDataBucket) != 0 ||
+		len(aws.SpotDataRegion) != 0 ||
+		len(aws.ProjectID) != 0
 }
 
 // DownloadPricingData fetches data from the AWS Pricing API
@@ -1301,7 +1316,9 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 			UsageType:    PreemptibleType,
 		}, meta, nil
 	} else if aws.isPreemptible(key) { // Preemptible but we don't have any data in the pricing report.
-		log.DedupedWarningf(5, "Node %s marked preemptible but we have no data in spot feed", k.ID())
+		if aws.SpotRefreshEnabled() {
+			log.DedupedWarningf(5, "Node %s marked preemptible but we have no data in spot feed", k.ID())
+		}
 		if publicPricingFound {
 			// return public price if found
 			return &models.Node{
@@ -1317,7 +1334,9 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 			}, meta, nil
 		} else {
 			// return defaults if public pricing not found
-			log.DedupedWarningf(5, "Could not find Node %s's public pricing info, using default configured spot prices instead", k.ID())
+			if aws.SpotRefreshEnabled() {
+				log.DedupedWarningf(5, "Could not find Node %s's public pricing info, using default configured spot prices instead", k.ID())
+			}
 			return &models.Node{
 				VCPU:         terms.VCpu,
 				VCPUCost:     aws.BaseSpotCPUPrice,

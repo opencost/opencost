@@ -225,7 +225,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 		return &digitalocean.DOKS{
 			Config:                NewProviderConfig(config, cp.configFileName),
 			Cache:                 digitalocean.NewPricingCache(),
-			Products:              make(map[string][]digitalocean.DOProduct),
+			Sizes:                 make(map[string]*digitalocean.DOSize),
 			Clientset:             cache,
 			ClusterManagementCost: 0.0,
 		}, nil

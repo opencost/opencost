@@ -11,8 +11,6 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/core/pkg/util/apiutil"
-	"github.com/opencost/opencost/pkg/cloud/models"
-	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/customcost"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -44,7 +42,7 @@ func Execute(conf *Config) error {
 
 	router := httprouter.New()
 	var a *costmodel.Accesses
-	var cp models.Provider
+
 	if conf.KubernetesEnabled {
 		a = costmodel.Initialize(router)
 		err := StartExportWorker(context.Background(), a.Model)
@@ -60,17 +58,12 @@ func Execute(conf *Config) error {
 			router.GET("/assets/carbon", a.ComputeAssetsCarbonHandler)
 		}
 
-		// set cloud provider for cloud cost
-		cp = a.CloudProvider
 	}
 
 	var cloudCostPipelineService *cloudcost.PipelineService
 	if conf.CloudCostEnabled {
-		var providerConfig models.ProviderConfig
-		if cp != nil {
-			providerConfig = provider.ExtractConfigFromProviders(cp)
-		}
-		cloudCostPipelineService = costmodel.InitializeCloudCost(router, providerConfig)
+
+		cloudCostPipelineService = costmodel.InitializeCloudCost(router)
 	}
 
 	var customCostPipelineService *customcost.PipelineService
