@@ -184,6 +184,15 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 			},
 		},
 		{
+			column: "Cluster",
+			value: func(data rowData) string {
+				if data.alloc.Properties == nil {
+					return ""
+				}
+				return data.alloc.Properties.Cluster
+			},
+		},
+		{
 			column: "ControllerKind",
 			value: func(data rowData) string {
 				return data.alloc.Properties.ControllerKind
