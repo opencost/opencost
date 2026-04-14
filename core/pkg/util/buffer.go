@@ -379,6 +379,17 @@ func (b *Buffer) ReadBytes(length int) []byte {
 	return bytes
 }
 
+func (b *Buffer) Close() {
+	if b.bw != nil {
+		return
+	}
+
+	if b.b != nil {
+		b.Close()
+		b.b = nil
+	}
+}
+
 // Conversion from byte slice to string
 func bytesToString(b []byte) string {
 	// This code will take the passed byte slice and cast it in-place into a string. By doing
