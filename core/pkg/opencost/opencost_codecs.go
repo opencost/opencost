@@ -89,6 +89,9 @@ func ConfigureBingen(config *BingenConfiguration) {
 	bingenConfigLock.Lock()
 	defer bingenConfigLock.Unlock()
 
+	if config == nil {
+		config = DefaultBingenConfiguration()
+	}
 	bingenConfig = config
 }
 
@@ -460,7 +463,11 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 		return unsafe.Slice(unsafe.StringData(s), len(s))
 	}
 
-	os.MkdirAll(dir, 0755)
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		panic(fmt.Errorf("%s: failed to create string table directory: %w", GeneratorPackageName, err))
+	}
+
 	f, err := os.CreateTemp(dir, fmt.Sprintf("%s-bgst-*", GeneratorPackageName))
 	if err != nil {
 		panic(fmt.Errorf("%s: failed to create string table file: %w", GeneratorPackageName, err))

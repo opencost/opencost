@@ -76,7 +76,7 @@ func readInt(r *bytes.Buffer, data *int) error {
 		return err
 	}
 
-	*data = int(order.Uint32(bs))
+	*data = int(int32(order.Uint32(bs)))
 	return nil
 }
 
@@ -246,7 +246,7 @@ func readBuffInt(r *bufio.Reader, data *int) error {
 		return err
 	}
 
-	*data = int(order.Uint32(bs))
+	*data = int(int32(order.Uint32(bs)))
 	return nil
 }
 

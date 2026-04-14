@@ -183,8 +183,8 @@ func TestBufferWriteReadInt64(t *testing.T) {
 func TestBufferBytes(t *testing.T) {
 	buf := NewBuffer()
 
-	buf.WriteInt(42)
-	buf.WriteFloat64(3.14)
+	buf.WriteInt(-42)
+	buf.WriteFloat64(-3.14)
 
 	unreadBytes := buf.Bytes()
 
@@ -193,11 +193,11 @@ func TestBufferBytes(t *testing.T) {
 	intVal := newBuf.ReadInt()
 	floatVal := newBuf.ReadFloat64()
 
-	if intVal != 42 {
-		t.Errorf("Expected int value to be 42, got %v", intVal)
+	if intVal != -42 {
+		t.Errorf("Expected int value to be -42, got %v", intVal)
 	}
-	if floatVal != 3.14 {
-		t.Errorf("Expected float value to be 3.14, got %v", floatVal)
+	if floatVal != -3.14 {
+		t.Errorf("Expected float value to be -3.14, got %v", floatVal)
 	}
 }
 
