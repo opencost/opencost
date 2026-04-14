@@ -21,6 +21,12 @@ import (
 	"github.com/opencost/opencost/pkg/env"
 )
 
+// pluginConnector abstracts *plugin.Client so buildSingleDomain can be tested with mocks.
+type pluginConnector interface {
+	Client() (plugin.ClientProtocol, error)
+	Kill()
+}
+
 // IngestorStatus includes diagnostic values for a given Ingestor
 type IngestorStatus struct {
 	Created     time.Time
@@ -65,14 +71,22 @@ type CustomCostIngestor struct {
 	isStopping   atomic.Bool
 	exitBuildCh  chan string
 	exitRunCh    chan string
-	plugins      map[string]*plugin.Client
+	plugins      map[string]pluginConnector
 	pluginsLock  sync.RWMutex
 	resolution   time.Duration
 	refreshRate  time.Duration
 }
 
-// NewIngestor is an initializer for ingestor
+// NewCustomCostIngestor is an initializer for ingestor
 func NewCustomCostIngestor(ingestorConfig *CustomCostIngestorConfig, repo Repository, plugins map[string]*plugin.Client, res time.Duration) (*CustomCostIngestor, error) {
+	connectors := make(map[string]pluginConnector, len(plugins))
+	for k, v := range plugins {
+		connectors[k] = v
+	}
+	return newCustomCostIngestor(ingestorConfig, repo, connectors, res)
+}
+
+func newCustomCostIngestor(ingestorConfig *CustomCostIngestorConfig, repo Repository, plugins map[string]pluginConnector, res time.Duration) (*CustomCostIngestor, error) {
 	if repo == nil {
 		return nil, fmt.Errorf("CustomCost: NewCustomCostIngestor: repository connot be nil")
 	}
@@ -194,7 +208,11 @@ func (ing *CustomCostIngestor) buildSingleDomain(start, end time.Time, domain st
 		return
 	}
 
-	custCostSrc := raw.(ocplugin.CustomCostSource)
+	custCostSrc, ok := raw.(ocplugin.CustomCostSource)
+	if !ok {
+		log.Errorf("plugin %s returned invalid type: expected CustomCostSource, got %T", domain, raw)
+		return
+	}
 
 	custCostResps := custCostSrc.GetCustomCosts(req)
 	// loop through each customCostResponse, adding to repo
