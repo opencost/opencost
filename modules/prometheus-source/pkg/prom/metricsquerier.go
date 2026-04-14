@@ -568,7 +568,7 @@ func (pds *PrometheusMetricsQuerier) QueryLBActiveMinutes(start, end time.Time) 
 
 func (pds *PrometheusMetricsQuerier) QueryClusterInfo(start, end time.Time) *source.Future[source.ClusterInfoResult] {
 	const queryName = "QueryClusterInfo"
-	const queryFmtClusterInfo = `avg(avg_over_time(kubecost_cluster_info{%s}[%s])) by (%s, uid, provider, account_id, provisioner_name, region)`
+	const queryFmtClusterInfo = `avg(avg_over_time(cluster_info{%s}[%s])) by (%s, uid, provider, account_id, provisioner_name, region)`
 
 	cfg := pds.promConfig
 
@@ -584,7 +584,6 @@ func (pds *PrometheusMetricsQuerier) QueryClusterInfo(start, end time.Time) *sou
 	return source.NewFuture(source.DecodeClusterInfoResult, ctx.QueryAtTime(queryClusterInfo, end))
 }
 
-// Note: cluster_info is not currently emitted
 func (pds *PrometheusMetricsQuerier) QueryClusterUptime(start, end time.Time) *source.Future[source.UptimeResult] {
 	const queryName = "QueryClusterUptime"
 	const queryFmtClusterUptime = `avg(cluster_info{%s}) by (%s, uid)[%s:%dm]`
