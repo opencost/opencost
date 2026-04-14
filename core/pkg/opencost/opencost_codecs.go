@@ -170,6 +170,9 @@ func isReaderBinaryTag(buff *util.Buffer, tag string) bool {
 	if err != nil && err != io.EOF {
 		panic(fmt.Sprintf("called Peek() on a non buffered reader: %s", err))
 	}
+	if len(data) < len(tag) {
+		return false
+	}
 
 	return string(data[:len(tag)]) == tag
 }
@@ -2216,7 +2219,7 @@ func (stream *AllocationSetStream) Close() {
 	stream.ctx.Close()
 }
 
-// Error returns an error if one occurred during the process of streaming the %!!(string=AllocationSet)s(MISSING) fields
+// Error returns an error if one occurred during the process of streaming the AllocationSet
 // This can be checked after iterating through the Stream().
 func (stream *AllocationSetStream) Error() error {
 	return stream.err
@@ -3478,7 +3481,7 @@ func (stream *AssetSetStream) Close() {
 	stream.ctx.Close()
 }
 
-// Error returns an error if one occurred during the process of streaming the %!!(string=AssetSet)s(MISSING) fields
+// Error returns an error if one occurred during the process of streaming the AssetSet
 // This can be checked after iterating through the Stream().
 func (stream *AssetSetStream) Error() error {
 	return stream.err
@@ -5078,7 +5081,7 @@ func (stream *CloudCostSetStream) Close() {
 	stream.ctx.Close()
 }
 
-// Error returns an error if one occurred during the process of streaming the %!!(string=CloudCostSet)s(MISSING) fields
+// Error returns an error if one occurred during the process of streaming the CloudCostSet
 // This can be checked after iterating through the Stream().
 func (stream *CloudCostSetStream) Error() error {
 	return stream.err
@@ -7757,7 +7760,7 @@ func (stream *NetworkInsightSetStream) Close() {
 	stream.ctx.Close()
 }
 
-// Error returns an error if one occurred during the process of streaming the %!!(string=NetworkInsightSet)s(MISSING) fields
+// Error returns an error if one occurred during the process of streaming the NetworkInsightSet
 // This can be checked after iterating through the Stream().
 func (stream *NetworkInsightSetStream) Error() error {
 	return stream.err
