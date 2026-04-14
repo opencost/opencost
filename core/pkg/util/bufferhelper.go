@@ -442,7 +442,7 @@ func writeInt(w *bytes.Buffer, data int) error {
 	var b [4]byte
 	bs := b[:]
 
-	binary.LittleEndian.PutUint32(bs, uint32(data))
+	binary.LittleEndian.PutUint32(bs, uint32(int32(data)))
 	_, err := w.Write(bs)
 	return err
 }
