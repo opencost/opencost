@@ -49,30 +49,22 @@ func createMockServer(response string) *httptest.Server {
 }
 
 func TestK8sProxyTarget_Load_DirectSuccess(t *testing.T) {
-	// Create a mock HTTP server
 	server := createMockServer("direct response")
 	defer server.Close()
 
-	// Create mock proxy getter (should not be called)
 	proxyGetter := &mockPodProxyGetter{response: "proxy response"}
+	target := NewK8sProxyTarget(server.URL, proxyGetter, "test-namespace", "test-pod", 3001, "metrics")
 
-	// Create K8sProxyTarget
-	target := NewK8sProxyTarget(
-		server.URL,
-		proxyGetter,
-		"test-namespace",
-		"test-pod",
-		3001,
-		"metrics",
-	)
-
-	// Load should succeed with direct HTTP
 	reader, err := target.Load()
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
+	defer func() {
+		if closer, ok := reader.(io.Closer); ok {
+			closer.Close()
+		}
+	}()
 
-	// Verify response
 	data, err := io.ReadAll(reader)
 	if err != nil {
 		t.Fatalf("Failed to read response: %v", err)
@@ -84,29 +76,17 @@ func TestK8sProxyTarget_Load_DirectSuccess(t *testing.T) {
 }
 
 func TestK8sProxyTarget_Load_ProxyFallback(t *testing.T) {
-	// Use invalid URL to force direct HTTP to fail
-	invalidURL := "http://invalid-host-that-does-not-exist:9999/metrics"
+	// Use connection-refused URL for deterministic failure
+	invalidURL := "http://127.0.0.1:1/metrics"
 
-	// Create mock proxy getter that succeeds
 	proxyGetter := &mockPodProxyGetter{response: "proxy response"}
+	target := NewK8sProxyTarget(invalidURL, proxyGetter, "test-namespace", "test-pod", 3001, "metrics")
 
-	// Create K8sProxyTarget
-	target := NewK8sProxyTarget(
-		invalidURL,
-		proxyGetter,
-		"test-namespace",
-		"test-pod",
-		3001,
-		"metrics",
-	)
-
-	// Load should succeed via proxy fallback
 	reader, err := target.Load()
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// Verify response
 	data, err := io.ReadAll(reader)
 	if err != nil {
 		t.Fatalf("Failed to read response: %v", err)
@@ -118,40 +98,23 @@ func TestK8sProxyTarget_Load_ProxyFallback(t *testing.T) {
 }
 
 func TestK8sProxyTarget_Load_BothFail(t *testing.T) {
-	// Use invalid URL to force direct HTTP to fail
-	invalidURL := "http://invalid-host-that-does-not-exist:9999/metrics"
-
-	// Create mock proxy getter that also fails
+	invalidURL := "http://127.0.0.1:1/metrics"
 	proxyGetter := &mockPodProxyGetter{err: errors.New("proxy error")}
+	target := NewK8sProxyTarget(invalidURL, proxyGetter, "test-namespace", "test-pod", 3001, "metrics")
 
-	// Create K8sProxyTarget
-	target := NewK8sProxyTarget(
-		invalidURL,
-		proxyGetter,
-		"test-namespace",
-		"test-pod",
-		3001,
-		"metrics",
-	)
-
-	// Load should fail with both errors
 	_, err := target.Load()
 	if err == nil {
 		t.Fatal("Expected error, got nil")
 	}
 
-	// Error should mention both failures
-	errMsg := err.Error()
-	if !strings.Contains(errMsg, "both direct HTTP and K8s") {
-		t.Errorf("Expected error message to mention both failures, got: %s", errMsg)
+	if !strings.Contains(err.Error(), "both direct HTTP and K8s") {
+		t.Errorf("Expected error message to mention both failures, got: %s", err.Error())
 	}
 }
 
 func TestK8sProxyTarget_Load_ProxyParameters(t *testing.T) {
-	// Use invalid URL to force proxy fallback
-	invalidURL := "http://invalid-host:9999/metrics"
+	invalidURL := "http://127.0.0.1:1/metrics"
 
-	// Track what parameters were passed to proxy
 	var capturedNamespace, capturedPodName, capturedPath string
 	var capturedPort int
 
@@ -163,23 +126,13 @@ func TestK8sProxyTarget_Load_ProxyParameters(t *testing.T) {
 		capturedPath:      &capturedPath,
 	}
 
-	// Create K8sProxyTarget with specific parameters
-	target := NewK8sProxyTarget(
-		invalidURL,
-		proxyGetter,
-		"my-namespace",
-		"my-pod",
-		8080,
-		"custom/path",
-	)
+	target := NewK8sProxyTarget(invalidURL, proxyGetter, "my-namespace", "my-pod", 8080, "custom/path")
 
-	// Load to trigger proxy
 	_, err := target.Load()
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// Verify parameters were passed correctly
 	if capturedNamespace != "my-namespace" {
 		t.Errorf("Expected namespace 'my-namespace', got: %s", capturedNamespace)
 	}
@@ -191,6 +144,20 @@ func TestK8sProxyTarget_Load_ProxyParameters(t *testing.T) {
 	}
 	if capturedPath != "custom/path" {
 		t.Errorf("Expected path 'custom/path', got: %s", capturedPath)
+	}
+}
+
+func TestK8sProxyTarget_Load_NilProxyGetter(t *testing.T) {
+	invalidURL := "http://127.0.0.1:1/metrics"
+	target := NewK8sProxyTarget(invalidURL, nil, "test-namespace", "test-pod", 3001, "metrics")
+
+	_, err := target.Load()
+	if err == nil {
+		t.Fatal("Expected error when proxyGetter is nil, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "no proxy getter available") {
+		t.Errorf("Expected error about no proxy getter, got: %s", err.Error())
 	}
 }
 

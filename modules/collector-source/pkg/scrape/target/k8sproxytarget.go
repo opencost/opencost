@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
+	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"k8s.io/client-go/kubernetes"
@@ -35,6 +37,9 @@ func NewPodProxyClient(config *rest.Config) *PodProxyClient {
 // Get makes a GET request to a pod via the Kubernetes API server's proxy endpoint.
 // The API server proxies the request to the specified pod.
 func (c *PodProxyClient) Get(ctx context.Context, namespace, podName string, port int, path string) (io.Reader, error) {
+	// Normalize path by removing leading slash to avoid double slashes in proxy URL
+	normalizedPath := strings.TrimPrefix(path, "/")
+
 	// Build the proxy request
 	// Format: /api/v1/namespaces/{namespace}/pods/{pod}:{port}/proxy/{path}
 	req := c.clientset.CoreV1().
@@ -44,7 +49,7 @@ func (c *PodProxyClient) Get(ctx context.Context, namespace, podName string, por
 		Resource("pods").
 		SubResource("proxy").
 		Name(fmt.Sprintf("%s:%d", podName, port)).
-		Suffix(path)
+		Suffix(normalizedPath)
 
 	// Execute the request - the K8s API server will proxy it to the pod
 	data, err := req.DoRaw(ctx)
@@ -104,15 +109,24 @@ func (t *K8sProxyTarget) Load() (io.Reader, error) {
 		return reader, nil
 	}
 
+	// Direct HTTP failed, check if proxy getter is available
+	if t.proxyGetter == nil {
+		return nil, fmt.Errorf("direct HTTP failed and no proxy getter available: %w", err)
+	}
+
 	// Direct HTTP failed, request K8s API server to proxy to the pod
 	log.Debugf("Direct HTTP failed for %s/%s, requesting K8s API server to proxy", t.namespace, t.podName)
 
+	// Use timeout to prevent hung requests
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	// Use the proxy getter to make the request via K8s API server
-	reader, proxyErr := t.proxyGetter.Get(context.Background(), t.namespace, t.podName, t.port, t.path)
+	reader, proxyErr := t.proxyGetter.Get(ctx, t.namespace, t.podName, t.port, t.path)
 	if proxyErr != nil {
 		return nil, fmt.Errorf("both direct HTTP and K8s API proxy failed - direct: %v, proxy: %v", err, proxyErr)
 	}
 
-	log.Infof("Successfully scraped %s/%s via K8s API server proxy fallback", t.namespace, t.podName)
+	log.Debugf("Successfully scraped %s/%s via K8s API server proxy fallback", t.namespace, t.podName)
 	return reader, nil
 }

@@ -340,5 +340,3 @@ func TestNewNetworkTargetScraper(t *testing.T) {
 		t.Errorf("Expected TargetScraper, got %T", scraper)
 	}
 }
-
-// Made with Bob
