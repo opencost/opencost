@@ -8,8 +8,8 @@ import (
 
 type bufferPool struct {
 	// pools[i] holds buffers of capacity 1<<i.
-	// pools[0] is unused: Get rounds up to at least pools[1] (2 bytes),
-	// so index 0 is never accessed. This is a minor accepted waste.
+	// In particular, Get(1) uses pools[0] for 1-byte buffers; larger requests
+	// are rounded up to the next power-of-two bucket by poolIndex.
 	pools [32]sync.Pool
 }
 
