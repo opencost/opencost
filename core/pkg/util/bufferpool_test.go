@@ -169,14 +169,35 @@ func TestPutRestoresFullCapacity(t *testing.T) {
 	}
 }
 
+func TestIsPowerOfTwo(t *testing.T) {
+	for i := 0; i < 32; i++ {
+		cap := 1 << i
+
+		if !isPowerOfTwo(cap) {
+			t.Fatalf("Failed at: i=%d, cap=%d\n", i, cap)
+		}
+	}
+
+	for _, v := range []int{5, 17, 19, 31, 55} {
+		if isPowerOfTwo(v) {
+			t.Fatalf("Unexpected isPowerOfTwo: %d", v)
+		}
+	}
+}
+
 func TestPutNonPowerOfTwoCapIsDiscarded(t *testing.T) {
 	// Buffers with non-power-of-two capacities (e.g. from outside the pool)
 	// get silently dropped. Confirm no panic and pool still works after.
 	bp := newBufferPool()
-	bp.Put(make([]byte, 0, 17))
-	buf := bp.Get(8)
-	if len(buf) != 8 {
-		t.Errorf("Get(8) after spurious Put: len = %d, want 8", len(buf))
+	value := make([]byte, 0, 17)
+	bp.Put(value)
+
+	buf := bp.Get(24)
+	if len(buf) != 24 {
+		t.Errorf("Get(24) after spurious Put: len = %d, want 24", len(buf))
+	}
+	if cap(buf) != 32 {
+		t.Errorf("Get(24) after spurious Put: cap = %d, want 32", cap(buf))
 	}
 }
 

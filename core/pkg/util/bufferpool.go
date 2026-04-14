@@ -42,6 +42,10 @@ func putIndex(capacity int) int {
 	return bits.Len32(uint32(capacity)) - 1
 }
 
+func isPowerOfTwo(capacity int) bool {
+	return capacity&(capacity-1) == 0
+}
+
 func (bp *bufferPool) Get(length int) []byte {
 	if length <= 0 {
 		return nil
@@ -60,7 +64,7 @@ func (bp *bufferPool) Get(length int) []byte {
 
 func (bp *bufferPool) Put(buf []byte) {
 	capacity := cap(buf)
-	if capacity == 0 || capacity > math.MaxInt32 {
+	if capacity == 0 || capacity > math.MaxInt32 || !isPowerOfTwo(capacity) {
 		return
 	}
 
