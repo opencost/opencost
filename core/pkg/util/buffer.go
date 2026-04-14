@@ -377,18 +377,6 @@ func (b *Buffer) ReadBytes(length int) []byte {
 	return bytes
 }
 
-// Close will closer all internal buffers.
-func (b *Buffer) Close() {
-	if b.bw != nil {
-		return
-	}
-
-	if b.b != nil {
-		b.Close()
-		b.b = nil
-	}
-}
-
 // bytesAsString converts a []byte into a string in place. Note that you should use this helper
 // when the []byte slice contains _only_ the string data and isn't part of a larger underlying array.
 // For example, a case where you should *not* use this helper:
