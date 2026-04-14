@@ -117,7 +117,7 @@ func (mls *MemoryLimitStats) Record(heapBytes uint64) (softLimit uint64, updated
 	mls.raw.Push(sample)
 	mls.breach.Push(sample)
 
-	// Check that the minimum number of sammples exist in the window before
+	// Check that the minimum number of samples exist in the window before
 	// calculating the memory limit
 	totalSamples := mls.window.Len()
 	if totalSamples < mls.config.MinSamples {
