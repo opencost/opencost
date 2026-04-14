@@ -492,7 +492,12 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 			}
 			nodeStatClient := nodestats.NewNodeStatsSummaryClient(k8sCache, nodeStatConf, clusterConfig)
 			proxyClient := target.NewPodProxyClient(clusterConfig)
-			if proxyClient == nil {
+			// Avoid typed nil: if proxyClient is nil, passing it directly as an interface
+			// creates a non-nil interface value, causing nil pointer panics downstream
+			var proxyGetter target.PodProxyGetter
+			if proxyClient != nil {
+				proxyGetter = proxyClient
+			} else {
 				log.Warnf("Failed to create pod proxy client for NetworkCosts scraping. Will use direct HTTP only.")
 			}
 			ds := collector.NewDefaultCollectorDataSource(
@@ -501,7 +506,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 				clusterInfoProvider,
 				k8sCache,
 				nodeStatClient,
-				proxyClient,
+				proxyGetter,
 			)
 			return ds, nil
 		}

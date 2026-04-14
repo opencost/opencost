@@ -76,8 +76,10 @@ func TestK8sProxyTarget_Load_DirectSuccess(t *testing.T) {
 }
 
 func TestK8sProxyTarget_Load_ProxyFallback(t *testing.T) {
-	// Use connection-refused URL for deterministic failure
-	invalidURL := "http://127.0.0.1:1/metrics"
+	// Create a server, capture its URL, then close it for deterministic connection failure
+	server := createMockServer("unused")
+	invalidURL := server.URL
+	server.Close()
 
 	proxyGetter := &mockPodProxyGetter{response: "proxy response"}
 	target := NewK8sProxyTarget(invalidURL, proxyGetter, "test-namespace", "test-pod", 3001, "metrics")
@@ -98,7 +100,9 @@ func TestK8sProxyTarget_Load_ProxyFallback(t *testing.T) {
 }
 
 func TestK8sProxyTarget_Load_BothFail(t *testing.T) {
-	invalidURL := "http://127.0.0.1:1/metrics"
+	server := createMockServer("unused")
+	invalidURL := server.URL
+	server.Close()
 	proxyGetter := &mockPodProxyGetter{err: errors.New("proxy error")}
 	target := NewK8sProxyTarget(invalidURL, proxyGetter, "test-namespace", "test-pod", 3001, "metrics")
 
@@ -113,7 +117,9 @@ func TestK8sProxyTarget_Load_BothFail(t *testing.T) {
 }
 
 func TestK8sProxyTarget_Load_ProxyParameters(t *testing.T) {
-	invalidURL := "http://127.0.0.1:1/metrics"
+	server := createMockServer("unused")
+	invalidURL := server.URL
+	server.Close()
 
 	var capturedNamespace, capturedPodName, capturedPath string
 	var capturedPort int
@@ -148,7 +154,9 @@ func TestK8sProxyTarget_Load_ProxyParameters(t *testing.T) {
 }
 
 func TestK8sProxyTarget_Load_NilProxyGetter(t *testing.T) {
-	invalidURL := "http://127.0.0.1:1/metrics"
+	server := createMockServer("unused")
+	invalidURL := server.URL
+	server.Close()
 	target := NewK8sProxyTarget(invalidURL, nil, "test-namespace", "test-pod", 3001, "metrics")
 
 	_, err := target.Load()
