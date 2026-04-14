@@ -25,6 +25,7 @@ func TestPoolIndex(t *testing.T) {
 		{256, 8},
 		{1023, 10},
 		{1024, 10},
+		{math.MaxUint16 - 50, 16},
 	}
 	for _, c := range cases {
 		got := poolIndex(c.length)
@@ -34,10 +35,32 @@ func TestPoolIndex(t *testing.T) {
 	}
 }
 
+func TestAllocMinusOne(t *testing.T) {
+	bp := newBufferPool()
+	for i := 1; i <= 16; i++ {
+		capacity := 1 << i
+		length := capacity - 1
+		if length <= 0 {
+			continue
+		}
+
+		b := bp.Get(length)
+		c := cap(b)
+
+		pIndex := poolIndex(length)
+		rIndex := putIndex(c)
+
+		if pIndex != rIndex {
+			t.Errorf("pIndex: %d != rIndex: %d\n", pIndex, rIndex)
+		}
+
+	}
+}
+
 func TestPutIndex(t *testing.T) {
 	// putIndex must be the inverse of poolIndex for all power-of-two capacities
 	// that Get hands out.
-	for i := 1; i < 32; i++ {
+	for i := 1; i <= 16; i++ {
 		cap := 1 << i
 		got := putIndex(cap)
 		if got != i {
@@ -49,7 +72,7 @@ func TestPutIndex(t *testing.T) {
 func TestPoolIndexPutIndexRoundTrip(t *testing.T) {
 	// For any requested length, the buffer Get returns has capacity 1<<poolIndex(length).
 	// Confirm that putIndex maps that capacity back to the same pool slot.
-	for length := 1; length <= 1<<20; length++ {
+	for length := 1; length <= math.MaxUint16; length++ {
 		i := poolIndex(length)
 		capacity := 1 << i
 		j := putIndex(capacity)
@@ -83,10 +106,10 @@ func TestGetLengthIsExact(t *testing.T) {
 
 func TestGetCapacityIsPowerOfTwo(t *testing.T) {
 	bp := newBufferPool()
-	for _, n := range []int{1, 2, 3, 4, 5, 100, 1000, 65535, 65536} {
+	for _, n := range []int{1, 2, 3, 4, 5, 100, 1000, 550, math.MaxUint16 - 100, math.MaxUint16} {
 		buf := bp.Get(n)
 		c := cap(buf)
-		if c == 0 || (c&(c-1)) != 0 {
+		if c == 0 || !isPowerOfTwo(c) {
 			t.Errorf("Get(%d): cap = %d, not a power of two", n, c)
 		}
 	}
@@ -119,10 +142,10 @@ func TestGetCapacityIsSmallestFittingPowerOfTwo(t *testing.T) {
 
 func TestGetOversizeFallback(t *testing.T) {
 	bp := newBufferPool()
-	n := math.MaxInt32 + 1
+	n := math.MaxUint16 + 1
 	buf := bp.Get(n)
 	if len(buf) != n {
-		t.Errorf("Get(MaxInt32+1): len = %d, want %d", len(buf), n)
+		t.Errorf("Get(MaxUint16+1): len = %d, want %d", len(buf), n)
 	}
 }
 
@@ -170,7 +193,7 @@ func TestPutRestoresFullCapacity(t *testing.T) {
 }
 
 func TestIsPowerOfTwo(t *testing.T) {
-	for i := 0; i < 32; i++ {
+	for i := 0; i < 16; i++ {
 		cap := 1 << i
 
 		if !isPowerOfTwo(cap) {
@@ -239,13 +262,13 @@ func TestGetExactPowerOfTwo(t *testing.T) {
 	// Exact powers of two are the boundary between two pools; confirm correct
 	// bucket selection and full round-trip for each.
 	bp := newBufferPool()
-	for i := 1; i < 31; i++ {
+	for i := 0; i < 17; i++ {
 		n := 1 << i
 		buf := bp.Get(n)
 		if len(buf) != n {
 			t.Errorf("Get(1<<%d=%d): len = %d", i, n, len(buf))
 		}
-		expectedCap := 1 << (bits.Len32(uint32(n - 1)))
+		expectedCap := 1 << (bits.Len16(uint16(n - 1)))
 		if cap(buf) != expectedCap {
 			t.Errorf("Get(1<<%d=%d): cap = %d, want %d", i, n, cap(buf), expectedCap)
 		}
@@ -253,19 +276,17 @@ func TestGetExactPowerOfTwo(t *testing.T) {
 	}
 }
 
-func TestGetMaxInt32(t *testing.T) {
-	// Allocating 2 GiB in a test is impractical; instead validate the index
-	// arithmetic stays in bounds.
-	i := poolIndex(math.MaxInt32)
-	if i >= 32 {
-		t.Errorf("poolIndex(MaxInt32) = %d, overflows pool array", i)
+func TestGetMaxInt16(t *testing.T) {
+	i := poolIndex(math.MaxUint16)
+	if i >= 17 {
+		t.Errorf("poolIndex(MaxUint16) = %d, overflows pool array", i)
 	}
 }
 
 // --- Benchmarks ---
 
 func BenchmarkGetPut(b *testing.B) {
-	sizes := []int{64, 512, 4096, 65536}
+	sizes := []int{64, 512, 4096, 65535}
 	for _, size := range sizes {
 		bp := newBufferPool()
 		b.Run("", func(b *testing.B) {

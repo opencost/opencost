@@ -6,17 +6,15 @@ import (
 	"sync"
 )
 
+// bufferPool holds "tiered" []byte `sync.Pool` instances by capacity up to math.MaxUint16
 type bufferPool struct {
-	// pools[i] holds buffers of capacity 1<<i.
-	// In particular, Get(1) uses pools[0] for 1-byte buffers; larger requests
-	// are rounded up to the next power-of-two bucket by poolIndex.
-	pools [32]sync.Pool
+	pools [17]sync.Pool
 }
 
 func newBufferPool() *bufferPool {
 	bp := new(bufferPool)
 
-	for i := 0; i < 32; i++ {
+	for i := 0; i < 17; i++ {
 		length := 1 << i
 		bp.pools[i].New = func() any {
 			return make([]byte, length)
@@ -26,8 +24,6 @@ func newBufferPool() *bufferPool {
 }
 
 // poolIndex returns the pool index for a buffer of the given size.
-// It returns bits.Len32(n), which equals ⌊log₂(n)⌋ + 1 for non-zero n.
-// This is used to round up to the next power-of-two bucket:
 func poolIndex(length int) int {
 	return bits.Len32(uint32(length - 1))
 }
@@ -51,9 +47,8 @@ func (bp *bufferPool) Get(length int) []byte {
 		return nil
 	}
 
-	// Beyond our pool range: allocate directly. The MaxInt32 guard also ensures
-	// that poolIndex(length) <= 31, keeping all pool array accesses in bounds.
-	if length > math.MaxInt32 {
+	// Beyond our pool range: allocate directly
+	if length > math.MaxUint16 {
 		return make([]byte, length)
 	}
 
@@ -64,7 +59,7 @@ func (bp *bufferPool) Get(length int) []byte {
 
 func (bp *bufferPool) Put(buf []byte) {
 	capacity := cap(buf)
-	if capacity == 0 || capacity > math.MaxInt32 || !isPowerOfTwo(capacity) {
+	if capacity == 0 || capacity > math.MaxUint16 || !isPowerOfTwo(capacity) {
 		return
 	}
 
