@@ -154,3 +154,20 @@ func TestK8sProxyTarget_ImplementsScrapeTarget(t *testing.T) {
 	proxyGetter := &mockPodProxyGetter{response: "test"}
 	var _ ScrapeTarget = NewK8sProxyTarget("http://10.0.0.1:3001/metrics", proxyGetter, "test-ns", "test-pod", 3001, "metrics")
 }
+
+func TestBytesReader(t *testing.T) {
+	data := []byte("test data")
+	reader := &bytesReader{data: data}
+
+	buf := make([]byte, len(data))
+	n, err := reader.Read(buf)
+	if err != nil || n != len(data) || string(buf) != string(data) {
+		t.Errorf("Expected to read '%s', got '%s' (n=%d, err=%v)", string(data), string(buf), n, err)
+	}
+
+	// EOF on next read
+	n, err = reader.Read(buf)
+	if err != io.EOF || n != 0 {
+		t.Errorf("Expected EOF with 0 bytes, got n=%d, err=%v", n, err)
+	}
+}
