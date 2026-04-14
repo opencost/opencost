@@ -377,6 +377,7 @@ func (b *Buffer) ReadBytes(length int) []byte {
 	return bytes
 }
 
+// Close will closer all internal buffers.
 func (b *Buffer) Close() {
 	if b.bw != nil {
 		return
@@ -429,7 +430,7 @@ func bytesToString(b []byte) string {
 	// cached string. If it does _not_ exist, then we use the passed func() string to allocate a new
 	// string and cache it. This will prevent us from allocating throw-away strings just to
 	// check our cache.
-	pinned := unsafe.String(unsafe.SliceData(b), len(b))
+	pinned := bytesAsString(b)
 
 	return stringutil.BankFunc(pinned, func() string {
 		return string(b)
