@@ -154,5 +154,3 @@ func TestK8sProxyTarget_ImplementsScrapeTarget(t *testing.T) {
 	proxyGetter := &mockPodProxyGetter{response: "test"}
 	var _ ScrapeTarget = NewK8sProxyTarget("http://10.0.0.1:3001/metrics", proxyGetter, "test-ns", "test-pod", 3001, "metrics")
 }
-
-// Made with Bob
