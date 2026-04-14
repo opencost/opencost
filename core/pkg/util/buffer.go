@@ -157,7 +157,9 @@ func (b *Buffer) WriteBytes(bytes []byte) {
 	b.bw.Write(bytes)
 }
 
-// Bytes returns the unread portion of the underlying buffer storage.
+// Bytes returns the unread portion of the underlying buffer storage. If the buffer was
+// created with an `io.Reader`, then the remaining unread bytes are drained into a byte
+// slice and returned.
 func (b *Buffer) Bytes() []byte {
 	if b.bw != nil {
 		return b.bw.Bytes()
