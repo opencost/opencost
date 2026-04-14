@@ -345,39 +345,38 @@ func TestRollingWindow_OverwritesOldestOnOverflow(t *testing.T) {
 	}
 }
 
-func TestRollingWindow_InternalIndexOverflowWrapToZero(t *testing.T) {
-	capacity := 3
-	rw := newRollingWindow(capacity)
+func assertIndexLengthCap(t *testing.T, rw *rollingWindow, index int, length int, cap int) {
+	t.Helper()
 
-	// Assuming we have pushed ((2 * MaxInt) - 3) elements
-	rw.index = -3
-
-	// cycle back to index=0, ensure our length is still valid
-	rw.Push(1)
-	rw.Push(2)
-	rw.Push(3)
-
-	if rw.Len() != capacity {
-		t.Errorf("expected length=%d after overflowing internal index back to 0. Got %d\n", capacity, rw.Len())
+	if rw.index != index {
+		t.Errorf("RollingWindow Index: %d. Expected %d", rw.index, index)
 	}
-
-	// This is because we trick our length algorithm by adding back capacity if the next index == 0
-	if rw.index != capacity {
-		t.Errorf("expected internal index = %d after reaching 0. Got %d\n", capacity, rw.index)
+	if rw.Len() != length {
+		t.Errorf("RollingWindow Length: %d. Expected %d", rw.Len(), length)
+	}
+	if rw.Cap() != cap {
+		t.Errorf("RollingWindow Capacity: %d. Expected %d", rw.Cap(), cap)
 	}
 }
 
-func TestRollingWindow_InternalIndexOverflow(t *testing.T) {
+func TestRollingWindow_BasicIndexingLengthCap(t *testing.T) {
 	capacity := 3
 	rw := newRollingWindow(capacity)
 
-	// set index to the 0 position relative to max int
-	rw.index = math.MaxInt - 1
-
-	// advance to MaxInt, advance to -MaxInt (overflow), andvance to -MaxInt + 1
+	assertIndexLengthCap(t, rw, 0, 0, 3)
 	rw.Push(1)
+	assertIndexLengthCap(t, rw, 1, 1, 3)
 	rw.Push(2)
+	assertIndexLengthCap(t, rw, 2, 2, 3)
 	rw.Push(3)
+	assertIndexLengthCap(t, rw, 0, 3, 3)
+
+	rw.Push(1)
+	assertIndexLengthCap(t, rw, 1, 3, 3)
+	rw.Push(2)
+	assertIndexLengthCap(t, rw, 2, 3, 3)
+	rw.Push(3)
+	assertIndexLengthCap(t, rw, 0, 3, 3)
 
 	set := newSet(1, 2, 3)
 
@@ -404,7 +403,6 @@ func TestRollingWindow_InternalIndexOverflow(t *testing.T) {
 
 		set.remove(v)
 	})
-
 }
 
 func TestRollingWindow_PartialCapacityMean(t *testing.T) {

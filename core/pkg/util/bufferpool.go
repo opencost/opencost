@@ -7,6 +7,9 @@ import (
 )
 
 type bufferPool struct {
+	// pools[i] holds buffers of capacity 1<<i.
+	// pools[0] is unused: Get rounds up to at least pools[1] (2 bytes),
+	// so index 0 is never accessed. This is a minor accepted waste.
 	pools [32]sync.Pool
 }
 
@@ -22,18 +25,21 @@ func newBufferPool() *bufferPool {
 	return bp
 }
 
-// index on the min number of bits required to store the byte data up to 32 bits.
-func nextIndex(length int) int {
-	return bits.Len32(uint32(length))
+// poolIndex returns the pool index for a buffer of the given size.
+// It returns bits.Len32(n), which equals ⌊log₂(n)⌋ + 1 for non-zero n.
+// This is used to round up to the next power-of-two bucket:
+func poolIndex(length int) int {
+	return bits.Len32(uint32(length - 1))
 }
 
-// the previous index for a provided length
-func prevIndex(length int) int {
-	next := nextIndex(length)
-	if uint32(length) == (1 << uint32(next)) {
-		return next
-	}
-	return next - 1
+// putIndex returns the pool index for returning a buffer with the given capacity.
+// It is the inverse of poolIndex: given a capacity that was originally handed out
+// by Get, it finds the pool that owns it.
+//
+// Because Get always returns buffers with capacity 1<<i, the capacity here will
+// always be a power of two. bits.Len32(1<<i) = i+1, so we subtract 1 to recover i.
+func putIndex(capacity int) int {
+	return bits.Len32(uint32(capacity)) - 1
 }
 
 func (bp *bufferPool) Get(length int) []byte {
@@ -41,21 +47,15 @@ func (bp *bufferPool) Get(length int) []byte {
 		return nil
 	}
 
-	// if it's beyond our pool bounds, just allocate and return
+	// Beyond our pool range: allocate directly. The MaxInt32 guard also ensures
+	// that poolIndex(length) <= 31, keeping all pool array accesses in bounds.
 	if length > math.MaxInt32 {
 		return make([]byte, length)
 	}
 
-	i := nextIndex(length)
-	if entry := bp.pools[i].Get(); entry != nil {
-		bytes := entry.([]byte)
-		bytes = bytes[:length]
-		return bytes
-	}
-
-	// should never get here, as there should always be an entry
-	// coming from the pool
-	return make([]byte, 1<<i)[:length]
+	i := poolIndex(length)
+	buf := bp.pools[i].Get().([]byte)
+	return buf[:length]
 }
 
 func (bp *bufferPool) Put(buf []byte) {
@@ -64,6 +64,6 @@ func (bp *bufferPool) Put(buf []byte) {
 		return
 	}
 
-	i := prevIndex(capacity)
-	bp.pools[i].Put(buf)
+	i := putIndex(capacity)
+	bp.pools[i].Put(buf[:cap(buf)])
 }
