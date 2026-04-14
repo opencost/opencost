@@ -251,7 +251,7 @@ func NewStreamFor[T any](reader io.Reader) (BingenStream, error) {
 
 	factory, ok := streamFactoryMap[typeKey]
 	if !ok {
-		return nil, fmt.Errorf("the type: %s is not a registerd bingen streamable type", typeKey.Name())
+		return nil, fmt.Errorf("the type: %s is not a registered bingen streamable type", typeKey.Name())
 	}
 
 	return factory(reader), nil
