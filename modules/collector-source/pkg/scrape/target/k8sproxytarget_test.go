@@ -309,3 +309,97 @@ func TestK8sProxyTarget_PathHandling(t *testing.T) {
 		})
 	}
 }
+
+// TestBytesReader tests the bytesReader implementation
+func TestBytesReader(t *testing.T) {
+	data := []byte("test data for reader")
+	reader := &bytesReader{data: data}
+
+	// Test reading all data
+	buf := make([]byte, len(data))
+	n, err := reader.Read(buf)
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if n != len(data) {
+		t.Errorf("Expected to read %d bytes, got %d", len(data), n)
+	}
+	if string(buf) != string(data) {
+		t.Errorf("Expected data '%s', got '%s'", string(data), string(buf))
+	}
+
+	// Test reading at EOF
+	n, err = reader.Read(buf)
+	if err != io.EOF {
+		t.Errorf("Expected EOF error, got: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("Expected 0 bytes at EOF, got %d", n)
+	}
+}
+
+// TestBytesReader_PartialReads tests reading data in chunks
+func TestBytesReader_PartialReads(t *testing.T) {
+	data := []byte("test data for partial reads")
+	reader := &bytesReader{data: data}
+
+	// Read first chunk
+	buf1 := make([]byte, 5)
+	n1, err := reader.Read(buf1)
+	if err != nil {
+		t.Fatalf("Expected no error on first read, got: %v", err)
+	}
+	if n1 != 5 {
+		t.Errorf("Expected to read 5 bytes, got %d", n1)
+	}
+	if string(buf1) != "test " {
+		t.Errorf("Expected 'test ', got '%s'", string(buf1))
+	}
+
+	// Read second chunk
+	buf2 := make([]byte, 10)
+	n2, err := reader.Read(buf2)
+	if err != nil {
+		t.Fatalf("Expected no error on second read, got: %v", err)
+	}
+	if n2 != 10 {
+		t.Errorf("Expected to read 10 bytes, got %d", n2)
+	}
+	if string(buf2) != "data for p" {
+		t.Errorf("Expected 'data for p', got '%s'", string(buf2))
+	}
+
+	// Read remaining data
+	buf3 := make([]byte, 20)
+	n3, err := reader.Read(buf3)
+	if err != nil {
+		t.Fatalf("Expected no error on third read, got: %v", err)
+	}
+	remaining := len(data) - 15
+	if n3 != remaining {
+		t.Errorf("Expected to read %d bytes, got %d", remaining, n3)
+	}
+
+	// Verify EOF on next read
+	n4, err := reader.Read(buf3)
+	if err != io.EOF {
+		t.Errorf("Expected EOF, got: %v", err)
+	}
+	if n4 != 0 {
+		t.Errorf("Expected 0 bytes at EOF, got %d", n4)
+	}
+}
+
+// TestBytesReader_EmptyData tests reading from empty data
+func TestBytesReader_EmptyData(t *testing.T) {
+	reader := &bytesReader{data: []byte{}}
+
+	buf := make([]byte, 10)
+	n, err := reader.Read(buf)
+	if err != io.EOF {
+		t.Errorf("Expected EOF for empty data, got: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("Expected 0 bytes for empty data, got %d", n)
+	}
+}
