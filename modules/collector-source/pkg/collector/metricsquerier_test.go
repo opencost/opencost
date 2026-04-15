@@ -124,6 +124,9 @@ func GetMockCollectorProvider() StoreProvider {
 		source.ServiceLabel:    "service2",
 	}
 
+	collector.Update(metric.KubeNodeLabels, node1Info, 0, start, nil)
+	collector.Update(metric.KubeNodeLabels, node1Info, 0, end, nil)
+
 	collector.Update(metric.NodeTotalHourlyCost, node1Info, 0, start, nil)
 	collector.Update(metric.NodeTotalHourlyCost, node1Info, 0, end, nil)
 

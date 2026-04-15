@@ -217,15 +217,17 @@ func (ccs *ClusterCacheScraper) scrapeNamespaces(namespaces []*clustercache.Name
 
 func (ccs *ClusterCacheScraper) ScrapePods() []metric.Update {
 	pods := ccs.clusterCache.GetAllPods()
-	return ccs.scrapePods(pods)
+	pvcs := ccs.clusterCache.GetAllPersistentVolumeClaims()
+
+	return ccs.scrapePods(pods, pvcs)
 }
 
-func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, pvcs []*clustercache.PersistentVolumeClaim) []metric.Update {
 	// this is only populated if we find gpu resources being requested
 	var nodesGpuInfo map[string]*NodeGpuInfo
 
 	// pv allocation and unmounted pvs
-	pvcInfo, _ := getPvcsInfo(ccs.clusterCache.GetAllPersistentVolumeClaims())
+	pvcInfo, _ := getPvcsInfo(pvcs)
 
 	// pod info by uid
 	podInfoByUid := make(map[string]map[string]string)
