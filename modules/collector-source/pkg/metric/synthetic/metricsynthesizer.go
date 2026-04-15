@@ -51,7 +51,8 @@ func (ms *MetricSynthesizers) Update(set *metric.UpdateSet) {
 	// first pass is to have all synthesizers process all updates
 	for _, synthesizer := range ms.synthesizers {
 		for i := range len(set.Updates) {
-			synthesizer.Process(ts, &set.Updates[i])
+			update := set.Updates[i]
+			synthesizer.Process(ts, &update)
 		}
 	}
 
