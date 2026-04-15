@@ -59,7 +59,7 @@ func (b *BingenEncoder[T, U]) Encode(data *T) ([]byte, error) {
 // FileExt returns the file extension for the encoded data. In this case, it returns an empty string
 // to indicate that there is no specific file extension for the binary encoded data.
 func (b *BingenEncoder[T, U]) FileExt() string {
-	return ""
+	return b.fileExt
 }
 
 // JSONEncoder[T] is a generic encoder that uses the JSON encoding format to encode data.

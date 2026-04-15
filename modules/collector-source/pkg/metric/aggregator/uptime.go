@@ -32,10 +32,10 @@ func (a *uptimeAggregator) Update(value float64, timestamp time.Time, additional
 	defer a.lock.Unlock()
 	if a.start == nil {
 		a.start = &timestamp
+		return
 	}
 
-	s := *a.start
-	if !timestamp.Equal(s) && timestamp.After(s) {
+	if timestamp.After(*a.start) {
 		a.end = &timestamp
 	}
 }
