@@ -193,9 +193,9 @@ func TestMetricSynthesizerRAMAllocation(t *testing.T) {
 			},
 			// container2 only has usage
 			{
-				Name:   metric.ContainerCPUUsageSecondsTotal,
+				Name:   metric.ContainerMemoryWorkingSetBytes,
 				Labels: maps.Clone(container2Info),
-				Value:  startingCPUSeconds,
+				Value:  1.5 * 1024 * 1024 * 1024,
 			},
 			// add some additional metrics to test filtering
 			{
@@ -205,8 +205,8 @@ func TestMetricSynthesizerRAMAllocation(t *testing.T) {
 			},
 			{
 				Name:   metric.KubePodContainerResourceRequests,
-				Labels: toMemoryResource(container1Info),
-				Value:  2.5 * 1024.0 * 1024.0 * 1024.0,
+				Labels: toCpuResource(container1Info),
+				Value:  20,
 			},
 		},
 	}
@@ -217,19 +217,19 @@ func TestMetricSynthesizerRAMAllocation(t *testing.T) {
 			// container1 has both requests and usage
 			{
 				Name:   metric.KubePodContainerResourceRequests,
-				Labels: toCpuResource(container1Info),
-				Value:  0.2,
+				Labels: toMemoryResource(container1Info),
+				Value:  4.0 * 1024 * 1024 * 1024,
 			},
 			{
-				Name:   metric.ContainerCPUUsageSecondsTotal,
+				Name:   metric.ContainerMemoryWorkingSetBytes,
 				Labels: maps.Clone(container1Info),
-				Value:  startingCPUSeconds + 40.0,
+				Value:  3.0 * 1024 * 1024 * 1024,
 			},
 			// container2 only has usage
 			{
-				Name:   metric.ContainerCPUUsageSecondsTotal,
+				Name:   metric.ContainerMemoryWorkingSetBytes,
 				Labels: maps.Clone(container2Info),
-				Value:  startingCPUSeconds + 30.0,
+				Value:  2.5 * 1024 * 1024 * 1024,
 			},
 			// add some additional metrics to test filtering
 			{
@@ -239,8 +239,8 @@ func TestMetricSynthesizerRAMAllocation(t *testing.T) {
 			},
 			{
 				Name:   metric.KubePodContainerResourceRequests,
-				Labels: toMemoryResource(container1Info),
-				Value:  2.5 * 1024.0 * 1024.0 * 1024.0,
+				Labels: toCpuResource(container1Info),
+				Value:  75,
 			},
 		},
 	}
@@ -251,19 +251,19 @@ func TestMetricSynthesizerRAMAllocation(t *testing.T) {
 			// container1 has both requests and usage
 			{
 				Name:   metric.KubePodContainerResourceRequests,
-				Labels: toCpuResource(container1Info),
-				Value:  0.2,
+				Labels: toMemoryResource(container1Info),
+				Value:  4.0 * 1024 * 1024 * 1024,
 			},
 			{
-				Name:   metric.ContainerCPUUsageSecondsTotal,
+				Name:   metric.ContainerMemoryWorkingSetBytes,
 				Labels: maps.Clone(container1Info),
-				Value:  startingCPUSeconds + 40.0 + 5.0,
+				Value:  6.0 * 1024 * 1024 * 1024,
 			},
 			// container2 only has usage
 			{
-				Name:   metric.ContainerCPUUsageSecondsTotal,
+				Name:   metric.ContainerMemoryWorkingSetBytes,
 				Labels: maps.Clone(container2Info),
-				Value:  startingCPUSeconds + 30.0 + 30.0,
+				Value:  1.75 * 1024 * 1024 * 1024,
 			},
 			// add some additional metrics to test filtering
 			{
@@ -273,8 +273,8 @@ func TestMetricSynthesizerRAMAllocation(t *testing.T) {
 			},
 			{
 				Name:   metric.KubePodContainerResourceRequests,
-				Labels: toMemoryResource(container1Info),
-				Value:  2.5 * 1024.0 * 1024.0 * 1024.0,
+				Labels: toCpuResource(container1Info),
+				Value:  135,
 			},
 		},
 	}
@@ -282,33 +282,33 @@ func TestMetricSynthesizerRAMAllocation(t *testing.T) {
 	scrape := 0
 	updater := NewFuncUpdater(func(us *metric.UpdateSet) {
 		// first scrape:
-		//  - container1: alloc = request
-		//  - container2: no metric
+		//  - container1: max(4.0gb, 5.5gb)
+		//  - container2: 1.5gb
 		if scrape == 0 {
-			assertMetricValue(t, us, metric.ContainerCPUAllocation, "container1", 0.2)
-			assertNoMetricExists(t, us, metric.ContainerCPUAllocation, "container2")
+			assertMetricValue(t, us, metric.ContainerMemoryAllocationBytes, "container1", 5.5*1024*1024*1024)
+			assertMetricValue(t, us, metric.ContainerMemoryAllocationBytes, "container2", 1.5*1024*1024*1024)
 		}
 
 		// second scrape
-		//  - container1: alloc = 40s/30s = 1.33
-		//  - container2: alloc = 30s/30s = 1.0
+		//  - container1: max(4.0gb, 3.5gb)
+		//  - container2: 2.5gb
 		if scrape == 1 {
-			assertMetricValue(t, us, metric.ContainerCPUAllocation, "container1", 1.33333333)
-			assertMetricValue(t, us, metric.ContainerCPUAllocation, "container2", 1.0)
+			assertMetricValue(t, us, metric.ContainerMemoryAllocationBytes, "container1", 4.0*1024*1024*1024)
+			assertMetricValue(t, us, metric.ContainerMemoryAllocationBytes, "container2", 2.5*1024*1024*1024)
 		}
 
 		// third scrape
-		//  - container1: alloc = 5.0/30.0s = 0.13, so alloc = request again (0.2)
-		//  - container2: alloc = 30s/30s = 1.0
+		//  - container1: max(4.0gb, 6.0gb)
+		//  - container2: 1.75gb
 		if scrape == 2 {
-			assertMetricValue(t, us, metric.ContainerCPUAllocation, "container1", 0.2)
-			assertMetricValue(t, us, metric.ContainerCPUAllocation, "container2", 1.0)
+			assertMetricValue(t, us, metric.ContainerMemoryAllocationBytes, "container1", 6.0*1024*1024*1024)
+			assertMetricValue(t, us, metric.ContainerMemoryAllocationBytes, "container2", 1.75*1024*1024*1024)
 		}
 
 		scrape += 1
 	})
 
-	metricSynth := NewMetricSynthesizers(updater, NewContainerCpuAllocationSynthesizer())
+	metricSynth := NewMetricSynthesizers(updater, NewContainerCpuAllocationSynthesizer(), NewContainerMemoryAllocationSynthesizer())
 
 	metricSynth.Update(updateSet1)
 	time.Sleep(100 * time.Millisecond)

@@ -66,8 +66,12 @@ func (usage *CpuUsageMetric) Value() float64 {
 
 	v1, t1 := usage.current.update.Value, usage.current.timestamp
 	v2, t2 := usage.prev.update.Value, usage.prev.timestamp
+	seconds := t1.Sub(t2).Seconds()
+	if seconds <= 0.0 {
+		return 0.0
+	}
 
-	irate := (v1 - v2) / t1.Sub(t2).Seconds()
+	irate := (v1 - v2) / seconds
 	return irate
 }
 
