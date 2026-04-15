@@ -89,6 +89,14 @@ func (sph *SpotPriceHistoryCache) GetSpotPrice(region, instanceType, availabilit
 	sph.refreshRunning[key] = true
 	sph.mutex.Unlock()
 
+	// Ensure refreshRunning is always cleared, even if the fetcher panics.
+	defer func() {
+		sph.mutex.Lock()
+		delete(sph.refreshRunning, key)
+		sph.refreshCond.Broadcast()
+		sph.mutex.Unlock()
+	}()
+
 	// Fetch the entry
 	entry, err := sph.fetcher.FetchSpotPrice(key)
 	if err != nil {
@@ -102,8 +110,6 @@ func (sph *SpotPriceHistoryCache) GetSpotPrice(region, instanceType, availabilit
 	// Store it into the cache
 	sph.mutex.Lock()
 	sph.cache[key] = entry
-	delete(sph.refreshRunning, key)
-	sph.refreshCond.Broadcast()
 	sph.mutex.Unlock()
 	return entry, entry.Error
 }
@@ -144,7 +150,7 @@ func (a *AWSSpotPriceHistoryFetcher) getEC2Client(region string) *ec2.Client {
 }
 
 func (a *AWSSpotPriceHistoryFetcher) FetchSpotPrice(key SpotPriceHistoryKey) (*SpotPriceHistoryEntry, error) {
-	log.Infof("Retrieving spot price history for %s", key)
+	log.Debugf("Retrieving spot price history for %s", key)
 	client := a.getEC2Client(key.Region)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

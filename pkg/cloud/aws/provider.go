@@ -1043,7 +1043,7 @@ func (aws *AWS) DownloadPricingData() error {
 		aws.SpotPriceHistoryError = nil
 		aws.SpotPriceHistoryCache, aws.SpotPriceHistoryError = aws.initializeSpotPriceHistoryCache()
 		if aws.SpotPriceHistoryError != nil {
-			log.Errorf("Failed to initialize spot price history manager: %s", aws.SpotPriceHistoryError)
+			log.Errorf("Failed to initialize spot price history manager: %v", aws.SpotPriceHistoryError)
 		}
 	}
 

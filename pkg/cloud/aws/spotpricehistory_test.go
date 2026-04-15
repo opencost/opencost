@@ -2,6 +2,8 @@ package aws
 
 import (
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -74,6 +76,44 @@ func TestSpotPriceHistoryCache_GetSpotPrice_CacheMiss(t *testing.T) {
 	}
 	if entry.SpotPrice != 0.12 {
 		t.Errorf("Expected spot price 0.12, got %f", entry.SpotPrice)
+	}
+}
+
+func TestSpotPriceHistoryCache_GetSpotPrice_ConcurrentSameKey(t *testing.T) {
+	var fetchCount atomic.Int32
+	mockFetcher := &mockSpotPriceHistoryFetcher{
+		fetchFunc: func(key SpotPriceHistoryKey) (*SpotPriceHistoryEntry, error) {
+			fetchCount.Add(1)
+			// Simulate slow API call to increase chance of concurrent access
+			time.Sleep(50 * time.Millisecond)
+			return &SpotPriceHistoryEntry{
+				SpotPrice:   0.07,
+				Timestamp:   time.Now(),
+				RetrievedAt: time.Now(),
+			}, nil
+		},
+	}
+	cache := NewSpotPriceHistoryCache(mockFetcher)
+
+	const goroutines = 10
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			entry, err := cache.GetSpotPrice("us-west-2", "m5.large", "us-west-2a")
+			if err != nil {
+				t.Errorf("Expected no error, got %v", err)
+			}
+			if entry.SpotPrice != 0.07 {
+				t.Errorf("Expected spot price 0.07, got %f", entry.SpotPrice)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if count := fetchCount.Load(); count != 1 {
+		t.Errorf("Expected exactly 1 fetch call, got %d", count)
 	}
 }
 
