@@ -24,67 +24,6 @@ func (fu *FuncUpdater) Update(set *metric.UpdateSet) {
 	fu.f(set)
 }
 
-/*
-var resolutions []*util.Resolution
-	for _, resconf := range config.Resolutions {
-		resolution, err := util.NewResolution(resconf)
-		if err != nil {
-			log.Errorf("failed to create resolution %s", err.Error())
-			continue
-		}
-		resolutions = append(resolutions, resolution)
-	}
-
-	repo := metric.NewMetricRepository(
-		resolutions,
-		NewOpenCostMetricStore,
-	)
-	var updater metric.Updater
-	updater = repo
-	if store != nil {
-		wal, err := metric.NewWalinator(
-			config.ClusterName,
-			config.ApplicationName,
-			store,
-			resolutions,
-			updater,
-		)
-		if err != nil {
-			log.Errorf("failed to initialize the walinator: %s", err.Error())
-		} else {
-			wal.Start()
-			updater = wal
-		}
-	}
-
-	diagnosticsModule := metric.NewDiagnosticsModule()
-	scrapeController := scrape.NewScrapeController(
-		config.ClusterUID,
-		config.ScrapeInterval,
-		config.NetworkPort,
-		updater,
-		clusterInfoProvider,
-		clusterCache,
-		statSummaryClient,
-	)
-	scrapeController.Start()
-
-	metricQuerier := newCollectorMetricsQuerier(repo, config.Resolutions)
-
-	// cluster info provider
-	clusterInfo := clusterInfoProvider
-
-	clusterMap := newCollectorClusterMap(clusterInfo)
-
-	return &collectorDataSource{
-		config:            config,
-		metricsQuerier:    metricQuerier,
-		clusterInfo:       clusterInfo,
-		clusterMap:        clusterMap,
-		diagnosticsModule: diagnosticsModule,
-	}
-*/
-
 func toMemoryResource(m map[string]string) map[string]string {
 	mm := maps.Clone(m)
 	mm[source.ResourceLabel] = "memory"
@@ -477,7 +416,7 @@ func TestMetricSynthesizerCPUAllocation(t *testing.T) {
 		scrape += 1
 	})
 
-	metricSynth := NewMetricSynthesizers(updater, NewContainerCpuAllocationSynthesizer())
+	metricSynth := NewMetricSynthesizers(updater, NewContainerCpuAllocationSynthesizer(), NewContainerMemoryAllocationSynthesizer())
 
 	metricSynth.Update(updateSet1)
 	time.Sleep(100 * time.Millisecond)
