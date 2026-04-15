@@ -867,7 +867,7 @@ func (f *fakeProviderConfig) ConfigFileManager() *config.ConfigFileManager {
 	return nil
 }
 
-func TestAWS_SpotRefreshEnabled(t *testing.T) {
+func TestAWS_SpotFeedRefreshEnabled(t *testing.T) {
 	tests := []struct {
 		name                string
 		spotDataBucket      string
@@ -955,9 +955,9 @@ func TestAWS_SpotRefreshEnabled(t *testing.T) {
 				},
 			}
 
-			got := aws.SpotRefreshEnabled()
+			got := aws.SpotFeedRefreshEnabled()
 			if got != tt.want {
-				t.Errorf("AWS.SpotRefreshEnabled() = %v, want %v", got, tt.want)
+				t.Errorf("AWS.SpotFeedRefreshEnabled() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -971,10 +971,10 @@ func TestAWS_SpotRefreshEnabled(t *testing.T) {
 			Config:         nil, // nil Config should not cause panic
 		}
 
-		got := aws.SpotRefreshEnabled()
+		got := aws.SpotFeedRefreshEnabled()
 		want := true // Should fall back to field-based check
 		if got != want {
-			t.Errorf("AWS.SpotRefreshEnabled() with nil Config = %v, want %v", got, want)
+			t.Errorf("AWS.SpotFeedRefreshEnabled() with nil Config = %v, want %v", got, want)
 		}
 	})
 
@@ -986,10 +986,10 @@ func TestAWS_SpotRefreshEnabled(t *testing.T) {
 			Config:         nil, // nil Config should not cause panic
 		}
 
-		got := aws.SpotRefreshEnabled()
+		got := aws.SpotFeedRefreshEnabled()
 		want := false // No fields set, should return false
 		if got != want {
-			t.Errorf("AWS.SpotRefreshEnabled() with nil Config and no fields = %v, want %v", got, want)
+			t.Errorf("AWS.SpotFeedRefreshEnabled() with nil Config and no fields = %v, want %v", got, want)
 		}
 	})
 }
