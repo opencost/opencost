@@ -43,6 +43,8 @@ func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
 		Owners:                 map[string]*Owner{},
 		Devices:                map[string]*Device{},
 		DeviceUsages:           map[string]*DeviceUsage{},
+		GPUDevices:             map[string]*GPUDevice{},
+		GPUUsages:              map[string]*GPUUsage{},
 		Namespaces:             map[string]*Namespace{},
 		Nodes:                  map[string]*Node{},
 		Pods:                   map[string]*Pod{},
@@ -81,6 +83,8 @@ func (kms *KubeModelSet) IsEmpty() bool {
 		len(kms.Owners) == 0 &&
 		len(kms.Devices) == 0 &&
 		len(kms.DeviceUsages) == 0 &&
+		len(kms.GPUDevices) == 0 &&
+		len(kms.GPUUsages) == 0 &&
 		len(kms.Namespaces) == 0 &&
 		len(kms.Nodes) == 0 &&
 		len(kms.Pods) == 0 &&
