@@ -30,12 +30,24 @@ type BinaryMarshalerPtr[T any] interface {
 
 // BingenEncoder[T, U] is a generic encoder that uses the BinaryMarshaler interface to encode data.
 // It supports any type T that implements the encoding.BinaryMarshaler interface.
-type BingenEncoder[T any, U BinaryMarshalerPtr[T]] struct{}
+type BingenEncoder[T any, U BinaryMarshalerPtr[T]] struct {
+	fileExt string
+}
 
 // NewBingenEncoder creates an `Encoder[T]` implementation which supports binary encoding for the `T`
-// type.
+// type, and doesn't have a file extension.
 func NewBingenEncoder[T any, U BinaryMarshalerPtr[T]]() Encoder[T] {
-	return new(BingenEncoder[T, U])
+	return &BingenEncoder[T, U]{
+		fileExt: "",
+	}
+}
+
+// NewBingenFileEncoder creates a new `Encoder[T]` implementation which supports binary encoding for the
+// 'T' type with the ".bingen" file extension.
+func NewBingenFileEncoder[T any, U BinaryMarshalerPtr[T]]() Encoder[T] {
+	return &BingenEncoder[T, U]{
+		fileExt: "bingen",
+	}
 }
 
 // Encode encodes the provided data of type T into a byte slice using the BinaryMarshaler interface.

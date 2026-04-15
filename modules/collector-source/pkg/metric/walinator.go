@@ -52,7 +52,8 @@ func NewWalinator(
 	if err != nil {
 		return nil, fmt.Errorf("filed to create path formatter for scrape controller: %s", err.Error())
 	}
-	encoder := exporter.NewGZipEncoder(exporter.NewJSONEncoder[UpdateSet]())
+
+	encoder := exporter.NewBingenFileEncoder[UpdateSet]()
 	exp := exporter.NewEventStorageExporter(
 		pathFormatter,
 		encoder,
@@ -144,7 +145,15 @@ func deserializeUpdateSet(ext string, b []byte) (*UpdateSet, error) {
 		}
 
 		return deserializeUpdateSet(strings.TrimSuffix(ext, ".gz"), decompressed)
+	case "bingen":
+		updateSet := new(UpdateSet)
+		err := updateSet.UnmarshalBinary(b)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal bingen: %w", err)
+		}
+		return updateSet, nil
 	}
+
 	return nil, fmt.Errorf("unrecognized extension: '%s'", ext)
 }
 

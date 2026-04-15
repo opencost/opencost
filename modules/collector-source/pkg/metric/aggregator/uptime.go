@@ -33,7 +33,9 @@ func (a *uptimeAggregator) Update(value float64, timestamp time.Time, additional
 	if a.start == nil {
 		a.start = &timestamp
 	}
-	if !timestamp.Equal(*a.start) {
+
+	s := *a.start
+	if !timestamp.Equal(s) && timestamp.After(s) {
 		a.end = &timestamp
 	}
 }
