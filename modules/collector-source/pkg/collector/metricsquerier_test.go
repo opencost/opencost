@@ -52,7 +52,7 @@ func GetMockCollectorProvider() StoreProvider {
 	gpu1Info := map[string]string{
 		source.NamespaceLabel: "namespace1",
 		source.PodLabel:       "pod1",
-		source.UIDLabel:       "pod-uuid1",
+		source.PodUIDLabel:    "pod-uuid1",
 		"container":           "container1",
 		"gpu":                 "0",
 		"UUID":                "GPU-1",

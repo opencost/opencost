@@ -264,9 +264,10 @@ func TestStatScraper_Scrape(t *testing.T) {
 				{
 					Name: metric.ContainerFSUsageBytes,
 					Labels: map[string]string{
-						source.InstanceLabel: "node1",
-						source.DeviceLabel:   "local",
-						source.UIDLabel:      "uid1",
+						source.InstanceLabel:  "node1",
+						source.DeviceLabel:    "local",
+						source.UIDLabel:       "uid1",
+						source.ContainerLabel: "container1",
 					},
 					Value: float64(1 * util.GB),
 				},
@@ -413,9 +414,10 @@ func TestStatScraper_Scrape(t *testing.T) {
 				{
 					Name: metric.ContainerFSUsageBytes,
 					Labels: map[string]string{
-						source.InstanceLabel: "node1",
-						source.DeviceLabel:   "local",
-						source.UIDLabel:      "uid1",
+						source.InstanceLabel:  "node1",
+						source.DeviceLabel:    "local",
+						source.UIDLabel:       "uid1",
+						source.ContainerLabel: "container1",
 					},
 					Value: float64(1 * util.GB),
 				},

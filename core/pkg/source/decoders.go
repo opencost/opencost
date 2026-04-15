@@ -922,7 +922,7 @@ type GPUsUsageAvgResult struct {
 }
 
 func DecodeGPUsUsageAvgResult(result *QueryResult) *GPUsUsageAvgResult {
-	uid, _ := result.GetString(UIDLabel)
+	uid, _ := result.GetString(PodUIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
@@ -948,7 +948,7 @@ type GPUsUsageMaxResult struct {
 }
 
 func DecodeGPUsUsageMaxResult(result *QueryResult) *GPUsUsageMaxResult {
-	uid, _ := result.GetString(UIDLabel)
+	uid, _ := result.GetString(PodUIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()

@@ -1298,7 +1298,7 @@ func NewGPUsUsageAverageMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.NamespaceLabel,
 			source.PodLabel,
-			source.UIDLabel,
+			source.PodUIDLabel,
 			source.ContainerLabel,
 		},
 		aggregator.AverageOverTime,
@@ -1323,7 +1323,7 @@ func NewGPUsUsageMaxMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.NamespaceLabel,
 			source.PodLabel,
-			source.UIDLabel,
+			source.PodUIDLabel,
 			source.ContainerLabel,
 		},
 		aggregator.MaxOverTime,
@@ -1408,7 +1408,7 @@ func NewGPUInfoMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.NamespaceLabel,
 			source.PodLabel,
-			source.UIDLabel,
+			source.PodUIDLabel,
 			source.ContainerLabel,
 			source.DeviceLabel,
 			source.ModelNameLabel,
