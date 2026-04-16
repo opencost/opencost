@@ -11,6 +11,12 @@ inputs:
     workflow-path:
         description: 'Path to the workflow file (repo-relative) that triggered the build.'
         required: true
+    run-started-at:
+        description: >-
+          ISO-8601 workflow run start time, typically `${{ github.run_started_at }}`
+          from the caller. Recorded as `runDetails.metadata.startedOn` in the
+          SLSA provenance predicate.
+        required: true
 
 runs:
     using: "composite"
@@ -47,15 +53,16 @@ runs:
         shell: bash
         env:
           WORKFLOW_PATH: ${{ inputs.workflow-path }}
+          STARTED_ON: ${{ inputs.run-started-at }}
         run: |
           set -euo pipefail
-          STARTED_ON="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          RESOLVED_GIT_COMMIT="$(git rev-parse HEAD)"
           jq -n \
             --arg workflow_ref   "${GITHUB_REF}"                                 \
             --arg repo_url       "https://github.com/${GITHUB_REPOSITORY}"       \
             --arg workflow_path  "${WORKFLOW_PATH}"                              \
-            --arg source_uri     "git+https://github.com/${GITHUB_REPOSITORY}@${GITHUB_REF}" \
-            --arg git_commit     "${GITHUB_SHA}"                                 \
+            --arg source_uri     "git+https://github.com/${GITHUB_REPOSITORY}@${RESOLVED_GIT_COMMIT}" \
+            --arg git_commit     "${RESOLVED_GIT_COMMIT}"                        \
             --arg builder_id     "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
             --arg invocation_id  "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}" \
             --arg started_on     "${STARTED_ON}" \

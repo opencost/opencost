@@ -39,7 +39,7 @@ to a signed manifest is verifiable regardless of tag mutation.
 | `--certificate-oidc-issuer` | `https://token.actions.githubusercontent.com` |
 | `--certificate-identity` (release tag `vX.Y.Z`) | `https://github.com/opencost/opencost/.github/workflows/build-and-publish-release.yml@refs/tags/vX.Y.Z` |
 | `--certificate-identity-regexp` (any release) | `^https://github\.com/opencost/opencost/\.github/workflows/build-and-publish-release\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$` |
-| `--certificate-identity-regexp` (develop) | `^https://github\.com/opencost/opencost/\.github/workflows/build-and-publish-develop\.yml@refs/heads/.+$` |
+| `--certificate-identity-regexp` (develop) | `^https://github\.com/opencost/opencost/\.github/workflows/build-and-publish-develop\.yml@refs/heads/develop$` |
 
 ### Verifying an image signature
 
@@ -64,6 +64,8 @@ inclusion proof.
 Each image also has a SLSA v1 provenance attestation. Inspect it with:
 
 ```bash
+VERSION=1.115.0 # replace with the release you are verifying
+
 cosign verify-attestation \
   --type slsaprovenance1 \
   --certificate-identity-regexp "^https://github\.com/opencost/opencost/\.github/workflows/build-and-publish-release\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" \

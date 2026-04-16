@@ -67,3 +67,4 @@ jobs:
         with:
           image: ${{ steps.tags.outputs.IMAGE_TAG }}
           workflow-path: .github/workflows/build-and-publish-develop.yml
+          run-started-at: ${{ github.run_started_at }}
