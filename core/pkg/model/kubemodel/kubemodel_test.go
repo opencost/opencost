@@ -2,11 +2,75 @@ package kubemodel
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestCheckWindow(t *testing.T) {
+	start := time.Now().UTC().Truncate(time.Hour)
+	end := start.Add(time.Hour)
+	window := Window{Start: start, End: end}
+
+	windowErrMsg := func(s, e time.Time) string {
+		return fmt.Sprintf(
+			"start or end time (%s-%s) is outside of the window %s-%s",
+			s.Format(time.RFC3339),
+			e.Format(time.RFC3339),
+			start.Format(time.RFC3339),
+			end.Format(time.RFC3339),
+		)
+	}
+
+	tests := []struct {
+		name    string
+		start   time.Time
+		end     time.Time
+		wantErr string
+	}{
+		{
+			name:    "start before window",
+			start:   start.Add(-time.Minute),
+			end:     end,
+			wantErr: windowErrMsg(start.Add(-time.Minute), end),
+		},
+		{
+			name:    "end after window",
+			start:   start,
+			end:     end.Add(time.Minute),
+			wantErr: windowErrMsg(start, end.Add(time.Minute)),
+		},
+		{
+			name:    "entirely outside window",
+			start:   end.Add(time.Hour),
+			end:     end.Add(2 * time.Hour),
+			wantErr: windowErrMsg(end.Add(time.Hour), end.Add(2*time.Hour)),
+		},
+		{
+			name:  "exact window boundaries",
+			start: start,
+			end:   end,
+		},
+		{
+			name:  "within window",
+			start: start.Add(15 * time.Minute),
+			end:   end.Add(-15 * time.Minute),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := checkWindow(window, tt.start, tt.end)
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
 
 func TestKubeModel(t *testing.T) {
 	start := time.Now().UTC().Truncate(time.Hour)

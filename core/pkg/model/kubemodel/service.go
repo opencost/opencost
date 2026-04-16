@@ -69,7 +69,8 @@ func (s *Service) ValidateService(window Window) error {
 
 func (kms *KubeModelSet) RegisterService(service *Service) error {
 	if err := service.ValidateService(kms.Window); err != nil {
-		kms.Errorf("RegisterService: invalid service: %w", err)
+		err = fmt.Errorf("RegisterService: invalid service: %w", err)
+		kms.Error(err)
 		return err
 	}
 

@@ -32,9 +32,9 @@ func (c *Cluster) ValidateCluster(window Window) error {
 }
 
 func (kms *KubeModelSet) RegisterCluster(cluster *Cluster) error {
-	err := cluster.ValidateCluster(kms.Window)
-	if err != nil {
-		kms.Errorf("RegisterCluster: invalid cluster: %w", err)
+	if err := cluster.ValidateCluster(kms.Window); err != nil {
+		err = fmt.Errorf("RegisterCluster: invalid cluster: %w", err)
+		kms.Error(err)
 		return err
 	}
 

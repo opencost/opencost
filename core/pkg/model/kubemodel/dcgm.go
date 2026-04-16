@@ -47,7 +47,8 @@ func (d *DCGMDevice) ValidateDCGMDevice(window Window) error {
 // RegisterDCGMDevice validates and adds a DCGMDevice to the set, keyed by UUID.
 func (kms *KubeModelSet) RegisterDCGMDevice(device *DCGMDevice) error {
 	if err := device.ValidateDCGMDevice(kms.Window); err != nil {
-		kms.Errorf("RegisterDCGMDevice: invalid dcgm device: %w", err)
+		err = fmt.Errorf("RegisterDCGMDevice: invalid dcgm device: %w", err)
+		kms.Error(err)
 		return err
 	}
 

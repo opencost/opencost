@@ -41,7 +41,8 @@ func (c *Container) ValidateContainer(window Window) error {
 
 func (kms *KubeModelSet) RegisterContainer(container *Container) error {
 	if err := container.ValidateContainer(kms.Window); err != nil {
-		kms.Errorf("RegisterContainer: invalid container: %w", err)
+		err = fmt.Errorf("RegisterContainer: invalid container: %w", err)
+		kms.Error(err)
 		return err
 	}
 

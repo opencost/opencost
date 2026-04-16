@@ -40,7 +40,8 @@ func (d *Deployment) ValidateDeployment(window Window) error {
 
 func (kms *KubeModelSet) RegisterDeployment(deployment *Deployment) error {
 	if err := deployment.ValidateDeployment(kms.Window); err != nil {
-		kms.Errorf("RegisterDeployment: invalid deployment: %w", err)
+		err = fmt.Errorf("RegisterDeployment: invalid deployment: %w", err)
+		kms.Error(err)
 		return err
 	}
 

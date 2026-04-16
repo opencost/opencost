@@ -34,7 +34,8 @@ func (p *PersistentVolume) ValidatePersistentVolume(window Window) error {
 
 func (kms *KubeModelSet) RegisterPersistentVolume(pv *PersistentVolume) error {
 	if err := pv.ValidatePersistentVolume(kms.Window); err != nil {
-		kms.Errorf("RegisterPersistentVolume: invalid persistent volume: %w", err)
+		err = fmt.Errorf("RegisterPersistentVolume: invalid persistent volume: %w", err)
+		kms.Error(err)
 		return err
 	}
 

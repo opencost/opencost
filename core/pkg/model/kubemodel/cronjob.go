@@ -39,7 +39,8 @@ func (c *CronJob) ValidateCronJob(window Window) error {
 
 func (kms *KubeModelSet) RegisterCronJob(cronJob *CronJob) error {
 	if err := cronJob.ValidateCronJob(kms.Window); err != nil {
-		kms.Errorf("RegisterCronJob: invalid cronjob: %w", err)
+		err = fmt.Errorf("RegisterCronJob: invalid cronjob: %w", err)
+		kms.Error(err)
 		return err
 	}
 

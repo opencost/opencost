@@ -36,7 +36,8 @@ func (n *Namespace) ValidateNamespace(window Window) error {
 
 func (kms *KubeModelSet) RegisterNamespace(namespace *Namespace) error {
 	if err := namespace.ValidateNamespace(kms.Window); err != nil {
-		kms.Errorf("RegisterNamespace: invalid namespace: %w", err)
+		err = fmt.Errorf("RegisterNamespace: invalid namespace: %w", err)
+		kms.Error(err)
 		return err
 	}
 

@@ -50,7 +50,8 @@ func (n *Node) ValidateNode(window Window) error {
 // RegisterNode validates and adds a node to the set
 func (kms *KubeModelSet) RegisterNode(node *Node) error {
 	if err := node.ValidateNode(kms.Window); err != nil {
-		kms.Errorf("RegisterNode: invalid node: %w", err)
+		err = fmt.Errorf("RegisterNode: invalid node: %w", err)
+		kms.Error(err)
 		return err
 	}
 

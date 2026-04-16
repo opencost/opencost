@@ -41,7 +41,8 @@ func (p *PersistentVolumeClaim) ValidatePVC(window Window) error {
 
 func (kms *KubeModelSet) RegisterPVC(pvc *PersistentVolumeClaim) error {
 	if err := pvc.ValidatePVC(kms.Window); err != nil {
-		kms.Errorf("RegisterPVC: invalid pvc: %w", err)
+		err = fmt.Errorf("RegisterPVC: invalid pvc: %w", err)
+		kms.Error(err)
 		return err
 	}
 

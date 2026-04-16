@@ -92,7 +92,8 @@ func (rq *ResourceQuota) ValidateResourceQuota(window Window) error {
 
 func (kms *KubeModelSet) RegisterResourceQuota(resourceQuota *ResourceQuota) error {
 	if err := resourceQuota.ValidateResourceQuota(kms.Window); err != nil {
-		kms.Errorf("RegisterResourceQuota: invalid resource quota: %w", err)
+		err = fmt.Errorf("RegisterResourceQuota: invalid resource quota: %w", err)
+		kms.Error(err)
 		return err
 	}
 

@@ -39,7 +39,8 @@ func (d *DaemonSet) ValidateDaemonSet(window Window) error {
 
 func (kms *KubeModelSet) RegisterDaemonSet(daemonSet *DaemonSet) error {
 	if err := daemonSet.ValidateDaemonSet(kms.Window); err != nil {
-		kms.Errorf("RegisterDaemonSet: invalid daemonset: %w", err)
+		err = fmt.Errorf("RegisterDaemonSet: invalid daemonset: %w", err)
+		kms.Error(err)
 		return err
 	}
 

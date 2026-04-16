@@ -40,7 +40,8 @@ func (s *StatefulSet) ValidateStatefulSet(window Window) error {
 
 func (kms *KubeModelSet) RegisterStatefulSet(statefulSet *StatefulSet) error {
 	if err := statefulSet.ValidateStatefulSet(kms.Window); err != nil {
-		kms.Errorf("RegisterStatefulSet: invalid statefulset: %w", err)
+		err = fmt.Errorf("RegisterStatefulSet: invalid statefulset: %w", err)
+		kms.Error(err)
 		return err
 	}
 

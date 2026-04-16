@@ -40,7 +40,8 @@ func (r *ReplicaSet) ValidateReplicaSet(window Window) error {
 
 func (kms *KubeModelSet) RegisterReplicaSet(replicaSet *ReplicaSet) error {
 	if err := replicaSet.ValidateReplicaSet(kms.Window); err != nil {
-		kms.Errorf("RegisterReplicaSet: invalid replicaset: %w", err)
+		err = fmt.Errorf("RegisterReplicaSet: invalid replicaset: %w", err)
+		kms.Error(err)
 		return err
 	}
 

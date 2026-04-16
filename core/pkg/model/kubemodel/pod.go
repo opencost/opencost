@@ -48,7 +48,8 @@ func (p *Pod) ValidatePod(window Window) error {
 
 func (kms *KubeModelSet) RegisterPod(pod *Pod) error {
 	if err := pod.ValidatePod(kms.Window); err != nil {
-		kms.Errorf("RegisterPod: invalid pod: %w", err)
+		err = fmt.Errorf("RegisterPod: invalid pod: %w", err)
+		kms.Error(err)
 		return err
 	}
 

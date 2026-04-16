@@ -39,7 +39,8 @@ func (j *Job) ValidateJob(window Window) error {
 
 func (kms *KubeModelSet) RegisterJob(job *Job) error {
 	if err := job.ValidateJob(kms.Window); err != nil {
-		kms.Errorf("RegisterJob: invalid job: %w", err)
+		err = fmt.Errorf("RegisterJob: invalid job: %w", err)
+		kms.Error(err)
 		return err
 	}
 
