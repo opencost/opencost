@@ -1,0 +1,98 @@
+name: 'Sign Container Image'
+description: >-
+  Sign a container image and attest SLSA v1 build provenance using cosign
+  keyless (Sigstore) with GitHub Actions OIDC. Requires `id-token: write` in
+  the calling job.
+
+inputs:
+    image:
+        description: 'Full image reference (registry/repo:tag) to sign by digest.'
+        required: true
+    workflow-path:
+        description: 'Path to the workflow file (repo-relative) that triggered the build.'
+        required: true
+
+runs:
+    using: "composite"
+    steps:
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Install crane
+        uses: imjasonh/setup-crane@v0.5
+
+      - name: Resolve image digest
+        id: digest
+        shell: bash
+        env:
+          IMAGE: ${{ inputs.image }}
+        run: |
+          set -euo pipefail
+          DIGEST="$(crane digest "${IMAGE}")"
+          REPO="${IMAGE%:*}"
+          REF="${REPO}@${DIGEST}"
+          echo "Resolved ${IMAGE} -> ${REF}"
+          echo "REF=${REF}" >> "$GITHUB_OUTPUT"
+          echo "DIGEST=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Sign image with cosign (keyless)
+        shell: bash
+        env:
+          REF: ${{ steps.digest.outputs.REF }}
+        run: |
+          set -euo pipefail
+          cosign sign --yes "${REF}"
+
+      - name: Generate SLSA v1 provenance predicate
+        shell: bash
+        env:
+          WORKFLOW_PATH: ${{ inputs.workflow-path }}
+        run: |
+          set -euo pipefail
+          STARTED_ON="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          jq -n \
+            --arg workflow_ref   "${GITHUB_REF}"                                 \
+            --arg repo_url       "https://github.com/${GITHUB_REPOSITORY}"       \
+            --arg workflow_path  "${WORKFLOW_PATH}"                              \
+            --arg source_uri     "git+https://github.com/${GITHUB_REPOSITORY}@${GITHUB_REF}" \
+            --arg git_commit     "${GITHUB_SHA}"                                 \
+            --arg builder_id     "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --arg invocation_id  "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}" \
+            --arg started_on     "${STARTED_ON}" \
+            '{
+              buildDefinition: {
+                buildType: "https://github.com/opencost/opencost/build/workflow@v1",
+                externalParameters: {
+                  workflow: {
+                    ref: $workflow_ref,
+                    repository: $repo_url,
+                    path: $workflow_path
+                  }
+                },
+                internalParameters: {},
+                resolvedDependencies: [
+                  {
+                    uri: $source_uri,
+                    digest: { gitCommit: $git_commit }
+                  }
+                ]
+              },
+              runDetails: {
+                builder: { id: $builder_id },
+                metadata: {
+                  invocationId: $invocation_id,
+                  startedOn: $started_on
+                }
+              }
+            }' > predicate.json
+
+      - name: Attest SLSA provenance with cosign
+        shell: bash
+        env:
+          REF: ${{ steps.digest.outputs.REF }}
+        run: |
+          set -euo pipefail
+          cosign attest --yes \
+            --predicate predicate.json \
+            --type slsaprovenance1 \
+            "${REF}"
