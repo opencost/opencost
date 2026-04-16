@@ -3,7 +3,6 @@ package carbon
 import (
 	"embed"
 	"encoding/csv"
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -61,13 +60,19 @@ func init() {
 	carbonLookupNetwork = make(map[carbonLookupKeyRegion]float64)
 
 	for _, row := range rows {
+		// Skip blank records (e.g. a trailing newline in the CSV).
+		if len(row) == 0 || (len(row) == 1 && strings.TrimSpace(row[0]) == "") {
+			continue
+		}
 		if len(row) < 6 {
-			panic(fmt.Errorf("error setting up carbon lookup table: malformed row %v", row))
+			log.Warnf("carbon: skipping malformed lookup row %v", row)
+			continue
 		}
 
 		coeff, err := strconv.ParseFloat(row[5], 64)
 		if err != nil {
-			panic(fmt.Errorf("error setting up carbon lookup table: malformed carbon cost %q", row[5]))
+			log.Warnf("carbon: skipping row with malformed carbon coefficient %q", row[5])
+			continue
 		}
 
 		provider := row[0]
@@ -120,10 +125,15 @@ func RelateCarbonAssets(as *opencost.AssetSet) (map[string]CarbonRow, error) {
 // the given asset, falling back to the provider-wide average-region value when
 // a specific region or instance type is not present in the lookup table.
 func lookupCarbonCoeff(asset opencost.Asset) float64 {
+	props := asset.GetProperties()
 	provider := resolveProvider(asset)
 	if provider == "" {
 		if isCarbonTrackedAsset(asset.Type()) {
-			log.DedupedWarningf(10, "carbon: cannot infer provider for asset %q", asset.GetProperties().ProviderID)
+			providerID := ""
+			if props != nil {
+				providerID = props.ProviderID
+			}
+			log.DedupedWarningf(10, "carbon: cannot infer provider for asset %q", providerID)
 		}
 		return 0
 	}

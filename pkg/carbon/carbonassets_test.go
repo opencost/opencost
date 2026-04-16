@@ -226,6 +226,21 @@ func TestRelateCarbonAssets_ZeroForUnknownProvider(t *testing.T) {
 	}
 }
 
+func TestLookupCarbonCoeff_NoPanicOnNilProperties(t *testing.T) {
+	// A bare Node with nil Properties must not panic — older code would
+	// dereference props.ProviderID in the log line after resolveProvider
+	// returned "" for nil properties.
+	start := time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(60 * time.Minute)
+	window := opencost.NewWindow(&start, &end)
+	n := opencost.NewNode("node", "cluster", "", start, end, window)
+	n.Properties = nil
+
+	if got := lookupCarbonCoeff(n); got != 0 {
+		t.Fatalf("lookupCarbonCoeff with nil properties = %g, want 0", got)
+	}
+}
+
 func TestLookupTables_LoadedAtInit(t *testing.T) {
 	if len(carbonLookupNode) == 0 {
 		t.Error("carbonLookupNode is empty — init did not populate node lookups")
