@@ -128,7 +128,9 @@ func convertAllocationFields(alloc *opencost.Allocation, converter currency.Conv
 		if lb == nil {
 			continue
 		}
-		lb.Cost = tryConvert(converter, lb.Cost, targetCurrency, "Allocation.LoadBalancers."+lbKey+".Cost")
+		lbCtx := "Allocation.LoadBalancers." + lbKey
+		lb.Cost = tryConvert(converter, lb.Cost, targetCurrency, lbCtx+".Cost")
+		lb.Adjustment = tryConvert(converter, lb.Adjustment, targetCurrency, lbCtx+".Adjustment")
 		alloc.LoadBalancers[lbKey] = lb
 	}
 

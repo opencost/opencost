@@ -72,7 +72,7 @@ func newFullAllocation() *opencost.Allocation {
 			opencost.PVKey{Cluster: "c1", Name: "pv-a"}: {Cost: 100, Adjustment: 5, ByteHours: 1},
 		},
 		LoadBalancers: opencost.LbAllocations{
-			"lb-a": {Service: "svc-a", Cost: 80},
+			"lb-a": {Service: "svc-a", Cost: 80, Adjustment: 3},
 		},
 		SharedCostBreakdown: opencost.SharedCostBreakdowns{
 			"shared-a": {
@@ -186,6 +186,9 @@ func TestConvertAllocation_NestedStructures(t *testing.T) {
 	}
 	if lb.Cost != 160 {
 		t.Errorf("LB.Cost: got %v want 160", lb.Cost)
+	}
+	if lb.Adjustment != 6 {
+		t.Errorf("LB.Adjustment: got %v want 6", lb.Adjustment)
 	}
 	if lb.Service != "svc-a" {
 		t.Errorf("LB.Service must not be touched: got %q", lb.Service)

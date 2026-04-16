@@ -157,34 +157,24 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 		}
 	}
 
+	// Convert the underlying AllocationSetRange *before* building the
+	// summary so we don't pay for two summary constructions on non-USD
+	// requests. The helper returns a non-nil error only on the upfront
+	// rate-lookup failure, which happens before any mutation, so on
+	// error we proceed with untouched USD data.
+	currency := strings.ToUpper(strings.TrimSpace(qp.Get("currency", "USD")))
+	if currency != "USD" && a.CurrencyConverter != nil {
+		if err = ConvertAllocationSetRange(asr, a.CurrencyConverter, currency); err != nil {
+			log.Warnf("Currency conversion failed for currency %s: %v", currency, err)
+		}
+	}
+
 	sasl := []*opencost.SummaryAllocationSet{}
 	for _, as := range asr.Slice() {
 		sas := opencost.NewSummaryAllocationSet(as, nil, nil, false, false)
 		sasl = append(sasl, sas)
 	}
 	sasr := opencost.NewSummaryAllocationSetRange(sasl...)
-
-	// Extract currency parameter and convert if needed. Currency conversion
-	// is best-effort: individual field failures are logged at source and
-	// leave USD values in place. A non-nil error from the helper means the
-	// upfront rate lookup failed and no mutation occurred.
-	currency := strings.ToUpper(strings.TrimSpace(qp.Get("currency", "USD")))
-	if currency != "USD" && a.CurrencyConverter != nil {
-		if err = ConvertAllocationSetRange(asr, a.CurrencyConverter, currency); err != nil {
-			log.Warnf("Currency conversion failed for currency %s: %v", currency, err)
-		}
-		// Always rebuild the summary: the helper may have partially
-		// mutated the underlying sets even when it returns an error
-		// (per-field best-effort), so the pre-conversion summary would
-		// otherwise be inconsistent with the (possibly partly converted)
-		// data.
-		sasl = sasl[:0]
-		for _, as := range asr.Slice() {
-			sas := opencost.NewSummaryAllocationSet(as, nil, nil, false, false)
-			sasl = append(sasl, sas)
-		}
-		sasr = opencost.NewSummaryAllocationSetRange(sasl...)
-	}
 
 	WriteData(w, sasr, nil)
 }
