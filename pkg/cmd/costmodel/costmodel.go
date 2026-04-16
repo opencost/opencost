@@ -43,8 +43,7 @@ func Execute(conf *Config) error {
 
 	router := httprouter.New()
 	var a *costmodel.Accesses
-	var cp models.Provider
-	
+
 	// Initialize currency converter
 	var currencyConverter currency.Converter
 	currencyAPIKey := env.GetCurrencyAPIKey()
@@ -92,11 +91,7 @@ func Execute(conf *Config) error {
 
 	var cloudCostPipelineService *cloudcost.PipelineService
 	if conf.CloudCostEnabled {
-		var providerConfig models.ProviderConfig
-		if cp != nil {
-			providerConfig = provider.ExtractConfigFromProviders(cp)
-		}
-		cloudCostPipelineService = costmodel.InitializeCloudCost(router, providerConfig, currencyConverter)
+		cloudCostPipelineService = costmodel.InitializeCloudCost(router, currencyConverter)
 	}
 
 	var customCostPipelineService *customcost.PipelineService
