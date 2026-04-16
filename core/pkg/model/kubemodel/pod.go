@@ -40,18 +40,13 @@ func (kms *KubeModelSet) RegisterPod(pod *Pod) error {
 		return err
 	}
 
-	if kms.Window.Start.After(pod.Start) ||
-		kms.Window.Start.After(pod.End) ||
-		kms.Window.End.Before(pod.Start) ||
-		kms.Window.End.Before(pod.End) {
-		err := fmt.Errorf(
-			"Pod '%s' has a start or end time (%s-%s) outside of the window %s-%s",
-			pod.UID,
-			pod.Start.Format(time.RFC3339),
-			pod.End.Format(time.RFC3339),
-			kms.Window.Start.Format(time.RFC3339),
-			kms.Window.End.Format(time.RFC3339),
-		)
+	if pod.NamespaceUID == "" {
+		err := fmt.Errorf("NamespaceUID is missing for Pod '%s'", pod.UID)
+		kms.Error(err)
+		return err
+	}
+
+	if err := checkWindow(kms.Window, pod.Start, pod.End); err != nil {
 		kms.Error(err)
 		return err
 	}

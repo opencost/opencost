@@ -35,25 +35,17 @@ func TestKubeModelMarshalBinary(t *testing.T) {
 
 	kms.Metadata.CreatedAt = time.Now().UTC()
 
-	kms.RegisterCluster(&Cluster{UID: "cluster"})
-	kms.Cluster.Start = s
-	kms.Cluster.End = e
+	kms.RegisterCluster(&Cluster{UID: "cluster", Start: s, End: e})
 
-	kms.RegisterNamespace(&Namespace{UID: "ns1", Name: "ns1"})
-	kms.Namespaces["ns1"].Start = s
-	kms.Namespaces["ns1"].End = e
+	kms.RegisterNamespace(&Namespace{UID: "ns1", Name: "ns1", Start: s, End: e})
 	kms.Namespaces["ns1"].Labels = map[string]string{"label1": "label1"}
 	kms.Namespaces["ns1"].Annotations = map[string]string{"anno1": "anno1"}
 
-	kms.RegisterNamespace(&Namespace{UID: "ns2", Name: "ns2"})
-	kms.Namespaces["ns2"].Start = s
-	kms.Namespaces["ns2"].End = e
+	kms.RegisterNamespace(&Namespace{UID: "ns2", Name: "ns2", Start: s, End: e})
 	kms.Namespaces["ns2"].Labels = map[string]string{"label2": "label2"}
 	kms.Namespaces["ns2"].Annotations = map[string]string{"anno2": "anno2"}
 
-	kms.RegisterResourceQuota(&ResourceQuota{UID: "rq1", Name: "rq1", NamespaceUID: "ns1"})
-	kms.ResourceQuotas["rq1"].Start = s
-	kms.ResourceQuotas["rq1"].End = e
+	kms.RegisterResourceQuota(&ResourceQuota{UID: "rq1", Name: "rq1", NamespaceUID: "ns1", Start: s, End: e})
 	kms.ResourceQuotas["rq1"].Spec = &ResourceQuotaSpec{
 		Hard: &ResourceQuotaSpecHard{
 			Requests: ResourceQuantities{
@@ -151,9 +143,7 @@ func TestKubeModelMarshalBinary(t *testing.T) {
 		},
 	}
 
-	kms.RegisterResourceQuota(&ResourceQuota{UID: "rq2", Name: "rq2", NamespaceUID: "ns1"})
-	kms.ResourceQuotas["rq2"].Start = s
-	kms.ResourceQuotas["rq2"].End = e
+	kms.RegisterResourceQuota(&ResourceQuota{UID: "rq2", Name: "rq2", NamespaceUID: "ns1", Start: s, End: e})
 	kms.ResourceQuotas["rq2"].Spec = &ResourceQuotaSpec{
 		Hard: &ResourceQuotaSpecHard{
 			Requests: ResourceQuantities{
@@ -251,9 +241,7 @@ func TestKubeModelMarshalBinary(t *testing.T) {
 		},
 	}
 
-	kms.RegisterResourceQuota(&ResourceQuota{UID: "rq3", Name: "rq3", NamespaceUID: "ns2"})
-	kms.ResourceQuotas["rq3"].Start = s
-	kms.ResourceQuotas["rq3"].End = e
+	kms.RegisterResourceQuota(&ResourceQuota{UID: "rq3", Name: "rq3", NamespaceUID: "ns2", Start: s, End: e})
 	kms.ResourceQuotas["rq3"].Spec = &ResourceQuotaSpec{
 		Hard: &ResourceQuotaSpecHard{
 			Requests: ResourceQuantities{
@@ -351,9 +339,7 @@ func TestKubeModelMarshalBinary(t *testing.T) {
 		},
 	}
 
-	kms.RegisterResourceQuota(&ResourceQuota{UID: "rq4", Name: "rq4", NamespaceUID: "ns2"})
-	kms.ResourceQuotas["rq4"].Start = s
-	kms.ResourceQuotas["rq4"].End = e
+	kms.RegisterResourceQuota(&ResourceQuota{UID: "rq4", Name: "rq4", NamespaceUID: "ns2", Start: s, End: e})
 	kms.ResourceQuotas["rq4"].Spec = &ResourceQuotaSpec{
 		Hard: &ResourceQuotaSpecHard{
 			Requests: ResourceQuantities{

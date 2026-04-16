@@ -32,18 +32,13 @@ func (kms *KubeModelSet) RegisterDeployment(deployment *Deployment) error {
 		return err
 	}
 
-	if kms.Window.Start.After(deployment.Start) ||
-		kms.Window.Start.After(deployment.End) ||
-		kms.Window.End.Before(deployment.Start) ||
-		kms.Window.End.Before(deployment.End) {
-		err := fmt.Errorf(
-			"Deployment '%s' has a start or end time (%s-%s) outside of the window %s-%s",
-			deployment.Name,
-			deployment.Start.Format(time.RFC3339),
-			deployment.End.Format(time.RFC3339),
-			kms.Window.Start.Format(time.RFC3339),
-			kms.Window.End.Format(time.RFC3339),
-		)
+	if deployment.NamespaceUID == "" {
+		err := fmt.Errorf("NamespaceUID is missing for Deployment '%s'", deployment.UID)
+		kms.Error(err)
+		return err
+	}
+
+	if err := checkWindow(kms.Window, deployment.Start, deployment.End); err != nil {
 		kms.Error(err)
 		return err
 	}

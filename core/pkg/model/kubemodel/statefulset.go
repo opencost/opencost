@@ -32,18 +32,13 @@ func (kms *KubeModelSet) RegisterStatefulSet(statefulSet *StatefulSet) error {
 		return err
 	}
 
-	if kms.Window.Start.After(statefulSet.Start) ||
-		kms.Window.Start.After(statefulSet.End) ||
-		kms.Window.End.Before(statefulSet.Start) ||
-		kms.Window.End.Before(statefulSet.End) {
-		err := fmt.Errorf(
-			"StatefulSet '%s' has a start or end time (%s-%s) outside of the window %s-%s",
-			statefulSet.Name,
-			statefulSet.Start.Format(time.RFC3339),
-			statefulSet.End.Format(time.RFC3339),
-			kms.Window.Start.Format(time.RFC3339),
-			kms.Window.End.Format(time.RFC3339),
-		)
+	if statefulSet.NamespaceUID == "" {
+		err := fmt.Errorf("NamespaceUID is missing for StatefulSet '%s'", statefulSet.UID)
+		kms.Error(err)
+		return err
+	}
+
+	if err := checkWindow(kms.Window, statefulSet.Start, statefulSet.End); err != nil {
 		kms.Error(err)
 		return err
 	}

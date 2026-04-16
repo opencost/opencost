@@ -32,6 +32,11 @@ func (kms *KubeModelSet) RegisterNamespace(namespace *Namespace) error {
 		return err
 	}
 
+	if err := checkWindow(kms.Window, namespace.Start, namespace.End); err != nil {
+		kms.Error(err)
+		return err
+	}
+
 	if _, ok := kms.Namespaces[namespace.UID]; !ok {
 		if kms.Cluster == nil {
 			kms.Warnf("RegisterNamespace: Cluster is nil")

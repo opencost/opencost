@@ -67,6 +67,11 @@ func (kms *KubeModelSet) RegisterService(service *Service) error {
 		return err
 	}
 
+	if err := checkWindow(kms.Window, service.Start, service.End); err != nil {
+		kms.Error(err)
+		return err
+	}
+
 	if _, ok := kms.Services[service.UID]; !ok {
 		kms.Services[service.UID] = service
 		kms.Metadata.ObjectCount++

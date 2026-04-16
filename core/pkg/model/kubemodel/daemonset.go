@@ -31,18 +31,13 @@ func (kms *KubeModelSet) RegisterDaemonSet(daemonSet *DaemonSet) error {
 		return err
 	}
 
-	if kms.Window.Start.After(daemonSet.Start) ||
-		kms.Window.Start.After(daemonSet.End) ||
-		kms.Window.End.Before(daemonSet.Start) ||
-		kms.Window.End.Before(daemonSet.End) {
-		err := fmt.Errorf(
-			"DaemonSet '%s' has a start or end time (%s-%s) outside of the window %s-%s",
-			daemonSet.Name,
-			daemonSet.Start.Format(time.RFC3339),
-			daemonSet.End.Format(time.RFC3339),
-			kms.Window.Start.Format(time.RFC3339),
-			kms.Window.End.Format(time.RFC3339),
-		)
+	if daemonSet.NamespaceUID == "" {
+		err := fmt.Errorf("NamespaceUID is missing for DaemonSet '%s'", daemonSet.UID)
+		kms.Error(err)
+		return err
+	}
+
+	if err := checkWindow(kms.Window, daemonSet.Start, daemonSet.End); err != nil {
 		kms.Error(err)
 		return err
 	}

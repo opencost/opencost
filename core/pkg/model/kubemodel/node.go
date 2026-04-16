@@ -46,18 +46,7 @@ func (kms *KubeModelSet) RegisterNode(node *Node) error {
 		return err
 	}
 
-	if kms.Window.Start.After(node.Start) ||
-		kms.Window.Start.After(node.End) ||
-		kms.Window.End.Before(node.Start) ||
-		kms.Window.End.Before(node.End) {
-		err := fmt.Errorf(
-			"Node '%s' has a start or end time (%s-%s) outside of the window %s-%s",
-			node.UID,
-			node.Start.Format(time.RFC3339),
-			node.End.Format(time.RFC3339),
-			kms.Window.Start.Format(time.RFC3339),
-			kms.Window.End.Format(time.RFC3339),
-		)
+	if err := checkWindow(kms.Window, node.Start, node.End); err != nil {
 		kms.Error(err)
 		return err
 	}

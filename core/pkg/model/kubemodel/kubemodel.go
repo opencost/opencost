@@ -1,6 +1,7 @@
 package kubemodel
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -98,6 +99,24 @@ func (kms *KubeModelSet) IsEmpty() bool {
 		len(kms.ResourceQuotas) == 0 &&
 		len(kms.Services) == 0 &&
 		len(kms.PersistentVolumes) == 0
+}
+
+// checkWindow validates that the given start/end times are fully contained within
+// the KubeModelSet window. It records and returns an error if they are not.
+func checkWindow(window Window, start, end time.Time) error {
+	if window.Start.After(start) ||
+		window.Start.After(end) ||
+		window.End.Before(start) ||
+		window.End.Before(end) {
+		return fmt.Errorf(
+			"start or end time (%s-%s) is outside of the window %s-%s",
+			start.Format(time.RFC3339),
+			end.Format(time.RFC3339),
+			window.Start.Format(time.RFC3339),
+			window.End.Format(time.RFC3339),
+		)
+	}
+	return nil
 }
 
 type kubeModelSetIndexes struct {

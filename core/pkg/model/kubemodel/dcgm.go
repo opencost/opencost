@@ -40,6 +40,11 @@ func (kms *KubeModelSet) RegisterDCGMDevice(device *DCGMDevice) error {
 		return err
 	}
 
+	if err := checkWindow(kms.Window, device.Start, device.End); err != nil {
+		kms.Error(err)
+		return err
+	}
+
 	if _, ok := kms.DCGMDevices[device.UUID]; !ok {
 		if kms.Cluster == nil {
 			kms.Warnf("RegisterDCGMDevice: Cluster is nil")

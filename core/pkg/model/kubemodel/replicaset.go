@@ -32,18 +32,13 @@ func (kms *KubeModelSet) RegisterReplicaSet(replicaSet *ReplicaSet) error {
 		return err
 	}
 
-	if kms.Window.Start.After(replicaSet.Start) ||
-		kms.Window.Start.After(replicaSet.End) ||
-		kms.Window.End.Before(replicaSet.Start) ||
-		kms.Window.End.Before(replicaSet.End) {
-		err := fmt.Errorf(
-			"ReplicaSet '%s' has a start or end time (%s-%s) outside of the window %s-%s",
-			replicaSet.Name,
-			replicaSet.Start.Format(time.RFC3339),
-			replicaSet.End.Format(time.RFC3339),
-			kms.Window.Start.Format(time.RFC3339),
-			kms.Window.End.Format(time.RFC3339),
-		)
+	if replicaSet.NamespaceUID == "" {
+		err := fmt.Errorf("NamespaceUID is missing for ReplicaSet '%s'", replicaSet.UID)
+		kms.Error(err)
+		return err
+	}
+
+	if err := checkWindow(kms.Window, replicaSet.Start, replicaSet.End); err != nil {
 		kms.Error(err)
 		return err
 	}

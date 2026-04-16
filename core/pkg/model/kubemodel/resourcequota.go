@@ -85,7 +85,12 @@ func (kms *KubeModelSet) RegisterResourceQuota(resourceQuota *ResourceQuota) err
 	}
 
 	if resourceQuota.NamespaceUID == "" {
-		err := fmt.Errorf("Namespace is missing for ResourceQuota '%s'", resourceQuota.UID)
+		err := fmt.Errorf("NamespaceUID is missing for ResourceQuota '%s'", resourceQuota.UID)
+		kms.Error(err)
+		return err
+	}
+
+	if err := checkWindow(kms.Window, resourceQuota.Start, resourceQuota.End); err != nil {
 		kms.Error(err)
 		return err
 	}

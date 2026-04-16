@@ -31,18 +31,13 @@ func (kms *KubeModelSet) RegisterJob(job *Job) error {
 		return err
 	}
 
-	if kms.Window.Start.After(job.Start) ||
-		kms.Window.Start.After(job.End) ||
-		kms.Window.End.Before(job.Start) ||
-		kms.Window.End.Before(job.End) {
-		err := fmt.Errorf(
-			"Job '%s' has a start or end time (%s-%s) outside of the window %s-%s",
-			job.Name,
-			job.Start.Format(time.RFC3339),
-			job.End.Format(time.RFC3339),
-			kms.Window.Start.Format(time.RFC3339),
-			kms.Window.End.Format(time.RFC3339),
-		)
+	if job.NamespaceUID == "" {
+		err := fmt.Errorf("NamespaceUID is missing for Job '%s'", job.UID)
+		kms.Error(err)
+		return err
+	}
+
+	if err := checkWindow(kms.Window, job.Start, job.End); err != nil {
 		kms.Error(err)
 		return err
 	}

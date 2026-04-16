@@ -37,6 +37,11 @@ func (kms *KubeModelSet) RegisterContainer(container *Container) error {
 		return err
 	}
 
+	if err := checkWindow(kms.Window, container.Start, container.End); err != nil {
+		kms.Error(err)
+		return err
+	}
+
 	key := container.GetKey()
 	if _, ok := kms.Containers[key]; !ok {
 		kms.Containers[key] = container

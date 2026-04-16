@@ -1,7 +1,7 @@
 package kubemodel
 
 import (
-	"errors"
+	"fmt"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/model/shared"
@@ -20,7 +20,12 @@ type Cluster struct {
 
 func (kms *KubeModelSet) RegisterCluster(cluster *Cluster) error {
 	if cluster.UID == "" {
-		err := errors.New("RegisterCluster: uid is nil")
+		err := fmt.Errorf("UID is missing for Cluster with name '%s'", cluster.Name)
+		kms.Error(err)
+		return err
+	}
+
+	if err := checkWindow(kms.Window, cluster.Start, cluster.End); err != nil {
 		kms.Error(err)
 		return err
 	}

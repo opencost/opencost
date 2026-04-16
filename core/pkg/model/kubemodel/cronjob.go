@@ -31,18 +31,13 @@ func (kms *KubeModelSet) RegisterCronJob(cronJob *CronJob) error {
 		return err
 	}
 
-	if kms.Window.Start.After(cronJob.Start) ||
-		kms.Window.Start.After(cronJob.End) ||
-		kms.Window.End.Before(cronJob.Start) ||
-		kms.Window.End.Before(cronJob.End) {
-		err := fmt.Errorf(
-			"CronJob '%s' has a start or end time (%s-%s) outside of the window %s-%s",
-			cronJob.Name,
-			cronJob.Start.Format(time.RFC3339),
-			cronJob.End.Format(time.RFC3339),
-			kms.Window.Start.Format(time.RFC3339),
-			kms.Window.End.Format(time.RFC3339),
-		)
+	if cronJob.NamespaceUID == "" {
+		err := fmt.Errorf("NamespaceUID is missing for CronJob '%s'", cronJob.UID)
+		kms.Error(err)
+		return err
+	}
+
+	if err := checkWindow(kms.Window, cronJob.Start, cronJob.End); err != nil {
 		kms.Error(err)
 		return err
 	}

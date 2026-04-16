@@ -21,7 +21,24 @@ type PersistentVolumeClaim struct {
 
 func (kms *KubeModelSet) RegisterPVC(pvc *PersistentVolumeClaim) error {
 	if pvc.UID == "" {
-		err := fmt.Errorf("UID is nil for PVC '%s'", pvc.Name)
+		err := fmt.Errorf("UID is missing for PVC with name '%s'", pvc.Name)
+		kms.Error(err)
+		return err
+	}
+
+	if pvc.Name == "" {
+		err := fmt.Errorf("Name is missing for PVC '%s'", pvc.UID)
+		kms.Error(err)
+		return err
+	}
+
+	if pvc.NamespaceUID == "" {
+		err := fmt.Errorf("NamespaceUID is missing for PVC '%s'", pvc.UID)
+		kms.Error(err)
+		return err
+	}
+
+	if err := checkWindow(kms.Window, pvc.Start, pvc.End); err != nil {
 		kms.Error(err)
 		return err
 	}
