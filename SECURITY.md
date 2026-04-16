@@ -12,14 +12,24 @@ OpenCost has [Dependabot](https://docs.github.com/en/code-security/supply-chain-
 
 ## Image Signing and Verification
 
-OpenCost container images published from this repository are signed with
+OpenCost container images published from this repository by the tag-triggered
+release workflow and the `develop` branch publishing workflow are signed with
 [Sigstore cosign](https://docs.sigstore.dev/cosign/signing/signing_with_containers/)
 using **keyless** signatures. Signing is driven by GitHub Actions OIDC — there
 are no long-lived signing keys to manage or rotate. Each signature is recorded
 in the public [Rekor](https://docs.sigstore.dev/logging/overview/) transparency
-log, and every image is additionally accompanied by a
+log, and every signed image is additionally accompanied by a
 [SLSA v1](https://slsa.dev/spec/v1.0/) build provenance attestation produced
 with `cosign attest`.
+
+> **Note:** `workflow_dispatch` runs of `build-and-publish-release.yml`
+> intentionally skip signing. A manual dispatch runs from a branch ref rather
+> than a tag, so the Fulcio certificate identity would not match the
+> `refs/tags/vX.Y.Z` pattern that verification tooling and the Kyverno policy
+> below pin to — a signature produced under a branch identity would be
+> silently rejected by those admission policies anyway. To produce a
+> verifiable release, push a `vX.Y.Z` tag and let the tag event trigger the
+> workflow.
 
 ### What is signed
 
