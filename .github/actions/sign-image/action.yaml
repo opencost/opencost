@@ -1,8 +1,13 @@
 name: 'Sign Container Image'
 description: >-
   Sign a container image and attest SLSA v1 build provenance using cosign
-  keyless (Sigstore) with GitHub Actions OIDC. Requires `id-token: write` in
-  the calling job.
+  keyless (Sigstore) with GitHub Actions OIDC. Callers must check out the
+  source tree (e.g. `actions/checkout`) before invoking this action — the
+  built commit is resolved with `git rev-parse HEAD` so the attestation
+  records the revision that was actually built rather than `github.sha`,
+  which on a tag push reflects the tag-pointed commit and may differ from
+  the branch tip the release workflow checks out. The calling job must
+  have `id-token: write`.
 
 inputs:
     image:

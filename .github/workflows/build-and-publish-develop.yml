@@ -27,6 +27,8 @@ jobs:
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
       - name: Set SHA
         id: sha
         run: |
