@@ -164,23 +164,26 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 	}
 	sasr := opencost.NewSummaryAllocationSetRange(sasl...)
 
-	// Extract currency parameter and convert if needed
+	// Extract currency parameter and convert if needed. Currency conversion
+	// is best-effort: individual field failures are logged at source and
+	// leave USD values in place. A non-nil error from the helper means the
+	// upfront rate lookup failed and no mutation occurred.
 	currency := strings.ToUpper(strings.TrimSpace(qp.Get("currency", "USD")))
 	if currency != "USD" && a.CurrencyConverter != nil {
-		// Convert the underlying AllocationSetRange before creating summary
-		err = ConvertAllocationSetRange(asr, a.CurrencyConverter, currency)
-		if err != nil {
+		if err = ConvertAllocationSetRange(asr, a.CurrencyConverter, currency); err != nil {
 			log.Warnf("Currency conversion failed for currency %s: %v", currency, err)
-			// Continue with USD values if conversion fails
-		} else {
-			// Recreate summary allocation sets after conversion
-			sasl = []*opencost.SummaryAllocationSet{}
-			for _, as := range asr.Slice() {
-				sas := opencost.NewSummaryAllocationSet(as, nil, nil, false, false)
-				sasl = append(sasl, sas)
-			}
-			sasr = opencost.NewSummaryAllocationSetRange(sasl...)
 		}
+		// Always rebuild the summary: the helper may have partially
+		// mutated the underlying sets even when it returns an error
+		// (per-field best-effort), so the pre-conversion summary would
+		// otherwise be inconsistent with the (possibly partly converted)
+		// data.
+		sasl = sasl[:0]
+		for _, as := range asr.Slice() {
+			sas := opencost.NewSummaryAllocationSet(as, nil, nil, false, false)
+			sasl = append(sasl, sas)
+		}
+		sasr = opencost.NewSummaryAllocationSetRange(sasl...)
 	}
 
 	WriteData(w, sasr, nil)

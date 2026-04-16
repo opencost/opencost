@@ -13,9 +13,11 @@ import (
 // which case Convert returns an error (useful for testing partial-
 // failure / best-effort behavior).
 type mockConverter struct {
-	rate       float64
-	failValues map[float64]bool
-	calls      int
+	rate         float64
+	failValues   map[float64]bool
+	getRateFail  bool
+	getRateCalls int
+	calls        int
 }
 
 func (m *mockConverter) Convert(amount float64, from, to string) (float64, error) {
@@ -30,6 +32,10 @@ func (m *mockConverter) Convert(amount float64, from, to string) (float64, error
 }
 
 func (m *mockConverter) GetRate(from, to string) (float64, error) {
+	m.getRateCalls++
+	if m.getRateFail {
+		return 0, fmt.Errorf("simulated rate lookup failure USD->%s", to)
+	}
 	return m.rate, nil
 }
 
@@ -283,5 +289,65 @@ func TestConvertAllocationSetRange_NilGuards(t *testing.T) {
 	asr := opencost.NewAllocationSetRange()
 	if err := ConvertAllocationSetRange(asr, nil, "EUR"); err != nil {
 		t.Fatalf("nil converter: %v", err)
+	}
+}
+
+// TestConvertAllocation_USDNormalized exercises the normalize-before-
+// USD-check fix: lowercase and whitespace-padded "USD" must be treated
+// as a no-op without invoking the converter.
+func TestConvertAllocation_USDNormalized(t *testing.T) {
+	for _, target := range []string{"usd", " USD ", "Usd", ""} {
+		a := newFullAllocation()
+		m := &mockConverter{rate: 2.0}
+		if err := ConvertAllocation(a, m, target); err != nil {
+			t.Fatalf("target %q: unexpected error %v", target, err)
+		}
+		if m.calls != 0 || m.getRateCalls != 0 {
+			t.Errorf("target %q: expected zero converter activity, got convert=%d rate=%d",
+				target, m.calls, m.getRateCalls)
+		}
+		if a.CPUCost != 10 {
+			t.Errorf("target %q: mutated CPUCost to %v", target, a.CPUCost)
+		}
+	}
+}
+
+// TestConvertAllocation_GetRateFailsReturnsErrorNoMutation exercises the
+// upfront rate probe: when GetRate fails, the helper returns an error
+// and does NOT attempt any per-field conversion (prevents log-storms
+// when the converter is down or the currency code is invalid).
+func TestConvertAllocation_GetRateFailsReturnsErrorNoMutation(t *testing.T) {
+	a := newFullAllocation()
+	m := &mockConverter{rate: 2.0, getRateFail: true}
+
+	err := ConvertAllocation(a, m, "XXX")
+	if err == nil {
+		t.Fatal("expected error when GetRate fails")
+	}
+	if m.calls != 0 {
+		t.Errorf("expected zero Convert calls when GetRate fails; got %d", m.calls)
+	}
+	if a.CPUCost != 10 {
+		t.Errorf("allocation must not be mutated when precheck fails: CPUCost got %v want 10", a.CPUCost)
+	}
+}
+
+func TestConvertAllocationSetRange_GetRateFailsReturnsError(t *testing.T) {
+	start := time.Date(2026, 4, 16, 0, 0, 0, 0, time.UTC)
+	end := start.Add(time.Hour)
+	set := opencost.NewAllocationSet(start, end)
+	set.Insert(&opencost.Allocation{Name: "a1", Start: start, End: end, CPUCost: 5})
+	asr := opencost.NewAllocationSetRange(set)
+
+	m := &mockConverter{rate: 2.0, getRateFail: true}
+	err := ConvertAllocationSetRange(asr, m, "XXX")
+	if err == nil {
+		t.Fatal("expected error when GetRate fails")
+	}
+	if m.calls != 0 {
+		t.Errorf("no Convert calls expected when precheck fails; got %d", m.calls)
+	}
+	if set.Allocations["a1"].CPUCost != 5 {
+		t.Errorf("data must not be mutated on precheck failure")
 	}
 }

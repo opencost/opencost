@@ -120,19 +120,34 @@ func (qs *QueryService) GetCustomCostTimeseriesHandler() func(w http.ResponseWri
 }
 
 // convertCustomCostResponse converts all cost values in a CostResponse
-// from USD to target currency in place. Best-effort: per-field converter
-// failures are logged and the field is left in USD rather than rolling
-// the whole response back to USD.
+// from USD to target currency in place. Returns an error if the target
+// rate cannot be looked up upfront (no mutation occurs). Per-field
+// converter failures after the probe succeeded are handled best-effort:
+// the field is left in USD and a warning is logged.
 //
 // CustomCost uses float32; conversion is done in float64 to avoid
 // compounding precision loss, then cast back.
 func convertCustomCostResponse(resp *CostResponse, converter currency.Converter, targetCurrency string) error {
-	if resp == nil || converter == nil || targetCurrency == "USD" {
+	if resp == nil || converter == nil {
 		return nil
 	}
 
 	targetCurrency = strings.ToUpper(strings.TrimSpace(targetCurrency))
+	if targetCurrency == "" || targetCurrency == "USD" {
+		return nil
+	}
+	if _, err := converter.GetRate("USD", targetCurrency); err != nil {
+		return fmt.Errorf("currency rate lookup USD->%s failed: %w", targetCurrency, err)
+	}
 
+	convertResponseFields(resp, converter, targetCurrency)
+	return nil
+}
+
+// convertResponseFields applies the per-field conversion without
+// re-probing the rate. The caller must have already validated the
+// target currency.
+func convertResponseFields(resp *CostResponse, converter currency.Converter, targetCurrency string) {
 	tryConvert32 := func(val float32, logCtx string) float32 {
 		if val == 0 {
 			return val
@@ -154,19 +169,30 @@ func convertCustomCostResponse(resp *CostResponse, converter currency.Converter,
 		cc.Cost = tryConvert32(cc.Cost, "CustomCost.Cost")
 		cc.ListUnitPrice = tryConvert32(cc.ListUnitPrice, "CustomCost.ListUnitPrice")
 	}
-
-	return nil
 }
 
 // convertCustomCostTimeseriesResponse converts all cost values in a
-// CostTimeseriesResponse (best-effort).
+// CostTimeseriesResponse. Returns an error if the target rate cannot be
+// looked up upfront (no mutation occurs). Per-field conversion is
+// best-effort thereafter.
 func convertCustomCostTimeseriesResponse(resp *CostTimeseriesResponse, converter currency.Converter, targetCurrency string) error {
-	if resp == nil || converter == nil || targetCurrency == "USD" {
+	if resp == nil || converter == nil {
 		return nil
 	}
 
+	targetCurrency = strings.ToUpper(strings.TrimSpace(targetCurrency))
+	if targetCurrency == "" || targetCurrency == "USD" {
+		return nil
+	}
+	if _, err := converter.GetRate("USD", targetCurrency); err != nil {
+		return fmt.Errorf("currency rate lookup USD->%s failed: %w", targetCurrency, err)
+	}
+
 	for _, costResp := range resp.Timeseries {
-		_ = convertCustomCostResponse(costResp, converter, targetCurrency)
+		if costResp == nil {
+			continue
+		}
+		convertResponseFields(costResp, converter, targetCurrency)
 	}
 
 	return nil

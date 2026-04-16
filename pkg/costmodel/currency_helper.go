@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -8,15 +9,21 @@ import (
 	"github.com/opencost/opencost/pkg/currency"
 )
 
-// Currency conversion uses best-effort semantics: if a single field fails
-// to convert, it is left in USD and a warning is logged. The response may
-// therefore contain mixed currencies under partial converter failures.
-// Callers treat a non-nil error from these helpers as advisory only --
-// the mutation has already been applied where it succeeded.
+// Currency conversion uses a two-layer approach:
+//   - The handler-facing entry (Range / Set / top-level Allocation) calls
+//     Converter.GetRate once to validate the target currency. If that
+//     fails, the helper returns an error without mutating anything and
+//     the caller logs a single per-request warning -- preventing log
+//     floods when the API is unreachable or the currency code is bogus.
+//   - Per-field conversion is best-effort: if an individual Convert call
+//     fails after the rate probe succeeded (exotic case) the original
+//     USD value is retained and logged. Responses may therefore contain
+//     mixed currencies under partial converter failures.
 
 // tryConvert converts val from USD to target, returning the original
-// value (and logging) on converter error. logCtx identifies the field
-// being converted so operators can triage which fields are failing.
+// value (and logging) on converter error. Only fires after the outer
+// helper has already validated the target currency, so this path is
+// rarely hit in practice. logCtx identifies the field being converted.
 func tryConvert(converter currency.Converter, val float64, target, logCtx string) float64 {
 	if val == 0 {
 		return val
@@ -29,15 +36,49 @@ func tryConvert(converter currency.Converter, val float64, target, logCtx string
 	return converted
 }
 
+// normalizeAndProbe normalizes the target currency code and, if it is
+// not a no-op (USD or empty), probes the converter for the rate. Returns
+// the normalized currency, a no-op flag, and any rate-lookup error.
+func normalizeAndProbe(converter currency.Converter, target string) (normalized string, noop bool, err error) {
+	normalized = strings.ToUpper(strings.TrimSpace(target))
+	if normalized == "" || normalized == "USD" {
+		return normalized, true, nil
+	}
+	if _, rateErr := converter.GetRate("USD", normalized); rateErr != nil {
+		return normalized, false, fmt.Errorf("currency rate lookup USD->%s failed: %w", normalized, rateErr)
+	}
+	return normalized, false, nil
+}
+
 // ConvertAllocation converts all cost fields in an Allocation from USD
-// to target currency in place. Best-effort: per-field failures are logged
-// and skipped rather than aborting the whole allocation.
+// to target currency in place. Returns an error if the target rate
+// cannot be looked up (no mutation occurs); per-field converter failures
+// encountered after the rate probe succeeded are handled best-effort and
+// logged in place.
 func ConvertAllocation(alloc *opencost.Allocation, converter currency.Converter, targetCurrency string) error {
-	if alloc == nil || converter == nil || targetCurrency == "USD" {
+	if alloc == nil || converter == nil {
 		return nil
 	}
 
-	targetCurrency = strings.ToUpper(strings.TrimSpace(targetCurrency))
+	targetCurrency, noop, err := normalizeAndProbe(converter, targetCurrency)
+	if err != nil {
+		return err
+	}
+	if noop {
+		return nil
+	}
+
+	return convertAllocationFields(alloc, converter, targetCurrency)
+}
+
+// convertAllocationFields performs the per-field best-effort conversion.
+// The caller must have already normalised the target currency and
+// probed the rate. Returns nil today; retains the error return so the
+// signature can carry structured failure info in the future.
+func convertAllocationFields(alloc *opencost.Allocation, converter currency.Converter, targetCurrency string) error {
+	if alloc == nil {
+		return nil
+	}
 
 	// Named cost fields. Keep in sync with Allocation cost fields in
 	// core/pkg/opencost/allocation.go that appear in JSON API responses.
@@ -73,8 +114,6 @@ func ConvertAllocation(alloc *opencost.Allocation, converter currency.Converter,
 		*f.ptr = tryConvert(converter, *f.ptr, targetCurrency, "Allocation."+f.name)
 	}
 
-	// Convert PV costs (nested structure). Both Cost and Adjustment appear
-	// in JSON responses and must be converted.
 	for pvKey, pv := range alloc.PVs {
 		if pv == nil {
 			continue
@@ -85,7 +124,6 @@ func ConvertAllocation(alloc *opencost.Allocation, converter currency.Converter,
 		alloc.PVs[pvKey] = pv
 	}
 
-	// Convert LoadBalancer costs (nested structure)
 	for lbKey, lb := range alloc.LoadBalancers {
 		if lb == nil {
 			continue
@@ -94,9 +132,8 @@ func ConvertAllocation(alloc *opencost.Allocation, converter currency.Converter,
 		alloc.LoadBalancers[lbKey] = lb
 	}
 
-	// Convert SharedCostBreakdown entries. SharedCostBreakdowns is a
-	// map[string]SharedCostBreakdown (value, not pointer), so mutate a
-	// local copy and re-assign.
+	// SharedCostBreakdowns is map[string]SharedCostBreakdown (value type);
+	// mutate a local copy and re-assign.
 	for key, scb := range alloc.SharedCostBreakdown {
 		scb.TotalCost = tryConvert(converter, scb.TotalCost, targetCurrency, "Allocation.SharedCostBreakdown."+key+".TotalCost")
 		scb.CPUCost = tryConvert(converter, scb.CPUCost, targetCurrency, "Allocation.SharedCostBreakdown."+key+".CPUCost")
@@ -112,31 +149,49 @@ func ConvertAllocation(alloc *opencost.Allocation, converter currency.Converter,
 	return nil
 }
 
-// ConvertAllocationSet converts all allocations in a set (best-effort).
+// ConvertAllocationSet converts all allocations in a set. Returns an
+// error if the target rate cannot be looked up (no mutation occurs).
+// Per-allocation conversion itself is best-effort.
 func ConvertAllocationSet(set *opencost.AllocationSet, converter currency.Converter, targetCurrency string) error {
-	if set == nil || converter == nil || targetCurrency == "USD" {
+	if set == nil || converter == nil {
+		return nil
+	}
+	targetCurrency, noop, err := normalizeAndProbe(converter, targetCurrency)
+	if err != nil {
+		return err
+	}
+	if noop {
 		return nil
 	}
 
 	for _, alloc := range set.Allocations {
-		// ConvertAllocation is best-effort and never returns a non-nil
-		// error today, but retain the error-return contract in case the
-		// helper is extended later.
-		_ = ConvertAllocation(alloc, converter, targetCurrency)
+		_ = convertAllocationFields(alloc, converter, targetCurrency)
 	}
-
 	return nil
 }
 
-// ConvertAllocationSetRange converts all sets in a range (best-effort).
+// ConvertAllocationSetRange converts all sets in a range. Returns an
+// error if the target rate cannot be looked up (no mutation occurs).
+// Per-allocation conversion itself is best-effort.
 func ConvertAllocationSetRange(asr *opencost.AllocationSetRange, converter currency.Converter, targetCurrency string) error {
-	if asr == nil || converter == nil || targetCurrency == "USD" {
+	if asr == nil || converter == nil {
+		return nil
+	}
+	targetCurrency, noop, err := normalizeAndProbe(converter, targetCurrency)
+	if err != nil {
+		return err
+	}
+	if noop {
 		return nil
 	}
 
 	for _, set := range asr.Allocations {
-		_ = ConvertAllocationSet(set, converter, targetCurrency)
+		if set == nil {
+			continue
+		}
+		for _, alloc := range set.Allocations {
+			_ = convertAllocationFields(alloc, converter, targetCurrency)
+		}
 	}
-
 	return nil
 }

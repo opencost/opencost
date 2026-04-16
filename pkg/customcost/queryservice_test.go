@@ -9,9 +9,11 @@ import (
 )
 
 type mockConverter struct {
-	rate       float64
-	failValues map[float64]bool
-	calls      int
+	rate         float64
+	failValues   map[float64]bool
+	getRateFail  bool
+	getRateCalls int
+	calls        int
 }
 
 func (m *mockConverter) Convert(amount float64, from, to string) (float64, error) {
@@ -26,6 +28,10 @@ func (m *mockConverter) Convert(amount float64, from, to string) (float64, error
 }
 
 func (m *mockConverter) GetRate(from, to string) (float64, error) {
+	m.getRateCalls++
+	if m.getRateFail {
+		return 0, fmt.Errorf("simulated rate lookup failure USD->%s", to)
+	}
 	return m.rate, nil
 }
 
@@ -132,6 +138,34 @@ func TestConvertCustomCostTimeseriesResponse(t *testing.T) {
 	for i, cr := range ts.Timeseries {
 		if !fpEq(cr.TotalCost, 450) {
 			t.Errorf("ts[%d].TotalCost: got %v want 450", i, cr.TotalCost)
+		}
+	}
+}
+
+func TestConvertCustomCostResponse_GetRateFailsReturnsError(t *testing.T) {
+	resp := newCostResponse()
+	m := &mockConverter{rate: 2.0, getRateFail: true}
+	err := convertCustomCostResponse(resp, m, "XXX")
+	if err == nil {
+		t.Fatal("expected error when GetRate fails")
+	}
+	if m.calls != 0 {
+		t.Errorf("no Convert calls expected on precheck failure; got %d", m.calls)
+	}
+	if resp.TotalCost != 150 {
+		t.Errorf("data must not be mutated on precheck failure; TotalCost=%v", resp.TotalCost)
+	}
+}
+
+func TestConvertCustomCostResponse_USDNormalized(t *testing.T) {
+	for _, target := range []string{"usd", " USD ", ""} {
+		resp := newCostResponse()
+		m := &mockConverter{rate: 2.0}
+		if err := convertCustomCostResponse(resp, m, target); err != nil {
+			t.Fatalf("target %q: %v", target, err)
+		}
+		if m.calls != 0 || m.getRateCalls != 0 {
+			t.Errorf("target %q: expected zero converter activity", target)
 		}
 	}
 }

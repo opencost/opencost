@@ -218,16 +218,23 @@ func (s *QueryService) GetCloudCostViewTableHandler(tokenHook func(ViewTableRows
 }
 
 // convertCloudCostSetRange converts all cloud costs in a range from USD
-// to target currency in place. Best-effort: per-field converter failures
-// are logged and the field is left in USD rather than rolling the whole
-// response back to USD. Only CostMetric.Cost is mutated; KubernetesPercent
-// and other non-cost fields are untouched.
+// to target currency in place. Returns an error if the target rate
+// cannot be looked up upfront (no mutation occurs). Per-field converter
+// failures after the probe succeeded are handled best-effort: the field
+// is left in USD and a warning is logged. Only CostMetric.Cost is
+// mutated; KubernetesPercent and other non-cost fields are untouched.
 func convertCloudCostSetRange(ccsr *opencost.CloudCostSetRange, converter currency.Converter, targetCurrency string) error {
-	if ccsr == nil || converter == nil || targetCurrency == "USD" {
+	if ccsr == nil || converter == nil {
 		return nil
 	}
 
 	targetCurrency = strings.ToUpper(strings.TrimSpace(targetCurrency))
+	if targetCurrency == "" || targetCurrency == "USD" {
+		return nil
+	}
+	if _, err := converter.GetRate("USD", targetCurrency); err != nil {
+		return fmt.Errorf("currency rate lookup USD->%s failed: %w", targetCurrency, err)
+	}
 
 	tryConvert := func(val float64, logCtx string) float64 {
 		if val == 0 {

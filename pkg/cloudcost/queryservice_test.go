@@ -9,9 +9,11 @@ import (
 )
 
 type mockConverter struct {
-	rate       float64
-	failValues map[float64]bool
-	calls      int
+	rate         float64
+	failValues   map[float64]bool
+	getRateFail  bool
+	getRateCalls int
+	calls        int
 }
 
 func (m *mockConverter) Convert(amount float64, from, to string) (float64, error) {
@@ -26,6 +28,10 @@ func (m *mockConverter) Convert(amount float64, from, to string) (float64, error
 }
 
 func (m *mockConverter) GetRate(from, to string) (float64, error) {
+	m.getRateCalls++
+	if m.getRateFail {
+		return 0, fmt.Errorf("simulated rate lookup failure USD->%s", to)
+	}
 	return m.rate, nil
 }
 
@@ -104,6 +110,36 @@ func TestConvertCloudCostSetRange_MutatesAllCostMetrics(t *testing.T) {
 	// KubernetesPercent must be preserved exactly.
 	if cc.ListCost.KubernetesPercent != 0.5 {
 		t.Errorf("KubernetesPercent must not be touched: got %v want 0.5", cc.ListCost.KubernetesPercent)
+	}
+}
+
+func TestConvertCloudCostSetRange_GetRateFailsReturnsError(t *testing.T) {
+	ccsr := newCCSR(t)
+	m := &mockConverter{rate: 2.0, getRateFail: true}
+	err := convertCloudCostSetRange(ccsr, m, "XXX")
+	if err == nil {
+		t.Fatal("expected error when GetRate fails")
+	}
+	if m.calls != 0 {
+		t.Errorf("no Convert calls expected on precheck failure; got %d", m.calls)
+	}
+	for _, v := range ccsr.CloudCostSets[0].CloudCosts {
+		if v.ListCost.Cost != 100 {
+			t.Errorf("data must not be mutated on precheck failure; ListCost=%v", v.ListCost.Cost)
+		}
+	}
+}
+
+func TestConvertCloudCostSetRange_USDNormalized(t *testing.T) {
+	for _, target := range []string{"usd", " USD ", ""} {
+		ccsr := newCCSR(t)
+		m := &mockConverter{rate: 2.0}
+		if err := convertCloudCostSetRange(ccsr, m, target); err != nil {
+			t.Fatalf("target %q: %v", target, err)
+		}
+		if m.calls != 0 || m.getRateCalls != 0 {
+			t.Errorf("target %q: expected zero converter activity", target)
+		}
 	}
 }
 
