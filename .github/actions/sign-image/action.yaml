@@ -62,41 +62,46 @@ runs:
         run: |
           set -euo pipefail
           RESOLVED_GIT_COMMIT="$(git rev-parse HEAD)"
-          jq -n \
-            --arg workflow_ref   "${GITHUB_REF}"                                 \
-            --arg repo_url       "https://github.com/${GITHUB_REPOSITORY}"       \
-            --arg workflow_path  "${WORKFLOW_PATH}"                              \
-            --arg source_uri     "git+https://github.com/${GITHUB_REPOSITORY}@${RESOLVED_GIT_COMMIT}" \
-            --arg git_commit     "${RESOLVED_GIT_COMMIT}"                        \
-            --arg builder_id     "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-            --arg invocation_id  "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}" \
-            --arg started_on     "${STARTED_ON}" \
-            '{
-              buildDefinition: {
-                buildType: "https://github.com/opencost/opencost/build/workflow@v1",
-                externalParameters: {
-                  workflow: {
-                    ref: $workflow_ref,
-                    repository: $repo_url,
-                    path: $workflow_path
-                  }
-                },
-                internalParameters: {},
-                resolvedDependencies: [
-                  {
-                    uri: $source_uri,
-                    digest: { gitCommit: $git_commit }
-                  }
-                ]
+          export RESOLVED_GIT_COMMIT
+          python3 - <<'PY' > predicate.json
+          import json
+          import os
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          commit = os.environ["RESOLVED_GIT_COMMIT"]
+          run_id = os.environ["GITHUB_RUN_ID"]
+          run_attempt = os.environ["GITHUB_RUN_ATTEMPT"]
+
+          predicate = {
+              "buildDefinition": {
+                  "buildType": "https://github.com/opencost/opencost/build/workflow@v1",
+                  "externalParameters": {
+                      "workflow": {
+                          "ref": os.environ["GITHUB_REF"],
+                          "repository": f"https://github.com/{repo}",
+                          "path": os.environ["WORKFLOW_PATH"],
+                      }
+                  },
+                  "internalParameters": {},
+                  "resolvedDependencies": [
+                      {
+                          "uri": f"git+https://github.com/{repo}@{commit}",
+                          "digest": {"gitCommit": commit},
+                      }
+                  ],
               },
-              runDetails: {
-                builder: { id: $builder_id },
-                metadata: {
-                  invocationId: $invocation_id,
-                  startedOn: $started_on
-                }
-              }
-            }' > predicate.json
+              "runDetails": {
+                  "builder": {
+                      "id": f"https://github.com/{repo}/actions/runs/{run_id}",
+                  },
+                  "metadata": {
+                      "invocationId": f"https://github.com/{repo}/actions/runs/{run_id}/attempts/{run_attempt}",
+                      "startedOn": os.environ["STARTED_ON"],
+                  },
+              },
+          }
+          print(json.dumps(predicate, indent=2))
+          PY
 
       - name: Attest SLSA provenance with cosign
         shell: bash
