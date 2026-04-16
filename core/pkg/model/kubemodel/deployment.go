@@ -18,28 +18,29 @@ type Deployment struct {
 	End          time.Time         `json:"end"`
 }
 
+func (d *Deployment) ValidateDeployment(window Window) error {
+	if d.UID == "" {
+		return fmt.Errorf("UID is missing for Deployment with name '%s'", d.Name)
+	}
+
+	if d.Name == "" {
+		return fmt.Errorf("Name is missing for Deployment '%s'", d.UID)
+	}
+
+	if d.NamespaceUID == "" {
+		return fmt.Errorf("NamespaceUID is missing for Deployment '%s'", d.UID)
+	}
+
+	if err := checkWindow(window, d.Start, d.End); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (kms *KubeModelSet) RegisterDeployment(deployment *Deployment) error {
-	// Check required fields
-	if deployment.UID == "" {
-		err := fmt.Errorf("UID is missing for Deployment with name '%s'", deployment.Name)
-		kms.Error(err)
-		return err
-	}
-
-	if deployment.Name == "" {
-		err := fmt.Errorf("Name is missing for Deployment '%s'", deployment.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if deployment.NamespaceUID == "" {
-		err := fmt.Errorf("NamespaceUID is missing for Deployment '%s'", deployment.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if err := checkWindow(kms.Window, deployment.Start, deployment.End); err != nil {
-		kms.Error(err)
+	if err := deployment.ValidateDeployment(kms.Window); err != nil {
+		kms.Errorf("RegisterDeployment: invalid deployment: %w", err)
 		return err
 	}
 

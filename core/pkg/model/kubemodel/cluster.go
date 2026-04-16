@@ -18,15 +18,23 @@ type Cluster struct {
 	End      time.Time       `json:"end"`      // @bingen:field[version=1]
 }
 
-func (kms *KubeModelSet) RegisterCluster(cluster *Cluster) error {
-	if cluster.UID == "" {
-		err := fmt.Errorf("UID is missing for Cluster with name '%s'", cluster.Name)
-		kms.Error(err)
+func (c *Cluster) ValidateCluster(window Window) error {
+	if c.UID == "" {
+		err := fmt.Errorf("UID is missing for Cluster with name '%s'", c.Name)
 		return err
 	}
 
-	if err := checkWindow(kms.Window, cluster.Start, cluster.End); err != nil {
-		kms.Error(err)
+	if err := checkWindow(window, c.Start, c.End); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (kms *KubeModelSet) RegisterCluster(cluster *Cluster) error {
+	err := cluster.ValidateCluster(kms.Window)
+	if err != nil {
+		kms.Errorf("RegisterCluster: invalid cluster: %w", err)
 		return err
 	}
 

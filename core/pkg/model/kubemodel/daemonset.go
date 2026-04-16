@@ -17,28 +17,29 @@ type DaemonSet struct {
 	End          time.Time         `json:"end,omitempty"`
 }
 
+func (d *DaemonSet) ValidateDaemonSet(window Window) error {
+	if d.UID == "" {
+		return fmt.Errorf("UID is missing for DaemonSet with name '%s'", d.Name)
+	}
+
+	if d.Name == "" {
+		return fmt.Errorf("Name is missing for DaemonSet '%s'", d.UID)
+	}
+
+	if d.NamespaceUID == "" {
+		return fmt.Errorf("NamespaceUID is missing for DaemonSet '%s'", d.UID)
+	}
+
+	if err := checkWindow(window, d.Start, d.End); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (kms *KubeModelSet) RegisterDaemonSet(daemonSet *DaemonSet) error {
-	// Check required fields
-	if daemonSet.UID == "" {
-		err := fmt.Errorf("UID is missing for DaemonSet with name '%s'", daemonSet.Name)
-		kms.Error(err)
-		return err
-	}
-
-	if daemonSet.Name == "" {
-		err := fmt.Errorf("Name is missing for DaemonSet '%s'", daemonSet.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if daemonSet.NamespaceUID == "" {
-		err := fmt.Errorf("NamespaceUID is missing for DaemonSet '%s'", daemonSet.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if err := checkWindow(kms.Window, daemonSet.Start, daemonSet.End); err != nil {
-		kms.Error(err)
+	if err := daemonSet.ValidateDaemonSet(kms.Window); err != nil {
+		kms.Errorf("RegisterDaemonSet: invalid daemonset: %w", err)
 		return err
 	}
 

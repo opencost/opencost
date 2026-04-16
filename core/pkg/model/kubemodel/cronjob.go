@@ -17,28 +17,29 @@ type CronJob struct {
 	End          time.Time         `json:"end,omitempty"`
 }
 
+func (c *CronJob) ValidateCronJob(window Window) error {
+	if c.UID == "" {
+		return fmt.Errorf("UID is missing for CronJob with name '%s'", c.Name)
+	}
+
+	if c.Name == "" {
+		return fmt.Errorf("Name is missing for CronJob '%s'", c.UID)
+	}
+
+	if c.NamespaceUID == "" {
+		return fmt.Errorf("NamespaceUID is missing for CronJob '%s'", c.UID)
+	}
+
+	if err := checkWindow(window, c.Start, c.End); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (kms *KubeModelSet) RegisterCronJob(cronJob *CronJob) error {
-	// Check required fields
-	if cronJob.UID == "" {
-		err := fmt.Errorf("UID is missing for CronJob with name '%s'", cronJob.Name)
-		kms.Error(err)
-		return err
-	}
-
-	if cronJob.Name == "" {
-		err := fmt.Errorf("Name is missing for CronJob '%s'", cronJob.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if cronJob.NamespaceUID == "" {
-		err := fmt.Errorf("NamespaceUID is missing for CronJob '%s'", cronJob.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if err := checkWindow(kms.Window, cronJob.Start, cronJob.End); err != nil {
-		kms.Error(err)
+	if err := cronJob.ValidateCronJob(kms.Window); err != nil {
+		kms.Errorf("RegisterCronJob: invalid cronjob: %w", err)
 		return err
 	}
 

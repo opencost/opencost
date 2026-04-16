@@ -31,23 +31,26 @@ type FileSystem struct {
 	UsageByteMax  float64 `json:"usageByteMax"`
 }
 
+func (n *Node) ValidateNode(window Window) error {
+	if n.UID == "" {
+		return fmt.Errorf("UID is missing for Node with name '%s'", n.Name)
+	}
+
+	if n.Name == "" {
+		return fmt.Errorf("Name is missing for Node '%s'", n.UID)
+	}
+
+	if err := checkWindow(window, n.Start, n.End); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // RegisterNode validates and adds a node to the set
 func (kms *KubeModelSet) RegisterNode(node *Node) error {
-	// Check required fields
-	if node.UID == "" {
-		err := fmt.Errorf("UID is missing for Node with name '%s'", node.Name)
-		kms.Error(err)
-		return err
-	}
-
-	if node.Name == "" {
-		err := fmt.Errorf("Name is missing for Node '%s'", node.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if err := checkWindow(kms.Window, node.Start, node.End); err != nil {
-		kms.Error(err)
+	if err := node.ValidateNode(kms.Window); err != nil {
+		kms.Errorf("RegisterNode: invalid node: %w", err)
 		return err
 	}
 

@@ -23,22 +23,25 @@ func (c *Container) GetKey() string {
 	return fmt.Sprintf("%s/%s", c.PodUID, c.Name)
 }
 
+func (c *Container) ValidateContainer(window Window) error {
+	if c.PodUID == "" {
+		return fmt.Errorf("PodUID is missing for Container with name '%s'", c.Name)
+	}
+
+	if c.Name == "" {
+		return fmt.Errorf("Name is missing for Container on pod '%s'", c.PodUID)
+	}
+
+	if err := checkWindow(window, c.Start, c.End); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (kms *KubeModelSet) RegisterContainer(container *Container) error {
-	// Check required fields
-	if container.PodUID == "" {
-		err := fmt.Errorf("PodUID is missing for Container with name '%s'", container.Name)
-		kms.Error(err)
-		return err
-	}
-
-	if container.Name == "" {
-		err := fmt.Errorf("Name is missing for Container on pod '%s'", container.PodUID)
-		kms.Error(err)
-		return err
-	}
-
-	if err := checkWindow(kms.Window, container.Start, container.End); err != nil {
-		kms.Error(err)
+	if err := container.ValidateContainer(kms.Window); err != nil {
+		kms.Errorf("RegisterContainer: invalid container: %w", err)
 		return err
 	}
 

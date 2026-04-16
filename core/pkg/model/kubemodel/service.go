@@ -47,28 +47,29 @@ type Service struct {
 	Selector map[string]string `json:"selector,omitempty"`
 }
 
+func (s *Service) ValidateService(window Window) error {
+	if s.UID == "" {
+		return fmt.Errorf("UID is missing for Service with name '%s'", s.Name)
+	}
+
+	if s.Name == "" {
+		return fmt.Errorf("Name is missing for Service '%s'", s.UID)
+	}
+
+	if s.NamespaceUID == "" {
+		return fmt.Errorf("NamespaceUID is missing for Service '%s'", s.UID)
+	}
+
+	if err := checkWindow(window, s.Start, s.End); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (kms *KubeModelSet) RegisterService(service *Service) error {
-	// Check required fields
-	if service.UID == "" {
-		err := fmt.Errorf("UID is missing for Service with name '%s'", service.Name)
-		kms.Error(err)
-		return err
-	}
-
-	if service.Name == "" {
-		err := fmt.Errorf("Name is missing for Service '%s'", service.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if service.NamespaceUID == "" {
-		err := fmt.Errorf("NamespaceUID is missing for Service '%s'", service.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if err := checkWindow(kms.Window, service.Start, service.End); err != nil {
-		kms.Error(err)
+	if err := service.ValidateService(kms.Window); err != nil {
+		kms.Errorf("RegisterService: invalid service: %w", err)
 		return err
 	}
 

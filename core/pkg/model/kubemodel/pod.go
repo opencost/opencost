@@ -26,28 +26,29 @@ type Pod struct {
 	End                   time.Time              `json:"end"`
 }
 
+func (p *Pod) ValidatePod(window Window) error {
+	if p.UID == "" {
+		return fmt.Errorf("UID is missing for Pod with name '%s'", p.Name)
+	}
+
+	if p.Name == "" {
+		return fmt.Errorf("Name is missing for Pod '%s'", p.UID)
+	}
+
+	if p.NamespaceUID == "" {
+		return fmt.Errorf("NamespaceUID is missing for Pod '%s'", p.UID)
+	}
+
+	if err := checkWindow(window, p.Start, p.End); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (kms *KubeModelSet) RegisterPod(pod *Pod) error {
-	// Check required fields
-	if pod.UID == "" {
-		err := fmt.Errorf("UID is missing for Pod with name '%s'", pod.Name)
-		kms.Error(err)
-		return err
-	}
-
-	if pod.Name == "" {
-		err := fmt.Errorf("Name is missing for Pod '%s'", pod.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if pod.NamespaceUID == "" {
-		err := fmt.Errorf("NamespaceUID is missing for Pod '%s'", pod.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if err := checkWindow(kms.Window, pod.Start, pod.End); err != nil {
-		kms.Error(err)
+	if err := pod.ValidatePod(kms.Window); err != nil {
+		kms.Errorf("RegisterPod: invalid pod: %w", err)
 		return err
 	}
 

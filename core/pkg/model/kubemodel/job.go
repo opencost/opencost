@@ -17,28 +17,29 @@ type Job struct {
 	End          time.Time         `json:"end,omitempty"`
 }
 
+func (j *Job) ValidateJob(window Window) error {
+	if j.UID == "" {
+		return fmt.Errorf("UID is missing for Job with name '%s'", j.Name)
+	}
+
+	if j.Name == "" {
+		return fmt.Errorf("Name is missing for Job '%s'", j.UID)
+	}
+
+	if j.NamespaceUID == "" {
+		return fmt.Errorf("NamespaceUID is missing for Job '%s'", j.UID)
+	}
+
+	if err := checkWindow(window, j.Start, j.End); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (kms *KubeModelSet) RegisterJob(job *Job) error {
-	// Check required fields
-	if job.UID == "" {
-		err := fmt.Errorf("UID is missing for Job with name '%s'", job.Name)
-		kms.Error(err)
-		return err
-	}
-
-	if job.Name == "" {
-		err := fmt.Errorf("Name is missing for Job '%s'", job.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if job.NamespaceUID == "" {
-		err := fmt.Errorf("NamespaceUID is missing for Job '%s'", job.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if err := checkWindow(kms.Window, job.Start, job.End); err != nil {
-		kms.Error(err)
+	if err := job.ValidateJob(kms.Window); err != nil {
+		kms.Errorf("RegisterJob: invalid job: %w", err)
 		return err
 	}
 

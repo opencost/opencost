@@ -37,7 +37,7 @@ func TestKubeModel(t *testing.T) {
 			require.NotNil(t, err)
 
 			require.Len(t, kms.GetErrors(), 1)
-			require.Equal(t, "UID is missing for Cluster with name ''", kms.GetErrors()[0].Message)
+			require.Equal(t, "RegisterCluster: invalid cluster: UID is missing for Cluster with name ''", kms.GetErrors()[0].Message)
 			require.Nil(t, kms.Cluster)
 		})
 
@@ -97,7 +97,7 @@ func TestKubeModel(t *testing.T) {
 			require.NotNil(t, err)
 
 			require.Len(t, kms.GetErrors(), 1)
-			require.Equal(t, "UID is missing for Namespace with name ''", kms.GetErrors()[0].Message)
+			require.Equal(t, "RegisterNamespace: invalid namespace: UID is missing for Namespace with name ''", kms.GetErrors()[0].Message)
 			require.Len(t, kms.Namespaces, 0)
 		})
 
@@ -169,7 +169,7 @@ func TestKubeModel(t *testing.T) {
 			err = kms.RegisterResourceQuota(&ResourceQuota{UID: "", Name: "test"})
 			require.NotNil(t, err)
 			require.Len(t, kms.GetErrors(), 1)
-			require.Equal(t, "UID is missing for ResourceQuota with name 'test'", kms.GetErrors()[0].Message)
+			require.Equal(t, "RegisterResourceQuota: invalid resource quota: UID is missing for ResourceQuota with name 'test'", kms.GetErrors()[0].Message)
 			require.Len(t, kms.ResourceQuotas, 0)
 		})
 
@@ -181,7 +181,7 @@ func TestKubeModel(t *testing.T) {
 			err = kms.RegisterResourceQuota(&ResourceQuota{UID: "uid", Name: "name", NamespaceUID: ""})
 			require.NotNil(t, err)
 			require.Len(t, kms.GetErrors(), 1)
-			require.Equal(t, "NamespaceUID is missing for ResourceQuota 'uid'", kms.GetErrors()[0].Message)
+			require.Equal(t, "RegisterResourceQuota: invalid resource quota: NamespaceUID is missing for ResourceQuota 'uid'", kms.GetErrors()[0].Message)
 			require.Len(t, kms.ResourceQuotas, 0)
 		})
 
@@ -259,7 +259,7 @@ func TestKubeModel(t *testing.T) {
 			err := kms.RegisterResourceQuota(&ResourceQuota{UID: "uid-3", Name: "name-3", NamespaceUID: ""})
 			require.NotNil(t, err)
 			require.Len(t, kms.GetErrors(), 1)
-			require.Equal(t, "NamespaceUID is missing for ResourceQuota 'uid-3'", kms.GetErrors()[0].Message)
+			require.Equal(t, "RegisterResourceQuota: invalid resource quota: NamespaceUID is missing for ResourceQuota 'uid-3'", kms.GetErrors()[0].Message)
 			require.Len(t, kms.ResourceQuotas, 2)         // still 2
 			require.Equal(t, 4, kms.Metadata.ObjectCount) // unchanged
 		})

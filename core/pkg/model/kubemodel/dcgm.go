@@ -32,16 +32,22 @@ type DCGMContainer struct {
 	UsageMax float64
 }
 
-// RegisterDCGMDevice validates and adds a DCGMDevice to the set, keyed by UUID.
-func (kms *KubeModelSet) RegisterDCGMDevice(device *DCGMDevice) error {
-	if device.UUID == "" {
-		err := fmt.Errorf("UUID is missing for DCGMDevice with device '%s'", device.Device)
-		kms.Error(err)
+func (d *DCGMDevice) ValidateDCGMDevice(window Window) error {
+	if d.UUID == "" {
+		return fmt.Errorf("UUID is missing for DCGMDevice with device '%s'", d.Device)
+	}
+
+	if err := checkWindow(window, d.Start, d.End); err != nil {
 		return err
 	}
 
-	if err := checkWindow(kms.Window, device.Start, device.End); err != nil {
-		kms.Error(err)
+	return nil
+}
+
+// RegisterDCGMDevice validates and adds a DCGMDevice to the set, keyed by UUID.
+func (kms *KubeModelSet) RegisterDCGMDevice(device *DCGMDevice) error {
+	if err := device.ValidateDCGMDevice(kms.Window); err != nil {
+		kms.Errorf("RegisterDCGMDevice: invalid dcgm device: %w", err)
 		return err
 	}
 

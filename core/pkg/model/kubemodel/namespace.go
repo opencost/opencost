@@ -18,22 +18,25 @@ type Namespace struct {
 	End               time.Time         `json:"end,omitempty"`   // @bingen:field[version=1]
 }
 
+func (n *Namespace) ValidateNamespace(window Window) error {
+	if n.UID == "" {
+		return fmt.Errorf("UID is missing for Namespace with name '%s'", n.Name)
+	}
+
+	if n.Name == "" {
+		return fmt.Errorf("Name is missing for Namespace '%s'", n.UID)
+	}
+
+	if err := checkWindow(window, n.Start, n.End); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (kms *KubeModelSet) RegisterNamespace(namespace *Namespace) error {
-	// Check required fields
-	if namespace.UID == "" {
-		err := fmt.Errorf("UID is missing for Namespace with name '%s'", namespace.Name)
-		kms.Error(err)
-		return err
-	}
-
-	if namespace.Name == "" {
-		err := fmt.Errorf("Name is missing for Namespace '%s'", namespace.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if err := checkWindow(kms.Window, namespace.Start, namespace.End); err != nil {
-		kms.Error(err)
+	if err := namespace.ValidateNamespace(kms.Window); err != nil {
+		kms.Errorf("RegisterNamespace: invalid namespace: %w", err)
 		return err
 	}
 

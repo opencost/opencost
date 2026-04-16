@@ -18,28 +18,29 @@ type StatefulSet struct {
 	End          time.Time         `json:"end,omitempty"`
 }
 
+func (s *StatefulSet) ValidateStatefulSet(window Window) error {
+	if s.UID == "" {
+		return fmt.Errorf("UID is missing for StatefulSet with name '%s'", s.Name)
+	}
+
+	if s.Name == "" {
+		return fmt.Errorf("Name is missing for StatefulSet '%s'", s.UID)
+	}
+
+	if s.NamespaceUID == "" {
+		return fmt.Errorf("NamespaceUID is missing for StatefulSet '%s'", s.UID)
+	}
+
+	if err := checkWindow(window, s.Start, s.End); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (kms *KubeModelSet) RegisterStatefulSet(statefulSet *StatefulSet) error {
-	// Check required fields
-	if statefulSet.UID == "" {
-		err := fmt.Errorf("UID is missing for StatefulSet with name '%s'", statefulSet.Name)
-		kms.Error(err)
-		return err
-	}
-
-	if statefulSet.Name == "" {
-		err := fmt.Errorf("Name is missing for StatefulSet '%s'", statefulSet.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if statefulSet.NamespaceUID == "" {
-		err := fmt.Errorf("NamespaceUID is missing for StatefulSet '%s'", statefulSet.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if err := checkWindow(kms.Window, statefulSet.Start, statefulSet.End); err != nil {
-		kms.Error(err)
+	if err := statefulSet.ValidateStatefulSet(kms.Window); err != nil {
+		kms.Errorf("RegisterStatefulSet: invalid statefulset: %w", err)
 		return err
 	}
 

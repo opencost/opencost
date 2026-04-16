@@ -19,27 +19,29 @@ type PersistentVolumeClaim struct {
 	UsageBytesMax       float64   `json:"usageBytesMax"`
 }
 
+func (p *PersistentVolumeClaim) ValidatePVC(window Window) error {
+	if p.UID == "" {
+		return fmt.Errorf("UID is missing for PVC with name '%s'", p.Name)
+	}
+
+	if p.Name == "" {
+		return fmt.Errorf("Name is missing for PVC '%s'", p.UID)
+	}
+
+	if p.NamespaceUID == "" {
+		return fmt.Errorf("NamespaceUID is missing for PVC '%s'", p.UID)
+	}
+
+	if err := checkWindow(window, p.Start, p.End); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (kms *KubeModelSet) RegisterPVC(pvc *PersistentVolumeClaim) error {
-	if pvc.UID == "" {
-		err := fmt.Errorf("UID is missing for PVC with name '%s'", pvc.Name)
-		kms.Error(err)
-		return err
-	}
-
-	if pvc.Name == "" {
-		err := fmt.Errorf("Name is missing for PVC '%s'", pvc.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if pvc.NamespaceUID == "" {
-		err := fmt.Errorf("NamespaceUID is missing for PVC '%s'", pvc.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if err := checkWindow(kms.Window, pvc.Start, pvc.End); err != nil {
-		kms.Error(err)
+	if err := pvc.ValidatePVC(kms.Window); err != nil {
+		kms.Errorf("RegisterPVC: invalid pvc: %w", err)
 		return err
 	}
 

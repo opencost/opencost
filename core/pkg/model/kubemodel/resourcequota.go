@@ -70,28 +70,29 @@ func (stat *ResourceQuotaStatusUsed) SetLimit(resource Resource, unit Unit, stat
 	stat.Limits.Set(resource, unit, statType, value)
 }
 
+func (rq *ResourceQuota) ValidateResourceQuota(window Window) error {
+	if rq.UID == "" {
+		return fmt.Errorf("UID is missing for ResourceQuota with name '%s'", rq.Name)
+	}
+
+	if rq.Name == "" {
+		return fmt.Errorf("Name is missing for ResourceQuota '%s'", rq.UID)
+	}
+
+	if rq.NamespaceUID == "" {
+		return fmt.Errorf("NamespaceUID is missing for ResourceQuota '%s'", rq.UID)
+	}
+
+	if err := checkWindow(window, rq.Start, rq.End); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (kms *KubeModelSet) RegisterResourceQuota(resourceQuota *ResourceQuota) error {
-	// Check required fields
-	if resourceQuota.UID == "" {
-		err := fmt.Errorf("UID is missing for ResourceQuota with name '%s'", resourceQuota.Name)
-		kms.Error(err)
-		return err
-	}
-
-	if resourceQuota.Name == "" {
-		err := fmt.Errorf("Name is missing for ResourceQuota '%s'", resourceQuota.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if resourceQuota.NamespaceUID == "" {
-		err := fmt.Errorf("NamespaceUID is missing for ResourceQuota '%s'", resourceQuota.UID)
-		kms.Error(err)
-		return err
-	}
-
-	if err := checkWindow(kms.Window, resourceQuota.Start, resourceQuota.End); err != nil {
-		kms.Error(err)
+	if err := resourceQuota.ValidateResourceQuota(kms.Window); err != nil {
+		kms.Errorf("RegisterResourceQuota: invalid resource quota: %w", err)
 		return err
 	}
 
