@@ -16,7 +16,9 @@ func ConvertAllocation(alloc *opencost.Allocation, converter currency.Converter,
 
 	targetCurrency = strings.ToUpper(strings.TrimSpace(targetCurrency))
 
-	// List of all float64 cost fields to convert
+	// List of all float64 cost fields to convert. Keep in sync with
+	// Allocation cost fields in core/pkg/opencost/allocation.go that appear
+	// in JSON API responses.
 	costFields := []*float64{
 		&alloc.CPUCost,
 		&alloc.CPUCostAdjustment,
@@ -29,6 +31,8 @@ func ConvertAllocation(alloc *opencost.Allocation, converter currency.Converter,
 		&alloc.NetworkCrossRegionCost,
 		&alloc.NetworkInternetCost,
 		&alloc.NetworkCostAdjustment,
+		&alloc.NetworkNatGatewayEgressCost,
+		&alloc.NetworkNatGatewayIngressCost,
 		&alloc.LoadBalancerCost,
 		&alloc.LoadBalancerCostAdjustment,
 		&alloc.PVCostAdjustment,
@@ -51,20 +55,34 @@ func ConvertAllocation(alloc *opencost.Allocation, converter currency.Converter,
 		}
 	}
 
-	// Convert PV costs (nested structure)
+	// Convert PV costs (nested structure). Both Cost and Adjustment appear
+	// in JSON responses and must be converted.
 	for pvKey, pv := range alloc.PVs {
+		if pv == nil {
+			continue
+		}
 		if pv.Cost != 0 {
 			converted, err := converter.Convert(pv.Cost, "USD", targetCurrency)
 			if err != nil {
 				return fmt.Errorf("failed to convert PV cost: %w", err)
 			}
 			pv.Cost = converted
-			alloc.PVs[pvKey] = pv
 		}
+		if pv.Adjustment != 0 {
+			converted, err := converter.Convert(pv.Adjustment, "USD", targetCurrency)
+			if err != nil {
+				return fmt.Errorf("failed to convert PV adjustment: %w", err)
+			}
+			pv.Adjustment = converted
+		}
+		alloc.PVs[pvKey] = pv
 	}
 
 	// Convert LoadBalancer costs (nested structure)
 	for lbKey, lb := range alloc.LoadBalancers {
+		if lb == nil {
+			continue
+		}
 		if lb.Cost != 0 {
 			converted, err := converter.Convert(lb.Cost, "USD", targetCurrency)
 			if err != nil {
@@ -72,6 +90,37 @@ func ConvertAllocation(alloc *opencost.Allocation, converter currency.Converter,
 			}
 			lb.Cost = converted
 			alloc.LoadBalancers[lbKey] = lb
+		}
+	}
+
+	// Convert SharedCostBreakdown entries. SharedCostBreakdowns is a
+	// map[string]SharedCostBreakdown (value, not pointer), so mutate a
+	// local copy and re-assign.
+	for key, scb := range alloc.SharedCostBreakdown {
+		scbFields := []*float64{
+			&scb.TotalCost,
+			&scb.CPUCost,
+			&scb.GPUCost,
+			&scb.RAMCost,
+			&scb.PVCost,
+			&scb.NetworkCost,
+			&scb.LBCost,
+			&scb.ExternalCost,
+		}
+		mutated := false
+		for _, costPtr := range scbFields {
+			if *costPtr == 0 {
+				continue
+			}
+			converted, err := converter.Convert(*costPtr, "USD", targetCurrency)
+			if err != nil {
+				return fmt.Errorf("failed to convert SharedCostBreakdown %q: %w", key, err)
+			}
+			*costPtr = converted
+			mutated = true
+		}
+		if mutated {
+			alloc.SharedCostBreakdown[key] = scb
 		}
 	}
 
