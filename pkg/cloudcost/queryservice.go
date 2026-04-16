@@ -6,8 +6,10 @@ import (
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
+	"github.com/opencost/opencost/pkg/currency"
 	"go.opentelemetry.io/otel"
 )
 
@@ -19,8 +21,9 @@ const (
 
 // QueryService surfaces endpoints for accessing CloudCost data in raw form or for display in views
 type QueryService struct {
-	Querier     Querier
-	ViewQuerier ViewQuerier
+	Querier          Querier
+	ViewQuerier      ViewQuerier
+	CurrencyConverter currency.Converter
 }
 
 func NewQueryService(querier Querier, viewQuerier ViewQuerier) *QueryService {
@@ -59,6 +62,16 @@ func (s *QueryService) GetCloudCostHandler() func(w http.ResponseWriter, r *http
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Internal server error: %s", err), http.StatusInternalServerError)
 			return
+		}
+
+		// Extract currency parameter and convert if needed
+		currencyParam := strings.ToUpper(strings.TrimSpace(qp.Get("currency", "USD")))
+		if currencyParam != "USD" && s.CurrencyConverter != nil && resp != nil {
+			err = convertCloudCostSetRange(resp, s.CurrencyConverter, currencyParam)
+			if err != nil {
+				log.Warnf("Currency conversion failed for currency %s: %v", currencyParam, err)
+				// Continue with USD values if conversion fails
+			}
 		}
 
 		_, spanResp := tracer.Start(ctx, "write response")
@@ -202,4 +215,54 @@ func (s *QueryService) GetCloudCostViewTableHandler(tokenHook func(ViewTableRows
 		w.Header().Set("Content-Type", "application/json")
 		protocol.WriteResponse(w, resp)
 	}
+}
+
+// convertCloudCostSetRange converts all cloud costs in a range from USD to target currency
+func convertCloudCostSetRange(ccsr *opencost.CloudCostSetRange, converter currency.Converter, targetCurrency string) error {
+	if ccsr == nil || converter == nil || targetCurrency == "USD" {
+		return nil
+	}
+
+	targetCurrency = strings.ToUpper(strings.TrimSpace(targetCurrency))
+
+	// Helper to convert CostMetric (only the Cost field, not KubernetesPercent)
+	convertCostMetric := func(cm *opencost.CostMetric) error {
+		if cm.Cost != 0 {
+			converted, err := converter.Convert(cm.Cost, "USD", targetCurrency)
+			if err != nil {
+				return err
+			}
+			cm.Cost = converted
+		}
+		return nil
+	}
+
+	// Convert all cloud cost sets in the range
+	for _, set := range ccsr.CloudCostSets {
+		if set == nil {
+			continue
+		}
+		for _, cc := range set.CloudCosts {
+			if cc == nil {
+				continue
+			}
+			if err := convertCostMetric(&cc.ListCost); err != nil {
+				return fmt.Errorf("failed to convert ListCost: %w", err)
+			}
+			if err := convertCostMetric(&cc.NetCost); err != nil {
+				return fmt.Errorf("failed to convert NetCost: %w", err)
+			}
+			if err := convertCostMetric(&cc.AmortizedNetCost); err != nil {
+				return fmt.Errorf("failed to convert AmortizedNetCost: %w", err)
+			}
+			if err := convertCostMetric(&cc.InvoicedCost); err != nil {
+				return fmt.Errorf("failed to convert InvoicedCost: %w", err)
+			}
+			if err := convertCostMetric(&cc.AmortizedCost); err != nil {
+				return fmt.Errorf("failed to convert AmortizedCost: %w", err)
+			}
+		}
+	}
+
+	return nil
 }

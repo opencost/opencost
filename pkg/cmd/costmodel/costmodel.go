@@ -13,6 +13,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/apiutil"
 	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/customcost"
+	"github.com/opencost/opencost/pkg/currency"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 
@@ -42,9 +43,38 @@ func Execute(conf *Config) error {
 
 	router := httprouter.New()
 	var a *costmodel.Accesses
+	var cp models.Provider
+	
+	// Initialize currency converter
+	var currencyConverter currency.Converter
+	currencyAPIKey := env.GetCurrencyAPIKey()
+	currencyProvider := env.GetCurrencyProvider()
+
+	if currencyProvider == "exchangerateapi" && currencyAPIKey != "" {
+		config := currency.Config{
+			APIKey:     currencyAPIKey,
+			CacheTTL:   24 * time.Hour,
+			APITimeout: 10 * time.Second,
+		}
+		var err error
+		currencyConverter, err = currency.NewConverter(config)
+		if err != nil {
+			log.Errorf("Failed to initialize currency converter: %v", err)
+			log.Warnf("Currency conversion disabled - will return USD values only")
+		} else {
+			log.Infof("Currency converter initialized successfully")
+		}
+	} else {
+		log.Infof("Currency conversion disabled (provider=%s, hasKey=%v)", 
+			currencyProvider, currencyAPIKey != "")
+	}
 
 	if conf.KubernetesEnabled {
 		a = costmodel.Initialize(router)
+		// Set currency converter in Accesses
+		if a != nil {
+			a.CurrencyConverter = currencyConverter
+		}
 		err := StartExportWorker(context.Background(), a.Model)
 		if err != nil {
 			log.Errorf("couldn't start CSV export worker: %v", err)
@@ -62,13 +92,16 @@ func Execute(conf *Config) error {
 
 	var cloudCostPipelineService *cloudcost.PipelineService
 	if conf.CloudCostEnabled {
-
-		cloudCostPipelineService = costmodel.InitializeCloudCost(router)
+		var providerConfig models.ProviderConfig
+		if cp != nil {
+			providerConfig = provider.ExtractConfigFromProviders(cp)
+		}
+		cloudCostPipelineService = costmodel.InitializeCloudCost(router, providerConfig, currencyConverter)
 	}
 
 	var customCostPipelineService *customcost.PipelineService
 	if conf.CustomCostEnabled {
-		customCostPipelineService = costmodel.InitializeCustomCost(router)
+		customCostPipelineService = costmodel.InitializeCustomCost(router, currencyConverter)
 	}
 
 	// this endpoint is intentionally left out of the "if env.IsCustomCostEnabled()" conditional; in the handler, it is
