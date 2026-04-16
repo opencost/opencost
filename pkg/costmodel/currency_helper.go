@@ -1,14 +1,37 @@
 package costmodel
 
 import (
-	"fmt"
 	"strings"
 
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/pkg/currency"
 )
 
-// ConvertAllocation converts all cost fields in an Allocation from USD to target currency
+// Currency conversion uses best-effort semantics: if a single field fails
+// to convert, it is left in USD and a warning is logged. The response may
+// therefore contain mixed currencies under partial converter failures.
+// Callers treat a non-nil error from these helpers as advisory only --
+// the mutation has already been applied where it succeeded.
+
+// tryConvert converts val from USD to target, returning the original
+// value (and logging) on converter error. logCtx identifies the field
+// being converted so operators can triage which fields are failing.
+func tryConvert(converter currency.Converter, val float64, target, logCtx string) float64 {
+	if val == 0 {
+		return val
+	}
+	converted, err := converter.Convert(val, "USD", target)
+	if err != nil {
+		log.Warnf("currency: leaving %s in USD (convert to %s failed): %v", logCtx, target, err)
+		return val
+	}
+	return converted
+}
+
+// ConvertAllocation converts all cost fields in an Allocation from USD
+// to target currency in place. Best-effort: per-field failures are logged
+// and skipped rather than aborting the whole allocation.
 func ConvertAllocation(alloc *opencost.Allocation, converter currency.Converter, targetCurrency string) error {
 	if alloc == nil || converter == nil || targetCurrency == "USD" {
 		return nil
@@ -16,43 +39,38 @@ func ConvertAllocation(alloc *opencost.Allocation, converter currency.Converter,
 
 	targetCurrency = strings.ToUpper(strings.TrimSpace(targetCurrency))
 
-	// List of all float64 cost fields to convert. Keep in sync with
-	// Allocation cost fields in core/pkg/opencost/allocation.go that appear
-	// in JSON API responses.
-	costFields := []*float64{
-		&alloc.CPUCost,
-		&alloc.CPUCostAdjustment,
-		&alloc.CPUCostIdle,
-		&alloc.GPUCost,
-		&alloc.GPUCostAdjustment,
-		&alloc.GPUCostIdle,
-		&alloc.NetworkCost,
-		&alloc.NetworkCrossZoneCost,
-		&alloc.NetworkCrossRegionCost,
-		&alloc.NetworkInternetCost,
-		&alloc.NetworkCostAdjustment,
-		&alloc.NetworkNatGatewayEgressCost,
-		&alloc.NetworkNatGatewayIngressCost,
-		&alloc.LoadBalancerCost,
-		&alloc.LoadBalancerCostAdjustment,
-		&alloc.PVCostAdjustment,
-		&alloc.RAMCost,
-		&alloc.RAMCostAdjustment,
-		&alloc.RAMCostIdle,
-		&alloc.SharedCost,
-		&alloc.ExternalCost,
-		&alloc.UnmountedPVCost,
+	// Named cost fields. Keep in sync with Allocation cost fields in
+	// core/pkg/opencost/allocation.go that appear in JSON API responses.
+	type namedCost struct {
+		name string
+		ptr  *float64
 	}
-
-	// Convert each cost field
-	for _, costPtr := range costFields {
-		if *costPtr != 0 {
-			converted, err := converter.Convert(*costPtr, "USD", targetCurrency)
-			if err != nil {
-				return fmt.Errorf("failed to convert cost: %w", err)
-			}
-			*costPtr = converted
-		}
+	costFields := []namedCost{
+		{"CPUCost", &alloc.CPUCost},
+		{"CPUCostAdjustment", &alloc.CPUCostAdjustment},
+		{"CPUCostIdle", &alloc.CPUCostIdle},
+		{"GPUCost", &alloc.GPUCost},
+		{"GPUCostAdjustment", &alloc.GPUCostAdjustment},
+		{"GPUCostIdle", &alloc.GPUCostIdle},
+		{"NetworkCost", &alloc.NetworkCost},
+		{"NetworkCrossZoneCost", &alloc.NetworkCrossZoneCost},
+		{"NetworkCrossRegionCost", &alloc.NetworkCrossRegionCost},
+		{"NetworkInternetCost", &alloc.NetworkInternetCost},
+		{"NetworkCostAdjustment", &alloc.NetworkCostAdjustment},
+		{"NetworkNatGatewayEgressCost", &alloc.NetworkNatGatewayEgressCost},
+		{"NetworkNatGatewayIngressCost", &alloc.NetworkNatGatewayIngressCost},
+		{"LoadBalancerCost", &alloc.LoadBalancerCost},
+		{"LoadBalancerCostAdjustment", &alloc.LoadBalancerCostAdjustment},
+		{"PVCostAdjustment", &alloc.PVCostAdjustment},
+		{"RAMCost", &alloc.RAMCost},
+		{"RAMCostAdjustment", &alloc.RAMCostAdjustment},
+		{"RAMCostIdle", &alloc.RAMCostIdle},
+		{"SharedCost", &alloc.SharedCost},
+		{"ExternalCost", &alloc.ExternalCost},
+		{"UnmountedPVCost", &alloc.UnmountedPVCost},
+	}
+	for _, f := range costFields {
+		*f.ptr = tryConvert(converter, *f.ptr, targetCurrency, "Allocation."+f.name)
 	}
 
 	// Convert PV costs (nested structure). Both Cost and Adjustment appear
@@ -61,20 +79,9 @@ func ConvertAllocation(alloc *opencost.Allocation, converter currency.Converter,
 		if pv == nil {
 			continue
 		}
-		if pv.Cost != 0 {
-			converted, err := converter.Convert(pv.Cost, "USD", targetCurrency)
-			if err != nil {
-				return fmt.Errorf("failed to convert PV cost: %w", err)
-			}
-			pv.Cost = converted
-		}
-		if pv.Adjustment != 0 {
-			converted, err := converter.Convert(pv.Adjustment, "USD", targetCurrency)
-			if err != nil {
-				return fmt.Errorf("failed to convert PV adjustment: %w", err)
-			}
-			pv.Adjustment = converted
-		}
+		pvCtx := "Allocation.PVs." + pvKey.String()
+		pv.Cost = tryConvert(converter, pv.Cost, targetCurrency, pvCtx+".Cost")
+		pv.Adjustment = tryConvert(converter, pv.Adjustment, targetCurrency, pvCtx+".Adjustment")
 		alloc.PVs[pvKey] = pv
 	}
 
@@ -83,155 +90,54 @@ func ConvertAllocation(alloc *opencost.Allocation, converter currency.Converter,
 		if lb == nil {
 			continue
 		}
-		if lb.Cost != 0 {
-			converted, err := converter.Convert(lb.Cost, "USD", targetCurrency)
-			if err != nil {
-				return fmt.Errorf("failed to convert LB cost: %w", err)
-			}
-			lb.Cost = converted
-			alloc.LoadBalancers[lbKey] = lb
-		}
+		lb.Cost = tryConvert(converter, lb.Cost, targetCurrency, "Allocation.LoadBalancers."+lbKey+".Cost")
+		alloc.LoadBalancers[lbKey] = lb
 	}
 
 	// Convert SharedCostBreakdown entries. SharedCostBreakdowns is a
 	// map[string]SharedCostBreakdown (value, not pointer), so mutate a
 	// local copy and re-assign.
 	for key, scb := range alloc.SharedCostBreakdown {
-		scbFields := []*float64{
-			&scb.TotalCost,
-			&scb.CPUCost,
-			&scb.GPUCost,
-			&scb.RAMCost,
-			&scb.PVCost,
-			&scb.NetworkCost,
-			&scb.LBCost,
-			&scb.ExternalCost,
-		}
-		mutated := false
-		for _, costPtr := range scbFields {
-			if *costPtr == 0 {
-				continue
-			}
-			converted, err := converter.Convert(*costPtr, "USD", targetCurrency)
-			if err != nil {
-				return fmt.Errorf("failed to convert SharedCostBreakdown %q: %w", key, err)
-			}
-			*costPtr = converted
-			mutated = true
-		}
-		if mutated {
-			alloc.SharedCostBreakdown[key] = scb
-		}
+		scb.TotalCost = tryConvert(converter, scb.TotalCost, targetCurrency, "Allocation.SharedCostBreakdown."+key+".TotalCost")
+		scb.CPUCost = tryConvert(converter, scb.CPUCost, targetCurrency, "Allocation.SharedCostBreakdown."+key+".CPUCost")
+		scb.GPUCost = tryConvert(converter, scb.GPUCost, targetCurrency, "Allocation.SharedCostBreakdown."+key+".GPUCost")
+		scb.RAMCost = tryConvert(converter, scb.RAMCost, targetCurrency, "Allocation.SharedCostBreakdown."+key+".RAMCost")
+		scb.PVCost = tryConvert(converter, scb.PVCost, targetCurrency, "Allocation.SharedCostBreakdown."+key+".PVCost")
+		scb.NetworkCost = tryConvert(converter, scb.NetworkCost, targetCurrency, "Allocation.SharedCostBreakdown."+key+".NetworkCost")
+		scb.LBCost = tryConvert(converter, scb.LBCost, targetCurrency, "Allocation.SharedCostBreakdown."+key+".LBCost")
+		scb.ExternalCost = tryConvert(converter, scb.ExternalCost, targetCurrency, "Allocation.SharedCostBreakdown."+key+".ExternalCost")
+		alloc.SharedCostBreakdown[key] = scb
 	}
 
 	return nil
 }
 
-// ConvertAllocationSet converts all allocations in a set
+// ConvertAllocationSet converts all allocations in a set (best-effort).
 func ConvertAllocationSet(set *opencost.AllocationSet, converter currency.Converter, targetCurrency string) error {
 	if set == nil || converter == nil || targetCurrency == "USD" {
 		return nil
 	}
 
 	for _, alloc := range set.Allocations {
-		if err := ConvertAllocation(alloc, converter, targetCurrency); err != nil {
-			return err
-		}
+		// ConvertAllocation is best-effort and never returns a non-nil
+		// error today, but retain the error-return contract in case the
+		// helper is extended later.
+		_ = ConvertAllocation(alloc, converter, targetCurrency)
 	}
 
 	return nil
 }
 
-// ConvertAllocationSetRange converts all sets in a range
+// ConvertAllocationSetRange converts all sets in a range (best-effort).
 func ConvertAllocationSetRange(asr *opencost.AllocationSetRange, converter currency.Converter, targetCurrency string) error {
 	if asr == nil || converter == nil || targetCurrency == "USD" {
 		return nil
 	}
 
 	for _, set := range asr.Allocations {
-		if err := ConvertAllocationSet(set, converter, targetCurrency); err != nil {
-			return err
-		}
+		_ = ConvertAllocationSet(set, converter, targetCurrency)
 	}
 
 	return nil
 }
 
-// ConvertCloudCost converts all cost metrics in a CloudCost
-func ConvertCloudCost(cc *opencost.CloudCost, converter currency.Converter, targetCurrency string) error {
-	if cc == nil || converter == nil || targetCurrency == "USD" {
-		return nil
-	}
-
-	targetCurrency = strings.ToUpper(strings.TrimSpace(targetCurrency))
-
-	// Helper to convert CostMetric (only the Cost field, not KubernetesPercent)
-	convertCostMetric := func(cm *opencost.CostMetric) error {
-		if cm.Cost != 0 {
-			converted, err := converter.Convert(cm.Cost, "USD", targetCurrency)
-			if err != nil {
-				return err
-			}
-			cm.Cost = converted
-		}
-		return nil
-	}
-
-	// Convert all cost metrics
-	if err := convertCostMetric(&cc.ListCost); err != nil {
-		return fmt.Errorf("failed to convert ListCost: %w", err)
-	}
-	if err := convertCostMetric(&cc.NetCost); err != nil {
-		return fmt.Errorf("failed to convert NetCost: %w", err)
-	}
-	if err := convertCostMetric(&cc.AmortizedNetCost); err != nil {
-		return fmt.Errorf("failed to convert AmortizedNetCost: %w", err)
-	}
-	if err := convertCostMetric(&cc.InvoicedCost); err != nil {
-		return fmt.Errorf("failed to convert InvoicedCost: %w", err)
-	}
-	if err := convertCostMetric(&cc.AmortizedCost); err != nil {
-		return fmt.Errorf("failed to convert AmortizedCost: %w", err)
-	}
-
-	return nil
-}
-
-// ConvertCloudCostSet converts all cloud costs in a set
-func ConvertCloudCostSet(set *opencost.CloudCostSet, converter currency.Converter, targetCurrency string) error {
-	if set == nil || converter == nil || targetCurrency == "USD" {
-		return nil
-	}
-
-	for _, cc := range set.CloudCosts {
-		if cc == nil {
-			continue
-		}
-		if err := ConvertCloudCost(cc, converter, targetCurrency); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// ConvertCloudCostSetRange converts all sets in a range
-func ConvertCloudCostSetRange(ccsr *opencost.CloudCostSetRange, converter currency.Converter, targetCurrency string) error {
-	if ccsr == nil || converter == nil || targetCurrency == "USD" {
-		return nil
-	}
-
-	targetCurrency = strings.ToUpper(strings.TrimSpace(targetCurrency))
-
-	// Convert all cloud cost sets in the range
-	for _, set := range ccsr.CloudCostSets {
-		if set == nil {
-			continue
-		}
-		if err := ConvertCloudCostSet(set, converter, targetCurrency); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}

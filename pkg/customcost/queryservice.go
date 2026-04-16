@@ -119,7 +119,13 @@ func (qs *QueryService) GetCustomCostTimeseriesHandler() func(w http.ResponseWri
 	}
 }
 
-// convertCustomCostResponse converts all cost values in a CostResponse from USD to target currency
+// convertCustomCostResponse converts all cost values in a CostResponse
+// from USD to target currency in place. Best-effort: per-field converter
+// failures are logged and the field is left in USD rather than rolling
+// the whole response back to USD.
+//
+// CustomCost uses float32; conversion is done in float64 to avoid
+// compounding precision loss, then cast back.
 func convertCustomCostResponse(resp *CostResponse, converter currency.Converter, targetCurrency string) error {
 	if resp == nil || converter == nil || targetCurrency == "USD" {
 		return nil
@@ -127,52 +133,40 @@ func convertCustomCostResponse(resp *CostResponse, converter currency.Converter,
 
 	targetCurrency = strings.ToUpper(strings.TrimSpace(targetCurrency))
 
-	// Convert TotalCost
-	if resp.TotalCost != 0 {
-		converted, err := converter.Convert(float64(resp.TotalCost), "USD", targetCurrency)
-		if err != nil {
-			return fmt.Errorf("failed to convert TotalCost: %w", err)
+	tryConvert32 := func(val float32, logCtx string) float32 {
+		if val == 0 {
+			return val
 		}
-		resp.TotalCost = float32(converted)
+		converted, err := converter.Convert(float64(val), "USD", targetCurrency)
+		if err != nil {
+			log.Warnf("currency: leaving %s in USD (convert to %s failed): %v", logCtx, targetCurrency, err)
+			return val
+		}
+		return float32(converted)
 	}
 
-	// Convert all CustomCost items
+	resp.TotalCost = tryConvert32(resp.TotalCost, "CustomCost.TotalCost")
+
 	for _, cc := range resp.CustomCosts {
 		if cc == nil {
 			continue
 		}
-		// Convert Cost
-		if cc.Cost != 0 {
-			converted, err := converter.Convert(float64(cc.Cost), "USD", targetCurrency)
-			if err != nil {
-				return fmt.Errorf("failed to convert CustomCost.Cost: %w", err)
-			}
-			cc.Cost = float32(converted)
-		}
-		// Convert ListUnitPrice
-		if cc.ListUnitPrice != 0 {
-			converted, err := converter.Convert(float64(cc.ListUnitPrice), "USD", targetCurrency)
-			if err != nil {
-				return fmt.Errorf("failed to convert CustomCost.ListUnitPrice: %w", err)
-			}
-			cc.ListUnitPrice = float32(converted)
-		}
+		cc.Cost = tryConvert32(cc.Cost, "CustomCost.Cost")
+		cc.ListUnitPrice = tryConvert32(cc.ListUnitPrice, "CustomCost.ListUnitPrice")
 	}
 
 	return nil
 }
 
-// convertCustomCostTimeseriesResponse converts all cost values in a CostTimeseriesResponse
+// convertCustomCostTimeseriesResponse converts all cost values in a
+// CostTimeseriesResponse (best-effort).
 func convertCustomCostTimeseriesResponse(resp *CostTimeseriesResponse, converter currency.Converter, targetCurrency string) error {
 	if resp == nil || converter == nil || targetCurrency == "USD" {
 		return nil
 	}
 
-	// Convert each CostResponse in the timeseries
 	for _, costResp := range resp.Timeseries {
-		if err := convertCustomCostResponse(costResp, converter, targetCurrency); err != nil {
-			return err
-		}
+		_ = convertCustomCostResponse(costResp, converter, targetCurrency)
 	}
 
 	return nil

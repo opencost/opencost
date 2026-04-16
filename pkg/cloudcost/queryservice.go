@@ -217,7 +217,11 @@ func (s *QueryService) GetCloudCostViewTableHandler(tokenHook func(ViewTableRows
 	}
 }
 
-// convertCloudCostSetRange converts all cloud costs in a range from USD to target currency
+// convertCloudCostSetRange converts all cloud costs in a range from USD
+// to target currency in place. Best-effort: per-field converter failures
+// are logged and the field is left in USD rather than rolling the whole
+// response back to USD. Only CostMetric.Cost is mutated; KubernetesPercent
+// and other non-cost fields are untouched.
 func convertCloudCostSetRange(ccsr *opencost.CloudCostSetRange, converter currency.Converter, targetCurrency string) error {
 	if ccsr == nil || converter == nil || targetCurrency == "USD" {
 		return nil
@@ -225,19 +229,18 @@ func convertCloudCostSetRange(ccsr *opencost.CloudCostSetRange, converter curren
 
 	targetCurrency = strings.ToUpper(strings.TrimSpace(targetCurrency))
 
-	// Helper to convert CostMetric (only the Cost field, not KubernetesPercent)
-	convertCostMetric := func(cm *opencost.CostMetric) error {
-		if cm.Cost != 0 {
-			converted, err := converter.Convert(cm.Cost, "USD", targetCurrency)
-			if err != nil {
-				return err
-			}
-			cm.Cost = converted
+	tryConvert := func(val float64, logCtx string) float64 {
+		if val == 0 {
+			return val
 		}
-		return nil
+		converted, err := converter.Convert(val, "USD", targetCurrency)
+		if err != nil {
+			log.Warnf("currency: leaving %s in USD (convert to %s failed): %v", logCtx, targetCurrency, err)
+			return val
+		}
+		return converted
 	}
 
-	// Convert all cloud cost sets in the range
 	for _, set := range ccsr.CloudCostSets {
 		if set == nil {
 			continue
@@ -246,21 +249,11 @@ func convertCloudCostSetRange(ccsr *opencost.CloudCostSetRange, converter curren
 			if cc == nil {
 				continue
 			}
-			if err := convertCostMetric(&cc.ListCost); err != nil {
-				return fmt.Errorf("failed to convert ListCost: %w", err)
-			}
-			if err := convertCostMetric(&cc.NetCost); err != nil {
-				return fmt.Errorf("failed to convert NetCost: %w", err)
-			}
-			if err := convertCostMetric(&cc.AmortizedNetCost); err != nil {
-				return fmt.Errorf("failed to convert AmortizedNetCost: %w", err)
-			}
-			if err := convertCostMetric(&cc.InvoicedCost); err != nil {
-				return fmt.Errorf("failed to convert InvoicedCost: %w", err)
-			}
-			if err := convertCostMetric(&cc.AmortizedCost); err != nil {
-				return fmt.Errorf("failed to convert AmortizedCost: %w", err)
-			}
+			cc.ListCost.Cost = tryConvert(cc.ListCost.Cost, "CloudCost.ListCost")
+			cc.NetCost.Cost = tryConvert(cc.NetCost.Cost, "CloudCost.NetCost")
+			cc.AmortizedNetCost.Cost = tryConvert(cc.AmortizedNetCost.Cost, "CloudCost.AmortizedNetCost")
+			cc.InvoicedCost.Cost = tryConvert(cc.InvoicedCost.Cost, "CloudCost.InvoicedCost")
+			cc.AmortizedCost.Cost = tryConvert(cc.AmortizedCost.Cost, "CloudCost.AmortizedCost")
 		}
 	}
 
