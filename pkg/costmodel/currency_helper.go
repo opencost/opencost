@@ -81,7 +81,11 @@ func convertAllocationFields(alloc *opencost.Allocation, converter currency.Conv
 	}
 
 	// Named cost fields. Keep in sync with Allocation cost fields in
-	// core/pkg/opencost/allocation.go that appear in JSON API responses.
+	// core/pkg/opencost/allocation.go. Includes both JSON-serialised
+	// costs and internal ones like UnmountedPVCost (json:"-") which are
+	// used downstream in SummaryAllocation / Totals computations --
+	// leaving those in USD would cause unit mismatches with the
+	// converted primary costs.
 	type namedCost struct {
 		name string
 		ptr  *float64
