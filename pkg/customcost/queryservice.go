@@ -15,7 +15,7 @@ import (
 const tracerName = "github.com/opencost/opencost/pkg/customcost"
 
 type QueryService struct {
-	Querier          Querier
+	Querier           Querier
 	CurrencyConverter currency.Converter
 }
 

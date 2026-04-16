@@ -140,4 +140,3 @@ func ConvertAllocationSetRange(asr *opencost.AllocationSetRange, converter curre
 
 	return nil
 }
-

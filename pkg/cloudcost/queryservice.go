@@ -21,8 +21,8 @@ const (
 
 // QueryService surfaces endpoints for accessing CloudCost data in raw form or for display in views
 type QueryService struct {
-	Querier          Querier
-	ViewQuerier      ViewQuerier
+	Querier           Querier
+	ViewQuerier       ViewQuerier
 	CurrencyConverter currency.Converter
 }
 

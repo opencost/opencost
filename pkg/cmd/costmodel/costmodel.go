@@ -12,8 +12,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/core/pkg/util/apiutil"
 	"github.com/opencost/opencost/pkg/cloudcost"
-	"github.com/opencost/opencost/pkg/customcost"
 	"github.com/opencost/opencost/pkg/currency"
+	"github.com/opencost/opencost/pkg/customcost"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 
@@ -64,7 +64,7 @@ func Execute(conf *Config) error {
 			log.Infof("Currency converter initialized successfully")
 		}
 	} else {
-		log.Infof("Currency conversion disabled (provider=%s, hasKey=%v)", 
+		log.Infof("Currency conversion disabled (provider=%s, hasKey=%v)",
 			currencyProvider, currencyAPIKey != "")
 	}
 
