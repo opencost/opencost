@@ -634,6 +634,7 @@ type PodInfoResult struct {
 	Pod          string
 	NamespaceUID string
 	NodeUID      string
+	HostNetwork  bool
 }
 
 func DecodePodInfoResult(result *QueryResult) *PodInfoResult {
@@ -642,6 +643,7 @@ func DecodePodInfoResult(result *QueryResult) *PodInfoResult {
 	pod, _ := result.GetPod()
 	namespaceUID, _ := result.GetString(NamespaceUIDLabel)
 	nodeUID, _ := result.GetString(NodeUIDLabel)
+	hostNetwork, _ := result.GetString("host_network")
 
 	return &PodInfoResult{
 		UID:          uid,
@@ -649,6 +651,7 @@ func DecodePodInfoResult(result *QueryResult) *PodInfoResult {
 		Pod:          pod,
 		NamespaceUID: namespaceUID,
 		NodeUID:      nodeUID,
+		HostNetwork:  hostNetwork == "true",
 	}
 }
 
@@ -1385,12 +1388,13 @@ func DecodeNetNatGatewayIngressGiBResult(result *QueryResult) *NetNatGatewayIngr
 }
 
 type NetReceiveBytesResult struct {
-	UID       string
-	Cluster   string
-	Namespace string
-	Pod       string
-	Container string
-	Data      []*util.Vector
+	UID         string
+	Cluster     string
+	Namespace   string
+	Pod         string
+	Container   string
+	HostNetwork bool
+	Data        []*util.Vector
 }
 
 func DecodeNetReceiveBytesResult(result *QueryResult) *NetReceiveBytesResult {
@@ -1399,23 +1403,26 @@ func DecodeNetReceiveBytesResult(result *QueryResult) *NetReceiveBytesResult {
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
 	container, _ := result.GetContainer()
+	hostNetwork, _ := result.GetString("host_network")
 
 	return &NetReceiveBytesResult{
-		UID:       uid,
-		Cluster:   cluster,
-		Namespace: namespace,
-		Pod:       pod,
-		Container: container,
-		Data:      result.Values,
+		UID:         uid,
+		Cluster:     cluster,
+		Namespace:   namespace,
+		Pod:         pod,
+		Container:   container,
+		HostNetwork: hostNetwork == "true",
+		Data:        result.Values,
 	}
 }
 
 type NetTransferBytesResult struct {
-	UID       string
-	Cluster   string
-	Namespace string
-	Pod       string
-	Container string
+	UID         string
+	Cluster     string
+	Namespace   string
+	Pod         string
+	Container   string
+	HostNetwork bool
 
 	Data []*util.Vector
 }
@@ -1426,14 +1433,16 @@ func DecodeNetTransferBytesResult(result *QueryResult) *NetTransferBytesResult {
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
 	container, _ := result.GetContainer()
+	hostNetwork, _ := result.GetString("host_network")
 
 	return &NetTransferBytesResult{
-		UID:       uid,
-		Cluster:   cluster,
-		Namespace: namespace,
-		Pod:       pod,
-		Container: container,
-		Data:      result.Values,
+		UID:         uid,
+		Cluster:     cluster,
+		Namespace:   namespace,
+		Pod:         pod,
+		Container:   container,
+		HostNetwork: hostNetwork == "true",
+		Data:        result.Values,
 	}
 }
 

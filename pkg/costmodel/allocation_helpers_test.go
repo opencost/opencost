@@ -8,6 +8,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/stretchr/testify/assert"
 )
 
 const Ki = 1024
@@ -621,4 +622,194 @@ func TestCalculateStartAndEnd(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestApplyNetworkTotals(t *testing.T) {
+	newAllocation := func(name string) *opencost.Allocation {
+		return &opencost.Allocation{
+			Name: name,
+			Properties: &opencost.AllocationProperties{
+				Cluster:   "c1",
+				Namespace: "ns1",
+				Pod:       name,
+				Container: "container1",
+			},
+		}
+	}
+
+	t.Run("non-host-network pod keeps full value", func(t *testing.T) {
+		key := newPodKey("c1", "ns1", "pod1")
+		podMap := map[podKey]*pod{
+			key: {
+				Key: key,
+				Allocations: map[string]*opencost.Allocation{
+					"container1": newAllocation("pod1"),
+				},
+			},
+		}
+
+		applyNetworkTotals(
+			podMap,
+			[]*source.NetTransferBytesResult{
+				{
+					Cluster:   "c1",
+					Namespace: "ns1",
+					Pod:       "pod1",
+					Data:      []*util.Vector{{Value: 8}},
+				},
+			},
+			[]*source.NetReceiveBytesResult{
+				{
+					Cluster:   "c1",
+					Namespace: "ns1",
+					Pod:       "pod1",
+					Data:      []*util.Vector{{Value: 6}},
+				},
+			},
+			nil,
+			nil,
+		)
+
+		alloc := podMap[key].Allocations["container1"]
+		assert.Equal(t, 8.0, alloc.NetworkTransferBytes)
+		assert.Equal(t, 6.0, alloc.NetworkReceiveBytes)
+	})
+
+	t.Run("host-network pod shares node value across host-network pods", func(t *testing.T) {
+		key1 := newPodKey("c1", "node1", "pod1")
+		key2 := newPodKey("c1", "node1", "pod2")
+		podMap := map[podKey]*pod{
+			key1: {
+				Key: key1,
+				Allocations: map[string]*opencost.Allocation{
+					"container1": newAllocation("pod1"),
+				},
+			},
+			key2: {
+				Key: key2,
+				Allocations: map[string]*opencost.Allocation{
+					"container1": newAllocation("pod2"),
+				},
+			},
+		}
+
+		podInfo := []*source.PodInfoResult{
+			{Cluster: "c1", NodeUID: "node1", HostNetwork: true},
+			{Cluster: "c1", NodeUID: "node1", HostNetwork: true},
+		}
+
+		applyNetworkTotals(
+			podMap,
+			[]*source.NetTransferBytesResult{
+				{
+					Cluster:     "c1",
+					Namespace:   "node1",
+					Pod:         "pod1",
+					HostNetwork: true,
+					Data:        []*util.Vector{{Value: 8}},
+				},
+				{
+					Cluster:     "c1",
+					Namespace:   "node1",
+					Pod:         "pod2",
+					HostNetwork: true,
+					Data:        []*util.Vector{{Value: 8}},
+				},
+			},
+			[]*source.NetReceiveBytesResult{
+				{
+					Cluster:     "c1",
+					Namespace:   "node1",
+					Pod:         "pod1",
+					HostNetwork: true,
+					Data:        []*util.Vector{{Value: 4}},
+				},
+				{
+					Cluster:     "c1",
+					Namespace:   "node1",
+					Pod:         "pod2",
+					HostNetwork: true,
+					Data:        []*util.Vector{{Value: 4}},
+				},
+			},
+			podInfo,
+			nil,
+		)
+
+		alloc1 := podMap[key1].Allocations["container1"]
+		alloc2 := podMap[key2].Allocations["container1"]
+
+		assert.Equal(t, 4.0, alloc1.NetworkTransferBytes)
+		assert.Equal(t, 4.0, alloc2.NetworkTransferBytes)
+		assert.Equal(t, 2.0, alloc1.NetworkReceiveBytes)
+		assert.Equal(t, 2.0, alloc2.NetworkReceiveBytes)
+	})
+
+	t.Run("host-network pod does not share with non-host-network pod", func(t *testing.T) {
+		key1 := newPodKey("c1", "node1", "pod1")
+		key2 := newPodKey("c1", "ns1", "pod2")
+		podMap := map[podKey]*pod{
+			key1: {
+				Key: key1,
+				Allocations: map[string]*opencost.Allocation{
+					"container1": newAllocation("pod1"),
+				},
+			},
+			key2: {
+				Key: key2,
+				Allocations: map[string]*opencost.Allocation{
+					"container1": newAllocation("pod2"),
+				},
+			},
+		}
+
+		podInfo := []*source.PodInfoResult{
+			{Cluster: "c1", NodeUID: "node1", HostNetwork: true},
+			{Cluster: "c1", NodeUID: "node1", HostNetwork: false},
+		}
+
+		applyNetworkTotals(
+			podMap,
+			[]*source.NetTransferBytesResult{
+				{
+					Cluster:     "c1",
+					Namespace:   "node1",
+					Pod:         "pod1",
+					HostNetwork: true,
+					Data:        []*util.Vector{{Value: 8}},
+				},
+				{
+					Cluster:   "c1",
+					Namespace: "ns1",
+					Pod:       "pod2",
+					Data:      []*util.Vector{{Value: 6}},
+				},
+			},
+			[]*source.NetReceiveBytesResult{
+				{
+					Cluster:     "c1",
+					Namespace:   "node1",
+					Pod:         "pod1",
+					HostNetwork: true,
+					Data:        []*util.Vector{{Value: 4}},
+				},
+				{
+					Cluster:   "c1",
+					Namespace: "ns1",
+					Pod:       "pod2",
+					Data:      []*util.Vector{{Value: 2}},
+				},
+			},
+			podInfo,
+			nil,
+		)
+
+		alloc1 := podMap[key1].Allocations["container1"]
+		alloc2 := podMap[key2].Allocations["container1"]
+
+		assert.Equal(t, 8.0, alloc1.NetworkTransferBytes)
+		assert.Equal(t, 4.0, alloc1.NetworkReceiveBytes)
+		assert.Equal(t, 6.0, alloc2.NetworkTransferBytes)
+		assert.Equal(t, 2.0, alloc2.NetworkReceiveBytes)
+	})
 }
