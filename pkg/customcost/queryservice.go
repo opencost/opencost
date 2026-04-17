@@ -160,7 +160,7 @@ func convertResponseFields(resp *CostResponse, converter currency.Converter, tar
 		return float32(converted)
 	}
 
-	resp.TotalCost = tryConvert32(resp.TotalCost, "CustomCost.TotalCost")
+	resp.TotalCost = tryConvert32(resp.TotalCost, "CostResponse.TotalCost")
 
 	for _, cc := range resp.CustomCosts {
 		if cc == nil {
