@@ -276,6 +276,7 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, pvcs []*clu
 
 				if pvc, ok := pvcInfo[key]; ok {
 					pvc.PodsClaimed = append(pvc.PodsClaimed, string(pod.UID))
+					claimed[key] = struct{}{}
 				}
 			}
 		}
@@ -337,7 +338,8 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, pvcs []*clu
 
 					// set gpu request if it exists
 					if isGpuResourceName(resourceName) {
-						gpuRequest = &value
+						gpuRequestValue := value
+						gpuRequest = &gpuRequestValue
 					}
 				}
 			}
@@ -369,7 +371,8 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, pvcs []*clu
 					// if we didn't set a gpuRequest previously and the limit is a gpu resource,
 					// set it to the limit
 					if gpuRequest == nil && isGpuResourceName(resourceName) {
-						gpuRequest = &value
+						gpuRequestValue := value
+						gpuRequest = &gpuRequestValue
 					}
 				}
 			}

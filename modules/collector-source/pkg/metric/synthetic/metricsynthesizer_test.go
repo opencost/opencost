@@ -250,9 +250,7 @@ func TestMetricSynthesizerRAMAllocation(t *testing.T) {
 	metricSynth := NewMetricSynthesizers(updater, NewContainerCpuAllocationSynthesizer(), NewContainerMemoryAllocationSynthesizer())
 
 	metricSynth.Update(updateSet1)
-	time.Sleep(100 * time.Millisecond)
 	metricSynth.Update(updateSet2)
-	time.Sleep(100 * time.Millisecond)
 	metricSynth.Update(updateSet3)
 }
 
@@ -419,8 +417,6 @@ func TestMetricSynthesizerCPUAllocation(t *testing.T) {
 	metricSynth := NewMetricSynthesizers(updater, NewContainerCpuAllocationSynthesizer(), NewContainerMemoryAllocationSynthesizer())
 
 	metricSynth.Update(updateSet1)
-	time.Sleep(100 * time.Millisecond)
 	metricSynth.Update(updateSet2)
-	time.Sleep(100 * time.Millisecond)
 	metricSynth.Update(updateSet3)
 }
