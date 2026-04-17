@@ -56,8 +56,8 @@ func (b *BingenEncoder[T, U]) Encode(data *T) ([]byte, error) {
 	return bingenData.MarshalBinary()
 }
 
-// FileExt returns the file extension for the encoded data. In this case, it returns an empty string
-// to indicate that there is no specific file extension for the binary encoded data.
+// FileExt returns the configured file extension for the encoded data. This may be an empty
+// string when no file extension is configured, or a non-empty value such as "bingen".
 func (b *BingenEncoder[T, U]) FileExt() string {
 	return b.fileExt
 }
