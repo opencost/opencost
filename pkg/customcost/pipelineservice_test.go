@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/go-plugin"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
@@ -280,7 +279,7 @@ func TestPipelineService_Stop_WithNilIngestors(t *testing.T) {
 func TestPipelineService_Stop_PartialNilIngestors(t *testing.T) {
 	hourly := &CustomCostIngestor{
 		key:     "hourly",
-		plugins: make(map[string]*plugin.Client),
+		plugins: make(map[string]pluginConnector),
 	}
 
 	ps := &PipelineService{
@@ -298,11 +297,11 @@ func TestPipelineService_Stop_ShutdownLogging(t *testing.T) {
 	ps := &PipelineService{
 		hourlyIngestor: &CustomCostIngestor{
 			key:     "hourly",
-			plugins: make(map[string]*plugin.Client),
+			plugins: make(map[string]pluginConnector),
 		},
 		dailyIngestor: &CustomCostIngestor{
 			key:     "daily",
-			plugins: make(map[string]*plugin.Client),
+			plugins: make(map[string]pluginConnector),
 		},
 		domains: []string{},
 	}
@@ -324,8 +323,8 @@ func TestPipelineService_Stop_NilIngestors(t *testing.T) {
 }
 
 func TestPipelineService_Stop_WithIngestors(t *testing.T) {
-	hourly := &CustomCostIngestor{plugins: map[string]*plugin.Client{}}
-	daily := &CustomCostIngestor{plugins: map[string]*plugin.Client{}}
+	hourly := &CustomCostIngestor{plugins: map[string]pluginConnector{}}
+	daily := &CustomCostIngestor{plugins: map[string]pluginConnector{}}
 	ps := &PipelineService{
 		hourlyIngestor: hourly,
 		dailyIngestor:  daily,
@@ -335,14 +334,14 @@ func TestPipelineService_Stop_WithIngestors(t *testing.T) {
 
 func TestPipelineService_Stop_OnlyHourlyIngestor(t *testing.T) {
 	ps := &PipelineService{
-		hourlyIngestor: &CustomCostIngestor{plugins: map[string]*plugin.Client{}},
+		hourlyIngestor: &CustomCostIngestor{plugins: map[string]pluginConnector{}},
 	}
 	ps.Stop() // should not panic when dailyIngestor is nil
 }
 
 func TestPipelineService_Stop_OnlyDailyIngestor(t *testing.T) {
 	ps := &PipelineService{
-		dailyIngestor: &CustomCostIngestor{plugins: map[string]*plugin.Client{}},
+		dailyIngestor: &CustomCostIngestor{plugins: map[string]pluginConnector{}},
 	}
 	ps.Stop() // should not panic when hourlyIngestor is nil
 }

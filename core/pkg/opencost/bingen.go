@@ -30,7 +30,7 @@ package opencost
 // @bingen:generate:AssetLabels
 // @bingen:generate:AssetProperties
 // @bingen:generate:AssetProperty
-// @bingen:generate[stringtable,preprocess,postprocess]:AssetSet
+// @bingen:generate[streamable,stringtable,preprocess,postprocess]:AssetSet
 // @bingen:generate:AssetSetRange
 // @bingen:generate:Breakdown
 // @bingen:generate:Cloud
@@ -46,7 +46,7 @@ package opencost
 // Allocation Version Set: Includes Allocation pipeline specific resources
 // @bingen:set[name=Allocation,version=25]
 // @bingen:generate[migrate]:Allocation
-// @bingen:generate[stringtable]:AllocationSet
+// @bingen:generate[streamable,stringtable]:AllocationSet
 // @bingen:generate:AllocationSetRange
 // @bingen:generate:AllocationProperties
 // @bingen:generate:AllocationProperty
@@ -64,14 +64,14 @@ package opencost
 // @bingen:set[name=CloudCost,version=3]
 // @bingen:generate:CloudCost
 // @bingen:generate:CostMetric
-// @bingen:generate[stringtable]:CloudCostSet
+// @bingen:generate[streamable,stringtable]:CloudCostSet
 // @bingen:generate:CloudCostSetRange
 // @bingen:generate:CloudCostProperties
 // @bingen:generate:CloudCostLabels
 // @bingen:end
 
 // @bingen:set[name=NetworkInsight,version=1]
-// @bingen:generate:NetworkInsightSet
+// @bingen:generate[streamable,stringtable]:NetworkInsightSet
 // @bingen:generate:NetworkInsight
 // @bingen:generate:NetworkTrafficDirection
 // @bingen:generate:NetworkTrafficType
