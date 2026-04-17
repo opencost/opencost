@@ -63,7 +63,7 @@ func NewMockNetworkInsightSource() exporter.ComputeSource[opencost.NetworkInsigh
 func NewMockKubeModelSource() exporter.ComputeSource[kubemodel.KubeModelSet] {
 	return &MockSource[kubemodel.KubeModelSet]{
 		generate: func(start, end time.Time) *kubemodel.KubeModelSet {
-			return opencost.GenerateMockKubeModelSet(start, end)
+			return kubemodel.NewMockKubeModelSet(start, end)
 		},
 	}
 }
@@ -269,7 +269,7 @@ func TestExporters(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to export KubeModel data: %v", err)
 		}
-		
+
 		ext := fmt.Sprintf(exporter.BingenVersionExtFMT, kubemodel.DefaultCodecVersion)
 		validateFileCreation[kubemodel.KubeModelSet](t, memStore, p, ext, start, end)
 	})
