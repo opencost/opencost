@@ -14,9 +14,13 @@ package shared
 import (
 	"fmt"
 	util "github.com/opencost/opencost/core/pkg/util"
+	"io"
+	"iter"
+	"os"
 	"reflect"
 	"strings"
 	"sync"
+	"unsafe"
 )
 
 const (
@@ -37,6 +41,63 @@ const (
 )
 
 //--------------------------------------------------------------------------
+//  Configuration
+//--------------------------------------------------------------------------
+
+var (
+	bingenConfigLock sync.RWMutex
+	bingenConfig     *BingenConfiguration = DefaultBingenConfiguration()
+)
+
+// BingenConfiguration is used to set any custom configuration in the way files are encoded
+// or decoded.
+type BingenConfiguration struct {
+	// FileBackedStringTableEnabled enables the use of file-backed string tables for streaming
+	// bingen decoding.
+	FileBackedStringTableEnabled bool
+
+	// FileBackedStringTableDir is the directory to write the string table files for reading.
+	FileBackedStringTableDir string
+}
+
+// DefaultBingenConfiguration creates the default implementation of the bingen configuration
+// and returns it.
+func DefaultBingenConfiguration() *BingenConfiguration {
+	return &BingenConfiguration{
+		FileBackedStringTableEnabled: false,
+		FileBackedStringTableDir:     os.TempDir(),
+	}
+}
+
+// ConfigureBingen accepts a new *BingenConfiguration instance which updates the internal decoder
+// and encoder behavior.
+func ConfigureBingen(config *BingenConfiguration) {
+	bingenConfigLock.Lock()
+	defer bingenConfigLock.Unlock()
+
+	if config == nil {
+		config = DefaultBingenConfiguration()
+	}
+	bingenConfig = config
+}
+
+// IsBingenFileBackedStringTableEnabled accessor for file backed string table configuration
+func IsBingenFileBackedStringTableEnabled() bool {
+	bingenConfigLock.RLock()
+	defer bingenConfigLock.RUnlock()
+
+	return bingenConfig.FileBackedStringTableEnabled
+}
+
+// BingenFileBackedStringTableDir returns the directory configured for file backed string tables.
+func BingenFileBackedStringTableDir() string {
+	bingenConfigLock.RLock()
+	defer bingenConfigLock.RUnlock()
+
+	return bingenConfig.FileBackedStringTableDir
+}
+
+//--------------------------------------------------------------------------
 //  Type Map
 //--------------------------------------------------------------------------
 
@@ -50,6 +111,23 @@ var typeMap map[string]reflect.Type = map[string]reflect.Type{}
 
 // isBinaryTag returns true when the first bytes in the provided binary matches the tag
 func isBinaryTag(data []byte, tag string) bool {
+	if len(data) < len(tag) {
+		return false
+	}
+
+	return string(data[:len(tag)]) == tag
+}
+
+// isReaderBinaryTag is used to peek the header for an io.Reader Buffer
+func isReaderBinaryTag(buff *util.Buffer, tag string) bool {
+	data, err := buff.Peek(len(tag))
+	if err != nil && err != io.EOF {
+		panic(fmt.Sprintf("called Peek() on a non buffered reader: %s", err))
+	}
+	if len(data) < len(tag) {
+		return false
+	}
+
 	return string(data[:len(tag)]) == tag
 }
 
@@ -61,7 +139,7 @@ func appendBytes(a []byte, b []byte) []byte {
 
 	// allocate a new byte array for the combined
 	// use native copy for speedy byte copying
-	result := make([]byte, tl, tl)
+	result := make([]byte, tl)
 	copy(result, a)
 	copy(result[al:], b)
 
@@ -104,21 +182,91 @@ func resolveType(t string) (pkg string, name string, isPtr bool) {
 }
 
 //--------------------------------------------------------------------------
-//  StringTable
+//  Stream Helpers
 //--------------------------------------------------------------------------
 
-// StringTable maps strings to specific indices for encoding
-type StringTable struct {
-	l       *sync.Mutex
+// StreamFactoryFunc is an alias for a func that creates a BingenStream implementation.
+type StreamFactoryFunc func(io.Reader) BingenStream
+
+// Generated streamable factory map for finding the specific new stream methods
+// by T type
+var streamFactoryMap map[reflect.Type]StreamFactoryFunc = map[reflect.Type]StreamFactoryFunc{}
+
+// NewStreamFor accepts an io.Reader, and returns a new BingenStream for the generic T
+// type provided _if_ it is a registered bingen type that is annotated as 'streamable'. See
+// the streamFactoryMap for generated type listings.
+func NewStreamFor[T any](reader io.Reader) (BingenStream, error) {
+	typeKey := reflect.TypeFor[T]()
+
+	factory, ok := streamFactoryMap[typeKey]
+	if !ok {
+		return nil, fmt.Errorf("the type: %s is not a registered bingen streamable type", typeKey.Name())
+	}
+
+	return factory(reader), nil
+}
+
+// BingenStream is the stream interface for all streamable types
+type BingenStream interface {
+	// Stream returns the iterator which will stream each field of the target type and
+	// return the field info as well as the value.
+	Stream() iter.Seq2[BingenFieldInfo, *BingenValue]
+
+	// Close will close any dynamic io.Reader used to stream in the fields
+	Close()
+
+	// Error returns an error if one occurred during the process of streaming the type's fields.
+	// This can be checked after iterating through the Stream().
+	Error() error
+}
+
+// BingenValue contains the value of a field as well as any index/key associated with that value.
+type BingenValue struct {
+	Value any
+	Index any
+}
+
+// IsNil is just a method accessor way to check to see if the value returned was nil
+func (bv *BingenValue) IsNil() bool {
+	return bv == nil
+}
+
+// creates a single BingenValue instance without a key or index
+func singleV(value any) *BingenValue {
+	return &BingenValue{
+		Value: value,
+	}
+}
+
+// creates a pair of key/index and value.
+func pairV(index any, value any) *BingenValue {
+	return &BingenValue{
+		Value: value,
+		Index: index,
+	}
+}
+
+// BingenFieldInfo contains the type of the field being streamed as well as the name of the field.
+type BingenFieldInfo struct {
+	Type reflect.Type
+	Name string
+}
+
+//--------------------------------------------------------------------------
+//  String Table Writer
+//--------------------------------------------------------------------------
+
+// StringTableWriter maps strings to specific indices for encoding
+type StringTableWriter struct {
+	l       sync.Mutex
 	indices map[string]int
 	next    int
 }
 
-// NewStringTable Creates a new StringTable instance with provided contents
-func NewStringTable(contents ...string) *StringTable {
-	st := &StringTable{
-		l:       new(sync.Mutex),
-		indices: make(map[string]int),
+// NewStringTableWriter Creates a new StringTableWriter instance with provided contents
+func NewStringTableWriter(contents ...string) *StringTableWriter {
+	st := &StringTableWriter{
+		indices: make(map[string]int, len(contents)),
 		next:    len(contents),
 	}
 
@@ -131,7 +279,7 @@ func NewStringTable(contents ...string) *StringTable {
 
 // AddOrGet atomically retrieves a string entry's index if it exist. Otherwise, it will
 // add the entry and return the index.
-func (st *StringTable) AddOrGet(s string) int {
+func (st *StringTableWriter) AddOrGet(s string) int {
 	st.l.Lock()
 	defer st.l.Unlock()
 
@@ -147,7 +295,7 @@ func (st *StringTable) AddOrGet(s string) int {
 }
 
 // ToSlice Converts the contents to a string array for encoding.
-func (st *StringTable) ToSlice() []string {
+func (st *StringTableWriter) ToSlice() []string {
 	st.l.Lock()
 	defer st.l.Unlock()
 
@@ -155,7 +303,7 @@ func (st *StringTable) ToSlice() []string {
 		return []string{}
 	}
 
-	sl := make([]string, st.next, st.next)
+	sl := make([]string, st.next)
 	for s, i := range st.indices {
 		sl[i] = s
 	}
@@ -163,7 +311,7 @@ func (st *StringTable) ToSlice() []string {
 }
 
 // ToBytes Converts the contents to a binary encoded representation
-func (st *StringTable) ToBytes() []byte {
+func (st *StringTableWriter) ToBytes() []byte {
 	buff := util.NewBuffer()
 	buff.WriteBytes([]byte(BinaryTagStringTable)) // bingen table header
 
@@ -178,6 +326,201 @@ func (st *StringTable) ToBytes() []byte {
 }
 
 //--------------------------------------------------------------------------
+//  String Table Reader
+//--------------------------------------------------------------------------
+
+// StringTableReader is the interface used to read the string table from the decoding.
+type StringTableReader interface {
+	// At returns the string entry at a specific index, or panics on out of bounds.
+	At(index int) string
+
+	// Len returns the total number of strings loaded in the string table.
+	Len() int
+
+	// Close will clear the loaded table, and drop any external resources used.
+	Close() error
+}
+
+// SliceStringTableReader is a basic pre-loaded []string that provides index-based access.
+// The cost of this implementation is holding all strings in memory, which provides faster
+// lookup performance for memory usage.
+type SliceStringTableReader struct {
+	table []string
+}
+
+// NewSliceStringTableReaderFrom creates a new SliceStringTableReader instance loading
+// data directly from the buffer. The buffer's position should start at the table length.
+func NewSliceStringTableReaderFrom(buffer *util.Buffer) StringTableReader {
+	// table length
+	tl := buffer.ReadInt()
+
+	var table []string
+	if tl > 0 {
+		table = make([]string, tl)
+		for i := range tl {
+			table[i] = buffer.ReadString()
+		}
+	}
+
+	return &SliceStringTableReader{
+		table: table,
+	}
+}
+
+// At returns the string entry at a specific index, or panics on out of bounds.
+func (sstr *SliceStringTableReader) At(index int) string {
+	if index < 0 || index >= len(sstr.table) {
+		panic(fmt.Errorf("%s: string table index out of bounds: %d", GeneratorPackageName, index))
+	}
+
+	return sstr.table[index]
+}
+
+// Len returns the total number of strings loaded in the string table.
+func (sstr *SliceStringTableReader) Len() int {
+	if sstr == nil {
+		return 0
+	}
+
+	return len(sstr.table)
+}
+
+// Close for the slice tables just nils out the slice and returns
+func (sstr *SliceStringTableReader) Close() error {
+	sstr.table = nil
+	return nil
+}
+
+// fileStringRef maps a bingen string-table index to a payload stored in a temp file.
+type fileStringRef struct {
+	off    int64
+	length int
+}
+
+// FileStringTableReader leverages a local file to write string table data for lookup. On
+// memory focused systems, this allows a slower parse with a significant decrease in memory
+// usage. This implementation is often pair with streaming readers for high throughput with
+// reduced memory usage.
+type FileStringTableReader struct {
+	f    *os.File
+	refs []fileStringRef
+}
+
+// NewFileStringTableFromBuffer reads exactly tl length-prefixed (uint16) string payloads from buffer
+// and appends each payload to a new temp file. It does not retain full strings in memory.
+func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableReader {
+	// helper func to cast a string in-place to a byte slice.
+	// NOTE: Return value is READ-ONLY. DO NOT MODIFY!
+	byteSliceFor := func(s string) []byte {
+		return unsafe.Slice(unsafe.StringData(s), len(s))
+	}
+
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		panic(fmt.Errorf("%s: failed to create string table directory: %w", GeneratorPackageName, err))
+	}
+
+	f, err := os.CreateTemp(dir, fmt.Sprintf("%s-bgst-*", GeneratorPackageName))
+	if err != nil {
+		panic(fmt.Errorf("%s: failed to create string table file: %w", GeneratorPackageName, err))
+	}
+
+	var writeErr error
+	defer func() {
+		if writeErr != nil {
+			_ = f.Close()
+		}
+	}()
+
+	// table length
+	tl := buffer.ReadInt()
+
+	var refs []fileStringRef
+	if tl > 0 {
+		refs = make([]fileStringRef, tl)
+
+		for i := range tl {
+			payload := byteSliceFor(buffer.ReadString())
+
+			var off int64
+			if len(payload) > 0 {
+				off, err = f.Seek(0, io.SeekEnd)
+				if err != nil {
+					writeErr = fmt.Errorf("%s: failed to seek string table file: %w", GeneratorPackageName, err)
+					panic(writeErr)
+				}
+				if _, err := f.Write(payload); err != nil {
+					writeErr = fmt.Errorf("%s: failed to write string table entry %d: %w", GeneratorPackageName, i, err)
+					panic(writeErr)
+				}
+			}
+
+			refs[i] = fileStringRef{
+				off:    off,
+				length: len(payload),
+			}
+		}
+	}
+
+	return &FileStringTableReader{
+		f:    f,
+		refs: refs,
+	}
+}
+
+// At returns the string from the internal file using the reference's offset and length.
+func (fstr *FileStringTableReader) At(index int) string {
+	if fstr == nil || fstr.f == nil {
+		panic(fmt.Errorf("%s: failed to read file string table data", GeneratorPackageName))
+	}
+	if index < 0 || index >= len(fstr.refs) {
+		panic(fmt.Errorf("%s: string table index out of bounds: %d", GeneratorPackageName, index))
+	}
+
+	ref := fstr.refs[index]
+	if ref.length == 0 {
+		return ""
+	}
+
+	b := make([]byte, ref.length)
+	_, err := fstr.f.ReadAt(b, ref.off)
+	if err != nil {
+		return ""
+	}
+
+	// cast the allocated bytes to a string in-place, as we
+	// were the ones that allocated the bytes
+	return unsafe.String(unsafe.SliceData(b), len(b))
+}
+
+// Len returns the total number of strings loaded in the string table.
+func (fstr *FileStringTableReader) Len() int {
+	if fstr == nil {
+		return 0
+	}
+
+	return len(fstr.refs)
+}
+
+// Close for the file string table reader closes the file and deletes it.
+func (fstr *FileStringTableReader) Close() error {
+	if fstr == nil || fstr.f == nil {
+		return nil
+	}
+
+	path := fstr.f.Name()
+	err := fstr.f.Close()
+	fstr.f = nil
+	fstr.refs = nil
+
+	if path != "" {
+		_ = os.Remove(path)
+	}
+
+	return err
+}
+
+//--------------------------------------------------------------------------
 //  Codec Context
 //--------------------------------------------------------------------------
 
@@ -185,7 +528,7 @@ func (st *StringTable) ToBytes() []byte {
 // and table data
 type EncodingContext struct {
 	Buffer *util.Buffer
-	Table  *StringTable
+	Table  *StringTableWriter
 }
 
 // IsStringTable returns true if the table is available
@@ -197,12 +540,66 @@ func (ec *EncodingContext) IsStringTable() bool {
 // reuse as much data as possible
 type DecodingContext struct {
 	Buffer *util.Buffer
-	Table  []string
+	Table  StringTableReader
+}
+
+// NewDecodingContextFromBytes creates a new DecodingContext instance using an byte slice
+func NewDecodingContextFromBytes(data []byte) *DecodingContext {
+	var table StringTableReader
+
+	buff := util.NewBufferFromBytes(data)
+
+	// string table header validation
+	if isBinaryTag(data, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+
+		// always use a slice string table with a byte array since the
+		// data is already in memory
+		table = NewSliceStringTableReaderFrom(buff)
+	}
+
+	return &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+}
+
+// NewDecodingContextFromReader creates a new DecodingContext instance using an io.Reader
+// implementation
+func NewDecodingContextFromReader(reader io.Reader) *DecodingContext {
+	var table StringTableReader
+
+	buff := util.NewBufferFromReader(reader)
+
+	if isReaderBinaryTag(buff, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+
+		// create correct string table implementation
+		if IsBingenFileBackedStringTableEnabled() {
+			table = NewFileStringTableReaderFrom(buff, BingenFileBackedStringTableDir())
+		} else {
+			table = NewSliceStringTableReaderFrom(buff)
+		}
+	}
+
+	return &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
 }
 
 // IsStringTable returns true if the table is available
 func (dc *DecodingContext) IsStringTable() bool {
-	return len(dc.Table) > 0
+	return dc.Table != nil && dc.Table.Len() > 0
+}
+
+// Close will ensure that any string table resources and buffer resources are
+// cleaned up.
+func (dc *DecodingContext) Close() {
+	if dc.Table != nil {
+		_ = dc.Table.Close()
+		dc.Table = nil
+	}
 }
 
 //--------------------------------------------------------------------------
