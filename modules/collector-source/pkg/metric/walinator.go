@@ -50,7 +50,7 @@ func NewWalinator(
 	}
 	pathFormatter, err := pathing.NewEventStoragePathFormatter(applicationName, clusterID, CollectorEventName)
 	if err != nil {
-		return nil, fmt.Errorf("filed to create path formatter for scrape controller: %s", err.Error())
+		return nil, fmt.Errorf("failed to create path formatter for scrape controller: %s", err.Error())
 	}
 
 	encoder := exporter.NewBingenFileEncoder[UpdateSet]()

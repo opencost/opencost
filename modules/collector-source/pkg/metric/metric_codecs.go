@@ -67,7 +67,7 @@ type BingenConfiguration struct {
 func DefaultBingenConfiguration() *BingenConfiguration {
 	return &BingenConfiguration{
 		FileBackedStringTableEnabled: false,
-		FileBackedStringTableDir:     "/tmp",
+		FileBackedStringTableDir:     os.TempDir(),
 	}
 }
 
@@ -195,7 +195,9 @@ type StreamFactoryFunc func(io.Reader) BingenStream
 
 // Generated streamable factory map for finding the specific new stream methods
 // by T type
-var streamFactoryMap map[reflect.Type]StreamFactoryFunc = map[reflect.Type]StreamFactoryFunc{}
+var streamFactoryMap map[reflect.Type]StreamFactoryFunc = map[reflect.Type]StreamFactoryFunc{
+	reflect.TypeFor[UpdateSet](): NewUpdateSetStream,
+}
 
 // NewStreamFor accepts an io.Reader, and returns a new BingenStream for the generic T
 // type provided _if_ it is a registered bingen type that is annotated as 'streamable'. See
@@ -205,7 +207,7 @@ func NewStreamFor[T any](reader io.Reader) (BingenStream, error) {
 
 	factory, ok := streamFactoryMap[typeKey]
 	if !ok {
-		return nil, fmt.Errorf("the type: %s is not a registerd bingen streamable type", typeKey.Name())
+		return nil, fmt.Errorf("the type: %s is not a registered bingen streamable type", typeKey.Name())
 	}
 
 	return factory(reader), nil
@@ -797,15 +799,15 @@ func (target *Update) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 			v = f
 
 			var z string
-			var l string
+			var m string
 			if ctx.IsStringTable() {
-				m := buff.ReadInt() // read string index
-				l = ctx.Table.At(m)
+				n := buff.ReadInt() // read string index
+				m = ctx.Table.At(n)
 			} else {
-				l = buff.ReadString() // read string
+				m = buff.ReadString() // read string
 			}
-			k := l
-			z = k
+			l := m
+			z = l
 
 			d[v] = z
 		}
@@ -813,41 +815,41 @@ func (target *Update) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 		// --- [end][read][map](map[string]string) ---
 
 	}
-	n := buff.ReadFloat64() // read float64
-	target.Value = n
+	o := buff.ReadFloat64() // read float64
+	target.Value = o
 
 	if buff.ReadUInt8() == uint8(0) {
 		target.AdditionalInfo = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		p := buff.ReadInt() // map len
-		o := make(map[string]string, p)
-		for j := 0; j < p; j++ {
+		q := buff.ReadInt() // map len
+		p := make(map[string]string, q)
+		for j := 0; j < q; j++ {
 			var vv string
-			var r string
+			var s string
 			if ctx.IsStringTable() {
-				s := buff.ReadInt() // read string index
-				r = ctx.Table.At(s)
+				t := buff.ReadInt() // read string index
+				s = ctx.Table.At(t)
 			} else {
-				r = buff.ReadString() // read string
+				s = buff.ReadString() // read string
 			}
-			q := r
-			vv = q
+			r := s
+			vv = r
 
 			var zz string
-			var u string
+			var w string
 			if ctx.IsStringTable() {
-				w := buff.ReadInt() // read string index
-				u = ctx.Table.At(w)
+				x := buff.ReadInt() // read string index
+				w = ctx.Table.At(x)
 			} else {
-				u = buff.ReadString() // read string
+				w = buff.ReadString() // read string
 			}
-			t := u
-			zz = t
+			u := w
+			zz = u
 
-			o[vv] = zz
+			p[vv] = zz
 		}
-		target.AdditionalInfo = o
+		target.AdditionalInfo = p
 		// --- [end][read][map](map[string]string) ---
 
 	}
@@ -1012,4 +1014,110 @@ func (target *UpdateSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 
 	}
 	return nil
+}
+
+//--------------------------------------------------------------------------
+//  UpdateSetStream
+//--------------------------------------------------------------------------
+
+// UpdateSetStream is a single use field stream for the contents of an UpdateSet instance. Instead of creating an instance and populating
+// the fields on that instance, we provide a streaming iterator which yields (BingenFieldInfo, *BingenValue) tuples for each
+// stremable element. All slices and maps will be flattened one depth and each element streamed individually.
+type UpdateSetStream struct {
+	reader io.Reader
+	ctx    *DecodingContext
+	err    error
+}
+
+// Closes closes the internal io.Reader used to read and parse the UpdateSet fields.
+// This should be called once the stream is no longer needed.
+func (stream *UpdateSetStream) Close() {
+	if closer, ok := stream.reader.(io.Closer); ok {
+		closer.Close()
+	}
+	stream.ctx.Close()
+}
+
+// Error returns an error if one occurred during the process of streaming the UpdateSet
+// This can be checked after iterating through the Stream().
+func (stream *UpdateSetStream) Error() error {
+	return stream.err
+}
+
+// NewUpdateSetStream creates a new UpdateSetStream, which uses the io.Reader data to stream all internal fields of an UpdateSet instance
+func NewUpdateSetStream(reader io.Reader) BingenStream {
+	ctx := NewDecodingContextFromReader(reader)
+
+	return &UpdateSetStream{
+		ctx:    ctx,
+		reader: reader,
+	}
+}
+
+// Stream returns the iterator which will stream each field of the target type.
+func (stream *UpdateSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
+	return func(yield func(BingenFieldInfo, *BingenValue) bool) {
+		var fi BingenFieldInfo
+
+		ctx := stream.ctx
+		buff := ctx.Buffer
+		version := buff.ReadUInt8()
+
+		if version > DefaultCodecVersion {
+			stream.err = fmt.Errorf("Invalid Version Unmarshaling UpdateSet. Expected %d or less, got %d", DefaultCodecVersion, version)
+			return
+		}
+
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[time.Time](),
+			Name: "Timestamp",
+		}
+
+		// --- [begin][read][reference](time.Time) ---
+		b := &time.Time{}
+		c := buff.ReadInt()    // byte array length
+		d := buff.ReadBytes(c) // byte array
+		errA := b.UnmarshalBinary(d)
+		if errA != nil {
+			stream.err = errA
+			return
+		}
+		a := *b
+		// --- [end][read][reference](time.Time) ---
+
+		if !yield(fi, singleV(a)) {
+			return
+		}
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[[]Update](),
+			Name: "Updates",
+		}
+
+		if buff.ReadUInt8() == uint8(0) {
+			if !yield(fi, nil) {
+				return
+			}
+		} else {
+			// --- [begin][read][streaming-slice]([]Update) ---
+			e := buff.ReadInt() // array len
+			for i := 0; i < e; i++ {
+				// --- [begin][read][struct](Update) ---
+				g := &Update{}
+				buff.ReadInt() // [compatibility, unused]
+				errB := g.UnmarshalBinaryWithContext(ctx)
+				if errB != nil {
+					stream.err = errB
+					return
+				}
+				f := *g
+				// --- [end][read][struct](Update) ---
+
+				if !yield(fi, pairV(i, f)) {
+					return
+				}
+			}
+			// --- [end][read][streaming-slice]([]Update) ---
+
+		}
+	}
 }
