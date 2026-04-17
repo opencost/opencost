@@ -89,7 +89,7 @@ func NewContainerMemoryAllocationSynthesizer() *ContainerMemoryAllocationSynthes
 	}
 }
 
-// Process accepts metric updates and only records updates relevant to memory allocaiton.
+// Process accepts metric updates and only records updates relevant to memory allocation.
 func (cmas *ContainerMemoryAllocationSynthesizer) Process(t time.Time, update *metric.Update) {
 	switch update.Name {
 	case metric.KubePodContainerResourceRequests:
