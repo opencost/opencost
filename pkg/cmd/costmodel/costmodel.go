@@ -89,6 +89,10 @@ func Execute(conf *Config) error {
 		}
 	} else if conf.MCPServerEnabled {
 		log.Warnf("MCP Server is enabled but Kubernetes is not available. MCP server requires Kubernetes to function.")
+	} else {
+		if value, exists := os.LookupEnv(env.MCPServerEnabledEnvVar); !exists || value == "" {
+			log.Infof("MCP server is now disabled by default. If you wish to use the MCP server, please set the %s environment variable to true.", env.MCPServerEnabledEnvVar)
+		}
 	}
 
 	apiutil.ApplyContainerDiagnosticEndpoints(router)
