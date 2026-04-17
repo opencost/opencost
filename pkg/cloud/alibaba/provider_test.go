@@ -770,19 +770,85 @@ func TestGetNumericalValueFromResourceQuantity(t *testing.T) {
 			expectedValue:        "10",
 		},
 		{
-			name:                 "negative scenario: when inputResourceQuantity is Gi",
+			name:                 "negative scenario: when inputResourceQuantity is Gi (no numeric prefix)",
 			inputResourceQuanity: "Gi",
 			expectedValue:        ALIBABA_DEFAULT_DATADISK_SIZE,
 		},
 		{
-			name:                 "negative scenario: when inputResourceQuantity is 10",
+			name:                 "edge case: when inputResourceQuantity is 10 (plain bytes, rounds up to 1 GiB)",
 			inputResourceQuanity: "10",
-			expectedValue:        ALIBABA_DEFAULT_DATADISK_SIZE,
+			expectedValue:        "1",
 		},
 		{
 			name:                 "negative scenario: when inputResourceQuantity is empty string",
 			inputResourceQuanity: "",
 			expectedValue:        ALIBABA_DEFAULT_DATADISK_SIZE,
+		},
+		{
+			name:                 "negative scenario: when inputResourceQuantity is non-numeric",
+			inputResourceQuanity: "abc",
+			expectedValue:        ALIBABA_DEFAULT_DATADISK_SIZE,
+		},
+		{
+			// 48828125Ki / (1024*1024) = 46.875 GiB, rounds up to 47
+			name:                 "positive scenario: Ki unit - 48828125Ki",
+			inputResourceQuanity: "48828125Ki",
+			expectedValue:        "47",
+		},
+		{
+			name:                 "positive scenario: Ki unit - 1048576Ki (exactly 1 GiB)",
+			inputResourceQuanity: "1048576Ki",
+			expectedValue:        "1",
+		},
+		{
+			name:                 "positive scenario: Ki unit - 2097152Ki (exactly 2 GiB)",
+			inputResourceQuanity: "2097152Ki",
+			expectedValue:        "2",
+		},
+		{
+			name:                 "positive scenario: Mi unit - 512Mi (rounds up to 1 GiB)",
+			inputResourceQuanity: "512Mi",
+			expectedValue:        "1",
+		},
+		{
+			name:                 "positive scenario: Mi unit - 1024Mi (exactly 1 GiB)",
+			inputResourceQuanity: "1024Mi",
+			expectedValue:        "1",
+		},
+		{
+			name:                 "positive scenario: Mi unit - 20480Mi (exactly 20 GiB)",
+			inputResourceQuanity: "20480Mi",
+			expectedValue:        "20",
+		},
+		{
+			name:                 "positive scenario: Gi unit - 20Gi",
+			inputResourceQuanity: "20Gi",
+			expectedValue:        "20",
+		},
+		{
+			name:                 "positive scenario: Gi unit - 100Gi",
+			inputResourceQuanity: "100Gi",
+			expectedValue:        "100",
+		},
+		{
+			name:                 "positive scenario: Ti unit - 1Ti",
+			inputResourceQuanity: "1Ti",
+			expectedValue:        "1024",
+		},
+		{
+			name:                 "positive scenario: Ti unit - 2Ti",
+			inputResourceQuanity: "2Ti",
+			expectedValue:        "2048",
+		},
+		{
+			name:                 "positive scenario: fractional Gi unit - 1.5Gi (rounds up to 2 GiB)",
+			inputResourceQuanity: "1.5Gi",
+			expectedValue:        "2",
+		},
+		{
+			name:                 "positive scenario: fractional Mi unit - 1536Mi (1.5 GiB, rounds up to 2 GiB)",
+			inputResourceQuanity: "1536Mi",
+			expectedValue:        "2",
 		},
 	}
 	for _, c := range cases {
