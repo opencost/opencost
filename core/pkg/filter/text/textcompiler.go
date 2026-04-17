@@ -2,6 +2,7 @@ package text
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/opencost/opencost/core/pkg/filter/ast"
@@ -53,10 +54,10 @@ func (tc *TextCompiler) Compile(filter ast.FilterNode) (string, error) {
 				currentOps.Push(newGroupOp("+"))
 			} else if state == ast.TraversalStateExit {
 				if currentOps.Length() > 1 {
-					current := currentOps.Pop()
+					current := currentOps.Pop().Close()
 					currentOps.Top().Add(current)
 				} else {
-					result = currentOps.Pop()
+					result = currentOps.Pop().Close()
 				}
 			}
 		case *ast.OrOp:
@@ -64,10 +65,10 @@ func (tc *TextCompiler) Compile(filter ast.FilterNode) (string, error) {
 				currentOps.Push(newGroupOp("|"))
 			} else if state == ast.TraversalStateExit {
 				if currentOps.Length() > 1 {
-					current := currentOps.Pop()
+					current := currentOps.Pop().Close()
 					currentOps.Top().Add(current)
 				} else {
-					result = currentOps.Pop()
+					result = currentOps.Pop().Close()
 				}
 			}
 
@@ -76,10 +77,10 @@ func (tc *TextCompiler) Compile(filter ast.FilterNode) (string, error) {
 				currentOps.Push(newNotOp())
 			} else if state == ast.TraversalStateExit {
 				if currentOps.Length() > 1 {
-					current := currentOps.Pop()
+					current := currentOps.Pop().Close()
 					currentOps.Top().Add(current)
 				} else {
-					result = currentOps.Pop()
+					result = currentOps.Pop().Close()
 				}
 			}
 		// Special case here, these can only be created programmatically and
@@ -138,8 +139,15 @@ func (tc *TextCompiler) Compile(filter ast.FilterNode) (string, error) {
 		return "", nil
 	}
 
-	return result.String(), nil
+	// for group ops, trim the root level parens
+	strResult := result.String()
+	if rootOp, ok := result.(*GroupOp); ok {
+		if rootOp.Symbol == "|" || rootOp.Symbol == "+" {
+			strResult = strResult[1 : len(strResult)-1]
+		}
+	}
 
+	return strResult, nil
 }
 
 //--------------------------------------------------------------------------
@@ -156,7 +164,11 @@ type TextOp interface {
 type TextGroupOp interface {
 	TextOp
 
+	// Add appends a new operation to the group
 	Add(TextOp)
+
+	// Close collapses any inline reductions to the negation or multi-compare operations
+	Close() TextOp
 }
 
 //--------------------------------------------------------------------------
@@ -170,7 +182,7 @@ type ContradictionOp string
 
 func (no ContradictionOp) String() string { return "" }
 
-// And/Or
+// And/Or grouping
 type GroupOp struct {
 	Symbol string
 	Ops    []TextOp
@@ -185,7 +197,40 @@ func newGroupOp(symbol string) *GroupOp {
 
 // Add appends a text op as part of the group
 func (a *GroupOp) Add(m TextOp) {
+	// this merges identical comparisons - this is a bit of a pre-optimization for Close()
+	// that combines ie: (foo:"bar" + foo:"baz") into (foo:"bar","baz")
+	if compOp, ok := m.(*ComparisonOp); ok {
+		sym := compOp.Symbol
+		left := compOp.Left
+		r := compOp.Right
+
+		// look for identical symbol and identifiers, also ensure there isn't a repeat
+		// value.
+		for _, op := range a.Ops {
+			if currOp, ook := op.(*ComparisonOp); ook {
+				if currOp.Symbol != sym || !currOp.Left.Equal(left) || currOp.Right == r {
+					continue
+				}
+				if slices.Contains(currOp.Other, r) {
+					continue
+				}
+
+				// found a match, merge comparison operands
+				currOp.Other = append(currOp.Other, r)
+				return
+			}
+		}
+	}
+
 	a.Ops = append(a.Ops, m)
+}
+
+func (a *GroupOp) Close() TextOp {
+	if len(a.Ops) == 1 {
+		return a.Ops[0]
+	}
+
+	return a
 }
 
 // generates the group op using the provided symbol
@@ -199,8 +244,10 @@ type ComparisonOp struct {
 	Symbol string
 	Left   ast.Identifier
 	Right  string
+	Other  []string
 }
 
+// creates a new comparison op with a symbol, identifier, and value.
 func newComparisonOp(symbol string, left ast.Identifier, right string) *ComparisonOp {
 	return &ComparisonOp{
 		Symbol: symbol,
@@ -210,25 +257,42 @@ func newComparisonOp(symbol string, left ast.Identifier, right string) *Comparis
 }
 
 func (a *ComparisonOp) String() string {
-	return writeOp(a.Symbol, a.Left, a.Right)
+	return writeOp(a.Symbol, a.Left, a.Right, a.Other...)
 }
 
-// Not is a negation that contains a single op to negate.
-type Not struct {
+// NotOp is a negation that contains a single op to negate.
+type NotOp struct {
 	Op TextOp
 }
 
-func newNotOp() *Not {
-	return new(Not)
+func newNotOp() *NotOp {
+	return new(NotOp)
 }
 
-func (a *Not) Add(m TextOp) {
+func (a *NotOp) Add(m TextOp) {
 	a.Op = m
+}
+
+func (a *NotOp) Close() TextOp {
+	if a.Op == nil {
+		return a
+	}
+
+	switch innerOp := a.Op.(type) {
+	case *GroupOp:
+		return a
+	case *ComparisonOp:
+		merged := newComparisonOp("!"+innerOp.Symbol, innerOp.Left, innerOp.Right)
+		merged.Other = innerOp.Other
+		return merged
+	}
+
+	return a
 }
 
 // Because our tree will treat 'foo !: bar' as '!(foo : bar)' we can easily convert back into the originating negation
 // depending on the inner op by prepending a '!'
-func (a *Not) String() string {
+func (a *NotOp) String() string {
 	if a.Op == nil {
 		return ""
 	}
@@ -238,6 +302,7 @@ func (a *Not) String() string {
 		return "!" + writeGroupOp("", innerOp)
 	case *ComparisonOp:
 		merged := newComparisonOp("!"+innerOp.Symbol, innerOp.Left, innerOp.Right)
+		merged.Other = innerOp.Other
 		return merged.String()
 	}
 
@@ -273,12 +338,18 @@ func writeGroupOp(op string, operands ...TextOp) string {
 }
 
 // helper function to generate a basic comparison operation
-func writeOp(op string, left ast.Identifier, right string) string {
+func writeOp(op string, left ast.Identifier, right string, additional ...string) string {
 	var sb strings.Builder
 	sb.WriteString(left.String())
 	sb.WriteString(op)
 	sb.WriteRune('"')
 	sb.WriteString(right)
 	sb.WriteRune('"')
+	for _, other := range additional {
+		sb.WriteRune(',')
+		sb.WriteRune('"')
+		sb.WriteString(other)
+		sb.WriteRune('"')
+	}
 	return sb.String()
 }
