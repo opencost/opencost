@@ -265,10 +265,15 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, pvcs []*clu
 		})
 
 		// Determine PVC use data for Pod
+		claimed := make(map[string]struct{})
 		for _, volume := range pod.Spec.Volumes {
 			if volume.PersistentVolumeClaim != nil {
 				name := volume.PersistentVolumeClaim.ClaimName
 				key := pod.Namespace + "," + name
+				if _, seen := claimed[key]; seen {
+					continue
+				}
+
 				if pvc, ok := pvcInfo[key]; ok {
 					pvc.PodsClaimed = append(pvc.PodsClaimed, string(pod.UID))
 				}
