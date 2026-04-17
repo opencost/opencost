@@ -54,17 +54,17 @@ Note: The standalone Kubernetes manifest files have been removed. Please use Hel
 
 ## MCP Server
 
-The OpenCost MCP (Model Context Protocol) server provides AI agents with access to cost allocation and asset data through a standardized interface. The MCP server is **enabled by default** in all OpenCost deployments, runs on port 8081, and is **built into the Helm chart** for easy production deployment. Users have full control to disable it or configure custom ports and settings.
+The OpenCost MCP (Model Context Protocol) server provides AI agents with access to cost allocation and asset data through a standardized interface. The MCP server is **disabled by default** (opt-in) in all OpenCost deployments, runs on port 8081, and is **built into the Helm chart** for easy production deployment. Users have full control to enable it or configure custom ports and settings.
 
 ### Features
 
-- **Enabled by Default**: MCP server starts automatically with OpenCost
-- **Full User Control**: Easy to disable or configure port and settings
+- **Opt-in by Default**: MCP server is disabled by default to minimize the attack surface and must be explicitly enabled
+- **Full User Control**: Easy to enable or configure port and settings
 - **Allocation Queries**: Retrieve cost allocation data with filtering and aggregation
 - **Asset Queries**: Access detailed asset information including nodes, disks, load balancers, and more
 - **Cloud Cost Queries**: Query cloud cost data with provider, service, and region filtering
 - **HTTP Transport**: Uses HTTP for reliable communication with MCP clients
-- **Zero Configuration**: Works out of the box with default OpenCost deployment
+- **Simple Configuration**: Easy to enable using standard environment variables
 - **Helm Integration**: Built into the official Helm chart for production deployments
 
 ### Quick Start
@@ -105,19 +105,19 @@ opencost:
 helm repo add opencost https://opencost.github.io/opencost-helm-chart
 helm repo update
 
-# Deploy OpenCost with MCP server (enabled by default)
-helm install opencost opencost/opencost
+# Deploy OpenCost with MCP server enabled (opt-in)
+helm install opencost opencost/opencost --set opencost.mcp.enabled=true
 
 # Access MCP server via port forwarding (example)
 kubectl port-forward svc/opencost 8081:8081
 ```
 
-The MCP server is **enabled by default** in the Helm chart. For custom configuration:
+The MCP server is **disabled by default** in the Helm chart. For custom configuration:
 
 ```bash
-# Deploy with MCP server disabled
+# Deploy with MCP server enabled
 helm install opencost opencost/opencost \
-  --set opencost.mcp.enabled=false
+  --set opencost.mcp.enabled=true
 
 # Deploy with custom MCP port
 helm install opencost opencost/opencost \
@@ -132,8 +132,8 @@ helm install opencost opencost/opencost \
 
 | Configuration | Command | Description |
 |---------------|---------|-------------|
-| **Default** | `helm install opencost opencost/opencost` | MCP enabled on port 8081 |
-| **Disable** | `--set opencost.mcp.enabled=false` | Completely disable MCP server |
+| **Default** | `helm install opencost opencost/opencost` | MCP disabled by default |
+| **Enable** | `--set opencost.mcp.enabled=true` | Enable MCP server on port 8081 |
 | **Custom Port** | `--set opencost.mcp.port=9091` | Use different port |
 | **Debug Mode** | `--set opencost.mcp.extraEnv.MCP_LOG_LEVEL=debug` | Enable debug logging |
 

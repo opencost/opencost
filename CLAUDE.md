@@ -144,7 +144,7 @@ just validate-protobuf
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MCP_SERVER_ENABLED` | `true` | Enable MCP server |
+| `MCP_SERVER_ENABLED` | `false` | Enable MCP server |
 | `MCP_HTTP_PORT` | `8081` | MCP server HTTP port |
 
 ### Cloud Providers

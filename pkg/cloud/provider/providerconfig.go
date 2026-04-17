@@ -88,7 +88,6 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*models.CustomPrici
 
 	// File Doesn't Exist
 	if !exists {
-		log.Infof("Could not find Custom Pricing file at path '%s'", pc.configFile.Path())
 		pc.customPricing = DefaultPricing()
 		// If config file is not present use the contents from mount models/ as pricing data
 		// in closed source rather than from from  DefaultPricing as first source of truth.
