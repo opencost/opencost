@@ -40,7 +40,7 @@ func (tv *trackedValue) IsSet() bool {
 	return tv.current != nil
 }
 
-// Set updates the current value if it is different. If the vaue is updated, `true` is returned.
+// Set updates the current value if it is different. If the value is updated, `true` is returned.
 // Otherwise, `false` is returned.
 func (tv *trackedValue) Set(value float64) bool {
 	if tv.current == nil {
