@@ -287,6 +287,9 @@ func (b *AzureStorage) ReadToLocalFile(path, destPath string) error {
 
 	downloadResponse, err := b.containerClient.NewBlobClient(path).DownloadStream(ctx, nil)
 	if err != nil {
+		if b.IsObjNotFoundErr(err) {
+			return DoesNotExistError
+		}
 		return fmt.Errorf("AzureStorage: ReadToLocalFile: failed to download blob %q to %q: %w", path, destPath, err)
 	}
 	// NOTE: automatic retries are performed if the connection fails.
