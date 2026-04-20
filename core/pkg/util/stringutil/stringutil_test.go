@@ -170,11 +170,17 @@ const LruCapacity = 500_000
 const LruEvictInterval = 5 * time.Second
 
 func BenchmarkLruStringBankFunc90PercentDuplicate(b *testing.B) {
+	prevBank := stringutil.GetStringBank()
+	defer func() {
+		stringutil.UpdateStringBank(prevBank)
+	}()
+
 	sb := stringutil.NewLruStringBank(LruCapacity, LruEvictInterval)
 	defer func() {
 		if lruBank, ok := sb.(interface{ Stop() }); ok {
 			lruBank.Stop()
 		}
+
 	}()
 
 	stringutil.UpdateStringBank(sb)
@@ -182,6 +188,11 @@ func BenchmarkLruStringBankFunc90PercentDuplicate(b *testing.B) {
 }
 
 func BenchmarkLruStringBankFunc75PercentDuplicate(b *testing.B) {
+	prevBank := stringutil.GetStringBank()
+	defer func() {
+		stringutil.UpdateStringBank(prevBank)
+	}()
+
 	sb := stringutil.NewLruStringBank(LruCapacity, LruEvictInterval)
 	defer func() {
 		if lruBank, ok := sb.(interface{ Stop() }); ok {
@@ -194,6 +205,11 @@ func BenchmarkLruStringBankFunc75PercentDuplicate(b *testing.B) {
 }
 
 func BenchmarkLruStringBankFunc50PercentDuplicate(b *testing.B) {
+	prevBank := stringutil.GetStringBank()
+	defer func() {
+		stringutil.UpdateStringBank(prevBank)
+	}()
+
 	sb := stringutil.NewLruStringBank(LruCapacity, LruEvictInterval)
 	defer func() {
 		if lruBank, ok := sb.(interface{ Stop() }); ok {
@@ -206,6 +222,11 @@ func BenchmarkLruStringBankFunc50PercentDuplicate(b *testing.B) {
 }
 
 func BenchmarkLruStringBankFunc25PercentDuplicate(b *testing.B) {
+	prevBank := stringutil.GetStringBank()
+	defer func() {
+		stringutil.UpdateStringBank(prevBank)
+	}()
+
 	sb := stringutil.NewLruStringBank(LruCapacity, LruEvictInterval)
 	defer func() {
 		if lruBank, ok := sb.(interface{ Stop() }); ok {
@@ -218,6 +239,11 @@ func BenchmarkLruStringBankFunc25PercentDuplicate(b *testing.B) {
 }
 
 func BenchmarkLruStringBankFuncNoDuplicate(b *testing.B) {
+	prevBank := stringutil.GetStringBank()
+	defer func() {
+		stringutil.UpdateStringBank(prevBank)
+	}()
+
 	sb := stringutil.NewLruStringBank(LruCapacity, LruEvictInterval)
 	defer func() {
 		if lruBank, ok := sb.(interface{ Stop() }); ok {

@@ -22,13 +22,12 @@ type MemoryLimitConfig struct {
 	// should be distributed between a previous average value and the current observation.
 	SmoothingFactor float64
 
-	// BreachWindowSize is the total number of recent raw samples are maintained used for
-	// breach detection. This occurs when the number of samples geather than the current
-	// memory limit exceeds a threshold.
+	// BreachWindowSize is the total number of recent raw samples are maintained/used for
+	// breach detection.
 	BreachWindowSize int
 
-	// BreachThreshold is a limit of raw samples allowed to exceed the memory limit. If this
-	// threshold is reached, the samples are recalibrated.
+	// BreachThreshold is a limit of raw samples, within the `BreachWindowSize`, allowed to
+	// exceed the memory limit. If this threshold is reached, the samples are recalibrated.
 	BreachThreshold int
 
 	// CumulativeSumSlack is also known as the K-Factor (drift tolerance) in cumulative sum control
@@ -43,7 +42,7 @@ type MemoryLimitConfig struct {
 	CumulativeSumThreshold float64
 }
 
-// DfaultMemoryLimitConfig creates the recommendded values to use for detecting soft memory limit updates
+// DefaultMemoryLimitConfig creates the recommended values to use for detecting soft memory limit updates
 func DefaultMemoryLimitConfig() *MemoryLimitConfig {
 	return &MemoryLimitConfig{
 		LimitRatio:             0.90,
@@ -59,7 +58,7 @@ func DefaultMemoryLimitConfig() *MemoryLimitConfig {
 
 // MemoryLimitStats is a run-time memory statistics collector that maintains a soft memory limit
 // value based on configurable input parameters. It is designed to adjust the soft limit based on
-// meaningful changes to overall heap allocation, leveraging expontential moving average windows,
+// meaningful changes to overall heap allocation, leveraging exponential moving average windows,
 // confidence interval gates, breach detection, and cumulative sum control chart to detect meaningful
 // deviations from the mean.
 type MemoryLimitStats struct {
@@ -118,7 +117,7 @@ func (mls *MemoryLimitStats) Record(heapBytes uint64) (softLimit uint64, updated
 	mls.raw.Push(sample)
 	mls.breach.Push(sample)
 
-	// Check that the minimum number of sammples exist in the window before
+	// Check that the minimum number of samples exist in the window before
 	// calculating the memory limit
 	totalSamples := mls.window.Len()
 	if totalSamples < mls.config.MinSamples {

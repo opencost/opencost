@@ -40,7 +40,7 @@ func (tv *trackedValue) IsSet() bool {
 	return tv.current != nil
 }
 
-// Set updates the current value if it is different. If the vaue is updated, `true` is returned.
+// Set updates the current value if it is different. If the value is updated, `true` is returned.
 // Otherwise, `false` is returned.
 func (tv *trackedValue) Set(value float64) bool {
 	if tv.current == nil {
@@ -179,6 +179,7 @@ func (ema *exponentialMovingAverage) Reset() {
 // stddev, and percentiles of the contained data.
 type rollingWindow struct {
 	capacity int
+	length   int
 	window   []float64
 	index    int
 }
@@ -201,34 +202,22 @@ func newRollingWindow(capacity int) *rollingWindow {
 func (rw *rollingWindow) Push(value float64) {
 	// advance index, handle overflow
 	index := rw.index % rw.capacity
-	if index < 0 {
-		index = -index
-	}
-
 	rw.window[index] = value
-	rw.index++
 
-	// if we have wrapped all the way back around to 0, just advance the index
-	// by capacity to ensure our Len() algorithm continues to function correctly
-	if rw.index == 0 {
-		rw.index = rw.capacity
-	}
+	rw.index = (rw.index + 1) % rw.capacity
+	rw.length = min(rw.length+1, rw.capacity)
 }
 
 // Clears the rolling window values
 func (rw *rollingWindow) Clear() {
 	rw.window = make([]float64, rw.capacity)
 	rw.index = 0
+	rw.length = 0
 }
 
 // The length of the rolling window. Will never be greater that the `Cap()`.
 func (rw *rollingWindow) Len() int {
-	index := rw.index
-	if index < 0 {
-		index = -index
-	}
-
-	return min(index, rw.capacity)
+	return rw.length
 }
 
 // Cap returns the maximum capacity of the rolling window.

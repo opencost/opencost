@@ -76,7 +76,7 @@ func readInt(r *bytes.Buffer, data *int) error {
 		return err
 	}
 
-	*data = int(order.Uint32(bs))
+	*data = int(int32(order.Uint32(bs)))
 	return nil
 }
 
@@ -246,7 +246,7 @@ func readBuffInt(r *bufio.Reader, data *int) error {
 		return err
 	}
 
-	*data = int(order.Uint32(bs))
+	*data = int(int32(order.Uint32(bs)))
 	return nil
 }
 
@@ -442,7 +442,7 @@ func writeInt(w *bytes.Buffer, data int) error {
 	var b [4]byte
 	bs := b[:]
 
-	binary.LittleEndian.PutUint32(bs, uint32(data))
+	binary.LittleEndian.PutUint32(bs, uint32(int32(data)))
 	_, err := w.Write(bs)
 	return err
 }

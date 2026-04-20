@@ -1,11 +1,10 @@
 package memory_test
 
 import (
-	"fmt"
 	"math/rand"
 	"testing"
 
-	"github.com/mbolt35/bingen-file-loader/core/util/monitor/memory"
+	"github.com/opencost/opencost/core/pkg/util/monitor/memory"
 )
 
 func TestObservationMode(t *testing.T) {
@@ -71,14 +70,10 @@ func TestElasticRecalibrationOnGrowth(t *testing.T) {
 		t.Fatal("expected a non-zero limit after phase 1")
 	}
 
-	fmt.Printf("Before Breach...\n")
-
 	// Phase 2: spike to 300 MiB repeatedly — should trigger recalibration.
 	for i := 0; i < config.BreachThreshold+1; i++ {
 		m.Record(500 * 1024 * 1024)
 	}
-
-	fmt.Printf("Crossed Threshold here\n")
 
 	// Phase 3: feed enough samples at new level to re-commit.
 	var recalibrated bool

@@ -61,6 +61,7 @@ type lruStringBank struct {
 func NewLruStringBank(capacity int, evictionInterval time.Duration) StringBank {
 	stop := make(chan struct{})
 	bank := &lruStringBank{
+		stop:     stop,
 		m:        make(map[string]*lruEntry),
 		capacity: capacity,
 	}

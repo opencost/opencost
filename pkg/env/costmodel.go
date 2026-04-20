@@ -443,7 +443,7 @@ func GetOVHMonthlyNodepools() []string {
 // IsMCPServerEnabled returns the environment variable value for MCPServerEnabledEnvVar which represents
 // whether or not the MCP server is enabled.
 func IsMCPServerEnabled() bool {
-	return env.GetBool(MCPServerEnabledEnvVar, true)
+	return env.GetBool(MCPServerEnabledEnvVar, false)
 }
 
 // GetMCPHTTPPort returns the environment variable value for MCPHTTPPortEnvVar which represents

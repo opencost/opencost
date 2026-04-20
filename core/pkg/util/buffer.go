@@ -157,7 +157,9 @@ func (b *Buffer) WriteBytes(bytes []byte) {
 	b.bw.Write(bytes)
 }
 
-// Bytes returns the unread portion of the underlying buffer storage.
+// Bytes returns the unread portion of the underlying buffer storage. If the buffer was
+// created with an `io.Reader`, then the remaining unread bytes are drained into a byte
+// slice and returned.
 func (b *Buffer) Bytes() []byte {
 	if b.bw != nil {
 		return b.bw.Bytes()
@@ -362,54 +364,49 @@ func (b *Buffer) ReadString() string {
 	return bytesToString(bytes)
 }
 
-// ReadStringBytes reads a uint16 length prefix and that many bytes as a new slice.
-// Unlike ReadString, this does not route through the global string bank.
-func (b *Buffer) ReadStringBytes() ([]byte, error) {
-	var l uint16
-	if b.bw != nil {
-		if err := readUint16(b.bw, &l); err != nil {
-			return nil, err
-		}
-		if l == 0 {
-			return []byte{}, nil
-		}
-		out := make([]byte, int(l))
-		if _, err := readFull(b.bw, out); err != nil {
-			return nil, err
-		}
-		return out, nil
-	}
-	if b.b == nil {
-		return nil, fmt.Errorf("buffer: ReadStringBytes on invalid buffer")
-	}
-	if err := readBuffUint16(b.b, &l); err != nil {
-		return nil, err
-	}
-	if l == 0 {
-		return []byte{}, nil
-	}
-	out := make([]byte, int(l))
-	if _, err := readBuffFull(b.b, out); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // ReadBytes reads the specified length from the buffer and returns the byte slice.
 func (b *Buffer) ReadBytes(length int) []byte {
 	if b.bw != nil {
 		return b.bw.Next(length)
 	}
 
-	bytes := bytePool.Get(length)
-	defer bytePool.Put(bytes)
-
+	bytes := make([]byte, length)
 	_, err := readBuffFull(b.b, bytes)
 	if err != nil {
 		return bytes
 	}
 
 	return bytes
+}
+
+// bytesAsString converts a []byte into a string in place. Note that you should use this helper
+// when the []byte slice contains _only_ the string data and isn't part of a larger underlying array.
+// For example, a case where you should *not* use this helper:
+//
+//	func parseString(buffer *bytes.Buffer, length int) string {
+//	  bytes := buffer.Next(length)   // this extracts a sub-slice of the underlying byte array from pos->pos+length
+//
+//	  return bytesAsString(bytes)
+//	}
+//
+// Now both the []byte AND the value string are linked and neither can be GC'd until the other one is GC'd.
+// This is especially problematic if you drop the references to the byte array, as you're effectively requiring
+// 1024 bytes for an 11-byte string.
+//
+// An example where it _is_ ok, and recommended to drop the underlying []byte reference is the following:
+//
+//	func parseString(reader io.Reader, length int) string {
+//	  bytes := make([]byte, length)
+//	  io.ReadFull(reader, bytes)
+//
+//	  return bytesAsString(bytes)
+//	}
+//
+// In this case, we've create a byte array just big enough for the string, we extract the string data from the reader
+// and then cast the byte array in place to the string, and finally drop the byte array reference. This omits an additional
+// allocation if you were to use string(bytes)
+func bytesAsString(b []byte) string {
+	return unsafe.String(unsafe.SliceData(b), len(b))
 }
 
 // Conversion from byte slice to string
@@ -423,7 +420,7 @@ func bytesToString(b []byte) string {
 	// cached string. If it does _not_ exist, then we use the passed func() string to allocate a new
 	// string and cache it. This will prevent us from allocating throw-away strings just to
 	// check our cache.
-	pinned := unsafe.String(unsafe.SliceData(b), len(b))
+	pinned := bytesAsString(b)
 
 	return stringutil.BankFunc(pinned, func() string {
 		return string(b)
