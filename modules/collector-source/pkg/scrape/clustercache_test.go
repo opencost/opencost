@@ -236,17 +236,17 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 			// reflect the final state: {uid, namespace_uid, deployment, namespace}.
 			expected: []metric.Update{
 				{
-					Name: metric.DeploymentLabels,
+					Name: metric.DeploymentInfo,
 					Labels: map[string]string{
 						source.UIDLabel:          "uuid1",
-						source.NamespaceUIDLabel: "",
+						source.NamespaceUIDLabel: "ns-uuid1",
 						source.DeploymentLabel:   "deployment1",
 						source.NamespaceLabel:    "namespace1",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
 						source.UIDLabel:          "uuid1",
-						source.NamespaceUIDLabel: "",
+						source.NamespaceUIDLabel: "ns-uuid1",
 						source.DeploymentLabel:   "deployment1",
 						source.NamespaceLabel:    "namespace1",
 					},
@@ -255,7 +255,7 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 					Name: metric.DeploymentLabels,
 					Labels: map[string]string{
 						source.UIDLabel:          "uuid1",
-						source.NamespaceUIDLabel: "",
+						source.NamespaceUIDLabel: "ns-uuid1",
 						source.DeploymentLabel:   "deployment1",
 						source.NamespaceLabel:    "namespace1",
 					},
@@ -266,7 +266,7 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 					Name: metric.DeploymentAnnotations,
 					Labels: map[string]string{
 						source.UIDLabel:          "uuid1",
-						source.NamespaceUIDLabel: "",
+						source.NamespaceUIDLabel: "ns-uuid1",
 						source.DeploymentLabel:   "deployment1",
 						source.NamespaceLabel:    "namespace1",
 					},
@@ -277,7 +277,7 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 					Name: metric.DeploymentMatchLabels,
 					Labels: map[string]string{
 						source.UIDLabel:          "uuid1",
-						source.NamespaceUIDLabel: "",
+						source.NamespaceUIDLabel: "ns-uuid1",
 						source.DeploymentLabel:   "deployment1",
 						source.NamespaceLabel:    "namespace1",
 					},
@@ -294,6 +294,7 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
 			nsIndex := newSyncMap[string, types.UID](0)
+			nsIndex.Set("namespace1", "ns-uuid1")
 			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
 				res := ks.scrapeDeployments(s.Deployments, nsIndex)
