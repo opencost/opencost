@@ -1,10 +1,13 @@
 package azure
 
 import (
+	"context"
 	"fmt"
+	"os"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud"
 )
@@ -61,6 +64,34 @@ func (dac *DefaultAzureCredentialHolder) Sanitize() cloud.Config {
 }
 
 func (dac *DefaultAzureCredentialHolder) GetCredential() (azcore.TokenCredential, error) {
+	return newAzureCredentialWithWorkloadIdentity()
+}
+
+// newAzureCredentialWithWorkloadIdentity creates an Azure credential with Workload Identity prioritization
+func newAzureCredentialWithWorkloadIdentity() (azcore.TokenCredential, error) {
+	// Priority 1: Azure Workload Identity
+	if federatedTokenFile := os.Getenv("AZURE_FEDERATED_TOKEN_FILE"); federatedTokenFile != "" {
+		clientID := os.Getenv("AZURE_CLIENT_ID")
+		tenantID := os.Getenv("AZURE_TENANT_ID")
+		
+		if clientID != "" && tenantID != "" {
+			log.Infof("Azure: Using Workload Identity authentication")
+			
+			return azidentity.NewClientAssertionCredential(tenantID, clientID, 
+				func(ctx context.Context) (string, error) {
+					tokenBytes, err := os.ReadFile(federatedTokenFile)
+					if err != nil {
+						return "", fmt.Errorf("failed to read federated token file: %w", err)
+					}
+					return string(tokenBytes), nil
+				}, nil)
+		} else {
+			log.Warnf("Azure: AZURE_FEDERATED_TOKEN_FILE set but missing AZURE_CLIENT_ID or AZURE_TENANT_ID")
+		}
+	}
+	
+	// Priority 2: Fallback to DefaultAzureCredential
+	log.Infof("Azure: Using DefaultAzureCredential authentication")
 	return azidentity.NewDefaultAzureCredential(nil)
 }
 
