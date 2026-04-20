@@ -21,4 +21,3 @@ func TestPrefixedBucketStorage_ReadStream(t *testing.T) {
 
 	TestStorageReadStream(t, store)
 }
-
