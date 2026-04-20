@@ -1136,13 +1136,13 @@ func TestAWS_createNode_spotHistoryFallback(t *testing.T) {
 		priceKey := sku + "." + offerTermCode + "." + HourlyRateCode
 		return &AWSProductTerms{
 			Sku: sku,
-			OnDemand: &AWSOfferTerm{
+			OnDemand: &PriceListEC2Term{
 				Sku:           sku,
 				OfferTermCode: offerTermCode,
-				PriceDimensions: map[string]*AWSRateCode{
+				PriceDimensions: map[string]*PriceListEC2PriceDimension{
 					priceKey: {
 						Unit:         "Hrs",
-						PricePerUnit: AWSCurrencyCode{USD: cost},
+						PricePerUnit: PriceListEC2PricePerUnit{USD: cost},
 					},
 				},
 			},
@@ -1281,10 +1281,10 @@ func TestAWS_createNode_spotHistoryFallback(t *testing.T) {
 		// Terms without valid pricing dimensions
 		terms := &AWSProductTerms{
 			Sku: "SKU123",
-			OnDemand: &AWSOfferTerm{
+			OnDemand: &PriceListEC2Term{
 				Sku:             "SKU123",
 				OfferTermCode:   "JRTCKXETXF",
-				PriceDimensions: map[string]*AWSRateCode{},
+				PriceDimensions: map[string]*PriceListEC2PriceDimension{},
 			},
 			VCpu:   "4",
 			Memory: "16",
