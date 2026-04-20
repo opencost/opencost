@@ -663,6 +663,12 @@ type s3ChunkReader struct {
 	fetch     func(off, length int64) ([]byte, error)
 }
 
+
+// s3 chunk reader has following features over minio: 
+// It enforces fixed-size ranged reads (defaultS3ReadChunkSize) instead of one long-lived stream.
+// It keeps error mapping consistent (DoesNotExistError, range validation, SSE options via getRange()).
+// It gives predictable io.Reader semantics around EOF/partial reads while hiding S3 range mechanics.
+//
 func newS3ChunkReader(size, chunkSize int64, fetch func(off, length int64) ([]byte, error)) io.ReadCloser {
 	if chunkSize <= 0 {
 		chunkSize = defaultS3ReadChunkSize
