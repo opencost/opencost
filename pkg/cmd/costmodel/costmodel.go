@@ -123,6 +123,10 @@ func Execute(conf *Config) error {
 	case <-ctx.Done():
 		log.Infof("Shutdown signal received, starting graceful shutdown...")
 
+		if a.KubeModelPipeline != nil {
+			a.KubeModelPipeline.Stop()
+		}
+
 		if customCostPipelineService != nil {
 			customCostPipelineService.Stop()
 		}

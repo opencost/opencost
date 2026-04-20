@@ -171,10 +171,12 @@ func (pec *PipelineExportControllers) Start(interval time.Duration) {
 	pec.AllocationExportController.Start(interval)
 	pec.AssetExportController.Start(interval)
 	pec.NetworkInsightExportController.Start(interval)
+	pec.KubeModelExportController.Start(interval)
 }
 
 func (pec *PipelineExportControllers) Stop() {
 	pec.AllocationExportController.Stop()
 	pec.AssetExportController.Stop()
 	pec.NetworkInsightExportController.Stop()
+	pec.KubeModelExportController.Stop()
 }

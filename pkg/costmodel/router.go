@@ -41,6 +41,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/models"
 	clusterc "github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
+	km "github.com/opencost/opencost/pkg/kubemodel"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/patrickmn/go-cache"
@@ -73,6 +74,7 @@ type Accesses struct {
 	ClusterInfoProvider clusters.ClusterInfoProvider
 	Model               *CostModel
 	MetricsEmitter      *CostModelMetricsEmitter
+	KubeModelPipeline   *km.Pipeline
 	// SettingsCache stores current state of app settings
 	SettingsCache *cache.Cache
 	// settingsSubscribers tracks channels through which changes to different
@@ -445,6 +447,8 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	// Create ConfigFileManager for synchronization of shared configuration
 	confManager := config.NewConfigFileManager(nil)
 
+	store := storage.GetConfiguredStorage()
+
 	cloudProviderKey := env.GetCloudProviderAPIKey()
 	cloudProvider, err := provider.NewProvider(k8sCache, cloudProviderKey, confManager)
 	if err != nil {
@@ -480,7 +484,6 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	}
 	if env.IsCollectorDataSourceEnabled() {
 		fn = func() (source.OpenCostDataSource, error) {
-			store := GetDefaultCollectorStorage()
 			nodeStatConf, err := NewNodeClientConfigFromEnv()
 			if err != nil {
 				return nil, fmt.Errorf("failed to get node client config: %w", err)
@@ -526,6 +529,9 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 
 	costModel := NewCostModel(clusterUID, dataSource, cloudProvider, k8sCache, clusterMap, dataSource.BatchDuration())
 	metricsEmitter := NewCostModelMetricsEmitter(k8sCache, cloudProvider, clusterInfoProvider, costModel)
+
+	kubeModelPipeline, err := km.NewPipeline(store, clusterUID, costModel)
+	kubeModelPipeline.Start()
 
 	a := &Accesses{
 		DataSource:          dataSource,
@@ -574,38 +580,6 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	return a
 }
 
-// GetDefaultStorage retrieves the default shared storage which is required for running an opencost collector.
-func GetDefaultCollectorStorage() storage.Storage {
-	const warningMessage = `Failed to create local collector directory '%s' - %s.
-		Did you mean to enable to collector? For persistent storage, it's recommended to use Prometheus, 
-		or set a storage bucket configuration at %s. 
-
-		%s`
-
-	// Try bucket storage if it exists
-	store, err := storage.TryGetDefaultStorage()
-	if err == nil {
-		return store
-	}
-
-	// Fallback to a local storage bucket
-	dir := env.GetLocalCollectorDirectory()
-	err = os.MkdirAll(dir, os.ModePerm)
-	if err != nil {
-		log.Warnf(
-			warningMessage,
-			dir,
-			err.Error(),
-			sysenv.GetDefaultStorageConfigFilePath(),
-			"Falling back to an in-memory file system for collector, which will lose any persistent storage upon restart.",
-		)
-
-		return storage.NewMemoryStorage()
-	}
-
-	return storage.NewFileStorage(dir)
-}
-
 // InitializeCloudCost Initializes Cloud Cost pipeline and querier and registers endpoints
 func InitializeCloudCost(router *httprouter.Router) *cloudcost.PipelineService {
 	log.Debugf("Cloud Cost config path: %s", env.GetCloudCostConfigPath())
@@ -630,6 +604,12 @@ func InitializeCloudCost(router *httprouter.Router) *cloudcost.PipelineService {
 	router.GET("/cloud/config/delete", adminAuthMiddleware(cloudConfigController.GetDeleteConfigHandler()))
 
 	return cloudCostPipelineService
+}
+
+// InitializeKubeModelPipeline creates and returns a KubeModel Pipeline that exports
+// KubeModelSets at hourly and daily resolutions and prunes files beyond retention.
+func InitializeKubeModelPipeline(store storage.Storage, clusterUID string, cm *CostModel) (*km.Pipeline, error) {
+	return km.NewPipeline(store, clusterUID, cm)
 }
 
 func InitializeCustomCost(router *httprouter.Router) *customcost.PipelineService {
