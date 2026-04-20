@@ -317,6 +317,13 @@ func applyCPUCoresLimits(podMap map[podKey]*pod, resCPUCoresLimits []*source.CPU
 			}
 
 			thisPod.Allocations[container].CPUCoreLimitAverage = res.Data[0].Value
+
+			node := res.Node
+			if node == "" {
+				continue
+			}
+			thisPod.Allocations[container].Properties.Node = node
+			thisPod.Node = node
 		}
 	}
 }
@@ -362,6 +369,13 @@ func applyCPUCoresUsedAvg(podMap map[podKey]*pod, resCPUCoresUsedAvg []*source.C
 				log.Infof("[WARNING] Very large cpu USAGE, dropping outlier")
 				thisPod.Allocations[container].CPUCoreUsageAverage = 0.0
 			}
+
+			node := res.Node
+			if node == "" {
+				continue
+			}
+			thisPod.Allocations[container].Properties.Node = node
+			thisPod.Node = node
 		}
 	}
 }
@@ -556,6 +570,13 @@ func applyRAMBytesLimits(podMap map[podKey]*pod, resRAMBytesLimits []*source.RAM
 			}
 
 			pod.Allocations[container].RAMBytesLimitAverage = res.Data[0].Value
+
+			node := res.Node
+			if node == "" {
+				continue
+			}
+			pod.Allocations[container].Properties.Node = node
+			pod.Node = node
 		}
 	}
 }
@@ -597,6 +618,13 @@ func applyRAMBytesUsedAvg(podMap map[podKey]*pod, resRAMBytesUsedAvg []*source.R
 			}
 
 			thisPod.Allocations[container].RAMBytesUsageAverage = res.Data[0].Value
+
+			node := res.Node
+			if node == "" {
+				continue
+			}
+			thisPod.Allocations[container].Properties.Node = node
+			thisPod.Node = node
 		}
 	}
 }
