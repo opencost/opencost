@@ -41,11 +41,11 @@ func NewMockKubeModelSet(start, end time.Time) *KubeModelSet {
 		Spec: &ResourceQuotaSpec{
 			Hard: &ResourceQuotaSpecHard{
 				Requests: ResourceQuantities{
-					ResourceCPU: {Resource: ResourceCPU, Unit: UnitMillicore, Values: Stats{StatAvg: 4000, StatMax: 4000}},
+					ResourceCPU:    {Resource: ResourceCPU, Unit: UnitMillicore, Values: Stats{StatAvg: 4000, StatMax: 4000}},
 					ResourceMemory: {Resource: ResourceMemory, Unit: UnitByte, Values: Stats{StatAvg: 8e9, StatMax: 8e9}},
 				},
 				Limits: ResourceQuantities{
-					ResourceCPU: {Resource: ResourceCPU, Unit: UnitMillicore, Values: Stats{StatAvg: 8000, StatMax: 8000}},
+					ResourceCPU:    {Resource: ResourceCPU, Unit: UnitMillicore, Values: Stats{StatAvg: 8000, StatMax: 8000}},
 					ResourceMemory: {Resource: ResourceMemory, Unit: UnitByte, Values: Stats{StatAvg: 16e9, StatMax: 16e9}},
 				},
 			},
@@ -53,7 +53,7 @@ func NewMockKubeModelSet(start, end time.Time) *KubeModelSet {
 		Status: &ResourceQuotaStatus{
 			Used: &ResourceQuotaStatusUsed{
 				Requests: ResourceQuantities{
-					ResourceCPU: {Resource: ResourceCPU, Unit: UnitMillicore, Values: Stats{StatAvg: 500, StatMax: 800}},
+					ResourceCPU:    {Resource: ResourceCPU, Unit: UnitMillicore, Values: Stats{StatAvg: 500, StatMax: 800}},
 					ResourceMemory: {Resource: ResourceMemory, Unit: UnitByte, Values: Stats{StatAvg: 1e9, StatMax: 2e9}},
 				},
 			},

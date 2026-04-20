@@ -270,7 +270,7 @@ func (c KubeModelCollector) scrapePods(
 				}
 				pvcUID := pvcIndex[pvcIndexKey(pod.Namespace, vol.PersistentVolumeClaim.ClaimName)]
 				out = append(out, newInfoMetric("pod_pvc_volume", map[string]string{
-					"uid":                      string(pod.UID),
+					"uid":                       string(pod.UID),
 					"persistentvolumeclaim_uid": string(pvcUID),
 					"pod_volume_name":           vol.Name,
 				}))

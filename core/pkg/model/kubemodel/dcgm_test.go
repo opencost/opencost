@@ -13,8 +13,8 @@ func TestValidateDCGMDevice(t *testing.T) {
 	window := Window{Start: start, End: end}
 
 	tests := []struct {
-		name   string
-		device *DCGMDevice
+		name    string
+		device  *DCGMDevice
 		wantErr string
 	}{
 		{
