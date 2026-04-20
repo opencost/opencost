@@ -129,7 +129,7 @@ func (tc *TextCompiler) Compile(filter ast.FilterNode) (string, error) {
 
 	ast.PreOrderTraversal(filter, handleLeaf)
 
-	// if we discover a contraction op, we reject all inputs
+	// if we discover a contradiction op, we reject all inputs
 	// this isn't able to be expressed via a filter string
 	if isContradictionOp {
 		return "[all-fail]", nil
