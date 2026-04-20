@@ -31,7 +31,9 @@ func (ci *CostIntegration) GetCloudCost(start time.Time, end time.Time) (*openco
 	}
 
 	fromStr := start.Format("2006-01-02")
-	toStr := end.Format("2006-01-02")
+	// STACKIT Cost API uses inclusive end dates; OpenCost windows are end-exclusive,
+	// so subtract one day to align.
+	toStr := end.AddDate(0, 0, -1).Format("2006-01-02")
 
 	resp, err := client.DefaultAPI.
 		GetCostsForProject(context.Background(), ci.CustomerAccountID, ci.ProjectID).
@@ -63,6 +65,7 @@ func (ci *CostIntegration) GetCloudCost(start time.Time, end time.Time) (*openco
 		serviceName := svc.GetServiceName()
 		category := selectSTACKITCategory(serviceName)
 		sku := svc.GetSku()
+		regionID := extractRegionFromServiceName(serviceName)
 
 		reportData := svc.GetReportData()
 		if len(reportData) == 0 {
@@ -77,18 +80,20 @@ func (ci *CostIntegration) GetCloudCost(start time.Time, end time.Time) (*openco
 				Provider:        opencost.STACKITProvider,
 				AccountID:       ci.CustomerAccountID,
 				InvoiceEntityID: ci.CustomerAccountID,
-				RegionID:        "eu01",
+				RegionID:        regionID,
 				Service:         serviceName,
 				Category:        category,
 				ProviderID:      sku,
 				Labels:          opencost.CloudCostLabels{},
 			}
 
+			listCost := totalCharge + totalDiscount
+
 			cc := &opencost.CloudCost{
 				Properties: properties,
 				Window:     opencost.NewWindow(&start, &end),
 				ListCost: opencost.CostMetric{
-					Cost: totalCharge + totalDiscount,
+					Cost: listCost,
 				},
 				NetCost: opencost.CostMetric{
 					Cost: netCost,
@@ -97,7 +102,7 @@ func (ci *CostIntegration) GetCloudCost(start time.Time, end time.Time) (*openco
 					Cost: netCost,
 				},
 				AmortizedCost: opencost.CostMetric{
-					Cost: netCost,
+					Cost: listCost,
 				},
 				InvoicedCost: opencost.CostMetric{
 					Cost: netCost,
@@ -121,18 +126,20 @@ func (ci *CostIntegration) GetCloudCost(start time.Time, end time.Time) (*openco
 				Provider:        opencost.STACKITProvider,
 				AccountID:       ci.CustomerAccountID,
 				InvoiceEntityID: ci.CustomerAccountID,
-				RegionID:        "eu01",
+				RegionID:        regionID,
 				Service:         serviceName,
 				Category:        category,
 				ProviderID:      sku,
 				Labels:          opencost.CloudCostLabels{},
 			}
 
+			listCost := charge + discount
+
 			cc := &opencost.CloudCost{
 				Properties: properties,
 				Window:     opencost.NewWindow(&periodStart, &periodEnd),
 				ListCost: opencost.CostMetric{
-					Cost: charge + discount,
+					Cost: listCost,
 				},
 				NetCost: opencost.CostMetric{
 					Cost: charge,
@@ -141,7 +148,7 @@ func (ci *CostIntegration) GetCloudCost(start time.Time, end time.Time) (*openco
 					Cost: charge,
 				},
 				AmortizedCost: opencost.CostMetric{
-					Cost: charge,
+					Cost: listCost,
 				},
 				InvoicedCost: opencost.CostMetric{
 					Cost: charge,
@@ -191,6 +198,19 @@ func (ci *CostIntegration) GetStatus() cloud.ConnectionStatus {
 func (ci *CostIntegration) RefreshStatus() cloud.ConnectionStatus {
 	log.Warn("status refresh is not supported for the STACKIT provider")
 	return ci.ConnectionStatus
+}
+
+// extractRegionFromServiceName extracts the region suffix from a STACKIT Cost API
+// service name (e.g. "Tiny Server-t1.2-EU01" -> "eu01").
+func extractRegionFromServiceName(serviceName string) string {
+	idx := strings.LastIndex(serviceName, "-")
+	if idx >= 0 {
+		suffix := strings.ToLower(serviceName[idx+1:])
+		if strings.HasPrefix(suffix, "eu") || strings.HasPrefix(suffix, "us") {
+			return suffix
+		}
+	}
+	return "eu01"
 }
 
 func selectSTACKITCategory(serviceName string) string {

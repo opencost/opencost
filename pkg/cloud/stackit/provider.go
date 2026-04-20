@@ -38,6 +38,8 @@ type STACKIT struct {
 }
 
 func (s *STACKIT) PricingSourceSummary() interface{} {
+	s.DownloadPricingDataLock.RLock()
+	defer s.DownloadPricingDataLock.RUnlock()
 	return s.pimFlavors
 }
 
@@ -60,6 +62,8 @@ func (s *STACKIT) DownloadPricingData() error {
 }
 
 func (s *STACKIT) AllNodePricing() (interface{}, error) {
+	s.DownloadPricingDataLock.RLock()
+	defer s.DownloadPricingDataLock.RUnlock()
 	return s.pimFlavors, nil
 }
 
@@ -108,7 +112,8 @@ func (s *STACKIT) NodePricing(key models.Key) (*models.Node, models.PricingMetad
 	return &models.Node{
 		Cost:         pf.HourlyCost,
 		VCPU:         fmt.Sprintf("%d", pf.VCPU),
-		RAM:          fmt.Sprintf("%d", ramBytes),
+		RAM:          fmt.Sprintf("%g", pf.RAMGB),
+		RAMBytes:     fmt.Sprintf("%d", ramBytes),
 		GPU:          fmt.Sprintf("%d", pf.GPUCount),
 		GPUName:      pf.GPUType,
 		InstanceType: instanceType,
@@ -184,7 +189,7 @@ func (s *STACKIT) GetPVKey(pv *clustercache.PersistentVolume, parameters map[str
 	zone := defaultRegion
 	if pv.Spec.CSI != nil {
 		parts := strings.Split(pv.Spec.CSI.VolumeHandle, "/")
-		if len(parts) > 0 {
+		if len(parts) >= 2 && parts[0] != "" {
 			zone = parts[0]
 		}
 	}
@@ -198,11 +203,22 @@ func (s *STACKIT) GetPVKey(pv *clustercache.PersistentVolume, parameters map[str
 }
 
 func (s *STACKIT) GpuPricing(nodeLabels map[string]string) (string, error) {
+	s.DownloadPricingDataLock.RLock()
+	defer s.DownloadPricingDataLock.RUnlock()
+
 	instanceType, _ := util.GetInstanceType(nodeLabels)
-	if pf, ok := s.pimFlavors[instanceType]; ok && pf.GPUCount > 0 {
-		return pf.HourlyCost, nil
+	pf, ok := s.pimFlavors[instanceType]
+	if !ok || pf.GPUCount == 0 || pf.HourlyCost == "" {
+		return "", nil
 	}
-	return "", nil
+
+	hourlyCost, err := strconv.ParseFloat(pf.HourlyCost, 64)
+	if err != nil {
+		return "", fmt.Errorf("parsing STACKIT GPU hourly cost %q for %q: %w", pf.HourlyCost, instanceType, err)
+	}
+
+	perGPUCost := hourlyCost / float64(pf.GPUCount)
+	return strconv.FormatFloat(perGPUCost, 'f', -1, 64), nil
 }
 
 func (s *STACKIT) PVPricing(pvk models.PVKey) (*models.PV, error) {
@@ -294,9 +310,7 @@ func (s *STACKIT) UpdateConfigFromConfigMap(a map[string]string) (*models.Custom
 }
 
 func (s *STACKIT) UpdateConfig(r io.Reader, updateType string) (*models.CustomPricing, error) {
-	defer s.DownloadPricingData()
-
-	return s.Config.Update(func(c *models.CustomPricing) error {
+	cp, err := s.Config.Update(func(c *models.CustomPricing) error {
 		a := make(map[string]interface{})
 		err := json.NewDecoder(r).Decode(&a)
 		if err != nil {
@@ -324,6 +338,15 @@ func (s *STACKIT) UpdateConfig(r io.Reader, updateType string) (*models.CustomPr
 
 		return nil
 	})
+	if err != nil {
+		return cp, err
+	}
+
+	if refreshErr := s.DownloadPricingData(); refreshErr != nil {
+		log.Warnf("STACKIT: failed to refresh pricing after config update: %v", refreshErr)
+	}
+
+	return cp, nil
 }
 
 func (s *STACKIT) GetConfig() (*models.CustomPricing, error) {
@@ -347,7 +370,7 @@ func (s *STACKIT) GetManagementPlatform() (string, error) {
 	nodes := s.Clientset.GetAllNodes()
 	if len(nodes) > 0 {
 		n := nodes[0]
-		if _, ok := n.Labels["node.kubernetes.io/instance-type"]; ok {
+		if _, ok := n.Labels["node.stackit.cloud/ske"]; ok {
 			return "ske", nil
 		}
 	}
@@ -355,6 +378,8 @@ func (s *STACKIT) GetManagementPlatform() (string, error) {
 }
 
 func (s *STACKIT) PricingSourceStatus() map[string]*models.PricingSource {
+	s.DownloadPricingDataLock.RLock()
+	defer s.DownloadPricingDataLock.RUnlock()
 	return map[string]*models.PricingSource{
 		StackitPIMPricingSource: {
 			Name:      StackitPIMPricingSource,

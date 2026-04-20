@@ -40,11 +40,14 @@ func (c *CostConfiguration) Equals(config cloud.Config) bool {
 }
 
 func (c *CostConfiguration) Sanitize() cloud.Config {
-	return &CostConfiguration{
-		CustomerAccountID:     c.CustomerAccountID,
-		ProjectID:             c.ProjectID,
-		ServiceAccountKeyPath: cloud.Redacted,
+	sanitized := &CostConfiguration{
+		CustomerAccountID: c.CustomerAccountID,
+		ProjectID:         c.ProjectID,
 	}
+	if c.ServiceAccountKeyPath != "" {
+		sanitized.ServiceAccountKeyPath = cloud.Redacted
+	}
+	return sanitized
 }
 
 func (c *CostConfiguration) Key() string {

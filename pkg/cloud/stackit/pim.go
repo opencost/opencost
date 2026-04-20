@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -95,9 +96,9 @@ func fetchAllPIMSKUs(req pimSearchRequest) ([]pimSKU, error) {
 	cursor := ""
 
 	for page := 0; page < pimMaxPages; page++ {
-		url := fmt.Sprintf("%s/v2/skus/search?pageSize=%d", pimBaseURL, pimMaxPage)
+		reqURL := fmt.Sprintf("%s/v2/skus/search?pageSize=%d", pimBaseURL, pimMaxPage)
 		if cursor != "" {
-			url += "&cursor=" + cursor
+			reqURL += "&cursor=" + url.QueryEscape(cursor)
 		}
 
 		body, err := json.Marshal(req)
@@ -105,7 +106,7 @@ func fetchAllPIMSKUs(req pimSearchRequest) ([]pimSKU, error) {
 			return nil, fmt.Errorf("marshaling PIM search request: %w", err)
 		}
 
-		httpReq, err := http.NewRequest("POST", url, bytes.NewReader(body))
+		httpReq, err := http.NewRequest("POST", reqURL, bytes.NewReader(body))
 		if err != nil {
 			return nil, fmt.Errorf("creating PIM request: %w", err)
 		}
@@ -137,6 +138,10 @@ func fetchAllPIMSKUs(req pimSearchRequest) ([]pimSKU, error) {
 			break
 		}
 		cursor = searchResp.Meta.NextCursor
+	}
+
+	if cursor != "" {
+		log.Warnf("STACKIT PIM: reached max pages (%d) with cursor still present, results may be incomplete", pimMaxPages)
 	}
 
 	return allSKUs, nil
@@ -182,8 +187,10 @@ func parsePIMVMFlavors(skus []pimSKU) map[string]*pimFlavorPricing {
 		gpuCount := 0
 		gpuType := ""
 		if strings.HasPrefix(flavor, "n1.") || strings.HasPrefix(flavor, "n2.") || strings.HasPrefix(flavor, "n3.") {
-			gpuType = gpuTypeFromFlavor(flavor)
 			gpuCount = gpuCountFromFlavor(flavor)
+			if gpuCount > 0 {
+				gpuType = gpuTypeFromFlavor(flavor)
+			}
 		}
 
 		flavors[flavor] = &pimFlavorPricing{

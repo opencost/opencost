@@ -223,6 +223,8 @@ func ParseProvider(str string) string {
 		return DigitalOceanProvider
 	case "ovh", "ovhcloud", "ovh-mks":
 		return OVHProvider
+	case "stackit", "ske":
+		return STACKITProvider
 	default:
 		return NilProvider
 	}
