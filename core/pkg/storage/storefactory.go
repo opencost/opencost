@@ -33,7 +33,7 @@ func GetConfiguredStorage() Storage {
 	}
 
 	// Fallback to a local storage bucket
-	dir := env.GetDefaultStorageConfigFilePath()
+	dir := env.GetConfigPath()
 	err = os.MkdirAll(dir, os.ModePerm)
 	if err != nil {
 		log.Warnf(
