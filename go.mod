@@ -7,7 +7,7 @@ replace (
 	github.com/opencost/opencost/modules/prometheus-source => ./modules/prometheus-source
 )
 
-go 1.25.5
+go 1.26.1
 
 require (
 	cloud.google.com/go/bigquery v1.74.0
