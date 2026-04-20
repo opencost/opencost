@@ -3,6 +3,7 @@ package source
 import (
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util"
 )
 
@@ -405,12 +406,18 @@ func DecodeNodeCPUCoresCapacityResult(result *QueryResult) *NodeCPUCoresCapacity
 	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	node, _ := result.GetNode()
+	var value float64
+	if len(result.Values) > 0 {
+		value = result.Values[0].Value
+	} else {
+		log.Warnf("Error decoding node CPU cores capacity result for node '%s': empty value returned", uid)
+	}
 
 	return &NodeCPUCoresCapacityResult{
 		UID:      uid,
 		Cluster:  cluster,
 		Node:     node,
-		CPUCores: result.Values[0].Value,
+		CPUCores: value,
 	}
 }
 
@@ -431,13 +438,18 @@ func DecodeNodeRAMBytesCapacityResult(result *QueryResult) *NodeRAMBytesCapacity
 	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	node, _ := result.GetNode()
-	bytes := result.Values[0].Value
+	var value float64
+	if len(result.Values) > 0 {
+		value = result.Values[0].Value
+	} else {
+		log.Warnf("Error decoding node RAM bytes capacity result for node '%s': empty value returned", uid)
+	}
 
 	return &NodeRAMBytesCapacityResult{
 		UID:      uid,
 		Cluster:  cluster,
 		Node:     node,
-		RAMBytes: bytes,
+		RAMBytes: value,
 	}
 }
 
@@ -460,13 +472,19 @@ func DecodeNodeGPUCountResult(result *QueryResult) *NodeGPUCountResult {
 	cluster, _ := result.GetCluster()
 	node, _ := result.GetNode()
 	providerId, _ := result.GetProviderID()
+	var value float64
+	if len(result.Values) > 0 {
+		value = result.Values[0].Value
+	} else {
+		log.Warnf("Error decoding node GPU count capacity result for node '%s': empty value returned", uid)
+	}
 
 	return &NodeGPUCountResult{
 		UID:        uid,
 		Cluster:    cluster,
 		Node:       node,
 		ProviderID: providerId,
-		GPUCount:   result.Values[0].Value,
+		GPUCount:   value,
 	}
 }
 
@@ -1157,6 +1175,8 @@ func DecodePVBytesResult(result *QueryResult) *PVBytesResult {
 	var value float64
 	if len(result.Values) > 0 {
 		value = result.Values[0].Value
+	} else {
+		log.Warnf("Error decoding PV bytes result for pv '%s': empty value returned", uid)
 	}
 
 	return &PVBytesResult{
@@ -1247,6 +1267,8 @@ func DecodePodNetworkBytesResult(result *QueryResult) *PodNetworkBytesResult {
 	var value float64
 	if len(result.Values) > 0 {
 		value = result.Values[0].Value
+	} else {
+		log.Warnf("Error decoding pod network bytes result for pod '%s': empty value returned", uid)
 	}
 
 	return &PodNetworkBytesResult{
@@ -1958,6 +1980,8 @@ func DecodeResourceResult(result *QueryResult) *ResourceResult {
 	var value float64
 	if len(result.Values) > 0 {
 		value = result.Values[0].Value
+	} else {
+		log.Warnf("Error decoding resource for uid '%s': empty value returned", uid)
 	}
 
 	return &ResourceResult{
@@ -2051,6 +2075,8 @@ func DecodeDCGMDeviceContainerUsageResult(result *QueryResult) *DCGMDeviceContai
 	var value float64
 	if len(result.Values) > 0 {
 		value = result.Values[0].Value
+	} else {
+		log.Warnf("Error decoding DCGM Device Container Udage Result for device '%s': empty value returned", uuid)
 	}
 
 	return &DCGMDeviceContainerUsageResult{

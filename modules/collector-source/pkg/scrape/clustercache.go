@@ -242,11 +242,12 @@ func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.De
 		deploymentInfo := map[string]string{
 			source.UIDLabel:          string(deployment.UID),
 			source.NamespaceUIDLabel: string(nsUID),
+			source.NamespaceLabel:    deployment.Namespace,
 			source.DeploymentLabel:   deployment.Name,
 		}
 
 		scrapeResults = append(scrapeResults, metric.Update{
-			Name:           metric.DeploymentLabels,
+			Name:           metric.DeploymentInfo,
 			Labels:         deploymentInfo,
 			Value:          0,
 			AdditionalInfo: deploymentInfo,
@@ -275,7 +276,6 @@ func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.De
 		})
 
 		// deployment match labels
-		deploymentInfo[source.NamespaceLabel] = deployment.Namespace
 		matchLabelNames, matchLabelValues := promutil.KubeLabelsToLabels(deployment.MatchLabels)
 		deploymentMatchLabels := util.ToMap(matchLabelNames, matchLabelValues)
 
@@ -351,7 +351,7 @@ func (ccs *ClusterCacheScraper) scrapeNamespaces(namespaces []*clustercache.Name
 
 func (ccs *ClusterCacheScraper) GetScrapePods(
 	pods []*clustercache.Pod,
-	nodeIndex,
+	nodeIndex *SyncMap[string, types.UID],
 	namespaceIndex *SyncMap[string, types.UID],
 	pvcIndex *SyncMap[pvcKey, types.UID],
 ) ScrapeFunc {
@@ -362,7 +362,7 @@ func (ccs *ClusterCacheScraper) GetScrapePods(
 
 func (ccs *ClusterCacheScraper) scrapePods(
 	pods []*clustercache.Pod,
-	nodeIndex,
+	nodeIndex *SyncMap[string, types.UID],
 	namespaceIndex *SyncMap[string, types.UID],
 	pvcIndex *SyncMap[pvcKey, types.UID],
 ) []metric.Update {

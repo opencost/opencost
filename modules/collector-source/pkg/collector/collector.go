@@ -16,6 +16,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewPVUsedAverageMetricCollector())
 	memStore.Register(NewPVUsedMaxMetricCollector())
 	memStore.Register(NewPVCInfoMetricCollector())
+	memStore.Register(NewPVCUptimeMetricCollector())
 	memStore.Register(NewPVInfoMetricCollector())
 	memStore.Register(NewPVUptimeMetricCollector())
 	memStore.Register(NewPVActiveMinutesMetricCollector())
@@ -248,6 +249,18 @@ func NewPVCInfoMetricCollector() *metric.MetricCollector {
 		func(labels map[string]string) bool {
 			return labels[source.VolumeNameLabel] != ""
 		},
+	)
+}
+
+func NewPVCUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.PVCUptimeID,
+		metric.KubePersistentVolumeClaimInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
 	)
 }
 
@@ -2692,7 +2705,7 @@ func NewResourceQuotaInfoMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.UIDLabel,
 		},
-		aggregator.Uptime,
+		aggregator.Info,
 		nil,
 	)
 }

@@ -10,7 +10,7 @@ type Container struct {
 	PodUID           string             `json:"podUid"`
 	Name             string             `json:"name"`
 	ResourceRequests ResourceQuantities `json:"resourceRequests"`
-	ResourceLimits   ResourceQuantities `json:"ResourceLimits"`
+	ResourceLimits   ResourceQuantities `json:"resourceLimits"`
 	CPUCoreUsageAvg  float64            `json:"cpuCoreUsageAvg"`
 	CPUCoreUsageMax  float64            `json:"cpuCoreUsageMax"`
 	RAMBytesUsageAvg float64            `json:"ramBytesUsageAvg"`
