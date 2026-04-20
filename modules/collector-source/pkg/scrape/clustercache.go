@@ -227,7 +227,7 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, pvcs []*clu
 	var nodesGpuInfo map[string]*NodeGpuInfo
 
 	// pv allocation and unmounted pvs
-	pvcInfo, _ := getPvcsInfo(pvcs)
+	pvcInfo := getPvcsInfo(pvcs)
 
 	// pod info by uid
 	podInfoByUid := make(map[string]map[string]string)
@@ -757,7 +757,7 @@ type PvcInfo struct {
 	PodsClaimed []string
 }
 
-func getPvcsInfo(pvcs []*clustercache.PersistentVolumeClaim) (map[string]*PvcInfo, error) {
+func getPvcsInfo(pvcs []*clustercache.PersistentVolumeClaim) map[string]*PvcInfo {
 	toReturn := make(map[string]*PvcInfo)
 
 	for _, pvc := range pvcs {
@@ -777,7 +777,7 @@ func getPvcsInfo(pvcs []*clustercache.PersistentVolumeClaim) (map[string]*PvcInf
 		}
 	}
 
-	return toReturn, nil
+	return toReturn
 }
 
 // NodeGpuInfo contains the gpu count and vgpu counts for nodes
