@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -276,6 +278,41 @@ func (c *ClusterStorage) Read(path string) ([]byte, error) {
 	}
 
 	return jsonResp.Data, nil
+}
+
+// ReadStream returns a reader for the specified object path.
+//
+// Note: ClusterStorage does not currently expose a remote streaming endpoint, so this
+// implementation materializes the response via Read and wraps it as an io.ReadCloser.
+func (c *ClusterStorage) ReadStream(path string) (io.ReadCloser, error) {
+	data, err := c.Read(path)
+	if err != nil {
+		return nil, err
+	}
+	return io.NopCloser(bytes.NewReader(data)), nil
+}
+
+// ReadToLocalFile downloads the specified object at path to destPath on the local file system.
+//
+// Note: ClusterStorage does not currently expose a streaming download endpoint, so this implementation
+// loads the content via Read() and then writes it to destPath.
+func (c *ClusterStorage) ReadToLocalFile(path, destPath string) error {
+	log.Debugf("ClusterStorage::ReadToLocalFile::%s(%s) -> %s", strings.ToUpper(c.scheme()), path, destPath)
+
+	data, err := c.Read(path)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
+		return fmt.Errorf("ClusterStorage: ReadToLocalFile: creating destination directory: %w", err)
+	}
+
+	if err := os.WriteFile(destPath, data, 0600); err != nil {
+		return fmt.Errorf("ClusterStorage: ReadToLocalFile: writing destination file: %w", err)
+	}
+
+	return nil
 }
 
 func (c *ClusterStorage) Write(path string, data []byte) error {

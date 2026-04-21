@@ -7,12 +7,16 @@ package storage
 import (
 	"context"
 	"io"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	gcs "cloud.google.com/go/storage"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"gopkg.in/yaml.v2"
@@ -127,8 +131,16 @@ func (gs *GCSStorage) Read(name string) ([]byte, error) {
 	ctx := context.Background()
 	reader, err := gs.bucket.Object(name).NewReader(ctx)
 	if err != nil {
+		// Normalize GCS "object not found" errors to DoesNotExistError for consistency
+		if err == gcs.ErrObjectNotExist {
+			return nil, DoesNotExistError
+		}
+		if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusNotFound {
+			return nil, DoesNotExistError
+		}
 		return nil, err
 	}
+	defer reader.Close()
 
 	data, err := io.ReadAll(reader)
 	if err != nil {
@@ -136,6 +148,64 @@ func (gs *GCSStorage) Read(name string) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// ReadStream returns a streaming reader for the specified object path.
+func (gs *GCSStorage) ReadStream(path string) (io.ReadCloser, error) {
+	path = trimLeading(path)
+	log.Debugf("GCSStorage::ReadStream::HTTPS(%s)", path)
+
+	ctx := context.Background()
+	reader, err := gs.bucket.Object(path).NewReader(ctx)
+	if err != nil {
+		if err == gcs.ErrObjectNotExist {
+			return nil, DoesNotExistError
+		}
+		if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusNotFound {
+			return nil, DoesNotExistError
+		}
+		return nil, err
+	}
+
+	return reader, nil
+}
+
+// ReadToLocalFile streams the specified object at path to destPath on the local file system.
+func (gs *GCSStorage) ReadToLocalFile(path, destPath string) error {
+	path = trimLeading(path)
+	log.Debugf("GCSStorage::ReadToLocalFile::HTTPS(%s) -> %s", path, destPath)
+
+	ctx := context.Background()
+	reader, err := gs.bucket.Object(path).NewReader(ctx)
+	if err != nil {
+		// Normalize GCS "object not found" errors to DoesNotExistError for consistency
+		if err == gcs.ErrObjectNotExist {
+			return DoesNotExistError
+		}
+		if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusNotFound {
+			return DoesNotExistError
+		}
+		return err
+	}
+	defer reader.Close()
+
+	if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
+		return errors.Wrap(err, "creating destination directory")
+	}
+
+	f, err := os.Create(destPath)
+	if err != nil {
+		return errors.Wrapf(err, "creating destination file %s", destPath)
+	}
+	defer f.Close()
+
+	// Use 1 MB buffer for streaming operations
+	buf := make([]byte, 1024*1024)
+	if _, err := io.CopyBuffer(f, reader, buf); err != nil {
+		return errors.Wrapf(err, "streaming %s to %s", path, destPath)
+	}
+
+	return nil
 }
 
 // Write uses the relative path of the storage combined with the provided path
