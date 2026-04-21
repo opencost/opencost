@@ -21,15 +21,15 @@ require (
 	github.com/Azure/go-autorest/autorest/azure/auth v0.5.13
 	github.com/aliyun/alibaba-cloud-sdk-go v1.63.107 // Todo: Upgrade to V2 SDK as V1 is now archived
 	github.com/aws/aws-sdk-go v1.55.8
-	github.com/aws/aws-sdk-go-v2 v1.41.4
+	github.com/aws/aws-sdk-go-v2 v1.41.6
 	github.com/aws/aws-sdk-go-v2/config v1.32.12
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.12
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.22.6
-	github.com/aws/aws-sdk-go-v2/service/athena v1.57.1
+	github.com/aws/aws-sdk-go-v2/service/athena v1.57.5
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.296.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.9
-	github.com/aws/smithy-go v1.24.2
+	github.com/aws/smithy-go v1.25.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/google/martian v2.1.0+incompatible
@@ -147,8 +147,8 @@ require (
 	github.com/apache/arrow/go/v15 v15.0.2 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.7 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.20 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.20 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.20 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.22 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.22 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.6 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.7 // indirect
