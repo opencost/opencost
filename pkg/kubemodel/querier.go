@@ -17,13 +17,13 @@ var supportedResolutions = []time.Duration{time.Hour, timeutil.Day}
 
 // Querier reads KubeModelSets written by the pipeline from storage.
 type Querier struct {
-	store     storage.Storage
 	appName   string
 	clusterId string
+	store     storage.Storage
 }
 
 // NewQuerier creates a Querier backed by the given storage and cluster.
-func NewQuerier(store storage.Storage, appName, clusterId string) *Querier {
+func NewQuerier(appName, clusterId string, store storage.Storage) *Querier {
 	return &Querier{store: store, appName: appName, clusterId: clusterId}
 }
 

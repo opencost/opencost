@@ -495,7 +495,6 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 			}
 			nodeStatClient := nodestats.NewNodeStatsSummaryClient(k8sCache, nodeStatConf, clusterConfig)
 			ds := collector.NewDefaultCollectorDataSource(
-				appName,
 				clusterUID,
 				store,
 				clusterInfoProvider,
@@ -532,14 +531,15 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	costModel := NewCostModel(clusterUID, dataSource, cloudProvider, k8sCache, clusterMap, dataSource.BatchDuration())
 	metricsEmitter := NewCostModelMetricsEmitter(k8sCache, cloudProvider, clusterInfoProvider, costModel)
 
+	appName := sysenv.GetAppName()
 	var kubeModelPipeline *km.Pipeline
-	if p, err := km.NewPipeline(store, clusterUID, costModel); err != nil {
+	if p, err := km.NewPipeline(appName, clusterUID, store, costModel); err != nil {
 		log.Errorf("Failed to initialize KubeModel pipeline: %v", err)
 	} else {
 		p.Start()
 		kubeModelPipeline = p
 	}
-	kubeModelQuerier := km.NewQuerier(store, clusterUID)
+	kubeModelQuerier := km.NewQuerier(appName, clusterUID, store)
 
 	a := &Accesses{
 		DataSource:          dataSource,
@@ -614,12 +614,6 @@ func InitializeCloudCost(router *httprouter.Router) *cloudcost.PipelineService {
 	router.GET("/cloud/config/delete", adminAuthMiddleware(cloudConfigController.GetDeleteConfigHandler()))
 
 	return cloudCostPipelineService
-}
-
-// InitializeKubeModelPipeline creates and returns a KubeModel Pipeline that exports
-// KubeModelSets at hourly and daily resolutions and prunes files beyond retention.
-func InitializeKubeModelPipeline(store storage.Storage, clusterUID string, cm *CostModel) (*km.Pipeline, error) {
-	return km.NewPipeline(store, clusterUID, cm)
 }
 
 func InitializeCustomCost(router *httprouter.Router) *customcost.PipelineService {

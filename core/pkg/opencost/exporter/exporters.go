@@ -9,6 +9,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/exporter/validator"
 	"github.com/opencost/opencost/core/pkg/pipelines"
 	"github.com/opencost/opencost/core/pkg/storage"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/core/pkg/util/typeutil"
 )
 
@@ -72,8 +73,8 @@ func NewKubeModelComputePipelineExporter[T any, U export.BinaryMarshalerPtr[T], 
 	if pipelineName == "" {
 		return nil, fmt.Errorf("failed to extract pipeline name for type: %s", typeutil.TypeOf[T]())
 	}
-
-	pathing, err := pathing.NewDefaultStoragePathFormatter(appName, clusterId, pipelineName, &resolution)
+	res := timeutil.FormatStoreResolution(resolution)
+	pathing, err := pathing.NewKubeModelStoragePathFormatter(appName, clusterId, res)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create path formatter: %w", err)
 	}
@@ -81,8 +82,6 @@ func NewKubeModelComputePipelineExporter[T any, U export.BinaryMarshalerPtr[T], 
 	var encoder export.Encoder[T]
 	if pipelineName == pipelines.KubeModelPipelineName {
 		encoder = export.NewVersionBingenEncoder[T, U](kubemodel.DefaultCodecVersion)
-	} else {
-		encoder = export.NewBingenEncoder[T, U]()
 	}
 
 	return export.NewComputeStorageExporter(

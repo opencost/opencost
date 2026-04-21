@@ -4,35 +4,25 @@ import (
 	"fmt"
 	"time"
 
-	coreexporter "github.com/opencost/opencost/core/pkg/exporter"
-	"github.com/opencost/opencost/core/pkg/log"
-	coremodel "github.com/opencost/opencost/core/pkg/model/kubemodel"
 	ocexporter "github.com/opencost/opencost/core/pkg/opencost/exporter"
-	kmexporter "github.com/opencost/opencost/core/pkg/opencost/exporter/kubemodel"
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
 
-const exportInterval = 10 * time.Minute
-
 var (
+	exportInterval     = 5 * time.Minute
 	janitorInterval    = timeutil.Day
 	defaultResolutions = []time.Duration{time.Hour, timeutil.Day}
 )
 
 // Pipeline manages the KubeModel export controller group and the retention janitor.
 type Pipeline struct {
-	controllers *coreexporter.ComputeExportControllerGroup[coremodel.KubeModelSet]
+	controllers *ocexporter.PipelineExportControllers
 	janitor     *Janitor
 }
 
-// NewPipeline creates a Pipeline with the default resolutions (1h, 1d).
-func NewPipeline(store storage.Storage, appName, clusterUID string, src kmexporter.KubeModelSource) (*Pipeline, error) {
-	return NewPipelineWithResolutions(store, appName, clusterUID, src, defaultResolutions)
-}
-
-// NewPipelineWithResolutions creates a Pipeline with the given resolutions.
-func NewPipelineWithResolutions(store storage.Storage, appName, clusterUID string, src kmexporter.KubeModelSource, resolutions []time.Duration) (*Pipeline, error) {
+// NewPipeline creates a new pipeline with perset settings
+func NewPipeline(appName, clusterUID string, store storage.Storage, cm ocexporter.ComputePipelineSource) (*Pipeline, error) {
 	if store == nil {
 		return nil, fmt.Errorf("NewKubeModelPipeline: store cannot be nil")
 	}
@@ -40,23 +30,17 @@ func NewPipelineWithResolutions(store storage.Storage, appName, clusterUID strin
 		return nil, fmt.Errorf("NewKubeModelPipeline: clusterUID cannot be empty")
 	}
 
-	computeSrc := kmexporter.NewKubeModelComputeSource(src)
-	controllers := []*coreexporter.ComputeExportController[coremodel.KubeModelSet]{}
-
-	for _, res := range resolutions {
-		ctrl, err := ocexporter.NewComputePipelineExportController[coremodel.KubeModelSet](
-			appName, clusterUID, store, computeSrc, res,
-		)
-		if err != nil {
-			log.Errorf("KubeModel pipeline: failed to create controller for resolution %s: %v", timeutil.FormatStoreResolution(res), err)
-			continue
-		}
-		controllers = append(controllers, ctrl)
+	config := ocexporter.PipelinesExportConfig{
+		AppName:                      appName,
+		ClusterUID:                   clusterUID,
+		KubeModelPipelineResolutions: defaultResolutions,
 	}
 
+	controllers := ocexporter.NewPipelineExportControllers(store, cm, config)
+
 	return &Pipeline{
-		controllers: coreexporter.NewComputeExportControllerGroup(controllers...),
-		janitor:     NewJanitor(store, appName, clusterUID, resolutions),
+		controllers: controllers,
+		janitor:     NewJanitor(store, appName, clusterUID, config.KubeModelPipelineResolutions),
 	}, nil
 }
 

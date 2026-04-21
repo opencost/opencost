@@ -277,7 +277,7 @@ func (g *ComputeExportControllerGroup[T]) Name() string {
 
 func (g *ComputeExportControllerGroup[T]) Start(interval time.Duration) bool {
 	if len(g.controllers) == 0 {
-		log.Warnf("ComputeExportControllerGroup[%s] has no controllers to start", typeutil.TypeOf[T]())
+		log.Debugf("ComputeExportControllerGroup[%s] has no controllers to start", typeutil.TypeOf[T]())
 		return false
 	}
 
