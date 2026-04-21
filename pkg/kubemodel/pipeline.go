@@ -27,12 +27,12 @@ type Pipeline struct {
 }
 
 // NewPipeline creates a Pipeline with the default resolutions (1h, 1d).
-func NewPipeline(store storage.Storage, clusterUID string, src kmexporter.KubeModelSource) (*Pipeline, error) {
-	return NewPipelineWithResolutions(store, clusterUID, src, defaultResolutions)
+func NewPipeline(store storage.Storage, appName, clusterUID string, src kmexporter.KubeModelSource) (*Pipeline, error) {
+	return NewPipelineWithResolutions(store, appName, clusterUID, src, defaultResolutions)
 }
 
 // NewPipelineWithResolutions creates a Pipeline with the given resolutions.
-func NewPipelineWithResolutions(store storage.Storage, clusterUID string, src kmexporter.KubeModelSource, resolutions []time.Duration) (*Pipeline, error) {
+func NewPipelineWithResolutions(store storage.Storage, appName, clusterUID string, src kmexporter.KubeModelSource, resolutions []time.Duration) (*Pipeline, error) {
 	if store == nil {
 		return nil, fmt.Errorf("NewKubeModelPipeline: store cannot be nil")
 	}
@@ -45,7 +45,7 @@ func NewPipelineWithResolutions(store storage.Storage, clusterUID string, src km
 
 	for _, res := range resolutions {
 		ctrl, err := ocexporter.NewComputePipelineExportController[coremodel.KubeModelSet](
-			clusterUID, store, computeSrc, res,
+			appName, clusterUID, store, computeSrc, res,
 		)
 		if err != nil {
 			log.Errorf("KubeModel pipeline: failed to create controller for resolution %s: %v", timeutil.FormatStoreResolution(res), err)
@@ -56,7 +56,7 @@ func NewPipelineWithResolutions(store storage.Storage, clusterUID string, src km
 
 	return &Pipeline{
 		controllers: coreexporter.NewComputeExportControllerGroup(controllers...),
-		janitor:     NewJanitor(store, clusterUID, resolutions),
+		janitor:     NewJanitor(store, appName, clusterUID, resolutions),
 	}, nil
 }
 

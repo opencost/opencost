@@ -75,6 +75,7 @@ type Accesses struct {
 	Model               *CostModel
 	MetricsEmitter      *CostModelMetricsEmitter
 	KubeModelPipeline   *km.Pipeline
+	KubeModelQuerier    *km.Querier
 	// SettingsCache stores current state of app settings
 	SettingsCache *cache.Cache
 	// settingsSubscribers tracks channels through which changes to different
@@ -494,6 +495,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 			}
 			nodeStatClient := nodestats.NewNodeStatsSummaryClient(k8sCache, nodeStatConf, clusterConfig)
 			ds := collector.NewDefaultCollectorDataSource(
+				appName,
 				clusterUID,
 				store,
 				clusterInfoProvider,
@@ -530,8 +532,14 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	costModel := NewCostModel(clusterUID, dataSource, cloudProvider, k8sCache, clusterMap, dataSource.BatchDuration())
 	metricsEmitter := NewCostModelMetricsEmitter(k8sCache, cloudProvider, clusterInfoProvider, costModel)
 
-	kubeModelPipeline, err := km.NewPipeline(store, clusterUID, costModel)
-	kubeModelPipeline.Start()
+	var kubeModelPipeline *km.Pipeline
+	if p, err := km.NewPipeline(store, clusterUID, costModel); err != nil {
+		log.Errorf("Failed to initialize KubeModel pipeline: %v", err)
+	} else {
+		p.Start()
+		kubeModelPipeline = p
+	}
+	kubeModelQuerier := km.NewQuerier(store, clusterUID)
 
 	a := &Accesses{
 		DataSource:          dataSource,
@@ -543,6 +551,8 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 		ClusterInfoProvider: clusterInfoProvider,
 		Model:               costModel,
 		MetricsEmitter:      metricsEmitter,
+		KubeModelPipeline:   kubeModelPipeline,
+		KubeModelQuerier:    kubeModelQuerier,
 		SettingsCache:       settingsCache,
 	}
 

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	coreenv "github.com/opencost/opencost/core/pkg/env"
-	"github.com/opencost/opencost/core/pkg/exporter/pathing"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/pipelines"
 	"github.com/opencost/opencost/core/pkg/storage"
@@ -23,6 +22,7 @@ const (
 // Retention durations are read from the standard RESOLUTION_*_RETENTION env vars.
 type Janitor struct {
 	store       storage.Storage
+	appName     string
 	clusterId   string
 	resolutions []time.Duration
 	isRunning   atomic.Bool
@@ -31,9 +31,10 @@ type Janitor struct {
 }
 
 // NewJanitor creates a Janitor for the given storage backend, cluster, and active resolutions.
-func NewJanitor(store storage.Storage, clusterId string, resolutions []time.Duration) *Janitor {
+func NewJanitor(store storage.Storage, appName, clusterId string, resolutions []time.Duration) *Janitor {
 	return &Janitor{
 		store:       store,
+		appName:     appName,
 		clusterId:   clusterId,
 		resolutions: resolutions,
 	}
@@ -76,7 +77,7 @@ func (j *Janitor) cleanup() {
 			continue
 		}
 		resStr := timeutil.FormatStoreResolution(res)
-		baseDir := path.Join(pathing.FinOpsAgentAppID, j.clusterId, pipelines.KubeModelPipelineName, resStr)
+		baseDir := path.Join(j.appName, j.clusterId, pipelines.KubeModelPipelineName, resStr)
 		cutoff := time.Now().UTC().Add(-retention).Truncate(timeutil.Day)
 		j.pruneResolution(baseDir, cutoff)
 	}

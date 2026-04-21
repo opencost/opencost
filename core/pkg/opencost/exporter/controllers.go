@@ -31,6 +31,7 @@ type ComputePipelineSource interface {
 // PipelinesExportConfig is a configuration struct that contains the export resolutions for
 // allocation, assets, and network insights pipelines.
 type PipelinesExportConfig struct {
+	AppName                           string
 	ClusterUID                        string
 	ClusterName                       string
 	AllocationPiplineResolutions      []time.Duration
@@ -50,8 +51,9 @@ func defaultPipelineExportResolutions() []time.Duration {
 
 // NewPipelinesExportConfig returns the default export configuration for all pipelines
 // which is set to export hourly and daily for allocations, assets, and network insights.
-func NewPipelinesExportConfig(clusterUID, clusterName string) PipelinesExportConfig {
+func NewPipelinesExportConfig(appName, clusterUID, clusterName string) PipelinesExportConfig {
 	return PipelinesExportConfig{
+		AppName:                           appName,
 		ClusterUID:                        clusterUID,
 		ClusterName:                       clusterName,
 		AllocationPiplineResolutions:      defaultPipelineExportResolutions(),
