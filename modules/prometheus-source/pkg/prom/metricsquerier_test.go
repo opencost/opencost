@@ -96,12 +96,10 @@ func TestQueryLogs(t *testing.T) {
 	queryStart := queryEnd.Add(-24 * time.Hour)
 
 	tests := map[string]func(time.Time, time.Time){
-		"QueryPVActiveMinutes":           func(s, e time.Time) { querier.QueryPVActiveMinutes(s, e) },
-		"QueryPVUsedAverage":             func(s, e time.Time) { querier.QueryPVUsedAverage(s, e) },
-		"QueryPVUsedMax":                 func(s, e time.Time) { querier.QueryPVUsedMax(s, e) },
-		"QueryLocalStorageActiveMinutes": func(s, e time.Time) { querier.QueryLocalStorageActiveMinutes(s, e) },
-		// "QueryLocalStorageCost":                         func(s, e time.Time) { querier.QueryLocalStorageCost(s, e) },
-		// "QueryLocalStorageUsedCost":                     func(s, e time.Time) { querier.QueryLocalStorageUsedCost(s, e) },
+		"QueryPVActiveMinutes":                          func(s, e time.Time) { querier.QueryPVActiveMinutes(s, e) },
+		"QueryPVUsedAverage":                            func(s, e time.Time) { querier.QueryPVUsedAverage(s, e) },
+		"QueryPVUsedMax":                                func(s, e time.Time) { querier.QueryPVUsedMax(s, e) },
+		"QueryLocalStorageActiveMinutes":                func(s, e time.Time) { querier.QueryLocalStorageActiveMinutes(s, e) },
 		"QueryLocalStorageUsedAvg":                      func(s, e time.Time) { querier.QueryLocalStorageUsedAvg(s, e) },
 		"QueryLocalStorageUsedMax":                      func(s, e time.Time) { querier.QueryLocalStorageUsedMax(s, e) },
 		"QueryLocalStorageBytes":                        func(s, e time.Time) { querier.QueryLocalStorageBytes(s, e) },

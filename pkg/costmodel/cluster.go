@@ -126,23 +126,17 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 	// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/RootDeviceStorage.html
 	// https://learn.microsoft.com/en-us/azure/virtual-machines/managed-disks-overview#temporary-disk
 	// https://cloud.google.com/compute/docs/disks/local-ssd
-	// resLocalStorageCost := []*source.LocalStorageCostResult{}
-	// resLocalStorageUsedCost := []*source.LocalStorageUsedCostResult{}
 	resLocalStorageUsedAvg := []*source.LocalStorageUsedAvgResult{}
 	resLocalStorageUsedMax := []*source.LocalStorageUsedMaxResult{}
 	resLocalStorageBytes := []*source.LocalStorageBytesResult{}
 	resLocalActiveMins := []*source.LocalStorageActiveMinutesResult{}
 
 	if env.IsAssetIncludeLocalDiskCost() {
-		// resChLocalStorageCost := source.WithGroup(grp, mq.QueryLocalStorageCost(start, end))
-		// resChLocalStorageUsedCost := source.WithGroup(grp, mq.QueryLocalStorageUsedCost(start, end))
 		resChLocalStoreageUsedAvg := source.WithGroup(grp, mq.QueryLocalStorageUsedAvg(start, end))
 		resChLocalStoreageUsedMax := source.WithGroup(grp, mq.QueryLocalStorageUsedMax(start, end))
 		resChLocalStorageBytes := source.WithGroup(grp, mq.QueryLocalStorageBytes(start, end))
 		resChLocalActiveMins := source.WithGroup(grp, mq.QueryLocalStorageActiveMinutes(start, end))
 
-		// resLocalStorageCost, _ = resChLocalStorageCost.Await()
-		// resLocalStorageUsedCost, _ = resChLocalStorageUsedCost.Await()
 		resLocalStorageUsedAvg, _ = resChLocalStoreageUsedAvg.Await()
 		resLocalStorageUsedMax, _ = resChLocalStoreageUsedMax.Await()
 		resLocalStorageBytes, _ = resChLocalStorageBytes.Await()
@@ -207,61 +201,6 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 			}
 		}
 	}
-
-	// for _, result := range resLocalStorageCost {
-	// 	cluster := result.Cluster
-	// 	if cluster == "" {
-	// 		cluster = coreenv.GetClusterID()
-	// 	}
-
-	// 	name := result.Instance
-	// 	if name == "" {
-	// 		log.Warnf("ClusterDisks: local storage data missing instance")
-	// 		continue
-	// 	}
-
-	// 	device := result.Device
-	// 	if device == "" {
-	// 		log.Warnf("ClusterDisks: local storage data missing device")
-	// 		continue
-	// 	}
-
-	// 	cost := result.Data[0].Value
-	// 	key := DiskIdentifier{cluster, name}
-	// 	ls, ok := localStorageDisks[key]
-	// 	if !ok || ls.device != device {
-	// 		continue
-	// 	}
-	// 	ls.disk.Cost = cost
-
-	// }
-
-	// for _, result := range resLocalStorageUsedCost {
-	// 	cluster := result.Cluster
-	// 	if cluster == "" {
-	// 		cluster = coreenv.GetClusterID()
-	// 	}
-
-	// 	name := result.Instance
-	// 	if name == "" {
-	// 		log.Warnf("ClusterDisks: local storage data missing instance")
-	// 		continue
-	// 	}
-
-	// 	device := result.Device
-	// 	if device == "" {
-	// 		log.Warnf("ClusterDisks: local storage data missing device")
-	// 		continue
-	// 	}
-
-	// 	cost := result.Data[0].Value
-	// 	key := DiskIdentifier{cluster, name}
-	// 	ls, ok := localStorageDisks[key]
-	// 	if !ok || ls.device != device {
-	// 		continue
-	// 	}
-	// 	ls.disk.Breakdown.System = cost / ls.disk.Cost
-	// }
 
 	for _, result := range resLocalStorageUsedAvg {
 		cluster := result.Cluster
