@@ -12,11 +12,10 @@ import (
 )
 
 const (
-	BingenExt           = "bin"
-	BingenVersionExtFMT = "v%d.bin"
-	JSONExt             = "json"
-	GZipExt             = ".gz"
-	PBExt               = "binpb"
+	BingenExt = "bingen"
+	JSONExt   = "json"
+	GZipExt   = "gz"
+	PBExt     = "binpb"
 )
 
 // Encoder[T] is a generic interface for encoding an instance of a T type into a byte slice.
@@ -54,14 +53,8 @@ func NewBingenEncoder[T any, U BinaryMarshalerPtr[T]]() Encoder[T] {
 // 'T' type with the ".bingen" file extension.
 func NewBingenFileEncoder[T any, U BinaryMarshalerPtr[T]]() Encoder[T] {
 	return &BingenEncoder[T, U]{
-		fileExt: "bingen",
+		fileExt: BingenExt,
 	}
-}
-
-func NewVersionBingenEncoder[T any, U BinaryMarshalerPtr[T]](version uint8) Encoder[T] {
-	be := new(BingenEncoder[T, U])
-	be.fileExt = fmt.Sprintf(BingenVersionExtFMT, version)
-	return be
 }
 
 // Encode encodes the provided data of type T into a byte slice using the BinaryMarshaler interface.
@@ -139,7 +132,7 @@ func gZipEncode(data []byte) ([]byte, error) {
 // FileExt returns the file extension for the encoded data. In this case, it returns the wrapped encoder's
 // file extension with ".gz" appended to indicate that the data is compressed with GZip.
 func (gz *GZipEncoder[T]) FileExt() string {
-	return gz.encoder.FileExt() + GZipExt
+	return fmt.Sprintf("%s.%s", gz.encoder.FileExt(), GZipExt)
 }
 
 // ProtoMessagePtr [T] is a generic constraint to ensure types passed to the encoder implement

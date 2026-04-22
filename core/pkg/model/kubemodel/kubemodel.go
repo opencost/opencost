@@ -5,9 +5,7 @@ import (
 	"time"
 )
 
-// TODO: should we add a lock so that we can safely modify KubeModelSet in parallel?
-
-// @bingen:generate[stringtable]:KubeModelSet
+// @bingen:generate[stringtable,streamable]:KubeModelSet
 type KubeModelSet struct {
 	Metadata               *Metadata                         `json:"meta"`                   // @bingen:field[version=1]
 	Window                 Window                            `json:"window"`                 // @bingen:field[version=1]

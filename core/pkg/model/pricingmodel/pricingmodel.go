@@ -7,7 +7,7 @@ import (
 // @bingen:generate:PricingSourceType
 type PricingSourceType string
 
-// @bingen:generate:PricingModelSet
+// @bingen:generate[stringtable,streamable]:PricingModelSet
 type PricingModelSet struct {
 	TimeStamp   time.Time
 	SourceType  PricingSourceType

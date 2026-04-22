@@ -704,11 +704,7 @@ func DecodeOwnerResult(result *QueryResult) *OwnerResult {
 	cluster, _ := result.GetCluster()
 	ownerUID, _ := result.GetString(OwnerUIDLabel)
 	ownerKind, _ := result.GetString(OwnerKindLabel)
-	controllerStr, _ := result.GetString(ControllerLabel)
-	controller := false
-	if controllerStr == "true" {
-		controller = true
-	}
+	controller, _ := result.GetBool(ControllerLabel)
 
 	return &OwnerResult{
 		UID:        uid,
@@ -1260,10 +1256,10 @@ func DecodePodNetworkBytesResult(result *QueryResult) *PodNetworkBytesResult {
 	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	service, _ := result.GetString(ServiceLabel)
-	internet, _ := result.GetString(InternetLabel)
-	sameRegion, _ := result.GetString(SameRegionLabel)
-	sameZone, _ := result.GetString(SameZoneLabel)
-	natGateway, _ := result.GetString(NatGatewayLabel)
+	internet, _ := result.GetBool(InternetLabel)
+	sameRegion, _ := result.GetBool(SameRegionLabel)
+	sameZone, _ := result.GetBool(SameZoneLabel)
+	natGateway, _ := result.GetBool(NatGatewayLabel)
 	var value float64
 	if len(result.Values) > 0 {
 		value = result.Values[0].Value
@@ -1275,10 +1271,10 @@ func DecodePodNetworkBytesResult(result *QueryResult) *PodNetworkBytesResult {
 		UID:        uid,
 		Cluster:    cluster,
 		Service:    service,
-		Internet:   internet == "true",
-		SameRegion: sameRegion == "true",
-		SameZone:   sameZone == "true",
-		NatGateway: natGateway == "true",
+		Internet:   internet,
+		SameRegion: sameRegion,
+		SameZone:   sameZone,
+		NatGateway: natGateway,
 		Value:      value,
 	}
 }

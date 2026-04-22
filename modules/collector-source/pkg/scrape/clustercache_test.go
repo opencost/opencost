@@ -293,8 +293,8 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
-			nsIndex := newSyncMap[string, types.UID](0)
-			nsIndex.Set("namespace1", "ns-uuid1")
+			nsIndex := make(map[string]types.UID, 0)
+			nsIndex["namespace1"] = "ns-uuid1"
 			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
 				res := ks.scrapeDeployments(s.Deployments, nsIndex)
@@ -423,7 +423,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
-		nsSetup  func(*SyncMap[string, types.UID])
+		nsSetup  func(map[string]types.UID)
 		scrapes  []scrape
 		expected []metric.Update
 	}{
@@ -684,8 +684,8 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 		},
 		{
 			name: "with namespace index",
-			nsSetup: func(nsIndex *SyncMap[string, types.UID]) {
-				nsIndex.Set("namespace1", "ns-uuid1")
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
 			},
 			scrapes: []scrape{
 				{
@@ -876,12 +876,12 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
-			nodeIndex := newSyncMap[string, types.UID](0)
-			nsIndex := newSyncMap[string, types.UID](0)
+			nodeIndex := make(map[string]types.UID, 0)
+			nsIndex := make(map[string]types.UID, 0)
 			if tt.nsSetup != nil {
 				tt.nsSetup(nsIndex)
 			}
-			pvcIndex := newSyncMap[pvcKey, types.UID](0)
+			pvcIndex := make(map[pvcKey]types.UID, 0)
 			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
 				res := ks.scrapePods(s.Pods, s.PVCs, nodeIndex, nsIndex, pvcIndex)
@@ -912,7 +912,7 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
-		nsSetup  func(*SyncMap[string, types.UID])
+		nsSetup  func(map[string]types.UID)
 		scrapes  []scrape
 		expected []metric.Update
 	}{
@@ -980,8 +980,8 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 		},
 		{
 			name: "with namespace index",
-			nsSetup: func(nsIndex *SyncMap[string, types.UID]) {
-				nsIndex.Set("namespace1", "ns-uuid1")
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
 			},
 			scrapes: []scrape{
 				{
@@ -1047,11 +1047,11 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
-			nsIndex := newSyncMap[string, types.UID](0)
+			nsIndex := make(map[string]types.UID, 0)
 			if tt.nsSetup != nil {
 				tt.nsSetup(nsIndex)
 			}
-			pvIndex := newSyncMap[string, types.UID](0)
+			pvIndex := make(map[string]types.UID, 0)
 			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
 				res := ks.scrapePVCs(s.PVCs, nsIndex, pvIndex)
@@ -1264,7 +1264,7 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
-		nsSetup  func(*SyncMap[string, types.UID])
+		nsSetup  func(map[string]types.UID)
 		scrapes  []scrape
 		expected []metric.Update
 	}{
@@ -1349,8 +1349,8 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 			// statefulSetInfo map is shared; NamespaceLabel is added before MatchLabels,
 			// so all 4 metrics reflect the final state including namespace_uid.
 			name: "with namespace index",
-			nsSetup: func(nsIndex *SyncMap[string, types.UID]) {
-				nsIndex.Set("namespace1", "ns-uuid1")
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
 			},
 			scrapes: []scrape{
 				{
@@ -1421,7 +1421,7 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
-			nsIndex := newSyncMap[string, types.UID](0)
+			nsIndex := make(map[string]types.UID, 0)
 			if tt.nsSetup != nil {
 				tt.nsSetup(nsIndex)
 			}
@@ -1455,7 +1455,7 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
-		nsSetup  func(*SyncMap[string, types.UID])
+		nsSetup  func(map[string]types.UID)
 		scrapes  []scrape
 		expected []metric.Update
 	}{
@@ -1586,8 +1586,8 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 		},
 		{
 			name: "with namespace index",
-			nsSetup: func(nsIndex *SyncMap[string, types.UID]) {
-				nsIndex.Set("namespace1", "ns-uuid1")
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
 			},
 			scrapes: []scrape{
 				{
@@ -1654,7 +1654,7 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
-			nsIndex := newSyncMap[string, types.UID](0)
+			nsIndex := make(map[string]types.UID, 0)
 			if tt.nsSetup != nil {
 				tt.nsSetup(nsIndex)
 			}
@@ -1687,7 +1687,7 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
-		nsSetup  func(*SyncMap[string, types.UID])
+		nsSetup  func(map[string]types.UID)
 		scrapes  []scrape
 		expected []metric.Update
 	}{
@@ -1836,8 +1836,8 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 		},
 		{
 			name: "with namespace index",
-			nsSetup: func(nsIndex *SyncMap[string, types.UID]) {
-				nsIndex.Set("namespace1", "ns-uuid1")
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
 			},
 			scrapes: []scrape{
 				{
@@ -1890,7 +1890,7 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
-			nsIndex := newSyncMap[string, types.UID](0)
+			nsIndex := make(map[string]types.UID, 0)
 			if tt.nsSetup != nil {
 				tt.nsSetup(nsIndex)
 			}
@@ -1923,7 +1923,7 @@ func Test_kubernetesScraper_scrapeDaemonSets(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
-		nsSetup  func(*SyncMap[string, types.UID])
+		nsSetup  func(map[string]types.UID)
 		scrapes  []scrape
 		expected []metric.Update
 	}{
@@ -1980,8 +1980,8 @@ func Test_kubernetesScraper_scrapeDaemonSets(t *testing.T) {
 		},
 		{
 			name: "with namespace index",
-			nsSetup: func(nsIndex *SyncMap[string, types.UID]) {
-				nsIndex.Set("namespace1", "ns-uuid1")
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
 			},
 			scrapes: []scrape{
 				{
@@ -2037,7 +2037,7 @@ func Test_kubernetesScraper_scrapeDaemonSets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
-			nsIndex := newSyncMap[string, types.UID](0)
+			nsIndex := make(map[string]types.UID, 0)
 			if tt.nsSetup != nil {
 				tt.nsSetup(nsIndex)
 			}
@@ -2070,7 +2070,7 @@ func Test_kubernetesScraper_scrapeJobs(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
-		nsSetup  func(*SyncMap[string, types.UID])
+		nsSetup  func(map[string]types.UID)
 		scrapes  []scrape
 		expected []metric.Update
 	}{
@@ -2127,8 +2127,8 @@ func Test_kubernetesScraper_scrapeJobs(t *testing.T) {
 		},
 		{
 			name: "with namespace index",
-			nsSetup: func(nsIndex *SyncMap[string, types.UID]) {
-				nsIndex.Set("namespace1", "ns-uuid1")
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
 			},
 			scrapes: []scrape{
 				{
@@ -2184,7 +2184,7 @@ func Test_kubernetesScraper_scrapeJobs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
-			nsIndex := newSyncMap[string, types.UID](0)
+			nsIndex := make(map[string]types.UID, 0)
 			if tt.nsSetup != nil {
 				tt.nsSetup(nsIndex)
 			}
@@ -2217,7 +2217,7 @@ func Test_kubernetesScraper_scrapeCronJobs(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
-		nsSetup  func(*SyncMap[string, types.UID])
+		nsSetup  func(map[string]types.UID)
 		scrapes  []scrape
 		expected []metric.Update
 	}{
@@ -2274,8 +2274,8 @@ func Test_kubernetesScraper_scrapeCronJobs(t *testing.T) {
 		},
 		{
 			name: "with namespace index",
-			nsSetup: func(nsIndex *SyncMap[string, types.UID]) {
-				nsIndex.Set("namespace1", "ns-uuid1")
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
 			},
 			scrapes: []scrape{
 				{
@@ -2331,7 +2331,7 @@ func Test_kubernetesScraper_scrapeCronJobs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
-			nsIndex := newSyncMap[string, types.UID](0)
+			nsIndex := make(map[string]types.UID, 0)
 			if tt.nsSetup != nil {
 				tt.nsSetup(nsIndex)
 			}
