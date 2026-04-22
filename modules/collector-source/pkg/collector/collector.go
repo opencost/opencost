@@ -399,7 +399,7 @@ func NewLocalStorageBytesMetricCollector() *metric.MetricCollector {
 
 // count(
 //
-//	node_total_hourly_cost{
+//	kube_node_labels{
 //		<some_custom_filter>
 //	}
 //
@@ -407,7 +407,7 @@ func NewLocalStorageBytesMetricCollector() *metric.MetricCollector {
 func NewLocalStorageActiveMinutesMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.LocalStorageActiveMinutesID,
-		metric.NodeTotalHourlyCost,
+		metric.KubeNodeLabels,
 		[]string{
 			source.NodeLabel,
 			source.ProviderIDLabel,
@@ -600,7 +600,7 @@ func NewNodeLabelsMetricCollector() *metric.MetricCollector {
 }
 
 //	avg(
-//		node_total_hourly_cost{
+//		kube_node_labels{
 //			<some_custom_filter>
 //		}
 //	) by (node, cluster_id, provider_id)[%s:%dm]
@@ -608,7 +608,7 @@ func NewNodeLabelsMetricCollector() *metric.MetricCollector {
 func NewNodeActiveMinutesMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NodeActiveMinutesID,
-		metric.NodeTotalHourlyCost,
+		metric.KubeNodeLabels,
 		[]string{
 			source.NodeLabel,
 			source.ProviderIDLabel,

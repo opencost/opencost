@@ -417,6 +417,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 	start1, _ := time.Parse(time.RFC3339, Start1Str)
 
 	type scrape struct {
+		PVCs      []*clustercache.PersistentVolumeClaim
 		Pods      []*clustercache.Pod
 		Timestamp time.Time
 	}
@@ -430,6 +431,22 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 			name: "simple",
 			scrapes: []scrape{
 				{
+					PVCs: []*clustercache.PersistentVolumeClaim{
+						{
+							Name:      "pvc1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+							Spec: v1.PersistentVolumeClaimSpec{
+								VolumeName:       "vol1",
+								StorageClassName: util.Ptr("storageClass1"),
+								Resources: v1.VolumeResourceRequirements{
+									Requests: v1.ResourceList{
+										v1.ResourceStorage: resource.MustParse("4096"),
+									},
+								},
+							},
+						},
+					},
 					Pods: []*clustercache.Pod{
 						{
 							Name:      "pod1",
@@ -842,6 +859,20 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 					Value:          1024,
 					AdditionalInfo: nil,
 				},
+				{
+					Name: metric.PodPVCAllocation,
+					Labels: map[string]string{
+						source.InstanceLabel:  "",
+						source.NamespaceLabel: "namespace1",
+						source.NodeLabel:      "",
+						source.PVLabel:        "vol1",
+						source.PVCLabel:       "pvc1",
+						source.PodLabel:       "unmounted-pvs",
+						source.UIDLabel:       "",
+					},
+					Value:          4096,
+					AdditionalInfo: nil,
+				},
 			},
 		},
 	}
@@ -856,7 +887,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 			pvcIndex := newSyncMap[pvcKey, types.UID](0)
 			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				res := ks.scrapePods(s.Pods, nodeIndex, nsIndex, pvcIndex)
+				res := ks.scrapePods(s.Pods, s.PVCs, nodeIndex, nsIndex, pvcIndex)
 				scrapeResults = append(scrapeResults, res...)
 			}
 

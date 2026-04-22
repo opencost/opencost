@@ -43,9 +43,19 @@ type BingenEncoder[T any, U BinaryMarshalerPtr[T]] struct {
 }
 
 // NewBingenEncoder creates an `Encoder[T]` implementation which supports binary encoding for the `T`
-// type.
+// type, and doesn't have a file extension.
 func NewBingenEncoder[T any, U BinaryMarshalerPtr[T]]() Encoder[T] {
-	return new(BingenEncoder[T, U])
+	return &BingenEncoder[T, U]{
+		fileExt: "",
+	}
+}
+
+// NewBingenFileEncoder creates a new `Encoder[T]` implementation which supports binary encoding for the
+// 'T' type with the ".bingen" file extension.
+func NewBingenFileEncoder[T any, U BinaryMarshalerPtr[T]]() Encoder[T] {
+	return &BingenEncoder[T, U]{
+		fileExt: "bingen",
+	}
 }
 
 func NewVersionBingenEncoder[T any, U BinaryMarshalerPtr[T]](version uint8) Encoder[T] {
@@ -60,8 +70,8 @@ func (b *BingenEncoder[T, U]) Encode(data *T) ([]byte, error) {
 	return bingenData.MarshalBinary()
 }
 
-// FileExt returns the file extension for the encoded data. In this case, it returns an empty string
-// to indicate that there is no specific file extension for the binary encoded data.
+// FileExt returns the configured file extension for the encoded data. This may be an empty
+// string when no file extension is configured, or a non-empty value such as "bingen".
 func (b *BingenEncoder[T, U]) FileExt() string {
 	return b.fileExt
 }
