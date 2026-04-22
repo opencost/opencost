@@ -6,6 +6,7 @@ package storage
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -79,6 +80,16 @@ func (pbs *PrefixedBucketStorage) ListDirectories(path string) ([]*StorageInfo, 
 // Read returns a reader for the given object name.
 func (pbs *PrefixedBucketStorage) Read(name string) ([]byte, error) {
 	return pbs.storage.Read(conditionalPrefix(pbs.prefix, name))
+}
+
+// ReadStream returns a streaming reader for the given object name.
+func (pbs *PrefixedBucketStorage) ReadStream(name string) (io.ReadCloser, error) {
+	return pbs.storage.ReadStream(conditionalPrefix(pbs.prefix, name))
+}
+
+// ReadToLocalFile streams the specified object at path to destPath on the local file system.
+func (pbs *PrefixedBucketStorage) ReadToLocalFile(path, destPath string) error {
+	return pbs.storage.ReadToLocalFile(conditionalPrefix(pbs.prefix, path), destPath)
 }
 
 // Remove deletes the object with the given name.

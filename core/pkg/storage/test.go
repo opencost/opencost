@@ -2,7 +2,10 @@ package storage
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -423,6 +426,150 @@ func TestStorageStat(t *testing.T, store Storage) {
 				t.Errorf("status mod time is not set")
 			}
 
+		})
+	}
+}
+
+func TestStorageReadToLocalFile(t *testing.T, store Storage) {
+	testName := "read_to_local_file"
+
+	fileNames := []string{
+		"/file0.json",
+	}
+
+	err := createFiles(fileNames, testName, store)
+	if err != nil {
+		t.Fatalf("failed to create files: %s", err)
+	}
+
+	defer func() {
+		err = cleanupFiles(fileNames, testName, store)
+		if err != nil {
+			t.Fatalf("failed to clean up files: %s", err)
+		}
+	}()
+
+	testCases := map[string]struct {
+		path      string
+		expectErr bool
+	}{
+		"file exists": {
+			path:      path.Join(testpath, testName, "file0.json"),
+			expectErr: false,
+		},
+		"file does not exist": {
+			path:      path.Join(testpath, testName, "file1.json"),
+			expectErr: true,
+		},
+		"dir does not exist": {
+			path:      path.Join(testpath, testName, "dir0/file.json"),
+			expectErr: true,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			destPath := filepath.Join(t.TempDir(), "out.json")
+
+			err := store.ReadToLocalFile(tc.path, destPath)
+			if tc.expectErr {
+				if err == nil {
+					t.Fatalf("expected error was not thrown")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err.Error())
+			}
+
+			b, err := os.ReadFile(destPath)
+			if err != nil {
+				t.Fatalf("reading destination file: %s", err)
+			}
+
+			var content testFileContent
+			err = json.Unmarshal(b, &content)
+			if err != nil {
+				t.Fatalf("could not unmarshal file content: %s", err)
+			}
+
+			if content != tfc {
+				t.Fatalf("file content did not match written value")
+			}
+		})
+	}
+}
+
+func TestStorageReadStream(t *testing.T, store Storage) {
+	testName := "read_stream"
+
+	fileNames := []string{
+		"/file0.json",
+	}
+
+	err := createFiles(fileNames, testName, store)
+	if err != nil {
+		t.Fatalf("failed to create files: %s", err)
+	}
+
+	defer func() {
+		err = cleanupFiles(fileNames, testName, store)
+		if err != nil {
+			t.Fatalf("failed to clean up files: %s", err)
+		}
+	}()
+
+	testCases := map[string]struct {
+		path      string
+		expectErr bool
+	}{
+		"file exists": {
+			path:      path.Join(testpath, testName, "file0.json"),
+			expectErr: false,
+		},
+		"file does not exist": {
+			path:      path.Join(testpath, testName, "file1.json"),
+			expectErr: true,
+		},
+		"dir does not exist": {
+			path:      path.Join(testpath, testName, "dir0/file.json"),
+			expectErr: true,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			r, err := store.ReadStream(tc.path)
+			if tc.expectErr {
+				if err == nil {
+					if r != nil {
+						_ = r.Close()
+					}
+					t.Fatalf("expected error was not thrown")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err.Error())
+			}
+			defer r.Close()
+
+			b, err := io.ReadAll(r)
+			if err != nil {
+				t.Fatalf("reading stream: %s", err)
+			}
+
+			var content testFileContent
+			err = json.Unmarshal(b, &content)
+			if err != nil {
+				t.Fatalf("could not unmarshal file content: %s", err)
+			}
+
+			if content != tfc {
+				t.Fatalf("file content did not match written value")
+			}
 		})
 	}
 }

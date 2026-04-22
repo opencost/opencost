@@ -35,3 +35,15 @@ func TestFileStorageListDirectoriesSymlink(t *testing.T) {
 		t.Errorf("Expected dir.Name to be '%s' but it was '%s'", filepath.Join(subdirName, slFileName), dir.Name)
 	}
 }
+
+func TestFileStorage_ReadToLocalFile(t *testing.T) {
+	storeBaseDir := t.TempDir()
+	store := NewFileStorage(storeBaseDir)
+	TestStorageReadToLocalFile(t, store)
+}
+
+func TestFileStorage_ReadStream(t *testing.T) {
+	storeBaseDir := t.TempDir()
+	store := NewFileStorage(storeBaseDir)
+	TestStorageReadStream(t, store)
+}

@@ -33,10 +33,6 @@ func newOpencostTargetScraper(provider target.TargetProvider) *TargetScraper {
 			metric.NodeGPUHourlyCost,
 			metric.NodeGPUCount,
 			metric.KubecostNodeIsSpot,
-			metric.ContainerCPUAllocation,
-			metric.ContainerMemoryAllocationBytes,
-			metric.ContainerGPUAllocation,
-			metric.PodPVCAllocation,
 		},
 		true)
 }

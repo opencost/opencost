@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"io"
 	gofs "io/fs"
 	"os"
 	gopath "path"
@@ -104,7 +105,7 @@ func (fs *FileStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 //
 // It takes advantage of flock() based locking to improve safety.
 func (fs *FileStorage) Read(path string) ([]byte, error) {
-	f := gopath.Join(fs.baseDir, path)
+	f := filepath.Join(fs.baseDir, path)
 
 	b, err := fileutil.ReadLocked(f)
 	if err != nil {
@@ -115,6 +116,55 @@ func (fs *FileStorage) Read(path string) ([]byte, error) {
 	}
 
 	return b, nil
+}
+
+// ReadStream returns a streaming reader for the specified file path.
+func (fs *FileStorage) ReadStream(path string) (io.ReadCloser, error) {
+	f := filepath.Join(fs.baseDir, path)
+
+	file, err := os.Open(f)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, DoesNotExistError
+		}
+		return nil, fmt.Errorf("opening %s: %w", f, err)
+	}
+
+	return file, nil
+}
+
+// ReadToLocalFile streams the specified file at path to destPath on the local file system.
+//
+// For FileStorage, this is implemented as a local file copy.
+func (fs *FileStorage) ReadToLocalFile(path, destPath string) error {
+	src := filepath.Join(fs.baseDir, path)
+
+	in, err := os.Open(src)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return DoesNotExistError
+		}
+		return fmt.Errorf("reading %s: %w", src, err)
+	}
+	defer in.Close()
+
+	if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
+		return fmt.Errorf("creating destination directory: %w", err)
+	}
+
+	out, err := os.Create(destPath)
+	if err != nil {
+		return fmt.Errorf("creating destination file %s: %w", destPath, err)
+	}
+	defer out.Close()
+
+	// Use 1 MB buffer for file copy operations
+	buf := make([]byte, 1024*1024)
+	if _, err := io.CopyBuffer(out, in, buf); err != nil {
+		return fmt.Errorf("streaming %s to %s: %w", src, destPath, err)
+	}
+
+	return nil
 }
 
 // Write uses the relative path of the storage combined with the provided path

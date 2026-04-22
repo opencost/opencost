@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -298,6 +299,118 @@ func (s3 *S3Storage) Read(name string) ([]byte, error) {
 
 }
 
+// ReadStream returns an io.ReadCloser that streams an object from S3.
+func (s3 *S3Storage) ReadStream(path string) (io.ReadCloser, error) {
+	path = trimLeading(path)
+
+	log.Debugf("S3Storage::ReadStream::%s(%s)", s3.protocol(), path)
+	ctx := context.Background()
+
+	sse, err := s3.getServerSideEncryption(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	opts := &minio.GetObjectOptions{ServerSideEncryption: sse}
+	r, err := s3.client.GetObject(ctx, s3.name, path, *opts)
+	if err != nil {
+		if s3.isObjNotFound(err) {
+			return nil, DoesNotExistError
+		}
+		return nil, err
+	}
+
+	// Force a metadata call and surface "not found" errors early,
+	// matching behavior in getRange().
+	if _, err := s3.client.StatObject(ctx, s3.name, path, minio.StatObjectOptions{ServerSideEncryption: sse}); err != nil {
+		if s3.isObjNotFound(err) || s3.isDoesNotExist(err) {
+			_ = r.Close()
+			return nil, DoesNotExistError
+		}
+
+		_ = r.Close()
+		return nil, errors.Wrap(err, "StatObject from S3 failed")
+	}
+
+	return r, nil
+}
+
+// ReadToLocalFile streams the specified object at path to destPath on the local file system.
+func (s3 *S3Storage) ReadToLocalFile(path, destPath string) error {
+	path = trimLeading(path)
+
+	log.Debugf("S3Storage::ReadToLocalFile::%s(%s) -> %s", s3.protocol(), path, destPath)
+	ctx := context.Background()
+
+	sse, err := s3.getServerSideEncryption(ctx)
+	if err != nil {
+		return err
+	}
+
+	opts := &minio.GetObjectOptions{ServerSideEncryption: sse}
+	r, err := s3.client.GetObject(ctx, s3.name, path, *opts)
+	if err != nil {
+		if s3.isObjNotFound(err) {
+			return DoesNotExistError
+		}
+		return err
+	}
+	defer r.Close()
+
+	// Force a metadata call and surface "not found" errors early,
+	// matching behavior in getRange().
+	if _, err := s3.client.StatObject(ctx, s3.name, path, minio.StatObjectOptions{ServerSideEncryption: sse}); err != nil {
+		if s3.isObjNotFound(err) {
+			return DoesNotExistError
+		}
+		return errors.Wrap(err, "StatObject from S3 failed")
+	}
+
+	dir := filepath.Dir(destPath)
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return errors.Wrap(err, "creating destination directory")
+	}
+
+	// Write to a temporary file in the same directory to avoid leaving a
+	// partially-written file at destPath on error. Rename atomically on success.
+	tmpFile, err := os.CreateTemp(dir, ".s3-read-*")
+	if err != nil {
+		return errors.Wrapf(err, "creating temporary file in %s", dir)
+	}
+	tmpPath := tmpFile.Name()
+
+	// Ensure temporary file is cleaned up on error.
+	success := false
+	defer func() {
+		if !success {
+			_ = tmpFile.Close()
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	// Use 1 MB buffer for streaming operations
+	buf := make([]byte, 1024*1024)
+	if _, err := io.CopyBuffer(tmpFile, r, buf); err != nil {
+		return errors.Wrapf(err, "streaming %s to %s", path, destPath)
+	}
+
+	// Ensure data is flushed to disk before renaming.
+	if err := tmpFile.Sync(); err != nil {
+		return errors.Wrapf(err, "syncing temporary file for %s", destPath)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return errors.Wrapf(err, "closing temporary file for %s", destPath)
+	}
+
+	// Atomically move the fully written temp file into place.
+	if err := os.Rename(tmpPath, destPath); err != nil {
+		return errors.Wrapf(err, "renaming temporary file to %s", destPath)
+	}
+
+	success = true
+	return nil
+}
+
 // Exists checks if the given object exists.
 func (s3 *S3Storage) Exists(name string) (bool, error) {
 	name = trimLeading(name)
@@ -503,15 +616,10 @@ func (s3 *S3Storage) getRange(ctx context.Context, name string, off, length int6
 	}
 
 	opts := &minio.GetObjectOptions{ServerSideEncryption: sse}
-	if length != -1 {
-		if err := opts.SetRange(off, off+length-1); err != nil {
-			return nil, err
-		}
-	} else if off > 0 {
-		if err := opts.SetRange(off, 0); err != nil {
-			return nil, err
-		}
+	if err := setGetObjectRange(opts, off, length); err != nil {
+		return nil, err
 	}
+
 	r, err := s3.client.GetObject(ctx, s3.name, name, *opts)
 	if err != nil {
 		if s3.isObjNotFound(err) {
@@ -519,19 +627,38 @@ func (s3 *S3Storage) getRange(ctx context.Context, name string, off, length int6
 		}
 		return nil, err
 	}
-	defer r.Close()
-
 	// NotFoundObject error is revealed only after first Read. This does the initial GetRequest. Prefetch this here
 	// for convenience.
 	if _, err := r.Read(nil); err != nil {
 		if s3.isObjNotFound(err) {
+			_ = r.Close()
 			return nil, DoesNotExistError
 		}
 
+		_ = r.Close()
 		return nil, errors.Wrap(err, "Read from S3 failed")
 	}
 
+	defer r.Close()
 	return io.ReadAll(r)
+}
+
+func setGetObjectRange(opts *minio.GetObjectOptions, off, length int64) error {
+	if off < 0 {
+		return errors.New("range offset must be >= 0")
+	}
+	if length < -1 || length == 0 {
+		return errors.New("range length must be -1 or > 0")
+	}
+
+	if length > 0 {
+		return opts.SetRange(off, off+length-1)
+	}
+	if off > 0 {
+		return opts.SetRange(off, 0)
+	}
+
+	return nil
 }
 
 // awsAuth retrieves credentials from the aws-sdk-go.
