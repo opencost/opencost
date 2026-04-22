@@ -7,8 +7,8 @@ import (
 type ClusterStatusField string
 
 const (
-	FieldCluster        ClusterStatusField = ClusterStatusField(fieldstrings.FieldClusterID)
-	FieldAccountID      ClusterStatusField = ClusterStatusField(fieldstrings.FieldAccountID)
+	FieldClusterID      ClusterStatusField = ClusterStatusField(fieldstrings.FieldClusterID)
+	FieldAccount        ClusterStatusField = ClusterStatusField(fieldstrings.FieldAccount)
 	FieldCloudAccountID ClusterStatusField = "cloudAccountId"
 	FieldProvider       ClusterStatusField = ClusterStatusField(fieldstrings.FieldProvider)
 )

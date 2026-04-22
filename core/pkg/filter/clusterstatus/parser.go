@@ -4,8 +4,8 @@ import "github.com/opencost/opencost/core/pkg/filter/ast"
 
 // ast filter field map for cluster status
 var clusterStatusFilterFields []*ast.Field = []*ast.Field{
-	ast.NewField(FieldCluster),
-	ast.NewField(FieldAccountID),
+	ast.NewField(FieldClusterID),
+	ast.NewField(FieldAccount),
 	ast.NewField(FieldCloudAccountID),
 	ast.NewField(FieldProvider),
 }
