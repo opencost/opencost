@@ -571,9 +571,6 @@ func (ccs *ClusterCacheScraper) scrapePods(
 			labels := map[string]string{
 				source.PodLabel:       unmountedPVsContainer,
 				source.NamespaceLabel: pvc.Namespace,
-				source.UIDLabel:       "",
-				source.NodeLabel:      "",
-				source.InstanceLabel:  "",
 				source.PVCLabel:       pvc.Claim,
 				source.PVLabel:        pvc.VolumeName,
 			}
