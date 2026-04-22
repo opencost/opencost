@@ -22,7 +22,6 @@ var validAthenaConf = &aws.AthenaConfiguration{
 	Workgroup:  "workgroup",
 	Account:    "account",
 	Authorizer: &aws.ServiceAccount{},
-	CURVersion: "2.0",
 }
 
 // Config with the same key as the baseline but is not equal to it because of the change in the non-keyed property Workgroup
@@ -34,7 +33,6 @@ var validAthenaConfModifiedProperty = &aws.AthenaConfiguration{
 	Workgroup:  "workgroup1",
 	Account:    "account",
 	Authorizer: &aws.ServiceAccount{},
-	CURVersion: "2.0",
 }
 
 // Config with the same key as baseline but is invalid due to missing Authorizer
@@ -46,7 +44,6 @@ var invalidAthenaConf = &aws.AthenaConfiguration{
 	Workgroup:  "workgroup",
 	Account:    "account",
 	Authorizer: nil,
-	CURVersion: "2.0",
 }
 
 // A valid config with a different key from the baseline

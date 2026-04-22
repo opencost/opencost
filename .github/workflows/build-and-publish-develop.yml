@@ -25,7 +25,7 @@ jobs:
       packages: write
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
       - name: Set SHA
         id: sha
         run: |

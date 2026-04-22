@@ -1,7 +1,10 @@
 package storage
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -54,7 +57,7 @@ func (ms *MemoryStorage) Stat(path string) (*StorageInfo, error) {
 		}, nil
 	}
 
-	return nil, fmt.Errorf("file not found: %s - %w", path, DoesNotExistError)
+	return nil, DoesNotExistError
 }
 
 // Read uses the relative path of the storage combined with the provided path to
@@ -69,7 +72,48 @@ func (ms *MemoryStorage) Read(path string) ([]byte, error) {
 		return file.Contents, nil
 	}
 
-	return nil, fmt.Errorf("file not found: %s - %w", path, DoesNotExistError)
+	return nil, DoesNotExistError
+}
+
+// ReadStream returns a streaming reader for the specified in-memory object.
+func (ms *MemoryStorage) ReadStream(path string) (io.ReadCloser, error) {
+	ms.lock.Lock()
+	defer ms.lock.Unlock()
+
+	path = filepath.Clean(path)
+
+	if file, ok := ms.directPaths[path]; ok {
+		data := append([]byte(nil), file.Contents...)
+		return io.NopCloser(bytes.NewReader(data)), nil
+	}
+
+	return nil, DoesNotExistError
+}
+
+// ReadToLocalFile writes the specified object at path to destPath on the local file system.
+func (ms *MemoryStorage) ReadToLocalFile(path, destPath string) error {
+	ms.lock.Lock()
+	path = filepath.Clean(path)
+
+	file, ok := ms.directPaths[path]
+	if !ok {
+		ms.lock.Unlock()
+		return DoesNotExistError
+	}
+
+	// Copy the contents so we can release the lock before doing potentially slow disk IO.
+	data := append([]byte(nil), file.Contents...)
+	ms.lock.Unlock()
+
+	dir := filepath.Dir(destPath)
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return fmt.Errorf("MemoryStorage: ReadToLocalFile: creating destination directory: %w", err)
+	}
+	if err := os.WriteFile(destPath, data, 0600); err != nil {
+		return fmt.Errorf("MemoryStorage: ReadToLocalFile: writing destination file: %w", err)
+	}
+
+	return nil
 }
 
 // Write uses the relative path of the storage combined with the provided path

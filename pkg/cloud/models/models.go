@@ -154,6 +154,7 @@ type CustomPricing struct {
 	AwsSpotDataRegion            string `json:"awsSpotDataRegion,omitempty"`
 	AwsSpotDataBucket            string `json:"awsSpotDataBucket,omitempty"`
 	AwsSpotDataPrefix            string `json:"awsSpotDataPrefix,omitempty"`
+	SpotDataFeedEnabled          string `json:"spotDataFeedEnabled,omitempty"`
 	ProjectID                    string `json:"projectID,omitempty"`
 	AthenaProjectID              string `json:"athenaProjectID,omitempty"`
 	AthenaBucketName             string `json:"athenaBucketName"`
@@ -163,7 +164,6 @@ type CustomPricing struct {
 	AthenaTable                  string `json:"athenaTable"`
 	AthenaWorkgroup              string `json:"athenaWorkgroup"`
 	MasterPayerARN               string `json:"masterPayerARN"`
-	AthenaCURVersion             string `json:"athenaCURVersion,omitempty"` // "1.0" or "2.0", defaults to "2.0"
 	BillingDataDataset           string `json:"billingDataDataset,omitempty"`
 	CustomPricesEnabled          string `json:"customPricesEnabled"`
 	AzureSubscriptionID          string `json:"azureSubscriptionID"`

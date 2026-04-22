@@ -2,6 +2,10 @@
 
 This document provides guidance for AI assistants working with the OpenCost codebase.
 
+## AI Assistant Behaviour
+
+- Never include claude.ai session links or URLs in commit messages or pull request bodies.
+
 ## Project Overview
 
 OpenCost is an open source Kubernetes cost monitoring tool maintained by the Cloud Native Computing Foundation (CNCF). It provides real-time cost allocation, asset tracking, and cloud cost monitoring for Kubernetes clusters across multiple cloud providers.
@@ -140,7 +144,7 @@ just validate-protobuf
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MCP_SERVER_ENABLED` | `true` | Enable MCP server |
+| `MCP_SERVER_ENABLED` | `false` | Enable MCP server |
 | `MCP_HTTP_PORT` | `8081` | MCP server HTTP port |
 
 ### Cloud Providers

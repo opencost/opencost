@@ -7,6 +7,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
+	"github.com/opencost/opencost/pkg/cloud/oracle"
 )
 
 var (
@@ -116,7 +117,6 @@ var (
 						ID:     "id",
 						Secret: "secret",
 					},
-					CURVersion: "2.0",
 				},
 			},
 		},
@@ -150,7 +150,6 @@ var (
 						Authorizer: &aws.ServiceAccount{},
 						RoleARN:    "roleArn",
 					},
-					CURVersion: "2.0",
 				},
 			},
 		},
@@ -204,6 +203,24 @@ var (
 							Secret: "secret",
 						},
 						RoleARN: "roleARN",
+					},
+				},
+			},
+		},
+	}
+
+	OCIUsageAPIConfigurations = &Configurations{
+		OCI: &OCIConfigs{
+			UsageAPI: []*oracle.UsageApiConfiguration{
+				{
+					TenancyID: "ocid1.tenancy.oc1..tenancyID",
+					Region:    "us-ashburn-1",
+					Authorizer: &oracle.RawConfigProvider{
+						TenancyID:   "ocid1.tenancy.oc1..tenancyID",
+						UserID:      "ocid1.user.oc1..userID",
+						Region:      "us-ashburn-1",
+						Fingerprint: "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00",
+						PrivateKey:  "dummy-private-key",
 					},
 				},
 			},
@@ -271,6 +288,10 @@ func TestConfigurations_UnmarshalJSON(t *testing.T) {
 		"AWS S3 Assume Role Service Access Key": {
 			input:    AWSS3AssumeRoleAccessKeyMultiCloudConfig,
 			expected: AWSS3AssumeRoleAccessKeyConfigurations,
+		},
+		"OCI UsageAPI RawConfigProvider": {
+			input:    OCIUsageAPIConfigurations,
+			expected: OCIUsageAPIConfigurations,
 		},
 	}
 	for name, tt := range tests {
