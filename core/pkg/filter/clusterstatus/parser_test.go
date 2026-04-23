@@ -124,3 +124,61 @@ func TestOpsAndWithClusterStatusFields(t *testing.T) {
 		}
 	}
 }
+
+func TestDefaultFieldByName(t *testing.T) {
+	testCases := []struct {
+		name          string
+		field         ClusterStatusField
+		expectNil     bool
+		expectedField string
+	}{
+		{
+			name:          "valid cluster field",
+			field:         FieldClusterID,
+			expectNil:     false,
+			expectedField: "cluster",
+		},
+		{
+			name:          "valid account field",
+			field:         FieldAccount,
+			expectNil:     false,
+			expectedField: "account",
+		},
+		{
+			name:          "valid accountID field",
+			field:         FieldCloudAccountID,
+			expectNil:     false,
+			expectedField: "accountID",
+		},
+		{
+			name:          "valid provider field",
+			field:         FieldProvider,
+			expectNil:     false,
+			expectedField: "provider",
+		},
+		{
+			name:      "invalid field returns nil",
+			field:     ClusterStatusField("invalid-field"),
+			expectNil: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := DefaultFieldByName(tc.field)
+
+			if tc.expectNil {
+				if result != nil {
+					t.Fatalf("expected nil for invalid field, got %v", result)
+				}
+			} else {
+				if result == nil {
+					t.Fatalf("expected non-nil field, got nil")
+				}
+				if result.Name != tc.expectedField {
+					t.Fatalf("expected field name %q, got %q", tc.expectedField, result.Name)
+				}
+			}
+		})
+	}
+}
