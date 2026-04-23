@@ -29,10 +29,10 @@ func TestClusterStatusFilterParser(t *testing.T) {
 			expectedValue: "test-account",
 		},
 		{
-			name:          "cloudAccountId filter",
-			filter:        `cloudAccountId:"test-account"`,
-			expectedField: "cloudAccountId",
-			expectedValue: "test-account",
+			name:          "accountID filter (alias for account)",
+			filter:        `accountID:"test-cloud-account"`,
+			expectedField: "accountID",
+			expectedValue: "test-cloud-account",
 		},
 		{
 			name:          "provider filter",

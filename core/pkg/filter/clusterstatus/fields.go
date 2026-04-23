@@ -9,6 +9,6 @@ type ClusterStatusField string
 const (
 	FieldClusterID      ClusterStatusField = ClusterStatusField(fieldstrings.FieldClusterID)
 	FieldAccount        ClusterStatusField = ClusterStatusField(fieldstrings.FieldAccount)
-	FieldCloudAccountID ClusterStatusField = ClusterStatusField(fieldstrings.FieldAccount)
+	FieldCloudAccountID ClusterStatusField = ClusterStatusField(fieldstrings.FieldAccountID)
 	FieldProvider       ClusterStatusField = ClusterStatusField(fieldstrings.FieldProvider)
 )
