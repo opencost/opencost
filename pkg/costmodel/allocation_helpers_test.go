@@ -622,3 +622,204 @@ func TestCalculateStartAndEnd(t *testing.T) {
 		})
 	}
 }
+
+// makePodMapWithEmptyAllocations builds a pod map with the given podKey present
+// and an empty Allocations map, which mirrors what buildPodMap produces before
+// container-scoped apply functions run.
+func makePodMapWithEmptyAllocations(pk podKey) map[podKey]*pod {
+	return map[podKey]*pod{
+		pk: {
+			Window:      window.Clone(),
+			Start:       windowStart,
+			End:         windowEnd,
+			Key:         pk,
+			Allocations: map[string]*opencost.Allocation{},
+		},
+	}
+}
+
+// ramUsageMaxResult builds a RAMUsageMaxResult for a single container with the
+// given pod-level identity and sample value.
+func ramUsageMaxResult(pk podKey, container string, value float64) *source.RAMUsageMaxResult {
+	return &source.RAMUsageMaxResult{
+		Cluster:   pk.Cluster,
+		Namespace: pk.Namespace,
+		Pod:       pk.Pod,
+		Container: container,
+		Data: []*util.Vector{
+			{Value: value},
+		},
+	}
+}
+
+// cpuUsageMaxResult builds a CPUUsageMaxResult for a single container with the
+// given pod-level identity and sample value.
+func cpuUsageMaxResult(pk podKey, container string, value float64) *source.CPUUsageMaxResult {
+	return &source.CPUUsageMaxResult{
+		Cluster:   pk.Cluster,
+		Namespace: pk.Namespace,
+		Pod:       pk.Pod,
+		Container: container,
+		Data: []*util.Vector{
+			{Value: value},
+		},
+	}
+}
+
+// gpuUsageMaxResult builds a GPUsUsageMaxResult for a single container with
+// the given pod-level identity and sample value.
+func gpuUsageMaxResult(pk podKey, container string, value float64) *source.GPUsUsageMaxResult {
+	return &source.GPUsUsageMaxResult{
+		Cluster:   pk.Cluster,
+		Namespace: pk.Namespace,
+		Pod:       pk.Pod,
+		Container: container,
+		Data: []*util.Vector{
+			{Value: value},
+		},
+	}
+}
+
+// TestApplyRAMBytesUsedMax_KeepsLargestAcrossDuplicateRows regression-tests
+// the case where the Prometheus RAM max query returns multiple rows for the
+// same (cluster, namespace, pod, container) combination (for example when a
+// pod restarted mid-window and kube-state-metrics emitted a new uid row, or
+// when the pod was scraped from more than one instance). The previous
+// implementation overwrote the stored max with whichever row happened to be
+// iterated last, producing an arbitrary (and typically tiny) maximum. This
+// test asserts that applyRAMBytesUsedMax now takes the max across rows.
+func TestApplyRAMBytesUsedMax_KeepsLargestAcrossDuplicateRows(t *testing.T) {
+	const container = "c1"
+	const small = 442368.0
+	const large = 65101824.0
+
+	// The order of duplicate-row results must not matter; verify both orderings.
+	testCases := map[string]struct {
+		results []*source.RAMUsageMaxResult
+	}{
+		"large first, small second": {
+			results: []*source.RAMUsageMaxResult{
+				ramUsageMaxResult(podKey1, container, large),
+				ramUsageMaxResult(podKey1, container, small),
+			},
+		},
+		"small first, large second": {
+			results: []*source.RAMUsageMaxResult{
+				ramUsageMaxResult(podKey1, container, small),
+				ramUsageMaxResult(podKey1, container, large),
+			},
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			podMap := makePodMapWithEmptyAllocations(podKey1)
+
+			applyRAMBytesUsedMax(podMap, tc.results, map[podKey][]podKey{})
+
+			alloc, ok := podMap[podKey1].Allocations[container]
+			if !ok {
+				t.Fatalf("container allocation %q was not created", container)
+			}
+			if alloc.RawAllocationOnly == nil {
+				t.Fatalf("RawAllocationOnly was not populated for container %q", container)
+			}
+			if got := alloc.RawAllocationOnly.RAMBytesUsageMax; got != large {
+				t.Errorf("RAMBytesUsageMax = %v; want %v (max across duplicate rows)", got, large)
+			}
+		})
+	}
+}
+
+// TestApplyCPUCoresUsedMax_KeepsLargestAcrossDuplicateRows is the CPU analogue
+// of TestApplyRAMBytesUsedMax_KeepsLargestAcrossDuplicateRows.
+func TestApplyCPUCoresUsedMax_KeepsLargestAcrossDuplicateRows(t *testing.T) {
+	const container = "c1"
+	const small = 0.01
+	const large = 1.75
+
+	testCases := map[string]struct {
+		results []*source.CPUUsageMaxResult
+	}{
+		"large first, small second": {
+			results: []*source.CPUUsageMaxResult{
+				cpuUsageMaxResult(podKey1, container, large),
+				cpuUsageMaxResult(podKey1, container, small),
+			},
+		},
+		"small first, large second": {
+			results: []*source.CPUUsageMaxResult{
+				cpuUsageMaxResult(podKey1, container, small),
+				cpuUsageMaxResult(podKey1, container, large),
+			},
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			podMap := makePodMapWithEmptyAllocations(podKey1)
+
+			applyCPUCoresUsedMax(podMap, tc.results, map[podKey][]podKey{})
+
+			alloc, ok := podMap[podKey1].Allocations[container]
+			if !ok {
+				t.Fatalf("container allocation %q was not created", container)
+			}
+			if alloc.RawAllocationOnly == nil {
+				t.Fatalf("RawAllocationOnly was not populated for container %q", container)
+			}
+			if got := alloc.RawAllocationOnly.CPUCoreUsageMax; got != large {
+				t.Errorf("CPUCoreUsageMax = %v; want %v (max across duplicate rows)", got, large)
+			}
+		})
+	}
+}
+
+// TestApplyGPUUsageMax_KeepsLargestAcrossDuplicateRows is the GPU analogue.
+// It additionally asserts the behavior for the pointer-valued GPUUsageMax
+// field, covering both the fresh-create and update paths.
+func TestApplyGPUUsageMax_KeepsLargestAcrossDuplicateRows(t *testing.T) {
+	const container = "c1"
+	const small = 0.02
+	const large = 0.97
+
+	testCases := map[string]struct {
+		results []*source.GPUsUsageMaxResult
+	}{
+		"large first, small second": {
+			results: []*source.GPUsUsageMaxResult{
+				gpuUsageMaxResult(podKey1, container, large),
+				gpuUsageMaxResult(podKey1, container, small),
+			},
+		},
+		"small first, large second": {
+			results: []*source.GPUsUsageMaxResult{
+				gpuUsageMaxResult(podKey1, container, small),
+				gpuUsageMaxResult(podKey1, container, large),
+			},
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			podMap := makePodMapWithEmptyAllocations(podKey1)
+
+			applyGPUUsageMax(podMap, tc.results, map[podKey][]podKey{})
+
+			alloc, ok := podMap[podKey1].Allocations[container]
+			if !ok {
+				t.Fatalf("container allocation %q was not created", container)
+			}
+			if alloc.RawAllocationOnly == nil {
+				t.Fatalf("RawAllocationOnly was not populated for container %q", container)
+			}
+			ptr := alloc.RawAllocationOnly.GPUUsageMax
+			if ptr == nil {
+				t.Fatalf("GPUUsageMax was nil; expected %v", large)
+			}
+			if *ptr != large {
+				t.Errorf("GPUUsageMax = %v; want %v (max across duplicate rows)", *ptr, large)
+			}
+		})
+	}
+}

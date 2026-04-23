@@ -416,12 +416,23 @@ func applyCPUCoresUsedMax(podMap map[podKey]*pod, resCPUCoresUsedMax []*source.C
 				thisPod.appendContainer(container)
 			}
 
+			// Take the max across all result rows for the same
+			// (cluster, namespace, pod, container). The upstream query
+			// groups by additional labels (uid, instance, ...) and can
+			// return multiple rows for the same pod+container when, for
+			// example, a pod restarted mid-window (new uid) or was
+			// scraped from more than one instance. Prior to this, the
+			// last row iterated overwrote any earlier (possibly larger)
+			// value, which produced arbitrarily low maxima.
 			if thisPod.Allocations[container].RawAllocationOnly == nil {
 				thisPod.Allocations[container].RawAllocationOnly = &opencost.RawAllocationOnlyData{
 					CPUCoreUsageMax: res.Data[0].Value,
 				}
 			} else {
-				thisPod.Allocations[container].RawAllocationOnly.CPUCoreUsageMax = res.Data[0].Value
+				thisPod.Allocations[container].RawAllocationOnly.CPUCoreUsageMax = math.Max(
+					thisPod.Allocations[container].RawAllocationOnly.CPUCoreUsageMax,
+					res.Data[0].Value,
+				)
 			}
 		}
 	}
@@ -665,12 +676,23 @@ func applyRAMBytesUsedMax(podMap map[podKey]*pod, resRAMBytesUsedMax []*source.R
 				thisPod.appendContainer(container)
 			}
 
+			// Take the max across all result rows for the same
+			// (cluster, namespace, pod, container). The upstream query
+			// groups by additional labels (uid, instance, ...) and can
+			// return multiple rows for the same pod+container when, for
+			// example, a pod restarted mid-window (new uid) or was
+			// scraped from more than one instance. Prior to this, the
+			// last row iterated overwrote any earlier (possibly larger)
+			// value, which produced arbitrarily low maxima.
 			if thisPod.Allocations[container].RawAllocationOnly == nil {
 				thisPod.Allocations[container].RawAllocationOnly = &opencost.RawAllocationOnlyData{
 					RAMBytesUsageMax: res.Data[0].Value,
 				}
 			} else {
-				thisPod.Allocations[container].RawAllocationOnly.RAMBytesUsageMax = res.Data[0].Value
+				thisPod.Allocations[container].RawAllocationOnly.RAMBytesUsageMax = math.Max(
+					thisPod.Allocations[container].RawAllocationOnly.RAMBytesUsageMax,
+					res.Data[0].Value,
+				)
 			}
 		}
 	}
@@ -757,12 +779,23 @@ func applyGPUUsageMax(podMap map[podKey]*pod, resGPUUsageMax []*source.GPUsUsage
 				thisPod.appendContainer(container)
 			}
 
+			// Take the max across all result rows for the same
+			// (cluster, namespace, pod, container). The upstream query
+			// groups by additional labels (uid, device, ...) and can
+			// return multiple rows for the same pod+container (for
+			// example a pod that restarted mid-window gets a new uid).
+			// Prior to this, the last row iterated overwrote any
+			// earlier (possibly larger) value.
+			v := res.Data[0].Value
 			if thisPod.Allocations[container].RawAllocationOnly == nil {
 				thisPod.Allocations[container].RawAllocationOnly = &opencost.RawAllocationOnlyData{
-					GPUUsageMax: &res.Data[0].Value,
+					GPUUsageMax: &v,
 				}
 			} else {
-				thisPod.Allocations[container].RawAllocationOnly.GPUUsageMax = &res.Data[0].Value
+				existing := thisPod.Allocations[container].RawAllocationOnly.GPUUsageMax
+				if existing == nil || v > *existing {
+					thisPod.Allocations[container].RawAllocationOnly.GPUUsageMax = &v
+				}
 			}
 		}
 	}
