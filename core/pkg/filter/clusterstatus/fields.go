@@ -12,5 +12,3 @@ const (
 	FieldCloudAccountID ClusterStatusField = "cloudAccountId"
 	FieldProvider       ClusterStatusField = ClusterStatusField(fieldstrings.FieldProvider)
 )
-
-// Made with Bob

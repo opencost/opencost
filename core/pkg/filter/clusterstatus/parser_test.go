@@ -11,32 +11,61 @@ func TestClusterStatusFilterParser(t *testing.T) {
 	parser := NewClusterStatusFilterParser()
 
 	testCases := []struct {
-		name   string
-		filter string
+		name          string
+		filter        string
+		expectedField string
+		expectedValue string
 	}{
 		{
-			name:   "cluster filter",
-			filter: `cluster:"test-cluster"`,
+			name:          "cluster filter",
+			filter:        `cluster:"test-cluster"`,
+			expectedField: "cluster",
+			expectedValue: "test-cluster",
 		},
 		{
-			name:   "account filter",
-			filter: `account:"test-account"`,
+			name:          "account filter",
+			filter:        `account:"test-account"`,
+			expectedField: "account",
+			expectedValue: "test-account",
 		},
 		{
-			name:   "cloudAccountId filter",
-			filter: `cloudAccountId:"test-account"`,
+			name:          "cloudAccountId filter",
+			filter:        `cloudAccountId:"test-account"`,
+			expectedField: "cloudAccountId",
+			expectedValue: "test-account",
 		},
 		{
-			name:   "provider filter",
-			filter: `provider:"AWS"`,
+			name:          "provider filter",
+			filter:        `provider:"AWS"`,
+			expectedField: "provider",
+			expectedValue: "AWS",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := parser.Parse(tc.filter)
+			result, err := parser.Parse(tc.filter)
 			if err != nil {
 				t.Fatalf("failed to parse filter %q: %s", tc.filter, err)
+			}
+
+			// Verify the parsed filter is an EqualOp
+			equalOp, ok := result.(*ast.EqualOp)
+			if !ok {
+				t.Fatalf("expected *ast.EqualOp, got %T", result)
+			}
+
+			// Verify the field name
+			if equalOp.Left.Field == nil {
+				t.Fatal("expected Field to be non-nil, got nil")
+			}
+			if equalOp.Left.Field.Name != tc.expectedField {
+				t.Fatalf("expected field name %q, got %q", tc.expectedField, equalOp.Left.Field.Name)
+			}
+
+			// Verify the value
+			if equalOp.Right != tc.expectedValue {
+				t.Fatalf("expected value %q, got %q", tc.expectedValue, equalOp.Right)
 			}
 		})
 	}
@@ -95,5 +124,3 @@ func TestOpsAndWithClusterStatusFields(t *testing.T) {
 		}
 	}
 }
-
-// Made with Bob

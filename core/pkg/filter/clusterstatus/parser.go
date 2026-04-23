@@ -21,6 +21,7 @@ func init() {
 		ff := *f
 		fieldMap[ClusterStatusField(ff.Name)] = &ff
 	}
+	ops.RegisterDefaultFieldLookup[ClusterStatusField](DefaultFieldByName)
 }
 
 // DefaultFieldByName returns only default cluster status filter fields by name.
@@ -37,8 +38,4 @@ func DefaultFieldByName(field ClusterStatusField) *ast.Field {
 // which uses cluster status specific fields
 func NewClusterStatusFilterParser() ast.FilterParser {
 	return ast.NewFilterParser(clusterStatusFilterFields)
-}
-
-func init() {
-	ops.RegisterDefaultFieldLookup[ClusterStatusField](DefaultFieldByName)
 }
