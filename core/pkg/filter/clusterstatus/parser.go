@@ -1,6 +1,9 @@
 package clusterstatus
 
-import "github.com/opencost/opencost/core/pkg/filter/ast"
+import (
+	"github.com/opencost/opencost/core/pkg/filter/ast"
+	"github.com/opencost/opencost/core/pkg/filter/ops"
+)
 
 // ast filter field map for cluster status
 var clusterStatusFilterFields []*ast.Field = []*ast.Field{
@@ -34,4 +37,8 @@ func DefaultFieldByName(field ClusterStatusField) *ast.Field {
 // which uses cluster status specific fields
 func NewClusterStatusFilterParser() ast.FilterParser {
 	return ast.NewFilterParser(clusterStatusFilterFields)
+}
+
+func init() {
+	ops.RegisterDefaultFieldLookup[ClusterStatusField](DefaultFieldByName)
 }

@@ -1,0 +1,99 @@
+package clusterstatus
+
+import (
+	"testing"
+
+	"github.com/opencost/opencost/core/pkg/filter/ast"
+	"github.com/opencost/opencost/core/pkg/filter/ops"
+)
+
+func TestClusterStatusFilterParser(t *testing.T) {
+	parser := NewClusterStatusFilterParser()
+
+	testCases := []struct {
+		name   string
+		filter string
+	}{
+		{
+			name:   "cluster filter",
+			filter: `cluster:"test-cluster"`,
+		},
+		{
+			name:   "account filter",
+			filter: `account:"test-account"`,
+		},
+		{
+			name:   "cloudAccountId filter",
+			filter: `cloudAccountId:"test-account"`,
+		},
+		{
+			name:   "provider filter",
+			filter: `provider:"AWS"`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := parser.Parse(tc.filter)
+			if err != nil {
+				t.Fatalf("failed to parse filter %q: %s", tc.filter, err)
+			}
+		})
+	}
+}
+
+func TestOpsEqWithClusterStatusField(t *testing.T) {
+	clusterFilter := ops.Eq(FieldClusterID, "test-cluster")
+
+	equalOp, ok := clusterFilter.(*ast.EqualOp)
+	if !ok {
+		t.Fatalf("expected *ast.EqualOp, got %T", clusterFilter)
+	}
+
+	if equalOp.Left.Field == nil {
+		t.Fatal("expected Field to be non-nil, got nil")
+	}
+
+	if equalOp.Left.Field.Name == "" {
+		t.Fatal("expected Field.Name to be non-empty, got empty string")
+	}
+
+	if equalOp.Left.Field.Name != string(FieldClusterID) {
+		t.Fatalf("expected Field.Name to be %q, got %q", FieldClusterID, equalOp.Left.Field.Name)
+	}
+}
+
+func TestOpsAndWithClusterStatusFields(t *testing.T) {
+	filter := ops.And(
+		ops.Eq(FieldClusterID, "test-cluster"),
+		ops.Eq(FieldAccount, "test-account"),
+		ops.Eq(FieldProvider, "AWS"),
+	)
+
+	andOp, ok := filter.(*ast.AndOp)
+	if !ok {
+		t.Fatalf("expected *ast.AndOp, got %T", filter)
+	}
+
+	if len(andOp.Operands) != 3 {
+		t.Fatalf("expected 3 operands, got %d", len(andOp.Operands))
+	}
+
+	// Verify each operand is an EqualOp with a valid field
+	for i, operand := range andOp.Operands {
+		equalOp, ok := operand.(*ast.EqualOp)
+		if !ok {
+			t.Fatalf("operand %d: expected *ast.EqualOp, got %T", i, operand)
+		}
+
+		if equalOp.Left.Field == nil {
+			t.Fatalf("operand %d: expected Field to be non-nil, got nil", i)
+		}
+
+		if equalOp.Left.Field.Name == "" {
+			t.Fatalf("operand %d: expected Field.Name to be non-empty, got empty string", i)
+		}
+	}
+}
+
+// Made with Bob
