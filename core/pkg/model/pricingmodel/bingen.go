@@ -19,5 +19,8 @@ package pricingmodel
 // }
 //
 ////////////////////////////////////////////////////////////////////////////////
-// @bingen:import:github.com/opencost/opencost/core/pkg/model/shared
+
+// @bingen:define[string]:github.com/opencost/opencost/core/pkg/model/shared.Provider
+// @bingen:define[string]:github.com/opencost/opencost/core/pkg/model/shared.UsageType
+
 //go:generate bingen -package=pricingmodel -version=1 -buffer=github.com/opencost/opencost/core/pkg/util
