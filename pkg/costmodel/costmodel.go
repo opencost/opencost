@@ -1606,7 +1606,7 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 
 	// Query for AllocationSets in increments of the given step duration,
 	// appending each to the response.
-	stepStart := *window.Start()
+	stepStart := alignStepStart(*window.Start(), step)
 	stepEnd := stepStart.Add(step)
 	var isAKS bool
 	for window.End().After(stepStart) {

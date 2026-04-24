@@ -94,7 +94,7 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 	// Query for AllocationSets in increments of the given step duration,
 	// appending each to the AllocationSetRange.
 	asr := opencost.NewAllocationSetRange()
-	stepStart := *window.Start()
+	stepStart := alignStepStart(*window.Start(), step)
 	for window.End().After(stepStart) {
 		stepEnd := stepStart.Add(step)
 		stepWindow := opencost.NewWindow(&stepStart, &stepEnd)

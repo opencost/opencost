@@ -323,6 +323,18 @@ func RoundToStartOfFollowingWeek(t time.Time) time.Time {
 	return date.Add(time.Duration(daysFromSunday) * Day)
 }
 
+// RoundToStartOfWeekMonday creates a new time.Time for the preceding Monday 00:00
+// in the given time's timezone. If the given time is already Monday at 00:00,
+// it is returned unchanged.
+func RoundToStartOfWeekMonday(t time.Time) time.Time {
+	date := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+	// time.Weekday: Sunday=0, Monday=1, ..., Saturday=6
+	// Days to subtract to reach Monday:
+	//   Mon -> 0, Tue -> 1, Wed -> 2, ..., Sun -> 6
+	daysFromMonday := (int(date.Weekday()) + 6) % 7
+	return date.Add(-1 * time.Duration(daysFromMonday) * Day)
+}
+
 // JobTicker is a ticker used to synchronize the next run of a repeating
 // process. The designated use-case is for infinitely-looping selects,
 // where a timeout or an exit channel might cancel the process, but otherwise
