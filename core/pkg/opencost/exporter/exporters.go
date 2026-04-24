@@ -7,7 +7,6 @@ import (
 	export "github.com/opencost/opencost/core/pkg/exporter"
 	"github.com/opencost/opencost/core/pkg/exporter/pathing"
 	"github.com/opencost/opencost/core/pkg/exporter/validator"
-	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/pipelines"
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/util/typeutil"
@@ -32,7 +31,7 @@ func NewComputePipelineExporter[T any, U export.BinaryMarshalerPtr[T], S validat
 
 	var encoder export.Encoder[T]
 	if pipelineName == pipelines.KubeModelPipelineName {
-		encoder = export.NewVersionBingenEncoder[T, U](kubemodel.DefaultCodecVersion)
+		encoder = export.NewBingenFileEncoder[T, U]()
 	} else {
 		encoder = export.NewBingenEncoder[T, U]()
 	}

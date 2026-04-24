@@ -28,7 +28,7 @@ func newStorageWriter(store storage.Storage, appName string) (*storageWriter, er
 	}
 	return &storageWriter{
 		store:   store,
-		encoder: exporter.NewVersionBingenEncoder[pricingmodel.PricingModelSet](pricingmodel.DefaultCodecVersion),
+		encoder: exporter.NewBingenFileEncoder[pricingmodel.PricingModelSet](),
 		pathing: p,
 	}, nil
 }

@@ -1,7 +1,6 @@
 package exporter
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -270,8 +269,7 @@ func TestExporters(t *testing.T) {
 			t.Fatalf("failed to export KubeModel data: %v", err)
 		}
 
-		ext := fmt.Sprintf(exporter.BingenVersionExtFMT, kubemodel.DefaultCodecVersion)
-		validateFileCreation[kubemodel.KubeModelSet](t, memStore, p, ext, start, end)
+		validateFileCreation[kubemodel.KubeModelSet](t, memStore, p, exporter.BingenExt, start, end)
 	})
 
 	t.Run("unknown exporter", func(t *testing.T) {
