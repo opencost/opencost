@@ -1,6 +1,5 @@
 package shared
 
-// @bingen:generate:UsageType
 type UsageType string
 
 const (

@@ -1041,7 +1041,6 @@ func (target *PricingModelSet) MarshalBinaryWithContext(ctx *EncodingContext) (e
 		// --- [begin][write][map](map[NodeKey]NodePricing) ---
 		buff.WriteInt(len(target.NodePricing)) // map length
 		for v, z := range target.NodePricing {
-
 			// --- [begin][write][struct](NodeKey) ---
 			buff.WriteInt(0) // [compatibility, unused]
 			errB := v.MarshalBinaryWithContext(ctx)
@@ -1160,7 +1159,6 @@ func (target *PricingModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 		o := buff.ReadInt() // map len
 		n := make(map[NodeKey]NodePricing, o)
 		for range o {
-
 			// --- [begin][read][struct](NodeKey) ---
 			p := new(NodeKey)
 			buff.ReadInt() // [compatibility, unused]
@@ -1317,7 +1315,6 @@ func (stream *PricingModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *Bingen
 			// --- [begin][read][streaming-map](map[NodeKey]NodePricing) ---
 			p := buff.ReadInt() // map len
 			for range p {
-
 				// --- [begin][read][struct](NodeKey) ---
 				q := new(NodeKey)
 				buff.ReadInt() // [compatibility, unused]

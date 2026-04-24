@@ -2,7 +2,6 @@ package shared
 
 import "strings"
 
-// @bingen:generate:Provider
 type Provider string
 
 const (
