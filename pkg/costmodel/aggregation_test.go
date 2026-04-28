@@ -52,6 +52,7 @@ func TestResolveAccumulateOption(t *testing.T) {
 		accumulate opencost.AccumulateOption
 		input      string
 		expected   opencost.AccumulateOption
+		expectErr  bool
 	}{
 		{
 			name:       "accumulate false without accumulateBy",
@@ -89,13 +90,62 @@ func TestResolveAccumulateOption(t *testing.T) {
 			input:      string(opencost.AccumulateOptionHour),
 			expected:   opencost.AccumulateOptionHour,
 		},
+		{
+			name:       "accumulateBy none is valid",
+			accumulate: opencost.AccumulateOptionWeek,
+			input:      "none",
+			expected:   opencost.AccumulateOptionNone,
+		},
+		{
+			name:       "accumulateBy normalizes case",
+			accumulate: opencost.AccumulateOptionNone,
+			input:      "Week",
+			expected:   opencost.AccumulateOptionWeek,
+		},
+		{
+			name:       "invalid accumulateBy is flagged",
+			accumulate: opencost.AccumulateOptionNone,
+			input:      "nonesense",
+			expected:   opencost.AccumulateOptionNone,
+			expectErr:  true,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := resolveAccumulateOption(tc.accumulate, tc.input)
+			got, err := resolveAccumulateOption(tc.accumulate, tc.input)
+			if tc.expectErr && err == nil {
+				t.Fatalf("expected error but got nil")
+			}
+			if !tc.expectErr && err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
 			if got != tc.expected {
 				t.Fatalf("expected %q, got %q", tc.expected, got)
+			}
+		})
+	}
+}
+
+func TestResolveAccumulateFromQuery_BackwardCompatibleTruthyValues(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{name: "true supported", input: "true"},
+		{name: "1 supported", input: "1"},
+		{name: "t supported", input: "t"},
+		{name: "TRUE supported", input: "TRUE"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			values := url.Values{}
+			values.Set("accumulate", tc.input)
+			qp := httputil.NewQueryParams(values)
+			got := resolveAccumulateFromQuery(qp)
+			if got != opencost.AccumulateOptionAll {
+				t.Fatalf("expected %q for %q, got %q", opencost.AccumulateOptionAll, tc.input, got)
 			}
 		})
 	}
@@ -253,7 +303,10 @@ func TestWeeklyAccumulateTwoWeeksProducesTwoSets(t *testing.T) {
 	end := start.Add(14 * 24 * time.Hour)
 	requestedStep := end.Sub(start)
 
-	accumulateBy := resolveAccumulateOption(opencost.AccumulateOptionNone, string(opencost.AccumulateOptionWeek))
+	accumulateBy, err := resolveAccumulateOption(opencost.AccumulateOptionNone, string(opencost.AccumulateOptionWeek))
+	if err != nil {
+		t.Fatalf("unexpected error resolving accumulate option: %s", err)
+	}
 	step := resolveStepForAccumulate(requestedStep, accumulateBy)
 	if step != 24*time.Hour {
 		t.Fatalf("expected daily step for weekly accumulation, got %v", step)
@@ -326,6 +379,7 @@ func TestTrimAllocationSetRangeToRequestWindow(t *testing.T) {
 	)
 
 	asr := opencost.NewAllocationSetRange(before, overlap, inside, after)
+	asr.FromStore = "test-store"
 	trimmed := trimAllocationSetRangeToRequestWindow(asr, requestWindow)
 
 	if len(trimmed.Allocations) != 2 {
@@ -336,5 +390,8 @@ func TestTrimAllocationSetRangeToRequestWindow(t *testing.T) {
 	}
 	if !trimmed.Allocations[1].Start().Equal(inside.Start()) {
 		t.Fatalf("expected second set to start at %s, got %s", inside.Start(), trimmed.Allocations[1].Start())
+	}
+	if trimmed.FromStore != asr.FromStore {
+		t.Fatalf("expected FromStore to be preserved")
 	}
 }

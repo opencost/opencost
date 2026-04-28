@@ -58,10 +58,29 @@ func ParseAggregationProperties(aggregations []string) ([]string, error) {
 	return aggregateBy, nil
 }
 
-func resolveAccumulateOption(accumulate opencost.AccumulateOption, accumulateBy string) opencost.AccumulateOption {
-	accumulateByOpt := opencost.AccumulateOption(accumulateBy)
-	if accumulateByOpt != opencost.AccumulateOptionNone {
-		return accumulateByOpt
+func resolveAccumulateOption(accumulate opencost.AccumulateOption, accumulateBy string) (opencost.AccumulateOption, error) {
+	accumulateByRaw := strings.TrimSpace(strings.ToLower(accumulateBy))
+	if accumulateByRaw == "" {
+		return accumulate, nil
+	}
+
+	if accumulateByRaw == "none" {
+		return opencost.AccumulateOptionNone, nil
+	}
+
+	accumulateByOpt := opencost.ParseAccumulate(accumulateByRaw)
+	if accumulateByOpt == opencost.AccumulateOptionNone {
+		return opencost.AccumulateOptionNone, fmt.Errorf("invalid accumulateBy option: %s", accumulateBy)
+	}
+
+	return accumulateByOpt, nil
+}
+
+func resolveAccumulateFromQuery(qp httputil.QueryParams) opencost.AccumulateOption {
+	rawAccumulate := strings.TrimSpace(qp.Get("accumulate", ""))
+	accumulate := opencost.ParseAccumulate(rawAccumulate)
+	if accumulate == opencost.AccumulateOptionNone && qp.GetBool("accumulate", false) {
+		return opencost.AccumulateOptionAll
 	}
 
 	return accumulate
@@ -160,7 +179,8 @@ func trimAllocationSetRangeToRequestWindow(asr *opencost.AllocationSetRange, req
 	}
 
 	trimmed := opencost.NewAllocationSetRange()
-	for _, as := range asr.Slice() {
+	trimmed.FromStore = asr.FromStore
+	for _, as := range asr.Allocations {
 		// Keep only sets that overlap the originally requested window.
 		if as.Start().Before(*requestWindow.End()) && as.End().After(*requestWindow.Start()) {
 			trimmed.Append(as)
@@ -197,8 +217,12 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 
 	// Accumulate is an optional parameter, defaulting to false, which if true
 	// sums each Set in the Range, producing one Set.
-	accumulate := opencost.ParseAccumulate(qp.Get("accumulate", ""))
-	accumulateBy := resolveAccumulateOption(accumulate, qp.Get("accumulateBy", ""))
+	accumulate := resolveAccumulateFromQuery(qp)
+	accumulateBy, err := resolveAccumulateOption(accumulate, qp.Get("accumulateBy", ""))
+	if err != nil {
+		proto.WriteError(w, proto.BadRequest(fmt.Sprintf("Invalid 'accumulateBy' parameter: %s", err)))
+		return
+	}
 	step, err := resolveStepFromQuery(qp, window, accumulateBy)
 	if err != nil {
 		proto.WriteError(w, proto.BadRequest(fmt.Sprintf("Invalid step parameter: %s", err)))
@@ -320,12 +344,16 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	includeIdle := qp.GetBool("includeIdle", false)
 	// Accumulate is an optional parameter, defaulting to false, which if true
 	// sums each Set in the Range, producing one Set.
-	accumulate := opencost.ParseAccumulate(qp.Get("accumulate", ""))
+	accumulate := resolveAccumulateFromQuery(qp)
 
 	// Accumulate is an optional parameter that accumulates an AllocationSetRange
 	// by the resolution of the given time duration.
 	// Defaults to 0. If a value is not passed then the parameter is not used.
-	accumulateBy := resolveAccumulateOption(accumulate, qp.Get("accumulateBy", ""))
+	accumulateBy, err := resolveAccumulateOption(accumulate, qp.Get("accumulateBy", ""))
+	if err != nil {
+		proto.WriteError(w, proto.BadRequest(fmt.Sprintf("Invalid 'accumulateBy' parameter: %s", err)))
+		return
+	}
 	step, err := resolveStepFromQuery(qp, window, accumulateBy)
 	if err != nil {
 		proto.WriteError(w, proto.BadRequest(fmt.Sprintf("Invalid step parameter: %s", err)))
