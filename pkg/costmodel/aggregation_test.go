@@ -372,7 +372,7 @@ func TestResolveQueryWindowForAccumulate_WeekRoundsToCalendarWeeks(t *testing.T)
 	}
 
 	expectedStart := time.Date(2026, 4, 5, 0, 0, 0, 0, time.UTC) // Sunday
-	expectedEnd := time.Date(2026, 4, 26, 0, 0, 0, 0, time.UTC)   // Sunday after 3 calendar weeks
+	expectedEnd := time.Date(2026, 4, 26, 0, 0, 0, 0, time.UTC)  // Sunday after 3 calendar weeks
 	if !got.Start().Equal(expectedStart) {
 		t.Fatalf("expected rounded start %s, got %s", expectedStart, got.Start())
 	}
