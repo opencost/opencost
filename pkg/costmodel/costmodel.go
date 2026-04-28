@@ -1673,7 +1673,7 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 			return nil, fmt.Errorf("failed to compile filter: %w", err)
 		}
 		filteredASR := opencost.NewAllocationSetRange()
-		for _, as := range asr.Slice() {
+		for _, as := range asr.Allocations {
 			filteredAS := opencost.NewAllocationSet(as.Start(), as.End())
 			for _, alloc := range as.Allocations {
 				if matcher.Matches(alloc) {

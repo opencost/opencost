@@ -277,7 +277,7 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 			return
 		}
 		filteredASR := opencost.NewAllocationSetRange()
-		for _, as := range asr.Slice() {
+		for _, as := range asr.Allocations {
 			filteredAS := opencost.NewAllocationSet(as.Start(), as.End())
 			for _, alloc := range as.Allocations {
 				if matcher.Matches(alloc) {
@@ -312,7 +312,7 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 	}
 
 	sasl := []*opencost.SummaryAllocationSet{}
-	for _, as := range asr.Slice() {
+	for _, as := range asr.Allocations {
 		sas := opencost.NewSummaryAllocationSet(as, nil, nil, false, false)
 		sasl = append(sasl, sas)
 	}
