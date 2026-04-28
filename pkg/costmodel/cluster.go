@@ -302,7 +302,11 @@ func ClusterDisks(dataSource source.OpenCostDataSource, cp models.Provider, star
 			bytesUsedAvg = *ls.disk.BytesUsedAvgPtr
 		}
 		// Used Cost = Used GiB * hours * $-per-GB-hour
-		ls.disk.Breakdown.System = ((bytesUsedAvg / 1024 / 1024 / 1024) * (ls.disk.Minutes / 60) * localStoragePricePerGBHr) / ls.disk.Cost
+		if ls.disk.Cost > 0 {
+			ls.disk.Breakdown.System = ((bytesUsedAvg / 1024 / 1024 / 1024) * (ls.disk.Minutes / 60) * localStoragePricePerGBHr) / ls.disk.Cost
+		} else {
+			ls.disk.Breakdown.System = 0
+		}
 	}
 
 	// move local storage disks to main disk map
