@@ -235,8 +235,6 @@ func NewPVActiveMinutesMetricCollector() *metric.MetricCollector {
 //	) by (instance, device, cluster_id)[%s:%dm]
 //
 // ) / 1024 / 1024 / 1024 * %f * %f`
-// NewLocalStorageUsedActiveMinutesMetricCollector does not have an associated query end point but is used in the results
-// of QueryLocalStorageUsedCost
 func NewLocalStorageUsedActiveMinutesMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.LocalStorageUsedActiveMinutesID,

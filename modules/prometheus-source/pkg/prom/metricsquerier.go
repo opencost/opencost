@@ -129,56 +129,6 @@ func (pds *PrometheusMetricsQuerier) QueryPVActiveMinutes(start, end time.Time) 
 	return source.NewFuture(source.DecodePVActiveMinutesResult, ctx.QueryAtTime(queryPVActiveMins, end))
 }
 
-func (pds *PrometheusMetricsQuerier) QueryLocalStorageCost(start, end time.Time) *source.Future[source.LocalStorageCostResult] {
-	const queryName = "QueryLocalStorageCost"
-	const localStorageCostQuery = `sum_over_time(sum(container_fs_limit_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}) by (instance, device, uid, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`
-
-	cfg := pds.promConfig
-	minsPerResolution := cfg.DataResolutionMinutes
-
-	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
-	if durStr == "" {
-		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
-	}
-
-	// hourlyToCumulative is a scaling factor that, when multiplied by an
-	// hourly value, converts it to a cumulative value; i.e. [$/hr] *
-	// [min/res]*[hr/min] = [$/res]
-	hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
-	costPerGBHr := 0.04 / 730.0
-
-	queryLocalStorageCost := fmt.Sprintf(localStorageCostQuery, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution, hourlyToCumulative, costPerGBHr)
-	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryLocalStorageCost)
-
-	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return source.NewFuture(source.DecodeLocalStorageCostResult, ctx.QueryAtTime(queryLocalStorageCost, end))
-}
-
-func (pds *PrometheusMetricsQuerier) QueryLocalStorageUsedCost(start, end time.Time) *source.Future[source.LocalStorageUsedCostResult] {
-	const queryName = "QueryLocalStorageUsedCost"
-	const localStorageUsedCostQuery = `sum_over_time(sum(container_fs_usage_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}) by (instance, device, uid, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`
-
-	cfg := pds.promConfig
-	minsPerResolution := cfg.DataResolutionMinutes
-
-	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
-	if durStr == "" {
-		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
-	}
-
-	// hourlyToCumulative is a scaling factor that, when multiplied by an
-	// hourly value, converts it to a cumulative value; i.e. [$/hr] *
-	// [min/res]*[hr/min] = [$/res]
-	hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
-	costPerGBHr := 0.04 / 730.0
-
-	queryLocalStorageUsedCost := fmt.Sprintf(localStorageUsedCostQuery, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution, hourlyToCumulative, costPerGBHr)
-	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryLocalStorageUsedCost)
-
-	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return source.NewFuture(source.DecodeLocalStorageUsedCostResult, ctx.QueryAtTime(queryLocalStorageUsedCost, end))
-}
-
 func (pds *PrometheusMetricsQuerier) QueryLocalStorageUsedAvg(start, end time.Time) *source.Future[source.LocalStorageUsedAvgResult] {
 	const queryName = "QueryLocalStorageUsedAvg"
 	const localStorageUsedAvgQuery = `avg(sum(avg_over_time(container_fs_usage_bytes{device=~"/dev/(nvme|sda).*", id="/", %s}[%s])) by (instance, device, uid, %s, job)) by (instance, device, uid, %s)`
