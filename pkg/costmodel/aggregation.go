@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 
@@ -57,6 +58,118 @@ func ParseAggregationProperties(aggregations []string) ([]string, error) {
 	return aggregateBy, nil
 }
 
+func resolveAccumulateOption(accumulate opencost.AccumulateOption, accumulateBy string) opencost.AccumulateOption {
+	accumulateByOpt := opencost.AccumulateOption(accumulateBy)
+	if accumulateByOpt != opencost.AccumulateOptionNone {
+		return accumulateByOpt
+	}
+
+	return accumulate
+}
+
+func resolveStepForAccumulate(step time.Duration, accumulateBy opencost.AccumulateOption) time.Duration {
+	const (
+		day  = 24 * time.Hour
+		week = 7 * day
+	)
+
+	switch accumulateBy {
+	case opencost.AccumulateOptionHour:
+		return time.Hour
+	case opencost.AccumulateOptionDay:
+		// day accumulation supports either hourly or already-daily sets
+		if step == day {
+			return day
+		}
+		return time.Hour
+	case opencost.AccumulateOptionWeek, opencost.AccumulateOptionMonth:
+		// week accumulation supports either daily or already-weekly sets
+		if accumulateBy == opencost.AccumulateOptionWeek && step == week {
+			return week
+		}
+		return day
+	default:
+		return step
+	}
+}
+
+func resolveDefaultStepFromAccumulate(window opencost.Window, accumulateBy opencost.AccumulateOption) time.Duration {
+	switch accumulateBy {
+	case opencost.AccumulateOptionHour:
+		return time.Hour
+	case opencost.AccumulateOptionDay:
+		return 24 * time.Hour
+	case opencost.AccumulateOptionWeek:
+		return 7 * 24 * time.Hour
+	case opencost.AccumulateOptionMonth, opencost.AccumulateOptionQuarter:
+		// month/quarter accumulation requires daily input sets
+		return 24 * time.Hour
+	case opencost.AccumulateOptionAll:
+		return window.Duration()
+	default:
+		return window.Duration()
+	}
+}
+
+func resolveStepFromQuery(qp httputil.QueryParams, window opencost.Window, accumulateBy opencost.AccumulateOption) (time.Duration, error) {
+	stepRaw := strings.TrimSpace(strings.ToLower(qp.Get("step", "")))
+	if stepRaw == "" {
+		step := resolveDefaultStepFromAccumulate(window, accumulateBy)
+		return resolveStepForAccumulate(step, accumulateBy), nil
+	}
+
+	switch stepRaw {
+	case "hour":
+		return resolveStepForAccumulate(time.Hour, accumulateBy), nil
+	case "day":
+		return resolveStepForAccumulate(24*time.Hour, accumulateBy), nil
+	case "week":
+		return resolveStepForAccumulate(7*24*time.Hour, accumulateBy), nil
+	case "month":
+		// month accumulation operates on daily inputs and calendar-rounded query windows
+		return resolveStepForAccumulate(24*time.Hour, accumulateBy), nil
+	case "quarter":
+		// quarter accumulation operates on daily inputs and calendar-rounded query windows
+		return resolveStepForAccumulate(24*time.Hour, accumulateBy), nil
+	default:
+		step := qp.GetDuration("step", window.Duration())
+		return resolveStepForAccumulate(step, accumulateBy), nil
+	}
+}
+
+func resolveQueryWindowForAccumulate(window opencost.Window, accumulateBy opencost.AccumulateOption) (opencost.Window, error) {
+	switch accumulateBy {
+	case opencost.AccumulateOptionHour, opencost.AccumulateOptionDay, opencost.AccumulateOptionWeek, opencost.AccumulateOptionMonth, opencost.AccumulateOptionQuarter:
+		windows, err := window.GetAccumulateWindows(accumulateBy)
+		if err != nil {
+			return opencost.Window{}, err
+		}
+		if len(windows) == 0 {
+			return opencost.Window{}, fmt.Errorf("no query windows for accumulate option %s", accumulateBy)
+		}
+
+		return opencost.NewClosedWindow(*windows[0].Start(), *windows[len(windows)-1].End()), nil
+	default:
+		return window, nil
+	}
+}
+
+func trimAllocationSetRangeToRequestWindow(asr *opencost.AllocationSetRange, requestWindow opencost.Window) *opencost.AllocationSetRange {
+	if asr == nil {
+		return nil
+	}
+
+	trimmed := opencost.NewAllocationSetRange()
+	for _, as := range asr.Slice() {
+		// Keep only sets that overlap the originally requested window.
+		if as.Start().Before(*requestWindow.End()) && as.End().After(*requestWindow.Start()) {
+			trimmed.Append(as)
+		}
+	}
+
+	return trimmed
+}
+
 func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -72,8 +185,6 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 	// Step is an optional parameter that defines the duration per-set, i.e.
 	// the window for an AllocationSet, of the AllocationSetRange to be
 	// computed. Defaults to the window size, making one set.
-	step := qp.GetDuration("step", window.Duration())
-
 	// Aggregation is a required comma-separated list of fields by which to
 	// aggregate results. Some fields allow a sub-field, which is distinguished
 	// with a colon; e.g. "label:app".
@@ -86,7 +197,18 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 
 	// Accumulate is an optional parameter, defaulting to false, which if true
 	// sums each Set in the Range, producing one Set.
-	accumulate := qp.GetBool("accumulate", false)
+	accumulate := opencost.ParseAccumulate(qp.Get("accumulate", ""))
+	accumulateBy := resolveAccumulateOption(accumulate, qp.Get("accumulateBy", ""))
+	step, err := resolveStepFromQuery(qp, window, accumulateBy)
+	if err != nil {
+		proto.WriteError(w, proto.BadRequest(fmt.Sprintf("Invalid step parameter: %s", err)))
+		return
+	}
+	queryWindow, err := resolveQueryWindowForAccumulate(window, accumulateBy)
+	if err != nil {
+		proto.WriteError(w, proto.BadRequest(fmt.Sprintf("Invalid accumulation configuration: %s", err)))
+		return
+	}
 
 	// Get allocation filter if provided
 	allocationFilter := qp.Get("filter", "")
@@ -94,8 +216,8 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 	// Query for AllocationSets in increments of the given step duration,
 	// appending each to the AllocationSetRange.
 	asr := opencost.NewAllocationSetRange()
-	stepStart := *window.Start()
-	for window.End().After(stepStart) {
+	stepStart := *queryWindow.Start()
+	for queryWindow.End().After(stepStart) {
 		stepEnd := stepStart.Add(step)
 		stepWindow := opencost.NewWindow(&stepStart, &stepEnd)
 
@@ -148,12 +270,14 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 	}
 
 	// Accumulate, if requested
-	if accumulate {
-		asr, err = asr.Accumulate(opencost.AccumulateOptionAll)
+	if accumulateBy != opencost.AccumulateOptionNone {
+		asr, err = asr.Accumulate(accumulateBy)
 		if err != nil {
 			proto.WriteError(w, proto.InternalServerError(err.Error()))
 			return
 		}
+
+		asr = trimAllocationSetRangeToRequestWindow(asr, window)
 	}
 
 	sasl := []*opencost.SummaryAllocationSet{}
@@ -182,8 +306,6 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// Step is an optional parameter that defines the duration per-set, i.e.
 	// the window for an AllocationSet, of the AllocationSetRange to be
 	// computed. Defaults to the window size, making one set.
-	step := qp.GetDuration("step", window.Duration())
-
 	// Aggregation is an optional comma-separated list of fields by which to
 	// aggregate results. Some fields allow a sub-field, which is distinguished
 	// with a colon; e.g. "label:app".
@@ -198,16 +320,16 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	includeIdle := qp.GetBool("includeIdle", false)
 	// Accumulate is an optional parameter, defaulting to false, which if true
 	// sums each Set in the Range, producing one Set.
-	accumulate := qp.GetBool("accumulate", false)
+	accumulate := opencost.ParseAccumulate(qp.Get("accumulate", ""))
 
 	// Accumulate is an optional parameter that accumulates an AllocationSetRange
 	// by the resolution of the given time duration.
 	// Defaults to 0. If a value is not passed then the parameter is not used.
-	accumulateBy := opencost.AccumulateOption(qp.Get("accumulateBy", ""))
-
-	// if accumulateBy is not explicitly set, and accumulate is true, ensure result is accumulated
-	if accumulateBy == opencost.AccumulateOptionNone && accumulate {
-		accumulateBy = opencost.AccumulateOptionAll
+	accumulateBy := resolveAccumulateOption(accumulate, qp.Get("accumulateBy", ""))
+	step, err := resolveStepFromQuery(qp, window, accumulateBy)
+	if err != nil {
+		proto.WriteError(w, proto.BadRequest(fmt.Sprintf("Invalid step parameter: %s", err)))
+		return
 	}
 
 	// IdleByNode, if true, computes idle allocations at the node level.
