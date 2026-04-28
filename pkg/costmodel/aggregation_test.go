@@ -97,6 +97,12 @@ func TestResolveAccumulateOption(t *testing.T) {
 			expected:   opencost.AccumulateOptionNone,
 		},
 		{
+			name:       "accumulateBy all is valid",
+			accumulate: opencost.AccumulateOptionNone,
+			input:      "all",
+			expected:   opencost.AccumulateOptionAll,
+		},
+		{
 			name:       "accumulateBy normalizes case",
 			accumulate: opencost.AccumulateOptionNone,
 			input:      "Week",
@@ -188,6 +194,12 @@ func TestResolveStepForAccumulate(t *testing.T) {
 			accumulateBy: opencost.AccumulateOptionWeek,
 			expected:     7 * 24 * time.Hour,
 		},
+		{
+			name:         "quarter uses daily step",
+			step:         7 * 24 * time.Hour,
+			accumulateBy: opencost.AccumulateOptionQuarter,
+			expected:     24 * time.Hour,
+		},
 	}
 
 	for _, tc := range tests {
@@ -259,6 +271,7 @@ func TestResolveStepFromQuery(t *testing.T) {
 		stepRaw      string
 		accumulateBy opencost.AccumulateOption
 		expected     time.Duration
+		expectErr    bool
 	}{
 		{
 			name:         "unset step defaults from weekly accumulate",
@@ -278,6 +291,12 @@ func TestResolveStepFromQuery(t *testing.T) {
 			accumulateBy: opencost.AccumulateOptionWeek,
 			expected:     7 * 24 * time.Hour,
 		},
+		{
+			name:         "invalid duration errors",
+			stepRaw:      "not-a-duration",
+			accumulateBy: opencost.AccumulateOptionNone,
+			expectErr:    true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -288,6 +307,12 @@ func TestResolveStepFromQuery(t *testing.T) {
 			}
 			qp := httputil.NewQueryParams(values)
 			got, err := resolveStepFromQuery(qp, window, tc.accumulateBy)
+			if tc.expectErr && err == nil {
+				t.Fatalf("expected error but got nil")
+			}
+			if tc.expectErr {
+				return
+			}
 			if err != nil {
 				t.Fatalf("unexpected error: %s", err)
 			}

@@ -64,6 +64,10 @@ func resolveAccumulateOption(accumulate opencost.AccumulateOption, accumulateBy 
 		return accumulate, nil
 	}
 
+	if accumulateByRaw == "all" {
+		return opencost.AccumulateOptionAll, nil
+	}
+
 	if accumulateByRaw == "none" {
 		return opencost.AccumulateOptionNone, nil
 	}
@@ -101,7 +105,7 @@ func resolveStepForAccumulate(step time.Duration, accumulateBy opencost.Accumula
 			return day
 		}
 		return time.Hour
-	case opencost.AccumulateOptionWeek, opencost.AccumulateOptionMonth:
+	case opencost.AccumulateOptionWeek, opencost.AccumulateOptionMonth, opencost.AccumulateOptionQuarter:
 		// week accumulation supports either daily or already-weekly sets
 		if accumulateBy == opencost.AccumulateOptionWeek && step == week {
 			return week
@@ -151,7 +155,10 @@ func resolveStepFromQuery(qp httputil.QueryParams, window opencost.Window, accum
 		// quarter accumulation operates on daily inputs and calendar-rounded query windows
 		return resolveStepForAccumulate(24*time.Hour, accumulateBy), nil
 	default:
-		step := qp.GetDuration("step", window.Duration())
+		step, err := time.ParseDuration(stepRaw)
+		if err != nil {
+			return 0, fmt.Errorf("invalid step %q", stepRaw)
+		}
 		return resolveStepForAccumulate(step, accumulateBy), nil
 	}
 }
@@ -215,10 +222,10 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 		http.Error(w, fmt.Sprintf("Invalid 'aggregate' parameter: %s", err), http.StatusBadRequest)
 	}
 
-	// Accumulate is an optional parameter, defaulting to false, which if true
-	// sums each Set in the Range, producing one Set.
-	accumulate := resolveAccumulateFromQuery(qp)
-	accumulateBy, err := resolveAccumulateOption(accumulate, qp.Get("accumulateBy", ""))
+	// Accumulate is an optional parameter that accepts bool-style values (e.g.
+	// true/1) or options (e.g. day/week/month) and governs accumulation windowing.
+	accumulateOpt := resolveAccumulateFromQuery(qp)
+	accumulateBy, err := resolveAccumulateOption(accumulateOpt, qp.Get("accumulateBy", ""))
 	if err != nil {
 		proto.WriteError(w, proto.BadRequest(fmt.Sprintf("Invalid 'accumulateBy' parameter: %s", err)))
 		return
@@ -342,14 +349,13 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 
 	// IncludeIdle, if true, uses Asset data to incorporate Idle Allocation
 	includeIdle := qp.GetBool("includeIdle", false)
-	// Accumulate is an optional parameter, defaulting to false, which if true
-	// sums each Set in the Range, producing one Set.
-	accumulate := resolveAccumulateFromQuery(qp)
+	// Accumulate is an optional parameter that accepts bool-style values (e.g.
+	// true/1) or options (e.g. day/week/month) and governs accumulation windowing.
+	accumulateOpt := resolveAccumulateFromQuery(qp)
 
-	// Accumulate is an optional parameter that accumulates an AllocationSetRange
-	// by the resolution of the given time duration.
-	// Defaults to 0. If a value is not passed then the parameter is not used.
-	accumulateBy, err := resolveAccumulateOption(accumulate, qp.Get("accumulateBy", ""))
+	// AccumulateBy is an optional parameter that overrides accumulate with an
+	// explicit accumulation option (e.g. all/day/week/month/quarter/none).
+	accumulateBy, err := resolveAccumulateOption(accumulateOpt, qp.Get("accumulateBy", ""))
 	if err != nil {
 		proto.WriteError(w, proto.BadRequest(fmt.Sprintf("Invalid 'accumulateBy' parameter: %s", err)))
 		return
