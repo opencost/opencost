@@ -68,6 +68,39 @@ func (s *QueryService) GetCloudCostHandler() func(w http.ResponseWriter, r *http
 	}
 }
 
+func (s *QueryService) GetCloudCostAutocompleteHandler() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		tracer := otel.Tracer(tracerName)
+		ctx, span := tracer.Start(r.Context(), "Service.GetCloudCostAutocompleteHandler")
+		defer span.End()
+
+		if s == nil {
+			http.Error(w, "Query Service is nil", http.StatusNotImplemented)
+			return
+		}
+		if s.Querier == nil {
+			http.Error(w, "CloudCost Query Service is nil", http.StatusNotImplemented)
+			return
+		}
+
+		qp := httputil.NewQueryParams(r.URL.Query())
+		request, err := ParseCloudCostAutocompleteRequest(qp)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		resp, err := s.Querier.QueryCloudCostAutocomplete(ctx, *request)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Internal server error: %s", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		protocol.WriteData(w, resp)
+	}
+}
+
 func (s *QueryService) GetCloudCostViewGraphHandler() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	// Return valid handler func
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {

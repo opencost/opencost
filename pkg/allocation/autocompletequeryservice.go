@@ -1,0 +1,160 @@
+package allocation
+
+import (
+	"context"
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/opencost/opencost/core/pkg/filter"
+	"github.com/opencost/opencost/core/pkg/opencost"
+)
+
+const DefaultAutocompleteResultLimit = 100
+const MaxAutocompleteResultLimit = 1000
+
+type AllocationAutocompleteRequest struct {
+	Search      string
+	Field       string
+	Limit       int
+	Window      opencost.Window
+	Filter      filter.Filter
+	LabelConfig *opencost.LabelConfig
+}
+
+type AllocationAutocompleteResponse struct {
+	Data []string `json:"data"`
+}
+
+type AutocompleteQueryService interface {
+	QueryAllocationAutocomplete(AllocationAutocompleteRequest, context.Context) (*AllocationAutocompleteResponse, error)
+}
+
+func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, req AllocationAutocompleteRequest) (*AllocationAutocompleteResponse, error) {
+	field, err := validateAutocompleteField(req.Field)
+	if err != nil {
+		return nil, fmt.Errorf("invalid field: %w", err)
+	}
+
+	limit := req.Limit
+	if limit <= 0 {
+		limit = DefaultAutocompleteResultLimit
+	}
+	if limit > MaxAutocompleteResultLimit {
+		return nil, fmt.Errorf("exceeded maxiumum autocomplete result limit of %d", MaxAutocompleteResultLimit)
+	}
+
+	var matcher opencost.AllocationMatcher
+	if req.Filter != nil {
+		compiler := opencost.NewAllocationMatchCompiler(req.LabelConfig)
+		matcher, err = compiler.Compile(req.Filter)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compile filter: %w", err)
+		}
+	}
+
+	search := strings.ToLower(req.Search)
+	results := map[string]struct{}{}
+	for _, as := range asr.Slice() {
+		for _, alloc := range as.Allocations {
+			if alloc == nil || alloc.Properties == nil {
+				continue
+			}
+			if matcher != nil && !matcher.Matches(alloc) {
+				continue
+			}
+
+			values := allocationAutocompleteValues(alloc.Properties, field)
+			for _, value := range values {
+				if value == "" {
+					continue
+				}
+				if search != "" && !strings.Contains(strings.ToLower(value), search) {
+					continue
+				}
+				results[value] = struct{}{}
+			}
+		}
+	}
+
+	return &AllocationAutocompleteResponse{Data: uniqueSortedLimited(results, limit)}, nil
+}
+
+func validateAutocompleteField(field string) (string, error) {
+	if field == "" {
+		return "", fmt.Errorf("field is required")
+	}
+
+	f := strings.ToLower(field)
+	switch f {
+	case "cluster", "namespace", "node", "controllerkind", "controllername", "pod", "container", "account", "label", "namespacelabel":
+		return f, nil
+	}
+
+	if strings.HasPrefix(f, "label:") {
+		_, labelKey, _ := strings.Cut(field, ":")
+		return "label:" + labelKey, nil
+	}
+	if strings.HasPrefix(f, "namespacelabel:") {
+		_, labelKey, _ := strings.Cut(field, ":")
+		return "namespacelabel:" + labelKey, nil
+	}
+
+	return "", fmt.Errorf("unrecognized field: %s", field)
+}
+
+func allocationAutocompleteValues(props *opencost.AllocationProperties, field string) []string {
+	switch {
+	case field == "cluster":
+		return []string{props.Cluster}
+	case field == "namespace":
+		return []string{props.Namespace}
+	case field == "node":
+		return []string{props.Node}
+	case field == "controllerkind":
+		return []string{props.ControllerKind}
+	case field == "controllername":
+		return []string{props.Controller}
+	case field == "pod":
+		return []string{props.Pod}
+	case field == "container":
+		return []string{props.Container}
+	case field == "account":
+		return nil
+	case field == "label":
+		return mapKeys(props.Labels)
+	case strings.HasPrefix(strings.ToLower(field), "label:"):
+		label := strings.TrimPrefix(field, "label:")
+		if v, ok := props.Labels[label]; ok {
+			return []string{v}
+		}
+	case field == "namespacelabel":
+		return mapKeys(props.NamespaceLabels)
+	case strings.HasPrefix(strings.ToLower(field), "namespacelabel:"):
+		label := strings.TrimPrefix(field, "namespacelabel:")
+		if v, ok := props.NamespaceLabels[label]; ok {
+			return []string{v}
+		}
+	}
+	return nil
+}
+
+func mapKeys(values map[string]string) []string {
+	result := make([]string, 0, len(values))
+	for k := range values {
+		result = append(result, k)
+	}
+	return result
+}
+
+func uniqueSortedLimited(values map[string]struct{}, limit int) []string {
+	out := make([]string, 0, len(values))
+	for v := range values {
+		out = append(out, v)
+	}
+	sort.Strings(out)
+	if len(out) > limit {
+		return out[:limit]
+	}
+	return out
+}
