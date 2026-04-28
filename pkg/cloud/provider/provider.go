@@ -366,6 +366,9 @@ func ParsePVID(id string) string {
 
 // ParseLBID attempts to parse a LB ProviderId from a string based on formats from the various providers and
 // returns the string as is if it cannot find a match
+//
+// TODO KCM-5667: loadBalancerAWSRegex does not correctly identify the ProviderID for gateway host names
+// e.g. k8s-kgateway-customer-abcd-1234.elb.us-east-1.amazonaws.com => "k8s"
 func ParseLBID(id string) string {
 	match := loadBalancerAWSRegex.FindStringSubmatch(id)
 	if len(match) >= 2 {

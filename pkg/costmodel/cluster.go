@@ -622,7 +622,6 @@ func ClusterLoadBalancers(dataSource source.OpenCostDataSource, start, end time.
 			Cluster:    key.Cluster,
 			Namespace:  key.Namespace,
 			Name:       key.Name,
-			Cost:       lbPricePerHr, // default to hourly cost, overwrite if active entry exists
 			Ip:         key.IngressIP,
 			Private:    privateIPCheck(key.IngressIP),
 			ProviderID: provider.ParseLBID(key.IngressIP),
@@ -635,8 +634,6 @@ func ClusterLoadBalancers(dataSource source.OpenCostDataSource, start, end time.
 
 			if lb.Minutes > 0 {
 				lb.Cost = lbPricePerHr * (lb.Minutes / 60.0)
-			} else {
-				log.DedupedWarningf(20, "ClusterLoadBalancers: found zero minutes for key: %v", key)
 			}
 		}
 
