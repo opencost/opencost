@@ -111,7 +111,7 @@ func TestResolveAccumulateOption(t *testing.T) {
 		{
 			name:       "invalid accumulateBy is flagged",
 			accumulate: opencost.AccumulateOptionNone,
-			input:      "nonesense",
+			input:      "nonsense",
 			expected:   opencost.AccumulateOptionNone,
 			expectErr:  true,
 		},
