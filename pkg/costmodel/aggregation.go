@@ -3,6 +3,7 @@ package costmodel
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -159,12 +160,32 @@ func resolveStepFromQuery(qp httputil.QueryParams, window opencost.Window, accum
 		// quarter accumulation operates on daily inputs and calendar-rounded query windows
 		return resolveStepForAccumulate(24*time.Hour, accumulateBy), nil
 	default:
-		step, err := time.ParseDuration(stepRaw)
+		step, err := parseStepDuration(stepRaw)
 		if err != nil {
 			return 0, fmt.Errorf("invalid step %q: must be a Go duration or one of hour, day, week, month, quarter: %w", stepRaw, err)
 		}
 		return resolveStepForAccumulate(step, accumulateBy), nil
 	}
+}
+
+func parseStepDuration(stepRaw string) (time.Duration, error) {
+	if strings.HasSuffix(stepRaw, "d") {
+		n, err := strconv.Atoi(strings.TrimSuffix(stepRaw, "d"))
+		if err != nil {
+			return 0, err
+		}
+		return time.Duration(n) * 24 * time.Hour, nil
+	}
+
+	if strings.HasSuffix(stepRaw, "w") {
+		n, err := strconv.Atoi(strings.TrimSuffix(stepRaw, "w"))
+		if err != nil {
+			return 0, err
+		}
+		return time.Duration(n) * 7 * 24 * time.Hour, nil
+	}
+
+	return time.ParseDuration(stepRaw)
 }
 
 func resolveQueryWindowForAccumulate(window opencost.Window, accumulateBy opencost.AccumulateOption) (opencost.Window, error) {
