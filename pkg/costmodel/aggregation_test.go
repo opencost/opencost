@@ -109,6 +109,18 @@ func TestResolveAccumulateOption(t *testing.T) {
 			expected:   opencost.AccumulateOptionWeek,
 		},
 		{
+			name:       "accumulateBy quarter is valid",
+			accumulate: opencost.AccumulateOptionNone,
+			input:      string(opencost.AccumulateOptionQuarter),
+			expected:   opencost.AccumulateOptionQuarter,
+		},
+		{
+			name:       "accumulate quarter is preserved",
+			accumulate: opencost.AccumulateOptionQuarter,
+			input:      "",
+			expected:   opencost.AccumulateOptionQuarter,
+		},
+		{
 			name:       "invalid accumulateBy is flagged",
 			accumulate: opencost.AccumulateOptionNone,
 			input:      "nonesense",
@@ -139,6 +151,7 @@ func TestResolveAccumulateFromQuery_BackwardCompatibleTruthyValues(t *testing.T)
 		input string
 	}{
 		{name: "true supported", input: "true"},
+		{name: "all supported", input: "all"},
 		{name: "1 supported", input: "1"},
 		{name: "t supported", input: "t"},
 		{name: "TRUE supported", input: "TRUE"},

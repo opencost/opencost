@@ -82,6 +82,10 @@ func resolveAccumulateOption(accumulate opencost.AccumulateOption, accumulateBy 
 
 func resolveAccumulateFromQuery(qp httputil.QueryParams) opencost.AccumulateOption {
 	rawAccumulate := strings.TrimSpace(qp.Get("accumulate", ""))
+	if strings.EqualFold(rawAccumulate, string(opencost.AccumulateOptionAll)) {
+		return opencost.AccumulateOptionAll
+	}
+
 	accumulate := opencost.ParseAccumulate(rawAccumulate)
 	if accumulate == opencost.AccumulateOptionNone && qp.GetBool("accumulate", false) {
 		return opencost.AccumulateOptionAll
@@ -157,7 +161,7 @@ func resolveStepFromQuery(qp httputil.QueryParams, window opencost.Window, accum
 	default:
 		step, err := time.ParseDuration(stepRaw)
 		if err != nil {
-			return 0, fmt.Errorf("invalid step %q", stepRaw)
+			return 0, fmt.Errorf("invalid step %q: must be a Go duration or one of hour, day, week, month, quarter: %w", stepRaw, err)
 		}
 		return resolveStepForAccumulate(step, accumulateBy), nil
 	}
