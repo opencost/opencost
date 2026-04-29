@@ -157,7 +157,7 @@ func resolveStepFromQuery(qp httputil.QueryParams, window opencost.Window, accum
 	default:
 		step, err := time.ParseDuration(stepRaw)
 		if err != nil {
-			return 0, fmt.Errorf("invalid step %q", stepRaw)
+			return 0, fmt.Errorf("invalid step %q: must be a Go duration or one of hour, day, week, month, quarter: %w", stepRaw, err)
 		}
 		return resolveStepForAccumulate(step, accumulateBy), nil
 	}
