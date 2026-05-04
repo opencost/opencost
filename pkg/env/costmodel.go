@@ -109,6 +109,10 @@ const (
 
 	// Metrics Emitter
 	MetricsEmitterQueryWindowEnvVar = "METRICS_EMITTER_QUERY_WINDOW"
+
+	// Inference Cost Tracking
+	InferenceCostEnabledEnvVar            = "INFERENCE_COST_ENABLED"
+	InferenceCostCollectionIntervalEnvVar = "INFERENCE_COST_COLLECTION_INTERVAL"
 )
 
 func GetGCPAuthSecretFilePath() string {
@@ -457,4 +461,22 @@ func GetMCPHTTPPort() int {
 // Default is 2m.
 func GetMetricsEmitterQueryWindow() time.Duration {
 	return env.GetDuration(MetricsEmitterQueryWindowEnvVar, 2*time.Minute)
+}
+
+// GetPrometheusServerEndpoint returns the Prometheus server endpoint
+// This is a wrapper around the prometheus-source module's function
+func GetPrometheusServerEndpoint() string {
+	return env.Get("PROMETHEUS_SERVER_ENDPOINT", "http://prometheus-server")
+}
+
+// GetInferenceCostEnabled returns whether inference cost tracking is enabled
+func GetInferenceCostEnabled() bool {
+	return env.GetBool(InferenceCostEnabledEnvVar, false)
+}
+
+// GetInferenceCostCollectionInterval returns the collection interval for inference costs
+// Default is 60 seconds
+func GetInferenceCostCollectionInterval() time.Duration {
+	seconds := env.GetInt(InferenceCostCollectionIntervalEnvVar, 60)
+	return time.Duration(seconds) * time.Second
 }

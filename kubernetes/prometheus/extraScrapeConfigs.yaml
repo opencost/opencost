@@ -1,4 +1,36 @@
 extraScrapeConfigs: |
+  - job_name: vllm-inference
+    honor_labels: true
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    kubernetes_sd_configs:
+    - role: pod
+    relabel_configs:
+    # Keep only pods with llm-d.ai/model label (all vLLM inference pods)
+    - source_labels: [__meta_kubernetes_pod_label_llm_d_ai_model]
+      action: keep
+      regex: .+
+    # Add namespace label to all metrics
+    - source_labels: [__meta_kubernetes_namespace]
+      target_label: namespace
+      action: replace
+    # Add pod name
+    - source_labels: [__meta_kubernetes_pod_name]
+      target_label: pod
+      action: replace
+    # Add node name
+    - source_labels: [__meta_kubernetes_pod_node_name]
+      target_label: node
+      action: replace
+    # Set scrape port to 8000 (vLLM metrics port)
+    - source_labels: [__address__]
+      target_label: __address__
+      regex: ([^:]+)(?::\d+)?
+      replacement: $1:8000
+    # Set metrics path
+    - target_label: __metrics_path__
+      replacement: /metrics
   - job_name: opencost
     honor_labels: true
     scrape_interval: 1m

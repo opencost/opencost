@@ -1,0 +1,50 @@
+# Simple Dockerfile that avoids cross-compilation issues
+# Build the binary locally first, then copy it into the image
+
+FROM alpine:latest
+
+ARG version=dev
+ARG commit=HEAD
+
+# Labels
+LABEL org.opencontainers.image.description="OpenCost with AI Inference Cost Tracking"
+LABEL org.opencontainers.image.documentation=https://opencost.io/docs/
+LABEL org.opencontainers.image.licenses=Apache-2.0
+LABEL org.opencontainers.image.source=https://github.com/opencost/opencost
+LABEL org.opencontainers.image.title=opencost-inference
+LABEL org.opencontainers.image.url=https://opencost.io
+
+# Install runtime dependencies
+RUN apk add --update --no-cache ca-certificates && \
+    rm -rf /var/cache/apk/*
+
+# Create necessary directories with correct permissions
+RUN mkdir -p /go/bin /models && \
+    chown -R 1001:1001 /go /models
+
+# Copy configuration files
+COPY --chown=1001:1001 THIRD_PARTY_LICENSES.txt /THIRD_PARTY_LICENSES.txt
+COPY --chown=1001:1001 configs/default.json /models/default.json
+COPY --chown=1001:1001 configs/azure.json /models/azure.json
+COPY --chown=1001:1001 configs/aws.json /models/aws.json
+COPY --chown=1001:1001 configs/gcp.json /models/gcp.json
+COPY --chown=1001:1001 configs/alibaba.json /models/alibaba.json
+COPY --chown=1001:1001 configs/oracle.json /models/oracle.json
+COPY --chown=1001:1001 configs/otc.json /models/otc.json
+
+# Copy the pre-built binary
+COPY --chown=1001:1001 costmodel /go/bin/app
+
+# Ensure binary is executable
+RUN chmod +x /go/bin/app
+
+# Switch to non-root user
+USER 1001
+
+# Set working directory
+WORKDIR /go/bin
+
+# Run the application
+ENTRYPOINT ["/go/bin/app"]
+
+# Made with Bob

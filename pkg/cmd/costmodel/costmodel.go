@@ -13,6 +13,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/apiutil"
 	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/customcost"
+	"github.com/opencost/opencost/pkg/inferencecost"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 
@@ -93,6 +94,68 @@ func Execute(conf *Config) error {
 		if value, exists := os.LookupEnv(env.MCPServerEnabledEnvVar); !exists || value == "" {
 			log.Infof("MCP server is now disabled by default. If you wish to use the MCP server, please set the %s environment variable to true.", env.MCPServerEnabledEnvVar)
 		}
+	}
+
+	// Initialize Inference Cost Collector if enabled
+	if conf.InferenceCostEnabled {
+		log.Infof("Inference cost tracking is enabled")
+		
+		// Create inference cost configuration
+		inferenceConfig := &inferencecost.Config{
+			PrometheusURL:      conf.PrometheusServerEndpoint,
+			CollectionInterval: conf.InferenceCostCollectionInterval,
+			Enabled:            true,
+		}
+		
+		// Create collector and exporter
+		collector, err := inferencecost.NewCollector(inferenceConfig)
+		if err != nil {
+			log.Errorf("Failed to create inference cost collector: %v", err)
+		} else {
+			exporter := inferencecost.NewExporter()
+			calculator := inferencecost.NewCalculator()
+			
+			// Register metrics with Prometheus
+			if err := exporter.Register(); err != nil {
+				log.Errorf("Failed to register inference cost metrics: %v", err)
+			} else {
+				// Start background collection goroutine
+				go func() {
+					ticker := time.NewTicker(inferenceConfig.CollectionInterval)
+					defer ticker.Stop()
+					
+					for {
+						select {
+						case <-ctx.Done():
+							log.Infof("Inference cost collector shutting down")
+							return
+						case <-ticker.C:
+							// Collect metrics from Prometheus
+							metrics, err := collector.CollectMetrics(ctx)
+							if err != nil {
+								log.Errorf("Failed to collect inference metrics: %v", err)
+								continue
+							}
+							
+							// Calculate costs for each model
+							if err := calculator.CalculateCosts(metrics); err != nil {
+								log.Errorf("Failed to calculate inference costs: %v", err)
+								continue
+							}
+							
+							// Export metrics to Prometheus
+							exporter.Export(metrics)
+							
+							log.Debugf("Collected and exported inference costs for %d models", len(metrics))
+						}
+					}
+				}()
+				
+				log.Infof("Inference cost collector started with interval: %v", inferenceConfig.CollectionInterval)
+			}
+		}
+	} else {
+		log.Infof("Inference cost tracking is disabled. Set %s=true to enable.", env.InferenceCostEnabledEnvVar)
 	}
 
 	apiutil.ApplyContainerDiagnosticEndpoints(router)
