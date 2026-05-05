@@ -148,24 +148,101 @@ The feature uses OpenCost's existing GPU cost metrics:
 
 ## Cost Calculation Methodology
 
-The cost calculation follows this approach:
+The inference cost tracking feature calculates costs in two main steps:
+
+### Step 1: Calculate GPU Allocation Costs
+
+OpenCost determines how much GPU cost to attribute to each inference workload by:
+
+1. **Getting Node GPU Costs**: Query the hourly cost of GPU resources on each node
+   - Metric used: `node_gpu_hourly_cost`
+   - Example: A node with 4 GPUs might cost $3.20/hour
+
+2. **Getting Container GPU Allocation**: Determine what fraction of the node's GPUs each container is using
+   - Metric used: `container_gpu_allocation`
+   - This represents the ratio: `(GPUs requested by container) / (Total GPUs on node)`
+   - Example: If a container requests 2 GPUs on a 4-GPU node, allocation = 0.5
+
+3. **Calculating Per-Container GPU Cost**: Multiply the allocation ratio by the node cost
+   - Formula: `container_gpu_cost = container_gpu_allocation × node_gpu_hourly_cost`
+   - Example: 0.5 × $3.20/hour = $1.60/hour for that container
+
+4. **Aggregating by Model**: Sum up costs for all containers running the same model
+   - Uses the `model_name` label from vLLM metrics to group containers
+   - Aggregates by both `model_name` and `namespace` for multi-tenant environments
+
+**Why This Approach?**
+- ✅ Accurately reflects actual GPU resource allocation
+- ✅ Works in multi-tenant environments where multiple models share nodes
+- ✅ Accounts for different GPU request sizes (1 GPU vs 4 GPUs)
+- ✅ Uses OpenCost's existing cost data (no additional pricing configuration needed)
+
+### Step 2: Calculate Cost Per Token
+
+Once we have the GPU costs, we calculate the cost per token:
 
 1. **Token Throughput**: Calculate tokens per second using rate() over a 5-minute window
-2. **GPU Cost**: Sum GPU costs for nodes running the model
-3. **Cost Per Token**: Divide GPU cost by token throughput
-4. **Cost Per Million Tokens**: Multiply cost per token by 1,000,000
+   - Prompt tokens: `rate(vllm:prompt_tokens_total[5m])`
+   - Generation tokens: `rate(vllm:generation_tokens_total[5m])`
+   - Total throughput: sum of both rates
 
-### Example Calculation
+2. **Cost Per Token**: Divide GPU cost by token throughput
+   - Formula: `cost_per_token = gpu_cost_per_second / tokens_per_second`
 
+3. **Cost Per Million Tokens**: Scale up for easier interpretation
+   - Formula: `cost_per_million = cost_per_token × 1,000,000`
+
+### Complete Example
+
+**Scenario**: A vLLM deployment running the "Qwen/Qwen3-32B" model
+
+**Step 1 - GPU Allocation Cost:**
 ```
-Prompt tokens/sec: 100
-Generation tokens/sec: 50
-Total tokens/sec: 150
+Node: gpu-node-1 (4 GPUs total)
+Node GPU cost: $3.20/hour
 
-GPU cost: $0.50/hour = $0.000139/second
+Container: vllm-qwen-pod
+GPU request: 2 GPUs
+GPU allocation: 2/4 = 0.5
 
-Cost per token: $0.000139 / 150 = $0.00000093
-Cost per million tokens: $0.00000093 * 1,000,000 = $0.93
+Container GPU cost: 0.5 × $3.20/hour = $1.60/hour
+                  = $1.60/3600 = $0.000444/second
+```
+
+**Step 2 - Cost Per Token:**
+```
+Token throughput:
+- Prompt tokens: 100 tokens/sec
+- Generation tokens: 50 tokens/sec
+- Total: 150 tokens/sec
+
+Cost per token: $0.000444/sec ÷ 150 tokens/sec = $0.00000296/token
+
+Cost per million tokens: $0.00000296 × 1,000,000 = $2.96 per million tokens
+```
+
+### Understanding the Metrics
+
+The Prometheus query used for GPU cost calculation:
+```promql
+sum by (model_name, namespace) (
+    # Get model_name from vLLM metrics
+    (vllm:prompt_tokens_total * 0 + 1)
+    * on(pod, namespace) group_left()
+    # Join with GPU cost per pod
+    sum(
+        container_gpu_allocation      # GPU allocation ratio per container
+        * on(node) group_left()
+        node_gpu_hourly_cost          # Node GPU hourly cost
+    ) by (pod, namespace, node)
+)
+```
+
+This query:
+1. Starts with vLLM metrics to get the `model_name` label
+2. Joins with container GPU allocations to get resource usage
+3. Multiplies allocations by node costs to get actual dollar amounts
+4. Aggregates by model and namespace for the final cost
 ```
 
 ## Limitations (Phase 1)
@@ -209,17 +286,17 @@ INFERENCE_COST_COLLECTION_INTERVAL=300  # 5 minutes
 
 ## Future Enhancements
 
-### Phase 2 (Planned)
-- Model version detection from vLLM metrics
-- KV cache hit accounting
-- Per-request cost tracking
-- Multi-GPU cost distribution
-
-### Phase 3 (Planned)
-- Historical cost data storage
-- Cost prediction and forecasting
-- Integration with OpenCost UI
-- Custom cost allocation rules
+- **Differentiated pricing for prompt vs output tokens** (HIGH PRIORITY) - Currently all tokens are priced equally, but output tokens typically cost 2-3x more in commercial APIs due to higher compute requirements
+- **Model version detection from vLLM metrics** (HIGH PRIORITY) - Automatically detect and track model versions
+- **KV cache hit accounting** (HIGH PRIORITY) - Account for KV cache efficiency in cost calculations
+- **Workload-based cost tracking** (HIGH PRIORITY) - Track costs by workload type, application, or service to enable chargeback and showback
+- **Tenant-based cost tracking** (HIGH PRIORITY) - Multi-tenant cost attribution with support for team, department, or customer-level cost allocation
+- Per-request cost tracking - Track costs at the individual request level
+- Multi-GPU cost distribution - More accurate cost distribution across multiple GPUs
+- Historical cost data storage - Store and query historical cost data
+- Cost prediction and forecasting - Predict future costs based on usage patterns
+- Integration with OpenCost UI - Display inference costs in the OpenCost web interface
+- Custom cost allocation rules - Allow custom rules for cost allocation across teams/projects
 
 ## Support
 
