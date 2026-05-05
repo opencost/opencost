@@ -1603,13 +1603,17 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 
 	// Begin with empty response
 	asr := opencost.NewAllocationSetRange()
+	queryWindow, err := resolveQueryWindowForAccumulate(window, accumulateBy)
+	if err != nil {
+		return nil, fmt.Errorf("invalid accumulation configuration: %w", err)
+	}
 
 	// Query for AllocationSets in increments of the given step duration,
 	// appending each to the response.
-	stepStart := *window.Start()
+	stepStart := *queryWindow.Start()
 	stepEnd := stepStart.Add(step)
 	var isAKS bool
-	for window.End().After(stepStart) {
+	for queryWindow.End().After(stepStart) {
 		allocSet, err := cm.ComputeAllocation(stepStart, stepEnd)
 		if err != nil {
 			return nil, fmt.Errorf("error computing allocations for %s: %w", opencost.NewClosedWindow(stepStart, stepEnd), err)
@@ -1669,7 +1673,7 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 			return nil, fmt.Errorf("failed to compile filter: %w", err)
 		}
 		filteredASR := opencost.NewAllocationSetRange()
-		for _, as := range asr.Slice() {
+		for _, as := range asr.Allocations {
 			filteredAS := opencost.NewAllocationSet(as.Start(), as.End())
 			for _, alloc := range as.Allocations {
 				if matcher.Matches(alloc) {
@@ -1699,7 +1703,7 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 	}
 
 	// Aggregate
-	err := asr.AggregateBy(aggregate, opts)
+	err = asr.AggregateBy(aggregate, opts)
 	if err != nil {
 		return nil, fmt.Errorf("error aggregating for %s: %w", window, err)
 	}
@@ -1711,6 +1715,8 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 			log.Errorf("error accumulating by %v: %s", accumulateBy, err)
 			return nil, fmt.Errorf("error accumulating by %v: %s", accumulateBy, err)
 		}
+
+		asr = trimAllocationSetRangeToRequestWindow(asr, window)
 
 		// when accumulating and returning PARCs, we need the totals for the
 		// accumulated windows to accurately compute a fraction
