@@ -10,58 +10,7 @@ The inference cost tracking feature calculates the infrastructure cost per token
 3. Calculating cost per token and cost per million tokens
 4. Exporting metrics to Prometheus for monitoring and alerting
 
-## Architecture
-
-The feature consists of four main components:
-
-1. **Collector** (`pkg/inferencecost/collector.go`): Queries Prometheus for vLLM token metrics and GPU costs
-2. **Calculator** (`pkg/inferencecost/calculator.go`): Calculates cost per token and cost per million tokens
-3. **Exporter** (`pkg/inferencecost/exporter.go`): Exports calculated metrics to Prometheus
-4. **Integration** (`pkg/cmd/costmodel/costmodel.go`): Integrates the collector into OpenCost's main application
-
-## Configuration
-
-### Environment Variables
-
-Enable inference cost tracking by setting the following environment variables:
-
-```bash
-# Enable inference cost tracking (default: false)
-INFERENCE_COST_ENABLED=true
-
-# Collection interval in seconds (default: 60)
-INFERENCE_COST_COLLECTION_INTERVAL=60
-
-# Prometheus server endpoint (required if not already set)
-PROMETHEUS_SERVER_ENDPOINT=http://prometheus-server:9090
-```
-
-### Kubernetes Deployment
-
-Add the environment variables to your OpenCost deployment:
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: opencost
-spec:
-  template:
-    spec:
-      containers:
-      - name: opencost
-        image: opencost/opencost:latest
-        env:
-        - name: INFERENCE_COST_ENABLED
-          value: "true"
-        - name: INFERENCE_COST_COLLECTION_INTERVAL
-          value: "60"
-        - name: PROMETHEUS_SERVER_ENDPOINT
-          value: "http://prometheus-server:9090"
-```
-
 ## Exported Metrics
-
 The feature exports two Prometheus metrics:
 
 ### 1. `opencost_inference_total_cost`
@@ -128,6 +77,60 @@ groups:
       description: "Model {{ $labels.model_name }} in namespace {{ $labels.namespace }} has a cost of {{ $value }} per million tokens"
 ```
 
+
+
+
+## Architecture
+
+The feature consists of four main components:
+
+1. **Collector** (`pkg/inferencecost/collector.go`): Queries Prometheus for vLLM token metrics and GPU costs
+2. **Calculator** (`pkg/inferencecost/calculator.go`): Calculates cost per token and cost per million tokens
+3. **Exporter** (`pkg/inferencecost/exporter.go`): Exports calculated metrics to Prometheus
+4. **Integration** (`pkg/cmd/costmodel/costmodel.go`): Integrates the collector into OpenCost's main application
+
+## Configuration
+
+### Environment Variables
+
+Enable inference cost tracking by setting the following environment variables:
+
+```bash
+# Enable inference cost tracking (default: false)
+INFERENCE_COST_ENABLED=true
+
+# Collection interval in seconds (default: 60)
+INFERENCE_COST_COLLECTION_INTERVAL=60
+
+# Prometheus server endpoint (required if not already set)
+PROMETHEUS_SERVER_ENDPOINT=http://prometheus-server:9090
+```
+
+### Kubernetes Deployment
+
+Add the environment variables to your OpenCost deployment:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opencost
+spec:
+  template:
+    spec:
+      containers:
+      - name: opencost
+        image: opencost/opencost:latest
+        env:
+        - name: INFERENCE_COST_ENABLED
+          value: "true"
+        - name: INFERENCE_COST_COLLECTION_INTERVAL
+          value: "60"
+        - name: PROMETHEUS_SERVER_ENDPOINT
+          value: "http://prometheus-server:9090"
+```
+
+
 ## Requirements
 
 ### vLLM Metrics
@@ -147,6 +150,29 @@ The feature uses OpenCost's existing GPU cost metrics:
 - `node_gpu_hourly_cost` - Hourly cost of GPU nodes
 
 ## Cost Calculation Methodology
+
+## Metrics Time Period
+
+The inference cost metrics are calculated using a **5-minute time window**:
+
+- **Token metrics**: Total tokens processed in the last 5 minutes
+  - Calculated as: `rate(vllm:prompt_tokens_total[5m]) * 300`
+  - The `rate()` function calculates tokens per second over 5 minutes
+  - Multiplied by 300 seconds to get the total tokens in that 5-minute period
+  
+- **GPU cost metrics**: Current hourly GPU cost (instantaneous value)
+  - Based on current node GPU costs and container allocations
+  - Not averaged over time - reflects the current cost rate
+
+- **Cost per token calculation**:
+  - Uses the 5-minute token total divided by the current GPU cost
+  - Formula: `(GPU cost per hour / 3600) / (tokens in 5 minutes / 300)`
+  - This gives the cost per token based on recent throughput and current infrastructure costs
+
+- **Collection interval**: Metrics are collected every 60 seconds by default (configurable via `INFERENCE_COST_COLLECTION_INTERVAL`)
+
+**Important**: The cost per million tokens metric represents the cost if the model continues processing tokens at the same rate as the last 5 minutes, using the current GPU infrastructure costs. This provides a balance between responsiveness to changes and stability against short-term fluctuations.
+
 
 The inference cost tracking feature calculates costs in two main steps:
 
@@ -171,11 +197,6 @@ OpenCost determines how much GPU cost to attribute to each inference workload by
    - Uses the `model_name` label from vLLM metrics to group containers
    - Aggregates by both `model_name` and `namespace` for multi-tenant environments
 
-**Why This Approach?**
-- ✅ Accurately reflects actual GPU resource allocation
-- ✅ Works in multi-tenant environments where multiple models share nodes
-- ✅ Accounts for different GPU request sizes (1 GPU vs 4 GPUs)
-- ✅ Uses OpenCost's existing cost data (no additional pricing configuration needed)
 
 ### Step 2: Calculate Cost Per Token
 
@@ -247,10 +268,19 @@ This query:
 
 ## Limitations (Phase 1)
 
-1. **Model Version**: Currently defaults to "unknown" - will be enhanced in Phase 2
-2. **KV Cache**: Does not account for KV cache hits - will be added in Phase 2
-3. **Multi-GPU**: Assumes even distribution across GPUs - will be refined in Phase 2
-4. **Historical Data**: Only tracks current costs - historical tracking planned for Phase 3
+1. **GPU Costs Only**: Currently tracks GPU infrastructure costs only. Does not include:
+   - CPU costs
+   - Memory costs
+   - Storage costs
+   - Network costs
+   - Other infrastructure costs
+   
+   This will be enhanced in future phases to include full infrastructure costs.
+
+2. **Model Version**: Currently defaults to "unknown" - will be enhanced in Phase 2
+3. **KV Cache**: Does not account for KV cache hits - will be added in Phase 2
+4. **Multi-GPU**: Assumes even distribution across GPUs - will be refined in Phase 2
+5. **Historical Data**: Only tracks current costs - historical tracking planned for Phase 3
 
 ## Troubleshooting
 
