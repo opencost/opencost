@@ -476,6 +476,7 @@ type FileStringTableReader struct {
 	memoMaxBytes   int64
 	evictStop      chan struct{}
 	evictDone      chan struct{}
+	evictScratch   []memoEvictionCandidate
 }
 
 // NewFileStringTableFromBuffer reads exactly tl length-prefixed (uint16) string payloads from buffer
@@ -540,6 +541,7 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 		memo:         make([]atomic.Pointer[string], len(refs)),
 		memoHits:     make([]atomic.Uint64, len(refs)),
 		memoMaxBytes: BingenFileBackedStringTableMemoMaxBytes(),
+		evictScratch: make([]memoEvictionCandidate, len(refs)),
 	}
 	if reader.memoMaxBytes > 0 {
 		reader.startMemoEvictionLoop()
@@ -689,19 +691,22 @@ func (fstr *FileStringTableReader) evictLeastUsedMemoEntries(percent float64) {
 		return
 	}
 
-	candidates := make([]memoEvictionCandidate, 0, len(fstr.memo))
+	candidates := fstr.evictScratch
+	n := 0
 	for i := range fstr.memo {
 		if fstr.memo[i].Load() == nil {
 			continue
 		}
-		candidates = append(candidates, memoEvictionCandidate{
+		candidates[n] = memoEvictionCandidate{
 			idx:  i,
 			hits: fstr.memoHits[i].Load(),
-		})
+		}
+		n++
 	}
-	if len(candidates) == 0 {
+	if n == 0 {
 		return
 	}
+	candidates = candidates[:n]
 
 	evictCount := int(float64(len(candidates)) * percent)
 	if evictCount <= 0 {
