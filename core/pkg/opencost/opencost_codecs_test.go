@@ -881,6 +881,7 @@ func TestFileStringTableReader_EvictLeastUsedMemoEntries(t *testing.T) {
 		memo:     make([]atomic.Pointer[string], 4),
 		memoHits: make([]atomic.Uint64, 4),
 		evictScratch: make([]memoEvictionCandidate, 4),
+		memoMaxBytes: 16,
 	}
 
 	reader.memo[0].Store(&s1)

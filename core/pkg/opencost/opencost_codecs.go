@@ -17,7 +17,6 @@ import (
 	"iter"
 	"os"
 	"reflect"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -690,6 +689,12 @@ func (fstr *FileStringTableReader) evictLeastUsedMemoEntries(percent float64) {
 	if fstr == nil || len(fstr.memo) == 0 || percent <= 0 {
 		return
 	}
+	if fstr.memoMaxBytes <= 0 {
+		return
+	}
+	if fstr.memoBytes.Load() < (fstr.memoMaxBytes*9)/10 {
+		return
+	}
 
 	candidates := fstr.evictScratch
 	n := 0
@@ -716,14 +721,14 @@ func (fstr *FileStringTableReader) evictLeastUsedMemoEntries(percent float64) {
 		evictCount = len(candidates)
 	}
 
-	sort.Slice(candidates, func(i, j int) bool {
-		if candidates[i].hits == candidates[j].hits {
-			return candidates[i].idx < candidates[j].idx
-		}
-		return candidates[i].hits < candidates[j].hits
-	})
+	// Partition in-place around the evictCount-th smallest hit count.
+	cutoff := selectKthSmallestHits(candidates, evictCount-1)
 
-	for i := 0; i < evictCount; i++ {
+	evicted := 0
+	for i := 0; i < len(candidates); i++ {
+		if candidates[i].hits > cutoff {
+			continue
+		}
 		idx := candidates[i].idx
 		existing := fstr.memo[idx].Load()
 		if existing == nil {
@@ -732,8 +737,51 @@ func (fstr *FileStringTableReader) evictLeastUsedMemoEntries(percent float64) {
 		if fstr.memo[idx].CompareAndSwap(existing, nil) {
 			fstr.memoHits[idx].Store(0)
 			fstr.memoBytes.Add(-int64(fstr.refs[idx].length))
+			evicted++
+			if evicted >= evictCount {
+				break
+			}
 		}
 	}
+}
+
+func selectKthSmallestHits(c []memoEvictionCandidate, k int) uint64 {
+	if len(c) == 0 {
+		return 0
+	}
+	if k < 0 {
+		k = 0
+	}
+	if k >= len(c) {
+		k = len(c) - 1
+	}
+
+	left, right := 0, len(c)-1
+	for left <= right {
+		p := partitionByHits(c, left, right)
+		switch {
+		case p == k:
+			return c[p].hits
+		case p < k:
+			left = p + 1
+		default:
+			right = p - 1
+		}
+	}
+	return c[k].hits
+}
+
+func partitionByHits(c []memoEvictionCandidate, left, right int) int {
+	pivot := c[right].hits
+	i := left
+	for j := left; j < right; j++ {
+		if c[j].hits <= pivot {
+			c[i], c[j] = c[j], c[i]
+			i++
+		}
+	}
+	c[i], c[right] = c[right], c[i]
+	return i
 }
 
 //--------------------------------------------------------------------------
