@@ -9,28 +9,32 @@ import (
 
 // Config contain configuration options that can be passed to the Execute() method
 type Config struct {
-	Port                            int
-	KubernetesEnabled               bool
-	CarbonEstimatesEnabled          bool
-	CloudCostEnabled                bool
-	CustomCostEnabled               bool
-	MCPServerEnabled                bool
-	InferenceCostEnabled            bool
-	InferenceCostCollectionInterval time.Duration
-	PrometheusServerEndpoint        string
+	Port                               int
+	KubernetesEnabled                  bool
+	CarbonEstimatesEnabled             bool
+	CloudCostEnabled                   bool
+	CustomCostEnabled                  bool
+	MCPServerEnabled                   bool
+	InferenceCostEnabled               bool
+	InferenceCostCollectionInterval    time.Duration
+	InferenceCostAllocationMode        string
+	InferenceOutputTokenCostMultiplier float64
+	PrometheusServerEndpoint           string
 }
 
 func DefaultConfig() *Config {
 	return &Config{
-		Port:                            env.GetOpencostAPIPort(),
-		KubernetesEnabled:               env.IsKubernetesEnabled(),
-		CarbonEstimatesEnabled:          env.IsCarbonEstimatesEnabled(),
-		CloudCostEnabled:                env.IsCloudCostEnabled(),
-		MCPServerEnabled:                env.IsMCPServerEnabled(),
-		CustomCostEnabled:               env.IsCustomCostEnabled(),
-		InferenceCostEnabled:            env.GetInferenceCostEnabled(),
-		InferenceCostCollectionInterval: env.GetInferenceCostCollectionInterval(),
-		PrometheusServerEndpoint:        env.GetPrometheusServerEndpoint(),
+		Port:                               env.GetOpencostAPIPort(),
+		KubernetesEnabled:                  env.IsKubernetesEnabled(),
+		CarbonEstimatesEnabled:             env.IsCarbonEstimatesEnabled(),
+		CloudCostEnabled:                   env.IsCloudCostEnabled(),
+		MCPServerEnabled:                   env.IsMCPServerEnabled(),
+		CustomCostEnabled:                  env.IsCustomCostEnabled(),
+		InferenceCostEnabled:               env.GetInferenceCostEnabled(),
+		InferenceCostCollectionInterval:    env.GetInferenceCostCollectionInterval(),
+		InferenceCostAllocationMode:        env.GetInferenceCostAllocationMode(),
+		InferenceOutputTokenCostMultiplier: env.GetInferenceOutputTokenCostMultiplier(),
+		PrometheusServerEndpoint:           env.GetPrometheusServerEndpoint(),
 	}
 }
 
@@ -43,5 +47,7 @@ func (c *Config) log() {
 	log.Infof("Inference Cost enabled: %t", c.InferenceCostEnabled)
 	if c.InferenceCostEnabled {
 		log.Infof("Inference Cost collection interval: %v", c.InferenceCostCollectionInterval)
+		log.Infof("Inference Cost allocation mode: %s", c.InferenceCostAllocationMode)
+		log.Infof("Inference Output token cost multiplier: %.2f", c.InferenceOutputTokenCostMultiplier)
 	}
 }

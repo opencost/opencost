@@ -9,13 +9,18 @@ The inference cost tracking feature calculates the infrastructure cost per token
 2. Collecting GPU infrastructure costs from OpenCost's existing allocation data
 3. Calculating cost per token and cost per million tokens
 4. Exporting metrics to Prometheus for monitoring and alerting
+5. **NEW**: Calculating differentiated costs for input vs output tokens based on actual compute time
 
 ## Exported Metrics
-The feature exports two Prometheus metrics:
+The feature exports the following Prometheus metrics:
 
 ### 1. `opencost_inference_total_cost`
 
-Total infrastructure cost attributed to inference for a specific model in a specific namespace.
+**Hourly GPU infrastructure cost** for running a specific model in a specific namespace.
+
+This metric represents the current hourly rate (in dollars per hour) for the GPU resources allocated to the model. It is calculated by summing the GPU costs across all pods running the model.
+
+**Unit**: Dollars per hour ($/hour)
 
 **Labels:**
 - `model_name`: Name of the AI model (e.g., "gpt-oss-20b", "llama-2-7b")
@@ -24,7 +29,18 @@ Total infrastructure cost attributed to inference for a specific model in a spec
 
 **Example:**
 ```promql
+# Current hourly GPU cost for the "random" model
 opencost_inference_total_cost{model_name="random",model_version="unknown",namespace="llm-d-namespace"}
+# Example value: 3.20 (meaning $3.20/hour)
+```
+
+**Note**: This is an hourly rate, not a cumulative cost. To calculate total cost over time, use:
+```promql
+# Total cost over 1 hour
+opencost_inference_total_cost * 1
+
+# Total cost over 24 hours (if rate stays constant)
+opencost_inference_total_cost * 24
 ```
 
 ### 2. `opencost_inference_cost_per_million_tokens`
@@ -38,6 +54,59 @@ Cost per 1 million tokens processed (input + output) for a specific model in a s
 
 **Example:**
 ```promql
+
+### 3. `opencost_inference_input_cost_per_million_tokens`
+
+**NEW**: Cost per 1 million input (prompt) tokens for a specific model in a specific namespace.
+
+This metric provides the cost specifically for processing input tokens. The cost is calculated by allocating GPU infrastructure costs between input and output processing.
+
+**Labels:**
+- `model_name`: Name of the AI model
+- `model_version`: Version of the model (default: "unknown" in Phase 1)
+- `namespace`: Kubernetes namespace where the model is deployed
+- `allocation_method`: Method used to differentiate input and output token costs:
+  - `compute_time`: Costs allocated based on actual processing time from vLLM metrics (most accurate)
+  - `multiplier`: Costs allocated using a fixed multiplier ratio (fallback when timing metrics unavailable)
+
+**Example:**
+```promql
+# When using compute-time based allocation
+opencost_inference_input_cost_per_million_tokens{
+  model_name="Qwen/Qwen3-32B",
+  model_version="unknown",
+  namespace="llm-d-precise",
+  allocation_method="compute_time"
+}
+# Example value: 4.50 (meaning $4.50 per 1M input tokens, based on actual processing time)
+```
+
+### 4. `opencost_inference_output_cost_per_million_tokens`
+
+**NEW**: Cost per 1 million output (generation) tokens for a specific model in a specific namespace.
+
+This metric provides the cost specifically for generating output tokens. Output tokens typically cost 2-3x more than input tokens due to higher compute requirements for generation.
+
+**Labels:**
+- `model_name`: Name of the AI model
+- `model_version`: Version of the model (default: "unknown" in Phase 1)
+- `namespace`: Kubernetes namespace where the model is deployed
+- `allocation_method`: Method used to differentiate input and output token costs:
+  - `compute_time`: Costs allocated based on actual processing time from vLLM metrics (most accurate)
+  - `multiplier`: Costs allocated using a fixed multiplier ratio (fallback when timing metrics unavailable)
+
+**Example:**
+```promql
+# When using compute-time based allocation
+opencost_inference_output_cost_per_million_tokens{
+  model_name="Qwen/Qwen3-32B",
+  model_version="unknown",
+  namespace="llm-d-precise",
+  allocation_method="compute_time"
+}
+# Example value: 11.25 (meaning $11.25 per 1M output tokens, based on actual processing time)
+```
+
 opencost_inference_cost_per_million_tokens{model_name="gpt-oss-20b",model_version="unknown",namespace="llm-d-namespace"}
 ```
 
@@ -49,6 +118,27 @@ opencost_inference_cost_per_million_tokens{model_name="gpt-oss-20b",model_versio
 opencost_inference_cost_per_million_tokens{model_name="gpt-oss-20b",namespace="llm-d-namespace"}
 ```
 
+
+### Query Differentiated Input vs Output Costs
+
+```promql
+# Compare input vs output costs for a specific model
+opencost_inference_input_cost_per_million_tokens{model_name="Qwen/Qwen3-32B",namespace="llm-d-precise"}
+opencost_inference_output_cost_per_million_tokens{model_name="Qwen/Qwen3-32B",namespace="llm-d-precise"}
+
+# Calculate the cost ratio (how much more expensive output tokens are)
+opencost_inference_output_cost_per_million_tokens / opencost_inference_input_cost_per_million_tokens
+```
+
+### Calculate Total Cost by Token Type
+
+```promql
+# Total cost for input tokens over time
+sum(opencost_inference_input_cost_per_million_tokens * rate(vllm:prompt_tokens_total[5m]) * 300 / 1000000)
+
+# Total cost for output tokens over time
+sum(opencost_inference_output_cost_per_million_tokens * rate(vllm:generation_tokens_total[5m]) * 300 / 1000000)
+```
 ### Calculate Total Cost Over Time
 
 ```promql
@@ -86,6 +176,78 @@ The feature consists of four main components:
 
 1. **Collector** (`pkg/inferencecost/collector.go`): Queries Prometheus for vLLM token metrics and GPU costs
 2. **Calculator** (`pkg/inferencecost/calculator.go`): Calculates cost per token and cost per million tokens
+
+## Differentiated Input/Output Token Costs
+
+### Overview
+
+OpenCost calculates separate costs for input (prompt) and output (generation) tokens because output tokens typically require 2-3x more compute resources than input processing. This provides:
+
+1. **Accurate cost attribution**: Reflects actual resource consumption
+2. **Better optimization insights**: Identify opportunities to reduce costs
+3. **Industry alignment**: Matches how commercial AI APIs price tokens
+
+### Cost Allocation Method
+
+OpenCost uses **compute-time based allocation** to calculate differentiated costs:
+
+**How it works:**
+- Collects actual processing time from vLLM metrics:
+  - `vllm:request_prefill_time_seconds` - Time spent processing input tokens
+  - `vllm:time_per_output_token_seconds` - Time spent generating output tokens
+- Allocates GPU costs proportionally based on time spent:
+  - `InputCost = TotalGPUCost × (InputProcessingTime / TotalProcessingTime)`
+  - `OutputCost = TotalGPUCost × (OutputProcessingTime / TotalProcessingTime)`
+- Calculates per-token costs for each type
+
+**Advantages:**
+- Most accurate reflection of actual resource usage
+- Automatically adapts to different models and workloads
+- No manual tuning required
+
+### Automatic Fallback
+
+If vLLM timing metrics are unavailable, OpenCost automatically falls back to a **fixed multiplier approach** (default: 2.5x for output tokens). This ensures the system continues working even if timing metrics aren't available.
+
+You'll see a warning in the logs when fallback occurs:
+```
+WARN: Compute-time allocation failed for model Qwen/Qwen3-32B, falling back to multiplier mode
+```
+
+### Configuration
+
+**Default configuration (recommended):**
+```yaml
+env:
+  - name: INFERENCE_COST_ENABLED
+    value: "true"
+  - name: INFERENCE_COST_ALLOCATION_MODE
+    value: "compute_time"  # Default
+  - name: INFERENCE_OUTPUT_TOKEN_COST_MULTIPLIER
+    value: "2.5"  # Used as fallback if timing metrics unavailable
+```
+
+**Explicit multiplier mode (if preferred):**
+```yaml
+env:
+  - name: INFERENCE_COST_ALLOCATION_MODE
+    value: "multiplier"
+  - name: INFERENCE_OUTPUT_TOKEN_COST_MULTIPLIER
+    value: "3.0"  # Output tokens cost 3x input tokens
+```
+
+### Required vLLM Metrics
+
+For compute-time based allocation, ensure vLLM exports these metrics:
+- `vllm:request_prefill_time_seconds` - Cumulative time processing input
+- `vllm:time_per_output_token_seconds` - Cumulative time generating output
+
+These are available in recent vLLM versions. Check with:
+```bash
+kubectl exec -n <namespace> <vllm-pod> -- curl localhost:8000/metrics | grep prefill_time
+kubectl exec -n <namespace> <vllm-pod> -- curl localhost:8000/metrics | grep time_per_output
+```
+
 3. **Exporter** (`pkg/inferencecost/exporter.go`): Exports calculated metrics to Prometheus
 4. **Integration** (`pkg/cmd/costmodel/costmodel.go`): Integrates the collector into OpenCost's main application
 

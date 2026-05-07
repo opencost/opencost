@@ -1,0 +1,15 @@
+{
+  "provider": "custom",
+  "description": "Temporary workaround: OpenCost custom pricing values multiplied by 730 to compensate for on-prem resolved-node underpricing bug",
+  "CPU": "23.075030",
+  "spotCPU": "4.858150",
+  "RAM": "3.093010",
+  "spotRAM": "0.651160",
+  "GPU": "693.500000",
+  "storage": "0.0399999996",
+  "zoneNetworkEgress": "7.300000",
+  "regionNetworkEgress": "7.300000",
+  "internetNetworkEgress": "87.600000",
+  "natGatewayEgress": "32.850000",
+  "natGatewayIngress": "32.850000"
+}

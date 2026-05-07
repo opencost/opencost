@@ -48,6 +48,23 @@ func (c *Collector) CollectMetrics(ctx context.Context) ([]*ModelMetrics, error)
 	}
 	log.Infof("Collected generation tokens for %d model/namespace combinations", len(generationTokens))
 
+	// Query timing metrics from vLLM (for compute-time based allocation)
+	inputProcessingTime, err := c.queryInputProcessingTime(ctx)
+	if err != nil {
+		log.Warnf("Failed to query input processing time (will use fallback allocation): %v", err)
+		inputProcessingTime = make(map[string]float64)
+	} else {
+		log.Infof("Collected input processing time for %d model/namespace combinations", len(inputProcessingTime))
+	}
+
+	outputProcessingTime, err := c.queryOutputProcessingTime(ctx)
+	if err != nil {
+		log.Warnf("Failed to query output processing time (will use fallback allocation): %v", err)
+		outputProcessingTime = make(map[string]float64)
+	} else {
+		log.Infof("Collected output processing time for %d model/namespace combinations", len(outputProcessingTime))
+	}
+
 	// Query GPU costs from OpenCost allocation (grouped by model_name and namespace)
 	gpuCosts, err := c.queryGPUCosts(ctx)
 	if err != nil {
@@ -59,7 +76,7 @@ func (c *Collector) CollectMetrics(ctx context.Context) ([]*ModelMetrics, error)
 	}
 
 	// Combine metrics by model and namespace
-	metrics := c.combineMetrics(promptTokens, generationTokens, gpuCosts)
+	metrics := c.combineMetrics(promptTokens, generationTokens, inputProcessingTime, outputProcessingTime, gpuCosts)
 
 	return metrics, nil
 }
@@ -79,6 +96,32 @@ func (c *Collector) queryPromptTokens(ctx context.Context) (map[string]float64, 
 // queryGenerationTokens queries vLLM generation token metrics grouped by model_name and namespace
 func (c *Collector) queryGenerationTokens(ctx context.Context) (map[string]float64, error) {
 	query := `sum by (model_name, namespace) (rate(vllm:generation_tokens_total[5m]) * 300)`
+	result, _, err := c.promClient.Query(ctx, query, time.Now())
+	if err != nil {
+		return nil, err
+	}
+
+	return parsePrometheusResult(result)
+}
+
+// queryInputProcessingTime queries vLLM input processing time metrics grouped by model_name and namespace
+func (c *Collector) queryInputProcessingTime(ctx context.Context) (map[string]float64, error) {
+	// Query total time spent processing input tokens (prefill phase)
+	// Using rate() over 5 minutes and multiplying by 300 to get total seconds in that period
+	query := `sum by (model_name, namespace) (rate(vllm:request_prefill_time_seconds[5m]) * 300)`
+	result, _, err := c.promClient.Query(ctx, query, time.Now())
+	if err != nil {
+		return nil, err
+	}
+
+	return parsePrometheusResult(result)
+}
+
+// queryOutputProcessingTime queries vLLM output processing time metrics grouped by model_name and namespace
+func (c *Collector) queryOutputProcessingTime(ctx context.Context) (map[string]float64, error) {
+	// Query total time spent generating output tokens
+	// Using rate() over 5 minutes and multiplying by 300 to get total seconds in that period
+	query := `sum by (model_name, namespace) (rate(vllm:time_per_output_token_seconds[5m]) * 300)`
 	result, _, err := c.promClient.Query(ctx, query, time.Now())
 	if err != nil {
 		return nil, err
@@ -120,10 +163,12 @@ func (c *Collector) queryGPUCosts(ctx context.Context) (map[string]float64, erro
 	return parsePrometheusResult(result)
 }
 
-// combineMetrics combines token and cost metrics by model and namespace
+// combineMetrics combines token, timing, and cost metrics by model and namespace
 func (c *Collector) combineMetrics(
 	promptTokens map[string]float64,
 	generationTokens map[string]float64,
+	inputProcessingTime map[string]float64,
+	outputProcessingTime map[string]float64,
 	gpuCosts map[string]float64,
 ) []*ModelMetrics {
 	metricsMap := make(map[string]*ModelMetrics)
@@ -152,6 +197,30 @@ func (c *Collector) combineMetrics(
 			}
 		}
 		metricsMap[key].GenerationTokens = generationTokens[key]
+	}
+
+	for key := range inputProcessingTime {
+		if _, exists := metricsMap[key]; !exists {
+			modelName, namespace := parseKey(key)
+			metricsMap[key] = &ModelMetrics{
+				ModelName: modelName,
+				Namespace: namespace,
+				Timestamp: time.Now(),
+			}
+		}
+		metricsMap[key].InputProcessingTime = inputProcessingTime[key]
+	}
+
+	for key := range outputProcessingTime {
+		if _, exists := metricsMap[key]; !exists {
+			modelName, namespace := parseKey(key)
+			metricsMap[key] = &ModelMetrics{
+				ModelName: modelName,
+				Namespace: namespace,
+				Timestamp: time.Now(),
+			}
+		}
+		metricsMap[key].OutputProcessingTime = outputProcessingTime[key]
 	}
 
 	for key := range gpuCosts {

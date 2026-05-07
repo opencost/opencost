@@ -113,6 +113,8 @@ const (
 	// Inference Cost Tracking
 	InferenceCostEnabledEnvVar            = "INFERENCE_COST_ENABLED"
 	InferenceCostCollectionIntervalEnvVar = "INFERENCE_COST_COLLECTION_INTERVAL"
+	InferenceCostAllocationModeEnvVar     = "INFERENCE_COST_ALLOCATION_MODE"
+	InferenceOutputTokenCostMultiplierEnvVar = "INFERENCE_OUTPUT_TOKEN_COST_MULTIPLIER"
 )
 
 func GetGCPAuthSecretFilePath() string {
@@ -479,4 +481,18 @@ func GetInferenceCostEnabled() bool {
 func GetInferenceCostCollectionInterval() time.Duration {
 	seconds := env.GetInt(InferenceCostCollectionIntervalEnvVar, 60)
 	return time.Duration(seconds) * time.Second
+}
+
+// GetInferenceCostAllocationMode returns the cost allocation mode for inference costs
+// Valid values: "compute_time" (default), "multiplier"
+// Default is "compute_time" which uses actual processing time from vLLM
+func GetInferenceCostAllocationMode() string {
+	return env.Get(InferenceCostAllocationModeEnvVar, "compute_time")
+}
+
+// GetInferenceOutputTokenCostMultiplier returns the multiplier for output token costs
+// Used when allocation mode is "multiplier"
+// Default is 2.5 (output tokens cost 2.5x input tokens)
+func GetInferenceOutputTokenCostMultiplier() float64 {
+	return env.GetFloat64(InferenceOutputTokenCostMultiplierEnvVar, 2.5)
 }

@@ -100,11 +100,19 @@ func Execute(conf *Config) error {
 	if conf.InferenceCostEnabled {
 		log.Infof("Inference cost tracking is enabled")
 		
+		// Parse allocation mode
+		allocationMode := inferencecost.ModeComputeTime
+		if conf.InferenceCostAllocationMode == "multiplier" {
+			allocationMode = inferencecost.ModeMultiplier
+		}
+		
 		// Create inference cost configuration
 		inferenceConfig := &inferencecost.Config{
-			PrometheusURL:      conf.PrometheusServerEndpoint,
-			CollectionInterval: conf.InferenceCostCollectionInterval,
-			Enabled:            true,
+			PrometheusURL:             conf.PrometheusServerEndpoint,
+			CollectionInterval:        conf.InferenceCostCollectionInterval,
+			Enabled:                   true,
+			AllocationMode:            allocationMode,
+			OutputTokenCostMultiplier: conf.InferenceOutputTokenCostMultiplier,
 		}
 		
 		// Create collector and exporter
@@ -113,7 +121,7 @@ func Execute(conf *Config) error {
 			log.Errorf("Failed to create inference cost collector: %v", err)
 		} else {
 			exporter := inferencecost.NewExporter()
-			calculator := inferencecost.NewCalculator()
+			calculator := inferencecost.NewCalculator(inferenceConfig)
 			
 			// Register metrics with Prometheus
 			if err := exporter.Register(); err != nil {
