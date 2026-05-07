@@ -23,6 +23,7 @@ import (
 	"unsafe"
 
 	util "github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/core/pkg/util/stringutil"
 )
 
 const (
@@ -541,7 +542,10 @@ func (fstr *FileStringTableReader) At(index int) string {
 
 	// cast the allocated bytes to a string in-place, as we
 	// were the ones that allocated the bytes
-	return unsafe.String(unsafe.SliceData(b), len(b))
+	pinned := unsafe.String(unsafe.SliceData(b), len(b))
+	return stringutil.BankFunc(pinned, func() string {
+		return string(b)
+	})
 }
 
 // Len returns the total number of strings loaded in the string table.

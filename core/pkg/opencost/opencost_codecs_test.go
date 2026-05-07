@@ -3,8 +3,11 @@ package opencost
 import (
 	"bytes"
 	"io"
+	"os"
 	"testing"
 	"time"
+
+	"github.com/opencost/opencost/core/pkg/util/stringutil"
 )
 
 type UnmarshalFunc func(BingenUnmarshalable, []byte) error
@@ -827,4 +830,62 @@ func TestOpencostBingenFileStringTableEnabledWithReader(t *testing.T) {
 	defer ConfigureBingen(DefaultBingenConfiguration())
 
 	RunAllOpencostBingenCodecTests(t, UnmarshalBingenReader)
+}
+
+type passthroughStringBank struct{}
+
+func (b *passthroughStringBank) LoadOrStore(key, value string) (string, bool) {
+	return value, false
+}
+
+func (b *passthroughStringBank) LoadOrStoreFunc(key string, f func() string) (string, bool) {
+	return f(), false
+}
+
+func (b *passthroughStringBank) Clear() {}
+
+type markerStringBank struct{}
+
+func (b *markerStringBank) LoadOrStore(key, value string) (string, bool) {
+	return "MARKER:" + value, false
+}
+
+func (b *markerStringBank) LoadOrStoreFunc(key string, f func() string) (string, bool) {
+	return "MARKER:" + f(), false
+}
+
+func (b *markerStringBank) Clear() {}
+
+func TestFileStringTableReaderAt_UsesStringBank(t *testing.T) {
+	orig := stringutil.GetStringBank()
+	stringutil.UpdateStringBank(&passthroughStringBank{})
+	defer stringutil.UpdateStringBank(orig)
+
+	tmp, err := os.CreateTemp("", "opencost-bgst-test-*")
+	if err != nil {
+		t.Fatalf("create temp file: %v", err)
+	}
+	defer os.Remove(tmp.Name())
+	defer tmp.Close()
+
+	if _, err := tmp.Write([]byte("hello")); err != nil {
+		t.Fatalf("write temp data: %v", err)
+	}
+
+	reader := &FileStringTableReader{
+		f: tmp,
+		refs: []fileStringRef{
+			{off: 0, length: 5},
+		},
+	}
+	defer reader.Close()
+
+	if got := reader.At(0); got != "hello" {
+		t.Fatalf("baseline string mismatch, got %q", got)
+	}
+
+	stringutil.UpdateStringBank(&markerStringBank{})
+	if got := reader.At(0); got != "MARKER:hello" {
+		t.Fatalf("expected banked marker value, got %q", got)
+	}
 }
