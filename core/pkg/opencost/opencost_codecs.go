@@ -17,13 +17,14 @@ import (
 	"iter"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
 	util "github.com/opencost/opencost/core/pkg/util"
-	"github.com/opencost/opencost/core/pkg/util/stringutil"
 )
 
 const (
@@ -73,6 +74,10 @@ type BingenConfiguration struct {
 
 	// FileBackedStringTableDir is the directory to write the string table files for reading.
 	FileBackedStringTableDir string
+
+	// FileBackedStringTableMemoMaxBytes limits in-memory memoization for file-backed table lookups.
+	// 0 disables memoization.
+	FileBackedStringTableMemoMaxBytes int64
 }
 
 // DefaultBingenConfiguration creates the default implementation of the bingen configuration
@@ -81,6 +86,7 @@ func DefaultBingenConfiguration() *BingenConfiguration {
 	return &BingenConfiguration{
 		FileBackedStringTableEnabled: false,
 		FileBackedStringTableDir:     os.TempDir(),
+		FileBackedStringTableMemoMaxBytes: 0,
 	}
 }
 
@@ -110,6 +116,14 @@ func BingenFileBackedStringTableDir() string {
 	defer bingenConfigLock.RUnlock()
 
 	return bingenConfig.FileBackedStringTableDir
+}
+
+// BingenFileBackedStringTableMemoMaxBytes returns the maximum bytes used for file-backed memo cache.
+func BingenFileBackedStringTableMemoMaxBytes() int64 {
+	bingenConfigLock.RLock()
+	defer bingenConfigLock.RUnlock()
+
+	return bingenConfig.FileBackedStringTableMemoMaxBytes
 }
 
 //--------------------------------------------------------------------------
@@ -456,6 +470,12 @@ type fileStringRef struct {
 type FileStringTableReader struct {
 	f    *os.File
 	refs []fileStringRef
+	memo           []atomic.Pointer[string]
+	memoHits       []atomic.Uint64
+	memoBytes      atomic.Int64
+	memoMaxBytes   int64
+	evictStop      chan struct{}
+	evictDone      chan struct{}
 }
 
 // NewFileStringTableFromBuffer reads exactly tl length-prefixed (uint16) string payloads from buffer
@@ -514,10 +534,17 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 		}
 	}
 
-	return &FileStringTableReader{
-		f:    f,
-		refs: refs,
+	reader := &FileStringTableReader{
+		f:            f,
+		refs:         refs,
+		memo:         make([]atomic.Pointer[string], len(refs)),
+		memoHits:     make([]atomic.Uint64, len(refs)),
+		memoMaxBytes: BingenFileBackedStringTableMemoMaxBytes(),
 	}
+	if reader.memoMaxBytes > 0 {
+		reader.startMemoEvictionLoop()
+	}
+	return reader
 }
 
 // At returns the string from the internal file using the reference's offset and length.
@@ -534,18 +561,61 @@ func (fstr *FileStringTableReader) At(index int) string {
 		return ""
 	}
 
+	if fstr.memoMaxBytes > 0 {
+		if cached := fstr.memo[index].Load(); cached != nil {
+			if index < len(fstr.memoHits) {
+				fstr.memoHits[index].Add(1)
+			}
+			return *cached
+		}
+	}
+
 	b := make([]byte, ref.length)
 	_, err := fstr.f.ReadAt(b, ref.off)
 	if err != nil {
 		return ""
 	}
 
-	// cast the allocated bytes to a string in-place, as we
-	// were the ones that allocated the bytes
-	pinned := unsafe.String(unsafe.SliceData(b), len(b))
-	return stringutil.BankFunc(pinned, func() string {
-		return string(b)
-	})
+	// cast the allocated bytes to a string in-place, as we were the ones that allocated the bytes
+	s := unsafe.String(unsafe.SliceData(b), len(b))
+
+	if fstr.memoMaxBytes > 0 {
+		if existing := fstr.memo[index].Load(); existing != nil {
+			if index < len(fstr.memoHits) {
+				fstr.memoHits[index].Add(1)
+			}
+			return *existing
+		}
+		need := int64(len(s))
+		for {
+			current := fstr.memoBytes.Load()
+			if current+need > fstr.memoMaxBytes {
+				break
+			}
+			if fstr.memoBytes.CompareAndSwap(current, current+need) {
+				toStore := new(string)
+				*toStore = s
+				if fstr.memo[index].CompareAndSwap(nil, toStore) {
+					if index < len(fstr.memoHits) {
+						fstr.memoHits[index].Store(1)
+					}
+					return s
+				}
+
+				// Another goroutine won the race for this slot; refund bytes.
+				fstr.memoBytes.Add(-need)
+				if stored := fstr.memo[index].Load(); stored != nil {
+					if index < len(fstr.memoHits) {
+						fstr.memoHits[index].Add(1)
+					}
+					return *stored
+				}
+				break
+			}
+		}
+	}
+
+	return s
 }
 
 // Len returns the total number of strings loaded in the string table.
@@ -563,16 +633,102 @@ func (fstr *FileStringTableReader) Close() error {
 		return nil
 	}
 
+	if fstr.evictStop != nil {
+		close(fstr.evictStop)
+		<-fstr.evictDone
+		fstr.evictStop = nil
+		fstr.evictDone = nil
+	}
+
 	path := fstr.f.Name()
 	err := fstr.f.Close()
 	fstr.f = nil
 	fstr.refs = nil
+	for i := range fstr.memo {
+		fstr.memo[i].Store(nil)
+		if i < len(fstr.memoHits) {
+			fstr.memoHits[i].Store(0)
+		}
+	}
+	fstr.memo = nil
+	fstr.memoHits = nil
+	fstr.memoBytes.Store(0)
 
 	if path != "" {
 		_ = os.Remove(path)
 	}
 
 	return err
+}
+
+type memoEvictionCandidate struct {
+	idx  int
+	hits uint64
+}
+
+func (fstr *FileStringTableReader) startMemoEvictionLoop() {
+	fstr.evictStop = make(chan struct{})
+	fstr.evictDone = make(chan struct{})
+	go func() {
+		defer close(fstr.evictDone)
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-fstr.evictStop:
+				return
+			case <-ticker.C:
+				fstr.evictLeastUsedMemoEntries(0.20)
+			}
+		}
+	}()
+}
+
+func (fstr *FileStringTableReader) evictLeastUsedMemoEntries(percent float64) {
+	if fstr == nil || len(fstr.memo) == 0 || percent <= 0 {
+		return
+	}
+
+	candidates := make([]memoEvictionCandidate, 0, len(fstr.memo))
+	for i := range fstr.memo {
+		if fstr.memo[i].Load() == nil {
+			continue
+		}
+		candidates = append(candidates, memoEvictionCandidate{
+			idx:  i,
+			hits: fstr.memoHits[i].Load(),
+		})
+	}
+	if len(candidates) == 0 {
+		return
+	}
+
+	evictCount := int(float64(len(candidates)) * percent)
+	if evictCount <= 0 {
+		evictCount = 1
+	}
+	if evictCount > len(candidates) {
+		evictCount = len(candidates)
+	}
+
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].hits == candidates[j].hits {
+			return candidates[i].idx < candidates[j].idx
+		}
+		return candidates[i].hits < candidates[j].hits
+	})
+
+	for i := 0; i < evictCount; i++ {
+		idx := candidates[i].idx
+		existing := fstr.memo[idx].Load()
+		if existing == nil {
+			continue
+		}
+		if fstr.memo[idx].CompareAndSwap(existing, nil) {
+			fstr.memoHits[idx].Store(0)
+			fstr.memoBytes.Add(-int64(fstr.refs[idx].length))
+		}
+	}
 }
 
 //--------------------------------------------------------------------------
