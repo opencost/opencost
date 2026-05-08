@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"math/bits"
 	"os"
 	"reflect"
 	"strings"
@@ -476,6 +477,9 @@ type FileStringTableReader struct {
 	evictStop      chan struct{}
 	evictDone      chan struct{}
 	evictScratch   []memoEvictionCandidate
+	evictCursor    int
+	hitBins        []atomic.Uint32
+	evictHistogram [65]atomic.Uint64
 }
 
 // NewFileStringTableFromBuffer reads exactly tl length-prefixed (uint16) string payloads from buffer
@@ -539,6 +543,7 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 		refs:         refs,
 		memo:         make([]atomic.Pointer[string], len(refs)),
 		memoHits:     make([]atomic.Uint64, len(refs)),
+		hitBins:      make([]atomic.Uint32, len(refs)),
 		memoMaxBytes: BingenFileBackedStringTableMemoMaxBytes(),
 		evictScratch: make([]memoEvictionCandidate, len(refs)),
 	}
@@ -564,9 +569,7 @@ func (fstr *FileStringTableReader) At(index int) string {
 
 	if fstr.memoMaxBytes > 0 {
 		if cached := fstr.memo[index].Load(); cached != nil {
-			if index < len(fstr.memoHits) {
-				fstr.memoHits[index].Add(1)
-			}
+			fstr.recordMemoHit(index)
 			return *cached
 		}
 	}
@@ -582,9 +585,7 @@ func (fstr *FileStringTableReader) At(index int) string {
 
 	if fstr.memoMaxBytes > 0 {
 		if existing := fstr.memo[index].Load(); existing != nil {
-			if index < len(fstr.memoHits) {
-				fstr.memoHits[index].Add(1)
-			}
+			fstr.recordMemoHit(index)
 			return *existing
 		}
 		need := int64(len(s))
@@ -600,15 +601,17 @@ func (fstr *FileStringTableReader) At(index int) string {
 					if index < len(fstr.memoHits) {
 						fstr.memoHits[index].Store(1)
 					}
+					if index < len(fstr.hitBins) {
+						fstr.hitBins[index].Store(uint32(hitBin(1)))
+					}
+					fstr.incHistogramBin(hitBin(1))
 					return s
 				}
 
 				// Another goroutine won the race for this slot; refund bytes.
 				fstr.memoBytes.Add(-need)
 				if stored := fstr.memo[index].Load(); stored != nil {
-					if index < len(fstr.memoHits) {
-						fstr.memoHits[index].Add(1)
-					}
+					fstr.recordMemoHit(index)
 					return *stored
 				}
 				break
@@ -650,9 +653,16 @@ func (fstr *FileStringTableReader) Close() error {
 		if i < len(fstr.memoHits) {
 			fstr.memoHits[i].Store(0)
 		}
+		if i < len(fstr.hitBins) {
+			fstr.hitBins[i].Store(0)
+		}
 	}
 	fstr.memo = nil
 	fstr.memoHits = nil
+	fstr.hitBins = nil
+	for i := range fstr.evictHistogram {
+		fstr.evictHistogram[i].Store(0)
+	}
 	fstr.memoBytes.Store(0)
 
 	if path != "" {
@@ -672,61 +682,97 @@ func (fstr *FileStringTableReader) startMemoEvictionLoop() {
 	fstr.evictDone = make(chan struct{})
 	go func() {
 		defer close(fstr.evictDone)
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(1 * time.Minute)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-fstr.evictStop:
 				return
 			case <-ticker.C:
-				fstr.evictLeastUsedMemoEntries(0.20)
+				fstr.evictLeastUsedMemoEntries(0.10, 0.40)
 			}
 		}
 	}()
 }
 
-func (fstr *FileStringTableReader) evictLeastUsedMemoEntries(percent float64) {
-	if fstr == nil || len(fstr.memo) == 0 || percent <= 0 {
+func (fstr *FileStringTableReader) evictLeastUsedMemoEntries(evictPercent, bottomPercent float64) {
+	if fstr == nil || len(fstr.memo) == 0 || evictPercent <= 0 || bottomPercent <= 0 {
 		return
 	}
 	if fstr.memoMaxBytes <= 0 {
 		return
 	}
-	if fstr.memoBytes.Load() < (fstr.memoMaxBytes*9)/10 {
+	if fstr.memoBytes.Load() < (fstr.memoMaxBytes*98)/100 {
 		return
+	}
+
+	const maxScanWindow = 65536
+	totalMemo := len(fstr.memo)
+	scanWindow := totalMemo
+	if scanWindow > maxScanWindow {
+		scanWindow = maxScanWindow
+	}
+	if scanWindow == 0 {
+		return
+	}
+	start := fstr.evictCursor
+	fstr.evictCursor = (fstr.evictCursor + scanWindow) % totalMemo
+
+	totalActive := fstr.totalActiveMemoEntries()
+	if totalActive == 0 {
+		fstr.bootstrapHistogram()
+		totalActive = fstr.totalActiveMemoEntries()
+		if totalActive == 0 {
+			return
+		}
 	}
 
 	candidates := fstr.evictScratch
-	n := 0
-	for i := range fstr.memo {
-		if fstr.memo[i].Load() == nil {
+	if cap(candidates) < scanWindow {
+		candidates = make([]memoEvictionCandidate, scanWindow)
+		fstr.evictScratch = candidates
+	}
+	candidates = candidates[:0]
+	for off := 0; off < scanWindow; off++ {
+		idx := (start + off) % totalMemo
+		if fstr.memo[idx].Load() == nil {
 			continue
 		}
-		candidates[n] = memoEvictionCandidate{
-			idx:  i,
-			hits: fstr.memoHits[i].Load(),
+		var hits uint64
+		if idx < len(fstr.memoHits) {
+			hits = fstr.memoHits[idx].Load()
 		}
-		n++
+		candidates = append(candidates, memoEvictionCandidate{
+			idx:  idx,
+			hits: hits,
+		})
 	}
-	if n == 0 {
+	if len(candidates) == 0 {
 		return
 	}
-	candidates = candidates[:n]
 
-	evictCount := int(float64(len(candidates)) * percent)
+	evictCount := int(float64(totalActive) * evictPercent)
 	if evictCount <= 0 {
 		evictCount = 1
 	}
-	if evictCount > len(candidates) {
-		evictCount = len(candidates)
+	bottomCount := int(float64(totalActive) * bottomPercent)
+	if bottomCount <= 0 {
+		bottomCount = 1
 	}
 
-	// Partition in-place around the evictCount-th smallest hit count.
-	cutoff := selectKthSmallestHits(candidates, evictCount-1)
+	cumulative := 0
+	cutoffBin := len(fstr.evictHistogram) - 1
+	for bin := 0; bin < len(fstr.evictHistogram); bin++ {
+		cumulative += int(fstr.evictHistogram[bin].Load())
+		if cumulative >= bottomCount {
+			cutoffBin = bin
+			break
+		}
+	}
 
 	evicted := 0
 	for i := 0; i < len(candidates); i++ {
-		if candidates[i].hits > cutoff {
+		if hitBin(candidates[i].hits) > cutoffBin {
 			continue
 		}
 		idx := candidates[i].idx
@@ -735,7 +781,17 @@ func (fstr *FileStringTableReader) evictLeastUsedMemoEntries(percent float64) {
 			continue
 		}
 		if fstr.memo[idx].CompareAndSwap(existing, nil) {
-			fstr.memoHits[idx].Store(0)
+			oldBin := uint32(0)
+			if idx < len(fstr.hitBins) {
+				oldBin = fstr.hitBins[idx].Load()
+				fstr.hitBins[idx].Store(0)
+			}
+			if oldBin < uint32(len(fstr.evictHistogram)) {
+				fstr.decHistogramBin(int(oldBin))
+			}
+			if idx < len(fstr.memoHits) {
+				fstr.memoHits[idx].Store(0)
+			}
 			fstr.memoBytes.Add(-int64(fstr.refs[idx].length))
 			evicted++
 			if evicted >= evictCount {
@@ -745,43 +801,94 @@ func (fstr *FileStringTableReader) evictLeastUsedMemoEntries(percent float64) {
 	}
 }
 
-func selectKthSmallestHits(c []memoEvictionCandidate, k int) uint64 {
-	if len(c) == 0 {
+func hitBin(hits uint64) int {
+	if hits == 0 {
 		return 0
 	}
-	if k < 0 {
-		k = 0
-	}
-	if k >= len(c) {
-		k = len(c) - 1
-	}
-
-	left, right := 0, len(c)-1
-	for left <= right {
-		p := partitionByHits(c, left, right)
-		switch {
-		case p == k:
-			return c[p].hits
-		case p < k:
-			left = p + 1
-		default:
-			right = p - 1
-		}
-	}
-	return c[k].hits
+	return bits.Len64(hits)
 }
 
-func partitionByHits(c []memoEvictionCandidate, left, right int) int {
-	pivot := c[right].hits
-	i := left
-	for j := left; j < right; j++ {
-		if c[j].hits <= pivot {
-			c[i], c[j] = c[j], c[i]
-			i++
+func (fstr *FileStringTableReader) recordMemoHit(index int) {
+	if fstr == nil || index < 0 || index >= len(fstr.memoHits) {
+		return
+	}
+	for {
+		old := fstr.memoHits[index].Load()
+		next := old + 1
+		if fstr.memoHits[index].CompareAndSwap(old, next) {
+			oldBin := hitBin(old)
+			newBin := hitBin(next)
+			if oldBin != newBin {
+				if index < len(fstr.hitBins) {
+					fstr.hitBins[index].Store(uint32(newBin))
+				}
+				fstr.incHistogramBin(newBin)
+				if oldBin < len(fstr.evictHistogram) {
+					fstr.decHistogramBin(oldBin)
+				}
+			}
+			return
 		}
 	}
-	c[i], c[right] = c[right], c[i]
-	return i
+}
+
+func (fstr *FileStringTableReader) totalActiveMemoEntries() int {
+	if fstr == nil {
+		return 0
+	}
+	total := 0
+	for i := range fstr.evictHistogram {
+		total += int(fstr.evictHistogram[i].Load())
+	}
+	return total
+}
+
+func (fstr *FileStringTableReader) bootstrapHistogram() {
+	if fstr == nil {
+		return
+	}
+	for i := range fstr.evictHistogram {
+		fstr.evictHistogram[i].Store(0)
+	}
+	for i := range fstr.memo {
+		if fstr.memo[i].Load() == nil {
+			if i < len(fstr.hitBins) {
+				fstr.hitBins[i].Store(0)
+			}
+			continue
+		}
+		var hits uint64
+		if i < len(fstr.memoHits) {
+			hits = fstr.memoHits[i].Load()
+		}
+		bin := hitBin(hits)
+		if i < len(fstr.hitBins) {
+			fstr.hitBins[i].Store(uint32(bin))
+		}
+		fstr.incHistogramBin(bin)
+	}
+}
+
+func (fstr *FileStringTableReader) incHistogramBin(bin int) {
+	if fstr == nil || bin < 0 || bin >= len(fstr.evictHistogram) {
+		return
+	}
+	fstr.evictHistogram[bin].Add(1)
+}
+
+func (fstr *FileStringTableReader) decHistogramBin(bin int) {
+	if fstr == nil || bin < 0 || bin >= len(fstr.evictHistogram) {
+		return
+	}
+	for {
+		cur := fstr.evictHistogram[bin].Load()
+		if cur == 0 {
+			return
+		}
+		if fstr.evictHistogram[bin].CompareAndSwap(cur, cur-1) {
+			return
+		}
+	}
 }
 
 //--------------------------------------------------------------------------

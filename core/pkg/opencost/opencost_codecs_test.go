@@ -894,7 +894,7 @@ func TestFileStringTableReader_EvictLeastUsedMemoEntries(t *testing.T) {
 	reader.memoHits[3].Store(2)
 	reader.memoBytes.Store(int64(len(s1) + len(s2) + len(s3) + len(s4)))
 
-	reader.evictLeastUsedMemoEntries(0.20)
+	reader.evictLeastUsedMemoEntries(0.10, 0.40)
 
 	if got := reader.memo[1].Load(); got != nil {
 		t.Fatalf("expected index 1 to be evicted first, got %q", *got)
