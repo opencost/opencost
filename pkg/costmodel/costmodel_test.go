@@ -2,12 +2,14 @@ package costmodel
 
 import (
 	"math"
+	"fmt"
 	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -347,6 +349,187 @@ func TestGetContainerAllocation(t *testing.T) {
 			if diff := cmp.Diff(tc.expected, result); diff != "" {
 				t.Errorf("getContainerAllocation() mismatch (-want +got):\n%s", diff)
 			}
+		})
+	}
+}
+
+func TestComputeIdleAllocations_PVCSkipLogic(t *testing.T) {
+	start := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2023, 1, 1, 1, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name                  string
+		assetTotals          map[string]*opencost.AssetTotals
+		allocTotals          map[string]*opencost.AllocationTotals
+		expectPVSkip         bool
+		expectWarning        bool
+		expectIdleAllocation bool
+	}{
+		{
+			name: "PVC skip logic - PV cost without attached volume cost",
+			assetTotals: map[string]*opencost.AssetTotals{
+				"test-cluster/test-node": {
+					Cluster:               "test-cluster",
+					Node:                  "test-node",
+					Start:                 start,
+					End:                   end,
+					PersistentVolumeCost:  100.0,
+					AttachedVolumeCost:    0.0,
+					CPUCost:               0.0,
+					RAMCost:               0.0,
+				},
+			},
+			allocTotals:          map[string]*opencost.AllocationTotals{},
+			expectPVSkip:         true,
+			expectWarning:        false,
+			expectIdleAllocation: false,
+		},
+		{
+			name: "Normal warning behavior - no PV cost",
+			assetTotals: map[string]*opencost.AssetTotals{
+				"test-cluster/test-node": {
+					Cluster:               "test-cluster",
+					Node:                  "test-node",
+					Start:                 start,
+					End:                   end,
+					PersistentVolumeCost:  0.0,
+					AttachedVolumeCost:    0.0,
+					CPUCost:               50.0,
+					RAMCost:               25.0,
+				},
+			},
+			allocTotals:          map[string]*opencost.AllocationTotals{},
+			expectPVSkip:         false,
+			expectWarning:        true,
+			expectIdleAllocation: true,
+		},
+		{
+			name: "Normal warning behavior - PV cost with attached volume cost",
+			assetTotals: map[string]*opencost.AssetTotals{
+				"test-cluster/test-node": {
+					Cluster:               "test-cluster",
+					Node:                  "test-node",
+					Start:                 start,
+					End:                   end,
+					PersistentVolumeCost:  100.0,
+					AttachedVolumeCost:    50.0,
+					CPUCost:               50.0,
+					RAMCost:               25.0,
+				},
+			},
+			allocTotals:          map[string]*opencost.AllocationTotals{},
+			expectPVSkip:         false,
+			expectWarning:        true,
+			expectIdleAllocation: true,
+		},
+		{
+			name: "Allocation exists - no skip, no warning",
+			assetTotals: map[string]*opencost.AssetTotals{
+				"test-cluster/test-node": {
+					Cluster:               "test-cluster",
+					Node:                  "test-node",
+					Start:                 start,
+					End:                   end,
+					PersistentVolumeCost:  100.0,
+					AttachedVolumeCost:    0.0,
+					CPUCost:               50.0,
+					RAMCost:               25.0,
+				},
+			},
+			allocTotals: map[string]*opencost.AllocationTotals{
+				"test-cluster/test-node": {
+					Cluster: "test-cluster",
+					Node:    "test-node",
+					Start:   start,
+					End:     end,
+				},
+			},
+			expectPVSkip:         false,
+			expectWarning:        false,
+			expectIdleAllocation: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			allocSet := opencost.NewAllocationSet(start, end)
+			assetSet := opencost.NewAssetSet(start, end)
+
+			idleSet, err := computeIdleAllocations(allocSet, assetSet, true)
+
+			assert.NoError(t, err)
+			assert.NotNil(t, idleSet)
+
+			if tt.expectIdleAllocation {
+				assert.Greater(t, len(idleSet.Allocations), 0, "Expected at least one idle allocation")
+				
+				for key := range tt.assetTotals {
+					expectedIdleName := fmt.Sprintf("%s/%s", key, opencost.IdleSuffix)
+					_, exists := idleSet.Allocations[expectedIdleName]
+					assert.True(t, exists, "Expected idle allocation for key %s", key)
+				}
+			} else {
+				assert.Equal(t, 0, len(idleSet.Allocations), "Expected no idle allocations when PV logic skips")
+			}
+		})
+	}
+}
+
+func TestPVCAllocationSkipLogic(t *testing.T) {
+	tests := []struct {
+		name                  string
+		persistentVolumeCost  float64
+		attachedVolumeCost    float64
+		expectedSkip          bool
+		description           string
+	}{
+		{
+			name:                 "PV cost > 0 and attached volume cost = 0 should skip",
+			persistentVolumeCost: 100.0,
+			attachedVolumeCost:   0.0,
+			expectedSkip:         true,
+			description:          "Skip when PV costs are allocated to pods",
+		},
+		{
+			name:                 "PV cost = 0 should not skip",
+			persistentVolumeCost: 0.0,
+			attachedVolumeCost:   0.0,
+			expectedSkip:         false,
+			description:          "Don't skip when no PV cost",
+		},
+		{
+			name:                 "Attached volume cost > 0 should not skip",
+			persistentVolumeCost: 100.0,
+			attachedVolumeCost:   50.0,
+			expectedSkip:         false,
+			description:          "Don't skip when attached volumes present",
+		},
+		{
+			name:                 "Both costs > 0 should not skip",
+			persistentVolumeCost: 75.0,
+			attachedVolumeCost:   25.0,
+			expectedSkip:         false,
+			description:          "Don't skip when both cost types present",
+		},
+		{
+			name:                 "Both costs = 0 should not skip",
+			persistentVolumeCost: 0.0,
+			attachedVolumeCost:   0.0,
+			expectedSkip:         false,
+			description:          "Don't skip when no volume costs",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assetTotal := &opencost.AssetTotals{
+				PersistentVolumeCost: tt.persistentVolumeCost,
+				AttachedVolumeCost:   tt.attachedVolumeCost,
+			}
+
+			shouldSkip := assetTotal.PersistentVolumeCost > 0 && assetTotal.AttachedVolumeCost == 0
+
+			assert.Equal(t, tt.expectedSkip, shouldSkip, tt.description)
 		})
 	}
 }

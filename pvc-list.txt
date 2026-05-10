@@ -1,0 +1,3 @@
+NAMESPACE    NAME                                UID                                    STATUS   VOLUME
+prometheus   prometheus-server                   1ca65281-be83-4fff-8755-2a418d938583   Bound    pvc-1ca65281-be83-4fff-8755-2a418d938583
+prometheus   storage-prometheus-alertmanager-0   cfdefd68-a7ce-4f49-8d93-477462838a37   Bound    pvc-cfdefd68-a7ce-4f49-8d93-477462838a37
