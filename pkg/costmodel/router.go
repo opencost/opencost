@@ -75,7 +75,7 @@ type Accesses struct {
 	Model               *CostModel
 	MetricsEmitter      *CostModelMetricsEmitter
 	KubeModelPipeline   *km.Pipeline
-	KubeModelQuerier    *km.Querier
+	KubeModelQuerier    km.Querier
 	// SettingsCache stores current state of app settings
 	SettingsCache *cache.Cache
 	// settingsSubscribers tracks channels through which changes to different

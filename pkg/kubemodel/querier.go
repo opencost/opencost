@@ -15,22 +15,28 @@ import (
 // supportedResolutions lists the resolutions written by the pipeline, in ascending order.
 var supportedResolutions = []time.Duration{time.Hour, timeutil.Day}
 
+// Querier is the query interface used by KubeModelHandler, allowing the
+// concrete *km.Querier to be swapped for a test double.
+type Querier interface {
+	Query(opencost.Window) ([]*coremodel.KubeModelSet, error)
+}
+
 // Querier reads KubeModelSets written by the pipeline from storage.
-type Querier struct {
+type querier struct {
 	appName   string
 	clusterId string
 	store     storage.Storage
 }
 
 // NewQuerier creates a Querier backed by the given storage and cluster.
-func NewQuerier(appName, clusterId string, store storage.Storage) *Querier {
-	return &Querier{store: store, appName: appName, clusterId: clusterId}
+func NewQuerier(appName, clusterId string, store storage.Storage) Querier {
+	return &querier{store: store, appName: appName, clusterId: clusterId}
 }
 
 // Query returns KubeModelSets covering the given window split into resolution-sized sub-windows.
 // resolution is snapped to the nearest supported pipeline resolution (1h or 1d).
 // Sub-windows with no file in storage are silently skipped.
-func (q *Querier) Query(window opencost.Window) ([]*coremodel.KubeModelSet, error) {
+func (q *querier) Query(window opencost.Window) ([]*coremodel.KubeModelSet, error) {
 	if window.IsOpen() {
 		return nil, fmt.Errorf("kubemodel querier: window must be closed")
 	}
@@ -64,7 +70,7 @@ func (q *Querier) Query(window opencost.Window) ([]*coremodel.KubeModelSet, erro
 	return results, nil
 }
 
-func (q *Querier) readWindow(formatter pathing.StoragePathFormatter[opencost.Window], window opencost.Window) (*coremodel.KubeModelSet, error) {
+func (q *querier) readWindow(formatter pathing.StoragePathFormatter[opencost.Window], window opencost.Window) (*coremodel.KubeModelSet, error) {
 	path := formatter.ToFullPath("", window, exporter.BingenExt)
 
 	data, err := q.store.Read(path)
