@@ -8,8 +8,13 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/provider"
+	"github.com/opencost/opencost/pkg/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
@@ -348,5 +353,196 @@ func TestGetContainerAllocation(t *testing.T) {
 				t.Errorf("getContainerAllocation() mismatch (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestStorageCostAnnotations(t *testing.T) {
+	t.Parallel()
+
+	confMan := config.NewConfigFileManager(storage.NewFileStorage("../../"))
+
+	customProvider := &provider.CSVProvider{
+		CSVLocation: "../../configs/pricing_schema_pv.csv",
+		CustomProvider: &provider.CustomProvider{
+			Config: provider.NewProviderConfig(confMan, "../../configs/default.json"),
+		},
+	}
+	err := customProvider.DownloadPricingData()
+	assert.NoError(t, err)
+
+	costModel := &CostModel{
+		Provider: customProvider,
+	}
+
+	providerConfig, err := customProvider.GetConfig()
+	assert.NoError(t, err)
+	assert.NotNil(t, providerConfig)
+
+	type testCase struct {
+		name         string
+		pv           *models.PV
+		pvc          *clustercache.PersistentVolume
+		expectedCost string
+	}
+
+	testCases := []testCase{
+		{
+			name: "Cost from provider",
+			pv:   &models.PV{},
+			pvc: &clustercache.PersistentVolume{
+				Name: "pvc-08e1f205-d7a9-4430-90fc-7b3965a18c4d",
+			},
+			expectedCost: "0.1337",
+		},
+		{
+			name: "Cost from custom provider config",
+			pv:   &models.PV{},
+			pvc: &clustercache.PersistentVolume{
+				Name: "fake-name",
+			},
+			expectedCost: providerConfig.Storage,
+		},
+		{
+			name: "Cost from annotations",
+			pv:   &models.PV{},
+			pvc: &clustercache.PersistentVolume{
+				Name: "pvc-08e1f205-d7a9-4430-90fc-7b3965a18c4d",
+				Annotations: map[string]string{
+					annotationStorageCost: "123.123",
+				},
+			},
+			expectedCost: "123.123",
+		},
+		{
+			name: "Cost from storage class and with no annotations",
+			pv: &models.PV{
+				Parameters: map[string]string{
+					annotationStorageCost: "123.124",
+				},
+			},
+			pvc: &clustercache.PersistentVolume{
+				Name: "pvc-08e1f205-d7a9-4430-90fc-7b3965a18c4d",
+			},
+			expectedCost: "123.124",
+		},
+		{
+			name: "Cost from storage class and with annotations",
+			pv: &models.PV{
+				Parameters: map[string]string{
+					annotationStorageCost: "123.124",
+				},
+			},
+			pvc: &clustercache.PersistentVolume{
+				Name: "pvc-08e1f205-d7a9-4430-90fc-7b3965a18c4d",
+				Annotations: map[string]string{
+					annotationStorageCost: "123.125",
+				},
+			},
+			expectedCost: "123.125",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := costModel.GetPVCost(testCase.pv, testCase.pvc, "default-region")
+			assert.NoError(t, err)
+
+			assert.Equal(t, testCase.expectedCost, testCase.pv.Cost)
+		})
+	}
+}
+
+func TestNodeCostAnnotations(t *testing.T) {
+	t.Parallel()
+
+	confMan := config.NewConfigFileManager(storage.NewFileStorage("../../"))
+
+	customProvider := &provider.CSVProvider{
+		CSVLocation: "../../configs/pricing_schema_region.csv",
+		CustomProvider: &provider.CustomProvider{
+			Config: provider.NewProviderConfig(confMan, "../../configs/default.json"),
+		},
+	}
+	err := customProvider.DownloadPricingData()
+	assert.NoError(t, err)
+
+	costModel := &CostModel{
+		Provider: customProvider,
+		Cache: NewFakeNodeCache([]*clustercache.Node{
+			{
+				Name: "test-node-001",
+				Labels: map[string]string{
+					"topology.kubernetes.io/region": "regionone",
+				},
+			},
+			{
+				Name: "test-node-002",
+				Labels: map[string]string{
+					"topology.kubernetes.io/region": "regionone",
+				},
+				Annotations: map[string]string{
+					"opencost.io/node-cpu-hourly-cost": "111",
+					"opencost.io/node-ram-hourly-cost": "222",
+				},
+			},
+		}),
+	}
+	assert.NotNil(t, costModel)
+
+	providerConfig, err := customProvider.GetConfig()
+	assert.NoError(t, err)
+	assert.NotNil(t, providerConfig)
+
+	nodeCost, err := costModel.GetNodeCost()
+	assert.NoError(t, err)
+	assert.NotNil(t, nodeCost)
+	assert.NotEmpty(t, nodeCost)
+
+	type testCase struct {
+		node     string
+		VCPUCost string
+		RAMCost  string
+	}
+	testCases := []testCase{
+		{
+			node:     "test-node-001",
+			VCPUCost: "+Inf",
+			RAMCost:  "+Inf",
+		},
+		{
+			node:     "test-node-002",
+			VCPUCost: "111",
+			RAMCost:  "222",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.node, func(t *testing.T) {
+			t.Parallel()
+
+			nodeCost, ok := nodeCost[tc.node]
+			require.True(t, ok)
+
+			assert.Equal(t, tc.VCPUCost, nodeCost.VCPUCost)
+			assert.Equal(t, tc.RAMCost, nodeCost.RAMCost)
+		})
+	}
+}
+
+// FakeNodeCache implements ClusterCache interface for testing
+type FakeNodeCache struct {
+	clustercache.ClusterCache
+	nodes []*clustercache.Node
+}
+
+func (f FakeNodeCache) GetAllNodes() []*clustercache.Node {
+	return f.nodes
+}
+
+func NewFakeNodeCache(nodes []*clustercache.Node) FakeNodeCache {
+	return FakeNodeCache{
+		nodes: nodes,
 	}
 }
