@@ -2,10 +2,12 @@ package kubemodel
 
 import (
 	"path"
+	"strings"
 	"sync/atomic"
 	"time"
 
 	coreenv "github.com/opencost/opencost/core/pkg/env"
+	"github.com/opencost/opencost/core/pkg/exporter/pathing"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/pipelines"
 	"github.com/opencost/opencost/core/pkg/storage"
@@ -78,7 +80,7 @@ func (j *Janitor) cleanup() {
 		}
 		resStr := timeutil.FormatStoreResolution(res)
 		baseDir := path.Join(j.appName, j.clusterId, pipelines.KubeModelPipelineName, resStr)
-		cutoff := time.Now().UTC().Add(-retention).Truncate(timeutil.Day)
+		cutoff := time.Now().UTC().Truncate(res).Add(-retention)
 		j.pruneResolution(baseDir, cutoff)
 	}
 }
@@ -100,6 +102,7 @@ func retentionFor(res time.Duration) time.Duration {
 }
 
 func (j *Janitor) pruneResolution(baseDir string, cutoff time.Time) {
+	cutoffDay := cutoff.Truncate(timeutil.Day)
 	years, err := j.store.ListDirectories(baseDir)
 	if err != nil {
 		if !storage.IsNotExist(err) {
@@ -108,47 +111,64 @@ func (j *Janitor) pruneResolution(baseDir string, cutoff time.Time) {
 		return
 	}
 	for _, yearInfo := range years {
-		yearDir := path.Join(baseDir, yearInfo.Name)
+		// ListDirectories returns the full path in Name with a trailing slash.
+		yearDir := strings.TrimSuffix(yearInfo.Name, "/")
 		months, err := j.store.ListDirectories(yearDir)
 		if err != nil {
 			log.Warnf("KubeModel janitor: listing %s: %v", yearDir, err)
 			continue
 		}
 		for _, monthInfo := range months {
-			monthDir := path.Join(yearDir, monthInfo.Name)
+			monthDir := strings.TrimSuffix(monthInfo.Name, "/")
 			days, err := j.store.ListDirectories(monthDir)
 			if err != nil {
 				log.Warnf("KubeModel janitor: listing %s: %v", monthDir, err)
 				continue
 			}
 			for _, dayInfo := range days {
-				dayDir := path.Join(monthDir, dayInfo.Name)
-				dateStr := yearInfo.Name + "/" + monthInfo.Name + "/" + dayInfo.Name
+				dayDir := strings.TrimSuffix(dayInfo.Name, "/")
+				dateStr := path.Base(yearDir) + "/" + path.Base(monthDir) + "/" + path.Base(dayDir)
 				date, err := time.Parse("2006/01/02", dateStr)
 				if err != nil {
 					log.Warnf("KubeModel janitor: cannot parse date from %s: %v", dateStr, err)
 					continue
 				}
-				if date.Before(cutoff) {
-					j.removeDay(dayDir)
+				if !date.After(cutoffDay) {
+					j.cleanDay(dayDir, cutoff)
 				}
 			}
 		}
 	}
 }
 
-func (j *Janitor) removeDay(dayDir string) {
+// cleanDay removes files in dayDir whose embedded timestamp is before cutoff.
+func (j *Janitor) cleanDay(dayDir string, cutoff time.Time) {
 	files, err := j.store.List(dayDir)
 	if err != nil {
 		log.Warnf("KubeModel janitor: listing files in %s: %v", dayDir, err)
 		return
 	}
 	for _, f := range files {
-		filePath := path.Join(dayDir, f.Name)
-		if err := j.store.Remove(filePath); err != nil {
-			log.Warnf("KubeModel janitor: removing %s: %v", filePath, err)
-		} else {
-			log.Infof("KubeModel janitor: removed expired file %s", filePath)
+		ts, err := parseKubeModelFileTimestamp(f.Name)
+		if err != nil {
+			log.Warnf("KubeModel janitor: cannot parse timestamp from %s: %v", f.Name, err)
+			continue
+		}
+		if ts.Before(cutoff) {
+			filePath := path.Join(dayDir, f.Name)
+			if err := j.store.Remove(filePath); err != nil {
+				log.Warnf("KubeModel janitor: removing %s: %v", filePath, err)
+			} else {
+				log.Infof("KubeModel janitor: removed expired file %s", filePath)
+			}
 		}
 	}
+}
+
+// parseKubeModelFileTimestamp extracts the start time from a KubeModel file name.
+// File names have the format <YYYYMMDDHHmmSS>.<ext> (or <prefix>.<YYYYMMDDHHmmSS>.<ext>
+// when a prefix is present, but the pipeline writes files without a prefix).
+func parseKubeModelFileTimestamp(name string) (time.Time, error) {
+	fileParts := strings.Split(name, ".")
+	return time.ParseInLocation(pathing.KubeModelStorageTimeFormat, fileParts[0], time.UTC)
 }

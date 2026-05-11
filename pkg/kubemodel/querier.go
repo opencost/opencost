@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/exporter"
 	"github.com/opencost/opencost/core/pkg/exporter/pathing"
 	coremodel "github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/opencost"
@@ -12,7 +13,6 @@ import (
 )
 
 // supportedResolutions lists the resolutions written by the pipeline, in ascending order.
-// A requested resolution is snapped to the largest supported value ≤ the request.
 var supportedResolutions = []time.Duration{time.Hour, timeutil.Day}
 
 // Querier reads KubeModelSets written by the pipeline from storage.
@@ -35,14 +35,16 @@ func (q *Querier) Query(window opencost.Window) ([]*coremodel.KubeModelSet, erro
 		return nil, fmt.Errorf("kubemodel querier: window must be closed")
 	}
 
-	res := snapResolution(window.Duration())
+	res := snapResolution(window)
 	resStr := timeutil.FormatStoreResolution(res)
 	formatter, err := pathing.NewKubeModelStoragePathFormatter(q.appName, q.clusterId, resStr)
 	if err != nil {
 		return nil, fmt.Errorf("kubemodel querier: %w", err)
 	}
 
-	subWindows, err := opencost.GetWindowsForQueryWindow(*window.Start(), *window.End(), res)
+	start := window.Start().Truncate(res)
+	end := window.End().Truncate(res)
+	subWindows, err := opencost.GetWindowsForQueryWindow(start, end, res)
 	if err != nil {
 		return nil, fmt.Errorf("kubemodel querier: splitting window: %w", err)
 	}
@@ -63,33 +65,30 @@ func (q *Querier) Query(window opencost.Window) ([]*coremodel.KubeModelSet, erro
 }
 
 func (q *Querier) readWindow(formatter pathing.StoragePathFormatter[opencost.Window], window opencost.Window) (*coremodel.KubeModelSet, error) {
-	ext := fmt.Sprintf("v%d.bin", coremodel.DefaultCodecVersion)
-	path := formatter.ToFullPath("", window, ext)
+	path := formatter.ToFullPath("", window, exporter.BingenExt)
 
 	data, err := q.store.Read(path)
 	if err != nil {
 		return nil, err
 	}
 
-	return decodeKubeModelSet(data)
-}
-
-func decodeKubeModelSet(data []byte) (*coremodel.KubeModelSet, error) {
 	kms := new(coremodel.KubeModelSet)
 	if err := kms.UnmarshalBinary(data); err != nil {
 		return nil, fmt.Errorf("decoding KubeModelSet: %w", err)
 	}
+
 	return kms, nil
 }
 
-// snapResolution returns the largest supported resolution that is ≤ requested.
-// Falls back to the smallest supported resolution if requested is smaller than all.
-func snapResolution(requested time.Duration) time.Duration {
-	snapped := supportedResolutions[0]
-	for _, res := range supportedResolutions {
-		if res <= requested {
-			snapped = res
+// snapResolution returns the largest supported resolution that evenly divides
+// the window duration. Falls back to the smallest supported resolution if none
+// divides evenly.
+func snapResolution(window opencost.Window) time.Duration {
+	dur := window.Duration()
+	for i := len(supportedResolutions) - 1; i >= 0; i-- {
+		if dur%supportedResolutions[i] == 0 {
+			return supportedResolutions[i]
 		}
 	}
-	return snapped
+	return supportedResolutions[0]
 }
