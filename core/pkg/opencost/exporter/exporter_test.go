@@ -14,11 +14,14 @@ import (
 	"github.com/opencost/opencost/core/pkg/pipelines"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/storage"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
 
 const (
-	TestClusterId  = "test-cluster"
-	TestResolution = 24 * time.Hour
+	TestAppName     = "test-app"
+	TestClusterID   = "test-cluster-id"
+	TestClusterName = "test-cluster"
+	TestResolution  = 24 * time.Hour
 )
 
 type GenerateMockSet[T any] func(start, end time.Time) *T
@@ -159,12 +162,12 @@ func TestExporters(t *testing.T) {
 	t.Run("allocation exporter", func(t *testing.T) {
 		allocSource := NewMockAllocationSource()
 		memStore := storage.NewMemoryStorage()
-		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AllocationPipelineName, ptr(TestResolution))
+		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterName, pipelines.AllocationPipelineName, ptr(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create path formatter: %v", err)
 		}
 
-		allocExporter, err := NewComputePipelineExporter[opencost.AllocationSet](TestClusterId, TestResolution, memStore)
+		allocExporter, err := NewComputePipelineExporter[opencost.AllocationSet](TestClusterName, TestResolution, memStore)
 		if err != nil {
 			t.Fatalf("failed to create allocation exporter: %v", err)
 		}
@@ -188,12 +191,12 @@ func TestExporters(t *testing.T) {
 	t.Run("asset exporter", func(t *testing.T) {
 		assetSource := NewMockAssetSource()
 		memStore := storage.NewMemoryStorage()
-		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AssetsPipelineName, ptr(TestResolution))
+		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterName, pipelines.AssetsPipelineName, ptr(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create path formatter: %v", err)
 		}
 
-		assetExporter, err := NewComputePipelineExporter[opencost.AssetSet](TestClusterId, TestResolution, memStore)
+		assetExporter, err := NewComputePipelineExporter[opencost.AssetSet](TestClusterName, TestResolution, memStore)
 		if err != nil {
 			t.Fatalf("failed to create allocation exporter: %v", err)
 		}
@@ -217,12 +220,12 @@ func TestExporters(t *testing.T) {
 	t.Run("network insight exporter", func(t *testing.T) {
 		netInsightSource := NewMockNetworkInsightSource()
 		memStore := storage.NewMemoryStorage()
-		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.NetworkInsightPipelineName, ptr(TestResolution))
+		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterName, pipelines.NetworkInsightPipelineName, ptr(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create path formatter: %v", err)
 		}
 
-		netInsightExporter, err := NewComputePipelineExporter[opencost.NetworkInsightSet](TestClusterId, TestResolution, memStore)
+		netInsightExporter, err := NewComputePipelineExporter[opencost.NetworkInsightSet](TestClusterName, TestResolution, memStore)
 		if err != nil {
 			t.Fatalf("failed to create net insights exporter: %v", err)
 		}
@@ -246,12 +249,13 @@ func TestExporters(t *testing.T) {
 	t.Run("KubeModel exporter", func(t *testing.T) {
 		kubeModelSource := NewMockKubeModelSource()
 		memStore := storage.NewMemoryStorage()
-		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.KubeModelPipelineName, ptr(TestResolution))
+		res := timeutil.FormatStoreResolution(TestResolution)
+		p, err := pathing.NewKubeModelStoragePathFormatter(TestAppName, TestClusterID, res)
 		if err != nil {
 			t.Fatalf("failed to create path formatter: %v", err)
 		}
 
-		kubeModelExporter, err := NewComputePipelineExporter[kubemodel.KubeModelSet](TestClusterId, TestResolution, memStore)
+		kubeModelExporter, err := NewKubeModelComputePipelineExporter[kubemodel.KubeModelSet](TestAppName, TestClusterID, TestResolution, memStore)
 		if err != nil {
 			t.Fatalf("failed to create KubeModel exporter: %v", err)
 		}
@@ -276,7 +280,7 @@ func TestExporters(t *testing.T) {
 		memStore := storage.NewMemoryStorage()
 
 		// Invalid pipeline
-		_, err := NewComputePipelineExporter[UnknownSet](TestClusterId, TestResolution, memStore)
+		_, err := NewComputePipelineExporter[UnknownSet](TestClusterName, TestResolution, memStore)
 		if err == nil {
 			t.Fatalf("expected error creating unknown pipeline exporter, got nil")
 		}
@@ -295,8 +299,9 @@ func TestPipelineExportControllers(t *testing.T) {
 		memStore := storage.NewMemoryStorage()
 
 		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, PipelinesExportConfig{
-			ClusterUID:                        TestClusterId,
-			ClusterName:                       TestClusterId,
+			AppName:                           TestAppName,
+			ClusterUID:                        TestClusterID,
+			ClusterName:                       TestClusterName,
 			AllocationPiplineResolutions:      []time.Duration{TestResolution},
 			AssetPipelineResolutons:           []time.Duration{TestResolution},
 			NetworkInsightPipelineResolutions: []time.Duration{TestResolution},
@@ -310,15 +315,15 @@ func TestPipelineExportControllers(t *testing.T) {
 		time.Sleep(time.Second + (750 * time.Millisecond))
 		exportControllers.Stop()
 
-		allocPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AllocationPipelineName, ptr(TestResolution))
+		allocPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterName, pipelines.AllocationPipelineName, ptr(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create allocations path formatter: %v", err)
 		}
-		assetPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AssetsPipelineName, ptr(TestResolution))
+		assetPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterName, pipelines.AssetsPipelineName, ptr(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create assets path formatter: %v", err)
 		}
-		netPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.NetworkInsightPipelineName, ptr(TestResolution))
+		netPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterName, pipelines.NetworkInsightPipelineName, ptr(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create net insights path formatter: %v", err)
 		}
@@ -333,8 +338,9 @@ func TestPipelineExportControllers(t *testing.T) {
 		memStore := storage.NewMemoryStorage()
 
 		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, PipelinesExportConfig{
-			ClusterUID:                        TestClusterId,
-			ClusterName:                       TestClusterId,
+			AppName:                           TestAppName,
+			ClusterUID:                        TestClusterID,
+			ClusterName:                       TestClusterName,
 			AllocationPiplineResolutions:      []time.Duration{TestResolution},
 			AssetPipelineResolutons:           []time.Duration{TestResolution},
 			NetworkInsightPipelineResolutions: []time.Duration{TestResolution},
@@ -348,15 +354,15 @@ func TestPipelineExportControllers(t *testing.T) {
 		time.Sleep(time.Second + (750 * time.Millisecond))
 		exportControllers.Stop()
 
-		allocPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AllocationPipelineName, ptr(TestResolution))
+		allocPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterName, pipelines.AllocationPipelineName, ptr(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create allocations path formatter: %v", err)
 		}
-		assetPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AssetsPipelineName, ptr(TestResolution))
+		assetPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterName, pipelines.AssetsPipelineName, ptr(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create assets path formatter: %v", err)
 		}
-		netPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.NetworkInsightPipelineName, ptr(TestResolution))
+		netPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterName, pipelines.NetworkInsightPipelineName, ptr(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create net insights path formatter: %v", err)
 		}
@@ -370,7 +376,7 @@ func TestPipelineExportControllers(t *testing.T) {
 		pipelineComputeSource := NewMockPipelineComputeSource()
 		memStore := storage.NewMemoryStorage()
 
-		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, NewPipelinesExportConfig(TestClusterId, TestClusterId))
+		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, NewPipelinesExportConfig(TestAppName, TestClusterID, TestClusterName))
 
 		if len(exportControllers.AllocationExportController.Resolutions()) != 2 {
 			t.Fatalf("expected 2 allocation resolutions, got %d", len(exportControllers.AllocationExportController.Resolutions()))
@@ -388,7 +394,7 @@ func TestPipelineExportControllers(t *testing.T) {
 		pipelineComputeSource := NewMockPipelineComputeSourceWith(48 * time.Hour)
 		memStore := storage.NewMemoryStorage()
 
-		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, NewPipelinesExportConfig(TestClusterId, TestClusterId))
+		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, NewPipelinesExportConfig(TestAppName, TestClusterID, TestClusterName))
 
 		if len(exportControllers.AllocationExportController.Resolutions()) != 0 {
 			t.Fatalf("expected 0 allocation resolutions, got %d", len(exportControllers.AllocationExportController.Resolutions()))
@@ -405,7 +411,7 @@ func TestPipelineExportControllers(t *testing.T) {
 		pipelineComputeSource := NewMockPipelineComputeSource()
 		memStore := storage.NewMemoryStorage()
 
-		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, NewPipelinesExportConfig("", ""))
+		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, NewPipelinesExportConfig("", "", ""))
 
 		if len(exportControllers.AllocationExportController.Resolutions()) != 0 {
 			t.Fatalf("expected 0 allocation resolutions, got %d", len(exportControllers.AllocationExportController.Resolutions()))

@@ -21,7 +21,7 @@ func GetDefaultStorage() Storage {
 // GetConfiguredStorage retrieves the default shared storage which is required for running an opencost.
 func GetConfiguredStorage() Storage {
 	const warningMessage = `Failed to create local directory '%s' - %s.
-		Did you mean to enable to collector? For persistent storage, it's recommended to use Prometheus, 
+		Did you mean to enable the collector? For persistent storage, it's recommended to use Prometheus, 
 		or set a storage bucket configuration at %s. 
 
 		%s`

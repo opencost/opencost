@@ -31,11 +31,7 @@ func NewComputePipelineExporter[T any, U export.BinaryMarshalerPtr[T], S validat
 	}
 
 	var encoder export.Encoder[T]
-	if pipelineName == pipelines.KubeModelPipelineName {
-		encoder = export.NewBingenFileEncoder[T, U]()
-	} else {
-		encoder = export.NewBingenEncoder[T, U]()
-	}
+	encoder = export.NewBingenEncoder[T, U]()
 
 	return export.NewComputeStorageExporter(
 		pathing,
@@ -79,10 +75,7 @@ func NewKubeModelComputePipelineExporter[T any, U export.BinaryMarshalerPtr[T], 
 		return nil, fmt.Errorf("failed to create path formatter: %w", err)
 	}
 
-	var encoder export.Encoder[T]
-	if pipelineName == pipelines.KubeModelPipelineName {
-		encoder = export.NewVersionBingenEncoder[T, U](kubemodel.DefaultCodecVersion)
-	}
+	encoder := export.NewBingenFileEncoder[T, U]()
 
 	return export.NewComputeStorageExporter(
 		pathing,

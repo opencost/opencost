@@ -21,13 +21,13 @@ type Pipeline struct {
 	janitor     *Janitor
 }
 
-// NewPipeline creates a new pipeline with perset settings
+// NewPipeline creates a new pipeline with preset settings
 func NewPipeline(appName, clusterUID string, store storage.Storage, cm ocexporter.ComputePipelineSource) (*Pipeline, error) {
 	if store == nil {
-		return nil, fmt.Errorf("NewKubeModelPipeline: store cannot be nil")
+		return nil, fmt.Errorf("NewPipeline: store cannot be nil")
 	}
 	if clusterUID == "" {
-		return nil, fmt.Errorf("NewKubeModelPipeline: clusterUID cannot be empty")
+		return nil, fmt.Errorf("NewPipeline: clusterUID cannot be empty")
 	}
 
 	config := ocexporter.PipelinesExportConfig{
