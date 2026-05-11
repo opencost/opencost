@@ -7,14 +7,12 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/exporter/pathing/pathutils"
 	"github.com/opencost/opencost/core/pkg/opencost"
-	"github.com/opencost/opencost/core/pkg/pipelines"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
 
 const (
-	DefaultRootDir   string = "federated"
-	BaseStorageDir   string = "etl/bingen"
-	FinOpsAgentAppID string = "finops-agent"
+	DefaultRootDir string = "federated"
+	BaseStorageDir string = "etl/bingen"
 )
 
 // BingenStoragePathFormatter is an implementation of the StoragePathFormatter interface for
@@ -32,12 +30,6 @@ func NewDefaultStoragePathFormatter(clusterId, pipeline string, resolution *time
 	res := "."
 	if resolution != nil {
 		res = timeutil.FormatStoreResolution(*resolution)
-	}
-
-	// KubeModel uses a distinct pathing pattern which breaks with the original
-	// Allocations and Assets bingen pathing.
-	if pipeline == pipelines.KubeModelPipelineName {
-		return NewKubeModelStoragePathFormatter(FinOpsAgentAppID, clusterId, res)
 	}
 
 	return NewBingenStoragePathFormatter(DefaultRootDir, clusterId, pipeline, res)
