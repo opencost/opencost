@@ -33,6 +33,12 @@ const (
 	profileThreshold = 1000 * 1000 * 1000 // 1s (in ns)
 
 	unmountedPVsContainer = "unmounted-pvs"
+
+	annotationDomain = "opencost.io"
+
+	annotationStorageCost = annotationDomain + "/storage-hourly-cost"
+	annotationNodeCPUCost = annotationDomain + "/node-cpu-hourly-cost"
+	annotationNodeRAMCost = annotationDomain + "/node-ram-hourly-cost"
 )
 
 // isCron matches a CronJob name and captures the non-timestamp name
@@ -820,6 +826,11 @@ func (cm *CostModel) addPVData(pvClaimMapping map[string]*PersistentVolumeClaimD
 			storageClassMap["default"] = params
 			storageClassMap[""] = params
 		}
+
+		// Add custom cost annotation to storage class map
+		if key, found := storageClass.Annotations[annotationStorageCost]; found && params != nil {
+			params[annotationStorageCost] = key
+		}
 	}
 
 	pvs := cache.GetAllPersistentVolumes()
@@ -862,6 +873,24 @@ func (cm *CostModel) addPVData(pvClaimMapping map[string]*PersistentVolumeClaimD
 	return nil
 }
 
+// Checks if the provided cost string can be parsed into a finite, non-negative float64.
+// If the cost is invalid, it logs a warning with the cost value and the reason.
+func (cm *CostModel) costIsValid(cost string) bool {
+	parsedCost, err := strconv.ParseFloat(cost, 64)
+	if err != nil {
+		log.Warnf("Invalid cost value: %s. Error: %s", cost, err.Error())
+		return false
+	}
+
+	// Check if the parsed cost is a valid number (not NaN, not Inf, and non-negative)
+	if math.IsNaN(parsedCost) || math.IsInf(parsedCost, 0) || parsedCost < 0 {
+		log.Warnf("Invalid cost value: %s. Error: cost must be a finite, non-negative number", cost)
+		return false
+	}
+
+	return true
+}
+
 func (cm *CostModel) GetPVCost(pv *costAnalyzerCloud.PV, kpv *clustercache.PersistentVolume, defaultRegion string) error {
 	cp := cm.Provider
 	cfg, err := cp.GetConfig()
@@ -870,6 +899,21 @@ func (cm *CostModel) GetPVCost(pv *costAnalyzerCloud.PV, kpv *clustercache.Persi
 	}
 	key := cp.GetPVKey(kpv, pv.Parameters, defaultRegion)
 	pv.ProviderID = key.ID()
+
+	// If PV has a custom cost annotation, use that to mandate the cost
+	if cost, found := kpv.Annotations[annotationStorageCost]; found && cm.costIsValid(cost) {
+		log.Infof("Found custom cost from annotation for PV %s: %s", kpv.Name, cost)
+		pv.Cost = cost
+		return nil
+	}
+
+	// If SC has a custom cost annotation, use that to mandate the cost
+	if cost, found := pv.Parameters[annotationStorageCost]; found && cm.costIsValid(cost) {
+		log.Infof("Found custom cost from Storage Class annotation for PV %s: %s", kpv.Name, cost)
+		pv.Cost = cost
+		return nil
+	}
+
 	pvWithCost, err := cp.PVPricing(key)
 	if err != nil {
 		pv.Cost = cfg.Storage
@@ -929,6 +973,16 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 					RAMCost:  cfg.RAM,
 				}
 			}
+		}
+
+		if cost, found := n.Annotations[annotationNodeCPUCost]; found && cm.costIsValid(cost) {
+			log.Infof("Found custom CPU cost from annotation for Node %s: %s", n.Name, cost)
+			cnode.VCPUCost = cost
+		}
+
+		if cost, found := n.Annotations[annotationNodeRAMCost]; found && cm.costIsValid(cost) {
+			log.Infof("Found custom RAM cost from annotation for Node %s: %s", n.Name, cost)
+			cnode.RAMCost = cost
 		}
 
 		pmd.PricingTypeCounts[cnode.PricingType]++
