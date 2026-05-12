@@ -49,28 +49,53 @@ func (r *repoStoreProvider) GetStore(start, end time.Time) metric.MetricStore {
 }
 
 // getStoreKeys compares the given start and end against each resolution by truncating the start time and
-// add one interval to the truncated value. The duration between start and end is compared with the duration
-// between the interval generated times, with the lowest
+// adding one interval to the truncated value. The duration between start and end is compared with the
+// duration between the interval-generated times, with the lowest diff selected.
 func (r *repoStoreProvider) getStoreKeys(start, end time.Time) (string, time.Time) {
 	windowDuration := int64(end.Sub(start))
-	var minDiff *int64
-	var minKey string
-	var minStart time.Time
+	type candidate struct {
+		diff  int64
+		key   string
+		start time.Time
+		set   bool
+	}
+	var best candidate
+	var fallback candidate
 	for key, interval := range r.intervals {
 		intStart := interval.Truncate(start)
-		intEnd := interval.Add(start, 1)
+		intEnd := interval.Add(intStart, 1)
 		intDuration := int64(intEnd.Sub(intStart))
 		diffDuration := windowDuration - intDuration
 		if diffDuration < 0 {
 			diffDuration = -diffDuration
 		}
-		if minDiff == nil || diffDuration < *minDiff {
-			minDiff = &diffDuration
-			minKey = key
-			minStart = intStart
+
+		if !fallback.set || diffDuration < fallback.diff {
+			fallback = candidate{
+				diff:  diffDuration,
+				key:   key,
+				start: intStart,
+				set:   true,
+			}
+		}
+
+		if intDuration == windowDuration && !intStart.Equal(start) {
+			continue
+		}
+
+		if !best.set || diffDuration < best.diff {
+			best = candidate{
+				diff:  diffDuration,
+				key:   key,
+				start: intStart,
+				set:   true,
+			}
 		}
 	}
-	return minKey, minStart
+	if best.set {
+		return best.key, best.start
+	}
+	return fallback.key, fallback.start
 }
 
 // GetDailyDataCoverage this is a bit of a hacky add-on to help fulfill the metricsquerier interface
