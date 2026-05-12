@@ -254,6 +254,68 @@ func TestAzure_findCostForDisk(t *testing.T) {
 	}
 }
 
+func TestAzurePVKeyFeatures(t *testing.T) {
+	tests := []struct {
+		name       string
+		parameters map[string]string
+		expected   string
+	}{
+		{
+			name: "managed disk storageaccounttype premium",
+			parameters: map[string]string{
+				"storageaccounttype": "Premium_LRS",
+			},
+			expected: "eastus,premium_ssd",
+		},
+		{
+			name: "managed disk csi skuname premium",
+			parameters: map[string]string{
+				"skuname": "Premium_LRS",
+			},
+			expected: "eastus,premium_ssd",
+		},
+		{
+			name: "managed disk csi skuname standard ssd",
+			parameters: map[string]string{
+				"skuname": "StandardSSD_LRS",
+			},
+			expected: "eastus,standard_ssd",
+		},
+		{
+			name: "managed disk csi skuname standard hdd",
+			parameters: map[string]string{
+				"skuname": "Standard_LRS",
+			},
+			expected: "eastus,standard_hdd",
+		},
+		{
+			name: "azure files skuName remains file pricing",
+			parameters: map[string]string{
+				"skuName": "Premium_LRS",
+			},
+			expected: "eastus,premium_smb",
+		},
+		{
+			name: "azure files skuName standard remains file pricing",
+			parameters: map[string]string{
+				"skuName": "Standard_LRS",
+			},
+			expected: "eastus,standard_smb",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			key := &azurePvKey{
+				StorageClassParameters: tc.parameters,
+				DefaultRegion:          "eastus",
+			}
+
+			require.Equal(t, tc.expected, key.Features())
+		})
+	}
+}
+
 func Test_buildAzureRetailPricesURL(t *testing.T) {
 	testCases := []struct {
 		name         string
