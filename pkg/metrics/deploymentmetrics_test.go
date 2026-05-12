@@ -33,7 +33,7 @@ func TestKubecostDeploymentCollector_Describe(t *testing.T) {
 				DisabledMetrics: tt.disabledMetrics,
 			}
 			kdc := KubecostDeploymentCollector{
-				KubeClusterCache: NewFakeDeploymentCache([]*clustercache.Deployment{}),
+				KubeClusterCache: &clustercache.MockClusterCache{},
 				metricsConfig:    mc,
 			}
 
@@ -148,7 +148,7 @@ func TestKubecostDeploymentCollector_Collect(t *testing.T) {
 				DisabledMetrics: tt.disabledMetrics,
 			}
 			kdc := KubecostDeploymentCollector{
-				KubeClusterCache: NewFakeDeploymentCache(tt.deployments),
+				KubeClusterCache: &clustercache.MockClusterCache{Deployments: tt.deployments},
 				metricsConfig:    mc,
 			}
 
@@ -254,7 +254,7 @@ func TestKubeDeploymentCollector_Describe(t *testing.T) {
 				DisabledMetrics: tt.disabledMetrics,
 			}
 			kdc := KubeDeploymentCollector{
-				KubeClusterCache: NewFakeDeploymentCache([]*clustercache.Deployment{}),
+				KubeClusterCache: &clustercache.MockClusterCache{},
 				metricsConfig:    mc,
 			}
 
@@ -383,7 +383,7 @@ func TestKubeDeploymentCollector_Collect(t *testing.T) {
 				DisabledMetrics: tt.disabledMetrics,
 			}
 			kdc := KubeDeploymentCollector{
-				KubeClusterCache: NewFakeDeploymentCache(tt.deployments),
+				KubeClusterCache: &clustercache.MockClusterCache{Deployments: tt.deployments},
 				metricsConfig:    mc,
 			}
 
@@ -507,7 +507,7 @@ func TestKubeDeploymentCollector_DefaultReplicas(t *testing.T) {
 		DisabledMetrics: []string{"kube_deployment_status_replicas_available"}, // Only test spec replicas
 	}
 	kdc := KubeDeploymentCollector{
-		KubeClusterCache: NewFakeDeploymentCache([]*clustercache.Deployment{deployment}),
+		KubeClusterCache: &clustercache.MockClusterCache{Deployments: []*clustercache.Deployment{deployment}},
 		metricsConfig:    mc,
 	}
 
@@ -524,18 +524,3 @@ func TestKubeDeploymentCollector_DefaultReplicas(t *testing.T) {
 	}
 }
 
-// FakeDeploymentCache implements ClusterCache interface for testing
-type FakeDeploymentCache struct {
-	clustercache.ClusterCache
-	deployments []*clustercache.Deployment
-}
-
-func (f FakeDeploymentCache) GetAllDeployments() []*clustercache.Deployment {
-	return f.deployments
-}
-
-func NewFakeDeploymentCache(deployments []*clustercache.Deployment) FakeDeploymentCache {
-	return FakeDeploymentCache{
-		deployments: deployments,
-	}
-}

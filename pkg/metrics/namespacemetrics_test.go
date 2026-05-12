@@ -9,19 +9,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-type mockNamespaceCache struct {
-	clustercache.ClusterCache
-	namespaces []*clustercache.Namespace
-}
-
-func (m mockNamespaceCache) GetAllNamespaces() []*clustercache.Namespace {
-	return m.namespaces
-}
-
 func TestKubecostNamespaceCollector_Collect(t *testing.T) {
 	// Test with namespace that has annotations
-	cache := mockNamespaceCache{
-		namespaces: []*clustercache.Namespace{
+	cache := &clustercache.MockClusterCache{
+		Namespaces: []*clustercache.Namespace{
 			{
 				Name:        "test-ns",
 				UID:         types.UID("test-uid"),
@@ -53,8 +44,8 @@ func TestKubecostNamespaceCollector_Collect(t *testing.T) {
 
 func TestKubeNamespaceCollector_Collect(t *testing.T) {
 	// Test with namespace that has labels
-	cache := mockNamespaceCache{
-		namespaces: []*clustercache.Namespace{
+	cache := &clustercache.MockClusterCache{
+		Namespaces: []*clustercache.Namespace{
 			{
 				Name:   "test-ns",
 				UID:    types.UID("test-uid"),
