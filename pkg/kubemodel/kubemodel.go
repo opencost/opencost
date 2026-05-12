@@ -957,9 +957,11 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 	containerResourceRequestsFuture := source.WithGroup(grp, metrics.QueryContainerResourceRequests(start, end))
 	containerResourceLimitsFuture := source.WithGroup(grp, metrics.QueryContainerResourceLimits(start, end))
 
+	cpuCoresAllocatedFuture := source.WithGroup(grp, metrics.QueryCPUCoresAllocated(start, end))
 	cpuUsageAvgFuture := source.WithGroup(grp, metrics.QueryCPUUsageAvg(start, end))
 	cpuUsageMaxFuture := source.WithGroup(grp, metrics.QueryCPUUsageMax(start, end))
 
+	ramBytesAllocatedFuture := source.WithGroup(grp, metrics.QueryRAMBytesAllocated(start, end))
 	ramUsageAvgFuture := source.WithGroup(grp, metrics.QueryRAMUsageAvg(start, end))
 	ramUsageMaxFuture := source.WithGroup(grp, metrics.QueryRAMUsageMax(start, end))
 
@@ -1006,6 +1008,32 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 		}
 		resource, unit, value := resourceUnitValue(res.Resource, res.Unit, res.Value)
 		container.ResourceLimits.Set(resource, unit, kubemodel.StatAvg, value)
+	}
+
+	cpuCoresAllocatedResult, _ := cpuCoresAllocatedFuture.Await()
+	for _, res := range cpuCoresAllocatedResult {
+		key := containerKey{podUID: res.UID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add CPU cores allocated", res.UID, res.Container)
+			continue
+		}
+		if len(res.Data) > 0 {
+			container.CPUCoresAllocated = res.Data[0].Value
+		}
+	}
+
+	ramBytesAllocatedResult, _ := ramBytesAllocatedFuture.Await()
+	for _, res := range ramBytesAllocatedResult {
+		key := containerKey{podUID: res.UID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add RAM bytes allocated", res.UID, res.Container)
+			continue
+		}
+		if len(res.Data) > 0 {
+			container.RAMBytesAllocated = res.Data[0].Value
+		}
 	}
 
 	cpuUsageAvgResult, _ := cpuUsageAvgFuture.Await()

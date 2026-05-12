@@ -7,16 +7,18 @@ import (
 
 // @bingen:generate:Container
 type Container struct {
-	PodUID           string             `json:"podUid"`
-	Name             string             `json:"name"`
-	ResourceRequests ResourceQuantities `json:"resourceRequests"`
-	ResourceLimits   ResourceQuantities `json:"resourceLimits"`
-	CPUCoreUsageAvg  float64            `json:"cpuCoreUsageAvg"`
-	CPUCoreUsageMax  float64            `json:"cpuCoreUsageMax"`
-	RAMBytesUsageAvg float64            `json:"ramBytesUsageAvg"`
-	RAMBytesUsageMax float64            `json:"ramBytesUsageMax"`
-	Start            time.Time          `json:"start"`
-	End              time.Time          `json:"end"`
+	PodUID            string             `json:"podUid"`
+	Name              string             `json:"name"`
+	ResourceRequests  ResourceQuantities `json:"resourceRequests"`
+	ResourceLimits    ResourceQuantities `json:"resourceLimits"`
+	CPUCoresAllocated float64            `json:"cpuCoresAllocated"`
+	CPUCoreUsageAvg   float64            `json:"cpuCoreUsageAvg"`
+	CPUCoreUsageMax   float64            `json:"cpuCoreUsageMax"`
+	RAMBytesAllocated float64            `json:"ramBytesAllocated"`
+	RAMBytesUsageAvg  float64            `json:"ramBytesUsageAvg"`
+	RAMBytesUsageMax  float64            `json:"ramBytesUsageMax"`
+	Start             time.Time          `json:"start"`
+	End               time.Time          `json:"end"`
 }
 
 func (c *Container) GetKey() string {
