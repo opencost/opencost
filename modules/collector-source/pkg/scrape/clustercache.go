@@ -34,11 +34,6 @@ func newClusterCacheScraper(clusterCache clustercache.ClusterCache) Scraper {
 	}
 }
 
-type pvcKey struct {
-	name      string
-	namespace string
-}
-
 func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 	// retrieve objects for scrape
 	nodes := ccs.clusterCache.GetAllNodes()
@@ -57,26 +52,10 @@ func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 
 	// create scrape indexes. While the pairs being mapped here don't have a 1 to 1 relationship in the general case,
 	// we are assuming that in the context of a single snapshot of the cluster they are 1 to 1.
-	nodeNameToUID := make(map[string]types.UID, len(nodes))
-	for _, node := range nodes {
-		nodeNameToUID[node.Name] = node.UID
-	}
-	namespaceNameToUID := make(map[string]types.UID, len(namespaces))
-	for _, ns := range namespaces {
-		namespaceNameToUID[ns.Name] = ns.UID
-	}
-	pvcNameToUID := make(map[pvcKey]types.UID, len(pvcs))
-	for _, pvc := range pvcs {
-		key := pvcKey{
-			name:      pvc.Name,
-			namespace: pvc.Namespace,
-		}
-		pvcNameToUID[key] = pvc.UID
-	}
-	pvNameToUID := make(map[string]types.UID, len(pvs))
-	for _, pv := range pvs {
-		pvNameToUID[pv.Name] = pv.UID
-	}
+	nodeNameToUID := buildNodeIndex(nodes)
+	namespaceNameToUID := buildNamespaceIndex(namespaces)
+	pvcNameToUID := buildPVCIndex(pvcs)
+	pvNameToUID := buildPVIndex(pvs)
 
 	scrapeFuncs := []ScrapeFunc{
 		ccs.GetScrapeNodes(nodes),

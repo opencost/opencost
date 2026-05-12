@@ -2,25 +2,36 @@ package scrape
 
 import (
 	"github.com/kubecost/events"
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/nodestats"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/modules/collector-source/pkg/event"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
+	"k8s.io/apimachinery/pkg/types"
 	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
 type StatSummaryScraper struct {
-	client nodestats.StatSummaryClient
+	client       nodestats.StatSummaryClient
+	clusterCache clustercache.ClusterCache
 }
 
-func newStatSummaryScraper(client nodestats.StatSummaryClient) Scraper {
+func newStatSummaryScraper(client nodestats.StatSummaryClient, clusterCache clustercache.ClusterCache) Scraper {
 	return &StatSummaryScraper{
-		client: client,
+		client:       client,
+		clusterCache: clusterCache,
 	}
 }
 
 func (s *StatSummaryScraper) Scrape() []metric.Update {
+	var nodeNameToUID map[string]types.UID
+	var pvcNameToUID map[pvcKey]types.UID
+	if s.clusterCache != nil {
+		nodeNameToUID = buildNodeIndex(s.clusterCache.GetAllNodes())
+		pvcNameToUID = buildPVCIndex(s.clusterCache.GetAllPersistentVolumeClaims())
+	}
+
 	var scrapeResults []metric.Update
 	nodeStats, err := s.client.GetNodeData()
 
@@ -41,11 +52,14 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 
 	for _, stat := range nodeStats {
 		nodeName := stat.Node.NodeName
+		nodeUID := string(nodeNameToUID[nodeName])
+
 		if stat.Node.CPU != nil && stat.Node.CPU.UsageCoreNanoSeconds != nil {
 			scrapeResults = append(scrapeResults, metric.Update{
 				Name: metric.NodeCPUSecondsTotal,
 				Labels: map[string]string{
 					source.KubernetesNodeLabel: nodeName,
+					source.UIDLabel:            nodeUID,
 					source.ModeLabel:           "", // TODO
 				},
 				Value: float64(*stat.Node.CPU.UsageCoreNanoSeconds) * 1e-9,
@@ -57,6 +71,7 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 				Name: metric.NodeFSCapacityBytes,
 				Labels: map[string]string{
 					source.InstanceLabel: nodeName,
+					source.UIDLabel:      nodeUID,
 					source.DeviceLabel:   "local", // This value has to be populated but isn't important here
 				},
 				Value: float64(*stat.Node.Fs.CapacityBytes),
@@ -70,8 +85,9 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 
 			if pod.Network != nil {
 				networkLabels := map[string]string{
-					source.UIDLabel:       podUID,
-					source.PodLabel:       podName,
+					source.UIDLabel:     podUID,
+					source.NodeUIDLabel: nodeUID,
+					source.PodLabel:     podName,
 					source.NamespaceLabel: namespace,
 				}
 				// The network may contain a list of stats or itself be a single stat, if the list is not present
@@ -93,12 +109,15 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 				if _, ok := seenPVC[*volumeStats.PVCRef]; ok {
 					continue
 				}
+				pvcUID := string(pvcNameToUID[pvcKey{name: volumeStats.PVCRef.Name, namespace: volumeStats.PVCRef.Namespace}])
 				scrapeResults = append(scrapeResults, metric.Update{
 					Name: metric.KubeletVolumeStatsUsedBytes,
 					Labels: map[string]string{
 						source.PVCLabel:       volumeStats.PVCRef.Name,
 						source.NamespaceLabel: volumeStats.PVCRef.Namespace,
 						source.UIDLabel:       podUID,
+						source.NodeUIDLabel:   nodeUID,
+						source.PVCUIDLabel:    pvcUID,
 					},
 					Value: float64(*volumeStats.UsedBytes),
 				})
@@ -116,6 +135,7 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 							source.NodeLabel:      nodeName,
 							source.InstanceLabel:  nodeName,
 							source.UIDLabel:       podUID,
+							source.NodeUIDLabel:   nodeUID,
 						},
 						Value: float64(*container.CPU.UsageCoreNanoSeconds) * 1e-9,
 					})
@@ -130,6 +150,7 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 							source.NodeLabel:      nodeName,
 							source.InstanceLabel:  nodeName,
 							source.UIDLabel:       podUID,
+							source.NodeUIDLabel:   nodeUID,
 						},
 						Value: float64(*container.Memory.WorkingSetBytes),
 					})
@@ -142,6 +163,7 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 							source.InstanceLabel:  nodeName,
 							source.DeviceLabel:    "local",
 							source.UIDLabel:       podUID,
+							source.NodeUIDLabel:   nodeUID,
 							source.ContainerLabel: container.Name,
 						},
 						Value: float64(*container.Rootfs.UsedBytes),
