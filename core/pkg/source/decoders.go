@@ -248,6 +248,7 @@ func DecodeLocalStorageActiveMinutesResult(result *QueryResult) *LocalStorageAct
 }
 
 type LocalStorageCostResult struct {
+	UID      string
 	Cluster  string
 	Instance string
 	Device   string
@@ -256,11 +257,13 @@ type LocalStorageCostResult struct {
 }
 
 func DecodeLocalStorageCostResult(result *QueryResult) *LocalStorageCostResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	instance, _ := result.GetInstance()
 	device, _ := result.GetDevice()
 
 	return &LocalStorageCostResult{
+		UID:      uid,
 		Cluster:  cluster,
 		Instance: instance,
 		Device:   device,
@@ -269,6 +272,7 @@ func DecodeLocalStorageCostResult(result *QueryResult) *LocalStorageCostResult {
 }
 
 type LocalStorageUsedCostResult struct {
+	UID      string
 	Cluster  string
 	Instance string
 	Device   string
@@ -276,11 +280,13 @@ type LocalStorageUsedCostResult struct {
 }
 
 func DecodeLocalStorageUsedCostResult(result *QueryResult) *LocalStorageUsedCostResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	instance, _ := result.GetInstance()
 	device, _ := result.GetDevice()
 
 	return &LocalStorageUsedCostResult{
+		UID:      uid,
 		Cluster:  cluster,
 		Instance: instance,
 		Device:   device,
@@ -289,6 +295,7 @@ func DecodeLocalStorageUsedCostResult(result *QueryResult) *LocalStorageUsedCost
 }
 
 type LocalStorageUsedAvgResult struct {
+	UID      string
 	Cluster  string
 	Instance string
 	Device   string
@@ -296,11 +303,13 @@ type LocalStorageUsedAvgResult struct {
 }
 
 func DecodeLocalStorageUsedAvgResult(result *QueryResult) *LocalStorageUsedAvgResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	instance, _ := result.GetInstance()
 	device, _ := result.GetDevice()
 
 	return &LocalStorageUsedAvgResult{
+		UID:      uid,
 		Cluster:  cluster,
 		Instance: instance,
 		Device:   device,
@@ -309,6 +318,7 @@ func DecodeLocalStorageUsedAvgResult(result *QueryResult) *LocalStorageUsedAvgRe
 }
 
 type LocalStorageUsedMaxResult struct {
+	UID      string
 	Cluster  string
 	Instance string
 	Device   string
@@ -316,11 +326,13 @@ type LocalStorageUsedMaxResult struct {
 }
 
 func DecodeLocalStorageUsedMaxResult(result *QueryResult) *LocalStorageUsedMaxResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	instance, _ := result.GetInstance()
 	device, _ := result.GetDevice()
 
 	return &LocalStorageUsedMaxResult{
+		UID:      uid,
 		Cluster:  cluster,
 		Instance: instance,
 		Device:   device,
@@ -329,6 +341,7 @@ func DecodeLocalStorageUsedMaxResult(result *QueryResult) *LocalStorageUsedMaxRe
 }
 
 type LocalStorageBytesResult struct {
+	UID      string
 	Cluster  string
 	Instance string
 	Device   string
@@ -336,11 +349,13 @@ type LocalStorageBytesResult struct {
 }
 
 func DecodeLocalStorageBytesResult(result *QueryResult) *LocalStorageBytesResult {
+	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	instance, _ := result.GetInstance()
 	device, _ := result.GetDevice()
 
 	return &LocalStorageBytesResult{
+		UID:      uid,
 		Cluster:  cluster,
 		Instance: instance,
 		Device:   device,

@@ -201,10 +201,10 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 	nodeIsSpotResultFuture := source.WithGroup(grp, metrics.QueryNodeIsSpot(start, end))
 	nodeResourceCapacitiesFuture := source.WithGroup(grp, metrics.QueryNodeResourceCapacities(start, end))
 	nodeResourcesAllocatableFuture := source.WithGroup(grp, metrics.QueryNodeResourcesAllocatable(start, end))
-	// TODO before merge add Node UID to Nodestates metrics
-	//localStorageBytesFuture := source.WithGroup(grp, metrics.QueryLocalStorageBytes(start, end))
-	//localStorageUsedAvgFuture := source.WithGroup(grp, metrics.QueryLocalStorageUsedAvg(start, end))
-	//localStorageUsedMaxFuture := source.WithGroup(grp, metrics.QueryLocalStorageUsedMax(start, end))
+
+	localStorageBytesFuture := source.WithGroup(grp, metrics.QueryLocalStorageBytes(start, end))
+	localStorageUsedAvgFuture := source.WithGroup(grp, metrics.QueryLocalStorageUsedAvg(start, end))
+	localStorageUsedMaxFuture := source.WithGroup(grp, metrics.QueryLocalStorageUsedMax(start, end))
 
 	nodeMap := make(map[string]*kubemodel.Node)
 
@@ -276,41 +276,29 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 		node.Labels = res.Labels
 	}
 
-	//localStorageBytesResult, _ := localStorageBytesFuture.Await()
-	//for _, res := range localStorageBytesResult {
-	//	uid, ok := nodeNameToUID[res.Instance]
-	//	if !ok {
-	//		continue
-	//	}
-	//	node := nodeMap[uid]
-	//	if len(res.Data) > 0 {
-	//		node.FileSystem.CapacityBytes = res.Data[0].Value
-	//	}
-	//}
-	//
-	//localStorageUsedAvgResult, _ := localStorageUsedAvgFuture.Await()
-	//for _, res := range localStorageUsedAvgResult {
-	//	uid, ok := nodeNameToUID[res.Instance]
-	//	if !ok {
-	//		continue
-	//	}
-	//	node := nodeMap[uid]
-	//	if len(res.Data) > 0 {
-	//		node.FileSystem.UsageByteAvg = res.Data[0].Value
-	//	}
-	//}
-	//
-	//localStorageUsedMaxResult, _ := localStorageUsedMaxFuture.Await()
-	//for _, res := range localStorageUsedMaxResult {
-	//	uid, ok := nodeNameToUID[res.Instance]
-	//	if !ok {
-	//		continue
-	//	}
-	//	node := nodeMap[uid]
-	//	if len(res.Data) > 0 {
-	//		node.FileSystem.UsageByteMax = res.Data[0].Value
-	//	}
-	//}
+	localStorageBytesResult, _ := localStorageBytesFuture.Await()
+	for _, res := range localStorageBytesResult {
+		node, ok := nodeMap[res.UID]
+		if ok && len(res.Data) > 0 {
+			node.FileSystem.CapacityBytes = res.Data[0].Value
+		}
+	}
+
+	localStorageUsedAvgResult, _ := localStorageUsedAvgFuture.Await()
+	for _, res := range localStorageUsedAvgResult {
+		node, ok := nodeMap[res.UID]
+		if ok && len(res.Data) > 0 {
+			node.FileSystem.UsageByteAvg = res.Data[0].Value
+		}
+	}
+
+	localStorageUsedMaxResult, _ := localStorageUsedMaxFuture.Await()
+	for _, res := range localStorageUsedMaxResult {
+		node, ok := nodeMap[res.UID]
+		if ok && len(res.Data) > 0 {
+			node.FileSystem.UsageByteMax = res.Data[0].Value
+		}
+	}
 
 	for _, node := range nodeMap {
 		err := kms.RegisterNode(node)
