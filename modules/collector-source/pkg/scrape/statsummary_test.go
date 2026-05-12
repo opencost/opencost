@@ -15,40 +15,6 @@ import (
 	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
-// mockClusterCache implements clustercache.ClusterCache for testing.
-// Only GetAllNodes and GetAllPersistentVolumeClaims return meaningful data.
-type mockClusterCache struct {
-	nodes []*clustercache.Node
-	pvcs  []*clustercache.PersistentVolumeClaim
-}
-
-func (m *mockClusterCache) Run()                                                    {}
-func (m *mockClusterCache) Stop()                                                   {}
-func (m *mockClusterCache) GetAllNamespaces() []*clustercache.Namespace             { return nil }
-func (m *mockClusterCache) GetAllNodes() []*clustercache.Node                       { return m.nodes }
-func (m *mockClusterCache) GetAllPods() []*clustercache.Pod                         { return nil }
-func (m *mockClusterCache) GetAllServices() []*clustercache.Service                 { return nil }
-func (m *mockClusterCache) GetAllDaemonSets() []*clustercache.DaemonSet             { return nil }
-func (m *mockClusterCache) GetAllDeployments() []*clustercache.Deployment           { return nil }
-func (m *mockClusterCache) GetAllStatefulSets() []*clustercache.StatefulSet         { return nil }
-func (m *mockClusterCache) GetAllReplicaSets() []*clustercache.ReplicaSet           { return nil }
-func (m *mockClusterCache) GetAllPersistentVolumes() []*clustercache.PersistentVolume {
-	return nil
-}
-func (m *mockClusterCache) GetAllPersistentVolumeClaims() []*clustercache.PersistentVolumeClaim {
-	return m.pvcs
-}
-func (m *mockClusterCache) GetAllStorageClasses() []*clustercache.StorageClass           { return nil }
-func (m *mockClusterCache) GetAllJobs() []*clustercache.Job                              { return nil }
-func (m *mockClusterCache) GetAllCronJobs() []*clustercache.CronJob                     { return nil }
-func (m *mockClusterCache) GetAllPodDisruptionBudgets() []*clustercache.PodDisruptionBudget {
-	return nil
-}
-func (m *mockClusterCache) GetAllReplicationControllers() []*clustercache.ReplicationController {
-	return nil
-}
-func (m *mockClusterCache) GetAllResourceQuotas() []*clustercache.ResourceQuota { return nil }
-
 type mockStatSummaryClient struct {
 	results []*stats.Summary
 	err     error
@@ -61,11 +27,11 @@ func (m *mockStatSummaryClient) GetNodeData() ([]*stats.Summary, error) {
 func TestStatScraper_Scrape(t *testing.T) {
 	start1, _ := time.Parse(time.RFC3339, Start1Str)
 
-	testCache := &mockClusterCache{
-		nodes: []*clustercache.Node{
+	testCache := &clustercache.MockClusterCache{
+		Nodes: []*clustercache.Node{
 			{Name: "node1", UID: types.UID("node-uid-1")},
 		},
-		pvcs: []*clustercache.PersistentVolumeClaim{
+		PersistentVolumeClaims: []*clustercache.PersistentVolumeClaim{
 			{Name: "pvc1", Namespace: "namespace1", UID: types.UID("pvc-uid-1")},
 		},
 	}
@@ -73,7 +39,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 	tests := map[string]struct {
 		summaries    []*stats.Summary
 		err          error
-		clusterCache clustercache.ClusterCache
+		clusterCache *clustercache.MockClusterCache
 		expected     []metric.Update
 	}{
 		"nil values": {
@@ -558,9 +524,13 @@ func TestStatScraper_Scrape(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
+			cache := clustercache.ClusterCache(tt.clusterCache)
+			if tt.clusterCache == nil {
+				cache = &clustercache.MockClusterCache{}
+			}
 			s := &StatSummaryScraper{
 				client:       &mockStatSummaryClient{results: tt.summaries, err: tt.err},
-				clusterCache: tt.clusterCache,
+				clusterCache: cache,
 			}
 			scrapeResults := s.Scrape()
 

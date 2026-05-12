@@ -8,7 +8,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/modules/collector-source/pkg/event"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
-	"k8s.io/apimachinery/pkg/types"
 	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
@@ -25,12 +24,9 @@ func newStatSummaryScraper(client nodestats.StatSummaryClient, clusterCache clus
 }
 
 func (s *StatSummaryScraper) Scrape() []metric.Update {
-	var nodeNameToUID map[string]types.UID
-	var pvcNameToUID map[pvcKey]types.UID
-	if s.clusterCache != nil {
-		nodeNameToUID = buildNodeIndex(s.clusterCache.GetAllNodes())
-		pvcNameToUID = buildPVCIndex(s.clusterCache.GetAllPersistentVolumeClaims())
-	}
+
+	nodeNameToUID := buildNodeIndex(s.clusterCache.GetAllNodes())
+	pvcNameToUID := buildPVCIndex(s.clusterCache.GetAllPersistentVolumeClaims())
 
 	var scrapeResults []metric.Update
 	nodeStats, err := s.client.GetNodeData()
@@ -85,9 +81,9 @@ func (s *StatSummaryScraper) Scrape() []metric.Update {
 
 			if pod.Network != nil {
 				networkLabels := map[string]string{
-					source.UIDLabel:     podUID,
-					source.NodeUIDLabel: nodeUID,
-					source.PodLabel:     podName,
+					source.UIDLabel:       podUID,
+					source.NodeUIDLabel:   nodeUID,
+					source.PodLabel:       podName,
 					source.NamespaceLabel: namespace,
 				}
 				// The network may contain a list of stats or itself be a single stat, if the list is not present
