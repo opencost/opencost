@@ -1,6 +1,8 @@
 # AI Inference Cost Tracking
 
-OpenCost now supports tracking infrastructure costs for AI inference workloads deployed using llm-d (or any vLLM-based deployment).
+OpenCost supports tracking infrastructure costs for AI inference workloads deployed using llm-d (or any vLLM-based deployment).
+
+Note: The current implementation is a proof of concept.
 
 ## Overview
 
@@ -9,7 +11,9 @@ The inference cost tracking feature calculates the infrastructure cost per token
 2. Collecting GPU infrastructure costs from OpenCost's existing allocation data
 3. Calculating cost per token and cost per million tokens
 4. Exporting metrics to Prometheus for monitoring and alerting
-5. **NEW**: Calculating differentiated costs for input vs output tokens based on actual compute time
+5. Calculating differentiated costs for input vs output tokens based on actual compute time
+
+Note: Currently only GPU costs are included in the costs.
 
 ## Exported Metrics
 The feature exports the following Prometheus metrics:
@@ -29,8 +33,8 @@ This metric represents the current hourly rate (in dollars per hour) for the GPU
 
 **Example:**
 ```promql
-# Current hourly GPU cost for the "random" model
-opencost_inference_total_cost{model_name="random",model_version="unknown",namespace="llm-d-namespace"}
+# Current hourly GPU cost for the "gpt-oss-20b" model
+opencost_inference_total_cost{model_name="gpt-oss-20b",model_version="unknown",namespace="llm-d-namespace"}
 # Example value: 3.20 (meaning $3.20/hour)
 ```
 
@@ -53,11 +57,20 @@ Cost per 1 million tokens processed (input + output) for a specific model in a s
 - `namespace`: Kubernetes namespace where the model is deployed
 
 **Example:**
-```promql
+
+Get cost per million tokens for the model in the last time slot.
+```
+opencost_inference_cost_per_million_tokens{model_name="gpt-oss-20b",model_version="unknown",namespace="llm-d-namespace"}
+```
+
+Get the average cost per million tokens for the model over the past 24 hours
+```
+avg_over_time(opencost_inference_cost_per_million_tokens[24h])
+```
 
 ### 3. `opencost_inference_input_cost_per_million_tokens`
 
-**NEW**: Cost per 1 million input (prompt) tokens for a specific model in a specific namespace.
+Cost per 1 million **input (prompt) tokens** for a specific model in a specific namespace.
 
 This metric provides the cost specifically for processing input tokens. The cost is calculated by allocating GPU infrastructure costs between input and output processing.
 
@@ -83,7 +96,7 @@ opencost_inference_input_cost_per_million_tokens{
 
 ### 4. `opencost_inference_output_cost_per_million_tokens`
 
-**NEW**: Cost per 1 million output (generation) tokens for a specific model in a specific namespace.
+Cost per 1 million **output (generation) tokens** for a specific model in a specific namespace.
 
 This metric provides the cost specifically for generating output tokens. Output tokens typically cost 2-3x more than input tokens due to higher compute requirements for generation.
 
@@ -105,18 +118,6 @@ opencost_inference_output_cost_per_million_tokens{
   allocation_method="compute_time"
 }
 # Example value: 11.25 (meaning $11.25 per 1M output tokens, based on actual processing time)
-```
-
-opencost_inference_cost_per_million_tokens{model_name="gpt-oss-20b",model_version="unknown",namespace="llm-d-namespace"}
-```
-
-## Usage Examples
-
-### Query Current Cost Per Million Tokens
-
-```promql
-opencost_inference_cost_per_million_tokens{model_name="gpt-oss-20b",namespace="llm-d-namespace"}
-```
 
 
 ### Query Differentiated Input vs Output Costs
@@ -478,7 +479,7 @@ INFERENCE_COST_COLLECTION_INTERVAL=300  # 5 minutes
 
 ## Future Enhancements
 
-- **Differentiated pricing for prompt vs output tokens** (HIGH PRIORITY) - Currently all tokens are priced equally, but output tokens typically cost 2-3x more in commercial APIs due to higher compute requirements
+- **Add Additional Costs** - CPU, RAM, Network, IDLE, ...
 - **Model version detection from vLLM metrics** (HIGH PRIORITY) - Automatically detect and track model versions
 - **KV cache hit accounting** (HIGH PRIORITY) - Account for KV cache efficiency in cost calculations
 - **Workload-based cost tracking** (HIGH PRIORITY) - Track costs by workload type, application, or service to enable chargeback and showback
@@ -486,9 +487,7 @@ INFERENCE_COST_COLLECTION_INTERVAL=300  # 5 minutes
 - Per-request cost tracking - Track costs at the individual request level
 - Multi-GPU cost distribution - More accurate cost distribution across multiple GPUs
 - Historical cost data storage - Store and query historical cost data
-- Cost prediction and forecasting - Predict future costs based on usage patterns
 - Integration with OpenCost UI - Display inference costs in the OpenCost web interface
-- Custom cost allocation rules - Allow custom rules for cost allocation across teams/projects
 
 ## Support
 

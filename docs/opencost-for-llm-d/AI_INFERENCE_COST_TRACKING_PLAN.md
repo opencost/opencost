@@ -11,7 +11,7 @@
 ### Original Request
 
 **User Task:**
-> I would like to add the ability to track AI inference costs to models deployed using llm-d ((/Users/simanadler/Work/Dev/llm-d-060/llm-d). One option might be to extend opencost (./opencost), although I am open to other suggestions. Provide an analysis and plan for the best approach.
+> I would like to add the ability to track AI inference costs to models deployed using [llm-d](/Users/simanadler/Work/Dev/llm-d-060/llm-d). One option might be to extend [opencost](./opencost), although I am open to other suggestions. Provide an analysis and plan for the best approach.
 
 ### Requirements Clarification
 

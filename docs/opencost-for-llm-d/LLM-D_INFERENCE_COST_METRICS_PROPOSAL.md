@@ -2,28 +2,28 @@
 
 ## Summary
 
-This proposal introduces cost tracking for AI inference deployed on llm-d. The solution enables tracking of self-hosting AI model costs, perform chargeback/showback across teams and workloads, and optimize resource allocation based on actual per-token costs calculated from infrastructure usage.
+This proposal introduces cost tracking for **AI inference deployed on llm-d**. The solution enables tracking of self-hosted AI model costs, enabling cost tracking across teams and workloads, and enabling optimization of inference routing and resource allocation based on actual per-token costs calculated from infrastructure usage.
 
-Cost tracking provides unified visibility across Kubernetes infrastructure, cloud resources, and self hosted AI inference workloads, enabling organizations to make data-driven decisions about model deployment configurations, compare self-hosting costs against commercial API alternatives, and measure the ROI of optimization techniques like KV cache and disaggregated serving.
+Cost tracking provides unified visibility across Kubernetes infrastructure, cloud resources, and self hosted AI inference workloads, enabling organizations to make data-driven decisions about model deployment configurations, compare self-hosting costs against commercial API alternatives, and measure the return on investment of optimization techniques like KV cache and disaggregated serving.
 
 ## Motivation
 
-As organizations scale their AI inference deployments on llm-d, understanding and optimizing infrastructure costs becomes critical. Platform teams need visibility into the actual cost of serving different models, workloads, and teams to make informed decisions about resource allocation, capacity planning, and optimization priorities.
+As organizations scale their AI inference deployments on llm-d, understanding and optimizing  costs becomes critical. Platform teams need visibility into the actual cost of serving different models, workloads, and teams to make informed decisions about resource allocation, capacity planning, routing and optimization priorities.
 
 Current challenges include:
-- **Lack of cost visibility**: Teams don't know the actual infrastructure cost per token for their models
+- **Lack of cost visibility**: Teams don't know the actual inference cost per token for the self host models they use
 - **No chargeback mechanism**: Cannot attribute costs to specific teams or workloads for internal billing
-- **Optimization blindness**: Cannot measure the cost impact of optimizations like KV cache hits or disaggregated serving
-- **Self-hosting vs API comparison**: Cannot compare self-hosting costs against commercial API alternatives
+- **Optimization blindness**: Cannot measure the cost impact of optimizations like KV cache hits, disaggregated serving nor smart routing
+- **Self-hosting vs API comparison**: Cannot compare self-hosting costs against commercial API alternatives because the self hosting costs are not known
 - **Resource allocation**: Cannot make data-driven decisions about which models or configurations to prioritize
 - **Multi-tenant cost allocation**: Cannot fairly distribute infrastructure costs across multiple teams and workloads sharing the same model servers
 
 ### Goals
 
-1. **Infrastructure-based cost calculation**: Calculate per-token costs from actual GPU and memory infrastructure usage, not pre-configured pricing tables
+1. **Infrastructure-based cost calculation**: Calculate per-token costs from actual infrastructure use (ex: GPU, CPU, memory infrastructure usage) not pre-configured pricing tables
 2. **Multi-dimensional attribution**: Track costs by team, workload, model, model variant, and namespace
 3. **Differentiated token pricing**: Provide separate costs for input (prompt) and output (generation) tokens based on actual compute time
-4. **Seamless integration**: Integrate with existing llm-d metrics ecosystem (vLLM, EPP, GPU metrics) without duplication
+4. **Seamless integration**: Integrate with existing llm-d metrics ecosystem (DCGM, vLLM, EPP, GPU metrics) without duplication
 5. **Disaggregation support**: Track costs for disaggregated serving (prefill/decode) deployments
 6. **Production-ready**: Provide reliable, scalable cost tracking suitable for production deployments
 7. **Optimization insights**: Enable measurement of cost savings from KV cache, prefix caching, and other optimizations
@@ -31,20 +31,21 @@ Current challenges include:
 ### Non-Goals
 
 1. **Not replacing existing metrics**: This proposal does not replace llm-d's existing performance and operational metrics
-2. **Not a billing system**: This is not a complete billing/invoicing system, but provides cost data for such systems
-3. **Not training costs**: Focus is exclusively on inference costs, not model training or fine-tuning
+2. **Not a billing system**: This is not a billing/invoicing system, but provides cost data for such systems
+3. **Not for training costs**: Focus is exclusively on inference costs, not model training nor fine-tuning
 4. **Not real-time billing**: Cost calculations are based on recent metrics (5-minute windows), not per-request billing
 5. **Not cloud billing integration**: Does not directly integrate with cloud provider billing APIs (uses OpenCost's existing integrations)
+6. **Not pricing**: This proposal provides costs not prices.  If static or dynamic pricing is desired it can be generated using inference costs as a basis.
 
 ### User Stories
 
 #### Story 1: Platform Team Cost Optimization
 
-As an inference platform team managing multiple llm-d deployments, I want to track infrastructure costs per model and variant so I can identify which configurations are most cost-effective and make data-driven decisions about resource allocation.
+As an inference platform team managing multiple AI model and/or llm-d deployments, I want to track infrastructure costs per model and variant so I can identify which configurations are most cost-effective and make data-driven decisions about resource allocation.
 
 **Acceptance Criteria**:
 - View cost per million tokens for each model
-- Compare costs across different GPU types and configurations
+- Compare costs across different infrastructure configurations - ex: GPU types and configurations
 - Identify models with highest infrastructure costs
 - Track cost trends over time
 
@@ -60,11 +61,11 @@ As a finance team member, I want to attribute AI inference costs to specific app
 
 #### Story 3: Platform Team Cost-Based Routing Optimization
 
-As a platform team managing llm-d deployments, I want to use cost metrics to optimize routing decisions so I can direct requests to the most cost-effective model variants and configurations while maintaining SLO compliance.
+As a platform team managing llm-d deployments, I want to use cost metrics to optimize routing decisions so I can direct requests to the most cost-effective models and model variants and configurations while maintaining SLO compliance.  The models may be self-hosted or externally provided.
 
 **Acceptance Criteria**:
-- Access real-time cost per token metrics for different model variants
-- Route requests to lower-cost variants when SLOs permit
+- Access real-time cost per token metrics for different self-hosted models and model variants
+- Route requests to lower-cost models or model variants when SLOs permit
 - Track cost savings from intelligent routing decisions
 - Balance cost optimization with latency and throughput requirements
 - Measure cost reduction from routing optimization over time
@@ -75,7 +76,7 @@ As an executive team, I want to compare self-hosting costs against commercial AP
 
 **Acceptance Criteria**:
 - View total cost per million tokens for self-hosted models
-- Compare against commercial API pricing
+- Compare against commercial API pricing - collection of commercial API bills out of scope but may be offered by OpenCost
 - Understand cost breakdown (GPU, memory, network)
 - Project costs at different scale levels
 
@@ -108,16 +109,16 @@ The OpenCost approach provides the best balance of accuracy, integration, and ma
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         OpenCost                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │  Allocation  │  │  CloudCost   │  │  Inference   │ NEW  │
-│  │    Costs     │  │    Costs     │  │    Costs     │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-│                            │                                 │
-│                   ┌────────▼────────┐                        │
-│                   │   MCP Server    │                        │
-│                   │   REST API      │                        │
-│                   └─────────────────┘                        │
+│                         OpenCost                            │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │  Allocation  │  │  CloudCost   │  │  Inference   │ NEW   │
+│  │    Costs     │  │    Costs     │  │    Costs     │       │
+│  └──────────────┘  └──────────────┘  └──────────────┘       │
+│                            │                                │
+│                   ┌────────▼────────┐                       │
+│                   │   MCP Server    │                       │
+│                   │   REST API      │                       │
+│                   └─────────────────┘                       │
 └─────────────────────────────────────────────────────────────┘
                              │
                  ┌───────────┴───────────┐
@@ -130,10 +131,10 @@ The OpenCost approach provides the best balance of accuracy, integration, and ma
 
 ### Core Approach
 
-In addition to collecting and calculating general infrastructure costs as is already done by OpenCost today, we will add inference specific csot metrics.
+In addition to collecting and calculating general infrastructure costs as is already done by OpenCost today, we will add inference specific cost metrics.
 
 1. **Collect metrics from existing sources**:
-   - Token metrics from vLLM (`vllm:prompt_tokens_total`, `vllm:generation_tokens_total`)
+   - Token metrics from vLLM (ex: `vllm:prompt_tokens_total`, `vllm:generation_tokens_total`)
    - GPU costs from OpenCost's existing allocation system
    - Processing time metrics from vLLM for differentiated pricing
    - KV cache hits and usage metrics
@@ -144,8 +145,7 @@ In addition to collecting and calculating general infrastructure costs as is alr
    - Calculate total tokens processed in time window
    - Compute cost per token from infrastructure costs divided by token throughput
    - Allocate costs between input and output tokens based on actual processing time
-   - Calculate cache hit savings
-   - (Future) Calculate smart routing savings
+   - Calculate cache saving due to optimizations such as KV cache hits, prefill/decode separation, and smart routing
 
 3. **Export cost metrics**:
    - Prometheus metrics for monitoring and alerting
@@ -154,15 +154,15 @@ In addition to collecting and calculating general infrastructure costs as is alr
    - Grafana dashboards for visualization
 
 4. **Enable multi-dimensional queries**:
-   - Aggregate by model, namespace, team, workload, variant
+   - Aggregate by model, namespace, team, workload
    - Filter by time windows
-   - Compare costs across different configurations
+   - Compare costs across different configurations - i.e. model variants
 
 ## Design Details
 
 ### Implementation Status
 
-The proposal is based on a **working proof of concept** that has been developed and tested. The proof of concept demonstrates:
+The proposal is based on a **working proof of concept**. The proof of concept demonstrates:
 
 - Basic cost metrics (total cost, cost per million tokens)
 - Differentiated input/output costs with compute-time allocation
@@ -176,8 +176,8 @@ The POC validates the technical approach and provides a foundation for productio
 A new package in OpenCost containing:
 
 - **`types.go`**: Data structures for model metrics and configuration
-- **`collector.go`**: Prometheus metric collection from vLLM and GPU sources
-- **`calculator.go`**: Cost calculation logic with compute-time allocation
+- **`collector.go`**: Prometheus metric collection from vLLM, GPU and other metric sources
+- **`calculator.go`**: Cost calculation logic 
 - **`exporter.go`**: Prometheus metrics export
 
 #### 2. Exported Metrics
@@ -191,15 +191,17 @@ A new package in OpenCost containing:
 
 **Labels**: `model_name`, `model_version`, `namespace`, `allocation_method`
 
-#### 3. POC Cost Calculation Methodology
+#### 3. Cost Calculation Methodology
 
 **Infrastructure Cost Calculation**:
+
+The POC focused only on GPU costs.  The full solution will take into account all cost metrics.
 ```
 GPU Cost = GPU Allocation × Node GPU Hourly Cost × Utilization
 Total Infrastructure Cost = GPU Cost + CPU Cost + Memory Cost + Network Cost + Overhead
 ```
 
-**Compute-Time Based Input/Output Token Allocation** (Primary Method):
+**Input vs. Output Token Cost - Compute-Time Based Approach** (Primary Method):
 ```
 Input Processing Time = rate(vllm:request_prefill_time_seconds[5m]) × 300
 Output Processing Time = rate(vllm:time_per_output_token_seconds[5m]) × 300
@@ -212,7 +214,8 @@ Input Cost Per Token = Input Cost / Total Input Tokens
 Output Cost Per Token = Output Cost / Total Output Tokens
 ```
 
-**Multiplier-Based Allocation** (Fallback):
+**Input vs. Output Token Cost - Multiplier-Based Allocation** (Fallback):
+In the case where the prefill token generation times and output token generation times are not available, a fallback method is provided.
 ```
 Weighted Tokens = Input Tokens + (Output Tokens × Multiplier)
 Input Cost Per Token = Total Infrastructure Cost / Weighted Tokens
@@ -251,21 +254,7 @@ spec:
           value: "http://prometheus-server:9090"
 ```
 
-#### 5. Integration with llm-d
-
-**Required vLLM Metrics** (already exported by llm-d):
-- `vllm:prompt_tokens_total` - Input tokens processed
-- `vllm:generation_tokens_total` - Output tokens generated
-- `vllm:request_prefill_time_seconds` - Time processing input
-- `vllm:time_per_output_token_seconds` - Time generating output
-
-**Required Labels** (already present):
-- `model_name` - Model identifier
-- `namespace` - Kubernetes namespace
-
-**No Changes Required** in llm-d deployments - metrics are already available.
-
-#### 6. Usage Examples
+#### 5. Usage Examples
 
 **Query cost per million tokens**:
 ```promql
@@ -309,6 +298,7 @@ graph TB
         GRAFANA[Grafana Dashboards]
         ALERTS[Alerting]
         BILLING[Billing Systems]
+        OPTIMIZERS[llm-d: Smart Router, Auto Scaler]
     end
     
     VLLM -->|Token Metrics| PROM
@@ -321,6 +311,7 @@ graph TB
     PROM -->|Query| GRAFANA
     PROM -->|Query| ALERTS
     API -->|Query| BILLING
+    API -->|Query| OPTIMIZERS
 ```
 
 ### Roadmap
@@ -330,16 +321,14 @@ graph TB
 - ✅ Phase 1: Multi-namespace support
 - ✅ Phase 1: Prometheus metrics export
 - ✅ Phase 2: Differentiated input/output token costs
-- ✅ Phase 2: Compute-time based allocation
 
 
 **Proposed Implementation Phases**:
-- **Phase 3**: Add CPU, RAM, Networking and overhead costs to inference costs
+- **Phase 3**: Add idle, CPU, RAM, Networking and overhead costs to inference costs
 - **Phase 4**: Integration with OpenCost UI and APIs
-- **Phase 5**: KV cache cost tracking and savings calculation
-- **Phase 6**: Workload and team-based attribution
-- **Phase 7**: Disaggregated serving cost breakdown (prefill/decode)
-- **Phase 8**: Historical cost data storage and trending
+- **Phase 5**: Workload and team-based attribution
+- **Phase 6**: Optimization cost tracking and savings calculation (KV cache, prefill/decode, smart routing)
+- **Phase 7**: Historical cost data storage and trending
 
 ## Alternatives
 
@@ -415,14 +404,14 @@ The proof of concept is documented in this repository:
 - **[`PHASE1_DETAILED_DESIGN.md`](PHASE1_DETAILED_DESIGN.md)**: Detailed Phase 1 design specifications
 - **[`IMPLEMENTATION_SUMMARY.md`](IMPLEMENTATION_SUMMARY.md)**: Phase 1 implementation summary
 - **[`INFERENCE_COST_DIFFERENTIATION_IMPLEMENTATION.md`](INFERENCE_COST_DIFFERENTIATION_IMPLEMENTATION.md)**: Phase 2 implementation details
-- **[`opencost/docs/inference-cost-tracking.md`](opencost/docs/inference-cost-tracking.md)**: User documentation
-- **[`opencost/pkg/inferencecost/`](opencost/pkg/inferencecost/)**: Implementation code
+- **[`opencost/docs/inference-cost-tracking.md`](../inference-cost-tracking.md)**: User documentation
+- **[`opencost/pkg/inferencecost/`](../../pkg/inferencecost/)**: Implementation code
 
 ## Success Criteria
 
 This proposal will be considered successful when:
 
-1. **Adoption**: llm-d documentation recommends OpenCost for cost tracking
+1. **Adoption**: llm-d includes guidance and examples for how to provide cost using OpenCost and internal components such as AutoScaler and Smart Routing use the generated costs
 2. **Integration**: llm-d guides include OpenCost deployment instructions
 3. **Validation**: Cost metrics validated against cloud billing for accuracy
 4. **Usage**: Multiple organizations using cost metrics in production
@@ -432,8 +421,5 @@ This proposal will be considered successful when:
 ## Next Steps
 
 1. **Community Review**: Present proposal to llm-d community for feedback
-2. **Documentation**: Add OpenCost integration guide to llm-d documentation
-3. **Examples**: Create example deployments and Grafana dashboards
-4. **Testing**: Validate across different llm-d deployment patterns
-5. **Upstream**: Contribute OpenCost changes to upstream OpenCost project
-6. **Roadmap**: Plan Phase 3+ enhancements based on community feedback
+2. **Upstream**: Contribute OpenCost changes to upstream OpenCost project
+6. **Roadmap**: Plan enhancements based on community feedback
