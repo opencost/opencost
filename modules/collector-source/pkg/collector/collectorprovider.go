@@ -2,6 +2,7 @@ package collector
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -54,14 +55,21 @@ func (r *repoStoreProvider) GetStore(start, end time.Time) metric.MetricStore {
 func (r *repoStoreProvider) getStoreKeys(start, end time.Time) (string, time.Time) {
 	windowDuration := int64(end.Sub(start))
 	type candidate struct {
-		diff  int64
-		key   string
-		start time.Time
-		set   bool
+		diff     int64
+		duration int64
+		key      string
+		start    time.Time
+		set      bool
 	}
 	var best candidate
 	var fallback candidate
-	for key, interval := range r.intervals {
+	keys := make([]string, 0, len(r.intervals))
+	for key := range r.intervals {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		interval := r.intervals[key]
 		intStart := interval.Truncate(start)
 		intEnd := interval.Add(intStart, 1)
 		intDuration := int64(intEnd.Sub(intStart))
@@ -70,12 +78,13 @@ func (r *repoStoreProvider) getStoreKeys(start, end time.Time) (string, time.Tim
 			diffDuration = -diffDuration
 		}
 
-		if !fallback.set || diffDuration < fallback.diff {
+		if !fallback.set || diffDuration < fallback.diff || diffDuration == fallback.diff && intDuration < fallback.duration {
 			fallback = candidate{
-				diff:  diffDuration,
-				key:   key,
-				start: intStart,
-				set:   true,
+				diff:     diffDuration,
+				duration: intDuration,
+				key:      key,
+				start:    intStart,
+				set:      true,
 			}
 		}
 
@@ -83,12 +92,13 @@ func (r *repoStoreProvider) getStoreKeys(start, end time.Time) (string, time.Tim
 			continue
 		}
 
-		if !best.set || diffDuration < best.diff {
+		if !best.set || diffDuration < best.diff || diffDuration == best.diff && intDuration < best.duration {
 			best = candidate{
-				diff:  diffDuration,
-				key:   key,
-				start: intStart,
-				set:   true,
+				diff:     diffDuration,
+				duration: intDuration,
+				key:      key,
+				start:    intStart,
+				set:      true,
 			}
 		}
 	}

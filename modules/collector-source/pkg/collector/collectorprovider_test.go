@@ -56,6 +56,20 @@ func Test_repoStoreProvider_getStoreKeys(t *testing.T) {
 			intevalKey: "1h",
 			startKey:   time.Date(2026, time.March, 3, 19, 0, 0, 0, time.UTC),
 		},
+		"1h unaligned exact window": {
+			configs:    defaultResConfigs,
+			start:      time.Date(2026, time.March, 3, 19, 5, 0, 0, time.UTC),
+			end:        time.Date(2026, time.March, 3, 20, 5, 0, 0, time.UTC),
+			intevalKey: "10m",
+			startKey:   time.Date(2026, time.March, 3, 19, 0, 0, 0, time.UTC),
+		},
+		"35m tie prefers highest resolution": {
+			configs:    defaultResConfigs,
+			start:      time.Date(2026, time.March, 3, 19, 0, 0, 0, time.UTC),
+			end:        time.Date(2026, time.March, 3, 19, 35, 0, 0, time.UTC),
+			intevalKey: "10m",
+			startKey:   time.Date(2026, time.March, 3, 19, 0, 0, 0, time.UTC),
+		},
 		"2m": {
 			configs:    defaultResConfigs,
 			start:      time.Date(2025, time.May, 3, 0, 0, 0, 0, time.UTC),
