@@ -36,7 +36,7 @@ func TestKubecostPodCollector_Describe(t *testing.T) {
 				DisabledMetrics: tt.disabledMetrics,
 			}
 			kpc := KubecostPodCollector{
-				KubeClusterCache: NewFakePodCache([]*clustercache.Pod{}),
+				KubeClusterCache: &clustercache.MockClusterCache{},
 				metricsConfig:    mc,
 			}
 
@@ -135,7 +135,7 @@ func TestKubecostPodCollector_Collect(t *testing.T) {
 				DisabledMetrics: tt.disabledMetrics,
 			}
 			kpc := KubecostPodCollector{
-				KubeClusterCache: NewFakePodCache(tt.pods),
+				KubeClusterCache: &clustercache.MockClusterCache{Pods: tt.pods},
 				metricsConfig:    mc,
 			}
 
@@ -249,7 +249,7 @@ func TestKubePodCollector_Describe(t *testing.T) {
 				DisabledMetrics: tt.disabledMetrics,
 			}
 			kpc := KubePodCollector{
-				KubeClusterCache: NewFakePodCache([]*clustercache.Pod{}),
+				KubeClusterCache: &clustercache.MockClusterCache{},
 				metricsConfig:    mc,
 			}
 
@@ -485,7 +485,7 @@ func TestKubePodCollector_Collect(t *testing.T) {
 				DisabledMetrics: tt.disabledMetrics,
 			}
 			kpc := KubePodCollector{
-				KubeClusterCache: NewFakePodCache(tt.pods),
+				KubeClusterCache: &clustercache.MockClusterCache{Pods: tt.pods},
 				metricsConfig:    mc,
 			}
 
@@ -808,7 +808,7 @@ func TestPodPhaseMetrics(t *testing.T) {
 		DisabledMetrics: []string{"kube_pod_labels"}, // Only test phase metrics
 	}
 	kpc := KubePodCollector{
-		KubeClusterCache: NewFakePodCache([]*clustercache.Pod{pod}),
+		KubeClusterCache: &clustercache.MockClusterCache{Pods: []*clustercache.Pod{pod}},
 		metricsConfig:    mc,
 	}
 
@@ -846,18 +846,3 @@ func TestPodPhaseMetrics(t *testing.T) {
 	}
 }
 
-// FakePodCache implements ClusterCache interface for testing
-type FakePodCache struct {
-	clustercache.ClusterCache
-	pods []*clustercache.Pod
-}
-
-func (f FakePodCache) GetAllPods() []*clustercache.Pod {
-	return f.pods
-}
-
-func NewFakePodCache(pods []*clustercache.Pod) FakePodCache {
-	return FakePodCache{
-		pods: pods,
-	}
-}

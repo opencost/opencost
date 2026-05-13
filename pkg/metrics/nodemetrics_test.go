@@ -40,7 +40,7 @@ func TestKubeNodeCollector_Describe(t *testing.T) {
 				DisabledMetrics: tt.disabledMetrics,
 			}
 			nc := KubeNodeCollector{
-				KubeClusterCache: NewFakeNodeCache([]*clustercache.Node{}),
+				KubeClusterCache: &clustercache.MockClusterCache{},
 				metricsConfig:    mc,
 			}
 
@@ -166,7 +166,7 @@ func TestKubeNodeCollector_Collect(t *testing.T) {
 				DisabledMetrics: tt.disabledMetrics,
 			}
 			nc := KubeNodeCollector{
-				KubeClusterCache: NewFakeNodeCache(tt.nodes),
+				KubeClusterCache: &clustercache.MockClusterCache{Nodes: tt.nodes},
 				metricsConfig:    mc,
 			}
 
@@ -437,18 +437,3 @@ func TestGetConditions(t *testing.T) {
 	}
 }
 
-// FakeNodeCache implements ClusterCache interface for testing
-type FakeNodeCache struct {
-	clustercache.ClusterCache
-	nodes []*clustercache.Node
-}
-
-func (f FakeNodeCache) GetAllNodes() []*clustercache.Node {
-	return f.nodes
-}
-
-func NewFakeNodeCache(nodes []*clustercache.Node) FakeNodeCache {
-	return FakeNodeCache{
-		nodes: nodes,
-	}
-}

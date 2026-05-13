@@ -470,7 +470,7 @@ func TestNodeCostAnnotations(t *testing.T) {
 
 	costModel := &CostModel{
 		Provider: customProvider,
-		Cache: NewFakeNodeCache([]*clustercache.Node{
+		Cache: &clustercache.MockClusterCache{Nodes: []*clustercache.Node{
 			{
 				Name: "test-node-001",
 				Labels: map[string]string{
@@ -487,7 +487,7 @@ func TestNodeCostAnnotations(t *testing.T) {
 					"opencost.io/node-ram-hourly-cost": "222",
 				},
 			},
-		}),
+		}},
 	}
 	assert.NotNil(t, costModel)
 
@@ -531,18 +531,3 @@ func TestNodeCostAnnotations(t *testing.T) {
 	}
 }
 
-// FakeNodeCache implements ClusterCache interface for testing
-type FakeNodeCache struct {
-	clustercache.ClusterCache
-	nodes []*clustercache.Node
-}
-
-func (f FakeNodeCache) GetAllNodes() []*clustercache.Node {
-	return f.nodes
-}
-
-func NewFakeNodeCache(nodes []*clustercache.Node) FakeNodeCache {
-	return FakeNodeCache{
-		nodes: nodes,
-	}
-}

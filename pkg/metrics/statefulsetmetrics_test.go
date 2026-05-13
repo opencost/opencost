@@ -34,7 +34,7 @@ func TestKubecostStatefulsetCollector_Describe(t *testing.T) {
 				DisabledMetrics: tt.disabledMetrics,
 			}
 			sc := KubecostStatefulsetCollector{
-				KubeClusterCache: NewFakeStatefulsetCache([]*clustercache.StatefulSet{}),
+				KubeClusterCache: &clustercache.MockClusterCache{},
 				metricsConfig:    mc,
 			}
 
@@ -153,7 +153,7 @@ func TestKubecostStatefulsetCollector_Collect(t *testing.T) {
 				DisabledMetrics: tt.disabledMetrics,
 			}
 			sc := KubecostStatefulsetCollector{
-				KubeClusterCache: NewFakeStatefulsetCache(tt.statefulsets),
+				KubeClusterCache: &clustercache.MockClusterCache{StatefulSets: tt.statefulsets},
 				metricsConfig:    mc,
 			}
 
@@ -285,18 +285,3 @@ func TestStatefulsetMatchLabelsMetric_MissingFields(t *testing.T) {
 	}
 }
 
-// FakeStatefulsetCache implements ClusterCache interface for testing
-type FakeStatefulsetCache struct {
-	clustercache.ClusterCache
-	statefulsets []*clustercache.StatefulSet
-}
-
-func (f FakeStatefulsetCache) GetAllStatefulSets() []*clustercache.StatefulSet {
-	return f.statefulsets
-}
-
-func NewFakeStatefulsetCache(statefulsets []*clustercache.StatefulSet) FakeStatefulsetCache {
-	return FakeStatefulsetCache{
-		statefulsets: statefulsets,
-	}
-}
