@@ -25,15 +25,15 @@ type MockClusterCache struct {
 func (m *MockClusterCache) Run()  {}
 func (m *MockClusterCache) Stop() {}
 
-func (m *MockClusterCache) GetAllNodes() []*Node                           { return m.Nodes }
-func (m *MockClusterCache) GetAllPods() []*Pod                             { return m.Pods }
-func (m *MockClusterCache) GetAllNamespaces() []*Namespace                 { return m.Namespaces }
-func (m *MockClusterCache) GetAllServices() []*Service                     { return m.Services }
-func (m *MockClusterCache) GetAllDaemonSets() []*DaemonSet                 { return m.DaemonSets }
-func (m *MockClusterCache) GetAllDeployments() []*Deployment               { return m.Deployments }
-func (m *MockClusterCache) GetAllStatefulSets() []*StatefulSet             { return m.StatefulSets }
-func (m *MockClusterCache) GetAllReplicaSets() []*ReplicaSet               { return m.ReplicaSets }
-func (m *MockClusterCache) GetAllPersistentVolumes() []*PersistentVolume   { return m.PersistentVolumes }
+func (m *MockClusterCache) GetAllNodes() []*Node                         { return m.Nodes }
+func (m *MockClusterCache) GetAllPods() []*Pod                           { return m.Pods }
+func (m *MockClusterCache) GetAllNamespaces() []*Namespace               { return m.Namespaces }
+func (m *MockClusterCache) GetAllServices() []*Service                   { return m.Services }
+func (m *MockClusterCache) GetAllDaemonSets() []*DaemonSet               { return m.DaemonSets }
+func (m *MockClusterCache) GetAllDeployments() []*Deployment             { return m.Deployments }
+func (m *MockClusterCache) GetAllStatefulSets() []*StatefulSet           { return m.StatefulSets }
+func (m *MockClusterCache) GetAllReplicaSets() []*ReplicaSet             { return m.ReplicaSets }
+func (m *MockClusterCache) GetAllPersistentVolumes() []*PersistentVolume { return m.PersistentVolumes }
 func (m *MockClusterCache) GetAllPersistentVolumeClaims() []*PersistentVolumeClaim {
 	return m.PersistentVolumeClaims
 }

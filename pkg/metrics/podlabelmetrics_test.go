@@ -42,4 +42,3 @@ func TestWhitelist(t *testing.T) {
 	}
 
 }
-

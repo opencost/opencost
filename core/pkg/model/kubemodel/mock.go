@@ -129,8 +129,8 @@ func NewMockKubeModelSet(start, end time.Time) *KubeModelSet {
 		RAMBytesAllocated: 512e6,
 		RAMBytesUsageAvg:  300e6,
 		RAMBytesUsageMax:  480e6,
-		Start:            start,
-		End:              end,
+		Start:             start,
+		End:               end,
 	})
 
 	// --- Deployment ---

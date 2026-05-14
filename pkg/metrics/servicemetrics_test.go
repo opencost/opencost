@@ -215,4 +215,3 @@ func TestServiceSelectorLabelsMetric_EmptyLabels(t *testing.T) {
 		t.Errorf("Expected %d labels, got %d", expectedCount, len(dtoMetric.Label))
 	}
 }
-

@@ -436,4 +436,3 @@ func TestGetConditions(t *testing.T) {
 		})
 	}
 }
-

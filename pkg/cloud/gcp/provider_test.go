@@ -1280,7 +1280,6 @@ func (m *mockConfig) ConfigFileManager() *config.ConfigFileManager {
 	return nil
 }
 
-
 type mockMetadataClient struct{}
 
 func (m *mockMetadataClient) InstanceAttributeValue(attr string) (string, error) {

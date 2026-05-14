@@ -284,4 +284,3 @@ func TestStatefulsetMatchLabelsMetric_MissingFields(t *testing.T) {
 		})
 	}
 }
-

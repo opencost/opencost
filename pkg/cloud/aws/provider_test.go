@@ -696,7 +696,6 @@ func Test_configUpdaterWithReaderAndType_forSpotValues(t *testing.T) {
 	}
 }
 
-
 func TestAWS_getFargatePod(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -523,4 +523,3 @@ func TestKubeDeploymentCollector_DefaultReplicas(t *testing.T) {
 		}
 	}
 }
-

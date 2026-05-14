@@ -105,4 +105,3 @@ func TestKubePVCMetrics_UIDLabel(t *testing.T) {
 	}
 	t.Error("UID label not found in metric")
 }
-

@@ -530,4 +530,3 @@ func TestNodeCostAnnotations(t *testing.T) {
 		})
 	}
 }
-
