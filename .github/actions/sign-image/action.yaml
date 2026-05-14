@@ -1,0 +1,115 @@
+name: 'Sign Container Image'
+description: >-
+  Sign a container image and attest SLSA v1 build provenance using cosign
+  keyless (Sigstore) with GitHub Actions OIDC. Callers must check out the
+  source tree (e.g. `actions/checkout`) before invoking this action — the
+  built commit is resolved with `git rev-parse HEAD` so the attestation
+  records the revision that was actually built rather than `github.sha`,
+  which on a tag push reflects the tag-pointed commit and may differ from
+  the branch tip the release workflow checks out. The calling job must
+  have `id-token: write`.
+
+inputs:
+    image:
+        description: 'Full image reference (registry/repo:tag) to sign by digest.'
+        required: true
+    workflow-path:
+        description: 'Path to the workflow file (repo-relative) that triggered the build.'
+        required: true
+    run-started-at:
+        description: >-
+          ISO-8601 workflow run start time, typically `${{ github.run_started_at }}`
+          from the caller. Recorded as `runDetails.metadata.startedOn` in the
+          SLSA provenance predicate.
+        required: true
+
+runs:
+    using: "composite"
+    steps:
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Install crane
+        uses: imjasonh/setup-crane@v0.5
+
+      - name: Resolve image digest
+        id: digest
+        shell: bash
+        env:
+          IMAGE: ${{ inputs.image }}
+        run: |
+          set -euo pipefail
+          DIGEST="$(crane digest "${IMAGE}")"
+          REPO="${IMAGE%:*}"
+          REF="${REPO}@${DIGEST}"
+          echo "Resolved ${IMAGE} -> ${REF}"
+          echo "REF=${REF}" >> "$GITHUB_OUTPUT"
+          echo "DIGEST=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Sign image with cosign (keyless)
+        shell: bash
+        env:
+          REF: ${{ steps.digest.outputs.REF }}
+        run: |
+          set -euo pipefail
+          cosign sign --yes "${REF}"
+
+      - name: Generate SLSA v1 provenance predicate
+        shell: bash
+        env:
+          WORKFLOW_PATH: ${{ inputs.workflow-path }}
+          STARTED_ON: ${{ inputs.run-started-at }}
+        run: |
+          set -euo pipefail
+          RESOLVED_GIT_COMMIT="$(git rev-parse HEAD)"
+          export RESOLVED_GIT_COMMIT
+          python3 - <<'PY' > predicate.json
+          import json
+          import os
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          commit = os.environ["RESOLVED_GIT_COMMIT"]
+          run_id = os.environ["GITHUB_RUN_ID"]
+          run_attempt = os.environ["GITHUB_RUN_ATTEMPT"]
+
+          predicate = {
+              "buildDefinition": {
+                  "buildType": "https://github.com/opencost/opencost/build/workflow@v1",
+                  "externalParameters": {
+                      "workflow": {
+                          "ref": os.environ["GITHUB_REF"],
+                          "repository": f"https://github.com/{repo}",
+                          "path": os.environ["WORKFLOW_PATH"],
+                      }
+                  },
+                  "internalParameters": {},
+                  "resolvedDependencies": [
+                      {
+                          "uri": f"git+https://github.com/{repo}@{commit}",
+                          "digest": {"gitCommit": commit},
+                      }
+                  ],
+              },
+              "runDetails": {
+                  "builder": {
+                      "id": f"https://github.com/{repo}/actions/runs/{run_id}",
+                  },
+                  "metadata": {
+                      "invocationId": f"https://github.com/{repo}/actions/runs/{run_id}/attempts/{run_attempt}",
+                      "startedOn": os.environ["STARTED_ON"],
+                  },
+              },
+          }
+          print(json.dumps(predicate, indent=2))
+          PY
+
+      - name: Attest SLSA provenance with cosign
+        shell: bash
+        env:
+          REF: ${{ steps.digest.outputs.REF }}
+        run: |
+          set -euo pipefail
+          cosign attest --yes \
+            --predicate predicate.json \
+            --type slsaprovenance1 \
+            "${REF}"
