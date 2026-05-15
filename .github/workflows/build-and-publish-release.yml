@@ -26,6 +26,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     steps:
       - name: Get Version From Tag
         id: tag
@@ -111,3 +112,14 @@ jobs:
         run: |
           crane copy "$IMAGE_TAG" "$IMAGE_TAG_LATEST"
           crane copy "$IMAGE_TAG" "$IMAGE_TAG_VERSION"
+
+      - name: Sign image and attest SLSA provenance
+        # Only sign tag-triggered releases; workflow_dispatch runs produce a
+        # non-tag GITHUB_REF, so the Fulcio certificate identity would not
+        # match the `refs/tags/vX.Y.Z` pattern documented in SECURITY.md.
+        if: github.event_name == 'push'
+        uses: ./.github/actions/sign-image
+        with:
+          image: ${{ steps.tags.outputs.IMAGE_TAG_VERSION }}
+          workflow-path: .github/workflows/build-and-publish-release.yml
+          run-started-at: ${{ github.run_started_at }}

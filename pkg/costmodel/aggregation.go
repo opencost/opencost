@@ -11,6 +11,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/filter/allocation"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/env"
 )
 
@@ -159,7 +160,7 @@ func resolveStepFromQuery(qp httputil.QueryParams, window opencost.Window, accum
 		// quarter accumulation operates on daily inputs and calendar-rounded query windows
 		return resolveStepForAccumulate(24*time.Hour, accumulateBy), nil
 	default:
-		step, err := time.ParseDuration(stepRaw)
+		step, err := timeutil.ParseDuration(stepRaw)
 		if err != nil {
 			return 0, fmt.Errorf("invalid step %q: must be a Go duration or one of hour, day, week, month, quarter: %w", stepRaw, err)
 		}

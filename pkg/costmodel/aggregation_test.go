@@ -305,6 +305,18 @@ func TestResolveStepFromQuery(t *testing.T) {
 			expected:     7 * 24 * time.Hour,
 		},
 		{
+			name:         "day shorthand duration supported",
+			stepRaw:      "1d",
+			accumulateBy: opencost.AccumulateOptionNone,
+			expected:     24 * time.Hour,
+		},
+		{
+			name:         "week shorthand duration supported",
+			stepRaw:      "1w",
+			accumulateBy: opencost.AccumulateOptionNone,
+			expected:     7 * 24 * time.Hour,
+		},
+		{
 			name:         "invalid duration errors",
 			stepRaw:      "not-a-duration",
 			accumulateBy: opencost.AccumulateOptionNone,
