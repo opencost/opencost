@@ -96,6 +96,8 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewNamespaceAnnotationsMetricCollector())
 	memStore.Register(NewPodLabelsMetricCollector())
 	memStore.Register(NewPodAnnotationsMetricCollector())
+	memStore.Register(NewServiceInfoMetricCollector())
+	memStore.Register(NewServiceUptimeMetricCollector())
 	memStore.Register(NewServiceLabelsMetricCollector())
 	memStore.Register(NewDeploymentInfoMetricCollector())
 	memStore.Register(NewDeploymentUptimeMetricCollector())
@@ -2181,6 +2183,30 @@ func NewPodAnnotationsMetricCollector() *metric.MetricCollector {
 			source.UIDLabel,
 		},
 		aggregator.Info,
+		nil,
+	)
+}
+
+func NewServiceInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ServiceInfoID,
+		metric.ServiceInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewServiceUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ServiceUptimeID,
+		metric.ServiceInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
 		nil,
 	)
 }
