@@ -21,11 +21,21 @@ inputs:
           ISO-8601 workflow run start time (typically
           `github.run_started_at` from the caller workflow). Recorded as
           `runDetails.metadata.startedOn` in the SLSA provenance predicate.
+          If empty, the action falls back to the time at which it began
+          executing — `github.run_started_at` is reported empty in some
+          edge cases and `required: true` on a composite-action input
+          does not reject empty strings.
         required: true
 
 runs:
     using: "composite"
     steps:
+      - name: Capture fallback start timestamp
+        id: start
+        shell: bash
+        run: |
+          echo "STARTED_ON=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
 
@@ -59,10 +69,14 @@ runs:
         env:
           WORKFLOW_PATH: ${{ inputs.workflow-path }}
           STARTED_ON: ${{ inputs.run-started-at }}
+          FALLBACK_STARTED_ON: ${{ steps.start.outputs.STARTED_ON }}
         run: |
           set -euo pipefail
+          if [[ -z "${STARTED_ON:-}" ]]; then
+            STARTED_ON="$FALLBACK_STARTED_ON"
+          fi
           RESOLVED_GIT_COMMIT="$(git rev-parse HEAD)"
-          export RESOLVED_GIT_COMMIT
+          export RESOLVED_GIT_COMMIT STARTED_ON
           python3 - <<'PY' > predicate.json
           import json
           import os
