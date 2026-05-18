@@ -1,0 +1,162 @@
+{
+    "nodes": [
+        {
+            "properties": {
+                "provider": "aws",
+                "region": "us-east-1",
+                "instanceType": "m5.large",
+                "provisioning": "on-demand"
+            },
+            "hourlyPrice": 0.096
+        },
+        {
+            "properties": {
+                "provider": "aws",
+                "region": "us-east-1",
+                "instanceType": "m5.large",
+                "provisioning": "spot"
+            },
+            "hourlyPrice": 0.043
+        },
+        {
+            "properties": {
+                "provider": "aws",
+                "region": "us-east-1",
+                "instanceType": "m5.xlarge",
+                "provisioning": "on-demand"
+            },
+            "hourlyPrice": 0.192
+        },
+        {
+            "properties": {
+                "provider": "aws",
+                "region": "us-east-1",
+                "instanceType": "m5.xlarge",
+                "provisioning": "spot"
+            },
+            "hourlyPrice": 0.192
+        },
+        {
+            "properties": {
+                "provider": "aws",
+                "region": "us-east-1",
+                "instanceType": "m5.2xlarge",
+                "provisioning": "on-demand"
+            },
+            "hourlyPrice": 0.384
+        },
+        {
+            "properties": {
+                "provider": "aws",
+                "region": "us-east-1",
+                "instanceType": "m5.2xlarge",
+                "provisioning": "spot"
+            },
+            "hourlyPrice": 0.189
+        },
+        {
+            "properties": {
+                "provider": "aws",
+                "region": "us-west-1",
+                "instanceType": "m5.large",
+                "provisioning": "on-demand"
+            },
+            "hourlyPrice": 0.112
+        },
+        {
+            "properties": {
+                "provider": "aws",
+                "region": "us-west-1",
+                "instanceType": "m5.large",
+                "provisioning": "spot"
+            },
+            "hourlyPrice": 0.037
+        },
+        {
+            "properties": {
+                "provider": "aws",
+                "region": "us-west-1",
+                "instanceType": "m5.xlarge",
+                "provisioning": "on-demand"
+            },
+            "hourlyPrice": 0.224
+        },
+        {
+            "properties": {
+                "provider": "aws",
+                "region": "us-west-1",
+                "instanceType": "m5.xlarge",
+                "provisioning": "spot"
+            },
+            "hourlyPrice": 0.069
+        },
+        {
+            "properties": {
+                "provider": "aws",
+                "region": "us-west-1",
+                "instanceType": "m5.2xlarge",
+                "provisioning": "on-demand"
+            },
+            "hourlyPrice": 0.448
+        },
+        {
+            "properties": {
+                "provider": "aws",
+                "region": "us-west-1",
+                "instanceType": "m5.2xlarge",
+                "provisioning": "spot"
+            },
+            "hourlyPrice": 0.152
+        }
+    ],
+    "volumes": [
+        {
+            "properties": {
+                "provider": "aws",
+                "region": "us-east-1",
+                "volumeType": "gp3"
+            },
+            "hourlyPrice": 0.0001096
+        },
+        {
+            "properties": {
+                "provider": "aws",
+                "region": "us-east-1",
+                "volumeType": "gp2"
+            },
+            "hourlyPrice": 0.0001370
+        },
+        {
+            "properties": {
+                "provider": "aws",
+                "region": "us-east-1",
+                "volumeType": "standard"
+            },
+            "hourlyPrice": 0.0000205
+        },
+        {
+            "properties": {
+                "provider": "aws",
+                "region": "us-west-1",
+                "volumeType": "gp3"
+            },
+            "hourlyPrice": 0.0001315
+        },
+        {
+            "properties": {
+                "provider": "aws",
+                "region": "us-west-1",
+                "volumeType": "gp2"
+            },
+            "hourlyPrice": 0.0001644
+        },
+        {
+            "properties": {
+                "provider": "aws",
+                "region": "us-west-1",
+                "volumeType": "standard"
+            },
+            "hourlyPrice": 0.0000247
+        }
+    ]
+}
