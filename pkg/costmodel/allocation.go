@@ -537,7 +537,21 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	cm.applyNodesToPod(podMap, nodeMap)
 
 	// (3) Build out AllocationSet from Pod map
+	emittedPods := 0
+	droppedNoContainers := 0
+	var droppedSamples []string
 	for _, pod := range podMap {
+		if len(pod.Allocations) == 0 {
+			// Pod was observed (e.g. via kube_pod_container_status_running) but no
+			// container allocation data was ever attached. This is the most common
+			// reason a short-lived pod is in Prometheus but missing from /allocation.
+			droppedNoContainers++
+			if len(droppedSamples) < 10 {
+				droppedSamples = append(droppedSamples, pod.Key.String())
+			}
+			continue
+		}
+		emittedPods++
 		for _, alloc := range pod.Allocations {
 			cluster := alloc.Properties.Cluster
 			nodeName := alloc.Properties.Node
@@ -550,6 +564,10 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 			alloc.Name = fmt.Sprintf("%s/%s/%s/%s/%s", cluster, nodeName, namespace, podName, container)
 			allocSet.Set(alloc)
 		}
+	}
+	if droppedNoContainers > 0 {
+		log.Debugf("CostModel.ComputeAllocation: emitted %d pods, dropped %d pods with no container allocations (sample: %v)",
+			emittedPods, droppedNoContainers, droppedSamples)
 	}
 
 	return allocSet, nodeMap, nil

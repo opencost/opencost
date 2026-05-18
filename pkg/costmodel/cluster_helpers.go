@@ -446,9 +446,14 @@ func buildOverheadMap(capRam, allocRam, capCPU, allocCPU map[nodeIdentifierNoPro
 			log.Warnf("Could not find allocatable ram for node %s", identifier.Name)
 			continue
 		}
-		overheadBytes := ramCapacity - allocatableRam
+		// ramCapacity == 0 would produce NaN, which is not JSON-representable
+		// and breaks downstream consumers (e.g. the MCP marshaler).
+		ramFraction := 0.0
+		if ramCapacity > 0 {
+			ramFraction = (ramCapacity - allocatableRam) / ramCapacity
+		}
 		m[identifier] = &NodeOverhead{
-			RamOverheadFraction: overheadBytes / ramCapacity,
+			RamOverheadFraction: ramFraction,
 		}
 	}
 
@@ -459,13 +464,16 @@ func buildOverheadMap(capRam, allocRam, capCPU, allocCPU map[nodeIdentifierNoPro
 			continue
 		}
 
-		overhead := cpuCapacity - allocatableCPU
+		cpuFraction := 0.0
+		if cpuCapacity > 0 {
+			cpuFraction = (cpuCapacity - allocatableCPU) / cpuCapacity
+		}
 
 		if _, found := m[identifier]; found {
-			m[identifier].CpuOverheadFraction = overhead / cpuCapacity
+			m[identifier].CpuOverheadFraction = cpuFraction
 		} else {
 			m[identifier] = &NodeOverhead{
-				CpuOverheadFraction: overhead / cpuCapacity,
+				CpuOverheadFraction: cpuFraction,
 			}
 		}
 

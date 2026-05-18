@@ -163,11 +163,17 @@ func (cm *CostModel) ComputeAssets(start, end time.Time) (*opencost.AssetSet, er
 		node.RAMCost = n.RAMCost
 
 		if n.Overhead != nil {
+			// node.TotalCost() == 0 would produce NaN, which is not JSON-representable
+			// and breaks downstream consumers (e.g. the MCP marshaler).
+			overheadCostFraction := 0.0
+			if total := node.TotalCost(); total > 0 {
+				overheadCostFraction = ((n.Overhead.CpuOverheadFraction * n.CPUCost) +
+					(n.Overhead.RamOverheadFraction * n.RAMCost)) / total
+			}
 			node.Overhead = &opencost.NodeOverhead{
-				RamOverheadFraction: n.Overhead.RamOverheadFraction,
-				CpuOverheadFraction: n.Overhead.CpuOverheadFraction,
-				OverheadCostFraction: ((n.Overhead.CpuOverheadFraction * n.CPUCost) +
-					(n.Overhead.RamOverheadFraction * n.RAMCost)) / node.TotalCost(),
+				RamOverheadFraction:  n.Overhead.RamOverheadFraction,
+				CpuOverheadFraction:  n.Overhead.CpuOverheadFraction,
+				OverheadCostFraction: overheadCostFraction,
 			}
 		} else {
 			node.Overhead = &opencost.NodeOverhead{}
