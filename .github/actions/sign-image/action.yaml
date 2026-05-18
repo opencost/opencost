@@ -18,8 +18,8 @@ inputs:
         required: true
     run-started-at:
         description: >-
-          ISO-8601 workflow run start time (typically the workflow's
-          run_started_at value) from the caller. Recorded as
+          ISO-8601 workflow run start time (typically
+          `github.run_started_at` from the caller workflow). Recorded as
           `runDetails.metadata.startedOn` in the SLSA provenance predicate.
         required: true
 
