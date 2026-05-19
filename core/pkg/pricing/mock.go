@@ -28,19 +28,19 @@ func NewMockPricingRepository() (*MockPricingRepository, error) {
 	repo.NodePricing = append(repo.NodePricing, awsPricingSet.Nodes...)
 	repo.VolumePricing = append(repo.VolumePricing, awsPricingSet.Volumes...)
 
-	// azurePricingSet, err := loadTestFile("azure.json")
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error loading test AWS pricing: %w", err)
-	// }
-	// repo.NodePricing = append(repo.NodePricing, azurePricingSet.Nodes...)
-	// repo.VolumePricing = append(repo.VolumePricing, azurePricingSet.Volumes...)
+	azurePricingSet, err := loadTestFile("azure.json")
+	if err != nil {
+		return nil, fmt.Errorf("error loading test AWS pricing: %w", err)
+	}
+	repo.NodePricing = append(repo.NodePricing, azurePricingSet.Nodes...)
+	repo.VolumePricing = append(repo.VolumePricing, azurePricingSet.Volumes...)
 
-	// gcpPricingSet, err := loadTestFile("gcp.json")
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error loading test AWS pricing: %w", err)
-	// }
-	// repo.NodePricing = append(repo.NodePricing, gcpPricingSet.Nodes...)
-	// repo.VolumePricing = append(repo.VolumePricing, gcpPricingSet.Volumes...)
+	gcpPricingSet, err := loadTestFile("gcp.json")
+	if err != nil {
+		return nil, fmt.Errorf("error loading test AWS pricing: %w", err)
+	}
+	repo.NodePricing = append(repo.NodePricing, gcpPricingSet.Nodes...)
+	repo.VolumePricing = append(repo.VolumePricing, gcpPricingSet.Volumes...)
 
 	return repo, nil
 }

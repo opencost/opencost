@@ -1,0 +1,330 @@
+{
+    "nodes": [
+        {
+            "properties": {
+                "provider": "gcp",
+                "region": "us-central1",
+                "instanceType": "n2-standard-2",
+                "provisioning": "on-demand"
+            },
+            "prices": [
+                {
+                    "price": 0.031611,
+                    "currency": "USD",
+                    "unit": "vCPU-hr"
+                },
+                {
+                    "price": 0.004237,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        },
+        {
+            "properties": {
+                "provider": "gcp",
+                "region": "us-central1",
+                "instanceType": "n2-standard-2",
+                "provisioning": "spot"
+            },
+            "prices": [
+                {
+                    "price": 0.009483,
+                    "currency": "USD",
+                    "unit": "vCPU-hr"
+                },
+                {
+                    "price": 0.001271,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        },
+        {
+            "properties": {
+                "provider": "gcp",
+                "region": "us-central1",
+                "instanceType": "n2-standard-4",
+                "provisioning": "on-demand"
+            },
+            "prices": [
+                {
+                    "price": 0.031611,
+                    "currency": "USD",
+                    "unit": "vCPU-hr"
+                },
+                {
+                    "price": 0.004237,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        },
+        {
+            "properties": {
+                "provider": "gcp",
+                "region": "us-central1",
+                "instanceType": "n2-standard-4",
+                "provisioning": "spot"
+            },
+            "prices": [
+                {
+                    "price": 0.009483,
+                    "currency": "USD",
+                    "unit": "vCPU-hr"
+                },
+                {
+                    "price": 0.001271,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        },
+        {
+            "properties": {
+                "provider": "gcp",
+                "region": "us-central1",
+                "instanceType": "e2-standard-2",
+                "provisioning": "on-demand"
+            },
+            "prices": [
+                {
+                    "price": 0.031611,
+                    "currency": "USD",
+                    "unit": "vCPU-hr"
+                },
+                {
+                    "price": 0.004237,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        },
+        {
+            "properties": {
+                "provider": "gcp",
+                "region": "us-central1",
+                "instanceType": "e2-standard-2",
+                "provisioning": "spot"
+            },
+            "prices": [
+                {
+                    "price": 0.009483,
+                    "currency": "USD",
+                    "unit": "vCPU-hr"
+                },
+                {
+                    "price": 0.001271,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        },
+        {
+            "properties": {
+                "provider": "gcp",
+                "region": "us-west1",
+                "instanceType": "n2-standard-2",
+                "provisioning": "on-demand"
+            },
+            "prices": [
+                {
+                    "price": 0.033646,
+                    "currency": "USD",
+                    "unit": "vCPU-hr"
+                },
+                {
+                    "price": 0.004511,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        },
+        {
+            "properties": {
+                "provider": "gcp",
+                "region": "us-west1",
+                "instanceType": "n2-standard-2",
+                "provisioning": "spot"
+            },
+            "prices": [
+                {
+                    "price": 0.010094,
+                    "currency": "USD",
+                    "unit": "vCPU-hr"
+                },
+                {
+                    "price": 0.001353,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        },
+        {
+            "properties": {
+                "provider": "gcp",
+                "region": "us-west1",
+                "instanceType": "n2-standard-4",
+                "provisioning": "on-demand"
+            },
+            "prices": [
+                {
+                    "price": 0.033646,
+                    "currency": "USD",
+                    "unit": "vCPU-hr"
+                },
+                {
+                    "price": 0.004511,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        },
+        {
+            "properties": {
+                "provider": "gcp",
+                "region": "us-west1",
+                "instanceType": "n2-standard-4",
+                "provisioning": "spot"
+            },
+            "prices": [
+                {
+                    "price": 0.010094,
+                    "currency": "USD",
+                    "unit": "vCPU-hr"
+                },
+                {
+                    "price": 0.001353,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        },
+        {
+            "properties": {
+                "provider": "gcp",
+                "region": "us-west1",
+                "instanceType": "e2-standard-2",
+                "provisioning": "on-demand"
+            },
+            "prices": [
+                {
+                    "price": 0.033646,
+                    "currency": "USD",
+                    "unit": "vCPU-hr"
+                },
+                {
+                    "price": 0.004511,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        },
+        {
+            "properties": {
+                "provider": "gcp",
+                "region": "us-west1",
+                "instanceType": "e2-standard-2",
+                "provisioning": "spot"
+            },
+            "prices": [
+                {
+                    "price": 0.010094,
+                    "currency": "USD",
+                    "unit": "vCPU-hr"
+                },
+                {
+                    "price": 0.001353,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        }
+    ],
+    "volumes": [
+        {
+            "properties": {
+                "provider": "gcp",
+                "region": "us-central1",
+                "volumeType": "pd-ssd"
+            },
+            "prices": [
+                {
+                    "price": 0.0002329,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        },
+        {
+            "properties": {
+                "provider": "gcp",
+                "region": "us-central1",
+                "volumeType": "pd-balanced"
+            },
+            "prices": [
+                {
+                    "price": 0.0001370,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        },
+        {
+            "properties": {
+                "provider": "gcp",
+                "region": "us-central1",
+                "volumeType": "pd-standard"
+            },
+            "prices": [
+                {
+                    "price": 0.0000548,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        },
+        {
+            "properties": {
+                "provider": "gcp",
+                "region": "us-west1",
+                "volumeType": "pd-ssd"
+            },
+            "prices": [
+                {
+                    "price": 0.0002466,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        },
+        {
+            "properties": {
+                "provider": "gcp",
+                "region": "us-west1",
+                "volumeType": "pd-balanced"
+            },
+            "prices": [
+                {
+                    "price": 0.0001452,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        },
+        {
+            "properties": {
+                "provider": "gcp",
+                "region": "us-west1",
+                "volumeType": "pd-standard"
+            },
+            "prices": [
+                {
+                    "price": 0.0000581,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        }
+    ]
+}

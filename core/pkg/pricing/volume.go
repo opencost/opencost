@@ -13,14 +13,7 @@ type VolumePricingProperties struct {
 	End        *time.Time        `json:"end,omitempty" yaml:"end,omitempty"`
 }
 
-// TODO: consider adding IOPS, Throughput pricing
 type VolumePricing struct {
-	Properties  VolumePricingProperties `json:"properties" yaml:"properties"`
-	HourlyPrice float64                 `json:"hourlyPrice" yaml:"hourlyPrice"`
-}
-
-type VolumePricingRequest struct {
-	Filters VolumePricingProperties
-	Offset  int
-	Limit   int
+	Properties VolumePricingProperties `json:"properties" yaml:"properties"`
+	Prices     []*Price                `json:"prices"`
 }

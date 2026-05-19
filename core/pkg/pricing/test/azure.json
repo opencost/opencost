@@ -2,9 +2,9 @@
     "nodes": [
         {
             "properties": {
-                "provider": "aws",
-                "region": "us-east-1",
-                "instanceType": "m5.large",
+                "provider": "azure",
+                "region": "eastus",
+                "instanceType": "Standard_D2s_v5",
                 "provisioning": "on-demand"
             },
             "prices": [
@@ -17,14 +17,14 @@
         },
         {
             "properties": {
-                "provider": "aws",
-                "region": "us-east-1",
-                "instanceType": "m5.large",
+                "provider": "azure",
+                "region": "eastus",
+                "instanceType": "Standard_D2s_v5",
                 "provisioning": "spot"
             },
             "prices": [
                 {
-                    "price": 0.043,
+                    "price": 0.0288,
                     "currency": "USD",
                     "unit": "hr"
                 }
@@ -32,9 +32,9 @@
         },
         {
             "properties": {
-                "provider": "aws",
-                "region": "us-east-1",
-                "instanceType": "m5.xlarge",
+                "provider": "azure",
+                "region": "eastus",
+                "instanceType": "Standard_D4s_v5",
                 "provisioning": "on-demand"
             },
             "prices": [
@@ -47,14 +47,14 @@
         },
         {
             "properties": {
-                "provider": "aws",
-                "region": "us-east-1",
-                "instanceType": "m5.xlarge",
+                "provider": "azure",
+                "region": "eastus",
+                "instanceType": "Standard_D4s_v5",
                 "provisioning": "spot"
             },
             "prices": [
                 {
-                    "price": 0.192,
+                    "price": 0.0576,
                     "currency": "USD",
                     "unit": "hr"
                 }
@@ -62,14 +62,14 @@
         },
         {
             "properties": {
-                "provider": "aws",
-                "region": "us-east-1",
-                "instanceType": "m5.2xlarge",
+                "provider": "azure",
+                "region": "eastus",
+                "instanceType": "Standard_E2s_v5",
                 "provisioning": "on-demand"
             },
             "prices": [
                 {
-                    "price": 0.384,
+                    "price": 0.126,
                     "currency": "USD",
                     "unit": "hr"
                 }
@@ -77,14 +77,14 @@
         },
         {
             "properties": {
-                "provider": "aws",
-                "region": "us-east-1",
-                "instanceType": "m5.2xlarge",
+                "provider": "azure",
+                "region": "eastus",
+                "instanceType": "Standard_E2s_v5",
                 "provisioning": "spot"
             },
             "prices": [
                 {
-                    "price": 0.189,
+                    "price": 0.0378,
                     "currency": "USD",
                     "unit": "hr"
                 }
@@ -92,14 +92,14 @@
         },
         {
             "properties": {
-                "provider": "aws",
-                "region": "us-west-1",
-                "instanceType": "m5.large",
+                "provider": "azure",
+                "region": "westus2",
+                "instanceType": "Standard_D2s_v5",
                 "provisioning": "on-demand"
             },
             "prices": [
                 {
-                    "price": 0.112,
+                    "price": 0.109,
                     "currency": "USD",
                     "unit": "hr"
                 }
@@ -107,14 +107,14 @@
         },
         {
             "properties": {
-                "provider": "aws",
-                "region": "us-west-1",
-                "instanceType": "m5.large",
+                "provider": "azure",
+                "region": "westus2",
+                "instanceType": "Standard_D2s_v5",
                 "provisioning": "spot"
             },
             "prices": [
                 {
-                    "price": 0.037,
+                    "price": 0.0327,
                     "currency": "USD",
                     "unit": "hr"
                 }
@@ -122,14 +122,14 @@
         },
         {
             "properties": {
-                "provider": "aws",
-                "region": "us-west-1",
-                "instanceType": "m5.xlarge",
+                "provider": "azure",
+                "region": "westus2",
+                "instanceType": "Standard_D4s_v5",
                 "provisioning": "on-demand"
             },
             "prices": [
                 {
-                    "price": 0.224,
+                    "price": 0.218,
                     "currency": "USD",
                     "unit": "hr"
                 }
@@ -137,14 +137,14 @@
         },
         {
             "properties": {
-                "provider": "aws",
-                "region": "us-west-1",
-                "instanceType": "m5.xlarge",
+                "provider": "azure",
+                "region": "westus2",
+                "instanceType": "Standard_D4s_v5",
                 "provisioning": "spot"
             },
             "prices": [
                 {
-                    "price": 0.069,
+                    "price": 0.0654,
                     "currency": "USD",
                     "unit": "hr"
                 }
@@ -152,14 +152,14 @@
         },
         {
             "properties": {
-                "provider": "aws",
-                "region": "us-west-1",
-                "instanceType": "m5.2xlarge",
+                "provider": "azure",
+                "region": "westus2",
+                "instanceType": "Standard_E2s_v5",
                 "provisioning": "on-demand"
             },
             "prices": [
                 {
-                    "price": 0.448,
+                    "price": 0.143,
                     "currency": "USD",
                     "unit": "hr"
                 }
@@ -167,14 +167,14 @@
         },
         {
             "properties": {
-                "provider": "aws",
-                "region": "us-west-1",
-                "instanceType": "m5.2xlarge",
+                "provider": "azure",
+                "region": "westus2",
+                "instanceType": "Standard_E2s_v5",
                 "provisioning": "spot"
             },
             "prices": [
                 {
-                    "price": 0.152,
+                    "price": 0.0429,
                     "currency": "USD",
                     "unit": "hr"
                 }
@@ -184,9 +184,23 @@
     "volumes": [
         {
             "properties": {
-                "provider": "aws",
-                "region": "us-east-1",
-                "volumeType": "gp3"
+                "provider": "azure",
+                "region": "eastus",
+                "volumeType": "Premium_LRS"
+            },
+            "prices": [
+                {
+                    "price": 0.0002192,
+                    "currency": "USD",
+                    "unit": "GiB-hr"
+                }
+            ]
+        },
+        {
+            "properties": {
+                "provider": "azure",
+                "region": "eastus",
+                "volumeType": "StandardSSD_LRS"
             },
             "prices": [
                 {
@@ -198,13 +212,13 @@
         },
         {
             "properties": {
-                "provider": "aws",
-                "region": "us-east-1",
-                "volumeType": "gp2"
+                "provider": "azure",
+                "region": "eastus",
+                "volumeType": "Standard_LRS"
             },
             "prices": [
                 {
-                    "price": 0.0001370,
+                    "price": 0.0000685,
                     "currency": "USD",
                     "unit": "GiB-hr"
                 }
@@ -212,13 +226,13 @@
         },
         {
             "properties": {
-                "provider": "aws",
-                "region": "us-east-1",
-                "volumeType": "standard"
+                "provider": "azure",
+                "region": "westus2",
+                "volumeType": "Premium_LRS"
             },
             "prices": [
                 {
-                    "price": 0.0000205,
+                    "price": 0.0002466,
                     "currency": "USD",
                     "unit": "GiB-hr"
                 }
@@ -226,13 +240,13 @@
         },
         {
             "properties": {
-                "provider": "aws",
-                "region": "us-west-1",
-                "volumeType": "gp3"
+                "provider": "azure",
+                "region": "westus2",
+                "volumeType": "StandardSSD_LRS"
             },
             "prices": [
                 {
-                    "price": 0.0001315,
+                    "price": 0.0001233,
                     "currency": "USD",
                     "unit": "GiB-hr"
                 }
@@ -240,27 +254,13 @@
         },
         {
             "properties": {
-                "provider": "aws",
-                "region": "us-west-1",
-                "volumeType": "gp2"
+                "provider": "azure",
+                "region": "westus2",
+                "volumeType": "Standard_LRS"
             },
             "prices": [
                 {
-                    "price": 0.0001644,
-                    "currency": "USD",
-                    "unit": "GiB-hr"
-                }
-            ]
-        },
-        {
-            "properties": {
-                "provider": "aws",
-                "region": "us-west-1",
-                "volumeType": "standard"
-            },
-            "prices": [
-                {
-                    "price": 0.0000247,
+                    "price": 0.0000767,
                     "currency": "USD",
                     "unit": "GiB-hr"
                 }
