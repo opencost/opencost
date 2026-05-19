@@ -320,6 +320,33 @@ func TestBigQueryConfiguration_Equals(t *testing.T) {
 			},
 			expected: false,
 		},
+		"different location": {
+			left: BigQueryConfiguration{
+				ProjectID: "projectID",
+				Dataset:   "dataset",
+				Table:     "table",
+				Location:  "EU",
+				Authorizer: &ServiceAccountKey{
+					Key: map[string]string{
+						"Key":  "Key",
+						"key1": "key2",
+					},
+				},
+			},
+			right: &BigQueryConfiguration{
+				ProjectID: "projectID",
+				Dataset:   "dataset2",
+				Table:     "table",
+				Location:  "US",
+				Authorizer: &ServiceAccountKey{
+					Key: map[string]string{
+						"Key":  "Key",
+						"key1": "key2",
+					},
+				},
+			},
+			expected: false,
+		},
 	}
 
 	for name, testCase := range testCases {
