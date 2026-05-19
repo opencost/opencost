@@ -40,7 +40,7 @@ require (
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/kubecost/events v0.0.8
 	github.com/microcosm-cc/bluemonday v1.0.27
-	github.com/modelcontextprotocol/go-sdk v1.4.1
+	github.com/modelcontextprotocol/go-sdk v1.6.0
 	github.com/opencost/opencost/core v0.0.0-20250521155634-81d2b597d1bc
 	github.com/opencost/opencost/modules/collector-source v0.0.0-00010101000000-000000000000
 	github.com/opencost/opencost/modules/prometheus-source v0.0.0-00010101000000-000000000000
@@ -95,7 +95,7 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
-	github.com/google/jsonschema-go v0.4.2 // indirect
+	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/minio/crc64nvme v1.1.1 // indirect
