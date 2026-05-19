@@ -78,8 +78,8 @@ func TestQueryAllocationAutocompleteFromSetRange(t *testing.T) {
 	}
 
 	_, err = QueryAllocationAutocompleteFromSetRange(asr, AllocationAutocompleteRequest{
-		Field:  "namespace",
-		Limit:  MaxAutocompleteResultLimit + 1,
+		Field: "namespace",
+		Limit: MaxAutocompleteResultLimit + 1,
 	})
 	if err == nil {
 		t.Fatal("expected error for excessive limit")
