@@ -77,6 +77,10 @@ func (bqc *BigQueryConfiguration) Equals(config cloud.Config) bool {
 		return false
 	}
 
+	if bqc.Location != thatConfig.Location {
+		return false
+	}
+
 	return true
 }
 
@@ -85,6 +89,7 @@ func (bqc *BigQueryConfiguration) Sanitize() cloud.Config {
 		ProjectID:  bqc.ProjectID,
 		Dataset:    bqc.Dataset,
 		Table:      bqc.Table,
+		Location:   bqc.Location,
 		Authorizer: bqc.Authorizer.Sanitize().(Authorizer),
 	}
 }
@@ -145,6 +150,14 @@ func (bqc *BigQueryConfiguration) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("BigQueryConfiguration: FromInterface: %s", err.Error())
 	}
 	bqc.Table = table
+
+	if _, ok := fmap["location"]; ok {
+		location, err := cloud.GetInterfaceValue[string](fmap, "location")
+		if err != nil {
+			return fmt.Errorf("BigQueryConfiguration: FromInterface: %s", err.Error())
+		}
+		bqc.Location = location
+	}
 
 	authAny, ok := fmap["authorizer"]
 	if !ok {
