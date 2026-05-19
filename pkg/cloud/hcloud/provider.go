@@ -360,18 +360,13 @@ func (h *HCloud) PVPricing(pvKey models.PVKey) (*models.PV, error) {
 		return nil, fmt.Errorf("invalid key features: %s", pvKey.Features())
 	}
 	region := features[0]
-	sizeInBytes, err := strconv.ParseFloat(features[1], 64)
-	if err != nil {
-		return nil, fmt.Errorf("invalid size in bytes: %s", features[0])
-	}
 
 	pricePerGBMonthly, err := strconv.ParseFloat(pricing.Volume.PerGBMonthly.Gross, 64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid price per GB monthly: %s", pricing.Volume.PerGBMonthly.Gross)
 	}
 
-	monthlyCost := (sizeInBytes / 1_000_000_000) * pricePerGBMonthly
-	hourlyCost := monthlyCost / (30 * 24) // Assuming 30 days in a month
+	hourlyCost := pricePerGBMonthly / (30 * 24) // Assuming 30 days in a month
 
 	return &models.PV{
 		Cost:       fmt.Sprintf("%f", hourlyCost),
