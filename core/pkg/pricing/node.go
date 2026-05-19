@@ -6,12 +6,12 @@ import (
 
 type NodePricingProperties struct {
 	Provider     Provider          `json:"provider,omitempty" yaml:"provider,omitempty"`
-	Region       *string           `json:"region,omitempty" yaml:"region,omitempty"`
-	InstanceType *string           `json:"instanceType,omitempty" yaml:"instanceType,omitempty"`
-	Provisioning *ProvisioningType `json:"provisioning,omitempty" yaml:"provisioning,omitmpty"`
-	Commitment   *CommitmentType   `json:"commitment,omitempty" yaml:"commitment,omitmpty"`
-	Cluster      *string           `json:"cluster,omitempty" yaml:"cluster,omitempty"`
-	ProviderID   *string           `json:"providerID,omitempty" yaml:"providerID,omitempty"`
+	Region       string            `json:"region,omitempty" yaml:"region,omitempty"`
+	InstanceType string            `json:"instanceType,omitempty" yaml:"instanceType,omitempty"`
+	Provisioning ProvisioningType  `json:"provisioning,omitempty" yaml:"provisioning,omitmpty"`
+	Commitment   CommitmentType    `json:"commitment,omitempty" yaml:"commitment,omitmpty"`
+	Cluster      string            `json:"cluster,omitempty" yaml:"cluster,omitempty"`
+	ProviderID   string            `json:"providerID,omitempty" yaml:"providerID,omitempty"`
 	Labels       map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 	Start        *time.Time        `json:"start,omitempty" yaml:"start,omitempty"`
 	End          *time.Time        `json:"end,omitempty" yaml:"end,omitempty"`
@@ -19,7 +19,7 @@ type NodePricingProperties struct {
 
 type NodePricing struct {
 	Properties NodePricingProperties `json:"properties" yaml:"properties"`
-	Prices     []*Price              `json:"prices"`
+	Prices     []Price               `json:"prices"`
 }
 
 /*
