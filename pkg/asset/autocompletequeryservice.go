@@ -40,6 +40,9 @@ type AutocompleteQueryService interface {
 }
 
 func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req AssetAutocompleteRequest) (*AssetAutocompleteResponse, error) {
+	if err := validateAssetAutocompleteWindow(req.Window); err != nil {
+		return nil, err
+	}
 	if req.TenantID == "" {
 		return nil, fmt.Errorf("%w: tenant ID is required", ErrAutocompleteBadRequest)
 	}
@@ -105,10 +108,24 @@ func validateAutocompleteField(field string) (string, error) {
 	case "account", "cluster", "name", "provider", "providerid", "type", "category":
 		return f, nil
 	}
-	if strings.HasPrefix(f, "label") {
-		return f, nil
+	if f == "label" || strings.HasPrefix(f, "label:") {
+		if f == "label" {
+			return f, nil
+		}
+		_, labelKey, _ := strings.Cut(f, ":")
+		return "label:" + labelKey, nil
 	}
 	return "", fmt.Errorf("unrecognized field: %s", field)
+}
+
+func validateAssetAutocompleteWindow(window opencost.Window) error {
+	if window.IsOpen() {
+		return fmt.Errorf("%w: invalid window: %s", ErrAutocompleteBadRequest, window.String())
+	}
+	if window.Start() == nil || window.End() == nil {
+		return fmt.Errorf("%w: invalid window: missing start or end", ErrAutocompleteBadRequest)
+	}
+	return nil
 }
 
 func assetAutocompleteValues(asset opencost.Asset, field string) []string {
@@ -139,9 +156,21 @@ func assetAutocompleteValues(asset opencost.Asset, field string) []string {
 		return keys
 	case strings.HasPrefix(field, "label:"):
 		labelName := strings.TrimPrefix(field, "label:")
-		if value, ok := asset.GetLabels()[labelName]; ok {
+		if value, ok := mapValueFold(asset.GetLabels(), labelName); ok {
 			return []string{value}
 		}
 	}
 	return nil
+}
+
+func mapValueFold(values map[string]string, key string) (string, bool) {
+	if v, ok := values[key]; ok {
+		return v, true
+	}
+	for k, v := range values {
+		if strings.EqualFold(k, key) {
+			return v, true
+		}
+	}
+	return "", false
 }

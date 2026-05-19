@@ -53,4 +53,27 @@ func TestRepositoryQuerier_QueryCloudCostAutocomplete(t *testing.T) {
 	if !IsAutocompleteBadRequest(err) {
 		t.Fatalf("expected bad request error, got: %v", err)
 	}
+
+	_, err = rq.QueryCloudCostAutocomplete(context.Background(), CloudCostAutocompleteRequest{
+		Field:  "not-a-real-field",
+		Window: opencost.NewClosedWindow(start, end),
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid field")
+	}
+	if !IsAutocompleteBadRequest(err) {
+		t.Fatalf("expected bad request error, got: %v", err)
+	}
+
+	mixedCaseResp, err := rq.QueryCloudCostAutocomplete(context.Background(), CloudCostAutocompleteRequest{
+		Field:  "label:Label1",
+		Search: "value1",
+		Window: opencost.NewClosedWindow(start, end),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mixedCaseResp.Data) != 1 || mixedCaseResp.Data[0] != "value1" {
+		t.Fatalf("unexpected mixed-case label autocomplete response: %+v", mixedCaseResp.Data)
+	}
 }

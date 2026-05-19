@@ -10,7 +10,7 @@ import (
 func TestQueryAssetAutocompleteFromSet(t *testing.T) {
 	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
-	window := opencost.NewWindow(&start, &end)
+	window := opencost.NewClosedWindow(start, end)
 
 	nodeA := opencost.NewNode("node-a", "cluster-a", "provider-a", start, end, window)
 	nodeA.SetLabels(map[string]string{"team": "platform", "app": "api"})
@@ -27,6 +27,7 @@ func TestQueryAssetAutocompleteFromSet(t *testing.T) {
 	resp, err := QueryAssetAutocompleteFromSet(assetSet, AssetAutocompleteRequest{
 		TenantID: "opencost",
 		Field:    "cluster",
+		Window:   window,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -39,6 +40,7 @@ func TestQueryAssetAutocompleteFromSet(t *testing.T) {
 		TenantID: "opencost",
 		Field:    "label:team",
 		Search:   "plat",
+		Window:   window,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -52,6 +54,31 @@ func TestQueryAssetAutocompleteFromSet(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error when tenant ID is missing")
+	}
+	if !IsAutocompleteBadRequest(err) {
+		t.Fatalf("expected bad request error, got: %v", err)
+	}
+
+	_, err = QueryAssetAutocompleteFromSet(assetSet, AssetAutocompleteRequest{
+		TenantID: "opencost",
+		Field:    "labels",
+		Window:   window,
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid field prefix")
+	}
+	if !IsAutocompleteBadRequest(err) {
+		t.Fatalf("expected bad request error, got: %v", err)
+	}
+
+	openWindow := opencost.NewWindow(&start, nil)
+	_, err = QueryAssetAutocompleteFromSet(assetSet, AssetAutocompleteRequest{
+		TenantID: "opencost",
+		Field:    "name",
+		Window:   openWindow,
+	})
+	if err == nil {
+		t.Fatal("expected error for open window")
 	}
 	if !IsAutocompleteBadRequest(err) {
 		t.Fatalf("expected bad request error, got: %v", err)

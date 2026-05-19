@@ -74,6 +74,10 @@ func (a *Accesses) ComputeAssetsAutocompleteHandler(w http.ResponseWriter, r *ht
 		http.Error(w, fmt.Sprintf("Invalid 'window' parameter: %s", err), http.StatusBadRequest)
 		return
 	}
+	if window.IsOpen() || window.Start() == nil || window.End() == nil {
+		http.Error(w, fmt.Sprintf("Invalid 'window' parameter: %s", window.String()), http.StatusBadRequest)
+		return
+	}
 
 	var parsedFilter filter.Filter
 	filterString := qp.Get("filter", "")
@@ -107,6 +111,9 @@ func (a *Accesses) ComputeAssetsAutocompleteHandler(w http.ResponseWriter, r *ht
 }
 
 func (a *Accesses) QueryAssetAutocomplete(req asset.AssetAutocompleteRequest, ctx context.Context) (*asset.AssetAutocompleteResponse, error) {
+	if req.Window.IsOpen() || req.Window.Start() == nil || req.Window.End() == nil {
+		return nil, fmt.Errorf("%w: invalid window: %s", asset.ErrAutocompleteBadRequest, req.Window.String())
+	}
 	assetSet, err := a.Model.ComputeAssets(*req.Window.Start(), *req.Window.End())
 	if err != nil {
 		return nil, fmt.Errorf("error computing assets: %w", err)

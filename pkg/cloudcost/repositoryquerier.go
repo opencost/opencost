@@ -90,6 +90,11 @@ func (rq *RepositoryQuerier) QueryCloudCostAutocomplete(ctx context.Context, req
 		return nil, fmt.Errorf("%w: exceeded maximum autocomplete result limit of %d", ErrAutocompleteBadRequest, MaxAutocompleteResultLimit)
 	}
 
+	field, err := validateCloudCostAutocompleteField(request.Field)
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid field: %w", ErrAutocompleteBadRequest, err)
+	}
+
 	ccsr, err := rq.Query(ctx, QueryRequest{
 		Start:      *request.Window.Start(),
 		End:        *request.Window.End(),
@@ -100,7 +105,6 @@ func (rq *RepositoryQuerier) QueryCloudCostAutocomplete(ctx context.Context, req
 		return nil, fmt.Errorf("QueryCloudCostAutocomplete: query failed: %w", err)
 	}
 
-	prop := strings.ToLower(request.Field)
 	search := strings.ToLower(request.Search)
 	results := map[string]struct{}{}
 	for _, ccs := range ccsr.CloudCostSets {
@@ -109,7 +113,7 @@ func (rq *RepositoryQuerier) QueryCloudCostAutocomplete(ctx context.Context, req
 				continue
 			}
 
-			values := cloudCostAutocompleteValues(cc, prop)
+			values := cloudCostAutocompleteValues(cc, field)
 			for _, value := range values {
 				if value == "" {
 					continue
@@ -134,6 +138,27 @@ func (rq *RepositoryQuerier) QueryCloudCostAutocomplete(ctx context.Context, req
 	return &CloudCostAutocompleteResponse{Data: data}, nil
 }
 
+func validateCloudCostAutocompleteField(field string) (string, error) {
+	if field == "" {
+		return "", fmt.Errorf("field is required")
+	}
+
+	f := strings.ToLower(field)
+	if f == "label" {
+		return f, nil
+	}
+	if strings.HasPrefix(f, "label:") {
+		_, labelKey, _ := strings.Cut(f, ":")
+		return "label:" + labelKey, nil
+	}
+
+	property, err := opencost.ParseCloudCostProperty(field)
+	if err != nil {
+		return "", err
+	}
+	return string(property), nil
+}
+
 func cloudCostAutocompleteValues(cc *opencost.CloudCost, field string) []string {
 	if field == "label" {
 		keys := make([]string, 0, len(cc.Properties.Labels))
@@ -144,7 +169,7 @@ func cloudCostAutocompleteValues(cc *opencost.CloudCost, field string) []string 
 	}
 	if strings.HasPrefix(field, "label:") {
 		labelName := strings.TrimPrefix(field, "label:")
-		if value, ok := cc.Properties.Labels[labelName]; ok {
+		if value, ok := cloudCostLabelValueFold(cc.Properties.Labels, labelName); ok {
 			return []string{value}
 		}
 		return nil
@@ -161,6 +186,18 @@ func cloudCostAutocompleteValues(cc *opencost.CloudCost, field string) []string 
 	}
 
 	return []string{value}
+}
+
+func cloudCostLabelValueFold(labels map[string]string, key string) (string, bool) {
+	if v, ok := labels[key]; ok {
+		return v, true
+	}
+	for k, v := range labels {
+		if strings.EqualFold(k, key) {
+			return v, true
+		}
+	}
+	return "", false
 }
 
 func (rq *RepositoryQuerier) QueryViewGraph(ctx context.Context, request ViewQueryRequest) (ViewGraphData, error) {

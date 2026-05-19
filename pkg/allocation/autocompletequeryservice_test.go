@@ -18,7 +18,7 @@ func TestQueryAllocationAutocompleteFromSetRange(t *testing.T) {
 		ControllerKind:  "deployment",
 		Controller:      "deploy-a",
 		Node:            "node-a",
-		Labels:          map[string]string{"team": "platform", "app": "api"},
+		Labels:          map[string]string{"Team": "platform", "app": "api"},
 		NamespaceLabels: map[string]string{"owner": "sre"},
 	}))
 	as.Set(opencost.NewMockUnitAllocation("a2", start, 24*time.Hour, &opencost.AllocationProperties{
@@ -29,7 +29,7 @@ func TestQueryAllocationAutocompleteFromSetRange(t *testing.T) {
 		ControllerKind:  "statefulset",
 		Controller:      "db-a",
 		Node:            "node-b",
-		Labels:          map[string]string{"team": "data", "app": "db"},
+		Labels:          map[string]string{"Team": "data", "app": "db"},
 		NamespaceLabels: map[string]string{"owner": "db"},
 	}))
 
@@ -42,7 +42,7 @@ func TestQueryAllocationAutocompleteFromSetRange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(resp.Data) != 2 || resp.Data[0] != "app" || resp.Data[1] != "team" {
+	if len(resp.Data) != 2 || resp.Data[0] != "Team" || resp.Data[1] != "app" {
 		t.Fatalf("unexpected label autocomplete response: %+v", resp.Data)
 	}
 
@@ -63,8 +63,8 @@ func TestQueryAllocationAutocompleteFromSetRange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(mixedCaseResp.Data) != 2 {
-		t.Fatalf("expected label:team to match both team values, got %+v", mixedCaseResp.Data)
+	if len(mixedCaseResp.Data) != 2 || mixedCaseResp.Data[0] != "data" || mixedCaseResp.Data[1] != "platform" {
+		t.Fatalf("expected label:team to match Team label values, got %+v", mixedCaseResp.Data)
 	}
 
 	_, err = QueryAllocationAutocompleteFromSetRange(asr, AllocationAutocompleteRequest{

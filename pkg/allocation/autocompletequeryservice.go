@@ -64,7 +64,10 @@ func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, r
 
 	search := strings.ToLower(req.Search)
 	results := map[string]struct{}{}
-	for _, as := range asr.Slice() {
+	for _, as := range asr.Allocations {
+		if as == nil {
+			continue
+		}
 		for _, alloc := range as.Allocations {
 			if alloc == nil || alloc.Properties == nil {
 				continue
@@ -128,20 +131,18 @@ func allocationAutocompleteValues(props *opencost.AllocationProperties, field st
 		return []string{props.Pod}
 	case field == "container":
 		return []string{props.Container}
-	case field == "account":
-		return nil
 	case field == "label":
 		return mapKeys(props.Labels)
-	case strings.HasPrefix(strings.ToLower(field), "label:"):
+	case strings.HasPrefix(field, "label:"):
 		label := strings.TrimPrefix(field, "label:")
-		if v, ok := props.Labels[label]; ok {
+		if v, ok := mapValueFold(props.Labels, label); ok {
 			return []string{v}
 		}
 	case field == "namespacelabel":
 		return mapKeys(props.NamespaceLabels)
-	case strings.HasPrefix(strings.ToLower(field), "namespacelabel:"):
+	case strings.HasPrefix(field, "namespacelabel:"):
 		label := strings.TrimPrefix(field, "namespacelabel:")
-		if v, ok := props.NamespaceLabels[label]; ok {
+		if v, ok := mapValueFold(props.NamespaceLabels, label); ok {
 			return []string{v}
 		}
 	}
@@ -154,6 +155,18 @@ func mapKeys(values map[string]string) []string {
 		result = append(result, k)
 	}
 	return result
+}
+
+func mapValueFold(values map[string]string, key string) (string, bool) {
+	if v, ok := values[key]; ok {
+		return v, true
+	}
+	for k, v := range values {
+		if strings.EqualFold(k, key) {
+			return v, true
+		}
+	}
+	return "", false
 }
 
 func uniqueSortedLimited(values map[string]struct{}, limit int) []string {
