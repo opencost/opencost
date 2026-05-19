@@ -108,10 +108,10 @@ func validateAutocompleteField(field string) (string, error) {
 	case "account", "cluster", "name", "provider", "providerid", "type", "category":
 		return f, nil
 	}
-	if f == "label" || strings.HasPrefix(f, "label:") {
-		if f == "label" {
-			return f, nil
-		}
+	if f == "label" {
+		return f, nil
+	}
+	if strings.HasPrefix(f, "label:") {
 		_, labelKey, _ := strings.Cut(f, ":")
 		return "label:" + labelKey, nil
 	}
