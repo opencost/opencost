@@ -1,6 +1,7 @@
 package cloudcost
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -65,6 +66,43 @@ func (s *QueryService) GetCloudCostHandler() func(w http.ResponseWriter, r *http
 		w.Header().Set("Content-Type", "application/json")
 		protocol.WriteData(w, resp)
 		spanResp.End()
+	}
+}
+
+func (s *QueryService) GetCloudCostAutocompleteHandler() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		tracer := otel.Tracer(tracerName)
+		ctx, span := tracer.Start(r.Context(), "Service.GetCloudCostAutocompleteHandler")
+		defer span.End()
+
+		if s == nil {
+			http.Error(w, "Query Service is nil", http.StatusNotImplemented)
+			return
+		}
+		if s.Querier == nil {
+			http.Error(w, "CloudCost Query Service is nil", http.StatusNotImplemented)
+			return
+		}
+
+		qp := httputil.NewQueryParams(r.URL.Query())
+		request, err := ParseCloudCostAutocompleteRequest(qp)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		resp, err := s.Querier.QueryCloudCostAutocomplete(ctx, *request)
+		if err != nil {
+			if errors.Is(err, ErrAutocompleteBadRequest) {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			http.Error(w, fmt.Sprintf("Internal server error: %s", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		protocol.WriteData(w, resp)
 	}
 }
 

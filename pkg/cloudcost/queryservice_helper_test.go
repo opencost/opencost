@@ -134,3 +134,82 @@ func TestParseCloudCostRequest(t *testing.T) {
 		})
 	}
 }
+
+func TestParseCloudCostAutocompleteRequest(t *testing.T) {
+	windowStr := "2023-01-01T00:00:00Z,2023-01-02T00:00:00Z"
+	validFilterStr := `service:"AmazonEC2"`
+	parser := cloudcost.NewCloudCostFilterParser()
+	validFilter, _ := parser.Parse(validFilterStr)
+
+	tests := map[string]struct {
+		values  map[string][]string
+		want    *CloudCostAutocompleteRequest
+		wantErr bool
+	}{
+		"missing window": {
+			values:  map[string][]string{"field": {"service"}},
+			wantErr: true,
+		},
+		"missing field": {
+			values:  map[string][]string{"window": {windowStr}},
+			wantErr: true,
+		},
+		"invalid window": {
+			values: map[string][]string{
+				"window": {"invalid"},
+				"field":  {"service"},
+			},
+			wantErr: true,
+		},
+		"open window": {
+			values: map[string][]string{
+				"window": {"2023-01-01T00:00:00Z,"},
+				"field":  {"service"},
+			},
+			wantErr: true,
+		},
+		"invalid filter": {
+			values: map[string][]string{
+				"window": {windowStr},
+				"field":  {"service"},
+				"filter": {"invalid"},
+			},
+			wantErr: true,
+		},
+		"valid request": {
+			values: map[string][]string{
+				"window": {windowStr},
+				"field":  {"service"},
+				"filter": {validFilterStr},
+				"search": {"ec2"},
+				"limit":  {"25"},
+			},
+			want: &CloudCostAutocompleteRequest{
+				Search: "ec2",
+				Field:  "service",
+				Limit:  25,
+				Filter: validFilter,
+			},
+			wantErr: false,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			qp := httputil.NewQueryParams(tt.values)
+			got, err := ParseCloudCostAutocompleteRequest(qp)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ParseCloudCostAutocompleteRequest() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+			if got.Search != tt.want.Search || got.Field != tt.want.Field || got.Limit != tt.want.Limit {
+				t.Fatalf("unexpected request: got=%+v want=%+v", got, tt.want)
+			}
+			if got.Window.IsOpen() {
+				t.Fatal("expected closed window")
+			}
+		})
+	}
+}
