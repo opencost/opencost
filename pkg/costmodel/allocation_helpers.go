@@ -92,7 +92,7 @@ func (cm *CostModel) buildPodMap(window opencost.Window, podMap map[podKey]*pod,
 		}
 
 		if len(droppedNoUID) > 0 {
-			log.Debugf("CostModel.ComputeAllocation: dropped %d pod results lacking UID during UID-ingestion filter: %v", len(droppedNoUID), droppedNoUID)
+			log.Infof("CostModel.ComputeAllocation: dropped %d pod results lacking UID during UID-ingestion filter: %v", len(droppedNoUID), droppedNoUID)
 		}
 
 		if len(resPodsUID) > 0 {
@@ -104,7 +104,7 @@ func (cm *CostModel) buildPodMap(window opencost.Window, podMap map[podKey]*pod,
 
 	preApplyMapSize := len(podMap)
 	applyPodResults(window, resolution, podMap, resPods, ingestPodUID, podUIDKeyMap)
-	log.Debugf("CostModel.ComputeAllocation: buildPodMap window=%s: prom returned %d pod results, %d post-UID-filter, podMap grew by %d (now %d)",
+	log.Infof("CostModel.ComputeAllocation: buildPodMap window=%s: prom returned %d pod results, %d post-UID-filter, podMap grew by %d (now %d)",
 		window, preFilterCount, len(resPods), len(podMap)-preApplyMapSize, len(podMap))
 
 	return nil
@@ -154,7 +154,7 @@ func applyPodResults(window opencost.Window, resolution time.Duration, podMap ma
 
 		allocStart, allocEnd := calculateStartAndEnd(res.Data, resolution, window)
 		if allocStart.IsZero() || allocEnd.IsZero() {
-			log.Debugf("CostModel.ComputeAllocation: dropping pod %s/%s (cluster=%s, uid=%q): zero allocStart/allocEnd from %d data points, window=%s",
+			log.Infof("CostModel.ComputeAllocation: dropping pod %s/%s (cluster=%s, uid=%q): zero allocStart/allocEnd from %d data points, window=%s",
 				namespace, podName, cluster, res.UID, len(res.Data), window)
 			continue
 		}

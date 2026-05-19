@@ -566,7 +566,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 		}
 	}
 	if droppedNoContainers > 0 {
-		log.Debugf("CostModel.ComputeAllocation: emitted %d pods, dropped %d pods with no container allocations (sample: %v)",
+		log.Infof("CostModel.ComputeAllocation: emitted %d pods, dropped %d pods with no container allocations (sample: %v)",
 			emittedPods, droppedNoContainers, droppedSamples)
 	}
 
