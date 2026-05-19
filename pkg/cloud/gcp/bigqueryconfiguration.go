@@ -16,6 +16,7 @@ type BigQueryConfiguration struct {
 	Dataset              string     `json:"dataset"`
 	Table                string     `json:"table"`
 	ExcludePartitionTime bool       `json:"excludePartitionTime"`
+	Location             string     `json:"location"`
 	Authorizer           Authorizer `json:"authorizer"`
 }
 
@@ -106,7 +107,15 @@ func (bqc *BigQueryConfiguration) GetBigQueryClient(ctx context.Context) (*bigqu
 	if err != nil {
 		return nil, err
 	}
-	return bigquery.NewClient(ctx, bqc.ProjectID, clientOpts...)
+
+	client, err := bigquery.NewClient(ctx, bqc.ProjectID, clientOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	client.Location = bqc.Location
+
+	return client, nil
 }
 
 // UnmarshalJSON assumes data is save as an BigQueryConfigurationDTO

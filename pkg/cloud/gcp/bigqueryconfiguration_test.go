@@ -138,6 +138,7 @@ func TestBigQueryConfiguration_Equals(t *testing.T) {
 						"key1": "key2",
 					},
 				},
+				Location: "EU",
 			},
 			right: &BigQueryConfiguration{
 				ProjectID: "projectID",
@@ -149,6 +150,7 @@ func TestBigQueryConfiguration_Equals(t *testing.T) {
 						"key1": "key2",
 					},
 				},
+				Location: "EU",
 			},
 			expected: true,
 		},
