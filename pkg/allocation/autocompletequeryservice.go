@@ -64,7 +64,10 @@ func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, r
 
 	search := strings.ToLower(req.Search)
 	results := map[string]struct{}{}
-	for _, as := range asr.Slice() {
+	for _, as := range asr.Allocations {
+		if as == nil {
+			continue
+		}
 		for _, alloc := range as.Allocations {
 			if alloc == nil || alloc.Properties == nil {
 				continue
