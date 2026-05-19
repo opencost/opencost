@@ -105,7 +105,7 @@ func validateAutocompleteField(field string) (string, error) {
 	case "account", "cluster", "name", "provider", "providerid", "type", "category":
 		return f, nil
 	}
-	if strings.HasPrefix(f, "label") {
+	if f == "label" || strings.HasPrefix(f, "label:") {
 		return f, nil
 	}
 	return "", fmt.Errorf("unrecognized field: %s", field)
