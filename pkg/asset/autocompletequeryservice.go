@@ -2,6 +2,7 @@ package asset
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -9,6 +10,14 @@ import (
 	"github.com/opencost/opencost/core/pkg/filter"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
+
+// ErrAutocompleteBadRequest indicates a client error in an autocomplete request.
+var ErrAutocompleteBadRequest = errors.New("autocomplete bad request")
+
+// IsAutocompleteBadRequest reports whether err is a client validation error.
+func IsAutocompleteBadRequest(err error) bool {
+	return errors.Is(err, ErrAutocompleteBadRequest)
+}
 
 const DefaultAutocompleteResultLimit = 100
 const MaxAutocompleteResultLimit = 1000
@@ -32,12 +41,12 @@ type AutocompleteQueryService interface {
 
 func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req AssetAutocompleteRequest) (*AssetAutocompleteResponse, error) {
 	if req.TenantID == "" {
-		return nil, fmt.Errorf("tenant ID is required")
+		return nil, fmt.Errorf("%w: tenant ID is required", ErrAutocompleteBadRequest)
 	}
 
 	field, err := validateAutocompleteField(req.Field)
 	if err != nil {
-		return nil, fmt.Errorf("invalid field: %w", err)
+		return nil, fmt.Errorf("%w: invalid field: %w", ErrAutocompleteBadRequest, err)
 	}
 
 	limit := req.Limit
@@ -45,7 +54,7 @@ func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req AssetAutocom
 		limit = DefaultAutocompleteResultLimit
 	}
 	if limit > MaxAutocompleteResultLimit {
-		return nil, fmt.Errorf("exceeded maxiumum autocomplete result limit of %d", MaxAutocompleteResultLimit)
+		return nil, fmt.Errorf("%w: exceeded maximum autocomplete result limit of %d", ErrAutocompleteBadRequest, MaxAutocompleteResultLimit)
 	}
 
 	var matcher opencost.AssetMatcher
@@ -53,7 +62,7 @@ func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req AssetAutocom
 		compiler := opencost.NewAssetMatchCompiler()
 		matcher, err = compiler.Compile(req.Filter)
 		if err != nil {
-			return nil, fmt.Errorf("failed to compile filter: %w", err)
+			return nil, fmt.Errorf("%w: failed to compile filter: %w", ErrAutocompleteBadRequest, err)
 		}
 	}
 

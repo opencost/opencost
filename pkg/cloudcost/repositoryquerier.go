@@ -2,6 +2,7 @@ package cloudcost
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -9,6 +10,14 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
+
+// ErrAutocompleteBadRequest indicates a client error in an autocomplete request.
+var ErrAutocompleteBadRequest = errors.New("autocomplete bad request")
+
+// IsAutocompleteBadRequest reports whether err is a client validation error.
+func IsAutocompleteBadRequest(err error) bool {
+	return errors.Is(err, ErrAutocompleteBadRequest)
+}
 
 // RepositoryQuerier is an implementation of Querier and ViewQuerier which pulls directly from a Repository
 type RepositoryQuerier struct {
@@ -70,7 +79,7 @@ func (rq *RepositoryQuerier) Query(ctx context.Context, request QueryRequest) (*
 
 func (rq *RepositoryQuerier) QueryCloudCostAutocomplete(ctx context.Context, request CloudCostAutocompleteRequest) (*CloudCostAutocompleteResponse, error) {
 	if request.Window.IsOpen() {
-		return nil, fmt.Errorf("invalid window for autocomplete query: %s", request.Window.String())
+		return nil, fmt.Errorf("%w: invalid window for autocomplete query: %s", ErrAutocompleteBadRequest, request.Window.String())
 	}
 
 	limit := request.Limit
@@ -78,7 +87,7 @@ func (rq *RepositoryQuerier) QueryCloudCostAutocomplete(ctx context.Context, req
 		limit = DefaultAutocompleteResultLimit
 	}
 	if limit > MaxAutocompleteResultLimit {
-		return nil, fmt.Errorf("exceeded maxiumum autocomplete result limit of %d", MaxAutocompleteResultLimit)
+		return nil, fmt.Errorf("%w: exceeded maximum autocomplete result limit of %d", ErrAutocompleteBadRequest, MaxAutocompleteResultLimit)
 	}
 
 	ccsr, err := rq.Query(ctx, QueryRequest{

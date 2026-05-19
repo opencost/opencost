@@ -1,6 +1,7 @@
 package cloudcost
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -92,6 +93,10 @@ func (s *QueryService) GetCloudCostAutocompleteHandler() func(w http.ResponseWri
 
 		resp, err := s.Querier.QueryCloudCostAutocomplete(ctx, *request)
 		if err != nil {
+			if errors.Is(err, ErrAutocompleteBadRequest) {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			http.Error(w, fmt.Sprintf("Internal server error: %s", err), http.StatusInternalServerError)
 			return
 		}

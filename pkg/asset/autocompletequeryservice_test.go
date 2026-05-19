@@ -46,4 +46,14 @@ func TestQueryAssetAutocompleteFromSet(t *testing.T) {
 	if len(labelResp.Data) != 1 || labelResp.Data[0] != "platform" {
 		t.Fatalf("unexpected label autocomplete response: %+v", labelResp.Data)
 	}
+
+	_, err = QueryAssetAutocompleteFromSet(assetSet, AssetAutocompleteRequest{
+		Field: "cluster",
+	})
+	if err == nil {
+		t.Fatal("expected error when tenant ID is missing")
+	}
+	if !IsAutocompleteBadRequest(err) {
+		t.Fatalf("expected bad request error, got: %v", err)
+	}
 }

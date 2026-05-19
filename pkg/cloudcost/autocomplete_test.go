@@ -41,4 +41,16 @@ func TestRepositoryQuerier_QueryCloudCostAutocomplete(t *testing.T) {
 	if len(labelResp.Data) != 1 || labelResp.Data[0] != "value1" {
 		t.Fatalf("unexpected label autocomplete response: %+v", labelResp.Data)
 	}
+
+	_, err = rq.QueryCloudCostAutocomplete(context.Background(), CloudCostAutocompleteRequest{
+		Field:  opencost.CloudCostServiceProp,
+		Limit:  MaxAutocompleteResultLimit + 1,
+		Window: opencost.NewClosedWindow(start, end),
+	})
+	if err == nil {
+		t.Fatal("expected error for excessive limit")
+	}
+	if !IsAutocompleteBadRequest(err) {
+		t.Fatalf("expected bad request error, got: %v", err)
+	}
 }

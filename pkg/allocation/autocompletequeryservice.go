@@ -2,6 +2,7 @@ package allocation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -9,6 +10,14 @@ import (
 	"github.com/opencost/opencost/core/pkg/filter"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
+
+// ErrAutocompleteBadRequest indicates a client error in an autocomplete request.
+var ErrAutocompleteBadRequest = errors.New("autocomplete bad request")
+
+// IsAutocompleteBadRequest reports whether err is a client validation error.
+func IsAutocompleteBadRequest(err error) bool {
+	return errors.Is(err, ErrAutocompleteBadRequest)
+}
 
 const DefaultAutocompleteResultLimit = 100
 const MaxAutocompleteResultLimit = 1000
@@ -33,7 +42,7 @@ type AutocompleteQueryService interface {
 func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, req AllocationAutocompleteRequest) (*AllocationAutocompleteResponse, error) {
 	field, err := validateAutocompleteField(req.Field)
 	if err != nil {
-		return nil, fmt.Errorf("invalid field: %w", err)
+		return nil, fmt.Errorf("%w: invalid field: %w", ErrAutocompleteBadRequest, err)
 	}
 
 	limit := req.Limit
@@ -41,7 +50,7 @@ func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, r
 		limit = DefaultAutocompleteResultLimit
 	}
 	if limit > MaxAutocompleteResultLimit {
-		return nil, fmt.Errorf("exceeded maxiumum autocomplete result limit of %d", MaxAutocompleteResultLimit)
+		return nil, fmt.Errorf("%w: exceeded maximum autocomplete result limit of %d", ErrAutocompleteBadRequest, MaxAutocompleteResultLimit)
 	}
 
 	var matcher opencost.AllocationMatcher
@@ -49,7 +58,7 @@ func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, r
 		compiler := opencost.NewAllocationMatchCompiler(req.LabelConfig)
 		matcher, err = compiler.Compile(req.Filter)
 		if err != nil {
-			return nil, fmt.Errorf("failed to compile filter: %w", err)
+			return nil, fmt.Errorf("%w: failed to compile filter: %w", ErrAutocompleteBadRequest, err)
 		}
 	}
 
@@ -87,16 +96,16 @@ func validateAutocompleteField(field string) (string, error) {
 
 	f := strings.ToLower(field)
 	switch f {
-	case "cluster", "namespace", "node", "controllerkind", "controllername", "pod", "container", "account", "label", "namespacelabel":
+	case "cluster", "namespace", "node", "controllerkind", "controllername", "pod", "container", "label", "namespacelabel":
 		return f, nil
 	}
 
 	if strings.HasPrefix(f, "label:") {
-		_, labelKey, _ := strings.Cut(field, ":")
+		_, labelKey, _ := strings.Cut(f, ":")
 		return "label:" + labelKey, nil
 	}
 	if strings.HasPrefix(f, "namespacelabel:") {
-		_, labelKey, _ := strings.Cut(field, ":")
+		_, labelKey, _ := strings.Cut(f, ":")
 		return "namespacelabel:" + labelKey, nil
 	}
 

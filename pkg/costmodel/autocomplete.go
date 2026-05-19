@@ -44,17 +44,21 @@ func (a *Accesses) ComputeAllocationAutocompleteHandler(w http.ResponseWriter, r
 		Window:      window,
 		Filter:      parsedFilter,
 		LabelConfig: opencost.NewLabelConfig(),
-	}, r.Context())
+	}, filterString, r.Context())
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error getting allocation autocomplete: %s", err), http.StatusInternalServerError)
+		status := http.StatusInternalServerError
+		if allocation.IsAutocompleteBadRequest(err) {
+			status = http.StatusBadRequest
+		}
+		http.Error(w, fmt.Sprintf("Error getting allocation autocomplete: %s", err), status)
 		return
 	}
 
 	WriteData(w, resp, nil)
 }
 
-func (a *Accesses) QueryAllocationAutocomplete(req allocation.AllocationAutocompleteRequest, ctx context.Context) (*allocation.AllocationAutocompleteResponse, error) {
-	asr, err := a.Model.QueryAllocation(req.Window, req.Window.Duration(), nil, false, false, false, false, false, opencost.AccumulateOptionNone, false, "")
+func (a *Accesses) QueryAllocationAutocomplete(req allocation.AllocationAutocompleteRequest, filterString string, ctx context.Context) (*allocation.AllocationAutocompleteResponse, error) {
+	asr, err := a.Model.QueryAllocation(req.Window, req.Window.Duration(), nil, false, false, false, false, false, opencost.AccumulateOptionNone, false, filterString)
 	if err != nil {
 		return nil, fmt.Errorf("error querying allocations: %w", err)
 	}
@@ -91,7 +95,11 @@ func (a *Accesses) ComputeAssetsAutocompleteHandler(w http.ResponseWriter, r *ht
 		Filter:   parsedFilter,
 	}, r.Context())
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error getting asset autocomplete: %s", err), http.StatusInternalServerError)
+		status := http.StatusInternalServerError
+		if asset.IsAutocompleteBadRequest(err) {
+			status = http.StatusBadRequest
+		}
+		http.Error(w, fmt.Sprintf("Error getting asset autocomplete: %s", err), status)
 		return
 	}
 
