@@ -1,24 +1,31 @@
 name: Debug Sign Predicate
 
 # Temporary workflow for validating the run-started-at fallback in
-# .github/actions/sign-image/action.yaml without invoking cosign. Trigger
-# manually from the Actions tab and exercise both the empty-input path
-# (fallback) and the populated-input path. Delete before merging.
+# .github/actions/sign-image/action.yaml without invoking cosign. Runs
+# automatically on push to cdp/sign-image-debug. The matrix exercises
+# both the empty-input path (fallback should apply) and a populated
+# input. Delete this file before opening the real PR.
 
 on:
-  workflow_dispatch:
-    inputs:
-      run-started-at:
-        description: 'ISO-8601 start time (leave empty to exercise the fallback)'
-        required: false
-        default: ''
+  push:
+    branches:
+      - cdp/sign-image-debug
 
 permissions:
   contents: read
 
 jobs:
   generate-predicate:
+    name: generate-predicate (${{ matrix.case_name }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - case_name: empty-input-uses-fallback
+            started_on: ''
+          - case_name: populated-input
+            started_on: '2026-05-18T12:00:00Z'
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
@@ -33,12 +40,12 @@ jobs:
         shell: bash
         env:
           WORKFLOW_PATH: .github/workflows/debug-sign-predicate.yml
-          STARTED_ON: ${{ inputs.run-started-at }}
+          STARTED_ON: ${{ matrix.started_on }}
           FALLBACK_STARTED_ON: ${{ steps.start.outputs.STARTED_ON }}
         run: |
           set -euo pipefail
           if [[ -z "${STARTED_ON:-}" ]]; then
-            echo "inputs.run-started-at is empty; using fallback ${FALLBACK_STARTED_ON}"
+            echo "STARTED_ON is empty; using fallback ${FALLBACK_STARTED_ON}"
             STARTED_ON="$FALLBACK_STARTED_ON"
           fi
           if [[ -z "${STARTED_ON:-}" ]]; then
@@ -90,22 +97,35 @@ jobs:
 
       - name: Dump and validate predicate
         shell: bash
+        env:
+          EXPECT_STARTED_ON: ${{ matrix.started_on }}
         run: |
           set -euo pipefail
           echo "--- predicate.json ---"
           cat predicate.json
           echo "--- validation ---"
           python3 - <<'PY'
-          import json, sys
+          import json, os, sys
           from datetime import datetime
+
           d = json.load(open("predicate.json"))
-          s = d["runDetails"]["metadata"]["startedOn"]
-          print(f"startedOn={s!r}")
-          if not s:
-              print("FAIL: startedOn is empty")
+          got = d["runDetails"]["metadata"]["startedOn"]
+          expected = os.environ.get("EXPECT_STARTED_ON", "")
+
+          print(f"got startedOn={got!r}")
+          print(f"expected (input)={expected!r}")
+
+          if not got:
+              print("FAIL: startedOn is empty after fallback")
               sys.exit(1)
-          # cosign parses with Go's RFC3339; Python's fromisoformat handles
-          # the trailing 'Z' from 3.11+, so this is a close-enough proxy.
-          datetime.fromisoformat(s.replace("Z", "+00:00"))
-          print("OK: startedOn is set and parses as RFC3339")
+
+          # When input was empty, the fallback (action start time) is used.
+          # When input was populated, predicate must echo it verbatim.
+          if expected and got != expected:
+              print(f"FAIL: populated input was not passed through")
+              sys.exit(1)
+
+          # Validate RFC3339-ish (Python <3.11 needs the Z swap).
+          datetime.fromisoformat(got.replace("Z", "+00:00"))
+          print("OK: startedOn present and parses as RFC3339")
           PY
