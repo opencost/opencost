@@ -17,6 +17,8 @@ const (
 const (
 	UTCOffsetEnvVar              = "UTC_OFFSET"
 	MCPQueryTimeoutSecondsEnvVar = "MCP_QUERY_TIMEOUT_SECONDS"
+	CurrencyProviderEnvVar       = "CURRENCY_PROVIDER"
+	CurrencyAPIKeyEnvVar         = "CURRENCY_API_KEY"
 )
 
 func GetOpencostAPIPort() int {
@@ -53,4 +55,16 @@ func GetMCPQueryTimeout() time.Duration {
 		seconds = 1
 	}
 	return time.Duration(seconds) * time.Second
+}
+
+// GetCurrencyProvider returns the currency provider name from environment variable.
+// Default is "default" which disables currency conversion.
+func GetCurrencyProvider() string {
+	return env.Get(CurrencyProviderEnvVar, "default")
+}
+
+// GetCurrencyAPIKey returns the currency API key from environment variable.
+// Returns empty string if not set.
+func GetCurrencyAPIKey() string {
+	return env.Get(CurrencyAPIKeyEnvVar, "")
 }

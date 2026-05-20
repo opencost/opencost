@@ -9,6 +9,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/opencost/opencost/core/pkg/filter/allocation"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
@@ -316,6 +317,18 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 		asr = trimAllocationSetRangeToRequestWindow(asr, window)
 	}
 
+	// Convert the underlying AllocationSetRange *before* building the
+	// summary so we don't pay for two summary constructions on non-USD
+	// requests. The helper returns a non-nil error only on the upfront
+	// rate-lookup failure, which happens before any mutation, so on
+	// error we proceed with untouched USD data.
+	currency := strings.ToUpper(strings.TrimSpace(qp.Get("currency", "USD")))
+	if currency != "USD" && a.CurrencyConverter != nil {
+		if err = ConvertAllocationSetRange(asr, a.CurrencyConverter, currency); err != nil {
+			log.Warnf("Currency conversion failed for currency %s: %v", currency, err)
+		}
+	}
+
 	sasl := []*opencost.SummaryAllocationSet{}
 	for _, as := range asr.Allocations {
 		sas := opencost.NewSummaryAllocationSet(as, nil, nil, false, false)
@@ -401,6 +414,16 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 		}
 
 		return
+	}
+
+	// Extract currency parameter and convert if needed
+	currency := strings.ToUpper(strings.TrimSpace(qp.Get("currency", "USD")))
+	if currency != "USD" && a.CurrencyConverter != nil {
+		err = ConvertAllocationSetRange(asr, a.CurrencyConverter, currency)
+		if err != nil {
+			log.Warnf("Currency conversion failed for currency %s: %v", currency, err)
+			// Continue with USD values if conversion fails
+		}
 	}
 
 	WriteData(w, asr, nil)

@@ -40,6 +40,7 @@ import (
 	"github.com/opencost/opencost/modules/prometheus-source/pkg/prom"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	clusterc "github.com/opencost/opencost/pkg/clustercache"
+	"github.com/opencost/opencost/pkg/currency"
 	"github.com/opencost/opencost/pkg/env"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -79,6 +80,8 @@ type Accesses struct {
 	// settings will be published in a pub/sub model
 	settingsSubscribers map[string][]chan string
 	settingsMutex       sync.Mutex
+	// CurrencyConverter handles currency conversion for cost values
+	CurrencyConverter currency.Converter
 }
 
 func filterFields(fields string, data map[string]*CostData) map[string]CostData {
@@ -609,7 +612,7 @@ func GetDefaultCollectorStorage() storage.Storage {
 }
 
 // InitializeCloudCost Initializes Cloud Cost pipeline and querier and registers endpoints
-func InitializeCloudCost(router *httprouter.Router) *cloudcost.PipelineService {
+func InitializeCloudCost(router *httprouter.Router, currencyConverter currency.Converter) *cloudcost.PipelineService {
 	log.Debugf("Cloud Cost config path: %s", env.GetCloudCostConfigPath())
 	cloudConfigController := cloudconfig.NewMemoryController(nil)
 
@@ -617,6 +620,7 @@ func InitializeCloudCost(router *httprouter.Router) *cloudcost.PipelineService {
 	cloudCostPipelineService := cloudcost.NewPipelineService(repo, cloudConfigController, cloudcost.DefaultIngestorConfiguration())
 	repoQuerier := cloudcost.NewRepositoryQuerier(repo)
 	cloudCostQueryService := cloudcost.NewQueryService(repoQuerier, repoQuerier)
+	cloudCostQueryService.CurrencyConverter = currencyConverter
 
 	router.GET("/cloudCost", cloudCostQueryService.GetCloudCostHandler())
 	router.GET("/cloudCost/autocomplete", cloudCostQueryService.GetCloudCostAutocompleteHandler())
@@ -635,7 +639,7 @@ func InitializeCloudCost(router *httprouter.Router) *cloudcost.PipelineService {
 	return cloudCostPipelineService
 }
 
-func InitializeCustomCost(router *httprouter.Router) *customcost.PipelineService {
+func InitializeCustomCost(router *httprouter.Router, currencyConverter currency.Converter) *customcost.PipelineService {
 	hourlyRepo := customcost.NewMemoryRepository()
 	dailyRepo := customcost.NewMemoryRepository()
 	ingConfig := customcost.DefaultIngestorConfiguration()
@@ -648,6 +652,7 @@ func InitializeCustomCost(router *httprouter.Router) *customcost.PipelineService
 
 	customCostQuerier := customcost.NewRepositoryQuerier(hourlyRepo, dailyRepo, ingConfig.HourlyDuration, ingConfig.DailyDuration)
 	customCostQueryService := customcost.NewQueryService(customCostQuerier)
+	customCostQueryService.CurrencyConverter = currencyConverter
 
 	router.GET("/customCost/total", customCostQueryService.GetCustomCostTotalHandler())
 	router.GET("/customCost/timeseries", customCostQueryService.GetCustomCostTimeseriesHandler())

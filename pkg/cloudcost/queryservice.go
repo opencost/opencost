@@ -7,12 +7,14 @@ import (
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
+	"github.com/opencost/opencost/pkg/currency"
 	"go.opentelemetry.io/otel"
 )
 
-const tracerName = "github.com/opencost/ooencost/pkg/cloudcost"
+const tracerName = "github.com/opencost/opencost/pkg/cloudcost"
 
 const (
 	csvFormat = "csv"
@@ -20,8 +22,9 @@ const (
 
 // QueryService surfaces endpoints for accessing CloudCost data in raw form or for display in views
 type QueryService struct {
-	Querier     Querier
-	ViewQuerier ViewQuerier
+	Querier           Querier
+	ViewQuerier       ViewQuerier
+	CurrencyConverter currency.Converter
 }
 
 func NewQueryService(querier Querier, viewQuerier ViewQuerier) *QueryService {
@@ -60,6 +63,16 @@ func (s *QueryService) GetCloudCostHandler() func(w http.ResponseWriter, r *http
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Internal server error: %s", err), http.StatusInternalServerError)
 			return
+		}
+
+		// Extract currency parameter and convert if needed
+		currencyParam := strings.ToUpper(strings.TrimSpace(qp.Get("currency", "USD")))
+		if currencyParam != "USD" && s.CurrencyConverter != nil && resp != nil {
+			err = convertCloudCostSetRange(resp, s.CurrencyConverter, currencyParam)
+			if err != nil {
+				log.Warnf("Currency conversion failed for currency %s: %v", currencyParam, err)
+				// Continue with USD values if conversion fails
+			}
 		}
 
 		_, spanResp := tracer.Start(ctx, "write response")
@@ -240,4 +253,54 @@ func (s *QueryService) GetCloudCostViewTableHandler(tokenHook func(ViewTableRows
 		w.Header().Set("Content-Type", "application/json")
 		protocol.WriteResponse(w, resp)
 	}
+}
+
+// convertCloudCostSetRange converts all cloud costs in a range from USD
+// to target currency in place. Returns an error if the target rate
+// cannot be looked up upfront (no mutation occurs). Per-field converter
+// failures after the probe succeeded are handled best-effort: the field
+// is left in USD and a warning is logged. Only CostMetric.Cost is
+// mutated; KubernetesPercent and other non-cost fields are untouched.
+func convertCloudCostSetRange(ccsr *opencost.CloudCostSetRange, converter currency.Converter, targetCurrency string) error {
+	if ccsr == nil || converter == nil {
+		return nil
+	}
+
+	targetCurrency = strings.ToUpper(strings.TrimSpace(targetCurrency))
+	if targetCurrency == "" || targetCurrency == "USD" {
+		return nil
+	}
+	if _, err := converter.GetRate("USD", targetCurrency); err != nil {
+		return fmt.Errorf("currency rate lookup USD->%s failed: %w", targetCurrency, err)
+	}
+
+	tryConvert := func(val float64, logCtx string) float64 {
+		if val == 0 {
+			return val
+		}
+		converted, err := converter.Convert(val, "USD", targetCurrency)
+		if err != nil {
+			log.Warnf("currency: leaving %s in USD (convert to %s failed): %v", logCtx, targetCurrency, err)
+			return val
+		}
+		return converted
+	}
+
+	for _, set := range ccsr.CloudCostSets {
+		if set == nil {
+			continue
+		}
+		for _, cc := range set.CloudCosts {
+			if cc == nil {
+				continue
+			}
+			cc.ListCost.Cost = tryConvert(cc.ListCost.Cost, "CloudCost.ListCost")
+			cc.NetCost.Cost = tryConvert(cc.NetCost.Cost, "CloudCost.NetCost")
+			cc.AmortizedNetCost.Cost = tryConvert(cc.AmortizedNetCost.Cost, "CloudCost.AmortizedNetCost")
+			cc.InvoicedCost.Cost = tryConvert(cc.InvoicedCost.Cost, "CloudCost.InvoicedCost")
+			cc.AmortizedCost.Cost = tryConvert(cc.AmortizedCost.Cost, "CloudCost.AmortizedCost")
+		}
+	}
+
+	return nil
 }
