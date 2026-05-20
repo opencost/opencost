@@ -1,10 +1,13 @@
 name: Debug Sign Predicate
 
 # Temporary workflow for validating the run-started-at fallback in
-# .github/actions/sign-image/action.yaml without invoking cosign. Runs
-# automatically on push to cdp/sign-image-debug. The matrix exercises
-# both the empty-input path (fallback should apply) and a populated
-# input. Delete this file before opening the real PR.
+# .github/actions/sign-image/action.yaml. Two layers of validation:
+#   1. Bash/Python predicate generation (matrix: empty + populated inputs).
+#   2. Real cosign attest against a public reference, with --no-upload and
+#      --tlog-upload=false, so we exercise cosign's actual predicate
+#      unmarshal (the code path that originally failed) without registry
+#      pushes or Rekor entries.
+# Delete this file before opening the real PR.
 
 on:
   push:
@@ -13,6 +16,8 @@ on:
 
 permissions:
   contents: read
+  id-token: write
+  packages: read
 
 jobs:
   generate-predicate:
@@ -95,7 +100,7 @@ jobs:
           print(json.dumps(predicate, indent=2))
           PY
 
-      - name: Dump and validate predicate
+      - name: Dump and validate predicate (RFC3339 proxy)
         shell: bash
         env:
           EXPECT_STARTED_ON: ${{ matrix.started_on }}
@@ -129,3 +134,16 @@ jobs:
           datetime.fromisoformat(got.replace("Z", "+00:00"))
           print("OK: startedOn present and parses as RFC3339")
           PY
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Validate predicate via real cosign attest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cosign attest --yes --no-upload --tlog-upload=false \
+            --predicate predicate.json \
+            --type slsaprovenance1 \
+            ghcr.io/opencost/opencost:latest > /dev/null
+          echo "OK: cosign attest accepted predicate (case=${{ matrix.case_name }})"
