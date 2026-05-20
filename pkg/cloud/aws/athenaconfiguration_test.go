@@ -827,3 +827,46 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 		})
 	}
 }
+
+func TestConvertAwsAthenaInfoToConfig_WithExternalID(t *testing.T) {
+	aai := AwsAthenaInfo{
+		AthenaBucketName: "bucket",
+		AthenaRegion:     "region",
+		AthenaDatabase:   "database",
+		AthenaTable:      "table",
+		AthenaWorkgroup:  "workgroup",
+		AccountID:        "account",
+		ServiceKeyName:   "id",
+		ServiceKeySecret: "secret",
+		MasterPayerARN:   "arn:aws:iam::123456789012:role/MyRole",
+		ExternalID:       "my-external-id",
+	}
+
+	result := ConvertAwsAthenaInfoToConfig(aai)
+	config, ok := result.(*AthenaConfiguration)
+	if !ok {
+		t.Fatal("result is not an AthenaConfiguration")
+	}
+
+	expected := &AthenaConfiguration{
+		Bucket:    "bucket",
+		Region:    "region",
+		Database:  "database",
+		Table:     "table",
+		Workgroup: "workgroup",
+		Account:   "account",
+		Authorizer: &AssumeRole{
+			ExternalID: "my-external-id",
+			Authorizer: &AccessKey{
+				ID:     "id",
+				Secret: "secret",
+			},
+			RoleARN: "arn:aws:iam::123456789012:role/MyRole",
+		},
+		CURVersion: "2.0",
+	}
+
+	if !expected.Equals(config) {
+		t.Error("config does not match expected")
+	}
+}

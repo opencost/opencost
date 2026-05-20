@@ -12,10 +12,12 @@ import (
 	"github.com/opencost/opencost/pkg/cloud"
 )
 
-const AccessKeyAuthorizerType = "AWSAccessKey"
-const ServiceAccountAuthorizerType = "AWSServiceAccount"
-const AssumeRoleAuthorizerType = "AWSAssumeRole"
-const WebIdentityAuthorizerType = "AWSWebIdentity"
+const (
+	AccessKeyAuthorizerType      = "AWSAccessKey"
+	ServiceAccountAuthorizerType = "AWSServiceAccount"
+	AssumeRoleAuthorizerType     = "AWSAssumeRole"
+	WebIdentityAuthorizerType    = "AWSWebIdentity"
+)
 
 // Authorizer implementations provide aws.Config for AWS SDK calls
 type Authorizer interface {
@@ -149,6 +151,7 @@ func (sa *ServiceAccount) CreateAWSConfig(region string) (aws.Config, error) {
 
 // AssumeRole is a wrapper for another Authorizer which adds an assumed role to the configuration
 type AssumeRole struct {
+	ExternalID string     `json:"externalID"`
 	Authorizer Authorizer `json:"authorizer"`
 	RoleARN    string     `json:"roleARN"`
 }
@@ -157,6 +160,7 @@ type AssumeRole struct {
 func (ara *AssumeRole) MarshalJSON() ([]byte, error) {
 	fmap := make(map[string]any, 3)
 	fmap[cloud.AuthorizerTypeProperty] = AssumeRoleAuthorizerType
+	fmap["externalID"] = ara.ExternalID
 	fmap["roleARN"] = ara.RoleARN
 	fmap["authorizer"] = ara.Authorizer
 	return json.Marshal(fmap)
@@ -171,6 +175,11 @@ func (ara *AssumeRole) UnmarshalJSON(b []byte) error {
 	}
 
 	fmap := f.(map[string]interface{})
+
+	externalID, err := cloud.GetInterfaceValue[string](fmap, "externalID")
+	if err == nil {
+		ara.ExternalID = externalID
+	}
 
 	roleARN, err := cloud.GetInterfaceValue[string](fmap, "roleARN")
 	if err != nil {
@@ -196,7 +205,16 @@ func (ara *AssumeRole) CreateAWSConfig(region string) (aws.Config, error) {
 	// Create the credentials from AssumeRoleProvider to assume the role
 	// referenced by the RoleARN.
 	stsSvc := sts.NewFromConfig(cfg)
-	creds := stscreds.NewAssumeRoleProvider(stsSvc, ara.RoleARN)
+
+	var creds *stscreds.AssumeRoleProvider
+	if ara.ExternalID != "" {
+		creds = stscreds.NewAssumeRoleProvider(stsSvc, ara.RoleARN, func(o *stscreds.AssumeRoleOptions) {
+			o.ExternalID = aws.String(ara.ExternalID)
+		})
+	} else {
+		creds = stscreds.NewAssumeRoleProvider(stsSvc, ara.RoleARN)
+	}
+
 	cfg.Credentials = aws.NewCredentialsCache(creds)
 	return cfg, nil
 }
@@ -239,11 +257,16 @@ func (ara *AssumeRole) Equals(config cloud.Config) bool {
 		return false
 	}
 
+	if ara.ExternalID != thatConfig.ExternalID {
+		return false
+	}
+
 	return true
 }
 
 func (ara *AssumeRole) Sanitize() cloud.Config {
 	return &AssumeRole{
+		ExternalID: ara.ExternalID,
 		Authorizer: ara.Authorizer.Sanitize().(Authorizer),
 		RoleARN:    ara.RoleARN,
 	}
@@ -327,7 +350,6 @@ func (wea *WebIdentity) UnmarshalJSON(b []byte) error {
 }
 
 func (wea *WebIdentity) Validate() error {
-
 	if wea.RoleARN == "" {
 		return fmt.Errorf("WebIdentity: missing RoleARN configuration")
 	}

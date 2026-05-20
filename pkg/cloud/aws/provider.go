@@ -81,7 +81,6 @@ var (
 )
 
 func (aws *AWS) PricingSourceStatus() map[string]*models.PricingSource {
-
 	sources := make(map[string]*models.PricingSource)
 
 	sps := &models.PricingSource{
@@ -123,7 +122,6 @@ func (aws *AWS) PricingSourceStatus() map[string]*models.PricingSource {
 	}
 	sources[ReservedInstancePricingSource] = rps
 	return sources
-
 }
 
 // SpotRefreshDuration represents how much time must pass before we refresh
@@ -329,8 +327,10 @@ var OnDemandRateCodesCn = map[string]struct{}{
 }
 
 // HourlyRateCode is appended to a node sku
-const HourlyRateCode = "6YS6EN2CT7"
-const HourlyRateCodeCn = "Q7UJUT2CE6"
+const (
+	HourlyRateCode   = "6YS6EN2CT7"
+	HourlyRateCodeCn = "Q7UJUT2CE6"
+)
 
 // volTypes are used to map between AWS UsageTypes and
 // EBS volume types, as they would appear in K8s storage class
@@ -353,8 +353,10 @@ var volTypes = map[string]string{
 	"io2":                    "EBS:VolumeUsage.io2",
 }
 
-var loadedAWSSecret bool = false
-var awsSecret *AWSAccessKey = nil
+var (
+	loadedAWSSecret bool          = false
+	awsSecret       *AWSAccessKey = nil
+)
 
 // KubeAttrConversion maps the k8s labels for region to an AWS key
 func (aws *AWS) KubeAttrConversion(region, instanceType, operatingSystem string) string {
@@ -387,6 +389,7 @@ type AwsAthenaInfo struct {
 	ServiceKeyName   string `json:"serviceKeyName"`
 	ServiceKeySecret string `json:"serviceKeySecret"`
 	AccountID        string `json:"projectID"`
+	ExternalID       string `json:"externalID"`
 	MasterPayerARN   string `json:"masterPayerARN"`
 	CURVersion       string `json:"curVersion"` // "1.0" or "2.0", defaults to "2.0" if not specified
 }
@@ -402,6 +405,7 @@ func (aai *AwsAthenaInfo) IsEmpty() bool {
 		aai.ServiceKeyName == "" &&
 		aai.ServiceKeySecret == "" &&
 		aai.AccountID == "" &&
+		aai.ExternalID == "" &&
 		aai.MasterPayerARN == ""
 }
 
@@ -416,7 +420,15 @@ func (aai *AwsAthenaInfo) CreateConfig() (awsSDK.Config, error) {
 		// Create the credentials from AssumeRoleProvider to assume the role
 		// referenced by the roleARN.
 		stsSvc := sts.NewFromConfig(cfg)
-		creds := stscreds.NewAssumeRoleProvider(stsSvc, aai.MasterPayerARN)
+		var creds *stscreds.AssumeRoleProvider
+
+		if aai.ExternalID != "" {
+			creds = stscreds.NewAssumeRoleProvider(stsSvc, aai.MasterPayerARN, func(o *stscreds.AssumeRoleOptions) {
+				o.ExternalID = awsSDK.String(aai.ExternalID)
+			})
+		} else {
+			creds = stscreds.NewAssumeRoleProvider(stsSvc, aai.MasterPayerARN)
+		}
 		cfg.Credentials = awsSDK.NewCredentialsCache(creds)
 	}
 	return cfg, nil
@@ -466,7 +478,7 @@ func (aws *AWS) GetAWSAccessKey() (*AWSAccessKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error configuring Cloud Provider %s", err)
 	}
-	//Look for service key values in env if not present in config
+	// Look for service key values in env if not present in config
 	if config.ServiceKeyName == "" {
 		config.ServiceKeyName = env.GetAWSAccessKeyID()
 	}
@@ -502,6 +514,7 @@ func (aws *AWS) GetAWSAthenaInfo() (*AwsAthenaInfo, error) {
 		AthenaWorkgroup:  config.AthenaWorkgroup,
 		ServiceKeyName:   aak.AccessKeyID,
 		ServiceKeySecret: aak.SecretAccessKey,
+		ExternalID:       config.MasterPayerExternalID,
 		AccountID:        config.AthenaProjectID,
 		MasterPayerARN:   config.MasterPayerARN,
 		CURVersion:       config.AthenaCURVersion,
@@ -560,6 +573,9 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 			c.ServiceKeyName = aai.ServiceKeyName
 			if aai.ServiceKeySecret != "" {
 				c.ServiceKeySecret = aai.ServiceKeySecret
+			}
+			if aai.ExternalID != "" {
+				c.MasterPayerExternalID = aai.ExternalID
 			}
 			if aai.MasterPayerARN != "" {
 				c.MasterPayerARN = aai.MasterPayerARN
@@ -627,7 +643,6 @@ func (k *awsKey) ID() string {
 // If the node has a spot label, it will be included in the list
 // Otherwise, the list include instance type, operating system, and the region
 func (k *awsKey) Features() string {
-
 	instanceType, _ := util.GetInstanceType(k.Labels)
 	operatingSystem, _ := util.GetOperatingSystem(k.Labels)
 	region, _ := util.GetRegion(k.Labels)
@@ -775,7 +790,6 @@ func (aws *AWS) ClusterManagementPricing() (string, float64, error) {
 
 // Use the pricing data from the current region. Fall back to using all region data if needed.
 func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response, string, error) {
-
 	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/"
 	region := ""
 	multiregion := false
@@ -1467,7 +1481,6 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 
 // ClusterInfo returns an object that represents the cluster. TODO: actually return the name of the cluster. Blocked on cluster federation.
 func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
-
 	c, err := awsProvider.GetConfig()
 	if err != nil {
 		return nil, err
@@ -1676,7 +1689,6 @@ func (aws *AWS) getAllAddresses() ([]*ec2Types.Address, error) {
 			a := add // duplicate to avoid pointer to iterator
 			addresses = append(addresses, &a)
 		}
-
 	}
 
 	var errs []error
@@ -1942,7 +1954,7 @@ func (aws *AWS) GetOrphanedResources() ([]models.OrphanedResource, error) {
 }
 
 func (aws *AWS) findCostForDisk(disk *ec2Types.Volume) (*float64, error) {
-	//todo: use AWS pricing from all regions
+	// todo: use AWS pricing from all regions
 	if disk.AvailabilityZone == nil {
 		return nil, fmt.Errorf("nil region")
 	}
@@ -2295,7 +2307,6 @@ type spotInfo struct {
 }
 
 func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, region string) (map[string]*spotInfo, error) {
-
 	aws.ConfigureAuth() // configure aws api authentication by setting env vars
 
 	s3Prefix := projectID
@@ -2458,7 +2469,6 @@ func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, re
 
 // ApplyReservedInstancePricing TODO
 func (aws *AWS) ApplyReservedInstancePricing(nodes map[string]*models.Node) {
-
 }
 
 func (aws *AWS) ServiceAccountStatus() *models.ServiceAccountStatus {
@@ -2471,7 +2481,6 @@ func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool,
 
 // Regions returns a predefined list of AWS regions
 func (aws *AWS) Regions() []string {
-
 	regionOverrides := env.GetRegionOverrideList()
 
 	if len(regionOverrides) > 0 {

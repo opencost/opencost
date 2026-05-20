@@ -22,7 +22,6 @@ type AthenaConfiguration struct {
 }
 
 func (ac *AthenaConfiguration) Validate() error {
-
 	// Validate Authorizer
 	if ac.Authorizer == nil {
 		return fmt.Errorf("AthenaConfiguration: missing Authorizer")
@@ -236,6 +235,7 @@ func ConvertAwsAthenaInfoToConfig(aai AwsAthenaInfo) cloud.KeyedConfig {
 	// Wrap Authorizer with AssumeRole if MasterPayerArn is set
 	if aai.MasterPayerARN != "" {
 		authorizer = &AssumeRole{
+			ExternalID: aai.ExternalID,
 			Authorizer: authorizer,
 			RoleARN:    aai.MasterPayerARN,
 		}

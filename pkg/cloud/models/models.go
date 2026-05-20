@@ -14,9 +14,7 @@ import (
 	"github.com/opencost/opencost/pkg/config"
 )
 
-var (
-	sanitizePolicy = bluemonday.UGCPolicy()
-)
+var sanitizePolicy = bluemonday.UGCPolicy()
 
 const (
 	AuthSecretPath                 = "/var/secrets/service-key.json"
@@ -163,6 +161,7 @@ type CustomPricing struct {
 	AthenaTable                  string `json:"athenaTable"`
 	AthenaWorkgroup              string `json:"athenaWorkgroup"`
 	MasterPayerARN               string `json:"masterPayerARN"`
+	MasterPayerExternalID        string `json:"masterPayerExternalID"`
 	AthenaCURVersion             string `json:"athenaCURVersion,omitempty"` // "1.0" or "2.0", defaults to "2.0"
 	BillingDataDataset           string `json:"billingDataDataset,omitempty"`
 	CustomPricesEnabled          string `json:"customPricesEnabled"`
