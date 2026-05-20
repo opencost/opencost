@@ -68,6 +68,35 @@ const (
 	NoneLabelValue = "<none>"
 )
 
+type UIDValueResult struct {
+	UID   string
+	Value float64
+}
+
+func DecodeUIDValueResult(result *QueryResult) *UIDValueResult {
+	return decodeValueResult(result, UIDLabel)
+}
+
+type NodeUIDValueResult UIDValueResult
+
+func DecodeNodeUIDValueResult(result *QueryResult) *NodeUIDValueResult {
+	return (*NodeUIDValueResult)(decodeValueResult(result, NodeUIDLabel))
+}
+
+func decodeValueResult(result *QueryResult, uidLabel string) *UIDValueResult {
+	uid, _ := result.GetString(uidLabel)
+	var value float64
+	if len(result.Values) > 0 {
+		value = result.Values[0].Value
+	} else {
+		log.Warnf("Error decoding value for uid '%s': empty value returned", uid)
+	}
+	return &UIDValueResult{
+		UID:   uid,
+		Value: value,
+	}
+}
+
 // UptimeResult represents the first and last recorded sample timestamp within the query window
 type UptimeResult struct {
 	UID   string

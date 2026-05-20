@@ -17,6 +17,10 @@ type MetricsQuerier interface {
 	QueryLocalStorageUsedMax(start, end time.Time) *Future[LocalStorageUsedMaxResult]
 	QueryLocalStorageBytes(start, end time.Time) *Future[LocalStorageBytesResult]
 
+	QueryKMLocalStorageUsedAvg(start, end time.Time) *Future[NodeUIDValueResult]
+	QueryKMLocalStorageUsedMax(start, end time.Time) *Future[NodeUIDValueResult]
+	QueryKMLocalStorageBytes(start, end time.Time) *Future[UIDValueResult]
+
 	// Nodes
 	QueryNodeInfo(start, end time.Time) *Future[NodeInfoResult]
 	QueryNodeUptime(start, end time.Time) *Future[UptimeResult]
@@ -93,6 +97,7 @@ type MetricsQuerier interface {
 	QueryPodPVCAllocation(start, end time.Time) *Future[PodPVCAllocationResult]
 	QueryPVCBytesRequested(start, end time.Time) *Future[PVCBytesRequestedResult]
 	QueryPVCInfo(start, end time.Time) *Future[PVCInfoResult]
+	QueryKMPVCInfo(start, end time.Time) *Future[PVCInfoResult]
 	QueryPVCUptime(start, end time.Time) *Future[UptimeResult]
 
 	// PV

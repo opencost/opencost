@@ -197,7 +197,6 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 	nodeInfoResultFuture := source.WithGroup(grp, metrics.QueryNodeInfo(start, end))
 	nodeUptimeResultFuture := source.WithGroup(grp, metrics.QueryNodeUptime(start, end))
 	nodeLabelsResultFuture := source.WithGroup(grp, metrics.QueryNodeLabels(start, end))
-	// TODO make sure that UID is being populated correctly here
 	nodeIsSpotResultFuture := source.WithGroup(grp, metrics.QueryNodeIsSpot(start, end))
 	nodeResourceCapacitiesFuture := source.WithGroup(grp, metrics.QueryNodeResourceCapacities(start, end))
 	nodeResourcesAllocatableFuture := source.WithGroup(grp, metrics.QueryNodeResourcesAllocatable(start, end))

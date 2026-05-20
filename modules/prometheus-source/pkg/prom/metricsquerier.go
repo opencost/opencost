@@ -129,6 +129,24 @@ func (pds *PrometheusMetricsQuerier) QueryPVCInfo(start, end time.Time) *source.
 	return source.NewFuture(source.DecodePVCInfoResult, ctx.QueryAtTime(queryPVCInfo, end))
 }
 
+func (pds *PrometheusMetricsQuerier) QueryKMPVCInfo(start, end time.Time) *source.Future[source.PVCInfoResult] {
+	const queryName = "QueryKMPVCInfo"
+	const queryFmt = `avg(avg_over_time(kube_persistentvolumeclaim_info{volumename != "", %s}[%s])) by (uid, namespace_uid, persistentvolumeclaim, namespace, storageclass, volumename, persistentvolume_uid, %s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	q := fmt.Sprintf(queryFmt, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), q)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodePVCInfoResult, ctx.QueryAtTime(q, end))
+}
+
 func (pds *PrometheusMetricsQuerier) QueryPVActiveMinutes(start, end time.Time) *source.Future[source.PVActiveMinutesResult] {
 	const queryName = "QueryPVActiveMinutes"
 	const pvActiveMinsQuery = `avg(kube_persistentvolume_capacity_bytes{%s}) by (%s, persistentvolume, uid)[%s:%dm]`
@@ -201,6 +219,61 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageBytes(start, end time.Time
 
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
 	return source.NewFuture(source.DecodeLocalStorageBytesResult, ctx.QueryAtTime(queryLocalStorageBytes, end))
+}
+
+func (pds *PrometheusMetricsQuerier) QueryKMLocalStorageUsedAvg(start, end time.Time) *source.Future[source.NodeUIDValueResult] {
+	const queryName = "QueryKMLocalStorageUsedAvg"
+	const queryFmt = `avg(avg_over_time(container_fs_usage_bytes{%s}[%s])) by (node_uid, %s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	q := fmt.Sprintf(queryFmt, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), q)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeNodeUIDValueResult, ctx.QueryAtTime(q, end))
+}
+
+func (pds *PrometheusMetricsQuerier) QueryKMLocalStorageUsedMax(start, end time.Time) *source.Future[source.NodeUIDValueResult] {
+	const queryName = "QueryKMLocalStorageUsedMax"
+	const queryFmt = `max(max_over_time(container_fs_usage_bytes{%s}[%s])) by (node_uid, %s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	q := fmt.Sprintf(queryFmt, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), q)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeNodeUIDValueResult, ctx.QueryAtTime(q, end))
+}
+
+func (pds *PrometheusMetricsQuerier) QueryKMLocalStorageBytes(start, end time.Time) *source.Future[source.UIDValueResult] {
+	const queryName = "QueryKMLocalStorageBytes"
+	const queryFmt = `avg_over_time(node_fs_capacity_bytes{%s}[%s:%dm]) by (uid, %s)`
+
+	cfg := pds.promConfig
+	minsPerResolution := cfg.DataResolutionMinutes
+
+	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	q := fmt.Sprintf(queryFmt, cfg.ClusterFilter, durStr, minsPerResolution, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), q)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeUIDValueResult, ctx.QueryAtTime(q, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryLocalStorageActiveMinutes(start, end time.Time) *source.Future[source.LocalStorageActiveMinutesResult] {
