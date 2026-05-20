@@ -544,6 +544,10 @@ func (dq *dummyQuerier) Query(_ context.Context, req cloudcost.QueryRequest) (*o
 	return ccsr, nil
 }
 
+func (dq *dummyQuerier) QueryCloudCostAutocomplete(_ context.Context, _ cloudcost.CloudCostAutocompleteRequest) (*cloudcost.CloudCostAutocompleteResponse, error) {
+	return &cloudcost.CloudCostAutocompleteResponse{Data: []string{}}, nil
+}
+
 func TestBuildCloudCostQueryRequest_AccumulateParsing(t *testing.T) {
 	s := &MCPServer{}
 	req := cloudcost.QueryRequest{}
@@ -1478,6 +1482,16 @@ func (caq *contextAwareQuerier) Query(ctx context.Context, req cloudcost.QueryRe
 		// Return empty set range
 		ccsr, _ := opencost.NewCloudCostSetRange(time.Now().Add(-24*time.Hour), time.Now(), opencost.AccumulateOptionDay, "")
 		return ccsr, nil
+	}
+}
+
+func (caq *contextAwareQuerier) QueryCloudCostAutocomplete(ctx context.Context, _ cloudcost.CloudCostAutocompleteRequest) (*cloudcost.CloudCostAutocompleteResponse, error) {
+	select {
+	case <-ctx.Done():
+		caq.contextWasCancelled = true
+		return nil, ctx.Err()
+	default:
+		return &cloudcost.CloudCostAutocompleteResponse{Data: []string{}}, nil
 	}
 }
 
