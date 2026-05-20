@@ -142,7 +142,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cosign attest --yes --no-upload --tlog-upload=false \
+          # --tlog-upload=false is rejected in modern cosign; build a signing
+          # config from the public one with the rekor URLs stripped so the
+          # attestation skips the transparency log.
+          curl -sSL https://raw.githubusercontent.com/sigstore/root-signing/refs/heads/main/targets/signing_config.v0.2.json \
+            | jq 'del(.rekorTlogUrls)' > signing_config.json
+          cosign attest --yes --no-upload --signing-config signing_config.json \
             --predicate predicate.json \
             --type slsaprovenance1 \
             ghcr.io/opencost/opencost:latest > /dev/null
