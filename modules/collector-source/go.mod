@@ -9,8 +9,8 @@ require (
 	github.com/kubecost/events v0.0.8
 	github.com/opencost/opencost/core v0.0.0-20250521155634-81d2b597d1bc
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
-	k8s.io/api v0.36.0
-	k8s.io/apimachinery v0.36.0
+	k8s.io/api v0.36.1
+	k8s.io/apimachinery v0.36.1
 	k8s.io/kubelet v0.36.0
 )
 
