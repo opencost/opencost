@@ -1,11 +1,10 @@
 package digitalocean
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"io"
 	"math"
-	"net/http"
 	"regexp"
 	"sort"
 	"strconv"
@@ -13,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/digitalocean/godo"
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/cloud/models"
@@ -33,6 +33,7 @@ type DOKS struct {
 	Config                models.ProviderConfig
 	Clientset             clustercache.ClusterCache
 	ClusterManagementCost float64
+	client                *godo.Client // DigitalOcean API client for fetching sizes
 }
 
 type PricingCache struct {
@@ -108,10 +109,18 @@ type DOMeta struct {
 }
 
 func NewDOKSProvider(pricingURL string) *DOKS {
+	// Create a godo client for API requests
+	var client *godo.Client
+	token := env.GetDigitalOceanAccessToken()
+	if token != "" {
+		client = godo.NewFromToken(token)
+	}
+
 	return &DOKS{
 		PricingURL: pricingURL,
 		Cache:      &PricingCache{},
 		Sizes:      make(map[string]*DOSize),
+		client:     client,
 	}
 }
 
@@ -132,66 +141,99 @@ func (do *DOKS) fetchPricingData() (*DOResponse, error) {
 		return do.Cache.data, nil
 	}
 
-	pricingURL := do.PricingURL
-	if pricingURL == "" {
-		pricingURL = env.GetDOKSPricingURL()
-	}
-	log.Infof("Fetching DigitalOcean sizes from: %s", pricingURL)
-
-	// Create request with authentication
-	req, err := http.NewRequest("GET", pricingURL, nil)
-	if err != nil {
-		log.Warnf("Failed to create request: %v", err)
-		return nil, fmt.Errorf("failed to create request: %w", err)
+	// Check if godo client is available
+	if do.client == nil {
+		token := env.GetDigitalOceanAccessToken()
+		if token == "" {
+			log.Errorf("DigitalOcean API requires authentication. Set DIGITALOCEAN_ACCESS_TOKEN or CLOUD_PROVIDER_API_KEY environment variable with your DigitalOcean Personal Access Token")
+			return nil, fmt.Errorf("DigitalOcean authentication required: set DIGITALOCEAN_ACCESS_TOKEN or CLOUD_PROVIDER_API_KEY environment variable")
+		}
+		do.client = godo.NewFromToken(token)
 	}
 
-	// Authentication is required for the DigitalOcean sizes API
-	token := env.GetDigitalOceanAccessToken()
-	if token == "" {
-		log.Errorf("DigitalOcean API requires authentication. Set DIGITALOCEAN_ACCESS_TOKEN or CLOUD_PROVIDER_API_KEY environment variable with your DigitalOcean Personal Access Token")
-		return nil, fmt.Errorf("DigitalOcean authentication required: set DIGITALOCEAN_ACCESS_TOKEN or CLOUD_PROVIDER_API_KEY environment variable")
+	log.Infof("Fetching DigitalOcean sizes using godo client")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Fetch all sizes with pagination
+	var allSizes []godo.Size
+	opt := &godo.ListOptions{}
+
+	for {
+		sizes, resp, err := do.client.Sizes.List(ctx, opt)
+		if err != nil {
+			log.Warnf("Failed to fetch sizes from DigitalOcean: %v", err)
+			return nil, fmt.Errorf("sizes API fetch error: %w", err)
+		}
+
+		// Append current page's sizes to our list
+		allSizes = append(allSizes, sizes...)
+		log.Debugf("Fetched page %d with %d sizes", opt.Page, len(sizes))
+
+		// Check if we're at the last page
+		if resp.Links == nil || resp.Links.IsLastPage() {
+			break
+		}
+
+		// Get the next page number
+		page, err := resp.Links.CurrentPage()
+		if err != nil {
+			log.Warnf("Failed to get current page number: %v", err)
+			break
+		}
+
+		// Set the page for the next request
+		opt.Page = page + 1
 	}
-
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	req.Header.Set("Content-Type", "application/json")
-	log.Debugf("Using authenticated DigitalOcean API request")
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Warnf("Failed to fetch sizes from DigitalOcean: %v", err)
-		return nil, fmt.Errorf("sizes API fetch error: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		log.Warnf("Sizes API returned unexpected status: %d", resp.StatusCode)
-		return nil, fmt.Errorf("sizes API returned status: %d", resp.StatusCode)
-	}
-
-	var data DOResponse
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		log.Errorf("Failed to decode sizes JSON: %v", err)
-		return nil, fmt.Errorf("failed to decode sizes response: %w", err)
-	}
-
-	// TODO: handle pagination
 
 	// Index sizes by slug for quick lookup
 	sizesMap := make(map[string]*DOSize)
-	for i := range data.Sizes {
-		size := &data.Sizes[i]
-		sizesMap[size.Slug] = size
+	for _, godoSize := range allSizes {
+		doSize := &DOSize{
+			Slug:         godoSize.Slug,
+			Memory:       godoSize.Memory,
+			VCPUs:        godoSize.Vcpus,
+			Disk:         godoSize.Disk,
+			Transfer:     godoSize.Transfer,
+			PriceMonthly: godoSize.PriceMonthly,
+			PriceHourly:  godoSize.PriceHourly,
+			Regions:      godoSize.Regions,
+			Available:    godoSize.Available,
+			Description:  godoSize.Description,
+		}
+
+		// Convert GPU info if present
+		if godoSize.GPUInfo != nil {
+			doSize.GPUInfo = DOGPUInfo{
+				Count: godoSize.GPUInfo.Count,
+				Model: godoSize.GPUInfo.Model,
+				VRAM: DOGPUVRAM{
+					Amount: godoSize.GPUInfo.VRAM.Amount,
+					Unit:   godoSize.GPUInfo.VRAM.Unit,
+				},
+			}
+		}
+
+		sizesMap[doSize.Slug] = doSize
 		log.Debugf("Indexing size: Slug=%s, VCPUs=%d, Memory=%dMB, PriceHourly=$%.5f",
-			size.Slug, size.VCPUs, size.Memory, size.PriceHourly)
+			doSize.Slug, doSize.VCPUs, doSize.Memory, doSize.PriceHourly)
+	}
+
+	// Create a DOResponse for caching
+	cachedResponse := &DOResponse{
+		Sizes: make([]DOSize, 0, len(allSizes)),
+	}
+	for _, size := range sizesMap {
+		cachedResponse.Sizes = append(cachedResponse.Sizes, *size)
 	}
 
 	// Cache and return
 	do.Sizes = sizesMap
-	do.Cache.data = &data
+	do.Cache.data = cachedResponse
 	do.Cache.lastUpdate = time.Now()
 
-	log.Infof("Successfully updated DigitalOcean pricing cache (%d sizes)", len(data.Sizes))
+	log.Infof("Successfully updated DigitalOcean pricing cache (%d sizes)", len(allSizes))
 	return do.Cache.data, nil
 }
 
