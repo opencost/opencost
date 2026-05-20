@@ -53,7 +53,9 @@ const (
 
 	APIPricingSource              = "Public API"
 	SpotPricingSource             = "Spot Data Feed"
+	SpotPriceHistorySource        = "Spot Price History"
 	ReservedInstancePricingSource = "Savings Plan, Reserved Instance, and Out-Of-Cluster"
+	FargatePricingSource          = "Fargate"
 
 	InUseState    = "in-use"
 	AttachedState = "attached"
@@ -61,6 +63,13 @@ const (
 	AWSHourlyPublicIPCost    = 0.005
 	EKSCapacityTypeLabel     = "eks.amazonaws.com/capacityType"
 	EKSCapacitySpotTypeValue = "SPOT"
+
+	// relevant to pricing url
+	awsPricingBaseURL      = "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/"
+	awsChinaPricingBaseURL = "https://pricing.cn-north-1.amazonaws.com.cn/offers/v1.0/cn/"
+	pricingCurrentPath     = "/current/"
+	pricingIndexFile       = "index.json"
+	chinaRegionPrefix      = "cn-"
 )
 
 var (
@@ -88,11 +97,7 @@ func (aws *AWS) PricingSourceStatus() map[string]*models.PricingSource {
 		Enabled: true,
 	}
 
-	if !aws.SpotRefreshEnabled() {
-		sps.Available = false
-		sps.Error = "Spot instances not set up"
-		sps.Enabled = false
-	} else {
+	if aws.SpotFeedRefreshEnabled() {
 		sps.Error = ""
 		if aws.SpotPricingError != nil {
 			sps.Error = aws.SpotPricingError.Error()
@@ -104,8 +109,27 @@ func (aws *AWS) PricingSourceStatus() map[string]*models.PricingSource {
 		} else {
 			sps.Error = "No spot instances detected"
 		}
+	} else {
+		sps.Available = false
+		sps.Error = "Spot instances not set up"
+		sps.Enabled = false
 	}
 	sources[SpotPricingSource] = sps
+
+	sphs := &models.PricingSource{
+		Name:    SpotPriceHistorySource,
+		Enabled: true,
+	}
+	if aws.SpotPriceHistoryError != nil {
+		sphs.Error = aws.SpotPriceHistoryError.Error()
+		sphs.Available = false
+	} else if aws.SpotPriceHistoryCache == nil {
+		sphs.Error = "Not yet initialized"
+		sphs.Available = false
+	} else {
+		sphs.Available = true
+	}
+	sources[SpotPriceHistorySource] = sphs
 
 	rps := &models.PricingSource{
 		Name:    ReservedInstancePricingSource,
@@ -121,6 +145,18 @@ func (aws *AWS) PricingSourceStatus() map[string]*models.PricingSource {
 		rps.Available = true
 	}
 	sources[ReservedInstancePricingSource] = rps
+
+	fs := &models.PricingSource{
+		Name:      FargatePricingSource,
+		Enabled:   true,
+		Available: true,
+	}
+	if aws.FargatePricingError != nil {
+		fs.Error = aws.FargatePricingError.Error()
+		fs.Available = false
+	}
+	sources[FargatePricingSource] = fs
+
 	return sources
 }
 
@@ -165,6 +201,8 @@ type AWS struct {
 	SpotRefreshRunning          bool
 	SpotPricingLock             sync.RWMutex
 	SpotPricingError            error
+	SpotPriceHistoryCache       *SpotPriceHistoryCache
+	SpotPriceHistoryError       error
 	RIPricingByInstanceID       map[string]*RIData
 	RIPricingError              error
 	RIDataRunning               bool
@@ -172,6 +210,8 @@ type AWS struct {
 	SavingsPlanDataByInstanceID map[string]*SavingsPlanData
 	SavingsPlanDataRunning      bool
 	SavingsPlanDataLock         sync.RWMutex
+	FargatePricing              *FargatePricing
+	FargatePricingError         error
 	ValidPricingKeys            map[string]bool
 	Clientset                   clustercache.ClusterCache
 	BaseCPUPrice                string
@@ -391,7 +431,6 @@ type AwsAthenaInfo struct {
 	AccountID        string `json:"projectID"`
 	ExternalID       string `json:"externalID"`
 	MasterPayerARN   string `json:"masterPayerARN"`
-	CURVersion       string `json:"curVersion"` // "1.0" or "2.0", defaults to "2.0" if not specified
 }
 
 // IsEmpty returns true if all fields in config are empty, false if not.
@@ -461,9 +500,6 @@ func (aws *AWS) GetConfig() (*models.CustomPricing, error) {
 	if c.NegotiatedDiscount == "" {
 		c.NegotiatedDiscount = "0%"
 	}
-	if c.ShareTenancyCosts == "" {
-		c.ShareTenancyCosts = models.DefaultShareTenancyCost
-	}
 
 	return c, nil
 }
@@ -479,18 +515,18 @@ func (aws *AWS) GetAWSAccessKey() (*AWSAccessKey, error) {
 		return nil, fmt.Errorf("error configuring Cloud Provider %s", err)
 	}
 	// Look for service key values in env if not present in config
-	if config.ServiceKeyName == "" {
-		config.ServiceKeyName = env.GetAWSAccessKeyID()
+	if config.AwsServiceKeyName == "" {
+		config.AwsServiceKeyName = env.GetAWSAccessKeyID()
 	}
-	if config.ServiceKeySecret == "" {
-		config.ServiceKeySecret = env.GetAWSAccessKeySecret()
+	if config.AwsServiceKeySecret == "" {
+		config.AwsServiceKeySecret = env.GetAWSAccessKeySecret()
 	}
 
-	if config.ServiceKeyName == "" && config.ServiceKeySecret == "" {
+	if config.AwsServiceKeyName == "" && config.AwsServiceKeySecret == "" {
 		log.DedupedInfof(1, "missing service key values for AWS cloud integration attempting to use service account integration")
 	}
 
-	return &AWSAccessKey{AccessKeyID: config.ServiceKeyName, SecretAccessKey: config.ServiceKeySecret}, nil
+	return &AWSAccessKey{AccessKeyID: config.AwsServiceKeyName, SecretAccessKey: config.AwsServiceKeySecret}, nil
 }
 
 // GetAWSAthenaInfo generate an AWSAthenaInfo object from the config
@@ -517,7 +553,6 @@ func (aws *AWS) GetAWSAthenaInfo() (*AwsAthenaInfo, error) {
 		ExternalID:       config.MasterPayerExternalID,
 		AccountID:        config.AthenaProjectID,
 		MasterPayerARN:   config.MasterPayerARN,
-		CURVersion:       config.AthenaCURVersion,
 	}, nil
 }
 
@@ -525,43 +560,32 @@ func (aws *AWS) UpdateConfigFromConfigMap(cm map[string]string) (*models.CustomP
 	return aws.Config.UpdateFromMap(cm)
 }
 
-func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPricing, error) {
-	return aws.Config.Update(func(c *models.CustomPricing) error {
-		if updateType == SpotInfoUpdateType {
+func configUpdaterWithReaderAndType(r io.Reader, updateType string) func(c *models.CustomPricing) error {
+	return func(c *models.CustomPricing) error {
+		switch updateType {
+		case SpotInfoUpdateType:
 			asfi := AwsSpotFeedInfo{}
 			err := json.NewDecoder(r).Decode(&asfi)
 			if err != nil {
 				return err
 			}
 
-			// If the sample nil service key name is set, zero it out so that it is not
-			// misinterpreted as a real service key.
-			if asfi.ServiceKeyName == "AKIXXX" {
-				asfi.ServiceKeyName = ""
-			}
-
-			c.ServiceKeyName = asfi.ServiceKeyName
+			c.AwsServiceKeyName = asfi.ServiceKeyName
 			if asfi.ServiceKeySecret != "" {
-				c.ServiceKeySecret = asfi.ServiceKeySecret
+				c.AwsServiceKeySecret = asfi.ServiceKeySecret
 			}
-			c.SpotDataPrefix = asfi.Prefix
-			c.SpotDataBucket = asfi.BucketName
+			c.AwsSpotDataPrefix = asfi.Prefix
+			c.AwsSpotDataBucket = asfi.BucketName
 			c.ProjectID = asfi.AccountID
-			c.SpotDataRegion = asfi.Region
+			c.AwsSpotDataRegion = asfi.Region
 			c.SpotLabel = asfi.SpotLabel
 			c.SpotLabelValue = asfi.SpotLabelValue
 
-		} else if updateType == AthenaInfoUpdateType {
+		case AthenaInfoUpdateType:
 			aai := AwsAthenaInfo{}
 			err := json.NewDecoder(r).Decode(&aai)
 			if err != nil {
 				return err
-			}
-
-			// If the sample nil service key name is set, zero it out so that it is not
-			// misinterpreted as a real service key.
-			if aai.ServiceKeyName == "AKIXXX" {
-				aai.ServiceKeyName = ""
 			}
 
 			c.AthenaBucketName = aai.AthenaBucketName
@@ -570,9 +594,9 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 			c.AthenaCatalog = aai.AthenaCatalog
 			c.AthenaTable = aai.AthenaTable
 			c.AthenaWorkgroup = aai.AthenaWorkgroup
-			c.ServiceKeyName = aai.ServiceKeyName
+			c.AwsServiceKeyName = aai.ServiceKeyName
 			if aai.ServiceKeySecret != "" {
-				c.ServiceKeySecret = aai.ServiceKeySecret
+				c.AwsServiceKeySecret = aai.ServiceKeySecret
 			}
 			if aai.ExternalID != "" {
 				c.MasterPayerExternalID = aai.ExternalID
@@ -581,11 +605,8 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 				c.MasterPayerARN = aai.MasterPayerARN
 			}
 			c.AthenaProjectID = aai.AccountID
-			if aai.CURVersion != "" {
-				c.AthenaCURVersion = aai.CURVersion
-			}
-		} else {
-			a := make(map[string]interface{})
+		default:
+			a := make(map[string]any)
 			err := json.NewDecoder(r).Decode(&a)
 			if err != nil {
 				return err
@@ -611,10 +632,15 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 			}
 		}
 		return nil
-	})
+	}
+}
+
+func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPricing, error) {
+	return aws.Config.Update(configUpdaterWithReaderAndType(r, updateType))
 }
 
 type awsKey struct {
+	Name           string
 	SpotLabelName  string
 	SpotLabelValue string
 	Labels         map[string]string
@@ -660,6 +686,16 @@ func (k *awsKey) Features() string {
 		return spotKey
 	}
 	return key
+}
+
+const eksComputeTypeLabel = "eks.amazonaws.com/compute-type"
+
+func (k *awsKey) isFargateNode() bool {
+	v := k.Labels[eksComputeTypeLabel]
+	if v == "fargate" {
+		return true
+	}
+	return false
 }
 
 // getUsageType returns the usage type of the instance
@@ -769,6 +805,7 @@ func getStorageClassTypeFrom(provisioner string) string {
 // GetKey maps node labels to information needed to retrieve pricing data
 func (aws *AWS) GetKey(labels map[string]string, n *clustercache.Node) models.Key {
 	return &awsKey{
+		Name:           n.Name,
 		SpotLabelName:  aws.SpotLabelName,
 		SpotLabelValue: aws.SpotLabelValue,
 		Labels:         labels,
@@ -788,41 +825,50 @@ func (aws *AWS) ClusterManagementPricing() (string, float64, error) {
 	return aws.clusterProvisioner, aws.clusterManagementPrice, nil
 }
 
-// Use the pricing data from the current region. Fall back to using all region data if needed.
-func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response, string, error) {
-	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/"
+func getPricingListURL(serviceCode string, nodeList []*clustercache.Node) string {
+	// See https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/using-the-aws-price-list-bulk-api-fetching-price-list-files-manually.html
 	region := ""
 	multiregion := false
+	isChina := false
+
 	for _, n := range nodeList {
-		labels := n.Labels
-		currentNodeRegion := ""
-		if r, ok := util.GetRegion(labels); ok {
-			currentNodeRegion = r
-			// Switch to Chinese endpoint for regions with the Chinese prefix
-			if strings.HasPrefix(currentNodeRegion, "cn-") {
-				pricingURL = "https://pricing.cn-north-1.amazonaws.com.cn/offers/v1.0/cn/AmazonEC2/current/"
-			}
-		} else {
-			multiregion = true // We weren't able to detect the node's region, so pull all data.
+		r, ok := util.GetRegion(n.Labels)
+		if !ok {
+			multiregion = true
 			break
 		}
-		if region == "" { // We haven't set a region yet
-			region = currentNodeRegion
-		} else if region != "" && currentNodeRegion != region { // If two nodes have different regions here, we'll need to fetch all pricing data.
+		if strings.HasPrefix(r, chinaRegionPrefix) {
+			isChina = true
+		}
+
+		if region == "" {
+			region = r
+		} else if r != region {
 			multiregion = true
 			break
 		}
 	}
 
-	// Chinese multiregion endpoint only contains data for Chinese regions and Chinese regions are excluded from other endpoint
-	if region != "" && !multiregion {
-		pricingURL += region + "/"
+	baseURL := awsPricingBaseURL + serviceCode + pricingCurrentPath
+	if isChina {
+		// Chinese regions are isolated and use a different pricing endpoint
+		baseURL = awsChinaPricingBaseURL + serviceCode + pricingCurrentPath
 	}
 
-	pricingURL += "index.json"
+	if region != "" && !multiregion {
+		baseURL += region + "/"
+	}
 
+	return baseURL + pricingIndexFile
+}
+
+// Use the pricing data from the current region. Fall back to using all region data if needed.
+func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response, string, error) {
+	var pricingURL string
 	if env.GetAWSPricingURL() != "" { // Allow override of pricing URL
 		pricingURL = env.GetAWSPricingURL()
+	} else {
+		pricingURL = getPricingListURL("AmazonEC2", nodeList)
 	}
 
 	log.Infof("starting download of \"%s\", which is quite large ...", pricingURL)
@@ -834,10 +880,30 @@ func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response,
 	return resp, pricingURL, err
 }
 
-// SpotRefreshEnabled determines whether the required configs to run the spot feed query have been set up
-func (aws *AWS) SpotRefreshEnabled() bool {
-	// Need a valid value for at least one of these fields to consider spot pricing as enabled
-	return len(aws.SpotDataBucket) != 0 || len(aws.SpotDataRegion) != 0 || len(aws.ProjectID) != 0
+// SpotFeedRefreshEnabled determines whether the required configs to run the spot feed query have been set up
+func (aws *AWS) SpotFeedRefreshEnabled() bool {
+	// Guard against nil receiver
+	if aws == nil {
+		return false
+	}
+
+	// Fallback if config is not initialized
+	if aws.Config == nil {
+		return len(aws.SpotDataBucket) != 0 ||
+			len(aws.SpotDataRegion) != 0 ||
+			len(aws.ProjectID) != 0
+	}
+
+	// Check if spot data feed is explicitly disabled via config
+	c, err := aws.Config.GetCustomPricingData()
+	if err == nil && c.SpotDataFeedEnabled == "false" {
+		return false
+	}
+
+	// Default behavior
+	return len(aws.SpotDataBucket) != 0 ||
+		len(aws.SpotDataRegion) != 0 ||
+		len(aws.ProjectID) != 0
 }
 
 // DownloadPricingData fetches data from the AWS Pricing API
@@ -856,10 +922,10 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.BaseSpotGPUPrice = c.SpotGPU
 	aws.SpotLabelName = c.SpotLabel
 	aws.SpotLabelValue = c.SpotLabelValue
-	aws.SpotDataBucket = c.SpotDataBucket
-	aws.SpotDataPrefix = c.SpotDataPrefix
+	aws.SpotDataBucket = c.AwsSpotDataBucket
+	aws.SpotDataPrefix = c.AwsSpotDataPrefix
 	aws.ProjectID = c.ProjectID
-	aws.SpotDataRegion = c.SpotDataRegion
+	aws.SpotDataRegion = c.AwsSpotDataRegion
 
 	aws.ConfigureAuthWith(c) // load aws authentication from configuration or secret
 
@@ -922,7 +988,7 @@ func (aws *AWS) DownloadPricingData() error {
 			if errors.Is(err, ErrNoAthenaBucket) {
 				log.Debugf("No \"athenaBucketName\" configured, ReservedInstanceData watcher will not run")
 			} else {
-				log.Errorf("Failed to lookup reserved instance data: %s", err.Error())
+				log.Warnf("Failed to lookup reserved instance data: %s", err.Error())
 			}
 		} else { // If we make one successful run, check on new reservation data every hour
 			go func() {
@@ -964,6 +1030,15 @@ func (aws *AWS) DownloadPricingData() error {
 		}
 	}
 
+	// Initialize fargate pricing if it's not initialized yet
+	if aws.FargatePricing == nil {
+		aws.FargatePricing = NewFargatePricing()
+		aws.FargatePricingError = aws.FargatePricing.Initialize(nodeList)
+		if aws.FargatePricingError != nil {
+			log.Errorf("Failed to initialize fargate pricing: %s", aws.FargatePricingError.Error())
+		}
+	}
+
 	aws.ValidPricingKeys = make(map[string]bool)
 
 	resp, pricingURL, err := aws.getRegionPricing(nodeList)
@@ -976,28 +1051,36 @@ func (aws *AWS) DownloadPricingData() error {
 	}
 	log.Infof("Finished downloading \"%s\"", pricingURL)
 
-	if !aws.SpotRefreshEnabled() {
-		return nil
+	// Initialize a spot price history cache if not already initialized.
+	// Reset error to allow retrying on subsequent DownloadPricingData calls.
+	if aws.SpotPriceHistoryCache == nil {
+		aws.SpotPriceHistoryError = nil
+		aws.SpotPriceHistoryCache, aws.SpotPriceHistoryError = aws.initializeSpotPriceHistoryCache()
+		if aws.SpotPriceHistoryError != nil {
+			log.Errorf("Failed to initialize spot price history manager: %v", aws.SpotPriceHistoryError)
+		}
 	}
 
-	// Always run spot pricing refresh when performing download
-	aws.refreshSpotPricing(true)
+	if aws.SpotFeedRefreshEnabled() {
+		// Always run spot pricing refresh when performing download
+		aws.refreshSpotPricing(true)
 
-	// Only start a single refresh goroutine
-	if !aws.SpotRefreshRunning {
-		aws.SpotRefreshRunning = true
+		// Only start a single refresh goroutine
+		if !aws.SpotRefreshRunning {
+			aws.SpotRefreshRunning = true
 
-		go func() {
-			defer errs.HandlePanic()
+			go func() {
+				defer errs.HandlePanic()
 
-			for {
-				log.Infof("Spot Pricing Refresh scheduled in %.2f minutes.", SpotRefreshDuration.Minutes())
-				time.Sleep(SpotRefreshDuration)
+				for {
+					log.Infof("Spot Pricing Refresh scheduled in %.2f minutes.", SpotRefreshDuration.Minutes())
+					time.Sleep(SpotRefreshDuration)
 
-				// Reoccurring refresh checks update times
-				aws.refreshSpotPricing(false)
-			}
-		}()
+					// Reoccurring refresh checks update times
+					aws.refreshSpotPricing(false)
+				}
+			}()
+		}
 	}
 
 	return nil
@@ -1235,6 +1318,60 @@ func (aws *AWS) refreshSpotPricing(force bool) {
 	aws.SpotPricingByInstanceID = sp
 }
 
+func (aws *AWS) initializeSpotPriceHistoryCache() (*SpotPriceHistoryCache, error) {
+	log.Info("Initializing AWS Spot Price History Manager")
+
+	// Get AWS access key for creating config
+	accessKey, err := aws.GetAWSAccessKey()
+	if err != nil {
+		return nil, fmt.Errorf("getting AWS access key for spot price history: %w", err)
+	}
+
+	// Use the cluster region to create the initial AWS config and credentials.
+	// The SpotPriceHistoryFetcher itself can query multiple regions by creating
+	// region-specific EC2 clients as needed.
+	if aws.ClusterRegion == "" {
+		return nil, fmt.Errorf("no cluster region configured")
+	}
+
+	// Create config for the cluster region
+	awsConfig, err := accessKey.CreateConfig(aws.ClusterRegion)
+	if err != nil {
+		return nil, fmt.Errorf("creating AWS config for spot price history: %w", err)
+	}
+
+	return NewSpotPriceHistoryCache(NewAWSSpotPriceHistoryFetcher(awsConfig)), nil
+}
+
+func (aws *AWS) spotPricingFromHistory(k models.Key) (*SpotPriceHistoryEntry, bool) {
+	if aws.SpotPriceHistoryCache == nil {
+		return nil, false
+	}
+
+	// Extract region, instance type, and availability zone from the key
+	awsKey, ok := k.(*awsKey)
+	if !ok {
+		log.DedupedWarningf(10, "Failed to cast key to awsKey for spot price history lookup: %s", k.ID())
+		return nil, false
+	}
+
+	region, regionOk := util.GetRegion(awsKey.Labels)
+	instanceType, instanceTypeOk := util.GetInstanceType(awsKey.Labels)
+	availabilityZone, availabilityZoneOk := util.GetZone(awsKey.Labels)
+	// Skip lookup if any required information is missing
+	if !regionOk || !instanceTypeOk || !availabilityZoneOk {
+		log.DedupedWarningf(10, "Missing required info for spot price history lookup (region: %s, instanceType: %s, zone: %s): %s", region, instanceType, availabilityZone, k.ID())
+		return nil, false
+	}
+
+	price, err := aws.SpotPriceHistoryCache.GetSpotPrice(region, instanceType, availabilityZone)
+	if err != nil {
+		log.DedupedWarningf(10, "Failed to get spot price history for instance %s: %s", k.ID(), err.Error())
+		return nil, false
+	}
+	return price, true
+}
+
 // Stubbed NetworkPricing for AWS. Pull directly from aws.json for now
 func (aws *AWS) NetworkPricing() (*models.Network, error) {
 	cpricing, err := aws.Config.GetCustomPricingData()
@@ -1253,11 +1390,21 @@ func (aws *AWS) NetworkPricing() (*models.Network, error) {
 	if err != nil {
 		return nil, err
 	}
+	nge, err := strconv.ParseFloat(cpricing.NatGatewayEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+	ngi, err := strconv.ParseFloat(cpricing.NatGatewayIngress, 64)
+	if err != nil {
+		return nil, err
+	}
 
 	return &models.Network{
 		ZoneNetworkEgressCost:     znec,
 		RegionNetworkEgressCost:   rnec,
 		InternetNetworkEgressCost: inec,
+		NatGatewayEgressCost:      nge,
+		NatGatewayIngressCost:     ngi,
 	}, nil
 }
 
@@ -1350,9 +1497,29 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 			UsageType:    PreemptibleType,
 		}, meta, nil
 	} else if aws.isPreemptible(key) { // Preemptible but we don't have any data in the pricing report.
-		log.DedupedWarningf(5, "Node %s marked preemptible but we have no data in spot feed", k.ID())
+		log.DedupedWarningf(5, "Node %s marked preemptible but no spot feed data available; falling back to other pricing sources", k.ID())
+
+		// Try to get spot pricing from DescribeSpotPriceHistory API
+		if historyEntry, ok := aws.spotPricingFromHistory(k); ok {
+			log.DedupedInfof(5, "Using spot price history data for node %s: $%f", k.ID(), historyEntry.SpotPrice)
+			spotHistoryCost := fmt.Sprintf("%f", historyEntry.SpotPrice)
+			meta.Source = SpotPriceHistorySource
+			return &models.Node{
+				Cost:         spotHistoryCost,
+				VCPU:         terms.VCpu,
+				RAM:          terms.Memory,
+				GPU:          terms.GPU,
+				Storage:      terms.Storage,
+				BaseCPUPrice: aws.BaseCPUPrice,
+				BaseRAMPrice: aws.BaseRAMPrice,
+				BaseGPUPrice: aws.BaseGPUPrice,
+				UsageType:    PreemptibleType,
+			}, meta, nil
+		}
+
 		if publicPricingFound {
 			// return public price if found
+			log.DedupedWarningf(5, "No spot price history available for %s, falling back to on-demand pricing", k.ID())
 			return &models.Node{
 				Cost:         cost,
 				VCPU:         terms.VCpu,
@@ -1427,6 +1594,75 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 	}, meta, nil
 }
 
+func (aws *AWS) getFargatePod(awsKey *awsKey) (*clustercache.Pod, bool) {
+	pods := aws.Clientset.GetAllPods()
+	for _, pod := range pods {
+		if pod.Spec.NodeName == awsKey.Name {
+			return pod, true
+		}
+	}
+	return nil, false
+}
+
+const (
+	nodeOSLabel   = "kubernetes.io/os"
+	nodeArchLabel = "kubernetes.io/arch"
+
+	fargatePodCapacityAnnotation = "CapacityProvisioned"
+)
+
+// e.g. "0.25vCPU 0.5GB"
+var fargatePodCapacityRegex = regexp.MustCompile("^([0-9.]+)vCPU ([0-9.]+)GB$")
+
+func (aws *AWS) createFargateNode(awsKey *awsKey, usageType string) (*models.Node, models.PricingMetadata, error) {
+	if aws.FargatePricing == nil {
+		return nil, models.PricingMetadata{}, fmt.Errorf("fargate pricing not initialized")
+	}
+	pod, ok := aws.getFargatePod(awsKey)
+	if !ok {
+		return nil, models.PricingMetadata{}, fmt.Errorf("could not find pod for fargate node %s", awsKey.Name)
+	}
+	capacity := pod.Annotations[fargatePodCapacityAnnotation]
+	match := fargatePodCapacityRegex.FindStringSubmatch(capacity)
+	if len(match) == 0 {
+		return nil, models.PricingMetadata{}, fmt.Errorf("could not parse pod capacity for fargate node %s", awsKey.Name)
+	}
+
+	vCPU, err := strconv.ParseFloat(match[1], 64)
+	if err != nil {
+		return nil, models.PricingMetadata{}, fmt.Errorf("could not parse vCPU capacity for fargate node %s: %v", awsKey.Name, err)
+	}
+	memory, err := strconv.ParseFloat(match[2], 64)
+	if err != nil {
+		return nil, models.PricingMetadata{}, fmt.Errorf("could not parse memory capacity for fargate node %s: %v", awsKey.Name, err)
+	}
+
+	region, ok := util.GetRegion(awsKey.Labels)
+	if !ok {
+		return nil, models.PricingMetadata{}, fmt.Errorf("could not get region for fargate node %s", awsKey.Name)
+	}
+	nodeOS := awsKey.Labels[nodeOSLabel]
+	nodeArch := awsKey.Labels[nodeArchLabel]
+	hourlyCPU, hourlyRAM, err := aws.FargatePricing.GetHourlyPricing(region, nodeOS, nodeArch)
+	if err != nil {
+		return nil, models.PricingMetadata{}, fmt.Errorf("could not get hourly pricing for fargate node %s: %v", awsKey.Name, err)
+	}
+
+	cost := hourlyCPU*vCPU + hourlyRAM*memory
+	return &models.Node{
+		Cost:         strconv.FormatFloat(cost, 'f', -1, 64),
+		VCPU:         strconv.FormatFloat(vCPU, 'f', -1, 64),
+		RAM:          strconv.FormatFloat(memory, 'f', -1, 64),
+		RAMBytes:     strconv.FormatFloat(memory*1024*1024*1024, 'f', -1, 64),
+		VCPUCost:     strconv.FormatFloat(hourlyCPU, 'f', -1, 64),
+		RAMCost:      strconv.FormatFloat(hourlyRAM, 'f', -1, 64),
+		BaseCPUPrice: aws.BaseCPUPrice,
+		BaseRAMPrice: aws.BaseRAMPrice,
+		BaseGPUPrice: aws.BaseGPUPrice,
+		UsageType:    usageType,
+	}, models.PricingMetadata{}, nil
+}
+
 // NodePricing takes in a key from GetKey and returns a Node object for use in building the cost model.
 func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata, error) {
 	aws.DownloadPricingDataLock.RLock()
@@ -1472,6 +1708,9 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 			}, meta, fmt.Errorf("Unable to find any Pricing data for \"%s\"", key)
 		}
 		return aws.createNode(terms, usageType, k)
+	} else if awsKey, ok := k.(*awsKey); ok && awsKey.isFargateNode() {
+		// Since Fargate pricing is listed at AmazonECS and is different from AmazonEC2, we handle it separately here
+		return aws.createFargateNode(awsKey, usageType)
 	} else { // Fall back to base pricing if we can't find the key. Base pricing is handled at the costmodel level.
 		// we seem to have an issue where this error gets thrown during app start.
 		// somehow the ValidPricingKeys map is being accessed before all the pricing data has been downloaded
@@ -1550,12 +1789,12 @@ func (aws *AWS) ConfigureAuthWith(config *models.CustomPricing) error {
 // Gets the aws key id and secret
 func (aws *AWS) getAWSAuth(forceReload bool, cp *models.CustomPricing) (string, string) {
 	// 1. Check config values first (set from frontend UI)
-	if cp.ServiceKeyName != "" && cp.ServiceKeySecret != "" {
+	if cp.AwsServiceKeyName != "" && cp.AwsServiceKeySecret != "" {
 		aws.ServiceAccountChecks.Set("hasKey", &models.ServiceAccountCheck{
 			Message: "AWS ServiceKey exists",
 			Status:  true,
 		})
-		return cp.ServiceKeyName, cp.ServiceKeySecret
+		return cp.AwsServiceKeyName, cp.AwsServiceKeySecret
 	}
 
 	// 2. Check for secret
@@ -1606,12 +1845,6 @@ func (aws *AWS) loadAWSAuthSecret(force bool) (*AWSAccessKey, error) {
 	err = json.Unmarshal(result, &ak)
 	if err != nil {
 		return nil, err
-	}
-
-	// If the sample nil service key name is set, zero it out so that it is not
-	// misinterpreted as a real service key.
-	if ak.AccessKeyID == "AKIXXX" {
-		ak.AccessKeyID = ""
 	}
 
 	awsSecret = &ak

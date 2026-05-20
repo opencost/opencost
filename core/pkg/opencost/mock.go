@@ -3,6 +3,8 @@ package opencost
 import (
 	"fmt"
 	"time"
+
+	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 )
 
 const gb = 1024 * 1024 * 1024
@@ -1012,4 +1014,24 @@ func GenerateMockCloudCostSet(start, end time.Time, provider, integration string
 	})
 
 	return ccs
+}
+
+// GenerateMockKubeModelSet creates generic KubeModel set
+func GenerateMockKubeModelSet(start, end time.Time) *kubemodel.KubeModelSet {
+	kms := kubemodel.NewKubeModelSet(start, end)
+
+	kms.Cluster = &kubemodel.Cluster{
+		UID:  "clusterUID",
+		Name: "cluster",
+	}
+
+	kms.RegisterNamespace("namespace-1", "namespace-1")
+	kms.RegisterNamespace("namespace-2", "namespace-2")
+
+	kms.RegisterResourceQuota("resourcequota-1", "resourcequota-1", "namespace-1")
+	kms.RegisterResourceQuota("resourcequota-2", "resourcequota-2", "namespace-1")
+	kms.RegisterResourceQuota("resourcequota-3", "resourcequota-3", "namespace-2")
+	kms.RegisterResourceQuota("resourcequota-4", "resourcequota-4", "namespace-2")
+
+	return kms
 }

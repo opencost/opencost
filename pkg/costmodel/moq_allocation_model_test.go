@@ -63,11 +63,11 @@ func (mock *AllocationModelMock) ComputeAllocation(start time.Time, end time.Tim
 		panic("AllocationModelMock.ComputeAllocationFunc: method is nil but AllocationModel.ComputeAllocation was just called")
 	}
 	callInfo := struct {
-		Start      time.Time
-		End        time.Time
+		Start time.Time
+		End   time.Time
 	}{
-		Start:      start,
-		End:        end,
+		Start: start,
+		End:   end,
 	}
 	mock.lockComputeAllocation.Lock()
 	mock.calls.ComputeAllocation = append(mock.calls.ComputeAllocation, callInfo)
@@ -80,12 +80,12 @@ func (mock *AllocationModelMock) ComputeAllocation(start time.Time, end time.Tim
 //
 //	len(mockedAllocationModel.ComputeAllocationCalls())
 func (mock *AllocationModelMock) ComputeAllocationCalls() []struct {
-	Start      time.Time
-	End        time.Time
+	Start time.Time
+	End   time.Time
 } {
 	var calls []struct {
-		Start      time.Time
-		End        time.Time
+		Start time.Time
+		End   time.Time
 	}
 	mock.lockComputeAllocation.RLock()
 	calls = mock.calls.ComputeAllocation

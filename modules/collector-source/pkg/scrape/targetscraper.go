@@ -1,6 +1,7 @@
 package scrape
 
 import (
+	"io"
 	"sync"
 
 	"github.com/kubecost/events"
@@ -40,6 +41,7 @@ func (s *TargetScraper) Scrape() []metric.Update {
 	var scrapeFuncs []ScrapeFunc
 	for i := range targets {
 		target := targets[i]
+
 		fn := func() []metric.Update {
 			var scrapeResults []metric.Update
 			f, err := target.Load()
@@ -50,6 +52,9 @@ func (s *TargetScraper) Scrape() []metric.Update {
 
 				log.Errorf("failed to scrape target: %s", err.Error())
 				return scrapeResults
+			}
+			if closer, ok := f.(io.ReadCloser); ok {
+				defer closer.Close()
 			}
 			results, err := parser.Parse(f)
 			if err != nil {

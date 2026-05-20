@@ -73,7 +73,7 @@ func (gkc *ServiceAccountKey) Equals(config cloud.Config) bool {
 
 func (gkc *ServiceAccountKey) Sanitize() cloud.Config {
 	redactedMap := make(map[string]string, len(gkc.Key))
-	for key, _ := range gkc.Key {
+	for key := range gkc.Key {
 		redactedMap[key] = cloud.Redacted
 	}
 	return &ServiceAccountKey{

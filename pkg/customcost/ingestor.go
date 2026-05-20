@@ -21,6 +21,12 @@ import (
 	"github.com/opencost/opencost/pkg/env"
 )
 
+// pluginConnector abstracts *plugin.Client so buildSingleDomain can be tested with mocks.
+type pluginConnector interface {
+	Client() (plugin.ClientProtocol, error)
+	Kill()
+}
+
 // IngestorStatus includes diagnostic values for a given Ingestor
 type IngestorStatus struct {
 	Created     time.Time
@@ -65,13 +71,22 @@ type CustomCostIngestor struct {
 	isStopping   atomic.Bool
 	exitBuildCh  chan string
 	exitRunCh    chan string
-	plugins      map[string]*plugin.Client
+	plugins      map[string]pluginConnector
+	pluginsLock  sync.RWMutex
 	resolution   time.Duration
 	refreshRate  time.Duration
 }
 
-// NewIngestor is an initializer for ingestor
+// NewCustomCostIngestor is an initializer for ingestor
 func NewCustomCostIngestor(ingestorConfig *CustomCostIngestorConfig, repo Repository, plugins map[string]*plugin.Client, res time.Duration) (*CustomCostIngestor, error) {
+	connectors := make(map[string]pluginConnector, len(plugins))
+	for k, v := range plugins {
+		connectors[k] = v
+	}
+	return newCustomCostIngestor(ingestorConfig, repo, connectors, res)
+}
+
+func newCustomCostIngestor(ingestorConfig *CustomCostIngestorConfig, repo Repository, plugins map[string]pluginConnector, res time.Duration) (*CustomCostIngestor, error) {
 	if repo == nil {
 		return nil, fmt.Errorf("CustomCost: NewCustomCostIngestor: repository connot be nil")
 	}
@@ -128,6 +143,7 @@ func (ing *CustomCostIngestor) LoadWindow(start, end time.Time) {
 
 	for _, window := range targets {
 		allPluginsHave := true
+		ing.pluginsLock.RLock()
 		for domain := range ing.plugins {
 			has, err2 := ing.repo.Has(*window.Start(), domain)
 			if err2 != nil {
@@ -138,12 +154,15 @@ func (ing *CustomCostIngestor) LoadWindow(start, end time.Time) {
 				break
 			}
 		}
+		ing.pluginsLock.RUnlock()
 		if !allPluginsHave {
 			ing.BuildWindow(*window.Start(), *window.End())
 		} else {
+			ing.pluginsLock.RLock()
 			for domain := range ing.plugins {
 				ing.expandCoverage(window, domain)
 			}
+			ing.pluginsLock.RUnlock()
 			log.Debugf("CustomCost[%s]: ingestor: skipping build for window %s, coverage already exists", ing.key, window.String())
 		}
 	}
@@ -152,9 +171,11 @@ func (ing *CustomCostIngestor) LoadWindow(start, end time.Time) {
 
 func (ing *CustomCostIngestor) BuildWindow(start, end time.Time) {
 
+	ing.pluginsLock.RLock()
 	for domain := range ing.plugins {
 		ing.buildSingleDomain(start, end, domain)
 	}
+	ing.pluginsLock.RUnlock()
 }
 
 func (ing *CustomCostIngestor) buildSingleDomain(start, end time.Time, domain string) {
@@ -165,7 +186,9 @@ func (ing *CustomCostIngestor) buildSingleDomain(start, end time.Time, domain st
 	}
 	log.Infof("ingestor: building window %s for plugin %s", opencost.NewWindow(&start, &end), domain)
 	// make RPC call via plugin
+	ing.pluginsLock.RLock()
 	pluginClient, found := ing.plugins[domain]
+	ing.pluginsLock.RUnlock()
 	if !found {
 		log.Errorf("could not find plugin client for plugin %s. Did you initialize the plugin correctly?", domain)
 		return
@@ -185,7 +208,11 @@ func (ing *CustomCostIngestor) buildSingleDomain(start, end time.Time, domain st
 		return
 	}
 
-	custCostSrc := raw.(ocplugin.CustomCostSource)
+	custCostSrc, ok := raw.(ocplugin.CustomCostSource)
+	if !ok {
+		log.Errorf("plugin %s returned invalid type: expected CustomCostSource, got %T", domain, raw)
+		return
+	}
 
 	custCostResps := custCostSrc.GetCustomCosts(req)
 	// loop through each customCostResponse, adding to repo
@@ -262,8 +289,17 @@ func (ing *CustomCostIngestor) Stop() {
 
 	wg.Wait()
 
-	// Declare that the store is officially no longer running. This allows
-	// Start to be called again, restarting the store from scratch.
+	// Kill all plugin client processes before returning
+	ing.pluginsLock.Lock()
+	for name, client := range ing.plugins {
+		if client != nil {
+			log.Debugf("CustomCost[%s]: ingestor: killing plugin process: %s", ing.key, name)
+			client.Kill()
+		}
+	}
+	ing.pluginsLock.Unlock()
+
+	// Mark as no longer running so Start() can be called again if needed
 	ing.isRunning.Store(false)
 	ing.isStopping.Store(false)
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric/synthetic"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 )
@@ -26,12 +27,13 @@ type collectorDataSource struct {
 }
 
 func NewDefaultCollectorDataSource(
+	clusterUID string,
 	store storage.Storage,
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient nodestats.StatSummaryClient,
 ) source.OpenCostDataSource {
-	config := NewOpenCostCollectorConfigFromEnv()
+	config := NewOpenCostCollectorConfigFromEnv(clusterUID)
 	return NewCollectorDataSource(
 		config,
 		store,
@@ -66,7 +68,7 @@ func NewCollectorDataSource(
 	updater = repo
 	if store != nil {
 		wal, err := metric.NewWalinator(
-			config.ClusterID,
+			config.ClusterName,
 			config.ApplicationName,
 			store,
 			resolutions,
@@ -80,11 +82,22 @@ func NewCollectorDataSource(
 		}
 	}
 
+	// synthesizer collects specific metric types and generates new metrics to pass
+	// along with the original metrics into the updater
+	metricSynthesizer := synthetic.NewMetricSynthesizers(
+		updater,
+		synthetic.NewContainerMemoryAllocationSynthesizer(),
+		synthetic.NewContainerCpuAllocationSynthesizer(),
+	)
+	updater = metricSynthesizer
+
 	diagnosticsModule := metric.NewDiagnosticsModule()
 	scrapeController := scrape.NewScrapeController(
+		config.ClusterUID,
 		config.ScrapeInterval,
 		config.NetworkPort,
 		updater,
+		clusterInfoProvider,
 		clusterCache,
 		statSummaryClient,
 	)
@@ -107,7 +120,7 @@ func NewCollectorDataSource(
 }
 
 func (c *collectorDataSource) RegisterEndPoints(router *httprouter.Router) {
-	return
+
 }
 
 func (c *collectorDataSource) RegisterDiagnostics(diagService diagnostics.DiagnosticService) {

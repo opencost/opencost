@@ -16,6 +16,7 @@ type BigQueryConfiguration struct {
 	Dataset              string     `json:"dataset"`
 	Table                string     `json:"table"`
 	ExcludePartitionTime bool       `json:"excludePartitionTime"`
+	Location             string     `json:"location"`
 	Authorizer           Authorizer `json:"authorizer"`
 }
 
@@ -76,6 +77,10 @@ func (bqc *BigQueryConfiguration) Equals(config cloud.Config) bool {
 		return false
 	}
 
+	if bqc.Location != thatConfig.Location {
+		return false
+	}
+
 	return true
 }
 
@@ -84,6 +89,7 @@ func (bqc *BigQueryConfiguration) Sanitize() cloud.Config {
 		ProjectID:  bqc.ProjectID,
 		Dataset:    bqc.Dataset,
 		Table:      bqc.Table,
+		Location:   bqc.Location,
 		Authorizer: bqc.Authorizer.Sanitize().(Authorizer),
 	}
 }
@@ -106,7 +112,15 @@ func (bqc *BigQueryConfiguration) GetBigQueryClient(ctx context.Context) (*bigqu
 	if err != nil {
 		return nil, err
 	}
-	return bigquery.NewClient(ctx, bqc.ProjectID, clientOpts...)
+
+	client, err := bigquery.NewClient(ctx, bqc.ProjectID, clientOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	client.Location = bqc.Location
+
+	return client, nil
 }
 
 // UnmarshalJSON assumes data is save as an BigQueryConfigurationDTO
@@ -136,6 +150,14 @@ func (bqc *BigQueryConfiguration) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("BigQueryConfiguration: FromInterface: %s", err.Error())
 	}
 	bqc.Table = table
+
+	if _, ok := fmap["location"]; ok {
+		location, err := cloud.GetInterfaceValue[string](fmap, "location")
+		if err != nil {
+			return fmt.Errorf("BigQueryConfiguration: FromInterface: %s", err.Error())
+		}
+		bqc.Location = location
+	}
 
 	authAny, ok := fmap["authorizer"]
 	if !ok {

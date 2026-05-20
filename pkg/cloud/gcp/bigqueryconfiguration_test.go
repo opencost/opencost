@@ -138,6 +138,7 @@ func TestBigQueryConfiguration_Equals(t *testing.T) {
 						"key1": "key2",
 					},
 				},
+				Location: "EU",
 			},
 			right: &BigQueryConfiguration{
 				ProjectID: "projectID",
@@ -149,6 +150,7 @@ func TestBigQueryConfiguration_Equals(t *testing.T) {
 						"key1": "key2",
 					},
 				},
+				Location: "EU",
 			},
 			expected: true,
 		},
@@ -318,6 +320,33 @@ func TestBigQueryConfiguration_Equals(t *testing.T) {
 			},
 			expected: false,
 		},
+		"different location": {
+			left: BigQueryConfiguration{
+				ProjectID: "projectID",
+				Dataset:   "dataset",
+				Table:     "table",
+				Location:  "EU",
+				Authorizer: &ServiceAccountKey{
+					Key: map[string]string{
+						"Key":  "Key",
+						"key1": "key2",
+					},
+				},
+			},
+			right: &BigQueryConfiguration{
+				ProjectID: "projectID",
+				Dataset:   "dataset2",
+				Table:     "table",
+				Location:  "US",
+				Authorizer: &ServiceAccountKey{
+					Key: map[string]string{
+						"Key":  "Key",
+						"key1": "key2",
+					},
+				},
+			},
+			expected: false,
+		},
 	}
 
 	for name, testCase := range testCases {
@@ -425,7 +454,7 @@ func TestBigQueryConfiguration_Sanitize(t *testing.T) {
 		Table:     "test-table",
 		Authorizer: &ServiceAccountKey{
 			Key: map[string]string{
-				"type": "service_account",
+				"type":        "service_account",
 				"private_key": "secret-key",
 			},
 		},
@@ -457,8 +486,8 @@ func TestConvertBigQueryConfigToConfig(t *testing.T) {
 		expected cloud.KeyedConfig
 	}{
 		{
-			name: "Empty config",
-			bqc:  BigQueryConfig{},
+			name:     "Empty config",
+			bqc:      BigQueryConfig{},
 			expected: nil,
 		},
 		{
@@ -514,14 +543,14 @@ func TestConvertBigQueryConfigToConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ConvertBigQueryConfigToConfig(tt.bqc)
-			
+
 			if tt.expected == nil {
 				assert.Nil(t, result)
 			} else {
 				assert.NotNil(t, result)
 				expectedBQC := tt.expected.(*BigQueryConfiguration)
 				resultBQC := result.(*BigQueryConfiguration)
-				
+
 				assert.Equal(t, expectedBQC.ProjectID, resultBQC.ProjectID)
 				assert.Equal(t, expectedBQC.Dataset, resultBQC.Dataset)
 				assert.Equal(t, expectedBQC.Table, resultBQC.Table)

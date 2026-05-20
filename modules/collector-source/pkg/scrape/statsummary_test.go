@@ -1,6 +1,7 @@
 package scrape
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -14,16 +15,18 @@ import (
 
 type mockStatSummaryClient struct {
 	results []*stats.Summary
+	err     error
 }
 
 func (m *mockStatSummaryClient) GetNodeData() ([]*stats.Summary, error) {
-	return m.results, nil
+	return m.results, m.err
 }
 
 func TestStatScraper_Scrape(t *testing.T) {
 	start1, _ := time.Parse(time.RFC3339, Start1Str)
 	tests := map[string]struct {
 		summaries []*stats.Summary
+		err       error
 		expected  []metric.Update
 	}{
 		"nil values": {
@@ -190,6 +193,155 @@ func TestStatScraper_Scrape(t *testing.T) {
 					},
 				},
 			},
+			expected: []metric.Update{
+				{
+					Name: metric.NodeCPUSecondsTotal,
+					Labels: map[string]string{
+						source.KubernetesNodeLabel: "node1",
+						source.ModeLabel:           "",
+					},
+					Value: 2,
+				},
+				{
+					Name: metric.NodeFSCapacityBytes,
+					Labels: map[string]string{
+						source.InstanceLabel: "node1",
+						source.DeviceLabel:   "local",
+					},
+					Value: float64(2 * util.GB),
+				},
+				{
+					Name: metric.ContainerNetworkReceiveBytesTotal,
+					Labels: map[string]string{
+						source.UIDLabel:       "uid1",
+						source.PodLabel:       "pod1",
+						source.NamespaceLabel: "namespace1",
+					},
+					Value: float64(1 * util.MB),
+				},
+				{
+					Name: metric.ContainerNetworkTransmitBytesTotal,
+					Labels: map[string]string{
+						source.UIDLabel:       "uid1",
+						source.PodLabel:       "pod1",
+						source.NamespaceLabel: "namespace1",
+					},
+					Value: float64(2 * util.MB),
+				},
+				{
+					Name: metric.KubeletVolumeStatsUsedBytes,
+					Labels: map[string]string{
+						source.PVCLabel:       "pvc1",
+						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uid1",
+					},
+					Value: float64(1 * util.GB),
+				},
+				{
+					Name: metric.ContainerCPUUsageSecondsTotal,
+					Labels: map[string]string{
+						source.ContainerLabel: "container1",
+						source.PodLabel:       "pod1",
+						source.NamespaceLabel: "namespace1",
+						source.NodeLabel:      "node1",
+						source.InstanceLabel:  "node1",
+						source.UIDLabel:       "uid1",
+					},
+					Value: 1,
+				},
+				{
+					Name: metric.ContainerMemoryWorkingSetBytes,
+					Labels: map[string]string{
+						source.ContainerLabel: "container1",
+						source.PodLabel:       "pod1",
+						source.NamespaceLabel: "namespace1",
+						source.NodeLabel:      "node1",
+						source.InstanceLabel:  "node1",
+						source.UIDLabel:       "uid1",
+					},
+					Value: float64(5 * util.MB),
+				},
+				{
+					Name: metric.ContainerFSUsageBytes,
+					Labels: map[string]string{
+						source.InstanceLabel: "node1",
+						source.DeviceLabel:   "local",
+						source.UIDLabel:      "uid1",
+					},
+					Value: float64(1 * util.GB),
+				},
+			},
+		},
+		"single node with error": {
+			summaries: []*stats.Summary{
+				{
+					Node: stats.NodeStats{
+						NodeName: "node1",
+						CPU: &stats.CPUStats{
+							Time:                 metav1.Time{Time: start1},
+							UsageCoreNanoSeconds: util.Ptr(uint64(2000000000)),
+						},
+						Fs: &stats.FsStats{
+							Time:          metav1.Time{Time: start1},
+							CapacityBytes: util.Ptr(uint64(2 * util.GB)),
+						},
+					},
+					Pods: []stats.PodStats{
+						{
+							PodRef: stats.PodReference{
+								Name:      "pod1",
+								Namespace: "namespace1",
+								UID:       "uid1",
+							},
+							Network: &stats.NetworkStats{
+								Time: metav1.Time{Time: start1},
+								InterfaceStats: stats.InterfaceStats{
+									RxBytes: util.Ptr(uint64(1 * util.MB)),
+									TxBytes: util.Ptr(uint64(2 * util.MB)),
+								},
+							},
+							VolumeStats: []stats.VolumeStats{
+								{
+									Name: "ignoreVol1",
+									FsStats: stats.FsStats{
+										Time:      metav1.Time{Time: start1},
+										UsedBytes: util.Ptr(uint64(1 * util.GB)),
+									},
+								},
+								{
+									Name: "vol1",
+									PVCRef: &stats.PVCReference{
+										Namespace: "namespace1",
+										Name:      "pvc1",
+									},
+									FsStats: stats.FsStats{
+										Time:      metav1.Time{Time: start1},
+										UsedBytes: util.Ptr(uint64(1 * util.GB)),
+									},
+								},
+							},
+							Containers: []stats.ContainerStats{
+								{
+									Name: "container1",
+									CPU: &stats.CPUStats{
+										Time:                 metav1.Time{Time: start1},
+										UsageCoreNanoSeconds: util.Ptr(uint64(1000000000)),
+									},
+									Memory: &stats.MemoryStats{
+										Time:            metav1.Time{Time: start1},
+										WorkingSetBytes: util.Ptr(uint64(5 * util.MB)),
+									},
+									Rootfs: &stats.FsStats{
+										Time:      metav1.Time{Time: start1},
+										UsedBytes: util.Ptr(uint64(1 * util.GB)),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			err: fmt.Errorf("failed to retrieve node-XYZ"),
 			expected: []metric.Update{
 				{
 					Name: metric.NodeCPUSecondsTotal,

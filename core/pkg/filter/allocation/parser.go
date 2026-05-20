@@ -13,6 +13,7 @@ var allocationFilterFields []*ast.Field = []*ast.Field{
 	ast.NewField(FieldContainer),
 	ast.NewField(FieldPod),
 	ast.NewField(FieldProvider),
+	ast.NewField(FieldAccount),
 	ast.NewAliasField(AliasDepartment),
 	ast.NewAliasField(AliasEnvironment),
 	ast.NewAliasField(AliasOwner),
@@ -22,6 +23,7 @@ var allocationFilterFields []*ast.Field = []*ast.Field{
 	ast.NewMapField(FieldLabel),
 	ast.NewMapField(FieldAnnotation),
 	ast.NewMapField(FieldNodeLabel),
+	ast.NewMapField(FieldNamespaceLabel),
 }
 
 // fieldMap is a lazily loaded mapping from AllocationField to ast.Field

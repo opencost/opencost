@@ -12,12 +12,10 @@ import (
 	"github.com/opencost/opencost/pkg/cloud"
 )
 
-const (
-	AccessKeyAuthorizerType      = "AWSAccessKey"
-	ServiceAccountAuthorizerType = "AWSServiceAccount"
-	AssumeRoleAuthorizerType     = "AWSAssumeRole"
-	WebIdentityAuthorizerType    = "AWSWebIdentity"
-)
+const AccessKeyAuthorizerType = "AWSAccessKey"
+const ServiceAccountAuthorizerType = "AWSServiceAccount"
+const AssumeRoleAuthorizerType = "AWSAssumeRole"
+const WebIdentityAuthorizerType = "AWSWebIdentity"
 
 // Authorizer implementations provide aws.Config for AWS SDK calls
 type Authorizer interface {
@@ -350,6 +348,7 @@ func (wea *WebIdentity) UnmarshalJSON(b []byte) error {
 }
 
 func (wea *WebIdentity) Validate() error {
+
 	if wea.RoleARN == "" {
 		return fmt.Errorf("WebIdentity: missing RoleARN configuration")
 	}

@@ -544,6 +544,10 @@ func (dq *dummyQuerier) Query(_ context.Context, req cloudcost.QueryRequest) (*o
 	return ccsr, nil
 }
 
+func (dq *dummyQuerier) QueryCloudCostAutocomplete(_ context.Context, _ cloudcost.CloudCostAutocompleteRequest) (*cloudcost.CloudCostAutocompleteResponse, error) {
+	return &cloudcost.CloudCostAutocompleteResponse{Data: []string{}}, nil
+}
+
 func TestBuildCloudCostQueryRequest_AccumulateParsing(t *testing.T) {
 	s := &MCPServer{}
 	req := cloudcost.QueryRequest{}
@@ -608,7 +612,7 @@ func TestQueryCloudCosts_QuerierCapture(t *testing.T) {
 		},
 	}
 
-	_, err := s.QueryCloudCosts(req)
+	_, err := s.QueryCloudCosts(context.Background(), req)
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{"provider", "service"}, dq.last.AggregateBy)
@@ -633,7 +637,7 @@ func TestProcessMCPRequest_CloudCostDispatch(t *testing.T) {
 		},
 	}
 
-	resp, err := s.ProcessMCPRequest(req)
+	resp, err := s.ProcessMCPRequest(context.Background(), req)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.NotNil(t, resp.Data)
@@ -648,7 +652,7 @@ func TestProcessMCPRequest_UnsupportedType(t *testing.T) {
 			Window:    "1d",
 		},
 	}
-	_, err := s.ProcessMCPRequest(req)
+	_, err := s.ProcessMCPRequest(context.Background(), req)
 	require.Error(t, err)
 }
 
@@ -661,7 +665,7 @@ func TestProcessMCPRequest_ValidationError(t *testing.T) {
 			Window:    "",
 		},
 	}
-	_, err := s.ProcessMCPRequest(req)
+	_, err := s.ProcessMCPRequest(context.Background(), req)
 	require.Error(t, err)
 }
 
@@ -829,7 +833,7 @@ func TestQueryCloudCosts_NilCloudQuerier(t *testing.T) {
 		Window:    "24h",
 	}
 
-	_, err := s.QueryCloudCosts(req)
+	_, err := s.QueryCloudCosts(context.Background(), req)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cloud cost querier not configured")
 }
@@ -842,7 +846,7 @@ func TestQueryCloudCosts_InvalidWindow(t *testing.T) {
 		Window:    "invalid-window",
 	}
 
-	_, err := s.QueryCloudCosts(req)
+	_, err := s.QueryCloudCosts(context.Background(), req)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse window")
 }
@@ -884,7 +888,7 @@ func TestProcessMCPRequest_ResponseMetadata(t *testing.T) {
 		},
 	}
 
-	resp, err := s.ProcessMCPRequest(req)
+	resp, err := s.ProcessMCPRequest(context.Background(), req)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
@@ -1358,4 +1362,178 @@ func TestEfficiencyConstants(t *testing.T) {
 
 func TestEfficiencyQueryType(t *testing.T) {
 	assert.Equal(t, QueryType("efficiency"), EfficiencyQueryType)
+}
+
+// TestTransformCloudCostSetRange_NilPointerHandling verifies that nil pointer dereferences
+// are prevented in transformCloudCostSetRange for issue #3502
+func TestTransformCloudCostSetRange_NilPointerHandling(t *testing.T) {
+	now := time.Now().UTC()
+	start := now.Add(-24 * time.Hour)
+	end := now
+
+	tests := []struct {
+		name              string
+		ccsr              *opencost.CloudCostSetRange
+		expectedCostCount int
+		expectEmpty       bool
+	}{
+		{
+			name:        "nil CloudCostSetRange",
+			ccsr:        nil,
+			expectEmpty: true,
+		},
+		{
+			name:        "nil CloudCostSet in slice",
+			ccsr:        &opencost.CloudCostSetRange{CloudCostSets: []*opencost.CloudCostSet{nil}},
+			expectEmpty: true,
+		},
+		{
+			name: "CloudCostSet with nil Window.Start",
+			ccsr: &opencost.CloudCostSetRange{
+				CloudCostSets: []*opencost.CloudCostSet{
+					{CloudCosts: map[string]*opencost.CloudCost{}, Window: opencost.NewWindow(nil, &end)},
+				},
+			},
+			expectEmpty: true,
+		},
+		{
+			name: "CloudCostSet with nil Window.End",
+			ccsr: &opencost.CloudCostSetRange{
+				CloudCostSets: []*opencost.CloudCostSet{
+					{CloudCosts: map[string]*opencost.CloudCost{}, Window: opencost.NewWindow(&start, nil)},
+				},
+			},
+			expectEmpty: true,
+		},
+		{
+			name: "CloudCost item with nil Window.Start",
+			ccsr: &opencost.CloudCostSetRange{
+				CloudCostSets: []*opencost.CloudCostSet{
+					{
+						CloudCosts: map[string]*opencost.CloudCost{
+							"cost1": {
+								Properties: &opencost.CloudCostProperties{Provider: "aws"},
+								Window:     opencost.NewWindow(nil, &end),
+								NetCost:    opencost.CostMetric{Cost: 100.0},
+							},
+						},
+						Window: opencost.NewClosedWindow(start, end),
+					},
+				},
+			},
+			expectedCostCount: 0,
+		},
+		{
+			name: "Mixed valid and invalid items",
+			ccsr: &opencost.CloudCostSetRange{
+				CloudCostSets: []*opencost.CloudCostSet{
+					{
+						CloudCosts: map[string]*opencost.CloudCost{
+							"invalid": nil,
+							"valid": {
+								Properties: &opencost.CloudCostProperties{Provider: "gcp"},
+								Window:     opencost.NewClosedWindow(start, end),
+								NetCost:    opencost.CostMetric{Cost: 200.0, KubernetesPercent: 0.5},
+							},
+						},
+						Window: opencost.NewClosedWindow(start, end),
+					},
+				},
+			},
+			expectedCostCount: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Should not panic
+			result := transformCloudCostSetRange(tt.ccsr)
+
+			require.NotNil(t, result)
+			require.NotNil(t, result.CloudCosts)
+			require.NotNil(t, result.Summary)
+
+			if tt.expectEmpty {
+				assert.Empty(t, result.CloudCosts)
+				assert.Equal(t, 0.0, result.Summary.TotalNetCost)
+			} else {
+				totalCosts := 0
+				for _, set := range result.CloudCosts {
+					totalCosts += len(set.CloudCosts)
+				}
+				assert.Equal(t, tt.expectedCostCount, totalCosts)
+			}
+		})
+	}
+}
+
+// contextAwareQuerier is a mock querier that checks for context cancellation
+type contextAwareQuerier struct {
+	contextWasCancelled bool
+}
+
+func (caq *contextAwareQuerier) Query(ctx context.Context, req cloudcost.QueryRequest) (*opencost.CloudCostSetRange, error) {
+	// Check if context is already cancelled
+	select {
+	case <-ctx.Done():
+		caq.contextWasCancelled = true
+		return nil, ctx.Err()
+	default:
+		// Return empty set range
+		ccsr, _ := opencost.NewCloudCostSetRange(time.Now().Add(-24*time.Hour), time.Now(), opencost.AccumulateOptionDay, "")
+		return ccsr, nil
+	}
+}
+
+func (caq *contextAwareQuerier) QueryCloudCostAutocomplete(ctx context.Context, _ cloudcost.CloudCostAutocompleteRequest) (*cloudcost.CloudCostAutocompleteResponse, error) {
+	select {
+	case <-ctx.Done():
+		caq.contextWasCancelled = true
+		return nil, ctx.Err()
+	default:
+		return &cloudcost.CloudCostAutocompleteResponse{Data: []string{}}, nil
+	}
+}
+
+func TestQueryCloudCosts_ContextCancellation(t *testing.T) {
+	// Create a context that is already cancelled
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	// Create a context-aware mock querier
+	caq := &contextAwareQuerier{}
+	s := &MCPServer{cloudQuerier: caq}
+
+	req := &OpenCostQueryRequest{
+		QueryType: CloudCostQueryType,
+		Window:    "1d",
+	}
+
+	// Query should fail with context cancelled error
+	_, err := s.QueryCloudCosts(ctx, req)
+
+	// Verify context cancellation was detected
+	assert.Error(t, err)
+	assert.True(t, caq.contextWasCancelled, "Context cancellation should be detected by querier")
+	assert.ErrorIs(t, err, context.Canceled, "Error should be context.Canceled")
+}
+
+func TestProcessMCPRequest_ContextPropagation(t *testing.T) {
+	// Test that context is properly propagated through ProcessMCPRequest
+	ctx := context.Background()
+	dq := &dummyQuerier{}
+	s := &MCPServer{cloudQuerier: dq}
+
+	req := &MCPRequest{
+		Query: &OpenCostQueryRequest{
+			QueryType: CloudCostQueryType,
+			Window:    "1d",
+		},
+	}
+
+	resp, err := s.ProcessMCPRequest(ctx, req)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	// Verify that the querier was called (context was propagated)
+	assert.NotNil(t, dq.last)
 }

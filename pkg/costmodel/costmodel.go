@@ -15,11 +15,13 @@ import (
 	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/filter/allocation"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
+	km "github.com/opencost/opencost/pkg/kubemodel"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -31,6 +33,12 @@ const (
 	profileThreshold = 1000 * 1000 * 1000 // 1s (in ns)
 
 	unmountedPVsContainer = "unmounted-pvs"
+
+	annotationDomain = "opencost.io"
+
+	annotationStorageCost = annotationDomain + "/storage-hourly-cost"
+	annotationNodeCPUCost = annotationDomain + "/node-cpu-hourly-cost"
+	annotationNodeRAMCost = annotationDomain + "/node-ram-hourly-cost"
 )
 
 // isCron matches a CronJob name and captures the non-timestamp name
@@ -47,10 +55,12 @@ type CostModel struct {
 	RequestGroup    *singleflight.Group
 	DataSource      source.OpenCostDataSource
 	Provider        costAnalyzerCloud.Provider
+	KubeModel       *km.KubeModel
 	pricingMetadata *costAnalyzerCloud.PricingMatchMetadata
 }
 
 func NewCostModel(
+	clusterUID string,
 	dataSource source.OpenCostDataSource,
 	provider costAnalyzerCloud.Provider,
 	cache clustercache.ClusterCache,
@@ -60,6 +70,16 @@ func NewCostModel(
 	// request grouping to prevent over-requesting the same data prior to caching
 	requestGroup := new(singleflight.Group)
 
+	var kubeModel *km.KubeModel
+	var err error
+	if dataSource != nil {
+		kubeModel, err = km.NewKubeModel(clusterUID, dataSource)
+		if err != nil {
+			// KubeModel is required. Log a fatal error if we fail to init.
+			log.Fatalf("error initializing KubeModel: %s", err)
+		}
+	}
+
 	return &CostModel{
 		Cache:         cache,
 		ClusterMap:    clusterMap,
@@ -67,7 +87,16 @@ func NewCostModel(
 		DataSource:    dataSource,
 		Provider:      provider,
 		RequestGroup:  requestGroup,
+		KubeModel:     kubeModel,
 	}
+}
+
+func (cm *CostModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeModelSet, error) {
+	if cm.KubeModel == nil {
+		return nil, fmt.Errorf("KubeModel not initialized")
+	}
+
+	return cm.KubeModel.ComputeKubeModelSet(start, end)
 }
 
 type CostData struct {
@@ -165,7 +194,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 	}
 
 	// Get metrics data
-	resRAMUsage, resCPUUsage, resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, err := queryMetrics(mq, start, end)
+	resRAMUsage, resCPUUsage, resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, resNetNatGatewayRequests, resNetNatGatewayIngressRequests, err := queryMetrics(mq, start, end)
 	if err != nil {
 		log.Warnf("ComputeCostData: continuing despite metrics errors: %s", err)
 	}
@@ -195,7 +224,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 		}
 	}
 
-	networkUsageMap, err := GetNetworkUsageData(resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, clusterID)
+	networkUsageMap, err := GetNetworkUsageData(resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, resNetNatGatewayRequests, resNetNatGatewayIngressRequests, clusterID)
 	if err != nil {
 		log.Warnf("Unable to get Network Cost Data: %s", err.Error())
 		networkUsageMap = make(map[string]*NetworkUsageData)
@@ -540,7 +569,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 	return containerNameCost, err
 }
 
-func queryMetrics(mq source.MetricsQuerier, start, end time.Time) ([]*source.ContainerMetricResult, []*source.ContainerMetricResult, []*source.NetZoneGiBResult, []*source.NetRegionGiBResult, []*source.NetInternetGiBResult, error) {
+func queryMetrics(mq source.MetricsQuerier, start, end time.Time) ([]*source.ContainerMetricResult, []*source.ContainerMetricResult, []*source.NetZoneGiBResult, []*source.NetRegionGiBResult, []*source.NetInternetGiBResult, []*source.NetNatGatewayGiBResult, []*source.NetNatGatewayIngressGiBResult, error) {
 	grp := source.NewQueryGroup()
 
 	resChRAMUsage := source.WithGroup(grp, mq.QueryRAMUsageAvg(start, end))
@@ -548,6 +577,8 @@ func queryMetrics(mq source.MetricsQuerier, start, end time.Time) ([]*source.Con
 	resChNetZoneRequests := source.WithGroup(grp, mq.QueryNetZoneGiB(start, end))
 	resChNetRegionRequests := source.WithGroup(grp, mq.QueryNetRegionGiB(start, end))
 	resChNetInternetRequests := source.WithGroup(grp, mq.QueryNetInternetGiB(start, end))
+	resChNetNatGatewayEgressRequests := source.WithGroup(grp, mq.QueryNetNatGatewayGiB(start, end))
+	resChNetNatGatewayIngressRequests := source.WithGroup(grp, mq.QueryNetNatGatewayIngressGiB(start, end))
 
 	// Process metrics query results. Handle errors using ctx.Errors.
 	resRAMUsage, _ := resChRAMUsage.Await()
@@ -555,6 +586,8 @@ func queryMetrics(mq source.MetricsQuerier, start, end time.Time) ([]*source.Con
 	resNetZoneRequests, _ := resChNetZoneRequests.Await()
 	resNetRegionRequests, _ := resChNetRegionRequests.Await()
 	resNetInternetRequests, _ := resChNetInternetRequests.Await()
+	resNetNatGatewayEgressRequests, _ := resChNetNatGatewayEgressRequests.Await()
+	resNetNatGatewayIngressRequests, _ := resChNetNatGatewayIngressRequests.Await()
 
 	// NOTE: The way we currently handle errors and warnings only early returns if there is an error. Warnings
 	// NOTE: will not propagate unless coupled with errors.
@@ -572,10 +605,10 @@ func queryMetrics(mq source.MetricsQuerier, start, end time.Time) ([]*source.Con
 
 		// ErrorCollection is an collection of errors wrapped in a single error implementation
 		// We opt to not return an error for the sake of running as a pure exporter.
-		return resRAMUsage, resCPUUsage, resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, grp.Error()
+		return resRAMUsage, resCPUUsage, resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, resNetNatGatewayEgressRequests, resNetNatGatewayIngressRequests, grp.Error()
 	}
 
-	return resRAMUsage, resCPUUsage, resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, nil
+	return resRAMUsage, resCPUUsage, resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, resNetNatGatewayEgressRequests, resNetNatGatewayIngressRequests, nil
 }
 
 func findUnmountedPVCostData(clusterMap clusters.ClusterMap, unmountedPVs map[string][]*PersistentVolumeClaimData, namespaceLabelsMapping map[string]map[string]string, namespaceAnnotationsMapping map[string]map[string]string) map[string]*CostData {
@@ -793,6 +826,11 @@ func (cm *CostModel) addPVData(pvClaimMapping map[string]*PersistentVolumeClaimD
 			storageClassMap["default"] = params
 			storageClassMap[""] = params
 		}
+
+		// Add custom cost annotation to storage class map
+		if key, found := storageClass.Annotations[annotationStorageCost]; found && params != nil {
+			params[annotationStorageCost] = key
+		}
 	}
 
 	pvs := cache.GetAllPersistentVolumes()
@@ -835,6 +873,24 @@ func (cm *CostModel) addPVData(pvClaimMapping map[string]*PersistentVolumeClaimD
 	return nil
 }
 
+// Checks if the provided cost string can be parsed into a finite, non-negative float64.
+// If the cost is invalid, it logs a warning with the cost value and the reason.
+func (cm *CostModel) costIsValid(cost string) bool {
+	parsedCost, err := strconv.ParseFloat(cost, 64)
+	if err != nil {
+		log.Warnf("Invalid cost value: %s. Error: %s", cost, err.Error())
+		return false
+	}
+
+	// Check if the parsed cost is a valid number (not NaN, not Inf, and non-negative)
+	if math.IsNaN(parsedCost) || math.IsInf(parsedCost, 0) || parsedCost < 0 {
+		log.Warnf("Invalid cost value: %s. Error: cost must be a finite, non-negative number", cost)
+		return false
+	}
+
+	return true
+}
+
 func (cm *CostModel) GetPVCost(pv *costAnalyzerCloud.PV, kpv *clustercache.PersistentVolume, defaultRegion string) error {
 	cp := cm.Provider
 	cfg, err := cp.GetConfig()
@@ -843,6 +899,21 @@ func (cm *CostModel) GetPVCost(pv *costAnalyzerCloud.PV, kpv *clustercache.Persi
 	}
 	key := cp.GetPVKey(kpv, pv.Parameters, defaultRegion)
 	pv.ProviderID = key.ID()
+
+	// If PV has a custom cost annotation, use that to mandate the cost
+	if cost, found := kpv.Annotations[annotationStorageCost]; found && cm.costIsValid(cost) {
+		log.Infof("Found custom cost from annotation for PV %s: %s", kpv.Name, cost)
+		pv.Cost = cost
+		return nil
+	}
+
+	// If SC has a custom cost annotation, use that to mandate the cost
+	if cost, found := pv.Parameters[annotationStorageCost]; found && cm.costIsValid(cost) {
+		log.Infof("Found custom cost from Storage Class annotation for PV %s: %s", kpv.Name, cost)
+		pv.Cost = cost
+		return nil
+	}
+
 	pvWithCost, err := cp.PVPricing(key)
 	if err != nil {
 		pv.Cost = cfg.Storage
@@ -881,14 +952,18 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 	for _, n := range nodeList {
 		name := n.Name
 		nodeLabels := n.Labels
+		if nodeLabels == nil {
+			log.Warnf("GetNodeCost: Found node '%s' with no labels", name)
+			nodeLabels = make(map[string]string)
+		}
+
 		nodeLabels["providerID"] = n.SpecProviderID
 
 		pmd.TotalNodes++
 
 		cnode, _, err := cp.NodePricing(cp.GetKey(nodeLabels, n))
 		if err != nil {
-			log.Infof("Could not get node pricing for node %s. Falling back to default pricing", name)
-			log.Debugf("Error getting node pricing: %s", err.Error())
+			log.DedupedInfof(10, "Could not get node pricing for node %s: %s. Falling back to default pricing.", name, err.Error())
 			if cnode != nil {
 				nodes[name] = cnode
 				continue
@@ -898,6 +973,16 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 					RAMCost:  cfg.RAM,
 				}
 			}
+		}
+
+		if cost, found := n.Annotations[annotationNodeCPUCost]; found && cm.costIsValid(cost) {
+			log.Infof("Found custom CPU cost from annotation for Node %s: %s", n.Name, cost)
+			cnode.VCPUCost = cost
+		}
+
+		if cost, found := n.Annotations[annotationNodeRAMCost]; found && cm.costIsValid(cost) {
+			log.Infof("Found custom RAM cost from annotation for Node %s: %s", n.Name, cost)
+			cnode.RAMCost = cost
 		}
 
 		pmd.PricingTypeCounts[cnode.PricingType]++
@@ -934,17 +1019,17 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 			cpu = 0
 		}
 
-		var ram float64
 		if newCnode.RAM == "" {
 			newCnode.RAM = n.Status.Capacity.Memory().String()
 		}
-		ram = float64(n.Status.Capacity.Memory().Value())
+		if newCnode.RAMBytes == "" {
+			newCnode.RAMBytes = fmt.Sprintf("%v", n.Status.Capacity.Memory().Value())
+		}
+		ram, _ := strconv.ParseFloat(newCnode.RAMBytes, 64)
 		if math.IsNaN(ram) {
 			log.Warnf("ram parsed as NaN. Setting to 0.")
 			ram = 0
 		}
-
-		newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
 		gpuc, err := strconv.ParseFloat(newCnode.GPU, 64)
 		if err != nil {
@@ -1572,13 +1657,17 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 
 	// Begin with empty response
 	asr := opencost.NewAllocationSetRange()
+	queryWindow, err := resolveQueryWindowForAccumulate(window, accumulateBy)
+	if err != nil {
+		return nil, fmt.Errorf("invalid accumulation configuration: %w", err)
+	}
 
 	// Query for AllocationSets in increments of the given step duration,
 	// appending each to the response.
-	stepStart := *window.Start()
+	stepStart := *queryWindow.Start()
 	stepEnd := stepStart.Add(step)
 	var isAKS bool
-	for window.End().After(stepStart) {
+	for queryWindow.End().After(stepStart) {
 		allocSet, err := cm.ComputeAllocation(stepStart, stepEnd)
 		if err != nil {
 			return nil, fmt.Errorf("error computing allocations for %s: %w", opencost.NewClosedWindow(stepStart, stepEnd), err)
@@ -1638,7 +1727,7 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 			return nil, fmt.Errorf("failed to compile filter: %w", err)
 		}
 		filteredASR := opencost.NewAllocationSetRange()
-		for _, as := range asr.Slice() {
+		for _, as := range asr.Allocations {
 			filteredAS := opencost.NewAllocationSet(as.Start(), as.End())
 			for _, alloc := range as.Allocations {
 				if matcher.Matches(alloc) {
@@ -1668,7 +1757,7 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 	}
 
 	// Aggregate
-	err := asr.AggregateBy(aggregate, opts)
+	err = asr.AggregateBy(aggregate, opts)
 	if err != nil {
 		return nil, fmt.Errorf("error aggregating for %s: %w", window, err)
 	}
@@ -1680,6 +1769,8 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 			log.Errorf("error accumulating by %v: %s", accumulateBy, err)
 			return nil, fmt.Errorf("error accumulating by %v: %s", accumulateBy, err)
 		}
+
+		asr = trimAllocationSetRangeToRequestWindow(asr, window)
 
 		// when accumulating and returning PARCs, we need the totals for the
 		// accumulated windows to accurately compute a fraction

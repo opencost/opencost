@@ -34,6 +34,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewNodeRAMUserUsageAverageMetricCollector())
 	memStore.Register(NewLBPricePerHourMetricCollector())
 	memStore.Register(NewLBActiveMinutesMetricCollector())
+	memStore.Register(NewClusterUptimeMetricCollector())
 	memStore.Register(NewClusterManagementDurationMetricCollector())
 	memStore.Register(NewClusterManagementPricePerHourMetricCollector())
 	memStore.Register(NewPodActiveMinutesMetricCollector())
@@ -68,12 +69,17 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewNetInternetGiBMetricCollector())
 	memStore.Register(NewNetInternetPricePerGiBMetricCollector())
 	memStore.Register(NewNetInternetServiceGiBMetricCollector())
+	memStore.Register(NewNetNatGatewayGiBMetricCollector())
+	memStore.Register(NewNetNatGatewayPricePerGiBMetricCollector())
 	memStore.Register(NewNetReceiveBytesMetricCollector())
 	memStore.Register(NewNetZoneIngressGiBMetricCollector())
 	memStore.Register(NewNetRegionIngressGiBMetricCollector())
 	memStore.Register(NewNetInternetIngressGiBMetricCollector())
 	memStore.Register(NewNetInternetServiceIngressGiBMetricCollector())
+	memStore.Register(NewNetNatGatewayIngressPricePerGiBMetricCollector())
+	memStore.Register(NewNetNatGatewayIngressGiBMetricCollector())
 	memStore.Register(NewNetTransferBytesMetricCollector())
+	memStore.Register(NewNamespaceUptimeMetricCollector())
 	memStore.Register(NewNamespaceLabelsMetricCollector())
 	memStore.Register(NewNamespaceAnnotationsMetricCollector())
 	memStore.Register(NewPodLabelsMetricCollector())
@@ -86,6 +92,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewPodsWithReplicaSetOwnerMetricCollector())
 	memStore.Register(NewReplicaSetsWithoutOwnersMetricCollector())
 	memStore.Register(NewReplicaSetsWithRolloutMetricCollector())
+	memStore.Register(NewResourceQuotaUptimeMetricCollector())
 	memStore.Register(NewResourceQuotaSpecCPURequestAverageMetricCollector())
 	memStore.Register(NewResourceQuotaSpecCPURequestMaxMetricCollector())
 	memStore.Register(NewResourceQuotaSpecRAMRequestAverageMetricCollector())
@@ -191,7 +198,7 @@ func NewPVCInfoMetricCollector() *metric.MetricCollector {
 			source.StorageClassLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		func(labels map[string]string) bool {
 			return labels[source.VolumeNameLabel] != ""
 		},
@@ -212,7 +219,7 @@ func NewPVActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.PVLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -228,8 +235,6 @@ func NewPVActiveMinutesMetricCollector() *metric.MetricCollector {
 //	) by (instance, device, cluster_id)[%s:%dm]
 //
 // ) / 1024 / 1024 / 1024 * %f * %f`
-// NewLocalStorageUsedActiveMinutesMetricCollector does not have an associated query end point but is used in the results
-// of QueryLocalStorageUsedCost
 func NewLocalStorageUsedActiveMinutesMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.LocalStorageUsedActiveMinutesID,
@@ -239,7 +244,7 @@ func NewLocalStorageUsedActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.DeviceLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil, // filter not required here because only container root file system is being scraped
 	)
 }
@@ -324,7 +329,7 @@ func NewLocalStorageBytesMetricCollector() *metric.MetricCollector {
 
 // count(
 //
-//	node_total_hourly_cost{
+//	kube_node_labels{
 //		<some_custom_filter>
 //	}
 //
@@ -332,13 +337,13 @@ func NewLocalStorageBytesMetricCollector() *metric.MetricCollector {
 func NewLocalStorageActiveMinutesMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.LocalStorageActiveMinutesID,
-		metric.NodeTotalHourlyCost,
+		metric.KubeNodeLabels,
 		[]string{
 			source.NodeLabel,
 			source.ProviderIDLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -470,7 +475,7 @@ func NewNodeLabelsMetricCollector() *metric.MetricCollector {
 }
 
 //	avg(
-//		node_total_hourly_cost{
+//		kube_node_labels{
 //			<some_custom_filter>
 //		}
 //	) by (node, cluster_id, provider_id)[%s:%dm]
@@ -478,13 +483,13 @@ func NewNodeLabelsMetricCollector() *metric.MetricCollector {
 func NewNodeActiveMinutesMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.NodeActiveMinutesID,
-		metric.NodeTotalHourlyCost,
+		metric.KubeNodeLabels,
 		[]string{
 			source.NodeLabel,
 			source.ProviderIDLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -602,7 +607,25 @@ func NewLBActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.IngressIPLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+//	avg(
+//		cluster_info{
+//			<some_custom_filter>
+//		}
+//	) by (uid)[%s:%dm]
+
+func NewClusterUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ClusterUptimeID,
+		metric.ClusterInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -621,7 +644,7 @@ func NewClusterManagementDurationMetricCollector() *metric.MetricCollector {
 			source.ProvisionerNameLabel,
 			source.UIDLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -662,7 +685,7 @@ func NewPodActiveMinutesMetricCollector() *metric.MetricCollector {
 			source.NamespaceLabel,
 			source.PodLabel,
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	)
 }
@@ -1483,6 +1506,51 @@ func NewNetInternetServiceGiBMetricCollector() *metric.MetricCollector {
 
 //	sum(
 //		increase(
+//			kubecost_pod_network_egress_bytes_total{
+//				nat_gateway="true",
+//				<some_custom_filter>
+//			}[1h]
+//		)
+//	) by (pod_name, namespace, uid, cluster_id) / 1024 / 1024 / 1024
+
+func NewNetNatGatewayGiBMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NetNatGatewayGiBID,
+		metric.KubecostPodNetworkEgressBytesTotal,
+		[]string{
+			source.NamespaceLabel,
+			source.PodNameLabel,
+			source.UIDLabel,
+		},
+		aggregator.Increase,
+		func(labels map[string]string) bool {
+			natLabel, labelExists := labels[source.NatGatewayLabel]
+
+			return labelExists && natLabel == "true"
+		},
+	)
+}
+
+// avg(
+//      avg_over_time(
+// 			kubecost_network_nat_gateway_egress_cost{
+// 				<some_custom_filter>
+//			}[1h]
+//		)
+// ) by (cluster_id)
+
+func NewNetNatGatewayPricePerGiBMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NetNatGatewayPricePerGiBID,
+		metric.KubecostNetworkNatGatewayEgressCost,
+		[]string{},
+		aggregator.AverageOverTime,
+		nil,
+	)
+}
+
+//	sum(
+//		increase(
 //			container_network_receive_bytes_total{
 //				pod!="",
 //				<some_custom_filter>
@@ -1615,6 +1683,51 @@ func NewNetInternetServiceIngressGiBMetricCollector() *metric.MetricCollector {
 	)
 }
 
+// avg(
+//      avg_over_time(
+// 			kubecost_network_nat_gateway_ingress_cost{
+// 				<some_custom_filter>
+//			}[1h]
+//		)
+// ) by (cluster_id)
+
+func NewNetNatGatewayIngressPricePerGiBMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NetNatGatewayIngressPricePerGiBID,
+		metric.KubecostNetworkNatGatewayIngressCost,
+		[]string{},
+		aggregator.AverageOverTime,
+		nil,
+	)
+}
+
+//	sum(
+//		increase(
+//			kubecost_pod_network_ingress_bytes_total{
+//				nat_gateway="true",
+//				<some_custom_filter>
+//			}[1h]
+//		)
+//	) by (pod_name, namespace, uid, cluster_id) / 1024 / 1024 / 1024
+
+func NewNetNatGatewayIngressGiBMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NetNatGatewayIngressGiBID,
+		metric.KubecostPodNetworkIngressBytesTotal,
+		[]string{
+			source.NamespaceLabel,
+			source.PodNameLabel,
+			source.UIDLabel,
+		},
+		aggregator.Increase,
+		func(labels map[string]string) bool {
+			natLabel, labelExists := labels[source.NatGatewayLabel]
+
+			return labelExists && natLabel == "true"
+		},
+	)
+}
+
 //	sum(
 //		increase(
 //			container_network_transmit_bytes_total{
@@ -1637,6 +1750,24 @@ func NewNetTransferBytesMetricCollector() *metric.MetricCollector {
 		func(labels map[string]string) bool {
 			return labels[source.PodLabel] != ""
 		},
+	)
+}
+
+//	avg(
+//		namespace_info{
+//			<some_custom_filter>
+//		}
+//	) by (uid)[%s:%dm]
+
+func NewNamespaceUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.NamespaceUptimeID,
+		metric.NamespaceInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
 	)
 }
 
@@ -1909,15 +2040,23 @@ func NewReplicaSetsWithRolloutMetricCollector() *metric.MetricCollector {
 	)
 }
 
-// avg(
-//	avg_over_time(
-//		resourcequota_spec_resource_requests{
-//			resource="cpu",
-//			unit="core",
+//	avg(
+//		resourcequota_info{
 //			<some_custom_filter>
-//		}[1h]
-//	)
-//) by (resourcequota, namespace, uid, cluster_id)
+//		}
+//	) by (uid)[%s:%dm]
+
+func NewResourceQuotaUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ResourceQuotaUptimeID,
+		metric.ResourceQuotaInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
 
 func NewResourceQuotaSpecCPURequestAverageMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(

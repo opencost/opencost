@@ -106,6 +106,9 @@ type Allocation struct {
 	GPUAllocation               *GPUAllocation `json:"GPUAllocation"`       //@bingen:field[version=23]
 	CPUCoreLimitAverage         float64        `json:"cpuCoreLimitAverage"` //@bingen:field[version=24]
 	RAMBytesLimitAverage        float64        `json:"ramByteLimitAverage"` //@bingen:field[version=24]
+	// NAT Gateway Costs
+	NetworkNatGatewayEgressCost  float64 `json:"networkNatGatewayEgressCost"`  //@bingen:field[version=25]
+	NetworkNatGatewayIngressCost float64 `json:"networkNatGatewayIngressCost"` //@bingen:field[version=25]
 }
 
 type GPUAllocation struct {
@@ -757,6 +760,8 @@ func (a *Allocation) Clone() *Allocation {
 		NetworkCrossZoneCost:           a.NetworkCrossZoneCost,
 		NetworkCrossRegionCost:         a.NetworkCrossRegionCost,
 		NetworkInternetCost:            a.NetworkInternetCost,
+		NetworkNatGatewayEgressCost:    a.NetworkNatGatewayEgressCost,
+		NetworkNatGatewayIngressCost:   a.NetworkNatGatewayIngressCost,
 		NetworkCostAdjustment:          a.NetworkCostAdjustment,
 		LoadBalancerCost:               a.LoadBalancerCost,
 		LoadBalancerCostAdjustment:     a.LoadBalancerCostAdjustment,
@@ -845,6 +850,12 @@ func (a *Allocation) Equal(that *Allocation) bool {
 		return false
 	}
 	if !util.IsApproximately(a.NetworkInternetCost, that.NetworkInternetCost) {
+		return false
+	}
+	if !util.IsApproximately(a.NetworkNatGatewayEgressCost, that.NetworkNatGatewayEgressCost) {
+		return false
+	}
+	if !util.IsApproximately(a.NetworkNatGatewayIngressCost, that.NetworkNatGatewayIngressCost) {
 		return false
 	}
 	if !util.IsApproximately(a.NetworkCostAdjustment, that.NetworkCostAdjustment) {
@@ -1409,6 +1420,8 @@ func (a *Allocation) add(that *Allocation) {
 	a.NetworkCrossZoneCost += that.NetworkCrossZoneCost
 	a.NetworkCrossRegionCost += that.NetworkCrossRegionCost
 	a.NetworkInternetCost += that.NetworkInternetCost
+	a.NetworkNatGatewayEgressCost += that.NetworkNatGatewayEgressCost
+	a.NetworkNatGatewayIngressCost += that.NetworkNatGatewayIngressCost
 	a.LoadBalancerCost += that.LoadBalancerCost
 	a.SharedCost += that.SharedCost
 	a.ExternalCost += that.ExternalCost
@@ -2766,6 +2779,14 @@ func (a *Allocation) SanitizeNaN() {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkInternetCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
 		a.NetworkInternetCost = 0
 	}
+	if math.IsNaN(a.NetworkNatGatewayEgressCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkNatGatewayEgressCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkNatGatewayEgressCost = 0
+	}
+	if math.IsNaN(a.NetworkNatGatewayIngressCost) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkNatGatewayIngressCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.NetworkNatGatewayIngressCost = 0
+	}
 	if math.IsNaN(a.NetworkCostAdjustment) {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for NetworkCostAdjustment name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
 		a.NetworkCostAdjustment = 0
@@ -3280,6 +3301,8 @@ func (asr *AllocationSetRange) Accumulate(accumulateBy AccumulateOption) (*Alloc
 		return asr.accumulateByWeek()
 	case AccumulateOptionMonth:
 		return asr.accumulateByMonth()
+	case AccumulateOptionQuarter:
+		return asr.accumulateByQuarter()
 	default:
 		// ideally, this should never happen
 		return nil, fmt.Errorf("unexpected error, invalid accumulateByType: %s", accumulateBy)
@@ -3375,6 +3398,44 @@ func (asr *AllocationSetRange) accumulateByMonth() (*AllocationSetRange, error) 
 
 		// either the month has ended, or there are no more allocation sets
 		if month != nextDayMonth || i == len(asr.Allocations)-1 {
+			if length := len(toAccumulate.Allocations); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			result.Append(toAccumulate.Allocations[0])
+			toAccumulate = nil
+		}
+	}
+	return result, nil
+}
+
+func (asr *AllocationSetRange) accumulateByQuarter() (*AllocationSetRange, error) {
+	var toAccumulate *AllocationSetRange
+	result := NewAllocationSetRange()
+	for i, as := range asr.Allocations {
+		if as.Window.Duration() != time.Hour*24 {
+			return nil, fmt.Errorf("window duration must equal 24 hours; got:%s", as.Window.Duration())
+		}
+
+		year, month, _ := as.Window.Start().Date()
+		nextDay := as.Window.Start().Add(time.Hour * 24)
+		nextYear, nextMonth, _ := nextDay.Date()
+		quarter := (int(month) - 1) / 3
+		nextQuarter := (int(nextMonth) - 1) / 3
+
+		if toAccumulate == nil {
+			toAccumulate = NewAllocationSetRange()
+			as = as.Clone()
+		}
+
+		toAccumulate.Append(as)
+		asAccumulated, err := toAccumulate.accumulate()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = NewAllocationSetRange(asAccumulated)
+
+		// either the quarter has ended, or there are no more allocation sets
+		if quarter != nextQuarter || year != nextYear || i == len(asr.Allocations)-1 {
 			if length := len(toAccumulate.Allocations); length != 1 {
 				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
 			}

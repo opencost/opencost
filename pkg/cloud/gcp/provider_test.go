@@ -406,7 +406,6 @@ func TestGCP_GetConfig(t *testing.T) {
 	assert.Equal(t, "30%", config.Discount)
 	assert.Equal(t, "0%", config.NegotiatedDiscount)
 	assert.Equal(t, "USD", config.CurrencyCode)
-	assert.Equal(t, models.DefaultShareTenancyCost, config.ShareTenancyCosts)
 }
 
 func TestGCP_GetManagementPlatform(t *testing.T) {
@@ -1259,10 +1258,11 @@ func (m *mockConfig) GetCustomPricingData() (*models.CustomPricing, error) {
 		Discount:              "30%",
 		NegotiatedDiscount:    "0%",
 		CurrencyCode:          "USD",
-		ShareTenancyCosts:     models.DefaultShareTenancyCost,
 		ZoneNetworkEgress:     "0.12",
 		RegionNetworkEgress:   "0.08",
 		InternetNetworkEgress: "0.15",
+		NatGatewayEgress:      "0.45",
+		NatGatewayIngress:     "0.45",
 	}, nil
 }
 

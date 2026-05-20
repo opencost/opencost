@@ -239,7 +239,7 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 	}
 }
 
-func getRetailPrice(region string, skuName string, currencyCode string, spot bool) (string, error) {
+func buildAzureRetailPricesURL(region string, skuName string, currencyCode string) string {
 	pricingURL := "https://prices.azure.com/api/retail/prices?$skip=0"
 
 	if currencyCode != "" {
@@ -258,44 +258,62 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 		filterParams = append(filterParams, skuNameParam)
 	}
 
-	if len(filterParams) > 0 {
-		filterParamsEscaped := url.QueryEscape(strings.Join(filterParams[:], " and "))
-		pricingURL += fmt.Sprintf("&$filter=%s", filterParamsEscaped)
-	}
+	// Make sure only service name with Virtual Machines are parsed with skuName
+	filterParams = append(filterParams, "serviceFamily eq 'Compute'")
 
-	log.Infof("starting download retail price payload from \"%s\"", pricingURL)
-	resp, err := http.Get(pricingURL)
+	// Add type eq 'Consumption' to the filter to avoid reservation cost
+	filterParams = append(filterParams, "type eq 'Consumption'")
 
+	// Exclude Low Priority instances[Azure has special computes that let you run workloads on spare capacity at a deeply discounted price in exchange for no SLA and the possibility of being evicted]
+	filterParams = append(filterParams, "contains(meterName,'Low Priority') eq false")
+
+	filterParamsEscaped := url.QueryEscape(strings.Join(filterParams[:], " and "))
+	pricingURL += fmt.Sprintf("&$filter=%s", filterParamsEscaped)
+
+	return pricingURL
+}
+
+func extractAzureVMRetailAndSpotPrices(resp *http.Response) (retailPrice string, spotPrice string, err error) {
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("bogus fetch of \"%s\": %v", pricingURL, err)
-	}
-
-	if resp.StatusCode < 200 && resp.StatusCode > 299 {
-		return "", fmt.Errorf("retail price responded with error status code %d", resp.StatusCode)
+		return "", "", fmt.Errorf("Error getting response: %v", err)
 	}
 
 	pricingPayload := AzureRetailPricing{}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("Error getting response: %v", err)
-	}
-
 	jsonErr := json.Unmarshal(body, &pricingPayload)
 	if jsonErr != nil {
-		return "", fmt.Errorf("Error unmarshalling data: %v", jsonErr)
+		return "", "", fmt.Errorf("error unmarshalling data: %v", jsonErr)
 	}
-
-	retailPrice := ""
-	spotPrice := ""
 	for _, item := range pricingPayload.Items {
-		if item.Type == "Consumption" && !strings.Contains(item.ProductName, "Windows") {
+		// note: Windows OS ondemand price will be equal to Linux, Adoption of Windows based
+		// computes are increasing in Azure we might want to enhance this in future.
+		if !strings.Contains(item.ProductName, "Windows") {
 			if strings.Contains(strings.ToLower(item.SkuName), " spot") {
 				spotPrice = fmt.Sprintf("%f", item.RetailPrice)
 			} else if !(strings.Contains(strings.ToLower(item.SkuName), "low priority") || strings.Contains(strings.ToLower(item.ProductName), "cloud services") || strings.Contains(strings.ToLower(item.ProductName), "cloudservices")) {
 				retailPrice = fmt.Sprintf("%f", item.RetailPrice)
 			}
 		}
+	}
+	return retailPrice, spotPrice, nil
+}
+
+func getRetailPrice(region string, skuName string, currencyCode string, spot bool) (string, error) {
+	pricingURL := buildAzureRetailPricesURL(region, skuName, currencyCode)
+	log.Infof("starting download retail price payload from \"%s\"", pricingURL)
+
+	resp, err := http.Get(pricingURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch retail price with URL \"%s\": %v", pricingURL, err)
+	}
+
+	if resp.StatusCode < 200 && resp.StatusCode > 299 {
+		return "", fmt.Errorf("retail price responded with error status code %d", resp.StatusCode)
+	}
+
+	retailPrice, spotPrice, err := extractAzureVMRetailAndSpotPrices(resp)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract azure prices: %v", err)
 	}
 
 	log.DedupedInfof(5, "done parsing retail price payload from \"%s\"\n", pricingURL)
@@ -710,6 +728,14 @@ func createString(keys ...string) string {
 	return b.String()
 }
 
+// getConfigSource returns a human-readable string indicating the source of configuration
+func getConfigSource(envVarName, envValue, defaultSource string) string {
+	if envValue != "" {
+		return "env:" + envVarName
+	}
+	return defaultSource
+}
+
 func transformMachineType(subCategory string, mt []string) []string {
 	switch {
 	case strings.Contains(subCategory, "Basic"):
@@ -805,6 +831,27 @@ func (az *Azure) DownloadPricingData() error {
 		config.AzureOfferDurableID = envOfferID
 	}
 
+	// Check for Azure rate card filter environment variables with backward compatibility
+	locale := env.GetAzureLocale() // Defaults to "en-US"
+
+	envCurrency := env.GetAzureCurrency()
+	currency := config.CurrencyCode // Use config default
+	if envCurrency != "" {
+		currency = envCurrency // Override with environment variable if provided
+	}
+
+	envRegionInfo := env.GetAzureRegionInfo()
+	regionInfo := config.AzureBillingRegion // Use config default
+	if envRegionInfo != "" {
+		regionInfo = envRegionInfo // Override with environment variable if provided
+	}
+
+	// Debug logging for rate card configuration
+	log.Debugf("Azure rate card configuration: locale=%s (source: %s), currency=%s (source: %s), regionInfo=%s (source: %s)",
+		locale, getConfigSource("AZURE_LOCALE", locale, "en-US"),
+		currency, getConfigSource("AZURE_CURRENCY", envCurrency, "config"),
+		regionInfo, getConfigSource("AZURE_REGION_INFO", envRegionInfo, "config"))
+
 	// Load the service provider keys
 	subscriptionID, clientID, clientSecret, tenantID := az.getAzureRateCardAuth(false, config)
 	config.AzureSubscriptionID = subscriptionID
@@ -848,7 +895,7 @@ func (az *Azure) DownloadPricingData() error {
 	providersClient := resources.NewProvidersClientWithBaseURI(azureEnv.ResourceManagerEndpoint, config.AzureSubscriptionID)
 	providersClient.Authorizer = authorizer
 
-	rateCardFilter := fmt.Sprintf("OfferDurableId eq '%s' and Currency eq '%s' and Locale eq 'en-US' and RegionInfo eq '%s'", config.AzureOfferDurableID, config.CurrencyCode, config.AzureBillingRegion)
+	rateCardFilter := fmt.Sprintf("OfferDurableId eq '%s' and Currency eq '%s' and Locale eq '%s' and RegionInfo eq '%s'", config.AzureOfferDurableID, currency, locale, regionInfo)
 
 	// create a preparer (the same way rcClient.Get() does) so that we can log the azureRateCard URL
 	log.Infof("Using azureRateCard query %s", rateCardFilter)
@@ -1237,11 +1284,21 @@ func (az *Azure) NetworkPricing() (*models.Network, error) {
 	if err != nil {
 		return nil, err
 	}
+	nge, err := strconv.ParseFloat(cpricing.NatGatewayEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+	ngi, err := strconv.ParseFloat(cpricing.NatGatewayIngress, 64)
+	if err != nil {
+		return nil, err
+	}
 
 	return &models.Network{
 		ZoneNetworkEgressCost:     znec,
 		RegionNetworkEgressCost:   rnec,
 		InternetNetworkEgressCost: inec,
+		NatGatewayEgressCost:      nge,
+		NatGatewayIngressCost:     ngi,
 	}, nil
 }
 
@@ -1287,7 +1344,11 @@ func (key *azurePvKey) GetStorageClass() string {
 
 func (key *azurePvKey) Features() string {
 	storageClass := key.StorageClassParameters["storageaccounttype"]
-	storageSKU := key.StorageClassParameters["skuName"]
+	diskSKU := key.StorageClassParameters["skuname"]
+	fileSKU := key.StorageClassParameters["skuName"]
+	if storageClass == "" {
+		storageClass = diskSKU
+	}
 	if storageClass != "" {
 		if strings.EqualFold(storageClass, "Premium_LRS") {
 			storageClass = AzureDiskPremiumSSDStorageClass
@@ -1297,9 +1358,9 @@ func (key *azurePvKey) Features() string {
 			storageClass = AzureDiskStandardStorageClass
 		}
 	} else {
-		if strings.EqualFold(storageSKU, "Premium_LRS") {
+		if strings.EqualFold(fileSKU, "Premium_LRS") {
 			storageClass = AzureFilePremiumStorageClass
-		} else if strings.EqualFold(storageSKU, "Standard_LRS") {
+		} else if strings.EqualFold(fileSKU, "Standard_LRS") {
 			storageClass = AzureFileStandardStorageClass
 		}
 	}
@@ -1595,9 +1656,6 @@ func (az *Azure) GetConfig() (*models.CustomPricing, error) {
 	// Default to pay-as-you-go Durable offer id
 	if c.AzureOfferDurableID == "" {
 		c.AzureOfferDurableID = "MS-AZR-0003p"
-	}
-	if c.ShareTenancyCosts == "" {
-		c.ShareTenancyCosts = models.DefaultShareTenancyCost
 	}
 	if c.SpotLabel == "" {
 		c.SpotLabel = defaultSpotLabel

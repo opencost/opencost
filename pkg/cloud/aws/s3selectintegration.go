@@ -9,6 +9,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/pkg/cloud"
 )
 
 const S3SelectDateLayout = "2006-01-02T15:04:05Z"
@@ -372,4 +373,21 @@ func hasK8sLabel(labels opencost.CloudCostLabels) bool {
 		return true
 	}
 	return false
+}
+
+func (s3si *S3SelectIntegration) RefreshStatus() cloud.ConnectionStatus {
+	client, err := s3si.GetS3Client()
+	if err != nil {
+		s3si.ConnectionStatus = cloud.FailedConnection
+	}
+	objs, err := s3si.ListObjects(client)
+	if err != nil {
+		s3si.ConnectionStatus = cloud.FailedConnection
+	} else if len(objs.Contents) == 0 {
+		s3si.ConnectionStatus = cloud.MissingData
+	} else {
+		s3si.ConnectionStatus = cloud.SuccessfulConnection
+	}
+
+	return s3si.ConnectionStatus
 }

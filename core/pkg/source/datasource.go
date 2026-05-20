@@ -16,8 +16,6 @@ type MetricsQuerier interface {
 
 	// Local Cluster Disks
 	QueryLocalStorageActiveMinutes(start, end time.Time) *Future[LocalStorageActiveMinutesResult]
-	QueryLocalStorageCost(start, end time.Time) *Future[LocalStorageCostResult]
-	QueryLocalStorageUsedCost(start, end time.Time) *Future[LocalStorageUsedCostResult]
 	QueryLocalStorageUsedAvg(start, end time.Time) *Future[LocalStorageUsedAvgResult]
 	QueryLocalStorageUsedMax(start, end time.Time) *Future[LocalStorageUsedMaxResult]
 	QueryLocalStorageBytes(start, end time.Time) *Future[LocalStorageBytesResult]
@@ -39,6 +37,7 @@ type MetricsQuerier interface {
 	QueryLBPricePerHr(start, end time.Time) *Future[LBPricePerHrResult]
 
 	// Cluster Management
+	QueryClusterUptime(start, end time.Time) *Future[UptimeResult]
 	QueryClusterManagementDuration(start, end time.Time) *Future[ClusterManagementDurationResult]
 	QueryClusterManagementPricePerHr(start, end time.Time) *Future[ClusterManagementPricePerHrResult]
 
@@ -81,6 +80,9 @@ type MetricsQuerier interface {
 	QueryPVPricePerGiBHour(start, end time.Time) *Future[PVPricePerGiBHourResult]
 	QueryPVInfo(start, end time.Time) *Future[PVInfoResult]
 
+	// Namespace
+	QueryNamespaceUptime(start, end time.Time) *Future[UptimeResult]
+
 	// Network Egress
 	QueryNetZoneGiB(start, end time.Time) *Future[NetZoneGiBResult]
 	QueryNetZonePricePerGiB(start, end time.Time) *Future[NetZonePricePerGiBResult]
@@ -89,6 +91,8 @@ type MetricsQuerier interface {
 	QueryNetInternetGiB(start, end time.Time) *Future[NetInternetGiBResult]
 	QueryNetInternetPricePerGiB(start, end time.Time) *Future[NetInternetPricePerGiBResult]
 	QueryNetInternetServiceGiB(start, end time.Time) *Future[NetInternetServiceGiBResult]
+	QueryNetNatGatewayPricePerGiB(start, end time.Time) *Future[NetNatGatewayPricePerGiBResult]
+	QueryNetNatGatewayGiB(start, end time.Time) *Future[NetNatGatewayGiBResult]
 	QueryNetTransferBytes(start, end time.Time) *Future[NetTransferBytesResult]
 
 	// Network Ingress
@@ -96,6 +100,8 @@ type MetricsQuerier interface {
 	QueryNetRegionIngressGiB(start, end time.Time) *Future[NetRegionIngressGiBResult]
 	QueryNetInternetIngressGiB(start, end time.Time) *Future[NetInternetIngressGiBResult]
 	QueryNetInternetServiceIngressGiB(start, end time.Time) *Future[NetInternetServiceIngressGiBResult]
+	QueryNetNatGatewayIngressPricePerGiB(start, end time.Time) *Future[NetNatGatewayPricePerGiBResult]
+	QueryNetNatGatewayIngressGiB(start, end time.Time) *Future[NetNatGatewayIngressGiBResult]
 	QueryNetReceiveBytes(start, end time.Time) *Future[NetReceiveBytesResult]
 
 	// Annotations
@@ -118,6 +124,7 @@ type MetricsQuerier interface {
 	QueryReplicaSetsWithRollout(start, end time.Time) *Future[ReplicaSetsWithRolloutResult]
 
 	// ResourceQuotas
+	QueryResourceQuotaUptime(start, end time.Time) *Future[UptimeResult]
 	QueryResourceQuotaSpecCPURequestAverage(start, end time.Time) *Future[ResourceQuotaSpecCPURequestAvgResult]
 	QueryResourceQuotaSpecCPURequestMax(start, end time.Time) *Future[ResourceQuotaSpecCPURequestMaxResult]
 	QueryResourceQuotaSpecRAMRequestAverage(start, end time.Time) *Future[ResourceQuotaSpecRAMRequestAvgResult]

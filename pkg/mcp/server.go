@@ -14,10 +14,12 @@ import (
 	"github.com/opencost/opencost/core/pkg/filter"
 	"github.com/opencost/opencost/core/pkg/filter/allocation"
 	cloudcostfilter "github.com/opencost/opencost/core/pkg/filter/cloudcost"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	models "github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/costmodel"
+	"github.com/opencost/opencost/pkg/env"
 )
 
 // QueryType defines the type of query to be executed.
@@ -376,8 +378,8 @@ func NewMCPServer(costModel *costmodel.CostModel, provider models.Provider, clou
 }
 
 // ProcessMCPRequest processes an MCP request and returns an MCP response.
-
-func (s *MCPServer) ProcessMCPRequest(request *MCPRequest) (*MCPResponse, error) {
+// It accepts a context for proper timeout handling and cancellation.
+func (s *MCPServer) ProcessMCPRequest(ctx context.Context, request *MCPRequest) (*MCPResponse, error) {
 	// 1. Validate Request
 	if err := validate.Struct(request); err != nil {
 		return nil, fmt.Errorf("validation failed: %w", err)
@@ -395,7 +397,7 @@ func (s *MCPServer) ProcessMCPRequest(request *MCPRequest) (*MCPResponse, error)
 	case AssetQueryType:
 		data, err = s.QueryAssets(request.Query)
 	case CloudCostQueryType:
-		data, err = s.QueryCloudCosts(request.Query)
+		data, err = s.QueryCloudCosts(ctx, request.Query)
 	case EfficiencyQueryType:
 		data, err = s.QueryEfficiency(request.Query)
 	default:
@@ -713,7 +715,8 @@ func transformAssetSet(assetSet *opencost.AssetSet) *AssetResponse {
 }
 
 // QueryCloudCosts translates an MCP query into a CloudCost repository query and transforms the result.
-func (s *MCPServer) QueryCloudCosts(query *OpenCostQueryRequest) (*CloudCostResponse, error) {
+// The ctx parameter is used for timeout and cancellation handling of the cloud cost query.
+func (s *MCPServer) QueryCloudCosts(ctx context.Context, query *OpenCostQueryRequest) (*CloudCostResponse, error) {
 	// 1. Check if cloud cost querier is available
 	if s.cloudQuerier == nil {
 		return nil, fmt.Errorf("cloud cost querier not configured - check cloud-integration.json file")
@@ -737,13 +740,18 @@ func (s *MCPServer) QueryCloudCosts(query *OpenCostQueryRequest) (*CloudCostResp
 		request = s.buildCloudCostQueryRequest(request, query.CloudCostParams)
 	}
 
-	// 5. Query the repository (this handles multiple cloud providers automatically)
-	ccsr, err := s.cloudQuerier.Query(context.TODO(), request)
+	// 5. Create a timeout context for the query with configured timeout
+	queryTimeout := env.GetMCPQueryTimeout()
+	queryCtx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+
+	// 6. Query the repository (this handles multiple cloud providers automatically)
+	ccsr, err := s.cloudQuerier.Query(queryCtx, request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query cloud costs: %w", err)
 	}
 
-	// 6. Transform Response
+	// 7. Transform Response
 	return transformCloudCostSetRange(ccsr), nil
 }
 
@@ -770,7 +778,7 @@ func (s *MCPServer) buildCloudCostQueryRequest(request cloudcost.QueryRequest, p
 		filter, err = parser.Parse(params.Filter)
 		if err != nil {
 			// Log error but continue without filter rather than failing the entire request
-			fmt.Printf("Warning: failed to parse filter string '%s': %v\n", params.Filter, err)
+			log.Warnf("failed to parse filter string '%s': %v", params.Filter, err)
 		}
 	} else {
 		// Build filter from individual parameters
@@ -840,7 +848,7 @@ func (s *MCPServer) buildFilterFromParams(params *CloudCostQuery) filter.Filter 
 	filter, err := parser.Parse(filterString)
 	if err != nil {
 		// Log error but return nil rather than failing
-		fmt.Printf("Warning: failed to parse combined filter '%s': %v\n", filterString, err)
+		log.Warnf("failed to parse combined filter '%s': %v", filterString, err)
 		return nil
 	}
 
@@ -867,6 +875,13 @@ func transformCloudCostSetRange(ccsr *opencost.CloudCostSetRange) *CloudCostResp
 	// Process each cloud cost set in the range
 	for i, ccSet := range ccsr.CloudCostSets {
 		if ccSet == nil {
+			log.Warnf("transformCloudCostSetRange: skipping nil CloudCostSet at index %d", i)
+			continue
+		}
+
+		// Check for nil Window or nil Start/End pointers before dereferencing
+		if ccSet.Window.Start() == nil || ccSet.Window.End() == nil {
+			log.Warnf("transformCloudCostSetRange: skipping CloudCostSet at index %d with invalid window (start=%v, end=%v)", i, ccSet.Window.Start(), ccSet.Window.End())
 			continue
 		}
 
@@ -884,6 +899,13 @@ func transformCloudCostSetRange(ccsr *opencost.CloudCostSetRange) *CloudCostResp
 		// Convert each cloud cost item
 		for _, item := range ccSet.CloudCosts {
 			if item == nil {
+				log.Warnf("transformCloudCostSetRange: skipping nil CloudCost item in set %s", setName)
+				continue
+			}
+
+			// Check for nil Window or nil Start/End pointers on the item
+			if item.Window.Start() == nil || item.Window.End() == nil {
+				log.Warnf("transformCloudCostSetRange: skipping CloudCost item with invalid window (start=%v, end=%v) in set %s", item.Window.Start(), item.Window.End(), setName)
 				continue
 			}
 
@@ -946,8 +968,23 @@ func transformCloudCostSetRange(ccsr *opencost.CloudCostSetRange) *CloudCostResp
 	var avgKubernetesPercent float64
 	var numerator, denominator float64
 	for _, ccSet := range ccsr.CloudCostSets {
+		if ccSet == nil {
+			log.Warnf("transformCloudCostSetRange: skipping nil CloudCostSet in Kubernetes percent calculation")
+			continue
+		}
+		// Skip sets with invalid windows (consistent with first loop)
+		if ccSet.Window.Start() == nil || ccSet.Window.End() == nil {
+			log.Warnf("transformCloudCostSetRange: skipping CloudCostSet with invalid window (start=%v, end=%v) in Kubernetes percent calculation", ccSet.Window.Start(), ccSet.Window.End())
+			continue
+		}
 		for _, item := range ccSet.CloudCosts {
 			if item == nil {
+				log.Warnf("transformCloudCostSetRange: skipping nil CloudCost item in Kubernetes percent calculation")
+				continue
+			}
+			// Skip items with invalid windows (consistent with first loop)
+			if item.Window.Start() == nil || item.Window.End() == nil {
+				log.Warnf("transformCloudCostSetRange: skipping CloudCost item with invalid window (start=%v, end=%v) in Kubernetes percent calculation", item.Window.Start(), item.Window.End())
 				continue
 			}
 			cost := item.NetCost.Cost

@@ -2,6 +2,7 @@ package costmodel
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -20,9 +21,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/retry"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/core/pkg/version"
-	"github.com/opencost/opencost/pkg/cloud/aws"
 	cloudconfig "github.com/opencost/opencost/pkg/cloud/config"
-	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/config"
@@ -39,7 +38,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/modules/collector-source/pkg/collector"
 	"github.com/opencost/opencost/modules/prometheus-source/pkg/prom"
-	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	clusterc "github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
@@ -52,10 +50,6 @@ import (
 
 const (
 	RFC3339Milli         = "2006-01-02T15:04:05.000Z"
-	maxCacheMinutes1d    = 11
-	maxCacheMinutes2d    = 17
-	maxCacheMinutes7d    = 37
-	maxCacheMinutes30d   = 137
 	CustomPricingSetting = "CustomPricing"
 	DiscountSetting      = "Discount"
 )
@@ -134,6 +128,32 @@ func ParsePercentString(percentStr string) (float64, error) {
 	return discount, nil
 }
 
+// adminAuthMiddleware wraps a handler and requires a Bearer token matching ADMIN_TOKEN env var when set.
+// When ADMIN_TOKEN is not set, logs a deduped warning and allows the request through.
+// When ADMIN_TOKEN is set, returns 401 if the Bearer token is missing or 403 if it does not match.
+func adminAuthMiddleware(next httprouter.Handle) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		adminToken := env.GetAdminToken()
+		if adminToken == "" {
+			log.DedupedWarningf(5, "Admin token (ADMIN_TOKEN) not configured; write operations are unauthenticated")
+			next(w, r, ps)
+			return
+		}
+		authHeader := r.Header.Get("Authorization")
+		const prefix = "Bearer "
+		if !strings.HasPrefix(authHeader, prefix) {
+			http.Error(w, "Missing or invalid authorization", http.StatusUnauthorized)
+			return
+		}
+		bearerToken := strings.TrimPrefix(authHeader, prefix)
+		if subtle.ConstantTimeCompare([]byte(bearerToken), []byte(adminToken)) != 1 {
+			http.Error(w, "Missing or invalid authorization", http.StatusForbidden)
+			return
+		}
+		next(w, r, ps)
+	}
+}
+
 func WriteData(w http.ResponseWriter, data interface{}, err error) {
 	if err != nil {
 		proto.WriteError(w, proto.InternalServerError(err.Error()))
@@ -208,61 +228,6 @@ func (a *Accesses) GetAllNodePricing(w http.ResponseWriter, r *http.Request, ps 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	data, err := a.CloudProvider.AllNodePricing()
-	WriteData(w, data, err)
-}
-
-func (a *Accesses) GetConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	data, err := a.CloudProvider.GetConfig()
-	WriteData(w, data, err)
-}
-
-func (a *Accesses) UpdateSpotInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	data, err := a.CloudProvider.UpdateConfig(r.Body, aws.SpotInfoUpdateType)
-	WriteData(w, data, err)
-
-	err = a.CloudProvider.DownloadPricingData()
-	if err != nil {
-		log.Errorf("Error redownloading data on config update: %s", err.Error())
-	}
-}
-
-func (a *Accesses) UpdateAthenaInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	data, err := a.CloudProvider.UpdateConfig(r.Body, aws.AthenaInfoUpdateType)
-	WriteData(w, data, err)
-}
-
-func (a *Accesses) UpdateBigQueryInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	data, err := a.CloudProvider.UpdateConfig(r.Body, gcp.BigqueryUpdateType)
-	WriteData(w, data, err)
-}
-
-func (a *Accesses) UpdateAzureStorageConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := a.CloudProvider.UpdateConfig(r.Body, azure.AzureStorageUpdateType)
-	if err != nil {
-		WriteData(w, nil, err)
-		return
-	}
-	WriteData(w, data, err)
-}
-
-func (a *Accesses) UpdateConfigByKey(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := a.CloudProvider.UpdateConfig(r.Body, "")
 	WriteData(w, data, err)
 }
 
@@ -468,6 +433,11 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 		log.Fatalf("Failed to build Kubernetes client: %s", err.Error())
 	}
 
+	clusterUID, err := kubeconfig.GetClusterUID(kubeClientset)
+	if err != nil {
+		log.Fatalf("Failed to determine cluster UID: %s", err)
+	}
+
 	// Create Kubernetes Cluster Cache + Watchers
 	k8sCache := clusterc.NewKubernetesClusterCache(kubeClientset)
 	k8sCache.Run()
@@ -521,6 +491,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 			}
 			nodeStatClient := nodestats.NewNodeStatsSummaryClient(k8sCache, nodeStatConf, clusterConfig)
 			ds := collector.NewDefaultCollectorDataSource(
+				clusterUID,
 				store,
 				clusterInfoProvider,
 				k8sCache,
@@ -553,7 +524,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	clusterMap := dataSource.ClusterMap()
 	settingsCache := cache.New(cache.NoExpiration, cache.NoExpiration)
 
-	costModel := NewCostModel(dataSource, cloudProvider, k8sCache, clusterMap, dataSource.BatchDuration())
+	costModel := NewCostModel(clusterUID, dataSource, cloudProvider, k8sCache, clusterMap, dataSource.BatchDuration())
 	metricsEmitter := NewCostModelMetricsEmitter(k8sCache, cloudProvider, clusterInfoProvider, costModel)
 
 	a := &Accesses{
@@ -585,6 +556,8 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	router.GET("/costDataModel", a.CostDataModel)
 	router.GET("/allocation/compute", a.ComputeAllocationHandler)
 	router.GET("/allocation/compute/summary", a.ComputeAllocationHandlerSummary)
+	router.GET("/allocation/autocomplete", a.ComputeAllocationAutocompleteHandler)
+	router.GET("/assets/autocomplete", a.ComputeAssetsAutocompleteHandler)
 	router.GET("/allNodePricing", a.GetAllNodePricing)
 	router.POST("/refreshPricing", a.RefreshPricingData)
 	router.GET("/managementPlatform", a.ManagementPlatform)
@@ -597,7 +570,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	router.GET("/orphanedPods", a.GetOrphanedPods)
 	router.GET("/installNamespace", a.GetInstallNamespace)
 	router.GET("/installInfo", a.GetInstallInfo)
-	router.POST("/serviceKey", a.AddServiceKey)
+	router.POST("/serviceKey", adminAuthMiddleware(a.AddServiceKey))
 	router.GET("/helmValues", a.GetHelmValues)
 
 	return a
@@ -636,28 +609,28 @@ func GetDefaultCollectorStorage() storage.Storage {
 }
 
 // InitializeCloudCost Initializes Cloud Cost pipeline and querier and registers endpoints
-func InitializeCloudCost(router *httprouter.Router, providerConfig models.ProviderConfig) *cloudcost.PipelineService {
+func InitializeCloudCost(router *httprouter.Router) *cloudcost.PipelineService {
 	log.Debugf("Cloud Cost config path: %s", env.GetCloudCostConfigPath())
-	cloudConfigController := cloudconfig.NewMemoryController(providerConfig)
+	cloudConfigController := cloudconfig.NewMemoryController(nil)
 
 	repo := cloudcost.NewMemoryRepository()
 	cloudCostPipelineService := cloudcost.NewPipelineService(repo, cloudConfigController, cloudcost.DefaultIngestorConfiguration())
 	repoQuerier := cloudcost.NewRepositoryQuerier(repo)
 	cloudCostQueryService := cloudcost.NewQueryService(repoQuerier, repoQuerier)
 
-	router.GET("/cloud/config/export", cloudConfigController.GetExportConfigHandler())
-	router.GET("/cloud/config/enable", cloudConfigController.GetEnableConfigHandler())
-	router.GET("/cloud/config/disable", cloudConfigController.GetDisableConfigHandler())
-	router.GET("/cloud/config/delete", cloudConfigController.GetDeleteConfigHandler())
-
 	router.GET("/cloudCost", cloudCostQueryService.GetCloudCostHandler())
+	router.GET("/cloudCost/autocomplete", cloudCostQueryService.GetCloudCostAutocompleteHandler())
 	router.GET("/cloudCost/view/graph", cloudCostQueryService.GetCloudCostViewGraphHandler())
 	router.GET("/cloudCost/view/totals", cloudCostQueryService.GetCloudCostViewTotalsHandler())
 	router.GET("/cloudCost/view/table", cloudCostQueryService.GetCloudCostViewTableHandler(nil))
 
 	router.GET("/cloudCost/status", cloudCostPipelineService.GetCloudCostStatusHandler())
-	router.GET("/cloudCost/rebuild", cloudCostPipelineService.GetCloudCostRebuildHandler())
-	router.GET("/cloudCost/repair", cloudCostPipelineService.GetCloudCostRepairHandler())
+	router.GET("/cloudCost/rebuild", adminAuthMiddleware(cloudCostPipelineService.GetCloudCostRebuildHandler()))
+	router.GET("/cloudCost/repair", adminAuthMiddleware(cloudCostPipelineService.GetCloudCostRepairHandler()))
+	router.GET("/cloud/config/export", adminAuthMiddleware(cloudConfigController.GetExportConfigHandler()))
+	router.GET("/cloud/config/enable", adminAuthMiddleware(cloudConfigController.GetEnableConfigHandler()))
+	router.GET("/cloud/config/disable", adminAuthMiddleware(cloudConfigController.GetDisableConfigHandler()))
+	router.GET("/cloud/config/delete", adminAuthMiddleware(cloudConfigController.GetDeleteConfigHandler()))
 
 	return cloudCostPipelineService
 }

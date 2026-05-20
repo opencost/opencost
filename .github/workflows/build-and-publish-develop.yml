@@ -23,9 +23,12 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
       - name: Set SHA
         id: sha
         run: |
@@ -48,7 +51,7 @@ jobs:
           release_version: develop-${{ steps.sha.outputs.OC_SHORTHASH }}
       
       - name: Install crane
-        uses: imjasonh/setup-crane@v0.4
+        uses: imjasonh/setup-crane@v0.5
 
       - name: Tag and push latest image
         env:
@@ -61,5 +64,9 @@ jobs:
           echo "Copying $IMAGE_TAG to ${NEW_TAG}"
           crane copy "$IMAGE_TAG" "${NEW_TAG}"
 
-
-
+      - name: Sign image and attest SLSA provenance
+        uses: ./.github/actions/sign-image
+        with:
+          image: ${{ steps.tags.outputs.IMAGE_TAG }}
+          workflow-path: .github/workflows/build-and-publish-develop.yml
+          run-started-at: ${{ github.run_started_at }}

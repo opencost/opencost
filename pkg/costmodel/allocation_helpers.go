@@ -317,6 +317,13 @@ func applyCPUCoresLimits(podMap map[podKey]*pod, resCPUCoresLimits []*source.CPU
 			}
 
 			thisPod.Allocations[container].CPUCoreLimitAverage = res.Data[0].Value
+
+			node := res.Node
+			if node == "" {
+				continue
+			}
+			thisPod.Allocations[container].Properties.Node = node
+			thisPod.Node = node
 		}
 	}
 }
@@ -362,6 +369,13 @@ func applyCPUCoresUsedAvg(podMap map[podKey]*pod, resCPUCoresUsedAvg []*source.C
 				log.Infof("[WARNING] Very large cpu USAGE, dropping outlier")
 				thisPod.Allocations[container].CPUCoreUsageAverage = 0.0
 			}
+
+			node := res.Node
+			if node == "" {
+				continue
+			}
+			thisPod.Allocations[container].Properties.Node = node
+			thisPod.Node = node
 		}
 	}
 }
@@ -556,6 +570,13 @@ func applyRAMBytesLimits(podMap map[podKey]*pod, resRAMBytesLimits []*source.RAM
 			}
 
 			pod.Allocations[container].RAMBytesLimitAverage = res.Data[0].Value
+
+			node := res.Node
+			if node == "" {
+				continue
+			}
+			pod.Allocations[container].Properties.Node = node
+			pod.Node = node
 		}
 	}
 }
@@ -597,6 +618,13 @@ func applyRAMBytesUsedAvg(podMap map[podKey]*pod, resRAMBytesUsedAvg []*source.R
 			}
 
 			thisPod.Allocations[container].RAMBytesUsageAverage = res.Data[0].Value
+
+			node := res.Node
+			if node == "" {
+				continue
+			}
+			thisPod.Allocations[container].Properties.Node = node
+			thisPod.Node = node
 		}
 	}
 }
@@ -988,6 +1016,14 @@ func applyCrossRegionNetworkAllocation(alloc *opencost.Allocation, networkSubCos
 
 func applyInternetNetworkAllocation(alloc *opencost.Allocation, networkSubCost float64) {
 	alloc.NetworkInternetCost = networkSubCost
+}
+
+func applyNatGatewayEgressAllocation(alloc *opencost.Allocation, networkSubCost float64) {
+	alloc.NetworkNatGatewayEgressCost = networkSubCost
+}
+
+func applyNatGatewayIngressAllocation(alloc *opencost.Allocation, networkSubCost float64) {
+	alloc.NetworkNatGatewayIngressCost = networkSubCost
 }
 
 func applyNetworkAllocation(podMap map[podKey]*pod, resNetworkGiB []*source.NetworkGiBResult, resNetworkCostPerGiB []*source.NetworkPricePerGiBResult, podUIDKeyMap map[podKey][]podKey, applyCostFunc func(*opencost.Allocation, float64)) {
@@ -2510,8 +2546,7 @@ func calculateStartAndEnd(result []*util.Vector, resolution time.Duration, windo
 	// of the pod by giving "one resolution" worth of duration, half on each
 	// side of the given timestamp.
 	if s.Equal(e) {
-		s = s.Add(-1 * resolution / time.Duration(2))
-		e = e.Add(resolution / time.Duration(2))
+		e = e.Add(resolution)
 	}
 	if s.Before(*window.Start()) {
 		s = *window.Start()

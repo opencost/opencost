@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/core/pkg/util/apiutil"
-	"github.com/opencost/opencost/pkg/cloud/models"
-	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/customcost"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -26,6 +27,8 @@ import (
 	"github.com/opencost/opencost/pkg/metrics"
 )
 
+const shutdownTimeout = 30 * time.Second
+
 func Execute(conf *Config) error {
 	log.Infof("Starting cost-model version %s", version.FriendlyVersion())
 	if conf == nil {
@@ -33,9 +36,13 @@ func Execute(conf *Config) error {
 	}
 	conf.log()
 
+	// Create cancellable context for graceful shutdown
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
 	router := httprouter.New()
 	var a *costmodel.Accesses
-	var cp models.Provider
+
 	if conf.KubernetesEnabled {
 		a = costmodel.Initialize(router)
 		err := StartExportWorker(context.Background(), a.Model)
@@ -51,21 +58,16 @@ func Execute(conf *Config) error {
 			router.GET("/assets/carbon", a.ComputeAssetsCarbonHandler)
 		}
 
-		// set cloud provider for cloud cost
-		cp = a.CloudProvider
 	}
 
 	var cloudCostPipelineService *cloudcost.PipelineService
 	if conf.CloudCostEnabled {
-		var providerConfig models.ProviderConfig
-		if cp != nil {
-			providerConfig = provider.ExtractConfigFromProviders(cp)
-		}
-		cloudCostPipelineService = costmodel.InitializeCloudCost(router, providerConfig)
+
+		cloudCostPipelineService = costmodel.InitializeCloudCost(router)
 	}
 
 	var customCostPipelineService *customcost.PipelineService
-	if conf.CloudCostEnabled {
+	if conf.CustomCostEnabled {
 		customCostPipelineService = costmodel.InitializeCustomCost(router)
 	}
 
@@ -81,12 +83,16 @@ func Execute(conf *Config) error {
 			cloudCostQuerier = cloudCostPipelineService.GetCloudCostQuerier()
 		}
 
-		err := StartMCPServer(context.Background(), a, cloudCostQuerier)
+		err := StartMCPServer(ctx, a, cloudCostQuerier)
 		if err != nil {
 			log.Errorf("Failed to start MCP server: %v", err)
 		}
 	} else if conf.MCPServerEnabled {
 		log.Warnf("MCP Server is enabled but Kubernetes is not available. MCP server requires Kubernetes to function.")
+	} else {
+		if value, exists := os.LookupEnv(env.MCPServerEnabledEnvVar); !exists || value == "" {
+			log.Infof("MCP server is now disabled by default. If you wish to use the MCP server, please set the %s environment variable to true.", env.MCPServerEnabledEnvVar)
+		}
 	}
 
 	apiutil.ApplyContainerDiagnosticEndpoints(router)
@@ -97,7 +103,42 @@ func Execute(conf *Config) error {
 	telemetryHandler := metrics.ResponseMetricMiddleware(rootMux)
 	handler := cors.AllowAll().Handler(telemetryHandler)
 
-	return http.ListenAndServe(fmt.Sprint(":", conf.Port), errors.PanicHandlerMiddleware(handler))
+	server := &http.Server{
+		Addr:    fmt.Sprint(":", conf.Port),
+		Handler: errors.PanicHandlerMiddleware(handler),
+	}
+
+	serverErrors := make(chan error, 1)
+	go func() {
+		log.Infof("HTTP server starting on port %d", conf.Port)
+		serverErrors <- server.ListenAndServe()
+	}()
+
+	select {
+	case err := <-serverErrors:
+		if err != nil && err != http.ErrServerClosed {
+			return err
+		}
+		return nil
+	case <-ctx.Done():
+		log.Infof("Shutdown signal received, starting graceful shutdown...")
+
+		if customCostPipelineService != nil {
+			customCostPipelineService.Stop()
+		}
+
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer shutdownCancel()
+
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Errorf("Error during server shutdown: %v", err)
+			server.Close()
+			return err
+		}
+
+		log.Infof("Graceful shutdown completed")
+		return nil
+	}
 }
 
 func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) error {
@@ -181,7 +222,7 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 			Query: queryRequest,
 		}
 
-		mcpResp, err := mcpServer.ProcessMCPRequest(mcpReq)
+		mcpResp, err := mcpServer.ProcessMCPRequest(ctx, mcpReq)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to process allocation request: %w", err)
 		}
@@ -200,7 +241,7 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 			Query: queryRequest,
 		}
 
-		mcpResp, err := mcpServer.ProcessMCPRequest(mcpReq)
+		mcpResp, err := mcpServer.ProcessMCPRequest(ctx, mcpReq)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to process asset request: %w", err)
 		}
@@ -228,7 +269,7 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 			Query: queryRequest,
 		}
 
-		mcpResp, err := mcpServer.ProcessMCPRequest(mcpReq)
+		mcpResp, err := mcpServer.ProcessMCPRequest(ctx, mcpReq)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to process cloud cost request: %w", err)
 		}
@@ -251,7 +292,7 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 			Query: queryRequest,
 		}
 
-		mcpResp, err := mcpServer.ProcessMCPRequest(mcpReq)
+		mcpResp, err := mcpServer.ProcessMCPRequest(ctx, mcpReq)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to process efficiency request: %w", err)
 		}
@@ -306,6 +347,19 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Errorf("MCP server failed: %v", err)
+		}
+	}()
+
+	// Graceful shutdown goroutine
+	go func() {
+		<-ctx.Done()
+		log.Info("Shutting down MCP server...")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Errorf("MCP server shutdown error: %v", err)
+		} else {
+			log.Info("MCP server shut down successfully")
 		}
 	}()
 

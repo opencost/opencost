@@ -12,11 +12,19 @@ import (
 )
 
 type Decoder[T any] func([]byte) (*T, error)
+type StreamingDecoder[T any] func(io.Reader) (*T, error)
 
-// BinaryMarshalerPtr[T] is a generic constraint to ensure types passed to the encoder implement
-// encoding.BinaryMarshaler and are pointers to T.
+// BinaryMarshalerPtr[T] is a generic constraint to ensure types passed to the decoder implement
+// encoding.BinaryUnmarshaler and are pointers to T.
 type BinaryUnmarshalerPtr[T any] interface {
 	encoding.BinaryUnmarshaler
+	*T
+}
+
+// BinaryUnmarshalWithReaderPtr[T] is a generic constraint to ensure types passed to the decoder
+// implement an unmarshal from io.Reader method.
+type BinaryUnmarshalWithReaderPtr[T any] interface {
+	UnmarshalBinaryFromReader(reader io.Reader) error
 	*T
 }
 
@@ -28,6 +36,16 @@ func BingenDecoder[T any, U BinaryUnmarshalerPtr[T]](data []byte) (*T, error) {
 		return nil, fmt.Errorf("failed to decode bingen: %w", err)
 	}
 
+	return set, nil
+}
+
+func StreamingBingenDecoder[T any, U BinaryUnmarshalWithReaderPtr[T]](reader io.Reader) (*T, error) {
+	var set U = new(T)
+
+	err := set.UnmarshalBinaryFromReader(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode bingen: %w", err)
+	}
 	return set, nil
 }
 

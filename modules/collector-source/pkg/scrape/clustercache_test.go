@@ -245,6 +245,18 @@ func Test_kubernetesScraper_scrapeNamespaces(t *testing.T) {
 			},
 			expected: []metric.Update{
 				{
+					Name: metric.NamespaceInfo,
+					Labels: map[string]string{
+						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.NamespaceLabel: "namespace1",
+						source.UIDLabel:       "uuid1",
+					},
+				},
+				{
 					Name: metric.KubeNamespaceLabels,
 					Labels: map[string]string{
 						source.NamespaceLabel: "namespace1",
@@ -299,6 +311,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 	start1, _ := time.Parse(time.RFC3339, Start1Str)
 
 	type scrape struct {
+		PVCs      []*clustercache.PersistentVolumeClaim
 		Pods      []*clustercache.Pod
 		Timestamp time.Time
 	}
@@ -311,6 +324,22 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 			name: "simple",
 			scrapes: []scrape{
 				{
+					PVCs: []*clustercache.PersistentVolumeClaim{
+						{
+							Name:      "pvc1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+							Spec: v1.PersistentVolumeClaimSpec{
+								VolumeName:       "vol1",
+								StorageClassName: util.Ptr("storageClass1"),
+								Resources: v1.VolumeResourceRequirements{
+									Requests: v1.ResourceList{
+										v1.ResourceStorage: resource.MustParse("4096"),
+									},
+								},
+							},
+						},
+					},
 					Pods: []*clustercache.Pod{
 						{
 							Name:      "pod1",
@@ -482,6 +511,20 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 					Value:          1024,
 					AdditionalInfo: nil,
 				},
+				{
+					Name: metric.PodPVCAllocation,
+					Labels: map[string]string{
+						source.InstanceLabel:  "",
+						source.NamespaceLabel: "namespace1",
+						source.NodeLabel:      "",
+						source.PVLabel:        "vol1",
+						source.PVCLabel:       "pvc1",
+						source.PodLabel:       "unmounted-pvs",
+						source.UIDLabel:       "",
+					},
+					Value:          4096,
+					AdditionalInfo: nil,
+				},
 			},
 		},
 	}
@@ -490,7 +533,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 			ks := &ClusterCacheScraper{}
 			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				res := ks.scrapePods(s.Pods)
+				res := ks.scrapePods(s.Pods, s.PVCs)
 				scrapeResults = append(scrapeResults, res...)
 			}
 
@@ -956,6 +999,20 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 				},
 			},
 			expected: []metric.Update{
+				{
+					Name: metric.ResourceQuotaInfo,
+					Labels: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.NamespaceLabel:     "namespace1",
+						source.UIDLabel:           "uuid1",
+					},
+				},
 				{
 					Name: metric.KubeResourceQuotaSpecResourceRequests,
 					Labels: map[string]string{

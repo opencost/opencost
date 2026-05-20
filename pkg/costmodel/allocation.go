@@ -324,6 +324,12 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resChNetInternetGiB := source.WithGroup(grp, ds.QueryNetInternetGiB(start, end))
 	resChNetInternetPricePerGiB := source.WithGroup(grp, ds.QueryNetInternetPricePerGiB(start, end))
 
+	resChNetNatGatewayGiB := source.WithGroup(grp, ds.QueryNetNatGatewayGiB(start, end))
+	resChNetNatGatewayEgressPricePerGiB := source.WithGroup(grp, ds.QueryNetNatGatewayPricePerGiB(start, end))
+
+	resChNetNatGatewayIngressGiB := source.WithGroup(grp, ds.QueryNetNatGatewayIngressGiB(start, end))
+	resChNetNatGatewayIngressPricePerGiB := source.WithGroup(grp, ds.QueryNetNatGatewayIngressPricePerGiB(start, end))
+
 	var resChNodeLabels *source.QueryGroupFuture[source.NodeLabelsResult]
 	if env.IsAllocationNodeLabelsEnabled() {
 		resChNodeLabels = source.WithGroup(grp, ds.QueryNodeLabels(start, end))
@@ -389,6 +395,10 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resNetRegionPricePerGiB, _ := resChNetRegionPricePerGiB.Await()
 	resNetInternetGiB, _ := resChNetInternetGiB.Await()
 	resNetInternetPricePerGiB, _ := resChNetInternetPricePerGiB.Await()
+	resNetNatGatewayGiB, _ := resChNetNatGatewayGiB.Await()
+	resNetNatGatewayEgressPricePerGiB, _ := resChNetNatGatewayEgressPricePerGiB.Await()
+	resNetNatGatewayIngressGiB, _ := resChNetNatGatewayIngressGiB.Await()
+	resNetNatGatewayIngressPricePerGiB, _ := resChNetNatGatewayIngressPricePerGiB.Await()
 
 	var resNodeLabels []*source.NodeLabelsResult
 	if env.IsAllocationNodeLabelsEnabled() {
@@ -439,6 +449,8 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZonePricePerGiB, podUIDKeyMap, applyCrossZoneNetworkAllocation)
 	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionPricePerGiB, podUIDKeyMap, applyCrossRegionNetworkAllocation)
 	applyNetworkAllocation(podMap, resNetInternetGiB, resNetInternetPricePerGiB, podUIDKeyMap, applyInternetNetworkAllocation)
+	applyNetworkAllocation(podMap, resNetNatGatewayGiB, resNetNatGatewayEgressPricePerGiB, podUIDKeyMap, applyNatGatewayEgressAllocation)
+	applyNetworkAllocation(podMap, resNetNatGatewayIngressGiB, resNetNatGatewayIngressPricePerGiB, podUIDKeyMap, applyNatGatewayIngressAllocation)
 
 	// In the case that a two pods with the same name had different containers,
 	// we will double-count the containers. There is no way to associate each

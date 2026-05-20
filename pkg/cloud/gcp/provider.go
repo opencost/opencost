@@ -149,9 +149,6 @@ func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 	if c.CurrencyCode == "" {
 		c.CurrencyCode = "USD"
 	}
-	if c.ShareTenancyCosts == "" {
-		c.ShareTenancyCosts = models.DefaultShareTenancyCost
-	}
 	return c, nil
 }
 
@@ -255,8 +252,8 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 			c.AthenaCatalog = a.AthenaCatalog
 			c.AthenaTable = a.AthenaTable
 			c.AthenaWorkgroup = a.AthenaWorkgroup
-			c.ServiceKeyName = a.ServiceKeyName
-			c.ServiceKeySecret = a.ServiceKeySecret
+			c.AwsServiceKeyName = a.ServiceKeyName
+			c.AwsServiceKeySecret = a.ServiceKeySecret
 			c.AthenaProjectID = a.AccountID
 		} else {
 			a := make(map[string]interface{})
@@ -762,9 +759,8 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 
 				gpuType := NormalizeGPULabel(product.Description)
 				if gpuType != "" {
-				    log.Debugf("GCP Billing API: normalized GPU type: %q", gpuType)
+					log.Debugf("GCP Billing API: normalized GPU type: %q", gpuType)
 				}
-
 
 				candidateKeys := []string{}
 				if gcp.ValidPricingKeys == nil {
@@ -1092,7 +1088,7 @@ func (gcp *GCP) DownloadPricingData() error {
 
 	reserved, err := gcp.getReservedInstances()
 	if err != nil {
-		log.Errorf("Failed to lookup reserved instance data: %s", err.Error())
+		log.Warnf("Failed to lookup reserved instance data: %s", err.Error())
 	} else {
 		gcp.ReservedInstances = reserved
 
@@ -1146,11 +1142,21 @@ func (gcp *GCP) NetworkPricing() (*models.Network, error) {
 	if err != nil {
 		return nil, err
 	}
+	nge, err := strconv.ParseFloat(cpricing.NatGatewayEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+	ngi, err := strconv.ParseFloat(cpricing.NatGatewayIngress, 64)
+	if err != nil {
+		return nil, err
+	}
 
 	return &models.Network{
 		ZoneNetworkEgressCost:     znec,
 		RegionNetworkEgressCost:   rnec,
 		InternetNetworkEgressCost: inec,
+		NatGatewayEgressCost:      nge,
+		NatGatewayIngressCost:     ngi,
 	}, nil
 }
 

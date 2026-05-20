@@ -1,0 +1,79 @@
+package cloudcost
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/opencost/opencost/core/pkg/opencost"
+)
+
+func TestRepositoryQuerier_QueryCloudCostAutocomplete(t *testing.T) {
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+
+	repo := NewMemoryRepository()
+	ccs := DefaultMockCloudCostSet(start, end, "aws", "integration-1")
+	if err := repo.Put(ccs); err != nil {
+		t.Fatalf("failed to seed repository: %v", err)
+	}
+	rq := NewRepositoryQuerier(repo)
+
+	resp, err := rq.QueryCloudCostAutocomplete(context.Background(), CloudCostAutocompleteRequest{
+		Field:  opencost.CloudCostServiceProp,
+		Window: opencost.NewClosedWindow(start, end),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(resp.Data) != 2 {
+		t.Fatalf("expected 2 service values, got %d: %+v", len(resp.Data), resp.Data)
+	}
+
+	labelResp, err := rq.QueryCloudCostAutocomplete(context.Background(), CloudCostAutocompleteRequest{
+		Field:  "label:label1",
+		Search: "value1",
+		Window: opencost.NewClosedWindow(start, end),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(labelResp.Data) != 1 || labelResp.Data[0] != "value1" {
+		t.Fatalf("unexpected label autocomplete response: %+v", labelResp.Data)
+	}
+
+	_, err = rq.QueryCloudCostAutocomplete(context.Background(), CloudCostAutocompleteRequest{
+		Field:  opencost.CloudCostServiceProp,
+		Limit:  MaxAutocompleteResultLimit + 1,
+		Window: opencost.NewClosedWindow(start, end),
+	})
+	if err == nil {
+		t.Fatal("expected error for excessive limit")
+	}
+	if !IsAutocompleteBadRequest(err) {
+		t.Fatalf("expected bad request error, got: %v", err)
+	}
+
+	_, err = rq.QueryCloudCostAutocomplete(context.Background(), CloudCostAutocompleteRequest{
+		Field:  "not-a-real-field",
+		Window: opencost.NewClosedWindow(start, end),
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid field")
+	}
+	if !IsAutocompleteBadRequest(err) {
+		t.Fatalf("expected bad request error, got: %v", err)
+	}
+
+	mixedCaseResp, err := rq.QueryCloudCostAutocomplete(context.Background(), CloudCostAutocompleteRequest{
+		Field:  "label:Label1",
+		Search: "value1",
+		Window: opencost.NewClosedWindow(start, end),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mixedCaseResp.Data) != 1 || mixedCaseResp.Data[0] != "value1" {
+		t.Fatalf("unexpected mixed-case label autocomplete response: %+v", mixedCaseResp.Data)
+	}
+}
