@@ -37,6 +37,7 @@ const (
 	ServiceNameLabel     = "service_name"
 	ServiceTypeLabel     = "service_type"
 	IngressIPLabel       = "ingress_ip"
+	LBIngressAddress     = "lb_ingress_address"
 	ProvisionerNameLabel = "provisioner_name"
 	UIDLabel             = "uid"
 	KubernetesNodeLabel  = "kubernetes_node"
@@ -1637,11 +1638,12 @@ func DecodeServiceLabelsResult(result *QueryResult) *ServiceLabelsResult {
 }
 
 type ServiceInfoResult struct {
-	UID          string
-	Cluster      string
-	NamespaceUID string
-	Service      string
-	ServiceType  string
+	UID              string
+	Cluster          string
+	NamespaceUID     string
+	Service          string
+	ServiceType      string
+	LBIngressAddress string
 }
 
 func DecodeServiceInfoResult(result *QueryResult) *ServiceInfoResult {
@@ -1650,13 +1652,15 @@ func DecodeServiceInfoResult(result *QueryResult) *ServiceInfoResult {
 	namespaceUID, _ := result.GetString(NamespaceUIDLabel)
 	service, _ := result.GetString(ServiceLabel)
 	serviceType, _ := result.GetString(ServiceTypeLabel)
+	lbIngressAddress, _ := result.GetString(LBIngressAddress)
 
 	return &ServiceInfoResult{
-		UID:          uid,
-		Cluster:      cluster,
-		NamespaceUID: namespaceUID,
-		Service:      service,
-		ServiceType:  serviceType,
+		UID:              uid,
+		Cluster:          cluster,
+		NamespaceUID:     namespaceUID,
+		Service:          service,
+		ServiceType:      serviceType,
+		LBIngressAddress: lbIngressAddress,
 	}
 }
 
