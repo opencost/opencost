@@ -1,73 +1,38 @@
-name: 'Sign Container Image'
-description: >-
-  Sign a container image and attest SLSA v1 build provenance using cosign
-  keyless (Sigstore) with GitHub Actions OIDC. Callers must check out the
-  source tree (e.g. `actions/checkout`) before invoking this action — the
-  built commit is resolved with `git rev-parse HEAD` so the attestation
-  records the revision that was actually built rather than `github.sha`,
-  which on a tag push reflects the tag-pointed commit and may differ from
-  the branch tip the release workflow checks out. The calling job must
-  have `id-token: write`.
+name: Debug Sign Predicate
 
-inputs:
-    image:
-        description: 'Full image reference (registry/repo:tag) to sign by digest.'
-        required: true
-    workflow-path:
-        description: 'Path to the workflow file (repo-relative) that triggered the build.'
-        required: true
-    run-started-at:
-        description: >-
-          ISO-8601 workflow run start time (typically
-          `github.run_started_at` from the caller workflow). Recorded as
-          `runDetails.metadata.startedOn` in the SLSA provenance predicate.
-          If empty, the action falls back to the time at which it began
-          executing — `github.run_started_at` is reported empty in some
-          edge cases and `required: true` on a composite-action input
-          does not reject empty strings.
-        required: true
+# Temporary workflow for validating the run-started-at fallback in
+# .github/actions/sign-image/action.yaml without invoking cosign. Trigger
+# manually from the Actions tab and exercise both the empty-input path
+# (fallback) and the populated-input path. Delete before merging.
 
-runs:
-    using: "composite"
+on:
+  workflow_dispatch:
+    inputs:
+      run-started-at:
+        description: 'ISO-8601 start time (leave empty to exercise the fallback)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  generate-predicate:
+    runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
       - name: Capture fallback start timestamp
         id: start
         shell: bash
         run: |
           echo "STARTED_ON=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
-      - name: Install cosign
-        uses: sigstore/cosign-installer@v3
-
-      - name: Install crane
-        uses: imjasonh/setup-crane@v0.5
-
-      - name: Resolve image digest
-        id: digest
+      - name: Generate predicate (mirrors sign-image action logic)
         shell: bash
         env:
-          IMAGE: ${{ inputs.image }}
-        run: |
-          set -euo pipefail
-          DIGEST="$(crane digest "${IMAGE}")"
-          REPO="${IMAGE%:*}"
-          REF="${REPO}@${DIGEST}"
-          echo "Resolved ${IMAGE} -> ${REF}"
-          echo "REF=${REF}" >> "$GITHUB_OUTPUT"
-          echo "DIGEST=${DIGEST}" >> "$GITHUB_OUTPUT"
-
-      - name: Sign image with cosign (keyless)
-        shell: bash
-        env:
-          REF: ${{ steps.digest.outputs.REF }}
-        run: |
-          set -euo pipefail
-          cosign sign --yes "${REF}"
-
-      - name: Generate SLSA v1 provenance predicate
-        shell: bash
-        env:
-          WORKFLOW_PATH: ${{ inputs.workflow-path }}
+          WORKFLOW_PATH: .github/workflows/debug-sign-predicate.yml
           STARTED_ON: ${{ inputs.run-started-at }}
           FALLBACK_STARTED_ON: ${{ steps.start.outputs.STARTED_ON }}
         run: |
@@ -123,13 +88,24 @@ runs:
           print(json.dumps(predicate, indent=2))
           PY
 
-      - name: Attest SLSA provenance with cosign
+      - name: Dump and validate predicate
         shell: bash
-        env:
-          REF: ${{ steps.digest.outputs.REF }}
         run: |
           set -euo pipefail
-          cosign attest --yes \
-            --predicate predicate.json \
-            --type slsaprovenance1 \
-            "${REF}"
+          echo "--- predicate.json ---"
+          cat predicate.json
+          echo "--- validation ---"
+          python3 - <<'PY'
+          import json, sys
+          from datetime import datetime
+          d = json.load(open("predicate.json"))
+          s = d["runDetails"]["metadata"]["startedOn"]
+          print(f"startedOn={s!r}")
+          if not s:
+              print("FAIL: startedOn is empty")
+              sys.exit(1)
+          # cosign parses with Go's RFC3339; Python's fromisoformat handles
+          # the trailing 'Z' from 3.11+, so this is a close-enough proxy.
+          datetime.fromisoformat(s.replace("Z", "+00:00"))
+          print("OK: startedOn is set and parses as RFC3339")
+          PY
