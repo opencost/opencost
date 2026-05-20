@@ -728,7 +728,7 @@ func (ccs *ClusterCacheScraper) scrapeServices(
 		// Assuming one address for now
 		var lbIngressAddress string
 		lbIngressAddresses := clustercache.GetLoadBalancerIngressAddress(service)
-		if len(lbIngressAddresses) > 1 {
+		if len(lbIngressAddresses) > 0 {
 			lbIngressAddress = lbIngressAddresses[0]
 		}
 		serviceInfo := map[string]string{
