@@ -3,10 +3,10 @@ name: Debug Sign Predicate
 # Temporary workflow for validating the run-started-at fallback in
 # .github/actions/sign-image/action.yaml. Two layers of validation:
 #   1. Bash/Python predicate generation (matrix: empty + populated inputs).
-#   2. Real cosign attest against a public reference, with --no-upload and
-#      --tlog-upload=false, so we exercise cosign's actual predicate
-#      unmarshal (the code path that originally failed) without registry
-#      pushes or Rekor entries.
+#   2. Real cosign attest with --no-upload — exercises cosign's actual
+#      predicate unmarshal (the code path that originally failed). Cosign
+#      2.5.x has no working CLI to skip the transparency log, so each
+#      matrix leg produces a public Rekor entry on the fork's identity.
 # Delete this file before opening the real PR.
 
 on:
@@ -142,12 +142,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # --tlog-upload=false is rejected in modern cosign; build a signing
-          # config from the public one with the rekor URLs stripped so the
-          # attestation skips the transparency log.
-          curl -sSL https://raw.githubusercontent.com/sigstore/root-signing/refs/heads/main/targets/signing_config.v0.2.json \
-            | jq 'del(.rekorTlogUrls)' > signing_config.json
-          cosign attest --yes --no-upload --signing-config signing_config.json \
+          # NOTE: cosign 2.5.x rejects --tlog-upload=false and has no working
+          # CLI to bypass the signing config, so this WILL produce a Rekor
+          # transparency-log entry per matrix leg. Acceptable cost for the
+          # real unmarshal-path coverage; delete this step or the workflow
+          # before merging if you want to stop emitting test entries.
+          cosign attest --yes --no-upload \
             --predicate predicate.json \
             --type slsaprovenance1 \
             ghcr.io/opencost/opencost:latest > /dev/null
