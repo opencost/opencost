@@ -2,12 +2,22 @@ package cloudcost
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
+
+// ErrAutocompleteBadRequest indicates a client error in an autocomplete request.
+var ErrAutocompleteBadRequest = errors.New("autocomplete bad request")
+
+// IsAutocompleteBadRequest reports whether err is a client validation error.
+func IsAutocompleteBadRequest(err error) bool {
+	return errors.Is(err, ErrAutocompleteBadRequest)
+}
 
 // RepositoryQuerier is an implementation of Querier and ViewQuerier which pulls directly from a Repository
 type RepositoryQuerier struct {
@@ -65,6 +75,129 @@ func (rq *RepositoryQuerier) Query(ctx context.Context, request QueryRequest) (*
 	}
 
 	return ccsr, nil
+}
+
+func (rq *RepositoryQuerier) QueryCloudCostAutocomplete(ctx context.Context, request CloudCostAutocompleteRequest) (*CloudCostAutocompleteResponse, error) {
+	if request.Window.IsOpen() {
+		return nil, fmt.Errorf("%w: invalid window for autocomplete query: %s", ErrAutocompleteBadRequest, request.Window.String())
+	}
+
+	limit := request.Limit
+	if limit <= 0 {
+		limit = DefaultAutocompleteResultLimit
+	}
+	if limit > MaxAutocompleteResultLimit {
+		return nil, fmt.Errorf("%w: exceeded maximum autocomplete result limit of %d", ErrAutocompleteBadRequest, MaxAutocompleteResultLimit)
+	}
+
+	field, err := validateCloudCostAutocompleteField(request.Field)
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid field: %w", ErrAutocompleteBadRequest, err)
+	}
+
+	ccsr, err := rq.Query(ctx, QueryRequest{
+		Start:      *request.Window.Start(),
+		End:        *request.Window.End(),
+		Accumulate: opencost.AccumulateOptionNone,
+		Filter:     request.Filter,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("QueryCloudCostAutocomplete: query failed: %w", err)
+	}
+
+	search := strings.ToLower(request.Search)
+	results := map[string]struct{}{}
+	for _, ccs := range ccsr.CloudCostSets {
+		for _, cc := range ccs.CloudCosts {
+			if cc == nil || cc.Properties == nil {
+				continue
+			}
+
+			values := cloudCostAutocompleteValues(cc, field)
+			for _, value := range values {
+				if value == "" {
+					continue
+				}
+				if search != "" && !strings.Contains(strings.ToLower(value), search) {
+					continue
+				}
+				results[value] = struct{}{}
+			}
+		}
+	}
+
+	data := make([]string, 0, len(results))
+	for result := range results {
+		data = append(data, result)
+	}
+	sort.Strings(data)
+	if len(data) > limit {
+		data = data[:limit]
+	}
+
+	return &CloudCostAutocompleteResponse{Data: data}, nil
+}
+
+func validateCloudCostAutocompleteField(field string) (string, error) {
+	if field == "" {
+		return "", fmt.Errorf("field is required")
+	}
+
+	f := strings.ToLower(field)
+	if f == "label" {
+		return f, nil
+	}
+	if strings.HasPrefix(f, "label:") {
+		_, labelKey, _ := strings.Cut(f, ":")
+		return "label:" + labelKey, nil
+	}
+
+	property, err := opencost.ParseCloudCostProperty(field)
+	if err != nil {
+		return "", err
+	}
+	return string(property), nil
+}
+
+func cloudCostAutocompleteValues(cc *opencost.CloudCost, field string) []string {
+	if field == "label" {
+		keys := make([]string, 0, len(cc.Properties.Labels))
+		for label := range cc.Properties.Labels {
+			keys = append(keys, label)
+		}
+		return keys
+	}
+	if strings.HasPrefix(field, "label:") {
+		labelName := strings.TrimPrefix(field, "label:")
+		if value, ok := cloudCostLabelValueFold(cc.Properties.Labels, labelName); ok {
+			return []string{value}
+		}
+		return nil
+	}
+
+	property, err := opencost.ParseCloudCostProperty(field)
+	if err != nil {
+		return nil
+	}
+
+	value, err := cc.StringProperty(string(property))
+	if err != nil {
+		return nil
+	}
+
+	return []string{value}
+}
+
+func cloudCostLabelValueFold(labels map[string]string, key string) (string, bool) {
+	if v, ok := labels[key]; ok {
+		return v, true
+	}
+	for k, v := range labels {
+		if strings.EqualFold(k, key) {
+			return v, true
+		}
+	}
+	return "", false
 }
 
 func (rq *RepositoryQuerier) QueryViewGraph(ctx context.Context, request ViewQueryRequest) (ViewGraphData, error) {
