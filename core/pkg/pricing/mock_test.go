@@ -34,13 +34,13 @@ func TestMockPricingRepository(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error ingesting node pricing: %s", err)
 	}
-	if n != 36 {
-		t.Errorf("expected to ingest %d node pricing records; ingested %d", 36, n)
+	if n != 39 {
+		t.Errorf("expected to ingest %d node pricing records; ingested %d", 39, n)
 	}
 
 	nodePricingCount := ingestor.CountNodePricing()
-	if nodePricingCount != 36 {
-		t.Errorf("expected %d node pricing records; received %d", 36, nodePricingCount)
+	if nodePricingCount != 39 {
+		t.Errorf("expected %d node pricing records; received %d", 39, nodePricingCount)
 	}
 
 	// Test ingestion of mock volume reader
@@ -54,13 +54,13 @@ func TestMockPricingRepository(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error ingesting volume pricing: %s", err)
 	}
-	if n != 18 {
-		t.Errorf("expected to ingest %d volume pricing records; ingested %d", 18, n)
+	if n != 20 {
+		t.Errorf("expected to ingest %d volume pricing records; ingested %d", 20, n)
 	}
 
 	volumePricingCount := ingestor.CountVolumePricing()
-	if volumePricingCount != 18 {
-		t.Errorf("expected %d volume pricing records; received %d", 18, volumePricingCount)
+	if volumePricingCount != 20 {
+		t.Errorf("expected %d volume pricing records; received %d", 20, volumePricingCount)
 	}
 }
 

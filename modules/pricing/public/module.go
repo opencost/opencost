@@ -9,7 +9,14 @@ import (
 )
 
 type PricingModule struct {
+	Providers *ProviderPricing `json:"provider" yaml:"provider"`
 }
+
+type ProviderPricing map[pricing.Provider]*InstanceTypePricing
+
+type InstanceTypePricing map[string]*RegionPricing
+
+type RegionPricing map[string]*pricing.Prices
 
 func (pm *PricingModule) NewNodePricingReader(ctx context.Context) (reader.Reader[*pricing.NodePricing], error) {
 	return nil, errors.New("not implemented")
