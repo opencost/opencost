@@ -126,12 +126,6 @@ func (r *resolutionStores) update(
 	defer r.lock.Unlock()
 	limit := r.resolution.Limit()
 	if updateSet.Timestamp.Before(limit) {
-		log.Debugf(
-			"skipping update on resolution '%s' because Timestamp '%s' is before the limit '%s",
-			r.resolution.Interval(),
-			updateSet.Timestamp.Format(time.RFC3339),
-			limit.Format(time.RFC3339),
-		)
 		return
 	}
 

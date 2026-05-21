@@ -333,6 +333,10 @@ func (ccs *ClusterCacheScraper) scrapePods(
 
 	var scrapeResults []metric.Update
 	for _, pod := range pods {
+		// pods without a set node name are not running
+		if pod.Spec.NodeName == "" {
+			continue
+		}
 		nodeUID, ok := nodeIndex[pod.Spec.NodeName]
 		if !ok {
 			log.Debugf("pod nodeUID missing from index for node name '%s'", pod.Spec.NodeName)

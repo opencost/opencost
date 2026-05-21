@@ -18,7 +18,7 @@ type Pod struct {
 	NodeUID               string                 `json:"nodeUid"`
 	Name                  string                 `json:"name"`
 	Owners                []Owner                `json:"owners"`
-	PVCVolumes            []PodPVCVolumes        `json:"pvcVolumes"`
+	PVCVolumes            []PodPVCVolumes        `json:"pvcVolumes,omitempty"`
 	Labels                map[string]string      `json:"labels,omitempty"`
 	Annotations           map[string]string      `json:"annotations,omitempty"`
 	NetworkTrafficDetails []NetworkTrafficDetail `json:"networkTrafficDetails,omitempty"`

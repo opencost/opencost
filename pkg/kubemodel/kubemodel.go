@@ -201,9 +201,9 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 	nodeResourceCapacitiesFuture := source.WithGroup(grp, metrics.QueryNodeResourceCapacities(start, end))
 	nodeResourcesAllocatableFuture := source.WithGroup(grp, metrics.QueryNodeResourcesAllocatable(start, end))
 
-	localStorageBytesFuture := source.WithGroup(grp, metrics.QueryLocalStorageBytes(start, end))
-	localStorageUsedAvgFuture := source.WithGroup(grp, metrics.QueryLocalStorageUsedAvg(start, end))
-	localStorageUsedMaxFuture := source.WithGroup(grp, metrics.QueryLocalStorageUsedMax(start, end))
+	localStorageBytesFuture := source.WithGroup(grp, metrics.QueryKMLocalStorageBytes(start, end))
+	localStorageUsedAvgFuture := source.WithGroup(grp, metrics.QueryKMLocalStorageUsedAvg(start, end))
+	localStorageUsedMaxFuture := source.WithGroup(grp, metrics.QueryKMLocalStorageUsedMax(start, end))
 
 	nodeMap := make(map[string]*kubemodel.Node)
 
@@ -278,24 +278,24 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 	localStorageBytesResult, _ := localStorageBytesFuture.Await()
 	for _, res := range localStorageBytesResult {
 		node, ok := nodeMap[res.UID]
-		if ok && len(res.Data) > 0 {
-			node.FileSystem.CapacityBytes = res.Data[0].Value
+		if ok {
+			node.FileSystem.CapacityBytes = res.Value
 		}
 	}
 
 	localStorageUsedAvgResult, _ := localStorageUsedAvgFuture.Await()
 	for _, res := range localStorageUsedAvgResult {
 		node, ok := nodeMap[res.UID]
-		if ok && len(res.Data) > 0 {
-			node.FileSystem.UsageByteAvg = res.Data[0].Value
+		if ok {
+			node.FileSystem.UsageByteAvg = res.Value
 		}
 	}
 
 	localStorageUsedMaxResult, _ := localStorageUsedMaxFuture.Await()
 	for _, res := range localStorageUsedMaxResult {
 		node, ok := nodeMap[res.UID]
-		if ok && len(res.Data) > 0 {
-			node.FileSystem.UsageByteMax = res.Data[0].Value
+		if ok {
+			node.FileSystem.UsageByteMax = res.Value
 		}
 	}
 
@@ -1449,7 +1449,7 @@ func (km *KubeModel) computePersistentVolumeClaims(kms *kubemodel.KubeModelSet, 
 	grp := source.NewQueryGroup()
 	metrics := km.ds.Metrics()
 
-	pvcInfoResultFuture := source.WithGroup(grp, metrics.QueryPVCInfo(start, end))
+	pvcInfoResultFuture := source.WithGroup(grp, metrics.QueryKMPVCInfo(start, end))
 	pvcUptimeResultFuture := source.WithGroup(grp, metrics.QueryPVCUptime(start, end))
 	pvcBytesRequestedResultFuture := source.WithGroup(grp, metrics.QueryPVCBytesRequested(start, end))
 
