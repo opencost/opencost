@@ -1352,10 +1352,11 @@ func (km *KubeModel) computeServices(kms *kubemodel.KubeModelSet, start, end tim
 	serviceInfoResult, _ := serviceInfoResultFuture.Await()
 	for _, res := range serviceInfoResult {
 		serviceMap[res.UID] = &kubemodel.Service{
-			UID:          res.UID,
-			NamespaceUID: res.NamespaceUID,
-			Name:         res.Service,
-			Type:         kubemodel.ParseServiceType(res.ServiceType),
+			UID:              res.UID,
+			NamespaceUID:     res.NamespaceUID,
+			Name:             res.Service,
+			Type:             kubemodel.ParseServiceType(res.ServiceType),
+			LBIngressAddress: res.LBIngressAddress,
 		}
 	}
 
