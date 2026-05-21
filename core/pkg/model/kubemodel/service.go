@@ -44,7 +44,8 @@ type Service struct {
 	// Label selector to identify pods/containers targeted by this service
 	// Maps label keys to values (e.g., {"app": "nginx", "tier": "frontend"})
 	// Pods with matching labels will receive traffic from this service
-	Selector map[string]string `json:"selector,omitempty"`
+	Selector         map[string]string `json:"selector,omitempty"`
+	LBIngressAddress string            `json:"lbIngressAddress,omitempty"`
 }
 
 func (s *Service) ValidateService(window Window) error {

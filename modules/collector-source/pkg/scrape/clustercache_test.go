@@ -1176,6 +1176,7 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
+		nsSetup  func(map[string]types.UID)
 		scrapes  []scrape
 		expected []metric.Update
 	}{
@@ -1201,26 +1202,32 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 				{
 					Name: metric.ServiceInfo,
 					Labels: map[string]string{
-						source.UIDLabel:         "uuid1",
-						source.ServiceLabel:     "service1",
-						source.NamespaceLabel:   "namespace1",
-						source.ServiceTypeLabel: "",
+						source.UIDLabel:          "uuid1",
+						source.ServiceLabel:      "service1",
+						source.NamespaceLabel:    "namespace1",
+						source.NamespaceUIDLabel: "",
+						source.ServiceTypeLabel:  "",
+						source.LBIngressAddress:  "",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
-						source.UIDLabel:         "uuid1",
-						source.ServiceLabel:     "service1",
-						source.NamespaceLabel:   "namespace1",
-						source.ServiceTypeLabel: "",
+						source.UIDLabel:          "uuid1",
+						source.ServiceLabel:      "service1",
+						source.NamespaceLabel:    "namespace1",
+						source.NamespaceUIDLabel: "",
+						source.ServiceTypeLabel:  "",
+						source.LBIngressAddress:  "",
 					},
 				},
 				{
 					Name: metric.ServiceSelectorLabels,
 					Labels: map[string]string{
-						source.UIDLabel:         "uuid1",
-						source.ServiceLabel:     "service1",
-						source.NamespaceLabel:   "namespace1",
-						source.ServiceTypeLabel: "",
+						source.UIDLabel:          "uuid1",
+						source.ServiceLabel:      "service1",
+						source.NamespaceLabel:    "namespace1",
+						source.NamespaceUIDLabel: "",
+						source.ServiceTypeLabel:  "",
+						source.LBIngressAddress:  "",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -1230,13 +1237,131 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "with namespace index",
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
+			},
+			scrapes: []scrape{
+				{
+					Services: []*clustercache.Service{
+						{
+							Name:      "service1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.ServiceInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.ServiceLabel:      "service1",
+						source.NamespaceLabel:    "namespace1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.ServiceTypeLabel:  "",
+						source.LBIngressAddress:  "",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.ServiceLabel:      "service1",
+						source.NamespaceLabel:    "namespace1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.ServiceTypeLabel:  "",
+						source.LBIngressAddress:  "",
+					},
+				},
+				{
+					Name: metric.ServiceSelectorLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.ServiceLabel:      "service1",
+						source.NamespaceLabel:    "namespace1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.ServiceTypeLabel:  "",
+						source.LBIngressAddress:  "",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+			},
+		},
+		{
+			name: "with LB ingress IP",
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
+			},
+			scrapes: []scrape{
+				{
+					Services: []*clustercache.Service{
+						{
+							Name:      "service1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+							Type:      v1.ServiceTypeLoadBalancer,
+							Status: v1.ServiceStatus{
+								LoadBalancer: v1.LoadBalancerStatus{
+									Ingress: []v1.LoadBalancerIngress{
+										{IP: "1.2.3.4"},
+									},
+								},
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.ServiceInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.ServiceLabel:      "service1",
+						source.NamespaceLabel:    "namespace1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.ServiceTypeLabel:  "LoadBalancer",
+						source.LBIngressAddress:  "1.2.3.4",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.ServiceLabel:      "service1",
+						source.NamespaceLabel:    "namespace1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.ServiceTypeLabel:  "LoadBalancer",
+						source.LBIngressAddress:  "1.2.3.4",
+					},
+				},
+				{
+					Name: metric.ServiceSelectorLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.ServiceLabel:      "service1",
+						source.NamespaceLabel:    "namespace1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.ServiceTypeLabel:  "LoadBalancer",
+						source.LBIngressAddress:  "1.2.3.4",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
+			nsIndex := make(map[string]types.UID)
+			if tt.nsSetup != nil {
+				tt.nsSetup(nsIndex)
+			}
 			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				res := ks.scrapeServices(s.Services)
+				res := ks.scrapeServices(s.Services, nsIndex)
 				scrapeResults = append(scrapeResults, res...)
 			}
 

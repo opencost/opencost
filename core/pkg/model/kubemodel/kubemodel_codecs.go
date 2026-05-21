@@ -4103,7 +4103,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 		if buff.ReadUInt8() == uint8(0) {
 			target.Cluster = nil
 		} else {
-
 			// --- [begin][read][struct](Cluster) ---
 			c := new(Cluster)
 			buff.ReadInt() // [compatibility, unused]
@@ -4143,7 +4142,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					z = nil
 				} else {
-
 					// --- [begin][read][struct](Namespace) ---
 					l := new(Namespace)
 					buff.ReadInt() // [compatibility, unused]
@@ -4327,7 +4325,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzz = nil
 				} else {
-
 					// --- [begin][read][struct](StatefulSet) ---
 					oo := new(StatefulSet)
 					buff.ReadInt() // [compatibility, unused]
@@ -4465,7 +4462,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzz = nil
 				} else {
-
 					// --- [begin][read][struct](CronJob) ---
 					lll := new(CronJob)
 					buff.ReadInt() // [compatibility, unused]
@@ -4511,7 +4507,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzz = nil
 				} else {
-
 					// --- [begin][read][struct](ReplicaSet) ---
 					rrr := new(ReplicaSet)
 					buff.ReadInt() // [compatibility, unused]
@@ -4695,7 +4690,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzzzzzz = nil
 				} else {
-
 					// --- [begin][read][struct](Service) ---
 					uuuu := new(Service)
 					buff.ReadInt() // [compatibility, unused]
@@ -4787,7 +4781,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzzzzzzzz = nil
 				} else {
-
 					// --- [begin][read][struct](DCGMDevice) ---
 					lllll := new(DCGMDevice)
 					buff.ReadInt() // [compatibility, unused]
@@ -4995,7 +4988,6 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						z = nil
 					} else {
-
 						// --- [begin][read][struct](Namespace) ---
 						n := new(Namespace)
 						buff.ReadInt() // [compatibility, unused]
@@ -5235,7 +5227,6 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzz = nil
 					} else {
-
 						// --- [begin][read][struct](StatefulSet) ---
 						mm := new(StatefulSet)
 						buff.ReadInt() // [compatibility, unused]
@@ -5415,7 +5406,6 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzz = nil
 					} else {
-
 						// --- [begin][read][struct](CronJob) ---
 						ddd := new(CronJob)
 						buff.ReadInt() // [compatibility, unused]
@@ -5475,7 +5465,6 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzz = nil
 					} else {
-
 						// --- [begin][read][struct](ReplicaSet) ---
 						lll := new(ReplicaSet)
 						buff.ReadInt() // [compatibility, unused]
@@ -5715,7 +5704,6 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzzzzzz = nil
 					} else {
-
 						// --- [begin][read][struct](Service) ---
 						hhhh := new(Service)
 						buff.ReadInt() // [compatibility, unused]
@@ -5835,7 +5823,6 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzzzzzzzz = nil
 					} else {
-
 						// --- [begin][read][struct](DCGMDevice) ---
 						uuuu := new(DCGMDevice)
 						buff.ReadInt() // [compatibility, unused]
@@ -7845,7 +7832,6 @@ func (target *Pod) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 		// --- [begin][write][slice]([]NetworkTrafficDetail) ---
 		buff.WriteInt(len(target.NetworkTrafficDetails)) // slice length
 		for ii := range target.NetworkTrafficDetails {
-
 			// --- [begin][write][struct](NetworkTrafficDetail) ---
 			buff.WriteInt(0) // [compatibility, unused]
 			errC := target.NetworkTrafficDetails[ii].MarshalBinaryWithContext(ctx)
@@ -8099,7 +8085,6 @@ func (target *Pod) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) 
 		tt := buff.ReadInt() // slice len
 		ss := make([]NetworkTrafficDetail, tt)
 		for ii := range tt {
-
 			// --- [begin][read][struct](NetworkTrafficDetail) ---
 			ww := new(NetworkTrafficDetail)
 			buff.ReadInt() // [compatibility, unused]
@@ -8342,6 +8327,7 @@ func (target *ReplicaSet) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 		// --- [begin][write][slice]([]Owner) ---
 		buff.WriteInt(len(target.Owners)) // slice length
 		for i := range target.Owners {
+
 			// --- [begin][write][struct](Owner) ---
 			buff.WriteInt(0) // [compatibility, unused]
 			errA := target.Owners[i].MarshalBinaryWithContext(ctx)
@@ -8516,6 +8502,7 @@ func (target *ReplicaSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 		n := buff.ReadInt() // slice len
 		m := make([]Owner, n)
 		for i := range n {
+
 			// --- [begin][read][struct](Owner) ---
 			p := new(Owner)
 			buff.ReadInt() // [compatibility, unused]
@@ -8794,7 +8781,6 @@ func (target *ResourceQuantity) UnmarshalBinaryWithContext(ctx *DecodingContext)
 	}
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](Unit) ---
 		var e string
 		var g string
@@ -10055,6 +10041,13 @@ func (target *Service) MarshalBinaryWithContext(ctx *EncodingContext) (err error
 
 	}
 
+	if ctx.IsStringTable() {
+		l := ctx.Table.AddOrGet(target.LBIngressAddress)
+		buff.WriteInt(l) // write table index
+	} else {
+		buff.WriteString(target.LBIngressAddress) // write string
+	}
+
 	return nil
 }
 
@@ -10211,6 +10204,16 @@ func (target *Service) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 		// --- [end][read][map](map[string]string) ---
 
 	}
+
+	var hh string
+	if ctx.IsStringTable() {
+		ll := buff.ReadInt() // read string index
+		hh = ctx.Table.At(ll)
+	} else {
+		hh = buff.ReadString() // read string
+	}
+	gg := hh
+	target.LBIngressAddress = gg
 
 	return nil
 }

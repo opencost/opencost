@@ -37,6 +37,7 @@ const (
 	ServiceNameLabel     = "service_name"
 	ServiceTypeLabel     = "service_type"
 	IngressIPLabel       = "ingress_ip"
+	LBIngressAddress     = "lb_ingress_address"
 	ProvisionerNameLabel = "provisioner_name"
 	UIDLabel             = "uid"
 	KubernetesNodeLabel  = "kubernetes_node"
@@ -66,6 +67,35 @@ const (
 const (
 	NoneLabelValue = "<none>"
 )
+
+type UIDValueResult struct {
+	UID   string
+	Value float64
+}
+
+func DecodeUIDValueResult(result *QueryResult) *UIDValueResult {
+	return decodeValueResult(result, UIDLabel)
+}
+
+type NodeUIDValueResult UIDValueResult
+
+func DecodeNodeUIDValueResult(result *QueryResult) *NodeUIDValueResult {
+	return (*NodeUIDValueResult)(decodeValueResult(result, NodeUIDLabel))
+}
+
+func decodeValueResult(result *QueryResult, uidLabel string) *UIDValueResult {
+	uid, _ := result.GetString(uidLabel)
+	var value float64
+	if len(result.Values) > 0 {
+		value = result.Values[0].Value
+	} else {
+		log.Warnf("Error decoding value for uid '%s': empty value returned", uid)
+	}
+	return &UIDValueResult{
+		UID:   uid,
+		Value: value,
+	}
+}
 
 // UptimeResult represents the first and last recorded sample timestamp within the query window
 type UptimeResult struct {
@@ -1637,11 +1667,12 @@ func DecodeServiceLabelsResult(result *QueryResult) *ServiceLabelsResult {
 }
 
 type ServiceInfoResult struct {
-	UID          string
-	Cluster      string
-	NamespaceUID string
-	Service      string
-	ServiceType  string
+	UID              string
+	Cluster          string
+	NamespaceUID     string
+	Service          string
+	ServiceType      string
+	LBIngressAddress string
 }
 
 func DecodeServiceInfoResult(result *QueryResult) *ServiceInfoResult {
@@ -1650,13 +1681,15 @@ func DecodeServiceInfoResult(result *QueryResult) *ServiceInfoResult {
 	namespaceUID, _ := result.GetString(NamespaceUIDLabel)
 	service, _ := result.GetString(ServiceLabel)
 	serviceType, _ := result.GetString(ServiceTypeLabel)
+	lbIngressAddress, _ := result.GetString(LBIngressAddress)
 
 	return &ServiceInfoResult{
-		UID:          uid,
-		Cluster:      cluster,
-		NamespaceUID: namespaceUID,
-		Service:      service,
-		ServiceType:  serviceType,
+		UID:              uid,
+		Cluster:          cluster,
+		NamespaceUID:     namespaceUID,
+		Service:          service,
+		ServiceType:      serviceType,
+		LBIngressAddress: lbIngressAddress,
 	}
 }
 

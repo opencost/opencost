@@ -64,7 +64,7 @@ func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 		ccs.GetScrapePods(pods, pvcs, nodeNameToUID, namespaceNameToUID, pvcNameToUID),
 		ccs.GetScrapePVCs(pvcs, namespaceNameToUID, pvNameToUID),
 		ccs.GetScrapePVs(pvs),
-		ccs.GetScrapeServices(services),
+		ccs.GetScrapeServices(services, namespaceNameToUID),
 		ccs.GetScrapeStatefulSets(statefulSets, namespaceNameToUID),
 		ccs.GetScrapeDaemonSets(daemonSets, namespaceNameToUID),
 		ccs.GetScrapeJobs(jobs, namespaceNameToUID),
@@ -333,6 +333,10 @@ func (ccs *ClusterCacheScraper) scrapePods(
 
 	var scrapeResults []metric.Update
 	for _, pod := range pods {
+		// pods without a set node name are not running
+		if pod.Spec.NodeName == "" {
+			continue
+		}
 		nodeUID, ok := nodeIndex[pod.Spec.NodeName]
 		if !ok {
 			log.Debugf("pod nodeUID missing from index for node name '%s'", pod.Spec.NodeName)
@@ -708,20 +712,36 @@ func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume) 
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) GetScrapeServices(services []*clustercache.Service) ScrapeFunc {
+func (ccs *ClusterCacheScraper) GetScrapeServices(
+	services []*clustercache.Service,
+	namespaceIndex map[string]types.UID,
+) ScrapeFunc {
 	return func() []metric.Update {
-		return ccs.scrapeServices(services)
+		return ccs.scrapeServices(services, namespaceIndex)
 	}
 }
 
-func (ccs *ClusterCacheScraper) scrapeServices(services []*clustercache.Service) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapeServices(
+	services []*clustercache.Service,
+	namespaceIndex map[string]types.UID,
+) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, service := range services {
+		namespaceUID := namespaceIndex[service.Namespace]
+
+		// Assuming one address for now
+		var lbIngressAddress string
+		lbIngressAddresses := clustercache.GetLoadBalancerIngressAddress(service)
+		if len(lbIngressAddresses) > 0 {
+			lbIngressAddress = lbIngressAddresses[0]
+		}
 		serviceInfo := map[string]string{
-			source.UIDLabel:         string(service.UID),
-			source.ServiceLabel:     service.Name,
-			source.NamespaceLabel:   service.Namespace,
-			source.ServiceTypeLabel: string(service.Type),
+			source.UIDLabel:          string(service.UID),
+			source.ServiceLabel:      service.Name,
+			source.NamespaceLabel:    service.Namespace,
+			source.NamespaceUIDLabel: string(namespaceUID),
+			source.ServiceTypeLabel:  string(service.Type),
+			source.LBIngressAddress:  lbIngressAddress,
 		}
 
 		scrapeResults = append(scrapeResults, metric.Update{

@@ -26,6 +26,10 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewLocalStorageUsedMaxMetricCollector())
 	memStore.Register(NewLocalStorageBytesMetricCollector())
 	memStore.Register(NewLocalStorageActiveMinutesMetricCollector())
+	memStore.Register(NewKMLocalStorageUsedAverageMetricCollector())
+	memStore.Register(NewKMLocalStorageUsedMaxMetricCollector())
+	memStore.Register(NewKMLocalStorageBytesMetricCollector())
+	memStore.Register(NewKMPVCInfoMetricCollector())
 	memStore.Register(NewNodeInfoMetricCollector())
 	memStore.Register(NewNodeUptimeMetricCollector())
 	memStore.Register(NewNodeResourceCapacitiesMetricCollector())
@@ -394,6 +398,54 @@ func NewLocalStorageBytesMetricCollector() *metric.MetricCollector {
 		},
 		aggregator.AverageOverTime,
 		nil, // filter not required here because only node root file system is being scraped
+	)
+}
+
+func NewKMLocalStorageUsedAverageMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.KMLocalStorageUsedAverageID,
+		metric.ContainerFSUsageBytes,
+		[]string{
+			source.NodeUIDLabel,
+		},
+		aggregator.AverageOverTime,
+		nil,
+	)
+}
+
+func NewKMLocalStorageUsedMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.KMLocalStorageUsedMaxID,
+		metric.ContainerFSUsageBytes,
+		[]string{
+			source.NodeUIDLabel,
+		},
+		aggregator.MaxOverTime,
+		nil,
+	)
+}
+
+func NewKMLocalStorageBytesMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.KMLocalStorageBytesID,
+		metric.NodeFSCapacityBytes,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.AverageOverTime,
+		nil,
+	)
+}
+
+func NewKMPVCInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.KMPVCInfoID,
+		metric.KubePersistentVolumeClaimInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
 	)
 }
 

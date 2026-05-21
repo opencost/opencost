@@ -384,6 +384,22 @@ func (c *collectorMetricsQuerier) QueryPVCInfo(start, end time.Time) *source.Fut
 	return queryCollector(c, start, end, metric.PVCInfoID, source.DecodePVCInfoResult)
 }
 
+func (c *collectorMetricsQuerier) QueryKMPVCInfo(start, end time.Time) *source.Future[source.PVCInfoResult] {
+	return queryCollector(c, start, end, metric.KMPVCInfoID, source.DecodePVCInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryKMLocalStorageUsedAvg(start, end time.Time) *source.Future[source.NodeUIDValueResult] {
+	return queryCollector(c, start, end, metric.KMLocalStorageUsedAverageID, source.DecodeNodeUIDValueResult)
+}
+
+func (c *collectorMetricsQuerier) QueryKMLocalStorageUsedMax(start, end time.Time) *source.Future[source.NodeUIDValueResult] {
+	return queryCollector(c, start, end, metric.KMLocalStorageUsedMaxID, source.DecodeNodeUIDValueResult)
+}
+
+func (c *collectorMetricsQuerier) QueryKMLocalStorageBytes(start, end time.Time) *source.Future[source.UIDValueResult] {
+	return queryCollector(c, start, end, metric.KMLocalStorageBytesID, source.DecodeUIDValueResult)
+}
+
 func (c *collectorMetricsQuerier) QueryPVCUptime(start, end time.Time) *source.Future[source.UptimeResult] {
 	return queryCollector(c, start, end, metric.PVCUptimeID, source.DecodeUptimeResult)
 }
