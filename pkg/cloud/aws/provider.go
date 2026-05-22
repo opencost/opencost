@@ -1279,7 +1279,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 								if dimensionCount == 1 {
 									for dimensionKey, backupDimension := range offerTerm.PriceDimensions {
 										cost = backupDimension.PricePerUnit.CNY
-										log.DedupedWarningf(5, "using:%s for a price dimension instead of missing dimension: %s", offerTerm.PriceDimensions[dimensionKey], priceDimensionKey)
+										log.DedupedWarningf(5, "using:%v for a price dimension instead of missing dimension: %s", offerTerm.PriceDimensions[dimensionKey], priceDimensionKey)
 										break
 									}
 								} else if dimensionCount == 0 {
