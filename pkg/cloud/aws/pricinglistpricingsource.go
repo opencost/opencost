@@ -43,43 +43,6 @@ func (p *PricingListPricingSource) cacheFilePath() (string, error) {
 	return filepath.Join(dir, pricingCacheFile), nil
 }
 
-func (p *PricingListPricingSource) loadFromCache() (*pricingmodel.PricingModelSet, bool) {
-	path, err := p.cacheFilePath()
-	if err != nil {
-		return nil, false
-	}
-	info, err := os.Stat(path)
-	if err != nil || time.Since(info.ModTime()) > pricingCacheTTL {
-		return nil, false
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, false
-	}
-	pms := &pricingmodel.PricingModelSet{}
-	if err := pms.UnmarshalBinary(data); err != nil {
-		log.Warnf("failed to unmarshal cached pricing data: %s", err.Error())
-		return nil, false
-	}
-	return pms, true
-}
-
-func (p *PricingListPricingSource) saveToCache(pms *pricingmodel.PricingModelSet) {
-	path, err := p.cacheFilePath()
-	if err != nil {
-		log.Warnf("failed to determine pricing cache path: %s", err.Error())
-		return
-	}
-	data, err := pms.MarshalBinary()
-	if err != nil {
-		log.Warnf("failed to marshal pricing data for cache: %s", err.Error())
-		return
-	}
-	if err := os.WriteFile(path, data, 0600); err != nil {
-		log.Warnf("failed to write pricing cache: %s", err.Error())
-	}
-}
-
 func (p *PricingListPricingSource) PricingSourceType() pricingmodel.PricingSourceType {
 	return PricingListPricingSourceType
 }
@@ -90,11 +53,6 @@ func (p *PricingListPricingSource) PricingSourceKey() string {
 }
 
 func (p *PricingListPricingSource) GetPricing() (*pricingmodel.PricingModelSet, error) {
-	if cached, ok := p.loadFromCache(); ok {
-		log.Infof("PricingListPricingSource: loaded %d pricing entries from cache", len(cached.NodePricing))
-		return cached, nil
-	}
-
 	log.Infof("PricingListPricingSource: starting AWS EC2 pricing list download (large file, this may take a while)")
 	start := time.Now()
 
@@ -186,8 +144,6 @@ func (p *PricingListPricingSource) GetPricing() (*pricingmodel.PricingModelSet, 
 
 	log.Infof("PricingListPricingSource: completed in %s — %d products, %d terms, %d pricing entries",
 		time.Since(start).Round(time.Second), productCount, termCount, len(pms.NodePricing))
-
-	p.saveToCache(pms)
 
 	return pms, nil
 }
