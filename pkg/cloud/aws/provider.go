@@ -2727,7 +2727,7 @@ func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, re
 				continue
 			}
 
-			// Spot info found - store it (removed noisy per-instance log)
+			log.DedupedInfof(5, "Found spot info for: %s", spot.InstanceID)
 			spots[spot.InstanceID] = &spot
 		}
 		gr.Close()
