@@ -1300,7 +1300,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 							// EBS volumes: convert monthly cost to hourly (730 hours/month)
 							costFloat, err := strconv.ParseFloat(cost, 64)
 							if err != nil {
-								log.Warnf("Error parsing EBS volume cost for %s: %v", key, err)
+								log.Debugf("Error parsing EBS volume cost for %s: %v", key, err)
 								continue
 							}
 							hourlyPrice := costFloat / timeutil.HoursPerMonth
