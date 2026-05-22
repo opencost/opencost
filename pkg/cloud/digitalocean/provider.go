@@ -143,12 +143,8 @@ func (do *DOKS) fetchPricingData() (*DOResponse, error) {
 
 	// Check if godo client is available
 	if do.client == nil {
-		token := env.GetDigitalOceanAccessToken()
-		if token == "" {
-			log.Errorf("DigitalOcean API requires authentication. Set DIGITALOCEAN_ACCESS_TOKEN or CLOUD_PROVIDER_API_KEY environment variable with your DigitalOcean Personal Access Token")
-			return nil, fmt.Errorf("DigitalOcean authentication required: set DIGITALOCEAN_ACCESS_TOKEN or CLOUD_PROVIDER_API_KEY environment variable")
-		}
-		do.client = godo.NewFromToken(token)
+		log.Errorf("DigitalOcean API client is not initialized. Set DIGITALOCEAN_ACCESS_TOKEN or CLOUD_PROVIDER_API_KEY before creating the provider")
+		return nil, fmt.Errorf("digitalocean client not initialized: set DIGITALOCEAN_ACCESS_TOKEN or CLOUD_PROVIDER_API_KEY before provider initialization")
 	}
 
 	log.Infof("Fetching DigitalOcean sizes using godo client")
@@ -180,7 +176,7 @@ func (do *DOKS) fetchPricingData() (*DOResponse, error) {
 		page, err := resp.Links.CurrentPage()
 		if err != nil {
 			log.Warnf("Failed to get current page number: %v", err)
-			break
+			return nil, fmt.Errorf("sizes API pagination: %w", err)
 		}
 
 		// Set the page for the next request
@@ -189,6 +185,9 @@ func (do *DOKS) fetchPricingData() (*DOResponse, error) {
 
 	// Index sizes by slug for quick lookup
 	sizesMap := make(map[string]*DOSize)
+	cachedResponse := &DOResponse{
+		Sizes: make([]DOSize, 0, len(allSizes)),
+	}
 	for _, godoSize := range allSizes {
 		doSize := &DOSize{
 			Slug:         godoSize.Slug,
@@ -216,16 +215,9 @@ func (do *DOKS) fetchPricingData() (*DOResponse, error) {
 		}
 
 		sizesMap[doSize.Slug] = doSize
+		cachedResponse.Sizes = append(cachedResponse.Sizes, *doSize)
 		log.Debugf("Indexing size: Slug=%s, VCPUs=%d, Memory=%dMB, PriceHourly=$%.5f",
 			doSize.Slug, doSize.VCPUs, doSize.Memory, doSize.PriceHourly)
-	}
-
-	// Create a DOResponse for caching
-	cachedResponse := &DOResponse{
-		Sizes: make([]DOSize, 0, len(allSizes)),
-	}
-	for _, size := range sizesMap {
-		cachedResponse.Sizes = append(cachedResponse.Sizes, *size)
 	}
 
 	// Cache and return
