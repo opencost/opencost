@@ -1119,7 +1119,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 			break
 		} else if err != nil {
 			log.Errorf("Error parsing pricing JSON response from \"%s\": %v", resp.Request.URL.String(), err)
-			break
+			return err
 		}
 
 		// Parse "products" section: Extract product metadata (SKU, instance type, region, etc.)
@@ -1139,7 +1139,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 				err = dec.Decode(&product)
 				if err != nil {
 					log.Errorf("Error decoding product from \"%s\": %v", resp.Request.URL.String(), err.Error())
-					break
+					return err
 				}
 
 				// Filter for EC2 compute instances (on-demand, no pre-installed software)
@@ -1259,7 +1259,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 								if dimensionCount == 1 {
 									for dimensionKey, backupDimension := range offerTerm.PriceDimensions {
 										cost = backupDimension.PricePerUnit.USD
-										log.DedupedWarningf(5, "using:%s for a price dimension instead of missing dimension: %s", offerTerm.PriceDimensions[dimensionKey], priceDimensionKey)
+										log.DedupedWarningf(5, "using:%v for a price dimension instead of missing dimension: %s", offerTerm.PriceDimensions[dimensionKey], priceDimensionKey)
 										break
 									}
 								} else if dimensionCount == 0 {
@@ -1298,7 +1298,11 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 							aws.Pricing[key].PV.CostPerIO = cost
 						} else if strings.Contains(key, "EBS:Volume") {
 							// EBS volumes: convert monthly cost to hourly (730 hours/month)
-							costFloat, _ := strconv.ParseFloat(cost, 64)
+							costFloat, err := strconv.ParseFloat(cost, 64)
+							if err != nil {
+								log.Warnf("Error parsing EBS volume cost for %s: %v", key, err)
+								continue
+							}
 							hourlyPrice := costFloat / timeutil.HoursPerMonth
 
 							aws.Pricing[key].PV.Cost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
