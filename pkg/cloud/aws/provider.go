@@ -1301,19 +1301,18 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 							costFloat, err := strconv.ParseFloat(cost, 64)
 							if err != nil {
 								log.Debugf("Error parsing EBS volume cost for %s: %v", key, err)
-								continue
+							} else {
+								hourlyPrice := costFloat / timeutil.HoursPerMonth
+								aws.Pricing[key].PV.Cost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 							}
-							hourlyPrice := costFloat / timeutil.HoursPerMonth
-
-							aws.Pricing[key].PV.Cost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 						} else if strings.Contains(key, "LoadBalancerUsage") {
 							// Load balancers: hourly cost
 							costFloat, err := strconv.ParseFloat(cost, 64)
 							if err != nil {
-								return err
+								log.Debugf("Error parsing LoadBalancer cost for %s: %v", key, err)
+							} else {
+								aws.Pricing[key].LoadBalancer.Cost = costFloat
 							}
-
-							aws.Pricing[key].LoadBalancer.Cost = costFloat
 						}
 					}
 
