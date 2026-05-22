@@ -1138,7 +1138,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 
 				err = dec.Decode(&product)
 				if err != nil {
-					log.Errorf("Error decoding product from \"%s\": %v", resp.Request.URL.String(), err.Error())
+					log.Errorf("Error decoding product from \"%s\": %v", resp.Request.URL.String(), err)
 					return err
 				}
 
