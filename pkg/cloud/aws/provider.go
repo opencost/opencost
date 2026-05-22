@@ -1118,6 +1118,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 			log.Debugf("Finished parsing pricing data from \"%s\"", resp.Request.URL.String())
 			break
 		} else if err != nil {
+			// Stop parsing on malformed JSON so we don't silently keep partial pricing data.
 			log.Errorf("Error parsing pricing JSON response from \"%s\": %v", resp.Request.URL.String(), err)
 			return err
 		}
@@ -1220,6 +1221,10 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 					if err != nil {
 						return err
 					}
+					skuStr, ok := sku.(string)
+					if !ok {
+						return fmt.Errorf("expected SKU to be a string, got %T", sku)
+					}
 					_, err = dec.Token() // opening "{"
 					if err != nil {
 						return err
@@ -1231,10 +1236,11 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 					offerTerm := &AWSOfferTerm{}
 					err = dec.Decode(&offerTerm)
 					if err != nil {
-						log.Errorf("Error decoding AWS Offer Term: %s", err.Error())
+						log.Errorf("Error decoding AWS Offer Term for SKU %s: %v", skuStr, err)
+						return err
 					}
 
-					key, ok := skuToPricingKeyMap[sku.(string)]
+					key, ok := skuToPricingKeyMap[skuStr]
 					spotKey := key + ",preemptible"
 					if ok {
 						aws.Pricing[key].OnDemand = offerTerm
@@ -1247,7 +1253,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 						var cost string
 						if _, isMatch := OnDemandRateCodes[offerTerm.OfferTermCode]; isMatch {
 							// USD pricing path
-							priceDimensionKey := strings.Join([]string{sku.(string), offerTerm.OfferTermCode, HourlyRateCode}, ".")
+							priceDimensionKey := strings.Join([]string{skuStr, offerTerm.OfferTermCode, HourlyRateCode}, ".")
 							dimension, ok := offerTerm.PriceDimensions[priceDimensionKey]
 							if ok {
 								// Expected dimension found - use it directly
@@ -1270,7 +1276,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 							}
 						} else if _, isMatch := OnDemandRateCodesCn[offerTerm.OfferTermCode]; isMatch {
 							// CNY pricing path (China regions)
-							priceDimensionKey := strings.Join([]string{sku.(string), offerTerm.OfferTermCode, HourlyRateCodeCn}, ".")
+							priceDimensionKey := strings.Join([]string{skuStr, offerTerm.OfferTermCode, HourlyRateCodeCn}, ".")
 							dimension, ok := offerTerm.PriceDimensions[priceDimensionKey]
 							if ok {
 								cost = dimension.PricePerUnit.CNY
