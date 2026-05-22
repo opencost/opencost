@@ -1223,7 +1223,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 					}
 					skuStr, ok := sku.(string)
 					if !ok {
-						return fmt.Errorf("expected SKU to be a string, got %T", sku)
+						return fmt.Errorf("failed to parse %s pricing from %s: expected SKU to be a string, got %T", termType, resp.Request.URL.String(), sku)
 					}
 					_, err = dec.Token() // opening "{"
 					if err != nil {
