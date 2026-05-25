@@ -25,6 +25,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/config"
+	"github.com/opencost/opencost/pkg/configrbac"
 	"github.com/opencost/opencost/pkg/customcost"
 	"github.com/opencost/opencost/pkg/metrics"
 	"github.com/opencost/opencost/pkg/util/watcher"
@@ -633,6 +634,11 @@ func InitializeCloudCost(router *httprouter.Router) *cloudcost.PipelineService {
 	router.GET("/cloud/config/delete", adminAuthMiddleware(cloudConfigController.GetDeleteConfigHandler()))
 
 	return cloudCostPipelineService
+}
+
+// InitializeConfigRBAC registers scoped view configuration endpoints backed by SQLite.
+func InitializeConfigRBAC(router *httprouter.Router) {
+	configrbac.RegisterRoutes(router, adminAuthMiddleware)
 }
 
 func InitializeCustomCost(router *httprouter.Router) *customcost.PipelineService {
