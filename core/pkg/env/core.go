@@ -13,7 +13,8 @@ const (
 	AppNameEnvVar    = "APP_NAME"
 	ConfigPathEnvVar = "CONFIG_PATH"
 
-	PProfEnabledEnvVar = "PPROF_ENABLED"
+	PProfEnabledEnvVar       = "PPROF_ENABLED"
+	CompressionEnabledEnvVar = "EXPORT_COMPRESSION_ENABLED"
 
 	InstallNamespaceEnvVar = "INSTALL_NAMESPACE"
 
@@ -56,6 +57,10 @@ func GetDefaultStorageConfigFilePath() string {
 
 func IsPProfEnabled() bool {
 	return GetBool(PProfEnabledEnvVar, false)
+}
+
+func IsCompressionEnabled() bool {
+	return GetBool(CompressionEnabledEnvVar, false)
 }
 
 func GetInstallNamespace(def string) string {

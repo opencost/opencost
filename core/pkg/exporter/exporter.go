@@ -1,9 +1,12 @@
 package exporter
 
 import (
+	"bytes"
+	"compress/gzip"
 	"fmt"
 	"time"
 
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/exporter/pathing"
 	"github.com/opencost/opencost/core/pkg/exporter/validator"
 	"github.com/opencost/opencost/core/pkg/log"
@@ -120,6 +123,20 @@ func (se *ComputeStorageExporter[T]) Export(window opencost.Window, data *T) err
 		return fmt.Errorf("failed to encode data: %w", err)
 	}
 
+	compressionEnabled := coreenv.IsCompressionEnabled()
+	if compressionEnabled {
+		log.Debugf("compressing data with gzip, compression enabled")
+		log.Debugf("original data size: %d bytes", len(bin))
+		var buf bytes.Buffer
+		gzWriter := gzip.NewWriter(&buf)
+		defer gzWriter.Close()
+		_, err := gzWriter.Write(bin)
+		if err != nil {
+			return fmt.Errorf("failed to write compressed data: %w", err)
+		}
+		bin = buf.Bytes()
+		log.Debugf("compressed data size: %d bytes", len(bin))
+	}
 	log.Debugf("writing new binary data to storage %s", path)
 	err = se.storage.Write(path, bin)
 	if err != nil {
