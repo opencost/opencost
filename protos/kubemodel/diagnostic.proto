@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+package kubemodel;
+option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
+
+
+// DiagnosticResult represents the result of a diagnostic run
+// This matches the JSON structure from core/pkg/diagnostics/diagnostics.go
+message DiagnosticResult {
+  // Unique Identifier for the diagnostic run result
+  string id = 1;
+
+  // Name of the diagnostic that ran
+  string name = 2;
+
+  // Description of the diagnostic run, human readable description
+  string description = 3;
+
+  // Category of the diagnostic run, used to group similar diagnostics
+  string category = 4;
+
+  // Timestamp when the diagnostic run was executed
+  google.protobuf.Timestamp timestamp = 5;
+
+  // Error message if the diagnostic run failed (optional)
+  string error = 6;
+
+  // Additional custom information about the diagnostic run
+  // Using string values to match map[string]any from JSON
+  map<string, string> details = 7;
+}
+
+// DiagnosticsRunReport contains the start time and all diagnostic results
+// This matches the JSON structure from core/pkg/diagnostics/diagnostics.go
+message DiagnosticsRunReport {
+  // Application name that the diagnostics run belongs to
+  string application = 1;
+
+  // Time when the full diagnostics run started
+  google.protobuf.Timestamp startTime = 2;
+
+  // All results of the diagnostics run
+  repeated DiagnosticResult results = 3;
+}

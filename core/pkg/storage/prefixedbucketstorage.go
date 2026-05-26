@@ -5,6 +5,8 @@ package storage
 // https://github.com/thanos-io/objstore/blob/main/prefixed_bucket.go
 
 import (
+	"fmt"
+	"io"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -43,8 +45,12 @@ func withPrefix(prefix, name string) string {
 	return prefix + DirDelim + name
 }
 
-func (pbs *PrefixedBucketStorage) Name() string {
-	return pbs.storage.Name()
+// String returns the string representation of the prefixed bucket storage.
+func (pbs *PrefixedBucketStorage) String() string {
+	if stringer, ok := pbs.storage.(fmt.Stringer); ok {
+		return stringer.String()
+	}
+	return ""
 }
 
 func (pbs *PrefixedBucketStorage) StorageType() StorageType {
@@ -74,6 +80,16 @@ func (pbs *PrefixedBucketStorage) ListDirectories(path string) ([]*StorageInfo, 
 // Read returns a reader for the given object name.
 func (pbs *PrefixedBucketStorage) Read(name string) ([]byte, error) {
 	return pbs.storage.Read(conditionalPrefix(pbs.prefix, name))
+}
+
+// ReadStream returns a streaming reader for the given object name.
+func (pbs *PrefixedBucketStorage) ReadStream(name string) (io.ReadCloser, error) {
+	return pbs.storage.ReadStream(conditionalPrefix(pbs.prefix, name))
+}
+
+// ReadToLocalFile streams the specified object at path to destPath on the local file system.
+func (pbs *PrefixedBucketStorage) ReadToLocalFile(path, destPath string) error {
+	return pbs.storage.ReadToLocalFile(conditionalPrefix(pbs.prefix, path), destPath)
 }
 
 // Remove deletes the object with the given name.

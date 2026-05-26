@@ -184,6 +184,15 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 			},
 		},
 		{
+			column: "Cluster",
+			value: func(data rowData) string {
+				if data.alloc.Properties == nil {
+					return ""
+				}
+				return data.alloc.Properties.Cluster
+			},
+		},
+		{
 			column: "ControllerKind",
 			value: func(data rowData) string {
 				return data.alloc.Properties.ControllerKind
@@ -330,7 +339,8 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 		end := start.AddDate(0, 0, 1)
 		data, err := e.Model.ComputeAllocation(start, end)
 		if err != nil {
-			return err
+			log.Warnf("Failed to compute allocation for %s: %v - skipping this date", date.Format("2006-01-02"), err)
+			continue // Skip this date instead of failing the entire export
 		}
 		log.Infof("fetched %d records for %s", len(data.Allocations), date.Format("2006-01-02"))
 		for _, alloc := range data.Allocations {
@@ -351,6 +361,7 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 	}
 
 	if lines == 0 {
+		log.Warnf("CSV export completed but no allocation data was found for the requested date range")
 		return errNoData
 	}
 

@@ -111,7 +111,7 @@ func (client *PriceSheetClient) downloadByBillingPeriodCreateRequest(ctx context
 		return nil, errors.New("parameter billingPeriodName cannot be empty")
 	}
 	urlPath := fmt.Sprintf(downloadByBillingPeriodTemplate, url.PathEscape(client.billingAccountID), url.PathEscape(billingPeriodName))
-	req, err := runtime.NewRequest(ctx, http.MethodGet, runtime.JoinPaths(client.host, urlPath))
+	req, err := runtime.NewRequest(ctx, http.MethodPost, runtime.JoinPaths(client.host, urlPath))
 	if err != nil {
 		return nil, err
 	}

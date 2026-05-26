@@ -190,6 +190,12 @@ const OracleProvider = "Oracle"
 // OTCProvider describes the provider OTC
 const OTCProvider = "OTC"
 
+// DigitalOceanProvider describes the provider DigitalOcean
+const DigitalOceanProvider = "DigitalOcean"
+
+// OVHProvider describes the provider OVH
+const OVHProvider = "OVH"
+
 // NilProvider describes unknown provider
 const NilProvider = "-"
 
@@ -210,6 +216,10 @@ func ParseProvider(str string) string {
 		return ScalewayProvider
 	case "oci", "oracle":
 		return OracleProvider
+	case "digitalocean", "doks", "do":
+		return DigitalOceanProvider
+	case "ovh", "ovhcloud", "ovh-mks":
+		return OVHProvider
 	default:
 		return NilProvider
 	}

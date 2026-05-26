@@ -274,11 +274,13 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 
 	resChRAMBytesAllocated := source.WithGroup(grp, ds.QueryRAMBytesAllocated(start, end))
 	resChRAMRequests := source.WithGroup(grp, ds.QueryRAMRequests(start, end))
+	resChRAMLimits := source.WithGroup(grp, ds.QueryRAMLimits(start, end))
 	resChRAMUsageAvg := source.WithGroup(grp, ds.QueryRAMUsageAvg(start, end))
 	resChRAMUsageMax := source.WithGroup(grp, ds.QueryRAMUsageMax(start, end))
 
 	resChCPUCoresAllocated := source.WithGroup(grp, ds.QueryCPUCoresAllocated(start, end))
 	resChCPURequests := source.WithGroup(grp, ds.QueryCPURequests(start, end))
+	resChCPULimits := source.WithGroup(grp, ds.QueryCPULimits(start, end))
 	resChCPUUsageAvg := source.WithGroup(grp, ds.QueryCPUUsageAvg(start, end))
 	resChCPUUsageMax := source.WithGroup(grp, ds.QueryCPUUsageMax(start, end))
 	resCPUUsageMax, _ := resChCPUUsageMax.Await()
@@ -322,6 +324,12 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resChNetInternetGiB := source.WithGroup(grp, ds.QueryNetInternetGiB(start, end))
 	resChNetInternetPricePerGiB := source.WithGroup(grp, ds.QueryNetInternetPricePerGiB(start, end))
 
+	resChNetNatGatewayGiB := source.WithGroup(grp, ds.QueryNetNatGatewayGiB(start, end))
+	resChNetNatGatewayEgressPricePerGiB := source.WithGroup(grp, ds.QueryNetNatGatewayPricePerGiB(start, end))
+
+	resChNetNatGatewayIngressGiB := source.WithGroup(grp, ds.QueryNetNatGatewayIngressGiB(start, end))
+	resChNetNatGatewayIngressPricePerGiB := source.WithGroup(grp, ds.QueryNetNatGatewayIngressPricePerGiB(start, end))
+
 	var resChNodeLabels *source.QueryGroupFuture[source.NodeLabelsResult]
 	if env.IsAllocationNodeLabelsEnabled() {
 		resChNodeLabels = source.WithGroup(grp, ds.QueryNodeLabels(start, end))
@@ -349,9 +357,11 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 
 	resCPUCoresAllocated, _ := resChCPUCoresAllocated.Await()
 	resCPURequests, _ := resChCPURequests.Await()
+	resCPULimits, _ := resChCPULimits.Await()
 	resCPUUsageAvg, _ := resChCPUUsageAvg.Await()
 	resRAMBytesAllocated, _ := resChRAMBytesAllocated.Await()
 	resRAMRequests, _ := resChRAMRequests.Await()
+	resRAMLimits, _ := resChRAMLimits.Await()
 	resRAMUsageAvg, _ := resChRAMUsageAvg.Await()
 	resRAMUsageMax, _ := resChRAMUsageMax.Await()
 	resGPUsRequested, _ := resChGPUsRequested.Await()
@@ -385,6 +395,10 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resNetRegionPricePerGiB, _ := resChNetRegionPricePerGiB.Await()
 	resNetInternetGiB, _ := resChNetInternetGiB.Await()
 	resNetInternetPricePerGiB, _ := resChNetInternetPricePerGiB.Await()
+	resNetNatGatewayGiB, _ := resChNetNatGatewayGiB.Await()
+	resNetNatGatewayEgressPricePerGiB, _ := resChNetNatGatewayEgressPricePerGiB.Await()
+	resNetNatGatewayIngressGiB, _ := resChNetNatGatewayIngressGiB.Await()
+	resNetNatGatewayIngressPricePerGiB, _ := resChNetNatGatewayIngressPricePerGiB.Await()
 
 	var resNodeLabels []*source.NodeLabelsResult
 	if env.IsAllocationNodeLabelsEnabled() {
@@ -418,10 +432,12 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	// or equal to request.
 	applyCPUCoresAllocated(podMap, resCPUCoresAllocated, podUIDKeyMap)
 	applyCPUCoresRequested(podMap, resCPURequests, podUIDKeyMap)
+	applyCPUCoresLimits(podMap, resCPULimits, podUIDKeyMap)
 	applyCPUCoresUsedAvg(podMap, resCPUUsageAvg, podUIDKeyMap)
 	applyCPUCoresUsedMax(podMap, resCPUUsageMax, podUIDKeyMap)
 	applyRAMBytesAllocated(podMap, resRAMBytesAllocated, podUIDKeyMap)
 	applyRAMBytesRequested(podMap, resRAMRequests, podUIDKeyMap)
+	applyRAMBytesLimits(podMap, resRAMLimits, podUIDKeyMap)
 	applyRAMBytesUsedAvg(podMap, resRAMUsageAvg, podUIDKeyMap)
 	applyRAMBytesUsedMax(podMap, resRAMUsageMax, podUIDKeyMap)
 	applyGPUUsageAvg(podMap, resGPUsUsageAvg, podUIDKeyMap)
@@ -433,6 +449,8 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZonePricePerGiB, podUIDKeyMap, applyCrossZoneNetworkAllocation)
 	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionPricePerGiB, podUIDKeyMap, applyCrossRegionNetworkAllocation)
 	applyNetworkAllocation(podMap, resNetInternetGiB, resNetInternetPricePerGiB, podUIDKeyMap, applyInternetNetworkAllocation)
+	applyNetworkAllocation(podMap, resNetNatGatewayGiB, resNetNatGatewayEgressPricePerGiB, podUIDKeyMap, applyNatGatewayEgressAllocation)
+	applyNetworkAllocation(podMap, resNetNatGatewayIngressGiB, resNetNatGatewayIngressPricePerGiB, podUIDKeyMap, applyNatGatewayIngressAllocation)
 
 	// In the case that a two pods with the same name had different containers,
 	// we will double-count the containers. There is no way to associate each

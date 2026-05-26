@@ -25,7 +25,7 @@ func testMetricCollector() MetricStore {
 		[]string{
 			"test",
 		},
-		aggregator.ActiveMinutes,
+		aggregator.Uptime,
 		nil,
 	))
 
@@ -58,6 +58,7 @@ func TestWalinator_Update(t *testing.T) {
 		testMetricCollector,
 	)
 	wal, _ := NewWalinator(
+		"test",
 		"test",
 		store,
 		resolutions,
@@ -107,6 +108,7 @@ func TestWalinator_restore(t *testing.T) {
 		testMetricCollector,
 	)
 	wal, _ := NewWalinator(
+		"test",
 		"test",
 		store,
 		resolutions,
@@ -219,6 +221,7 @@ func TestWalinator_clean(t *testing.T) {
 		testMetricCollector,
 	)
 	wal, _ := NewWalinator(
+		"test",
 		"test",
 		store,
 		resolutions,

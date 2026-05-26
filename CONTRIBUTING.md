@@ -89,6 +89,26 @@ An example of the full command:
 PROMETHEUS_SERVER_ENDPOINT="http://127.0.0.1:9090" go run main.go
 ```
 
+## Code Formatting
+
+Before submitting a pull request, ensure your code is properly formatted:
+
+```bash
+# Format all Go code
+go fmt ./...
+
+# Or use just command
+just fmt
+```
+
+To check if your code is formatted without making changes:
+
+```bash
+just fmt-check
+```
+
+The CI pipeline will automatically check code formatting on pull requests.
+
 ## Testing code
 
 Testing is provided by the `just test` command which runs
@@ -106,15 +126,42 @@ To run these tests:
 - Navigate to cost-model/test
 - Run `go test -timeout 700s` from the testing directory. The tests right now take about 10 minutes (600s) to run because they bring up and down pods and wait for Prometheus to scrape data about them.
 
+## Code Review Standards
+
+All pull requests must be reviewed before merging. The review process ensures:
+
+### What reviewers check:
+- **Correctness:** Does the code do what it claims?
+- **Tests:** Are new features and bug fixes covered by tests?
+- **Style:** Does the code follow Go conventions (`gofmt`, `go vet`)?
+- **Security:** Are inputs validated? Are credentials handled safely?
+- **Performance:** Are there obvious performance issues (unbounded allocations, N+1 queries)?
+
+### Review requirements:
+- At least one approval from a Committer or Maintainer is required
+- The reviewer must be a different person than the PR author
+- For security-sensitive changes, review by a Maintainer is required
+- Emergency fixes may bypass review with post-merge review required within 48 hours (per [GOVERNANCE.md](GOVERNANCE.md))
+
+## Regression Tests
+
+When fixing a bug, contributors SHOULD add a test that reproduces the bug before applying the fix. This ensures the bug does not recur. As a project-wide goal, at least 50% of bugs fixed in any six-month window should have corresponding regression tests. This is tracked by maintainers using issues labeled `bug` and measured during release reviews; it is an aspirational target for the project as a whole, not a requirement applied to individual contributors.
+
+## Finding Issues to Work On
+
+Look for issues labeled [`good first issue`](https://github.com/opencost/opencost/labels/good%20first%20issue) or [`help wanted`](https://github.com/opencost/opencost/labels/help%20wanted) for a curated list of tasks suitable for new contributors.
+
 ## Certificate of Origin
 
 By contributing to this project, you certify that your contribution was created in whole or in part by you and that you have the right to submit it under the open source license indicated in the project. In other words, please confirm that you, as a contributor, have the legal right to make the contribution. This is enforced on Pull Requests and requires `Signed-off-by` with the email address for the author in the commit message.
 
 ## Committing
 
-Please write a commit message with Fixes Issue # if there is an outstanding issue that is fixed. It’s okay to submit a PR without a corresponding issue; just please try to be detailed in the description of the problem you’re addressing.
+Please write a commit message with Fixes Issue # if there is an outstanding issue that is fixed. It's okay to submit a PR without a corresponding issue; just please try to be detailed in the description of the problem you're addressing.
 
-Please run `go fmt` on the project directory. Lint can be okay (for example, comments on exported functions are nice but not required on the server).
+**Code Formatting:** All code must be formatted with `go fmt ./...` (or `just fmt`) before submitting. The CI pipeline will reject PRs with unformatted code. You can run `just fmt-check` to verify formatting locally.
+
+**Code Quality:** While lint warnings are acceptable in some cases (e.g., comments on exported functions are nice but not strictly required), please address any critical issues reported by `go vet`.
 
 Please reach us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or attend the biweekly [OpenCost Working Group community meeting](https://bit.ly/opencost-meeting) from the [Community Calendar](https://bit.ly/opencost-calendar) to discuss OpenCost development.
 

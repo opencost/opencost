@@ -16,10 +16,12 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/alibaba"
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/azure"
+	"github.com/opencost/opencost/pkg/cloud/digitalocean"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/oracle"
 	"github.com/opencost/opencost/pkg/cloud/otc"
+	"github.com/opencost/opencost/pkg/cloud/ovh"
 	"github.com/opencost/opencost/pkg/cloud/scaleway"
 
 	"github.com/opencost/opencost/core/pkg/opencost"
@@ -113,6 +115,8 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			cp.configFileName = "scaleway.json"
 		case opencost.OTCProvider:
 			cp.configFileName = "otc.json"
+		case opencost.OVHProvider:
+			cp.configFileName = "ovh.json"
 		case opencost.CSVProvider:
 			cp.configFileName = "default.json"
 		}
@@ -123,13 +127,6 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	if providerConfig.customPricing != nil && providerConfig.customPricing.ClusterAccountID != "" {
 		cp.accountID = providerConfig.customPricing.ClusterAccountID
 	}
-
-	providerConfig.Update(func(cp *models.CustomPricing) error {
-		if cp.ServiceKeyName == "AKIXXX" {
-			cp.ServiceKeyName = ""
-		}
-		return nil
-	})
 
 	switch cp.provider {
 	case opencost.CSVProvider:
@@ -246,6 +243,23 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			Config:        NewProviderConfig(config, cp.configFileName),
 			ClusterRegion: cp.region,
 		}, nil
+	case opencost.OVHProvider:
+		log.Info("Found node label \"node.k8s.ovh/type\", using OVH Provider")
+		return &ovh.OVH{
+			Clientset:        cache,
+			ClusterRegion:    cp.region,
+			ClusterAccountID: cp.accountID,
+			Config:           NewProviderConfig(config, cp.configFileName),
+		}, nil
+	case opencost.DigitalOceanProvider:
+		log.Info("Detected DigitalOcean, using DOKS")
+		return &digitalocean.DOKS{
+			Config:                NewProviderConfig(config, cp.configFileName),
+			Cache:                 digitalocean.NewPricingCache(),
+			Sizes:                 make(map[string]*digitalocean.DOSize),
+			Clientset:             cache,
+			ClusterManagementCost: 0.0,
+		}, nil
 	default:
 		log.Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
@@ -321,6 +335,14 @@ func getClusterProperties(node *clustercache.Node) clusterProperties {
 		log.Debug("using OTC provider")
 		cp.provider = opencost.OTCProvider
 		cp.configFileName = "otc.json"
+	} else if _, ok := node.Labels["node.k8s.ovh/type"]; ok {
+		log.Debug("using OVH provider")
+		cp.provider = opencost.OVHProvider
+		cp.configFileName = "ovh.json"
+	} else if strings.HasPrefix(providerID, "digitalocean") {
+		log.Debug("using DigitalOcean provider")
+		cp.provider = opencost.DigitalOceanProvider
+		cp.configFileName = "digitalocean.json"
 	}
 	// Override provider to CSV if CSVProvider is used and custom provider is not set
 	if env.IsUseCSVProvider() {

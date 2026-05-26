@@ -26,10 +26,11 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     steps:
       - name: Get Version From Tag
         id: tag
-        if: ${{ github.event_name }} == 'push'
+        if: ${{ github.event_name == 'push' }}
         run: |
           echo "TRIGGERED_TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
 
@@ -65,7 +66,7 @@ jobs:
           echo "BRANCH_NAME=v${RELEASE_VERSION%.*}" >> $GITHUB_OUTPUT
 
       - name: Checkout Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
         with:
           ref: '${{ steps.branch.outputs.BRANCH_NAME }}'
 
@@ -94,14 +95,14 @@ jobs:
           release_version: ${{ steps.version_number.outputs.RELEASE_VERSION }}
 
       - name: Log into registry ${{ env.REGISTRY }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
             registry: ${{ env.REGISTRY }}
             username: ${{ github.actor }}
             password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install crane
-        uses: imjasonh/setup-crane@v0.4
+        uses: imjasonh/setup-crane@v0.5
 
       - name: Copy tags
         env:
@@ -111,3 +112,14 @@ jobs:
         run: |
           crane copy "$IMAGE_TAG" "$IMAGE_TAG_LATEST"
           crane copy "$IMAGE_TAG" "$IMAGE_TAG_VERSION"
+
+      - name: Sign image and attest SLSA provenance
+        # Only sign tag-triggered releases; workflow_dispatch runs produce a
+        # non-tag GITHUB_REF, so the Fulcio certificate identity would not
+        # match the `refs/tags/vX.Y.Z` pattern documented in SECURITY.md.
+        if: github.event_name == 'push'
+        uses: ./.github/actions/sign-image
+        with:
+          image: ${{ steps.tags.outputs.IMAGE_TAG_VERSION }}
+          workflow-path: .github/workflows/build-and-publish-release.yml
+          run-started-at: ${{ github.run_started_at }}

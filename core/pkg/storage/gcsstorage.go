@@ -7,12 +7,16 @@ package storage
 import (
 	"context"
 	"io"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	gcs "cloud.google.com/go/storage"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"gopkg.in/yaml.v2"
@@ -59,11 +63,15 @@ func NewGCSStorageWith(gc GCSConfig) (*GCSStorage, error) {
 		opts = append(opts, option.WithCredentials(credentials))
 	}
 
+	// HTTPS Protocol Configuration: Google Cloud Storage client uses HTTPS by default.
+	// The GCS client library (cloud.google.com/go/storage) automatically uses HTTPS
+	// for all API calls. All GCS operations (read, write, delete, list) use HTTPS protocol.
 	gcsClient, err := gcs.NewClient(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
 
+	log.Debugf("GCSStorage: New GCS client initialized with 'https://storage.googleapis.com/%s'", gc.Bucket)
 	return &GCSStorage{
 		name:   gc.Bucket,
 		bucket: gcsClient.Bucket(gc.Bucket),
@@ -71,8 +79,8 @@ func NewGCSStorageWith(gc GCSConfig) (*GCSStorage, error) {
 	}, nil
 }
 
-// Name returns the bucket name for gcs.
-func (gs *GCSStorage) Name() string {
+// String returns the bucket name for gcs.
+func (gs *GCSStorage) String() string {
 	return gs.name
 }
 
@@ -118,13 +126,21 @@ func (gs *GCSStorage) isDoesNotExist(err error) bool {
 // read the contents.
 func (gs *GCSStorage) Read(name string) ([]byte, error) {
 	name = trimLeading(name)
-	log.Debugf("GCSStorage::Read(%s)", name)
+	log.Debugf("GCSStorage::Read::HTTPS(%s)", name)
 
 	ctx := context.Background()
 	reader, err := gs.bucket.Object(name).NewReader(ctx)
 	if err != nil {
+		// Normalize GCS "object not found" errors to DoesNotExistError for consistency
+		if err == gcs.ErrObjectNotExist {
+			return nil, DoesNotExistError
+		}
+		if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusNotFound {
+			return nil, DoesNotExistError
+		}
 		return nil, err
 	}
+	defer reader.Close()
 
 	data, err := io.ReadAll(reader)
 	if err != nil {
@@ -134,11 +150,69 @@ func (gs *GCSStorage) Read(name string) ([]byte, error) {
 	return data, nil
 }
 
+// ReadStream returns a streaming reader for the specified object path.
+func (gs *GCSStorage) ReadStream(path string) (io.ReadCloser, error) {
+	path = trimLeading(path)
+	log.Debugf("GCSStorage::ReadStream::HTTPS(%s)", path)
+
+	ctx := context.Background()
+	reader, err := gs.bucket.Object(path).NewReader(ctx)
+	if err != nil {
+		if err == gcs.ErrObjectNotExist {
+			return nil, DoesNotExistError
+		}
+		if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusNotFound {
+			return nil, DoesNotExistError
+		}
+		return nil, err
+	}
+
+	return reader, nil
+}
+
+// ReadToLocalFile streams the specified object at path to destPath on the local file system.
+func (gs *GCSStorage) ReadToLocalFile(path, destPath string) error {
+	path = trimLeading(path)
+	log.Debugf("GCSStorage::ReadToLocalFile::HTTPS(%s) -> %s", path, destPath)
+
+	ctx := context.Background()
+	reader, err := gs.bucket.Object(path).NewReader(ctx)
+	if err != nil {
+		// Normalize GCS "object not found" errors to DoesNotExistError for consistency
+		if err == gcs.ErrObjectNotExist {
+			return DoesNotExistError
+		}
+		if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusNotFound {
+			return DoesNotExistError
+		}
+		return err
+	}
+	defer reader.Close()
+
+	if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
+		return errors.Wrap(err, "creating destination directory")
+	}
+
+	f, err := os.Create(destPath)
+	if err != nil {
+		return errors.Wrapf(err, "creating destination file %s", destPath)
+	}
+	defer f.Close()
+
+	// Use 1 MB buffer for streaming operations
+	buf := make([]byte, 1024*1024)
+	if _, err := io.CopyBuffer(f, reader, buf); err != nil {
+		return errors.Wrapf(err, "streaming %s to %s", path, destPath)
+	}
+
+	return nil
+}
+
 // Write uses the relative path of the storage combined with the provided path
 // to write a new file or overwrite an existing file.
 func (gs *GCSStorage) Write(name string, data []byte) error {
 	name = trimLeading(name)
-	log.Debugf("GCSStorage::Write(%s)", name)
+	log.Debugf("GCSStorage::Write::HTTPS(%s)", name)
 
 	ctx := context.Background()
 
@@ -167,7 +241,7 @@ func (gs *GCSStorage) Write(name string, data []byte) error {
 func (gs *GCSStorage) Remove(name string) error {
 	name = trimLeading(name)
 
-	log.Debugf("GCSStorage::Remove(%s)", name)
+	log.Debugf("GCSStorage::Remove::HTTPS(%s)", name)
 	ctx := context.Background()
 
 	return gs.bucket.Object(name).Delete(ctx)
@@ -196,7 +270,7 @@ func (gs *GCSStorage) Exists(name string) (bool, error) {
 func (gs *GCSStorage) List(path string) ([]*StorageInfo, error) {
 	path = trimLeading(path)
 
-	log.Debugf("GCSStorage::List(%s)", path)
+	log.Debugf("GCSStorage::List::HTTPS(%s)", path)
 	ctx := context.Background()
 
 	// Ensure the object name actually ends with a dir suffix. Otherwise we'll just iterate the
@@ -239,7 +313,7 @@ func (gs *GCSStorage) List(path string) ([]*StorageInfo, error) {
 func (gs *GCSStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 	path = trimLeading(path)
 
-	log.Debugf("GCSStorage::List(%s)", path)
+	log.Debugf("GCSStorage::ListDirectories::HTTPS(%s)", path)
 	ctx := context.Background()
 
 	// Ensure the object name actually ends with a dir suffix. Otherwise we'll just iterate the
@@ -261,17 +335,12 @@ func (gs *GCSStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 			break
 		}
 		if err != nil {
-			return nil, errors.Wrap(err, "list gcs objects")
+			return nil, errors.Wrap(err, "list gcs prefixes")
 		}
 
-		// ignore the root path directory
-		if attrs.Name == path {
-			continue
-		}
-
-		// We filter directories using DirDelim, so a nameless entry is a dir
+		// We filter directories using DirDelim, so a non empty prefix entry is a prefix(directory)
 		// See gcs.ObjectAttrs Prefix property
-		if attrs.Name == "" {
+		if attrs.Prefix != "" {
 			stats = append(stats, &StorageInfo{
 				Name:    attrs.Prefix,
 				Size:    attrs.Size,

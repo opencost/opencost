@@ -52,6 +52,7 @@ func GetMockCollectorProvider() StoreProvider {
 	gpu1Info := map[string]string{
 		source.NamespaceLabel: "namespace1",
 		source.PodLabel:       "pod1",
+		source.UIDLabel:       "pod-uuid1",
 		"container":           "container1",
 		"gpu":                 "0",
 		"UUID":                "GPU-1",
@@ -123,6 +124,9 @@ func GetMockCollectorProvider() StoreProvider {
 		source.ServiceLabel:    "service2",
 	}
 
+	collector.Update(metric.KubeNodeLabels, node1Info, 0, start, nil)
+	collector.Update(metric.KubeNodeLabels, node1Info, 0, end, nil)
+
 	collector.Update(metric.NodeTotalHourlyCost, node1Info, 0, start, nil)
 	collector.Update(metric.NodeTotalHourlyCost, node1Info, 0, end, nil)
 
@@ -175,74 +179,6 @@ func GetMockCollectorProvider() StoreProvider {
 
 	return &MockStoreProvider{
 		metricsCollector: collector,
-	}
-}
-
-func TestCollectorMetricsQuerier_QueryLocalStorageCost(t *testing.T) {
-	start1, _ := time.Parse(time.RFC3339, Start1Str)
-	end1, _ := time.Parse(time.RFC3339, End1Str)
-
-	c := collectorMetricsQuerier{
-		collectorProvider: GetMockCollectorProvider(),
-	}
-	resCh := c.QueryLocalStorageCost(start1, end1)
-	res, err := resCh.Await()
-	if err != nil {
-		t.Errorf("unexpected error: %v", err.Error())
-	}
-	expected := []*source.LocalStorageCostResult{
-		{
-			Cluster:  "",
-			Instance: "node1",
-			Device:   "local",
-			Data: []*util.Vector{
-				{
-					Value: LocalStorageCostPerGiBHr * 2,
-				},
-			},
-		},
-	}
-	if len(res) != len(expected) {
-		t.Errorf("length of result was not as expected: got = %d, want %d", len(res), len(expected))
-	}
-	for i, got := range res {
-		if !reflect.DeepEqual(got, expected[i]) {
-			t.Errorf("result at index %d did not match: got = %v, want %v", i, got, expected[i])
-		}
-	}
-}
-
-func TestCollectorMetricsQuerier_QueryLocalStorageUsedCost(t *testing.T) {
-	start1, _ := time.Parse(time.RFC3339, Start1Str)
-	end1, _ := time.Parse(time.RFC3339, End1Str)
-
-	c := collectorMetricsQuerier{
-		collectorProvider: GetMockCollectorProvider(),
-	}
-	resCh := c.QueryLocalStorageUsedCost(start1, end1)
-	res, err := resCh.Await()
-	if err != nil {
-		t.Errorf("unexpected error: %v", err.Error())
-	}
-	expected := []*source.LocalStorageUsedCostResult{
-		{
-			Cluster:  "",
-			Instance: "node1",
-			Device:   "local",
-			Data: []*util.Vector{
-				{
-					Value: LocalStorageCostPerGiBHr,
-				},
-			},
-		},
-	}
-	if len(res) != len(expected) {
-		t.Errorf("length of result was not as expected: got = %d, want %d", len(res), len(expected))
-	}
-	for i, got := range res {
-		if !reflect.DeepEqual(got, expected[i]) {
-			t.Errorf("result at index %d did not match: got = %v, want %v", i, got, expected[i])
-		}
 	}
 }
 
@@ -299,6 +235,7 @@ func TestCollectorMetricsQuerier_QueryNodeRAMSystemPercent(t *testing.T) {
 	}
 	expected := []*source.NodeRAMSystemPercentResult{
 		{
+			UID:      "pod-uuid2",
 			Cluster:  "",
 			Instance: "node1",
 			Data: []*util.Vector{
@@ -332,6 +269,7 @@ func TestCollectorMetricsQuerier_QueryNodeRAMUserPercent(t *testing.T) {
 	}
 	expected := []*source.NodeRAMUserPercentResult{
 		{
+			UID:      "pod-uuid1",
 			Cluster:  "",
 			Instance: "node1",
 			Data: []*util.Vector{
@@ -403,6 +341,7 @@ func Test_collectorMetricsQuerier_QueryCPUUsageAvg(t *testing.T) {
 	}
 	expected := []*source.CPUUsageAvgResult{
 		{
+			UID:       "pod-uuid1",
 			Cluster:   "",
 			Namespace: "namespace1",
 			Node:      "node1",
@@ -440,6 +379,7 @@ func Test_collectorMetricsQuerier_QueryCPUUsageMax(t *testing.T) {
 	}
 	expected := []*source.CPUUsageMaxResult{
 		{
+			UID:       "pod-uuid1",
 			Cluster:   "",
 			Namespace: "namespace1",
 			Node:      "node1",
@@ -477,6 +417,7 @@ func TestCollectorMetricsQuerier_QueryGPUsUsageAvg(t *testing.T) {
 	}
 	expected := []*source.GPUsUsageAvgResult{
 		{
+			UID:       "pod-uuid1",
 			Cluster:   "",
 			Namespace: "namespace1",
 			Pod:       "pod1",
@@ -512,6 +453,7 @@ func TestCollectorMetricsQuerier_QueryGPUsUsageMax(t *testing.T) {
 	}
 	expected := []*source.GPUsUsageMaxResult{
 		{
+			UID:       "pod-uuid1",
 			Cluster:   "",
 			Namespace: "namespace1",
 			Pod:       "pod1",
@@ -547,6 +489,7 @@ func TestCollectorMetricsQuerier_QueryGPUInfo(t *testing.T) {
 	}
 	expected := []*source.GPUInfoResult{
 		{
+			UID:       "pod-uuid1",
 			Cluster:   "",
 			Namespace: "namespace1",
 			Pod:       "pod1",
@@ -835,6 +778,7 @@ func Test_collectorMetricsQuerier_QueryNetTransferBytes(t *testing.T) {
 	}
 	expected := []*source.NetTransferBytesResult{
 		{
+			UID:       "pod-uuid1",
 			Cluster:   "",
 			Namespace: "namespace1",
 			Pod:       "pod1",
@@ -1022,6 +966,7 @@ func Test_collectorMetricsQuerier_QueryNetReceiveBytes(t *testing.T) {
 	}
 	expected := []*source.NetReceiveBytesResult{
 		{
+			UID:       "pod-uuid1",
 			Cluster:   "",
 			Namespace: "namespace1",
 			Pod:       "pod1",

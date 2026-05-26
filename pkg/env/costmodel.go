@@ -1,6 +1,9 @@
 package env
 
 import (
+	"strings"
+	"time"
+
 	"github.com/opencost/opencost/core/pkg/env"
 )
 
@@ -8,8 +11,9 @@ import (
 const (
 	ClusterInfoFile = "cluster-info.json"
 	ClusterCacheFile
-	GCPAuthSecretFile = "key.json"
-	MetricConfigFile  = "metrics.json"
+	GCPAuthSecretFile        = "key.json"
+	MetricConfigFile         = "metrics.json"
+	DefaultLocalCollectorDir = "collector"
 )
 
 // Env Variables
@@ -24,14 +28,25 @@ const (
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
 	AWSPricingURL            = "AWS_PRICING_URL"
+	AWSECSPricingURLOverride = "AWS_ECS_PRICING_URL"
 
 	AlibabaAccessKeyIDEnvVar     = "ALIBABA_ACCESS_KEY_ID"
 	AlibabaAccessKeySecretEnvVar = "ALIBABA_SECRET_ACCESS_KEY"
 
 	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
 	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
+	AzureLocaleEnvVar         = "AZURE_LOCALE"
+	AzureCurrencyEnvVar       = "AZURE_CURRENCY"
+	AzureRegionInfoEnvVar     = "AZURE_REGION_INFO"
 
-	OCIPricingURL = "OCI_PRICING_URL"
+	DigitalOceanAccessTokenEnvVar = "DIGITALOCEAN_ACCESS_TOKEN"
+	// Azure rate card filter environment variables
+
+	// Currently being used for OCI and DigitalOcean
+	ProviderPricingURL = "PROVIDER_PRICING_URL"
+
+	OVHSubsidiaryEnvVar    = "OVH_SUBSIDIARY"
+	OVHMonthlyNodepoolsVar = "OVH_MONTHLY_NODEPOOLS"
 
 	ClusterProfileEnvVar    = "CLUSTER_PROFILE"
 	RemoteEnabledEnvVar     = "REMOTE_WRITE_ENABLED"
@@ -45,6 +60,7 @@ const (
 
 	CloudProviderAPIKeyEnvVar        = "CLOUD_PROVIDER_API_KEY"
 	CollectorDataSourceEnabledEnvVar = "COLLECTOR_DATA_SOURCE_ENABLED"
+	LocalCollectorDirectoryEnvVar    = "LOCAL_COLLECTOR_DIRECTORY"
 
 	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
 	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
@@ -76,9 +92,6 @@ const (
 	ExportCSVLabelsAll  = "EXPORT_CSV_LABELS_ALL"
 	ExportCSVMaxDays    = "EXPORT_CSV_MAX_DAYS"
 
-	DataRetentionDailyResolutionDaysEnvVar   = "DATA_RETENTION_DAILY_RESOLUTION_DAYS"
-	DataRetentionHourlyResolutionHoursEnvVar = "DATA_RETENTION_HOURLY_RESOLUTION_HOURS"
-
 	CarbonEstimatesEnabledEnvVar = "CARBON_ESTIMATES_ENABLED"
 
 	KubernetesResourceAccessEnvVar = "KUBERNETES_RESOURCE_ACCESS"
@@ -86,10 +99,24 @@ const (
 
 	// Cloud provider override
 	CloudProviderVar = "CLOUD_PROVIDER"
+
+	// MCP Server
+	MCPServerEnabledEnvVar = "MCP_SERVER_ENABLED"
+	MCPHTTPPortEnvVar      = "MCP_HTTP_PORT"
+
+	// Admin write operations (e.g. serviceKey, cloud config)
+	AdminTokenEnvVar = "ADMIN_TOKEN"
+
+	// Metrics Emitter
+	MetricsEmitterQueryWindowEnvVar = "METRICS_EMITTER_QUERY_WINDOW"
 )
 
 func GetGCPAuthSecretFilePath() string {
 	return env.GetPathFromConfig(GCPAuthSecretFile)
+}
+
+func GetAdminToken() string {
+	return env.Get(AdminTokenEnvVar, "")
 }
 
 func GetExportCSVFile() string {
@@ -159,13 +186,7 @@ func IsEmitDeprecatedMetrics() bool {
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
 // the AWS access key for authentication
 func GetAWSAccessKeyID() string {
-	awsAccessKeyID := env.Get(AWSAccessKeyIDEnvVar, "")
-	// If the sample nil service key name is set, zero it out so that it is not
-	// misinterpreted as a real service key.
-	if awsAccessKeyID == "AKIXXX" {
-		awsAccessKeyID = ""
-	}
-	return awsAccessKeyID
+	return env.Get(AWSAccessKeyIDEnvVar, "")
 }
 
 // GetAWSAccessKeySecret returns the environment variable value for AWSAccessKeySecretEnvVar which represents
@@ -183,6 +204,11 @@ func GetAWSClusterID() string {
 // GetAWSPricingURL returns an optional alternative URL to fetch AWS pricing data from; for use in airgapped environments
 func GetAWSPricingURL() string {
 	return env.Get(AWSPricingURL, "")
+}
+
+// GetAWSECSPricingURLOverride returns an optional alternative URL to fetch AmazonECS pricing data from; for use in airgapped environments
+func GetAWSECSPricingURLOverride() string {
+	return env.Get(AWSECSPricingURLOverride, "")
 }
 
 // GetAlibabaAccessKeyID returns the environment variable value for AlibabaAccessKeyIDEnvVar which represents
@@ -210,6 +236,24 @@ func GetAzureOfferID() string {
 // price sheet API.
 func GetAzureBillingAccount() string {
 	return env.Get(AzureBillingAccountEnvVar, "")
+}
+
+// GetAzureLocale returns the environment variable value for AzureLocaleEnvVar which represents
+// the Azure rate card locale filter. Defaults to "en-US" if not specified.
+func GetAzureLocale() string {
+	return env.Get(AzureLocaleEnvVar, "en-US")
+}
+
+// GetAzureCurrency returns the environment variable value for AzureCurrencyEnvVar which represents
+// the Azure rate card currency filter. This overrides the default currency from config if specified.
+func GetAzureCurrency() string {
+	return env.Get(AzureCurrencyEnvVar, "")
+}
+
+// GetAzureRegionInfo returns the environment variable value for AzureRegionInfoEnvVar which represents
+// the Azure rate card region filter. This overrides the default region from config if specified.
+func GetAzureRegionInfo() string {
+	return env.Get(AzureRegionInfoEnvVar, "")
 }
 
 // IsAzureDownloadBillingDataToDisk returns the environment variable value for
@@ -329,20 +373,12 @@ func GetRegionOverrideList() []string {
 	return regionList
 }
 
-func GetDataRetentionDailyResolutionDays() int64 {
-	return env.GetInt64(DataRetentionDailyResolutionDaysEnvVar, 30)
-}
-
-func GetDataRetentionHourlyResolutionHours() int64 {
-	return env.GetInt64(DataRetentionHourlyResolutionHoursEnvVar, 49)
-}
-
 func IsKubernetesEnabled() bool {
 	return env.Get(KubernetesEnabledEnvVar, "") != ""
 }
 
 func GetOCIPricingURL() string {
-	return env.Get(OCIPricingURL, "https://apexapps.oracle.com/pls/apex/cetools/api/v1/products")
+	return env.Get(ProviderPricingURL, "https://apexapps.oracle.com/pls/apex/cetools/api/v1/products")
 }
 
 func IsCarbonEstimatesEnabled() bool {
@@ -365,4 +401,60 @@ func GetCloudProvider() string {
 
 func GetMetricConfigFile() string {
 	return env.GetPathFromConfig(MetricConfigFile)
+}
+
+func GetLocalCollectorDirectory() string {
+	dir := env.Get(LocalCollectorDirectoryEnvVar, DefaultLocalCollectorDir)
+	return env.GetPathFromConfig(dir)
+}
+
+func GetDOKSPricingURL() string {
+	return env.Get(ProviderPricingURL, "https://api.digitalocean.com/v2/sizes")
+}
+
+func GetDigitalOceanAccessToken() string {
+	// Try DIGITALOCEAN_ACCESS_TOKEN first, then fall back to CLOUD_PROVIDER_API_KEY
+	token := env.Get(DigitalOceanAccessTokenEnvVar, "")
+	if token == "" {
+		token = env.Get(CloudProviderAPIKeyEnvVar, "")
+	}
+	return token
+}
+
+func GetOVHSubsidiary() string {
+	return strings.ToUpper(strings.TrimSpace(env.Get(OVHSubsidiaryEnvVar, "FR")))
+}
+
+func GetOVHMonthlyNodepools() []string {
+	val := env.Get(OVHMonthlyNodepoolsVar, "")
+	if val == "" {
+		return nil
+	}
+	var pools []string
+	for _, p := range strings.Split(val, ",") {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			pools = append(pools, p)
+		}
+	}
+	return pools
+}
+
+// IsMCPServerEnabled returns the environment variable value for MCPServerEnabledEnvVar which represents
+// whether or not the MCP server is enabled.
+func IsMCPServerEnabled() bool {
+	return env.GetBool(MCPServerEnabledEnvVar, false)
+}
+
+// GetMCPHTTPPort returns the environment variable value for MCPHTTPPortEnvVar which represents
+// the HTTP port for the MCP server.
+func GetMCPHTTPPort() int {
+	return env.GetInt(MCPHTTPPortEnvVar, 8081)
+}
+
+// GetMetricsEmitterQueryWindow returns the time window for the metrics emitter
+// to query historical data. This controls the time range used in ComputeCostData queries.
+// Default is 2m.
+func GetMetricsEmitterQueryWindow() time.Duration {
+	return env.GetDuration(MetricsEmitterQueryWindowEnvVar, 2*time.Minute)
 }

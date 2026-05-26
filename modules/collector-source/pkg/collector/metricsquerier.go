@@ -74,102 +74,6 @@ func (c *collectorMetricsQuerier) QueryLocalStorageActiveMinutes(start, end time
 	return queryCollector(c, start, end, metric.LocalStorageActiveMinutesID, source.DecodeLocalStorageActiveMinutesResult)
 }
 
-func (c *collectorMetricsQuerier) QueryLocalStorageCost(start, end time.Time) *source.Future[source.LocalStorageCostResult] {
-	queryResults := source.NewQueryResults("LocalStorageCost")
-	collector := c.collectorProvider.GetStore(start, end)
-	if collector != nil {
-		minutesResults, err := collector.Query(metric.LocalStorageActiveMinutesID)
-		if err != nil {
-			queryResults.Error = err
-		}
-		minutesByNode := map[string]float64{}
-		for _, result := range minutesResults {
-			node := result.MetricLabels[source.NodeLabel]
-			if node == "" || len(result.Values) == 0 {
-				continue
-			}
-			nodeStart := result.Values[0].Timestamp
-			nodeEnd := result.Values[len(result.Values)-1].Timestamp
-			if nodeStart == nil || nodeEnd == nil {
-				continue
-			}
-			minutesByNode[node] = nodeEnd.Sub(*nodeStart).Minutes()
-
-		}
-		bytesResults, err := collector.Query(metric.LocalStorageBytesID)
-		if err != nil {
-			queryResults.Error = err
-		}
-		for _, result := range bytesResults {
-			instance := result.MetricLabels[source.InstanceLabel]
-			if instance == "" || len(result.Values) == 0 {
-				continue
-			}
-			mintues, ok := minutesByNode[instance]
-			if !ok {
-				continue
-			}
-			queryResult := result.ToQueryResult()
-			bytes := queryResult.Values[0].Value
-			GiBs := bytes / GiB
-			hours := mintues / 60
-			queryResult.Values[0].Value = GiBs * hours * LocalStorageCostPerGiBHr
-			queryResults.Results = append(queryResults.Results, queryResult)
-		}
-	}
-	ch := make(source.QueryResultsChan, 1)
-	ch <- queryResults
-	return source.NewFuture(source.DecodeLocalStorageCostResult, ch)
-}
-
-func (c *collectorMetricsQuerier) QueryLocalStorageUsedCost(start, end time.Time) *source.Future[source.LocalStorageUsedCostResult] {
-	queryResults := source.NewQueryResults("LocalStorageUsedCost")
-	collector := c.collectorProvider.GetStore(start, end)
-	if collector != nil {
-		minutesResults, err := collector.Query(metric.LocalStorageUsedActiveMinutesID)
-		if err != nil {
-			queryResults.Error = err
-		}
-		minutesByNode := map[string]float64{}
-		for _, result := range minutesResults {
-			node := result.MetricLabels[source.InstanceLabel]
-			if node == "" || len(result.Values) == 0 {
-				continue
-			}
-			nodeStart := result.Values[0].Timestamp
-			nodeEnd := result.Values[len(result.Values)-1].Timestamp
-			if nodeStart == nil || nodeEnd == nil {
-				continue
-			}
-			minutesByNode[node] = nodeEnd.Sub(*nodeStart).Minutes()
-
-		}
-		bytesResults, err := collector.Query(metric.LocalStorageUsedAverageID)
-		if err != nil {
-			queryResults.Error = err
-		}
-		for _, result := range bytesResults {
-			instance := result.MetricLabels[source.InstanceLabel]
-			if instance == "" || len(result.Values) == 0 {
-				continue
-			}
-			mintues, ok := minutesByNode[instance]
-			if !ok {
-				continue
-			}
-			queryResult := result.ToQueryResult()
-			bytes := queryResult.Values[0].Value
-			GiBs := bytes / GiB
-			hours := mintues / 60
-			queryResult.Values[0].Value = GiBs * hours * LocalStorageCostPerGiBHr
-			queryResults.Results = append(queryResults.Results, queryResult)
-		}
-	}
-	ch := make(source.QueryResultsChan, 1)
-	ch <- queryResults
-	return source.NewFuture(source.DecodeLocalStorageUsedCostResult, ch)
-}
-
 func (c *collectorMetricsQuerier) QueryLocalStorageUsedAvg(start, end time.Time) *source.Future[source.LocalStorageUsedAvgResult] {
 	return queryCollector(c, start, end, metric.LocalStorageUsedAverageID, source.DecodeLocalStorageUsedAvgResult)
 }
@@ -299,6 +203,10 @@ func (c *collectorMetricsQuerier) QueryLBPricePerHr(start, end time.Time) *sourc
 	return queryCollector(c, start, end, metric.LBPricePerHourID, source.DecodeLBPricePerHrResult)
 }
 
+func (c *collectorMetricsQuerier) QueryClusterUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.ClusterUptimeID, source.DecodeUptimeResult)
+}
+
 func (c *collectorMetricsQuerier) QueryClusterManagementDuration(start, end time.Time) *source.Future[source.ClusterManagementDurationResult] {
 	return queryCollector(c, start, end, metric.ClusterManagementDurationID, source.DecodeClusterManagementDurationResult)
 }
@@ -324,6 +232,10 @@ func (c *collectorMetricsQuerier) QueryRAMRequests(start, end time.Time) *source
 	return queryCollector(c, start, end, metric.RAMRequestsID, source.DecodeRAMRequestsResult)
 }
 
+func (c *collectorMetricsQuerier) QueryRAMLimits(start, end time.Time) *source.Future[source.RAMLimitsResult] {
+	return queryCollector(c, start, end, metric.RAMLimitsID, source.DecodeRAMLimitsResult)
+}
+
 func (c *collectorMetricsQuerier) QueryRAMUsageAvg(start, end time.Time) *source.Future[source.RAMUsageAvgResult] {
 	return queryCollector(c, start, end, metric.RAMUsageAverageID, source.DecodeRAMUsageAvgResult)
 }
@@ -342,6 +254,10 @@ func (c *collectorMetricsQuerier) QueryCPUCoresAllocated(start, end time.Time) *
 
 func (c *collectorMetricsQuerier) QueryCPURequests(start, end time.Time) *source.Future[source.CPURequestsResult] {
 	return queryCollector(c, start, end, metric.CPURequestsID, source.DecodeCPURequestsResult)
+}
+
+func (c *collectorMetricsQuerier) QueryCPULimits(start, end time.Time) *source.Future[source.CPULimitsResult] {
+	return queryCollector(c, start, end, metric.CPULimitsID, source.DecodeCPULimitsResult)
 }
 
 func (c *collectorMetricsQuerier) QueryCPUUsageAvg(start, end time.Time) *source.Future[source.CPUUsageAvgResult] {
@@ -408,6 +324,10 @@ func (c *collectorMetricsQuerier) QueryPVInfo(start, end time.Time) *source.Futu
 	return queryCollector(c, start, end, metric.PVInfoID, source.DecodePVInfoResult)
 }
 
+func (c *collectorMetricsQuerier) QueryNamespaceUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.NamespaceUptimeID, source.DecodeUptimeResult)
+}
+
 func (c *collectorMetricsQuerier) QueryNetZoneGiB(start, end time.Time) *source.Future[source.NetZoneGiBResult] {
 	return queryCollectorGiB(c, start, end, metric.NetZoneGiBID, source.DecodeNetZoneGiBResult)
 }
@@ -436,6 +356,14 @@ func (c *collectorMetricsQuerier) QueryNetInternetServiceGiB(start, end time.Tim
 	return queryCollectorGiB(c, start, end, metric.NetInternetServiceGiBID, source.DecodeNetInternetServiceGiBResult)
 }
 
+func (c *collectorMetricsQuerier) QueryNetNatGatewayPricePerGiB(start, end time.Time) *source.Future[source.NetNatGatewayPricePerGiBResult] {
+	return queryCollector(c, start, end, metric.NetNatGatewayPricePerGiBID, source.DecodeNetNatGatewayPricePerGiBResult)
+}
+
+func (c *collectorMetricsQuerier) QueryNetNatGatewayGiB(start, end time.Time) *source.Future[source.NetNatGatewayGiBResult] {
+	return queryCollectorGiB(c, start, end, metric.NetNatGatewayGiBID, source.DecodeNetNatGatewayGiBResult)
+}
+
 func (c *collectorMetricsQuerier) QueryNetTransferBytes(start, end time.Time) *source.Future[source.NetTransferBytesResult] {
 	return queryCollector(c, start, end, metric.NetTransferBytesID, source.DecodeNetTransferBytesResult)
 }
@@ -454,6 +382,14 @@ func (c *collectorMetricsQuerier) QueryNetInternetIngressGiB(start, end time.Tim
 
 func (c *collectorMetricsQuerier) QueryNetInternetServiceIngressGiB(start, end time.Time) *source.Future[source.NetInternetServiceIngressGiBResult] {
 	return queryCollectorGiB(c, start, end, metric.NetInternetServiceIngressGiBID, source.DecodeNetInternetServiceIngressGiBResult)
+}
+
+func (c *collectorMetricsQuerier) QueryNetNatGatewayIngressPricePerGiB(start, end time.Time) *source.Future[source.NetNatGatewayPricePerGiBResult] {
+	return queryCollector(c, start, end, metric.NetNatGatewayIngressPricePerGiBID, source.DecodeNetNatGatewayPricePerGiBResult)
+}
+
+func (c *collectorMetricsQuerier) QueryNetNatGatewayIngressGiB(start, end time.Time) *source.Future[source.NetNatGatewayIngressGiBResult] {
+	return queryCollectorGiB(c, start, end, metric.NetNatGatewayIngressGiBID, source.DecodeNetNatGatewayIngressGiBResult)
 }
 
 func (c *collectorMetricsQuerier) QueryNetReceiveBytes(start, end time.Time) *source.Future[source.NetReceiveBytesResult] {
@@ -510,6 +446,74 @@ func (c *collectorMetricsQuerier) QueryReplicaSetsWithoutOwners(start, end time.
 
 func (c *collectorMetricsQuerier) QueryReplicaSetsWithRollout(start, end time.Time) *source.Future[source.ReplicaSetsWithRolloutResult] {
 	return queryCollector(c, start, end, metric.ReplicaSetsWithRolloutID, source.DecodeReplicaSetsWithRolloutResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaUptime(start, end time.Time) *source.Future[source.UptimeResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaUptimeID, source.DecodeUptimeResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecCPURequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPURequestAvgResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecCPURequestAverageID, source.DecodeResourceQuotaSpecCPURequestAvgResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecCPURequestMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPURequestMaxResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecCPURequestMaxID, source.DecodeResourceQuotaSpecCPURequestMaxResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecRAMRequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMRequestAvgResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecRAMRequestAverageID, source.DecodeResourceQuotaSpecRAMRequestAvgResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecRAMRequestMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMRequestMaxResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecRAMRequestMaxID, source.DecodeResourceQuotaSpecRAMRequestMaxResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecCPULimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPULimitAvgResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecCPULimitAverageID, source.DecodeResourceQuotaSpecCPULimitAvgResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecCPULimitMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPULimitMaxResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecCPULimitMaxID, source.DecodeResourceQuotaSpecCPULimitMaxResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecRAMLimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMLimitAvgResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecRAMLimitAverageID, source.DecodeResourceQuotaSpecRAMLimitAvgResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaSpecRAMLimitMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMLimitMaxResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaSpecRAMLimitMaxID, source.DecodeResourceQuotaSpecRAMLimitMaxResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedCPURequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPURequestAvgResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedCPURequestAverageID, source.DecodeResourceQuotaStatusUsedCPURequestAvgResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedCPURequestMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPURequestMaxResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedCPURequestMaxID, source.DecodeResourceQuotaStatusUsedCPURequestMaxResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedRAMRequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMRequestAvgResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedRAMRequestAverageID, source.DecodeResourceQuotaStatusUsedRAMRequestAvgResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedRAMRequestMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMRequestMaxResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedRAMRequestMaxID, source.DecodeResourceQuotaStatusUsedRAMRequestMaxResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedCPULimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPULimitAvgResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedCPULimitAverageID, source.DecodeResourceQuotaStatusUsedCPULimitAvgResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedCPULimitMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPULimitMaxResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedCPULimitMaxID, source.DecodeResourceQuotaStatusUsedCPULimitMaxResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMLimitAvgResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedRAMLimitAverageID, source.DecodeResourceQuotaStatusUsedRAMLimitAvgResult)
+}
+
+func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimitMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMLimitMaxResult] {
+	return queryCollector(c, start, end, metric.ResourceQuotaStatusUsedRAMLimitMaxID, source.DecodeResourceQuotaStatusUsedRAMLimitMaxResult)
 }
 
 func (c *collectorMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {

@@ -61,7 +61,7 @@ func (im *IngestionManager) SetConfigs(configs map[string]cloud.KeyedConfig) {
 	im.lock.Lock()
 	defer im.lock.Unlock()
 	// delete any exiting ingestors
-	for key, _ := range im.ingestors {
+	for key := range im.ingestors {
 		im.deleteIngestor(key)
 	}
 	// create  ingestors for provided
@@ -118,6 +118,19 @@ func (im *IngestionManager) RebuildAll() {
 		}(im.ingestors[key])
 	}
 	wg.Wait()
+}
+
+// GetIngestors returns a copy of the ingestors map
+func (im *IngestionManager) GetIngestors() map[string]*ingestor {
+	im.lock.Lock()
+	defer im.lock.Unlock()
+
+	// Return a copy to avoid race conditions
+	copy := make(map[string]*ingestor)
+	for k, v := range im.ingestors {
+		copy[k] = v
+	}
+	return copy
 }
 
 func (im *IngestionManager) Rebuild(integrationKey string) error {
@@ -198,6 +211,8 @@ func (im *IngestionManager) createIngestor(config cloud.KeyedConfig) error {
 	if err != nil {
 		return fmt.Errorf("IngestionManager: createIngestor: %w", err)
 	}
+
+	ing.RefreshStatus()
 
 	ing.Start(false)
 

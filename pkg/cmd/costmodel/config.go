@@ -12,6 +12,7 @@ type Config struct {
 	CarbonEstimatesEnabled bool
 	CloudCostEnabled       bool
 	CustomCostEnabled      bool
+	MCPServerEnabled       bool
 }
 
 func DefaultConfig() *Config {
@@ -20,6 +21,8 @@ func DefaultConfig() *Config {
 		KubernetesEnabled:      env.IsKubernetesEnabled(),
 		CarbonEstimatesEnabled: env.IsCarbonEstimatesEnabled(),
 		CloudCostEnabled:       env.IsCloudCostEnabled(),
+		MCPServerEnabled:       env.IsMCPServerEnabled(),
+		CustomCostEnabled:      env.IsCustomCostEnabled(),
 	}
 }
 
@@ -27,5 +30,7 @@ func (c *Config) log() {
 	log.Infof("Kubernetes enabled: %t", c.KubernetesEnabled)
 	log.Infof("Carbon Estimates enabled: %t", c.CarbonEstimatesEnabled)
 	log.Infof("Cloud Costs enabled: %t", c.CloudCostEnabled)
+	log.Infof("Custom Costs enabled: %t", c.CustomCostEnabled)
+	log.Infof("MCP Server enabled: %t", c.MCPServerEnabled)
 	log.Infof("Custom Costs enabled: %t", c.CustomCostEnabled)
 }

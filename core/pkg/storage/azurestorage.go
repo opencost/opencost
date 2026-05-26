@@ -8,7 +8,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -191,8 +194,8 @@ func NewAzureStorageWith(conf AzureConfig) (*AzureStorage, error) {
 	}, nil
 }
 
-// Name returns the bucket name for azure storage.
-func (as *AzureStorage) Name() string {
+// String returns the bucket name for azure storage.
+func (as *AzureStorage) String() string {
 	return as.name
 }
 
@@ -231,13 +234,13 @@ func (b *AzureStorage) Read(name string) ([]byte, error) {
 	name = trimLeading(name)
 	ctx := context.Background()
 
-	log.Debugf("AzureStorage::Read(%s)", name)
+	log.Debugf("AzureStorage::Read::HTTPS(%s)", name)
 
 	downloadResponse, err := b.containerClient.NewBlobClient(name).DownloadStream(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("AzureStorage: Read: failed to download %w", err)
+		return nil, fmt.Errorf("AzureStorage: Read: failed to download blob %q: %w", name, err)
 	}
-	// NOTE: automatically retries are performed if the connection fails
+	// NOTE: automatic retries are performed if the connection fails
 	retryReader := downloadResponse.NewRetryReader(ctx, &azblob.RetryReaderOptions{
 		MaxRetries: int32(b.config.ReaderConfig.MaxRetryRequests),
 	})
@@ -254,13 +257,73 @@ func (b *AzureStorage) Read(name string) ([]byte, error) {
 	return downloadedData.Bytes(), nil
 }
 
+// ReadStream returns a streaming reader for the specified blob path.
+func (b *AzureStorage) ReadStream(path string) (io.ReadCloser, error) {
+	path = trimLeading(path)
+	ctx := context.Background()
+
+	log.Debugf("AzureStorage::ReadStream::HTTPS(%s)", path)
+
+	downloadResponse, err := b.containerClient.NewBlobClient(path).DownloadStream(ctx, nil)
+	if err != nil {
+		if b.IsObjNotFoundErr(err) {
+			return nil, DoesNotExistError
+		}
+		return nil, fmt.Errorf("AzureStorage: ReadStream: failed to download blob %q: %w", path, err)
+	}
+
+	retryReader := downloadResponse.NewRetryReader(ctx, &azblob.RetryReaderOptions{
+		MaxRetries: int32(b.config.ReaderConfig.MaxRetryRequests),
+	})
+	return retryReader, nil
+}
+
+// ReadToLocalFile streams the specified blob at path to destPath on the local file system.
+func (b *AzureStorage) ReadToLocalFile(path, destPath string) error {
+	path = trimLeading(path)
+	ctx := context.Background()
+
+	log.Debugf("AzureStorage::ReadToLocalFile::HTTPS(%s) -> %s", path, destPath)
+
+	downloadResponse, err := b.containerClient.NewBlobClient(path).DownloadStream(ctx, nil)
+	if err != nil {
+		if b.IsObjNotFoundErr(err) {
+			return DoesNotExistError
+		}
+		return fmt.Errorf("AzureStorage: ReadToLocalFile: failed to download blob %q to %q: %w", path, destPath, err)
+	}
+	// NOTE: automatic retries are performed if the connection fails.
+	retryReader := downloadResponse.NewRetryReader(ctx, &azblob.RetryReaderOptions{
+		MaxRetries: int32(b.config.ReaderConfig.MaxRetryRequests),
+	})
+	defer retryReader.Close()
+
+	if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
+		return errors.Wrap(err, "creating destination directory")
+	}
+
+	f, err := os.Create(destPath)
+	if err != nil {
+		return errors.Wrapf(err, "creating destination file %s", destPath)
+	}
+	defer f.Close()
+
+	// Use 1 MB buffer for streaming operations
+	buf := make([]byte, 1024*1024)
+	if _, err := io.CopyBuffer(f, retryReader, buf); err != nil {
+		return errors.Wrapf(err, "streaming %s to %s", path, destPath)
+	}
+
+	return nil
+}
+
 // Write uses the relative path of the storage combined with the provided path
 // to write a new file or overwrite an existing file.
 func (b *AzureStorage) Write(name string, data []byte) error {
 	name = trimLeading(name)
 	ctx := context.Background()
 
-	log.Debugf("AzureStorage::Write(%s)", name)
+	log.Debugf("AzureStorage::Write::HTTPS(%s)", name)
 
 	r := bytes.NewReader(data)
 	blobClient := b.containerClient.NewBlockBlobClient(name)
@@ -279,7 +342,7 @@ func (b *AzureStorage) Write(name string, data []byte) error {
 func (b *AzureStorage) Remove(name string) error {
 	name = trimLeading(name)
 
-	log.Debugf("AzureStorage::Remove(%s)", name)
+	log.Debugf("AzureStorage::Remove::HTTPS(%s)", name)
 	ctx := context.Background()
 
 	blobClient := b.containerClient.NewBlobClient(name)
@@ -312,7 +375,7 @@ func (b *AzureStorage) Exists(name string) (bool, error) {
 func (b *AzureStorage) List(path string) ([]*StorageInfo, error) {
 	path = trimLeading(path)
 
-	log.Debugf("AzureStorage::List(%s)", path)
+	log.Debugf("AzureStorage::List::HTTPS(%s)", path)
 	ctx := context.Background()
 
 	// Ensure the object name actually ends with a dir suffix. Otherwise we'll just iterate the
@@ -355,7 +418,7 @@ func (b *AzureStorage) List(path string) ([]*StorageInfo, error) {
 func (b *AzureStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 	path = trimLeading(path)
 
-	log.Debugf("AzureStorage::ListDirectories(%s)", path)
+	log.Debugf("AzureStorage::ListDirectories::HTTPS(%s)", path)
 	ctx := context.Background()
 
 	// Ensure the object name actually ends with a dir suffix. Otherwise we'll just iterate the
@@ -433,6 +496,7 @@ func getContainerClient(conf AzureConfig) (*container.Client, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error creating client from connection string: %w", err)
 		}
+		log.Debugf("AzureStorage: New Azure client initialized for container '%s' using connection string", conf.ContainerName)
 		return containerClient, nil
 	}
 
@@ -440,7 +504,11 @@ func getContainerClient(conf AzureConfig) (*container.Client, error) {
 		conf.Endpoint = "blob.core.windows.net"
 	}
 
+	// HTTPS Protocol Configuration: Azure Storage always uses HTTPS protocol.
+	// The containerURL is explicitly constructed with "https://" scheme.
+	// All Azure blob operations (read, write, delete, list) use this HTTPS URL.
 	containerURL := fmt.Sprintf("https://%s.%s/%s", conf.StorageAccountName, conf.Endpoint, conf.ContainerName)
+	log.Debugf("AzureStorage: New Azure client initialized with '%s'", containerURL)
 
 	// Use shared keys if set
 	if conf.StorageAccountKey != "" {

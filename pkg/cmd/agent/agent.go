@@ -31,6 +31,8 @@ import (
 
 // AgentOpts contain configuration options that can be passed to the Execute() method
 type AgentOpts struct {
+	// Port is the port the agent will bind to
+	Port int
 	// Stubbed for future configuration
 }
 
@@ -71,6 +73,11 @@ func Execute(opts *AgentOpts) error {
 	k8sClient, clusterCache, err := newKubernetesClusterCache()
 	if err != nil {
 		panic(err.Error())
+	}
+
+	clusterUID, err := kubeconfig.GetClusterUID(k8sClient)
+	if err != nil {
+		return fmt.Errorf("error getting cluster UID: %w", err)
 	}
 
 	// Create ConfigFileManager for synchronization of shared configuration
@@ -138,7 +145,7 @@ func Execute(opts *AgentOpts) error {
 	// Initialize ClusterMap for maintaining ClusterInfo by ClusterID
 	clusterMap := dataSource.ClusterMap()
 
-	costModel := costmodel.NewCostModel(dataSource, cloudProvider, clusterCache, clusterMap, dataSource.BatchDuration())
+	costModel := costmodel.NewCostModel(clusterUID, dataSource, cloudProvider, clusterCache, clusterMap, dataSource.BatchDuration())
 
 	// initialize Kubernetes Metrics Emitter
 	metricsEmitter := costmodel.NewCostModelMetricsEmitter(clusterCache, cloudProvider, clusterInfoProvider, costModel)
@@ -158,5 +165,11 @@ func Execute(opts *AgentOpts) error {
 	telemetryHandler := metrics.ResponseMetricMiddleware(rootMux)
 	handler := cors.AllowAll().Handler(telemetryHandler)
 
-	return http.ListenAndServe(fmt.Sprintf(":%d", env.GetKubecostMetricsPort()), handler)
+	// Use the port from AgentOpts, or default to the environment variable value
+	port := opts.Port
+	if port == 0 {
+		port = env.GetKubecostMetricsPort()
+	}
+
+	return http.ListenAndServe(fmt.Sprintf(":%d", port), handler)
 }

@@ -25,6 +25,7 @@ func MapToClusterInfo(info map[string]string) (*ClusterInfo, error) {
 	var project string
 	var region string
 	var provisioner string
+	var version string
 
 	if cp, ok := info[ClusterInfoProfileKey]; ok {
 		clusterProfile = cp
@@ -50,6 +51,10 @@ func MapToClusterInfo(info map[string]string) (*ClusterInfo, error) {
 		provisioner = pvsr
 	}
 
+	if ver, ok := info[ClusterInfoVersionKey]; ok {
+		version = ver
+	}
+
 	return &ClusterInfo{
 		ID:          id,
 		Name:        name,
@@ -59,5 +64,6 @@ func MapToClusterInfo(info map[string]string) (*ClusterInfo, error) {
 		Project:     project,
 		Region:      region,
 		Provisioner: provisioner,
+		Version:     version,
 	}, nil
 }

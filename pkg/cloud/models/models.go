@@ -10,7 +10,6 @@ import (
 
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/opencost/opencost/core/pkg/clustercache"
-	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/config"
 )
 
@@ -21,7 +20,6 @@ var (
 const (
 	AuthSecretPath                 = "/var/secrets/service-key.json"
 	StorageConfigSecretPath        = "/var/azure-storage-config/azure-storage-config.json"
-	DefaultShareTenancyCost        = "true"
 	KarpenterCapacityTypeLabel     = "karpenter.sh/capacity-type"
 	KarpenterCapacitySpotTypeValue = "spot"
 )
@@ -139,6 +137,8 @@ type CustomPricing struct {
 	ZoneNetworkEgress            string `json:"zoneNetworkEgress"`
 	RegionNetworkEgress          string `json:"regionNetworkEgress"`
 	InternetNetworkEgress        string `json:"internetNetworkEgress"`
+	NatGatewayEgress             string `json:"natGatewayEgress"`
+	NatGatewayIngress            string `json:"natGatewayIngress"`
 	FirstFiveForwardingRulesCost string `json:"firstFiveForwardingRulesCost"`
 	AdditionalForwardingRuleCost string `json:"additionalForwardingRuleCost"`
 	LBIngressDataCost            string `json:"LBIngressDataCost"`
@@ -146,14 +146,15 @@ type CustomPricing struct {
 	SpotLabelValue               string `json:"spotLabelValue,omitempty"`
 	GpuLabel                     string `json:"gpuLabel,omitempty"`
 	GpuLabelValue                string `json:"gpuLabelValue,omitempty"`
-	ServiceKeyName               string `json:"awsServiceKeyName,omitempty"`
-	ServiceKeySecret             string `json:"awsServiceKeySecret,omitempty"`
+	AwsServiceKeyName            string `json:"awsServiceKeyName,omitempty"`
+	AwsServiceKeySecret          string `json:"awsServiceKeySecret,omitempty"`
 	AlibabaServiceKeyName        string `json:"alibabaServiceKeyName,omitempty"`
 	AlibabaServiceKeySecret      string `json:"alibabaServiceKeySecret,omitempty"`
 	AlibabaClusterRegion         string `json:"alibabaClusterRegion,omitempty"`
-	SpotDataRegion               string `json:"awsSpotDataRegion,omitempty"`
-	SpotDataBucket               string `json:"awsSpotDataBucket,omitempty"`
-	SpotDataPrefix               string `json:"awsSpotDataPrefix,omitempty"`
+	AwsSpotDataRegion            string `json:"awsSpotDataRegion,omitempty"`
+	AwsSpotDataBucket            string `json:"awsSpotDataBucket,omitempty"`
+	AwsSpotDataPrefix            string `json:"awsSpotDataPrefix,omitempty"`
+	SpotDataFeedEnabled          string `json:"spotDataFeedEnabled,omitempty"`
 	ProjectID                    string `json:"projectID,omitempty"`
 	AthenaProjectID              string `json:"athenaProjectID,omitempty"`
 	AthenaBucketName             string `json:"athenaBucketName"`
@@ -165,7 +166,6 @@ type CustomPricing struct {
 	MasterPayerARN               string `json:"masterPayerARN"`
 	BillingDataDataset           string `json:"billingDataDataset,omitempty"`
 	CustomPricesEnabled          string `json:"customPricesEnabled"`
-	DefaultIdle                  string `json:"defaultIdle"`
 	AzureSubscriptionID          string `json:"azureSubscriptionID"`
 	AzureClientID                string `json:"azureClientID"`
 	AzureClientSecret            string `json:"azureClientSecret"`
@@ -182,38 +182,9 @@ type CustomPricing struct {
 	CurrencyCode                 string `json:"currencyCode"`
 	Discount                     string `json:"discount"`
 	NegotiatedDiscount           string `json:"negotiatedDiscount"`
-	SharedOverhead               string `json:"sharedOverhead"`
 	ClusterName                  string `json:"clusterName"`
 	ClusterAccountID             string `json:"clusterAccount,omitempty"`
-	SharedNamespaces             string `json:"sharedNamespaces"`
-	SharedLabelNames             string `json:"sharedLabelNames"`
-	SharedLabelValues            string `json:"sharedLabelValues"`
-	ShareTenancyCosts            string `json:"shareTenancyCosts"` // TODO clean up configuration so we can use a type other that string (this should be a bool, but the app panics if it's not a string)
-	ReadOnly                     string `json:"readOnly"`
-	EditorAccess                 string `json:"editorAccess"`
-	KubecostToken                string `json:"kubecostToken"`
-	GoogleAnalyticsTag           string `json:"googleAnalyticsTag"`
-	ExcludeProviderID            string `json:"excludeProviderID"`
 	DefaultLBPrice               string `json:"defaultLBPrice"`
-}
-
-// GetSharedOverheadCostPerMonth parses and returns a float64 representation
-// of the configured monthly shared overhead cost. If the string version cannot
-// be parsed into a float, an error is logged and 0.0 is returned.
-func (cp *CustomPricing) GetSharedOverheadCostPerMonth() float64 {
-	// Empty string should be interpreted as "no cost", i.e. 0.0
-	if cp.SharedOverhead == "" {
-		return 0.0
-	}
-
-	// Attempt to parse, but log and return 0.0 if that fails.
-	sharedCostPerMonth, err := strconv.ParseFloat(cp.SharedOverhead, 64)
-	if err != nil {
-		log.Errorf("SharedOverhead: failed to parse shared overhead \"%s\": %s", cp.SharedOverhead, err)
-		return 0.0
-	}
-
-	return sharedCostPerMonth
 }
 
 func sanitizeFloatString(number string, allowNaN bool) (string, error) {
@@ -246,7 +217,7 @@ func SetCustomPricingField(obj *CustomPricing, name string, value string) error 
 	// validation work in order to prevent "NaN" and other invalid strings
 	// from getting set here.
 	switch strings.ToLower(name) {
-	case "cpu", "gpu", "ram", "spotcpu", "spotgpu", "spotram", "storage", "zonenetworkegress", "regionnetworkegress", "internetnetworkegress":
+	case "cpu", "gpu", "ram", "spotcpu", "spotgpu", "spotram", "storage", "zonenetworkegress", "regionnetworkegress", "internetnetworkegress", "natgatewayegress", "natgatewayingress":
 		// If we are sent an empty string, ignore the key and don't change the value
 		if value == "" {
 			return nil

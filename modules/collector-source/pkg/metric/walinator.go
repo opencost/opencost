@@ -19,7 +19,7 @@ import (
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 )
 
-const ControllerEventName = "controller"
+const CollectorEventName = "collector"
 
 type fileInfo struct {
 	name      string
@@ -37,6 +37,7 @@ type Walinator struct {
 
 func NewWalinator(
 	clusterID string,
+	applicationName string,
 	store storage.Storage,
 	resolutions []*util.Resolution,
 	updater Updater,
@@ -47,11 +48,12 @@ func NewWalinator(
 			limitResolution = resolution
 		}
 	}
-	pathFormatter, err := pathing.NewEventStoragePathFormatter("", clusterID, ControllerEventName)
+	pathFormatter, err := pathing.NewEventStoragePathFormatter(applicationName, clusterID, CollectorEventName)
 	if err != nil {
-		return nil, fmt.Errorf("filed to create path formatter for scrape controller: %s", err.Error())
+		return nil, fmt.Errorf("failed to create path formatter for scrape controller: %s", err.Error())
 	}
-	encoder := exporter.NewGZipEncoder(exporter.NewJSONEncoder[UpdateSet]())
+
+	encoder := exporter.NewBingenFileEncoder[UpdateSet]()
 	exp := exporter.NewEventStorageExporter(
 		pathFormatter,
 		encoder,
@@ -143,7 +145,15 @@ func deserializeUpdateSet(ext string, b []byte) (*UpdateSet, error) {
 		}
 
 		return deserializeUpdateSet(strings.TrimSuffix(ext, ".gz"), decompressed)
+	case "bingen":
+		updateSet := new(UpdateSet)
+		err := updateSet.UnmarshalBinary(b)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal bingen: %w", err)
+		}
+		return updateSet, nil
 	}
+
 	return nil, fmt.Errorf("unrecognized extension: '%s'", ext)
 }
 

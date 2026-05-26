@@ -280,6 +280,54 @@ func applyCPUCoresRequested(podMap map[podKey]*pod, resCPUCoresRequested []*sour
 	}
 }
 
+func applyCPUCoresLimits(podMap map[podKey]*pod, resCPUCoresLimits []*source.CPULimitsResult, podUIDKeyMap map[podKey][]podKey) {
+	for _, res := range resCPUCoresLimits {
+		key, err := newResultPodKey(res.Cluster, res.Namespace, res.Pod)
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU limit result missing field: %s", err)
+			continue
+		}
+
+		container := res.Container
+		if container == "" {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU limit query result missing 'container': %s", key)
+			continue
+		}
+
+		var pods []*pod
+		if thisPod, ok := podMap[key]; !ok {
+			if uidKeys, ok := podUIDKeyMap[key]; ok {
+				for _, uidKey := range uidKeys {
+					thisPod, ok = podMap[uidKey]
+					if ok {
+						pods = append(pods, thisPod)
+					}
+				}
+			} else {
+				continue
+			}
+		} else {
+			pods = []*pod{thisPod}
+		}
+
+		for _, thisPod := range pods {
+
+			if _, ok := thisPod.Allocations[container]; !ok {
+				thisPod.appendContainer(container)
+			}
+
+			thisPod.Allocations[container].CPUCoreLimitAverage = res.Data[0].Value
+
+			node := res.Node
+			if node == "" {
+				continue
+			}
+			thisPod.Allocations[container].Properties.Node = node
+			thisPod.Node = node
+		}
+	}
+}
+
 func applyCPUCoresUsedAvg(podMap map[podKey]*pod, resCPUCoresUsedAvg []*source.CPUUsageAvgResult, podUIDKeyMap map[podKey][]podKey) {
 	for _, res := range resCPUCoresUsedAvg {
 		key, err := newResultPodKey(res.Cluster, res.Namespace, res.Pod)
@@ -321,6 +369,13 @@ func applyCPUCoresUsedAvg(podMap map[podKey]*pod, resCPUCoresUsedAvg []*source.C
 				log.Infof("[WARNING] Very large cpu USAGE, dropping outlier")
 				thisPod.Allocations[container].CPUCoreUsageAverage = 0.0
 			}
+
+			node := res.Node
+			if node == "" {
+				continue
+			}
+			thisPod.Allocations[container].Properties.Node = node
+			thisPod.Node = node
 		}
 	}
 }
@@ -478,6 +533,54 @@ func applyRAMBytesRequested(podMap map[podKey]*pod, resRAMBytesRequested []*sour
 	}
 }
 
+func applyRAMBytesLimits(podMap map[podKey]*pod, resRAMBytesLimits []*source.RAMLimitsResult, podUIDKeyMap map[podKey][]podKey) {
+	for _, res := range resRAMBytesLimits {
+		key, err := newResultPodKey(res.Cluster, res.Namespace, res.Pod)
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM limit result missing field: %s", err)
+			continue
+		}
+
+		container := res.Container
+		if container == "" {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM limit query result missing 'container': %s", key)
+			continue
+		}
+
+		var pods []*pod
+		if thisPod, ok := podMap[key]; !ok {
+			if uidKeys, ok := podUIDKeyMap[key]; ok {
+				for _, uidKey := range uidKeys {
+					thisPod, ok = podMap[uidKey]
+					if ok {
+						pods = append(pods, thisPod)
+					}
+				}
+			} else {
+				continue
+			}
+		} else {
+			pods = []*pod{thisPod}
+		}
+
+		for _, pod := range pods {
+
+			if _, ok := pod.Allocations[container]; !ok {
+				pod.appendContainer(container)
+			}
+
+			pod.Allocations[container].RAMBytesLimitAverage = res.Data[0].Value
+
+			node := res.Node
+			if node == "" {
+				continue
+			}
+			pod.Allocations[container].Properties.Node = node
+			pod.Node = node
+		}
+	}
+}
+
 func applyRAMBytesUsedAvg(podMap map[podKey]*pod, resRAMBytesUsedAvg []*source.RAMUsageAvgResult, podUIDKeyMap map[podKey][]podKey) {
 	for _, res := range resRAMBytesUsedAvg {
 		key, err := newResultPodKey(res.Cluster, res.Namespace, res.Pod)
@@ -515,6 +618,13 @@ func applyRAMBytesUsedAvg(podMap map[podKey]*pod, resRAMBytesUsedAvg []*source.R
 			}
 
 			thisPod.Allocations[container].RAMBytesUsageAverage = res.Data[0].Value
+
+			node := res.Node
+			if node == "" {
+				continue
+			}
+			thisPod.Allocations[container].Properties.Node = node
+			thisPod.Node = node
 		}
 	}
 }
@@ -906,6 +1016,14 @@ func applyCrossRegionNetworkAllocation(alloc *opencost.Allocation, networkSubCos
 
 func applyInternetNetworkAllocation(alloc *opencost.Allocation, networkSubCost float64) {
 	alloc.NetworkInternetCost = networkSubCost
+}
+
+func applyNatGatewayEgressAllocation(alloc *opencost.Allocation, networkSubCost float64) {
+	alloc.NetworkNatGatewayEgressCost = networkSubCost
+}
+
+func applyNatGatewayIngressAllocation(alloc *opencost.Allocation, networkSubCost float64) {
+	alloc.NetworkNatGatewayIngressCost = networkSubCost
 }
 
 func applyNetworkAllocation(podMap map[podKey]*pod, resNetworkGiB []*source.NetworkGiBResult, resNetworkCostPerGiB []*source.NetworkPricePerGiBResult, podUIDKeyMap map[podKey][]podKey, applyCostFunc func(*opencost.Allocation, float64)) {
@@ -2428,8 +2546,7 @@ func calculateStartAndEnd(result []*util.Vector, resolution time.Duration, windo
 	// of the pod by giving "one resolution" worth of duration, half on each
 	// side of the given timestamp.
 	if s.Equal(e) {
-		s = s.Add(-1 * resolution / time.Duration(2))
-		e = e.Add(resolution / time.Duration(2))
+		e = e.Add(resolution)
 	}
 	if s.Before(*window.Start()) {
 		s = *window.Start()

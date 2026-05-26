@@ -1,7 +1,9 @@
 package storage
 
 import (
+	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -24,7 +26,6 @@ type StorageInfo struct {
 
 // Storage provides an API for storing binary data
 type Storage interface {
-	Name() string
 	// StorageType returns a string identifier for the type of storage used by the implementation.
 	StorageType() StorageType
 
@@ -37,6 +38,16 @@ type Storage interface {
 	// Read uses the relative path of the storage combined with the provided path to
 	// read the contents.
 	Read(path string) ([]byte, error)
+
+	// ReadStream returns an io.ReadCloser for the specified path. Implementations should
+	// stream incrementally when possible to avoid loading entire objects into memory.
+	ReadStream(path string) (io.ReadCloser, error)
+
+	// ReadToLocalFile writes the specified file at path to destPath on the local file system.
+	// Implementations may stream data to minimize RAM usage, but some backends may still buffer
+	// data in memory depending on their capabilities. It is up to the caller to clean up the
+	// local file when finished.
+	ReadToLocalFile(path, destPath string) error
 
 	// Write uses the relative path of the storage combined with the provided path
 	// to write a new file or overwrite an existing file.
@@ -61,7 +72,7 @@ type Storage interface {
 }
 
 // Validate uses the provided storage implementation to write a test file to the store, followed by a removal.
-func Validate(storage Storage) error {
+func Validate(storage Storage, validateWriteDelete bool) error {
 	const testPath = "tmp/test.txt"
 	const testContent = "test"
 
@@ -79,25 +90,32 @@ func Validate(storage Storage) error {
 		return errors.Wrap(err, "Failed to list path")
 	}
 
-	// attempt to write a path
-	err = storage.Write(testPath, []byte(testContent))
-	if err != nil {
-		return errors.Wrap(err, "Failed to write data to storage")
+	if validateWriteDelete {
+		// attempt to write a path
+		err = storage.Write(testPath, []byte(testContent))
+		if err != nil {
+			return errors.Wrap(err, "Failed to write data to storage")
+		}
 	}
 
 	// attempt to read the path
+	// If we are not validating write and delete, the file won't exist since we never wrote it.
+	// We only want to check read permissions, so ignore errors with "exist" and "404" in the error message to bypass the file not exist error.
 	data, err := storage.Read(testPath)
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "exist") && !strings.Contains(err.Error(), "404") {
 		return errors.Wrap(err, "Failed to read data from storage")
 	}
-	if string(data) != testContent {
-		return errors.New("Failed to read the expected data from storage")
-	}
 
-	// delete the path
-	err = storage.Remove(testPath)
-	if err != nil {
-		return errors.Wrap(err, "Failed to remove data from storage")
+	if validateWriteDelete {
+		if string(data) != testContent {
+			return errors.New("Failed to read the expected data from storage")
+		}
+
+		// delete the path
+		err = storage.Remove(testPath)
+		if err != nil {
+			return errors.Wrap(err, "Failed to remove data from storage")
+		}
 	}
 
 	return nil

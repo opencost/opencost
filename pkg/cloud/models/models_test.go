@@ -66,6 +66,8 @@ func TestSetSetCustomPricingField(t *testing.T) {
 		"ZoneNetworkEgress",
 		"RegionNetworkEgress",
 		"InternetNetworkEgress",
+		"NatGatewayEgress",
+		"NatGatewayIngress",
 	}
 
 	testCases := []testCase{}
@@ -98,6 +100,8 @@ func TestSetSetCustomPricingField(t *testing.T) {
 				ZoneNetworkEgress:     defaultValue,
 				RegionNetworkEgress:   defaultValue,
 				InternetNetworkEgress: defaultValue,
+				NatGatewayEgress:      defaultValue,
+				NatGatewayIngress:     defaultValue,
 			}
 			err := SetCustomPricingField(cp, tc.fieldName, tc.fieldValue)
 			if err != nil && tc.expError == nil {

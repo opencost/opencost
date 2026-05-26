@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -103,6 +104,7 @@ type S3Storage struct {
 	putUserMetadata map[string]string
 	partSize        uint64
 	listObjectsV1   bool
+	insecure        bool
 }
 
 // parseConfig unmarshals a buffer into a Config with default HTTPConfig values.
@@ -170,6 +172,8 @@ func NewS3StorageWith(config S3Config) (*S3Storage, error) {
 		return nil, err
 	}
 
+	// HTTPS Protocol Configuration: The 'Secure' option controls whether HTTPS is used.
+	// By default, config.Insecure is false if not set, so Secure=true.
 	client, err := minio.New(config.Endpoint, &minio.Options{
 		Creds:     credentials.NewChainCredentials(chain),
 		Secure:    !config.Insecure,
@@ -226,18 +230,28 @@ func NewS3StorageWith(config S3Config) (*S3Storage, error) {
 		putUserMetadata: config.PutUserMetadata,
 		partSize:        config.PartSize,
 		listObjectsV1:   config.ListObjectsVersion == "v1",
+		insecure:        config.Insecure,
 	}
+	log.Debugf("S3Storage: New S3 client initialized with '%s://%s/%s'", bkt.protocol(), config.Endpoint, config.Bucket)
 	return bkt, nil
 }
 
-// Name returns the bucket name for s3.
-func (s3 *S3Storage) Name() string {
+// String returns the bucket name for s3.
+func (s3 *S3Storage) String() string {
 	return s3.name
 }
 
 // StorageType returns a string identifier for the type of storage used by the implementation.
 func (s3 *S3Storage) StorageType() StorageType {
 	return StorageTypeBucketS3
+}
+
+// protocol returns the protocol string (HTTP or HTTPS) based on configuration
+func (s3 *S3Storage) protocol() string {
+	if s3.insecure {
+		return "HTTP"
+	}
+	return "HTTPS"
 }
 
 // validate checks to see the config options are set.
@@ -278,17 +292,129 @@ func (s3 *S3Storage) FullPath(name string) string {
 func (s3 *S3Storage) Read(name string) ([]byte, error) {
 	name = trimLeading(name)
 
-	log.Tracef("S3Storage::Read(%s)", name)
+	log.Debugf("S3Storage::Read::%s(%s)", s3.protocol(), name)
 	ctx := context.Background()
 
 	return s3.getRange(ctx, name, 0, -1)
 
 }
 
+// ReadStream returns an io.ReadCloser that streams an object from S3.
+func (s3 *S3Storage) ReadStream(path string) (io.ReadCloser, error) {
+	path = trimLeading(path)
+
+	log.Debugf("S3Storage::ReadStream::%s(%s)", s3.protocol(), path)
+	ctx := context.Background()
+
+	sse, err := s3.getServerSideEncryption(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	opts := &minio.GetObjectOptions{ServerSideEncryption: sse}
+	r, err := s3.client.GetObject(ctx, s3.name, path, *opts)
+	if err != nil {
+		if s3.isObjNotFound(err) {
+			return nil, DoesNotExistError
+		}
+		return nil, err
+	}
+
+	// Force a metadata call and surface "not found" errors early,
+	// matching behavior in getRange().
+	if _, err := s3.client.StatObject(ctx, s3.name, path, minio.StatObjectOptions{ServerSideEncryption: sse}); err != nil {
+		if s3.isObjNotFound(err) || s3.isDoesNotExist(err) {
+			_ = r.Close()
+			return nil, DoesNotExistError
+		}
+
+		_ = r.Close()
+		return nil, errors.Wrap(err, "StatObject from S3 failed")
+	}
+
+	return r, nil
+}
+
+// ReadToLocalFile streams the specified object at path to destPath on the local file system.
+func (s3 *S3Storage) ReadToLocalFile(path, destPath string) error {
+	path = trimLeading(path)
+
+	log.Debugf("S3Storage::ReadToLocalFile::%s(%s) -> %s", s3.protocol(), path, destPath)
+	ctx := context.Background()
+
+	sse, err := s3.getServerSideEncryption(ctx)
+	if err != nil {
+		return err
+	}
+
+	opts := &minio.GetObjectOptions{ServerSideEncryption: sse}
+	r, err := s3.client.GetObject(ctx, s3.name, path, *opts)
+	if err != nil {
+		if s3.isObjNotFound(err) {
+			return DoesNotExistError
+		}
+		return err
+	}
+	defer r.Close()
+
+	// Force a metadata call and surface "not found" errors early,
+	// matching behavior in getRange().
+	if _, err := s3.client.StatObject(ctx, s3.name, path, minio.StatObjectOptions{ServerSideEncryption: sse}); err != nil {
+		if s3.isObjNotFound(err) {
+			return DoesNotExistError
+		}
+		return errors.Wrap(err, "StatObject from S3 failed")
+	}
+
+	dir := filepath.Dir(destPath)
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return errors.Wrap(err, "creating destination directory")
+	}
+
+	// Write to a temporary file in the same directory to avoid leaving a
+	// partially-written file at destPath on error. Rename atomically on success.
+	tmpFile, err := os.CreateTemp(dir, ".s3-read-*")
+	if err != nil {
+		return errors.Wrapf(err, "creating temporary file in %s", dir)
+	}
+	tmpPath := tmpFile.Name()
+
+	// Ensure temporary file is cleaned up on error.
+	success := false
+	defer func() {
+		if !success {
+			_ = tmpFile.Close()
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	// Use 1 MB buffer for streaming operations
+	buf := make([]byte, 1024*1024)
+	if _, err := io.CopyBuffer(tmpFile, r, buf); err != nil {
+		return errors.Wrapf(err, "streaming %s to %s", path, destPath)
+	}
+
+	// Ensure data is flushed to disk before renaming.
+	if err := tmpFile.Sync(); err != nil {
+		return errors.Wrapf(err, "syncing temporary file for %s", destPath)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return errors.Wrapf(err, "closing temporary file for %s", destPath)
+	}
+
+	// Atomically move the fully written temp file into place.
+	if err := os.Rename(tmpPath, destPath); err != nil {
+		return errors.Wrapf(err, "renaming temporary file to %s", destPath)
+	}
+
+	success = true
+	return nil
+}
+
 // Exists checks if the given object exists.
 func (s3 *S3Storage) Exists(name string) (bool, error) {
 	name = trimLeading(name)
-	log.Tracef("S3Storage::Exists(%s)", name)
+	log.Debugf("S3Storage::Exists::%s(%s)", s3.protocol(), name)
 
 	ctx := context.Background()
 
@@ -307,7 +433,7 @@ func (s3 *S3Storage) Exists(name string) (bool, error) {
 func (s3 *S3Storage) Write(name string, data []byte) error {
 	name = trimLeading(name)
 
-	log.Tracef("S3Storage::Write(%s)", name)
+	log.Debugf("S3Storage::Write::%s(%s)", s3.protocol(), name)
 
 	ctx := context.Background()
 	sse, err := s3.getServerSideEncryption(ctx)
@@ -341,7 +467,7 @@ func (s3 *S3Storage) Write(name string, data []byte) error {
 func (s3 *S3Storage) Stat(name string) (*StorageInfo, error) {
 	name = trimLeading(name)
 
-	log.Tracef("S3Storage::Stat(%s)", name)
+	log.Debugf("S3Storage::Stat::%s(%s)", s3.protocol(), name)
 	ctx := context.Background()
 
 	objInfo, err := s3.client.StatObject(ctx, s3.name, name, minio.StatObjectOptions{})
@@ -363,7 +489,7 @@ func (s3 *S3Storage) Stat(name string) (*StorageInfo, error) {
 func (s3 *S3Storage) Remove(name string) error {
 	name = trimLeading(name)
 
-	log.Tracef("S3Storage::Remove(%s)", name)
+	log.Debugf("S3Storage::Remove::%s(%s)", s3.protocol(), name)
 	ctx := context.Background()
 
 	return s3.client.RemoveObject(ctx, s3.name, name, minio.RemoveObjectOptions{})
@@ -372,7 +498,7 @@ func (s3 *S3Storage) Remove(name string) error {
 func (s3 *S3Storage) List(path string) ([]*StorageInfo, error) {
 	path = trimLeading(path)
 
-	log.Tracef("S3Storage::List(%s)", path)
+	log.Debugf("S3Storage::List::%s(%s)", s3.protocol(), path)
 	ctx := context.Background()
 
 	// Ensure the object name actually ends with a dir suffix. Otherwise we'll just iterate the
@@ -419,7 +545,7 @@ func (s3 *S3Storage) List(path string) ([]*StorageInfo, error) {
 func (s3 *S3Storage) ListDirectories(path string) ([]*StorageInfo, error) {
 	path = trimLeading(path)
 
-	log.Tracef("S3Storage::List(%s)", path)
+	log.Debugf("S3Storage::ListDirectories::%s(%s)", s3.protocol(), path)
 	ctx := context.Background()
 
 	if path != "" {
@@ -490,15 +616,10 @@ func (s3 *S3Storage) getRange(ctx context.Context, name string, off, length int6
 	}
 
 	opts := &minio.GetObjectOptions{ServerSideEncryption: sse}
-	if length != -1 {
-		if err := opts.SetRange(off, off+length-1); err != nil {
-			return nil, err
-		}
-	} else if off > 0 {
-		if err := opts.SetRange(off, 0); err != nil {
-			return nil, err
-		}
+	if err := setGetObjectRange(opts, off, length); err != nil {
+		return nil, err
 	}
+
 	r, err := s3.client.GetObject(ctx, s3.name, name, *opts)
 	if err != nil {
 		if s3.isObjNotFound(err) {
@@ -506,19 +627,38 @@ func (s3 *S3Storage) getRange(ctx context.Context, name string, off, length int6
 		}
 		return nil, err
 	}
-	defer r.Close()
-
 	// NotFoundObject error is revealed only after first Read. This does the initial GetRequest. Prefetch this here
 	// for convenience.
 	if _, err := r.Read(nil); err != nil {
 		if s3.isObjNotFound(err) {
+			_ = r.Close()
 			return nil, DoesNotExistError
 		}
 
+		_ = r.Close()
 		return nil, errors.Wrap(err, "Read from S3 failed")
 	}
 
+	defer r.Close()
 	return io.ReadAll(r)
+}
+
+func setGetObjectRange(opts *minio.GetObjectOptions, off, length int64) error {
+	if off < 0 {
+		return errors.New("range offset must be >= 0")
+	}
+	if length < -1 || length == 0 {
+		return errors.New("range length must be -1 or > 0")
+	}
+
+	if length > 0 {
+		return opts.SetRange(off, off+length-1)
+	}
+	if off > 0 {
+		return opts.SetRange(off, 0)
+	}
+
+	return nil
 }
 
 // awsAuth retrieves credentials from the aws-sdk-go.

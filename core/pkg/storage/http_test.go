@@ -262,8 +262,10 @@ func TestTLSConfig_ToConfig(t *testing.T) {
 		validateFunc func(t *testing.T, tlsConfig *tls.Config)
 	}{
 		"default configuration": {
-			config:    &TLSConfig{},
-			want:      &tls.Config{},
+			config: &TLSConfig{},
+			want: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			},
 			wantError: false,
 		},
 		"with insecure skip verify": {
@@ -272,6 +274,7 @@ func TestTLSConfig_ToConfig(t *testing.T) {
 			},
 			want: &tls.Config{
 				InsecureSkipVerify: true,
+				MinVersion:         tls.VersionTLS12,
 			},
 			wantError: false,
 		},
@@ -293,6 +296,7 @@ func TestTLSConfig_ToConfig(t *testing.T) {
 			},
 			want: &tls.Config{
 				ServerName: "example.com",
+				MinVersion: tls.VersionTLS12,
 			},
 			wantError: false,
 		},
@@ -333,6 +337,7 @@ func TestTLSConfig_ToConfig(t *testing.T) {
 					CertFile: path.Join(tmpDir, caFileName),
 					KeyFile:  path.Join(tmpDir, keyFileName),
 				}.getClientCertificate,
+				MinVersion: tls.VersionTLS12,
 			},
 			wantError: false,
 		},

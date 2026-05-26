@@ -100,7 +100,7 @@ func (kpmc KubePodLabelsCollector) Collect(ch chan<- prometheus.Metric) {
 		// Owner References
 		if _, disabled := disabledMetrics["kube_pod_owner"]; !disabled {
 			for _, owner := range pod.OwnerReferences {
-				ch <- newKubePodOwnerMetric("kube_pod_owner", podNS, podName, owner.Name, owner.Kind, owner.Controller != nil)
+				ch <- newKubePodOwnerMetric("kube_pod_owner", podNS, podName, podUID, owner.Name, owner.Kind, owner.Controller != nil)
 			}
 		}
 	}
