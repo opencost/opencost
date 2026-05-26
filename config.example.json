@@ -1,0 +1,7 @@
+{
+  "rbac": {
+    "scopedViews": {
+      "enabled": false
+    }
+  }
+}

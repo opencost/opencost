@@ -41,6 +41,8 @@ func Execute(conf *Config) error {
 	defer cancel()
 
 	router := httprouter.New()
+	costmodel.InitializeConfigRBAC(router)
+
 	var a *costmodel.Accesses
 
 	if conf.KubernetesEnabled {
