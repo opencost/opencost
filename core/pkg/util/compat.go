@@ -1,6 +1,8 @@
 package util
 
 import (
+	"net"
+
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -54,4 +56,9 @@ func GetArchType(labels map[string]string) (string, bool) {
 	} else {
 		return "", false
 	}
+}
+
+func PrivateIPCheck(ip string) bool {
+	ipAddress := net.ParseIP(ip)
+	return ipAddress.IsPrivate()
 }
