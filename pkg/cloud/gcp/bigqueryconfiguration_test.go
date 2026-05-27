@@ -138,7 +138,8 @@ func TestBigQueryConfiguration_Equals(t *testing.T) {
 						"key1": "key2",
 					},
 				},
-				Location: "EU",
+				Location:       "EU",
+				QueryProjectID: "queryProjectID",
 			},
 			right: &BigQueryConfiguration{
 				ProjectID: "projectID",
@@ -150,7 +151,8 @@ func TestBigQueryConfiguration_Equals(t *testing.T) {
 						"key1": "key2",
 					},
 				},
-				Location: "EU",
+				Location:       "EU",
+				QueryProjectID: "queryProjectID",
 			},
 			expected: true,
 		},
@@ -338,6 +340,33 @@ func TestBigQueryConfiguration_Equals(t *testing.T) {
 				Dataset:   "dataset2",
 				Table:     "table",
 				Location:  "US",
+				Authorizer: &ServiceAccountKey{
+					Key: map[string]string{
+						"Key":  "Key",
+						"key1": "key2",
+					},
+				},
+			},
+			expected: false,
+		},
+		"different queryProjectID": {
+			left: BigQueryConfiguration{
+				ProjectID:      "projectID",
+				Dataset:        "dataset",
+				Table:          "table",
+				QueryProjectID: "queryProjectID",
+				Authorizer: &ServiceAccountKey{
+					Key: map[string]string{
+						"Key":  "Key",
+						"key1": "key2",
+					},
+				},
+			},
+			right: &BigQueryConfiguration{
+				ProjectID:      "projectID",
+				Dataset:        "dataset",
+				Table:          "table",
+				QueryProjectID: "queryProjectID2",
 				Authorizer: &ServiceAccountKey{
 					Key: map[string]string{
 						"Key":  "Key",
