@@ -285,9 +285,9 @@ func extractAzureVMRetailAndSpotPrices(resp *http.Response) (linuxRetailPrice st
 		return "", "", "", "", fmt.Errorf("error unmarshalling data: %v", jsonErr)
 	}
 	for _, item := range pricingPayload.Items {
-		isWindowsProduct := strings.Contains(item.ProductName, "Windows")
 		skuLower := strings.ToLower(item.SkuName)
 		productLower := strings.ToLower(item.ProductName)
+		isWindowsProduct := strings.Contains(productLower, "windows")
 		if strings.Contains(skuLower, " spot") {
 			if isWindowsProduct {
 				windowsSpotPrice = fmt.Sprintf("%f", item.RetailPrice)
@@ -467,7 +467,7 @@ func (k *azureKey) Features() string {
 	region := strings.ToLower(r)
 	instance, _ := util.GetInstanceType(k.Labels)
 	usageType := "ondemand"
-	if os, ok := util.GetOperatingSystem(k.Labels); ok && strings.ToLower(os) == "windows" {
+	if osLabel, ok := util.GetOperatingSystem(k.Labels); ok && strings.ToLower(osLabel) == "windows" {
 		return fmt.Sprintf("%s,%s,%s,windows", region, instance, usageType)
 	}
 	return fmt.Sprintf("%s,%s,%s", region, instance, usageType)
@@ -1183,8 +1183,8 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 	slv, ok := azKey.Labels[config.SpotLabel]
 	isSpot := ok && slv == config.SpotLabelValue && config.SpotLabel != "" && config.SpotLabelValue != ""
 
-	os, _ := util.GetOperatingSystem(azKey.Labels)
-	isWindows := strings.ToLower(os) == "windows"
+	osLabel, _ := util.GetOperatingSystem(azKey.Labels)
+	isWindows := strings.ToLower(osLabel) == "windows"
 
 	features := strings.Split(azKey.Features(), ",")
 	region := features[0]
