@@ -331,6 +331,10 @@ func getClusterProperties(node *clustercache.Node) clusterProperties {
 		log.Debug("using STACKIT provider (detected via node label)")
 		cp.provider = opencost.STACKITProvider
 		cp.configFileName = "stackit.json"
+	} else if _, ok := node.Labels["topology.block-storage.csi.stackit.cloud/zone"]; ok {
+		log.Debug("using STACKIT provider (detected via CSI topology label)")
+		cp.provider = opencost.STACKITProvider
+		cp.configFileName = "stackit.json"
 	}
 	// Override provider to CSV if CSVProvider is used and custom provider is not set
 	if env.IsUseCSVProvider() {
