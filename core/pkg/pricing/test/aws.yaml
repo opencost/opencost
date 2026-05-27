@@ -1,6 +1,6 @@
 nodes:
   - properties:
-      provider: aws
+      provider: AWS
       region: us-east-1
       instanceType: m5.large
       provisioning: on-demand
@@ -10,7 +10,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: aws
+      provider: AWS
       region: us-east-1
       instanceType: m5.large
       provisioning: spot
@@ -20,7 +20,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: aws
+      provider: AWS
       region: us-east-1
       instanceType: m5.xlarge
       provisioning: on-demand
@@ -30,7 +30,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: aws
+      provider: AWS
       region: us-east-1
       instanceType: m5.xlarge
       provisioning: spot
@@ -40,7 +40,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: aws
+      provider: AWS
       region: us-east-1
       instanceType: m5.2xlarge
       provisioning: on-demand
@@ -50,7 +50,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: aws
+      provider: AWS
       region: us-east-1
       instanceType: m5.2xlarge
       provisioning: spot
@@ -60,7 +60,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: aws
+      provider: AWS
       region: us-west-1
       instanceType: m5.large
       provisioning: on-demand
@@ -70,7 +70,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: aws
+      provider: AWS
       region: us-west-1
       instanceType: m5.large
       provisioning: spot
@@ -80,7 +80,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: aws
+      provider: AWS
       region: us-west-1
       instanceType: m5.xlarge
       provisioning: on-demand
@@ -90,7 +90,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: aws
+      provider: AWS
       region: us-west-1
       instanceType: m5.xlarge
       provisioning: spot
@@ -100,7 +100,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: aws
+      provider: AWS
       region: us-west-1
       instanceType: m5.2xlarge
       provisioning: on-demand
@@ -110,7 +110,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: aws
+      provider: AWS
       region: us-west-1
       instanceType: m5.2xlarge
       provisioning: spot
@@ -121,7 +121,7 @@ nodes:
           unit: hr
 volumes:
   - properties:
-      provider: aws
+      provider: AWS
       region: us-east-1
       volumeType: gp3
     prices:
@@ -130,7 +130,7 @@ volumes:
           currency: USD
           unit: GiB-hr
   - properties:
-      provider: aws
+      provider: AWS
       region: us-east-1
       volumeType: gp2
     prices:
@@ -139,7 +139,7 @@ volumes:
           currency: USD
           unit: GiB-hr
   - properties:
-      provider: aws
+      provider: AWS
       region: us-east-1
       volumeType: standard
     prices:
@@ -148,7 +148,7 @@ volumes:
           currency: USD
           unit: GiB-hr
   - properties:
-      provider: aws
+      provider: AWS
       region: us-west-1
       volumeType: gp3
     prices:
@@ -157,7 +157,7 @@ volumes:
           currency: USD
           unit: GiB-hr
   - properties:
-      provider: aws
+      provider: AWS
       region: us-west-1
       volumeType: gp2
     prices:
@@ -166,7 +166,7 @@ volumes:
           currency: USD
           unit: GiB-hr
   - properties:
-      provider: aws
+      provider: AWS
       region: us-west-1
       volumeType: standard
     prices:

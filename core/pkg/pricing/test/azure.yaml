@@ -1,6 +1,6 @@
 nodes:
   - properties:
-      provider: azure
+      provider: Azure
       region: eastus
       instanceType: Standard_D2s_v5
       provisioning: on-demand
@@ -10,7 +10,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: azure
+      provider: Azure
       region: eastus
       instanceType: Standard_D2s_v5
       provisioning: spot
@@ -20,7 +20,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: azure
+      provider: Azure
       region: eastus
       instanceType: Standard_D4s_v5
       provisioning: on-demand
@@ -30,7 +30,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: azure
+      provider: Azure
       region: eastus
       instanceType: Standard_D4s_v5
       provisioning: spot
@@ -40,7 +40,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: azure
+      provider: Azure
       region: eastus
       instanceType: Standard_E2s_v5
       provisioning: on-demand
@@ -50,7 +50,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: azure
+      provider: Azure
       region: eastus
       instanceType: Standard_E2s_v5
       provisioning: spot
@@ -60,7 +60,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: azure
+      provider: Azure
       region: westus2
       instanceType: Standard_D2s_v5
       provisioning: on-demand
@@ -70,7 +70,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: azure
+      provider: Azure
       region: westus2
       instanceType: Standard_D2s_v5
       provisioning: spot
@@ -80,7 +80,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: azure
+      provider: Azure
       region: westus2
       instanceType: Standard_D4s_v5
       provisioning: on-demand
@@ -90,7 +90,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: azure
+      provider: Azure
       region: westus2
       instanceType: Standard_D4s_v5
       provisioning: spot
@@ -100,7 +100,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: azure
+      provider: Azure
       region: westus2
       instanceType: Standard_E2s_v5
       provisioning: on-demand
@@ -110,7 +110,7 @@ nodes:
           currency: USD
           unit: hr
   - properties:
-      provider: azure
+      provider: Azure
       region: westus2
       instanceType: Standard_E2s_v5
       provisioning: spot
@@ -121,7 +121,7 @@ nodes:
           unit: hr
 volumes:
   - properties:
-      provider: azure
+      provider: Azure
       region: eastus
       volumeType: Premium_LRS
     prices:
@@ -130,7 +130,7 @@ volumes:
           currency: USD
           unit: GiB-hr
   - properties:
-      provider: azure
+      provider: Azure
       region: eastus
       volumeType: StandardSSD_LRS
     prices:
@@ -139,7 +139,7 @@ volumes:
           currency: USD
           unit: GiB-hr
   - properties:
-      provider: azure
+      provider: Azure
       region: eastus
       volumeType: Standard_LRS
     prices:
@@ -148,7 +148,7 @@ volumes:
           currency: USD
           unit: GiB-hr
   - properties:
-      provider: azure
+      provider: Azure
       region: westus2
       volumeType: Premium_LRS
     prices:
@@ -157,7 +157,7 @@ volumes:
           currency: USD
           unit: GiB-hr
   - properties:
-      provider: azure
+      provider: Azure
       region: westus2
       volumeType: StandardSSD_LRS
     prices:
@@ -166,7 +166,7 @@ volumes:
           currency: USD
           unit: GiB-hr
   - properties:
-      provider: azure
+      provider: Azure
       region: westus2
       volumeType: Standard_LRS
     prices:
