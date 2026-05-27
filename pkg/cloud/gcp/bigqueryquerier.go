@@ -45,6 +45,8 @@ func (bqq *BigQueryQuerier) Query(ctx context.Context, queryStr string) (*bigque
 	}
 
 	query := client.Query(queryStr)
+	query.Location = client.Location
+
 	iter, err := query.Read(ctx)
 
 	// If result is empty and connection status is not already successful update status to missing data
