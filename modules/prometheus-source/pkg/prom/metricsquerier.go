@@ -205,7 +205,10 @@ func (pds *PrometheusMetricsQuerier) QueryLocalStorageActiveMinutes(start, end t
 
 func (pds *PrometheusMetricsQuerier) QueryNodeCPUCoresCapacity(start, end time.Time) *source.Future[source.NodeCPUCoresCapacityResult] {
 	const queryName = "QueryNodeCPUCoresCapacity"
-	const nodeCPUCoresCapacityQuery = `avg(avg_over_time(kube_node_status_capacity_cpu_cores{%s}[%s])) by (%s, node, uid)`
+	// KSM v1 emits kube_node_status_capacity_cpu_cores; KSM v2 (kube-prometheus-stack default)
+	// emits kube_node_status_capacity{resource="cpu"} instead. The or-clause prefers v1 and
+	// falls back to v2 so both KSM versions are supported without a recording rule.
+	const nodeCPUCoresCapacityQuery = `(avg(avg_over_time(kube_node_status_capacity_cpu_cores{%s}[%s])) by (%s, node, uid) or avg(avg_over_time(kube_node_status_capacity{resource="cpu",%s}[%s])) by (%s, node, uid))`
 
 	cfg := pds.promConfig
 
@@ -214,7 +217,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeCPUCoresCapacity(start, end time.T
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
 
-	queryNodeCPUCoresCapacity := fmt.Sprintf(nodeCPUCoresCapacityQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	queryNodeCPUCoresCapacity := fmt.Sprintf(nodeCPUCoresCapacityQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryNodeCPUCoresCapacity)
 
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
@@ -223,7 +226,9 @@ func (pds *PrometheusMetricsQuerier) QueryNodeCPUCoresCapacity(start, end time.T
 
 func (pds *PrometheusMetricsQuerier) QueryNodeCPUCoresAllocatable(start, end time.Time) *source.Future[source.NodeCPUCoresAllocatableResult] {
 	const queryName = "QueryNodeCPUCoresAllocatable"
-	const nodeCPUCoresAllocatableQuery = `avg(avg_over_time(kube_node_status_allocatable_cpu_cores{%s}[%s])) by (%s, node, uid)`
+	// KSM v1 emits kube_node_status_allocatable_cpu_cores; KSM v2 emits
+	// kube_node_status_allocatable{resource="cpu"} instead.
+	const nodeCPUCoresAllocatableQuery = `(avg(avg_over_time(kube_node_status_allocatable_cpu_cores{%s}[%s])) by (%s, node, uid) or avg(avg_over_time(kube_node_status_allocatable{resource="cpu",%s}[%s])) by (%s, node, uid))`
 	// `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
 
 	cfg := pds.promConfig
@@ -233,7 +238,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeCPUCoresAllocatable(start, end tim
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
 
-	queryNodeCPUCoresAllocatable := fmt.Sprintf(nodeCPUCoresAllocatableQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	queryNodeCPUCoresAllocatable := fmt.Sprintf(nodeCPUCoresAllocatableQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryNodeCPUCoresAllocatable)
 
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
@@ -242,7 +247,9 @@ func (pds *PrometheusMetricsQuerier) QueryNodeCPUCoresAllocatable(start, end tim
 
 func (pds *PrometheusMetricsQuerier) QueryNodeRAMBytesCapacity(start, end time.Time) *source.Future[source.NodeRAMBytesCapacityResult] {
 	const queryName = "QueryNodeRAMBytesCapacity"
-	const nodeRAMBytesCapacityQuery = `avg(avg_over_time(kube_node_status_capacity_memory_bytes{%s}[%s])) by (%s, node, uid)`
+	// KSM v1 emits kube_node_status_capacity_memory_bytes; KSM v2 emits
+	// kube_node_status_capacity{resource="memory"} instead.
+	const nodeRAMBytesCapacityQuery = `(avg(avg_over_time(kube_node_status_capacity_memory_bytes{%s}[%s])) by (%s, node, uid) or avg(avg_over_time(kube_node_status_capacity{resource="memory",%s}[%s])) by (%s, node, uid))`
 
 	cfg := pds.promConfig
 
@@ -251,7 +258,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeRAMBytesCapacity(start, end time.T
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
 
-	queryNodeRAMBytesCapacity := fmt.Sprintf(nodeRAMBytesCapacityQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	queryNodeRAMBytesCapacity := fmt.Sprintf(nodeRAMBytesCapacityQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryNodeRAMBytesCapacity)
 
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
@@ -260,7 +267,9 @@ func (pds *PrometheusMetricsQuerier) QueryNodeRAMBytesCapacity(start, end time.T
 
 func (pds *PrometheusMetricsQuerier) QueryNodeRAMBytesAllocatable(start, end time.Time) *source.Future[source.NodeRAMBytesAllocatableResult] {
 	const queryName = "QueryNodeRAMBytesAllocatable"
-	const nodeRAMBytesAllocatableQuery = `avg(avg_over_time(kube_node_status_allocatable_memory_bytes{%s}[%s])) by (%s, node, uid)`
+	// KSM v1 emits kube_node_status_allocatable_memory_bytes; KSM v2 emits
+	// kube_node_status_allocatable{resource="memory"} instead.
+	const nodeRAMBytesAllocatableQuery = `(avg(avg_over_time(kube_node_status_allocatable_memory_bytes{%s}[%s])) by (%s, node, uid) or avg(avg_over_time(kube_node_status_allocatable{resource="memory",%s}[%s])) by (%s, node, uid))`
 
 	cfg := pds.promConfig
 
@@ -269,7 +278,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeRAMBytesAllocatable(start, end tim
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
 
-	queryNodeRAMBytesAllocatable := fmt.Sprintf(nodeRAMBytesAllocatableQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	queryNodeRAMBytesAllocatable := fmt.Sprintf(nodeRAMBytesAllocatableQuery, cfg.ClusterFilter, durStr, cfg.ClusterLabel, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryNodeRAMBytesAllocatable)
 
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -218,5 +219,84 @@ func checkQueryLog(t *testing.T, logWriter *SingleLogWriter, query func(time.Tim
 	if actual != expectedHeader {
 		t.Errorf("Expected log header '%s', but got '%s'", expectedHeader, actual)
 		return
+	}
+}
+
+// TestKSMV2QueryFallback verifies that the four node capacity/allocatable queries
+// contain both the KSM v1 metric name and the KSM v2 metric name so that clusters
+// running either kube-state-metrics version return correct node capacity data.
+func TestKSMV2QueryFallback(t *testing.T) {
+	initLogging(t, "debug", false)
+
+	logWriter := new(SingleLogWriter)
+	zerologger.Logger = zerologger.Output(zerolog.ConsoleWriter{
+		Out:        logWriter,
+		TimeFormat: "",
+		NoColor:    true,
+		PartsExclude: []string{
+			zerolog.TimestampFieldName,
+			zerolog.LevelFieldName,
+			zerolog.CallerFieldName,
+		},
+	})
+	defer initLogging(t, "debug", false)
+
+	t.Setenv("PROMETHEUS_SERVER_ENDPOINT", "nowhere")
+
+	config, err := NewOpenCostPrometheusConfigFromEnv()
+	if err != nil {
+		t.Fatalf("Failed to create OpenCost Prometheus config: %v", err)
+	}
+
+	mock := new(NoOpPromClient)
+	contextFactory := NewContextFactory(mock, config)
+	querier := newPrometheusMetricsQuerier(config, mock, contextFactory)
+
+	queryEnd := time.Now().UTC().Truncate(time.Hour).Add(time.Hour)
+	queryStart := queryEnd.Add(-24 * time.Hour)
+
+	tests := []struct {
+		name   string
+		fn     func(time.Time, time.Time)
+		v1Name string
+		v2Name string
+	}{
+		{
+			name:   "QueryNodeCPUCoresCapacity",
+			fn:     func(s, e time.Time) { querier.QueryNodeCPUCoresCapacity(s, e) },
+			v1Name: "kube_node_status_capacity_cpu_cores",
+			v2Name: `kube_node_status_capacity{resource="cpu"`,
+		},
+		{
+			name:   "QueryNodeCPUCoresAllocatable",
+			fn:     func(s, e time.Time) { querier.QueryNodeCPUCoresAllocatable(s, e) },
+			v1Name: "kube_node_status_allocatable_cpu_cores",
+			v2Name: `kube_node_status_allocatable{resource="cpu"`,
+		},
+		{
+			name:   "QueryNodeRAMBytesCapacity",
+			fn:     func(s, e time.Time) { querier.QueryNodeRAMBytesCapacity(s, e) },
+			v1Name: "kube_node_status_capacity_memory_bytes",
+			v2Name: `kube_node_status_capacity{resource="memory"`,
+		},
+		{
+			name:   "QueryNodeRAMBytesAllocatable",
+			fn:     func(s, e time.Time) { querier.QueryNodeRAMBytesAllocatable(s, e) },
+			v1Name: "kube_node_status_allocatable_memory_bytes",
+			v2Name: `kube_node_status_allocatable{resource="memory"`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.fn(queryStart, queryEnd)
+			got := logWriter.Log
+			if !strings.Contains(got, tc.v1Name) {
+				t.Errorf("KSM v1 metric %q missing from query: %s", tc.v1Name, got)
+			}
+			if !strings.Contains(got, tc.v2Name) {
+				t.Errorf("KSM v2 metric %q missing from query: %s", tc.v2Name, got)
+			}
+		})
 	}
 }
