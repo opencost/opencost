@@ -73,8 +73,14 @@ runs:
         run: |
           set -euo pipefail
           if [[ -z "${STARTED_ON:-}" ]]; then
+            echo "inputs.run-started-at is empty; using fallback ${FALLBACK_STARTED_ON}"
             STARTED_ON="$FALLBACK_STARTED_ON"
           fi
+          if [[ -z "${STARTED_ON:-}" ]]; then
+            echo "::error::startedOn resolved empty after fallback; predicate would be unparseable"
+            exit 1
+          fi
+          echo "Using startedOn=${STARTED_ON}"
           RESOLVED_GIT_COMMIT="$(git rev-parse HEAD)"
           export RESOLVED_GIT_COMMIT STARTED_ON
           python3 - <<'PY' > predicate.json
