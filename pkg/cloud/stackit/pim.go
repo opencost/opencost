@@ -17,7 +17,7 @@ import (
 const (
 	pimBaseURL    = "https://pim-service.pim.stackit.cloud"
 	pimMaxPage    = 100
-	pimMaxPages   = 50 // safety limit to prevent infinite pagination
+	pimMaxPages   = 200 // safety limit to prevent infinite pagination
 	pimTimeoutSec = 30
 )
 
@@ -134,14 +134,10 @@ func fetchAllPIMSKUs(req pimSearchRequest) ([]pimSKU, error) {
 
 		allSKUs = append(allSKUs, searchResp.Data...)
 
-		if searchResp.Meta.NextCursor == "" || len(searchResp.Data) == 0 {
+		if searchResp.Meta.NextCursor == "" || len(searchResp.Data) == 0 || len(searchResp.Data) < pimMaxPage {
 			break
 		}
 		cursor = searchResp.Meta.NextCursor
-	}
-
-	if cursor != "" {
-		log.Warnf("STACKIT PIM: reached max pages (%d) with cursor still present, results may be incomplete", pimMaxPages)
 	}
 
 	return allSKUs, nil
