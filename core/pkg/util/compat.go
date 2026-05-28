@@ -8,6 +8,22 @@ import (
 
 // See https://kubernetes.io/docs/reference/labels-annotations-taints/
 
+// Spot/preemptible node label constants across cloud providers.
+const (
+	// KarpenterCapacityTypeLabel is set by Karpenter on AWS and GCP.
+	KarpenterCapacityTypeLabel = "karpenter.sh/capacity-type"
+
+	// GKE native labels
+	GKEPreemptibleLabel = "cloud.google.com/gke-preemptible"
+	GKESpotLabel        = "cloud.google.com/gke-spot"
+
+	// Azure VMSS priority label
+	AzureSpotLabel = "kubernetes.azure.com/scalesetpriority"
+
+	// Oracle OKE preemptible label
+	OCIPreemptibleLabel = "oci.oraclecloud.com/oke-is-preemptible"
+)
+
 func GetZone(labels map[string]string) (string, bool) {
 	if _, ok := labels[v1.LabelTopologyZone]; ok { // Label as of 1.17
 		return labels[v1.LabelTopologyZone], true
@@ -56,6 +72,30 @@ func GetArchType(labels map[string]string) (string, bool) {
 	} else {
 		return "", false
 	}
+}
+
+// IsPreemptible returns true if the node labels indicate a spot or preemptible
+// instance. It covers GKE (preemptible + Spot VMs), AWS/GCP via Karpenter,
+// Azure VMSS spot, and Oracle OKE preemptible nodes.
+// this function does not currently support user set `SpotLabel` and SpotLabelValue`
+// we could add this here via environment variables
+func IsPreemptible(labels map[string]string) bool {
+	if labels[GKEPreemptibleLabel] == "true" {
+		return true
+	}
+	if labels[GKESpotLabel] == "true" {
+		return true
+	}
+	if labels[KarpenterCapacityTypeLabel] == "spot" {
+		return true
+	}
+	if labels[AzureSpotLabel] == "spot" {
+		return true
+	}
+	if labels[OCIPreemptibleLabel] == "true" {
+		return true
+	}
+	return false
 }
 
 func PrivateIPCheck(ip string) bool {

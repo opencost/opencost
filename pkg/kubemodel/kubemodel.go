@@ -197,7 +197,6 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 	nodeInfoResultFuture := source.WithGroup(grp, metrics.QueryNodeInfo(start, end))
 	nodeUptimeResultFuture := source.WithGroup(grp, metrics.QueryNodeUptime(start, end))
 	nodeLabelsResultFuture := source.WithGroup(grp, metrics.QueryNodeLabels(start, end))
-	nodeIsSpotResultFuture := source.WithGroup(grp, metrics.QueryNodeIsSpot(start, end))
 	nodeResourceCapacitiesFuture := source.WithGroup(grp, metrics.QueryNodeResourceCapacities(start, end))
 	nodeResourcesAllocatableFuture := source.WithGroup(grp, metrics.QueryNodeResourcesAllocatable(start, end))
 
@@ -213,7 +212,6 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 			UID:                  res.UID,
 			ProviderID:           res.ProviderID,
 			Name:                 res.Node,
-			InstanceType:         res.InstanceType,
 			ResourceCapacities:   make(kubemodel.ResourceQuantities),
 			ResourcesAllocatable: make(kubemodel.ResourceQuantities),
 		}
@@ -251,18 +249,6 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 		}
 		resource, unit, value := resourceUnitValue(res.Resource, res.Unit, res.Value)
 		node.ResourcesAllocatable.Set(resource, unit, kubemodel.StatAvg, value)
-	}
-
-	nodeIsSpotResult, _ := nodeIsSpotResultFuture.Await()
-	for _, res := range nodeIsSpotResult {
-		node, ok := nodeMap[res.UID]
-		if !ok {
-			log.Warnf("node with UID '%s' has not been initialized to add spot status", res.UID)
-			continue
-		}
-		if len(res.Data) > 0 {
-			node.Preemptible = res.Data[0].Value > 0
-		}
 	}
 
 	nodeLabelsResult, _ := nodeLabelsResultFuture.Await()

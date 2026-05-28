@@ -14,8 +14,6 @@ type Node struct {
 	ProviderID           string             `json:"providerId"`
 	Name                 string             `json:"name"`
 	Labels               map[string]string  `json:"labels"`
-	InstanceType         string             `json:"instanceType"`
-	Preemptible          bool               `json:"preemptible"` // TODO unpopulated
 	ResourceCapacities   ResourceQuantities `json:"resourceCapacities"`
 	ResourcesAllocatable ResourceQuantities `json:"resourcesAllocatable"`
 	FileSystem           FileSystem         `json:"fileSystem"`
