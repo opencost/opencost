@@ -39,6 +39,7 @@ const (
 	annotationStorageCost = annotationDomain + "/storage-hourly-cost"
 	annotationNodeCPUCost = annotationDomain + "/node-cpu-hourly-cost"
 	annotationNodeRAMCost = annotationDomain + "/node-ram-hourly-cost"
+	annotationNodeGPUCost = annotationDomain + "/node-gpu-hourly-cost"
 )
 
 // isCron matches a CronJob name and captures the non-timestamp name
@@ -983,6 +984,10 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 		if cost, found := n.Annotations[annotationNodeRAMCost]; found && cm.costIsValid(cost) {
 			log.Infof("Found custom RAM cost from annotation for Node %s: %s", n.Name, cost)
 			cnode.RAMCost = cost
+		}
+		if cost, found := n.Annotations[annotationNodeGPUCost]; found && cm.costIsValid(cost) {
+			log.Infof("Found custom GPU cost from annotation for Node %s: %s", n.Name, cost)
+			cnode.GPUCost = cost
 		}
 
 		pmd.PricingTypeCounts[cnode.PricingType]++

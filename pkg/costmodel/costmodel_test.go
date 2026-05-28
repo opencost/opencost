@@ -485,6 +485,7 @@ func TestNodeCostAnnotations(t *testing.T) {
 				Annotations: map[string]string{
 					"opencost.io/node-cpu-hourly-cost": "111",
 					"opencost.io/node-ram-hourly-cost": "222",
+					"opencost.io/node-gpu-hourly-cost": "333",
 				},
 			},
 		}),
@@ -504,17 +505,20 @@ func TestNodeCostAnnotations(t *testing.T) {
 		node     string
 		VCPUCost string
 		RAMCost  string
+		GPUCost  string
 	}
 	testCases := []testCase{
 		{
 			node:     "test-node-001",
 			VCPUCost: "+Inf",
 			RAMCost:  "+Inf",
+			GPUCost:  "+Inf",
 		},
 		{
 			node:     "test-node-002",
 			VCPUCost: "111",
 			RAMCost:  "222",
+			GPUCost:  "333",
 		},
 	}
 
@@ -527,6 +531,7 @@ func TestNodeCostAnnotations(t *testing.T) {
 
 			assert.Equal(t, tc.VCPUCost, nodeCost.VCPUCost)
 			assert.Equal(t, tc.RAMCost, nodeCost.RAMCost)
+			assert.Equal(t, tc.GPUCost, nodeCost.GPUCost)
 		})
 	}
 }
