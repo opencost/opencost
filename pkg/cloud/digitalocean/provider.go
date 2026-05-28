@@ -207,10 +207,13 @@ func (do *DOKS) fetchPricingData() (*DOResponse, error) {
 			doSize.GPUInfo = DOGPUInfo{
 				Count: godoSize.GPUInfo.Count,
 				Model: godoSize.GPUInfo.Model,
-				VRAM: DOGPUVRAM{
+			}
+
+			if godoSize.GPUInfo.VRAM != nil {
+				doSize.GPUInfo.VRAM = DOGPUVRAM{
 					Amount: godoSize.GPUInfo.VRAM.Amount,
 					Unit:   godoSize.GPUInfo.VRAM.Unit,
-				},
+				}
 			}
 		}
 
