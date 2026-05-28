@@ -176,8 +176,11 @@ func (ara *AssumeRole) UnmarshalJSON(b []byte) error {
 
 	fmap := f.(map[string]interface{})
 
-	externalID, err := cloud.GetInterfaceValue[string](fmap, "externalID")
-	if err == nil {
+	if _, ok := fmap["externalID"]; ok {
+		externalID, err := cloud.GetInterfaceValue[string](fmap, "externalID")
+		if err != nil {
+			return fmt.Errorf("AssumeRole: UnmarshalJSON: %s", err.Error())
+		}
 		ara.ExternalID = externalID
 	}
 
