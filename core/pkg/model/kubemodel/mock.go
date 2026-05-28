@@ -64,12 +64,10 @@ func NewMockKubeModelSet(start, end time.Time) *KubeModelSet {
 
 	// --- Node ---
 	kms.RegisterNode(&Node{
-		UID:          "node-uid",
-		ProviderID:   "aws:///us-east-1a/i-0abc123def456",
-		Name:         "node-1",
-		Labels:       map[string]string{"node.kubernetes.io/instance-type": "m5.large"},
-		InstanceType: "m5.large",
-		Preemptible:  false,
+		UID:        "node-uid",
+		ProviderID: "aws:///us-east-1a/i-0abc123def456",
+		Name:       "node-1",
+		Labels:     map[string]string{"node.kubernetes.io/instance-type": "m5.large"},
 		ResourceCapacities: ResourceQuantities{
 			ResourceCPU:    {Resource: ResourceCPU, Unit: UnitMillicore, Values: Stats{StatAvg: 2000, StatMax: 2000}},
 			ResourceMemory: {Resource: ResourceMemory, Unit: UnitByte, Values: Stats{StatAvg: 8e9, StatMax: 8e9}},
