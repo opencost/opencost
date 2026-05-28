@@ -429,7 +429,7 @@ type AwsAthenaInfo struct {
 	ServiceKeyName   string `json:"serviceKeyName"`
 	ServiceKeySecret string `json:"serviceKeySecret"`
 	AccountID        string `json:"projectID"`
-	ExternalID       string `json:"externalID"`
+	ExternalID       string `json:"externalID,omitempty"`
 	MasterPayerARN   string `json:"masterPayerARN"`
 }
 
