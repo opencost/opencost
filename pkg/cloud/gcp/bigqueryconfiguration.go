@@ -82,7 +82,15 @@ func (bqc *BigQueryConfiguration) Equals(config cloud.Config) bool {
 		return false
 	}
 
-	if bqc.QueryProjectID != thatConfig.QueryProjectID {
+	bqcEffective := bqc.QueryProjectID
+	if bqcEffective == "" {
+		bqcEffective = bqc.ProjectID
+	}
+	thatEffective := thatConfig.QueryProjectID
+	if thatEffective == "" {
+		thatEffective = thatConfig.ProjectID
+	}
+	if bqcEffective != thatEffective {
 		return false
 	}
 
@@ -173,7 +181,7 @@ func (bqc *BigQueryConfiguration) UnmarshalJSON(b []byte) error {
 	if _, ok := fmap["queryProjectID"]; ok {
 		queryProjectID, err := cloud.GetInterfaceValue[string](fmap, "queryProjectID")
 		if err != nil {
-			return fmt.Errorf("BigQueryConfiguration: FromInterface: %s", err.Error())
+			return fmt.Errorf("BigQueryConfiguration: UnmarshalJSON: %w", err)
 		}
 		bqc.QueryProjectID = queryProjectID
 	}

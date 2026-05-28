@@ -376,6 +376,33 @@ func TestBigQueryConfiguration_Equals(t *testing.T) {
 			},
 			expected: false,
 		},
+		"empty queryProjectID equals projectID": {
+			left: BigQueryConfiguration{
+				ProjectID:      "projectID",
+				Dataset:        "dataset",
+				Table:          "table",
+				QueryProjectID: "",
+				Authorizer: &ServiceAccountKey{
+					Key: map[string]string{
+						"Key":  "Key",
+						"key1": "key2",
+					},
+				},
+			},
+			right: &BigQueryConfiguration{
+				ProjectID:      "projectID",
+				Dataset:        "dataset",
+				Table:          "table",
+				QueryProjectID: "projectID",
+				Authorizer: &ServiceAccountKey{
+					Key: map[string]string{
+						"Key":  "Key",
+						"key1": "key2",
+					},
+				},
+			},
+			expected: true,
+		},
 	}
 
 	for name, testCase := range testCases {
