@@ -156,9 +156,11 @@ type AssumeRole struct {
 
 // MarshalJSON custom json marshalling functions, sets properties as tagged in struct and sets the authorizer type property
 func (ara *AssumeRole) MarshalJSON() ([]byte, error) {
-	fmap := make(map[string]any, 3)
+	fmap := make(map[string]any, 4)
 	fmap[cloud.AuthorizerTypeProperty] = AssumeRoleAuthorizerType
-	fmap["externalID"] = ara.ExternalID
+	if ara.ExternalID != "" {
+		fmap["externalID"] = ara.ExternalID
+	}
 	fmap["roleARN"] = ara.RoleARN
 	fmap["authorizer"] = ara.Authorizer
 	return json.Marshal(fmap)
