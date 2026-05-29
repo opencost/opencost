@@ -58,17 +58,26 @@ jobs:
         run: |
           echo "release version: $RELEASE_VERSION"
 
-      - name: Make Branch Name
-        id: branch
+      - name: Determine Checkout Ref
+        id: checkout_ref
         env:
           RELEASE_VERSION: ${{ steps.version_number.outputs.RELEASE_VERSION }}
         run: |
-          echo "BRANCH_NAME=v${RELEASE_VERSION%.*}" >> $GITHUB_OUTPUT
+          # On a tag push, check out the exact tag that triggered the run so the
+          # published image and its SLSA provenance correspond to the release
+          # commit rather than to whatever the moving minor branch points at when
+          # the job happens to run. workflow_dispatch has no triggering tag, so
+          # fall back to the minor release branch (vX.Y).
+          if [ -n "${TRIGGERED_TAG}" ]; then
+            echo "CHECKOUT_REF=${TRIGGERED_TAG}" >> $GITHUB_OUTPUT
+          else
+            echo "CHECKOUT_REF=v${RELEASE_VERSION%.*}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Checkout Repo
         uses: actions/checkout@v6.0.2
         with:
-          ref: '${{ steps.branch.outputs.BRANCH_NAME }}'
+          ref: '${{ steps.checkout_ref.outputs.CHECKOUT_REF }}'
 
       - name: Set SHA
         id: sha
