@@ -197,7 +197,7 @@ func TestParseCloudCostAutocompleteRequest(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			qp := httputil.NewQueryParams(tt.values)
-			got, err := ParseCloudCostAutocompleteRequest(qp)
+			got, err := ParseCloudCostAutocompleteRequestFromQueryParams(qp)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("ParseCloudCostAutocompleteRequest() error = %v, wantErr %v", err, tt.wantErr)
 			}

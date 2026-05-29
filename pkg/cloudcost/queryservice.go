@@ -85,7 +85,7 @@ func (s *QueryService) GetCloudCostAutocompleteHandler() func(w http.ResponseWri
 		}
 
 		qp := httputil.NewQueryParams(r.URL.Query())
-		request, err := ParseCloudCostAutocompleteRequest(qp)
+		request, err := ParseCloudCostAutocompleteRequestFromQueryParams(qp)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

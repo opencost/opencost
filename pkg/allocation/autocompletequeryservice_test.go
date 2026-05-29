@@ -34,10 +34,12 @@ func TestQueryAllocationAutocompleteFromSetRange(t *testing.T) {
 	}))
 
 	asr := opencost.NewAllocationSetRange(as)
+	window := opencost.NewClosedWindow(start, start.Add(24*time.Hour))
 
 	resp, err := QueryAllocationAutocompleteFromSetRange(asr, AllocationAutocompleteRequest{
-		Field: "label",
-		Limit: 10,
+		Field:  "label",
+		Limit:  10,
+		Window: window,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -49,6 +51,7 @@ func TestQueryAllocationAutocompleteFromSetRange(t *testing.T) {
 	valueResp, err := QueryAllocationAutocompleteFromSetRange(asr, AllocationAutocompleteRequest{
 		Field:  "label:team",
 		Search: "plat",
+		Window: window,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -58,7 +61,8 @@ func TestQueryAllocationAutocompleteFromSetRange(t *testing.T) {
 	}
 
 	mixedCaseResp, err := QueryAllocationAutocompleteFromSetRange(asr, AllocationAutocompleteRequest{
-		Field: "label:Team",
+		Field:  "label:Team",
+		Window: window,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -67,19 +71,21 @@ func TestQueryAllocationAutocompleteFromSetRange(t *testing.T) {
 		t.Fatalf("expected label:team to match Team label values, got %+v", mixedCaseResp.Data)
 	}
 
-	_, err = QueryAllocationAutocompleteFromSetRange(asr, AllocationAutocompleteRequest{
-		Field: "account",
+	accountResp, err := QueryAllocationAutocompleteFromSetRange(asr, AllocationAutocompleteRequest{
+		Field:  "account",
+		Window: window,
 	})
-	if err == nil {
-		t.Fatal("expected error for unsupported account field")
+	if err != nil {
+		t.Fatalf("unexpected error for account field: %v", err)
 	}
-	if !IsAutocompleteBadRequest(err) {
-		t.Fatalf("expected bad request error, got: %v", err)
+	if len(accountResp.Data) != 0 {
+		t.Fatalf("expected empty account autocomplete response, got %+v", accountResp.Data)
 	}
 
 	_, err = QueryAllocationAutocompleteFromSetRange(asr, AllocationAutocompleteRequest{
-		Field: "namespace",
-		Limit: MaxAutocompleteResultLimit + 1,
+		Field:  "namespace",
+		Limit:  MaxAutocompleteResultLimit + 1,
+		Window: window,
 	})
 	if err == nil {
 		t.Fatal("expected error for excessive limit")

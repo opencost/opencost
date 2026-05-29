@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/opencost/opencost/core/pkg/filter"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util/autocomplete"
 )
 
 // ErrAutocompleteBadRequest indicates a client error in an autocomplete request.
@@ -40,17 +40,9 @@ type AutocompleteQueryService interface {
 }
 
 func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, req AllocationAutocompleteRequest) (*AllocationAutocompleteResponse, error) {
-	field, err := validateAutocompleteField(req.Field)
+	field, err := NormalizeAllocationAutocompleteRequest(&req)
 	if err != nil {
-		return nil, fmt.Errorf("%w: invalid field: %w", ErrAutocompleteBadRequest, err)
-	}
-
-	limit := req.Limit
-	if limit <= 0 {
-		limit = DefaultAutocompleteResultLimit
-	}
-	if limit > MaxAutocompleteResultLimit {
-		return nil, fmt.Errorf("%w: exceeded maximum autocomplete result limit of %d", ErrAutocompleteBadRequest, MaxAutocompleteResultLimit)
+		return nil, err
 	}
 
 	var matcher opencost.AllocationMatcher
@@ -89,27 +81,28 @@ func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, r
 		}
 	}
 
-	return &AllocationAutocompleteResponse{Data: uniqueSortedLimited(results, limit)}, nil
+	return &AllocationAutocompleteResponse{Data: autocomplete.UniqueSortedLimited(results, req.Limit)}, nil
 }
 
-func validateAutocompleteField(field string) (string, error) {
+// ValidateAutocompleteField normalizes and validates an allocation autocomplete field name.
+func ValidateAutocompleteField(field string) (string, error) {
 	if field == "" {
 		return "", fmt.Errorf("field is required")
 	}
 
 	f := strings.ToLower(field)
 	switch f {
-	case "cluster", "namespace", "node", "controllerkind", "controllername", "pod", "container", "label", "namespacelabel":
+	case "account", "cluster", "namespace", "node", "controllerkind", "controllername", "pod", "container", "label", "namespacelabel":
 		return f, nil
 	}
 
 	if strings.HasPrefix(f, "label:") {
-		_, labelKey, _ := strings.Cut(f, ":")
-		return "label:" + labelKey, nil
+		_, labelKey, _ := strings.Cut(field, ":")
+		return autocomplete.FormatLabelValueField(autocomplete.LabelPrefix, labelKey), nil
 	}
 	if strings.HasPrefix(f, "namespacelabel:") {
-		_, labelKey, _ := strings.Cut(f, ":")
-		return "namespacelabel:" + labelKey, nil
+		_, labelKey, _ := strings.Cut(field, ":")
+		return autocomplete.FormatLabelValueField(autocomplete.NamespaceLabelPrefix, labelKey), nil
 	}
 
 	return "", fmt.Errorf("unrecognized field: %s", field)
@@ -135,14 +128,14 @@ func allocationAutocompleteValues(props *opencost.AllocationProperties, field st
 		return mapKeys(props.Labels)
 	case strings.HasPrefix(field, "label:"):
 		label := strings.TrimPrefix(field, "label:")
-		if v, ok := mapValueFold(props.Labels, label); ok {
+		if v, ok := autocomplete.MapValueFold(props.Labels, label); ok {
 			return []string{v}
 		}
 	case field == "namespacelabel":
 		return mapKeys(props.NamespaceLabels)
 	case strings.HasPrefix(field, "namespacelabel:"):
 		label := strings.TrimPrefix(field, "namespacelabel:")
-		if v, ok := mapValueFold(props.NamespaceLabels, label); ok {
+		if v, ok := autocomplete.MapValueFold(props.NamespaceLabels, label); ok {
 			return []string{v}
 		}
 	}
@@ -155,28 +148,4 @@ func mapKeys(values map[string]string) []string {
 		result = append(result, k)
 	}
 	return result
-}
-
-func mapValueFold(values map[string]string, key string) (string, bool) {
-	if v, ok := values[key]; ok {
-		return v, true
-	}
-	for k, v := range values {
-		if strings.EqualFold(k, key) {
-			return v, true
-		}
-	}
-	return "", false
-}
-
-func uniqueSortedLimited(values map[string]struct{}, limit int) []string {
-	out := make([]string, 0, len(values))
-	for v := range values {
-		out = append(out, v)
-	}
-	sort.Strings(out)
-	if len(out) > limit {
-		return out[:limit]
-	}
-	return out
 }

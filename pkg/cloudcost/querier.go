@@ -39,6 +39,11 @@ type CloudCostAutocompleteResponse struct {
 	Data []string `json:"data"`
 }
 
+// AutocompleteQueryService provides autocomplete suggestions for cloud cost fields.
+type AutocompleteQueryService interface {
+	QueryCloudCostAutocomplete(context.Context, CloudCostAutocompleteRequest) (*CloudCostAutocompleteResponse, error)
+}
+
 // DefaultChartItemsLength the default max number of items for a ViewGraphDataSet
 const DefaultChartItemsLength int = 10
 

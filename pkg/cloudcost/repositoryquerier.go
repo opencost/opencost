@@ -78,22 +78,11 @@ func (rq *RepositoryQuerier) Query(ctx context.Context, request QueryRequest) (*
 }
 
 func (rq *RepositoryQuerier) QueryCloudCostAutocomplete(ctx context.Context, request CloudCostAutocompleteRequest) (*CloudCostAutocompleteResponse, error) {
-	if request.Window.IsOpen() {
-		return nil, fmt.Errorf("%w: invalid window for autocomplete query: %s", ErrAutocompleteBadRequest, request.Window.String())
-	}
-
-	limit := request.Limit
-	if limit <= 0 {
-		limit = DefaultAutocompleteResultLimit
-	}
-	if limit > MaxAutocompleteResultLimit {
-		return nil, fmt.Errorf("%w: exceeded maximum autocomplete result limit of %d", ErrAutocompleteBadRequest, MaxAutocompleteResultLimit)
-	}
-
-	field, err := validateCloudCostAutocompleteField(request.Field)
+	field, err := NormalizeCloudCostAutocompleteRequest(&request)
 	if err != nil {
-		return nil, fmt.Errorf("%w: invalid field: %w", ErrAutocompleteBadRequest, err)
+		return nil, err
 	}
+	limit := request.Limit
 
 	ccsr, err := rq.Query(ctx, QueryRequest{
 		Start:      *request.Window.Start(),
@@ -138,7 +127,8 @@ func (rq *RepositoryQuerier) QueryCloudCostAutocomplete(ctx context.Context, req
 	return &CloudCostAutocompleteResponse{Data: data}, nil
 }
 
-func validateCloudCostAutocompleteField(field string) (string, error) {
+// ValidateAutocompleteField normalizes and validates a cloud cost autocomplete field name.
+func ValidateAutocompleteField(field string) (string, error) {
 	if field == "" {
 		return "", fmt.Errorf("field is required")
 	}

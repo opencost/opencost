@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/opencost/opencost/core/pkg/filter"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util/autocomplete"
 )
 
 // ErrAutocompleteBadRequest indicates a client error in an autocomplete request.
@@ -40,24 +40,30 @@ type AutocompleteQueryService interface {
 }
 
 func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req AssetAutocompleteRequest) (*AssetAutocompleteResponse, error) {
-	if err := validateAssetAutocompleteWindow(req.Window); err != nil {
+	field, err := NormalizeAssetAutocompleteRequest(&req)
+	if err != nil {
 		return nil, err
 	}
-	if req.TenantID == "" {
-		return nil, fmt.Errorf("%w: tenant ID is required", ErrAutocompleteBadRequest)
-	}
 
-	field, err := validateAutocompleteField(req.Field)
+	route, labelKey, err := RouteAssetAutocompleteField(field)
 	if err != nil {
-		return nil, fmt.Errorf("%w: invalid field: %w", ErrAutocompleteBadRequest, err)
+		return nil, fmt.Errorf("%w: %w", ErrAutocompleteBadRequest, err)
 	}
 
-	limit := req.Limit
-	if limit <= 0 {
-		limit = DefaultAutocompleteResultLimit
-	}
-	if limit > MaxAutocompleteResultLimit {
-		return nil, fmt.Errorf("%w: exceeded maximum autocomplete result limit of %d", ErrAutocompleteBadRequest, MaxAutocompleteResultLimit)
+	switch route {
+	case AssetAutocompleteRouteStaticType:
+		return &AssetAutocompleteResponse{Data: autocomplete.UniqueSortedLimited(
+			toSet(FilterStaticAutocompleteValues(StaticAssetTypes(), req.Search)),
+			req.Limit,
+		)}, nil
+	case AssetAutocompleteRouteStaticCategory:
+		return &AssetAutocompleteResponse{Data: autocomplete.UniqueSortedLimited(
+			toSet(FilterStaticAutocompleteValues(StaticAssetCategories(), req.Search)),
+			req.Limit,
+		)}, nil
+	case AssetAutocompleteRouteLabelKeys, AssetAutocompleteRouteLabelValue:
+		// in-memory path handles labels below via field string
+		_ = labelKey
 	}
 
 	var matcher opencost.AssetMatcher
@@ -91,29 +97,25 @@ func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req AssetAutocom
 		}
 	}
 
-	data := make([]string, 0, len(results))
-	for value := range results {
-		data = append(data, value)
-	}
-	sort.Strings(data)
-	if len(data) > limit {
-		data = data[:limit]
-	}
-	return &AssetAutocompleteResponse{Data: data}, nil
+	return &AssetAutocompleteResponse{Data: autocomplete.UniqueSortedLimited(results, req.Limit)}, nil
 }
 
-func validateAutocompleteField(field string) (string, error) {
+// ValidateAutocompleteField normalizes and validates an asset autocomplete field name.
+func ValidateAutocompleteField(field string) (string, error) {
 	f := strings.ToLower(field)
 	switch f {
-	case "account", "cluster", "name", "provider", "providerid", "type", "category":
+	case "account", "cluster", "name", "provider", "providerid", "type", "assettype", "category":
+		if f == "assettype" {
+			return "type", nil
+		}
 		return f, nil
 	}
 	if f == "label" {
 		return f, nil
 	}
 	if strings.HasPrefix(f, "label:") {
-		_, labelKey, _ := strings.Cut(f, ":")
-		return "label:" + labelKey, nil
+		_, labelKey, _ := strings.Cut(field, ":")
+		return autocomplete.FormatLabelValueField(autocomplete.LabelPrefix, labelKey), nil
 	}
 	return "", fmt.Errorf("unrecognized field: %s", field)
 }
@@ -156,21 +158,17 @@ func assetAutocompleteValues(asset opencost.Asset, field string) []string {
 		return keys
 	case strings.HasPrefix(field, "label:"):
 		labelName := strings.TrimPrefix(field, "label:")
-		if value, ok := mapValueFold(asset.GetLabels(), labelName); ok {
+		if value, ok := autocomplete.MapValueFold(asset.GetLabels(), labelName); ok {
 			return []string{value}
 		}
 	}
 	return nil
 }
 
-func mapValueFold(values map[string]string, key string) (string, bool) {
-	if v, ok := values[key]; ok {
-		return v, true
+func toSet(values []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(values))
+	for _, v := range values {
+		out[v] = struct{}{}
 	}
-	for k, v := range values {
-		if strings.EqualFold(k, key) {
-			return v, true
-		}
-	}
-	return "", false
+	return out
 }
