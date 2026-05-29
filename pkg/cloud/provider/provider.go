@@ -142,19 +142,19 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 		}, nil
 	case opencost.GCPProvider:
 		log.Info("Found ProviderID starting with \"gce\", using GCP Provider")
-		
+
 		// Check for Workload Identity when no API key is provided
 		if apiKey == "" {
 			// Try to detect if we're running in a GKE environment with Workload Identity
 			if canUseWorkloadIdentity() {
 				log.Info("No GCP API key provided, attempting to use Workload Identity authentication")
 				return &gcp.GCP{
-					Clientset:        cache,
-					APIKey:           "", // Empty API key signals Workload Identity usage
-					Config:           NewProviderConfig(config, cp.configFileName),
-					ClusterRegion:    cp.region,
-					ClusterAccountID: cp.accountID,
-					ClusterProjectID: cp.projectID,
+					Clientset:          cache,
+					APIKey:             "", // Empty API key signals Workload Identity usage
+					Config:             NewProviderConfig(config, cp.configFileName),
+					ClusterRegion:      cp.region,
+					ClusterAccountID:   cp.accountID,
+					ClusterProjectID:   cp.projectID,
 					ServiceKeyProvided: false,
 					MetadataClient: metadata.NewClient(
 						&http.Client{
@@ -171,15 +171,15 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 				return nil, errors.New("GCP authentication failed: no API key provided and Workload Identity not detected. Please provide a GCP service account key or configure Workload Identity with the annotation 'iam.gke.io/gcp-service-account' on the service account")
 			}
 		}
-		
+
 		log.Info("Using provided GCP API key for authentication")
 		return &gcp.GCP{
-			Clientset:        cache,
-			APIKey:           apiKey,
-			Config:           NewProviderConfig(config, cp.configFileName),
-			ClusterRegion:    cp.region,
-			ClusterAccountID: cp.accountID,
-			ClusterProjectID: cp.projectID,
+			Clientset:          cache,
+			APIKey:             apiKey,
+			Config:             NewProviderConfig(config, cp.configFileName),
+			ClusterRegion:      cp.region,
+			ClusterAccountID:   cp.accountID,
+			ClusterProjectID:   cp.projectID,
 			ServiceKeyProvided: true,
 			MetadataClient: metadata.NewClient(
 				&http.Client{
@@ -454,7 +454,7 @@ func canUseWorkloadIdentity() bool {
 	// Try to get default credentials to verify Workload Identity works
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	
+
 	creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
 	if err != nil {
 		log.Debugf("Workload Identity check: failed to find default credentials: %v", err)
