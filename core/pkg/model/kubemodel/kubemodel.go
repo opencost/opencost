@@ -20,10 +20,10 @@ type KubeModelSet struct {
 	CronJobs               map[string]*CronJob               `json:"cronJobs"`          // @bingen:field[version=2]
 	ReplicaSets            map[string]*ReplicaSet            `json:"replicaSets"`       // @bingen:field[version=2]
 	Nodes                  map[string]*Node                  `json:"nodes"`             // @bingen:field[version=2]
+	PersistentVolumes      map[string]*PersistentVolume      `json:"persistentVolumes"` // @bingen:field[version=2]
+	PersistentVolumeClaims map[string]*PersistentVolumeClaim `json:"pvcs"`              // @bingen:field[version=2]
 	Pods                   map[string]*Pod                   `json:"pods"`              // @bingen:field[version=2]
 	Containers             map[string]*Container             `json:"containers"`        // @bingen:field[version=2]
-	PersistentVolumeClaims map[string]*PersistentVolumeClaim `json:"pvcs"`              // @bingen:field[version=2]
-	PersistentVolumes      map[string]*PersistentVolume      `json:"persistentVolumes"` // @bingen:field[version=2]
 	DCGMDevices            map[string]*DCGMDevice            `json:"dcgmDevices"`       // @bingen:field[version=2]
 	idx                    *kubeModelSetIndexes              // @bingen:field[ignore]
 }
