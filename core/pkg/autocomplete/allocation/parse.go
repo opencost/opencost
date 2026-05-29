@@ -5,28 +5,27 @@ import (
 	"time"
 
 	allocationfilter "github.com/opencost/opencost/core/pkg/filter/allocation"
+	"github.com/opencost/opencost/core/pkg/autocomplete"
 	"github.com/opencost/opencost/core/pkg/filter"
 	"github.com/opencost/opencost/core/pkg/opencost"
-	"github.com/opencost/opencost/core/pkg/util/autocomplete"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 )
 
-// AutocompleteFilterParser parses a filter query string for autocomplete requests.
-type AutocompleteFilterParser func(filterString string) (filter.Filter, error)
+// FilterParser parses a filter query string for autocomplete requests.
+type FilterParser func(filterString string) (filter.Filter, error)
 
-// ParseAllocationAutocompleteOptions configures ParseAllocationAutocompleteRequest.
-type ParseAllocationAutocompleteOptions struct {
+// ParseOptions configures ParseRequest.
+type ParseOptions struct {
 	DefaultWindow string
 	LabelConfig   *opencost.LabelConfig
-	// UTCOffset, when non-nil, parses window with ParseWindowWithOffset instead of UTC.
-	UTCOffset *time.Duration
+	UTCOffset     *time.Duration
 }
 
-// ParseAllocationAutocompleteRequest builds an AllocationAutocompleteRequest from query parameters.
-func ParseAllocationAutocompleteRequest(qp httputil.QueryParams, opts ParseAllocationAutocompleteOptions, parseFilter AutocompleteFilterParser) (*AllocationAutocompleteRequest, error) {
+// ParseRequest builds an AutocompleteRequest from query parameters.
+func ParseRequest(qp httputil.QueryParams, opts ParseOptions, parseFilter FilterParser) (*AutocompleteRequest, error) {
 	windowStr := qp.Get("window", opts.DefaultWindow)
 	if windowStr == "" {
-		return nil, fmt.Errorf("%w: missing required 'window' parameter", ErrAutocompleteBadRequest)
+		return nil, fmt.Errorf("%w: missing required 'window' parameter", autocomplete.ErrBadRequest)
 	}
 
 	var window opencost.Window
@@ -37,15 +36,15 @@ func ParseAllocationAutocompleteRequest(qp httputil.QueryParams, opts ParseAlloc
 		window, err = opencost.ParseWindowUTC(windowStr)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("%w: invalid window parameter: %w", ErrAutocompleteBadRequest, err)
+		return nil, fmt.Errorf("%w: invalid window parameter: %w", autocomplete.ErrBadRequest, err)
 	}
 	if window.IsOpen() {
-		return nil, fmt.Errorf("%w: invalid window parameter: %s", ErrAutocompleteBadRequest, window.String())
+		return nil, fmt.Errorf("%w: invalid window parameter: %s", autocomplete.ErrBadRequest, window.String())
 	}
 
-	field, err := ValidateAutocompleteField(qp.Get("field", ""))
+	field, err := ValidateField(qp.Get("field", ""))
 	if err != nil {
-		return nil, fmt.Errorf("%w: invalid field: %w", ErrAutocompleteBadRequest, err)
+		return nil, fmt.Errorf("%w: invalid field: %w", autocomplete.ErrBadRequest, err)
 	}
 
 	filterString := qp.Get("filter", "")
@@ -58,7 +57,7 @@ func ParseAllocationAutocompleteRequest(qp httputil.QueryParams, opts ParseAlloc
 			parsedFilter, err = parseFilter(filterString)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("%w: invalid 'filter' parameter: %w", ErrAutocompleteBadRequest, err)
+			return nil, fmt.Errorf("%w: invalid 'filter' parameter: %w", autocomplete.ErrBadRequest, err)
 		}
 	}
 
@@ -67,7 +66,7 @@ func ParseAllocationAutocompleteRequest(qp httputil.QueryParams, opts ParseAlloc
 		labelConfig = opencost.NewLabelConfig()
 	}
 
-	return &AllocationAutocompleteRequest{
+	return &AutocompleteRequest{
 		Search:      autocomplete.SanitizeSearch(qp.Get("search", "")),
 		Field:       field,
 		Limit:       qp.GetInt("limit", 0),

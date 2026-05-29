@@ -1,14 +1,10 @@
 package autocomplete
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
 )
-
-// ErrBadRequest indicates a client validation error for autocomplete requests.
-var ErrBadRequest = errors.New("autocomplete bad request")
 
 // SanitizeSearch trims whitespace from an autocomplete search string.
 func SanitizeSearch(search string) string {
@@ -16,12 +12,12 @@ func SanitizeSearch(search string) string {
 }
 
 // NormalizeLimit applies default and maximum limits for autocomplete results.
-func NormalizeLimit(limit, defaultLimit, maxLimit int) (int, error) {
+func NormalizeLimit(limit int) (int, error) {
 	if limit <= 0 {
-		return defaultLimit, nil
+		return DefaultResultLimit, nil
 	}
-	if limit > maxLimit {
-		return 0, fmt.Errorf("%w: exceeded maximum autocomplete result limit of %d", ErrBadRequest, maxLimit)
+	if limit > MaxResultLimit {
+		return 0, fmt.Errorf("%w: exceeded maximum autocomplete result limit of %d", ErrBadRequest, MaxResultLimit)
 	}
 	return limit, nil
 }
@@ -53,7 +49,6 @@ func UniqueSortedLimited(values map[string]struct{}, limit int) []string {
 }
 
 // FilterBySearch returns values from list that contain search (case-insensitive).
-// An empty search returns the full list.
 func FilterBySearch(list []string, search string) []string {
 	search = SanitizeSearch(search)
 	if search == "" {
@@ -67,6 +62,15 @@ func FilterBySearch(list []string, search string) []string {
 		if strings.Contains(strings.ToLower(value), needle) {
 			out = append(out, value)
 		}
+	}
+	return out
+}
+
+// ToSet converts a string slice to a set map.
+func ToSet(values []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(values))
+	for _, v := range values {
+		out[v] = struct{}{}
 	}
 	return out
 }

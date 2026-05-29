@@ -1,43 +1,13 @@
 package asset
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/opencost/opencost/core/pkg/filter"
+	"github.com/opencost/opencost/core/pkg/autocomplete"
+	coreasset "github.com/opencost/opencost/core/pkg/autocomplete/asset"
 	"github.com/opencost/opencost/core/pkg/opencost"
-	"github.com/opencost/opencost/core/pkg/util/autocomplete"
 )
-
-// ErrAutocompleteBadRequest indicates a client error in an autocomplete request.
-var ErrAutocompleteBadRequest = errors.New("autocomplete bad request")
-
-// IsAutocompleteBadRequest reports whether err is a client validation error.
-func IsAutocompleteBadRequest(err error) bool {
-	return errors.Is(err, ErrAutocompleteBadRequest)
-}
-
-const DefaultAutocompleteResultLimit = 100
-const MaxAutocompleteResultLimit = 1000
-
-type AssetAutocompleteRequest struct {
-	TenantID string
-	Search   string
-	Field    string
-	Limit    int
-	Window   opencost.Window
-	Filter   filter.Filter
-}
-
-type AssetAutocompleteResponse struct {
-	Data []string `json:"data"`
-}
-
-type AutocompleteQueryService interface {
-	QueryAssetAutocomplete(AssetAutocompleteRequest, context.Context) (*AssetAutocompleteResponse, error)
-}
 
 func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req AssetAutocompleteRequest) (*AssetAutocompleteResponse, error) {
 	field, err := NormalizeAssetAutocompleteRequest(&req)
@@ -53,16 +23,15 @@ func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req AssetAutocom
 	switch route {
 	case AssetAutocompleteRouteStaticType:
 		return &AssetAutocompleteResponse{Data: autocomplete.UniqueSortedLimited(
-			toSet(FilterStaticAutocompleteValues(StaticAssetTypes(), req.Search)),
+			autocomplete.ToSet(FilterStaticAutocompleteValues(StaticAssetTypes(), req.Search)),
 			req.Limit,
 		)}, nil
 	case AssetAutocompleteRouteStaticCategory:
 		return &AssetAutocompleteResponse{Data: autocomplete.UniqueSortedLimited(
-			toSet(FilterStaticAutocompleteValues(StaticAssetCategories(), req.Search)),
+			autocomplete.ToSet(FilterStaticAutocompleteValues(StaticAssetCategories(), req.Search)),
 			req.Limit,
 		)}, nil
 	case AssetAutocompleteRouteLabelKeys, AssetAutocompleteRouteLabelValue:
-		// in-memory path handles labels below via field string
 		_ = labelKey
 	}
 
@@ -100,36 +69,6 @@ func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req AssetAutocom
 	return &AssetAutocompleteResponse{Data: autocomplete.UniqueSortedLimited(results, req.Limit)}, nil
 }
 
-// ValidateAutocompleteField normalizes and validates an asset autocomplete field name.
-func ValidateAutocompleteField(field string) (string, error) {
-	f := strings.ToLower(field)
-	switch f {
-	case "account", "cluster", "name", "provider", "providerid", "type", "assettype", "category":
-		if f == "assettype" {
-			return "type", nil
-		}
-		return f, nil
-	}
-	if f == "label" {
-		return f, nil
-	}
-	if strings.HasPrefix(f, "label:") {
-		_, labelKey, _ := strings.Cut(field, ":")
-		return autocomplete.FormatLabelValueField(autocomplete.LabelPrefix, labelKey), nil
-	}
-	return "", fmt.Errorf("unrecognized field: %s", field)
-}
-
-func validateAssetAutocompleteWindow(window opencost.Window) error {
-	if window.IsOpen() {
-		return fmt.Errorf("%w: invalid window: %s", ErrAutocompleteBadRequest, window.String())
-	}
-	if window.Start() == nil || window.End() == nil {
-		return fmt.Errorf("%w: invalid window: missing start or end", ErrAutocompleteBadRequest)
-	}
-	return nil
-}
-
 func assetAutocompleteValues(asset opencost.Asset, field string) []string {
 	props := asset.GetProperties()
 	if props == nil {
@@ -165,10 +104,5 @@ func assetAutocompleteValues(asset opencost.Asset, field string) []string {
 	return nil
 }
 
-func toSet(values []string) map[string]struct{} {
-	out := make(map[string]struct{}, len(values))
-	for _, v := range values {
-		out[v] = struct{}{}
-	}
-	return out
-}
+// Ensure core asset package is referenced for documentation.
+var _ = coreasset.DefaultAutocompleteResultLimit

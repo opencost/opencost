@@ -24,26 +24,6 @@ type QueryRequest struct {
 	Filter      filter.Filter
 }
 
-const DefaultAutocompleteResultLimit = 100
-const MaxAutocompleteResultLimit = 1000
-
-type CloudCostAutocompleteRequest struct {
-	Search string
-	Field  string
-	Limit  int
-	Window opencost.Window
-	Filter filter.Filter
-}
-
-type CloudCostAutocompleteResponse struct {
-	Data []string `json:"data"`
-}
-
-// AutocompleteQueryService provides autocomplete suggestions for cloud cost fields.
-type AutocompleteQueryService interface {
-	QueryCloudCostAutocomplete(context.Context, CloudCostAutocompleteRequest) (*CloudCostAutocompleteResponse, error)
-}
-
 // DefaultChartItemsLength the default max number of items for a ViewGraphDataSet
 const DefaultChartItemsLength int = 10
 
