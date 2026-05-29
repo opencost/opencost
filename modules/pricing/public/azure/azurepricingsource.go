@@ -115,8 +115,15 @@ func (a *AzurePricingSource) parsePage(body io.Reader, ps *pricing.PricingSet) (
 			continue
 		}
 
+		// Parse the currency from config, default to USD if invalid
+		currency, err := unit.ParseCurrency(a.config.CurrencyCode)
+		if err != nil {
+			log.Warnf("invalid currency code '%s', defaulting to USD: %s", a.config.CurrencyCode, err.Error())
+			currency = unit.USD
+		}
+
 		priceObj := pricing.Price{
-			Currency: unit.USD,
+			Currency: currency,
 			Unit:     unit.Hour,
 			Price:    float64(item.RetailPrice),
 		}
@@ -129,7 +136,7 @@ func (a *AzurePricingSource) parsePage(body io.Reader, ps *pricing.PricingSet) (
 				Provisioning: pricing.ProvisioningOnDemand,
 			},
 			Prices: pricing.Prices{
-				unit.USD: []pricing.Price{
+				currency: []pricing.Price{
 					priceObj,
 				},
 			},

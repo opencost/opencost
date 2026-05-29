@@ -116,8 +116,15 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 			return
 		}
 
+		// Parse the currency from config, default to USD if invalid
+		currency, err := unit.ParseCurrency(p.config.CurrencyCode)
+		if err != nil {
+			log.Warnf("invalid currency code '%s', defaulting to USD: %s", p.config.CurrencyCode, err.Error())
+			currency = unit.USD
+		}
+
 		priceObj := pricing.Price{
-			Currency: unit.USD,
+			Currency: currency,
 			Unit:     unit.Hour,
 			Price:    price,
 		}
@@ -130,7 +137,7 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 				Provisioning: pricing.ProvisioningOnDemand,
 			},
 			Prices: pricing.Prices{
-				unit.USD: []pricing.Price{
+				currency: []pricing.Price{
 					priceObj,
 				},
 			},
