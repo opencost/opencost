@@ -2,6 +2,7 @@ package gcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -967,10 +968,9 @@ func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]mo
 	}
 
 	// If no API key is provided, we can't use the public billing API
-	// Fall back to default pricing or skip pricing download
 	if gcp.APIKey == "" {
 		log.Info("No GCP API key provided, skipping GCP Billing API pricing download. Using Workload Identity for compute and storage operations only.")
-		return make(map[string]*GCPPricing), nil
+		return nil, errors.New("No GCP API key provided.")
 	}
 
 	url := gcp.getBillingAPIURL(gcp.APIKey, c.CurrencyCode)
