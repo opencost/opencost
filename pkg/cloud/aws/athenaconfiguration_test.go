@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud"
 )
@@ -668,4 +669,183 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAthenaConfiguration_Sanitize(t *testing.T) {
+	config := &AthenaConfiguration{
+		Bucket:    "bucket",
+		Region:    "region",
+		Database:  "database",
+		Catalog:   "catalog",
+		Table:     "table",
+		Workgroup: "workgroup",
+		Account:   "account",
+		Authorizer: &AccessKey{
+			ID:     "id",
+			Secret: "secret",
+		},
+	}
+
+	sanitized, ok := config.Sanitize().(*AthenaConfiguration)
+	if !ok {
+		t.Fatalf("Sanitize() did not return an *AthenaConfiguration")
+	}
+
+	if sanitized.Bucket != config.Bucket ||
+		sanitized.Region != config.Region ||
+		sanitized.Database != config.Database ||
+		sanitized.Catalog != config.Catalog ||
+		sanitized.Table != config.Table ||
+		sanitized.Workgroup != config.Workgroup ||
+		sanitized.Account != config.Account {
+		t.Errorf("Sanitize() altered a non-secret field: %+v", sanitized)
+	}
+
+	ak, ok := sanitized.Authorizer.(*AccessKey)
+	if !ok {
+		t.Fatalf("Sanitize() did not preserve the *AccessKey authorizer type")
+	}
+	if ak.ID != "id" {
+		t.Errorf("Sanitize() altered the authorizer ID: got %q, want %q", ak.ID, "id")
+	}
+	if ak.Secret != cloud.Redacted {
+		t.Errorf("Sanitize() did not redact the authorizer secret: got %q, want %q", ak.Secret, cloud.Redacted)
+	}
+
+	if original, _ := config.Authorizer.(*AccessKey); original.Secret != "secret" {
+		t.Errorf("Sanitize() mutated the original authorizer secret: got %q, want %q", original.Secret, "secret")
+	}
+}
+
+func TestAthenaConfiguration_Key(t *testing.T) {
+	testCases := map[string]struct {
+		config   *AthenaConfiguration
+		expected string
+	}{
+		"account and bucket set": {
+			config:   &AthenaConfiguration{Account: "123456789012", Bucket: "my-bucket"},
+			expected: "123456789012/my-bucket",
+		},
+		"empty fields": {
+			config:   &AthenaConfiguration{},
+			expected: "/",
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			if actual := tc.config.Key(); actual != tc.expected {
+				t.Errorf("Key() = %q, want %q", actual, tc.expected)
+			}
+		})
+	}
+}
+
+func TestAthenaConfiguration_Provider(t *testing.T) {
+	config := &AthenaConfiguration{}
+	if actual := config.Provider(); actual != opencost.AWSProvider {
+		t.Errorf("Provider() = %q, want %q", actual, opencost.AWSProvider)
+	}
+}
+
+func TestConvertAwsAthenaInfoToConfig(t *testing.T) {
+	t.Run("empty info returns nil", func(t *testing.T) {
+		if config := ConvertAwsAthenaInfoToConfig(AwsAthenaInfo{}); config != nil {
+			t.Errorf("ConvertAwsAthenaInfoToConfig() = %v, want nil", config)
+		}
+	})
+
+	t.Run("access key with athena table builds AthenaConfiguration", func(t *testing.T) {
+		info := AwsAthenaInfo{
+			AthenaBucketName: "bucket",
+			AthenaRegion:     "region",
+			AthenaDatabase:   "database",
+			AthenaCatalog:    "catalog",
+			AthenaTable:      "table",
+			AthenaWorkgroup:  "workgroup",
+			ServiceKeyName:   "id",
+			ServiceKeySecret: "secret",
+			AccountID:        "account",
+		}
+
+		config := ConvertAwsAthenaInfoToConfig(info)
+		ac, ok := config.(*AthenaConfiguration)
+		if !ok {
+			t.Fatalf("ConvertAwsAthenaInfoToConfig() = %T, want *AthenaConfiguration", config)
+		}
+		if ac.Bucket != "bucket" || ac.Region != "region" || ac.Database != "database" ||
+			ac.Catalog != "catalog" || ac.Table != "table" || ac.Workgroup != "workgroup" || ac.Account != "account" {
+			t.Errorf("ConvertAwsAthenaInfoToConfig() mapped fields incorrectly: %+v", ac)
+		}
+		ak, ok := ac.Authorizer.(*AccessKey)
+		if !ok {
+			t.Fatalf("authorizer = %T, want *AccessKey", ac.Authorizer)
+		}
+		if ak.ID != "id" || ak.Secret != "secret" {
+			t.Errorf("AccessKey = %+v, want {ID: id, Secret: secret}", ak)
+		}
+	})
+
+	t.Run("no keys uses ServiceAccount authorizer", func(t *testing.T) {
+		info := AwsAthenaInfo{
+			AthenaBucketName: "bucket",
+			AthenaDatabase:   "database",
+			AccountID:        "account",
+		}
+
+		config := ConvertAwsAthenaInfoToConfig(info)
+		ac, ok := config.(*AthenaConfiguration)
+		if !ok {
+			t.Fatalf("ConvertAwsAthenaInfoToConfig() = %T, want *AthenaConfiguration", config)
+		}
+		if _, ok := ac.Authorizer.(*ServiceAccount); !ok {
+			t.Errorf("authorizer = %T, want *ServiceAccount", ac.Authorizer)
+		}
+	})
+
+	t.Run("master payer arn wraps authorizer in AssumeRole", func(t *testing.T) {
+		info := AwsAthenaInfo{
+			AthenaBucketName: "bucket",
+			AthenaTable:      "table",
+			ServiceKeyName:   "id",
+			ServiceKeySecret: "secret",
+			MasterPayerARN:   "arn:aws:iam::123456789012:role/payer",
+		}
+
+		config := ConvertAwsAthenaInfoToConfig(info)
+		ac, ok := config.(*AthenaConfiguration)
+		if !ok {
+			t.Fatalf("ConvertAwsAthenaInfoToConfig() = %T, want *AthenaConfiguration", config)
+		}
+		assumeRole, ok := ac.Authorizer.(*AssumeRole)
+		if !ok {
+			t.Fatalf("authorizer = %T, want *AssumeRole", ac.Authorizer)
+		}
+		if assumeRole.RoleARN != info.MasterPayerARN {
+			t.Errorf("AssumeRole.RoleARN = %q, want %q", assumeRole.RoleARN, info.MasterPayerARN)
+		}
+		if _, ok := assumeRole.Authorizer.(*AccessKey); !ok {
+			t.Errorf("wrapped authorizer = %T, want *AccessKey", assumeRole.Authorizer)
+		}
+	})
+
+	t.Run("no table or database builds S3Configuration", func(t *testing.T) {
+		info := AwsAthenaInfo{
+			AthenaBucketName: "bucket",
+			AthenaRegion:     "region",
+			AccountID:        "account",
+		}
+
+		config := ConvertAwsAthenaInfoToConfig(info)
+		s3, ok := config.(*S3Configuration)
+		if !ok {
+			t.Fatalf("ConvertAwsAthenaInfoToConfig() = %T, want *S3Configuration", config)
+		}
+		if s3.Bucket != "bucket" || s3.Region != "region" || s3.Account != "account" {
+			t.Errorf("ConvertAwsAthenaInfoToConfig() mapped S3 fields incorrectly: %+v", s3)
+		}
+		if _, ok := s3.Authorizer.(*ServiceAccount); !ok {
+			t.Errorf("authorizer = %T, want *ServiceAccount", s3.Authorizer)
+		}
+	})
 }
