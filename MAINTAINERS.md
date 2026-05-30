@@ -9,6 +9,7 @@ Official list of [OpenCost Maintainers](https://github.com/orgs/opencost/teams/o
 | Ajay Tripathy | @AjayTripathy | IBM | <ajay.tripathy@ibm.com> |
 | Alex Meijer | @ameijer | IBM | <alexander.meijer@ibm.com> |
 | Artur Khantimirov | @r2k1 | Microsoft | <akhantimirov@microsoft.com> |
+| Christian Petersen | @cpetersen5 | IBM | <Christian.Petersen2@ibm.com> |
 | Matt Bolt | @​mbolt35 | IBM | <matthew.bolt@ibm.com> |
 | Niko Kovacevic | @nikovacevic | IBM | <Nicholas.Kovacevic@ibm.com> |
 | Sean Holcomb | @Sean-Holcomb | IBM | <sean.holcomb@ibm.com> |

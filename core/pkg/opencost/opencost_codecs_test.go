@@ -1,16 +1,52 @@
 package opencost
 
 import (
+	"bytes"
+	"io"
 	"testing"
 	"time"
 )
 
-func TestAllocation_BinaryEncoding(t *testing.T) {
+type UnmarshalFunc func(BingenUnmarshalable, []byte) error
+
+func RunAllocation_BinaryEncodingTest(t *testing.T, unmarshal UnmarshalFunc) {
 	// TODO niko
 }
 
-func TestAllocationSet_BinaryEncoding(t *testing.T) {
-	// TODO niko
+func RunAllocationSet_BinaryEncodingTest(t *testing.T, unmarshal UnmarshalFunc) {
+	end := time.Now().UTC().Truncate(day)
+	start := end.Add(-day * 10)
+
+	for start.Before(end) {
+		set0 := GenerateMockAllocationSetClusterIdle(start)
+
+		bytes, err := set0.MarshalBinary()
+		if err != nil {
+			t.Fatalf("Failed to AllocationSet.MarshalBinary: %s", err)
+			return
+		}
+
+		set1 := new(AllocationSet)
+		err = unmarshal(set1, bytes)
+		if err != nil {
+			t.Fatalf("Failed to AllocationSet.UnmarshalBinary: %s", err)
+			return
+		}
+
+		for key, alloc := range set1.Allocations {
+			other, ok := set0.Allocations[key]
+			if !ok {
+				t.Fatalf("Failed to match Allocation for key: %s", key)
+				return
+			}
+
+			if !alloc.Equal(other) {
+				t.Fatalf("allocations for key: %s did not match", key)
+			}
+		}
+
+		start = start.Add(day)
+	}
 }
 
 func BenchmarkAllocationSetRange_BinaryEncoding(b *testing.B) {
@@ -78,7 +114,7 @@ func BenchmarkAllocationSetRange_BinaryEncoding(b *testing.B) {
 	}
 }
 
-func TestAllocationSetRange_BinaryEncoding(t *testing.T) {
+func RunAllocationSetRange_BinaryEncodingTest(t *testing.T, unmarshal UnmarshalFunc) {
 	endYesterday := time.Now().UTC().Truncate(day)
 	startYesterday := endYesterday.Add(-day)
 	startD2 := startYesterday
@@ -86,7 +122,6 @@ func TestAllocationSetRange_BinaryEncoding(t *testing.T) {
 	startD0 := startD1.Add(-day)
 
 	var asr0, asr1 *AllocationSetRange
-	var bs []byte
 	var err error
 
 	asr0 = NewAllocationSetRange(
@@ -94,19 +129,28 @@ func TestAllocationSetRange_BinaryEncoding(t *testing.T) {
 		GenerateMockAllocationSetClusterIdle(startD1),
 		GenerateMockAllocationSetClusterIdle(startD2),
 	)
-
-	bs, err = asr0.MarshalBinary()
-	if err != nil {
-		t.Fatalf("AllocationSetRange.Binary: unexpected error: %s", err)
-		return
+	asrSets0 := [][]byte{}
+	for _, as := range asr0.Allocations {
+		bytes, err := as.MarshalBinary()
+		if err != nil {
+			t.Fatalf("Failed to marshal allocation set into []byte: %s", err)
+			return
+		}
+		asrSets0 = append(asrSets0, bytes)
 	}
 
-	asr1 = &AllocationSetRange{}
-	err = asr1.UnmarshalBinary(bs)
-	if err != nil {
-		t.Fatalf("AllocationSetRange.Binary: unexpected error: %s", err)
-		return
+	asrSets1 := []*AllocationSet{}
+	for _, bytes := range asrSets0 {
+		allocSet := new(AllocationSet)
+		err = unmarshal(allocSet, bytes)
+		if err != nil {
+			t.Fatalf("AllocationSet.Binary: unexpected error: %s", err)
+			return
+		}
+		asrSets1 = append(asrSets1, allocSet)
 	}
+
+	asr1 = NewAllocationSetRange(asrSets1...)
 
 	if asr0.Length() != asr1.Length() {
 		t.Fatalf("AllocationSetRange.Binary: expected %d; found %d", asr0.Length(), asr1.Length())
@@ -143,7 +187,7 @@ func TestAllocationSetRange_BinaryEncoding(t *testing.T) {
 	}
 }
 
-func TestAny_BinaryEncoding(t *testing.T) {
+func RunAny_BinaryEncodingTest(t *testing.T, unmarshal UnmarshalFunc) {
 	start := time.Date(2020, time.September, 16, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
 	window := NewWindow(&start, &end)
@@ -167,7 +211,7 @@ func TestAny_BinaryEncoding(t *testing.T) {
 	}
 
 	a1 = &Any{}
-	err = a1.UnmarshalBinary(bs)
+	err = unmarshal(a1, bs)
 	if err != nil {
 		t.Fatalf("Any.Binary: unexpected error: %s", err)
 	}
@@ -192,15 +236,15 @@ func TestAny_BinaryEncoding(t *testing.T) {
 	}
 }
 
-func TestAsset_BinaryEncoding(t *testing.T) {
+func RunAsset_BinaryEncodingTest(t *testing.T, unmarshal UnmarshalFunc) {
 	// TODO niko
 }
 
-func TestAssetSet_BinaryEncoding(t *testing.T) {
+func RunAssetSet_BinaryEncodingTest(t *testing.T, unmarshal UnmarshalFunc) {
 	// TODO niko
 }
 
-func TestAssetSetRange_BinaryEncoding(t *testing.T) {
+func RunAssetSetRange_BinaryEncodingTest(t *testing.T, unmarshal UnmarshalFunc) {
 	endYesterday := time.Now().UTC().Truncate(day)
 	startYesterday := endYesterday.Add(-day)
 	startD2 := startYesterday
@@ -224,7 +268,7 @@ func TestAssetSetRange_BinaryEncoding(t *testing.T) {
 	}
 
 	asr1 = &AssetSetRange{}
-	err = asr1.UnmarshalBinary(bs)
+	err = unmarshal(asr1, bs)
 	if err != nil {
 		t.Fatalf("AssetSetRange.Binary: unexpected error: %s", err)
 		return
@@ -263,7 +307,7 @@ func TestAssetSetRange_BinaryEncoding(t *testing.T) {
 	}
 }
 
-func TestBreakdown_BinaryEncoding(t *testing.T) {
+func RunBreakdown_BinaryEncodingTest(t *testing.T, unmarshal UnmarshalFunc) {
 	var b0, b1 *Breakdown
 	var bs []byte
 	var err error
@@ -281,7 +325,7 @@ func TestBreakdown_BinaryEncoding(t *testing.T) {
 	}
 
 	b1 = &Breakdown{}
-	err = b1.UnmarshalBinary(bs)
+	err = unmarshal(b1, bs)
 	if err != nil {
 		t.Fatalf("Breakdown.Binary: unexpected error: %s", err)
 	}
@@ -300,7 +344,7 @@ func TestBreakdown_BinaryEncoding(t *testing.T) {
 	}
 }
 
-func TestCloudAny_BinaryEncoding(t *testing.T) {
+func RunCloudAny_BinaryEncodingTest(t *testing.T, unmarshal UnmarshalFunc) {
 	ws := time.Date(2020, time.September, 16, 0, 0, 0, 0, time.UTC)
 	we := ws.Add(24 * time.Hour)
 	window := NewWindow(&ws, &we)
@@ -319,7 +363,7 @@ func TestCloudAny_BinaryEncoding(t *testing.T) {
 	}
 
 	a1 = &Cloud{}
-	err = a1.UnmarshalBinary(bs)
+	err = unmarshal(a1, bs)
 	if err != nil {
 		t.Fatalf("CloudAny.Binary: unexpected error: %s", err)
 	}
@@ -329,7 +373,7 @@ func TestCloudAny_BinaryEncoding(t *testing.T) {
 	}
 }
 
-func TestClusterManagement_BinaryEncoding(t *testing.T) {
+func RunClusterManagement_BinaryEncodingTest(t *testing.T, unmarshal UnmarshalFunc) {
 	ws := time.Date(2020, time.September, 16, 0, 0, 0, 0, time.UTC)
 	we := ws.Add(24 * time.Hour)
 	window := NewWindow(&ws, &we)
@@ -358,7 +402,7 @@ func TestClusterManagement_BinaryEncoding(t *testing.T) {
 	}
 }
 
-func TestDisk_BinaryEncoding(t *testing.T) {
+func RunDisk_BinaryEncodingTest(t *testing.T, unmarshal UnmarshalFunc) {
 	ws := time.Date(2020, time.September, 16, 0, 0, 0, 0, time.UTC)
 	we := ws.Add(24 * time.Hour)
 	window := NewWindow(&ws, &we)
@@ -389,7 +433,7 @@ func TestDisk_BinaryEncoding(t *testing.T) {
 	}
 
 	a1 = &Disk{}
-	err = a1.UnmarshalBinary(bs)
+	err = unmarshal(a1, bs)
 	if err != nil {
 		t.Fatalf("Disk.Binary: unexpected error: %s", err)
 	}
@@ -399,7 +443,7 @@ func TestDisk_BinaryEncoding(t *testing.T) {
 	}
 }
 
-func TestNode_BinaryEncoding(t *testing.T) {
+func RunNode_BinaryEncodingTest(t *testing.T, unmarshal UnmarshalFunc) {
 	ws := time.Date(2020, time.September, 16, 0, 0, 0, 0, time.UTC)
 	we := ws.Add(24 * time.Hour)
 	window := NewWindow(&ws, &we)
@@ -441,7 +485,7 @@ func TestNode_BinaryEncoding(t *testing.T) {
 	}
 
 	a1 = &Node{}
-	err = a1.UnmarshalBinary(bs)
+	err = unmarshal(a1, bs)
 	if err != nil {
 		t.Fatalf("Node.Binary: unexpected error: %s", err)
 	}
@@ -451,7 +495,7 @@ func TestNode_BinaryEncoding(t *testing.T) {
 	}
 }
 
-func TestProperties_BinaryEncoding(t *testing.T) {
+func RunProperties_BinaryEncodingTest(t *testing.T, unmarshal UnmarshalFunc) {
 	var p0, p1 *AllocationProperties
 	var bs []byte
 	var err error
@@ -464,7 +508,7 @@ func TestProperties_BinaryEncoding(t *testing.T) {
 	}
 
 	p1 = &AllocationProperties{}
-	err = p1.UnmarshalBinary(bs)
+	err = unmarshal(p1, bs)
 	if err != nil {
 		t.Fatalf("AllocationProperties.Binary: unexpected error: %s", err)
 	}
@@ -501,7 +545,7 @@ func TestProperties_BinaryEncoding(t *testing.T) {
 	}
 
 	p1 = &AllocationProperties{}
-	err = p1.UnmarshalBinary(bs)
+	err = unmarshal(p1, bs)
 	if err != nil {
 		t.Fatalf("AllocationProperties.Binary: unexpected error: %s", err)
 	}
@@ -527,7 +571,7 @@ func TestProperties_BinaryEncoding(t *testing.T) {
 	}
 
 	p1 = &AllocationProperties{}
-	err = p1.UnmarshalBinary(bs)
+	err = unmarshal(p1, bs)
 	if err != nil {
 		t.Fatalf("AllocationProperties.Binary: unexpected error: %s", err)
 	}
@@ -537,7 +581,7 @@ func TestProperties_BinaryEncoding(t *testing.T) {
 	}
 }
 
-func TestShared_BinaryEncoding(t *testing.T) {
+func RunShared_BinaryEncodingTest(t *testing.T, unmarshal UnmarshalFunc) {
 	ws := time.Date(2020, time.September, 16, 0, 0, 0, 0, time.UTC)
 	we := ws.Add(24 * time.Hour)
 	window := NewWindow(&ws, &we)
@@ -556,7 +600,7 @@ func TestShared_BinaryEncoding(t *testing.T) {
 	}
 
 	a1 = &SharedAsset{}
-	err = a1.UnmarshalBinary(bs)
+	err = unmarshal(a1, bs)
 	if err != nil {
 		t.Fatalf("SharedAsset.Binary: unexpected error: %s", err)
 	}
@@ -566,7 +610,7 @@ func TestShared_BinaryEncoding(t *testing.T) {
 	}
 }
 
-func TestWindow_BinaryEncoding(t *testing.T) {
+func RunWindow_BinaryEncodingTest(t *testing.T, unmarshal UnmarshalFunc) {
 	var w0, w1 Window
 	var bs []byte
 	var err error
@@ -578,7 +622,7 @@ func TestWindow_BinaryEncoding(t *testing.T) {
 		t.Fatalf("Window.Binary: unexpected error: %s", err)
 	}
 
-	err = w1.UnmarshalBinary(bs)
+	err = unmarshal(&w1, bs)
 	if err != nil {
 		t.Fatalf("Window.Binary: unexpected error: %s", err)
 	}
@@ -598,7 +642,7 @@ func TestWindow_BinaryEncoding(t *testing.T) {
 		t.Fatalf("Window.Binary: unexpected error: %s", err)
 	}
 
-	err = w1.UnmarshalBinary(bs)
+	err = unmarshal(&w1, bs)
 	if err != nil {
 		t.Fatalf("Window.Binary: unexpected error: %s", err)
 	}
@@ -618,7 +662,7 @@ func TestWindow_BinaryEncoding(t *testing.T) {
 		t.Fatalf("Window.Binary: unexpected error: %s", err)
 	}
 
-	err = w1.UnmarshalBinary(bs)
+	err = unmarshal(&w1, bs)
 	if err != nil {
 		t.Fatalf("Window.Binary: unexpected error: %s", err)
 	}
@@ -638,7 +682,7 @@ func TestWindow_BinaryEncoding(t *testing.T) {
 		t.Fatalf("Window.Binary: unexpected error: %s", err)
 	}
 
-	err = w1.UnmarshalBinary(bs)
+	err = unmarshal(&w1, bs)
 	if err != nil {
 		t.Fatalf("Window.Binary: unexpected error: %s", err)
 	}
@@ -649,4 +693,138 @@ func TestWindow_BinaryEncoding(t *testing.T) {
 	if !w1.End().Equal(*w0.End()) {
 		t.Fatalf("Window.Binary: expected %v; found %v", w0.End(), w1.End())
 	}
+}
+
+type BingenUnmarshalable interface {
+	UnmarshalBinary([]byte) error
+	UnmarshalBinaryFromReader(io.Reader) error
+}
+
+func UnmarshalBingenBytes(value BingenUnmarshalable, b []byte) error {
+	return value.UnmarshalBinary(b)
+}
+
+func UnmarshalBingenReader(value BingenUnmarshalable, b []byte) error {
+	// convert bytes to reader in order to leverage io.Reader string table
+	reader := bytes.NewReader(b)
+	return value.UnmarshalBinaryFromReader(reader)
+}
+
+func RunAllOpencostBingenCodecTests(t *testing.T, unmarshal UnmarshalFunc) {
+	tests := []struct {
+		name string
+		f    func(*testing.T, UnmarshalFunc)
+	}{
+		{
+			name: "RunAllocation_BinaryEncodingTest",
+			f:    RunAllocation_BinaryEncodingTest,
+		},
+		{
+			name: "RunAllocationSet_BinaryEncodingTest",
+			f:    RunAllocationSet_BinaryEncodingTest,
+		},
+		{
+			name: "RunAllocationSetRange_BinaryEncodingTest",
+			f:    RunAllocationSetRange_BinaryEncodingTest,
+		},
+		{
+			name: "RunAny_BinaryEncodingTest",
+			f:    RunAny_BinaryEncodingTest,
+		},
+		{
+			name: "RunAsset_BinaryEncodingTest",
+			f:    RunAsset_BinaryEncodingTest,
+		},
+		{
+			name: "RunAssetSet_BinaryEncodingTest",
+			f:    RunAssetSet_BinaryEncodingTest,
+		},
+		{
+			name: "RunAssetSetRange_BinaryEncodingTest",
+			f:    RunAssetSetRange_BinaryEncodingTest,
+		},
+		{
+			name: "RunBreakdown_BinaryEncodingTest",
+			f:    RunBreakdown_BinaryEncodingTest,
+		},
+		{
+			name: "RunCloudAny_BinaryEncodingTest",
+			f:    RunCloudAny_BinaryEncodingTest,
+		},
+		{
+			name: "RunClusterManagement_BinaryEncodingTest",
+			f:    RunClusterManagement_BinaryEncodingTest,
+		},
+		{
+			name: "RunDisk_BinaryEncodingTest",
+			f:    RunDisk_BinaryEncodingTest,
+		},
+		{
+			name: "RunNode_BinaryEncodingTest",
+			f:    RunNode_BinaryEncodingTest,
+		},
+		{
+			name: "RunProperties_BinaryEncodingTest",
+			f:    RunProperties_BinaryEncodingTest,
+		},
+		{
+			name: "RunShared_BinaryEncodingTest",
+			f:    RunShared_BinaryEncodingTest,
+		},
+		{
+			name: "RunWindow_BinaryEncodingTest",
+			f:    RunWindow_BinaryEncodingTest,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			test.f(tt, unmarshal)
+		})
+	}
+}
+
+func TestOpencostBingenDefaultsWithBytes(t *testing.T) {
+	config := DefaultBingenConfiguration()
+	ConfigureBingen(config)
+
+	RunAllOpencostBingenCodecTests(t, UnmarshalBingenBytes)
+}
+
+func TestOpencostBingenFileStringTableEnabledWithBytes(t *testing.T) {
+	// This test _should_ still run the slice based string table because raw []byte
+	// data always uses the string slice table
+	config := DefaultBingenConfiguration()
+	config.FileBackedStringTableEnabled = true
+	config.FileBackedStringTableDir = t.TempDir()
+	ConfigureBingen(config)
+
+	// reset configuration to default on completion
+	defer ConfigureBingen(DefaultBingenConfiguration())
+
+	RunAllOpencostBingenCodecTests(t, UnmarshalBingenBytes)
+}
+
+func TestOpencostBingenDefaultsWithReader(t *testing.T) {
+	// This test _should_ still run the slice based string table because we haven't configured
+	// bingen to use the file string table
+	config := DefaultBingenConfiguration()
+	ConfigureBingen(config)
+
+	// we use the reader to unmarshal instead of []bytes
+	RunAllOpencostBingenCodecTests(t, UnmarshalBingenReader)
+}
+
+func TestOpencostBingenFileStringTableEnabledWithReader(t *testing.T) {
+	// This test _should_ use the file backed string table because we have enabled it AND
+	// we're using a reader
+	config := DefaultBingenConfiguration()
+	config.FileBackedStringTableEnabled = true
+	config.FileBackedStringTableDir = t.TempDir()
+	ConfigureBingen(config)
+
+	// reset configuration to default on completion
+	defer ConfigureBingen(DefaultBingenConfiguration())
+
+	RunAllOpencostBingenCodecTests(t, UnmarshalBingenReader)
 }

@@ -380,3 +380,13 @@ func TestMemoryStorage_Stat(t *testing.T) {
 		})
 	}
 }
+
+func TestMemoryStorage_ReadToLocalFile(t *testing.T) {
+	store := NewMemoryStorage()
+	TestStorageReadToLocalFile(t, store)
+}
+
+func TestMemoryStorage_ReadStream(t *testing.T) {
+	store := NewMemoryStorage()
+	TestStorageReadStream(t, store)
+}
