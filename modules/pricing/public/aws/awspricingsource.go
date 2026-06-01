@@ -40,7 +40,6 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 	log.Infof("PricingSource (AWS): starting EC2 pricing list download (large file, this may take a while)")
 	start := time.Now()
 
-	// now := time.Now().UTC()
 	ps := &pricing.PricingSet{
 		Nodes:   []*pricing.NodePricing{},
 		Volumes: []*pricing.VolumePricing{},

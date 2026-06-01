@@ -68,7 +68,7 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 			body, _ := io.ReadAll(resp.Body)
 			closeErr := resp.Body.Close()
 			if closeErr != nil {
-				log.Warnf("failed to close response body: %v", err)
+				log.Warnf("failed to close response body: %v", closeErr)
 			}
 			return nil, fmt.Errorf("PricingSource (Azure): unexpected status %d on page %d: %s", resp.StatusCode, pageCount, string(body))
 		}
@@ -76,7 +76,7 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 		next, err := a.parsePage(resp.Body, ps)
 		closeErr := resp.Body.Close()
 		if closeErr != nil {
-			log.Warnf("failed to close response body: %v", err)
+			log.Warnf("failed to close response body: %v", closeErr)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("PricingSource (Azure): parsing page %d: %w", pageCount, err)
