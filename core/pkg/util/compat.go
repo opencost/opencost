@@ -1,13 +1,10 @@
 package util
 
 import (
-	"net"
-
 	v1 "k8s.io/api/core/v1"
 )
 
 // See https://kubernetes.io/docs/reference/labels-annotations-taints/
-
 func GetZone(labels map[string]string) (string, bool) {
 	if _, ok := labels[v1.LabelTopologyZone]; ok { // Label as of 1.17
 		return labels[v1.LabelTopologyZone], true
@@ -56,9 +53,4 @@ func GetArchType(labels map[string]string) (string, bool) {
 	} else {
 		return "", false
 	}
-}
-
-func PrivateIPCheck(ip string) bool {
-	ipAddress := net.ParseIP(ip)
-	return ipAddress.IsPrivate()
 }

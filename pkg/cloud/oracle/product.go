@@ -64,6 +64,47 @@ type instanceProduct map[string]Product
 // instanceProducts maps instance types to associated part numbers.
 var instanceProducts instanceProduct
 
+// normalizeOCIInstanceShape parses synthetic flex shape labels in the form
+// <base-shape>.<ocpus>o.<memory>g.<baseline>b. Supported baselines are 1_1,
+// 1_2, and 1_8, which map to the burstable CPU price multipliers below.
+func normalizeOCIInstanceShape(shape string) (string, float64, bool) {
+	const defaultCPUPriceMultiplier = 1.0
+
+	parts := strings.Split(shape, ".")
+	if len(parts) < 4 {
+		return "", defaultCPUPriceMultiplier, false
+	}
+
+	ocpuPart := parts[len(parts)-3]
+	memoryPart := parts[len(parts)-2]
+	baselinePart := parts[len(parts)-1]
+
+	if !strings.HasSuffix(ocpuPart, "o") || !strings.HasSuffix(memoryPart, "g") || !strings.HasSuffix(baselinePart, "b") {
+		return "", defaultCPUPriceMultiplier, false
+	}
+	if _, err := strconv.ParseFloat(strings.TrimSuffix(ocpuPart, "o"), 64); err != nil {
+		return "", defaultCPUPriceMultiplier, false
+	}
+	if _, err := strconv.ParseFloat(strings.TrimSuffix(memoryPart, "g"), 64); err != nil {
+		return "", defaultCPUPriceMultiplier, false
+	}
+
+	var cpuPriceMultiplier float64
+	switch strings.TrimSuffix(baselinePart, "b") {
+	case "1_1":
+		cpuPriceMultiplier = 1.0
+	case "1_2":
+		cpuPriceMultiplier = 0.5
+	case "1_8":
+		cpuPriceMultiplier = 0.125
+	default:
+		return "", defaultCPUPriceMultiplier, false
+	}
+
+	baseShape := strings.Join(parts[:len(parts)-3], ".")
+	return baseShape, cpuPriceMultiplier, true
+}
+
 func (i instanceProduct) get(shape string) Product {
 	if product, ok := i[shape]; ok {
 		return product

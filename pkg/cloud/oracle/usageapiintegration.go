@@ -108,14 +108,9 @@ func (uai *UsageApiIntegration) GetCloudCost(start time.Time, end time.Time) (*o
 			listRate = float64(*item.ListRate)
 		}
 
-		attrCostToParse := ""
-		if item.AttributedCost != nil {
-			attrCostToParse = *item.AttributedCost
-		}
-
-		attrCost, err := strconv.ParseFloat(attrCostToParse, 64)
+		attrCost, err := parseAttributedCost(item.AttributedCost)
 		if err != nil {
-			return nil, fmt.Errorf("unable to parse float '%s': %s", attrCostToParse, err.Error())
+			return nil, err
 		}
 
 		computedAmt := 0.0
@@ -162,6 +157,17 @@ func (uai *UsageApiIntegration) GetStatus() cloud.ConnectionStatus {
 func (uai *UsageApiIntegration) RefreshStatus() cloud.ConnectionStatus {
 	log.Warn("status refresh is not supported for the Oracle provider")
 	return uai.ConnectionStatus
+}
+
+func parseAttributedCost(s *string) (float64, error) {
+	if s == nil || *s == "" {
+		return 0, nil
+	}
+	f, err := strconv.ParseFloat(*s, 64)
+	if err != nil {
+		return 0, fmt.Errorf("unable to parse float '%s': %s", *s, err.Error())
+	}
+	return f, nil
 }
 
 func SelectOCICategory(service string) string {

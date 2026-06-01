@@ -13,23 +13,23 @@ import (
 // container unique identifiers
 // @bingen:generate:DCGMDevice
 type DCGMDevice struct {
-	UUID      string
-	Start     time.Time
-	End       time.Time
-	Device    string
-	ModelName string
-	PodUsage  map[string]DCGMPod
+	UUID      string             `json:"uuid"`
+	Start     time.Time          `json:"start"`
+	End       time.Time          `json:"end"`
+	Device    string             `json:"device"`
+	ModelName string             `json:"modelName"`
+	PodUsages map[string]DCGMPod `json:"podUsages"`
 }
 
 // @bingen:generate:DCGMPod
 type DCGMPod struct {
-	ContainerUsage map[string]DCGMContainer
+	ContainerUsages map[string]DCGMContainer `json:"container-usages"`
 }
 
 // @bingen:generate:DCGMContainer
 type DCGMContainer struct {
-	UsageAvg float64
-	UsageMax float64
+	UsageAvg float64 `json:"usageAvg"`
+	UsageMax float64 `json:"usageMax"`
 }
 
 func (d *DCGMDevice) ValidateDCGMDevice(window Window) error {

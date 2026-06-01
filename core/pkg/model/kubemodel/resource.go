@@ -4,12 +4,12 @@ package kubemodel
 type Resource string
 
 const (
-	ResourceCPU    Resource = "cpu"
-	ResourceMemory Resource = "memory"
-	ResourceNvidia Resource = "nvidia.com/gpu"
+	ResourceCPU          Resource = "cpu"
+	ResourceMemory       Resource = "memory"
+	ResourceNvidia       Resource = "nvidia.com/gpu"
+	ResourceNvidiaShared Resource = "nvidia.com/gpu.shared"
+	ResourceAWSVGPU      Resource = "k8s.amazonaws.com/vgpu"
 )
-
-var GPUResources = []Resource{ResourceNvidia}
 
 // @bingen:generate:ResourceQuantity
 type ResourceQuantity struct {

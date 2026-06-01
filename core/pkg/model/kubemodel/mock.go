@@ -64,12 +64,10 @@ func NewMockKubeModelSet(start, end time.Time) *KubeModelSet {
 
 	// --- Node ---
 	kms.RegisterNode(&Node{
-		UID:          "node-uid",
-		ProviderID:   "aws:///us-east-1a/i-0abc123def456",
-		Name:         "node-1",
-		Labels:       map[string]string{"node.kubernetes.io/instance-type": "m5.large"},
-		InstanceType: "m5.large",
-		Preemptible:  false,
+		UID:        "node-uid",
+		ProviderID: "aws:///us-east-1a/i-0abc123def456",
+		Name:       "node-1",
+		Labels:     map[string]string{"node.kubernetes.io/instance-type": "m5.large"},
 		ResourceCapacities: ResourceQuantities{
 			ResourceCPU:    {Resource: ResourceCPU, Unit: UnitMillicore, Values: Stats{StatAvg: 2000, StatMax: 2000}},
 			ResourceMemory: {Resource: ResourceMemory, Unit: UnitByte, Values: Stats{StatAvg: 8e9, StatMax: 8e9}},
@@ -94,7 +92,7 @@ func NewMockKubeModelSet(start, end time.Time) *KubeModelSet {
 		NodeUID:      "node-uid",
 		Name:         "my-pod-abc12",
 		Owners:       []Owner{{UID: "dep-uid", Kind: OwnerKindDeployment, Controller: true}},
-		PVCVolumes:   []PodPVCVolumes{{Name: "data", PersistentVolumeClaimUID: "pvc-uid"}},
+		PVCVolumes:   []PodPVCVolume{{Name: "data", PersistentVolumeClaimUID: "pvc-uid"}},
 		Labels:       map[string]string{"app": "my-app", "version": "v1"},
 		Annotations:  map[string]string{"prometheus.io/scrape": "true"},
 		NetworkTrafficDetails: []NetworkTrafficDetail{
@@ -243,9 +241,9 @@ func NewMockKubeModelSet(start, end time.Time) *KubeModelSet {
 		UUID:      "GPU-abc123def-456-789",
 		Device:    "0",
 		ModelName: "Tesla T4",
-		PodUsage: map[string]DCGMPod{
+		PodUsages: map[string]DCGMPod{
 			"pod-uid": {
-				ContainerUsage: map[string]DCGMContainer{
+				ContainerUsages: map[string]DCGMContainer{
 					"app": {UsageAvg: 0.65, UsageMax: 0.92},
 				},
 			},
