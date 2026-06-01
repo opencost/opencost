@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// @bingen:generate:PodPVCVolumes
+// @bingen:generate:PodPVCVolume
 type PodPVCVolume struct {
 	Name                     string `json:"name"`
 	PersistentVolumeClaimUID string `json:"persistentVolumeClaimUid"`

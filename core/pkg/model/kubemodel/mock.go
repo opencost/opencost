@@ -241,9 +241,9 @@ func NewMockKubeModelSet(start, end time.Time) *KubeModelSet {
 		UUID:      "GPU-abc123def-456-789",
 		Device:    "0",
 		ModelName: "Tesla T4",
-		PodUsage: map[string]DCGMPod{
+		PodUsages: map[string]DCGMPod{
 			"pod-uid": {
-				ContainerUsage: map[string]DCGMContainer{
+				ContainerUsages: map[string]DCGMContainer{
 					"app": {UsageAvg: 0.65, UsageMax: 0.92},
 				},
 			},
