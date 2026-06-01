@@ -40,7 +40,7 @@ func ParseOwnerKind(kind string) OwnerKind {
 
 // @bingen:generate:Owner
 type Owner struct {
-	UID        string
-	Controller bool
-	Kind       OwnerKind
+	UID        string    `json:"uid"`
+	Controller bool      `json:"controller"`
+	Kind       OwnerKind `json:"kind"`
 }

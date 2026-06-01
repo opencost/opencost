@@ -92,7 +92,7 @@ func NewMockKubeModelSet(start, end time.Time) *KubeModelSet {
 		NodeUID:      "node-uid",
 		Name:         "my-pod-abc12",
 		Owners:       []Owner{{UID: "dep-uid", Kind: OwnerKindDeployment, Controller: true}},
-		PVCVolumes:   []PodPVCVolumes{{Name: "data", PersistentVolumeClaimUID: "pvc-uid"}},
+		PVCVolumes:   []PodPVCVolume{{Name: "data", PersistentVolumeClaimUID: "pvc-uid"}},
 		Labels:       map[string]string{"app": "my-app", "version": "v1"},
 		Annotations:  map[string]string{"prometheus.io/scrape": "true"},
 		NetworkTrafficDetails: []NetworkTrafficDetail{

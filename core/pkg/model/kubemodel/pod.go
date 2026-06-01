@@ -6,9 +6,9 @@ import (
 )
 
 // @bingen:generate:PodPVCVolumes
-type PodPVCVolumes struct {
+type PodPVCVolume struct {
 	Name                     string `json:"name"`
-	PersistentVolumeClaimUID string `json:"persistentVolumeClaimUID"`
+	PersistentVolumeClaimUID string `json:"persistentVolumeClaimUid"`
 }
 
 // @bingen:generate:Pod
@@ -18,7 +18,7 @@ type Pod struct {
 	NodeUID               string                 `json:"nodeUid"`
 	Name                  string                 `json:"name"`
 	Owners                []Owner                `json:"owners"`
-	PVCVolumes            []PodPVCVolumes        `json:"pvcVolumes,omitempty"`
+	PVCVolumes            []PodPVCVolume         `json:"pvcVolumes,omitempty"`
 	Labels                map[string]string      `json:"labels,omitempty"`
 	Annotations           map[string]string      `json:"annotations,omitempty"`
 	NetworkTrafficDetails []NetworkTrafficDetail `json:"networkTrafficDetails,omitempty"`
