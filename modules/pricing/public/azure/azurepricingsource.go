@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/core/pkg/model/pricingmodel"
 	"github.com/opencost/opencost/core/pkg/model/shared"
 	"github.com/opencost/opencost/core/pkg/pricing"
 	"github.com/opencost/opencost/core/pkg/unit"
@@ -21,8 +20,6 @@ const (
 	azureVMFilter       = "serviceName eq 'Virtual Machines' and priceType eq 'Consumption'"
 )
 
-const AzurePricingSourceType pricingmodel.PricingSourceType = "azure_retail_pricing_api"
-
 // AzurePricingSourceConfig holds configuration for AzurePricingSource.
 type AzurePricingSourceConfig struct {
 	CurrencyCode string
@@ -30,8 +27,8 @@ type AzurePricingSourceConfig struct {
 
 var azureHTTPClient = &http.Client{Timeout: 60 * time.Second}
 
-// AzurePricingSource implements pricingmodel.PricingSource using the
-// Azure Retail Prices API (no authentication required).
+// AzurePricingSource implements the PricingSource interface using the
+// Azure Retail Prices API (no auth required).
 type AzurePricingSource struct {
 	config AzurePricingSourceConfig
 }
@@ -40,16 +37,10 @@ func NewAzurePricingSource(cfg AzurePricingSourceConfig) *AzurePricingSource {
 	return &AzurePricingSource{config: cfg}
 }
 
-func (a *AzurePricingSource) PricingSourceType() pricingmodel.PricingSourceType {
-	return AzurePricingSourceType
-}
-
-// PricingSourceKey returns the PricingSourceType because it is meant to run single instance.
-func (a *AzurePricingSource) PricingSourceKey() string {
-	return string(AzurePricingSourceType)
-}
-
 func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
+	log.Infof("PricingSource (Azure): starting pricing download")
+	start := time.Now()
+
 	ps := &pricing.PricingSet{
 		Nodes:   []*pricing.NodePricing{},
 		Volumes: []*pricing.VolumePricing{},
@@ -87,7 +78,9 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 		log.Debugf("PricingSource (Azure): fetched page %d, next: %s", pageCount, url)
 	}
 
-	log.Infof("PricingSource (Azure): loaded %d pricing entries across %d pages", len(ps.Nodes), pageCount)
+	log.Infof("PricingSource (Azure): completed in %s — %d pricing entries across %d pages",
+		time.Since(start).Round(time.Second), len(ps.Nodes), pageCount)
+
 	return ps, nil
 }
 

@@ -13,8 +13,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/unit"
 )
 
-const AWSPricingSourceType pricingmodel.PricingSourceType = "aws_pricing_list_api"
-
 type AWSPricingSourceConfig struct {
 	CurrencyCode string
 }
@@ -25,15 +23,6 @@ type AWSPricingSource struct {
 
 func NewAWSPricingSource(cfg AWSPricingSourceConfig) *AWSPricingSource {
 	return &AWSPricingSource{config: cfg}
-}
-
-func (p *AWSPricingSource) PricingSourceType() pricingmodel.PricingSourceType {
-	return AWSPricingSourceType
-}
-
-// PricingSourceKey returns the PricingSourceType because it is meant to run single instance.
-func (p *AWSPricingSource) PricingSourceKey() string {
-	return string(AWSPricingSourceType)
 }
 
 func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
