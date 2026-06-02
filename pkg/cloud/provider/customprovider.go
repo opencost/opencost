@@ -181,8 +181,12 @@ func (cp *CustomProvider) NodePricing(key models.Key) (*models.Node, models.Pric
 		k = "default"
 	}
 	if key.GPUType() != "" {
-		k += ",gpu"    // TODO: support multiple custom gpu types.
-		gpuCount = "1" // TODO: support more than one gpu.
+		k += ",gpu" // TODO: support multiple custom gpu types.
+		if key.GPUCount() > 0 {
+			gpuCount = strconv.Itoa(key.GPUCount())
+		} else {
+			gpuCount = "1"
+		}
 	}
 
 	var cpuCost, ramCost, gpuCost string
@@ -400,13 +404,7 @@ func (cpk *customProviderKey) GPUType() string {
 			return t
 		}
 	}
-	if cpk.GPUTypeName != "" {
-		return cpk.GPUTypeName
-	}
-	if t, ok := cpk.Labels[cpk.GPULabel]; ok {
-		return t
-	}
-	return ""
+	return cpk.GPUTypeName
 }
 
 func (cpk *customProviderKey) ID() string {
