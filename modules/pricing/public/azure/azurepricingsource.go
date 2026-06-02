@@ -95,13 +95,19 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
+			closeErr := resp.Body.Close()
+			if closeErr != nil {
+				log.Warnf("failed to close response body: %v", closeErr)
+			}
 			log.Warnf("PricingSource (Azure): unexpected status %d on disk page %d: %s", resp.StatusCode, diskPageCount, string(body))
 			break
 		}
 
 		next, err := a.parseDiskPage(resp.Body, ps)
-		resp.Body.Close()
+		closeErr := resp.Body.Close()
+		if closeErr != nil {
+			log.Warnf("failed to close response body: %v", closeErr)
+		}
 		if err != nil {
 			log.Warnf("PricingSource (Azure): error parsing disk page %d: %v", diskPageCount, err)
 			break

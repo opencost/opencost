@@ -6,18 +6,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/pricing"
 )
 
-// nodeKey is used internally to track node metadata during parsing
-type nodeKey struct {
-	Region       string
-	InstanceType string
-}
-
-// volumeKey is used internally to track volume metadata during parsing
-type volumeKey struct {
-	Region     string
-	VolumeType pricing.VolumeType
-}
-
 // mapAzureDiskType maps Azure disk SKU names to VolumeType constants
 func mapAzureDiskType(skuName string) pricing.VolumeType {
 	skuLower := strings.ToLower(skuName)

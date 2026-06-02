@@ -4,12 +4,16 @@ replace github.com/opencost/opencost/core => ../../../core
 
 require github.com/opencost/opencost/core v0.0.0 // return to v1.120.2-0.20260514205745-aa41c03dc67a
 
-require github.com/opencost/opencost v1.120.3
+require (
+	github.com/opencost/opencost v1.120.3
+	github.com/spf13/cobra v1.10.2
+)
 
 require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

@@ -10,33 +10,6 @@ import (
 	"github.com/opencost/opencost/modules/pricing/public/azure"
 )
 
-// GenerateAllPricing fetches pricing data from all configured providers
-// in the specified currency and returns a consolidated PricingSet
-func GenerateAllPricing(currency unit.Currency) (*pricing.PricingSet, error) {
-	result := &pricing.PricingSet{
-		Nodes:   []*pricing.NodePricing{},
-		Volumes: []*pricing.VolumePricing{},
-	}
-
-	// Generate AWS pricing
-	awsPricing, err := GenerateAWSPricing(currency)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate AWS pricing: %w", err)
-	}
-	result.Nodes = append(result.Nodes, awsPricing.Nodes...)
-	result.Volumes = append(result.Volumes, awsPricing.Volumes...)
-
-	// Generate Azure pricing
-	azurePricing, err := GenerateAzurePricing(currency)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate Azure pricing: %w", err)
-	}
-	result.Nodes = append(result.Nodes, azurePricing.Nodes...)
-	result.Volumes = append(result.Volumes, azurePricing.Volumes...)
-
-	return result, nil
-}
-
 // GenerateAWSPricing fetches AWS pricing data in the specified currency
 func GenerateAWSPricing(currency unit.Currency) (*pricing.PricingSet, error) {
 	log.Infof("Generating AWS pricing for currency: %s", currency)
@@ -74,6 +47,7 @@ func GenerateAzurePricing(currency unit.Currency) (*pricing.PricingSet, error) {
 // GeneratePricingForProvider fetches pricing data for a specific provider
 // in the specified currency
 func GeneratePricingForProvider(provider pricing.Provider, currency unit.Currency) (*pricing.PricingSet, error) {
+	// NOTE: Could add an "all" flag/provider. Maybe it outputs a single frankensteined file for all providers
 	switch provider {
 	case pricing.AWSProvider:
 		return GenerateAWSPricing(currency)
