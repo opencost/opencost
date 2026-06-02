@@ -8,13 +8,13 @@ import (
 	"github.com/opencost/opencost/core/pkg/unit"
 )
 
-func TestBuildInitialURL(t *testing.T) {
+func TestBuildVMURL(t *testing.T) {
 	t.Run("includes encoded filter and currency", func(t *testing.T) {
 		source := NewAzurePricingSource(AzurePricingSourceConfig{
 			CurrencyCode: "EUR",
 		})
 
-		got := source.buildInitialURL()
+		got := source.buildVMURL()
 
 		if !strings.HasPrefix(got, azurePricingBaseURL+"?$filter=") {
 			t.Fatalf("expected base URL prefix, got %q", got)
@@ -30,7 +30,7 @@ func TestBuildInitialURL(t *testing.T) {
 	t.Run("omits currency when not configured", func(t *testing.T) {
 		source := NewAzurePricingSource(AzurePricingSourceConfig{})
 
-		got := source.buildInitialURL()
+		got := source.buildVMURL()
 
 		if strings.Contains(got, "currencyCode=") {
 			t.Fatalf("did not expect currency code in URL, got %q", got)
@@ -126,7 +126,7 @@ func TestIncludeItem(t *testing.T) {
 	}
 }
 
-func TestParsePage(t *testing.T) {
+func TestParseVMPage(t *testing.T) {
 	t.Run("adds included items and returns next page link", func(t *testing.T) {
 		source := NewAzurePricingSource(AzurePricingSourceConfig{
 			CurrencyCode: "EUR",
@@ -153,7 +153,7 @@ func TestParsePage(t *testing.T) {
 			"NextPageLink": "https://prices.azure.com/next"
 		}`
 
-		next, err := source.parsePage(strings.NewReader(body), ps)
+		next, err := source.parseVMPage(strings.NewReader(body), ps)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -206,7 +206,7 @@ func TestParsePage(t *testing.T) {
 			]
 		}`
 
-		_, err := source.parsePage(strings.NewReader(body), ps)
+		_, err := source.parseVMPage(strings.NewReader(body), ps)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -228,7 +228,7 @@ func TestParsePage(t *testing.T) {
 		source := NewAzurePricingSource(AzurePricingSourceConfig{})
 		ps := &pricing.PricingSet{}
 
-		_, err := source.parsePage(strings.NewReader(`{invalid json`), ps)
+		_, err := source.parseVMPage(strings.NewReader(`{invalid json`), ps)
 		if err == nil {
 			t.Fatal("expected error for invalid JSON")
 		}
