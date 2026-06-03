@@ -1,7 +1,11 @@
 package pricing
 
 import (
+	"maps"
+	"slices"
 	"time"
+
+	"github.com/opencost/opencost/core/pkg/unit"
 )
 
 type NodePricingProperties struct {
@@ -20,4 +24,14 @@ type NodePricingProperties struct {
 type NodePricing struct {
 	Properties NodePricingProperties `json:"properties" yaml:"properties"`
 	Prices     Prices                `json:"prices" yaml:"pricing"`
+}
+
+func (np *NodePricing) GetCurrencies() []unit.Currency {
+	currencies := map[unit.Currency]struct{}{}
+
+	for currency := range np.Prices {
+		currencies[currency] = struct{}{}
+	}
+
+	return slices.Collect(maps.Keys(currencies))
 }
