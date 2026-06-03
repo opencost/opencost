@@ -62,8 +62,32 @@ func (repo *MockPricingRepository) NewNodePricingReader(ctx context.Context) (re
 	return reader.NewSliceReader(repo.NodePricing), nil
 }
 
+func (repo *MockPricingRepository) GetNodePricing(provider Provider, instanceType string, region string) (*NodePricing, error) {
+	// Search through the mock data for a matching node pricing entry
+	for _, np := range repo.NodePricing {
+		if np.Properties.Provider == provider &&
+			np.Properties.InstanceType == instanceType &&
+			np.Properties.Region == region {
+			return np, nil
+		}
+	}
+	return nil, fmt.Errorf("node pricing not found for provider=%s, instanceType=%s, region=%s", provider, instanceType, region)
+}
+
 func (repo *MockPricingRepository) NewVolumePricingReader(ctx context.Context) (reader.Reader[*VolumePricing], error) {
 	return reader.NewSliceReader(repo.VolumePricing), nil
+}
+
+func (repo *MockPricingRepository) GetVolumePricing(props VolumePricingProperties) (*VolumePricing, error) {
+	// Search through the mock data for a matching volume pricing entry
+	for _, vp := range repo.VolumePricing {
+		if vp.Properties.Provider == props.Provider &&
+			vp.Properties.Region == props.Region &&
+			vp.Properties.VolumeType == props.VolumeType {
+			return vp, nil
+		}
+	}
+	return nil, fmt.Errorf("volume pricing not found for provider=%s, region=%s, volumeType=%s", props.Provider, props.Region, props.VolumeType)
 }
 
 //go:embed test/*

@@ -37,9 +37,9 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.Flags().StringVarP(&provider, "provider", "p", "aws", "Cloud provider (aws, azure, gcp). Default: aws")
-	rootCmd.Flags().StringVarP(&currency, "currency", "C", "USD", "Currency code (e.g. USD, EUR, CNY). Default: USD")
+	rootCmd.Flags().StringVarP(&currency, "currency", "c", "USD", "Currency code (e.g. USD, EUR, CNY). Default: USD")
 	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (optional). Default: stdout")
-	rootCmd.Flags().StringVarP(&compareFile, "compare", "c", "", "Compare generated data with this file. Exit 0 if identical, 2 if different")
+	rootCmd.Flags().StringVarP(&compareFile, "compare", "x", "", "Compare generated data with this file. Exit 0 if identical, 2 if different")
 }
 
 func run(cmd *cobra.Command, args []string) error {
