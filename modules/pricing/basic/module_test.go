@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/opencost/opencost/core/pkg/pricing"
+	"github.com/opencost/opencost/core/pkg/reader"
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/unit"
 	"github.com/stretchr/testify/require"
@@ -46,6 +48,14 @@ func testPricingModuleWithStore(store PricingStore) func(t *testing.T) {
 
 		t.Run("SetPricePerGPUHour", func(t *testing.T) {
 			testSetPricePerGPUHour(t, ctx, pm)
+		})
+
+		t.Run("NewNodePricingReader", func(t *testing.T) {
+			testNewNodePricingReader(t, ctx, pm)
+		})
+
+		t.Run("NewVolumePricingReader", func(t *testing.T) {
+			testNewVolumePricingReader(t, ctx, pm)
 		})
 
 		t.Run("ModulePersistence", func(t *testing.T) {
@@ -367,6 +377,96 @@ func testSetPricePerGPUHour(t *testing.T, ctx context.Context, pm *PricingModule
 
 	if !found {
 		t.Error("Expected to find GPU pricing")
+	}
+}
+
+// testNewNodePricingReader tests the NewNodePricingReader function
+func testNewNodePricingReader(t *testing.T, ctx context.Context, pm *PricingModule) {
+	// Test that NewNodePricingReader always produces a reader
+	rdr, err := pm.NewNodePricingReader(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create node pricing reader: %v", err)
+	}
+
+	if rdr == nil {
+		t.Fatal("Expected reader to be non-nil")
+	}
+
+	// Test that the reader produces precisely one *NodePricing struct
+	dst := make([]*pricing.NodePricing, 10) // Buffer larger than expected
+	count := 0
+
+	for {
+		n, err := rdr.Read(ctx, dst)
+		count += n
+
+		// Verify all read items are non-nil
+		for i := 0; i < n; i++ {
+			if dst[i] == nil {
+				t.Error("Expected non-nil NodePricing")
+			}
+		}
+
+		if err == reader.Done {
+			break
+		}
+		if err != nil {
+			t.Fatalf("Reader error: %v", err)
+		}
+	}
+
+	if count != 1 {
+		t.Errorf("Expected reader to produce exactly 1 NodePricing, got %d", count)
+	}
+
+	// Clean up
+	if err := rdr.Close(); err != nil {
+		t.Errorf("Failed to close reader: %v", err)
+	}
+}
+
+// testNewVolumePricingReader tests the NewVolumePricingReader function
+func testNewVolumePricingReader(t *testing.T, ctx context.Context, pm *PricingModule) {
+	// Test that NewVolumePricingReader always produces a reader
+	rdr, err := pm.NewVolumePricingReader(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create volume pricing reader: %v", err)
+	}
+
+	if rdr == nil {
+		t.Fatal("Expected reader to be non-nil")
+	}
+
+	// Test that the reader produces precisely one *VolumePricing struct
+	dst := make([]*pricing.VolumePricing, 10) // Buffer larger than expected
+	count := 0
+
+	for {
+		n, err := rdr.Read(ctx, dst)
+		count += n
+
+		// Verify all read items are non-nil
+		for i := 0; i < n; i++ {
+			if dst[i] == nil {
+				t.Error("Expected non-nil VolumePricing")
+			}
+		}
+
+		if err == reader.Done {
+			break
+		}
+		if err != nil {
+			t.Fatalf("Reader error: %v", err)
+		}
+	}
+
+	if count != 1 {
+		t.Errorf("Expected reader to produce exactly 1 VolumePricing, got %d", count)
+	}
+
+	// Clean up
+	if err := rdr.Close(); err != nil {
+		t.Errorf("Failed to close reader: %v", err)
 	}
 }
 
